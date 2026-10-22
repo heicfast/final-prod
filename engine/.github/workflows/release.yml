@@ -1,0 +1,48 @@
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: windows-2022
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build (Release, vcpkg manifest)
+        shell: pwsh
+        run: |
+          $env:VCPKG_ROOT = $env:VCPKG_INSTALLATION_ROOT
+          cmake --preset win-x64-release
+          if ($LASTEXITCODE) { exit 1 }
+          cmake --build --preset win-x64-release
+          if ($LASTEXITCODE) { exit 1 }
+          ctest --preset win-x64-release -C Release
+          if ($LASTEXITCODE) { exit 1 }
+
+      - name: Stage artifacts
+        shell: pwsh
+        run: |
+          $out = "stage"
+          New-Item -ItemType Directory -Force $out | Out-Null
+          Copy-Item build/win-x64-release/src/app/Release/rrecov.exe $out/
+          Copy-Item -Recurse docs $out/docs
+          Copy-Item README.md LICENSE $out/
+          # symbols next to the binary for crash triage
+          if (Test-Path build/win-x64-release/src/app/Release/rrecov.pdb) {
+            Copy-Item build/win-x64-release/src/app/Release/rrecov.pdb $out/
+          }
+          $sums = Get-ChildItem $out -Recurse -File |
+            Get-FileHash -Algorithm SHA256 |
+            ForEach-Object { "{0}  {1}" -f $_.Hash, $_.Path.Substring($out.Length + 1) }
+          $sums | Set-Content "$out/SHA256SUMS"
+          Compress-Archive -Path "$out/*" -DestinationPath rrecov-$env:GITHUB_REF_NAME.zip -Force
+
+      - name: Create GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: rrecov-${{ github.ref_name }}.zip
+          generate_release_notes: true

@@ -139,3 +139,18 @@ Task: Orchestrator (R6) + safe recovery writer (R7) complete.
   sanitizer, atomic temp+commit via DestIo abstraction, sha256 verification
   with per-item mismatch accounting, zero-fill Skip policy, cancel support.
 - 54/54 tests green (incl. session round-trip through the orchestrator).
+
+---
+Task ID: 10
+Task: CI matrix GREEN + full docs + release pipeline.
+- CI on HEAD: lint + linux (gcc+ASan, 54 tests) + windows (MSVC /W4 /WX,
+  full stack incl. win layer + rrecov) + codeql - ALL SUCCESS.
+- MSVC-specific defects fixed through the CI loop: C4244 narrowings
+  (data_sectors u64->u32; carve_confidence u32 field; voff; test masks),
+  C4477 wprintf %s/%hs + wide literals, BusTypeMmc spelling, cr_error
+  includes for bitlocker, destio <map>, rrecov <functional>.
+- vcpkg via the runner-bundled installation (no bootstrap action).
+- Docs set completed: architecture, crsf-format, build, testing, roadmap,
+  benchmarking.
+- Release pipeline: tag-triggered; builds + tests + stages rrecov.exe,
+  docs, pdb, SHA256SUMS; gh-release upload.
