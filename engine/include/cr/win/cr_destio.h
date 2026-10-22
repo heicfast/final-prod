@@ -8,6 +8,7 @@
 #define CR_DESTIO_H_
 
 #include "cr/recovery/cr_safewriter.h"
+#include <map>
 #include <string>
 
 namespace cr {

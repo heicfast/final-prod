@@ -40,7 +40,7 @@ TEST(Slice, BoundsEnforced) {
     /* read at partition start */
     u8 buf[512];
     EXPECT_EQ(slice->read_at(0, buf, 512), OK);
-    EXPECT_EQ(buf[0], u8(10 * 512));
+    EXPECT_EQ(buf[0], u8((10 * 512) & 0xFF));
     /* read crossing the end - refused */
     EXPECT_EQ(slice->read_at(20 * 512 - 16, buf, 32), ERR_RANGE_OUT_OF_BOUNDS);
     /* read fully outside */

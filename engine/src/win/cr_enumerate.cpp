@@ -71,7 +71,7 @@ bool query_disk(u32 n, PhysicalDisk& d) {
                 while (*p)
                     d.serial.push_back(wchar_t(*p++));
             }
-            d.removable = (bus == BusTypeUsb || bus == BusTypeSd || bus == BusTypeMMC);
+            d.removable = (bus == BusTypeUsb || bus == BusTypeSd || bus == BusTypeMmc);
         }
     }
     CloseHandle(h);

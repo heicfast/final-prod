@@ -113,7 +113,7 @@ struct RecBuilder {
         buf[pos + 8] = 0;
         buf[pos + 9] = 0;
         u16_from_bytes_le_wr(buf, pos + 10, voff);
-        u16_from_bytes_le_wr(buf, pos + 16, u16(vlen));
+        u16_from_bytes_le_wr(buf, pos + 16, u16(vlen & 0xFFFF));
         u16_from_bytes_le_wr(buf, pos + 20, u16(voff));
         u64_from_bytes_le_wr(buf, pos + voff + 0, 132000000000000000ULL);  /* created */
         u64_from_bytes_le_wr(buf, pos + voff + 8, 133000000000000000ULL);  /* modified */
@@ -135,7 +135,7 @@ struct RecBuilder {
         buf[pos + 8] = 0;
         buf[pos + 9] = 0;
         u16_from_bytes_le_wr(buf, pos + 10, voff);
-        u16_from_bytes_le_wr(buf, pos + 16, u16(vlen));
+        u16_from_bytes_le_wr(buf, pos + 16, u16(vlen & 0xFFFF));
         u16_from_bytes_le_wr(buf, pos + 20, u16(voff));
         u8* d = buf.data() + pos + voff;
         u64_from_bytes_le_wr(buf, pos + voff + 0, parent_record | (1ULL << 48));
@@ -188,7 +188,7 @@ struct RecBuilder {
         buf[pos + 8] = 0; /* resident */
         buf[pos + 9] = u8(n.size());
         u16_from_bytes_le_wr(buf, pos + 10, 0x18);
-        u16_from_bytes_le_wr(buf, pos + 16, u16(vlen));
+        u16_from_bytes_le_wr(buf, pos + 16, u16(vlen & 0xFFFF));
         u16_from_bytes_le_wr(buf, pos + 20, u16(voff));
         for (size_t i = 0; i < n.size(); ++i)
             u16_from_bytes_le_wr(buf, pos + 0x18 + u32(i) * 2, n[i]);
@@ -205,7 +205,7 @@ struct RecBuilder {
         u32_from_bytes_le_wr(buf, pos + 0, ATTR_TYPE_INDEX_ROOT);
         u32_from_bytes_le_wr(buf, pos + 4, alen);
         u16_from_bytes_le_wr(buf, pos + 10, 0x18);
-        u16_from_bytes_le_wr(buf, pos + 16, u16(vlen));
+        u16_from_bytes_le_wr(buf, pos + 16, u16(vlen & 0xFFFF));
         u16_from_bytes_le_wr(buf, pos + 20, u16(voff));
         u8* d = buf.data() + pos + voff;
         u32_from_bytes_le_wr(buf, pos + voff + 0x00, 0x30); /* $I30 */

@@ -4,6 +4,7 @@
  */
 
 #include "cr/win/cr_bitlocker.h"
+#include "cr/cr_error.h"
 #include <windows.h>
 #include <cstdio>
 #include <cstdlib>
