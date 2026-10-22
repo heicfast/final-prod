@@ -1,0 +1,195 @@
+name: Recovery Benchmark (seeded VHD + RDA driver + ground-truth scoring)
+
+# End-to-end recovery benchmark of OUR stack (rrecov + the RDA driver) on a
+# deterministic seeded disk:
+#   1. build rrecov (Release)
+#   2. fetch the RDA driver from the rda-driver v0.2.0 release; test-sign it
+#      with a job-local self-signed cert (hosted runners have SecureBoot off,
+#      so no bcdedit/testsigning/reboot is needed)
+#   3. create + attach an 8 GiB fixed VHD, GPT, NTFS + exFAT partitions
+#   4. seed ground truth (bench_seed.ps1): deterministic files with known
+#      SHA-256 across 5 scenarios (keep / recycle / perm / wipe / folder)
+#   5. install the driver, run `rrecov scan --deep` + `rrecov tree --csv`
+#   6. score recall/precision per scenario (bench_score.py); the keep-group
+#      control gate fails the job if live files were missed
+#   7. upload manifest + results + session + driver log + scores as artifacts
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - "src/**"
+      - "include/**"
+      - "scripts/bench_seed.ps1"
+      - "scripts/bench_score.py"
+      - ".github/workflows/benchmark.yml"
+
+permissions:
+  contents: read
+
+env:
+  VHD_PATH: D:\rrecov-bench.vhdx
+  SEED_MB: 8192
+
+jobs:
+  bench:
+    runs-on: windows-2022
+    timeout-minutes: 75
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build rrecov (Release, vcpkg manifest)
+        shell: pwsh
+        run: |
+          $env:VCPKG_ROOT = $env:VCPKG_INSTALLATION_ROOT
+          cmake --preset win-x64-release
+          if ($LASTEXITCODE -ne 0) { exit 1 }
+          cmake --build --preset win-x64-release -j 2
+          if ($LASTEXITCODE -ne 0) { exit 1 }
+          $exe = "build\win-x64-release\src\app\Release\rrecov.exe"
+          if (-not (Test-Path $exe)) { Write-Host "rrecov.exe missing"; exit 1 }
+          & $exe list | Out-File -FilePath bench-disks.txt -Encoding utf8
+
+      - name: Fetch RDA driver (rda-driver v0.2.0 release)
+        shell: pwsh
+        run: |
+          $hdr = @{ Authorization = "token ${{ secrets.GITHUB_TOKEN }}" }
+          $rel = Invoke-RestMethod -Uri "https://api.github.com/repos/heicfast/rda-driver/releases/tags/v0.2.0" -Headers $hdr
+          New-Item -ItemType Directory -Force -Path driver | Out-Null
+          foreach ($asset in $rel.assets) {
+            if ($asset.name -in @("rda.sys", "rdacli.exe", "install.ps1", "uninstall.ps1")) {
+              Invoke-WebRequest -Uri $asset.browser_download_url -OutFile "driver\$($asset.name)" -Headers $hdr
+            }
+          }
+          Get-ChildItem driver | Format-Table Name, Length | Out-String | Write-Host
+          if (-not (Test-Path "driver\rda.sys")) { Write-Host "rda.sys missing from release"; exit 1 }
+          (Get-FileHash driver\rda.sys -Algorithm SHA256).Hash | Out-File driver-sha.txt -Encoding utf8
+
+      - name: Test-sign the driver (job-local cert)
+        shell: pwsh
+        run: |
+          $cert = New-SelfSignedCertificate -Type CodeSigningCert -Subject "CN=RRECOV-BENCH-TEST" `
+            -KeyExportPolicy Exportable -NotAfter (Get-Date).AddDays(2) `
+            -CertStoreLocation Cert:\LocalMachine\My
+          $pwd2 = ConvertTo-SecureString -String "rrecov-bench" -Force -AsPlainText
+          Export-PfxCertificate -Cert $cert -FilePath rda-test.pfx -Password $pwd2 | Out-Null
+          Export-Certificate -Cert $cert -FilePath rda-test.cer | Out-Null
+          Import-Certificate -FilePath rda-test.cer -CertStoreLocation Cert:\LocalMachine\Root | Out-Null
+          Import-Certificate -FilePath rda-test.cer -CertStoreLocation Cert:\LocalMachine\TrustedPublisher | Out-Null
+          $signtool = Get-ChildItem "C:\Program Files (x86)\Windows Kits\10\bin\*\x64\signtool.exe" |
+            Sort-Object FullName -Descending | Select-Object -First 1
+          & $signtool.FullName sign /fd SHA256 /f rda-test.pfx /p rrecov-bench driver\rda.sys
+          if ($LASTEXITCODE -ne 0) { exit 1 }
+          & $signtool.FullName verify /pa driver\rda.sys
+          if ($LASTEXITCODE -ne 0) { exit 1 }
+
+      - name: Create + attach VHD, format NTFS + exFAT
+        shell: pwsh
+        run: |
+          $dp = @"
+          create vdisk file="$env:VHD_PATH" type=fixed maximum=$env:SEED_MB
+          attach vdisk
+          "@
+          $dp | Set-Content -Path disk.txt -Encoding ascii
+          diskpart /s disk.txt
+          if ($LASTEXITCODE -ne 0) { exit 1 }
+          Start-Sleep -Seconds 3
+          $disk = (Get-Disk | Sort-Object Number | Select-Object -Last 1).Number
+          "DISK=$disk" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          Write-Host "seed disk = $disk"
+          Initialize-Disk -Number $disk -PartitionStyle GPT
+          $p1 = New-Partition -DiskNumber $disk -Size 5GB -AssignDriveLetter
+          $p2 = New-Partition -DiskNumber $disk -UseMaximumSize -AssignDriveLetter
+          $n1 = Format-Volume -Partition $p1 -FileSystem NTFS -NewFileSystemLabel "BENCH-NTFS"
+          $x1 = Format-Volume -Partition $p2 -FileSystem exFAT -NewFileSystemLabel "BENCH-EXFAT"
+          "NTFS_LETTER=$($n1.DriveLetter)" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          "EXFAT_LETTER=$($x1.DriveLetter)" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          Write-Host "NTFS=$($n1.DriveLetter): exFAT=$($x1.DriveLetter):"
+
+      - name: Seed ground truth (NTFS volume)
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path bench-results | Out-Null
+          $root = "$($env:NTFS_LETTER):\seed"
+          powershell -ExecutionPolicy Bypass -File scripts\bench_seed.ps1 `
+            -Root $root -ManifestOut bench-results\manifest-ntfs.csv
+          if ($LASTEXITCODE -ne 0) { exit 1 }
+
+      - name: Seed ground truth (exFAT volume, recycle+perm only)
+        shell: pwsh
+        run: |
+          $root = "$($env:EXFAT_LETTER):\seed"
+          powershell -ExecutionPolicy Bypass -File scripts\bench_seed.ps1 `
+            -Root $root -ManifestOut bench-results\manifest-exfat.csv `
+            -SmallCount 30 -MediumCount 8 -LargeCount 0
+          if ($LASTEXITCODE -ne 0) { exit 1 }
+
+      - name: Install + start the RDA driver
+        shell: pwsh
+        run: |
+          Copy-Item driver\rda.sys -Destination "$env:SystemRoot\System32\drivers\rda.sys" -Force
+          sc.exe create rda type= kernel start= demand binPath= "System32\drivers\rda.sys" group= "FSFilter Boot File System"
+          if ($LASTEXITCODE -ne 0) { exit 1 }
+          sc.exe start rda
+          if ($LASTEXITCODE -ne 0) {
+            sc.exe query rda
+            Get-WinEvent -LogName System -MaxEvents 20 | Format-List | Out-String | Write-Host
+            exit 1
+          }
+
+      - name: Run our recovery scan (deep, both volumes)
+        shell: pwsh
+        run: |
+          $exe = "build\win-x64-release\src\app\Release\rrecov.exe"
+          $t0 = Get-Date
+          & $exe scan --disk $env:DISK --deep --threads 4 `
+            --out bench-results\session.crsf --log bench-results\rrecov.log --json `
+            2>&1 | Tee-Object -FilePath bench-results\scan-ntfs.json
+          $dt1 = ((Get-Date) - $t0).TotalSeconds
+          "scan_seconds=$([math]::Round($dt1,1))" | Out-File bench-results\timing.txt -Encoding utf8
+          & $exe tree --in bench-results\session.crsf --csv `
+            | Out-File -FilePath bench-results\results.csv -Encoding utf8
+          & $exe bench --disk $env:DISK --mode info --json | Tee-Object bench-results\bench-info.json
+          & $exe bench --disk $env:DISK --mode seq --mb 256 --block-kb 1024 --json | Tee-Object bench-results\bench-seq.json
+
+      - name: Score recall/precision
+        shell: pwsh
+        run: |
+          python scripts\bench_score.py `
+            --manifest bench-results\manifest-ntfs.csv `
+            --results bench-results\results.csv `
+            --out bench-results\scores-ntfs.json `
+            --summary bench-results\summary-ntfs.md
+          if ($LASTEXITCODE -ne 0) { exit 1 }
+          Get-Content bench-results\summary-ntfs.md | Write-Host
+          Get-Content bench-results\summary-ntfs.md | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Encoding utf8 -Append
+
+      - name: Stop + remove driver, detach VHD
+        if: always()
+        shell: pwsh
+        run: |
+          sc.exe stop rda 2>$null
+          sc.exe delete rda 2>$null
+          Remove-Item "$env:SystemRoot\System32\drivers\rda.sys" -Force -ErrorAction SilentlyContinue
+          $dp = @"
+          select vdisk file="$env:VHD_PATH"
+          detach vdisk
+          "@
+          $dp | Set-Content -Path disk-clean.txt -Encoding ascii
+          diskpart /s disk-clean.txt 2>$null
+          Remove-Item $env:VHD_PATH -Force -ErrorAction SilentlyContinue
+          Get-ChildItem Cert:\LocalMachine\My |
+            Where-Object { $_.Subject -eq "CN=RRECOV-BENCH-TEST" } |
+            Remove-Item -ErrorAction SilentlyContinue
+
+      - name: Upload benchmark artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: recovery-benchmark-results
+          path: |
+            bench-results/
+            driver-sha.txt
+            bench-disks.txt
+          retention-days: 30
