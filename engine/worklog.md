@@ -81,3 +81,15 @@ Task: exFAT engine complete + integration tests.
 - Fixture defects caught: root-cluster 16-entry overflow (chain extended
   2->3), volume_length raised to spec 1MB minimum.
 - 38/38 tests green.
+
+---
+Task ID: 6
+Task: Lost-partition discovery (R3) complete.
+- discover(): 64KiB-window stride scan for 55AA + OEM classification
+  (NTFS/FAT/exFAT/GPT), format probes with volume-relative->absolute offset
+  math, $MFT 'FILE'+fixup probe (strong NTFS evidence), BPB validation,
+  dedup (nested same-fs), overlap scoring vs live table, score-desc sort.
+- materialize(): bounded virtual read-only slices (R3.2 - never repairs).
+- Test: planted lost NTFS (mft probe) + exFAT + incoherent 55AA noise;
+  overlap classification matrix.
+- 40/40 tests green.

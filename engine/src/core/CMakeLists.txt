@@ -20,6 +20,7 @@ add_library(cr_core STATIC
     fat/cr_fat_quick.cpp
     exfat/cr_exfat_dentry.cpp
     exfat/cr_exfat_quick.cpp
+    lost/cr_candidates.cpp
     tree/cr_node.cpp
 )
 
