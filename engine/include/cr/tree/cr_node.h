@@ -17,6 +17,7 @@
 #include "../cr_types.h"
 #include "cr/storage/cr_device.h"
 #include <memory>
+#include <mutex>
 #include <string>
 #include <vector>
 
@@ -178,7 +179,8 @@ public:
     /* Rebuild/refresh all FullNode stats (call once after mutations). */
     void refresh_stats();
 
-    /* Registration for dedup lookups (called by add_file). */
+    /* Registration for dedup lookups (called by add_file; public for
+     * external index additions). Thread-safe. */
     void index_node(FileNode* n);
 
     /* Move a node to a new parent (link surgery is tree-internal). */
@@ -188,6 +190,8 @@ public:
     void reset();
 
 private:
+    void index_node_locked(FileNode* n); /* caller holds mutex_ */
+
     std::vector<FileNode*> roots_;
     /* arena: linear storage, bulk-freed */
     struct Arena {
@@ -210,6 +214,11 @@ private:
         FileNode* n;
     };
     std::vector<ExtentIndexEntry> by_extent_;
+
+    /* Thread safety: engines emit from orchestrator worker threads (R6).
+     * All mutating operations and index lookups serialize on this mutex;
+     * roots()/node_count() are stable only between stages. */
+    mutable std::mutex mutex_;
 };
 
 } // namespace tree

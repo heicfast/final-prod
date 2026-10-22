@@ -3,6 +3,7 @@
 # No OS headers allowed anywhere below this line.
 
 add_library(cr_core STATIC
+    cr_parallel.cpp
     err/cr_error.cpp
     storage/cr_devmap.cpp
     storage/cr_slice.cpp

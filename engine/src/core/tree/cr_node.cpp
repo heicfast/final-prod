@@ -100,6 +100,7 @@ void* ResultTree::arena_alloc(size_t bytes) {
 }
 
 FullNode* ResultTree::add_root(const std::u16string& role) {
+    std::lock_guard<std::mutex> lock(mutex_);
     void* mem = arena_alloc(sizeof(FullNode));
     if (!mem)
         return nullptr;
@@ -121,6 +122,7 @@ FullNode* ResultTree::add_root(const std::u16string& role) {
 FileNode* ResultTree::add_file(FileNode* parent, FileProperties* props) {
     if (!props || !parent)
         return nullptr;
+    std::lock_guard<std::mutex> lock(mutex_);
     void* mem = arena_alloc(sizeof(FileNode));
     if (!mem)
         return nullptr;
@@ -138,11 +140,16 @@ FileNode* ResultTree::add_file(FileNode* parent, FileProperties* props) {
     }
     n->node_id_ = nodes_.size();
     nodes_.push_back(n);
-    index_node(n);
+    index_node_locked(n);
     return n;
 }
 
 void ResultTree::index_node(FileNode* n) {
+    std::lock_guard<std::mutex> lock(mutex_);
+    index_node_locked(n);
+}
+
+void ResultTree::index_node_locked(FileNode* n) {
     if (!n->props())
         return;
     const FileProperties* p = n->props();
@@ -165,6 +172,7 @@ void ResultTree::index_node(FileNode* n) {
 }
 
 FileNode* ResultTree::find_by_record(u64 record_ref) const {
+    std::lock_guard<std::mutex> lock(mutex_);
     for (const auto& e : by_record_)
         if (e.ref == record_ref)
             return e.n;
@@ -172,6 +180,7 @@ FileNode* ResultTree::find_by_record(u64 record_ref) const {
 }
 
 FileNode* ResultTree::find_by_extent(u64 first_offset, u64 length_class) const {
+    std::lock_guard<std::mutex> lock(mutex_);
     for (const auto& e : by_extent_)
         if (e.off == first_offset && e.len_class == length_class)
             return e.n;
@@ -179,6 +188,7 @@ FileNode* ResultTree::find_by_extent(u64 first_offset, u64 length_class) const {
 }
 
 size_t ResultTree::file_count() const {
+    std::lock_guard<std::mutex> lock(mutex_);
     size_t c = 0;
     for (auto* n : nodes_)
         if (n->props() && !(n->props()->attributes & 0x10))
@@ -187,6 +197,7 @@ size_t ResultTree::file_count() const {
 }
 
 u64 ResultTree::total_logical() const {
+    std::lock_guard<std::mutex> lock(mutex_);
     u64 t = 0;
     for (auto* n : nodes_)
         if (n->props())
@@ -195,6 +206,7 @@ u64 ResultTree::total_logical() const {
 }
 
 void ResultTree::refresh_stats() {
+    std::lock_guard<std::mutex> lock(mutex_);
     /* friend of FileNode: protected links readable on every node */
     for (auto* n : nodes_) {
         if (!n->full_)
@@ -219,6 +231,7 @@ void ResultTree::refresh_stats() {
 void ResultTree::reparent(FileNode* node, FileNode* new_parent) {
     if (node == nullptr || node == new_parent || node->parent_ == new_parent)
         return;
+    std::lock_guard<std::mutex> lock(mutex_);
     /* forbid cycles: new_parent must not be node itself or its descendant */
     for (FileNode* p = new_parent; p != nullptr; p = p->parent_)
         if (p == node)
@@ -247,6 +260,7 @@ void ResultTree::reparent(FileNode* node, FileNode* new_parent) {
 }
 
 void ResultTree::reset() {
+    std::lock_guard<std::mutex> lock(mutex_);
     /* full nodes carry a u16string: their OWN destructor must run */
     for (auto* n : nodes_) {
         if (n->full_)

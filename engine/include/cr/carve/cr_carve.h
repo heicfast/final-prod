@@ -33,6 +33,7 @@ struct CarveStats {
 struct CarveFlags {
     bool hash_small_files = true; /* <= 8 MiB: compute 128-bit id at emit */
     u64 hash_threshold = 8ull << 20;
+    u32 threads = 1; /* 1 = single-threaded; >1 = worker fan-out */
 };
 
 /* Naming callback: returns the display name for a carved hit (host policy). */
@@ -45,6 +46,11 @@ std::u16string default_namer(const Signature& sig, u64 size, u32 index);
  * carve_slice - scan one slice (a partition or whole disk view).
  *   dedup_tree: existing structured results - carved duplicates are skipped
  *   (F9: a carved JPEG never appears twice).
+ *
+ * Parallel mode (flags.threads > 1): window-index space is fanned out over
+ * the caller-provided worker count; the ResultTree serializes emission;
+ * per-worker overlap sets + the tree extent index backstop the window-boundary
+ * dedup. Progress stays monotonic (completed-window counter).
  */
 u32 carve_slice(IStorageDevice* slice, const CarveFlags& flags, CancelToken* cancel,
                 bool (*progress)(u64, u64, void*), void* progress_user, tree::ResultTree& tree,

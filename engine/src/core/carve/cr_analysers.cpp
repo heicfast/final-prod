@@ -37,11 +37,26 @@ u16 rd16(IStorageDevice* s, u64 off) {
         return 0;
     return u16_from_bytes_le(b);
 }
+u16 rdbe16(IStorageDevice* s, u64 off) {
+    u8 b[2];
+    if (!rd(s, off, b, 2))
+        return 0;
+    return u16((u32(b[0]) << 8) | b[1]);
+}
 u64 rd64(IStorageDevice* s, u64 off) {
     u8 b[8];
     if (!rd(s, off, b, 8))
         return 0;
     return u64_from_bytes_le(b);
+}
+u64 rdbe64(IStorageDevice* s, u64 off) {
+    u8 b[8];
+    if (!rd(s, off, b, 8))
+        return 0;
+    u64 v = 0;
+    for (int i = 0; i < 8; ++i)
+        v = (v << 8) | b[i];
+    return v;
 }
 
 /* EBML vint: returns length in bytes (1..8), value in *v; 0 = invalid */
@@ -101,7 +116,9 @@ CarveResult validate_jpeg(IStorageDevice* s, u64 hit, u64 cap) {
             saw_sos = true;
         if (mk == 0xC0 || mk == 0xC1 || mk == 0xC2 || mk == 0xC3)
             saw_sof = true;
-        u16 len = rd16(s, pos + 2);
+        /* JPEG segment lengths are BIG-endian (wire-correct read; the
+         * original LE read desynced on every real-world file) */
+        u16 len = rdbe16(s, pos + 2);
         if (len < 2)
             return r;
         if (mk == 0xDA) {
@@ -193,14 +210,15 @@ static CarveResult tiff_common(IStorageDevice* s, u64 hit, u64 cap, bool cr2) {
         ++ifds;
         if (pos + 2 > hit + cap)
             return r;
-        u16 n = le ? rd16(s, pos) : u16(rd16(s, pos));
+        /* entry count: byte-order aware (II=LE, MM=BE) */
+        u16 n = le ? rd16(s, pos) : rdbe16(s, pos);
         if (n == 0 || n > 512)
             return r;
         u64 max_off = 0;
         for (int e = 0; e < n; ++e) {
             u64 ep = pos + 2 + u64(e) * 12;
-            u16 tag = le ? rd16(s, ep) : rd16(s, ep);
-            u16 type = le ? rd16(s, ep + 2) : rd16(s, ep + 2);
+            u16 tag = le ? rd16(s, ep) : rdbe16(s, ep);
+            u16 type = le ? rd16(s, ep + 2) : rdbe16(s, ep + 2);
             u32 count = le ? rd32(s, ep + 4) : rdbe32(s, ep + 4);
             (void)tag;
             (void)type;
@@ -300,7 +318,7 @@ static CarveResult bmff_walk(IStorageDevice* s, u64 hit, u64 cap, const char* co
         if (!rd(s, pos + 4, type, 4))
             break;
         if (sz == 1) {
-            u64 big = rd64(s, pos + 8); /* largesize */
+            u64 big = rdbe64(s, pos + 8); /* largesize: BIG-endian */
             if (big < 16 || pos + big > hit + cap)
                 break;
             pos += big;

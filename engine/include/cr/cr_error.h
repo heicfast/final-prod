@@ -49,6 +49,14 @@ enum Err : u32 {
 
     /* --- bitlocker policy --- */
     ERR_FVE_LOCKED = 0x50060001,
+
+    /* --- health / repair --- */
+    ERR_HEALTH_UNAVAILABLE = 0x50070001,
+    ERR_REPAIR_REFUSED = 0x50080001,
+    ERR_REPAIR_UNDO_FAILED = 0x50080002,
+
+    /* --- generic engine failure (task exceptions, defensive) --- */
+    ERR_INTERNAL = 0x50090001,
 };
 
 /* Human-readable text for codes used in CLI output and logs. */

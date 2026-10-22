@@ -38,6 +38,7 @@ struct ScanConfig {
     bool whole_disk = false;              /* enables lost-partition discovery */
     FsFamily fs_hint = FsFamily::Unknown; /* auto-probed when Unknown */
     StageWeights weights;
+    u32 threads = 0; /* 0 = auto (hw-1, clamp 1..8); 1 = single-threaded */
 };
 
 struct ScanStats {
@@ -82,12 +83,20 @@ private:
                  ScanStats& stats);
     u32 run_carve_stage(IStorageDevice* slice, CancelToken* cancel, bool (*progress)(u32, void*),
                         void* pu, ScanStats& stats);
+    /* One structured engine pass (single walk; deep adds the extra passes).
+     * Used by run_quick; run_deep skips it when quick already ran (fixes
+     * the double MFT walk and FAT double emission in one move). */
+    u32 run_engine_pass(IStorageDevice* slice, bool deep_mode, CancelToken* cancel,
+                         bool (*progress)(u32, void*), void* pu, ScanStats& stats);
+    u32 scan_candidate(IStorageDevice* cand_slice, tree::FullNode* croot, CancelToken* cancel,
+                       u64& files_out);
     tree::ResultTree& tree_;
     ScanConfig cfg_;
     tree::FullNode* root_found_ = nullptr;
     tree::FullNode* root_deleted_ = nullptr;
     tree::FullNode* root_lost_ = nullptr;
     tree::FullNode* root_carved_ = nullptr;
+    u32 quick_done_ = false; /* quick stage completed its engine pass */
 };
 
 } // namespace orchestrator

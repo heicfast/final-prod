@@ -35,6 +35,10 @@ void put16(std::vector<u8>& v, size_t at, u16 x) {
     v[at] = u8(x);
     v[at + 1] = u8(x >> 8);
 }
+void putbe16(std::vector<u8>& v, size_t at, u16 x) {
+    v[at] = u8(x >> 8);
+    v[at + 1] = u8(x);
+}
 void put32v(std::vector<u8>& v, size_t at, u32 x) {
     v[at] = u8(x);
     v[at + 1] = u8(x >> 8);
@@ -54,7 +58,7 @@ size_t plant_jpeg(std::vector<u8>& img, size_t at) {
     img[at + 1] = 0xD8; /* SOI */
     img[at + 2] = 0xFF;
     img[at + 3] = 0xE0; /* APP0 */
-    put16(img, at + 4, 16);
+    putbe16(img, at + 4, 16);
     std::memcpy(img.data() + at + 6, "JFIF", 4);
     img[at + 10] = 1;
     img[at + 11] = 1;
@@ -69,16 +73,16 @@ size_t plant_jpeg(std::vector<u8>& img, size_t at) {
     size_t p = at + 20;
     img[p] = 0xFF;
     img[p + 1] = 0xFE;      /* COM (comment) */
-    put16(img, p + 2, 460); /* big payload */
+    putbe16(img, p + 2, 460); /* big payload */
     for (int i = 0; i < 456; ++i)
         img[p + 4 + i] = u8('A' + (i % 26));
     p += 2 + 460; /* SOF0 next */
     img[p] = 0xFF;
     img[p + 1] = 0xC0; /* SOF0 */
-    put16(img, p + 2, 17);
+    putbe16(img, p + 2, 17);
     img[p + 4] = 8;
-    put16(img, p + 5, 64);
-    put16(img, p + 7, 48);
+    putbe16(img, p + 5, 64);
+    putbe16(img, p + 7, 48);
     img[p + 9] = 1;
     img[p + 10] = 1;
     img[p + 11] = 0x22;
@@ -86,7 +90,7 @@ size_t plant_jpeg(std::vector<u8>& img, size_t at) {
     p += 2 + 17;
     img[p] = 0xFF;
     img[p + 1] = 0xDA; /* SOS */
-    put16(img, p + 2, 12);
+    putbe16(img, p + 2, 12);
     img[p + 4] = 1;
     img[p + 5] = 0;
     img[p + 6] = 0;
@@ -189,7 +193,7 @@ std::vector<u8> build_carve_image() {
     img[12289] = 0xD8;
     img[12290] = 0xFF;
     img[12291] = 0xE0;
-    put16(img, 12292, 16);
+    putbe16(img, 12292, 16);
     std::memcpy(img.data() + 12294, "JFIF", 4);
     return img;
 }
