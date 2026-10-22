@@ -14,6 +14,7 @@
 #include "cr/carve/cr_carve.h"
 #include "cr/cr_parallel.h"
 #include "cr/exfat/cr_exfat_engine.h"
+#include "cr/ext4/cr_ext4_engine.h"
 #include "cr/fat/cr_fat_engine.h"
 #include "cr/lost/cr_lostpart.h"
 #include "cr/ntfs/cr_bootstrap.h"
@@ -87,6 +88,10 @@ FsFamily ScanController::probe_family(IStorageDevice* slice) {
         if (bps >= 512 && bps <= 4096 && (bps & (bps - 1)) == 0)
             return FsFamily::Fat;
     }
+    /* ext2/3/4: superblock magic at byte offset 1024+0x38 */
+    u8 sb2[2] = {};
+    if (slice->read_at(1024 + 0x38, sb2, 2) == OK && sb2[0] == 0x53 && sb2[1] == 0xEF)
+        return FsFamily::Ext4;
     return FsFamily::Unknown;
 }
 
@@ -192,6 +197,16 @@ u32 ScanController::run_engine_pass(IStorageDevice* slice, bool deep_mode, Cance
                                root_deleted_, root_lost_, es);
         stats.files_found += es.files;
         stats.deleted_found += es.deleted_entries;
+        break;
+    }
+    case FsFamily::Ext4: {
+        ext4::Ext4ScanFlags fl;
+        fl.scan_deleted_inodes = deep_mode;
+        ext4::Ext4ScanStats es;
+        rc = ext4::scan_ext4(slice, fl, cancel, nullptr, nullptr, tree_, root_found_,
+                             root_deleted_, root_lost_, es);
+        stats.files_found += es.files + es.dirs;
+        stats.deleted_found += es.deleted_inodes;
         break;
     }
     default:
@@ -331,6 +346,13 @@ u32 ScanController::scan_candidate(IStorageDevice* cand_slice, tree::FullNode* c
         (void)exfat::scan_exfat(cand_slice, fl, cancel, nullptr, nullptr, tree_, croot, croot,
                                 croot, es);
         files_out += es.files;
+        rc = OK;
+    } else if (fam == FsFamily::Ext4) {
+        ext4::Ext4ScanFlags fl;
+        ext4::Ext4ScanStats es;
+        (void)ext4::scan_ext4(cand_slice, fl, cancel, nullptr, nullptr, tree_, croot, croot, croot,
+                              es);
+        files_out += es.files + es.dirs + es.deleted_inodes;
         rc = OK;
     }
     return rc;

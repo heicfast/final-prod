@@ -22,6 +22,7 @@ add_library(cr_core STATIC
     fat/cr_fat_quick.cpp
     exfat/cr_exfat_dentry.cpp
     exfat/cr_exfat_quick.cpp
+    ext4/cr_ext4_engine.cpp
     lost/cr_candidates.cpp
     crypto/cr_sha256.cpp
     carve/cr_registry.cpp

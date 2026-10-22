@@ -1,0 +1,301 @@
+/* test_ext4_volume.cpp - synthetic ext4 volume end-to-end.
+ *
+ * Licensed under the MIT license. See LICENSE.
+ */
+
+#include "cr/ext4/cr_ext4_engine.h"
+#include <gtest/gtest.h>
+#include <cstring>
+#include <set>
+
+namespace cr {
+namespace ext4 {
+namespace {
+
+constexpr u32 BS = 1024; /* block size - forces first_data_block = 1 */
+constexpr u32 IPG = 16;  /* inodes per group */
+constexpr u32 BPG = 8192;
+constexpr u32 INO_SZ = 128;
+
+class Img {
+public:
+    Img(u64 blocks) : blocks_(blocks) {
+        data_.assign(size_t(blocks) * BS, 0);
+        /* GDT at block first_data_block+1 = 2 */
+    }
+    u8* block(u64 b) { return data_.data() + b * BS; }
+    u64 blocks() const { return blocks_; }
+    std::vector<u8>& raw() { return data_; }
+    size_t size() const { return data_.size(); }
+
+private:
+    u64 blocks_;
+    std::vector<u8> data_;
+};
+
+class MemDevice final : public IStorageDevice {
+public:
+    explicit MemDevice(std::vector<u8> d) : d_(std::move(d)) {
+        g_.logical_sector = 512;
+        g_.physical_sector = 512;
+        g_.total_bytes = d_.size();
+        g_.sector_count = d_.size() / 512;
+    }
+    u32 read_at(u64 off, void* buf, u32 len) override {
+        if (off > d_.size() || len > d_.size() - off)
+            return ERR_RANGE_OUT_OF_BOUNDS;
+        memcpy(buf, d_.data() + off, len);
+        return OK;
+    }
+    const Geometry& geometry() const override { return g_; }
+
+private:
+    Geometry g_{};
+    std::vector<u8> d_;
+};
+
+void put16(u8* p, u16 v) {
+    p[0] = u8(v);
+    p[1] = u8(v >> 8);
+}
+void put32(u8* p, u32 v) {
+    p[0] = u8(v);
+    p[1] = u8(v >> 8);
+    p[2] = u8(v >> 16);
+    p[3] = u8(v >> 24);
+}
+
+/* inode numbers in the fixture */
+constexpr u32 INO_ROOT = 2;
+constexpr u32 INO_HELLO = 3;
+constexpr u32 INO_DIR = 4;
+constexpr u32 INO_SUB = 5;
+constexpr u32 INO_GONE = 6;
+
+/* blocks: 0 boot, 1 super, 2 GDT, 3 inode table, 4 block bitmap, 5 root dir,
+ * 6 hello.txt data, 7 subdir, 8 sub-file data, 9 deleted data */
+constexpr u64 B_INODE_TABLE = 3;
+constexpr u64 B_BITMAP = 4;
+constexpr u64 B_ROOTDIR = 5;
+constexpr u64 B_HELLO_DATA = 6;
+constexpr u64 B_SUBDIR = 7;
+constexpr u64 B_SUB_DATA = 8;
+constexpr u64 B_GONE_DATA = 9;
+
+void write_sb(Img& img, u32 inodes_count) {
+    u8* sb = img.block(1); /* superblock at byte 1024 = block 1 */
+    memset(sb, 0, BS);
+    put32(sb + 0x00, inodes_count); /* s_inodes_count */
+    put32(sb + 0x04, u32(img.blocks())); /* s_blocks_count_lo */
+    put32(sb + 0x14, 1); /* s_first_data_block (1KiB => 1) */
+    put32(sb + 0x18, 0); /* s_log_block_size = 0 (1024) */
+    put32(sb + 0x20, BPG); /* s_blocks_per_group */
+    put32(sb + 0x28, IPG); /* s_inodes_per_group */
+    put16(sb + 0x38, 0xEF53); /* magic */
+    put32(sb + 0x4C, 1); /* rev level 1 */
+    put16(sb + 0x56, INO_SZ); /* inode size */
+    put32(sb + 0x60, 0x0002); /* incompat: FILETYPE */
+    put32(sb + 0xE0, 8); /* journal inum */
+    memcpy(sb + 0x78, "testvol", 8);
+}
+
+void write_gdt(Img& img) {
+    u8* g = img.block(2); /* GDT at block 2 */
+    put32(g + 0x00, u32(B_BITMAP)); /* block bitmap */
+    put32(g + 0x04, 0); /* inode bitmap (unused by engine) */
+    put32(g + 0x08, u32(B_INODE_TABLE)); /* inode table */
+}
+
+/* write an inode with a single-extent extent-tree */
+void write_inode(Img& img, u32 ino, u16 mode, u64 size, u64 extent_block, u32 extent_blocks,
+                 u16 links, u32 dtime) {
+    u8* table = img.block(B_INODE_TABLE);
+    u8* p = table + size_t((ino - 1) * INO_SZ);
+    memset(p, 0, INO_SZ);
+    put16(p + 0x00, mode);
+    put32(p + 0x04, u32(size));
+    put32(p + 0x08, 1000); /* atime */
+    put32(p + 0x0C, 2000); /* ctime */
+    put32(p + 0x10, 3000); /* mtime */
+    put32(p + 0x14, dtime);
+    put16(p + 0x1A, links);
+    put32(p + 0x20, 0x80000); /* EXTENTS_FL */
+    /* extent root inline in i_block: header + 1 extent */
+    u8* ib = p + 0x28;
+    put16(ib + 0, 0xF30A); /* magic */
+    put16(ib + 2, 1); /* entries */
+    put16(ib + 4, 4); /* max */
+    put16(ib + 6, 0); /* depth */
+    put32(ib + 8, 0); /* generation */
+    /* extent: logical 0, len, phys */
+    put32(ib + 12, 0);
+    put16(ib + 16, u16(extent_blocks));
+    put16(ib + 18, 0);
+    put32(ib + 20, u32(extent_block));
+}
+
+/* append a dir entry into a 1024-byte dir block */
+void add_dirent(u8* dir, u32& cursor, u32 ino, const char* name, u8 type) {
+    const u32 nlen = u32(strlen(name));
+    const u32 rec = (8 + nlen + 3) & ~3u;
+    put32(dir + cursor, ino);
+    put16(dir + cursor + 4, u16(rec));
+    dir[cursor + 6] = u8(nlen);
+    dir[cursor + 7] = type;
+    memcpy(dir + cursor + 8, name, nlen);
+    cursor += rec;
+}
+
+Img build_volume() {
+    Img img(BPG); /* one group */
+    write_sb(img, 8);
+    write_gdt(img);
+
+    /* block bitmap: blocks 0..9 in use, rest free */
+    u8* bm = img.block(B_BITMAP);
+    memset(bm, 0xFF, BS);
+    /* clear bits for blocks 10.. to mark free (deleted data on free blocks) */
+    for (u64 b = 10; b < BPG; ++b)
+        bm[b / 8] &= u8(~(1u << (b % 8)));
+
+    /* inodes */
+    write_inode(img, INO_ROOT, 0x4000, BS, B_ROOTDIR, 1, 2, 0);
+    write_inode(img, INO_HELLO, 0x8000, 14, B_HELLO_DATA, 1, 1, 0);
+    write_inode(img, INO_DIR, 0x4000, BS, B_SUBDIR, 1, 2, 0);
+    write_inode(img, INO_SUB, 0x8000, 22, B_SUB_DATA, 1, 1, 0);
+    write_inode(img, INO_GONE, 0x8000, 512, B_GONE_DATA, 1, 0, 5000); /* deleted */
+
+    /* root dir: ".", "..", hello.txt, sub */
+    u8* root = img.block(B_ROOTDIR);
+    memset(root, 0, BS);
+    u32 cur = 0;
+    add_dirent(root, cur, INO_ROOT, ".", 2);
+    add_dirent(root, cur, INO_ROOT, "..", 2);
+    add_dirent(root, cur, INO_HELLO, "hello.txt", 1);
+    add_dirent(root, cur, INO_DIR, "sub", 2);
+    /* a deleted entry: inode 0 (freed slot) */
+    add_dirent(root, cur, 0, "gone-entry", 1);
+
+    /* subdir: ".", "..", nested.bin */
+    u8* sub = img.block(B_SUBDIR);
+    memset(sub, 0, BS);
+    cur = 0;
+    add_dirent(sub, cur, INO_DIR, ".", 2);
+    add_dirent(sub, cur, INO_ROOT, "..", 2);
+    add_dirent(sub, cur, INO_SUB, "nested.bin", 1);
+
+    memcpy(img.block(B_HELLO_DATA), "Hello, world!", 14);
+    memcpy(img.block(B_SUB_DATA), "0123456789ABCDEFGHIJK", 22);
+    memset(img.block(B_GONE_DATA), 0x77, 512);
+    return img;
+}
+
+TEST(Ext4Engine, SuperblockValidation) {
+    Img img(BPG);
+    write_sb(img, 8);
+    SuperBlock sb;
+    u8 raw[1024];
+    memcpy(raw, img.block(1), 1024);
+    EXPECT_TRUE(validate_superblock(raw, sb));
+    EXPECT_EQ(1024u, sb.block_size);
+    EXPECT_EQ(1u, sb.first_data_block);
+    EXPECT_EQ(128u, sb.inode_size);
+    EXPECT_EQ(32u, sb.desc_size);
+    EXPECT_EQ(8u, sb.journal_inum);
+
+    /* magic broken */
+    img.block(1)[0x38] = 0x00;
+    memcpy(raw, img.block(1), 1024);
+    EXPECT_FALSE(validate_superblock(raw, sb));
+
+    /* first_data_block rule: 1KiB (log=0) with fdb=0 must reject */
+    Img img2(BPG);
+    write_sb(img2, 8);
+    put32(img2.block(1) + 0x14, 0);
+    memcpy(raw, img2.block(1), 1024);
+    EXPECT_FALSE(validate_superblock(raw, sb));
+
+    /* 4KiB blocks (log=2) with fdb=1 must reject */
+    Img img3(BPG);
+    write_sb(img3, 8);
+    put32(img3.block(1) + 0x14, 1);
+    put32(img3.block(1) + 0x18, 2);
+    memcpy(raw, img3.block(1), 1024);
+    EXPECT_FALSE(validate_superblock(raw, sb));
+}
+
+TEST(Ext4Engine, EndToEndWalk) {
+    auto img = build_volume();
+    MemDevice dev(img.raw());
+
+    tree::ResultTree tree;
+    auto* ra = tree.add_root(u"Found");
+    auto* rd = tree.add_root(u"Deleted");
+    auto* rl = tree.add_root(u"Lost Files");
+
+    Ext4ScanFlags fl;
+    Ext4ScanStats st;
+    u32 rc = scan_ext4(&dev, fl, nullptr, nullptr, nullptr, tree, ra, rd, rl, st);
+    ASSERT_EQ(OK, rc) << err_text(rc);
+    EXPECT_EQ(1u, st.block_groups);
+    EXPECT_EQ(2u, st.files);
+    EXPECT_EQ(1u, st.deleted_inodes);
+
+    /* collect names */
+    std::set<std::string> found, deleted;
+    std::function<void(tree::FileNode*, std::set<std::string>&, const std::string&)> collect =
+        [&](tree::FileNode* n, std::set<std::string>& into, const std::string& p) {
+            for (tree::FileNode* c = n->first_child(); c; c = c->next_sibling()) {
+                if (!c->props())
+                    continue;
+                const std::string nm = c->name_utf8();
+                const std::string full =
+                    p.empty() ? nm : (p == "/" ? "/" + nm : p + "/" + nm);
+                into.insert(full);
+                collect(c, into, full);
+            }
+        };
+    collect(ra, found, "");
+    collect(rd, deleted, "");
+
+    /* paths carry the synthetic root "/" component */
+    EXPECT_TRUE(found.count("/hello.txt"));
+    EXPECT_TRUE(found.count("/sub"));
+    EXPECT_TRUE(found.count("/sub/nested.bin"));
+    EXPECT_TRUE(found.count("/")); /* synthetic root under Found */
+
+    /* the deleted inode (dtime set, links 0) emitted with its extent */
+    ASSERT_EQ(1u, deleted.size());
+    EXPECT_TRUE(deleted.begin()->starts_with("Inode6"));
+    /* extents intact + blocks marked free -> graded viable */
+    tree::FileNode* del = rd->first_child();
+    ASSERT_NE(nullptr, del);
+    EXPECT_EQ(tree::DeletedState::Deleted, del->deleted_state());
+    EXPECT_FALSE(del->props()->extents.empty());
+    EXPECT_EQ(u64(9 * BS), del->props()->extents[0].offset);
+    EXPECT_EQ(u64(BS), del->props()->extents[0].length); /* block-granular: 512B
+        file on a 1KiB block reports the full block extent; logical_size
+        stays the real 512 */
+}
+
+TEST(Ext4Engine, BadMagicRejected) {
+    Img img(BPG);
+    write_sb(img, 8);
+    img.block(1)[0x39] = 0xEE; /* corrupt magic high byte */
+    MemDevice dev(img.raw());
+    tree::ResultTree tree;
+    auto* ra = tree.add_root(u"Found");
+    Ext4ScanFlags fl;
+    Ext4ScanStats st;
+    EXPECT_EQ(ERR_BAD_MAGIC,
+              scan_ext4(&dev, fl, nullptr, nullptr, nullptr, tree, ra, nullptr, nullptr, st));
+}
+
+TEST(Ext4Engine, UnixTimeConversion) {
+    EXPECT_EQ(u64(11644473600ULL * 10000000ULL), unix_to_filetime(0));
+    EXPECT_EQ(u64((11644473600ULL + 1000) * 10000000ULL), unix_to_filetime(1000));
+}
+
+} // namespace
+} // namespace ext4
+} // namespace cr
