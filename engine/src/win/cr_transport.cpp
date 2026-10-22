@@ -559,6 +559,32 @@ bool rda_available(const wchar_t* service_name) {
     return true;
 }
 
+bool volume_extent(wchar_t letter, u32* disk, u64* start, u64* len) {
+    wchar_t vol[8];
+    _snwprintf_s(vol, 8, _TRUNCATE, L"\\\\.\\%c:", letter);
+    HANDLE h =
+        CreateFileW(vol, GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
+                    nullptr, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr);
+    if (h == INVALID_HANDLE_VALUE)
+        return false;
+    bool ok = false;
+    VOLUME_DISK_EXTENTS ext[8] = {};
+    DWORD br = 0;
+    if (DeviceIoControl(h, IOCTL_VOLUME_GET_VOLUME_DISK_EXTENTS, nullptr, 0, ext, sizeof(ext), &br,
+                        nullptr) &&
+        ext->NumberOfDiskExtents >= 1) {
+        if (disk)
+            *disk = u32(ext->Extents[0].DiskNumber);
+        if (start)
+            *start = u64(ext->Extents[0].StartingOffset.QuadPart);
+        if (len)
+            *len = u64(ext->Extents[0].ExtentLength.QuadPart);
+        ok = true;
+    }
+    CloseHandle(h);
+    return ok;
+}
+
 std::unique_ptr<IStorageDevice> open_disk(u32 disk, bool prefer_rda, const wchar_t* service,
                                           u32* err) {
     if (prefer_rda) {

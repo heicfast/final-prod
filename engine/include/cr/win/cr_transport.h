@@ -40,6 +40,10 @@ std::unique_ptr<IStorageDevice> open_disk(u32 disk, bool prefer_rda, const wchar
  * correlation via IOCTL_STORAGE_GET_DEVICE_NUMBER + extents). */
 bool volume_letter_to_disk(wchar_t letter, u32* disk, u32* part);
 
+/* Full extent of the volume containing a drive letter: disk number, byte
+ * offset on that disk, byte length (used for recovery-overlap refusal). */
+bool volume_extent(wchar_t letter, u32* disk, u64* start, u64* len);
+
 /* Device existence probes used by enumeration. */
 bool rda_available(const wchar_t* service_name);
 
