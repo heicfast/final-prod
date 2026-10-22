@@ -87,7 +87,7 @@ private:
      * Used by run_quick; run_deep skips it when quick already ran (fixes
      * the double MFT walk and FAT double emission in one move). */
     u32 run_engine_pass(IStorageDevice* slice, bool deep_mode, CancelToken* cancel,
-                         bool (*progress)(u32, void*), void* pu, ScanStats& stats);
+                        bool (*progress)(u32, void*), void* pu, ScanStats& stats);
     u32 scan_candidate(IStorageDevice* cand_slice, tree::FullNode* croot, CancelToken* cancel,
                        u64& files_out);
     tree::ResultTree& tree_;

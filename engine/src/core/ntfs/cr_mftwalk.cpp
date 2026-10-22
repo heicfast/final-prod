@@ -548,8 +548,8 @@ u32 remnant_range_scan(RemnantCtx& ctx, u64 start, u64 end) {
         if (ctx.aborted.load(std::memory_order_relaxed))
             return ERR_CANCELLED;
         const u64 remain = end - base;
-        const u64 want = remain < REMNANT_BLOCK + ctx.record_size ? remain
-                                                                  : REMNANT_BLOCK + ctx.record_size;
+        const u64 want =
+            remain < REMNANT_BLOCK + ctx.record_size ? remain : REMNANT_BLOCK + ctx.record_size;
         if (want < ctx.record_size)
             break;
         buf.resize(size_t(want));

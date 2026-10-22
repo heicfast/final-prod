@@ -102,11 +102,11 @@ u32 compute_pid_token(u32 pid);
  * Copy-session protocol (EUDCPEPM contract). The wire code is
  * normalized_code + ioctl_base (learned via GET_INFO).
  * ------------------------------------------------------------------------- */
-constexpr u32 kSessDiscovery = 0x800C2AC0u;   /* filter stacks only */
+constexpr u32 kSessDiscovery = 0x800C2AC0u; /* filter stacks only */
 constexpr u32 kSessGetVersion = 0x800C2AC8u;
 constexpr u32 kSessOpenSession = 0x800C2AD0u;
-constexpr u32 kSessSessionOp = 0x800C2AD8u;   /* flush protected file */
-constexpr u32 kSessSessionOp2 = 0x800C2AE0u;  /* StartBackup: pump registration */
+constexpr u32 kSessSessionOp = 0x800C2AD8u;  /* flush protected file */
+constexpr u32 kSessSessionOp2 = 0x800C2AE0u; /* StartBackup: pump registration */
 constexpr u32 kSessGetNextBlock = 0x800C2AE8u;
 constexpr u32 kSessSessionStatus = 0x800C2AF0u;
 constexpr u32 kSessGetProgress = 0x800C2AF8u; /* FINALIZE */
@@ -136,17 +136,17 @@ constexpr u32 kSessionStateDone = 5;
  * sectors-per-block @+0x30 (input slot), sector size @+0x83C. */
 #pragma pack(push, 4)
 struct OpenSession {
-    u32 disk_id;          /* +0x000 */
-    u64 data_first_sec;   /* +0x004 copy range start sector */
-    u64 total_secs;       /* +0x00C must be nonzero */
-    u64 extent_param1;    /* +0x014 block-map builder parameter */
-    u64 extent_param2;    /* +0x01C block-map builder parameter */
-    u64 bitmap_size;      /* +0x024 must be nonzero */
-    u32 bitmap_count;     /* +0x02C must be nonzero */
-    u32 spb_in_out;       /* +0x030 in: 0 = auto; out: effective spb */
+    u32 disk_id;            /* +0x000 */
+    u64 data_first_sec;     /* +0x004 copy range start sector */
+    u64 total_secs;         /* +0x00C must be nonzero */
+    u64 extent_param1;      /* +0x014 block-map builder parameter */
+    u64 extent_param2;      /* +0x01C block-map builder parameter */
+    u64 bitmap_size;        /* +0x024 must be nonzero */
+    u32 bitmap_count;       /* +0x02C must be nonzero */
+    u32 spb_in_out;         /* +0x030 in: 0 = auto; out: effective spb */
     u8 block_bitmap[0x800]; /* +0x034 copy-plan bitmap, NUL pad @0x7FE */
-    u64 session_handle;   /* +0x834 out: opaque handle (RDA: ID, not ptr) */
-    u32 sector_size;      /* +0x83C out: probed sector size */
+    u64 session_handle;     /* +0x834 out: opaque handle (RDA: ID, not ptr) */
+    u32 sector_size;        /* +0x83C out: probed sector size */
 };
 #pragma pack(pop)
 
@@ -239,8 +239,7 @@ public:
 
     /* Structured target open (IOCTL_RDA_OPEN_TARGET) - the preferred path.
      * The returned device implements IStorageDevice with the F11 unscale. */
-    std::unique_ptr<IStorageDevice> open_target(u32 kind, u32 disk, u32 part, u32 volume,
-                                                u32* err);
+    std::unique_ptr<IStorageDevice> open_target(u32 kind, u32 disk, u32 part, u32 volume, u32* err);
 
     /* Legacy grammar opens (EPMNtDrv/EUEDKEPM wire compat, PID token). */
     std::unique_ptr<IStorageDevice> open_disk_grammar(u32 disk, u32 part, u32* err);
@@ -280,7 +279,7 @@ private:
     u32 ioctl_base_ = 0;
     DriverInfo info_ = {};
     bool have_info_ = false;
-    wchar_t service_[64] = {0};  /* service this client talks to */
+    wchar_t service_[64] = {0}; /* service this client talks to */
     /* pump bookkeeping for session_get_next_block cursor math */
     u32 pump_bytes_ = 0;
     u32 session_sector_size_ = 0;

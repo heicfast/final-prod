@@ -30,8 +30,8 @@ constexpr u64 MAX_FILE_READ_FOR_HASH = 8ull << 20;
 
 /* trial order: most specific grammar first when magics coincide */
 constexpr u32 kTrialOrder[] = {FMT_DOCX,   FMT_ZIP, FMT_CR2, FMT_TIFF, FMT_MOV, FMT_MP4,
-                              FMT_HEIC,   FMT_JPG, FMT_PNG, FMT_WEBP, FMT_PDF, FMT_7Z,
-                              FMT_SQLITE, FMT_AVI, FMT_MKV, FMT_RAR4};
+                               FMT_HEIC,   FMT_JPG, FMT_PNG, FMT_WEBP, FMT_PDF, FMT_7Z,
+                               FMT_SQLITE, FMT_AVI, FMT_MKV, FMT_RAR4};
 constexpr u32 kTrialCount = sizeof(kTrialOrder) / sizeof(kTrialOrder[0]);
 
 /* Shared scan context (single-thread: one worker touches it; parallel:
@@ -58,8 +58,7 @@ struct ScanCtx {
 
 /* Scan ONE window [base, base+want) fully (magic dispatch, validation,
  * dedup, emit). Returns OK, or ERR_CANCELLED when aborted mid-way. */
-u32 scan_one_window(ScanCtx& ctx, u64 base, const u8* win, u64 want,
-                    std::set<u64>& emitted_at) {
+u32 scan_one_window(ScanCtx& ctx, u64 base, const u8* win, u64 want, std::set<u64>& emitted_at) {
     for (u64 off = 0; off + 12 <= want; ++off) {
         if (ctx.aborted.load(std::memory_order_relaxed))
             return ERR_CANCELLED;
@@ -124,7 +123,8 @@ u32 scan_one_window(ScanCtx& ctx, u64 base, const u8* win, u64 want,
                 return ERR_NO_MEMORY;
             }
             const u32 idx = ctx.file_index.fetch_add(1, std::memory_order_relaxed);
-            props->name = ctx.namer ? ctx.namer(sig, file_len, idx) : default_namer(sig, file_len, idx);
+            props->name =
+                ctx.namer ? ctx.namer(sig, file_len, idx) : default_namer(sig, file_len, idx);
             props->fs_kind = 0xFF; /* carved */
             props->logical_size = file_len;
             props->carve_format = sig.id;
@@ -246,8 +246,8 @@ u32 carve_slice(IStorageDevice* slice, const CarveFlags& flags, CancelToken* can
             std::set<u64> emitted_at; /* per-worker overlap set */
             u32 rc = scan_window_index(ctx, wi, emitted_at);
             const u64 done = windows_done.fetch_add(1, std::memory_order_relaxed) + 1;
-            if (progress && !progress(done * WINDOW > total ? total : done * WINDOW, total,
-                                      progress_user)) {
+            if (progress &&
+                !progress(done * WINDOW > total ? total : done * WINDOW, total, progress_user)) {
                 pool.abort();
                 return ERR_CANCELLED;
             }

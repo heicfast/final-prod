@@ -72,7 +72,7 @@ size_t plant_jpeg(std::vector<u8>& img, size_t at) {
     img[at + 19] = 0; /* APP0 done: 2+2+16 */
     size_t p = at + 20;
     img[p] = 0xFF;
-    img[p + 1] = 0xFE;      /* COM (comment) */
+    img[p + 1] = 0xFE;        /* COM (comment) */
     putbe16(img, p + 2, 460); /* big payload */
     for (int i = 0; i < 456; ++i)
         img[p + 4 + i] = u8('A' + (i % 26));

@@ -144,7 +144,7 @@ u32 ScanController::run_engine_pass(IStorageDevice* slice, bool deep_mode, Cance
         u32 quick_weight;
         u32 total_weight;
     } ep{progress, pu, cfg_.weights.quick,
-       cfg_.weights.quick + cfg_.weights.deep + cfg_.weights.carve};
+         cfg_.weights.quick + cfg_.weights.deep + cfg_.weights.carve};
 
     ntfs::WalkProgress ntfs_cb = nullptr;
     void* ntfs_cb_user = nullptr;
@@ -224,9 +224,9 @@ u32 ScanController::run_deep(IStorageDevice* slice, CancelToken* cancel,
             if (vol) {
                 ntfs::WalkStats rem;
                 rc = ntfs::scan_mft_remnants(slice, vol->params().sector_bytes,
-                                             vol->params().cluster_bytes,
-                                             vol->params().record_size, cancel, nullptr, nullptr,
-                                             tree_, root_lost_, rem, threads);
+                                             vol->params().cluster_bytes, vol->params().record_size,
+                                             cancel, nullptr, nullptr, tree_, root_lost_, rem,
+                                             threads);
                 stats.files_found += rem.emitted;
             }
         }
@@ -273,9 +273,8 @@ u32 ScanController::run_deep(IStorageDevice* slice, CancelToken* cancel,
                         ThreadPool pool(threads);
                         PoolCancelToken pool_cancel(&pool);
                         u32 first_err = parallel_for(pool, n, [&](u64 i) -> u32 {
-                            out_arr[i].rc =
-                                scan_candidate(items[i].slice.get(), items[i].root, cancel,
-                                               out_arr[i].files);
+                            out_arr[i].rc = scan_candidate(items[i].slice.get(), items[i].root,
+                                                           cancel, out_arr[i].files);
                             return OK; /* candidate misses never abort the scan */
                         });
                         for (const auto& o : outs) {
@@ -391,7 +390,8 @@ u32 ScanController::save_session(session::Writer& w, const ScanStats& stats) con
         pc.score = u32(c.score > 0 ? c.score : 0);
         pc.kind = 1;
         if (session::serialize_partition_context(pc, blob) == OK)
-            if (u32 rc = w.add_record(session::REC_PARTITION_CONTEXT, blob.data(), u32(blob.size())))
+            if (u32 rc =
+                    w.add_record(session::REC_PARTITION_CONTEXT, blob.data(), u32(blob.size())))
                 return rc;
     }
 

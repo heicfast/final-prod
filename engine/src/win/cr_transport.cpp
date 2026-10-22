@@ -266,8 +266,8 @@ bool RdaClient::ctl_ioctl(u32 code, void* in, u32 in_len, void* out, u32 out_len
     /* Control-handle IOCTLs serialize (one CRITICAL_SECTION for all). */
     EnterCriticalSection(static_cast<CRITICAL_SECTION*>(info_mutex_));
     DWORD br = 0;
-    const BOOL ok = DeviceIoControl(static_cast<HANDLE>(ctrl_), code, in, in_len, out, out_len, &br,
-                                    nullptr);
+    const BOOL ok =
+        DeviceIoControl(static_cast<HANDLE>(ctrl_), code, in, in_len, out, out_len, &br, nullptr);
     LeaveCriticalSection(static_cast<CRITICAL_SECTION*>(info_mutex_));
     if (info_out)
         *info_out = br;
@@ -338,8 +338,9 @@ std::unique_ptr<IStorageDevice> wrap_grammar_target(const wchar_t* service, cons
     wchar_t path[256];
     const u32 tok = compute_pid_token(GetCurrentProcessId());
     _snwprintf_s(path, 256, _TRUNCATE, L"\\\\.\\%s\\%u%s", service, tok, suffix);
-    HANDLE h = CreateFileW(path, GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
-                           nullptr, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr);
+    HANDLE h =
+        CreateFileW(path, GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
+                    nullptr, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr);
     if (h == INVALID_HANDLE_VALUE) {
         if (err)
             *err = ERR_OPEN_FAILED;
@@ -390,7 +391,7 @@ u64 RdaClient::session_open(u32 disk_id, u64 data_first_sec, u64 total_secs, u32
     os.total_secs = total_secs;
     os.bitmap_size = 1; /* one full-range block-map region */
     os.bitmap_count = 1;
-    os.spb_in_out = 0;  /* auto */
+    os.spb_in_out = 0; /* auto */
     const u32 code = kSessOpenSession + ioctl_base_;
     if (!ctl_ioctl(code, &os, sizeof(os), &os, sizeof(os), nullptr)) {
         if (err)
@@ -491,12 +492,12 @@ bool RdaClient::session_close(u64 handle) {
 
 std::unique_ptr<IStorageDevice> open_rda_partition(const wchar_t* service_name, u32 disk, u32 part,
                                                    u32* err) {
-    wchar_t suffix[64];
     const u32 tok = rda::compute_pid_token(GetCurrentProcessId());
     wchar_t path[256];
     _snwprintf_s(path, 256, _TRUNCATE, L"\\\\.\\%s\\%u\\%u\\%u", service_name, tok, disk, part);
-    HANDLE h = CreateFileW(path, GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
-                           nullptr, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr);
+    HANDLE h =
+        CreateFileW(path, GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
+                    nullptr, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr);
     if (h == INVALID_HANDLE_VALUE) {
         if (err)
             *err = ERR_OPEN_FAILED;
@@ -518,8 +519,9 @@ std::unique_ptr<IStorageDevice> open_rda_volume(const wchar_t* service_name, u32
     const u32 tok = rda::compute_pid_token(GetCurrentProcessId());
     wchar_t path[256];
     _snwprintf_s(path, 256, _TRUNCATE, L"\\\\.\\%s\\%u\\Volume\\%u", service_name, tok, volume);
-    HANDLE h = CreateFileW(path, GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
-                           nullptr, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr);
+    HANDLE h =
+        CreateFileW(path, GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
+                    nullptr, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr);
     if (h == INVALID_HANDLE_VALUE) {
         if (err)
             *err = ERR_OPEN_FAILED;

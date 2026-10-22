@@ -112,24 +112,38 @@ static std::vector<u8> build_carve_fixture() {
     };
     auto plant_jpeg = [&](u64 at) {
         u64 p = at;
-        d[p] = 0xFF; d[p + 1] = 0xD8; d[p + 2] = 0xFF; d[p + 3] = 0xE0; /* SOI + APP0 */
+        d[p] = 0xFF;
+        d[p + 1] = 0xD8;
+        d[p + 2] = 0xFF;
+        d[p + 3] = 0xE0; /* SOI + APP0 */
         put16(p + 4, 16);
         memcpy(d.data() + p + 6, "JFIF", 4);
         p += 20;
-        d[p] = 0xFF; d[p + 1] = 0xFE; put16(p + 2, 4600); /* COM */
+        d[p] = 0xFF;
+        d[p + 1] = 0xFE;
+        put16(p + 2, 4600); /* COM */
         memset(d.data() + p + 4, 'A', 4596);
         p += 2 + 4600;
-        d[p] = 0xFF; d[p + 1] = 0xC0; /* SOF0 */
-        put16(p + 2, 17); d[p + 4] = 8; put16(p + 5, 64); put16(p + 7, 48);
-        d[p + 9] = 1; d[p + 10] = 1; d[p + 11] = 0x22; d[p + 12] = 0;
+        d[p] = 0xFF;
+        d[p + 1] = 0xC0; /* SOF0 */
+        put16(p + 2, 17);
+        d[p + 4] = 8;
+        put16(p + 5, 64);
+        put16(p + 7, 48);
+        d[p + 9] = 1;
+        d[p + 10] = 1;
+        d[p + 11] = 0x22;
+        d[p + 12] = 0;
         p += 19;
-        d[p] = 0xFF; d[p + 1] = 0xDA; /* SOS */
+        d[p] = 0xFF;
+        d[p + 1] = 0xDA; /* SOS */
         put16(p + 2, 12);
         memset(d.data() + p + 4, 0, 10);
         p += 14;
         memset(d.data() + p, 0x11, 512); /* entropy */
         p += 512;
-        d[p] = 0xFF; d[p + 1] = 0xD9; /* EOI */
+        d[p] = 0xFF;
+        d[p + 1] = 0xD9; /* EOI */
     };
     /* plants span ~5.2 KiB each: straddlers cross a window boundary with
      * no other plant inside their span (overlapping plants would corrupt
@@ -157,8 +171,8 @@ TEST(ParallelCarve, MatchesSingleThreaded) {
         for (auto* r : tree.roots())
             for (tree::FileNode* c = r->first_child(); c; c = c->next_sibling())
                 if (c->props() && !c->props()->extents.empty())
-                    extents.push_back({c->props()->extents[0].offset,
-                                       c->props()->extents[0].length});
+                    extents.push_back(
+                        {c->props()->extents[0].offset, c->props()->extents[0].length});
         std::sort(extents.begin(), extents.end());
         return {rc, extents};
     };
@@ -204,18 +218,21 @@ static std::vector<u8> build_remnant_fixture() {
         rec[0x38 + 8] = 0; /* resident */
         rec[0x38 + 9] = 0; /* name_length: none */
         u16 voff = 0x18;
-        memcpy(rec + 0x38 + 0x14, &voff, 2); /* value_offset u16 @0x14 */
+        memcpy(rec + 0x38 + 0x14, &voff, 2);   /* value_offset u16 @0x14 */
         memcpy(rec + 0x38 + 0x10, &vlen_f, 4); /* value_length u32 @0x10 */
         u8* v = rec + 0x38 + 0x18;
         u64 parent = 5;
         memcpy(v + 0, &parent, 8);
         u64 t = 132000000000000000ULL;
-        memcpy(v + 8, &t, 8); memcpy(v + 16, &t, 8); memcpy(v + 24, &t, 8); memcpy(v + 32, &t, 8);
+        memcpy(v + 8, &t, 8);
+        memcpy(v + 16, &t, 8);
+        memcpy(v + 24, &t, 8);
+        memcpy(v + 32, &t, 8);
         u64 rs = 100, as_ = 128;
         memcpy(v + 40, &as_, 8);
         memcpy(v + 48, &rs, 8);
-        v[64] = 5;  /* name length */
-        v[65] = 0;  /* POSIX namespace */
+        v[64] = 5; /* name length */
+        v[65] = 0; /* POSIX namespace */
         memcpy(v + 66, u"fl", 4);
         v[68] = u8('0' + (at >> 12) % 10);
         v[69] = u8('x');
@@ -235,8 +252,8 @@ TEST(ParallelRemnants, SameRecordsAsSequential) {
         auto* root = tree.add_root(u"lost");
         ntfs::WalkStats ws;
         auto dev = std::make_unique<MemDevice>(build_remnant_fixture());
-        const u32 rc = ntfs::scan_mft_remnants(dev.get(), 512, 512, 1024, nullptr, nullptr,
-                                               nullptr, tree, root, ws, threads);
+        const u32 rc = ntfs::scan_mft_remnants(dev.get(), 512, 512, 1024, nullptr, nullptr, nullptr,
+                                               tree, root, ws, threads);
         EXPECT_EQ(OK, rc);
         return ws.emitted;
     };

@@ -68,16 +68,13 @@ struct ProgressDisplay {
             return true;
         last_permille = permille;
         const double pct = permille / 10.0;
-        const auto ms =
-            std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() -
-                                                                  t0)
-                .count();
+        const auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(
+                            std::chrono::steady_clock::now() - t0)
+                            .count();
         wprintf(L"\r  %5.1f%%  (%lld s)   ", pct, static_cast<long long>(ms) / 1000);
         return true;
     }
-    void done() {
-        wprintf(L"\r  100.0%%  done          \n");
-    }
+    void done() { wprintf(L"\r  100.0%%  done          \n"); }
 };
 
 /* ---------------------------------------------------------------------------
@@ -289,15 +286,13 @@ void print_tree(tree::ResultTree& tree, const TreePrintFlags& f) {
                             static_cast<unsigned long long>(c->props()->logical_size),
                             u32(c->origin()), u32(c->deleted_state()), u32(c->confidence()),
                             static_cast<unsigned long long>(
-                                c->props()->extents.empty() ? 0
-                                                            : c->props()->extents[0].offset));
+                                c->props()->extents.empty() ? 0 : c->props()->extents[0].offset));
                 } else {
                     for (int k = 0; k < depth; ++k)
                         putwchar(L' ');
                     const char* st = deleted ? " [deleted]"
-                                  : c->confidence() == tree::Confidence::PartialRisk
-                                      ? " [risk]"
-                                      : "";
+                                     : c->confidence() == tree::Confidence::PartialRisk ? " [risk]"
+                                                                                        : "";
                     const char* org = c->origin() == tree::Origin::Carved
                                           ? " [carved]"
                                           : (c->origin() == tree::Origin::Lost ? " [lost]" : "");
@@ -432,11 +427,12 @@ int cmd_scan(int argc, wchar_t** argv, int& i) {
     orchestrator::ScanStats stats;
     ProgressDisplay prog;
     log_line("scan start");
-    const u32 rc = ctrl.run(target.device.get(), nullptr,
-                            [](u32 pm, void* user) -> bool {
-                                return static_cast<ProgressDisplay*>(user)->operator()(pm, nullptr);
-                            },
-                            &prog, stats);
+    const u32 rc = ctrl.run(
+        target.device.get(), nullptr,
+        [](u32 pm, void* user) -> bool {
+            return static_cast<ProgressDisplay*>(user)->operator()(pm, nullptr);
+        },
+        &prog, stats);
     prog.done();
     log_line("scan end rc=0x%08x files=%llu deleted=%llu carved=%llu lost_parts=%llu "
              "bytes=%llu elapsed_ms=%llu errors=%zu",
@@ -454,12 +450,12 @@ int cmd_scan(int argc, wchar_t** argv, int& i) {
     }
     if (json) {
         wprintf(L"{\"files\":%llu,\"deleted\":%llu,\"carved\":%llu,\"lost_partitions\":%llu,"
-                 L"\"bytes_scanned\":%llu,\"elapsed_ms\":%llu}\n",
+                L"\"bytes_scanned\":%llu,\"elapsed_ms\":%llu}\n",
                 stats.files_found, stats.deleted_found, stats.carved_found, stats.lost_partitions,
                 stats.bytes_scanned, stats.elapsed_ms);
     } else {
         wprintf(L"scan complete: %llu file(s), %llu deleted, %llu carved, %llu lost partition(s) "
-                 L"in %llu.%01u s\n",
+                L"in %llu.%01u s\n",
                 stats.files_found, stats.deleted_found, stats.carved_found, stats.lost_partitions,
                 stats.elapsed_ms / 1000, u32(stats.elapsed_ms % 1000) / 100);
     }
@@ -473,8 +469,7 @@ int cmd_scan(int argc, wchar_t** argv, int& i) {
             return 1;
         }
         session::Writer w(file_write_cb, file_tell_cb, file_seek_cb, f);
-        if (w.open(0x52434F56) != OK || ctrl.save_session(w, stats) != OK ||
-            w.finalize() != OK) {
+        if (w.open(0x52434F56) != OK || ctrl.save_session(w, stats) != OK || w.finalize() != OK) {
             wprintf(L"session save failed\n");
             fclose(f);
             return 1;
@@ -645,21 +640,22 @@ int cmd_recover(int argc, wchar_t** argv, int& i) {
         };
     for (auto* root : tree.roots())
         plan(root, dest16);
-    wprintf(L"queued %zu item(s)%s\n", queued,
-            refused ? (L" (" + std::to_wstring(refused) +
-                       L" refused: destination overlaps source)")
-                       .c_str()
-                    : L"");
+    wprintf(
+        L"queued %zu item(s)%s\n", queued,
+        refused
+            ? (L" (" + std::to_wstring(refused) + L" refused: destination overlaps source)").c_str()
+            : L"");
 
     recovery::WriterStats wstats;
     ProgressDisplay prog;
-    rc = writer.process(nullptr,
-                        [](u64 done, u64 total, void* user) -> bool {
-                            auto* p = static_cast<ProgressDisplay*>(user);
-                            const u32 pm = total ? u32(done * 1000 / total) : 1000;
-                            return p->operator()(pm, nullptr);
-                        },
-                        &prog, wstats);
+    rc = writer.process(
+        nullptr,
+        [](u64 done, u64 total, void* user) -> bool {
+            auto* p = static_cast<ProgressDisplay*>(user);
+            const u32 pm = total ? u32(done * 1000 / total) : 1000;
+            return p->operator()(pm, nullptr);
+        },
+        &prog, wstats);
     prog.done();
     if (rc != OK) {
         wprintf(L"recovery failed: %hs (0x%08x)\n", err_text(rc), rc);
@@ -674,13 +670,14 @@ int cmd_recover(int argc, wchar_t** argv, int& i) {
 
 int wmain(int argc, wchar_t** argv) {
     if (argc < 2) {
-        wprintf(L"rrecov - core_recovery CLI\n"
-                L"usage:\n"
-                L"  rrecov list\n"
-                L"  rrecov scan --disk N | --volume C: [--deep] [--quick-only] [--no-carve]\n"
-                L"             [--threads N] [--out file.crsf] [--log file] [--json] [--csv]\n"
-                L"  rrecov tree --in file.crsf [--filter s] [--deleted-only] [--csv]\n"
-                L"  rrecov recover --in file.crsf --disk N --to DIR [--deleted-only] [--filter s]\n");
+        wprintf(
+            L"rrecov - core_recovery CLI\n"
+            L"usage:\n"
+            L"  rrecov list\n"
+            L"  rrecov scan --disk N | --volume C: [--deep] [--quick-only] [--no-carve]\n"
+            L"             [--threads N] [--out file.crsf] [--log file] [--json] [--csv]\n"
+            L"  rrecov tree --in file.crsf [--filter s] [--deleted-only] [--csv]\n"
+            L"  rrecov recover --in file.crsf --disk N --to DIR [--deleted-only] [--filter s]\n");
         return 0;
     }
     const std::wstring cmd = argv[1];
