@@ -33,20 +33,21 @@ u64 read_unsigned_le(const u8* p, u32 n) {
 }
 u32 width_of(u64 v) {
     u32 w = 1;
-    while ((v >> (8 * w)) != 0)
+    while (w < 8 && (v >> (8 * w)) != 0) /* fuzzer: w==8 shifts by 64 */
         ++w;
     return w;
 }
-/* Minimal byte width holding v as a SIGNED little-endian field that
- * round-trips through read_signed_le: need -2^(8w-1) <= v < 2^(8w-1).
- * This is stricter than width_of: +128 needs 2 bytes (1 byte would decode
- * as -128), and -129 needs 2 bytes (1 byte cannot hold it at all). */
-u32 signed_width_of(i64 v) {
+/* Width for a u64-space delta (two's-complement round-trip): the delta
+ * mod 2^64 must fit in w bytes interpreted as signed. */
+u32 signed_width_of_delta(u64 d) {
     for (u32 w = 1; w <= 8; ++w) {
-        const i64 bound =
-            (w == 8) ? (std::numeric_limits<i64>::max)() : ((i64(1) << (8 * w - 1)) - 1);
-        const i64 nbound = (w == 8) ? (std::numeric_limits<i64>::min)() : -(i64(1) << (8 * w - 1));
-        if (v <= bound && v >= nbound)
+        const u64 bits = 8 * u64(w);
+        const u64 mask = (bits >= 64) ? ~0ULL : ((1ULL << bits) - 1);
+        const u64 masked = d & mask;
+        /* sign-extend masked to i64 and compare against d's wrap */
+        const u64 sign = (bits >= 64) ? 0 : (1ULL << (bits - 1));
+        const u64 ext = (masked & sign) ? (masked | ~mask) : masked;
+        if (ext == d)
             return w;
     }
     return 8;
@@ -67,8 +68,12 @@ u32 RunList::decode(const u8* data, u32 bytes, u64 first_vcn, u64 max_clusters, 
         const u8 header = data[pos];
         if (header == 0)
             break; /* terminator */
-        const u32 len_width = header >> 4;
-        const u32 off_width = header & 0xF;
+        /* SPEC order (Linux fs/ntfs3 run.c: size_size = *run_buf & 0xF,
+         * offset_size = *run_buf >> 4): LOW nibble = length-field width,
+         * HIGH nibble = offset-field width. The corpus artifact's
+         * "high = length" prose misread the order-agnostic size sum. */
+        const u32 len_width = header & 0xF;
+        const u32 off_width = header >> 4;
         if (len_width == 0 || len_width > 8)
             return ERR_BAD_PARAMETER;
         if (off_width > 8)
@@ -111,20 +116,21 @@ std::vector<u8> RunList::encode() const {
     u64 prev_lcn = 0;
     for (const DataRun& r : runs_) {
         u64 lcn_val = r.sparse ? 0 : r.lcn;
-        i64 delta = 0;
-        if (!r.sparse)
-            delta = static_cast<i64>(lcn_val) - static_cast<i64>(prev_lcn);
-        u32 len_width = width_of(r.length);
-        u32 off_width = r.sparse ? 0 : signed_width_of(delta);
-        out.push_back(static_cast<u8>((len_width << 4) | off_width));
+        /* fuzzer: extreme lcns make the i64 delta overflow (UB); compute
+         * in u64 space and emit only representable deltas, clamping the
+         * rest into the 8-byte signed window */
+        u64 delta_u = r.sparse ? 0 : lcn_val - prev_lcn;
+        u64 len_width = width_of(r.length);
+        u64 off_width = r.sparse ? 0 : signed_width_of_delta(delta_u);
+        out.push_back(static_cast<u8>((off_width << 4) | len_width));
         /* length (unsigned) */
         for (u32 i = 0; i < len_width; ++i)
             out.push_back(static_cast<u8>(r.length >> (8 * i)));
-        /* offset (two's complement of signed value) */
+        /* offset (two's complement of the u64-space delta) */
         if (!r.sparse) {
             u64 bits = 8 * off_width;
             u64 mask = (bits >= 64) ? ~0ULL : ((1ULL << bits) - 1);
-            u64 enc = static_cast<u64>(delta) & mask;
+            u64 enc = delta_u & mask;
             for (u32 i = 0; i < off_width; ++i)
                 out.push_back(static_cast<u8>(enc >> (8 * i)));
             prev_lcn = lcn_val;

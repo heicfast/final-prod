@@ -21,8 +21,9 @@ TEST(RunList, SingleRunDecode) {
 
 TEST(RunList, NegativeDelta) {
     /* run1: LCN 0x5000 len 0x10 ; run2: LCN 0x3000 len 0x10 (delta -0x2000) */
-    u8 fixed[] = {0x12, 0x10, 0x00, 0x50, /* len 0x10, off +0x5000 (LE 00 50) */
-                  0x12, 0x10, 0x00, 0xE0, /* len 0x10, off -0x2000 (0xE000 2s-complement) */
+    /* spec order: header low nibble = len width, high = off width */
+    u8 fixed[] = {0x21, 0x10, 0x00, 0x50, /* len 0x10, off +0x5000 (LE 00 50) */
+                  0x21, 0x10, 0x00, 0xE0, /* len 0x10, off -0x2000 (0xE000 2s-complement) */
                   0x00};
     RunList rl;
     ASSERT_EQ(RunList::decode(fixed, sizeof(fixed), 0, 1 << 20, rl), OK);
@@ -33,8 +34,8 @@ TEST(RunList, NegativeDelta) {
 
 TEST(RunList, SparseRun) {
     /* run: len 0x10 at LCN 0x100 (off_w 2); sparse hole: len 0x20 (off_w 0) */
-    u8 raw[] = {0x12, 0x10, 0x00, 0x01, /* header 0x12: len 0x10, off 0x0100 */
-                0x10, 0x20,             /* sparse: header (1<<4)|0, len 0x20 */
+    u8 raw[] = {0x21, 0x10, 0x00, 0x01, /* header 0x21: len 0x10, off 0x0100 */
+                0x01, 0x20,             /* sparse: header (0<<4)|1, len 0x20 */
                 0x00};
     RunList rl;
     ASSERT_EQ(RunList::decode(raw, sizeof(raw), 0, 1 << 20, rl), OK);

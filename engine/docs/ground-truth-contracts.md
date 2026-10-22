@@ -41,7 +41,7 @@ Contract points (corpus-verified):
 | Metafile filter | name[0]=='$' or flags&4 | 21170 |
 | Viability gate | size >= 0x3FF (files < 1 KiB fast-path) | algorithms-v2 §1 |
 | Viability rule | all clusters re-allocated in $Bitmap -> destroy; partial -> keep | algorithms-v2 §1 |
-| Runlist header | high nibble = length width, low = offset width | FUN_180003440 |
+| Runlist header | LOW nibble = length-field width, HIGH = offset-field width | Linux fs/ntfs3 run.c (`size_size = b & 0xF; offset_size = b >> 4`); CORRECTED 2026-10: the earlier 'high = length' reading misinterpreted FUN_180003440's order-agnostic size sum (`len += (b>>4) + 1 + (b&0xF)`) - both nibble orders produce the same total |
 | Bitmap test | bit = base + index; buffer[pos>>3] & (1<<(pos&7)) | FUN_18002c2e0 |
 | MFT batch | 64 KB read buffer (16,388 dwords) | §2 bootstrap |
 | fastsearch ini default | ON (`search`/`fastsearch`, default 1) | line 7163 |
