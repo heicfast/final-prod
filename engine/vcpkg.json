@@ -1,0 +1,6 @@
+{
+  "name": "core-recovery",
+  "version-string": "0.1.0",
+  "dependencies": ["zlib", "gtest"],
+  "builtin-baseline": "1f612d1bef6b73a52a8255a26fefc3b0d19bd4c2"
+}
