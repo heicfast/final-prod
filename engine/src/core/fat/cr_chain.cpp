@@ -281,7 +281,7 @@ u32 validate_boot(const u8* sector512, u64 device_bytes, FatParams& out) {
     p.first_data_sector = p.reserved_sectors + u32(fat_area) + root_sectors;
     if (p.first_data_sector >= total)
         return ERR_BAD_PARAMETER;
-    u32 data_sectors = total - p.first_data_sector;
+    const u32 data_sectors = total - u32(p.first_data_sector);
     p.cluster_count = data_sectors / p.sectors_per_cluster;
 
     p.flavor = flavor_from_clusters(p.cluster_count);
