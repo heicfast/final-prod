@@ -16,14 +16,11 @@ name: Recovery Benchmark (seeded VHD + RDA driver + ground-truth scoring)
 
 on:
   workflow_dispatch:
-  push:
-    branches: [main]
-    paths:
-      - "src/**"
-      - "include/**"
-      - "scripts/bench_seed.ps1"
-      - "scripts/bench_score.py"
-      - ".github/workflows/benchmark.yml"
+    inputs:
+      scan_minutes:
+        description: 'Hard cap for the recovery scan (minutes)'
+        required: true
+        default: '35'
 
 permissions:
   contents: read
@@ -138,18 +135,38 @@ jobs:
             exit 1
           }
 
-      - name: Run our recovery scan (deep, both volumes)
+      - name: Run our recovery scan (deep, both volumes, capped)
         shell: pwsh
         run: |
           $exe = "build\win-x64-release\src\app\Release\rrecov.exe"
+          $cap = [int]'${{ inputs.scan_minutes }}' * 60
           $t0 = Get-Date
-          & $exe scan --disk $env:DISK --deep --threads 4 `
-            --out bench-results\session.crsf --log bench-results\rrecov.log --json `
-            2>&1 | Tee-Object -FilePath bench-results\scan-ntfs.json
+          $p = Start-Process -FilePath $exe -ArgumentList @(
+              'scan', '--disk', $env:DISK, '--deep', '--threads', '4',
+              '--out', 'bench-results\session.crsf',
+              '--log', 'bench-results\rrecov.log', '--json'
+            ) -RedirectStandardOutput 'bench-results\scan.json' `
+              -RedirectStandardError 'bench-results\scan.err' -PassThru -NoNewWindow
+          # poll with the hard cap; the log is flushed per line
+          while (-not $p.HasExited -and ((Get-Date) - $t0).TotalSeconds -lt $cap) {
+            Start-Sleep -Seconds 10
+          }
+          if (-not $p.HasExited) {
+            Write-Host "scan exceeded the ${{ inputs.scan_minutes }}-minute cap - capturing partial state"
+            "scan_capped=true" | Out-File bench-results\capped.txt -Encoding utf8
+            Stop-Process -Id $p.Id -Force -ErrorAction SilentlyContinue
+            Start-Sleep -Seconds 2
+          } else {
+            "scan_capped=false" | Out-File bench-results\capped.txt -Encoding utf8
+          }
           $dt1 = ((Get-Date) - $t0).TotalSeconds
           "scan_seconds=$([math]::Round($dt1,1))" | Out-File bench-results\timing.txt -Encoding utf8
-          & $exe tree --in bench-results\session.crsf --csv `
-            | Out-File -FilePath bench-results\results.csv -Encoding utf8
+          if (Test-Path bench-results\session.crsf) {
+            & $exe tree --in bench-results\session.crsf --csv `
+              | Out-File -FilePath bench-results\results.csv -Encoding utf8
+          } else {
+            "no session produced" | Out-File bench-results\results.csv -Encoding utf8
+          }
           & $exe bench --disk $env:DISK --mode info --json | Tee-Object bench-results\bench-info.json
           & $exe bench --disk $env:DISK --mode seq --mb 256 --block-kb 1024 --json | Tee-Object bench-results\bench-seq.json
 
