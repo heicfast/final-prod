@@ -23,14 +23,15 @@ param(
 
 $ErrorActionPreference = 'Stop'
 
-# Deterministic PRNG (LCG) so every run seeds identical content.
-$script:State = [uint64]0x2A5F1E39
-function Next-U64 {
-    $script:State = ([uint64]$script:State * [uint64]6364136223846793005 + [uint64]1442695040888963407) -band [uint64]0xFFFFFFFFFFFFFFFF
-    return $script:State
+# Deterministic PRNG: fixed-seed System.Random (PowerShell int64 math
+# overflows to double silently, so the original LCG approach broke).
+$script:Rng = [System.Random]::new(0x2A5F1E39)
+function Next-Bytes([byte[]] $buf) {
+    $script:Rng.NextBytes($buf)
+    return $buf
 }
-function Next-Range([uint64] $min, [uint64] $max) {
-    return [uint64]($min + (Next-U64 % ($max - $min + 1)))
+function Next-Range([long] $min, [long] $max) {
+    return [long]($min + $script:Rng.NextDouble() * ($max - $min + 1))
 }
 
 # Real-shape file content: correct headers/footers per type so carving
@@ -51,12 +52,9 @@ function Write-SeedFile([string] $Path, [string] $Type, [long] $Size) {
         $remaining = $Size - $fs.Position
         while ($remaining -gt 0) {
             $n = [int][Math]::Min($buf.Length, $remaining)
-            for ($i = 0; $i -lt $n; $i += 8) {
-                $v = Next-U64
-                for ($b = 0; $b -lt 8 -and $i + $b -lt $n; $b++) {
-                    $buf[$i + $b] = [byte](($v -shr (8 * $b)) -band 0xFF)
-                }
-            }
+            $filled = New-Object byte[] $n
+            [void](Next-Bytes $filled)
+            [Array]::Copy($filled, $buf, $n)
             $fs.Write($buf, 0, $n)
             $remaining -= $n
         }
