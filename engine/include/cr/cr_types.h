@@ -40,6 +40,15 @@ constexpr u64 u64_from_bytes_le(const u8 *p) {
            (static_cast<u64>(p[6]) << 48) | (static_cast<u64>(p[7]) << 56);
 }
 
+/* Times: NTFS-style 100ns since 1601, preserved exactly (R2.2). Used by
+ * engines and the node graph alike - fundamental value type. */
+struct FileTimes {
+    u64 created = 0;
+    u64 modified = 0;
+    u64 changed = 0;
+    u64 accessed = 0;
+};
+
 /* Round up v to a multiple of m (m > 0). */
 constexpr u64 round_up(u64 v, u64 m) { return (v + m - 1) / m * m; }
 constexpr u64 round_down(u64 v, u64 m) { return v / m * m; }

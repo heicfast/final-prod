@@ -33,13 +33,7 @@ enum class Confidence : u8 {
     MetadataOnly = 4,  /* no extents at all (residentless / torn record) */
 };
 
-/* Times: NTFS-style 100ns since 1601, preserved exactly (R2.2). */
-struct FileTimes {
-    u64 created = 0;
-    u64 modified = 0;
-    u64 changed = 0;
-    u64 accessed = 0;
-};
+using FileTimes = ::cr::FileTimes; /* moved to cr_types.h (fundamental) */
 
 /*
  * FileProperties - the refcounted content object (IFileProperties family).
@@ -174,6 +168,9 @@ public:
 
     /* Registration for dedup lookups (called by add_file). */
     void index_node(FileNode *n);
+
+    /* Move a node to a new parent (link surgery is tree-internal). */
+    void reparent(FileNode *node, FileNode *new_parent);
 
     /* clear without destroying (engines may reuse) */
     void reset();

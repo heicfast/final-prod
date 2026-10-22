@@ -175,6 +175,30 @@ void ResultTree::refresh_stats() {
     }
 }
 
+void ResultTree::reparent(FileNode *node, FileNode *new_parent) {
+    if (node == nullptr || node == new_parent || node->parent_ == new_parent) return;
+    /* forbid cycles: new_parent must not be node itself or its descendant */
+    for (FileNode *p = new_parent; p != nullptr; p = p->parent_)
+        if (p == node) return;
+    FileNode *cur = node->parent_;
+    if (node->prev_sibling_)
+        node->prev_sibling_->next_sibling_ = node->next_sibling_;
+    else if (cur)
+        cur->first_child_ = node->next_sibling_;
+    if (node->next_sibling_) node->next_sibling_->prev_sibling_ = node->prev_sibling_;
+    node->prev_sibling_ = nullptr;
+    node->next_sibling_ = nullptr;
+    node->parent_ = new_parent;
+    if (new_parent == nullptr) return;
+    if (new_parent->first_child_ == nullptr) new_parent->first_child_ = node;
+    else {
+        FileNode *t = new_parent->first_child_;
+        while (t->next_sibling_) t = t->next_sibling_;
+        t->next_sibling_ = node;
+        node->prev_sibling_ = t;
+    }
+}
+
 void ResultTree::reset() {
     /* full nodes carry a u16string: their OWN destructor must run */
     for (auto *n : nodes_) {

@@ -12,6 +12,9 @@ add_library(cr_core STATIC
     ntfs/cr_fixup.cpp
     ntfs/cr_runlist.cpp
     ntfs/cr_bootstrap.cpp
+    ntfs/cr_attributes.cpp
+    ntfs/cr_bitmap.cpp
+    ntfs/cr_mftwalk.cpp
     tree/cr_node.cpp
 )
 
