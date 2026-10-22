@@ -1,14 +1,16 @@
 /*
- * cr_ldm.h - LDM (Logical Disk Manager / dynamic disk) database recognition.
+ * cr_ldm.h - LDM (Logical Disk Manager / dynamic disk) database layer.
  *
  * Corpus: LdmManager.mo (VMDB parser FUN_180072790, TOCBLOCK parser
  * FUN_180072ad0, decompile-verified): VMDB magic 0x564D4442 with version
  * 4.10, big-endian fields, PRIVHEAD chain validation ("PRIVHEAD size
  * doesn't match real disk size"), TOCBLOCK with config/log bitmap slots.
  *
- * Recognition only (R3.3): dynamic disks are reported with their disk
- * group identity and database status; spanned/striped/mirrored volume
- * reconstruction is explicitly out of scope (single-disk product).
+ * Session-5 scope: FULL LDM decode - PRIVHEAD/TOCBLOCK/VMDB validation,
+ * VBLK record array (incl. composite groups) decoding to disk / disk-group /
+ * component / partition / volume objects, and dynamic-volume reconstruction
+ * (simple / spanned / striped / mirrored / RAID-5) as read-only virtual
+ * devices. Only remote/network features are out of scope project-wide.
  *
  * Licensed under the MIT license. See LICENSE.
  */
@@ -37,8 +39,10 @@ struct LdmInfo {
     std::string disk_group_name; /* from TOCBLOCK config bitmap name */
 };
 
-/* Scan the last MiB (plus the two classic private-region offsets) for the
- * LDM database: PRIVHEAD / TOCBLOCK / VMDB signatures. Report-only. */
+/* Scan for the LDM database (PRIVHEAD / TOCBLOCK / VMDB signatures) and
+ * decode it to the object graph + dynamic volumes. Recognition-only
+ * results (found=false) simply mean "not a dynamic disk or database
+ * damaged beyond the repair gates" - every decoded object is surfaced. */
 u32 parse_ldm_database(IStorageDevice* device, LdmInfo& out);
 
 } // namespace table

@@ -103,10 +103,15 @@ base recovery wizard. Nothing here is optional; nothing here may be shipped as a
 ## v0.2 additions (scope corrections per the project decision)
 
 The v0.1 'deferred' list included several LOCAL features that the v0.2
-scope decision moved INTO the core (only REMOTE features stay deferred:
-NAS/cloud/RAID/VM). Implemented in v0.2: RawFixer-class transactional
-repair (cr::repair), SMART disk health (cr::win::health), the
-ext4/HFS+/Btrfs/ZFS/ReFS engines, LDM recognition, PST/OST + RAR5
-analysers, the extended carve set (30 formats), the RDA driver transport
-with bad-sector isolation, parallel scanning, and the benchmark +
-EaseUS-comparison workflows.
+scope decision moved INTO the core (only REMOTE/network features stay
+deferred: NAS and cloud recovery, and any other remote feature).
+Implemented in v0.2: RawFixer-class transactional repair (cr::repair),
+SMART disk health (cr::win::health), the ext4/HFS+/Btrfs/ZFS/ReFS
+engines, LDM recognition, PST/OST + RAR5 analysers, the extended carve
+set (30 formats), the RDA driver transport with bad-sector isolation,
+parallel scanning, and the benchmark + EaseUS-comparison workflows.
+
+Session 5 (v0.2.x) raises LDM from recognition to FULL decode + dynamic
+volume reconstruction (VBLK object graph, spanned/striped/mirrored/
+RAID-5 extent mapping as read-only virtual devices) and audits every
+engine against the RE corpus line by line (see AUDIT.md).

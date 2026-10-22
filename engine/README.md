@@ -25,9 +25,11 @@ recovery, raw carving, durable scan sessions, safe recovery writer), built on th
 | 8 | Safe recovery writer | RecoveryModule / recovery manager |
 | 9 | BitLocker-aware handling (legitimate unlock only) | BitLockerLib (behavior subset) |
 
-Out of scope (by decision, see docs/roadmap.md): NAS redirector (EuMrx), filesystem
-repair writers (RawFixer), RAID/VM/cloud, Linux/macOS filesystems, ext4/HFS+/ReFS/Btrfs/ZFS
-engines, file-content repair.
+Out of scope (by decision, see docs/roadmap.md — REMOTE/network recovery only):
+NAS redirector (EuMrx-class), cloud recovery (cloud_session/EuICloud), and any other
+remote/network feature. Everything LOCAL is in scope: all filesystem engines
+(NTFS/FAT/exFAT/ext4/HFS+/Btrfs/ZFS/ReFS), the full LDM dynamic-disk layer, RawFixer-class
+repair, and grammar-aware carving.
 
 ## Architecture
 

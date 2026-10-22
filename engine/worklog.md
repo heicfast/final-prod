@@ -186,3 +186,20 @@ Work Log:
 
 Stage Summary:
 - v0.2.0 ready to tag: 106/106 tests (ASan), full engine set, full CI green, fuzz-clean (post-fix campaign), benchmark + comparison workflows live
+
+---
+Task ID: S5-START
+Agent: main
+Task: Session 5 kickoff - verification & reconciliation (audit + fix everything)
+
+Work Log:
+- Context recovered: all 3 repos cloned fresh, git state verified (core_recovery @ e53ba13,
+  rda-driver @ 2b1db5f, easeus-drw-research @ 18d6f14)
+- Session prompt saved verbatim (token redacted) to worklog/session-05-prompt.md
+- Mandate: full audit of every module against the RE corpus, then production-grade fixes.
+  Scope correction required: ReFS + LDM are IN scope (docs currently defer them - wrong).
+- Parallel line-by-line reading agents launched (A: corpus, B: core_recovery, C: rda-driver),
+  then cross-reference matrix, then AUDIT.md, then fixes.
+
+Stage Summary:
+- Session 5 opened. AUDIT.md is the gate: no fixes until it is on main.

@@ -3,7 +3,8 @@
  *
  * GPT: primary + backup headers, entry-array CRC32 (header +0x58 field),
  * protective MBR. MBR: signature, 4 entries, EBR chain walk with visited-set
- * cycle guard (fix F7). LDM (0x42) recognized, reported (R3.3), not decoded.
+ * cycle guard (fix F7). LDM (0x42) databases are fully decoded by cr_ldm
+ * (session 5); spanned/striped dynamic volumes surface as virtual devices.
  *
  * Licensed under the MIT license. See LICENSE.
  */

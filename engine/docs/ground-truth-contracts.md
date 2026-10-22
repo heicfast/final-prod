@@ -79,7 +79,9 @@ Contract points (corpus-verified):
   LBA; protective MBR type 0xEE.
 - MBR: signature 0x55AA at +0x1FE; 4 x 16-byte entries at +0x1BE; extended partitions
   type 0x05/0x0F chains via EBR (each EBR has its own 0x55AA + 2 entries: own + next).
-- LDM (dynamic disks): recognized (type 0x42), not decoded beyond reporting in v0.1.
+- LDM (dynamic disks): type 0x42 MBR entries / A2A0D0EB-... GPT data partitions;
+  the LDM database (last MiB region: PRIVHEAD x2, TOCBLOCK, VMDB, VBLK array)
+  is fully decoded from session 5 on (recognition only through v0.2).
 
 ## 7. Carving registry (corpus: rawsearch deep-dive §2; raw_signs.json)
 

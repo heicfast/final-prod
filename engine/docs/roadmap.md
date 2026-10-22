@@ -39,7 +39,11 @@
   sector-coalesced writes, full rollback, durable undo log). DONE
 - SMART disk health (ATA passthrough, NVMe health log, TRIM state, SSD
   heuristics) + `rrecov health`. DONE
-- LDM dynamic-disk recognition. DONE
+- LDM dynamic-disk layer: full database decode (PRIVHEAD / TOCBLOCK / VMDB,
+  VBLK records incl. composite groups) and dynamic-volume reconstruction
+  (simple / spanned / striped / mirrored / RAID-5 extent mapping) exposed
+  as read-only virtual devices. IN PROGRESS (session 5; recognition shipped
+  in v0.2, full decode + reconstruction landing this session).
 - `rrecov fix` / `rrecov bench` commands. DONE
 - Structure-aware fuzzing: 4 libFuzzer targets (pure primitives, engines,
   carve pipeline, session containers) + CI fuzz job. DONE
@@ -52,13 +56,14 @@
   ZFS nblkptr, ext4 extent bounds, exFAT recursion depth, decompression
   bomb, rollback integrity, DoS caps). DONE
 
-## v0.3 candidates
+## Deferred (by decision - REMOTE features only)
+- NAS redirector (EuMrx-class) and cloud recovery (cloud_session/EuICloud)
+- Any remote / network recovery feature
+
+## v0.3 candidates (local features, tracked - not remote-deferred)
 - Wizard UI (the DRWUI-equivalent surface) on the engine layer
 - File repair tools (video/PDF/office) - corpus Fixo chain
 - WinPE boot media builder
 - Surface test / disk wipe utilities (ToolsModule-class)
-
-## Deferred (by decision - REMOTE features only)
-- NAS redirector (EuMrx-class) and cloud recovery (cloud_session/EuICloud)
-- RAID reconstruction, VM/image formats
-- Full-disk decryption of any kind
+- VM disk-image container mounting (libvmdk-class VMDK/VDI readers; the
+  benchmark layer already attaches VHD/VHDX through the OS today)
