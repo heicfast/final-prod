@@ -22,7 +22,7 @@
 #include "cr/ntfs/cr_bootstrap.h"
 #include "cr/ntfs/cr_bitmap.h"
 #include "cr/ntfs/cr_mftwalk.h"
-#include "cr/refs/cr_refs_detect.h"
+#include "cr/refs/cr_refs_engine.h"
 #include "cr/session/cr_crsf.h"
 #include "cr/storage/cr_slice.h"
 #include "cr/zfs/cr_zfs_engine.h"
@@ -269,11 +269,13 @@ u32 ScanController::run_engine_pass(IStorageDevice* slice, bool deep_mode, Cance
         break;
     }
     case FsFamily::Refs: {
-        /* Identification only until the full MSB-chain engine lands;
-         * detection keeps the wizard from mis-labeling a ReFS volume. */
-        refs::RefsInfo ri;
-        (void)refs::detect_refs(slice, ri);
-        rc = OK;
+        refs::RefsScanFlags fl;
+        fl.harvest_deleted = deep_mode;
+        refs::RefsScanStats rs;
+        rc = refs::scan_refs(slice, fl, cancel, nullptr, nullptr, tree_, root_found_, root_deleted_,
+                             root_lost_, rs);
+        stats.files_found += rs.files + rs.dirs;
+        stats.deleted_found += rs.deleted_rows;
         break;
     }
     default:
@@ -443,9 +445,11 @@ u32 ScanController::scan_candidate(IStorageDevice* cand_slice, tree::FullNode* c
         files_out += zs.files + zs.dirs;
         rc = OK;
     } else if (fam == FsFamily::Refs) {
-        refs::RefsInfo ri;
-        (void)refs::detect_refs(cand_slice, ri);
-        files_out += 0;
+        refs::RefsScanFlags fl;
+        refs::RefsScanStats rs;
+        (void)refs::scan_refs(cand_slice, fl, cancel, nullptr, nullptr, tree_, croot, croot, croot,
+                              rs);
+        files_out += rs.files + rs.dirs + rs.deleted_rows;
         rc = OK;
     }
     return rc;

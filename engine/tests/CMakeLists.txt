@@ -26,6 +26,7 @@ add_executable(cr_tests
     unit/test_session.cpp
     unit/test_orchestrator.cpp
     unit/test_rawfixer.cpp
+    unit/test_refs_volume.cpp
 )
 
 target_link_libraries(cr_tests PRIVATE cr::core GTest::gtest_main)

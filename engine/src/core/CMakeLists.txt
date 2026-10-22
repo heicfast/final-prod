@@ -37,6 +37,7 @@ add_library(cr_core STATIC
     session/cr_records.cpp
     recovery/cr_safewriter.cpp
     repair/cr_rawfixer.cpp
+    refs/cr_refs_engine.cpp
     orchestrator/cr_scan.cpp
     tree/cr_node.cpp
 )
