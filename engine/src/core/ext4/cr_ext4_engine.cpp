@@ -44,7 +44,7 @@ constexpr u32 EXTENTS_FL = 0x80000;
 constexpr u16 EXT4_EXT_MAGIC = 0xF30A;
 constexpr u32 EXTENT_DEPTH_LIMIT = 5;
 
-constexpr u32 MAX_GROUPS = 65536;      /* 256TiB/1G blocks sanity bound */
+constexpr u32 MAX_GROUPS = 65536;       /* 256TiB/1G blocks sanity bound */
 constexpr u64 MAX_INODES = 16ull << 20; /* 16M inodes sweep bound */
 constexpr u32 MAX_DIR_BYTES = 64ull << 20;
 constexpr int DIR_WALK_DEPTH = 64;
@@ -57,7 +57,7 @@ u32 rd32(const u8* p) {
 }
 
 struct GroupDesc {
-    u64 block_bitmap;  /* absolute block */
+    u64 block_bitmap; /* absolute block */
     u64 inode_bitmap;
     u64 inode_table;
 };
@@ -72,10 +72,10 @@ constexpr u32 I_DTIME = 0x14;
 constexpr u32 I_LINKS = 0x1A;
 constexpr u32 I_BLOCKS_LO = 0x1C;
 constexpr u32 I_FLAGS = 0x20;
-constexpr u32 I_BLOCK = 0x28;   /* 15 x u32 */
+constexpr u32 I_BLOCK = 0x28;     /* 15 x u32 */
 constexpr u32 I_SIZE_HIGH = 0x6C; /* regular files only */
-constexpr u32 I_CRTIME = 0x80;  /* rev1: inside osd2 area at +0x80? actually
-                                   crtime sits in osd2[0..3]; see decode */
+constexpr u32 I_CRTIME = 0x80;    /* rev1: inside osd2 area at +0x80? actually
+                                     crtime sits in osd2[0..3]; see decode */
 
 u16 ifmt(u16 mode) {
     return u16(mode & 0xF000);
@@ -381,8 +381,8 @@ bool parse_dir_block(const u8* p, u64 len, bool filetype, std::vector<DirEntry>&
 
 u32 scan_ext4(IStorageDevice* slice, const Ext4ScanFlags& flags, CancelToken* cancel,
               WalkProgressLike progress, void* progress_user, tree::ResultTree& tree,
-              tree::FullNode* root_active, tree::FullNode* root_deleted,
-              tree::FullNode* root_lost, Ext4ScanStats& stats) {
+              tree::FullNode* root_active, tree::FullNode* root_deleted, tree::FullNode* root_lost,
+              Ext4ScanStats& stats) {
     if (slice == nullptr || root_active == nullptr)
         return ERR_BAD_PARAMETER;
 
@@ -512,9 +512,8 @@ u32 scan_ext4(IStorageDevice* slice, const Ext4ScanFlags& flags, CancelToken* ca
             if (it == bitmaps.end()) {
                 const GroupDesc gd = v.group(g);
                 std::vector<u8> bm(size_t(v.sb.block_size));
-                if (gd.block_bitmap == 0 ||
-                    slice->read_at(gd.block_bitmap * v.sb.block_size, bm.data(),
-                                   u32(bm.size())) != OK)
+                if (gd.block_bitmap == 0 || slice->read_at(gd.block_bitmap * v.sb.block_size,
+                                                           bm.data(), u32(bm.size())) != OK)
                     bm.clear();
                 it = bitmaps.emplace(g, std::move(bm)).first;
             }

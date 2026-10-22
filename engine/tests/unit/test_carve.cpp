@@ -410,9 +410,9 @@ TEST(CarveEngine, ExtendedFormatsGrammar) {
         v.insert(v.end(), 6, 0); /* reserved u32+u16 */
         v.push_back(0);
         v.push_back(1); /* channels BE @12 */
-        for (u8 b : {0, 0, 0, 64})
+        for (u8 b : {u8(0), u8(0), u8(0), u8(64)})
             v.push_back(b); /* height BE @14 */
-        for (u8 b : {0, 0, 0, 48})
+        for (u8 b : {u8(0), u8(0), u8(0), u8(48)})
             v.push_back(b); /* width BE @18 */
         v.push_back(0);
         v.push_back(8); /* depth BE @22 */

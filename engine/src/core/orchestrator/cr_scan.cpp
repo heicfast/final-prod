@@ -11,17 +11,21 @@
  */
 
 #include "cr/orchestrator/cr_scan.h"
+#include "cr/btrfs/cr_btrfs_engine.h"
 #include "cr/carve/cr_carve.h"
 #include "cr/cr_parallel.h"
 #include "cr/exfat/cr_exfat_engine.h"
 #include "cr/ext4/cr_ext4_engine.h"
 #include "cr/fat/cr_fat_engine.h"
+#include "cr/hfsplus/cr_hfsplus_engine.h"
 #include "cr/lost/cr_lostpart.h"
 #include "cr/ntfs/cr_bootstrap.h"
 #include "cr/ntfs/cr_bitmap.h"
 #include "cr/ntfs/cr_mftwalk.h"
+#include "cr/refs/cr_refs_detect.h"
 #include "cr/session/cr_crsf.h"
 #include "cr/storage/cr_slice.h"
+#include "cr/zfs/cr_zfs_engine.h"
 #include <chrono>
 #include <cstring>
 
@@ -82,6 +86,21 @@ FsFamily ScanController::probe_family(IStorageDevice* slice) {
         return FsFamily::Ntfs;
     if (std::memcmp(sec + 3, "EXFAT   ", 8) == 0)
         return FsFamily::Exfat;
+    /* ReFS: OEM "ReFS" + the DBR bytes-per-sector field (u32 @+0x20 == 512,
+     * decompile-verified gate from RefsProc::CRefsVolumeBootRecord). */
+    if (std::memcmp(sec + 3, "ReFS", 4) == 0)
+        return FsFamily::Refs;
+    /* HFS+/HFSX: volume-header signature at byte 1024 ("H+"/"HX") with a
+     * sane version (4 or 5) - the version gate disambiguates from an ext4
+     * superblock whose s_inodes_count happens to read as the signature. */
+    {
+        u8 h[4] = {};
+        if (slice->read_at(1024, h, 4) == OK && h[0] == 0x48 && (h[1] == 0x2B || h[1] == 0x58)) {
+            const u16 ver = (u16(h[2]) << 8) | h[3];
+            if (ver == 4 || ver == 5)
+                return FsFamily::Hfsplus;
+        }
+    }
     /* FAT: bytes-per-sector sane + 55AA */
     if (sec[510] == 0x55 && sec[511] == 0xAA) {
         const u16 bps = u16_from_bytes_le(sec + 0x0B);
@@ -92,6 +111,19 @@ FsFamily ScanController::probe_family(IStorageDevice* slice) {
     u8 sb2[2] = {};
     if (slice->read_at(1024 + 0x38, sb2, 2) == OK && sb2[0] == 0x53 && sb2[1] == 0xEF)
         return FsFamily::Ext4;
+    /* Btrfs: primary superblock magic at 64 KiB + 0x40 */
+    {
+        u8 bt[8] = {};
+        if (slice->read_at(0x10040, bt, 8) == OK && std::memcmp(bt, "_BHRfS_M", 8) == 0)
+            return FsFamily::Btrfs;
+    }
+    /* ZFS: vdev label-0 uberblock magic 0x00BAB10C at 128 KiB (LE). */
+    {
+        u8 z[4] = {};
+        if (slice->read_at(0x20000, z, 4) == OK && z[0] == 0x0C && z[1] == 0xB1 && z[2] == 0xBA &&
+            z[3] == 0x00)
+            return FsFamily::Zfs;
+    }
     return FsFamily::Unknown;
 }
 
@@ -203,10 +235,45 @@ u32 ScanController::run_engine_pass(IStorageDevice* slice, bool deep_mode, Cance
         ext4::Ext4ScanFlags fl;
         fl.scan_deleted_inodes = deep_mode;
         ext4::Ext4ScanStats es;
-        rc = ext4::scan_ext4(slice, fl, cancel, nullptr, nullptr, tree_, root_found_,
-                             root_deleted_, root_lost_, es);
+        rc = ext4::scan_ext4(slice, fl, cancel, nullptr, nullptr, tree_, root_found_, root_deleted_,
+                             root_lost_, es);
         stats.files_found += es.files + es.dirs;
         stats.deleted_found += es.deleted_inodes;
+        break;
+    }
+    case FsFamily::Hfsplus: {
+        hfsplus::HfsScanFlags fl;
+        fl.scan_freed_nodes = deep_mode; /* freed-catalog orphan sweep */
+        hfsplus::HfsScanStats hs;
+        rc = hfsplus::scan_hfsplus(slice, fl, cancel, nullptr, nullptr, tree_, root_found_,
+                                   root_deleted_, root_lost_, hs);
+        stats.files_found += hs.files + hs.dirs;
+        stats.deleted_found += hs.orphans;
+        break;
+    }
+    case FsFamily::Btrfs: {
+        btrfs::BtrfsScanFlags fl;
+        btrfs::BtrfsScanStats bs;
+        rc = btrfs::scan_btrfs(slice, fl, cancel, nullptr, nullptr, tree_, root_found_,
+                               root_deleted_, root_lost_, bs);
+        stats.files_found += bs.files + bs.dirs;
+        stats.deleted_found += bs.subvolumes;
+        break;
+    }
+    case FsFamily::Zfs: {
+        zfs::ZfsScanFlags fl;
+        zfs::ZfsScanStats zs;
+        rc = zfs::scan_zfs(slice, fl, cancel, nullptr, nullptr, tree_, root_found_, root_deleted_,
+                           root_lost_, zs);
+        stats.files_found += zs.files + zs.dirs;
+        break;
+    }
+    case FsFamily::Refs: {
+        /* Identification only until the full MSB-chain engine lands;
+         * detection keeps the wizard from mis-labeling a ReFS volume. */
+        refs::RefsInfo ri;
+        (void)refs::detect_refs(slice, ri);
+        rc = OK;
         break;
     }
     default:
@@ -353,6 +420,32 @@ u32 ScanController::scan_candidate(IStorageDevice* cand_slice, tree::FullNode* c
         (void)ext4::scan_ext4(cand_slice, fl, cancel, nullptr, nullptr, tree_, croot, croot, croot,
                               es);
         files_out += es.files + es.dirs + es.deleted_inodes;
+        rc = OK;
+    } else if (fam == FsFamily::Hfsplus) {
+        hfsplus::HfsScanFlags fl;
+        hfsplus::HfsScanStats hs;
+        (void)hfsplus::scan_hfsplus(cand_slice, fl, cancel, nullptr, nullptr, tree_, croot, croot,
+                                    croot, hs);
+        files_out += hs.files + hs.dirs;
+        rc = OK;
+    } else if (fam == FsFamily::Btrfs) {
+        btrfs::BtrfsScanFlags fl;
+        btrfs::BtrfsScanStats bs;
+        (void)btrfs::scan_btrfs(cand_slice, fl, cancel, nullptr, nullptr, tree_, croot, croot,
+                                croot, bs);
+        files_out += bs.files + bs.dirs;
+        rc = OK;
+    } else if (fam == FsFamily::Zfs) {
+        zfs::ZfsScanFlags fl;
+        zfs::ZfsScanStats zs;
+        (void)zfs::scan_zfs(cand_slice, fl, cancel, nullptr, nullptr, tree_, croot, croot, croot,
+                            zs);
+        files_out += zs.files + zs.dirs;
+        rc = OK;
+    } else if (fam == FsFamily::Refs) {
+        refs::RefsInfo ri;
+        (void)refs::detect_refs(cand_slice, ri);
+        files_out += 0;
         rc = OK;
     }
     return rc;

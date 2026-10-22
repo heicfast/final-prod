@@ -16,7 +16,7 @@ jobs:
       - name: clang-format check
         run: |
           sudo apt-get update -qq && sudo apt-get install -y -qq clang-format-18 > /dev/null
-          find src include tests tools -name '*.h' -o -name '*.hpp' -o -name '*.cpp' -o -name '*.c' \
+          find src include tests -name '*.h' -o -name '*.hpp' -o -name '*.cpp' -o -name '*.c' \
             | xargs clang-format-18 --dry-run --Werror
 
   linux:

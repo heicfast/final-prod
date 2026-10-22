@@ -55,6 +55,14 @@ const char* err_text(u32 code) {
         return "hash mismatch after write";
     case ERR_FVE_LOCKED:
         return "volume locked (FVE)";
+    case ERR_HEALTH_UNAVAILABLE:
+        return "health data unavailable";
+    case ERR_REPAIR_REFUSED:
+        return "repair refused by policy";
+    case ERR_REPAIR_UNDO_FAILED:
+        return "repair undo failed";
+    case ERR_INTERNAL:
+        return "internal error";
     default:
         return "unknown error";
     }

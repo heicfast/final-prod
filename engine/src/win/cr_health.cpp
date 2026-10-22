@@ -4,8 +4,10 @@
  */
 
 #include "cr/win/cr_health.h"
+#include "cr/cr_error.h"
 #include <windows.h>
 #include <winioctl.h>
+#include <ntddscsi.h>
 #include <cstdio>
 #include <cstring>
 #include <string>
@@ -16,41 +18,23 @@ namespace health {
 
 namespace {
 
-/* ATA passthrough structures (ATA_PASS_THROUGH_EX + 512-byte data buffer,
- * ntddscsi.h shapes inlined to keep the header light). */
-#pragma pack(push, 1)
-struct AtaPassThrough {
-    u16 Length;
-    u16 AtaFlags; /* 1 = data-in */
-    u8 PathId;
-    u8 TargetId;
-    u8 Lun;
-    u8 Reserved1;
-    u32 DataTransferLength;
-    u32 TimeOutValue;
-    u32 Reserved2;
-    u32 DataBufferOffset;
-    u8 PreviousTaskFile[8];
-    u8 CurrentTaskFile[8]; /* registers: feat, count, sector..., cmd last */
-    // followed by the data buffer when DataBufferOffset > sizeof
-};
-#pragma pack(pop)
-
-constexpr u32 IOCTL_ATA_PASS_THROUGH =
-    CTL_CODE(IOCTL_SCSI_BASE, 0x040B, METHOD_BUFFERED, FILE_READ_ACCESS | FILE_WRITE_ACCESS);
+/* The system ATA_PASS_THROUGH_EX (ntddscsi.h) is used verbatim: its
+ * DataBufferOffset is ULONG_PTR (8 bytes on x64) - a hand-inlined layout
+ * with a 32-bit offset field would silently misplace the data buffer on
+ * x64, so the header shape is not duplicated here. */
 
 /* Build+issue one ATA command with a 512-byte data-in phase. */
 bool ata_passthrough(HANDLE h, u8 feature, u8 count, u8 command, u8* out512) {
     struct {
-        AtaPassThrough apt;
+        ATA_PASS_THROUGH_EX apt;
         u8 data[512];
     } req;
     std::memset(&req, 0, sizeof(req));
-    req.apt.Length = sizeof(AtaPassThrough);
-    req.apt.AtaFlags = 1; /* ATA_FLAGS_DATA_IN */
+    req.apt.Length = sizeof(ATA_PASS_THROUGH_EX);
+    req.apt.AtaFlags = ATA_FLAGS_DATA_IN;
     req.apt.DataTransferLength = 512;
     req.apt.TimeOutValue = 10;
-    req.apt.DataBufferOffset = sizeof(AtaPassThrough);
+    req.apt.DataBufferOffset = offsetof(decltype(req), data);
     /* current task file: feature, sector count, LBA (unused), drive, command */
     req.apt.CurrentTaskFile[0] = feature;
     req.apt.CurrentTaskFile[1] = count;
@@ -68,6 +52,7 @@ bool ata_passthrough(HANDLE h, u8 feature, u8 count, u8 command, u8* out512) {
 u16 word_at(const u8* p, u32 idx) {
     return u16(p[idx * 2]) | (u16(p[idx * 2 + 1]) << 8);
 }
+
 u64 triple(const u8* raw) {
     return u64(raw[0]) | (u64(raw[1]) << 8) | (u64(raw[2]) << 16);
 }
@@ -76,45 +61,75 @@ u64 triple(const u8* raw) {
 
 const char* smart_attr_name(u8 id) {
     switch (id) {
-    case 1: return "Read error rate";
-    case 3: return "Spin-up time";
-    case 4: return "Start/stop count";
-    case 5: return "Reallocated sectors";
-    case 7: return "Seek error rate";
-    case 9: return "Power-on hours";
-    case 10: return "Spin retry count";
-    case 11: return "Calibration retries";
-    case 12: return "Power cycles";
-    case 13: return "Soft read errors";
-    case 170: return "Reserved blocks (SSD)";
-    case 171: return "Program failures (SSD)";
-    case 172: return "Erase failures (SSD)";
-    case 175: return "Program failures";
-    case 183: return "SATA downshifts";
-    case 187: return "Uncorrectable errors";
-    case 190: return "Airflow temperature";
-    case 194: return "Temperature";
-    case 196: return "Reallocated events";
-    case 197: return "Current pending sectors";
-    case 198: return "Offline uncorrectable";
-    case 199: return "UDMA CRC errors";
-    case 231: return "SSD life left";
-    case 232: return "Endurance remaining";
-    case 233: return "Media wearout (SSD)";
-    case 234: return "Thermal throttling";
-    case 241: return "Total LBAs written";
-    case 242: return "Total LBAs read";
-    case 249: return "NAND writes (SSD)";
-    default: return "";
+    case 1:
+        return "Read error rate";
+    case 3:
+        return "Spin-up time";
+    case 4:
+        return "Start/stop count";
+    case 5:
+        return "Reallocated sectors";
+    case 7:
+        return "Seek error rate";
+    case 9:
+        return "Power-on hours";
+    case 10:
+        return "Spin retry count";
+    case 11:
+        return "Calibration retries";
+    case 12:
+        return "Power cycles";
+    case 13:
+        return "Soft read errors";
+    case 170:
+        return "Reserved blocks (SSD)";
+    case 171:
+        return "Program failures (SSD)";
+    case 172:
+        return "Erase failures (SSD)";
+    case 175:
+        return "Program failures";
+    case 183:
+        return "SATA downshifts";
+    case 187:
+        return "Uncorrectable errors";
+    case 190:
+        return "Airflow temperature";
+    case 194:
+        return "Temperature";
+    case 196:
+        return "Reallocated events";
+    case 197:
+        return "Current pending sectors";
+    case 198:
+        return "Offline uncorrectable";
+    case 199:
+        return "UDMA CRC errors";
+    case 231:
+        return "SSD life left";
+    case 232:
+        return "Endurance remaining";
+    case 233:
+        return "Media wearout (SSD)";
+    case 234:
+        return "Thermal throttling";
+    case 241:
+        return "Total LBAs written";
+    case 242:
+        return "Total LBAs read";
+    case 249:
+        return "NAND writes (SSD)";
+    default:
+        return "";
     }
 }
 
-u32 read_smart(HANDLE_like disk_handle, SmartReport& out) {
+u32 read_smart(void* disk_handle, SmartReport& out) {
     HANDLE h = static_cast<HANDLE>(disk_handle);
     if (h == nullptr || h == INVALID_HANDLE_VALUE)
         return ERR_BAD_PARAMETER;
 
-    /* 1. IDENTIFY DEVICE: confirm ATA + read ATA version. */
+    /* 1. IDENTIFY DEVICE (0xEC): confirm ATA + read ATA version. */
     u8 identify[512];
     if (!ata_passthrough(h, 0, 0, 0xEC, identify))
         return ERR_HEALTH_UNAVAILABLE;
@@ -123,38 +138,59 @@ u32 read_smart(HANDLE_like disk_handle, SmartReport& out) {
     out.ata_version = word_at(identify, 80);
     out.available = true;
 
-    /* 2. SMART READ DATA (feature 0xD0). */
+    /* 2. SMART READ DATA (command 0xB0, feature 0xD0). */
     u8 table[512];
     if (!ata_passthrough(h, 0xD0, 0, 0xB0, table))
         return ERR_HEALTH_UNAVAILABLE;
     out.smart_version = u16(table[0]) | (u16(table[1]) << 8);
 
-    /* 362 attribute entries live at +2, 12 bytes each. */
+    /* The 362-byte attribute table holds 30 twelve-byte entries at +2.
+     * Entry layout (ATA-ATAPI-7): id@+0, flags(u16)@+1, value@+3,
+     * worst@+4, raw[6]@+5, reserved@+11. */
     for (u32 e = 0; e < 30; ++e) {
         const u8* p = table + 2 + e * 12;
         if (p[0] == 0)
             continue; /* unused slot */
+        const u16 flags = u16(p[1]) | (u16(p[2]) << 8);
         SmartAttribute a;
         a.id = p[0];
-        a.value = u16(p[3]) | (u16(p[4]) << 8);
-        a.worst = u16(p[5]) | (u16(p[6]) << 8);
-        std::memcpy(a.raw, p + 5, 6); /* vendor raw bytes (value+worst+raw overlap - vendor layout) */
-        a.failing = (p[3] & 1) != 0 && a.value == 0; /* prefailure bit + zeroed */
+        a.value = p[3];
+        a.worst = p[4];
+        std::memcpy(a.raw, p + 5, 6);
+        /* flags bit0 = pre-failure (advisory) attribute; bit3 = FAILED NOW.
+         * A pre-failure attribute that has decayed to zero is failing. */
+        a.failing = (flags & 0x0008) != 0 || ((flags & 0x0001) != 0 && a.value == 0);
         a.name = smart_attr_name(a.id);
         out.attributes.push_back(a);
         if (a.failing)
             out.failing_now = true;
         switch (a.id) {
-        case 5: out.reallocated_sectors = triple(a.raw); break;
-        case 9: out.power_on_hours = triple(a.raw); break;
-        case 10: out.spin_retry = triple(a.raw); break;
+        case 5:
+            out.reallocated_sectors = triple(a.raw);
+            break;
+        case 9:
+            out.power_on_hours = triple(a.raw);
+            break;
+        case 10:
+            out.spin_retry = triple(a.raw);
+            break;
         case 190:
-        case 194: out.temperature_c = a.raw[0] ? a.raw[0] : out.temperature_c; break;
-        case 197: out.pending_sectors = triple(a.raw); break;
-        case 198: out.uncorrectable = triple(a.raw); break;
+        case 194:
+            if (a.raw[0] != 0)
+                out.temperature_c = a.raw[0];
+            break;
+        case 197:
+            out.pending_sectors = triple(a.raw);
+            break;
+        case 198:
+            out.uncorrectable = triple(a.raw);
+            break;
         case 231:
-        case 233: out.ssd_wear_level = triple(a.raw); break;
-        default: break;
+        case 233:
+            out.ssd_wear_level = triple(a.raw);
+            break;
+        default:
+            break;
         }
     }
     return OK;
@@ -165,9 +201,9 @@ u32 read_nvme_health(void* disk_handle, NvmeHealth& out) {
     if (h == nullptr || h == INVALID_HANDLE_VALUE)
         return ERR_BAD_PARAMETER;
 
-    /* NVMe health log (log page 2) through the protocol-specific storage
-     * query (Windows 10 storage stack; the corpus DiskHealth uses the
-     * same route through its NVMe transport). */
+        /* NVMe health log (log page 2) through the protocol-specific storage
+         * query (Windows 10 storage stack; the corpus DiskHealth uses the
+         * same route through its NVMe transport). */
 #pragma pack(push, 1)
     struct {
         STORAGE_PROPERTY_QUERY header; /* PropertyId + QueryType only used */
@@ -179,15 +215,15 @@ u32 read_nvme_health(void* disk_handle, NvmeHealth& out) {
     req.header.PropertyId = StorageDeviceProtocolSpecificProperty;
     req.header.QueryType = PropertyStandardQuery;
     req.proto.ProtocolType = ProtocolTypeNvme;
-    req.proto.DataType = 2;                 /* NVMeDataTypeLogPage */
+    req.proto.DataType = NVMeDataTypeLogPage;
     req.proto.ProtocolDataRequestValue = 2; /* health log page */
     req.proto.ProtocolDataRequestSubValue = 0;
     req.proto.ProtocolDataOffset = sizeof(STORAGE_PROTOCOL_SPECIFIC_DATA);
     req.proto.ProtocolDataLength = 512;
 
     DWORD br = 0;
-    if (!DeviceIoControl(h, IOCTL_STORAGE_QUERY_PROPERTY, &req, sizeof(req), &req, sizeof(req),
-                         &br, nullptr))
+    if (!DeviceIoControl(h, IOCTL_STORAGE_QUERY_PROPERTY, &req, sizeof(req), &req, sizeof(req), &br,
+                         nullptr))
         return ERR_HEALTH_UNAVAILABLE;
 
     const u8* d = req.data;

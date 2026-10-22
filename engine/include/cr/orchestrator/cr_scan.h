@@ -23,7 +23,20 @@
 namespace cr {
 namespace orchestrator {
 
-enum class FsFamily : u8 { Unknown = 0, Ntfs, Fat, Exfat, Ext4, CarvedOnly };
+enum class FsFamily : u8 {
+    Unknown = 0,
+    Ntfs,
+    Fat,
+    Exfat,
+    Ext4,
+    CarvedOnly,
+    /* Values 6..9 appended after v0.1.0: the serialized fs_kind numbers
+     * 0..5 keep their meaning, so old sessions stay readable. */
+    Hfsplus,
+    Btrfs,
+    Zfs,
+    Refs
+};
 
 struct StageWeights {
     u32 quick = 40; /* percent-of-total per stage (monotonic weighted) */

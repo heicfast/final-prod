@@ -85,24 +85,24 @@ constexpr u64 B_GONE_DATA = 9;
 void write_sb(Img& img, u32 inodes_count) {
     u8* sb = img.block(1); /* superblock at byte 1024 = block 1 */
     memset(sb, 0, BS);
-    put32(sb + 0x00, inodes_count); /* s_inodes_count */
+    put32(sb + 0x00, inodes_count);      /* s_inodes_count */
     put32(sb + 0x04, u32(img.blocks())); /* s_blocks_count_lo */
-    put32(sb + 0x14, 1); /* s_first_data_block (1KiB => 1) */
-    put32(sb + 0x18, 0); /* s_log_block_size = 0 (1024) */
-    put32(sb + 0x20, BPG); /* s_blocks_per_group */
-    put32(sb + 0x28, IPG); /* s_inodes_per_group */
-    put16(sb + 0x38, 0xEF53); /* magic */
-    put32(sb + 0x4C, 1); /* rev level 1 */
-    put16(sb + 0x56, INO_SZ); /* inode size */
-    put32(sb + 0x60, 0x0002); /* incompat: FILETYPE */
-    put32(sb + 0xE0, 8); /* journal inum */
+    put32(sb + 0x14, 1);                 /* s_first_data_block (1KiB => 1) */
+    put32(sb + 0x18, 0);                 /* s_log_block_size = 0 (1024) */
+    put32(sb + 0x20, BPG);               /* s_blocks_per_group */
+    put32(sb + 0x28, IPG);               /* s_inodes_per_group */
+    put16(sb + 0x38, 0xEF53);            /* magic */
+    put32(sb + 0x4C, 1);                 /* rev level 1 */
+    put16(sb + 0x56, INO_SZ);            /* inode size */
+    put32(sb + 0x60, 0x0002);            /* incompat: FILETYPE */
+    put32(sb + 0xE0, 8);                 /* journal inum */
     memcpy(sb + 0x78, "testvol", 8);
 }
 
 void write_gdt(Img& img) {
-    u8* g = img.block(2); /* GDT at block 2 */
-    put32(g + 0x00, u32(B_BITMAP)); /* block bitmap */
-    put32(g + 0x04, 0); /* inode bitmap (unused by engine) */
+    u8* g = img.block(2);                /* GDT at block 2 */
+    put32(g + 0x00, u32(B_BITMAP));      /* block bitmap */
+    put32(g + 0x04, 0);                  /* inode bitmap (unused by engine) */
     put32(g + 0x08, u32(B_INODE_TABLE)); /* inode table */
 }
 
@@ -123,10 +123,10 @@ void write_inode(Img& img, u32 ino, u16 mode, u64 size, u64 extent_block, u32 ex
     /* extent root inline in i_block: header + 1 extent */
     u8* ib = p + 0x28;
     put16(ib + 0, 0xF30A); /* magic */
-    put16(ib + 2, 1); /* entries */
-    put16(ib + 4, 4); /* max */
-    put16(ib + 6, 0); /* depth */
-    put32(ib + 8, 0); /* generation */
+    put16(ib + 2, 1);      /* entries */
+    put16(ib + 4, 4);      /* max */
+    put16(ib + 6, 0);      /* depth */
+    put32(ib + 8, 0);      /* generation */
     /* extent: logical 0, len, phys */
     put32(ib + 12, 0);
     put16(ib + 16, u16(extent_blocks));
@@ -249,8 +249,7 @@ TEST(Ext4Engine, EndToEndWalk) {
                 if (!c->props())
                     continue;
                 const std::string nm = c->name_utf8();
-                const std::string full =
-                    p.empty() ? nm : (p == "/" ? "/" + nm : p + "/" + nm);
+                const std::string full = p.empty() ? nm : (p == "/" ? "/" + nm : p + "/" + nm);
                 into.insert(full);
                 collect(c, into, full);
             }

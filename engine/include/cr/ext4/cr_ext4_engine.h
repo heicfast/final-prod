@@ -90,8 +90,8 @@ struct InodeView {
  * (dtime-marked inodes) / root_lost (journal salvage). */
 u32 scan_ext4(IStorageDevice* slice, const Ext4ScanFlags& flags, CancelToken* cancel,
               WalkProgressLike progress, void* progress_user, tree::ResultTree& tree,
-              tree::FullNode* root_active, tree::FullNode* root_deleted,
-              tree::FullNode* root_lost, Ext4ScanStats& stats);
+              tree::FullNode* root_active, tree::FullNode* root_deleted, tree::FullNode* root_lost,
+              Ext4ScanStats& stats);
 
 /* unix epoch seconds -> our 100ns/1601 FileTimes fields */
 u64 unix_to_filetime(i64 unix_sec);

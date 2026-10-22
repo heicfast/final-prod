@@ -690,9 +690,8 @@ int cmd_health(int argc, wchar_t** argv, int& i) {
 
     wchar_t path[64];
     _snwprintf_s(path, 64, _TRUNCATE, L"\\\\.\\PhysicalDrive%u", disk);
-    HANDLE h = CreateFileW(path, GENERIC_READ | GENERIC_WRITE,
-                           FILE_SHARE_READ | FILE_SHARE_WRITE, nullptr, OPEN_EXISTING, 0,
-                           nullptr);
+    HANDLE h = CreateFileW(path, GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE,
+                           nullptr, OPEN_EXISTING, 0, nullptr);
     if (h == INVALID_HANDLE_VALUE) {
         wprintf(L"cannot open disk %u (admin?)\n", disk);
         return 1;
@@ -730,8 +729,7 @@ int cmd_health(int argc, wchar_t** argv, int& i) {
     if (rc == OK && nv.available) {
         wprintf(L"NVMe health: temp=%u.%uC spare=%u%%/threshold=%u%% used=%llu%%\n",
                 u32(nv.temperature_k) - 273, (u32(nv.temperature_k) % 10), nv.available_spare,
-                nv.available_spare_threshold,
-                static_cast<unsigned long long>(nv.percentage_used));
+                nv.available_spare_threshold, static_cast<unsigned long long>(nv.percentage_used));
         wprintf(L"  read=%llu units written=%llu units power-on=%lluh unsafe-shutdowns=%llu "
                 L"media-errors=%llu\n",
                 static_cast<unsigned long long>(nv.data_units_read),

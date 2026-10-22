@@ -29,7 +29,7 @@ namespace health {
 /* One SMART attribute row (ATA spec 512-byte table, 12-byte entries). */
 struct SmartAttribute {
     u8 id = 0;
-    u16 value = 0;   /* current normalized */
+    u16 value = 0; /* current normalized */
     u16 worst = 0;
     u8 raw[6] = {0}; /* vendor raw */
     bool failing = false;
@@ -44,14 +44,14 @@ struct SmartReport {
     std::vector<SmartAttribute> attributes;
     /* derived verdicts */
     bool failing_now = false;
-    u64 reallocated_sectors = 0;  /* attr 5 raw */
-    u64 pending_sectors = 0;      /* attr 197 raw */
-    u64 uncorrectable = 0;        /* attr 198 raw */
-    u64 power_on_hours = 0;       /* attr 9 raw */
-    u64 spin_retry = 0;           /* attr 10 raw */
-    u64 ssd_wear_level = 0;       /* attr 231/233 (vendor) */
-    u64 temperature_c = 0;        /* attr 194/190 raw (vendor) */
-    bool trim_enabled = false;    /* fsutil query */
+    u64 reallocated_sectors = 0; /* attr 5 raw */
+    u64 pending_sectors = 0;     /* attr 197 raw */
+    u64 uncorrectable = 0;       /* attr 198 raw */
+    u64 power_on_hours = 0;      /* attr 9 raw */
+    u64 spin_retry = 0;          /* attr 10 raw */
+    u64 ssd_wear_level = 0;      /* attr 231/233 (vendor) */
+    u64 temperature_c = 0;       /* attr 194/190 raw (vendor) */
+    bool trim_enabled = false;   /* fsutil query */
     bool trim_known = false;
 };
 
