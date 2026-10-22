@@ -134,7 +134,7 @@ u32 serialize_tree(const tree::ResultTree& tree, std::vector<u8>& out) {
             put64(out, e.length);
         }
         put32(out, pr ? pr->carve_format : 0);
-        put16(out, pr ? pr->carve_confidence : u16(0));
+        put16(out, u16(pr ? pr->carve_confidence : 0));
         out.push_back(pr && pr->hash_valid ? 1 : 0);
         if (pr && pr->hash_valid)
             out.insert(out.end(), pr->sha128, pr->sha128 + 16);
