@@ -63,3 +63,21 @@ Task: FAT12/16/32 engine complete + integration tests.
   clobbering spf32@0x24-27); FAT 0x00 end-marker semantics (dir ends at first
   0x00 - full-cluster fixture); LFN checksum; time decode (0x5A46=2025-02-06).
 - 36/36 tests green.
+
+---
+Task ID: 5
+Task: exFAT engine complete + integration tests.
+- Wire structs rewritten SPEC-EXACT after reference verification (elm-chan/
+  SDCFF): SetCheckSum@2, packed u32 timestamps, tz 7-bit two's complement
+  quarter-hours (0x00=unused), SecondaryCount, NoFatChain bit1.
+- Boot-region checksum CORRECTED: value is FILL-REPEATED in sectors 11/23
+  (NOT +508 of every sector - that variant clobbers 0x55AA); computed over
+  sectors 0..10 with VolumeFlags+PercentInUse of the boot sector excluded.
+  Fixed a nonsense heap-after-FAT check (was fat_length*shift - now sectors).
+- Engine: entry sets (0x85+0xC0+0xC1s), deleted = InUse 0x80 cleared on all
+  members, NoFatChain contiguous resolution, FAT chains, allocation-bitmap
+  reused-ratio grading, entry-set 16-bit checksum validation (damaged sets
+  kept), dir recursion with parent threading + cycle guard.
+- Fixture defects caught: root-cluster 16-entry overflow (chain extended
+  2->3), volume_length raised to spec 1MB minimum.
+- 38/38 tests green.
