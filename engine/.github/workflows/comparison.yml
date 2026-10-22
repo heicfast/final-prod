@@ -1,0 +1,285 @@
+name: EaseUS Comparison (og DRW vs rrecov on the same seeded disk)
+
+# Head-to-head: the original EaseUS Data Recovery Wizard (og-codebase from
+# the easeus-drw-research corpus, driven through its real UI with mouse
+# injection - the corpus's proven recipe) and our rrecov CLI, both against
+# the SAME deterministic seeded VHD with ground-truth manifest.
+#
+#   1. seed the VHD (bench_seed.ps1) with recycle/perm/folder scenarios
+#   2. install BOTH raw-disk drivers side by side: og's eprdtdrv.sys and
+#      our rda.sys (distinct service identities, no conflicts)
+#   3. run og: launch DRW.exe, click through the landing page, poll the
+#      scan window title (files-found counter), capture screenshots,
+#      harvest the auto-saved .rsf from <install>\SaveScan
+#   4. run ours: rrecov scan --deep + tree --csv (full logs)
+#   5. score BOTH against the manifest (compare_report.py), write the
+#      side-by-side markdown report, upload everything
+#
+# The og leg is best-effort by nature (UI automation); every step captures
+# maximum evidence (screenshots, window titles, process lists, logs).
+
+on:
+  workflow_dispatch:
+    inputs:
+      scan_wait_seconds:
+        description: 'Seconds to wait for the og scan'
+        required: true
+        default: '420'
+
+permissions:
+  contents: read
+
+env:
+  VHD_PATH: D:\rrecov-compare.vhdx
+  RESEARCH_REPO: heicfast/easeus-drw-research
+
+jobs:
+  compare:
+    runs-on: windows-2022
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Checkout the research corpus (og-codebase)
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ env.RESEARCH_REPO }}
+          path: research
+          sparse-checkout: |
+            og-codebase
+
+      - name: Build rrecov (Release)
+        shell: pwsh
+        run: |
+          $env:VCPKG_ROOT = $env:VCPKG_INSTALLATION_ROOT
+          cmake --preset win-x64-release
+          if ($LASTEXITCODE -ne 0) { exit 1 }
+          cmake --build --preset win-x64-release -j 2
+          if ($LASTEXITCODE -ne 0) { exit 1 }
+
+      - name: Fetch our RDA driver (v0.2.0) + test-sign it
+        shell: pwsh
+        run: |
+          $hdr = @{ Authorization = "token ${{ secrets.GITHUB_TOKEN }}" }
+          $rel = Invoke-RestMethod -Uri "https://api.github.com/repos/heicfast/rda-driver/releases/tags/v0.2.0" -Headers $hdr
+          New-Item -ItemType Directory -Force -Path driver | Out-Null
+          foreach ($asset in $rel.assets) {
+            if ($asset.name -in @("rda.sys", "install.ps1")) {
+              Invoke-WebRequest -Uri $asset.browser_download_url -OutFile "driver\$($asset.name)" -Headers $hdr
+            }
+          }
+          $cert = New-SelfSignedCertificate -Type CodeSigningCert -Subject "CN=RRECOV-COMPARE-TEST" `
+            -KeyExportPolicy Exportable -NotAfter (Get-Date).AddDays(2) `
+            -CertStoreLocation Cert:\LocalMachine\My
+          $pwd2 = ConvertTo-SecureString -String "rrecov-cmp" -Force -AsPlainText
+          Export-PfxCertificate -Cert $cert -FilePath rda-test.pfx -Password $pwd2 | Out-Null
+          Export-Certificate -Cert $cert -FilePath rda-test.cer | Out-Null
+          Import-Certificate -FilePath rda-test.cer -CertStoreLocation Cert:\LocalMachine\Root | Out-Null
+          Import-Certificate -FilePath rda-test.cer -CertStoreLocation Cert:\LocalMachine\TrustedPublisher | Out-Null
+          $signtool = Get-ChildItem "C:\Program Files (x86)\Windows Kits\10\bin\*\x64\signtool.exe" |
+            Sort-Object FullName -Descending | Select-Object -First 1
+          & $signtool.FullName sign /fd SHA256 /f rda-test.pfx /p rrecov-cmp driver\rda.sys
+          if ($LASTEXITCODE -ne 0) { exit 1 }
+
+      - name: Create + attach the seeded VHD
+        shell: pwsh
+        run: |
+          $dp = @"
+          create vdisk file="$env:VHD_PATH" type=fixed maximum=8192
+          attach vdisk
+          "@
+          $dp | Set-Content -Path disk.txt -Encoding ascii
+          diskpart /s disk.txt
+          if ($LASTEXITCODE -ne 0) { exit 1 }
+          Start-Sleep -Seconds 3
+          $disk = (Get-Disk | Sort-Object Number | Select-Object -Last 1).Number
+          "DISK=$disk" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          Initialize-Disk -Number $disk -PartitionStyle GPT
+          $p1 = New-Partition -DiskNumber $disk -Size 6GB -AssignDriveLetter
+          $vol = Format-Volume -Partition $p1 -FileSystem NTFS -NewFileSystemLabel "CMP-NTFS"
+          "NTFS_LETTER=$($vol.DriveLetter)" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          Write-Host "comparison disk $disk, NTFS volume $($vol.DriveLetter):"
+
+      - name: Seed ground truth
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path compare-results | Out-Null
+          powershell -ExecutionPolicy Bypass -File scripts\bench_seed.ps1 `
+            -Root "$($env:NTFS_LETTER):\seed" `
+            -ManifestOut compare-results\manifest.csv
+          if ($LASTEXITCODE -ne 0) { exit 1 }
+
+      - name: Install both drivers side by side
+        shell: pwsh
+        run: |
+          # og driver (signed by its own DigiCert chain - loads on runners,
+          # proven by the rda-driver benchmark pipeline)
+          $ogdrv = Get-ChildItem research\og-codebase -Recurse -Filter eprdtdrv.sys |
+            Select-Object -First 1
+          if (-not $ogdrv) { Write-Host "eprdtdrv.sys not found in corpus"; exit 1 }
+          Write-Host "og driver: $($ogdrv.FullName)"
+          Copy-Item $ogdrv.FullName "$env:SystemRoot\System32\drivers\eprdtdrv.sys" -Force
+          sc.exe create eprdtdrv type= kernel start= demand binPath= "System32\drivers\eprdtdrv.sys" group= "FSFilter Boot File System"
+          sc.exe start eprdtdrv
+          # our driver
+          Copy-Item driver\rda.sys "$env:SystemRoot\System32\drivers\rdatest.sys" -Force
+          sc.exe create rdatest type= kernel start= demand binPath= "System32\drivers\rdatest.sys" group= "FSFilter Boot File System"
+          sc.exe start rdatest
+          sc.exe query eprdtdrv; sc.exe query rdatest
+
+      - name: Run og EaseUS DRW (UI-driven, screenshots + .rsf harvest)
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Continue'
+          New-Item -ItemType Directory -Force -Path compare-results\og | Out-Null
+          Add-Type -TypeDefinition @"
+          using System;
+          using System.Runtime.InteropServices;
+          public class CH {
+            [DllImport("user32.dll")] public static extern bool SetCursorPos(int x, int y);
+            [DllImport("user32.dll")] public static extern void mouse_event(uint f, uint dx, uint dy, uint dd, UIntPtr e);
+            [DllImport("user32.dll")] public static extern bool GetWindowRect(IntPtr h, out RECT r);
+            [StructLayout(LayoutKind.Sequential)] public struct RECT { public int L, T, R, B; }
+            public static void Click(int x, int y) {
+              SetCursorPos(x, y);
+              mouse_event(0x0002, 0, 0, 0, UIntPtr.Zero);
+              mouse_event(0x0004, 0, 0, 0, UIntPtr.Zero);
+            }
+          }
+          "@
+          function Shot($name) {
+            try {
+              Add-Type -AssemblyName System.Windows.Forms,System.Drawing
+              $b = [System.Windows.Forms.SystemInformation]::VirtualScreen
+              $bmp = New-Object System.Drawing.Bitmap($b.Width, $b.Height)
+              $g = [System.Drawing.Graphics]::FromImage($bmp)
+              $g.CopyFromScreen($b.X, $b.Y, 0, 0, $bmp.Size)
+              $bmp.Save("compare-results\og\$name.png", [System.Drawing.Imaging.ImageFormat]::Png)
+              $g.Dispose(); $bmp.Dispose()
+              "shot $name ok" | Write-Host
+            } catch { "shot $name FAILED: $_" | Write-Host }
+          }
+          function WinRect() {
+            $w = Get-Process DRWUI -ErrorAction SilentlyContinue | Where-Object {$_.MainWindowHandle -ne 0} | Select-Object -First 1
+            if (-not $w) { return $null }
+            $r = New-Object CH+RECT
+            [CH]::GetWindowRect($w.MainWindowHandle, [ref]$r) | Out-Null
+            return $r
+          }
+
+          $og = "research\og-codebase"
+          # og writes logs + SaveScan next to the exe; make the tree writable
+          $t0 = Get-Date
+          $proc = Start-Process -FilePath (Join-Path $og "DRW.exe") -WorkingDirectory $og -PassThru
+          "launched DRW.exe pid=$($proc.Id)" | Out-File compare-results\og\launch.txt -Encoding utf8
+          Start-Sleep -Seconds 50
+          Shot "01_landing"
+          Get-Process | Where-Object {$_.ProcessName -match 'DRW|EaseUS|EU'} |
+            Select-Object Id,ProcessName,MainWindowTitle |
+            Format-Table -AutoSize | Out-File compare-results\og\processes.txt -Encoding utf8
+
+          # select the seeded volume tile (the last data-volume tile on the
+          # landing page), then start the scan
+          $r = WinRect
+          if ($r) {
+            $w = $r.R - $r.L; $h = $r.B - $r.T
+            # volume tiles occupy the middle band; click the last tile
+            [CH]::Click($r.L + [int]($w * 0.50), $r.T + [int]($h * 0.52))
+            Start-Sleep -Seconds 2
+            Shot "02_volume_selected"
+            [CH]::Click($r.L + [int]($w * 0.90), $r.T + [int]($h * 0.92))
+            "clicked Search for Lost Data" | Write-Host
+          }
+          # poll the scan: window title carries the files-found counter
+          $deadline = (Get-Date).AddSeconds([int]'${{ inputs.scan_wait_seconds }}')
+          $lastTitle = ""
+          $i = 0
+          while ((Get-Date) -lt $deadline) {
+            Start-Sleep -Seconds 15
+            $p = Get-Process DRWUI -ErrorAction SilentlyContinue | Select-Object -First 1
+            if ($p) {
+              $title = $p.MainWindowTitle
+              if ($title -ne $lastTitle) {
+                "[$((Get-Date)-$t0).TotalSeconds.ToString('0')] $title" |
+                  Out-File compare-results\og\title-poll.txt -Encoding utf8 -Append
+                $lastTitle = $title
+              }
+            }
+            $i++
+            if ($i % 4 -eq 0) { Shot ("03_scan_{0:d2}" -f $i) }
+            # stop early when the completion modal is up (title change or
+            # 'Recover' button state) - keep polling otherwise
+          }
+          Shot "04_scan_end"
+          Start-Sleep -Seconds 10
+          Shot "05_final"
+          # harvest og artifacts: logs + auto-saved .rsf
+          Get-ChildItem $og -Recurse -Filter "*.rsf" -ErrorAction SilentlyContinue |
+            Copy-Item -Destination compare-results\og\ -ErrorAction SilentlyContinue
+          Get-ChildItem (Join-Path $og "log") -ErrorAction SilentlyContinue |
+            Copy-Item -Destination compare-results\og\ -ErrorAction SilentlyContinue
+          Get-ChildItem compare-results\og | Format-Table Name, Length | Out-String | Write-Host
+          Stop-Process -Name DRWUI -Force -ErrorAction SilentlyContinue
+          Stop-Process -Name DRW -Force -ErrorAction SilentlyContinue
+
+      - name: Run our recovery scan (same disk, full logs)
+        shell: pwsh
+        run: |
+          $exe = "build\win-x64-release\src\app\Release\rrecov.exe"
+          $t0 = Get-Date
+          & $exe scan --disk $env:DISK --deep --threads 4 `
+            --out compare-results\ours-session.crsf --log compare-results\rrecov.log --json `
+            2>&1 | Tee-Object -FilePath compare-results\scan-ours.json
+          $dt = ((Get-Date) - $t0).TotalSeconds
+          "rrecov_scan_seconds=$([math]::Round($dt,1))" | Out-File compare-results\timing-ours.txt -Encoding utf8
+          & $exe tree --in compare-results\ours-session.crsf --csv `
+            | Out-File -FilePath compare-results\ours.csv -Encoding utf8
+
+      - name: Extract og results from .rsf + build the comparison report
+        shell: pwsh
+        run: |
+          $rsf = Get-ChildItem compare-results\og -Filter "*.rsf" | Sort-Object LastWriteTime -Descending | Select-Object -First 1
+          if ($rsf) {
+            Write-Host "extracting: $($rsf.Name)"
+            python scripts\compare_og_rsf.py $rsf.FullName compare-results\og.csv
+            if ($LASTEXITCODE -ne 0) {
+              Write-Host "rsf extraction failed (rc=$LASTEXITCODE) - continuing with empty og results"
+              "path,size,origin,deleted,confidence,extent" | Out-File compare-results\og.csv -Encoding utf8
+            }
+          } else {
+            Write-Host "no .rsf harvested - og leg incomplete"
+            "path,size,origin,deleted,confidence,extent" | Out-File compare-results\og.csv -Encoding utf8
+          }
+          python scripts\compare_report.py `
+            --manifest compare-results\manifest.csv `
+            --og compare-results\og.csv `
+            --ours compare-results\ours.csv `
+            --out compare-results\comparison.md `
+            --json compare-results\comparison.json
+          Get-Content compare-results\comparison.md | Write-Host
+          Get-Content compare-results\comparison.md | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Encoding utf8 -Append
+
+      - name: Cleanup (always)
+        if: always()
+        shell: pwsh
+        run: |
+          Stop-Process -Name DRWUI,DRW -Force -ErrorAction SilentlyContinue
+          sc.exe stop rdatest 2>$null; sc.exe delete rdatest 2>$null
+          sc.exe stop eprdtdrv 2>$null; sc.exe delete eprdtdrv 2>$null
+          Remove-Item "$env:SystemRoot\System32\drivers\rdatest.sys" -Force -ErrorAction SilentlyContinue
+          Remove-Item "$env:SystemRoot\System32\drivers\eprdtdrv.sys" -Force -ErrorAction SilentlyContinue
+          $dp = "select vdisk file=`"$env:VHD_PATH`"`ndetach vdisk"
+          $dp | Set-Content -Path disk-clean.txt -Encoding ascii
+          diskpart /s disk-clean.txt 2>$null
+          Remove-Item $env:VHD_PATH -Force -ErrorAction SilentlyContinue
+          Get-ChildItem Cert:\LocalMachine\My |
+            Where-Object { $_.Subject -eq "CN=RRECOV-COMPARE-TEST" } |
+            Remove-Item -ErrorAction SilentlyContinue
+
+      - name: Upload comparison artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: easeus-comparison
+          path: compare-results/
+          retention-days: 60
