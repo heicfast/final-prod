@@ -29,10 +29,10 @@ namespace cr {
  * Reference defect F1 (fixed 512-byte sector math) fixed here: every offset
  * in the stack is byte-anchored; sector math derives from these fields. */
 struct Geometry {
-    u64 total_bytes = 0;        /* derived size in bytes */
-    u32 logical_sector = 0;     /* bytes per logical sector (512 / 4096) */
-    u32 physical_sector = 0;    /* bytes per physical sector (512e reports 4096) */
-    u64 sector_count = 0;       /* total_bytes / logical_sector */
+    u64 total_bytes = 0;     /* derived size in bytes */
+    u32 logical_sector = 0;  /* bytes per logical sector (512 / 4096) */
+    u32 physical_sector = 0; /* bytes per physical sector (512e reports 4096) */
+    u64 sector_count = 0;    /* total_bytes / logical_sector */
 
     constexpr bool valid() const {
         return logical_sector != 0 && physical_sector != 0 && total_bytes != 0 &&
@@ -46,20 +46,20 @@ struct Geometry {
 struct ReadErrorRange {
     u64 offset;
     u64 length;
-    u32 attempts;      /* how many times we retried before giving up */
+    u32 attempts; /* how many times we retried before giving up */
 };
 
 /* Accumulated read-failure map for one scan pass. Kept sorted by offset. */
 class ReadErrorMap {
 public:
     void add(u64 offset, u64 length, u32 attempts);
-    const std::vector<ReadErrorRange> &ranges() const { return ranges_; }
+    const std::vector<ReadErrorRange>& ranges() const { return ranges_; }
     u64 total_bytes() const;
-    void merge(const ReadErrorMap &other);
+    void merge(const ReadErrorMap& other);
 
     /* Serialization support (session records): fixed-u32 count + entries. */
-    void serialize(std::vector<u8> &out) const;
-    static ReadErrorMap deserialize(const u8 *data, size_t len, u32 *consumed);
+    void serialize(std::vector<u8>& out) const;
+    static ReadErrorMap deserialize(const u8* data, size_t len, u32* consumed);
 
 private:
     std::vector<ReadErrorRange> ranges_;
@@ -67,8 +67,8 @@ private:
 
 /* Retry policy for transport reads (R1.6). skip_or_zero is opt-in only. */
 enum class RetryMode : u32 {
-    Fail = 0,      /* report ERR_RETRY_EXHAUSTED, record range, stop stage */
-    Skip = 1,      /* record range, return zeroed buffer, continue */
+    Fail = 0, /* report ERR_RETRY_EXHAUSTED, record range, stop stage */
+    Skip = 1, /* record range, return zeroed buffer, continue */
 };
 
 struct RetryPolicy {
@@ -86,8 +86,8 @@ struct RetryPolicy {
 class IStorageDevice {
 public:
     virtual ~IStorageDevice() = default;
-    virtual u32 read_at(u64 offset, void *buffer, u32 length) = 0;
-    virtual const Geometry &geometry() const = 0;
+    virtual u32 read_at(u64 offset, void* buffer, u32 length) = 0;
+    virtual const Geometry& geometry() const = 0;
     virtual u64 size() const { return geometry().total_bytes; }
 };
 

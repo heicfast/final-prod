@@ -11,51 +11,62 @@ namespace fat {
 
 Flavor flavor_from_clusters(u32 cluster_count_data) {
     /* Microsoft FAT whitepaper thresholds (data clusters, incl. reserved 2) */
-    if (cluster_count_data < 4085) return Flavor::Fat12;
-    if (cluster_count_data < 65525) return Flavor::Fat16;
+    if (cluster_count_data < 4085)
+        return Flavor::Fat12;
+    if (cluster_count_data < 65525)
+        return Flavor::Fat16;
     return Flavor::Fat32;
 }
 
-u64 FatTable::cluster_offset(const FatParams &p, u32 cluster) {
-    if (cluster < 2) return 0;
-    return (u64(cluster) - 2) * p.cluster_bytes +
-           (p.first_data_sector * p.bytes_per_sector);
+u64 FatTable::cluster_offset(const FatParams& p, u32 cluster) {
+    if (cluster < 2)
+        return 0;
+    return (u64(cluster) - 2) * p.cluster_bytes + (p.first_data_sector * p.bytes_per_sector);
 }
 
-u32 FatTable::entry_at(const std::vector<u8> &f, u32 cluster) const {
-    if (f.empty()) return 0;
+u32 FatTable::entry_at(const std::vector<u8>& f, u32 cluster) const {
+    if (f.empty())
+        return 0;
     switch (flavor_) {
     case Flavor::Fat12: {
         size_t off = size_t(cluster) + size_t(cluster) / 2;
-        if (off + 2 > f.size()) return 0;
+        if (off + 2 > f.size())
+            return 0;
         u32 v = u16_from_bytes_le(f.data() + off);
         return (cluster & 1) ? (v >> 4) : (v & 0xFFF);
     }
     case Flavor::Fat16: {
         size_t off = size_t(cluster) * 2;
-        if (off + 2 > f.size()) return 0;
+        if (off + 2 > f.size())
+            return 0;
         u16 v = u16_from_bytes_le(f.data() + off);
-        if (v == 0xFFF7) return CHAIN_BAD;
-        if (v >= 0xFFF8) return CHAIN_EOC_MIN; /* canonical EOC marker */
+        if (v == 0xFFF7)
+            return CHAIN_BAD;
+        if (v >= 0xFFF8)
+            return CHAIN_EOC_MIN; /* canonical EOC marker */
         return v;
     }
     case Flavor::Fat32:
     default: {
         size_t off = size_t(cluster) * 4;
-        if (off + 4 > f.size()) return 0;
+        if (off + 4 > f.size())
+            return 0;
         u32 v = u32_from_bytes_le(f.data() + off) & 0x0FFFFFFF;
-        if (v == 0x0FFFFFF7) return CHAIN_BAD;
-        if (v >= 0x0FFFFFF8) return CHAIN_EOC_MIN;
+        if (v == 0x0FFFFFF7)
+            return CHAIN_BAD;
+        if (v >= 0x0FFFFFF8)
+            return CHAIN_EOC_MIN;
         return v;
     }
     }
 }
 
-u32 FatTable::load(IStorageDevice *dev, const FatParams &p) {
+u32 FatTable::load(IStorageDevice* dev, const FatParams& p) {
     flavor_ = p.flavor;
     max_cluster_ = p.cluster_count + 1; /* clusters 2..cluster_count+1 */
     u64 table_bytes = u64(p.fat_sectors) * p.bytes_per_sector;
-    if (table_bytes == 0 || table_bytes > (16u << 20)) return ERR_BAD_PARAMETER;
+    if (table_bytes == 0 || table_bytes > (16u << 20))
+        return ERR_BAD_PARAMETER;
     fat1_.resize(size_t(table_bytes));
     if (dev->read_at(p.fat_start, fat1_.data(), u32(table_bytes)) != OK) {
         fat1_.clear();
@@ -69,7 +80,8 @@ u32 FatTable::load(IStorageDevice *dev, const FatParams &p) {
             mirror_ = true;
             divergences_ = 0;
             for (u32 c = 2; c <= max_cluster_; ++c) {
-                if (entry_at(fat1_, c) != entry_at(fat2_, c)) ++divergences_;
+                if (entry_at(fat1_, c) != entry_at(fat2_, c))
+                    ++divergences_;
             }
         }
     }
@@ -77,39 +89,47 @@ u32 FatTable::load(IStorageDevice *dev, const FatParams &p) {
 }
 
 u32 FatTable::next(u32 cluster) const {
-    if (cluster < 2 || cluster > max_cluster_) return 0;
+    if (cluster < 2 || cluster > max_cluster_)
+        return 0;
     u32 v = entry_at(fat1_, cluster);
     /* choose-healthy mirror: if primary says BAD/FREE, consult FAT2 */
     if (mirror_ && (v == 0 || v == CHAIN_BAD)) {
         u32 alt = entry_at(fat2_, cluster);
-        if (alt != 0 && alt != CHAIN_BAD) return alt;
+        if (alt != 0 && alt != CHAIN_BAD)
+            return alt;
     }
-    if (v >= CHAIN_EOC_MIN && v < 0x0FFFFFF0) return CHAIN_EOC_MIN; /* canonical marker */
+    if (v >= CHAIN_EOC_MIN && v < 0x0FFFFFF0)
+        return CHAIN_EOC_MIN; /* canonical marker */
     if (v >= 0x0FFFFFF0) {
         /* FAT12 0xFF0-0xFF6 / FAT16 0xFFF0-0xFFF6 / FAT32 reserved: treat as
          * reserved-value -> end of chain for walking purposes */
         return CHAIN_EOC_MIN;
     }
-    if (v == 0 || v == CHAIN_BAD) return v;
+    if (v == 0 || v == CHAIN_BAD)
+        return v;
     return v;
 }
 
 u32 FatTable::raw(u32 cluster) const {
-    if (cluster < 2 || cluster > max_cluster_) return 0;
+    if (cluster < 2 || cluster > max_cluster_)
+        return 0;
     u32 v = entry_at(fat1_, cluster);
     if (mirror_ && (v == 0 || v == CHAIN_BAD)) {
         u32 alt = entry_at(fat2_, cluster);
-        if (alt != 0 && alt != CHAIN_BAD) return alt;
+        if (alt != 0 && alt != CHAIN_BAD)
+            return alt;
     }
     return v;
 }
 
 void FatTable::set_raw(u32 cluster, u32 value) {
-    if (cluster < 2 || cluster > max_cluster_ || fat1_.empty()) return;
+    if (cluster < 2 || cluster > max_cluster_ || fat1_.empty())
+        return;
     switch (flavor_) {
     case Flavor::Fat12: {
         size_t off = size_t(cluster) + size_t(cluster) / 2;
-        if (off + 2 > fat1_.size()) return;
+        if (off + 2 > fat1_.size())
+            return;
         u16 cur = u16_from_bytes_le(fat1_.data() + off);
         u16 v = u16(value);
         if (cluster & 1) {
@@ -123,7 +143,8 @@ void FatTable::set_raw(u32 cluster, u32 value) {
     }
     case Flavor::Fat16: {
         size_t off = size_t(cluster) * 2;
-        if (off + 2 > fat1_.size()) return;
+        if (off + 2 > fat1_.size())
+            return;
         fat1_[off] = u8(value);
         fat1_[off + 1] = u8(value >> 8);
         break;
@@ -131,14 +152,16 @@ void FatTable::set_raw(u32 cluster, u32 value) {
     case Flavor::Fat32:
     default: {
         size_t off = size_t(cluster) * 4;
-        if (off + 4 > fat1_.size()) return;
-        for (int i = 0; i < 4; ++i) fat1_[off + i] = u8(value >> (8 * i));
+        if (off + 4 > fat1_.size())
+            return;
+        for (int i = 0; i < 4; ++i)
+            fat1_[off + i] = u8(value >> (8 * i));
         break;
     }
     }
 }
 
-ChainResult follow_chain(const FatTable &t, u32 start, u32 max_len) {
+ChainResult follow_chain(const FatTable& t, u32 start, u32 max_len) {
     ChainResult r;
     if (start < 2 || start > t.max_cluster()) {
         r.broken = true;
@@ -164,7 +187,8 @@ ChainResult follow_chain(const FatTable &t, u32 start, u32 max_len) {
             r.broken = (n == CHAIN_BAD);
             break;
         }
-        if (n >= CHAIN_EOC_MIN) break; /* clean end */
+        if (n >= CHAIN_EOC_MIN)
+            break; /* clean end */
         if (n < 2 || n > t.max_cluster()) {
             r.broken = true;
             break;
@@ -174,7 +198,7 @@ ChainResult follow_chain(const FatTable &t, u32 start, u32 max_len) {
     return r;
 }
 
-ChainResult reconstruct_deleted_chain(const FatTable &t, u32 start, u32 expect_clusters) {
+ChainResult reconstruct_deleted_chain(const FatTable& t, u32 start, u32 expect_clusters) {
     /* For a deleted entry: FAT links may be gone (0) or intact. Walk while
      * entries are plausible; treat FREE mid-chain as end (salvage what's
      * linked). Expect bounds the walk. */
@@ -196,9 +220,11 @@ ChainResult reconstruct_deleted_chain(const FatTable &t, u32 start, u32 expect_c
             }
         visited.push_back(c);
         r.clusters.push_back(c);
-        if (r.clusters.size() >= limit) break;
+        if (r.clusters.size() >= limit)
+            break;
         u32 n = t.next(c);
-        if (n >= CHAIN_EOC_MIN) break;
+        if (n >= CHAIN_EOC_MIN)
+            break;
         if (n == 0 || n == CHAIN_BAD || n < 2 || n > t.max_cluster()) {
             r.broken = (n == CHAIN_BAD);
             break;
@@ -208,7 +234,7 @@ ChainResult reconstruct_deleted_chain(const FatTable &t, u32 start, u32 expect_c
     return r;
 }
 
-u32 validate_boot(const u8 *sector512, u64 device_bytes, FatParams &out) {
+u32 validate_boot(const u8* sector512, u64 device_bytes, FatParams& out) {
     if (sector512 == nullptr || !fat::boot_signature_ok(sector512))
         return ERR_BAD_MAGIC;
     FatParams p;
@@ -243,7 +269,6 @@ u32 validate_boot(const u8 *sector512, u64 device_bytes, FatParams &out) {
         p.backup_boot_sector = u16_from_bytes_le(sector512 + 0x32);
     }
 
-
     u64 fat_area = u64(p.fat_count) * p.fat_sectors;
     u32 root_sectors = 0;
     if (p.flavor != Flavor::Fat32) {
@@ -254,14 +279,13 @@ u32 validate_boot(const u8 *sector512, u64 device_bytes, FatParams &out) {
         p.root_dir_offset = 0;
     }
     p.first_data_sector = p.reserved_sectors + u32(fat_area) + root_sectors;
-    if (p.first_data_sector >= total) return ERR_BAD_PARAMETER;
+    if (p.first_data_sector >= total)
+        return ERR_BAD_PARAMETER;
     u32 data_sectors = total - p.first_data_sector;
     p.cluster_count = data_sectors / p.sectors_per_cluster;
 
     p.flavor = flavor_from_clusters(p.cluster_count);
-    p.fat2_start = p.fat_count >= 2
-                       ? p.fat_start + u64(p.fat_sectors) * p.bytes_per_sector
-                       : 0;
+    p.fat2_start = p.fat_count >= 2 ? p.fat_start + u64(p.fat_sectors) * p.bytes_per_sector : 0;
     p.total_bytes = u64(total) * p.bytes_per_sector;
     if (p.total_bytes > device_bytes) {
         /* partition slice smaller than BPB claims (truncated tail): allow,

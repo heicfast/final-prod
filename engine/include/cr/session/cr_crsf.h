@@ -44,23 +44,23 @@ enum RecordType : u32 {
 struct Record {
     RecordType type = REC_SESSION_STATE;
     u64 session_id = 0;
-    std::vector<u8> data;    /* DECOMPRESSED bytes */
+    std::vector<u8> data; /* DECOMPRESSED bytes */
 };
 
 class Writer {
 public:
     /* sink callbacks keep the container pure-core (no file API here):
      * write(bytes,len) -> u32 rc; seek(absolute) used by finalize patch. */
-    using WriteFn = u32 (*)(void *user, const void *bytes, u32 len);
-    using TellFn = u64 (*)(void *user);
-    using SeekFn = u32 (*)(void *user, u64 absolute);
+    using WriteFn = u32 (*)(void* user, const void* bytes, u32 len);
+    using TellFn = u64 (*)(void* user);
+    using SeekFn = u32 (*)(void* user, u64 absolute);
 
-    Writer(WriteFn write, TellFn tell, SeekFn seek, void *user);
+    Writer(WriteFn write, TellFn tell, SeekFn seek, void* user);
     ~Writer();
 
-    u32 open(u64 session_id);          /* emits the container header */
-    u32 add_record(RecordType type, const void *data, u32 len);
-    u32 finalize();                    /* patches record_count + chain fields */
+    u32 open(u64 session_id); /* emits the container header */
+    u32 add_record(RecordType type, const void* data, u32 len);
+    u32 finalize(); /* patches record_count + chain fields */
 
 private:
     struct Impl;
@@ -69,17 +69,17 @@ private:
 
 class Reader {
 public:
-    using ReadFn = u32 (*)(void *user, void *buf, u32 len);
-    using SeekFn = u32 (*)(void *user, u64 absolute);
-    using SizeFn = u64 (*)(void *user);
+    using ReadFn = u32 (*)(void* user, void* buf, u32 len);
+    using SeekFn = u32 (*)(void* user, u64 absolute);
+    using SizeFn = u64 (*)(void* user);
 
-    Reader(ReadFn read, SeekFn seek, SizeFn size, void *user);
+    Reader(ReadFn read, SeekFn seek, SizeFn size, void* user);
     ~Reader();
 
     /* Reads the header; validates magic/version. */
-    u32 open(u32 *record_count_out);
+    u32 open(u32* record_count_out);
     /* Reads record #index (0-based, in file order). */
-    u32 read_record(u32 index, Record &out);
+    u32 read_record(u32 index, Record& out);
     u32 record_count() const { return count_; }
 
 private:
@@ -89,8 +89,8 @@ private:
 };
 
 /* Chunk framing exposed for tests. */
-u32 crsf_chunk_frame(const u8 *payload, u32 len, bool compress, std::vector<u8> &out);
-u32 crsf_chunk_parse(const u8 *data, u32 len, std::vector<u8> &out);
+u32 crsf_chunk_frame(const u8* payload, u32 len, bool compress, std::vector<u8>& out);
+u32 crsf_chunk_parse(const u8* data, u32 len, std::vector<u8>& out);
 
 } // namespace session
 } // namespace cr

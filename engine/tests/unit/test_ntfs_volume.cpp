@@ -26,11 +26,11 @@ using namespace cr::ntfs;
 namespace {
 
 constexpr u32 SEC = 512;
-constexpr u32 CLUSTER = SEC;          /* spc = 1 */
+constexpr u32 CLUSTER = SEC; /* spc = 1 */
 constexpr u64 NSECTORS = 256;
 constexpr u64 RECORD_SIZE = 1024;
 constexpr u64 MFT_LCN = 4;
-constexpr u64 MFT_CLUSTERS = 64;      /* records 0..31 */
+constexpr u64 MFT_CLUSTERS = 64; /* records 0..31 */
 constexpr u64 MIRR_LCN = 68;
 constexpr u64 BITMAP_LCN = 80;
 constexpr u64 BITMAP_CLUSTERS = 4;
@@ -43,10 +43,10 @@ public:
         geom_.sector_count = NSECTORS;
         geom_.total_bytes = data_.size();
     }
-    u8 *sec(u64 lba) { return data_.data() + lba * SEC; }
-    const u8 *sec(u64 lba) const { return data_.data() + lba * SEC; }
-    std::vector<u8> &raw() { return data_; }
-    Geometry &geom() { return geom_; }
+    u8* sec(u64 lba) { return data_.data() + lba * SEC; }
+    const u8* sec(u64 lba) const { return data_.data() + lba * SEC; }
+    std::vector<u8>& raw() { return data_; }
+    Geometry& geom() { return geom_; }
 
 private:
     std::vector<u8> data_;
@@ -55,17 +55,18 @@ private:
 
 class MemDevice final : public IStorageDevice {
 public:
-    explicit MemDevice(std::vector<u8> &img, Geometry &g) : img_(img), geom_(g) {}
-    u32 read_at(u64 off, void *buf, u32 len) override {
-        if (off > img_.size() || len > img_.size() - off) return ERR_RANGE_OUT_OF_BOUNDS;
+    explicit MemDevice(std::vector<u8>& img, Geometry& g) : img_(img), geom_(g) {}
+    u32 read_at(u64 off, void* buf, u32 len) override {
+        if (off > img_.size() || len > img_.size() - off)
+            return ERR_RANGE_OUT_OF_BOUNDS;
         std::memcpy(buf, img_.data() + off, len);
         return OK;
     }
-    const Geometry &geometry() const override { return geom_; }
+    const Geometry& geometry() const override { return geom_; }
 
 private:
-    std::vector<u8> &img_;
-    Geometry &geom_;
+    std::vector<u8>& img_;
+    Geometry& geom_;
 };
 
 /* ---- record builder ---- */
@@ -76,7 +77,7 @@ struct RecBuilder {
     RecBuilder() { buf.assign(RECORD_SIZE, 0); }
 
     void header(u64 record_no, u16 flags) {
-        auto *rh = reinterpret_cast<RecordHeader *>(buf.data());
+        auto* rh = reinterpret_cast<RecordHeader*>(buf.data());
         rh->magic = RECORD_MAGIC_FILE;
         rh->update_sequence_offset = 0x30;
         rh->update_sequence_size = 3; /* 2 sectors + 1 */
@@ -97,8 +98,9 @@ struct RecBuilder {
         }
         /* tails hold the USN (torn state) */
         for (int i = 0; i < 2; ++i) {
-            u8 *t = buf.data() + u64(i) * SEC + SEC - 2;
-            t[0] = 0xB8; t[1] = 0x0B;
+            u8* t = buf.data() + u64(i) * SEC + SEC - 2;
+            t[0] = 0xB8;
+            t[1] = 0x0B;
         }
     }
 
@@ -108,7 +110,8 @@ struct RecBuilder {
         u32 alen = (voff + vlen + 7) / 8 * 8;
         u32_from_bytes_le_wr(buf, pos + 0, ATTR_TYPE_STANDARD_INFORMATION);
         u32_from_bytes_le_wr(buf, pos + 4, alen);
-        buf[pos + 8] = 0; buf[pos + 9] = 0;
+        buf[pos + 8] = 0;
+        buf[pos + 9] = 0;
         u16_from_bytes_le_wr(buf, pos + 10, voff);
         u16_from_bytes_le_wr(buf, pos + 16, u16(vlen));
         u16_from_bytes_le_wr(buf, pos + 20, u16(voff));
@@ -120,7 +123,7 @@ struct RecBuilder {
         attr_pos += alen;
     }
 
-    void attr_file_name(u64 parent_record, const char16_t *name, u8 ns, u32 dos_flags,
+    void attr_file_name(u64 parent_record, const char16_t* name, u8 ns, u32 dos_flags,
                         u64 real_size, u64 alloc_size) {
         std::u16string n = name;
         u32 vlen = 66 + u32(n.size()) * 2;
@@ -129,11 +132,12 @@ struct RecBuilder {
         u32 pos = attr_pos;
         u32_from_bytes_le_wr(buf, pos + 0, ATTR_TYPE_FILE_NAME);
         u32_from_bytes_le_wr(buf, pos + 4, alen);
-        buf[pos + 8] = 0; buf[pos + 9] = 0;
+        buf[pos + 8] = 0;
+        buf[pos + 9] = 0;
         u16_from_bytes_le_wr(buf, pos + 10, voff);
         u16_from_bytes_le_wr(buf, pos + 16, u16(vlen));
         u16_from_bytes_le_wr(buf, pos + 20, u16(voff));
-        u8 *d = buf.data() + pos + voff;
+        u8* d = buf.data() + pos + voff;
         u64_from_bytes_le_wr(buf, pos + voff + 0, parent_record | (1ULL << 48));
         u64_from_bytes_le_wr(buf, pos + voff + 8, 132000000000000000ULL);
         u64_from_bytes_le_wr(buf, pos + voff + 16, 133000000000000000ULL);
@@ -162,7 +166,7 @@ struct RecBuilder {
         u32_from_bytes_le_wr(buf, pos + 4, alen);
         buf[pos + 8] = 1; /* nonresident */
         u16_from_bytes_le_wr(buf, pos + 10, 0x40);
-        u16_from_bytes_le_wr(buf, pos + 16, 0); /* start_vcn (nonresident tail at +16) */
+        u16_from_bytes_le_wr(buf, pos + 16, 0);            /* start_vcn (nonresident tail at +16) */
         u64_from_bytes_le_wr(buf, pos + 24, clusters - 1); /* last_vcn */
         u16_from_bytes_le_wr(buf, pos + 32, 0x40);         /* runlist_offset */
         u32_from_bytes_le_wr(buf, pos + 36, 0);
@@ -173,7 +177,7 @@ struct RecBuilder {
         attr_pos += alen;
     }
 
-    void attr_data_resident(const char16_t *stream_name, u32 payload_words) {
+    void attr_data_resident(const char16_t* stream_name, u32 payload_words) {
         std::u16string n = stream_name;
         u32 vlen = payload_words * 4;
         u32 voff = 0x18 + u32(n.size()) * 2;
@@ -203,15 +207,16 @@ struct RecBuilder {
         u16_from_bytes_le_wr(buf, pos + 10, 0x18);
         u16_from_bytes_le_wr(buf, pos + 16, u16(vlen));
         u16_from_bytes_le_wr(buf, pos + 20, u16(voff));
-        u8 *d = buf.data() + pos + voff;
-        u32_from_bytes_le_wr(buf, pos + voff + 0x00, 0x30);  /* $I30 */
-        u32_from_bytes_le_wr(buf, pos + voff + 0x04, 0);     /* collation */
+        u8* d = buf.data() + pos + voff;
+        u32_from_bytes_le_wr(buf, pos + voff + 0x00, 0x30); /* $I30 */
+        u32_from_bytes_le_wr(buf, pos + voff + 0x04, 0);    /* collation */
         u32_from_bytes_le_wr(buf, pos + voff + 0x08, RECORD_SIZE);
-        d[0x0C] = 2; d[0x0D] = 0; /* clusters per block */
-        u32_from_bytes_le_wr(buf, pos + voff + 0x10, 0x20);  /* entries_offset */
+        d[0x0C] = 2;
+        d[0x0D] = 0;                                        /* clusters per block */
+        u32_from_bytes_le_wr(buf, pos + voff + 0x10, 0x20); /* entries_offset */
         u32_from_bytes_le_wr(buf, pos + voff + 0x14, 16);
         u32_from_bytes_le_wr(buf, pos + voff + 0x18, 16);
-        u32_from_bytes_le_wr(buf, pos + voff + 0x1C, 0);     /* flags: small */
+        u32_from_bytes_le_wr(buf, pos + voff + 0x1C, 0); /* flags: small */
         /* end entry: parent back-ref, flag 2 */
         u64_from_bytes_le_wr(buf, pos + voff + 0x20, 5 | (1ULL << 48));
         u16_from_bytes_le_wr(buf, pos + voff + 0x28, 16);
@@ -226,27 +231,32 @@ struct RecBuilder {
         u32_from_bytes_le_wr(buf, pos + 0, ATTR_TYPE_TERMINATOR);
         u32_from_bytes_le_wr(buf, pos + 4, 8);
         attr_pos += 8;
-        auto *rh = reinterpret_cast<RecordHeader *>(buf.data());
+        auto* rh = reinterpret_cast<RecordHeader*>(buf.data());
         rh->bytes_in_use = attr_pos;
     }
 
-    static void u32_from_bytes_le_wr(std::vector<u8> &v, size_t at, u32 x) {
-        v[at] = u8(x); v[at + 1] = u8(x >> 8); v[at + 2] = u8(x >> 16); v[at + 3] = u8(x >> 24);
+    static void u32_from_bytes_le_wr(std::vector<u8>& v, size_t at, u32 x) {
+        v[at] = u8(x);
+        v[at + 1] = u8(x >> 8);
+        v[at + 2] = u8(x >> 16);
+        v[at + 3] = u8(x >> 24);
     }
-    static void u16_from_bytes_le_wr(std::vector<u8> &v, size_t at, u16 x) {
-        v[at] = u8(x); v[at + 1] = u8(x >> 8);
+    static void u16_from_bytes_le_wr(std::vector<u8>& v, size_t at, u16 x) {
+        v[at] = u8(x);
+        v[at + 1] = u8(x >> 8);
     }
-    static void u64_from_bytes_le_wr(std::vector<u8> &v, size_t at, u64 x) {
-        for (int i = 0; i < 8; ++i) v[at + i] = u8(x >> (8 * i));
+    static void u64_from_bytes_le_wr(std::vector<u8>& v, size_t at, u64 x) {
+        for (int i = 0; i < 8; ++i)
+            v[at + i] = u8(x >> (8 * i));
     }
 };
 
-void build_image(Image &img) {
+void build_image(Image& img) {
     /* boot sector */
     {
         RecBuilder b; /* reuse writer helpers on the raw sector */
-        u8 *bs = img.sec(0);
-        BootSector *boot = reinterpret_cast<BootSector *>(bs);
+        u8* bs = img.sec(0);
+        BootSector* boot = reinterpret_cast<BootSector*>(bs);
         const char oem[8] = {'N', 'T', 'F', 'S', ' ', ' ', ' ', ' '};
         std::memcpy(boot->oem, oem, 8);
         boot->bytes_per_sector = SEC;
@@ -258,7 +268,8 @@ void build_image(Image &img) {
         boot->clusters_per_record = 2; /* 2 clusters = 1024B */
         boot->clusters_per_index_block = 2;
         boot->checksum = 0;
-        bs[510] = 0x55; bs[511] = 0xAA;
+        bs[510] = 0x55;
+        bs[511] = 0xAA;
     }
 
     /* record 0: $MFT with $DATA runlist LCN 4 len 64 */
@@ -281,17 +292,18 @@ void build_image(Image &img) {
         std::memcpy(img.sec(MFT_LCN + 2), r.buf.data(), RECORD_SIZE);
         /* mirror copies of records 0..3 at MIRR region */
         std::memcpy(img.sec(MIRR_LCN), img.sec(MFT_LCN), RECORD_SIZE);         /* rec0 copy */
-        std::memcpy(img.sec(MIRR_LCN + 2), r.buf.data(), RECORD_SIZE);          /* rec1 copy */
-        std::memcpy(img.sec(MIRR_LCN + 4), img.sec(MFT_LCN + 4), RECORD_SIZE);  /* rec2 */
-        std::memcpy(img.sec(MIRR_LCN + 6), img.sec(MFT_LCN + 6), RECORD_SIZE);  /* rec3 */
+        std::memcpy(img.sec(MIRR_LCN + 2), r.buf.data(), RECORD_SIZE);         /* rec1 copy */
+        std::memcpy(img.sec(MIRR_LCN + 4), img.sec(MFT_LCN + 4), RECORD_SIZE); /* rec2 */
+        std::memcpy(img.sec(MIRR_LCN + 6), img.sec(MFT_LCN + 6), RECORD_SIZE); /* rec3 */
     }
     /* records 2,3,4,6,7: meta ($ named) - minimal in-use records */
     for (u64 rn : {2u, 3u, 4u, 6u, 7u}) {
         RecBuilder r;
         r.header(rn, RECORD_IN_USE);
-        const char16_t *nm = rn == 6 ? u"$Bitmap" : (rn == 2 ? u"$LogFile" : u"$Volume");
+        const char16_t* nm = rn == 6 ? u"$Bitmap" : (rn == 2 ? u"$LogFile" : u"$Volume");
         r.attr_file_name(5, nm, FILE_NAME_WIN32, 0x06, 4 * CLUSTER, 4 * CLUSTER);
-        if (rn == 6) r.attr_data_runlist(BITMAP_LCN, BITMAP_CLUSTERS, BITMAP_CLUSTERS * CLUSTER);
+        if (rn == 6)
+            r.attr_data_runlist(BITMAP_LCN, BITMAP_CLUSTERS, BITMAP_CLUSTERS * CLUSTER);
         r.finish();
         std::memcpy(img.sec(MFT_LCN + rn * 2), r.buf.data(), RECORD_SIZE);
     }
@@ -385,12 +397,21 @@ void build_image(Image &img) {
     {
         std::vector<u8> bm(BITMAP_CLUSTERS * CLUSTER, 0);
         auto setbit = [&bm](u64 c) {
-            if (c / 8 < bm.size()) bm[c / 8] |= u8(1u << (c % 8));
+            if (c / 8 < bm.size())
+                bm[c / 8] |= u8(1u << (c % 8));
         };
-        for (u64 c = 4; c <= 83; ++c) setbit(c);
-        setbit(200); setbit(201); setbit(240); setbit(250);
-        setbit(220); setbit(221); setbit(222); setbit(223); /* overwrit.dat */
-        setbit(230); setbit(231);
+        for (u64 c = 4; c <= 83; ++c)
+            setbit(c);
+        setbit(200);
+        setbit(201);
+        setbit(240);
+        setbit(250);
+        setbit(220);
+        setbit(221);
+        setbit(222);
+        setbit(223); /* overwrit.dat */
+        setbit(230);
+        setbit(231);
         std::memcpy(img.sec(BITMAP_LCN), bm.data(), bm.size());
     }
 }
@@ -418,14 +439,14 @@ TEST(NtfsVolume, EndToEndWalk) {
 
     /* walk */
     tree::ResultTree tree;
-    auto *root_active = tree.add_root(u"Found (NTFS)");
-    auto *root_deleted = tree.add_root(u"Deleted");
-    auto *root_lost = tree.add_root(u"Lost Files");
+    auto* root_active = tree.add_root(u"Found (NTFS)");
+    auto* root_deleted = tree.add_root(u"Deleted");
+    auto* root_lost = tree.add_root(u"Lost Files");
     WalkerFlags wf;
     wf.skip_system_files = true;
     WalkStats stats;
-    u32 rc = walk_mft(vol.get(), bm.get(), wf, nullptr, nullptr, nullptr, tree,
-                      root_active, root_deleted, root_lost, stats);
+    u32 rc = walk_mft(vol.get(), bm.get(), wf, nullptr, nullptr, nullptr, tree, root_active,
+                      root_deleted, root_lost, stats);
     ASSERT_EQ(rc, OK) << err_text(rc);
 
     /* meta records skipped by '$' name; SYSTEM-attributed: none in fixture */
@@ -437,29 +458,40 @@ TEST(NtfsVolume, EndToEndWalk) {
     EXPECT_GE(stats.emitted, 9u);
 
     /* locate nodes by name */
-    tree::FileNode *rootdot = nullptr, *folder1 = nullptr, *readme = nullptr,
-                    *deleted = nullptr, *overwrit = nullptr, *partial = nullptr,
-                    *hard16 = nullptr, *hard5 = nullptr, *adsnode = nullptr, *adschild = nullptr;
-    std::vector<tree::FileNode *> all;
-    std::function<void(tree::FileNode *)> collect = [&](tree::FileNode *n) {
-        for (tree::FileNode *c = n->first_child(); c; c = c->next_sibling()) {
+    tree::FileNode *rootdot = nullptr, *folder1 = nullptr, *readme = nullptr, *deleted = nullptr,
+                   *overwrit = nullptr, *partial = nullptr, *hard16 = nullptr, *hard5 = nullptr,
+                   *adsnode = nullptr, *adschild = nullptr;
+    std::vector<tree::FileNode*> all;
+    std::function<void(tree::FileNode*)> collect = [&](tree::FileNode* n) {
+        for (tree::FileNode* c = n->first_child(); c; c = c->next_sibling()) {
             all.push_back(c);
             collect(c);
         }
     };
-    for (auto *r : tree.roots()) collect(r);
-    for (auto *n : all) {
+    for (auto* r : tree.roots())
+        collect(r);
+    for (auto* n : all) {
         std::string nm = n->name_utf8();
-        if (nm == ".") rootdot = n;
-        else if (nm == "folder1") folder1 = n;
-        else if (nm == "readme.txt") readme = n;
-        else if (nm == "deleted.dat") deleted = n;
-        else if (nm == "overwrit.dat") overwrit = n;
-        else if (nm == "partial.dat") partial = n;
-        else if (nm == "hard.txt") hard16 = n;
-        else if (nm == "hard@root.txt") hard5 = n;
-        else if (nm == "ads.txt") adsnode = n;
-        else if (nm == "ads.txt:sec") adschild = n;
+        if (nm == ".")
+            rootdot = n;
+        else if (nm == "folder1")
+            folder1 = n;
+        else if (nm == "readme.txt")
+            readme = n;
+        else if (nm == "deleted.dat")
+            deleted = n;
+        else if (nm == "overwrit.dat")
+            overwrit = n;
+        else if (nm == "partial.dat")
+            partial = n;
+        else if (nm == "hard.txt")
+            hard16 = n;
+        else if (nm == "hard@root.txt")
+            hard5 = n;
+        else if (nm == "ads.txt")
+            adsnode = n;
+        else if (nm == "ads.txt:sec")
+            adschild = n;
     }
     ASSERT_NE(rootdot, nullptr);
     ASSERT_NE(folder1, nullptr);
@@ -525,15 +557,16 @@ TEST(NtfsVolume, RemnantScanFindsDetachedRecord) {
     }
     MemDevice dev(img.raw(), img.geom());
     tree::ResultTree tree;
-    auto *root_lost = tree.add_root(u"Lost Files");
+    auto* root_lost = tree.add_root(u"Lost Files");
     WalkStats stats;
-    u32 rc = scan_mft_remnants(&dev, SEC, CLUSTER, RECORD_SIZE, nullptr, nullptr, nullptr,
-                               tree, root_lost, stats);
+    u32 rc = scan_mft_remnants(&dev, SEC, CLUSTER, RECORD_SIZE, nullptr, nullptr, nullptr, tree,
+                               root_lost, stats);
     ASSERT_EQ(rc, OK);
     /* find the floating node */
-    tree::FileNode *found = nullptr;
-    for (tree::FileNode *c = root_lost->first_child(); c; c = c->next_sibling())
-        if (c->name_utf8() == "floating.txt") found = c;
+    tree::FileNode* found = nullptr;
+    for (tree::FileNode* c = root_lost->first_child(); c; c = c->next_sibling())
+        if (c->name_utf8() == "floating.txt")
+            found = c;
     ASSERT_NE(found, nullptr);
     EXPECT_EQ(found->origin(), tree::Origin::Lost);
     EXPECT_EQ(found->confidence(), tree::Confidence::MetadataOnly);

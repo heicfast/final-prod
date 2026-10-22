@@ -46,7 +46,7 @@ struct CarveResult {
     u64 end = 0;             /* absolute end offset (slice-relative) */
     u16 confidence = 0;      /* 0..1000 */
     bool fragmented = false; /* grammar detected index/table gaps (R4.5) */
-    const char *note = "";   /* evidence note for the node registry */
+    const char* note = "";   /* evidence note for the node registry */
 };
 
 /*
@@ -54,28 +54,28 @@ struct CarveResult {
  * Contract: MUST read through the slice (no unbounded allocations), MUST
  * cap by entry max_size, MUST return ok=false on any grammar break.
  */
-using Validator = CarveResult (*)(IStorageDevice *slice, u64 hit, u64 max_size);
+using Validator = CarveResult (*)(IStorageDevice* slice, u64 hit, u64 max_size);
 
 struct Signature {
     FormatId id;
-    const char *ext;      /* "jpg" */
-    u8 header[12];        /* magic bytes */
+    const char* ext; /* "jpg" */
+    u8 header[12];   /* magic bytes */
     u32 header_len;
-    u32 header_offset;    /* magic position within the file */
+    u32 header_offset; /* magic position within the file */
     u64 min_size;
     u64 max_size;
-    u16 base_confidence;  /* 0..1000 before validator delta */
+    u16 base_confidence; /* 0..1000 before validator delta */
     Validator validator;
-    const char *name;     /* human label */
+    const char* name; /* human label */
 };
 
 /* The compile-time table (one entry per FormatId, order = FormatId). */
-const Signature *registry();
+const Signature* registry();
 size_t registry_size();
 
 /* F8 gate: validate every entry; returns 0 = OK, else the count of rejects
  * (with a diagnostic list in `bad`). */
-u32 validate_registry(std::vector<const Signature *> *bad);
+u32 validate_registry(std::vector<const Signature*>* bad);
 
 } // namespace carve
 } // namespace cr

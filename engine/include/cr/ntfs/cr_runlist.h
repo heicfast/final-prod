@@ -20,10 +20,10 @@ namespace cr {
 namespace ntfs {
 
 struct DataRun {
-    u64 vcn;        /* first VCN of the run */
-    u64 length;     /* clusters in the run */
-    i64 offset;     /* signed LCN delta from previous run's LCN */
-    u64 lcn;        /* absolute LCN (0 with sparse flag = hole) */
+    u64 vcn;    /* first VCN of the run */
+    u64 length; /* clusters in the run */
+    i64 offset; /* signed LCN delta from previous run's LCN */
+    u64 lcn;    /* absolute LCN (0 with sparse flag = hole) */
     bool sparse;
 };
 
@@ -32,25 +32,27 @@ public:
     /* Decode from an on-disk runlist byte string (not including the 8-byte
      * attribute header). Returns OK/ERR_TRUNCATED/ERR_BAD_PARAMETER.
      * max_runs guards corrupt streams (fix F6 family). */
-    static u32 decode(const u8 *data, u32 bytes, u64 first_vcn, u64 max_clusters,
-                      RunList &out);
+    static u32 decode(const u8* data, u32 bytes, u64 first_vcn, u64 max_clusters, RunList& out);
 
     /* Encode to bytes (used by session serialization of extents). */
     std::vector<u8> encode() const;
 
-    const std::vector<DataRun> &runs() const { return runs_; }
-    std::vector<DataRun> &runs() { return runs_; }
+    const std::vector<DataRun>& runs() const { return runs_; }
+    std::vector<DataRun>& runs() { return runs_; }
 
     u64 total_clusters() const;
     u64 allocated_bytes(u32 cluster_bytes) const { return total_clusters() * cluster_bytes; }
     bool empty() const { return runs_.empty(); }
 
     /* Map a VCN to (lcn, run index) - binary search. sparse_out tells hole. */
-    bool vcn_to_lcn(u64 vcn, u64 *lcn, bool *sparse_out) const;
+    bool vcn_to_lcn(u64 vcn, u64* lcn, bool* sparse_out) const;
 
     /* Contiguous byte ranges of valid data (for recovery IO planning). */
-    struct Extent { u64 lcn; u64 clusters; };
-    void extents(std::vector<Extent> &out) const;
+    struct Extent {
+        u64 lcn;
+        u64 clusters;
+    };
+    void extents(std::vector<Extent>& out) const;
 
 private:
     std::vector<DataRun> runs_;

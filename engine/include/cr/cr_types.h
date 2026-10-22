@@ -26,18 +26,18 @@ using i16 = std::int16_t;
 using i32 = std::int32_t;
 using i64 = std::int64_t;
 
-constexpr u32 u32_from_bytes_le(const u8 *p) {
-    return static_cast<u32>(p[0]) | (static_cast<u32>(p[1]) << 8) |
-           (static_cast<u32>(p[2]) << 16) | (static_cast<u32>(p[3]) << 24);
+constexpr u32 u32_from_bytes_le(const u8* p) {
+    return static_cast<u32>(p[0]) | (static_cast<u32>(p[1]) << 8) | (static_cast<u32>(p[2]) << 16) |
+           (static_cast<u32>(p[3]) << 24);
 }
-constexpr u16 u16_from_bytes_le(const u8 *p) {
+constexpr u16 u16_from_bytes_le(const u8* p) {
     return static_cast<u16>(static_cast<u16>(p[0]) | (static_cast<u16>(p[1]) << 8));
 }
-constexpr u64 u64_from_bytes_le(const u8 *p) {
-    return static_cast<u64>(p[0]) | (static_cast<u64>(p[1]) << 8) |
-           (static_cast<u64>(p[2]) << 16) | (static_cast<u64>(p[3]) << 24) |
-           (static_cast<u64>(p[4]) << 32) | (static_cast<u64>(p[5]) << 40) |
-           (static_cast<u64>(p[6]) << 48) | (static_cast<u64>(p[7]) << 56);
+constexpr u64 u64_from_bytes_le(const u8* p) {
+    return static_cast<u64>(p[0]) | (static_cast<u64>(p[1]) << 8) | (static_cast<u64>(p[2]) << 16) |
+           (static_cast<u64>(p[3]) << 24) | (static_cast<u64>(p[4]) << 32) |
+           (static_cast<u64>(p[5]) << 40) | (static_cast<u64>(p[6]) << 48) |
+           (static_cast<u64>(p[7]) << 56);
 }
 
 /* Times: NTFS-style 100ns since 1601, preserved exactly (R2.2). Used by
@@ -50,8 +50,12 @@ struct FileTimes {
 };
 
 /* Round up v to a multiple of m (m > 0). */
-constexpr u64 round_up(u64 v, u64 m) { return (v + m - 1) / m * m; }
-constexpr u64 round_down(u64 v, u64 m) { return v / m * m; }
+constexpr u64 round_up(u64 v, u64 m) {
+    return (v + m - 1) / m * m;
+}
+constexpr u64 round_down(u64 v, u64 m) {
+    return v / m * m;
+}
 
 } // namespace cr
 

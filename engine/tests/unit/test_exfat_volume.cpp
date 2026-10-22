@@ -28,26 +28,32 @@ public:
         geom_.sector_count = data_.size() / 512;
         geom_.total_bytes = geom_.sector_count * 512;
     }
-    u32 read_at(u64 off, void *buf, u32 len) override {
-        if (off > data_.size() || len > data_.size() - off) return ERR_RANGE_OUT_OF_BOUNDS;
+    u32 read_at(u64 off, void* buf, u32 len) override {
+        if (off > data_.size() || len > data_.size() - off)
+            return ERR_RANGE_OUT_OF_BOUNDS;
         std::memcpy(buf, data_.data() + off, len);
         return OK;
     }
-    const Geometry &geometry() const override { return geom_; }
+    const Geometry& geometry() const override { return geom_; }
 
 private:
     std::vector<u8> data_;
     Geometry geom_;
 };
 
-void put16(std::vector<u8> &v, size_t at, u16 x) {
-    v[at] = u8(x); v[at + 1] = u8(x >> 8);
+void put16(std::vector<u8>& v, size_t at, u16 x) {
+    v[at] = u8(x);
+    v[at + 1] = u8(x >> 8);
 }
-void put32v(std::vector<u8> &v, size_t at, u32 x) {
-    v[at] = u8(x); v[at + 1] = u8(x >> 8); v[at + 2] = u8(x >> 16); v[at + 3] = u8(x >> 24);
+void put32v(std::vector<u8>& v, size_t at, u32 x) {
+    v[at] = u8(x);
+    v[at + 1] = u8(x >> 8);
+    v[at + 2] = u8(x >> 16);
+    v[at + 3] = u8(x >> 24);
 }
-void put64(std::vector<u8> &v, size_t at, u64 x) {
-    for (int i = 0; i < 8; ++i) v[at + i] = u8(x >> (8 * i));
+void put64(std::vector<u8>& v, size_t at, u64 x) {
+    for (int i = 0; i < 8; ++i)
+        v[at + i] = u8(x >> (8 * i));
 }
 
 /* published algorithm (spec): 16-bit rotate-add */
@@ -56,23 +62,26 @@ struct SetBuilder {
     std::vector<u8> entries;
 
     void file_entry(u16 attribute, u32 ts) {
-        u8 *e = add();
+        u8* e = add();
         e[0] = 0x85;
-        e[1] = 2; /* secondary count: stream + 1 name */
+        e[1] = 2;                         /* secondary count: stream + 1 name */
         put16(entries, cur_off() + 2, 0); /* checksum filled later */
         put16(entries, cur_off() + 4, attribute);
-        put32v(entries, cur_off() + 8, ts);   /* create */
-        put32v(entries, cur_off() + 12, ts);  /* modify */
-        put32v(entries, cur_off() + 16, ts);  /* access */
-        e[20] = 0; e[21] = 0;                 /* 10ms */
-        e[22] = 0; e[23] = 0; e[24] = 0;      /* tz: 0x00 = unused */
+        put32v(entries, cur_off() + 8, ts);  /* create */
+        put32v(entries, cur_off() + 12, ts); /* modify */
+        put32v(entries, cur_off() + 16, ts); /* access */
+        e[20] = 0;
+        e[21] = 0; /* 10ms */
+        e[22] = 0;
+        e[23] = 0;
+        e[24] = 0; /* tz: 0x00 = unused */
     }
     void file_entry_deleted(u16 attribute, u32 ts) {
         file_entry(attribute, ts);
         entries[cur_off()] = 0x05;
     }
     void stream_entry(u8 flags, u8 name_len, u32 first_cluster, u64 data_len) {
-        u8 *e = add();
+        u8* e = add();
         e[0] = 0xC0;
         e[1] = flags;
         e[3] = name_len;
@@ -84,23 +93,24 @@ struct SetBuilder {
         stream_entry(flags, name_len, first_cluster, data_len);
         entries[cur_off()] = 0x40;
     }
-    void name_entry(const char16_t *nm) {
+    void name_entry(const char16_t* nm) {
         std::u16string n = nm;
-        u8 *e = add();
+        u8* e = add();
         e[0] = 0xC1;
         for (size_t i = 0; i < 15; ++i)
             put16(entries, cur_off() + 2 + i * 2, i < n.size() ? n[i] : 0);
     }
-    void name_entry_deleted(const char16_t *nm) {
+    void name_entry_deleted(const char16_t* nm) {
         name_entry(nm);
         entries[cur_off()] = 0x41;
     }
     /* fill SetCheckSum over the built set (excluding the +2 field) */
-    void finish_set(std::vector<u8> &root, size_t set_at) {
+    void finish_set(std::vector<u8>& root, size_t set_at) {
         /* compute over the set bytes, skipping the +2 checksum field */
         u16 sum = 0;
         for (size_t b = 0; b < entries.size() * 32; ++b) {
-            if (b >= 2 && b < 4) continue;
+            if (b >= 2 && b < 4)
+                continue;
             sum = static_cast<u16>(((sum & 1) ? 0x8000u : 0u) + (sum >> 1) +
                                    *(root.data() + set_at + b));
         }
@@ -110,7 +120,7 @@ struct SetBuilder {
     size_t set_off = 0; /* offset within entries where the SET starts */
 
 private:
-    u8 *add() {
+    u8* add() {
         entries.resize(entries.size() + 32, 0);
         return entries.data() + entries.size() - 32;
     }
@@ -123,34 +133,41 @@ std::vector<u8> build_exfat_image() {
     std::vector<u8> img(u64(2048) * 512, 0);
 
     /* ---- boot sector (main at 0, backup at 12) ---- */
-    u8 *b = img.data();
-    b[0] = 0xEB; b[1] = 0x76; b[2] = 0x90;
+    u8* b = img.data();
+    b[0] = 0xEB;
+    b[1] = 0x76;
+    b[2] = 0x90;
     std::memcpy(b + 3, "EXFAT   ", 8);
     /* MustBeZero 11..63 stays zero */
-    put64(img, 64, 0);          /* partition offset */
-    put64(img, 72, 2048);       /* volume length (spec min 1MB) */
-    put32v(img, 80, 24);        /* fat offset */
-    put32v(img, 84, 1);         /* fat length */
-    put32v(img, 88, 25);        /* cluster heap offset */
-    put32v(img, 92, 100);       /* cluster count */
-    put32v(img, 96, 2);         /* root first cluster */
+    put64(img, 64, 0);    /* partition offset */
+    put64(img, 72, 2048); /* volume length (spec min 1MB) */
+    put32v(img, 80, 24);  /* fat offset */
+    put32v(img, 84, 1);   /* fat length */
+    put32v(img, 88, 25);  /* cluster heap offset */
+    put32v(img, 92, 100); /* cluster count */
+    put32v(img, 96, 2);   /* root first cluster */
     put32v(img, 100, 0x12345678);
-    put16(img, 104, 0x0100);    /* fs revision 1.00 */
-    put16(img, 106, 0);         /* volume flags */
-    b[108] = 9;                 /* 512B sectors */
-    b[109] = 0;                 /* 1 sector per cluster */
-    b[110] = 1;                 /* 1 FAT */
+    put16(img, 104, 0x0100); /* fs revision 1.00 */
+    put16(img, 106, 0);      /* volume flags */
+    b[108] = 9;              /* 512B sectors */
+    b[109] = 0;              /* 1 sector per cluster */
+    b[110] = 1;              /* 1 FAT */
     b[111] = 0x80;
-    b[112] = 0xFF;              /* percent in use: n/a */
-    b[510] = 0x55; b[511] = 0xAA;
+    b[112] = 0xFF; /* percent in use: n/a */
+    b[510] = 0x55;
+    b[511] = 0xAA;
     std::memcpy(img.data() + 12 * 512, b, 512); /* backup copy */
 
     /* extended boot sectors 1..8 / 13..20: 0xAA550000 at +508 */
     for (u32 s = 1; s <= 8; ++s) {
-        img[s * 512 + 508] = 0x00; img[s * 512 + 509] = 0x00;
-        img[s * 512 + 510] = 0x55; img[s * 512 + 511] = 0xAA;
-        img[(12 + s) * 512 + 508] = 0x00; img[(12 + s) * 512 + 509] = 0x00;
-        img[(12 + s) * 512 + 510] = 0x55; img[(12 + s) * 512 + 511] = 0xAA;
+        img[s * 512 + 508] = 0x00;
+        img[s * 512 + 509] = 0x00;
+        img[s * 512 + 510] = 0x55;
+        img[s * 512 + 511] = 0xAA;
+        img[(12 + s) * 512 + 508] = 0x00;
+        img[(12 + s) * 512 + 509] = 0x00;
+        img[(12 + s) * 512 + 510] = 0x55;
+        img[(12 + s) * 512 + 511] = 0xAA;
     }
     /* boot-region checksum: over sectors 0..10 (VolumeFlags+PercentInUse of
      * sector 0 excluded); value FILL-REPEATED in sectors 11 and 23 */
@@ -159,8 +176,10 @@ std::vector<u8> build_exfat_image() {
         for (u32 i = 0; i < 512; ++i) {
             u8 v = img[s * 512 + i];
             if (s == 0) {
-                if (i >= 106 && i < 108) v = 0;
-                if (i == 112) v = 0;
+                if (i >= 106 && i < 108)
+                    v = 0;
+                if (i == 112)
+                    v = 0;
             }
             chk = ((chk & 1) ? 0x80000000u : 0u) + (chk >> 1) + v;
         }
@@ -172,25 +191,29 @@ std::vector<u8> build_exfat_image() {
 
     /* ---- FAT (sector 24) ---- */
     const size_t FAT = 24 * 512;
-    put32v(img, FAT + 2 * 4, 3);             /* root chain: 2 -> 3 */
-    put32v(img, FAT + 3 * 4, 0xFFFFFFFF);   /* root EOC */
+    put32v(img, FAT + 2 * 4, 3);          /* root chain: 2 -> 3 */
+    put32v(img, FAT + 3 * 4, 0xFFFFFFFF); /* root EOC */
     put32v(img, FAT + 20 * 4, 21);
     put32v(img, FAT + 21 * 4, 22);
-    put32v(img, FAT + 22 * 4, 0xFFFFFFFF);  /* doc.txt 20-22 */
-    put32v(img, FAT + 50 * 4, 0xFFFFFFFF);  /* bitmap */
-    put32v(img, FAT + 70 * 4, 0xFFFFFFFF);  /* subdir */
+    put32v(img, FAT + 22 * 4, 0xFFFFFFFF); /* doc.txt 20-22 */
+    put32v(img, FAT + 50 * 4, 0xFFFFFFFF); /* bitmap */
+    put32v(img, FAT + 70 * 4, 0xFFFFFFFF); /* subdir */
 
     /* ---- allocation bitmap at cluster 50 (sector 75) ---- */
     {
         const size_t BM = 25 * 512 + (50 - 2) * 512;
         auto setbit = [&](u32 c) { img[BM + c / 8] |= u8(1u << (c % 8)); };
-        setbit(2); setbit(3);  /* root (2-cluster chain) */
-        setbit(10); setbit(11); /* photo.jpg */
-        setbit(20); setbit(21); setbit(22); /* doc.txt */
-        setbit(50);           /* bitmap itself */
-        setbit(70);           /* subdir */
-        setbit(80);           /* inner.txt */
-        setbit(40);           /* over.dat's cluster: REUSED */
+        setbit(2);
+        setbit(3); /* root (2-cluster chain) */
+        setbit(10);
+        setbit(11); /* photo.jpg */
+        setbit(20);
+        setbit(21);
+        setbit(22); /* doc.txt */
+        setbit(50); /* bitmap itself */
+        setbit(70); /* subdir */
+        setbit(80); /* inner.txt */
+        setbit(40); /* over.dat's cluster: REUSED */
         /* 30 (gone.dat) NOT set */
     }
 
@@ -201,15 +224,18 @@ std::vector<u8> build_exfat_image() {
 
     /* 0x81 bitmap dentry */
     {
-        u8 *e = img.data() + ROOT; std::memset(e, 0, 32);
-        e[0] = 0x81; e[1] = 0;
+        u8* e = img.data() + ROOT;
+        std::memset(e, 0, 32);
+        e[0] = 0x81;
+        e[1] = 0;
         put32v(img, ROOT + 20, 50);
         put64(img, ROOT + 24, 13); /* (100+7)/8 */
         at += 32;
     }
     /* 0x82 upcase (skipped by engine; present for realism) */
     {
-        u8 *e = img.data() + ROOT + at; std::memset(e, 0, 32);
+        u8* e = img.data() + ROOT + at;
+        std::memset(e, 0, 32);
         e[0] = 0x82;
         put32v(img, ROOT + at + 4, 0xDEADBEEF);
         put32v(img, ROOT + at + 20, 60);
@@ -218,10 +244,13 @@ std::vector<u8> build_exfat_image() {
     }
     /* 0x83 volume label */
     {
-        u8 *e = img.data() + ROOT + at; std::memset(e, 0, 32);
-        e[0] = 0x83; e[1] = 7;
-        const char16_t *lbl = u"TESTVOL";
-        for (int i = 0; i < 7; ++i) put16(img, ROOT + at + 2 + i * 2, lbl[i]);
+        u8* e = img.data() + ROOT + at;
+        std::memset(e, 0, 32);
+        e[0] = 0x83;
+        e[1] = 7;
+        const char16_t* lbl = u"TESTVOL";
+        for (int i = 0; i < 7; ++i)
+            put16(img, ROOT + at + 2 + i * 2, lbl[i]);
         at += 32;
     }
     /* photo.jpg: live NoFatChain (clusters 10-11, 1024B) */
@@ -297,15 +326,16 @@ std::vector<u8> build_exfat_image() {
     return img;
 }
 
-std::vector<tree::FileNode *> collect_all(tree::ResultTree &t) {
-    std::vector<tree::FileNode *> all;
-    std::function<void(tree::FileNode *)> collect = [&](tree::FileNode *n) {
-        for (tree::FileNode *c = n->first_child(); c; c = c->next_sibling()) {
+std::vector<tree::FileNode*> collect_all(tree::ResultTree& t) {
+    std::vector<tree::FileNode*> all;
+    std::function<void(tree::FileNode*)> collect = [&](tree::FileNode* n) {
+        for (tree::FileNode* c = n->first_child(); c; c = c->next_sibling()) {
             all.push_back(c);
             collect(c);
         }
     };
-    for (auto *r : t.roots()) collect(r);
+    for (auto* r : t.roots())
+        collect(r);
     return all;
 }
 
@@ -323,9 +353,9 @@ TEST(ExfatEngine, EndToEnd) {
     EXPECT_EQ(params.cluster_count, 100u);
 
     tree::ResultTree tree;
-    auto *ra = tree.add_root(u"Found");
-    auto *rd = tree.add_root(u"Deleted");
-    auto *rl = tree.add_root(u"Lost");
+    auto* ra = tree.add_root(u"Found");
+    auto* rd = tree.add_root(u"Deleted");
+    auto* rl = tree.add_root(u"Lost");
     ExfatScanFlags flags;
     ExfatScanStats stats;
     u32 rc = scan_exfat(&dev, flags, nullptr, nullptr, nullptr, tree, ra, rd, rl, stats);
@@ -335,15 +365,21 @@ TEST(ExfatEngine, EndToEnd) {
 
     auto all = collect_all(tree);
     tree::FileNode *photo = nullptr, *doc = nullptr, *gone = nullptr, *over = nullptr,
-                    *subdir = nullptr, *inner = nullptr;
-    for (auto *n : all) {
+                   *subdir = nullptr, *inner = nullptr;
+    for (auto* n : all) {
         std::string nm = n->name_utf8();
-        if (nm == "photo.jpg") photo = n;
-        else if (nm == "doc.txt") doc = n;
-        else if (nm == "gone.dat") gone = n;
-        else if (nm == "over.dat") over = n;
-        else if (nm == "subdir") subdir = n;
-        else if (nm == "inner.txt") inner = n;
+        if (nm == "photo.jpg")
+            photo = n;
+        else if (nm == "doc.txt")
+            doc = n;
+        else if (nm == "gone.dat")
+            gone = n;
+        else if (nm == "over.dat")
+            over = n;
+        else if (nm == "subdir")
+            subdir = n;
+        else if (nm == "inner.txt")
+            inner = n;
     }
     ASSERT_NE(photo, nullptr);
     ASSERT_NE(doc, nullptr);
@@ -376,8 +412,7 @@ TEST(ExfatEngine, EndToEnd) {
     EXPECT_EQ(inner->props()->extents[0].offset, (25 + 78) * 512);
 
     /* times: 2025-02-06 12:00 local (tz unused) -> unix 1738843200 */
-    EXPECT_EQ(photo->props()->times.created,
-              1738843200ULL * 10000000ULL + 116444736000000000ULL);
+    EXPECT_EQ(photo->props()->times.created, 1738843200ULL * 10000000ULL + 116444736000000000ULL);
 }
 
 TEST(ExfatEngine, SetChecksumMismatchMarksDamaged) {
@@ -391,16 +426,17 @@ TEST(ExfatEngine, SetChecksumMismatchMarksDamaged) {
     MemDevice dev(std::move(img));
 
     tree::ResultTree tree;
-    auto *ra = tree.add_root(u"Found");
+    auto* ra = tree.add_root(u"Found");
     ExfatScanFlags flags;
     ExfatScanStats stats;
-    ASSERT_EQ(scan_exfat(&dev, flags, nullptr, nullptr, nullptr, tree, ra, nullptr, nullptr,
-                         stats), OK);
+    ASSERT_EQ(scan_exfat(&dev, flags, nullptr, nullptr, nullptr, tree, ra, nullptr, nullptr, stats),
+              OK);
     EXPECT_GE(stats.sets_damaged, 1u);
     auto all = collect_all(tree);
-    tree::FileNode *doc = nullptr;
-    for (auto *n : all)
-        if (n->name_utf8() == "doc.txt") doc = n;
+    tree::FileNode* doc = nullptr;
+    for (auto* n : all)
+        if (n->name_utf8() == "doc.txt")
+            doc = n;
     ASSERT_NE(doc, nullptr);
     EXPECT_EQ(doc->confidence(), tree::Confidence::PartialRisk); /* live but set damaged */
 }

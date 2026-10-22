@@ -12,19 +12,22 @@
 
 namespace cr {
 
-std::unique_ptr<PartitionSlice> PartitionSlice::create(IStorageDevice *parent, u64 start_byte,
-                                                       u64 length_bytes, u32 *err) {
+std::unique_ptr<PartitionSlice> PartitionSlice::create(IStorageDevice* parent, u64 start_byte,
+                                                       u64 length_bytes, u32* err) {
     if (parent == nullptr || length_bytes == 0) {
-        if (err) *err = ERR_BAD_PARAMETER;
+        if (err)
+            *err = ERR_BAD_PARAMETER;
         return nullptr;
     }
     const u32 ls = parent->geometry().logical_sector;
     if (ls == 0 || start_byte % ls != 0) {
-        if (err) *err = ERR_BAD_PARAMETER;
+        if (err)
+            *err = ERR_BAD_PARAMETER;
         return nullptr;
     }
     if (start_byte + length_bytes > parent->size()) {
-        if (err) *err = ERR_RANGE_OUT_OF_BOUNDS;
+        if (err)
+            *err = ERR_RANGE_OUT_OF_BOUNDS;
         return nullptr;
     }
     auto s = std::unique_ptr<PartitionSlice>(new PartitionSlice());
@@ -37,8 +40,9 @@ std::unique_ptr<PartitionSlice> PartitionSlice::create(IStorageDevice *parent, u
     return s;
 }
 
-u32 PartitionSlice::read_at(u64 offset, void *buffer, u32 length) {
-    if (length == 0) return OK;
+u32 PartitionSlice::read_at(u64 offset, void* buffer, u32 length) {
+    if (length == 0)
+        return OK;
     if (offset > length_ || u64(length) > length_ - offset)
         return ERR_RANGE_OUT_OF_BOUNDS;
     /* propagate with retries handled by the parent transport layer */

@@ -22,10 +22,10 @@ namespace cr {
 namespace carve {
 
 struct CarveStats {
-    u64 hits = 0;          /* magic candidates */
-    u64 validated = 0;     /* grammar-confirmed */
-    u64 rejected = 0;      /* header-only noise (F8 guard) */
-    u64 duplicates = 0;    /* deduped vs structured/carved */
+    u64 hits = 0;       /* magic candidates */
+    u64 validated = 0;  /* grammar-confirmed */
+    u64 rejected = 0;   /* header-only noise (F8 guard) */
+    u64 duplicates = 0; /* deduped vs structured/carved */
     u64 hashed = 0;
     u64 bytes_scanned = 0;
 };
@@ -36,21 +36,20 @@ struct CarveFlags {
 };
 
 /* Naming callback: returns the display name for a carved hit (host policy). */
-using NameCallback = std::function<std::u16string(const Signature &sig, u64 size, u32 index)>;
+using NameCallback = std::function<std::u16string(const Signature& sig, u64 size, u32 index)>;
 
 /* Default namer: File0001.jpg style (corpus default policy). */
-std::u16string default_namer(const Signature &sig, u64 size, u32 index);
+std::u16string default_namer(const Signature& sig, u64 size, u32 index);
 
 /*
  * carve_slice - scan one slice (a partition or whole disk view).
  *   dedup_tree: existing structured results - carved duplicates are skipped
  *   (F9: a carved JPEG never appears twice).
  */
-u32 carve_slice(IStorageDevice *slice, const CarveFlags &flags, CancelToken *cancel,
-                bool (*progress)(u64, u64, void *), void *progress_user,
-                tree::ResultTree &tree, tree::FullNode *carve_root,
-                const tree::ResultTree *dedup_tree, const NameCallback &namer,
-                CarveStats &stats);
+u32 carve_slice(IStorageDevice* slice, const CarveFlags& flags, CancelToken* cancel,
+                bool (*progress)(u64, u64, void*), void* progress_user, tree::ResultTree& tree,
+                tree::FullNode* carve_root, const tree::ResultTree* dedup_tree,
+                const NameCallback& namer, CarveStats& stats);
 
 } // namespace carve
 } // namespace cr

@@ -13,9 +13,10 @@
 namespace cr {
 
 void ReadErrorMap::add(u64 offset, u64 length, u32 attempts) {
-    if (length == 0) return;
+    if (length == 0)
+        return;
     bool merged = false;
-    for (auto &r : ranges_) {
+    for (auto& r : ranges_) {
         if (offset <= r.offset + r.length && offset + length >= r.offset) {
             u64 new_start = std::min(r.offset, offset);
             u64 new_end = std::max(r.offset + r.length, offset + length);
@@ -32,7 +33,7 @@ void ReadErrorMap::add(u64 offset, u64 length, u32 attempts) {
     /* normalize on EVERY add: sort + absorb overlapping/touching runs
      * (a merged range may now swallow later ranges entirely) */
     std::sort(ranges_.begin(), ranges_.end(),
-              [](const ReadErrorRange &a, const ReadErrorRange &b) { return a.offset < b.offset; });
+              [](const ReadErrorRange& a, const ReadErrorRange& b) { return a.offset < b.offset; });
     for (size_t i = 0; i + 1 < ranges_.size();) {
         if (ranges_[i].offset + ranges_[i].length >= ranges_[i + 1].offset) {
             u64 end = std::max(ranges_[i].offset + ranges_[i].length,
@@ -48,15 +49,17 @@ void ReadErrorMap::add(u64 offset, u64 length, u32 attempts) {
 
 u64 ReadErrorMap::total_bytes() const {
     u64 t = 0;
-    for (const auto &r : ranges_) t += r.length;
+    for (const auto& r : ranges_)
+        t += r.length;
     return t;
 }
 
-void ReadErrorMap::merge(const ReadErrorMap &other) {
-    for (const auto &r : other.ranges_) add(r.offset, r.length, r.attempts);
+void ReadErrorMap::merge(const ReadErrorMap& other) {
+    for (const auto& r : other.ranges_)
+        add(r.offset, r.length, r.attempts);
 }
 
-void ReadErrorMap::serialize(std::vector<u8> &out) const {
+void ReadErrorMap::serialize(std::vector<u8>& out) const {
     auto put32 = [&out](u32 v) {
         out.push_back(static_cast<u8>(v));
         out.push_back(static_cast<u8>(v >> 8));
@@ -64,7 +67,7 @@ void ReadErrorMap::serialize(std::vector<u8> &out) const {
         out.push_back(static_cast<u8>(v >> 24));
     };
     put32(static_cast<u32>(ranges_.size()));
-    for (const auto &r : ranges_) {
+    for (const auto& r : ranges_) {
         put32(static_cast<u32>(r.offset));
         put32(static_cast<u32>(r.offset >> 32));
         put32(static_cast<u32>(r.length));
@@ -73,18 +76,20 @@ void ReadErrorMap::serialize(std::vector<u8> &out) const {
     }
 }
 
-ReadErrorMap ReadErrorMap::deserialize(const u8 *data, size_t len, u32 *consumed) {
+ReadErrorMap ReadErrorMap::deserialize(const u8* data, size_t len, u32* consumed) {
     ReadErrorMap m;
     u32 used = 0;
-    auto get32 = [&data, &len, &used](u32 *out) -> bool {
-        if (used + 4 > len) return false;
+    auto get32 = [&data, &len, &used](u32* out) -> bool {
+        if (used + 4 > len)
+            return false;
         *out = cr::u32_from_bytes_le(data + used);
         used += 4;
         return true;
     };
     u32 count = 0;
     if (!get32(&count)) {
-        if (consumed) *consumed = used;
+        if (consumed)
+            *consumed = used;
         return m;
     }
     for (u32 i = 0; i < count; ++i) {
@@ -93,7 +98,8 @@ ReadErrorMap ReadErrorMap::deserialize(const u8 *data, size_t len, u32 *consumed
             break;
         m.add((static_cast<u64>(o_hi) << 32) | o_lo, (static_cast<u64>(l_hi) << 32) | l_lo, att);
     }
-    if (consumed) *consumed = used;
+    if (consumed)
+        *consumed = used;
     return m;
 }
 

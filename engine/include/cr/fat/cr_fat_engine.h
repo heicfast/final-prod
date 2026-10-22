@@ -35,16 +35,16 @@ struct FatParams {
     u32 cluster_bytes = 0;
     u16 reserved_sectors = 1;
     u8 fat_count = 2;
-    u32 fat_sectors = 0;          /* per FAT */
-    u64 fat_start = 0;            /* byte offset of FAT1 */
-    u64 fat2_start = 0;           /* byte offset of FAT2 (0 if single) */
-    u32 root_entries = 0;         /* FAT12/16: fixed root dir entries */
-    u64 root_dir_offset = 0;      /* FAT12/16: byte offset of root area */
-    u32 root_cluster = 2;         /* FAT32 */
-    u64 first_data_sector = 0;    /* sector index */
-    u32 cluster_count = 0;        /* data clusters (incl. 2 reserved) */
+    u32 fat_sectors = 0;       /* per FAT */
+    u64 fat_start = 0;         /* byte offset of FAT1 */
+    u64 fat2_start = 0;        /* byte offset of FAT2 (0 if single) */
+    u32 root_entries = 0;      /* FAT12/16: fixed root dir entries */
+    u64 root_dir_offset = 0;   /* FAT12/16: byte offset of root area */
+    u32 root_cluster = 2;      /* FAT32 */
+    u64 first_data_sector = 0; /* sector index */
+    u32 cluster_count = 0;     /* data clusters (incl. 2 reserved) */
     u64 total_bytes = 0;
-    u16 backup_boot_sector = 0;   /* FAT32: usually 6 */
+    u16 backup_boot_sector = 0; /* FAT32: usually 6 */
     u32 first_usable_cluster = 2;
 };
 
@@ -52,7 +52,7 @@ struct FatParams {
 Flavor flavor_from_clusters(u32 cluster_count_data);
 
 /* Parse + validate a FAT boot sector. Accepts FAT12/16/32 layouts. */
-u32 validate_boot(const u8 *sector512, u64 device_bytes, FatParams &out);
+u32 validate_boot(const u8* sector512, u64 device_bytes, FatParams& out);
 
 /* ---- allocation table ---- */
 class FatTable {
@@ -60,7 +60,7 @@ public:
     /* Load FAT1 (+FAT2 when present) into memory. max_clusters bounds the
      * copy. Chooses-healthy mirror semantics: entries consulted from the
      * healthy copy per-entry (CDoubleFATTable behavior). */
-    u32 load(IStorageDevice *dev, const FatParams &p);
+    u32 load(IStorageDevice* dev, const FatParams& p);
 
     /* next(cluster) -> canonical: 0 on free/bad-param, CHAIN_BAD,
      * >= CHAIN_EOC_MIN on end, else next cluster. Out-of-range -> 0. */
@@ -77,7 +77,7 @@ public:
     u32 divergences() const { return divergences_; }
 
     /* cluster -> absolute byte offset of its data */
-    static u64 cluster_offset(const FatParams &p, u32 cluster);
+    static u64 cluster_offset(const FatParams& p, u32 cluster);
 
 private:
     std::vector<u8> fat1_;
@@ -87,39 +87,38 @@ private:
     u32 max_cluster_ = 0;
     Flavor flavor_ = Flavor::Fat32;
 
-    u32 entry_at(const std::vector<u8> &f, u32 cluster) const;
+    u32 entry_at(const std::vector<u8>& f, u32 cluster) const;
 };
 
 /* ---- chain walker ---- */
 struct ChainResult {
-    std::vector<u32> clusters;    /* in order; empty on failure */
+    std::vector<u32> clusters; /* in order; empty on failure */
     bool cycle = false;
-    bool broken = false;          /* chain ended prematurely (0/BAD mid-chain) */
+    bool broken = false; /* chain ended prematurely (0/BAD mid-chain) */
     u32 length() const { return u32(clusters.size()); }
 };
 
 /* Follow a chain from `start`; visited-set cycle guard (corpus RB-tree
  * equivalent); max_len bounds. EOC terminates cleanly. */
-ChainResult follow_chain(const FatTable &t, u32 start, u32 max_len = 0x100000);
+ChainResult follow_chain(const FatTable& t, u32 start, u32 max_len = 0x100000);
 
 /* Reconstruct a chain for a DELETED entry (dentry's first cluster known,
  * FAT may still link it): walk while entries look like a plausible chain
  * (not FREE, not BAD); stop at EOC/cycle/implausible jump. */
-ChainResult reconstruct_deleted_chain(const FatTable &t, u32 start, u32 expect_clusters);
+ChainResult reconstruct_deleted_chain(const FatTable& t, u32 start, u32 expect_clusters);
 
 /* ---- LFN ---- */
 u8 lfn_checksum(const u8 short_name[11]);
 /* Assemble LFN from collected slots (in disk order); returns false if the
  * checksum does not match the short entry (corrupt LFN -> fall back 8.3). */
-bool lfn_assemble(const std::vector<const LfnEntry *> &slots, u8 checksum,
-                  std::u16string &out);
+bool lfn_assemble(const std::vector<const LfnEntry*>& slots, u8 checksum, std::u16string& out);
 
 /* 8.3 name -> display string (strip pad spaces, split dot). */
 std::u16string short_name_to_u16(const u8 name[11]);
 
 /* ---- scan engine ---- */
 /* progress-compatible callback type (same shape as ntfs WalkProgress) */
-using WalkProgressLike = bool (*)(u64 done, u64 total, void *user);
+using WalkProgressLike = bool (*)(u64 done, u64 total, void* user);
 struct FatScanStats {
     u64 dirs = 0;
     u64 files = 0;
@@ -136,10 +135,10 @@ struct FatScanFlags {
 
 /* Quick + complete in one entry: flags toggle complete behaviors.
  * Emits under root_active (live) / root_deleted / root_lost (orphans). */
-u32 scan_fat(IStorageDevice *slice, const FatScanFlags &flags, CancelToken *cancel,
-             WalkProgressLike progress, void *progress_user, tree::ResultTree &tree,
-             tree::FullNode *root_active, tree::FullNode *root_deleted,
-             tree::FullNode *root_lost, FatScanStats &stats);
+u32 scan_fat(IStorageDevice* slice, const FatScanFlags& flags, CancelToken* cancel,
+             WalkProgressLike progress, void* progress_user, tree::ResultTree& tree,
+             tree::FullNode* root_active, tree::FullNode* root_deleted, tree::FullNode* root_lost,
+             FatScanStats& stats);
 
 } // namespace fat
 } // namespace cr

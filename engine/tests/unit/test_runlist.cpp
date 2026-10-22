@@ -12,7 +12,7 @@ TEST(RunList, SingleRunDecode) {
     RunList rl;
     ASSERT_EQ(RunList::decode(raw, sizeof(raw), 0, 1 << 20, rl), OK);
     ASSERT_EQ(rl.runs().size(), 1u);
-    const DataRun &r = rl.runs()[0];
+    const DataRun& r = rl.runs()[0];
     EXPECT_EQ(r.vcn, 0u);
     EXPECT_EQ(r.length, 0x1000u);
     EXPECT_EQ(r.lcn, 0x1000u);
@@ -21,11 +21,9 @@ TEST(RunList, SingleRunDecode) {
 
 TEST(RunList, NegativeDelta) {
     /* run1: LCN 0x5000 len 0x10 ; run2: LCN 0x3000 len 0x10 (delta -0x2000) */
-    u8 fixed[] = {
-        0x12, 0x10, 0x00, 0x50,   /* len 0x10, off +0x5000 (LE 00 50) */
-        0x12, 0x10, 0x00, 0xE0,   /* len 0x10, off -0x2000 (0xE000 2s-complement) */
-        0x00
-    };
+    u8 fixed[] = {0x12, 0x10, 0x00, 0x50, /* len 0x10, off +0x5000 (LE 00 50) */
+                  0x12, 0x10, 0x00, 0xE0, /* len 0x10, off -0x2000 (0xE000 2s-complement) */
+                  0x00};
     RunList rl;
     ASSERT_EQ(RunList::decode(fixed, sizeof(fixed), 0, 1 << 20, rl), OK);
     ASSERT_EQ(rl.runs().size(), 2u);
@@ -35,11 +33,9 @@ TEST(RunList, NegativeDelta) {
 
 TEST(RunList, SparseRun) {
     /* run: len 0x10 at LCN 0x100 (off_w 2); sparse hole: len 0x20 (off_w 0) */
-    u8 raw[] = {
-        0x12, 0x10, 0x00, 0x01,   /* header 0x12: len 0x10, off 0x0100 */
-        0x10, 0x20,               /* sparse: header (1<<4)|0, len 0x20 */
-        0x00
-    };
+    u8 raw[] = {0x12, 0x10, 0x00, 0x01, /* header 0x12: len 0x10, off 0x0100 */
+                0x10, 0x20,             /* sparse: header (1<<4)|0, len 0x20 */
+                0x00};
     RunList rl;
     ASSERT_EQ(RunList::decode(raw, sizeof(raw), 0, 1 << 20, rl), OK);
     ASSERT_EQ(rl.runs().size(), 2u);
@@ -98,8 +94,8 @@ TEST(RunList, EncodeDecodeRoundTrip) {
 TEST(RunList, SignedWidthEdgeCases) {
     /* deltas crossing the 127/-128 and 32767/-32768 boundaries must not
      * truncate silently (the encode bug fixed this session) */
-    for (i64 delta : {i64(127), i64(128), i64(-128), i64(-129), i64(255), i64(-256),
-                      i64(32767), i64(32768), i64(-32768), i64(-32769)}) {
+    for (i64 delta : {i64(127), i64(128), i64(-128), i64(-129), i64(255), i64(-256), i64(32767),
+                      i64(32768), i64(-32768), i64(-32769)}) {
         RunList a;
         DataRun r1{0, 5, 0, 100, false};
         DataRun r2{5, 7, 0, u64(i64(100) + delta), false};

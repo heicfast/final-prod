@@ -20,26 +20,26 @@ public:
     Sha256() { reset(); }
 
     void reset();
-    void update(const void *data, size_t len);
+    void update(const void* data, size_t len);
     /* finalize into out[32]; the object is reusable after reset() */
     void final(u8 out[32]);
 
     /* one-shot convenience */
-    static void digest(const void *data, size_t len, u8 out[32]) {
+    static void digest(const void* data, size_t len, u8 out[32]) {
         Sha256 h;
         h.update(data, len);
         h.final(out);
     }
     /* 128-bit truncated id (node dedup key) */
-    static void id128(const void *data, size_t len, u8 out[16]) {
+    static void id128(const void* data, size_t len, u8 out[16]) {
         u8 full[32];
         digest(data, len, full);
         std::memcpy(out, full, 16);
     }
 
 private:
-    void process_block(const u8 *p);
-    void update_raw(const u8 *p, size_t len); /* padding bytes: no bit count */
+    void process_block(const u8* p);
+    void update_raw(const u8* p, size_t len); /* padding bytes: no bit count */
     u32 state_[8];
     u64 total_bits_ = 0;
     u8 buf_[64];
@@ -47,7 +47,7 @@ private:
 };
 
 /* Hex helper (CLI/logging). */
-std::string to_hex(const u8 *data, size_t len);
+std::string to_hex(const u8* data, size_t len);
 
 } // namespace crypto
 } // namespace cr

@@ -12,29 +12,34 @@ namespace {
 /* In-memory device for parser tests. */
 class MemDevice final : public IStorageDevice {
 public:
-    explicit MemDevice(std::vector<u8> bytes, u32 sector = 512)
-        : data_(std::move(bytes)) {
+    explicit MemDevice(std::vector<u8> bytes, u32 sector = 512) : data_(std::move(bytes)) {
         geom_.logical_sector = sector;
         geom_.physical_sector = sector;
         geom_.sector_count = data_.size() / sector;
         geom_.total_bytes = geom_.sector_count * sector;
     }
-    u32 read_at(u64 off, void *buf, u32 len) override {
-        if (off > data_.size() || len > data_.size() - off) return ERR_RANGE_OUT_OF_BOUNDS;
+    u32 read_at(u64 off, void* buf, u32 len) override {
+        if (off > data_.size() || len > data_.size() - off)
+            return ERR_RANGE_OUT_OF_BOUNDS;
         std::memcpy(buf, data_.data() + off, len);
         return OK;
     }
-    const Geometry &geometry() const override { return geom_; }
+    const Geometry& geometry() const override { return geom_; }
+
 private:
     std::vector<u8> data_;
     Geometry geom_;
 };
 
-void put32(std::vector<u8> &v, size_t at, u32 x) {
-    v[at] = u8(x); v[at+1] = u8(x >> 8); v[at+2] = u8(x >> 16); v[at+3] = u8(x >> 24);
+void put32(std::vector<u8>& v, size_t at, u32 x) {
+    v[at] = u8(x);
+    v[at + 1] = u8(x >> 8);
+    v[at + 2] = u8(x >> 16);
+    v[at + 3] = u8(x >> 24);
 }
-void put64(std::vector<u8> &v, size_t at, u64 x) {
-    for (int i = 0; i < 8; ++i) v[at + i] = u8(x >> (8 * i));
+void put64(std::vector<u8>& v, size_t at, u64 x) {
+    for (int i = 0; i < 8; ++i)
+        v[at + i] = u8(x >> (8 * i));
 }
 } // namespace
 
@@ -49,30 +54,33 @@ TEST(Gpt, ValidTable) {
     /* disk: 2048 sectors * 512 */
     std::vector<u8> disk(u64(2048) * 512, 0);
     /* protective MBR */
-    disk[510] = 0x55; disk[511] = 0xAA;
+    disk[510] = 0x55;
+    disk[511] = 0xAA;
     disk[446 + 4] = 0xEE;
-    put32(disk, 446 + 8, 1); put32(disk, 446 + 12, 2047);
+    put32(disk, 446 + 8, 1);
+    put32(disk, 446 + 12, 2047);
 
     /* GPT header at LBA1 (offsets: current 24, backup 32, first_usable 40,
      * last_usable 48, entries_start 72, count 80, size 84, ecrc 88, hcrc 16) */
     std::memcpy(disk.data() + 512, "EFI PART", 8);
-    put32(disk, 512 + 8, 0x00010000);   /* revision */
-    put32(disk, 512 + 12, 92);          /* header size */
-    put64(disk, 512 + 24, 1);           /* current LBA */
-    put64(disk, 512 + 32, 2047);        /* backup header at last sector */
-    put64(disk, 512 + 40, 2);           /* first usable */
-    put64(disk, 512 + 48, 2046);        /* last usable */
-    put64(disk, 512 + 72, 2);           /* entries at LBA2 */
-    put32(disk, 512 + 80, 4);           /* 4 entries */
-    put32(disk, 512 + 84, 128);         /* entry size */
+    put32(disk, 512 + 8, 0x00010000); /* revision */
+    put32(disk, 512 + 12, 92);        /* header size */
+    put64(disk, 512 + 24, 1);         /* current LBA */
+    put64(disk, 512 + 32, 2047);      /* backup header at last sector */
+    put64(disk, 512 + 40, 2);         /* first usable */
+    put64(disk, 512 + 48, 2046);      /* last usable */
+    put64(disk, 512 + 72, 2);         /* entries at LBA2 */
+    put32(disk, 512 + 80, 4);         /* 4 entries */
+    put32(disk, 512 + 84, 128);       /* entry size */
 
     /* two entries: one used (type=basic data), one empty */
     std::vector<u8> entries(4 * 128, 0);
-    const u8 basic[16] = {0xA2,0xA0,0xD0,0xEB,0xE5,0xB9,0x33,0x44,0x87,0xC0,0x68,0xB6,0xB7,0x26,0x99,0xC7};
-    std::memcpy(entries.data() + 0, basic, 16);        /* type @0 */
-    put64(entries, 32, 100);  /* first_lba @32 */
-    put64(entries, 40, 200);  /* last_lba @40 */
-    put64(entries, 48, 0);    /* attributes @48 */
+    const u8 basic[16] = {0xA2, 0xA0, 0xD0, 0xEB, 0xE5, 0xB9, 0x33, 0x44,
+                          0x87, 0xC0, 0x68, 0xB6, 0xB7, 0x26, 0x99, 0xC7};
+    std::memcpy(entries.data() + 0, basic, 16); /* type @0 */
+    put64(entries, 32, 100);                    /* first_lba @32 */
+    put64(entries, 40, 200);                    /* last_lba @40 */
+    put64(entries, 48, 0);                      /* attributes @48 */
     const char16_t nm[] = u"Data";
     std::memcpy(entries.data() + 56, nm, sizeof(char16_t) * 4); /* name @56 */
 
@@ -91,10 +99,10 @@ TEST(Gpt, ValidTable) {
     std::memcpy(disk.data() + 2046 * 512, bentries.data(), bentries.size());
     std::vector<u8> bh(512);
     std::memcpy(bh.data(), disk.data() + 512, 512);
-    put32(bh, 16, 0);              /* zero CRC before computing */
-    put64(bh, 24, 2047);           /* current lba = 2047 */
-    put64(bh, 32, 1);              /* backup lba -> primary position */
-    put64(bh, 72, 2046);           /* entries at 2046 */
+    put32(bh, 16, 0);    /* zero CRC before computing */
+    put64(bh, 24, 2047); /* current lba = 2047 */
+    put64(bh, 32, 1);    /* backup lba -> primary position */
+    put64(bh, 72, 2046); /* entries at 2046 */
     u32 bcrc = crc32(bh.data(), 92);
     put32(bh, 16, bcrc);
     std::memcpy(disk.data() + 2047 * 512, bh.data(), 512);
@@ -112,7 +120,8 @@ TEST(Gpt, ValidTable) {
 
 TEST(Gpt, BadHeaderCrcDetected) {
     std::vector<u8> disk(u64(2048) * 512, 0);
-    disk[510] = 0x55; disk[511] = 0xAA;
+    disk[510] = 0x55;
+    disk[511] = 0xAA;
     disk[446 + 4] = 0xEE;
     std::memcpy(disk.data() + 512, "EFI PART", 8);
     put32(disk, 512 + 8, 0x00010000);
@@ -137,27 +146,35 @@ TEST(Gpt, BadHeaderCrcDetected) {
 TEST(Mbr, PlainWithExtended) {
     /* 4096-sector disk: MBR with 1 primary + EBR chain of 2 */
     std::vector<u8> disk(u64(4096) * 512, 0);
-    disk[510] = 0x55; disk[511] = 0xAA;
+    disk[510] = 0x55;
+    disk[511] = 0xAA;
     /* primary: NTFS type 7 at LBA 128 len 512 */
     disk[446 + 4] = 0x07;
-    put32(disk, 446 + 8, 128); put32(disk, 446 + 12, 512);
+    put32(disk, 446 + 8, 128);
+    put32(disk, 446 + 12, 512);
     /* extended container at LBA 2048 len 2040 */
     disk[446 + 16 + 4] = 0x05;
-    put32(disk, 446 + 16 + 8, 2048); put32(disk, 446 + 16 + 12, 2040);
+    put32(disk, 446 + 16 + 8, 2048);
+    put32(disk, 446 + 16 + 12, 2040);
 
     /* EBR1 at 2048: entry0 = volume at +63 len 500 ; entry1 = next EBR at +1024 */
-    u8 *ebr1 = disk.data() + 2048 * 512;
-    ebr1[510] = 0x55; ebr1[511] = 0xAA;
+    u8* ebr1 = disk.data() + 2048 * 512;
+    ebr1[510] = 0x55;
+    ebr1[511] = 0xAA;
     ebr1[446 + 4] = 0x07;
-    put32(disk, 2048*512 + 446 + 8, 63); put32(disk, 2048*512 + 446 + 12, 500);
+    put32(disk, 2048 * 512 + 446 + 8, 63);
+    put32(disk, 2048 * 512 + 446 + 12, 500);
     ebr1[446 + 16 + 4] = 0x05;
-    put32(disk, 2048*512 + 446 + 16 + 8, 1024); put32(disk, 2048*512 + 446 + 16 + 12, 900);
+    put32(disk, 2048 * 512 + 446 + 16 + 8, 1024);
+    put32(disk, 2048 * 512 + 446 + 16 + 12, 900);
 
     /* EBR2 at 2048+1024=3072: entry0 = volume at +63 len 700; no next */
-    u8 *ebr2 = disk.data() + 3072 * 512;
-    ebr2[510] = 0x55; ebr2[511] = 0xAA;
+    u8* ebr2 = disk.data() + 3072 * 512;
+    ebr2[510] = 0x55;
+    ebr2[511] = 0xAA;
     ebr2[446 + 4] = 0x0B; /* FAT32 */
-    put32(disk, 3072*512 + 446 + 8, 63); put32(disk, 3072*512 + 446 + 12, 700);
+    put32(disk, 3072 * 512 + 446 + 8, 63);
+    put32(disk, 3072 * 512 + 446 + 12, 700);
 
     MemDevice dev(std::move(disk));
     DiskTable t;
@@ -174,21 +191,27 @@ TEST(Mbr, PlainWithExtended) {
 TEST(Mbr, EbrCycleGuard) {
     /* EBR1 -> EBR2 -> EBR1 : infinite loop must be cut (fix F7) */
     std::vector<u8> disk(u64(4096) * 512, 0);
-    disk[510] = 0x55; disk[511] = 0xAA;
+    disk[510] = 0x55;
+    disk[511] = 0xAA;
     disk[446 + 16 + 4] = 0x05;
-    put32(disk, 446 + 16 + 8, 2048); put32(disk, 446 + 16 + 12, 2040);
-    u8 *ebr1 = disk.data() + 2048 * 512;
-    ebr1[510] = 0x55; ebr1[511] = 0xAA;
+    put32(disk, 446 + 16 + 8, 2048);
+    put32(disk, 446 + 16 + 12, 2040);
+    u8* ebr1 = disk.data() + 2048 * 512;
+    ebr1[510] = 0x55;
+    ebr1[511] = 0xAA;
     ebr1[446 + 4] = 0x07;
-    put32(disk, 2048*512 + 446 + 8, 63); put32(disk, 2048*512 + 446 + 12, 500);
+    put32(disk, 2048 * 512 + 446 + 8, 63);
+    put32(disk, 2048 * 512 + 446 + 12, 500);
     ebr1[446 + 16 + 4] = 0x05;
-    put32(disk, 2048*512 + 446 + 16 + 8, 1024); /* -> EBR at 3072 */
-    u8 *ebr2 = disk.data() + 3072 * 512;
-    ebr2[510] = 0x55; ebr2[511] = 0xAA;
+    put32(disk, 2048 * 512 + 446 + 16 + 8, 1024); /* -> EBR at 3072 */
+    u8* ebr2 = disk.data() + 3072 * 512;
+    ebr2[510] = 0x55;
+    ebr2[511] = 0xAA;
     ebr2[446 + 4] = 0x07;
-    put32(disk, 3072*512 + 446 + 8, 63); put32(disk, 3072*512 + 446 + 12, 500);
+    put32(disk, 3072 * 512 + 446 + 8, 63);
+    put32(disk, 3072 * 512 + 446 + 12, 500);
     ebr2[446 + 16 + 4] = 0x05;
-    put32(disk, 3072*512 + 446 + 16 + 8, 1024 - 1024); /* -> back to EBR1 base+0 */
+    put32(disk, 3072 * 512 + 446 + 16 + 8, 1024 - 1024); /* -> back to EBR1 base+0 */
 
     MemDevice dev(std::move(disk));
     DiskTable t;

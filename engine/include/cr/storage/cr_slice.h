@@ -29,19 +29,19 @@ namespace cr {
  */
 class PartitionSlice final : public IStorageDevice {
 public:
-    static std::unique_ptr<PartitionSlice> create(IStorageDevice *parent, u64 start_byte,
-                                                  u64 length_bytes, u32 *err = nullptr);
+    static std::unique_ptr<PartitionSlice> create(IStorageDevice* parent, u64 start_byte,
+                                                  u64 length_bytes, u32* err = nullptr);
 
-    u32 read_at(u64 offset, void *buffer, u32 length) override;
-    const Geometry &geometry() const override { return geom_; }
+    u32 read_at(u64 offset, void* buffer, u32 length) override;
+    const Geometry& geometry() const override { return geom_; }
 
-    IStorageDevice *parent() const { return parent_; }
+    IStorageDevice* parent() const { return parent_; }
     u64 start() const { return start_; }
     u64 length() const { return length_; }
 
 private:
     PartitionSlice() = default;
-    IStorageDevice *parent_ = nullptr; /* not owned */
+    IStorageDevice* parent_ = nullptr; /* not owned */
     u64 start_ = 0;
     u64 length_ = 0;
     Geometry geom_;
@@ -54,18 +54,18 @@ private:
  */
 class SliceShim final : public IStorageDevice {
 public:
-    explicit SliceShim(IStorageDevice *target) : target_(target) {}
-    u32 read_at(u64 offset, void *buffer, u32 length) override {
+    explicit SliceShim(IStorageDevice* target) : target_(target) {}
+    u32 read_at(u64 offset, void* buffer, u32 length) override {
         return target_->read_at(offset, buffer, length);
     }
-    const Geometry &geometry() const override { return target_->geometry(); }
+    const Geometry& geometry() const override { return target_->geometry(); }
 
-    static std::unique_ptr<SliceShim> shim(IStorageDevice *t) {
+    static std::unique_ptr<SliceShim> shim(IStorageDevice* t) {
         return std::unique_ptr<SliceShim>(new SliceShim(t));
     }
 
 private:
-    IStorageDevice *target_;
+    IStorageDevice* target_;
 };
 
 } // namespace cr

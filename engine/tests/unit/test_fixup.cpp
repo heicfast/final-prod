@@ -30,8 +30,9 @@ struct SynthRecord {
         }
         /* set each sector's tail u16 to the USN (as on-disk torn state) */
         for (u32 i = 0; i < sectors; ++i) {
-            u8 *tail = data.data() + u64(i) * sector_size + sector_size - 2;
-            tail[0] = u8(usn); tail[1] = u8(usn >> 8);
+            u8* tail = data.data() + u64(i) * sector_size + sector_size - 2;
+            tail[0] = u8(usn);
+            tail[1] = u8(usn >> 8);
         }
         sector = sector_size;
     }
@@ -40,10 +41,8 @@ struct SynthRecord {
 
 TEST(Fixup, ValidRecordApplies) {
     SynthRecord r;
-    ASSERT_EQ(fixup_validate(r.data.data(), r.data.size(), r.usa_off, r.usa_count, r.sector),
-              OK);
-    ASSERT_EQ(fixup_apply(r.data.data(), r.data.size(), r.usa_off, r.usa_count, r.sector),
-              OK);
+    ASSERT_EQ(fixup_validate(r.data.data(), r.data.size(), r.usa_off, r.usa_count, r.sector), OK);
+    ASSERT_EQ(fixup_apply(r.data.data(), r.data.size(), r.usa_off, r.usa_count, r.sector), OK);
     /* after apply, sector tails hold the originals */
     EXPECT_EQ(cr::u16_from_bytes_le(r.data.data() + 510), 0x1111);
     EXPECT_EQ(cr::u16_from_bytes_le(r.data.data() + 1022), 0x2222);
@@ -83,10 +82,8 @@ TEST(Fixup, ZeroOffsetRejected) {
 TEST(Fixup, FourKnSectorSize) {
     /* 4Kn record: 4 sectors of 4096 - F1 fix honored */
     SynthRecord r(4096);
-    ASSERT_EQ(fixup_validate(r.data.data(), r.data.size(), r.usa_off, r.usa_count, r.sector),
-              OK);
-    ASSERT_EQ(fixup_apply(r.data.data(), r.data.size(), r.usa_off, r.usa_count, r.sector),
-              OK);
+    ASSERT_EQ(fixup_validate(r.data.data(), r.data.size(), r.usa_off, r.usa_count, r.sector), OK);
+    ASSERT_EQ(fixup_apply(r.data.data(), r.data.size(), r.usa_off, r.usa_count, r.sector), OK);
     EXPECT_EQ(cr::u16_from_bytes_le(r.data.data() + 1 * 4096 - 2), 0x1111);
     EXPECT_EQ(cr::u16_from_bytes_le(r.data.data() + 4 * 4096 - 2), 0x4444);
 }

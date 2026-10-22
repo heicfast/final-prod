@@ -17,10 +17,11 @@ namespace {
 bool read_boot_sector(wchar_t letter, u8 sec[512]) {
     wchar_t path[8];
     _snwprintf_s(path, 8, _TRUNCATE, L"\\\\.\\%c:", letter);
-    HANDLE h = CreateFileW(path, GENERIC_READ,
-                           FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, nullptr,
-                           OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr);
-    if (h == INVALID_HANDLE_VALUE) return false;
+    HANDLE h =
+        CreateFileW(path, GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
+                    nullptr, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr);
+    if (h == INVALID_HANDLE_VALUE)
+        return false;
     DWORD got = 0;
     OVERLAPPED ov = {};
     const BOOL ok = ReadFile(h, sec, 512, &got, &ov);
@@ -28,22 +29,25 @@ bool read_boot_sector(wchar_t letter, u8 sec[512]) {
     return ok && got == 512;
 }
 
-int run_command(const std::wstring &cmd, int timeout_ms) {
+int run_command(const std::wstring& cmd, int timeout_ms) {
     /* SFC-ready command execution; no shell injection surface: callers
      * build fixed-format commands and quote the user key material. */
     STARTUPINFOW si = {};
     si.cb = sizeof(si);
     PROCESS_INFORMATION pi = {};
-    wchar_t *mutable_cmd = _wcsdup(cmd.c_str());
-    if (!mutable_cmd) return -1;
+    wchar_t* mutable_cmd = _wcsdup(cmd.c_str());
+    if (!mutable_cmd)
+        return -1;
     const BOOL created = CreateProcessW(nullptr, mutable_cmd, nullptr, nullptr, FALSE,
                                         CREATE_NO_WINDOW, nullptr, nullptr, &si, &pi);
     free(mutable_cmd);
-    if (!created) return -1;
+    if (!created)
+        return -1;
     DWORD exit_code = STILL_ACTIVE;
     const u64 start = GetTickCount64();
     while (GetTickCount64() - start < u64(timeout_ms)) {
-        if (WaitForSingleObject(pi.hProcess, 500) == WAIT_OBJECT_0) break;
+        if (WaitForSingleObject(pi.hProcess, 500) == WAIT_OBJECT_0)
+            break;
     }
     GetExitCodeProcess(pi.hProcess, &exit_code);
     CloseHandle(pi.hProcess);
@@ -51,11 +55,13 @@ int run_command(const std::wstring &cmd, int timeout_ms) {
     return int(exit_code);
 }
 
-std::wstring quote(const std::wstring &s) {
+std::wstring quote(const std::wstring& s) {
     std::wstring out = L"\"";
     for (wchar_t c : s) {
-        if (c == L'"') out += L"\"\"";
-        else out.push_back(c);
+        if (c == L'"')
+            out += L"\"\"";
+        else
+            out.push_back(c);
     }
     out += L"\"";
     return out;
@@ -65,7 +71,8 @@ std::wstring quote(const std::wstring &s) {
 
 bool is_fve_volume(wchar_t letter) {
     u8 sec[512];
-    if (!read_boot_sector(letter, sec)) return false;
+    if (!read_boot_sector(letter, sec))
+        return false;
     /* BitLocker volume boot marker at OEM position (corpus signature) */
     return std::memcmp(sec + 3, "-FVE-FS-", 8) == 0;
 }
@@ -77,7 +84,8 @@ bitlocker::Status status(wchar_t letter) {
         wchar_t vol[8];
         _snwprintf_s(vol, 8, _TRUNCATE, L"%c:\\", letter);
         GetVolumeInformationW(vol, nullptr, 0, nullptr, nullptr, nullptr, fs, 32);
-        if (std::wcslen(fs) == 0 && is_fve_volume(letter)) return Status::Locked;
+        if (std::wcslen(fs) == 0 && is_fve_volume(letter))
+            return Status::Locked;
         return Status::Clear;
     }
     /* FVE signature present: if the volume answers filesystem queries it is
@@ -86,11 +94,12 @@ bitlocker::Status status(wchar_t letter) {
     wchar_t vol[8];
     _snwprintf_s(vol, 8, _TRUNCATE, L"%c:\\", letter);
     GetVolumeInformationW(vol, nullptr, 0, nullptr, nullptr, nullptr, fs, 32);
-    if (std::wcslen(fs) != 0) return Status::UnlockedEncrypted;
+    if (std::wcslen(fs) != 0)
+        return Status::UnlockedEncrypted;
     return Status::Locked;
 }
 
-u32 unlock(wchar_t letter, int key_type, const std::wstring &key_or_path) {
+u32 unlock(wchar_t letter, int key_type, const std::wstring& key_or_path) {
     /* Build the legitimate unlock command. Primary: PowerShell. */
     std::wstring mount;
     mount.push_back(letter);
@@ -110,11 +119,13 @@ u32 unlock(wchar_t letter, int key_type, const std::wstring &key_or_path) {
     int rc = run_command(cmd, 120000);
     if (rc != 0) {
         /* legacy fallback: manage-bde (corpus pre-PowerShell path) */
-        std::wstring sub = key_type == 0 ? L"-Password" : (key_type == 1 ? L"-RecoveryPassword" : L"-KeyFilePath");
+        std::wstring sub =
+            key_type == 0 ? L"-Password" : (key_type == 1 ? L"-RecoveryPassword" : L"-KeyFilePath");
         cmd = L"manage-bde -unlock " + mount + L" " + sub + L" " + quote(key_or_path);
         rc = run_command(cmd, 120000);
     }
-    if (rc != 0) return ERR_FVE_LOCKED;
+    if (rc != 0)
+        return ERR_FVE_LOCKED;
     return OK;
 }
 
@@ -123,16 +134,15 @@ u32 try_auto_unlock(wchar_t letter) {
      * enumerated; try each as a recovery password. No keys are ever
      * extracted to plaintext outside Windows' own semantics. */
     HKEY k = nullptr;
-    if (RegOpenKeyExW(HKEY_LOCAL_MACHINE,
-                      L"SYSTEM\\CurrentControlSet\\Services\\FVEAutoUnlock", 0, KEY_READ,
-                      &k) != ERROR_SUCCESS) {
+    if (RegOpenKeyExW(HKEY_LOCAL_MACHINE, L"SYSTEM\\CurrentControlSet\\Services\\FVEAutoUnlock", 0,
+                      KEY_READ, &k) != ERROR_SUCCESS) {
         return ERR_FVE_LOCKED; /* no auto keys configured */
     }
     wchar_t name[256];
     DWORD name_len = 256;
     u32 best = ERR_FVE_LOCKED;
-    for (DWORD i = 0; RegEnumValueW(k, i, name, &name_len, nullptr, nullptr, nullptr, nullptr) ==
-                     ERROR_SUCCESS;
+    for (DWORD i = 0;
+         RegEnumValueW(k, i, name, &name_len, nullptr, nullptr, nullptr, nullptr) == ERROR_SUCCESS;
          ++i, name_len = 256) {
         std::wstring candidate(name, name_len);
         if (unlock(letter, 1, candidate) == OK) {
@@ -144,12 +154,16 @@ u32 try_auto_unlock(wchar_t letter) {
     return best;
 }
 
-const wchar_t *status_text(Status s) {
+const wchar_t* status_text(Status s) {
     switch (s) {
-    case Status::Clear: return L"clear";
-    case Status::Locked: return L"locked (FVE)";
-    case Status::UnlockedEncrypted: return L"unlocked (encrypted)";
-    default: return L"unknown";
+    case Status::Clear:
+        return L"clear";
+    case Status::Locked:
+        return L"locked (FVE)";
+    case Status::UnlockedEncrypted:
+        return L"unlocked (encrypted)";
+    default:
+        return L"unknown";
     }
 }
 

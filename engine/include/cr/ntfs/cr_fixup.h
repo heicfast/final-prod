@@ -25,13 +25,13 @@ namespace ntfs {
  *   usa_count: from record header (u16 count = sectors + 1)
  *   sector_size: logical sector size in bytes (512/4096 - fix F1)
  * Returns OK, ERR_FIXUP_FAILED, ERR_BAD_PARAMETER. Never touches the buffer. */
-u32 fixup_validate(const u8 *record, u64 record_bytes, u32 usa_offset, u32 usa_count,
+u32 fixup_validate(const u8* record, u64 record_bytes, u32 usa_offset, u32 usa_count,
                    u32 sector_size);
 
 /* Apply fixups in place (after validate). Each sector's trailing u16 is
  * restored from the USA slot. Returns ERR_FIXUP_FAILED and leaves the buffer
  * in the original state on any mismatch (applies back the originals). */
-u32 fixup_apply(u8 *record, u64 record_bytes, u32 usa_offset, u32 usa_count, u32 sector_size);
+u32 fixup_apply(u8* record, u64 record_bytes, u32 usa_offset, u32 usa_count, u32 sector_size);
 
 } // namespace ntfs
 } // namespace cr

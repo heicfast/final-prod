@@ -11,20 +11,21 @@ namespace tree {
 
 /* ---- utf16 -> utf8 (for CLI output) ---- */
 namespace {
-void utf16_to_utf8(const std::u16string &in, std::string &out) {
+void utf16_to_utf8(const std::u16string& in, std::string& out) {
     out.clear();
     unsigned int cp;
     for (size_t i = 0; i < in.size(); ++i) {
         u16 c = in[i];
-        if (c >= 0xD800 && c <= 0xDBFF && i + 1 < in.size() &&
-            in[i + 1] >= 0xDC00 && in[i + 1] <= 0xDFFF) {
+        if (c >= 0xD800 && c <= 0xDBFF && i + 1 < in.size() && in[i + 1] >= 0xDC00 &&
+            in[i + 1] <= 0xDFFF) {
             cp = 0x10000 + ((static_cast<unsigned int>(c) - 0xD800) << 10) +
                  (static_cast<unsigned int>(in[i + 1]) - 0xDC00);
             ++i;
         } else {
             cp = c;
         }
-        if (cp < 0x80) out.push_back(static_cast<char>(cp));
+        if (cp < 0x80)
+            out.push_back(static_cast<char>(cp));
         else if (cp < 0x800) {
             out.push_back(static_cast<char>(0xC0 | (cp >> 6)));
             out.push_back(static_cast<char>(0x80 | (cp & 0x3F)));
@@ -44,9 +45,10 @@ void utf16_to_utf8(const std::u16string &in, std::string &out) {
 
 FileProperties::~FileProperties() = default;
 
-FileProperties *FileProperties::clone() const {
-    FileProperties *p = new (std::nothrow) FileProperties();
-    if (!p) return nullptr;
+FileProperties* FileProperties::clone() const {
+    FileProperties* p = new (std::nothrow) FileProperties();
+    if (!p)
+        return nullptr;
     p->record_ref = record_ref;
     p->fs_kind = fs_kind;
     p->logical_size = logical_size;
@@ -63,42 +65,49 @@ FileProperties *FileProperties::clone() const {
     return p;
 }
 
-void FileNode::set_props(FileProperties *p) {
-    if (props_) props_->release();
+void FileNode::set_props(FileProperties* p) {
+    if (props_)
+        props_->release();
     props_ = p;
-    if (props_) props_->add_ref();
+    if (props_)
+        props_->add_ref();
 }
 
 std::string FileNode::name_utf8() const {
     std::string s;
-    if (props_) utf16_to_utf8(props_->name, s);
+    if (props_)
+        utf16_to_utf8(props_->name, s);
     return s;
 }
 
-void *ResultTree::arena_alloc(size_t bytes) {
+void* ResultTree::arena_alloc(size_t bytes) {
     if (arenas_.empty() || arenas_.back().used + bytes > arenas_.back().cap) {
         size_t cap = arenas_.empty() ? 131072 : arenas_.back().cap * 2;
-        while (cap < bytes) cap *= 2;
+        while (cap < bytes)
+            cap *= 2;
         Arena a;
         a.base = new (std::nothrow) unsigned char[cap];
-        if (!a.base) return nullptr;
+        if (!a.base)
+            return nullptr;
         a.cap = cap;
         a.used = 0;
         arenas_.push_back(a);
     }
-    Arena &a = arenas_.back();
-    void *p = static_cast<unsigned char *>(a.base) + a.used;
+    Arena& a = arenas_.back();
+    void* p = static_cast<unsigned char*>(a.base) + a.used;
     a.used += bytes;
     return p;
 }
 
-FullNode *ResultTree::add_root(const std::u16string &role) {
-    void *mem = arena_alloc(sizeof(FullNode));
-    if (!mem) return nullptr;
-    FullNode *n = new (mem) FullNode();
+FullNode* ResultTree::add_root(const std::u16string& role) {
+    void* mem = arena_alloc(sizeof(FullNode));
+    if (!mem)
+        return nullptr;
+    FullNode* n = new (mem) FullNode();
     n->role = role;
-    FileProperties *p = new (std::nothrow) FileProperties();
-    if (!p) return nullptr;
+    FileProperties* p = new (std::nothrow) FileProperties();
+    if (!p)
+        return nullptr;
     p->name = role;
     n->set_props(p);
     p->release(); /* set_props took the ref */
@@ -109,18 +118,21 @@ FullNode *ResultTree::add_root(const std::u16string &role) {
     return n;
 }
 
-FileNode *ResultTree::add_file(FileNode *parent, FileProperties *props) {
-    if (!props || !parent) return nullptr;
-    void *mem = arena_alloc(sizeof(FileNode));
-    if (!mem) return nullptr;
-    FileNode *n = new (mem) FileNode();
+FileNode* ResultTree::add_file(FileNode* parent, FileProperties* props) {
+    if (!props || !parent)
+        return nullptr;
+    void* mem = arena_alloc(sizeof(FileNode));
+    if (!mem)
+        return nullptr;
+    FileNode* n = new (mem) FileNode();
     n->set_props(props); /* +1 ref: caller releases its own when done */
     n->parent_ = parent;
     if (parent->first_child_ == nullptr) {
         parent->first_child_ = n;
     } else {
-        FileNode *t = parent->first_child_;
-        while (t->next_sibling_) t = t->next_sibling_;
+        FileNode* t = parent->first_child_;
+        while (t->next_sibling_)
+            t = t->next_sibling_;
         t->next_sibling_ = n;
         n->prev_sibling_ = t;
     }
@@ -130,17 +142,20 @@ FileNode *ResultTree::add_file(FileNode *parent, FileProperties *props) {
     return n;
 }
 
-void ResultTree::index_node(FileNode *n) {
-    if (!n->props()) return;
-    const FileProperties *p = n->props();
-    if (p->record_ref != 0) by_record_.push_back({p->record_ref, n});
+void ResultTree::index_node(FileNode* n) {
+    if (!n->props())
+        return;
+    const FileProperties* p = n->props();
+    if (p->record_ref != 0)
+        by_record_.push_back({p->record_ref, n});
     if (!p->extents.empty()) {
         u64 first = p->extents.front().offset;
         u64 len_class = 0;
         u64 sz = p->logical_size;
         /* size classes: 64 KiB buckets under 1 MiB, log2 above (fix F9) */
         if (sz >= (1 << 20)) {
-            while ((1ULL << len_class) < sz) ++len_class;
+            while ((1ULL << len_class) < sz)
+                ++len_class;
             len_class += 64;
         } else {
             len_class = sz / 65536;
@@ -149,70 +164,83 @@ void ResultTree::index_node(FileNode *n) {
     }
 }
 
-FileNode *ResultTree::find_by_record(u64 record_ref) const {
-    for (const auto &e : by_record_)
-        if (e.ref == record_ref) return e.n;
+FileNode* ResultTree::find_by_record(u64 record_ref) const {
+    for (const auto& e : by_record_)
+        if (e.ref == record_ref)
+            return e.n;
     return nullptr;
 }
 
-FileNode *ResultTree::find_by_extent(u64 first_offset, u64 length_class) const {
-    for (const auto &e : by_extent_)
-        if (e.off == first_offset && e.len_class == length_class) return e.n;
+FileNode* ResultTree::find_by_extent(u64 first_offset, u64 length_class) const {
+    for (const auto& e : by_extent_)
+        if (e.off == first_offset && e.len_class == length_class)
+            return e.n;
     return nullptr;
 }
 
 size_t ResultTree::file_count() const {
     size_t c = 0;
-    for (auto *n : nodes_)
-        if (n->props() && !(n->props()->attributes & 0x10)) ++c;
+    for (auto* n : nodes_)
+        if (n->props() && !(n->props()->attributes & 0x10))
+            ++c;
     return c;
 }
 
 u64 ResultTree::total_logical() const {
     u64 t = 0;
-    for (auto *n : nodes_)
-        if (n->props()) t += n->props()->logical_size;
+    for (auto* n : nodes_)
+        if (n->props())
+            t += n->props()->logical_size;
     return t;
 }
 
 void ResultTree::refresh_stats() {
     /* friend of FileNode: protected links readable on every node */
-    for (auto *n : nodes_) {
-        if (!n->full_) continue;
-        FullNode *root = static_cast<FullNode *>(n);
+    for (auto* n : nodes_) {
+        if (!n->full_)
+            continue;
+        FullNode* root = static_cast<FullNode*>(n);
         root->stats_ = FullNode::Stats{};
-        for (FileNode *c = root->first_child_; c != nullptr; c = c->next_sibling_) {
-            if (!c->props()) continue;
+        for (FileNode* c = root->first_child_; c != nullptr; c = c->next_sibling_) {
+            if (!c->props())
+                continue;
             if (c->props()->attributes & 0x10 /* ATTR_DIRECTORY */)
                 ++root->stats_.dir_count;
             else {
                 ++root->stats_.file_count;
                 root->stats_.total_logical += c->props()->logical_size;
             }
-            if (c->deleted_state() != DeletedState::Active) ++root->stats_.deleted_count;
+            if (c->deleted_state() != DeletedState::Active)
+                ++root->stats_.deleted_count;
         }
     }
 }
 
-void ResultTree::reparent(FileNode *node, FileNode *new_parent) {
-    if (node == nullptr || node == new_parent || node->parent_ == new_parent) return;
+void ResultTree::reparent(FileNode* node, FileNode* new_parent) {
+    if (node == nullptr || node == new_parent || node->parent_ == new_parent)
+        return;
     /* forbid cycles: new_parent must not be node itself or its descendant */
-    for (FileNode *p = new_parent; p != nullptr; p = p->parent_)
-        if (p == node) return;
-    FileNode *cur = node->parent_;
+    for (FileNode* p = new_parent; p != nullptr; p = p->parent_)
+        if (p == node)
+            return;
+    FileNode* cur = node->parent_;
     if (node->prev_sibling_)
         node->prev_sibling_->next_sibling_ = node->next_sibling_;
     else if (cur)
         cur->first_child_ = node->next_sibling_;
-    if (node->next_sibling_) node->next_sibling_->prev_sibling_ = node->prev_sibling_;
+    if (node->next_sibling_)
+        node->next_sibling_->prev_sibling_ = node->prev_sibling_;
     node->prev_sibling_ = nullptr;
     node->next_sibling_ = nullptr;
     node->parent_ = new_parent;
-    if (new_parent == nullptr) return;
-    if (new_parent->first_child_ == nullptr) new_parent->first_child_ = node;
+    if (new_parent == nullptr)
+        return;
+    if (new_parent->first_child_ == nullptr)
+        new_parent->first_child_ = node;
     else {
-        FileNode *t = new_parent->first_child_;
-        while (t->next_sibling_) t = t->next_sibling_;
+        FileNode* t = new_parent->first_child_;
+        while (t->next_sibling_)
+            t = t->next_sibling_;
         t->next_sibling_ = node;
         node->prev_sibling_ = t;
     }
@@ -220,16 +248,18 @@ void ResultTree::reparent(FileNode *node, FileNode *new_parent) {
 
 void ResultTree::reset() {
     /* full nodes carry a u16string: their OWN destructor must run */
-    for (auto *n : nodes_) {
-        if (n->full_) static_cast<FullNode *>(n)->~FullNode();
-        else n->~FileNode();
+    for (auto* n : nodes_) {
+        if (n->full_)
+            static_cast<FullNode*>(n)->~FullNode();
+        else
+            n->~FileNode();
     }
     nodes_.clear();
     roots_.clear();
     by_record_.clear();
     by_extent_.clear();
-    for (auto &a : arenas_) {
-        delete[] static_cast<unsigned char *>(a.base);
+    for (auto& a : arenas_) {
+        delete[] static_cast<unsigned char*>(a.base);
         a.base = nullptr;
         a.used = a.cap = 0;
     }

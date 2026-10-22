@@ -22,13 +22,15 @@ namespace table {
 enum class FsKind : u32 {
     Unknown = 0,
     Ntfs,
-    Fat12, Fat16, Fat32,
+    Fat12,
+    Fat16,
+    Fat32,
     Exfat,
     Refs,
-    Ldm,          /* dynamic disk data (recognized only) */
-    Extended,     /* container, not a volume */
-    Protective,   /* GPT protective MBR entry */
-    Reserved,     /* GPT reserved / BIOS boot / MSR */
+    Ldm,        /* dynamic disk data (recognized only) */
+    Extended,   /* container, not a volume */
+    Protective, /* GPT protective MBR entry */
+    Reserved,   /* GPT reserved / BIOS boot / MSR */
     Linux,
     Other,
 };
@@ -41,9 +43,9 @@ struct PartitionInfo {
     FsKind fs = FsKind::Unknown;
     u8 mbr_type = 0;
     u64 gpt_attrs = 0;
-    u16 name[36] = {0};        /* GPT UTF16 name (up to 36 chars incl. NUL) */
+    u16 name[36] = {0}; /* GPT UTF16 name (up to 36 chars incl. NUL) */
     bool from_gpt = false;
-    bool used = false;         /* entry occupied */
+    bool used = false; /* entry occupied */
 };
 
 /* Result of reading the on-disk table of one disk. */
@@ -67,13 +69,12 @@ class CancelRegistry; /* fwd */
  * fail on BOTH copies - partitions still extracted with per-entry best effort
  * (salvage-over-purity, fix F7/F10).
  */
-u32 parse_disk_table(IStorageDevice *device, DiskTable &out);
+u32 parse_disk_table(IStorageDevice* device, DiskTable& out);
 
 /* EBR chain walk (called by parse_disk_table for extended containers).
  * depth_limit bounds the chain (typical disks: < 128; guard = fix F7). */
 constexpr u32 EBR_DEPTH_LIMIT = 1024;
-u32 parse_ebr_chain(IStorageDevice *device, u64 first_ebr_lba,
-                    std::vector<PartitionInfo> &out);
+u32 parse_ebr_chain(IStorageDevice* device, u64 first_ebr_lba, std::vector<PartitionInfo>& out);
 
 /* Map an MBR type byte to FsKind (best effort, public id conventions). */
 FsKind mbr_type_to_kind(u8 type);

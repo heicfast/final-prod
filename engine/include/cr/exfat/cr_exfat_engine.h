@@ -25,17 +25,17 @@
 namespace cr {
 namespace exfat {
 
-u32 checksum32(const u8 *p, u32 n, u32 seed); /* ROL31 + add */
-u16 checksum16(const u8 *p, u32 n, u16 seed);
+u32 checksum32(const u8* p, u32 n, u32 seed); /* ROL31 + add */
+u16 checksum16(const u8* p, u32 n, u16 seed);
 
 struct ExfatParams {
-    u32 bytes_per_sector = 512;     /* 1 << shift, shift in 9..12 */
+    u32 bytes_per_sector = 512; /* 1 << shift, shift in 9..12 */
     u8 bytes_per_sector_shift = 9;
     u8 sectors_per_cluster_shift = 0;
-    u32 cluster_bytes = 0;          /* bytes_per_sector << spc_shift */
-    u32 volume_length = 0;          /* sectors */
+    u32 cluster_bytes = 0; /* bytes_per_sector << spc_shift */
+    u32 volume_length = 0; /* sectors */
     u32 fat_offset = 0;
-    u32 fat_length = 0;             /* 0 legal? spec: >=1 typically; 0 = no FAT at all (contiguous-only) */
+    u32 fat_length = 0; /* 0 legal? spec: >=1 typically; 0 = no FAT at all (contiguous-only) */
     u32 cluster_heap_offset = 0;
     u32 cluster_count = 0;
     u32 first_cluster_of_root = 0;
@@ -46,18 +46,18 @@ struct ExfatParams {
 };
 
 /* Validate main + backup boot regions (checksum per rules above). */
-u32 validate_boot_region(IStorageDevice *dev, ExfatParams &out);
+u32 validate_boot_region(IStorageDevice* dev, ExfatParams& out);
 
 /* Entry-set checksum over raw dentry bytes (file+stream+names), skipping
  * the 2 checksum bytes at file_dentry+8. */
-u16 entry_set_checksum(const u8 *entries, u32 entry_count);
+u16 entry_set_checksum(const u8* entries, u32 entry_count);
 
 /* ---- scan ---- */
 struct ExfatScanStats {
     u64 files = 0;
     u64 dirs = 0;
     u64 deleted_entries = 0;
-    u64 sets_damaged = 0;   /* checksum mismatch (kept, marked damaged) */
+    u64 sets_damaged = 0; /* checksum mismatch (kept, marked damaged) */
     u64 no_fat_chains = 0;
     u64 chains_broken = 0;
 };
@@ -67,11 +67,10 @@ struct ExfatScanFlags {
     bool keep_deleted = true;
 };
 
-u32 scan_exfat(IStorageDevice *slice, const ExfatScanFlags &flags, CancelToken *cancel,
-               bool (*progress)(u64, u64, void *), void *progress_user,
-               tree::ResultTree &tree, tree::FullNode *root_active,
-               tree::FullNode *root_deleted, tree::FullNode *root_lost,
-               ExfatScanStats &stats);
+u32 scan_exfat(IStorageDevice* slice, const ExfatScanFlags& flags, CancelToken* cancel,
+               bool (*progress)(u64, u64, void*), void* progress_user, tree::ResultTree& tree,
+               tree::FullNode* root_active, tree::FullNode* root_deleted, tree::FullNode* root_lost,
+               ExfatScanStats& stats);
 
 } // namespace exfat
 } // namespace cr

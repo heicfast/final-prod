@@ -9,18 +9,21 @@ namespace {
 class MemDevice final : public IStorageDevice {
 public:
     explicit MemDevice(u64 bytes, u32 sector = 512) : data_(bytes) {
-        for (size_t i = 0; i < data_.size(); ++i) data_[i] = u8(i * 7);
+        for (size_t i = 0; i < data_.size(); ++i)
+            data_[i] = u8(i * 7);
         geom_.logical_sector = sector;
         geom_.physical_sector = sector;
         geom_.sector_count = bytes / sector;
         geom_.total_bytes = geom_.sector_count * sector;
     }
-    u32 read_at(u64 off, void *buf, u32 len) override {
-        if (off > data_.size() || len > data_.size() - off) return ERR_RANGE_OUT_OF_BOUNDS;
+    u32 read_at(u64 off, void* buf, u32 len) override {
+        if (off > data_.size() || len > data_.size() - off)
+            return ERR_RANGE_OUT_OF_BOUNDS;
         std::memcpy(buf, data_.data() + off, len);
         return OK;
     }
-    const Geometry &geometry() const override { return geom_; }
+    const Geometry& geometry() const override { return geom_; }
+
 private:
     std::vector<u8> data_;
     Geometry geom_;
@@ -29,7 +32,7 @@ private:
 
 TEST(Cached, HitMissAndBridging) {
     auto inner = std::make_unique<MemDevice>(u64(1024) * 512);
-    MemDevice *raw = inner.get();
+    MemDevice* raw = inner.get();
     auto c = CachedReader::create(std::move(inner), 256 * 1024, 64 * 1024);
     ASSERT_NE(c, nullptr);
     u8 buf[4096];

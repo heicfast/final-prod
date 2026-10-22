@@ -31,13 +31,13 @@ Status status(wchar_t letter);
 /* Attempt legitimate unlock. key_type: 0 password, 1 recovery key (48-digit
  * string), 2 BEK file path. Returns OK or ERR_FVE_LOCKED on failure.
  * We never touch the crypto layer - Windows applies the keys. */
-u32 unlock(wchar_t letter, int key_type, const std::wstring &key_or_path);
+u32 unlock(wchar_t letter, int key_type, const std::wstring& key_or_path);
 
 /* Auto-unlock: enumerate FVEAutoUnlock registry values and try them. */
 u32 try_auto_unlock(wchar_t letter);
 
 /* Human-readable status for CLI output. */
-const wchar_t *status_text(Status s);
+const wchar_t* status_text(Status s);
 
 } // namespace bitlocker
 } // namespace win

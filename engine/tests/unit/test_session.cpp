@@ -15,32 +15,35 @@ namespace {
 struct MemFile {
     std::vector<u8> data;
     u64 pos = 0;
-    static u32 wr(void *u, const void *b, u32 len) {
-        auto *m = static_cast<MemFile *>(u);
-        if (m->pos + len > m->data.size()) m->data.resize(size_t(m->pos + len));
+    static u32 wr(void* u, const void* b, u32 len) {
+        auto* m = static_cast<MemFile*>(u);
+        if (m->pos + len > m->data.size())
+            m->data.resize(size_t(m->pos + len));
         std::memcpy(m->data.data() + m->pos, b, len);
         m->pos += len;
         return 0;
     }
-    static u64 tl(void *u) { return static_cast<MemFile *>(u)->pos; }
-    static u32 sk(void *u, u64 abs) {
-        auto *m = static_cast<MemFile *>(u);
+    static u64 tl(void* u) { return static_cast<MemFile*>(u)->pos; }
+    static u32 sk(void* u, u64 abs) {
+        auto* m = static_cast<MemFile*>(u);
         m->pos = abs;
         return 0;
     }
-    static u32 rd(void *u, void *b, u32 len) {
-        auto *m = static_cast<MemFile *>(u);
-        if (m->pos + len > m->data.size()) return 1;
+    static u32 rd(void* u, void* b, u32 len) {
+        auto* m = static_cast<MemFile*>(u);
+        if (m->pos + len > m->data.size())
+            return 1;
         std::memcpy(b, m->data.data() + m->pos, len);
         m->pos += len;
         return 0;
     }
-    static u64 sz(void *u) { return static_cast<MemFile *>(u)->data.size(); }
+    static u64 sz(void* u) { return static_cast<MemFile*>(u)->data.size(); }
 };
 
 std::vector<u8> compressible_payload() {
     std::vector<u8> p;
-    for (int i = 0; i < 5000; ++i) p.push_back(u8('A' + (i % 3))); /* compresses well */
+    for (int i = 0; i < 5000; ++i)
+        p.push_back(u8('A' + (i % 3))); /* compresses well */
     return p;
 }
 
@@ -53,7 +56,7 @@ TEST(Crsf, RoundTrip) {
         ASSERT_EQ(w.open(0x1122334455667788ULL), OK);
         auto p1 = compressible_payload();
         ASSERT_EQ(w.add_record(REC_SESSION_STATE, p1.data(), u32(p1.size())), OK);
-        const char *msg = "volume C: NTFS, 512e";
+        const char* msg = "volume C: NTFS, 512e";
         ASSERT_EQ(w.add_record(REC_VOLUME_INFO, msg, u32(strlen(msg))), OK);
         u8 zeros[8192];
         std::memset(zeros, 0, sizeof(zeros)); /* zeros: deflate loses, stored wins */
@@ -83,7 +86,10 @@ TEST(Crsf, RoundTrip) {
     ASSERT_EQ(rec.data.size(), 8192u);
     bool all_zero = true;
     for (u8 b : rec.data)
-        if (b != 0) { all_zero = false; break; }
+        if (b != 0) {
+            all_zero = false;
+            break;
+        }
     EXPECT_TRUE(all_zero);
 }
 
@@ -117,24 +123,24 @@ TEST(Crsf, CorruptionSkipsForward) {
 
 TEST(Crsf, TreeRoundTrip) {
     tree::ResultTree t;
-    auto *root = t.add_root(u"Volume C");
+    auto* root = t.add_root(u"Volume C");
     t.refresh_stats();
-    tree::FileProperties *p1 = new tree::FileProperties();
+    tree::FileProperties* p1 = new tree::FileProperties();
     p1->name = u"readme.txt";
     p1->record_ref = 1000;
     p1->logical_size = 1234;
     p1->extents.push_back({4096, 1234});
     p1->times.created = 132000000000000000ULL;
-    auto *f1 = t.add_file(root, p1);
+    auto* f1 = t.add_file(root, p1);
     p1->release();
     f1->set_deleted_state(tree::DeletedState::Deleted);
     f1->set_confidence(tree::Confidence::Excellent);
-    tree::FileProperties *p2 = new tree::FileProperties();
+    tree::FileProperties* p2 = new tree::FileProperties();
     p2->name = u"sub";
     p2->attributes = 0x10;
-    auto *d1 = t.add_file(root, p2);
+    auto* d1 = t.add_file(root, p2);
     p2->release();
-    tree::FileProperties *p3 = new tree::FileProperties();
+    tree::FileProperties* p3 = new tree::FileProperties();
     p3->name = u"inner.dat";
     p3->logical_size = 99;
     (void)t.add_file(d1, p3);
@@ -149,10 +155,12 @@ TEST(Crsf, TreeRoundTrip) {
     EXPECT_EQ(t2.node_count(), t.node_count());
     /* find inner under sub under root */
     tree::FileNode *sub = nullptr, *inner = nullptr, *readme = nullptr;
-    for (tree::FileNode *r : t2.roots()) {
-        for (tree::FileNode *c = r->first_child(); c; c = c->next_sibling()) {
-            if (c->name_utf8() == "readme.txt") readme = c;
-            if (c->name_utf8() == "sub") sub = c;
+    for (tree::FileNode* r : t2.roots()) {
+        for (tree::FileNode* c = r->first_child(); c; c = c->next_sibling()) {
+            if (c->name_utf8() == "readme.txt")
+                readme = c;
+            if (c->name_utf8() == "sub")
+                sub = c;
         }
     }
     ASSERT_NE(sub, nullptr);

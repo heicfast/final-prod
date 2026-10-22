@@ -17,19 +17,20 @@ namespace win {
 
 namespace {
 
-bool query_disk(u32 n, PhysicalDisk &d) {
+bool query_disk(u32 n, PhysicalDisk& d) {
     wchar_t path[64];
     _snwprintf_s(path, 64, _TRUNCATE, L"\\\\.\\PhysicalDrive%u", n);
-    HANDLE h = CreateFileW(path, GENERIC_READ,
-                           FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, nullptr,
-                           OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr);
-    if (h == INVALID_HANDLE_VALUE) return false;
+    HANDLE h =
+        CreateFileW(path, GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
+                    nullptr, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr);
+    if (h == INVALID_HANDLE_VALUE)
+        return false;
     bool ok = false;
     /* geometry */
     DISK_GEOMETRY_EX dg = {};
     DWORD br = 0;
-    if (DeviceIoControl(h, IOCTL_DISK_GET_DRIVE_GEOMETRY_EX, nullptr, 0, &dg, sizeof(dg),
-                        &br, nullptr)) {
+    if (DeviceIoControl(h, IOCTL_DISK_GET_DRIVE_GEOMETRY_EX, nullptr, 0, &dg, sizeof(dg), &br,
+                        nullptr)) {
         d.logical_sector = dg.Geometry.BytesPerSector;
         d.physical_sector = dg.Geometry.BytesPerSector;
         d.size_bytes = u64(dg.DiskSize.QuadPart);
@@ -41,8 +42,8 @@ bool query_disk(u32 n, PhysicalDisk &d) {
         q.PropertyId = StorageAccessAlignmentProperty;
         q.QueryType = PropertyStandardQuery;
         u8 buf[4096];
-        if (DeviceIoControl(h, IOCTL_STORAGE_QUERY_PROPERTY, &q, sizeof(q), buf, sizeof(buf),
-                            &br, nullptr)) {
+        if (DeviceIoControl(h, IOCTL_STORAGE_QUERY_PROPERTY, &q, sizeof(q), buf, sizeof(buf), &br,
+                            nullptr)) {
             d.logical_sector = u32_from_bytes_le(buf + 8);
             d.physical_sector = u32_from_bytes_le(buf + 12);
         }
@@ -53,36 +54,40 @@ bool query_disk(u32 n, PhysicalDisk &d) {
         q.PropertyId = StorageDeviceProperty;
         q.QueryType = PropertyStandardQuery;
         u8 buf[4096];
-        if (DeviceIoControl(h, IOCTL_STORAGE_QUERY_PROPERTY, &q, sizeof(q), buf, sizeof(buf),
-                            &br, nullptr)) {
+        if (DeviceIoControl(h, IOCTL_STORAGE_QUERY_PROPERTY, &q, sizeof(q), buf, sizeof(buf), &br,
+                            nullptr)) {
             /* STORAGE_DEVICE_DESCRIPTOR: offsets relative to buf start */
-            const u8 *base = buf;
+            const u8* base = buf;
             const DWORD prod_off = u32_from_bytes_le(base + 24);
             const DWORD serial_off = u32_from_bytes_le(base + 36);
             const DWORD bus = u32_from_bytes_le(base + 28);
             if (prod_off && prod_off < sizeof(buf)) {
-                const char *p = reinterpret_cast<const char *>(base + prod_off);
-                while (*p) d.model.push_back(wchar_t(*p++));
+                const char* p = reinterpret_cast<const char*>(base + prod_off);
+                while (*p)
+                    d.model.push_back(wchar_t(*p++));
             }
             if (serial_off && serial_off < sizeof(buf)) {
-                const char *p = reinterpret_cast<const char *>(base + serial_off);
-                while (*p) d.serial.push_back(wchar_t(*p++));
+                const char* p = reinterpret_cast<const char*>(base + serial_off);
+                while (*p)
+                    d.serial.push_back(wchar_t(*p++));
             }
             d.removable = (bus == BusTypeUsb || bus == BusTypeSd || bus == BusTypeMMC);
         }
     }
     CloseHandle(h);
-    if (!ok) return false;
+    if (!ok)
+        return false;
     d.number = n;
     return true;
 }
 
 } // namespace
 
-u32 enumerate_disks(u32 max_disks, std::vector<PhysicalDisk> &out) {
+u32 enumerate_disks(u32 max_disks, std::vector<PhysicalDisk>& out) {
     for (u32 n = 0; n < max_disks; ++n) {
         PhysicalDisk d;
-        if (!query_disk(n, d)) continue;
+        if (!query_disk(n, d))
+            continue;
         /* parse the on-disk table through the pure core */
         u32 err = 0;
         auto view = open_physical_drive(n, &err);
@@ -94,11 +99,12 @@ u32 enumerate_disks(u32 max_disks, std::vector<PhysicalDisk> &out) {
     return OK;
 }
 
-u32 enumerate_volumes(std::vector<VolumeEntry> &out) {
+u32 enumerate_volumes(std::vector<VolumeEntry>& out) {
     wchar_t letters[64];
     DWORD len = GetLogicalDriveStringsW(64, letters);
-    if (len == 0 || len > 64) return ERR_BAD_PARAMETER;
-    const wchar_t *p = letters;
+    if (len == 0 || len > 64)
+        return ERR_BAD_PARAMETER;
+    const wchar_t* p = letters;
     while (*p) {
         VolumeEntry v;
         v.letter = p[0];
@@ -108,8 +114,8 @@ u32 enumerate_volumes(std::vector<VolumeEntry> &out) {
             wchar_t vol[64];
             _snwprintf_s(vol, 64, _TRUNCATE, L"\\\\.\\%c:", p[0]);
             HANDLE h = CreateFileW(vol, GENERIC_READ,
-                                   FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
-                                   nullptr, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr);
+                                   FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, nullptr,
+                                   OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr);
             if (h != INVALID_HANDLE_VALUE) {
                 VOLUME_DISK_EXTENTS ext[8] = {};
                 DWORD br = 0;
@@ -135,11 +141,12 @@ u32 enumerate_volumes(std::vector<VolumeEntry> &out) {
     return OK;
 }
 
-std::unique_ptr<IStorageDevice> open_disk_view(const PhysicalDisk &d,
-                                               const wchar_t *rda_service, u32 *err) {
+std::unique_ptr<IStorageDevice> open_disk_view(const PhysicalDisk& d, const wchar_t* rda_service,
+                                               u32* err) {
     u32 e = 0;
     if (rda_service) {
-        if (auto dev = open_rda_partition(rda_service, d.number, 0, &e)) return dev;
+        if (auto dev = open_rda_partition(rda_service, d.number, 0, &e))
+            return dev;
     }
     return open_physical_drive(d.number, err);
 }

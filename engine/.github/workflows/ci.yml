@@ -35,23 +35,24 @@ jobs:
     runs-on: windows-2022
     steps:
       - uses: actions/checkout@v4
-      - name: Setup vcpkg (builtin baseline, manifest)
-        uses: lukka/run-vcpkg@v11
-        with:
-          vcpkgDirectory: '${{ github.workspace }}/v'
-          vcpkgJsonGlob: 'vcpkg.json'
-      - name: Configure + build (Debug + Release)
+      - name: Configure + build (Debug + Release, manifest vcpkg)
+        shell: pwsh
         run: |
+          $env:VCPKG_ROOT = $env:VCPKG_INSTALLATION_ROOT
+          Write-Host "vcpkg at: $env:VCPKG_ROOT"
           cmake --preset win-x64-debug
+          if ($LASTEXITCODE) { exit 1 }
           cmake --build --preset win-x64-debug
+          if ($LASTEXITCODE) { exit 1 }
           cmake --preset win-x64-release
+          if ($LASTEXITCODE) { exit 1 }
           cmake --build --preset win-x64-release
-        env:
-          VCPKG_ROOT: ${{ github.workspace }}/v
+          if ($LASTEXITCODE) { exit 1 }
       - name: Tests
-        run: ctest --preset win-x64-release -C Release
-        env:
-          VCPKG_ROOT: ${{ github.workspace }}/v
+        shell: pwsh
+        run: |
+          $env:VCPKG_ROOT = $env:VCPKG_INSTALLATION_ROOT
+          ctest --preset win-x64-release -C Release
 
   codeql:
     runs-on: windows-2022
@@ -62,9 +63,12 @@ jobs:
       - uses: github/codeql-action/init@v3
         with:
           languages: cpp
-      - run: |
-          cmake -S . -B build/codeql -G "Visual Studio 17 2022" -A x64
+      - shell: pwsh
+        run: |
+          $env:VCPKG_ROOT = $env:VCPKG_INSTALLATION_ROOT
+          cmake -S . -B build/codeql -G "Visual Studio 17 2022" -A x64 `
+            -DCMAKE_TOOLCHAIN_FILE="$env:VCPKG_ROOT/scripts/buildsystems/vcpkg.cmake"
+          if ($LASTEXITCODE) { exit 1 }
           cmake --build build/codeql --config Release
-        env:
-          VCPKG_ROOT: ${{ github.workspace }}/v
+          if ($LASTEXITCODE) { exit 1 }
       - uses: github/codeql-action/analyze@v3

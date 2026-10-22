@@ -25,7 +25,7 @@ namespace lost {
 enum class CandidateFs : u8 { Ntfs = 0, Fat, Exfat, GptTable, MbrTable, Unknown };
 
 struct Evidence {
-    const char *tag;     /* "boot-sig", "bpb-valid", "mft-probe", ... */
+    const char* tag; /* "boot-sig", "bpb-valid", "mft-probe", ... */
     int points;
 };
 
@@ -40,7 +40,7 @@ struct Candidate {
 
 /* The full result set of one discovery pass. */
 struct DiscoveryResult {
-    std::vector<Candidate> candidates;   /* sorted by score desc */
+    std::vector<Candidate> candidates; /* sorted by score desc */
     u64 sectors_scanned = 0;
     u64 read_errors = 0;
 };
@@ -52,19 +52,18 @@ struct DiscoveryResult {
  *   reported (damaged inner volumes) but marked.
  *   stride_sectors: probe granularity (default 1).
  */
-u32 discover(IStorageDevice *disk, const std::vector<table::PartitionInfo> &known,
-             u32 stride_sectors, CancelToken *cancel,
-             bool (*progress)(u64, u64, void *), void *progress_user,
-             DiscoveryResult &out);
+u32 discover(IStorageDevice* disk, const std::vector<table::PartitionInfo>& known,
+             u32 stride_sectors, CancelToken* cancel, bool (*progress)(u64, u64, void*),
+             void* progress_user, DiscoveryResult& out);
 
 /* Overlap classification vs the live table. */
 enum class Overlap : u8 { None = 0, Inside, Overlaps, Contains };
 
-Overlap classify_overlap(u64 start, u64 count, const std::vector<table::PartitionInfo> &known);
+Overlap classify_overlap(u64 start, u64 count, const std::vector<table::PartitionInfo>& known);
 
 /* Materialize a candidate as a bounded virtual volume (R3.2: read-only,
  * the user's table is never repaired). */
-std::unique_ptr<PartitionSlice> materialize(IStorageDevice *disk, const Candidate &c);
+std::unique_ptr<PartitionSlice> materialize(IStorageDevice* disk, const Candidate& c);
 
 } // namespace lost
 } // namespace cr

@@ -21,14 +21,14 @@ namespace table {
 
 /* ---- Master Boot Record / Extended Boot Record ------------------------ */
 
-constexpr u16 MBR_SIGNATURE = 0xAA55;      /* at +0x1FE, little-endian 55 AA */
+constexpr u16 MBR_SIGNATURE = 0xAA55; /* at +0x1FE, little-endian 55 AA */
 constexpr u8 MBR_TYPE_GPT_PROTECTIVE = 0xEE;
 constexpr u8 MBR_TYPE_EXTENDED_LBA = 0x05; /* CHS variant 0x0F also links */
 constexpr u8 MBR_TYPE_EXTENDED_CHS = 0x0F;
-constexpr u8 MBR_TYPE_LDM = 0x42;         /* dynamic disk (recognized, R3.3) */
+constexpr u8 MBR_TYPE_LDM = 0x42; /* dynamic disk (recognized, R3.3) */
 
 struct MbrPartitionEntry {
-    u8 boot_flag;        /* 0x00 / 0x80 */
+    u8 boot_flag; /* 0x00 / 0x80 */
     u8 chs_start[3];
     u8 type;
     u8 chs_end[3];
@@ -40,35 +40,37 @@ static_assert(sizeof(MbrPartitionEntry) == 16);
 struct MbrSector {
     u8 code[446];
     MbrPartitionEntry entries[4];
-    u8 signature[2];     /* 55 AA */
+    u8 signature[2]; /* 55 AA */
 };
 static_assert(sizeof(MbrSector) == 512);
 
-inline bool mbr_signature_ok(const u8 *sector) {
+inline bool mbr_signature_ok(const u8* sector) {
     return sector[510] == 0x55 && sector[511] == 0xAA;
 }
-inline bool mbr_entry_used(const MbrPartitionEntry &e) { return e.type != 0; }
+inline bool mbr_entry_used(const MbrPartitionEntry& e) {
+    return e.type != 0;
+}
 
 /* ---- GPT -------------------------------------------------------------- */
 
 constexpr char GPT_SIGNATURE[8] = {'E', 'F', 'I', ' ', 'P', 'A', 'R', 'T'};
 constexpr u32 GPT_REVISION_V1 = 0x00010000;
-constexpr u8 GPT_TYPE_BIOS_BOOT[16] = {
-    0x48, 0x61, 0x68, 0x21, 0x49, 0x64, 0x65, 0x6f, 0x4e, 0x65, 0x65, 0x64, 0x45, 0x46, 0x49, 0x00};
-constexpr u8 GPT_TYPE_MICROSOFT_RESERVED[16] = {
-    0xC1, 0x2A, 0x73, 0x28, 0xF8, 0x1F, 0x11, 0xD2, 0xBA, 0x4B, 0x00, 0xA0, 0xC9, 0x3E, 0xC9, 0x3B};
-constexpr u8 GPT_TYPE_BASIC_DATA[16] = {
-    0xA2, 0xA0, 0xD0, 0xEB, 0xE5, 0xB9, 0x33, 0x44, 0x87, 0xC0, 0x68, 0xB6, 0xB7, 0x26, 0x99, 0xC7};
-constexpr u8 GPT_TYPE_LINUX_FS[16] = {
-    0x06, 0x57, 0xFD, 0x6D, 0xC4, 0x39, 0x75, 0x41, 0x86, 0xDF, 0x0E, 0x49, 0xCE, 0xB2, 0xD1, 0x9F};
-constexpr u8 GPT_TYPE_LDM_DATA[16] = {
-    0x3B, 0x8F, 0x08, 0x48, 0x25, 0x2E, 0x11, 0xD2, 0x8F, 0x50, 0x00, 0x0C, 0x29, 0x95, 0xB1, 0x20};
+constexpr u8 GPT_TYPE_BIOS_BOOT[16] = {0x48, 0x61, 0x68, 0x21, 0x49, 0x64, 0x65, 0x6f,
+                                       0x4e, 0x65, 0x65, 0x64, 0x45, 0x46, 0x49, 0x00};
+constexpr u8 GPT_TYPE_MICROSOFT_RESERVED[16] = {0xC1, 0x2A, 0x73, 0x28, 0xF8, 0x1F, 0x11, 0xD2,
+                                                0xBA, 0x4B, 0x00, 0xA0, 0xC9, 0x3E, 0xC9, 0x3B};
+constexpr u8 GPT_TYPE_BASIC_DATA[16] = {0xA2, 0xA0, 0xD0, 0xEB, 0xE5, 0xB9, 0x33, 0x44,
+                                        0x87, 0xC0, 0x68, 0xB6, 0xB7, 0x26, 0x99, 0xC7};
+constexpr u8 GPT_TYPE_LINUX_FS[16] = {0x06, 0x57, 0xFD, 0x6D, 0xC4, 0x39, 0x75, 0x41,
+                                      0x86, 0xDF, 0x0E, 0x49, 0xCE, 0xB2, 0xD1, 0x9F};
+constexpr u8 GPT_TYPE_LDM_DATA[16] = {0x3B, 0x8F, 0x08, 0x48, 0x25, 0x2E, 0x11, 0xD2,
+                                      0x8F, 0x50, 0x00, 0x0C, 0x29, 0x95, 0xB1, 0x20};
 
 struct GptHeader {
-    char signature[8];        /* "EFI PART" */
+    char signature[8]; /* "EFI PART" */
     u32 revision;
-    u32 header_size;          /* usually 92 */
-    u32 header_crc32;         /* over header with this field zeroed */
+    u32 header_size;  /* usually 92 */
+    u32 header_crc32; /* over header with this field zeroed */
     u32 reserved;
     u64 current_lba;
     u64 backup_lba;
@@ -77,9 +79,9 @@ struct GptHeader {
     u8 disk_guid[16];
     u64 entries_start_lba;
     u32 entry_count;
-    u32 entry_size;           /* usually 128 */
-    u32 entries_crc32;        /* over the entry array */
-    u8 padding[420];          /* to 512 */
+    u32 entry_size;    /* usually 128 */
+    u32 entries_crc32; /* over the entry array */
+    u8 padding[420];   /* to 512 */
 };
 static_assert(sizeof(GptHeader) == 512);
 
@@ -89,7 +91,7 @@ struct GptEntry {
     u64 first_lba;
     u64 last_lba;
     u64 attributes;
-    u16 name[36];             /* UTF-16LE, zero-padded; 72 bytes -> 128 total */
+    u16 name[36]; /* UTF-16LE, zero-padded; 72 bytes -> 128 total */
 };
 static_assert(sizeof(GptEntry) == 128);
 
@@ -97,14 +99,17 @@ static_assert(sizeof(GptEntry) == 128);
 
 /* CRC32 (IEEE 802.3, reflected, init 0xFFFFFFFF, final xor) - GPT uses the
  * standard zlib/Linux crc32; shared with the session container format. */
-u32 crc32(const void *data, size_t len);
+u32 crc32(const void* data, size_t len);
 
-inline bool gpt_entry_used(const GptEntry &e) {
+inline bool gpt_entry_used(const GptEntry& e) {
     for (u8 b : e.type_guid)
-        if (b != 0) return true;
+        if (b != 0)
+            return true;
     return false;
 }
-inline bool gpt_guid_equal(const u8 *a, const u8 *b) { return std::memcmp(a, b, 16) == 0; }
+inline bool gpt_guid_equal(const u8* a, const u8* b) {
+    return std::memcmp(a, b, 16) == 0;
+}
 
 } // namespace table
 } // namespace cr

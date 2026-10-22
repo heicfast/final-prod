@@ -10,18 +10,21 @@ class MemDevice final : public IStorageDevice {
 public:
     explicit MemDevice(u64 bytes, u32 sector = 512) {
         data_.resize(bytes);
-        for (size_t i = 0; i < data_.size(); ++i) data_[i] = u8(i);
+        for (size_t i = 0; i < data_.size(); ++i)
+            data_[i] = u8(i);
         geom_.logical_sector = sector;
         geom_.physical_sector = sector;
         geom_.sector_count = bytes / sector;
         geom_.total_bytes = geom_.sector_count * sector;
     }
-    u32 read_at(u64 off, void *buf, u32 len) override {
-        if (off > data_.size() || len > data_.size() - off) return ERR_RANGE_OUT_OF_BOUNDS;
+    u32 read_at(u64 off, void* buf, u32 len) override {
+        if (off > data_.size() || len > data_.size() - off)
+            return ERR_RANGE_OUT_OF_BOUNDS;
         std::memcpy(buf, data_.data() + off, len);
         return OK;
     }
-    const Geometry &geometry() const override { return geom_; }
+    const Geometry& geometry() const override { return geom_; }
+
 private:
     std::vector<u8> data_;
     Geometry geom_;
@@ -65,9 +68,9 @@ TEST(Slice, RaggedTailAllowed) {
 
 TEST(DevMap, AddMergeSerialize) {
     ReadErrorMap m;
-    m.add(100, 50, 3);   /* [100,150) */
-    m.add(200, 10, 2);   /* [200,210) */
-    m.add(145, 100, 5);  /* [145,245): bridges BOTH -> single [100,245) */
+    m.add(100, 50, 3);  /* [100,150) */
+    m.add(200, 10, 2);  /* [200,210) */
+    m.add(145, 100, 5); /* [145,245): bridges BOTH -> single [100,245) */
     ASSERT_EQ(m.ranges().size(), 1u);
     EXPECT_EQ(m.ranges()[0].offset, 100u);
     EXPECT_EQ(m.ranges()[0].length, 145u); /* [100..245) */

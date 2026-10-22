@@ -29,13 +29,13 @@ namespace ntfs {
 
 /* props-internal flags (corpus mapping: bit4 = in-use; we add bit for dir). */
 constexpr u16 PFLAG_IN_USE = 0x0010;
-constexpr u16 PFLAG_IS_DIR = 0x0002;   /* mirrors record flag 0x02 */
+constexpr u16 PFLAG_IS_DIR = 0x0002; /* mirrors record flag 0x02 */
 
 struct WalkerFlags {
-    bool skip_system_files = true;   /* corpus: dos_flags & 4 -> skip */
-    bool keep_overwritten = true;    /* fix F5: grade instead of destroy */
-    bool emit_ads = true;            /* named $DATA -> child nodes */
-    u64 viability_min_size = 0x3FF;  /* corpus gate (files < 1 KiB fast-path) */
+    bool skip_system_files = true;  /* corpus: dos_flags & 4 -> skip */
+    bool keep_overwritten = true;   /* fix F5: grade instead of destroy */
+    bool emit_ads = true;           /* named $DATA -> child nodes */
+    u64 viability_min_size = 0x3FF; /* corpus gate (files < 1 KiB fast-path) */
 };
 
 struct WalkStats {
@@ -53,7 +53,7 @@ struct WalkStats {
 
 /* Progress callback: (done, total) with 0..10000 scale. Return false to
  * request cancel (same as CancelToken). */
-using WalkProgress = bool (*)(u64 done, u64 total, void *user);
+using WalkProgress = bool (*)(u64 done, u64 total, void* user);
 
 /*
  * walk_mft - the single-pass record walk.
@@ -62,11 +62,10 @@ using WalkProgress = bool (*)(u64 done, u64 total, void *user);
  *   tree/roots: result graph; requires root_active, root_deleted, root_lost
  * Returns OK / ERR_CANCELLED / first hard error.
  */
-u32 walk_mft(NtfsVolume *vol, VolumeBitmap *bitmap, const WalkerFlags &flags,
-             CancelToken *cancel, WalkProgress progress, void *progress_user,
-             tree::ResultTree &tree, tree::FullNode *root_active,
-             tree::FullNode *root_deleted, tree::FullNode *root_lost,
-             WalkStats &stats);
+u32 walk_mft(NtfsVolume* vol, VolumeBitmap* bitmap, const WalkerFlags& flags, CancelToken* cancel,
+             WalkProgress progress, void* progress_user, tree::ResultTree& tree,
+             tree::FullNode* root_active, tree::FullNode* root_deleted, tree::FullNode* root_lost,
+             WalkStats& stats);
 
 /*
  * scan_mft_remnants - post-format / severe-damage pass (R2.5): stride the
@@ -74,10 +73,9 @@ u32 walk_mft(NtfsVolume *vol, VolumeBitmap *bitmap, const WalkerFlags &flags,
  * stream. Emits metadata-only nodes under root_lost. Used by the complete
  * engine and by lost-partition candidates.
  */
-u32 scan_mft_remnants(IStorageDevice *slice, u32 sector_bytes, u32 cluster_bytes,
-                      u64 record_size, CancelToken *cancel, WalkProgress progress,
-                      void *progress_user, tree::ResultTree &tree,
-                      tree::FullNode *root_lost, WalkStats &stats);
+u32 scan_mft_remnants(IStorageDevice* slice, u32 sector_bytes, u32 cluster_bytes, u64 record_size,
+                      CancelToken* cancel, WalkProgress progress, void* progress_user,
+                      tree::ResultTree& tree, tree::FullNode* root_lost, WalkStats& stats);
 
 } // namespace ntfs
 } // namespace cr

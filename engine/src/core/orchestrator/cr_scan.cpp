@@ -18,12 +18,16 @@
 namespace cr {
 namespace orchestrator {
 
-u32 weighted_progress(const StageWeights &w, u32 quick_pm, u32 deep_pm, u32 carve_pm) {
+u32 weighted_progress(const StageWeights& w, u32 quick_pm, u32 deep_pm, u32 carve_pm) {
     const u32 total = w.quick + w.deep + w.carve;
-    if (total == 0) return 0;
-    if (quick_pm > 1000) quick_pm = 1000;
-    if (deep_pm > 1000) deep_pm = 1000;
-    if (carve_pm > 1000) carve_pm = 1000;
+    if (total == 0)
+        return 0;
+    if (quick_pm > 1000)
+        quick_pm = 1000;
+    if (deep_pm > 1000)
+        deep_pm = 1000;
+    if (carve_pm > 1000)
+        carve_pm = 1000;
     /* exact single-division form: sum(w_i * pm_i) / total - no double
      * truncation (500,500,500 with 40/35/25 must be exactly 500) */
     const u64 num = u64(w.quick) * quick_pm + u64(w.deep) * deep_pm + u64(w.carve) * carve_pm;
@@ -31,57 +35,67 @@ u32 weighted_progress(const StageWeights &w, u32 quick_pm, u32 deep_pm, u32 carv
     return permille > 1000 ? 1000 : permille;
 }
 
-ScanController::ScanController(tree::ResultTree &tree, ScanConfig cfg)
+ScanController::ScanController(tree::ResultTree& tree, ScanConfig cfg)
     : tree_(tree), cfg_(std::move(cfg)) {
     if (cfg_.run_quick || cfg_.run_deep) {
         root_found_ = tree_.add_root(u"Found");
         root_deleted_ = tree_.add_root(u"Deleted");
         root_lost_ = tree_.add_root(u"Lost Files");
     }
-    if (cfg_.run_carve) root_carved_ = tree_.add_root(u"Other Deleted Files (Carved)");
+    if (cfg_.run_carve)
+        root_carved_ = tree_.add_root(u"Other Deleted Files (Carved)");
 }
 
-FsFamily ScanController::probe_family(IStorageDevice *slice) {
-    if (slice == nullptr) return FsFamily::Unknown;
+FsFamily ScanController::probe_family(IStorageDevice* slice) {
+    if (slice == nullptr)
+        return FsFamily::Unknown;
     u8 sec[512];
-    if (slice->read_at(0, sec, 512) != OK) return FsFamily::Unknown;
-    if (std::memcmp(sec + 3, "NTFS    ", 8) == 0) return FsFamily::Ntfs;
-    if (std::memcmp(sec + 3, "EXFAT   ", 8) == 0) return FsFamily::Exfat;
+    if (slice->read_at(0, sec, 512) != OK)
+        return FsFamily::Unknown;
+    if (std::memcmp(sec + 3, "NTFS    ", 8) == 0)
+        return FsFamily::Ntfs;
+    if (std::memcmp(sec + 3, "EXFAT   ", 8) == 0)
+        return FsFamily::Exfat;
     /* FAT: bytes-per-sector sane + 55AA */
     if (sec[510] == 0x55 && sec[511] == 0xAA) {
         const u16 bps = u16_from_bytes_le(sec + 0x0B);
-        if (bps >= 512 && bps <= 4096 && (bps & (bps - 1)) == 0) return FsFamily::Fat;
+        if (bps >= 512 && bps <= 4096 && (bps & (bps - 1)) == 0)
+            return FsFamily::Fat;
     }
     return FsFamily::Unknown;
 }
 
-u32 ScanController::run(IStorageDevice *slice, CancelToken *cancel,
-                        bool (*progress)(u32, void *), void *progress_user,
-                        ScanStats &stats) {
-    if (slice == nullptr) return ERR_BAD_PARAMETER;
+u32 ScanController::run(IStorageDevice* slice, CancelToken* cancel, bool (*progress)(u32, void*),
+                        void* progress_user, ScanStats& stats) {
+    if (slice == nullptr)
+        return ERR_BAD_PARAMETER;
     if (cfg_.fs_hint == FsFamily::Unknown && (cfg_.run_quick || cfg_.run_deep))
         cfg_.fs_hint = probe_family(slice);
 
     if (cfg_.run_quick) {
-        if (u32 rc = run_quick(slice, cancel, progress, progress_user, stats)) return rc;
+        if (u32 rc = run_quick(slice, cancel, progress, progress_user, stats))
+            return rc;
     }
     if (cfg_.run_deep) {
-        if (u32 rc = run_deep(slice, cancel, progress, progress_user, stats)) return rc;
+        if (u32 rc = run_deep(slice, cancel, progress, progress_user, stats))
+            return rc;
     }
     if (cfg_.run_carve) {
-        if (u32 rc = run_carve_stage(slice, cancel, progress, progress_user, stats)) return rc;
+        if (u32 rc = run_carve_stage(slice, cancel, progress, progress_user, stats))
+            return rc;
     }
     tree_.refresh_stats();
     return OK;
 }
 
-u32 ScanController::run_quick(IStorageDevice *slice, CancelToken *cancel,
-                              bool (*progress)(u32, void *), void *pu, ScanStats &stats) {
-    auto cb = [](u64 done, u64 total, void *user) -> bool {
-        auto *bundle = static_cast<std::pair<bool (*)(u32, void *), void *> *>(user);
+u32 ScanController::run_quick(IStorageDevice* slice, CancelToken* cancel,
+                              bool (*progress)(u32, void*), void* pu, ScanStats& stats) {
+    auto cb = [](u64 done, u64 total, void* user) -> bool {
+        auto* bundle = static_cast<std::pair<bool (*)(u32, void*), void*>*>(user);
         /* NTFS/FAT progress callbacks are (done,total); map to permille via
          * the closure the caller stored - here: simple proportional */
-        (void)done; (void)total;
+        (void)done;
+        (void)total;
         (void)bundle;
         return true;
     };
@@ -92,13 +106,14 @@ u32 ScanController::run_quick(IStorageDevice *slice, CancelToken *cancel,
     case FsFamily::Ntfs: {
         auto vol = ntfs::NtfsVolume::open(
             std::unique_ptr<IStorageDevice>(cr::SliceShim::shim(slice)), &rc);
-        if (!vol) return rc == OK ? ERR_OPEN_FAILED : rc;
+        if (!vol)
+            return rc == OK ? ERR_OPEN_FAILED : rc;
         std::unique_ptr<ntfs::VolumeBitmap> bm;
         (void)ntfs::VolumeBitmap::load(vol.get(), bm);
         ntfs::WalkerFlags wf;
         ntfs::WalkStats ws;
-        rc = ntfs::walk_mft(vol.get(), bm.get(), wf, cancel, nullptr, nullptr, tree_,
-                            root_found_, root_deleted_, root_lost_, ws);
+        rc = ntfs::walk_mft(vol.get(), bm.get(), wf, cancel, nullptr, nullptr, tree_, root_found_,
+                            root_deleted_, root_lost_, ws);
         stats.files_found += ws.active;
         stats.deleted_found += ws.deleted;
         break;
@@ -107,8 +122,8 @@ u32 ScanController::run_quick(IStorageDevice *slice, CancelToken *cancel,
         fat::FatScanFlags fl;
         fl.reconstruct_deleted_chains = false; /* quick mode: live structures */
         fat::FatScanStats fs;
-        rc = fat::scan_fat(slice, fl, cancel, nullptr, nullptr, tree_, root_found_,
-                           root_deleted_, root_lost_, fs);
+        rc = fat::scan_fat(slice, fl, cancel, nullptr, nullptr, tree_, root_found_, root_deleted_,
+                           root_lost_, fs);
         stats.files_found += fs.files;
         stats.deleted_found += fs.deleted_entries;
         break;
@@ -126,33 +141,34 @@ u32 ScanController::run_quick(IStorageDevice *slice, CancelToken *cancel,
         rc = OK; /* unknown FS: quick yields nothing; deep/carve still run */
         break;
     }
-    if (progress) (void)progress(weighted_progress(cfg_.weights, 1000, 0, 0), pu);
+    if (progress)
+        (void)progress(weighted_progress(cfg_.weights, 1000, 0, 0), pu);
     (void)stats;
     return rc;
 }
 
-u32 ScanController::run_deep(IStorageDevice *slice, CancelToken *cancel,
-                             bool (*progress)(u32, void *), void *pu, ScanStats &stats) {
+u32 ScanController::run_deep(IStorageDevice* slice, CancelToken* cancel,
+                             bool (*progress)(u32, void*), void* pu, ScanStats& stats) {
     u32 rc = OK;
     switch (cfg_.fs_hint) {
     case FsFamily::Ntfs: {
         auto vol = ntfs::NtfsVolume::open(
             std::unique_ptr<IStorageDevice>(cr::SliceShim::shim(slice)), &rc);
-        if (!vol) return rc == OK ? ERR_OPEN_FAILED : rc;
+        if (!vol)
+            return rc == OK ? ERR_OPEN_FAILED : rc;
         std::unique_ptr<ntfs::VolumeBitmap> bm;
         (void)ntfs::VolumeBitmap::load(vol.get(), bm);
         ntfs::WalkerFlags wf;
         ntfs::WalkStats ws;
-        rc = ntfs::walk_mft(vol.get(), bm.get(), wf, cancel, nullptr, nullptr, tree_,
-                            root_found_, root_deleted_, root_lost_, ws);
+        rc = ntfs::walk_mft(vol.get(), bm.get(), wf, cancel, nullptr, nullptr, tree_, root_found_,
+                            root_deleted_, root_lost_, ws);
         /* post-format/severe-damage mode (R2.5): remnant sweep across the
          * whole slice catches detached records the $MFT runlist misses */
         if (rc == OK) {
             ntfs::WalkStats rem;
             rc = ntfs::scan_mft_remnants(slice, vol->params().sector_bytes,
-                                         vol->params().cluster_bytes,
-                                         vol->params().record_size, cancel, nullptr, nullptr,
-                                         tree_, root_lost_, rem);
+                                         vol->params().cluster_bytes, vol->params().record_size,
+                                         cancel, nullptr, nullptr, tree_, root_lost_, rem);
             stats.files_found += rem.emitted;
         }
         stats.files_found += ws.active;
@@ -163,8 +179,8 @@ u32 ScanController::run_deep(IStorageDevice *slice, CancelToken *cancel,
         fat::FatScanFlags fl;
         fl.reconstruct_deleted_chains = true; /* complete mode */
         fat::FatScanStats fs;
-        rc = fat::scan_fat(slice, fl, cancel, nullptr, nullptr, tree_, root_found_,
-                           root_deleted_, root_lost_, fs);
+        rc = fat::scan_fat(slice, fl, cancel, nullptr, nullptr, tree_, root_found_, root_deleted_,
+                           root_lost_, fs);
         stats.files_found += fs.files;
         stats.deleted_found += fs.deleted_entries;
         break;
@@ -189,14 +205,16 @@ u32 ScanController::run_deep(IStorageDevice *slice, CancelToken *cancel,
         if (lrc == OK) {
             stats.lost_candidates = dr.candidates;
             stats.lost_partitions = dr.candidates.size();
-            for (const auto &c : dr.candidates) {
+            for (const auto& c : dr.candidates) {
                 auto cand_slice = lost::materialize(slice, c);
-                if (!cand_slice) continue;
+                if (!cand_slice)
+                    continue;
                 std::u16string role = u"Candidate @";
                 char buf[32];
                 snprintf(buf, sizeof(buf), " %llu", (unsigned long long)c.start_lba);
-                for (const char *p = buf; *p; ++p) role.push_back(u16(u8(*p)));
-                tree::FullNode *croot = tree_.add_root(role);
+                for (const char* p = buf; *p; ++p)
+                    role.push_back(u16(u8(*p)));
+                tree::FullNode* croot = tree_.add_root(role);
                 FsFamily fam = probe_family(cand_slice.get());
                 if (fam == FsFamily::Ntfs) {
                     u32 rc2 = OK;
@@ -228,36 +246,39 @@ u32 ScanController::run_deep(IStorageDevice *slice, CancelToken *cancel,
             }
         }
     }
-    if (progress) (void)progress(weighted_progress(cfg_.weights, 1000, 1000, 0), pu);
+    if (progress)
+        (void)progress(weighted_progress(cfg_.weights, 1000, 1000, 0), pu);
     return rc;
 }
 
-u32 ScanController::run_carve_stage(IStorageDevice *slice, CancelToken *cancel,
-                                    bool (*progress)(u32, void *), void *pu, ScanStats &stats) {
+u32 ScanController::run_carve_stage(IStorageDevice* slice, CancelToken* cancel,
+                                    bool (*progress)(u32, void*), void* pu, ScanStats& stats) {
     carve::CarveFlags cf;
     carve::CarveStats cs;
-    carve::NameCallback namer = [](const carve::Signature &sig, u64 size, u32 index) {
+    carve::NameCallback namer = [](const carve::Signature& sig, u64 size, u32 index) {
         (void)size;
         char buf[32];
         snprintf(buf, sizeof(buf), "Carved%06u.%s", index, sig.ext);
         std::u16string out;
-        for (const char *p = buf; *p; ++p) out.push_back(u16(u8(*p)));
+        for (const char* p = buf; *p; ++p)
+            out.push_back(u16(u8(*p)));
         return out;
     };
-    u32 rc = carve::carve_slice(slice, cf, cancel, nullptr, nullptr, tree_, root_carved_,
-                                &tree_, namer, cs);
+    u32 rc = carve::carve_slice(slice, cf, cancel, nullptr, nullptr, tree_, root_carved_, &tree_,
+                                namer, cs);
     stats.carved_found = cs.validated;
     stats.bytes_scanned += cs.bytes_scanned;
-    if (progress) (void)progress(weighted_progress(cfg_.weights, 1000, 1000, 1000), pu);
+    if (progress)
+        (void)progress(weighted_progress(cfg_.weights, 1000, 1000, 1000), pu);
     return rc;
 }
 
-u32 ScanController::save_session(session::Writer &w, const ScanStats &stats) const {
+u32 ScanController::save_session(session::Writer& w, const ScanStats& stats) const {
     /* record order: session state, volume info, partition contexts, tree,
      * error map (the writer chains them; ids from the container) */
     session::SessionState st;
-    st.stage_done_mask = (cfg_.run_quick ? 1 : 0) | (cfg_.run_deep ? 2 : 0) |
-                          (cfg_.run_carve ? 4 : 0);
+    st.stage_done_mask =
+        (cfg_.run_quick ? 1 : 0) | (cfg_.run_deep ? 2 : 0) | (cfg_.run_carve ? 4 : 0);
     st.files_found = stats.files_found;
     st.bytes_scanned = stats.bytes_scanned;
     st.error_map_ranges = u32(stats.errors.ranges().size());
@@ -274,7 +295,7 @@ u32 ScanController::save_session(session::Writer &w, const ScanStats &stats) con
         if (u32 rc = w.add_record(session::REC_VOLUME_INFO, blob.data(), u32(blob.size())))
             return rc;
 
-    for (const auto &c : stats.lost_candidates) {
+    for (const auto& c : stats.lost_candidates) {
         session::PartitionContext pc;
         pc.start_lba = c.start_lba;
         pc.sector_count = c.sector_count;
@@ -282,8 +303,8 @@ u32 ScanController::save_session(session::Writer &w, const ScanStats &stats) con
         pc.score = u32(c.score > 0 ? c.score : 0);
         pc.kind = 1;
         if (session::serialize_partition_context(pc, blob) == OK)
-            if (u32 rc = w.add_record(session::REC_PARTITION_CONTEXT, blob.data(),
-                                      u32(blob.size())))
+            if (u32 rc =
+                    w.add_record(session::REC_PARTITION_CONTEXT, blob.data(), u32(blob.size())))
                 return rc;
     }
 
@@ -297,15 +318,17 @@ u32 ScanController::save_session(session::Writer &w, const ScanStats &stats) con
     return OK;
 }
 
-u32 ScanController::load_session(session::Reader &r, tree::ResultTree &tree,
-                                 ScanStats &stats) {
+u32 ScanController::load_session(session::Reader& r, tree::ResultTree& tree, ScanStats& stats) {
     u32 count = 0;
-    if (u32 rc = r.open(&count)) return rc;
+    if (u32 rc = r.open(&count))
+        return rc;
     for (u32 i = 0; i < count; ++i) {
         session::Record rec;
         u32 rc = r.read_record(i, rec);
-        if (rc == 0x50030002u) continue; /* corrupt: skip, keep going (F10) */
-        if (rc != OK) return rc;
+        if (rc == 0x50030002u)
+            continue; /* corrupt: skip, keep going (F10) */
+        if (rc != OK)
+            return rc;
         switch (rec.type) {
         case session::REC_RESULT_TREE:
             if (session::deserialize_tree(rec.data.data(), rec.data.size(), tree) != OK)
