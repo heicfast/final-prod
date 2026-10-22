@@ -7,6 +7,8 @@
  *         [--threads N] [--out file.crsf] [--json] [--log file]
  *   tree --in file.crsf [--filter substr] [--deleted-only] [--csv]
  *   recover --in file.crsf --disk N --to DIR [--deleted-only] [--filter s]
+ *   health --disk N
+ *   fix --disk N [--part P] [--apply] [--undo file] [--undo-apply file]
  *   bench --disk N --mode seq|rand|open|read --mb N --block-kb N [--json]
  *
  * Everything is logged in detail (stage timings, per-stage counts, error
@@ -17,9 +19,11 @@
 
 #include "cr/orchestrator/cr_scan.h"
 #include "cr/recovery/cr_safewriter.h"
+#include "cr/repair/cr_rawfixer.h"
 #include "cr/session/cr_crsf.h"
 #include "cr/session/cr_records.h"
 #include "cr/storage/cr_slice.h"
+#include "cr/table/cr_table_parse.h"
 #include "cr/win/cr_bitlocker.h"
 #include "cr/win/cr_destio.h"
 #include "cr/win/cr_enumerate.h"
@@ -753,18 +757,204 @@ int cmd_health(int argc, wchar_t** argv, int& i) {
     return 0;
 }
 
+int cmd_fix(int argc, wchar_t** argv, int& i) {
+    std::wstring v;
+    u32 disk = 0;
+    bool have_disk = false;
+    int part = -1; /* -1 = whole disk (LBA0 view, superfloppy/lost FS) */
+    bool apply = false;
+    bool use_rda = true;
+    std::wstring undo_path, undo_apply_path;
+    while (i < argc) {
+        if (get_opt(argc, argv, i, L"--disk", &v)) {
+            disk = u32(wcstoul(v.c_str(), nullptr, 10));
+            have_disk = true;
+            continue;
+        }
+        if (get_opt(argc, argv, i, L"--part", &v)) {
+            part = int(wcstol(v.c_str(), nullptr, 10));
+            continue;
+        }
+        if (get_opt(argc, argv, i, L"--undo", &v)) {
+            undo_path = v;
+            continue;
+        }
+        if (get_opt(argc, argv, i, L"--undo-apply", &v)) {
+            undo_apply_path = v;
+            continue;
+        }
+        if (wcscmp(argv[i], L"--apply") == 0) {
+            apply = true;
+            ++i;
+            continue;
+        }
+        if (wcscmp(argv[i], L"--no-rda") == 0) {
+            use_rda = false;
+            ++i;
+            continue;
+        }
+        wprintf(L"unknown fix option: %s\n", argv[i]);
+        return 1;
+    }
+    if (!have_disk && undo_apply_path.empty()) {
+        wprintf(L"fix needs --disk N\n");
+        return 1;
+    }
+
+    /* ---- undo-apply mode: replay a saved undo log ---- */
+    if (!undo_apply_path.empty()) {
+        FILE* f = nullptr;
+        if (_wfopen_s(&f, undo_apply_path.c_str(), L"rb") != 0 || f == nullptr) {
+            wprintf(L"cannot open undo log %s\n", undo_apply_path.c_str());
+            return 1;
+        }
+        std::vector<u8> blob;
+        {
+            u8 buf[65536];
+            size_t n;
+            while ((n = fread(buf, 1, sizeof(buf), f)) > 0)
+                blob.insert(blob.end(), buf, buf + n);
+        }
+        fclose(f);
+        repair::UndoLog log;
+        u32 rc = repair::UndoLog::deserialize(blob.data(), blob.size(), log);
+        if (rc != OK) {
+            wprintf(L"undo log invalid (rc=%08x %hs)\n", rc, err_text(rc));
+            return 2;
+        }
+        wprintf(L"undo log: %zu sector(s)\n", log.entries.size());
+        u32 e = 0;
+        auto wdev = win::open_disk_rw(disk, use_rda, use_rda ? L"RDA" : nullptr, &e);
+        if (!wdev) {
+            wprintf(L"cannot open disk %u for write (rc=%08x, admin?)\n", disk, e);
+            return 2;
+        }
+        rc = repair::undo(*wdev, log);
+        if (rc != OK) {
+            wprintf(L"undo FAILED (rc=%08x %hs) - verify the disk state!\n", rc, err_text(rc));
+            return 2;
+        }
+        wprintf(L"undo complete: %zu sector(s) restored\n", log.entries.size());
+        return 0;
+    }
+
+    /* ---- analyze (read-only) ---- */
+    u32 e = 0;
+    auto view = win::open_disk(disk, use_rda, use_rda ? L"RDA" : nullptr, &e);
+    if (!view) {
+        wprintf(L"cannot open disk %u (rc=%08x)\n", disk, e);
+        return 2;
+    }
+    IStorageDevice* slice = view.get();
+    std::unique_ptr<IStorageDevice> part_slice;
+    if (part >= 1) {
+        table::DiskTable t;
+        u32 trc = table::parse_disk_table(view.get(), t);
+        if (trc != OK || t.partitions.empty()) {
+            wprintf(L"no partition table on disk %u (rc=%08x)\n", disk, trc);
+            return 2;
+        }
+        if (size_t(part) > t.partitions.size()) {
+            wprintf(L"partition %d out of range (disk has %zu)\n", part, t.partitions.size());
+            return 2;
+        }
+        const auto& p = t.partitions[size_t(part) - 1];
+        u32 prc = 0;
+        part_slice =
+            cr::PartitionSlice::create(view.get(), p.start_lba * view->geometry().logical_sector,
+                                       u64(p.sector_count) * view->geometry().logical_sector, &prc);
+        if (!part_slice) {
+            wprintf(L"cannot slice partition %d (rc=%08x)\n", part, prc);
+            return 2;
+        }
+        slice = part_slice.get();
+        wprintf(L"analyzing partition %d @ LBA %llu (%llu sectors)\n", part,
+                static_cast<unsigned long long>(p.start_lba),
+                static_cast<unsigned long long>(p.sector_count));
+    } else {
+        wprintf(L"analyzing disk %u whole-disk view (LBA 0)\n", disk);
+    }
+
+    repair::RepairPlan plan;
+    u32 rc = repair::analyze(slice, plan);
+    if (rc != OK) {
+        wprintf(L"analyze failed: rc=%08x %hs\n", rc, err_text(rc));
+        return 2;
+    }
+
+    if (plan.refused) {
+        wprintf(L"REFUSED: %hs\n", plan.refusal_reason.c_str());
+        wprintf(L"no writes performed (dry-run is the default; nothing is ever written "
+                L"without --apply)\n");
+        return 0;
+    }
+    if (plan.actions.empty()) {
+        wprintf(L"clean %hs volume - nothing to repair (S2: clean volumes are never touched)\n",
+                plan.detected ? plan.fs_family.c_str() : "unknown");
+        return 0;
+    }
+
+    wprintf(L"repair plan for %hs volume: %zu action(s)\n", plan.fs_family.c_str(),
+            plan.actions.size());
+    for (const auto& a : plan.actions) {
+        const char* kind =
+            a.kind == repair::ActionKind::RestoreBootFromBackup ? "restore-boot-from-backup"
+            : a.kind == repair::ActionKind::RepairBootChecksum  ? "repair-boot-checksum"
+                                                                : "repair-geometry-field";
+        wprintf(L"  [%hs] offset=%llu len=%u : %hs\n", kind,
+                static_cast<unsigned long long>(a.offset), a.length, a.reason.c_str());
+    }
+    if (!apply) {
+        wprintf(L"dry-run only - re-run with --apply to execute (undo log saved automatically)\n");
+        return 0;
+    }
+
+    /* ---- execute (transactional writes) ---- */
+    auto wdev = win::open_disk_rw(disk, use_rda, use_rda ? L"RDA" : nullptr, &e);
+    if (!wdev) {
+        wprintf(L"cannot open disk %u for write (rc=%08x, admin?)\n", disk, e);
+        return 2;
+    }
+    repair::UndoLog log;
+    rc = repair::execute(wdev.get(), plan, log);
+    if (rc != OK) {
+        wprintf(L"execute FAILED: rc=%08x %hs (all writes rolled back)\n", rc, err_text(rc));
+        return 2;
+    }
+    wprintf(L"execute OK: %zu sector(s) written + verified\n", log.entries.size());
+
+    /* save the undo log */
+    if (undo_path.empty()) {
+        undo_path = L"rrecov-fix-disk" + std::to_wstring(disk) + L".undo";
+    }
+    std::vector<u8> blob;
+    log.serialize(blob);
+    FILE* f = nullptr;
+    if (_wfopen_s(&f, undo_path.c_str(), L"wb") == 0 && f != nullptr) {
+        fwrite(blob.data(), 1, blob.size(), f);
+        fclose(f);
+        wprintf(L"undo log saved: %s (%zu bytes) - restore with: rrecov fix --disk %u "
+                L"--undo-apply %s\n",
+                undo_path.c_str(), blob.size(), disk, undo_path.c_str());
+    } else {
+        wprintf(L"WARNING: could not save the undo log to %s\n", undo_path.c_str());
+    }
+    return 0;
+}
+
 } // namespace
 
 int wmain(int argc, wchar_t** argv) {
     if (argc < 2) {
-        wprintf(
-            L"rrecov - core_recovery CLI\n"
-            L"usage:\n"
-            L"  rrecov list\n"
-            L"  rrecov scan --disk N | --volume C: [--deep] [--quick-only] [--no-carve]\n"
-            L"             [--threads N] [--out file.crsf] [--log file] [--json] [--csv]\n"
-            L"  rrecov tree --in file.crsf [--filter s] [--deleted-only] [--csv]\n"
-            L"  rrecov recover --in file.crsf --disk N --to DIR [--deleted-only] [--filter s]\n");
+        wprintf(L"rrecov - core_recovery CLI\n"
+                L"usage:\n"
+                L"  rrecov list\n"
+                L"  rrecov scan --disk N | --volume C: [--deep] [--quick-only] [--no-carve]\n"
+                L"             [--threads N] [--out file.crsf] [--log file] [--json] [--csv]\n"
+                L"  rrecov tree --in file.crsf [--filter s] [--deleted-only] [--csv]\n"
+                L"  rrecov recover --in file.crsf --disk N --to DIR [--deleted-only] [--filter s]\n"
+                L"  rrecov health --disk N\n"
+                L"  rrecov fix --disk N [--part P] [--apply] [--undo file] [--undo-apply file]\n");
         return 0;
     }
     const std::wstring cmd = argv[1];
@@ -781,6 +971,8 @@ int wmain(int argc, wchar_t** argv) {
         return cmd_recover(argc, argv, i);
     if (cmd == L"health")
         return cmd_health(argc, argv, i);
+    if (cmd == L"fix")
+        return cmd_fix(argc, argv, i);
     wprintf(L"unknown command: %s\n", cmd.c_str());
     return 1;
 }

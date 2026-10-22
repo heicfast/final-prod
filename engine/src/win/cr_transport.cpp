@@ -599,6 +599,139 @@ std::unique_ptr<IStorageDevice> open_disk(u32 disk, bool prefer_rda, const wchar
     return open_physical_drive(disk, err);
 }
 
+/* ---------------------------------------------------------------------------
+ * Write-capable device for the repair engine (RawFixer).
+ * ------------------------------------------------------------------------- */
+namespace {
+
+class RwDevice final : public cr::repair::IWriteDevice {
+public:
+    RwDevice(HANDLE h, Geometry g, bool via_rda) : h_(h), geom_(g), via_rda_(via_rda) {}
+    ~RwDevice() override {
+        if (h_ != INVALID_HANDLE_VALUE)
+            CloseHandle(h_);
+    }
+
+    u32 read_at(u64 off, void* buf, u32 len) override {
+        if (h_ == INVALID_HANDLE_VALUE)
+            return ERR_OPEN_FAILED;
+        if (off > size() || len > size() - off)
+            return ERR_RANGE_OUT_OF_BOUNDS;
+        if (len == 0)
+            return OK;
+        OVERLAPPED ov = {};
+        ov.Offset = u32(off);
+        ov.OffsetHigh = u32(off >> 32);
+        DWORD got = 0;
+        if (!ReadFile(h_, buf, len, &got, &ov)) {
+            const DWORD e = GetLastError();
+            if (e == ERROR_IO_PENDING) {
+                if (!GetOverlappedResult(h_, &ov, &got, TRUE))
+                    return ERR_READ_FAILED;
+            } else {
+                return ERR_READ_FAILED;
+            }
+        }
+        if (!via_rda_)
+            return got == len ? OK : ERR_READ_FAILED;
+        /* F11 contract: the driver reports Information = Length * 512. */
+        if (got == len * rda::kLegacyInformationScale)
+            return OK;
+        if (got == len)
+            return OK; /* future driver contract change: true counts */
+        return ERR_READ_FAILED;
+    }
+
+    u32 write_at(u64 off, const void* buf, u32 len) override {
+        if (h_ == INVALID_HANDLE_VALUE)
+            return ERR_OPEN_FAILED;
+        if (off > size() || len > size() - off)
+            return ERR_RANGE_OUT_OF_BOUNDS;
+        if (len == 0)
+            return OK;
+        /* Direct raw-disk handles require the DATA BUFFER to be
+         * sector-aligned; stage through an aligned buffer when needed.
+         * (The RDA path MDL-locks the user buffer at any alignment.) */
+        const u32 ssec = geom_.logical_sector ? geom_.logical_sector : 512;
+        void* src = const_cast<void*>(buf);
+        void* staged = nullptr;
+        if (!via_rda_ && (reinterpret_cast<uintptr_t>(buf) % ssec) != 0) {
+            staged = _aligned_malloc(len, ssec);
+            if (staged == nullptr)
+                return ERR_NO_MEMORY;
+            memcpy(staged, buf, len);
+            src = staged;
+        }
+        OVERLAPPED ov = {};
+        ov.Offset = u32(off);
+        ov.OffsetHigh = u32(off >> 32);
+        DWORD put = 0;
+        const BOOL ok = WriteFile(h_, src, len, &put, &ov) || GetLastError() == ERROR_IO_PENDING;
+        bool done = ok && GetOverlappedResult(h_, &ov, &put, TRUE);
+        if (staged)
+            _aligned_free(staged);
+        /* The RDA driver reports Information = Length * 512 on writes too
+         * (F11); treat either the scaled or true count as success. */
+        if (!done)
+            return ERR_WRITE_FAILED;
+        if (via_rda_ && put != len && put != len * rda::kLegacyInformationScale)
+            return ERR_WRITE_FAILED;
+        if (!via_rda_ && put != len)
+            return ERR_WRITE_FAILED;
+        return OK;
+    }
+
+    u64 size() const override { return geom_.total_bytes; }
+    u32 sector_bytes() const override { return geom_.logical_sector ? geom_.logical_sector : 512; }
+
+private:
+    HANDLE h_;
+    Geometry geom_;
+    bool via_rda_;
+};
+
+} // namespace
+
+std::unique_ptr<cr::repair::IWriteDevice> open_disk_rw(u32 disk, bool prefer_rda,
+                                                       const wchar_t* service, u32* err) {
+    if (prefer_rda && service != nullptr) {
+        const u32 tok = rda::compute_pid_token(GetCurrentProcessId());
+        wchar_t path[256];
+        _snwprintf_s(path, 256, _TRUNCATE, L"\\\\.\\%s\\%u\\%u\\%u", service, tok, disk, 0);
+        HANDLE h = CreateFileW(path, GENERIC_READ | GENERIC_WRITE,
+                               FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, nullptr,
+                               OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr);
+        if (h != INVALID_HANDLE_VALUE) {
+            Geometry g = probe_geometry(h, nullptr);
+            if (g.total_bytes != 0) {
+                if (err)
+                    *err = OK;
+                return std::unique_ptr<cr::repair::IWriteDevice>(new RwDevice(h, g, true));
+            }
+            CloseHandle(h);
+        }
+    }
+    wchar_t path[64];
+    _snwprintf_s(path, 64, _TRUNCATE, L"\\\\.\\PhysicalDrive%u", disk);
+    HANDLE h = CreateFileW(path, GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE,
+                           nullptr, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr);
+    if (h == INVALID_HANDLE_VALUE) {
+        if (err)
+            *err = ERR_OPEN_FAILED;
+        return nullptr;
+    }
+    Geometry g = probe_geometry(h, nullptr);
+    if (g.total_bytes == 0) {
+        CloseHandle(h);
+        if (err)
+            *err = ERR_OPEN_FAILED;
+        return nullptr;
+    }
+    if (err)
+        *err = OK;
+    return std::unique_ptr<cr::repair::IWriteDevice>(new RwDevice(h, g, false));
+}
+
 bool volume_letter_to_disk(wchar_t letter, u32* disk, u32* part) {
     wchar_t vol[8];
     _snwprintf_s(vol, 8, _TRUNCATE, L"\\\\.\\%c:", letter);

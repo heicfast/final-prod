@@ -17,6 +17,25 @@ u32 checksum32(const u8* p, u32 n, u32 seed) {
     return sum;
 }
 
+/* Boot-region checksum over sectors 0..10, spec-exact skip semantics: the
+ * bytes of VolumeFlags (offsets 106, 107) and PercentInUse (offset 112) in
+ * the boot sector are skipped ENTIRELY - no rotation step for them
+ * (exFAT spec 3.1.14.1 reference BootChecksum(); Linux kernel
+ * exfat_calc_chksum32 CS_BOOT_SECTOR agrees). Shared with the repair
+ * engine so the fixer and the scanner can never disagree. */
+u32 boot_region_checksum(const u8* region, u32 sector_bytes) {
+    u32 chk = 0;
+    for (u32 s = 0; s <= 10; ++s) {
+        const u8* sec = region + u64(s) * sector_bytes;
+        for (u32 i = 0; i < sector_bytes; ++i) {
+            if (s == 0 && ((i >= 106 && i < 108) || i == 112))
+                continue;
+            chk = ((chk & 1) ? 0x80000000u : 0u) + (chk >> 1) + sec[i];
+        }
+    }
+    return chk;
+}
+
 u16 checksum16(const u8* p, u32 n, u16 seed) {
     u16 sum = seed;
     for (u32 i = 0; i < n; ++i) {
@@ -94,26 +113,13 @@ u32 validate_boot_region(IStorageDevice* dev, ExfatParams& out) {
         reinterpret_cast<const BootSectorMain*>(region.data() + BACKUP_BOOT_SECTOR * bps);
     p.boot_backup_ok = oem_is_exfat(*bak) && bak->signature[0] == 0x55 && bak->signature[1] == 0xAA;
 
-    /* boot-region checksum (elm-chan/spec): the value is stored FILL-
-     * REPEATED in sector 11 (main side) and sector 23 (backup side); computed
-     * over sectors 0..10 (resp. 12..22) as a byte array, with VolumeFlags
-     * (106..107) and PercentInUse (112) of the BOOT SECTOR treated as zero. */
+    /* boot-region checksum: the value is stored FILL-REPEATED in sector 11
+     * (main side) and sector 23 (backup side); computed over sectors 0..10
+     * with VolumeFlags (106..107) and PercentInUse (112) of the boot sector
+     * SKIPPED entirely (spec 3.1.14.1; see boot_region_checksum). */
     {
         const u32 expect = u32_from_bytes_le(region.data() + 11 * bps);
-        u32 chk = 0;
-        for (u32 s = 0; s <= 10; ++s) {
-            const u8* sec = region.data() + u64(s) * bps;
-            for (u32 i = 0; i < bps; ++i) {
-                u8 v = sec[i];
-                if (s == 0) {
-                    if (i >= 106 && i < 108)
-                        v = 0; /* VolumeFlags */
-                    if (i == 112)
-                        v = 0; /* PercentInUse */
-                }
-                chk = ((chk & 1) ? 0x80000000u : 0u) + (chk >> 1) + v;
-            }
-        }
+        const u32 chk = boot_region_checksum(region.data(), bps);
         /* the fill-repeated pattern must be consistent in sector 11 */
         bool pattern_ok = true;
         for (u32 k = 0; k < bps / 4; ++k)

@@ -13,6 +13,7 @@
 
 #include "cr/storage/cr_device.h"
 #include "cr/storage/cr_slice.h"
+#include "cr/repair/cr_rawfixer.h"
 #include <memory>
 #include <string>
 
@@ -35,6 +36,16 @@ std::unique_ptr<IStorageDevice> open_harddisk_volume(u32 volume, u32* err);
 /* Whole-disk view with probed geometry + optional RDA preference. */
 std::unique_ptr<IStorageDevice> open_disk(u32 disk, bool prefer_rda, const wchar_t* service,
                                           u32* err);
+
+/* Write-capable whole-disk view for the repair engine (RawFixer): an RDA
+ * handle opened GENERIC_READ|GENERIC_WRITE when the driver is available
+ * (the driver forwards IRP_MJ_WRITE with byte-offset semantics), else a
+ * direct \\.\PhysicalDriveN handle. Writes are staged through a
+ * sector-aligned buffer (raw direct-handle writes require buffer
+ * alignment); reads honor the F11 Information=Length*512 contract on the
+ * RDA path. Open the read view separately with open_disk() for analyze(). */
+std::unique_ptr<cr::repair::IWriteDevice> open_disk_rw(u32 disk, bool prefer_rda,
+                                                       const wchar_t* service, u32* err);
 
 /* Map a volume letter (e.g. L'C') to its disk+partition (volume-to-disk
  * correlation via IOCTL_STORAGE_GET_DEVICE_NUMBER + extents). */

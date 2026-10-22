@@ -27,6 +27,9 @@ namespace exfat {
 
 u32 checksum32(const u8* p, u32 n, u32 seed); /* ROL31 + add */
 u16 checksum16(const u8* p, u32 n, u16 seed);
+/* Boot-region checksum over sectors 0..10 (skip bytes 106/107/112 of
+ * sector 0 entirely - spec 3.1.14.1). Shared with the repair engine. */
+u32 boot_region_checksum(const u8* region, u32 sector_bytes);
 
 struct ExfatParams {
     u32 bytes_per_sector = 512; /* 1 << shift, shift in 9..12 */

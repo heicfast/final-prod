@@ -169,19 +169,14 @@ std::vector<u8> build_exfat_image() {
         img[(12 + s) * 512 + 510] = 0x55;
         img[(12 + s) * 512 + 511] = 0xAA;
     }
-    /* boot-region checksum: over sectors 0..10 (VolumeFlags+PercentInUse of
-     * sector 0 excluded); value FILL-REPEATED in sectors 11 and 23 */
+    /* boot-region checksum: over sectors 0..10, bytes 106/107/112 of
+     * sector 0 skipped entirely (spec 3.1.14.1); FILL-REPEATED at 11/23 */
     u32 chk = 0;
     for (u32 s = 0; s <= 10; ++s) {
         for (u32 i = 0; i < 512; ++i) {
-            u8 v = img[s * 512 + i];
-            if (s == 0) {
-                if (i >= 106 && i < 108)
-                    v = 0;
-                if (i == 112)
-                    v = 0;
-            }
-            chk = ((chk & 1) ? 0x80000000u : 0u) + (chk >> 1) + v;
+            if (s == 0 && ((i >= 106 && i < 108) || i == 112))
+                continue;
+            chk = ((chk & 1) ? 0x80000000u : 0u) + (chk >> 1) + img[s * 512 + i];
         }
     }
     for (u32 k = 0; k < 128; ++k) {
