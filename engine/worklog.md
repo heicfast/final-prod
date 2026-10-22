@@ -170,3 +170,19 @@ Stage Summary: core_recovery v0.1.0 - the complete base recovery engine
 layer: R1 device/partition, R2 NTFS, R3 lost partitions, R4 carving,
 R5 FAT/exFAT, R6 orchestration+sessions, R7 safe writer, R8 BitLocker-aware.
 Wizard UI + extended formats + benchmarks follow per docs/roadmap.md.
+
+---
+Task ID: S4-FINAL
+Agent: main
+Task: Session 4 continuation - CI green + spec-critical runlist fix
+
+Work Log:
+- CI fully GREEN on 9c1d229: lint + linux + windows + fuzz + codeql (first complete-green run; the chain of fixes: cr_health MSVC rewrite, windows.h + health namespace in rrecov, TRIM %hs, fuzz harness OOB gate, PRNG overflow in bench_seed)
+- CRITICAL SPEC FIX (9c1d229): the NTFS runlist header nibble order was INVERTED (len=high nibble, inherited from a misread corpus artifact; the decompiled size-walk is order-agnostic). Ground truth = Linux fs/ntfs3/run.c: LOW nibble = length width, HIGH = offset width. With the old order every REAL NTFS volume would misparse; synthetic fixtures never caught it (self-round-trip). Fixtures rewritten to spec order; encode moved to u64-space deltas (also fixes two real UB findings from the first fuzz campaign: shift-by-64 in width_of, i64 delta overflow).
+- Fuzz campaigns: harness OOB (fixed), runlist UB x2 (fixed), timeout guards added (25s/input, 2560MiB rss)
+- Benchmark workflow: PRNG int64 overflow fixed (System.Random); two runs in flight reached the scan step (seed + driver install working)
+- Security audit T16: all P0/P1/P2 findings fixed (see 6bde909)
+- Docs: roadmap/architecture/requirements updated for v0.2; ground-truth-contracts.md nibble correction with kernel citation
+
+Stage Summary:
+- v0.2.0 ready to tag: 106/106 tests (ASan), full engine set, full CI green, fuzz-clean (post-fix campaign), benchmark + comparison workflows live
