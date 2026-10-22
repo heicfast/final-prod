@@ -93,3 +93,22 @@ Task: Lost-partition discovery (R3) complete.
 - Test: planted lost NTFS (mft probe) + exFAT + incoherent 55AA noise;
   overlap classification matrix.
 - 40/40 tests green.
+
+---
+Task ID: 7
+Task: Carving engine (R4) complete.
+- SHA-256 (FIPS 180-4, NIST vectors verified) for hashing/dedup/writer.
+- Signature registry v1: 16 formats, VERSIONED table, F8 load-time gate
+  (validator mandatory, bounds checked, id-order enforced).
+- Grammar validators: JPEG marker walk (SOF/SOS/EOI), PNG chunk walk
+  (IHDR dims + IEND), TIFF IFD walk, CR2 (CR submagic), WebP RIFF, HEIC/MP4/
+  MOV ISO-BMFF box walks, PDF %%EOF, ZIP/DOCX EOCD + cd-geometry
+  (fragmentation flag R4.5), 7z StartHeader, SQLite page math, AVI RIFF+hdrl,
+  MKV EBML vint element walk, RAR4 block walk to END.
+- Pipeline: 1MiB windows + 4KiB overlap, first-byte dispatch, specificity
+  trial order (DOCX-before-ZIP), F9 extent dedup vs structured + prior
+  carved, 128-bit content ids for files <= 8MiB, host namer callback
+  (corpus: naming lives in the host).
+- Real defects caught by the loop: PNG IHDR length read LE instead of BE;
+  fixture noise overlapping the JPEG tail (validated via instrumentation).
+- 46/46 tests green.

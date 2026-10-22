@@ -14,6 +14,8 @@ add_executable(cr_tests
     unit/test_fat_volume.cpp
     unit/test_exfat_volume.cpp
     unit/test_lostpart.cpp
+    unit/test_sha256.cpp
+    unit/test_carve.cpp
 )
 
 target_link_libraries(cr_tests PRIVATE cr::core GTest::gtest_main)
