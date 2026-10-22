@@ -390,3 +390,194 @@ TEST(CarveEngine, PstAndRar5Grammar) {
             ++rar4;
     EXPECT_EQ(0, rar4);
 }
+
+TEST(CarveEngine, ExtendedFormatsGrammar) {
+    auto img = std::vector<u8>(8ull << 20, 0);
+    size_t cur = 4096;
+
+    auto put = [&](const std::vector<u8>& v) {
+        memcpy(img.data() + cur, v.data(), v.size());
+        const size_t at = cur;
+        cur += v.size() + 512; /* spacing */
+        return at;
+    };
+    auto mk = [](std::initializer_list<u8> l) { return std::vector<u8>(l); };
+
+    /* PSD: 8BPS + v1(BE) + 6 reserved + channels@12 + h@14 + w@18 +
+     * depth@22 + mode@24 (all BE) */
+    {
+        std::vector<u8> v = mk({'8', 'B', 'P', 'S', 0, 1});
+        v.insert(v.end(), 6, 0); /* reserved u32+u16 */
+        v.push_back(0);
+        v.push_back(1); /* channels BE @12 */
+        for (u8 b : {0, 0, 0, 64})
+            v.push_back(b); /* height BE @14 */
+        for (u8 b : {0, 0, 0, 48})
+            v.push_back(b); /* width BE @18 */
+        v.push_back(0);
+        v.push_back(8); /* depth BE @22 */
+        v.push_back(0);
+        v.push_back(1);           /* color mode @24 */
+        v.insert(v.end(), 12, 0); /* 3 zero-size sections + compression */
+        put(v);
+    }
+    /* MP3: ID3v2.3 + syncsafe size 100 + frame sync */
+    {
+        std::vector<u8> v = mk({'I', 'D', '3', 3, 0, 0});
+        v.push_back(0);
+        v.push_back(0); /* syncsafe size hi */
+        v.push_back(0);
+        v.push_back(100);             /* size 100 */
+        v.insert(v.end(), 100, 0x11); /* tag payload */
+        v.push_back(0xFF);
+        v.push_back(0xFB); /* MPEG frame sync */
+        v.insert(v.end(), 512, 0x22);
+        put(v);
+    }
+    /* WAV: RIFF + len + WAVE + fmt */
+    {
+        std::vector<u8> v = mk({'R', 'I', 'F', 'F'});
+        u32 len = 1000;
+        v.push_back(u8(len));
+        v.push_back(u8(len >> 8));
+        v.push_back(u8(len >> 16));
+        v.push_back(u8(len >> 24));
+        const char* w = "WAVEfmt ";
+        for (const char* p = w; *p; ++p)
+            v.push_back(u8(*p));
+        v.insert(v.end(), 64, 0x33);
+        put(v);
+    }
+    /* ASF: GUID + object size + count */
+    {
+        std::vector<u8> v = {0x30, 0x26, 0xB2, 0x75, 0x8E, 0x66, 0xCF, 0x11,
+                             0xA6, 0xD9, 0x00, 0xAA, 0x00, 0x62, 0xCE, 0x6C};
+        const u64 sz = 2048;
+        for (int i = 0; i < 8; ++i)
+            v.push_back(u8(sz >> (8 * i)));
+        const u32 cnt = 5;
+        for (int i = 0; i < 4; ++i)
+            v.push_back(u8(cnt >> (8 * i)));
+        v.insert(v.end(), 512, 0x44);
+        put(v);
+    }
+    /* FLV: FLV + v1 + flags 5 + offset 9 + one tag */
+    {
+        std::vector<u8> v = mk({'F', 'L', 'V', 1, 5, 0, 0, 0, 9});
+        v.insert(v.end(), 4, 0); /* PreviousTagSize0 */
+        v.push_back(8);          /* tag type audio */
+        v.push_back(0);
+        v.push_back(0);
+        v.push_back(16); /* size 16 */
+        v.insert(v.end(), 7, 0);
+        v.insert(v.end(), 16, 0x55); /* payload */
+        v.insert(v.end(), 4, 0);     /* prev tag size */
+        put(v);
+    }
+    /* CAB: CFHEADER - MSCF@0, reserved@4, cbCabinet@8, reserved@12,
+     * coffFiles@16, reserved@20, verMinor@24 verMajor@25, cFolders@26,
+     * cFiles@28, flags@30, setID@32 */
+    {
+        std::vector<u8> v = mk({'M', 'S', 'C', 'F'});
+        v.insert(v.end(), 4, 0); /* reserved1 @4 */
+        u32 cb = 4096;
+        v.push_back(u8(cb));
+        v.push_back(u8(cb >> 8));
+        v.push_back(u8(cb >> 16));
+        v.push_back(u8(cb >> 24)); /* cbCabinet @8 */
+        v.insert(v.end(), 4, 0);   /* reserved2 @12 */
+        v.push_back(0x24);
+        v.push_back(0);
+        v.push_back(0);
+        v.push_back(0);          /* coffFiles @16 */
+        v.insert(v.end(), 4, 0); /* reserved3 @20 */
+        v.push_back(3);          /* versionMinor @24 */
+        v.push_back(1);          /* versionMajor @25 */
+        v.push_back(2);
+        v.push_back(0); /* cFolders @26 */
+        v.push_back(10);
+        v.push_back(0); /* cFiles @28 */
+        v.push_back(0);
+        v.push_back(0); /* flags @30 */
+        v.push_back(1);
+        v.push_back(0); /* setID @32 */
+        v.push_back(0);
+        v.push_back(0); /* iCabinet @34 */
+        v.insert(v.end(), 512, 0x66);
+        put(v);
+    }
+    /* ORF: IIRO + IFD */
+    {
+        std::vector<u8> v = mk({'I', 'I', 'R', 'O', 8, 0, 0, 0});
+        v.push_back(1);
+        v.push_back(0); /* 1 IFD entry */
+        /* entry: tag 0x0100, type 4 (LONG), count 100 (non-inline), value
+         * = data offset 1000 -> extent math drives end past min_size */
+        v.push_back(0x00);
+        v.push_back(0x01);
+        v.push_back(4);
+        v.push_back(0);
+        v.insert(v.end(), {100, 0, 0, 0});
+        v.insert(v.end(), {0xE8, 3, 0, 0}); /* value = 1000 LE */
+        v.push_back(0);
+        v.push_back(0);
+        v.push_back(0);
+        v.push_back(0); /* next */
+        v.insert(v.end(), 2048, 0x77);
+        put(v);
+    }
+    /* ISO: PVD at a 32K-aligned position; the carved file starts 32K
+     * earlier (header_offset 0x8001); blocks=64 -> 128 KiB volume */
+    {
+        cur = (cur + 0x7FFF) & ~size_t(0x7FFF); /* align to 32K */
+        const size_t pvd = cur;
+        img[pvd] = 1; /* type primary */
+        memcpy(img.data() + pvd + 1, "CD001", 5);
+        img[pvd + 6] = 1; /* version */
+        /* volume space size LE u32 @+80: 4 blocks */
+        u32 blocks = 64; /* 128 KiB volume */
+        img[pvd + 80] = u8(blocks);
+        img[pvd + 81] = u8(blocks >> 8);
+        img[pvd + 82] = u8(blocks >> 16);
+        img[pvd + 83] = u8(blocks >> 24);
+        memset(img.data() + pvd + 0x54, 0x20, 32); /* system id padding */
+        cur = pvd + 512;
+        (void)put(mk({0}));
+        /* remember pvd for assertions: place at fixed math below */
+    }
+
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"L");
+    CarveFlags flags;
+    flags.hash_small_files = false;
+    CarveStats stats;
+    u32 rc =
+        carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, stats);
+    ASSERT_EQ(rc, OK) << err_text(rc);
+
+    std::set<std::string> found;
+    for (tree::FileNode* c = root->first_child(); c; c = c->next_sibling())
+        if (c->props()) {
+            found.insert(c->name_utf8());
+        }
+    /* each extended format must validate */
+    EXPECT_TRUE(found.count("File000000.psd"));
+    EXPECT_TRUE(found.count("File000001.mp3"));
+    EXPECT_TRUE(found.count("File000002.wav"));
+    EXPECT_TRUE(found.count("File000003.wmv"));
+    EXPECT_TRUE(found.count("File000004.flv"));
+    EXPECT_TRUE(found.count("File000005.cab"));
+    EXPECT_TRUE(found.count("File000006.orf"));
+    /* ISO detected via its late magic */
+    bool iso_found = false;
+    for (const auto& f : found)
+        if (f.find(".iso") != std::string::npos)
+            iso_found = true;
+    EXPECT_TRUE(iso_found);
+    /* negative: the RIFF blob must be WAV, not WEBP/AVI (form-type checked) */
+    for (const auto& f : found) {
+        EXPECT_EQ(std::string::npos, f.find(".webp"));
+        EXPECT_EQ(std::string::npos, f.find(".avi"));
+    }
+}

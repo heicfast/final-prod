@@ -759,5 +759,307 @@ CarveResult validate_rar5(IStorageDevice* s, u64 hit, u64 cap) {
     return r;
 }
 
+/* ---- TIFF-family extensions ---- */
+
+/* DNG: TIFF magic + DNGVersion tag (0xC612) present in IFD0 */
+CarveResult validate_dng(IStorageDevice* s, u64 hit, u64 cap) {
+    CarveResult r = tiff_common(s, hit, cap, false);
+    if (!r.ok)
+        return r;
+    const u8 bo[2] = {0, 0};
+    if (!rd(s, hit, const_cast<u8*>(bo), 2))
+        return r;
+    const bool le = bo[0] == 'I';
+    u32 ifd = le ? rd32(s, hit + 4) : rdbe32(s, hit + 4);
+    if (ifd == 0 || ifd > 4096)
+        return r;
+    const u16 n = le ? rd16(s, hit + ifd) : rdbe16(s, hit + ifd);
+    if (n == 0 || n > 512)
+        return r;
+    for (u32 e = 0; e < n; ++e) {
+        const u64 ep = hit + ifd + 2 + u64(e) * 12;
+        const u16 tag = le ? rd16(s, ep) : rdbe16(s, ep);
+        if (tag == 0xC612) { /* DNGVersion */
+            r.note = "TIFF+DNGVersion";
+            r.confidence = 880;
+            return r;
+        }
+    }
+    r.ok = false;
+    return r;
+}
+
+/* ORF (Olympus): IIRO magic + TIFF-like structure */
+CarveResult validate_orf(IStorageDevice* s, u64 hit, u64 cap) {
+    CarveResult r = tiff_common(s, hit, cap, false);
+    if (r.ok) {
+        r.note = "IIRO";
+        r.confidence = 800;
+    }
+    return r;
+}
+
+/* RW2 (Panasonic): IIU\0 magic + IFD walk */
+CarveResult validate_rw2(IStorageDevice* s, u64 hit, u64 cap) {
+    CarveResult r = tiff_common(s, hit, cap, false);
+    if (r.ok) {
+        r.note = "IIU";
+        r.confidence = 800;
+    }
+    return r;
+}
+
+/* RAF (Fuji): FUJIFILMCCD-RAW + version + section offsets */
+CarveResult validate_raf(IStorageDevice* s, u64 hit, u64 cap) {
+    CarveResult r;
+    u8 h[32];
+    if (!rd(s, hit, h, 32))
+        return r;
+    if (std::memcmp(h, "FUJIFILMCCD-RAW ", 16) != 0)
+        return r;
+    const u32 ver = rd32(s, hit + 16);
+    if (ver == 0 || ver > 0x2000)
+        return r;
+    u64 max_end = 0;
+    for (int i = 0; i < 4; ++i) { /* section offset/len pairs from +0x54 */
+        const u64 off = rd32(s, hit + 0x54 + u64(i) * 8);
+        const u64 len = rd32(s, hit + 0x54 + u64(i) * 8 + 4);
+        if (off + len > max_end && off < (64ull << 20))
+            max_end = off + len;
+    }
+    if (max_end == 0)
+        max_end = 4096;
+    r.ok = true;
+    r.end = hit + (max_end < 512 ? 512 : max_end);
+    if (r.end > hit + cap)
+        r.end = hit + cap;
+    r.confidence = 850;
+    r.note = "FUJIFILMCCD-RAW";
+    return r;
+}
+
+/* ---- Adobe PSD: 8BPS + version 1 + geometry ---- */
+CarveResult validate_psd(IStorageDevice* s, u64 hit, u64 cap) {
+    CarveResult r;
+    u8 h[26];
+    if (!rd(s, hit, h, 26))
+        return r;
+    if (std::memcmp(h, "8BPS", 4) != 0)
+        return r;
+    const u16 ver = (u16(h[4]) << 8) | u16(h[5]); /* BE */
+    if (ver != 1)
+        return r;
+    const u16 channels = (u16(h[12]) << 8) | u16(h[13]);
+    if (channels == 0 || channels > 56)
+        return r;
+    const u32 height = (u32(h[14]) << 24) | (u32(h[15]) << 16) | (u32(h[16]) << 8) | u32(h[17]);
+    const u32 width = (u32(h[18]) << 24) | (u32(h[19]) << 16) | (u32(h[20]) << 8) | u32(h[21]);
+    if (height == 0 || width == 0 || height > 300000 || width > 300000)
+        return r;
+    const u16 depth = (u16(h[22]) << 8) | u16(h[23]);
+    if (depth != 1 && depth != 8 && depth != 16 && depth != 32)
+        return r;
+    r.ok = true;
+    /* layer+image sections follow: size unknown without full parse; use
+     * the color-mode + image-resource + layer + image length fields */
+    u64 end = hit + 26;
+    for (int i = 0; i < 3; ++i) { /* color mode len, image res len, layer len */
+        const u64 len = rdbe32(s, end);
+        if (len == 0xFFFFFFFFULL)
+            break;
+        end += 4 + len;
+    }
+    end += 2; /* compression */
+    r.end = end > hit + cap ? hit + cap : end;
+    if (r.end <= hit + 64)
+        r.end = hit + 64;
+    r.confidence = 870;
+    r.note = "8BPS+v1+geometry";
+    return r;
+}
+
+/* ---- MP3: ID3v2 header + syncsafe size + MPEG frame sync ---- */
+CarveResult validate_mp3(IStorageDevice* s, u64 hit, u64 cap) {
+    CarveResult r;
+    u8 h[10];
+    if (!rd(s, hit, h, 10))
+        return r;
+    if (std::memcmp(h, "ID3", 3) != 0)
+        return r;
+    const u8 ver_major = h[3];
+    if (ver_major == 0 || ver_major > 5)
+        return r;
+    /* syncsafe 28-bit size */
+    const u32 size = (u32(h[6]) << 21) | (u32(h[7]) << 14) | (u32(h[8]) << 7) | u32(h[9]);
+    const u64 audio_at = hit + 10 + size;
+    /* MPEG frame sync: 11 set bits */
+    u8 f[2] = {0, 0};
+    if (!rd(s, audio_at, f, 2))
+        return r;
+    if (f[0] != 0xFF || (f[1] & 0xE0) != 0xE0)
+        return r;
+    r.ok = true;
+    /* duration unknown: cap at a conservative MP3 ceiling */
+    r.end = audio_at + (32ull << 20);
+    if (r.end > hit + cap)
+        r.end = hit + cap;
+    r.confidence = 820;
+    r.note = "ID3+frame-sync";
+    return r;
+}
+
+/* ---- WAV: RIFF + WAVE + fmt chunk ---- */
+CarveResult validate_wav(IStorageDevice* s, u64 hit, u64 cap) {
+    CarveResult r;
+    u8 h[16];
+    if (!rd(s, hit, h, 16))
+        return r;
+    if (std::memcmp(h, "RIFF", 4) != 0 || std::memcmp(h + 8, "WAVE", 4) != 0)
+        return r;
+    const u32 riff_len = (u32(h[4]) | (u32(h[5]) << 8) | (u32(h[6]) << 16) | (u32(h[7]) << 24));
+    if (riff_len < 36)
+        return r;
+    if (std::memcmp(h + 12, "fmt ", 4) != 0)
+        return r;
+    const u16 fmt = u16(h[16 - 16]) | 0; /* first fmt bytes follow; accept */
+    (void)fmt;
+    r.ok = true;
+    r.end = hit + 8 + riff_len;
+    if (r.end > hit + cap)
+        r.end = hit + cap;
+    r.confidence = 900;
+    r.note = "RIFF+WAVE+fmt";
+    return r;
+}
+
+/* ---- M4A: ftyp + M4A brand ---- */
+CarveResult validate_m4a(IStorageDevice* s, u64 hit, u64 cap) {
+    CarveResult r;
+    static const char* brands[] = {"M4A ", "M4B ", "M4P "};
+    for (const char* brand : brands) {
+        CarveResult t = bmff_walk(s, hit, cap, &brand, 1);
+        if (t.ok) {
+            r = t;
+            r.confidence = 800;
+            r.note = "ftyp+M4A";
+            return r;
+        }
+    }
+    return r;
+}
+
+/* ---- ASF/WMV: ASF header object GUID ---- */
+CarveResult validate_asf(IStorageDevice* s, u64 hit, u64 cap) {
+    CarveResult r;
+    static const u8 asf_guid[16] = {0x30, 0x26, 0xB2, 0x75, 0x8E, 0x66, 0xCF, 0x11,
+                                    0xA6, 0xD9, 0x00, 0xAA, 0x00, 0x62, 0xCE, 0x6C};
+    u8 g[16];
+    if (!rd(s, hit, g, 16))
+        return r;
+    if (std::memcmp(g, asf_guid, 16) != 0)
+        return r;
+    const u64 obj_size = rd64(s, hit + 16);
+    if (obj_size < 30 || obj_size > (2ull << 30))
+        return r;
+    const u32 count = rd32(s, hit + 24); /* header object count */
+    if (count == 0 || count > 128)
+        return r;
+    r.ok = true;
+    r.end = hit + obj_size;
+    if (r.end > hit + cap)
+        r.end = hit + cap;
+    r.confidence = 850;
+    r.note = "ASF-GUID+object";
+    return r;
+}
+
+/* ---- FLV: signature + version + tag walk ---- */
+CarveResult validate_flv(IStorageDevice* s, u64 hit, u64 cap) {
+    CarveResult r;
+    u8 h[13];
+    if (!rd(s, hit, h, 13))
+        return r;
+    if (std::memcmp(h, "FLV", 3) != 0)
+        return r;
+    if (h[3] == 0 || h[3] > 2)
+        return r;
+    const u8 flags = h[4];
+    if ((flags & 0xFA) != 0)
+        return r; /* only audio(4)/video(1) bits legal */
+    const u32 offset =
+        (u32(h[5]) << 24) | (u32(h[6]) << 16) | (u32(h[7]) << 8) | u32(h[8]); /* BE DataOffset */
+    if (offset != 9 && offset != 0)
+        return r;
+    r.ok = true;
+    /* walk tags: PreviousTagSize0(4) + tags {type(1)+size(3 BE)+ts+...} */
+    u64 pos = hit + 13 + 4;
+    int tags = 0;
+    while (pos + 11 < hit + cap && tags < 65536) {
+        u8 th[11];
+        if (!rd(s, pos, th, 11))
+            break;
+        const u32 tsize = (u32(th[1]) << 16) | (u32(th[2]) << 8) | u32(th[3]);
+        if (th[0] == 0 || th[0] > 9)
+            break; /* unknown tag type: end */
+        pos += 11 + tsize + 4;
+        ++tags;
+    }
+    r.end = pos > hit + cap ? hit + cap : pos;
+    if (r.end <= hit + 64)
+        r.end = hit + 64;
+    r.confidence = 820;
+    r.note = "FLV+tag-walk";
+    return r;
+}
+
+/* ---- CAB: MSCF + header fields ---- */
+CarveResult validate_cab(IStorageDevice* s, u64 hit, u64 cap) {
+    CarveResult r;
+    u8 h[36];
+    if (!rd(s, hit, h, 36))
+        return r;
+    if (std::memcmp(h, "MSCF", 4) != 0)
+        return r;
+    const u32 cbCab = rd32(s, hit + 8);
+    const u16 cFolders = u16(h[26]) | (u16(h[27]) << 8);
+    const u16 cFiles = u16(h[28]) | (u16(h[29]) << 8);
+    if (cFolders == 0 || cFolders > 1000 || cFiles == 0 || cFiles > 60000)
+        return r;
+    if (cbCab < 36 || cbCab > (2ull << 30))
+        return r;
+    r.ok = true;
+    r.end = hit + cbCab;
+    if (r.end > hit + cap)
+        r.end = hit + cap;
+    r.confidence = 870;
+    r.note = "MSCF+counts";
+    return r;
+}
+
+/* ---- ISO9660: CD001 at +0x8001 (primary volume descriptor) ---- */
+CarveResult validate_iso(IStorageDevice* s, u64 hit, u64 cap) {
+    CarveResult r;
+    /* hit = ISO start; the primary volume descriptor sits 32 KiB in
+     * (sector 16), "CD001" at hit+0x8001 (= header_offset) */
+    u8 pvd[2048];
+    if (!rd(s, hit + 0x8000, pvd, 2048))
+        return r;
+    if (pvd[0] != 1) /* type 1 = primary */
+        return r;
+    if (std::memcmp(pvd + 1, "CD001", 5) != 0)
+        return r;
+    /* volume space size: LE u32 at PVD+80, in 2048-byte blocks */
+    const u32 blocks = rd32(s, hit + 0x8000 + 80);
+    if (blocks == 0 || blocks > (1ull << 32 >> 11))
+        return r;
+    r.ok = true;
+    r.end = hit + u64(blocks) * 2048;
+    if (r.end > hit + cap)
+        r.end = hit + cap;
+    r.confidence = 900;
+    r.note = "CD001+volume-size";
+    return r;
+}
+
 } // namespace carve
 } // namespace cr

@@ -37,6 +37,18 @@ enum FormatId : u32 {
     FMT_RAR4,
     FMT_PST,
     FMT_RAR5,
+    FMT_DNG,
+    FMT_ORF,
+    FMT_RAF,
+    FMT_RW2,
+    FMT_PSD,
+    FMT_MP3,
+    FMT_WAV,
+    FMT_M4A,
+    FMT_ASF,
+    FMT_FLV,
+    FMT_CAB,
+    FMT_ISO,
     FMT_COUNT
 };
 
@@ -61,7 +73,7 @@ using Validator = CarveResult (*)(IStorageDevice* slice, u64 hit, u64 max_size);
 struct Signature {
     FormatId id;
     const char* ext; /* "jpg" */
-    u8 header[12];   /* magic bytes */
+    u8 header[16];   /* magic bytes (16 covers GUID-length signatures) */
     u32 header_len;
     u32 header_offset; /* magic position within the file */
     u64 min_size;

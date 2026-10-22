@@ -28,6 +28,18 @@ CarveResult validate_mkv(IStorageDevice* s, u64 hit, u64 cap);
 CarveResult validate_rar4(IStorageDevice* s, u64 hit, u64 cap);
 CarveResult validate_pst(IStorageDevice* s, u64 hit, u64 cap);
 CarveResult validate_rar5(IStorageDevice* s, u64 hit, u64 cap);
+CarveResult validate_dng(IStorageDevice* s, u64 hit, u64 cap);
+CarveResult validate_orf(IStorageDevice* s, u64 hit, u64 cap);
+CarveResult validate_raf(IStorageDevice* s, u64 hit, u64 cap);
+CarveResult validate_rw2(IStorageDevice* s, u64 hit, u64 cap);
+CarveResult validate_psd(IStorageDevice* s, u64 hit, u64 cap);
+CarveResult validate_mp3(IStorageDevice* s, u64 hit, u64 cap);
+CarveResult validate_wav(IStorageDevice* s, u64 hit, u64 cap);
+CarveResult validate_m4a(IStorageDevice* s, u64 hit, u64 cap);
+CarveResult validate_asf(IStorageDevice* s, u64 hit, u64 cap);
+CarveResult validate_flv(IStorageDevice* s, u64 hit, u64 cap);
+CarveResult validate_cab(IStorageDevice* s, u64 hit, u64 cap);
+CarveResult validate_iso(IStorageDevice* s, u64 hit, u64 cap);
 
 namespace {
 const Signature kTable[] = {
@@ -157,6 +169,82 @@ const Signature kTable[] = {
      850,
      validate_rar5,
      "RAR5"},
+    {FMT_DNG,
+     "dng",
+     {'I', 'I', 0x2A, 0x00},
+     4,
+     0,
+     1024,
+     4ull << 30,
+     880,
+     validate_dng,
+     "Digital Negative"},
+    {FMT_ORF,
+     "orf",
+     {'I', 'I', 'R', 'O'},
+     4,
+     0,
+     1024,
+     1ull << 30,
+     800,
+     validate_orf,
+     "Olympus RAW"},
+    {FMT_RAF,
+     "raf",
+     {'F', 'U', 'J', 'I', 'F', 'I', 'L', 'M', 'C', 'C', 'D', '-', 'R', 'A', 'W', ' '},
+     16,
+     0,
+     1024,
+     2ull << 30,
+     850,
+     validate_raf,
+     "Fuji RAW"},
+    {FMT_RW2,
+     "rw2",
+     {'I', 'I', 'U', 0x00},
+     4,
+     0,
+     1024,
+     1ull << 30,
+     800,
+     validate_rw2,
+     "Panasonic RAW"},
+    {FMT_PSD, "psd", {'8', 'B', 'P', 'S'}, 4, 0, 64, 4ull << 30, 870, validate_psd, "Photoshop"},
+    {FMT_MP3, "mp3", {'I', 'D', '3'}, 3, 0, 512, 512ull << 20, 820, validate_mp3, "MP3 audio"},
+    {FMT_WAV, "wav", {'R', 'I', 'F', 'F'}, 4, 0, 36, 4ull << 30, 900, validate_wav, "WAV audio"},
+    {FMT_M4A,
+     "m4a",
+     {0, 0, 0, 0, 'f', 't', 'y', 'p'},
+     8,
+     4,
+     128,
+     4ull << 30,
+     800,
+     validate_m4a,
+     "M4A audio"},
+    {FMT_ASF,
+     "wmv",
+     {0x30, 0x26, 0xB2, 0x75, 0x8E, 0x66, 0xCF, 0x11, 0xA6, 0xD9, 0x00, 0xAA, 0x00, 0x62, 0xCE,
+      0x6C},
+     16,
+     0,
+     64,
+     4ull << 30,
+     850,
+     validate_asf,
+     "ASF/WMV"},
+    {FMT_FLV, "flv", {'F', 'L', 'V'}, 3, 0, 64, 4ull << 30, 820, validate_flv, "Flash video"},
+    {FMT_CAB, "cab", {'M', 'S', 'C', 'F'}, 4, 0, 36, 2ull << 30, 870, validate_cab, "Cabinet"},
+    {FMT_ISO,
+     "iso",
+     {'C', 'D', '0', '0', '1'},
+     5,
+     0x8001,
+     33792, /* PVD sector + margin (F8: min covers the late magic) */
+     32ull << 30,
+     900,
+     validate_iso,
+     "ISO9660"},
 };
 } // namespace
 
@@ -179,11 +267,15 @@ u32 validate_registry(std::vector<const Signature*>* bad) {
         bool ok = true;
         if (s.validator == nullptr)
             ok = false; /* F8: no header-only */
-        if (s.header_len == 0 || s.header_len > 12)
+        if (s.header_len == 0 || s.header_len > 16)
             ok = false;
-        if (s.header_offset > 8)
+        /* late magics are legal when min_size covers them (ISO9660: the
+         * volume descriptor signature sits at 0x8001) */
+        if (s.header_offset > (1u << 20))
             ok = false;
-        if (s.min_size == 0 || s.max_size <= s.min_size)
+        if (s.header_offset > 8 && s.min_size <= u64(s.header_offset) + 32)
+            ok = false;
+        if (s.max_size <= s.min_size)
             ok = false;
         if (s.ext == nullptr || s.name == nullptr)
             ok = false;
