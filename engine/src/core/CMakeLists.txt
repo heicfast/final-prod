@@ -11,6 +11,8 @@ add_library(cr_core STATIC
     storage/cr_retry.cpp
     table/cr_crc32.cpp
     table/cr_table_parse.cpp
+    table/cr_ldm.cpp
+    refs/cr_refs_detect.cpp
     ntfs/cr_fixup.cpp
     ntfs/cr_runlist.cpp
     ntfs/cr_bootstrap.cpp
