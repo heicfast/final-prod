@@ -47,17 +47,19 @@ $(TARGETS): | dirs
 corpus:
 	mkdir -p corpus/pure corpus/engines corpus/carve corpus/container
 
+# -timeout=25: a single input taking >25s fails fast instead of eating
+# the libFuzzer default 1200s alarm; -rss_limit_mb bounds heap.
 run: $(TARGETS) corpus
-	$(BUILD)/fuzz_pure      corpus/pure      -max_total_time=45 -max_len=65536
-	$(BUILD)/fuzz_engines   corpus/engines   -max_total_time=45 -max_len=2097152
-	$(BUILD)/fuzz_carve     corpus/carve     -max_total_time=45 -max_len=1048576
-	$(BUILD)/fuzz_container corpus/container -max_total_time=45 -max_len=1048576
+	$(BUILD)/fuzz_pure      corpus/pure      -max_total_time=45 -max_len=65536 -timeout=25 -rss_limit_mb=2560
+	$(BUILD)/fuzz_engines   corpus/engines   -max_total_time=45 -max_len=2097152 -timeout=25 -rss_limit_mb=2560
+	$(BUILD)/fuzz_carve     corpus/carve     -max_total_time=45 -max_len=1048576 -timeout=25 -rss_limit_mb=2560
+	$(BUILD)/fuzz_container corpus/container -max_total_time=45 -max_len=1048576 -timeout=25 -rss_limit_mb=2560
 
 run-long: $(TARGETS) corpus
-	$(BUILD)/fuzz_pure      corpus/pure      -max_total_time=120 -max_len=65536
-	$(BUILD)/fuzz_engines   corpus/engines   -max_total_time=120 -max_len=2097152
-	$(BUILD)/fuzz_carve     corpus/carve     -max_total_time=120 -max_len=1048576
-	$(BUILD)/fuzz_container corpus/container -max_total_time=120 -max_len=1048576
+	$(BUILD)/fuzz_pure      corpus/pure      -max_total_time=120 -max_len=65536 -timeout=25 -rss_limit_mb=2560
+	$(BUILD)/fuzz_engines   corpus/engines   -max_total_time=120 -max_len=2097152 -timeout=25 -rss_limit_mb=2560
+	$(BUILD)/fuzz_carve     corpus/carve     -max_total_time=120 -max_len=1048576 -timeout=25 -rss_limit_mb=2560
+	$(BUILD)/fuzz_container corpus/container -max_total_time=120 -max_len=1048576 -timeout=25 -rss_limit_mb=2560
 
 clean:
 	rm -rf $(BUILD)
