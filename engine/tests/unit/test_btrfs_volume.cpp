@@ -1,0 +1,387 @@
+/* test_btrfs_volume.cpp - synthetic Btrfs volume end-to-end.
+ *
+ * Identity logical->physical mapping keeps the fixture readable: logical X
+ * is always at physical X.
+ *
+ * Licensed under the MIT license. See LICENSE.
+ */
+
+#include "cr/btrfs/cr_btrfs_engine.h"
+#include <gtest/gtest.h>
+#include <cstring>
+#include <set>
+
+namespace cr {
+namespace btrfs {
+namespace {
+
+constexpr u32 NODESIZE = 4096;
+constexpr u64 IMG_BYTES = 8ull << 20;
+
+/* logical == physical everywhere (identity chunk) */
+constexpr u64 L_CHUNK_TREE = 0x100000;
+constexpr u64 L_ROOT_TREE = 0x102000;
+constexpr u64 L_FS_TREE = 0x104000;
+constexpr u64 L_DATA = 0x700000; /* inside the data chunk */
+
+class MemDevice final : public IStorageDevice {
+public:
+    explicit MemDevice(std::vector<u8> d) : d_(std::move(d)) {
+        g_.logical_sector = 512;
+        g_.physical_sector = 512;
+        g_.total_bytes = d_.size();
+        g_.sector_count = d_.size() / 512;
+    }
+    u32 read_at(u64 off, void* buf, u32 len) override {
+        if (off > d_.size() || len > d_.size() - off)
+            return ERR_RANGE_OUT_OF_BOUNDS;
+        memcpy(buf, d_.data() + off, len);
+        return OK;
+    }
+    const Geometry& geometry() const override { return g_; }
+
+private:
+    Geometry g_{};
+    std::vector<u8> d_;
+};
+
+void put16(u8* p, u16 v) {
+    p[0] = u8(v);
+    p[1] = u8(v >> 8);
+}
+void put32(u8* p, u32 v) {
+    p[0] = u8(v);
+    p[1] = u8(v >> 8);
+    p[2] = u8(v >> 16);
+    p[3] = u8(v >> 24);
+}
+void put64(u8* p, u64 v) {
+    put32(p, u32(v));
+    put32(p + 4, u32(v >> 32));
+}
+
+/* local key type (engine's Key is internal) */
+struct Key {
+    u64 objectid = 0;
+    u8 type = 0;
+    u64 offset = 0;
+};
+
+/* item buffer being assembled for one node */
+struct NodeBuilder {
+    std::vector<u8> node;
+    struct Item {
+        Key key;
+        std::vector<u8> data;
+    };
+    std::vector<Item> items;
+
+    NodeBuilder() { node.assign(NODESIZE, 0); }
+
+    void header(u64 bytenr, u32 nritems, u8 level) {
+        put64(node.data() + 0x30, bytenr); /* self-referential */
+        put32(node.data() + 0x50, nritems);
+        node[0x54] = level;
+    }
+
+    void add(const Key& k, const std::vector<u8>& data) { items.push_back({k, data}); }
+
+    /* finalize: pack data from the node end, then write the item array */
+    std::vector<u8> finish(u64 bytenr, u8 level) {
+        header(bytenr, u32(items.size()), level);
+        u32 end = NODESIZE;
+        std::vector<u32> data_offsets;
+        for (const auto& it : items) {
+            end -= u32(it.data.size());
+            memcpy(node.data() + end, it.data.data(), it.data.size());
+            data_offsets.push_back(end);
+        }
+        /* item i: offset = distance from node END to data start */
+        for (u32 i = 0; i < items.size(); ++i) {
+            u8* it = node.data() + 0x58 + u64(i) * 25;
+            put64(it + 0, items[i].key.objectid);
+            it[8] = items[i].key.type;
+            put64(it + 9, items[i].key.offset);
+            put32(it + 17, NODESIZE - data_offsets[i]); /* offset from end */
+            put32(it + 21, u32(items[i].data.size()));
+        }
+        return node;
+    }
+};
+
+std::vector<u8> make_root_item(u64 tree_bytenr, u64 root_dirid) {
+    std::vector<u8> r(0xEF, 0);
+    put64(r.data() + 0xA8, root_dirid);
+    put64(r.data() + 0xB0, tree_bytenr);
+    r[0xEE] = 0; /* level */
+    return r;
+}
+
+std::vector<u8> make_inode(u32 mode, u64 size, u32 nlink, u64 mtime_sec) {
+    std::vector<u8> r(160, 0);
+    put64(r.data() + 0x10, size);
+    put32(r.data() + 0x28, nlink);
+    put32(r.data() + 0x34, mode);
+    put64(r.data() + 0x50, mtime_sec); /* atime sec */
+    put32(r.data() + 0x50 + 8, 0);     /* atime nsec */
+    put64(r.data() + 0x5C, mtime_sec); /* ctime */
+    put64(r.data() + 0x68, mtime_sec); /* mtime */
+    put64(r.data() + 0x74, mtime_sec); /* otime */
+    return r;
+}
+
+std::vector<u8> make_dir_item(u64 child, const char* name, u8 type) {
+    const u32 nlen = u32(strlen(name));
+    std::vector<u8> r(53 + nlen, 0);
+    put64(r.data() + 0, child);
+    r[8] = type;             /* location.type: 1 file, 2 dir */
+    put64(r.data() + 17, 1); /* transid */
+    put16(r.data() + 49, u16(nlen));
+    put16(r.data() + 51, 0); /* datalen */
+    memcpy(r.data() + 53, name, nlen);
+    return r;
+}
+
+std::vector<u8> make_extent_data(u64 disk_bytenr, u64 num_bytes) {
+    std::vector<u8> r(53, 0);
+    put64(r.data() + 0, 1);         /* generation */
+    put64(r.data() + 8, num_bytes); /* ram_bytes */
+    r[20] = 1;                      /* type: regular */
+    put64(r.data() + 21, disk_bytenr);
+    put64(r.data() + 29, num_bytes);
+    put64(r.data() + 37, 0); /* offset in */
+    put64(r.data() + 45, num_bytes);
+    return r;
+}
+
+std::vector<u8> build_volume() {
+    std::vector<u8> d(size_t(IMG_BYTES), 0);
+
+    /* --- superblock at 0x10000 --- */
+    u8* sb = d.data() + 0x10000;
+    put64(sb + 0x40, 0x4D5F53665248425FULL); /* magic */
+    put64(sb + 0x48, 42);                    /* generation */
+    put32(sb + 0x90, 4096);                  /* sectorsize */
+    put32(sb + 0x94, 4096);                  /* nodesize */
+    /* sys chunk array @0x32B: one identity chunk, logical 0x100000, 6 MiB,
+     * type SYSTEM|METADATA|DATA(=7), 1 stripe at physical 0x100000 */
+    {
+        u32 pos = 0x32B;
+        /* key: objectid 256? (chunk keys: objectid = first objectid...),
+         * type CHUNK(228), offset = logical start 0x100000 */
+        put64(sb + pos, 256);
+        sb[pos + 8] = 228;
+        put64(sb + pos + 9, 0x100000);
+        pos += 17;
+        /* chunk: 7 MiB covering [0x100000, 0x800000) */
+        put64(sb + pos + 0, 7ull << 20);
+        put64(sb + pos + 8, 3);             /* owner */
+        put64(sb + pos + 0x10, 4096);       /* stripe_len */
+        put64(sb + pos + 0x18, 7);          /* type: DATA|SYSTEM|METADATA */
+        put32(sb + pos + 0x20, 4096);       /* io_align */
+        put32(sb + pos + 0x24, 4096);       /* io_width */
+        put32(sb + pos + 0x28, 4096);       /* sector_size */
+        put16(sb + pos + 0x2C, 1);          /* num_stripes */
+        put16(sb + pos + 0x2E, 0);          /* sub_stripes */
+        put64(sb + pos + 48, 1);            /* stripe0 devid */
+        put64(sb + pos + 48 + 8, 0x100000); /* stripe0 physical offset */
+        const u32 total = 17 + 48 + 32;
+        put32(sb + 0xA0, total); /* sys_chunk_array_size */
+    }
+
+    /* --- chunk tree (leaf at L_CHUNK_TREE): one CHUNK item (the identity
+     * chunk again, so the full map covers the data region) --- */
+    {
+        NodeBuilder nb;
+        Key ck;
+        ck.objectid = 256;
+        ck.type = 228;
+        ck.offset = 0x100000;
+        std::vector<u8> chunk(48 + 32, 0);
+        put64(chunk.data() + 0, 7ull << 20);
+        put64(chunk.data() + 8, 3);
+        put64(chunk.data() + 0x10, 4096);
+        put64(chunk.data() + 0x18, 7);
+        put32(chunk.data() + 0x20, 4096);
+        put32(chunk.data() + 0x24, 4096);
+        put32(chunk.data() + 0x28, 4096);
+        put16(chunk.data() + 0x2C, 1);
+        put64(chunk.data() + 48, 1);
+        put64(chunk.data() + 48 + 8, 0x100000);
+        nb.add(ck, chunk);
+        auto nd = nb.finish(L_CHUNK_TREE, 0);
+        memcpy(d.data() + L_CHUNK_TREE, nd.data(), NODESIZE);
+    }
+
+    /* --- root tree (leaf at L_ROOT_TREE): ROOT_ITEM for FS_TREE(5) and
+     * CHUNK_TREE(3) (the CHUNK_TREE root item is the discovery anchor) --- */
+    {
+        NodeBuilder nb;
+        Key k5;
+        k5.objectid = 5;
+        k5.type = 132;
+        k5.offset = 0;
+        nb.add(k5, make_root_item(L_FS_TREE, 256));
+        Key k3;
+        k3.objectid = 3;
+        k3.type = 132;
+        k3.offset = 0;
+        nb.add(k3, make_root_item(L_CHUNK_TREE, 0));
+        auto nd = nb.finish(L_ROOT_TREE, 0);
+        memcpy(d.data() + L_ROOT_TREE, nd.data(), NODESIZE);
+    }
+
+    /* --- FS tree (leaf at L_FS_TREE) --- */
+    {
+        NodeBuilder nb;
+        const u64 MTIME = 1600000000;
+        /* inodes: 256 root dir, 257 hello.txt, 258 sub dir, 259 nested.bin */
+        Key ki;
+        ki.type = 1; /* INODE_ITEM */
+        ki.objectid = 256;
+        nb.add(ki, make_inode(0x4000, NODESIZE, 2, MTIME));
+        ki.objectid = 257;
+        nb.add(ki, make_inode(0x8000, 14, 1, MTIME));
+        ki.objectid = 258;
+        nb.add(ki, make_inode(0x4000, NODESIZE, 2, MTIME));
+        ki.objectid = 259;
+        nb.add(ki, make_inode(0x8000, 22, 1, MTIME));
+        /* extent data for hello.txt + nested.bin (logical L_DATA mapped by
+         * the identity chunk) */
+        Key ke;
+        ke.type = 108; /* EXTENT_DATA */
+        ke.objectid = 257;
+        ke.offset = 0;
+        nb.add(ke, make_extent_data(L_DATA, 4096));
+        ke.objectid = 259;
+        nb.add(ke, make_extent_data(L_DATA + 4096, 4096));
+        /* dir entries */
+        Key kd;
+        kd.type = 84; /* DIR_ITEM */
+        kd.objectid = 256;
+        kd.offset = 0x11110001;
+        nb.add(kd, make_dir_item(257, "hello.txt", 1));
+        kd.offset = 0x22220002;
+        nb.add(kd, make_dir_item(258, "sub", 2));
+        kd.objectid = 258;
+        kd.offset = 0x33330003;
+        nb.add(kd, make_dir_item(259, "nested.bin", 1));
+        auto nd = nb.finish(L_FS_TREE, 0);
+        memcpy(d.data() + L_FS_TREE, nd.data(), NODESIZE);
+    }
+
+    /* file content */
+    memcpy(d.data() + L_DATA, "Hello, btrfs!", 14);
+    memcpy(d.data() + L_DATA + 4096, "nested btrfs content", 21);
+    return d;
+}
+
+TEST(Btrfs, SuperblockValidation) {
+    std::vector<u8> d(size_t(IMG_BYTES), 0);
+    u8* sb = d.data() + 0x10000;
+    put64(sb + 0x40, 0x4D5F53665248425FULL);
+    put64(sb + 0x48, 7);
+    put32(sb + 0x90, 4096);
+    put32(sb + 0x94, 4096);
+    SuperBlock out;
+    EXPECT_TRUE(validate_superblock(sb, out));
+    EXPECT_EQ(4096u, out.sectorsize);
+    EXPECT_EQ(4096u, out.nodesize);
+    EXPECT_EQ(u64(7), out.generation);
+
+    /* bad magic */
+    put64(sb + 0x40, 0x1122334455667788ULL);
+    EXPECT_FALSE(validate_superblock(sb, out));
+    put64(sb + 0x40, 0x4D5F53665248425FULL);
+
+    /* non-pow2 sectorsize */
+    put32(sb + 0x90, 3000);
+    EXPECT_FALSE(validate_superblock(sb, out));
+    put32(sb + 0x90, 4096);
+
+    /* nodesize band */
+    put32(sb + 0x94, 64);
+    EXPECT_FALSE(validate_superblock(sb, out));
+    put32(sb + 0x94, 65536 + 1);
+    EXPECT_FALSE(validate_superblock(sb, out));
+    put32(sb + 0x94, 4096);
+
+    /* nodesize % sectorsize */
+    put32(sb + 0x94, 6144);
+    EXPECT_FALSE(validate_superblock(sb, out));
+}
+
+TEST(Btrfs, EndToEndWalk) {
+    auto img = build_volume();
+    MemDevice dev(img);
+
+    tree::ResultTree tree;
+    auto* ra = tree.add_root(u"Found");
+
+    BtrfsScanFlags fl;
+    BtrfsScanStats st;
+    u32 rc = scan_btrfs(&dev, fl, nullptr, nullptr, nullptr, tree, ra, nullptr, nullptr, st);
+    ASSERT_EQ(OK, rc) << err_text(rc);
+    EXPECT_EQ(1u, st.subvolumes);
+    EXPECT_EQ(2u, st.files);
+    EXPECT_EQ(2u, st.dirs);   /* subvol root dir + sub */
+    EXPECT_EQ(2u, st.chunks); /* sys chunk + chunk-tree chunk (same mapping) */
+
+    /* collect paths */
+    std::set<std::string> paths;
+    std::function<void(tree::FileNode*, std::string)> walk = [&](tree::FileNode* n,
+                                                                 const std::string& p) {
+        for (tree::FileNode* c = n->first_child(); c; c = c->next_sibling()) {
+            if (!c->props())
+                continue;
+            std::string nm = c->name_utf8();
+            std::string full = p.empty() ? nm : p + "/" + nm;
+            paths.insert(full);
+            walk(c, full);
+        }
+    };
+    walk(ra, "");
+
+    EXPECT_TRUE(paths.count("subvol-5"));
+    EXPECT_TRUE(paths.count("subvol-5/hello.txt"));
+    EXPECT_TRUE(paths.count("subvol-5/sub"));
+    EXPECT_TRUE(paths.count("subvol-5/sub/nested.bin"));
+
+    /* verify extents + sizes */
+    int checked = 0;
+    for (tree::FileNode* sv = ra->first_child(); sv; sv = sv->next_sibling())
+        for (tree::FileNode* c = sv->first_child(); c; c = c->next_sibling()) {
+            if (!c->props())
+                continue;
+            if (c->name_utf8() == "hello.txt") {
+                EXPECT_EQ(u64(14), c->props()->logical_size);
+                ASSERT_EQ(1u, c->props()->extents.size());
+                EXPECT_EQ(L_DATA, c->props()->extents[0].offset);
+                EXPECT_EQ(4096u, c->props()->extents[0].length);
+                ++checked;
+            }
+            if (c->name_utf8() == "sub")
+                for (tree::FileNode* n2 = c->first_child(); n2; n2 = n2->next_sibling())
+                    if (n2->props() && n2->name_utf8() == "nested.bin") {
+                        EXPECT_EQ(u64(22), n2->props()->logical_size);
+                        EXPECT_EQ(L_DATA + 4096, n2->props()->extents[0].offset);
+                        ++checked;
+                    }
+        }
+    EXPECT_EQ(2, checked);
+}
+
+TEST(Btrfs, BadMagicRejected) {
+    std::vector<u8> d(1ull << 20, 0);
+    MemDevice dev(d);
+    tree::ResultTree tree;
+    auto* ra = tree.add_root(u"F");
+    BtrfsScanFlags fl;
+    BtrfsScanStats st;
+    EXPECT_EQ(ERR_BAD_MAGIC,
+              scan_btrfs(&dev, fl, nullptr, nullptr, nullptr, tree, ra, nullptr, nullptr, st));
+}
+
+} // namespace
+} // namespace btrfs
+} // namespace cr
