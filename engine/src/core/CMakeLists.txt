@@ -25,12 +25,15 @@ add_library(cr_core STATIC
     carve/cr_registry.cpp
     carve/cr_analysers.cpp
     carve/cr_carve.cpp
+    session/cr_crsf.cpp
+    session/cr_records.cpp
     tree/cr_node.cpp
 )
 
 add_library(cr::core ALIAS cr_core)
 target_include_directories(cr_core PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}/../../include)
+target_link_libraries(cr_core PUBLIC ZLIB::ZLIB)
 
 if(CR_ENABLE_ASAN AND NOT MSVC)
     target_compile_options(cr_core PRIVATE -fsanitize=address)

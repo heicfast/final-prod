@@ -112,3 +112,16 @@ Task: Carving engine (R4) complete.
 - Real defects caught by the loop: PNG IHDR length read LE instead of BE;
   fixture noise overlapping the JPEG tail (validated via instrumentation).
 - 46/46 tests green.
+
+---
+Task ID: 8
+Task: Session container CRSF (R6.3/R6.6) complete.
+- Chunked-zlib framing (reference-proven scheme): u16 header bit15=deflate,
+  bits0-11=payload-1, <=4KiB, level-5, stored-when-larger; per-chunk inflate
+  fallback to raw (F10 graceful degradation).
+- Our additions (F10): CRC32 per record + skip-forward indexing on corrupt
+  headers (resumable by construction); versioned container + record magics.
+- Typed payloads: tree DFS grammar (parent ids, light/full markers, full
+  props field map, hashes), error map, volume info, session state,
+  partition context. Deserializer: lazy synthetic root for top-level nodes.
+- 49/49 tests green (round-trip, corruption skip, tree round-trip).

@@ -104,6 +104,7 @@ public:
     void set_origin(Origin o) { origin_ = o; }
 
     u64 node_id() const { return node_id_; } /* stable within the tree */
+    bool is_full() const { return full_; }  /* light/full discrimination */
 
     /* u16 name in utf8 convenience (lossy for exotic) */
     std::string name_utf8() const;
