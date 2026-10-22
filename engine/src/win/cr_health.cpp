@@ -1,0 +1,269 @@
+/* cr_health.cpp - disk health: SMART via ATA passthrough, NVMe, TRIM.
+ *
+ * Licensed under the MIT license. See LICENSE.
+ */
+
+#include "cr/win/cr_health.h"
+#include <windows.h>
+#include <winioctl.h>
+#include <cstdio>
+#include <cstring>
+#include <string>
+
+namespace cr {
+namespace win {
+namespace health {
+
+namespace {
+
+/* ATA passthrough structures (ATA_PASS_THROUGH_EX + 512-byte data buffer,
+ * ntddscsi.h shapes inlined to keep the header light). */
+#pragma pack(push, 1)
+struct AtaPassThrough {
+    u16 Length;
+    u16 AtaFlags; /* 1 = data-in */
+    u8 PathId;
+    u8 TargetId;
+    u8 Lun;
+    u8 Reserved1;
+    u32 DataTransferLength;
+    u32 TimeOutValue;
+    u32 Reserved2;
+    u32 DataBufferOffset;
+    u8 PreviousTaskFile[8];
+    u8 CurrentTaskFile[8]; /* registers: feat, count, sector..., cmd last */
+    // followed by the data buffer when DataBufferOffset > sizeof
+};
+#pragma pack(pop)
+
+constexpr u32 IOCTL_ATA_PASS_THROUGH =
+    CTL_CODE(IOCTL_SCSI_BASE, 0x040B, METHOD_BUFFERED, FILE_READ_ACCESS | FILE_WRITE_ACCESS);
+
+/* Build+issue one ATA command with a 512-byte data-in phase. */
+bool ata_passthrough(HANDLE h, u8 feature, u8 count, u8 command, u8* out512) {
+    struct {
+        AtaPassThrough apt;
+        u8 data[512];
+    } req;
+    std::memset(&req, 0, sizeof(req));
+    req.apt.Length = sizeof(AtaPassThrough);
+    req.apt.AtaFlags = 1; /* ATA_FLAGS_DATA_IN */
+    req.apt.DataTransferLength = 512;
+    req.apt.TimeOutValue = 10;
+    req.apt.DataBufferOffset = sizeof(AtaPassThrough);
+    /* current task file: feature, sector count, LBA (unused), drive, command */
+    req.apt.CurrentTaskFile[0] = feature;
+    req.apt.CurrentTaskFile[1] = count;
+    req.apt.CurrentTaskFile[6] = 0xA0; /* LBA mode + master */
+    req.apt.CurrentTaskFile[7] = command;
+
+    DWORD br = 0;
+    if (!DeviceIoControl(h, IOCTL_ATA_PASS_THROUGH, &req, sizeof(req), &req, sizeof(req), &br,
+                         nullptr))
+        return false;
+    std::memcpy(out512, req.data, 512);
+    return true;
+}
+
+u16 word_at(const u8* p, u32 idx) {
+    return u16(p[idx * 2]) | (u16(p[idx * 2 + 1]) << 8);
+}
+u64 triple(const u8* raw) {
+    return u64(raw[0]) | (u64(raw[1]) << 8) | (u64(raw[2]) << 16);
+}
+
+} // namespace
+
+const char* smart_attr_name(u8 id) {
+    switch (id) {
+    case 1: return "Read error rate";
+    case 3: return "Spin-up time";
+    case 4: return "Start/stop count";
+    case 5: return "Reallocated sectors";
+    case 7: return "Seek error rate";
+    case 9: return "Power-on hours";
+    case 10: return "Spin retry count";
+    case 11: return "Calibration retries";
+    case 12: return "Power cycles";
+    case 13: return "Soft read errors";
+    case 170: return "Reserved blocks (SSD)";
+    case 171: return "Program failures (SSD)";
+    case 172: return "Erase failures (SSD)";
+    case 175: return "Program failures";
+    case 183: return "SATA downshifts";
+    case 187: return "Uncorrectable errors";
+    case 190: return "Airflow temperature";
+    case 194: return "Temperature";
+    case 196: return "Reallocated events";
+    case 197: return "Current pending sectors";
+    case 198: return "Offline uncorrectable";
+    case 199: return "UDMA CRC errors";
+    case 231: return "SSD life left";
+    case 232: return "Endurance remaining";
+    case 233: return "Media wearout (SSD)";
+    case 234: return "Thermal throttling";
+    case 241: return "Total LBAs written";
+    case 242: return "Total LBAs read";
+    case 249: return "NAND writes (SSD)";
+    default: return "";
+    }
+}
+
+u32 read_smart(HANDLE_like disk_handle, SmartReport& out) {
+    HANDLE h = static_cast<HANDLE>(disk_handle);
+    if (h == nullptr || h == INVALID_HANDLE_VALUE)
+        return ERR_BAD_PARAMETER;
+
+    /* 1. IDENTIFY DEVICE: confirm ATA + read ATA version. */
+    u8 identify[512];
+    if (!ata_passthrough(h, 0, 0, 0xEC, identify))
+        return ERR_HEALTH_UNAVAILABLE;
+
+    out.transport = "ata-passthrough";
+    out.ata_version = word_at(identify, 80);
+    out.available = true;
+
+    /* 2. SMART READ DATA (feature 0xD0). */
+    u8 table[512];
+    if (!ata_passthrough(h, 0xD0, 0, 0xB0, table))
+        return ERR_HEALTH_UNAVAILABLE;
+    out.smart_version = u16(table[0]) | (u16(table[1]) << 8);
+
+    /* 362 attribute entries live at +2, 12 bytes each. */
+    for (u32 e = 0; e < 30; ++e) {
+        const u8* p = table + 2 + e * 12;
+        if (p[0] == 0)
+            continue; /* unused slot */
+        SmartAttribute a;
+        a.id = p[0];
+        a.value = u16(p[3]) | (u16(p[4]) << 8);
+        a.worst = u16(p[5]) | (u16(p[6]) << 8);
+        std::memcpy(a.raw, p + 5, 6); /* vendor raw bytes (value+worst+raw overlap - vendor layout) */
+        a.failing = (p[3] & 1) != 0 && a.value == 0; /* prefailure bit + zeroed */
+        a.name = smart_attr_name(a.id);
+        out.attributes.push_back(a);
+        if (a.failing)
+            out.failing_now = true;
+        switch (a.id) {
+        case 5: out.reallocated_sectors = triple(a.raw); break;
+        case 9: out.power_on_hours = triple(a.raw); break;
+        case 10: out.spin_retry = triple(a.raw); break;
+        case 190:
+        case 194: out.temperature_c = a.raw[0] ? a.raw[0] : out.temperature_c; break;
+        case 197: out.pending_sectors = triple(a.raw); break;
+        case 198: out.uncorrectable = triple(a.raw); break;
+        case 231:
+        case 233: out.ssd_wear_level = triple(a.raw); break;
+        default: break;
+        }
+    }
+    return OK;
+}
+
+u32 read_nvme_health(void* disk_handle, NvmeHealth& out) {
+    HANDLE h = static_cast<HANDLE>(disk_handle);
+    if (h == nullptr || h == INVALID_HANDLE_VALUE)
+        return ERR_BAD_PARAMETER;
+
+    /* NVMe health log (log page 2) through the protocol-specific storage
+     * query (Windows 10 storage stack; the corpus DiskHealth uses the
+     * same route through its NVMe transport). */
+#pragma pack(push, 1)
+    struct {
+        STORAGE_PROPERTY_QUERY header; /* PropertyId + QueryType only used */
+        STORAGE_PROTOCOL_SPECIFIC_DATA proto;
+        u8 data[512];
+    } req;
+#pragma pack(pop)
+    std::memset(&req, 0, sizeof(req));
+    req.header.PropertyId = StorageDeviceProtocolSpecificProperty;
+    req.header.QueryType = PropertyStandardQuery;
+    req.proto.ProtocolType = ProtocolTypeNvme;
+    req.proto.DataType = 2;                 /* NVMeDataTypeLogPage */
+    req.proto.ProtocolDataRequestValue = 2; /* health log page */
+    req.proto.ProtocolDataRequestSubValue = 0;
+    req.proto.ProtocolDataOffset = sizeof(STORAGE_PROTOCOL_SPECIFIC_DATA);
+    req.proto.ProtocolDataLength = 512;
+
+    DWORD br = 0;
+    if (!DeviceIoControl(h, IOCTL_STORAGE_QUERY_PROPERTY, &req, sizeof(req), &req, sizeof(req),
+                         &br, nullptr))
+        return ERR_HEALTH_UNAVAILABLE;
+
+    const u8* d = req.data;
+    out.available = true;
+    out.critical_warning = d[0];
+    out.temperature_k = u16(d[1]) | (u16(d[2]) << 8);
+    out.available_spare = d[3];
+    out.available_spare_threshold = d[4];
+    out.percentage_used = d[5];
+    u64 v = 0;
+    for (int i = 0; i < 8; ++i)
+        v |= u64(d[32 + i]) << (8 * i);
+    out.data_units_read = v;
+    v = 0;
+    for (int i = 0; i < 8; ++i)
+        v |= u64(d[48 + i]) << (8 * i);
+    out.data_units_written = v;
+    v = 0;
+    for (int i = 0; i < 8; ++i)
+        v |= u64(d[64 + i]) << (8 * i);
+    out.power_cycles = v;
+    v = 0;
+    for (int i = 0; i < 8; ++i)
+        v |= u64(d[80 + i]) << (8 * i);
+    out.power_on_hours = v;
+    v = 0;
+    for (int i = 0; i < 8; ++i)
+        v |= u64(d[96 + i]) << (8 * i);
+    out.unsafe_shutdowns = v;
+    v = 0;
+    for (int i = 0; i < 8; ++i)
+        v |= u64(d[112 + i]) << (8 * i);
+    out.media_errors = v;
+    return OK;
+}
+
+u32 query_trim_state(bool& enabled) {
+    /* fsutil behavior query disabledeletenotify: 0 = TRIM on (corpus
+     * DRWUI parsing: "= 0" -> ON) */
+    FILE* fp = _popen("fsutil behavior query disabledeletenotify 2>nul", "r");
+    if (fp == nullptr)
+        return ERR_HEALTH_UNAVAILABLE;
+    char line[256];
+    enabled = false;
+    bool known = false;
+    while (fgets(line, sizeof(line), fp)) {
+        const char* eq = std::strchr(line, '=');
+        if (eq == nullptr)
+            continue;
+        const long v = strtol(eq + 1, nullptr, 10);
+        enabled = (v == 0);
+        known = true;
+    }
+    _pclose(fp);
+    return known ? OK : ERR_HEALTH_UNAVAILABLE;
+}
+
+bool looks_like_ssd(void* disk_handle) {
+    HANDLE h = static_cast<HANDLE>(disk_handle);
+    if (h == nullptr || h == INVALID_HANDLE_VALUE)
+        return false;
+    STORAGE_PROPERTY_QUERY q = {};
+    q.PropertyId = StorageDeviceSeekPenaltyProperty;
+    q.QueryType = PropertyStandardQuery;
+    struct {
+        DEVICE_SEEK_PENALTY_DESCRIPTOR d;
+        u8 pad[32];
+    } r = {};
+    DWORD br = 0;
+    if (DeviceIoControl(h, IOCTL_STORAGE_QUERY_PROPERTY, &q, sizeof(q), &r, sizeof(r), &br,
+                        nullptr)) {
+        return r.d.IncursSeekPenalty == FALSE; /* no seek penalty = SSD */
+    }
+    return false;
+}
+
+} // namespace health
+} // namespace win
+} // namespace cr

@@ -23,6 +23,7 @@
 #include "cr/win/cr_bitlocker.h"
 #include "cr/win/cr_destio.h"
 #include "cr/win/cr_enumerate.h"
+#include "cr/win/cr_health.h"
 #include "cr/win/cr_transport.h"
 #include <chrono>
 #include <cstdarg>
@@ -666,6 +667,94 @@ int cmd_recover(int argc, wchar_t** argv, int& i) {
     return wstats.errors || wstats.hash_mismatch ? 2 : 0;
 }
 
+/* ---------------------------------------------------------------------------
+ * health - SMART + NVMe + TRIM report (read-only)
+ * ------------------------------------------------------------------------- */
+int cmd_health(int argc, wchar_t** argv, int& i) {
+    std::wstring v;
+    u32 disk = 0;
+    bool have_disk = false;
+    while (i < argc) {
+        if (get_opt(argc, argv, i, L"--disk", &v)) {
+            disk = u32(wcstoul(v.c_str(), nullptr, 10));
+            have_disk = true;
+            continue;
+        }
+        wprintf(L"unknown health option: %s\n", argv[i]);
+        return 1;
+    }
+    if (!have_disk) {
+        wprintf(L"health needs --disk N\n");
+        return 1;
+    }
+
+    wchar_t path[64];
+    _snwprintf_s(path, 64, _TRUNCATE, L"\\\\.\\PhysicalDrive%u", disk);
+    HANDLE h = CreateFileW(path, GENERIC_READ | GENERIC_WRITE,
+                           FILE_SHARE_READ | FILE_SHARE_WRITE, nullptr, OPEN_EXISTING, 0,
+                           nullptr);
+    if (h == INVALID_HANDLE_VALUE) {
+        wprintf(L"cannot open disk %u (admin?)\n", disk);
+        return 1;
+    }
+
+    /* SMART via ATA passthrough */
+    health::SmartReport sm;
+    u32 rc = health::read_smart(h, sm);
+    if (rc == OK && sm.available) {
+        wprintf(L"SMART (%hs): ATA version %u, %zu attribute(s)\n", sm.transport.c_str(),
+                sm.ata_version, sm.attributes.size());
+        wprintf(L"  %-4s %-6s %-6s %-12s %hs\n", L"ID", L"value", L"worst", L"raw", "name");
+        for (const auto& a : sm.attributes) {
+            u64 raw = u64(a.raw[0]) | (u64(a.raw[1]) << 8) | (u64(a.raw[2]) << 16);
+            wprintf(L"  %-4u %-6u %-6u %-12llu %hs\n", a.id, a.value, a.worst,
+                    static_cast<unsigned long long>(raw), a.name.c_str());
+        }
+        wprintf(L"  reallocated=%llu pending=%llu uncorrectable=%llu hours=%llu temp=%lluC\n",
+                static_cast<unsigned long long>(sm.reallocated_sectors),
+                static_cast<unsigned long long>(sm.pending_sectors),
+                static_cast<unsigned long long>(sm.uncorrectable),
+                static_cast<unsigned long long>(sm.power_on_hours),
+                static_cast<unsigned long long>(sm.temperature_c));
+        if (sm.failing_now)
+            wprintf(L"  WARNING: failing attribute present\n");
+        if (sm.pending_sectors || sm.uncorrectable)
+            wprintf(L"  WARNING: unstable media - recover data FIRST, image before any scan\n");
+    } else {
+        wprintf(L"SMART unavailable (rc=%08x) - trying NVMe...\n", rc);
+    }
+
+    /* NVMe health */
+    health::NvmeHealth nv;
+    rc = health::read_nvme_health(h, nv);
+    if (rc == OK && nv.available) {
+        wprintf(L"NVMe health: temp=%u.%uC spare=%u%%/threshold=%u%% used=%llu%%\n",
+                u32(nv.temperature_k) - 273, (u32(nv.temperature_k) % 10), nv.available_spare,
+                nv.available_spare_threshold,
+                static_cast<unsigned long long>(nv.percentage_used));
+        wprintf(L"  read=%llu units written=%llu units power-on=%lluh unsafe-shutdowns=%llu "
+                L"media-errors=%llu\n",
+                static_cast<unsigned long long>(nv.data_units_read),
+                static_cast<unsigned long long>(nv.data_units_written),
+                static_cast<unsigned long long>(nv.power_on_hours),
+                static_cast<unsigned long long>(nv.unsafe_shutdowns),
+                static_cast<unsigned long long>(nv.media_errors));
+        if (nv.critical_warning)
+            wprintf(L"  WARNING: critical warning bits 0x%02x\n", nv.critical_warning);
+    }
+
+    /* media class + TRIM */
+    wprintf(L"seek-penalty (SSD heuristics): %hs\n",
+            health::looks_like_ssd(h) ? "none (SSD-like)" : "present (rotational?)");
+    bool trim = false;
+    if (health::query_trim_state(trim) == OK)
+        wprintf(L"TRIM: %hs%s\n", trim ? "enabled" : "disabled",
+                trim ? " (WARNING: TRIM erases deleted data on SSDs - disable before recovery)"
+                     : "");
+    CloseHandle(h);
+    return 0;
+}
+
 } // namespace
 
 int wmain(int argc, wchar_t** argv) {
@@ -692,6 +781,8 @@ int wmain(int argc, wchar_t** argv) {
         return cmd_tree(argc, argv, i);
     if (cmd == L"recover")
         return cmd_recover(argc, argv, i);
+    if (cmd == L"health")
+        return cmd_health(argc, argv, i);
     wprintf(L"unknown command: %s\n", cmd.c_str());
     return 1;
 }
