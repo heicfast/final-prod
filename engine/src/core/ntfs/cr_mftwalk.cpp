@@ -295,14 +295,38 @@ u32 walk_mft(NtfsVolume *vol, VolumeBitmap *bitmap, const WalkerFlags &flags,
             }
         }
 
-        /* emit one node per parent; unresolved parents resolved in phase B */
+        /* emit one node per parent, each with ITS OWN link name (per-link
+         * $FILE_NAME); hard links duplicate props (rare) - dedup via
+         * record_ref downstream (writer + merge). */
         tree::FullNode *default_root = in_use ? root_active : root_deleted;
         for (u64 p : parents) {
-            tree::FileNode *n = tree.add_file(default_root, props);
+            /* this link's name: highest-namespace FILE_NAME with this parent */
+            const FileNameInfo *link_name = &names[0];
+            for (const FileNameInfo &n : names)
+                if (n.parent_record == p &&
+                    namespace_rank(n.namespace_type) >= namespace_rank(link_name->namespace_type))
+                    link_name = &n;
+            if (link_name->parent_record != p && !names.empty() && parents.size() == 1)
+                link_name = best; /* single link: keep best */
+            tree::FileProperties *link_props = props;
+            if (parents.size() > 1 || link_name != best) {
+                link_props = props->clone();
+                if (link_props == nullptr) {
+                    props->release();
+                    return ERR_NO_MEMORY;
+                }
+                link_props->name = link_name->name;
+                link_props->logical_size = link_name->real_size;
+                link_props->allocated_size = link_name->allocated_size;
+                link_props->times = link_name->times;
+            }
+            tree::FileNode *n = tree.add_file(default_root, link_props);
             if (n == nullptr) {
+                link_props->release();
                 props->release();
                 return ERR_NO_MEMORY;
             }
+            if (link_props != props) link_props->release(); /* node holds it */
             if (!in_use) {
                 n->set_deleted_state(tree::DeletedState::Deleted);
                 if (conf == tree::Confidence::Overwritten)
@@ -313,6 +337,7 @@ u32 walk_mft(NtfsVolume *vol, VolumeBitmap *bitmap, const WalkerFlags &flags,
             emitted.push_back({n, p, false});
             ++stats.emitted;
         }
+        /* each add_file call holds one ref; drop the builder's ref for clones */
         props->release(); /* nodes hold the refs */
         if (in_use) ++stats.active;
         else ++stats.deleted;
@@ -377,6 +402,13 @@ u32 walk_mft(NtfsVolume *vol, VolumeBitmap *bitmap, const WalkerFlags &flags,
             by_record[rn] = e.node;
         }
     for (const EmittedNode &e : emitted) {
+        u64 own = e.node->props() ? mft_reference_record(e.node->props()->record_ref) : 0;
+        if (e.parent_record == own && own != 0) {
+            /* NTFS root ".": its parent reference is itself - it becomes the
+             * visible volume root under the active tree */
+            tree.reparent(e.node, root_active);
+            continue;
+        }
         tree::FileNode *parent_node = nullptr;
         auto it = by_record.find(e.parent_record);
         if (it != by_record.end() && it->second != e.node) parent_node = it->second;

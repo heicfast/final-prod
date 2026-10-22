@@ -66,6 +66,10 @@ public:
     u8 sha128[16] = {0};       /* truncated sha-256 digest, 128-bit id */
     bool hash_valid = false;
 
+    /* Deep copy for hard links (per-link name, shared extents semantics):
+     * caller owns the returned ref. */
+    FileProperties *clone() const;
+
     void add_ref() const { ++refs_; }
     void release() const {
         if (--refs_ == 0) delete this;
@@ -150,7 +154,9 @@ public:
     ~ResultTree();
 
     FullNode *add_root(const std::u16string &role);
-    /* Attach a file under parent; takes ownership of props (caller's ref). */
+    /* Attach a file under parent. Takes a REFERENCE (caller releases its own
+     * ref when done; each add_file call adds one node-held ref). Hard links:
+     * call once per parent, then release once. */
     FileNode *add_file(FileNode *parent, FileProperties *props);
 
     /* record_ref -> node index for hard links (structured engines) */

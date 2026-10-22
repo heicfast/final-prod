@@ -28,3 +28,21 @@ Task: Pure-core foundation: types/errors, device/slice/cached/devmap, MBR+EBR+GP
 - CMake: ASan compile+link options on both lib and tests.
 
 Stage Summary: pure core foundation locked; ready for NTFS attribute/walker/bitmap engines.
+
+---
+Task ID: 3
+Task: NTFS engine core complete + first end-to-end integration test.
+- cr_attributes (enum + typed extract + attrlist entries), cr_bitmap ($Bitmap
+  loader + reused_ratio), cr_mftwalk (namespace ranking, hard links with
+  PER-LINK names via props clone, ADS children, viability grading F5, phase-B
+  orphan reparent incl. root self-parent, remnant scanner).
+- Real defects caught by the ASan/test loop: parse_file_name had
+  name_length/namespace swapped (d[64]/d[65]); mirror loader parsed record-0
+  copy instead of $MFTMirr record-1 copy; hard-link double-release of the
+  ctor ref (add_file contract switched to reference semantics: +1 per call,
+  caller releases once); FullNode role-string leak (dtor dispatch).
+- Fixture: 256-cluster synthetic volume, 12 records, $MFTMirr, $Bitmap
+  in-use bits engineered for Excellent/Overwritten/PartialRisk grading;
+  floating-record remnant scan test.
+- 31/31 tests green (gcc + ASan).
+Stage Summary: R2.1-R2.5 core paths all implemented and integration-tested. Next: lost-partition candidates, carving, FAT/exFAT, sessions, orchestrator, writer, BitLocker layer, then Windows platform + CI bring-up.

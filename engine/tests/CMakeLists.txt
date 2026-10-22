@@ -10,6 +10,7 @@ add_executable(cr_tests
     unit/test_slice_devmap.cpp
     unit/test_cached.cpp
     unit/test_node_tree.cpp
+    unit/test_ntfs_volume.cpp
 )
 
 target_link_libraries(cr_tests PRIVATE cr::core GTest::gtest_main)

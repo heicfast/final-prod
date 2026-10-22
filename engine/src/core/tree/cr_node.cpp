@@ -4,6 +4,7 @@
  */
 
 #include "cr/tree/cr_node.h"
+#include <cstring>
 
 namespace cr {
 namespace tree {
@@ -42,6 +43,25 @@ void utf16_to_utf8(const std::u16string &in, std::string &out) {
 } // namespace
 
 FileProperties::~FileProperties() = default;
+
+FileProperties *FileProperties::clone() const {
+    FileProperties *p = new (std::nothrow) FileProperties();
+    if (!p) return nullptr;
+    p->record_ref = record_ref;
+    p->fs_kind = fs_kind;
+    p->logical_size = logical_size;
+    p->allocated_size = allocated_size;
+    p->times = times;
+    p->attributes = attributes;
+    p->flags = flags;
+    p->name = name;
+    p->extents = extents;
+    p->carve_format = carve_format;
+    p->carve_confidence = carve_confidence;
+    std::memcpy(p->sha128, sha128, sizeof(sha128));
+    p->hash_valid = hash_valid;
+    return p;
+}
 
 void FileNode::set_props(FileProperties *p) {
     if (props_) props_->release();
@@ -94,8 +114,7 @@ FileNode *ResultTree::add_file(FileNode *parent, FileProperties *props) {
     void *mem = arena_alloc(sizeof(FileNode));
     if (!mem) return nullptr;
     FileNode *n = new (mem) FileNode();
-    n->set_props(props);
-    props->release(); /* set_props took the caller's ref */
+    n->set_props(props); /* +1 ref: caller releases its own when done */
     n->parent_ = parent;
     if (parent->first_child_ == nullptr) {
         parent->first_child_ = n;

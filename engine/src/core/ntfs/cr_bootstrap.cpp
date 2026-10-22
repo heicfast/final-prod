@@ -189,17 +189,34 @@ u32 NtfsVolume::load_mft_stream() {
 }
 
 u32 NtfsVolume::load_mftmirr_stream() {
+    /* $MFTMirr (record 1) owns the mirror region; its copy sits at
+     * mftmirr_lcn + record_size inside the mirror. Read THAT copy and take
+     * its $DATA runlist as the mirror mapping. */
     std::vector<u8> buf;
     buf.resize(p_.record_size);
-    if (dev_->read_at(p_.mftmirr_lcn * p_.cluster_bytes, buf.data(), u32(buf.size())) != OK)
-        return ERR_READ_FAILED;
+    u64 off = p_.mftmirr_lcn * p_.cluster_bytes + p_.record_size;
+    if (off + p_.record_size > dev_->size()) return ERR_RANGE_OUT_OF_BOUNDS;
+    if (dev_->read_at(off, buf.data(), u32(buf.size())) != OK) return ERR_READ_FAILED;
     RecordHeader rh;
     std::memcpy(&rh, buf.data(), sizeof(rh));
     if (rh.magic != RECORD_MAGIC_FILE) return ERR_BAD_MAGIC;
-    u32 rc = fixup_apply(buf.data(), buf.size(), rh.update_sequence_offset, rh.update_sequence_size,
-                         p_.sector_bytes);
+    u32 rc = fixup_apply(buf.data(), buf.size(), rh.update_sequence_offset,
+                         rh.update_sequence_size, p_.sector_bytes);
     if (rc != OK) return rc;
-    u32 pos = rh.attribute_offset;
+    std::vector<u8> scratch;
+    rc = enum_mirr_attrs(buf, scratch);
+    if (rc != OK) return rc;
+    return mirr_valid_ ? OK : ERR_BAD_PARAMETER;
+}
+
+u32 NtfsVolume::enum_mirr_attrs(const std::vector<u8> &buf, std::vector<u8> &scratch) {
+    /* walk attributes of the $MFTMirr record copy; take its $DATA runs */
+    u32 pos;
+    {
+        RecordHeader rh;
+        std::memcpy(&rh, buf.data(), sizeof(rh));
+        pos = rh.attribute_offset;
+    }
     int depth = 0;
     while (pos + 16 <= buf.size() && depth < 64) {
         ++depth;
@@ -207,32 +224,37 @@ u32 NtfsVolume::load_mftmirr_stream() {
         if (type == ATTR_TYPE_TERMINATOR) break;
         u32 len = u32_from_bytes_le(buf.data() + pos + 4);
         if (len < 16 || pos + len > buf.size()) return ERR_BAD_PARAMETER;
-        if (type == ATTR_TYPE_DATA && !buf[pos + 8]) {
-            ResidentAttributeHeader ra;
-            std::memcpy(&ra, buf.data() + pos, sizeof(ra));
-            if (ra.value_offset + ra.value_length > len) return ERR_BAD_PARAMETER;
-            RunList rl;
-            if (RunList::decode(buf.data() + pos + ra.value_offset, ra.value_length, 0,
-                                p_.total_clusters, rl) == OK) {
-                mirr_run_ = rl;
-                mirr_valid_ = true;
-            }
-        } else if (type == ATTR_TYPE_DATA) {
-            if (pos + 16 + sizeof(NonresidentTail) > buf.size()) return ERR_BAD_PARAMETER;
-            NonresidentTail na;
-            std::memcpy(&na, buf.data() + pos + 16, sizeof(na));
-            if (na.runlist_offset < 0x40 && u32(na.runlist_offset) + 8 <= len) {
-                RunList rl;
-                if (RunList::decode(buf.data() + pos + na.runlist_offset, len - na.runlist_offset,
-                                    na.start_vcn, p_.total_clusters, rl) == OK) {
-                    mirr_run_ = rl;
-                    mirr_valid_ = true;
+        if (type == ATTR_TYPE_DATA) {
+            if (buf[pos + 8]) { /* nonresident */
+                if (pos + 64 > buf.size()) return ERR_BAD_PARAMETER;
+                NonresidentTail na;
+                std::memcpy(&na, buf.data() + pos + 16, sizeof(na));
+                if (na.runlist_offset >= 0x40 && u32(na.runlist_offset) + 8 <= len) {
+                    RunList rl;
+                    if (RunList::decode(buf.data() + pos + na.runlist_offset,
+                                        len - na.runlist_offset, na.start_vcn,
+                                        p_.total_clusters, rl) == OK) {
+                        mirr_run_ = rl;
+                        mirr_valid_ = true;
+                    }
+                }
+            } else {
+                ResidentAttributeHeader ra;
+                std::memcpy(&ra, buf.data() + pos, sizeof(ra));
+                if (u32(ra.value_offset) + ra.value_length <= len && ra.value_length > 0) {
+                    RunList rl;
+                    if (RunList::decode(buf.data() + pos + ra.value_offset, ra.value_length, 0,
+                                        p_.total_clusters, rl) == OK) {
+                        mirr_run_ = rl;
+                        mirr_valid_ = true;
+                    }
                 }
             }
         }
         pos += len;
     }
-    return mirr_valid_ ? OK : ERR_BAD_PARAMETER;
+    (void)scratch;
+    return OK;
 }
 
 std::unique_ptr<NtfsVolume> NtfsVolume::open(std::unique_ptr<IStorageDevice> device, u32 *err) {

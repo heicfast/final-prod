@@ -122,8 +122,8 @@ u32 parse_file_name(const AttrView &a, FileNameInfo &out) {
     f.real_size = u64_from_bytes_le(d + 48);
     f.dos_flags = u32_from_bytes_le(d + 56);
     f.reparse = u32_from_bytes_le(d + 60);
-    f.namespace_type = d[64];
-    u8 nlen = d[65];
+    f.namespace_type = d[65];       /* +0x41 */
+    u8 nlen = d[64];                /* +0x40 name length */
     if (u32(66) + u32(nlen) * 2 > dlen) return ERR_TRUNCATED;
     f.name.resize(nlen);
     for (u8 i = 0; i < nlen; ++i)

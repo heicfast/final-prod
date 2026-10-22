@@ -73,6 +73,7 @@ private:
     NtfsVolume() = default;
     u32 load_mft_stream();
     u32 load_mftmirr_stream();
+    u32 enum_mirr_attrs(const std::vector<u8> &buf, std::vector<u8> &scratch);
 
     std::unique_ptr<IStorageDevice> dev_;
     VolumeParams p_;
