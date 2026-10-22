@@ -29,9 +29,11 @@
 #include "cr/win/cr_enumerate.h"
 #include "cr/win/cr_health.h"
 #include "cr/win/cr_transport.h"
+#include <windows.h>
 #include <chrono>
 #include <cstdarg>
 #include <cstdio>
+#include <cstdlib>
 #include <cstring>
 #include <functional>
 #include <string>
