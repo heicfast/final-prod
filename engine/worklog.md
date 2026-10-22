@@ -125,3 +125,17 @@ Task: Session container CRSF (R6.3/R6.6) complete.
   props field map, hashes), error map, volume info, session state,
   partition context. Deserializer: lazy synthetic root for top-level nodes.
 - 49/49 tests green (round-trip, corruption skip, tree round-trip).
+
+---
+Task ID: 9
+Task: Orchestrator (R6) + safe recovery writer (R7) complete.
+- ScanController: quick -> deep -> carve staged pipeline; weighted MONOTONIC
+  progress (exact single-division math); family probe (OEM + BPB heuristic);
+  per-stage NTFS/FAT/exFAT engine dispatch; remnant sweep in deep;
+  lost-partition discovery in whole-disk mode (per-candidate virtual slices
+  + engines under per-candidate roots); session save/load (5 record types).
+- SafeWriter: enqueue with hard dest-overlap refusal (F12: extent-vs-dest
+  intersection, code-level), collision naming "name (N).ext", corpus
+  sanitizer, atomic temp+commit via DestIo abstraction, sha256 verification
+  with per-item mismatch accounting, zero-fill Skip policy, cancel support.
+- 54/54 tests green (incl. session round-trip through the orchestrator).

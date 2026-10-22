@@ -27,6 +27,8 @@ add_library(cr_core STATIC
     carve/cr_carve.cpp
     session/cr_crsf.cpp
     session/cr_records.cpp
+    recovery/cr_safewriter.cpp
+    orchestrator/cr_scan.cpp
     tree/cr_node.cpp
 )
 

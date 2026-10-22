@@ -17,6 +17,7 @@ add_executable(cr_tests
     unit/test_sha256.cpp
     unit/test_carve.cpp
     unit/test_session.cpp
+    unit/test_orchestrator.cpp
 )
 
 target_link_libraries(cr_tests PRIVATE cr::core GTest::gtest_main)

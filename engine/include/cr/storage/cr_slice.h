@@ -47,6 +47,27 @@ private:
     Geometry geom_;
 };
 
+/*
+ * SliceShim - non-owning adapter: hands an EXISTING device to APIs that
+ * take ownership (NtfsVolume::open). The shim dies with the owner; the
+ * underlying device is untouched.
+ */
+class SliceShim final : public IStorageDevice {
+public:
+    explicit SliceShim(IStorageDevice *target) : target_(target) {}
+    u32 read_at(u64 offset, void *buffer, u32 length) override {
+        return target_->read_at(offset, buffer, length);
+    }
+    const Geometry &geometry() const override { return target_->geometry(); }
+
+    static std::unique_ptr<SliceShim> shim(IStorageDevice *t) {
+        return std::unique_ptr<SliceShim>(new SliceShim(t));
+    }
+
+private:
+    IStorageDevice *target_;
+};
+
 } // namespace cr
 
 #endif // CR_SLICE_H_
