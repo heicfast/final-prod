@@ -1,0 +1,21 @@
+# Error-Fix Registry — reference design defects corrected in this rewrite
+
+Each entry: reference behavior (corpus evidence) -> our fix (file + test).
+
+| # | Reference defect | Corpus evidence | Our fix |
+|---|------------------|-----------------|---------|
+| F1 | Fixed 512-byte sector assumption across raw IO (`len<<9`, sector math baked at 512) | eprdtdrv analysis, driver docs | Geometry-probed: byte-anchored offsets, per-target logical/physical sector size captured at open; 512e and 4Kn first-class. PartitionSlice validates every access against slice bounds in bytes. |
+| F2 | PID token treated as a security boundary (any process can compute its own) | naming/PID handshake doc | Transport is not a boundary by design; the recovery stack never relies on it: source devices opened read-only, all writes (recovery output) go through the SafeWriter with destination-overlap refusal (R7). |
+| F3 | No cancel story for pending IO in reference user-mode scan loops (cancel callback consulted per record, but blocked reads hang the stage) | NTFS walk cancel sites | Cancellation is a first-class object: checked in every loop head, AND propagated into pending reads (overlapped/CancelIoEx on Windows path; RDA path closes handle on abort). |
+| F4 | MFT fixup validation optional in some reference paths; torn records silently parsed | fixup chain analysis | USA fixup is mandatory before any record parse; failure marks record structurally-damaged (never aborts the walk — salvage-over-purity rule kept). |
+| F5 | Deleted-file viability: reference destroys only fully-reused records and has no graded confidence output | algorithms-v2 §1 | Confidence grading R2.4: excellent / partial-risk / overwritten / metadata-only, computed from $Bitmap cross-check ratio, surfaced in node metadata and session records. |
+| F6 | $ATTRIBUTE_LIST chase in reference has no explicit depth bound | fragmented-MFT handler | Strict depth/cycle limit (R2.2) with per-record visited set; violation marks record damaged, never hangs. |
+| F7 | FAT chain walker in reference guards cycles with an RB-tree but EBR chains elsewhere rely on trust | chain walker §2 vs Partition.mo | Every chain (FAT clusters, EBR links, $ATTRIBUTE_LIST records, GPT alternates) carries a visited-set cycle guard; violation = damaged, continue. |
+| F8 | Reference carve: header-only entries in raw_signs.json produce inflated counts | raw carve deep-dive | Grammar-aware validation mandatory (R4.3); registry entries without validators are load-rejected at registry compile time. |
+| F9 | No dedup between structured and carved results in reference merge (relies on UI tree attach points) | merge phase docs | Merge dedups by (first-cluster, size-class, content-hash-when-available) before tree attach. |
+| F10 | Reference session format (.rsf) has no checksums over record chains; torn tails parse as empty | rsf-format doc | .crsf: CRC32 per chunk payload + per-record chain CRC; corruption skips forward to next well-formed record (resumable by design). |
+| F11 | Reference writes recovered files directly to destination (collision = overwrite) | recovery manager analysis | SafeWriter: collision naming (numeric suffix policy), atomic temp+rename, verify hash after write, queue is resumable. |
+| F12 | Reference can write recovery output onto the source disk (destination validation is UI-level) | product UX corpus | Hard refusal in code when destination volume/disk overlaps the source set of any queued node (R7.2) — not a UI warning. |
+| F13 | BitLocker path in reference includes full FVEK/XTS decrypt implementation | bitlockerlib deep-dive | By directive: detection + legitimate Windows unlock only (R8); no decryption code at all. |
+| F14 | Reference engines duplicate IFileProperties class family into every DLL (statically linked per engine) | FATSearchDLL RTTI census | Single shared implementation in the node library; engines consume the same refcounted objects. |
+| F15 | Reference quick-scan config default ON with no user-visible capability report | fastsearch ini | Capability/limits reported by the orchestrator (stages, formats, geometry) before every scan; session records persist them. |

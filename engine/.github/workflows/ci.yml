@@ -1,0 +1,70 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  lint:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: clang-format check
+        run: |
+          sudo apt-get update -qq && sudo apt-get install -y -qq clang-format-18 > /dev/null
+          find src include tests tools -name '*.h' -o -name '*.hpp' -o -name '*.cpp' -o -name '*.c' \
+            | xargs clang-format-18 --dry-run --Werror
+
+  linux:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install deps
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq zlib1g-dev libgtest-dev > /dev/null
+      - name: Configure + build + test (pure core, ASan)
+        run: |
+          cmake --preset linux-gcc
+          cmake --build --preset linux-gcc -j"$(nproc)"
+          ctest --preset linux-gcc
+
+  windows:
+    runs-on: windows-2022
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup vcpkg (builtin baseline, manifest)
+        uses: lukka/run-vcpkg@v11
+        with:
+          vcpkgDirectory: '${{ github.workspace }}/v'
+          vcpkgJsonGlob: 'vcpkg.json'
+      - name: Configure + build (Debug + Release)
+        run: |
+          cmake --preset win-x64-debug
+          cmake --build --preset win-x64-debug
+          cmake --preset win-x64-release
+          cmake --build --preset win-x64-release
+        env:
+          VCPKG_ROOT: ${{ github.workspace }}/v
+      - name: Tests
+        run: ctest --preset win-x64-release -C Release
+        env:
+          VCPKG_ROOT: ${{ github.workspace }}/v
+
+  codeql:
+    runs-on: windows-2022
+    permissions:
+      security-events: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: github/codeql-action/init@v3
+        with:
+          languages: cpp
+      - run: |
+          cmake -S . -B build/codeql -G "Visual Studio 17 2022" -A x64
+          cmake --build build/codeql --config Release
+        env:
+          VCPKG_ROOT: ${{ github.workspace }}/v
+      - uses: github/codeql-action/analyze@v3
