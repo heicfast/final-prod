@@ -16,6 +16,7 @@ add_executable(cr_tests
     unit/test_fat_volume.cpp
     unit/test_exfat_volume.cpp
     unit/test_ext4_volume.cpp
+    unit/test_hfsplus_volume.cpp
     unit/test_lostpart.cpp
     unit/test_sha256.cpp
     unit/test_carve.cpp
