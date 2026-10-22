@@ -54,6 +54,32 @@ jobs:
           $env:VCPKG_ROOT = $env:VCPKG_INSTALLATION_ROOT
           ctest --preset win-x64-release -C Release
 
+  fuzz:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - name: install clang + zlib
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq clang zlib1g-dev > /dev/null
+      - name: build fuzzers
+        run: make -C fuzz all CXX=clang++
+      - name: smoke campaign (45s per target, zero-crash gate)
+        run: make -C fuzz run CXX=clang++
+      - name: upload corpus on crash
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: fuzz-crash-corpus
+          path: |
+            fuzz/corpus
+            fuzz/build/*crash*
+            fuzz/build/*leak*
+            fuzz/build/*timeout*
+          retention-days: 7
+          if-no-files-found: ignore
+
   codeql:
     runs-on: windows-2022
     permissions:
