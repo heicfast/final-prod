@@ -295,3 +295,98 @@ TEST(CarveEngine, RegistryF8Gate) {
     EXPECT_EQ(validate_registry(&bad), 0u); /* the shipped table is clean */
     EXPECT_EQ(registry_size(), FMT_COUNT);
 }
+
+TEST(CarveEngine, PstAndRar5Grammar) {
+    auto img = std::vector<u8>(2ull << 20, 0);
+    /* --- Unicode PST: !BDN + MS + 0x17 + size@0xB8 + nonzero AMAP@0x1000 */
+    memcpy(img.data() + 4096, "!BDN", 4);
+    img[4096 + 4] = 0x4D; /* "MS" */
+    img[4096 + 5] = 0x53;
+    img[4096 + 0x0A] = 0x17;                       /* Unicode */
+    put32v(img, 4096 + 0xB8, 128 * 1024);          /* size 128K */
+    memset(img.data() + 4096 + 0x1000, 0xAA, 512); /* AMAP */
+
+    /* --- RAR5: sig + MAIN + FILE + ENDARC with vints */
+    size_t rar_at = 1ull << 20;
+    memcpy(img.data() + rar_at, "Rar!\x1A\x07\x01\x00", 8);
+    size_t p = rar_at + 8;
+    auto vint = [&](u64 v) {
+        while (v >= 0x80) {
+            img[p++] = u8(v | 0x80);
+            v >>= 7;
+        }
+        img[p++] = u8(v);
+    };
+    /* MAIN header: type 1, flags 0, hdr_size 4 (type+flags vints) */
+    put32v(img, p, 0); /* crc placeholder */
+    p += 4;
+    const size_t hstart = p;
+    vint(1); /* hdr_type MAIN */
+    vint(0); /* flags */
+    /* patch hdr_size into its own vint slot - it precedes the type; for
+     * the test we re-emit: size vint 1 byte (value 2) covers type+flags */
+    /* simpler: rewrite the block as [crc][size=2][type=1][flags=0] */
+    p = hstart;
+    vint(2); /* hdr_size = 2 bytes of header data follow */
+    vint(1); /* type MAIN */
+    vint(0); /* flags */
+    /* FILE header */
+    put32v(img, p, 0);
+    p += 4;
+    const size_t fh = p;
+    vint(2); /* placeholder hdr_size patched below */
+    const size_t fh_body = p;
+    vint(2);                   /* type FILE */
+    vint(2);                   /* flags: DATA_AREA */
+    vint(10);                  /* data_size 10 */
+    img[fh] = u8(p - fh_body); /* hdr_size vint (single byte value) */
+    p += 10;                   /* data area */
+    /* ENDARC */
+    put32v(img, p, 0);
+    p += 4;
+    const size_t eh = p;
+    vint(1); /* placeholder size */
+    const size_t eh_body = p;
+    vint(5); /* type ENDARC */
+    vint(0); /* flags */
+    img[eh] = u8(p - eh_body);
+    const u64 rar_end = p;
+
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"Lost Files");
+    CarveFlags flags;
+    flags.hash_small_files = false;
+    CarveStats stats;
+    u32 rc =
+        carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, stats);
+    ASSERT_EQ(rc, OK) << err_text(rc);
+    EXPECT_GE(stats.validated, 2u);
+
+    int pst = 0, rar5 = 0;
+    for (tree::FileNode* c = root->first_child(); c; c = c->next_sibling()) {
+        if (!c->props())
+            continue;
+        const std::string nm = c->name_utf8();
+        if (nm.find(".pst") != std::string::npos) {
+            ++pst;
+            EXPECT_EQ(4096u, c->props()->extents[0].offset);
+            EXPECT_EQ(u64(128 * 1024), c->props()->extents[0].length);
+        }
+        if (nm.find(".rar5") != std::string::npos) {
+            ++rar5;
+            EXPECT_EQ(rar_at, c->props()->extents[0].offset);
+            EXPECT_EQ(rar_end - rar_at, c->props()->extents[0].length);
+        }
+    }
+    EXPECT_EQ(1, pst);
+    EXPECT_EQ(1, rar5);
+
+    /* RAR5 must NOT match RAR4 (7-byte magic differs at byte 6) - the
+     * trial order tries RAR5 first; the RAR4 entry cannot also fire */
+    int rar4 = 0;
+    for (tree::FileNode* c = root->first_child(); c; c = c->next_sibling())
+        if (c->props() && c->name_utf8().find(".rar") == 0)
+            ++rar4;
+    EXPECT_EQ(0, rar4);
+}

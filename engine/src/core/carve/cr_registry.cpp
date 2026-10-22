@@ -26,6 +26,8 @@ CarveResult validate_mov(IStorageDevice* s, u64 hit, u64 cap);
 CarveResult validate_avi(IStorageDevice* s, u64 hit, u64 cap);
 CarveResult validate_mkv(IStorageDevice* s, u64 hit, u64 cap);
 CarveResult validate_rar4(IStorageDevice* s, u64 hit, u64 cap);
+CarveResult validate_pst(IStorageDevice* s, u64 hit, u64 cap);
+CarveResult validate_rar5(IStorageDevice* s, u64 hit, u64 cap);
 
 namespace {
 const Signature kTable[] = {
@@ -135,6 +137,26 @@ const Signature kTable[] = {
      800,
      validate_rar4,
      "RAR4"},
+    {FMT_PST,
+     "pst",
+     {'!', 'B', 'D', 'N'},
+     4,
+     0,
+     64ull << 10,
+     48ull << 30,
+     850,
+     validate_pst,
+     "Outlook PST"},
+    {FMT_RAR5,
+     "rar5",
+     {'R', 'a', 'r', '!', 0x1A, 0x07, 0x01, 0x00},
+     8,
+     0,
+     32, /* sig+main+endarc = 22-byte valid minimum */
+     4ull << 30,
+     850,
+     validate_rar5,
+     "RAR5"},
 };
 } // namespace
 

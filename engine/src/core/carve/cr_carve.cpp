@@ -29,9 +29,9 @@ constexpr u64 OVERLAP = 4096;      /* magic search continuity */
 constexpr u64 MAX_FILE_READ_FOR_HASH = 8ull << 20;
 
 /* trial order: most specific grammar first when magics coincide */
-constexpr u32 kTrialOrder[] = {FMT_DOCX,   FMT_ZIP, FMT_CR2, FMT_TIFF, FMT_MOV, FMT_MP4,
-                               FMT_HEIC,   FMT_JPG, FMT_PNG, FMT_WEBP, FMT_PDF, FMT_7Z,
-                               FMT_SQLITE, FMT_AVI, FMT_MKV, FMT_RAR4};
+constexpr u32 kTrialOrder[] = {FMT_DOCX,   FMT_ZIP, FMT_CR2, FMT_TIFF, FMT_MOV,  FMT_MP4,
+                               FMT_HEIC,   FMT_JPG, FMT_PNG, FMT_WEBP, FMT_PDF,  FMT_7Z,
+                               FMT_SQLITE, FMT_AVI, FMT_MKV, FMT_RAR5, FMT_RAR4, FMT_PST};
 constexpr u32 kTrialCount = sizeof(kTrialOrder) / sizeof(kTrialOrder[0]);
 
 /* Shared scan context (single-thread: one worker touches it; parallel:

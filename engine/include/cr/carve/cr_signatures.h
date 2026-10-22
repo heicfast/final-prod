@@ -35,6 +35,8 @@ enum FormatId : u32 {
     FMT_AVI,
     FMT_MKV,
     FMT_RAR4,
+    FMT_PST,
+    FMT_RAR5,
     FMT_COUNT
 };
 

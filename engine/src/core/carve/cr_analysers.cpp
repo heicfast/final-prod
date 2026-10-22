@@ -628,5 +628,136 @@ CarveResult validate_rar4(IStorageDevice* s, u64 hit, u64 cap) {
     return r;
 }
 
+/* ---- PST/OST: !BDN + version byte + NDB structure (corpus FilePSTAnalyser,
+ * validator FUN_180041eb0: version@+0x0A 0x0E=ANSI size@+0xA8, 0x17=Unicode
+ * size@+0xB8, floor 1 MiB; hardened with the wMagicClient gate and an
+ * allocation-map readability probe - PST carries Outlook mail) ---- */
+CarveResult validate_pst(IStorageDevice* s, u64 hit, u64 cap) {
+    CarveResult r;
+    u8 hdr[0x100];
+    if (!rd(s, hit, hdr, 0x100))
+        return r;
+    if (std::memcmp(hdr, "!BDN", 4) != 0)
+        return r;
+    const u16 magic_client = u16(hdr[4]) | (u16(hdr[5]) << 8);
+    if (magic_client != 0x534D) /* "MS" */
+        return r;
+    const u8 version = hdr[0x0A];
+    u64 size = 0;
+    if (version == 0x0E) {
+        size = rd32(s, hit + 0xA8); /* ANSI PST: u32 size */
+    } else if (version == 0x17) {
+        size = rd32(s, hit + 0xB8); /* Unicode PST/OST */
+    } else {
+        return r; /* unknown generation: reject (corpus floors others) */
+    }
+    if (size < (64ull << 10))
+        size = 1ull << 20; /* damaged header: corpus 1 MiB floor */
+    if (size > cap || hit + size > s->size())
+        size = s->size() > hit ? s->size() - hit : 0;
+    /* structural probe: the first allocation-map page (0x1000) must be
+     * readable and non-trivial (all-zero AMaps do not occur on real PSTs) */
+    u8 amap[512];
+    if (!rd(s, hit + 0x1000, amap, sizeof(amap)))
+        return r;
+    bool nonzero = false;
+    for (u8 b : amap)
+        if (b) {
+            nonzero = true;
+            break;
+        }
+    if (!nonzero)
+        return r;
+    r.ok = true;
+    r.end = hit + size;
+    r.confidence = 850;
+    r.note = "!BDN+NDB+AMAP";
+    return r;
+}
+
+/* ---- RAR5: signature + vint header walk to ENDARC (the og validators
+ * reject RAR5 entirely - clean-room improvement) ---- */
+namespace {
+bool rar5_vint(IStorageDevice* s, u64 at, u64& value, u64& consumed) {
+    value = 0;
+    consumed = 0;
+    for (u32 i = 0; i < 10; ++i) {
+        u8 b = 0;
+        if (!rd(s, at + i, &b, 1))
+            return false;
+        value |= u64(b & 0x7F) << (7 * i);
+        ++consumed;
+        if ((b & 0x80) == 0)
+            return true;
+    }
+    return false;
+}
+} // namespace
+
+CarveResult validate_rar5(IStorageDevice* s, u64 hit, u64 cap) {
+    CarveResult r;
+    u8 sig[8];
+    if (!rd(s, hit, sig, 8))
+        return r;
+    const u8 want[8] = {'R', 'a', 'r', '!', 0x1A, 0x07, 0x01, 0x00};
+    if (std::memcmp(sig, want, 8) != 0)
+        return r;
+    /* RAR5 block: crc32(4) | hdr_size vint | header (hdr_size bytes:
+     * type, flags, [extra-size][data-size], type fields, extra area) |
+     * data area. Flags: 0x0001 extra area, 0x0002 data area. */
+    u64 pos = hit + 8;
+    u32 blocks = 0;
+    u64 files = 0;
+    bool ended = false;
+    while (pos < hit + cap && blocks < 100000) {
+        u64 v = 0, used = 0;
+        u64 p2 = pos + 4; /* crc32 */
+        if (!rar5_vint(s, p2, v, used))
+            break;
+        const u64 vlen = used;
+        const u64 hdr_size = v;
+        p2 += used;
+        u64 hdr_type = 0;
+        if (!rar5_vint(s, p2, hdr_type, used))
+            break;
+        p2 += used;
+        u64 flags = 0;
+        if (!rar5_vint(s, p2, flags, used))
+            break;
+        p2 += used;
+        u64 data_size = 0;
+        if ((flags & 0x0001) != 0) { /* extra area size field */
+            if (!rar5_vint(s, p2, v, used))
+                break;
+            p2 += used; /* extra content lives inside hdr_size */
+        }
+        if ((flags & 0x0002) != 0) { /* data area size field */
+            if (!rar5_vint(s, p2, data_size, used))
+                break;
+            p2 += used;
+        }
+        if (hdr_type == 2)
+            ++files;         /* file header */
+        if (hdr_type == 5) { /* ENDARC */
+            ended = true;
+            pos = pos + 4 + vlen + hdr_size;
+            break;
+        }
+        if (hdr_size == 0)
+            break; /* degenerate */
+        pos = pos + 4 + vlen + hdr_size + data_size;
+        ++blocks;
+    }
+    if (!ended && files == 0)
+        return r;
+    r.ok = true;
+    r.end = pos > hit + cap ? hit + cap : pos;
+    if (r.end <= hit)
+        r.end = hit + 128;
+    r.confidence = ended ? 880 : 700;
+    r.note = ended ? "sig+header-walk+ENDARC" : "sig+file-headers";
+    return r;
+}
+
 } // namespace carve
 } // namespace cr
