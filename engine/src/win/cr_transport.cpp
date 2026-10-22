@@ -1,32 +1,96 @@
-/* cr_transport.cpp - Windows transports (RDA client + direct handles).
+/* cr_transport.cpp - Windows transports: full RDA driver client + direct handles.
+ *
+ * RDA wiring (rda-driver v0.2.0 contract):
+ *   - RdaClient: control-device IOCTLs (GET_INFO / GET_VERSION /
+ *     OPEN_TARGET structured opens, identity IOCTLs, copy-session protocol)
+ *   - legacy PID-token grammar opens (EPMNtDrv / EUEDKEPM wire compat)
+ *   - F11 unscale: ReadFile results through RDA handles are divided by
+ *     512 (the driver reports Information = Length * 512)
+ *   - reference duality (corpus Device.mo): driver path for locked/damaged
+ *     volumes + direct \\.\PhysicalDriveN / HarddiskVolumeN fallbacks
  *
  * Licensed under the MIT license. See LICENSE.
  */
 
 #include "cr/win/cr_transport.h"
-#include "cr/ntfs/cr_ntfs_wire.h" /* RdaComputePidToken-compatible impl below */
+#include "cr/win/cr_rda.h"
+#include "cr/table/cr_table_parse.h"
 #include <windows.h>
 #include <winioctl.h>
 #include <cstdio>
+#include <cstring>
 
 namespace cr {
 namespace win {
 
 namespace {
 
-/* PID token (rda-driver contract, both sides verified):
- *   b0 | (b0+b1)<<8 | (b1+b2)<<16 | (b2+b3)<<24 over the CALLING PID. */
-u32 pid_token() {
-    const u32 pid = GetCurrentProcessId();
-    const u8 b0 = u8(pid), b1 = u8(pid >> 8), b2 = u8(pid >> 16), b3 = u8(pid >> 24);
-    const auto add = [](unsigned a, unsigned b) -> unsigned { return (a + b) & 0xFF; };
-    return u32(b0) | (u32(add(b0, b1)) << 8) | (u32(add(b1, b2)) << 16) | (u32(add(b2, b3)) << 24);
+/* ---------------------------------------------------------------------------
+ * Shared geometry probing.
+ * ------------------------------------------------------------------------- */
+
+u32 u32_from_bytes_le(const u8* d) {
+    return u32(d[0]) | (u32(d[1]) << 8) | (u32(d[2]) << 16) | (u32(d[3]) << 24);
 }
 
-class HandleDevice final : public IStorageDevice {
+/* Exact byte length for volume AND disk handles (IOCTL_DISK_GET_LENGTH_INFO
+ * works on both; DISK_GEOMETRY_EX rounds to the disk geometry). */
+bool probe_length(HANDLE h, u64* out) {
+    GET_LENGTH_INFORMATION li = {};
+    DWORD br = 0;
+    if (DeviceIoControl(h, IOCTL_DISK_GET_LENGTH_INFO, nullptr, 0, &li, sizeof(li), &br, nullptr)) {
+        *out = u64(li.Length.QuadPart);
+        return true;
+    }
+    return false;
+}
+
+Geometry probe_geometry(HANDLE h, u64* out_size) {
+    Geometry g{};
+    DISK_GEOMETRY_EX dg = {};
+    DWORD br = 0;
+    u64 exact = 0;
+    const bool have_exact = probe_length(h, &exact);
+    if (DeviceIoControl(h, IOCTL_DISK_GET_DRIVE_GEOMETRY_EX, nullptr, 0, &dg, sizeof(dg), &br,
+                        nullptr)) {
+        g.logical_sector = dg.Geometry.BytesPerSector;
+        g.physical_sector = dg.Geometry.BytesPerSector;
+        /* corrected via the alignment query below (512e/4Kn) */
+        STORAGE_PROPERTY_QUERY q = {};
+        q.PropertyId = StorageAccessAlignmentProperty;
+        q.QueryType = PropertyStandardQuery;
+        u8 buf[4096];
+        if (DeviceIoControl(h, IOCTL_STORAGE_QUERY_PROPERTY, &q, sizeof(q), buf, sizeof(buf), &br,
+                            nullptr)) {
+            /* STORAGE_ACCESS_ALIGNMENT_DESCRIPTOR: BytesPerLogicalSector @8
+             * (u32), BytesPerPhysicalSector @12 (u32) */
+            const u8* d = buf;
+            g.logical_sector = u32_from_bytes_le(d + 8);
+            g.physical_sector = u32_from_bytes_le(d + 12);
+        } else {
+            g.physical_sector = g.logical_sector;
+        }
+        g.total_bytes = have_exact ? exact : u64(dg.DiskSize.QuadPart);
+        g.sector_count = g.total_bytes / (g.logical_sector ? g.logical_sector : 512);
+    } else if (have_exact) {
+        /* volume handles on some stacks: geometry IOCTL not forwarded */
+        g.logical_sector = 512;
+        g.physical_sector = 512;
+        g.total_bytes = exact;
+        g.sector_count = exact / 512;
+    }
+    if (out_size)
+        *out_size = g.total_bytes;
+    return g;
+}
+
+/* ---------------------------------------------------------------------------
+ * Direct (non-RDA) device: true byte counts from the IO manager.
+ * ------------------------------------------------------------------------- */
+class DirectDevice final : public IStorageDevice {
 public:
-    HandleDevice(HANDLE h, Geometry g) : h_(h), geom_(std::move(g)) {}
-    ~HandleDevice() override {
+    DirectDevice(HANDLE h, Geometry g) : h_(h), geom_(std::move(g)) {}
+    ~DirectDevice() override {
         if (h_ != INVALID_HANDLE_VALUE)
             CloseHandle(h_);
     }
@@ -35,13 +99,9 @@ public:
             return ERR_OPEN_FAILED;
         if (off > size() || len > size() - off)
             return ERR_RANGE_OUT_OF_BOUNDS;
-        /* overlapped reads at arbitrary offsets */
         OVERLAPPED ov = {};
         ov.Offset = u32(off);
         ov.OffsetHigh = u32(off >> 32);
-        /* the RDA driver contract reports Information = len*512; raw Win32
-         * handles report true byte counts - normalize by probing once:
-         * simplest correct path: use ReadFile and trust the returned count */
         DWORD got = 0;
         if (!ReadFile(h_, buf, len, &got, &ov)) {
             const DWORD e = GetLastError();
@@ -62,37 +122,6 @@ private:
     Geometry geom_;
 };
 
-Geometry probe_geometry(HANDLE h, u64* out_size) {
-    Geometry g{};
-    DISK_GEOMETRY_EX dg = {};
-    DWORD br = 0;
-    if (DeviceIoControl(h, IOCTL_DISK_GET_DRIVE_GEOMETRY_EX, nullptr, 0, &dg, sizeof(dg), &br,
-                        nullptr)) {
-        g.logical_sector = dg.Geometry.BytesPerSector;
-        g.physical_sector = dg.Geometry.BytesPerSector;
-        /* corrected via the alignment query below (512e/4Kn) */
-        STORAGE_PROPERTY_QUERY q = {};
-        q.PropertyId = StorageAccessAlignmentProperty;
-        q.QueryType = PropertyStandardQuery;
-        u8 buf[4096];
-        if (DeviceIoControl(h, IOCTL_STORAGE_QUERY_PROPERTY, &q, sizeof(q), buf, sizeof(buf), &br,
-                            nullptr)) {
-            /* STORAGE_ACCESS_ALIGNMENT_DESCRIPTOR: BytesPerLogicalSector @8
-             * (u32), BytesPerPhysicalSector @12 (u32) */
-            const u8* d = buf;
-            g.logical_sector = u32_from_bytes_le(d + 8);
-            g.physical_sector = u32_from_bytes_le(d + 12);
-        } else {
-            g.physical_sector = g.logical_sector;
-        }
-        g.sector_count = dg.DiskSize.QuadPart / (g.logical_sector ? g.logical_sector : 512);
-        g.total_bytes = dg.DiskSize.QuadPart;
-    }
-    if (out_size)
-        *out_size = g.total_bytes;
-    return g;
-}
-
 std::unique_ptr<IStorageDevice> open_path(const wchar_t* path, u32* err) {
     HANDLE h =
         CreateFileW(path, GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
@@ -103,41 +132,409 @@ std::unique_ptr<IStorageDevice> open_path(const wchar_t* path, u32* err) {
         return nullptr;
     }
     Geometry g = probe_geometry(h, nullptr);
-    if (g.logical_sector == 0) {
-        /* not a disk device (e.g. volume handle): derive from size */
+    if (g.total_bytes == 0) {
+        /* last resort for exotic handles: file-system size */
         LARGE_INTEGER sz = {};
-        GetFileSizeEx(h, &sz);
-        g.logical_sector = 512;
-        g.physical_sector = 512;
-        g.total_bytes = u64(sz.QuadPart);
-        g.sector_count = g.total_bytes / 512;
+        if (GetFileSizeEx(h, &sz) && sz.QuadPart > 0) {
+            g.logical_sector = 512;
+            g.physical_sector = 512;
+            g.total_bytes = u64(sz.QuadPart);
+            g.sector_count = g.total_bytes / 512;
+        }
     }
     if (err)
         *err = OK;
-    return std::unique_ptr<IStorageDevice>(new HandleDevice(h, g));
+    return std::unique_ptr<IStorageDevice>(new DirectDevice(h, g));
 }
 
-std::unique_ptr<IStorageDevice> open_rda_path(const wchar_t* service, const wchar_t* suffix,
-                                              u32* err) {
+/* ---------------------------------------------------------------------------
+ * RDA target device: bound handle with the F11 unscale.
+ * ------------------------------------------------------------------------- */
+class RdaTargetDevice final : public IStorageDevice {
+public:
+    RdaTargetDevice(HANDLE h, Geometry g) : h_(h), geom_(std::move(g)) {}
+    ~RdaTargetDevice() override {
+        if (h_ != INVALID_HANDLE_VALUE)
+            CloseHandle(h_);
+    }
+    u32 read_at(u64 off, void* buf, u32 len) override {
+        if (h_ == INVALID_HANDLE_VALUE)
+            return ERR_OPEN_FAILED;
+        if (off > size() || len > size() - off)
+            return ERR_RANGE_OUT_OF_BOUNDS;
+        if (len == 0)
+            return OK;
+        OVERLAPPED ov = {};
+        ov.Offset = u32(off);
+        ov.OffsetHigh = u32(off >> 32);
+        DWORD got = 0;
+        if (!ReadFile(h_, buf, len, &got, &ov)) {
+            const DWORD e = GetLastError();
+            if (e == ERROR_IO_PENDING) {
+                if (!GetOverlappedResult(h_, &ov, &got, TRUE))
+                    return ERR_READ_FAILED;
+            } else {
+                return ERR_READ_FAILED;
+            }
+        }
+        /* F11 contract: the driver reports Information = Length * 512. */
+        if (got == len * rda::kLegacyInformationScale)
+            return OK;
+        if (got == len)
+            return OK; /* future driver contract change: true counts */
+        return ERR_READ_FAILED;
+    }
+    const Geometry& geometry() const override { return geom_; }
+    u64 size() const { return geom_.total_bytes; }
+
+private:
+    HANDLE h_;
+    Geometry geom_;
+};
+
+} // namespace
+
+/* =========================================================================
+ * rda namespace: the driver client (declared in cr_rda.h).
+ * ======================================================================= */
+namespace rda {
+
+u32 compute_pid_token(u32 pid) {
+    const u8 b0 = u8(pid), b1 = u8(pid >> 8), b2 = u8(pid >> 16), b3 = u8(pid >> 24);
+    const auto add = [](unsigned a, unsigned b) -> unsigned { return (a + b) & 0xFF; };
+    return u32(b0) | (u32(add(b0, b1)) << 8) | (u32(add(b1, b2)) << 16) | (u32(add(b2, b3)) << 24);
+}
+
+std::wstring control_device_path(const wchar_t* service_name) {
+    std::wstring p = L"\\\\.\\";
+    p += service_name ? service_name : L"RDA";
+    return p;
+}
+
+RdaClient::RdaClient() = default;
+
+RdaClient::~RdaClient() {
+    if (info_mutex_) {
+        DeleteCriticalSection(static_cast<CRITICAL_SECTION*>(info_mutex_));
+        free(info_mutex_);
+    }
+    if (ctrl_ && ctrl_ != INVALID_HANDLE_VALUE)
+        CloseHandle(static_cast<HANDLE>(ctrl_));
+}
+
+void* RdaClient::open_bare_handle_(bool need_write) {
+    const std::wstring path = control_device_path(service_[0] ? service_ : L"RDA");
+    const DWORD access = need_write ? (GENERIC_READ | GENERIC_WRITE) : GENERIC_READ;
+    HANDLE h = CreateFileW(path.c_str(), access, FILE_SHARE_READ | FILE_SHARE_WRITE, nullptr,
+                           OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr);
+    if (h == INVALID_HANDLE_VALUE && need_write)
+        h = CreateFileW(path.c_str(), GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE, nullptr,
+                        OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr);
+    return (h == INVALID_HANDLE_VALUE) ? nullptr : static_cast<void*>(h);
+}
+
+std::unique_ptr<RdaClient> RdaClient::open(const wchar_t* service_name, u32* err) {
+    auto client = std::unique_ptr<RdaClient>(new RdaClient());
+    if (service_name && service_name[0]) {
+        wcsncpy_s(client->service_, 64, service_name, _TRUNCATE);
+    } else {
+        wcscpy_s(client->service_, 64, L"RDA");
+    }
+    client->ctrl_ = client->open_bare_handle_(true);
+    if (!client->ctrl_) {
+        if (err)
+            *err = ERR_OPEN_FAILED;
+        return nullptr;
+    }
+    client->info_mutex_ = malloc(sizeof(CRITICAL_SECTION));
+    InitializeCriticalSection(static_cast<CRITICAL_SECTION*>(client->info_mutex_));
+
+    DriverInfo info = {};
+    if (client->query_info(&info)) {
+        client->info_ = info;
+        client->have_info_ = true;
+        client->ioctl_base_ = info.ioctl_base;
+    }
+    if (err)
+        *err = OK;
+    return client;
+}
+
+bool RdaClient::ctl_ioctl(u32 code, void* in, u32 in_len, void* out, u32 out_len, u32* info_out) {
+    if (!ctrl_ || !info_mutex_)
+        return false;
+    /* Control-handle IOCTLs serialize (one CRITICAL_SECTION for all). */
+    EnterCriticalSection(static_cast<CRITICAL_SECTION*>(info_mutex_));
+    DWORD br = 0;
+    const BOOL ok = DeviceIoControl(static_cast<HANDLE>(ctrl_), code, in, in_len, out, out_len, &br,
+                                    nullptr);
+    LeaveCriticalSection(static_cast<CRITICAL_SECTION*>(info_mutex_));
+    if (info_out)
+        *info_out = br;
+    return ok != FALSE;
+}
+
+bool RdaClient::query_info(DriverInfo* out) {
+    DriverInfo di = {};
+    if (!ctl_ioctl(kIoctlGetInfo, nullptr, 0, &di, sizeof(di), nullptr))
+        return false;
+    if (di.struct_size == 0 || di.struct_size > sizeof(di) * 4)
+        return false;
+    if (out)
+        *out = di;
+    return true;
+}
+
+bool RdaClient::query_version(u64* out) {
+    u64 v = 0;
+    if (!ctl_ioctl(kIoctlGetVersion, nullptr, 0, &v, sizeof(v), nullptr))
+        return false;
+    if (out)
+        *out = v;
+    return true;
+}
+
+std::unique_ptr<IStorageDevice> RdaClient::open_target(u32 kind, u32 disk, u32 part, u32 volume,
+                                                       u32* err) {
+    /* A bound handle is one bare handle + one OPEN_TARGET - the driver
+     * binds FsContext2 on THAT handle. Open a fresh bare handle so the
+     * client's control handle stays global-mode. */
+    HANDLE h = static_cast<HANDLE>(open_bare_handle_(false));
+    if (!h) {
+        if (err)
+            *err = ERR_OPEN_FAILED;
+        return nullptr;
+    }
+    OpenTargetIn in = {};
+    in.struct_size = sizeof(in);
+    in.kind = kind;
+    in.disk_number = disk;
+    in.part_number = part;
+    in.volume_number = volume;
+    DWORD br = 0;
+    if (!DeviceIoControl(h, kIoctlOpenTarget, &in, sizeof(in), nullptr, 0, &br, nullptr)) {
+        CloseHandle(h);
+        if (err)
+            *err = ERR_OPEN_FAILED;
+        return nullptr;
+    }
+    Geometry g = probe_geometry(h, nullptr);
+    if (g.total_bytes == 0) {
+        CloseHandle(h);
+        if (err)
+            *err = ERR_OPEN_FAILED;
+        return nullptr;
+    }
+    if (err)
+        *err = OK;
+    return std::unique_ptr<IStorageDevice>(new RdaTargetDevice(h, g));
+}
+
+namespace {
+
+/* Wrap a grammar-path target: \\.\SVC\<token><suffix>. */
+std::unique_ptr<IStorageDevice> wrap_grammar_target(const wchar_t* service, const wchar_t* suffix,
+                                                    u32* err) {
     wchar_t path[256];
-    const u32 tok = pid_token();
+    const u32 tok = compute_pid_token(GetCurrentProcessId());
     _snwprintf_s(path, 256, _TRUNCATE, L"\\\\.\\%s\\%u%s", service, tok, suffix);
-    return open_path(path, err);
+    HANDLE h = CreateFileW(path, GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
+                           nullptr, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr);
+    if (h == INVALID_HANDLE_VALUE) {
+        if (err)
+            *err = ERR_OPEN_FAILED;
+        return nullptr;
+    }
+    Geometry g = probe_geometry(h, nullptr);
+    if (g.total_bytes == 0) {
+        CloseHandle(h);
+        if (err)
+            *err = ERR_OPEN_FAILED;
+        return nullptr;
+    }
+    if (err)
+        *err = OK;
+    return std::unique_ptr<IStorageDevice>(new RdaTargetDevice(h, g));
 }
 
 } // namespace
 
+std::unique_ptr<IStorageDevice> RdaClient::open_disk_grammar(u32 disk, u32 part, u32* err) {
+    wchar_t suffix[64];
+    _snwprintf_s(suffix, 64, _TRUNCATE, L"\\%u\\%u", disk, part);
+    return wrap_grammar_target(service_[0] ? service_ : L"RDA", suffix, err);
+}
+
+std::unique_ptr<IStorageDevice> RdaClient::open_volume_grammar(u32 volume, u32* err) {
+    wchar_t suffix[64];
+    _snwprintf_s(suffix, 64, _TRUNCATE, L"\\Volume\\%u", volume);
+    return wrap_grammar_target(service_[0] ? service_ : L"RDA", suffix, err);
+}
+
+bool RdaClient::get_proc_name(u32 pid, wchar_t* out, u32 out_chars) {
+    if (!out || out_chars == 0)
+        return false;
+    u32 in = pid;
+    std::vector<wchar_t> buf(kIdentMinOutLen / 2 + 1, 0);
+    if (!ctl_ioctl(kIoctlGetProcName, &in, kIdentInLen, buf.data(), kIdentMinOutLen, nullptr))
+        return false;
+    wcsncpy_s(out, out_chars, buf.data(), _TRUNCATE);
+    return true;
+}
+
+u64 RdaClient::session_open(u32 disk_id, u64 data_first_sec, u64 total_secs, u32* spb_out,
+                            u32* sector_size_out, u32* err) {
+    OpenSession os = {};
+    os.disk_id = disk_id;
+    os.data_first_sec = data_first_sec;
+    os.total_secs = total_secs;
+    os.bitmap_size = 1; /* one full-range block-map region */
+    os.bitmap_count = 1;
+    os.spb_in_out = 0;  /* auto */
+    const u32 code = kSessOpenSession + ioctl_base_;
+    if (!ctl_ioctl(code, &os, sizeof(os), &os, sizeof(os), nullptr)) {
+        if (err)
+            *err = ERR_OPEN_FAILED;
+        return 0;
+    }
+    if (spb_out)
+        *spb_out = os.spb_in_out;
+    if (sector_size_out)
+        *sector_size_out = os.sector_size;
+    session_sector_size_ = os.sector_size ? os.sector_size : 512;
+    if (err)
+        *err = OK;
+    return os.session_handle;
+}
+
+bool RdaClient::session_flush(u64 handle) {
+    SessionHandleIn in = {handle};
+    return ctl_ioctl(kSessSessionOp + ioctl_base_, &in, sizeof(in), nullptr, 0, nullptr);
+}
+
+bool RdaClient::session_start_backup(u64 handle, void* pump_buffer, u32 pump_bytes, u64 start_sec,
+                                     u32 block_count, u32 spb, const u8* user_bitmap) {
+    StartBackupIn in = {};
+    in.handle = handle;
+    in.pump_buffer = reinterpret_cast<u64>(pump_buffer);
+    in.pump_bytes = pump_bytes;
+    in.user_bitmap = reinterpret_cast<u64>(user_bitmap);
+    in.start_sec = u32(start_sec);
+    in.block_count = block_count;
+    in.spb = spb;
+    pump_bytes_ = pump_bytes;
+    return ctl_ioctl(kSessSessionOp2 + ioctl_base_, &in, sizeof(in), nullptr, 0, nullptr);
+}
+
+bool RdaClient::session_get_next_block(u64 handle, u64 cursor_sec, u32 max_sec, u64* next_cursor,
+                                       u8* progress, bool* stream_done, u32* err) {
+    GetNextBlock io = {};
+    io.handle = handle;
+    io.cursor_sec = cursor_sec;
+    io.max_sec = max_sec;
+    if (!ctl_ioctl(kSessGetNextBlock + ioctl_base_, &io, sizeof(io), &io, sizeof(io), nullptr)) {
+        /* Stream end / no plan / finalized: the driver completes pending
+         * pumps with 0xC0000120 - that is the "pump drained" signal, not a
+         * hard failure. */
+        if (stream_done)
+            *stream_done = true;
+        if (progress)
+            *progress = 100;
+        if (next_cursor)
+            *next_cursor = 0;
+        if (err)
+            *err = OK;
+        return true;
+    }
+    if (progress)
+        *progress = u8(io.progress);
+    /* The worker pumps min(max_sec, plan-remaining, pump_capacity) sectors
+     * into the registered buffer; the client knows pump capacity. */
+    const u32 pump_secs = session_sector_size_ ? (pump_bytes_ / session_sector_size_) : 0;
+    const u32 granted = pump_secs && pump_secs < max_sec ? pump_secs : max_sec;
+    if (next_cursor)
+        *next_cursor = cursor_sec + granted;
+    if (stream_done)
+        *stream_done = false;
+    if (err)
+        *err = OK;
+    return true;
+}
+
+bool RdaClient::session_finalize(u64 handle, u32* percent_out) {
+    u8 io[kGetProgressOutLen] = {};
+    memcpy(io, &handle, sizeof(handle)); /* handle @+0; percent lands @+8 */
+    u32 br = 0;
+    if (!ctl_ioctl(kSessGetProgress + ioctl_base_, io, kGetProgressOutLen, io, kGetProgressOutLen,
+                   &br))
+        return false;
+    if (percent_out)
+        *percent_out = u32_from_bytes_le(io + 8);
+    return true;
+}
+
+bool RdaClient::session_cancel(u64 handle) {
+    SessionHandleIn in = {handle};
+    return ctl_ioctl(kSessCancel + ioctl_base_, &in, sizeof(in), nullptr, 0, nullptr);
+}
+
+bool RdaClient::session_close(u64 handle) {
+    SessionHandleIn in = {handle};
+    return ctl_ioctl(kSessCloseSession + ioctl_base_, &in, sizeof(in), nullptr, 0, nullptr);
+}
+
+} // namespace rda
+
+/* =========================================================================
+ * Public transport API (cr_transport.h).
+ * ======================================================================= */
+
 std::unique_ptr<IStorageDevice> open_rda_partition(const wchar_t* service_name, u32 disk, u32 part,
                                                    u32* err) {
     wchar_t suffix[64];
-    _snwprintf_s(suffix, 64, _TRUNCATE, L"\\%u\\%u", disk, part);
-    return open_rda_path(service_name, suffix, err);
+    const u32 tok = rda::compute_pid_token(GetCurrentProcessId());
+    wchar_t path[256];
+    _snwprintf_s(path, 256, _TRUNCATE, L"\\\\.\\%s\\%u\\%u\\%u", service_name, tok, disk, part);
+    HANDLE h = CreateFileW(path, GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
+                           nullptr, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr);
+    if (h == INVALID_HANDLE_VALUE) {
+        if (err)
+            *err = ERR_OPEN_FAILED;
+        return nullptr;
+    }
+    Geometry g = probe_geometry(h, nullptr);
+    if (g.total_bytes == 0) {
+        CloseHandle(h);
+        if (err)
+            *err = ERR_OPEN_FAILED;
+        return nullptr;
+    }
+    if (err)
+        *err = OK;
+    return std::unique_ptr<IStorageDevice>(new RdaTargetDevice(h, g));
 }
 
 std::unique_ptr<IStorageDevice> open_rda_volume(const wchar_t* service_name, u32 volume, u32* err) {
-    wchar_t suffix[64];
-    _snwprintf_s(suffix, 64, _TRUNCATE, L"\\Volume\\%u", volume);
-    return open_rda_path(service_name, suffix, err);
+    const u32 tok = rda::compute_pid_token(GetCurrentProcessId());
+    wchar_t path[256];
+    _snwprintf_s(path, 256, _TRUNCATE, L"\\\\.\\%s\\%u\\Volume\\%u", service_name, tok, volume);
+    HANDLE h = CreateFileW(path, GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
+                           nullptr, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr);
+    if (h == INVALID_HANDLE_VALUE) {
+        if (err)
+            *err = ERR_OPEN_FAILED;
+        return nullptr;
+    }
+    Geometry g = probe_geometry(h, nullptr);
+    if (g.total_bytes == 0) {
+        CloseHandle(h);
+        if (err)
+            *err = ERR_OPEN_FAILED;
+        return nullptr;
+    }
+    if (err)
+        *err = OK;
+    return std::unique_ptr<IStorageDevice>(new RdaTargetDevice(h, g));
 }
 
 std::unique_ptr<IStorageDevice> open_physical_drive(u32 disk, u32* err) {
@@ -153,18 +550,20 @@ std::unique_ptr<IStorageDevice> open_harddisk_volume(u32 volume, u32* err) {
 }
 
 bool rda_available(const wchar_t* service_name) {
-    u32 e = 0;
-    wchar_t suffix[16];
-    _snwprintf_s(suffix, 16, _TRUNCATE, L"\\%u", 0); /* whole-disk form: \\.\SVC\tok\0 */
-    /* probing disk 0 via the 2-segment grammar */
-    auto dev = open_rda_partition(service_name, 0, 0, &e);
-    return dev != nullptr;
+    const std::wstring path = rda::control_device_path(service_name);
+    HANDLE h = CreateFileW(path.c_str(), GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE, nullptr,
+                           OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr);
+    if (h == INVALID_HANDLE_VALUE)
+        return false;
+    CloseHandle(h);
+    return true;
 }
 
 std::unique_ptr<IStorageDevice> open_disk(u32 disk, bool prefer_rda, const wchar_t* service,
                                           u32* err) {
     if (prefer_rda) {
-        /* RDA first (locked volumes), direct fallback (reference duality) */
+        /* RDA first (locked volumes, damaged media), direct fallback
+         * (reference duality - Device.mo). */
         u32 e = 0;
         if (auto dev = open_rda_partition(service, disk, 0, &e))
             return dev;
@@ -186,14 +585,34 @@ bool volume_letter_to_disk(wchar_t letter, u32* disk, u32* part) {
     if (DeviceIoControl(h, IOCTL_VOLUME_GET_VOLUME_DISK_EXTENTS, nullptr, 0, ext, sizeof(ext), &br,
                         nullptr) &&
         ext->NumberOfDiskExtents >= 1) {
+        const u32 dn = u32(ext->Extents[0].DiskNumber);
+        const u64 off = u64(ext->Extents[0].StartingOffset.QuadPart);
+        CloseHandle(h);
+        h = INVALID_HANDLE_VALUE;
         if (disk)
-            *disk = ext->Extents[0].DiskNumber;
-        if (part)
-            *part = u32(ext->Extents[0].StartingOffset.QuadPart >> 20); /* approx;
-      corrected by callers via parse_disk_table when exact numbers matter */
+            *disk = dn;
+        if (part) {
+            /* Exact partition number: match the extent start against the
+             * disk's parsed table (GPT entries / MBR-EBR chain). */
+            *part = 0;
+            u32 e = 0;
+            if (auto dev = open_physical_drive(dn, &e)) {
+                table::DiskTable t;
+                if (table::parse_disk_table(dev.get(), t) == OK) {
+                    const Geometry& g = dev->geometry();
+                    for (size_t i = 0; i < t.partitions.size(); ++i) {
+                        if (t.partitions[i].start_lba * g.logical_sector == off) {
+                            *part = u32(i + 1); /* Windows numbers from 1 */
+                            break;
+                        }
+                    }
+                }
+            }
+        }
         ok = true;
     }
-    CloseHandle(h);
+    if (h != INVALID_HANDLE_VALUE)
+        CloseHandle(h);
     return ok;
 }
 

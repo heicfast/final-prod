@@ -7,6 +7,7 @@ add_library(cr_core STATIC
     storage/cr_devmap.cpp
     storage/cr_slice.cpp
     storage/cr_cached.cpp
+    storage/cr_retry.cpp
     table/cr_crc32.cpp
     table/cr_table_parse.cpp
     ntfs/cr_fixup.cpp

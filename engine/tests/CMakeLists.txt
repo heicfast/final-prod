@@ -9,6 +9,7 @@ add_executable(cr_tests
     unit/test_crc32_gpt.cpp
     unit/test_slice_devmap.cpp
     unit/test_cached.cpp
+    unit/test_retry.cpp
     unit/test_node_tree.cpp
     unit/test_ntfs_volume.cpp
     unit/test_fat_volume.cpp
