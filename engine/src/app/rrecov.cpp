@@ -704,8 +704,8 @@ int cmd_health(int argc, wchar_t** argv, int& i) {
     }
 
     /* SMART via ATA passthrough */
-    health::SmartReport sm;
-    u32 rc = health::read_smart(h, sm);
+    win::health::SmartReport sm;
+    u32 rc = win::health::read_smart(h, sm);
     if (rc == OK && sm.available) {
         wprintf(L"SMART (%hs): ATA version %u, %zu attribute(s)\n", sm.transport.c_str(),
                 sm.ata_version, sm.attributes.size());
@@ -730,8 +730,8 @@ int cmd_health(int argc, wchar_t** argv, int& i) {
     }
 
     /* NVMe health */
-    health::NvmeHealth nv;
-    rc = health::read_nvme_health(h, nv);
+    win::health::NvmeHealth nv;
+    rc = win::health::read_nvme_health(h, nv);
     if (rc == OK && nv.available) {
         wprintf(L"NVMe health: temp=%u.%uC spare=%u%%/threshold=%u%% used=%llu%%\n",
                 u32(nv.temperature_k) - 273, (u32(nv.temperature_k) % 10), nv.available_spare,
@@ -749,9 +749,9 @@ int cmd_health(int argc, wchar_t** argv, int& i) {
 
     /* media class + TRIM */
     wprintf(L"seek-penalty (SSD heuristics): %hs\n",
-            health::looks_like_ssd(h) ? "none (SSD-like)" : "present (rotational?)");
+            win::health::looks_like_ssd(h) ? "none (SSD-like)" : "present (rotational?)");
     bool trim = false;
-    if (health::query_trim_state(trim) == OK)
+    if (win::health::query_trim_state(trim) == OK)
         wprintf(L"TRIM: %hs%s\n", trim ? "enabled" : "disabled",
                 trim ? " (WARNING: TRIM erases deleted data on SSDs - disable before recovery)"
                      : "");
