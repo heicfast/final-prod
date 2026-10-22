@@ -99,3 +99,14 @@ base recovery wizard. Nothing here is optional; nothing here may be shipped as a
 - Every constant that exists on disk (magics, type codes, limits) is asserted against
   the RE corpus and cited in docs/ground-truth-contracts.md.
 - Reference design defects carry an F-number in docs/error-fix-registry.md and a test.
+
+## v0.2 additions (scope corrections per the project decision)
+
+The v0.1 'deferred' list included several LOCAL features that the v0.2
+scope decision moved INTO the core (only REMOTE features stay deferred:
+NAS/cloud/RAID/VM). Implemented in v0.2: RawFixer-class transactional
+repair (cr::repair), SMART disk health (cr::win::health), the
+ext4/HFS+/Btrfs/ZFS/ReFS engines, LDM recognition, PST/OST + RAR5
+analysers, the extended carve set (30 formats), the RDA driver transport
+with bad-sector isolation, parallel scanning, and the benchmark +
+EaseUS-comparison workflows.

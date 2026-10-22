@@ -1,6 +1,6 @@
 # Roadmap
 
-## v0.1 (this release) - the engine layer
+## v0.1 (shipped) - the engine layer
 - Device/partition layer: enumeration, geometry (4Kn/512e), GPT/MBR/EBR,
   PartitionSlice, read-error map. DONE
 - NTFS engine: bootstrap, MFT parser, fixups, $ATTRIBUTE_LIST, hard links,
@@ -14,15 +14,51 @@
 - BitLocker-aware handling: detect + legitimate unlock only. DONE
 - Windows platform layer + rrecov CLI. DONE
 
-## v0.2
-- Wizard UI (the DRWUI-equivalent surface) on the engine layer
-- PST/OST carving after robust validation; RAR5; more RAW formats
-- LDM/Dynamic disk recognition; ReFS detection (report-only)
-- benchmark harness + regression baselines
-- fuzzing campaigns on the parsers (structure-aware, libFuzzer)
-- Windows-7-inclusive runtime test matrix vs the RDA driver CI
+## v0.2 (shipped) - the complete core
+- Parallelism: worker pool, thread-safe result tree, parallel carve /
+  remnant sweeps / lost-partition candidates (mirrors the corpus model:
+  engines single-threaded per unit, the host fans units out). DONE
+- Full RDA driver integration: transport with the F11 Information=Lengthx512
+  contract, GET_INFO/OPEN_TARGET/GET_VERSION IOCTLs, bad-sector-isolating
+  retry layer with ReadErrorMap. DONE
+- ext2/3/4 engine (superblock gate, GDT, extents, deleted sweep, journal
+  salvage). DONE
+- HFS+/HFSX engine (catalog B-tree, forks, overflow extents, freed-node
+  orphan sweep). DONE
+- Btrfs engine (mirror superblock select, chunk mapping, subvolume trees). DONE
+- ZFS engine (label nvlist, uberblock ring, MOS/DSL/ZPL walk). DONE
+- ReFS FULL engine (MSB-chain reconstruction: superblock -> dual
+  checkpoints -> ObjectID table -> directory tables -> embedded file
+  tables -> $DATA data runs; ID2 + deleted harvest; allocator-bitmap
+  viability grading). DONE
+- PST/OST analyser (robust validation) + RAR5 analyser. DONE
+- Carve format set extended to 30 (DNG/ORF/RAF/RW2/PSD/MP3/WAV/M4A/ASF/
+  FLV/CAB/ISO added). DONE
+- RawFixer: transactional filesystem repair (NTFS/FAT/exFAT boot repair,
+  checksum recompute, geometry rederivation; S1-S6 safety standard;
+  sector-coalesced writes, full rollback, durable undo log). DONE
+- SMART disk health (ATA passthrough, NVMe health log, TRIM state, SSD
+  heuristics) + `rrecov health`. DONE
+- LDM dynamic-disk recognition. DONE
+- `rrecov fix` / `rrecov bench` commands. DONE
+- Structure-aware fuzzing: 4 libFuzzer targets (pure primitives, engines,
+  carve pipeline, session containers) + CI fuzz job. DONE
+- Recovery benchmark (benchmark.yml): seeded VHD, RDA driver, ground-truth
+  recall/precision scoring across recycle/permanent/wipe/folder scenarios. DONE
+- EaseUS comparison (comparison.yml): og DRW vs rrecov on the same seeded
+  disk, .rsf extraction (byte-exact validated), side-by-side reports. DONE
+- Full-codebase security audit: all P0/P1/P2 findings fixed (session
+  deserialization OOB, GPT CRC length walk, NTFS resident-attribute wraps,
+  ZFS nblkptr, ext4 extent bounds, exFAT recursion depth, decompression
+  bomb, rollback integrity, DoS caps). DONE
 
-## Deferred (by decision)
-- NAS redirector (EuMrx), filesystem repair writers (RawFixer-class),
-  RAID/VM/cloud, ext4/HFS+/Btrfs/ZFS engines, file repair tools,
-  full-disk decryption of any kind.
+## v0.3 candidates
+- Wizard UI (the DRWUI-equivalent surface) on the engine layer
+- File repair tools (video/PDF/office) - corpus Fixo chain
+- WinPE boot media builder
+- Surface test / disk wipe utilities (ToolsModule-class)
+
+## Deferred (by decision - REMOTE features only)
+- NAS redirector (EuMrx-class) and cloud recovery (cloud_session/EuICloud)
+- RAID reconstruction, VM/image formats
+- Full-disk decryption of any kind

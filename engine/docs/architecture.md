@@ -1,7 +1,7 @@
 # Architecture
 
-> Status: v0.1 - the base recovery wizard engine layer. See docs/roadmap.md
-> for what ships next.
+> Status: v0.2 - the complete core engine layer (all local filesystems,
+> repair, health, benchmarking). See docs/roadmap.md for what ships next.
 
 ## 1. Layering
 
@@ -14,8 +14,11 @@ orchestrator (cr::orchestrator)             staged pipeline, sessions, merge
    │  (live metadata)  (deleted+remnants+   (grammar carving, dedup F9)
    │                    lost partitions)
    ▼
-engines (cr::ntfs / cr::fat / cr::exfat / cr::lost / cr::carve)
+engines (cr::ntfs / cr::fat / cr::exfat / cr::ext4 / cr::hfsplus /
+   cr::btrfs / cr::zfs / cr::refs / cr::lost / cr::carve / cr::repair)
    │ pure logic - identical on Linux CI and Windows
+   │ + cr::cr_parallel worker pool (thread-safe tree; parallel carve,
+   │   remnant sweeps, lost-partition candidates)
    ▼
 result graph (cr::tree) + sessions (cr::session)   + writer (cr::recovery)
    │ dual-class FileNode/FullNode                   CRSF chunked-zlib      DestIo
