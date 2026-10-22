@@ -154,3 +154,19 @@ Task: CI matrix GREEN + full docs + release pipeline.
   benchmarking.
 - Release pipeline: tag-triggered; builds + tests + stages rrecov.exe,
   docs, pdb, SHA256SUMS; gh-release upload.
+
+---
+Task ID: 11 (final)
+Task: v0.1.0 released.
+
+- Release pipeline green on the v0.1.0 tag: rrecov.exe + pdb + docs +
+  SHA256SUMS published as rrecov-v0.1.0.zip (109,355 B).
+- Final state: 22 commits, 102 tracked files; CI matrix green on HEAD
+  (lint, linux+ASan 54/54, windows MSVC /W4 /WX full stack, codeql).
+- rda-driver synced (benchmark parity work landed there; no wire-contract
+  changes - our transport layer unaffected).
+
+Stage Summary: core_recovery v0.1.0 - the complete base recovery engine
+layer: R1 device/partition, R2 NTFS, R3 lost partitions, R4 carving,
+R5 FAT/exFAT, R6 orchestration+sessions, R7 safe writer, R8 BitLocker-aware.
+Wizard UI + extended formats + benchmarks follow per docs/roadmap.md.
