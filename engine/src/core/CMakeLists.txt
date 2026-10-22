@@ -25,6 +25,7 @@ add_library(cr_core STATIC
     ext4/cr_ext4_engine.cpp
     hfsplus/cr_hfsplus_engine.cpp
     btrfs/cr_btrfs_engine.cpp
+    zfs/cr_zfs_engine.cpp
     lost/cr_candidates.cpp
     crypto/cr_sha256.cpp
     carve/cr_registry.cpp

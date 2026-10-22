@@ -18,6 +18,7 @@ add_executable(cr_tests
     unit/test_ext4_volume.cpp
     unit/test_hfsplus_volume.cpp
     unit/test_btrfs_volume.cpp
+    unit/test_zfs_volume.cpp
     unit/test_lostpart.cpp
     unit/test_sha256.cpp
     unit/test_carve.cpp
