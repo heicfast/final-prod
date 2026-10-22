@@ -25,7 +25,7 @@ cr::ntfs::RunList g_rl;
 } // namespace
 
 extern "C" int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size) {
-    if (size < 3)
+    if (size < 5) /* case 0 reads buf[0..3]; len = size-1 */
         return 0;
     const uint8_t sel = data[0];
     const uint8_t* buf = data + 1;

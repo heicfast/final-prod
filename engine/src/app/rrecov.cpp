@@ -752,7 +752,7 @@ int cmd_health(int argc, wchar_t** argv, int& i) {
             win::health::looks_like_ssd(h) ? "none (SSD-like)" : "present (rotational?)");
     bool trim = false;
     if (win::health::query_trim_state(trim) == OK)
-        wprintf(L"TRIM: %hs%s\n", trim ? "enabled" : "disabled",
+        wprintf(L"TRIM: %hs%hs\n", trim ? "enabled" : "disabled",
                 trim ? " (WARNING: TRIM erases deleted data on SSDs - disable before recovery)"
                      : "");
     CloseHandle(h);
