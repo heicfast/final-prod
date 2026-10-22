@@ -186,13 +186,16 @@ struct Volume {
 
 /* Decode one extent-tree node buffer (block_size bytes) at depth; appends
  * resolved slice-relative extents. Returns false on structural break. */
-bool walk_extent_node(Volume& v, const u8* node, u32 depth, u64 max_blocks,
+bool walk_extent_node(Volume& v, const u8* node, u32 depth, u64& max_blocks,
                       std::vector<Extent>& out, u32 level) {
+    if (max_blocks == 0)
+        return false; /* P1-11: global node-read budget spent */
+    --max_blocks;
     if (rd16(node) != EXT4_EXT_MAGIC)
         return false;
     const u16 entries = rd16(node + 2);
-    if (entries > 340) /* block_size/12 bound */
-        return false;
+    if (u32(entries) > (v.sb.block_size - 12) / 12) /* per-node entry bound */
+        return false; /* P0-5: bound must follow the actual block size */
     if (level > EXTENT_DEPTH_LIMIT)
         return false;
     const u8* body = node + 12;
@@ -265,12 +268,13 @@ bool read_inode(Volume& v, u32 ino, InodeView& iv) {
     if (v.sb.rev_level >= 1 && v.sb.inode_size >= 0x80)
         iv.crtime = i64(rd32(raw + 0x94));
 
+    u64 budget = 65536; /* P1-11: per-inode node-read budget */
     if ((iv.flags & EXTENTS_FL) != 0) {
         std::vector<u8> node(size_t(v.sb.block_size));
         /* the extent root lives inline in i_block[15] (60 bytes) */
         std::memcpy(node.data(), raw + I_BLOCK, 60);
         const u16 depth = rd16(node.data() + 6);
-        if (!walk_extent_node(v, node.data(), depth, v.sb.blocks_count, iv.extents, 0))
+        if (!walk_extent_node(v, node.data(), depth, budget, iv.extents, 0))
             iv.extents_ok = false;
     } else if (ifmt(iv.mode) == 0x8000 || ifmt(iv.mode) == 0x4000) {
         /* ext2/3 indirect blocks: single + double indirection (files < 64KiB

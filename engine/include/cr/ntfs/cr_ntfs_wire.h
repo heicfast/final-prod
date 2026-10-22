@@ -230,8 +230,11 @@ inline u64 ntfs_time_to_unix_ns(u64 t100) {
 inline u64 record_size_from_dbr(const BootSector& bs, u32 bytes_per_sector) {
     if (bs.clusters_per_record > 0)
         return static_cast<u64>(bs.clusters_per_record) * bs.sectors_per_cluster * bytes_per_sector;
-    if (bs.clusters_per_record < 0)
+    if (bs.clusters_per_record < 0) {
+        if (-bs.clusters_per_record > 20) /* P1-4: shift-UB guard, 1 MiB cap */
+            return 0;
         return 1ULL << (-bs.clusters_per_record);
+    }
     return 0;
 }
 

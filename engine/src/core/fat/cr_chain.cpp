@@ -278,7 +278,7 @@ u32 validate_boot(const u8* sector512, u64 device_bytes, FatParams& out) {
         /* root dir is a cluster chain; first_data computed below */
         p.root_dir_offset = 0;
     }
-    p.first_data_sector = p.reserved_sectors + u32(fat_area) + root_sectors;
+    p.first_data_sector = u64(p.reserved_sectors) + fat_area + root_sectors; /* P1-15: u64 */
     if (p.first_data_sector >= total)
         return ERR_BAD_PARAMETER;
     const u32 data_sectors = total - u32(p.first_data_sector);

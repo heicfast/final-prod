@@ -439,13 +439,31 @@ u32 execute(IWriteDevice* dev, const RepairPlan& plan, UndoLog& undo) {
         return ERR_REPAIR_REFUSED;
 
     const size_t applied_before = undo.entries.size();
-    /* S4/S5 helper: undo every action applied so far, reverse order. */
+    undo.entries.reserve(undo.entries.size() + plan.actions.size());
+    /* S4/S5 helper: undo every action applied so far, reverse order.
+     * Entries that fail to restore are KEPT in the log (the operator can
+     * still retry them) - erasing unrestored evidence would violate S4. */
+    size_t rollback_failures = 0;
     const auto rollback_all = [&]() {
+        std::vector<size_t> keep;
         for (size_t i = undo.entries.size(); i-- > applied_before;) {
             const auto& e = undo.entries[i];
-            (void)dev->write_at(e.offset, e.original.data(), e.length);
+            if (dev->write_at(e.offset, e.original.data(), e.length) != OK) {
+                ++rollback_failures;
+                keep.push_back(i);
+            }
         }
-        undo.entries.resize(applied_before);
+        if (keep.empty()) {
+            undo.entries.resize(applied_before);
+        } else {
+            /* retain the unrestored entries in order */
+            std::vector<UndoLog::Entry> saved;
+            for (size_t k = keep.size(); k-- > 0;)
+                saved.push_back(std::move(undo.entries[keep[k]]));
+            undo.entries.resize(applied_before);
+            for (auto& e : saved)
+                undo.entries.push_back(std::move(e));
+        }
     };
     /* Raw-disk writes must be sector-granular: every action is coalesced
      * up to the containing sector span (a 1-byte geometry patch becomes a
@@ -454,44 +472,57 @@ u32 execute(IWriteDevice* dev, const RepairPlan& plan, UndoLog& undo) {
     u32 ssec = dev->sector_bytes();
     if (ssec == 0 || ssec > 65536 || (ssec & (ssec - 1)) != 0)
         ssec = 512;
-    for (const auto& a : plan.actions) {
-        if (a.length == 0 || a.after.size() != a.length) {
-            rollback_all();
-            return ERR_BAD_PARAMETER;
-        }
-        const u64 span_start = a.offset / ssec * ssec;
-        const u64 span_end = (a.offset + a.length + ssec - 1) / ssec * ssec;
-        const u32 span_len = u32(span_end - span_start);
-        if (span_end > dev->size()) {
-            rollback_all();
-            return ERR_RANGE_OUT_OF_BOUNDS;
-        }
-        /* S4: snapshot the full span BEFORE the write (CopySectors). A
-         * snapshot failure also rolls back: without it we cannot keep
-         * the transaction guarantee. */
-        std::vector<u8> span(span_len);
-        if (dev->read_at(span_start, span.data(), span_len) != OK) {
-            rollback_all();
-            return ERR_READ_FAILED;
-        }
-        undo.record(span_start, span_len, span.data());
+    try {
+        for (const auto& a : plan.actions) {
+            if (a.length == 0 || a.after.size() != a.length) {
+                rollback_all();
+                return ERR_BAD_PARAMETER;
+            }
+            const u64 span_start = a.offset / ssec * ssec;
+            const u64 span_end = (a.offset + a.length + ssec - 1) / ssec * ssec;
+            const u32 span_len = u32(span_end - span_start);
+            if (span_end > dev->size()) {
+                rollback_all();
+                return rollback_failures ? ERR_REPAIR_UNDO_FAILED : ERR_RANGE_OUT_OF_BOUNDS;
+            }
+            /* S4: snapshot the full span BEFORE the write (CopySectors). A
+             * snapshot failure also rolls back: without it we cannot keep
+             * the transaction guarantee. */
+            std::vector<u8> span(span_len);
+            if (dev->read_at(span_start, span.data(), span_len) != OK) {
+                rollback_all();
+                return rollback_failures ? ERR_REPAIR_UNDO_FAILED : ERR_READ_FAILED;
+            }
+            undo.record(span_start, span_len, span.data());
 
-        /* patch the action bytes into the sector image */
-        std::memcpy(span.data() + (a.offset - span_start), a.after.data(), a.length);
+            /* patch the action bytes into the sector image */
+            std::memcpy(span.data() + (a.offset - span_start), a.after.data(), a.length);
 
-        /* write the full span */
-        if (dev->write_at(span_start, span.data(), span_len) != OK) {
-            rollback_all();
-            return ERR_WRITE_FAILED;
-        }
+            /* write the full span */
+            if (dev->write_at(span_start, span.data(), span_len) != OK) {
+                /* the write never landed: this action's own snapshot is
+                 * unnecessary (the sector is unchanged) - drop it, then roll
+                 * back everything that DID land */
+                if (!undo.entries.empty() && undo.entries.back().offset == span_start)
+                    undo.entries.pop_back();
+                rollback_all();
+                return rollback_failures ? ERR_REPAIR_UNDO_FAILED : ERR_WRITE_FAILED;
+            }
 
-        /* S5: read back and verify the write landed */
-        std::vector<u8> check(span_len);
-        if (dev->read_at(span_start, check.data(), span_len) != OK ||
-            std::memcmp(check.data(), span.data(), span_len) != 0) {
-            rollback_all();
-            return ERR_REPAIR_UNDO_FAILED;
+            /* S5: read back and verify the write landed */
+            std::vector<u8> check(span_len);
+            if (dev->read_at(span_start, check.data(), span_len) != OK ||
+                std::memcmp(check.data(), span.data(), span_len) != 0) {
+                rollback_all();
+                return ERR_REPAIR_UNDO_FAILED;
+            }
         }
+    } catch (const std::bad_alloc&) {
+        rollback_all();
+        return ERR_NO_MEMORY;
+    } catch (const std::length_error&) {
+        rollback_all();
+        return ERR_NO_MEMORY;
     }
     return OK;
 }

@@ -39,6 +39,8 @@ u32 load_gpt_side(IStorageDevice* dev, u64 header_lba, GptHeader& header_out,
         return ERR_BAD_PARAMETER;
     if (h.entry_count == 0 || u64(h.entry_count) * h.entry_size > GPT_ENTRIES_READ_CAP)
         return ERR_BAD_PARAMETER;
+    if (h.header_size < 92 || h.header_size > sec.size())
+        return ERR_BAD_PARAMETER; /* P0-2: CRC length must stay inside the sector */
 
     /* header CRC: compute over header_size bytes with crc field zeroed */
     {

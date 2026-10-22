@@ -46,7 +46,7 @@ u32 enum_attributes(const u8* record, u32 record_size, std::vector<AttrView>& ou
                 return ERR_BAD_PARAMETER;
             a.value_length = u32_from_bytes_le(record + pos + 16);
             a.value_offset = u16_from_bytes_le(record + pos + 20);
-            if (u32(a.value_offset) + a.value_length > len)
+            if (u64(a.value_offset) + u64(a.value_length) > u64(len))
                 return ERR_BAD_PARAMETER;
         } else {
             if (pos + 64 > record_size)

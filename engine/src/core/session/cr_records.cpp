@@ -216,7 +216,8 @@ u32 deserialize_tree(const u8* data, size_t len, tree::ResultTree& tree) {
                 n = full;
             }
         } else {
-            tree::FileNode* parent = (parent_id == 0xFFFFFFFFu) ? nullptr : by_id[parent_id];
+            tree::FileNode* parent =
+                (parent_id != 0xFFFFFFFFu && parent_id < count) ? by_id[parent_id] : nullptr;
             if (parent == nullptr) {
                 /* top-level file node: attach under a synthetic root */
                 if (!default_root)

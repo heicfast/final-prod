@@ -269,8 +269,13 @@ u32 Reader::read_record(u32 index, Record& out) {
         if (impl_->read(impl_->user, framed.data(), chain))
             return 0x50040002;
     }
-    /* inflate chunk-by-chunk; per-chunk fallback to the raw payload (F10) */
+    /* inflate chunk-by-chunk; per-chunk fallback to the raw payload (F10).
+     * P1-7: record-level budget caps the 4 KiB-chunk x 16 KiB-inflate
+     * amplification (a crafted session could otherwise demand ~8192x its
+     * size in heap) */
+    constexpr size_t CRSF_RECORD_MAX = 64u << 20; /* 64 MiB */
     out.data.clear();
+    out.data.reserve(std::min<size_t>(framed.size() * 4, CRSF_RECORD_MAX));
     u32 pos = 0;
     while (pos + 2 <= framed.size()) {
         const u16 hdr = u16(framed[pos]) | (u16(framed[pos + 1]) << 8);
@@ -280,6 +285,10 @@ u32 Reader::read_record(u32 index, Record& out) {
         std::vector<u8> chunk;
         if (crsf_chunk_parse(framed.data() + pos, payload_len + 2, chunk) != OK) {
             chunk.assign(framed.begin() + pos + 2, framed.begin() + pos + 2 + payload_len);
+        }
+        if (out.data.size() + chunk.size() > CRSF_RECORD_MAX) {
+            out.data.clear();
+            return ERR_NO_MEMORY; /* decompression bomb */
         }
         out.data.insert(out.data.end(), chunk.begin(), chunk.end());
         pos += 2 + payload_len;

@@ -133,6 +133,7 @@ u64 exfat_time_to_unix100(u32 ts, u8 tz) {
 
 struct ScanCtx {
     IStorageDevice* dev;
+    CancelToken* cancel = nullptr; /* P2-8 */
     ExfatParams p;
     ExfatFat fat;
     Bitmap bitmap;
@@ -184,9 +185,15 @@ std::vector<u8> read_dir_chain(ScanCtx& ctx, u32 first, u32 max_bytes, bool* ok)
 }
 
 void walk_entries(ScanCtx& ctx, const std::vector<u8>& buf, bool deleted_context,
-                  tree::FileNode* parent_host);
+                  tree::FileNode* parent_host, u32 depth);
 
-void recurse_dir(ScanCtx& ctx, u32 first, bool deleted, tree::FileNode* host_node) {
+constexpr u32 EXFAT_MAX_DEPTH = 64; /* P0-6: stack-exhaustion guard */
+
+void recurse_dir(ScanCtx& ctx, u32 first, bool deleted, tree::FileNode* host_node, u32 depth = 0) {
+    if (depth > EXFAT_MAX_DEPTH) {
+        ++ctx.stats->chains_broken;
+        return;
+    }
     u64 key = first;
     if (ctx.visited_dirs.count(key)) {
         ++ctx.stats->chains_broken;
@@ -196,12 +203,12 @@ void recurse_dir(ScanCtx& ctx, u32 first, bool deleted, tree::FileNode* host_nod
     bool ok = false;
     std::vector<u8> buf = read_dir_chain(ctx, first, 4u << 20, &ok);
     if (ok)
-        walk_entries(ctx, buf, deleted, host_node);
+        walk_entries(ctx, buf, deleted, host_node, depth);
 }
 
 void walk_entries(ScanCtx& ctx, const std::vector<u8>& buf, bool deleted_context,
-                  tree::FileNode* parent_host) {
-    if (buf.empty())
+                  tree::FileNode* parent_host, u32 depth) {
+    if (buf.empty() || (ctx.cancel && ctx.cancel->cancelled())) /* P2-8 */
         return;
     (void)deleted_context; /* host selection now driven by parent_host */
     const size_t count = buf.size() / 32;
@@ -401,7 +408,7 @@ void walk_entries(ScanCtx& ctx, const std::vector<u8>& buf, bool deleted_context
 
             /* recursion: children of this directory attach under its node */
             if (is_dir && first_cluster >= 2)
-                recurse_dir(ctx, first_cluster, deleted, n);
+                recurse_dir(ctx, first_cluster, deleted, n, depth + 1);
 
             i += 1 + 1 + u32(name_entries);
             continue;
@@ -426,6 +433,7 @@ u32 scan_exfat(IStorageDevice* slice, const ExfatScanFlags& flags, CancelToken* 
         return ERR_CANCELLED;
 
     ScanCtx ctx;
+    ctx.cancel = cancel; /* P2-8: cancellable walk */
     ctx.dev = slice;
     ctx.p = p;
     ctx.flags = flags;
@@ -451,7 +459,7 @@ u32 scan_exfat(IStorageDevice* slice, const ExfatScanFlags& flags, CancelToken* 
 
     /* root directory (chain from FAT; single-cluster fallback) */
     if (p.first_cluster_of_root >= 2)
-        recurse_dir(ctx, p.first_cluster_of_root, false, nullptr);
+        recurse_dir(ctx, p.first_cluster_of_root, false, nullptr, 0);
 
     if (progress)
         (void)progress(1, 1, progress_user);

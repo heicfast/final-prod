@@ -4,6 +4,7 @@
  */
 
 #include "cr/storage/cr_cached.h"
+#include <mutex>
 #include <cstring>
 
 namespace cr {
@@ -27,6 +28,7 @@ CachedReader::~CachedReader() = default;
 u32 CachedReader::read_at(u64 offset, void* buffer, u32 length) {
     if (length == 0)
         return OK;
+    std::lock_guard<std::mutex> guard(mtx_);
     if (offset > inner_->size() || u64(length) > inner_->size() - offset)
         return ERR_RANGE_OUT_OF_BOUNDS;
 

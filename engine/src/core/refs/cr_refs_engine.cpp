@@ -330,7 +330,8 @@ struct Allocator {
     bool raw_bit(u64 c, bool& covered) const {
         covered = false;
         for (const auto& r : rows) {
-            if (c < r.first || c >= r.first + r.count)
+            /* P1-9: overflow-safe range test */
+            if (c < r.first || c - r.first >= r.count)
                 continue;
             covered = true;
             if (r.sparse)
@@ -637,7 +638,9 @@ u32 scan_refs(IStorageDevice* slice, const RefsScanFlags& flags, CancelToken* ca
                     const u64 lcn = e.translate_cluster(r.lcn);
                     const u64 off = lcn * e.boot.cluster_bytes;
                     const u64 len = u64(r.clusters) * e.boot.cluster_bytes;
-                    if (lcn < e.boot.volume_clusters && off + len <= e.boot.volume_bytes) {
+                    /* P1-9: overflow-safe form (off/len can wrap) */
+                    if (lcn < e.boot.volume_clusters && len <= e.boot.volume_bytes &&
+                        off <= e.boot.volume_bytes - len) {
                         props->extents.push_back({off, len});
                         ++stats.data_runs;
                     }
@@ -647,6 +650,8 @@ u32 scan_refs(IStorageDevice* slice, const RefsScanFlags& flags, CancelToken* ca
 
             tree::FileNode* node = tree.add_file(parent, props);
             props->release(); /* tree holds the reference */
+            if (node == nullptr)
+                return; /* arena OOM (P2-1) */
             if (deleted) {
                 node->set_deleted_state(tree::DeletedState::Deleted);
                 bool reused_any = false;

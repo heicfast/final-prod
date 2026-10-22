@@ -13,6 +13,7 @@
 
 #include "cr_device.h"
 #include <memory>
+#include <mutex>
 
 namespace cr {
 
@@ -47,6 +48,7 @@ private:
     std::vector<Block> blocks_;
     u64 hits_ = 0;
     u64 misses_ = 0;
+    mutable std::mutex mtx_; /* P2-5: engine workers may share the cache */
 };
 
 } // namespace cr

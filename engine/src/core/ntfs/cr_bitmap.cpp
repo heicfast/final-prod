@@ -54,6 +54,10 @@ u32 VolumeBitmap::load(NtfsVolume* vol, std::unique_ptr<VolumeBitmap>& out) {
                 continue;
             u64 byte_off = r.lcn * cluster_bytes;
             u64 byte_len = r.length * cluster_bytes;
+            /* P1-6: cap each bitmap read (16 MiB); oversized runs (bogus
+             * DBR geometry) are skipped rather than OOM-ing the engine */
+            if (byte_len > (16u << 20))
+                continue;
             std::vector<u8> buf;
             buf.resize(size_t(byte_len));
             u32 prc = vol->read_at(byte_off, buf.data(), u32(byte_len));
@@ -87,9 +91,10 @@ double VolumeBitmap::reused_ratio(const RunList& runs) const {
             reused += r.length;
             continue;
         }
-        for (u64 c = r.lcn; c < r.lcn + r.length; ++c) {
+        const u64 run_clusters = r.length;
+        for (u64 i = 0; i < run_clusters && i < (64u << 20); ++i) {
             ++total;
-            if (test(c))
+            if (test(r.lcn + i))
                 ++reused;
         }
     }

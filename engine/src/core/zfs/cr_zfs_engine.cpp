@@ -174,9 +174,11 @@ bool nv_parse(const u8* p, u32 len, std::map<std::string, NvValue>& out, u32 dep
             break; /* unknown layout: stop (config subset is complete) */
         }
         out[name] = v;
+        /* P1-8: enc is attacker-controlled; (pos+enc) wrapping mod 2^32
+         * could jump backwards and loop forever */
+        if (enc > len - pos)
+            break;
         pos = (pos + enc) & ~1u;
-        if (enc < 16)
-            break; /* no-progress guard */
         if (pos >= len)
             break;
     }
@@ -237,6 +239,9 @@ struct ObjSet {
         const u32 datablksz = u32(dn[DN_DATABLKSZSEC]) * 512;
         if (datablksz == 0)
             return false;
+        /* P0-4: the meta-dnode buffer is DN_SIZE bytes; only 3 blkptrs fit */
+        if (nblkptr == 0 || DN_BLKPTR + u64(nblkptr) * 128 > meta_dnode.size())
+            return false;
         /* direct map: blkptr i covers logical [i*datablksz, ...) */
         const u64 which = logical / datablksz;
         if (which < nblkptr) {
@@ -264,6 +269,8 @@ struct ObjSet {
         const u8* ibp = dn + DN_BLKPTR + ind_ptr_index * 128;
         std::vector<u8> ind;
         if (!v->read_block(ibp, 0, ind))
+            return false;
+        if (ind.size() < 128)
             return false;
         if ((leaf_ptr_index + 1) * 128 > ind.size())
             return false;

@@ -35,6 +35,11 @@ u32 validate_boot_sector(const BootSector& bs, const Geometry& geom, VolumeParam
     const u64 total_clusters = bs.total_sectors / bs.sectors_per_cluster;
     if (total_clusters == 0)
         return ERR_BAD_PARAMETER;
+    /* P1-3: the declared volume must fit the actual device (2x slack for
+     * shrink-tolerant snapshots); unclamped, a bogus total_sectors feeds
+     * multi-GiB allocations and billion-iteration walks downstream */
+    if (geom.total_bytes != 0 && bs.total_sectors * u64(bs.bytes_per_sector) > geom.total_bytes * 2)
+        return ERR_BAD_PARAMETER;
     if (bs.mft_lcn >= total_clusters)
         return ERR_BAD_PARAMETER;
     if (bs.mftmirr_lcn >= total_clusters)
@@ -98,7 +103,7 @@ u32 NtfsVolume::load_mft_stream() {
             /* resident $DATA on $MFT: tiny MFT (all records in one run) */
             ResidentAttributeHeader ra;
             std::memcpy(&ra, buf.data() + pos, sizeof(ra));
-            if (ra.value_offset + ra.value_length > len)
+            if (u64(ra.value_offset) + u64(ra.value_length) > u64(len))
                 return ERR_BAD_PARAMETER;
             const u8* runs = buf.data() + pos + ra.value_offset;
             u32 runs_len = ra.value_length;
@@ -130,7 +135,7 @@ u32 NtfsVolume::load_mft_stream() {
             }
             ResidentAttributeHeader ra;
             std::memcpy(&ra, buf.data() + pos, sizeof(ra));
-            if (ra.value_offset + ra.value_length > len)
+            if (u64(ra.value_offset) + u64(ra.value_length) > u64(len))
                 return ERR_BAD_PARAMETER;
             attrlist_extra.assign(buf.begin() + pos + ra.value_offset,
                                   buf.begin() + pos + ra.value_offset + ra.value_length);
@@ -276,7 +281,8 @@ u32 NtfsVolume::enum_mirr_attrs(const std::vector<u8>& buf, std::vector<u8>& scr
             } else {
                 ResidentAttributeHeader ra;
                 std::memcpy(&ra, buf.data() + pos, sizeof(ra));
-                if (u32(ra.value_offset) + ra.value_length <= len && ra.value_length > 0) {
+                if (u64(ra.value_offset) + u64(ra.value_length) <= u64(len) &&
+                    ra.value_length > 0) {
                     RunList rl;
                     if (RunList::decode(buf.data() + pos + ra.value_offset, ra.value_length, 0,
                                         p_.total_clusters, rl) == OK) {

@@ -462,7 +462,8 @@ u32 scan_hfsplus(IStorageDevice* slice, const HfsScanFlags& flags, CancelToken* 
         for_each_record(v.catalog_node_size, leaf, 0, [&](const u8* rec, u32 len) {
             CatalogRecord cr;
             if (parse_catalog_record(rec, len, cr)) {
-                records.push_back(cr);
+                if (records.size() < (4u << 20)) /* P1-14: record cap */
+                    records.push_back(cr);
                 ++stats.leaf_records;
             }
             return true;

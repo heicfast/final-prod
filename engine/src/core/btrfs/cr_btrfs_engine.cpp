@@ -238,7 +238,8 @@ bool walk_tree(Volume& v, u64 root_logical, CancelToken* cancel,
                 const u8* data = node.data() + (v.sb.nodesize - off);
                 const u64 child = le64(data + size - 8);
                 if (child != 0)
-                    pending.push_back(child);
+                    if (pending.size() < 65536) /* P1-11: queue cap */
+                        pending.push_back(child);
             }
         }
     }
