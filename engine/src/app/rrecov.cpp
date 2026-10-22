@@ -16,6 +16,7 @@
 #include "cr/win/cr_enumerate.h"
 #include "cr/win/cr_transport.h"
 #include <cstdio>
+#include <functional>
 #include <cstring>
 #include <string>
 
@@ -157,7 +158,7 @@ int cmd_scan(int argc, wchar_t** argv, int& i) {
     orchestrator::ScanStats stats;
     const u32 rc = ctrl.run(slice.get(), nullptr, nullptr, nullptr, stats);
     if (rc != OK) {
-        wprintf(L"scan failed: %s (%08x)\n", cr::err_text(rc), rc);
+        wprintf(L"scan failed: %hs (%08x)\n", cr::err_text(rc), rc);
         return 1;
     }
     wprintf(L"scan complete: %llu file(s), %llu deleted, %llu carved\n", stats.files_found,

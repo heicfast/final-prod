@@ -112,7 +112,7 @@ struct RecBuilder {
         u32_from_bytes_le_wr(buf, pos + 4, alen);
         buf[pos + 8] = 0;
         buf[pos + 9] = 0;
-        u16_from_bytes_le_wr(buf, pos + 10, voff);
+        u16_from_bytes_le_wr(buf, pos + 10, u16(voff));
         u16_from_bytes_le_wr(buf, pos + 16, u16(vlen & 0xFFFF));
         u16_from_bytes_le_wr(buf, pos + 20, u16(voff));
         u64_from_bytes_le_wr(buf, pos + voff + 0, 132000000000000000ULL);  /* created */
@@ -134,7 +134,7 @@ struct RecBuilder {
         u32_from_bytes_le_wr(buf, pos + 4, alen);
         buf[pos + 8] = 0;
         buf[pos + 9] = 0;
-        u16_from_bytes_le_wr(buf, pos + 10, voff);
+        u16_from_bytes_le_wr(buf, pos + 10, u16(voff));
         u16_from_bytes_le_wr(buf, pos + 16, u16(vlen & 0xFFFF));
         u16_from_bytes_le_wr(buf, pos + 20, u16(voff));
         u8* d = buf.data() + pos + voff;
