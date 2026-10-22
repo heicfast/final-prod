@@ -15,6 +15,9 @@ add_library(cr_core STATIC
     ntfs/cr_attributes.cpp
     ntfs/cr_bitmap.cpp
     ntfs/cr_mftwalk.cpp
+    fat/cr_chain.cpp
+    fat/cr_lfn.cpp
+    fat/cr_fat_quick.cpp
     tree/cr_node.cpp
 )
 

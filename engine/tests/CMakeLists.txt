@@ -11,6 +11,7 @@ add_executable(cr_tests
     unit/test_cached.cpp
     unit/test_node_tree.cpp
     unit/test_ntfs_volume.cpp
+    unit/test_fat_volume.cpp
 )
 
 target_link_libraries(cr_tests PRIVATE cr::core GTest::gtest_main)

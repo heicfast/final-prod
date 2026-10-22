@@ -46,3 +46,20 @@ Task: NTFS engine core complete + first end-to-end integration test.
   floating-record remnant scan test.
 - 31/31 tests green (gcc + ASan).
 Stage Summary: R2.1-R2.5 core paths all implemented and integration-tested. Next: lost-partition candidates, carving, FAT/exFAT, sessions, orchestrator, writer, BitLocker layer, then Windows platform + CI bring-up.
+
+---
+Task ID: 4
+Task: FAT12/16/32 engine complete + integration tests.
+- FatTable: flavor-polymorphic entries (12/16/32), mirrored FAT2 with
+  choose-healthy + divergence count, canonical BAD/EOC constants (corpus).
+- follow_chain + reconstruct_deleted_chain with visited-set cycle guards.
+- LFN assembly (checksum-validated, 8.3 fallback), 8.3 conversion, FAT
+  date/time -> unix (civil algorithm).
+- scan_fat: root area (12/16) vs root cluster chain (32); dentry walk with
+  0x00 end / 0xE5 deleted / volume-id skip / '.'-'..' skip; deleted-chain
+  reconstruction with honest confidence grading (FREE-first-cluster cap);
+  backup-boot fallback; dir recursion with cycle guard.
+- Defects caught: FAT32 fixture wrote FAT16-position fields (0x26 sig
+  clobbering spf32@0x24-27); FAT 0x00 end-marker semantics (dir ends at first
+  0x00 - full-cluster fixture); LFN checksum; time decode (0x5A46=2025-02-06).
+- 36/36 tests green.
