@@ -759,6 +759,205 @@ int cmd_health(int argc, wchar_t** argv, int& i) {
     return 0;
 }
 
+int cmd_bench(int argc, wchar_t** argv, int& i) {
+    std::wstring v;
+    u32 disk = 0;
+    bool have_disk = false;
+    bool use_rda = true;
+    std::wstring mode = L"seq";
+    u32 mb = 256;
+    u32 block_kb = 1024;
+    u32 iterations = 1000;
+    u32 seed = 4242;
+    bool json = false;
+    while (i < argc) {
+        if (get_opt(argc, argv, i, L"--disk", &v)) {
+            disk = u32(wcstoul(v.c_str(), nullptr, 10));
+            have_disk = true;
+            continue;
+        }
+        if (get_opt(argc, argv, i, L"--mode", &v)) {
+            mode = v;
+            continue;
+        }
+        if (get_opt(argc, argv, i, L"--mb", &v)) {
+            mb = u32(wcstoul(v.c_str(), nullptr, 10));
+            continue;
+        }
+        if (get_opt(argc, argv, i, L"--block-kb", &v)) {
+            block_kb = u32(wcstoul(v.c_str(), nullptr, 10));
+            continue;
+        }
+        if (get_opt(argc, argv, i, L"--iterations", &v)) {
+            iterations = u32(wcstoul(v.c_str(), nullptr, 10));
+            continue;
+        }
+        if (get_opt(argc, argv, i, L"--seed", &v)) {
+            seed = u32(wcstoul(v.c_str(), nullptr, 10));
+            continue;
+        }
+        if (wcscmp(argv[i], L"--no-rda") == 0) {
+            use_rda = false;
+            ++i;
+            continue;
+        }
+        if (wcscmp(argv[i], L"--json") == 0) {
+            json = true;
+            ++i;
+            continue;
+        }
+        wprintf(L"unknown bench option: %s\n", argv[i]);
+        return 1;
+    }
+    if (!have_disk) {
+        wprintf(L"bench needs --disk N\n");
+        return 1;
+    }
+
+    /* transport: RDA when available (the full stack), direct fallback */
+    const bool rda = use_rda && win::rda_available(L"RDA");
+    u32 err = 0;
+    auto dev = win::open_disk(disk, use_rda, L"RDA", &err);
+    if (!dev) {
+        wprintf(L"cannot open disk %u (rc=%08x, admin?)\n", disk, err);
+        return 2;
+    }
+    const Geometry& g = dev->geometry();
+    const char* transport = rda && win::rda_available(L"RDA") ? "rda" : "direct";
+
+    auto qpc = []() -> double {
+        LARGE_INTEGER c;
+        QueryPerformanceCounter(&c);
+        return double(c.QuadPart);
+    };
+    LARGE_INTEGER f;
+    QueryPerformanceFrequency(&f);
+    const double freq = double(f.QuadPart);
+
+    if (mode == L"info") {
+        if (json) {
+            wprintf(L"{\"mode\":\"info\",\"disk\":%u,\"transport\":\"%hs\",\"bytes\":%llu,"
+                    L"\"logical_sector\":%u,\"physical_sector\":%u,\"is_4kn\":%hs}\n",
+                    disk, transport, static_cast<unsigned long long>(g.total_bytes),
+                    g.logical_sector, g.physical_sector, g.is_4kn() ? "true" : "false");
+        } else {
+            wprintf(L"disk %u via %hs: %llu bytes, logical %u / physical %u%s\n", disk, transport,
+                    static_cast<unsigned long long>(g.total_bytes), g.logical_sector,
+                    g.physical_sector, g.is_4kn() ? L" (4Kn)" : L"");
+        }
+        return 0;
+    }
+
+    if (mode == L"read") {
+        /* contract probe: read LBA 0 through the active transport */
+        const u32 ssec = g.logical_sector ? g.logical_sector : 512;
+        void* buf = _aligned_malloc(ssec, ssec);
+        if (buf == nullptr)
+            return 2;
+        const u32 rc = dev->read_at(0, buf, ssec);
+        if (json) {
+            wprintf(L"{\"mode\":\"read\",\"rc\":%u,\"first16\":[", rc);
+        } else {
+            wprintf(L"read LBA0 rc=%08x:", rc);
+        }
+        const u8* p = static_cast<const u8*>(buf);
+        for (u32 k = 0; k < 16; ++k) {
+            if (json)
+                wprintf(L"%s%u", k ? L"," : L"", unsigned(p[k]));
+            else
+                wprintf(L" %02X", p[k]);
+        }
+        wprintf(json ? L"]}\n" : L"\n");
+        _aligned_free(buf);
+        return rc == OK ? 0 : 2;
+    }
+
+    if (mode == L"open") {
+        /* open/close churn: measures the device-open cost (RDA grammar
+         * path vs CreateFile) without touching platters */
+        const u32 n = iterations < 1 ? 1 : (iterations > 10000 ? 10000 : iterations);
+        const double t0 = qpc();
+        for (u32 k = 0; k < n; ++k) {
+            u32 e2 = 0;
+            auto d2 = win::open_disk(disk, use_rda, L"RDA", &e2);
+        }
+        const double dt = (qpc() - t0) / freq;
+        const double mean_ns = dt > 0 ? dt * 1e9 / n : 0;
+        if (json) {
+            wprintf(L"{\"mode\":\"open\",\"transport\":\"%hs\",\"iterations\":%u,"
+                    L"\"mean_ns\":%.0f,\"ops\":%.0f}\n",
+                    transport, n, mean_ns, dt > 0 ? double(n) / dt : 0);
+        } else {
+            wprintf(L"open: %u iterations, mean %.0f ns, %.0f ops/s (%hs)\n", n, mean_ns,
+                    dt > 0 ? double(n) / dt : 0, transport);
+        }
+        return 0;
+    }
+
+    /* seq / rand: read workloads with a sector-aligned buffer */
+    const u32 block = (block_kb < 4 ? 4 : block_kb > 16384 ? 16384 : block_kb) * 1024;
+    const u64 span = u64(mb < 1 ? 1 : mb > 65536 ? 65536 : mb) << 20;
+    void* buf = _aligned_malloc(block, g.logical_sector ? g.logical_sector : 512);
+    if (buf == nullptr)
+        return 2;
+
+    if (mode == L"seq") {
+        u64 done = 0;
+        const double t0 = qpc();
+        while (done + block <= span && done + block <= g.total_bytes) {
+            if (dev->read_at(done, buf, block) != OK)
+                break;
+            done += block;
+        }
+        const double dt = (qpc() - t0) / freq;
+        const double mibs = dt > 0 ? double(done) / (1024.0 * 1024.0) / dt : 0;
+        if (json) {
+            wprintf(L"{\"mode\":\"seq\",\"transport\":\"%hs\",\"block\":%u,\"bytes\":%llu,"
+                    L"\"mib_per_s\":%.2f}\n",
+                    transport, block, static_cast<unsigned long long>(done), mibs);
+        } else {
+            wprintf(L"seq: %u KiB blocks, %llu MiB via %hs: %.2f MiB/s\n", block / 1024,
+                    static_cast<unsigned long long>(done >> 20), transport, mibs);
+        }
+        _aligned_free(buf);
+        return done > 0 ? 0 : 2;
+    }
+
+    if (mode == L"rand") {
+        /* LCG random offsets inside the span (rdabench-compatible) */
+        u64 state = seed ? seed : 1;
+        const u32 n = iterations < 1 ? 1 : (iterations > 100000 ? 100000 : iterations);
+        const u64 limit = span < g.total_bytes ? span : g.total_bytes;
+        double lat_total = 0;
+        u32 hits = 0;
+        for (u32 k = 0; k < n; ++k) {
+            state = state * 6364136223846793005ull + 1442695040888963407ull;
+            const u64 off = (state >> 16) % (limit > block ? limit - block : 1);
+            const double t0 = qpc();
+            if (dev->read_at(off, buf, block) == OK) {
+                lat_total += (qpc() - t0) / freq;
+                ++hits;
+            }
+        }
+        const double dt = lat_total;
+        const double mean_us = hits ? dt * 1e6 / hits : 0;
+        const double iops = dt > 0 ? double(hits) / dt : 0;
+        if (json) {
+            wprintf(L"{\"mode\":\"rand\",\"transport\":\"%hs\",\"block\":%u,\"iterations\":%u,"
+                    L"\"hits\":%u,\"mean_us\":%.2f,\"iops\":%.0f}\n",
+                    transport, block, n, hits, mean_us, iops);
+        } else {
+            wprintf(L"rand: %u KiB blocks, %u hits, mean %.2f us, %.0f IOPS (%hs)\n", block / 1024,
+                    hits, mean_us, iops, transport);
+        }
+        _aligned_free(buf);
+        return hits > 0 ? 0 : 2;
+    }
+
+    wprintf(L"unknown bench mode: %s (seq|rand|open|read|info)\n", mode.c_str());
+    return 1;
+}
+
 int cmd_fix(int argc, wchar_t** argv, int& i) {
     std::wstring v;
     u32 disk = 0;
@@ -948,15 +1147,18 @@ int cmd_fix(int argc, wchar_t** argv, int& i) {
 
 int wmain(int argc, wchar_t** argv) {
     if (argc < 2) {
-        wprintf(L"rrecov - core_recovery CLI\n"
-                L"usage:\n"
-                L"  rrecov list\n"
-                L"  rrecov scan --disk N | --volume C: [--deep] [--quick-only] [--no-carve]\n"
-                L"             [--threads N] [--out file.crsf] [--log file] [--json] [--csv]\n"
-                L"  rrecov tree --in file.crsf [--filter s] [--deleted-only] [--csv]\n"
-                L"  rrecov recover --in file.crsf --disk N --to DIR [--deleted-only] [--filter s]\n"
-                L"  rrecov health --disk N\n"
-                L"  rrecov fix --disk N [--part P] [--apply] [--undo file] [--undo-apply file]\n");
+        wprintf(
+            L"rrecov - core_recovery CLI\n"
+            L"usage:\n"
+            L"  rrecov list\n"
+            L"  rrecov scan --disk N | --volume C: [--deep] [--quick-only] [--no-carve]\n"
+            L"             [--threads N] [--out file.crsf] [--log file] [--json] [--csv]\n"
+            L"  rrecov tree --in file.crsf [--filter s] [--deleted-only] [--csv]\n"
+            L"  rrecov recover --in file.crsf --disk N --to DIR [--deleted-only] [--filter s]\n"
+            L"  rrecov health --disk N\n"
+            L"  rrecov fix --disk N [--part P] [--apply] [--undo file] [--undo-apply file]\n"
+            L"  rrecov bench --disk N [--mode seq|rand|open|read|info] [--mb N] [--block-kb N]\n"
+            L"              [--iterations N] [--seed N] [--json]\n");
         return 0;
     }
     const std::wstring cmd = argv[1];
@@ -975,6 +1177,8 @@ int wmain(int argc, wchar_t** argv) {
         return cmd_health(argc, argv, i);
     if (cmd == L"fix")
         return cmd_fix(argc, argv, i);
+    if (cmd == L"bench")
+        return cmd_bench(argc, argv, i);
     wprintf(L"unknown command: %s\n", cmd.c_str());
     return 1;
 }
