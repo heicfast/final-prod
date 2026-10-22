@@ -169,11 +169,9 @@ int cmd_scan(int argc, wchar_t** argv, int& i) {
         for (tree::FileNode* c = n->first_child(); c; c = c->next_sibling()) {
             for (int k = 0; k < depth; ++k)
                 putwchar(L' ');
-            const wchar_t* st = c->deleted_state() == tree::DeletedState::Active
-                                     ? L""
-                                     : L" [deleted]";
-            wprintf(L"%s (%llu)%s\n", widen(c->name_utf8()).c_str(), c->props()->logical_size,
-                    st);
+            const wchar_t* st =
+                c->deleted_state() == tree::DeletedState::Active ? L"" : L" [deleted]";
+            wprintf(L"%s (%llu)%s\n", widen(c->name_utf8()).c_str(), c->props()->logical_size, st);
             dump(c, depth + 1);
         }
     };
