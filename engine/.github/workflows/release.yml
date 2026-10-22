@@ -30,7 +30,8 @@ jobs:
           New-Item -ItemType Directory -Force $out | Out-Null
           Copy-Item build/win-x64-release/src/app/Release/rrecov.exe $out/
           Copy-Item -Recurse docs $out/docs
-          Copy-Item README.md LICENSE $out/
+          Copy-Item README.md $out/
+          Copy-Item LICENSE $out/
           # symbols next to the binary for crash triage
           if (Test-Path build/win-x64-release/src/app/Release/rrecov.pdb) {
             Copy-Item build/win-x64-release/src/app/Release/rrecov.pdb $out/
