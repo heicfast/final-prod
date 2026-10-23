@@ -433,14 +433,14 @@ std::vector<u8> build_fat12_image() {
     std::vector<u8> img(u64(600) * 512, 0);
     u8* b = img.data();
     std::memcpy(b + 3, "MSDOS5.0", 8);
-    put16(img, 0x0B, 512);  /* bytes/sector */
-    b[0x0D] = 1;            /* sectors/cluster */
-    put16(img, 0x0E, 2);    /* reserved */
-    b[0x10] = 2;            /* FAT count */
-    put16(img, 0x11, 512);  /* root entries (32 sectors) */
-    put16(img, 0x13, 600);  /* total sectors 16 */
+    put16(img, 0x0B, 512); /* bytes/sector */
+    b[0x0D] = 1;           /* sectors/cluster */
+    put16(img, 0x0E, 2);   /* reserved */
+    b[0x10] = 2;           /* FAT count */
+    put16(img, 0x11, 512); /* root entries (32 sectors) */
+    put16(img, 0x13, 600); /* total sectors 16 */
     b[0x15] = 0xF8;
-    put16(img, 0x16, 2);    /* sectors/FAT */
+    put16(img, 0x16, 2); /* sectors/FAT */
     put16(img, 0x18, 63);
     put16(img, 0x1A, 255);
     b[0x26] = 0x29;
@@ -452,16 +452,20 @@ std::vector<u8> build_fat12_image() {
 
     const size_t FAT1 = 2 * 512;
     const size_t FAT2 = 4 * 512;
-    const size_t ROOT = 6 * 512;   /* 32 sectors */
-    const size_t DATA = 38 * 512;  /* cluster 2 */
+    const size_t ROOT = 6 * 512;  /* 32 sectors */
+    const size_t DATA = 38 * 512; /* cluster 2 */
 
     auto link = [&](u32 c, u32 v) {
         set_fat12_entry(img, FAT1, c, v);
         set_fat12_entry(img, FAT2, c, v); /* mirrored FAT2 */
     };
     /* reserved entries 0/1 (media / EOC) */
-    img[FAT1 + 0] = 0xF8; img[FAT1 + 1] = 0xFF; img[FAT1 + 2] = 0xFF;
-    img[FAT2 + 0] = 0xF8; img[FAT2 + 1] = 0xFF; img[FAT2 + 2] = 0xFF;
+    img[FAT1 + 0] = 0xF8;
+    img[FAT1 + 1] = 0xFF;
+    img[FAT1 + 2] = 0xFF;
+    img[FAT2 + 0] = 0xF8;
+    img[FAT2 + 1] = 0xFF;
+    img[FAT2 + 2] = 0xFF;
 
     /* live TWELVE.TXT: 2 -> 3 -> 4 (EOC 0xFFF), 3 clusters; deleted
      * _OLD.TXT: 6 -> 7 (EOC 0xFFF), 2 clusters, chain intact */

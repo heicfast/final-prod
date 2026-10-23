@@ -24,11 +24,12 @@ void put64(std::vector<u8>& v, size_t at, u64 x) {
 
 std::vector<u8> build_page() {
     std::vector<u8> p(512, 0);
-    p[0] = 0x03;                                        /* critical warning */
-    p[1] = 0xE4; p[2] = 0x0C;                           /* 3300 K */
-    p[3] = 100;                                          /* available spare */
-    p[4] = 10;                                           /* spare threshold */
-    p[5] = 42;                                           /* percentage used */
+    p[0] = 0x03; /* critical warning */
+    p[1] = 0xE4;
+    p[2] = 0x0C;          /* 3300 K */
+    p[3] = 100;           /* available spare */
+    p[4] = 10;            /* spare threshold */
+    p[5] = 42;            /* percentage used */
     put64(p, 32, 1111);   /* data units read */
     put64(p, 48, 2222);   /* data units written */
     put64(p, 64, 999001); /* host reads (must NOT surface anywhere) */
@@ -56,10 +57,10 @@ TEST(NvmeHealth, PageFieldOffsets) {
     EXPECT_EQ(h.percentage_used, 42u);
     EXPECT_EQ(h.data_units_read, 1111u);
     EXPECT_EQ(h.data_units_written, 2222u);
-    EXPECT_EQ(h.power_cycles, 3333u);        /* was 999001 (host reads) */
-    EXPECT_EQ(h.power_on_hours, 4444u);      /* was 999002 (host writes) */
-    EXPECT_EQ(h.unsafe_shutdowns, 5555u);    /* was 999003 (busy time) */
-    EXPECT_EQ(h.media_errors, 6666u);        /* was 3333 (power cycles) */
+    EXPECT_EQ(h.power_cycles, 3333u);     /* was 999001 (host reads) */
+    EXPECT_EQ(h.power_on_hours, 4444u);   /* was 999002 (host writes) */
+    EXPECT_EQ(h.unsafe_shutdowns, 5555u); /* was 999003 (busy time) */
+    EXPECT_EQ(h.media_errors, 6666u);     /* was 3333 (power cycles) */
 }
 
 TEST(NvmeHealth, ShortBufferRejected) {

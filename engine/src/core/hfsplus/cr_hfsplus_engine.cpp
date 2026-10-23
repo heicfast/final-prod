@@ -53,11 +53,11 @@ constexpr u32 FORK_EXTENTS = 0x10; /* 8 x (start u32, count u32) */
  * FUN_180010720 accepts kind in {-1,0,1,2} (kind+1 <= 3 unsigned) */
 constexpr u32 NH_FORWARD = 0x00;
 constexpr u32 NH_BACKWARD = 0x04;
-constexpr i16 NH_KIND_LEAF = -1;   /* kBTLeafNode */
-constexpr i16 NH_KIND_INDEX = 0;   /* kBTIndexNode */
-constexpr i16 NH_KIND_HEADER = 1;  /* kBTHeaderNode */
-constexpr i16 NH_KIND_MAP = 2;     /* kBTMapNode */
-constexpr u32 NH_KIND = 0x08; /* SInt8 node type */
+constexpr i16 NH_KIND_LEAF = -1;  /* kBTLeafNode */
+constexpr i16 NH_KIND_INDEX = 0;  /* kBTIndexNode */
+constexpr i16 NH_KIND_HEADER = 1; /* kBTHeaderNode */
+constexpr i16 NH_KIND_MAP = 2;    /* kBTMapNode */
+constexpr u32 NH_KIND = 0x08;     /* SInt8 node type */
 constexpr u32 NH_HEIGHT = 0x09;
 constexpr u32 NH_NUM_RECORDS = 0x0A;
 

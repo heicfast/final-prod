@@ -11,6 +11,7 @@
 #include <atomic>
 #include <chrono>
 #include <cstring>
+#include <mutex>
 #include <set>
 #include <thread>
 #include <vector>
@@ -202,7 +203,11 @@ std::vector<u8> build_fat16_wide(size_t root_files) {
 
 TEST(Telemetry, UniformProgressAcrossStagesMonotonic) {
     /* every engine now receives the bridge; the overall permille must be
-     * monotonic non-decreasing and reach 1000 on completion. */
+     * monotonic non-decreasing and reach 1000 on completion. The capture
+     * is mutex-guarded: the bridge invokes the callback from engine worker
+     * threads AND the scan thread concurrently (CI TSan caught the plain
+     * vector push_back racing — the callback contract requires consumers
+     * to be thread-safe). */
     MemDevice dev(build_fat16_wide(200));
     tree::ResultTree tree;
     ScanConfig cfg;
@@ -210,14 +215,17 @@ TEST(Telemetry, UniformProgressAcrossStagesMonotonic) {
     ScanStats stats;
 
     struct Capture {
+        std::mutex m;
         std::vector<u32> permilles;
     } cap;
     auto cb = [](u32 overall, void* user) {
         auto* c = static_cast<Capture*>(user);
+        std::lock_guard<std::mutex> lock(c->m);
         c->permilles.push_back(overall);
         return true;
     };
     ASSERT_EQ(OK, ctrl.run(&dev, nullptr, cb, &cap, stats));
+    std::lock_guard<std::mutex> lock(cap.m);
     ASSERT_FALSE(cap.permilles.empty());
     u32 prev = 0;
     for (u32 p : cap.permilles) {
@@ -243,29 +251,34 @@ TEST(Telemetry, FatWalkEmitsIncrementalTicks) {
     ScanStats stats;
 
     struct Cap {
+        std::mutex m;
         std::vector<u32> overall;
     } cap;
     auto cb = [](u32 overall, void* user) {
-        static_cast<Cap*>(user)->overall.push_back(overall);
+        auto* c = static_cast<Cap*>(user);
+        std::lock_guard<std::mutex> lock(c->m);
+        c->overall.push_back(overall);
         return true;
     };
     ASSERT_EQ(OK, ctrl.run(&dev, nullptr, cb, &cap, stats));
-    ASSERT_FALSE(cap.overall.empty());
-
-    u32 prev = 0, below = 0, last_below = 0;
-    for (u32 p : cap.overall) {
-        EXPECT_GE(p, prev); /* monotonic across ticks AND boundaries */
-        EXPECT_LE(p, 1000u);
-        if (p < 750u && p != last_below) { /* distinct mid-walk values */
-            ++below;
-            last_below = p;
+    {
+        std::lock_guard<std::mutex> lock(cap.m);
+        ASSERT_FALSE(cap.overall.empty());
+        u32 prev = 0, below = 0, last_below = 0;
+        for (u32 p : cap.overall) {
+            EXPECT_GE(p, prev); /* monotonic across ticks AND boundaries */
+            EXPECT_LE(p, 1000u);
+            if (p < 750u && p != last_below) { /* distinct mid-walk values */
+                ++below;
+                last_below = p;
+            }
+            prev = p;
         }
-        prev = p;
+        /* ticks at dentries 64/128/192 (root walk stops at the first 0x00
+         * slot, i.e. after 200 entries) - at least three intermediates */
+        EXPECT_GE(below, 3u);
+        EXPECT_EQ(750u, prev); /* ends exactly at the quick->deep boundary */
     }
-    /* ticks at dentries 64/128/192 (root walk stops at the first 0x00
-     * slot, i.e. after 200 entries) - at least three intermediates */
-    EXPECT_GE(below, 3u);
-    EXPECT_EQ(750u, prev); /* ends exactly at the quick->deep boundary */
 }
 
 TEST(Telemetry, PerStageShapeAndCompletion) {

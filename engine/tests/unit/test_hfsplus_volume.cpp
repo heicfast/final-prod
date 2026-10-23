@@ -117,8 +117,8 @@ std::vector<u8> make_leaf_node(const std::vector<std::vector<u8>>& recs, u32 for
     std::vector<u8> node(NODE_SIZE, 0);
     be32(node.data() + 0, forward); /* forwardLink */
     be32(node.data() + 4, 0);       /* backwardLink */
-    node[8] = 0xFF;                   /* kind = -1 (kBTLeafNode, TN1150) */
-    node[9] = 1;                      /* height */
+    node[8] = 0xFF;                 /* kind = -1 (kBTLeafNode, TN1150) */
+    node[9] = 1;                    /* height */
     be16(node.data() + 10, u16(recs.size()));
     /* records packed downward, stopping below the offset array
      * (the last (nrec+1) u16 slots belong to the array) */

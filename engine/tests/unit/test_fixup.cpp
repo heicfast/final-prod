@@ -71,7 +71,7 @@ TEST(Fixup, TornThirdTailStillSalvaged) {
      * strictness; identical outcome for 1 KiB records, matters for >= 2 KiB
      * records). apply() still restores ALL tails (FUN_180041290 walks all
      * sectors). */
-    SynthRecord r; /* 4 sectors of 512 = 2 KiB record */
+    SynthRecord r;                /* 4 sectors of 512 = 2 KiB record */
     r.data[2 * 512 + 510] = 0x00; /* corrupt the THIRD tail */
     r.data[3 * 512 + 511] = 0xFF; /* and the fourth */
     EXPECT_EQ(fixup_validate(r.data.data(), r.data.size(), r.usa_off, r.usa_count, r.sector), OK);

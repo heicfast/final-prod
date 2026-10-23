@@ -1425,6 +1425,6 @@ TEST(NtfsVolume, ViabilityProbeUsesDataSize) {
         collect(r);
     ASSERT_NE(zfn, nullptr) << "deleted file with zero $FILE_NAME size missing";
     EXPECT_EQ(zfn->deleted_state(), tree::DeletedState::Deleted);
-    EXPECT_EQ(zfn->props()->logical_size, 8192u); /* $DATA authoritative */
+    EXPECT_EQ(zfn->props()->logical_size, 8192u);                /* $DATA authoritative */
     EXPECT_EQ(zfn->confidence(), tree::Confidence::PartialRisk); /* 1/2 clusters reused */
 }
