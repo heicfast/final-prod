@@ -447,3 +447,41 @@ Stage Summary:
   pkg-config/find_library in a multi-config build carries release-path
   bias - always prefer the CONFIG package. Evidence trail (dumpbin
   imports + tree listings) now prints in every windows job.
+
+---
+Task ID: S5-WAVE3-CARVE
+Agent: main (session 5 continuation)
+Task: Raw-sign layer 1 (audit row 32) - the og's raw_signs.json runtime.
+
+Work Log:
+- scripts/gen_rawsigns.py compiles the corpus raw_signs.json (139 formats,
+  199 header signs, 62 tail signs; format "offset,hex,confidence" with min/max
+  extents) into cr_rawsigns_data.cpp - generated data committed alongside the
+  generator.
+- cr_rawsigns.{h,cpp}: SignIndex with (offset, first-byte) dispatch buckets
+  built lazily over the sorted arrays; header probes at 512-byte strides;
+  tail scans at the same stride within the bounded [start+min, start+max)
+  window (<= 2 MiB block reads - the P1-12 lesson).
+- cr_carve.cpp integration: after the grammar pass in every window, the sign
+  pass probes each unclaimed sector stride; grammar hits and deduped grammar
+  candidates claim their start positions (pass-2 semantics fixed); sign
+  candidates dedup through the same F9 extent-class index; small sign hits
+  hash like grammar hits. Header-only hit: extent = format max (device-
+  clamped), sign confidence. Header+tail paired: the tail sector closes the
+  file, confidence = avg + 100 bonus. Shared-magic families (flp/fst on
+  46 4c 68 64): highest-confidence sign wins - the og's table is inherently
+  ambiguous there and we take the best evidence.
+- Stats: CarveStats::sign_hits / sign_validated.
+- Tests: GrammarValidationAndSpecificity now asserts the jfif sign hit on the
+  JPEG noise plant (the og's layer-1 semantics: header signs accept what
+  grammar rejects - F8 applies to the grammar layer only); SecondPassFully-
+  Deduped asserts the true F9 invariant (pass 2 adds zero nodes) instead of a
+  brittle duplicate count; new RawSignLayerHeaderAndTail test covers
+  header-only extents, tail-paired closing, and the shared-magic precedence.
+
+Stage Summary:
+- 133/133 tests green on gcc+ASan and the TSan build. Audit row 32's runtime
+  layer is complete; the remaining carve item (MP3 frame walk) was closed by
+  the parallel session's af4bc8e (P1-12). AUDIT.md rows remaining: none
+  blocking - the matrix is fully worked except items owned by the parallel
+  session (bench/comparison/Windows CI).

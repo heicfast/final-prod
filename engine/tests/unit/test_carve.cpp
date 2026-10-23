@@ -247,6 +247,13 @@ TEST(CarveEngine, GrammarValidationAndSpecificity) {
         } else if (n->props()->extents.front().offset == 4096) {
             zip++;
             zip_node = n;
+        } else if (n->props()->extents.front().offset == 12288) {
+            /* the raw-sign layer 1 carves the JPEG noise plant as a jfif
+             * candidate (corpus sign 0,ffd8ffe000104a464946) - the og's
+             * layer-1 semantics: header signs accept what grammar rejects */
+            EXPECT_GE(n->props()->carve_format, 0xFFFF0000u);
+            EXPECT_EQ(n->props()->logical_size,
+                      size_t(32768 - 12288)); /* jfif max, device-clamped */
         } else
             FAIL() << "unexpected carved node at " << n->props()->extents.front().offset;
         switch (fmt) {
@@ -293,10 +300,16 @@ TEST(CarveEngine, SecondPassFullyDeduped) {
     CarveStats s1, s2;
     ASSERT_EQ(carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, s1),
               OK);
+    const size_t nodes_after_p1 = tree.node_count();
     ASSERT_EQ(carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, s2),
               OK);
     EXPECT_EQ(s2.validated, 0u);
-    EXPECT_EQ(s2.duplicates, 4u); /* every re-found file deduped (F9) */
+    /* THE F9 invariant: pass 2 adds zero nodes (every re-found candidate
+     * - grammar and raw-sign alike - dedups against pass 1) */
+    EXPECT_EQ(tree.node_count(), nodes_after_p1);
+    EXPECT_GE(s2.duplicates, 4u);          /* at least the 4 grammar files */
+    EXPECT_GT(s1.sign_hits, 0u);           /* the sign layer is live */
+    EXPECT_EQ(s2.sign_hits, s1.sign_hits); /* same fixture, same probes */
 }
 
 TEST(CarveEngine, RegistryF8Gate) {
@@ -667,4 +680,43 @@ TEST(CarveEngine, PdfEofLastWinsAndFrameFloors) {
         EXPECT_EQ(u64(205), c->props()->extents[0].length);
     }
     EXPECT_EQ(1, pdfs); /* pdf2 (no %%EOF) and the 1-frame MP3 rejected */
+}
+
+TEST(CarveEngine, RawSignLayerHeaderAndTail) {
+    /* header-only format: the corpus "sample" sign (#!/bin/sh) */
+    std::vector<u8> img(512 * 1024, 0);
+    std::memcpy(img.data() + 4096, "#!/bin/sh\n", 10);
+    /* header+tail family: the 46 4c 68 64 magic is SHARED by flp/fst in
+     * the og's table - the best-confidence (tail-paired) sign wins, which
+     * for this plant is fst (its tail sign matches the planted region) */
+    std::memcpy(img.data() + 8192, "\x46\x4c\x68\x64\x06\x00\x00\x00\x00\x00", 10);
+    std::memcpy(img.data() + 8192 + 10240 + 512 + 17, "\x5c\x44\x00\x00\x00\x00", 6);
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"Lost Files");
+    CarveFlags flags;
+    CarveStats s;
+    ASSERT_EQ(carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, s),
+              OK);
+    EXPECT_GE(s.sign_hits, 2u);
+    tree::FileNode* sample_n = nullptr;
+    tree::FileNode* tail_n = nullptr;
+    for (tree::FileNode* c = root->first_child(); c; c = c->next_sibling()) {
+        const std::string nm = c->name_utf8();
+        if (nm.size() > 7 && nm.compare(nm.size() - 7, 7, ".sample") == 0)
+            sample_n = c;
+        if (nm.size() > 4 && nm.compare(nm.size() - 4, 4, ".fst") == 0)
+            tail_n = c;
+    }
+    ASSERT_NE(sample_n, nullptr) << "header-only sign hit missing";
+    ASSERT_NE(tail_n, nullptr) << "header+tail sign hit missing";
+    /* header-only: extent = the format max (51200) */
+    EXPECT_EQ(sample_n->props()->extents.front().offset, u64(4096));
+    EXPECT_EQ(sample_n->props()->logical_size, u64(51200));
+    EXPECT_GE(sample_n->props()->carve_confidence, 500);
+    /* tail-paired: the tail sector closes the file */
+    EXPECT_EQ(tail_n->props()->extents.front().offset, u64(8192));
+    EXPECT_EQ(tail_n->props()->logical_size, u64(10240 + 512 + 512));
+    EXPECT_EQ(tail_n->confidence(), tree::Confidence::PartialRisk);
+    EXPECT_GE(tail_n->props()->carve_confidence, 700); /* paired bonus */
 }

@@ -28,6 +28,8 @@ struct CarveStats {
     u64 duplicates = 0; /* deduped vs structured/carved */
     u64 hashed = 0;
     u64 bytes_scanned = 0;
+    u64 sign_hits = 0;      /* raw-sign layer-1 candidates (row 32) */
+    u64 sign_validated = 0; /* header+tail paired hits */
 };
 
 struct CarveFlags {

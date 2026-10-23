@@ -13,6 +13,7 @@
  */
 
 #include "cr/carve/cr_carve.h"
+#include "cr/carve/cr_rawsigns.h"
 #include "cr/cr_parallel.h"
 #include "cr/crypto/cr_sha256.h"
 #include <atomic>
@@ -55,6 +56,8 @@ struct ScanCtx {
     std::atomic<u64> duplicates{0};
     std::atomic<u64> hashed{0};
     std::atomic<u64> bytes_scanned{0};
+    std::atomic<u64> sign_hits{0};
+    std::atomic<u64> sign_validated{0};
     std::atomic<u32> file_index{0};
     std::atomic<bool> aborted{false};
 };
@@ -117,6 +120,8 @@ u32 scan_one_window(ScanCtx& ctx, u64 base, const u8* win, u64 want, std::set<u6
                 dup = true;
             if (dup) {
                 ctx.duplicates.fetch_add(1, std::memory_order_relaxed);
+                emitted_at.insert(cand_abs); /* position resolved: a file lives here (the
+                                                raw-sign layer must not re-probe it) */
                 break;
             }
 
@@ -160,6 +165,118 @@ u32 scan_one_window(ScanCtx& ctx, u64 base, const u8* win, u64 want, std::set<u6
             ctx.validated.fetch_add(1, std::memory_order_relaxed);
             emitted_at.insert(cand_abs);
             break; /* this magic position resolved */
+        }
+    }
+
+    /* ---- raw-sign layer 1 (audit row 32): the og's 139-format sign
+     * table, probed at 512-byte strides. Grammar hits own their start
+     * positions (emitted_at); the extent index dedups the rest. ---- */
+    {
+        const rawsigns::SignIndex& idx = rawsigns::SignIndex::get();
+        std::vector<const rawsigns::RawSign*> matches;
+        for (u64 off = 0; off + 512 <= want; off += 512) {
+            if (ctx.aborted.load(std::memory_order_relaxed))
+                return ERR_CANCELLED;
+            const u64 start_abs = base + off;
+            if (emitted_at.count(start_abs))
+                continue; /* a grammar-validated file starts here */
+            idx.probe_header(win + off, want - off, matches);
+            if (matches.empty())
+                continue;
+            /* highest-confidence hit drives the candidate */
+            const rawsigns::RawSign* best = matches[0];
+            for (const auto* m : matches)
+                if (m->conf > best->conf)
+                    best = m;
+            const rawsigns::RawSignFormat& fmt = idx.format(best->fmt);
+            u64 len = fmt.max_size;
+            u16 conf = best->conf;
+            bool tail_paired = false;
+            /* tail pairing: bounded search inside [start+min, start+max) */
+            if (fmt.min_size < fmt.max_size && start_abs + fmt.min_size < ctx.total) {
+                const u64 lo = fmt.min_size;
+                const u64 hi =
+                    fmt.max_size < ctx.total - start_abs ? fmt.max_size : ctx.total - start_abs;
+                if (hi > lo && hi - lo <= (2ull << 20)) { /* bounded (<=2 MiB) */
+                    std::vector<u8> tail_buf(size_t(hi - lo), 0);
+                    if (ctx.slice->read_at(start_abs + lo, tail_buf.data(), u32(tail_buf.size())) ==
+                        OK) {
+                        rawsigns::SignIndex::TailHit th;
+                        if (idx.scan_tail(tail_buf.data(), tail_buf.size(), th)) {
+                            len = lo + th.pos + 512;
+                            conf = u16((u32(best->conf) + u32(th.sign->conf)) / 2 + 100);
+                            if (conf > 1000)
+                                conf = 1000;
+                            tail_paired = true;
+                        }
+                    }
+                }
+            }
+            if (len > ctx.total - start_abs)
+                len = ctx.total - start_abs;
+            if (len < fmt.min_size)
+                continue; /* device too small for the format's floor */
+            ctx.sign_hits.fetch_add(1, std::memory_order_relaxed);
+            if (tail_paired)
+                ctx.sign_validated.fetch_add(1, std::memory_order_relaxed);
+
+            /* F9 dedup (extent class) against structured + carved */
+            u64 len_class = 0;
+            if (len >= (1 << 20)) {
+                while ((1ULL << len_class) < len)
+                    ++len_class;
+                len_class += 64;
+            } else {
+                len_class = len / 65536;
+            }
+            bool dup = false;
+            if (ctx.dedup_tree && ctx.dedup_tree->find_by_extent(start_abs, len_class))
+                dup = true;
+            if (!dup && ctx.tree->find_by_extent(start_abs, len_class))
+                dup = true;
+            if (dup) {
+                ctx.duplicates.fetch_add(1, std::memory_order_relaxed);
+                continue;
+            }
+
+            tree::FileProperties* props = new (std::nothrow) tree::FileProperties();
+            if (props == nullptr) {
+                ctx.aborted.store(true, std::memory_order_relaxed);
+                return ERR_NO_MEMORY;
+            }
+            const u32 fi = ctx.file_index.fetch_add(1, std::memory_order_relaxed);
+            char nbuf[40];
+            snprintf(nbuf, sizeof(nbuf), "File%06u.%s", fi, fmt.ext);
+            std::u16string uname;
+            for (const char* p = nbuf; *p; ++p)
+                uname.push_back(u16(u8(*p)));
+            props->name = uname;
+            props->fs_kind = u32(FsKindCode::Raw);
+            props->logical_size = len;
+            props->carve_format = 0xFFFF0000u + best->fmt; /* raw-sign tag */
+            props->carve_confidence = conf;
+            props->extents.push_back({start_abs, len});
+            if (ctx.flags->hash_small_files && len <= ctx.flags->hash_threshold &&
+                len <= MAX_FILE_READ_FOR_HASH) {
+                std::vector<u8> content((size_t(len)));
+                if (ctx.slice->read_at(start_abs, content.data(), u32(len)) == OK) {
+                    u8 full[32];
+                    crypto::Sha256::digest(content.data(), size_t(len), full);
+                    std::memcpy(props->sha128, full, 16);
+                    props->hash_valid = true;
+                    ctx.hashed.fetch_add(1, std::memory_order_relaxed);
+                }
+            }
+            tree::FileNode* n = ctx.tree->add_file(ctx.carve_root, props);
+            props->release();
+            if (n == nullptr) {
+                ctx.aborted.store(true, std::memory_order_relaxed);
+                return ERR_NO_MEMORY;
+            }
+            n->set_origin(tree::Origin::Carved);
+            n->set_confidence(tail_paired ? tree::Confidence::PartialRisk
+                                          : tree::Confidence::MetadataOnly);
+            emitted_at.insert(start_abs);
         }
     }
     return OK;
@@ -292,6 +409,10 @@ u32 carve_slice(IStorageDevice* slice, const CarveFlags& flags, CancelToken* can
     stats.duplicates += ctx.duplicates.load();
     stats.hashed += ctx.hashed.load();
     stats.bytes_scanned += ctx.bytes_scanned.load();
+    stats.sign_hits += ctx.sign_hits.load();
+    stats.sign_validated += ctx.sign_validated.load();
+    stats.sign_hits += ctx.sign_hits.load();
+    stats.sign_validated += ctx.sign_validated.load();
     return OK;
 }
 
