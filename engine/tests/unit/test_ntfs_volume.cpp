@@ -807,12 +807,12 @@ TEST(NtfsVolume, UsnJrnlHarvest) {
             const u32 namelen = u32(n.size() * 2);
             const u32 rlen = 64 + namelen;
             j32(u32(at + 0), rlen);
-            j16(u32(at + 4), 2);                 /* major */
-            j16(u32(at + 6), 0);                 /* minor */
-            j64(at + 8, 1234);                   /* file ref */
-            j64(at + 16, 5 | (1ULL << 48));      /* parent: root */
-            j64(at + 24, 1);                     /* usn */
-            j64(at + 32, 132000000000000000ULL); /* timestamp */
+            j16(u32(at + 4), 2);                      /* major */
+            j16(u32(at + 6), 0);                      /* minor */
+            j64(u32(at + 8), 1234);                   /* file ref */
+            j64(u32(at + 16), 5 | (1ULL << 48));      /* parent: root */
+            j64(u32(at + 24), 1);                     /* usn */
+            j64(u32(at + 32), 132000000000000000ULL); /* timestamp */
             j32(u32(at + 40), reason);
             j32(u32(at + 44), 0);    /* source */
             j32(u32(at + 48), 0);    /* security */
