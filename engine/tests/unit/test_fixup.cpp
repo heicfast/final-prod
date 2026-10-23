@@ -52,8 +52,9 @@ TEST(Fixup, ValidRecordApplies) {
 
 TEST(Fixup, TornRecordRejected) {
     SynthRecord r;
-    /* corrupt sector 2's tail */
-    r.data[2 * 512 + 510] = 0x00;
+    /* corrupt sector 1's tail — inside the og's checked window (first two
+     * tails, FUN_1800411f0 'local_18 < 2') */
+    r.data[1 * 512 + 510] = 0x00;
     EXPECT_EQ(fixup_validate(r.data.data(), r.data.size(), r.usa_off, r.usa_count, r.sector),
               ERR_FIXUP_FAILED);
     /* apply must refuse without touching the buffer */
@@ -61,6 +62,25 @@ TEST(Fixup, TornRecordRejected) {
     EXPECT_EQ(fixup_apply(r.data.data(), r.data.size(), r.usa_off, r.usa_count, r.sector),
               ERR_FIXUP_FAILED);
     EXPECT_EQ(std::memcmp(before.data(), r.data.data(), r.data.size()), 0);
+}
+
+TEST(Fixup, TornThirdTailStillSalvaged) {
+    /* PARITY-AUDIT F-A1-3: og FUN_1800411f0 validates only the FIRST TWO
+     * sector tails ('local_18 < 2', decompiled line 52129) — a record with
+     * a mismatching 3rd/4th tail is still accepted (salvage over
+     * strictness; identical outcome for 1 KiB records, matters for >= 2 KiB
+     * records). apply() still restores ALL tails (FUN_180041290 walks all
+     * sectors). */
+    SynthRecord r; /* 4 sectors of 512 = 2 KiB record */
+    r.data[2 * 512 + 510] = 0x00; /* corrupt the THIRD tail */
+    r.data[3 * 512 + 511] = 0xFF; /* and the fourth */
+    EXPECT_EQ(fixup_validate(r.data.data(), r.data.size(), r.usa_off, r.usa_count, r.sector), OK);
+    ASSERT_EQ(fixup_apply(r.data.data(), r.data.size(), r.usa_off, r.usa_count, r.sector), OK);
+    /* all four tails restored to their USA-recorded originals */
+    EXPECT_EQ(cr::u16_from_bytes_le(r.data.data() + 510), 0x1111);
+    EXPECT_EQ(cr::u16_from_bytes_le(r.data.data() + 1022), 0x2222);
+    EXPECT_EQ(cr::u16_from_bytes_le(r.data.data() + 1534), 0x3333);
+    EXPECT_EQ(cr::u16_from_bytes_le(r.data.data() + 2046), 0x4444);
 }
 
 TEST(Fixup, MinSizeGate) {

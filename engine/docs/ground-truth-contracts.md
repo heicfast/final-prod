@@ -32,7 +32,8 @@ Contract points (corpus-verified):
 |---|---|---|
 | Record magic 'FILE' | 0x454C4946 | lines 21152/34153/34159/55194 |
 | Min record parse size | 0x400 | walk clamp (21138) |
-| Fixup min size gate | 0x400; offset must not be 0 mod 256 | FUN_180041bb0 chain |
+| Fixup min size gate | 0x400; offset nonzero + even | FUN_180041bb0 chain |
+| Fixup validation scope | FIRST TWO sector tails only vs USA[0]; apply restores all | FUN_1800411f0 loop bound `local_18 < 2` (decompiled :52129); apply chain FUN_180041290 (:52452-52463). PARITY-AUDIT F-A1-3 |
 | $ATTRIBUTE_LIST type | 0x20 | FUN_180041850 probe |
 | $FILE_NAME type | 0x30 | 52190/53409 |
 | $OBJECT_ID type | 0x40 | 51006 |

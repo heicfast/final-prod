@@ -1,10 +1,16 @@
-/* cr_fixup.cpp - USA fixup validate/apply (corpus FUN_180041bb0 chain).
+/* cr_fixup.cpp - USA fixup validate/apply (corpus FUN_1800411f0 + FUN_180041290).
  *
- * Rules (corpus ground-truth contracts section 3):
+ * Rules (corpus ground-truth contracts section 3 + decompile):
  *   - record_bytes >= 0x400 (min parse size)
- *   - usa_offset != 0 and usa_offset % 2 == 0; usa_count = sectors + 1
- *   - every sector i: u16 at (i * sector_size - 2) must equal usa[i]
- *   - apply: that trailing u16 is replaced by usa[i + 1]
+ *   - usa_offset != 0 and even; usa_count = sectors + 1
+ *   - VALIDATION checks only the FIRST TWO sector tails against USA[0]
+ *     (og FUN_1800411f0 loop bound 'local_18 < 2', decompiled line 52129:
+ *     salvage tolerance — records with a bad 3rd+ tail are still accepted;
+ *     identical for 1 KiB records, differs only for >= 2 KiB records)
+ *   - apply: every sector tail is replaced by usa[i + 1] (FUN_180041290
+ *     walks all sectors, bounded by the record size)
+ *   - sector size is parameterized (4Kn-aware; og hardcodes 0x200 — fix F1
+ *     family, documented delta)
  *
  * Licensed under the MIT license. See LICENSE.
  */
@@ -16,6 +22,7 @@ namespace ntfs {
 
 namespace {
 constexpr u64 MIN_PARSE_BYTES = 0x400; /* corpus: fixup min size gate */
+constexpr u32 VALIDATE_TAIL_COUNT = 2; /* og FUN_1800411f0: first two tails */
 } // namespace
 
 u32 fixup_validate(const u8* record, u64 record_bytes, u32 usa_offset, u32 usa_count,
@@ -34,9 +41,12 @@ u32 fixup_validate(const u8* record, u64 record_bytes, u32 usa_offset, u32 usa_c
     if (u64(usa_offset) + u64(usa_count) * 2 > record_bytes)
         return ERR_BAD_PARAMETER;
 
-    /* USA[0] is the single USN that ALL sector tails must carry */
+    /* USA[0] is the single USN that the FIRST TWO sector tails must carry
+     * (og parity: FUN_1800411f0 stops after 2 — a mismatching 3rd+ tail
+     * does not reject the record; salvage over strictness) */
     const u16 usn = u16_from_bytes_le(record + usa_offset);
-    for (u32 i = 0; i < sectors; ++i) {
+    const u32 check = sectors < VALIDATE_TAIL_COUNT ? sectors : VALIDATE_TAIL_COUNT;
+    for (u32 i = 0; i < check; ++i) {
         const u8* tail = record + u64(i) * sector_size + sector_size - 2;
         if (u16_from_bytes_le(tail) != usn)
             return ERR_FIXUP_FAILED;
