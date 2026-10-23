@@ -576,7 +576,7 @@ u32 scan_btrfs(IStorageDevice* slice, const BtrfsScanFlags& flags, CancelToken* 
         if (!sv_props)
             continue;
         sv_props->name = role16;
-        sv_props->fs_kind = 7;
+        sv_props->fs_kind = u32(FsKindCode::Btrfs); /* factory 11 (row 45: 7 collided with exFAT) */
         sv_props->attributes = 0x10;
         sv_props->record_ref = sv.id;
         tree::FileNode* sv_root = tree.add_file(root_active, sv_props);
@@ -687,7 +687,7 @@ u32 scan_btrfs(IStorageDevice* slice, const BtrfsScanFlags& flags, CancelToken* 
                     if (!cp)
                         return;
                     cp->name = de.name;
-                    cp->fs_kind = 7; /* CBtrfsFileProerties corpus id */
+                    cp->fs_kind = u32(FsKindCode::Btrfs); /* factory 11 (row 45) */
                     cp->logical_size = cit->second.size;
                     cp->attributes = is_dir ? 0x10 : 0;
                     cp->times.created = cit->second.crtime;

@@ -13,6 +13,7 @@
 #define CR_SCAN_H_
 
 #include "../storage/cr_device.h"
+#include "../table/cr_ldm.h"
 #include "../tree/cr_node.h"
 #include "../session/cr_crsf.h"
 #include "../session/cr_records.h"
@@ -52,6 +53,15 @@ struct ScanConfig {
     FsFamily fs_hint = FsFamily::Unknown; /* auto-probed when Unknown */
     StageWeights weights;
     u32 threads = 0; /* 0 = auto (hw-1, clamp 1..8); 1 = single-threaded */
+
+    /* Cross-disk LDM members (audit row 30 / LDM audit Bug 5): when a
+     * whole-disk scan finds an LDM database, spanned/striped/mirrored/
+     * RAID-5 volumes may reference member disks other than the scanned
+     * one. The platform layer installs a GUID -> IStorageDevice resolver
+     * built from every disk it can open (each device must outlive the
+     * scan). Empty resolver = single-disk semantics (only the scanned
+     * disk's volumes resolve). */
+    table::LdmDiskResolver ldm_resolver;
 };
 
 struct ScanStats {

@@ -23,6 +23,7 @@
 #include "cr/session/cr_crsf.h"
 #include "cr/session/cr_records.h"
 #include "cr/storage/cr_slice.h"
+#include "cr/table/cr_ldm.h"
 #include "cr/table/cr_table_parse.h"
 #include "cr/win/cr_bitlocker.h"
 #include "cr/win/cr_destio.h"
@@ -30,6 +31,7 @@
 #include "cr/win/cr_health.h"
 #include "cr/win/cr_transport.h"
 #include <windows.h>
+#include <map>
 #include <chrono>
 #include <cstdarg>
 #include <cstdio>
@@ -434,6 +436,47 @@ int cmd_scan(int argc, wchar_t** argv, int& i) {
     log_open(log_path.empty() ? nullptr : log_path.c_str());
     log_line("rrecov scan: threads=%u quick=%d deep=%d carve=%d whole_disk=%d", cfg.threads,
              int(cfg.run_quick), int(cfg.run_deep), int(cfg.run_carve), int(cfg.whole_disk));
+
+    /* Cross-disk LDM members (audit row 30): on a whole-disk scan of an
+     * LDM (dynamic) disk, spanned/striped/mirrored/RAID-5 volumes may
+     * reference member disks other than this one. Enumerate every disk,
+     * read its PRIVHEAD disk GUID (LBA 6 - one 512-byte read), and give
+     * the orchestrator a GUID -> device resolver. The devices stay open
+     * for the whole scan. Non-LDM disks simply have no GUID entry and
+     * never resolve. */
+    std::vector<std::unique_ptr<IStorageDevice>> ldm_members;
+    if (cfg.whole_disk && target.volume_len == 0) {
+        table::LdmInfo probe;
+        if (table::parse_ldm_database(target.device.get(), probe) == OK && probe.found) {
+            win::PhysicalDiskList list;
+            if (win::enumerate_disks(32, list) == OK) {
+                auto guid_map = std::make_shared<std::map<table::LdmGuid, IStorageDevice*>>();
+                for (const auto& pd : list.disks) {
+                    u32 oerr = 0;
+                    auto dev = win::open_disk(pd.number, true, L"RDA", &oerr);
+                    if (!dev)
+                        dev = win::open_disk(pd.number, false, L"RDA", &oerr);
+                    if (!dev)
+                        continue;
+                    u8 sec[512];
+                    if (dev->read_at(6 * 512, sec, sizeof(sec)) == OK &&
+                        std::memcmp(sec, "PRIVHEAD", 8) == 0) {
+                        table::LdmGuid g{};
+                        std::memcpy(g.b, sec + 0x30, 16);
+                        (*guid_map)[g] = dev.get();
+                    }
+                    ldm_members.push_back(std::move(dev));
+                }
+                if (!guid_map->empty()) {
+                    log_line("ldm cross-disk registry: %zu disk(s)", guid_map->size());
+                    cfg.ldm_resolver = [guid_map](const table::LdmGuid& g) -> IStorageDevice* {
+                        auto it = guid_map->find(g);
+                        return it != guid_map->end() ? it->second : nullptr;
+                    };
+                }
+            }
+        }
+    }
 
     tree::ResultTree tree;
     orchestrator::ScanController ctrl(tree, cfg);

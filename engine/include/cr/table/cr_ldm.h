@@ -68,6 +68,12 @@ struct LdmGuid {
         return true;
     }
     bool operator!=(const LdmGuid& o) const { return !(*this == o); }
+    bool operator<(const LdmGuid& o) const {
+        for (int i = 0; i < 16; i++)
+            if (b[i] != o.b[i])
+                return b[i] < o.b[i];
+        return false;
+    }
     bool is_zero() const {
         for (int i = 0; i < 16; i++)
             if (b[i] != 0)

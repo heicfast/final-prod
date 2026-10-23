@@ -226,12 +226,26 @@ u32 ScanController::run_engine_pass(IStorageDevice* slice, bool deep_mode, Cance
      * of its own - the volumes live in the 1 MiB database. Parse it and
      * scan every reconstructed volume (simple / spanned / striped /
      * mirrored / RAID-5, incl. reconstruction of a missing RAID-5
-     * column) through the standard candidate machinery. Non-LDM disks
-     * are rejected by the MBR/GPT type check after one 512-byte read. */
-    if (cfg_.fs_hint == FsFamily::Unknown) {
+     * column) through the standard candidate machinery. Probed
+     * UNCONDITIONALLY before the fs_hint switch: probe_family's FAT
+     * heuristic (55AA + a pow2 word at +0x0B) can alias an LDM disk's
+     * boot-code bytes, which would gate this branch out (LDM audit
+     * finding); parse_ldm_database self-rejects non-LDM disks after one
+     * 512-byte read, so the cost on regular disks is negligible. */
+    {
         table::LdmInfo ldm;
         if (table::parse_ldm_database(slice, ldm) == OK && ldm.found) {
             const table::LdmGuid& self = ldm.ph.disk_guid_bin;
+            /* member resolution: platform-provided cross-disk registry
+             * first (each member disk's own PRIVHEAD re-anchors its LBAs
+             * inside LdmVolumeDevice), local disk as the fallback */
+            table::LdmDiskResolver resolver = cfg_.ldm_resolver;
+            table::LdmDiskResolver local = [&self,
+                                            slice](const table::LdmGuid& g) -> IStorageDevice* {
+                return g == self ? slice : nullptr;
+            };
+            if (!resolver)
+                resolver = local;
             for (const auto& lay : ldm.layouts) {
                 if (lay.kind == table::LdmVolumeKind::Broken || lay.copies.empty())
                     continue; /* surfaced via the LdmInfo report, not scannable */
@@ -239,10 +253,7 @@ u32 ScanController::run_engine_pass(IStorageDevice* slice, bool deep_mode, Cance
                 for (const char* p = lay.name.c_str(); *p; ++p)
                     role.push_back(u16(u8(*p)));
                 tree::FullNode* vroot = tree_.add_root(role);
-                table::LdmVolumeDevice vol(
-                    lay, [&self, slice](const table::LdmGuid& g) -> IStorageDevice* {
-                        return g == self ? slice : nullptr;
-                    });
+                table::LdmVolumeDevice vol(lay, resolver);
                 u64 files = 0, deleted = 0;
                 (void)scan_candidate(&vol, vroot, cancel, files, deleted);
                 stats.files_found += files;
