@@ -362,3 +362,34 @@ Stage Summary:
   closed. Remaining: wave-2 wiring fixes (rows 9-11, 28, 31, 33-35, 38, 40,
   42-45), wave-3 carving (row 32, partially done by the parallel session),
   wave-4 infra (rows 34, 47-49).
+
+---
+Task ID: S6-WINDOWS-DLL
+Agent: main
+Task: The 0xc0000135 postmortem (three CI cycles to root cause)
+
+Work Log:
+- Cycle 1 (35876b3): added find_package(liblz4 CONFIG) - but guarded
+  behind 'NOT TARGET PkgConfig::LZ4'. With the vcpkg toolchain exposing
+  the manifest tree to pkg-config, pkg_check_modules ran FIRST and won -
+  the CONFIG fix never executed.
+- Cycle 2 (705df9a): deployment backstop (cr_deploy_vcpkg_binaries +
+  DeployVcpkgBinaries.cmake, verified locally with a fake tree) copies
+  every config-matching DLL next to the exes at POST_BUILD. The exe
+  STILL died - decisive evidence: the missing import was not a vcpkg
+  DLL name that ANY deployment could satisfy.
+- Root cause: pc files are release-flavoured, no per-config mapping ->
+  MSVC Debug linked the RELEASE import lib -> exe imports liblz4.dll
+  while the debug tree (CMAKE_DEBUG_POSTFIX=d) only has liblz4d.dll.
+  applocal's silent name-skip + the exe's startup = 0xc0000135.
+- Fix (0d0f706): discovery order inverted - CONFIG package FIRST
+  (per-config aware: Debug links debug/lib/liblz4d.lib), pkg-config
+  demoted to the Linux fallback, find_library last (naming widened).
+  Deploy backstop kept (belt and braces, prints each deployed DLL);
+  Diagnostics step now if:always() (was skipped exactly when needed).
+
+Stage Summary:
+- Lesson recorded: on MSVC + vcpkg, ANY lib discovered via
+  pkg-config/find_library in a multi-config build carries release-path
+  bias - always prefer the CONFIG package. Evidence trail (dumpbin
+  imports + tree listings) now prints in every windows job.
