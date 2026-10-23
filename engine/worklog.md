@@ -912,3 +912,44 @@ Stage Summary:
   (numeric enum schema, keep-gate ACTIVE, precision accounting, rsf
   contamination guard, service name rda), G-02 snapshot + G-01 C ABI shim,
   #10 umbrella remainder.
+
+---
+Task ID: PARITY-W4
+Agent: principal-engineer (deep-parity refactor session, main)
+Task: W4 dead-code sweep (all five audit registers) + DC-12/13 consolidation; P1-2/P1-3
+duplicate resolution; scope declaration.
+
+Work Log:
+- W4 landed at 0c6a1f5 (net -420 lines): NTFS register 1-18+21 (INDX family deleted per
+  ruling D-N; three hand-rolled attribute walkers consolidated on enum_attributes with
+  uniform bounds + shared 64-attr cap; child-record partial salvage preserved), FAT/exFAT
+  register 1-20 (FAT-8 backup-boot fallback gated to FAT32-validating candidates +
+  regression test; keep_deleted removed from Fat/Exfat/Btrfs/Zfs - BtrfsScanFlags and
+  ZfsScanFlags deleted entirely with signature updates; entry_set_checksum composed from
+  checksum16; shared fat_datetime_to_unix_seconds), LINUX-FS DC-1..DC-11 (22 dead
+  constants; FE_COMPRESSION kept - live since W2's BTR-4; detect_refs marked
+  diagnostic/test surface honestly; cr_bits.h shared readers replacing 7 private copies;
+  unix_to_filetime_ns shared fold replacing 3 private folds), PIPELINE register 2/5/6/7/8/9
+  (MbrTable name removed with value 4 reserved - serialized positions; fs_probe
+  score-duplicate deleted; CarveResult::fragmented dead field + 4 sets deleted), ARCH
+  register (open_disk_view, status_text, trim fields, failed_bytes, inner x2, index_node
+  wrapper, unreachable cached branch, round_up, temp_data.txt; volume_letter_to_disk KEPT
+  + documented as the writer overlap preflight candidate; devmap redundant merge loop;
+  fs_kind enum style x15; hex literals -> named errors).
+- P1-2/P1-3: I implemented both in parallel with S5-CONT-2 (worklog declarations crossed
+  in flight). Their 632edc4 is MORE complete on P1-3 (they also caught the extension
+  convention: $R keeps the original extension, $I does not - my full-suffix token would
+  still have missed real volumes). My duplicate was dropped cleanly; theirs adopted;
+  verified 211/211 green at 632edc4.
+
+Stage Summary:
+- CLAIMED NEXT by this session (to avoid the next collision): the W5 docs wave -
+  PARITY-DELTAS D-36..D-44 + refreshes (D-06/07/13c/17, D-28/29/30, U-8/12),
+  CAPABILITY-MATRIX.md, BENCHMARK-REPORT.md, error-fix-registry F11/F15,
+  ground-truth-contracts §2/§3/§6, CORE-CONTRACT §13 coordination, corpus errata feed.
+  These are this session's own registry deliverables.
+- SUGGESTED for S5-CONT-2 (they have the audit context): GAP-P1-1 (NTFS compressed
+  $DATA LZNT1/XPRESS/LZX), GAP-P1-5 (elevation probe), GAP-BENCH-1..5 (their scripts),
+  G-01/G-02 (their UI plan).
+- This session will then close out: W3-9a/b (SESS identity card + compress rule),
+  W3-10 leftovers (dispatch dedup, OVERLAPPED dedup), W6 (Win7 pins + release tag).
