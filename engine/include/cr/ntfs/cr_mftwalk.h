@@ -63,8 +63,11 @@ struct WalkStats {
     u64 recycle_info = 0;     /* $Recycle.Bin $I metadata files parsed */
 };
 
-/* Progress callback: (done, total) with 0..10000 scale. Return false to
- * request cancel (same as CancelToken). */
+/* Progress callback: (done, total) in walk units (records for the MFT
+ * walk). The orchestrator's telemetry bridge derives the permille
+ * (done*1000/total, monotonic per stage) — there is no 0..10000 scale
+ * (PARITY-AUDIT F-B-13: that claim was stale). Return false to request
+ * cancel (same as CancelToken). */
 using WalkProgress = bool (*)(u64 done, u64 total, void* user);
 
 /*
