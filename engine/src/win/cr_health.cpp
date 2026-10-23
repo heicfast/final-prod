@@ -78,8 +78,7 @@ bool smart_rcv_legacy(HANDLE h, u8 feature, u8 count, u8 command, u8* out512) {
         u8 data[512];
     } out;
     DWORD br = 0;
-    if (!DeviceIoControl(h, SMART_RCV_DRIVE_DATA, &in, sizeof(in), &out, sizeof(out), &br,
-                         nullptr))
+    if (!DeviceIoControl(h, SMART_RCV_DRIVE_DATA, &in, sizeof(in), &out, sizeof(out), &br, nullptr))
         return false;
     std::memcpy(out512, out.data, 512);
     return true;
@@ -184,8 +183,8 @@ u32 read_smart(void* disk_handle, SmartReport& out) {
 
     /* 2. SMART READ DATA (command 0xB0, feature 0xD0). */
     u8 table[512];
-    const bool got_table =
-        via_legacy ? smart_rcv_legacy(h, 0xD0, 0, 0xB0, table) : ata_passthrough(h, 0xD0, 0, 0xB0, table);
+    const bool got_table = via_legacy ? smart_rcv_legacy(h, 0xD0, 0, 0xB0, table)
+                                      : ata_passthrough(h, 0xD0, 0, 0xB0, table);
     if (!got_table)
         return ERR_HEALTH_UNAVAILABLE;
     out.smart_version = u16(table[0]) | (u16(table[1]) << 8);
@@ -247,9 +246,9 @@ u32 read_nvme_health(void* disk_handle, NvmeHealth& out) {
     if (h == nullptr || h == INVALID_HANDLE_VALUE)
         return ERR_BAD_PARAMETER;
 
-        /* NVMe health log (log page 2) through the protocol-specific storage
-         * query (Windows 10 storage stack; the corpus DiskHealth uses the
-         * same route through its NVMe transport). */
+    /* NVMe health log (log page 2) through the protocol-specific storage
+     * query (Windows 10 storage stack; the corpus DiskHealth uses the
+     * same route through its NVMe transport). */
 #pragma pack(push, 1)
     struct {
         STORAGE_PROPERTY_QUERY header; /* PropertyId + QueryType only used */

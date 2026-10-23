@@ -127,7 +127,6 @@ u32 unlock(wchar_t letter, int key_type, const std::wstring& key_or_path) {
     return OK;
 }
 
-
 namespace {
 /* Write one binary auto-unlock blob to a temp .BEK file; returns the path
  * (empty on failure). The blob is passed to Windows verbatim - no crypto
@@ -138,8 +137,8 @@ std::wstring write_temp_bek(const u8* data, DWORD len, DWORD index) {
         return {};
     wchar_t path[MAX_PATH] = {};
     _snwprintf_s(path, MAX_PATH, _TRUNCATE, L"%scr_au_%u.bek", dir, unsigned(index));
-    HANDLE h =
-        CreateFileW(path, GENERIC_WRITE, 0, nullptr, CREATE_ALWAYS, FILE_ATTRIBUTE_TEMPORARY, nullptr);
+    HANDLE h = CreateFileW(path, GENERIC_WRITE, 0, nullptr, CREATE_ALWAYS, FILE_ATTRIBUTE_TEMPORARY,
+                           nullptr);
     if (h == INVALID_HANDLE_VALUE)
         return {};
     DWORD wrote = 0;
@@ -155,15 +154,13 @@ std::wstring write_temp_bek(const u8* data, DWORD len, DWORD index) {
 /* Enumerate every REG_BINARY value (>= 32 bytes) under `root`: direct
  * values plus every subkey's values (the FVEAutoUnlock service nests
  * per-volume external keys under Keys\<volume GUID>). */
-template <typename F>
-void enum_binary_blobs(HKEY root, F&& emit) {
+template <typename F> void enum_binary_blobs(HKEY root, F&& emit) {
     wchar_t name[256];
     for (DWORD i = 0;; ++i) {
         DWORD name_len = 256;
         DWORD type = 0;
         DWORD size = 0;
-        const LSTATUS rc =
-            RegEnumValueW(root, i, name, &name_len, nullptr, &type, nullptr, &size);
+        const LSTATUS rc = RegEnumValueW(root, i, name, &name_len, nullptr, &type, nullptr, &size);
         if (rc != ERROR_SUCCESS)
             break;
         if (type != REG_BINARY || size < 32)
