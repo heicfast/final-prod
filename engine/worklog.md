@@ -635,3 +635,26 @@ Stage Summary:
   (27 ACCEPTED / 9 NEEDS-WORK). Next: fix wave 1 (F-B-4, F-C-1 pair,
   F-A1-1/2/3, F-A2-17/18, F-A4-17, F-D-1) with tests, then issue filings
   and #1-#10 triage comments.
+
+---
+Task ID: UI-W1
+Agent: Core UI-Readiness Sub-Agent (session continuation)
+Task: Close the W1 milestone of docs/UI-READINESS-PLAN.md — pause/resume (G-07), scan observability (G-04/05/06), truthful session masks + save-on-cancel, G-14 volume info, G-23 candidate restore — with acceptance tests.
+
+Work Log:
+- Context recovery after session interruption: inventoried 20 modified files + 2 new test files left uncommitted; lesson applied — commit+push cadence now immediate.
+- Fixed telemetry() paused/elapsed live refresh: snapshot copy only stamped at stage boundaries; now refreshes from the caller's token under the telemetry mutex (teardown-safe: stamp() clears tel_retry_/tel_cancel_/tel_running_ inside the same lock a query holds).
+- Fixed non-monotonic boundary ticks: run_quick forwarded hardcoded weighted(1000,0,0)=400 while the covers_both bridge had already forwarded 750 mid-walk; boundary calls now forward the post-stamp telemetry overall (tel_overall_()); stale LDM-branch direct call removed.
+- CRITICAL fix: run() stored tel_retry_ from a moved-from unique_ptr (use-after-move → nullptr) — the live error map AND the end-of-run stats merge were silently dead. Raw pointer captured before the move; published only while the cache provably owns the device.
+- CRITICAL fix: serialize_tree never emitted roots — loaded sessions collapsed all top-level children under a synthetic "Restored" root, destroying the Found/Deleted/Lost/Carved role structure resume() recovers roots by. Roots now serialized (marker=1, parent 0xFFFFFFFF); legacy files load unchanged.
+- SessionState v2: deleted_found + carved_found appended (24-byte v1 records still parse, zeroed); load_session_summary restores them so reloaded sessions report truthful totals.
+- Carve honest fill-rate: window OVERLAP tails were double-counted (bytes_scanned exceeded the device by 16 sectors); per-window attribution clamped to the window's own [base, base+WINDOW) range.
+- FAT/exFAT walk: per-dentry incremental progress ticks (every 64th dentry + end-of-directory).
+- Acceptance tests (12 new, deterministic — no polling races): token semantics incl. cancel-while-paused wake; pause compensation proven against measured wall time (elapsed+paused ≈ wall); save-on-cancel truthful mask + resume-skips-quick compared against a reference scan (node counts + found totals equal, quick not re-run); mask tampering → ERR_SESSION_FORMAT; G-14/G-23 volume-info/candidate round-trip over a partition slice; monotonic overall; deterministic FAT incremental ticks via the user callback; per-stage shape; mid-scan live error map via a device that parks a later-stage read AFTER the range is recorded; concurrent telemetry queries (TSan).
+- Rebased over PARITY-T2/T3 (docs-only), re-ran suite, pushed.
+
+Stage Summary:
+- Commit 804972a on main: 150/150 tests green under ASan (138 prior + 12 new).
+- W1 closed: G-04/G-05/G-06 (progress/ETA inputs/live error map), G-07 (pause/resume/save-on-cancel/truthful mask), G-14, G-23. D-3 architecture-doc correction still pending (docs sweep at T17).
+- Three silent-failure bugs eliminated (tel_retry_ null, root serialization, carve double-count) — all caught by the new acceptance tests, exactly the no-failure-masking mandate.
+- Next: W2 per UI-READINESS-PLAN — writer dest dirs + empty-folder nodes (G-08, issue #5), recovery report JSON (G-09, issue #6), then preview reader (G-10) and query/filter/sort/paging (G-12).
