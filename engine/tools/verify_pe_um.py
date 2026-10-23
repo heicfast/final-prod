@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 verify_pe_um.py - Win7-loadability gate for core_recovery user-mode binaries
-(rrecov.exe, cr_tests.exe; later cr_ui.dll).
+(rrecov.exe, cr_tests.exe, cr_ui.dll - every shipped Windows PE).
 
 User-mode port of the rda-driver Win7 gate (tools/verify_pe.py), adapted:
 
@@ -85,6 +85,35 @@ ALLOWLIST_ADDITIONS = {
     "GetLastError": "win layer; XP-era",
     "SetLastError": "win layer; XP-era",
     "CloseHandle": "win layer; XP-era",
+    # linker-verified 2026-10-23 (first gate run, run 39992119849): the
+    # MSVC toolset emits these into rrecov.exe / cr_tests.exe directly
+    "UnhandledExceptionFilter": "CRT SEH chain tail; XP-era",
+    "SetUnhandledExceptionFilter": "CRT abort/report install; XP-era",
+    "IsDebuggerPresent": "CRT abort diagnostics; XP-era",
+    # SRWLock / ConditionVariable / InitOnce families: emitted by the
+    # toolset for std::mutex / std::condition_variable / one-shot guards.
+    # Every member is documented Vista+ (Minimum supported client:
+    # Windows Vista) - all Win7-safe. Family completion entries included so
+    # the gate only trips on genuinely NEW imports, not on which sibling
+    # the linker happened to pull this build.
+    "AcquireSRWLockExclusive": "std::mutex machinery (verified); Vista+",
+    "ReleaseSRWLockExclusive": "std::mutex machinery (verified); Vista+",
+    "TryAcquireSRWLockExclusive": "std::mutex try_lock (family); Vista+",
+    "AcquireSRWLockShared": "SRW shared side (family); Vista+",
+    "ReleaseSRWLockShared": "SRW shared side (family); Vista+",
+    "TryAcquireSRWLockShared": "SRW shared try (family); Vista+",
+    "InitializeSRWLock": "SRW init (family); Vista+",
+    "InitializeConditionVariable": "CV init (family); Vista+",
+    "WakeConditionVariable": "CV notify_one (family); Vista+",
+    "WakeAllConditionVariable": "CV notify_all (verified); Vista+",
+    "SleepConditionVariableSRW": "CV wait (verified); Vista+",
+    "SleepConditionVariableCS": "CV wait, CS variant (family); Vista+",
+    "InitOnceBeginInitialize": "one-shot guard (verified); Vista+",
+    "InitOnceComplete": "one-shot guard (verified); Vista+",
+    "InitOnceExecuteOnce": "one-shot execute (family); Vista+",
+    # deliberately NOT here: WaitOnAddress / WakeByAddress* / GetSystemTime-
+    # PreciseAsFileTime - those are Windows 8+ ONLY; if the toolset ever
+    # links them the gate must fail (that is the guard working).
     # advapi32 CRT-adjacent
     "RegQueryValueExW": "registry reads (auto-unlock, elevation probe); XP-era",
     "AdjustTokenGroups": "token probe (if linked by elevation path); XP-era",
@@ -97,25 +126,40 @@ EXPECTED_OS_MINOR = 1
 # DLL name gate. kernel32/advapi32: strict function allowlists. The rest
 # (CRT/vcruntime/zlib) are shipped binaries whose function surface is not
 # ours to police - only their presence is gated, and every name here
-# exists on Win7 SP1 (zlib1.dll from vcpkg targets XP+).
+# exists on Win7 SP1. NOTE the ACTUAL vcpkg (2026-10) binary names,
+# linker-verified from the first gate run: zlib ships z.dll (debug zd.dll),
+# lz4 ships lz4.dll, zstd ships zstd.dll - the historical zlib1/liblz4/
+# libzstd spellings are kept for older vcpkg revisions. Debug-CRT and
+# gtest names are listed so the gate also passes if pointed at a Debug
+# tree (the CI gate runs Release; debug redist DLLs never ship).
 ALLOWED_DLLS = {
     "kernel32.dll": "strict",
     "advapi32.dll": "strict",
     "user32.dll": "strict",  # not expected for the CLI; gate catches it
     "ucrtbase.dll": "name-only",
+    "ucrtbased.dll": "name-only",
     "vcruntime140.dll": "name-only",
+    "vcruntime140d.dll": "name-only",
     "msvcp140.dll": "name-only",
+    "msvcp140d.dll": "name-only",
     "vcruntime140_1.dll": "name-only",
+    "vcruntime140_1d.dll": "name-only",
     "zlib1.dll": "name-only",
-    "zlibd1.dll": "name-only",  # debug vcpkg zlib
-    "liblz4.dll": "name-only",
-    "libzstd.dll": "name-only",
+    "zlibd1.dll": "name-only",  # old-vcpkg debug zlib
+    "z.dll": "name-only",      # vcpkg-2026 release zlib
+    "zd.dll": "name-only",     # vcpkg-2026 debug zlib
+    "liblz4.dll": "name-only",  # old vcpkg lz4 name
+    "lz4.dll": "name-only",     # vcpkg-2026 lz4
+    "libzstd.dll": "name-only",  # old vcpkg zstd name
+    "zstd.dll": "name-only",    # vcpkg-2026 zstd
+    "gtest.dll": "name-only",    # vcpkg dynamic gtest (cr_tests debug tree)
+    "gtest_main.dll": "name-only",
     "api-ms-win-crt-runtime-l1-1-0.dll": "name-only",  # UCRT api sets (Win10+
     "api-ms-win-crt-heap-l1-1-0.dll": "name-only",     # systems carry them;
     "api-ms-win-crt-math-l1-1-0.dll": "name-only",     # on Win7 the appcrt
-    "api-ms-win-crt-stdio-l1-1-0.dll": "name-only",    # forwarders resolve
-    "api-ms-win-crt-string-l1-1-0.dll": "name-only",   # into ucrtbase -
-    "api-ms-win-crt-time-l1-1-0.dll": "name-only",     # static-applocal UCRT
+    "api-ms-win-crt-stdio-l1-1-0.dll": "name-only",    # static-applocal UCRT
+    "api-ms-win-crt-string-l1-1-0.dll": "name-only",   # forwarders resolve
+    "api-ms-win-crt-time-l1-1-0.dll": "name-only",     # into ucrtbase -
     "api-ms-win-crt-convert-l1-1-0.dll": "name-only",  # keeps Win7 working
     "api-ms-win-crt-environment-l1-1-0.dll": "name-only",
     "api-ms-win-crt-filesystem-l1-1-0.dll": "name-only",

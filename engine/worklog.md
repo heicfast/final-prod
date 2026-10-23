@@ -1148,3 +1148,83 @@ flipped with verified citations: P1-1 (464d8e5), P1-5 + BENCH-1..5 (837a543),
 G-02/G-02b (fc656d2), TREE-JSON (code-verified). PARITY-DELTAS: D-24 updated
 (shim half of the ADR-1 hedge landed) + D-45 added. README architecture
 block + UI-READINESS-PLAN statuses updated.
+
+---
+Task ID: S5-CONT-5
+Agent: Session-5 continuation (context-recovery line, main)
+Task: Second workspace-reset recovery + restore green main: the two
+shim-defect root causes (windows/codeql C2039, TSan data race) + the
+W6 Win7 gate's designed first-run conscious amend.
+
+Work Log:
+- Workspace reset again at session start (second time; lesson reinforced:
+  push ASAP). All 4 repos re-cloned; remote was at 1b2660a. Nothing
+  uncommitted was lost this round. Post-recovery state reads: user
+  reverted the agent@example.com trio (GAP-CLI-COMMANDS 77ef393, v0.3
+  SDK bundle f97f5dd, gate reconciliation 317a911) at bd2e82b/ff3a538/
+  0b3f029; session-6 landed the G-01 rework (2a93c45, OG factory-export
+  binding, supersedes this lane's e79d23f - resolved on rebase per its
+  worklog note; MSVC consumer-flag guard absorbed). CI red from 74f42c0
+  onward (runs 39992119849..40007485773).
+- Root-cause extraction from CI logs (40007485773): windows + codeql =
+  cr_ui.cpp:2130 C2039 'is_elevated' is not a member of 'cr::win' - the
+  session-6 shim's health_read_impl calls the GAP-P1-5 probe without
+  including cr/win/cr_elevate.h (my probe; Linux never sees #ifdef _WIN32
+  bodies). linux-tsan = REAL data race, scan_progress_bridge_ read
+  0x...2e0 line 560 vs write line 562: the orchestrator fires the bridge
+  from EVERY carve/pool worker, the shim's dedup pair (last_pm/
+  last_stage, plain u32s, comment claimed "scan thread only") and the
+  user callback were unsynchronized.
+- Fix 1: include cr/win/cr_elevate.h in the _WIN32 block.
+- Fix 2: scan_progress_bridge_ serialized under CrScan::progress_mu;
+  strictly-monotonic emission (stale out-of-order deliveries dropped,
+  sentinel excluded from the comparison). MY OWN regression suite
+  caught the first draft's sentinel bug (0xFFFFFFFF participates in
+  '<' -> zero progress ever fires; g_progress_calls==0 in both the
+  gtest and the C consumer) - fixed to last_pm != 0xFFFFFFFFu guard.
+- Fix 3 (TSan, second shim race surfaced after fix 2): run-thread ctrl
+  creation (1103) vs any-thread cr_ui_scan_telemetry (1153) /
+  cr_ui_scan_checkpoint_count (1195) on the unique_ptr pointer - the
+  header documents telemetry "any thread, any time". Added
+  CrScan::ctrl_mu serializing the pointer (creation block,
+  telemetry_impl, checkpoint_count_impl; resume adoption completes
+  before handle handout; progress-bridge read is pool-dispatch
+  happens-after creation, no lock needed; lock order documented,
+  no inversion with progress_mu / tel_.m).
+- Win7 gate conscious amend (the designed path after 74f42c0's first
+  visible run 39992119849 - evidence, not speculation): linker-verified
+  additions UnhandledExceptionFilter / SetUnhandledExceptionFilter /
+  IsDebuggerPresent / SRWLock family / ConditionVariable family /
+  InitOnce family (all XP- or Vista-era, all Win7-safe; Win8-only
+  WaitOnAddress family deliberately NOT added - the guard must bite);
+  DLL name table corrected to the ACTUAL vcpkg-2026 names (z.dll,
+  zd.dll, lz4.dll, zstd.dll; old spellings kept) + debug CRT + gtest
+  names. cr_ui.dll now STAMPED + GATED in the windows lane (the SDK
+  binary was previously neither - a (10,0)-versioned dll would refuse
+  to load on Win7). release.yml now stamps + gates the shipped
+  rrecov.exe (the driver-repo release pattern) - the artifact itself
+  must satisfy the machine-enforced contract.
+- tools/test_verify_pe_um.py: gate self-test (synthesized valid PE32+
+  images): pass-path with the exact real MSVC import surface, stamp
+  path ((10,0) rejected -> stamped -> passes, regression-tests the
+  checksum math), three fail-paths (WaitOnAddress Win8-only, rogue
+  gdi32.dll, strict user32). Wired into the linux lane so the GATE
+  itself is machine-tested every push, not just exercised on Windows.
+
+Stage Summary:
+- Validation: plain 229/229, ASan 229/229, TSan 229/229 (was 7 failed),
+  lint (clang-format 18.1.8) clean, gate self-test 6/6.
+- Expect after push: windows/codeql compile unblocked; windows lane's
+  gate step exercises the amended allowlist on real binaries; codeql
+  vcpkg step was env/transient-class, watch it.
+- REGISTERED follow-ups (NOT done in this push): (1) release bundle
+  ships rrecov.exe alone - NO vcpkg runtime DLLs (z/lz4/zstd + CRT),
+  the zip cannot run on a clean machine; the reverted trio attempted
+  the SDK-bundle answer - the honest bundle composition needs an
+  explicit decision (tracked, do not silently resurrect the revert).
+  (2) Issues #11/#12 are stale (both items fixed by 0a28a23/f93f38e) -
+  close with citations. (3) Release tag v0.3.0-parity recipe (PARITY-
+  WRAP): now blocked only on windows-lane green + fuzz rerun over the
+  W4-touched engines. (4) Driver repo 7e88e38/2b1db5f (classifier error
+  87 fix + runner comparison: parity throughput, +52% hostile dispatch)
+  - fold into the release notes when cutting.

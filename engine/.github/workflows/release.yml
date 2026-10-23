@@ -23,6 +23,18 @@ jobs:
           ctest --preset win-x64-release -C Release
           if ($LASTEXITCODE) { exit 1 }
 
+      - name: Win7 posture gate (stamp + import allowlist)
+        # Same machine-enforced contract as the CI windows lane: the SHIPPED
+        # binary must carry (6, 1) loader fields and a Win7-safe import
+        # surface - a release artifact that would not load on Windows 7
+        # fails the release itself (GAP-W6-WIN7).
+        shell: pwsh
+        run: |
+          python tools/stamp_osversion_um.py build/win-x64-release/src/app/Release/rrecov.exe
+          if ($LASTEXITCODE) { exit 1 }
+          python tools/verify_pe_um.py build/win-x64-release/src/app/Release/rrecov.exe --allowlist tools/ref_imports_um.json
+          if ($LASTEXITCODE) { exit 1 }
+
       - name: Stage artifacts
         shell: pwsh
         run: |

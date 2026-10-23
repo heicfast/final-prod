@@ -39,6 +39,15 @@ jobs:
           # resolution on this runner)
           python3 tools/validate_report.py "$(python3 -c 'import tempfile; print(tempfile.gettempdir())')/cr_report_sample.json"
 
+      - name: Win7 PE gate self-test (GAP-W6-WIN7)
+        run: |
+          # the gate itself is machine-tested on every push: synthesized
+          # PEs prove pass-path (real MSVC import surface incl. the
+          # SRWLock/CV/InitOnce families + actual vcpkg DLL names),
+          # stamp-path, and the three fail-paths (Win8-only import,
+          # rogue DLL, strict user32)
+          python3 tools/test_verify_pe_um.py
+
   linux-tsan:
     runs-on: ubuntu-24.04
     steps:
@@ -115,9 +124,13 @@ jobs:
           if ($LASTEXITCODE) { exit 1 }
           python tools/stamp_osversion_um.py build\win-x64-release\tests\Release\cr_tests.exe
           if ($LASTEXITCODE) { exit 1 }
+          python tools/stamp_osversion_um.py build\win-x64-release\src\ui\Release\cr_ui.dll
+          if ($LASTEXITCODE) { exit 1 }
           python tools/verify_pe_um.py build\win-x64-release\src\app\Release\rrecov.exe --allowlist tools/ref_imports_um.json
           if ($LASTEXITCODE) { exit 1 }
           python tools/verify_pe_um.py build\win-x64-release\tests\Release\cr_tests.exe --allowlist tools/ref_imports_um.json
+          if ($LASTEXITCODE) { exit 1 }
+          python tools/verify_pe_um.py build\win-x64-release\src\ui\Release\cr_ui.dll --allowlist tools/ref_imports_um.json
           if ($LASTEXITCODE) { exit 1 }
       - name: Tests
         shell: pwsh

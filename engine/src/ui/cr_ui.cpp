@@ -34,6 +34,7 @@
 #ifdef _WIN32
 #include "cr/win/cr_bitlocker.h"
 #include "cr/win/cr_destio.h"
+#include "cr/win/cr_elevate.h"
 #include "cr/win/cr_enumerate.h"
 #include "cr/win/cr_health.h"
 #include "cr/win/cr_transport.h"
@@ -45,6 +46,7 @@
 #endif
 
 #include <atomic>
+#include <mutex>
 #include <cerrno>
 #include <chrono>
 #include <cstdarg>
@@ -476,6 +478,15 @@ struct CrScan {
     PausableToken token;
     CrDevice* dev = nullptr; /* borrowed; outlives the scan */
     std::unique_ptr<orchestrator::ScanController> ctrl;
+    /* Serializes the ctrl POINTER against the any-thread readers
+     * (cr_ui_scan_telemetry / cr_ui_scan_checkpoint_count - documented
+     * "any thread, any time") and the two writer sites (fresh-run
+     * creation in scan_run_impl, session-resume adoption in
+     * session_open_scan - the latter completes before the handle is
+     * handed out, so the lock there is for TSan-visible ordering only).
+     * Lock order: ctrl_mu never nests with progress_mu; ctrl_mu -> tel_.m
+     * only (ScanController::telemetry takes its own lock) - no inversion. */
+    std::mutex ctrl_mu;
     orchestrator::ScanStats stats;
     cr_ui_progress_fn progress = nullptr;
     void* progress_user = nullptr;
@@ -486,7 +497,13 @@ struct CrScan {
     u32 resumed_boot_hash = 0;
     std::string ck_path;
     FILE* ck_file = nullptr;
-    /* progress bridge throttle state (scan thread only) */
+    /* progress bridge throttle state. The orchestrator fires the bridge from
+     * EVERY carve/pool worker concurrently (engine_progress_bridge_ is the
+     * per-thread entry), so the dedup pair and the user callback invocation
+     * are serialized under this mutex - the callback stays single-flight,
+     * strictly monotonic in overall_permille (stale out-of-order deliveries
+     * are dropped), and stage flips at a steady permille still emit. */
+    std::mutex progress_mu;
     u32 last_pm = 0xFFFFFFFFu;
     u32 last_stage = 0xFFFFFFFFu;
 #ifdef _WIN32
@@ -541,6 +558,13 @@ bool scan_progress_bridge_(u32 overall_pm, void* user) {
     auto* s = static_cast<CrScan*>(user);
     if (!s || !s->progress)
         return true;
+    /* Single-flight + monotonic: the orchestrator may invoke this bridge
+     * concurrently from every pool worker (each carve slice completion
+     * publishes through its own thread), so everything below the lock is
+     * serialized. A delivery carrying an overall_permille OLDER than the
+     * last emitted one (thread read a snapshot earlier, lost the lock
+     * race) is dropped rather than letting the UI see a regression. */
+    std::lock_guard<std::mutex> lock(s->progress_mu);
     const orchestrator::ScanTelemetrySnapshot t =
         s->ctrl ? s->ctrl->telemetry() : orchestrator::ScanTelemetrySnapshot{};
     u32 stage = 0xFFFFFFFFu;
@@ -557,6 +581,8 @@ bool scan_progress_bridge_(u32 overall_pm, void* user) {
         stage = 1;
     else if (c.run_carve)
         stage = 2;
+    if (s->last_pm != 0xFFFFFFFFu && overall_pm < s->last_pm)
+        return true; /* stale out-of-order delivery (sentinel excluded) */
     if (overall_pm == s->last_pm && stage == s->last_stage)
         return true;
     s->last_pm = overall_pm;
@@ -1082,9 +1108,12 @@ u32 scan_run_impl(cr_ui_scan* scan) {
     arm_ldm_resolver(s);
 #endif
 
-    if (!s->ctrl) {
-        s->ctrl.reset(new orchestrator::ScanController(s->tree, s->cfg));
-        s->has_ctrl = true;
+    {
+        std::lock_guard<std::mutex> lock(s->ctrl_mu);
+        if (!s->ctrl) {
+            s->ctrl.reset(new orchestrator::ScanController(s->tree, s->cfg));
+            s->has_ctrl = true;
+        }
     }
     s->started = true;
     s->running.store(true);
@@ -1133,6 +1162,7 @@ u32 scan_telemetry_impl(cr_ui_scan* scan, cr_ui_telemetry* out) {
         return ret_(ERR_BAD_PARAMETER, "bad argument: scan/out");
     auto* s = reinterpret_cast<CrScan*>(scan);
     std::memset(out, 0, sizeof(*out));
+    std::lock_guard<std::mutex> lock(s->ctrl_mu);
     if (!s->ctrl)
         return ret_ok(); /* not started: the honest all-zero snapshot */
     const orchestrator::ScanTelemetrySnapshot t = s->ctrl->telemetry();
@@ -1175,6 +1205,7 @@ u32 scan_checkpoint_count_impl(cr_ui_scan* scan, uint64_t* out) {
     if (!scan || !out)
         return ret_(ERR_BAD_PARAMETER, "bad argument: scan/out");
     auto* s = reinterpret_cast<CrScan*>(scan);
+    std::lock_guard<std::mutex> lock(s->ctrl_mu);
     *out = s->ctrl ? s->ctrl->checkpoint_count() : 0;
     return ret_ok();
 }
