@@ -16,11 +16,15 @@ endif()
 add_executable(cr_ui_abi_check ../../tools/cr_ui_abi_check.c)
 target_include_directories(cr_ui_abi_check PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/../../include)
 target_link_libraries(cr_ui_abi_check PRIVATE cr_ui)
-target_compile_options(cr_ui_abi_check PRIVATE -Wall -Wextra -Werror)
 if(NOT WIN32)
+    target_compile_options(cr_ui_abi_check PRIVATE -Wall -Wextra -Werror)
     # the shared object carries ASan on this preset; the consumer must match
     target_compile_options(cr_ui_abi_check PRIVATE -fsanitize=address -g)
     target_link_options(cr_ui_abi_check PRIVATE -fsanitize=address)
+else()
+    # MSVC: same strictness, MSVC spellings (the /W4 /WX posture)
+    target_compile_options(cr_ui_abi_check PRIVATE /W4 /WX)
+    # the C consumer must not pull the ASan DLL on Windows lanes
 endif()
 add_test(NAME cr_ui_abi_check
          COMMAND cr_ui_abi_check ${CMAKE_CURRENT_BINARY_DIR}/abi-tmp)
