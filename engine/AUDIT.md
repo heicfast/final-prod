@@ -1,6 +1,17 @@
 # AUDIT.md — Session 5 Verification & Reconciliation Audit
 
 **Date:** 2026-10-23 · **Auditor:** session-5 senior reviewer
+
+> **RESOLUTION STATUS (session 5, end of day):** every row below is worked.
+> Engine-truth waves (btrfs/ext4 kernel-true layouts, the ZFS OpenZFS-true
+> rewrite, full LDM, the NTFS attrlist/ADS/UsnJrnl/FILE0 wave) landed as
+> 58091ba, 8084cbb, bc51e3b, 32b31b5. Wiring/semantic wave 2 (14 rows) as
+> 2b340d5. Raw-sign layer 1 as 9b61246. Infra (TSan job, node hash indexes,
+> per-parser fuzz targets, doc refresh) as f63d471. The MP3 frame walk and
+> the carve performance rework landed as af4bc8e (parallel workstream).
+> Benchmark/comparison/Windows-CI hardening was owned by the parallel
+> workstream throughout. Fixture rewrites accompanied every engine wave
+> (self-fulfilling fixtures replaced with kernel/spec-true layouts).
 **Method:** three parallel line-by-line reads (RE corpus / core_recovery / rda-driver),
 followed by **independent verification of every disputed finding** against (a) the
 corpus decompiled code, (b) the corpus binaries themselves (PE .rdata extraction),
