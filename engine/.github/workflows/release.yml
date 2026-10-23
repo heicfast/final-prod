@@ -70,17 +70,21 @@ jobs:
           Copy-Item build/win-x64-release/src/core/Release/cr_core.lib "$out/lib/"
           Copy-Item build/win-x64-release/src/win/Release/cr_win.lib "$out/lib/"
 
-          # ---- symbols for crash triage ----
+          # ---- symbols for crash triage (present when the build emits them:
+          #      RelWithDebInfo; the plain Release preset ships stripped) ----
           foreach ($pdb in @("rrecov.pdb", "cr_ui.pdb")) {
             $candidate = Get-ChildItem build/win-x64-release/src -Recurse -Filter $pdb -ErrorAction SilentlyContinue | Select-Object -First 1
             if ($candidate) { Copy-Item $candidate.FullName "$out/bin/" }
           }
 
-          # ---- vcpkg-built runtime deployed next to our binaries ----
+          # ---- vcpkg-built runtime deployed next to our binaries. Test-framework
+          #      DLLs (gtest/gmock - deployed by the ctest step's test-tree
+          #      backstop) are NOT SDK content: exclude them explicitly. ----
           $deployed = @()
           foreach ($dir in @("build/win-x64-release/src/app/Release", "build/win-x64-release/src/ui/Release")) {
             if (Test-Path $dir) {
-              $deployed += Get-ChildItem $dir -Filter *.dll -ErrorAction SilentlyContinue
+              $deployed += Get-ChildItem $dir -Filter *.dll -ErrorAction SilentlyContinue |
+                Where-Object { $_.Name -notmatch '^(gtest|gmock)' }
             }
           }
           $deployed | Sort-Object Name -Unique |
