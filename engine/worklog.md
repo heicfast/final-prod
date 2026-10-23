@@ -1354,3 +1354,49 @@ Stage Summary:
 - Next: codeql green -> tag v0.3.0-parity -> release workflow live
   validation (SDK bundle build) -> verify artifacts -> flip GAP-W6-RELEASE
   CLOSED -> session handoff notes.
+
+---
+Task ID: S5-CONT-6 (session close)
+Agent: Session-5 continuation (final)
+Task: v0.3.0-parity release - live, verified, production-clean.
+
+Work Log:
+- Full six-lane green at 849f0f9 (linux, tsan, windows 230/230, lint,
+  fuzz, codeql) - first fully-green HEAD since 74f42c0's gate wave.
+- Tag v0.3.0-parity cut per the PARITY-WRAP recipe (notes referencing
+  CORE-GAP-LIST + PARITY-DELTAS + BENCHMARK-REPORT).
+- The release workflow's live validation loop (the first real SDK-bundle
+  runs) caught four defects in sequence, all fixed with evidence:
+  1. SDK 26100's UCRT moved bin->Redist/ucrt layout AND the bin-dir
+     exists-but-empty trap -> content-filtered resolution across three
+     SDK-generation layouts.
+  2. PowerShell multi-line @() trailing-comma parsed into -ErrorAction
+     -> unambiguous accumulation.
+  3. Name-sort picked the empty bin-dir over the populated Redist ->
+     Where-Object {Test-Path ucrtbase.dll} content filter.
+  4. gtest/gmock DLLs in the production bundle (test-tree deployment
+     backstop bled into the release-dir scan) -> excluded by pattern;
+     PDB claim in the notes corrected to what Release actually ships.
+- RELEASE LIVE: tag v0.3.0-parity at 2140eb4, release run 40031221660
+  success. Bundle verified by download + enumeration: 117 entries,
+  3.94 MB - bin/ (rrecov.exe 674KB, cr_ui.dll 684KB, z.dll/lz4.dll/
+  zstd.dll, vcruntime140*/msvcp140* family, ucrtbase.dll + the full
+  api-ms-win-crt-* set = the app-local Win7 story), lib/ (cr_ui.lib
+  import 14.5KB + cr_core.lib 4.5MB + cr_win.lib), include/ (53
+  headers), docs/ (26), LICENSE/README/RELEASE-NOTES, SHA256SUMS over
+  all 116 files. Body = the honest notes.
+- GAP-W6-RELEASE flipped CLOSED with the full evidence chain.
+- Issue-tracker: #1-#10 all closed with commit-cited evidence; #11/#12
+  closed as resolved-stale earlier this session. Zero open issues.
+
+Stage Summary:
+- The session deliverables are landed: green CI on every lane, the
+  Win7 posture machine-enforced AND CI-proven on all three shipped PEs,
+  the TSan races fixed (shim), the Windows recovery defect fixed
+  (WinDestIo), the SDK+CLI bundle shipped with self-contained runtime,
+  and the release register CLOSED.
+- Registered remainders (all enhancement-class, not parity debts):
+  G-22 session-persisted digests (beyond-og), ZFS multi-vdev scoping
+  (D-09), HFS+ journal replay / Btrfs tree-log (D-L), two-leg og
+  comparison pending benchmark-machine availability (harness wired,
+  scoring valid since 837a543).
