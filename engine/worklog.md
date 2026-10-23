@@ -561,3 +561,31 @@ Stage Summary:
 - Benchmark defect loop converged: each run's artifact diffs drove the
   next fix. All three workflows retriggered on 22cc182. Awaiting the
   first keep-control PASS.
+
+---
+Task ID: PARITY-T1
+Agent: parity-auditor (independent third party — session start)
+Task: Parity-audit session bootstrap (mandate: worklog/session-parity-prompt.md,
+token redacted). Independent audit of core_recovery + rda-wizard vs the RE corpus;
+audit-before-fix.
+
+Work Log:
+- All 4 repos cloned at session start; exact pins:
+  core_recovery 2473c03e ("fix(win,style): PhysicalDiskList IS the vector"),
+  rda-wizard c2eaad6 ("feat(tests)+fix(parsers): 99 tests green"),
+  rda-driver 7e88e38 (v0.2.1), easeus-drw-research 18d6f14.
+- Calibration reads: docs/ground-truth-contracts.md (all 10 sections),
+  docs/architecture.md, README.md, worklog (S5/S6 history), AUDIT-UI.md,
+  rda-wizard/docs/CORE-CONTRACT.md in full (contract pins core @ 183dfcd —
+  core has since advanced; contract-drift is a live audit axis).
+- Open issue triage snapshot: #1..#10 = UI-integration wave (G-01..G-23),
+  all updated 2026-10-23T08:29Z. NOTE: docs/UI-READINESS-PLAN.md and
+  inc/cr_ui.h named in the mandate do NOT exist yet at 2473c03e (in-flight
+  from the core UI-readiness agent).
+- Redacted prompt committed to worklog/session-parity-prompt.md.
+
+Stage Summary:
+- T1 done. Next: parallel parity sub-agents (engines FS1/FS2/REC/DOM,
+  orchestration+CLI, UI, architecture, deltas-registry) → verified
+  consolidation into docs/PARITY-AUDIT.md (gate doc, pushed BEFORE any
+  fix) → triage → fixes with tests.
