@@ -23,9 +23,13 @@
  *     seq@0x75, disk-group name/guid), composite-record reassembly as
  *     payload concatenation, volume kind rules, RAID-5 layout "raid5_ls"
  *     (= md left-symmetric) and chunk size in 512-byte sectors.
- *   - corpus LdmManager.mo: full og parity confirmed (SimpleVolumeStorage,
+ *   - corpus LdmManager.mo (91,475-line decompile): the volume-storage
+ *     class family is CONFIRMED PRESENT (SimpleVolumeStorage,
  *     SpanVolumeStorage, StripeVolumeStorage, MirrorVolumeStorage,
- *     Raid5VolumeStorage incl. WriteParityDisk / ComputeDataWithOtherDisk).
+ *     Raid5VolumeStorage incl. ComputeDataWithOtherDisk - a crash-site
+ *     string). LDM-1 honesty note: `WriteParityDisk` is NOT findable in
+ *     the decompile, and the og's RAID-5 parity rotation is UNDECODED -
+ *     our raid5_ls layout is the libldm verdict, not an og-parity claim.
  *
  * Divergences (documented, deliberate):
  *   - The kernel's cmp3 "chunksize" reads the first vnum after the

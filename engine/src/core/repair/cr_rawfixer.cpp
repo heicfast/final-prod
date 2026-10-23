@@ -178,9 +178,13 @@ u32 analyze(IStorageDevice* slice, RepairPlan& plan) {
         return ERR_BAD_PARAMETER;
 
     const u64 total = slice->size();
-    if (total < 24 * 512)
+    /* FIX-3 (AUDIT-PIPELINE F-A4-25): sector size comes from the DEVICE
+     * geometry (4Kn volumes read the exFAT backup at 12*4096, not
+     * 12*512; execute() already used sector_bytes() - analyze() was the
+     * hardcoded side). */
+    const u32 sector = slice->geometry().logical_sector ? slice->geometry().logical_sector : 512;
+    if (total < u64(24) * sector)
         return ERR_BAD_PARAMETER;
-    const u32 sector = 512;
 
     u8 primary[512];
     if (slice->read_at(0, primary, sector) != OK)
@@ -199,7 +203,8 @@ u32 analyze(IStorageDevice* slice, RepairPlan& plan) {
     bool exfat_via_backup = false;
     if (!is_ntfs && !is_exfat && !is_fat && total >= 24 * 512) {
         u8 bak[512];
-        if (slice->read_at(12 * 512, bak, 512) == OK && exfat_boot_sane(bak, total, 512))
+        if (slice->read_at(u64(12) * sector, bak, sector) == OK &&
+            exfat_boot_sane(bak, total, sector))
             exfat_via_backup = true;
     }
 
@@ -234,7 +239,7 @@ u32 analyze(IStorageDevice* slice, RepairPlan& plan) {
              * restore the boot sector from the backup copy, then plan the
              * checksum recompute (the restored sector changes the sum). */
             u8 backup[512];
-            if (slice->read_at(12 * 512, backup, 512) != OK)
+            if (slice->read_at(u64(12) * sector, backup, sector) != OK)
                 return ERR_READ_FAILED;
             RepairAction a;
             a.kind = ActionKind::RestoreBootFromBackup;
@@ -244,7 +249,7 @@ u32 analyze(IStorageDevice* slice, RepairPlan& plan) {
             a.reason = "primary exFAT boot sector destroyed; restore from backup sector 12";
             plan.actions.push_back(std::move(a));
             /* recompute the checksum over the restored primary */
-            std::vector<u8> region(12 * 512, 0);
+            std::vector<u8> region(size_t(12) * sector, 0);
             if (slice->read_at(0, region.data(), u32(region.size())) != OK)
                 return ERR_READ_FAILED;
             std::memcpy(region.data(), backup, 512);
@@ -509,12 +514,17 @@ u32 execute(IWriteDevice* dev, const RepairPlan& plan, UndoLog& undo) {
                 return rollback_failures ? ERR_REPAIR_UNDO_FAILED : ERR_WRITE_FAILED;
             }
 
-            /* S5: read back and verify the write landed */
+            /* S5: read back and verify the write landed. FIX-2
+             * (AUDIT-PIPELINE F-A4-24): a CLEAN rollback (disk restored
+             * to its original state) is ERR_REPAIR_REFUSED, not
+             * ERR_REPAIR_UNDO_FAILED - the undo-failed code must mean
+             * "verify the disk state!", and conflating the two sends a
+             * false alarm to the operator. */
             std::vector<u8> check(span_len);
             if (dev->read_at(span_start, check.data(), span_len) != OK ||
                 std::memcmp(check.data(), span.data(), span_len) != 0) {
                 rollback_all();
-                return ERR_REPAIR_UNDO_FAILED;
+                return rollback_failures ? ERR_REPAIR_UNDO_FAILED : ERR_REPAIR_REFUSED;
             }
         }
     } catch (const std::bad_alloc&) {

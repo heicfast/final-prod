@@ -280,7 +280,9 @@ u32 read_nvme_health(void* disk_handle, NvmeHealth& out) {
 
 u32 query_trim_state(bool& enabled) {
     /* fsutil behavior query disabledeletenotify: 0 = TRIM on (corpus
-     * DRWUI parsing: "= 0" -> ON) */
+     * DRWUI:178742-178749 parsing: takes the FIRST "= " match -
+     * HEALTH-6: our last-line-wins could read a trailing NTFS line on
+     * localized/multi-line output) */
     FILE* fp = _popen("fsutil behavior query disabledeletenotify 2>nul", "r");
     if (fp == nullptr)
         return ERR_HEALTH_UNAVAILABLE;
@@ -294,6 +296,7 @@ u32 query_trim_state(bool& enabled) {
         const long v = strtol(eq + 1, nullptr, 10);
         enabled = (v == 0);
         known = true;
+        break; /* first match wins (og parity) */
     }
     _pclose(fp);
     return known ? OK : ERR_HEALTH_UNAVAILABLE;

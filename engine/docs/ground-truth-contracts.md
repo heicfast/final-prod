@@ -32,20 +32,20 @@ Contract points (corpus-verified):
 |---|---|---|
 | Record magic 'FILE' | 0x454C4946 | lines 21152/34153/34159/55194 |
 | Min record parse size | 0x400 | walk clamp (21138) |
-| Fixup min size gate | 0x400; offset nonzero + even | FUN_180041bb0 chain |
+| Fixup min size gate | 0x400; og: low byte of the defensive offset != 0 (mod-256 test, FUN_180046160 :55187-55227); OURS: nonzero + even (hardening) | FUN_180041bb0 chain; AUDIT-NTFS NTFS-3 |
 | Fixup validation scope | FIRST TWO sector tails only vs USA[0]; apply restores all | FUN_1800411f0 loop bound `local_18 < 2` (decompiled :52129); apply chain FUN_180041290 (:52452-52463). PARITY-AUDIT F-A1-3 |
 | $ATTRIBUTE_LIST type | 0x20 | FUN_180041850 probe |
 | $FILE_NAME type | 0x30 | 52190/53409 |
 | $OBJECT_ID type | 0x40 | 51006 |
-| $DATA type | 0x80 | 54487; resident cap logic 0xFFF |
+| $DATA type | 0x80 | 54487 (the "resident cap 0xFFF" claim was a corpus misread of an MSVC std::string destructor at Dec 450-477; ours correctly has no cap - AUDIT-NTFS NTFS-4) |
 | Deleted branch | (flags & 0x10)==0 in walker; record in-use bit maps to props bit 4 | 21186 |
 | Metafile filter | name[0]=='$' or flags&4 | 21170 |
-| Viability gate | size >= 0x3FF (files < 1 KiB fast-path) | algorithms-v2 §1 |
+| Viability gate | size > 0x3FF STRICT (0x3ff < size, Dec 21208); == 0x3FF takes the fast-path with NO bitmap check (NTFS-1) | algorithms-v2 §1 + decompile |
 | Viability rule | all clusters re-allocated in $Bitmap -> destroy; partial -> keep | algorithms-v2 §1 |
 | Runlist header | LOW nibble = length-field width, HIGH = offset-field width | Linux fs/ntfs3 run.c (`size_size = b & 0xF; offset_size = b >> 4`); CORRECTED 2026-10: the earlier 'high = length' reading misinterpreted FUN_180003440's order-agnostic size sum (`len += (b>>4) + 1 + (b&0xF)`) - both nibble orders produce the same total |
 | Bitmap test | bit = base + index; buffer[pos>>3] & (1<<(pos&7)) | FUN_18002c2e0 |
-| MFT batch | 64 KB read buffer (16,388 dwords) | §2 bootstrap |
-| fastsearch ini default | ON (`search`/`fastsearch`, default 1) | line 7163 |
+| MFT batch | cache-coalesced 64 KiB reads: engine per-record reads through the 64-KiB-block CachedReader (device read count == og's 64 KB bootstrap buffer; NTFS-2/D-4x delta) | §2 + cr_scan.cpp pipe |
+| fastsearch ini default | ON (`search`/`ln`, default 1 - U-11 citation precision) | line 7163 |
 | MFTMirr cross-check | first 4 records' backup at volume midpoint | 52032/52102 |
 | Information scale on IO | legacy x512 convention (driver contract) | rda-driver |
 
@@ -82,7 +82,9 @@ Contract points (corpus-verified):
   type 0x05/0x0F chains via EBR (each EBR has its own 0x55AA + 2 entries: own + next).
 - LDM (dynamic disks): type 0x42 MBR entries / A2A0D0EB-... GPT data partitions;
   the LDM database (last MiB region: PRIVHEAD x2, TOCBLOCK, VMDB, VBLK array)
-  is fully decoded from session 5 on (recognition only through v0.2).
+  is FULLY DECODED (first-class: VBLK graph -> volume layouts ->
+  LdmVolumeDevice read paths incl. mirror failover + RAID-5 XOR; history:
+  v0.2 shipped recognition only, the full decode landed with session 5+).
 
 ## 7. Carving registry (corpus: rawsearch deep-dive §2; raw_signs.json)
 

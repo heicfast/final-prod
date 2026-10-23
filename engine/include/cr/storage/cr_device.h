@@ -99,7 +99,10 @@ public:
 };
 
 /* Cancellation token consulted at loop heads (R6.2; reference cancel
- * callbacks - fix F3: engines AND transports both honour it).
+ * callbacks - fix F3: engines poll it at every loop head. Transports do
+ * NOT poll the token - an in-flight read completes or fails on its own
+ * (F-B-16: the old 'engines AND transports' claim was an overclaim; the
+ * honest scope is engine-side cooperative cancellation).)
  *
  * checkpoint() is the cooperative PAUSE point (G-07): a plain token behaves
  * exactly like cancelled(); a PausableToken blocks in checkpoint() while the

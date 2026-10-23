@@ -1,12 +1,13 @@
 /*
  * cr_parallel.h - the fixed worker pool (scan parallelism, R6).
  *
- * Corpus threading model (DRWUI-exe--thread-architecture.md): the reference
- * engines themselves are single-threaded; ALL parallelism is host-side - the
- * wizard runs scan stages, per-volume searchers and result workers on
- * host-owned threads (CommonThreadPoolMgr + per-stage worker classes).
- * Our core mirrors that shape: engines stay single-threaded per unit of
- * work; the ORCHESTRATOR fans units out over this pool:
+ * Corpus threading model (DRWUI-exe--thread-architecture.md +
+ * FATSearchDLL_decompiled.c:26931): the reference ALSO runs engine-side
+ * workers (FAT CFATQuickSearch::CFATQuickSearchWorker) alongside the
+ * host-side fan-out (CommonThreadPoolMgr + per-stage DRWUI worker
+ * classes). Our core extends the host-fans-out model with a first-class
+ * pool: engine scan calls stay single-threaded per unit of work; the
+ * ORCHESTRATOR fans units out over this pool:
  *
  *   - per-candidate lost-partition volume scans,
  *   - carve window ranges,

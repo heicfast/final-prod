@@ -219,7 +219,9 @@ void emit_entry(EmitCtx& ctx, const DirEntry& e, const std::u16string& name, boo
     if (deleted)
         props->flags &= ~u16(0x10);
     else
-        props->flags |= u16(0x10); /* corpus PFLAG_IN_USE bit4 */
+        props->flags |= u16(0x10); /* OUR internal in-use convention (NTFS-5:
+                                      the og's 0x10 is the DIRECTORY bit -
+                                      do not read og semantics into this word) */
 
     /* extents from contiguous chain runs (slice-relative) */
     size_t i = 0;

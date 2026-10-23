@@ -16,8 +16,9 @@
 
 ## v0.2 (shipped) - the complete core
 - Parallelism: worker pool, thread-safe result tree, parallel carve /
-  remnant sweeps / lost-partition candidates (mirrors the corpus model:
-  engines single-threaded per unit, the host fans units out). DONE
+  remnant sweeps / lost-partition candidates (extends the corpus's
+  host-fans-out model; the corpus also shows engine-side workers - FAT
+  QuickSearchWorker, FATSearchDLL:26931). DONE
 - Full RDA driver integration: transport with the F11 Information=Lengthx512
   contract, GET_INFO/OPEN_TARGET/GET_VERSION IOCTLs, bad-sector-isolating
   retry layer with ReadErrorMap. DONE
@@ -42,8 +43,9 @@
 - LDM dynamic-disk layer: full database decode (PRIVHEAD / TOCBLOCK / VMDB,
   VBLK records incl. composite groups) and dynamic-volume reconstruction
   (simple / spanned / striped / mirrored / RAID-5 extent mapping) exposed
-  as read-only virtual devices. IN PROGRESS (session 5; recognition shipped
-  in v0.2, full decode + reconstruction landing this session).
+  as read-only virtual devices. DONE (v0.2 shipped recognition; full
+  decode + reconstruction + cross-disk resolver landed - ReFS/LDM are
+  first-class).
 - `rrecov fix` / `rrecov bench` commands. DONE
 - Structure-aware fuzzing: 4 libFuzzer targets (pure primitives, engines,
   carve pipeline, session containers) + CI fuzz job. DONE

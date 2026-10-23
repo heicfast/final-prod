@@ -1,10 +1,14 @@
 /*
  * cr_runlist.h - NTFS datarun (runlist) codec + typed run view.
  *
- * Corpus (FUN_180003440 + algorithms docs): header byte high nibble =
- * length-field width, low nibble = offset-field width; offset is signed
- * (negative deltas = backward runs); terminator 0x00. Sparse runs = zero
- * offset delta with nonzero length (VCN gaps stay unwritten).
+ * Header byte LOW nibble = length-field width, HIGH nibble = offset-field
+ * width (Linux fs/ntfs3 run.c: size_size = b & 0xF, offset_size = b >> 4;
+ * three og sites agree - validator FUN_18003ff50 :51365-51373, cluster-sum
+ * FUN_18003fe40 :51327-51333, decoder FUN_18003fa20 :51353-51356; the
+ * deep-dive's "high = length" prose was the misread - AUDIT-NTFS NTFS-6);
+ * offset is signed (negative deltas = backward runs); terminator 0x00.
+ * Sparse runs = zero offset delta with nonzero length (VCN gaps stay
+ * unwritten).
  *
  * Licensed under the MIT license. See LICENSE.
  */

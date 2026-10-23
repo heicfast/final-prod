@@ -2,12 +2,18 @@
  * cr_health.h - disk health: SMART via ATA passthrough, NVMe health, TRIM.
  *
  * Corpus: DiskHealth.exe (DiskSmart; CAtaSmart engine with multi-transport
- * accessors GetSmartAttributeSat/Csmi/Si/NVMeRealtek; decompile-verified
- * transports: IOCTL_SCSI_PASS_THROUGH (0x4D004) with ATA SMART commands -
- * 0xB0 feature 0xD0 READ_DATA / 0xD1 READ_THRESHOLDS / 0xD8 RETURN_STATUS,
- * 0xEC IDENTIFY - plus legacy SMART_RCV_DRIVE_DATA 0x7C088 fallback) and
- * DRWUI's SSD detection (WMI MSFT_PhysicalDisk MediaType==4) + TRIM state
- * (fsutil behavior query disabledeletenotify).
+ * accessors GetSmartAttributeSat/Csmi/Si/NVMeRealtek). DELTA, documented
+ * (AUDIT-PIPELINE HEALTH-2): our implementation uses
+ * IOCTL_ATA_PASS_THROUGH (ATA_PASS_THROUGH_EX) with the same ATA SMART
+ * command set (0xB0 feature 0xD0 READ_DATA / 0xD1 READ_THRESHOLDS / 0xD8
+ * RETURN_STATUS, 0xEC IDENTIFY) - an equivalent direct route to the same
+ * commands where the corpus's SAT wrapper (IOCTL_SCSI_PASS_THROUGH
+ * 0x4D004) tunnels them through the SCSI layer - plus the legacy
+ * SMART_RCV_DRIVE_DATA 0x7C088 fallback the corpus also carries.
+ * DRWUI's SSD detection used WMI MSFT_PhysicalDisk MediaType==4; ours
+ * uses the seek-penalty IOCTL heuristic (HEALTH-5: one story, documented
+ * here). TRIM state: fsutil behavior query disabledeletenotify, first
+ * "= " match (HEALTH-6).
  *
  * Report-only: nothing here writes to the device. TRIM toggle is exposed
  * as a policy recommendation, never executed silently.

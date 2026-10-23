@@ -1,11 +1,13 @@
 /* cr_scan.cpp - the staged scan orchestrator.
  *
- * Threading model (R6, mirrors the corpus: engines single-threaded per unit,
- * the HOST fans units out): one structured engine pass (quick and deep share
- * it - the old code walked the MFT twice and double-emitted FAT), deep adds
- * the remnant sweep + parallel lost-partition candidate scans, carve fans
- * window ranges out over the pool. Engine progress callbacks are wired into
- * the weighted overall progress (fine-grained, monotonic).
+ * Threading model (R6; the corpus shows host-side fan-out AND engine-side
+ * workers - FAT QuickSearchWorker, FATSearchDLL:26931 - so the honest
+ * framing is "extends the corpus's host-fans-out model"): one structured
+ * engine pass (quick and deep share it - the old code walked the MFT twice
+ * and double-emitted FAT), deep adds the remnant sweep + parallel
+ * lost-partition candidate scans, carve fans window ranges out over the
+ * pool. Engine progress callbacks are wired into the weighted overall
+ * progress (fine-grained, monotonic).
  *
  * Licensed under the MIT license. See LICENSE.
  */
@@ -704,10 +706,13 @@ u32 ScanController::run_deep(IStorageDevice* slice, CancelToken* cancel,
                 if (!work.empty()) {
                     if (threads > 1 && work.size() > 1) {
                         /* Per-candidate stats (workers never touch shared
-                         * plain counters); merged on the caller thread. */
+                         * plain counters); merged on the caller thread.
+                         * F-B-11 (AUDIT-ARCH): `deleted` IS merged now -
+                         * the same scan with different --threads produced
+                         * different deleted_found counts before. */
                         struct Out {
                             u64 files = 0;
-                            u64 deleted = 0; /* unused for candidates */
+                            u64 deleted = 0;
                             u32 rc = OK;
                         };
                         std::vector<Out> outs(work.size());
@@ -715,7 +720,13 @@ u32 ScanController::run_deep(IStorageDevice* slice, CancelToken* cancel,
                         Out* out_arr = outs.data();
                         const u64 n = work.size();
                         ThreadPool pool(threads);
-                        PoolCancelToken pool_cancel(&pool);
+                        /* F-B-10 (AUDIT-ARCH): the constructed-but-unwired
+                         * PoolCancelToken is REMOVED (dead). The workers
+                         * poll the EXTERNAL cancel token inside
+                         * scan_candidate (engine loop heads) - a queued
+                         * candidate that starts after a cancel bails on
+                         * its first poll, so responsiveness is preserved
+                         * without a second token. */
                         u32 first_err = parallel_for(pool, n, [&](u64 i) -> u32 {
                             out_arr[i].rc = scan_candidate(items[i].slice.get(), items[i].root,
                                                            cancel, out_arr[i].files,
@@ -724,6 +735,7 @@ u32 ScanController::run_deep(IStorageDevice* slice, CancelToken* cancel,
                         });
                         for (const auto& o : outs) {
                             stats.files_found += o.files;
+                            stats.deleted_found += o.deleted;
                             (void)o.rc;
                         }
                         if (first_err != OK)

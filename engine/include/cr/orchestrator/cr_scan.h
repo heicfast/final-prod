@@ -267,7 +267,7 @@ private:
     tree::FullNode* root_deleted_ = nullptr;
     tree::FullNode* root_lost_ = nullptr;
     tree::FullNode* root_carved_ = nullptr;
-    u32 quick_done_ = false; /* quick stage completed its engine pass */
+    bool quick_done_ = false; /* quick stage completed its engine pass (ARCH-7) */
     /* actual stage completion for stage_done_mask truth (G-07 resume) */
     bool deep_extras_done_ = false; /* remnant sweep + lost discovery done */
     bool carve_done_ = false;

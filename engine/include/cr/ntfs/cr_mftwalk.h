@@ -27,7 +27,11 @@
 namespace cr {
 namespace ntfs {
 
-/* props-internal flags (corpus mapping: bit4 = in-use; we add bit for dir). */
+/* props-internal flags. CORRECTED (AUDIT-NTFS NTFS-5): the og props word
+ * is FILE_ATTRIBUTE-style - 0x10 = DIRECTORY (FUN_180006db0 :5327-5331
+ * via $FILE_NAME flags & 0x10000000), 0x20 = deleted, 0x04 = system. The
+ * old "bit4 = in-use" comment misread the corpus; our DeletedState is
+ * carried on the node, not this word. */
 constexpr u16 PFLAG_IN_USE = 0x0010;
 constexpr u16 PFLAG_IS_DIR = 0x0002; /* mirrors record flag 0x02 */
 
