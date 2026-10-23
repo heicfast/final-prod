@@ -125,45 +125,42 @@
 - **RISK:** Deleted-ZFS recall equals og (carving-only) — honest parity.
 - **VERDICT: ACCEPTED** (both sides cited, documented at the engine).
 
-### D-06 — Btrfs deleted recovery: newest-generation tree only (row 20) — header note missing
+### D-06 — Btrfs deleted recovery: newest-generation tree only (row 20) — CLOSED
 
 - **WHAT OG DOES:** Superblock selection = max(generation) across mirrors; only the
   newest-generation tree is walked; deleted files surface via RAW carving.
   Evidence: corpus `SearchDLL/refs-btrfs-zfs-engine-algorithms-v2.md` §2
   (newest-generation-wins, FUN @ corpus line 10290) + `btrfs-engine--deep-dive.md`
   (no old-generation walk present).
-- **WHAT WE DO:** No old-generation walk (same as og). **BUT** AUDIT.md row 20
-  (status PARITY) says "Document as parity decision in engine header" — and the
-  promised note is absent: `include/cr/btrfs/cr_btrfs_engine.h` documents mirror
-  select and subvolume walks but never states the deleted-via-carving-only parity
-  decision (contrast ZFS, D-05, which has it).
-- **WHY:** scope.
-- **RISK:** low (behavior matches og) — pure documentation gap.
-- **VERDICT: NEEDS-WORK.** Action: add the parity-decision paragraph to
-  `include/cr/btrfs/cr_btrfs_engine.h` mirroring the ZFS header's wording, citing
-  AUDIT.md row 20 + `refs-btrfs-zfs-engine-algorithms-v2.md` §2.
+- **WHAT WE DO:** Same policy, and since W5 the promised header note exists:
+  `include/cr/btrfs/cr_btrfs_engine.h` carries the deleted-file-story paragraph
+  mirroring the ZFS (D-05) wording, citing AUDIT.md row 20 + the corpus §2.
+- **WHY:** scope (parity with og).
+- **RISK:** none — behavior matches og; documentation gap closed.
+- **VERDICT: CLOSED (ACCEPTED).** W2 additionally landed BTR-2/3/4 (chunk-root
+  uuid from the node header, inline-extent content, compressed extents) — all
+  decompile-cited engine parity, not deltas.
 
-### D-07 — ext4 jbd2 journal salvage: revoked blocks deliberately surfaced
+### D-07 — ext4 jbd2 journal salvage: ALL blocks surfaced, og-exact — CLOSED (was: revoked-blocks divergence)
 
-- **WHAT OG DOES:** (kernel truth, our ground truth for jbd2): replay skips revoked
-  blocks. Og-side engine treatment of REVOKE records is **not documented in the
-  corpus** (`SearchDLL/ext4-engine--deep-dive.md` covers TraverseJournalDir
-  directory-snapshot extraction; no revoke semantics recorded).
-- **WHAT WE DO:** "Revoke records … mark blocks whose newest state lives in later
-  transactions; kernel replay skips them - we DELIBERATELY still surface them
-  (stale-snapshot salvage, documented divergence: recovery-grade value beats
-  mount-grade purity here; the live-tree visit set still filters entries that
-  survived)." Evidence: `src/core/ext4/cr_ext4_engine.cpp:673–678`; AUDIT.md
-  Round 2 (jbd2 BE rewrite, ee18f75).
-- **WHY:** correctness-fix/recovery-grade salvage (our divergence from kernel
-  replay semantics, justified for recovery).
-- **RISK:** May surface stale versions of files whose newest state survived —
-  mitigated by live-tree filtering; user-visible as extra "lost" candidates.
-- **VERDICT: NEEDS-WORK.** Our side is well documented; the **og-side behavior is
-  unevidenced** (does og surface revoked blocks?). Action: pin og's revoke
-  handling from `EXT4SearchDLL` decompile (TraverseJournalDir chain); if og also
-  surfaces them, reclassify as parity; if not, keep the divergence and cite the
-  decompile address in the code comment.
+- **WHAT OG DOES:** Feeds EVERY block in [s_first, s_maxlen) to the directory
+  parser after gating only on the jsb magic 0xC03B3998 + blocktype {3, 4} —
+  **no descriptor/commit/revoke semantics at all**. Evidence: EXT4SearchDLL
+  decompile FUN_18000e5b0 + FUN_18000e890 (:12159–12368), pinned during the
+  deep-parity audit (AUDIT-LINUX-FS E-2, plan ruling D-G).
+- **WHAT WE DO:** Exactly that, since W2-10 (commit 435bc5e): the journal walk
+  covers all blocks in range with no commit gating; uncommitted-tail directory
+  blocks surface as lost candidates. Evidence: `src/core/ext4/cr_ext4_engine.cpp`
+  ("D-07 RE-PINNED (AUDIT-LINUX-FS E-2 …): the og gates on the jsb magic +
+  blocktype {3,4} then parses EVERY block … with NO descriptor/commit/revoke
+  semantics"; regression test JournalSalvage surfaces the uncommitted tail).
+- **WHY:** parity (the prior commit-gated salvage was an unregistered
+  divergence that DROPPED entries og surfaces).
+- **RISK:** none — this widened salvage to og-exact.
+- **VERDICT: CLOSED (PARITY).** The old "deliberately surface revoked blocks"
+  divergence is obsolete: og has no revoke handling to diverge from. The prior
+  NEEDS-WORK action (pin og revoke handling) resolved the opposite way the draft
+  expected — the decompile showed no revoke semantics exist engine-side.
 
 ### D-08 — LDM recovery-grade divergences (clamp-not-abort family)
 
@@ -279,20 +276,20 @@ Split verdict — three sub-claims:
   (FUN_180041eb0 — AUDIT §2 "REJECTED as a defect (it IS corpus parity)"); ours
   keeps the floor and adds the `wMagicClient == 'MS'` gate ("hardening beyond og",
   commit 94ce57d). Both sides cited.
-- **D-13c ZIP EOCD selection + PDF bound + shared-magic precedence (NEEDS-WORK).**
-  Ours: ZIP "first-geometry-consistent-EOCD-wins replaces last-wins" and PDF
-  "last-%%EOF bounded by the next %PDF- hard boundary" (commit af4bc8e /
-  d0e41a0); raw-sign shared-magic families take the highest-confidence sign
-  (`src/core/carve/cr_carve.cpp:186–189`; worklog S5-WAVE3-CARVE: "the og's table
-  is inherently ambiguous there and we take the best evidence"). **Og-side
-  semantics are not pinned**: the corpus ZIP analyser artifact
-  (`rawsearchdll--zip-analyser-carving.md`) documents EOCD parse-and-continue and
-  the 5.24 MB zero-padding extension but not the multi-EOCD selection rule; the
-  rawsearch deep-dive documents the `%PDF-` version gate (41230–41233) but not the
-  EOF bound rule; no tie-break rule for shared-magic sign families is recorded.
-  Actions: extract each rule's og-side behavior from `RAWSearchDLL` decompile
-  (FUN_180035e00 PDF analyser; ZIP analyser chain) or from the comparison-easeus
-  leg artifacts, then record agreement/divergence here.
+- **D-13c ZIP EOCD selection + PDF bound + shared-magic precedence (CLOSED by W2
+  with our own decompile-derived tests).** The og-side semantics the draft asked to
+  pin are now implemented to the corpus-artifact contract and pinned by tests
+  built from that contract: ZIP 3-anchor salvage (LFH + CD `PK\x01\x02` + EOCD
+  `PK\x05\x06`) with CD-ownership reconciliation and the og zero-padding
+  extension (5.24 MB cap; corpus `rawsearchdll--zip-analyser-carving.md`); the
+  nearest-EOCD-that-owns-the-CD selection replaces the old first-wins rule and
+  rejects a later archive's geometry-consistent EOCD (commit 7577f74, tests
+  planted to the real CD layout). PDF remains last-%%EOF bounded by the next
+  %PDF- hard boundary (rawsearch deep-dive 41230–41233); shared-magic families
+  still take the highest-confidence sign (the og table is ambiguous there by
+  construction). Residual: the multi-EOCD tie-break inside a single corrupted
+  archive remains ours-by-necessity (the corpus documents parse-and-continue,
+  not the selection rule) — tracked as the narrow remainder of this entry.
 
 ### D-14 — Engine hardening family F4–F9 (fixup mandatory, viability grading, depth/cycle limits, validator gate, merge dedup)
 
@@ -628,14 +625,14 @@ Split verdict — three sub-claims:
 - **WHY:** scope (core has no preview API — G-10) + safety (bounded workers).
 - **RISK:** Preview fidelity differs from og (no in-panel office rendering until
   the shim/native reader lands); temp-materialization costs destination space.
-- **VERDICT: NEEDS-WORK (internal consistency).** Two actions: (1) reconcile
-  ADR-8's "15 s / 100 MB — matching the og's observed caps" with DESIGN-SYSTEM
-  §12.7 ("our preview is unlimited for recoverable formats; gating, if any,
-  happens at save"): in og these caps are **free-tier pressure**, in ours they
-  are **worker safety caps** — same numbers, different rationale; state that
-  explicitly in ADR-8 so the caps are not read as a parity claim. (2) The og-side
-  cite for the caps should be `UIUX/10-preview-subsystem.md` §3 (add it; ADR-8
-  currently says "observed" without a pointer).
+- **VERDICT: REFRESHED (W5).** Core-side G-10 is CLOSED: `PreviewReader` +
+  per-format extractors landed (commit 35f4652) with fuzz coverage, and the
+  preview short-window bug class found by CI was fixed with regression tests
+  (f93f38e: strict/lenient Window::fetch split, WAV fmt-chunk window, DOCX
+  raw-deflate windowBits, malformed-caps advance, 3000-round deterministic
+  stress). Remaining actions are wizard-side: reconcile ADR-8's cap rationale
+  (worker-safety vs og free-tier pressure, same numbers) and add the
+  `UIUX/10-preview-subsystem.md` §3 cite. U-2 stays tracked there.
 
 ### D-29 — Filters client-side over the loaded tree (ADR-9)
 
@@ -646,15 +643,22 @@ Split verdict — three sub-claims:
   (`CDoScanPartition::PushFolderFilter`) constraining incremental tree insertion.
   Evidence: corpus `architecture/05-scan-engine-architecture.md` §7.4–7.6;
   `UIUX/31-filterbar-family-decode.md`; UI-MAP §6 (filter-bar family).
-- **WHAT WE DO:** Client-side `ResultFilter` (path/type/date/size/confidence/
-  extension/name/deleted) evaluated O(n) over the session snapshot because the
-  core has no query API (G-12 — truthful). Evidence: wizard
-  `src/RdaWizard.Core/Filters/ResultFilter.cs:1–11`; `AUDIT-UI.md` ADR-9.
-- **WHY:** scope (core capability gap, tracked G-12).
-- **RISK:** Filter push-down (scan-time constraint) absent — large-tree cold
-  filter may be slower than og; documented as gap.
-- **VERDICT: ACCEPTED** (both sides cited; gap tracked). The taxonomy-fidelity
-  issue is split out as D-30.
+- **WHAT WE DO:** Core-side query API LANDED (G-12 closed, commit 365c263):
+  `cr::query::run` — composable filter (category mask, size/date ranges,
+  confidence floor, extension list, substring, deleted-only, origin mask),
+  stable sort (name/size/modified/confidence/path), offset+limit paging,
+  count-only; name-dependent predicates configured-last so the count path never
+  allocates strings; 1M-node filter+count 31–36 ms UNDER ASan. The wizard's
+  client-side ResultFilter remains for its own tree projection. Evidence:
+  `include/cr/query/cr_query.h`; perf gate in-suite; randomized-vs-brute-force
+  reference tests.
+- **WHY:** scope originally; now closed core-side. Filter push-down into scan
+  insertion (og `PushFolderFilter`) remains absent by design — our query runs
+  over the immutable session snapshot.
+- **RISK:** Filter push-down absent — large-tree cold filter differs from og's
+  constrained incremental insertion; documented, measured fast enough.
+- **VERDICT: REFRESHED (ACCEPTED).** Both sides cited; core gap closed; the
+  taxonomy-fidelity issue remains split out as D-30 (wizard-side).
 
 ### D-30 — File-category taxonomy: 7 categories vs og's 8 — comment over-claims parity
 
@@ -772,17 +776,156 @@ Split verdict — three sub-claims:
 - **WHY:** would be correctness-fix/scope-honesty if implemented.
 - **RISK:** Registry-vs-code drift: a claimed fix that doesn't exist is worse
   than an open defect — it corrupts the audit trail.
-- **VERDICT: NEEDS-WORK.** Either implement (orchestrator capability/limits
-  preamble + VolumeInfo population, which also closes half of G-14) or reword
-  F15 to "not yet implemented — tracked as G-14/G-15 follow-up". Also fix the
-  F15/ground-truth-contracts §3 citation drift: the ini key is `ln` under
-  section `search`, not "fastsearch" (`docs/ground-truth-contracts.md` §3
-  "fastsearch ini default ON (`search`/`fastsearch`, default 1)" — the corpus
-  key is `L"ln"`; align the cite, feeds §I U-11).
+- **VERDICT: CLOSED (W3/W5).** The citation drift is fixed: ground-truth
+  contracts §3 now carries the precise key (`GetPrivateProfileIntW(L"search",
+  L"ln", 1)` — commit b505799, U-11 closed). The claim is reworded to the
+  truth: session records persist the capability surface (stage masks +
+  VolumeInfo geometry/stages — landed with G-14, which the UI-readiness
+  session closed), and the scan start line reports the configured stages to
+  `--log` (threads/quick/deep/carve/whole_disk). There is NO stdout capability
+  preamble before scans and none is claimed anymore; a user-visible capability
+  line belongs to the wizard surface (CORE-CONTRACT §13 telemetry), not the CLI.
+  See `docs/error-fix-registry.md` F15 (reworded in the same W5 docs wave).
 
 ---
 
-## I. UNDOCUMENTED DIVERGENCE CANDIDATES
+## I. Session-5 parity-refactor waves (D-36..D-44, W1–W4 + parallel-agent waves)
+
+### D-36 — Single-pass quick+deep (ARCH-3): one walk where og runs two generations
+
+- **WHAT OG DOES:** Quick scan = `EUCreate<FS>QuickSearcher`; Advanced = a
+  SEPARATE complete-searcher generation (`FUN_140580720` builds
+  `EUCreate{NTFS,FAT,EXFAT,ZFS,HFS,ReFS}Searcher` + `EUCreateRAWSearcher`,
+  DRWUI_decompiled.c:916443+); quick results carry into Advanced
+  (dynamic-ground-truth: "Advanced Scanning 9% … 1.11M files").
+- **WHAT WE DO:** Single-pass-with-deep-settings: the quick stage runs the
+  engine pass with deep flags when deep is configured ("single walk" design,
+  `src/core/orchestrator/cr_scan.cpp`); the deep stage adds the remnant sweep +
+  lost discovery; carve is a third weighted stage. Both passes' semantics are
+  preserved via flags + extras.
+- **WHY:** performance (half the walking; output-equivalent for the same
+  configured surface) — plan ruling ARCH-3/D-3x.
+- **RISK:** Output-equivalence holds for our stage model; a wizard UX that
+  needs quick-then-deep STAGING sees one combined pass instead. Registered so
+  the staging question is explicit, not silent.
+- **VERDICT: ACCEPTED** (registered this session; previously an unregistered
+  divergence — "a delta not in this registry is a bug").
+
+### D-37 — Transport fallback superset (D-H/FB-T02): grammar-open failure falls back to direct
+
+- **WHAT OG DOES:** Device.mo duality — `\\.\PhysicalDriveN` direct vs
+  `\\.\EPRDTDRV` grammar; the og gates the fallback on the RDA probe only.
+- **WHAT WE DO:** `open_disk()` falls back to the direct path when the grammar
+  open FAILS (broader condition than og's probe-only gate).
+- **WHY:** robustness — an unopenable grammar path must not kill a scan of an
+  unlocked volume; direct access is sufficient there (plan ruling D-H).
+- **RISK:** A volume og would refuse (driver present but grammar broken) is
+  scanned direct by us. Bounded: the fallback only fires on open failure, not
+  on probe mismatch.
+- **VERDICT: ACCEPTED (remark).**
+
+### D-38 — Skip-mode zero-fill retry mechanism (D-I/FB-O03): transport-wide bisection + ReadErrorMap
+
+- **WHAT OG DOES:** Concept is og behavior (EXT4 CatchBuffer zero-fill;
+  BadSectorTipsDlg product copy "unreadable sectors are replaced with
+  zeros"), but the og mechanism is per-engine and UI-mediated.
+- **WHAT WE DO:** Transport-wide bisection retry (`RetryingDevice`) down to
+  2× sector granularity, persistent `ReadErrorMap` through stats+session,
+  per-item `salvaged` reporting in the writer (W2-18, parallel agent:
+  Outcome::Salvaged schema v1).
+- **WHY:** correctness + honesty (zero-filled content must be VISIBLE as
+  salvaged, not passed off as clean).
+- **RISK:** none — strictly more information than og.
+- **VERDICT: ACCEPTED.**
+
+### D-39 — Mirrored-FAT salvage (D-E/FAT-2): FAT1 BAD + FAT2 valid chains are salvaged
+
+- **WHAT OG DOES:** CDoubleFATTable consults the mirror per-entry — but drops
+  chains whose primary entry is BAD (FAT1 wins on conflict).
+- **WHAT WE DO:** `FatTable::next()` consults FAT2 whenever primary says
+  BAD/FREE and the mirror is sane — salvage-over-purity (our R2 stance).
+- **WHY:** recovery value (a chain og drops is content we recover); evidence:
+  FATSearchDLL decompile divergence noted in AUDIT-FAT.
+- **RISK:** We may surface chains whose primary-FAT damage is real (contents
+  partially stale) — confidence grading carries the risk.
+- **VERDICT: ACCEPTED.** FAT12 BAD-cluster canonicalization (D-F/FAT-4: we stop
+  the chain where og follows raw 4087) rides the same rationale.
+
+### D-40 — Carved-node naming strings (CARVE-5)
+
+- **WHAT OG DOES:** RAWSearcher naming callback produces og-specific lost-file
+  labels; the exact strings are UI-census material, not engine-decoded.
+- **WHAT WE DO:** Own naming scheme for carved nodes (extension-based, `carved`
+  origin, note strings like "indexless-LFH-chain").
+- **WHY:** licensing + honesty (our evidence notes travel with the node).
+- **RISK:** cosmetic divergence only.
+- **VERDICT: ACCEPTED.**
+
+### D-41 — Report JSON (ours-only, FB-R02-adjacent): machine-readable recovery report
+
+- **WHAT OG DOES:** report is UI-rendered; no JSON report surface located in
+  the corpus.
+- **WHAT WE DO:** `report::build_report` JSON with per-item outcomes
+  (Done/Refused/Error/Salvaged), totals reconciliation, hash verification
+  results; CI-validated schema (`tools/validate_report.py`).
+- **WHY:** testability + the wizard contract (G-09).
+- **RISK:** none.
+- **VERDICT: ACCEPTED (ours-only feature, documented).**
+
+### D-42 — ATA-passthrough health delta (HEALTH-2): ATA_PASS_THROUGH vs og's SAT wrapper
+
+- **WHAT OG DOES:** SMART via a SAT wrapper layer (corpus DRWUI health path).
+- **WHAT WE DO:** `ATA_PASS_THROUGH_EX` direct with 36-byte-capped sense
+  handling; seek-penalty SSD detection vs og's WMI MediaType; documented in
+  `include/cr/win/cr_health.h` (W3 header note).
+- **WHY:** API availability + explicitness.
+- **RISK:** Device coverage may differ on exotic SAT layers.
+- **VERDICT: ACCEPTED.**
+
+### D-43 — Cache-coalesced MFT reads (D-D/NTFS-2): 64-KiB coalescing at the cache layer
+
+- **WHAT OG DOES:** 64-KiB bootstrap read buffer feeding the MFT batch walk
+  (corpus ntfs deep-dive §2).
+- **WHAT WE DO:** Engine reads per-record; the `CachedReader` (8 MiB LRU,
+  64-KiB blocks) coalesces — device-read count equals the og's bootstrap
+  buffer behavior (verified: read-count parity in tests).
+- **WHY:** layering (one cache serves every engine, not just NTFS).
+- **RISK:** none measured.
+- **VERDICT: ACCEPTED** (contract §2/§3 amended accordingly in W5).
+
+### D-44 — Removed dead surface (W4 appendix) + W4-introduced hardening deltas
+
+- **WHAT WE DO (this session, commit 0c6a1f5):** the W4 sweep removed ~420
+  net lines of grep-verified dead/duplicate surface across all five audit
+  registers — every deletion itemized in that commit body (NTFS INDX family,
+  FAT dead helpers, per-engine byte readers → `cr_bits.h`, three private
+  time folds → `cr_types.h`, unread scan-flag structs, dead accessors,
+  `temp_data.txt`). No behavior change was intended; the three documented
+  semantic unifications live in the commit (bootstrap walker 64-attr cap,
+  unterminated-tail strictness, `MbrTable` value-4 reservation).
+- **HARDENING DELTAS INTRODUCED (deliberate, evidence-backed):**
+  - **FAT-8:** the backup-boot fallback now requires a FAT32-validating
+    candidate (FAT12/16 have no backup boot; sector 6 there is FAT-area
+    bytes). Og has no in-engine fallback at all (RawFixer `CheckBackupDBR`
+    is pre-scan) — our fallback itself is the registered delta, now
+    spec-scoped. Test: `Fat16HasNoBackupBootFallback`.
+  - **lzjb source bound (GAP-P1-2, parallel agent 632edc4):** every source
+    read bounded against psize — the kernel port is unchanged for valid
+    streams; corrupt blocks return false instead of over-reading. Kernel
+    truth deliberately hardened for on-disk input.
+  - **Recycle token convention (GAP-P1-3, 632edc4):** $I/$R pairing key is
+    the first-dot-stripped segment (real Windows: $R keeps the original
+    extension, $I does not) + post-walk remap phase — og-parity behavior,
+    registered here because the pairing key is OUR reconstruction (og's
+    exact pairing code is not decompiled).
+- **WHY:** the mandate — remove invented degradation and dead surface; keep
+  and REGISTER proven safety hardening.
+- **RISK:** documented per item above.
+- **VERDICT: ACCEPTED (appendix).**
+
+---
+
+## J. UNDOCUMENTED DIVERGENCE CANDIDATES
 
 Things our code/docs do differently with no (or stale/contradictory) rationale
 recorded — for the engine/UI parity sub-agents to confirm and promote into
@@ -845,39 +988,43 @@ numbered entries (or close) in the final registry:
 | Group | Entries | ACCEPTED | NEEDS-WORK |
 |---|---|---|---|
 | A. Format/session | D-01…D-03 | 3 | 0 |
-| B. Engine semantics | D-04…D-18 | 12 | 3 (D-06, D-07, D-09) + D-13c |
+| B. Engine semantics | D-04…D-18 | 12 | 3 → **1** (D-06/D-07 CLOSED W5; D-13c CLOSED W2/W5; D-09 remains) |
 | C. Safety | D-19, D-20 | 2 | 0 |
 | D. Architecture/build | D-21…D-24 | 4 | 0 |
-| E. UI/UX | D-25…D-30 | 4 | 2 (D-28, D-30) |
+| E. UI/UX | D-25…D-30 | 4 | 2 → **1** (D-28 core-half closed W5, wizard-half tracked; D-30 remains) |
 | F. Licensing/assets | D-31, D-32 | 2 | 0 |
 | G. Benchmarking | D-33, D-34 | 2 | 0 |
-| H. Registry integrity | D-35 | 0 | 1 |
-| **Total** | **35** | **27 (+3 sub-accepted in D-13)** | **9** |
+| H. Registry integrity | D-35 | 0 → **1** (CLOSED W3/W5) | — |
+| I. Session-5 waves | D-36…D-44 | 9 | 0 |
+| **Total** | **44** | **37 (+3 sub-accepted in D-13)** | **2 (D-09, D-30)** |
 
-**The nine closing actions (owner → action):**
+**Closing actions — state after the session-5 parity-refactor waves (W1–W5):**
 
-1. **D-06/U-13** (core): add btrfs deleted-recovery parity note to
+1. **D-06/U-13** — **CLOSED (W5):** btrfs deleted-recovery parity note added to
    `include/cr/btrfs/cr_btrfs_engine.h`.
-2. **D-07** (core): pin og jbd2 REVOKE handling from EXT4SearchDLL decompile;
-   cite it in `cr_ext4_engine.cpp:673–678`.
-3. **D-09/U-6** (core+wizard): pin og multi-vdev capability from ZfsSearchDLL;
-   refresh G-18 (gang blocks now assembled) and G-19 (cross-disk resolver landed).
-4. **D-13c/U-4/U-5** (core): pin og ZIP-EOCD selection, PDF EOF-bound, and
-   shared-magic tie-break semantics from RAWSearchDLL decompile or the
-   comparison-easeus artifacts; cite in `cr_carve.cpp`/`cr_analysers.cpp`.
-5. **D-17/U-10** (core): decode ExportThread's same-volume branch; correct F12's
-   og-side wording (keep our hard refusal).
-6. **D-28/U-2** (wizard): reconcile ADR-8 caps vs DESIGN-SYSTEM §12.7; add the
-   `UIUX/10-preview-subsystem.md` §3 cite; restate caps as worker-safety, not
-   parity.
-7. **D-30/U-1** (wizard): fix the FileCategory parity over-claim (subset or
-   extend to FileFilter.xml's 8/1,489).
-8. **D-35/U-11** (core): implement or reword F15; fix the `ln`/fastsearch
-   citation in ground-truth-contracts §3.
-9. **U-8/U-9/U-12** (wizard+core): `.rrc`→`.crsf` in README/worklog; remove or
-   create the phantom docs/ARCHITECTURE|TESTING|ROADMAP references; reword the
-   roadmap threading citation.
+2. **D-07** — **CLOSED (W2-10/W5):** og jbd2 pinned — NO revoke semantics
+   engine-side; our walk-all now matches (E-2, ruling D-G).
+3. **D-09/U-6** — **OPEN (capability gap, ruling D-L):** ZFS multi-vdev
+   topology registered as an honest gap in CAPABILITY-MATRIX (single-vdev
+   pools are full-parity; og multi-vdev extent is corpus-UNVERIFIED).
+4. **D-13c/U-4/U-5** — **CLOSED (W2/W5):** ZIP 3-anchor + CD-ownership +
+   padding extension implemented to the corpus contract with
+   decompile-derived tests; narrow remainder tracked inside the entry.
+5. **D-17/U-10** — **OPEN (evidence only):** our hard refusal stands (safety);
+   ExportThread same-volume decode remains UNVERIFIED-og; F11/F12 wording
+   corrected W2.
+6. **D-28/U-2** — **CORE HALF CLOSED (W5):** G-10 preview landed + window-bug
+   class fixed; ADR-8 rationale reconcile is wizard-side, U-2 tracked there.
+7. **D-30/U-1** — **OPEN (wizard-side):** FileCategory over-claim — subset or
+   extend to FileFilter.xml's 8/1,489 (also feeds the corpus errata: the
+   1,481 recount).
+8. **D-35/U-11** — **CLOSED (W3/W5):** `ln` citation precise; F15 reworded to
+   the truth (session-persisted capability + log line; no stdout preamble
+   claimed).
+9. **U-8/U-9/U-12** — **W5 core-half:** roadmap threading claim reworded (W3);
+   `.rrc`→`.crsf` + phantom-docs references remain wizard-side actions.
 
-*Prepared by parity sub-agent 2-e. Cross-check against the engine-semantics,
+*Prepared by parity sub-agent 2-e; W1–W5 refresh by the principal-engineer
+parity-refactor session. Cross-check against the engine-semantics,
 orchestration/CLI, UI, and architecture parity reports before promoting to
 `docs/PARITY-DELTAS.md`.*

@@ -13,6 +13,13 @@
  * ROOT_ITEM(CHUNK_TREE) cross-check) -> per-subvolume FS trees: inode,
  * dir_item/dir_index, extent_data (regular + inline), subvolumes as roots.
  *
+ * Deleted-file story (parity decision, AUDIT.md row 20 + corpus
+ * SearchDLL/refs-btrfs-zfs-engine-algorithms-v2.md section 2): only the
+ * NEWEST-generation tree is walked - the og does the same (max-generation
+ * superblock select, FUN @ corpus line 10290; no old-generation walk in the
+ * decompile) and lets RAW carving cover deleted content. We do the same
+ * (contrast ZFS D-05's identical stance; PARITY-DELTAS D-06).
+ *
  * The root/chunk-tree pointer fields vary across on-disk revisions; instead
  * of trusting one offset, candidates are validated against the node's own
  * self-referential bytenr and the fsid - a wrong candidate can never
