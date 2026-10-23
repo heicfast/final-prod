@@ -52,6 +52,8 @@ jobs:
         # Evidence trail for the 0xc0000135 class of failures: what the
         # vcpkg tree contains, what actually sits next to the exes, and
         # what the exes import. Printed to the log for offline analysis.
+        # ALWAYS runs - the whole point is post-mortem on failed builds.
+        if: always()
         shell: pwsh
         run: |
           Write-Host "== vcpkg installed bin trees =="

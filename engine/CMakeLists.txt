@@ -48,25 +48,31 @@ endif()
 # decompressor reports unavailable codecs instead of failing the build, but
 # CI builds must carry both so real pools decode (apt: liblz4-dev libzstd-dev;
 # vcpkg: lz4 zstd).
+#
+# Discovery order (0xc0000135 postmortem, three CI cycles):
+#   1. CONFIG package (vcpkg)  - the ONLY source with per-config import
+#      mapping: Debug links debug/lib/liblz4d.lib -> the exe imports
+#      liblz4d.dll, which is exactly what debug/bin contains. MUST be
+#      tried FIRST.
+#   2. pkg-config - the pc files are release-flavoured and carry NO
+#      config mapping: on an MSVC Debug build the linker resolves the
+#      RELEASE import lib, the exe imports liblz4.dll, and the debug
+#      tree (which only has liblz4d.dll) cannot satisfy it -> the test
+#      exe dies at startup with STATUS_DLL_NOT_FOUND. Keep ONLY as the
+#      Linux fallback (single-config systems - correct there).
+#   3. bare find_library - last resort (same release-bias caveat; also
+#      widen to the liblz4/zstd/liblz4 naming variants).
 # ---------------------------------------------------------------------------
+find_package(liblz4 CONFIG QUIET)
+if(TARGET liblz4::liblz4 AND NOT TARGET PkgConfig::LZ4)
+    add_library(PkgConfig::LZ4 ALIAS liblz4::liblz4)
+endif()
 find_package(PkgConfig QUIET)
-if(PkgConfig_FOUND)
+if(NOT TARGET PkgConfig::LZ4 AND PkgConfig_FOUND)
     pkg_check_modules(LZ4 QUIET IMPORTED_TARGET liblz4)
-    pkg_check_modules(ZSTD QUIET IMPORTED_TARGET libzstd)
 endif()
 if(NOT TARGET PkgConfig::LZ4)
-    # vcpkg/CONFIG preference first: the config package knows the per-config
-    # import names (Debug links lz4d.lib -> liblz4d.dll), so applocal deploys
-    # the matching DLL. The bare find_library(NAMES lz4) fallback resolves to
-    # the RELEASE import lib even in Debug builds, planting a release-DLL
-    # import that the debug bin dir cannot satisfy (CI 0xc0000135).
-    find_package(liblz4 CONFIG QUIET)
-    if(TARGET liblz4::liblz4)
-        add_library(PkgConfig::LZ4 ALIAS liblz4::liblz4)
-    endif()
-endif()
-if(NOT TARGET PkgConfig::LZ4)
-    find_library(LZ4_LIB NAMES lz4)
+    find_library(LZ4_LIB NAMES lz4 liblz4)
     find_path(LZ4_HEADER lz4.h)
     if(LZ4_LIB AND LZ4_HEADER)
         add_library(PkgConfig::LZ4 UNKNOWN IMPORTED)
@@ -75,14 +81,16 @@ if(NOT TARGET PkgConfig::LZ4)
             INTERFACE_INCLUDE_DIRECTORIES "${LZ4_HEADER}/..")
     endif()
 endif()
-if(NOT TARGET PkgConfig::ZSTD)
-    find_package(zstd CONFIG QUIET)
-    if(TARGET zstd::libzstd)
-        add_library(PkgConfig::ZSTD ALIAS zstd::libzstd)
-    endif()
+
+find_package(zstd CONFIG QUIET)
+if(TARGET zstd::libzstd AND NOT TARGET PkgConfig::ZSTD)
+    add_library(PkgConfig::ZSTD ALIAS zstd::libzstd)
+endif()
+if(NOT TARGET PkgConfig::ZSTD AND PkgConfig_FOUND)
+    pkg_check_modules(ZSTD QUIET IMPORTED_TARGET libzstd)
 endif()
 if(NOT TARGET PkgConfig::ZSTD)
-    find_library(ZSTD_LIB NAMES zstd)
+    find_library(ZSTD_LIB NAMES zstd libzstd)
     find_path(ZSTD_HEADER zstd.h)
     if(ZSTD_LIB AND ZSTD_HEADER)
         add_library(PkgConfig::ZSTD UNKNOWN IMPORTED)
@@ -91,6 +99,7 @@ if(NOT TARGET PkgConfig::ZSTD)
             INTERFACE_INCLUDE_DIRECTORIES "${ZSTD_HEADER}/..")
     endif()
 endif()
+
 if(TARGET PkgConfig::LZ4)
     set(CR_LZ4_LINK "PkgConfig::LZ4")
 endif()
