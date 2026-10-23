@@ -92,14 +92,17 @@ jobs:
           if (-not $vcCrt) { throw "VC143 CRT redist dir not found (VS layout changed?)" }
           Copy-Item "$($vcCrt.FullName)/*.dll" "$out/bin/"
 
-          # ---- app-local UCRT (Win7 RTM ships none). SDK 26100+ moved the
-          #      redist DLLs from bin\<ver>\x64\ucrt to Redist\<ver>\ucrt\x64
-          #      - search both layouts, newest first, fail loudly if neither. ----
-          $ucrtDirs = @()
-          $ucrtDirs += Get-ChildItem "C:/Program Files (x86)/Windows Kits/10/Redist/*/ucrt/x64" -Directory -ErrorAction SilentlyContinue
-          $ucrtDirs += Get-ChildItem "C:/Program Files (x86)/Windows Kits/10/Bin/*/x64/ucrt" -Directory -ErrorAction SilentlyContinue
-          $ucrt = $ucrtDirs | Sort-Object FullName -Descending | Select-Object -First 1
-          if (-not $ucrt) { throw "Windows SDK UCRT redist not found in either layout (SDK changed?)" }
+          # ---- app-local UCRT (Win7 RTM ships none). Candidate layouts across
+          #      SDK generations, in preference order; the winner is the first
+          #      directory that ACTUALLY CONTAINS ucrtbase.dll (SDK 26100's
+          #      bin\<ver>\x64\ucrt exists but is EMPTY - a name-sort selected
+          #      it and the copy failed). Fail loudly if none of them carry it.
+          $ucrtCandidates = @()
+          $ucrtCandidates += Get-ChildItem "C:/Program Files (x86)/Windows Kits/10/Redist/*/ucrt/DLLs/x64" -Directory -ErrorAction SilentlyContinue
+          $ucrtCandidates += Get-ChildItem "C:/Program Files (x86)/Windows Kits/10/Redist/*/ucrt/x64" -Directory -ErrorAction SilentlyContinue
+          $ucrtCandidates += Get-ChildItem "C:/Program Files (x86)/Windows Kits/10/Bin/*/x64/ucrt" -Directory -ErrorAction SilentlyContinue
+          $ucrt = $ucrtCandidates | Where-Object { Test-Path "$($_.FullName)/ucrtbase.dll" } | Select-Object -First 1
+          if (-not $ucrt) { throw "no UCRT redist carrying ucrtbase.dll in any SDK layout (Redist ucrt/DLLs/x64, Redist ucrt/x64, Bin x64/ucrt)" }
           Write-Host "UCRT redist from: $($ucrt.FullName)"
           Copy-Item "$($ucrt.FullName)/ucrtbase.dll" "$out/bin/"
           Copy-Item "$($ucrt.FullName)/api-ms-win-crt-*.dll" "$out/bin/"
