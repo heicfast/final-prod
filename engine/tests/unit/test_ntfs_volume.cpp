@@ -31,7 +31,7 @@ constexpr u32 CLUSTER = SEC; /* spc = 1 */
 constexpr u64 NSECTORS = 256;
 constexpr u64 RECORD_SIZE = 1024;
 constexpr u64 MFT_LCN = 4;
-constexpr u64 MFT_CLUSTERS = 64; /* records 0..31 */
+constexpr u64 MFT_CLUSTERS = 68; /* records 0..33 (30..33: recycle fixture) */
 constexpr u64 MIRR_LCN = 68;
 constexpr u64 BITMAP_LCN = 80;
 constexpr u64 BITMAP_CLUSTERS = 4;
@@ -195,6 +195,60 @@ struct RecBuilder {
             u16_from_bytes_le_wr(buf, pos + 0x18 + u32(i) * 2, n[i]);
         for (u32 i = 0; i < vlen / 4; ++i)
             u32_from_bytes_le_wr(buf, pos + voff + i * 4, 0xC0FFEE00 + i);
+        attr_pos += alen;
+    }
+
+    /* resident unnamed $DATA carrying a v2 $I (Recycle Bin metadata) payload:
+     * version 2, size, deletion time, pathlen, path (the ORIGINAL location) */
+    void attr_data_recycle_info(u64 file_size, u64 del_time, const char16_t* orig_path) {
+        std::u16string op = orig_path;
+        u32 plen = u32(op.size());
+        u32 vlen = 544;
+        u32 voff = 0x18;
+        u32 alen = (voff + vlen + 7) / 8 * 8;
+        u32 pos = attr_pos;
+        u32_from_bytes_le_wr(buf, pos + 0, ATTR_TYPE_DATA);
+        u32_from_bytes_le_wr(buf, pos + 4, alen);
+        buf[pos + 8] = 0; /* resident */
+        buf[pos + 9] = 0; /* unnamed */
+        u16_from_bytes_le_wr(buf, pos + 10, u16(voff));
+        u16_from_bytes_le_wr(buf, pos + 16, u16(vlen & 0xFFFF));
+        u16_from_bytes_le_wr(buf, pos + 20, u16(voff));
+        u32_from_bytes_le_wr(buf, pos + voff + 0, 2); /* version 2 */
+        u64_from_bytes_le_wr(buf, pos + voff + 8, file_size);
+        u64_from_bytes_le_wr(buf, pos + voff + 16, del_time);
+        u32_from_bytes_le_wr(buf, pos + voff + 24, plen);
+        for (u32 i = 0; i < plen; ++i)
+            u16_from_bytes_le_wr(buf, pos + voff + 28 + i * 2, op[i]);
+        attr_pos += alen;
+    }
+
+    /* Windows 10+ VARIABLE-length $I: total = 28 + 2*pathlen (the @24 field
+     * is the deletion-sequence counter, NOT the length; path NUL-padded) */
+    void attr_data_recycle_info_v2_2(u64 file_size, u64 del_time, u32 seq,
+                                     const char16_t* orig_path) {
+        std::u16string op = orig_path;
+        u32 plen = u32(op.size());
+        u32 vlen = 28 + plen * 2;
+        u32 voff = 0x18;
+        u32 alen = (voff + vlen + 7) / 8 * 8;
+        u32 pos = attr_pos;
+        u32_from_bytes_le_wr(buf, pos + 0, ATTR_TYPE_DATA);
+        u32_from_bytes_le_wr(buf, pos + 4, alen);
+        buf[pos + 8] = 0;
+        buf[pos + 9] = 0;
+        u16_from_bytes_le_wr(buf, pos + 10, u16(voff));
+        u16_from_bytes_le_wr(buf, pos + 16, u16(vlen & 0xFFFF));
+        u16_from_bytes_le_wr(buf, pos + 20, u16(voff));
+        u32_from_bytes_le_wr(buf, pos + voff + 0, 2); /* version 2 */
+        u64_from_bytes_le_wr(buf, pos + voff + 8, file_size);
+        u64_from_bytes_le_wr(buf, pos + voff + 16, del_time);
+        u32_from_bytes_le_wr(buf, pos + voff + 24, seq); /* Win10 sequence field */
+        for (u32 i = 0; i < plen; ++i)
+            u16_from_bytes_le_wr(buf, pos + voff + 28 + i * 2, op[i]);
+        /* NUL padding to vlen */
+        for (u32 i = plen; i < plen + 4 && 28 + (i + 1) * 2 <= vlen; ++i)
+            u16_from_bytes_le_wr(buf, pos + voff + 28 + i * 2, 0);
         attr_pos += alen;
     }
 
@@ -498,6 +552,68 @@ void build_image(Image& img) {
         r.attr_data_resident(u"sec", 4); /* 16 bytes payload */
         r.finish();
         std::memcpy(img.sec(MFT_LCN + 44), r.buf.data(), RECORD_SIZE);
+    }
+    /* record 30: $RECYCLE.BIN dir (parent 5) - NOT a metafile: surfaces */
+    {
+        RecBuilder r;
+        r.header(30, RECORD_IN_USE | RECORD_IS_DIRECTORY);
+        r.attr_si(0);
+        r.attr_file_name(5, u"$RECYCLE.BIN", FILE_NAME_WIN32, 0x10, 0, 0);
+        r.attr_index_root();
+        r.finish();
+        std::memcpy(img.sec(MFT_LCN + 60), r.buf.data(), RECORD_SIZE);
+    }
+    /* record 31: SID dir (parent 30) */
+    {
+        RecBuilder r;
+        r.header(31, RECORD_IN_USE | RECORD_IS_DIRECTORY);
+        r.attr_si(0);
+        r.attr_file_name(30, u"S-1-5-21-999", FILE_NAME_WIN32, 0x10, 0, 0);
+        r.attr_index_root();
+        r.finish();
+        std::memcpy(img.sec(MFT_LCN + 62), r.buf.data(), RECORD_SIZE);
+    }
+    /* record 32: $I2X9K4L.jpg (parent 31) - resident unnamed $DATA
+     * carrying the v2 $I payload (see RecBuilder::attr_data_recycle_info) */
+    {
+        RecBuilder r;
+        r.header(32, RECORD_IN_USE);
+        r.attr_si(0x20);
+        r.attr_file_name(31, u"$I2X9K4L.jpg", FILE_NAME_WIN32_AND_DOS, 0x20, 544, 544);
+        r.attr_data_recycle_info(17847, 134000000000000000ULL, u"seed\\small\\s0099.jpg");
+        r.finish();
+        std::memcpy(img.sec(MFT_LCN + 64), r.buf.data(), RECORD_SIZE);
+    }
+    /* record 33: $R2X9K4L.jpg (parent 31, in-use, nonresident $DATA) */
+    {
+        RecBuilder r;
+        r.header(33, RECORD_IN_USE);
+        r.attr_si(0x20);
+        r.attr_file_name(31, u"$R2X9K4L.jpg", FILE_NAME_WIN32_AND_DOS, 0x20, 17847, 17847);
+        r.attr_data_runlist(240, 4, 17847);
+        r.finish();
+        std::memcpy(img.sec(MFT_LCN + 66), r.buf.data(), RECORD_SIZE);
+    }
+    /* record 24: $I3P7Q2N.bin (Win10 variable form) - payload 28+2*17 */
+    {
+        RecBuilder r;
+        r.header(24, RECORD_IN_USE);
+        r.attr_si(0x20);
+        r.attr_file_name(31, u"$I3P7Q2N.bin", FILE_NAME_WIN32_AND_DOS, 0x20, 62, 62);
+        r.attr_data_recycle_info_v2_2(4096, 135000000000000000ULL, 37,
+                                      u"seed\\doomed\\n0\\w00.bin");
+        r.finish();
+        std::memcpy(img.sec(MFT_LCN + 48), r.buf.data(), RECORD_SIZE);
+    }
+    /* record 25: $R3P7Q2N.bin (in-use; maps via the variable $I) */
+    {
+        RecBuilder r;
+        r.header(25, RECORD_IN_USE);
+        r.attr_si(0x20);
+        r.attr_file_name(31, u"$R3P7Q2N.bin", FILE_NAME_WIN32_AND_DOS, 0x20, 4096, 4096);
+        r.attr_data_runlist(250, 1, 4096);
+        r.finish();
+        std::memcpy(img.sec(MFT_LCN + 50), r.buf.data(), RECORD_SIZE);
     }
 
     /* $Bitmap stream: bits set = in-use.
@@ -1038,7 +1154,7 @@ TEST(NtfsVolume, EndToEndWalk) {
     ASSERT_NE(vol, nullptr) << "open err " << err_text(err);
     EXPECT_EQ(vol->params().record_size, RECORD_SIZE);
     EXPECT_EQ(vol->params().cluster_bytes, CLUSTER);
-    EXPECT_EQ(vol->max_record_no(), 32u);
+    EXPECT_EQ(vol->max_record_no(), 34u);
 
     /* bitmap */
     std::unique_ptr<VolumeBitmap> bm;
@@ -1152,6 +1268,81 @@ TEST(NtfsVolume, EndToEndWalk) {
 
     tree.refresh_stats();
     EXPECT_GE(root_active->stats().file_count, 0u);
+}
+
+TEST(NtfsVolume, RecycleBinMapping) {
+    Image img;
+    build_image(img);
+    MemDevice dev(img.raw(), img.geom());
+
+    u32 err = 0;
+    auto vol = NtfsVolume::open(std::unique_ptr<IStorageDevice>(new MemDevice(dev)), &err);
+    ASSERT_NE(vol, nullptr) << "open err " << err_text(err);
+
+    tree::ResultTree tree;
+    auto* root_active = tree.add_root(u"Found (NTFS)");
+    auto* root_deleted = tree.add_root(u"Deleted");
+    auto* root_lost = tree.add_root(u"Lost Files");
+    WalkerFlags wf;
+    WalkStats stats;
+    u32 rc = walk_mft(vol.get(), nullptr, wf, nullptr, nullptr, nullptr, tree, root_active,
+                      root_deleted, root_lost, stats);
+    ASSERT_EQ(rc, OK) << err_text(rc);
+    EXPECT_GE(stats.recycle_info, 1u) << "the $I record must parse";
+
+    std::vector<tree::FileNode*> all;
+    std::function<void(tree::FileNode*)> collect = [&](tree::FileNode* n) {
+        for (tree::FileNode* c = n->first_child(); c; c = c->next_sibling()) {
+            all.push_back(c);
+            collect(c);
+        }
+    };
+    for (auto* r : tree.roots())
+        collect(r);
+
+    tree::FileNode *remapped = nullptr, *bin_dir = nullptr, *sid_dir = nullptr;
+    int r_named = 0, i_named = 0;
+    for (tree::FileNode* n : all) {
+        const std::string nm = n->name_utf8();
+        if (nm == "$R2X9K4L.jpg")
+            ++r_named; /* unmapped bin content row: must not exist */
+        if (nm == "$I2X9K4L.jpg")
+            ++i_named; /* bin metadata row: must not exist */
+        if (nm == "s0099.jpg")
+            remapped = n;
+        else if (nm == "$RECYCLE.BIN")
+            bin_dir = n;
+        else if (nm == "S-1-5-21-999")
+            sid_dir = n;
+    }
+    /* the bin structure surfaces (no more blanket $-skip) */
+    ASSERT_NE(bin_dir, nullptr);
+    ASSERT_NE(sid_dir, nullptr);
+    /* $R content remapped to its ORIGINAL name with the $I size+time */
+    ASSERT_NE(remapped, nullptr) << "the $R record must emit as s0099.jpg";
+    EXPECT_EQ(u64(17847), remapped->props()->logical_size);
+    EXPECT_EQ(u64(134000000000000000ULL), remapped->props()->times.modified);
+    EXPECT_EQ(tree::DeletedState::Deleted, remapped->deleted_state());
+    /* no $I/$R-named file rows anywhere */
+    EXPECT_EQ(0, i_named);
+    EXPECT_EQ(0, r_named);
+
+    /* the Win10 variable-form $I pair (records 24/25): mapped too */
+    tree::FileNode* remapped2 = nullptr;
+    int r2_named = 0;
+    for (tree::FileNode* n : all) {
+        const std::string nm = n->name_utf8();
+        if (nm == "w00.bin")
+            remapped2 = n;
+        if (nm == "$R3P7Q2N.bin")
+            ++r2_named;
+    }
+    EXPECT_EQ(stats.recycle_info, 2u) << "both $I formats must parse";
+    ASSERT_NE(remapped2, nullptr) << "variable-form $I must map its $R";
+    EXPECT_EQ(u64(4096), remapped2->props()->logical_size);
+    EXPECT_EQ(u64(135000000000000000ULL), remapped2->props()->times.modified);
+    EXPECT_EQ(tree::DeletedState::Deleted, remapped2->deleted_state());
+    EXPECT_EQ(0, r2_named);
 }
 
 TEST(NtfsVolume, RemnantScanFindsDetachedRecord) {
