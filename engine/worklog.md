@@ -1006,3 +1006,55 @@ Stage Summary:
 - Remaining for this agent: G-02 snapshot (cr_snapshot, the UI-plan
   shape), G-01 C-ABI shim (cr_ui), tree --json (GAP-TREE-JSON), #10
   remainder (README capability matrix lives with PARITY-W4's wave).
+
+---
+Task ID: PARITY-SESSION-WRAP
+Agent: principal-engineer (deep-parity refactor session, main)
+Task: W3-9 + W3-10 leftovers + W6-WIN7 + gap-register closures + session handoff.
+
+Work Log:
+- W3-9 (cd4bb41): SESS-2 identity card (VolumeInfo v2 tail: model/serial/boot-hash,
+  boot-hash computed by the orchestrator at run start, adopt-on-resume preserves a
+  no-run re-save, CLI fill_identity_card + resume verify warning; v1 records
+  deserialize zero-card = unverifiable) + SESS-4 compress-everything (the >=64 tail
+  carve-out removed; strictly-smaller rule is the whole story). Tests:
+  VolumeInfoIdentityCardRoundTrip (80+84 layout pinned), TinyChunkDeflatesWhenSmaller.
+- W3-10 (34728b2 + 800e80a): single run_engine_dispatch for the main pass and the
+  lost-candidate path (the audited drift - candidates always ran deep extras via
+  defaults - now one explicit deep_extras parameter; per-engine candidate counting
+  shapes preserved exactly; 215/215 behavior-identical) + shared overlapped_read in
+  the win layer (three private ReadFile/OVERLAPPED dances collapsed; RwDevice
+  write path keeps its own staging loop).
+- W6-WIN7 (74f42c0): the user-mode Win7 envelope is machine-enforced like the driver
+  repo - SDK pins (_WIN32_WINNT/WINVER/NTDDI 0x0601), stamp_osversion_um.py
+  (post-link PE patcher), verify_pe_um.py + ref_imports_um.json (strict
+  kernel32/advapi32 function allowlist from the source census; name-gated
+  CRT/zlib DLLs), CI windows-lane gate step. First CI run may fail visibly on
+  un-censused linker imports - conscious amend is the designed path.
+- Gap register: closures applied with citing commits (this commit). Still open by
+  owner: S5-CONT-2 - GAP-P1-1 (NTFS compressed $DATA), GAP-P1-5, GAP-BENCH-1..5,
+  GAP-G-01/G-02 (cr_ui shim + snapshot), GAP-TREE-JSON; this session - none
+  claimed beyond this wrap.
+
+Stage Summary:
+- SESSION DELIVERABLES LANDED: six audit docs + PARITY-REFACTOR-PLAN gate (ffd9dc8);
+  W1 fallback-truth (0f88fd9); W2 engine parity x2 (435bc5e, 7577f74); W3
+  orchestration truth (b505799); W4 dead-code sweep, net -420 lines (0c6a1f5);
+  W5 docs wave - PARITY-DELTAS D-36..D-44 + CAPABILITY-MATRIX + F15 + BENCHMARK-REPORT
+  (046889d, e9e1176) + corpus errata (research 03ad46c) + CORE-CONTRACT 13 sync
+  (wizard 8bfc508); W3-9/W3-10 leftovers (cd4bb41, 34728b2, 800e80a); W6-WIN7
+  (74f42c0).
+- RELEASE TAG NOT CUT (deliberate): v0.3.0-parity waits for (a) the windows CI
+  lane proving the Win7 gate green on real binaries, (b) the fuzz lane re-run over
+  the W4-touched engines, (c) the parallel agent's GAP-P1-1 (NTFS compressed data
+  is a recovery-output P1 - a release with silent raw-compressed-bytes output would
+  be dishonest). Tag recipe: on verified-green HEAD, tag v0.3.0-parity with notes
+  referencing PARITY-DELTAS + BENCHMARK-REPORT + the closure list in
+  CORE-GAP-LIST.
+- COORDINATION RECORD: one clean duplicate-resolution (my P1-2/P1-3 dropped for
+  their more complete 632edc4 - they caught the extension-convention bug I
+  missed); one textual rebase conflict resolved keeping both; scope claims
+  published via this worklog; pull-before-push every time (three races total).
+- NEXT AGENT SHOULD: verify CI green on 74f42c0+ (all lanes), consciously amend
+  ref_imports_um.json if the gate trips, then execute the tag recipe above; the
+  P1-1/G-01/G-02/BENCH work continues per the register owners.
