@@ -131,7 +131,8 @@ bool open_disk_view(u32 n, OpenResult& out) {
     u32 err = 0;
     /* RDA first when present (locked volumes, damaged media), direct
      * fallback - the reference Device.mo duality. */
-    if (win::rda_available(L"RDA")) {
+    u32 rda_gle = 0;
+    if (win::rda_available(L"RDA", &rda_gle)) {
         if (auto dev = win::open_rda_partition(L"RDA", n, 0, &err)) {
             wprintf(L"[transport] RDA driver path (\\\\.\\RDA)\n");
             out.device = std::move(dev);
@@ -139,6 +140,11 @@ bool open_disk_view(u32 n, OpenResult& out) {
             return true;
         }
         wprintf(L"[transport] RDA open failed (%hs) - direct path\n", err_text(err));
+    } else {
+        /* evidence line for the runner mystery: the service runs but the
+         * control device open fails - surface the exact CreateFile error */
+        wprintf(L"[transport] RDA not available (\\\\.\\RDA CreateFile error %lu) - direct path\n",
+                rda_gle);
     }
     out.device = win::open_physical_drive(n, &err);
     if (!out.device) {

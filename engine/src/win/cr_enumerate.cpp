@@ -36,7 +36,11 @@ bool query_disk(u32 n, PhysicalDisk& d) {
         d.size_bytes = u64(dg.DiskSize.QuadPart);
         ok = true;
     }
-    /* storage access alignment for 4Kn/512e */
+    /* storage access alignment for 4Kn/512e - authoritative layout
+     * (winioctl.h): BytesPerLogicalSector@0x10, BytesPerPhysicalSector@0x14.
+     * +8/+12 are the CACHE-LINE fields (the same bug as cr_transport's
+     * probe_geometry - fixed there first). Sane-range guard keeps the
+     * geometry-EX values when the descriptor carries nonsense. */
     {
         STORAGE_PROPERTY_QUERY q = {};
         q.PropertyId = StorageAccessAlignmentProperty;
@@ -44,8 +48,12 @@ bool query_disk(u32 n, PhysicalDisk& d) {
         u8 buf[4096];
         if (DeviceIoControl(h, IOCTL_STORAGE_QUERY_PROPERTY, &q, sizeof(q), buf, sizeof(buf), &br,
                             nullptr)) {
-            d.logical_sector = u32_from_bytes_le(buf + 8);
-            d.physical_sector = u32_from_bytes_le(buf + 12);
+            const u32 align_logical = u32_from_bytes_le(buf + 0x10);
+            const u32 align_physical = u32_from_bytes_le(buf + 0x14);
+            if (align_logical >= 256 && align_logical <= 65536)
+                d.logical_sector = align_logical;
+            if (align_physical >= 256 && align_physical <= 65536)
+                d.physical_sector = align_physical;
         }
     }
     /* device descriptor for model/serial/removable */

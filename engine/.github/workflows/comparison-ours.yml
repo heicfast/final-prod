@@ -158,12 +158,12 @@ jobs:
           }
           $dt = ((Get-Date) - $t0).TotalSeconds
           "rrecov_scan_seconds=$([math]::Round($dt,1))" | Out-File compare-results\timing-ours.txt -Encoding utf8
-          if (Test-Path compare-results\ours-session.crsf) {
-            & $exe tree --in compare-results\ours-session.crsf --csv `
-              | Out-File -FilePath compare-results\ours.csv -Encoding utf8
-          } else {
-            "no session produced" | Out-File compare-results\ours.csv -Encoding utf8
+          if (-not (Test-Path compare-results\ours-session.crsf)) {
+            Write-Host "scan produced NO session - hard fail (a leg with no results must be red, not silently green)"
+            exit 1
           }
+          & $exe tree --in compare-results\ours-session.crsf --csv `
+            | Out-File -FilePath compare-results\ours.csv -Encoding utf8
 
       - name: Cleanup (always)
         if: always()

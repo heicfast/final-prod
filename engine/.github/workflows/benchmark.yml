@@ -168,12 +168,12 @@ jobs:
             }
             $dt = ((Get-Date) - $t0).TotalSeconds
             "scan_seconds=$([math]::Round($dt,1))" | Out-File "bench-results\timing-$name.txt" -Encoding utf8
-            if (Test-Path "bench-results\session-$name.crsf") {
-              & $exe tree --in "bench-results\session-$name.crsf" --csv `
-                | Out-File -FilePath "bench-results\results-$name.csv" -Encoding utf8
-            } else {
-              "no session produced" | Out-File "bench-results\results-$name.csv" -Encoding utf8
+            if (-not (Test-Path "bench-results\session-$name.crsf")) {
+              Write-Host "scan $name produced NO session - hard fail (prevents false-green scoring)"
+              exit 1
             }
+            & $exe tree --in "bench-results\session-$name.crsf" --csv `
+              | Out-File -FilePath "bench-results\results-$name.csv" -Encoding utf8
           }
           Run-Scan $env:NTFS_LETTER 'ntfs'
           Run-Scan $env:EXFAT_LETTER 'exfat'
@@ -241,12 +241,12 @@ jobs:
           }
           $dt = ((Get-Date) - $t0).TotalSeconds
           "scan_seconds=$([math]::Round($dt,1))" | Out-File bench-results\timing-lost.txt -Encoding utf8
-          if (Test-Path bench-results\session-lost.crsf) {
-            & $exe tree --in bench-results\session-lost.crsf --csv `
-              | Out-File -FilePath bench-results\results-lost.csv -Encoding utf8
-          } else {
-            "no session produced" | Out-File bench-results\results-lost.csv -Encoding utf8
+          if (-not (Test-Path bench-results\session-lost.crsf)) {
+            Write-Host "lost-partition scan produced NO session - hard fail"
+            exit 1
           }
+          & $exe tree --in bench-results\session-lost.crsf --csv `
+            | Out-File -FilePath bench-results\results-lost.csv -Encoding utf8
 
       - name: Score the lost-partition mode (same exFAT manifest)
         # Regression matrix: the SAME manifest scored in normal mode

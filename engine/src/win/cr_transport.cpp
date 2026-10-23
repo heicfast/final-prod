@@ -62,11 +62,23 @@ Geometry probe_geometry(HANDLE h, u64* out_size) {
         u8 buf[4096];
         if (DeviceIoControl(h, IOCTL_STORAGE_QUERY_PROPERTY, &q, sizeof(q), buf, sizeof(buf), &br,
                             nullptr)) {
-            /* STORAGE_ACCESS_ALIGNMENT_DESCRIPTOR: BytesPerLogicalSector @8
-             * (u32), BytesPerPhysicalSector @12 (u32) */
+            /* STORAGE_ACCESS_ALIGNMENT_DESCRIPTOR authoritative layout
+             * (winioctl.h / MS-DDK): Version@0, Size@4, BytesPerCacheLine@8,
+             * BytesOffsetForCacheAlignment@0xC, BytesPerLogicalSector@0x10,
+             * BytesPerPhysicalSector@0x14, BytesOffsetForSectorAlignment@0x18.
+             * The previous code read +8/+12 - the CACHE-LINE fields - so
+             * on VHDs (cache line 0) every direct-path device reported
+             * logical_sector = 0 and each PartitionSlice creation for a
+             * volume scan failed (both benchmark legs, slice create
+             * ERR_BAD_PARAMETER). Values accepted only in a sane sector
+             * range; otherwise the geometry-EX value stands. */
             const u8* d = buf;
-            g.logical_sector = u32_from_bytes_le(d + 8);
-            g.physical_sector = u32_from_bytes_le(d + 12);
+            const u32 align_logical = u32_from_bytes_le(d + 0x10);
+            const u32 align_physical = u32_from_bytes_le(d + 0x14);
+            if (align_logical >= 256 && align_logical <= 65536)
+                g.logical_sector = align_logical;
+            if (align_physical >= 256 && align_physical <= 65536)
+                g.physical_sector = align_physical;
         } else {
             g.physical_sector = g.logical_sector;
         }
@@ -561,12 +573,16 @@ std::unique_ptr<IStorageDevice> open_harddisk_volume(u32 volume, u32* err) {
     return open_path(path, err);
 }
 
-bool rda_available(const wchar_t* service_name) {
+bool rda_available(const wchar_t* service_name, u32* last_error) {
     const std::wstring path = rda::control_device_path(service_name);
+    SetLastError(0);
     HANDLE h = CreateFileW(path.c_str(), GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE, nullptr,
                            OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr);
-    if (h == INVALID_HANDLE_VALUE)
+    if (h == INVALID_HANDLE_VALUE) {
+        if (last_error)
+            *last_error = GetLastError();
         return false;
+    }
     CloseHandle(h);
     return true;
 }

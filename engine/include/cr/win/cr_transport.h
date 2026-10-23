@@ -55,8 +55,11 @@ bool volume_letter_to_disk(wchar_t letter, u32* disk, u32* part);
  * offset on that disk, byte length (used for recovery-overlap refusal). */
 bool volume_extent(wchar_t letter, u32* disk, u64* start, u64* len);
 
-/* Device existence probes used by enumeration. */
-bool rda_available(const wchar_t* service_name);
+/* Device existence probes used by enumeration. When the control-device
+ * open fails, *last_error (if given) receives the CreateFile GetLastError
+ * code - the diagnostic for the runner mystery (service running, \\.\Rda
+ * unopenable). */
+bool rda_available(const wchar_t* service_name, u32* last_error = nullptr);
 
 } // namespace win
 } // namespace cr
