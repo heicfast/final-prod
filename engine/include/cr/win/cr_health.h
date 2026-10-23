@@ -19,6 +19,7 @@
 #define CR_HEALTH_H_
 
 #include "../cr_types.h"
+#include "../health/cr_nvme.h"
 #include <string>
 #include <vector>
 
@@ -55,21 +56,10 @@ struct SmartReport {
     bool trim_known = false;
 };
 
-/* NVMe health log (log page 2, 512 bytes). */
-struct NvmeHealth {
-    bool available = false;
-    u8 critical_warning = 0;
-    u16 temperature_k = 0;
-    u8 available_spare = 0;
-    u8 available_spare_threshold = 0;
-    u64 percentage_used = 0;
-    u64 data_units_read = 0;
-    u64 data_units_written = 0;
-    u64 power_cycles = 0;
-    u64 power_on_hours = 0;
-    u64 unsafe_shutdowns = 0;
-    u64 media_errors = 0;
-};
+/* NVMe health log (log page 2, 512 bytes) — parsed by the pure-core
+ * cr::health::parse_nvme_health_page (spec offsets; PARITY-AUDIT F-A4-17
+ * fixed the previous inline 64/80/96/112 mapping). */
+struct NvmeHealth : cr::health::NvmeHealthInfo {};
 
 /* Read the SMART attribute table through ATA passthrough (admin handle
  * required). Returns ERR_HEALTH_UNAVAILABLE when the transport rejects. */

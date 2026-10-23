@@ -5,6 +5,7 @@
 add_library(cr_core STATIC
     cr_parallel.cpp
     err/cr_error.cpp
+    health/cr_nvme.cpp
     storage/cr_devmap.cpp
     storage/cr_slice.cpp
     storage/cr_cached.cpp

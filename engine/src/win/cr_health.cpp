@@ -272,37 +272,10 @@ u32 read_nvme_health(void* disk_handle, NvmeHealth& out) {
         return ERR_HEALTH_UNAVAILABLE;
 
     const u8* d = req.data;
-    out.available = true;
-    out.critical_warning = d[0];
-    out.temperature_k = u16(d[1]) | (u16(d[2]) << 8);
-    out.available_spare = d[3];
-    out.available_spare_threshold = d[4];
-    out.percentage_used = d[5];
-    u64 v = 0;
-    for (int i = 0; i < 8; ++i)
-        v |= u64(d[32 + i]) << (8 * i);
-    out.data_units_read = v;
-    v = 0;
-    for (int i = 0; i < 8; ++i)
-        v |= u64(d[48 + i]) << (8 * i);
-    out.data_units_written = v;
-    v = 0;
-    for (int i = 0; i < 8; ++i)
-        v |= u64(d[64 + i]) << (8 * i);
-    out.power_cycles = v;
-    v = 0;
-    for (int i = 0; i < 8; ++i)
-        v |= u64(d[80 + i]) << (8 * i);
-    out.power_on_hours = v;
-    v = 0;
-    for (int i = 0; i < 8; ++i)
-        v |= u64(d[96 + i]) << (8 * i);
-    out.unsafe_shutdowns = v;
-    v = 0;
-    for (int i = 0; i < 8; ++i)
-        v |= u64(d[112 + i]) << (8 * i);
-    out.media_errors = v;
-    return OK;
+    /* pure-core parser (spec offsets — PARITY-AUDIT F-A4-17: the previous
+     * inline mapping read power_cycles/hours/unsafe/media at 64/80/96/112,
+     * i.e. Host Reads / Host Writes / Controller Busy Time / Power Cycles) */
+    return cr::health::parse_nvme_health_page(d, sizeof(req.data), out);
 }
 
 u32 query_trim_state(bool& enabled) {

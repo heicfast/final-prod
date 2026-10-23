@@ -5,6 +5,7 @@
 add_executable(cr_tests
     unit/main.cpp
     unit/test_fixup.cpp
+    unit/test_nvme_health.cpp
     unit/test_runlist.cpp
     unit/test_crc32_gpt.cpp
     unit/test_slice_devmap.cpp
