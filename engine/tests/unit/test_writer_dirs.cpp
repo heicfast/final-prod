@@ -149,7 +149,12 @@ struct TmpDir {
     TmpDir() {
         static std::atomic<int> n{0};
         char buf[128];
-        snprintf(buf, sizeof(buf), "/tmp/cr_wdirs_%d_%d", int(getpid()), n.fetch_add(1));
+#ifdef _WIN32
+        const int pid = _getpid(); /* MSVC C4996: POSIX name deprecated */
+#else
+        const int pid = getpid();
+#endif
+        snprintf(buf, sizeof(buf), "/tmp/cr_wdirs_%d_%d", pid, n.fetch_add(1));
         p = buf;
         fs::create_directories(p);
     }
