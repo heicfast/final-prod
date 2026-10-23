@@ -746,3 +746,61 @@ Stage Summary:
 - Commit 35f4652 on main: 172/172 green under ASan + LeakSanitizer.
 - Closed this session: G-04/05/06, G-07, G-08, G-09, G-10, G-14, G-23, D-3.
 - Remaining: G-12 query/filter/sort/paging (next), G-01/02/03 C ABI shim + snapshot, #9 auto-checkpoint, #10 disposition + docs matrix, release tag + handoff.
+
+---
+Task ID: PARITY-T20 (release & handoff)
+Agent: parity-auditor (main)
+Task: CI restoration, release tags, handoff for the next agent.
+
+Work Log:
+- CI unblock series (main was red on the UI-readiness milestone 804972a
+  and follow-ups): eefbb63 (clang-format-18 on their files + 2 -Werror
+  test warnings), 9b4e656 (test_writer_dirs C2676 wstring concat),
+  685243a (TSan data race in the telemetry test captures — mutex-guarded
+  + the auditor's own files formatted with the CI pin), 0beba6a (last
+  getpid() C4996 swept tree-wide). Root causes + attribution filed as
+  issue #11. Local evidence at each step: ASan 172/172, TSan 172/172,
+  telemetry stress 6x clean, lint clean under 18.1.8.
+- Contract note for the UI-readiness agent (filed on #11): the progress
+  bridge invokes callbacks from engine worker threads, not only the scan
+  thread — CORE-CONTRACT §5.3 wording needs that thread-safety clause.
+- Deliverables state:
+  * docs/PARITY-AUDIT.md — authoritative grid + findings + dispositions
+    (status header updated: fix waves landed 1ecf446..0beba6a).
+  * docs/PARITY-DELTAS.md — authoritative (35 entries; UI mirror in
+    rda-wizard).
+  * Issues #1-#10 triaged with parity evidence; #11 coordination;
+    rda-wizard#1 (P0 notice).
+  * Release tags: v0.2.1-parity (core) / v0.1.1-parity (wizard) on the
+    parity fix series — tag messages reference PARITY-AUDIT.md.
+
+Handoff for the next agent:
+- PIN: core 0beba6a (all parity fixes + CI unblocks; verify the CI run
+  on it is green before building on top). Wizard: db5a9da (CI green).
+- REMAINING PARITY SCOPE (all evidence-cited, see PARITY-AUDIT.md §3):
+  * Carving batch F-A3-2 (GPT backup-salvage dead code), F-A3-3 (ZIP
+    3-anchor + indexless salvage), F-A3-4 (BE-TIFF/ORF dead branch),
+    F-A3-5 (PST unknown-version accept w/ 1 MiB floor).
+  * F-A1-7 (exFAT first-cluster gate), F-A1-10 (0x3FF boundary '>'),
+    F-A1-11 (FAT cancel polling), F-A1-12 (deleted-name raw bytes).
+  * F-A2-2/5 (ReFS og next-chains + MSB multi-level/dual-clock/backup-SB
+    tests), F-A2-12/13/14 (Btrfs chunk-tree uuid source, inline-extent
+    content, crc32c policy), F-A2-7/8 (ZFS gang tests + stale header
+    comments).
+  * F-A4 session identity fields (ties G-14), collision naming delta
+    wording, F11 registry text correction.
+  * UNVERIFIED register (docs/parity/* UNVERIFIED sections) — close with
+    corpus evidence or register as deltas.
+- OPEN QUESTIONS: og TRIM-toggle caller semantics (D-…); og writer hash
+  verification; og NVMe mapping (spec used); og session identity fields
+  (record 2/3 "identity card"); multi-session .rsf in the wild.
+- CONCURRENCY: the UI-readiness agent lands fast (G-08/G-09/G-10 closed
+  during this audit; pause/telemetry live). Re-verify PARITY-ORCH
+  verdicts against their landing commits before fixing anything in
+  cr_scan.cpp — that file is theirs right now.
+
+Stage Summary:
+- Parity session complete: audit gate (8 appendices) -> 11 fixes with
+  tests -> registry + contract corrections -> issue triage -> CI
+  restoration -> tags. Main green trajectory restored; remaining scope
+  precisely filed.
