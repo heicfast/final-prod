@@ -1,0 +1,9 @@
+node_modules/
+dist/
+coverage/
+src-tauri/target/
+*.local
+.DS_Store
+playwright-report/
+test-results/
+.vite/
