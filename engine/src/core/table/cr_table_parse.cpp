@@ -79,7 +79,7 @@ FsKind mbr_type_to_kind(u8 type) {
     case 0x07:
         /* HPFS/NTFS/exFAT share 0x07 - disambiguated later by boot-sector
          * probe (matches reference PartitionRecovery analyser chain). */
-        return FsKind::Ntfs; /* provisional; refine_ntfs_vs_exfat in engines */
+        return FsKind::Ntfs; /* provisional; the engine boot validators refine */
     case 0x0B:
     case 0x0C:
         return FsKind::Fat32;
