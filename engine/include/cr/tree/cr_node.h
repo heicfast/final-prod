@@ -133,6 +133,7 @@ protected:
     }
     FileNode* parent_ = nullptr;
     FileNode* first_child_ = nullptr;
+    FileNode* last_child_ = nullptr; /* O(1) appends (million-node roots) */
     FileNode* next_sibling_ = nullptr;
     FileNode* prev_sibling_ = nullptr;
     FileProperties* props_ = nullptr;

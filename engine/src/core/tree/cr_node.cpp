@@ -130,14 +130,17 @@ FileNode* ResultTree::add_file(FileNode* parent, FileProperties* props) {
     FileNode* n = new (mem) FileNode();
     n->set_props(props); /* +1 ref: caller releases its own when done */
     n->parent_ = parent;
+    /* O(1) append via the tail pointer - the old sibling-chain walk was
+     * O(n) per insert (O(n^2) for a million-file carve root; audit:
+     * million-node scans must stay time-disciplined too) */
     if (parent->first_child_ == nullptr) {
         parent->first_child_ = n;
+        parent->last_child_ = n;
     } else {
-        FileNode* t = parent->first_child_;
-        while (t->next_sibling_)
-            t = t->next_sibling_;
+        FileNode* t = parent->last_child_;
         t->next_sibling_ = n;
         n->prev_sibling_ = t;
+        parent->last_child_ = n;
     }
     n->node_id_ = nodes_.size();
     nodes_.push_back(n);
@@ -240,19 +243,21 @@ void ResultTree::reparent(FileNode* node, FileNode* new_parent) {
         cur->first_child_ = node->next_sibling_;
     if (node->next_sibling_)
         node->next_sibling_->prev_sibling_ = node->prev_sibling_;
+    if (cur && cur->last_child_ == node)
+        cur->last_child_ = node->prev_sibling_ ? node->prev_sibling_ : node->next_sibling_;
     node->prev_sibling_ = nullptr;
     node->next_sibling_ = nullptr;
     node->parent_ = new_parent;
     if (new_parent == nullptr)
         return;
-    if (new_parent->first_child_ == nullptr)
+    if (new_parent->first_child_ == nullptr) {
         new_parent->first_child_ = node;
-    else {
-        FileNode* t = new_parent->first_child_;
-        while (t->next_sibling_)
-            t = t->next_sibling_;
+        new_parent->last_child_ = node;
+    } else {
+        FileNode* t = new_parent->last_child_;
         t->next_sibling_ = node;
         node->prev_sibling_ = t;
+        new_parent->last_child_ = node;
     }
 }
 
