@@ -46,26 +46,24 @@ namespace {
 
 /* ---- label geometry (OpenZFS vdev_impl.h) ---- */
 constexpr u64 LABEL_SIZE = 256ull << 10;
-constexpr u64 VDEV_PHYS_OFFSET = 16ull << 10; /* 8K skip + 8K boot env */
+constexpr u64 VDEV_PHYS_OFFSET = 16ull << 10;  /* 8K skip + 8K boot env */
 constexpr u64 VDEV_PHYS_SIZE = 112ull << 10;
 constexpr u64 UBRING_OFFSET = 128ull << 10;
-constexpr u32 UBERBLOCK_COUNT = 128;
-constexpr u64 UBERBLOCK_SIZE = 1024;
-constexpr u64 UBERBLOCK_MAGIC = 0x00BAB10CULL;
-
-/* ---- uberblock ---- */
 constexpr u32 UB_MAGIC = 0;
 constexpr u32 UB_TXG = 16;
 constexpr u32 UB_TIMESTAMP = 32;
 constexpr u32 UB_ROOTBP = 40; /* blkptr 128 bytes */
+constexpr u64 UBERBLOCK_SIZE = 1024; /* smallest slot; larger slots only
+                                        * use the first 1KiB for these fields */
+constexpr u64 UBERBLOCK_MAGIC = 0x00BAB10CULL;
 
 /* ---- blkptr (OpenZFS spa.h) ----
  * blk_dva[3] @0 (16B each), blk_prop u64@48, blk_pad@56/64,
  * blk_phys_birth@64, blk_birth@72, blk_fill@80, blk_cksum@88..119.
- * prop: lsize bits0-15 ((v+1)<<9), psize bits16-31 ((v+1)<<9),
- * comp bits32-39, embedded bit39, etype bits40-47, byteorder bit63.
- * DVA: vdev = w0>>40 (24b), asize = (w0&0xFFFFFF)<<9,
- *      offset = (w1 & ((1<<63)-1))<<9, gang = w1 bit63. */
+ * prop: lsize bits0-24 ((v+1)<<9), psize bits25-31 ((v+1)<<9),
+ * comp bits32-38 (7), embedded bit39, etype bits40-47, byteorder bit63.
+ * DVA (spa.h DVA_GET_*): vdev = (w0>>32) & 0xFFFFFF (SPA_VDEVBITS=24),
+ *      asize = (w0 & 0xFFFFFF)<<9, offset = (w1 & 2^63-1)<<9, gang = w1 bit63. */
 constexpr u32 BP_DVA = 0;
 constexpr u32 BP_PROP = 48;
 constexpr u32 BP_BIRTH = 72;
@@ -118,7 +116,7 @@ u32 bpe_etype(const u8* bp) {
     return u32((rdle64(bp + BP_PROP) >> 40) & 0xFF);
 }
 u64 dva_vdev(const u8* dva) {
-    return (rdle64(dva) >> 40) & 0xFFFFFFull;
+    return (rdle64(dva) >> 32) & 0xFFFFFFull;
 }
 u64 dva_asize(const u8* dva) {
     return (rdle64(dva) & 0xFFFFFFull) << 9;
@@ -162,53 +160,97 @@ constexpr u32 DN_MAXBLKID = 16;
 constexpr u32 DN_BLKPTR = 64;
 constexpr u32 DN_SIZE = 512;
 
+constexpr u32 DMU_OT_OBJECT_DIRECTORY = 1;
 constexpr u32 DMU_OT_DNODE = 10;
 constexpr u32 DMU_OT_OBJSET = 11;
-constexpr u32 DMU_OT_ZNODE = 17; /* legacy bonus */
+constexpr u32 DMU_OT_DSL_DIR_CHILD_MAP = 13;
+constexpr u32 DMU_OT_DSL_DS_SNAP_MAP = 14;
+constexpr u32 DMU_OT_DSL_PROPS = 15;
+constexpr u32 DMU_OT_ZNODE = 17;         /* legacy bonus (zfs_sa.h) */
 constexpr u32 DMU_OT_PLAIN_FILE_CONTENTS = 19;
 constexpr u32 DMU_OT_DIRECTORY_CONTENTS = 20;
 constexpr u32 DMU_OT_MASTER_NODE = 21;
-constexpr u32 DMU_OT_SA = 43; /* SA bonus */
+constexpr u32 DMU_OT_ERROR_LOG = 28;
+constexpr u32 DMU_OT_POOL_PROPS = 31;
+constexpr u32 DMU_OT_DDT_ZAP = 42;
+constexpr u32 DMU_OT_DDT_STATS = 43;
+constexpr u32 DMU_OT_SA = 44;           /* SA bonus (dmu.h enum; 43 is DDT_STATS) */
+constexpr u32 DMU_OT_SA_MASTER_NODE = 45;
+constexpr u32 DMU_OT_SA_ATTR_REGISTRATION = 46;
+constexpr u32 DMU_OT_SA_ATTR_LAYOUTS = 47;
 
-/* legacy znode_phys (OpenZFS module/zfs/zfs_znode.h) */
-constexpr u32 ZP_ATIME = 0x00; /* sec+usec pairs x4 */
+bool zap_typed(u32 t) {
+    /* every DMU_OT whose content is a ZAP (dmu.h "/ * ZAP * /" rows) */
+    switch (t) {
+    case DMU_OT_OBJECT_DIRECTORY:
+    case DMU_OT_DSL_DIR_CHILD_MAP:
+    case DMU_OT_DSL_DS_SNAP_MAP:
+    case DMU_OT_DSL_PROPS:
+    case DMU_OT_DIRECTORY_CONTENTS:
+    case DMU_OT_MASTER_NODE:
+    case DMU_OT_ERROR_LOG:
+    case DMU_OT_POOL_PROPS:
+    case DMU_OT_DDT_ZAP:
+    case DMU_OT_DDT_STATS:
+    case DMU_OT_SA_MASTER_NODE:
+    case DMU_OT_SA_ATTR_REGISTRATION:
+    case DMU_OT_SA_ATTR_LAYOUTS:
+    case 27: /* ZAP_OTHER */
+        return true;
+    default:
+        return false;
+    }
+}
+
+/* legacy znode_phys (OpenZFS include/sys/zfs_sa.h - field order verified
+ * against master: zp_atime@0 .. zp_zap@144, ACL at 176) */
+constexpr u32 ZP_ATIME = 0x00;  /* sec+usec pairs x4 */
 constexpr u32 ZP_MTIME = 0x10;
 constexpr u32 ZP_CTIME = 0x20;
 constexpr u32 ZP_CRTIME = 0x30;
 constexpr u32 ZP_GEN = 0x40;
 constexpr u32 ZP_MODE = 0x48;
-constexpr u32 ZP_UID = 0x50;
-constexpr u32 ZP_GID = 0x58;
-constexpr u32 ZP_PARENT = 0x60;
-constexpr u32 ZP_LINKS = 0x68;
-constexpr u32 ZP_SIZE = 0x70;
+constexpr u32 ZP_SIZE = 0x50;
+constexpr u32 ZP_PARENT = 0x58;
+constexpr u32 ZP_LINKS = 0x60;
+constexpr u32 ZP_XATTR = 0x68;
+constexpr u32 ZP_RDEV = 0x70;
 constexpr u32 ZP_FLAGS = 0x78;
+constexpr u32 ZP_UID = 0x80;
+constexpr u32 ZP_GID = 0x88;
+constexpr u32 ZP_MIN = 0x68; /* through links */
 
 /* SA header (OpenZFS include/sys/sa_impl.h): magic u32@0 = 0x2F505A,
  * layout_info u16@4 (bits 0-9 layout, bits 10-15 hdrsize/8), then the
- * attribute data. Layout 1 = ZPL standard order (atime mtime ctime
- * crtime gen mode uid gid parent links size flags) - offsets below are
- * relative to the SA HEADER start (8-byte header + body). */
+ * attribute data. Layout 1 attr order = the zfs_attr_table registration
+ * order (module/zfs/zfs_sa.c): atime mtime ctime crtime gen mode size
+ * parent links xattr rdev flags uid gid - offsets below are relative to
+ * the SA HEADER start (8-byte header + body). */
 constexpr u32 SA_MAGIC = 0x2F505A;
 constexpr u32 SA_LAYOUT1_ATIME = 8;
 constexpr u32 SA_LAYOUT1_MTIME = 24;
 constexpr u32 SA_LAYOUT1_CTIME = 40;
 constexpr u32 SA_LAYOUT1_CRTIME = 56;
+constexpr u32 SA_LAYOUT1_GEN = 72;
 constexpr u32 SA_LAYOUT1_MODE = 80;
-constexpr u32 SA_LAYOUT1_UID = 88;
-constexpr u32 SA_LAYOUT1_GID = 96;
-constexpr u32 SA_LAYOUT1_PARENT = 104;
-constexpr u32 SA_LAYOUT1_LINKS = 112;
-constexpr u32 SA_LAYOUT1_SIZE = 120;
+constexpr u32 SA_LAYOUT1_SIZE = 88;
+constexpr u32 SA_LAYOUT1_PARENT = 96;
+constexpr u32 SA_LAYOUT1_LINKS = 104;
+constexpr u32 SA_LAYOUT1_XATTR = 112;
+constexpr u32 SA_LAYOUT1_RDEV = 120;
 constexpr u32 SA_LAYOUT1_FLAGS = 128;
-constexpr u32 SA_LAYOUT1_MIN = 136; /* header + body */
+constexpr u32 SA_LAYOUT1_UID = 136;
+constexpr u32 SA_LAYOUT1_GID = 144;
+constexpr u32 SA_LAYOUT1_MIN = 112; /* header + body through links */
 
 /* ---- objset_phys ---- */
 constexpr u32 OS_META_DNODE = 0;
 
-/* ---- dsl_dir / dsl_dataset bonus ---- */
-constexpr u32 DD_CHILD_DIR_ZAPOBJ = 240; /* 0xF0 */
-constexpr u32 DD_HEAD_DATASET_OBJ = 248; /* 0xF8 */
+/* ---- dsl_dir / dsl_dataset bonus (OpenZFS include/sys/dsl_dir.h:
+ * dsl_dir_phys_s {creation_time@0, head_dataset_obj@8, origin_obj@16,
+ * child_dir_zapobj@24, ...}; dsl_dataset.h: ds_bp@128) ---- */
+constexpr u32 DD_HEAD_DATASET_OBJ = 8;
+constexpr u32 DD_CHILD_DIR_ZAPOBJ = 24;
 constexpr u32 DS_BP = 128;
 
 /* ---- ZAP (OpenZFS zap_impl.h / zap_leaf.h) ---- */
@@ -242,10 +284,32 @@ constexpr u32 ZAP_CHUNK_ARRAY = 251;
 constexpr u32 ZL_MAGIC = 24;
 constexpr u32 ZL_NENTRIES = 30;
 
-/* nvlist native encoding (LE pools) */
+/* nvpair on-disk encodings (OpenZFS module/nvpair/nvpair.c + spl-xdr.c).
+ * Packed buffer = {nvs_header_t: encoding u8, endian u8, rsvd x2} then
+ * the stream. Vdev-label config nvlists are ALWAYS XDR
+ * (vdev_label.c: nvlist_pack(..., NV_ENCODE_XDR, ...)) - big-endian.
+ * XDR pair: {enc_len BE32, dec_len BE32, name_len BE32 (excl NUL,
+ * spl-xdr xdr_enc_string), name bytes pad4, type BE32, nelem BE32, value};
+ * dec_len==0 terminates. XDR strings: {BE32 len excl NUL, bytes, pad4}.
+ * Native pair (LE pools / in-core images): {size i32, name_sz i16 (incl
+ * NUL), value_elem i32, type i32, name[name_sz], pad8, value}; size==0
+ * terminates. */
+constexpr u32 NV_DATA_BOOLEAN = 1;
+constexpr u32 NV_DATA_BYTE = 2;
 constexpr u32 NV_DATA_UINT64 = 8;
 constexpr u32 NV_DATA_STRING = 9;
 constexpr u32 NV_DATA_NVLIST = 19;
+constexpr u32 NV_DATA_BOOLEAN_VALUE = 21;
+constexpr u32 NV_DATA_UINT64_ARRAY = 16;
+
+u64 be64(const u8* p) {
+    return (u64(p[0]) << 56) | (u64(p[1]) << 48) | (u64(p[2]) << 40) |
+           (u64(p[3]) << 32) | (u64(p[4]) << 24) | (u64(p[5]) << 16) |
+           (u64(p[6]) << 8) | u64(p[7]);
+}
+u32 be32(const u8* p) {
+    return (u32(p[0]) << 24) | (u32(p[1]) << 16) | (u32(p[2]) << 8) | u32(p[3]);
+}
 
 constexpr u32 MAX_OBJECTS = 1u << 20;
 constexpr u32 MAX_ZAP_ENTRIES = 65536;
@@ -262,55 +326,100 @@ struct NvValue {
     std::map<std::string, NvValue> child;
 };
 
-bool nv_parse(const u8* p, u32 len, std::map<std::string, NvValue>& out, u32 depth = 0) {
-    if (p == nullptr || len < 8 || depth > 4)
+/* Parse the pair stream AFTER the {version, nvflag} words (nvpair.c
+ * nvs_operation: nvs_nvlist consumes version+nvflag, then pairs, then
+ * the terminator). `xdr` is inherited from the parent buffer - embedded
+ * nvlists use the same encoding (nvs_embedded -> same nvs ops). */
+bool nv_parse_stream(const u8* p, u32 len, bool xdr, std::map<std::string, NvValue>& out,
+                     u32 depth) {
+    if (p == nullptr || len < 8 || depth > 6)
         return false;
-    u32 pos = 8; /* nvl_version + nvl_flag */
-    while (pos + 8 <= len) {
-        const u32 enc = rdle32(p + pos);
+    auto rd32 = [&](const u8* q) -> u32 { return xdr ? be32(q) : rdle32(q); };
+    auto rd64 = [&](const u8* q) -> u64 { return xdr ? be64(q) : rdle64(q); };
+    const auto align = [&](u32 v, u32 a) -> u32 { return (v + a - 1) & ~(a - 1); };
+    u32 pos = 8; /* skip {version, nvflag} */
+    u32 pairs = 0;
+    while (pos + 8 <= len && pairs < 512) {
+        ++pairs;
+        u32 enc = rd32(p + pos);
         if (enc == 0)
-            break; /* terminator pair */
-        if (pos + 16 > len)
+            break; /* terminator pair (XDR: dec_len==0 next; both zero) */
+        if (enc < 8 || pos + enc > len)
             break;
-        const u32 dec = rdle32(p + pos + 4);
-        (void)dec;
-        const u32 name_len = p[pos + 8];
-        if (name_len == 0 || name_len > 64 || pos + 12 + name_len > len)
-            break;
-        std::string name(reinterpret_cast<const char*>(p + pos + 9), name_len - 1);
-        u32 q = pos + 9 + name_len;
-        q = (q + 3) & ~3u; /* name padded to 4 */
+        u32 q = pos + 8; /* {enc_len, dec_len} consumed */
+        u32 name_len = 0;
+        std::string name;
+        if (xdr) {
+            if (q + 4 > len)
+                break;
+            name_len = rd32(p + q); /* xdr_string: length EXCLUDES the NUL */
+            q += 4;
+            if (name_len == 0 || name_len > 128 || q + name_len > len)
+                break;
+            name.assign(reinterpret_cast<const char*>(p + q), name_len);
+            q = align(q + name_len, 4);
+        } else {
+            /* native: {size i32@0, name_sz i16@4, value_elem i32@8, type
+             * i32@12, name[name_sz incl NUL]@16, value 8-aligned} */
+            if (q + 2 > len)
+                break;
+            const u32 nsz = rdle16(p + pos + 4);
+            if (nsz < 2 || nsz > 128 || pos + 16 + nsz > len)
+                break;
+            name.assign(reinterpret_cast<const char*>(p + pos + 16), nsz - 1);
+            const u32 vty = rdle32(p + pos + 12);
+            u32 vq = align(pos + 16 + nsz, 8);
+            NvValue v;
+            v.type = vty;
+            const u32 vsz = rdle32(p + pos + 8);
+            if (vty == NV_DATA_UINT64 && vsz == 1 && vq + 8 <= len) {
+                v.u64v = rdle64(p + vq);
+            } else if (vty == NV_DATA_STRING && vsz == 1 && vq + 4 <= len) {
+                const u32 slen = rdle32(p + vq);
+                if (slen > 0 && slen < 256 && vq + 4 + slen <= len)
+                    v.s.assign(reinterpret_cast<const char*>(p + vq + 4), slen - 1);
+            } else if (vty == NV_DATA_NVLIST && vsz == 1) {
+                nv_parse_stream(p + vq, (pos + enc) - vq, false, v.child, depth + 1);
+            }
+            out[name] = v;
+            pos += enc;
+            continue;
+        }
         if (q + 8 > len)
             break;
-        const u32 type = rdle32(p + q);
-        const u32 nelem = rdle32(p + q + 4);
+        const u32 type = rd32(p + q);
+        const u32 nelem = rd32(p + q + 4);
         q += 8;
         NvValue v;
         v.type = type;
         if (type == NV_DATA_UINT64 && nelem == 1 && q + 8 <= len) {
-            v.u64v = rdle64(p + q);
-            q += 8;
+            v.u64v = rd64(p + q);
         } else if (type == NV_DATA_STRING && nelem == 1 && q + 4 <= len) {
-            const u32 slen = rdle32(p + q);
-            if (q + 4 + slen <= len && slen > 0 && slen < 256) {
-                v.s.assign(reinterpret_cast<const char*>(p + q + 4), slen - 1);
-                q += 4 + slen;
-            }
-        } else if (type == NV_DATA_NVLIST && nelem == 1) {
-            if (q + 8 <= len)
-                nv_parse(p + q, len - q, v.child, depth + 1);
-            break; /* nested list ends the pair stream in our subset */
-        } else {
-            break;
+            const u32 slen = rd32(p + q);
+            if (slen < 256 && q + 4 + slen <= len)
+                v.s.assign(reinterpret_cast<const char*>(p + q + 4), slen);
+        } else if (type == NV_DATA_BOOLEAN_VALUE && nelem == 1 && q + 4 <= len) {
+            v.u64v = rd32(p + q);
+        } else if (type == NV_DATA_NVLIST && nelem >= 1 && q + 8 <= len) {
+            /* embedded nvlist: bounded by this pair; the outer loop
+             * continues at pos+enc (pairs after vdev_tree are parsed) */
+            nv_parse_stream(p + q, (pos + enc) - q, xdr, v.child, depth + 1);
         }
         out[name] = v;
-        if (enc > len - pos)
-            break; /* P1-8 wrap guard */
-        pos = (pos + enc) & ~1u;
-        if (pos >= len)
-            break;
+        pos += enc; /* enc_len covers the whole pair incl. value */
     }
     return !out.empty();
+}
+
+/* Top level: packed buffer = {nvs_header_t: encoding u8, endian u8, rsvd x2}
+ * (nvpair.c:2389-2395), then the stream. */
+bool nv_parse(const u8* p, u32 len, std::map<std::string, NvValue>& out, u32 depth = 0) {
+    if (p == nullptr || len < 12 || depth > 6)
+        return false;
+    const u32 enc_method = p[0];
+    if (enc_method > 1)
+        return false;
+    return nv_parse_stream(p + 4, len - 4, enc_method == 1, out, depth);
 }
 
 /* ---- volume context ---- */
@@ -321,6 +430,8 @@ struct Volume {
     u64 vdev_asize = 0;
     u64 total_bytes = 0;
     u64 damaged = 0; /* failed block reads */
+    u64 microzap_entries = 0;
+    u64 macrozap_entries = 0;
 
     /* read the raw (possibly compressed) bytes a DVA points at */
     bool read_raw(const u8* bp, u32 dva_index, std::vector<u8>& out) {
@@ -347,6 +458,9 @@ struct Volume {
 
     /* read + decompress a block to its logical image */
     bool read_block(const u8* bp, u32 dva_index, std::vector<u8>& out) {
+        /* gang leaders assemble through the 512B header */
+        if (dva_is_gang(bp + BP_DVA + u64(dva_index) * 16))
+            return read_gang(bp + BP_DVA + u64(dva_index) * 16, out);
         std::vector<u8> raw;
         if (!read_raw(bp, dva_index, raw))
             return false;
@@ -363,7 +477,8 @@ struct Volume {
             return false;
         out.resize(size_t(lsize));
         const u32 codec = compress::codec_from_zfs(zc);
-        if (!compress::decompress_block(codec, raw.data(), raw.size(), out.data(), out.size())) {
+        if (!compress::decompress_block(codec, raw.data(), raw.size(), out.data(),
+                                        out.size())) {
             ++damaged;
             return false;
         }
@@ -371,11 +486,13 @@ struct Volume {
     }
 
     /* gang block: the leader DVA (gang bit set) points to a 512-byte
-     * "gang header" of blkptrs whose data, concatenated, forms the block.
-     * (SPA_GANGLINE... the gang header is one 512B block of up to 3?
-     * OpenZFS: a gang block is a 512-byte block of 16? - the header holds
-     * GANG_HEADER... blkptrs until the terminator.) */
-    bool read_gang(const u8* dva, std::vector<u8>& out) {
+     * "gang header" whose data, concatenated, forms the block. The header
+     * is SPA_MINBLOCKSIZE (512) bytes holding (512 - sizeof(zio_eck_t)) /
+     * sizeof(blkptr_t) = 480/128 = 3 blkptrs (zio.h zio_gbh_phys_t - the
+     * 32-byte self-checksum occupies the tail; there is NO 4th slot). */
+    bool read_gang(const u8* dva, std::vector<u8>& out, u32 depth = 0) {
+        if (depth > 4)
+            return false; /* nested-gang cap */
         const u64 off = dva_offset(dva);
         const u64 psz = 512; /* gang header is SPA_MINBLOCKSIZE */
         if (vdev_offset + off + psz > total_bytes)
@@ -386,12 +503,20 @@ struct Volume {
             return false;
         }
         out.clear();
-        for (u32 i = 0; i < 512 / BP_SIZE; ++i) {
+        for (u32 i = 0; i < 3; ++i) {
             const u8* gbp = hdr.data() + u64(i) * BP_SIZE;
             if (bp_is_hole(gbp))
                 continue; /* terminator or padding */
             if (bp_is_embedded(gbp))
                 continue;
+            const u8* gdva = gbp + BP_DVA;
+            if (dva_is_gang(gdva)) {
+                std::vector<u8> nested;
+                if (!read_gang(gdva, nested, depth + 1))
+                    return false;
+                out.insert(out.end(), nested.begin(), nested.end());
+                continue;
+            }
             std::vector<u8> piece;
             if (!read_block(gbp, 0, piece))
                 return false;
@@ -450,43 +575,47 @@ struct ObjSet {
         if (object >= MAX_OBJECTS)
             return false;
         const u64 logical = object * DN_SIZE;
-        /* find the L0 block covering `logical`, walking the indirect
-         * tree from the meta dnode's blkptr array */
-        const u32 indshift = meta.raw[DN_INDBLKSHIFT];
-        const u32 levels = meta.nlevels();
         const u64 dbsz = meta.datablksz();
         if (dbsz == 0)
             return false;
-        const u64 blk = logical / dbsz;
-        /* collect candidate L0 blkptr through the tree */
-        std::vector<u8> node;
+        std::vector<u8> data;
+        if (!read_object_block(meta, logical / dbsz, data))
+            return false;
+        const u64 in_block = logical % dbsz;
+        if (in_block + DN_SIZE > data.size())
+            return false;
+        out.raw.assign(data.begin() + ptrdiff_t(in_block),
+                       data.begin() + ptrdiff_t(in_block + DN_SIZE));
+        return out.nblkptr() > 0 && out.datablksz() > 0;
+    }
+
+    /* Read logical block `blk` of a dnode through its indirect tree. */
+    bool read_object_block(const Dnode& dn, u64 blk, std::vector<u8>& data) {
+        const u32 levels = dn.nlevels();
+        const u64 indshift = dn.raw[DN_INDBLKSHIFT];
+        const u64 per_node = (u64(1) << indshift) / BP_SIZE;
         const u8* bp = nullptr;
         if (levels <= 1) {
-            const u64 idx = blk;
-            if (idx >= meta.nblkptr())
+            if (blk >= dn.nblkptr())
                 return false;
-            bp = meta.blkptr(u32(idx));
+            bp = dn.blkptr(u32(blk));
         } else {
-            /* walk down: level L node = (1<<indshift)/128 blkptrs */
-            const u64 per_node = (u64(1) << indshift) / BP_SIZE;
-            /* index decomposition: for levels==2: top = meta blkptr[blk /
-             * per_node], then L1 slot blk % per_node */
             u64 index = blk;
             u64 divisor = 1;
             for (u32 l = 1; l < levels; ++l)
                 divisor *= per_node;
-            u64 top_idx = 0;
-            bool ok = false;
+            std::vector<u8> node;
+            bool have = false;
             for (u32 l = 0; l + 1 < levels; ++l) {
-                top_idx = index / divisor;
+                const u64 top_idx = index / divisor;
                 index %= divisor;
                 divisor /= per_node;
                 if (l == 0) {
-                    if (top_idx >= meta.nblkptr())
+                    if (top_idx >= dn.nblkptr())
                         return false;
-                    if (!v->read_block(meta.blkptr(u32(top_idx)), 0, node))
+                    if (!v->read_block(dn.blkptr(u32(top_idx)), 0, node))
                         return false;
-                    ok = true;
+                    have = true;
                 } else {
                     if (top_idx >= node.size() / BP_SIZE)
                         return false;
@@ -496,21 +625,13 @@ struct ObjSet {
                     node = std::move(next);
                 }
             }
-            if (!ok || index >= node.size() / BP_SIZE)
+            if (!have || index >= node.size() / BP_SIZE)
                 return false;
             bp = node.data() + u64(index) * BP_SIZE;
         }
         if (bp == nullptr || bp_is_hole(bp) || bp_is_embedded(bp))
             return false;
-        std::vector<u8> data;
-        if (!v->read_block(bp, 0, data))
-            return false;
-        const u64 in_block = logical % dbsz;
-        if (in_block + DN_SIZE > data.size())
-            return false;
-        out.raw.assign(data.begin() + ptrdiff_t(in_block),
-                       data.begin() + ptrdiff_t(in_block + DN_SIZE));
-        return out.nblkptr() > 0 && out.datablksz() > 0;
+        return v->read_block(bp, 0, data);
     }
 };
 
@@ -556,7 +677,7 @@ bool read_leaf(const std::vector<u8>& leaf, std::vector<ZapEntry>& out) {
         return false;
     if (rdle32(leaf.data() + ZL_MAGIC) != ZAP_LEAF_MAGIC)
         return false;
-    const u32 bshift = [](u64 sz) {
+    const u32 bshift = [] (u64 sz) {
         u32 s = 0;
         while ((u64(1) << s) < sz)
             ++s;
@@ -627,9 +748,12 @@ bool read_leaf(const std::vector<u8>& leaf, std::vector<ZapEntry>& out) {
 }
 
 /* fat zap: header block -> pointer table -> leaves (OpenZFS zap_micro.c
- * mze/zap_ptrtbl semantics; we linearly visit every leaf). */
-bool read_fzap(Volume& v, const std::vector<u8>& hdr, u64 zap_block_size,
-               std::vector<ZapEntry>& out) {
+ * zap_ptrtbl semantics: ptrtbl entries are OBJECT-RELATIVE block numbers;
+ * ptrtbl blocks (zt_blk>0) and leaf blocks are object blocks - read through
+ * the dnode's block tree so compression and indirect levels are honored;
+ * we linearly visit every leaf). */
+bool read_fzap(Volume& v, ObjSet& os, const Dnode& dn, const std::vector<u8>& hdr,
+               u64 zap_block_size, std::vector<ZapEntry>& out) {
     if (hdr.size() < 128)
         return false;
     if (rdle64(hdr.data()) != ZBT_HEADER)
@@ -641,9 +765,8 @@ bool read_fzap(Volume& v, const std::vector<u8>& hdr, u64 zap_block_size,
     const u64 zt_shift = rdle64(hdr.data() + FZ_ZT_SHIFT);
     if (zt_shift > 30 || zap_block_size == 0)
         return false;
-    const u64 pt_entries = zt_shift < 63 ? (u64(1) << zt_shift) : 0;
 
-    std::vector<u64> leaf_blocks; /* block numbers */
+    std::vector<u64> leaf_blocks; /* object-relative block numbers */
     if (zt_blk == 0) {
         /* embedded pointer table: second half of the header block,
          * u64 leaf block numbers, entries = blocksize/16 */
@@ -661,16 +784,12 @@ bool read_fzap(Volume& v, const std::vector<u8>& hdr, u64 zap_block_size,
             return false;
         for (u64 b = 0; b < zt_numblks && leaf_blocks.size() < MAX_ZAP_LEAFS; ++b) {
             std::vector<u8> pt;
-            /* pointer-table blocks are raw u64 arrays (block-type "any
-             * other value are ptrtbl blocks") */
-            const u64 off = v.vdev_offset + zt_blk * zap_block_size + b * zap_block_size;
-            if (off + zap_block_size > v.total_bytes)
-                return false;
-            pt.resize(size_t(zap_block_size));
-            if (v.dev->read_at(off, pt.data(), u32(pt.size())) != OK) {
+            if (!os.read_object_block(dn, zt_blk + b, pt)) {
                 ++v.damaged;
                 continue;
             }
+            if (pt.size() < zap_block_size)
+                continue;
             for (u64 i = 0; i < zap_block_size / 8 && leaf_blocks.size() < MAX_ZAP_LEAFS; ++i) {
                 const u64 lb = rdle64(pt.data() + i * 8);
                 if (lb != 0)
@@ -678,29 +797,28 @@ bool read_fzap(Volume& v, const std::vector<u8>& hdr, u64 zap_block_size,
             }
         }
     }
-    (void)pt_entries;
-    /* dedup + read leaves */
+    /* dedup + read leaves through the object tree */
     std::set<u64> seen_blocks;
-    bool any = false;
+    u64 got = 0;
     for (u64 lb : leaf_blocks) {
         if (!seen_blocks.insert(lb).second)
             continue;
-        if (lb > (1u << 28))
-            continue;
-        const u64 off = v.vdev_offset + lb * zap_block_size;
-        if (off + zap_block_size > v.total_bytes)
-            continue;
-        std::vector<u8> leaf(static_cast<size_t>(zap_block_size), 0);
-        if (v.dev->read_at(off, leaf.data(), u32(leaf.size())) != OK) {
+        std::vector<u8> leaf;
+        if (!os.read_object_block(dn, lb, leaf)) {
             ++v.damaged;
             continue;
         }
+        if (leaf.size() < zap_block_size)
+            continue;
+        leaf.resize(size_t(zap_block_size));
+        const size_t before = out.size();
         if (read_leaf(leaf, out))
-            any = true;
+            got += out.size() - before;
         if (out.size() > MAX_ZAP_ENTRIES * 4)
             break;
     }
-    return any;
+    v.macrozap_entries += got;
+    return got > 0;
 }
 
 /* read a ZAP object (micro or fat) by dnode */
@@ -708,30 +826,27 @@ bool read_zap(Volume& v, ObjSet& os, u64 object, std::vector<ZapEntry>& out) {
     Dnode dn;
     if (!os.read_dnode(object, dn))
         return false;
-    if (dn.type() != DMU_OT_DIRECTORY_CONTENTS && dn.type() != 21 /* master */ &&
-        dn.type() != 13 /* DSL_DIR_CHILD_MAP */ && dn.type() != 14 /* DSL_DS_SNAP_MAP */ &&
-        dn.type() != 15 /* DSL_PROPS */ && dn.type() != 2 /* OBJECT_DIRECTORY */ &&
-        dn.type() != 27 /* ZAP_OTHER */ && dn.type() != 31 /* POOL_PROPS */)
+    if (!zap_typed(dn.type()))
         return false; /* not a ZAP object */
     const u64 dbsz = dn.datablksz();
     if (dbsz < 512 || dbsz > (1u << 20))
         return false;
-    /* header block = block 0 */
-    if (dn.nlevels() > 1 || dn.nblkptr() == 0)
+    if (dn.nblkptr() == 0)
         return false;
-    const u8* bp = dn.blkptr(0);
-    if (bp_is_hole(bp) || bp_is_embedded(bp))
-        return false;
-    if (bp_lsize(bp) != dbsz && bp_lsize(bp) < 512)
-        return false;
+    /* header block = block 0, through the block tree (handles any
+     * nlevels; big child ZAPs have indirect blocks) */
     std::vector<u8> blk;
-    if (!v.read_block(bp, 0, blk))
+    if (!os.read_object_block(dn, 0, blk))
         return false;
     const u64 btype = rdle64(blk.data());
-    if (btype == ZBT_MICRO)
-        return read_microzap(blk, out);
+    if (btype == ZBT_MICRO) {
+        const size_t before = out.size();
+        const bool ok = read_microzap(blk, out);
+        v.microzap_entries += out.size() - before;
+        return ok;
+    }
     if (btype == ZBT_HEADER)
-        return read_fzap(v, blk, dbsz, out);
+        return read_fzap(v, os, dn, blk, dbsz, out);
     return false;
 }
 
@@ -741,15 +856,60 @@ bool read_zap(Volume& v, ObjSet& os, u64 object, std::vector<ZapEntry>& out) {
  * gang-free single-vdev DVAs; embedded bps are returned separately) */
 struct FileExtentPlan {
     struct Item {
-        u64 offset; /* vdev-relative byte offset */
-        u64 length; /* logical bytes */
-        u64 psize;  /* on-disk bytes */
-        u32 codec;  /* generic codec (0 raw) */
+        u64 offset;   /* vdev-relative byte offset */
+        u64 length;   /* logical bytes */
+        u64 psize;    /* on-disk bytes */
+        u32 codec;    /* generic codec (0 raw) */
     };
     std::vector<Item> items;
     std::vector<std::vector<u8>> embedded; /* decoded embedded payloads */
     u64 logical = 0;
 };
+
+/* Walk a gang header at the leader DVA and emit each member as its own
+ * extent in order (member bps carry their own lsize/psize/codec; nested
+ * gangs recurse, depth-capped). Returns false when the header is
+ * unreadable (the whole L0 block is lost). */
+bool plan_gang_pieces(Volume& v, const u8* dva, FileExtentPlan& plan, u32 depth = 0) {
+    if (depth > 4)
+        return false;
+    const u64 off = dva_offset(dva);
+    if (v.vdev_offset + off + 512 > v.total_bytes)
+        return false;
+    std::vector<u8> hdr(512, 0);
+    if (v.dev->read_at(v.vdev_offset + off, hdr.data(), 512) != OK)
+        return false;
+    bool any = false;
+    for (u32 i = 0; i < 3; ++i) {
+        const u8* gbp = hdr.data() + u64(i) * BP_SIZE;
+        if (bp_is_hole(gbp) || bp_is_embedded(gbp))
+            continue;
+        const u8* gdva = gbp + BP_DVA;
+        if (dva_is_gang(gdva)) {
+            if (plan_gang_pieces(v, gdva, plan, depth + 1))
+                any = true;
+            continue;
+        }
+        if (dva_vdev(gdva) != 0)
+            continue; /* other vdev: single-disk scan skips */
+        const u64 lsize = bp_lsize(gbp);
+        const u64 psz = bp_psize(gbp);
+        const u32 zc = bp_compress(gbp);
+        if (lsize == 0 || psz == 0)
+            continue;
+        if (v.vdev_offset + dva_offset(gdva) + (zc == 0 || zc == 1 || zc == 2 || zc == ZIO_COMPRESS_EMPTY ? lsize : psz) > v.total_bytes)
+            continue;
+        FileExtentPlan::Item it;
+        it.offset = v.vdev_offset + dva_offset(gdva);
+        it.length = lsize;
+        it.psize = (zc == 0 || zc == 1 || zc == 2 || zc == ZIO_COMPRESS_EMPTY) ? lsize : psz;
+        it.codec = compress::codec_from_zfs(zc);
+        plan.items.push_back(it);
+        plan.logical += lsize;
+        any = true;
+    }
+    return any;
+}
 
 bool plan_file_extents(Volume& v, const Dnode& dn, FileExtentPlan& plan) {
     const u32 levels = dn.nlevels();
@@ -766,7 +926,8 @@ bool plan_file_extents(Volume& v, const Dnode& dn, FileExtentPlan& plan) {
         std::vector<u8> node;
         u32 idx;
     };
-    std::function<bool(const u8*, u32)> walk = [&](const u8* bp, u32 level) -> bool {
+    std::function<bool(const u8*, u32)> walk = [&](const u8* bp,
+                                                   u32 level) -> bool {
         if (bp_is_hole(bp))
             return true; /* hole: gap in the file (sparse) */
         if (bp_is_embedded(bp)) {
@@ -815,11 +976,12 @@ bool plan_file_extents(Volume& v, const Dnode& dn, FileExtentPlan& plan) {
             it.codec = compress::codec_from_zfs(zc);
             plan.logical += lsize;
             if (dva_is_gang(dva)) {
-                /* gang block: content is assembled, not a single extent;
-                 * approximate as raw extent of the leader + count (the
-                 * og reads gang blocks; recovery-grade we mark damaged) */
-                ++v.damaged;
-                plan.items.push_back(it);
+                /* gang block: content is the concatenation of the header's
+                 * member blocks - emitted as their own ordered extents so
+                 * the writer streams the exact bytes (no leader garbage).
+                 * An unreadable header loses only this L0 block. */
+                if (!plan_gang_pieces(v, dva, plan))
+                    ++v.damaged;
             } else {
                 plan.items.push_back(it);
             }
@@ -885,8 +1047,8 @@ u32 scan_zfs(IStorageDevice* slice, const ZfsScanFlags& flags, CancelToken* canc
         /* config nvlist at label+16K (first 112K is vdev_phys) */
         if (!cfg.valid) {
             std::vector<u8> phys(size_t(VDEV_PHYS_SIZE), 0);
-            if (slice->read_at(label_base[li] + VDEV_PHYS_OFFSET, phys.data(), u32(phys.size())) ==
-                OK) {
+            if (slice->read_at(label_base[li] + VDEV_PHYS_OFFSET, phys.data(),
+                               u32(phys.size())) == OK) {
                 std::map<std::string, NvValue> root;
                 if (nv_parse(phys.data(), u32(phys.size()), root)) {
                     auto it = root.find("name");
@@ -937,26 +1099,37 @@ u32 scan_zfs(IStorageDevice* slice, const ZfsScanFlags& flags, CancelToken* canc
                 }
             }
         }
-        /* uberblock ring: max txg wins across all labels */
-        std::vector<u8> ub(static_cast<size_t>(UBERBLOCK_SIZE), 0);
-        for (u32 ui = 0; ui < UBERBLOCK_COUNT; ++ui) {
-            const u64 at = label_base[li] + UBRING_OFFSET + u64(ui) * UBERBLOCK_SIZE;
-            if (at + UBERBLOCK_SIZE > total)
-                break;
-            if (slice->read_at(at, ub.data(), u32(ub.size())) != OK)
-                break;
-            const u64 magic = rdle64(ub.data());
-            if (magic != UBERBLOCK_MAGIC) {
-                if (magic == 0x0CB1BA00ULL || magic == 0x0CBA0000ULL)
-                    return ERR_UNSUPPORTED; /* big-endian pool: refused,
-                                             * not misparsed */
-                continue;
+        /* uberblock ring (vdev_impl.h VDEV_UBERBLOCK_SHIFT = MAX(ashift,10)):
+         * slot size = 1 << shift, slot count = 128K >> shift. Probe shifts
+         * 10..13 and keep the geometry with the most valid magics - pools on
+         * 4Kn disks (ashift 12) have 32 x 4KiB slots, not 128 x 1KiB. */
+        for (u32 shift = 10; shift <= 13; ++shift) {
+            const u64 slot_size = u64(1) << shift;
+            const u32 slot_count = u32((LABEL_SIZE - UBRING_OFFSET) >> shift);
+            u32 hits = 0;
+            std::vector<u8> ub(static_cast<size_t>(slot_size), 0);
+            for (u32 ui = 0; ui < slot_count; ++ui) {
+                const u64 at = label_base[li] + UBRING_OFFSET + u64(ui) * slot_size;
+                if (at + slot_size > total)
+                    break;
+                if (slice->read_at(at, ub.data(), u32(ub.size())) != OK)
+                    break;
+                const u64 magic = rdle64(ub.data());
+                if (magic != UBERBLOCK_MAGIC) {
+                    if (magic == 0x0CB1BA00ULL || magic == 0x0CBA0000ULL)
+                        return ERR_UNSUPPORTED; /* big-endian pool: refused,
+                                                 * not misparsed */
+                    continue;
+                }
+                ++hits;
+                const u64 txg = rdle64(ub.data() + UB_TXG);
+                if (txg > best_txg) {
+                    best_txg = txg;
+                    best_ub.assign(ub.begin(), ub.begin() + UBERBLOCK_SIZE);
+                }
             }
-            const u64 txg = rdle64(ub.data() + UB_TXG);
-            if (txg > best_txg) {
-                best_txg = txg;
-                best_ub = ub;
-            }
+            if (hits > 0)
+                break; /* found the pool's true uberblock geometry */
         }
     }
     if (best_ub.empty())
@@ -1112,8 +1285,8 @@ u32 scan_zfs(IStorageDevice* slice, const ZfsScanFlags& flags, CancelToken* canc
                 } else {
                     return nullptr; /* unknown SA layout: skip cleanly */
                 }
-            } else if (dn.bonustype() == DMU_OT_ZNODE && blen >= 0x78) {
-                /* legacy znode_phys */
+            } else if (dn.bonustype() == DMU_OT_ZNODE && blen >= ZP_MIN) {
+                /* legacy znode_phys (zfs_sa.h) */
                 oi.atime[0] = rdle64(b + ZP_ATIME);
                 oi.mtime[0] = rdle64(b + ZP_MTIME);
                 oi.ctime[0] = rdle64(b + ZP_CTIME);
@@ -1132,89 +1305,95 @@ u32 scan_zfs(IStorageDevice* slice, const ZfsScanFlags& flags, CancelToken* canc
         };
 
         std::set<u64> visited;
-        std::function<void(u64, tree::FileNode*, int)> emit_dir = [&](u64 dir_obj,
-                                                                      tree::FileNode* parent,
-                                                                      int depth) {
-            if (depth > MAX_DEPTH || visited.count(dir_obj))
-                return;
-            visited.insert(dir_obj);
-            const ObjInfo* di = load_obj(dir_obj);
-            if (di == nullptr || !di->dir)
-                return;
-            std::vector<ZapEntry> entries;
-            if (!read_zap(v, zpl, dir_obj, entries))
-                return;
-            for (const auto& e : entries) {
-                if (cancel && cancel->cancelled())
+        std::function<void(u64, tree::FileNode*, int)> emit_dir =
+            [&](u64 dir_obj, tree::FileNode* parent, int depth) {
+                if (depth > MAX_DEPTH || visited.count(dir_obj))
                     return;
-                if (e.name == "." || e.name == "..")
-                    continue;
-                const ObjInfo* ci = load_obj(e.value);
-                if (ci == nullptr)
-                    continue;
-                const bool is_dir = ci->dir;
-                auto* p = new (std::nothrow) tree::FileProperties();
-                if (!p)
+                visited.insert(dir_obj);
+                const ObjInfo* di = load_obj(dir_obj);
+                if (di == nullptr || !di->dir)
                     return;
-                for (char ch : e.name)
-                    p->name.push_back(u16(u8(ch)));
-                p->fs_kind = 13; /* Zfs (corpus factory code) */
-                p->logical_size = ci->size;
-                p->allocated_size = ci->dn.maxblkid() != 0
-                                        ? u64(ci->dn.datablksz()) * (ci->dn.maxblkid() + 1)
-                                        : (ci->size ? u64(ci->dn.datablksz()) : 0);
-                p->attributes = is_dir ? 0x10 : 0;
-                p->record_ref = e.value;
-                p->times.created = unix_to_filetime(i64(ci->crtime[0]));
-                p->times.modified = unix_to_filetime(i64(ci->mtime[0]));
-                p->times.changed = unix_to_filetime(i64(ci->ctime[0]));
-                p->times.accessed = unix_to_filetime(i64(ci->atime[0]));
-                if (!is_dir && ci->size > 0) {
-                    FileExtentPlan plan;
-                    if (plan_file_extents(v, ci->dn, plan)) {
-                        /* merge adjacent raw extents */
-                        for (auto& it : plan.items) {
-                            if (!p->extents.empty() && it.codec == 0 &&
-                                p->extents.back().codec == 0 &&
-                                p->extents.back().offset + p->extents.back().length == it.offset) {
-                                p->extents.back().length += it.length;
-                                p->extents.back().psize = 0;
-                            } else {
-                                tree::FileProperties::Extent ex;
-                                ex.offset = it.offset;
-                                ex.length = it.length;
-                                ex.codec = it.codec;
-                                ex.psize = it.psize;
-                                p->extents.push_back(ex);
+                std::vector<ZapEntry> entries;
+                if (!read_zap(v, zpl, dir_obj, entries))
+                    return;
+                for (const auto& e : entries) {
+                    if (cancel && cancel->cancelled())
+                        return;
+                    if (e.name == "." || e.name == "..")
+                        continue;
+                    const ObjInfo* ci = load_obj(e.value);
+                    if (ci == nullptr)
+                        continue;
+                    const bool is_dir = ci->dir;
+                    auto* p = new (std::nothrow) tree::FileProperties();
+                    if (!p)
+                        return;
+                    for (char ch : e.name)
+                        p->name.push_back(u16(u8(ch)));
+                    p->fs_kind = 13; /* Zfs (corpus factory code) */
+                    p->logical_size = ci->size;
+                    p->allocated_size = ci->dn.maxblkid() != 0
+                                            ? u64(ci->dn.datablksz()) * (ci->dn.maxblkid() + 1)
+                                            : (ci->size ? u64(ci->dn.datablksz()) : 0);
+                    p->attributes = is_dir ? 0x10 : 0;
+                    p->record_ref = e.value;
+                    p->times.created = unix_to_filetime(i64(ci->crtime[0]));
+                    p->times.modified = unix_to_filetime(i64(ci->mtime[0]));
+                    p->times.changed = unix_to_filetime(i64(ci->ctime[0]));
+                    p->times.accessed = unix_to_filetime(i64(ci->atime[0]));
+                    if (!is_dir && ci->size > 0) {
+                        FileExtentPlan plan;
+                        if (plan_file_extents(v, ci->dn, plan)) {
+                            /* merge adjacent raw extents */
+                            u64 compressed = 0;
+                            for (auto& it : plan.items) {
+                                if (it.codec != 0)
+                                    ++compressed;
+                                if (!p->extents.empty() && it.codec == 0 &&
+                                    p->extents.back().codec == 0 &&
+                                    p->extents.back().offset + p->extents.back().length ==
+                                        it.offset) {
+                                    p->extents.back().length += it.length;
+                                    p->extents.back().psize = 0;
+                                } else {
+                                    tree::FileProperties::Extent ex;
+                                    ex.offset = it.offset;
+                                    ex.length = it.length;
+                                    ex.codec = it.codec;
+                                    ex.psize = it.psize;
+                                    p->extents.push_back(ex);
+                                }
                             }
-                        }
-                        for (auto& em : plan.embedded) {
-                            if (em.size() <= (1u << 20)) {
-                                p->resident_data.insert(p->resident_data.end(), em.begin(),
-                                                        em.end());
-                                ++stats.embedded_files;
+                            stats.compressed_extents += compressed;
+                            for (auto& em : plan.embedded) {
+                                if (em.size() <= (1u << 20)) {
+                                    p->resident_data.insert(p->resident_data.end(),
+                                                            em.begin(), em.end());
+                                    ++stats.embedded_files;
+                                }
                             }
                         }
                     }
+                    tree::FileNode* n = tree.add_file(parent, p);
+                    p->release();
+                    if (!n)
+                        continue;
+                    if (is_dir) {
+                        ++stats.dirs;
+                        emit_dir(e.value, n, depth + 1);
+                    } else {
+                        ++stats.files;
+                    }
                 }
-                tree::FileNode* n = tree.add_file(parent, p);
-                p->release();
-                if (!n)
-                    continue;
-                if (is_dir) {
-                    ++stats.dirs;
-                    emit_dir(e.value, n, depth + 1);
-                } else {
-                    ++stats.files;
-                }
-            }
-        };
+            };
         emit_dir(root_obj, ds_node, 0);
         if (progress)
             (void)progress(3, 4, progress_user);
     }
 
     stats.damaged_blocks = v.damaged;
+    stats.microzap_entries = v.microzap_entries;
+    stats.macrozap_entries = v.macrozap_entries;
     if (progress)
         (void)progress(4, 4, progress_user);
     return OK;

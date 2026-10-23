@@ -78,13 +78,14 @@ void put64(u8* p, u64 v) {
 /* ---- blkptr construction (OpenZFS spa.h packing) ---- */
 void make_bp(u8* bp, u64 offset, u64 psize, u64 lsize, u32 compress) {
     memset(bp, 0, 128);
-    /* DVA0: w0 = vdev(24b)<<40 | asize>>9 ; w1 = offset>>9 */
+    /* DVA0: w0 = vdev(24b)<<32 | asize>>9 ; w1 = offset>>9
+     * (spa.h DVA_SET_VDEV writes bits 32..55 of word 0) */
     const u64 asize = (psize + 511) & ~511ull;
-    put64(bp + 0, (0ull << 40) | (asize >> 9));
+    put64(bp + 0, (0ull << 32) | (asize >> 9));
     put64(bp + 8, offset >> 9);
     /* prop: lsize sectors-1 | psize sectors-1<<16 | comp<<32 */
-    const u64 prop = (((lsize >> 9) - 1) & 0xFFFFull) | ((((psize >> 9) - 1) & 0xFFFFull) << 16) |
-                     (u64(compress) << 32);
+    const u64 prop = (((lsize >> 9) - 1) & 0xFFFFull) |
+                    ((((psize >> 9) - 1) & 0xFFFFull) << 16) | (u64(compress) << 32);
     put64(bp + 48, prop);
     put64(bp + 72, TXG); /* birth */
 }
@@ -101,41 +102,45 @@ void make_dnode(u8* dn, u32 type, u32 bonustype, u16 datablkszsec, u8 nblkptr, u
     put16(dn + 10, u16(bonuslen));
 }
 
-/* ---- SA layout-1 bonus (sa_impl.h) ---- */
+/* ---- SA layout-1 bonus (sa_impl.h; attr order = zfs_attr_table
+ * registration order from module/zfs/zfs_sa.c: atime mtime ctime
+ * crtime gen mode size parent links xattr rdev flags uid gid) ---- */
 struct SaAttrs {
     u64 atime = 0, mtime = 0, ctime = 0, crtime = 0;
     u64 mode = 0, uid = 0, gid = 0, parent = 0, links = 0, size = 0, flags = 0;
 };
 std::vector<u8> make_sa_bonus(const SaAttrs& a) {
-    std::vector<u8> b(136 + 8, 0);
+    std::vector<u8> b(8 + 144, 0);
     put32(b.data(), 0x2F505A);                    /* SA_MAGIC */
     put16(b.data() + 4, u16(1) | (u16(1) << 10)); /* layout 1, hdrsize 8 */
-    put64(b.data() + 8 + 0, a.atime);
+    put64(b.data() + 8 + 0, a.atime);    /* atime (16 bytes: sec+usec) */
     put64(b.data() + 8 + 16, a.mtime);
     put64(b.data() + 8 + 32, a.ctime);
     put64(b.data() + 8 + 48, a.crtime);
-    put64(b.data() + 8 + 64, 1); /* gen */
+    put64(b.data() + 8 + 64, 1);         /* gen */
     put64(b.data() + 8 + 72, a.mode);
-    put64(b.data() + 8 + 80, a.uid);
-    put64(b.data() + 8 + 88, a.gid);
-    put64(b.data() + 8 + 96, a.parent);
-    put64(b.data() + 8 + 104, a.links);
-    put64(b.data() + 8 + 112, a.size);
+    put64(b.data() + 8 + 80, a.size);
+    put64(b.data() + 8 + 88, a.parent);
+    put64(b.data() + 8 + 96, a.links);
+    put64(b.data() + 8 + 104, 0);        /* xattr */
+    put64(b.data() + 8 + 112, 0);        /* rdev */
     put64(b.data() + 8 + 120, a.flags);
+    put64(b.data() + 8 + 128, a.uid);
+    put64(b.data() + 8 + 136, a.gid);
     return b;
 }
 
-/* ---- legacy znode_phys bonus ---- */
+/* ---- legacy znode_phys bonus (include/sys/zfs_sa.h) ---- */
 std::vector<u8> make_znode_bonus(const SaAttrs& a) {
     std::vector<u8> b(128, 0);
-    put64(b.data() + 0x30, a.crtime);
+    put64(b.data() + 0x00, a.atime);
     put64(b.data() + 0x10, a.mtime);
     put64(b.data() + 0x20, a.ctime);
-    put64(b.data() + 0x00, a.atime);
+    put64(b.data() + 0x30, a.crtime);
     put64(b.data() + 0x48, a.mode);
-    put64(b.data() + 0x60, a.parent);
-    put64(b.data() + 0x68, a.links);
-    put64(b.data() + 0x70, a.size);
+    put64(b.data() + 0x50, a.size);
+    put64(b.data() + 0x58, a.parent);
+    put64(b.data() + 0x60, a.links);
     return b;
 }
 
@@ -149,8 +154,8 @@ std::vector<u8> make_microzap(const std::vector<std::pair<std::string, u64>>& en
         if (at + 64 > blk.size())
             break;
         u8* slot = blk.data() + at;
-        put64(slot + 0, e.second); /* mze_value */
-        put32(slot + 8, 0);        /* mze_cd */
+        put64(slot + 0, e.second);           /* mze_value */
+        put32(slot + 8, 0);                  /* mze_cd */
         memcpy(slot + 14, e.first.c_str(), e.first.size() < 50 ? e.first.size() : 49);
         at += 64;
     }
@@ -220,61 +225,116 @@ std::vector<u8> make_fzap_header(u64 leaf_block) {
     put64(hdr.data() + 0, (1ull << 63) + 1); /* ZBT_HEADER */
     put64(hdr.data() + 8, 0x2F52AB2ABull);   /* ZAP_MAGIC */
     /* embedded pointer table (zt_blk == 0): second half of the block */
-    put64(hdr.data() + 16, 0); /* zt_blk = 0 -> embedded */
-    put64(hdr.data() + 24, 0); /* zt_numblks */
-    put64(hdr.data() + 32, 4); /* zt_shift: 16 entries */
-    put64(hdr.data() + 56, 2); /* freeblk */
-    put64(hdr.data() + 64, 1); /* num_leafs */
-    put64(hdr.data() + 72, 0); /* num_entries */
+    put64(hdr.data() + 16, 0);               /* zt_blk = 0 -> embedded */
+    put64(hdr.data() + 24, 0);               /* zt_numblks */
+    put64(hdr.data() + 32, 4);               /* zt_shift: 16 entries */
+    put64(hdr.data() + 56, 2);               /* freeblk */
+    put64(hdr.data() + 64, 1);               /* num_leafs */
+    put64(hdr.data() + 72, 0);               /* num_entries */
     /* embedded ptrtbl at block/2, entry 0 -> leaf block number */
     put64(hdr.data() + FZ_BLOCK / 2, leaf_block);
     return hdr;
 }
 
-/* ---- native LE nvlist ---- */
+/* ---- XDR nvlist (vdev labels are packed NV_ENCODE_XDR - vdev_label.c;
+ * big-endian pair stream per module/nvpair/nvpair.c nvs_xdr_*:
+ *   buffer: [encoding=1][endian][rsvd x2] {version BE32}{nvflag BE32}
+ *   pair: [enc_len BE32][dec_len BE32] [name_len BE32 (excl NUL)]
+ *         [name][pad4] [type BE32][nelem BE32] [value]
+ *   XDR string value: [len BE32 excl NUL][bytes][pad4]
+ *   embedded nvlist: {version BE32}{nvflag BE32} pairs... [0][0] ) ---- */
 struct NvBuf {
     std::vector<u8> data;
+    static void b32(std::vector<u8>& v, u32 x) {
+        v.push_back(u8(x >> 24));
+        v.push_back(u8(x >> 16));
+        v.push_back(u8(x >> 8));
+        v.push_back(u8(x));
+    }
+    static void b64(std::vector<u8>& v, u64 x) {
+        b32(v, u32(x >> 32));
+        b32(v, u32(x));
+    }
+    static u32 pad4(u32 n) { return (n + 3) & ~3u; }
     void u64_pair(const char* name, u64 v) {
+        const u32 nlen = u32(strlen(name));
         std::vector<u8> pair;
-        const u32 namelen = u32(strlen(name)) + 1;
-        u32 q = 9 + namelen;
-        q = (q + 3) & ~3u;
-        const u32 total = q + 8 + 8;
-        pair.resize(total, 0);
-        put32(pair.data() + 0, total); /* encoded size */
-        put32(pair.data() + 4, 8);     /* decoded size */
-        pair[8] = u8(namelen);
-        memcpy(pair.data() + 9, name, namelen - 1);
-        put32(pair.data() + q, 8); /* DATA_TYPE_UINT64 */
-        put32(pair.data() + q + 4, 1);
-        put64(pair.data() + q + 8, v);
+        b32(pair, 0); /* enc_len placeholder */
+        b32(pair, 0); /* dec_len placeholder */
+        b32(pair, nlen);
+        pair.insert(pair.end(), name, name + nlen);
+        pair.resize(pad4(u32(pair.size())), 0);
+        b32(pair, 8); /* DATA_TYPE_UINT64 */
+        b32(pair, 1); /* nelem */
+        b64(pair, v);
+        const u32 total = u32(pair.size());
+        pair[0] = u8(total >> 24);
+        pair[1] = u8(total >> 16);
+        pair[2] = u8(total >> 8);
+        pair[3] = u8(total);
+        pair[4] = 0;
+        pair[5] = 0;
+        pair[6] = 0;
+        pair[7] = 8; /* dec_len: plausible in-memory size */
         data.insert(data.end(), pair.begin(), pair.end());
     }
     void str_pair(const char* name, const std::string& v) {
+        const u32 nlen = u32(strlen(name));
         std::vector<u8> pair;
-        const u32 namelen = u32(strlen(name)) + 1;
-        u32 q = 9 + namelen;
-        q = (q + 3) & ~3u;
-        const u32 total = q + 8 + 4 + u32(v.size()) + 1;
-        pair.resize(total, 0);
-        put32(pair.data() + 0, total);
-        put32(pair.data() + 4, u32(v.size()) + 1);
-        pair[8] = u8(namelen);
-        memcpy(pair.data() + 9, name, namelen - 1);
-        put32(pair.data() + q, 9); /* DATA_TYPE_STRING */
-        put32(pair.data() + q + 4, 1);
-        put32(pair.data() + q + 8, u32(v.size()) + 1);
-        memcpy(pair.data() + q + 12, v.c_str(), v.size());
+        b32(pair, 0);
+        b32(pair, 0);
+        b32(pair, nlen);
+        pair.insert(pair.end(), name, name + nlen);
+        pair.resize(pad4(u32(pair.size())), 0);
+        b32(pair, 9); /* DATA_TYPE_STRING */
+        b32(pair, 1);
+        b32(pair, u32(v.size())); /* excl NUL */
+        pair.insert(pair.end(), v.begin(), v.end());
+        pair.resize(pad4(u32(pair.size())), 0);
+        const u32 total = u32(pair.size());
+        pair[0] = u8(total >> 24);
+        pair[1] = u8(total >> 16);
+        pair[2] = u8(total >> 8);
+        pair[3] = u8(total);
         data.insert(data.end(), pair.begin(), pair.end());
     }
-    std::vector<u8> pack(const std::vector<u8>& child = {}) {
-        std::vector<u8> out(8, 0);
-        put32(out.data(), 0);     /* nvl_version */
-        put32(out.data() + 4, 0); /* nvl_flag */
+    void nvlist_pair(const char* name, const std::vector<u8>& child) {
+        const u32 nlen = u32(strlen(name));
+        std::vector<u8> pair;
+        b32(pair, 0);
+        b32(pair, 0);
+        b32(pair, nlen);
+        pair.insert(pair.end(), name, name + nlen);
+        pair.resize(pad4(u32(pair.size())), 0);
+        b32(pair, 19); /* DATA_TYPE_NVLIST */
+        b32(pair, 1);
+        pair.insert(pair.end(), child.begin(), child.end());
+        const u32 total = u32(pair.size());
+        pair[0] = u8(total >> 24);
+        pair[1] = u8(total >> 16);
+        pair[2] = u8(total >> 8);
+        pair[3] = u8(total);
+        data.insert(data.end(), pair.begin(), pair.end());
+    }
+    /* stream bytes WITHOUT the top nvs_header (embedded/recursive form) */
+    std::vector<u8> stream() const {
+        std::vector<u8> out;
+        b32(out, 0); /* nvl_version */
+        b32(out, 1); /* nvl_nvflag */
         out.insert(out.end(), data.begin(), data.end());
-        if (!child.empty())
-            out.insert(out.end(), child.begin(), child.end());
-        out.insert(out.end(), {0, 0, 0, 0, 0, 0, 0, 0}); /* terminator */
+        b32(out, 0); /* terminator enc_len */
+        b32(out, 0); /* terminator dec_len */
+        return out;
+    }
+    /* full packed buffer with the XDR nvs_header */
+    std::vector<u8> pack() const {
+        std::vector<u8> out;
+        out.push_back(1); /* NV_ENCODE_XDR */
+        out.push_back(1); /* host endian marker (LE host) */
+        out.push_back(0);
+        out.push_back(0);
+        std::vector<u8> body = stream();
+        out.insert(out.end(), body.begin(), body.end());
         return out;
     }
 };
@@ -282,7 +342,9 @@ struct NvBuf {
 std::vector<u8> build_pool() {
     std::vector<u8> d(size_t(IMG), 0);
 
-    /* ---- the objdir ZAP: "root_dataset" -> dsl_dir object 2 ---- */
+    /* ---- the objdir ZAP: "root_dataset" -> dsl_dir object 2 ----
+     * MOS object 1 is the object directory; its dnode type is
+     * DMU_OT_OBJECT_DIRECTORY = 1 (dmu.h) */
     {
         auto z = make_microzap({{"root_dataset", 2}});
         memcpy(d.data() + B_OBJDIR_ZAP, z.data(), z.size());
@@ -291,21 +353,21 @@ std::vector<u8> build_pool() {
     /* ---- MOS dnode array block: objects 1 (objdir zap) and 2 (dsl dir) ---- */
     {
         std::vector<u8> blk(4096, 0);
-        /* object 1 at slot 1: objdir ZAP dnode */
+        /* object 1 at slot 1: objdir ZAP dnode (type 1: OBJECT_DIRECTORY) */
         {
             u8 dn[512];
-            make_dnode(dn, 20 /* DIRECTORY_CONTENTS */, 0, 1 /* 512B */, 1, 1, 0);
+            make_dnode(dn, 1 /* OBJECT_DIRECTORY */, 0, 1 /* 512B */, 1, 1, 0);
             make_bp(dn + 64, B_OBJDIR_ZAP, 512, 512, 0);
             memcpy(blk.data() + 512, dn, 512);
         }
-        /* object 2 at slot 2: dsl_dir dnode (bonus: child zap 3, head 4) */
+        /* object 2 at slot 2: dsl_dir dnode (dsl_dir_phys: head_dataset_obj
+         * u64@8, child_dir_zapobj u64@24 - dsl_dir.h) */
         {
             u8 dn[512];
             make_dnode(dn, 12 /* DSL_DIR */, 12, 1, 1, 1, 256);
-            /* dsl_dir_phys: child_dir_zapobj u64@240, head_dataset_obj u64@248 */
             u8* bonus = dn + 64 + 128;
-            put64(bonus + 240, 3);
-            put64(bonus + 248, 4);
+            put64(bonus + 8, 4);  /* head_dataset_obj */
+            put64(bonus + 24, 3); /* child_dir_zapobj */
             memcpy(blk.data() + 2 * 512, dn, 512);
         }
         /* object 3 at slot 3: child-dir ZAP ("sub" -> dsl dir 5); its
@@ -338,8 +400,8 @@ std::vector<u8> build_pool() {
             u8* dn = d.data() + B_MOS_DNODES + 5 * 512;
             make_dnode(dn, 12, 12, 1, 1, 1, 256);
             u8* bonus = dn + 64 + 128;
-            put64(bonus + 240, 0);
-            put64(bonus + 248, 6);
+            put64(bonus + 8, 6);  /* head_dataset_obj */
+            put64(bonus + 24, 0); /* child_dir_zapobj */
         }
         /* object 6 at slot 6: nested head dataset (bp -> bad, skip) */
         {
@@ -367,19 +429,19 @@ std::vector<u8> build_pool() {
 
     /* ---- ZPL root dir ZAP (micro): entries ---- */
     {
-        auto z = make_microzap({{"hello.txt", 10},
-                                {"bigdir", 11},
-                                {"zlefile", 12},
-                                {"embedded.txt", 13},
-                                {"legacy.txt", 14}});
+        auto z = make_microzap({{"hello.txt", 10}, {"bigdir", 11}, {"zlefile", 12},
+                                 {"embedded.txt", 13}, {"legacy.txt", 14}});
         memcpy(d.data() + B_ROOTDIR_ZAP, z.data(), z.size());
     }
 
-    /* ---- fat-zap directory (B_BIGDIR_ZAP header + leaf at +512) ---- */
+    /* ---- fat-zap directory (B_BIGDIR_ZAP header + leaf at +512).
+     * The bigdir dnode has TWO blkptrs: block 0 = fzap header, block 1 =
+     * leaf (single-level dnodes index L0 blocks directly; the embedded
+     * ptrtbl stores the OBJECT-RELATIVE leaf block number = 1). ---- */
     {
         auto leaf = make_fzap_leaf({{"alpha.bin", 20}, {"beta.bin", 21}});
         memcpy(d.data() + B_BIGDIR_ZAP + 512, leaf.data(), leaf.size());
-        auto hdr = make_fzap_header((B_BIGDIR_ZAP + 512) / FZ_BLOCK);
+        auto hdr = make_fzap_header(1); /* leaf block number (object-relative) */
         memcpy(d.data() + B_BIGDIR_ZAP, hdr.data(), hdr.size());
     }
 
@@ -408,7 +470,7 @@ std::vector<u8> build_pool() {
             make_dnode(dn, 21 /* MASTER_NODE */, 0, 1, 1, 1, 0);
             make_bp(dn + 64, B_MASTER_ZAP, 512, 512, 0);
         }
-        /* object 2: root directory (SA bonus) */
+        /* object 2: root directory (SA bonus; bonustype SA=44) */
         {
             u8* dn = blk.data() + 2 * 512;
             SaAttrs a;
@@ -417,7 +479,7 @@ std::vector<u8> build_pool() {
             a.links = 6;
             a.size = 512;
             auto bonus = make_sa_bonus(a);
-            make_dnode(dn, 20, 43 /* SA */, 1, 1, 1, 0);
+            make_dnode(dn, 20, 44 /* SA */, 1, 1, 1, 0);
             /* root dir's blkptr 0 points at the root-dir ZAP... but the
              * ZAP is the object's data - ZFS stores it via the dnode's
              * blkptrs (object 2's own data). read_zap reads blkptr 0. */
@@ -436,7 +498,7 @@ std::vector<u8> build_pool() {
             a.size = 18;
             a.mtime = a.ctime = a.crtime = 1700000000;
             auto bonus = make_sa_bonus(a);
-            make_dnode(dn, 19 /* PLAIN_FILE_CONTENTS */, 43, 1, 1, 1, 0);
+            make_dnode(dn, 19 /* PLAIN_FILE_CONTENTS */, 44, 1, 1, 1, 0);
             make_bp(dn + 64, B_FILE_DATA, 512, 512, 0);
             const u32 blen = u32(bonus.size());
             put16(dn + 10, u16(blen));
@@ -451,11 +513,12 @@ std::vector<u8> build_pool() {
             a.links = 3;
             a.size = 512;
             auto bonus = make_sa_bonus(a);
-            make_dnode(dn, 20, 43, 1, 1, 1, 0);
-            make_bp(dn + 64, B_BIGDIR_ZAP, 512, 512, 0);
+            make_dnode(dn, 20, 44, 1, 2, 1, 0); /* TWO blkptrs: hdr + leaf */
+            make_bp(dn + 64, B_BIGDIR_ZAP, 512, 512, 0);          /* block 0 */
+            make_bp(dn + 64 + 128, B_BIGDIR_ZAP + 512, 512, 512, 0); /* block 1 */
             const u32 blen = u32(bonus.size());
             put16(dn + 10, u16(blen));
-            memcpy(dn + 64 + 128, bonus.data(), bonus.size());
+            memcpy(dn + 64 + 2 * 128, bonus.data(), bonus.size()); /* bonus after 2 bps */
         }
         /* object 12: zlefile - compressed extent (codec zle) */
         {
@@ -466,7 +529,7 @@ std::vector<u8> build_pool() {
             a.links = 1;
             a.size = 4096;
             auto bonus = make_sa_bonus(a);
-            make_dnode(dn, 19, 43, 8, 1, 1, 0);
+            make_dnode(dn, 19, 44, 8, 1, 1, 0);
             make_bp(dn + 64, B_ZLE_DATA, 512, 4096, 14 /* ZLE */);
             put16(dn + 10, u16(bonus.size()));
             memcpy(dn + 64 + 128, bonus.data(), bonus.size());
@@ -481,7 +544,7 @@ std::vector<u8> build_pool() {
             a.links = 1;
             a.size = 26;
             auto bonus = make_sa_bonus(a);
-            make_dnode(dn, 19, 43, 1, 1, 1, 0);
+            make_dnode(dn, 19, 44, 1, 1, 1, 0);
             const char* payload = "embedded payload bytes";
             const u32 psz = 22;
             /* embedded bp: prop = (lsize-1) | ((psize-1)<<25) | etype<<40,
@@ -527,7 +590,7 @@ std::vector<u8> build_pool() {
             a.links = 1;
             a.size = 18;
             auto bonus = make_sa_bonus(a);
-            make_dnode(dn, 19, 43, 1, 1, 1, 0);
+            make_dnode(dn, 19, 44, 1, 1, 1, 0);
             make_bp(dn + 64, B_FILE_DATA, 512, 512, 0);
             put16(dn + 10, u16(bonus.size()));
             memcpy(dn + 64 + 128, bonus.data(), bonus.size());
@@ -544,47 +607,21 @@ std::vector<u8> build_pool() {
         memcpy(d.data() + B_ZPL, os.data(), os.size());
     }
 
-    /* ---- labels (all 4 at OpenZFS positions) ---- */
+    /* ---- labels (all 4 at OpenZFS positions); config nvlist is XDR
+     * (vdev_label.c packs NV_ENCODE_XDR) ---- */
     std::vector<u8> nv;
     {
-        NvBuf top;
-        top.str_pair("name", "tank");
-        NvBuf tree;
-        tree.str_pair("type", "disk");
-        tree.u64_pair("ashift", 9);
-        tree.u64_pair("asize", IMG);
-        tree.u64_pair("offset", 0);
-        /* nested: vdev_tree is an nvlist pair carrying the child payload
-         * directly (name + child blob concatenated) */
-        NvBuf vt;
+        NvBuf vt; /* vdev_tree nested nvlist */
         vt.str_pair("type", "disk");
         vt.u64_pair("ashift", 9);
         vt.u64_pair("asize", IMG);
         vt.u64_pair("offset", 0);
-        (void)tree;
-        std::vector<u8> child = vt.pack();
-        /* build the vdev_tree pair manually: header + name + type/nvlist */
-        std::vector<u8> pair;
-        {
-            const char* name = "vdev_tree";
-            const u32 namelen = 10;
-            u32 q = 9 + namelen;
-            q = (q + 3) & ~3u;
-            const u32 total = q + 8 + u32(child.size());
-            pair.resize(total, 0);
-            put32(pair.data() + 0, total);
-            put32(pair.data() + 4, u32(child.size()));
-            pair[8] = u8(namelen);
-            memcpy(pair.data() + 9, name, namelen - 1);
-            put32(pair.data() + q, 19); /* NVLIST */
-            put32(pair.data() + q + 4, 1);
-            memcpy(pair.data() + q + 8, child.data(), child.size());
-        }
-        std::vector<u8> out(8, 0);
-        out.insert(out.end(), top.data.begin(), top.data.end()); /* "name" */
-        out.insert(out.end(), pair.begin(), pair.end());         /* vdev_tree */
-        out.insert(out.end(), 8, 0);                             /* terminator */
-        nv = out;
+        vt.u64_pair("guid", 0x1234);
+        NvBuf top;
+        top.str_pair("name", "tank");
+        top.u64_pair("version", 5000); /* pair AFTER vdev_tree must parse */
+        top.nvlist_pair("vdev_tree", vt.stream());
+        nv = top.pack();
     }
 
     for (int li = 0; li < 4; ++li) {
@@ -665,8 +702,8 @@ TEST(Zfs, EndToEndWalk) {
                 /* embedded payload becomes resident content */
                 EXPECT_TRUE(f->props()->extents.empty());
                 ASSERT_FALSE(f->props()->resident_data.empty());
-                EXPECT_EQ(0,
-                          memcmp("embedded payload bytes", f->props()->resident_data.data(), 22));
+                EXPECT_EQ(0, memcmp("embedded payload bytes", f->props()->resident_data.data(),
+                                    22));
             }
             if (f->name_utf8() == "legacy.txt") {
                 /* legacy znode_phys bonus parsed */
@@ -688,7 +725,8 @@ TEST(Zfs, LabelPositionsRecoveredFromTail) {
     auto* ra = tree.add_root(u"F");
     ZfsScanFlags fl;
     ZfsScanStats st;
-    ASSERT_EQ(OK, scan_zfs(&dev, fl, nullptr, nullptr, nullptr, tree, ra, nullptr, nullptr, st));
+    ASSERT_EQ(OK, scan_zfs(&dev, fl, nullptr, nullptr, nullptr, tree, ra, nullptr, nullptr,
+                           st));
     EXPECT_EQ(u64(TXG), st.txg);
 }
 
@@ -706,7 +744,8 @@ TEST(Zfs, NewestTxgAcrossLabelsWins) {
     auto* ra = tree.add_root(u"F");
     ZfsScanFlags fl;
     ZfsScanStats st;
-    ASSERT_EQ(OK, scan_zfs(&dev, fl, nullptr, nullptr, nullptr, tree, ra, nullptr, nullptr, st));
+    ASSERT_EQ(OK, scan_zfs(&dev, fl, nullptr, nullptr, nullptr, tree, ra, nullptr, nullptr,
+                           st));
     EXPECT_EQ(u64(TXG + 5), st.txg);
 }
 
