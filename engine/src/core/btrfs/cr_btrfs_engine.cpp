@@ -22,6 +22,7 @@ constexpr u32 SB_SECTORSIZE = 0x90;
 constexpr u32 SB_NODESIZE = 0x94;
 constexpr u32 SB_SYS_ARRAY_SIZE = 0xA0;
 constexpr u32 SB_SYS_ARRAY = 0x32B;
+constexpr u32 SB_CHUNK_TREE_UUID = 0x60;
 constexpr u64 SB_MAGIC_VALUE = 0x4D5F53665248425FULL; /* "_BHRfS_M" */
 
 /* btrfs_header (kernel include/uapi/linux/btrfs_tree.h, packed, 101 bytes):
@@ -71,15 +72,20 @@ constexpr u64 OID_CHUNK_TREE = 3;
 constexpr u64 OID_FS_TREE = 5;
 constexpr u64 OID_FIRST_SUBVOL = 256;
 
-/* btrfs_inode_item (160 bytes) */
+/* btrfs_inode_item (160 bytes = 0xA0, kernel include/uapi/linux/btrfs_tree.h):
+ * generation u64@0, transid@8, size@0x10, nbytes@0x18, block_group@0x20,
+ * nlink u32@0x28, uid@0x2C, gid@0x30, mode u32@0x34, rdev@0x38, flags@0x40,
+ * sequence@0x48, reserved[4]@0x50 (32 bytes), then the four 12-byte
+ * timespecs atime@0x70, ctime@0x7C, mtime@0x88, otime@0x94. */
 constexpr u32 INO_GENERATION = 0;
 constexpr u32 INO_SIZE = 0x10;
 constexpr u32 INO_NLINK = 0x28;
 constexpr u32 INO_MODE = 0x34;
-constexpr u32 INO_ATIME = 0x50; /* timespec: sec i64 + nsec u32 (12 B) */
-constexpr u32 INO_CTIME = 0x5C;
-constexpr u32 INO_MTIME = 0x68;
-constexpr u32 INO_otime = 0x74;
+constexpr u32 INO_ATIME = 0x70; /* timespec: sec i64 + nsec u32 (12 B) */
+constexpr u32 INO_CTIME = 0x7C;
+constexpr u32 INO_MTIME = 0x88;
+constexpr u32 INO_otime = 0x94;
+constexpr u32 INO_MIN = 0xA0; /* through otime */
 
 /* btrfs_dir_item: location key(17) + transid u64@17 + data_len u16@25 +
  * name_len u16@27 + type u8@29 + name[]@30 (kernel include/uapi/linux/
@@ -156,8 +162,10 @@ struct Volume {
     }
 
     /* read a tree node by logical address (self-validating: header.bytenr
-     * must equal the logical address). */
-    bool read_node(u64 logical, std::vector<u8>& out) {
+     * must equal the logical address, header.fsid must equal the
+     * superblock's fsid, and chunk-tree nodes must carry the SB's
+     * chunk_tree_uuid - kernel disk-io.c btrfs_buffer_uptodate gates). */
+    bool read_node(u64 logical, std::vector<u8>& out, bool chunk_tree = false) {
         u64 phys = 0;
         if (!logical_to_physical(logical, sb.nodesize, phys))
             return false;
@@ -166,6 +174,11 @@ struct Volume {
             return false;
         if (le64(out.data() + HDR_BYTENR) != logical)
             return false; /* self-reference check - wrong candidate never validates */
+        if (std::memcmp(out.data() + HDR_FSID, sb.fsid, 16) != 0)
+            return false; /* cross-linked/wrong-fs node */
+        if (chunk_tree &&
+            std::memcmp(out.data() + HDR_CHUNK_TREE_UUID, sb.chunk_tree_uuid, 16) != 0)
+            return false;
         return true;
     }
 };
@@ -251,7 +264,8 @@ bool walk_tree(Volume& v, u64 root_logical, CancelToken* cancel,
         } else {
             /* internal node: key_ptr array after the header */
             const u32 nritems = le32(node.data() + HDR_NR_ITEMS);
-            const u32 limit = u32((node.size() - HDR_ITEM_ARRAY) / KP_SIZE);
+            const u32 limit =
+                u32((node.size() - HDR_ITEM_ARRAY) / KP_SIZE);
             if (nritems == 0 || nritems > limit) {
                 ++damaged;
                 continue;
@@ -283,21 +297,29 @@ bool validate_superblock(const u8 sb[4096], SuperBlock& out) {
     const u32 sectorsize = le32(sb + SB_SECTORSIZE);
     const u32 nodesize = le32(sb + SB_NODESIZE);
     if (sectorsize == 0 || (sectorsize & (sectorsize - 1)) != 0)
-        return false; /* pow2 (og gate) */
-    if (u32(nodesize - 0x86) >= 0xFF7B)
-        return false; /* band 0x86..0x10000 (og gate) */
-    if (nodesize % sectorsize != 0)
+        return false; /* pow2 (kernel btrfs_validate_super: 4K..64K) */
+    if (nodesize == 0 || (nodesize & (nodesize - 1)) != 0)
+        return false; /* kernel: nodesize must be pow2 */
+    if (nodesize < 0x86 || nodesize > 0x10000)
+        return false; /* band 0x86..0x10000 (kernel: <= 64K) */
+    if (nodesize % sectorsize != 0 || nodesize < sectorsize)
         return false;
     out.generation = le64(sb + SB_GENERATION);
     out.sectorsize = sectorsize;
     out.nodesize = nodesize;
     std::memcpy(out.fsid, sb + SB_FSID, 16);
-    /* embedded system chunk array (og layout: entries from +0x32B,
-     * remaining bytes in u32@+0xA0; entry = [key 17][chunk 48+32n]) */
+    std::memcpy(out.chunk_tree_uuid, sb + SB_CHUNK_TREE_UUID, 16);
+    /* embedded system chunk array (entries from +0x32B, byte count in
+     * u32@+0xA0; entry = [key 17][chunk 48+32n]). Kernel allows up to
+     * BTRFS_SYSTEM_CHUNK_ARRAY_SIZE=2048; 0 is accepted at recovery
+     * grade (detection anchor without a chunk map - the tree walk
+     * then fails honestly for lack of mapping). */
     const u32 array_size = le32(sb + SB_SYS_ARRAY_SIZE);
+    if (array_size > 2048)
+        return false;
     out.sys_chunks.clear();
     u32 consumed = 0;
-    while (consumed + 17 + 48 <= array_size && array_size <= 2047) {
+    while (consumed + 17 + 48 <= array_size) {
         const u8* key_p = sb + SB_SYS_ARRAY + consumed;
         const Key k = read_key(key_p);
         if (k.type != KEY_CHUNK)
@@ -334,8 +356,8 @@ u32 scan_btrfs(IStorageDevice* slice, const BtrfsScanFlags& flags, CancelToken* 
      * {0x10000, 0x4000000, 0x4000000000, 0x4000000000000} - identical to the
      * kernel btrfs_sb_offset(): 64 KiB primary + mirrors at 64 MiB, 256 GiB
      * and 1 PiB (16K << 12*mirror). */
-    static const u64 kMirrorOffsets[] = {0x10000, 0x4000000, 0x4000000000ULL, 0x4000000000000ULL,
-                                         0};
+    static const u64 kMirrorOffsets[] = {0x10000,          0x4000000,
+                                         0x4000000000ULL,  0x4000000000000ULL, 0};
     SuperBlock best;
     bool have_best = false;
     std::vector<u8> sb_buf(4096);
@@ -382,11 +404,10 @@ u32 scan_btrfs(IStorageDevice* slice, const BtrfsScanFlags& flags, CancelToken* 
             if (cand == 0)
                 continue;
             std::vector<u8> node;
-            if (v.read_node(cand, node)) {
-                /* must contain CHUNK items or be an internal tree node
-                 * whose chunk_tree_uuid matches the superblock's */
-                const u8* uuid = node.data() + HDR_CHUNK_TREE_UUID;
-                (void)uuid;
+            /* the chunk tree is identified by chunk_tree_uuid (kernel
+             * read_tree_block uses the matching root uuid); read_node
+             * with chunk_tree=true enforces fsid + chunk_tree_uuid */
+            if (v.read_node(cand, node, true)) {
                 chunk_root = cand;
                 break;
             }
@@ -556,7 +577,7 @@ u32 scan_btrfs(IStorageDevice* slice, const BtrfsScanFlags& flags, CancelToken* 
         if (!sv_props)
             continue;
         sv_props->name = role16;
-        sv_props->fs_kind = u32(FsKindCode::Btrfs);
+        sv_props->fs_kind = 7;
         sv_props->attributes = 0x10;
         sv_props->record_ref = sv.id;
         tree::FileNode* sv_root = tree.add_file(root_active, sv_props);
@@ -570,13 +591,13 @@ u32 scan_btrfs(IStorageDevice* slice, const BtrfsScanFlags& flags, CancelToken* 
             u64 size = 0;
             u32 mode = 0;
             u32 nlink = 0;
-            u64 atime = 0, ctime = 0, mtime = 0;
+            u64 atime = 0, ctime = 0, mtime = 0, crtime = 0;
             std::vector<std::pair<u64, u64>> extents; /* slice bytes */
             bool inline_data = false;
         };
         std::map<u64, InodeInfo> inodes;
         auto on_item = [&](const Key& k, const u8* data, u32 len) {
-            if (k.type == KEY_INODE_ITEM && len >= 0x80) {
+            if (k.type == KEY_INODE_ITEM && len >= INO_MIN) {
                 InodeInfo& ii = inodes[k.objectid];
                 ii.size = le64(data + INO_SIZE);
                 ii.nlink = le32(data + INO_NLINK);
@@ -587,6 +608,8 @@ u32 scan_btrfs(IStorageDevice* slice, const BtrfsScanFlags& flags, CancelToken* 
                     timespec_to_filetime(i64(le64(data + INO_CTIME)), le32(data + INO_CTIME + 8));
                 ii.mtime =
                     timespec_to_filetime(i64(le64(data + INO_MTIME)), le32(data + INO_MTIME + 8));
+                ii.crtime =
+                    timespec_to_filetime(i64(le64(data + INO_otime)), le32(data + INO_otime + 8));
             } else if (k.type == KEY_EXTENT_DATA && len >= 53) {
                 InodeInfo& ii = inodes[k.objectid];
                 const u8 ftype = data[FE_TYPE];
@@ -643,55 +666,53 @@ u32 scan_btrfs(IStorageDevice* slice, const BtrfsScanFlags& flags, CancelToken* 
 
         /* phase 3: emit the tree from the subvol root dir */
         std::set<u64> emitted;
-        std::function<void(u64, tree::FileNode*, int)> populate = [&](u64 dirid,
-                                                                      tree::FileNode* node,
-                                                                      int depth) {
-            if (depth > DIR_DEPTH_LIMIT)
-                return;
-            auto dit = dirs.find(dirid);
-            if (dit == dirs.end())
-                return;
-            for (const auto& de : dit->second) {
-                if (cancel && cancel->cancelled())
+        std::function<void(u64, tree::FileNode*, int)> populate =
+            [&](u64 dirid, tree::FileNode* node, int depth) {
+                if (depth > DIR_DEPTH_LIMIT)
                     return;
-                if (de.name == u"." || de.name == u"..")
-                    continue;
-                if (emitted.count(de.child))
-                    continue; /* hard link: one instance in the tree */
-                auto cit = inodes.find(de.child);
-                if (cit == inodes.end())
-                    continue; /* dangling entry */
-                const bool is_dir = (cit->second.mode & 0xF000) == 0x4000;
-                auto* cp = new (std::nothrow) tree::FileProperties();
-                if (!cp)
+                auto dit = dirs.find(dirid);
+                if (dit == dirs.end())
                     return;
-                cp->name = de.name;
-                cp->fs_kind =
-                    u32(FsKindCode::Btrfs); /* factory map (row 45: was 7, colliding with exFAT) */
-                cp->logical_size = cit->second.size;
-                cp->attributes = is_dir ? 0x10 : 0;
-                cp->times.created = cit->second.ctime;
-                cp->times.modified = cit->second.mtime;
-                cp->times.changed = cit->second.ctime;
-                cp->times.accessed = cit->second.atime;
-                cp->record_ref = de.child;
-                for (const auto& e : cit->second.extents)
-                    cp->extents.push_back({e.first, e.second});
-                if (cit->second.inline_data)
-                    ++stats.inline_files;
-                tree::FileNode* child_node = tree.add_file(node, cp);
-                cp->release();
-                if (!child_node)
-                    continue;
-                emitted.insert(de.child);
-                if (is_dir) {
-                    ++stats.dirs;
-                    populate(de.child, child_node, depth + 1);
-                } else {
-                    ++stats.files;
+                for (const auto& de : dit->second) {
+                    if (cancel && cancel->cancelled())
+                        return;
+                    if (de.name == u"." || de.name == u"..")
+                        continue;
+                    if (emitted.count(de.child))
+                        continue; /* hard link: one instance in the tree */
+                    auto cit = inodes.find(de.child);
+                    if (cit == inodes.end())
+                        continue; /* dangling entry */
+                    const bool is_dir = (cit->second.mode & 0xF000) == 0x4000;
+                    auto* cp = new (std::nothrow) tree::FileProperties();
+                    if (!cp)
+                        return;
+                    cp->name = de.name;
+                    cp->fs_kind = 7; /* CBtrfsFileProerties corpus id */
+                    cp->logical_size = cit->second.size;
+                    cp->attributes = is_dir ? 0x10 : 0;
+                    cp->times.created = cit->second.crtime;
+                    cp->times.modified = cit->second.mtime;
+                    cp->times.changed = cit->second.ctime;
+                    cp->times.accessed = cit->second.atime;
+                    cp->record_ref = de.child;
+                    for (const auto& e : cit->second.extents)
+                        cp->extents.push_back({e.first, e.second});
+                    if (cit->second.inline_data)
+                        ++stats.inline_files;
+                    tree::FileNode* child_node = tree.add_file(node, cp);
+                    cp->release();
+                    if (!child_node)
+                        continue;
+                    emitted.insert(de.child);
+                    if (is_dir) {
+                        ++stats.dirs;
+                        populate(de.child, child_node, depth + 1);
+                    } else {
+                        ++stats.files;
+                    }
                 }
-            }
-        };
+            };
         /* the subvol's root dir: ROOT_ITEM root_dirid when sane, else the
          * smallest dir inode with entries */
         u64 root_dirid = sv.root_dirid >= 256 ? sv.root_dirid : 256;

@@ -79,6 +79,7 @@ struct InodeView {
     u16 mode = 0;
     u64 size = 0;
     i64 atime = 0, ctime = 0, mtime = 0, dtime = 0, crtime = 0;
+    u32 atime_nsec = 0, ctime_nsec = 0, mtime_nsec = 0, crtime_nsec = 0;
     u16 links = 0;
     u32 flags = 0;
     std::vector<Extent> extents; /* resolved through the extent tree */
@@ -95,6 +96,7 @@ u32 scan_ext4(IStorageDevice* slice, const Ext4ScanFlags& flags, CancelToken* ca
 
 /* unix epoch seconds -> our 100ns/1601 FileTimes fields */
 u64 unix_to_filetime(i64 unix_sec);
+u64 unix_to_filetime_ns(i64 unix_sec, u32 nsec);
 
 } // namespace ext4
 } // namespace cr

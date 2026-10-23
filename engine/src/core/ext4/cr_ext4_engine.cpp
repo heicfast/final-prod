@@ -30,12 +30,13 @@ constexpr u32 SB_VOLUME_NAME = 0x78;
 constexpr u32 SB_JOURNAL_INUM = 0xE0;
 constexpr u32 SB_DESC_SIZE = 0xFE;
 constexpr u32 SB_BLOCKS_HI = 0x150;
-constexpr u32 SB_INODE_SIZE = 0x56;
+constexpr u32 SB_INODE_SIZE = 0x58; /* u16; s_first_ino u32 owns 0x54..0x57 */
 constexpr u16 SB_MAGIC_VALUE = 0xEF53;
 
 constexpr u32 INCOMPAT_64BIT = 0x0080;
 constexpr u32 INCOMPAT_FILETYPE = 0x0002;
 constexpr u32 INCOMPAT_EXTENTS = 0x0040;
+constexpr u32 INCOMPAT_BIGALLOC = 0x0400;
 constexpr u32 RO_COMPAT_METADATA_CSUM = 0x0400;
 
 constexpr u32 ROOT_INODE = 2;
@@ -44,7 +45,9 @@ constexpr u32 EXTENTS_FL = 0x80000;
 constexpr u16 EXT4_EXT_MAGIC = 0xF30A;
 constexpr u32 EXTENT_DEPTH_LIMIT = 5;
 
-constexpr u32 MAX_GROUPS = 65536;       /* 256TiB/1G blocks sanity bound */
+constexpr u64 MAX_GROUPS = 1ull << 20; /* 1M groups = 128 TiB @ 128 MiB/group
+                                          * (4K blocks); GDT read is bounded
+                                          * by groups*desc_size */
 constexpr u64 MAX_INODES = 16ull << 20; /* 16M inodes sweep bound */
 constexpr u32 MAX_DIR_BYTES = 64ull << 20;
 constexpr int DIR_WALK_DEPTH = 64;
@@ -54,12 +57,6 @@ u16 rd16(const u8* p) {
 }
 u32 rd32(const u8* p) {
     return u32(p[0]) | (u32(p[1]) << 8) | (u32(p[2]) << 16) | (u32(p[3]) << 24);
-}
-void wr32(u8* p, u32 v) {
-    p[0] = u8(v);
-    p[1] = u8(v >> 8);
-    p[2] = u8(v >> 16);
-    p[3] = u8(v >> 24);
 }
 
 struct GroupDesc {
@@ -113,6 +110,12 @@ u64 unix_to_filetime(i64 unix_sec) {
     if (unix_sec <= -EPOCH_DELTA)
         return 0;
     return u64((unix_sec + EPOCH_DELTA) * 10000000LL);
+}
+
+u64 unix_to_filetime_ns(i64 unix_sec, u32 nsec) {
+    /* same conversion with the ext4 *_extra nsec field folded in
+     * (kernel ext4_decode_extra_time: nsec = (extra & 0xFFFFFFFC) >> 2) */
+    return unix_to_filetime(unix_sec) + u64(nsec / 100u);
 }
 
 bool validate_superblock(const u8 sb[1024], SuperBlock& out) {
@@ -197,10 +200,12 @@ struct Volume {
         d.block_bitmap = rd32(p + 0x00);
         d.inode_bitmap = rd32(p + 0x04);
         d.inode_table = rd32(p + 0x08);
-        if (sb.desc_size >= 64) { /* 64-bit high words at +0x20/+0x28/+0x2C */
+        if (sb.desc_size >= 64) { /* 64-bit high words (ext4_group_desc):
+                                   * block_bitmap_hi@0x20, inode_bitmap_hi
+                                   * @0x24, inode_table_hi@0x28 */
             d.block_bitmap |= u64(rd32(p + 0x20)) << 32;
-            d.inode_bitmap |= u64(rd32(p + 0x28)) << 32;
-            d.inode_table |= u64(rd32(p + 0x2C)) << 32;
+            d.inode_bitmap |= u64(rd32(p + 0x24)) << 32;
+            d.inode_table |= u64(rd32(p + 0x28)) << 32;
         }
         return d;
     }
@@ -227,7 +232,11 @@ bool walk_extent_node(Volume& v, const u8* node, u32 depth, u64& max_blocks,
         for (u32 i = 0; i < entries; ++i) {
             const u8* e = body + u64(i) * 12;
             const u32 logical = rd32(e);
-            u32 len = rd16(e + 4) & 0x7FFF; /* bit15 = unwritten */
+            /* kernel ext4_extents.h: raw ee_len == 0x8000 (EXT_INIT_MAX_LEN)
+             * is a WRITTEN 32768-block extent; > 0x8000 means unwritten
+             * (bit 15) - decode accordingly */
+            const u16 raw_len = rd16(e + 4);
+            const u32 len = raw_len > 0x8000 ? (raw_len & 0x7FFF) : raw_len;
             const u64 phys = rd32(e + 8) | (u64(rd16(e + 6)) << 32);
             if (len == 0 || phys == 0 || phys + len > v.sb.blocks_count)
                 continue;
@@ -245,10 +254,11 @@ bool walk_extent_node(Volume& v, const u8* node, u32 depth, u64& max_blocks,
         }
         return true;
     }
-    /* interior: read children (bounded) */
+    /* interior: read children (bounded) - ext4_extent_idx: ei_block u32@0,
+     * ei_leaf_lo u32@4, ei_leaf_hi u16@6, ei_unused u16@8 */
     for (u32 i = 0; i < entries; ++i) {
         const u8* e = body + u64(i) * 12;
-        const u64 child = rd32(e + 4) | (u64(rd16(e + 8)) << 32);
+        const u64 child = rd32(e + 4) | (u64(rd16(e + 6)) << 32);
         if (child == 0 || child >= v.sb.blocks_count)
             continue;
         std::vector<u8> buf(size_t(v.sb.block_size));
@@ -270,7 +280,7 @@ bool read_inode(Volume& v, u32 ino, InodeView& iv) {
     if (gd.inode_table == 0)
         return false;
     const u64 table_off = gd.inode_table * v.sb.block_size + u64(index) * v.sb.inode_size;
-    u8 raw[256] = {};
+    u8 raw[1024] = {}; /* s_inode_size can be up to the block size */
     if (v.sb.inode_size > sizeof(raw))
         return false;
     if (v.dev->read_at(table_off, raw, v.sb.inode_size) != OK)
@@ -292,19 +302,19 @@ bool read_inode(Volume& v, u32 ino, InodeView& iv) {
      * good-old layout and i_extra_isize covers them (kernel rule). */
     if (v.sb.inode_size >= 0x98u && v.sb.rev_level >= 1) {
         const u32 extra_isize = rd16(raw + I_EXTRA_ISIZE);
-        const u32 covered =
-            128u + (extra_isize <= v.sb.inode_size - 128u ? extra_isize : v.sb.inode_size - 128u);
-        u32 nsec = 0;
+        const u32 covered = 128u + (extra_isize <= v.sb.inode_size - 128u
+                                        ? extra_isize
+                                        : v.sb.inode_size - 128u);
         if (I_ATIME_EXTRA + 4 <= covered)
-            iv.atime = decode_extra(iv.atime, rd32(raw + I_ATIME_EXTRA), nsec);
+            iv.atime = decode_extra(iv.atime, rd32(raw + I_ATIME_EXTRA), iv.atime_nsec);
         if (I_CTIME_EXTRA + 4 <= covered)
-            iv.ctime = decode_extra(iv.ctime, rd32(raw + I_CTIME_EXTRA), nsec);
+            iv.ctime = decode_extra(iv.ctime, rd32(raw + I_CTIME_EXTRA), iv.ctime_nsec);
         if (I_MTIME_EXTRA + 4 <= covered)
-            iv.mtime = decode_extra(iv.mtime, rd32(raw + I_MTIME_EXTRA), nsec);
+            iv.mtime = decode_extra(iv.mtime, rd32(raw + I_MTIME_EXTRA), iv.mtime_nsec);
         if (I_CRTIME + 4 <= covered)
-            iv.crtime = i64(rd32(raw + I_CRTIME)); /* seconds */
+            iv.crtime = i64(rd32(raw + I_CRTIME));
         if (I_CRTIME_EXTRA + 4 <= covered)
-            iv.crtime = decode_extra(iv.crtime, rd32(raw + I_CRTIME_EXTRA), nsec);
+            iv.crtime = decode_extra(iv.crtime, rd32(raw + I_CRTIME_EXTRA), iv.crtime_nsec);
     }
 
     u64 budget = 65536; /* P1-11: per-inode node-read budget */
@@ -437,6 +447,10 @@ u32 scan_ext4(IStorageDevice* slice, const Ext4ScanFlags& flags, CancelToken* ca
     if (!validate_superblock(sb, v.sb))
         return ERR_BAD_MAGIC;
     v.dev = slice;
+    if ((v.sb.feature_incompat & INCOMPAT_BIGALLOC) != 0)
+        return ERR_UNSUPPORTED; /* cluster-granular bitmaps/extents: emitting
+                                  * block-granular extents would be WRONG -
+                                  * refused loudly, never silently faked */
 
     /* 2. group descriptors (block first_data_block + 1) */
     v.gdt_block = v.sb.first_data_block + 1;
@@ -504,10 +518,12 @@ u32 scan_ext4(IStorageDevice* slice, const Ext4ScanFlags& flags, CancelToken* ca
             props->fs_kind = 9; /* ext family (corpus FS code) */
             props->logical_size = child.size;
             props->attributes = is_dir ? 0x10 : 0;
-            props->times.created = unix_to_filetime(child.crtime ? child.crtime : child.ctime);
-            props->times.modified = unix_to_filetime(child.mtime);
-            props->times.changed = unix_to_filetime(child.ctime);
-            props->times.accessed = unix_to_filetime(child.atime);
+            props->times.created =
+                unix_to_filetime_ns(child.crtime ? child.crtime : child.ctime,
+                                    child.crtime ? child.crtime_nsec : child.ctime_nsec);
+            props->times.modified = unix_to_filetime_ns(child.mtime, child.mtime_nsec);
+            props->times.changed = unix_to_filetime_ns(child.ctime, child.ctime_nsec);
+            props->times.accessed = unix_to_filetime_ns(child.atime, child.atime_nsec);
             for (const auto& e : child.extents)
                 props->extents.push_back({e.offset, e.length});
             props->record_ref = de.inode;
@@ -602,10 +618,12 @@ u32 scan_ext4(IStorageDevice* slice, const Ext4ScanFlags& flags, CancelToken* ca
             props->fs_kind = 9;
             props->logical_size = iv.size;
             props->attributes = is_dir ? 0x10 : 0;
-            props->times.created = unix_to_filetime(iv.crtime ? iv.crtime : iv.ctime);
-            props->times.modified = unix_to_filetime(iv.mtime);
-            props->times.changed = unix_to_filetime(iv.ctime);
-            props->times.accessed = unix_to_filetime(iv.atime);
+            props->times.created =
+                unix_to_filetime_ns(iv.crtime ? iv.crtime : iv.ctime,
+                                    iv.crtime ? iv.crtime_nsec : iv.ctime_nsec);
+            props->times.modified = unix_to_filetime_ns(iv.mtime, iv.mtime_nsec);
+            props->times.changed = unix_to_filetime_ns(iv.ctime, iv.ctime_nsec);
+            props->times.accessed = unix_to_filetime_ns(iv.atime, iv.atime_nsec);
             for (const auto& e : iv.extents)
                 props->extents.push_back({e.offset, e.length});
             props->record_ref = ino;
@@ -641,11 +659,25 @@ u32 scan_ext4(IStorageDevice* slice, const Ext4ScanFlags& flags, CancelToken* ca
         }
     }
 
-    /* 5. journal salvage (jbd2): replay committed transactions - descriptor
-     * blocks (magic 0xC03B3998, blocktype 1) reference the data blocks that
-     * follow them in the journal; those frequently hold pre-delete directory
-     * snapshots (corpus TraverseJournalDir behavior). Only transactions with
-     * a matching commit block (blocktype 2, same sequence) are considered. */
+    /* 5. journal salvage (jbd2). On-disk truth (include/linux/jbd2.h,
+     * fs/jbd2/{journal.c,recovery.c,commit.c}): EVERY journal structure is
+     * BIG-ENDIAN. journal_header_t {h_magic BE32, h_blocktype BE32,
+     * h_sequence BE32}; blocktypes DESCRIPTOR=1 COMMIT=2 SUPERBLOCK_V1=3
+     * SUPERBLOCK_V2=4 REVOKE=5; jsb s_feature_incompat@0x28 with bits
+     * REVOKE=0x1, 64BIT=0x2, ASYNC_COMMIT=0x4, CSUM_V2=0x8, CSUM_V3=0x10;
+     * tag widths per journal_tag_bytes(): V3 = 16 (flags BE32@+4), V2-csum
+     * = 14 with 64BIT / 10 without (flags BE16@+6), plain = 12 / 8; the
+     * FIRST tag of each descriptor carries no SAME_UUID -> a 16-byte
+     * journal UUID follows it (commit.c jbd2_journal_write_tag). Data
+     * blocks follow the descriptor sequentially in the journal; a block
+     * whose tag has JBD2_FLAG_ESCAPE had its leading 0xC03B3998 bytes
+     * zeroed in the journal copy - replay restores cpu_to_be32(magic).
+     * Revoke records (REVOKE=5 blocks, BE32 fs-block numbers after the
+     * 12-byte header at tag_size stride) mark blocks whose newest state
+     * lives in later transactions; kernel replay skips them - we DELIBERATELY
+     * still surface them (stale-snapshot salvage, documented divergence:
+     * recovery-grade value beats mount-grade purity here; the live-tree
+     * visit set still filters entries that survived). */
     if (flags.salvage_journal && root_lost) {
         InodeView jiv;
         if (read_inode(v, v.sb.journal_inum, jiv) && !jiv.extents.empty()) {
@@ -656,51 +688,78 @@ u32 scan_ext4(IStorageDevice* slice, const Ext4ScanFlags& flags, CancelToken* ca
             constexpr u32 JBD2_MAGIC = 0xC03B3998u;
             constexpr u32 JBD2_DESCRIPTOR_BLOCK = 1;
             constexpr u32 JBD2_COMMIT_BLOCK = 2;
-            constexpr u32 JBD2_SUPERBLOCK_V2 = 3;
-            constexpr u32 JBD2_REVOKE_BLOCK = 4;
-            constexpr u32 JBD2_FLAG_LAST_TAG = 0x8;
+            constexpr u32 JBD2_SUPERBLOCK_V1 = 3;
+            constexpr u32 JBD2_SUPERBLOCK_V2 = 4;
+            constexpr u32 JBD2_REVOKE_BLOCK = 5;
+            constexpr u32 JBD2_FLAG_ESCAPE = 1;
+            constexpr u32 JBD2_FLAG_SAME_UUID = 2;
+            constexpr u32 JBD2_FLAG_LAST_TAG = 8;
             constexpr u32 JBD2_INCOMPAT_64BIT = 0x2;
-            constexpr u32 JBD2_INCOMPAT_CSUM_V2 = 0x4;
-            constexpr u32 JBD2_INCOMPAT_CSUM_V3 = 0x8;
+            constexpr u32 JBD2_INCOMPAT_CSUM_V2 = 0x8;
+            constexpr u32 JBD2_INCOMPAT_CSUM_V3 = 0x10;
             const u64 jblocks = stats.journal_blocks;
+            const u64 bs = v.sb.block_size;
 
+            /* jbd2 reads are BIG-endian */
             auto jbe32 = [&](u64 blk, u32 off) -> u32 {
-                if (blk >= jblocks)
+                if (blk >= jblocks || blk * bs + off + 4 > jdata.size())
                     return 0;
-                return rd32(jdata.data() + blk * v.sb.block_size + off);
+                const u8* p = jdata.data() + blk * bs + off;
+                return (u32(p[0]) << 24) | (u32(p[1]) << 16) | (u32(p[2]) << 8) | u32(p[3]);
+            };
+            auto jbe16 = [&](u64 at, u32 off) -> u32 {
+                if (at + off + 2 > jdata.size())
+                    return 0;
+                const u8* p = jdata.data() + at + off;
+                return (u32(p[0]) << 8) | u32(p[1]);
             };
             auto is_header = [&](u64 blk, u32 type, u32& seq) -> bool {
                 if (blk >= jblocks)
                     return false;
-                const u8* p = jdata.data() + blk * v.sb.block_size;
-                if (rd32(p) != JBD2_MAGIC)
+                if (jbe32(blk, 0) != JBD2_MAGIC)
                     return false;
-                if (rd32(p + 4) != type)
+                if (jbe32(blk, 4) != type)
                     return false;
-                seq = rd32(p + 8);
+                seq = jbe32(blk, 8);
                 return true;
             };
 
-            /* journal superblock (if the first block is one): feature
-             * flags decide the tag width */
-            u32 tag_extra = 0;
+            /* journal superblock at block 0 (type 3 or 4 - jbd2 journal_load
+             * accepts both): s_feature_incompat@0x28 decides the tag width */
+            u32 tag_size = 8;          /* plain: {blocknr, flags} */
+            u32 flags_off = 4;         /* t_flags position in the tag */
+            bool v3_csum = false;
             {
                 u32 seq = 0;
-                if (is_header(0, JBD2_SUPERBLOCK_V2, seq)) {
-                    const u32 incompat = jbe32(0, 40);
-                    if (incompat & JBD2_INCOMPAT_64BIT)
-                        tag_extra += 4; /* t_blocknr_high */
-                    if (incompat & (JBD2_INCOMPAT_CSUM_V2 | JBD2_INCOMPAT_CSUM_V3))
-                        tag_extra += 4; /* per-tag checksum */
+                if (is_header(0, JBD2_SUPERBLOCK_V1, seq) ||
+                    is_header(0, JBD2_SUPERBLOCK_V2, seq)) {
+                    const u32 incompat = jbe32(0, 0x28);
+                    v3_csum = (incompat & JBD2_INCOMPAT_CSUM_V3) != 0;
+                    if (v3_csum) {
+                        tag_size = 16;  /* journal_block_tag3_t */
+                        flags_off = 4;  /* t_flags BE32@+4 */
+                    } else {
+                        /* journal_block_tag_t: {blocknr BE32, checksum BE16,
+                         * flags BE16@+6, blocknr_high BE32@+8} = 12 with
+                         * csum/64BIT, 12-4 without 64BIT, +2 with CSUM_V2 */
+                        tag_size = 12;
+                        flags_off = 6;
+                        if (incompat & JBD2_INCOMPAT_64BIT)
+                            tag_size = 12;
+                        else
+                            tag_size = 8;
+                        if (incompat & JBD2_INCOMPAT_CSUM_V2)
+                            tag_size += 2;
+                    }
                 }
             }
-            const u32 tag_size = 8 + tag_extra;
 
-            /* pass 1: map descriptor -> tags; note committed sequences */
+            /* pass 1: descriptors -> tags (journal-sequential data blocks);
+             * commit blocks -> committed sequence set */
             struct Txn {
                 u64 desc_block;
                 u32 sequence;
-                std::vector<u64> data_blocks; /* journal block ids */
+                std::vector<std::pair<u64, bool>> data_blocks; /* {jblock, escaped} */
             };
             std::vector<Txn> txns;
             std::set<u32> committed;
@@ -712,56 +771,67 @@ u32 scan_ext4(IStorageDevice* slice, const Ext4ScanFlags& flags, CancelToken* ca
                         Txn t;
                         t.desc_block = blk;
                         t.sequence = seq;
-                        /* tags start after the 12-byte header; the last tag
-                         * carries JBD2_FLAG_LAST_TAG */
-                        u64 off = blk * v.sb.block_size + 12;
-                        const u64 end = (blk + 1) * v.sb.block_size;
+                        u64 off = blk * bs + 12; /* after journal_header_t */
+                        const u64 end = (blk + 1) * bs;
                         u64 expect = blk + 1;
+                        bool first_tag = true;
                         bool last = false;
                         while (off + tag_size <= end && !last) {
-                            const u32 fl = rd32(jdata.data() + off + 4);
-                            /* tag carries t_blocknr (+high with 64BIT) but the
-                             * journal-side position is simply sequential */
-                            t.data_blocks.push_back(expect);
+                            const u32 fl = jbe16(off, flags_off);
+                            bool escaped = (fl & JBD2_FLAG_ESCAPE) != 0;
                             last = (fl & JBD2_FLAG_LAST_TAG) != 0;
+                            t.data_blocks.push_back({expect, escaped});
                             off += tag_size;
+                            if (first_tag && (fl & JBD2_FLAG_SAME_UUID) == 0) {
+                                /* first tag without SAME_UUID: a 16-byte
+                                 * journal UUID follows the tag bytes
+                                 * (commit.c jbd2 write order: tag, uuid) */
+                                if (off + 16 > end)
+                                    break;
+                                off += 16;
+                            }
+                            first_tag = false;
                             ++expect;
                         }
                         txns.push_back(std::move(t));
                     } else if (is_header(blk, JBD2_COMMIT_BLOCK, seq)) {
                         committed.insert(seq);
                     } else if (is_header(blk, JBD2_REVOKE_BLOCK, seq)) {
-                        /* revoked blocks: recorded for context; salvage still
-                         * surfaces deleted directory snapshots */
+                        /* revoke blocks: skipped entries here; see the
+                         * parity note above */
                     }
                     ++blk;
                 }
             }
 
             /* pass 2: salvage directory entries from committed
-             * transactions' data blocks (escape-unaware blocks that begin
-             * with the zeroed magic are re-magicked for parsing) */
+             * transactions' data blocks */
             std::set<std::pair<u32, std::u16string>> seen;
             for (const Txn& t : txns) {
                 if (cancel && cancel->cancelled())
                     break;
                 if (!committed.count(t.sequence))
                     continue; /* uncommitted tail: not durable */
-                for (u64 jb : t.data_blocks) {
+                for (const auto& [jb, escaped] : t.data_blocks) {
                     if (jb >= jblocks)
                         break;
-                    u8* raw = jdata.data() + jb * v.sb.block_size;
-                    /* escaped block: first 4 bytes were zeroed because they
-                     * collided with the journal magic; restore for parsing */
+                    u8* raw = jdata.data() + jb * bs;
+                    /* escaped block: the tag says the first 4 bytes were
+                     * zeroed because they collided with the journal magic
+                     * (recovery.c jbd2_journal_recover... restores
+                     * cpu_to_be32(JBD2_MAGIC) = bytes C0 3B 39 98) */
                     std::vector<u8> unescaped;
                     const u8* blk = raw;
-                    if (rd32(raw) == 0) {
-                        unescaped.assign(raw, raw + v.sb.block_size);
-                        wr32(unescaped.data(), JBD2_MAGIC);
+                    if (escaped) {
+                        unescaped.assign(raw, raw + bs);
+                        unescaped[0] = 0xC0;
+                        unescaped[1] = 0x3B;
+                        unescaped[2] = 0x39;
+                        unescaped[3] = 0x98;
                         blk = unescaped.data();
                     }
                     std::vector<DirEntry> entries;
-                    if (!parse_dir_block(blk, v.sb.block_size, true, entries))
+                    if (!parse_dir_block(blk, bs, true, entries))
                         continue;
                     for (const auto& de : entries) {
                         if (de.inode == 0 || de.name.empty() || de.name.size() < 2)

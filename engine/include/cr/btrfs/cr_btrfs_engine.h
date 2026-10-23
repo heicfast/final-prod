@@ -58,13 +58,14 @@ struct ChunkMap {
     u64 type;           /* DATA 1 / SYSTEM 2 / METADATA 4 / RAID bits */
 };
 
-/* Superblock (og-verified anchors). */
+/* Superblock (kernel fs/btrfs/ctree.h struct btrfs_super_block). */
 struct SuperBlock {
     u64 generation = 0;
     u32 sectorsize = 0;
     u32 nodesize = 0;
     u64 total_bytes = 0;
     u8 fsid[16] = {0};
+    u8 chunk_tree_uuid[16] = {0};
     std::vector<ChunkMap> sys_chunks;
     bool valid = false;
 };

@@ -64,6 +64,17 @@ void put32(u8* p, u32 v) {
     p[2] = u8(v >> 16);
     p[3] = u8(v >> 24);
 }
+/* jbd2 on-disk structures are BIG-endian (include/linux/jbd2.h) */
+void bput16(u8* p, u16 v) {
+    p[0] = u8(v >> 8);
+    p[1] = u8(v);
+}
+void bput32(u8* p, u32 v) {
+    p[0] = u8(v >> 24);
+    p[1] = u8(v >> 16);
+    p[2] = u8(v >> 8);
+    p[3] = u8(v);
+}
 
 /* inode numbers in the fixture */
 constexpr u32 INO_ROOT = 2;
@@ -93,7 +104,8 @@ void write_sb(Img& img, u32 inodes_count) {
     put32(sb + 0x28, IPG);               /* s_inodes_per_group */
     put16(sb + 0x38, 0xEF53);            /* magic */
     put32(sb + 0x4C, 1);                 /* rev level 1 */
-    put16(sb + 0x56, INO_SZ);            /* inode size */
+    put16(sb + 0x58, INO_SZ);            /* s_inode_size (u16@0x58; the
+                                           * u32 s_first_ino owns 0x54..57) */
     put32(sb + 0x60, 0x0002);            /* incompat: FILETYPE */
     put32(sb + 0xE0, 8);                 /* journal inum */
     memcpy(sb + 0x78, "testvol", 8);
@@ -151,11 +163,11 @@ Img build_volume() {
     write_sb(img, 8);
     write_gdt(img);
 
-    /* block bitmap: blocks 0..9 in use, rest free */
+    /* block bitmap: blocks 0..14 in use, rest free */
     u8* bm = img.block(B_BITMAP);
     memset(bm, 0xFF, BS);
-    /* clear bits for blocks 10.. to mark free (deleted data on free blocks) */
-    for (u64 b = 10; b < BPG; ++b)
+    /* clear bits for blocks 15.. to mark free (deleted data on free blocks) */
+    for (u64 b = 15; b < BPG; ++b)
         bm[b / 8] &= u8(~(1u << (b % 8)));
 
     /* inodes */
@@ -187,6 +199,65 @@ Img build_volume() {
     memcpy(img.block(B_HELLO_DATA), "Hello, world!", 14);
     memcpy(img.block(B_SUB_DATA), "0123456789ABCDEFGHIJK", 22);
     memset(img.block(B_GONE_DATA), 0x77, 512);
+
+    /* ---- jbd2 journal (blocks 10..14), BIG-endian (jbd2.h) ---- */
+    constexpr u64 B_JOURNAL = 10;
+    write_inode(img, 8 /* journal inum per SB 0xE0 */, 0x8000, 5 * BS, B_JOURNAL, 5, 1, 0);
+    {
+        /* jsb at journal block 0: {magic BE, blocktype 3 BE, seq BE}
+         * s_feature_incompat BE32@0x28 = 0 -> plain 8-byte tags, flags@+6 */
+        u8* jsb = img.block(B_JOURNAL);
+        bput32(jsb + 0, 0xC03B3998u);
+        bput32(jsb + 4, 3); /* JBD2_SUPERBLOCK_V1 */
+        bput32(jsb + 8, 9);
+        bput32(jsb + 0x28, 0); /* s_feature_incompat: none */
+
+        /* descriptor at journal block 1: tags reference journal-sequential
+         * data blocks 2 and 3; first tag carries no SAME_UUID -> 16-byte
+         * journal UUID after the tag bytes (commit.c write order) */
+        u8* desc = img.block(B_JOURNAL + 1);
+        bput32(desc + 0, 0xC03B3998u);
+        bput32(desc + 4, 1); /* JBD2_DESCRIPTOR_BLOCK */
+        bput32(desc + 8, 9); /* sequence */
+        /* tag1 (8 bytes plain): blocknr BE32, checksum BE16, flags BE16@+6 */
+        bput32(desc + 12, 40); /* fs block of the snapshot */
+        bput16(desc + 16, 0);  /* checksum */
+        bput16(desc + 18, 0);  /* flags: no LAST, no SAME_UUID */
+        for (int i = 0; i < 16; ++i)
+            desc[20 + i] = u8(0xA0 + i); /* journal UUID after tag1 */
+        /* tag2: escaped block, LAST_TAG */
+        bput32(desc + 36, 41);
+        bput16(desc + 40, 0);
+        bput16(desc + 42, 1 | 8); /* ESCAPE | LAST_TAG */
+
+        /* journal data block 2: directory snapshot with a deleted name */
+        u8* snap = img.block(B_JOURNAL + 2);
+        u32 jcur = 0;
+        add_dirent(snap, jcur, 50, "ghost.txt", 1);
+
+        /* journal data block 3: ESCAPED directory snapshot - its first four
+         * bytes (the first dirent's inode field) collide with the journal
+         * magic (inode 0x98393BC0 -> bytes C0 3B 39 98) so the journal copy
+         * has them zeroed; the ESCAPE tag restores cpu_to_be32(magic) */
+        u8* esc = img.block(B_JOURNAL + 3);
+        {
+            const char* nm = "esc.txt";
+            const u32 nlen = 7;
+            const u32 rec = (8 + nlen + 3) & ~3u;
+            put32(esc + 0, 0x98393BC0u); /* then zeroed below */
+            put16(esc + 4, u16(rec));
+            esc[6] = u8(nlen);
+            esc[7] = 1;
+            memcpy(esc + 8, nm, nlen);
+            memset(esc + 0, 0, 4); /* the journal copy is zero-escaped */
+        }
+
+        /* commit at journal block 4 (same sequence 9) */
+        u8* commit = img.block(B_JOURNAL + 4);
+        bput32(commit + 0, 0xC03B3998u);
+        bput32(commit + 4, 2); /* JBD2_COMMIT_BLOCK */
+        bput32(commit + 8, 9);
+    }
     return img;
 }
 
@@ -293,6 +364,51 @@ TEST(Ext4Engine, BadMagicRejected) {
 TEST(Ext4Engine, UnixTimeConversion) {
     EXPECT_EQ(u64(11644473600ULL * 10000000ULL), unix_to_filetime(0));
     EXPECT_EQ(u64((11644473600ULL + 1000) * 10000000ULL), unix_to_filetime(1000));
+}
+
+TEST(Ext4Engine, JournalSalvage) {
+    /* the fixture's jbd2 chain (BIG-endian, jsb type 3, descriptor with the
+     * first-tag 16-byte UUID rule, ESCAPE-tagged block, matching commit)
+     * must surface journal-evidenced names the live tree never saw */
+    auto img = build_volume();
+    MemDevice dev(img.raw());
+    tree::ResultTree tree;
+    auto* ra = tree.add_root(u"Found");
+    auto* rl = tree.add_root(u"Lost Files");
+    Ext4ScanFlags fl;
+    Ext4ScanStats st;
+    u32 rc = scan_ext4(&dev, fl, nullptr, nullptr, nullptr, tree, ra, nullptr, rl, st);
+    ASSERT_EQ(OK, rc) << err_text(rc);
+    EXPECT_EQ(5u, st.journal_blocks);
+    EXPECT_EQ(2u, st.journal_salvaged);
+    std::set<std::string> lost;
+    for (tree::FileNode* c = rl->first_child(); c; c = c->next_sibling()) {
+        if (c->props())
+            lost.insert(c->name_utf8());
+    }
+    EXPECT_TRUE(lost.count("ghost.txt"));
+    EXPECT_TRUE(lost.count("esc.txt"));
+    for (tree::FileNode* c = rl->first_child(); c; c = c->next_sibling()) {
+        if (c->props() && c->name_utf8() == "esc.txt") {
+            EXPECT_EQ(u64(0x98393BC0), c->props()->record_ref); /* escape restored */
+        }
+    }
+}
+
+TEST(Ext4Engine, InodeSizeOffsetIsSpecTrue) {
+    /* s_inode_size is u16@0x58 (s_first_ino u32 owns 0x54..0x57): a SB with
+     * a 256-byte inode size must NOT fall back to 128 */
+    Img img(BPG);
+    write_sb(img, 8);
+    u8* sb = img.block(1);
+    put16(sb + 0x58, 256);
+    SuperBlock out;
+    EXPECT_TRUE(validate_superblock(sb, out));
+    EXPECT_EQ(256u, out.inode_size);
+    /* a corrupt value falls back to 128 */
+    put16(sb + 0x58, 12);
+    EXPECT_TRUE(validate_superblock(sb, out));
+    EXPECT_EQ(128u, out.inode_size);
 }
 
 } // namespace

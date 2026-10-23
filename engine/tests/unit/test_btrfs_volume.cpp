@@ -67,6 +67,14 @@ struct Key {
     u64 offset = 0;
 };
 
+/* distinctive fsid/chunk_tree_uuid so the node-fsid and chunk-tree-uuid
+ * gates in read_node are exercised (zeros would make the memcmp trivially
+ * pass and the check untested) */
+constexpr u8 FSID[16] = {0xB0, 0xB1, 0xB2, 0xB3, 0xB4, 0xB5, 0xB6, 0xB7,
+                         0xB8, 0xB9, 0xBA, 0xBB, 0xBC, 0xBD, 0xBE, 0xBF};
+constexpr u8 CTUUID[16] = {0xC0, 0xC1, 0xC2, 0xC3, 0xC4, 0xC5, 0xC6, 0xC7,
+                           0xC8, 0xC9, 0xCA, 0xCB, 0xCC, 0xCD, 0xCE, 0xCF};
+
 /* item buffer being assembled for one node */
 struct NodeBuilder {
     std::vector<u8> node;
@@ -79,13 +87,16 @@ struct NodeBuilder {
     NodeBuilder() { node.assign(NODESIZE, 0); }
 
     /* kernel btrfs_header: bytenr@0x30, generation@0x50, owner@0x58,
-     * nritems@0x60, level@0x64; items array @0x65 */
+     * nritems@0x60, level@0x64; items array @0x65. fsid@0x20 (always the
+     * SB fsid) and chunk_tree_uuid@0x40 (chunk-tree nodes only). */
     void header(u64 bytenr, u32 nritems, u8 level) {
         put64(node.data() + 0x30, bytenr); /* self-referential */
         put64(node.data() + 0x50, 1);      /* generation */
         put64(node.data() + 0x58, 5);      /* owner (tree id) */
         put32(node.data() + 0x60, nritems);
         node[0x64] = level;
+        memcpy(node.data() + 0x20, FSID, 16);
+        memcpy(node.data() + 0x40, CTUUID, 16);
     }
 
     void add(const Key& k, const std::vector<u8>& data) { items.push_back({k, data}); }
@@ -145,11 +156,14 @@ std::vector<u8> make_inode(u32 mode, u64 size, u32 nlink, u64 mtime_sec) {
     put64(r.data() + 0x10, size);
     put32(r.data() + 0x28, nlink);
     put32(r.data() + 0x34, mode);
-    put64(r.data() + 0x50, mtime_sec); /* atime sec */
-    put32(r.data() + 0x50 + 8, 0);     /* atime nsec */
-    put64(r.data() + 0x5C, mtime_sec); /* ctime */
-    put64(r.data() + 0x68, mtime_sec); /* mtime */
-    put64(r.data() + 0x74, mtime_sec); /* otime */
+    /* kernel btrfs_inode_item: reserved[4] occupies 0x50..0x70; the
+     * 12-byte timespecs live at atime@0x70, ctime@0x7C, mtime@0x88,
+     * otime@0x94 (each: sec i64 + nsec u32) */
+    put64(r.data() + 0x70, mtime_sec); /* atime sec */
+    put32(r.data() + 0x70 + 8, 0);     /* atime nsec */
+    put64(r.data() + 0x7C, mtime_sec); /* ctime */
+    put64(r.data() + 0x88, mtime_sec); /* mtime */
+    put64(r.data() + 0x94, mtime_sec); /* otime */
     return r;
 }
 
@@ -186,6 +200,8 @@ std::vector<u8> build_volume() {
     /* --- superblock at 0x10000 --- */
     u8* sb = d.data() + 0x10000;
     put64(sb + 0x40, 0x4D5F53665248425FULL); /* magic */
+    memcpy(sb + 0x20, FSID, 16);            /* fsid */
+    memcpy(sb + 0x60, CTUUID, 16);           /* chunk_tree_uuid */
     put64(sb + 0x48, 42);                    /* generation */
     put32(sb + 0x90, 4096);                  /* sectorsize */
     put32(sb + 0x94, 4096);                  /* nodesize */
@@ -306,6 +322,8 @@ TEST(Btrfs, SuperblockValidation) {
     std::vector<u8> d(size_t(IMG_BYTES), 0);
     u8* sb = d.data() + 0x10000;
     put64(sb + 0x40, 0x4D5F53665248425FULL);
+    memcpy(sb + 0x20, FSID, 16);
+    memcpy(sb + 0x60, CTUUID, 16);
     put64(sb + 0x48, 7);
     put32(sb + 0x90, 4096);
     put32(sb + 0x94, 4096);
