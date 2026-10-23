@@ -155,7 +155,7 @@ void ResultTree::index_node_locked(FileNode* n) {
         return;
     const FileProperties* p = n->props();
     if (p->record_ref != 0)
-        by_record_.push_back({p->record_ref, n});
+        by_record_[p->record_ref] = n;
     if (!p->extents.empty()) {
         u64 first = p->extents.front().offset;
         u64 len_class = 0;
@@ -168,24 +168,20 @@ void ResultTree::index_node_locked(FileNode* n) {
         } else {
             len_class = sz / 65536;
         }
-        by_extent_.push_back({first, len_class, n});
+        by_extent_[{first, len_class}] = n;
     }
 }
 
 FileNode* ResultTree::find_by_record(u64 record_ref) const {
     std::lock_guard<std::mutex> lock(mutex_);
-    for (const auto& e : by_record_)
-        if (e.ref == record_ref)
-            return e.n;
-    return nullptr;
+    const auto it = by_record_.find(record_ref);
+    return it != by_record_.end() ? it->second : nullptr;
 }
 
 FileNode* ResultTree::find_by_extent(u64 first_offset, u64 length_class) const {
     std::lock_guard<std::mutex> lock(mutex_);
-    for (const auto& e : by_extent_)
-        if (e.off == first_offset && e.len_class == length_class)
-            return e.n;
-    return nullptr;
+    const auto it = by_extent_.find({first_offset, length_class});
+    return it != by_extent_.end() ? it->second : nullptr;
 }
 
 size_t ResultTree::file_count() const {

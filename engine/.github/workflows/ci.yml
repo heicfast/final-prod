@@ -31,6 +31,27 @@ jobs:
           cmake --build --preset linux-gcc -j"$(nproc)"
           ctest --preset linux-gcc
 
+  linux-tsan:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install deps
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq zlib1g-dev libgtest-dev > /dev/null
+      - name: Configure + build + test (pure core, TSan)
+        run: |
+          # ThreadSanitizer pass (session-5 audit row 48): the scan fans
+          # engine work over the ThreadPool (remnant sweep, carve windows,
+          # lost candidates, LDM volumes) - data races must fail CI.
+          cmake -S . -B build/tsan -G "Unix Makefiles" \
+            -DCMAKE_BUILD_TYPE=Debug \
+            -DCMAKE_C_COMPILER=gcc -DCMAKE_CXX_COMPILER=g++ \
+            -DCR_ENABLE_ASAN=OFF \
+            -DCMAKE_CXX_FLAGS="-fsanitize=thread -fPIE" \
+            -DCMAKE_EXE_LINKER_FLAGS="-fsanitize=thread -pie" \
+            -DCMAKE_SHARED_LINKER_FLAGS="-fsanitize=thread"
+          cmake --build build/tsan -j"$(nproc)"
+          cd build/tsan && ctest --output-on-failure -j2
+
   windows:
     runs-on: windows-2022
     steps:

@@ -74,6 +74,7 @@ control (durable by construction).
 ## 5. Error taxonomy
 
 `cr::Err` (0x5002xxxx transport / 0x5003xxxx format / 0x5004xxxx session /
-0x5005xxxx writer / 0x5006xxxx FVE) - the reference engine convention,
-extended. Every failed read lands in the ReadErrorMap and travels with the
-scan result and the session record.
+0x5005xxxx writer / 0x5006xxxx FVE / 0x5007xxxx health / 0x5008xxxx repair /
+0x5009xxxx internal) - the reference engine convention, extended. Every
+failed read lands in the ReadErrorMap and travels with the scan result and
+the session record.

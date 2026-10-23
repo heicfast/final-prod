@@ -19,6 +19,7 @@
 #include <memory>
 #include <mutex>
 #include <string>
+#include <unordered_map>
 #include <vector>
 
 namespace cr {
@@ -214,17 +215,24 @@ private:
     void* arena_alloc(size_t bytes);
     std::vector<FileNode*> nodes_; /* every node ever added (light+full) */
     /* indexes */
-    struct RecordIndexEntry {
-        u64 ref;
-        FileNode* n;
-    };
-    std::vector<RecordIndexEntry> by_record_;
-    struct ExtentIndexEntry {
+    /* Hashed dedup indexes (audit row 34: the linear scans were O(n^2)
+     * at carved-file scale). record_ref -> node; (first offset, size
+     * class) -> node. The vectors are kept for deterministic iteration;
+     * the maps answer the lookups. */
+    std::unordered_map<u64, FileNode*> by_record_;
+    struct ExtentKey {
         u64 off;
         u64 len_class;
-        FileNode* n;
+        bool operator==(const ExtentKey& o) const {
+            return off == o.off && len_class == o.len_class;
+        }
     };
-    std::vector<ExtentIndexEntry> by_extent_;
+    struct ExtentKeyHash {
+        size_t operator()(const ExtentKey& k) const {
+            return std::hash<u64>()(k.off ^ (k.len_class << 1));
+        }
+    };
+    std::unordered_map<ExtentKey, FileNode*, ExtentKeyHash> by_extent_;
 
     /* Thread safety: engines emit from orchestrator worker threads (R6).
      * All mutating operations and index lookups serialize on this mutex;

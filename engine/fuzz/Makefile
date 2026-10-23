@@ -29,7 +29,9 @@ CORE_OBJS := $(patsubst ../src/core/%.cpp,$(BUILD)/%.o,$(CORE_SRCS))
 LIB := $(BUILD)/libcrfuzz.a
 
 TARGETS := $(BUILD)/fuzz_pure $(BUILD)/fuzz_engines $(BUILD)/fuzz_carve \
-           $(BUILD)/fuzz_container
+           $(BUILD)/fuzz_container $(BUILD)/fuzz_ntfs $(BUILD)/fuzz_fat \
+           $(BUILD)/fuzz_exfat $(BUILD)/fuzz_ext4 $(BUILD)/fuzz_hfsplus \
+           $(BUILD)/fuzz_btrfs $(BUILD)/fuzz_zfs $(BUILD)/fuzz_refs
 
 all: $(TARGETS)
 
@@ -50,7 +52,9 @@ $(BUILD)/fuzz_%: fuzz_%.cpp $(LIB)
 $(TARGETS): | dirs
 
 corpus:
-	mkdir -p corpus/pure corpus/engines corpus/carve corpus/container
+	mkdir -p corpus/pure corpus/engines corpus/carve corpus/container \
+	         corpus/ntfs corpus/fat corpus/exfat corpus/ext4 corpus/hfsplus \
+	         corpus/btrfs corpus/zfs corpus/refs
 
 # -timeout=25: a single input taking >25s fails fast instead of eating
 # the libFuzzer default 1200s alarm; -rss_limit_mb bounds heap.
@@ -59,12 +63,28 @@ run: $(TARGETS) corpus
 	$(BUILD)/fuzz_engines   corpus/engines   -max_total_time=45 -max_len=2097152 -timeout=25 -rss_limit_mb=2560
 	$(BUILD)/fuzz_carve     corpus/carve     -max_total_time=45 -max_len=1048576 -timeout=25 -rss_limit_mb=2560
 	$(BUILD)/fuzz_container corpus/container -max_total_time=45 -max_len=1048576 -timeout=25 -rss_limit_mb=2560
+	$(BUILD)/fuzz_ntfs corpus/ntfs -max_total_time=20 -max_len=2097152 -timeout=25 -rss_limit_mb=2560
+	$(BUILD)/fuzz_fat corpus/fat -max_total_time=20 -max_len=1048576 -timeout=25 -rss_limit_mb=2560
+	$(BUILD)/fuzz_exfat corpus/exfat -max_total_time=20 -max_len=1048576 -timeout=25 -rss_limit_mb=2560
+	$(BUILD)/fuzz_ext4 corpus/ext4 -max_total_time=20 -max_len=1048576 -timeout=25 -rss_limit_mb=2560
+	$(BUILD)/fuzz_hfsplus corpus/hfsplus -max_total_time=20 -max_len=1048576 -timeout=25 -rss_limit_mb=2560
+	$(BUILD)/fuzz_btrfs corpus/btrfs -max_total_time=20 -max_len=1048576 -timeout=25 -rss_limit_mb=2560
+	$(BUILD)/fuzz_zfs corpus/zfs -max_total_time=20 -max_len=2097152 -timeout=25 -rss_limit_mb=2560
+	$(BUILD)/fuzz_refs corpus/refs -max_total_time=20 -max_len=1048576 -timeout=25 -rss_limit_mb=2560
 
 run-long: $(TARGETS) corpus
 	$(BUILD)/fuzz_pure      corpus/pure      -max_total_time=120 -max_len=65536 -timeout=25 -rss_limit_mb=2560
 	$(BUILD)/fuzz_engines   corpus/engines   -max_total_time=120 -max_len=2097152 -timeout=25 -rss_limit_mb=2560
 	$(BUILD)/fuzz_carve     corpus/carve     -max_total_time=120 -max_len=1048576 -timeout=25 -rss_limit_mb=2560
 	$(BUILD)/fuzz_container corpus/container -max_total_time=120 -max_len=1048576 -timeout=25 -rss_limit_mb=2560
+	$(BUILD)/fuzz_ntfs corpus/ntfs -max_total_time=60 -max_len=2097152 -timeout=25 -rss_limit_mb=2560
+	$(BUILD)/fuzz_fat corpus/fat -max_total_time=60 -max_len=1048576 -timeout=25 -rss_limit_mb=2560
+	$(BUILD)/fuzz_exfat corpus/exfat -max_total_time=60 -max_len=1048576 -timeout=25 -rss_limit_mb=2560
+	$(BUILD)/fuzz_ext4 corpus/ext4 -max_total_time=60 -max_len=1048576 -timeout=25 -rss_limit_mb=2560
+	$(BUILD)/fuzz_hfsplus corpus/hfsplus -max_total_time=60 -max_len=1048576 -timeout=25 -rss_limit_mb=2560
+	$(BUILD)/fuzz_btrfs corpus/btrfs -max_total_time=60 -max_len=1048576 -timeout=25 -rss_limit_mb=2560
+	$(BUILD)/fuzz_zfs corpus/zfs -max_total_time=60 -max_len=2097152 -timeout=25 -rss_limit_mb=2560
+	$(BUILD)/fuzz_refs corpus/refs -max_total_time=60 -max_len=1048576 -timeout=25 -rss_limit_mb=2560
 
 clean:
 	rm -rf $(BUILD)
