@@ -45,10 +45,53 @@ target_link_libraries(cr_tests PRIVATE cr::core GTest::gtest_main)
 # resolution skipped the lz4 debug DLL on windows CI (0xc0000135)
 cr_deploy_vcpkg_binaries(cr_tests)
 
+# ---------------------------------------------------------------------------
+# G-01 / W2-1..W2-3: the cr_ui binding-layer checks.
+#
+# Two SEPARATE executables (never linked into cr_tests): cr_tests statically
+# links cr_core, and libcr_ui embeds cr_core too - linking both into one
+# binary duplicates every core symbol (ASan ODR). The shim is tested exactly
+# as a host consumes it: through the shared library.
+#
+# cr_ui_tests    - GoogleTest suite over the flat-C surface (C++ caller)
+# cr_ui_abi_check- PLAIN-C consumer: proves the header compiles/links under
+#                  a C compiler and drives the full lifecycle (scan ->
+#                  session -> snapshot -> query -> preview -> recover ->
+#                  report) against a synthetic FAT16 image, 1:1 with the
+#                  CLI flows.
+# ---------------------------------------------------------------------------
+add_executable(cr_ui_tests unit/test_cr_ui.cpp)
+target_link_libraries(cr_ui_tests PRIVATE cr::ui GTest::gtest_main)
+cr_deploy_vcpkg_binaries(cr_ui_tests)
+
+add_executable(cr_ui_abi_check ui_abi_check.c)
+target_link_libraries(cr_ui_abi_check PRIVATE cr::ui)
+cr_deploy_vcpkg_binaries(cr_ui_abi_check)
+
+if(WIN32)
+    # keep cr_ui.dll beside the shim test executables (they live in tests/)
+    foreach(t cr_ui_tests cr_ui_abi_check)
+        add_custom_command(TARGET ${t} POST_BUILD
+            COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                $<TARGET_FILE:cr_ui> $<TARGET_FILE_DIR:${t}>)
+    endforeach()
+endif()
+
+add_test(NAME cr_ui_abi_check
+    COMMAND cr_ui_abi_check ${CMAKE_CURRENT_BINARY_DIR}/cr_ui_abi_check.img)
+
 if(CR_ENABLE_ASAN AND NOT MSVC)
     target_compile_options(cr_tests PRIVATE -fsanitize=address)
     target_link_options(cr_tests PRIVATE -fsanitize=address)
+    # the shim executables load the ASan-instrumented libcr_ui.so: the
+    # runtime must be linked first (otherwise "ASan runtime does not come
+    # first")
+    foreach(t cr_ui_tests cr_ui_abi_check)
+        target_compile_options(${t} PRIVATE -fsanitize=address)
+        target_link_options(${t} PRIVATE -fsanitize=address)
+    endforeach()
 endif()
 
 include(GoogleTest)
 gtest_discover_tests(cr_tests)
+gtest_discover_tests(cr_ui_tests)

@@ -1,30 +1,35 @@
-# src/ui - the G-01 C-ABI shim (cr_ui shared library).
+# src/ui - the cr_ui C-ABI shim (GAP G-01, issue #1).
+#
+# SHARED library: cr_ui.dll on Windows (links cr_core + cr_win - the
+# platform layer with the RDA transport, enumeration, health and WinDestIo),
+# libcr_ui.so elsewhere (links cr_core; the win-backed entries return
+# ERR_UNSUPPORTED - the honest platform answer, documented in cr_ui.h).
+#
+# The C-consumer ABI check lives in tests/ (cr_ui_abi_check.c) and builds
+# against this target with a plain C compiler on every lane.
+
 add_library(cr_ui SHARED cr_ui.cpp)
-# PIC: the core static lib links into the .so on Linux
-set_property(TARGET cr_ui PROPERTY POSITION_INDEPENDENT_CODE ON)
 add_library(cr::ui ALIAS cr_ui)
-target_include_directories(cr_ui PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/../../include)
-target_link_libraries(cr_ui PUBLIC cr::core)
+
+target_compile_definitions(cr_ui PRIVATE CR_UI_BUILD)
+target_include_directories(cr_ui PUBLIC ${CMAKE_SOURCE_DIR}/include)
+
+target_link_libraries(cr_ui PRIVATE cr::core)
 if(WIN32)
-    target_link_libraries(cr_ui PUBLIC cr::win)
-    # the DLL must stay free of std::filesystem (Win7 CRT posture; the
-    # handoff note from the UI session)
-    target_compile_definitions(cr_ui PRIVATE _WIN32_WINNT=0x0601 NTDDI_VERSION=0x06010000)
+    target_link_libraries(cr_ui PRIVATE cr::win)
 endif()
 
-# W2-3: the plain-C acceptance consumer (full lifecycle, -std=c11).
-add_executable(cr_ui_abi_check ../../tools/cr_ui_abi_check.c)
-target_include_directories(cr_ui_abi_check PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/../../include)
-target_link_libraries(cr_ui_abi_check PRIVATE cr_ui)
-if(NOT WIN32)
-    target_compile_options(cr_ui_abi_check PRIVATE -Wall -Wextra -Werror)
-    # the shared object carries ASan on this preset; the consumer must match
-    target_compile_options(cr_ui_abi_check PRIVATE -fsanitize=address -g)
-    target_link_options(cr_ui_abi_check PRIVATE -fsanitize=address)
-else()
-    # MSVC: same strictness, MSVC spellings (the /W4 /WX posture)
-    target_compile_options(cr_ui_abi_check PRIVATE /W4 /WX)
-    # the C consumer must not pull the ASan DLL on Windows lanes
+# Export ONLY the CR_UI_API surface (gcc/clang: default visibility off;
+# MSVC exports dllexport symbols only by default).
+set_target_properties(cr_ui PROPERTIES
+    CXX_VISIBILITY_PRESET hidden
+    VISIBILITY_INLINES_HIDDEN ON
+    POSITION_INDEPENDENT_CODE ON)
+
+if(CR_ENABLE_ASAN AND NOT MSVC)
+    target_compile_options(cr_ui PRIVATE -fsanitize=address)
+    target_link_options(cr_ui PRIVATE -fsanitize=address)
 endif()
-add_test(NAME cr_ui_abi_check
-         COMMAND cr_ui_abi_check ${CMAKE_CURRENT_BINARY_DIR}/abi-tmp)
+
+# vcpkg runtime DLL deployment (Windows; no-op on Linux).
+cr_deploy_vcpkg_binaries(cr_ui)

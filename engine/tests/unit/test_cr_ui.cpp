@@ -1,0 +1,667 @@
+/* test_cr_ui.cpp - the cr_ui C-ABI shim suite (GAP G-01 / issue #1).
+ *
+ * Drives the flat-C surface from C++ (the plain-C compile/link/lifecycle
+ * proof is the separate cr_ui_abi_check target): lifecycle parity with
+ * the CLI flows, cancel/pause token semantics, save-on-cancel + resume,
+ * snapshot enumeration, query filters/sort/paging, preview reads, the
+ * recovery walk (subtree-from-root = the CLI plan()), conflict rename,
+ * report JSON truth, error paths, and the platform-truth answers of the
+ * win-backed surfaces on non-Windows hosts.
+ *
+ * Licensed under the MIT license. See LICENSE.
+ */
+
+#include <gtest/gtest.h>
+#include "cr/cr_ui.h"
+
+#include "test_tmpdir.hpp"
+
+#include <atomic>
+#include <chrono>
+#include <cstdio>
+#include <cstring>
+#include <filesystem>
+#include <string>
+#include <thread>
+#include <vector>
+
+/* ---------------------------------------------------------------- */
+/* synthetic FAT16 volume (test_orchestrator's fixture + PHOTO.JPG)  */
+/* ---------------------------------------------------------------- */
+
+namespace {
+
+constexpr unsigned kImgSecs = 5074;
+constexpr size_t kFAT1 = 2 * 512, kFAT2 = 22 * 512, kROOT = 42 * 512, kDATA = 74 * 512;
+
+void put16(std::vector<unsigned char>& v, size_t at, unsigned x) {
+    v[at] = (unsigned char)(x & 0xFFu);
+    v[at + 1] = (unsigned char)((x >> 8) & 0xFFu);
+}
+void put32v(std::vector<unsigned char>& v, size_t at, unsigned long x) {
+    v[at] = (unsigned char)(x & 0xFFu);
+    v[at + 1] = (unsigned char)((x >> 8) & 0xFFu);
+    v[at + 2] = (unsigned char)((x >> 16) & 0xFFu);
+    v[at + 3] = (unsigned char)((x >> 24) & 0xFFu);
+}
+
+void dentry(std::vector<unsigned char>& img, size_t slot, const char* n11, unsigned attr,
+            unsigned cl, unsigned long sz, bool del) {
+    unsigned char* e = img.data() + kROOT + slot * 32u;
+    std::memset(e, 0, 32);
+    for (int i = 0; i < 11; ++i)
+        e[i] = (unsigned char)n11[i];
+    if (del)
+        e[0] = 0xE5u;
+    e[11] = (unsigned char)attr;
+    put16(img, kROOT + slot * 32u + 20, cl >> 16);
+    put16(img, kROOT + slot * 32u + 26, cl & 0xFFFFu);
+    put32v(img, kROOT + slot * 32u + 28, sz);
+}
+
+/* DOC.TXT (1000 B), DELFILE.TXT (deleted, 500 B), PHOTO.JPG (200 B) */
+std::vector<unsigned char> build_fat16() {
+    std::vector<unsigned char> img(size_t(kImgSecs) * 512, 0);
+    std::memcpy(img.data() + 3, "MSWIN4.1", 8);
+    put16(img, 0x0B, 512);
+    img[0x0D] = 1;
+    put16(img, 0x0E, 2);
+    img[0x10] = 2;
+    put16(img, 0x11, 512);
+    put16(img, 0x13, kImgSecs);
+    img[0x15] = 0xF8;
+    put16(img, 0x16, 20);
+    put16(img, 0x18, 63);
+    put16(img, 0x1A, 255);
+    img[0x26] = 0x29;
+    std::memcpy(img.data() + 0x2B, "TESTVOL    ", 11);
+    std::memcpy(img.data() + 0x36, "FAT16   ", 8);
+    img[510] = 0x55;
+    img[511] = 0xAA;
+
+    put16(img, kFAT1 + 5 * 2, 0xFFFF);
+    put16(img, kFAT2 + 5 * 2, 0xFFFF); /* root dir */
+    put16(img, kFAT1 + 10 * 2, 11);
+    put16(img, kFAT2 + 10 * 2, 11);
+    put16(img, kFAT1 + 11 * 2, 12);
+    put16(img, kFAT2 + 11 * 2, 12);
+    put16(img, kFAT1 + 12 * 2, 0xFFFF);
+    put16(img, kFAT2 + 12 * 2, 0xFFFF); /* doc */
+    put16(img, kFAT1 + 20 * 2, 0xFFFF);
+    put16(img, kFAT2 + 20 * 2, 0xFFFF); /* del file */
+    put16(img, kFAT1 + 30 * 2, 31);
+    put16(img, kFAT2 + 30 * 2, 31);
+    put16(img, kFAT1 + 31 * 2, 0xFFFF);
+    put16(img, kFAT2 + 31 * 2, 0xFFFF); /* photo */
+
+    dentry(img, 0, "DOC     TXT", 0x20, 10, 1000, false);
+    dentry(img, 1, "DELFILE TXT", 0x20, 20, 500, true);
+    dentry(img, 2, "PHOTO   JPG", 0x20, 30, 200, false);
+    std::memcpy(img.data() + kDATA + (10 - 2) * 512, "DOCDATA", 7);
+    std::memcpy(img.data() + kDATA + (20 - 2) * 512, "DELDATA", 7);
+    /* 200 bytes of repeating pattern for PHOTO.JPG (cluster 30, 2 clusters) */
+    {
+        unsigned char* p = img.data() + kDATA + (30 - 2) * 512;
+        for (unsigned i = 0; i < 200; ++i)
+            p[i] = (unsigned char)('A' + (i % 26));
+    }
+    return img;
+}
+
+std::string write_fixture(const char* tag) {
+    const std::string path = cr_test::tmp_path("cr_ui", tag);
+    FILE* f = std::fopen(path.c_str(), "wb");
+    if (!f)
+        return {};
+    const auto img = build_fat16();
+    const size_t n = std::fwrite(img.data(), 1, img.size(), f);
+    std::fclose(f);
+    if (n != img.size())
+        return {};
+    return path;
+}
+
+unsigned g_progress_calls = 0;
+void progress_cb(void* user, uint32_t, uint32_t, uint32_t, uint64_t, uint64_t, uint32_t) {
+    ++*static_cast<unsigned*>(user);
+}
+void recovery_progress_cb(void* user, uint64_t, uint64_t) {
+    ++*static_cast<unsigned*>(user);
+}
+
+struct Ui {
+    cr_ui_device* dev = nullptr;
+    cr_ui_scan* scan = nullptr;
+    cr_ui_session* sess = nullptr;
+    cr_ui_snapshot* snap = nullptr;
+    cr_ui_recovery* rec = nullptr;
+    ~Ui() {
+        if (rec)
+            cr_ui_recovery_close(rec);
+        if (snap)
+            cr_ui_snapshot_close(snap);
+        if (sess)
+            cr_ui_session_close(sess);
+        if (scan)
+            cr_ui_scan_close(scan);
+        if (dev)
+            cr_ui_device_close(dev);
+    }
+};
+
+/* run a full scan over a fresh fixture and return the session+device in u;
+ * the scan handle is closed after saving (the CLI process shape). */
+bool scan_to_session(const char* tag, Ui& u, std::string& img_out, std::string& crsf_out) {
+    img_out = write_fixture(tag);
+    if (img_out.empty())
+        return false;
+    if (cr_ui_open_image(img_out.c_str(), 0, 0, &u.dev) != CR_UI_OK)
+        return false;
+    cr_ui_scan_config cfg{};
+    cfg.progress = progress_cb;
+    cfg.progress_user = &g_progress_calls;
+    if (cr_ui_scan_create(&cfg, &u.scan) != CR_UI_OK)
+        return false;
+    if (cr_ui_scan_attach_device(u.scan, u.dev) != CR_UI_OK)
+        return false;
+    if (cr_ui_scan_run(u.scan) != CR_UI_OK)
+        return false;
+    crsf_out = img_out + ".crsf";
+    if (cr_ui_scan_save_session(u.scan, crsf_out.c_str()) != CR_UI_OK)
+        return false;
+    cr_ui_scan_close(u.scan);
+    u.scan = nullptr;
+    if (cr_ui_session_load(crsf_out.c_str(), &u.sess) != CR_UI_OK)
+        return false;
+    return true;
+}
+
+/* find a node id by name through the query surface */
+uint64_t query_node_id(cr_ui_session* sess, const char* name) {
+    cr_ui_query q{};
+    q.name_substring = name;
+    q.limit = 50;
+    cr_ui_query_row* rows = nullptr;
+    uint32_t n = 0;
+    uint64_t total = 0;
+    if (cr_ui_query_run(sess, &q, &rows, &n, &total) != CR_UI_OK)
+        return 0;
+    uint64_t id = 0;
+    for (uint32_t i = 0; i < n; ++i)
+        if (std::strcmp(rows[i].name, name) == 0)
+            id = rows[i].node_id;
+    cr_ui_query_rows_free(rows, n);
+    return id;
+}
+
+} // namespace
+
+/* ---------------------------------------------------------------- */
+
+TEST(CrUi, AbiVersionAndLastError) {
+    EXPECT_EQ(cr_ui_abi_version(), CR_UI_ABI_VERSION);
+    EXPECT_NE(cr_ui_last_error(), nullptr);
+    /* a failing call leaves a diagnostic behind */
+    cr_ui_device* dev = nullptr;
+    ASSERT_EQ(cr_ui_open_image("/nonexistent/x.img", 0, 0, &dev), 0x50020001u);
+    EXPECT_GT(std::strlen(cr_ui_last_error()), 0u);
+}
+
+TEST(CrUi, ScanLifecycleOverImage) {
+    Ui u;
+    std::string img, crsf;
+    ASSERT_TRUE(scan_to_session("life", u, img, crsf));
+
+    cr_ui_scan_stats st{};
+    ASSERT_EQ(cr_ui_session_stats(u.sess, &st), CR_UI_OK);
+    EXPECT_GE(st.files_found, 2u); /* DOC + PHOTO (DELFILE is deleted-found) */
+    EXPECT_GE(st.deleted_found, 1u);
+
+    cr_ui_session_info info{};
+    ASSERT_EQ(cr_ui_session_get_info(u.sess, &info), CR_UI_OK);
+    EXPECT_EQ(info.fs_family, 2u); /* FsFamily::Fat */
+    EXPECT_EQ(info.stage_done_mask & 1u, 1u);
+
+    cr_ui_geometry geom{};
+    ASSERT_EQ(cr_ui_device_geometry(u.dev, &geom), CR_UI_OK);
+    EXPECT_EQ(geom.total_bytes, size_t(kImgSecs) * 512);
+    char transport[16] = {0};
+    uint32_t needed = 0;
+    ASSERT_EQ(cr_ui_device_transport(u.dev, transport, sizeof(transport), &needed), CR_UI_OK);
+    EXPECT_STREQ(transport, "image");
+    EXPECT_GT(g_progress_calls, 0u);
+
+    /* double-open of the same image is independent (no shared state) */
+    cr_ui_device* second = nullptr;
+    ASSERT_EQ(cr_ui_open_image(img.c_str(), 0, 0, &second), CR_UI_OK);
+    cr_ui_device_close(second);
+}
+
+TEST(CrUi, CancelSaveAndResume) {
+    const std::string img = write_fixture("cancel");
+    ASSERT_FALSE(img.empty());
+    Ui u;
+    ASSERT_EQ(cr_ui_open_image(img.c_str(), 0, 0, &u.dev), CR_UI_OK);
+
+    /* cancel BEFORE run: engines abort at their first loop-head poll -
+     * deterministic, and exactly the UI's stop-button-before-start case */
+    cr_ui_scan_config cfg{};
+    ASSERT_EQ(cr_ui_scan_create(&cfg, &u.scan), CR_UI_OK);
+    ASSERT_EQ(cr_ui_scan_attach_device(u.scan, u.dev), CR_UI_OK);
+    ASSERT_EQ(cr_ui_scan_cancel(u.scan), CR_UI_OK);
+    EXPECT_EQ(cr_ui_scan_run(u.scan), 0x50020005u); /* ERR_CANCELLED */
+
+    /* save-on-cancel: the session persists the partial truth */
+    const std::string crsf = img + ".crsf";
+    ASSERT_EQ(cr_ui_scan_save_session(u.scan, crsf.c_str()), CR_UI_OK);
+    cr_ui_scan_close(u.scan);
+    u.scan = nullptr;
+
+    /* resume: a fresh controller continues from the stored mask */
+    ASSERT_EQ(cr_ui_session_load(crsf.c_str(), &u.sess), CR_UI_OK);
+    cr_ui_scan_config rcfg{};
+    ASSERT_EQ(cr_ui_session_resume(u.sess, &rcfg, &u.scan), CR_UI_OK);
+    ASSERT_EQ(cr_ui_scan_attach_device(u.scan, u.dev), CR_UI_OK);
+    /* identity verify: same image -> the boot hash matches */
+    EXPECT_EQ(cr_ui_scan_verify_identity(u.scan), CR_UI_OK);
+    /* verify on a NON-resumed scan is a bad request */
+    /* (covered in ErrorPaths) */
+    EXPECT_EQ(cr_ui_scan_run(u.scan), CR_UI_OK);
+    cr_ui_scan_stats st{};
+    ASSERT_EQ(cr_ui_scan_get_stats(u.scan, &st), CR_UI_OK);
+    EXPECT_GE(st.files_found, 2u);
+    /* the double-run refusal (one-shot lifecycle) */
+    EXPECT_NE(cr_ui_scan_run(u.scan), CR_UI_OK);
+}
+
+TEST(CrUi, PauseBlocksAndResumes) {
+    const std::string img = write_fixture("pause");
+    ASSERT_FALSE(img.empty());
+    Ui u;
+    ASSERT_EQ(cr_ui_open_image(img.c_str(), 0, 0, &u.dev), CR_UI_OK);
+    cr_ui_scan_config cfg{};
+    ASSERT_EQ(cr_ui_scan_create(&cfg, &u.scan), CR_UI_OK);
+    ASSERT_EQ(cr_ui_scan_attach_device(u.scan, u.dev), CR_UI_OK);
+
+    /* pause BEFORE run: engines block in checkpoint(); telemetry shows it */
+    ASSERT_EQ(cr_ui_scan_pause(u.scan), CR_UI_OK);
+    std::atomic<bool> done{false};
+    std::thread runner([&] {
+        EXPECT_EQ(cr_ui_scan_run(u.scan), CR_UI_OK);
+        done.store(true);
+    });
+    bool saw_paused = false;
+    for (int i = 0; i < 200 && !done.load(); ++i) { /* up to ~2 s */
+        cr_ui_telemetry tel{};
+        if (cr_ui_scan_telemetry(u.scan, &tel) == CR_UI_OK && tel.paused == 1u)
+            saw_paused = true;
+        if (saw_paused)
+            break;
+        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+    }
+    EXPECT_TRUE(saw_paused);
+    ASSERT_EQ(cr_ui_scan_resume(u.scan), CR_UI_OK);
+    runner.join();
+    ASSERT_TRUE(done.load());
+    cr_ui_telemetry tel{};
+    ASSERT_EQ(cr_ui_scan_telemetry(u.scan, &tel), CR_UI_OK);
+    EXPECT_EQ(tel.overall_permille, 1000u);
+}
+
+TEST(CrUi, SnapshotEnumeration) {
+    Ui u;
+    std::string img, crsf;
+    ASSERT_TRUE(scan_to_session("snap", u, img, crsf));
+    ASSERT_EQ(cr_ui_session_snapshot(u.sess, &u.snap), CR_UI_OK);
+
+    uint32_t count = 0;
+    ASSERT_EQ(cr_ui_snapshot_node_count(u.snap, &count), CR_UI_OK);
+    EXPECT_GE(count, 3u); /* roots + 3 files */
+    uint32_t partial = 1;
+    ASSERT_EQ(cr_ui_snapshot_partial(u.snap, &partial), CR_UI_OK);
+    EXPECT_EQ(partial, 0u); /* quiesced tree */
+
+    /* two-call DFS */
+    uint32_t needed = 0;
+    ASSERT_EQ(cr_ui_snapshot_dfs(u.snap, nullptr, &needed), CR_UI_OK);
+    ASSERT_GT(needed, 0u);
+    std::vector<uint32_t> order(needed);
+    uint32_t filled = needed;
+    ASSERT_EQ(cr_ui_snapshot_dfs(u.snap, order.data(), &filled), CR_UI_OK);
+    EXPECT_EQ(filled, needed);
+    /* a too-small buffer is TRUNCATED, never a lie */
+    uint32_t small = 1;
+    std::vector<uint32_t> tiny(1);
+    EXPECT_EQ(cr_ui_snapshot_dfs(u.snap, tiny.data(), &small), 0x50030004u);
+
+    /* node fields + the truncated-name contract */
+    bool saw_doc = false;
+    for (uint32_t i = 0; i < count && !saw_doc; ++i) {
+        cr_ui_node_info info{};
+        char name[512];
+        ASSERT_EQ(cr_ui_snapshot_node(u.snap, i, &info, name, sizeof(name)), CR_UI_OK);
+        if (std::strcmp(name, "DOC.TXT") == 0) {
+            saw_doc = true;
+            EXPECT_EQ(info.logical_size, 1000u);
+            EXPECT_EQ(info.deleted, 0u);
+            EXPECT_EQ(info.is_full, 0u);
+            EXPECT_EQ(info.name_len, 7u);
+            char three[3];
+            EXPECT_EQ(cr_ui_snapshot_node(u.snap, i, &info, three, sizeof(three)), 0x50030004u);
+            EXPECT_EQ(info.name_len, 7u); /* full length survives truncation */
+        }
+    }
+    EXPECT_TRUE(saw_doc);
+}
+
+TEST(CrUi, QueryFiltersSortPaging) {
+    Ui u;
+    std::string img, crsf;
+    ASSERT_TRUE(scan_to_session("query", u, img, crsf));
+
+    /* zero-init = match-all */
+    cr_ui_query q{};
+    uint64_t total = 0;
+    cr_ui_query_row* rows = nullptr;
+    uint32_t n = 0;
+    ASSERT_EQ(cr_ui_query_run(u.sess, &q, &rows, &n, &total), CR_UI_OK);
+    EXPECT_GE(total, 3u);
+    cr_ui_query_rows_free(rows, n);
+
+    /* category: .jpg -> Image */
+    q = cr_ui_query{};
+    const char* exts[] = {".jpg"};
+    q.extensions = exts;
+    q.extension_count = 1;
+    q.limit = 50;
+    ASSERT_EQ(cr_ui_query_run(u.sess, &q, &rows, &n, &total), CR_UI_OK);
+    EXPECT_EQ(total, 1u);
+    ASSERT_EQ(n, 1u);
+    EXPECT_STREQ(rows[0].name, "PHOTO.JPG");
+    EXPECT_EQ(rows[0].category, 1u); /* Category::Image */
+    cr_ui_query_rows_free(rows, n);
+
+    /* deleted_only keeps DELFILE.TXT */
+    q = cr_ui_query{};
+    q.deleted_only = 1;
+    q.limit = 50;
+    ASSERT_EQ(cr_ui_query_run(u.sess, &q, &rows, &n, &total), CR_UI_OK);
+    EXPECT_GE(total, 1u);
+    cr_ui_query_rows_free(rows, n);
+
+    /* name sort + paging: the deleted 8.3 name is recovered as "_ELFILE.TXT"
+     * (the 0xE5 marker destroys the first character; '_' sorts last), so the
+     * ascending order is DOC.TXT, PHOTO.JPG, _ELFILE.TXT -> page [1,1] */
+    q = cr_ui_query{};
+    q.sort = 1; /* name */
+    q.offset = 1;
+    q.limit = 1;
+    ASSERT_EQ(cr_ui_query_run(u.sess, &q, &rows, &n, &total), CR_UI_OK);
+    ASSERT_EQ(n, 1u);
+    EXPECT_STREQ(rows[0].name, "PHOTO.JPG");
+    cr_ui_query_rows_free(rows, n);
+
+    /* size range: only DOC.TXT is >= 600 bytes */
+    q = cr_ui_query{};
+    q.size_min = 600;
+    q.limit = 50;
+    ASSERT_EQ(cr_ui_query_run(u.sess, &q, &rows, &n, &total), CR_UI_OK);
+    EXPECT_EQ(total, 1u);
+    if (n == 1) {
+        EXPECT_STREQ(rows[0].name, "DOC.TXT");
+    }
+    cr_ui_query_rows_free(rows, n);
+
+    /* count_only: no rows materialized */
+    q = cr_ui_query{};
+    q.count_only = 1;
+    ASSERT_EQ(cr_ui_query_run(u.sess, &q, &rows, &n, &total), CR_UI_OK);
+    EXPECT_EQ(rows, nullptr);
+    EXPECT_EQ(n, 0u);
+    EXPECT_GE(total, 3u);
+}
+
+TEST(CrUi, PreviewSessionAndSnapshot) {
+    Ui u;
+    std::string img, crsf;
+    ASSERT_TRUE(scan_to_session("prev", u, img, crsf));
+    ASSERT_EQ(cr_ui_session_snapshot(u.sess, &u.snap), CR_UI_OK);
+
+    const uint64_t doc = query_node_id(u.sess, "DOC.TXT");
+    ASSERT_NE(doc, 0u);
+
+    cr_ui_preview* pv = nullptr;
+    ASSERT_EQ(cr_ui_preview_open_session(u.dev, u.sess, doc, &pv), CR_UI_OK);
+    uint64_t size = 0;
+    ASSERT_EQ(cr_ui_preview_size(pv, &size), CR_UI_OK);
+    EXPECT_EQ(size, 1000u);
+    char buf[16] = {0};
+    uint32_t placed = 0;
+    ASSERT_EQ(cr_ui_preview_read(pv, 0, buf, 7, &placed), CR_UI_OK);
+    EXPECT_EQ(placed, 7u);
+    EXPECT_STREQ(buf, "DOCDATA");
+    /* EOF short read */
+    uint64_t big = 0;
+    ASSERT_EQ(cr_ui_preview_size(pv, &big), CR_UI_OK);
+    std::vector<char> tail(64, 0);
+    ASSERT_EQ(cr_ui_preview_read(pv, big - 4, tail.data(), 64, &placed), CR_UI_OK);
+    EXPECT_EQ(placed, 4u);
+    uint64_t unread = 99;
+    uint32_t ranges = 99;
+    ASSERT_EQ(cr_ui_preview_unreadable(pv, &unread, &ranges), CR_UI_OK);
+    EXPECT_EQ(unread, 0u);
+    EXPECT_EQ(ranges, 0u);
+    cr_ui_metadata meta{};
+    ASSERT_EQ(cr_ui_preview_metadata(pv, &meta), CR_UI_OK);
+    EXPECT_GT(std::strlen(meta.kind), 0u);
+    cr_ui_preview_close(pv);
+
+    /* snapshot variant: same bytes, independent of the session handle */
+    uint32_t count = 0;
+    ASSERT_EQ(cr_ui_snapshot_node_count(u.snap, &count), CR_UI_OK);
+    int doc_idx = -1;
+    for (uint32_t i = 0; i < count && doc_idx < 0; ++i) {
+        cr_ui_node_info info{};
+        char name[512];
+        ASSERT_EQ(cr_ui_snapshot_node(u.snap, i, &info, name, sizeof(name)), CR_UI_OK);
+        if (std::strcmp(name, "DOC.TXT") == 0)
+            doc_idx = int(i);
+    }
+    ASSERT_GE(doc_idx, 0);
+    pv = nullptr;
+    ASSERT_EQ(cr_ui_preview_open_snapshot(u.dev, u.snap, uint32_t(doc_idx), &pv), CR_UI_OK);
+    std::memset(buf, 0, sizeof(buf));
+    ASSERT_EQ(cr_ui_preview_read(pv, 0, buf, 7, &placed), CR_UI_OK);
+    EXPECT_STREQ(buf, "DOCDATA");
+    cr_ui_preview_close(pv);
+
+    /* a root/virtual node has no previewable content (roots are created
+     * first in every tree, so node id 0 is one) */
+    pv = nullptr;
+    EXPECT_NE(cr_ui_preview_open_session(u.dev, u.sess, 0u, &pv), CR_UI_OK);
+    EXPECT_EQ(pv, nullptr);
+}
+
+TEST(CrUi, RecoverySubtreeAndRename) {
+    Ui u;
+    std::string img, crsf;
+    ASSERT_TRUE(scan_to_session("rec", u, img, crsf));
+
+    const std::string dest = cr_test::tmp_path("cr_ui", ".dest");
+    cr_ui_recovery_config rcfg{};
+    unsigned recovery_calls = 0;
+    rcfg.progress = recovery_progress_cb;
+    rcfg.progress_user = &recovery_calls;
+    ASSERT_EQ(cr_ui_recovery_create(u.dev, &rcfg, &u.rec), CR_UI_OK);
+    ASSERT_EQ(cr_ui_recovery_set_destination(u.rec, dest.c_str()), CR_UI_OK);
+
+    /* enqueue before set_destination is a bad request (fresh handle) */
+    {
+        cr_ui_recovery* bad = nullptr;
+        ASSERT_EQ(cr_ui_recovery_create(u.dev, &rcfg, &bad), CR_UI_OK);
+        const uint64_t doc = query_node_id(u.sess, "DOC.TXT");
+        EXPECT_EQ(cr_ui_recovery_enqueue_node(bad, u.sess, doc), 0x50030003u);
+        cr_ui_recovery_close(bad);
+    }
+
+    /* subtree from the POPULATED root behaves like the CLI plan(): every
+     * child file (deleted included - the CLI has no filter here), dirs as
+     * items; roots themselves are never enqueued */
+    {
+        uint32_t count = 0;
+        ASSERT_EQ(cr_ui_session_snapshot(u.sess, &u.snap), CR_UI_OK);
+        ASSERT_EQ(cr_ui_snapshot_node_count(u.snap, &count), CR_UI_OK);
+        uint64_t root_with_kids = 0;
+        bool found = false; /* id 0 is a VALID root id - flag, not the id */
+        for (uint32_t i = 0; i < count && !found; ++i) {
+            cr_ui_node_info info{};
+            char name[512];
+            ASSERT_EQ(cr_ui_snapshot_node(u.snap, i, &info, name, sizeof(name)), CR_UI_OK);
+            if (info.is_full && info.first_child != CR_UI_SNAP_NONE) {
+                root_with_kids = info.node_id;
+                found = true;
+            }
+        }
+        ASSERT_TRUE(found);
+        ASSERT_EQ(cr_ui_recovery_enqueue_subtree(u.rec, u.sess, root_with_kids), CR_UI_OK);
+    }
+
+    /* intra-queue duplicate of DOC.TXT -> collision rename "(2)" */
+    const uint64_t doc = query_node_id(u.sess, "DOC.TXT");
+    ASSERT_NE(doc, 0u);
+    ASSERT_EQ(cr_ui_recovery_enqueue_node(u.rec, u.sess, doc), CR_UI_OK);
+
+    uint32_t queued = 0;
+    ASSERT_EQ(cr_ui_recovery_queue_count(u.rec, &queued), CR_UI_OK);
+    EXPECT_GE(queued, 4u); /* 3 subtree files + the duplicate */
+
+    ASSERT_EQ(cr_ui_recovery_process(u.rec), CR_UI_OK);
+    EXPECT_GT(recovery_calls, 0u);
+
+    cr_ui_recovery_stats rs{};
+    ASSERT_EQ(cr_ui_recovery_get_stats(u.rec, &rs), CR_UI_OK);
+    EXPECT_GE(rs.done, 4u);
+    EXPECT_EQ(rs.errors, 0u);
+
+    /* the report carries every item with truthful outcomes */
+    char* json = nullptr;
+    ASSERT_EQ(cr_ui_recovery_report_json(u.rec, img.c_str(), &json), CR_UI_OK);
+    ASSERT_NE(json, nullptr);
+    EXPECT_NE(std::strstr(json, "DOC.TXT"), nullptr);
+    EXPECT_NE(std::strstr(json, "schema_version"), nullptr);
+    EXPECT_NE(std::strstr(json, "computed"), nullptr); /* streamed hash status */
+    cr_ui_string_free(json);
+
+    /* bytes on disk: the original name and the renamed duplicate */
+    const std::string doc_path = dest + "/DOC.TXT";
+    FILE* f = std::fopen(doc_path.c_str(), "rb");
+    ASSERT_NE(f, nullptr);
+    if (f) {
+        char got[8] = {0};
+        EXPECT_EQ(std::fread(got, 1, 7, f), 7u);
+        EXPECT_EQ(std::memcmp(got, "DOCDATA", 7), 0);
+        std::fclose(f);
+    }
+    const std::string renamed = dest + "/DOC (2).TXT";
+    EXPECT_TRUE(std::filesystem::exists(renamed));
+
+    /* snapshot-based enqueue (G-02b): same content through the value path */
+    {
+        cr_ui_recovery* r2 = nullptr;
+        ASSERT_EQ(cr_ui_recovery_create(u.dev, &rcfg, &r2), CR_UI_OK);
+        const std::string dest2 = cr_test::tmp_path("cr_ui", ".dest2");
+        ASSERT_EQ(cr_ui_recovery_set_destination(r2, dest2.c_str()), CR_UI_OK);
+        uint32_t count = 0;
+        ASSERT_EQ(cr_ui_snapshot_node_count(u.snap, &count), CR_UI_OK);
+        int doc_idx = -1;
+        for (uint32_t i = 0; i < count && doc_idx < 0; ++i) {
+            cr_ui_node_info info{};
+            char name[512];
+            ASSERT_EQ(cr_ui_snapshot_node(u.snap, i, &info, name, sizeof(name)), CR_UI_OK);
+            if (std::strcmp(name, "DOC.TXT") == 0)
+                doc_idx = int(i);
+        }
+        ASSERT_GE(doc_idx, 0);
+        ASSERT_EQ(cr_ui_recovery_enqueue_snapshot(r2, u.snap, uint32_t(doc_idx)), CR_UI_OK);
+        ASSERT_EQ(cr_ui_recovery_process(r2), CR_UI_OK);
+        cr_ui_recovery_stats rs2{};
+        ASSERT_EQ(cr_ui_recovery_get_stats(r2, &rs2), CR_UI_OK);
+        EXPECT_EQ(rs2.done, 1u);
+        cr_ui_recovery_close(r2);
+        std::error_code ec;
+        std::filesystem::remove_all(dest2, ec);
+    }
+
+    std::error_code ec;
+    std::filesystem::remove_all(dest, ec);
+}
+
+TEST(CrUi, ErrorPathsAndPlatformTruth) {
+    /* null / bad arguments across the surface */
+    EXPECT_EQ(cr_ui_open_image(nullptr, 0, 0, nullptr), 0x50030003u);
+    EXPECT_EQ(cr_ui_scan_create(nullptr, nullptr), 0x50030003u);
+    EXPECT_EQ(cr_ui_scan_run(nullptr), 0x50030003u);
+    EXPECT_EQ(cr_ui_session_load("", nullptr), 0x50030003u);
+    EXPECT_EQ(cr_ui_query_run(nullptr, nullptr, nullptr, nullptr, nullptr), 0x50030003u);
+    EXPECT_EQ(cr_ui_snapshot_node(nullptr, 0, nullptr, nullptr, 0), 0x50030003u);
+    EXPECT_EQ(cr_ui_recovery_process(nullptr), 0x50030003u);
+#ifndef _WIN32
+    /* on hosts without the platform layer the health surface itself is
+     * unsupported - parameter validation cannot precede a nonexistent
+     * surface (the honest answer is ERR_UNSUPPORTED, not BAD_PARAMETER) */
+    EXPECT_EQ(cr_ui_health_read(0, nullptr, nullptr, 0, nullptr), 0x50030008u);
+#else
+    EXPECT_EQ(cr_ui_health_read(0, nullptr, nullptr, 0, nullptr), 0x50030003u);
+#endif
+
+    /* close(NULL) is a no-op on every handle family */
+    cr_ui_device_close(nullptr);
+    cr_ui_scan_close(nullptr);
+    cr_ui_session_close(nullptr);
+    cr_ui_snapshot_close(nullptr);
+    cr_ui_preview_close(nullptr);
+    cr_ui_recovery_close(nullptr);
+    cr_ui_query_rows_free(nullptr, 0);
+    cr_ui_string_free(nullptr);
+
+    /* nonexistent image -> ERR_OPEN_FAILED + a diagnostic */
+    cr_ui_device* dev = nullptr;
+    EXPECT_EQ(cr_ui_open_image("/nonexistent/cr_ui_err.img", 0, 0, &dev), 0x50020001u);
+    EXPECT_EQ(dev, nullptr);
+    EXPECT_NE(std::strstr(cr_ui_last_error(), "cannot open image"), nullptr);
+
+    /* zero-stage mask is refused (a scan that runs nothing is a lie) */
+    Ui u;
+    const std::string img = write_fixture("err");
+    ASSERT_FALSE(img.empty());
+    ASSERT_EQ(cr_ui_open_image(img.c_str(), 0, 0, &u.dev), CR_UI_OK);
+    cr_ui_scan_config cfg{};
+    cfg.stage_mask = 8; /* only unknown bits */
+    cr_ui_scan* s = nullptr;
+    EXPECT_EQ(cr_ui_scan_create(&cfg, &s), 0x50030003u);
+    EXPECT_EQ(s, nullptr);
+    cfg.stage_mask = 7;
+    ASSERT_EQ(cr_ui_scan_create(&cfg, &s), CR_UI_OK);
+    /* run without a device is a bad request */
+    EXPECT_EQ(cr_ui_scan_run(s), 0x50030003u);
+    /* verify_identity on a non-resumed scan is a bad request */
+    EXPECT_EQ(cr_ui_scan_verify_identity(s), 0x50030003u);
+    /* save before any run is a bad request (nothing to save) */
+    EXPECT_EQ(cr_ui_scan_save_session(s, "/nonexistent/x.crsf"), 0x50030003u);
+    cr_ui_scan_close(s);
+
+#ifndef _WIN32
+    /* platform truth: the win-backed surfaces answer ERR_UNSUPPORTED,
+     * never a silent fake - and the diagnostic says why */
+    cr_ui_device* d = nullptr;
+    cr_ui_disk_info di;
+    cr_ui_smart_report hr;
+    uint32_t ac = 0;
+    EXPECT_EQ(cr_ui_open_disk(0, &d), 0x50030008u);
+    EXPECT_EQ(cr_ui_open_volume('C', &d), 0x50030008u);
+    EXPECT_EQ(cr_ui_enumerate_disks(&di, &ac), 0x50030008u);
+    EXPECT_EQ(cr_ui_enumerate_volumes(nullptr, &ac), 0x50030008u);
+    EXPECT_EQ(cr_ui_health_read(0, &hr, nullptr, 0, &ac), 0x50030008u);
+    EXPECT_NE(std::strstr(cr_ui_last_error(), "Windows platform layer"), nullptr);
+#endif
+}

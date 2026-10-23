@@ -51,6 +51,9 @@ add_library(cr_core STATIC
 )
 
 add_library(cr::core ALIAS cr_core)
+# PIC so the static core can also link into the cr_ui SHARED binding
+# (G-01); PIC objects are valid in plain executables too.
+set_target_properties(cr_core PROPERTIES POSITION_INDEPENDENT_CODE ON)
 target_include_directories(cr_core PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}/../../include)
 # G-09: the engine version baked into every recovery report
@@ -72,4 +75,3 @@ if(CR_ENABLE_ASAN AND NOT MSVC)
 endif()
 
 # G-01: the core must be PIC to link into the cr_ui shared object
-set_property(TARGET cr_core PROPERTY POSITION_INDEPENDENT_CODE ON)

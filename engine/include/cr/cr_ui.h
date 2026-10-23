@@ -1,27 +1,45 @@
 /*
- * cr_ui.h - stable C ABI shim over the core (G-01, issue #1).
+ * cr_ui.h - the cr_ui C-ABI shim: the flat-C boundary a UI host binds to
+ * (GAP G-01, issue #1; docs/UI-READINESS-PLAN.md #1).
  *
- * The wizard (and any external host) integrates through this header ONLY:
- * opaque handles, `cr_ui_*` functions returning u32 `cr::Err` codes (the
- * SAME numeric space as cr_error.h - 0 == OK), no C++ types crossing the
- * boundary, no exceptions escaping (catch-all per entry -> ERR_INTERNAL +
- * cr_ui_last_error()), UTF-8 `const char*` in, caller buffers out (or
- * cr_ui_string_free for heap strings - ownership documented per function).
+ * ARCHITECTURE LINEAGE (why this layer exists): the reference product binds
+ * its UI to the engines IN-PROCESS through C-export factories - DRWUI.exe
+ * LoadLibrary's the *SearchDLL.dll engines and GetProcAddress'es
+ * "EUCreate<FS>Searcher" / "EUCreate<FS>QuickSearcher", which return
+ * controller interface pointers (corpus: searchdll-family--architecture.md
+ * section 1; DRWUI-exe--main-ui-architecture.md section 9.2, decompiled
+ * loader FUN_14056c0d0 + factory map FUN_140577d40). Partition ops go
+ * through MOM (.mo modules, GetModule/CreateObject exports). There is NO
+ * CLI subprocess and NO IPC on the UI<->engine leg of the reference.
  *
- * ABI policy: cr_ui_abi_version() returns CR_UI_ABI_VERSION; breaking
- * changes (signature, field, semantics) bump it; additions are appended
- * without a bump. A consumer compiled against an older header fails the
- * version check explicitly.
+ * This header is our equivalent of that factory surface, adapted to the
+ * core's contract: a C11 flat ABI over cr_core (+ the cr_win platform
+ * layer on Windows) so a UI (or any host - the C consumer target is the
+ * proof) can drive the full scan/recover lifecycle in-process without
+ * linking C++ classes: opaque handles stand in for the controller
+ * interfaces, cr_ui_* factories stand in for EUCreate*Searcher, and C
+ * callbacks stand in for the engine event hooks.
  *
- * Threading: any handle's methods may be called from any thread unless
- * stated otherwise; the progress/report callbacks fire on the worker
- * thread that produced the event and must not block. Strings/structs a
- * callback hands out are valid only inside the callback.
- *
- * Platform notes: the disk/volume enumeration + health surfaces are
- * Windows-only (the win layer); the rest is pure core and works on both
- * supported platforms (the CI builds the .so on Linux and exercises the
- * full lifecycle with a plain C consumer).
+ * ABI RULES
+ *   - C11, no C++ types cross the boundary, no exception ever escapes
+ *     (every entry has a catch-all that returns CR_UI_ERR_INTERNAL).
+ *   - Every function returns a u32 error code from the SAME numeric space
+ *     as cr_error.h (0 = success; e.g. 0x50020005 = ERR_CANCELLED).
+ *   - Strings in: NUL-terminated UTF-8. Strings out: caller buffers
+ *     (two-call size pattern) or heap strings freed with cr_ui_string_free.
+ *   - Zero-initialized config structs are ALWAYS safe: numeric fields use
+ *     0 = "default" everywhere (never 0 = "nothing matches").
+ *   - Handles are opaque; close every handle you open. Lifetime rules are
+ *     documented per family below.
+ *   - Thread safety: scan/recovery run on the caller's thread; pause/
+ *     cancel/telemetry and snapshot capture are safe from any thread.
+ *     The progress callbacks fire on the worker thread only, must not
+ *     block, and carry NO cancellation semantics (the token functions are
+ *     the cancel path - mirroring the reference's separate abort event).
+ *   - ABI VERSIONING: cr_ui_abi_version() returns CR_UI_ABI_VERSION.
+ *     Breaking changes (signature/layout/semantics) bump it; new
+ *     functions and appended struct fields bump it too (callers must
+ *     check before use). Struct fields are never reordered or removed.
  *
  * Licensed under the MIT license. See LICENSE.
  */
@@ -30,237 +48,515 @@
 #define CR_UI_H_
 
 #include <stdint.h>
+#include <stddef.h>
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
+/* ---- export macro ------------------------------------------------------- */
+
 #if defined(_WIN32)
+#if defined(CR_UI_BUILD)
 #define CR_UI_API __declspec(dllexport)
+#else
+#define CR_UI_API __declspec(dllimport)
+#endif
 #else
 #define CR_UI_API __attribute__((visibility("default")))
 #endif
 
-#define CR_UI_ABI_VERSION 1
+#define CR_UI_ABI_VERSION 1u
 
-/* cr::Err space (cr_error.h): 0 == OK; families 0x5002..0x5009.
- * The shim adds family 0x500A: bad handle / busy / ABI mismatch. */
+/* Selected error codes (full table: cr_error.h; same numeric space). */
+#define CR_UI_OK 0x00000000u
+#define CR_UI_ERR_INTERNAL 0x50090001u
+#define CR_UI_ERR_BAD_PARAMETER 0x50030003u
+#define CR_UI_ERR_CANCELLED 0x50020005u
+#define CR_UI_ERR_TRUNCATED 0x50030004u
+#define CR_UI_ERR_UNSUPPORTED 0x50030008u /* e.g. win-layer surface on Linux */
+#define CR_UI_ERR_NO_MEMORY 0x50030009u
+#define CR_UI_ERR_BAD_CHECKSUM 0x50030002u /* identity mismatch (see verify) */
 
-/* ---- version + diagnostics ---- */
+/* Opaque handles. */
+typedef struct cr_ui_device cr_ui_device;
+typedef struct cr_ui_scan cr_ui_scan;
+typedef struct cr_ui_session cr_ui_session;
+typedef struct cr_ui_snapshot cr_ui_snapshot;
+typedef struct cr_ui_preview cr_ui_preview;
+typedef struct cr_ui_recovery cr_ui_recovery;
 
+/* ---- version & diagnostics ---------------------------------------------- */
+
+/* Returns CR_UI_ABI_VERSION of this library. Call first; refuse to run on
+ * a mismatch. */
 CR_UI_API uint32_t cr_ui_abi_version(void);
-/* Thread-local diagnostic for the last failed call on THIS thread.
- * Valid until the next cr_ui_* call from the same thread. */
+
+/* Thread-local diagnostic text for the LAST failing cr_ui_* call on this
+ * thread ("no error" when the last call succeeded). Stable until the next
+ * cr_ui_* call on the same thread. Never NULL. */
 CR_UI_API const char* cr_ui_last_error(void);
 
-/* ---- handles ---- */
-
-typedef struct cr_ui_ctx cr_ui_ctx;         /* context: logging + identity */
-typedef struct cr_ui_scan cr_ui_scan;       /* one scan run (device + tree) */
-typedef struct cr_ui_session cr_ui_session; /* loaded session (post-scan) */
-typedef struct cr_ui_snapshot cr_ui_snapshot;
-typedef struct cr_ui_recover cr_ui_recover;
-typedef struct cr_ui_preview cr_ui_preview;
-
-CR_UI_API uint32_t cr_ui_ctx_new(cr_ui_ctx** out);
-CR_UI_API uint32_t cr_ui_ctx_free(cr_ui_ctx* ctx);
-
-/* ---- scan lifecycle ----
- * The scan runs on a caller-supplied thread: cr_ui_scan_run blocks until
- * completion/cancel; cr_ui_scan_start_async spawns a worker. Exactly one
- * run per handle. */
-
-struct cr_ui_scan_config {
-    uint32_t abi_size; /* = sizeof(cr_ui_scan_config); versioned */
-    uint8_t run_quick; /* stages; at least one must be set */
-    uint8_t run_deep;
-    uint8_t run_carve;
-    uint8_t whole_disk;    /* lost-partition discovery */
-    uint32_t threads;      /* 0 = auto */
-    char volume_label[32]; /* UTF-8, NUL-padded (session VolumeInfo) */
-};
-
-/* Scan a raw image FILE (portable surface: the file is opened read-only
- * and serves the whole-disk view; whole_disk=0 scans the first
- * partition/volume). */
-CR_UI_API uint32_t cr_ui_scan_start_file(cr_ui_ctx* ctx, const struct cr_ui_scan_config* config,
-                                         const char* utf8_image_path, cr_ui_scan** out);
-
-/* Progress callback: called from the scan thread at engine loop heads.
- * stage: 0=quick 1=deep 2=carve; *_permille: 0..1000 (monotonic).
- * bytes_total==0 means unknown. Return 0 to CONTINUE (cancellation is a
- * separate cr_ui_scan_cancel call; the callback must not block). */
-typedef void (*cr_ui_progress_fn)(void* user, uint32_t stage, uint32_t stage_permille,
-                                  uint32_t overall_permille, uint64_t bytes_done,
-                                  uint64_t bytes_total);
-
-CR_UI_API uint32_t cr_ui_scan_run(cr_ui_scan* scan, cr_ui_progress_fn progress, void* user);
-/* Result of cr_ui_scan_run: 0 (completed), an error code, or 0x30000001
- * (cancelled - partial results + session save stay valid). */
-#define CR_UI_CANCELLED 0x30000001u
-
-CR_UI_API uint32_t cr_ui_scan_cancel(cr_ui_scan* scan); /* idempotent */
-CR_UI_API uint32_t cr_ui_scan_pause(cr_ui_scan* scan);  /* idempotent */
-CR_UI_API uint32_t cr_ui_scan_resume(cr_ui_scan* scan); /* idempotent */
-
-struct cr_ui_telemetry {
-    uint32_t abi_size;
-    uint32_t stage_done_mask;  /* bit0 quick, bit1 deep, bit2 carve */
-    uint32_t overall_permille; /* 0..1000 */
-    uint64_t files_found;
-    uint64_t deleted_found;
-    uint64_t carved_found;
-    uint64_t bytes_scanned;
-    uint64_t elapsed_ms;
-    uint32_t paused;       /* 1 while paused */
-    uint32_t error_ranges; /* merged bad-sector ranges */
-    uint64_t checkpoints;
-};
-CR_UI_API uint32_t cr_ui_scan_telemetry(cr_ui_scan* scan, struct cr_ui_telemetry* out);
-
-CR_UI_API uint32_t cr_ui_scan_stats(cr_ui_scan* scan, uint64_t* files_found,
-                                    uint64_t* deleted_found, uint64_t* carved_found);
-
-/* Save the session (the same record set the CLI --out writes). */
-CR_UI_API uint32_t cr_ui_scan_save(cr_ui_scan* scan, const char* utf8_path);
-
-CR_UI_API uint32_t cr_ui_scan_free(cr_ui_scan* scan);
-
-/* ---- snapshot (G-02) ----
- * capture=0 -> stage-boundary state (partial flag cleared); capture!=0
- * marks SNAP_PARTIAL (mid-stage truth). */
-CR_UI_API uint32_t cr_ui_snapshot_take(cr_ui_scan* scan, uint32_t partial, cr_ui_snapshot** out);
-/* From a loaded session (post-scan query surface). */
-CR_UI_API uint32_t cr_ui_snapshot_from_session(cr_ui_session* session, cr_ui_snapshot** out);
-CR_UI_API uint32_t cr_ui_snapshot_free(cr_ui_snapshot* snap);
-
-struct cr_ui_node {
-    uint32_t abi_size;
-    uint32_t index; /* stable while the snapshot lives */
-    uint32_t parent;
-    uint64_t size;       /* logical bytes */
-    uint64_t modified;   /* 100-ns since 1601 */
-    uint32_t attributes; /* DOS attributes (0x10 = dir) */
-    uint32_t origin;     /* tree::Origin 0..3 */
-    uint32_t deleted;    /* tree::DeletedState 0..3 */
-    uint32_t confidence; /* tree::Confidence 0..4 */
-    uint32_t fs_kind;
-    uint64_t record_ref;
-    uint32_t category; /* query::Category 0..6 */
-    uint32_t is_full;  /* root/structure rows */
-};
-CR_UI_API uint32_t cr_ui_snapshot_count(const cr_ui_snapshot* snap, uint32_t* out);
-CR_UI_API uint32_t cr_ui_snapshot_node(const cr_ui_snapshot* snap, uint32_t index,
-                                       struct cr_ui_node* out, char* name_buf, uint32_t name_cap);
-/* Children of one row, paged: returns up to cap indices; total_out gets
- * the full child count. */
-CR_UI_API uint32_t cr_ui_snapshot_children(const cr_ui_snapshot* snap, uint32_t index,
-                                           uint32_t offset, uint32_t cap, uint32_t* indices,
-                                           uint32_t* total_out);
-
-/* ---- query (G-12) ---- */
-
-struct cr_ui_query {
-    uint32_t abi_size;
-    uint32_t category_mask; /* bits 1..6; 0 = all */
-    uint64_t size_min;
-    uint64_t size_max;       /* 0 = no upper bound */
-    uint64_t modified_from;  /* 100-ns since 1601; 0 = no floor */
-    uint64_t modified_to;    /* 0 = no ceiling */
-    uint32_t confidence_min; /* 0..4 */
-    uint8_t deleted_only;
-    const char* name_substring; /* UTF-8, case-insensitive; NULL = all */
-    uint32_t sort;              /* 0 none, 1 name, 2 size, 3 modified,
-                                 * 4 confidence, 5 path */
-    uint8_t sort_desc;
-    uint64_t offset;
-    uint32_t limit; /* 0 = all */
-    uint8_t count_only;
-};
-struct cr_ui_row {
-    uint32_t abi_size;
-    uint32_t node_index;
-    uint64_t size;
-    uint64_t modified;
-    uint32_t origin;
-    uint32_t deleted;
-    uint32_t confidence;
-    uint32_t category;
-};
-CR_UI_API uint32_t cr_ui_snapshot_query(const cr_ui_snapshot* snap, const struct cr_ui_query* q,
-                                        struct cr_ui_row* rows, uint32_t cap, uint32_t* rows_out,
-                                        uint64_t* total_out);
-
-/* ---- sessions (loaded) ---- */
-
-CR_UI_API uint32_t cr_ui_session_load(cr_ui_ctx* ctx, const char* utf8_path, cr_ui_session** out);
-CR_UI_API uint32_t cr_ui_session_free(cr_ui_session* session);
-
-/* ---- recovery (G-02b value path + G-09 report) ---- */
-
-/* Destination IO: either a real directory path (Windows: the Win32
- * DestIo; documented), or explicit callbacks (portable surface - the C
- * consumer test uses these). Exactly one of the two. */
-struct cr_ui_dest_io {
-    uint32_t abi_size;
-    void* user;
-    uint32_t (*create_temp)(void* user, uint64_t item_id, const char* utf8_final,
-                            const char* utf8_suffix);
-    uint32_t (*write)(void* user, uint64_t item_id, uint64_t at, const void* data, uint32_t len);
-    uint32_t (*commit)(void* user, uint64_t item_id);
-    void (*close)(void* user, uint64_t item_id);
-    uint8_t (*exists)(void* user, const char* utf8_final);
-    uint32_t (*mkdir)(void* user, const char* utf8_path);
-};
-
-CR_UI_API uint32_t cr_ui_recover_new(cr_ui_snapshot* snap, const char* utf8_dest_dir,
-                                     cr_ui_recover** out);
-CR_UI_API uint32_t cr_ui_recover_new_io(cr_ui_snapshot* snap, const struct cr_ui_dest_io* io,
-                                        cr_ui_recover** out);
-/* Queue one snapshot row (value-enqueue: the live tree is never touched). */
-CR_UI_API uint32_t cr_ui_recover_add(cr_ui_recover* rec, uint32_t node_index);
-typedef void (*cr_ui_recover_progress_fn)(void* user, uint64_t done, uint64_t total);
-CR_UI_API uint32_t cr_ui_recover_run(cr_ui_recover* rec, cr_ui_recover_progress_fn progress,
-                                     void* user);
-/* Machine-readable result report (recovery-report-schema.md v1); caller
- * frees with cr_ui_string_free. */
-CR_UI_API uint32_t cr_ui_recover_report(cr_ui_recover* rec, char** out_json);
-CR_UI_API uint32_t cr_ui_recover_free(cr_ui_recover* rec);
-
+/* Frees a heap string returned by this API (also valid to call free()). */
 CR_UI_API void cr_ui_string_free(char* s);
 
-/* ---- preview (G-10) ---- */
+/* ---- progress callbacks --------------------------------------------------
+ * Fired on the worker thread only. Must not block. NO cancellation
+ * semantics - returning is the only contract (cancel via the token
+ * functions; the reference keeps the same separation between progress
+ * events and its scan-abort event). */
 
-CR_UI_API uint32_t cr_ui_preview_open(cr_ui_snapshot* snap, uint32_t node_index,
-                                      cr_ui_preview** out);
-/* Read up to cap bytes at the node's logical offset (EOF-clamped,
- * zero-filled unreadable spans). Returns the byte count in *got. */
-CR_UI_API uint32_t cr_ui_preview_read(cr_ui_preview* pv, uint64_t offset, void* buf, uint32_t cap,
-                                      uint32_t* got);
-/* Extracted metadata as JSON (bounded extractors; the caps default);
- * caller frees with cr_ui_string_free. */
-CR_UI_API uint32_t cr_ui_preview_metadata(cr_ui_preview* pv, char** out_json);
-CR_UI_API uint32_t cr_ui_preview_free(cr_ui_preview* pv);
+/* stage: 0 quick, 1 deep, 2 carve, 0xFFFFFFFF none/unknown.
+ * stage_permille: 0..1000 within the stage. overall_permille: weighted
+ * 0..1000 monotonic. bytes_* only meaningful where a stage counts bytes
+ * (carve); error_ranges = live read-failure range count so far. */
+typedef void (*cr_ui_progress_fn)(void* user, uint32_t stage, uint32_t stage_permille,
+                                  uint32_t overall_permille, uint64_t bytes_done,
+                                  uint64_t bytes_total, uint32_t error_ranges);
 
-/* ---- Windows-only surfaces (the win layer) ---- */
-#if defined(_WIN32)
-/* Physical disks as JSON (the CLI `list` projection). */
-CR_UI_API uint32_t cr_ui_list_disks(char** out_json);
-/* SMART/health as JSON (the CLI `health` projection). */
-CR_UI_API uint32_t cr_ui_health_disk(uint32_t disk, char** out_json);
-/* Scan a real physical disk (the rrecov `scan --disk N` path: RDA
- * preferred, direct fallback). */
-CR_UI_API uint32_t cr_ui_scan_start_disk(cr_ui_ctx* ctx, const struct cr_ui_scan_config* config,
-                                         uint32_t disk, cr_ui_scan** out);
-#endif
+/* Recovery: cumulative bytes done / total across the queue. */
+typedef void (*cr_ui_recovery_progress_fn)(void* user, uint64_t bytes_done, uint64_t bytes_total);
 
-/* C convenience typedefs (the structs above are usable either way). */
-typedef struct cr_ui_scan_config cr_ui_scan_config;
-typedef struct cr_ui_telemetry cr_ui_telemetry;
-typedef struct cr_ui_node cr_ui_node;
-typedef struct cr_ui_query cr_ui_query;
-typedef struct cr_ui_row cr_ui_row;
-typedef struct cr_ui_dest_io cr_ui_dest_io;
+/* ---- devices -------------------------------------------------------------
+ * A device is a READ view handed to scans, previews and recovery. Sources:
+ * a raw image FILE (portable - the ABI-check/test surface), a physical
+ * disk or a volume letter (Windows platform layer: RDA-driver first with
+ * direct-handle fallback, the reference Device.mo duality).
+ * Lifetime: a device must outlive every scan/preview/recovery using it
+ * (they borrow, never own); close order is the caller's responsibility. */
+
+CR_UI_API uint32_t cr_ui_open_image(const char* utf8_path, uint64_t offset, uint64_t bytes,
+                                    cr_ui_device** out);
+/* bytes == 0: from offset to end of file. Exposed as a 512-byte-sector
+ * read-only device bounded to [offset, offset+bytes). */
+
+/* Windows only (platform layer): ERR_UNSUPPORTED elsewhere. open_disk
+ * prefers the RDA driver transport, falling back to \\.\PhysicalDriveN
+ * (the reference duality; the chosen transport is reported by
+ * cr_ui_device_transport). open_volume mirrors the CLI: BitLocker state
+ * is probed first - a locked volume is refused with CR_UI_ERR_FVE_LOCKED
+ * (0x50060001) unless auto-unlock succeeds; the returned device is the
+ * volume's slice on its parent disk (kept alive internally). */
+CR_UI_API uint32_t cr_ui_open_disk(uint32_t disk, cr_ui_device** out);
+CR_UI_API uint32_t cr_ui_open_volume(char letter, cr_ui_device** out);
+
+CR_UI_API void cr_ui_device_close(cr_ui_device* dev);
+
+typedef struct cr_ui_geometry {
+    uint64_t total_bytes;
+    uint32_t logical_sector;
+    uint32_t physical_sector;
+    uint64_t sector_count;
+} cr_ui_geometry;
+
+CR_UI_API uint32_t cr_ui_device_geometry(cr_ui_device* dev, cr_ui_geometry* out);
+
+/* Transport truth (the CLI's "[transport]" lines): "rda", "direct" or
+ * "image", NUL-terminated into buf (cap bytes incl. NUL). Two-call: pass
+ * buf==NULL to learn the needed size from *needed. */
+CR_UI_API uint32_t cr_ui_device_transport(cr_ui_device* dev, char* buf, uint32_t cap,
+                                          uint32_t* needed);
+
+/* ---- enumeration (Windows platform layer; ERR_UNSUPPORTED elsewhere) ---- */
+
+typedef struct cr_ui_disk_info {
+    uint32_t number;
+    uint64_t size_bytes;
+    uint32_t logical_sector;
+    uint32_t physical_sector;
+    uint32_t removable; /* 1 = USB/SD bus */
+    uint32_t layout;    /* 0 none, 1 MBR, 2 GPT */
+    uint32_t table_ok;
+    char model[128];  /* UTF-8, may be empty */
+    char serial[128]; /* UTF-8, may be empty */
+} cr_ui_disk_info;
+
+typedef struct cr_ui_volume_info {
+    char letter; /* 'C' style; 0 when absent */
+    uint32_t disk;
+    uint64_t offset_on_disk;
+    uint64_t bytes;
+    char fs_name[16];   /* "NTFS", ...; may be empty */
+    char label[64];     /* UTF-8, may be empty */
+    uint32_t bitlocker; /* 1 = FVE detected */
+} cr_ui_volume_info;
+
+/* Two-call pattern for both: *count as IN capacity when out != NULL, as
+ * OUT needed when out == NULL. Enumeration failure returns its error code
+ * (never a silent empty list - CLI G-20 parity). */
+CR_UI_API uint32_t cr_ui_enumerate_disks(cr_ui_disk_info* out, uint32_t* count);
+CR_UI_API uint32_t cr_ui_enumerate_volumes(cr_ui_volume_info* out, uint32_t* count);
+
+/* ---- scan lifecycle ------------------------------------------------------
+ * One cr_ui_scan = one staged pipeline over one attached device view,
+ * mirroring the CLI `scan` flow exactly (identity card, LDM cross-disk
+ * resolver, checkpoint sink, save-on-demand). run() is synchronous on the
+ * CALLER's thread (call it from a UI worker thread, as the reference UI
+ * calls its controllers); pause/cancel/telemetry are safe from any thread
+ * while it runs. Cancellation makes run() return CR_UI_ERR_CANCELLED with
+ * the tree intact - saving the session afterwards is the caller's explicit
+ * choice (cr_ui_scan_save_session), matching the CLI's --out policy. */
+
+/* fs_hint values (orchestrator::FsFamily, serialized values): 0 auto-probe,
+ * 1 NTFS, 2 FAT, 3 exFAT, 4 ext4, 6 HFS+, 7 Btrfs, 8 ZFS, 9 ReFS
+ * (5 reserved on the wire - never produced). */
+typedef struct cr_ui_scan_config {
+    uint32_t stage_mask;   /* 0 = default (quick|deep|carve = 7); else bits
+                            * 1 quick, 2 deep, 4 carve */
+    uint32_t whole_disk;   /* 1 = lost-partition discovery (needs a disk view) */
+    uint32_t fs_hint;      /* 0 = auto-probe */
+    uint32_t quick_weight; /* 0 = defaults 40/35/25 (percent-of-total) */
+    uint32_t deep_weight;
+    uint32_t carve_weight;
+    uint32_t threads;              /* 0 = auto */
+    const char* volume_label_utf8; /* optional; NULL/"" = none; truncated
+                                    * to 31 chars (session card field) */
+    const char* volume_model_utf8; /* optional identity-card overrides; when
+                                    * absent the shim fills them from the
+                                    * disk enumeration (Windows, CLI parity) */
+    const char* volume_serial_utf8;
+    const char* checkpoint_path_utf8; /* optional: stage-boundary auto-
+                                       * checkpoints written to this file
+                                       * (overwrite-in-place, CLI --out) */
+    cr_ui_progress_fn progress;       /* optional live progress */
+    void* progress_user;
+} cr_ui_scan_config;
+
+CR_UI_API uint32_t cr_ui_scan_create(const cr_ui_scan_config* cfg, cr_ui_scan** out);
+CR_UI_API void cr_ui_scan_close(cr_ui_scan* s);
+
+/* The device view to scan (borrowed; must outlive the scan). Attach before
+ * run(). On Windows the identity card is auto-filled from the disk
+ * enumeration here unless the config supplied one (CLI parity). */
+CR_UI_API uint32_t cr_ui_scan_attach_device(cr_ui_scan* s, cr_ui_device* dev);
+
+/* Runs the pipeline to completion on the calling thread. Returns 0, an
+ * engine error, or CR_UI_ERR_CANCELLED (tree stays browsable - take a
+ * snapshot or save the session). */
+CR_UI_API uint32_t cr_ui_scan_run(cr_ui_scan* s);
+
+/* Token control (any thread; the reference's pause/abort-event split). */
+CR_UI_API uint32_t cr_ui_scan_pause(cr_ui_scan* s);  /* blocks engines cooperatively */
+CR_UI_API uint32_t cr_ui_scan_resume(cr_ui_scan* s); /* releases a pause */
+CR_UI_API uint32_t cr_ui_scan_cancel(cr_ui_scan* s); /* run() -> ERR_CANCELLED */
+
+typedef struct cr_ui_stage_tel {
+    uint32_t permille;    /* 0..1000 within the stage, monotonic */
+    uint64_t units_done;  /* engine work units (records/dentries/...) */
+    uint64_t units_total; /* 0 = unknown */
+    uint64_t bytes_done;  /* bytes where the stage counts them (carve) */
+    uint64_t elapsed_ms;  /* pause-compensated */
+    uint32_t completed;
+} cr_ui_stage_tel;
+
+typedef struct cr_ui_telemetry {
+    uint32_t overall_permille; /* weighted, monotonic */
+    cr_ui_stage_tel quick, deep, carve;
+    uint64_t files_found, deleted_found, carved_found, lost_partitions;
+    uint64_t bytes_scanned; /* carve-true-bytes (honest fill-rate) */
+    uint64_t elapsed_ms;    /* pause-compensated run time */
+    uint32_t error_ranges;  /* live read-failure count */
+    uint32_t paused, running, cancelled;
+} cr_ui_telemetry;
+
+/* Live snapshot of the running (or finished) scan; any thread, any time. */
+CR_UI_API uint32_t cr_ui_scan_telemetry(cr_ui_scan* s, cr_ui_telemetry* out);
+
+typedef struct cr_ui_scan_stats {
+    uint64_t files_found, deleted_found, carved_found, lost_partitions;
+    uint64_t bytes_scanned, elapsed_ms;
+    uint64_t cached_hits, cached_misses;
+    uint32_t error_ranges; /* final count (full detail via the session) */
+} cr_ui_scan_stats;
+
+CR_UI_API uint32_t cr_ui_scan_get_stats(cr_ui_scan* s, cr_ui_scan_stats* out);
+CR_UI_API uint32_t cr_ui_scan_checkpoint_count(cr_ui_scan* s, uint64_t* out);
+
+/* Writes the full truthful session (.crsf) - the same record set the CLI
+ * emits, loadable by cr_ui_session_load / `rrecov tree`. Valid after run()
+ * (including a cancelled one) or after a session-resumed run. */
+CR_UI_API uint32_t cr_ui_scan_save_session(cr_ui_scan* s, const char* utf8_path);
+
+/* Immutable value snapshot of the result tree (G-02). Callable from any
+ * thread WHILE run() executes (partial=1 is stamped - mid-scan truth) and
+ * after it returns (partial=0). The UI refreshes at stage boundaries or on
+ * demand, exactly the model the reference UI uses for its live tree. */
+CR_UI_API uint32_t cr_ui_scan_snapshot(cr_ui_scan* s, cr_ui_snapshot** out);
+
+/* Volume-identity check for RESUMED scans (the CLI's boot-hash warning):
+ * compares the attached device's first 512 bytes against the session's
+ * stored identity hash. Returns CR_UI_ERR_BAD_CHECKSUM on mismatch (the
+ * session came from a different volume), 0 on match or unverifiable
+ * (legacy session with no hash). Call after cr_ui_session_resume +
+ * attach, before run(). */
+CR_UI_API uint32_t cr_ui_scan_verify_identity(cr_ui_scan* s);
+
+/* ---- sessions ------------------------------------------------------------
+ * A loaded .crsf: browsable tree + stats + volume info. The tree is
+ * STABLE (no engine running against it), so queries, previews and
+ * recovery enqueue directly - this is the post-scan surface the results
+ * screen is built on. */
+
+CR_UI_API uint32_t cr_ui_session_load(const char* utf8_path, cr_ui_session** out);
+CR_UI_API void cr_ui_session_close(cr_ui_session* sess);
+
+typedef struct cr_ui_session_info {
+    uint32_t fs_family;       /* orchestrator::FsFamily value (D-1 truth) */
+    uint32_t stage_done_mask; /* actual completion (quick|deep|carve bits) */
+    uint32_t configured_mask; /* stages the original run configured */
+    uint64_t slice_offset, slice_bytes;
+    uint32_t logical_sector, physical_sector;
+    char label[32]; /* UTF-8 */
+    uint64_t scanned_bytes, elapsed_ms;
+    char model[48]; /* UTF-8 identity card; empty on v1 sessions */
+    char serial[32];
+    uint32_t boot_hash; /* 0 = unverifiable (v1 session) */
+} cr_ui_session_info;
+
+CR_UI_API uint32_t cr_ui_session_get_info(cr_ui_session* sess, cr_ui_session_info* out);
+CR_UI_API uint32_t cr_ui_session_stats(cr_ui_session* sess, cr_ui_scan_stats* out);
+CR_UI_API uint32_t cr_ui_session_snapshot(cr_ui_session* sess, cr_ui_snapshot** out);
+
+/* Resume flow (the CLI's `scan --resume`): loads the session into a FRESH
+ * tree, validates the completion mask, and returns a scan handle whose
+ * controller continues where the session stopped. Attach the ORIGINAL
+ * target device, optionally cr_ui_scan_verify_identity, then run().
+ * original_cfg mirrors the config of the interrupted run. */
+CR_UI_API uint32_t cr_ui_session_resume(cr_ui_session* sess, const cr_ui_scan_config* original_cfg,
+                                        cr_ui_scan** out);
+
+/* ---- snapshot enumeration -------------------------------------------------
+ * Flat, index-addressed rows (parent/child/sibling links as indices;
+ * CR_UI_SNAP_NONE when absent). This is the mid-scan browse surface; the
+ * UI filters client-side (reference parity: the og has no core-side
+ * query on the live scan - its results screens filter in the UI). */
+
+#define CR_UI_SNAP_NONE 0xFFFFFFFFu
+
+typedef struct cr_ui_node_info {
+    uint32_t parent, first_child, next_sibling, prev_sibling; /* indices */
+    uint64_t node_id;    /* stable id; recovery/preview addressing */
+    uint32_t fs_kind;    /* FsKindCode value (cr_types.h) */
+    uint64_t record_ref; /* NTFS record (hard-link grouping); 0 carved */
+    uint32_t origin;     /* tree::Origin: 0 structured, 1 carved, 2 lost, 3 virtual */
+    uint32_t deleted;    /* tree::DeletedState: 0 active, 1 deleted, 2 partial, 3 damaged */
+    uint32_t confidence; /* tree::Confidence ordinal 0..4 */
+    uint32_t is_full;    /* roots/virtuals carry role + stats */
+    uint64_t logical_size, allocated_size;
+    uint64_t created, modified, changed, accessed; /* 100ns since 1601 */
+    uint32_t attributes;                           /* DOS attributes (0x10 = directory) */
+    uint32_t flags;
+    uint32_t extent_count; /* info only - the writer resolves extents */
+    uint32_t resident_bytes;
+    uint32_t carve_format, carve_confidence; /* carved provenance */
+    uint32_t hash_valid;
+    uint8_t sha128[16]; /* truncated content hash when hash_valid */
+    uint32_t name_len;  /* name bytes excluding NUL (UTF-8) */
+} cr_ui_node_info;
+
+CR_UI_API void cr_ui_snapshot_close(cr_ui_snapshot* snap);
+CR_UI_API uint32_t cr_ui_snapshot_node_count(cr_ui_snapshot* snap, uint32_t* out);
+CR_UI_API uint32_t cr_ui_snapshot_partial(cr_ui_snapshot* snap, uint32_t* out);
+
+/* Row `index` into *out. name_buf: NULL -> *out->name_len = needed size;
+ * non-NULL -> copies min(cap-1, name_len) bytes + NUL and sets name_len to
+ * the FULL length (compare with cap-1 to detect truncation; a capped copy
+ * still returns 0 when everything fit, CR_UI_ERR_TRUNCATED when not). */
+CR_UI_API uint32_t cr_ui_snapshot_node(cr_ui_snapshot* snap, uint32_t index, cr_ui_node_info* out,
+                                       char* name_buf, uint32_t name_cap);
+
+/* Depth-first emission order (byte-parity with the live serializer).
+ * Two-call: indices==NULL -> *count = needed; else *count as IN capacity,
+ * OUT filled count; capacity < needed -> CR_UI_ERR_TRUNCATED. */
+CR_UI_API uint32_t cr_ui_snapshot_dfs(cr_ui_snapshot* snap, uint32_t* indices, uint32_t* count);
+
+/* ---- query (session trees) ------------------------------------------------
+ * Core-side filter/sort/paging over a loaded session (G-12) - the
+ * improvement beyond the reference (whose filtering is client-side).
+ * Works on the STABLE session tree; mid-scan filtering is snapshot
+ * enumeration + client-side predicates (see above). */
+
+/* sort: 0 none (emission order), 1 name, 2 size, 3 modified, 4 confidence,
+ * 5 path. dir: 0 asc, 1 desc. category bits: 1 image, 2 video, 3 audio,
+ * 4 document, 5 archive, 6 other. Zero-initialized struct = match-all. */
+typedef struct cr_ui_query {
+    uint32_t category_mask;              /* 0 = all categories */
+    uint64_t size_min, size_max;         /* 0 = unbounded */
+    uint64_t modified_from, modified_to; /* 0 = unbounded; 100ns-1601 units */
+    uint32_t confidence_min;             /* ordinal floor 0..4 */
+    const char* const* extensions;       /* lowercased WITH dot; NULL = none */
+    uint32_t extension_count;
+    const char* name_substring; /* UTF-8, ASCII-case-insensitive */
+    uint32_t deleted_only;
+    uint32_t origin_mask; /* 0 = all origins */
+    uint32_t sort, dir;
+    uint64_t offset;
+    uint32_t limit; /* 0 = default 100 */
+    uint32_t count_only;
+} cr_ui_query;
+
+typedef struct cr_ui_query_row {
+    uint64_t node_id; /* feeds preview/recovery addressing */
+    char* name;       /* UTF-8 heap (cr_ui_query_rows_free) */
+    char* path;       /* UTF-8 heap, '/'-joined */
+    uint64_t size, modified;
+    uint32_t origin, deleted, confidence, category;
+} cr_ui_query_row;
+
+CR_UI_API uint32_t cr_ui_query_run(cr_ui_session* sess, const cr_ui_query* q,
+                                   cr_ui_query_row** rows, uint32_t* row_count,
+                                   uint64_t* total_matched);
+CR_UI_API void cr_ui_query_rows_free(cr_ui_query_row* rows, uint32_t row_count);
+
+/* ---- preview ---------------------------------------------------------------
+ * Bounded, chunked reads of one node's logical content with NO recovery
+ * pass (G-10 - the reference's IInWindowStream preview contract: range
+ * reads under explicit caps). The reader owns a private copy of the
+ * node's properties, so the source session/snapshot may be closed while
+ * a preview lives; the DEVICE must outlive it (it supplies the bytes). */
+
+/* node addressing: snapshot row index, or session node_id. */
+CR_UI_API uint32_t cr_ui_preview_open_snapshot(cr_ui_device* dev, cr_ui_snapshot* snap,
+                                               uint32_t index, cr_ui_preview** out);
+CR_UI_API uint32_t cr_ui_preview_open_session(cr_ui_device* dev, cr_ui_session* sess,
+                                              uint64_t node_id, cr_ui_preview** out);
+CR_UI_API void cr_ui_preview_close(cr_ui_preview* pv);
+
+CR_UI_API uint32_t cr_ui_preview_size(cr_ui_preview* pv, uint64_t* out);
+
+/* Reads [offset, offset+len) logical bytes into buf. *placed = bytes
+ * actually assembled (short only at logical EOF; len is capped at 4 MiB
+ * per call - the preview window). Unreadable device spans are zero-filled
+ * AND reported (see below) - never silently swallowed. */
+CR_UI_API uint32_t cr_ui_preview_read(cr_ui_preview* pv, uint64_t offset, void* buf, uint32_t len,
+                                      uint32_t* placed);
+
+/* Bounded metadata extraction. Fixed-capacity UTF-8 fields (truncation is
+ * reported via `truncated`, never silent). kind: image|video|audio|
+ * document|archive|text|unsupported. */
+typedef struct cr_ui_metadata {
+    char kind[24];
+    char format[24];
+    uint32_t width, height;
+    char orientation[8]; /* EXIF "1".."8"; "" absent */
+    char datetime[40];   /* EXIF DateTimeOriginal */
+    uint64_t duration_ms;
+    char codec[32];
+    char text_snippet[256];
+    uint32_t truncated; /* extraction hit a cap (re-run is allowed) */
+} cr_ui_metadata;
+
+CR_UI_API uint32_t cr_ui_preview_metadata(cr_ui_preview* pv, cr_ui_metadata* out);
+
+/* Truthful failure map: device spans that could not be read and were
+ * zero-filled. *total_bytes = sum of span lengths. */
+CR_UI_API uint32_t cr_ui_preview_unreadable(cr_ui_preview* pv, uint64_t* total_bytes,
+                                            uint32_t* range_count);
+
+/* ---- recovery ----------------------------------------------------------------
+ * The CLI `recover` flow in-process: SafeWriter over an injected DestIo
+ * (Win32 atomic temp+rename on Windows; a portable stdio equivalent on
+ * other hosts for the ABI-check surface), destination-overlap refusal
+ * (F12), per-item evidence and the machine-readable JSON report (G-09).
+ * The writer runs on the CALLER's thread in process(); cancel() is safe
+ * from any thread. */
+
+typedef struct cr_ui_recovery_config {
+    uint64_t read_chunk;           /* 0 = 1 MiB */
+    uint32_t rename_attempts;      /* 0 = 64 */
+    uint32_t skip_hash_verify;     /* 0 = verify ON (default) */
+    uint32_t skip_dir_reconstruct; /* 0 = reconstruct ON (default, G-08) */
+    uint32_t conflict;             /* 0 rename, 1 skip, 2 overwrite */
+    cr_ui_recovery_progress_fn progress;
+    void* progress_user;
+} cr_ui_recovery_config;
+
+CR_UI_API uint32_t cr_ui_recovery_create(cr_ui_device* source, const cr_ui_recovery_config* cfg,
+                                         cr_ui_recovery** out);
+CR_UI_API void cr_ui_recovery_close(cr_ui_recovery* rec);
+
+/* Destination root (UTF-8). On Windows a drive-letter destination also
+ * arms the overlap refusal against disk-backed sources (the CLI's [F12]
+ * gate); image-file sources have file-internal extents, which cannot
+ * overlap a volume (documented truth). Normalized with a trailing
+ * separator internally. */
+CR_UI_API uint32_t cr_ui_recovery_set_destination(cr_ui_recovery* rec, const char* utf8_path);
+
+/* Enqueue by session node_id: one node (a file, or a directory as a
+ * structure item), or a whole subtree (the CLI's recursive walk: every
+ * directory on the path becomes a mkdir item so empty leaves materialize,
+ * then every file). Returns per-call errors (e.g. 0x50050001
+ * ERR_DEST_OVERLAP - count refusals by return code). */
+CR_UI_API uint32_t cr_ui_recovery_enqueue_node(cr_ui_recovery* rec, cr_ui_session* sess,
+                                               uint64_t node_id);
+CR_UI_API uint32_t cr_ui_recovery_enqueue_subtree(cr_ui_recovery* rec, cr_ui_session* sess,
+                                                  uint64_t node_id);
+/* Snapshot-based enqueue (G-02b value path - mid-scan recovery without
+ * touching the live tree; race-free by construction). */
+CR_UI_API uint32_t cr_ui_recovery_enqueue_snapshot(cr_ui_recovery* rec, cr_ui_snapshot* snap,
+                                                   uint32_t index);
+CR_UI_API uint32_t cr_ui_recovery_enqueue_subtree_snapshot(cr_ui_recovery* rec,
+                                                           cr_ui_snapshot* snap, uint32_t index);
+
+CR_UI_API uint32_t cr_ui_recovery_queue_count(cr_ui_recovery* rec, uint32_t* out);
+
+/* Processes the queue to completion on the calling thread (read source
+ * extents -> temp -> verify -> atomic commit). CR_UI_ERR_CANCELLED on
+ * cancel() - already-committed items stay committed; the report tells the
+ * truth about the rest (pending items). */
+CR_UI_API uint32_t cr_ui_recovery_process(cr_ui_recovery* rec);
+CR_UI_API uint32_t cr_ui_recovery_cancel(cr_ui_recovery* rec);
+
+typedef struct cr_ui_recovery_stats {
+    uint64_t queued, done, refused, errors, hash_mismatch, resumed, salvaged, dirs;
+} cr_ui_recovery_stats;
+
+CR_UI_API uint32_t cr_ui_recovery_get_stats(cr_ui_recovery* rec, cr_ui_recovery_stats* out);
+
+/* The G-09 JSON report (schema: docs/recovery-report-schema.md) as a heap
+ * string (cr_ui_string_free). Valid any time - unprocessed items report
+ * "pending" truthfully. source_utf8 identifies the source in the report. */
+CR_UI_API uint32_t cr_ui_recovery_report_json(cr_ui_recovery* rec, const char* source_utf8,
+                                              char** json_out);
+
+/* ---- health (Windows platform layer; ERR_UNSUPPORTED elsewhere) -------------
+ * The CLI `health` flow: SMART via ATA passthrough, NVMe health log,
+ * SSD heuristic and TRIM state, one flat struct. Read-only. */
+
+typedef struct cr_ui_smart_attr {
+    uint32_t id;
+    uint32_t value, worst;
+    uint64_t raw; /* 6 vendor bytes */
+    uint32_t failing;
+    char name[40];
+} cr_ui_smart_attr;
+
+typedef struct cr_ui_smart_report {
+    uint32_t available; /* SMART table decoded */
+    char transport[24]; /* "ata-passthrough" / "nvme" / "legacy" */
+    uint32_t ata_version, smart_version;
+    uint32_t attribute_count; /* needed size for attrs */
+    uint32_t failing_now;
+    uint64_t reallocated_sectors, pending_sectors, uncorrectable;
+    uint64_t power_on_hours, spin_retry, ssd_wear_level, temperature_c;
+    /* NVMe health log */
+    uint32_t nvme_available;
+    uint32_t temperature_c_x10; /* Kelvin -> Celsius, tenths */
+    uint32_t available_spare, available_spare_threshold;
+    uint64_t percentage_used;
+    uint64_t data_units_read, data_units_written, power_on_hours_nvme;
+    uint64_t unsafe_shutdowns, media_errors;
+    uint32_t critical_warning;
+    /* media class + TRIM */
+    uint32_t ssd_like; /* seek-penalty heuristic */
+    uint32_t trim_known, trim_enabled;
+} cr_ui_smart_report;
+
+/* One call fills the report AND (when attrs != NULL) up to attr_cap
+ * attribute rows; *attr_count returns the needed size either way. */
+CR_UI_API uint32_t cr_ui_health_read(uint32_t disk, cr_ui_smart_report* rep,
+                                     cr_ui_smart_attr* attrs, uint32_t attr_cap,
+                                     uint32_t* attr_count);
 
 #ifdef __cplusplus
 } /* extern "C" */
