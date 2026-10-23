@@ -57,7 +57,7 @@ jobs:
         shell: pwsh
         run: |
           $hdr = @{ Authorization = "token ${{ secrets.GITHUB_TOKEN }}" }
-          $rel = Invoke-RestMethod -Uri "https://api.github.com/repos/heicfast/rda-driver/releases/tags/v0.2.0" -Headers $hdr
+          $rel = Invoke-RestMethod -Uri "https://api.github.com/repos/heicfast/rda-driver/releases/tags/v0.2.1" -Headers $hdr
           New-Item -ItemType Directory -Force -Path driver | Out-Null
           foreach ($asset in $rel.assets) {
             if ($asset.name -in @("rda.sys", "install.ps1")) {
