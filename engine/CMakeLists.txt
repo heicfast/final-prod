@@ -19,7 +19,15 @@ set(CMAKE_C_STANDARD_REQUIRED ON)
 if(MSVC)
     add_compile_options(/W4 /WX /permissive- /Zc:preprocessor /utf-8
         /external:W0 /wd28251)   # WDK/SDK headers stay quiet via /external
-    add_compile_definitions(_CRT_SECURE_NO_WARNINGS)
+    # Win7 SP1 posture (GAP-W6-WIN7 / F-D-4): the target envelope is
+    # Win7 SP1 -> Win11, machine-enforced like the driver repo. The SDK
+    # macros gate every header declaration to what Win7 actually ships
+    # (compile-time); the PE version fields are stamped post-link by
+    # tools/stamp_osversion_um.py and gated by tools/verify_pe_um.py
+    # (CI windows lane) - the modern toolset links (10,0) regardless of
+    # project flags, exactly like the WDK did for the driver.
+    add_compile_definitions(_CRT_SECURE_NO_WARNINGS
+        _WIN32_WINNT=0x0601 WINVER=0x0601 NTDDI_VERSION=0x06010000)
 else()
     add_compile_options(-Wall -Wextra -Wpedantic -Werror -Wshadow)
     if(CMAKE_CXX_COMPILER_ID MATCHES "GNU")

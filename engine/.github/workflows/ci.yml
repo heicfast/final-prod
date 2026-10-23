@@ -101,6 +101,24 @@ jobs:
             & $dumpbin.FullName /imports build\win-x64-debug\src\app\Debug\rrecov.exe |
               Select-String -Pattern "DLL name|\.dll" | Select-Object -First 30 | Write-Host
           }
+      - name: Win7 posture gate (stamp + import allowlist)
+        # GAP-W6-WIN7 / F-D-4: the Win7 SP1 -> Win11 envelope is now
+        # machine-verified like the driver repo. The stamper rewrites the
+        # PE OS/subsystem version fields to 6.1 (the modern toolset links
+        # 10.0 regardless of project flags); the gate then fails on any
+        # kernel32/advapi32 import outside tools/ref_imports_um.json plus
+        # the audited additions - a conscious allowlist update is the only
+        # way a new import lands.
+        shell: pwsh
+        run: |
+          python tools/stamp_osversion_um.py build\win-x64-release\src\app\Release\rrecov.exe
+          if ($LASTEXITCODE) { exit 1 }
+          python tools/stamp_osversion_um.py build\win-x64-release\tests\Release\cr_tests.exe
+          if ($LASTEXITCODE) { exit 1 }
+          python tools/verify_pe_um.py build\win-x64-release\src\app\Release\rrecov.exe --allowlist tools/ref_imports_um.json
+          if ($LASTEXITCODE) { exit 1 }
+          python tools/verify_pe_um.py build\win-x64-release\tests\Release\cr_tests.exe --allowlist tools/ref_imports_um.json
+          if ($LASTEXITCODE) { exit 1 }
       - name: Tests
         shell: pwsh
         run: |

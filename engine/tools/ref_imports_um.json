@@ -1,0 +1,42 @@
+{
+  "_comment": "Win7 import baseline for core_recovery user-mode binaries - the kernel32/advapi32 functions OUR code chooses (source-census 2026-10-23; every entry available on Windows 7 SP1 x64). New imports FAIL tools/verify_pe_um.py until consciously added there (ALLOWLIST_ADDITIONS with a reason) or here. CRT/runtime/zlib DLLs are name-gated only (shipped binaries).",
+  "dlls": {
+    "kernel32.dll": [
+      "CloseHandle",
+      "CreateFileW",
+      "DeviceIoControl",
+      "GetOverlappedResult",
+      "ReadFile",
+      "WriteFile",
+      "FlushFileBuffers",
+      "GetFileSizeEx",
+      "DeleteFileW",
+      "CreateDirectoryW",
+      "MoveFileExW",
+      "GetFileAttributesW",
+      "GetVolumeInformationW",
+      "GetLogicalDriveStringsW",
+      "GetDriveTypeW",
+      "GetCurrentProcess",
+      "GetCurrentProcessId",
+      "GetTickCount64",
+      "GetTempPathW",
+      "SetConsoleCtrlHandler",
+      "CreateProcessW",
+      "GetExitCodeProcess",
+      "WaitForSingleObject",
+      "InitializeCriticalSection",
+      "EnterCriticalSection",
+      "LeaveCriticalSection",
+      "DeleteCriticalSection"
+    ],
+    "advapi32.dll": [
+      "OpenProcessToken",
+      "GetTokenInformation",
+      "RegOpenKeyExW",
+      "RegEnumValueW",
+      "RegEnumKeyExW",
+      "RegCloseKey"
+    ]
+  }
+}
