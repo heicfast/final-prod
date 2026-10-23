@@ -31,6 +31,10 @@ add_executable(cr_tests
 
 target_link_libraries(cr_tests PRIVATE cr::core GTest::gtest_main)
 
+# vcpkg DLL deployment backstop (no-op on Linux): applocal import-name
+# resolution skipped the lz4 debug DLL on windows CI (0xc0000135)
+cr_deploy_vcpkg_binaries(cr_tests)
+
 if(CR_ENABLE_ASAN AND NOT MSVC)
     target_compile_options(cr_tests PRIVATE -fsanitize=address)
     target_link_options(cr_tests PRIVATE -fsanitize=address)

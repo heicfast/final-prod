@@ -98,6 +98,26 @@ if(TARGET PkgConfig::ZSTD)
     set(CR_ZSTD_LINK "PkgConfig::ZSTD")
 endif()
 
+# ---------------------------------------------------------------------------
+# vcpkg runtime DLL deployment backstop (windows, manifest mode).
+# z-applocal resolves import-table names against the installed tree and
+# silently skips mismatches - the exe then dies with 0xc0000135 (observed
+# with the lz4/zstd wave). cr_deploy_vcpkg_binaries() instead copies every
+# DLL of the matching config next to the target at POST_BUILD time.
+# ---------------------------------------------------------------------------
+function(cr_deploy_vcpkg_binaries target)
+    if(NOT EXISTS "${CMAKE_BINARY_DIR}/vcpkg_installed")
+        return() # Linux/system-libs builds: nothing to deploy
+    endif()
+    add_custom_command(TARGET ${target} POST_BUILD
+        COMMAND ${CMAKE_COMMAND}
+            -DBIN_ROOT=${CMAKE_BINARY_DIR}
+            -DOUT_DIR=$<TARGET_FILE_DIR:${target}>
+            -DCFG=$<CONFIG>
+            -P ${CMAKE_SOURCE_DIR}/cmake/DeployVcpkgBinaries.cmake
+        COMMENT "deploy vcpkg runtime DLLs for ${target} ($<CONFIG>)")
+endfunction()
+
 add_subdirectory(src)
 if(CR_ENABLE_TESTS)
     enable_testing()

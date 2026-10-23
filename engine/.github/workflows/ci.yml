@@ -48,6 +48,28 @@ jobs:
           if ($LASTEXITCODE) { exit 1 }
           cmake --build --preset win-x64-release
           if ($LASTEXITCODE) { exit 1 }
+      - name: Diagnostics - deployed DLLs + PE imports
+        # Evidence trail for the 0xc0000135 class of failures: what the
+        # vcpkg tree contains, what actually sits next to the exes, and
+        # what the exes import. Printed to the log for offline analysis.
+        shell: pwsh
+        run: |
+          Write-Host "== vcpkg installed bin trees =="
+          Get-ChildItem build\win-x64-debug\vcpkg_installed -Recurse -Filter *.dll -ErrorAction SilentlyContinue |
+            Select-Object -ExpandProperty FullName | Write-Host
+          Write-Host "== deployed next to Debug exes =="
+          Get-ChildItem build\win-x64-debug\tests\Debug, build\win-x64-debug\src\app\Debug -Filter *.dll -ErrorAction SilentlyContinue |
+            Select-Object -ExpandProperty Name | Write-Host
+          $dumpbin = Get-ChildItem "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Tools\MSVC\*\bin\Hostx64\x64\dumpbin.exe" |
+            Sort-Object FullName -Descending | Select-Object -First 1
+          if ($dumpbin) {
+            Write-Host "== cr_tests.exe imports =="
+            & $dumpbin.FullName /imports build\win-x64-debug\tests\Debug\cr_tests.exe |
+              Select-String -Pattern "DLL name|\.dll" | Select-Object -First 30 | Write-Host
+            Write-Host "== rrecov.exe imports =="
+            & $dumpbin.FullName /imports build\win-x64-debug\src\app\Debug\rrecov.exe |
+              Select-String -Pattern "DLL name|\.dll" | Select-Object -First 30 | Write-Host
+          }
       - name: Tests
         shell: pwsh
         run: |
