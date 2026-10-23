@@ -1051,7 +1051,11 @@ int cmd_fix(int argc, wchar_t** argv, int& i) {
         wprintf(L"unknown fix option: %s\n", argv[i]);
         return 1;
     }
-    if (!have_disk && undo_apply_path.empty()) {
+    if (!have_disk) {
+        /* undo-apply also needs the disk: the undo log carries absolute
+         * sector offsets for a specific disk. Without this guard,
+         * 'fix --undo-apply log.undo' silently targeted PhysicalDrive0
+         * (disk defaulted to 0). PARITY-AUDIT F-B-4. */
         wprintf(L"fix needs --disk N\n");
         return 1;
     }
