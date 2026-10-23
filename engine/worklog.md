@@ -589,3 +589,49 @@ Stage Summary:
   orchestration+CLI, UI, architecture, deltas-registry) → verified
   consolidation into docs/PARITY-AUDIT.md (gate doc, pushed BEFORE any
   fix) → triage → fixes with tests.
+
+---
+Task ID: PARITY-T2/T3
+Agent: parity-auditor (main + 8 read-only sub-agents)
+Task: Full parity audit (engines, orchestration, CLI, UI, architecture,
+deltas draft) and consolidation of the gate document.
+
+Work Log:
+- 8 parallel read-only sub-agents completed with evidence-cited reports:
+  FS1 (NTFS/FAT/exFAT), FS2 (ext4/HFS+/Btrfs/ZFS/ReFS), REC
+  (carve/lost/LDM), DOM (session/writer/health/repair), ORCH
+  (orchestrator+CLI+contract drift), UI, ARCH, DELTAS draft (35 entries).
+  Full reports committed under docs/parity/ (appendices).
+- Auditor personally re-verified every P0/P1 against cited lines:
+  * F-C-1 P0: wizard list-parser regex wants bracketed table kind; engine
+    prints unbracketed (rrecov.cpp:237-242) -> zero disks parsed; root
+    cause CORE-CONTRACT §13 transcription error inherited by fixture.
+  * F-B-4 P1: fix --undo-apply without --disk passes the guard
+    (rrecov.cpp:1049) and writes to PhysicalDrive0 (disk=0 at :175,
+    open_disk_rw at :1077). Data safety.
+  * F-A1-1 P1: FAT12 entry_at no BAD/EOC canonicalization (cr_chain.cpp:30-37).
+  * F-A1-2 P1: NTFS viability probe uses $FILE_NAME real_size
+    (cr_mftwalk.cpp:480-483) while emission prefers $DATA (:531).
+  * F-A1-3 P1: og fixup validates only first 2 tails — VERIFIED in
+    ghidra-searchdll/NTFSSearchDLL_decompiled.c:52129 (local_18 < 2);
+    apply-all confirmed at :52452. Ours validates all tails.
+  * F-A2-17/18 P1: HFS+ node-kind comment inverted + i16(u8) zero-extend
+    (cr_hfsplus_engine.cpp:55,306); BTHeaderRec comment self-inconsistent
+    (rootNode u32@0x02 then leafRecords u32@0x04 — 2-byte overlap).
+  * F-A4-17 P1: NVMe page-2 128-bit fields at 64/80/96/112 are Host
+    Reads/Writes/BusyTime/PowerCycles; spec = 112/128/144/160
+    (cr_health.cpp:292-304).
+  * F-D-1 P1: fuzz/clang++ broken symlink breaks repo tooling (verified live).
+- Contract drift verified: §5.1/§5.2/§12 LDM trio (ldm_resolver, unconditional
+  hook, cross-disk registry — G-19 stale); §13 list line + trailing spaces;
+  §5.3 0..10000 claim false. PhysicalDiskList drift DISPROVED (vector alias
+  since pin).
+- docs/PARITY-AUDIT.md (authoritative gate) + docs/parity/*.md appendices
+  committed and pushed BEFORE any fix, per mandate.
+
+Stage Summary:
+- Audit phase closed: 1 P0 + 9 P1 verified, ~35 P2 + ~50 P3 registered with
+  dispositions (FIX/ISSUE/DOC/DELTA/UNVERIFIED), 35 delta entries drafted
+  (27 ACCEPTED / 9 NEEDS-WORK). Next: fix wave 1 (F-B-4, F-C-1 pair,
+  F-A1-1/2/3, F-A2-17/18, F-A4-17, F-D-1) with tests, then issue filings
+  and #1-#10 triage comments.
