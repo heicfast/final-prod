@@ -832,3 +832,21 @@ Stage Summary:
   (A1-7/10/11/12), F-B abort-path merge + P3 batch, G-12 query/filter/sort paging (#8),
   G-13 auto-checkpoint (#9), G-01/02/03 C ABI + snapshot (#1/#2), doc corrections
   (D-family), then benchmark + v0.2.0 release.
+
+---
+Task ID: UI-W4
+Agent: Core UI-Readiness Sub-Agent (session continuation)
+Task: Close G-12 (core-side query/filter/sort/paging) per docs/UI-READINESS-PLAN.md.
+
+Work Log:
+- New module include/cr/query/cr_query.h: composable filter (category mask via the core-side extension map, size/date ranges, confidence ordinal floor, extension list, case-insensitive substring, deleted-only, origin mask), stable sort (name/size/modified/confidence/path), offset+limit paging, count-only. Name-dependent predicates last + configured-only (count path never allocates strings); rows built only for the page.
+- CRITICAL fix surfaced by the perf gate: ResultTree::add_file sibling-tail walk was O(n) per insert => O(n^2) for a million-file carve root. FileNode::last_child_ added (add_file + reparent surgery) -> O(1) appends. The architecture's million-node claim was time-broken; now honest.
+- Perf gate in-suite: 1M nodes filter+count 31-36 ms UNDER ASan (200 ms budget holds without sanitizer scaling); sorted page ~105 ms informational.
+- Correctness: deterministic predicate/sort/paging cases + randomized-vs-brute-force reference (20 rounds).
+- Rebased over parity-agent commits (NTFS runlist INT64_MIN fix, TSan race fix in my telemetry test captures, MSVC getpid fix).
+
+Stage Summary:
+- Commit 365c263 on main: 176/176 green under ASan + LeakSanitizer.
+- Closed this session: G-04/05/06 (progress/ETA/live map), G-07 (pause/resume), G-08 (dirs), G-09 (report), G-10 (preview), G-12 (query), G-14, G-23, D-3 + the O(n^2) tree fix.
+- REMAINING for UI-readiness: #1/#2 (C ABI shim cr_ui.dll + mid-scan snapshot ADR + TSan), #9 (auto-checkpoint CheckpointSink), #10 remainder (G-11 disposition note, G-15..G-22 table), CLI tree --json (W2-2), README capability matrix, session #8's stage-weights doc, release tag + handoff pin for the UI agent.
+- Handoff note for the shim agent: telemetry()/resume()/report_items()/query run()/PreviewReader are the five surfaces to wrap; all are pure-core, no OS deps, and testable on Linux CI before the Windows DLL lane.
