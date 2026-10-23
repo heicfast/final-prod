@@ -17,7 +17,7 @@
 > GAP-W4 (0c6a1f5), GAP-W3-9a/9b (cd4bb41), GAP-W3-10 (0c6a1f5 + 34728b2 +
 > 800e80a), GAP-W5-DELTAS/REGISTRY (046889d), GAP-CAPMATRIX (046889d),
 > GAP-W5-BENCHREPORT (e9e1176), GAP-W5-ERRATA (easeus-drw-research 03ad46c),
-> GAP-W6-WIN7 (74f42c0 - CI proof pending on the windows lane's next run).
+> GAP-W6-WIN7 (74f42c0; the gate's three designed iterations converged - rrecov 145 / cr_tests 250 / cr_ui.dll 125 imports all OK, MSVC suite 230/230, run 40018530391 at ccc1dca).
 > Closed by the parallel S5-CONT-2 wave: GAP-CI-1 (0a28a23), GAP-P1-2/P1-3
 > (632edc4), GAP-P1-4/GAP-W2-9/GAP-W2-19 (3267d26).
 
@@ -33,7 +33,7 @@ remainders, CI state at HEAD (runs 39984781013 / 39984822801).
 | ID | Status | Item | Evidence |
 |---|---|---|---|
 | GAP-CI-1 | **WRONG** | Windows lane: 3/204 tests fail (`PauseResume.SaveOnCancelStampsTruthfulMaskAndResumeSkipsQuick`, `MaskIntegrityViolationRefusesResume`, `SessionRestoresVolumeInfoAndCandidates`) — `tmp_session_path()` hardcodes `/tmp/...`; MSVC `fopen` resolves that to `<current-drive>\tmp\` which does not exist on runners. Linux passes. | run 39984822801 job 120521156342 logs; `tests/unit/test_pause_resume.cpp:167-179` |
-| GAP-CI-2 | PARTIAL | fuzz + codeql lanes in flight at HEAD; must be watched to completion and any failure fixed. | run 39984822801 |
+| GAP-CI-2 | **CLOSED** | fuzz lane: zero-crash campaigns green on every run since f93f38e (the CI-found preview short-window OOB was the last finding, fixed with regressions); codeql: green since bb6a647 (the C2039 was breaking its build, not the vcpkg env); windows: FULL green at ccc1dca (gate + 230/230 suite, run 40018530391). | runs 40013456484 / 40015445403 / 40018530391 |
 
 ## 2. P1 correctness (recovery-output-affecting)
 
@@ -89,7 +89,7 @@ remainders, CI state at HEAD (runs 39984781013 / 39984822801).
 | GAP-W5-BENCHREPORT | **CLOSED (e9e1176)** | `docs/BENCHMARK-REPORT.md` does not exist; must carry seeded-scenario numbers with MATCH/EXCEEDS/BELOW/NOT-COMPARABLE verdicts incl. the recycle 0/26 → 26/26 closure. | `ls docs/BENCHMARK-REPORT.md` |
 | GAP-W5-ERRATA | **CLOSED (easeus-drw-research 03ad46c)** | Corpus errata feed: 0xFFF misread, FUN_180041970 mislabel, FAT12 BAD raw-follow, ext4 backup-SB overreach, FileFilter 1,481 recount. | PARITY-REFACTOR-PLAN §3 W5 |
 | GAP-W5-TODO | **CLOSED (verified zero)** | TODO sweep: the two counted matches are POLICY SENTENCES, not markers - PARITY-REFACTOR-PLAN.md:61 ("no implementation this session ... no stub, no TODO") and UI-READINESS-PLAN.md:337 ("No stubs, no TODOs, no fake data"). Zero actual TODO/FIXME markers in docs/ and src/. | grep -n TODO docs/*.md (this session) |
-| GAP-W6-WIN7 | **CLOSED (74f42c0; CI proof on next windows run)** | No `_WIN32_WINNT`/`NTDDI` pin in any CMake target (F-D-4); no user-mode import allowlist gate in CI (driver repo has stamp_osversion.py + verify_pe.py to port). | grep CMakeLists: 0 matches |
+| GAP-W6-WIN7 | **CLOSED (74f42c0 + bb6a647..ccc1dca; CI PROVEN)** | No `_WIN32_WINNT`/`NTDDI` pin in any CMake target (F-D-4); no user-mode import allowlist gate in CI (driver repo has stamp_osversion.py + verify_pe.py to port). | grep CMakeLists: 0 matches |
 | GAP-W6-RELEASE | **IN FLIGHT (release.yml landed; tag after lanes green)** | Release workflow now stages the complete SDK per this row: rrecov.exe + cr_ui.dll + cr_ui.lib (import) + cr_core/cr_win static libs + include/ headers + docs + the APP-LOCAL RUNTIME (vcpkg z/lz4/zstd AND the VC143 CRT + UCRT - Win7 RTM ships no UCRT; without them the zip does not load on a clean Win7) + pdbs + SHA256SUMS, every artifact existence-checked, both PEs stamped + import-gated in-lane, release body = RELEASE-NOTES.md (references this list + PARITY-DELTAS + BENCHMARK-REPORT). Tag: v0.3.0-parity (follows the v0.2.1-parity convention + the WRAP recipe), cut after windows + fuzz + codeql are green on the docs-wave HEAD. | .github/workflows/release.yml; RELEASE-NOTES.md |
 
 ## 7. Closure protocol

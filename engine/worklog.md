@@ -1313,3 +1313,44 @@ Stage Summary:
   still bites.
 - Next: b4ee4f6 windows lane green (incl. the MSVC 229-test step that
   runs for the first time post-G-01-rework) -> cut v0.3.0-parity.
+
+---
+Task ID: S5-CONT-5-FINAL
+Agent: Session-5 continuation (final wave of this lane)
+Task: The last CI red -> full green, the WinDestIo Windows recovery
+defect, the issue-tracker truth pass, and the v0.3.0-parity readiness.
+
+Work Log:
+- ccc1dca: WinDestIo::mkdir drive-chain fix - the ACCESS_DENIED-vs-EEXIST
+  class defect (CreateDirectoryW fails on drive-root-shaped prefixes
+  "C:"/"C:\Users" with non-ALREADY_EXISTS codes though the component
+  exists as a directory) made EVERY Windows recovery into a nonexistent
+  drive-letter destination fail (MSVC #227: 4 errors / 0 done - the
+  only WinDestIo exercise in CI; test_writer_dirs uses a test-local
+  FsIo). Fix: exist-as-directory beats any create error (the POSIX
+  EEXIST contract). New WIN32-only cr_destio_tests target (5 contract
+  tests incl. deep chains, FILE-in-the-way, atomic lifecycle, cancel).
+  MSVC PROOF: gate 3x OK (145/250/125 imports) + 230/230 tests, run
+  40018530391.
+- Register truth pass: GAP-CI-2 CLOSED (fuzz/codeql/windows evidence);
+  GAP-W6-WIN7 flipped to CI-PROVEN with the three-iteration convergence
+  record.
+- Issue-tracker truth pass: all ten UI-integration issues closed with
+  commit-cited evidence - #1..#9 focused (G-01..G-13), #10 umbrella
+  with the full G-11..G-23 disposition table; G-22's beyond-og remainder
+  (session-persisted digests) explicitly registered as an enhancement,
+  not a parity debt (the og neither verifies nor stores hashes).
+- v0.3.0-parity readiness: RELEASE-NOTES.md (truthful: scope, bundle
+  manifest, parity evidence, validation state incl. driver bench 2b1db5f,
+  honest-gaps), release.yml (SDK bundle + app-local CRT/UCRT + stamp+gate
+  of both PEs + existence checks), tag recipe per PARITY-WRAP - cut on
+  fully-green HEAD (windows+linux+tsan+lint+fuzz+codeql).
+
+Stage Summary:
+- HEAD ccc1dca: windows/lint/linux/linux-tsan/fuzz GREEN; codeql in
+  flight (expected green - same code passed at bb6a647/2dd6e01).
+- Suite truth: 229/229 plain + ASan + TSan (Linux), 230/230 MSVC /W4 /WX,
+  Win7 import gate green on all three shipped PEs, fuzz zero-crash.
+- Next: codeql green -> tag v0.3.0-parity -> release workflow live
+  validation (SDK bundle build) -> verify artifacts -> flip GAP-W6-RELEASE
+  CLOSED -> session handoff notes.
