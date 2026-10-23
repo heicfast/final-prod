@@ -7,6 +7,8 @@
  * R7.2 (fix F12): HARD refusal when the destination volume's disk extent
  * intersects any queued node's source extents - code-level, not UI.
  * R7.1: collision naming (numeric suffix), atomic temp+rename, hashes.
+ * R7.3 (G-09): per-item report evidence (duration, hash, outcome) feeding
+ * the machine-readable recovery report (cr_report.h).
  *
  * Licensed under the MIT license. See LICENSE.
  */
@@ -14,6 +16,7 @@
 #ifndef CR_SAFEWRITER_H_
 #define CR_SAFEWRITER_H_
 
+#include "../recovery/cr_report.h"
 #include "../crypto/cr_sha256.h"
 #include "../storage/cr_device.h"
 #include "../tree/cr_node.h"
@@ -69,6 +72,11 @@ struct QueueItem {
     u64 bytes_total = 0;
     bool hash_verified = false;
     bool is_dir = false; /* G-08: structure item - mkdir, no content */
+    /* ---- G-09 report evidence (captured during process) ---- */
+    u64 duration_ms = 0;    /* per-item processing time */
+    bool resumed = false;   /* final pre-existed: counted + skipped */
+    std::string sha256_hex; /* streamed digest (lowercase hex; empty when not computed) */
+    report::HashStatus hash_status = report::HashStatus::NotComputed;
 };
 
 struct WriterConfig {
@@ -113,6 +121,15 @@ public:
 
     const std::vector<QueueItem>& queue() const { return queue_; }
 
+    /* G-09: report material over this writer's outcomes. `source`/
+     * `destination` are caller-supplied UTF-8 identities (e.g. the volume
+     * label/path and the dest dir); every queue item appears with its
+     * truthful outcome - hashes only where the writer actually computed
+     * them (never faked). */
+    report::Totals report_totals(const std::string& source, const std::string& destination,
+                                 u64 elapsed_ms, const WriterStats& stats) const;
+    std::vector<report::Item> report_items() const;
+
     /* collision resolution policy: intra-queue duplicates always rename
      * ("name" -> "name (2)"...); pre-existing destination finals rename only
      * under ConflictPolicy::Rename (corpus R7.1) - Skip keeps the name so
@@ -126,6 +143,8 @@ public:
 
 private:
     u32 recover_item(QueueItem& it, CancelToken* cancel, WriterStats& stats);
+    /* timed body: recover_item stamps duration_ms on every exit path */
+    u32 recover_item_impl_(QueueItem& it, CancelToken* cancel, WriterStats& stats);
     /* G-08: create `dir` (recursive) once per unique directory per run */
     u32 ensure_dir_(const std::u16string& dir);
     DestIo& io_;

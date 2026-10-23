@@ -30,6 +30,7 @@ add_executable(cr_tests
     unit/test_pause_resume.cpp
     unit/test_telemetry.cpp
     unit/test_writer_dirs.cpp
+    unit/test_report.cpp
     unit/test_rawfixer.cpp
     unit/test_refs_volume.cpp
 )

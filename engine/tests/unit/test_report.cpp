@@ -1,0 +1,319 @@
+/* test_report.cpp - G-09 acceptance: the machine-readable recovery
+ * report. Escaping correctness (quotes, controls, invalid UTF-8 -> U+FFFD),
+ * schema shape, per-item truthful outcomes over a mixed writer queue
+ * (done / refused / error / resumed / dir), hash-status honesty, and the
+ * CLI-parity sample emitted for the CI schema validator.
+ *
+ * Licensed under the MIT license. See LICENSE.
+ */
+#include <gtest/gtest.h>
+#include "cr/recovery/cr_report.h"
+#include "cr/recovery/cr_safewriter.h"
+#include "cr/storage/cr_device.h"
+#include <cstring>
+#include <fstream>
+#include <functional>
+#include <set>
+#include <string>
+
+using namespace cr;
+using namespace cr::recovery;
+using namespace cr::recovery::report;
+
+namespace {
+
+class MemDevice final : public IStorageDevice {
+public:
+    explicit MemDevice(std::vector<u8> b) : data_(std::move(b)) {
+        geom_.logical_sector = 512;
+        geom_.physical_sector = 512;
+        geom_.sector_count = data_.size() / 512;
+        geom_.total_bytes = data_.size();
+    }
+    u32 read_at(u64 off, void* buf, u32 len) override {
+        if (off > data_.size() || len > data_.size() - off)
+            return ERR_RANGE_OUT_OF_BOUNDS;
+        std::memcpy(buf, data_.data() + off, len);
+        return OK;
+    }
+    const Geometry& geometry() const override { return geom_; }
+
+private:
+    std::vector<u8> data_;
+    Geometry geom_;
+};
+
+/* Mock DestIo: existing-path driven outcomes */
+struct ReportIo final : DestIo {
+    std::set<std::u16string> existing;
+    std::set<std::u16string> broken_temp; /* create_temp fails for these */
+    std::set<std::u16string> made;
+
+    u32 create_temp(u64 id, const std::u16string& final_path, const std::u16string&) override {
+        if (broken_temp.count(final_path)) {
+            (void)id;
+            return ERR_DEST_UNWRITABLE;
+        }
+        return 0;
+    }
+    u32 mkdir(const std::u16string& p) override {
+        made.insert(p);
+        existing.insert(p);
+        return 0;
+    }
+    u32 write(u64, u64, const void*, u32) override { return 0; }
+    u32 commit(u64) override { return 0; }
+    void close(u64) override {}
+    bool exists(const std::u16string& p) override { return existing.count(p) != 0; }
+};
+
+tree::FileNode* add_node(tree::ResultTree& t, tree::FileNode* parent, const char* name, u64 off,
+                         u64 len, bool dir = false) {
+    auto* p = new tree::FileProperties();
+    for (const char* q = name; *q; ++q)
+        p->name.push_back(u16(u8(*q)));
+    if (!dir)
+        p->extents.push_back({off, len});
+    p->logical_size = dir ? 0 : len;
+    if (dir)
+        p->attributes = 0x10;
+    tree::FileNode* n = t.add_file(parent, p);
+    p->release();
+    return n;
+}
+
+} // namespace
+
+TEST(Report, EscapingStrictJson) {
+    /* structural chars */
+    EXPECT_EQ(escape_json("a\"b\\c"), "a\\\"b\\\\c");
+    EXPECT_EQ(escape_json("tab\t nl\n cr\r bs\b ff\f"), "tab\\t nl\\n cr\\r bs\\b ff\\f");
+    /* controls -> \u00XX */
+    EXPECT_EQ(escape_json(std::string("x\x01y")), "x\\u0001y");
+    EXPECT_EQ(escape_json(std::string("\x1F")), "\\u001f");
+    /* valid UTF-8 passes through untouched */
+    EXPECT_EQ(escape_json("\xC3\xA9\xE2\x82\xAC\xF0\x9F\x92\xBF"),
+              "\xC3\xA9\xE2\x82\xAC\xF0\x9F\x92\xBF");
+    /* invalid UTF-8 -> U+FFFD per bad byte (document stays valid JSON) */
+    EXPECT_EQ(escape_json(std::string("a\x80"
+                                      "b")),
+              "a\xEF\xBF\xBD"
+              "b");
+    EXPECT_EQ(escape_json(std::string("a\xC3")), "a\xEF\xBF\xBD"); /* truncated 2-byte */
+    EXPECT_EQ(escape_json(std::string("a\xE0\x80"
+                                      "b")),
+              "a\xEF\xBF\xBD\xEF\xBF\xBD"
+              "b"); /* bad 3-byte: lead + stray cont */
+}
+
+TEST(Report, SchemaShapeAndDeterminism) {
+    std::vector<Item> items;
+    Item a;
+    a.item_id = 1;
+    a.path = "out/dir one/photo.jpg";
+    a.name = "photo.jpg";
+    a.outcome = Outcome::Done;
+    a.bytes = 4096;
+    a.duration_ms = 12;
+    a.sha256_hex = "aa00";
+    a.hash_status = HashStatus::Computed;
+    items.push_back(a);
+    Item b;
+    b.item_id = 2;
+    b.path = "out/dir one/locked.doc";
+    b.name = "locked.doc";
+    b.outcome = Outcome::Refused;
+    b.reason = 0x50030012;
+    b.hash_status = HashStatus::NotComputed;
+    items.push_back(b);
+
+    Totals t;
+    t.queued = 2;
+    t.done = 1;
+    t.refused = 1;
+    t.bytes = 4096;
+    t.elapsed_ms = 30;
+    t.source = "\\\\?\\Volume{abc}";
+    t.destination = "D:\\Restore";
+
+    const std::string r1 = build_report(items, t);
+    const std::string r2 = build_report(items, t);
+    EXPECT_EQ(r1, r2); /* deterministic */
+
+    /* schema: version first, identities escaped, totals object, items
+     * (compact form: no space after ':') */
+    EXPECT_EQ(0u, r1.find("{\n  \"schema_version\": 1,\n"));
+    EXPECT_NE(std::string::npos, r1.find("\"engine_version\":\""));
+    EXPECT_NE(std::string::npos, r1.find("\"source\":\"\\\\\\\\?\\\\Volume{abc}\""));
+    EXPECT_NE(std::string::npos, r1.find("\"destination\":\"D:\\\\Restore\""));
+    EXPECT_NE(std::string::npos, r1.find("\"elapsed_ms\":30"));
+    EXPECT_NE(std::string::npos, r1.find("\"totals\": {"));
+    EXPECT_NE(std::string::npos, r1.find("\"queued\":2"));
+    EXPECT_NE(std::string::npos, r1.find("\"hash_mismatch\":0"));
+    /* item fields in schema order */
+    EXPECT_NE(std::string::npos,
+              r1.find("\"item_id\":1,\"path\":\"out/dir one/photo.jpg\",\"name\":\"photo.jpg\","
+                      "\"kind\":\"file\",\"outcome\":\"done\",\"reason\":0,\"bytes\":4096,"));
+    EXPECT_NE(std::string::npos, r1.find("\"outcome\":\"refused\""));
+    EXPECT_NE(std::string::npos, r1.find("\"hash_status\":\"not_computed\""));
+    /* document ends cleanly */
+    EXPECT_EQ(std::string("}\n"), r1.substr(r1.size() - 2));
+
+    /* empty queue: valid empty array */
+    const std::string empty = build_report({}, Totals{});
+    EXPECT_NE(std::string::npos, empty.find("\"items\": []"));
+    EXPECT_EQ(std::string("}\n"), empty.substr(empty.size() - 2));
+}
+
+TEST(Report, WriterOutcomesAndHashHonesty) {
+    /* mixed queue over one run: done (hash computed - none stored),
+     * dir item, refused (overlap), error (broken temp), resumed (pre-existing) */
+    std::vector<u8> img(16 * 512, 0);
+    std::memcpy(img.data(), "DONE", 4);
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* found = tree.add_root(u"Found");
+    auto* ok_file = add_node(tree, found, "ok.txt", 0, 4);
+    auto* dir_node = add_node(tree, found, "sub", 0, 0, true);
+    auto* refuse_me = add_node(tree, found, "refuse.bin", 1024, 100);
+    auto* fail_me = add_node(tree, found, "fail.bin", 512, 100);
+    auto* skip_me = add_node(tree, found, "skip.txt", 512, 100);
+    tree.refresh_stats();
+
+    ReportIo io;
+    io.existing.insert(u"out\\skip.txt");    /* pre-existing final -> resumed */
+    io.broken_temp.insert(u"out\\fail.bin"); /* temp creation fails -> error */
+
+    WriterConfig cfg;
+    cfg.conflict = ConflictPolicy::Skip;
+    SafeWriter writer(io, &dev, cfg);
+    writer.set_destination(1024, 100); /* refuse.bin's extent IS the dest:
+                                          hard refusal (F12) */
+    ASSERT_EQ(OK, writer.enqueue(ok_file, u"out\\"));
+    ASSERT_EQ(OK, writer.enqueue(dir_node, u"out\\"));
+    ASSERT_EQ(ERR_DEST_OVERLAP, writer.enqueue(refuse_me, u"out\\"));
+    ASSERT_EQ(OK, writer.enqueue(fail_me, u"out\\"));
+    ASSERT_EQ(OK, writer.enqueue(skip_me, u"out\\"));
+
+    WriterStats stats;
+    /* refuse_me short-circuits process with its error: enqueue-refused
+     * items are counted then processing continues? - process() counts
+     * refused items and moves on; the ERR_DEST_OVERLAP item is Refused. */
+    const u32 rc = writer.process(nullptr, nullptr, nullptr, stats);
+    /* the broken temp item aborts the pass with its error (documented:
+     * first error stops the queue) */
+    ASSERT_EQ(ERR_DEST_UNWRITABLE, rc);
+
+    const std::vector<report::Item> items = writer.report_items();
+    ASSERT_EQ(5u, items.size());
+
+    /* ok.txt: committed, hash computed (no stored hash) - never verified */
+    EXPECT_EQ(Outcome::Done, items[0].outcome);
+    EXPECT_EQ(HashStatus::Computed, items[0].hash_status);
+    EXPECT_EQ(64u, items[0].sha256_hex.size());
+    EXPECT_EQ("ok.txt", items[0].name);
+    EXPECT_EQ(0u, items[0].reason);
+
+    /* sub: directory item, done, no hash */
+    EXPECT_EQ(Outcome::Done, items[1].outcome);
+    EXPECT_TRUE(items[1].is_dir);
+    EXPECT_EQ(HashStatus::NotComputed, items[1].hash_status);
+    EXPECT_TRUE(items[1].sha256_hex.empty());
+
+    /* refuse.bin: refused with the overlap code */
+    EXPECT_EQ(Outcome::Refused, items[2].outcome);
+    EXPECT_EQ(u32(ERR_DEST_OVERLAP), items[2].reason);
+    EXPECT_EQ(HashStatus::NotComputed, items[2].hash_status);
+
+    /* fail.bin: error with the temp-creation code */
+    EXPECT_EQ(Outcome::Error, items[3].outcome);
+    EXPECT_EQ(u32(ERR_DEST_UNWRITABLE), items[3].reason);
+
+    /* skip.txt: never reached (queue aborted at fail.bin) - the report
+     * says "pending", never a silent done/error */
+    EXPECT_EQ(Outcome::Pending, items[4].outcome);
+    EXPECT_EQ(HashStatus::NotComputed, items[4].hash_status);
+
+    /* totals reflect the abort honestly: 1 done, 1 dir, 1 error so far */
+    const Totals t = writer.report_totals("src", "dst", 5, stats);
+    EXPECT_EQ(5u, t.queued);
+    EXPECT_EQ(u64(1), t.dirs);
+}
+
+TEST(Report, EmitsCiSchemaSample) {
+    /* the fixed sample the CI validator (tools/validate_report.py) checks:
+     * every outcome + hash status appears, realistically paired */
+    std::vector<Item> items;
+    struct Row {
+        const char *name, *outcome, *hash_status;
+        u32 reason;
+        const char* sha; /* nullptr = empty */
+        bool dir;
+        u64 bytes;
+    };
+    const Row rows[] = {
+        {"photo.jpg", "done", "verified", 0, "aaaa", false, 2048},
+        {"locked.doc", "refused", "not_computed", 0x50030012, nullptr, false, 512},
+        {"torn.db", "error", "not_computed", 0x50030004, nullptr, false, 128},
+        {"again.txt", "resumed", "not_computed", 0, nullptr, false, 256},
+        {"never.bin", "pending", "not_computed", 0, nullptr, false, 64},
+        {"bad.jpg", "hash_mismatch", "mismatch", 0x50030005, "bbbb", false, 1024},
+        {"folder", "done", "not_computed", 0, nullptr, true, 0},
+    };
+    for (size_t i = 0; i < sizeof(rows) / sizeof(rows[0]); ++i) {
+        const Row& row = rows[i];
+        Item it;
+        it.item_id = u64(i + 1);
+        it.path = std::string("out/") + row.name;
+        it.name = row.name;
+        it.outcome = Outcome(uint8_t(i));
+        /* map by string to keep this table readable and the enum honest */
+        if (std::string(row.outcome) == "done")
+            it.outcome = Outcome::Done;
+        else if (std::string(row.outcome) == "refused")
+            it.outcome = Outcome::Refused;
+        else if (std::string(row.outcome) == "error")
+            it.outcome = Outcome::Error;
+        else if (std::string(row.outcome) == "resumed")
+            it.outcome = Outcome::Resumed;
+        else if (std::string(row.outcome) == "pending")
+            it.outcome = Outcome::Pending;
+        else
+            it.outcome = Outcome::HashMismatch;
+        it.reason = row.reason;
+        it.bytes = row.bytes;
+        it.duration_ms = 2 * (i + 1);
+        if (row.sha)
+            it.sha256_hex.assign(64, row.sha[0]);
+        if (std::string(row.hash_status) == "verified")
+            it.hash_status = HashStatus::Verified;
+        else if (std::string(row.hash_status) == "computed")
+            it.hash_status = HashStatus::Computed;
+        else if (std::string(row.hash_status) == "mismatch")
+            it.hash_status = HashStatus::Mismatch;
+        else
+            it.hash_status = HashStatus::NotComputed;
+        it.is_dir = row.dir;
+        items.push_back(it);
+    }
+    Totals t;
+    t.queued = 7;
+    t.done = 2; /* photo.jpg + folder (dir) */
+    t.dirs = 1;
+    t.refused = 1;
+    t.errors = 1;
+    t.hash_mismatch = 1;
+    t.resumed = 1;
+    t.bytes = 3712; /* synthetic: shape is what the validator checks */
+    t.elapsed_ms = 42;
+    t.source = "PhysicalDrive0 \\\\?\\partition3";
+    t.destination = "D:\\Restored Files";
+
+    const std::string doc = build_report(items, t);
+    ASSERT_FALSE(doc.empty());
+    std::ofstream f("/tmp/cr_report_sample.json", std::ios::binary | std::ios::trunc);
+    ASSERT_TRUE(f.is_open());
+    f.write(doc.data(), std::streamsize(doc.size()));
+    f.close();
+    SUCCEED();
+}

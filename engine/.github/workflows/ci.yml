@@ -31,6 +31,11 @@ jobs:
           cmake --build --preset linux-gcc -j"$(nproc)"
           ctest --preset linux-gcc
 
+      - name: Recovery report schema validation (G-09)
+        run: |
+          # the Report.EmitsCiSchemaSample test writes the sample above
+          python3 tools/validate_report.py /tmp/cr_report_sample.json
+
   linux-tsan:
     runs-on: ubuntu-24.04
     steps:

@@ -5,6 +5,7 @@
 
 #include "cr/recovery/cr_safewriter.h"
 #include "cr/compress/cr_decomp.h"
+#include <chrono>
 #include <cstring>
 
 namespace cr {
@@ -141,6 +142,16 @@ u32 SafeWriter::ensure_dir_(const std::u16string& dir) {
 }
 
 u32 SafeWriter::recover_item(QueueItem& it, CancelToken* cancel, WriterStats& stats) {
+    /* G-09: per-item duration for EVERY exit path (report evidence) */
+    const auto t0 = std::chrono::steady_clock::now();
+    const u32 rc = recover_item_impl_(it, cancel, stats);
+    it.duration_ms = u64(
+        std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - t0)
+            .count());
+    return rc;
+}
+
+u32 SafeWriter::recover_item_impl_(QueueItem& it, CancelToken* cancel, WriterStats& stats) {
     const tree::FileProperties* pr = it.node->props();
     if (it.is_dir) {
         /* G-08: materialize the directory itself (idempotent - an existing
@@ -176,6 +187,7 @@ u32 SafeWriter::recover_item(QueueItem& it, CancelToken* cancel, WriterStats& st
      * Rename the fresh name should not exist (kept for the race window) */
     if (cfg_.conflict != ConflictPolicy::Overwrite && io_.exists(it.dest_dir + it.final_name)) {
         it.state = ItemState::Done;
+        it.resumed = true; /* G-09: per-item evidence (stats-level below) */
         ++stats.resumed;
         return OK;
     }
@@ -323,20 +335,36 @@ u32 SafeWriter::recover_item(QueueItem& it, CancelToken* cancel, WriterStats& st
     }
 
     it.state = ItemState::Verifying;
+    /* G-09: the stream hash is ALWAYS finalized and captured (the report
+     * carries computed hashes even when no stored hash exists to verify
+     * against - hash_status tells the truth about which happened) */
+    u8 digest[32];
+    hash.final(digest);
+    {
+        static const char* hexd = "0123456789abcdef";
+        char hex[65];
+        for (int i = 0; i < 32; ++i) {
+            hex[i * 2] = hexd[digest[i] >> 4];
+            hex[i * 2 + 1] = hexd[digest[i] & 0xF];
+        }
+        hex[64] = 0;
+        it.sha256_hex.assign(hex);
+    }
     if (cfg_.verify_hash && pr->hash_valid) {
-        u8 digest[32];
-        hash.final(digest);
         if (std::memcmp(digest, pr->sha128, 16) != 0) {
             ++stats.hash_mismatch;
             it.error = ERR_HASH_MISMATCH;
+            it.hash_status = report::HashStatus::Mismatch;
             /* the content is still committed (salvage); the mismatch is
              * reported per-item and aggregated */
         } else {
             it.hash_verified = true;
+            it.hash_status = report::HashStatus::Verified;
         }
-    } else if (cfg_.verify_hash && !pr->hash_valid && !cfg_.skip_hashless) {
-        /* no stored hash: compute-only verification impossible; mark ok */
-        it.hash_verified = false;
+    } else {
+        /* no stored hash to compare against: the streamed digest is
+         * reported as computed, never claimed as verified */
+        it.hash_status = report::HashStatus::Computed;
     }
     if (u32 rc = io_.commit(it.item_id)) {
         io_.close(it.item_id);
@@ -357,6 +385,8 @@ u32 SafeWriter::process(CancelToken* cancel, bool (*progress)(u64, u64, void*), 
     u64 done_bytes = 0;
     for (const auto& it : queue_)
         total_bytes += it.bytes_total;
+    stats.queued = queue_.size(); /* stamped upfront: an aborted pass
+                                    still reports the true queue size */
     for (auto& it : queue_) {
         if (it.state == ItemState::Refused) {
             ++stats.refused;
@@ -372,8 +402,99 @@ u32 SafeWriter::process(CancelToken* cancel, bool (*progress)(u64, u64, void*), 
         if (progress && !progress(done_bytes, total_bytes ? total_bytes : 1, progress_user))
             return ERR_CANCELLED;
     }
-    stats.queued = queue_.size();
     return OK;
+}
+
+/* ---- G-09 report material ---- */
+
+namespace {
+/* utf16 -> utf8 (the report path must not depend on tree internals;
+ * lone surrogates pass through as their code value - the report escaper
+ * keeps the document valid JSON regardless) */
+std::string utf16_to_utf8_local(const std::u16string& in) {
+    std::string out;
+    out.reserve(in.size());
+    for (size_t i = 0; i < in.size(); ++i) {
+        u32 cp = in[i];
+        if (in[i] >= 0xD800 && in[i] <= 0xDBFF && i + 1 < in.size() && in[i + 1] >= 0xDC00 &&
+            in[i + 1] <= 0xDFFF) {
+            cp = 0x10000u + ((u32(in[i]) - 0xD800u) << 10) + (u32(in[i + 1]) - 0xDC00u);
+            ++i;
+        }
+        if (cp < 0x80) {
+            out.push_back(char(cp));
+        } else if (cp < 0x800) {
+            out.push_back(char(0xC0 | (cp >> 6)));
+            out.push_back(char(0x80 | (cp & 0x3F)));
+        } else if (cp < 0x10000) {
+            out.push_back(char(0xE0 | (cp >> 12)));
+            out.push_back(char(0x80 | ((cp >> 6) & 0x3F)));
+            out.push_back(char(0x80 | (cp & 0x3F)));
+        } else {
+            out.push_back(char(0xF0 | (cp >> 18)));
+            out.push_back(char(0x80 | ((cp >> 12) & 0x3F)));
+            out.push_back(char(0x80 | ((cp >> 6) & 0x3F)));
+            out.push_back(char(0x80 | (cp & 0x3F)));
+        }
+    }
+    return out;
+}
+} // namespace
+
+report::Totals SafeWriter::report_totals(const std::string& source, const std::string& destination,
+                                         u64 elapsed_ms, const WriterStats& stats) const {
+    report::Totals t;
+    t.queued = stats.queued;
+    t.done = stats.done;
+    t.dirs = stats.dirs;
+    t.refused = stats.refused;
+    t.errors = stats.errors;
+    t.hash_mismatch = stats.hash_mismatch;
+    t.resumed = stats.resumed;
+    u64 bytes = 0;
+    for (const auto& it : queue_)
+        if (!it.is_dir && it.state == ItemState::Done && !it.resumed)
+            bytes += it.bytes_total;
+    t.bytes = bytes;
+    t.elapsed_ms = elapsed_ms;
+    t.source = source;
+    t.destination = destination;
+    return t;
+}
+
+std::vector<report::Item> SafeWriter::report_items() const {
+    std::vector<report::Item> out;
+    out.reserve(queue_.size());
+    for (const auto& it : queue_) {
+        report::Item r;
+        r.item_id = it.item_id;
+        r.path = utf16_to_utf8_local(it.dest_dir + it.final_name);
+        r.name = utf16_to_utf8_local(it.final_name);
+        r.is_dir = it.is_dir;
+        r.bytes = it.bytes_total;
+        r.duration_ms = it.duration_ms;
+        r.sha256_hex = it.sha256_hex;
+        r.hash_status = it.hash_status;
+        if (it.state == ItemState::Refused) {
+            r.outcome = report::Outcome::Refused;
+            r.reason = it.error;
+        } else if (it.state == ItemState::Error) {
+            r.outcome = report::Outcome::Error;
+            r.reason = it.error;
+        } else if (it.resumed) {
+            r.outcome = report::Outcome::Resumed;
+        } else if (it.state == ItemState::Pending) {
+            /* the pass aborted before this item - never claimed as done */
+            r.outcome = report::Outcome::Pending;
+        } else if (it.error == ERR_HASH_MISMATCH) {
+            r.outcome = report::Outcome::HashMismatch;
+            r.reason = it.error;
+        } else {
+            r.outcome = report::Outcome::Done;
+        }
+        out.push_back(std::move(r));
+    }
+    return out;
 }
 
 } // namespace recovery

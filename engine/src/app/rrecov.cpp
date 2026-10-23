@@ -590,7 +590,7 @@ int cmd_tree(int argc, wchar_t** argv, int& i) {
  * ------------------------------------------------------------------------- */
 
 int cmd_recover(int argc, wchar_t** argv, int& i) {
-    std::wstring in_path, to_dir, filter;
+    std::wstring in_path, to_dir, filter, report_path;
     bool deleted_only = false;
     u32 disk = 0;
     bool have_disk = false;
@@ -607,6 +607,8 @@ int cmd_recover(int argc, wchar_t** argv, int& i) {
         }
         if (get_opt(argc, argv, i, L"--filter", &filter))
             continue;
+        if (get_opt(argc, argv, i, L"--report", &report_path))
+            continue; /* G-09: machine-readable result report */
         if (has_flag(argc, argv, i, L"--deleted-only")) {
             deleted_only = true;
             continue;
@@ -708,6 +710,7 @@ int cmd_recover(int argc, wchar_t** argv, int& i) {
             : L"");
 
     recovery::WriterStats wstats;
+    const auto t_recover0 = std::chrono::steady_clock::now();
     ProgressDisplay prog;
     rc = writer.process(
         nullptr,
@@ -724,6 +727,31 @@ int cmd_recover(int argc, wchar_t** argv, int& i) {
     }
     wprintf(L"recovered: %llu done, %llu refused, %llu error(s), %llu hash mismatch\n", wstats.done,
             wstats.refused, wstats.errors, wstats.hash_mismatch);
+
+    /* G-09: machine-readable report (schema: docs/recovery-report-schema.md).
+     * Emitted even when items failed - the per-item outcomes carry the
+     * truth, including "pending" for an aborted pass. */
+    if (!report_path.empty()) {
+        const std::string doc = recovery::report::build_report(
+            writer.report_items(),
+            writer.report_totals(narrow(in_path), narrow(to_dir),
+                                 u64(std::chrono::duration_cast<std::chrono::milliseconds>(
+                                         std::chrono::steady_clock::now() - t_recover0)
+                                         .count()),
+                                 wstats));
+        FILE* rf = nullptr;
+        if (_wfopen_s(&rf, report_path.c_str(), L"wb") != 0 || !rf) {
+            wprintf(L"cannot write report %s\n", report_path.c_str());
+            return 1;
+        }
+        const size_t wn = fwrite(doc.data(), 1, doc.size(), rf);
+        fclose(rf);
+        if (wn != doc.size()) {
+            wprintf(L"report write truncated: %s\n", report_path.c_str());
+            return 1;
+        }
+        wprintf(L"report: %s\n", report_path.c_str());
+    }
     return wstats.errors || wstats.hash_mismatch ? 2 : 0;
 }
 

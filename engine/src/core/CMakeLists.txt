@@ -40,6 +40,7 @@ add_library(cr_core STATIC
     session/cr_crsf.cpp
     session/cr_records.cpp
     recovery/cr_safewriter.cpp
+    recovery/cr_report.cpp
     repair/cr_rawfixer.cpp
     refs/cr_refs_engine.cpp
     orchestrator/cr_scan.cpp
@@ -49,6 +50,9 @@ add_library(cr_core STATIC
 add_library(cr::core ALIAS cr_core)
 target_include_directories(cr_core PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}/../../include)
+# G-09: the engine version baked into every recovery report
+target_compile_definitions(cr_core PRIVATE
+    CR_ENGINE_VERSION="${PROJECT_VERSION}")
 target_link_libraries(cr_core PUBLIC ZLIB::ZLIB)
 if(CR_LZ4_LINK)
     target_link_libraries(cr_core PUBLIC ${CR_LZ4_LINK})
