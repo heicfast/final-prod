@@ -526,3 +526,43 @@ TEST(FatEngine, Fat12ChainsCanonicalEocAndBad) {
     EXPECT_EQ(old->confidence(), tree::Confidence::Excellent);
     EXPECT_EQ(stats.chains_broken, 0u);
 }
+
+TEST(FatEngine, DeletedLfnFragmentOrder) {
+    /* FAT-1 (AUDIT-FAT, P1): deleted LFN slots carry 0xE5 in the sequence
+     * byte - the sort key collapses to 0x25 for every slot, disk order
+     * (descending sequence) survives, and the fragments concatenated in
+     * REVERSE produced garbage names for every deleted-LFN file while the
+     * per-slot checksum still matched (so the mangled name beat the 8.3
+     * fallback). Physical layout survives deletion: reverse the disk order. */
+    auto img = build_fat16_image();
+    u8* root = img.data() + 42 * 512;
+    /* 26-char name, 3 slots, planted in DESCENDING disk order like VFAT
+     * writes them; then deletion overwrites each slot's first byte. */
+    u8 name11[11] = {0xE5, 'E', 'L', 'E', 'T', 'E', '~', '1', 'T', 'X', 'T'};
+    const u8 chk = lfn_checksum(name11); /* over the RAW (0xE5-led) 8.3 bytes -
+                                             what the walker computes on a deleted dentry */
+    make_lfn_slot(root + 0 * 32, 0x43, chk, u"txt");
+    make_lfn_slot(root + 1 * 32, 0x02, chk, u"_file_name.");
+    make_lfn_slot(root + 2 * 32, 0x01, chk, u"deleted_long");
+    root[0 * 32] = 0xE5; /* deletion marker over the sequence bytes */
+    root[1 * 32] = 0xE5;
+    root[2 * 32] = 0xE5;
+    make_dentry(root + 3 * 32, "DELETE~1TXT", 0x20, 20, 1000, 0x5A46, 0x6000, true);
+
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* ra = tree.add_root(u"Found");
+    auto* rd = tree.add_root(u"Deleted");
+    FatScanFlags flags;
+    FatScanStats stats;
+    ASSERT_EQ(scan_fat(&dev, flags, nullptr, nullptr, nullptr, tree, ra, rd, nullptr, stats), OK);
+
+    auto all = collect_all(tree);
+    tree::FileNode* victim = nullptr;
+    for (auto* n : all)
+        if (n->name_utf8() == "deleted_long_file_name.txt")
+            victim = n;
+    ASSERT_NE(victim, nullptr) << "deleted LFN name must recover in fragment order";
+    EXPECT_EQ(victim->deleted_state(), tree::DeletedState::Deleted);
+    EXPECT_GE(stats.lfn_recovered, 1u);
+}

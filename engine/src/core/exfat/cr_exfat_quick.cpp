@@ -13,6 +13,7 @@ namespace exfat {
 namespace {
 
 constexpr u32 EXFAT_EOC = 0xFFFFFFFF;
+constexpr u32 EXFAT_EOC_MIN = 0xFFFFFFF8; /* spec EOC family (EXFAT-3) */
 constexpr u32 EXFAT_BAD = 0xFFFFFFF7;
 constexpr u32 EXFAT_FREE = 0;
 
@@ -28,7 +29,11 @@ struct ExfatFat {
         u32 v = entry(c);
         if (v == EXFAT_FREE || v == EXFAT_BAD)
             return 0;
-        if (v >= EXFAT_EOC)
+        /* EXFAT-3 (AUDIT-FAT): the spec EOC family is 0xFFFFFFF8..0xFFFFFFFF
+         * (and og treats the range as chain end); only exact 0xFFFFFFFF
+         * previously terminated, so 0xFFFFFFF8..E were followed as cluster
+         * numbers -> bounds failure -> broken chains on spec-legal volumes. */
+        if (v >= EXFAT_EOC_MIN)
             return EXFAT_EOC;
         return v;
     }
@@ -38,9 +43,11 @@ struct ChainResult {
     std::vector<u32> clusters;
     bool cycle = false;
     bool broken = false;
+    bool assumed_contiguous = false; /* EXFAT-2: FREE-entry continuation */
 };
 
-ChainResult follow_exfat_chain(const ExfatFat& fat, u32 start, u32 max_clusters) {
+ChainResult follow_exfat_chain(const ExfatFat& fat, u32 start, u32 max_clusters,
+                               u32 cluster_count = 0) {
     ChainResult r;
     std::vector<u64> visited;
     u32 c = start;
@@ -61,10 +68,22 @@ ChainResult follow_exfat_chain(const ExfatFat& fat, u32 start, u32 max_clusters)
             break;
         u32 n = fat.next(c);
         if (n == 0) {
-            r.broken = true;
-            break;
+            /* EXFAT-2 (AUDIT-FAT): og FUN_180021c60:28158-28163 - a FREE
+             * (zero) FAT entry mid-chain means "no chain info here"; the og
+             * continues with cluster+1 under an "assumed" flag (the exFAT
+             * salvage heuristic for FAT-zeroed volumes - deletion zeroes
+             * the chain). The old hard-break truncated extents and
+             * downgraded confidence on damaged-but-recoverable volumes.
+             * Bounded by the data-length expectation (max_clusters) and the
+             * heap size. */
+            if (cluster_count != 0 && c + 1 >= cluster_count + 2) {
+                r.broken = true;
+                break;
+            }
+            r.assumed_contiguous = true;
+            n = c + 1;
         }
-        if (n >= EXFAT_EOC)
+        if (n >= EXFAT_EOC_MIN)
             break;
         c = n;
     }
@@ -156,7 +175,7 @@ std::vector<u8> read_dir_chain(ScanCtx& ctx, u32 first, u32 max_bytes, bool* ok)
     *ok = false;
     ChainResult chain;
     if (ctx.have_fat)
-        chain = follow_exfat_chain(ctx.fat, first, 0x10000);
+        chain = follow_exfat_chain(ctx.fat, first, 0x10000, ctx.p.cluster_count);
     if (chain.clusters.empty() && first >= 2) {
         /* no FAT or FAT lost: try contiguous single cluster */
         chain = contiguous_chain(first, 1);
@@ -237,9 +256,9 @@ void walk_entries(ScanCtx& ctx, const std::vector<u8>& buf, bool deleted_context
                 BitmapEntry be;
                 std::memcpy(&be, f, sizeof(be));
                 if (be.first_cluster >= 2) {
-                    ChainResult bc = ctx.have_fat
-                                         ? follow_exfat_chain(ctx.fat, be.first_cluster, 0x10000)
-                                         : contiguous_chain(be.first_cluster, 1);
+                    ChainResult bc = ctx.have_fat ? follow_exfat_chain(ctx.fat, be.first_cluster,
+                                                                       0x10000, ctx.p.cluster_count)
+                                                  : contiguous_chain(be.first_cluster, 1);
                     if (bc.clusters.empty())
                         bc = contiguous_chain(be.first_cluster, 1);
                     u64 total = u64(bc.clusters.size()) * ctx.p.cluster_bytes;
@@ -326,19 +345,38 @@ void walk_entries(ScanCtx& ctx, const std::vector<u8>& buf, bool deleted_context
             const u32 first_cluster = se->first_cluster;
             const bool no_fat = (se->flags & 0x02) != 0;
 
+            /* EXFAT-1 (AUDIT-FAT): og rejects first_cluster == 1 and
+             * first_cluster >= 0xFFFFFFF7 (FUN_180003090:1857-1859, inlined
+             * 24404-24412, backward-walk form 2109) - 1 is reserved and
+             * 0xFFFFFFF7+ are BAD/EOC-family sentinels, never positions.
+             * (The v2 artifact's "must be 1 or >= 0xFFFFFF7" polarity was
+             * inverted; the decompile is unambiguous across three sites.)
+             * Damaged set: counted, entry kept as metadata-only. */
+            const bool fc_invalid = first_cluster == 1 || first_cluster >= 0xFFFFFFF7u;
+            if (fc_invalid)
+                ++ctx.stats->sets_damaged;
+
             /* chain resolution */
             ChainResult chain;
-            if (is_dir || first_cluster >= 2) {
+            if (!fc_invalid && (is_dir || first_cluster >= 2)) {
                 u32 expect = u32((data_len + ctx.p.cluster_bytes - 1) / ctx.p.cluster_bytes);
                 if (no_fat && !is_dir && expect > 0) {
                     chain = contiguous_chain(first_cluster, expect);
                     ++ctx.stats->no_fat_chains;
                 } else if (no_fat && is_dir) {
-                    chain = contiguous_chain(first_cluster, 1);
+                    /* EXFAT-6 (AUDIT-FAT): NoFatChain directories read
+                     * ceil(data_length / cluster_bytes) clusters, not 1
+                     * (spec-legal multi-cluster dirs truncated before). */
+                    u32 dir_clusters =
+                        u32((data_len + ctx.p.cluster_bytes - 1) / ctx.p.cluster_bytes);
+                    chain = contiguous_chain(first_cluster, dir_clusters ? dir_clusters : 1);
                     ++ctx.stats->no_fat_chains;
                 } else if (ctx.have_fat) {
                     chain = follow_exfat_chain(ctx.fat, first_cluster,
-                                               is_dir ? 0x10000 : (expect ? expect : 1));
+                                               is_dir ? 0x10000 : (expect ? expect : 1),
+                                               ctx.p.cluster_count);
+                    if (chain.assumed_contiguous)
+                        ++ctx.stats->assumed_contiguous;
                 } else {
                     chain = contiguous_chain(first_cluster, 1);
                 }
@@ -398,6 +436,10 @@ void walk_entries(ScanCtx& ctx, const std::vector<u8>& buf, bool deleted_context
             } else {
                 conf = tree::Confidence::PartialRisk;
             }
+            /* An assumed-contiguous chain (EXFAT-2) is never graded above
+             * PartialRisk: the FAT did not confirm the layout. */
+            if (chain.assumed_contiguous && conf == tree::Confidence::Excellent)
+                conf = tree::Confidence::PartialRisk;
 
             /* children attach under their directory node; top-level under
              * the roots. deleted sets land in the deleted/lost roots. */

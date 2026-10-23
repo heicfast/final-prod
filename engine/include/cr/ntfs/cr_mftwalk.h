@@ -32,11 +32,14 @@ constexpr u16 PFLAG_IN_USE = 0x0010;
 constexpr u16 PFLAG_IS_DIR = 0x0002; /* mirrors record flag 0x02 */
 
 struct WalkerFlags {
-    bool skip_system_files = true;  /* corpus: dos_flags & 4 -> skip */
-    bool keep_overwritten = true;   /* fix F5: grade instead of destroy */
-    bool emit_ads = true;           /* named $DATA -> child nodes */
-    bool harvest_usnjrnl = true;    /* $Extend/$UsnJrnl:$J deleted-name harvest */
-    u64 viability_min_size = 0x3FF; /* corpus gate (files < 1 KiB fast-path) */
+    bool skip_system_files = true; /* corpus: dos_flags & 4 -> skip */
+    bool keep_overwritten = true;  /* fix F5: grade instead of destroy */
+    bool emit_ads = true;          /* named $DATA -> child nodes */
+    bool harvest_usnjrnl = true;   /* $Extend/$UsnJrnl:$J deleted-name harvest */
+    /* viability gate boundary (NTFS-1): og is STRICT - `0x3ff < size`
+     * (Dec 21208): files of exactly 0x3FF bytes take the fast-path with
+     * no bitmap check; larger files get the $Bitmap grading. */
+    u64 viability_min_size = 0x3FF;
 };
 
 /* USN reasons (winioctl.h USN_REASON_*): the journal records we mine for

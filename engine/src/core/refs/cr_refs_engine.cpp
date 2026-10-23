@@ -362,9 +362,12 @@ bool validate_boot(const u8 sector[512], RefsBoot& out) {
     out = RefsBoot{};
     if (sector == nullptr)
         return false;
-    /* og gate (FUN_180013420): "ReFS" @+3, bytesPerSector u32 @0x20,
-     * sectorsPerCluster u32 @0x24, major u8 @0x28, minor u8 @0x29 (the og
-     * build accepts 3.7-3.10 only). This engine validates the full shape
+    /* og gate (FUN_180012390:13529-13531 - REFS-3 pin correction: the
+     * previously cited FUN_180013420 does not exist): "ReFS" @+3,
+     * bytesPerSector u32 @0x20, sectorsPerCluster u32 @0x24, major u8
+     * @0x28, minor u8 @0x29. The og accepts major==3 && minor>3 (ReFS
+     * 3.4+; re-validated on the checkpoint body, FUN_180012650:13744-50)
+     * plus a separate major==1 path. This engine validates the full shape
      * and accepts 1.x-3.x - wider recovery scope, same structure walk. */
     if (std::memcmp(sector + 3, "ReFS", 4) != 0)
         return false;
@@ -474,18 +477,58 @@ u32 scan_refs(IStorageDevice* slice, const RefsScanFlags& flags, CancelToken* ca
     else if (!ok1)
         return ERR_BAD_MAGIC;
 
-    /* ---- 4. checkpoint pointer list (thesis table 4.7) ---- */
-    const u32 ptr_count = le32(chkp.data() + 0x90);
+    /* ---- 4. checkpoint system-table descriptor list ----
+     * REFS-2 (AUDIT-LINUX-FS, HIGH; og FUN_180012650, decompiled
+     * :13744-13790, re-verified this session): the checkpoint body starts
+     * at the 0x50 page header; the og re-validates the version on the body
+     * (major u16@body+4 == 3 && minor u16@body+6 > 3 = ReFS 3.4+). The
+     * descriptor COUNT sits at body+0x40 (page+0x90) in BOTH layouts; the
+     * u32 offset LIST base is version-dependent: body+0x44 (page+0x94) for
+     * minor<14, body+0x58 (page+0xA8) for minor>=14 (ReFS >= 3.7). Each
+     * list entry is a page-relative offset to a 0x30-byte REFERENCE
+     * structure {LCN quad@+0x00, flags byte@+0x22, next u64@+0x28} - and
+     * next@+0x28 chains to the NEWER version of the same table
+     * (RefsMetadataBlockRefrenceImpl -> RefsBaseDataImplManager chains,
+     * FUN_18000fc80/FUN_18000ff60:11715/11860; REFS-1). The old code
+     * hardcoded 0x90/0x94 (wrong list on 3.7+) and never followed next
+     * (post-checkpoint updates missed). */
+    {
+        const u32 body_major = le16(chkp.data() + 0x54);
+        const u32 body_minor = le16(chkp.data() + 0x56);
+        if (body_major != 0 || body_minor != 0) { /* body carries a version */
+            if (body_major == 3 && body_minor <= 3)
+                return ERR_BAD_MAGIC; /* og rejects pre-3.4 checkpoints */
+            if (body_major != 0 && body_major != boot.major)
+                return ERR_BAD_MAGIC; /* inconsistent with the VBR */
+        }
+    }
+    const u32 ptr_count = le32(chkp.data() + 0x90); /* body+0x40, both layouts */
     if (ptr_count == 0 || ptr_count > 16)
         return ERR_BAD_MAGIC;
+    const u32 ptr_lst_off = boot.minor >= 0x0E ? 0xA8 : 0x94; /* body+0x58 / body+0x44 */
     u32 ptrs[16] = {};
     for (u32 i = 0; i < ptr_count && i < 16; ++i)
-        ptrs[i] = le32(chkp.data() + 0x94 + i * 4);
+        ptrs[i] = le32(chkp.data() + ptr_lst_off + i * 4);
 
     auto table_root = [&](u32 ptr_index, u64 out_lcns[4]) -> bool {
         if (ptr_index >= ptr_count)
             return false;
-        const u32 off = ptrs[ptr_index];
+        u32 off = ptrs[ptr_index];
+        /* REFS-1: follow the reference's next-chain (next@ref+0x28, a
+         * page-relative offset to the newer reference) to the chain tail -
+         * the checkpoint pins a possibly-older version and post-checkpoint
+         * updates extend the chain. */
+        for (u32 hop = 0; hop < 16; ++hop) {
+            if (u64(off) + 0x30 > chkp.size())
+                return false;
+            const u64 next = le64(chkp.data() + off + 0x28);
+            if (next == 0 || next + 0x30 > chkp.size())
+                break; /* chain tail (or corrupt link: keep this version) */
+            const u32 noff = u32(next);
+            if (noff <= off)
+                break; /* not forward-progressing: corrupt loop */
+            off = noff;
+        }
         if (u64(off) + 0x20 > chkp.size())
             return false;
         for (int k = 0; k < 4; ++k)

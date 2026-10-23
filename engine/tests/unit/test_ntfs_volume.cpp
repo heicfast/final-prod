@@ -1428,3 +1428,86 @@ TEST(NtfsVolume, ViabilityProbeUsesDataSize) {
     EXPECT_EQ(zfn->props()->logical_size, 8192u);                /* $DATA authoritative */
     EXPECT_EQ(zfn->confidence(), tree::Confidence::PartialRisk); /* 1/2 clusters reused */
 }
+
+TEST(NtfsVolume, ViabilityBoundaryExactFastPath) {
+    /* NTFS-1 (AUDIT-NTFS): the og gate is STRICT - `0x3ff < size` (Dec
+     * 21208). A deleted file of EXACTLY 1023 bytes takes the fast-path
+     * with NO bitmap check, even when its cluster is fully reused; the old
+     * `>=` probed it and graded Overwritten. */
+    Image img;
+    build_image(img);
+    {
+        RecBuilder r;
+        r.header(26, 0); /* deleted */
+        r.attr_si(0x20);
+        r.attr_file_name(16, u"edge.dat", FILE_NAME_WIN32_AND_DOS, 0x20, 0, 1023);
+        r.attr_data_runlist(86, 1, 1023); /* exactly 0x3FF bytes, 1 cluster */
+        r.finish();
+        std::memcpy(img.sec(MFT_LCN + 52), r.buf.data(), RECORD_SIZE);
+    }
+    { /* cluster 86 fully reused in $Bitmap */
+        u8* bm = img.sec(BITMAP_LCN);
+        bm[86 / 8] |= u8(1u << (86 % 8));
+    }
+    MemDevice dev(img.raw(), img.geom());
+    u32 err = 0;
+    auto vol = NtfsVolume::open(std::unique_ptr<IStorageDevice>(new MemDevice(dev)), &err);
+    ASSERT_NE(vol, nullptr) << "open err " << err_text(err);
+    std::unique_ptr<VolumeBitmap> bm;
+    ASSERT_EQ(VolumeBitmap::load(vol.get(), bm), OK);
+    tree::ResultTree tree;
+    auto* ra = tree.add_root(u"Found");
+    auto* rd = tree.add_root(u"Deleted");
+    auto* rl = tree.add_root(u"Lost Files");
+    WalkerFlags wf;
+    WalkStats stats;
+    ASSERT_EQ(walk_mft(vol.get(), bm.get(), wf, nullptr, nullptr, nullptr, tree, ra, rd, rl, stats),
+              OK);
+    tree::FileNode* edge = nullptr;
+    std::function<void(tree::FileNode*)> collect = [&](tree::FileNode* n) {
+        for (tree::FileNode* c = n->first_child(); c; c = c->next_sibling()) {
+            if (c->name_utf8() == "edge.dat")
+                edge = c;
+            collect(c);
+        }
+    };
+    for (auto* r : tree.roots())
+        collect(r);
+    ASSERT_NE(edge, nullptr);
+    /* fast-path: no bitmap probe at exactly the boundary (og parity) */
+    EXPECT_EQ(edge->confidence(), tree::Confidence::Excellent);
+}
+
+TEST(NtfsVolume, ExtensionRecordsNotCountedDamaged) {
+    /* NTFS-8 (AUDIT-NTFS): extension records (base_record != 0) carry no
+     * $FILE_NAME; og skips them silently (FUN_180041970, Dec 21155-21157).
+     * Ours counted each one damaged via names.empty(). */
+    Image img;
+    build_image(img);
+    {
+        RecBuilder r;
+        r.header(27, 0); /* not in use; will become an extension record */
+        r.attr_si(0x20);
+        /* NO $FILE_NAME - an extension record's shape */
+        r.attr_data_runlist(90, 1, 512);
+        r.finish();
+        auto* rh = reinterpret_cast<RecordHeader*>(r.buf.data());
+        rh->base_record = 26; /* points at record 26 as the base */
+        std::memcpy(img.sec(MFT_LCN + 53), r.buf.data(), RECORD_SIZE);
+    }
+    MemDevice dev(img.raw(), img.geom());
+    u32 err = 0;
+    auto vol = NtfsVolume::open(std::unique_ptr<IStorageDevice>(new MemDevice(dev)), &err);
+    ASSERT_NE(vol, nullptr) << "open err " << err_text(err);
+    std::unique_ptr<VolumeBitmap> bm;
+    ASSERT_EQ(VolumeBitmap::load(vol.get(), bm), OK);
+    tree::ResultTree tree;
+    auto* ra = tree.add_root(u"Found");
+    auto* rd = tree.add_root(u"Deleted");
+    auto* rl = tree.add_root(u"Lost Files");
+    WalkerFlags wf;
+    WalkStats stats;
+    ASSERT_EQ(walk_mft(vol.get(), bm.get(), wf, nullptr, nullptr, nullptr, tree, ra, rd, rl, stats),
+              OK);
+    EXPECT_EQ(stats.damaged, 0u); /* the extension record is skipped, not damaged */
+}

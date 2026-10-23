@@ -134,6 +134,14 @@ void walk_dir_entries(EmitCtx& ctx, const DirBuffer& buf, tree::FileNode* host,
             break; /* end of directory (corpus DENTRY_END) */
         if (e->attributes == ATTR_LFN) {
             const LfnEntry* l = reinterpret_cast<const LfnEntry*>(raw);
+            /* FAT-10 (AUDIT-FAT): og requires an LFN slot's first_cluster
+             * (+0x1A) to be ZERO before treating an 0x0F entry as an LFN
+             * slot (FUN_1800365a0:44287) - junk 0x0F-attr entries with
+             * stray +0x1A bytes are otherwise absorbed into the name. */
+            if (l->first_cluster != 0) {
+                pending_lfn.clear();
+                continue;
+            }
             pending_lfn.push_back(l);
             continue;
         }

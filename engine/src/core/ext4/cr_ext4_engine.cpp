@@ -670,12 +670,20 @@ u32 scan_ext4(IStorageDevice* slice, const Ext4ScanFlags& flags, CancelToken* ca
      * blocks follow the descriptor sequentially in the journal; a block
      * whose tag has JBD2_FLAG_ESCAPE had its leading 0xC03B3998 bytes
      * zeroed in the journal copy - replay restores cpu_to_be32(magic).
-     * Revoke records (REVOKE=5 blocks, BE32 fs-block numbers after the
-     * 12-byte header at tag_size stride) mark blocks whose newest state
-     * lives in later transactions; kernel replay skips them - we DELIBERATELY
-     * still surface them (stale-snapshot salvage, documented divergence:
-     * recovery-grade value beats mount-grade purity here; the live-tree
-     * visit set still filters entries that survived). */
+     *
+     * D-07 RE-PINNED (AUDIT-LINUX-FS E-2; EXT4SearchDLL FUN_18000e5b0 +
+     * FUN_18000e890, decompiled :12159-12368): the og gates on the jsb
+     * magic + blocktype {3,4} and then feeds EVERY block of the journal
+     * range to the directory-block parser ("GotJournalDir /
+     * TraverseJournalDir" traces) - it implements NO descriptor/commit/
+     * revoke transaction semantics; a REVOKE block simply fails the
+     * dir-parse. We match that salvage surface: every descriptor-referenced
+     * data block is parsed, committed or not (the old commit gate dropped
+     * uncommitted-tail dir blocks the og surfaces). Revoked-target
+     * filtering is not applied either - the live-tree visit set still
+     * filters entries that survived, and stale dir content is exactly
+     * what a recovery product wants (stale-snapshot salvage, now
+     * og-exact rather than a documented divergence). */
     if (flags.salvage_journal && root_lost) {
         InodeView jiv;
         if (read_inode(v, v.sb.journal_inum, jiv) && !jiv.extents.empty()) {
@@ -752,15 +760,15 @@ u32 scan_ext4(IStorageDevice* slice, const Ext4ScanFlags& flags, CancelToken* ca
                 }
             }
 
-            /* pass 1: descriptors -> tags (journal-sequential data blocks);
-             * commit blocks -> committed sequence set */
+            /* pass 1: descriptors -> tags (journal-sequential data blocks).
+             * Commit blocks only mark txn boundaries - the og has NO commit
+             * gating (E-2) and neither do we now. */
             struct Txn {
                 u64 desc_block;
                 u32 sequence;
                 std::vector<std::pair<u64, bool>> data_blocks; /* {jblock, escaped} */
             };
             std::vector<Txn> txns;
-            std::set<u32> committed;
             {
                 u64 blk = 0;
                 while (blk < jblocks) {
@@ -793,23 +801,21 @@ u32 scan_ext4(IStorageDevice* slice, const Ext4ScanFlags& flags, CancelToken* ca
                         }
                         txns.push_back(std::move(t));
                     } else if (is_header(blk, JBD2_COMMIT_BLOCK, seq)) {
-                        committed.insert(seq);
+                        /* boundary only - no gating (E-2) */
                     } else if (is_header(blk, JBD2_REVOKE_BLOCK, seq)) {
-                        /* revoke blocks: skipped entries here; see the
-                         * parity note above */
+                        /* revoke blocks are not dir content - they fail the
+                         * dir-parse in the og too; nothing to do */
                     }
                     ++blk;
                 }
             }
 
-            /* pass 2: salvage directory entries from committed
-             * transactions' data blocks */
+            /* pass 2: salvage directory entries from EVERY descriptor's data
+             * blocks (committed or not - og parity, E-2) */
             std::set<std::pair<u32, std::u16string>> seen;
             for (const Txn& t : txns) {
                 if (cancel && cancel->checkpoint())
                     break;
-                if (!committed.count(t.sequence))
-                    continue; /* uncommitted tail: not durable */
                 for (const auto& [jb, escaped] : t.data_blocks) {
                     if (jb >= jblocks)
                         break;

@@ -21,12 +21,28 @@ u8 lfn_checksum(const u8 short_name[11]) {
 bool lfn_assemble(const std::vector<const LfnEntry*>& slots, u8 checksum, std::u16string& out) {
     if (slots.empty())
         return false;
-    /* slots arrive in DISK order (usually last-fragment first): sort by
-     * sequence number; bit 0x40 marks the LAST fragment (highest seq). */
+    /* slots arrive in DISK order (usually last-fragment first). Live VFAT
+     * entries are stored in DESCENDING sequence order (last fragment
+     * physically first); the sequence byte orders them.
+     *
+     * FAT-1 (AUDIT-FAT, P1): DELETED slots have the sequence byte
+     * overwritten with 0xE5 - every key under & 0x3F collapses to 0x25, the
+     * sort degenerates to disk order, and the fragments concatenate in
+     * REVERSE (garbage names for every deleted-LFN file; the per-slot
+     * checksum still matches the 8.3 alias, so the mangled name won over
+     * the correct 8.3 fallback). The physical DESCENDING layout survives
+     * deletion untouched - reverse the disk order for deleted slots. The
+     * 0x40 last-fragment bit is destroyed with the byte, so no other
+     * ordering signal exists. */
     std::vector<const LfnEntry*> ordered = slots;
-    std::sort(ordered.begin(), ordered.end(), [](const LfnEntry* a, const LfnEntry* b) {
-        return (a->sequence & 0x3F) < (b->sequence & 0x3F);
-    });
+    const bool deleted_slots = ordered.front()->sequence >= 0xE0;
+    if (deleted_slots) {
+        std::reverse(ordered.begin(), ordered.end());
+    } else {
+        std::sort(ordered.begin(), ordered.end(), [](const LfnEntry* a, const LfnEntry* b) {
+            return (a->sequence & 0x3F) < (b->sequence & 0x3F);
+        });
+    }
     if (ordered.front()->checksum != checksum)
         return false; /* corrupt: 8.3 fallback */
     out.clear();

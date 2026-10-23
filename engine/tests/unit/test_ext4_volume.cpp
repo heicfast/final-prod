@@ -411,6 +411,46 @@ TEST(Ext4Engine, InodeSizeOffsetIsSpecTrue) {
     EXPECT_EQ(128u, out.inode_size);
 }
 
+TEST(Ext4Engine, JournalUncommittedTailSurfaces) {
+    /* E-2 (AUDIT-LINUX-FS, D-07 re-pin): the og feeds EVERY journal block
+     * to the dir parser with NO commit/transaction gating
+     * (EXT4SearchDLL FUN_18000e5b0/e890) - an uncommitted tail's dir
+     * blocks surface. Our old commit gate dropped them. Extend the journal
+     * with a descriptor (sequence 10) that has NO commit block. */
+    auto img = build_volume();
+    constexpr u64 B_JOURNAL = 10;
+    /* grow the journal inode by 2 blocks (5 -> 7) and plant the tail */
+    write_inode(img, 8, 0x8000, 7 * BS, B_JOURNAL, 7, 1, 0);
+    {
+        u8* desc = img.block(B_JOURNAL + 5);
+        bput32(desc + 0, 0xC03B3998u);
+        bput32(desc + 4, 1);   /* JBD2_DESCRIPTOR_BLOCK */
+        bput32(desc + 8, 10);  /* sequence 10 - NEVER committed */
+        bput32(desc + 12, 40); /* tag: fs block (value unused by parser) */
+        bput16(desc + 16, 0);
+        bput16(desc + 18, 8); /* LAST_TAG (no UUID games: SAME_UUID set) */
+        u8* snap = img.block(B_JOURNAL + 6);
+        u32 jcur = 0;
+        add_dirent(snap, jcur, 51, "uncommitted.txt", 1);
+    }
+    MemDevice dev(img.raw());
+    tree::ResultTree tree;
+    auto* ra = tree.add_root(u"Found");
+    auto* rl = tree.add_root(u"Lost Files");
+    Ext4ScanFlags fl;
+    Ext4ScanStats st;
+    u32 rc = scan_ext4(&dev, fl, nullptr, nullptr, nullptr, tree, ra, nullptr, rl, st);
+    ASSERT_EQ(OK, rc) << err_text(rc);
+    EXPECT_EQ(7u, st.journal_blocks);
+    EXPECT_EQ(3u, st.journal_salvaged); /* ghost + esc + UNCOMMITTED tail */
+    bool saw = false;
+    for (tree::FileNode* c = rl->first_child(); c; c = c->next_sibling()) {
+        if (c->props() && c->name_utf8() == "uncommitted.txt")
+            saw = true;
+    }
+    EXPECT_TRUE(saw) << "uncommitted-tail dir block must surface (og parity)";
+}
+
 } // namespace
 } // namespace ext4
 } // namespace cr

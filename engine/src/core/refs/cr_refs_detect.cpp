@@ -1,4 +1,7 @@
-/* cr_refs_detect.cpp - ReFS detection (report-only).
+/* cr_refs_detect.cpp - lightweight ReFS triage probe (boot-sector + MSB
+ * signature scan for partition classification). The FULL engine - MSB-chain
+ * reconstruction, hierarchy walk, deleted harvest - lives in
+ * cr_refs_engine.cpp (scan_refs); ReFS is first-class there.
  *
  * Licensed under the MIT license. See LICENSE.
  */

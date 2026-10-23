@@ -435,3 +435,152 @@ TEST(ExfatEngine, SetChecksumMismatchMarksDamaged) {
     ASSERT_NE(doc, nullptr);
     EXPECT_EQ(doc->confidence(), tree::Confidence::PartialRisk); /* live but set damaged */
 }
+
+/* ---- AUDIT-FAT regression batch (EXFAT-1/2/3/4) ---- */
+
+/* additional sets are planted after the fixture's own 576 bytes of root
+ * entries (3 singles + 5 three-entry sets), still inside the 2-cluster
+ * root chain (1024 bytes) */
+TEST(ExfatEngine, InvalidFirstClusterRejected) {
+    /* EXFAT-1: og rejects first_cluster == 1 and >= 0xFFFFFFF7
+     * (FUN_180003090:1857-1859). Before the fix, 0xFFFFFFF7+ passed the
+     * `>= 2` gate and produced a garbage chain at an absurd offset. */
+    auto img = build_exfat_image();
+    const size_t ROOT = 25 * 512;
+    const size_t AT = ROOT + 576;
+    {
+        SetBuilder sb;
+        sb.file_entry(0x20, 0x5A466000u << 0 | 0x5A466000);
+        sb.stream_entry(0x01, 8, 1, 512); /* fc = 1: reserved */
+        sb.name_entry(u"bad1.dat");
+        std::memcpy(img.data() + AT, sb.entries.data(), sb.entries.size());
+        sb.finish_set(img, AT);
+    }
+    {
+        SetBuilder sb;
+        size_t at = AT + 96;
+        sb.file_entry(0x20, 0);
+        sb.stream_entry(0x01, 10, 0xFFFFFFF9u, 512); /* fc in EOC family */
+        sb.name_entry(u"badeoc.dat");
+        std::memcpy(img.data() + at, sb.entries.data(), sb.entries.size());
+        sb.finish_set(img, at);
+    }
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* ra = tree.add_root(u"Found");
+    ExfatScanFlags flags;
+    ExfatScanStats stats;
+    ASSERT_EQ(scan_exfat(&dev, flags, nullptr, nullptr, nullptr, tree, ra, nullptr, nullptr, stats),
+              OK);
+    EXPECT_GE(stats.sets_damaged, 2u);
+    auto all = collect_all(tree);
+    tree::FileNode *bad1 = nullptr, *badeoc = nullptr;
+    for (auto* n : all) {
+        if (n->name_utf8() == "bad1.dat")
+            bad1 = n;
+        if (n->name_utf8() == "badeoc.dat")
+            badeoc = n;
+    }
+    ASSERT_NE(bad1, nullptr) << "metadata-only emission expected";
+    ASSERT_NE(badeoc, nullptr) << "metadata-only emission expected";
+    EXPECT_TRUE(bad1->props()->extents.empty());
+    EXPECT_TRUE(badeoc->props()->extents.empty()); /* no garbage chain */
+}
+
+TEST(ExfatEngine, EocFamilyTerminatesChain) {
+    /* EXFAT-3: EOC family is 0xFFFFFFF8..0xFFFFFFFF. Terminator 0xFFFFFFFA
+     * must end the chain cleanly (before: followed as a cluster number ->
+     * garbage extent beyond the device). */
+    auto img = build_exfat_image();
+    const size_t FAT = 24 * 512;
+    put32v(img, FAT + 90 * 4, 91);
+    put32v(img, FAT + 91 * 4, 0xFFFFFFFAu); /* family member, not 0xFFFFFFFF */
+    const size_t ROOT = 25 * 512;
+    const size_t AT = ROOT + 576;
+    SetBuilder sb;
+    sb.file_entry(0x20, 0);
+    sb.stream_entry(0x01, 7, 90, 1024);
+    sb.name_entry(u"eoc.txt");
+    std::memcpy(img.data() + AT, sb.entries.data(), sb.entries.size());
+    sb.finish_set(img, AT);
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* ra = tree.add_root(u"Found");
+    ExfatScanFlags flags;
+    ExfatScanStats stats;
+    ASSERT_EQ(scan_exfat(&dev, flags, nullptr, nullptr, nullptr, tree, ra, nullptr, nullptr, stats),
+              OK);
+    auto all = collect_all(tree);
+    tree::FileNode* eoc = nullptr;
+    for (auto* n : all)
+        if (n->name_utf8() == "eoc.txt")
+            eoc = n;
+    ASSERT_NE(eoc, nullptr);
+    ASSERT_EQ(eoc->props()->extents.size(), 1u);
+    EXPECT_EQ(eoc->props()->extents[0].offset, u64(25 + 88) * 512); /* cluster 90 */
+    EXPECT_EQ(eoc->props()->extents[0].length, 1024u);
+}
+
+TEST(ExfatEngine, FreeEntryContiguousSalvage) {
+    /* EXFAT-2: og FUN_180021c60:28158-28163 continues with cluster+1 on a
+     * FREE (zero) FAT entry - the salvage heuristic for FAT-zeroed volumes
+     * (deletion zeroes the chain). Before: hard break -> truncated extent. */
+    auto img = build_exfat_image();
+    /* FAT entries for clusters 100/101 stay ZERO (never planted) */
+    const size_t ROOT = 25 * 512;
+    const size_t AT = ROOT + 576;
+    SetBuilder sb;
+    sb.file_entry_deleted(0x20, 0);
+    sb.stream_entry_deleted(0x01, 10, 100, 1024); /* 2 clusters expected */
+    sb.name_entry_deleted(u"zeroed.dat");
+    std::memcpy(img.data() + AT, sb.entries.data(), sb.entries.size());
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* ra = tree.add_root(u"Found");
+    auto* rl = tree.add_root(u"Lost");
+    ExfatScanFlags flags;
+    ExfatScanStats stats;
+    ASSERT_EQ(scan_exfat(&dev, flags, nullptr, nullptr, nullptr, tree, ra, nullptr, rl, stats), OK);
+    EXPECT_GE(stats.assumed_contiguous, 1u);
+    auto all = collect_all(tree);
+    tree::FileNode* z = nullptr;
+    for (auto* n : all)
+        if (n->name_utf8() == "zeroed.dat")
+            z = n;
+    ASSERT_NE(z, nullptr);
+    /* full contiguous extent [100,101] - NOT the truncated single cluster */
+    ASSERT_EQ(z->props()->extents.size(), 1u);
+    EXPECT_EQ(z->props()->extents[0].offset, u64(25 + 98) * 512); /* cluster 100 */
+    EXPECT_EQ(z->props()->extents[0].length, 1024u);
+    /* assumed chain never grades above PartialRisk */
+    EXPECT_EQ(z->confidence(), tree::Confidence::PartialRisk);
+}
+
+TEST(ExfatEngine, BootGatesMatchOg) {
+    /* EXFAT-4: the four og boot gates we lacked (FUN_180021e80) */
+    auto reject = [](std::vector<u8> img) {
+        MemDevice dev(std::move(img));
+        ExfatParams p;
+        EXPECT_EQ(validate_boot_region(&dev, p), ERR_BAD_PARAMETER);
+    };
+    { /* (a) MustBeZero sweep +0x0B..+0x3F */
+        auto img = build_exfat_image();
+        img[0x20] = 1;
+        reject(std::move(img));
+    }
+    { /* (b) fat_count in [1,2] */
+        auto img = build_exfat_image();
+        img[110] = 0;
+        reject(std::move(img));
+    }
+    { /* (c) fat_length != 0 */
+        auto img = build_exfat_image();
+        put32v(img, 84, 0);
+        reject(std::move(img));
+    }
+    { /* (d) cluster-heap fit: (count-1)<<spc + heap > volume_length */
+        auto img = build_exfat_image();
+        put32v(img, 92, 2100); /* (2099)<<0 + 25 = 2124 > 2048 */
+        reject(std::move(img));
+    }
+}

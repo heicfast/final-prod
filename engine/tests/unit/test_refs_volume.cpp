@@ -555,6 +555,142 @@ TEST(Refs, OrchestratorProbeAndScan) {
     EXPECT_EQ(3u, stats.files_found); /* 2 files + 1 dir */
 }
 
+TEST(Refs, NextChainFindsNewerTable) {
+    /* REFS-1 (AUDIT-LINUX-FS, HIGH): the checkpoint's reference entries
+     * chain via next@ref+0x28 (page-relative offset of the NEWER reference,
+     * og RefsMetadataBlockRefrenceImpl -> RefsBaseDataImplManager,
+     * FUN_18000fc80/FUN_18000ff60). The checkpoint pins a possibly-older
+     * ObjectID table; a newer version must win. */
+    auto img = build_volume();
+    const u64 T_CREATE = 0x01D0000000000000ull;
+    const u64 T_MODIFY = 0x01D1000000000000ull;
+
+    /* newer root dir table 0x600 at cluster 240: original rows + newer.txt */
+    {
+        std::vector<Row> rows;
+        {
+            std::vector<u8> key(4, 0);
+            put32(key.data(), 0x10);
+            rows.push_back({key, build_node({}, std::vector<u8>(0x40, 0)), 0});
+        }
+        for (const char16_t* nm16 : {u"hello.txt", u"newer.txt"}) {
+            std::vector<u8> key;
+            key.resize(4);
+            put32(key.data(), 0x00010030);
+            std::vector<u8> nm = u16name(nm16);
+            key.insert(key.end(), nm.begin(), nm.end());
+            rows.push_back(
+                {key, build_file_node(T_CREATE, T_MODIFY, 0, 4096, 4096, 250, 1, true), 0});
+        }
+        write_page(img, 240, 0x2B42534D, 0x600, build_node(rows));
+    }
+    memset(img.data() + 250 * CLUSTER, 'N', CLUSTER);
+
+    /* newer ObjectID table at cluster 260: 0x600 -> 240 (the newer root) */
+    {
+        std::vector<u8> r600_val(0x50, 0), r700_val(0x50, 0);
+        for (int i = 0; i < 4; ++i) {
+            put64(r600_val.data() + 0x30 + i * 8, 260 + 0); /* replaced below - same table */
+            put64(r700_val.data() + 0x30 + i * 8, 180 + i);
+        }
+        /* 0x600 row points at the NEWER root dir (240..243) */
+        for (int i = 0; i < 4; ++i)
+            put64(r600_val.data() + 0x30 + i * 8, 240 + i);
+        std::vector<u8> k600(16, 0), k700(16, 0);
+        put64(k600.data(), 0x600);
+        put64(k700.data(), 0x700);
+        write_page(img, 260, 0x2B42534D, 1, build_node({Row{k600, r600_val}, Row{k700, r700_val}}));
+    }
+
+    /* chain the checkpoint's ObjectID reference (at 0x138):
+     * next@0x138+0x28 = 0x160 -> newer reference at 0x2A0 (quad -> 260) */
+    {
+        u8* p = img.data() + 100 * CLUSTER;
+        put64(p + 0x138 + 0x28, 0x2A0); /* next: page-relative offset */
+        for (int i = 0; i < 4; ++i)
+            put64(p + 0x2A0 + i * 8, 260 + i); /* newer ObjectID root */
+        put64(p + 0x2A0 + 0x28, 0);            /* chain tail */
+    }
+
+    RamDevice dev(img);
+    tree::ResultTree tree;
+    auto* ra = tree.add_root(u"Found");
+    auto* rd = tree.add_root(u"Deleted");
+    auto* rl = tree.add_root(u"Lost Files");
+    RefsScanFlags flags;
+    RefsScanStats stats;
+    u32 rc = scan_refs(&dev, flags, nullptr, nullptr, nullptr, tree, ra, rd, rl, stats);
+    ASSERT_EQ(OK, rc) << err_text(rc);
+    std::vector<tree::FileNode*> all;
+    for (auto* r : tree.roots())
+        collect(r, all);
+    bool newer = false, hello = false;
+    for (auto* n : all) {
+        if (n->props() && n->name_utf8() == "newer.txt")
+            newer = true;
+        if (n->props() && n->name_utf8() == "hello.txt")
+            hello = true;
+    }
+    EXPECT_TRUE(newer) << "the chained NEWER ObjectID table must win";
+    EXPECT_TRUE(hello) << "the newer root still carries the original content";
+}
+
+TEST(Refs, CheckpointLayoutMinor14) {
+    /* REFS-2 (AUDIT-LINUX-FS, HIGH): minor>=14 checkpoints carry the
+     * pointer list at page+0xA8 (body+0x58) instead of page+0x94
+     * (body+0x44); the count stays at page+0x90 (body+0x40). og
+     * FUN_180012650:13754-13758. The list exists ONLY at the new offset:
+     * reading the old one yields zeros -> table_root(0) fails -> the scan
+     * would ERR_BAD_MAGIC. */
+    auto img = build_volume();
+    {
+        u8* b = img.data();
+        b[0x29] = 14; /* boot minor 0x0E */
+        u8* p = img.data() + 100 * CLUSTER;
+        put16(p + 0x56, 14); /* checkpoint body minor */
+        /* move the 13-entry u32 list from 0x94 to 0xA8 */
+        u32 ptrs[13] = {};
+        for (int i = 0; i < 13; ++i)
+            ptrs[i] = u32(p[0x94 + i * 4]) | (u32(p[0x94 + i * 4 + 1]) << 8) |
+                      (u32(p[0x94 + i * 4 + 2]) << 16) | (u32(p[0x94 + i * 4 + 3]) << 24);
+        memset(p + 0x94, 0, 13 * 4);
+        for (int i = 0; i < 13; ++i)
+            put32(p + 0xA8 + i * 4, ptrs[i]);
+    }
+    RamDevice dev(img);
+    tree::ResultTree tree;
+    auto* ra = tree.add_root(u"Found");
+    auto* rd = tree.add_root(u"Deleted");
+    auto* rl = tree.add_root(u"Lost Files");
+    RefsScanFlags flags;
+    RefsScanStats stats;
+    u32 rc = scan_refs(&dev, flags, nullptr, nullptr, nullptr, tree, ra, rd, rl, stats);
+    ASSERT_EQ(OK, rc) << err_text(rc);
+    std::vector<tree::FileNode*> all;
+    for (auto* r : tree.roots())
+        collect(r, all);
+    bool hello = false;
+    for (auto* n : all)
+        if (n->props() && n->name_utf8() == "hello.txt")
+            hello = true;
+    EXPECT_TRUE(hello) << "minor-14 checkpoint must walk through the 0xA8 list";
+}
+
+TEST(Refs, Pre34CheckpointRejected) {
+    /* og version re-validation on the checkpoint body (FUN_180012650:
+     * major u16@body+4 == 3 && minor u16@body+6 > 3): a 3.2 checkpoint is
+     * refused exactly like the og refuses it. */
+    auto img = build_volume();
+    put16(img.data() + 100 * CLUSTER + 0x56, 2); /* body minor 2 */
+    RamDevice dev(img);
+    tree::ResultTree tree;
+    auto* ra = tree.add_root(u"Found");
+    RefsScanFlags flags;
+    RefsScanStats stats;
+    EXPECT_EQ(u32(ERR_BAD_MAGIC),
+              scan_refs(&dev, flags, nullptr, nullptr, nullptr, tree, ra, nullptr, nullptr, stats));
+}
+
 } // namespace
 } // namespace refs
 } // namespace cr

@@ -268,6 +268,15 @@ u32 walk_mft(NtfsVolume* vol, VolumeBitmap* bitmap, const WalkerFlags& flags, Ca
         std::memcpy(&rh, rec.data(), sizeof(rh));
         if (rh.magic != RECORD_MAGIC_FILE)
             continue; /* unused slot - not damage */
+        /* NTFS-8 (AUDIT-NTFS): extension records (base_record != 0) carry
+         * no $FILE_NAME of their own - the og skips them silently via the
+         * base-record gate (FUN_180041970, Dec 21155-21157) while our
+         * names.empty() path counted each one damaged, inflating the
+         * damaged stat on every fragmented ($ATTRIBUTE_LIST) volume.
+         * The attrlist chase reads children explicitly; the main walk
+         * never needs them. */
+        if (rh.base_record != 0)
+            continue;
         /* F4: fixup mandatory before any parse */
         if (fixup_apply(rec.data(), u32(rec.size()), rh.update_sequence_offset,
                         rh.update_sequence_size, sector_bytes) != OK) {
@@ -488,7 +497,11 @@ u32 walk_mft(NtfsVolume* vol, VolumeBitmap* bitmap, const WalkerFlags& flags, Ca
                        : (has_data ? authoritative_size : 0);
             if (!is_dir && !has_data) {
                 conf = tree::Confidence::MetadataOnly;
-            } else if (probe_size >= flags.viability_min_size && probe.total_clusters() > 0) {
+            } else if (probe_size > flags.viability_min_size && probe.total_clusters() > 0) {
+                /* NTFS-1 (AUDIT-NTFS): og viability gate is STRICT -
+                 * `0x3ff < size` (Dec 21208) - files of exactly 0x3FF
+                 * (1023) bytes take the fast-path with NO bitmap check.
+                 * The old `>=` probed them (unregistered divergence). */
                 if (bitmap && bitmap->valid()) {
                     const double ratio = bitmap->reused_ratio(probe);
                     if (ratio >= 1.0)
@@ -500,12 +513,12 @@ u32 walk_mft(NtfsVolume* vol, VolumeBitmap* bitmap, const WalkerFlags& flags, Ca
                 } else {
                     conf = tree::Confidence::PartialRisk; /* no bitmap: honest unknown-ish */
                 }
-            } else if (probe_size < flags.viability_min_size) {
-                conf = tree::Confidence::Excellent; /* corpus fast-path: <1 KiB, likely resident */
-                if (!is_dir && !has_data)
-                    conf = tree::Confidence::MetadataOnly;
+            } else if (probe_size <= flags.viability_min_size && (is_dir || has_data)) {
+                conf = tree::Confidence::Excellent; /* corpus fast-path: <1 KiB, likely resident
+                                                     * (== boundary included: og's gate is
+                                                     * `0x3ff < size`, NTFS-1) */
             } else {
-                conf = tree::Confidence::PartialRisk;
+                conf = tree::Confidence::PartialRisk; /* >= gate but no clusters to probe */
             }
         } else {
             conf = tree::Confidence::Excellent; /* live file: extents owned by it */

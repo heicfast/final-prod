@@ -81,6 +81,22 @@ u32 validate_boot_region(IStorageDevice* dev, ExfatParams& out) {
         return ERR_BAD_PARAMETER;
     if (main_b->sectors_per_cluster_shift > 25 - main_b->bytes_per_sector_shift)
         return ERR_BAD_PARAMETER;
+    /* EXFAT-4 (AUDIT-FAT): og boot gates we lacked (FUN_180021e80,
+     * exFATSearchDLL_decompiled.c:28180-28208):
+     *   (a) MustBeZero sweep +0x0B..+0x3F (the 53-byte reserved region
+     *       after JumpBoot/OEM - 28183-28196);
+     *   (b) fat_count in [1,2] (28200);
+     *   (c) fat_length != 0 - og rejects "no-FAT" boot sectors (28200);
+     *   (d) cluster-heap fit: the last cluster's last sector must be
+     *       inside the volume: (cluster_count-1)<<spc_shift + heap_offset
+     *       <= volume_length, in sectors (28206-28208). */
+    for (int i = 0; i < 53; ++i)
+        if (main_b->must_be_zero[i] != 0)
+            return ERR_BAD_PARAMETER;
+    if (main_b->fat_count < 1 || main_b->fat_count > 2)
+        return ERR_BAD_PARAMETER;
+    if (main_b->fat_length == 0)
+        return ERR_BAD_PARAMETER;
 
     ExfatParams p;
     p.bytes_per_sector_shift = main_b->bytes_per_sector_shift;
@@ -105,8 +121,12 @@ u32 validate_boot_region(IStorageDevice* dev, ExfatParams& out) {
         return ERR_BAD_PARAMETER;
     if (p.fat_offset < BOOT_REGION_SECTORS)
         return ERR_BAD_PARAMETER;
-    if (p.cluster_heap_offset < p.fat_offset + p.fat_length)
+    if (u64(p.cluster_heap_offset) < u64(p.fat_offset) + u64(p.fat_length))
         return ERR_BAD_PARAMETER; /* heap must start at/after the FAT area (sectors) */
+    /* (d) heap fit (sectors, overflow-safe) */
+    if (((u64(p.cluster_count) - 1) << p.sectors_per_cluster_shift) + u64(p.cluster_heap_offset) >
+        p.volume_length)
+        return ERR_BAD_PARAMETER;
     p.boot_main_ok = true;
 
     /* backup boot sector */

@@ -64,6 +64,7 @@ struct ExfatScanStats {
     u64 sets_damaged = 0; /* checksum mismatch (kept, marked damaged) */
     u64 no_fat_chains = 0;
     u64 chains_broken = 0;
+    u64 assumed_contiguous = 0; /* EXFAT-2: FREE-entry continuation salvage */
 };
 
 struct ExfatScanFlags {

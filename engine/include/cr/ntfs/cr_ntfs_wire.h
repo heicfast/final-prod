@@ -130,8 +130,14 @@ struct NonresidentTail {  /* 48 bytes following the 16-byte common header */
     u16 compression_unit; /* +0x22 */
     u32 unused;           /* +0x24 */
     u64 allocated;        /* +0x28 */
-    u64 initialized;      /* +0x30 valid data; sparse tail beyond */
-    u64 actual;           /* +0x38 real size */
+    /* NTFS-7 (AUDIT-NTFS): spec field order is FILE (real) SIZE @+0x30
+     * then INITIALIZED SIZE @+0x38 (ntfs-3g layout.h; ntfs3
+     * data_size@0x30 / valid_size@0x38). The previous labels were swapped,
+     * so `na.actual` read the INITIALIZED size - benign while
+     * allocated == initialized == real, but a sparse nonresident
+     * $ATTRIBUTE_LIST under-read its content length. */
+    u64 actual;      /* +0x30 file (real) size */
+    u64 initialized; /* +0x38 valid-data (initialized) size */
 };
 static_assert(sizeof(NonresidentTail) == 48);
 /* compressed-size u64 at +0x40 exists only in compressed records - parsed

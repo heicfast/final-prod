@@ -2,7 +2,7 @@
  * cr_refs_engine.h - full ReFS scan engine (MSB-chain reconstruction).
  *
  * On-disk model (Prade 2019 "Forensic Analysis of ReFS" + ReadFS working
- * parser + og decompile gates; see docs/formats.md):
+ * parser + og decompile gates):
  *   VBR (LBA 0): "ReFS" OEM @+3, "FSRS" @+0x10, sectorCount u64 @+0x18,
  *     bytesPerSector u32 @+0x20, sectorsPerCluster u32 @+0x24, major u8
  *     @+0x28, minor u8 @+0x29, serial @+0x38, bytesPerContainer @+0x40.
@@ -35,10 +35,14 @@
  *     flags u16 @+0x12 (2=sparse), bitmap @+0x18} -> deleted-extent
  *     viability grading (NTFS $Bitmap parity).
  *
- * The og corpus engine (ReFSSearchDLL 20,270 lines) gates on ReFS 3.7-3.10
- * only; this engine validates the boot shape and accepts any 1.x-3.x with
- * self-validating structure discovery (strictness at the page level: page
- * signatures + volume signature checks everywhere).
+ * The og corpus engine (ReFSSearchDLL, 20,270 lines) gates on
+ * major==3 && minor>3 - ReFS 3.4+ (FUN_180012390:13529-13531,
+ * re-validated on the checkpoint body by FUN_180012650:13744-50) - plus a
+ * separate major==1 path; this engine validates the boot shape and accepts
+ * any 1.x-3.x with self-validating structure discovery (strictness at the
+ * page level: page signatures + volume signature checks everywhere).
+ * REFS is a FIRST-CLASS engine: full MSB-chain reconstruction (see
+ * scan_refs), not a detection report.
  *
  * Licensed under the MIT license. See LICENSE.
  */
