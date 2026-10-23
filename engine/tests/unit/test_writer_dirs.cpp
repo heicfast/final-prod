@@ -7,6 +7,7 @@
  * Licensed under the MIT license. See LICENSE.
  */
 #include <gtest/gtest.h>
+#include "test_tmpdir.hpp"
 #include "cr/recovery/cr_safewriter.h"
 #include "cr/storage/cr_device.h"
 #include <atomic>
@@ -147,15 +148,8 @@ std::set<std::string> walk_tree(const fs::path& root) {
 struct TmpDir {
     fs::path p;
     TmpDir() {
-        static std::atomic<int> n{0};
-        char buf[128];
-#ifdef _WIN32
-        const int pid = _getpid(); /* MSVC C4996: POSIX name deprecated */
-#else
-        const int pid = getpid();
-#endif
-        snprintf(buf, sizeof(buf), "/tmp/cr_wdirs_%d_%d", pid, n.fetch_add(1));
-        p = buf;
+        /* GAP-CI-1: MSVC does not resolve "/tmp" - use the real temp dir */
+        p = cr_test::tmp_path("cr_wdirs", "");
         fs::create_directories(p);
     }
     ~TmpDir() {

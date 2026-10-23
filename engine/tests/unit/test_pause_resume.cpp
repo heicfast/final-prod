@@ -7,6 +7,7 @@
  * Licensed under the MIT license. See LICENSE.
  */
 #include <gtest/gtest.h>
+#include "test_tmpdir.hpp"
 #include "cr/orchestrator/cr_scan.h"
 #include "cr/recovery/cr_safewriter.h"
 #include "cr/session/cr_crsf.h"
@@ -165,15 +166,9 @@ u64 file_size(void* user) {
 }
 
 std::string tmp_session_path() {
-    static std::atomic<int> n{0};
-    char buf[128];
-#ifdef _WIN32
-    const int pid = _getpid(); /* MSVC C4996: POSIX name deprecated */
-#else
-    const int pid = getpid();
-#endif
-    snprintf(buf, sizeof(buf), "/tmp/cr_test_session_%d_%d.crsf", pid, n.fetch_add(1));
-    return std::string(buf);
+    /* GAP-CI-1: MSVC fopen does not resolve "/tmp" - resolve the real
+     * temp dir (TMPDIR/TMP/TEMP, /tmp on the Linux runners) */
+    return cr_test::tmp_path("cr_test_session", ".crsf");
 }
 
 } // namespace

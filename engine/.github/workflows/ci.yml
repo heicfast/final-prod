@@ -34,7 +34,10 @@ jobs:
       - name: Recovery report schema validation (G-09)
         run: |
           # the Report.EmitsCiSchemaSample test writes the sample above
-          python3 tools/validate_report.py /tmp/cr_report_sample.json
+          # (GAP-CI-1: the path now resolves through the platform temp
+          # dir - tempfile.gettempdir() is the exact std::filesystem
+          # resolution on this runner)
+          python3 tools/validate_report.py "$(python3 -c 'import tempfile; print(tempfile.gettempdir())')/cr_report_sample.json"
 
   linux-tsan:
     runs-on: ubuntu-24.04

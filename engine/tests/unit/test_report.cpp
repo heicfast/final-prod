@@ -7,6 +7,7 @@
  * Licensed under the MIT license. See LICENSE.
  */
 #include <gtest/gtest.h>
+#include "test_tmpdir.hpp"
 #include "cr/recovery/cr_report.h"
 #include "cr/recovery/cr_safewriter.h"
 #include "cr/storage/cr_device.h"
@@ -390,7 +391,7 @@ TEST(Report, EmitsCiSchemaSample) {
 
     const std::string doc = build_report(items, t);
     ASSERT_FALSE(doc.empty());
-    std::ofstream f("/tmp/cr_report_sample.json", std::ios::binary | std::ios::trunc);
+    std::ofstream f(cr_test::tmp_file("cr_report_sample.json"), std::ios::binary | std::ios::trunc);
     ASSERT_TRUE(f.is_open());
     f.write(doc.data(), std::streamsize(doc.size()));
     f.close();
