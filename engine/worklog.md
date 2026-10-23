@@ -867,3 +867,48 @@ Stage Summary (what the next agent MUST read first):
 - Known remaining scope (do NOT re-derive): #1/#2 = C ABI header inc/cr_ui.h per CORE-CONTRACT.md section 2 + snapshot ADR (copy-on-write at stage boundaries is the preferred shape; telemetry()/checkpoint hooks already give the boundary points; TSan tests); #10 = G-11 (.rsf import) disposition note + G-15..G-22 table + README capability matrix + ground-truth-contracts extension; CLI tree --json projection (query::run rows; --csv grammar frozen byte-identical).
 - Coordination: the parity agent (issue comments + PARITY-AUDIT docs) and this agent have been pushing concurrently; pull before push EVERY time (3 rebases this session); their fixes touched my headers/tests (format, TSan race, MSVC) - re-run the full suite after every rebase.
 - Win7/MSVC notes for the shim: cr_tests now links std::filesystem (test_writer_dirs) - the DLL target itself must stay free of it; /W4 /WX + a small C consumer test per the plan.
+
+---
+Task ID: S5-CONT-2
+Agent: Session-5 continuation take-over (round 2, post workspace-reset)
+Task: Context re-recovery after an unexpected session stop + workspace reset;
+resume the verification-and-fix loop on the current main (now including the
+principal-engineer parity-refactor session's W1/W2/W3 waves).
+
+Work Log:
+- Workspace reset recovery: all 4 repos re-cloned (core b505799, driver, corpus,
+  + rda-wizard); the un-pushed benchmark.yml stray-brace fix was lost to the
+  reset - verified the concurrent refactor session had fixed it at HEAD (the
+  delete-partition step now parses; the Math::Round 'corruption' was a false
+  alarm - hexdump shows $([math]::Round, valid pwsh).
+- Mapped the parity-refactor session's landed waves vs the PARITY-REFACTOR-PLAN:
+  W1 (fallback-truth), W2 items 1-18 mostly landed (FAT/exFAT/NTFS/ext4/ReFS +
+  Btrfs trio + writer collect-and-continue + carve batch), W3 partial
+  (parallel deleted merge, PoolCancelToken deleted, RawFixer, health, LDM
+  honesty). NOT landed: W2-9 FAT cancel, W2-19 GPT backup-salvage, W3-4/5/9/10,
+  W4 dead-code sweep, W5 docs wave, W6 (CI green / Win7 pins / release).
+- CI at take-over: runs 114/115/116 red in 3 lanes (MSVC C4267 in the new
+  btrfs test; TSan 263ms>200ms QueryPerf gate; fuzzer heap-buffer-overflow in
+  extract_metadata - the preview short-window class, exactly the P1 my earlier
+  Agent C2 audit had filed). All three fixed with regression tests (commit
+  f93f38e): C4267 cast; TSan-scaled budget (2000ms under __SANITIZE_THREAD__,
+  200ms otherwise); Window::fetch split into strict fetch / lenient fetch_any
+  with last_got; WAV fmt-chunk window fix; DOCX raw-deflate windowBits -15 +
+  honest zip labels; malformed-caps extent advance; + 5 new tests incl. the
+  fuzzer crash shape and a 3000-round deterministic stress (runs in every CI
+  lane, including the ones without libFuzzer).
+- Local gate: 204/204 green (gcc -Werror + ASan), lint clean (18.1.8), pushed.
+
+Stage Summary:
+- main should go green on f93f38e (watch CI; react to any lane noise).
+- Registered remainder now: W2-9 FAT cancel polling, W2-19 GPT backup-salvage,
+  W2-18 writer salvaged outcome flag, W3-4 CLI Ctrl-C, W3-9 SESS identity card,
+  W3-10 dedup, W4 dead-code sweep, W5 docs wave (D-36..D-44, capability
+  matrix, benchmark report, corpus errata), W6 (CI green + Win7 user-mode
+  import gate + release tag), plus my audit's own items: NTFS LZNT1/XPRESS
+  decompression (P1 silent corruption), lzjb source bound, recycle $I/$R
+  remap engine bug (bench: ours 0/26 vs og 26/26), carved_found counter,
+  transport elevation probe, session identity card, benchmark scoring fixes
+  (numeric enum schema, keep-gate ACTIVE, precision accounting, rsf
+  contamination guard, service name rda), G-02 snapshot + G-01 C ABI shim,
+  #10 umbrella remainder.
