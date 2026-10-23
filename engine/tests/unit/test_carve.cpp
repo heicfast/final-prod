@@ -185,8 +185,12 @@ std::vector<u8> build_carve_image() {
     std::vector<u8> img(32 * 1024, 0);
     plant_jpeg(img, 512);
     plant_png(img, 2048);
-    plant_zip(img, 4096, "a.txt", 5);                /* plain ZIP */
-    plant_zip(img, 8192, "[Content_Types].xml", 19); /* OOXML shape */
+    /* plain ZIP: the name is long enough that the archive clears the
+     * registry's 128-byte min_size on its OWN extent (140 B). The old
+     * last-EOCD-wins rule inflated this plant to 232 B by absorbing the
+     * DOCX plant's EOCD - the test used to pass on that cross-file bug */
+    plant_zip(img, 4096, "backup_archive_v1.txt", 21); /* plain ZIP: 140 B */
+    plant_zip(img, 8192, "[Content_Types].xml", 19);   /* OOXML shape: 136 B */
     /* noise: JPEG magic, no EOI/SOF/SOS - planted clear of the real files
      * (the jpeg@512 spans 512..1033; keep noise away from its tail) */
     img[12288] = 0xFF;
@@ -229,7 +233,7 @@ TEST(CarveEngine, GrammarValidationAndSpecificity) {
     collect(root);
 
     int jpg = 0, png = 0, zip = 0, docx = 0;
-    tree::FileNode *jpg_node = nullptr, *docx_node = nullptr;
+    tree::FileNode *jpg_node = nullptr, *docx_node = nullptr, *zip_node = nullptr;
     for (auto* n : all) {
         const u32 fmt = n->props()->carve_format;
         if (n->props()->extents.front().offset == 512) {
@@ -242,6 +246,7 @@ TEST(CarveEngine, GrammarValidationAndSpecificity) {
             docx_node = n;
         } else if (n->props()->extents.front().offset == 4096) {
             zip++;
+            zip_node = n;
         } else
             FAIL() << "unexpected carved node at " << n->props()->extents.front().offset;
         switch (fmt) {
@@ -267,12 +272,16 @@ TEST(CarveEngine, GrammarValidationAndSpecificity) {
     EXPECT_EQ(zip, 1);
     EXPECT_EQ(docx, 1); /* the OOXML-shaped plant classified DOCX, not ZIP */
 
-    /* sizes from grammar ends */
+    /* sizes from grammar ends - exact extents, no cross-file absorption:
+     * the ZIP ends at its OWN EOCD (first-consistent-wins), not at the
+     * DOCX plant's EOCD 4 KB later */
     ASSERT_NE(jpg_node, nullptr);
     EXPECT_EQ(jpg_node->props()->logical_size, size_t(521));
+    ASSERT_NE(zip_node, nullptr);
+    EXPECT_EQ(zip_node->props()->logical_size, size_t(140)); /* 30+21 + 46+21 + 22 */
     ASSERT_NE(docx_node, nullptr);
-    /* zip_common end: EOCD at ... */
-    EXPECT_GT(docx_node->props()->logical_size, 30u + 19u + 46u + 19u + 22u - 2);
+    EXPECT_EQ(docx_node->props()->logical_size,
+              size_t(30u + 19u + 46u + 19u + 22u)); /* 136: own EOCD */
 }
 
 TEST(CarveEngine, SecondPassFullyDeduped) {
@@ -421,7 +430,11 @@ TEST(CarveEngine, ExtendedFormatsGrammar) {
         v.insert(v.end(), 12, 0); /* 3 zero-size sections + compression */
         put(v);
     }
-    /* MP3: ID3v2.3 + syncsafe size 100 + frame sync */
+    /* MP3: ID3v2.3 + syncsafe size 100 + FOUR real MPEG1 Layer III frames.
+     * Header FF FB 22 22: ver=MPEG1 layer=III, bitrate idx 2 (40 kbps),
+     * samplerate idx 0 (44100), pad 1 -> 144*40*1000/44100+1 = 131 B/frame.
+     * The strict walk stops at the first invalid header (AUDIT Wave-3);
+     * 4 frames -> 10+100+524 = 634 B, extent == last frame end */
     {
         std::vector<u8> v = mk({'I', 'D', '3', 3, 0, 0});
         v.push_back(0);
@@ -429,9 +442,13 @@ TEST(CarveEngine, ExtendedFormatsGrammar) {
         v.push_back(0);
         v.push_back(100);             /* size 100 */
         v.insert(v.end(), 100, 0x11); /* tag payload */
-        v.push_back(0xFF);
-        v.push_back(0xFB); /* MPEG frame sync */
-        v.insert(v.end(), 512, 0x22);
+        for (int fr = 0; fr < 4; ++fr) {
+            v.push_back(0xFF);
+            v.push_back(0xFB);            /* 11-bit sync + MPEG1 + Layer III */
+            v.push_back(0x22);            /* bitrate 2, samplerate 0, padding 1 */
+            v.push_back(0x22);            /* channel mode (not used by the size math) */
+            v.insert(v.end(), 127, 0x33); /* frame body: 4+127 = 131 B */
+        }
         put(v);
     }
     /* WAV: RIFF + len + WAVE + fmt */
@@ -580,4 +597,74 @@ TEST(CarveEngine, ExtendedFormatsGrammar) {
         EXPECT_EQ(std::string::npos, f.find(".webp"));
         EXPECT_EQ(std::string::npos, f.find(".avi"));
     }
+    /* MP3 exact extent: the strict frame walk ended at the last valid
+     * frame - 10 (ID3 header) + 100 (tag) + 4*131 (frames) = 634 B */
+    for (tree::FileNode* c = root->first_child(); c; c = c->next_sibling()) {
+        if (c->props() && c->name_utf8().find(".mp3") != std::string::npos) {
+            EXPECT_EQ(u64(634), c->props()->extents[0].length);
+        }
+    }
+}
+
+/* P1-12 + AUDIT Wave-3 semantics: PDF %%EOF last-wins, single-frame MP3
+ * rejected, and the amplified forward rescans replaced by 1 MiB blocks. */
+TEST(CarveEngine, PdfEofLastWinsAndFrameFloors) {
+    auto img = std::vector<u8>(2ull << 20, 0);
+
+    /* PDF with TWO %%EOF markers (incremental-update shape): the LAST
+     * one wins - extent = last marker + 5 */
+    const size_t pdf1 = 4096;
+    memcpy(img.data() + pdf1, "%PDF-1.4\n", 9);
+    memcpy(img.data() + pdf1 + 100, "%%EOF", 5); /* superseded revision */
+    memcpy(img.data() + pdf1 + 200, "%%EOF", 5); /* final revision end */
+    /* 205 >= registry min 128 */
+
+    /* %PDF with NO %%EOF anywhere after it: must be rejected */
+    const size_t pdf2 = 8192;
+    memcpy(img.data() + pdf2, "%PDF-1.5\n", 9);
+
+    /* MP3 with a SINGLE valid frame: below the 2-frame floor (AUDIT
+     * Wave-3) - must be rejected */
+    const size_t mp3_one = 12288;
+    {
+        u8* p = img.data() + mp3_one;
+        memcpy(p, "ID3", 3);
+        p[3] = 3; /* v2.3 */
+        p[4] = 0;
+        p[5] = 0; /* flags */
+        p[6] = 0;
+        p[7] = 0;
+        p[8] = 0;
+        p[9] = 100; /* syncsafe size 100 */
+        memset(p + 10, 0x11, 100);
+        /* one real frame: FF FB 22 22 (40 kbps 44100 Hz pad 1 -> 131 B) */
+        p[110] = 0xFF;
+        p[111] = 0xFB;
+        p[112] = 0x22;
+        p[113] = 0x22;
+        memset(p + 114, 0x33, 127);
+        /* the next 4 bytes are zeros: walk stops, nframes = 1 < 2 */
+    }
+
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"L");
+    CarveFlags flags;
+    flags.hash_small_files = false;
+    CarveStats stats;
+    const u32 rc =
+        carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, stats);
+    ASSERT_EQ(rc, OK) << err_text(rc);
+
+    int pdfs = 0;
+    for (tree::FileNode* c = root->first_child(); c; c = c->next_sibling()) {
+        if (!c->props())
+            continue;
+        if (c->name_utf8().find(".pdf") == std::string::npos)
+            continue;
+        ++pdfs;
+        ASSERT_EQ(u64(pdf1), c->props()->extents[0].offset);
+        EXPECT_EQ(u64(205), c->props()->extents[0].length);
+    }
+    EXPECT_EQ(1, pdfs); /* pdf2 (no %%EOF) and the 1-frame MP3 rejected */
 }

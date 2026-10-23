@@ -8,7 +8,9 @@
 
 #include "cr/carve/cr_signatures.h"
 #include "cr/storage/cr_device.h"
+#include <algorithm>
 #include <cstring>
+#include <vector>
 
 namespace cr {
 namespace carve {
@@ -84,6 +86,105 @@ u32 ebml_vint(IStorageDevice* s, u64 off, u64* v) {
     return len;
 }
 
+/* ---- P1-12 shared block-scan helpers ------------------------------- *
+ * The forward tail-marker searches (PDF %%EOF, ZIP EOCD), the JPEG SOS
+ * entropy scan and the MP3 frame walk used to step in 0.5-1 KiB reads;
+ * on an uncached transport that is one read_at syscall per step - up to
+ * 2,097,152 calls for a single ZIP candidate against the 2 GiB cap
+ * (multi-minute stalls per hit, hours per disk). All of them now read
+ * kProbeBlock (1 MiB) windows: 1024x fewer syscalls while keeping the
+ * FULL scan distance (no result truncation), each block clamped to the
+ * slice end and seamed with (magic_len - 1) overlap bytes so markers
+ * spanning a block boundary are always found. Per-call buffers keep the
+ * helpers thread-safe (validators run inside parallel carve workers). */
+
+constexpr u32 kProbeBlock = 1u << 20; /* 1 MiB probe window */
+
+u64 probe_limit(IStorageDevice* s, u64 hit, u64 cap) {
+    return std::min(hit + cap, s->size());
+}
+
+/* LAST occurrence of magic[mlen] in [start, limit) wins (incremental
+ * updates append revisions at the tail). Ascending within-block scan so
+ * the block's last match takes the final assignment; later blocks
+ * overwrite earlier ones - the overall last match wins. Returns the
+ * offset just past the last marker, or 0 when none found. */
+u64 scan_last_marker(IStorageDevice* s, u64 start, u64 limit, const char* magic, u32 mlen) {
+    if (mlen == 0 || limit <= start || limit - start < mlen)
+        return 0;
+    std::vector<u8> buf(kProbeBlock);
+    u64 best = 0;
+    u64 block = start;
+    while (block < limit) {
+        const u64 remain = limit - block;
+        const u32 take = u32(std::min<u64>(remain, kProbeBlock));
+        if (take < mlen)
+            break; /* tail sliver: no whole marker fits (seam already covered it) */
+        if (!rd(s, block, buf.data(), take))
+            break; /* IO break: keep the best found so far */
+        for (u32 i = 0; i + mlen <= take; ++i) {
+            if (std::memcmp(buf.data() + i, magic, mlen) == 0)
+                best = block + i + mlen;
+        }
+        if (block + take >= limit)
+            break;
+        /* advance with a (mlen - 1) seam so a marker straddling the block
+         * boundary is seen by at least one of the two windows */
+        block += u64(take) - (mlen - 1);
+    }
+    return best;
+}
+
+/* FIRST geometry-consistent PK\x05\x06 in [start, limit) wins. The old
+ * last-wins rule attributed the EOCD of every LATER archive in the window
+ * to this candidate - cross-file extent corruption (observed in the carve
+ * fixtures: plant_zip validated to the DOCX plant's EOCD). A candidate
+ * EOCD is accepted when its central directory fits inside the file:
+ * entries > 0, cd_offset >= 30 (never before the first local header) and
+ * cd_offset + cd_size <= eocd_rel. Returns the absolute EOCD position, or
+ * 0 when none passes. */
+u64 scan_first_eocd(IStorageDevice* s, u64 start, u64 limit) {
+    if (limit <= start + 22)
+        return 0;
+    std::vector<u8> buf(kProbeBlock);
+    u64 block = start;
+    while (block < limit) {
+        const u64 remain = limit - block;
+        const u32 take = u32(std::min<u64>(remain, kProbeBlock));
+        if (take < 22)
+            break;
+        if (!rd(s, block, buf.data(), take))
+            break;
+        for (u32 i = 0; i + 22 <= take; ++i) {
+            if (std::memcmp(buf.data() + i, "PK\x05\x06", 4) != 0)
+                continue;
+            const u64 eocd_pos = block + i;
+            if (eocd_pos + 22 > limit)
+                return 0; /* record truncated by the slice end - stop */
+            /* the 22-byte record may straddle the block edge: reread it
+             * whole (single small read, once per candidate EOCD) */
+            u8 eocd[22];
+            if (!rd(s, eocd_pos, eocd, 22))
+                return 0;
+            const u16 entries = u16_from_bytes_le(eocd + 10);
+            const u32 cd_size = u32_from_bytes_le(eocd + 12);
+            const u32 cd_offset = u32_from_bytes_le(eocd + 16);
+            const u64 eocd_rel = eocd_pos - start;
+            if (entries == 0)
+                continue;
+            if (cd_offset < 30)
+                continue; /* CD before the first possible local header */
+            if (u64(cd_offset) + cd_size > eocd_rel)
+                continue; /* CD must fit inside the file, before the EOCD */
+            return eocd_pos;
+        }
+        if (block + take >= limit)
+            break;
+        block += u64(take) - 3; /* 4-byte magic: (mlen-1) seam */
+    }
+    return 0;
+}
+
 } // namespace
 
 /* ---- JPEG: SOI + marker walk to EOI (F4-class grammar, corpus SOF0) ---- */
@@ -122,16 +223,21 @@ CarveResult validate_jpeg(IStorageDevice* s, u64 hit, u64 cap) {
         if (len < 2)
             return r;
         if (mk == 0xDA) {
-            /* entropy data: scan for next marker (FF xx non-zero) */
+            /* entropy data: scan for the next marker (FF xx non-zero).
+             * P1-12: 1 MiB block reads with a 1-byte seam - the 512-byte
+             * stepping this replaced issued up to 196,608 read_at calls
+             * per file against the 96 MiB cap. */
             u64 p = pos + 2 + u64(len);
-            u8 buf[512];
-            while (p + 2 <= hit + cap) {
-                u32 take = 512;
-                if (p + take > hit + cap)
-                    take = u32(hit + cap - p);
-                if (!rd(s, p, buf, take))
+            const u64 elim = probe_limit(s, hit, cap);
+            std::vector<u8> buf(kProbeBlock);
+            bool found = false;
+            while (p + 2 <= elim) {
+                const u64 remain = elim - p;
+                const u32 take = u32(std::min<u64>(remain, kProbeBlock));
+                if (take < 2)
+                    break;
+                if (!rd(s, p, buf.data(), take))
                     return r;
-                bool found = false;
                 for (u32 i = 0; i + 1 < take; ++i) {
                     if (buf[i] == 0xFF && buf[i + 1] != 0 &&
                         !(buf[i + 1] >= 0xD0 && buf[i + 1] <= 0xD7)) {
@@ -142,8 +248,10 @@ CarveResult validate_jpeg(IStorageDevice* s, u64 hit, u64 cap) {
                 }
                 if (found)
                     break;
-                p += take - 1; /* overlap 1 byte for boundary markers */
+                p += take - 1; /* 1-byte seam: boundary markers */
             }
+            if (!found)
+                return r; /* cap reached without a closing marker */
             continue;
         }
         pos += 2 + u64(len);
@@ -371,37 +479,17 @@ CarveResult validate_pdf(IStorageDevice* s, u64 hit, u64 cap) {
         return r;
     if (v[0] < '1' || v[0] > '9' || v[1] != '.')
         return r;
-    /* search for %%EOF from the tail: spec - within the last 1024 bytes of
-     * the doc; we probe with binary search over plausible doc sizes using
-     * the trailer convention: scan backwards from cap in 1KiB steps */
-    u8 buf[1024];
-    u64 best = 0;
-    for (u64 probe = hit + 1024; probe <= hit + cap; probe += 1024) {
-        u64 lo = probe - 1024;
-        u32 take = 1024;
-        if (lo + take > hit + cap)
-            take = u32(hit + cap - lo);
-        if (take < 16)
-            break;
-        if (!rd(s, lo, buf, take))
-            break;
-        for (int i = int(take) - 5; i >= 0; --i) {
-            if (std::memcmp(buf + i, "%%EOF", 5) == 0) {
-                best = lo + u64(i) + 5;
-            }
-        }
-        if (best != 0 && probe >= hit + cap)
-            break;
-        if (best != 0) {
-            /* keep scanning: the LAST %%EOF wins (incremental updates) */
-        }
-    }
+    /* the LAST %%EOF within the cap wins (incremental updates append
+     * revisions at the tail). P1-12: 1 MiB block scan - the 1 KiB stepping
+     * this replaces issued up to 524,288 read_at calls per %PDF- hit. */
+    const u64 limit = probe_limit(s, hit, cap);
+    u64 best = scan_last_marker(s, hit, limit, "%%EOF", 5);
     if (best == 0)
         return r;
     r.ok = true;
     r.end = best;
     r.confidence = 900;
-    r.note = "%%EOF";
+    r.note = "%%EOF(last,1MiB-blocks)";
     return r;
 }
 
@@ -419,22 +507,13 @@ static CarveResult zip_common(IStorageDevice* s, u64 hit, u64 cap, bool office) 
         if (std::memcmp(nm, "[Content_Types].xml", 19) != 0)
             return r;
     }
-    /* last PK\x05\x06 within cap wins (incremental updates append EOCDs) */
-    u8 buf[1024];
-    u64 eocd_pos = 0;
-    for (u64 probe = hit + 1024; probe <= hit + cap; probe += 1024) {
-        u64 lo = probe - 1024;
-        u32 take = 1024;
-        if (lo + take > hit + cap)
-            take = u32(hit + cap - lo);
-        if (take < 22)
-            break;
-        if (!rd(s, lo, buf, take))
-            break;
-        for (int i = int(take) - 4; i >= 0; --i)
-            if (std::memcmp(buf + i, "PK\x05\x06", 4) == 0)
-                eocd_pos = lo + u64(i);
-    }
+    /* FIRST geometry-consistent EOCD in the window wins: last-wins (the
+     * old rule) absorbed the EOCD of every later archive in the window -
+     * cross-file extent corruption. P1-12: 1 MiB block scan - the 1 KiB
+     * stepping this replaced issued up to 2,097,152 read_at calls per
+     * PK\x03\x04 hit against the 2 GiB cap. */
+    const u64 limit = probe_limit(s, hit, cap);
+    const u64 eocd_pos = scan_first_eocd(s, hit, limit);
     if (eocd_pos == 0 || eocd_pos < hit + 22)
         return r;
     /* full EOCD record at eocd_pos (22 bytes) */
@@ -449,14 +528,15 @@ static CarveResult zip_common(IStorageDevice* s, u64 hit, u64 cap, bool office) 
     const u16 comment = u16_from_bytes_le(eocd + 20);
     if (entries == 0)
         return r;
-    /* central directory must live inside the file, before the EOCD */
+    /* central directory must live inside the file, before the EOCD
+     * (cd_offset is file-relative: never before the first local header) */
+    if (cd_offset < 30)
+        return r;
     if (u64(cd_offset) + cd_size > (eocd_pos - hit))
         return r;
-    if (cd_offset + 30 < hit - hit)
-        return r; /* cd_offset is file-relative */
     u64 end = eocd_pos + 22 + comment;
-    if (end > hit + cap)
-        end = hit + cap;
+    if (end > limit)
+        end = limit;
     /* fragmentation-aware (R4.5): a gap between cd end and EOCD is normal
      * (comment/empty space); a cd_offset far from the tail hints at damage */
     bool frag = (eocd_pos - hit) > u64(cd_offset) + cd_size + 4096;
@@ -878,7 +958,69 @@ CarveResult validate_psd(IStorageDevice* s, u64 hit, u64 cap) {
     return r;
 }
 
-/* ---- MP3: ID3v2 header + syncsafe size + MPEG frame sync ---- */
+/* ---- MP3: ID3v2 + strict MPEG frame walk ----
+ * AUDIT Wave-3: the fabricated 32 MiB ceiling is gone. The extent is the
+ * end of the last VALID frame (walk stops at the first broken header);
+ * minimum 2 frames; every frame must lie fully inside the slice. */
+namespace {
+/* bitrate tables (kbps), index 1..14 - 0 = free (rejected: needs 2-frame
+ * lookback parsing), 15 = reserved */
+const u16 kBrV1L1[] = {32, 64, 96, 128, 160, 192, 224, 256, 288, 320, 352, 384, 416, 448};
+const u16 kBrV1L2[] = {32, 48, 56, 64, 80, 96, 112, 128, 160, 192, 224, 256, 320, 384};
+const u16 kBrV1L3[] = {32, 40, 48, 56, 64, 80, 96, 112, 128, 160, 192, 224, 256, 320};
+const u16 kBrV2L1[] = {32, 48, 56, 64, 80, 96, 112, 128, 144, 160, 176, 192, 224, 256};
+const u16 kBrV2L23[] = {8, 16, 24, 32, 40, 48, 56, 64, 80, 96, 112, 128, 144, 160};
+
+/* frame size in bytes from a 4-byte header; 0 = invalid */
+u32 mp3_frame_size(const u8* f) {
+    if (f[0] != 0xFF || (f[1] & 0xE0) != 0xE0)
+        return 0;                     /* 11-bit sync */
+    const u8 ver = (f[1] >> 3) & 3;   /* 0=MPEG2.5 1=reserved 2=MPEG2 3=MPEG1 */
+    const u8 layer = (f[1] >> 1) & 3; /* 0=reserved 1=III 2=II 3=I */
+    if (ver == 1 || layer == 0)
+        return 0;
+    const u8 bri = f[2] >> 4;
+    const u8 sri = (f[2] >> 2) & 3;
+    if (bri == 0 || bri > 14 || sri == 3)
+        return 0; /* free / reserved samplerate */
+    u32 sr;
+    switch (ver) {
+    case 3:
+        sr = (sri == 0) ? 44100 : (sri == 1 ? 48000 : 32000);
+        break; /* MPEG1 */
+    case 2:
+        sr = (sri == 0) ? 22050 : (sri == 1 ? 24000 : 16000);
+        break; /* MPEG2 */
+    default:
+        sr = (sri == 0) ? 11025 : (sri == 1 ? 12000 : 8000);
+        break; /* MPEG2.5 */
+    }
+    const u16* table;
+    if (ver == 3)
+        table = (layer == 3) ? kBrV1L1 : (layer == 2 ? kBrV1L2 : kBrV1L3);
+    else
+        table = (layer == 3) ? kBrV2L1 : kBrV2L23;
+    const u32 kbps = table[bri - 1];
+    const u32 pad = (f[2] >> 1) & 1;
+    u32 size;
+    if (layer == 3) {
+        /* Layer I: 12 samples/frame, 4-byte slots */
+        size = (12u * kbps * 1000u / sr + pad) * 4u;
+    } else if (layer == 2) {
+        /* Layer II (all versions): 1152 samples/frame */
+        size = 144u * kbps * 1000u / sr + pad;
+    } else {
+        /* Layer III: 1152 samples @MPEG1, 576 @MPEG2/2.5 */
+        size = (ver == 3 ? 144u : 72u) * kbps * 1000u / sr + pad;
+    }
+    /* real-world frame bounds: 8 kbps @ 8 kHz MPEG2.5 L3 ~ 72 B floor;
+     * 320 kbps @ 32 kHz MPEG1 L3 ~ 1440 B ceiling class */
+    if (size < 24 || size > 4096)
+        return 0;
+    return size;
+}
+} // namespace
+
 CarveResult validate_mp3(IStorageDevice* s, u64 hit, u64 cap) {
     CarveResult r;
     u8 h[10];
@@ -887,24 +1029,61 @@ CarveResult validate_mp3(IStorageDevice* s, u64 hit, u64 cap) {
     if (std::memcmp(h, "ID3", 3) != 0)
         return r;
     const u8 ver_major = h[3];
-    if (ver_major == 0 || ver_major > 5)
+    /* v2.3 / v2.4 only: v2.2's 3-byte size field has no canonical
+     * syncsafe interpretation - mis-parsing it would corrupt the frame
+     * start, so it is rejected rather than guessed */
+    if (ver_major != 3 && ver_major != 4)
         return r;
-    /* syncsafe 28-bit size */
+    /* syncsafe 28-bit size (excludes the 10-byte header; includes any
+     * extended header); a v2.4 footer (flag 0x10) adds 10 more bytes */
     const u32 size = (u32(h[6]) << 21) | (u32(h[7]) << 14) | (u32(h[8]) << 7) | u32(h[9]);
-    const u64 audio_at = hit + 10 + size;
-    /* MPEG frame sync: 11 set bits */
-    u8 f[2] = {0, 0};
-    if (!rd(s, audio_at, f, 2))
+    const bool footer = (ver_major == 4) && (h[5] & 0x10) != 0;
+    const u64 audio_at = hit + 10 + size + (footer ? 10 : 0);
+
+    /* frame walk: 1 MiB block reads (P1-12 - per-frame 4-byte reads would
+     * re-create the amplification); stop at the first invalid header; a
+     * frame counts only when it lies fully inside the slice */
+    const u64 limit = probe_limit(s, hit, cap);
+    if (audio_at + 4 > limit)
         return r;
-    if (f[0] != 0xFF || (f[1] & 0xE0) != 0xE0)
-        return r;
+    std::vector<u8> buf(kProbeBlock);
+    u64 fill_at = 0;  /* absolute offset of buf[0] */
+    u32 fill_len = 0; /* valid bytes from fill_at */
+    auto ensure4 = [&](u64 q) -> const u8* {
+        if (q < fill_at || q + 4 > fill_at + fill_len) {
+            const u64 remain = limit - q;
+            const u32 take = u32(std::min<u64>(remain, kProbeBlock));
+            if (take < 4)
+                return nullptr;
+            if (!rd(s, q, buf.data(), take))
+                return nullptr;
+            fill_at = q;
+            fill_len = take;
+        }
+        return buf.data() + (q - fill_at);
+    };
+    u64 q = audio_at;
+    u32 nframes = 0;
+    u64 frames_end = 0;
+    while (q + 4 <= limit) {
+        const u8* fh = ensure4(q);
+        if (!fh)
+            break;
+        const u32 fsize = mp3_frame_size(fh);
+        if (fsize == 0)
+            break; /* first invalid header ends the stream */
+        if (q + fsize > limit)
+            break; /* frame not fully present in the slice */
+        q += fsize;
+        ++nframes;
+        frames_end = q;
+    }
+    if (nframes < 2)
+        return r; /* AUDIT Wave-3: minimum 2 frames */
     r.ok = true;
-    /* duration unknown: cap at a conservative MP3 ceiling */
-    r.end = audio_at + (32ull << 20);
-    if (r.end > hit + cap)
-        r.end = hit + cap;
+    r.end = frames_end; /* <= limit by construction */
     r.confidence = 820;
-    r.note = "ID3+frame-sync";
+    r.note = "ID3+frame-walk";
     return r;
 }
 
