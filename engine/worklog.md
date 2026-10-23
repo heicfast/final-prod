@@ -658,3 +658,57 @@ Stage Summary:
 - W1 closed: G-04/G-05/G-06 (progress/ETA inputs/live error map), G-07 (pause/resume/save-on-cancel/truthful mask), G-14, G-23. D-3 architecture-doc correction still pending (docs sweep at T17).
 - Three silent-failure bugs eliminated (tel_retry_ null, root serialization, carve double-count) — all caught by the new acceptance tests, exactly the no-failure-masking mandate.
 - Next: W2 per UI-READINESS-PLAN — writer dest dirs + empty-folder nodes (G-08, issue #5), recovery report JSON (G-09, issue #6), then preview reader (G-10) and query/filter/sort/paging (G-12).
+
+---
+Task ID: PARITY-W1/W2 (fix waves + coordination)
+Agent: parity-auditor (main)
+Task: Fix every auditor-verified P0/P1 with tests; land CI unblock; file
+coordination evidence; promote the deltas registry.
+
+Work Log:
+- Fix wave 1 (all with before/after stash proofs where testable):
+  * 1ecf446 F-D-1/F-D-8: fuzz/clang++ broken symlink + temp_data.txt removed.
+  * d83442e F-B-4: 'fix --undo-apply' requires --disk (was writing PD0).
+  * 0329f89 F-A1-1: FAT12 BAD/EOC canonicalization + FAT12 fixture/tests
+    (proven failing before via stash).
+  * e60bb25 F-A1-2: NTFS viability probe uses $DATA size (Excellent ->
+    PartialRisk on partially-reused deleted files; stash-proven).
+  * c5b0467 F-A1-3: fixup validates first two tails (og FUN_1800411f0
+    :52129 'local_18 < 2' — verified in the decompile by the auditor);
+    apply-all kept; contract §3 row added; TornRecordRejected moved into
+    the checked window + TornThirdTailStillSalvaged added.
+  * 4cac981 F-A2-17/18: HFS+ node kinds (-1/0/1/2, sign-extended SInt8)
+    + BTHeaderRec offsets (nodeSize@+0x12 etc. — TN1150/libyal/og
+    FUN_180010720); fixture rewritten to the real layout; stash-proven.
+  * a1ff58e F-A4-17: NVMe page-2 offsets 112/128/144/160 via new pure
+    cr::health module (unit-tested on Linux; win layer delegates).
+  * f6468ba F-A3-6: carve sign_hits/sign_validated double-count removed
+    (literal duplicated lines); assertion tightened to EXPECT_EQ.
+- F-C-1 P0 (wizard, coordinated pair bd83be3 + core contract): list
+  parser matched zero real engine lines (bracketed table kind vs the
+  engine's unbracketed final token) — regex + golden fixtures + guard
+  tests + CORE-CONTRACT §13 corrected. Wizard CI green (ci + ui-smoke).
+- Doc wave: CORE-CONTRACT §5.1/§5.2 LDM trio + §5.3 0..10000 + §13
+  trailing spaces + G-18/G-19 staleness corrected (042e081);
+  docs/PARITY-DELTAS.md promoted to authoritative in core (5eaddab) +
+  UI mirror in wizard; cr_mftwalk.h stale scale comment fixed.
+- Coordination: core issues #1-#10 all carry parity triage comments
+  (og evidence attached: writer mkdir DRWUI:357842, og pause, og
+  progress model, FileFilter.xml 8/1489, preview free-tier framing);
+  rda-wizard#1 filed for the parser P0; core#11 filed for the red
+  804972a milestone (lint/tsan/windows root causes + mechanical unblock
+  eefbb63 landed by the auditor: clang-format-18, format-truncation
+  buffer, _getpid()).
+- Concurrency observations: F-B-8 (abort-path error map) CLOSED by the
+  UI-readiness agent's stamp() lambda; writer G-08 mkdir landed (91053b0);
+  pause/telemetry evolving live — audit verdicts for those areas are
+  against the audited pins, re-verify after their wave completes.
+
+Stage Summary:
+- 10 fixes landed (8 wave-1 verified findings + carve double-count + CI
+  unblock), suite 159/159 green (gcc+ASan), lint clean (clang-format-18),
+  wizard 101/101 green locally + CI green. PARITY-DELTAS.md live in both
+  repos. Remaining registered scope: carving salvage batch (F-A3-2/3/4/5),
+  Btrfs chunk-tree uuid + inline extents, ReFS next-chains + MSB tests,
+  ZFS gang tests, F-A1 P2 code items — all filed with evidence pointers
+  in docs/PARITY-AUDIT.md §3 and issues #3/#5/#8/#10.
