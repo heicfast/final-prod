@@ -233,7 +233,7 @@ std::vector<std::vector<u8>> build_raid5_disks() {
         fx.add_dsk4(1001, "Disk2", R5_GUID_TEXTS[1]);
         fx.add_dsk4(1002, "Disk3", R5_GUID_TEXTS[2]);
         fx.add_volume(
-            {2000, "Raid1", 4 /* read policy RAID */, R5_PART_SIZE / R5_CHUNK * R5_CHUNK * 2, 1});
+            {2000, "Raid1", 4 /* _VOLUME_TYPE_RAID5 */, R5_PART_SIZE / R5_CHUNK * R5_CHUNK * 2, 1});
         fx.add_component({3000, "Raid1-01", LDM_COMP_RAID, 3, 2000, R5_CHUNK, 3});
         fx.add_partition({4000, "Disk1-01", R5_PART_START, R5_PART_SIZE, 0, 3000, 0, 1000});
         fx.add_partition({4001, "Disk2-01", R5_PART_START, R5_PART_SIZE, 0, 3000, 1, 1001});
@@ -376,7 +376,7 @@ std::vector<std::vector<u8>> build_mirror_disks() {
         fx.add_dsk4(1000, "Disk1", R5_GUID_TEXTS[0]);
         fx.add_dsk4(1001, "Disk2", R5_GUID_TEXTS[1]);
         /* mirrored volume: two components, one part each */
-        fx.add_volume({2000, "Mirror1", 1, MIRROR_PART_SIZE, 2});
+        fx.add_volume({2000, "Mirror1", 3, MIRROR_PART_SIZE, 2});
         fx.add_component({3000, "Mirror1-01", LDM_COMP_CONCAT, 1, 2000, 0, 0});
         fx.add_component({3001, "Mirror1-02", LDM_COMP_CONCAT, 1, 2000, 0, 0});
         fx.add_partition({4000, "Disk1-01", 2048, MIRROR_PART_SIZE, 0, 3000, 0, 1000});
@@ -444,7 +444,7 @@ std::vector<std::vector<u8>> build_spanned_disks() {
         fx.add_dgr4(1, "TestPCDg0");
         fx.add_dsk4(1000, "Disk1", R5_GUID_TEXTS[0]);
         fx.add_dsk4(1001, "Disk2", R5_GUID_TEXTS[1]);
-        fx.add_volume({2000, "Span1", 1, SPAN_PART_SIZE * 2, 1});
+        fx.add_volume({2000, "Span1", 3, SPAN_PART_SIZE * 2, 1});
         fx.add_component({3000, "Span1-01", LDM_COMP_CONCAT, 2, 2000, 0, 0});
         fx.add_partition({4000, "Disk1-01", 2048, SPAN_PART_SIZE, 0, 3000, 0, 1000});
         fx.add_partition({4001, "Disk2-01", 2048, SPAN_PART_SIZE, SPAN_PART_SIZE, 3000, 1, 1001});

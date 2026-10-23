@@ -135,10 +135,11 @@ u32 SafeWriter::recover_item(QueueItem& it, CancelToken* cancel, WriterStats& st
     crypto::Sha256 hash;
     /* resident metadata content first (NTFS resident streams, ZFS embedded
      * block-pointer payloads, Btrfs inline extents), then disk extents */
+    u64 emit = 0;
     if (!pr->resident_data.empty()) {
-        const u64 emit = pr->resident_data.size() > pr->logical_size && pr->logical_size != 0
-                             ? pr->logical_size
-                             : u64(pr->resident_data.size());
+        emit = pr->resident_data.size() > pr->logical_size && pr->logical_size != 0
+                   ? pr->logical_size
+                   : u64(pr->resident_data.size());
         if (emit) {
             if (u32 rc = io_.write(it.item_id, 0, pr->resident_data.data(), u32(emit))) {
                 io_.close(it.item_id);
@@ -152,7 +153,11 @@ u32 SafeWriter::recover_item(QueueItem& it, CancelToken* cancel, WriterStats& st
     }
     std::vector<u8> chunk;
     chunk.resize(size_t(cfg_.read_chunk));
-    u64 done = 0;
+    /* the resident prefix is already on disk (and hashed); continue the
+     * stream AFTER it - extents carry the post-resident content, and a
+     * resident-only file zero-fills only the tail beyond the payload */
+    u64 done = emit;
+    it.bytes_done = done;
     const u64 total = pr->logical_size;
     size_t ext_i = 0;
     u64 ext_pos = 0;

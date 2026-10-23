@@ -852,6 +852,145 @@ TEST(NtfsVolume, UsnJrnlHarvest) {
         EXPECT_NE(c->name_utf8(), "keptfile.txt");
 }
 
+TEST(NtfsVolume, UsnJrnlSparseV3Resync) {
+    /* $J materialization must preserve VCN order across a SPARSE window
+     * (zeros, not spliced-out), re-sync past a damaged record on 8-byte
+     * boundaries instead of stopping, and parse USN_RECORD_V3 (128-bit
+     * refs: parent@0x18, reason@0x38, namelen@0x48, name@0x50) alongside
+     * V2. Layout: [data LCN 160, 1 cluster: V2 record + damaged stub]
+     * [sparse 1 cluster: zeros] [data LCN 161, 1 cluster: V3 record]. */
+    Image img;
+    build_image(img);
+    {
+        RecBuilder r;
+        r.header(23, RECORD_IN_USE);
+        r.attr_si(0x20);
+        r.attr_file_name(11, u"$UsnJrnl", FILE_NAME_WIN32_AND_DOS, 0x20, 2048, 2048);
+        {
+            u32 pos = r.attr_pos;
+            RunList rl;
+            /* run 1: data at LCN 160; run 2: sparse 1; run 3: data at 161 */
+            rl.runs().push_back(DataRun{0, 1, 0, 160, false});
+            rl.runs().push_back(DataRun{1, 1, 0, 0, true});
+            rl.runs().push_back(DataRun{2, 1, 0, 161, false});
+            std::vector<u8> rle = rl.encode();
+            u32 rlen = u32(rle.size());
+            const u32 name_off = 0x40;
+            const u32 runs_off = name_off + 2 * 2;
+            u32 alen = (runs_off + rlen + 7) / 8 * 8;
+            r.u32wr(pos + 0, ATTR_TYPE_DATA);
+            r.u32wr(pos + 4, alen);
+            r.buf[pos + 8] = 1; /* nonresident */
+            r.buf[pos + 9] = 2; /* name length "$J" */
+            r.u16wr(pos + 10, u16(name_off));
+            r.u16wr(pos + 16, 0);
+            r.u64wr(pos + 24, 0);
+            r.u16wr(pos + 32, u16(runs_off));
+            r.u64wr(pos + 40, 3 * CLUSTER);
+            r.u64wr(pos + 48, 3 * CLUSTER);
+            r.u64wr(pos + 56, 3 * CLUSTER);
+            r.u16wr(pos + name_off, u'$');
+            r.u16wr(pos + name_off + 2, u'J');
+            std::memcpy(r.buf.data() + pos + runs_off, rle.data(), rlen);
+            r.attr_pos += alen;
+        }
+        r.finish();
+        std::memcpy(img.sec(MFT_LCN + 46), r.buf.data(), RECORD_SIZE);
+    }
+    {
+        std::vector<u8>& imgv = img.raw();
+        auto j32 = [&](u32 at, u32 x) {
+            imgv[at] = u8(x);
+            imgv[at + 1] = u8(x >> 8);
+            imgv[at + 2] = u8(x >> 16);
+            imgv[at + 3] = u8(x >> 24);
+        };
+        auto j16 = [&](u32 at, u16 x) {
+            imgv[at] = u8(x);
+            imgv[at + 1] = u8(x >> 8);
+        };
+        auto j64 = [&](u32 at, u64 x) {
+            for (int i = 0; i < 8; i++)
+                imgv[at + size_t(i)] = u8(x >> (8 * i));
+        };
+        /* V2 record in cluster 160: deleted name */
+        const u64 jbase = 160 * SEC;
+        u64 off = jbase;
+        {
+            const std::u16string n = u"gonefile.txt";
+            const u32 namelen = u32(n.size() * 2);
+            const u32 rlen = 64 + namelen;
+            j32(u32(off + 0), rlen);
+            j16(u32(off + 4), 2);
+            j16(u32(off + 6), 0);
+            j64(u32(off + 8), 1234);
+            j64(u32(off + 16), 5 | (1ULL << 48));
+            j64(u32(off + 24), 1);
+            j64(u32(off + 32), 132000000000000000ULL);
+            j32(u32(off + 40), USN_REASON_FILE_CREATE | USN_REASON_FILE_DELETE);
+            j32(u32(off + 44), 0);
+            j32(u32(off + 48), 0);
+            j32(u32(off + 52), 0x20);
+            j32(u32(off + 56), namelen);
+            j32(u32(off + 60), 64);
+            for (size_t i = 0; i < n.size(); i++)
+                j16(u32(off + 64 + u32(i) * 2), u16(n[i]));
+            off += rlen;
+        }
+        /* damaged stub: implausible length right after (forces a re-sync) */
+        j32(u32(off + 0), 4);
+        off += 16; /* land 8-aligned for the next record */
+        /* V3 record in cluster 161 (after the sparse window): deleted name.
+         * V3 layout (winioctl.h): 128-bit refs at +8/+0x18 shift the rest. */
+        const u64 j3 = 161 * SEC;
+        {
+            const std::u16string n = u"v3file.txt";
+            const u32 namelen = u32(n.size() * 2);
+            const u32 rlen = 80 + namelen;
+            j32(u32(j3 + 0), rlen);
+            j16(u32(j3 + 4), 3); /* major = 3 */
+            j16(u32(j3 + 6), 0);
+            j64(u32(j3 + 8), 4321);  /* FileReferenceNumber[0] */
+            j64(u32(j3 + 16), 0);    /* FileReferenceNumber[1] */
+            j64(u32(j3 + 24), 5 | (1ULL << 48)); /* ParentFileReferenceNumber */
+            j64(u32(j3 + 32), 0);
+            j64(u32(j3 + 40), 2);    /* Usn */
+            j64(u32(j3 + 48), 132000000000000001ULL); /* TimeStamp */
+            j32(u32(j3 + 56), USN_REASON_FILE_DELETE); /* Reason */
+            j32(u32(j3 + 60), 0);
+            j32(u32(j3 + 64), 0);
+            j32(u32(j3 + 68), 0x20);
+            j32(u32(j3 + 72), namelen);
+            j32(u32(j3 + 76), 80); /* name offset */
+            for (size_t i = 0; i < n.size(); i++)
+                j16(u32(j3 + 80 + u32(i) * 2), u16(n[i]));
+        }
+    }
+    MemDevice dev(img.raw(), img.geom());
+    u32 err = 0;
+    auto vol = NtfsVolume::open(std::unique_ptr<IStorageDevice>(new MemDevice(dev)), &err);
+    ASSERT_NE(vol, nullptr) << err_text(err);
+    tree::ResultTree tree;
+    auto* ra = tree.add_root(u"a");
+    auto* rd = tree.add_root(u"d");
+    auto* rl = tree.add_root(u"l");
+    WalkerFlags wf;
+    WalkStats stats;
+    ASSERT_EQ(walk_mft(vol.get(), nullptr, wf, nullptr, nullptr, nullptr, tree, ra, rd, rl, stats),
+              OK);
+    /* both the V2 record before the sparse window and the V3 record after
+     * it were parsed - the harvest re-synced through the damaged stub and
+     * the zero window without losing stream alignment */
+    EXPECT_EQ(stats.usn_records, 2u);
+    EXPECT_EQ(stats.usn_names, 2u);
+    std::set<std::string> harvested;
+    for (tree::FileNode* c = rl->first_child(); c; c = c->next_sibling())
+        if (c->props())
+            harvested.insert(c->name_utf8());
+    EXPECT_TRUE(harvested.count("gonefile.txt"));
+    EXPECT_TRUE(harvested.count("v3file.txt"));
+}
+
 TEST(NtfsVolume, ShiftedHeaderSalvage) {
     /* candidate record whose header parses as 'FILE' but fails deeper
      * (attribute_offset beyond the record), with a healthy record

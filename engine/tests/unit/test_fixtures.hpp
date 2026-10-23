@@ -93,7 +93,7 @@ struct CompSpec {
 struct VolSpec {
     u64 obj_id;
     const char* name;
-    u8 read_policy; /* 1 gen, 4 raid5 */
+    u8 int_volume_type; /* libldm _VOLUME_TYPE_GEN=3, RAID5=4 */
     u64 size;       /* sectors */
     u64 n_comps;
     bool as_composite = false; /* split into 2 fragments */
@@ -259,11 +259,11 @@ public:
         u8* c = begin_vblk();
         c += pvnum(c, v.obj_id);
         c += pvstr(c, v.name);
-        c += pvstr(c, v.read_policy == 4 ? "raid5" : "gen");
+        c += pvstr(c, v.int_volume_type == 4 ? "raid5" : "gen");
         c += pvstr(c, "");  /* disable drive letter */
         memset(c, 'S', 14); /* volume state slot */
         c += 14;
-        *c++ = v.read_policy;
+        *c++ = v.int_volume_type;
         *c++ = 0;    /* unknown */
         *c++ = 1;    /* volume number */
         c += 3;      /* zeros */
@@ -367,11 +367,11 @@ struct StripeDisk {
         fx.add_dsk4(1000, "Disk1", "01234567-89AB-CDEF-0123-456789ABCDEF");
         /* simple volume: emitted as a real 2-fragment composite (the
          * long name pushes the record past one 112-byte payload) */
-        fx.add_volume({2000, "Volume1-CompositeSpanTest-0123456789", 1, SIMPLE_SIZE, 1, true});
+        fx.add_volume({2000, "Volume1-CompositeSpanTest-0123456789", 3, SIMPLE_SIZE, 1, true});
         fx.add_component({3000, "Volume1-01", LDM_COMP_CONCAT, 1, 2000, 0, 0});
         fx.add_partition({4000, "Disk1-01", SIMPLE_START, SIMPLE_SIZE, 0, 3000, 0, 1000});
         /* striped volume: Stripe1 (2 columns, 64 KiB chunks) */
-        fx.add_volume({2001, "Stripe1", 1, STRIPE_MEMBER_SIZE * 2 /* full capacity */, 1});
+        fx.add_volume({2001, "Stripe1", 3, STRIPE_MEMBER_SIZE * 2 /* full capacity */, 1});
         fx.add_component({3001, "Stripe1-01", LDM_COMP_STRIPE, 2, 2001, CHUNK, 2});
         fx.add_partition({4001, "Disk1-02", STRIPE_A_START, STRIPE_MEMBER_SIZE, 0, 3001, 0, 1000});
         fx.add_partition({4002, "Disk1-03", STRIPE_B_START, STRIPE_MEMBER_SIZE, 0, 3001, 1, 1000});

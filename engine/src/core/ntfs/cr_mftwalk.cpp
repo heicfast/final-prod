@@ -9,7 +9,9 @@
 #include "cr/ntfs/cr_fixup.h"
 #include <atomic>
 #include <cstring>
+#include <algorithm>
 #include <map>
+#include <set>
 #include <vector>
 
 namespace cr {
@@ -19,6 +21,8 @@ namespace {
 
 constexpr u32 FRAG_DEPTH_LIMIT = 64;         /* attrlist chase depth (bootstrap parity) */
 constexpr u64 USN_HARVEST_CAP = 64ull << 20; /* journal bytes mined (audit plan) */
+constexpr u32 USN_RESYNC_LIMIT = 1u << 20;   /* 8-byte re-sync probes before
+                                                * giving up on a damaged $J */
 
 struct EmittedNode {
     tree::FileNode* node = nullptr;
@@ -31,6 +35,7 @@ struct UsnEvidence {
     std::u16string name;
     u64 parent_record = 0;
     u64 timestamp = 0;
+    u64 file_ref = 0; /* USN_RECORD FileReferenceNumber (u48 record) */
 };
 
 int namespace_rank(u8 ns) {
@@ -53,7 +58,8 @@ u32 build_props(NtfsVolume* vol, const std::vector<AttrView>& attrs, u64 record_
                 u16 record_flags, tree::FileProperties*& props_out,
                 std::vector<AttrListEntry>& attrlist_out, std::vector<FileNameInfo>& names_out,
                 RunList& unnamed_data_out, bool& has_unnamed_data, RunList& i30_out, bool& has_i30,
-                tree::FileTimes& si_times, bool& has_si, u64& data_real_size) {
+                tree::FileTimes& si_times, bool& has_si, std::vector<u8>& unnamed_resident_out,
+                u64& data_real_size) {
     props_out = nullptr;
     attrlist_out.clear();
     names_out.clear();
@@ -62,6 +68,7 @@ u32 build_props(NtfsVolume* vol, const std::vector<AttrView>& attrs, u64 record_
     i30_out = RunList();
     has_i30 = false;
     has_si = false;
+    unnamed_resident_out.clear();
     data_real_size = 0;
 
     for (const AttrView& a : attrs) {
@@ -92,6 +99,10 @@ u32 build_props(NtfsVolume* vol, const std::vector<AttrView>& attrs, u64 record_
                     u32 dlen = 0;
                     if (resident_span(a, d, dlen) == OK) {
                         has_unnamed_data = true; /* resident */
+                        /* capture the content (bounded by the record itself):
+                         * tiny resident-only files become recoverable */
+                        unnamed_resident_out.assign(d, d + dlen);
+                        /* the resident length IS the file size */
                         if (a.value_length != 0)
                             data_real_size = a.value_length;
                     }
@@ -103,9 +114,9 @@ u32 build_props(NtfsVolume* vol, const std::vector<AttrView>& attrs, u64 record_
                         for (const DataRun& r : rl.runs())
                             unnamed_data_out.runs().push_back(r);
                     }
-                    /* authoritative file size in bytes (tail @+0x30):
-                     * $FILE_NAME sizes are 0 on real volumes for
-                     * freshly-written files (runner benchmark evidence) */
+                    /* the $DATA tail's file-size-in-bytes (@+0x30) is the
+                     * authoritative size: $FILE_NAME's size field is 0 on
+                     * real volumes for freshly-written files */
                     if (a.actual != 0)
                         data_real_size = a.actual;
                 }
@@ -188,11 +199,13 @@ u32 walk_mft(NtfsVolume* vol, VolumeBitmap* bitmap, const WalkerFlags& flags, Ca
         std::vector<FileNameInfo> names;
         RunList data_runs, i30_runs;
         bool has_data = false, has_i30 = false, has_si = false;
-        u64 data_real_size = 0; /* primary unnamed $DATA: authoritative size */
         tree::FileTimes si_times{};
         tree::FileProperties* scratch = nullptr;
+        std::vector<u8> unnamed_resident;
+        u64 data_real_size = 0; /* primary unnamed $DATA: authoritative size */
         if (build_props(vol, attrs, record_no, rh.flags, scratch, attrlist, names, data_runs,
-                        has_data, i30_runs, has_i30, si_times, has_si, data_real_size) != OK) {
+                        has_data, i30_runs, has_i30, si_times, has_si, unnamed_resident,
+                        data_real_size) != OK) {
             ++stats.damaged;
             continue;
         }
@@ -205,6 +218,9 @@ u32 walk_mft(NtfsVolume* vol, VolumeBitmap* bitmap, const WalkerFlags& flags, Ca
         if (!attrlist.empty()) {
             std::vector<AttrView> merged = attrs;
             std::vector<u64> visited;
+            /* child record buffers: ownership pool so AttrViews created in
+             * the chase stay valid for the whole record's processing */
+            std::vector<std::vector<u8>> child_records;
             std::vector<AttrListEntry> frontier = attrlist;
             for (int level = 0; level < int(FRAG_DEPTH_LIMIT) && !frontier.empty(); ++level) {
                 std::vector<AttrListEntry> next;
@@ -239,6 +255,10 @@ u32 walk_mft(NtfsVolume* vol, VolumeBitmap* bitmap, const WalkerFlags& flags, Ca
                     std::vector<AttrView> cattrs;
                     if (enum_attributes(crec.data(), u32(crec.size()), cattrs) != OK)
                         continue;
+                    /* the views point into crec's buffer - it must outlive
+                     * `merged` (named child attrs are dereferenced by
+                     * attr_name/resident_span long after this iteration) */
+                    child_records.push_back(std::move(crec));
                     for (const AttrView& ca : cattrs) {
                         if (ca.type != ATTR_TYPE_DATA && ca.type != ATTR_TYPE_INDEX_ALLOCATION &&
                             ca.type != ATTR_TYPE_ATTRIBUTE_LIST)
@@ -252,21 +272,22 @@ u32 walk_mft(NtfsVolume* vol, VolumeBitmap* bitmap, const WalkerFlags& flags, Ca
                                     data_runs.runs().push_back(r);
                                 has_data = true;
                             }
-                            /* the $DATA tail's file-size-in-bytes (@+0x30) is
-                             * the authoritative size: $FILE_NAME's size field
-                             * is 0 on real volumes for freshly-written files
-                             * (runner benchmark evidence: every logical_size
-                             * came out 0 while exFAT/FAT dentry sizes were
-                             * correct) */
+                            /* $DATA authoritative size from the child too */
                             if (ca.actual != 0)
                                 data_real_size = ca.actual;
                         }
                         if (ca.type == ATTR_TYPE_DATA && !ca.nonresident && ca.name_length == 0) {
-                            /* resident primary $DATA (small files): the
-                             * content length is the size; no runlist */
-                            has_data = true;
-                            if (ca.value_length != 0)
-                                data_real_size = ca.value_length;
+                            /* resident primary $DATA fragment in a child
+                             * record: content + size */
+                            const u8* d = nullptr;
+                            u32 dlen = 0;
+                            if (resident_span(ca, d, dlen) == OK) {
+                                has_data = true;
+                                if (unnamed_resident.empty())
+                                    unnamed_resident.assign(d, d + dlen);
+                                if (ca.value_length != 0)
+                                    data_real_size = ca.value_length;
+                            }
                         }
                         if (ca.type == ATTR_TYPE_INDEX_ALLOCATION && ca.nonresident) {
                             RunList rl;
@@ -309,6 +330,13 @@ u32 walk_mft(NtfsVolume* vol, VolumeBitmap* bitmap, const WalkerFlags& flags, Ca
             /* $UsnJrnl: capture the $J stream for the post-walk harvest
              * (journal-evidenced deleted names the MFT pass missed) */
             if (best->name == u"$UsnJrnl") {
+                /* $J may be fragmented across extension records: every $J
+                 * fragment's runlist contributes; runs carry absolute VCNs
+                 * (each fragment decodes from its own start_vcn), so the
+                 * merged stream is the VCN-sorted concatenation - not the
+                 * last fragment (last-fragment-wins harvested a random
+                 * slice of real journals) */
+                std::vector<DataRun> jruns;
                 for (const AttrView& a : attrs) {
                     if (a.type != ATTR_TYPE_DATA || !a.nonresident)
                         continue;
@@ -316,10 +344,15 @@ u32 walk_mft(NtfsVolume* vol, VolumeBitmap* bitmap, const WalkerFlags& flags, Ca
                     if (an != u"$J")
                         continue;
                     RunList rl;
-                    if (parse_data_runs(a, vol->params().total_clusters, rl) == OK) {
-                        usn_runs = rl;
-                        have_usn = true;
-                    }
+                    if (parse_data_runs(a, vol->params().total_clusters, rl) == OK)
+                        for (const DataRun& r : rl.runs())
+                            jruns.push_back(r);
+                }
+                if (!jruns.empty()) {
+                    std::sort(jruns.begin(), jruns.end(),
+                              [](const DataRun& x, const DataRun& y) { return x.vcn < y.vcn; });
+                    usn_runs.runs() = std::move(jruns);
+                    have_usn = true;
                 }
             }
             ++stats.meta_skipped;
@@ -339,7 +372,7 @@ u32 walk_mft(NtfsVolume* vol, VolumeBitmap* bitmap, const WalkerFlags& flags, Ca
             const RunList& probe = is_dir ? (has_i30 ? i30_runs : RunList()) : data_runs;
             const u64 probe_size =
                 is_dir ? (has_i30 ? i30_runs.total_clusters() * vol->params().cluster_bytes : 0)
-                       : (data_real_size ? data_real_size : best->real_size);
+                       : (has_data ? best->real_size : 0);
             if (!is_dir && !has_data) {
                 conf = tree::Confidence::MetadataOnly;
             } else if (probe_size >= flags.viability_min_size && probe.total_clusters() > 0) {
@@ -387,8 +420,6 @@ u32 walk_mft(NtfsVolume* vol, VolumeBitmap* bitmap, const WalkerFlags& flags, Ca
         props->record_ref = (record_no) | (u64(rh.sequence) << 48);
         props->fs_kind = 3; /* NTFS (corpus FS type codes) */
         props->name = best->name;
-        /* $DATA size first (authoritative); $FILE_NAME size only as the
-         * metadata-only fallback (0 on real volumes for fresh files) */
         props->logical_size = data_real_size ? data_real_size : best->real_size;
         props->allocated_size = best->allocated_size;
         props->times = has_si ? si_times : best->times;
@@ -404,6 +435,10 @@ u32 walk_mft(NtfsVolume* vol, VolumeBitmap* bitmap, const WalkerFlags& flags, Ca
                 props->extents.push_back({e.lcn * vol->params().cluster_bytes,
                                           e.clusters * vol->params().cluster_bytes});
             }
+        } else if (has_data && !unnamed_resident.empty() && !is_dir) {
+            /* resident-only file: the content travels in the props (the
+             * writer emits resident_data before any extents) */
+            props->resident_data = std::move(unnamed_resident);
         }
 
         /* emit one node per parent, each with ITS OWN link name (per-link
@@ -541,89 +576,119 @@ u32 walk_mft(NtfsVolume* vol, VolumeBitmap* bitmap, const WalkerFlags& flags, Ca
     /* ---- phase C: $UsnJrnl harvest (audit row 7) ----
      *
      * Journal-evidenced names the MFT pass missed (record reused or wiped):
-     * parse USN_RECORD_V2 entries from $Extend/$UsnJrnl:$J (bounded), keep
-     * entries carrying FILE_DELETE, and emit the ones whose (parent, name)
-     * the structured walk did not produce. */
+     * parse USN_RECORD_V2/V3 entries from $Extend/$UsnJrnl:$J (bounded),
+     * keep entries carrying FILE_DELETE, and emit the ones whose record or
+     * (parent, name) the structured walk did not produce. $J is sparse:
+     * the stream is materialized in VCN order with sparse runs as zeros
+     * (record alignment depends on it); a damaged record re-syncs to the
+     * next 8-byte boundary instead of terminating the harvest.
+     *
+     * Layouts (winioctl.h): V2 refs are 64-bit; V3 uses 128-bit
+     * FileReferenceNumber/ParentFileReferenceNumber, shifting every later
+     * field by +0x10. DELETE is the only deletion signal - a bare
+     * FILE_CREATE belongs to live files and must never surface deleted. */
     if (flags.harvest_usnjrnl && have_usn && !usn_runs.empty()) {
         std::vector<u8> jbuf;
         u64 jtotal = 0;
-        for (const DataRun& dr : usn_runs.runs()) {
-            if (dr.sparse || dr.length == 0)
-                continue;
+        for (const DataRun& dr : usn_runs.runs())
             jtotal += dr.length * vol->params().cluster_bytes;
-        }
         if (jtotal > USN_HARVEST_CAP)
             jtotal = USN_HARVEST_CAP;
-        jbuf.resize(size_t(jtotal));
+        jbuf.assign(size_t(jtotal), 0);
         u64 got = 0;
         for (const DataRun& dr : usn_runs.runs()) {
             if (got >= jtotal)
                 break;
-            if (dr.sparse || dr.length == 0)
+            u64 run_bytes = dr.length * vol->params().cluster_bytes;
+            if (run_bytes > jtotal - got)
+                run_bytes = jtotal - got;
+            if (dr.sparse || dr.length == 0 || dr.lcn == 0) {
+                got += run_bytes; /* sparse/unmapped: zeros (pre-assigned) */
                 continue;
-            u64 take = dr.length * vol->params().cluster_bytes;
-            if (take > jtotal - got)
-                take = jtotal - got;
-            if (vol->read_at(dr.lcn * vol->params().cluster_bytes, jbuf.data() + got, u32(take)) !=
-                OK)
-                break;
-            got += take;
+            }
+            if (vol->read_at(dr.lcn * vol->params().cluster_bytes, jbuf.data() + got,
+                             u32(run_bytes)) != OK) {
+                /* damaged run: leave zeros, continue the stream */
+                ++stats.usn_damaged_runs;
+                got += run_bytes;
+                continue;
+            }
+            got += run_bytes;
         }
-        /* structured names for dedup: (parent record, name) */
+        /* structured record set + names for dedup */
+        std::set<u64> known_records;
         std::vector<std::pair<u64, std::u16string>> known;
         known.reserve(emitted.size());
         for (const EmittedNode& e : emitted) {
-            if (e.node->props() != nullptr)
+            if (e.node->props() != nullptr) {
                 known.emplace_back(e.parent_record, e.node->props()->name);
+                known_records.insert(e.node->props()->record_ref);
+            }
         }
-        /* walk the journal: USN_RECORD_V2 (winioctl.h layout) */
+        /* walk the journal in 8-byte alignment with resync */
         std::vector<UsnEvidence> evidence;
         size_t jp = 0;
+        u32 resyncs = 0;
         while (jp + 64 <= jbuf.size()) {
-            const u32 rlen = u32(jbuf[jp]) | (u32(jbuf[jp + 1]) << 8) | (u32(jbuf[jp + 2]) << 16) |
-                             (u32(jbuf[jp + 3]) << 24);
-            if (rlen < 64 || jp + rlen > jbuf.size())
-                break; /* zero tail / damaged journal: stop */
+            const u32 rlen = u32(jbuf[jp]) | (u32(jbuf[jp + 1]) << 8) |
+                             (u32(jbuf[jp + 2]) << 16) | (u32(jbuf[jp + 3]) << 24);
             const u16 major = u16(jbuf[jp + 4]) | (u16(jbuf[jp + 5]) << 8);
-            if (major != 2) {
-                jp += rlen; /* V3 or unknown: self-describing length */
+            const u16 minor = u16(jbuf[jp + 6]) | (u16(jbuf[jp + 7]) << 8);
+            if (rlen < 64 || jp + rlen > jbuf.size() || (major != 2 && major != 3) ||
+                (major == 2 && minor != 0)) {
+                /* zero/short/damaged window: re-sync to the next 8-byte
+                 * boundary and probe again (bounded) */
+                jp = (jp + 7) & ~size_t(7);
+                if (++resyncs > USN_RESYNC_LIMIT)
+                    break;
+                jp += 8;
                 continue;
             }
-            const u64 parent = mft_reference_record(u64_from_bytes_le(jbuf.data() + jp + 16));
-            const u64 ts = u64_from_bytes_le(jbuf.data() + jp + 32);
-            const u32 reason = u32(jbuf[jp + 40]) | (u32(jbuf[jp + 41]) << 8) |
-                               (u32(jbuf[jp + 42]) << 16) | (u32(jbuf[jp + 43]) << 24);
-            const u32 namelen = u32(jbuf[jp + 56]) | (u32(jbuf[jp + 57]) << 8) |
-                                (u32(jbuf[jp + 58]) << 16) | (u32(jbuf[jp + 59]) << 24);
-            const u32 nameoff = u32(jbuf[jp + 60]) | (u32(jbuf[jp + 61]) << 8) |
-                                (u32(jbuf[jp + 62]) << 16) | (u32(jbuf[jp + 63]) << 24);
+            const u32 ref_off = 8;                /* V2 */
+            const u32 parent_off = major == 2 ? 16 : 24; /* V3: 128-bit refs */
+            const u32 ts_off = major == 2 ? 32 : 48;
+            const u32 reason_off = major == 2 ? 40 : 56;
+            const u32 namelen_off = major == 2 ? 56 : 72;
+            const u32 nameoff_off = major == 2 ? 60 : 76;
+            const u32 name_off = major == 2 ? 64 : 80;
+            const u64 file_ref =
+                mft_reference_record(u64_from_bytes_le(jbuf.data() + jp + ref_off));
+            const u64 parent = mft_reference_record(u64_from_bytes_le(jbuf.data() + jp +
+                                                                     parent_off));
+            const u64 ts = u64_from_bytes_le(jbuf.data() + jp + ts_off);
+            const u32 reason = u32_from_bytes_le(jbuf.data() + jp + reason_off);
+            const u32 namelen = u32_from_bytes_le(jbuf.data() + jp + namelen_off);
+            const u32 nameoff = u32_from_bytes_le(jbuf.data() + jp + nameoff_off);
             ++stats.usn_records;
             if ((reason & USN_REASON_FILE_DELETE) != 0 && namelen > 0 && namelen <= 512 &&
-                nameoff >= 64 && size_t(nameoff) + namelen <= rlen && (namelen & 1) == 0) {
+                nameoff >= name_off && nameoff + namelen <= rlen && (namelen & 1) == 0) {
                 std::u16string nm(namelen / 2, u'\0');
                 for (u32 i = 0; i < namelen / 2; i++)
                     nm[i] = u16(jbuf[jp + nameoff + i * 2]) |
                             (u16(jbuf[jp + nameoff + i * 2 + 1]) << 8);
                 if (!nm.empty() && nm[0] != u'$')
-                    evidence.push_back({nm, parent, ts});
+                    evidence.push_back({nm, parent, ts, file_ref});
             }
             jp += rlen;
         }
         /* dedup against structured results, then emit under root_lost */
         for (const UsnEvidence& ev : evidence) {
-            bool dup = false;
-            for (const auto& k : known)
-                if (k.first == ev.parent_record && k.second == ev.name) {
-                    dup = true;
-                    break;
-                }
+            bool dup = known_records.count(ev.file_ref) != 0;
+            if (!dup) {
+                for (const auto& k : known)
+                    if (k.first == ev.parent_record && k.second == ev.name) {
+                        dup = true;
+                        break;
+                    }
+            }
             if (dup)
                 continue;
             for (const UsnEvidence& prior : evidence) {
                 if (&prior == &ev)
                     break;
-                if (prior.parent_record == ev.parent_record && prior.name == ev.name) {
-                    dup = true; /* same (parent, name) twice in the journal */
+                if (prior.parent_record == ev.parent_record && prior.name == ev.name &&
+                    prior.file_ref == ev.file_ref) {
+                    dup = true; /* same (record, parent, name) twice */
                     break;
                 }
             }
@@ -636,6 +701,7 @@ u32 walk_mft(NtfsVolume* vol, VolumeBitmap* bitmap, const WalkerFlags& flags, Ca
             jp2->fs_kind = 3;
             jp2->logical_size = 0; /* journal carries no size */
             jp2->flags = 0;
+            jp2->record_ref = ev.file_ref;
             jp2->times.modified = ev.timestamp;
             tree::FileNode* jn = tree.add_file(root_lost, jp2);
             if (jn) {
@@ -758,9 +824,13 @@ void scan_remnant_buffer(RemnantCtx& ctx, const u8* buf, u64 buf_len) {
         std::memcpy(&srh, shifted.data(), sizeof(srh));
         if (srh.magic != RECORD_MAGIC_FILE)
             continue;
-        if (fixup_apply(shifted.data(), u32(shifted.size()), srh.update_sequence_offset,
-                        srh.update_sequence_size, ctx.sector_bytes) != OK)
-            continue;
+        /* The og salvages WITHOUT applying the USA fixup (FUN_18002a780:
+         * header sanity + parse only) - truncated-edge images carry zero
+         * sector tails that a strict fixup_validate would reject. Try the
+         * fixup; on failure parse anyway (enum_attributes bounds-checks
+         * every field, and the remnant path below grades by content). */
+        (void)fixup_apply(shifted.data(), u32(shifted.size()), srh.update_sequence_offset,
+                          srh.update_sequence_size, ctx.sector_bytes);
         std::vector<AttrView> sattrs;
         if (enum_attributes(shifted.data(), u32(shifted.size()), sattrs) != OK)
             continue;

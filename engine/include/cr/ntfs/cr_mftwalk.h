@@ -41,7 +41,9 @@ struct WalkerFlags {
 
 /* USN reasons (winioctl.h USN_REASON_*): the journal records we mine for
  * deleted-name evidence. */
-constexpr u32 USN_REASON_FILE_CREATE = 0x00010000;
+constexpr u32 USN_REASON_FILE_CREATE = 0x00000100; /* winioctl.h; 0x10000 is
+                                               * HARD_LINK_CHANGE (AUDIT row 7
+                                               * correction) */
 constexpr u32 USN_REASON_FILE_DELETE = 0x00020000;
 
 struct WalkStats {
@@ -57,6 +59,7 @@ struct WalkStats {
     u64 ads = 0;
     u64 usn_records = 0; /* journal records parsed */
     u64 usn_names = 0;   /* deleted names the MFT pass missed */
+    u64 usn_damaged_runs = 0; /* $J runs that failed to read (zeros kept) */
 };
 
 /* Progress callback: (done, total) with 0..10000 scale. Return false to

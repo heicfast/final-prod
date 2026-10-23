@@ -159,7 +159,7 @@ TEST(Orchestrator, DynamicDiskVolumeScan) {
     fx.set_disk(1000, "01234567-89AB-CDEF-0123-456789ABCDEF");
     fx.add_dgr4(1, "TestPCDg0");
     fx.add_dsk4(1000, "Disk1", "01234567-89AB-CDEF-0123-456789ABCDEF");
-    fx.add_volume({2000, "Volume1", 1, PART_SIZE, 1});
+    fx.add_volume({2000, "Volume1", 3, PART_SIZE, 1});
     fx.add_component({3000, "Volume1-01", cr::table::LDM_COMP_CONCAT, 1, 2000, 0, 0});
     fx.add_partition({4000, "Disk1-01", PART_START, PART_SIZE, 0, 3000, 0, 1000});
     fx.finish();
@@ -365,4 +365,69 @@ TEST(SafeWriter, CollisionAndSanitize) {
     EXPECT_EQ(SafeWriter::sanitize_name(u16_("a<b>:?/|*.txt")), u16_("a_b______.txt"));
     EXPECT_EQ(SafeWriter::sanitize_name(u16_("..")), u16_("_.."));
     EXPECT_EQ(SafeWriter::sanitize_name(u16_("")), u16_("_"));
+}
+
+TEST(SafeWriter, ResidentPrefixNotOverwritten) {
+    /* Regression: the writer used to restart streaming at offset 0 after
+     * emitting the resident prefix, zero/extent-overwriting the payload.
+     * Files: resident 16-byte prefix + a 496-byte extent carrying the rest,
+     * and a resident-only file padded by logical_size. */
+    MockIo io;
+    std::vector<u8> img(64 * 512, 0);
+    /* extent content for the mixed file: post-resident bytes */
+    std::memcpy(img.data() + 512 * 20, "EXTENTDATA", 10);
+    MemDevice dev(std::move(img));
+    SafeWriter writer(io, &dev, WriterConfig{});
+    writer.set_destination(dev.size(), dev.size()); /* disjoint from source */
+
+    tree::ResultTree tree;
+    auto* ra = tree.add_root(u"R");
+
+    /* mixed: 16B resident + extent 496B */
+    {
+        auto* pr = new tree::FileProperties();
+        pr->name = u16_("mixed.bin");
+        pr->logical_size = 512;
+        const char* payload = "RESIDENT-PAYLOAD"; /* exactly 16 chars */
+        pr->resident_data.assign(payload, payload + 16);
+        tree::FileProperties::Extent ex;
+        ex.offset = 512 * 20;
+        ex.length = 496;
+        pr->extents.push_back(ex);
+        tree::FileNode* n = tree.add_file(ra, pr);
+        pr->release();
+        ASSERT_NE(nullptr, n);
+        ASSERT_EQ(writer.enqueue(n, u16_("R:\\out")), OK);
+    }
+    /* resident-only: 8B payload, logical size 32 (zero-padded tail) */
+    {
+        auto* pr = new tree::FileProperties();
+        pr->name = u16_("tiny.bin");
+        pr->logical_size = 32;
+        const char* payload = "TINYPAYL"; /* exactly 8 chars */
+        pr->resident_data.assign(payload, payload + 8);
+        tree::FileNode* n = tree.add_file(ra, pr);
+        pr->release();
+        ASSERT_NE(nullptr, n);
+        ASSERT_EQ(writer.enqueue(n, u16_("R:\\out")), OK);
+    }
+    WriterStats ws;
+    ASSERT_EQ(writer.process(nullptr, nullptr, nullptr, ws), OK);
+    ASSERT_EQ(2u, ws.done);
+
+    for (const auto& item : writer.queue()) {
+        const std::string got = io.content_of(item.item_id);
+        if (item.final_name == u16_("R:\\out\\mixed.bin")) {
+            ASSERT_GE(got.size(), 512u);
+            EXPECT_EQ(0, std::memcmp("RESIDENT-PAYLOAD", got.data(), 16))
+                << "resident prefix was overwritten";
+            EXPECT_EQ(0, std::memcmp("EXTENTDATA", got.data() + 16, 10))
+                << "extent content must follow the resident prefix";
+        } else if (item.final_name == u16_("R:\\out\\tiny.bin")) {
+            ASSERT_GE(got.size(), 32u);
+            EXPECT_EQ(0, std::memcmp("TINYPAYL", got.data(), 8));
+            for (size_t i = 8; i < 32; ++i)
+                EXPECT_EQ(0, got[i]) << "tail byte " << i << " must be zero-padded";
+        }
+    }
 }

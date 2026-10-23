@@ -4,6 +4,7 @@
  */
 
 #include "cr/ntfs/cr_bootstrap.h"
+#include <algorithm>
 #include "cr/ntfs/cr_ntfs_wire.h"
 #include "cr/ntfs/cr_fixup.h"
 #include <cstring>
@@ -191,70 +192,98 @@ u32 NtfsVolume::load_mft_stream() {
 
     /* fragmented-MFT reassembly: if $ATTRIBUTE_LIST present, its entries point
      * to the records carrying the remaining $DATA fragments of $MFT (fix F6:
-     * strict depth/cycle limit over record numbers). */
+     * strict depth/cycle limit over record numbers). Entries point at
+     * extension records of arbitrary number (real volumes put them well past
+     * the reserved range) - reachability is bounded by read_record itself
+     * plus the visited set; there is no record-number cutoff. */
     if (have_attr_list && !attrlist_extra.empty()) {
-        constexpr u32 FRAG_DEPTH_LIMIT = 64;
+        constexpr u32 FRAG_ENTRY_LIMIT = 65536; /* buffer is <= 1 MiB anyway */
         std::vector<u64> visited;
-        /* parse $ATTRIBUTE_LIST entries (NTFS spec layout, 26-byte min):
+        /* parse $ATTRIBUTE_LIST entries (NTFS spec layout, 26-byte min,
+         * 8-byte aligned stride):
          *   +0x00 u32 type | +0x04 u16 reclen | +0x06 u8 namelen |
          *   +0x07 u8 nonresident | +0x08 u64 lowest_vcn |
          *   +0x10 u64 file_reference (u48 record | u16 seq) | +0x18 u16 id */
+        struct Frag {
+            u64 lowest_vcn = 0;
+            std::vector<DataRun> runs;
+        };
+        std::vector<Frag> frags;
         u32 apos = 0;
-        int steps = 0;
+        u64 steps = 0;
         while (apos + 26 <= attrlist_extra.size()) {
-            if (++steps > int(FRAG_DEPTH_LIMIT))
-                return ERR_DEPTH_LIMIT;
+            if (++steps > FRAG_ENTRY_LIMIT)
+                break; /* corrupt stream: keep what parsed, never fail open */
             u32 atype = u32_from_bytes_le(attrlist_extra.data() + apos);
             u16 areclen = u16_from_bytes_le(attrlist_extra.data() + apos + 4);
             if (areclen < 26 || apos + areclen > attrlist_extra.size())
                 break;
             u8 anonres = attrlist_extra[apos + 7];
             u64 aref = u64_from_bytes_le(attrlist_extra.data() + apos + 0x10);
+            u64 alowest = u64_from_bytes_le(attrlist_extra.data() + apos + 0x08);
             if (atype == ATTR_TYPE_DATA && anonres) {
                 u64 child = mft_reference_record(aref);
+                bool seen = false;
                 for (u64 v : visited)
-                    if (v == child)
-                        return ERR_CYCLE_LIMIT; /* fix F6/F7 */
-                visited.push_back(child);
-                if (child < MFT_RESERVED_RECORDS) {
-                    /* read child record, extract its nonresident $DATA header
-                     * runlist fragment, and append to mft_extents_ view */
+                    if (v == child) {
+                        seen = true;
+                        break;
+                    }
+                if (!seen) {
+                    visited.push_back(child);
+                    /* read child record, apply the USA fixup (the on-disk
+                     * image carries sector-tail USNs; parsing raw corrupts
+                     * runlists crossing the 510/1022 boundaries), extract
+                     * its nonresident $DATA runlist fragment */
                     std::vector<u8> cr;
                     u32 rrc = read_record(child, cr);
                     if (rrc == OK && cr.size() >= sizeof(RecordHeader)) {
                         RecordHeader crh;
                         std::memcpy(&crh, cr.data(), sizeof(crh));
-                        u32 cpos = crh.attribute_offset;
-                        int cdepth = 0;
-                        while (cpos + 16 <= cr.size() && cdepth < 64) {
-                            ++cdepth;
-                            u32 ctype = u32_from_bytes_le(cr.data() + cpos);
-                            if (ctype == ATTR_TYPE_TERMINATOR)
-                                break;
-                            u32 clen = u32_from_bytes_le(cr.data() + cpos + 4);
-                            if (clen < 16 || cpos + clen > cr.size())
-                                break;
-                            if (ctype == ATTR_TYPE_DATA && cr[cpos + 8]) {
-                                if (cpos + 16 + sizeof(NonresidentTail) > cr.size())
+                        if (fixup_apply(cr.data(), u32(cr.size()), crh.update_sequence_offset,
+                                        crh.update_sequence_size, p_.sector_bytes) == OK) {
+                            u32 cpos = crh.attribute_offset;
+                            int cdepth = 0;
+                            while (cpos + 16 <= cr.size() && cdepth < 64) {
+                                ++cdepth;
+                                u32 ctype = u32_from_bytes_le(cr.data() + cpos);
+                                if (ctype == ATTR_TYPE_TERMINATOR)
                                     break;
-                                NonresidentTail cna;
-                                std::memcpy(&cna, cr.data() + cpos + 16, sizeof(cna));
-                                RunList crl;
-                                if (u32(cna.runlist_offset) + 8 <= clen &&
-                                    RunList::decode(cr.data() + cpos + cna.runlist_offset,
-                                                    clen - cna.runlist_offset, cna.start_vcn,
-                                                    p_.total_clusters, crl) == OK) {
-                                    for (const DataRun& dr : crl.runs())
-                                        mft_extents_.push_back(dr);
+                                u32 clen = u32_from_bytes_le(cr.data() + cpos + 4);
+                                if (clen < 16 || cpos + clen > cr.size())
+                                    break;
+                                if (ctype == ATTR_TYPE_DATA && cr[cpos + 8]) {
+                                    if (cpos + 16 + sizeof(NonresidentTail) > cr.size())
+                                        break;
+                                    NonresidentTail cna;
+                                    std::memcpy(&cna, cr.data() + cpos + 16, sizeof(cna));
+                                    RunList crl;
+                                    if (u32(cna.runlist_offset) + 8 <= clen &&
+                                        RunList::decode(cr.data() + cpos + cna.runlist_offset,
+                                                        clen - cna.runlist_offset, cna.start_vcn,
+                                                        p_.total_clusters, crl) == OK) {
+                                        Frag f;
+                                        f.lowest_vcn = alowest;
+                                        f.runs = crl.runs();
+                                        frags.push_back(std::move(f));
+                                    }
                                 }
+                                cpos += clen;
                             }
-                            cpos += clen;
                         }
                     }
                 }
             }
-            apos += areclen;
+            apos += u32(areclen + 7) & ~u32(7); /* entries are 8-byte aligned */
         }
+        /* merge in lowest_vcn order: each fragment's runlist is already
+         * VCN-relative; ordering by the entry's lowest_vcn yields the true
+         * $MFT extent view (discovery order is arbitrary) */
+        std::sort(frags.begin(), frags.end(),
+                  [](const Frag& a, const Frag& b) { return a.lowest_vcn < b.lowest_vcn; });
+        for (const Frag& f : frags)
+            for (const DataRun& dr : f.runs)
+                mft_extents_.push_back(dr);
     }
     return OK;
 }

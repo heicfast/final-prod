@@ -192,8 +192,12 @@ bool parse_vmdb(const u8* data, LdmVmdb& vm) {
     vm.n_pending_disks = rd32be(data + 0xAD);
     if (vm.ver_major != 4 || vm.ver_minor != 10)
         return false;
-    if (vm.vblk_size == 0)
-        return false;
+    if (vm.vblk_size == 0) {
+        /* og LdmManager defaults a zero vblk_size to 0x80 instead of
+         * failing (OG:59525-59528); surfaced as degraded by the caller */
+        vm.vblk_size = 0x80;
+        vm.vblk_size_defaulted = true;
+    }
     return true;
 }
 
@@ -515,7 +519,7 @@ bool parse_volume_v5(const u8*& p, const u8* end, u8 flags, LdmVolumeObj& v) {
     p += 14;
     if (p >= end)
         return false;
-    v.read_policy = *p++;       /* 1 = gen, 4 = RAID (flatcap Read Policy) */
+    v.int_volume_type = *p++;   /* libldm _int_type: 3 = gen, 4 = RAID-5 */
     if (!skip_bytes(p, end, 1)) /* unknown */
         return false;
     if (!skip_bytes(p, end, 1)) /* volume number (fixed 1 byte, libldm) */
@@ -665,13 +669,16 @@ bool parse_vblk_view(const u8* view, size_t len, LdmInfo& out) {
 struct FragGroup {
     u16 total = 0;
     u16 found = 0;
-    u32 mask = 0; /* which entry slots arrived */
+    u32 mask = 0;    /* which entry slots arrived */
+    bool broken = false; /* duplicate fragment: kernel marks the group
+                          * permanently incomplete (map &= 0x7F) */
     std::vector<u8> data;
 };
 
 /* Returns true when the group completed and parsed. */
 bool frag_commit(FragGroup& g, LdmInfo& out) {
-    if (g.found != g.total || g.mask != (g.total >= 32 ? 0xFFFFFFFFu : ((1u << g.total) - 1))) {
+    if (g.broken || g.found != g.total ||
+        g.mask != (g.total >= 32 ? 0xFFFFFFFFu : ((1u << g.total) - 1))) {
         out.stats.composites_incomplete++;
         return false;
     }
@@ -713,7 +720,8 @@ u32 walk_vblks(const u8* vmdb_base, const LdmVmdb& vm, u64 region_bytes, LdmInfo
         out.stats.vblks_total++;
         if (h.nrec == 0)
             continue; /* unused slot */
-        if (h.nrec > 16 || h.rec >= h.nrec) {
+        if (h.nrec > 4 || h.rec >= h.nrec) {
+            /* kernel ldm.c:1232: fragments come in groups of at most 4 */
             out.stats.vblks_bad++;
             continue;
         }
@@ -743,7 +751,10 @@ u32 walk_vblks(const u8* vmdb_base, const LdmVmdb& vm, u64 region_bytes, LdmInfo
             continue;
         }
         if (g->mask & (1u << h.rec)) {
-            out.stats.vblks_bad++; /* duplicate fragment (kernel: broken) */
+            /* duplicate fragment: kernel ldm.c:1264-1268 marks the group
+             * permanently broken (map &= 0x7F) - it must never commit */
+            g->broken = true;
+            out.stats.vblks_bad++;
             continue;
         }
         g->mask |= 1u << h.rec;
@@ -778,6 +789,10 @@ LdmMember build_member(const LdmPartitionObj& part, const LdmDiskObj* disk,
         m.disk_guid = disk->guid;
         m.disk_present = true;
     }
+    m.part_start = part.start;
+    /* lds of the PARSED disk - correct only for members on that disk;
+     * LdmVolumeDevice re-anchors remote members through their own
+     * PRIVHEAD when a resolver provides their device */
     m.disk_lba = logical_disk_start + part.start;
     m.sectors = part.size;
     m.vol_offset = part.vol_offset;
@@ -830,7 +845,7 @@ bool resolve_one_volume(const LdmInfo& db, const LdmVolumeObj& v, LdmVolumeLayou
 
     if (comps.size() > 1) {
         /* mirror: every copy is a concat component (libldm rule) */
-        if (v.read_policy != 1)
+        if (v.int_volume_type != LDM_VOLTYPE_GEN) /* spanned components need a gen volume */
             return false;
         for (const auto* c : comps) {
             if (c->type != LDM_COMP_CONCAT)
@@ -894,7 +909,7 @@ bool resolve_one_volume(const LdmInfo& db, const LdmVolumeObj& v, LdmVolumeLayou
         break;
     }
     case LDM_COMP_STRIPE: {
-        if (v.read_policy != 1) /* libldm: striped requires a "gen" volume */
+        if (v.int_volume_type != LDM_VOLTYPE_GEN) /* libldm: striped requires a "gen" volume */
             return false;
         lay.kind = LdmVolumeKind::Striped;
         lay.chunk_sectors = c.chunk_size;
@@ -908,7 +923,7 @@ bool resolve_one_volume(const LdmInfo& db, const LdmVolumeObj& v, LdmVolumeLayou
         break;
     }
     case LDM_COMP_RAID: {
-        if (v.read_policy != 4) /* libldm: RAID component requires raid5 */
+        if (v.int_volume_type != LDM_VOLTYPE_RAID5) /* libldm: RAID component requires raid5 */
             return false;
         lay.kind = LdmVolumeKind::Raid5;
         lay.chunk_sectors = c.chunk_size;
@@ -1136,6 +1151,15 @@ u32 parse_ldm_database(IStorageDevice* device, LdmInfo& out) {
      * in the header) */
     if (vm.vblk_size < 24 || vm.vblk_size > 8192)
         return ERR_UNSUPPORTED;
+    if (vm.update_status != 1 || vm.vblk_size_defaulted)
+        out.stats.degraded = true;
+    /* kernel ldm.c:461-465: vblk_size * vblk_last must fit the config
+     * bitmap - on violation the kernel aborts; recovery: clamp to the
+     * region (walk_vblks already bounds by region_bytes) and record
+     * degraded, never silently mis-walk */
+    if (vm.vblk_size != 0 && toc.bitmap1_size != 0 &&
+        u64(vm.vblk_size) * u64(vm.vblk_last) > (toc.bitmap1_size << 9))
+        out.stats.degraded = true;
 
     out.found = true;
     out.ph = ph;
@@ -1201,21 +1225,62 @@ void xor_into(u8* dst, const u8* src, u64 n) {
 
 } // namespace
 
+/* Probe a member disk's own logical_disk_start from its PRIVHEAD copies
+ * (primary at LBA 6; then the end-of-disk convention positions used by
+ * find_privhead's damaged-primary fallback). Returns false when no PRIVHEAD
+ * is reachable - the member then keeps the parsed disk's lds and is marked
+ * un-anchored so callers can refuse wrong-LBA reads instead of guessing. */
+namespace {
+bool probe_disk_lds(IStorageDevice* dev, u64& lds_out) {
+    if (dev == nullptr)
+        return false;
+    u8 buf[512];
+    const u64 total = dev->size();
+    const u64 last_sec = total / 512;
+    u64 candidates[3] = {6, 0, 0};
+    if (last_sec > 2048) {
+        candidates[1] = last_sec - 2048 + 1856;
+        candidates[2] = last_sec - 2048 + 2047;
+    }
+    for (u64 sec : candidates) {
+        if (sec == 0)
+            continue;
+        if (dev->read_at(sec * 512, buf, sizeof(buf)) != OK)
+            continue;
+        if (std::memcmp(buf, "PRIVHEAD", 8) != 0)
+            continue;
+        const u64 lds = rd64be(buf + 0x11B);
+        if (lds != 0) {
+            lds_out = lds;
+            return true;
+        }
+    }
+    return false;
+}
+} // namespace
+
 LdmVolumeDevice::LdmVolumeDevice(const LdmVolumeLayout& layout, LdmDiskResolver resolver)
     : layout_(layout), resolver_(std::move(resolver)) {
     geom_.logical_sector = 512; /* LDM LBAs are 512-byte logical blocks */
     geom_.physical_sector = 512;
     geom_.sector_count = layout.total_sectors;
     geom_.total_bytes = layout.total_sectors * 512;
-    /* inherit the physical sector report of the first resolvable member */
+    /* Re-anchor every member that the resolver can provide a device for:
+     * each member disk has its OWN logical_disk_start (63 vs 2048 vs GPT
+     * layouts differ across disks) - using the parsed disk's lds for a
+     * remote member would read the wrong LBAs. The member's PRIVHEAD is
+     * the authoritative source. */
     if (resolver_) {
-        for (const auto& copy : layout.copies) {
-            for (const auto& m : copy) {
-                if (IStorageDevice* d = resolver_(m.disk_guid); d != nullptr) {
-                    if (d->geometry().physical_sector != 0)
-                        geom_.physical_sector = d->geometry().physical_sector;
-                    return;
-                }
+        for (auto& copy : layout_.copies) {
+            for (auto& m : copy) {
+                IStorageDevice* d = resolver_(m.disk_guid);
+                if (d == nullptr)
+                    continue;
+                if (d->geometry().physical_sector != 0 && geom_.physical_sector == 512)
+                    geom_.physical_sector = d->geometry().physical_sector;
+                u64 lds = 0;
+                if (probe_disk_lds(d, lds))
+                    m.disk_lba = lds + m.part_start; /* re-anchored */
             }
         }
     }

@@ -30,7 +30,7 @@
  * Divergences (documented, deliberate):
  *   - The kernel's cmp3 "chunksize" reads the first vnum after the
  *     post-volume-id pad and its vol5 "volume_state" memcpy overreads 2
- *     bytes into read_policy - both are dead code in the kernel; we read
+ *     bytes into volume_type - both are dead code in the kernel; we read
  *     the structured fields the way libldm does (which feeds real dm
  *     tables, so it is the field-validated reading).
  *   - Damaged individual VBLKs are counted and skipped instead of aborting
@@ -111,6 +111,7 @@ struct LdmVmdb {
     u16 ver_major = 0, ver_minor = 0; /* 4.10 */
     u16 update_status = 0;            /* 0x01 = committed / consistent */
     u32 vblk_size = 0;                /* bytes per VBLK record (128 typical) */
+    bool vblk_size_defaulted = false; /* zero vblk_size defaulted to 0x80 (og) */
     u32 vblk_offset = 0;              /* byte offset of the VBLK array (512 typical) */
     u32 vblk_last = 0;                /* last committed sequence number (array bound) */
     u64 committed_seq = 0;            /* BE u64 @0x75 */
@@ -170,12 +171,17 @@ struct LdmPartitionObj {
     bool has_index = false;
 };
 
+constexpr u8 LDM_VOLTYPE_GEN = 3;   /* libldm _VOLUME_TYPE_GEN */
+constexpr u8 LDM_VOLTYPE_RAID5 = 4; /* libldm _VOLUME_TYPE_RAID5 */
+
 struct LdmVolumeObj {
     u64 obj_id = 0;
     std::string name;        /* "Volume1", "Stripe1", "Raid1" ... */
     std::string volume_type; /* "gen" or "raid5" */
     std::string state;       /* 14-byte slot, NUL padded */
-    u8 read_policy = 0;      /* 1 gen/round, 4 raid (flatcap Read Policy) */
+    u8 int_volume_type = 0;  /* libldm _int_type: _VOLUME_TYPE_GEN=3
+                              * (all kinds but RAID-5) or _VOLUME_TYPE_RAID5=4;
+                              * the byte after the 14-byte volume state */
     u8 flags = 0;
     u8 part_type = 0; /* 0x07 NTFS, 0x0B FAT32, 0x06 RAW/FAT16 */
     u64 size = 0;     /* sectors (Size LBA) */
@@ -207,6 +213,7 @@ struct LdmMember {
     u64 disk_obj_id = 0;
     LdmGuid disk_guid = {};
     u64 disk_lba = 0;          /* absolute start LBA on its disk (incl. lds) */
+    u64 part_start = 0;        /* raw partition start (PRT3), before the lds */
     u64 sectors = 0;           /* partition size, sectors */
     u64 vol_offset = 0;        /* spanned ordering */
     u32 index = 0;             /* column order */
@@ -236,6 +243,10 @@ struct LdmStats {
     u32 composites_incomplete = 0;
     u32 privheads_matched = 0;
     u32 tocblocks_matched = 0;
+    bool degraded = false; /* VMDB status != 1, vblk_size defaulted, or the
+                            * kernel TOC-bound check failed - database read
+                            * anyway (og recovery behavior), surfaced, not
+                            * silent */
 };
 
 /* ------------------------------------------------------------------ */
@@ -303,8 +314,11 @@ using LdmDiskResolver = std::function<IStorageDevice*(const LdmGuid&)>;
 class LdmVolumeDevice final : public IStorageDevice {
 public:
     /*
-     * layout/resolver are borrowed (must outlive the device); the volume's
-     * logical geometry is 512-byte blocks per the LDM spec.
+     * The layout is COPIED (the device re-anchors each member's LBAs
+     * through its own PRIVHEAD when the resolver provides the member's
+     * device, so it must own the adjusted geometry); the resolver is
+     * borrowed (must outlive the device). The volume's logical geometry
+     * is 512-byte blocks per the LDM spec.
      */
     LdmVolumeDevice(const LdmVolumeLayout& layout, LdmDiskResolver resolver);
 
@@ -313,7 +327,7 @@ public:
 
 private:
     u32 read_spanned_copy(const std::vector<LdmMember>& members, u64 sec, u32 nsec, u8* dst);
-    const LdmVolumeLayout& layout_;
+    LdmVolumeLayout layout_;
     LdmDiskResolver resolver_;
     Geometry geom_{};
 };
