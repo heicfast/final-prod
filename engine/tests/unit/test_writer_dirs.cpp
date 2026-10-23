@@ -63,7 +63,13 @@ public:
     u32 create_temp(u64 id, const std::u16string& final_path,
                     const std::u16string& temp_suffix) override {
         const fs::path fin = root_ / norm(final_path);
-        const fs::path tmp = fs::path(fin.native() + temp_suffix_as_str(temp_suffix));
+        /* MSVC: path::native() is wstring — the u16 suffix (ASCII) is
+         * widened to the native value_type so '+' type-checks on both
+         * std::libs (CI unblock for 91053b0's Windows leg). */
+        std::basic_string<fs::path::value_type> suffix;
+        for (u16 c : temp_suffix)
+            suffix.push_back(fs::path::value_type(c));
+        const fs::path tmp = fs::path(fin.native() + suffix);
         std::error_code ec;
         fs::create_directories(fin.parent_path(), ec);
         std::ofstream f(tmp, std::ios::binary | std::ios::trunc);
@@ -117,12 +123,6 @@ public:
     }
 
 private:
-    static std::string temp_suffix_as_str(const std::u16string& s) {
-        std::string out;
-        for (u16 c : s)
-            out.push_back(char(u8(c)));
-        return out;
-    }
     struct Open {
         fs::path temp, final;
     };
