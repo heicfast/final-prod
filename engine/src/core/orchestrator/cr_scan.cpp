@@ -130,6 +130,16 @@ void ScanController::adopt_resume_state_(const session::VolumeSessionInfo& resum
     carve_done_ = carve_done;
     if (cfg_.fs_hint == FsFamily::Unknown && resumed.fs_family != 0)
         cfg_.fs_hint = FsFamily(u8(resumed.fs_family));
+    /* SESS-2: adopt the loaded identity card so a re-save without any new
+     * run (load -> immediate save, e.g. cancel-during-resume) preserves it.
+     * A fresh run() overwrites vol_boot_hash_ with the recomputed value. */
+    vol_boot_hash_ = resumed.boot_hash;
+    if (cfg_.volume_model[0] == '\0')
+        for (size_t i = 0; i < sizeof(cfg_.volume_model); ++i)
+            cfg_.volume_model[i] = resumed.model[i];
+    if (cfg_.volume_serial[0] == '\0')
+        for (size_t i = 0; i < sizeof(cfg_.volume_serial); ++i)
+            cfg_.volume_serial[i] = resumed.serial[i];
 }
 
 /* ---- telemetry (G-04/G-05/G-06) ---- */
@@ -392,6 +402,17 @@ u32 ScanController::run(IStorageDevice* slice, CancelToken* cancel, bool (*progr
     vol_bytes_ = slice->size();
     vol_logical_sector_ = slice->geometry().logical_sector;
     vol_physical_sector_ = slice->geometry().physical_sector;
+    /* SESS-2/GAP-W3-9a: volume identity hash - CRC32 over the first 512
+     * bytes of the slice (the boot sector / volume header). Recorded at
+     * run start; the resume path recomputes and compares, so a session
+     * resumed against a different volume warns instead of silently
+     * producing garbage. Zero (unreadable start) = unverifiable, and the
+     * resume side skips comparison on zero. */
+    {
+        u8 boot[512] = {};
+        vol_boot_hash_ =
+            slice->read_at(0, boot, sizeof(boot)) == OK ? table::crc32(boot, sizeof(boot)) : 0;
+    }
 
     const auto stamp = [&stats, t0, cancel, this](u32 rc) -> u32 {
         const auto t1 = std::chrono::steady_clock::now();
@@ -912,6 +933,12 @@ u32 ScanController::save_session(session::Writer& w, const ScanStats& stats) con
     vi.physical_sector = vol_physical_sector_;
     for (size_t i = 0; i < sizeof(vi.label) - 1 && cfg_.volume_label[i]; ++i)
         vi.label[i] = cfg_.volume_label[i];
+    /* identity card (SESS-2 v2 tail) */
+    for (size_t i = 0; i < sizeof(vi.model) - 1 && cfg_.volume_model[i]; ++i)
+        vi.model[i] = cfg_.volume_model[i];
+    for (size_t i = 0; i < sizeof(vi.serial) - 1 && cfg_.volume_serial[i]; ++i)
+        vi.serial[i] = cfg_.volume_serial[i];
+    vi.boot_hash = vol_boot_hash_;
     vi.scanned_bytes = stats.bytes_scanned;
     vi.elapsed_ms = stats.elapsed_ms;
     if (session::serialize_volume_info(vi, blob) == OK)
@@ -1020,6 +1047,11 @@ u32 ScanController::load_session_summary(session::Reader& r, tree::ResultTree& t
     info.physical_sector = vi.physical_sector;
     for (size_t i = 0; i < sizeof(info.label); ++i)
         info.label[i] = vi.label[i];
+    for (size_t i = 0; i < sizeof(info.model); ++i)
+        info.model[i] = vi.model[i];
+    for (size_t i = 0; i < sizeof(info.serial); ++i)
+        info.serial[i] = vi.serial[i];
+    info.boot_hash = vi.boot_hash;
     info.scanned_bytes = vi.scanned_bytes;
     info.elapsed_ms = vi.elapsed_ms;
     if ((info.stage_done_mask & ~info.configured_mask) != 0)

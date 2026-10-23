@@ -65,6 +65,12 @@ struct ScanConfig {
      * never own it). UTF-8, NUL-padded into the session record. */
     char volume_label[32] = {0};
 
+    /* Device identity card (SESS-2/GAP-W3-9a): model/serial from the disk
+     * enumeration, UTF-8 NUL-padded. Informational - the volume identity
+     * proper is the boot-sector hash the orchestrator computes itself. */
+    char volume_model[48] = {0};
+    char volume_serial[32] = {0};
+
     /* ---- auto-checkpoint (G-13, issue #9) ----
      * Invoked by the orchestrator at STAGE BOUNDARIES with a freshly
      * serialized session (state + volume + contexts + tree + error map -
@@ -289,6 +295,7 @@ private:
     u64 vol_bytes_ = 0;
     u32 vol_logical_sector_ = 0;
     u32 vol_physical_sector_ = 0;
+    u32 vol_boot_hash_ = 0; /* SESS-2: CRC32 of the slice's first 512 bytes */
     u32 session_configured_mask_ = 0;
     /* G-13: the run's stats reference for checkpoint serialization +
      * emitted-checkpoint count (diagnostics) */

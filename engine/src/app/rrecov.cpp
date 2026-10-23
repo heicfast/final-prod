@@ -157,6 +157,24 @@ struct OpenResult {
     u64 volume_len = 0;
 };
 
+/* SESS-2 (GAP-W3-9a): fill the session identity card from the disk
+ * enumeration - model/serial, UTF-8, informational. The volume identity
+ * proper (boot-sector CRC32) is computed by the orchestrator at run
+ * start. Quiet on failure: an empty card is honest, never fabricated. */
+void fill_identity_card(u32 disk, orchestrator::ScanConfig& cfg) {
+    win::PhysicalDiskList disks;
+    if (win::enumerate_disks(disk + 1, disks) != OK || disks.size() <= disk)
+        return;
+    const auto narrow = [](const std::wstring& w, char* out, size_t cap) {
+        size_t i = 0;
+        for (; i + 1 < cap && i < w.size() && w[i] < 0x80; ++i)
+            out[i] = char(w[i]);
+        out[i] = 0;
+    };
+    narrow(disks[disk].model, cfg.volume_model, sizeof(cfg.volume_model));
+    narrow(disks[disk].serial, cfg.volume_serial, sizeof(cfg.volume_serial));
+}
+
 bool open_disk_view(u32 n, OpenResult& out) {
     u32 err = 0;
     /* RDA first when present (locked volumes, damaged media), direct
@@ -479,6 +497,7 @@ int cmd_scan(int argc, wchar_t** argv, int& i) {
     log_open(log_path.empty() ? nullptr : log_path.c_str());
     log_line("rrecov scan: threads=%u quick=%d deep=%d carve=%d whole_disk=%d", cfg.threads,
              int(cfg.run_quick), int(cfg.run_deep), int(cfg.run_carve), int(cfg.whole_disk));
+    fill_identity_card(target.disk, cfg); /* SESS-2: model/serial into the card */
 
     /* Cross-disk LDM members (audit row 30): on a whole-disk scan of an
      * LDM (dynamic) disk, spanned/striped/mirrored/RAID-5 volumes may
@@ -565,6 +584,18 @@ int cmd_scan(int argc, wchar_t** argv, int& i) {
         }
         wprintf(L"[resume] session mask 0x%x - skipping completed stage(s)\n",
                 info.stage_done_mask);
+        /* SESS-2 verify hook: the loaded session carries a volume identity
+         * (boot-sector CRC32). Recompute it over the CURRENT target and
+         * warn loudly on mismatch - resuming a session against a different
+         * volume would otherwise produce garbage results silently. Zero
+         * hash (v1 session, or unreadable start) = unverifiable, skipped. */
+        if (info.boot_hash != 0) {
+            u8 boot[512] = {};
+            if (target.device->read_at(0, boot, sizeof(boot)) == OK &&
+                table::crc32(boot, sizeof(boot)) != info.boot_hash)
+                wprintf(L"[resume] WARNING: volume identity mismatch - this session was "
+                        L"saved on a different volume (boot hash differs)\n");
+        }
     } else {
         ctrl.reset(new orchestrator::ScanController(tree, cfg));
     }

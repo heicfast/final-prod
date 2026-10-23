@@ -175,3 +175,62 @@ TEST(Crsf, TreeRoundTrip) {
     EXPECT_EQ(readme->props()->extents.size(), 1u);
     EXPECT_EQ(readme->props()->extents[0].offset, 4096u);
 }
+
+/* SESS-4 (GAP-W3-9b): the reference compresses EVERY chunk and stores only
+ * when deflate does not shrink it. The old `take >= 64` carve-out kept tiny
+ * tails stored unconditionally - this pins the tiny-tail deflate behavior
+ * at the frame unit (the strictly-smaller rule lives in crsf_chunk_frame). */
+TEST(Crsf, TinyChunkDeflatesWhenSmaller) {
+    std::vector<u8> tiny(40, 'B'); /* 40 highly-compressible bytes */
+    std::vector<u8> framed;
+    ASSERT_EQ(crsf_chunk_frame(tiny.data(), u32(tiny.size()), true, framed), OK);
+    ASSERT_GE(framed.size(), 2u);
+    const u16 hdr = u16(framed[0]) | (u16(framed[1]) << 8);
+    EXPECT_NE(0u, hdr & 0x8000u) << "tiny compressible chunk must take the deflate path";
+    EXPECT_LT(framed.size(), tiny.size() + 2) << "and must actually be smaller";
+    /* parse inverts it */
+    std::vector<u8> back;
+    ASSERT_EQ(crsf_chunk_parse(framed.data(), u32(framed.size()), back), OK);
+    EXPECT_EQ(back, tiny);
+    /* incompressible tiny chunk stays stored (not-smaller rule) */
+    std::vector<u8> noise(40);
+    for (size_t i = 0; i < noise.size(); ++i)
+        noise[i] = u8((i * 131 + 17) & 0xFF);
+    std::vector<u8> stored;
+    ASSERT_EQ(crsf_chunk_frame(noise.data(), u32(noise.size()), true, stored), OK);
+    const u16 shdr = u16(stored[0]) | (u16(stored[1]) << 8);
+    EXPECT_EQ(0u, shdr & 0x8000u) << "incompressible chunk must stay stored";
+}
+
+/* SESS-2 (GAP-W3-9a): the volume identity card round-trips, and v1 records
+ * (52-byte payloads, pre-identity layout) deserialize with a zero card -
+ * zeros mean "unverifiable", never "verified". */
+TEST(Crsf, VolumeInfoIdentityCardRoundTrip) {
+    VolumeInfo vi;
+    vi.fs_kind = 3;
+    vi.slice_offset = 512u * 63;
+    vi.slice_bytes = 4096;
+    vi.flags = 0x7;
+    std::snprintf(vi.label, sizeof(vi.label), "TESTVOL");
+    std::snprintf(vi.model, sizeof(vi.model), "ST5000DM000-1FK178");
+    std::snprintf(vi.serial, sizeof(vi.serial), "W1234567");
+    vi.boot_hash = 0xDEADBEEFu;
+    std::vector<u8> blob;
+    ASSERT_EQ(serialize_volume_info(vi, blob), OK);
+    EXPECT_EQ(blob.size(), 80u + 84u) << "v2 layout: 80-byte v1 prefix + identity tail";
+
+    VolumeInfo out;
+    ASSERT_EQ(deserialize_volume_info(blob.data(), blob.size(), out), OK);
+    EXPECT_STREQ(out.model, "ST5000DM000-1FK178");
+    EXPECT_STREQ(out.serial, "W1234567");
+    EXPECT_EQ(out.boot_hash, 0xDEADBEEFu);
+    EXPECT_EQ(out.slice_offset, 512u * 63);
+
+    /* v1 record: the identity tail is absent - zeros, not garbage */
+    std::vector<u8> v1(blob.begin(), blob.begin() + 80);
+    VolumeInfo old;
+    ASSERT_EQ(deserialize_volume_info(v1.data(), v1.size(), old), OK);
+    EXPECT_EQ(old.fs_kind, 3u);
+    EXPECT_EQ(old.boot_hash, 0u) << "v1 session: unverifiable, never verified";
+    EXPECT_STREQ(old.model, "") << "no fabricated identity";
+}

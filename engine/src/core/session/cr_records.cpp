@@ -304,6 +304,10 @@ u32 serialize_volume_info(const VolumeInfo& vi, std::vector<u8>& out) {
     put64(out, vi.scanned_bytes);
     put64(out, vi.elapsed_ms);
     put32(out, vi.flags);
+    /* identity card (SESS-2 v2 tail) */
+    out.insert(out.end(), vi.model, vi.model + 48);
+    out.insert(out.end(), vi.serial, vi.serial + 32);
+    put32(out, vi.boot_hash);
     return OK;
 }
 
@@ -319,6 +323,16 @@ u32 deserialize_volume_info(const u8* data, size_t len, VolumeInfo& vi) {
     vi.scanned_bytes = c.g64();
     vi.elapsed_ms = c.g64();
     vi.flags = c.g32();
+    /* v2 identity tail: absent on v1 records - zeros mean "unverifiable",
+     * never "verified" (the resume side skips comparison on zero hash).
+     * v1 prefix is 80 bytes (4+8+8+4+4+32+8+8+4); the tail adds 48+32+4. */
+    if (!c.fail && len >= 80 + 84) {
+        if (!c.bytes(reinterpret_cast<u8*>(vi.model), 48))
+            return 0x50040001;
+        if (!c.bytes(reinterpret_cast<u8*>(vi.serial), 32))
+            return 0x50040001;
+        vi.boot_hash = c.g32();
+    }
     return c.fail ? u32(0x50040001) : u32(OK);
 }
 

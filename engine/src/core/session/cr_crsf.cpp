@@ -137,8 +137,12 @@ u32 Writer::add_record(RecordType type, const void* data, u32 len) {
     u32 remaining = len;
     while (remaining > 0) {
         u32 take = remaining < CRSF_CHUNK_MAX ? remaining : CRSF_CHUNK_MAX;
-        /* compress unless the tail chunk is tiny (reference: stored wins) */
-        bool try_deflate = take >= 64;
+        /* SESS-4 (GAP-W3-9b): the reference compresses EVERY chunk and
+         * stores when deflate does not shrink it (the strictly-smaller rule
+         * lives in crsf_chunk_frame). The old `take >= 64` carve-out kept
+         * tiny tail chunks stored unconditionally - a divergence from the
+         * reference-proven framing scheme. */
+        bool try_deflate = true;
         std::vector<u8> chunk;
         if (u32 rc = crsf_chunk_frame(p, take, try_deflate, chunk))
             return rc;

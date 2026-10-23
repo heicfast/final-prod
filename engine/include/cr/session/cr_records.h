@@ -53,6 +53,15 @@ struct VolumeInfo {
     u64 scanned_bytes = 0;
     u64 elapsed_ms = 0;
     u32 flags = 0; /* bit0 quick, bit1 deep, bit2 carved */
+    /* identity card (SESS-2 / GAP-W3-9a, v2 tail - v1 sessions deserialize
+     * with zeros and skip verification): device model/serial (enumeration
+     * data, informational - a volume legitimately moved between disks keeps
+     * its boot hash) + CRC32 of the first 512 bytes at the slice start (the
+     * volume identity proper; the resume path compares it and warns on
+     * mismatch). */
+    char model[48] = {0};
+    char serial[32] = {0};
+    u32 boot_hash = 0;
 };
 u32 serialize_volume_info(const VolumeInfo& vi, std::vector<u8>& out);
 u32 deserialize_volume_info(const u8* data, size_t len, VolumeInfo& vi);
@@ -100,6 +109,10 @@ struct VolumeSessionInfo {
     char label[32] = {0}; /* utf8, NUL padded */
     u64 scanned_bytes = 0;
     u64 elapsed_ms = 0;
+    /* identity card (SESS-2 v2 tail; zeros on v1 sessions = unverifiable) */
+    char model[48] = {0};
+    char serial[32] = {0};
+    u32 boot_hash = 0;
 };
 
 } // namespace session
