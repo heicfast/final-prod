@@ -102,7 +102,8 @@ jobs:
           $x1 = Format-Volume -Partition $p2 -FileSystem exFAT -NewFileSystemLabel "BENCH-EXFAT"
           "NTFS_LETTER=$($n1.DriveLetter)" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
           "EXFAT_LETTER=$($x1.DriveLetter)" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
-          Write-Host "NTFS=$($n1.DriveLetter): exFAT=$($x1.DriveLetter):"
+          "EXFAT_PART=$($p2.PartitionNumber)" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          Write-Host "NTFS=$($n1.DriveLetter): exFAT=$($x1.DriveLetter): (partition $($p2.PartitionNumber))"
 
       - name: Seed ground truth (NTFS volume)
         shell: pwsh
@@ -198,6 +199,69 @@ jobs:
           Get-Content bench-results\summary-exfat.md | Write-Host
           Get-Content bench-results\summary-ntfs.md | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Encoding utf8 -Append
           Get-Content bench-results\summary-exfat.md | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Encoding utf8 -Append
+
+      - name: Scenario - delete the exFAT partition entry (data intact)
+        # The "deleted partition" scenario from the benchmark mandate: the
+        # GPT entry for the exFAT volume is removed (Remove-Partition never
+        # touches the data sectors) -> the volume has no letter and no
+        # table entry; recovery must now come from lost-partition discovery
+        # + the exFAT engine on the virtual candidate slice.
+        shell: pwsh
+        run: |
+          Write-Host "partition map before:"
+          Get-Partition -DiskNumber $env:DISK | Format-Table PartitionNumber, DriveLetter, Size, Type | Out-String | Write-Host
+          Remove-Partition -DiskNumber $env:DISK -PartitionNumber $env:EXFAT_PART -Confirm:$false
+          if ($LASTEXITCODE -ne 0) { exit 1 }
+          Start-Sleep -Seconds 2
+          Write-Host "partition map after:"
+          Get-Partition -DiskNumber $env:DISK | Format-Table PartitionNumber, DriveLetter, Size, Type | Out-String | Write-Host
+
+      - name: Run the lost-partition recovery scan (whole disk, capped)
+        shell: pwsh
+        run: |
+          $exe = "build\win-x64-release\src\app\Release\rrecov.exe"
+          $cap = [int]'${{ inputs.scan_minutes }}' * 60
+          $t0 = Get-Date
+          $p = Start-Process -FilePath $exe -ArgumentList @(
+              'scan', '--disk', $env:DISK, '--deep', '--threads', '4',
+              '--out', 'bench-results\session-lost.crsf',
+              '--log', 'bench-results\rrecov-lost.log', '--json'
+            ) -RedirectStandardOutput 'bench-results\scan-lost.json' `
+              -RedirectStandardError 'bench-results\scan-lost.err' -PassThru -NoNewWindow
+          while (-not $p.HasExited -and ((Get-Date) - $t0).TotalSeconds -lt $cap) {
+            Start-Sleep -Seconds 10
+          }
+          if (-not $p.HasExited) {
+            Write-Host "lost-partition scan exceeded the cap - capturing partial state"
+            "scan_capped=true" | Out-File bench-results\capped-lost.txt -Encoding utf8
+            Stop-Process -Id $p.Id -Force -ErrorAction SilentlyContinue
+            Start-Sleep -Seconds 2
+          } else {
+            "scan_capped=false" | Out-File bench-results\capped-lost.txt -Encoding utf8
+          }
+          $dt = ((Get-Date) - $t0).TotalSeconds
+          "scan_seconds=$([math]::Round($dt,1))" | Out-File bench-results\timing-lost.txt -Encoding utf8
+          if (Test-Path bench-results\session-lost.crsf) {
+            & $exe tree --in bench-results\session-lost.crsf --csv `
+              | Out-File -FilePath bench-results\results-lost.csv -Encoding utf8
+          } else {
+            "no session produced" | Out-File bench-results\results-lost.csv -Encoding utf8
+          }
+
+      - name: Score the lost-partition mode (same exFAT manifest)
+        # Regression matrix: the SAME manifest scored in normal mode
+        # (results-exfat.csv) vs lost-partition mode (results-lost.csv).
+        # The keep-control gate applies to both modes.
+        shell: pwsh
+        run: |
+          python scripts\bench_score.py `
+            --manifest bench-results\manifest-exfat.csv `
+            --results bench-results\results-lost.csv `
+            --out bench-results\scores-lost.json `
+            --summary bench-results\summary-lost.md
+          if ($LASTEXITCODE -ne 0) { exit 1 }
+          Get-Content bench-results\summary-lost.md | Write-Host
+          Get-Content bench-results\summary-lost.md | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Encoding utf8 -Append
 
       - name: Stop + remove driver, detach VHD
         if: always()

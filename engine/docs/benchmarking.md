@@ -49,6 +49,14 @@ seeded disk (windows-2022 runner):
    scenario for EACH volume manifest; the keep-control gate FAILS the
    run if live files were missed. Artifacts: manifests, results,
    sessions, logs, timing, scores.
+7. **Deleted-partition scenario**: the GPT entry for the exFAT volume is
+   then removed (`Remove-Partition` - the data sectors stay intact), and
+   a whole-disk capped deep scan (`scan --disk N --deep`) runs in
+   lost-partition mode: discovery probes + virtual candidate slices +
+   the exFAT engine under per-candidate roots. The SAME exFAT manifest
+   is scored against those results (scores-lost) - a two-mode regression
+   matrix: normal per-volume recovery vs lost-partition recovery, same
+   ground truth, keep-control gate in both modes.
 
 Historical note: the first benchmark generations ran a single
 whole-disk scan that stalled for tens of minutes per run. Root cause
