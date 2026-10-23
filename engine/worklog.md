@@ -730,3 +730,19 @@ Stage Summary:
 - Closed this session so far: G-04/G-05/G-06, G-07, G-08, G-09, G-14, G-23 (+D-3 docs).
 - Lesson applied: commit+push after every coherent unit; pull before push (rejected twice, rebased twice).
 - Next: G-10 bounded preview reader + metadata extractors (W1-7), then G-12 query/filter/sort/paging (W1-8), then the C ABI shim (W2).
+
+---
+Task ID: UI-W3
+Agent: Core UI-Readiness Sub-Agent (session continuation)
+Task: Close G-10 (bounded preview reader + metadata extractors) per docs/UI-READINESS-PLAN.md.
+
+Work Log:
+- New module include/cr/preview/cr_preview.h + src/core/preview/cr_preview.cpp: PreviewReader (resident-prefix-then-extents stream per the writer contract, sparse tail zero, 4 MiB/call cap, 256 MiB decode guard, EOF short reads, zero-fill + unreadable_spans() reporting with position-preserving advancement) and extract_metadata (JPEG SOF+EXIF orientation/datetime, PNG/GIF/BMP/TIFF/WEBP dims, MP4/MOV brand+mvhd duration with head+tail windows, WAV, PDF/DOCX/text snippets, hostile-size bails).
+- Fuzz harness fuzz/fuzz_preview.cpp registered in the fuzz suite (45s smoke): arbitrary extent lists + all extractors, device-traffic bound trap.
+- Bug fixes during acceptance: TIFF value offset is at entry+8 (was reading the count field); jpeg_exif must WALK to APP1 (APP0-first files); position advancement on failed reads keeps multi-extent alignment; test-side use-after-move sizes and APP1 length-field off-by-2.
+- Rebased over the parity agent's commits (incl. their MSVC fix for test_writer_dirs path::native on Windows).
+
+Stage Summary:
+- Commit 35f4652 on main: 172/172 green under ASan + LeakSanitizer.
+- Closed this session: G-04/05/06, G-07, G-08, G-09, G-10, G-14, G-23, D-3.
+- Remaining: G-12 query/filter/sort/paging (next), G-01/02/03 C ABI shim + snapshot, #9 auto-checkpoint, #10 disposition + docs matrix, release tag + handoff.
