@@ -23,12 +23,14 @@ namespace compress {
 
 /* Generic extent codecs (ZFS zio_compress values map onto these). */
 enum Codec : u32 {
-    kRaw = 0,  /* plain bytes: psize == length */
-    kLzjb = 1, /* OpenZFS lzjb */
-    kZle = 2,  /* OpenZFS zero-length encoding */
-    kGzip = 3, /* zlib raw deflate (gzip-1..9) */
-    kLz4 = 4,  /* LZ4 block format */
-    kZstd = 5, /* zstd frame (incl. ZFS skippable-frame prefix) */
+    kRaw = 0,   /* plain bytes: psize == length */
+    kLzjb = 1,  /* OpenZFS lzjb */
+    kZle = 2,   /* OpenZFS zero-length encoding */
+    kGzip = 3,  /* zlib raw deflate (gzip-1..9) */
+    kLz4 = 4,   /* LZ4 block format */
+    kZstd = 5,  /* zstd frame (incl. ZFS skippable-frame prefix) */
+    kLznt1 = 6, /* NTFS native compression (MS-XCA LZNT1 tagged-group
+                 * payload; RtlDecompressBuffer LZNT1 semantics) */
 };
 
 /* Decompress psize bytes at src into exactly lsize bytes at dst.

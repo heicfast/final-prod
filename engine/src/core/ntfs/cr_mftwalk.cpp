@@ -4,6 +4,7 @@
  */
 
 #include "cr/ntfs/cr_mftwalk.h"
+#include "cr/compress/cr_decomp.h"
 #include "cr/cr_parallel.h"
 #include "cr/ntfs/cr_attributes.h"
 #include "cr/ntfs/cr_fixup.h"
@@ -59,7 +60,7 @@ u32 build_props(NtfsVolume* vol, const std::vector<AttrView>& attrs, u64 record_
                 std::vector<AttrListEntry>& attrlist_out, std::vector<FileNameInfo>& names_out,
                 RunList& unnamed_data_out, bool& has_unnamed_data, RunList& i30_out, bool& has_i30,
                 tree::FileTimes& si_times, bool& has_si, std::vector<u8>& unnamed_resident_out,
-                u64& data_real_size) {
+                u64& data_real_size, bool& data_compressed_out, u16& data_cunit_out) {
     props_out = nullptr;
     attrlist_out.clear();
     names_out.clear();
@@ -70,6 +71,8 @@ u32 build_props(NtfsVolume* vol, const std::vector<AttrView>& attrs, u64 record_
     has_si = false;
     unnamed_resident_out.clear();
     data_real_size = 0;
+    data_compressed_out = false;
+    data_cunit_out = 0;
 
     for (const AttrView& a : attrs) {
         switch (a.type) {
@@ -119,6 +122,16 @@ u32 build_props(NtfsVolume* vol, const std::vector<AttrView>& attrs, u64 record_
                      * real volumes for freshly-written files */
                     if (a.actual != 0)
                         data_real_size = a.actual;
+                    /* GAP-P1-1: compressed $DATA - capture the envelope
+                     * facts (compression_unit @+0x22 of the nonresident
+                     * header); encryption is out of scope (F13) and means
+                     * no content recovery at all */
+                    if ((a.flags & ATTR_FLAG_COMPRESSED) != 0 &&
+                        (a.flags & ATTR_FLAG_ENCRYPTED) == 0 && a.at != nullptr &&
+                        size_t(a.at + 0x22 + 2) <= size_t(a.at + a.buf_size)) {
+                        data_compressed_out = true;
+                        data_cunit_out = u16(a.at[0x22]) | (u16(a.at[0x23]) << 8);
+                    }
                 }
             }
             break;
@@ -249,6 +262,124 @@ static bool is_metafile_name(const std::u16string& n) {
 
 constexpr u64 REMNANT_BLOCK = 4ull << 20;
 
+/* NTFS compression-block envelope expansion (GAP-P1-1).
+ *
+ * A compressed nonresident $DATA stores per-COMPRESSION-UNIT streams:
+ * the unit = 2^cunit clusters, each covered by per-cluster blocks
+ * [u16 header][payload] (ntfs-3g ntfs_decompress shape; MS-XCA 3.3):
+ *   header == 0    -> hole: the remaining blocks of the unit are sparse
+ *                     (no extent; the writer zero-fills)
+ *   bit 15 set     -> raw block: payload = one full cluster, codec 0
+ *   else           -> LZNT1 chunk: payload = (hdr & 0xFFF) + 1 bytes,
+ *                     decoding to min(cluster, logical-remaining) bytes
+ *   bits 12..14 carry the signature (3); we accept any (recovery-grade)
+ * The per-unit stored stream occupies the FIRST clusters of the unit's
+ * VCN range, so buffer position maps back to disk run-by-run. On any
+ * envelope inconsistency (unit read failure, header truncation, hostile
+ * cunit/cluster geometry) the file gets NO extents: all-zero content is
+ * the honest fallback - surfacing the raw compressed bytes would be the
+ * silent corruption this fix exists to remove. */
+static void expand_compressed_data(NtfsVolume* vol, const RunList& rl, u16 cunit, u64 real_size,
+                                   std::vector<tree::FileProperties::Extent>& out, u64& blocks_out,
+                                   bool& failed_out) {
+    const u64 cluster = vol->params().cluster_bytes;
+    failed_out = false;
+    blocks_out = 0;
+    if (cluster == 0 || cluster > 4096 || cunit > 15 || real_size == 0) {
+        failed_out = true; /* NTFS never compresses with cluster > 4 KiB;
+                            * cunit is 4 on real volumes (64 KiB units) */
+        return;
+    }
+    const u64 unit_blocks = u64(1) << cunit;
+    const u64 unit_bytes = unit_blocks * cluster;
+
+    /* segment map: buffer offset -> disk offset (filled per run) */
+    struct Seg {
+        size_t buf_at;
+        u64 disk_at;
+        size_t len;
+    };
+    std::vector<u8> buf;
+    std::vector<Seg> segs;
+    const auto disk_at = [&](size_t p) -> u64 {
+        for (const Seg& s : segs)
+            if (p >= s.buf_at && p < s.buf_at + s.len)
+                return s.disk_at + (p - s.buf_at);
+        return 0;
+    };
+
+    const std::vector<DataRun>& runs = rl.runs();
+
+    for (u64 unit_start = 0; unit_start < real_size && !failed_out; unit_start += unit_bytes) {
+        /* the unit's stored stream lives in the clusters backing its
+         * VCN range; gather [unit_vcn, unit_vcn + unit_blocks) */
+        const u64 unit_vcn = unit_start / cluster;
+        buf.clear();
+        segs.clear();
+        u64 filled = 0;
+        for (const DataRun& r : runs) {
+            if (r.sparse || r.lcn == 0)
+                continue;
+            const u64 r_start = r.vcn;
+            const u64 r_end = r.vcn + r.length;
+            if (r_end <= unit_vcn || r_start >= unit_vcn + unit_blocks)
+                continue;
+            const u64 lo = r_start > unit_vcn ? r_start : unit_vcn;
+            const u64 hi = r_end < unit_vcn + unit_blocks ? r_end : unit_vcn + unit_blocks;
+            if (hi <= lo)
+                continue;
+            const size_t at = size_t((lo - unit_vcn) * cluster);
+            const size_t len = size_t((hi - lo) * cluster);
+            if (buf.size() < at + len)
+                buf.resize(at + len, 0);
+            if (vol->read_at(r.lcn * cluster + (lo - r_start) * cluster, buf.data() + at,
+                             u32(len)) != OK) {
+                failed_out = true; /* unreadable envelope: no extents */
+                return;
+            }
+            segs.push_back({at, r.lcn * cluster + (lo - r_start) * cluster, len});
+            filled = at + len > filled ? at + len : filled;
+        }
+        buf.resize(filled);
+
+        /* parse the unit's blocks */
+        size_t pos = 0;
+        for (u64 b = 0; b < unit_blocks; ++b) {
+            const u64 logical = unit_start + b * cluster;
+            if (logical >= real_size)
+                break;
+            const u64 block_len = (real_size - logical) < cluster ? (real_size - logical) : cluster;
+            if (pos + 2 > buf.size()) {
+                /* no stored header for this block: sparse tail of the unit
+                 * (stored stream ends mid-unit) - remaining blocks are
+                 * holes, which emit no extents */
+                break;
+            }
+            const u16 hdr = u16(buf[pos]) | (u16(buf[pos + 1]) << 8);
+            if (hdr == 0) {
+                break; /* hole: the rest of the unit is sparse */
+            }
+            if (hdr & 0x8000) {
+                if (pos + 2 + size_t(cluster) > buf.size()) {
+                    failed_out = true;
+                    return;
+                }
+                out.push_back({disk_at(pos + 2), block_len, 0, 0});
+                pos += 2 + size_t(cluster);
+            } else {
+                const size_t plen = size_t(hdr & 0xFFF) + 1;
+                if (plen > 4096 || pos + 2 + plen > buf.size()) {
+                    failed_out = true;
+                    return;
+                }
+                out.push_back({disk_at(pos + 2), block_len, compress::kLznt1, plen});
+                pos += 2 + plen;
+            }
+            ++blocks_out;
+        }
+    }
+}
+
 u32 walk_mft(NtfsVolume* vol, VolumeBitmap* bitmap, const WalkerFlags& flags, CancelToken* cancel,
              WalkProgress progress, void* progress_user, tree::ResultTree& tree,
              tree::FullNode* root_active, tree::FullNode* root_deleted, tree::FullNode* root_lost,
@@ -322,6 +453,8 @@ u32 walk_mft(NtfsVolume* vol, VolumeBitmap* bitmap, const WalkerFlags& flags, Ca
         RunList data_runs, i30_runs;
         bool has_data = false, has_i30 = false, has_si = false;
         u64 data_real_size = 0;       /* primary unnamed $DATA: authoritative size */
+        bool data_compressed = false; /* GAP-P1-1: compressed $DATA envelope */
+        u16 data_cunit = 0;
         bool recycle_pending = false; /* this record is a $Recycle.Bin $R */
         std::u16string recycle_rnd;   /* its pairing token (extension-stripped) */
         tree::FileTimes si_times{};
@@ -329,7 +462,7 @@ u32 walk_mft(NtfsVolume* vol, VolumeBitmap* bitmap, const WalkerFlags& flags, Ca
         std::vector<u8> unnamed_resident;
         if (build_props(vol, attrs, record_no, rh.flags, scratch, attrlist, names, data_runs,
                         has_data, i30_runs, has_i30, si_times, has_si, unnamed_resident,
-                        data_real_size) != OK) {
+                        data_real_size, data_compressed, data_cunit) != OK) {
             ++stats.damaged;
             continue;
         }
@@ -610,11 +743,27 @@ u32 walk_mft(NtfsVolume* vol, VolumeBitmap* bitmap, const WalkerFlags& flags, Ca
         /* extents in slice-relative bytes; the tree consumer resolves to
          * absolute via the slice base (orchestrator does this at merge). */
         if (has_data && !data_runs.empty()) {
-            std::vector<RunList::Extent> ex;
-            data_runs.extents(ex);
-            for (const auto& e : ex) {
-                props->extents.push_back({e.lcn * vol->params().cluster_bytes,
-                                          e.clusters * vol->params().cluster_bytes});
+            if (data_compressed && !is_dir) {
+                /* GAP-P1-1: expand the compression-unit envelope into
+                 * codec-tagged per-block extents; raw runlist extents
+                 * would surface LZNT1 bytes as file content (silent
+                 * corruption). Failure = no extents (zero-filled),
+                 * never wrong bytes. */
+                bool failed = false;
+                u64 blocks = 0;
+                expand_compressed_data(vol, data_runs, data_cunit,
+                                       data_real_size ? data_real_size : props->logical_size,
+                                       props->extents, blocks, failed);
+                stats.compressed_blocks += blocks;
+                if (failed)
+                    ++stats.compressed_failed;
+            } else {
+                std::vector<RunList::Extent> ex;
+                data_runs.extents(ex);
+                for (const auto& e : ex) {
+                    props->extents.push_back({e.lcn * vol->params().cluster_bytes,
+                                              e.clusters * vol->params().cluster_bytes});
+                }
             }
         } else if (has_data && !unnamed_resident.empty() && !is_dir) {
             /* resident-only file: the content travels in the props (the

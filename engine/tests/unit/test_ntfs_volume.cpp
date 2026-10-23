@@ -15,6 +15,7 @@
 #include "cr/ntfs/cr_bootstrap.h"
 #include "cr/ntfs/cr_bitmap.h"
 #include "cr/ntfs/cr_mftwalk.h"
+#include "cr/compress/cr_decomp.h"
 #include "cr/storage/cr_device.h"
 #include <array>
 #include <cstring>
@@ -175,6 +176,33 @@ struct RecBuilder {
         u16_from_bytes_le_wr(buf, pos + 16, 0);            /* start_vcn (nonresident tail at +16) */
         u64_from_bytes_le_wr(buf, pos + 24, clusters - 1); /* last_vcn */
         u16_from_bytes_le_wr(buf, pos + 32, 0x40);         /* runlist_offset */
+        u32_from_bytes_le_wr(buf, pos + 36, 0);
+        u64_from_bytes_le_wr(buf, pos + 40, clusters * CLUSTER);
+        u64_from_bytes_le_wr(buf, pos + 48, real_size);
+        u64_from_bytes_le_wr(buf, pos + 56, real_size);
+        std::memcpy(buf.data() + pos + 0x40, rle.data(), rlen);
+        attr_pos += alen;
+    }
+
+    void attr_data_runlist_compressed(u64 lcn, u64 clusters, u64 real_size, u16 cunit) {
+        /* GAP-P1-1: nonresident $DATA with ATTR_FLAG_COMPRESSED (0x0001)
+         * and compression_unit at +0x22 - the on-disk stream is the
+         * compression-unit envelope, NOT raw file bytes */
+        u32 pos = attr_pos;
+        RunList rl;
+        rl.runs().push_back(DataRun{0, clusters, 0, lcn, false});
+        std::vector<u8> rle = rl.encode();
+        u32 rlen = u32(rle.size());
+        u32 alen = (0x40 + rlen + 7) / 8 * 8;
+        u32_from_bytes_le_wr(buf, pos + 0, ATTR_TYPE_DATA);
+        u32_from_bytes_le_wr(buf, pos + 4, alen);
+        buf[pos + 8] = 1; /* nonresident */
+        u16_from_bytes_le_wr(buf, pos + 10, 0x40);
+        u16_from_bytes_le_wr(buf, pos + 12, 0x0001);       /* ATTR_FLAG_COMPRESSED */
+        u16_from_bytes_le_wr(buf, pos + 16, 0);            /* start_vcn */
+        u64_from_bytes_le_wr(buf, pos + 24, clusters - 1); /* last_vcn */
+        u16_from_bytes_le_wr(buf, pos + 32, 0x40);         /* runlist_offset */
+        u16_from_bytes_le_wr(buf, pos + 34, cunit);        /* compression_unit @+0x22 */
         u32_from_bytes_le_wr(buf, pos + 36, 0);
         u64_from_bytes_le_wr(buf, pos + 40, clusters * CLUSTER);
         u64_from_bytes_le_wr(buf, pos + 48, real_size);
@@ -570,7 +598,7 @@ void build_image(Image& img) {
         r.header(28, RECORD_IN_USE);
         r.attr_si(0x20);
         r.attr_file_name(31, u"$R7Z1Q4T.png", FILE_NAME_WIN32_AND_DOS, 0x20, 4096, 4096);
-        r.attr_data_runlist(260, 1, 4096);
+        r.attr_data_runlist(254, 1, 4096); /* in-device (256-sector fixture) */
         r.finish();
         std::memcpy(img.sec(MFT_LCN + 56), r.buf.data(), RECORD_SIZE);
     }
@@ -1566,4 +1594,133 @@ TEST(NtfsVolume, ExtensionRecordsNotCountedDamaged) {
     ASSERT_EQ(walk_mft(vol.get(), bm.get(), wf, nullptr, nullptr, nullptr, tree, ra, rd, rl, stats),
               OK);
     EXPECT_EQ(stats.damaged, 0u); /* the extension record is skipped, not damaged */
+}
+
+/* ---- GAP-P1-1: compressed $DATA recovers real content ----
+ * The pre-fix engine surfaced the compression-unit envelope bytes as raw
+ * extents: NTFS-compressed files recovered as silently-corrupt LZNT1
+ * bytes. The walker now expands the envelope into codec-tagged extents
+ * (kLznt1 + psize), and the writer/preview decode path turns them back
+ * into the original bytes. Fixture: a 512-byte block compressed to a
+ * 5-byte LZNT1 chunk ('A', tuple(back=1,len=510), 'B'). */
+TEST(NtfsVolume, CompressedDataRecoversRealContent) {
+    Image img;
+    build_image(img);
+
+    /* stored stream at cluster 252: u16 hdr 0x3004 (compressed, 5 bytes
+     * payload) + LZNT1 tagged groups: tag 0x06 -> literal 'A', tuple
+     * 0x01FB (back 1, len 510), literal 'B' -> 512 bytes decoded */
+    {
+        u8* blk = img.sec(252);
+        blk[0] = 0x04;
+        blk[1] = 0x30; /* hdr = 0x3004: compressed, payload 5 */
+        blk[2] = 0x02; /* tag: b0=0 literal, b1=1 tuple, b2=0 literal */
+        blk[3] = 'A';
+        blk[4] = 0xFB; /* tuple LE 0x01FB: len = 0x1FB + 3 = 510, back = 0 + 1 */
+        blk[5] = 0x01;
+        blk[6] = 'B';
+        /* cluster 253: all zeros (hole-unit fixture for record 27) */
+    }
+
+    /* record 26: squeezed.dat - compressed $DATA, cunit 0 (one 512 B block) */
+    {
+        RecBuilder r;
+        r.header(26, RECORD_IN_USE);
+        r.attr_si(0x20);
+        r.attr_file_name(5, u"squeezed.dat", FILE_NAME_WIN32_AND_DOS, 0x20, 512, 512);
+        r.attr_data_runlist_compressed(252, 1, 512, 0);
+        r.finish();
+        std::memcpy(img.sec(MFT_LCN + 52), r.buf.data(), RECORD_SIZE);
+    }
+    /* record 27: holed.dat - compressed $DATA whose stored unit is an
+     * all-zero header (0x0000): the unit is a HOLE - no extents, the
+     * content is sparse zeros (never raw envelope bytes) */
+    {
+        RecBuilder r;
+        r.header(27, RECORD_IN_USE);
+        r.attr_si(0x20);
+        r.attr_file_name(5, u"holed.dat", FILE_NAME_WIN32_AND_DOS, 0x20, 512, 512);
+        r.attr_data_runlist_compressed(253, 1, 512, 0);
+        r.finish();
+        std::memcpy(img.sec(MFT_LCN + 54), r.buf.data(), RECORD_SIZE);
+    }
+
+    MemDevice dev(img.raw(), img.geom());
+    u32 err = 0;
+    auto vol = NtfsVolume::open(std::unique_ptr<IStorageDevice>(new MemDevice(dev)), &err);
+    ASSERT_NE(vol, nullptr) << "open err " << err_text(err);
+
+    tree::ResultTree tree;
+    auto* root_active = tree.add_root(u"Found (NTFS)");
+    auto* root_deleted = tree.add_root(u"Deleted");
+    auto* root_lost = tree.add_root(u"Lost Files");
+    WalkerFlags wf;
+    WalkStats stats;
+    u32 rc = walk_mft(vol.get(), nullptr, wf, nullptr, nullptr, nullptr, tree, root_active,
+                      root_deleted, root_lost, stats);
+    ASSERT_EQ(rc, OK) << err_text(rc);
+
+    tree::FileNode *sq = nullptr, *ho = nullptr;
+    std::function<void(tree::FileNode*)> find = [&](tree::FileNode* n) {
+        for (tree::FileNode* c = n->first_child(); c; c = c->next_sibling()) {
+            const std::string nm = c->name_utf8();
+            if (nm == "squeezed.dat")
+                sq = c;
+            if (nm == "holed.dat")
+                ho = c;
+            find(c);
+        }
+    };
+    for (auto* r : tree.roots())
+        find(r);
+
+    /* squeezed.dat: ONE codec-tagged extent - never a raw runlist extent */
+    ASSERT_NE(sq, nullptr) << "compressed file must surface";
+    ASSERT_EQ(size_t(1), sq->props()->extents.size())
+        << "one block = one extent (raw runlist extents were the bug)";
+    const auto& ext = sq->props()->extents[0];
+    EXPECT_EQ(u64(252) * CLUSTER + 2, ext.offset); /* after the u16 header */
+    EXPECT_EQ(u64(512), ext.length);
+    EXPECT_EQ(u32(compress::kLznt1), ext.codec);
+    EXPECT_EQ(u64(5), ext.psize);
+    EXPECT_EQ(u64(1), stats.compressed_blocks);
+
+    /* end-to-end content proof: the writer's exact decode path */
+    std::vector<u8> raw(5, 0);
+    ASSERT_EQ(OK, vol->read_at(ext.offset, raw.data(), 5));
+    std::vector<u8> out(512, 0);
+    ASSERT_TRUE(
+        compress::decompress_block(ext.codec, raw.data(), raw.size(), out.data(), out.size()));
+    EXPECT_EQ('A', out[0]);
+    EXPECT_EQ('A', out[510]);
+    EXPECT_EQ('B', out[511]);
+    for (size_t i = 0; i < 511; ++i)
+        EXPECT_EQ('A', out[i]) << "at " << i;
+
+    /* holed.dat: the all-zero stored header = sparse unit: no extents */
+    ASSERT_NE(ho, nullptr) << "hole-compressed file must surface";
+    EXPECT_TRUE(ho->props()->extents.empty()) << "a hole unit emits no extents (content is zeros)";
+
+    EXPECT_EQ(u64(0), stats.compressed_failed);
+}
+
+TEST(NtfsVolume, Lznt1MsXcaDocumentedVector) {
+    /* MS-XCA 3.3 example: the 142-byte ANSI string compressed to one
+     * 59-byte chunk (header 0xB038 = compressed, 57-byte payload). This
+     * pins the decoder against the specification's own vector. */
+    static const u8 payload[57] = {
+        0x88, 0x46, 0x23, 0x20, 0x00, 0x20, 0x47, 0x20, 0x41, 0x00, 0x10, 0xa2, 0x47, 0x01, 0xa0,
+        0x45, 0x20, 0x44, 0x00, 0x08, 0x45, 0x01, 0x50, 0x79, 0x00, 0xc0, 0x45, 0x20, 0x05, 0x24,
+        0x13, 0x88, 0x05, 0xb4, 0x02, 0x4a, 0x44, 0xef, 0x03, 0x58, 0x02, 0x8c, 0x09, 0x16, 0x01,
+        0x48, 0x45, 0x00, 0xbe, 0x00, 0x9e, 0x00, 0x04, 0x01, 0x18, 0x90, 0x00,
+    };
+    static const char expected[142] =
+        "F# F# G A A G F# E D D E F# F# E E F# F# G A A G F# E D D E F# E D "
+        "D E E F# D E F# G F# D E F# G F# E D E A F# F# G A A G F# E D D "
+        "E F# E D D";
+    static_assert(sizeof(expected) == 142, "MS-XCA vector is 142 bytes incl NUL");
+    std::vector<u8> out(142, 0);
+    ASSERT_TRUE(compress::decompress_block(compress::kLznt1, payload, sizeof(payload), out.data(),
+                                           out.size()));
+    EXPECT_EQ(0, std::memcmp(out.data(), expected, sizeof(expected)));
 }

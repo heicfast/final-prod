@@ -112,6 +112,71 @@ bool gzip_decompress(const u8* src, size_t psize, u8* dst, size_t lsize) {
     return ok;
 }
 
+/* MS-XCA LZNT1 tagged-group payload (GAP-P1-1). The NTFS compression-block
+ * envelope (per-cluster u16 header) is stripped by the ENGINE; this decodes
+ * the chunk payload proper: a tag byte precedes every 8 values - a 0 bit is
+ * one literal byte, a 1 bit a 16-bit LE tuple {back-reference, length} with
+ * a DYNAMIC SPLIT between the tuple's offset and length halves that widens
+ * as the output grows (MS-XCA 3.3: 4-bit displacement at output<16 through
+ * 12-bit at 4096 - the split-tracking shape is shared with the wimboot
+ * reference decoder and libyal's documented bit math):
+ *   split starts at 12, threshold 16; after each value, while out > threshold
+ *   { split--; threshold <<= 1; }
+ *   length  = (tuple & ((1 << split) - 1)) + 3
+ *   backoff = (tuple >> split) + 1     (relative to the current output end)
+ * Bounds: every source read is checked against psize and every output write
+ * against lsize (a corrupt tuple length or a back-reference before the
+ * output start rejects the block - the caller zero-fills + marks it
+ * unreadable; never wrong bytes). */
+bool lznt1_payload_decode(const u8* src, size_t s_len, u8* dst, size_t d_len) {
+    const u8* s = src;
+    const u8* s_end = src + s_len;
+    u8* d = dst;
+    const u8* d_end = dst + d_len;
+    unsigned split = 12;
+    unsigned next_threshold = 16;
+    unsigned tag_bits = 0;
+    unsigned tag = 0;
+
+    while (d < d_end) {
+        if (tag_bits == 0) {
+            if (s >= s_end)
+                return false; /* truncated: tag byte missing */
+            tag = *s++;
+            tag_bits = 8;
+        }
+        if (tag & 1) {
+            if (s + 2 > s_end)
+                return false; /* truncated tuple */
+            const u16 tuple = u16(*s) | (u16(s[1]) << 8);
+            s += 2;
+            const size_t len = size_t(tuple & ((1u << split) - 1)) + 3;
+            const size_t back = size_t(tuple >> split) + 1;
+            if (back > size_t(d - dst))
+                return false; /* reference before the output start */
+            if (len > size_t(d_end - d))
+                return false; /* corrupt length overruns the block */
+            const u8* cpy = d - back;
+            for (size_t k = 0; k < len; ++k)
+                d[k] = cpy[k];
+            d += len;
+        } else {
+            if (s >= s_end)
+                return false; /* truncated literal */
+            *d++ = *s++;
+        }
+        tag >>= 1;
+        --tag_bits;
+        while (size_t(d - dst) > next_threshold) {
+            if (split <= 4)
+                return false; /* output exceeded the 4096 chunk max */
+            --split;
+            next_threshold <<= 1;
+        }
+    }
+    return true;
+}
+
 } // namespace
 
 u32 codec_from_zfs(u32 zc) {
@@ -141,6 +206,7 @@ bool codec_available(u32 codec) {
     case kLzjb:
     case kZle:
     case kGzip:
+    case kLznt1:
         return true;
     case kLz4:
 #if defined(CR_HAVE_LZ4)
@@ -177,6 +243,8 @@ bool decompress_block(u32 codec, const u8* src, size_t psize, u8* dst, size_t ls
         return zle_decompress(src, psize, dst, lsize);
     case kGzip:
         return gzip_decompress(src, psize, dst, lsize);
+    case kLznt1:
+        return lznt1_payload_decode(src, psize, dst, lsize);
     case kLz4:
 #if defined(CR_HAVE_LZ4)
         return LZ4_decompress_safe(reinterpret_cast<const char*>(src), reinterpret_cast<char*>(dst),
