@@ -558,6 +558,32 @@ void build_image(Image& img) {
         r.finish();
         std::memcpy(img.sec(MFT_LCN + 44), r.buf.data(), RECORD_SIZE);
     }
+    /* record 28: $R7Z1Q4T.png (parent 31, in-use, nonresident) - REAL
+     * Windows convention: the $R KEEPS the original extension while the
+     * $I does not, and the $R record precedes its $I in MFT order (the
+     * $R is the recycled file's own record; the $I is newly allocated).
+     * Pre-fix: substr(2) keys "<rand>.png" vs "<rand>" never matched AND
+     * the single-pass map lookup ran before the $I was parsed -> raw
+     * $R-named rows (GAP-P1-3, bench: ours 0/26 vs og 26/26). */
+    {
+        RecBuilder r;
+        r.header(28, RECORD_IN_USE);
+        r.attr_si(0x20);
+        r.attr_file_name(31, u"$R7Z1Q4T.png", FILE_NAME_WIN32_AND_DOS, 0x20, 4096, 4096);
+        r.attr_data_runlist(260, 1, 4096);
+        r.finish();
+        std::memcpy(img.sec(MFT_LCN + 56), r.buf.data(), RECORD_SIZE);
+    }
+    /* record 29: $I7Z1Q4T (v1 $I, NO extension) */
+    {
+        RecBuilder r;
+        r.header(29, RECORD_IN_USE);
+        r.attr_si(0x20);
+        r.attr_file_name(31, u"$I7Z1Q4T", FILE_NAME_WIN32_AND_DOS, 0x20, 544, 544);
+        r.attr_data_recycle_info(4096, 136000000000000000ULL, u"seed\\pics\\z.png");
+        r.finish();
+        std::memcpy(img.sec(MFT_LCN + 58), r.buf.data(), RECORD_SIZE);
+    }
     /* record 30: $RECYCLE.BIN dir (parent 5) - NOT a metafile: surfaces */
     {
         RecBuilder r;
@@ -1342,12 +1368,34 @@ TEST(NtfsVolume, RecycleBinMapping) {
         if (nm == "$R3P7Q2N.bin")
             ++r2_named;
     }
-    EXPECT_EQ(stats.recycle_info, 2u) << "both $I formats must parse";
+    EXPECT_EQ(stats.recycle_info, 3u) << "all three $I records must parse";
     ASSERT_NE(remapped2, nullptr) << "variable-form $I must map its $R";
     EXPECT_EQ(u64(4096), remapped2->props()->logical_size);
     EXPECT_EQ(u64(135000000000000000ULL), remapped2->props()->times.modified);
     EXPECT_EQ(tree::DeletedState::Deleted, remapped2->deleted_state());
     EXPECT_EQ(0, r2_named);
+
+    /* GAP-P1-3 pair: real Windows naming ($R keeps the extension, $I
+     * does not) + $R at a LOWER record number than its $I (post-walk
+     * fixup). Pre-fix both failed -> the row stayed raw-named. */
+    tree::FileNode* remapped3 = nullptr;
+    int r3_named = 0;
+    for (tree::FileNode* n : all) {
+        const std::string nm = n->name_utf8();
+        if (nm == "z.png")
+            remapped3 = n;
+        if (nm == "$R7Z1Q4T.png")
+            ++r3_named;
+        if (nm == "$I7Z1Q4T")
+            ++i_named;
+    }
+    ASSERT_NE(remapped3, nullptr) << "the real-convention pair must map";
+    EXPECT_EQ(u64(4096), remapped3->props()->logical_size);
+    EXPECT_EQ(u64(136000000000000000ULL), remapped3->props()->times.modified);
+    EXPECT_EQ(tree::DeletedState::Deleted, remapped3->deleted_state());
+    EXPECT_EQ(0, r3_named) << "no raw $R-named row for the mapped pair";
+    EXPECT_EQ(0, i_named) << "$I metadata never surfaces";
+    EXPECT_EQ(stats.recycle_remapped, 3u) << "both in-flight and post-walk remaps";
 }
 
 TEST(NtfsVolume, RemnantScanFindsDetachedRecord) {
@@ -1498,7 +1546,10 @@ TEST(NtfsVolume, ExtensionRecordsNotCountedDamaged) {
         r.finish();
         auto* rh = reinterpret_cast<RecordHeader*>(r.buf.data());
         rh->base_record = 26; /* points at record 26 as the base */
-        std::memcpy(img.sec(MFT_LCN + 53), r.buf.data(), RECORD_SIZE);
+        /* 27*2 = 54 (the pre-fix write at +53 straddled records 26/27, so
+         * the patched record's header never landed at a record boundary
+         * and the test passed without exercising the base-record skip) */
+        std::memcpy(img.sec(MFT_LCN + 54), r.buf.data(), RECORD_SIZE);
     }
     MemDevice dev(img.raw(), img.geom());
     u32 err = 0;

@@ -27,12 +27,18 @@ namespace compress {
 
 namespace {
 
-/* OpenZFS module/zfs/lzjb.c - byte-exact port of zfs_lzjb_decompress_buf. */
-bool lzjb_decompress(const u8* src, size_t, u8* dst, size_t d_len) {
+/* OpenZFS module/zfs/lzjb.c - byte-exact port of zfs_lzjb_decompress_buf
+ * with one hardening divergence (GAP-P1-2): upstream trusts the block
+ * checksum to bound the source; our engine parses corrupt pools with no
+ * checksum gate, so every source read is bounded against src+psize and
+ * any over-read returns false (the caller zero-fills + counts the span
+ * unreadable - never silently wrong bytes). */
+bool lzjb_decompress(const u8* src, size_t s_len, u8* dst, size_t d_len) {
     constexpr unsigned MATCH_BITS = 6;
     constexpr unsigned MATCH_MIN = 3;
     constexpr unsigned OFFSET_MASK = (1u << (16 - MATCH_BITS)) - 1; /* 0x3FF */
     const u8* s = src;
+    const u8* s_end = src + s_len;
     u8* d = dst;
     const u8* d_end = dst + d_len;
     u8 copymap = 0;
@@ -41,9 +47,13 @@ bool lzjb_decompress(const u8* src, size_t, u8* dst, size_t d_len) {
     while (d < d_end) {
         if ((copymask <<= 1) == (1u << 8)) {
             copymask = 1;
+            if (s >= s_end)
+                return false; /* truncated control stream */
             copymap = *s++;
         }
         if (copymap & copymask) {
+            if (s + 2 > s_end)
+                return false; /* truncated match header (need s[0], s[1]) */
             const int mlen = (s[0] >> (8 - MATCH_BITS)) + MATCH_MIN;
             const int offset = ((s[0] << 8) | s[1]) & int(OFFSET_MASK);
             s += 2;
@@ -53,6 +63,8 @@ bool lzjb_decompress(const u8* src, size_t, u8* dst, size_t d_len) {
             for (int k = 0; k < mlen && d < d_end; ++k)
                 *d++ = *cpy++;
         } else {
+            if (s >= s_end)
+                return false; /* truncated literal stream */
             *d++ = *s++;
         }
     }

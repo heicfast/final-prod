@@ -66,6 +66,7 @@ struct WalkStats {
     u64 usn_names = 0;        /* deleted names the MFT pass missed */
     u64 usn_damaged_runs = 0; /* $J runs that failed to read (zeros kept) */
     u64 recycle_info = 0;     /* $Recycle.Bin $I metadata files parsed */
+    u64 recycle_remapped = 0; /* $R records mapped to their original name */
 };
 
 /* Progress callback: (done, total) in walk units (records for the MFT

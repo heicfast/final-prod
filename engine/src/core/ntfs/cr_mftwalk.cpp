@@ -214,6 +214,25 @@ static u32 parse_recycle_info(const std::vector<AttrView>& attrs, RecycleInfo& o
     return ERR_UNSUPPORTED;
 }
 
+/* $Recycle.Bin pairing token: the random chars after the $I/$R marker.
+ * REAL Windows convention (benchmark-volume evidence, GAP-P1-3): the
+ * $R keeps the ORIGINAL EXTENSION while its $I does not
+ * ($R2X9K4L.jpg pairs with $I2X9K4L) - so substr(2) keys never
+ * matched and 0/26 recycle deletions surfaced raw-named. The extension
+ * is NOT part of the pairing token: strip at the first '.' (the shell
+ * token never contains one). */
+static std::u16string recycle_token(const std::u16string& n) {
+    if (n.size() < 3 || n[0] != u'$' || (n[1] != u'I' && n[1] != u'R'))
+        return {};
+    std::u16string tok;
+    for (size_t i = 2; i < n.size(); ++i) {
+        if (n[i] == u'.')
+            break;
+        tok.push_back(n[i]);
+    }
+    return tok;
+}
+
 /* volume metafiles only - NOT every '$' name (the old blanket skip
  * swallowed $Recycle.Bin/$Extend subtree content: recycle deletions
  * vanished from the results; user files named '$...' also vanished) */
@@ -245,8 +264,16 @@ u32 walk_mft(NtfsVolume* vol, VolumeBitmap* bitmap, const WalkerFlags& flags, Ca
     /* $Extend/$UsnJrnl:$J capture (harvest input) */
     RunList usn_runs;
     bool have_usn = false;
-    /* $Recycle.Bin $I metadata seen so far (random suffix -> info) */
+    /* $Recycle.Bin $I metadata seen so far (token -> info); $R records
+     * whose $I sat at a HIGHER record number wait for the post-walk
+     * fixup below (GAP-P1-3: record order is MFT allocation order, not
+     * bin-pair order) */
     std::map<std::u16string, RecycleInfo> recycle_info;
+    struct PendingRecycleR {
+        tree::FileNode* node; /* arena-stable; props mutated post-walk */
+        std::u16string token;
+    };
+    std::vector<PendingRecycleR> pending_recycle_r;
 
     /* temp record buffer with fixup scratch */
     std::vector<u8> rec;
@@ -296,6 +323,7 @@ u32 walk_mft(NtfsVolume* vol, VolumeBitmap* bitmap, const WalkerFlags& flags, Ca
         bool has_data = false, has_i30 = false, has_si = false;
         u64 data_real_size = 0;       /* primary unnamed $DATA: authoritative size */
         bool recycle_pending = false; /* this record is a $Recycle.Bin $R */
+        std::u16string recycle_rnd;   /* its pairing token (extension-stripped) */
         tree::FileTimes si_times{};
         tree::FileProperties* scratch = nullptr;
         std::vector<u8> unnamed_resident;
@@ -464,16 +492,21 @@ u32 walk_mft(NtfsVolume* vol, VolumeBitmap* bitmap, const WalkerFlags& flags, Ca
          * in-use in the bin). $I metadata files never surface. */
         if (best->name.size() >= 3 && best->name[0] == u'$' &&
             (best->name[1] == u'I' || best->name[1] == u'R')) {
-            const std::u16string rnd = best->name.substr(2);
+            const std::u16string tok = recycle_token(best->name);
             if (best->name[1] == u'I') {
-                RecycleInfo ri;
-                if (parse_recycle_info(attrs, ri) == OK) {
-                    recycle_info[rnd] = ri;
-                    ++stats.recycle_info;
+                if (!tok.empty()) {
+                    RecycleInfo ri;
+                    if (parse_recycle_info(attrs, ri) == OK) {
+                        recycle_info[tok] = ri;
+                        ++stats.recycle_info;
+                    }
                 }
                 continue; /* bin metadata, not recoverable content */
             }
-            recycle_pending = true; /* $R: mapped below if its $I was seen */
+            if (!tok.empty()) {
+                recycle_pending = true; /* $R: mapped below if its $I was seen */
+                recycle_rnd = tok;
+            }
         }
         if (flags.skip_system_files && (best->dos_flags & 0x04)) {
             ++stats.system_skipped;
@@ -554,15 +587,22 @@ u32 walk_mft(NtfsVolume* vol, VolumeBitmap* bitmap, const WalkerFlags& flags, Ca
          * sibling (the $R record itself stays in-use inside the bin - it
          * was deleted from the user's location, so the node is Deleted) */
         bool recycle_remapped = false;
+        bool recycle_missed = false;
         if (recycle_pending) {
             recycle_pending = false;
-            auto it = recycle_info.find(best->name.substr(2));
+            auto it = recycle_info.find(recycle_rnd);
             if (it != recycle_info.end()) {
                 props->name = it->second.orig_name;
                 if (it->second.size != 0)
                     props->logical_size = it->second.size;
                 props->times.modified = it->second.time;
                 recycle_remapped = true;
+                ++stats.recycle_remapped;
+            } else {
+                /* GAP-P1-3: the $I may live at a HIGHER record number
+                 * (MFT order is allocation order, not bin-pair order) -
+                 * remember the emitted node for the post-walk fixup */
+                recycle_missed = true;
             }
         }
         props->flags = u16(in_use ? PFLAG_IN_USE : 0) | u16(is_dir ? PFLAG_IS_DIR : 0);
@@ -632,6 +672,16 @@ u32 walk_mft(NtfsVolume* vol, VolumeBitmap* bitmap, const WalkerFlags& flags, Ca
                                         canonical (first) link, not the last */
             emitted.push_back({n, p, false});
             ++stats.emitted;
+        }
+        /* GAP-P1-3: an un-mappable $R just emitted under its raw name -
+         * defer to the post-walk fixup (the $I can still appear at a
+         * higher record number). Nodes are arena-stable and the props
+         * object is node-owned after add_file; mutating through the
+         * node is safe (no name-keyed index exists: by_record and
+         * by_extent only). */
+        if (recycle_missed && first_link_node != nullptr) {
+            pending_recycle_r.push_back({first_link_node, recycle_rnd});
+            recycle_missed = false;
         }
         /* ADS: named $DATA -> child nodes (R2.3), attached under the
          * canonical (first) link node of this record */
@@ -716,6 +766,30 @@ u32 walk_mft(NtfsVolume* vol, VolumeBitmap* bitmap, const WalkerFlags& flags, Ca
              * orphans (rare: parent record itself damaged) go there too */
             tree.reparent(e.node, root_lost);
         }
+    }
+
+    /* ---- phase B2: recycle $R fixup (GAP-P1-3, bench: ours 0/26 vs og
+     * 26/26) ----
+     *
+     * $R records whose $I metadata sits at a HIGHER record number emitted
+     * under their raw bin name during the walk; every $I has been parsed
+     * by now, so the remap can complete. Mutating props through the node
+     * is safe post-emission: nodes are arena-stable, and the tree's hash
+     * indexes key on record_ref/extent (never name). Orphan $R records
+     * (damaged/missing $I) keep their raw name - same as the og. */
+    for (const auto& pr : pending_recycle_r) {
+        auto it = recycle_info.find(pr.token);
+        if (it == recycle_info.end())
+            continue;
+        tree::FileProperties* p = pr.node->props();
+        if (p == nullptr)
+            continue;
+        p->name = it->second.orig_name;
+        if (it->second.size != 0)
+            p->logical_size = it->second.size;
+        p->times.modified = it->second.time;
+        pr.node->set_deleted_state(tree::DeletedState::Deleted);
+        ++stats.recycle_remapped;
     }
 
     /* ---- phase C: $UsnJrnl harvest (audit row 7) ----

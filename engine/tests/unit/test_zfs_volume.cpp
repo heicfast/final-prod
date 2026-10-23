@@ -785,3 +785,119 @@ TEST(Zfs, CodecMapping) {
 } // namespace
 } // namespace zfs
 } // namespace cr
+
+#include <cstring>
+#include <zlib.h>
+/* ---- GAP-P1-2: lzjb source bound + codec round-trips (session-5 cont.) ----
+ * The pre-fix lzjb port ignored its psize parameter entirely - a corrupt
+ * block over-read the source heap (ASan-visible). Every codec now: (a)
+ * round-trips a real compressed payload, (b) REJECTS truncated sources
+ * without reading past the buffer. */
+
+static std::vector<cr::u8> zlib_deflate_raw(const cr::u8* data, size_t len, int level) {
+    uLongf cl = compressBound(static_cast<uLong>(len)) + 64;
+    std::vector<cr::u8> out(cl);
+    z_stream zs{};
+    deflateInit2(&zs, level, Z_DEFLATED, -15, 8, Z_DEFAULT_STRATEGY);
+    zs.next_in = const_cast<Bytef*>(data);
+    zs.avail_in = uInt(len);
+    zs.next_out = out.data();
+    zs.avail_out = uLongf(out.size());
+    deflate(&zs, Z_FINISH);
+    out.resize(zs.total_out);
+    deflateEnd(&zs);
+    return out;
+}
+
+static std::vector<cr::u8> lzjb_compress_reference(const std::vector<cr::u8>& in) {
+    /* minimal reference LZJB encoder: emit copymap control bytes + matches
+     * with (offset,len); enough to drive the decoder - a valid lzjb stream
+     * can also be all-literals: [map=0x00, 8 literals]* */
+    std::vector<cr::u8> out;
+    std::vector<cr::u8> body;
+    for (size_t i = 0; i < in.size();) {
+        size_t map_pos = body.size();
+        body.push_back(0);
+        cr::u8 map = 0;
+        for (int bit = 0; bit < 8 && i < in.size(); ++bit) {
+            /* long-range match? search back for a run >= 3 */
+            size_t best_len = 0, best_off = 0;
+            const size_t max_back = i < 1023 ? i : 1023;
+            for (size_t back = 1; back <= max_back; ++back) {
+                size_t l = 0;
+                const size_t maxl = in.size() - i;
+                while (l < maxl && l < (63 + 3) && in[i - back + l] == in[i + l])
+                    ++l;
+                if (l >= 3 && l > best_len) {
+                    best_len = l;
+                    best_off = back;
+                }
+            }
+            if (best_len >= 3 && best_off <= 0x3FF) {
+                map |= cr::u8(1u << bit);
+                const cr::u32 v = (cr::u32(best_off - 1) << 6) | cr::u32(best_len - 3);
+                body.push_back(cr::u8(v >> 8));
+                body.push_back(cr::u8(v));
+                i += best_len;
+            } else {
+                body.push_back(in[i]);
+                ++i;
+            }
+        }
+        body[map_pos] = map;
+    }
+    out = body;
+    return out;
+}
+
+TEST(Zfs, CodecRoundTrips) {
+    /* gzip: real deflate round-trip */
+    {
+        std::vector<cr::u8> plain(5000, 0);
+        for (size_t i = 0; i < plain.size(); ++i)
+            plain[i] = cr::u8((i * 7 + (i >> 5)) & 0xFF);
+        const std::vector<cr::u8> comp = zlib_deflate_raw(plain.data(), plain.size(), 6);
+        std::vector<cr::u8> back(plain.size(), 0);
+        ASSERT_TRUE(cr::compress::decompress_block(cr::compress::kGzip, comp.data(), comp.size(),
+                                                   back.data(), back.size()));
+        EXPECT_EQ(0, std::memcmp(plain.data(), back.data(), plain.size()));
+    }
+    /* lzjb: valid stream round-trip through the reference encoder */
+    {
+        std::vector<cr::u8> plain(4096, 0);
+        for (size_t i = 0; i < plain.size(); ++i)
+            plain[i] = cr::u8((i * 13) ^ (i >> 3));
+        const std::vector<cr::u8> comp = lzjb_compress_reference(plain);
+        ASSERT_FALSE(comp.empty());
+        std::vector<cr::u8> back(plain.size(), 0);
+        ASSERT_TRUE(cr::compress::decompress_block(cr::compress::kLzjb, comp.data(), comp.size(),
+                                                   back.data(), back.size()))
+            << "reference lzjb stream must decode";
+        EXPECT_EQ(0, std::memcmp(plain.data(), back.data(), plain.size()));
+    }
+    /* zle already round-trips via ZleRoundTrip above */
+}
+
+TEST(Zfs, TruncatedSourcesRejectedNotOverread) {
+    /* GAP-P1-2: a truncated lzjb payload must return false (never read
+     * past the source). The pre-fix decoder looped on d alone and read
+     * the heap past `psize`. */
+    std::vector<cr::u8> plain(4096, 0);
+    for (size_t i = 0; i < plain.size(); ++i)
+        plain[i] = cr::u8((i * 13) ^ (i >> 3));
+    const std::vector<cr::u8> full = lzjb_compress_reference(plain);
+    /* every truncation of a REAL stream must fail cleanly */
+    int accepted = 0;
+    for (size_t cut = 0; cut < full.size(); ++cut) {
+        std::vector<cr::u8> src(full.begin(), full.begin() + cut);
+        std::vector<cr::u8> back(plain.size(), 0xAA);
+        /* heap-padded source: ASan trips on ANY over-read (GAP-P1-2
+         * reproduction shape) */
+        if (!cr::compress::decompress_block(cr::compress::kLzjb, src.data(), src.size(),
+                                            back.data(), back.size()))
+            ++accepted; /* rejected = correct */
+    }
+    /* the full stream alone decodes; the empty one fails trivially -
+     * the vast majority of truncations must be rejected */
+    EXPECT_GT(accepted, int(full.size()) - 4);
+}
