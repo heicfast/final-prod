@@ -78,8 +78,20 @@ bool WinDestIo::exists(const std::u16string& path_utf16) {
 }
 
 u32 WinDestIo::mkdir(const std::u16string& path_utf16) {
-    /* G-08: create every component of the chain; ERROR_ALREADY_EXISTS is
-     * success (idempotent reconstruction). Trailing separators stripped. */
+    /* G-08: create every component of the chain; a component that already
+     * EXISTS AS A DIRECTORY is success (idempotent reconstruction).
+     * Trailing separators stripped.
+     *
+     * The exist-check deliberately beats ANY create error, not just
+     * ERROR_ALREADY_EXISTS: drive-root-shaped prefixes ("C:", "C:\\",
+     * UNC share roots) and every pre-existing chain component fail
+     * CreateDirectoryW with a variety of codes (ACCESS_DENIED /
+     * INVALID_NAME for drive aliases) while the component is in fact an
+     * existing directory. That is exactly the POSIX contract (::mkdir
+     * EEXIST == success); the earlier ALREADY_EXISTS-only branch turned
+     * every drive-letter destination chain into ERR_DEST_UNWRITABLE -
+     * all items of a recovery failed (MSVC lane, test #227: 4 errors /
+     * 0 done). A FILE in the way still fails (not a directory). */
     std::u16string p = path_utf16;
     while (p.size() > 1 && (p.back() == u'\\' || p.back() == u'/'))
         p.pop_back();
@@ -98,14 +110,9 @@ u32 WinDestIo::mkdir(const std::u16string& path_utf16) {
         std::u16string prefix = p.substr(0, i);
         if (CreateDirectoryW(reinterpret_cast<const wchar_t*>(prefix.c_str()), nullptr))
             continue;
-        const DWORD e = GetLastError();
-        if (e == ERROR_ALREADY_EXISTS) {
-            /* a FILE in the way is not a directory: surface it */
-            DWORD attr = GetFileAttributesW(reinterpret_cast<const wchar_t*>(prefix.c_str()));
-            if (attr != INVALID_FILE_ATTRIBUTES && (attr & FILE_ATTRIBUTE_DIRECTORY))
-                continue;
-            return ERR_DEST_UNWRITABLE;
-        }
+        const DWORD attr = GetFileAttributesW(reinterpret_cast<const wchar_t*>(prefix.c_str()));
+        if (attr != INVALID_FILE_ATTRIBUTES && (attr & FILE_ATTRIBUTE_DIRECTORY))
+            continue; /* exist-as-directory: the EEXIST contract */
         return ERR_DEST_UNWRITABLE;
     }
     return OK;

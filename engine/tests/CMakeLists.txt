@@ -46,6 +46,18 @@ target_link_libraries(cr_tests PRIVATE cr::core GTest::gtest_main)
 cr_deploy_vcpkg_binaries(cr_tests)
 
 # ---------------------------------------------------------------------------
+# Windows-only layer contracts (transport/enumeration/destio) - built and run
+# on the MSVC lane only; the portable core is fully covered by cr_tests.
+# ---------------------------------------------------------------------------
+if(WIN32)
+    add_executable(cr_destio_tests unit/test_destio_win.cpp)
+    target_link_libraries(cr_destio_tests PRIVATE cr::win GTest::gtest_main)
+    target_include_directories(cr_destio_tests PRIVATE ${CMAKE_SOURCE_DIR}/tests)
+    cr_deploy_vcpkg_binaries(cr_destio_tests)
+    add_test(NAME destio COMMAND cr_destio_tests)
+endif()
+
+# ---------------------------------------------------------------------------
 # G-01 / W2-1..W2-3: the cr_ui binding-layer checks.
 #
 # Two SEPARATE executables (never linked into cr_tests): cr_tests statically
