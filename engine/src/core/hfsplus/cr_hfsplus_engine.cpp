@@ -422,7 +422,7 @@ u32 scan_hfsplus(IStorageDevice* slice, const HfsScanFlags& flags, CancelToken* 
                 if (cur == ll)
                     break;
                 cur = be32(leaf.data() + NH_FORWARD);
-                if (cancel && cancel->cancelled())
+                if (cancel && cancel->checkpoint())
                     return ERR_CANCELLED;
             }
         }
@@ -449,7 +449,7 @@ u32 scan_hfsplus(IStorageDevice* slice, const HfsScanFlags& flags, CancelToken* 
     u32 cur = v.catalog_first_leaf;
     u64 chain_len = 0;
     while (cur != 0 && chain_len < MAX_TREE_NODES) {
-        if (cancel && cancel->cancelled())
+        if (cancel && cancel->checkpoint())
             return ERR_CANCELLED;
         ++chain_len;
         if (progress && (chain_len & 15) == 0)
@@ -607,7 +607,7 @@ u32 scan_hfsplus(IStorageDevice* slice, const HfsScanFlags& flags, CancelToken* 
         const u64 total_nodes = v.catalog_fork.logical_size / v.catalog_node_size;
         const u64 sweep_limit = total_nodes < 65536 ? total_nodes : 65536;
         for (u32 ni = 0; ni < sweep_limit; ++ni) {
-            if (cancel && cancel->cancelled())
+            if (cancel && cancel->checkpoint())
                 return ERR_CANCELLED;
             if (live_chain.count(ni) || ni == 0)
                 continue;

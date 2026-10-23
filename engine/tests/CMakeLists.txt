@@ -26,6 +26,8 @@ add_executable(cr_tests
     unit/test_carve.cpp
     unit/test_session.cpp
     unit/test_orchestrator.cpp
+    unit/test_pause_resume.cpp
+    unit/test_telemetry.cpp
     unit/test_rawfixer.cpp
     unit/test_refs_volume.cpp
 )

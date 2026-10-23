@@ -21,6 +21,9 @@
 
 #include "../cr_types.h"
 #include "../cr_error.h"
+#include <chrono>
+#include <condition_variable>
+#include <mutex>
 #include <vector>
 
 namespace cr {
@@ -89,14 +92,107 @@ public:
     virtual u32 read_at(u64 offset, void* buffer, u32 length) = 0;
     virtual const Geometry& geometry() const = 0;
     virtual u64 size() const { return geometry().total_bytes; }
+    /* Absolute placement on the parent device when this is a bounded window
+     * (PartitionSlice overrides); 0 for whole-device views. Feeds the
+     * session VolumeInfo (G-14) and destination-overlap math. */
+    virtual u64 absolute_base() const { return 0; }
 };
 
 /* Cancellation token consulted at loop heads (R6.2; reference cancel
- * callbacks - fix F3: engines AND transports both honour it). */
+ * callbacks - fix F3: engines AND transports both honour it).
+ *
+ * checkpoint() is the cooperative PAUSE point (G-07): a plain token behaves
+ * exactly like cancelled(); a PausableToken blocks in checkpoint() while the
+ * scan is paused and only returns once cancelled or resumed. Loop heads that
+ * abort on cancel should call checkpoint() so pause works everywhere cancel
+ * does; one-shot determinations and progress callbacks must keep cancelled()
+ * (never block a callback). */
 class CancelToken {
 public:
     virtual ~CancelToken() = default;
     virtual bool cancelled() const = 0;
+    /* Pause-aware cancel poll: waits while paused, then reports cancelled. */
+    virtual bool checkpoint() const { return cancelled(); }
+    /* Total time spent paused so far (ms) - for elapsed-time compensation
+     * (RE parity: the og subtracts pause duration from used-time). */
+    virtual u64 paused_ms() const { return 0; }
+    /* True while a PausableToken is paused (telemetry surface). */
+    virtual bool paused() const { return false; }
+};
+
+/*
+ * PausableToken (G-07) - cancel + pause/resume with wait semantics.
+ * Threading: pause()/resume()/cancel() from any thread (e.g. a UI button
+ * handler); checkpoint() from engine worker threads. cancel() wakes paused
+ * waiters - engines then see cancelled() and abort cooperatively. All
+ * methods are thread-safe.
+ */
+class PausableToken final : public CancelToken {
+public:
+    void pause() {
+        std::lock_guard<std::mutex> lock(m_);
+        if (cancelled_ || paused_)
+            return;
+        paused_ = true;
+        pause_started_ = std::chrono::steady_clock::now();
+    }
+    void resume() {
+        {
+            std::lock_guard<std::mutex> lock(m_);
+            if (!paused_)
+                return;
+            paused_ms_ += std::chrono::duration_cast<std::chrono::milliseconds>(
+                             std::chrono::steady_clock::now() - pause_started_)
+                             .count();
+            paused_ = false;
+        }
+        cv_.notify_all();
+    }
+    void cancel() {
+        {
+            std::lock_guard<std::mutex> lock(m_);
+            cancelled_ = true;
+            if (paused_) {
+                paused_ms_ += std::chrono::duration_cast<std::chrono::milliseconds>(
+                                 std::chrono::steady_clock::now() - pause_started_)
+                                 .count();
+                paused_ = false;
+            }
+        }
+        cv_.notify_all();
+    }
+
+    bool cancelled() const override {
+        std::lock_guard<std::mutex> lock(m_);
+        return cancelled_;
+    }
+    bool paused() const {
+        std::lock_guard<std::mutex> lock(m_);
+        return paused_;
+    }
+    bool checkpoint() const override {
+        std::unique_lock<std::mutex> lock(m_);
+        cv_.wait(lock, [this] { return !paused_ || cancelled_; });
+        return cancelled_;
+    }
+    u64 paused_ms() const override {
+        std::lock_guard<std::mutex> lock(m_);
+        u64 total = paused_ms_;
+        if (paused_) {
+            total += std::chrono::duration_cast<std::chrono::milliseconds>(
+                         std::chrono::steady_clock::now() - pause_started_)
+                         .count();
+        }
+        return total;
+    }
+
+private:
+    mutable std::mutex m_;
+    mutable std::condition_variable cv_;
+    bool paused_ = false;
+    bool cancelled_ = false;
+    std::chrono::steady_clock::time_point pause_started_{};
+    u64 paused_ms_ = 0;
 };
 
 } // namespace cr

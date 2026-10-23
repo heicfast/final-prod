@@ -251,7 +251,7 @@ u32 walk_mft(NtfsVolume* vol, VolumeBitmap* bitmap, const WalkerFlags& flags, Ca
     /* temp record buffer with fixup scratch */
     std::vector<u8> rec;
     for (u64 record_no = 0; record_no < max_record; ++record_no) {
-        if (cancel && cancel->cancelled())
+        if (cancel && cancel->checkpoint())
             return ERR_CANCELLED;
         if ((record_no & 0x3F) == 0 && progress && !progress(record_no, max_record, progress_user))
             return ERR_CANCELLED;
@@ -1078,7 +1078,7 @@ u32 scan_mft_remnants(IStorageDevice* slice, u32 sector_bytes, u32 cluster_bytes
         const u64 nchunks = (total + chunk - 1) / chunk;
         std::atomic<u64> done_chunks{0};
         rc = parallel_for(pool, nchunks, [&](u64 ci) -> u32 {
-            if (cancel && cancel->cancelled())
+            if (cancel && cancel->checkpoint())
                 return ERR_CANCELLED;
             const u64 cstart = ci * chunk;
             const u64 cend = (ci + 1) * chunk < total ? (ci + 1) * chunk : total;

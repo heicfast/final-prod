@@ -80,6 +80,187 @@ ScanController::ScanController(tree::ResultTree& tree, ScanConfig cfg)
         root_carved_ = tree_.add_root(u"Other Deleted Files (Carved)");
 }
 
+ScanController::ScanController(tree::ResultTree& tree, ScanConfig cfg,
+                               const session::VolumeSessionInfo& resumed)
+    : tree_(tree), cfg_(std::move(cfg)) {
+    /* The saved session already carries the roots the ORIGINAL run created
+     * (the ctor created them before any stage executed, so even a
+     * quick-incomplete session has them). Recover the pointers by role
+     * instead of re-adding (which would duplicate). */
+    const bool pass_staged = (resumed.configured_mask & (STAGE_QUICK | STAGE_DEEP)) != 0;
+    if ((cfg_.run_quick || cfg_.run_deep) && pass_staged) {
+        for (tree::FileNode* r : tree_.roots()) {
+            if (!r->is_full())
+                continue;
+            const std::u16string& role = static_cast<tree::FullNode*>(r)->role;
+            if (role == u"Found")
+                root_found_ = static_cast<tree::FullNode*>(r);
+            else if (role == u"Deleted")
+                root_deleted_ = static_cast<tree::FullNode*>(r);
+            else if (role == u"Lost Files")
+                root_lost_ = static_cast<tree::FullNode*>(r);
+            else if (role == u"Other Deleted Files (Carved)")
+                root_carved_ = static_cast<tree::FullNode*>(r);
+        }
+    } else if (cfg_.run_quick || cfg_.run_deep) {
+        root_found_ = tree_.add_root(u"Found");
+        root_deleted_ = tree_.add_root(u"Deleted");
+        root_lost_ = tree_.add_root(u"Lost Files");
+    }
+    if (cfg_.run_carve && root_carved_ == nullptr)
+        root_carved_ = tree_.add_root(u"Other Deleted Files (Carved)");
+    adopt_resume_state_(resumed);
+}
+
+void ScanController::adopt_resume_state_(const session::VolumeSessionInfo& resumed) {
+    /* Restore ACTUAL completion flags so run() skips finished stages and
+     * save_session() re-stamps the mask truthfully. Bit semantics (documented
+     * in cr_records.h SessionState): 0 = quick engine pass, 1 = deep stage
+     * complete (pass + remnant + lost), 2 = carve. */
+    const bool quick_done = (resumed.stage_done_mask & STAGE_QUICK) != 0;
+    const bool deep_done = (resumed.stage_done_mask & STAGE_DEEP) != 0;
+    const bool carve_done = (resumed.stage_done_mask & STAGE_CARVE) != 0;
+    quick_done_ = quick_done;
+    /* bit0 set means the engine pass completed - with deep semantics when
+     * deep was configured (the shared-walk design), or plain quick pass. */
+    pass_deep_done_ = quick_done && (resumed.configured_mask & STAGE_DEEP) != 0;
+    deep_extras_done_ = deep_done && pass_deep_done_;
+    carve_done_ = carve_done;
+    if (cfg_.fs_hint == FsFamily::Unknown && resumed.fs_family != 0)
+        cfg_.fs_hint = FsFamily(u8(resumed.fs_family));
+}
+
+/* ---- telemetry (G-04/G-05/G-06) ---- */
+
+namespace {
+u64 ms_since(std::chrono::steady_clock::time_point t0) {
+    return u64(std::chrono::duration_cast<std::chrono::milliseconds>(
+                   std::chrono::steady_clock::now() - t0)
+                   .count());
+}
+} // namespace
+
+void ScanController::tel_stage_begin_(u32 stage, const CancelToken* cancel) {
+    std::lock_guard<std::mutex> lock(tel_.m);
+    tel_.stage_t0 = std::chrono::steady_clock::now();
+    tel_.stage_pause_base = cancel ? cancel->paused_ms() : 0;
+    tel_stage_.store(stage, std::memory_order_relaxed);
+    StageTelemetry& st =
+        stage == 0 ? tel_.snap.quick : stage == 1 ? tel_.snap.deep : tel_.snap.carve;
+    st = StageTelemetry{};
+}
+
+void ScanController::tel_stage_end_(u32 stage, const CancelToken* cancel) {
+    std::lock_guard<std::mutex> lock(tel_.m);
+    StageTelemetry& st =
+        stage == 0 ? tel_.snap.quick : stage == 1 ? tel_.snap.deep : tel_.snap.carve;
+    st.permille = 1000;
+    st.completed = true;
+    const u64 paused = cancel ? cancel->paused_ms() : 0;
+    const u64 span = ms_since(tel_.stage_t0);
+    const u64 stage_paused =
+        paused > tel_.stage_pause_base ? paused - tel_.stage_pause_base : 0;
+    st.elapsed_ms = span > stage_paused ? span - stage_paused : 0;
+    const u32 overall = weighted_progress(cfg_.weights, tel_.snap.quick.permille,
+                                          tel_.snap.deep.permille, tel_.snap.carve.permille);
+    if (overall > tel_.snap.overall_permille)
+        tel_.snap.overall_permille = overall;
+}
+
+void ScanController::tel_publish_(u32 stage, u64 done, u64 total, bool bytes_units,
+                                 const CancelToken* cancel) {
+    /* Called from engine worker threads via the bridge and from the scan
+     * thread. All mutations under the telemetry mutex; permilles are clamped
+     * monotonic (G-04 acceptance). */
+    std::lock_guard<std::mutex> lock(tel_.m);
+    StageTelemetry& st =
+        stage == 0 ? tel_.snap.quick : stage == 1 ? tel_.snap.deep : tel_.snap.carve;
+    u32 pm = 0;
+    if (total != 0) {
+        if (done >= total)
+            pm = 1000;
+        else
+            pm = u32(done * 1000 / total);
+        if (pm > 1000)
+            pm = 1000;
+        if (pm < st.permille)
+            pm = st.permille; /* monotonic within the stage */
+        st.permille = pm;
+        st.units_done = done;
+        st.units_total = total;
+    }
+    if (bytes_units)
+        st.bytes_done = done;
+    /* stage elapsed, pause-compensated (RE parity) */
+    const u64 paused_now = cancel ? cancel->paused_ms() : 0;
+    const u64 stage_paused = paused_now > tel_.stage_pause_base
+                                 ? paused_now - tel_.stage_pause_base
+                                 : 0;
+    const u64 span = ms_since(tel_.stage_t0);
+    st.elapsed_ms = span > stage_paused ? span - stage_paused : 0;
+    const u32 overall = weighted_progress(cfg_.weights, tel_.snap.quick.permille,
+                                          tel_.snap.deep.permille, tel_.snap.carve.permille);
+    if (overall > tel_.snap.overall_permille)
+        tel_.snap.overall_permille = overall;
+}
+
+void ScanController::tel_counts_(const ScanStats& stats, const CancelToken* cancel) {
+    std::lock_guard<std::mutex> lock(tel_.m);
+    tel_.snap.files_found = stats.files_found;
+    tel_.snap.deleted_found = stats.deleted_found;
+    tel_.snap.carved_found = stats.carved_found;
+    tel_.snap.lost_partitions = stats.lost_partitions;
+    tel_.snap.bytes_scanned = stats.bytes_scanned;
+    tel_.snap.paused = cancel ? cancel->paused() : false;
+}
+
+bool ScanController::engine_progress_bridge_(u64 done, u64 total, void* user) {
+    StageBridge* b = static_cast<StageBridge*>(user);
+    b->self->tel_publish_(b->stage, done, total, b->stage == 2, b->cancel);
+    if (b->covers_both)
+        b->self->tel_publish_(1, done, total, false, b->cancel);
+    if (b->overall) {
+        u32 overall;
+        {
+            std::lock_guard<std::mutex> lock(b->self->tel_.m);
+            overall = b->self->tel_.snap.overall_permille;
+        }
+        return b->overall(overall, b->user);
+    }
+    return true;
+}
+
+ScanTelemetrySnapshot ScanController::telemetry() const {
+    /* All live reads happen under the same mutex the stamp path uses for
+     * teardown, so a query racing run()'s exit never touches a dead retry
+     * pipe or a destroyed caller token. Live refresh (G-04/G-05/G-06):
+     * paused + elapsed come straight from the token, the bad-sector map
+     * from the retry pipe - the snapshot copy alone can lag (it is only
+     * stamped at stage boundaries). */
+    std::lock_guard<std::mutex> lock(tel_.m);
+    ScanTelemetrySnapshot out = tel_.snap;
+    out.running = tel_running_.load(std::memory_order_acquire);
+    if (!out.running)
+        return out; /* finalized snapshot: stamp() already merged the
+                       final error map, elapsed, cancelled, paused=false */
+    const CancelToken* tok = tel_cancel_.load(std::memory_order_acquire);
+    if (tok) {
+        out.paused = tok->paused();
+        /* pause-compensated elapsed so far (RE parity) */
+        const u64 paused = tok->paused_ms();
+        const u64 span = ms_since(tel_.run_t0);
+        out.elapsed_ms = span > paused ? span - paused : 0;
+    }
+    if (RetryingDevice* rd = tel_retry_.load(std::memory_order_acquire))
+        out.errors.merge(rd->error_map_copy());
+    return out;
+}
+
+u32 ScanController::tel_overall_() const {
+    std::lock_guard<std::mutex> lock(tel_.m);
+    return tel_.snap.overall_permille;
+}
+
 FsFamily ScanController::probe_family(IStorageDevice* slice) {
     if (slice == nullptr)
         return FsFamily::Unknown;
@@ -136,6 +317,14 @@ u32 ScanController::run(IStorageDevice* slice, CancelToken* cancel, bool (*progr
     if (slice == nullptr)
         return ERR_BAD_PARAMETER;
     const auto t0 = std::chrono::steady_clock::now();
+    {
+        std::lock_guard<std::mutex> lock(tel_.m);
+        tel_.snap = ScanTelemetrySnapshot{};
+        tel_.snap.overall_permille = 0;
+        tel_.run_t0 = t0;
+    }
+    tel_running_.store(true, std::memory_order_release);
+    tel_cancel_.store(cancel, std::memory_order_release);
 
     /* R1.6 production wiring (audit row 40a): every engine read goes
      * through retry+bisection (bad-sector isolation with Skip-mode
@@ -148,37 +337,82 @@ u32 ScanController::run(IStorageDevice* slice, CancelToken* cancel, bool (*progr
     policy.mode = RetryMode::Skip; /* surface + zero-fill, never abort */
     auto shim = std::unique_ptr<IStorageDevice>(cr::SliceShim::shim(slice));
     auto retry = RetryingDevice::create(std::move(shim), policy);
+    /* Raw pointer captured BEFORE the unique_ptr moves into the cache:
+     * `retry` is null after CachedReader::create(std::move(retry)) - the
+     * previous tel_retry_.store(retry.get()) stored nullptr, silently
+     * disabling BOTH the live error map (telemetry G-06) and the
+     * end-of-run stats merge (save-on-cancel contract). retry_raw stays
+     * valid exactly while the pipe chain keeps the device alive: the
+     * cache owns it on success; on cache-creation failure create()
+     * destroys it, so the pointer is only published when `cached` owns
+     * it and the pipe falls back to the bare slice. */
+    RetryingDevice* retry_raw = retry.get();
     auto cached = CachedReader::create(std::move(retry), 8ull << 20, 64 * 1024);
-    IStorageDevice* pipe =
-        cached ? cached.get() : (retry ? static_cast<IStorageDevice*>(retry.get()) : slice);
+    IStorageDevice* pipe = cached ? static_cast<IStorageDevice*>(cached.get())
+                                  : (retry_raw ? static_cast<IStorageDevice*>(retry_raw) : slice);
+    if (cached)
+        tel_retry_.store(retry_raw, std::memory_order_release);
 
     if (cfg_.fs_hint == FsFamily::Unknown && (cfg_.run_quick || cfg_.run_deep))
         cfg_.fs_hint = probe_family(pipe);
+    /* volume facts for the session VolumeInfo (G-14) - recorded from the
+     * caller's slice before the pipe wrapped it */
+    vol_offset_ = slice->absolute_base();
+    vol_bytes_ = slice->size();
+    vol_logical_sector_ = slice->geometry().logical_sector;
+    vol_physical_sector_ = slice->geometry().physical_sector;
 
-    const auto stamp = [&stats, t0](u32 rc) -> u32 {
+    const auto stamp = [&stats, t0, cancel, this](u32 rc) -> u32 {
         const auto t1 = std::chrono::steady_clock::now();
-        stats.elapsed_ms =
+        u64 ms =
             u64(std::chrono::duration_cast<std::chrono::milliseconds>(t1 - t0).count());
+        /* pause compensation (RE parity): elapsed excludes paused time */
+        const u64 paused = cancel ? cancel->paused_ms() : 0;
+        stats.elapsed_ms = ms > paused ? ms - paused : 0;
+        /* the retry pipe's error map always lands in stats - including the
+         * cancel/error paths, so a save-on-cancel session carries it */
+        if (RetryingDevice* rd = tel_retry_.load(std::memory_order_acquire))
+            stats.errors.merge(rd->error_map_copy());
+        tel_counts_(stats, cancel);
+        {
+            std::lock_guard<std::mutex> lock(tel_.m);
+            /* Finalize under the same lock telemetry() queries: the snapshot
+             * keeps the final error map + elapsed after the pipe dies, and
+             * the live pointers (retry pipe, caller token) are cleared
+             * before anything they point at can be destroyed - a query in
+             * flight either saw them alive or sees them gone, never dead. */
+            tel_.snap.errors.merge(stats.errors);
+            tel_.snap.elapsed_ms = stats.elapsed_ms;
+            tel_.snap.cancelled = rc == ERR_CANCELLED;
+            tel_.snap.paused = false; /* the run has ended */
+            tel_running_.store(false, std::memory_order_release);
+            tel_retry_.store(nullptr, std::memory_order_release);
+            tel_cancel_.store(nullptr, std::memory_order_release);
+        }
         return rc;
     };
+    if (cancel && cancel->checkpoint())
+        return stamp(ERR_CANCELLED);
     if (cfg_.run_quick) {
         if (u32 rc = run_quick(pipe, cancel, progress, progress_user, stats))
             return stamp(rc);
     }
     if (cfg_.run_deep) {
+        if (cancel && cancel->checkpoint())
+            return stamp(ERR_CANCELLED);
         if (u32 rc = run_deep(pipe, cancel, progress, progress_user, stats))
             return stamp(rc);
     }
     if (cfg_.run_carve) {
+        if (cancel && cancel->checkpoint())
+            return stamp(ERR_CANCELLED);
         if (u32 rc = run_carve_stage(pipe, cancel, progress, progress_user, stats))
             return stamp(rc);
     }
-    /* surface the retry layer's error map (R1.6) */
-    if (retry) {
-        stats.errors.merge(retry->error_map());
-        if (cached)
-            stats.cached_hits = cached->hits(), stats.cached_misses = cached->misses();
-    }
+    /* surface the retry layer's error map (R1.6; merged inside stamp for
+     * every exit path) + cache counters */
+    if (cached)
+        stats.cached_hits = cached->hits(), stats.cached_misses = cached->misses();
     tree_.refresh_stats();
     return stamp(OK);
 }
@@ -189,37 +423,35 @@ u32 ScanController::run_quick(IStorageDevice* slice, CancelToken* cancel,
      * uses deep settings already (single walk - the corpus engines emit
      * active+deleted in one MFT walk; re-walking was pure waste). */
     const bool deep_coming = cfg_.run_deep;
-    u32 rc = run_engine_pass(slice, deep_coming, cancel, progress, pu, stats);
+    tel_stage_begin_(0, cancel);
+    u32 rc = run_engine_pass(slice, deep_coming, cancel, progress, pu, stats, 0, deep_coming);
     if (rc == OK)
         quick_done_ = true;
+    tel_stage_end_(0, cancel);
+    tel_counts_(stats, cancel);
+    /* boundary tick: forward the POST-STAMP telemetry overall - never a
+     * hardcoded weighted() (with covers_both the walk already fed the
+     * deep stage, so the bridge has forwarded values up to 750; a
+     * 400-guess would regress below them and break monotonicity). */
     if (progress)
-        (void)progress(weighted_progress(cfg_.weights, 1000, 0, 0), pu);
+        (void)progress(tel_overall_(), pu);
     return rc;
 }
 
 u32 ScanController::run_engine_pass(IStorageDevice* slice, bool deep_mode, CancelToken* cancel,
-                                    bool (*progress)(u32, void*), void* pu, ScanStats& stats) {
-    /* Engine-internal progress feeds the quick-stage permille via a
-     * stack-context trampoline (raw function pointers take user data). */
-    struct EngineProgress {
-        bool (*overall)(u32, void*);
-        void* user;
-        u32 quick_weight;
-        u32 total_weight;
-    } ep{progress, pu, cfg_.weights.quick,
-         cfg_.weights.quick + cfg_.weights.deep + cfg_.weights.carve};
-
-    ntfs::WalkProgress ntfs_cb = nullptr;
-    void* ntfs_cb_user = nullptr;
-    if (progress && ep.total_weight > 0) {
-        ntfs_cb_user = &ep;
-        ntfs_cb = [](u64 done, u64 total, void* user) -> bool {
-            auto* p = static_cast<EngineProgress*>(user);
-            const u32 pm = total ? u32(done * 1000 / total) : 1000;
-            const u32 overall = u32(u64(p->quick_weight) * pm / p->total_weight);
-            return p->overall ? p->overall(overall > 1000 ? 1000u : overall, p->user) : true;
-        };
-    }
+                                    bool (*progress)(u32, void*), void* pu, ScanStats& stats,
+                                    u32 bridge_stage, bool covers_both) {
+    /* Uniform progress wiring (G-04): EVERY engine gets the bridge - it
+     * publishes per-stage telemetry and forwards the monotonic weighted
+     * overall permille to the caller's callback. The bridge returns the
+     * user callback's verdict so engines that honour progress-false still
+     * cancel through it (NTFS walk, carve, lost discovery). */
+    StageBridge bridge{this, progress, pu, bridge_stage, covers_both, cancel};
+    auto engine_cb = +[](u64 done, u64 total, void* user) -> bool {
+        return ScanController::engine_progress_bridge_(done, total, user);
+    };
+    bool (*ep)(u64, u64, void*) = engine_cb;
+    void* ep_user = &bridge;
 
     u32 rc = OK;
     /* Dynamic disks (LDM): the whole-disk slice carries no filesystem
@@ -255,12 +487,15 @@ u32 ScanController::run_engine_pass(IStorageDevice* slice, bool deep_mode, Cance
                 tree::FullNode* vroot = tree_.add_root(role);
                 table::LdmVolumeDevice vol(lay, resolver);
                 u64 files = 0, deleted = 0;
-                (void)scan_candidate(&vol, vroot, cancel, files, deleted);
+                (void)scan_candidate(&vol, vroot, cancel, files, deleted, ep, ep_user);
                 stats.files_found += files;
                 stats.deleted_found += deleted;
             }
-            if (progress)
-                (void)progress(weighted_progress(cfg_.weights, 1000, 0, 0), pu);
+            /* no direct boundary tick here: the candidate scans ticked the
+             * bridge live, and run_quick/run_deep forward the post-stamp
+             * telemetry overall right after this returns - a hardcoded
+             * weighted() here could only regress below what the bridge
+             * already forwarded */
             return OK;
         }
     }
@@ -274,7 +509,7 @@ u32 ScanController::run_engine_pass(IStorageDevice* slice, bool deep_mode, Cance
         (void)ntfs::VolumeBitmap::load(vol.get(), bm);
         ntfs::WalkerFlags wf;
         ntfs::WalkStats ws;
-        rc = ntfs::walk_mft(vol.get(), bm.get(), wf, cancel, ntfs_cb, ntfs_cb_user, tree_,
+        rc = ntfs::walk_mft(vol.get(), bm.get(), wf, cancel, ep, ep_user, tree_,
                             root_found_, root_deleted_, root_lost_, ws);
         stats.files_found += ws.active;
         stats.deleted_found += ws.deleted;
@@ -284,7 +519,7 @@ u32 ScanController::run_engine_pass(IStorageDevice* slice, bool deep_mode, Cance
         fat::FatScanFlags fl;
         fl.reconstruct_deleted_chains = deep_mode; /* complete behavior when deep runs */
         fat::FatScanStats fs;
-        rc = fat::scan_fat(slice, fl, cancel, nullptr, nullptr, tree_, root_found_, root_deleted_,
+        rc = fat::scan_fat(slice, fl, cancel, ep, ep_user, tree_, root_found_, root_deleted_,
                            root_lost_, fs);
         stats.files_found += fs.files;
         stats.deleted_found += fs.deleted_entries;
@@ -293,7 +528,7 @@ u32 ScanController::run_engine_pass(IStorageDevice* slice, bool deep_mode, Cance
     case FsFamily::Exfat: {
         exfat::ExfatScanFlags fl;
         exfat::ExfatScanStats es;
-        rc = exfat::scan_exfat(slice, fl, cancel, nullptr, nullptr, tree_, root_found_,
+        rc = exfat::scan_exfat(slice, fl, cancel, ep, ep_user, tree_, root_found_,
                                root_deleted_, root_lost_, es);
         stats.files_found += es.files;
         stats.deleted_found += es.deleted_entries;
@@ -303,7 +538,7 @@ u32 ScanController::run_engine_pass(IStorageDevice* slice, bool deep_mode, Cance
         ext4::Ext4ScanFlags fl;
         fl.scan_deleted_inodes = deep_mode;
         ext4::Ext4ScanStats es;
-        rc = ext4::scan_ext4(slice, fl, cancel, nullptr, nullptr, tree_, root_found_, root_deleted_,
+        rc = ext4::scan_ext4(slice, fl, cancel, ep, ep_user, tree_, root_found_, root_deleted_,
                              root_lost_, es);
         stats.files_found += es.files + es.dirs;
         stats.deleted_found += es.deleted_inodes;
@@ -313,7 +548,7 @@ u32 ScanController::run_engine_pass(IStorageDevice* slice, bool deep_mode, Cance
         hfsplus::HfsScanFlags fl;
         fl.scan_freed_nodes = deep_mode; /* freed-catalog orphan sweep */
         hfsplus::HfsScanStats hs;
-        rc = hfsplus::scan_hfsplus(slice, fl, cancel, nullptr, nullptr, tree_, root_found_,
+        rc = hfsplus::scan_hfsplus(slice, fl, cancel, ep, ep_user, tree_, root_found_,
                                    root_deleted_, root_lost_, hs);
         stats.files_found += hs.files + hs.dirs;
         stats.deleted_found += hs.orphans;
@@ -322,7 +557,7 @@ u32 ScanController::run_engine_pass(IStorageDevice* slice, bool deep_mode, Cance
     case FsFamily::Btrfs: {
         btrfs::BtrfsScanFlags fl;
         btrfs::BtrfsScanStats bs;
-        rc = btrfs::scan_btrfs(slice, fl, cancel, nullptr, nullptr, tree_, root_found_,
+        rc = btrfs::scan_btrfs(slice, fl, cancel, ep, ep_user, tree_, root_found_,
                                root_deleted_, root_lost_, bs);
         stats.files_found += bs.files + bs.dirs;
         stats.deleted_found += bs.subvolumes;
@@ -331,7 +566,7 @@ u32 ScanController::run_engine_pass(IStorageDevice* slice, bool deep_mode, Cance
     case FsFamily::Zfs: {
         zfs::ZfsScanFlags fl;
         zfs::ZfsScanStats zs;
-        rc = zfs::scan_zfs(slice, fl, cancel, nullptr, nullptr, tree_, root_found_, root_deleted_,
+        rc = zfs::scan_zfs(slice, fl, cancel, ep, ep_user, tree_, root_found_, root_deleted_,
                            root_lost_, zs);
         stats.files_found += zs.files + zs.dirs;
         break;
@@ -340,7 +575,7 @@ u32 ScanController::run_engine_pass(IStorageDevice* slice, bool deep_mode, Cance
         refs::RefsScanFlags fl;
         fl.harvest_deleted = deep_mode;
         refs::RefsScanStats rs;
-        rc = refs::scan_refs(slice, fl, cancel, nullptr, nullptr, tree_, root_found_, root_deleted_,
+        rc = refs::scan_refs(slice, fl, cancel, ep, ep_user, tree_, root_found_, root_deleted_,
                              root_lost_, rs);
         stats.files_found += rs.files + rs.dirs;
         stats.deleted_found += rs.deleted_rows;
@@ -357,15 +592,27 @@ u32 ScanController::run_deep(IStorageDevice* slice, CancelToken* cancel,
                              bool (*progress)(u32, void*), void* pu, ScanStats& stats) {
     u32 rc = OK;
     const u32 threads = resolve_threads(cfg_.threads);
+    tel_stage_begin_(1, cancel);
 
     /* Deep extras. The engine pass itself already ran inside quick (single
      * walk) - here we only do what quick did NOT: the remnant sweep and the
      * lost-partition candidates. When quick was disabled, run the engine
      * pass now with full deep semantics. */
     if (!quick_done_) {
-        if (u32 e = run_engine_pass(slice, true, cancel, progress, pu, stats))
+        if (u32 e = run_engine_pass(slice, true, cancel, progress, pu, stats, 1, false))
             return e;
+        pass_deep_done_ = true;
+    } else if (!pass_deep_done_) {
+        /* quick ran the pass with deep semantics (deep_coming) - it counts
+         * as the deep pass too (single-walk design) */
+        pass_deep_done_ = true;
     }
+
+    /* deep-stage progress bridge for the sweep/discovery/candidates */
+    StageBridge dbridge{this, progress, pu, 1, false, cancel};
+    auto deep_cb = +[](u64 done, u64 total, void* user) -> bool {
+        return ScanController::engine_progress_bridge_(done, total, user);
+    };
 
     if (cfg_.fs_hint == FsFamily::Ntfs) {
         /* remnant sweep (R2.5) - parallel chunk fan-out */
@@ -377,7 +624,7 @@ u32 ScanController::run_deep(IStorageDevice* slice, CancelToken* cancel,
                 ntfs::WalkStats rem;
                 rc = ntfs::scan_mft_remnants(slice, vol->params().sector_bytes,
                                              vol->params().cluster_bytes, vol->params().record_size,
-                                             cancel, nullptr, nullptr, tree_, root_lost_, rem,
+                                             cancel, deep_cb, &dbridge, tree_, root_lost_, rem,
                                              threads);
                 stats.files_found += rem.emitted;
             }
@@ -395,7 +642,7 @@ u32 ScanController::run_deep(IStorageDevice* slice, CancelToken* cancel,
             if (table::parse_disk_table(slice, t) == OK)
                 known = t.partitions;
         }
-        u32 lrc = lost::discover(slice, known, 1, cancel, nullptr, nullptr, dr);
+        u32 lrc = lost::discover(slice, known, 1, cancel, deep_cb, &dbridge, dr);
         if (lrc == OK) {
             stats.lost_candidates = dr.candidates;
             stats.lost_partitions = dr.candidates.size();
@@ -436,7 +683,8 @@ u32 ScanController::run_deep(IStorageDevice* slice, CancelToken* cancel,
                         u32 first_err = parallel_for(pool, n, [&](u64 i) -> u32 {
                             out_arr[i].rc =
                                 scan_candidate(items[i].slice.get(), items[i].root, cancel,
-                                               out_arr[i].files, out_arr[i].deleted);
+                                               out_arr[i].files, out_arr[i].deleted, deep_cb,
+                                               &dbridge);
                             return OK; /* candidate misses never abort the scan */
                         });
                         for (const auto& o : outs) {
@@ -448,22 +696,33 @@ u32 ScanController::run_deep(IStorageDevice* slice, CancelToken* cancel,
                     } else {
                         for (auto& w : work) {
                             u64 files = 0, deleted = 0;
-                            (void)scan_candidate(w.slice.get(), w.root, cancel, files, deleted);
+                            (void)scan_candidate(w.slice.get(), w.root, cancel, files, deleted,
+                                                deep_cb, &dbridge);
                             stats.files_found += files;
                             stats.deleted_found += deleted;
                         }
                     }
                 }
             }
+        } else if (lrc == ERR_CANCELLED) {
+            rc = ERR_CANCELLED; /* cancellation must reach run() (resume truth) */
         }
     }
+    /* deep is COMPLETE only when everything it owed finished OK - a
+     * cancelled discovery must not stamp the stage done (G-07 integrity) */
+    if (rc == OK)
+        deep_extras_done_ = true;
+    tel_stage_end_(1, cancel);
+    tel_counts_(stats, cancel);
+    /* boundary tick: post-stamp telemetry overall (monotonic truth) */
     if (progress)
-        (void)progress(weighted_progress(cfg_.weights, 1000, 1000, 0), pu);
+        (void)progress(tel_overall_(), pu);
     return rc;
 }
 
 u32 ScanController::scan_candidate(IStorageDevice* cand_slice, tree::FullNode* croot,
-                                   CancelToken* cancel, u64& files_out, u64& deleted_out) {
+                                   CancelToken* cancel, u64& files_out, u64& deleted_out,
+                                   bool (*progress)(u64, u64, void*), void* progress_user) {
     FsFamily fam = probe_family(cand_slice);
     u32 rc = OK;
     files_out = 0;
@@ -476,7 +735,7 @@ u32 ScanController::scan_candidate(IStorageDevice* cand_slice, tree::FullNode* c
             (void)ntfs::VolumeBitmap::load(vol.get(), bm);
             ntfs::WalkerFlags wf;
             ntfs::WalkStats ws;
-            (void)ntfs::walk_mft(vol.get(), bm.get(), wf, cancel, nullptr, nullptr, tree_, croot,
+            (void)ntfs::walk_mft(vol.get(), bm.get(), wf, cancel, progress, progress_user, tree_, croot,
                                  croot, croot, ws);
             files_out += ws.emitted;
             deleted_out += ws.deleted;
@@ -486,7 +745,7 @@ u32 ScanController::scan_candidate(IStorageDevice* cand_slice, tree::FullNode* c
     } else if (fam == FsFamily::Fat) {
         fat::FatScanFlags fl;
         fat::FatScanStats fs;
-        (void)fat::scan_fat(cand_slice, fl, cancel, nullptr, nullptr, tree_, croot, croot, croot,
+        (void)fat::scan_fat(cand_slice, fl, cancel, progress, progress_user, tree_, croot, croot, croot,
                             fs);
         files_out += fs.files;
         deleted_out += fs.deleted_entries;
@@ -494,7 +753,7 @@ u32 ScanController::scan_candidate(IStorageDevice* cand_slice, tree::FullNode* c
     } else if (fam == FsFamily::Exfat) {
         exfat::ExfatScanFlags fl;
         exfat::ExfatScanStats es;
-        (void)exfat::scan_exfat(cand_slice, fl, cancel, nullptr, nullptr, tree_, croot, croot,
+        (void)exfat::scan_exfat(cand_slice, fl, cancel, progress, progress_user, tree_, croot, croot,
                                 croot, es);
         files_out += es.files;
         deleted_out += es.deleted_entries;
@@ -502,7 +761,7 @@ u32 ScanController::scan_candidate(IStorageDevice* cand_slice, tree::FullNode* c
     } else if (fam == FsFamily::Ext4) {
         ext4::Ext4ScanFlags fl;
         ext4::Ext4ScanStats es;
-        (void)ext4::scan_ext4(cand_slice, fl, cancel, nullptr, nullptr, tree_, croot, croot, croot,
+        (void)ext4::scan_ext4(cand_slice, fl, cancel, progress, progress_user, tree_, croot, croot, croot,
                               es);
         files_out += es.files + es.dirs + es.deleted_inodes;
         deleted_out += es.deleted_inodes;
@@ -510,7 +769,7 @@ u32 ScanController::scan_candidate(IStorageDevice* cand_slice, tree::FullNode* c
     } else if (fam == FsFamily::Hfsplus) {
         hfsplus::HfsScanFlags fl;
         hfsplus::HfsScanStats hs;
-        (void)hfsplus::scan_hfsplus(cand_slice, fl, cancel, nullptr, nullptr, tree_, croot, croot,
+        (void)hfsplus::scan_hfsplus(cand_slice, fl, cancel, progress, progress_user, tree_, croot, croot,
                                     croot, hs);
         files_out += hs.files + hs.dirs;
         deleted_out += hs.orphans;
@@ -518,7 +777,7 @@ u32 ScanController::scan_candidate(IStorageDevice* cand_slice, tree::FullNode* c
     } else if (fam == FsFamily::Btrfs) {
         btrfs::BtrfsScanFlags fl;
         btrfs::BtrfsScanStats bs;
-        (void)btrfs::scan_btrfs(cand_slice, fl, cancel, nullptr, nullptr, tree_, croot, croot,
+        (void)btrfs::scan_btrfs(cand_slice, fl, cancel, progress, progress_user, tree_, croot, croot,
                                 croot, bs);
         files_out += bs.files + bs.dirs;
         deleted_out += bs.subvolumes;
@@ -526,14 +785,14 @@ u32 ScanController::scan_candidate(IStorageDevice* cand_slice, tree::FullNode* c
     } else if (fam == FsFamily::Zfs) {
         zfs::ZfsScanFlags fl;
         zfs::ZfsScanStats zs;
-        (void)zfs::scan_zfs(cand_slice, fl, cancel, nullptr, nullptr, tree_, croot, croot, croot,
+        (void)zfs::scan_zfs(cand_slice, fl, cancel, progress, progress_user, tree_, croot, croot, croot,
                             zs);
         files_out += zs.files + zs.dirs;
         rc = OK;
     } else if (fam == FsFamily::Refs) {
         refs::RefsScanFlags fl;
         refs::RefsScanStats rs;
-        (void)refs::scan_refs(cand_slice, fl, cancel, nullptr, nullptr, tree_, croot, croot, croot,
+        (void)refs::scan_refs(cand_slice, fl, cancel, progress, progress_user, tree_, croot, croot, croot,
                               rs);
         files_out += rs.files + rs.dirs + rs.deleted_rows;
         deleted_out += rs.deleted_rows;
@@ -545,6 +804,13 @@ u32 ScanController::scan_candidate(IStorageDevice* cand_slice, tree::FullNode* c
 u32 ScanController::run_carve_stage(IStorageDevice* slice, CancelToken* cancel,
                                     bool (*progress)(u32, void*), void* pu, ScanStats& stats) {
     const u32 threads = resolve_threads(cfg_.threads);
+    tel_stage_begin_(2, cancel);
+    /* carve progress counts BYTES (G-05) - the bridge flags stage 2 as
+     * byte-units so telemetry reports honest bytes_done */
+    StageBridge cbridge{this, progress, pu, 2, false, cancel};
+    auto carve_cb = +[](u64 done, u64 total, void* user) -> bool {
+        return ScanController::engine_progress_bridge_(done, total, user);
+    };
     carve::CarveFlags cf;
     cf.threads = threads;
     carve::CarveStats cs;
@@ -557,22 +823,35 @@ u32 ScanController::run_carve_stage(IStorageDevice* slice, CancelToken* cancel,
             out.push_back(u16(u8(*p)));
         return out;
     };
-    u32 rc = carve::carve_slice(slice, cf, cancel, nullptr, nullptr, tree_, root_carved_, &tree_,
-                                namer, cs);
+    u32 rc = carve::carve_slice(slice, cf, cancel, carve_cb, &cbridge, tree_, root_carved_,
+                                &tree_, namer, cs);
     stats.carved_found = cs.validated;
     stats.bytes_scanned += cs.bytes_scanned;
+    if (rc == OK)
+        carve_done_ = true;
+    tel_stage_end_(2, cancel);
+    tel_counts_(stats, cancel);
+    /* boundary tick: post-stamp telemetry overall (monotonic truth) */
     if (progress)
-        (void)progress(weighted_progress(cfg_.weights, 1000, 1000, 1000), pu);
+        (void)progress(tel_overall_(), pu);
     return rc;
 }
 
 u32 ScanController::save_session(session::Writer& w, const ScanStats& stats) const {
     /* record order: session state, volume info, partition contexts, tree,
-     * error map (the writer chains them; ids from the container) */
+     * error map (the writer chains them; ids from the container)
+     *
+     * G-07 truth: stage_done_mask stamps ACTUAL completion (quick_done_,
+     * pass+extras for deep, carve_done_) - never the configured mask. The
+     * ORIGINAL configured set is preserved in VolumeInfo.flags so resume
+     * can validate mask-⊆-configured. */
     session::SessionState st;
-    st.stage_done_mask =
-        (cfg_.run_quick ? 1 : 0) | (cfg_.run_deep ? 2 : 0) | (cfg_.run_carve ? 4 : 0);
+    st.stage_done_mask = (quick_done_ ? STAGE_QUICK : 0u) |
+                         ((pass_deep_done_ && deep_extras_done_) ? STAGE_DEEP : 0u) |
+                         (carve_done_ ? STAGE_CARVE : 0u);
     st.files_found = stats.files_found;
+    st.deleted_found = stats.deleted_found; /* v2 counters */
+    st.carved_found = stats.carved_found;
     st.bytes_scanned = stats.bytes_scanned;
     st.error_map_ranges = u32(stats.errors.ranges().size());
     std::vector<u8> blob;
@@ -581,9 +860,19 @@ u32 ScanController::save_session(session::Writer& w, const ScanStats& stats) con
             return rc;
 
     session::VolumeInfo vi;
-    vi.fs_kind = u32(cfg_.fs_hint);
-    vi.flags = st.stage_done_mask;
+    vi.fs_kind = u32(cfg_.fs_hint); /* FsFamily on the wire (D-1 truth) */
+    vi.flags = session_configured_mask_ |
+               (cfg_.run_quick ? STAGE_QUICK : 0u) |
+               (cfg_.run_deep ? STAGE_DEEP : 0u) |
+               (cfg_.run_carve ? STAGE_CARVE : 0u);
+    vi.slice_offset = vol_offset_;          /* G-14: real placement */
+    vi.slice_bytes = vol_bytes_;
+    vi.logical_sector = vol_logical_sector_;
+    vi.physical_sector = vol_physical_sector_;
+    for (size_t i = 0; i < sizeof(vi.label) - 1 && cfg_.volume_label[i]; ++i)
+        vi.label[i] = cfg_.volume_label[i];
     vi.scanned_bytes = stats.bytes_scanned;
+    vi.elapsed_ms = stats.elapsed_ms;
     if (session::serialize_volume_info(vi, blob) == OK)
         if (u32 rc = w.add_record(session::REC_VOLUME_INFO, blob.data(), u32(blob.size())))
             return rc;
@@ -612,9 +901,19 @@ u32 ScanController::save_session(session::Writer& w, const ScanStats& stats) con
 }
 
 u32 ScanController::load_session(session::Reader& r, tree::ResultTree& tree, ScanStats& stats) {
+    session::VolumeSessionInfo info;
+    return load_session_summary(r, tree, stats, info);
+}
+
+u32 ScanController::load_session_summary(session::Reader& r, tree::ResultTree& tree,
+                                         ScanStats& stats, session::VolumeSessionInfo& info) {
     u32 count = 0;
     if (u32 rc = r.open(&count))
         return rc;
+    session::SessionState st;
+    bool have_state = false;
+    session::VolumeInfo vi;
+    bool have_vi = false;
     for (u32 i = 0; i < count; ++i) {
         session::Record rec;
         u32 rc = r.read_record(i, rec);
@@ -628,19 +927,86 @@ u32 ScanController::load_session(session::Reader& r, tree::ResultTree& tree, Sca
                 return 0x50040001;
             break;
         case session::REC_SESSION_STATE: {
-            session::SessionState st;
-            if (session::deserialize_session_state(rec.data.data(), rec.data.size(), st) == OK)
+            if (session::deserialize_session_state(rec.data.data(), rec.data.size(), st) == OK) {
                 stats.files_found = st.files_found;
+                stats.deleted_found = st.deleted_found; /* v2 (0 on v1 records) */
+                stats.carved_found = st.carved_found;
+                stats.bytes_scanned = st.bytes_scanned;
+                have_state = true;
+            }
             break;
         }
         case session::REC_ERROR_MAP:
             (void)session::deserialize_error_map(rec.data.data(), rec.data.size(), stats.errors);
             break;
+        case session::REC_VOLUME_INFO:
+            if (session::deserialize_volume_info(rec.data.data(), rec.data.size(), vi) == OK)
+                have_vi = true;
+            break;
+        case session::REC_PARTITION_CONTEXT: {
+            /* G-23: restore lost candidates so a reloaded session can be
+             * recovered from (and re-saved) without re-running deep. */
+            session::PartitionContext pc;
+            if (session::deserialize_partition_context(rec.data.data(), rec.data.size(), pc) ==
+                    OK &&
+                pc.kind == 1 && pc.fs_kind <= u32(lost::CandidateFs::Unknown)) {
+                lost::Candidate c;
+                c.start_lba = pc.start_lba;
+                c.sector_count = pc.sector_count;
+                c.fs = lost::CandidateFs(u8(pc.fs_kind));
+                c.score = int(pc.score);
+                c.fs_probe = pc.score; /* preserved for diagnostics */
+                stats.lost_candidates.push_back(c);
+            }
+            break;
+        }
         default:
             break;
         }
     }
     tree.refresh_stats();
+
+    /* G-14 summary + G-07 integrity: the completion mask must be a subset
+     * of the configured-stages flags stored alongside it. Legacy sessions
+     * (no VolumeInfo) assume all stages configured - their masks were
+     * config-derived by construction, so the subset check holds trivially. */
+    info = session::VolumeSessionInfo{};
+    info.fs_family = have_vi ? vi.fs_kind : 0;
+    info.stage_done_mask = have_state ? st.stage_done_mask : 0;
+    info.configured_mask = have_vi ? vi.flags : (STAGE_QUICK | STAGE_DEEP | STAGE_CARVE);
+    info.slice_offset = vi.slice_offset;
+    info.slice_bytes = vi.slice_bytes;
+    info.logical_sector = vi.logical_sector;
+    info.physical_sector = vi.physical_sector;
+    for (size_t i = 0; i < sizeof(info.label); ++i)
+        info.label[i] = vi.label[i];
+    info.scanned_bytes = vi.scanned_bytes;
+    info.elapsed_ms = vi.elapsed_ms;
+    if ((info.stage_done_mask & ~info.configured_mask) != 0)
+        return ERR_SESSION_FORMAT; /* mask integrity violation - never a
+                                      silent partial resume */
+    stats.lost_partitions = stats.lost_candidates.size();
+    return OK;
+}
+
+u32 ScanController::resume(session::Reader& r, tree::ResultTree& tree, const ScanConfig& original_cfg,
+                           ScanStats& stats, session::VolumeSessionInfo& info,
+                           std::unique_ptr<ScanController>& out) {
+    out.reset();
+    if (u32 rc = load_session_summary(r, tree, stats, info))
+        return rc;
+    ScanConfig cfg = original_cfg;
+    if (info.stage_done_mask & STAGE_QUICK)
+        cfg.run_quick = false; /* completed stages keep their results */
+    if (info.stage_done_mask & STAGE_DEEP)
+        cfg.run_deep = false;
+    if (info.stage_done_mask & STAGE_CARVE)
+        cfg.run_carve = false;
+    if (info.fs_family != 0 && cfg.fs_hint == FsFamily::Unknown)
+        cfg.fs_hint = FsFamily(u8(info.fs_family));
+    out.reset(new (std::nothrow) ScanController(tree, std::move(cfg), info));
+    if (!out)
+        return ERR_NO_MEMORY;
     return OK;
 }
 

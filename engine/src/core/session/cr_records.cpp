@@ -88,16 +88,21 @@ struct Cursor {
 
 u32 serialize_tree(const tree::ResultTree& tree, std::vector<u8>& out) {
     out.clear();
-    /* depth-first walk; ids in emission order; parents always earlier */
+    /* depth-first walk; ids in emission order; parents always earlier.
+     * The ROOTS THEMSELVES are emitted (marker=1 full nodes, parent
+     * 0xFFFFFFFF) so a loaded session reconstructs the Found/Deleted/
+     * Lost/Carved structure. Previously roots were skipped and their
+     * children collapsed under a synthetic "Restored" root on load,
+     * destroying the role structure resume() recovers roots by (G-07).
+     * Legacy files (no root records) still load exactly as before. */
     std::vector<const tree::FileNode*> order;
     std::vector<u32> parent_ids;
     std::function<void(const tree::FileNode*, u32)> walk = [&](const tree::FileNode* n, u32 pid) {
-        for (const tree::FileNode* c = n->first_child(); c; c = c->next_sibling()) {
-            const u32 id = u32(order.size());
-            order.push_back(c);
-            parent_ids.push_back(pid);
+        const u32 id = u32(order.size());
+        order.push_back(n);
+        parent_ids.push_back(pid);
+        for (const tree::FileNode* c = n->first_child(); c; c = c->next_sibling())
             walk(c, id);
-        }
     };
     for (const tree::FileNode* r : tree.roots())
         walk(r, 0xFFFFFFFFu);
@@ -323,6 +328,11 @@ u32 serialize_session_state(const SessionState& st, std::vector<u8>& out) {
     put64(out, st.files_found);
     put64(out, st.bytes_scanned);
     put32(out, st.error_map_ranges);
+    /* v2 appended counters (G-07/G-14): a reloaded session reports the
+     * full found-set; v1 readers stop before these and v1 files simply
+     * lack them (deserializer len-gates the reads) */
+    put64(out, st.deleted_found);
+    put64(out, st.carved_found);
     return OK;
 }
 
@@ -332,6 +342,12 @@ u32 deserialize_session_state(const u8* data, size_t len, SessionState& st) {
     st.files_found = c.g64();
     st.bytes_scanned = c.g64();
     st.error_map_ranges = c.g32();
+    /* v2 appended counters - present only in 40-byte records; the 24-byte
+     * v1 layout (old sessions) leaves them zeroed */
+    if (!c.fail && len >= 32)
+        st.deleted_found = c.g64();
+    if (!c.fail && len >= 40)
+        st.carved_found = c.g64();
     return c.fail ? u32(0x50040001) : u32(OK);
 }
 

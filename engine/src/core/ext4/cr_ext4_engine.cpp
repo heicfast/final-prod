@@ -477,7 +477,7 @@ u32 scan_ext4(IStorageDevice* slice, const Ext4ScanFlags& flags, CancelToken* ca
 
     std::function<u32(u32, tree::FileNode*, int)> walk_dir = [&](u32 ino, tree::FileNode* parent,
                                                                  int depth) -> u32 {
-        if (cancel && cancel->cancelled())
+        if (cancel && cancel->checkpoint())
             return ERR_CANCELLED;
         if (depth > DIR_WALK_DEPTH || ctx.inode_budget == 0)
             return OK;
@@ -502,7 +502,7 @@ u32 scan_ext4(IStorageDevice* slice, const Ext4ScanFlags& flags, CancelToken* ca
                 continue;
             if (de.name == u"." || de.name == u"..")
                 continue;
-            if (cancel && cancel->cancelled())
+            if (cancel && cancel->checkpoint())
                 return ERR_CANCELLED;
             InodeView child;
             if (!read_inode(*ctx.v, de.inode, child) || child.mode == 0) {
@@ -586,7 +586,7 @@ u32 scan_ext4(IStorageDevice* slice, const Ext4ScanFlags& flags, CancelToken* ca
 
         const u64 sweep = v.sb.inodes_count < MAX_INODES ? v.sb.inodes_count : MAX_INODES;
         for (u32 ino = 1; ino <= sweep; ++ino) {
-            if (cancel && cancel->cancelled())
+            if (cancel && cancel->checkpoint())
                 return ERR_CANCELLED;
             if ((ino & 0xFFF) == 0 && progress)
                 (void)progress(ino, sweep, progress_user);
@@ -806,7 +806,7 @@ u32 scan_ext4(IStorageDevice* slice, const Ext4ScanFlags& flags, CancelToken* ca
              * transactions' data blocks */
             std::set<std::pair<u32, std::u16string>> seen;
             for (const Txn& t : txns) {
-                if (cancel && cancel->cancelled())
+                if (cancel && cancel->checkpoint())
                     break;
                 if (!committed.count(t.sequence))
                     continue; /* uncommitted tail: not durable */

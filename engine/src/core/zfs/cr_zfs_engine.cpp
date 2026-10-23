@@ -1171,7 +1171,7 @@ u32 scan_zfs(IStorageDevice* slice, const ZfsScanFlags& flags, CancelToken* canc
     std::vector<WalkOut> datasets;
     std::function<void(u64, const std::u16string&, int)> walk_dir =
         [&](u64 dsl_dir_obj, const std::u16string& prefix, int depth) {
-            if (depth > MAX_DATASET_DEPTH || (cancel && cancel->cancelled()))
+            if (depth > MAX_DATASET_DEPTH || (cancel && cancel->checkpoint()))
                 return;
             Dnode dn;
             if (!mos.read_dnode(dsl_dir_obj, dn))
@@ -1213,7 +1213,7 @@ u32 scan_zfs(IStorageDevice* slice, const ZfsScanFlags& flags, CancelToken* canc
     for (char ch : (cfg.valid && !cfg.pool_name.empty() ? cfg.pool_name : std::string("pool")))
         pool_display_.push_back(u16(u8(ch)));
     for (const auto& ds : datasets) {
-        if (cancel && cancel->cancelled())
+        if (cancel && cancel->checkpoint())
             return ERR_CANCELLED;
         ObjSet zpl;
         if (!zpl.load(&v, ds.ds_bp.data()))
@@ -1317,7 +1317,7 @@ u32 scan_zfs(IStorageDevice* slice, const ZfsScanFlags& flags, CancelToken* canc
             if (!read_zap(v, zpl, dir_obj, entries))
                 return;
             for (const auto& e : entries) {
-                if (cancel && cancel->cancelled())
+                if (cancel && cancel->checkpoint())
                     return;
                 if (e.name == "." || e.name == "..")
                     continue;

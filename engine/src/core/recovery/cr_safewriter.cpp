@@ -162,7 +162,7 @@ u32 SafeWriter::recover_item(QueueItem& it, CancelToken* cancel, WriterStats& st
     size_t ext_i = 0;
     u64 ext_pos = 0;
     while (done < total) {
-        if (cancel && cancel->cancelled()) {
+        if (cancel && cancel->checkpoint()) {
             io_.close(it.item_id);
             it.state = ItemState::Error;
             it.error = ERR_CANCELLED;

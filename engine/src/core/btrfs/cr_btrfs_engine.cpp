@@ -246,7 +246,7 @@ bool walk_tree(Volume& v, u64 root_logical, CancelToken* cancel,
     std::vector<u64> pending{root_logical};
     std::set<u64> visited;
     while (!pending.empty()) {
-        if (cancel && cancel->cancelled())
+        if (cancel && cancel->checkpoint())
             return false;
         const u64 logical = pending.back();
         pending.pop_back();
@@ -561,7 +561,7 @@ u32 scan_btrfs(IStorageDevice* slice, const BtrfsScanFlags& flags, CancelToken* 
     /* 5. per-subvolume FS tree walk: inodes + dir entries + extents */
     u64 subvol_index = 0;
     for (const auto& sv : subvols) {
-        if (cancel && cancel->cancelled())
+        if (cancel && cancel->checkpoint())
             return ERR_CANCELLED;
         ++subvol_index;
         char role[32];
@@ -673,7 +673,7 @@ u32 scan_btrfs(IStorageDevice* slice, const BtrfsScanFlags& flags, CancelToken* 
                 if (dit == dirs.end())
                     return;
                 for (const auto& de : dit->second) {
-                    if (cancel && cancel->cancelled())
+                    if (cancel && cancel->checkpoint())
                         return;
                     if (de.name == u"." || de.name == u"..")
                         continue;

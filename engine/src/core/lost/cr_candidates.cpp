@@ -203,7 +203,7 @@ u32 discover(IStorageDevice* disk, const std::vector<table::PartitionInfo>& know
      * the 8-byte OEM region - one window fetch covers 128 sectors */
     u64 win_bytes = 64 * 1024;
     for (u64 base = 0; base < total; base += win_bytes) {
-        if (cancel && cancel->cancelled())
+        if (cancel && cancel->checkpoint())
             return ERR_CANCELLED;
         if (progress && !progress(base, total, progress_user))
             return ERR_CANCELLED;

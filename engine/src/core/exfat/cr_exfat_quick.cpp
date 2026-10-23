@@ -134,6 +134,9 @@ u64 exfat_time_to_unix100(u32 ts, u8 tz) {
 struct ScanCtx {
     IStorageDevice* dev;
     CancelToken* cancel = nullptr; /* P2-8 */
+    bool (*progress)(u64, u64, void*) = nullptr; /* live progress (G-04) */
+    void* progress_user = nullptr;
+    u64 dentries_done = 0; /* cumulative dentries examined (progress unit) */
     ExfatParams p;
     ExfatFat fat;
     Bitmap bitmap;
@@ -208,12 +211,18 @@ void recurse_dir(ScanCtx& ctx, u32 first, bool deleted, tree::FileNode* host_nod
 
 void walk_entries(ScanCtx& ctx, const std::vector<u8>& buf, bool deleted_context,
                   tree::FileNode* parent_host, u32 depth) {
-    if (buf.empty() || (ctx.cancel && ctx.cancel->cancelled())) /* P2-8 */
+    if (buf.empty() || (ctx.cancel && ctx.cancel->checkpoint())) /* P2-8 */
         return;
     (void)deleted_context; /* host selection now driven by parent_host */
     const size_t count = buf.size() / 32;
     size_t i = 0;
     while (i < count) {
+        /* live progress (G-04): one dentry examined per iteration - honest
+         * cumulative counts; the orchestrator clamps permille monotonic. */
+        ++ctx.dentries_done;
+        if (ctx.progress && (ctx.dentries_done & 63) == 0)
+            (void)ctx.progress(ctx.dentries_done, ctx.dentries_done + (count - i),
+                               ctx.progress_user);
         const u8* f = buf.data() + i * 32;
         const u8 raw_type = f[0];
         if (raw_type == TYPE_NONE)
@@ -423,6 +432,8 @@ void walk_entries(ScanCtx& ctx, const std::vector<u8>& buf, bool deleted_context
         }
         ++i; /* unknown dentry type: skip */
     }
+    if (ctx.progress && count)
+        (void)ctx.progress(ctx.dentries_done, ctx.dentries_done, ctx.progress_user);
 }
 
 } // namespace
@@ -442,6 +453,8 @@ u32 scan_exfat(IStorageDevice* slice, const ExfatScanFlags& flags, CancelToken* 
 
     ScanCtx ctx;
     ctx.cancel = cancel; /* P2-8: cancellable walk */
+    ctx.progress = progress;
+    ctx.progress_user = progress_user;
     ctx.dev = slice;
     ctx.p = p;
     ctx.flags = flags;
@@ -468,6 +481,8 @@ u32 scan_exfat(IStorageDevice* slice, const ExfatScanFlags& flags, CancelToken* 
     /* root directory (chain from FAT; single-cluster fallback) */
     if (p.first_cluster_of_root >= 2)
         recurse_dir(ctx, p.first_cluster_of_root, false, nullptr, 0);
+    if (ctx.cancel && ctx.cancel->checkpoint())
+        return ERR_CANCELLED;
 
     if (progress)
         (void)progress(1, 1, progress_user);

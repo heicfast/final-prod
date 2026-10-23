@@ -289,12 +289,18 @@ u32 scan_window_index(ScanCtx& ctx, u64 wi, std::set<u64>& emitted_at) {
     u64 want = avail < WINDOW + OVERLAP ? avail : WINDOW + OVERLAP;
     if (want < 16)
         return OK;
+    /* honest fill-rate accounting (G-05): the OVERLAP tail re-reads the
+     * next window's head, so attribute only the window's OWN range
+     * [base, base+WINDOW) - bytes_scanned must never exceed the device.
+     * The last window's avail is always <= WINDOW (window_count =
+     * ceil(total/WINDOW)), so the sum of attributed ranges == total. */
+    const u64 counted = want < WINDOW ? want : WINDOW;
     std::vector<u8> win(static_cast<size_t>(want), 0);
     if (ctx.slice->read_at(base, win.data(), u32(want)) != OK) {
-        ctx.bytes_scanned.fetch_add(want, std::memory_order_relaxed);
+        ctx.bytes_scanned.fetch_add(counted, std::memory_order_relaxed);
         return OK;
     }
-    ctx.bytes_scanned.fetch_add(want, std::memory_order_relaxed);
+    ctx.bytes_scanned.fetch_add(counted, std::memory_order_relaxed);
     return scan_one_window(ctx, base, win.data(), want, emitted_at);
 }
 
@@ -339,7 +345,7 @@ u32 carve_slice(IStorageDevice* slice, const CarveFlags& flags, CancelToken* can
         /* single-threaded path: identical semantics to the original scan */
         std::set<u64> emitted_at;
         for (u64 wi = 0; wi < window_count; ++wi) {
-            if (cancel && cancel->cancelled())
+            if (cancel && cancel->checkpoint())
                 return ERR_CANCELLED;
             if (progress && !progress(wi * WINDOW, ctx.total, progress_user))
                 return ERR_CANCELLED;
@@ -362,6 +368,10 @@ u32 carve_slice(IStorageDevice* slice, const CarveFlags& flags, CancelToken* can
         } watch_state{cancel, &pool};
 
         auto worker_job = [&](u64 wi) -> u32 {
+            /* pause-aware gate (G-07): a PausableToken freezes carve workers
+             * here; plain tokens behave exactly like the old poll. */
+            if (cancel && cancel->checkpoint())
+                return ERR_CANCELLED;
             if (pool.aborted())
                 return ERR_CANCELLED;
             std::set<u64> emitted_at; /* per-worker overlap set */

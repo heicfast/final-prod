@@ -57,12 +57,19 @@ struct VolumeInfo {
 u32 serialize_volume_info(const VolumeInfo& vi, std::vector<u8>& out);
 u32 deserialize_volume_info(const u8* data, size_t len, VolumeInfo& vi);
 
-/* ---- session state (REC_SESSION_STATE payload) ---- */
+/* ---- session state (REC_SESSION_STATE payload) ----
+ * Wire layout v2 (appended fields; the deserializer accepts both the
+ * 24-byte v1 layout and the 40-byte v2 layout - old sessions load with
+ * zeroed counters, new sessions restore the full found-set): v1 =
+ * mask/files/bytes/ranges; v2 appends deleted_found, carved_found so a
+ * reloaded session reports truthful totals without re-running stages. */
 struct SessionState {
     u32 stage_done_mask = 0; /* bit0 quick, bit1 deep, bit2 carve */
     u64 files_found = 0;
     u64 bytes_scanned = 0;
     u32 error_map_ranges = 0;
+    u64 deleted_found = 0; /* v2 (appended): restored on load */
+    u64 carved_found = 0;  /* v2 (appended): restored on load */
 };
 u32 serialize_session_state(const SessionState& st, std::vector<u8>& out);
 u32 deserialize_session_state(const u8* data, size_t len, SessionState& st);
@@ -77,6 +84,23 @@ struct PartitionContext {
 };
 u32 serialize_partition_context(const PartitionContext& pc, std::vector<u8>& out);
 u32 deserialize_partition_context(const u8* data, size_t len, PartitionContext& pc);
+
+/* ---- restored session summary (G-14/G-23: what load_session gives back
+ * beyond the tree itself). Mirrors VolumeInfo on the wire; fs_family is
+ * the orchestrator FsFamily the scan ran with (the wire value's true
+ * meaning - see cr_scan.cpp save path). */
+struct VolumeSessionInfo {
+    u32 fs_family = 0;      /* orchestrator::FsFamily as stored (D-1 truth) */
+    u32 stage_done_mask = 0; /* actual completion mask (quick|deep|carve) */
+    u32 configured_mask = 0; /* stages the original run was configured for */
+    u64 slice_offset = 0;
+    u64 slice_bytes = 0;
+    u32 logical_sector = 0;
+    u32 physical_sector = 0;
+    char label[32] = {0}; /* utf8, NUL padded */
+    u64 scanned_bytes = 0;
+    u64 elapsed_ms = 0;
+};
 
 } // namespace session
 } // namespace cr

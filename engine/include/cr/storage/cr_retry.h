@@ -38,8 +38,13 @@ public:
     const Geometry& geometry() const override { return inner_->geometry(); }
     u64 size() const override { return inner_->size(); }
 
-    /* The accumulated read-failure map for this scan pass. */
+    /* The accumulated read-failure map for this scan pass. Reference
+     * semantics: valid for the post-run merge on the scan thread only. */
     const ReadErrorMap& error_map() const;
+
+    /* Thread-safe snapshot (G-06): a VALUE copy under the internal lock -
+     * safe to call from any thread while workers record failures. */
+    ReadErrorMap error_map_copy() const;
 
     /* Read-only access to the wrapped device (e.g. slice construction). */
     IStorageDevice* inner() const { return inner_.get(); }

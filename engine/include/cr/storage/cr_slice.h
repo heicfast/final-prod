@@ -34,6 +34,7 @@ public:
 
     u32 read_at(u64 offset, void* buffer, u32 length) override;
     const Geometry& geometry() const override { return geom_; }
+    u64 absolute_base() const override { return start_; }
 
     IStorageDevice* parent() const { return parent_; }
     u64 start() const { return start_; }
@@ -59,6 +60,7 @@ public:
         return target_->read_at(offset, buffer, length);
     }
     const Geometry& geometry() const override { return target_->geometry(); }
+    u64 absolute_base() const override { return target_->absolute_base(); }
 
     static std::unique_ptr<SliceShim> shim(IStorageDevice* t) {
         return std::unique_ptr<SliceShim>(new SliceShim(t));

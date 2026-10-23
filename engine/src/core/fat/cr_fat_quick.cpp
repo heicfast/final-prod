@@ -65,6 +65,10 @@ struct EmitCtx {
     tree::FullNode* root_deleted;
     tree::FullNode* root_lost;
     FatScanStats* stats;
+    CancelToken* cancel = nullptr;         /* pause-aware walk (G-07) */
+    bool (*progress)(u64, u64, void*) = nullptr; /* live progress (G-04) */
+    void* progress_user = nullptr;
+    u64 dentries_done = 0; /* cumulative dentries examined (progress unit) */
     std::set<u64> visited_dirs; /* cycle guard for dir recursion */
     int depth = 0;
     constexpr static int MAX_DEPTH = 64;
@@ -111,9 +115,18 @@ void walk_dir_entries(EmitCtx& ctx, const DirBuffer& buf, tree::FileNode* host,
                       tree::FullNode* deleted_host) {
     if (!buf.valid || buf.data.empty())
         return;
+    /* pause-aware gate + cancel poll per directory (G-07) */
+    if (ctx.cancel && ctx.cancel->checkpoint())
+        return;
     const size_t count = buf.data.size() / 32;
     std::vector<const LfnEntry*> pending_lfn;
     for (size_t i = 0; i < count; ++i) {
+        /* live progress (G-04): one dentry examined per iteration - honest
+         * cumulative counts; the orchestrator clamps permille monotonic. */
+        ++ctx.dentries_done;
+        if (ctx.progress && (ctx.dentries_done & 63) == 0)
+            (void)ctx.progress(ctx.dentries_done, ctx.dentries_done + (count - i - 1),
+                               ctx.progress_user);
         const u8* raw = buf.data.data() + i * 32;
         const DirEntry* e = reinterpret_cast<const DirEntry*>(raw);
         const u8 first = e->name[0];
@@ -162,6 +175,8 @@ void walk_dir_entries(EmitCtx& ctx, const DirBuffer& buf, tree::FileNode* host,
 
         emit_entry(ctx, *e, name, deleted, host, deleted_host);
     }
+    if (ctx.progress && count)
+        (void)ctx.progress(ctx.dentries_done, ctx.dentries_done, ctx.progress_user);
 }
 
 void emit_entry(EmitCtx& ctx, const DirEntry& e, const std::u16string& name, bool deleted,
@@ -301,6 +316,9 @@ u32 scan_fat(IStorageDevice* slice, const FatScanFlags& flags, CancelToken* canc
     ctx.root_deleted = root_deleted;
     ctx.root_lost = root_lost;
     ctx.stats = &stats;
+    ctx.cancel = cancel;
+    ctx.progress = progress;
+    ctx.progress_user = progress_user;
 
     /* root directory: FAT12/16 fixed area; FAT32 chain from root_cluster */
     if (p.flavor != Flavor::Fat32) {
@@ -311,12 +329,16 @@ u32 scan_fat(IStorageDevice* slice, const FatScanFlags& flags, CancelToken* canc
             return ERR_READ_FAILED;
         root.valid = true;
         walk_dir_entries(ctx, root, root_active, root_deleted);
+        if (ctx.cancel && ctx.cancel->checkpoint())
+            return ERR_CANCELLED;
     } else {
         if (p.root_cluster < 2 || p.root_cluster > table.max_cluster())
             return ERR_BAD_PARAMETER;
         recurse_dir(ctx, p.root_cluster, nullptr, false);
         /* recurse_dir inserted the root cluster into visited_dirs; children
          * of the volume root attach under root_active directly */
+        if (ctx.cancel && ctx.cancel->checkpoint())
+            return ERR_CANCELLED;
     }
     if (progress)
         (void)progress(1, 1, progress_user);

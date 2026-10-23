@@ -32,6 +32,11 @@ const ReadErrorMap& RetryingDevice::error_map() const {
     return map_;
 }
 
+ReadErrorMap RetryingDevice::error_map_copy() const {
+    std::lock_guard<std::mutex> lock(map_mutex_);
+    return map_; /* value copy under the lock: race-free snapshot (G-06) */
+}
+
 u64 RetryingDevice::failed_bytes() const {
     std::lock_guard<std::mutex> lock(map_mutex_);
     return failed_bytes_;

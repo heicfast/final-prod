@@ -135,6 +135,9 @@ struct Engine {
     }
 
     bool cancelled() const { return cancel && cancel->cancelled(); }
+    /* pause-aware gate for walk loop heads (never used in progress
+     * callbacks - those must not block; RE G-07) */
+    bool cancel_gate() const { return cancel && cancel->checkpoint(); }
 };
 
 /* ---- node parsing (pages after the 0x50 header, or embedded roots) ---- */
@@ -224,7 +227,7 @@ EntryView entry_at(const NodeView& nv, u32 i) {
 bool walk_table(Engine& e, const u64 root_lcns[4], u32 depth,
                 const std::function<bool(const EntryView&)>& cb, std::set<u64>& visited,
                 u32& node_count) {
-    if (depth > MAX_TABLE_DEPTH || node_count > MAX_NODES_PER_TABLE || e.cancelled())
+    if (depth > MAX_TABLE_DEPTH || node_count > MAX_NODES_PER_TABLE || e.cancel_gate())
         return false;
     const u64 first = e.translate_cluster(root_lcns[0]);
     if (first == 0 || !visited.insert(first).second)
@@ -673,7 +676,7 @@ u32 scan_refs(IStorageDevice* slice, const RefsScanFlags& flags, CancelToken* ca
 
         /* Walk one directory table emitting rows under parent. */
         void walk_dir(u64 table_id, tree::FileNode* parent, u32 depth) {
-            if (depth > MAX_TABLE_DEPTH || e.cancelled())
+            if (depth > MAX_TABLE_DEPTH || e.cancel_gate())
                 return;
             auto it = tables.find(table_id);
             if (it == tables.end())
