@@ -267,7 +267,6 @@ u32 walk_mft(NtfsVolume* vol, VolumeBitmap* bitmap, const WalkerFlags& flags, Ca
         tree::FileTimes si_times{};
         tree::FileProperties* scratch = nullptr;
         std::vector<u8> unnamed_resident;
-        u64 data_real_size = 0; /* primary unnamed $DATA: authoritative size */
         if (build_props(vol, attrs, record_no, rh.flags, scratch, attrlist, names, data_runs,
                         has_data, i30_runs, has_i30, si_times, has_si, unnamed_resident,
                         data_real_size) != OK) {
