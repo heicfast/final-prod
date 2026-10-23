@@ -210,8 +210,15 @@ jobs:
         run: |
           Write-Host "partition map before:"
           Get-Partition -DiskNumber $env:DISK | Format-Table PartitionNumber, DriveLetter, Size, Type | Out-String | Write-Host
-          Remove-Partition -DiskNumber $env:DISK -PartitionNumber $env:EXFAT_PART -Confirm:$false
-          if ($LASTEXITCODE -ne 0) { exit 1 }
+          # Remove-Partition is a CMDLET: it never sets $LASTEXITCODE (a
+          # stale value from an earlier external command made this check
+          # exit 1 unconditionally) - use -ErrorAction Stop + try/catch.
+          try {
+            Remove-Partition -DiskNumber $env:DISK -PartitionNumber $env:EXFAT_PART -Confirm:$false -ErrorAction Stop
+          } catch {
+            Write-Host "Remove-Partition failed: $_"
+            exit 1
+          }
           Start-Sleep -Seconds 2
           Write-Host "partition map after:"
           Get-Partition -DiskNumber $env:DISK | Format-Table PartitionNumber, DriveLetter, Size, Type | Out-String | Write-Host
