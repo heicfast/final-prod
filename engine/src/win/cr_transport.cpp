@@ -32,6 +32,29 @@ namespace {
 /* (W4, AUDIT-ARCH 8c #3: a local u32_from_bytes_le re-implementation was
  * deleted here - the identical cr_types.h fold is used unqualified.) */
 
+/* Shared OVERLAPPED read completion (W3-10, AUDIT-ARCH 8c #1): one
+ * spelling of the ReadFile + ERROR_IO_PENDING + GetOverlappedResult
+ * dance with the F11 unscale - the driver reports Information =
+ * Length * 512 on RDA handles (kLegacyInformationScale); direct
+ * handles and any future true-count RDA contract return plain len. */
+u32 overlapped_read(HANDLE h, u64 off, void* buf, u32 len, bool rda_scaled) {
+    if (len == 0)
+        return OK;
+    OVERLAPPED ov = {};
+    ov.Offset = u32(off);
+    ov.OffsetHigh = u32(off >> 32);
+    DWORD got = 0;
+    if (!ReadFile(h, buf, len, &got, &ov)) {
+        if (GetLastError() != ERROR_IO_PENDING || !GetOverlappedResult(h, &ov, &got, TRUE))
+            return ERR_READ_FAILED;
+    }
+    if (got == len)
+        return OK;
+    if (rda_scaled && got == len * rda::kLegacyInformationScale)
+        return OK; /* F11 contract */
+    return ERR_READ_FAILED;
+}
+
 /* Exact byte length for volume AND disk handles (IOCTL_DISK_GET_LENGTH_INFO
  * works on both; DISK_GEOMETRY_EX rounds to the disk geometry). */
 bool probe_length(HANDLE h, u64* out) {
@@ -110,20 +133,7 @@ public:
             return ERR_OPEN_FAILED;
         if (off > size() || len > size() - off)
             return ERR_RANGE_OUT_OF_BOUNDS;
-        OVERLAPPED ov = {};
-        ov.Offset = u32(off);
-        ov.OffsetHigh = u32(off >> 32);
-        DWORD got = 0;
-        if (!ReadFile(h_, buf, len, &got, &ov)) {
-            const DWORD e = GetLastError();
-            if (e == ERROR_IO_PENDING) {
-                if (!GetOverlappedResult(h_, &ov, &got, TRUE))
-                    return ERR_READ_FAILED;
-            } else {
-                return ERR_READ_FAILED;
-            }
-        }
-        return got == len ? OK : ERR_READ_FAILED;
+        return overlapped_read(h_, off, buf, len, false);
     }
     const Geometry& geometry() const override { return geom_; }
     u64 size() const { return geom_.total_bytes; }
@@ -173,27 +183,7 @@ public:
             return ERR_OPEN_FAILED;
         if (off > size() || len > size() - off)
             return ERR_RANGE_OUT_OF_BOUNDS;
-        if (len == 0)
-            return OK;
-        OVERLAPPED ov = {};
-        ov.Offset = u32(off);
-        ov.OffsetHigh = u32(off >> 32);
-        DWORD got = 0;
-        if (!ReadFile(h_, buf, len, &got, &ov)) {
-            const DWORD e = GetLastError();
-            if (e == ERROR_IO_PENDING) {
-                if (!GetOverlappedResult(h_, &ov, &got, TRUE))
-                    return ERR_READ_FAILED;
-            } else {
-                return ERR_READ_FAILED;
-            }
-        }
-        /* F11 contract: the driver reports Information = Length * 512. */
-        if (got == len * rda::kLegacyInformationScale)
-            return OK;
-        if (got == len)
-            return OK; /* future driver contract change: true counts */
-        return ERR_READ_FAILED;
+        return overlapped_read(h_, off, buf, len, true);
     }
     const Geometry& geometry() const override { return geom_; }
     u64 size() const { return geom_.total_bytes; }
@@ -673,29 +663,7 @@ public:
             return ERR_OPEN_FAILED;
         if (off > size() || len > size() - off)
             return ERR_RANGE_OUT_OF_BOUNDS;
-        if (len == 0)
-            return OK;
-        OVERLAPPED ov = {};
-        ov.Offset = u32(off);
-        ov.OffsetHigh = u32(off >> 32);
-        DWORD got = 0;
-        if (!ReadFile(h_, buf, len, &got, &ov)) {
-            const DWORD e = GetLastError();
-            if (e == ERROR_IO_PENDING) {
-                if (!GetOverlappedResult(h_, &ov, &got, TRUE))
-                    return ERR_READ_FAILED;
-            } else {
-                return ERR_READ_FAILED;
-            }
-        }
-        if (!via_rda_)
-            return got == len ? OK : ERR_READ_FAILED;
-        /* F11 contract: the driver reports Information = Length * 512. */
-        if (got == len * rda::kLegacyInformationScale)
-            return OK;
-        if (got == len)
-            return OK; /* future driver contract change: true counts */
-        return ERR_READ_FAILED;
+        return overlapped_read(h_, off, buf, len, via_rda_);
     }
 
     u32 write_at(u64 off, const void* buf, u32 len) override {
