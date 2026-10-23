@@ -953,3 +953,56 @@ Stage Summary:
   G-01/G-02 (their UI plan).
 - This session will then close out: W3-9a/b (SESS identity card + compress rule),
   W3-10 leftovers (dispatch dedup, OVERLAPPED dedup), W6 (Win7 pins + release tag).
+
+---
+Task ID: S5-CONT-3
+Agent: Session-5 continuation (S5-CONT-2 line, main)
+Task: P1 correctness wave + benchmark truth wave per the CORE-GAP-LIST
+closure protocol (coordinated with PARITY-W4: they own W5 docs, W3-9a/b,
+W3-10, W6; this agent owns P1s, BENCH-1..5, G-01/G-02, tree --json).
+
+Work Log:
+- GAP-P1-1 (464d8e5): NTFS compressed $DATA recovers real content. kLznt1
+  codec in cr_decomp (MS-XCA 3.3 tagged groups, dynamic split 12..4,
+  full bounds discipline) PROVEN against the specification's own 142-byte
+  documented vector (Lznt1MsXcaDocumentedVector decodes byte-exact).
+  Engine: build_props surfaces data_compressed/data_cunit (encryption
+  refused per F13); expand_compressed_data walks the per-unit envelope
+  (hdr==0 hole / bit15 raw / else LZNT1 {psize=(hdr&0xFFF)+1}); failure
+  => no extents (zero-fill, never raw envelope bytes = the silent
+  corruption). WalkStats.compressed_blocks/failed. XPRESS/LZX registered
+  as a deliberate exclusion (NTFS $DATA is LZNT1-only; WOF payload lives
+  in reparse data - og parity: NTFSSearchDLL is LZNT1-only too).
+- GAP-P1-2/P1-3 (632edc4): lzjb source bound (every read bounded vs
+  psize, documented divergence from OpenZFS which trusts checksums);
+  recycle $I/$R pairing fixed for the REAL Windows convention ($R keeps
+  the original extension, $I does not - token = first-dot-stripped) +
+  post-walk fixup for $I-at-higher-record-number (bench 0/26 -> the
+  fixture asserts 3 remaps incl. the post-pass one). Codec round-trip
+  tests (gzip + reference lzjb) close the C2-audit test gap.
+- GAP-CI-1 (0a28a23): tests/unit/test_tmpdir.hpp - MSVC does not resolve
+  /tmp; all three test fixtures + the ci.yml validator consumer go
+  through temp_directory_path()/tempfile.gettempdir().
+- GAP-P1-5 + GAP-BENCH-1..5 (837a543): elevation probe (TokenElevation,
+  UAC-accurate) replaces the four '(admin?)' guesses; scorers decode the
+  frozen numeric CSV enums (deleted 2/3 were classified active via the
+  accidental '1' collision); keep gate active-only; per-result precision
+  accounting; compare_report dialect normalization (numeric vs og words -
+  fixes the 536-hidden-carved-rows report distortion); comparison service
+  renamed rdatest->rda (the device name derives from the SERVICE name -
+  the comparison never exercised our driver) + hard transport assertion
+  in the scan log; og .rsf contamination guard (pre-launch snapshot).
+- Earlier this session: f93f38e (3-lane CI restoration: MSVC C4267, TSan
+  budget scaling, the preview short-window OOB class the CI fuzzer found
+  live - strict fetch/fetch_any window contract + WAV fmt-window fix +
+  DOCX raw-deflate -15 + honest zip labels + malformed-caps advance + 6
+  new tests); 3267d26 (W2-9 FAT per-step cancel, W2-19 GPT two-step
+  salvage per the decompile, W2-18 writer Salvaged outcome + Totals.
+
+Stage Summary:
+- Closes: GAP-CI-1, GAP-P1-1..5, GAP-BENCH-1..5, GAP-W2-9, GAP-W2-19,
+  (W2-18 was GAP-P1-4).
+- Suite: 213/213 gcc -Werror + ASan green; MS-XCA vector byte-exact.
+- Remaining for this agent: G-02 snapshot (cr_snapshot, the UI-plan
+  shape), G-01 C-ABI shim (cr_ui), tree --json (GAP-TREE-JSON), #10
+  remainder (README capability matrix lives with PARITY-W4's wave).
