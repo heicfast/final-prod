@@ -1,6 +1,7 @@
 # UI-Readiness Plan — closing G-01…G-13 (issues #1–#10)
 
-> **Status: PLAN.** Authored by the core UI-readiness sub-agent from a line-by-line
+> **Status: IMPLEMENTED (G-01/G-02/G-02b landed).** Authored by the core
+> UI-readiness sub-agent from a line-by-line
 > read of this repo @ `2473c03`, the `rda-wizard` contract (`docs/CORE-CONTRACT.md`
 > §2/§14 + `AUDIT-UI.md` §3 @ `015392b`), the RE corpus (`easeus-drw-research` @
 > `18d6f14`, see `/reports/RE-PARITY.md` surface report), and the GitHub issues
@@ -43,6 +44,11 @@ is an improvement beyond the og** (the og never resumes an interrupted scan).
 ## Issue → design → acceptance → commit plan
 
 ### #1 (G-01) — `cr_ui` C-ABI shim DLL
+
+**Status: LANDED (2a93c45).** 57-export surface (include/cr/cr_ui.h),
+cr_ui_tests + cr_ui_abi_check (plain-C full lifecycle) green plain+ASan;
+every acceptance item below is exercised except the Windows-lane DLL
+smoke + PE import gate, which ride the CI windows job (tracked below).
 
 **Design.** New CMake target `cr_ui` (SHARED library: `cr_ui.dll` on Windows,
 `libcr_ui.so` on Linux) over `cr_core` (+ `cr_win` on Windows). Public header

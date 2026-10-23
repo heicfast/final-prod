@@ -1096,3 +1096,55 @@ Stage Summary:
 - Remaining repo-wide (PARITY-W4's lane): W6 Win7 user-mode import gate
   pins, the release tag + artifacts, GAP-CI-2 lane watching, the #10
   umbrella disposition (README matrix pieces live in their W5 wave).
+
+---
+
+## Session 6 — WIRE: the UI-core connection (G-01 landed)
+
+**Task**: user directive: "how the og architecture and codebase connects wire
+core with ui check it out, its something like shib api or something? our ui
+wizard docs says its unavailable and uses cli for now, verify and validate
+this, independently, and implement this if og architecture used this and we
+have not implemented so, top priority."
+
+**Verification (independent, corpus-direct)**:
+- OG wire = IN-PROCESS C-export factory binding: DRWUI LoadLibraryW's the 10
+  *SearchDLL.dll engines, GetProcAddress'es EUCreate<FS>Searcher /
+  EUCreate<FS>QuickSearcher -> ICompleteFileSystemSearchController pointers
+  (searchdll-family sec.1; DRWUI-exe sec.9.2: loader FUN_14056c0d0, map
+  FUN_140577d40). MOM (.mo) for partition ops. IPC only auxiliary (BitLocker
+  FVE pipe, preview TCP/zmq). "shib api" = the SHIM = our GAP-G-01.
+- Wizard docs verified: ADR-1 "CLI-subprocess now, native shim later" exists
+  precisely because G-01 was open.
+
+**Implementation (2a93c45, rebased over the parallel S5-CONT-4 push)**:
+- include/cr/cr_ui.h: C11, 57 exports, cr::Err space, zero-init-safe
+  configs, two-call pattern, thread-local last_error, ABI version policy.
+- src/ui/cr_ui.cpp: binding layer only; CLI-exact semantics (identity card,
+  LDM resolver, checkpoint sink, BitLocker gate, [F12] arming, plan() walk);
+  ImageFileDevice + POSIX FileDestIo for non-win hosts; win surfaces answer
+  ERR_UNSUPPORTED elsewhere (documented platform truth).
+- tests: cr_ui_tests (9 gtests) + cr_ui_abi_check (plain C, full lifecycle).
+  Separate exes from cr_tests (the .so embeds cr_core -> ASan ODR if both
+  link into one binary).
+- Validation: 228/228 plain + ASan (leak-detect) green; C check exit 0;
+  clang-format-18 clean. Bugs caught by the acceptance loop and fixed:
+  u8_to_u16 ASCII->U+FFFD (every ASCII path mangled), subtree file-node
+  no-op, snapshot-subtree root-walk dead branch.
+
+**Parallel-collision resolution**: S5-CONT-4 landed e79d23f (independent G-01)
+in the same window. Resolved on rebase to THIS implementation (the
+UI-READINESS-PLAN-#1-conformant one): their variant invented CR_UI_CANCELLED
+0x30000001 outside the cr::Err space, made zero-init configs invalid, and
+used JSON where the plan mandates flat structs; their MSVC consumer-flag
+guard and Win7 no-std::filesystem posture were absorbed; their
+tools/cr_ui_abi_check.c (written against their header) was superseded by
+tests/ui_abi_check.c. Their G-02/TREE-JSON worklog hash citations (28309b2 /
+57403a0) do not resolve in main; the features themselves are code-verified
+(fc656d2 / cmd_tree --json) and the register rows now cite the real hashes.
+
+**Register maintenance (this push)**: G-01 CLOSED (2a93c45); stale rows
+flipped with verified citations: P1-1 (464d8e5), P1-5 + BENCH-1..5 (837a543),
+G-02/G-02b (fc656d2), TREE-JSON (code-verified). PARITY-DELTAS: D-24 updated
+(shim half of the ADR-1 hedge landed) + D-45 added. README architecture
+block + UI-READINESS-PLAN statuses updated.

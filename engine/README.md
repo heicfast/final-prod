@@ -34,10 +34,12 @@ repair, and grammar-aware carving.
 ## Architecture
 
 ```
-rrecov CLI / (future wizard UI)
-   │
-   │  C++20, no engine DLLs — in-process registry (crCreate* factories)
-   ▼
+rrecov CLI ──────────────── cr_ui C-ABI shim (cr_ui.dll / libcr_ui.so, G-01)
+   │                            │  wizard / any C host: opaque handles +
+   │  C++20, in-process core     │  cr_ui_* factories + C callbacks — the og's
+   │  (engines are never DLLs;   │  in-process EUCreate*Searcher factory
+   │   the shim binds, not hosts)│  binding (corpus DRWUI-exe sec. 9.2), flat-C
+   ▼                            ▼
 ┌────────────────────────────────────────────────────────────────────┐
 │ orchestration: ScanController (quick→deep→carve, merge, filter)    │
 │ results: FileNode graph (dual-class: FileNode/FullNode)            │

@@ -546,6 +546,13 @@ Split verdict — three sub-claims:
 - **RISK:** User-visible vs og: no mid-scan recovery, no live tree, no pause —
   each stated truthfully and tracked (G-02/G-03/G-07).
 - **VERDICT: ACCEPTED** (both sides cited; degradations enumerated, not hidden).
+  *Update (G-01 landed, 2a93c45):* the "native shim later" half of the ADR-1
+  hedge now exists — `cr_ui.dll`/`libcr_ui.so`, the og's in-process
+  factory-binding architecture (see D-45). The wizard may swap
+  IScanService/ISessionService/IRecoveryService to in-process bindings
+  behind the same Core interfaces; the CLI-subprocess mode remains valid
+  (crash isolation) and stays the parity-tested default until the swap
+  lands.
   *Consistency note:* DESIGN-SYSTEM §12 lists "browse-while-scanning (DYN-scan
   §3)" among behaviors "kept from DRW because they are honest and good", while
   ADR-2 defers live results to stage boundaries — the "kept" claim is aspirational
@@ -922,6 +929,44 @@ Split verdict — three sub-claims:
   and REGISTER proven safety hardening.
 - **RISK:** documented per item above.
 - **VERDICT: ACCEPTED (appendix).**
+
+---
+
+### D-45 — cr_ui C-ABI shim: the og's in-process UI-engine binding, flat-C adapted (G-01)
+
+- **WHAT OG DOES:** DRWUI.exe binds the engines IN-PROCESS: LoadLibraryW of
+  the ten *SearchDLL.dll engines, GetProcAddress of
+  `EUCreate<FS>Searcher` / `EUCreate<FS>QuickSearcher` factories returning
+  controller interface pointers (`ICompleteFileSystemSearchController`
+  family); progress through UI models fed by engine event hooks; a separate
+  cooperative abort event. Evidence: `searchdll-family--architecture.md`
+  §1 (exports verified in all 9 DLLs), `DRWUI-exe--main-ui-architecture.md`
+  §9.2 (decompiled loader FUN_14056c0d0, factory map FUN_140577d40, RAW
+  callback registration via vtable+0x48); MOM module system for partition
+  ops (`mom-module-system--architecture.md` §1.1). NO CLI subprocess and NO
+  IPC on the UI-engine leg (pipes/sockets exist only for BitLocker FVE and
+  media preview).
+- **WHAT WE DO:** `cr_ui` shared library (include/cr/cr_ui.h, 2a93c45): the
+  same factory-binding architecture adapted to a C ABI — opaque handles for
+  the controller objects, `cr_ui_*` factories for the EUCreate* role, C
+  progress callbacks for the engine hooks, token functions for the abort
+  event. Every flow 1:1 with a CLI line (scan/tree/recover/health), so
+  CLI-parity remains the tested contract. Zero-init-safe configs (0 =
+  default, never "nothing matches" — the plan's ABI rule); u32 codes from
+  the SAME cr::Err space (no invented families); two-call size pattern;
+  thread-local last_error; catch-all per entry.
+- **WHY:** the wizard's ADR-1 hedge ("CLI-subprocess now, native shim
+  later") needed exactly this surface; the og's architecture is the
+  authority for what the binding layer looks like.
+- **RISK:** none claimed beyond the og: the shim is a binding, not an
+  engine (no engine logic in src/ui); crash isolation is LOST vs the
+  subprocess mode for in-process hosts — documented trade, both modes
+  remain available.
+- **VERDICT: MATCH (architecture) / EXCEEDS (surface breadth).** The og
+  exports per-FS factories; we export one orchestrator-level surface —
+  equivalent binding power (the orchestrator already dispatches engines),
+  documented as the deliberate adaptation. Validated: 9-test gtest suite +
+  plain-C full-lifecycle consumer, plain + ASan green.
 
 ---
 
