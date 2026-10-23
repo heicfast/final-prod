@@ -202,6 +202,7 @@ jobs:
       - name: Test-sign + install + verify the RDA driver (service 'rda')
         shell: pwsh
         run: |
+          $ErrorActionPreference = 'Stop'
           # hosted runners have SecureBoot off: a job-local self-signed cert in
           # Root+TrustedPublisher loads the driver without testsigning/reboot
           # (proven by the comparison-ours.yml runs this workflow supersedes)
@@ -232,12 +233,12 @@ jobs:
             Get-WinEvent -LogName System -MaxEvents 30 | Format-List | Out-String | Write-Host
             exit 1
           }
-          # verification: service state + device open + version IOCTL via rdacli
-          $info = @()
-          $info += (sc.exe query rda) -join ' '
-          $info += (& driver\rdacli.exe info) -join ' '
-          $info | Set-Content -Encoding utf8 driver-info.txt
-          Get-Content driver-info.txt | Write-Host
+          # verification: service state + \\.\RDA device open + version IOCTLs.
+          # (the release's rdacli.exe hardcodes the \\.\EPRDTDRV drop-in namespace;
+          # verify-driver.ps1 performs the equivalent proof on the namespace rrecov uses)
+          $ErrorActionPreference = 'Stop'
+          & bench\ours\verify-driver.ps1 -ServiceName rda -Device RDA -OutJson driver-info.json
+          if ($LASTEXITCODE -ne 0) { exit 1 }
 
       - name: Run the scenario matrix (ours)
         shell: pwsh
@@ -342,7 +343,7 @@ jobs:
             rrecov-sha.txt
             driver-sha.txt
             driver-pe.json
-            driver-info.txt
+            driver-info.json
           retention-days: 90
           if-no-files-found: error
 

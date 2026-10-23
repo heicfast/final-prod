@@ -492,7 +492,7 @@ function Invoke-MftCorrupt {
             }
         }
     } finally { $h.Close() }
-    return ([ordered]$result | ConvertTo-Json -Depth 5)
+    return ($result | ConvertTo-Json -Depth 5)
 }
 
 function Get-BenchNtfsGeometry {
