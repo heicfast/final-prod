@@ -65,11 +65,20 @@ interchangeable - the same property that let the reference product ship its
 
 ## 4. Threading model
 
-v0.1 is single-threaded per scan stage (cancel-checked loops). The stage
-weights (40/35/25) drive monotonic progress. The tree is arena-allocated
-with bulk destruction - million-node scans stay memory-disciplined. The
-orchestrator supports pause/resume through session persistence, not thread
-control (durable by construction).
+Scan stages run worker fanned-out where the engine supports it (fixed
+cancel-checked loops; cancel wakes paused waiters). The stage weights
+(40/35/25) drive monotonic progress. The tree is arena-allocated
+with bulk destruction - million-node scans stay memory-disciplined.
+
+**Pause/resume (G-07, D-3 corrected):** two cooperating layers.
+(1) LIVE pause: `PausableToken::pause()` parks scan threads at their
+loop-head `checkpoint()` calls (every engine polls), with the paused
+duration excluded from elapsed time (RE parity); cancel wakes parked
+waiters. (2) DURABLE resume: `ScanController::resume(session)` skips
+stages completed per the truthful `stage_done_mask` (stamped from ACTUAL
+completion at save time - never the configured mask), so a cancelled or
+crashed scan re-enters exactly where it stopped. Save-on-cancel: a
+cancelled run persists a resumable session (the CLI saves on cancel).
 
 ## 5. Error taxonomy
 

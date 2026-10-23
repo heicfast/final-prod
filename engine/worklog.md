@@ -712,3 +712,21 @@ Stage Summary:
   Btrfs chunk-tree uuid + inline extents, ReFS next-chains + MSB tests,
   ZFS gang tests, F-A1 P2 code items — all filed with evidence pointers
   in docs/PARITY-AUDIT.md §3 and issues #3/#5/#8/#10.
+
+---
+Task ID: UI-W2
+Agent: Core UI-Readiness Sub-Agent (session continuation)
+Task: Close G-08 (writer dest dirs + empty folders) and G-09 (recovery report JSON) per docs/UI-READINESS-PLAN.md.
+
+Work Log:
+- G-08 (commit 91053b0): DestIo::mkdir (pure virtual; Win32 recursive CreateDirectoryW chain, already-exists tolerated, file-in-the-way surfaced); WriterConfig::reconstruct_dirs (default on) — per-item dest_dir ensured (cached set) before create_temp, directory NODES enqueueable (mkdir items, no extents → never overlap-refused) so empty leaves materialize; CLI recover walk enqueues dirs.
+- ConflictPolicy {Rename (default, corpus R7.1 og parity), Skip (idempotent re-runs), Overwrite}: reconciled the contradiction where resolve_collision renamed on pre-existing finals, making the audit-row-35a resume detection unreachable (re-runs duplicated everything as "(2)"). Intra-queue duplicates always rename via a claimed-name set. Structural tests over a filesystem-backed DestIo (std::filesystem, portable).
+- G-09 (commit 1803d2b, rebased over the parity agent's 11 fix commits): recovery/cr_report.h — deterministic strictly-escaped JSON (schema v1 in docs/recovery-report-schema.md); Outcome enum includes "pending" (aborted-pass truth, never claimed done); hash honesty — writer ALWAYS finalizes the streamed SHA-256, hash_status ∈ verified/computed/mismatch/not_computed (never faked); QueueItem captures duration (timed wrapper on every exit path) + resumed + sha hex; stats.queued stamped upfront (aborted passes report true queue size); CLI --report file.json; CI validates the emitted sample via tools/validate_report.py in the Linux ASan job.
+- D-3 architecture.md corrected (pause/resume two-layer model).
+- Rebased twice over parallel parity-audit agent commits (docs + engine fixes; carve raw-sign double-count fix coexists with my window-attribution fix — suite green post-rebase).
+
+Stage Summary:
+- 163/163 tests green under ASan + LeakSanitizer (includes the parity agent's 6 new tests post-rebase).
+- Closed this session so far: G-04/G-05/G-06, G-07, G-08, G-09, G-14, G-23 (+D-3 docs).
+- Lesson applied: commit+push after every coherent unit; pull before push (rejected twice, rebased twice).
+- Next: G-10 bounded preview reader + metadata extractors (W1-7), then G-12 query/filter/sort/paging (W1-8), then the C ABI shim (W2).
