@@ -345,8 +345,9 @@ if ($cap.ads) {
         $payload = "bench-ads-payload-{0:d4}-0123456789ABCDEF" -f $i
         Add-Content -LiteralPath $p -Stream $streamName -Value $payload
         $entry = $script:Entries | Where-Object { $_.rel -eq "seed/$relDir/$name" } | Select-Object -First 1
-        $streamHash = [BitConverter]::ToString([System.Security.Cryptography.SHA256]::Create()
-            .ComputeHash([System.Text.Encoding]::UTF8.GetBytes($payload))).Replace('-', '').ToLowerInvariant()
+        $payloadBytes = [System.Text.Encoding]::UTF8.GetBytes($payload)
+        $shaProvider = [System.Security.Cryptography.SHA256]::Create()
+        $streamHash = [BitConverter]::ToString($shaProvider.ComputeHash($payloadBytes)).Replace('-', '').ToLowerInvariant()
         $entry.ads = @(@{ name = $streamName; size = [System.Text.Encoding]::UTF8.GetByteCount($payload); sha256 = $streamHash })
     }
 }

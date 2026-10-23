@@ -24,6 +24,7 @@ $ErrorActionPreference = 'Stop'
 if (-not ('RdaVerify' -as [type])) {
     Add-Type -TypeDefinition @"
 using System;
+using System.IO;
 using System.Runtime.InteropServices;
 using Microsoft.Win32.SafeHandles;
 public static class RdaVerify {

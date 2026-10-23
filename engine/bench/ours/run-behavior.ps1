@@ -59,7 +59,7 @@ using System.Runtime.InteropServices;
 public static class BenchLaunch {
     [DllImport("kernel32.dll", SetLastError = true)]
     public static extern bool GenerateConsoleCtrlEvent(uint ctrlEvent, uint processGroupId);
-    [DllImport("kernel32.dll", SetLastError = true)]
+    [DllImport("kernel32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
     public static extern bool CreateProcessW(string app, string cmdLine, IntPtr sa, IntPtr ta,
         bool inherit, uint creation, IntPtr env, string curDir, ref STARTUPINFO si, out PROCESS_INFORMATION pi);
     [StructLayout(LayoutKind.Sequential)] public struct STARTUPINFO { public uint cb; public string lpReserved, lpDesktop, lpTitle; public uint dwX, dwY, dwXSize, dwYSize, dwXCountChars, dwYCountChars, dwFillAttribute, dwFlags; public ushort wShowWindow, cbReserved2; public IntPtr lpReserved2, hStdInput, hStdOutput, hStdError; }
