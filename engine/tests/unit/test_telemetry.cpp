@@ -123,7 +123,7 @@ size_t plant_jpeg(std::vector<u8>& img, size_t at) {
     img[at + 19] = 0; /* APP0 done: 2+2+16 */
     size_t p = at + 20;
     img[p] = 0xFF;
-    img[p + 1] = 0xFE; /* COM (comment) */
+    img[p + 1] = 0xFE;        /* COM (comment) */
     putbe16(img, p + 2, 460); /* big payload */
     for (int i = 0; i < 456; ++i)
         img[p + 4 + i] = u8('A' + (i % 26));
@@ -183,11 +183,12 @@ std::vector<u8> build_fat16_wide(size_t root_files) {
     for (size_t i = 0; i < root_files; ++i) {
         u8* e = root + i * 32;
         std::memset(e, 0, 32);
-        char n11[16]; /* 8.3-safe: "F" + 6 digits + ' ' + "TXT" = 11 chars */
+        char n11[32]; /* 8.3-safe: 11 chars used; 32 silences gcc
+                         -Wformat-truncation (size_t worst case) */
         snprintf(n11, sizeof(n11), "F%06zu TXT", i);
         for (int k = 0; k < 11; ++k)
             e[k] = u8(n11[k]);
-        e[11] = 0x20; /* plain file */
+        e[11] = 0x20;                           /* plain file */
         put16(img, ROOT + i * 32 + 26, u16(2)); /* cluster 2, zero-size stream */
         put32v(img, ROOT + i * 32 + 28, 0);
     }

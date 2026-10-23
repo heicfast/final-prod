@@ -133,7 +133,7 @@ u64 exfat_time_to_unix100(u32 ts, u8 tz) {
 
 struct ScanCtx {
     IStorageDevice* dev;
-    CancelToken* cancel = nullptr; /* P2-8 */
+    CancelToken* cancel = nullptr;               /* P2-8 */
     bool (*progress)(u64, u64, void*) = nullptr; /* live progress (G-04) */
     void* progress_user = nullptr;
     u64 dentries_done = 0; /* cumulative dentries examined (progress unit) */

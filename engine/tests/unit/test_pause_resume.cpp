@@ -149,8 +149,7 @@ u64 file_tell(void* user) {
     return u64(ftell(static_cast<FILE*>(user)));
 }
 u32 file_seek(void* user, u64 absolute) {
-    return fseek(static_cast<FILE*>(user), long(absolute), SEEK_SET) == 0 ? OK
-                                                                          : ERR_SESSION_IO;
+    return fseek(static_cast<FILE*>(user), long(absolute), SEEK_SET) == 0 ? OK : ERR_SESSION_IO;
 }
 u32 file_read(void* user, void* buf, u32 len) {
     FILE* f = static_cast<FILE*>(user);
@@ -168,7 +167,12 @@ u64 file_size(void* user) {
 std::string tmp_session_path() {
     static std::atomic<int> n{0};
     char buf[128];
-    snprintf(buf, sizeof(buf), "/tmp/cr_test_session_%d_%d.crsf", int(getpid()), n.fetch_add(1));
+#ifdef _WIN32
+    const int pid = _getpid(); /* MSVC C4996: POSIX name deprecated */
+#else
+    const int pid = getpid();
+#endif
+    snprintf(buf, sizeof(buf), "/tmp/cr_test_session_%d_%d.crsf", pid, n.fetch_add(1));
     return std::string(buf);
 }
 
@@ -241,9 +245,7 @@ TEST(PauseResume, ScanPauseFreezesAndElapsedExcludesPause) {
 
     const auto wall_t0 = std::chrono::steady_clock::now();
     gate->hold(); /* park the very first read (boot probe) */
-    std::thread scan([&] {
-        (void)ctrl.run(gate, &tok, nullptr, nullptr, stats);
-    });
+    std::thread scan([&] { (void)ctrl.run(gate, &tok, nullptr, nullptr, stats); });
     std::this_thread::sleep_for(std::chrono::milliseconds(150)); /* scan parked */
     tok.pause();
     gate->release(); /* scan proceeds to the next checkpoint and freezes */
