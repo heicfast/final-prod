@@ -164,8 +164,18 @@ size_t plant_zip(std::vector<u8>& img, size_t at, const char* name, size_t name_
     put32v(img, cd_at + 14, 0);
     put32v(img, cd_at + 18, 0);
     put32v(img, cd_at + 22, 0);
-    put16(img, cd_at + 26, u16(name_len));
-    put16(img, cd_at + 28, 0);
+    /* real central-directory field layout (the CD-anchor validator reads
+     * nameLen@+28/extraLen@+30/commentLen@+32/localOffset@+42 - the old
+     * plant put nameLen at +26 and left +30..+34 to the zero background,
+     * which the 0xAA noise fill now exposes) */
+    put16(img, cd_at + 26, 0);             /* (was name_len - wrong field) */
+    put16(img, cd_at + 28, u16(name_len)); /* nameLen */
+    put16(img, cd_at + 30, 0);             /* extraLen */
+    put16(img, cd_at + 32, 0);             /* commentLen */
+    put16(img, cd_at + 34, 0);             /* disk start */
+    put16(img, cd_at + 36, 0);             /* internal attrs */
+    put32v(img, cd_at + 38, 0);            /* external attrs */
+    put32v(img, cd_at + 42, 0);            /* local header offset */
     std::memcpy(img.data() + cd_at + 46, name, name_len);
     size_t cd_len = 46 + name_len;
     /* EOCD */
@@ -182,7 +192,10 @@ size_t plant_zip(std::vector<u8>& img, size_t at, const char* name, size_t name_
 }
 
 std::vector<u8> build_carve_image() {
-    std::vector<u8> img(32 * 1024, 0);
+    /* CARVE-2: the background is NON-ZERO noise - the og's zero-padding
+     * end extension (trailing all-zero 16-byte blocks absorbed, 5.24 MB
+     * cap) must not eat the gaps between plants on this fixture. */
+    std::vector<u8> img(32 * 1024, 0xAA);
     plant_jpeg(img, 512);
     plant_png(img, 2048);
     /* plain ZIP: the name is long enough that the archive clears the
@@ -779,4 +792,211 @@ TEST(CarveEngine, UnreadableWindowNotCountedAsScanned) {
             saw_jpg = true;
     }
     EXPECT_TRUE(saw_jpg);
+}
+
+/* ---- AUDIT-PIPELINE carve batch regressions (CARVE-2/3/4/6) ---- */
+
+TEST(CarveEngine, ZipCdAnchorCarvesDestroyedHead) {
+    /* CARVE-2: a planted archive whose LOCAL header is destroyed but whose
+     * central directory + EOCD survive must carve from the CD anchor (the
+     * og's preferred anchor; before, only the LFH anchor existed). */
+    auto img = build_carve_image();
+    /* destroy the plain ZIP's head: wipe its local header + name (51 B) */
+    std::memset(img.data() + 4096, 0xAA, 51);
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"Lost Files");
+    CarveFlags flags;
+    CarveStats s;
+    ASSERT_EQ(carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, s),
+              OK);
+    bool cd_carved = false;
+    for (tree::FileNode* c = root->first_child(); c; c = c->next_sibling()) {
+        if (c->props() && c->props()->carve_format == FMT_ZIP_CD &&
+            c->props()->extents.front().offset > 4090 && c->props()->extents.front().offset < 4160)
+            cd_carved = true;
+    }
+    EXPECT_TRUE(cd_carved) << "destroyed-head archive must carve from its CD";
+}
+
+TEST(CarveEngine, ZipIndexlessLfhChainSalvage) {
+    /* CARVE-2: CD + EOCD destroyed - the LFH chain still carves (og
+     * analyser status-0xd salvage), low confidence, fragmented flag. */
+    auto img = build_carve_image();
+    /* wipe the plain ZIP's central directory + EOCD (from 4096+51 to end) */
+    std::memset(img.data() + 4096 + 51, 0xAA, 140 - 51);
+    /* give the entry a real compressed payload so the chain is real AND
+     * clears the registry's 128-byte min_size floor: csize=256 */
+    put32v(img, 4096 + 18, 256); /* csize */
+    for (int i = 0; i < 256; ++i)
+        img[4096 + 51 + i] = u8('z');
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"Lost Files");
+    CarveFlags flags;
+    CarveStats s;
+    ASSERT_EQ(carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, s),
+              OK);
+    tree::FileNode* zip = nullptr;
+    for (tree::FileNode* c = root->first_child(); c; c = c->next_sibling()) {
+        if (c->props() && c->props()->extents.front().offset == 4096)
+            zip = c;
+    }
+    ASSERT_NE(zip, nullptr) << "indexless archive must still carve";
+    /* chain end = 30 + 21 name + 256 data = 307 bytes */
+    EXPECT_EQ(zip->props()->logical_size, size_t(30 + 21 + 256));
+    EXPECT_LE(zip->props()->carve_confidence, 700u); /* low confidence */
+}
+
+TEST(CarveEngine, ZipZeroPaddingAbsorbed) {
+    /* CARVE-2: the og's last-16-bytes-zero test extends the archive over
+     * trailing zero padding (5.24 MB cap) */
+    auto img = build_carve_image();
+    /* 128 bytes of zero padding right after the plain ZIP's EOCD */
+    std::memset(img.data() + 4096 + 140, 0, 128);
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"Lost Files");
+    CarveFlags flags;
+    CarveStats s;
+    ASSERT_EQ(carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, s),
+              OK);
+    tree::FileNode* zip = nullptr;
+    for (tree::FileNode* c = root->first_child(); c; c = c->next_sibling()) {
+        if (c->props() && c->props()->extents.front().offset == 4096 &&
+            c->props()->carve_format == FMT_ZIP)
+            zip = c;
+    }
+    ASSERT_NE(zip, nullptr);
+    EXPECT_EQ(zip->props()->logical_size, size_t(140 + 128)); /* padding absorbed */
+}
+
+TEST(CarveEngine, BeTiffAndOrfVariantsCarve) {
+    /* CARVE-3: MM\0\* (BE TIFF), IIRS and MMOR (ORF) anchors are in the
+     * registry now (og seeds 2a004d4d / 53524949 / 524f4d4d) - the
+     * tiff_common BE walk was dead code before. */
+    auto img = build_carve_image();
+    auto w16 = [](u8* p, u16 v, bool be) {
+        if (be) {
+            p[0] = u8(v >> 8);
+            p[1] = u8(v);
+        } else {
+            p[0] = u8(v);
+            p[1] = u8(v >> 8);
+        }
+    };
+    auto w32 = [](u8* p, u32 v, bool be) {
+        for (int i = 0; i < 4; ++i)
+            p[be ? 3 - i : i] = u8(v >> (8 * i));
+    };
+    /* one-entry IFD whose value data sits at +1200 (clears the ORF rows'
+     * 1024-byte min_size floor): entry count 1, tag 0x0100, type 3
+     * (SHORT), count 5 -> 10 bytes of data at offset 1200, next-IFD 0 */
+    auto plant_ifd = [&](size_t at, const char magic[4], bool be) {
+        u8* t = img.data() + at;
+        std::memcpy(t, magic, 4);
+        w16(t + 4, 8, be); /* IFD offset */
+        w16(t + 8, 1, be); /* 1 entry */
+        w16(t + 10, 0x0100, be);
+        w16(t + 12, 3, be);
+        w32(t + 14, 5, be);    /* count > 4: data at the value offset */
+        w32(t + 18, 1200, be); /* value = data offset */
+        w32(t + 22, 0, be);    /* next IFD */
+        for (int i = 0; i < 10; ++i)
+            t[1200 + i] = 0x11; /* the referenced data */
+    };
+    plant_ifd(16384, "IIRS", false); /* fields only; magic set below (BE) */
+    img[16384 + 2] = 0x00;
+    img[16384 + 3] = 0x2A; /* MM\0\x2A - the BE TIFF magic */
+    img[16384 + 0] = 'M';
+    img[16384 + 1] = 'M';
+    /* rewrite the fields BE (plant_ifd wrote them LE above) */
+    w16(img.data() + 16384 + 4, 8, true);
+    w16(img.data() + 16384 + 8, 1, true);
+    w16(img.data() + 16384 + 10, 0x0100, true);
+    w16(img.data() + 16384 + 12, 3, true);
+    w32(img.data() + 16384 + 14, 4, true);
+    w32(img.data() + 16384 + 18, 0, true);
+    w32(img.data() + 16384 + 22, 0, true);
+    plant_ifd(20480, "IIRS", false);
+    plant_ifd(24576, "MMOR", true);
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"Lost Files");
+    CarveFlags flags;
+    CarveStats s;
+    ASSERT_EQ(carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, s),
+              OK);
+    bool be_tiff = false, iirs = false, mmor = false;
+    for (tree::FileNode* c = root->first_child(); c; c = c->next_sibling()) {
+        const u32 f = c->props()->carve_format;
+        if (f == FMT_TIFF_BE && c->props()->extents.front().offset == 16384)
+            be_tiff = true;
+        if (f == FMT_ORF_IIRS && c->props()->extents.front().offset == 20480)
+            iirs = true;
+        if (f == FMT_ORF_MMOR && c->props()->extents.front().offset == 24576)
+            mmor = true;
+    }
+    EXPECT_TRUE(be_tiff) << "MM\\0\\2A anchor must carve";
+    EXPECT_TRUE(iirs) << "IIRS anchor must carve";
+    EXPECT_TRUE(mmor) << "MMOR anchor must carve";
+}
+
+TEST(CarveEngine, PstUnknownVersionAcceptedAtFloor) {
+    /* CARVE-4: og FUN_180041eb0 accepts unknown PST generations with the
+     * 1 MiB floor - the old reject had the polarity inverted. Standalone
+     * 2 MiB image: the PST registry row's 64 KiB min_size exceeds the
+     * shared 32 KiB fixture. */
+    std::vector<u8> img(2 * 1024 * 1024, 0xAA);
+    const size_t at = 1024 * 1024;
+    std::memcpy(img.data() + at, "!BDN", 4);
+    img[at + 4] = 'M';
+    img[at + 5] = 'S';
+    img[at + 0x0A] = 0x15;   /* unknown generation */
+    img[at + 0x1000] = 0x7F; /* AMap probe: non-zero */
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"Lost Files");
+    CarveFlags flags;
+    CarveStats s;
+    ASSERT_EQ(carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, s),
+              OK);
+    bool pst = false;
+    for (tree::FileNode* c = root->first_child(); c; c = c->next_sibling()) {
+        if (c->props() && c->props()->carve_format == FMT_PST &&
+            c->props()->extents.front().offset == at) {
+            pst = true;
+            EXPECT_EQ(c->props()->logical_size, size_t(1) << 20); /* 1 MiB floor */
+        }
+    }
+    EXPECT_TRUE(pst) << "unknown-version PST must carve at the floor";
+}
+
+TEST(CarveEngine, JpegSof0PrecisionGate) {
+    /* CARVE-6: og gates SOF0 on precision == 8 (corpus 39653) - a SOF0
+     * with a nonsense precision byte must not validate. */
+    auto img = build_carve_image();
+    {
+        /* find the planted JPEG's SOF0 and corrupt its precision byte.
+         * plant_jpeg layout: SOI, APP0(JFIF), then SOF0 at a fixed spot -
+         * search for FF C0 and patch byte +4 of the segment. */
+        for (size_t i = 512; i < 1600; ++i) {
+            if (img[i] == 0xFF && img[i + 1] == 0xC0) {
+                img[i + 4] = 0x0C; /* precision 12: og rejects */
+                break;
+            }
+        }
+    }
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"Lost Files");
+    CarveFlags flags;
+    CarveStats s;
+    ASSERT_EQ(carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, s),
+              OK);
+    for (tree::FileNode* c = root->first_child(); c; c = c->next_sibling()) {
+        if (c->props() && c->props()->carve_format == FMT_JPG &&
+            c->props()->extents.front().offset == 512)
+            FAIL() << "SOF0 precision!=8 must not validate as grammar JPEG";
+    }
 }

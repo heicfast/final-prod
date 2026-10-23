@@ -319,3 +319,62 @@ TEST(WriterDirs, IntraQueueDuplicatesRenameUnderSkip) {
     EXPECT_TRUE(fs::is_regular_file(tmp.p / "out/dup.txt"));
     EXPECT_TRUE(fs::is_regular_file(tmp.p / "out/dup (2).txt"));
 }
+
+/* WRITER-1 (AUDIT-PIPELINE, F-A4-8): per-item failures are collected, not
+ * fatal - the og's ExportThread continues and reports "%1 files/%2
+ * failed" at the end. A 3-item queue with a poisoned middle item must
+ * still deliver items 1 and 3 and return OK. */
+namespace {
+class FaultIo final : public DestIo {
+public:
+    FaultIo(fs::path root, std::u16string poison)
+        : inner_(std::move(root)), poison_(std::move(poison)) {}
+    u32 create_temp(u64 id, const std::u16string& final_path,
+                    const std::u16string& temp_suffix) override {
+        if (final_path.find(poison_) != std::u16string::npos)
+            return ERR_DEST_UNWRITABLE; /* injected fault */
+        return inner_.create_temp(id, final_path, temp_suffix);
+    }
+    u32 mkdir(const std::u16string& path) override { return inner_.mkdir(path); }
+    u32 write(u64 id, u64 off, const void* data, u32 len) override {
+        return inner_.write(id, off, data, len);
+    }
+    u32 commit(u64 id) override { return inner_.commit(id); }
+    void close(u64 id) override { inner_.close(id); }
+    bool exists(const std::u16string& path) override { return inner_.exists(path); }
+
+private:
+    FsIo inner_;
+    std::u16string poison_;
+};
+} // namespace
+
+TEST(WriterDirs, PerItemErrorCollectedQueueContinues) {
+    std::vector<u8> img(2048, 0);
+    std::memcpy(img.data(), "A!", 2);
+    std::memcpy(img.data() + 512, "B!", 2);
+    std::memcpy(img.data() + 1024, "C!", 2);
+    tree::ResultTree tree;
+    auto* found = tree.add_root(u"Found");
+    (void)add_node(tree, found, "a.txt", 0, 2);
+    (void)add_node(tree, found, "b.txt", 512, 2); /* poisoned */
+    (void)add_node(tree, found, "c.txt", 1024, 2);
+    MemDevice dev(img);
+
+    TmpDir tmp;
+    FaultIo io(tmp.p, u"b.txt");
+    SafeWriter writer(io, &dev, WriterConfig{});
+    for (tree::FileNode* c = found->first_child(); c; c = c->next_sibling())
+        ASSERT_EQ(OK, writer.enqueue(c, u"out\\"));
+
+    WriterStats stats;
+    /* the poisoned item fails but the pass COMPLETES: rc OK, one error
+     * collected, the other two files delivered */
+    ASSERT_EQ(OK, writer.process(nullptr, nullptr, nullptr, stats));
+    EXPECT_EQ(u64(1), stats.errors);
+    EXPECT_EQ(u64(2), stats.done);
+    const std::set<std::string> got = walk_tree(tmp.p);
+    EXPECT_TRUE(got.count("f:out/a.txt"));
+    EXPECT_TRUE(got.count("f:out/c.txt"));
+    EXPECT_FALSE(got.count("f:out/b.txt"));
+}

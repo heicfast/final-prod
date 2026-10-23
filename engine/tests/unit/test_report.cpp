@@ -196,13 +196,13 @@ TEST(Report, WriterOutcomesAndHashHonesty) {
     ASSERT_EQ(OK, writer.enqueue(skip_me, u"out\\"));
 
     WriterStats stats;
-    /* refuse_me short-circuits process with its error: enqueue-refused
-     * items are counted then processing continues? - process() counts
-     * refused items and moves on; the ERR_DEST_OVERLAP item is Refused. */
     const u32 rc = writer.process(nullptr, nullptr, nullptr, stats);
-    /* the broken temp item aborts the pass with its error (documented:
-     * first error stops the queue) */
-    ASSERT_EQ(ERR_DEST_UNWRITABLE, rc);
+    /* WRITER-1 (AUDIT-PIPELINE, F-A4-8): per-item failures are COLLECTED
+     * and the pass COMPLETES - the og's ExportThread keeps going and
+     * reports "X files/Y failed" at the end. The old abort-on-first-error
+     * cancelled every item after the first failure. */
+    ASSERT_EQ(OK, rc);
+    EXPECT_EQ(u64(1), stats.errors);
 
     const std::vector<report::Item> items = writer.report_items();
     ASSERT_EQ(5u, items.size());
@@ -229,12 +229,12 @@ TEST(Report, WriterOutcomesAndHashHonesty) {
     EXPECT_EQ(Outcome::Error, items[3].outcome);
     EXPECT_EQ(u32(ERR_DEST_UNWRITABLE), items[3].reason);
 
-    /* skip.txt: never reached (queue aborted at fail.bin) - the report
-     * says "pending", never a silent done/error */
-    EXPECT_EQ(Outcome::Pending, items[4].outcome);
+    /* skip.txt: the queue CONTINUED past the failure - the item is
+     * processed (Skip policy: pre-existing final = idempotent resume) */
+    EXPECT_EQ(Outcome::Resumed, items[4].outcome);
     EXPECT_EQ(HashStatus::NotComputed, items[4].hash_status);
 
-    /* totals reflect the abort honestly: 1 done, 1 dir, 1 error so far */
+    /* totals reflect the full pass: 1 dir, 1 collected error */
     const Totals t = writer.report_totals("src", "dst", 5, stats);
     EXPECT_EQ(5u, t.queued);
     EXPECT_EQ(u64(1), t.dirs);

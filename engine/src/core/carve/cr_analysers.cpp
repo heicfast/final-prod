@@ -163,6 +163,51 @@ u64 scan_first_eocd(IStorageDevice* s, u64 start, u64 limit) {
     return 0;
 }
 
+/* CARVE-2: nearest EOCD that OWNS the central-directory entry we anchor
+ * on - the anchor must lie inside the EOCD's implied CD region
+ * [file_start+cd_offset, file_start+cd_offset+cd_size). Geometry is
+ * relative to the implied ARCHIVE start (scan_first_eocd's geometry is
+ * LFH-relative and mis-attributes a later archive's EOCD to a CD anchor). */
+static u64 scan_eocd_for_cd_anchor(IStorageDevice* s, u64 anchor, u64 limit) {
+    const u64 scan_end = std::min<u64>(limit, anchor + (1ull << 20));
+    if (scan_end <= anchor + 22)
+        return 0;
+    std::vector<u8> buf(kProbeBlock);
+    u64 block = anchor;
+    while (block < scan_end) {
+        const u64 remain = scan_end - block;
+        const u32 take = u32(std::min<u64>(remain, kProbeBlock));
+        if (take < 22)
+            break;
+        if (!rd(s, block, buf.data(), take))
+            break;
+        for (u32 i = 0; i + 22 <= take; ++i) {
+            if (std::memcmp(buf.data() + i, "PK\x05\x06", 4) != 0)
+                continue;
+            const u64 eocd_pos = block + i;
+            u8 eocd[22];
+            if (!rd(s, eocd_pos, eocd, 22))
+                return 0;
+            const u16 entries = u16_from_bytes_le(eocd + 10);
+            const u32 cd_size = u32_from_bytes_le(eocd + 12);
+            const u32 cd_offset = u32_from_bytes_le(eocd + 16);
+            if (entries == 0 || cd_offset < 30)
+                continue;
+            const u64 span = u64(cd_offset) + u64(cd_size); /* head+CD bytes */
+            if (eocd_pos < span)
+                continue; /* implied archive start underflows */
+            const u64 file_start = eocd_pos - span;
+            if (anchor < file_start + cd_offset || anchor >= file_start + span)
+                continue; /* this EOCD's CD region does not contain us */
+            return eocd_pos;
+        }
+        if (block + take >= scan_end)
+            break;
+        block += u64(take) - 3;
+    }
+    return 0;
+}
+
 } // namespace
 
 /* ---- JPEG: SOI + marker walk to EOI (F4-class grammar, corpus SOF0) ---- */
@@ -195,6 +240,14 @@ CarveResult validate_jpeg(IStorageDevice* s, u64 hit, u64 cap) {
             saw_sos = true;
         if (mk == 0xC0 || mk == 0xC1 || mk == 0xC2 || mk == 0xC3)
             saw_sof = true;
+        /* CARVE-6 (AUDIT-PIPELINE, F-A3-8): og gates SOF0 on precision 8
+         * (`bVar1==0xc0 && pbVar25[4]==8`, corpus 39653) - a corrupted
+         * SOF0 with a nonsense precision byte must not validate. */
+        if (mk == 0xC0) {
+            u8 prec[1];
+            if (rd(s, pos + 4, prec, 1) && prec[0] != 8)
+                saw_sof = false;
+        }
         /* JPEG segment lengths are BIG-endian (wire-correct read; the
          * original LE read desynced on every real-world file) */
         u16 len = rdbe16(s, pos + 2);
@@ -515,9 +568,47 @@ static CarveResult zip_common(IStorageDevice* s, u64 hit, u64 cap, bool office) 
      * stepping this replaced issued up to 2,097,152 read_at calls per
      * PK\x03\x04 hit against the 2 GiB cap. */
     const u64 limit = probe_limit(s, hit, cap);
+    /* CARVE-2 (AUDIT-PIPELINE, F-A3-3): indexless salvage - the og carves
+     * archives whose central directory is destroyed (analyser status 0xd)
+     * by walking the LOCAL header chain: each LFH carries name/extra
+     * lengths + compressed size, so the next entry follows deterministically.
+     * Walk until a non-LFH byte, a bogus geometry, or the og's 5.24 MB
+     * padding cap; flag low confidence. */
+    auto indexless = [&]() -> CarveResult {
+        CarveResult ir;
+        u64 pos = hit;
+        u64 last_end = hit;
+        u32 n = 0;
+        const u64 cap5 = hit + (5242880ull); /* og padding cap */
+        while (pos + 30 <= limit && pos < cap5 && n < 65535) {
+            u8 lfh[30];
+            if (!rd(s, pos, lfh, 30) || std::memcmp(lfh, "PK\x03\x04", 4) != 0)
+                break;
+            const u16 nlen = u16(lfh[26]) | (u16(lfh[27]) << 8);
+            const u16 elen = u16(lfh[28]) | (u16(lfh[29]) << 8);
+            const u32 csize =
+                u32(lfh[18]) | (u32(lfh[19]) << 8) | (u32(lfh[20]) << 16) | (u32(lfh[21]) << 24);
+            if (csize == 0xFFFFFFFFu)
+                break; /* ZIP64: no deterministic chain without the CD */
+            const u64 next = pos + 30 + nlen + elen + csize;
+            if (next > limit || next <= pos)
+                break;
+            pos = next;
+            last_end = next;
+            ++n;
+        }
+        if (n >= 1 && last_end > hit + 64) {
+            ir.ok = true;
+            ir.end = last_end;
+            ir.confidence = 550;
+            ir.fragmented = true;
+            ir.note = "indexless-LFH-chain";
+        }
+        return ir;
+    };
     const u64 eocd_pos = scan_first_eocd(s, hit, limit);
     if (eocd_pos == 0 || eocd_pos < hit + 22)
-        return r;
+        return indexless();
     /* full EOCD record at eocd_pos (22 bytes) */
     u8 eocd[22];
     if (!rd(s, eocd_pos, eocd, 22))
@@ -536,7 +627,38 @@ static CarveResult zip_common(IStorageDevice* s, u64 hit, u64 cap, bool office) 
         return r;
     if (u64(cd_offset) + cd_size > (eocd_pos - hit))
         return r;
+    /* CARVE-2 ownership: the central directory must actually START at
+     * hit+cd_offset. A LATER archive's EOCD can be geometry-consistent
+     * relative to our hit by coincidence while its CD lands elsewhere -
+     * without this check a destroyed-CD archive absorbs the next archive's
+     * EOCD (cross-file extent corruption, the original F-A3-3 shape). A
+     * failed ownership test means OUR CD is gone: indexless salvage. */
+    {
+        u8 cdm[4];
+        if (!rd(s, hit + cd_offset, cdm, 4) || std::memcmp(cdm, "PK\x01\x02", 4) != 0)
+            return indexless();
+    }
     u64 end = eocd_pos + 22 + comment;
+    /* CARVE-2: og zero-padding end extension - trailing all-zero 16-byte
+     * blocks are absorbed into the archive (up to the 5.24 MB cap; the
+     * og's last-16-bytes-zero test). */
+    {
+        const u64 pad_cap = end + 5242880ull;
+        while (end + 16 <= limit && end < pad_cap) {
+            u8 z[16];
+            if (!rd(s, end, z, 16))
+                break;
+            bool zero = true;
+            for (u8 b : z)
+                if (b) {
+                    zero = false;
+                    break;
+                }
+            if (!zero)
+                break;
+            end += 16;
+        }
+    }
     if (end > limit)
         end = limit;
     /* fragmentation-aware (R4.5): a gap between cd end and EOCD is normal
@@ -555,6 +677,63 @@ CarveResult validate_zip(IStorageDevice* s, u64 hit, u64 cap) {
 }
 CarveResult validate_docx(IStorageDevice* s, u64 hit, u64 cap) {
     return zip_common(s, hit, cap, true);
+}
+
+/* CARVE-2: central-directory-anchored carving - the og's PREFERRED
+ * anchor (PK\x01\x02): when the head of the archive is gone but the CD
+ * survives, the entry still surfaces (names live in the CD). Scan
+ * forward for the EOCD to size the span; without one, take a bounded
+ * CD-sized window. */
+CarveResult validate_zip_cd(IStorageDevice* s, u64 hit, u64 cap) {
+    CarveResult r;
+    u8 cd[46];
+    if (!rd(s, hit, cd, 46))
+        return r;
+    if (std::memcmp(cd, "PK\x01\x02", 4) != 0)
+        return r;
+    const u16 nlen = u16(cd[28]) | (u16(cd[29]) << 8);
+    const u16 elen = u16(cd[30]) | (u16(cd[31]) << 8);
+    const u16 clen = u16(cd[32]) | (u16(cd[33]) << 8);
+    if (u64(nlen) > 512 || u64(elen) > 1024 || u64(clen) > 1024)
+        return r;
+    const u64 limit = probe_limit(s, hit, cap);
+    const u64 eocd_pos = scan_eocd_for_cd_anchor(s, hit, limit);
+    if (eocd_pos > hit + 46) {
+        u8 eocd[22];
+        if (rd(s, eocd_pos, eocd, 22) && std::memcmp(eocd, "PK\x05\x06", 4) == 0) {
+            /* og analyser reconciliation: when the archive head is INTACT
+             * (a live local header exactly at the implied file start), the
+             * LFH anchor owns the carve and the CD anchor stands down - no
+             * double emission. Only a destroyed head (the recovery case
+             * this anchor exists for) carves here. */
+            const u32 cd_size2 = u32_from_bytes_le(eocd + 12);
+            const u32 cd_offset2 = u32_from_bytes_le(eocd + 16);
+            const u64 file_start = eocd_pos - u64(cd_offset2) - cd_size2;
+            {
+                u8 lfh[4];
+                if (rd(s, file_start, lfh, 4) && std::memcmp(lfh, "PK\x03\x04", 4) == 0)
+                    return r; /* intact head: LFH anchor carves this */
+            }
+            const u16 comment = u16_from_bytes_le(eocd + 20);
+            r.ok = true;
+            r.end = eocd_pos + 22 + comment;
+            if (r.end > limit)
+                r.end = limit;
+            r.confidence = 600;
+            r.fragmented = true;
+            r.note = "cd-anchor+EOCD";
+            return r;
+        }
+    }
+    /* no EOCD: bounded CD-region window (the names alone recover) */
+    r.ok = true;
+    r.end = hit + 46 + nlen + elen + clen + 512;
+    if (r.end > limit)
+        r.end = limit;
+    r.confidence = 550;
+    r.fragmented = true;
+    r.note = "cd-anchor";
+    return r;
 }
 
 /* ---- 7z: StartHeader offsets ---- */
@@ -731,7 +910,11 @@ CarveResult validate_pst(IStorageDevice* s, u64 hit, u64 cap) {
     } else if (version == 0x17) {
         size = rd32(s, hit + 0xB8); /* Unicode PST/OST */
     } else {
-        return r; /* unknown generation: reject (corpus floors others) */
+        /* CARVE-4 (AUDIT-PIPELINE, F-A3-5): og FUN_180041eb0 ACCEPTS
+         * unknown generations at the 1 MiB floor (returns 1 with the
+         * size staying 0x100000) - the old reject had the og's polarity
+         * inverted. Future/unknown PST generations still surface. */
+        size = 1ull << 20;
     }
     if (size < (64ull << 10))
         size = 1ull << 20; /* damaged header: corpus 1 MiB floor */
@@ -1102,8 +1285,6 @@ CarveResult validate_wav(IStorageDevice* s, u64 hit, u64 cap) {
         return r;
     if (std::memcmp(h + 12, "fmt ", 4) != 0)
         return r;
-    const u16 fmt = u16(h[16 - 16]) | 0; /* first fmt bytes follow; accept */
-    (void)fmt;
     r.ok = true;
     r.end = hit + 8 + riff_len;
     if (r.end > hit + cap)

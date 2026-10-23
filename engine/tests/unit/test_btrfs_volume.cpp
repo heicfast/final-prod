@@ -8,6 +8,8 @@
 
 #include "cr/btrfs/cr_btrfs_engine.h"
 #include <gtest/gtest.h>
+#include <zlib.h>
+#include "cr/compress/cr_decomp.h"
 #include <cstring>
 #include <set>
 
@@ -616,6 +618,149 @@ TEST(Btrfs, InternalKeyPtrWalk) {
     EXPECT_TRUE(names.count("hello.txt"));
     EXPECT_TRUE(names.count("sub"));
     EXPECT_TRUE(names.count("nested.bin"));
+}
+
+TEST(Btrfs, InlineAndCompressedExtents) {
+    /* BTR-3 (AUDIT-LINUX-FS, F-A2-13): inline EXTENT_DATA content is the
+     * item payload after the 21-byte header (og collects it as resident
+     * runs). BTR-4: zlib-compressed extents map ZFS-style {codec=kGzip,
+     * psize} so the writer decodes at recovery time. */
+    auto d = build_volume();
+    /* compressed payload: 4100 'Z's, raw deflate (windowBits -15) */
+    std::vector<u8> plain(4100, 'Z');
+    std::vector<u8> comp;
+    {
+        uLongf cl = compressBound(plain.size()) + 64;
+        comp.resize(cl);
+        z_stream zs = {};
+        deflateInit2(&zs, 5, Z_DEFLATED, -15, 8, Z_DEFAULT_STRATEGY);
+        zs.next_in = plain.data();
+        zs.avail_in = uInt(plain.size());
+        zs.next_out = comp.data();
+        zs.avail_out = uInt(cl);
+        deflate(&zs, Z_FINISH);
+        comp.resize(cl - zs.avail_out);
+        deflateEnd(&zs);
+    }
+    memcpy(d.data() + L_DATA + 8192, comp.data(), comp.size());
+    /* rebuild the FS-tree leaf: original rows + tiny.txt (inline) +
+     * zlib.bin (compressed regular) */
+    {
+        NodeBuilder nb;
+        const u64 MTIME = 1600000000;
+        Key ki;
+        ki.type = 1;
+        ki.objectid = 256;
+        nb.add(ki, make_inode(0x4000, NODESIZE, 2, MTIME));
+        ki.objectid = 257;
+        nb.add(ki, make_inode(0x8000, 14, 1, MTIME));
+        ki.objectid = 258;
+        nb.add(ki, make_inode(0x4000, NODESIZE, 2, MTIME));
+        ki.objectid = 259;
+        nb.add(ki, make_inode(0x8000, 22, 1, MTIME));
+        ki.objectid = 262;
+        nb.add(ki, make_inode(0x8000, 10, 1, MTIME)); /* tiny.txt */
+        ki.objectid = 263;
+        nb.add(ki, make_inode(0x8000, 4100, 1, MTIME)); /* zlib.bin */
+        Key ke;
+        ke.type = 108;
+        ke.objectid = 257;
+        ke.offset = 0;
+        nb.add(ke, make_extent_data(L_DATA, 4096));
+        ke.objectid = 259;
+        nb.add(ke, make_extent_data(L_DATA + 4096, 4096));
+        /* inline extent for tiny.txt */
+        ke.objectid = 262;
+        ke.offset = 0;
+        {
+            std::vector<u8> fe(21 + 10, 0);
+            put64(fe.data() + 0, 1);
+            put64(fe.data() + 8, 10);
+            fe[20] = 0; /* INLINE */
+            memcpy(fe.data() + 21, "TINYDATA!!", 10);
+            nb.add(ke, fe);
+        }
+        /* zlib-compressed regular extent for zlib.bin */
+        ke.objectid = 263;
+        ke.offset = 0;
+        {
+            std::vector<u8> fe(53, 0);
+            put64(fe.data() + 0, 1);    /* generation */
+            put64(fe.data() + 8, 4100); /* ram_bytes */
+            fe[16] = 1;                 /* compression: zlib */
+            fe[20] = 1;                 /* type: regular */
+            put64(fe.data() + 21, L_DATA + 8192);
+            put64(fe.data() + 29, comp.size());
+            put64(fe.data() + 37, 0);
+            put64(fe.data() + 45, 4100);
+            nb.add(ke, fe);
+        }
+        Key kd;
+        kd.type = 84;
+        kd.objectid = 256;
+        kd.offset = 0x11110001;
+        nb.add(kd, make_dir_item(257, "hello.txt", 1));
+        kd.offset = 0x22220002;
+        nb.add(kd, make_dir_item(258, "sub", 2));
+        kd.offset = 0x33330003;
+        nb.add(kd, make_dir_item(259, "nested.bin", 1));
+        kd.offset = 0x44440004;
+        nb.add(kd, make_dir_item(262, "tiny.txt", 1));
+        kd.offset = 0x55550005;
+        nb.add(kd, make_dir_item(263, "zlib.bin", 1));
+        kd.objectid = 258;
+        kd.offset = 0x66660006;
+        nb.add(kd, make_dir_item(259, "nested.bin", 1));
+        auto nd = nb.finish(L_FS_TREE, 0);
+        memcpy(d.data() + L_FS_TREE, nd.data(), NODESIZE);
+    }
+    MemDevice dev(d);
+    tree::ResultTree tree;
+    auto* ra = tree.add_root(u"Found");
+    BtrfsScanFlags flags;
+    BtrfsScanStats stats;
+    ASSERT_EQ(OK,
+              scan_btrfs(&dev, flags, nullptr, nullptr, nullptr, tree, ra, nullptr, nullptr, stats))
+        << err_text(0);
+    std::vector<tree::FileNode*> all;
+    std::function<void(tree::FileNode*)> walk = [&](tree::FileNode* n) {
+        for (tree::FileNode* c = n->first_child(); c; c = c->next_sibling()) {
+            all.push_back(c);
+            walk(c);
+        }
+    };
+    walk(ra);
+    tree::FileNode *tiny = nullptr, *zl = nullptr;
+    for (auto* n : all) {
+        if (n->props() && n->name_utf8() == "tiny.txt")
+            tiny = n;
+        if (n->props() && n->name_utf8() == "zlib.bin")
+            zl = n;
+    }
+    fprintf(
+        stderr,
+        "DBG stats files=%llu dirs=%llu inline=%llu comp=%llu lzo=%llu nodes=%llu damaged=%llu\n",
+        (unsigned long long)stats.files, (unsigned long long)stats.dirs,
+        (unsigned long long)stats.inline_files, (unsigned long long)stats.compressed_extents,
+        (unsigned long long)stats.lzo_extents, (unsigned long long)stats.nodes_read,
+        (unsigned long long)stats.damaged_nodes);
+    fprintf(stderr, "DBG tiny size=%llu extents=%zu resident=%zu\n",
+            (unsigned long long)(tiny ? tiny->props()->logical_size : 0),
+            tiny ? tiny->props()->extents.size() : 0,
+            tiny ? tiny->props()->resident_data.size() : 0);
+    ASSERT_NE(tiny, nullptr) << "inline file missing";
+    ASSERT_NE(zl, nullptr) << "compressed file missing";
+    /* BTR-3: inline content in resident_data */
+    EXPECT_TRUE(tiny->props()->extents.empty());
+    ASSERT_EQ(tiny->props()->resident_data.size(), size_t(10));
+    EXPECT_EQ(0, memcmp(tiny->props()->resident_data.data(), "TINYDATA!!", 10));
+    EXPECT_GE(stats.inline_files, 1u);
+    /* BTR-4: zlib extent carries {codec=kGzip, psize} */
+    ASSERT_EQ(zl->props()->extents.size(), 1u);
+    EXPECT_EQ(zl->props()->extents[0].codec, u32(cr::compress::kGzip));
+    EXPECT_EQ(zl->props()->extents[0].psize, u64(comp.size()));
+    EXPECT_EQ(zl->props()->extents[0].length, 4100u);
+    EXPECT_GE(stats.compressed_extents, 1u);
 }
 
 } // namespace

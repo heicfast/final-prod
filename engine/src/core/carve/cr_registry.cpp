@@ -40,6 +40,7 @@ CarveResult validate_asf(IStorageDevice* s, u64 hit, u64 cap);
 CarveResult validate_flv(IStorageDevice* s, u64 hit, u64 cap);
 CarveResult validate_cab(IStorageDevice* s, u64 hit, u64 cap);
 CarveResult validate_iso(IStorageDevice* s, u64 hit, u64 cap);
+CarveResult validate_zip_cd(IStorageDevice* s, u64 hit, u64 cap);
 
 namespace {
 const Signature kTable[] = {
@@ -245,6 +246,54 @@ const Signature kTable[] = {
      900,
      validate_iso,
      "ISO9660"},
+    /* CARVE-3 (AUDIT-PIPELINE, F-A3-4): the og registry seeds the TIFF
+     * family BE variant (2a004d4d = LE-read of "MM\\0\\x2A") and the ORF
+     * IIRS (53524949) / MMOR (524f4d4d) forms. tiff_common already walks
+     * BE IFDs - the branches were dead only because no magic reached
+     * them. */
+    {FMT_TIFF_BE,
+     "tif",
+     {'M', 'M', 0x00, 0x2A},
+     4,
+     0,
+     512,
+     256ull << 20,
+     800,
+     validate_tiff,
+     "TIFF (big-endian)"},
+    {FMT_ORF_IIRS,
+     "orf",
+     {'I', 'I', 'R', 'S'},
+     4,
+     0,
+     1024,
+     1ull << 30,
+     800,
+     validate_orf,
+     "Olympus RAW (IIRS)"},
+    {FMT_ORF_MMOR,
+     "orf",
+     {'M', 'M', 'O', 'R'},
+     4,
+     0,
+     1024,
+     1ull << 30,
+     800,
+     validate_orf,
+     "Olympus RAW (MMOR)"},
+    /* CARVE-2: the og ZIP analyser's PREFERRED anchor - a surviving
+     * central directory (PK\x01\x02) carves even when the archive head
+     * is destroyed. */
+    {FMT_ZIP_CD,
+     "zip",
+     {'P', 'K', 0x01, 0x02},
+     4,
+     0,
+     46,
+     2ull << 30,
+     600,
+     validate_zip_cd,
+     "ZIP (central directory)"},
 };
 } // namespace
 

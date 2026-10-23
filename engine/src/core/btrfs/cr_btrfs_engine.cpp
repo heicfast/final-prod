@@ -4,6 +4,7 @@
  */
 
 #include "cr/btrfs/cr_btrfs_engine.h"
+#include "cr/compress/cr_decomp.h"
 #include <cstring>
 #include <functional>
 #include <map>
@@ -22,7 +23,7 @@ constexpr u32 SB_SECTORSIZE = 0x90;
 constexpr u32 SB_NODESIZE = 0x94;
 constexpr u32 SB_SYS_ARRAY_SIZE = 0xA0;
 constexpr u32 SB_SYS_ARRAY = 0x32B;
-constexpr u32 SB_CHUNK_TREE_UUID = 0x60;
+/* SB+0x60 is log_root in the kernel layout (BTR-2): NOT a uuid source. */
 constexpr u64 SB_MAGIC_VALUE = 0x4D5F53665248425FULL; /* "_BHRfS_M" */
 
 /* btrfs_header (kernel include/uapi/linux/btrfs_tree.h, packed, 101 bytes):
@@ -150,6 +151,10 @@ struct Volume {
     IStorageDevice* dev = nullptr;
     SuperBlock sb;
     std::vector<ChunkMap> chunks; /* full logical->physical map */
+    /* BTR-2: adopted from the chunk-root node header (not the SB -
+     * SB+0x60 is log_root in the kernel layout) */
+    u8 chunk_tree_uuid[16] = {0};
+    bool have_chunk_tree_uuid = false;
 
     bool logical_to_physical(u64 logical, u64 len, u64& physical) const {
         for (const auto& c : chunks) {
@@ -176,9 +181,23 @@ struct Volume {
             return false; /* self-reference check - wrong candidate never validates */
         if (std::memcmp(out.data() + HDR_FSID, sb.fsid, 16) != 0)
             return false; /* cross-linked/wrong-fs node */
-        if (chunk_tree &&
-            std::memcmp(out.data() + HDR_CHUNK_TREE_UUID, sb.chunk_tree_uuid, 16) != 0)
-            return false;
+        if (chunk_tree) {
+            /* BTR-2 (AUDIT-LINUX-FS, re-pinned): the kernel superblock has
+             * NO chunk_tree_uuid field (SB+0x60 is log_root) - the expected
+             * uuid is COPIED from the chunk-root node's header
+             * (fs_info->chunk_tree_uuid = header's +0x40, kernel
+             * btrfs_read_chunk_tree semantics). The og does no uuid check
+             * at all (only two memcmps in the whole decompile, both name
+             * compares). Adopt on the first self-validating chunk-tree
+             * node (the bytenr+fsid gates above make a wrong adopt
+             * impossible), then verify every subsequent chunk-tree node. */
+            if (!have_chunk_tree_uuid) {
+                std::memcpy(chunk_tree_uuid, out.data() + HDR_CHUNK_TREE_UUID, 16);
+                have_chunk_tree_uuid = true;
+            } else if (std::memcmp(out.data() + HDR_CHUNK_TREE_UUID, chunk_tree_uuid, 16) != 0) {
+                return false;
+            }
+        }
         return true;
     }
 };
@@ -307,7 +326,9 @@ bool validate_superblock(const u8 sb[4096], SuperBlock& out) {
     out.sectorsize = sectorsize;
     out.nodesize = nodesize;
     std::memcpy(out.fsid, sb + SB_FSID, 16);
-    std::memcpy(out.chunk_tree_uuid, sb + SB_CHUNK_TREE_UUID, 16);
+    /* BTR-2: chunk_tree_uuid removed from the SB model - SB+0x60 is
+     * log_root in the kernel layout; the expected uuid is adopted from
+     * the chunk-root node header at runtime. */
     /* embedded system chunk array (entries from +0x32B, byte count in
      * u32@+0xA0; entry = [key 17][chunk 48+32n]). Kernel allows up to
      * BTRFS_SYSTEM_CHUNK_ARRAY_SIZE=2048; 0 is accepted at recovery
@@ -385,9 +406,12 @@ u32 scan_btrfs(IStorageDevice* slice, const BtrfsScanFlags& flags, CancelToken* 
 
     /* 2. chunk tree walk: build the full logical->physical map.
      * The chunk tree root's logical address: candidates validated by the
-     * node's self-referential bytenr (a wrong offset can never validate).
-     * Real btrfs places it in the first system chunk - when the sys array
-     * exists, scan the system chunks for the root node. */
+     * node's self-referential bytenr (a wrong offset can never validate)
+     * AND by the presence of CHUNK items (only the chunk tree holds them).
+     * BTR-2: the expected chunk_tree_uuid is adopted from the first
+     * self-validating chunk-tree node header (kernel semantics) instead
+     * of the bogus SB+0x60 read - the candidate path used to always fail
+     * and every scan fell through to the bounded system-chunk scan. */
     u64 chunk_root = 0;
     {
         std::vector<u64> candidates;
@@ -403,13 +427,25 @@ u32 scan_btrfs(IStorageDevice* slice, const BtrfsScanFlags& flags, CancelToken* 
             if (cand == 0)
                 continue;
             std::vector<u8> node;
-            /* the chunk tree is identified by chunk_tree_uuid (kernel
-             * read_tree_block uses the matching root uuid); read_node
-             * with chunk_tree=true enforces fsid + chunk_tree_uuid */
-            if (v.read_node(cand, node, true)) {
+            if (!v.read_node(cand, node, true))
+                continue;
+            /* confirm this is the chunk tree: it must hold CHUNK items */
+            const u32 nritems = le32(node.data() + HDR_NR_ITEMS);
+            bool has_chunk = false;
+            for (u32 i = 0; i < nritems && i < MAX_ITEMS; ++i) {
+                const u8* it = node.data() + HDR_ITEM_ARRAY + u64(i) * 25;
+                if (it[ITEM_KEY + KEY_TYPE] == KEY_CHUNK) {
+                    has_chunk = true;
+                    break;
+                }
+            }
+            if (has_chunk) {
                 chunk_root = cand;
                 break;
             }
+            /* not the chunk tree: forget the adopted uuid so the next
+             * candidate adopts its own */
+            v.have_chunk_tree_uuid = false;
         }
         if (chunk_root == 0 && !v.chunks.empty()) {
             /* fallback: bounded scan of system chunks for a self-validating
@@ -420,7 +456,7 @@ u32 scan_btrfs(IStorageDevice* slice, const BtrfsScanFlags& flags, CancelToken* 
                 for (u64 off = 0; off + v.sb.nodesize <= c.logical_len; off += v.sb.nodesize) {
                     const u64 logical = c.logical_start + off;
                     std::vector<u8> node;
-                    if (!v.read_node(logical, node))
+                    if (!v.read_node(logical, node, true))
                         continue;
                     const u32 nritems = le32(node.data() + HDR_NR_ITEMS);
                     bool has_chunk = false;
@@ -435,6 +471,7 @@ u32 scan_btrfs(IStorageDevice* slice, const BtrfsScanFlags& flags, CancelToken* 
                         chunk_root = logical;
                         break;
                     }
+                    v.have_chunk_tree_uuid = false; /* not the chunk tree: re-adopt on the next */
                 }
                 if (chunk_root != 0)
                     break;
@@ -591,8 +628,13 @@ u32 scan_btrfs(IStorageDevice* slice, const BtrfsScanFlags& flags, CancelToken* 
             u32 mode = 0;
             u32 nlink = 0;
             u64 atime = 0, ctime = 0, mtime = 0, crtime = 0;
-            std::vector<std::pair<u64, u64>> extents; /* slice bytes */
-            bool inline_data = false;
+            struct Ext {
+                u64 off, len; /* slice bytes */
+                u32 codec;    /* cr::compress::Codec (0 = raw) */
+                u64 psize;    /* on-disk compressed size (raw: == len) */
+            };
+            std::vector<Ext> extents;
+            std::vector<u8> inline_bytes; /* BTR-3: inline extent content */
         };
         std::map<u64, InodeInfo> inodes;
         auto on_item = [&](const Key& k, const u8* data, u32 len) {
@@ -609,12 +651,25 @@ u32 scan_btrfs(IStorageDevice* slice, const BtrfsScanFlags& flags, CancelToken* 
                     timespec_to_filetime(i64(le64(data + INO_MTIME)), le32(data + INO_MTIME + 8));
                 ii.crtime =
                     timespec_to_filetime(i64(le64(data + INO_otime)), le32(data + INO_otime + 8));
-            } else if (k.type == KEY_EXTENT_DATA && len >= 53) {
+            } else if (k.type == KEY_EXTENT_DATA && len >= FE_TYPE + 1) {
+                /* BTR-3: INLINE items may be as short as 21 bytes (header +
+                 * payload) - the old len>=53 gate dropped every small
+                 * inline file before the type byte was even read (the
+                 * 53-byte floor only applies to REGULAR/PREALLOC bodies). */
                 InodeInfo& ii = inodes[k.objectid];
                 const u8 ftype = data[FE_TYPE];
                 if (ftype == 0) {
-                    ii.inline_data = true;
+                    /* BTR-3 (AUDIT-LINUX-FS, F-A2-13): inline extent - the
+                     * item bytes after the 21-byte header ARE the file
+                     * content (og collects them as resident runs; files
+                     * < ~2 KiB recovered as size-correct, content-empty
+                     * nodes before). Appended in key order (multiple
+                     * inline extents per file are legal). */
+                    if (len > FE_TYPE + 1)
+                        ii.inline_bytes.insert(ii.inline_bytes.end(), data + FE_TYPE + 1,
+                                               data + len);
                 } else if (ftype == 1 || ftype == 2) {
+                    const u8 comp = data[FE_COMPRESSION];
                     const u64 disk_bytenr = le64(data + FE_DISK_BYTENR);
                     const u64 disk_num = le64(data + FE_DISK_NUM_BYTES);
                     const u64 offset_in = le64(data + FE_OFFSET);
@@ -622,8 +677,27 @@ u32 scan_btrfs(IStorageDevice* slice, const BtrfsScanFlags& flags, CancelToken* 
                     if (disk_bytenr == 0 || disk_num == 0)
                         return true; /* hole */
                     u64 phys = 0;
-                    if (v.logical_to_physical(disk_bytenr + offset_in, num, phys))
-                        ii.extents.push_back({phys, num});
+                    if (v.logical_to_physical(disk_bytenr + offset_in, num, phys)) {
+                        /* BTR-4 (AUDIT-LINUX-FS): compressed extents carry
+                         * psize bytes on disk that decode to `num` logical
+                         * bytes - map them ZFS-style {codec, psize} so the
+                         * writer decodes at recovery time. Btrfs compression
+                         * ids: 1 zlib (raw deflate -> kGzip), 2 lzo (no
+                         * codec in our layer - counted, extent left unmapped
+                         * rather than emitting wrong raw bytes), 3 zstd. */
+                        if (comp == 1)
+                            ii.extents.push_back(
+                                {phys, num, u32(compress::Codec::kGzip), disk_num});
+                        else if (comp == 3)
+                            ii.extents.push_back(
+                                {phys, num, u32(compress::Codec::kZstd), disk_num});
+                        else if (comp == 2)
+                            ++stats.lzo_extents;
+                        else
+                            ii.extents.push_back({phys, num, 0, 0});
+                        if (comp != 0)
+                            ++stats.compressed_extents;
+                    }
                 }
             }
             return true;
@@ -696,9 +770,13 @@ u32 scan_btrfs(IStorageDevice* slice, const BtrfsScanFlags& flags, CancelToken* 
                     cp->times.accessed = cit->second.atime;
                     cp->record_ref = de.child;
                     for (const auto& e : cit->second.extents)
-                        cp->extents.push_back({e.first, e.second});
-                    if (cit->second.inline_data)
+                        cp->extents.push_back({e.off, e.len, e.codec, e.psize});
+                    if (!cit->second.inline_bytes.empty()) {
+                        /* BTR-3: inline content travels as resident data
+                         * (emitted before extents, ZFS-embedded parity) */
+                        cp->resident_data = cit->second.inline_bytes;
                         ++stats.inline_files;
+                    }
                     tree::FileNode* child_node = tree.add_file(node, cp);
                     cp->release();
                     if (!child_node)

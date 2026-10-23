@@ -40,7 +40,9 @@ struct BtrfsScanStats {
     u64 dirs = 0;
     u64 subvolumes = 0;
     u64 chunks = 0;
-    u64 inline_files = 0; /* EXTENT_DATA inline: no extents to recover */
+    u64 inline_files = 0;       /* EXTENT_DATA inline: content in resident_data */
+    u64 compressed_extents = 0; /* BTR-4: zlib/zstd/lzo extents seen */
+    u64 lzo_extents = 0;        /* lzo extents: no codec - counted, unmapped */
     u64 nodes_read = 0;
     u64 damaged_nodes = 0;
 };
@@ -65,7 +67,8 @@ struct SuperBlock {
     u32 nodesize = 0;
     u64 total_bytes = 0;
     u8 fsid[16] = {0};
-    u8 chunk_tree_uuid[16] = {0};
+    /* BTR-2: chunk_tree_uuid is NOT a superblock field (SB+0x60 is
+     * log_root) - it is adopted from the chunk-root node header. */
     std::vector<ChunkMap> sys_chunks;
     bool valid = false;
 };

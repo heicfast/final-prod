@@ -49,6 +49,18 @@ enum FormatId : u32 {
     FMT_FLV,
     FMT_CAB,
     FMT_ISO,
+    /* CARVE-3 (AUDIT-PIPELINE, F-A3-4): the og registry keys the TIFF
+     * family BE variants and the ORF IIRS/MMOR forms (raw-dual-registry
+     * seeds 2a004d4d / 53524949 / 524f4d4d) - our table was II-only and
+     * the BE branch of tiff_common was unreachable. Ids are APPENDED so
+     * serialized carve_format values stay stable. */
+    FMT_TIFF_BE,
+    FMT_ORF_IIRS,
+    FMT_ORF_MMOR,
+    /* CARVE-2 (AUDIT-PIPELINE, F-A3-3): the og ZIP analyser anchors on
+     * LFH AND central-directory entries (PK\x01\x02 - preferred) AND the
+     * EOCD; indexless archives (destroyed CD) still carve. */
+    FMT_ZIP_CD,
     FMT_COUNT
 };
 

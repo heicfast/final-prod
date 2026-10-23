@@ -396,8 +396,17 @@ u32 SafeWriter::process(CancelToken* cancel, bool (*progress)(u64, u64, void*), 
             done_bytes += it.bytes_total;
             continue;
         }
-        if (u32 rc = recover_item(it, cancel, stats))
-            return rc;
+        const u32 rc = recover_item(it, cancel, stats);
+        /* WRITER-1 (AUDIT-PIPELINE, F-A4-8): per-item failures are
+         * COLLECTED, never fatal - the og's ExportThread keeps going and
+         * reports "%1 files/%2 failed; for details, you may check the
+         * recovery log" at the end (04-recovery-workflow §7.5). One
+         * unreadable file must not cancel the remaining ten thousand.
+         * recover_item_impl_ already stamps ItemState::Error + the error
+         * code + stats.errors on every failure path; cancellation is the
+         * only hard abort. */
+        if (rc == ERR_CANCELLED)
+            return ERR_CANCELLED;
         done_bytes += it.bytes_total;
         if (progress && !progress(done_bytes, total_bytes ? total_bytes : 1, progress_user))
             return ERR_CANCELLED;
