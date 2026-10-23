@@ -544,7 +544,7 @@ u32 walk_mft(NtfsVolume* vol, VolumeBitmap* bitmap, const WalkerFlags& flags, Ca
         if (props == nullptr)
             return ERR_NO_MEMORY;
         props->record_ref = (record_no) | (u64(rh.sequence) << 48);
-        props->fs_kind = 3; /* NTFS (corpus FS type codes) */
+        props->fs_kind = u32(FsKindCode::Ntfs); /* corpus factory code */
         props->name = best->name;
         props->logical_size = data_real_size ? data_real_size : best->real_size;
         props->allocated_size = best->allocated_size;
@@ -646,7 +646,7 @@ u32 walk_mft(NtfsVolume* vol, VolumeBitmap* bitmap, const WalkerFlags& flags, Ca
                 if (sp == nullptr)
                     continue;
                 sp->name = sname;
-                sp->fs_kind = 3;
+                sp->fs_kind = u32(FsKindCode::Ntfs);
                 if (!a.nonresident) {
                     const u8* d = nullptr;
                     u32 dlen = 0;
@@ -843,7 +843,7 @@ u32 walk_mft(NtfsVolume* vol, VolumeBitmap* bitmap, const WalkerFlags& flags, Ca
             if (jp2 == nullptr)
                 break;
             jp2->name = ev.name;
-            jp2->fs_kind = 3;
+            jp2->fs_kind = u32(FsKindCode::Ntfs);
             jp2->logical_size = 0; /* journal carries no size */
             jp2->flags = 0;
             jp2->record_ref = ev.file_ref;
@@ -953,7 +953,7 @@ void scan_remnant_buffer(RemnantCtx& ctx, const u8* buf, u64 buf_len) {
                     if (props == nullptr)
                         continue;
                     props->name = fi.name;
-                    props->fs_kind = 3;
+                    props->fs_kind = u32(FsKindCode::Ntfs);
                     props->logical_size = rem_size;
                     props->times = fi.times;
                     props->attributes = u16(fi.dos_flags & 0xFF);
@@ -1027,7 +1027,7 @@ void scan_remnant_buffer(RemnantCtx& ctx, const u8* buf, u64 buf_len) {
                 return;
             }
             props->name = fi.name;
-            props->fs_kind = 3;
+            props->fs_kind = u32(FsKindCode::Ntfs);
             props->logical_size = fi.real_size;
             props->times = fi.times;
             props->attributes = u16(fi.dos_flags & 0xFF);

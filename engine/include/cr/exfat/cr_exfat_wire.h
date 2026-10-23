@@ -18,8 +18,6 @@ namespace exfat {
 
 #pragma pack(push, 1)
 
-constexpr u16 EXFAT_SIGNATURE = 0xAA55;
-
 struct BootSectorMain {           /* boot sector 0 of the 24-sector boot region */
     u8 jump[3];                   /* +0x00 EB 76 90 */
     char fs_name[8];              /* +0x03 "EXFAT   " */
@@ -56,7 +54,6 @@ constexpr u8 TYPE_BITMAP = 0x01;       /* 0x81 */
 constexpr u8 TYPE_UPCASE = 0x02;       /* 0x82 */
 constexpr u8 TYPE_VOLUME_LABEL = 0x03; /* 0x83 */
 constexpr u8 TYPE_FILE = 0x05;         /* 0x85 */
-constexpr u8 TYPE_VOLUME_GUID = 0x20;  /* 0xA0 */
 constexpr u8 TYPE_STREAM = 0x40;       /* 0xC0 */
 constexpr u8 TYPE_NAME = 0x41;         /* 0xC1 */
 
@@ -112,25 +109,10 @@ struct BitmapEntry {
 };
 static_assert(sizeof(BitmapEntry) == 32);
 
-/* Up-case table entry (0x82) */
-struct UpcaseEntry {
-    u8 type;            /* +0x00 0x82 */
-    u8 reserved1[3];    /* +0x01 */
-    u32 table_checksum; /* +0x04 32-bit checksum of the table */
-    u8 reserved2[12];   /* +0x08 */
-    u32 first_cluster;  /* +0x14 */
-    u64 data_length;    /* +0x18 */
-};
-static_assert(sizeof(UpcaseEntry) == 32);
-
-/* Volume label entry (0x83) */
-struct VolumeLabelEntry {
-    u8 type;            /* +0x00 0x83 */
-    u8 character_count; /* +0x01 0..11 */
-    u16 label[11];      /* +0x02 UTF-16LE */
-    u8 reserved[8];     /* +0x18 */
-};
-static_assert(sizeof(VolumeLabelEntry) == 32);
+/* Up-case-table (0x82) and volume-label (0x83) entries: the engine skips
+ * both by TYPE byte only - no field of either is ever parsed - so their
+ * structs were deleted (AUDIT-FAT §6 rows 16; W4: structs are kept only as
+ * layout docs where the parser reads their fields, cf. BootSectorMain). */
 
 #pragma pack(pop)
 
@@ -151,13 +133,11 @@ inline bool oem_is_exfat(const BootSectorMain& bs) {
 
 /* FAT entry semantics (exFAT): EOC 0xFFFFFFFF, bad 0xFFFFFFF7; a FREE
  * cluster is indicated by the ALLOCATION BITMAP bit 0 (FAT entry then has
- * no meaning). */
-constexpr u32 EXFAT_EOC_VALUE = 0xFFFFFFFF;
-constexpr u32 EXFAT_BAD_VALUE = 0xFFFFFFF7;
+ * no meaning). The engine keeps its local EOC/BAD constants at
+ * cr_exfat_quick.cpp (the wire-level duplicates were never consumed). */
 
 constexpr u32 BOOT_REGION_SECTORS = 24; /* main 0..11, backup 12..23 */
 constexpr u32 BACKUP_BOOT_SECTOR = 12;
-constexpr u32 CHECKSUM_OFF = 508; /* +0x1FC in every sector */
 
 } // namespace exfat
 } // namespace cr

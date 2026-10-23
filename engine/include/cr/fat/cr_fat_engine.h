@@ -44,8 +44,6 @@ struct FatParams {
     u64 first_data_sector = 0; /* sector index */
     u32 cluster_count = 0;     /* data clusters (incl. 2 reserved) */
     u64 total_bytes = 0;
-    u16 backup_boot_sector = 0; /* FAT32: usually 6 */
-    u32 first_usable_cluster = 2;
 };
 
 /* Flavor discrimination (Microsoft whitepaper thresholds). */
@@ -68,13 +66,9 @@ public:
 
     /* raw entry (canonicalized) for completeness checks */
     u32 raw(u32 cluster) const;
-    void set_raw(u32 cluster, u32 value); /* recovery reconstruction only */
 
     bool loaded() const { return !fat1_.empty(); }
-    bool mirror_loaded() const { return mirror_; }
     u32 max_cluster() const { return max_cluster_; }
-    /* divergence count between FAT1/FAT2 (health report) */
-    u32 divergences() const { return divergences_; }
 
     /* cluster -> absolute byte offset of its data */
     static u64 cluster_offset(const FatParams& p, u32 cluster);
@@ -83,7 +77,6 @@ private:
     std::vector<u8> fat1_;
     std::vector<u8> fat2_;
     bool mirror_ = false;
-    u32 divergences_ = 0;
     u32 max_cluster_ = 0;
     Flavor flavor_ = Flavor::Fat32;
 
@@ -134,7 +127,6 @@ struct FatScanStats {
 };
 
 struct FatScanFlags {
-    bool keep_deleted = true;
     bool reconstruct_deleted_chains = true; /* complete mode */
 };
 

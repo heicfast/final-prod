@@ -41,7 +41,6 @@ public:
      * count as reused (hole = never had content on disk). */
     double reused_ratio(const RunList& runs) const;
 
-    u64 bit_count() const { return bit_count_; }
     bool valid() const { return !buffer_.empty(); }
 
 private:

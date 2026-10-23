@@ -111,15 +111,13 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size) {
         break;
     }
     case 7: {
-        cr::btrfs::BtrfsScanFlags fl;
         cr::btrfs::BtrfsScanStats st;
-        (void)cr::btrfs::scan_btrfs(&dev, fl, nullptr, nullptr, nullptr, tree, ra, rd, rl, st);
+        (void)cr::btrfs::scan_btrfs(&dev, nullptr, nullptr, nullptr, tree, ra, rd, rl, st);
         break;
     }
     case 8: {
-        cr::zfs::ZfsScanFlags fl;
         cr::zfs::ZfsScanStats st;
-        (void)cr::zfs::scan_zfs(&dev, fl, nullptr, nullptr, nullptr, tree, ra, rd, rl, st);
+        (void)cr::zfs::scan_zfs(&dev, nullptr, nullptr, nullptr, tree, ra, rd, rl, st);
         break;
     }
     case 9: {

@@ -5,6 +5,7 @@
 
 #include "cr/ntfs/cr_bootstrap.h"
 #include <algorithm>
+#include "cr/ntfs/cr_attributes.h"
 #include "cr/ntfs/cr_ntfs_wire.h"
 #include "cr/ntfs/cr_fixup.h"
 #include <cstring>
@@ -81,71 +82,50 @@ u32 NtfsVolume::load_mft_stream() {
     if (rc != OK)
         return rc;
 
-    /* walk attributes of record 0 */
-    u32 pos = rh.attribute_offset;
+    /* walk attributes of record 0 via the shared walker (W4 consolidation,
+     * AUDIT-NTFS §4 row 21: the three hand-rolled loops had divergent bounds
+     * checks - name_offset sanity only here, a 256-attr cap here vs 64 in the
+     * other two - record 0 now gets the same walk every other record gets) */
+    std::vector<AttrView> attrs;
+    rc = enum_attributes(buf.data(), u32(buf.size()), attrs);
+    if (rc != OK)
+        return rc;
     bool have_data = false;
     bool have_attr_list = false;
-    int depth = 0;
     std::vector<u8> attrlist_extra; /* $ATTRIBUTE_LIST content of $MFT */
-    const int MAX_ATTR_WALK = 256;
 
-    while (pos + 16 <= buf.size() && depth < MAX_ATTR_WALK) {
-        ++depth;
-        u32 type = u32_from_bytes_le(buf.data() + pos);
-        if (type == ATTR_TYPE_TERMINATOR)
-            break;
-        u32 len = u32_from_bytes_le(buf.data() + pos + 4);
-        if (len < 16 || pos + len > buf.size())
-            return ERR_BAD_PARAMETER;
-        u8 nonresident = buf[pos + 8];
-        u16 name_off = u16_from_bytes_le(buf.data() + pos + 12);
-
-        if (type == ATTR_TYPE_DATA && !nonresident) {
-            /* resident $DATA on $MFT: tiny MFT (all records in one run) */
-            ResidentAttributeHeader ra;
-            std::memcpy(&ra, buf.data() + pos, sizeof(ra));
-            if (u64(ra.value_offset) + u64(ra.value_length) > u64(len))
-                return ERR_BAD_PARAMETER;
-            const u8* runs = buf.data() + pos + ra.value_offset;
-            u32 runs_len = ra.value_length;
-            RunList rl;
-            if (RunList::decode(runs, runs_len, 0, p_.total_clusters, rl) != OK)
-                return ERR_BAD_PARAMETER;
-            mft_run_ = rl;
-            have_data = true;
-        } else if (type == ATTR_TYPE_DATA && nonresident) {
-            if (pos + 16 + sizeof(NonresidentTail) > buf.size())
-                return ERR_BAD_PARAMETER;
-            NonresidentTail na;
-            std::memcpy(&na, buf.data() + pos + 16, sizeof(na));
-            if (na.runlist_offset < 0x40 || u32(na.runlist_offset) + 8 > len)
-                return ERR_BAD_PARAMETER;
-            const u8* runs = buf.data() + pos + na.runlist_offset;
-            RunList rl;
-            if (RunList::decode(runs, len - na.runlist_offset, na.start_vcn, p_.total_clusters,
-                                rl) != OK)
-                return ERR_BAD_PARAMETER;
-            mft_run_ = rl;
-            have_data = true;
-        } else if (type == ATTR_TYPE_ATTRIBUTE_LIST) {
+    for (const AttrView& a : attrs) {
+        if (a.type == ATTR_TYPE_DATA) {
+            if (!a.nonresident) {
+                /* resident $DATA on $MFT: tiny MFT (all records in one run);
+                 * the resident value IS the runlist bytes */
+                RunList rl;
+                if (RunList::decode(a.at + a.value_offset, a.value_length, 0, p_.total_clusters,
+                                    rl) != OK)
+                    return ERR_BAD_PARAMETER;
+                mft_run_ = rl;
+                have_data = true;
+            } else {
+                RunList rl;
+                if (RunList::decode(a.at + a.runlist_offset, a.record_length - a.runlist_offset,
+                                    a.start_vcn, p_.total_clusters, rl) != OK)
+                    return ERR_BAD_PARAMETER;
+                mft_run_ = rl;
+                have_data = true;
+            }
+        } else if (a.type == ATTR_TYPE_ATTRIBUTE_LIST) {
             /* corpus: "MFT file record has 0x20 attribute" path - keep the
              * content bytes; after the loop we reassemble from child records.
              * Nonresident lists are legal (huge, fragmented $MFTs) - the og
              * chases them (FUN_18001a540 fragmented-MFT handler); decode the
              * runlist and read the stream, bounded (attrlists stay small even
              * when nonresident - 1 MiB cap against corrupt size fields). */
-            if (nonresident) {
-                if (pos + 16 + sizeof(NonresidentTail) > buf.size())
-                    return ERR_BAD_PARAMETER;
-                NonresidentTail na;
-                std::memcpy(&na, buf.data() + pos + 16, sizeof(na));
-                if (na.runlist_offset < 0x40 || u32(na.runlist_offset) + 8 > len)
-                    return ERR_BAD_PARAMETER;
+            if (a.nonresident) {
                 RunList rl;
-                if (RunList::decode(buf.data() + pos + na.runlist_offset, len - na.runlist_offset,
-                                    na.start_vcn, p_.total_clusters, rl) != OK)
+                if (RunList::decode(a.at + a.runlist_offset, a.record_length - a.runlist_offset,
+                                    a.start_vcn, p_.total_clusters, rl) != OK)
                     return ERR_BAD_PARAMETER;
-                u64 want = na.actual != 0 ? na.actual : na.allocated;
+                u64 want = a.actual != 0 ? a.actual : a.allocated;
                 if (want == 0 || want > (1ull << 20))
                     return ERR_BAD_PARAMETER;
                 attrlist_extra.assign(size_t(want), 0);
@@ -172,21 +152,12 @@ u32 NtfsVolume::load_mft_stream() {
                     return ERR_BAD_PARAMETER;
                 have_attr_list = true;
             } else {
-                ResidentAttributeHeader ra;
-                std::memcpy(&ra, buf.data() + pos, sizeof(ra));
-                if (u64(ra.value_offset) + u64(ra.value_length) > u64(len))
-                    return ERR_BAD_PARAMETER;
-                attrlist_extra.assign(buf.begin() + pos + ra.value_offset,
-                                      buf.begin() + pos + ra.value_offset + ra.value_length);
+                attrlist_extra.assign(a.at + a.value_offset,
+                                      a.at + a.value_offset + a.value_length);
                 have_attr_list = true;
             }
         }
-        pos += len;
-        if (name_off > len)
-            return ERR_BAD_PARAMETER; /* sanity on header */
     }
-    if (depth >= MAX_ATTR_WALK)
-        return ERR_DEPTH_LIMIT;
     if (!have_data)
         return ERR_BAD_PARAMETER;
 
@@ -242,33 +213,25 @@ u32 NtfsVolume::load_mft_stream() {
                         std::memcpy(&crh, cr.data(), sizeof(crh));
                         if (fixup_apply(cr.data(), u32(cr.size()), crh.update_sequence_offset,
                                         crh.update_sequence_size, p_.sector_bytes) == OK) {
-                            u32 cpos = crh.attribute_offset;
-                            int cdepth = 0;
-                            while (cpos + 16 <= cr.size() && cdepth < 64) {
-                                ++cdepth;
-                                u32 ctype = u32_from_bytes_le(cr.data() + cpos);
-                                if (ctype == ATTR_TYPE_TERMINATOR)
-                                    break;
-                                u32 clen = u32_from_bytes_le(cr.data() + cpos + 4);
-                                if (clen < 16 || cpos + clen > cr.size())
-                                    break;
-                                if (ctype == ATTR_TYPE_DATA && cr[cpos + 8]) {
-                                    if (cpos + 16 + sizeof(NonresidentTail) > cr.size())
-                                        break;
-                                    NonresidentTail cna;
-                                    std::memcpy(&cna, cr.data() + cpos + 16, sizeof(cna));
+                            /* shared walker (row 21); on a corrupt child the
+                             * attributes pushed before the first invalid one
+                             * are salvaged - the old loop broke mid-walk the
+                             * same way */
+                            std::vector<AttrView> cattrs;
+                            (void)enum_attributes(cr.data(), u32(cr.size()), cattrs);
+                            for (const AttrView& ca : cattrs) {
+                                if (ca.type == ATTR_TYPE_DATA && ca.nonresident) {
                                     RunList crl;
-                                    if (u32(cna.runlist_offset) + 8 <= clen &&
-                                        RunList::decode(cr.data() + cpos + cna.runlist_offset,
-                                                        clen - cna.runlist_offset, cna.start_vcn,
-                                                        p_.total_clusters, crl) == OK) {
+                                    if (RunList::decode(ca.at + ca.runlist_offset,
+                                                        ca.record_length - ca.runlist_offset,
+                                                        ca.start_vcn, p_.total_clusters,
+                                                        crl) == OK) {
                                         Frag f;
                                         f.lowest_vcn = alowest;
                                         f.runs = crl.runs();
                                         frags.push_back(std::move(f));
                                     }
                                 }
-                                cpos += clen;
                             }
                         }
                     }
@@ -307,62 +270,38 @@ u32 NtfsVolume::load_mftmirr_stream() {
                          p_.sector_bytes);
     if (rc != OK)
         return rc;
-    std::vector<u8> scratch;
-    rc = enum_mirr_attrs(buf, scratch);
+    rc = enum_mirr_attrs(buf);
     if (rc != OK)
         return rc;
     return mirr_valid_ ? OK : ERR_BAD_PARAMETER;
 }
 
-u32 NtfsVolume::enum_mirr_attrs(const std::vector<u8>& buf, std::vector<u8>& scratch) {
-    /* walk attributes of the $MFTMirr record copy; take its $DATA runs */
-    u32 pos;
-    {
-        RecordHeader rh;
-        std::memcpy(&rh, buf.data(), sizeof(rh));
-        pos = rh.attribute_offset;
-    }
-    int depth = 0;
-    while (pos + 16 <= buf.size() && depth < 64) {
-        ++depth;
-        u32 type = u32_from_bytes_le(buf.data() + pos);
-        if (type == ATTR_TYPE_TERMINATOR)
-            break;
-        u32 len = u32_from_bytes_le(buf.data() + pos + 4);
-        if (len < 16 || pos + len > buf.size())
-            return ERR_BAD_PARAMETER;
-        if (type == ATTR_TYPE_DATA) {
-            if (buf[pos + 8]) { /* nonresident */
-                if (pos + 64 > buf.size())
-                    return ERR_BAD_PARAMETER;
-                NonresidentTail na;
-                std::memcpy(&na, buf.data() + pos + 16, sizeof(na));
-                if (na.runlist_offset >= 0x40 && u32(na.runlist_offset) + 8 <= len) {
-                    RunList rl;
-                    if (RunList::decode(buf.data() + pos + na.runlist_offset,
-                                        len - na.runlist_offset, na.start_vcn, p_.total_clusters,
-                                        rl) == OK) {
-                        mirr_run_ = rl;
-                        mirr_valid_ = true;
-                    }
-                }
-            } else {
-                ResidentAttributeHeader ra;
-                std::memcpy(&ra, buf.data() + pos, sizeof(ra));
-                if (u64(ra.value_offset) + u64(ra.value_length) <= u64(len) &&
-                    ra.value_length > 0) {
-                    RunList rl;
-                    if (RunList::decode(buf.data() + pos + ra.value_offset, ra.value_length, 0,
-                                        p_.total_clusters, rl) == OK) {
-                        mirr_run_ = rl;
-                        mirr_valid_ = true;
-                    }
-                }
+u32 NtfsVolume::enum_mirr_attrs(const std::vector<u8>& buf) {
+    /* walk attributes of the $MFTMirr record copy via the shared walker
+     * (row 21); take its $DATA runs as the mirror mapping */
+    std::vector<AttrView> attrs;
+    u32 rc = enum_attributes(buf.data(), u32(buf.size()), attrs);
+    if (rc != OK)
+        return rc;
+    for (const AttrView& a : attrs) {
+        if (a.type != ATTR_TYPE_DATA)
+            continue;
+        if (a.nonresident) {
+            RunList rl;
+            if (RunList::decode(a.at + a.runlist_offset, a.record_length - a.runlist_offset,
+                                a.start_vcn, p_.total_clusters, rl) == OK) {
+                mirr_run_ = rl;
+                mirr_valid_ = true;
+            }
+        } else if (a.value_length > 0) {
+            RunList rl;
+            if (RunList::decode(a.at + a.value_offset, a.value_length, 0, p_.total_clusters, rl) ==
+                OK) {
+                mirr_run_ = rl;
+                mirr_valid_ = true;
             }
         }
-        pos += len;
     }
-    (void)scratch;
     return OK;
 }
 
@@ -446,19 +385,6 @@ u32 NtfsVolume::read_record(u64 record_no, std::vector<u8>& out) {
         return ERR_RANGE_OUT_OF_BOUNDS;
     }
     return dev_->read_at(lcn * p_.cluster_bytes + rel, out.data(), u32(out.size()));
-}
-
-u32 NtfsVolume::read_record_mirr(u64 record_no, std::vector<u8>& out) {
-    if (!mirr_valid_ || record_no >= 4)
-        return ERR_UNSUPPORTED;
-    out.resize(p_.record_size);
-    u64 vcn = record_no * p_.record_size / p_.cluster_bytes;
-    u64 lcn = 0;
-    bool sparse = false;
-    if (!mirr_run_.vcn_to_lcn(vcn, &lcn, &sparse) || sparse)
-        return ERR_RANGE_OUT_OF_BOUNDS;
-    return dev_->read_at(lcn * p_.cluster_bytes + (record_no * p_.record_size % p_.cluster_bytes),
-                         out.data(), u32(out.size()));
 }
 
 } // namespace ntfs

@@ -336,6 +336,27 @@ TEST(FatEngine, Fat32RootChainAndBackupBoot) {
     }
 }
 
+/* FAT-8 (AUDIT-FAT): the backup-boot fallback is FAT32-only. FAT12/16
+ * volumes have NO backup boot sector - sector 6 there is FAT-area bytes.
+ * A FAT16 image whose sector-6 content merely validates as a boot sector
+ * must NOT be salvaged via the fallback: the damaged-primary scan fails
+ * honestly instead of adopting FAT-area bytes as geometry. */
+TEST(FatEngine, Fat16HasNoBackupBootFallback) {
+    auto img = build_fat16_image();
+    /* plant a full valid copy of the (FAT16) boot sector at sector 6 */
+    std::memcpy(img.data() + 6 * 512, img.data(), 512);
+    /* corrupt the PRIMARY boot sector entirely (zeros) */
+    std::memset(img.data(), 0, 512);
+
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* ra = tree.add_root(u"Found");
+    FatScanFlags flags;
+    FatScanStats stats;
+    u32 rc = scan_fat(&dev, flags, nullptr, nullptr, nullptr, tree, ra, nullptr, nullptr, stats);
+    EXPECT_NE(rc, OK); /* refused: FAT16 flavor cannot use the backup path */
+}
+
 TEST(FatEngine, Fat32BackupBootFallback) {
     std::vector<u8> img(u64(66562) * 512, 0);
     u8* b = img.data();

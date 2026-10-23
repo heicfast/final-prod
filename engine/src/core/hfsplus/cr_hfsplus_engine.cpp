@@ -6,6 +6,7 @@
  */
 
 #include "cr/hfsplus/cr_hfsplus_engine.h"
+#include "cr/cr_bits.h" /* shared byte readers (W4 dedup, DC-12) */
 #include <cstring>
 #include <functional>
 #include <map>
@@ -29,8 +30,6 @@ constexpr u32 VH_NEXT_CATALOG_ID = 0x40;
 constexpr u32 VH_ALLOCATION_FORK = 0x70; /* ForkData, 80 bytes */
 constexpr u32 VH_EXTENTS_FORK = 0xC0;
 constexpr u32 VH_CATALOG_FORK = 0x110;
-constexpr u32 VH_ATTRIBUTES_FORK = 0x160;
-constexpr u32 VH_STARTUP_FORK = 0x1B0;
 
 constexpr u16 SIG_HFSPLUS = 0x482B; /* "H+" */
 constexpr u16 SIG_HFSX = 0x4858;    /* "HX" */
@@ -84,7 +83,6 @@ constexpr u32 CF_CREATE_DATE = 0x0C;
 constexpr u32 CF_CONTENT_MOD = 0x10;
 constexpr u32 CF_ATTR_MOD = 0x14;
 constexpr u32 CF_ACCESS_DATE = 0x18;
-constexpr u32 CF_TEXT_ENCODING = 0x50;
 constexpr u32 CF_DATA_FORK = 0x58;
 constexpr u32 CF_RESOURCE_FORK = 0xA8;
 
@@ -94,20 +92,9 @@ constexpr u32 CD_FOLDER_ID = 0x08;
 constexpr u32 CD_CREATE = 0x0C;
 constexpr u32 CD_CONTENT_MOD = 0x10;
 
-u16 be16(const u8* p) {
-    return u16((u32(p[0]) << 8) | p[1]);
-}
-u32 be32(const u8* p) {
-    return (u32(p[0]) << 24) | (u32(p[1]) << 16) | (u32(p[2]) << 8) | u32(p[3]);
-}
-u64 be64(const u8* p) {
-    return (u64(be32(p)) << 32) | be32(p + 4);
-}
-
 constexpr u32 MAX_TREE_NODES = 1u << 22; /* 4M nodes bound */
 constexpr u32 MAX_RECORD_NAME = 255;
 constexpr u32 DIR_DEPTH_LIMIT = 64;
-constexpr u64 MAX_FORK_BYTES = 64ull << 30;
 
 struct ForkData {
     u64 logical_size = 0;
@@ -501,7 +488,7 @@ u32 scan_hfsplus(IStorageDevice* slice, const HfsScanFlags& flags, CancelToken* 
             return ERR_NO_MEMORY;
         const bool is_dir = r.rec_type == REC_FOLDER;
         props->name = r.name;
-        props->fs_kind = 8; /* HFS (corpus FS code) */
+        props->fs_kind = u32(FsKindCode::Hfsplus); /* corpus factory code */
         props->attributes = is_dir ? 0x10 : 0;
         props->logical_size = is_dir ? 0 : r.data_fork.logical_size;
         props->times.created = mac_to_filetime(r.create_date);
@@ -557,7 +544,7 @@ u32 scan_hfsplus(IStorageDevice* slice, const HfsScanFlags& flags, CancelToken* 
             if (!props)
                 break;
             props->name = u"..namedfork/rsrc";
-            props->fs_kind = 8;
+            props->fs_kind = u32(FsKindCode::Hfsplus);
             props->logical_size = rf.logical_size;
             props->record_ref = records[i].cnid;
             for (const auto& ex :
@@ -640,7 +627,7 @@ u32 scan_hfsplus(IStorageDevice* slice, const HfsScanFlags& flags, CancelToken* 
                 if (!props)
                     return false;
                 props->name = cr.name.empty() ? u"unnamed" : cr.name;
-                props->fs_kind = 8;
+                props->fs_kind = u32(FsKindCode::Hfsplus);
                 props->logical_size = cr.rec_type == REC_FILE ? cr.data_fork.logical_size : 0;
                 props->attributes = cr.rec_type == REC_FOLDER ? 0x10 : 0;
                 props->times.created = mac_to_filetime(cr.create_date);

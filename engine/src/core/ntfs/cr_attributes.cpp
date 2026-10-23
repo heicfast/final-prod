@@ -62,7 +62,6 @@ u32 enum_attributes(const u8* record, u32 record_size, std::vector<AttrView>& ou
              * differ (runner evidence: deleted records emitted size 0). */
             a.allocated = u64_from_bytes_le(record + pos + 40);
             a.actual = u64_from_bytes_le(record + pos + 48);
-            a.initialized = u64_from_bytes_le(record + pos + 56);
             if (a.runlist_offset < 0x40 || u32(a.runlist_offset) + 8 > len)
                 return ERR_BAD_PARAMETER;
         }
@@ -140,7 +139,6 @@ u32 parse_file_name(const AttrView& a, FileNameInfo& out) {
     FileNameInfo f;
     f.parent_ref = u64_from_bytes_le(d);
     f.parent_record = mft_reference_record(f.parent_ref);
-    f.parent_sequence = u16(f.parent_ref >> 48);
     f.times.created = u64_from_bytes_le(d + 8);
     f.times.modified = u64_from_bytes_le(d + 16);
     f.times.changed = u64_from_bytes_le(d + 24);
@@ -190,26 +188,6 @@ u32 parse_data_runs(const AttrView& a, u64 total_clusters, RunList& out) {
         return ERR_BAD_PARAMETER;
     return RunList::decode(a.at + a.runlist_offset, a.record_length - a.runlist_offset, a.start_vcn,
                            total_clusters, out);
-}
-
-u32 parse_index_root(const AttrView& a, u32& entries_offset, u32& index_length, u32& allocated,
-                     u32& flags) {
-    const u8* d = nullptr;
-    u32 dlen = 0;
-    u32 rc = resident_span(a, d, dlen);
-    if (rc != OK)
-        return rc;
-    if (dlen < 0x20)
-        return ERR_TRUNCATED;
-    /* $INDEX_ROOT value: type u32, collation u32, block_size u32, per_block u8,
-     * unused[3], then IndexHeader at +0x10 */
-    entries_offset = u32_from_bytes_le(d + 0x10);
-    index_length = u32_from_bytes_le(d + 0x14);
-    allocated = u32_from_bytes_le(d + 0x18);
-    flags = u32_from_bytes_le(d + 0x1C);
-    if (entries_offset < 0x20 || entries_offset > dlen)
-        return ERR_BAD_PARAMETER;
-    return OK;
 }
 
 } // namespace ntfs

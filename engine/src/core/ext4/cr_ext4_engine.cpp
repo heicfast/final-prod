@@ -4,6 +4,7 @@
  */
 
 #include "cr/ext4/cr_ext4_engine.h"
+#include "cr/cr_bits.h" /* shared byte readers (W4 dedup, DC-12) */
 #include <cstring>
 #include <functional>
 #include <map>
@@ -37,7 +38,6 @@ constexpr u32 INCOMPAT_64BIT = 0x0080;
 constexpr u32 INCOMPAT_FILETYPE = 0x0002;
 constexpr u32 INCOMPAT_EXTENTS = 0x0040;
 constexpr u32 INCOMPAT_BIGALLOC = 0x0400;
-constexpr u32 RO_COMPAT_METADATA_CSUM = 0x0400;
 
 constexpr u32 ROOT_INODE = 2;
 constexpr u32 JOURNAL_INODE_DEFAULT = 8;
@@ -51,13 +51,6 @@ constexpr u64 MAX_GROUPS = 1ull << 20;  /* 1M groups = 128 TiB @ 128 MiB/group
 constexpr u64 MAX_INODES = 16ull << 20; /* 16M inodes sweep bound */
 constexpr u32 MAX_DIR_BYTES = 64ull << 20;
 constexpr int DIR_WALK_DEPTH = 64;
-
-u16 rd16(const u8* p) {
-    return u16(p[0]) | (u16(p[1]) << 8);
-}
-u32 rd32(const u8* p) {
-    return u32(p[0]) | (u32(p[1]) << 8) | (u32(p[2]) << 16) | (u32(p[3]) << 24);
-}
 
 struct GroupDesc {
     u64 block_bitmap; /* absolute block */
@@ -104,33 +97,19 @@ u16 ifmt(u16 mode) {
 
 } // namespace
 
-u64 unix_to_filetime(i64 unix_sec) {
-    /* unix 1970 -> 1601 epoch: 11644473600 seconds; 100ns units */
-    const i64 EPOCH_DELTA = 11644473600LL;
-    if (unix_sec <= -EPOCH_DELTA)
-        return 0;
-    return u64((unix_sec + EPOCH_DELTA) * 10000000LL);
-}
-
-u64 unix_to_filetime_ns(i64 unix_sec, u32 nsec) {
-    /* same conversion with the ext4 *_extra nsec field folded in
-     * (kernel ext4_decode_extra_time: nsec = (extra & 0xFFFFFFFC) >> 2) */
-    return unix_to_filetime(unix_sec) + u64(nsec / 100u);
-}
-
 bool validate_superblock(const u8 sb[1024], SuperBlock& out) {
-    if (rd16(sb + SB_MAGIC) != SB_MAGIC_VALUE)
+    if (le16(sb + SB_MAGIC) != SB_MAGIC_VALUE)
         return false;
     if ((sb[SB_INCOMPAT] & 1) != 0)
         return false; /* compression unsupported (decompile low-bit guard) */
-    const u32 inodes_count = rd32(sb);
-    const u32 blocks_lo = rd32(sb + SB_BLOCKS_LO);
-    const u32 bpg = rd32(sb + SB_BLOCKS_PER_GROUP);
-    const u32 ipg = rd32(sb + SB_INODES_PER_GROUP);
+    const u32 inodes_count = le32(sb);
+    const u32 blocks_lo = le32(sb + SB_BLOCKS_LO);
+    const u32 bpg = le32(sb + SB_BLOCKS_PER_GROUP);
+    const u32 ipg = le32(sb + SB_INODES_PER_GROUP);
     if (inodes_count == 0 || blocks_lo == 0 || bpg == 0 || ipg == 0)
         return false;
-    const u32 first_data_block = rd32(sb + SB_FIRST_DATA_BLOCK);
-    const u32 log_bs = rd32(sb + SB_LOG_BLOCK_SIZE);
+    const u32 first_data_block = le32(sb + SB_FIRST_DATA_BLOCK);
+    const u32 log_bs = le32(sb + SB_LOG_BLOCK_SIZE);
     if (log_bs > 6)
         return false; /* 64KiB max block size (spec) */
     /* first_data_block x log_block_size kernel rule (decompile gate) */
@@ -141,7 +120,7 @@ bool validate_superblock(const u8 sb[1024], SuperBlock& out) {
     const u32 block_size = 1024u << (log_bs & 0x1F);
     if (block_size == 0)
         return false;
-    const u64 blocks = blocks_lo | (u64(rd32(sb + SB_BLOCKS_HI)) << 32);
+    const u64 blocks = blocks_lo | (u64(le32(sb + SB_BLOCKS_HI)) << 32);
     if (blocks == 0)
         return false;
     const u64 groups = blocks / bpg;
@@ -154,18 +133,18 @@ bool validate_superblock(const u8 sb[1024], SuperBlock& out) {
     out.inodes_per_group = ipg;
     out.inodes_count = inodes_count;
     out.first_data_block = first_data_block;
-    out.rev_level = u16(rd32(sb + SB_REV_LEVEL));
-    out.inode_size = out.rev_level >= 1 ? rd16(sb + SB_INODE_SIZE) : 128;
+    out.rev_level = u16(le32(sb + SB_REV_LEVEL));
+    out.inode_size = out.rev_level >= 1 ? le16(sb + SB_INODE_SIZE) : 128;
     if (out.inode_size < 128 || out.inode_size > 1024 || (out.inode_size & 7) != 0)
         out.inode_size = 128;
-    out.feature_incompat = rd32(sb + SB_INCOMPAT);
-    out.feature_ro_compat = rd32(sb + SB_RO_COMPAT);
-    out.journal_inum = rd32(sb + SB_JOURNAL_INUM);
+    out.feature_incompat = le32(sb + SB_INCOMPAT);
+    out.feature_ro_compat = le32(sb + SB_RO_COMPAT);
+    out.journal_inum = le32(sb + SB_JOURNAL_INUM);
     if (out.journal_inum == 0)
         out.journal_inum = JOURNAL_INODE_DEFAULT;
     out.groups = groups;
     if ((out.feature_incompat & INCOMPAT_64BIT) != 0) {
-        out.desc_size = rd16(sb + SB_DESC_SIZE);
+        out.desc_size = le16(sb + SB_DESC_SIZE);
         if (out.desc_size < 64)
             out.desc_size = 64;
         if (out.desc_size > 64)
@@ -197,15 +176,15 @@ struct Volume {
         if (g >= sb.groups || gdt.empty())
             return d;
         const u8* p = gdt.data() + size_t(g) * sb.desc_size;
-        d.block_bitmap = rd32(p + 0x00);
-        d.inode_bitmap = rd32(p + 0x04);
-        d.inode_table = rd32(p + 0x08);
+        d.block_bitmap = le32(p + 0x00);
+        d.inode_bitmap = le32(p + 0x04);
+        d.inode_table = le32(p + 0x08);
         if (sb.desc_size >= 64) { /* 64-bit high words (ext4_group_desc):
                                    * block_bitmap_hi@0x20, inode_bitmap_hi
                                    * @0x24, inode_table_hi@0x28 */
-            d.block_bitmap |= u64(rd32(p + 0x20)) << 32;
-            d.inode_bitmap |= u64(rd32(p + 0x24)) << 32;
-            d.inode_table |= u64(rd32(p + 0x28)) << 32;
+            d.block_bitmap |= u64(le32(p + 0x20)) << 32;
+            d.inode_bitmap |= u64(le32(p + 0x24)) << 32;
+            d.inode_table |= u64(le32(p + 0x28)) << 32;
         }
         return d;
     }
@@ -220,9 +199,9 @@ bool walk_extent_node(Volume& v, const u8* node, u32 depth, u64& max_blocks,
     if (max_blocks == 0)
         return false; /* P1-11: global node-read budget spent */
     --max_blocks;
-    if (rd16(node) != EXT4_EXT_MAGIC)
+    if (le16(node) != EXT4_EXT_MAGIC)
         return false;
-    const u16 entries = rd16(node + 2);
+    const u16 entries = le16(node + 2);
     if (u32(entries) > (v.sb.block_size - 12) / 12) /* per-node entry bound */
         return false; /* P0-5: bound must follow the actual block size */
     if (level > EXTENT_DEPTH_LIMIT)
@@ -231,13 +210,13 @@ bool walk_extent_node(Volume& v, const u8* node, u32 depth, u64& max_blocks,
     if (depth == 0) {
         for (u32 i = 0; i < entries; ++i) {
             const u8* e = body + u64(i) * 12;
-            const u32 logical = rd32(e);
+            const u32 logical = le32(e);
             /* kernel ext4_extents.h: raw ee_len == 0x8000 (EXT_INIT_MAX_LEN)
              * is a WRITTEN 32768-block extent; > 0x8000 means unwritten
              * (bit 15) - decode accordingly */
-            const u16 raw_len = rd16(e + 4);
+            const u16 raw_len = le16(e + 4);
             const u32 len = raw_len > 0x8000 ? (raw_len & 0x7FFF) : raw_len;
-            const u64 phys = rd32(e + 8) | (u64(rd16(e + 6)) << 32);
+            const u64 phys = le32(e + 8) | (u64(le16(e + 6)) << 32);
             if (len == 0 || phys == 0 || phys + len > v.sb.blocks_count)
                 continue;
             const u64 off = phys * v.sb.block_size;
@@ -258,7 +237,7 @@ bool walk_extent_node(Volume& v, const u8* node, u32 depth, u64& max_blocks,
      * ei_leaf_lo u32@4, ei_leaf_hi u16@6, ei_unused u16@8 */
     for (u32 i = 0; i < entries; ++i) {
         const u8* e = body + u64(i) * 12;
-        const u64 child = rd32(e + 4) | (u64(rd16(e + 6)) << 32);
+        const u64 child = le32(e + 4) | (u64(le16(e + 6)) << 32);
         if (child == 0 || child >= v.sb.blocks_count)
             continue;
         std::vector<u8> buf(size_t(v.sb.block_size));
@@ -287,33 +266,33 @@ bool read_inode(Volume& v, u32 ino, InodeView& iv) {
         return false;
 
     iv = InodeView{};
-    iv.mode = rd16(raw + I_MODE);
-    iv.atime = i64(rd32(raw + I_ATIME));
-    iv.ctime = i64(rd32(raw + I_CTIME));
-    iv.mtime = i64(rd32(raw + I_MTIME));
-    iv.dtime = i64(rd32(raw + I_DTIME));
-    iv.links = rd16(raw + I_LINKS);
-    iv.flags = rd32(raw + I_FLAGS);
-    u64 size = rd32(raw + I_SIZE_LO);
+    iv.mode = le16(raw + I_MODE);
+    iv.atime = i64(le32(raw + I_ATIME));
+    iv.ctime = i64(le32(raw + I_CTIME));
+    iv.mtime = i64(le32(raw + I_MTIME));
+    iv.dtime = i64(le32(raw + I_DTIME));
+    iv.links = le16(raw + I_LINKS);
+    iv.flags = le32(raw + I_FLAGS);
+    u64 size = le32(raw + I_SIZE_LO);
     if (ifmt(iv.mode) == 0x8000) /* regular: 64-bit size */
-        size |= u64(rd32(raw + I_SIZE_HIGH)) << 32;
+        size |= u64(le32(raw + I_SIZE_HIGH)) << 32;
     iv.size = size;
     /* extended fields present when the inode is larger than the 128-byte
      * good-old layout and i_extra_isize covers them (kernel rule). */
     if (v.sb.inode_size >= 0x98u && v.sb.rev_level >= 1) {
-        const u32 extra_isize = rd16(raw + I_EXTRA_ISIZE);
+        const u32 extra_isize = le16(raw + I_EXTRA_ISIZE);
         const u32 covered =
             128u + (extra_isize <= v.sb.inode_size - 128u ? extra_isize : v.sb.inode_size - 128u);
         if (I_ATIME_EXTRA + 4 <= covered)
-            iv.atime = decode_extra(iv.atime, rd32(raw + I_ATIME_EXTRA), iv.atime_nsec);
+            iv.atime = decode_extra(iv.atime, le32(raw + I_ATIME_EXTRA), iv.atime_nsec);
         if (I_CTIME_EXTRA + 4 <= covered)
-            iv.ctime = decode_extra(iv.ctime, rd32(raw + I_CTIME_EXTRA), iv.ctime_nsec);
+            iv.ctime = decode_extra(iv.ctime, le32(raw + I_CTIME_EXTRA), iv.ctime_nsec);
         if (I_MTIME_EXTRA + 4 <= covered)
-            iv.mtime = decode_extra(iv.mtime, rd32(raw + I_MTIME_EXTRA), iv.mtime_nsec);
+            iv.mtime = decode_extra(iv.mtime, le32(raw + I_MTIME_EXTRA), iv.mtime_nsec);
         if (I_CRTIME + 4 <= covered)
-            iv.crtime = i64(rd32(raw + I_CRTIME));
+            iv.crtime = i64(le32(raw + I_CRTIME));
         if (I_CRTIME_EXTRA + 4 <= covered)
-            iv.crtime = decode_extra(iv.crtime, rd32(raw + I_CRTIME_EXTRA), iv.crtime_nsec);
+            iv.crtime = decode_extra(iv.crtime, le32(raw + I_CRTIME_EXTRA), iv.crtime_nsec);
     }
 
     u64 budget = 65536; /* P1-11: per-inode node-read budget */
@@ -321,7 +300,7 @@ bool read_inode(Volume& v, u32 ino, InodeView& iv) {
         std::vector<u8> node(size_t(v.sb.block_size));
         /* the extent root lives inline in i_block[15] (60 bytes) */
         std::memcpy(node.data(), raw + I_BLOCK, 60);
-        const u16 depth = rd16(node.data() + 6);
+        const u16 depth = le16(node.data() + 6);
         if (!walk_extent_node(v, node.data(), depth, budget, iv.extents, 0))
             iv.extents_ok = false;
     } else if (ifmt(iv.mode) == 0x8000 || ifmt(iv.mode) == 0x4000) {
@@ -330,7 +309,7 @@ bool read_inode(Volume& v, u32 ino, InodeView& iv) {
         const u32 per_block = v.sb.block_size / 4;
         const u32 direct = 12;
         for (u32 i = 0; i < direct; ++i) {
-            const u32 b = rd32(raw + I_BLOCK + u32(i) * 4);
+            const u32 b = le32(raw + I_BLOCK + u32(i) * 4);
             if (b == 0)
                 continue;
             const u64 off = u64(b) * v.sb.block_size;
@@ -346,7 +325,7 @@ bool read_inode(Volume& v, u32 ino, InodeView& iv) {
                                u32(blk.size())) != OK)
                 return false;
             for (u32 i = 0; i < per_block; ++i) {
-                const u32 b = rd32(blk.data() + u64(i) * 4);
+                const u32 b = le32(blk.data() + u64(i) * 4);
                 if (b == 0)
                     continue;
                 if (levels == 1) {
@@ -362,7 +341,7 @@ bool read_inode(Volume& v, u32 ino, InodeView& iv) {
         (void)per_block;
         (void)direct;
         for (u32 lvl = 1; lvl <= 3; ++lvl) {
-            const u32 b = rd32(raw + I_BLOCK + (11 + lvl) * 4);
+            const u32 b = le32(raw + I_BLOCK + (11 + lvl) * 4);
             if (b != 0)
                 (void)read_ladder(b, lvl, iv.extents);
         }
@@ -405,8 +384,8 @@ bool parse_dir_block(const u8* p, u64 len, bool filetype, std::vector<DirEntry>&
     u64 off = 0;
     int sane = 0, total = 0;
     while (off + 8 <= len) {
-        const u32 ino = rd32(p + off);
-        const u16 rec_len = rd16(p + off + 4);
+        const u32 ino = le32(p + off);
+        const u16 rec_len = le16(p + off + 4);
         const u8 name_len = p[off + 6];
         if (rec_len < 8 || (rec_len & 3) != 0 || off + rec_len > len)
             break;
@@ -514,7 +493,7 @@ u32 scan_ext4(IStorageDevice* slice, const Ext4ScanFlags& flags, CancelToken* ca
             if (!props)
                 return ERR_NO_MEMORY;
             props->name = de.name;
-            props->fs_kind = 9; /* ext family (corpus FS code) */
+            props->fs_kind = u32(FsKindCode::Ext4); /* corpus factory code */
             props->logical_size = child.size;
             props->attributes = is_dir ? 0x10 : 0;
             props->times.created =
@@ -546,7 +525,7 @@ u32 scan_ext4(IStorageDevice* slice, const Ext4ScanFlags& flags, CancelToken* ca
     tree::FileProperties* root_props = new (std::nothrow) tree::FileProperties();
     if (root_props) {
         root_props->name = u"/";
-        root_props->fs_kind = 9;
+        root_props->fs_kind = u32(FsKindCode::Ext4);
         root_props->attributes = 0x10;
         tree::FileNode* root_node = tree.add_file(root_active, root_props);
         root_props->release();
@@ -614,7 +593,7 @@ u32 scan_ext4(IStorageDevice* slice, const Ext4ScanFlags& flags, CancelToken* ca
             for (const char* p = buf; *p; ++p)
                 nm.push_back(u16(u8(*p)));
             props->name = nm;
-            props->fs_kind = 9;
+            props->fs_kind = u32(FsKindCode::Ext4);
             props->logical_size = iv.size;
             props->attributes = is_dir ? 0x10 : 0;
             props->times.created = unix_to_filetime_ns(iv.crtime ? iv.crtime : iv.ctime,
@@ -848,7 +827,7 @@ u32 scan_ext4(IStorageDevice* slice, const Ext4ScanFlags& flags, CancelToken* ca
                         if (!props)
                             break;
                         props->name = de.name;
-                        props->fs_kind = 9;
+                        props->fs_kind = u32(FsKindCode::Ext4);
                         props->record_ref = de.inode;
                         props->attributes = de.type == 2 ? 0x10 : 0;
                         tree::FileNode* n = tree.add_file(root_lost, props);

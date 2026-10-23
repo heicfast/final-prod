@@ -15,23 +15,11 @@ namespace cr {
 void ReadErrorMap::add(u64 offset, u64 length, u32 attempts) {
     if (length == 0)
         return;
-    bool merged = false;
-    for (auto& r : ranges_) {
-        if (offset <= r.offset + r.length && offset + length >= r.offset) {
-            u64 new_start = std::min(r.offset, offset);
-            u64 new_end = std::max(r.offset + r.length, offset + length);
-            r.offset = new_start;
-            r.length = new_end - new_start;
-            r.attempts = std::max(r.attempts, attempts);
-            merged = true;
-            break;
-        }
-    }
-    if (!merged) {
-        ranges_.push_back(ReadErrorRange{offset, length, attempts});
-    }
-    /* normalize on EVERY add: sort + absorb overlapping/touching runs
-     * (a merged range may now swallow later ranges entirely) */
+    /* W4 (AUDIT-ARCH 8c #6): the old first-merge loop was redundant - the
+     * normalize pass below (sort + absorb overlapping/touching runs, max
+     * attempts) already produces the identical merged result on its own.
+     * push_back-then-normalize is the whole story. */
+    ranges_.push_back(ReadErrorRange{offset, length, attempts});
     std::sort(ranges_.begin(), ranges_.end(),
               [](const ReadErrorRange& a, const ReadErrorRange& b) { return a.offset < b.offset; });
     for (size_t i = 0; i + 1 < ranges_.size();) {

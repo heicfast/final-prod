@@ -22,7 +22,10 @@
 namespace cr {
 namespace lost {
 
-enum class CandidateFs : u8 { Ntfs = 0, Fat, Exfat, GptTable, MbrTable, Unknown };
+/* value 4 is RESERVED: it was the never-constructed MbrTable name (W4,
+ * AUDIT-PIPELINE register row 6); the numeric positions are session-
+ * serialized (PartitionContext fs_kind) and must not renumber. */
+enum class CandidateFs : u8 { Ntfs = 0, Fat, Exfat, GptTable, Unknown = 5 };
 
 struct Evidence {
     const char* tag; /* "boot-sig", "bpb-valid", "mft-probe", ... */
@@ -35,7 +38,6 @@ struct Candidate {
     CandidateFs fs = CandidateFs::Unknown;
     int score = 0;
     std::vector<Evidence> evidence;
-    u32 fs_probe = 0; /* engine open rc when probed (0 = OK) */
 };
 
 /* The full result set of one discovery pass. */

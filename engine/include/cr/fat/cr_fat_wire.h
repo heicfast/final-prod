@@ -79,14 +79,9 @@ static_assert(sizeof(BootSectorFat32) == 512);
 
 constexpr u8 DENTRY_DELETED = 0xE5; /* corpus: deleted marker */
 constexpr u8 DENTRY_END = 0x00;
-constexpr u8 ATTR_READ_ONLY = 0x01;
-constexpr u8 ATTR_HIDDEN = 0x02;
-constexpr u8 ATTR_SYSTEM = 0x04;
 constexpr u8 ATTR_VOLUME_ID = 0x08;
 constexpr u8 ATTR_DIRECTORY = 0x10; /* corpus: '.' detection */
-constexpr u8 ATTR_ARCHIVE = 0x20;
-constexpr u8 ATTR_LFN = 0x0F; /* VFAT long-name slot */
-constexpr u8 ATTR_MASK_LONGNAME = 0x3F;
+constexpr u8 ATTR_LFN = 0x0F;       /* VFAT long-name slot */
 
 struct DirEntry {
     u8 name[11]; /* 8.3, space padded; 0xE5 = deleted, 0x00 = end */
@@ -120,32 +115,40 @@ static_assert(sizeof(LfnEntry) == 32);
 /* FAT date/time -> unix seconds helpers (pure). */
 u32 fat_date_to_unix(u16 date, u16 time, u8 tenths);
 
+/* Shared FAT-family datetime core (W4 dedup, AUDIT-FAT §6 row 20): both the
+ * FAT engine (cr_lfn.cpp) and the exFAT engine (cr_exfat_quick.cpp) pack
+ * dates as bits 15-9 = year-1980, 8-5 month, 4-0 day and times as 15-11
+ * hour, 10-5 minute, 4-0 second/2. Returns seconds since 1970-01-01, 0 on
+ * invalid/out-of-range fields. */
+inline u64 fat_datetime_to_unix_seconds(u16 date, u16 time) {
+    const u32 year = 1980u + ((date >> 9) & 0x7F);
+    const u32 month = (date >> 5) & 0x0F;
+    const u32 day = date & 0x1F;
+    const u32 hour = (time >> 11) & 0x1F;
+    const u32 minute = (time >> 5) & 0x3F;
+    const u32 second = (time & 0x1F) * 2;
+    if (month < 1 || month > 12 || day < 1 || day > 31)
+        return 0;
+    /* days since 1970-01-01 (Howard Hinnant civil algorithm) */
+    const i64 y = i64(year) - (month <= 2 ? 1 : 0);
+    const i64 era = (y >= 0 ? y : y - 399) / 400;
+    const u64 yoe = u64(y - era * 400);
+    const u64 doy = (153u * ((month > 2 ? month - 3 : month + 9)) + 2) / 5 + day - 1;
+    const u64 doe = yoe * 365 + yoe / 4 - yoe / 100 + doy;
+    const i64 days = era * 146097 + i64(doe) - 719468;
+    if (days < 0)
+        return 0;
+    return u64(days) * 86400 + u64(hour) * 3600 + u64(minute) * 60 + second;
+}
+
 #pragma pack(pop)
 
 /* Canonical chain constants (corpus IFATTable: BAD = 0xFFFFFF7, EOC >= 0xFFFFFF8). */
 constexpr u32 CHAIN_BAD = 0x0FFFFFF7;
 constexpr u32 CHAIN_EOC_MIN = 0x0FFFFFF8;
-constexpr u32 CHAIN_FREE = 0x00000000;
-
-inline bool chain_is_bad(u32 next) {
-    return next >= CHAIN_BAD && next < CHAIN_EOC_MIN;
-}
-inline bool chain_is_eoc(u32 next) {
-    return next >= CHAIN_EOC_MIN;
-}
-inline bool chain_is_reserved(u32 next) {
-    return next >= 0x0FFFFFF0 && next < CHAIN_BAD;
-}
 
 inline bool boot_signature_ok(const u8* sector) {
     return sector[510] == 0x55 && sector[511] == 0xAA;
-}
-
-/* '.' self-entry detection (corpus: 8 chars "."+spaces, +0xA space, attr 0x10). */
-inline bool is_dot_entry(const DirEntry& e) {
-    return e.name[0] == '.' && e.name[1] == ' ' && e.name[2] == ' ' && e.name[3] == ' ' &&
-           e.name[4] == ' ' && e.name[5] == ' ' && e.name[6] == ' ' && e.name[7] == ' ' &&
-           e.nt_reserved == ' ' && (e.attributes & ATTR_DIRECTORY) != 0;
 }
 
 } // namespace fat

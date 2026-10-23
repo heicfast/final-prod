@@ -33,6 +33,7 @@
  */
 
 #include "cr/zfs/cr_zfs_engine.h"
+#include "cr/cr_bits.h" /* shared byte readers (W4 dedup, DC-12) */
 #include "cr/compress/cr_decomp.h"
 #include <cstring>
 #include <functional>
@@ -51,7 +52,6 @@ constexpr u64 VDEV_PHYS_SIZE = 112ull << 10;
 constexpr u64 UBRING_OFFSET = 128ull << 10;
 constexpr u32 UB_MAGIC = 0;
 constexpr u32 UB_TXG = 16;
-constexpr u32 UB_TIMESTAMP = 32;
 constexpr u32 UB_ROOTBP = 40;        /* blkptr 128 bytes */
 constexpr u64 UBERBLOCK_SIZE = 1024; /* smallest slot; larger slots only
                                       * use the first 1KiB for these fields */
@@ -75,19 +75,8 @@ constexpr u32 ZIO_COMPRESS_ZLE = 14;
 constexpr u32 ZIO_COMPRESS_LZ4 = 15;
 constexpr u32 ZIO_COMPRESS_ZSTD = 16;
 
-u64 rdle64(const u8* p) {
-    return u64(p[0]) | (u64(p[1]) << 8) | (u64(p[2]) << 16) | (u64(p[3]) << 24) |
-           (u64(p[4]) << 32) | (u64(p[5]) << 40) | (u64(p[6]) << 48) | (u64(p[7]) << 56);
-}
-u32 rdle32(const u8* p) {
-    return u32(p[0]) | (u32(p[1]) << 8) | (u32(p[2]) << 16) | (u32(p[3]) << 24);
-}
-u16 rdle16(const u8* p) {
-    return u16(p[0]) | (u16(p[1]) << 8);
-}
-
 bool bp_is_embedded(const u8* bp) {
-    return (rdle64(bp + BP_PROP) >> 39) & 1;
+    return (le64(bp + BP_PROP) >> 39) & 1;
 }
 bool bp_is_hole(const u8* bp) {
     /* all three DVAs zero (spa.h BP_IS_HOLE) */
@@ -97,35 +86,35 @@ bool bp_is_hole(const u8* bp) {
     return true;
 }
 u64 bp_lsize(const u8* bp) {
-    const u64 prop = rdle64(bp + BP_PROP);
+    const u64 prop = le64(bp + BP_PROP);
     if (bp_is_embedded(bp)) /* bytes, bits 0-24, +1 (BPE_GET_LSIZE) */
         return (prop & 0x1FFFFFFull) + 1;
     return ((prop & 0xFFFFull) + 1) << 9; /* sectors-biased */
 }
 u64 bp_psize(const u8* bp) {
-    const u64 prop = rdle64(bp + BP_PROP);
+    const u64 prop = le64(bp + BP_PROP);
     if (bp_is_embedded(bp)) /* bytes, bits 25-31, +1 */
         return ((prop >> 25) & 0x7Full) + 1;
     return (((prop >> 16) & 0xFFFFull) + 1) << 9;
 }
 u32 bp_compress(const u8* bp) {
     /* SPA_COMPRESSBITS = 7: bit 39 is the embedded flag, not compress */
-    return u32((rdle64(bp + BP_PROP) >> 32) & 0x7F);
+    return u32((le64(bp + BP_PROP) >> 32) & 0x7F);
 }
 u32 bpe_etype(const u8* bp) {
-    return u32((rdle64(bp + BP_PROP) >> 40) & 0xFF);
+    return u32((le64(bp + BP_PROP) >> 40) & 0xFF);
 }
 u64 dva_vdev(const u8* dva) {
-    return (rdle64(dva) >> 32) & 0xFFFFFFull;
+    return (le64(dva) >> 32) & 0xFFFFFFull;
 }
 u64 dva_asize(const u8* dva) {
-    return (rdle64(dva) & 0xFFFFFFull) << 9;
+    return (le64(dva) & 0xFFFFFFull) << 9;
 }
 u64 dva_offset(const u8* dva) {
-    return (rdle64(dva + 8) & 0x7FFFFFFFFFFFFFFFull) << 9;
+    return (le64(dva + 8) & 0x7FFFFFFFFFFFFFFFull) << 9;
 }
 bool dva_is_gang(const u8* dva) {
-    return (rdle64(dva + 8) >> 63) & 1;
+    return (le64(dva + 8) >> 63) & 1;
 }
 
 /* BPE payload decode - byte-exact port of module/zfs/blkptr.c
@@ -137,7 +126,7 @@ bool bpe_payload(const u8* bp, u8* out, u32 psize) {
     for (u32 word = 0; word < 16 && done < psize; ++word) {
         if (word == 6 || word == 10)
             continue;
-        const u64 w = rdle64(bp + u64(word) * 8);
+        const u64 w = le64(bp + u64(word) * 8);
         for (u32 k = 0; k < 8 && done < psize; ++k)
             out[done++] = u8((w >> (k * 8)) & 0xFF);
     }
@@ -150,7 +139,6 @@ constexpr u32 DN_INDBLKSHIFT = 1;
 constexpr u32 DN_NLEVELS = 2;
 constexpr u32 DN_NBLKPTR = 3;
 constexpr u32 DN_BONUSTYPE = 4;
-constexpr u32 DN_CHECKSUM = 5;
 constexpr u32 DN_COMPRESS = 6;
 constexpr u32 DN_FLAGS = 7;
 constexpr u32 DN_DATABLKSZSEC = 8;
@@ -208,16 +196,10 @@ constexpr u32 ZP_ATIME = 0x00; /* sec+usec pairs x4 */
 constexpr u32 ZP_MTIME = 0x10;
 constexpr u32 ZP_CTIME = 0x20;
 constexpr u32 ZP_CRTIME = 0x30;
-constexpr u32 ZP_GEN = 0x40;
 constexpr u32 ZP_MODE = 0x48;
 constexpr u32 ZP_SIZE = 0x50;
 constexpr u32 ZP_PARENT = 0x58;
 constexpr u32 ZP_LINKS = 0x60;
-constexpr u32 ZP_XATTR = 0x68;
-constexpr u32 ZP_RDEV = 0x70;
-constexpr u32 ZP_FLAGS = 0x78;
-constexpr u32 ZP_UID = 0x80;
-constexpr u32 ZP_GID = 0x88;
 constexpr u32 ZP_MIN = 0x68; /* through links */
 
 /* SA header (OpenZFS include/sys/sa_impl.h): magic u32@0 = 0x2F505A,
@@ -267,9 +249,6 @@ constexpr u32 MZAP_NAME_AT = 14;    /* name[50] */
 constexpr u32 FZ_ZT_BLK = 16;
 constexpr u32 FZ_ZT_NUMBLKS = 24;
 constexpr u32 FZ_ZT_SHIFT = 32;
-constexpr u32 FZ_FREEBLK = 56;
-constexpr u32 FZ_NUM_LEAFS = 64;
-constexpr u32 FZ_NUM_ENTRIES = 72;
 
 /* zap leaf: ZAP_LEAF_MAGIC 0x2AB1EAF; 24-byte chunks; chunk types */
 constexpr u32 ZAP_LEAF_MAGIC = 0x2AB1EAFu;
@@ -295,20 +274,10 @@ constexpr u32 ZL_NENTRIES = 30;
  * NUL), value_elem i32, type i32, name[name_sz], pad8, value}; size==0
  * terminates. */
 constexpr u32 NV_DATA_BOOLEAN = 1;
-constexpr u32 NV_DATA_BYTE = 2;
 constexpr u32 NV_DATA_UINT64 = 8;
 constexpr u32 NV_DATA_STRING = 9;
 constexpr u32 NV_DATA_NVLIST = 19;
 constexpr u32 NV_DATA_BOOLEAN_VALUE = 21;
-constexpr u32 NV_DATA_UINT64_ARRAY = 16;
-
-u64 be64(const u8* p) {
-    return (u64(p[0]) << 56) | (u64(p[1]) << 48) | (u64(p[2]) << 40) | (u64(p[3]) << 32) |
-           (u64(p[4]) << 24) | (u64(p[5]) << 16) | (u64(p[6]) << 8) | u64(p[7]);
-}
-u32 be32(const u8* p) {
-    return (u32(p[0]) << 24) | (u32(p[1]) << 16) | (u32(p[2]) << 8) | u32(p[3]);
-}
 
 constexpr u32 MAX_OBJECTS = 1u << 20;
 constexpr u32 MAX_ZAP_ENTRIES = 65536;
@@ -333,8 +302,8 @@ bool nv_parse_stream(const u8* p, u32 len, bool xdr, std::map<std::string, NvVal
                      u32 depth) {
     if (p == nullptr || len < 8 || depth > 6)
         return false;
-    auto rd32 = [&](const u8* q) -> u32 { return xdr ? be32(q) : rdle32(q); };
-    auto rd64 = [&](const u8* q) -> u64 { return xdr ? be64(q) : rdle64(q); };
+    auto rd32 = [&](const u8* q) -> u32 { return xdr ? be32(q) : le32(q); };
+    auto rd64 = [&](const u8* q) -> u64 { return xdr ? be64(q) : le64(q); };
     const auto align = [&](u32 v, u32 a) -> u32 { return (v + a - 1) & ~(a - 1); };
     u32 pos = 8; /* skip {version, nvflag} */
     u32 pairs = 0;
@@ -362,19 +331,19 @@ bool nv_parse_stream(const u8* p, u32 len, bool xdr, std::map<std::string, NvVal
              * i32@12, name[name_sz incl NUL]@16, value 8-aligned} */
             if (q + 2 > len)
                 break;
-            const u32 nsz = rdle16(p + pos + 4);
+            const u32 nsz = le16(p + pos + 4);
             if (nsz < 2 || nsz > 128 || pos + 16 + nsz > len)
                 break;
             name.assign(reinterpret_cast<const char*>(p + pos + 16), nsz - 1);
-            const u32 vty = rdle32(p + pos + 12);
+            const u32 vty = le32(p + pos + 12);
             u32 vq = align(pos + 16 + nsz, 8);
             NvValue v;
             v.type = vty;
-            const u32 vsz = rdle32(p + pos + 8);
+            const u32 vsz = le32(p + pos + 8);
             if (vty == NV_DATA_UINT64 && vsz == 1 && vq + 8 <= len) {
-                v.u64v = rdle64(p + vq);
+                v.u64v = le64(p + vq);
             } else if (vty == NV_DATA_STRING && vsz == 1 && vq + 4 <= len) {
-                const u32 slen = rdle32(p + vq);
+                const u32 slen = le32(p + vq);
                 if (slen > 0 && slen < 256 && vq + 4 + slen <= len)
                     v.s.assign(reinterpret_cast<const char*>(p + vq + 4), slen - 1);
             } else if (vty == NV_DATA_NVLIST && vsz == 1) {
@@ -533,10 +502,10 @@ struct Dnode {
     u32 nlevels() const { return raw[DN_NLEVELS]; }
     u32 nblkptr() const { return raw[DN_NBLKPTR]; }
     u32 bonustype() const { return raw[DN_BONUSTYPE]; }
-    u32 datablksz() const { return u32(rdle16(raw.data() + DN_DATABLKSZSEC)) * 512; }
-    u32 bonuslen() const { return rdle16(raw.data() + DN_BONUSLEN); }
+    u32 datablksz() const { return u32(le16(raw.data() + DN_DATABLKSZSEC)) * 512; }
+    u32 bonuslen() const { return le16(raw.data() + DN_BONUSLEN); }
     u32 extra_slots() const { return raw[DN_EXTRA_SLOTS]; }
-    u64 maxblkid() const { return rdle64(raw.data() + DN_MAXBLKID); }
+    u64 maxblkid() const { return le64(raw.data() + DN_MAXBLKID); }
     const u8* blkptr(u32 i) const { return raw.data() + DN_BLKPTR + u64(i) * BP_SIZE; }
     u64 dnode_size() const { return 512ull * (1 + extra_slots()); }
     const u8* bonus() const { return raw.data() + DN_BLKPTR + u64(nblkptr()) * BP_SIZE; }
@@ -642,12 +611,12 @@ struct ZapEntry {
 bool read_microzap(const std::vector<u8>& blk, std::vector<ZapEntry>& out) {
     if (blk.size() < MZAP_ENTRIES_AT + MZAP_ENT_SIZE)
         return false;
-    if (rdle64(blk.data()) != ZBT_MICRO)
+    if (le64(blk.data()) != ZBT_MICRO)
         return false;
     const u64 sz = blk.size();
     for (u64 off = MZAP_ENTRIES_AT; off + MZAP_ENT_SIZE <= sz; off += MZAP_ENT_SIZE) {
         const u8* e = blk.data() + off;
-        const u64 value = rdle64(e); /* mze_value @0 */
+        const u64 value = le64(e); /* mze_value @0 */
         if (value == 0)
             continue;
         const char* name = reinterpret_cast<const char*>(e + MZAP_NAME_AT);
@@ -673,7 +642,7 @@ bool read_microzap(const std::vector<u8>& blk, std::vector<ZapEntry>& out) {
 bool read_leaf(const std::vector<u8>& leaf, std::vector<ZapEntry>& out) {
     if (leaf.size() < 64)
         return false;
-    if (rdle32(leaf.data() + ZL_MAGIC) != ZAP_LEAF_MAGIC)
+    if (le32(leaf.data() + ZL_MAGIC) != ZAP_LEAF_MAGIC)
         return false;
     const u32 bshift = [](u64 sz) {
         u32 s = 0;
@@ -705,23 +674,23 @@ bool read_leaf(const std::vector<u8>& leaf, std::vector<ZapEntry>& out) {
             const u32 take = numints - got < 21 ? numints - got : 21;
             data.insert(data.end(), c + 1, c + 1 + take);
             got += take;
-            ci = rdle16(c + 22); /* la_next at offset 22 (1+21) */
+            ci = le16(c + 22); /* la_next at offset 22 (1+21) */
             if (ci == 0xFFFF)
                 break;
         }
         return got == numints;
     };
 
-    const u16 nentries = rdle16(leaf.data() + ZL_NENTRIES);
+    const u16 nentries = le16(leaf.data() + ZL_NENTRIES);
     for (u32 i = 0; i < nchunks && out.size() < MAX_ZAP_ENTRIES; ++i) {
         const u8* c = chunk(i);
         if (c[0] != ZAP_CHUNK_ENTRY)
             continue;
         const u32 value_intlen = c[1];
-        const u32 name_chunk = rdle16(c + 4);
-        const u32 name_numints = rdle16(c + 6);
-        const u32 value_chunk = rdle16(c + 8);
-        const u32 value_numints = rdle16(c + 10);
+        const u32 name_chunk = le16(c + 4);
+        const u32 name_numints = le16(c + 6);
+        const u32 value_chunk = le16(c + 8);
+        const u32 value_numints = le16(c + 10);
         if (name_numints == 0 || name_numints > 256)
             continue;
         std::vector<u8> name;
@@ -737,7 +706,7 @@ bool read_leaf(const std::vector<u8>& leaf, std::vector<ZapEntry>& out) {
             std::vector<u8> val;
             if (!read_array(value_chunk, value_numints * (value_intlen ? value_intlen : 1), val))
                 continue;
-            ze.value = val.size() >= 8 ? rdle64(val.data()) : 0;
+            ze.value = val.size() >= 8 ? le64(val.data()) : 0;
         }
         out.push_back(std::move(ze));
     }
@@ -754,13 +723,13 @@ bool read_fzap(Volume& v, ObjSet& os, const Dnode& dn, const std::vector<u8>& hd
                u64 zap_block_size, std::vector<ZapEntry>& out) {
     if (hdr.size() < 128)
         return false;
-    if (rdle64(hdr.data()) != ZBT_HEADER)
+    if (le64(hdr.data()) != ZBT_HEADER)
         return false;
-    if (rdle64(hdr.data() + 8) != ZAP_MAGIC)
+    if (le64(hdr.data() + 8) != ZAP_MAGIC)
         return false;
-    const u64 zt_blk = rdle64(hdr.data() + FZ_ZT_BLK);
-    const u64 zt_numblks = rdle64(hdr.data() + FZ_ZT_NUMBLKS);
-    const u64 zt_shift = rdle64(hdr.data() + FZ_ZT_SHIFT);
+    const u64 zt_blk = le64(hdr.data() + FZ_ZT_BLK);
+    const u64 zt_numblks = le64(hdr.data() + FZ_ZT_NUMBLKS);
+    const u64 zt_shift = le64(hdr.data() + FZ_ZT_SHIFT);
     if (zt_shift > 30 || zap_block_size == 0)
         return false;
 
@@ -773,7 +742,7 @@ bool read_fzap(Volume& v, ObjSet& os, const Dnode& dn, const std::vector<u8>& hd
             const u64 at = zap_block_size / 2 + i * 8;
             if (at + 8 > hdr.size())
                 break;
-            const u64 lb = rdle64(hdr.data() + at);
+            const u64 lb = le64(hdr.data() + at);
             if (lb != 0)
                 leaf_blocks.push_back(lb);
         }
@@ -789,7 +758,7 @@ bool read_fzap(Volume& v, ObjSet& os, const Dnode& dn, const std::vector<u8>& hd
             if (pt.size() < zap_block_size)
                 continue;
             for (u64 i = 0; i < zap_block_size / 8 && leaf_blocks.size() < MAX_ZAP_LEAFS; ++i) {
-                const u64 lb = rdle64(pt.data() + i * 8);
+                const u64 lb = le64(pt.data() + i * 8);
                 if (lb != 0)
                     leaf_blocks.push_back(lb);
             }
@@ -836,7 +805,7 @@ bool read_zap(Volume& v, ObjSet& os, u64 object, std::vector<ZapEntry>& out) {
     std::vector<u8> blk;
     if (!os.read_object_block(dn, 0, blk))
         return false;
-    const u64 btype = rdle64(blk.data());
+    const u64 btype = le64(blk.data());
     if (btype == ZBT_MICRO) {
         const size_t before = out.size();
         const bool ok = read_microzap(blk, out);
@@ -1012,18 +981,9 @@ bool plan_file_extents(Volume& v, const Dnode& dn, FileExtentPlan& plan) {
 
 } // namespace
 
-u64 unix_to_filetime(i64 sec) {
-    const i64 EPOCH_DELTA = 11644473600LL;
-    if (sec <= -EPOCH_DELTA)
-        return 0;
-    return u64((sec + EPOCH_DELTA) * 10000000LL);
-}
-
-u32 scan_zfs(IStorageDevice* slice, const ZfsScanFlags& flags, CancelToken* cancel,
-             WalkProgressLike progress, void* progress_user, tree::ResultTree& tree,
-             tree::FullNode* root_active, tree::FullNode* root_deleted, tree::FullNode* root_lost,
-             ZfsScanStats& stats) {
-    (void)flags;
+u32 scan_zfs(IStorageDevice* slice, CancelToken* cancel, WalkProgressLike progress,
+             void* progress_user, tree::ResultTree& tree, tree::FullNode* root_active,
+             tree::FullNode* root_deleted, tree::FullNode* root_lost, ZfsScanStats& stats) {
     (void)root_deleted;
     (void)root_lost;
     if (slice == nullptr || root_active == nullptr)
@@ -1113,7 +1073,7 @@ u32 scan_zfs(IStorageDevice* slice, const ZfsScanFlags& flags, CancelToken* canc
                     break;
                 if (slice->read_at(at, ub.data(), u32(ub.size())) != OK)
                     break;
-                const u64 magic = rdle64(ub.data());
+                const u64 magic = le64(ub.data());
                 if (magic != UBERBLOCK_MAGIC) {
                     if (magic == 0x0CB1BA00ULL || magic == 0x0CBA0000ULL)
                         return ERR_UNSUPPORTED; /* big-endian pool: refused,
@@ -1121,7 +1081,7 @@ u32 scan_zfs(IStorageDevice* slice, const ZfsScanFlags& flags, CancelToken* canc
                     continue;
                 }
                 ++hits;
-                const u64 txg = rdle64(ub.data() + UB_TXG);
+                const u64 txg = le64(ub.data() + UB_TXG);
                 if (txg > best_txg) {
                     best_txg = txg;
                     best_ub.assign(ub.begin(), ub.begin() + UBERBLOCK_SIZE);
@@ -1180,8 +1140,8 @@ u32 scan_zfs(IStorageDevice* slice, const ZfsScanFlags& flags, CancelToken* canc
             if (blen < 256 || blen > MAX_BONUS || u64(blen) > dn.bonus_cap())
                 return;
             const u8* bonus = dn.bonus();
-            const u64 head_obj = rdle64(bonus + DD_HEAD_DATASET_OBJ);
-            const u64 child_zap = rdle64(bonus + DD_CHILD_DIR_ZAPOBJ);
+            const u64 head_obj = le64(bonus + DD_HEAD_DATASET_OBJ);
+            const u64 child_zap = le64(bonus + DD_CHILD_DIR_ZAPOBJ);
             if (head_obj != 0) {
                 Dnode hdn;
                 if (mos.read_dnode(head_obj, hdn) && hdn.bonuslen() >= DS_BP + BP_SIZE &&
@@ -1270,30 +1230,30 @@ u32 scan_zfs(IStorageDevice* slice, const ZfsScanFlags& flags, CancelToken* canc
             if (dn.bonustype() == DMU_OT_SA && blen >= SA_LAYOUT1_MIN) {
                 /* SA layout 1 (standard ZPL attr order after the 8-byte
                  * header); non-standard layouts fall back to no attrs */
-                const u32 magic = rdle32(b);
-                const u32 layout = rdle16(b + 4) & 0x3FF;
+                const u32 magic = le32(b);
+                const u32 layout = le16(b + 4) & 0x3FF;
                 if (magic == SA_MAGIC && layout == 1) {
-                    oi.atime[0] = rdle64(b + SA_LAYOUT1_ATIME);
-                    oi.mtime[0] = rdle64(b + SA_LAYOUT1_MTIME);
-                    oi.ctime[0] = rdle64(b + SA_LAYOUT1_CTIME);
-                    oi.crtime[0] = rdle64(b + SA_LAYOUT1_CRTIME);
-                    oi.mode = rdle64(b + SA_LAYOUT1_MODE);
-                    oi.parent = rdle64(b + SA_LAYOUT1_PARENT);
-                    oi.links = rdle64(b + SA_LAYOUT1_LINKS);
-                    oi.size = rdle64(b + SA_LAYOUT1_SIZE);
+                    oi.atime[0] = le64(b + SA_LAYOUT1_ATIME);
+                    oi.mtime[0] = le64(b + SA_LAYOUT1_MTIME);
+                    oi.ctime[0] = le64(b + SA_LAYOUT1_CTIME);
+                    oi.crtime[0] = le64(b + SA_LAYOUT1_CRTIME);
+                    oi.mode = le64(b + SA_LAYOUT1_MODE);
+                    oi.parent = le64(b + SA_LAYOUT1_PARENT);
+                    oi.links = le64(b + SA_LAYOUT1_LINKS);
+                    oi.size = le64(b + SA_LAYOUT1_SIZE);
                 } else {
                     return nullptr; /* unknown SA layout: skip cleanly */
                 }
             } else if (dn.bonustype() == DMU_OT_ZNODE && blen >= ZP_MIN) {
                 /* legacy znode_phys (zfs_sa.h) */
-                oi.atime[0] = rdle64(b + ZP_ATIME);
-                oi.mtime[0] = rdle64(b + ZP_MTIME);
-                oi.ctime[0] = rdle64(b + ZP_CTIME);
-                oi.crtime[0] = rdle64(b + ZP_CRTIME);
-                oi.mode = rdle64(b + ZP_MODE);
-                oi.parent = rdle64(b + ZP_PARENT);
-                oi.links = rdle64(b + ZP_LINKS);
-                oi.size = rdle64(b + ZP_SIZE);
+                oi.atime[0] = le64(b + ZP_ATIME);
+                oi.mtime[0] = le64(b + ZP_MTIME);
+                oi.ctime[0] = le64(b + ZP_CTIME);
+                oi.crtime[0] = le64(b + ZP_CRTIME);
+                oi.mode = le64(b + ZP_MODE);
+                oi.parent = le64(b + ZP_PARENT);
+                oi.links = le64(b + ZP_LINKS);
+                oi.size = le64(b + ZP_SIZE);
             } else {
                 return nullptr;
             }
@@ -1330,7 +1290,7 @@ u32 scan_zfs(IStorageDevice* slice, const ZfsScanFlags& flags, CancelToken* canc
                     return;
                 for (char ch : e.name)
                     p->name.push_back(u16(u8(ch)));
-                p->fs_kind = 13; /* Zfs (corpus factory code) */
+                p->fs_kind = u32(FsKindCode::Zfs); /* corpus factory code */
                 p->logical_size = ci->size;
                 p->allocated_size = ci->dn.maxblkid() != 0
                                         ? u64(ci->dn.datablksz()) * (ci->dn.maxblkid() + 1)

@@ -88,25 +88,10 @@ u32 fat_date_to_unix(u16 date, u16 time, u8 tenths) {
     /* FAT date: bits 15-9 = year-1980, 8-5 month, 4-0 day.
      * FAT time: bits 15-11 hour, 10-5 minute, 4-0 second/2.
      * tenths: 10ms units on the creation field (ignored for seconds math). */
-    const u32 year = 1980u + ((date >> 9) & 0x7F);
-    const u32 month = (date >> 5) & 0x0F;
-    const u32 day = date & 0x1F;
-    const u32 hour = (time >> 11) & 0x1F;
-    const u32 minute = (time >> 5) & 0x3F;
-    const u32 second = (time & 0x1F) * 2;
     (void)tenths;
-    if (month < 1 || month > 12 || day < 1 || day > 31)
-        return 0;
-    /* days since 1970-01-01 (Howard Hinnant civil algorithm) */
-    const i64 y = i64(year) - (month <= 2 ? 1 : 0);
-    const i64 era = (y >= 0 ? y : y - 399) / 400;
-    const u64 yoe = u64(y - era * 400);
-    const u64 doy = (153u * ((month > 2 ? month - 3 : month + 9)) + 2) / 5 + day - 1;
-    const u64 doe = yoe * 365 + yoe / 4 - yoe / 100 + doy;
-    const i64 days = era * 146097 + i64(doe) - 719468;
-    if (days < 0)
-        return 0;
-    const u64 secs = u64(days) * 86400 + u64(hour) * 3600 + u64(minute) * 60 + second;
+    /* shared FAT-family datetime core (W4 dedup, AUDIT-FAT §6 row 20);
+     * clamped to the u32 props contract - dates past 2106 saturate to 0 */
+    const u64 secs = fat_datetime_to_unix_seconds(date, time);
     return secs > 0xFFFFFFFFULL ? 0 : u32(secs);
 }
 

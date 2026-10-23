@@ -38,12 +38,10 @@ struct AttrView {
     u64 last_vcn = 0;
     u16 runlist_offset = 0;
     u64 allocated = 0;
-    u64 initialized = 0;
     u64 actual = 0;
     /* resolved location of the attribute header inside the record buffer */
     const u8* at = nullptr;
-    u32 buf_size = 0;     /* record buffer size for bounds checks */
-    int buffer_index = 0; /* which record buffer (0 = primary, >0 = attrlist child) */
+    u32 buf_size = 0; /* record buffer size for bounds checks */
 };
 
 /* Iterates attributes of a record buffer. Returns count via out vector. */
@@ -65,7 +63,6 @@ u32 parse_attr_list_entries(const AttrView& list_attr, std::vector<AttrListEntry
 struct FileNameInfo {
     u64 parent_ref = 0; /* raw NTFS reference */
     u64 parent_record = 0;
-    u16 parent_sequence = 0;
     FileTimes times; /* exact 100ns (R2.2) */
     u64 allocated_size = 0;
     u64 real_size = 0;
@@ -92,10 +89,6 @@ u32 resident_span(const AttrView& a, const u8*& data, u32& len);
 
 /* Attribute name (u16 chars) as u16string. */
 std::u16string attr_name(const AttrView& a);
-
-/* $INDEX_ROOT: first-entries offset + flags (has $INDEX_ALLOCATION). */
-u32 parse_index_root(const AttrView& a, u32& entries_offset, u32& index_length, u32& allocated,
-                     u32& flags);
 
 } // namespace ntfs
 } // namespace cr

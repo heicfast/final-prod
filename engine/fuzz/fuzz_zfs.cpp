@@ -19,8 +19,7 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size) {
         return 0;
     MemDevice dev(data, size);
     ScanSetup s;
-    ZfsScanFlags fl;
     ZfsScanStats st;
-    (void)scan_zfs(&dev, fl, nullptr, nullptr, nullptr, s.tree, s.ra, s.rd, s.rl, st);
+    (void)scan_zfs(&dev, nullptr, nullptr, nullptr, s.tree, s.ra, s.rd, s.rl, st);
     return 0;
 }

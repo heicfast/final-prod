@@ -43,7 +43,6 @@ struct ExfatParams {
     u32 cluster_heap_offset = 0;
     u32 cluster_count = 0;
     u32 first_cluster_of_root = 0;
-    u16 volume_flags = 0;
     bool boot_main_ok = false;
     bool boot_backup_ok = false;
     bool boot_checksum_ok = false;
@@ -69,7 +68,6 @@ struct ExfatScanStats {
 
 struct ExfatScanFlags {
     bool validate_entry_sets = true;
-    bool keep_deleted = true;
 };
 
 u32 scan_exfat(IStorageDevice* slice, const ExfatScanFlags& flags, CancelToken* cancel,

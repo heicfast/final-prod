@@ -236,19 +236,6 @@ u32 try_auto_unlock(wchar_t letter) {
     return best;
 }
 
-const wchar_t* status_text(Status s) {
-    switch (s) {
-    case Status::Clear:
-        return L"clear";
-    case Status::Locked:
-        return L"locked (FVE)";
-    case Status::UnlockedEncrypted:
-        return L"unlocked (encrypted)";
-    default:
-        return L"unknown";
-    }
-}
-
 } // namespace bitlocker
 } // namespace win
 } // namespace cr

@@ -601,7 +601,6 @@ static CarveResult zip_common(IStorageDevice* s, u64 hit, u64 cap, bool office) 
             ir.ok = true;
             ir.end = last_end;
             ir.confidence = 550;
-            ir.fragmented = true;
             ir.note = "indexless-LFH-chain";
         }
         return ir;
@@ -661,13 +660,9 @@ static CarveResult zip_common(IStorageDevice* s, u64 hit, u64 cap, bool office) 
     }
     if (end > limit)
         end = limit;
-    /* fragmentation-aware (R4.5): a gap between cd end and EOCD is normal
-     * (comment/empty space); a cd_offset far from the tail hints at damage */
-    bool frag = (eocd_pos - hit) > u64(cd_offset) + cd_size + 4096;
     r.ok = true;
     r.end = end;
     r.confidence = office ? 850 : 700;
-    r.fragmented = frag;
     r.note = office ? "[Content_Types]+EOCD" : "EOCD+cd-geometry";
     return r;
 }
@@ -720,7 +715,6 @@ CarveResult validate_zip_cd(IStorageDevice* s, u64 hit, u64 cap) {
             if (r.end > limit)
                 r.end = limit;
             r.confidence = 600;
-            r.fragmented = true;
             r.note = "cd-anchor+EOCD";
             return r;
         }
@@ -731,7 +725,6 @@ CarveResult validate_zip_cd(IStorageDevice* s, u64 hit, u64 cap) {
     if (r.end > limit)
         r.end = limit;
     r.confidence = 550;
-    r.fragmented = true;
     r.note = "cd-anchor";
     return r;
 }

@@ -90,11 +90,6 @@ u32 FatTable::load(IStorageDevice* dev, const FatParams& p) {
             fat2_.clear(); /* mirror unreadable: single-FAT mode */
         } else {
             mirror_ = true;
-            divergences_ = 0;
-            for (u32 c = 2; c <= max_cluster_; ++c) {
-                if (entry_at(fat1_, c) != entry_at(fat2_, c))
-                    ++divergences_;
-            }
         }
     }
     return OK;
@@ -132,45 +127,6 @@ u32 FatTable::raw(u32 cluster) const {
             return alt;
     }
     return v;
-}
-
-void FatTable::set_raw(u32 cluster, u32 value) {
-    if (cluster < 2 || cluster > max_cluster_ || fat1_.empty())
-        return;
-    switch (flavor_) {
-    case Flavor::Fat12: {
-        size_t off = size_t(cluster) + size_t(cluster) / 2;
-        if (off + 2 > fat1_.size())
-            return;
-        u16 cur = u16_from_bytes_le(fat1_.data() + off);
-        u16 v = u16(value);
-        if (cluster & 1) {
-            v = u16((cur & 0x000F) | ((v & 0xFFF) << 4));
-        } else {
-            v = u16((cur & 0xF000) | (v & 0xFFF));
-        }
-        fat1_[off] = u8(v);
-        fat1_[off + 1] = u8(v >> 8);
-        break;
-    }
-    case Flavor::Fat16: {
-        size_t off = size_t(cluster) * 2;
-        if (off + 2 > fat1_.size())
-            return;
-        fat1_[off] = u8(value);
-        fat1_[off + 1] = u8(value >> 8);
-        break;
-    }
-    case Flavor::Fat32:
-    default: {
-        size_t off = size_t(cluster) * 4;
-        if (off + 4 > fat1_.size())
-            return;
-        for (int i = 0; i < 4; ++i)
-            fat1_[off + i] = u8(value >> (8 * i));
-        break;
-    }
-    }
 }
 
 ChainResult follow_chain(const FatTable& t, u32 start, u32 max_len, const CancelToken* cancel) {
@@ -289,7 +245,6 @@ u32 validate_boot(const u8* sector512, u64 device_bytes, FatParams& out) {
         p.flavor = Flavor::Fat32;
         p.fat_sectors = spf32;
         p.root_cluster = u32_from_bytes_le(sector512 + 0x2C);
-        p.backup_boot_sector = u16_from_bytes_le(sector512 + 0x32);
     }
 
     u64 fat_area = u64(p.fat_count) * p.fat_sectors;
@@ -314,7 +269,6 @@ u32 validate_boot(const u8* sector512, u64 device_bytes, FatParams& out) {
         /* partition slice smaller than BPB claims (truncated tail): allow,
          * the transport bounds-checks every access */
     }
-    p.first_usable_cluster = 2;
     out = p;
     return OK;
 }

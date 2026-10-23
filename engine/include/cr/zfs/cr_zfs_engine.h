@@ -61,10 +61,6 @@ struct ZfsScanStats {
     u64 compressed_extents = 0; /* extents carrying a codec */
 };
 
-struct ZfsScanFlags {
-    bool keep_deleted = true;
-};
-
 /* Parsed label config (nvlist subset we need). */
 struct LabelConfig {
     std::string pool_name;
@@ -76,13 +72,11 @@ struct LabelConfig {
     bool valid = false;
 };
 
-u32 scan_zfs(IStorageDevice* slice, const ZfsScanFlags& flags, CancelToken* cancel,
-             WalkProgressLike progress, void* progress_user, tree::ResultTree& tree,
-             tree::FullNode* root_active, tree::FullNode* root_deleted, tree::FullNode* root_lost,
-             ZfsScanStats& stats);
+u32 scan_zfs(IStorageDevice* slice, CancelToken* cancel, WalkProgressLike progress,
+             void* progress_user, tree::ResultTree& tree, tree::FullNode* root_active,
+             tree::FullNode* root_deleted, tree::FullNode* root_lost, ZfsScanStats& stats);
 
-/* unix sec -> 100ns/1601 */
-u64 unix_to_filetime(i64 sec);
+/* unix sec -> 100ns/1601: shared fold in cr_types.h (W4 dedup, DC-13). */
 
 } // namespace zfs
 } // namespace cr

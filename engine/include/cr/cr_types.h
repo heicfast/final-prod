@@ -49,10 +49,22 @@ struct FileTimes {
     u64 accessed = 0;
 };
 
-/* Round up v to a multiple of m (m > 0). */
-constexpr u64 round_up(u64 v, u64 m) {
-    return (v + m - 1) / m * m;
+/* unix -> filetime (100ns since 1601-01-01), the props time contract
+ * shared by every engine (W4 dedup, AUDIT-LINUX-FS DC-13: ext4, zfs and
+ * btrfs each carried a private copy of this fold). nsec folds in at
+ * 100ns granularity; pre-epoch values clamp to 0. */
+inline u64 unix_to_filetime_ns(i64 unix_sec, u32 nsec) {
+    constexpr i64 EPOCH_DELTA = 11644473600LL; /* 1970 -> 1601 */
+    if (unix_sec <= -EPOCH_DELTA)
+        return 0;
+    return u64((unix_sec + EPOCH_DELTA) * 10000000LL) + u64(nsec) / 100u;
 }
+inline u64 unix_to_filetime(i64 unix_sec) {
+    return unix_to_filetime_ns(unix_sec, 0);
+}
+
+/* Round down v to a multiple of m. (round_up was deleted in W4 - 0 uses;
+ * AUDIT-ARCH 8a #13.) */
 constexpr u64 round_down(u64 v, u64 m) {
     return v / m * m;
 }

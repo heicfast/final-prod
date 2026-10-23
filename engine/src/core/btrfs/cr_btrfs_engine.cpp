@@ -4,6 +4,7 @@
  */
 
 #include "cr/btrfs/cr_btrfs_engine.h"
+#include "cr/cr_bits.h" /* shared byte readers (W4 dedup, DC-12) */
 #include "cr/compress/cr_decomp.h"
 #include <cstring>
 #include <functional>
@@ -45,7 +46,6 @@ constexpr u32 KP_KEY = 0;
 constexpr u32 KP_BLOCKPTR = 17;
 constexpr u32 KP_GENERATION = 25;
 constexpr u32 KP_SIZE = 33;
-constexpr u32 MAX_KEY_PTRS = (4096 - 0x65) / KP_SIZE;
 
 /* btrfs_disk_key (17 bytes) */
 constexpr u32 KEY_OBJECTID = 0;
@@ -60,15 +60,12 @@ constexpr u32 ITEM_SIZE = 21;
 
 /* key types */
 constexpr u8 KEY_INODE_ITEM = 1;
-constexpr u8 KEY_INODE_REF = 12;
 constexpr u8 KEY_EXTENT_DATA = 108;
 constexpr u8 KEY_DIR_ITEM = 84;
-constexpr u8 KEY_DIR_INDEX = 96;
 constexpr u8 KEY_ROOT_ITEM = 132;
 constexpr u8 KEY_CHUNK = 228;
 
 /* objectids */
-constexpr u64 OID_ROOT_TREE = 1;
 constexpr u64 OID_CHUNK_TREE = 3;
 constexpr u64 OID_FS_TREE = 5;
 constexpr u64 OID_FIRST_SUBVOL = 256;
@@ -121,16 +118,6 @@ constexpr u32 MAX_NODES = 1u << 20;
 constexpr u32 MAX_ITEMS = 4096;
 constexpr int DIR_DEPTH_LIMIT = 64;
 constexpr u64 MAX_DIR_BYTES = 16ull << 20;
-
-u16 le16(const u8* p) {
-    return u16(p[0]) | (u16(p[1]) << 8);
-}
-u32 le32(const u8* p) {
-    return u32(p[0]) | (u32(p[1]) << 8) | (u32(p[2]) << 16) | (u32(p[3]) << 24);
-}
-u64 le64(const u8* p) {
-    return u64(le32(p)) | (u64(le32(p + 4)) << 32);
-}
 
 struct Key {
     u64 objectid = 0;
@@ -302,13 +289,6 @@ bool walk_tree(Volume& v, u64 root_logical, CancelToken* cancel,
 
 } // namespace
 
-u64 timespec_to_filetime(i64 sec, u32 nsec) {
-    const i64 EPOCH_DELTA = 11644473600LL;
-    if (sec <= -EPOCH_DELTA)
-        return 0;
-    return u64((sec + EPOCH_DELTA) * 10000000LL) + u64(nsec) / 100u;
-}
-
 bool validate_superblock(const u8 sb[4096], SuperBlock& out) {
     if (le64(sb + SB_MAGIC) != SB_MAGIC_VALUE)
         return false;
@@ -361,11 +341,9 @@ bool validate_superblock(const u8 sb[4096], SuperBlock& out) {
     return true;
 }
 
-u32 scan_btrfs(IStorageDevice* slice, const BtrfsScanFlags& flags, CancelToken* cancel,
-               WalkProgressLike progress, void* progress_user, tree::ResultTree& tree,
-               tree::FullNode* root_active, tree::FullNode* root_deleted, tree::FullNode* root_lost,
-               BtrfsScanStats& stats) {
-    (void)flags;
+u32 scan_btrfs(IStorageDevice* slice, CancelToken* cancel, WalkProgressLike progress,
+               void* progress_user, tree::ResultTree& tree, tree::FullNode* root_active,
+               tree::FullNode* root_deleted, tree::FullNode* root_lost, BtrfsScanStats& stats) {
     (void)root_deleted;
     (void)root_lost;
     if (slice == nullptr || root_active == nullptr)
@@ -644,13 +622,13 @@ u32 scan_btrfs(IStorageDevice* slice, const BtrfsScanFlags& flags, CancelToken* 
                 ii.nlink = le32(data + INO_NLINK);
                 ii.mode = le32(data + INO_MODE);
                 ii.atime =
-                    timespec_to_filetime(i64(le64(data + INO_ATIME)), le32(data + INO_ATIME + 8));
+                    unix_to_filetime_ns(i64(le64(data + INO_ATIME)), le32(data + INO_ATIME + 8));
                 ii.ctime =
-                    timespec_to_filetime(i64(le64(data + INO_CTIME)), le32(data + INO_CTIME + 8));
+                    unix_to_filetime_ns(i64(le64(data + INO_CTIME)), le32(data + INO_CTIME + 8));
                 ii.mtime =
-                    timespec_to_filetime(i64(le64(data + INO_MTIME)), le32(data + INO_MTIME + 8));
+                    unix_to_filetime_ns(i64(le64(data + INO_MTIME)), le32(data + INO_MTIME + 8));
                 ii.crtime =
-                    timespec_to_filetime(i64(le64(data + INO_otime)), le32(data + INO_otime + 8));
+                    unix_to_filetime_ns(i64(le64(data + INO_otime)), le32(data + INO_otime + 8));
             } else if (k.type == KEY_EXTENT_DATA && len >= FE_TYPE + 1) {
                 /* BTR-3: INLINE items may be as short as 21 bytes (header +
                  * payload) - the old len>=53 gate dropped every small

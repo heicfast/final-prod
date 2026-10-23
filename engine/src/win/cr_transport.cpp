@@ -29,9 +29,8 @@ namespace {
  * Shared geometry probing.
  * ------------------------------------------------------------------------- */
 
-u32 u32_from_bytes_le(const u8* d) {
-    return u32(d[0]) | (u32(d[1]) << 8) | (u32(d[2]) << 16) | (u32(d[3]) << 24);
-}
+/* (W4, AUDIT-ARCH 8c #3: a local u32_from_bytes_le re-implementation was
+ * deleted here - the identical cr_types.h fold is used unqualified.) */
 
 /* Exact byte length for volume AND disk handles (IOCTL_DISK_GET_LENGTH_INFO
  * works on both; DISK_GEOMETRY_EX rounds to the disk geometry). */

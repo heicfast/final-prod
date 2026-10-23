@@ -148,11 +148,6 @@ FileNode* ResultTree::add_file(FileNode* parent, FileProperties* props) {
     return n;
 }
 
-void ResultTree::index_node(FileNode* n) {
-    std::lock_guard<std::mutex> lock(mutex_);
-    index_node_locked(n);
-}
-
 void ResultTree::index_node_locked(FileNode* n) {
     if (!n->props())
         return;

@@ -45,16 +45,14 @@ u16 checksum16(const u8* p, u32 n, u16 seed) {
 }
 
 u16 entry_set_checksum(const u8* entries, u32 entry_count) {
-    /* whole set byte-by-byte, excluding ONLY the 2 SetCheckSum bytes (file+2) */
-    u16 sum = 0;
-    for (u32 e = 0; e < entry_count; ++e) {
-        const u8* d = entries + e * 32;
-        for (int i = 0; i < 32; ++i) {
-            if (e == 0 && i >= 2 && i < 4)
-                continue; /* SetCheckSum field */
-            sum = static_cast<u16>(((sum & 1) ? 0x8000u : 0u) + (sum >> 1) + d[i]);
-        }
-    }
+    /* whole set byte-by-byte, excluding ONLY the 2 SetCheckSum bytes (file+2).
+     * Composed from checksum16 (W4 dedup, AUDIT-FAT §6 row 19 - the rotate
+     * was re-implemented inline here before): entry 0 bytes 0..1, skip the
+     * SetCheckSum field, entry 0 bytes 4..31, then every following entry. */
+    u16 sum = checksum16(entries, 2, 0);
+    sum = checksum16(entries + 4, 28, sum);
+    if (entry_count > 1)
+        sum = checksum16(entries + 32, (entry_count - 1) * 32, sum);
     return sum;
 }
 
@@ -112,7 +110,6 @@ u32 validate_boot_region(IStorageDevice* dev, ExfatParams& out) {
     p.cluster_heap_offset = main_b->cluster_heap_offset;
     p.cluster_count = main_b->cluster_count;
     p.first_cluster_of_root = main_b->first_cluster_of_root;
-    p.volume_flags = main_b->volume_flags;
     if (p.cluster_count == 0 || p.cluster_count > 0xFFFFFFF5)
         return ERR_BAD_PARAMETER;
     if (p.first_cluster_of_root < 2 || p.first_cluster_of_root >= p.cluster_count + 2)

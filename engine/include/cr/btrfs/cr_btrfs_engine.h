@@ -47,11 +47,6 @@ struct BtrfsScanStats {
     u64 damaged_nodes = 0;
 };
 
-struct BtrfsScanFlags {
-    bool keep_deleted = true;
-    bool scan_all_subvols = true;
-};
-
 /* One chunk mapping: [logical_start, +logical_len) -> device bytes. */
 struct ChunkMap {
     u64 logical_start;
@@ -75,13 +70,12 @@ struct SuperBlock {
 
 bool validate_superblock(const u8 sb[4096], SuperBlock& out);
 
-u32 scan_btrfs(IStorageDevice* slice, const BtrfsScanFlags& flags, CancelToken* cancel,
-               WalkProgressLike progress, void* progress_user, tree::ResultTree& tree,
-               tree::FullNode* root_active, tree::FullNode* root_deleted, tree::FullNode* root_lost,
-               BtrfsScanStats& stats);
+u32 scan_btrfs(IStorageDevice* slice, CancelToken* cancel, WalkProgressLike progress,
+               void* progress_user, tree::ResultTree& tree, tree::FullNode* root_active,
+               tree::FullNode* root_deleted, tree::FullNode* root_lost, BtrfsScanStats& stats);
 
-/* unix sec+nsec -> 100ns/1601 units */
-u64 timespec_to_filetime(i64 sec, u32 nsec);
+/* unix sec+nsec -> 100ns/1601 units: shared fold in cr_types.h
+ * (unix_to_filetime_ns; W4 dedup, AUDIT-LINUX-FS DC-13). */
 
 } // namespace btrfs
 } // namespace cr

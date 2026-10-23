@@ -52,9 +52,9 @@ u32 enumerate_disks(u32 max_disks, PhysicalDiskList& out);
 /* Enumerate logical volumes (letters) with disk correlation. */
 u32 enumerate_volumes(VolumeEntryList& out);
 
-/* Whole-disk view bound to enumeration (RDA-preferred when available). */
-std::unique_ptr<IStorageDevice> open_disk_view(const PhysicalDisk& d, const wchar_t* rda_service,
-                                               u32* err);
+/* W4 (AUDIT-ARCH 8a #5): the win-layer open_disk_view was deleted - the
+ * CLI (rrecov) opens with its own local view helper with different
+ * semantics; nothing else called this one. */
 
 } // namespace win
 } // namespace cr

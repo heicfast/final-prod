@@ -36,9 +36,6 @@ u32 unlock(wchar_t letter, int key_type, const std::wstring& key_or_path);
 /* Auto-unlock: enumerate FVEAutoUnlock registry values and try them. */
 u32 try_auto_unlock(wchar_t letter);
 
-/* Human-readable status for CLI output. */
-const wchar_t* status_text(Status s);
-
 } // namespace bitlocker
 } // namespace win
 } // namespace cr

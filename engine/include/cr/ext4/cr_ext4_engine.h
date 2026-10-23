@@ -94,9 +94,8 @@ u32 scan_ext4(IStorageDevice* slice, const Ext4ScanFlags& flags, CancelToken* ca
               tree::FullNode* root_active, tree::FullNode* root_deleted, tree::FullNode* root_lost,
               Ext4ScanStats& stats);
 
-/* unix epoch seconds -> our 100ns/1601 FileTimes fields */
-u64 unix_to_filetime(i64 unix_sec);
-u64 unix_to_filetime_ns(i64 unix_sec, u32 nsec);
+/* unix epoch seconds -> our 100ns/1601 FileTimes fields: shared fold in
+ * cr_types.h (W4 dedup, AUDIT-LINUX-FS DC-13). */
 
 } // namespace ext4
 } // namespace cr

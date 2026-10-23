@@ -45,7 +45,6 @@ public:
             return nullptr;
         return buf_.data() + (byte_off - win_base_);
     }
-    u64 window_base() const { return win_base_; }
     u64 window_len() const { return win_len_; }
 
 private:

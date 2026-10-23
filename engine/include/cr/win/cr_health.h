@@ -58,8 +58,6 @@ struct SmartReport {
     u64 spin_retry = 0;          /* attr 10 raw */
     u64 ssd_wear_level = 0;      /* attr 231/233 (vendor) */
     u64 temperature_c = 0;       /* attr 194/190 raw (vendor) */
-    bool trim_enabled = false;   /* fsutil query */
-    bool trim_known = false;
 };
 
 /* NVMe health log (log page 2, 512 bytes) — parsed by the pure-core

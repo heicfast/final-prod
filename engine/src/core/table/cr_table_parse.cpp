@@ -360,7 +360,8 @@ u32 parse_disk_table(IStorageDevice* device, DiskTable& out) {
             continue;
         }
         if (kind == FsKind::Protective) {
-            out.layout = TableLayout::Gpt; /* protective MBR: GPT damaged form */
+            /* protective MBR: GPT damaged form (primary/backup verified
+             * separately; the pre-GptDamaged Gpt store was dead) */
             out.gpt_primary_ok = out.gpt_backup_ok = false;
             out.layout = TableLayout::GptDamaged;
             continue;

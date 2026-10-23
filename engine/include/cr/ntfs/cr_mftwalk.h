@@ -37,7 +37,6 @@ constexpr u16 PFLAG_IS_DIR = 0x0002; /* mirrors record flag 0x02 */
 
 struct WalkerFlags {
     bool skip_system_files = true; /* corpus: dos_flags & 4 -> skip */
-    bool keep_overwritten = true;  /* fix F5: grade instead of destroy */
     bool emit_ads = true;          /* named $DATA -> child nodes */
     bool harvest_usnjrnl = true;   /* $Extend/$UsnJrnl:$J deleted-name harvest */
     /* viability gate boundary (NTFS-1): og is STRICT - `0x3ff < size`
@@ -47,10 +46,9 @@ struct WalkerFlags {
 };
 
 /* USN reasons (winioctl.h USN_REASON_*): the journal records we mine for
- * deleted-name evidence. */
-constexpr u32 USN_REASON_FILE_CREATE = 0x00000100; /* winioctl.h; 0x10000 is
-                                                    * HARD_LINK_CHANGE (AUDIT row 7
-                                                    * correction) */
+ * deleted-name evidence. FILE_CREATE is test-fixture material only - the
+ * engine filters on DELETE alone (AUDIT-NTFS §4 row 5); its value lives in
+ * the USN fixtures (tests/unit/test_ntfs_volume.cpp). */
 constexpr u32 USN_REASON_FILE_DELETE = 0x00020000;
 
 struct WalkStats {

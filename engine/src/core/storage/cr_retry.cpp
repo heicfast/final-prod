@@ -37,11 +37,6 @@ ReadErrorMap RetryingDevice::error_map_copy() const {
     return map_; /* value copy under the lock: race-free snapshot (G-06) */
 }
 
-u64 RetryingDevice::failed_bytes() const {
-    std::lock_guard<std::mutex> lock(map_mutex_);
-    return failed_bytes_;
-}
-
 u32 RetryingDevice::try_read(u64 offset, void* buffer, u32 length) {
     for (u32 attempt = 1;; ++attempt) {
         const u32 rc = inner_->read_at(offset, buffer, length);
@@ -81,7 +76,6 @@ u32 RetryingDevice::read_isolated(u64 offset, u8* buffer, u32 length, u32 depth_
         {
             std::lock_guard<std::mutex> lock(map_mutex_);
             map_.add(offset, length, policy_.max_attempts);
-            failed_bytes_ += length;
         }
         if (policy_.mode == RetryMode::Skip) {
             memset(buffer, 0, length);

@@ -593,18 +593,16 @@ u32 ScanController::run_engine_pass(IStorageDevice* slice, bool deep_mode, Cance
         break;
     }
     case FsFamily::Btrfs: {
-        btrfs::BtrfsScanFlags fl;
         btrfs::BtrfsScanStats bs;
-        rc = btrfs::scan_btrfs(slice, fl, cancel, ep, ep_user, tree_, root_found_, root_deleted_,
+        rc = btrfs::scan_btrfs(slice, cancel, ep, ep_user, tree_, root_found_, root_deleted_,
                                root_lost_, bs);
         stats.files_found += bs.files + bs.dirs;
         stats.deleted_found += bs.subvolumes;
         break;
     }
     case FsFamily::Zfs: {
-        zfs::ZfsScanFlags fl;
         zfs::ZfsScanStats zs;
-        rc = zfs::scan_zfs(slice, fl, cancel, ep, ep_user, tree_, root_found_, root_deleted_,
+        rc = zfs::scan_zfs(slice, cancel, ep, ep_user, tree_, root_found_, root_deleted_,
                            root_lost_, zs);
         stats.files_found += zs.files + zs.dirs;
         break;
@@ -822,18 +820,16 @@ u32 ScanController::scan_candidate(IStorageDevice* cand_slice, tree::FullNode* c
         deleted_out += hs.orphans;
         rc = OK;
     } else if (fam == FsFamily::Btrfs) {
-        btrfs::BtrfsScanFlags fl;
         btrfs::BtrfsScanStats bs;
-        (void)btrfs::scan_btrfs(cand_slice, fl, cancel, progress, progress_user, tree_, croot,
-                                croot, croot, bs);
+        (void)btrfs::scan_btrfs(cand_slice, cancel, progress, progress_user, tree_, croot, croot,
+                                croot, bs);
         files_out += bs.files + bs.dirs;
         deleted_out += bs.subvolumes;
         rc = OK;
     } else if (fam == FsFamily::Zfs) {
-        zfs::ZfsScanFlags fl;
         zfs::ZfsScanStats zs;
-        (void)zfs::scan_zfs(cand_slice, fl, cancel, progress, progress_user, tree_, croot, croot,
-                            croot, zs);
+        (void)zfs::scan_zfs(cand_slice, cancel, progress, progress_user, tree_, croot, croot, croot,
+                            zs);
         files_out += zs.files + zs.dirs;
         rc = OK;
     } else if (fam == FsFamily::Refs) {
@@ -962,14 +958,14 @@ u32 ScanController::load_session_summary(session::Reader& r, tree::ResultTree& t
     for (u32 i = 0; i < count; ++i) {
         session::Record rec;
         u32 rc = r.read_record(i, rec);
-        if (rc == 0x50030002u)
+        if (rc == ERR_BAD_CHECKSUM)
             continue; /* corrupt: skip, keep going (F10) */
         if (rc != OK)
             return rc;
         switch (rec.type) {
         case session::REC_RESULT_TREE:
             if (session::deserialize_tree(rec.data.data(), rec.data.size(), tree) != OK)
-                return 0x50040001;
+                return ERR_SESSION_FORMAT;
             break;
         case session::REC_SESSION_STATE: {
             if (session::deserialize_session_state(rec.data.data(), rec.data.size(), st) == OK) {
@@ -1000,7 +996,6 @@ u32 ScanController::load_session_summary(session::Reader& r, tree::ResultTree& t
                 c.sector_count = pc.sector_count;
                 c.fs = lost::CandidateFs(u8(pc.fs_kind));
                 c.score = int(pc.score);
-                c.fs_probe = pc.score; /* preserved for diagnostics */
                 stats.lost_candidates.push_back(c);
             }
             break;

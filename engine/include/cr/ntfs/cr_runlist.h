@@ -45,7 +45,6 @@ public:
     std::vector<DataRun>& runs() { return runs_; }
 
     u64 total_clusters() const;
-    u64 allocated_bytes(u32 cluster_bytes) const { return total_clusters() * cluster_bytes; }
     bool empty() const { return runs_.empty(); }
 
     /* Map a VCN to (lcn, run index) - binary search. sparse_out tells hole. */

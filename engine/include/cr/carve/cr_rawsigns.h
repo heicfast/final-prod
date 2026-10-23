@@ -57,14 +57,9 @@ extern const u32 kFormatCount;
 extern const u32 kHeaderSignCount;
 extern const u32 kTailSignCount;
 
-/* One dispatch bucket: signs sharing (offset, first byte). Built lazily
- * over the sorted arrays (thread-safe via once_flag). */
-struct SignBucket {
-    u32 offset;
-    u8 first;
-    u32 first_index; /* range [first_index, end_index) in the sign array */
-    u32 end_index;
-};
+/* W4 (AUDIT-PIPELINE register row 5): the SignBucket struct was never
+ * referenced - SignIndex dispatches over its private Range buckets. The
+ * dead public type was deleted. */
 
 class SignIndex {
 public:

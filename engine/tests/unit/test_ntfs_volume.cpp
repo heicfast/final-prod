@@ -26,6 +26,11 @@ using namespace cr::ntfs;
 
 namespace {
 
+/* winioctl.h USN_REASON_FILE_CREATE - fixture-only value (the engine filters
+ * on USN_REASON_FILE_DELETE alone; header no longer carries it, AUDIT-NTFS §4
+ * row 5). */
+constexpr u32 USN_REASON_FILE_CREATE = 0x00000100;
+
 constexpr u32 SEC = 512;
 constexpr u32 CLUSTER = SEC; /* spc = 1 */
 constexpr u64 NSECTORS = 256;

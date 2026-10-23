@@ -80,11 +80,10 @@ u32 CachedReader::read_at(u64 offset, void* buffer, u32 length) {
             blocks_[0] = std::move(tmp);
             found = 0;
         }
-        if (!blocks_[0].valid) {
-            /* the underlying transport failed this block: fail the read and
-             * let the caller's retry policy record it (R1.6) */
-            return ERR_READ_FAILED;
-        }
+        /* blocks_[0] is necessarily valid here: the miss path either
+         * returned early on rc != OK or pushed valid=true, and the hit
+         * path only ever matches valid blocks (W4: the old defensive
+         * !blocks_[0].valid branch was unreachable - AUDIT-ARCH 8a #11). */
         std::memcpy(dst, blocks_[0].data.data() + in_block_off, take);
         dst += take;
         pos += take;

@@ -192,10 +192,6 @@ public:
     /* Rebuild/refresh all FullNode stats (call once after mutations). */
     void refresh_stats();
 
-    /* Registration for dedup lookups (called by add_file; public for
-     * external index additions). Thread-safe. */
-    void index_node(FileNode* n);
-
     /* Move a node to a new parent (link surgery is tree-internal). */
     void reparent(FileNode* node, FileNode* new_parent);
 

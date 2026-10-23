@@ -50,12 +50,6 @@ public:
      * safe to call from any thread while workers record failures. */
     ReadErrorMap error_map_copy() const;
 
-    /* Read-only access to the wrapped device (e.g. slice construction). */
-    IStorageDevice* inner() const { return inner_.get(); }
-
-    /* Failed bytes seen so far (diagnostics / progress reporting). */
-    u64 failed_bytes() const;
-
 private:
     RetryingDevice(std::unique_ptr<IStorageDevice> inner, const RetryPolicy& policy);
 
@@ -70,7 +64,6 @@ private:
     RetryPolicy policy_;
     mutable std::mutex map_mutex_;
     ReadErrorMap map_;
-    u64 failed_bytes_ = 0;
 };
 
 } // namespace cr

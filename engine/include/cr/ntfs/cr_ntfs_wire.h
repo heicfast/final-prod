@@ -55,7 +55,6 @@ static_assert(sizeof(BootSector) == 512);
 /* ---- MFT record ---------------------------------------------------------- */
 
 constexpr u32 RECORD_MAGIC_FILE = 0x454C4946; /* 'FILE' LE - corpus line 21152 */
-constexpr u32 RECORD_MAGIC_BAAD = 0x44414142; /* 'BAAD' - index-block torn */
 
 struct RecordHeader {
     u32 magic;                  /* 'FILE' */
@@ -81,6 +80,10 @@ constexpr u16 RECORD_IS_DIRECTORY = 0x0002;
 
 /* ---- Attribute ----------------------------------------------------------- */
 
+/* Attribute-type registry below this line is WIRE-FORMAT DOCUMENTATION
+ * only - the parser dispatches on the types it consumes (0x10/0x20/0x30/
+ * 0x80/0x90/0xA0); the rest document the on-disk namespace (AUDIT-NTFS §4
+ * row 19: kept deliberately, not consumed). */
 constexpr u32 ATTR_TYPE_STANDARD_INFORMATION = 0x10;
 constexpr u32 ATTR_TYPE_ATTRIBUTE_LIST = 0x20; /* corpus: fragmented-MFT gate */
 constexpr u32 ATTR_TYPE_FILE_NAME = 0x30;
@@ -99,6 +102,7 @@ constexpr u32 ATTR_TYPE_EA = 0xE0;
 constexpr u32 ATTR_TYPE_LOGGED_UTILITY_STREAM = 0x100;
 constexpr u32 ATTR_TYPE_TERMINATOR = 0xFFFFFFFF;
 
+/* WIRE-FORMAT DOCUMENTATION (not consumed): nonresident attribute flags. */
 constexpr u16 ATTR_FLAG_COMPRESSED = 0x0001;
 constexpr u16 ATTR_FLAG_ENCRYPTED = 0x4000;
 constexpr u16 ATTR_FLAG_SPARSE = 0x8000;
@@ -183,35 +187,12 @@ struct StandardInformation {
 };
 static_assert(sizeof(StandardInformation) == 72);
 
-/* ---- $INDEX_ROOT / $INDEX_ALLOCATION ------------------------------------- */
-
-constexpr u32 INDX_MAGIC = 0x58444E49; /* 'INDX' LE - $INDEX_ALLOCATION blocks only */
-
-struct IndexHeader {    /* common tail of $INDEX_ROOT value and blocks */
-    u32 entries_offset; /* to first entry, 8-aligned */
-    u32 index_length;
-    u32 allocated_size;
-    u32 flags; /* 1 = large (has $INDEX_ALLOCATION) */
-};
-static_assert(sizeof(IndexHeader) == 16);
-
-struct IndexEntryHeader { /* 16 bytes */
-    u64 mft_reference;    /* child (or parent for the end entry) */
-    u16 entry_length;
-    u16 stream_length;
-    u32 flags; /* 1 = points to sub-node, 2 = last entry */
-};
-static_assert(sizeof(IndexEntryHeader) == 16);
-
-struct IndxBlockHeader { /* $INDEX_ALLOCATION block, USA applies */
-    u32 magic;           /* 'INDX' */
-    u16 update_sequence_offset;
-    u16 update_sequence_size;
-    u64 log_sequence;
-    u64 virtual_cluster; /* vcn of this block in the index stream */
-    IndexHeader index;
-};
-static_assert(sizeof(IndxBlockHeader) == 40);
+/* $INDEX_ROOT / $INDEX_ALLOCATION walking: the walk model is
+ * attribute-based (children enumerated via $ATTRIBUTE_LIST record refs,
+ * cr_mftwalk); no INDX-block walker exists and none is planned. The
+ * speculative INDX wire family (magic, IndexHeader, IndexEntryHeader,
+ * IndxBlockHeader) was deleted (plan ruling D-N, AUDIT-NTFS §4 row 9:
+ * 0 refs; og INDX walking itself is UNVERIFIED-7 in the corpus). */
 
 /* ---- $MFT record 16 = $Bitmap etc: cluster bitmap attr ------------------ */
 
@@ -221,15 +202,6 @@ static_assert(sizeof(IndxBlockHeader) == 40);
 
 inline u64 mft_reference_record(u64 ref) {
     return ref & 0x0000FFFFFFFFFFFFULL;
-}
-inline u64 mft_reference_sequence(u64 ref) {
-    return ref >> 48;
-}
-
-/* NTFS timestamp -> seconds since 1601-01-01 (u64, 100ns). R2.2 contract. */
-constexpr u64 NTFS_EPOCH_100NS = 116444736000000000ULL; /* 1601->1970 delta */
-inline u64 ntfs_time_to_unix_ns(u64 t100) {
-    return t100 == 0 ? 0 : (t100 - NTFS_EPOCH_100NS) * 100;
 }
 
 /* Record size from DBR: clusters_per_record sign convention. */

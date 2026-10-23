@@ -24,9 +24,6 @@
 namespace cr {
 namespace ntfs {
 
-constexpr u32 MFT_RESERVED_RECORDS = 24;        /* 0..15 meta + historically 24 */
-constexpr u64 MFT_FIRST_READ_BYTES = 64 * 1024; /* corpus: 64 KiB buffer */
-
 struct VolumeParams {
     u64 record_size = 0; /* bytes per MFT record (>= 0x400 clamp) */
     u32 cluster_bytes = 0;
@@ -45,14 +42,11 @@ public:
 
     /* Read one MFT record (by number) into out (record_size bytes), fixups
      * applied in place by the caller via cr_fixup. Reads through the cache.
-     * rc ERR_RETRY_EXHAUSTED propagates from transport. */
+     * rc ERR_RETRY_EXHAUSTED propagates from transport. $MFTMirr fallback
+     * for records 0..3 lives INSIDE read_record (corpus bootstrap path). */
     u32 read_record(u64 record_no, std::vector<u8>& out);
 
-    /* $MFTMirr variant for records 0..3 (verification/repair source). */
-    u32 read_record_mirr(u64 record_no, std::vector<u8>& out);
-
     const VolumeParams& params() const { return p_; }
-    IStorageDevice* device() const { return dev_.get(); }
     u64 max_record_no() const {
         if (p_.record_size == 0)
             return 0;
@@ -67,22 +61,13 @@ public:
         return covered * p_.cluster_bytes / p_.record_size;
     }
 
-    /* True when record falls inside the first-MFT-reader region already
-     * mapped (used by the walker to batch). */
-    const RunList& mft_runlist() const { return mft_run_; }
-    const RunList& mftmirr_runlist() const { return mirr_run_; }
-
-    /* $ATTRIBUTE_LIST on $MFT itself: extent list assembled during open. */
-    const std::vector<DataRun>& mft_extents() const { return mft_extents_; }
-
     u32 read_at(u64 offset, void* buf, u32 len) { return dev_->read_at(offset, buf, len); }
-    u64 size() const { return dev_->size(); }
 
 private:
     NtfsVolume() = default;
     u32 load_mft_stream();
     u32 load_mftmirr_stream();
-    u32 enum_mirr_attrs(const std::vector<u8>& buf, std::vector<u8>& scratch);
+    u32 enum_mirr_attrs(const std::vector<u8>& buf);
 
     std::unique_ptr<IStorageDevice> dev_;
     VolumeParams p_;

@@ -4,6 +4,7 @@
  */
 
 #include "cr/exfat/cr_exfat_engine.h"
+#include "cr/fat/cr_fat_wire.h" /* shared FAT-family datetime core (W4 dedup) */
 #include <cstring>
 #include <set>
 
@@ -122,21 +123,9 @@ u64 exfat_time_to_unix100(u32 ts, u8 tz) {
     const u16 time = u16(ts & 0xFFFF);
     if (date == 0)
         return 0;
-    const u32 year = 1980u + ((date >> 9) & 0x7F);
-    const u32 month = (date >> 5) & 0x0F;
-    const u32 day = date & 0x1F;
-    const u32 hour = (time >> 11) & 0x1F;
-    const u32 minute = (time >> 5) & 0x3F;
-    const u32 second = (time & 0x1F) * 2;
-    if (month < 1 || month > 12 || day < 1 || day > 31)
-        return 0;
-    const i64 y = i64(year) - (month <= 2 ? 1 : 0);
-    const i64 era = (y >= 0 ? y : y - 399) / 400;
-    const u64 yoe = u64(y - era * 400);
-    const u64 doy = (153u * ((month > 2 ? month - 3 : month + 9)) + 2) / 5 + day - 1;
-    const u64 doe = yoe * 365 + yoe / 4 - yoe / 100 + doy;
-    const i64 days = era * 146097 + i64(doe) - 719468;
-    if (days < 0)
+    /* shared FAT-family datetime core (W4 dedup, AUDIT-FAT §6 row 20) */
+    const u64 base_secs = cr::fat::fat_datetime_to_unix_seconds(date, time);
+    if (base_secs == 0)
         return 0;
     /* timezone: 7-bit two's complement quarters, bit7 = used; 0x00 = unused */
     i64 tz_secs = 0;
@@ -146,8 +135,7 @@ u64 exfat_time_to_unix100(u32 ts, u8 tz) {
             q -= 128;
         tz_secs = i64(q) * 900;
     }
-    const u64 secs = u64(days) * 86400 + u64(hour) * 3600 + u64(minute) * 60 + second;
-    return secs * 10000000ULL + 116444736000000000ULL - u64(tz_secs) * 10000000ULL;
+    return base_secs * 10000000ULL + 116444736000000000ULL - u64(tz_secs) * 10000000ULL;
 }
 
 struct ScanCtx {
@@ -388,7 +376,7 @@ void walk_entries(ScanCtx& ctx, const std::vector<u8>& buf, bool deleted_context
                 continue;
             }
             props->name = name;
-            props->fs_kind = 7; /* exFAT (corpus FS codes) */
+            props->fs_kind = u32(FsKindCode::Exfat); /* corpus factory code */
             props->logical_size =
                 is_dir ? u64(chain.clusters.size()) * ctx.p.cluster_bytes : data_len;
             props->times.created = exfat_time_to_unix100(fe->create_timestamp, fe->create_tz);

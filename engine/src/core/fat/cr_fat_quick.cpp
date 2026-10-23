@@ -137,7 +137,7 @@ void walk_dir_entries(EmitCtx& ctx, const DirBuffer& buf, tree::FileNode* host,
         const u8* raw = buf.data.data() + i * 32;
         const DirEntry* e = reinterpret_cast<const DirEntry*>(raw);
         const u8 first = e->name[0];
-        if (first == 0x00)
+        if (first == DENTRY_END)
             break; /* end of directory (corpus DENTRY_END) */
         if (e->attributes == ATTR_LFN) {
             const LfnEntry* l = reinterpret_cast<const LfnEntry*>(raw);
@@ -303,16 +303,18 @@ u32 scan_fat(IStorageDevice* slice, const FatScanFlags& flags, CancelToken* canc
     FatParams p;
     u32 rc = validate_boot(boot, slice->size(), p);
     if (rc != OK) {
-        /* backup boot sector fallback (R5.1): sector 6 on FAT32 volumes is
-         * a full copy of the boot sector - validate it independently.
-         * Sector math uses the device geometry: on 4Kn volumes the backup
-         * boot sits at 6 * 4096, not the hardcoded 3072 (audit row 9 -
-         * violates the locked fix F1 'no fixed 512 anywhere'). */
+        /* backup boot sector fallback (R5.1): FAT32 reserves a full copy of
+         * the boot sector at sector 6 (spec default). FAT-8 (AUDIT-FAT): the
+         * fallback is now RESTRICTED to a candidate that validates as FAT32
+         * - FAT12/16 have no backup boot sector, so a sector-6 hit there was
+         * FAT-area bytes that merely passed validation. Sector math uses the
+         * device geometry: on 4Kn volumes the backup boot sits at 6 * 4096,
+         * not the hardcoded 3072 (locked fix F1 'no fixed 512 anywhere'). */
         const u32 bs = slice->geometry().logical_sector ? slice->geometry().logical_sector : 512;
         u8 b[512];
         if (slice->read_at(u64(6) * bs, b, sizeof(b)) == OK) {
             FatParams bp;
-            if (validate_boot(b, slice->size(), bp) == OK) {
+            if (validate_boot(b, slice->size(), bp) == OK && bp.flavor == Flavor::Fat32) {
                 p = bp;
                 rc = OK;
             }

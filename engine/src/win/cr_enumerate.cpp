@@ -153,15 +153,5 @@ u32 enumerate_volumes(std::vector<VolumeEntry>& out) {
     return OK;
 }
 
-std::unique_ptr<IStorageDevice> open_disk_view(const PhysicalDisk& d, const wchar_t* rda_service,
-                                               u32* err) {
-    u32 e = 0;
-    if (rda_service) {
-        if (auto dev = open_rda_partition(rda_service, d.number, 0, &e))
-            return dev;
-    }
-    return open_physical_drive(d.number, err);
-}
-
 } // namespace win
 } // namespace cr

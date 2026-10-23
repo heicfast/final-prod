@@ -27,7 +27,6 @@ public:
     u32 read_at(u64 offset, void* buffer, u32 length) override;
     const Geometry& geometry() const override { return inner_->geometry(); }
 
-    IStorageDevice* inner() const { return inner_.get(); }
     u64 hits() const { return hits_; }
     u64 misses() const { return misses_; }
 

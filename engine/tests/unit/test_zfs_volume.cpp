@@ -651,10 +651,8 @@ TEST(Zfs, EndToEndWalk) {
 
     tree::ResultTree tree;
     auto* ra = tree.add_root(u"Found");
-
-    ZfsScanFlags fl;
     ZfsScanStats st;
-    u32 rc = scan_zfs(&dev, fl, nullptr, nullptr, nullptr, tree, ra, nullptr, nullptr, st);
+    u32 rc = scan_zfs(&dev, nullptr, nullptr, nullptr, tree, ra, nullptr, nullptr, st);
     ASSERT_EQ(OK, rc) << err_text(rc);
     EXPECT_EQ(u64(TXG), st.txg);
 
@@ -726,9 +724,8 @@ TEST(Zfs, LabelPositionsRecoveredFromTail) {
     MemDevice dev(img);
     tree::ResultTree tree;
     auto* ra = tree.add_root(u"F");
-    ZfsScanFlags fl;
     ZfsScanStats st;
-    ASSERT_EQ(OK, scan_zfs(&dev, fl, nullptr, nullptr, nullptr, tree, ra, nullptr, nullptr, st));
+    ASSERT_EQ(OK, scan_zfs(&dev, nullptr, nullptr, nullptr, tree, ra, nullptr, nullptr, st));
     EXPECT_EQ(u64(TXG), st.txg);
 }
 
@@ -744,9 +741,8 @@ TEST(Zfs, NewestTxgAcrossLabelsWins) {
     MemDevice dev(img);
     tree::ResultTree tree;
     auto* ra = tree.add_root(u"F");
-    ZfsScanFlags fl;
     ZfsScanStats st;
-    ASSERT_EQ(OK, scan_zfs(&dev, fl, nullptr, nullptr, nullptr, tree, ra, nullptr, nullptr, st));
+    ASSERT_EQ(OK, scan_zfs(&dev, nullptr, nullptr, nullptr, tree, ra, nullptr, nullptr, st));
     EXPECT_EQ(u64(TXG + 5), st.txg);
 }
 
@@ -755,10 +751,9 @@ TEST(Zfs, BadMagicRejected) {
     MemDevice dev(d);
     tree::ResultTree tree;
     auto* ra = tree.add_root(u"F");
-    ZfsScanFlags fl;
     ZfsScanStats st;
     EXPECT_EQ(ERR_BAD_MAGIC,
-              scan_zfs(&dev, fl, nullptr, nullptr, nullptr, tree, ra, nullptr, nullptr, st));
+              scan_zfs(&dev, nullptr, nullptr, nullptr, tree, ra, nullptr, nullptr, st));
 }
 
 TEST(Zfs, ZleRoundTrip) {

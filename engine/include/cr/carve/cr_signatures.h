@@ -69,10 +69,9 @@ constexpr u32 REGISTRY_VERSION = 1;
 /* Validator outcome. */
 struct CarveResult {
     bool ok = false;
-    u64 end = 0;             /* absolute end offset (slice-relative) */
-    u16 confidence = 0;      /* 0..1000 */
-    bool fragmented = false; /* grammar detected index/table gaps (R4.5) */
-    const char* note = "";   /* evidence note for the node registry */
+    u64 end = 0;           /* absolute end offset (slice-relative) */
+    u16 confidence = 0;    /* 0..1000 */
+    const char* note = ""; /* evidence note for the node registry */
 };
 
 /*

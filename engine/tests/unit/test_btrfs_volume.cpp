@@ -363,10 +363,8 @@ TEST(Btrfs, EndToEndWalk) {
 
     tree::ResultTree tree;
     auto* ra = tree.add_root(u"Found");
-
-    BtrfsScanFlags fl;
     BtrfsScanStats st;
-    u32 rc = scan_btrfs(&dev, fl, nullptr, nullptr, nullptr, tree, ra, nullptr, nullptr, st);
+    u32 rc = scan_btrfs(&dev, nullptr, nullptr, nullptr, tree, ra, nullptr, nullptr, st);
     ASSERT_EQ(OK, rc) << err_text(rc);
     EXPECT_EQ(1u, st.subvolumes);
     EXPECT_EQ(2u, st.files);
@@ -422,10 +420,9 @@ TEST(Btrfs, BadMagicRejected) {
     MemDevice dev(d);
     tree::ResultTree tree;
     auto* ra = tree.add_root(u"F");
-    BtrfsScanFlags fl;
     BtrfsScanStats st;
     EXPECT_EQ(ERR_BAD_MAGIC,
-              scan_btrfs(&dev, fl, nullptr, nullptr, nullptr, tree, ra, nullptr, nullptr, st));
+              scan_btrfs(&dev, nullptr, nullptr, nullptr, tree, ra, nullptr, nullptr, st));
 }
 
 TEST(Btrfs, PackedDirItemsInOneItem) {
@@ -466,9 +463,8 @@ TEST(Btrfs, PackedDirItemsInOneItem) {
     MemDevice dev(img);
     tree::ResultTree tree;
     auto* ra = tree.add_root(u"F");
-    BtrfsScanFlags fl;
     BtrfsScanStats st;
-    ASSERT_EQ(OK, scan_btrfs(&dev, fl, nullptr, nullptr, nullptr, tree, ra, nullptr, nullptr, st));
+    ASSERT_EQ(OK, scan_btrfs(&dev, nullptr, nullptr, nullptr, tree, ra, nullptr, nullptr, st));
     std::set<std::string> names;
     for (tree::FileNode* c = ra->first_child(); c; c = c->next_sibling())
         for (tree::FileNode* x = c->first_child(); x; x = x->next_sibling())
@@ -496,9 +492,8 @@ TEST(Btrfs, MirrorSelectionNewestGeneration) {
     MemDevice dev(big);
     tree::ResultTree tree;
     auto* ra = tree.add_root(u"F");
-    BtrfsScanFlags fl;
     BtrfsScanStats st;
-    ASSERT_EQ(OK, scan_btrfs(&dev, fl, nullptr, nullptr, nullptr, tree, ra, nullptr, nullptr, st));
+    ASSERT_EQ(OK, scan_btrfs(&dev, nullptr, nullptr, nullptr, tree, ra, nullptr, nullptr, st));
     EXPECT_EQ(1u, st.subvolumes);
     /* and the walked file proves the chunk map still resolved */
     bool found = false;
@@ -600,9 +595,8 @@ TEST(Btrfs, InternalKeyPtrWalk) {
     MemDevice dev(img);
     tree::ResultTree tree;
     auto* ra = tree.add_root(u"F");
-    BtrfsScanFlags fl;
     BtrfsScanStats st;
-    ASSERT_EQ(OK, scan_btrfs(&dev, fl, nullptr, nullptr, nullptr, tree, ra, nullptr, nullptr, st));
+    ASSERT_EQ(OK, scan_btrfs(&dev, nullptr, nullptr, nullptr, tree, ra, nullptr, nullptr, st));
     EXPECT_EQ(1u, st.subvolumes);
     EXPECT_EQ(2u, st.files);
     EXPECT_EQ(0u, st.damaged_nodes);
@@ -717,10 +711,8 @@ TEST(Btrfs, InlineAndCompressedExtents) {
     MemDevice dev(d);
     tree::ResultTree tree;
     auto* ra = tree.add_root(u"Found");
-    BtrfsScanFlags flags;
     BtrfsScanStats stats;
-    ASSERT_EQ(OK,
-              scan_btrfs(&dev, flags, nullptr, nullptr, nullptr, tree, ra, nullptr, nullptr, stats))
+    ASSERT_EQ(OK, scan_btrfs(&dev, nullptr, nullptr, nullptr, tree, ra, nullptr, nullptr, stats))
         << err_text(0);
     std::vector<tree::FileNode*> all;
     std::function<void(tree::FileNode*)> walk = [&](tree::FileNode* n) {
