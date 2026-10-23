@@ -485,3 +485,44 @@ Stage Summary:
   the parallel session's af4bc8e (P1-12). AUDIT.md rows remaining: none
   blocking - the matrix is fully worked except items owned by the parallel
   session (bench/comparison/Windows CI).
+
+---
+Task ID: S5-TAKEOVER
+Agent: main (session-5 take-over: verification & reconciliation)
+Task: Re-verify the session-5 rewrites + the parallel agent's waves against
+upstream ground truth; fix everything found; keep the tree green and pushed.
+
+Work Log:
+- Context recovered: all 3 repos re-cloned; found the remote advanced
+  concurrently (parallel agent pushed LDM full, NTFS rows 3/6/7, wave-2
+  wiring, TSan/fuzz infra, raw-signs carve, benchmark workflows while this
+  session ran).
+- Dispatched 6 verification agents (ZFS, btrfs/ext4, LDM corpus contract,
+  NTFS corpus contract, LDM audit, NTFS audit); personally re-verified
+  every disputed constant against fetched upstream sources (OpenZFS
+  dmu.h/spa.h/zfs_sa.h/nvpair.c/spl-xdr.c/vdev_label.c, torvalds
+  btrfs_tree.h/ext4.h/jbd2.{h,journal.c}, libldm ldm.c).
+- Round 1 (ZFS): 7 real-pool-fatal defects fixed; XDR label parser written
+  from nvpair.c; fixture rewritten to real XDR (2406257).
+- Round 2 (btrfs/ext4): timestamps-from-reserved-bytes, s_inode_size@0x58,
+  GDT hi words, ei_leaf_hi@6, jbd2 BIG-endian rewrite, BE jbd2 fixture
+  (ee18f75).
+- Round 3 (parallel-wave audit): SafeWriter resident-prefix zero-overwrite
+  (content destruction, PROVEN); LDM _int_type=3 constant (all striped/
+  mirrored volumes dropped); LDM dup-fragment/kernel bounds/degraded/
+  per-member re-anchoring; NTFS bootstrap chase gate + fixup + aligned
+  stride + vcn ordering; walker UAF; $J sparse/V3/resync/file-ref harvest;
+  FILE0 fixup-optional salvage; unnamed resident $DATA capture (6ef4db2).
+- Round 4: rebased onto the parallel agent's concurrent pushes (kept their
+  $DATA-authoritative logical_size fix merged with resident capture);
+  137/137 tests green; all work pushed; CI running.
+
+Stage Summary:
+- The 'already fixed' state was audited and found still broken in 3
+  engines; four verification rounds produced 20+ production-grade fixes
+  each with corpus/upstream evidence and regression coverage where the
+  behavior is testable synthetically.
+- Remaining from the original session-5 plan: benchmark comparison runs
+  (workflows live, running), v0.2.0 tag (blocked on benchmark results),
+  cross-disk LDM session registry (single-disk resolver works; the
+  LdmVolumeDevice re-anchoring landed the correct primitive).
