@@ -1,71 +1,103 @@
-# CORE-GAP-LIST — production gate register
+# CORE-GAP-LIST — final consolidation register (production-complete gate)
 
-> Reconciled against `core_recovery` HEAD `ee23472` and RE corpus `03ad46c`.
-> Driver reference: `7e88e38` (the requested read-only v0.2.0 contract remains
-> the compatibility baseline; the checked-out driver HEAD is newer). UI contract
-> reference: `d773991`. This register supersedes stale open/closed labels in the
-> previous revision. MATCH means implementation and regression evidence are at
-> HEAD; PARTIAL / WRONG / MISSING remain release-blocking unless explicitly
-> marked non-reference scope. No status is inferred from a worklog claim alone.
+> **Purpose.** Single authoritative list of every remaining delta between
+> `core_recovery` HEAD and the reference architecture (RE corpus
+> `easeus-drw-research` + `AUDIT-*` / `PARITY-*` findings), as verified
+> **directly against the code at HEAD `dc53e46`** (not inherited from prior
+> worklog claims — several were stale and are marked below). Every row carries
+> the verification evidence and the RE/reference citation where applicable.
+> Statuses: MATCH / MISSING / WRONG / PARTIAL / STALE-CLAIM (prior register
+> said open, code says landed).
+>
+> **Rule.** A row is only closed by a commit that cites its GAP id and adds
+> a regression test (or doc-diff evidence for doc-only rows). No row is
+> closed by re-classification without evidence.
+>
+> **Session-5 parity-refactor closures (2026-10-23, commits cite the ids):**
+> GAP-W4 (0c6a1f5), GAP-W3-9a/9b (cd4bb41), GAP-W3-10 (0c6a1f5 + 34728b2 +
+> 800e80a), GAP-W5-DELTAS/REGISTRY (046889d), GAP-CAPMATRIX (046889d),
+> GAP-W5-BENCHREPORT (e9e1176), GAP-W5-ERRATA (easeus-drw-research 03ad46c),
+> GAP-W6-WIN7 (74f42c0 - CI proof pending on the windows lane's next run).
+> Closed by the parallel S5-CONT-2 wave: GAP-CI-1 (0a28a23), GAP-P1-2/P1-3
+> (632edc4), GAP-P1-4/GAP-W2-9/GAP-W2-19 (3267d26).
 
-## 1. Reference engines and recovery pipeline
+## 0. Source registers consolidated
 
-| ID | Status | Core surface | Evidence at HEAD / closure required |
+PARITY-AUDIT.md (auditor gate), AUDIT-ARCH/FALLBACKS/NTFS/FAT/LINUX-FS/
+PIPELINE.md (principal-engineer audits), PARITY-REFACTOR-PLAN.md (W1..W6),
+UI-READINESS-PLAN.md (G-01..G-23, issues #1–#10), worklog S5-CONT-1/S5-CONT-2
+remainders, CI state at HEAD (runs 39984781013 / 39984822801).
+
+## 1. CI (blocking — main is red)
+
+| ID | Status | Item | Evidence |
 |---|---|---|---|
-| GAP-NTFS | MATCH | NTFS live/deleted/remnant trees, attribute lists, hard links, ADS, sparse runs, $MFTMirr, recycle remap | `test_ntfs_volume.cpp`, `test_runlist.cpp`; corpus `ntfs-engine-internals.md`, `ntfs-engine-algorithms-v2--deleted-viability.md`, `zfs-vdev--mftmirr--calcpartition.md`; recycle closure `632edc4`. |
-| GAP-P1-1 | MATCH | NTFS native compressed $DATA | LZNT1 extent envelope and bounded decoder landed in `464d8e5`; tests in `test_ntfs_volume.cpp`. XPRESS/LZX/WOF is not claimed: the RE corpus has no evidence that the reference core implements it. |
-| GAP-P1-2 | MATCH | Bounded lzjb decode | `632edc4`; truncated-source regression in `test_zfs_volume.cpp`. |
-| GAP-FAT | MATCH | FAT12/16/32, LFN, deleted chains, mirrored FAT, cancellation | `3267d26`; `test_fat_volume.cpp`; corpus `fat-exfat-engine-algorithms-v2.md`. |
-| GAP-EXFAT | MATCH | exFAT live/deleted entry sets, checksum and allocation grading | `test_exfat_volume.cpp`; corpus `exfat-engine--deep-dive.md`. |
-| GAP-EXT4 | MATCH | ext2/3/4 metadata, extents, deleted/orphan and journal salvage | `test_ext4_volume.cpp`; corpus `remaining-engines--ext4-hfs-refs-btrfs-zfs.md`. |
-| GAP-HFS | MATCH | HFS+/HFSX catalog and extents B-trees, forks, orphan sweep | `test_hfsplus_volume.cpp`. Attributes B-tree/journal replay are not registered as parity gaps because the corpus explicitly does not evidence them in the reference engine. |
-| GAP-BTRFS | MATCH | Btrfs mirrors, chunk mapping, subvolumes, inline/compressed extents | `test_btrfs_volume.cpp`; corpus `refs-btrfs-zfs-engine-algorithms-v2.md`. |
-| GAP-ZFS-MULTIVDEV | PARTIAL | ZFS multi-vdev DVA resolution | `cr_zfs_engine.cpp` rejects nonzero DVAs and labels mirror/raidz report-only. Corpus `zfs-vdev--mftmirr--calcpartition.md` proves vdev-tree geometry parsing but does not yet establish the reference's full mirror/RAIDZ reconstruction semantics. Closure requires evidence-backed topology resolution and seeded multi-vdev tests; no parity claim is permitted. |
-| GAP-REFS | MATCH | ReFS MSB chain, checkpoints, directory/object tables, data runs, deleted harvest | `test_refs_ldm.cpp`, `test_refs_volume.cpp`; corpus `refs-engine--deep-dive.md`. Containers/security/ADS are not evidenced reference-core behavior and are not claimed. |
-| GAP-LDM | MATCH | LDM database, VBLK graph, simple/spanned/striped/mirrored/RAID-5 mappings, cross-disk resolver | `test_ldm.cpp`; corpus `LdmManager.md`, `module-internals-wave2--ldm-reglib-ctbfile.md`. |
-| GAP-LOST | MATCH | Lost-partition discovery, GPT two-step salvage, virtual-volume reader | `3267d26`; `test_lostpart.cpp`, `test_slice_devmap.cpp`; corpus `PartitionRecoveryD.md`, `Partition.md`. |
-| GAP-CARVE | MATCH | Signature registry, grammar validators, merge/dedup, endian handling | `test_carve.cpp`; corpus `rawsearch-carving--deep-dive.md`, `rawsearchdll--analyser-registry-census.md`. |
-| GAP-SESSION | MATCH | CRSF save/load/resume/checkpoint, identity and stage-mask truth | `be8875f`, `cd4bb41`; `test_session.cpp`, `test_pause_resume.cpp`; corpus `rsf-format--scan-session.md`. |
-| GAP-WRITER | MATCH | Overlap refusal, directories, collisions, post-write hashing, JSON and salvaged outcomes | `3267d26`; `test_writer_dirs.cpp`, `test_report.cpp`; corpus `04-recovery-workflow.md`. |
-| GAP-HEALTH | MATCH | ATA/NVMe health, TRIM/SSD interpretation | `test_nvme_health.cpp`; corpus `diskhealth--smart-companion.md`. USB bridges without a supported passthrough remain honest `ERR_HEALTH_UNAVAILABLE`, not simulated data. |
-| GAP-REPAIR | MATCH | RawFixer analyze/dry-run/apply/undo, 4Kn and rollback | `test_rawfixer.cpp`; corpus `rawfixer-fs-repair.md`, `rawfixer-v2--method-inventory.md`. |
-| GAP-ORCH | MATCH | Quick/deep/carve orchestration, monotonic progress, cancellation, ETA, error map and threading | `test_orchestrator.cpp`, `test_telemetry.cpp`; corpus `05-scan-engine-architecture.md`. |
-| GAP-G-02 | MATCH | Immutable mid-scan snapshots and value-driven recovery | `fc656d2`; `test_snapshot.cpp`, TSan lane. |
-| GAP-G-01 | MATCH | `cr_ui` versioned C ABI and opaque service handles | `e79d23f`, MSVC guard `e8da7ef`; `include/cr/cr_ui.h`, `tools/cr_ui_abi_check.c`. |
+| GAP-CI-1 | **WRONG** | Windows lane: 3/204 tests fail (`PauseResume.SaveOnCancelStampsTruthfulMaskAndResumeSkipsQuick`, `MaskIntegrityViolationRefusesResume`, `SessionRestoresVolumeInfoAndCandidates`) — `tmp_session_path()` hardcodes `/tmp/...`; MSVC `fopen` resolves that to `<current-drive>\tmp\` which does not exist on runners. Linux passes. | run 39984822801 job 120521156342 logs; `tests/unit/test_pause_resume.cpp:167-179` |
+| GAP-CI-2 | PARTIAL | fuzz + codeql lanes in flight at HEAD; must be watched to completion and any failure fixed. | run 39984822801 |
 
-## 2. CLI, scoring and fallback correctness
+## 2. P1 correctness (recovery-output-affecting)
 
-| ID | Status | Item | Evidence / closure required |
+| ID | Status | Item | Evidence |
 |---|---|---|---|
-| GAP-P1-5 | MATCH | Elevated-token diagnosis replaces administrator guesses | `837a543`; Windows token probe and four call sites. |
-| GAP-BENCH-1 | MATCH | Keep control requires active-tree hits | `837a543`; `scripts/bench_score.py`. |
-| GAP-BENCH-2 | MATCH | Precision consumes each result at most once | `837a543`; per-result matching. |
-| GAP-BENCH-3 | MATCH | Frozen numeric enum decoding | `837a543`; scorer and CLI CSV schema agree. |
-| GAP-BENCH-4 | MATCH | Reference RSF contamination guard | `837a543`; comparison workflow snapshots pre-run state. |
-| GAP-BENCH-5 | MATCH | Comparison actually uses `\\.\RDA` | `837a543`; service `rda` plus hard transport assertion. |
-| GAP-CLI-COMMANDS | MISSING | Required command names `save`, `load`, `verify`, `repair` | `rrecov.cpp` currently exposes `list/scan/tree/recover/health/fix/bench`; `scan --out/--resume` and `tree --in` are not the named commands. Implement real session validation/load/save semantics and `repair` as the consent-gated RawFixer command, preserving `fix` compatibility. |
-| GAP-CLI-TESTS | MISSING | Executable CLI contract tests for every command | No CLI tests are registered in CTest or the Windows workflow. Add success/failure/stdout-grammar/exit-code tests, including DLL smoke and every named command. |
+| GAP-P1-1 | **MISSING** | NTFS compressed $DATA: `ATTR_FLAG_COMPRESSED` (cr_ntfs_wire.h:102) and `compression_unit` (NonresidentHeader +0x22) are parsed but **no engine path sets an extent codec** — LZNT1 (native compression) and XPRESS/LZX (compact.exe) streams are surfaced as raw compressed bytes → silent corruption on recovery. Writer already has the per-extent decode hook (`cr_safewriter.cpp:278-297` calls `compress::decompress_block`). | code grep: zero `kLzjb`-style codec tagging in `src/core/ntfs/`; `include/cr/compress/cr_decomp.h` has no LZNT1/XPRESS codecs; corpus: NTFSSearchDLL decompress path (NTFS compression engine, `RtlDecompressBuffer` family semantics) |
+| GAP-P1-2 | **CLOSED (632edc4)** | lzjb port lacks the source bound: `lzjb_decompress` (cr_decomp.cpp) never checks `s` against `src+psize`; corrupt blocks over-read the source (control byte, literals, 2-byte match reads all unbounded). ASan/fuzz hazard on damaged disks — a recovery product must hard-bound every parse. | `src/core/compress/cr_decomp.cpp` lzjb_decompress body |
+| GAP-P1-3 | **CLOSED (632edc4)** | Recycle $R remap is single-pass-ordered: `$R` records whose `$I` has a higher MFT record number are emitted under the raw `$R<rand>` name (map lookup at `cr_mftwalk.cpp:557-566` only sees earlier records). S5-CONT-2 bench on a real volume: **ours 0/26 vs og 26/26**. Og surfaces recycle deletions under original names. | `src/core/ntfs/cr_mftwalk.cpp:459-476` (capture) `:557-566` (consume); corpus PartitionRecoveryD/NTFS recycle mapping (UI-MAP recycle row) |
+| GAP-P1-4 | **CLOSED (3267d26)** | Writer `salvaged` outcome (W2-18): zero-filled / hash-less items are reported `Done`; og distinguishes salvage-with-holes from clean recovery. Needs per-item `had_unreadable` flag → report `salvaged`. | PARITY-REFACTOR-PLAN W2-18 (FB-R02); `cr_safewriter.cpp:292-324` zero-fill path has no flag |
+| GAP-P1-5 | MISSING | Transport elevation probe: raw-device open failures print guesses (`"(admin?)"` — rrecov.cpp:895,1021,1233,1319) instead of probing the process token. Og elevates via manifest/UAC (service-driven design). A definitive probe turns a guess into a diagnosis. | rrecov.cpp error strings; corpus architecture/02 (service elevation model) |
 
-## 3. CI, documentation and release gates
+## 3. Refactor-wave leftovers (verified against code)
 
-| ID | Status | Item | Evidence / closure required |
+| ID | Status | Item | Evidence |
 |---|---|---|---|
-| GAP-CI-1 | MATCH | Windows temporary paths | `0a28a23`; later Windows runs reached the subsequent MSVC issue rather than these three path failures. |
-| GAP-CI-2 | PARTIAL | All workflows green at final HEAD | Run `39991984255` (`fc656d2`) passed fully. Runs for `79f5751` and `74f42c0` failed Windows; `e8da7ef` addresses the C-consumer MSVC flags. Final HEAD run `39995054859` was still in flight at reconciliation. Watch every job to completion and fix failures without masking. |
-| GAP-CI-UBSAN | MISSING | Full UBSan suite | ASan and TSan lanes exist; no UBSan configure/build/test lane exists. Add a non-sanitizer-mixed UBSan build with halt-on-error and no suppressed findings. |
-| GAP-W5-CONTRACTS | MATCH | Ground-truth corrections | Cache-coalesced reads, fixup scope, viability boundary, resident-size correction and LDM history are present in `ground-truth-contracts.md`. |
-| GAP-W5-REGISTRY | MATCH | F11/F15 corrections | `error-fix-registry.md` carries the corrected `name_N` cap and capability-report wording. |
-| GAP-W5-TODO | MATCH | Shipped TODO/FIXME/HACK sweep | No markers in shipped core/docs. Remaining hits are historical session prompts and the third-party `scripts/ldm_reference.c` reference source; they are not unresolved core work items. |
-| GAP-DOCS-FINAL | WRONG | Final documentation still describes pre-closure reality | `CAPABILITY-MATRIX.md` says NTFS compression MISSING; README shows only the v0.1 scope and a future UI; roadmap lacks the landed C ABI/snapshot surface; `UI-READINESS-PLAN.md` remains written as a plan. Update all final docs and record every deliberate divergence in `PARITY-DELTAS.md`. |
-| GAP-BENCH-FINAL | PARTIAL | Final same-seed benchmark evidence | `BENCHMARK-REPORT.md` contains measured spot evidence plus NOT-COMPARABLE parameters, not a final full-matrix run at the release commit. Run the Windows seeded/reference workflows at the final commit; retain honest NOT-COMPARABLE reasons and resolve any BELOW before release. |
-| GAP-W6-WIN7 | MATCH | Win7 target pins, PE stamps and import allowlist | `74f42c0`; CI gate present. Final green proof remains under GAP-CI-2. |
-| GAP-W6-RELEASE | MISSING | Production tag and complete artifact bundle | Release workflow stages only `rrecov.exe`, docs and PDB. It must add `cr_ui.dll`, static libraries, headers, SHA256SUMS and notes linking the three gate documents, then tag the next semver with signing disabled. |
+| GAP-W2-9 | **CLOSED (3267d26)** | FAT cancel polling: `src/core/fat/cr_chain.cpp` has zero cancel references; chain runs and dentry walks are not cancellable mid-pass (≤128-dentry latency contract). | grep: 0 matches in cr_chain.cpp / cr_fat_quick.cpp loop heads |
+| GAP-W2-19 | **CLOSED (3267d26)** | GPT backup-salvage: works only when the **primary header parses** (`last_lba = prim.backup_lba`; cr_table_parse.cpp:206-243). Primary-damaged + protective-MBR path never derives last LBA from device size; backup-salvage loop also skips the type-GUID→FsKind mapping (all `FsKind::Other`). | `cr_table_parse.cpp:201-267` (verified line-by-line this session) |
+| GAP-W3-4 | STALE-CLAIM | CLI Ctrl-C: **landed** in 0f88fd9 (`SetConsoleCtrlHandler` at rrecov.cpp:1352-1355, cooperative cancel of scan/recover/health). S5-CONT-2 listed it open. | rrecov.cpp:100,1352-1355 |
+| GAP-W3-9a | **CLOSED (cd4bb41)** | SESS-2 identity card: `VolumeInfo` has no device identity (model/serial/label/boot-sector hash); restore side cannot verify the session is being resumed against the same volume. | `src/core/session/cr_records.cpp:296+` field list |
+| GAP-W3-9b | **CLOSED (cd4bb41)** | SESS-4 compress-everything: `try_deflate = take >= 64` carve still present (cr_crsf.cpp:141); reference compresses every chunk, storing only when not smaller (the not-smaller rule is already implemented at :29). | `src/core/session/cr_crsf.cpp:20-36,140-141` |
+| GAP-W3-10 | **CLOSED (0c6a1f5 + 34728b2 + 800e80a)** | Dedup wave: no `cr_bits.h`; 4 OVERLAPPED loops in cr_transport.cpp; cr_bootstrap triple attribute-walker; run_engine_pass/scan_candidate dispatch dup; byte-reader + time-conversion duplication. | grep counts this session |
+| GAP-W4 | **CLOSED (0c6a1f5)** | Dead-code sweep per AUDIT-NTFS §4 (items 1-18+21), AUDIT-FAT §6 (1-20), AUDIT-LINUX-FS §6 (DC-1..13), AUDIT-PIPELINE §9 (1-9), ARCH register (`win::open_disk_view`, `status_text`, `trim_*`, `failed_bytes()`, `inner()`, `index_node` wrapper, unreachable cached branch, `round_up`, `Out.deleted`, `temp_data.txt`, `quick_done_` u32→bool, raw hex error literals, fs_kind literal style). Every deletion listed in the commit body; D-44 delta appendix entry. | AUDIT-*.md registers |
+| GAP-CARVED-COUNTER | STALE-CLAIM | `carved_found` counter: **landed** (`cr_scan.cpp:875` `stats.carved_found = cs.validated`; session state v2 + CLI lines 582/631/636). S5-CONT-2 listed it open. | cr_scan.cpp:875,901; rrecov.cpp:582 |
 
-## 4. Closure order
+## 4. UI-facing surface (issues #1, #2, #10)
 
-1. Publish this register before implementation changes.
-2. Close CLI and UBSan/contract-test gaps with regression coverage.
-3. Reconcile final docs and deliberate-delta records.
-4. Run Linux, Windows, fuzz, sanitizer and benchmark workflows to completion.
-5. Resolve ZFS multi-vdev only to the level proven by RE evidence and real tests; never substitute a simulated topology or an unsupported-parity claim.
-6. Package and tag only after every release-blocking row is MATCH and final HEAD CI is green.
+| ID | Status | Item | Evidence |
+|---|---|---|---|
+| GAP-G-01 | **MISSING** | `cr_ui` C-ABI shim DLL: no `include/cr/cr_ui.h`, no CMake target. Full design + acceptance in UI-READINESS-PLAN §#1 (opaque handles, `cr_ui_*` u32-returning exports, ABI version, thread-local last-error, C-consumer + Windows DLL smoke + Win7 import gate). The wizard's IScanService/ISessionService/IRecoveryService wait on this. | `ls inc/cr_ui.h` → absent; UI-READINESS-PLAN.md:45-77 |
+| GAP-G-02 | **MISSING** | Mid-scan immutable snapshot (`cr::tree::Snapshot`, copy-on-write value snapshot under `ResultTree::mutex_`, SNAP_PARTIAL, TSan-provable) + recovery-from-snapshot value-enqueue + ADR-UI-SNAPSHOT. | UI-READINESS-PLAN.md:78-108 |
+| GAP-G-02b | MISSING | Writer value-driven enqueue (SafeWriter from snapshot rows, race-free mid-scan recovery). | UI-READINESS-PLAN.md:97-100 |
+| GAP-TREE-JSON | **MISSING** | `rrecov tree --json`: scan/bench accept `--json`, tree does not. Projection via `query::run` rows; `--csv` grammar frozen byte-identical. | rrecov.cpp:654+ (cmd_tree has no --json) |
+| GAP-CAPMATRIX | **CLOSED (046889d)** | `docs/CAPABILITY-MATRIX.md` does not exist (W5 requires per-capability DONE/PARTIAL/MISSING/EXCLUDED, ReFS/LDM first-class with honest remaining gaps). | `ls docs/CAPABILITY-MATRIX.md` |
+| GAP-UI10-DOCS | PARTIAL | G-11 disposition + G-15..G-22 table exist inside UI-READINESS-PLAN but the README capability summary, ground-truth-contracts extension, and CORE-CONTRACT §13 sync for tree --json are not landed. | UI-READINESS-PLAN.md:290-303 |
+
+## 5. Benchmark truth (scoring validity)
+
+| ID | Status | Item | Evidence |
+|---|---|---|---|
+| GAP-BENCH-1 | **WRONG** | keep-gate: `keep_active_ok = keep["name_hit"]` counts hits **anywhere** (deleted duplicates included); the docstring contract is "must appear in the ACTIVE tree". `active_paths` is built but unused for the gate. | scripts/bench_score.py:106-108,133 |
+| GAP-BENCH-2 | **WRONG** | precision accounting: `unmatched_recoveries -= 1` per manifest row — two manifest rows matching the same result row decrement twice (name+size collisions across scenarios are exactly what the seeded layout has); per-result matching needed. | bench_score.py:90,103-104,134-138 |
+| GAP-BENCH-3 | **WRONG** | numeric enum schema: `rrecov tree --csv` emits numeric enums (Origin 0-3, DeletedState 0-3, Confidence 0-4 — cr_node.h:28-36) but bench_score.py parses words (`"deleted","true","1","yes"`) — works only by the accidental `"1"` collision; PartiallyOverwritten(2)/Damaged(3) misclassify as active. Freeze the numeric schema in the script + docs. | bench_score.py:86 vs rrecov.cpp:338-341 + cr_node.h:28-36 |
+| GAP-BENCH-4 | MISSING | .rsf contamination guard: the og leg compares an .rsf that could contain entries from prior scans on the volume; guard = manifest-subset check + session-identity fields (ties GAP-W3-9a). | scripts/compare_og_rsf.py; comparison-easeus.yml |
+| GAP-BENCH-5 | **WRONG** | driver service name: comparison-ours.yml installs our driver as service `rdatest`, but the transport default opens `\\.\RDA` (cr_transport.cpp:222,238,387-393) and the driver derives its device name from the service name (rda-driver rda_control.c:88-119) → the comparison leg **never exercises our driver** (silent direct-handle fallback). Fix: install under service `rda` (or explicit override) + assert the RDA path was actually used in scan JSON. | comparison-ours.yml:120-127; rda-driver/src/driver/rda_control.c:88-130 |
+
+## 6. Docs (W5) and release (W6)
+
+| ID | Status | Item | Evidence |
+|---|---|---|---|
+| GAP-W5-DELTAS | **CLOSED (046889d)** | PARITY-DELTAS D-36..D-44 + refresh D-06/07/13c/17, D-28/29/30, U-8/12; removed-dead-surface appendix (D-44). | docs/PARITY-DELTAS.md (no D-36+) |
+| GAP-W5-CONTRACTS | PARTIAL | ground-truth-contracts §2/§3/§6 corrections (cache-coalesced reads, fixup gate wording, viability boundary, 0xFFF removal, LDM history note). | docs/ground-truth-contracts.md |
+| GAP-W5-REGISTRY | PARTIAL | error-fix-registry F11 correction (og renames `name_N` cap 10000, not overwrite) + F15 reword. | docs/error-fix-registry.md:22 lines only |
+| GAP-W5-BENCHREPORT | **CLOSED (e9e1176)** | `docs/BENCHMARK-REPORT.md` does not exist; must carry seeded-scenario numbers with MATCH/EXCEEDS/BELOW/NOT-COMPARABLE verdicts incl. the recycle 0/26 → 26/26 closure. | `ls docs/BENCHMARK-REPORT.md` |
+| GAP-W5-ERRATA | **CLOSED (easeus-drw-research 03ad46c)** | Corpus errata feed: 0xFFF misread, FUN_180041970 mislabel, FAT12 BAD raw-follow, ext4 backup-SB overreach, FileFilter 1,481 recount. | PARITY-REFACTOR-PLAN §3 W5 |
+| GAP-W5-TODO | PARTIAL | TODO/FIXME sweep: PARITY-REFACTOR-PLAN.md (1) + UI-READINESS-PLAN.md (1) carry TODOs; code is clean. Verified: `grep -c TODO docs/*` | grep this session |
+| GAP-W6-WIN7 | **CLOSED (74f42c0; CI proof on next windows run)** | No `_WIN32_WINNT`/`NTDDI` pin in any CMake target (F-D-4); no user-mode import allowlist gate in CI (driver repo has stamp_osversion.py + verify_pe.py to port). | grep CMakeLists: 0 matches |
+| GAP-W6-RELEASE | MISSING | Release tag (v0.3.0-core) with cr_ui.dll, static lib, rrecov.exe, headers, SHA256SUMS, notes referencing this list + PARITY-DELTAS + BENCHMARK-REPORT. | no tags beyond v0.2.x |
+
+## 7. Closure protocol
+
+1. CI first: GAP-CI-1 unblocks main; every later push keeps all lanes green.
+2. P1 correctness wave (GAP-P1-1..5) — recovery-output bugs before surface work.
+3. W2/W3 leftovers (GAP-W2-9, GAP-W2-19, GAP-W3-9a/b, GAP-W3-10).
+4. W4 dead-code sweep.
+5. G-01 shim + G-02 snapshot + tree --json (issue #1/#2/#10).
+6. Benchmark truth wave (GAP-BENCH-1..5) + BENCHMARK-REPORT.
+7. Docs wave (W5) + Win7 gate + release (W6).
