@@ -1372,3 +1372,59 @@ TEST(NtfsVolume, RemnantScanFindsDetachedRecord) {
     EXPECT_EQ(found->origin(), tree::Origin::Lost);
     EXPECT_EQ(found->confidence(), tree::Confidence::MetadataOnly);
 }
+
+TEST(NtfsVolume, ViabilityProbeUsesDataSize) {
+    /* PARITY-AUDIT F-A1-2: a deleted file whose $FILE_NAME real_size is 0
+     * (the fresh-file real-volume case behind benchmark Gen-2) but whose
+     * $DATA carries the authoritative 8 KiB size with one of two clusters
+     * reused in $Bitmap. The viability probe must use the $DATA size and
+     * grade PartialRisk via the bitmap — not take the <1 KiB fast-path to
+     * Excellent (which skipped the $Bitmap check entirely). */
+    Image img;
+    build_image(img);
+    {
+        RecBuilder r;
+        r.header(26, 0); /* not in use = deleted */
+        r.attr_si(0x20);
+        r.attr_file_name(16, u"zfn.dat", FILE_NAME_WIN32_AND_DOS, 0x20, 0, 0);
+        r.attr_data_runlist(84, 2, 8192);
+        r.finish();
+        std::memcpy(img.sec(MFT_LCN + 52), r.buf.data(), RECORD_SIZE);
+    }
+    /* $Bitmap: cluster 84 reused (SET), 85 still free (fixture LCNs 84+
+     * are outside every other record's runs; volume is 256 clusters) */
+    {
+        u8* bm = img.sec(BITMAP_LCN);
+        bm[84 / 8] |= u8(1u << (84 % 8));
+    }
+    MemDevice dev(img.raw(), img.geom());
+    u32 err = 0;
+    auto vol = NtfsVolume::open(std::unique_ptr<IStorageDevice>(new MemDevice(dev)), &err);
+    ASSERT_NE(vol, nullptr) << "open err " << err_text(err);
+    std::unique_ptr<VolumeBitmap> bm;
+    ASSERT_EQ(VolumeBitmap::load(vol.get(), bm), OK);
+    tree::ResultTree tree;
+    auto* root_active = tree.add_root(u"Found");
+    auto* root_deleted = tree.add_root(u"Deleted");
+    auto* root_lost = tree.add_root(u"Lost Files");
+    WalkerFlags wf;
+    wf.skip_system_files = true;
+    WalkStats stats;
+    u32 rc = walk_mft(vol.get(), bm.get(), wf, nullptr, nullptr, nullptr, tree, root_active,
+                      root_deleted, root_lost, stats);
+    ASSERT_EQ(rc, OK) << err_text(rc);
+    tree::FileNode* zfn = nullptr;
+    std::function<void(tree::FileNode*)> collect = [&](tree::FileNode* n) {
+        for (tree::FileNode* c = n->first_child(); c; c = c->next_sibling()) {
+            if (c->name_utf8() == "zfn.dat")
+                zfn = c;
+            collect(c);
+        }
+    };
+    for (auto* r : tree.roots())
+        collect(r);
+    ASSERT_NE(zfn, nullptr) << "deleted file with zero $FILE_NAME size missing";
+    EXPECT_EQ(zfn->deleted_state(), tree::DeletedState::Deleted);
+    EXPECT_EQ(zfn->props()->logical_size, 8192u); /* $DATA authoritative */
+    EXPECT_EQ(zfn->confidence(), tree::Confidence::PartialRisk); /* 1/2 clusters reused */
+}

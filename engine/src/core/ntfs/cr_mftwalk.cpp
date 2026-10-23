@@ -478,9 +478,14 @@ u32 walk_mft(NtfsVolume* vol, VolumeBitmap* bitmap, const WalkerFlags& flags, Ca
         tree::Confidence conf = tree::Confidence::Unknown;
         if (!in_use) {
             const RunList& probe = is_dir ? (has_i30 ? i30_runs : RunList()) : data_runs;
+            /* probe size must use the $DATA-authoritative size: $FILE_NAME's
+             * real_size is 0 on real volumes for freshly-written files
+             * (PARITY-AUDIT F-A1-2 — the Gen-2 emission lesson, applied to
+             * the probe; emission prefers data_real_size at :531 already) */
+            const u64 authoritative_size = data_real_size ? data_real_size : best->real_size;
             const u64 probe_size =
                 is_dir ? (has_i30 ? i30_runs.total_clusters() * vol->params().cluster_bytes : 0)
-                       : (has_data ? best->real_size : 0);
+                       : (has_data ? authoritative_size : 0);
             if (!is_dir && !has_data) {
                 conf = tree::Confidence::MetadataOnly;
             } else if (probe_size >= flags.viability_min_size && probe.total_clusters() > 0) {
