@@ -1228,3 +1228,51 @@ Stage Summary:
   W4-touched engines. (4) Driver repo 7e88e38/2b1db5f (classifier error
   87 fix + runner comparison: parity throughput, +52% hostile dispatch)
   - fold into the release notes when cutting.
+
+---
+Task ID: S5-CONT-5b
+Agent: Session-5 continuation (same lane)
+Task: Doc-wave closures (GAP-W5-CONTRACTS/-REGISTRY/-TODO, GAP-UI10-DOCS)
++ the GAP-W6-RELEASE release-workflow upgrade + release notes.
+
+Work Log:
+- Register audit found two of the four PARTIAL rows already satisfied
+  (F11/F15 corrections present in error-fix-registry.md; the two counted
+  TODOs are policy sentences). Closed as verified-stale / verified-zero.
+- ground-truth-contracts.md: S2 cache-coalesced contract point added (the
+  reader is the batching point - NTFS-2/D-4x); S11 UI binding surface
+  added (og-parity wire statement, cr_ui ABI policy, threading contract,
+  single-flight progress, G-02 snapshot semantics, G-12 query, the FROZEN
+  tree --csv/--json schemas with the full numeric enum table). S3/S6
+  verified already present.
+- README capability summary + roadmap v0.3 truth + wizard CORE-CONTRACT
+  S13 tree --json grammar sync (rda-wizard b2e32ae, cites core 1005d14 +
+  the S11 normative table).
+- Rejected-trio audit (f97f5dd): structure was reasonable, paths were
+  never build-validated (its CI runs died at the 2a93c45 compile error).
+  Re-implemented FRESH at HEAD with verified paths (cr_core/cr_win STATIC,
+  cr_ui SHARED at src/{core,win,ui}/Release per the VS multi-config
+  default) + the pieces the trio missed: app-local VC143 CRT + UCRT
+  (Win7 RTM ships no UCRT - a bundle without it does not load on a clean
+  Win7), existence-checked required artifacts, in-lane stamp+gate of BOTH
+  shipped PEs, release body from RELEASE-NOTES.md.
+- RELEASE-NOTES.md drafted: scope, bundle manifest, parity highlights
+  (26/26 recycle, LZNT1, GPT salvage, EXCEEDS rows), UI surface, validation
+  (229/229 plain/ASan/TSan, W4/WX, gate, fuzz, CodeQL, driver bench
+  2b1db5f: throughput parity, +52% hostile dispatch, 64/64 byte-identical),
+  truth-document links, honest-gaps section. Tag decision: v0.3.0-parity
+  (v0.2.1-parity convention + the PARITY-WRAP recipe; the register's
+  'v0.3.0-core' was the outlier).
+- BENCHMARK-REPORT S2: the blocked-on register flipped to CLOSED-837a543
+  (scoring validity wired; two-leg runs pending only machine availability).
+- Register: GAP-W6-RELEASE -> IN FLIGHT (workflow landed; tag after
+  windows+fuzz+codeql green).
+
+Stage Summary:
+- Pushed: 2dd6e01 (docs wave), this commit (release wave). Wizard:
+  b2e32ae. CI on bb6a647: linux+tsan+lint GREEN (TSan race fixes proven in
+  CI); windows/codeql/fuzz in flight at press time.
+- Next: watch lanes to green on HEAD, then cut v0.3.0-parity (triggers the
+  upgraded release workflow - the SDK bundle build gets its first live
+  validation there), verify the release artifacts, flip GAP-W6-RELEASE to
+  CLOSED, then #10 umbrella disposition.

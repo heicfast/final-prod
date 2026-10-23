@@ -37,13 +37,15 @@
 | Path/name recall + precision per scenario (keep/recycle/perm/folder), false-positive rate, filename preservation rate, content-integrity hash match | needs `bench_seed.ps1` manifests + `bench_score.py` over both legs | same runs; scoring validity depends on GAP-BENCH-1..3 |
 | Error-map accuracy / bad-sector behavior vs og | needs the driver leg + damaged-media scenarios | driver-leg comparison; our ReadErrorMap behavior is unit-tested (test_retry) but og-side is corpus-silent (UNVERIFIED-3) |
 
-**Blocked-on register (scoring validity, owner: S5-CONT-2 claimed):**
-GAP-BENCH-1 keep-gate must count ACTIVE-tree hits only; GAP-BENCH-2
-per-result precision accounting (no double-decrement); GAP-BENCH-3 numeric
-enum schema frozen to `tree --csv` (Origin/DeletedState/Confidence are
-numeric); GAP-BENCH-4 .rsf contamination guard (manifest-subset check, ties
-GAP-W3-9a identity fields); GAP-BENCH-5 driver service name `rda` (the
-comparison leg currently exercises the direct-handle fallback, silently).
+**Scoring-validity register (was the blocked-on list; CLOSED 837a543):**
+GAP-BENCH-1 keep-gate counts ACTIVE-tree hits only; GAP-BENCH-2 per-result
+precision accounting (no double-decrement); GAP-BENCH-3 numeric enum schema
+frozen to `tree --csv` (Origin/DeletedState/Confidence are numeric);
+GAP-BENCH-4 .rsf contamination guard (pre-launch snapshot + identity fields,
+ties GAP-W3-9a); GAP-BENCH-5 driver service name `rda` + the hard
+RDA-transport assertion (the comparison leg now provably exercises our
+driver). The two-leg comparison runs remain pending only on benchmark-
+machine availability — the harness and its scoring are wired and valid.
 
 ## 3. Verdict summary
 
