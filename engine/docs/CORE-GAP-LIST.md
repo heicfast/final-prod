@@ -43,8 +43,8 @@
 | GAP-BENCH-3 | MATCH | Frozen numeric enum decoding | `837a543`; scorer and CLI CSV schema agree. |
 | GAP-BENCH-4 | MATCH | Reference RSF contamination guard | `837a543`; comparison workflow snapshots pre-run state. |
 | GAP-BENCH-5 | MATCH | Comparison actually uses `\\.\RDA` | `837a543`; service `rda` plus hard transport assertion. |
-| GAP-CLI-COMMANDS | MATCH | Required command names `save`, `load`, `verify`, `repair` | `77ef393`: strict verify, full-summary load, validated atomic byte-preserving save, consent-gated repair with `fix` compatibility. |
-| GAP-CLI-TESTS | MATCH | Executable CLI contract tests for every command | `77ef393`: real C ABI FAT scan generates CRSF; `tests/cli/cli_contract.ps1` checks every command, JSON grammar, exit codes, strict corruption refusal and save identity/atomicity in Windows CTest. Final execution proof is GAP-CI-2. |
+| GAP-CLI-COMMANDS | MISSING | Required command names `save`, `load`, `verify`, `repair` | `rrecov.cpp` currently exposes `list/scan/tree/recover/health/fix/bench`; `scan --out/--resume` and `tree --in` are not the named commands. Implement real session validation/load/save semantics and `repair` as the consent-gated RawFixer command, preserving `fix` compatibility. |
+| GAP-CLI-TESTS | MISSING | Executable CLI contract tests for every command | No CLI tests are registered in CTest or the Windows workflow. Add success/failure/stdout-grammar/exit-code tests, including DLL smoke and every named command. |
 
 ## 3. CI, documentation and release gates
 
@@ -52,14 +52,14 @@
 |---|---|---|---|
 | GAP-CI-1 | MATCH | Windows temporary paths | `0a28a23`; later Windows runs reached the subsequent MSVC issue rather than these three path failures. |
 | GAP-CI-2 | PARTIAL | All workflows green at final HEAD | Run `39991984255` (`fc656d2`) passed fully. Runs for `79f5751` and `74f42c0` failed Windows; `e8da7ef` addresses the C-consumer MSVC flags. Final HEAD run `39995054859` was still in flight at reconciliation. Watch every job to completion and fix failures without masking. |
-| GAP-CI-UBSAN | MATCH | Full UBSan suite | `77ef393`: dedicated GCC UBSan build of the complete suite, `-fno-sanitize-recover=undefined`, `halt_on_error=1` and stack traces. Final execution proof is GAP-CI-2. |
+| GAP-CI-UBSAN | MISSING | Full UBSan suite | ASan and TSan lanes exist; no UBSan configure/build/test lane exists. Add a non-sanitizer-mixed UBSan build with halt-on-error and no suppressed findings. |
 | GAP-W5-CONTRACTS | MATCH | Ground-truth corrections | Cache-coalesced reads, fixup scope, viability boundary, resident-size correction and LDM history are present in `ground-truth-contracts.md`. |
 | GAP-W5-REGISTRY | MATCH | F11/F15 corrections | `error-fix-registry.md` carries the corrected `name_N` cap and capability-report wording. |
 | GAP-W5-TODO | MATCH | Shipped TODO/FIXME/HACK sweep | No markers in shipped core/docs. Remaining hits are historical session prompts and the third-party `scripts/ldm_reference.c` reference source; they are not unresolved core work items. |
-| GAP-DOCS-FINAL | MATCH | Final documentation describes current reality | Capability matrix closes NTFS LZNT1/C ABI/CLI rows; README and architecture describe the full native surface; roadmap and UI readiness distinguish landed items from the one bounded ZFS gap; ground-truth §8 defines strict/salvage session behavior; D-45 records the deliberate archival delta. |
+| GAP-DOCS-FINAL | WRONG | Final documentation still describes pre-closure reality | `CAPABILITY-MATRIX.md` says NTFS compression MISSING; README shows only the v0.1 scope and a future UI; roadmap lacks the landed C ABI/snapshot surface; `UI-READINESS-PLAN.md` remains written as a plan. Update all final docs and record every deliberate divergence in `PARITY-DELTAS.md`. |
 | GAP-BENCH-FINAL | PARTIAL | Final same-seed benchmark evidence | `BENCHMARK-REPORT.md` contains measured spot evidence plus NOT-COMPARABLE parameters, not a final full-matrix run at the release commit. Run the Windows seeded/reference workflows at the final commit; retain honest NOT-COMPARABLE reasons and resolve any BELOW before release. |
 | GAP-W6-WIN7 | MATCH | Win7 target pins, PE stamps and import allowlist | `74f42c0`; CI gate present. Final green proof remains under GAP-CI-2. |
-| GAP-W6-RELEASE | PARTIAL | Production tag and complete artifact bundle | Pipeline now stages `cr_ui.dll`, core/win static libraries, the import library, `rrecov.exe`, runtime DLLs, headers, docs, symbols and SHA256SUMS; notes link all gate documents and signing remains disabled. The release-blocking rows must close and `v0.3.0-core` must be tagged before MATCH. |
+| GAP-W6-RELEASE | MISSING | Production tag and complete artifact bundle | Release workflow stages only `rrecov.exe`, docs and PDB. It must add `cr_ui.dll`, static libraries, headers, SHA256SUMS and notes linking the three gate documents, then tag the next semver with signing disabled. |
 
 ## 4. Closure order
 

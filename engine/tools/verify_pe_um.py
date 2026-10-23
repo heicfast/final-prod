@@ -85,15 +85,6 @@ ALLOWLIST_ADDITIONS = {
     "GetLastError": "win layer; XP-era",
     "SetLastError": "win layer; XP-era",
     "CloseHandle": "win layer; XP-era",
-    "UnhandledExceptionFilter": "CRT unhandled-exception path; XP-era",
-    "SetUnhandledExceptionFilter": "CRT unhandled-exception path; XP-era",
-    "IsDebuggerPresent": "CRT debug probe; XP-era",
-    "WakeAllConditionVariable": "std::condition_variable; Vista+ / Win7 SP1",
-    "SleepConditionVariableSRW": "std::condition_variable; Vista+ / Win7 SP1",
-    "AcquireSRWLockExclusive": "std::shared_mutex; Vista+ / Win7 SP1",
-    "ReleaseSRWLockExclusive": "std::shared_mutex; Vista+ / Win7 SP1",
-    "InitOnceBeginInitialize": "CRT/std once initialization; Vista+ / Win7 SP1",
-    "InitOnceComplete": "CRT/std once initialization; Vista+ / Win7 SP1",
     # advapi32 CRT-adjacent
     "RegQueryValueExW": "registry reads (auto-unlock, elevation probe); XP-era",
     "AdjustTokenGroups": "token probe (if linked by elevation path); XP-era",
@@ -116,15 +107,9 @@ ALLOWED_DLLS = {
     "msvcp140.dll": "name-only",
     "vcruntime140_1.dll": "name-only",
     "zlib1.dll": "name-only",
-    "zlibd1.dll": "name-only",  # alternate vcpkg zlib naming
-    "z.dll": "name-only",       # vcpkg release zlib
-    "zd.dll": "name-only",      # vcpkg debug zlib
+    "zlibd1.dll": "name-only",  # debug vcpkg zlib
     "liblz4.dll": "name-only",
-    "lz4.dll": "name-only",     # vcpkg release LZ4
-    "lz4d.dll": "name-only",    # vcpkg debug LZ4
     "libzstd.dll": "name-only",
-    "zstd.dll": "name-only",    # vcpkg release zstd
-    "zstdd.dll": "name-only",   # vcpkg debug zstd
     "api-ms-win-crt-runtime-l1-1-0.dll": "name-only",  # UCRT api sets (Win10+
     "api-ms-win-crt-heap-l1-1-0.dll": "name-only",     # systems carry them;
     "api-ms-win-crt-math-l1-1-0.dll": "name-only",     # on Win7 the appcrt

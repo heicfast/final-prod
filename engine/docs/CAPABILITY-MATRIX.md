@@ -19,7 +19,7 @@
 | NTFS deleted grading | binary found/destroyed (v2 §1) | four-tier $Bitmap grading (Excellent/PartialRisk/Overwritten/MetadataOnly) | **DONE+** | D-14 F5; tests ViabilityGate*; boundary 0x3FF strict `>` (NTFS-1, W2) |
 | NTFS remnant scan | stride salvage (corpus §5) | 4 MiB block-buffered stride + threads, meta-only nodes under Lost | **DONE** | scan_mft_remnants; test RemnantScan* |
 | NTFS $MFTMirr bootstrap | mirror cross-check (Dec 52032/52102) | read_record mirror fallback for records 0..3 | **DONE** | cr_bootstrap read_record; test_ntfs_volume mirror cases |
-| NTFS native compressed $DATA (LZNT1) | native compressed-stream recovery | compression-unit envelope split, raw/compressed cluster handling, bounded LZNT1 decode at writer stream time | **DONE** | `464d8e5`; compressed-$DATA fixtures in `test_ntfs_volume.cpp`. XPRESS/LZX/WOF is not claimed; the RE corpus does not evidence it in the reference core. |
+| NTFS compressed $DATA (LZNT1/XPRESS/LZX) | RtlDecompressBuffer-family semantics | extent codec hook exists; codecs NOT implemented | **MISSING (GAP-P1-1)** | CORE-GAP-LIST GAP-P1-1 — silent raw-bytes output for compressed streams; tracked, not claimed |
 | NTFS USN journal harvest | USN census (UNVERIFIED specifics) | $J run materialization + V2/V3 parse, DELETE-filtered, re-sync | **DONE (delta D-11)** | test USN harvest cases; UNVERIFIED-1 carried |
 | Recycle Bin $I/$R remap | original names (bench 26/26) | token pairing (dot-stripped) + post-walk remap, both record orders | **DONE** | 632edc4; test RecycleBin* incl. late-remap shape |
 | FAT12/16/32 live+deleted | FATSearchDLL | flavors, LFN (deleted-slot reversal), chain guards, mirrored-FAT salvage | **DONE+** | D-39; test_fat_volume.cpp; FAT-1..10 fixes W2 |
@@ -55,8 +55,6 @@
 | RawFixer | FATFixer/CheckBackupDBR | analyze + dry-run + transactional apply/rollback, 4Kn-aware, consent-gated | **DONE** | FIX-2/3 W3; test_rawfixer.cpp |
 | Transport | EPRDTDRV grammar + direct | RDA grammar + direct duality, RdaClient surface (wizard), retry/bisection + ReadErrorMap | **DONE** | D-37/D-38; test_retry.cpp |
 | Orchestration | Quick+Advanced generations | staged single-pass (D-36), weighted monotonic progress, pause/cancel/checkpoint, error map | **DONE** | ARCH-4 reworded claims; test_orchestrator.cpp |
-| C ABI / UI services | in-process engine controllers | versioned `cr_ui` opaque-handle ABI; scan/session/snapshot/query/preview/recovery lifecycle | **DONE** | `e79d23f`; `cr_ui_abi_check` plain-C full-lifecycle test |
-| CLI | scriptable local recovery | `list/scan/tree/load/verify/save/recover/health/repair/bench`; `fix` compatibility alias | **DONE** | `77ef393`; `tests/cli/cli_contract.ps1` on Windows |
 
 ## 3. Explicit exclusions (standing)
 
@@ -65,8 +63,7 @@ only, F13); signing (OSSign disabled); `.rsf` import (G-11, tracked disposition)
 
 ## 4. Open gap register (code-verified)
 
-See `docs/CORE-GAP-LIST.md` for the live, evidence-cited gate register. NTFS
-native compression, the C ABI, snapshots, and the named CLI surface are closed.
-ZFS multi-vdev reconstruction remains PARTIAL and is not represented as full
-parity; final CI, benchmark, and release evidence is tracked in the same
-register. This matrix and that list are updated together.
+See `docs/CORE-GAP-LIST.md` for the live, evidence-cited gap register (GAP-P1-1
+NTFS compression is the only recovery-output P1 still open). This matrix and
+that list are updated together; a status change here requires a commit citing
+the GAP id.

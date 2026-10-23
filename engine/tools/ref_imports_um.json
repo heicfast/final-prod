@@ -21,7 +21,6 @@
       "GetCurrentProcessId",
       "GetTickCount64",
       "GetTempPathW",
-      "GetFullPathNameW",
       "SetConsoleCtrlHandler",
       "CreateProcessW",
       "GetExitCodeProcess",

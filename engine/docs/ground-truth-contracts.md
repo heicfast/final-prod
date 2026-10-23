@@ -108,11 +108,6 @@ Proven scheme we re-implement in our own .crsf format:
   level-5 deflate. Reader falls back to raw payload on decompress failure.
 - Record roles (ours, documented in docs/crsf-format.md): session-state, volume-info,
   partition-context, result-tree, read-error-map.
-- Recovery loading preserves the reference salvage posture: a bad record can be
-  skipped so intact records remain usable. The explicit `verify` and `save`
-  commands are intentionally stricter: every record must pass integrity and the
-  mandatory state/tree records must exist. `save` then preserves the original
-  byte stream (including unknown records) through flush + atomic replace.
 
 ## 9. Node graph (corpus: rsf-format §5.4 — CFileNode/CFileSystemNode)
 

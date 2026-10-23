@@ -923,26 +923,6 @@ Split verdict — three sub-claims:
 - **RISK:** documented per item above.
 - **VERDICT: ACCEPTED (appendix).**
 
-### D-45 — Strict CRSF verification and byte-preserving atomic `save`
-
-- **WHAT WE DO (`77ef393`):** the reference-inspired tolerant loader remains
-  the recovery path, but explicit `verify`/`save` reject any bad record and
-  require the mandatory state/tree records. `save` copies the validated CRSF
-  byte stream rather than re-serializing it, flushes a same-directory temporary
-  file, then atomically replaces the destination. `load` exposes the complete
-  restored summary; `repair` names the existing consent-gated RawFixer command
-  while `fix` remains compatible.
-- **EVIDENCE:** corpus `SaveScan/rsf-format--scan-session.md` establishes the
-  record/chunk model; `ground-truth-contracts.md` §8 records the strict versus
-  salvage boundary. The reference has no equivalent public archival CLI.
-- **WHY:** verification must not silently accept the corruption that tolerant
-  recovery is designed to survive; re-serialization would discard unknown
-  records and needlessly risk forward compatibility.
-- **RISK:** `save` intentionally refuses an invalid source instead of producing
-  a best-effort copy. This is explicit and tested, not silent degradation.
-- **VERDICT: ACCEPTED** (ours-only administrative surface; recovery semantics
-  unchanged). Windows contract: `tests/cli/cli_contract.ps1`.
-
 ---
 
 ## J. UNDOCUMENTED DIVERGENCE CANDIDATES
@@ -1015,8 +995,8 @@ numbered entries (or close) in the final registry:
 | F. Licensing/assets | D-31, D-32 | 2 | 0 |
 | G. Benchmarking | D-33, D-34 | 2 | 0 |
 | H. Registry integrity | D-35 | 0 → **1** (CLOSED W3/W5) | — |
-| I. Session-5/final-core waves | D-36…D-45 | 10 | 0 |
-| **Total** | **45** | **38 (+3 sub-accepted in D-13)** | **2 (D-09, D-30)** |
+| I. Session-5 waves | D-36…D-44 | 9 | 0 |
+| **Total** | **44** | **37 (+3 sub-accepted in D-13)** | **2 (D-09, D-30)** |
 
 **Closing actions — state after the session-5 parity-refactor waves (W1–W5):**
 
@@ -1043,9 +1023,6 @@ numbered entries (or close) in the final registry:
    claimed).
 9. **U-8/U-9/U-12** — **W5 core-half:** roadmap threading claim reworded (W3);
    `.rrc`→`.crsf` + phantom-docs references remain wizard-side actions.
-10. **D-45** — **CLOSED (`77ef393`):** strict session verification, explicit
-    load/save/repair commands, atomic forward-compatible archival and Windows
-    CLI contract coverage are documented and tested.
 
 *Prepared by parity sub-agent 2-e; W1–W5 refresh by the principal-engineer
 parity-refactor session. Cross-check against the engine-semantics,

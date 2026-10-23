@@ -12,7 +12,7 @@ jobs:
   lint:
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/checkout@v4
       - name: clang-format check
         run: |
           sudo apt-get update -qq && sudo apt-get install -y -qq clang-format-18 > /dev/null
@@ -22,7 +22,7 @@ jobs:
   linux:
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/checkout@v4
       - name: Install deps
         run: sudo apt-get update -qq && sudo apt-get install -y -qq zlib1g-dev liblz4-dev libzstd-dev libgtest-dev > /dev/null
       - name: Configure + build + test (pure core, ASan)
@@ -42,7 +42,7 @@ jobs:
   linux-tsan:
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/checkout@v4
       - name: Install deps
         run: sudo apt-get update -qq && sudo apt-get install -y -qq zlib1g-dev liblz4-dev libzstd-dev libgtest-dev > /dev/null
       - name: Configure + build + test (pure core, TSan)
@@ -63,7 +63,7 @@ jobs:
   linux-ubsan:
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/checkout@v4
       - name: Install deps
         run: sudo apt-get update -qq && sudo apt-get install -y -qq zlib1g-dev liblz4-dev libzstd-dev libgtest-dev > /dev/null
       - name: Configure + build + test (full suite, UBSan)
@@ -82,7 +82,7 @@ jobs:
   windows:
     runs-on: windows-2022
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/checkout@v4
       - name: Configure + build (Debug + Release, manifest vcpkg)
         shell: pwsh
         run: |
@@ -134,13 +134,9 @@ jobs:
           if ($LASTEXITCODE) { exit 1 }
           python tools/stamp_osversion_um.py build\win-x64-release\tests\Release\cr_tests.exe
           if ($LASTEXITCODE) { exit 1 }
-          python tools/stamp_osversion_um.py build\win-x64-release\src\ui\Release\cr_ui.dll
-          if ($LASTEXITCODE) { exit 1 }
           python tools/verify_pe_um.py build\win-x64-release\src\app\Release\rrecov.exe --allowlist tools/ref_imports_um.json
           if ($LASTEXITCODE) { exit 1 }
           python tools/verify_pe_um.py build\win-x64-release\tests\Release\cr_tests.exe --allowlist tools/ref_imports_um.json
-          if ($LASTEXITCODE) { exit 1 }
-          python tools/verify_pe_um.py build\win-x64-release\src\ui\Release\cr_ui.dll --allowlist tools/ref_imports_um.json
           if ($LASTEXITCODE) { exit 1 }
       - name: Tests
         shell: pwsh
@@ -152,7 +148,7 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/checkout@v4
       - name: install clang + zlib
         run: |
           sudo apt-get update -qq
@@ -163,7 +159,7 @@ jobs:
         run: make -C fuzz run CXX=clang++
       - name: upload corpus on crash
         if: failure()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        uses: actions/upload-artifact@v4
         with:
           name: fuzz-crash-corpus
           path: |
@@ -179,8 +175,8 @@ jobs:
     permissions:
       security-events: write
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
-      - uses: github/codeql-action/init@5c8ea125689a2c5ae2672d1d914ac4bcd95d1b4b # v3
+      - uses: actions/checkout@v4
+      - uses: github/codeql-action/init@v3
         with:
           languages: cpp
       - shell: pwsh
@@ -191,4 +187,4 @@ jobs:
           if ($LASTEXITCODE) { exit 1 }
           cmake --build build/codeql --config Release
           if ($LASTEXITCODE) { exit 1 }
-      - uses: github/codeql-action/analyze@5c8ea125689a2c5ae2672d1d914ac4bcd95d1b4b # v3
+      - uses: github/codeql-action/analyze@v3
