@@ -131,6 +131,9 @@ ALLOWLIST_ADDITIONS = {
     "FormatMessageA": "CRT strerror/format; XP-era",
     "LocalFree": "FormatMessage buffer free; XP-era",
     "GetProcAddress": "dynamic symbol resolution (CRT helpers); XP-era",
+    # DLL CRT startup (__DllMainCRTStartup pulls this into every MSVC-linked
+    # DLL - expected in cr_ui.dll's table before its first gate run)
+    "DisableThreadLibraryCalls": "CRT DLL init (DllMain); XP-era",
     # deliberately NOT here: WaitOnAddress / WakeByAddress* / GetSystemTime-
     # PreciseAsFileTime - those are Windows 8+ ONLY; if the toolset ever
     # links them the gate must fail (that is the guard working).
