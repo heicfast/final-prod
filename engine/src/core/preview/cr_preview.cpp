@@ -59,6 +59,10 @@ u32 PreviewReader::read_at(u64 logical_offset, void* buf, u32 len) {
                     if (psize == 0 || e.length == 0 || psize > kMaxDecode ||
                         e.length > kMaxDecode) {
                         unreadable_.add(e.offset, psize, 1); /* malformed caps */
+                        done += want;                        /* zero-filled; keep positions aligned
+                                                  (same advance as the other failure branches:
+                                                  without it the NEXT extent's bytes land at this
+                                                  extent's logical offset) */
                     } else {
                         std::vector<u8> packed(size_t(psize), 0);
                         ++device_reads_;
@@ -118,17 +122,27 @@ struct Window {
     u64 pulled = 0;
     u64 work = 0;
     bool truncated = false;
+    u32 last_got = 0; /* bytes available in the buffer returned by the
+                         last fetch (short windows are the NORM for a
+                         recovery product: every fetch consumer must
+                         either demand the full window or consult this) */
 
-    /* fetch [off, off+want) - returned pointer is valid only until the
-     * NEXT fetch (single shared window); scalarize before re-fetching */
-    const u8* fetch(u64 off, u32 want) {
+    /* fetch at least `want` bytes at [off, off+want) - LENIENT: returns
+     * whatever is available (last_got bytes, possibly fewer than `want`
+     * at EOF). Returned pointer is valid only until the NEXT fetch.
+     * nullptr only when zero bytes are available / caps exceeded. */
+    const u8* fetch_any(u64 off, u32 want) {
         if (work++ > caps.max_work) {
             truncated = true;
             return nullptr;
         }
         const u32 w = want > 4096 ? u32(4096) : want;
-        if (buf.size() >= w && base <= off && base + (buf.size() - w) >= off)
+        if (buf.size() >= w && base <= off && base + (buf.size() - w) >= off) {
+            /* the window provably covers [off, off + w): every cached byte
+             * is a real read byte (buffers never extend past EOF) */
+            last_got = w;
             return buf.data() + size_t(off - base);
+        }
         const u64 remaining = pr->size() > off ? pr->size() - off : 0;
         if (remaining == 0)
             return nullptr;
@@ -145,7 +159,19 @@ struct Window {
             return nullptr;
         buf.resize(got);
         base = off;
+        last_got = got;
         return buf.data();
+    }
+
+    /* STRICT fetch: the full `want` bytes or nothing. Truncated files
+     * fail the parsers that need the bytes instead of over-reading the
+     * window buffer (the pre-fix short-window class read `p[N]` past a
+     * EOF-clamped buffer - caught by the CI fuzzer, cr_preview.cpp:648). */
+    const u8* fetch(u64 off, u32 want) {
+        const u8* p = fetch_any(off, want);
+        if (p && last_got < want)
+            return nullptr;
+        return p;
     }
 };
 
@@ -435,12 +461,19 @@ bool wav_info(Window& w, Metadata& m) {
     u32 rate = 0, bps = 0;
     u64 data = 0;
     for (u32 guard = 0; guard < 32; ++guard) {
-        const u8* c = w.fetch(off, 16);
+        const u8* c = w.fetch(off, 8); /* chunk id + size */
         if (!c)
             break;
         const u32 csz = le32(c + 4);
         if (std::memcmp(c, "fmt ", 4) == 0 && csz >= 16) {
-            const u32 fmt = le16(c + 8);
+            /* fmt body: wFormatTag@+8, rate@+12, bits/sample@+22 (the
+             * pre-fix code read bits/sample out of a 16-byte window:
+             * bytes 22-23 were past the fetch and read stale window
+             * memory whenever the fmt chunk sat past the head cache) */
+            const u8* f = w.fetch(off + 8, 16);
+            if (!f)
+                break;
+            const u32 fmt = le16(f);
             if (fmt == 1)
                 m.codec = "pcm";
             else if (fmt == 3)
@@ -451,8 +484,8 @@ bool wav_info(Window& w, Metadata& m) {
                 m.codec = "mulaw";
             else if (fmt == 0xFFFE)
                 m.codec = "ext";
-            rate = le32(c + 12);
-            bps = le16(c + 22);
+            rate = le32(f + 4); /* +12 chunk-relative */
+            bps = le16(f + 14); /* +22 chunk-relative */
         } else if (std::memcmp(c, "data", 4) == 0) {
             data = csz;
             break;
@@ -461,7 +494,7 @@ bool wav_info(Window& w, Metadata& m) {
             break;
         off += 8 + csz + (csz & 1);
     }
-    if (rate && bps) {
+    if (rate && bps >= 8) {
         const u64 bytes_per_sec = u64(rate) * (bps / 8);
         if (bytes_per_sec)
             m.duration_ms = data * 1000 / bytes_per_sec;
@@ -475,13 +508,11 @@ void text_sniff(Window& w, Metadata& m) {
     u64 off = 0;
     std::string acc;
     while (acc.size() < w.caps.text_snippet && off < pr_size(w)) {
-        const u32 got = w.pr->read_at(off, nullptr, 0); /* not used */
-        (void)got;
-        const u8* p = w.fetch(off, 512);
+        const u8* p = w.fetch_any(off, 512);
         if (!p)
             break;
         bool nul = false;
-        for (size_t i = 0; i < w.buf.size() && acc.size() < w.caps.text_snippet; ++i) {
+        for (size_t i = 0; i < w.last_got && acc.size() < w.caps.text_snippet; ++i) {
             const u8 c = w.buf[i];
             if (c == 0) {
                 nul = true;
@@ -494,8 +525,8 @@ void text_sniff(Window& w, Metadata& m) {
         }
         if (nul)
             break; /* binary: keep what we have */
-        off += w.buf.size();
-        if (w.buf.size() < 512)
+        off += w.last_got;
+        if (w.last_got < 512)
             break;
     }
     m.text_snippet = acc;
@@ -504,13 +535,13 @@ void text_sniff(Window& w, Metadata& m) {
 }
 
 void pdf_sniff(Window& w, Metadata& m) {
-    const u8* p = w.fetch(0, 1024);
+    const u8* p = w.fetch_any(0, 1024);
     if (!p || std::memcmp(p, "%PDF-", 5) != 0)
         return;
     m.kind = "document";
     m.format = "pdf";
     std::string acc;
-    for (size_t i = 0; i < w.buf.size() && acc.size() < w.caps.text_snippet; ++i) {
+    for (size_t i = 0; i < w.last_got && acc.size() < w.caps.text_snippet; ++i) {
         const u8 c = w.buf[i];
         if (c >= 0x20 && c < 0x7F)
             acc.push_back(char(c));
@@ -521,11 +552,17 @@ void pdf_sniff(Window& w, Metadata& m) {
 /* DOCX/XLSX/PPTX: [local file header <PK\x03\x04 ...>] - bounded zip
  * central-directory scan from the END of the stream (the corpus caps
  * previews, so we only read the tail window), then a bounded inflate of
- * word/document.xml's first bytes. Uses zlib (already a core dependency). */
+ * word/document.xml's first bytes. Uses zlib (already a core dependency).
+ * ZIP entry bodies are RAW deflate (windowBits -15) - the pre-fix code
+ * used 15 (zlib-header mode), which rejects ~every real DOCX stream.
+ * Labels stay honest: a zip is "archive"/"zip" until a known OOXML part
+ * is found; word/document.xml upgrades it to "document"/"docx",
+ * xl/workbook.xml to "docx"-shaped spreadsheets stays "zip" unless
+ * found. */
 struct ZStreamGuard {
     z_stream zs{};
     bool ok = false;
-    ZStreamGuard() { ok = inflateInit2(&zs, 15 /* zlib raw */) == Z_OK; }
+    ZStreamGuard() { ok = inflateInit2(&zs, -15 /* raw deflate, ZIP body */) == Z_OK; }
     ~ZStreamGuard() {
         if (ok)
             inflateEnd(&zs);
@@ -533,12 +570,13 @@ struct ZStreamGuard {
 };
 
 void docx_sniff(Window& w, Metadata& m) {
-    m.kind = "archive";
-    m.format = "docx";
+    m.kind = "archive"; /* any PK-prefixed stream: honest, no docx claim */
+    m.format = "zip";
     const u64 sz = pr_size(w);
     if (sz < 22)
         return;
-    /* End of Central Directory: last 64 KiB window, search backwards */
+    /* End of Central Directory: last 64 KiB window, search backwards
+     * (covers eocd at offset 0 of the window; strict bounds) */
     const u64 tail_off = sz > 65536 ? sz - 65536 : 0;
     const u32 tail_len = u32(sz - tail_off);
     std::vector<u8> tail(tail_len, 0);
@@ -548,15 +586,22 @@ void docx_sniff(Window& w, Metadata& m) {
     tail.resize(got);
     w.pulled += got;
     u32 eocd = 0;
-    for (u32 i = tail.size() >= 22 ? u32(tail.size()) - 22 + 1 : 0; i-- > 0;) {
-        if (tail[i] == 'P' && tail[i + 1] == 'K' && tail[i + 2] == 0x05 && tail[i + 3] == 0x06) {
-            eocd = i;
-            break;
+    bool have_eocd = false;
+    if (tail.size() >= 22) {
+        for (size_t i = tail.size() - 22;; --i) {
+            if (tail[i] == 'P' && tail[i + 1] == 'K' && tail[i + 2] == 0x05 &&
+                tail[i + 3] == 0x06) {
+                eocd = u32(i);
+                have_eocd = true;
+                break;
+            }
+            if (i == 0)
+                break;
         }
     }
-    if (eocd == 0 && !(tail.size() >= 4 && tail[0] == 'P' && tail[1] == 'K'))
-        return; /* not a zip we can walk */
-    (void)eocd;
+    if (!have_eocd)
+        return; /* no central directory reachable: still an honest zip
+                 fragment label (archive/zip set at entry) */
     /* central directory offset/size */
     const u32 cd_size = le32(tail.data() + eocd + 12);
     const u32 cd_off = le32(tail.data() + eocd + 16);
@@ -588,7 +633,7 @@ void docx_sniff(Window& w, Metadata& m) {
         }
     }
     if (!found)
-        return; /* xlsx/pptx: still an archive, kind stays */
+        return; /* xlsx/pptx/plain zip: no docx upgrade (label stays) */
     /* local file header: name len + extra len, then the deflate stream */
     std::vector<u8> lfh(30, 0);
     if (w.pr->read_at(lho, lfh.data(), 30) != 30 || lfh[0] != 'P' || lfh[1] != 'K')
@@ -627,6 +672,7 @@ void docx_sniff(Window& w, Metadata& m) {
     }
     m.text_snippet = acc;
     m.kind = "document";
+    m.format = "docx";
 }
 
 } // namespace
@@ -638,19 +684,27 @@ Metadata extract_metadata(PreviewReader& pr, const Caps& caps) {
     w.caps = caps;
 
     /* one head fetch; scalarize every magic BEFORE further fetches (the
-     * Window buffer is reused - pointers do not survive a re-fetch) */
-    const u8* head = w.fetch(0, 32);
+     * Window buffer is reused - pointers do not survive a re-fetch).
+     * LENIENT head fetch: short headers are the recovery norm, so every
+     * magic probe is gated on the bytes actually present (the strict
+     * fetch(0,32) of the pre-fix code over-read p[N] past EOF-clamped
+     * windows on every truncated file - CI-fuzzer caught). */
+    const u8* head = w.fetch_any(0, 32);
     if (!head)
         return m; /* zero-length or unreadable: unsupported, empty */
+    const size_t hs = w.last_got;
     const u64 sz = pr.size();
-    const u8 h0 = head[0], h1 = head[1];
-    const bool is_jpeg = h0 == 0xFF && h1 == 0xD8;
-    const bool is_png = std::memcmp(head + 1, "PNG", 3) == 0;
-    const bool is_gif = std::memcmp(head, "GIF8", 4) == 0;
-    const bool is_bmp = h0 == 'B' && h1 == 'M';
-    const bool is_tiff = (h0 == 'I' && h1 == 'I' && head[2] == 42 && head[3] == 0) ||
-                         (h0 == 'M' && h1 == 'M' && head[2] == 0 && head[3] == 42);
-    const bool riff = std::memcmp(head, "RIFF", 4) == 0;
+    /* scalarize only bytes the window provably holds (a 1-byte file must
+     * not read head[1] - caught by the truncated-magic regression) */
+    const u8 h0 = hs >= 1 ? head[0] : 0;
+    const u8 h1 = hs >= 2 ? head[1] : 0;
+    const bool is_jpeg = hs >= 2 && h0 == 0xFF && h1 == 0xD8;
+    const bool is_png = hs >= 4 && std::memcmp(head + 1, "PNG", 3) == 0;
+    const bool is_gif = hs >= 4 && std::memcmp(head, "GIF8", 4) == 0;
+    const bool is_bmp = hs >= 2 && h0 == 'B' && h1 == 'M';
+    const bool is_tiff = hs >= 4 && ((h0 == 'I' && h1 == 'I' && head[2] == 42 && head[3] == 0) ||
+                                     (h0 == 'M' && h1 == 'M' && head[2] == 0 && head[3] == 42));
+    const bool riff = hs >= 4 && std::memcmp(head, "RIFF", 4) == 0;
     bool is_webp = false, is_wav = false;
     if (riff && sz >= 12) {
         const u8* w8 = w.fetch(8, 4);
@@ -659,9 +713,9 @@ Metadata extract_metadata(PreviewReader& pr, const Caps& caps) {
             is_webp = std::memcmp(w8, "WEBP", 4) == 0;
         }
     }
-    const bool is_mp4 = sz >= 12 && be32(head + 4) >= 8 && std::memcmp(head + 4, "ftyp", 4) == 0;
-    const bool is_pdf = std::memcmp(head, "%PDF-", 5) == 0;
-    const bool is_zip = h0 == 'P' && h1 == 'K';
+    const bool is_mp4 = hs >= 12 && be32(head + 4) >= 8 && std::memcmp(head + 4, "ftyp", 4) == 0;
+    const bool is_pdf = hs >= 5 && std::memcmp(head, "%PDF-", 5) == 0;
+    const bool is_zip = hs >= 2 && h0 == 'P' && h1 == 'K';
 
     if (is_jpeg) {
         m.kind = "image";
@@ -702,8 +756,8 @@ Metadata extract_metadata(PreviewReader& pr, const Caps& caps) {
         docx_sniff(w, m);
     } else {
         bool printable = true;
-        for (size_t i = 0; i < 16 && i < w.buf.size(); ++i)
-            if (w.buf[i] >= 0x7F)
+        for (size_t i = 0; i < 16 && i < hs; ++i)
+            if (head[i] >= 0x7F)
                 printable = false;
         if (printable && sz > 0)
             text_sniff(w, m);

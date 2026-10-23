@@ -630,7 +630,7 @@ TEST(Btrfs, InlineAndCompressedExtents) {
     std::vector<u8> plain(4100, 'Z');
     std::vector<u8> comp;
     {
-        uLongf cl = compressBound(plain.size()) + 64;
+        uLongf cl = compressBound(static_cast<uLong>(plain.size())) + 64;
         comp.resize(cl);
         z_stream zs = {};
         deflateInit2(&zs, 5, Z_DEFLATED, -15, 8, Z_DEFAULT_STRATEGY);

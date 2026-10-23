@@ -3,6 +3,10 @@
  * measured value is printed; the gate is the assertion). The paged sorted
  * path is additionally measured (informational, no gate).
  *
+ * The budget is scaled 10x under ThreadSanitizer (the instrumentation
+ * makes every access ~5-10x slower; the TSan CI lane runs this exact
+ * binary - an unscaled gate measures the sanitizer, not the code).
+ *
  * Licensed under the MIT license. See LICENSE.
  */
 #include <gtest/gtest.h>
@@ -58,6 +62,17 @@ TEST(QueryPerf, MillionNodesFilterCountUnder200ms) {
             .count();
     printf("[query-perf] 1M nodes filter+count: %lld ms (matched %llu)\n", (long long)ms,
            (unsigned long long)r.total_matched);
+#if defined(__SANITIZE_THREAD__)
+    constexpr u64 kBudgetMs = 2000; /* TSan instrumentation slowdown */
+#elif defined(__has_feature)
+#if __has_feature(thread_sanitizer)
+    constexpr u64 kBudgetMs = 2000;
+#else
+    constexpr u64 kBudgetMs = 200;
+#endif
+#else
+    constexpr u64 kBudgetMs = 200;
+#endif
     /* sizes are i%100000; [10000,90000] inclusive covers 80001 values
      * per 100000 residues over 1M nodes => 10 * 80001 - (100000-10000) */
     u64 expect = 0;
@@ -68,7 +83,7 @@ TEST(QueryPerf, MillionNodesFilterCountUnder200ms) {
             ++expect;
     }
     EXPECT_EQ(expect, r.total_matched);
-    EXPECT_LT(ms, 200) << "1M-node filter+count exceeded the 200 ms budget";
+    EXPECT_LT(ms, kBudgetMs) << "1M-node filter+count exceeded the budget";
 
     /* informational: sorted paged query over the same tree */
     Query q2;

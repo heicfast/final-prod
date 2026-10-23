@@ -469,3 +469,283 @@ TEST(PreviewMeta, PdfTextAndPlainAndUnsupported) {
         EXPECT_EQ(0u, m.width);
     }
 }
+
+/* ---------------- session-5 continuation regressions ----------------
+ * The CI fuzzer found the class live: a truncated head window fed
+ * memcmp/readers that consumed `want` bytes from a SHORT window buffer
+ * (heap-buffer-overflow READ, fuzz_preview, cr_preview.cpp:648). These
+ * tests pin the fixed fetch contract + the three functional defects
+ * fixed alongside (WAV out-of-window bps, DOCX windowBits, extent
+ * misalignment). */
+
+TEST(PreviewMeta, TruncatedMagicsAreSafeAndHonest) {
+    /* the exact fuzzer-crash shape: 2-byte head, memcmp(head+1,"PNG",3) */
+    {
+        std::vector<u8> two{u8(0x89), 'P'};
+        MemDevice dev(std::move(two));
+        tree::FileProperties::Extent a{0, 2, 0, 0};
+        tree::FileProperties* pr = props_with("t.png", 2, 0, {a});
+        PropsGuard g(pr);
+        PreviewReader r(&dev, pr);
+        const Metadata m = extract_metadata(r); /* must not read OOB */
+        EXPECT_FALSE(m.kind == "image" && m.width != 0);
+    }
+    /* every short-magic family: no crash, no fabricated fields */
+    {
+        struct Case {
+            std::vector<u8> bytes;
+            const char* expect_kind; /* "" = no claim */
+            const char* expect_format;
+        };
+        std::vector<Case> cases;
+        cases.push_back({{0xFF, 0xD8}, "image", "jpeg"});        /* 2-byte JPEG */
+        cases.push_back({{'G', 'I', 'F', '8'}, "image", "gif"}); /* 4-byte GIF */
+        cases.push_back({{'R', 'I', 'F', 'F', 0, 0, 0, 0, 'W', 'E', 'B', 'P'},
+                         "image",
+                         "webp"});                          /* 12-byte RIFF/WEBP */
+        cases.push_back({{'P', 'K'}, "archive", "zip"});    /* 2-byte PK */
+        cases.push_back({{'%'}, "text", "txt"});            /* 1-byte printable: text */
+        cases.push_back({{0x00, 0xFF}, "unsupported", ""}); /* binary */
+        for (auto& c : cases) {
+            const u64 n = c.bytes.size();
+            MemDevice dev(std::move(c.bytes));
+            tree::FileProperties::Extent a{0, n, 0, 0};
+            tree::FileProperties* pr = props_with("t.bin", n, 0, {a});
+            PropsGuard g(pr);
+            PreviewReader r(&dev, pr);
+            const Metadata m = extract_metadata(r);
+            EXPECT_EQ(c.expect_kind, m.kind);
+            if (*c.expect_format) {
+                EXPECT_EQ(c.expect_format, m.format);
+            }
+            EXPECT_EQ(0u, m.width);
+            EXPECT_EQ(0u, m.height);
+            EXPECT_EQ(u64(0), m.duration_ms);
+        }
+    }
+}
+
+TEST(PreviewMeta, WavFmtChunkOutsideHeadCache) {
+    /* fmt at a LATER chunk (JUNK first): the pre-fix code read
+     * bits/sample from a 16-byte window while the field sat at +22 -
+     * stale window bytes whenever fmt was past the head cache */
+    std::vector<u8> wav(68, 0);
+    std::memcpy(wav.data(), "RIFF", 4);
+    putle32(wav, 4, 60);
+    std::memcpy(wav.data() + 8, "WAVE", 4);
+    std::memcpy(wav.data() + 12, "JUNK", 4);
+    putle32(wav, 16, 16); /* 16 bytes of padding body [20,36) */
+    std::memcpy(wav.data() + 36, "fmt ", 4);
+    putle32(wav, 40, 16);
+    putle16(wav, 44, 1);     /* pcm @ chunk+8 */
+    putle16(wav, 46, 1);     /* channels @ chunk+10 */
+    putle32(wav, 48, 8000);  /* rate @ chunk+12 */
+    putle32(wav, 52, 16000); /* byte rate @ chunk+16 */
+    putle16(wav, 56, 2);     /* block align @ chunk+20 */
+    putle16(wav, 58, 16);    /* bits @ chunk+22 - outside any 16-byte window */
+    std::memcpy(wav.data() + 60, "data", 4);
+    putle32(wav, 64, 8000);
+    MemDevice dev(std::move(wav));
+    tree::FileProperties::Extent a{0, 68, 0, 0};
+    tree::FileProperties* pr = props_with("w.wav", 68, 0, {a});
+    PropsGuard g(pr);
+    PreviewReader r(&dev, pr);
+    const Metadata m = extract_metadata(r);
+    EXPECT_EQ("audio", m.kind);
+    EXPECT_EQ("pcm", m.codec);
+    EXPECT_EQ(u64(500), m.duration_ms); /* 8000 bytes / (8000*2 B/s) = 500 ms */
+}
+
+TEST(PreviewMeta, DocxRawDeflateInflatesAndPlainZipStaysZip) {
+    /* minimal hand-built zip: LFH + CD + EOCD, raw-deflate body
+     * (windowBits -15 - the pre-fix code used 15 and every real
+     * docx stream failed the zlib-header check) */
+    const std::string name = "word/document.xml";
+    const std::string plain = "<w>hello preview world</w>";
+    std::vector<u8> comp;
+    {
+        uLongf cl = compressBound(static_cast<uLong>(plain.size()));
+        comp.resize(cl);
+        z_stream zs{};
+        ASSERT_EQ(Z_OK, deflateInit2(&zs, 6, Z_DEFLATED, -15, 8, Z_DEFAULT_STRATEGY));
+        zs.next_in = reinterpret_cast<Bytef*>(const_cast<char*>(plain.data()));
+        zs.avail_in = uInt(plain.size());
+        zs.next_out = comp.data();
+        zs.avail_out = uLongf(comp.size());
+        ASSERT_EQ(Z_STREAM_END, deflate(&zs, Z_FINISH));
+        comp.resize(zs.total_out);
+        deflateEnd(&zs);
+    }
+    std::vector<u8> zip;
+    const auto put16 = [&zip](u16 v) {
+        zip.push_back(u8(v));
+        zip.push_back(u8(v >> 8));
+    };
+    const auto put32 = [&zip](u32 v) {
+        zip.push_back(u8(v));
+        zip.push_back(u8(v >> 8));
+        zip.push_back(u8(v >> 16));
+        zip.push_back(u8(v >> 24));
+    };
+    /* local file header */
+    const size_t lfh_at = 0;
+    zip.insert(zip.end(), {'P', 'K', 3, 4});
+    put16(20); /* version needed */
+    put16(0);  /* flags */
+    put16(8);  /* method = deflate */
+    put16(0);  /* time */
+    put16(0);  /* date */
+    put32(0);  /* crc (not verified in preview) */
+    put32(u32(comp.size()));
+    put32(u32(plain.size()));
+    put16(u16(name.size()));
+    put16(0); /* extra len */
+    zip.insert(zip.end(), name.begin(), name.end());
+    zip.insert(zip.end(), comp.begin(), comp.end());
+    /* central directory (ends exactly where the EOCD begins) */
+    const size_t cd_at = zip.size();
+    const size_t cd_len = 46 + name.size();
+    zip.insert(zip.end(), {'P', 'K', 1, 2});
+    put16(20);
+    put16(20);
+    put16(0);
+    put16(8);
+    put16(0);
+    put16(0);
+    put32(0);
+    put32(u32(comp.size()));
+    put32(u32(plain.size()));
+    put16(u16(name.size()));
+    put16(0);
+    put16(0);
+    put16(0);
+    put16(0);
+    put32(0);
+    put32(u32(lfh_at));
+    zip.insert(zip.end(), name.begin(), name.end());
+    /* EOCD: sig, disk, cd-disk, entries-on-disk, total-entries,
+     * cd-size, cd-offset, comment-len */
+    zip.insert(zip.end(), {'P', 'K', 5, 6});
+    put16(0);
+    put16(0);
+    put16(1);
+    put16(1);
+    put32(u32(cd_len));
+    put32(u32(cd_at));
+    put16(0);
+
+    MemDevice dev(std::move(zip));
+    const u64 zlen = dev.geometry().total_bytes;
+    tree::FileProperties::Extent a{0, zlen, 0, 0};
+    tree::FileProperties* pr = props_with("d.docx", zlen, 0, {a});
+    PropsGuard g(pr);
+    PreviewReader r(&dev, pr);
+    const Metadata m = extract_metadata(r);
+    EXPECT_EQ("document", m.kind);
+    EXPECT_EQ("docx", m.format);
+    EXPECT_NE(std::string::npos, m.text_snippet.find("hello preview world"));
+
+    /* plain zip (different member name): stays archive/zip, never docx */
+    std::vector<u8> zip2;
+    const std::string name2 = "readme.txt";
+    zip2.insert(zip2.end(), {'P', 'K', 3, 4});
+    put16(20);
+    put16(0);
+    put16(8);
+    put16(0);
+    put16(0);
+    put32(0);
+    put32(u32(comp.size()));
+    put32(u32(plain.size()));
+    put16(u16(name2.size()));
+    put16(0);
+    zip2.insert(zip2.end(), name2.begin(), name2.end());
+    const size_t cd_at2 = zip2.size();
+    zip2.insert(zip2.end(), {'P', 'K', 1, 2});
+    put16(20);
+    put16(20);
+    put16(0);
+    put16(8);
+    put16(0);
+    put16(0);
+    put32(0);
+    put32(u32(comp.size()));
+    put32(u32(plain.size()));
+    put16(u16(name2.size()));
+    put16(0);
+    put16(0);
+    put16(0);
+    put16(0);
+    put32(0);
+    put32(0);
+    zip2.insert(zip2.end(), name2.begin(), name2.end());
+    const size_t cd_len2 = 46 + name2.size();
+    zip2.insert(zip2.end(), {'P', 'K', 5, 6});
+    put16(0);
+    put16(0);
+    put16(1);
+    put16(1);
+    put32(u32(cd_at2));
+    put32(u32(cd_len2));
+    put16(0);
+
+    MemDevice dev2(std::move(zip2));
+    const u64 z2len = dev2.geometry().total_bytes;
+    tree::FileProperties* pr2 =
+        props_with("z.zip", z2len, 0, {tree::FileProperties::Extent{0, z2len, 0, 0}});
+    PropsGuard g2(pr2);
+    PreviewReader r2(&dev2, pr2);
+    const Metadata m2 = extract_metadata(r2);
+    EXPECT_EQ("archive", m2.kind);
+    EXPECT_EQ("zip", m2.format);
+}
+
+TEST(Preview, MalformedCapsExtentKeepsAlignment) {
+    /* extent 1 carries a compressed codec with malformed caps (psize 0),
+     * extent 2 is plain: the pre-fix code did not advance `done` past the
+     * malformed extent, so extent 2's bytes landed at logical 0 instead
+     * of 8 (mis-placed data under hostile extent lists) */
+    std::vector<u8> img(512, 0);
+    std::memcpy(img.data() + 100, "SECOND!", 7);
+    MemDevice dev(std::move(img));
+    tree::FileProperties::Extent bad{0, 8, compress::kGzip, 0 /* psize 0: malformed */};
+    tree::FileProperties::Extent good{100, 8, 0, 0};
+    tree::FileProperties* pr = props_with("m.bin", 16, 0, {bad, good});
+    PropsGuard g(pr);
+    PreviewReader r(&dev, pr);
+    u8 buf[16] = {};
+    ASSERT_EQ(16u, r.read_at(0, buf, 16));
+    /* malformed extent: zero-filled + reported */
+    for (int i = 0; i < 8; ++i)
+        EXPECT_EQ(0, buf[i]);
+    EXPECT_FALSE(r.unreadable_spans().ranges().empty());
+    /* plain extent lands at its logical position [8,16) */
+    EXPECT_EQ(0, std::memcmp(buf + 8, "SECOND!", 7));
+}
+
+TEST(PreviewMeta, RandomSmallInputsAreSafe) {
+    /* deterministic fuzz-substitute: the CI fuzz lane runs libFuzzer with
+     * clang; this stress runs in EVERY lane (gcc/ASan, TSan, MSVC) and
+     * would have caught the short-window class (2-byte "PNG" head) that
+     * the fuzzer found. Fixed seed, bounded work, zero flakiness. */
+    std::vector<u8> img(4096, 0);
+    MemDevice dev(std::move(img));
+    for (u64 round = 0; round < 3000; ++round) {
+        /* xorshift64*: size 0..96, bytes from the PRNG stream */
+        u64 s = 0x9E3779B97F4A7C15ull * (round + 1);
+        auto next = [&s]() {
+            s ^= s >> 12;
+            s ^= s << 25;
+            s ^= s >> 27;
+            return s * 2685821657736338717ull;
+        };
+        const u64 n = next() % 97;
+        const u64 at = next() % (4096 - 128);
+        tree::FileProperties::Extent a{at, n, 0, 0};
+        tree::FileProperties* pr = props_with("r.bin", n, 0, {a});
+        PropsGuard g(pr);
+        PreviewReader r(&dev, pr);
+        const Metadata m = extract_metadata(r); /* must never read OOB */
+        (void)m;
+    }
+}
