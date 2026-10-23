@@ -78,15 +78,21 @@ struct NodeBuilder {
 
     NodeBuilder() { node.assign(NODESIZE, 0); }
 
+    /* kernel btrfs_header: bytenr@0x30, generation@0x50, owner@0x58,
+     * nritems@0x60, level@0x64; items array @0x65 */
     void header(u64 bytenr, u32 nritems, u8 level) {
         put64(node.data() + 0x30, bytenr); /* self-referential */
-        put32(node.data() + 0x50, nritems);
-        node[0x54] = level;
+        put64(node.data() + 0x50, 1);      /* generation */
+        put64(node.data() + 0x58, 5);      /* owner (tree id) */
+        put32(node.data() + 0x60, nritems);
+        node[0x64] = level;
     }
 
     void add(const Key& k, const std::vector<u8>& data) { items.push_back({k, data}); }
 
-    /* finalize: pack data from the node end, then write the item array */
+    /* finalize: pack data from the node end, then write the item array at
+     * 0x65. item.offset counts from the items-array start (kernel rule:
+     * data_ptr = offsetof(items) + offset). */
     std::vector<u8> finish(u64 bytenr, u8 level) {
         header(bytenr, u32(items.size()), level);
         u32 end = NODESIZE;
@@ -96,14 +102,31 @@ struct NodeBuilder {
             memcpy(node.data() + end, it.data.data(), it.data.size());
             data_offsets.push_back(end);
         }
-        /* item i: offset = distance from node END to data start */
+        constexpr u32 ITEMS_AT = 0x65;
         for (u32 i = 0; i < items.size(); ++i) {
-            u8* it = node.data() + 0x58 + u64(i) * 25;
+            u8* it = node.data() + ITEMS_AT + u64(i) * 25;
             put64(it + 0, items[i].key.objectid);
             it[8] = items[i].key.type;
             put64(it + 9, items[i].key.offset);
-            put32(it + 17, NODESIZE - data_offsets[i]); /* offset from end */
+            put32(it + 17, data_offsets[i] - ITEMS_AT); /* from items start */
             put32(it + 21, u32(items[i].data.size()));
+        }
+        return node;
+    }
+
+    /* internal node: btrfs_key_ptr array { key(17), blockptr u64@17,
+     * generation u64@25 } at 0x65 (kernel format). */
+    std::vector<u8> finish_internal(u64 bytenr, u8 level,
+                                    const std::vector<std::pair<Key, u64>>& ptrs) {
+        header(bytenr, u32(ptrs.size()), level);
+        constexpr u32 ITEMS_AT = 0x65;
+        for (u32 i = 0; i < ptrs.size(); ++i) {
+            u8* kp = node.data() + ITEMS_AT + u64(i) * 33;
+            put64(kp + 0, ptrs[i].first.objectid);
+            kp[8] = ptrs[i].first.type;
+            put64(kp + 9, ptrs[i].first.offset);
+            put64(kp + 17, ptrs[i].second); /* blockptr */
+            put64(kp + 25, 1);              /* generation */
         }
         return node;
     }
@@ -131,14 +154,17 @@ std::vector<u8> make_inode(u32 mode, u64 size, u32 nlink, u64 mtime_sec) {
 }
 
 std::vector<u8> make_dir_item(u64 child, const char* name, u8 type) {
+    /* kernel btrfs_dir_item: location(17) + transid u64@17 + data_len
+     * u16@25 + name_len u16@27 + type u8@29 + name[]@30 */
     const u32 nlen = u32(strlen(name));
-    std::vector<u8> r(53 + nlen, 0);
+    std::vector<u8> r(30 + nlen, 0);
     put64(r.data() + 0, child);
     r[8] = type;             /* location.type: 1 file, 2 dir */
     put64(r.data() + 17, 1); /* transid */
-    put16(r.data() + 49, u16(nlen));
-    put16(r.data() + 51, 0); /* datalen */
-    memcpy(r.data() + 53, name, nlen);
+    put16(r.data() + 25, 0); /* data_len */
+    put16(r.data() + 27, u16(nlen));
+    r[29] = type;            /* BTRFS_FT_* of the entry itself */
+    memcpy(r.data() + 30, name, nlen);
     return r;
 }
 
@@ -380,6 +406,198 @@ TEST(Btrfs, BadMagicRejected) {
     BtrfsScanStats st;
     EXPECT_EQ(ERR_BAD_MAGIC,
               scan_btrfs(&dev, fl, nullptr, nullptr, nullptr, tree, ra, nullptr, nullptr, st));
+}
+
+TEST(Btrfs, PackedDirItemsInOneItem) {
+    /* kernel packs several btrfs_dir_item records into a single DIR_ITEM
+     * item; the walk must iterate all of them (audit fix - the old code
+     * read only the first). */
+    auto img = build_volume();
+    /* rebuild the FS-tree node: two entries under ONE item */
+    {
+        NodeBuilder nb;
+        Key ki;
+        ki.type = 1; /* INODE_ITEM */
+        ki.objectid = 256; /* subvol root dir */
+        nb.add(ki, make_inode(0x4000, NODESIZE, 2, 1700000000ull));
+        ki.objectid = 257;
+        nb.add(ki, make_inode(0x8000, 14, 1, 1700000000ull));
+        ki.objectid = 258;
+        nb.add(ki, make_inode(0x4000, NODESIZE, 2, 1700000000ull));
+        Key ke;
+        ke.type = 108;
+        ke.objectid = 257;
+        ke.offset = 0;
+        nb.add(ke, make_extent_data(L_DATA, 4096));
+        /* ONE DIR_ITEM item containing BOTH entries back-to-back */
+        std::vector<u8> packed = make_dir_item(257, "hello.txt", 1);
+        {
+            std::vector<u8> second = make_dir_item(258, "sub", 2);
+            packed.insert(packed.end(), second.begin(), second.end());
+        }
+        Key kd;
+        kd.type = 84;
+        kd.objectid = 256;
+        kd.offset = 0x11110001;
+        nb.add(kd, packed);
+        auto nd = nb.finish(L_FS_TREE, 0);
+        memcpy(img.data() + L_FS_TREE, nd.data(), NODESIZE);
+    }
+    MemDevice dev(img);
+    tree::ResultTree tree;
+    auto* ra = tree.add_root(u"F");
+    BtrfsScanFlags fl;
+    BtrfsScanStats st;
+    ASSERT_EQ(OK, scan_btrfs(&dev, fl, nullptr, nullptr, nullptr, tree, ra, nullptr, nullptr, st));
+    std::set<std::string> names;
+    for (tree::FileNode* c = ra->first_child(); c; c = c->next_sibling())
+        for (tree::FileNode* x = c->first_child(); x; x = x->next_sibling())
+            if (x->props())
+                names.insert(x->name_utf8());
+    EXPECT_TRUE(names.count("hello.txt"));
+    EXPECT_TRUE(names.count("sub"));
+}
+
+TEST(Btrfs, MirrorSelectionNewestGeneration) {
+    /* corrupt the primary superblock; the mirror set {64K, 64M, 256G, 1P}
+     * (kernel btrfs_sb_offset + og .rdata table) must recover the volume
+     * from the 64 MiB mirror when the image is large enough to hold it. */
+    constexpr u64 IMG2 = 96ull << 20; /* > 64 MiB mirror slot */
+    auto img = build_volume();
+    std::vector<u8> big(size_t(IMG2), 0);
+    memcpy(big.data(), img.data(), img.size());
+    /* smash the primary superblock */
+    memset(big.data() + 0x10000, 0xAB, 4096);
+    /* place a copy of the (valid) superblock at the 64 MiB mirror */
+    memcpy(big.data() + 0x4000000, img.data() + 0x10000, 4096);
+    /* raise the mirror's generation so it wins even if both were valid */
+    put64(big.data() + 0x4000000 + 0x48, 99);
+
+    MemDevice dev(big);
+    tree::ResultTree tree;
+    auto* ra = tree.add_root(u"F");
+    BtrfsScanFlags fl;
+    BtrfsScanStats st;
+    ASSERT_EQ(OK, scan_btrfs(&dev, fl, nullptr, nullptr, nullptr, tree, ra, nullptr, nullptr, st));
+    EXPECT_EQ(1u, st.subvolumes);
+    /* and the walked file proves the chunk map still resolved */
+    bool found = false;
+    for (tree::FileNode* sv = ra->first_child(); sv; sv = sv->next_sibling())
+        for (tree::FileNode* c = sv->first_child(); c; c = c->next_sibling())
+            if (c->props() && c->name_utf8() == "hello.txt")
+                found = true;
+    EXPECT_TRUE(found);
+}
+
+TEST(Btrfs, InternalKeyPtrWalk) {
+    /* multi-level FS tree: root tree -> FS-tree internal node -> two
+     * leaves, reached through the kernel btrfs_key_ptr array (the old
+     * code read internal nodes as if they were item arrays - never
+     * exercised by this fixture before the audit). */
+    auto img = build_volume();
+
+    /* leaf A: inode 256 + dir entries for hello.txt */
+    u8* leaf_a = img.data() + L_FS_TREE;
+    {
+        NodeBuilder nb;
+        Key ki;
+        ki.type = 1;
+        ki.objectid = 256;
+        nb.add(ki, make_inode(0x4000, NODESIZE, 2, 1600000000ull));
+        ki.objectid = 257;
+        nb.add(ki, make_inode(0x8000, 14, 1, 1600000000ull));
+        Key ke;
+        ke.type = 108;
+        ke.objectid = 257;
+        ke.offset = 0;
+        nb.add(ke, make_extent_data(L_DATA, 4096));
+        Key kd;
+        kd.type = 84;
+        kd.objectid = 256;
+        kd.offset = 0x11110001;
+        nb.add(kd, make_dir_item(257, "hello.txt", 1));
+        auto nd = nb.finish(L_FS_TREE, 0);
+        memcpy(leaf_a, nd.data(), NODESIZE);
+    }
+    /* leaf B: inode 258/259 + sub/nested entries */
+    const u64 L_LEAF_B = L_FS_TREE + NODESIZE;
+    {
+        NodeBuilder nb;
+        Key ki;
+        ki.type = 1;
+        ki.objectid = 258;
+        nb.add(ki, make_inode(0x4000, NODESIZE, 2, 1600000000ull));
+        ki.objectid = 259;
+        nb.add(ki, make_inode(0x8000, 22, 1, 1600000000ull));
+        Key ke;
+        ke.type = 108;
+        ke.objectid = 259;
+        ke.offset = 0;
+        nb.add(ke, make_extent_data(L_DATA + 4096, 4096));
+        Key kd;
+        kd.type = 84;
+        kd.objectid = 256;
+        kd.offset = 0x22220002;
+        nb.add(kd, make_dir_item(258, "sub", 2));
+        kd.objectid = 258;
+        kd.offset = 0x33330003;
+        nb.add(kd, make_dir_item(259, "nested.bin", 1));
+        auto nd = nb.finish(L_LEAF_B, 0);
+        memcpy(img.data() + L_LEAF_B, nd.data(), NODESIZE);
+    }
+    /* internal FS-tree node pointing at both leaves */
+    const u64 L_INTERNAL = L_FS_TREE + 2 * NODESIZE;
+    {
+        NodeBuilder nb;
+        Key lo; /* low key: (256, ...) */
+        lo.objectid = 256;
+        lo.type = 1;
+        lo.offset = 0;
+        Key hi; /* high key */
+        hi.objectid = 258;
+        hi.type = 84;
+        hi.offset = 0x33330003;
+        auto nd = nb.finish_internal(L_INTERNAL, 1, {{lo, L_FS_TREE}, {hi, L_LEAF_B}});
+        memcpy(img.data() + L_INTERNAL, nd.data(), NODESIZE);
+    }
+    /* repoint the root item at the internal node */
+    {
+        NodeBuilder nb;
+        Key k5;
+        k5.objectid = 5;
+        k5.type = 132;
+        k5.offset = 0;
+        nb.add(k5, make_root_item(L_INTERNAL, 256));
+        Key k3;
+        k3.objectid = 3;
+        k3.type = 132;
+        k3.offset = 0;
+        nb.add(k3, make_root_item(L_CHUNK_TREE, 0));
+        auto nd = nb.finish(L_ROOT_TREE, 0);
+        memcpy(img.data() + L_ROOT_TREE, nd.data(), NODESIZE);
+    }
+
+    MemDevice dev(img);
+    tree::ResultTree tree;
+    auto* ra = tree.add_root(u"F");
+    BtrfsScanFlags fl;
+    BtrfsScanStats st;
+    ASSERT_EQ(OK, scan_btrfs(&dev, fl, nullptr, nullptr, nullptr, tree, ra, nullptr, nullptr, st));
+    EXPECT_EQ(1u, st.subvolumes);
+    EXPECT_EQ(2u, st.files);
+    EXPECT_EQ(0u, st.damaged_nodes);
+    std::set<std::string> names;
+    std::function<void(tree::FileNode*)> collect = [&](tree::FileNode* n) {
+        for (tree::FileNode* c = n->first_child(); c; c = c->next_sibling()) {
+            if (c->props())
+                names.insert(c->name_utf8());
+            collect(c);
+        }
+    };
+    collect(ra);
+    EXPECT_TRUE(names.count("hello.txt"));
+    EXPECT_TRUE(names.count("sub"));
+    EXPECT_TRUE(names.count("nested.bin"));
 }
 
 } // namespace

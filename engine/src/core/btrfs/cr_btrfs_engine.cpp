@@ -24,22 +24,36 @@ constexpr u32 SB_SYS_ARRAY_SIZE = 0xA0;
 constexpr u32 SB_SYS_ARRAY = 0x32B;
 constexpr u64 SB_MAGIC_VALUE = 0x4D5F53665248425FULL; /* "_BHRfS_M" */
 
-/* btrfs_header (every node, 80 bytes) */
+/* btrfs_header (kernel include/uapi/linux/btrfs_tree.h, packed, 101 bytes):
+ * csum[32]@0, fsid[16]@0x20, bytenr@0x30, flags@0x38,
+ * chunk_tree_uuid[16]@0x40, generation@0x50, owner@0x58,
+ * nritems u32@0x60, level u8@0x64. Leaf items array starts at 0x65. */
 constexpr u32 HDR_FSID = 0x20;
 constexpr u32 HDR_BYTENR = 0x30; /* self-referential logical address */
 constexpr u32 HDR_CHUNK_TREE_UUID = 0x40;
-constexpr u32 HDR_NR_ITEMS = 0x50;
-constexpr u32 HDR_LEVEL = 0x54;
-constexpr u32 HDR_ITEM_ARRAY = 0x58;
+constexpr u32 HDR_GENERATION = 0x50;
+constexpr u32 HDR_OWNER = 0x58;
+constexpr u32 HDR_NR_ITEMS = 0x60;
+constexpr u32 HDR_LEVEL = 0x64;
+constexpr u32 HDR_ITEM_ARRAY = 0x65; /* offsetof(btrfs_leaf, items) */
+
+/* internal nodes hold btrfs_key_ptr entries (33 bytes), not items:
+ * { disk_key(17), blockptr u64@17, generation u64@25 } */
+constexpr u32 KP_KEY = 0;
+constexpr u32 KP_BLOCKPTR = 17;
+constexpr u32 KP_GENERATION = 25;
+constexpr u32 KP_SIZE = 33;
+constexpr u32 MAX_KEY_PTRS = (4096 - 0x65) / KP_SIZE;
 
 /* btrfs_disk_key (17 bytes) */
 constexpr u32 KEY_OBJECTID = 0;
 constexpr u32 KEY_TYPE = 8;
 constexpr u32 KEY_OFFSET = 9;
 
-/* btrfs_item (25 bytes) */
+/* btrfs_item (25 bytes); item.offset is relative to the leaf items-array
+ * start (kernel: btrfs_item_ptr_offset = offsetof(items) + offset). */
 constexpr u32 ITEM_KEY = 0;
-constexpr u32 ITEM_OFFSET = 17; /* data start distance from NODE END */
+constexpr u32 ITEM_OFFSET = 17;
 constexpr u32 ITEM_SIZE = 21;
 
 /* key types */
@@ -67,14 +81,20 @@ constexpr u32 INO_CTIME = 0x5C;
 constexpr u32 INO_MTIME = 0x68;
 constexpr u32 INO_otime = 0x74;
 
-/* btrfs_dir_item body (after its 17-byte key location) */
+/* btrfs_dir_item: location key(17) + transid u64@17 + data_len u16@25 +
+ * name_len u16@27 + type u8@29 + name[]@30 (kernel include/uapi/linux/
+ * btrfs_tree.h; og parity verified in BtrfsSearchDLL lines 3424-3444 where
+ * the "user.DOSATTRIB" xattr walk reads name_len@+0x1B, data_len@+0x19,
+ * name@+0x1E). A DIR_ITEM/DIR_INDEX item may pack several dir_items
+ * back-to-back - iterate until the item is exhausted (corpus parity: the
+ * og's walk advances by data_len+30+name_len per record). */
 constexpr u32 DI_LOCATION = 0; /* {objectid u64, type u8, offset u64} */
 constexpr u32 DI_TRANSID = 17;
-constexpr u32 DI_MTIME = 25;
-constexpr u32 DI_CTIME = 37;
-constexpr u32 DI_NAMELEN = 49; /* u16 */
-constexpr u32 DI_DATALEN = 51; /* u16 */
-constexpr u32 DI_NAME = 53;
+constexpr u32 DI_DATALEN = 25; /* u16 */
+constexpr u32 DI_NAMELEN = 27; /* u16 */
+constexpr u32 DI_TYPE = 29;    /* u8: BTRFS_FT_* */
+constexpr u32 DI_NAME = 30;
+constexpr u32 DI_HEADER = 30; /* fixed part of one dir_item */
 
 /* btrfs_file_extent_item (after key) */
 constexpr u32 FE_GENERATION = 0;
@@ -176,7 +196,8 @@ bool parse_chunk(const u8* p, u32 len, ChunkMap& out) {
     return true;
 }
 
-/* Iterate items of a node; fn(key, data_ptr, data_len). */
+/* Iterate items of a LEAF; fn(key, data_ptr, data_len). item.offset is
+ * relative to the items-array start (kernel btrfs_item_ptr_offset). */
 bool for_each_item(const std::vector<u8>& node,
                    const std::function<bool(const Key&, const u8*, u32)>& fn) {
     if (node.size() < HDR_ITEM_ARRAY + 25)
@@ -185,17 +206,18 @@ bool for_each_item(const std::vector<u8>& node,
     if (nritems == 0 || nritems > MAX_ITEMS)
         return false;
     const u32 nodesize = u32(node.size());
+    const u64 items_end = HDR_ITEM_ARRAY + u64(nritems) * 25;
     for (u32 i = 0; i < nritems; ++i) {
         const u8* it = node.data() + HDR_ITEM_ARRAY + u64(i) * 25;
         const Key k = read_key(it + ITEM_KEY);
         const u32 off = le32(it + ITEM_OFFSET);
         const u32 size = le32(it + ITEM_SIZE);
-        /* data start = nodesize - off; validity: off >= size, within node */
-        if (off < size || off > nodesize - HDR_ITEM_ARRAY)
+        /* data start = items-array start + off; validity: after the items
+         * array, fully inside the node */
+        const u64 data_pos = HDR_ITEM_ARRAY + u64(off);
+        if (off == 0 || data_pos < items_end || data_pos + size > nodesize)
             continue; /* damaged item: skip */
-        const u8* data = node.data() + (nodesize - off);
-        if (data + size > node.data() + nodesize)
-            continue;
+        const u8* data = node.data() + data_pos;
         if (!fn(k, data, size))
             return false;
     }
@@ -203,8 +225,8 @@ bool for_each_item(const std::vector<u8>& node,
 }
 
 /* Walk a tree (BFS over internal nodes) calling fn on every item of every
- * LEAF. Internal nodes: key + u64 block pointer (the last 8 bytes of the
- * item data). */
+ * LEAF. Internal nodes hold a btrfs_key_ptr array (kernel format):
+ * { disk_key(17), blockptr u64@17, generation u64@25 } per entry. */
 bool walk_tree(Volume& v, u64 root_logical, CancelToken* cancel,
                const std::function<bool(const Key&, const u8*, u32)>& fn, u64& nodes_read,
                u64& damaged) {
@@ -227,16 +249,17 @@ bool walk_tree(Volume& v, u64 root_logical, CancelToken* cancel,
         if (level == 0) {
             for_each_item(node, fn);
         } else {
-            /* internal: each item's data ends with a u64 child bytenr */
+            /* internal node: key_ptr array after the header */
             const u32 nritems = le32(node.data() + HDR_NR_ITEMS);
-            for (u32 i = 0; i < nritems && i < MAX_ITEMS; ++i) {
-                const u8* it = node.data() + HDR_ITEM_ARRAY + u64(i) * 25;
-                const u32 off = le32(it + ITEM_OFFSET);
-                const u32 size = le32(it + ITEM_SIZE);
-                if (size < 8 || off < size || off > v.sb.nodesize - HDR_ITEM_ARRAY)
-                    continue;
-                const u8* data = node.data() + (v.sb.nodesize - off);
-                const u64 child = le64(data + size - 8);
+            const u32 limit =
+                u32((node.size() - HDR_ITEM_ARRAY) / KP_SIZE);
+            if (nritems == 0 || nritems > limit) {
+                ++damaged;
+                continue;
+            }
+            for (u32 i = 0; i < nritems; ++i) {
+                const u8* kp = node.data() + HDR_ITEM_ARRAY + u64(i) * KP_SIZE;
+                const u64 child = le64(kp + KP_BLOCKPTR);
                 if (child != 0)
                     if (pending.size() < 65536) /* P1-11: queue cap */
                         pending.push_back(child);
@@ -307,8 +330,13 @@ u32 scan_btrfs(IStorageDevice* slice, const BtrfsScanFlags& flags, CancelToken* 
     if (slice == nullptr || root_active == nullptr)
         return ERR_BAD_PARAMETER;
 
-    /* 1. mirror superblock select: newest generation wins (og rule) */
-    static const u64 kMirrorOffsets[] = {0x10000, 0x40000, 0x4000000, 0x4000000000ULL, 0};
+    /* 1. mirror superblock select: newest generation wins (og rule).
+     * Ground truth extracted from BtrfsSearchDLL.dll .rdata (VA 0x180018D60):
+     * {0x10000, 0x4000000, 0x4000000000, 0x4000000000000} - identical to the
+     * kernel btrfs_sb_offset(): 64 KiB primary + mirrors at 64 MiB, 256 GiB
+     * and 1 PiB (16K << 12*mirror). */
+    static const u64 kMirrorOffsets[] = {0x10000,          0x4000000,
+                                         0x4000000000ULL,  0x4000000000000ULL, 0};
     SuperBlock best;
     bool have_best = false;
     std::vector<u8> sb_buf(4096);
@@ -343,11 +371,14 @@ u32 scan_btrfs(IStorageDevice* slice, const BtrfsScanFlags& flags, CancelToken* 
     u64 chunk_root = 0;
     {
         std::vector<u64> candidates;
-        /* canonical superblock fields near the root-pointer region */
-        candidates.push_back(le64(sb_raw.data() + 0x70));
+        /* chunk_root@sb+0x58 and root@sb+0x50 are the canonical fields
+         * (kernel btrfs_super_block); the other slots are validated by the
+         * node's self-referential bytenr so a wrong candidate never wins. */
         candidates.push_back(le64(sb_raw.data() + 0x58));
+        candidates.push_back(le64(sb_raw.data() + 0x50));
         candidates.push_back(le64(sb_raw.data() + 0x60));
         candidates.push_back(le64(sb_raw.data() + 0x68));
+        candidates.push_back(le64(sb_raw.data() + 0x70));
         for (u64 cand : candidates) {
             if (cand == 0)
                 continue;
@@ -470,9 +501,11 @@ u32 scan_btrfs(IStorageDevice* slice, const BtrfsScanFlags& flags, CancelToken* 
     if (progress)
         (void)progress(2, 4, progress_user);
 
-    /* 4. collect ROOT_ITEMs: FS tree + subvolumes (ROOT_ITEM body:
-     * inode(160) + generation u64@0xA0 + root_dirid@0xA8 + bytenr@0xB0 +
-     * ... + level u8 near the tail). */
+    /* 4. collect ROOT_ITEMs: FS tree + subvolumes (ROOT_ITEM body per
+     * kernel btrfs_tree.h: inode(160=0xA0) + generation@0xA0 +
+     * root_dirid@0xA8 + bytenr@0xB0 + byte_limit@0xB8 + bytes_used@0xC0 +
+     * last_snapshot@0xC8 + flags@0xD0 + refs u32@0xD8 + drop_progress
+     * key(17)@0xDC + drop_level u8@0xED + level u8@0xEE). */
     struct Subvol {
         u64 id;
         u64 bytenr;
@@ -491,8 +524,7 @@ u32 scan_btrfs(IStorageDevice* slice, const BtrfsScanFlags& flags, CancelToken* 
             s.id = k.objectid;
             s.bytenr = le64(data + 0xB0);
             s.root_dirid = le64(data + 0xA8);
-            s.level = data[0xB8 + 40 > len ? len - 1 : 0x9F]; /* level byte near tail */
-            s.level = data[0x9F];
+            s.level = (len > 0xEE) ? data[0xEE] : 0; /* root tree level */
             subvols.push_back(s);
             return true;
         };
@@ -586,24 +618,26 @@ u32 scan_btrfs(IStorageDevice* slice, const BtrfsScanFlags& flags, CancelToken* 
         };
         std::map<u64, std::vector<DirEntry>> dirs;
         auto on_dir = [&](const Key& k, const u8* data, u32 len) {
-            if (k.type != KEY_DIR_ITEM || len < 53)
+            if (k.type != KEY_DIR_ITEM)
                 return true;
-            const u64 child = le64(data + DI_LOCATION);
-            const u16 name_len = le16(data + DI_NAMELEN);
-            const u16 data_len = le16(data + DI_DATALEN);
-            if (u32(53) + name_len + data_len > len)
-                return true;
-            DirEntry de;
-            de.child = child;
-            de.type = data[DI_LOCATION + 16];
-            for (u32 i = 0; i < name_len && i < 255; ++i)
-                de.name.push_back(u16(le16(data + DI_NAME + i * 2) & 0xFF) |
-                                  (data[DI_NAME + i * 2] ? 0 : 0));
-            /* names are raw bytes (not UTF16): read as chars */
-            de.name.clear();
-            for (u32 i = 0; i < name_len && i < 255; ++i)
-                de.name.push_back(u16(data[DI_NAME + i]));
-            dirs[k.objectid].push_back(de);
+            /* one item can pack several btrfs_dir_item records; walk them
+             * all (kernel + og semantics) */
+            u32 off = 0;
+            while (off + DI_HEADER <= len) {
+                const u8* di = data + off;
+                const u16 name_len = le16(di + DI_NAMELEN);
+                const u16 data_len = le16(di + DI_DATALEN);
+                if (u64(off) + DI_HEADER + u64(name_len) + u64(data_len) > len)
+                    break; /* truncated tail: stop, keep what we have */
+                DirEntry de;
+                de.child = le64(di + DI_LOCATION);
+                de.type = di[DI_TYPE];
+                for (u32 i = 0; i < name_len && i < 255; ++i)
+                    de.name.push_back(u16(di[DI_NAME + i]));
+                if (!de.name.empty())
+                    dirs[k.objectid].push_back(std::move(de));
+                off += DI_HEADER + name_len + data_len;
+            }
             return true;
         };
         walk_tree(v, sv.bytenr, cancel, on_dir, stats.nodes_read, stats.damaged_nodes);

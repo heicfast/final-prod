@@ -55,6 +55,12 @@ u16 rd16(const u8* p) {
 u32 rd32(const u8* p) {
     return u32(p[0]) | (u32(p[1]) << 8) | (u32(p[2]) << 16) | (u32(p[3]) << 24);
 }
+void wr32(u8* p, u32 v) {
+    p[0] = u8(v);
+    p[1] = u8(v >> 8);
+    p[2] = u8(v >> 16);
+    p[3] = u8(v >> 24);
+}
 
 struct GroupDesc {
     u64 block_bitmap; /* absolute block */
@@ -74,8 +80,26 @@ constexpr u32 I_BLOCKS_LO = 0x1C;
 constexpr u32 I_FLAGS = 0x20;
 constexpr u32 I_BLOCK = 0x28;     /* 15 x u32 */
 constexpr u32 I_SIZE_HIGH = 0x6C; /* regular files only */
-constexpr u32 I_CRTIME = 0x80;    /* rev1: inside osd2 area at +0x80? actually
-                                     crtime sits in osd2[0..3]; see decode */
+/* ext4 extended inode fields (kernel fs/ext4/ext4.h): they exist only
+ * when inode_size > 128; offsets:
+ *   i_extra_isize@0x80, i_ctime_extra@0x84, i_mtime_extra@0x88,
+ *   i_atime_extra@0x8C, i_crtime@0x90, i_crtime_extra@0x94, i_version_hi@0x98
+ * extra encoding: (nsec << 2) | epoch - seconds += epoch << 32. */
+constexpr u32 I_EXTRA_ISIZE = 0x80;
+constexpr u32 I_CTIME_EXTRA = 0x84;
+constexpr u32 I_MTIME_EXTRA = 0x88;
+constexpr u32 I_ATIME_EXTRA = 0x8C;
+constexpr u32 I_CRTIME = 0x90;
+constexpr u32 I_CRTIME_EXTRA = 0x94;
+
+/* decode a 32-bit seconds field + its *_extra word (epoch bits 1..0,
+ * nsec in bits 31..2 - kernel ext4_decode_extra_time). */
+i64 decode_extra(i64 sec, u32 extra, u32& nsec_out) {
+    if ((extra & 0x3u) != 0)
+        sec += i64(u64(extra & 0x3u) << 32);
+    nsec_out = (extra & 0xFFFFFFFCu) >> 2;
+    return sec;
+}
 
 u16 ifmt(u16 mode) {
     return u16(mode & 0xF000);
@@ -264,9 +288,25 @@ bool read_inode(Volume& v, u32 ino, InodeView& iv) {
     if (ifmt(iv.mode) == 0x8000) /* regular: 64-bit size */
         size |= u64(rd32(raw + I_SIZE_HIGH)) << 32;
     iv.size = size;
-    /* crtime: rev1 lays it in osd2 bytes +4..+8 (offset 0x78+4) */
-    if (v.sb.rev_level >= 1 && v.sb.inode_size >= 0x80)
-        iv.crtime = i64(rd32(raw + 0x94));
+    /* extended fields present when the inode is larger than the 128-byte
+     * good-old layout and i_extra_isize covers them (kernel rule). */
+    if (v.sb.inode_size >= 0x98u && v.sb.rev_level >= 1) {
+        const u32 extra_isize = rd16(raw + I_EXTRA_ISIZE);
+        const u32 covered = 128u + (extra_isize <= v.sb.inode_size - 128u
+                                        ? extra_isize
+                                        : v.sb.inode_size - 128u);
+        u32 nsec = 0;
+        if (I_ATIME_EXTRA + 4 <= covered)
+            iv.atime = decode_extra(iv.atime, rd32(raw + I_ATIME_EXTRA), nsec);
+        if (I_CTIME_EXTRA + 4 <= covered)
+            iv.ctime = decode_extra(iv.ctime, rd32(raw + I_CTIME_EXTRA), nsec);
+        if (I_MTIME_EXTRA + 4 <= covered)
+            iv.mtime = decode_extra(iv.mtime, rd32(raw + I_MTIME_EXTRA), nsec);
+        if (I_CRTIME + 4 <= covered)
+            iv.crtime = i64(rd32(raw + I_CRTIME)); /* seconds */
+        if (I_CRTIME_EXTRA + 4 <= covered)
+            iv.crtime = decode_extra(iv.crtime, rd32(raw + I_CRTIME_EXTRA), nsec);
+    }
 
     u64 budget = 65536; /* P1-11: per-inode node-read budget */
     if ((iv.flags & EXTENTS_FL) != 0) {
@@ -602,49 +642,150 @@ u32 scan_ext4(IStorageDevice* slice, const Ext4ScanFlags& flags, CancelToken* ca
         }
     }
 
-    /* 5. journal salvage: walk the journal inode's extents; descriptor
-     * blocks reference data blocks that frequently hold pre-delete
-     * directory snapshots (corpus TraverseJournalDir behavior). */
+    /* 5. journal salvage (jbd2): replay committed transactions - descriptor
+     * blocks (magic 0xC03B3998, blocktype 1) reference the data blocks that
+     * follow them in the journal; those frequently hold pre-delete directory
+     * snapshots (corpus TraverseJournalDir behavior). Only transactions with
+     * a matching commit block (blocktype 2, same sequence) are considered. */
     if (flags.salvage_journal && root_lost) {
         InodeView jiv;
         if (read_inode(v, v.sb.journal_inum, jiv) && !jiv.extents.empty()) {
             std::vector<u8> jdata;
             read_extent_data(v, jiv, 64ull << 20, jdata);
             stats.journal_blocks = jdata.size() / v.sb.block_size;
-            /* journal transaction: header magic c03b3998; descriptors list
-             * data blocks; commit blocks end transactions. We scan EVERY
-             * journal block as a potential directory snapshot. */
+
+            constexpr u32 JBD2_MAGIC = 0xC03B3998u;
+            constexpr u32 JBD2_DESCRIPTOR_BLOCK = 1;
+            constexpr u32 JBD2_COMMIT_BLOCK = 2;
+            constexpr u32 JBD2_SUPERBLOCK_V2 = 3;
+            constexpr u32 JBD2_REVOKE_BLOCK = 4;
+            constexpr u32 JBD2_FLAG_LAST_TAG = 0x8;
+            constexpr u32 JBD2_INCOMPAT_64BIT = 0x2;
+            constexpr u32 JBD2_INCOMPAT_CSUM_V2 = 0x4;
+            constexpr u32 JBD2_INCOMPAT_CSUM_V3 = 0x8;
+            const u64 jblocks = stats.journal_blocks;
+
+            auto jbe32 = [&](u64 blk, u32 off) -> u32 {
+                if (blk >= jblocks)
+                    return 0;
+                return rd32(jdata.data() + blk * v.sb.block_size + off);
+            };
+            auto is_header = [&](u64 blk, u32 type, u32& seq) -> bool {
+                if (blk >= jblocks)
+                    return false;
+                const u8* p = jdata.data() + blk * v.sb.block_size;
+                if (rd32(p) != JBD2_MAGIC)
+                    return false;
+                if (rd32(p + 4) != type)
+                    return false;
+                seq = rd32(p + 8);
+                return true;
+            };
+
+            /* journal superblock (if the first block is one): feature
+             * flags decide the tag width */
+            u32 tag_extra = 0;
+            {
+                u32 seq = 0;
+                if (is_header(0, JBD2_SUPERBLOCK_V2, seq)) {
+                    const u32 incompat = jbe32(0, 40);
+                    if (incompat & JBD2_INCOMPAT_64BIT)
+                        tag_extra += 4; /* t_blocknr_high */
+                    if (incompat & (JBD2_INCOMPAT_CSUM_V2 | JBD2_INCOMPAT_CSUM_V3))
+                        tag_extra += 4; /* per-tag checksum */
+                }
+            }
+            const u32 tag_size = 8 + tag_extra;
+
+            /* pass 1: map descriptor -> tags; note committed sequences */
+            struct Txn {
+                u64 desc_block;
+                u32 sequence;
+                std::vector<u64> data_blocks; /* journal block ids */
+            };
+            std::vector<Txn> txns;
+            std::set<u32> committed;
+            {
+                u64 blk = 0;
+                while (blk < jblocks) {
+                    u32 seq = 0;
+                    if (is_header(blk, JBD2_DESCRIPTOR_BLOCK, seq)) {
+                        Txn t;
+                        t.desc_block = blk;
+                        t.sequence = seq;
+                        /* tags start after the 12-byte header; the last tag
+                         * carries JBD2_FLAG_LAST_TAG */
+                        u64 off = blk * v.sb.block_size + 12;
+                        const u64 end = (blk + 1) * v.sb.block_size;
+                        u64 expect = blk + 1;
+                        bool last = false;
+                        while (off + tag_size <= end && !last) {
+                            const u32 fl = rd32(jdata.data() + off + 4);
+                            /* tag carries t_blocknr (+high with 64BIT) but the
+                             * journal-side position is simply sequential */
+                            t.data_blocks.push_back(expect);
+                            last = (fl & JBD2_FLAG_LAST_TAG) != 0;
+                            off += tag_size;
+                            ++expect;
+                        }
+                        txns.push_back(std::move(t));
+                    } else if (is_header(blk, JBD2_COMMIT_BLOCK, seq)) {
+                        committed.insert(seq);
+                    } else if (is_header(blk, JBD2_REVOKE_BLOCK, seq)) {
+                        /* revoked blocks: recorded for context; salvage still
+                         * surfaces deleted directory snapshots */
+                    }
+                    ++blk;
+                }
+            }
+
+            /* pass 2: salvage directory entries from committed
+             * transactions' data blocks (escape-unaware blocks that begin
+             * with the zeroed magic are re-magicked for parsing) */
             std::set<std::pair<u32, std::u16string>> seen;
-            for (u64 off = 0; off + 8 <= jdata.size(); off += v.sb.block_size) {
+            for (const Txn& t : txns) {
                 if (cancel && cancel->cancelled())
                     break;
-                const u8* blk = jdata.data() + off;
-                std::vector<DirEntry> entries;
-                if (!parse_dir_block(blk, v.sb.block_size, true, entries))
-                    continue;
-                for (const auto& de : entries) {
-                    if (de.inode == 0 || de.name.empty())
-                        continue;
-                    if (de.name.size() < 2)
-                        continue;
-                    if (!seen.insert({de.inode, de.name}).second)
-                        continue;
-                    if (ctx.visited_inodes.count(de.inode))
-                        continue; /* already in the live tree */
-                    auto* props = new (std::nothrow) tree::FileProperties();
-                    if (!props)
+                if (!committed.count(t.sequence))
+                    continue; /* uncommitted tail: not durable */
+                for (u64 jb : t.data_blocks) {
+                    if (jb >= jblocks)
                         break;
-                    props->name = de.name;
-                    props->fs_kind = 9;
-                    props->record_ref = de.inode;
-                    props->attributes = de.type == 2 ? 0x10 : 0;
-                    tree::FileNode* n = tree.add_file(root_lost, props);
-                    props->release();
-                    if (n) {
-                        n->set_origin(tree::Origin::Lost);
-                        n->set_deleted_state(tree::DeletedState::Deleted);
-                        n->set_confidence(tree::Confidence::PartialRisk);
-                        ++stats.journal_salvaged;
+                    u8* raw = jdata.data() + jb * v.sb.block_size;
+                    /* escaped block: first 4 bytes were zeroed because they
+                     * collided with the journal magic; restore for parsing */
+                    std::vector<u8> unescaped;
+                    const u8* blk = raw;
+                    if (rd32(raw) == 0) {
+                        unescaped.assign(raw, raw + v.sb.block_size);
+                        wr32(unescaped.data(), JBD2_MAGIC);
+                        blk = unescaped.data();
+                    }
+                    std::vector<DirEntry> entries;
+                    if (!parse_dir_block(blk, v.sb.block_size, true, entries))
+                        continue;
+                    for (const auto& de : entries) {
+                        if (de.inode == 0 || de.name.empty() || de.name.size() < 2)
+                            continue;
+                        if (!seen.insert({de.inode, de.name}).second)
+                            continue;
+                        if (ctx.visited_inodes.count(de.inode))
+                            continue; /* already in the live tree */
+                        auto* props = new (std::nothrow) tree::FileProperties();
+                        if (!props)
+                            break;
+                        props->name = de.name;
+                        props->fs_kind = 9;
+                        props->record_ref = de.inode;
+                        props->attributes = de.type == 2 ? 0x10 : 0;
+                        tree::FileNode* n = tree.add_file(root_lost, props);
+                        props->release();
+                        if (n) {
+                            n->set_origin(tree::Origin::Lost);
+                            n->set_deleted_state(tree::DeletedState::Deleted);
+                            n->set_confidence(tree::Confidence::PartialRisk);
+                            ++stats.journal_salvaged;
+                        }
                     }
                 }
             }
