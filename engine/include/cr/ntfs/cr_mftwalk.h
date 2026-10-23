@@ -60,7 +60,7 @@ struct WalkStats {
     u64 usn_records = 0;      /* journal records parsed */
     u64 usn_names = 0;        /* deleted names the MFT pass missed */
     u64 usn_damaged_runs = 0; /* $J runs that failed to read (zeros kept) */
-    u64 recycle_info = 0; /* $Recycle.Bin $I metadata files parsed */
+    u64 recycle_info = 0;     /* $Recycle.Bin $I metadata files parsed */
 };
 
 /* Progress callback: (done, total) with 0..10000 scale. Return false to

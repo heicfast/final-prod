@@ -248,9 +248,8 @@ u32 discover(IStorageDevice* disk, const std::vector<table::PartitionInfo>& know
             if (c.sector_count == 0)
                 /* no probe set a size: bound by the device tail (audit row
                  * 31b - the old fabricated 2048 hid real geometry) */
-                c.sector_count = disk->size() / ls > c.start_lba
-                                     ? disk->size() / ls - c.start_lba
-                                     : 1;
+                c.sector_count =
+                    disk->size() / ls > c.start_lba ? disk->size() / ls - c.start_lba : 1;
             /* bound by device tail */
             if (c.start_lba + c.sector_count > disk->size() / ls)
                 c.sector_count = disk->size() / ls - c.start_lba;

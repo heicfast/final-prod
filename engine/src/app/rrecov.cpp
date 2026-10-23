@@ -451,7 +451,7 @@ int cmd_scan(int argc, wchar_t** argv, int& i) {
             win::PhysicalDiskList list;
             if (win::enumerate_disks(32, list) == OK) {
                 auto guid_map = std::make_shared<std::map<table::LdmGuid, IStorageDevice*>>();
-                for (const auto& pd : list.disks) {
+                for (const auto& pd : list) {
                     u32 oerr = 0;
                     auto dev = win::open_disk(pd.number, true, L"RDA", &oerr);
                     if (!dev)
