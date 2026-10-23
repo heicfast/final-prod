@@ -850,3 +850,20 @@ Stage Summary:
 - Closed this session: G-04/05/06 (progress/ETA/live map), G-07 (pause/resume), G-08 (dirs), G-09 (report), G-10 (preview), G-12 (query), G-14, G-23, D-3 + the O(n^2) tree fix.
 - REMAINING for UI-readiness: #1/#2 (C ABI shim cr_ui.dll + mid-scan snapshot ADR + TSan), #9 (auto-checkpoint CheckpointSink), #10 remainder (G-11 disposition note, G-15..G-22 table), CLI tree --json (W2-2), README capability matrix, session #8's stage-weights doc, release tag + handoff pin for the UI agent.
 - Handoff note for the shim agent: telemetry()/resume()/report_items()/query run()/PreviewReader are the five surfaces to wrap; all are pure-core, no OS deps, and testable on Linux CI before the Windows DLL lane.
+
+---
+Task ID: UI-SESSION-HANDOFF
+Agent: Core UI-Readiness Sub-Agent (session continuation — FINAL)
+Task: G-13 auto-checkpoint + session handoff record.
+
+Work Log:
+- G-13 closed (commit be8875f): ScanConfig::CheckpointSink; stage-boundary emission of a full truthful session; crash-resume + corrupt-magic tests; 179/179 green.
+- Evidence comments posted on issues #3 #4 #5 #6 #7 #8 #9 with commits + acceptance proof.
+- Session issue-tracker state: #3-#9 have implementation + tests + evidence comments. Remaining open work: #1 (C ABI shim), #2 (mid-scan snapshot + ADR), #10 (umbrella remainder).
+
+Stage Summary (what the next agent MUST read first):
+- COMMITS this session: 804972a (W1 pause/telemetry/session-truth + 3 silent-failure fixes), 91053b0 (G-08 writer dirs + ConflictPolicy), 1803d2b (G-09 report JSON + CI validator), fdc2cf9 (D-3 docs + worklog), 35f4652 (G-10 preview + extractors + fuzz), 365c263 (G-12 query + O(1) tree appends), be8875f (G-13 checkpoint). All rebased over the parity agent's waves; main green at be8875f (179/179 ASan+LSan).
+- Surfaces ready to wrap in the cr_ui shim: ScanController::run/telemetry/resume/load_session_summary/save_session; SafeWriter queue/process/report_items/report_totals; report::build_report; query::run; PreviewReader + extract_metadata. All pure-core (Linux-testable before the Windows DLL lane).
+- Known remaining scope (do NOT re-derive): #1/#2 = C ABI header inc/cr_ui.h per CORE-CONTRACT.md section 2 + snapshot ADR (copy-on-write at stage boundaries is the preferred shape; telemetry()/checkpoint hooks already give the boundary points; TSan tests); #10 = G-11 (.rsf import) disposition note + G-15..G-22 table + README capability matrix + ground-truth-contracts extension; CLI tree --json projection (query::run rows; --csv grammar frozen byte-identical).
+- Coordination: the parity agent (issue comments + PARITY-AUDIT docs) and this agent have been pushing concurrently; pull before push EVERY time (3 rebases this session); their fixes touched my headers/tests (format, TSan race, MSVC) - re-run the full suite after every rebase.
+- Win7/MSVC notes for the shim: cr_tests now links std::filesystem (test_writer_dirs) - the DLL target itself must stay free of it; /W4 /WX + a small C consumer test per the plan.
