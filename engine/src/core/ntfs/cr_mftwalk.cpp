@@ -17,10 +17,20 @@ namespace ntfs {
 
 namespace {
 
+constexpr u32 FRAG_DEPTH_LIMIT = 64;         /* attrlist chase depth (bootstrap parity) */
+constexpr u64 USN_HARVEST_CAP = 64ull << 20; /* journal bytes mined (audit plan) */
+
 struct EmittedNode {
     tree::FileNode* node = nullptr;
     u64 parent_record = 0;
     bool parent_resolved = false;
+};
+
+/* Journal evidence for one deleted name (USN_RECORD_V2 fields). */
+struct UsnEvidence {
+    std::u16string name;
+    u64 parent_record = 0;
+    u64 timestamp = 0;
 };
 
 int namespace_rank(u8 ns) {
@@ -128,6 +138,10 @@ u32 walk_mft(NtfsVolume* vol, VolumeBitmap* bitmap, const WalkerFlags& flags, Ca
     std::vector<EmittedNode> emitted;
     emitted.reserve(4096);
 
+    /* $Extend/$UsnJrnl:$J capture (harvest input) */
+    RunList usn_runs;
+    bool have_usn = false;
+
     /* temp record buffer with fixup scratch */
     std::vector<u8> rec;
     for (u64 record_no = 0; record_no < max_record; ++record_no) {
@@ -174,62 +188,82 @@ u32 walk_mft(NtfsVolume* vol, VolumeBitmap* bitmap, const WalkerFlags& flags, Ca
         }
 
         /* $ATTRIBUTE_LIST chase (F6): read child records, merge their
-         * fragments into the views (single level - deeper lists are corrupt). */
+         * fragments into the views. Child records may carry their own
+         * $ATTRIBUTE_LIST (nested lists) - followed breadth-first to
+         * FRAG_DEPTH_LIMIT with cycle guards, like the bootstrap's
+         * fragmented-MFT path (audit row 6a). */
         if (!attrlist.empty()) {
             std::vector<AttrView> merged = attrs;
             std::vector<u64> visited;
-            for (const AttrListEntry& e : attrlist) {
-                if (e.type != ATTR_TYPE_DATA && e.type != ATTR_TYPE_INDEX_ALLOCATION)
-                    continue;
-                u64 child = mft_reference_record(e.record_ref);
-                if (child == record_no || child >= max_record)
-                    continue;
-                bool cyc = false;
-                for (u64 v : visited)
-                    if (v == child) {
-                        cyc = true;
-                        break;
-                    }
-                if (cyc) {
-                    ++stats.damaged;
-                    continue;
-                }
-                visited.push_back(child);
-                std::vector<u8> crec;
-                if (vol->read_record(child, crec) != OK)
-                    continue;
-                RecordHeader crh;
-                std::memcpy(&crh, crec.data(), sizeof(crh));
-                if (crh.magic != RECORD_MAGIC_FILE)
-                    continue;
-                if (fixup_apply(crec.data(), u32(crec.size()), crh.update_sequence_offset,
-                                crh.update_sequence_size, sector_bytes) != OK)
-                    continue;
-                std::vector<AttrView> cattrs;
-                if (enum_attributes(crec.data(), u32(crec.size()), cattrs) != OK)
-                    continue;
-                for (const AttrView& ca : cattrs) {
-                    if (ca.type != ATTR_TYPE_DATA && ca.type != ATTR_TYPE_INDEX_ALLOCATION)
+            std::vector<AttrListEntry> frontier = attrlist;
+            for (int level = 0; level < int(FRAG_DEPTH_LIMIT) && !frontier.empty(); ++level) {
+                std::vector<AttrListEntry> next;
+                for (const AttrListEntry& e : frontier) {
+                    if (e.type != ATTR_TYPE_DATA && e.type != ATTR_TYPE_INDEX_ALLOCATION &&
+                        e.type != ATTR_TYPE_ATTRIBUTE_LIST)
                         continue;
-                    merged.push_back(ca);
-                    /* fold runlists directly */
-                    if (ca.type == ATTR_TYPE_DATA && ca.nonresident && ca.name_length == 0) {
-                        RunList rl;
-                        if (parse_data_runs(ca, vol->params().total_clusters, rl) == OK) {
-                            for (const DataRun& r : rl.runs())
-                                data_runs.runs().push_back(r);
-                            has_data = true;
+                    u64 child = mft_reference_record(e.record_ref);
+                    if (child == record_no || child >= max_record)
+                        continue;
+                    bool cyc = false;
+                    for (u64 v : visited)
+                        if (v == child) {
+                            cyc = true;
+                            break;
                         }
+                    if (cyc) {
+                        ++stats.damaged;
+                        continue;
                     }
-                    if (ca.type == ATTR_TYPE_INDEX_ALLOCATION && ca.nonresident) {
-                        RunList rl;
-                        if (parse_data_runs(ca, vol->params().total_clusters, rl) == OK) {
-                            for (const DataRun& r : rl.runs())
-                                i30_runs.runs().push_back(r);
-                            has_i30 = true;
+                    visited.push_back(child);
+                    std::vector<u8> crec;
+                    if (vol->read_record(child, crec) != OK)
+                        continue;
+                    RecordHeader crh;
+                    std::memcpy(&crh, crec.data(), sizeof(crh));
+                    if (crh.magic != RECORD_MAGIC_FILE)
+                        continue;
+                    if (fixup_apply(crec.data(), u32(crec.size()), crh.update_sequence_offset,
+                                    crh.update_sequence_size, sector_bytes) != OK)
+                        continue;
+                    std::vector<AttrView> cattrs;
+                    if (enum_attributes(crec.data(), u32(crec.size()), cattrs) != OK)
+                        continue;
+                    for (const AttrView& ca : cattrs) {
+                        if (ca.type != ATTR_TYPE_DATA && ca.type != ATTR_TYPE_INDEX_ALLOCATION &&
+                            ca.type != ATTR_TYPE_ATTRIBUTE_LIST)
+                            continue;
+                        merged.push_back(ca);
+                        /* fold runlists directly */
+                        if (ca.type == ATTR_TYPE_DATA && ca.nonresident && ca.name_length == 0) {
+                            RunList rl;
+                            if (parse_data_runs(ca, vol->params().total_clusters, rl) == OK) {
+                                for (const DataRun& r : rl.runs())
+                                    data_runs.runs().push_back(r);
+                                has_data = true;
+                            }
+                        }
+                        if (ca.type == ATTR_TYPE_INDEX_ALLOCATION && ca.nonresident) {
+                            RunList rl;
+                            if (parse_data_runs(ca, vol->params().total_clusters, rl) == OK) {
+                                for (const DataRun& r : rl.runs())
+                                    i30_runs.runs().push_back(r);
+                                has_i30 = true;
+                            }
+                        }
+                        if (ca.type == ATTR_TYPE_ATTRIBUTE_LIST) {
+                            /* nested list: queue its entries for the next
+                             * level (resident content only - the entry
+                             * bytes live inside the child record) */
+                            if (!ca.nonresident) {
+                                std::vector<AttrListEntry> nested;
+                                if (parse_attr_list_entries(ca, nested) == OK)
+                                    next.insert(next.end(), nested.begin(), nested.end());
+                            }
                         }
                     }
                 }
+                frontier = std::move(next);
             }
             attrs = std::move(merged);
         }
@@ -247,6 +281,22 @@ u32 walk_mft(NtfsVolume* vol, VolumeBitmap* bitmap, const WalkerFlags& flags, Ca
 
         /* corpus filters: '$'-prefixed metafiles; SYSTEM files (flags & 4) */
         if (!best->name.empty() && best->name[0] == u'$') {
+            /* $UsnJrnl: capture the $J stream for the post-walk harvest
+             * (journal-evidenced deleted names the MFT pass missed) */
+            if (best->name == u"$UsnJrnl") {
+                for (const AttrView& a : attrs) {
+                    if (a.type != ATTR_TYPE_DATA || !a.nonresident)
+                        continue;
+                    std::u16string an = attr_name(a);
+                    if (an != u"$J")
+                        continue;
+                    RunList rl;
+                    if (parse_data_runs(a, vol->params().total_clusters, rl) == OK) {
+                        usn_runs = rl;
+                        have_usn = true;
+                    }
+                }
+            }
             ++stats.meta_skipped;
             continue;
         }
@@ -333,6 +383,7 @@ u32 walk_mft(NtfsVolume* vol, VolumeBitmap* bitmap, const WalkerFlags& flags, Ca
          * $FILE_NAME); hard links duplicate props (rare) - dedup via
          * record_ref downstream (writer + merge). */
         tree::FullNode* default_root = in_use ? root_active : root_deleted;
+        tree::FileNode* first_link_node = nullptr; /* canonical link: ADS host */
         for (u64 p : parents) {
             /* this link's name: highest-namespace FILE_NAME with this parent */
             const FileNameInfo* link_name = &names[0];
@@ -369,18 +420,15 @@ u32 walk_mft(NtfsVolume* vol, VolumeBitmap* bitmap, const WalkerFlags& flags, Ca
             }
             n->set_confidence(conf);
             n->set_origin(tree::Origin::Structured);
+            if (first_link_node == nullptr)
+                first_link_node = n; /* audit row 6c: ADS attaches to the
+                                        canonical (first) link, not the last */
             emitted.push_back({n, p, false});
             ++stats.emitted;
         }
-        /* each add_file call holds one ref; drop the builder's ref for clones */
-        props->release(); /* nodes hold the refs */
-        if (in_use)
-            ++stats.active;
-        else
-            ++stats.deleted;
-
-        /* ADS: named $DATA -> child nodes (R2.3) */
-        if (flags.emit_ads && !is_dir) {
+        /* ADS: named $DATA -> child nodes (R2.3), attached under the
+         * canonical (first) link node of this record */
+        if (flags.emit_ads && !is_dir && first_link_node != nullptr) {
             for (const AttrView& a : attrs) {
                 if (a.type != ATTR_TYPE_DATA || a.name_length == 0)
                     continue;
@@ -396,10 +444,11 @@ u32 walk_mft(NtfsVolume* vol, VolumeBitmap* bitmap, const WalkerFlags& flags, Ca
                     const u8* d = nullptr;
                     u32 dlen = 0;
                     if (resident_span(a, d, dlen) == OK && dlen > 0) {
-                        /* resident stream payload: record an extent pointing
-                         * into the record buffer is invalid post-scan; store
-                         * size only - content recovered via record re-read */
+                        /* resident stream payload: kept with the props so
+                         * the writer can emit the actual content (audit row
+                         * 6b - size-only left the stream unrecoverable) */
                         sp->logical_size = dlen;
+                        sp->resident_data.assign(d, d + dlen);
                     }
                 } else {
                     RunList rl;
@@ -415,23 +464,22 @@ u32 walk_mft(NtfsVolume* vol, VolumeBitmap* bitmap, const WalkerFlags& flags, Ca
                 sp->times = props->times;
                 sp->attributes = props->attributes;
                 sp->flags = props->flags;
-                /* ADS nodes attach directly under the LAST created node of
-                 * this record (the primary hard link) */
-                if (!emitted.empty()) {
-                    tree::FileNode* host = emitted.back().node;
-                    sp->name = props->name + u":" + sname;
-                    tree::FileNode* adn = tree.add_file(host, sp);
-                    if (adn) {
-                        adn->set_origin(tree::Origin::Structured);
-                        adn->set_confidence(conf);
-                        ++stats.ads;
-                    }
-                    sp->release();
-                } else {
-                    sp->release();
+                sp->name = props->name + u":" + sname;
+                tree::FileNode* adn = tree.add_file(first_link_node, sp);
+                if (adn) {
+                    adn->set_origin(tree::Origin::Structured);
+                    adn->set_confidence(conf);
+                    ++stats.ads;
                 }
+                sp->release();
             }
         }
+        /* each add_file call holds one ref; drop the builder's ref for clones */
+        props->release(); /* nodes hold the refs */
+        if (in_use)
+            ++stats.active;
+        else
+            ++stats.deleted;
     }
 
     /* ---- phase B: resolve parents (orphans -> root_lost) ---- */
@@ -460,6 +508,116 @@ u32 walk_mft(NtfsVolume* vol, VolumeBitmap* bitmap, const WalkerFlags& flags, Ca
             /* deleted/unresolved -> lost root for coherent display; active
              * orphans (rare: parent record itself damaged) go there too */
             tree.reparent(e.node, root_lost);
+        }
+    }
+
+    /* ---- phase C: $UsnJrnl harvest (audit row 7) ----
+     *
+     * Journal-evidenced names the MFT pass missed (record reused or wiped):
+     * parse USN_RECORD_V2 entries from $Extend/$UsnJrnl:$J (bounded), keep
+     * entries carrying FILE_DELETE, and emit the ones whose (parent, name)
+     * the structured walk did not produce. */
+    if (flags.harvest_usnjrnl && have_usn && !usn_runs.empty()) {
+        std::vector<u8> jbuf;
+        u64 jtotal = 0;
+        for (const DataRun& dr : usn_runs.runs()) {
+            if (dr.sparse || dr.length == 0)
+                continue;
+            jtotal += dr.length * vol->params().cluster_bytes;
+        }
+        if (jtotal > USN_HARVEST_CAP)
+            jtotal = USN_HARVEST_CAP;
+        jbuf.resize(size_t(jtotal));
+        u64 got = 0;
+        for (const DataRun& dr : usn_runs.runs()) {
+            if (got >= jtotal)
+                break;
+            if (dr.sparse || dr.length == 0)
+                continue;
+            u64 take = dr.length * vol->params().cluster_bytes;
+            if (take > jtotal - got)
+                take = jtotal - got;
+            if (vol->read_at(dr.lcn * vol->params().cluster_bytes, jbuf.data() + got, u32(take)) !=
+                OK)
+                break;
+            got += take;
+        }
+        /* structured names for dedup: (parent record, name) */
+        std::vector<std::pair<u64, std::u16string>> known;
+        known.reserve(emitted.size());
+        for (const EmittedNode& e : emitted) {
+            if (e.node->props() != nullptr)
+                known.emplace_back(e.parent_record, e.node->props()->name);
+        }
+        /* walk the journal: USN_RECORD_V2 (winioctl.h layout) */
+        std::vector<UsnEvidence> evidence;
+        size_t jp = 0;
+        while (jp + 64 <= jbuf.size()) {
+            const u32 rlen = u32(jbuf[jp]) | (u32(jbuf[jp + 1]) << 8) | (u32(jbuf[jp + 2]) << 16) |
+                             (u32(jbuf[jp + 3]) << 24);
+            if (rlen < 64 || jp + rlen > jbuf.size())
+                break; /* zero tail / damaged journal: stop */
+            const u16 major = u16(jbuf[jp + 4]) | (u16(jbuf[jp + 5]) << 8);
+            if (major != 2) {
+                jp += rlen; /* V3 or unknown: self-describing length */
+                continue;
+            }
+            const u64 parent = mft_reference_record(u64_from_bytes_le(jbuf.data() + jp + 16));
+            const u64 ts = u64_from_bytes_le(jbuf.data() + jp + 32);
+            const u32 reason = u32(jbuf[jp + 40]) | (u32(jbuf[jp + 41]) << 8) |
+                               (u32(jbuf[jp + 42]) << 16) | (u32(jbuf[jp + 43]) << 24);
+            const u32 namelen = u32(jbuf[jp + 56]) | (u32(jbuf[jp + 57]) << 8) |
+                                (u32(jbuf[jp + 58]) << 16) | (u32(jbuf[jp + 59]) << 24);
+            const u32 nameoff = u32(jbuf[jp + 60]) | (u32(jbuf[jp + 61]) << 8) |
+                                (u32(jbuf[jp + 62]) << 16) | (u32(jbuf[jp + 63]) << 24);
+            ++stats.usn_records;
+            if ((reason & USN_REASON_FILE_DELETE) != 0 && namelen > 0 && namelen <= 512 &&
+                nameoff >= 64 && size_t(nameoff) + namelen <= rlen && (namelen & 1) == 0) {
+                std::u16string nm(namelen / 2, u'\0');
+                for (u32 i = 0; i < namelen / 2; i++)
+                    nm[i] = u16(jbuf[jp + nameoff + i * 2]) |
+                            (u16(jbuf[jp + nameoff + i * 2 + 1]) << 8);
+                if (!nm.empty() && nm[0] != u'$')
+                    evidence.push_back({nm, parent, ts});
+            }
+            jp += rlen;
+        }
+        /* dedup against structured results, then emit under root_lost */
+        for (const UsnEvidence& ev : evidence) {
+            bool dup = false;
+            for (const auto& k : known)
+                if (k.first == ev.parent_record && k.second == ev.name) {
+                    dup = true;
+                    break;
+                }
+            if (dup)
+                continue;
+            for (const UsnEvidence& prior : evidence) {
+                if (&prior == &ev)
+                    break;
+                if (prior.parent_record == ev.parent_record && prior.name == ev.name) {
+                    dup = true; /* same (parent, name) twice in the journal */
+                    break;
+                }
+            }
+            if (dup)
+                continue;
+            tree::FileProperties* jp2 = new (std::nothrow) tree::FileProperties();
+            if (jp2 == nullptr)
+                break;
+            jp2->name = ev.name;
+            jp2->fs_kind = 3;
+            jp2->logical_size = 0; /* journal carries no size */
+            jp2->flags = 0;
+            jp2->times.modified = ev.timestamp;
+            tree::FileNode* jn = tree.add_file(root_lost, jp2);
+            if (jn) {
+                jn->set_origin(tree::Origin::Lost);
+                jn->set_deleted_state(tree::DeletedState::Deleted);
+                jn->set_confidence(tree::Confidence::MetadataOnly);
+                ++stats.usn_names;
+            }
+            jp2->release();
         }
     }
 
@@ -497,19 +655,89 @@ void scan_remnant_buffer(RemnantCtx& ctx, const u8* buf, u64 buf_len) {
         const u8* rec = buf + off;
         if (std::memcmp(rec, "FILE", 4) != 0)
             continue;
+        bool emitted_any = false;
         std::vector<u8> fix(size_t(ctx.record_size));
         std::memcpy(fix.data(), rec, size_t(ctx.record_size));
         RecordHeader rh;
         std::memcpy(&rh, fix.data(), sizeof(rh));
-        if (rh.magic != RECORD_MAGIC_FILE)
+        /* every parse failure below falls through to the shifted-header
+         * salvage (og behavior: the probe runs on the failed record) */
+        if (rh.magic == RECORD_MAGIC_FILE &&
+            fixup_apply(fix.data(), u32(fix.size()), rh.update_sequence_offset,
+                        rh.update_sequence_size, ctx.sector_bytes) == OK) {
+            std::vector<AttrView> attrs;
+            if (enum_attributes(fix.data(), u32(fix.size()), attrs) == OK) {
+                for (const AttrView& a : attrs) {
+                    if (a.type != ATTR_TYPE_FILE_NAME)
+                        continue;
+                    FileNameInfo fi;
+                    if (parse_file_name(a, fi) != OK)
+                        continue;
+                    if (fi.name.empty() || fi.name[0] == u'$')
+                        continue;
+                    tree::FileProperties* props = new (std::nothrow) tree::FileProperties();
+                    if (props == nullptr) {
+                        ctx.aborted.store(true, std::memory_order_relaxed);
+                        return;
+                    }
+                    props->name = fi.name;
+                    props->fs_kind = 3;
+                    props->logical_size = fi.real_size;
+                    props->times = fi.times;
+                    props->attributes = u16(fi.dos_flags & 0xFF);
+                    props->flags = 0; /* detached: no in-use knowledge */
+                    tree::FileNode* n = ctx.tree->add_file(ctx.root_lost, props);
+                    if (n) {
+                        n->set_origin(tree::Origin::Lost);
+                        n->set_deleted_state(tree::DeletedState::Damaged);
+                        n->set_confidence(tree::Confidence::MetadataOnly);
+                        ctx.emitted.fetch_add(1, std::memory_order_relaxed);
+                    }
+                    props->release();
+                    emitted_any = true;
+                    break; /* first valid $FILE_NAME is enough for a remnant */
+                }
+            }
+        }
+        if (emitted_any)
             continue;
-        if (fixup_apply(fix.data(), u32(fix.size()), rh.update_sequence_offset,
-                        rh.update_sequence_size, ctx.sector_bytes) != OK)
+        /* og shifted-header salvage (NTFSSearchDLL FUN_18002a780): when a
+         * candidate's header parses as 'FILE' but yields no record, probe
+         * for a healthy "FILE"+0x30 ('FILE0': magic + the typical
+         * usa_offset low byte) at +0x58, else +0x60, and parse the record
+         * from there into a zeroed record_size buffer (tail bytes beyond
+         * the shifted window are lost - a partial record with a valid
+         * $FILE_NAME still earns a Lost node). */
+        u32 delta = 0;
+        if (0x58 + 0x70 <= ctx.record_size && std::memcmp(rec + 0x58, "FILE", 4) == 0 &&
+            rec[0x58 + 4] == '0')
+            delta = 0x58;
+        else if (0x60 + 0x70 <= ctx.record_size && std::memcmp(rec + 0x60, "FILE", 4) == 0 &&
+                 rec[0x60 + 4] == '0')
+            delta = 0x60;
+        if (delta == 0)
             continue;
-        std::vector<AttrView> attrs;
-        if (enum_attributes(fix.data(), u32(fix.size()), attrs) != OK)
+        /* full record when the block buffer reaches past the shift (the
+         * og copied only record_size - delta bytes - a buffer artifact;
+         * the full read recovers the record's tail); at the buffer edge
+         * we fall back to the og's truncated form (fixup may refuse) */
+        const u64 from_delta = buf_len - (off + delta);
+        const u64 avail = from_delta >= ctx.record_size ? ctx.record_size : ctx.record_size - delta;
+        if (avail < 0x70)
             continue;
-        for (const AttrView& a : attrs) {
+        std::vector<u8> shifted(size_t(ctx.record_size), 0);
+        std::memcpy(shifted.data(), rec + delta, size_t(avail));
+        RecordHeader srh;
+        std::memcpy(&srh, shifted.data(), sizeof(srh));
+        if (srh.magic != RECORD_MAGIC_FILE)
+            continue;
+        if (fixup_apply(shifted.data(), u32(shifted.size()), srh.update_sequence_offset,
+                        srh.update_sequence_size, ctx.sector_bytes) != OK)
+            continue;
+        std::vector<AttrView> sattrs;
+        if (enum_attributes(shifted.data(), u32(shifted.size()), sattrs) != OK)
+            continue;
+        for (const AttrView& a : sattrs) {
             if (a.type != ATTR_TYPE_FILE_NAME)
                 continue;
             FileNameInfo fi;
@@ -527,7 +755,7 @@ void scan_remnant_buffer(RemnantCtx& ctx, const u8* buf, u64 buf_len) {
             props->logical_size = fi.real_size;
             props->times = fi.times;
             props->attributes = u16(fi.dos_flags & 0xFF);
-            props->flags = 0; /* detached: no in-use knowledge */
+            props->flags = 0;
             tree::FileNode* n = ctx.tree->add_file(ctx.root_lost, props);
             if (n) {
                 n->set_origin(tree::Origin::Lost);
@@ -536,7 +764,7 @@ void scan_remnant_buffer(RemnantCtx& ctx, const u8* buf, u64 buf_len) {
                 ctx.emitted.fetch_add(1, std::memory_order_relaxed);
             }
             props->release();
-            break; /* first valid $FILE_NAME is enough for a remnant */
+            break;
         }
     }
 }

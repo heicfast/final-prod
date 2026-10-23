@@ -35,8 +35,14 @@ struct WalkerFlags {
     bool skip_system_files = true;  /* corpus: dos_flags & 4 -> skip */
     bool keep_overwritten = true;   /* fix F5: grade instead of destroy */
     bool emit_ads = true;           /* named $DATA -> child nodes */
+    bool harvest_usnjrnl = true;    /* $Extend/$UsnJrnl:$J deleted-name harvest */
     u64 viability_min_size = 0x3FF; /* corpus gate (files < 1 KiB fast-path) */
 };
+
+/* USN reasons (winioctl.h USN_REASON_*): the journal records we mine for
+ * deleted-name evidence. */
+constexpr u32 USN_REASON_FILE_CREATE = 0x00010000;
+constexpr u32 USN_REASON_FILE_DELETE = 0x00020000;
 
 struct WalkStats {
     u64 examined = 0;
@@ -49,6 +55,8 @@ struct WalkStats {
     u64 orphans = 0;
     u64 hardlinks = 0;
     u64 ads = 0;
+    u64 usn_records = 0; /* journal records parsed */
+    u64 usn_names = 0;   /* deleted names the MFT pass missed */
 };
 
 /* Progress callback: (done, total) with 0..10000 scale. Return false to

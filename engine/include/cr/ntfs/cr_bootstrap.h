@@ -54,7 +54,17 @@ public:
     const VolumeParams& params() const { return p_; }
     IStorageDevice* device() const { return dev_.get(); }
     u64 max_record_no() const {
-        return p_.record_size ? mft_run_.total_clusters() * p_.cluster_bytes / p_.record_size : 0;
+        if (p_.record_size == 0)
+            return 0;
+        /* the record gate must cover the fragmented-MFT extents too:
+         * the $ATTRIBUTE_LIST fragments extend the stream beyond the
+         * primary $DATA run (session-5 audit row 3 - extent records were
+         * unreachable before). Holes simply fail vcn_to_lcn downstream. */
+        u64 covered = mft_run_.total_clusters();
+        for (const DataRun& dr : mft_extents_)
+            if (dr.vcn + dr.length > covered)
+                covered = dr.vcn + dr.length;
+        return covered * p_.cluster_bytes / p_.record_size;
     }
 
     /* True when record falls inside the first-MFT-reader region already

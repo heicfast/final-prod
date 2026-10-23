@@ -128,18 +128,57 @@ u32 NtfsVolume::load_mft_stream() {
             have_data = true;
         } else if (type == ATTR_TYPE_ATTRIBUTE_LIST) {
             /* corpus: "MFT file record has 0x20 attribute" path - keep the
-             * content bytes; after the loop we reassemble from child records */
+             * content bytes; after the loop we reassemble from child records.
+             * Nonresident lists are legal (huge, fragmented $MFTs) - the og
+             * chases them (FUN_18001a540 fragmented-MFT handler); decode the
+             * runlist and read the stream, bounded (attrlists stay small even
+             * when nonresident - 1 MiB cap against corrupt size fields). */
             if (nonresident) {
-                return ERR_UNSUPPORTED; /* $MFT's own attr list is resident in
-                                           practice; guard rather than hang */
+                if (pos + 16 + sizeof(NonresidentTail) > buf.size())
+                    return ERR_BAD_PARAMETER;
+                NonresidentTail na;
+                std::memcpy(&na, buf.data() + pos + 16, sizeof(na));
+                if (na.runlist_offset < 0x40 || u32(na.runlist_offset) + 8 > len)
+                    return ERR_BAD_PARAMETER;
+                RunList rl;
+                if (RunList::decode(buf.data() + pos + na.runlist_offset, len - na.runlist_offset,
+                                    na.start_vcn, p_.total_clusters, rl) != OK)
+                    return ERR_BAD_PARAMETER;
+                u64 want = na.actual != 0 ? na.actual : na.allocated;
+                if (want == 0 || want > (1ull << 20))
+                    return ERR_BAD_PARAMETER;
+                attrlist_extra.assign(size_t(want), 0);
+                u64 got = 0;
+                for (const DataRun& dr : rl.runs()) {
+                    if (got >= want)
+                        break;
+                    u64 run_bytes = dr.length * p_.cluster_bytes;
+                    if (run_bytes == 0)
+                        continue;
+                    if (!dr.sparse) {
+                        const u64 take = run_bytes < want - got ? run_bytes : want - got;
+                        if (dev_->read_at(dr.lcn * p_.cluster_bytes, attrlist_extra.data() + got,
+                                          u32(take)) != OK)
+                            return ERR_READ_FAILED;
+                        got += take;
+                    } else {
+                        /* sparse region: zeros (the vector is zero-initialized) */
+                        got += run_bytes < want - got ? run_bytes : want - got;
+                    }
+                }
+                attrlist_extra.resize(size_t(got));
+                if (attrlist_extra.empty())
+                    return ERR_BAD_PARAMETER;
+                have_attr_list = true;
+            } else {
+                ResidentAttributeHeader ra;
+                std::memcpy(&ra, buf.data() + pos, sizeof(ra));
+                if (u64(ra.value_offset) + u64(ra.value_length) > u64(len))
+                    return ERR_BAD_PARAMETER;
+                attrlist_extra.assign(buf.begin() + pos + ra.value_offset,
+                                      buf.begin() + pos + ra.value_offset + ra.value_length);
+                have_attr_list = true;
             }
-            ResidentAttributeHeader ra;
-            std::memcpy(&ra, buf.data() + pos, sizeof(ra));
-            if (u64(ra.value_offset) + u64(ra.value_length) > u64(len))
-                return ERR_BAD_PARAMETER;
-            attrlist_extra.assign(buf.begin() + pos + ra.value_offset,
-                                  buf.begin() + pos + ra.value_offset + ra.value_length);
-            have_attr_list = true;
         }
         pos += len;
         if (name_off > len)

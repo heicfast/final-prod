@@ -313,3 +313,52 @@ Stage Summary:
 - P1-12 done; benchmark stack restructured; CI unblocked for the parallel
   agents. Open: LDM full, NTFS attrlist/UsnJrnl/FILE0, carve depth
   (raw_signs layer), CachedReader wiring (#40) - parallel agents' waves.
+
+---
+Task ID: S5-NTFS
+Agent: main (session 5 continuation)
+Task: NTFS wave - audit rows 3, 6, 7 (attrlist depth, resident ADS, ADS attach, FILE0 salvage, UsnJrnl harvest).
+
+Work Log:
+- Bootstrap (row 3): nonresident $ATTRIBUTE_LIST on $MFT no longer returns
+  ERR_UNSUPPORTED - runlist decode + bounded stream read (1 MiB cap, sparse runs
+  zero-filled), feeding the same fragmented-MFT reassembly as the resident path
+  (og FUN_18001a540 parity).
+- Latent bug found while testing that path: max_record_no() gated on the primary
+  $DATA run only, so fragmented-MFT extension records were UNREACHABLE (the F6
+  chase assembled extents nothing could read). The gate now covers extent runs.
+- Walker (row 6a): the $ATTRIBUTE_LIST chase is breadth-first multi-level
+  (FRAG_DEPTH_LIMIT 64, cycle-guarded) - child records carrying their own
+  $ATTRIBUTE_LIST queue their entries for the next level.
+- Walker (row 6b): resident ADS content is stored in props->resident_data
+  (bounded by the record) so the writer emits real bytes instead of a size.
+- Walker (row 6c): ADS nodes attach to the canonical (first-emitted) hard link,
+  not emitted.back().
+- Walker (row 7): $UsnJrnl harvest - the $-skip branch captures $UsnJrnl's $J
+  runs during the walk; phase C reads the stream (64 MiB cap), parses
+  USN_RECORD_V2 (winioctl layout: rlen@0, major@4, fileref@8, parent@0x10,
+  timestamp@0x20, reason@0x28, namelen@0x38, nameoff@0x3C), keeps FILE_DELETE
+  evidence, dedups against structured (parent,name) pairs and within the
+  journal, and emits the missed names under root_lost (MetadataOnly, Deleted).
+- Remnant scanner (row 6d): og shifted-header salvage implemented per the
+  corpus decompile (NTFSSearchDLL FUN_18002a780): when a 'FILE' candidate
+  fails to yield a record, probe "FILE"+0x30 at +0x58 then +0x60 and parse the
+  record from there. Improvement over the og: a full record is read when the
+  block buffer reaches past the shift (the og's truncation was a buffer
+  artifact); at the buffer edge we keep the og's truncated form.
+- NEW BUG the new tests exposed (pre-existing, not in the audit): heap
+  use-after-free in the ADS block - for multi-link records both links use
+  cloned props, so the builder's release() freed the original before
+  sp->times = props->times ran. ASan caught it; the ADS emission now happens
+  before the release.
+- Tests: 6 new NtfsVolume.* tests (nonresident attrlist bootstrap + extension
+  read, nested 2-level chase with merged extents, resident ADS byte-exact
+  content, ADS-under-first-link, UsnJrnl harvest incl. kept-vs-gone filtering,
+  shifted-header salvage). RecBuilder gained attrlist/vcn-fragment/named-$J
+  emitters.
+
+Stage Summary:
+- 131/131 tests green on gcc+ASan, clang-format clean. AUDIT.md rows 3, 6, 7
+  closed. Remaining: wave-2 wiring fixes (rows 9-11, 28, 31, 33-35, 38, 40,
+  42-45), wave-3 carving (row 32, partially done by the parallel session),
+  wave-4 infra (rows 34, 47-49).

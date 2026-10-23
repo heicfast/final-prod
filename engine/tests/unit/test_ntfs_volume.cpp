@@ -16,6 +16,7 @@
 #include "cr/ntfs/cr_bitmap.h"
 #include "cr/ntfs/cr_mftwalk.h"
 #include "cr/storage/cr_device.h"
+#include <array>
 #include <cstring>
 #include <functional>
 #include <vector>
@@ -225,6 +226,104 @@ struct RecBuilder {
         attr_pos += alen;
     }
 
+    /* instance wrappers used by inline attribute construction in tests */
+    void u32wr(size_t at, u32 x) { u32_from_bytes_le_wr(buf, at, x); }
+    void u16wr(size_t at, u16 x) { u16_from_bytes_le_wr(buf, at, x); }
+    void u64wr(size_t at, u64 x) { u64_from_bytes_le_wr(buf, at, x); }
+
+    /* $ATTRIBUTE_LIST entry: (type, lowest_vcn, record_ref), 26 bytes each */
+    void attr_attrlist_resident(const std::vector<std::array<u64, 3>>& entries) {
+        std::vector<u8> content;
+        for (const auto& e : entries) {
+            std::array<u8, 26> rec = {};
+            u32_from_bytes_le_wr_content(rec, 0, u32(e[0])); /* type */
+            rec[4] = 26;                                     /* reclen */
+            rec[5] = 0;
+            rec[6] = 0;                                  /* namelen */
+            rec[7] = 1;                                  /* nonresident */
+            u64_from_bytes_le_wr_content(rec, 8, e[1]);  /* lowest vcn */
+            u64_from_bytes_le_wr_content(rec, 16, e[2]); /* record ref */
+            rec[24] = 0;                                 /* attr id */
+            rec[25] = 0;
+            content.insert(content.end(), rec.begin(), rec.end());
+        }
+        u32 vlen = u32(content.size());
+        u32 voff = 0x18;
+        u32 alen = (voff + vlen + 7) / 8 * 8;
+        u32 pos = attr_pos;
+        u32_from_bytes_le_wr(buf, pos + 0, ATTR_TYPE_ATTRIBUTE_LIST);
+        u32_from_bytes_le_wr(buf, pos + 4, alen);
+        buf[pos + 8] = 0;
+        buf[pos + 9] = 0;
+        u16_from_bytes_le_wr(buf, pos + 10, u16(voff));
+        u16_from_bytes_le_wr(buf, pos + 16, u16(vlen & 0xFFFF));
+        u16_from_bytes_le_wr(buf, pos + 20, u16(voff));
+        std::memcpy(buf.data() + pos + voff, content.data(), vlen);
+        attr_pos += alen;
+    }
+
+    /* nonresident $ATTRIBUTE_LIST whose content lives at lcn */
+    void attr_attrlist_nonresident(u64 lcn, u64 clusters, u64 actual) {
+        u32 pos = attr_pos;
+        RunList rl;
+        rl.runs().push_back(DataRun{0, clusters, 0, lcn, false});
+        std::vector<u8> rle = rl.encode();
+        u32 rlen = u32(rle.size());
+        u32 alen = (0x40 + rlen + 7) / 8 * 8;
+        u32_from_bytes_le_wr(buf, pos + 0, ATTR_TYPE_ATTRIBUTE_LIST);
+        u32_from_bytes_le_wr(buf, pos + 4, alen);
+        buf[pos + 8] = 1; /* nonresident */
+        u16_from_bytes_le_wr(buf, pos + 10, 0x40);
+        u16_from_bytes_le_wr(buf, pos + 16, 0); /* start_vcn */
+        u64_from_bytes_le_wr(buf, pos + 24, clusters - 1);
+        u16_from_bytes_le_wr(buf, pos + 32, 0x40); /* runlist_offset */
+        u64_from_bytes_le_wr(buf, pos + 40, clusters * CLUSTER);
+        u64_from_bytes_le_wr(buf, pos + 48, actual);
+        u64_from_bytes_le_wr(buf, pos + 56, actual);
+        std::memcpy(buf.data() + pos + 0x40, rle.data(), rlen);
+        attr_pos += alen;
+    }
+
+    /* $DATA fragment with an explicit start_vcn (attrlist chase pieces) */
+    void attr_data_runlist_vcn(u64 lcn, u64 clusters, u64 start_vcn, u64 real_size) {
+        u32 pos = attr_pos;
+        RunList rl;
+        rl.runs().push_back(DataRun{start_vcn, clusters, 0, lcn, false});
+        std::vector<u8> rle = rl.encode();
+        u32 rlen = u32(rle.size());
+        u32 alen = (0x40 + rlen + 7) / 8 * 8;
+        u32_from_bytes_le_wr(buf, pos + 0, ATTR_TYPE_DATA);
+        u32_from_bytes_le_wr(buf, pos + 4, alen);
+        buf[pos + 8] = 1; /* nonresident */
+        u16_from_bytes_le_wr(buf, pos + 10, 0x40);
+        u16_from_bytes_le_wr(buf, pos + 16, u16(start_vcn & 0xFFFF));
+        u16_from_bytes_le_wr(buf, pos + 18, u16(start_vcn >> 16));
+        u64_from_bytes_le_wr(buf, pos + 24, start_vcn + clusters - 1);
+        u16_from_bytes_le_wr(buf, pos + 32, 0x40);
+        u64_from_bytes_le_wr(buf, pos + 40, clusters * CLUSTER);
+        u64_from_bytes_le_wr(buf, pos + 48, real_size);
+        u64_from_bytes_le_wr(buf, pos + 56, real_size);
+        std::memcpy(buf.data() + pos + 0x40, rle.data(), rlen);
+        attr_pos += alen;
+    }
+
+    /* raw attrlist entry bytes for a nonresident list's content */
+    static std::vector<u8> attrlist_bytes(const std::vector<std::array<u64, 3>>& entries) {
+        std::vector<u8> content;
+        for (const auto& e : entries) {
+            std::array<u8, 26> rec = {};
+            u32_from_bytes_le_wr_content(rec, 0, u32(e[0]));
+            rec[4] = 26;
+            rec[5] = 0;
+            rec[6] = 0;
+            rec[7] = 1;
+            u64_from_bytes_le_wr_content(rec, 8, e[1]);
+            u64_from_bytes_le_wr_content(rec, 16, e[2]);
+            content.insert(content.end(), rec.begin(), rec.end());
+        }
+        return content;
+    }
+
     void finish() {
         /* terminator */
         u32 pos = attr_pos;
@@ -233,6 +332,17 @@ struct RecBuilder {
         attr_pos += 8;
         auto* rh = reinterpret_cast<RecordHeader*>(buf.data());
         rh->bytes_in_use = attr_pos;
+    }
+
+    static void u32_from_bytes_le_wr_content(std::array<u8, 26>& v, size_t at, u32 x) {
+        v[at] = u8(x);
+        v[at + 1] = u8(x >> 8);
+        v[at + 2] = u8(x >> 16);
+        v[at + 3] = u8(x >> 24);
+    }
+    static void u64_from_bytes_le_wr_content(std::array<u8, 26>& v, size_t at, u64 x) {
+        for (int i = 0; i < 8; i++)
+            v[at + size_t(i)] = u8(x >> (8 * i));
     }
 
     static void u32_from_bytes_le_wr(std::vector<u8>& v, size_t at, u32 x) {
@@ -414,6 +524,367 @@ void build_image(Image& img) {
         setbit(231);
         std::memcpy(img.sec(BITMAP_LCN), bm.data(), bm.size());
     }
+}
+
+/* ------------------------------------------------------------------ */
+/* session-5 audit row 3/6/7: attrlist depth, resident ADS, ADS attach,
+ * UsnJrnl harvest, FILE0 salvage                                       */
+/* ------------------------------------------------------------------ */
+
+TEST(NtfsVolume, NonresidentAttrlistOnMft) {
+    /* $MFT's own $ATTRIBUTE_LIST stored nonresident: runlist decode +
+     * bounded stream read, then the fragmented-MFT reassembly. Primary
+     * $DATA covers records 0..15 (LCN 4, 32 clusters); record 15 (inside
+     * the primary, hence readable) carries the vcn 32..39 fragment at
+     * LCN 200; record 18 lives in the extension. */
+    Image img;
+    build_image(img); /* boot sector + standard records */
+    {
+        RecBuilder r;
+        r.header(0, RECORD_IN_USE);
+        r.attr_data_runlist(MFT_LCN, 32, 32 * CLUSTER);
+        r.attr_attrlist_nonresident(100, 1, 26);
+        r.finish();
+        std::memcpy(img.sec(MFT_LCN), r.buf.data(), RECORD_SIZE);
+    }
+    /* attrlist content at LCN 100: $DATA vcn32 -> record 15 */
+    {
+        auto bytes = RecBuilder::attrlist_bytes({{ATTR_TYPE_DATA, 32, 15 | (1ULL << 48)}});
+        std::memcpy(img.sec(100), bytes.data(), bytes.size());
+    }
+    /* record 15: the extension carrier (must sit inside the primary) */
+    {
+        RecBuilder r;
+        r.header(15, RECORD_IN_USE);
+        r.attr_data_runlist_vcn(200, 8, 32, 40 * CLUSTER);
+        r.finish();
+        std::memcpy(img.sec(MFT_LCN + 30), r.buf.data(), RECORD_SIZE);
+    }
+    /* record 18 inside the extension: LCN 200 + (18-16)*2 sectors */
+    {
+        RecBuilder r;
+        r.header(18, RECORD_IN_USE);
+        r.attr_si(0x20);
+        r.attr_file_name(5, u"extfile.txt", FILE_NAME_WIN32_AND_DOS, 0x20, 64, 64);
+        r.finish();
+        std::memcpy(img.sec(200 + 4), r.buf.data(), RECORD_SIZE);
+    }
+    MemDevice dev(img.raw(), img.geom());
+    u32 err = 0;
+    auto vol = NtfsVolume::open(std::unique_ptr<IStorageDevice>(new MemDevice(dev)), &err);
+    ASSERT_NE(vol, nullptr) << "open err " << err_text(err);
+    /* the record gate now covers the extension (audit row 3) */
+    EXPECT_EQ(vol->max_record_no(), 20u);
+    std::vector<u8> rec;
+    ASSERT_EQ(vol->read_record(18, rec), OK);
+    EXPECT_EQ(std::memcmp(rec.data(), "FILE", 4), 0);
+}
+
+TEST(NtfsVolume, NestedAttrlistChase) {
+    /* file record with $ATTRIBUTE_LIST -> child with ITS OWN attrlist ->
+     * grandchild carrying the final $DATA fragment: the chase must follow
+     * both levels and merge every run */
+    Image img;
+    build_image(img);
+    {
+        RecBuilder r;
+        r.header(23, RECORD_IN_USE);
+        r.attr_si(0x20);
+        r.attr_file_name(5, u"bigfrag.txt", FILE_NAME_WIN32_AND_DOS, 0x20, 4096, 4096);
+        r.attr_attrlist_resident({{ATTR_TYPE_DATA, 0, 24 | (1ULL << 48)}});
+        r.finish();
+        std::memcpy(img.sec(MFT_LCN + 46), r.buf.data(), RECORD_SIZE);
+    }
+    {
+        /* child: first fragment + a nested attrlist -> record 25 */
+        RecBuilder r;
+        r.header(24, RECORD_IN_USE);
+        r.attr_data_runlist_vcn(120, 4, 0, 4096);
+        r.attr_attrlist_resident({{ATTR_TYPE_DATA, 4, 25 | (1ULL << 48)}});
+        r.finish();
+        std::memcpy(img.sec(MFT_LCN + 48), r.buf.data(), RECORD_SIZE);
+    }
+    {
+        /* grandchild: second fragment */
+        RecBuilder r;
+        r.header(25, RECORD_IN_USE);
+        r.attr_data_runlist_vcn(130, 4, 4, 4096);
+        r.finish();
+        std::memcpy(img.sec(MFT_LCN + 50), r.buf.data(), RECORD_SIZE);
+    }
+    MemDevice dev(img.raw(), img.geom());
+    u32 err = 0;
+    auto vol = NtfsVolume::open(std::unique_ptr<IStorageDevice>(new MemDevice(dev)), &err);
+    ASSERT_NE(vol, nullptr) << err_text(err);
+    tree::ResultTree tree;
+    auto* ra = tree.add_root(u"a");
+    auto* rd = tree.add_root(u"d");
+    auto* rl = tree.add_root(u"l");
+    WalkerFlags wf;
+    WalkStats stats;
+    ASSERT_EQ(walk_mft(vol.get(), nullptr, wf, nullptr, nullptr, nullptr, tree, ra, rd, rl, stats),
+              OK);
+    tree::FileNode* big = nullptr;
+    std::function<void(tree::FileNode*)> find = [&](tree::FileNode* n) {
+        for (tree::FileNode* c = n->first_child(); c; c = c->next_sibling()) {
+            if (c->name_utf8() == "bigfrag.txt")
+                big = c;
+            find(c);
+        }
+    };
+    find(ra);
+    find(rd);
+    ASSERT_NE(big, nullptr);
+    ASSERT_NE(big->props(), nullptr);
+    /* both fragments merged: 8 clusters across two extents */
+    u64 total_bytes = 0;
+    for (const auto& e : big->props()->extents)
+        total_bytes += e.length;
+    EXPECT_EQ(total_bytes, u64(8 * CLUSTER));
+    EXPECT_EQ(big->props()->extents.size(), size_t(2));
+}
+
+TEST(NtfsVolume, ResidentAdsCarriesContent) {
+    /* the record-22 "sec" stream: size-only storage left the payload
+     * unrecoverable; props must now carry the resident bytes */
+    Image img;
+    build_image(img);
+    MemDevice dev(img.raw(), img.geom());
+    u32 err = 0;
+    auto vol = NtfsVolume::open(std::unique_ptr<IStorageDevice>(new MemDevice(dev)), &err);
+    ASSERT_NE(vol, nullptr) << err_text(err);
+    tree::ResultTree tree;
+    auto* ra = tree.add_root(u"a");
+    auto* rd = tree.add_root(u"d");
+    auto* rl = tree.add_root(u"l");
+    WalkerFlags wf;
+    WalkStats stats;
+    ASSERT_EQ(walk_mft(vol.get(), nullptr, wf, nullptr, nullptr, nullptr, tree, ra, rd, rl, stats),
+              OK);
+    tree::FileNode* adsnode = nullptr;
+    std::function<void(tree::FileNode*)> find = [&](tree::FileNode* n) {
+        for (tree::FileNode* c = n->first_child(); c; c = c->next_sibling()) {
+            if (c->name_utf8() == "ads.txt:sec")
+                adsnode = c;
+            find(c);
+        }
+    };
+    find(ra);
+    find(rd);
+    ASSERT_NE(adsnode, nullptr);
+    ASSERT_NE(adsnode->props(), nullptr);
+    EXPECT_EQ(adsnode->props()->logical_size, 16u);
+    ASSERT_EQ(adsnode->props()->resident_data.size(), size_t(16));
+    for (u32 i = 0; i < 4; i++) {
+        const u32 expect = 0xC0FFEE00 + i;
+        const u32 got = u32(adsnode->props()->resident_data[i * 4]) |
+                        (u32(adsnode->props()->resident_data[i * 4 + 1]) << 8) |
+                        (u32(adsnode->props()->resident_data[i * 4 + 2]) << 16) |
+                        (u32(adsnode->props()->resident_data[i * 4 + 3]) << 24);
+        EXPECT_EQ(got, expect) << "word " << i;
+    }
+}
+
+TEST(NtfsVolume, AdsAttachesToFirstLink) {
+    /* hard-linked file with an ADS: the stream must attach to the
+     * canonical (first-emitted) link, not the last */
+    Image img;
+    build_image(img); /* boot sector + records 5/16 for the link targets */
+    {
+        RecBuilder r;
+        r.header(17, RECORD_IN_USE);
+        r.attr_si(0x20);
+        r.attr_file_name(5, u"hl@root.txt", FILE_NAME_WIN32, 0x20, 512, 512);
+        r.attr_file_name(16, u"hl.txt", FILE_NAME_WIN32, 0x20, 512, 512);
+        r.attr_data_runlist(240, 1, 512);
+        r.attr_data_resident(u"stream", 2);
+        r.finish();
+        std::memcpy(img.sec(MFT_LCN + 34), r.buf.data(), RECORD_SIZE);
+    }
+    MemDevice dev(img.raw(), img.geom());
+    u32 err = 0;
+    auto vol = NtfsVolume::open(std::unique_ptr<IStorageDevice>(new MemDevice(dev)), &err);
+    ASSERT_NE(vol, nullptr) << err_text(err);
+    tree::ResultTree tree;
+    auto* ra = tree.add_root(u"a");
+    auto* rd = tree.add_root(u"d");
+    auto* rl = tree.add_root(u"l");
+    WalkerFlags wf;
+    WalkStats stats;
+    ASSERT_EQ(walk_mft(vol.get(), nullptr, wf, nullptr, nullptr, nullptr, tree, ra, rd, rl, stats),
+              OK);
+    tree::FileNode *at_root = nullptr, *at_folder = nullptr, *ads = nullptr;
+    std::function<void(tree::FileNode*)> find = [&](tree::FileNode* n) {
+        for (tree::FileNode* c = n->first_child(); c; c = c->next_sibling()) {
+            if (c->name_utf8() == "hl@root.txt")
+                at_root = c;
+            if (c->name_utf8() == "hl.txt")
+                at_folder = c;
+            if (c->name_utf8() == "hl@root.txt:stream" || c->name_utf8() == "hl.txt:stream")
+                ads = c;
+            find(c);
+        }
+    };
+    find(ra);
+    find(rd);
+    ASSERT_NE(at_root, nullptr);
+    ASSERT_NE(at_folder, nullptr);
+    ASSERT_NE(ads, nullptr);
+    /* the ADS node's parent IS the first link node (parent 5's link) */
+    EXPECT_EQ(ads->name_utf8(), "hl@root.txt:stream");
+    bool under_root_link = false;
+    for (tree::FileNode* c = at_root->first_child(); c; c = c->next_sibling())
+        if (c == ads)
+            under_root_link = true;
+    EXPECT_TRUE(under_root_link);
+    bool under_folder_link = false;
+    for (tree::FileNode* c = at_folder->first_child(); c; c = c->next_sibling())
+        if (c == ads)
+            under_folder_link = true;
+    EXPECT_FALSE(under_folder_link);
+}
+
+TEST(NtfsVolume, UsnJrnlHarvest) {
+    /* $UsnJrnl:$J with two V2 records: gonefile.txt (created+deleted -
+    journal-only, its MFT record was reused) and keptfile.txt (created
+    only). Only the deleted, structured-unknown name is harvested. */
+    Image img;
+    build_image(img);
+    {
+        RecBuilder r;
+        r.header(23, RECORD_IN_USE);
+        r.attr_si(0x20);
+        r.attr_file_name(11, u"$UsnJrnl", FILE_NAME_WIN32_AND_DOS, 0x20, 2048, 2048);
+        /* named nonresident $DATA "$J" -> LCN 160, 2 clusters */
+        {
+            u32 pos = r.attr_pos;
+            RunList rl;
+            rl.runs().push_back(DataRun{0, 2, 0, 160, false});
+            std::vector<u8> rle = rl.encode();
+            u32 rlen = u32(rle.size());
+            const u32 name_off = 0x40;             /* name right after the tail */
+            const u32 runs_off = name_off + 2 * 2; /* "$J" then the runlist */
+            u32 alen = (runs_off + rlen + 7) / 8 * 8;
+            r.u32wr(pos + 0, ATTR_TYPE_DATA);
+            r.u32wr(pos + 4, alen);
+            r.buf[pos + 8] = 1; /* nonresident */
+            r.buf[pos + 9] = 2; /* name length "$J" */
+            r.u16wr(pos + 10, u16(name_off));
+            r.u16wr(pos + 16, 0);
+            r.u64wr(pos + 24, 1);
+            r.u16wr(pos + 32, u16(runs_off));
+            r.u64wr(pos + 40, 2 * CLUSTER);
+            r.u64wr(pos + 48, 2 * CLUSTER);
+            r.u64wr(pos + 56, 2 * CLUSTER);
+            r.u16wr(pos + name_off, u'$');
+            r.u16wr(pos + name_off + 2, u'J');
+            std::memcpy(r.buf.data() + pos + runs_off, rle.data(), rlen);
+            r.attr_pos += alen;
+        }
+        r.finish();
+        std::memcpy(img.sec(MFT_LCN + 46), r.buf.data(), RECORD_SIZE);
+    }
+    /* journal content: two USN_RECORD_V2 entries */
+    {
+        std::vector<u8>& imgv = img.raw();
+        auto j32 = [&](u32 at, u32 x) {
+            imgv[at] = u8(x);
+            imgv[at + 1] = u8(x >> 8);
+            imgv[at + 2] = u8(x >> 16);
+            imgv[at + 3] = u8(x >> 24);
+        };
+        auto j16 = [&](u32 at, u16 x) {
+            imgv[at] = u8(x);
+            imgv[at + 1] = u8(x >> 8);
+        };
+        auto j64 = [&](u32 at, u64 x) {
+            for (int i = 0; i < 8; i++)
+                imgv[at + size_t(i)] = u8(x >> (8 * i));
+        };
+        const u64 jbase = 160 * SEC;
+        auto usn = [&](u64 at, const char16_t* name, u32 reason) {
+            const std::u16string n = name;
+            const u32 namelen = u32(n.size() * 2);
+            const u32 rlen = 64 + namelen;
+            j32(u32(at + 0), rlen);
+            j16(u32(at + 4), 2);                 /* major */
+            j16(u32(at + 6), 0);                 /* minor */
+            j64(at + 8, 1234);                   /* file ref */
+            j64(at + 16, 5 | (1ULL << 48));      /* parent: root */
+            j64(at + 24, 1);                     /* usn */
+            j64(at + 32, 132000000000000000ULL); /* timestamp */
+            j32(u32(at + 40), reason);
+            j32(u32(at + 44), 0);    /* source */
+            j32(u32(at + 48), 0);    /* security */
+            j32(u32(at + 52), 0x20); /* attributes */
+            j32(u32(at + 56), namelen);
+            j32(u32(at + 60), 64); /* name offset */
+            for (size_t i = 0; i < n.size(); i++)
+                j16(u32(at + 64 + u32(i) * 2), u16(n[i]));
+            return rlen;
+        };
+        u64 off = jbase;
+        off += usn(off, u"keptfile.txt", USN_REASON_FILE_CREATE);
+        off += usn(off, u"gonefile.txt", USN_REASON_FILE_CREATE | USN_REASON_FILE_DELETE);
+    }
+    MemDevice dev(img.raw(), img.geom());
+    u32 err = 0;
+    auto vol = NtfsVolume::open(std::unique_ptr<IStorageDevice>(new MemDevice(dev)), &err);
+    ASSERT_NE(vol, nullptr) << err_text(err);
+    tree::ResultTree tree;
+    auto* ra = tree.add_root(u"a");
+    auto* rd = tree.add_root(u"d");
+    auto* rl = tree.add_root(u"l");
+    WalkerFlags wf;
+    WalkStats stats;
+    ASSERT_EQ(walk_mft(vol.get(), nullptr, wf, nullptr, nullptr, nullptr, tree, ra, rd, rl, stats),
+              OK);
+    EXPECT_EQ(stats.usn_records, 2u);
+    EXPECT_EQ(stats.usn_names, 1u);
+    tree::FileNode* gone = nullptr;
+    for (tree::FileNode* c = rl->first_child(); c; c = c->next_sibling())
+        if (c->name_utf8() == "gonefile.txt")
+            gone = c;
+    ASSERT_NE(gone, nullptr);
+    EXPECT_EQ(gone->origin(), tree::Origin::Lost);
+    EXPECT_EQ(gone->deleted_state(), tree::DeletedState::Deleted);
+    for (tree::FileNode* c = rl->first_child(); c; c = c->next_sibling())
+        EXPECT_NE(c->name_utf8(), "keptfile.txt");
+}
+
+TEST(NtfsVolume, ShiftedHeaderSalvage) {
+    /* candidate record whose header parses as 'FILE' but fails deeper
+     * (attribute_offset beyond the record), with a healthy record
+     * starting at +0x58: "FILE" + usa_offset low byte 0x30 ('0') */
+    Image img;
+    {
+        RecBuilder r; /* the healthy record that lands at +0x58 */
+        r.header(999, 0);
+        r.attr_si(0x20);
+        r.attr_file_name(16, u"shifted.txt", FILE_NAME_WIN32_AND_DOS, 0x20, 100, 100);
+        r.finish();
+        std::vector<u8> window(0x58 + RECORD_SIZE, 0);
+        /* broken head: 'FILE' magic but attribute_offset = 0xFF00 */
+        std::memcpy(window.data(), "FILE", 4);
+        window[0x14] = 0x00;
+        window[0x15] = 0xFF;
+        std::memcpy(window.data() + 0x58, r.buf.data(), RECORD_SIZE);
+        std::memcpy(img.sec(10), window.data(), window.size());
+    }
+    MemDevice dev(img.raw(), img.geom());
+    tree::ResultTree tree;
+    auto* root_lost = tree.add_root(u"Lost Files");
+    WalkStats stats;
+    u32 rc = scan_mft_remnants(&dev, SEC, CLUSTER, RECORD_SIZE, nullptr, nullptr, nullptr, tree,
+                               root_lost, stats);
+    ASSERT_EQ(rc, OK);
+    tree::FileNode* found = nullptr;
+    for (tree::FileNode* c = root_lost->first_child(); c; c = c->next_sibling())
+        if (c->name_utf8() == "shifted.txt")
+            found = c;
+    ASSERT_NE(found, nullptr) << "shifted record not salvaged";
+    EXPECT_EQ(found->origin(), tree::Origin::Lost);
+    EXPECT_EQ(found->confidence(), tree::Confidence::MetadataOnly);
 }
 
 } // namespace
