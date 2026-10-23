@@ -319,11 +319,14 @@ jobs:
         if: always()
         shell: pwsh
         run: |
-          sc.exe stop rda 2>$null; sc.exe delete rda 2>$null
+          sc.exe stop rda 2>$null | Out-Null
+          sc.exe delete rda 2>$null | Out-Null
+          if ($LASTEXITCODE -ne 0 -and $LASTEXITCODE -ne 1060) { exit 1 }
           Remove-Item "$env:SystemRoot\System32\drivers\rda.sys" -Force -ErrorAction SilentlyContinue
           Get-ChildItem Cert:\LocalMachine\My |
             Where-Object { $_.Subject -eq 'CN=RRECOV-CMP-BENCH' } |
             Remove-Item -ErrorAction SilentlyContinue
+          exit 0
 
       - name: Upload ours artifacts (90d)
         if: always()
@@ -510,7 +513,16 @@ jobs:
         shell: pwsh
         run: |
           Stop-Process -Name DRWUI, DRW -Force -ErrorAction SilentlyContinue
-          sc.exe stop eprdtdrv 2>$null; sc.exe delete eprdtdrv 2>$null
+          # the og installs its own driver (eprdtdrv) on demand; absent = clean
+          sc.exe query eprdtdrv 2>$null | Out-Null
+          if ($LASTEXITCODE -eq 0) {
+            sc.exe stop eprdtdrv
+            sc.exe delete eprdtdrv
+            if ($LASTEXITCODE -ne 0) { exit 1 }
+          } else {
+            Write-Host 'eprdtdrv not present (og driver was never needed this run)'
+          }
+          exit 0
 
       - name: Upload og artifacts (90d)
         if: always()
