@@ -122,16 +122,16 @@ jobs:
             Write-Host "eprdtdrv.sys not found in corpus (non-fatal)"
           }
           # our driver - REQUIRED for this leg
-          Copy-Item driver\rda.sys "$env:SystemRoot\System32\drivers\rdatest.sys" -Force
-          sc.exe create rdatest type= kernel start= demand binPath= "System32\drivers\rdatest.sys" group= "FSFilter Boot File System"
+          Copy-Item driver\rda.sys "$env:SystemRoot\System32\drivers\rda.sys" -Force
+          sc.exe create rda type= kernel start= demand binPath= "System32\drivers\rda.sys" group= "FSFilter Boot File System"
           if ($LASTEXITCODE -ne 0) { exit 1 }
-          sc.exe start rdatest
+          sc.exe start rda
           if ($LASTEXITCODE -ne 0) {
-            sc.exe query rdatest
+            sc.exe query rda
             Get-WinEvent -LogName System -MaxEvents 20 | Format-List | Out-String | Write-Host
             exit 1
           }
-          sc.exe query eprdtdrv; sc.exe query rdatest
+          sc.exe query eprdtdrv; sc.exe query rda
 
       - name: Run our recovery scan (same volume the og UI selects, capped)
         shell: pwsh
@@ -165,13 +165,28 @@ jobs:
           & $exe tree --in compare-results\ours-session.crsf --csv `
             | Out-File -FilePath compare-results\ours.csv -Encoding utf8
 
+          # GAP-BENCH-5 assertion: with the service installed as `rda` the
+          # client's grammar path must actually be \\.\RDA - a silent
+          # direct-handle fallback would make this leg measure the wrong
+          # transport (the pre-fix `rdatest` service name guaranteed the
+          # fallback every run).
+          $log = Get-Content compare-results\rrecov.log -ErrorAction SilentlyContinue
+          $transRda = ($log | Select-String -SimpleMatch '[transport] RDA driver path').Count
+          if ($transRda -lt 1) {
+            Write-Host "transport assertion FAILED: the scan never used the RDA driver path"
+            Write-Host '--- rrecov.log transport lines ---'
+            $log | Select-String -SimpleMatch '[transport]' | ForEach-Object { Write-Host $_ }
+            exit 1
+          }
+          Write-Host "transport assertion OK: RDA driver path used ($transRda line(s))"
+
       - name: Cleanup (always)
         if: always()
         shell: pwsh
         run: |
-          sc.exe stop rdatest 2>$null; sc.exe delete rdatest 2>$null
+          sc.exe stop rda 2>$null; sc.exe delete rda 2>$null
           sc.exe stop eprdtdrv 2>$null; sc.exe delete eprdtdrv 2>$null
-          Remove-Item "$env:SystemRoot\System32\drivers\rdatest.sys" -Force -ErrorAction SilentlyContinue
+          Remove-Item "$env:SystemRoot\System32\drivers\rda.sys" -Force -ErrorAction SilentlyContinue
           Remove-Item "$env:SystemRoot\System32\drivers\eprdtdrv.sys" -Force -ErrorAction SilentlyContinue
           $dp = "select vdisk file=`"$env:VHD_PATH`"`ndetach vdisk"
           $dp | Set-Content -Path disk-clean.txt -Encoding ascii

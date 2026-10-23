@@ -122,11 +122,11 @@ jobs:
           }
           # our driver - NON-FATAL here: this leg is the og run; the rda
           # install exists for environment parity with the ours leg only
-          Copy-Item driver\rda.sys "$env:SystemRoot\System32\drivers\rdatest.sys" -Force
-          sc.exe create rdatest type= kernel start= demand binPath= "System32\drivers\rdatest.sys" group= "FSFilter Boot File System"
-          sc.exe start rdatest
-          if ($LASTEXITCODE -ne 0) { Write-Host "rda start failed (non-fatal)"; sc.exe query rdatest }
-          sc.exe query eprdtdrv; sc.exe query rdatest
+          Copy-Item driver\rda.sys "$env:SystemRoot\System32\drivers\rda.sys" -Force
+          sc.exe create rda type= kernel start= demand binPath= "System32\drivers\rda.sys" group= "FSFilter Boot File System"
+          sc.exe start rda
+          if ($LASTEXITCODE -ne 0) { Write-Host "rda start failed (non-fatal)"; sc.exe query rda }
+          sc.exe query eprdtdrv; sc.exe query rda
 
       - name: Run og EaseUS DRW (UI-driven, screenshots + .rsf harvest)
         shell: pwsh
@@ -170,6 +170,14 @@ jobs:
 
           $og = "research\og-codebase"
           # og writes logs + SaveScan next to the exe; make the tree writable
+          # GAP-BENCH-4 contamination guard: the corpus ships committed
+          # auto_*.rsf QA samples under og-codebase\SaveScan; without a
+          # pre-launch snapshot a silent DRW failure would score a corpus
+          # sample from ANOTHER disk as this run's og result.
+          $preRsf = @(Get-ChildItem $og -Recurse -Filter "*.rsf" -ErrorAction SilentlyContinue |
+            ForEach-Object { $_.FullName })
+          "pre-existing rsf count: $($preRsf.Count)" |
+            Out-File compare-results\og\pre_rsf.txt -Encoding utf8
           $t0 = Get-Date
           $proc = Start-Process -FilePath (Join-Path $og "DRW.exe") -WorkingDirectory $og -PassThru
           "launched DRW.exe pid=$($proc.Id)" | Out-File compare-results\og\launch.txt -Encoding utf8
@@ -211,8 +219,10 @@ jobs:
           Shot "04_scan_end"
           Start-Sleep -Seconds 10
           Shot "05_final"
-          # harvest og artifacts: logs + auto-saved .rsf
+          # harvest og artifacts: logs + NEW .rsf only (GAP-BENCH-4: a
+          # pre-existing corpus sample must never score as this run)
           Get-ChildItem $og -Recurse -Filter "*.rsf" -ErrorAction SilentlyContinue |
+            Where-Object { $preRsf -notcontains $_.FullName } |
             Copy-Item -Destination compare-results\og\ -ErrorAction SilentlyContinue
           Get-ChildItem (Join-Path $og "log") -ErrorAction SilentlyContinue |
             Copy-Item -Destination compare-results\og\ -ErrorAction SilentlyContinue
@@ -281,9 +291,9 @@ jobs:
         shell: pwsh
         run: |
           Stop-Process -Name DRWUI,DRW -Force -ErrorAction SilentlyContinue
-          sc.exe stop rdatest 2>$null; sc.exe delete rdatest 2>$null
+          sc.exe stop rda 2>$null; sc.exe delete rda 2>$null
           sc.exe stop eprdtdrv 2>$null; sc.exe delete eprdtdrv 2>$null
-          Remove-Item "$env:SystemRoot\System32\drivers\rdatest.sys" -Force -ErrorAction SilentlyContinue
+          Remove-Item "$env:SystemRoot\System32\drivers\rda.sys" -Force -ErrorAction SilentlyContinue
           Remove-Item "$env:SystemRoot\System32\drivers\eprdtdrv.sys" -Force -ErrorAction SilentlyContinue
           $dp = "select vdisk file=`"$env:VHD_PATH`"`ndetach vdisk"
           $dp | Set-Content -Path disk-clean.txt -Encoding ascii

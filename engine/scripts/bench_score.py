@@ -75,19 +75,36 @@ def main() -> int:
             except (TypeError, ValueError, KeyError, AttributeError):
                 continue  # header or malformed line
 
+    # `rrecov tree --csv` FROZEN schema (cr_node.h 28-36, GAP-BENCH-3):
+    #   origin     u32: 0=Structured 1=Carved 2=Lost 3=Virtual
+    #   deleted    u32: 0=Active 1=Deleted 2=PartiallyOverwritten 3=Damaged
+    #   confidence u32: 0..4
+    # The pre-fix word-matching ("deleted","true","1","yes") classified
+    # PartiallyOverwritten(2)/Damaged(3) rows as ACTIVE via the accidental
+    # "1" collision - the keep gate then passed on deleted duplicates.
+
+    def is_active(deleted_field):
+        # numeric enum: ONLY 0 is active; 1/2/3 are deleted-family states
+        try:
+            return int(deleted_field) == 0
+        except ValueError:
+            return deleted_field.strip().lower() in ("active", "false", "no")
+
     # index results: full lowercase path and basename+size
     path_set = set()
     name_size = defaultdict(int)
     active_paths = set()
+    active_name_size = set()
     for r in results:
         p = r["path"].replace("\\", "/").lower()
         path_set.add(p)
         name_size[(os.path.basename(p), r["size"])] += 1
-        if r["deleted"].lower() not in ("deleted", "true", "1", "yes"):
+        if is_active(r["deleted"]):
             active_paths.add(p)
+            active_name_size.add((os.path.basename(p), r["size"]))
 
     per_scenario = defaultdict(lambda: {"total": 0, "path_hit": 0, "name_hit": 0})
-    unmatched_recoveries = len(results)
+    matched_result_rows = set()
 
     for m in manifest:
         rel = m["relpath"].replace("\\", "/").lower()
@@ -101,11 +118,32 @@ def main() -> int:
         if name_hit:
             s["name_hit"] += 1
         if path_hit or name_hit:
-            unmatched_recoveries -= 1
+            # GAP-BENCH-2: mark the RESULT ROWS this manifest entry
+            # consumed (per-result matching; the old per-manifest
+            # decrement let two manifest entries double-consume one row
+            # and drove the counter negative)
+            for r in results:
+                p = r["path"].replace("\\", "/").lower()
+                if p == rel or p.endswith("/" + rel) or p.endswith(rel):
+                    matched_result_rows.add(id(r))
+                if os.path.basename(p) == base and r["size"] == m["size"]:
+                    matched_result_rows.add(id(r))
 
-    # sanity gate: keep files must be active
+    # sanity gate: keep files must be ACTIVE (GAP-BENCH-1: the pre-fix
+    # gate counted name hits anywhere - a deleted duplicate of a keep
+    # file passed the control; active_paths/active_name_size were built
+    # and then never used)
     keep = per_scenario.get("keep", {"total": 0, "path_hit": 0, "name_hit": 0})
-    keep_active_ok = keep["name_hit"]
+    keep_active_ok = 0
+    for m in manifest:
+        if m["scenario"] != "keep":
+            continue
+        rel = m["relpath"].replace("\\", "/").lower()
+        base = os.path.basename(rel)
+        if any(p.endswith("/" + rel) or p == rel or p.endswith(rel) for p in active_paths):
+            keep_active_ok += 1
+        elif (base, m["size"]) in active_name_size:
+            keep_active_ok += 1
 
     scores = {
         "manifest_files": len(manifest),
@@ -131,9 +169,12 @@ def main() -> int:
         "recovered": recall_num,
         "recall": round(recall_num / recall_denom, 4) if recall_denom else 0.0,
         "keep_control_ok": bool(keep_active_ok == keep["total"] and keep["total"] > 0),
-        "precision_hint": round(
-            max(0, len(results) - unmatched_recoveries) / len(results), 4
-        )
+        # GAP-BENCH-2: per-RESULT accounting - matched rows / all rows.
+        # HINT, not precision: seeded manifests do not enumerate
+        # pre-existing disk content, so an unmatched row is a duplicate
+        # or an engine artifact, not provably a false positive.
+        "matched_result_rows": len(matched_result_rows),
+        "precision_hint": round(len(matched_result_rows) / len(results), 4)
         if results
         else 0.0,
     }

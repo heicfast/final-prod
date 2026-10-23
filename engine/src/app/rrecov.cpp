@@ -37,6 +37,7 @@
 #include "cr/win/cr_enumerate.h"
 #include "cr/win/cr_health.h"
 #include "cr/win/cr_transport.h"
+#include "cr/win/cr_elevate.h"
 #include <windows.h>
 #include <map>
 #include <chrono>
@@ -893,7 +894,10 @@ int cmd_health(int argc, wchar_t** argv, int& i) {
     HANDLE h = CreateFileW(path, GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE,
                            nullptr, OPEN_EXISTING, 0, nullptr);
     if (h == INVALID_HANDLE_VALUE) {
-        wprintf(L"cannot open disk %u (admin?)\n", disk);
+        wprintf(L"cannot open disk %u: %hs\n", disk,
+                cr::win::is_elevated()
+                    ? "access denied even elevated (device busy or locked by another process)"
+                    : "administrator rights required (elevate and retry)");
         return 1;
     }
 
@@ -1019,7 +1023,9 @@ int cmd_bench(int argc, wchar_t** argv, int& i) {
     u32 err = 0;
     auto dev = win::open_disk(disk, use_rda, L"RDA", &err);
     if (!dev) {
-        wprintf(L"cannot open disk %u (rc=%08x, admin?)\n", disk, err);
+        wprintf(L"cannot open disk %u (rc=%08x): %hs\n", disk, err,
+                cr::win::is_elevated() ? "access denied even elevated (device busy or locked)"
+                                       : "administrator rights required (elevate and retry)");
         return 2;
     }
     const Geometry& g = dev->geometry();
@@ -1231,7 +1237,10 @@ int cmd_fix(int argc, wchar_t** argv, int& i) {
         u32 e = 0;
         auto wdev = win::open_disk_rw(disk, use_rda, use_rda ? L"RDA" : nullptr, &e);
         if (!wdev) {
-            wprintf(L"cannot open disk %u for write (rc=%08x, admin?)\n", disk, e);
+            wprintf(L"cannot open disk %u for write (rc=%08x): %hs\n", disk, e,
+                    cr::win::is_elevated()
+                        ? "write access denied even elevated (device busy, locked or protected)"
+                        : "administrator rights required for repairs (elevate and retry)");
             return 2;
         }
         rc = repair::undo(*wdev, log);
@@ -1317,7 +1326,10 @@ int cmd_fix(int argc, wchar_t** argv, int& i) {
     /* ---- execute (transactional writes) ---- */
     auto wdev = win::open_disk_rw(disk, use_rda, use_rda ? L"RDA" : nullptr, &e);
     if (!wdev) {
-        wprintf(L"cannot open disk %u for write (rc=%08x, admin?)\n", disk, e);
+        wprintf(L"cannot open disk %u for write (rc=%08x): %hs\n", disk, e,
+                cr::win::is_elevated()
+                    ? "write access denied even elevated (device busy, locked or protected)"
+                    : "administrator rights required for repairs (elevate and retry)");
         return 2;
     }
     repair::UndoLog log;

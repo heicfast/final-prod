@@ -38,13 +38,44 @@ def load_csv(path, fields):
     return rows
 
 
+def normalize_origin(raw):
+    """Two CSV dialects meet here (GAP-BENCH-3): `rrecov tree --csv`
+    emits the FROZEN numeric enums (cr_node.h 28-36:
+    0=Structured 1=Carved 2=Lost 3=Virtual) while compare_og_rsf.py emits
+    words (structured|carved). The pre-fix `origin == "carved"` test
+    classified ALL 536 carved rows of ours.csv as structured in the
+    published report."""
+    v = (raw or "").strip().lower()
+    if v == "1":
+        return "carved"
+    if v == "0":
+        return "structured"
+    if v == "2":
+        return "lost"
+    if v == "3":
+        return "virtual"
+    return v or "unknown"
+
+
+def normalize_deleted(raw):
+    """deleted: numeric 0=Active, 1/2/3=deleted-family (Deleted,
+    PartiallyOverwritten, Damaged); the og extractor emits
+    deleted|active|unknown."""
+    v = (raw or "").strip().lower()
+    if v == "0":
+        return "active"
+    if v in ("1", "2", "3"):
+        return "deleted"
+    return v or "unknown"
+
+
 def load_ours(path):
     rows = load_csv(path, ["path", "size", "origin", "deleted", "confidence", "extent"])
     out = []
     for r in rows:
         try:
-            out.append((r["path"].strip(), int(r["size"] or 0), r["origin"].strip(),
-                        r["deleted"].strip()))
+            out.append((r["path"].strip(), int(r["size"] or 0),
+                        normalize_origin(r["origin"]), normalize_deleted(r["deleted"])))
         except (ValueError, AttributeError):
             continue
     return out
@@ -55,8 +86,8 @@ def load_og(path):
     out = []
     for r in rows:
         try:
-            out.append((r["path"].strip(), int(r["size"] or 0), r["origin"].strip(),
-                        r["deleted"].strip()))
+            out.append((r["path"].strip(), int(r["size"] or 0),
+                        normalize_origin(r["origin"]), normalize_deleted(r["deleted"])))
         except (ValueError, AttributeError):
             continue
     return out
@@ -65,16 +96,20 @@ def load_og(path):
 def score(manifest, entries):
     """name+size level scoring shared by both products."""
     name_size = set()
+    active_name_size = set()
     carved = 0
     structured = 0
-    for path, size, origin, _deleted in entries:
+    for path, size, origin, deleted in entries:
         base = os.path.basename(path.replace("\\", "/")).lower()
         if base:
             name_size.add((base, size))
+            if deleted == "active":
+                active_name_size.add((base, size))
         if origin == "carved":
             carved += 1
-        else:
+        elif origin in ("structured", "lost", "virtual"):
             structured += 1
+        # unknown dialects count in neither bucket
     per_scenario = defaultdict(lambda: {"total": 0, "hit": 0})
     for m in manifest:
         base = os.path.basename(m["relpath"].replace("\\", "/")).lower()
@@ -85,15 +120,25 @@ def score(manifest, entries):
     recall_denom = sum(per_scenario[s]["total"] for s in RECOVERABLE if s in per_scenario)
     recall_num = sum(per_scenario[s]["hit"] for s in RECOVERABLE if s in per_scenario)
     keep = per_scenario.get("keep", {"total": 0, "hit": 0})
+    keep_active = 0
+    for m in manifest:
+        if m["scenario"] != "keep":
+            continue
+        base = os.path.basename(m["relpath"].replace("\\", "/")).lower()
+        if (base, m["size"]) in active_name_size:
+            keep_active += 1
     return {
         "entries": len(entries),
+        "keep_active": keep_active,
         "structured": structured,
         "carved": carved,
         "per_scenario": {k: dict(v) for k, v in per_scenario.items()},
         "recall": round(recall_num / recall_denom, 4) if recall_denom else 0.0,
         "recall_num": recall_num,
         "recall_denom": recall_denom,
-        "keep_ok": keep["total"] > 0 and keep["hit"] == keep["total"],
+        # GAP-BENCH-1: the keep control requires the rows to be ACTIVE -
+        # a deleted duplicate of a keep file is a control FAILURE
+        "keep_ok": keep["total"] > 0 and keep_active == keep["total"],
     }
 
 
