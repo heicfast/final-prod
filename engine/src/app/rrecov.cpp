@@ -7,10 +7,14 @@
  *         [--threads N] [--out file.crsf] [--resume file.crsf] [--json]
  *         [--log file] [--csv] [--filter s] [--deleted-only]
  *   tree --in file.crsf [--filter substr] [--deleted-only] [--csv] [--json]
+ *   load --in file.crsf [--json]
+ *   verify --in file.crsf [--json]
+ *   save --in file.crsf --out file.crsf
  *   recover --in file.crsf --disk N --to DIR [--deleted-only] [--filter s]
  *         [--report file.json]
  *   health --disk N
- *   fix --disk N [--part P] [--apply] [--undo file] [--undo-apply file]
+ *   repair --disk N [--part P] [--apply] [--undo file] [--undo-apply file]
+ *   fix (compatibility alias for repair)
  *   bench --disk N [--mode seq|rand|open|read|info] [--mb N] [--block-kb N]
  *         [--iterations N] [--seed N] [--json] [--no-rda]
  *
@@ -414,6 +418,69 @@ u64 file_size_cb(void* user) {
     return u64(end);
 }
 
+struct LoadedSession {
+    tree::ResultTree tree;
+    orchestrator::ScanStats stats;
+    session::VolumeSessionInfo info;
+};
+
+/* Strict verification is deliberately separate from the tolerant recovery
+ * loader. The latter skips a bad record to salvage the remaining tree (F10);
+ * verify/save must instead fail on the first bad record and require the two
+ * records that every ScanController::save_session emits. */
+u32 verify_crsf_stream(FILE* f) {
+    session::Reader r(file_read_cb, file_seek_cb, file_size_cb, f);
+    u32 count = 0;
+    if (const u32 rc = r.open(&count))
+        return rc;
+    bool have_state = false;
+    bool have_tree = false;
+    for (u32 i = 0; i < count; ++i) {
+        session::Record rec;
+        if (const u32 rc = r.read_record(i, rec))
+            return rc;
+        have_state = have_state || rec.type == session::REC_SESSION_STATE;
+        have_tree = have_tree || rec.type == session::REC_RESULT_TREE;
+    }
+    return have_state && have_tree ? OK : ERR_SESSION_FORMAT;
+}
+
+u32 load_crsf_stream(FILE* f, LoadedSession& loaded, bool strict) {
+    if (strict) {
+        if (const u32 rc = verify_crsf_stream(f))
+            return rc;
+    }
+    session::Reader r(file_read_cb, file_seek_cb, file_size_cb, f);
+    return orchestrator::ScanController::load_session_summary(r, loaded.tree, loaded.stats,
+                                                              loaded.info);
+}
+
+u32 load_crsf_file(const std::wstring& path, LoadedSession& loaded, bool strict) {
+    FILE* f = nullptr;
+    if (_wfopen_s(&f, path.c_str(), L"rb") != 0 || !f)
+        return ERR_SESSION_IO;
+    const u32 rc = load_crsf_stream(f, loaded, strict);
+    fclose(f);
+    return rc;
+}
+
+void print_session_summary(const LoadedSession& loaded, bool json, bool verified) {
+    if (json) {
+        wprintf(L"{\"verified\":%hs,\"files\":%llu,\"deleted\":%llu,\"carved\":%llu,"
+                L"\"lost_partitions\":%llu,\"bytes_scanned\":%llu,\"elapsed_ms\":%llu,"
+                L"\"stage_done_mask\":%u,\"configured_mask\":%u}\n",
+                verified ? "true" : "false", loaded.stats.files_found, loaded.stats.deleted_found,
+                loaded.stats.carved_found, loaded.stats.lost_partitions, loaded.stats.bytes_scanned,
+                loaded.info.elapsed_ms, loaded.info.stage_done_mask, loaded.info.configured_mask);
+        return;
+    }
+    wprintf(L"session%hs: %llu file(s), %llu deleted, %llu carved, %llu lost partition(s)\n"
+            L"  bytes=%llu elapsed_ms=%llu stage_done_mask=0x%x configured_mask=0x%x\n",
+            verified ? " valid" : "", loaded.stats.files_found, loaded.stats.deleted_found,
+            loaded.stats.carved_found, loaded.stats.lost_partitions, loaded.stats.bytes_scanned,
+            loaded.info.elapsed_ms, loaded.info.stage_done_mask, loaded.info.configured_mask);
+}
+
 /* ---------------------------------------------------------------------------
  * scan
  * ------------------------------------------------------------------------- */
@@ -787,6 +854,134 @@ int cmd_tree(int argc, wchar_t** argv, int& i) {
         return 0;
     }
     print_tree(tree, f);
+    return 0;
+}
+
+/* ---------------------------------------------------------------------------
+ * load / verify / save (explicit session command surface)
+ * ------------------------------------------------------------------------- */
+
+int cmd_load_or_verify(int argc, wchar_t** argv, int& i, bool strict) {
+    std::wstring in_path;
+    bool json = false;
+    while (i < argc) {
+        if (get_opt(argc, argv, i, L"--in", &in_path))
+            continue;
+        if (has_flag(argc, argv, i, L"--json")) {
+            json = true;
+            continue;
+        }
+        wprintf(L"unknown %hs option: %s\n", strict ? "verify" : "load", argv[i]);
+        return 1;
+    }
+    if (in_path.empty()) {
+        wprintf(L"%hs needs --in file.crsf\n", strict ? "verify" : "load");
+        return 1;
+    }
+    LoadedSession loaded;
+    const u32 rc = load_crsf_file(in_path, loaded, strict);
+    if (rc != OK) {
+        wprintf(L"session %hs failed: %hs (0x%08x)\n", strict ? "verification" : "load",
+                err_text(rc), rc);
+        return 1;
+    }
+    print_session_summary(loaded, json, strict);
+    return 0;
+}
+
+std::wstring absolute_path(const std::wstring& path) {
+    const DWORD needed = GetFullPathNameW(path.c_str(), 0, nullptr, nullptr);
+    if (needed == 0)
+        return {};
+    std::vector<wchar_t> buf(needed);
+    if (GetFullPathNameW(path.c_str(), needed, buf.data(), nullptr) == 0)
+        return {};
+    return std::wstring(buf.data());
+}
+
+/* Byte-preserving archival: all known and future CRSF records survive, unlike
+ * a load/re-serialize round trip. The destination is same-volume temporary +
+ * flush + atomic replace; a partial copy is never exposed as a session. */
+bool copy_crsf_atomic(FILE* source, const std::wstring& destination) {
+    std::wstring temporary;
+    HANDLE out = INVALID_HANDLE_VALUE;
+    for (u32 attempt = 0; attempt < 100; ++attempt) {
+        temporary = destination + L".tmp." + std::to_wstring(GetCurrentProcessId()) + L"." +
+                    std::to_wstring(attempt);
+        out = CreateFileW(temporary.c_str(), GENERIC_WRITE, 0, nullptr, CREATE_NEW,
+                          FILE_ATTRIBUTE_NORMAL | FILE_FLAG_WRITE_THROUGH, nullptr);
+        if (out != INVALID_HANDLE_VALUE)
+            break;
+        if (GetLastError() != ERROR_FILE_EXISTS && GetLastError() != ERROR_ALREADY_EXISTS)
+            return false;
+    }
+    if (out == INVALID_HANDLE_VALUE)
+        return false;
+
+    bool ok = _fseeki64(source, 0, SEEK_SET) == 0;
+    std::vector<u8> buffer(1024 * 1024);
+    while (ok) {
+        const size_t got = fread(buffer.data(), 1, buffer.size(), source);
+        if (got != 0) {
+            DWORD written = 0;
+            ok =
+                WriteFile(out, buffer.data(), DWORD(got), &written, nullptr) != 0 && written == got;
+        }
+        if (got != buffer.size()) {
+            ok = ok && ferror(source) == 0 && feof(source) != 0;
+            break;
+        }
+    }
+    ok = ok && FlushFileBuffers(out) != 0;
+    ok = CloseHandle(out) != 0 && ok;
+    if (ok)
+        ok = MoveFileExW(temporary.c_str(), destination.c_str(),
+                         MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH) != 0;
+    if (!ok)
+        DeleteFileW(temporary.c_str());
+    return ok;
+}
+
+int cmd_save(int argc, wchar_t** argv, int& i) {
+    std::wstring in_path, out_path;
+    while (i < argc) {
+        if (get_opt(argc, argv, i, L"--in", &in_path))
+            continue;
+        if (get_opt(argc, argv, i, L"--out", &out_path))
+            continue;
+        wprintf(L"unknown save option: %s\n", argv[i]);
+        return 1;
+    }
+    if (in_path.empty() || out_path.empty()) {
+        wprintf(L"save needs --in file.crsf --out file.crsf\n");
+        return 1;
+    }
+    const std::wstring source_path = absolute_path(in_path);
+    const std::wstring destination_path = absolute_path(out_path);
+    if (source_path.empty() || destination_path.empty()) {
+        wprintf(L"save cannot resolve input/output path\n");
+        return 1;
+    }
+    if (_wcsicmp(source_path.c_str(), destination_path.c_str()) == 0) {
+        wprintf(L"save refuses identical input and output paths\n");
+        return 1;
+    }
+
+    FILE* source = nullptr;
+    if (_wfopen_s(&source, source_path.c_str(), L"rb") != 0 || !source) {
+        wprintf(L"cannot open session %s\n", source_path.c_str());
+        return 1;
+    }
+    LoadedSession loaded;
+    u32 rc = load_crsf_stream(source, loaded, true);
+    if (rc == OK && !copy_crsf_atomic(source, destination_path))
+        rc = ERR_SESSION_IO;
+    fclose(source);
+    if (rc != OK) {
+        wprintf(L"session save failed: %hs (0x%08x)\n", err_text(rc), rc);
+        return 1;
+    }
+    wprintf(L"session saved: %s\n", destination_path.c_str());
     return 0;
 }
 
@@ -1467,11 +1662,15 @@ int wmain(int argc, wchar_t** argv) {
             L"  rrecov scan --disk N | --volume C: [--deep] [--quick-only] [--no-carve]\n"
             L"             [--threads N] [--out file.crsf] [--resume file.crsf] [--log file]\n"
             L"             [--json] [--csv] [--filter s] [--deleted-only]\n"
-            L"  rrecov tree --in file.crsf [--filter s] [--deleted-only] [--csv]\n"
+            L"  rrecov tree --in file.crsf [--filter s] [--deleted-only] [--csv] [--json]\n"
+            L"  rrecov load --in file.crsf [--json]\n"
+            L"  rrecov verify --in file.crsf [--json]\n"
+            L"  rrecov save --in file.crsf --out file.crsf\n"
             L"  rrecov recover --in file.crsf --disk N --to DIR [--deleted-only] [--filter s]\n"
             L"             [--report file.json]\n"
             L"  rrecov health --disk N\n"
-            L"  rrecov fix --disk N [--part P] [--apply] [--undo file] [--undo-apply file]\n"
+            L"  rrecov repair --disk N [--part P] [--apply] [--undo file] [--undo-apply file]\n"
+            L"  rrecov fix (compatibility alias for repair)\n"
             L"  rrecov bench --disk N [--mode seq|rand|open|read|info] [--mb N] [--block-kb N]\n"
             L"              [--iterations N] [--seed N] [--json] [--no-rda]\n");
         return 0;
@@ -1484,11 +1683,17 @@ int wmain(int argc, wchar_t** argv) {
         return cmd_scan(argc, argv, i);
     if (cmd == L"tree")
         return cmd_tree(argc, argv, i);
+    if (cmd == L"load")
+        return cmd_load_or_verify(argc, argv, i, false);
+    if (cmd == L"verify")
+        return cmd_load_or_verify(argc, argv, i, true);
+    if (cmd == L"save")
+        return cmd_save(argc, argv, i);
     if (cmd == L"recover")
         return cmd_recover(argc, argv, i);
     if (cmd == L"health")
         return cmd_health(argc, argv, i);
-    if (cmd == L"fix")
+    if (cmd == L"repair" || cmd == L"fix")
         return cmd_fix(argc, argv, i);
     if (cmd == L"bench")
         return cmd_bench(argc, argv, i);

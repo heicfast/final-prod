@@ -60,6 +60,25 @@ jobs:
           cmake --build build/tsan -j"$(nproc)"
           cd build/tsan && ctest --output-on-failure -j2
 
+  linux-ubsan:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install deps
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq zlib1g-dev liblz4-dev libzstd-dev libgtest-dev > /dev/null
+      - name: Configure + build + test (full suite, UBSan)
+        run: |
+          cmake -S . -B build/ubsan -G "Unix Makefiles" \
+            -DCMAKE_BUILD_TYPE=Debug \
+            -DCMAKE_C_COMPILER=gcc -DCMAKE_CXX_COMPILER=g++ \
+            -DCR_ENABLE_ASAN=OFF \
+            -DCMAKE_C_FLAGS="-fsanitize=undefined -fno-sanitize-recover=undefined -fno-omit-frame-pointer" \
+            -DCMAKE_CXX_FLAGS="-fsanitize=undefined -fno-sanitize-recover=undefined -fno-omit-frame-pointer" \
+            -DCMAKE_EXE_LINKER_FLAGS="-fsanitize=undefined" \
+            -DCMAKE_SHARED_LINKER_FLAGS="-fsanitize=undefined"
+          cmake --build build/ubsan -j"$(nproc)"
+          cd build/ubsan && UBSAN_OPTIONS=halt_on_error=1:print_stacktrace=1 ctest --output-on-failure -j2
+
   windows:
     runs-on: windows-2022
     steps:

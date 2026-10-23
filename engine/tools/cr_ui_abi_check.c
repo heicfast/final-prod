@@ -16,6 +16,14 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <errno.h>
+#ifdef _WIN32
+#include <direct.h>
+#define CR_MKDIR(path) _mkdir(path)
+#else
+#include <sys/stat.h>
+#define CR_MKDIR(path) mkdir(path, 0700)
+#endif
 
 #define CHECK(expr)                                                            \
     do {                                                                       \
@@ -180,6 +188,10 @@ int main(int argc, char** argv) {
     if (argc < 2) {
         fprintf(stderr, "usage: cr_ui_abi_check <tmpdir>\n");
         return 2;
+    }
+    if (CR_MKDIR(argv[1]) != 0 && errno != EEXIST) {
+        perror("tmp directory");
+        return 1;
     }
     char img_path[512], ses_path[512];
     snprintf(img_path, sizeof(img_path), "%s/cr_ui_fat16.img", argv[1]);
@@ -436,7 +448,8 @@ int main(int argc, char** argv) {
 
     CHECK(cr_ui_ctx_free(ctx));
     remove(img_path);
-    remove(ses_path);
+    if (argc < 3 || strcmp(argv[2], "--keep-session") != 0)
+        remove(ses_path);
     printf("cr_ui_abi_check: OK (full C lifecycle green)\n");
     return 0;
 }
