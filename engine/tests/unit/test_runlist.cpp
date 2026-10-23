@@ -123,3 +123,18 @@ TEST(RunList, ExtentCoalesce) {
     EXPECT_EQ(ex[0].clusters, 0x20u);
     EXPECT_EQ(ex[1].lcn, 0x5000u);
 }
+
+TEST(RunList, Int64MinOffsetRejected) {
+    /* PARITY-AUDIT follow-up (CI fuzzer, cr_runlist.cpp UBSan): an 8-byte
+     * offset field of 0x8000000000000000 decodes to INT64_MIN, whose
+     * negation in the LCN accumulation is UB — the decoder must reject
+     * the runlist instead of computing a wrapped LCN. */
+    std::vector<u8> enc;
+    enc.push_back(u8(0x01 | (8 << 4))); /* length width 1, offset width 8 */
+    enc.push_back(1);                   /* run length = 1 */
+    for (int i = 0; i < 8; ++i)
+        enc.push_back(i == 7 ? 0x80 : 0x00); /* offset = INT64_MIN */
+    enc.push_back(0);                        /* terminator */
+    RunList rl;
+    EXPECT_EQ(RunList::decode(enc.data(), u32(enc.size()), 0, 1 << 20, rl), ERR_BAD_PARAMETER);
+}

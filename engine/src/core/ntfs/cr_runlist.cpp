@@ -92,8 +92,14 @@ u32 RunList::decode(const u8* data, u32 bytes, u64 first_vcn, u64 max_clusters, 
 
         i64 delta = 0;
         bool sparse = (off_width == 0);
-        if (!sparse)
+        if (!sparse) {
             delta = read_signed_le(data + pos + 1 + len_width, off_width);
+            /* INT64_MIN offset is malformed input and its negation below
+             * is UB (UBSan, caught by the CI fuzzer on cr_runlist.cpp:99);
+             * reject the runlist instead of computing a wrapped LCN. */
+            if (delta == std::numeric_limits<i64>::min())
+                return ERR_BAD_PARAMETER;
+        }
 
         if (!sparse)
             lcn = (delta < 0) ? lcn - static_cast<u64>(-delta) : lcn + static_cast<u64>(delta);
