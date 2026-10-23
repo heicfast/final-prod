@@ -70,3 +70,6 @@ if(CR_ENABLE_ASAN AND NOT MSVC)
     target_compile_options(cr_core PRIVATE -fsanitize=address)
     target_link_options(cr_core PRIVATE -fsanitize=address)
 endif()
+
+# G-01: the core must be PIC to link into the cr_ui shared object
+set_property(TARGET cr_core PROPERTY POSITION_INDEPENDENT_CODE ON)

@@ -38,6 +38,7 @@ endif()
 option(CR_ENABLE_ASAN       "Build pure core with AddressSanitizer"     OFF)
 option(CR_BUILD_TOOLS       "Build host tools (fixture generator)"      ON)
 option(CR_BUILD_APP         "Build the rrecov CLI (Windows only)"       ON)
+option(CR_BUILD_UI          "Build the cr_ui C-ABI shim (G-01)"          ON)
 option(CR_ENABLE_TESTS      "Build the unit-test suite"                ON)
 
 # ---------------------------------------------------------------------------

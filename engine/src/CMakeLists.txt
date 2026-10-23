@@ -3,6 +3,10 @@
 
 add_subdirectory(core)
 
+if(CR_BUILD_UI)
+    add_subdirectory(ui)
+endif()
+
 if(WIN32)
     add_subdirectory(win)
     if(CR_BUILD_APP)
