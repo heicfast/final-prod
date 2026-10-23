@@ -1,9 +1,11 @@
 # PARITY-AUDIT.md — independent parity audit (gate document)
 
-> **Status: AUDIT PHASE COMPLETE — this document is the gate. It was pushed BEFORE any
-> parity fix.** Every fix that follows must reference a finding ID from this document.
-> Authoritative copy lives in `core_recovery`; `rda-wizard/docs/PARITY-AUDIT.md` is the
-> mirrored summary for the UI side.
+> **Status: AUDIT COMPLETE + FIX WAVES 1-2 LANDED.** The audit phase was pushed
+> BEFORE any fix (gate at 1d5cd00); the verified P0/P1 findings were then fixed with
+> regression tests (commit range 1ecf446..9b4e656, each citing its finding ID). Every
+> fix that follows must still reference a finding ID from this document. Authoritative
+> copy lives in `core_recovery`; `rda-wizard/docs/PARITY-AUDIT.md` is the mirrored
+> summary for the UI side. Deliberate deviations: `docs/PARITY-DELTAS.md` (both repos).
 
 - **Auditor:** independent parity-auditor agent (third party; not the core agent, not the
   UI agent). Mandate: `worklog/session-parity-prompt.md` (token redacted).
