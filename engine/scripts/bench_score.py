@@ -44,14 +44,20 @@ def main() -> int:
     manifest = []
     with open(args.manifest, "r", encoding="utf-8-sig", newline="") as fh:
         for row in csv.DictReader(fh, fieldnames=["relpath", "size", "sha256", "scenario"]):
-            manifest.append(
-                {
-                    "relpath": row["relpath"].strip(),
-                    "size": int(row["size"]),
-                    "sha256": row["sha256"].strip(),
-                    "scenario": row["scenario"].strip(),
-                }
-            )
+            # hardened parse (the pattern proven in compare_report.py): a
+            # single malformed row (blank line, header, short row -> None
+            # fields) must skip, never kill the whole scoring run
+            try:
+                manifest.append(
+                    {
+                        "relpath": (row["relpath"] or "").strip(),
+                        "size": int(row["size"]),
+                        "sha256": (row["sha256"] or "").strip(),
+                        "scenario": (row["scenario"] or "").strip(),
+                    }
+                )
+            except (TypeError, ValueError, AttributeError):
+                continue  # header or malformed line
 
     results = []
     with open(args.results, "r", encoding="utf-8-sig", newline="") as fh:
@@ -59,15 +65,15 @@ def main() -> int:
             try:
                 results.append(
                     {
-                        "path": row["path"].strip(),
+                        "path": (row["path"] or "").strip(),
                         "size": int(row["size"] or 0),
-                        "origin": row["origin"].strip(),
-                        "deleted": row["deleted"].strip(),
-                        "confidence": row["confidence"].strip(),
+                        "origin": (row["origin"] or "").strip(),
+                        "deleted": (row["deleted"] or "").strip(),
+                        "confidence": (row["confidence"] or "").strip(),
                     }
                 )
-            except (ValueError, KeyError):
-                continue
+            except (TypeError, ValueError, KeyError, AttributeError):
+                continue  # header or malformed line
 
     # index results: full lowercase path and basename+size
     path_set = set()

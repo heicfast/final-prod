@@ -135,52 +135,69 @@ jobs:
             exit 1
           }
 
-      - name: Run our recovery scan (deep, both volumes, capped)
+      - name: Run our recovery scans (per volume, capped)
+        # Two per-volume deep scans keep ground-truth attribution
+        # unambiguous: both volumes are seeded by the SAME deterministic
+        # generator, so their manifests carry identical relpaths - a
+        # whole-disk result set could satisfy either manifest from either
+        # volume. Each volume gets its own capped session + tree CSV.
         shell: pwsh
         run: |
           $exe = "build\win-x64-release\src\app\Release\rrecov.exe"
           $cap = [int]'${{ inputs.scan_minutes }}' * 60
-          $t0 = Get-Date
-          $p = Start-Process -FilePath $exe -ArgumentList @(
-              'scan', '--disk', $env:DISK, '--deep', '--threads', '4',
-              '--out', 'bench-results\session.crsf',
-              '--log', 'bench-results\rrecov.log', '--json'
-            ) -RedirectStandardOutput 'bench-results\scan.json' `
-              -RedirectStandardError 'bench-results\scan.err' -PassThru -NoNewWindow
-          # poll with the hard cap; the log is flushed per line
-          while (-not $p.HasExited -and ((Get-Date) - $t0).TotalSeconds -lt $cap) {
-            Start-Sleep -Seconds 10
+          function Run-Scan([string]$letter, [string]$name) {
+            $t0 = Get-Date
+            $p = Start-Process -FilePath $exe -ArgumentList @(
+                'scan', '--volume', "$letter`:", '--deep', '--threads', '4',
+                '--out', "bench-results\session-$name.crsf",
+                '--log', "bench-results\rrecov-$name.log", '--json'
+              ) -RedirectStandardOutput "bench-results\scan-$name.json" `
+                -RedirectStandardError "bench-results\scan-$name.err" -PassThru -NoNewWindow
+            # poll with the hard cap; the log is flushed per line
+            while (-not $p.HasExited -and ((Get-Date) - $t0).TotalSeconds -lt $cap) {
+              Start-Sleep -Seconds 10
+            }
+            if (-not $p.HasExited) {
+              Write-Host "scan $name exceeded the ${{ inputs.scan_minutes }}-minute cap - capturing partial state"
+              "scan_capped=true" | Out-File "bench-results\capped-$name.txt" -Encoding utf8
+              Stop-Process -Id $p.Id -Force -ErrorAction SilentlyContinue
+              Start-Sleep -Seconds 2
+            } else {
+              "scan_capped=false" | Out-File "bench-results\capped-$name.txt" -Encoding utf8
+            }
+            $dt = ((Get-Date) - $t0).TotalSeconds
+            "scan_seconds=$([math]::Round($dt,1))" | Out-File "bench-results\timing-$name.txt" -Encoding utf8
+            if (Test-Path "bench-results\session-$name.crsf") {
+              & $exe tree --in "bench-results\session-$name.crsf" --csv `
+                | Out-File -FilePath "bench-results\results-$name.csv" -Encoding utf8
+            } else {
+              "no session produced" | Out-File "bench-results\results-$name.csv" -Encoding utf8
+            }
           }
-          if (-not $p.HasExited) {
-            Write-Host "scan exceeded the ${{ inputs.scan_minutes }}-minute cap - capturing partial state"
-            "scan_capped=true" | Out-File bench-results\capped.txt -Encoding utf8
-            Stop-Process -Id $p.Id -Force -ErrorAction SilentlyContinue
-            Start-Sleep -Seconds 2
-          } else {
-            "scan_capped=false" | Out-File bench-results\capped.txt -Encoding utf8
-          }
-          $dt1 = ((Get-Date) - $t0).TotalSeconds
-          "scan_seconds=$([math]::Round($dt1,1))" | Out-File bench-results\timing.txt -Encoding utf8
-          if (Test-Path bench-results\session.crsf) {
-            & $exe tree --in bench-results\session.crsf --csv `
-              | Out-File -FilePath bench-results\results.csv -Encoding utf8
-          } else {
-            "no session produced" | Out-File bench-results\results.csv -Encoding utf8
-          }
+          Run-Scan $env:NTFS_LETTER 'ntfs'
+          Run-Scan $env:EXFAT_LETTER 'exfat'
           & $exe bench --disk $env:DISK --mode info --json | Tee-Object bench-results\bench-info.json
           & $exe bench --disk $env:DISK --mode seq --mb 256 --block-kb 1024 --json | Tee-Object bench-results\bench-seq.json
 
-      - name: Score recall/precision
+      - name: Score recall/precision (NTFS + exFAT)
         shell: pwsh
         run: |
           python scripts\bench_score.py `
             --manifest bench-results\manifest-ntfs.csv `
-            --results bench-results\results.csv `
+            --results bench-results\results-ntfs.csv `
             --out bench-results\scores-ntfs.json `
             --summary bench-results\summary-ntfs.md
           if ($LASTEXITCODE -ne 0) { exit 1 }
+          python scripts\bench_score.py `
+            --manifest bench-results\manifest-exfat.csv `
+            --results bench-results\results-exfat.csv `
+            --out bench-results\scores-exfat.json `
+            --summary bench-results\summary-exfat.md
+          if ($LASTEXITCODE -ne 0) { exit 1 }
           Get-Content bench-results\summary-ntfs.md | Write-Host
+          Get-Content bench-results\summary-exfat.md | Write-Host
           Get-Content bench-results\summary-ntfs.md | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Encoding utf8 -Append
+          Get-Content bench-results\summary-exfat.md | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Encoding utf8 -Append
 
       - name: Stop + remove driver, detach VHD
         if: always()

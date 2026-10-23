@@ -203,3 +203,49 @@ Work Log:
 
 Stage Summary:
 - Session 5 opened. AUDIT.md is the gate: no fixes until it is on main.
+
+---
+Task ID: S6-START
+Agent: main
+Task: Session 6 - context recovery + P1-12 + benchmark split (user direction)
+
+Work Log:
+- Context recovered: all 3 repos re-cloned (workspace reset again);
+  core_recovery @ 8084cbb had 3 red CI runs from the parallel engine-truth
+  wave (lint drift + windows 0xc0000135). Parallel agents (audit + fix)
+  confirmed active: their AUDIT.md (60 rows, 4-wave fix plan) + Btrfs/ext4
+  + ZFS rewrites are on main; LDM/NTFS/UsnJrnl/carve-depth waves still open.
+- CI repaired (35876b3): root cause of 0xc0000135 = bare find_library(NAMES
+  lz4) resolves the RELEASE import lib even in Debug -> imports liblz4.dll
+  which the debug bin dir cannot satisfy; vcpkg CONFIG packages
+  (liblz4::liblz4 / zstd::libzstd) now preferred (per-config import names,
+  applocal deploys correctly). clang-format-18 applied tree-wide.
+- P1-12 FIXED (af4bc8e) - the 35-min/hours scan stall root cause: carve
+  validators' forward rescans stepped in 0.5-1 KiB reads through the
+  UNCACHED slice (ZIP EOCD: up to 2,097,152 read_at/hit, no early exit;
+  PDF %%EOF: 524,288; JPEG SOS: 196,608). All now 1 MiB block scans
+  (1024x fewer syscalls, full scan distance kept, seam overlap,
+  per-call thread-safe buffers). ZIP: first-geometry-consistent-EOCD-wins
+  replaces last-wins (cross-file extent corruption - the carve fixture
+  passed ON the bug; fixture corrected to 140 B own-extent). MP3: strict
+  frame walk (AUDIT Wave-3; fabricated 32 MiB ceiling gone; min 2 frames;
+  v2.3/2.4 only; extents clamped to slice end). 114/114 tests green.
+- bench_score.py crash fixed: manifest loop now guarded (the
+  compare_report.py pattern); single malformed rows skip instead of
+  killing the scoring run.
+- Benchmark division (user direction - "separate for ours and separate
+  for easeus but same methodology and environment"): comparison.yml split
+  into comparison-ours.yml + comparison-easeus.yml. Both legs: same
+  windows-2022 env, same 8 GiB/GPT/5 GB NTFS layout, same bench_seed.ps1
+  DEFAULT parameters (identical manifests by construction), both drivers
+  side-by-side (non-fatal on the leg that does not need them), single
+  scoring truth (compare_report.py). The easeus leg fetches the latest
+  comparison-ours artifact and emits the combined report (graceful
+  degradation when absent). benchmark.yml: two per-volume capped scans
+  (attribution unambiguous - both volumes share identical relpaths) +
+  exFAT scoring added (was uploaded-but-never-scored dead weight).
+
+Stage Summary:
+- P1-12 done; benchmark stack restructured; CI unblocked for the parallel
+  agents. Open: LDM full, NTFS attrlist/UsnJrnl/FILE0, carve depth
+  (raw_signs layer), CachedReader wiring (#40) - parallel agents' waves.
