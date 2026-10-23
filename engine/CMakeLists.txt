@@ -44,10 +44,13 @@ if(NOT ZLIB_FOUND)
 endif()
 
 # ---------------------------------------------------------------------------
-# LZ4 + zstd (ZFS compressed-extent decoding). Optional at build time: the
-# decompressor reports unavailable codecs instead of failing the build, but
-# CI builds must carry both so real pools decode (apt: liblz4-dev libzstd-dev;
-# vcpkg: lz4 zstd).
+# LZ4 + zstd (ZFS/Btrfs compressed-extent decoding) - REQUIRED for every
+# build (FB-X01 / AUDIT-FALLBACKS): the reference NEVER runs without its
+# decompressors (BtrfsSearchDLL carries zlib; ZfsSearchDLL reimplements
+# lzjb/gzip in-engine), and a build that silently compiles them out turns
+# compressed pools into zero-filled salvage with only a hash-mismatch
+# signal. Both are vcpkg manifest dependencies already; the fuzz Makefile
+# keeps its own pkg-config relaxation (standalone harness).
 #
 # Discovery order (0xc0000135 postmortem, three CI cycles):
 #   1. CONFIG package (vcpkg)  - the ONLY source with per-config import
@@ -121,6 +124,17 @@ if(TARGET PkgConfig::LZ4)
 endif()
 if(TARGET PkgConfig::ZSTD)
     set(CR_ZSTD_LINK "PkgConfig::ZSTD")
+endif()
+
+# FB-X01: no silent codec-less builds. zlib above is already fatal; lz4 and
+# zstd are equally required now (the runtime codec_available() stays as the
+# honest query surface, but production builds must never need it to say no).
+if(NOT CR_LZ4_LINK OR NOT CR_ZSTD_LINK)
+    message(FATAL_ERROR
+        "lz4/zstd not found - both decompressors are REQUIRED (a build without "
+        "them silently zero-fills compressed ZFS/Btrfs extents; the reference "
+        "never runs without its decompressors). Install: apt liblz4-dev "
+        "libzstd-dev; vcpkg lz4 zstd (already in vcpkg.json).")
 endif()
 
 # ---------------------------------------------------------------------------

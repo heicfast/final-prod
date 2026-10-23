@@ -284,10 +284,11 @@ Error/ERR_CANCELLED, no partial final (cr_safewriter.cpp:165-170 + cr_destio.cpp
 resident-prefix streaming + zero-padded resident-only tail (test_orchestrator.cpp:370-419) ✓;
 hash: SHA-256 truncated-128-bit compare vs `sha128` set only for carved ≤8MiB
 (cr_carve.cpp:30 `MAX_FILE_READ_FOR_HASH = 8ull<<20`, cr_safewriter.cpp:270-284) ✓ internally
-consistent; hash-less structured files recover (skip_hashless=false default) ✓; salvage-on-mismatch
-commits + counts + CLI surfaces it (rrecov.cpp:720-722) ✓ per AUDIT row 35(b) — but the
-`verify_hash` comment "refuse-after-write mismatch is an error" (cr_safewriter.h:61) still carries
-the pre-fix ambiguity AUDIT 35(b) said to remove.
+consistent; hash-less structured files always recover (the `skip_hashless` knob was DEAD config -
+never read by cr_safewriter.cpp - and is REMOVED per AUDIT-FALLBACKS FB-R03; the behavior it
+seemed to gate was unconditional); salvage-on-mismatch
+commits + counts + CLI surfaces it (rrecov.cpp:720-722) ✓ per AUDIT row 35(b) — the
+`verify_hash` comment ambiguity is also fixed (salvage-on-mismatch semantics documented inline).
 
 ---
 

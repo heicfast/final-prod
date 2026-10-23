@@ -6,7 +6,11 @@
  *   - isolates failing ranges by bisection down to sector granularity
  *     (a 1 MiB read that dies on one bad sector does not lose the megabyte),
  *   - Skip mode: zero-fills ONLY the failing sectors and returns OK
- *     (opt-in; the default Fail mode reports ERR_RETRY_EXHAUSTED),
+ *     (opt-in at the API level; the default Fail mode reports
+ *     ERR_RETRY_EXHAUSTED - but PRODUCTION scans always opt in: the
+ *     orchestrator constructs the pipe with Skip (cr_scan.cpp) so one
+ *     dead spot never aborts a scan - the reference surfaces the same
+ *     state as BadSectorTip/"trying to skip bad sectors", FB-O03),
  *   - records every permanent failure in a ReadErrorMap that callers
  *     preserve in scan results and sessions.
  *

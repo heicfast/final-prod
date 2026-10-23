@@ -265,9 +265,15 @@ u32 ScanController::tel_overall_() const {
 u32 ScanController::emit_checkpoint_() const {
     if (!cfg_.checkpoint)
         return OK;
-    /* fresh container per checkpoint: the sink triple IS the writer's IO
-     * (a file-backed sink makes this <path>.tmp + flush + rename). The
+    /* fresh container per checkpoint: rewind the sink first so every
+     * emit overwrites from position 0 (the file always holds the newest
+     * COMPLETE checkpoint; a torn one is no worse than none - the reader
+     * re-indexes forward by construction). The sink triple IS the writer's
+     * IO (a file-backed sink makes this <path>.tmp + flush + rename). The
      * record set matches save_session exactly - mask truth included. */
+    if (cfg_.checkpoint.seek)
+        if (u32 rc = cfg_.checkpoint.seek(cfg_.checkpoint.user, 0))
+            return rc;
     session::Writer w(cfg_.checkpoint.write, cfg_.checkpoint.tell, cfg_.checkpoint.seek,
                       cfg_.checkpoint.user);
     if (u32 rc = w.open(0x52434B50)) /* 'RKPP' checkpoint container tag */

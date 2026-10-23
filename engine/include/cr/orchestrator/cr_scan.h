@@ -34,7 +34,9 @@ enum class FsFamily : u8 {
     Fat,
     Exfat,
     Ext4,
-    CarvedOnly,
+    /* 5 reserved (was CarvedOnly - never produced by probe_family nor
+     * matched by the dispatch; the name is removed, the value is NOT
+     * renumbered because serialized fs_kind depends on it - FB-L03). */
     /* Values 6..9 appended after v0.1.0: the serialized fs_kind numbers
      * 0..5 keep their meaning, so old sessions stay readable. */
     Hfsplus,

@@ -722,3 +722,61 @@ TEST(CarveEngine, RawSignLayerHeaderAndTail) {
     EXPECT_EQ(tail_n->confidence(), tree::Confidence::PartialRisk);
     EXPECT_GE(tail_n->props()->carve_confidence, 700); /* paired bonus */
 }
+
+/* FB-C01 (AUDIT-FALLBACKS): an unreadable window is SKIPPED and its bytes
+ * must NOT be counted as scanned - bytes_scanned is the honest coverage
+ * contract (G-05); the old code claimed coverage of bytes it never read. */
+namespace {
+class PartialFailDevice final : public IStorageDevice {
+public:
+    PartialFailDevice(std::vector<u8> b, u64 bad_start, u64 bad_len)
+        : data_(std::move(b)), bad_start_(bad_start), bad_len_(bad_len) {
+        geom_.logical_sector = 512;
+        geom_.physical_sector = 512;
+        geom_.sector_count = data_.size() / 512;
+        geom_.total_bytes = geom_.sector_count * 512;
+    }
+    u32 read_at(u64 off, void* buf, u32 len) override {
+        if (off > data_.size() || len > data_.size() - off)
+            return ERR_RANGE_OUT_OF_BOUNDS;
+        /* any read touching the bad range fails (post-retry state) */
+        if (off < bad_start_ + bad_len_ && off + len > bad_start_)
+            return ERR_READ_FAILED;
+        std::memcpy(buf, data_.data() + off, len);
+        return OK;
+    }
+    const Geometry& geometry() const override { return geom_; }
+
+private:
+    std::vector<u8> data_;
+    u64 bad_start_, bad_len_;
+    Geometry geom_;
+};
+} // namespace
+
+TEST(CarveEngine, UnreadableWindowNotCountedAsScanned) {
+    /* 3 MiB device; the middle window unreadable EXCLUDING the 4 KiB
+     * overlap tail window 0 reads (so window 0 itself stays readable) */
+    std::vector<u8> img(3 * 1024 * 1024, 0);
+    plant_jpeg(img, 512); /* live content in window 0 */
+    const u64 bad_start = (1ull << 20) + 4096;
+    PartialFailDevice dev(std::move(img), bad_start, (1ull << 20) - 4096);
+
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"Lost Files");
+    CarveFlags flags;
+    CarveStats s;
+    ASSERT_EQ(carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, s),
+              OK);
+    /* window 1 skipped; windows 0 and 2 fully counted (1 MiB each - the
+     * OVERLAP re-read is excluded by the own-range attribution) */
+    EXPECT_EQ(s.windows_skipped, 1u);
+    EXPECT_EQ(s.bytes_scanned, 2u * (1ull << 20));
+    /* the readable window's content still carved */
+    bool saw_jpg = false;
+    for (tree::FileNode* c = root->first_child(); c; c = c->next_sibling()) {
+        if (c->props()->extents.front().offset == 512)
+            saw_jpg = true;
+    }
+    EXPECT_TRUE(saw_jpg);
+}

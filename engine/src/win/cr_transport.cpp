@@ -262,11 +262,20 @@ std::unique_ptr<RdaClient> RdaClient::open(const wchar_t* service_name, u32* err
     InitializeCriticalSection(static_cast<CRITICAL_SECTION*>(client->info_mutex_));
 
     DriverInfo info = {};
-    if (client->query_info(&info)) {
-        client->info_ = info;
-        client->have_info_ = true;
-        client->ioctl_base_ = info.ioctl_base;
+    if (!client->query_info(&info)) {
+        /* TRANSPORT-CONTRACT §9: "GET_INFO failure on a successfully-opened
+         * device = wrong/ancient driver under that service name → treat as
+         * 'wrong driver'". Refuse instead of proceeding at ioctl_base_=0:
+         * the tolerated-failure path could address session IOCTLs at a
+         * foreign driver under the same service name (AUDIT-FALLBACKS
+         * FB-T06 - the silent capability degrade is removed). */
+        if (err)
+            *err = ERR_OPEN_FAILED;
+        return nullptr;
     }
+    client->info_ = info;
+    client->have_info_ = true;
+    client->ioctl_base_ = info.ioctl_base;
     if (err)
         *err = OK;
     return client;
@@ -447,9 +456,28 @@ bool RdaClient::session_get_next_block(u64 handle, u64 cursor_sec, u32 max_sec, 
     io.cursor_sec = cursor_sec;
     io.max_sec = max_sec;
     if (!ctl_ioctl(kSessGetNextBlock + ioctl_base_, &io, sizeof(io), &io, sizeof(io), nullptr)) {
-        /* Stream end / no plan / finalized: the driver completes pending
-         * pumps with 0xC0000120 - that is the "pump drained" signal, not a
-         * hard failure. */
+        /* Driver truth (rda-driver rda_session.c, pump worker): GETNEXTBLOCK
+         * completes with 0xC0000120 ONLY for the no-plan/drain case - "No
+         * active plan (pre-StartBackup or finalized): reference returns
+         * 0xC0000120 with the progress fields filled" - and the finalize
+         * path drains queued pumps with the same status. Every OTHER
+         * failure is a real error (forwarded storage NTSTATUS on a bad
+         * read, STATUS_INVALID_HANDLE, STATUS_NO_MEMORY on queue
+         * exhaustion) and must surface as one; the reference client
+         * (rdacli.c CmdSession) hard-fails on any GETNEXTBLOCK error.
+         * The old blanket "any IOCTL failure = stream done, 100%, OK"
+         * masked real session failures as completed imaging
+         * (AUDIT-FALLBACKS FB-T07). DeviceIoControl maps the status via
+         * RtlNtStatusToDosError (STATUS_CANCELLED -> ERROR_CANCELLED);
+         * accept a raw NTSTATUS pass-through as well. */
+        const DWORD gle = GetLastError();
+        if (gle != ERROR_CANCELLED && gle != 0xC0000120u) {
+            if (stream_done)
+                *stream_done = false;
+            if (err)
+                *err = ERR_READ_FAILED;
+            return false;
+        }
         if (stream_done)
             *stream_done = true;
         if (progress)
@@ -476,8 +504,11 @@ bool RdaClient::session_get_next_block(u64 handle, u64 cursor_sec, u32 max_sec, 
     }
     if (next_cursor)
         *next_cursor = cursor_sec + granted;
+    /* The driver completes an exhausted plan with STATUS_SUCCESS and
+     * Progress=100 but pumps no data (rda_session.c "Stream complete"
+     * path) - a zero-grant round IS the stream-complete signal. */
     if (stream_done)
-        *stream_done = false;
+        *stream_done = granted == 0;
     if (err)
         *err = OK;
     return true;

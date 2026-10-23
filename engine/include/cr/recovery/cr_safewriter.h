@@ -80,10 +80,11 @@ struct QueueItem {
 };
 
 struct WriterConfig {
-    u64 read_chunk = 1 << 20;   /* source read granularity */
-    u32 rename_attempts = 64;   /* collision suffix cap */
-    bool verify_hash = true;    /* refuse-after-write mismatch is an error */
-    bool skip_hashless = false; /* items without a known hash still recover */
+    u64 read_chunk = 1 << 20; /* source read granularity */
+    u32 rename_attempts = 64; /* collision suffix cap */
+    bool verify_hash = true;  /* salvage-on-mismatch: commit + report the
+                               * mismatch (Outcome::HashMismatch), never a
+                               * silent drop */
     /* G-08: reconstruct the destination directory structure - every item's
      * dest_dir is created (mkdir -p, cached per unique dir) before writing,
      * and directory nodes are enqueueable so empty leaves materialize. */

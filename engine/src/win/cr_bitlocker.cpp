@@ -71,20 +71,39 @@ std::wstring quote(const std::wstring& s) {
 
 } // namespace
 
-bool is_fve_volume(wchar_t letter) {
+/* Three-outcome boot probe: the two-state is_fve_volume() cannot distinguish
+ * "no FVE signature" from "volume unreadable" (typical for a LOCKED
+ * BitLocker volume that denies \\.\X: reads). Misclassifying the latter as
+ * clear let scans proceed on locked volumes the og routes to its unlock
+ * flow (corpus 04-recovery-workflow §2/§10; AUDIT-FALLBACKS FB-B01). */
+namespace {
+enum class BootProbe : u8 { Clear, Fve, Unreadable };
+
+BootProbe probe_fve(wchar_t letter) {
     u8 sec[512];
     if (!read_boot_sector(letter, sec))
-        return false;
+        return BootProbe::Unreadable;
     /* BitLocker volume boot marker at OEM position (corpus signature) */
-    return std::memcmp(sec + 3, "-FVE-FS-", 8) == 0;
+    if (std::memcmp(sec + 3, "-FVE-FS-", 8) == 0)
+        return BootProbe::Fve;
+    return BootProbe::Clear;
+}
+} // namespace
+
+bool is_fve_volume(wchar_t letter) {
+    return probe_fve(letter) == BootProbe::Fve;
 }
 
 bitlocker::Status status(wchar_t letter) {
-    if (!is_fve_volume(letter)) {
-        /* no FVE signature: the volume is clear (audit row 42b: the
-         * re-check of is_fve_volume() inside this branch was
-         * tautologically false - Status::Locked was unreachable here) */
+    switch (probe_fve(letter)) {
+    case BootProbe::Unreadable:
+        /* Never "clear" when the state cannot be determined - the caller
+         * must refuse and surface unlock guidance, not scan blind. */
+        return Status::Unknown;
+    case BootProbe::Clear:
         return Status::Clear;
+    case BootProbe::Fve:
+        break;
     }
     /* FVE signature present: if the volume answers filesystem queries it is
      * unlocked-encrypted; else locked */

@@ -4,12 +4,19 @@
  * Commands:
  *   list                                  enumerate disks/volumes
  *   scan --disk N | --volume C: [--deep] [--quick-only] [--no-carve]
- *         [--threads N] [--out file.crsf] [--json] [--log file]
+ *         [--threads N] [--out file.crsf] [--resume file.crsf] [--json]
+ *         [--log file] [--csv] [--filter s] [--deleted-only]
  *   tree --in file.crsf [--filter substr] [--deleted-only] [--csv]
  *   recover --in file.crsf --disk N --to DIR [--deleted-only] [--filter s]
+ *         [--report file.json]
  *   health --disk N
  *   fix --disk N [--part P] [--apply] [--undo file] [--undo-apply file]
- *   bench --disk N --mode seq|rand|open|read --mb N --block-kb N [--json]
+ *   bench --disk N [--mode seq|rand|open|read|info] [--mb N] [--block-kb N]
+ *         [--iterations N] [--seed N] [--json] [--no-rda]
+ *
+ * Exit codes: scan 0 ok / 1 failure / 3 cancelled (session saved when --out
+ * was given); list 1 on enumeration failure; health 3 when every health
+ * source is unavailable; recover 2 partial (item errors / hash mismatch).
  *
  * Everything is logged in detail (stage timings, per-stage counts, error
  * maps) for testing, validation and benchmarking workflows.
@@ -83,8 +90,28 @@ struct ProgressDisplay {
         wprintf(L"\r  %5.1f%%  (%lld s)   ", pct, static_cast<long long>(ms) / 1000);
         return true;
     }
+    /* Success summary only - a failed/cancelled run must never print
+     * "100.0% done" (AUDIT-ARCH F-B-15). */
     void done() { wprintf(L"\r  100.0%%  done          \n"); }
+    double pct() const { return last_permille == 0xFFFFFFFFu ? 0.0 : last_permille / 10.0; }
 };
+
+/* ---------------------------------------------------------------------------
+ * Cancellation (ARCH-2 wiring): Ctrl-C cancels the in-flight scan/recover
+ * through a pause-capable token (the orchestrator/writer poll it at loop
+ * heads; a UI host additionally uses pause()). Cooperative: the scan
+ * thread observes the cancel, run() returns ERR_CANCELLED, the session is
+ * saved when --out was given, and the process exits 3.
+ * ------------------------------------------------------------------------- */
+PausableToken g_cancel_token;
+
+BOOL WINAPI ctrl_c_handler(DWORD type) {
+    if (type == CTRL_C_EVENT || type == CTRL_BREAK_EVENT) {
+        g_cancel_token.cancel();
+        return TRUE;
+    }
+    return FALSE;
+}
 
 /* ---------------------------------------------------------------------------
  * Logging (detailed, for test/bench workflows).
@@ -159,18 +186,28 @@ bool open_disk_view(u32 n, OpenResult& out) {
 }
 
 bool open_volume_view(wchar_t letter, OpenResult& out) {
-    if (win::bitlocker::is_fve_volume(letter)) {
-        if (win::bitlocker::status(letter) == win::bitlocker::Status::Locked) {
-            wprintf(L"[bitlocker] %c: locked - trying auto-unlock...\n", letter);
-            if (win::bitlocker::try_auto_unlock(letter) != OK) {
-                wprintf(L"[bitlocker] still locked. Unlock with:\n"
-                        L"  Unlock-BitLocker -MountPoint %c: -RecoveryPassword <key>\n"
-                        L"then re-run.\n",
-                        letter);
-                return false;
-            }
-            wprintf(L"[bitlocker] auto-unlocked\n");
+    const win::bitlocker::Status bst = win::bitlocker::status(letter);
+    if (bst == win::bitlocker::Status::Unknown) {
+        /* Boot sector unreadable: the BitLocker state cannot be determined
+         * (typical for a locked volume denying \\.\X: reads). Never scan
+         * blind - refuse with the unlock path (FB-B01). */
+        wprintf(L"[bitlocker] %c: boot sector unreadable - cannot determine BitLocker state\n"
+                L"  (typical for a locked volume). Unlock with:\n"
+                L"  Unlock-BitLocker -MountPoint %c: -RecoveryPassword <key>\n"
+                L"then re-run.\n",
+                letter, letter);
+        return false;
+    }
+    if (bst == win::bitlocker::Status::Locked) {
+        wprintf(L"[bitlocker] %c: locked - trying auto-unlock...\n", letter);
+        if (win::bitlocker::try_auto_unlock(letter) != OK) {
+            wprintf(L"[bitlocker] still locked. Unlock with:\n"
+                    L"  Unlock-BitLocker -MountPoint %c: -RecoveryPassword <key>\n"
+                    L"then re-run.\n",
+                    letter);
+            return false;
         }
+        wprintf(L"[bitlocker] auto-unlocked\n");
     }
     u32 disk = 0;
     u64 start = 0, len = 0;
@@ -224,11 +261,12 @@ bool has_flag(int argc, wchar_t** argv, int& i, const wchar_t* name) {
  * list
  * ------------------------------------------------------------------------- */
 
-void print_disks() {
+int print_disks() {
     win::PhysicalDiskList list;
     if (win::enumerate_disks(200, list) != OK) {
         wprintf(L"enumeration failed\n");
-        return;
+        return 1; /* FB-K01: enumeration failure is never exit-0 - scripts
+                     must not mistake total failure for "no disks" */
     }
     win::VolumeEntryList vols;
     win::enumerate_volumes(vols);
@@ -247,6 +285,7 @@ void print_disks() {
             }
         }
     }
+    return 0;
 }
 
 /* ---------------------------------------------------------------------------
@@ -362,7 +401,7 @@ int cmd_scan(int argc, wchar_t** argv, int& i) {
     bool have_target = false;
     orchestrator::ScanConfig cfg;
     cfg.whole_disk = false;
-    std::wstring out_path, log_path;
+    std::wstring out_path, log_path, resume_path;
     bool json = false;
     TreePrintFlags print_flags;
 
@@ -401,6 +440,8 @@ int cmd_scan(int argc, wchar_t** argv, int& i) {
         }
         if (get_opt(argc, argv, i, L"--out", &out_path))
             continue;
+        if (get_opt(argc, argv, i, L"--resume", &resume_path))
+            continue;
         if (get_opt(argc, argv, i, L"--log", &log_path))
             continue;
         if (get_opt(argc, argv, i, L"--filter", &v)) {
@@ -423,7 +464,8 @@ int cmd_scan(int argc, wchar_t** argv, int& i) {
         return 1;
     }
     if (!have_target) {
-        wprintf(L"scan needs --disk N or --volume C:\n");
+        wprintf(L"scan needs --disk N or --volume C:%s\n",
+                resume_path.empty() ? L"" : L" (plus the ORIGINAL target of the saved session)");
         return 1;
     }
 
@@ -478,18 +520,63 @@ int cmd_scan(int argc, wchar_t** argv, int& i) {
         }
     }
 
+    /* session output: --out explicit; --resume without --out updates the
+     * resumed file in place */
+    const std::wstring effective_out = out_path.empty() ? resume_path : out_path;
+
+    /* G-13 checkpoint sink (ARCH-2/SESS-3 wiring): --out enables
+     * stage-boundary auto-checkpoints. Each emit seeks to 0 and
+     * overwrites, so the file always holds the newest complete
+     * checkpoint (a torn one is no worse than no checkpoint - the
+     * reader re-indexes forward by construction). */
+    FILE* ck_file = nullptr;
+    if (!effective_out.empty()) {
+        if (_wfopen_s(&ck_file, effective_out.c_str(), L"wb") != 0 || !ck_file) {
+            wprintf(L"cannot create session file %s\n", effective_out.c_str());
+            return 1;
+        }
+        cfg.checkpoint.write = file_write_cb;
+        cfg.checkpoint.tell = file_tell_cb;
+        cfg.checkpoint.seek = file_seek_cb;
+        cfg.checkpoint.user = ck_file;
+    }
+
     tree::ResultTree tree;
-    orchestrator::ScanController ctrl(tree, cfg);
+    std::unique_ptr<orchestrator::ScanController> ctrl;
     orchestrator::ScanStats stats;
+    if (!resume_path.empty()) {
+        FILE* fin = nullptr;
+        if (_wfopen_s(&fin, resume_path.c_str(), L"rb") != 0 || !fin) {
+            wprintf(L"cannot open session %s\n", resume_path.c_str());
+            if (ck_file)
+                fclose(ck_file);
+            return 1;
+        }
+        session::Reader r(file_read_cb, file_seek_cb, file_size_cb, fin);
+        session::VolumeSessionInfo info;
+        const u32 rrc = orchestrator::ScanController::resume(r, tree, cfg, stats, info, ctrl);
+        fclose(fin);
+        if (rrc != OK) {
+            wprintf(L"resume failed: %hs (0x%08x)\n", err_text(rrc), rrc);
+            if (ck_file)
+                fclose(ck_file);
+            return 1;
+        }
+        wprintf(L"[resume] session mask 0x%x - skipping completed stage(s)\n",
+                info.stage_done_mask);
+    } else {
+        ctrl.reset(new orchestrator::ScanController(tree, cfg));
+    }
     ProgressDisplay prog;
     log_line("scan start");
-    const u32 rc = ctrl.run(
-        target.device.get(), nullptr,
+    const u32 rc = ctrl->run(
+        target.device.get(), &g_cancel_token,
         [](u32 pm, void* user) -> bool {
             return static_cast<ProgressDisplay*>(user)->operator()(pm, nullptr);
         },
         &prog, stats);
-    prog.done();
+    if (ck_file)
+        fclose(ck_file); /* checkpoints done; the final save reopens fresh */
     log_line("scan end rc=0x%08x files=%llu deleted=%llu carved=%llu lost_parts=%llu "
              "bytes=%llu elapsed_ms=%llu errors=%zu",
              rc, stats.files_found, stats.deleted_found, stats.carved_found, stats.lost_partitions,
@@ -500,10 +587,44 @@ int cmd_scan(int argc, wchar_t** argv, int& i) {
                  static_cast<unsigned long long>(er.length), er.attempts);
     log_close();
 
+    /* save helper: full truthful session from the (now quiesced) tree */
+    auto save_session_to = [&](const std::wstring& path) -> bool {
+        FILE* f = nullptr;
+        if (_wfopen_s(&f, path.c_str(), L"wb") != 0 || !f) {
+            wprintf(L"cannot create session file %s\n", path.c_str());
+            return false;
+        }
+        session::Writer w(file_write_cb, file_tell_cb, file_seek_cb, f);
+        if (w.open(0x52434F56) != OK || ctrl->save_session(w, stats) != OK || w.finalize() != OK) {
+            wprintf(L"session save failed\n");
+            fclose(f);
+            return false;
+        }
+        fclose(f);
+        return true;
+    };
+
     if (rc != OK) {
+        if (rc == ERR_CANCELLED) {
+            /* Save-on-cancel (ARCH-2): a cancelled run persists a resumable
+             * session when a path is known - exactly what the core's
+             * stage_done_mask truth was built for. */
+            wprintf(L"\nscan cancelled at %.1f%%\n", prog.pct());
+            if (!effective_out.empty()) {
+                if (save_session_to(effective_out)) {
+                    wprintf(L"session saved (cancelled): %s\n"
+                            L"resume with: rrecov scan --resume %s --disk N | --volume C:\n",
+                            effective_out.c_str(), effective_out.c_str());
+                }
+            } else {
+                wprintf(L"(pass --out file.crsf to save a resumable session on cancel)\n");
+            }
+            return 3; /* cancelled is distinct from failure (0/1/3) */
+        }
         wprintf(L"scan failed: %hs (0x%08x)\n", cr::err_text(rc), rc);
         return 1;
     }
+    prog.done();
     if (json) {
         wprintf(L"{\"files\":%llu,\"deleted\":%llu,\"carved\":%llu,\"lost_partitions\":%llu,"
                 L"\"bytes_scanned\":%llu,\"elapsed_ms\":%llu}\n",
@@ -518,20 +639,10 @@ int cmd_scan(int argc, wchar_t** argv, int& i) {
 
     print_tree(tree, print_flags);
 
-    if (!out_path.empty()) {
-        FILE* f = nullptr;
-        if (_wfopen_s(&f, out_path.c_str(), L"wb") != 0 || !f) {
-            wprintf(L"cannot create session file %s\n", out_path.c_str());
+    if (!effective_out.empty()) {
+        if (!save_session_to(effective_out))
             return 1;
-        }
-        session::Writer w(file_write_cb, file_tell_cb, file_seek_cb, f);
-        if (w.open(0x52434F56) != OK || ctrl.save_session(w, stats) != OK || w.finalize() != OK) {
-            wprintf(L"session save failed\n");
-            fclose(f);
-            return 1;
-        }
-        fclose(f);
-        wprintf(L"session saved: %s\n", out_path.c_str());
+        wprintf(L"session saved: %s\n", effective_out.c_str());
     }
     return 0;
 }
@@ -713,7 +824,7 @@ int cmd_recover(int argc, wchar_t** argv, int& i) {
     const auto t_recover0 = std::chrono::steady_clock::now();
     ProgressDisplay prog;
     rc = writer.process(
-        nullptr,
+        &g_cancel_token,
         [](u64 done, u64 total, void* user) -> bool {
             auto* p = static_cast<ProgressDisplay*>(user);
             const u32 pm = total ? u32(done * 1000 / total) : 1000;
@@ -788,7 +899,9 @@ int cmd_health(int argc, wchar_t** argv, int& i) {
     /* SMART via ATA passthrough */
     win::health::SmartReport sm;
     u32 rc = win::health::read_smart(h, sm);
+    bool any_health_source = false;
     if (rc == OK && sm.available) {
+        any_health_source = true;
         wprintf(L"SMART (%hs): ATA version %u, %zu attribute(s)\n", sm.transport.c_str(),
                 sm.ata_version, sm.attributes.size());
         wprintf(L"  %-4s %-6s %-6s %-12s %hs\n", L"ID", L"value", L"worst", L"raw", "name");
@@ -815,6 +928,7 @@ int cmd_health(int argc, wchar_t** argv, int& i) {
     win::health::NvmeHealth nv;
     rc = win::health::read_nvme_health(h, nv);
     if (rc == OK && nv.available) {
+        any_health_source = true;
         wprintf(L"NVMe health: temp=%u.%uC spare=%u%%/threshold=%u%% used=%llu%%\n",
                 u32(nv.temperature_k) - 273, (u32(nv.temperature_k) % 10), nv.available_spare,
                 nv.available_spare_threshold, static_cast<unsigned long long>(nv.percentage_used));
@@ -838,7 +952,10 @@ int cmd_health(int argc, wchar_t** argv, int& i) {
                 trim ? " (WARNING: TRIM erases deleted data on SSDs - disable before recovery)"
                      : "");
     CloseHandle(h);
-    return 0;
+    /* FB-H04: when EVERY health source is unavailable the exit code must
+     * say so (3) - scripts must not mistake total unavailability for a
+     * healthy report. */
+    return any_health_source ? 0 : 3;
 }
 
 int cmd_bench(int argc, wchar_t** argv, int& i) {
@@ -1232,27 +1349,31 @@ int cmd_fix(int argc, wchar_t** argv, int& i) {
 } // namespace
 
 int wmain(int argc, wchar_t** argv) {
+    /* Ctrl-C: cooperative cancel of the in-flight scan/recover (the
+     * process is NOT killed - the token polls at loop heads, the session
+     * saves, the exit code is 3). */
+    SetConsoleCtrlHandler(ctrl_c_handler, TRUE);
     if (argc < 2) {
         wprintf(
             L"rrecov - core_recovery CLI\n"
             L"usage:\n"
             L"  rrecov list\n"
             L"  rrecov scan --disk N | --volume C: [--deep] [--quick-only] [--no-carve]\n"
-            L"             [--threads N] [--out file.crsf] [--log file] [--json] [--csv]\n"
+            L"             [--threads N] [--out file.crsf] [--resume file.crsf] [--log file]\n"
+            L"             [--json] [--csv] [--filter s] [--deleted-only]\n"
             L"  rrecov tree --in file.crsf [--filter s] [--deleted-only] [--csv]\n"
             L"  rrecov recover --in file.crsf --disk N --to DIR [--deleted-only] [--filter s]\n"
+            L"             [--report file.json]\n"
             L"  rrecov health --disk N\n"
             L"  rrecov fix --disk N [--part P] [--apply] [--undo file] [--undo-apply file]\n"
             L"  rrecov bench --disk N [--mode seq|rand|open|read|info] [--mb N] [--block-kb N]\n"
-            L"              [--iterations N] [--seed N] [--json]\n");
+            L"              [--iterations N] [--seed N] [--json] [--no-rda]\n");
         return 0;
     }
     const std::wstring cmd = argv[1];
     int i = 2;
-    if (cmd == L"list") {
-        print_disks();
-        return 0;
-    }
+    if (cmd == L"list")
+        return print_disks();
     if (cmd == L"scan")
         return cmd_scan(argc, argv, i);
     if (cmd == L"tree")

@@ -58,6 +58,7 @@ struct ScanCtx {
     std::atomic<u64> bytes_scanned{0};
     std::atomic<u64> sign_hits{0};
     std::atomic<u64> sign_validated{0};
+    std::atomic<u64> windows_skipped{0}; /* unreadable after retry (FB-C01) */
     std::atomic<u32> file_index{0};
     std::atomic<bool> aborted{false};
 };
@@ -297,7 +298,11 @@ u32 scan_window_index(ScanCtx& ctx, u64 wi, std::set<u64>& emitted_at) {
     const u64 counted = want < WINDOW ? want : WINDOW;
     std::vector<u8> win(static_cast<size_t>(want), 0);
     if (ctx.slice->read_at(base, win.data(), u32(want)) != OK) {
-        ctx.bytes_scanned.fetch_add(counted, std::memory_order_relaxed);
+        /* Unreadable window: skipped, NOT counted as scanned - the honest
+         * fill-rate contract (G-05) forbids claiming coverage of bytes
+         * that were never read; the retry pipe's error map already
+         * carries the failure (FB-C01). */
+        ctx.windows_skipped.fetch_add(1, std::memory_order_relaxed);
         return OK;
     }
     ctx.bytes_scanned.fetch_add(counted, std::memory_order_relaxed);
@@ -424,6 +429,7 @@ u32 carve_slice(IStorageDevice* slice, const CarveFlags& flags, CancelToken* can
      * double its true value. */
     stats.sign_hits += ctx.sign_hits.load();
     stats.sign_validated += ctx.sign_validated.load();
+    stats.windows_skipped += ctx.windows_skipped.load();
     return OK;
 }
 

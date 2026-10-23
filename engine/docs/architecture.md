@@ -78,7 +78,10 @@ waiters. (2) DURABLE resume: `ScanController::resume(session)` skips
 stages completed per the truthful `stage_done_mask` (stamped from ACTUAL
 completion at save time - never the configured mask), so a cancelled or
 crashed scan re-enters exactly where it stopped. Save-on-cancel: a
-cancelled run persists a resumable session (the CLI saves on cancel).
+cancelled run persists a resumable session when a path is known (the CLI
+saves on cancel with `--out`, exits 3; Ctrl-C cancels cooperatively;
+`scan --resume file.crsf` continues a saved session; `--out` also wires
+the stage-boundary CheckpointSink).
 
 ## 5. Error taxonomy
 

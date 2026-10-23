@@ -24,7 +24,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Install deps
-        run: sudo apt-get update -qq && sudo apt-get install -y -qq zlib1g-dev libgtest-dev > /dev/null
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq zlib1g-dev liblz4-dev libzstd-dev libgtest-dev > /dev/null
       - name: Configure + build + test (pure core, ASan)
         run: |
           cmake --preset linux-gcc
@@ -41,7 +41,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Install deps
-        run: sudo apt-get update -qq && sudo apt-get install -y -qq zlib1g-dev libgtest-dev > /dev/null
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq zlib1g-dev liblz4-dev libzstd-dev libgtest-dev > /dev/null
       - name: Configure + build + test (pure core, TSan)
         run: |
           # ThreadSanitizer pass (session-5 audit row 48): the scan fans
@@ -112,7 +112,7 @@ jobs:
       - name: install clang + zlib
         run: |
           sudo apt-get update -qq
-          sudo apt-get install -y -qq clang zlib1g-dev > /dev/null
+          sudo apt-get install -y -qq clang zlib1g-dev liblz4-dev libzstd-dev > /dev/null
       - name: build fuzzers
         run: make -C fuzz all CXX=clang++
       - name: smoke campaign (45s per target, zero-crash gate)
