@@ -92,10 +92,15 @@ jobs:
           if (-not $vcCrt) { throw "VC143 CRT redist dir not found (VS layout changed?)" }
           Copy-Item "$($vcCrt.FullName)/*.dll" "$out/bin/"
 
-          # ---- app-local UCRT (Win7 RTM ships none; from the Windows SDK) ----
-          $ucrt = Get-ChildItem "C:/Program Files (x86)/Windows Kits/10/Bin/*/x64/ucrt" -Directory -ErrorAction SilentlyContinue |
-            Sort-Object FullName -Descending | Select-Object -First 1
-          if (-not $ucrt) { throw "Windows SDK ucrt dir not found (SDK layout changed?)" }
+          # ---- app-local UCRT (Win7 RTM ships none). SDK 26100+ moved the
+          #      redist DLLs from bin\<ver>\x64\ucrt to Redist\<ver>\ucrt\x64
+          #      - search both layouts, newest first, fail loudly if neither. ----
+          $ucrt = @(
+            Get-ChildItem "C:/Program Files (x86)/Windows Kits/10/Redist/*/ucrt/x64" -Directory -ErrorAction SilentlyContinue,
+            Get-ChildItem "C:/Program Files (x86)/Windows Kits/10/Bin/*/x64/ucrt" -Directory -ErrorAction SilentlyContinue
+          ) | Sort-Object FullName -Descending | Select-Object -First 1
+          if (-not $ucrt) { throw "Windows SDK UCRT redist not found in either layout (SDK changed?)" }
+          Write-Host "UCRT redist from: $($ucrt.FullName)"
           Copy-Item "$($ucrt.FullName)/ucrtbase.dll" "$out/bin/"
           Copy-Item "$($ucrt.FullName)/api-ms-win-crt-*.dll" "$out/bin/"
 
