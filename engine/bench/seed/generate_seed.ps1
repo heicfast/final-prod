@@ -437,7 +437,7 @@ foreach ($e in $script:Entries) {
         Add-Member -InputObject $e -NotePropertyName frag_measured_ratio -NotePropertyValue $null
     }
 }
- --------------------------------
+# extents + NTFS record numbers enrichment follows
 $lettersOk = $true
 foreach ($e in $script:Entries) {
     $winRel = ($e.rel -replace '^seed/', '' -replace '^keep/', '')
