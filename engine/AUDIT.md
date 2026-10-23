@@ -147,3 +147,107 @@ runlist header), full ASan/UBSan/TSan + Windows /W4 /WX green, benchmark + relea
   lines 3424-3444 (dir_item field offsets via "user.DOSATTRIB" walk), HFSPlusSearchDLL
   lines 10005-10031 (VH gates), ZfsSearchDLL lines 21052/21365 (label reads).
 - **Apple TN1150**: HFSPlusCatalogFile recount (see §2).
+
+---
+
+## 6. Session-5 take-over: independent verification rounds (the audit audited)
+
+The session-5 rewrites (rows 21-26, 13-19, 30) were themselves re-verified
+line-by-line against freshly fetched upstream sources (headers downloaded and
+read directly, never trusted from the code's comments). Four verification
+rounds; every finding fixed with regression coverage.
+
+### Round 1 - ZFS rewrite audit (commit 2406257)
+
+The prior "OpenZFS-true" rewrite still could not parse ANY real pool:
+
+| # | Defect | Ground truth (fetched + read) |
+|---|--------|-------------------------------|
+| 1 | Label config nvlists parsed little-endian | vdev_label.c packs labels NV_ENCODE_XDR - BIG-endian; full XDR pair-stream parser written from module/nvpair/nvpair.c (nvs_header {encoding,endian,rsvd x2}; pairs {enc_len BE32, dec_len BE32, name_len BE32 EXCL NUL per spl-xdr xdr_enc_string, name pad4, type BE32, nelem BE32, value}; dec_len==0 terminates; embedded nvlists parse in place and the walk CONTINUES - the old parser stopped after vdev_tree) |
+| 2 | DMU_OT_SA = 43 | dmu.h enum recount: 43 is DMU_OT_DDT_STATS; SA = 44. Every SA-bonus file rejected |
+| 3 | MOS object directory type whitelisted as 2 | dmu.h: DMU_OT_OBJECT_DIRECTORY = 1 (2 = OBJECT_ARRAY); read_zap(mos,1) failed on every pool |
+| 4 | dsl_dir bonus read at 240/248 | dsl_dir.h: head_dataset_obj@8, child_dir_zapobj@24 (240/248 = dd_pad zeros); zero datasets ever discovered |
+| 5 | SA layout-1 order (size@120) | module/zfs/zfs_sa.c zfs_attr_table registration order: size@88, parent@96, links@104 (size was read from the rdev slot -> 0) |
+| 6 | znode_phys size@0x70 | include/sys/zfs_sa.h: size@0x50, parent@0x58, links@0x60 (0x70 = zp_rdev) |
+| 7 | DVA vdev = w0>>40 | spa.h DVA_GET_VDEV = BF64_GET(w0, 32, 24) -> (w0>>32)&0xFFFFFF |
+
+Plus: gang headers hold (512-32)/128 = 3 blkptrs (zio.h zio_gbh_phys_t; the
+4th slot read was the checksum area) with per-piece ordered extents; fzap
+ptrtbl/leaf blocks read through the object's block tree (ptrtbl entries are
+OBJECT-RELATIVE block numbers; the raw-offset math was wrong for compressed
+pools; nlevels>1 ZAPs now readable); uberblock ring geometry auto-probes
+shifts 10..13 (VDEV_UBERBLOCK_SHIFT = MAX(ashift,10); 4Kn pools use 32x4KiB
+slots); label layout (L1@256K fixed) confirmed. AUDIT row 22's claim that
+lsize/psize were wrong was itself WRONG - SPA_LSIZEBITS=16 with (v+1)<<9 bias
+was already correct (REJECTED, own section 2 standard applied to the audit).
+
+### Round 2 - btrfs/ext4 rewrite audit (commit ee18f75)
+
+btrfs: inode timestamps read from reserved[4] (0x50/0x5C/0x68/0x74; kernel
+timespecs at 0x70/0x7C/0x88/0x94 - all btrfs times were zero); the advertised
+node fsid/chunk_tree_uuid validation was dead code (now enforced with
+damaged-counting); nodesize pow2 + >= sectorsize gates (kernel
+btrfs_validate_super); sys_chunk_array_size cap 2048 (was fabricated 2047;
+0 stays valid as a detection-only anchor - recovery grade).
+
+ext4: s_inode_size read at 0x56 = the HIGH HALF of the u32 s_first_ino ->
+0 on every real volume -> inode stride 128 on 256-byte-inode volumes (wrong
+record halves); GDT 64-bit hi words at 0x24/0x28 (was 0x28/0x2C);
+ei_leaf_hi@6 (was read at +8 = ei_unused); jbd2 was LITTLE-ENDIAN fiction -
+kernel jbd2 is BIG-endian throughout; full rewrite to journal_tag_bytes()
+truth (V3=16 flags@+4; V2-csum 14/10 flags@+6; plain 12/8), blocktypes
+V1=3/V2=4/REVOKE=5, feature bits CSUM_V2=0x8/CSUM_V3=0x10, first-tag
+16-byte UUID skip rule, escape gated on the ESCAPE tag with
+cpu_to_be32(0xC03B3998) restoration (was: any zero-prefixed block re-magicked
+little-endian). Also: ee_len==0x8000 = written 32768 (EXT_INIT_MAX_LEN);
+nsec carried (was computed and discarded); BIGALLOC refused loudly;
+MAX_GROUPS 2^20; jbd2 fixture (BE, jsb, descriptor + first-tag UUID,
+ESCAPE block, commit) added.
+
+### Round 3 - parallel-wave audit: LDM + SafeWriter + NTFS (commit 6ef4db2)
+
+The parallel session's implementations (LDM full engine, NTFS rows 3/6/7,
+wave-2 wiring) were audited against libldm (mdbooth, fetched), kernel
+ldm.c, and winioctl.h:
+
+- **SafeWriter**: recover_item restarted at offset 0 after the resident
+  prefix -> every resident file (NTFS resident streams, ZFS embedded-BP,
+  Btrfs inline) recovered as ZEROS. `done = emit` + regression test.
+- **LDM**: the VOL5 byte after the state slot is libldm _int_type with
+  _VOLUME_TYPE_GEN=0x3 (impl fabricated "read_policy 1 = gen") - every real
+  striped/mirrored volume was classified Broken and never scanned.
+  Also: composite dup-fragments now permanently break the group (kernel
+  map&=0x7F), nrec 1..4, vblk_size 0->0x80 og default, VMDB TOC-bound
+  check + degraded flag, per-member LBA re-anchoring through each member
+  disk's OWN PRIVHEAD (all members were offset by the parsed disk's lds).
+- **NTFS**: bootstrap chase cutoff (child < MFT_RESERVED_RECORDS) blocked
+  real extension records - the row-3 fix was inoperative; >64-entry
+  attrlists failed the volume open; child records parsed without USA
+  fixup; entries now stride 8-byte aligned and fragments merge in
+  lowest_vcn order. Walker chase held AttrViews into per-iteration buffers
+  (UAF on named child attrs) - buffers now pooled for the record's
+  lifetime. $J: fragments merged VCN-sorted (was last-fragment-wins),
+  stream materialized in VCN order with sparse runs as zeros (alignment),
+  damaged records re-sync on 8-byte boundaries, USN_RECORD_V3 parsed with
+  its true shifted layout (128-bit refs), FileReferenceNumber cross-check
+  (hash set), USN_REASON_FILE_CREATE corrected to 0x00000100 (0x10000 is
+  HARD_LINK_CHANGE - row 7's own error; DELETE stays the only deletion
+  signal). FILE0 salvage no longer requires a valid fixup (the og's exact
+  truncated-image case). Unnamed resident $DATA content captured.
+
+### Round 4 - merged-tree validation
+
+Rebase conflicts with the parallel agent's concurrent pushes resolved with
+both sides' semantics preserved (their $DATA-authoritative logical_size fix
+merged with the resident-content capture). 137/137 tests green on the merged
+tree (gcc 14, -Werror, ASan).
+
+### Corrections to this audit (recorded per section-2 standard)
+
+- Row 22 REJECTED sub-claim: lsize/psize decode was already correct.
+- Row 7: FILE_CREATE = 0x00000100, not 0x00010000 (0x10000 = HARD_LINK_CHANGE).
+- Row 7: USN_RECORD_V3 has 128-bit references - offsets shift (parent@0x18,
+  reason@0x38, namelen@0x48, name@0x50); "layout identical" was wrong.
+- Row 6d placement: the FILE0 salvage heuristic lives in the $LogFile RCRD
+  walk (FUN_180029dd0 -> FUN_18002a0f0 -> FUN_18002a780), not the raw
+  remnant scanner; the port to scan_remnant_buffer is the portable subset.
