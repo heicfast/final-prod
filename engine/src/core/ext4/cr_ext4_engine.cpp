@@ -45,9 +45,9 @@ constexpr u32 EXTENTS_FL = 0x80000;
 constexpr u16 EXT4_EXT_MAGIC = 0xF30A;
 constexpr u32 EXTENT_DEPTH_LIMIT = 5;
 
-constexpr u64 MAX_GROUPS = 1ull << 20; /* 1M groups = 128 TiB @ 128 MiB/group
-                                          * (4K blocks); GDT read is bounded
-                                          * by groups*desc_size */
+constexpr u64 MAX_GROUPS = 1ull << 20;  /* 1M groups = 128 TiB @ 128 MiB/group
+                                         * (4K blocks); GDT read is bounded
+                                         * by groups*desc_size */
 constexpr u64 MAX_INODES = 16ull << 20; /* 16M inodes sweep bound */
 constexpr u32 MAX_DIR_BYTES = 64ull << 20;
 constexpr int DIR_WALK_DEPTH = 64;
@@ -302,9 +302,8 @@ bool read_inode(Volume& v, u32 ino, InodeView& iv) {
      * good-old layout and i_extra_isize covers them (kernel rule). */
     if (v.sb.inode_size >= 0x98u && v.sb.rev_level >= 1) {
         const u32 extra_isize = rd16(raw + I_EXTRA_ISIZE);
-        const u32 covered = 128u + (extra_isize <= v.sb.inode_size - 128u
-                                        ? extra_isize
-                                        : v.sb.inode_size - 128u);
+        const u32 covered =
+            128u + (extra_isize <= v.sb.inode_size - 128u ? extra_isize : v.sb.inode_size - 128u);
         if (I_ATIME_EXTRA + 4 <= covered)
             iv.atime = decode_extra(iv.atime, rd32(raw + I_ATIME_EXTRA), iv.atime_nsec);
         if (I_CTIME_EXTRA + 4 <= covered)
@@ -449,8 +448,8 @@ u32 scan_ext4(IStorageDevice* slice, const Ext4ScanFlags& flags, CancelToken* ca
     v.dev = slice;
     if ((v.sb.feature_incompat & INCOMPAT_BIGALLOC) != 0)
         return ERR_UNSUPPORTED; /* cluster-granular bitmaps/extents: emitting
-                                  * block-granular extents would be WRONG -
-                                  * refused loudly, never silently faked */
+                                 * block-granular extents would be WRONG -
+                                 * refused loudly, never silently faked */
 
     /* 2. group descriptors (block first_data_block + 1) */
     v.gdt_block = v.sb.first_data_block + 1;
@@ -618,9 +617,8 @@ u32 scan_ext4(IStorageDevice* slice, const Ext4ScanFlags& flags, CancelToken* ca
             props->fs_kind = 9;
             props->logical_size = iv.size;
             props->attributes = is_dir ? 0x10 : 0;
-            props->times.created =
-                unix_to_filetime_ns(iv.crtime ? iv.crtime : iv.ctime,
-                                    iv.crtime ? iv.crtime_nsec : iv.ctime_nsec);
+            props->times.created = unix_to_filetime_ns(iv.crtime ? iv.crtime : iv.ctime,
+                                                       iv.crtime ? iv.crtime_nsec : iv.ctime_nsec);
             props->times.modified = unix_to_filetime_ns(iv.mtime, iv.mtime_nsec);
             props->times.changed = unix_to_filetime_ns(iv.ctime, iv.ctime_nsec);
             props->times.accessed = unix_to_filetime_ns(iv.atime, iv.atime_nsec);
@@ -726,8 +724,8 @@ u32 scan_ext4(IStorageDevice* slice, const Ext4ScanFlags& flags, CancelToken* ca
 
             /* journal superblock at block 0 (type 3 or 4 - jbd2 journal_load
              * accepts both): s_feature_incompat@0x28 decides the tag width */
-            u32 tag_size = 8;          /* plain: {blocknr, flags} */
-            u32 flags_off = 4;         /* t_flags position in the tag */
+            u32 tag_size = 8;  /* plain: {blocknr, flags} */
+            u32 flags_off = 4; /* t_flags position in the tag */
             bool v3_csum = false;
             {
                 u32 seq = 0;
@@ -736,8 +734,8 @@ u32 scan_ext4(IStorageDevice* slice, const Ext4ScanFlags& flags, CancelToken* ca
                     const u32 incompat = jbe32(0, 0x28);
                     v3_csum = (incompat & JBD2_INCOMPAT_CSUM_V3) != 0;
                     if (v3_csum) {
-                        tag_size = 16;  /* journal_block_tag3_t */
-                        flags_off = 4;  /* t_flags BE32@+4 */
+                        tag_size = 16; /* journal_block_tag3_t */
+                        flags_off = 4; /* t_flags BE32@+4 */
                     } else {
                         /* journal_block_tag_t: {blocknr BE32, checksum BE16,
                          * flags BE16@+6, blocknr_high BE32@+8} = 12 with

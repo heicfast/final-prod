@@ -84,8 +84,8 @@ void make_bp(u8* bp, u64 offset, u64 psize, u64 lsize, u32 compress) {
     put64(bp + 0, (0ull << 32) | (asize >> 9));
     put64(bp + 8, offset >> 9);
     /* prop: lsize sectors-1 | psize sectors-1<<16 | comp<<32 */
-    const u64 prop = (((lsize >> 9) - 1) & 0xFFFFull) |
-                    ((((psize >> 9) - 1) & 0xFFFFull) << 16) | (u64(compress) << 32);
+    const u64 prop = (((lsize >> 9) - 1) & 0xFFFFull) | ((((psize >> 9) - 1) & 0xFFFFull) << 16) |
+                     (u64(compress) << 32);
     put64(bp + 48, prop);
     put64(bp + 72, TXG); /* birth */
 }
@@ -113,17 +113,17 @@ std::vector<u8> make_sa_bonus(const SaAttrs& a) {
     std::vector<u8> b(8 + 144, 0);
     put32(b.data(), 0x2F505A);                    /* SA_MAGIC */
     put16(b.data() + 4, u16(1) | (u16(1) << 10)); /* layout 1, hdrsize 8 */
-    put64(b.data() + 8 + 0, a.atime);    /* atime (16 bytes: sec+usec) */
+    put64(b.data() + 8 + 0, a.atime);             /* atime (16 bytes: sec+usec) */
     put64(b.data() + 8 + 16, a.mtime);
     put64(b.data() + 8 + 32, a.ctime);
     put64(b.data() + 8 + 48, a.crtime);
-    put64(b.data() + 8 + 64, 1);         /* gen */
+    put64(b.data() + 8 + 64, 1); /* gen */
     put64(b.data() + 8 + 72, a.mode);
     put64(b.data() + 8 + 80, a.size);
     put64(b.data() + 8 + 88, a.parent);
     put64(b.data() + 8 + 96, a.links);
-    put64(b.data() + 8 + 104, 0);        /* xattr */
-    put64(b.data() + 8 + 112, 0);        /* rdev */
+    put64(b.data() + 8 + 104, 0); /* xattr */
+    put64(b.data() + 8 + 112, 0); /* rdev */
     put64(b.data() + 8 + 120, a.flags);
     put64(b.data() + 8 + 128, a.uid);
     put64(b.data() + 8 + 136, a.gid);
@@ -154,8 +154,8 @@ std::vector<u8> make_microzap(const std::vector<std::pair<std::string, u64>>& en
         if (at + 64 > blk.size())
             break;
         u8* slot = blk.data() + at;
-        put64(slot + 0, e.second);           /* mze_value */
-        put32(slot + 8, 0);                  /* mze_cd */
+        put64(slot + 0, e.second); /* mze_value */
+        put32(slot + 8, 0);        /* mze_cd */
         memcpy(slot + 14, e.first.c_str(), e.first.size() < 50 ? e.first.size() : 49);
         at += 64;
     }
@@ -225,12 +225,12 @@ std::vector<u8> make_fzap_header(u64 leaf_block) {
     put64(hdr.data() + 0, (1ull << 63) + 1); /* ZBT_HEADER */
     put64(hdr.data() + 8, 0x2F52AB2ABull);   /* ZAP_MAGIC */
     /* embedded pointer table (zt_blk == 0): second half of the block */
-    put64(hdr.data() + 16, 0);               /* zt_blk = 0 -> embedded */
-    put64(hdr.data() + 24, 0);               /* zt_numblks */
-    put64(hdr.data() + 32, 4);               /* zt_shift: 16 entries */
-    put64(hdr.data() + 56, 2);               /* freeblk */
-    put64(hdr.data() + 64, 1);               /* num_leafs */
-    put64(hdr.data() + 72, 0);               /* num_entries */
+    put64(hdr.data() + 16, 0); /* zt_blk = 0 -> embedded */
+    put64(hdr.data() + 24, 0); /* zt_numblks */
+    put64(hdr.data() + 32, 4); /* zt_shift: 16 entries */
+    put64(hdr.data() + 56, 2); /* freeblk */
+    put64(hdr.data() + 64, 1); /* num_leafs */
+    put64(hdr.data() + 72, 0); /* num_entries */
     /* embedded ptrtbl at block/2, entry 0 -> leaf block number */
     put64(hdr.data() + FZ_BLOCK / 2, leaf_block);
     return hdr;
@@ -429,8 +429,11 @@ std::vector<u8> build_pool() {
 
     /* ---- ZPL root dir ZAP (micro): entries ---- */
     {
-        auto z = make_microzap({{"hello.txt", 10}, {"bigdir", 11}, {"zlefile", 12},
-                                 {"embedded.txt", 13}, {"legacy.txt", 14}});
+        auto z = make_microzap({{"hello.txt", 10},
+                                {"bigdir", 11},
+                                {"zlefile", 12},
+                                {"embedded.txt", 13},
+                                {"legacy.txt", 14}});
         memcpy(d.data() + B_ROOTDIR_ZAP, z.data(), z.size());
     }
 
@@ -513,8 +516,8 @@ std::vector<u8> build_pool() {
             a.links = 3;
             a.size = 512;
             auto bonus = make_sa_bonus(a);
-            make_dnode(dn, 20, 44, 1, 2, 1, 0); /* TWO blkptrs: hdr + leaf */
-            make_bp(dn + 64, B_BIGDIR_ZAP, 512, 512, 0);          /* block 0 */
+            make_dnode(dn, 20, 44, 1, 2, 1, 0);                      /* TWO blkptrs: hdr + leaf */
+            make_bp(dn + 64, B_BIGDIR_ZAP, 512, 512, 0);             /* block 0 */
             make_bp(dn + 64 + 128, B_BIGDIR_ZAP + 512, 512, 512, 0); /* block 1 */
             const u32 blen = u32(bonus.size());
             put16(dn + 10, u16(blen));
@@ -702,8 +705,8 @@ TEST(Zfs, EndToEndWalk) {
                 /* embedded payload becomes resident content */
                 EXPECT_TRUE(f->props()->extents.empty());
                 ASSERT_FALSE(f->props()->resident_data.empty());
-                EXPECT_EQ(0, memcmp("embedded payload bytes", f->props()->resident_data.data(),
-                                    22));
+                EXPECT_EQ(0,
+                          memcmp("embedded payload bytes", f->props()->resident_data.data(), 22));
             }
             if (f->name_utf8() == "legacy.txt") {
                 /* legacy znode_phys bonus parsed */
@@ -725,8 +728,7 @@ TEST(Zfs, LabelPositionsRecoveredFromTail) {
     auto* ra = tree.add_root(u"F");
     ZfsScanFlags fl;
     ZfsScanStats st;
-    ASSERT_EQ(OK, scan_zfs(&dev, fl, nullptr, nullptr, nullptr, tree, ra, nullptr, nullptr,
-                           st));
+    ASSERT_EQ(OK, scan_zfs(&dev, fl, nullptr, nullptr, nullptr, tree, ra, nullptr, nullptr, st));
     EXPECT_EQ(u64(TXG), st.txg);
 }
 
@@ -744,8 +746,7 @@ TEST(Zfs, NewestTxgAcrossLabelsWins) {
     auto* ra = tree.add_root(u"F");
     ZfsScanFlags fl;
     ZfsScanStats st;
-    ASSERT_EQ(OK, scan_zfs(&dev, fl, nullptr, nullptr, nullptr, tree, ra, nullptr, nullptr,
-                           st));
+    ASSERT_EQ(OK, scan_zfs(&dev, fl, nullptr, nullptr, nullptr, tree, ra, nullptr, nullptr, st));
     EXPECT_EQ(u64(TXG + 5), st.txg);
 }
 

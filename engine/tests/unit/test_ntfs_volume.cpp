@@ -950,12 +950,12 @@ TEST(NtfsVolume, UsnJrnlSparseV3Resync) {
             j32(u32(j3 + 0), rlen);
             j16(u32(j3 + 4), 3); /* major = 3 */
             j16(u32(j3 + 6), 0);
-            j64(u32(j3 + 8), 4321);  /* FileReferenceNumber[0] */
-            j64(u32(j3 + 16), 0);    /* FileReferenceNumber[1] */
+            j64(u32(j3 + 8), 4321);              /* FileReferenceNumber[0] */
+            j64(u32(j3 + 16), 0);                /* FileReferenceNumber[1] */
             j64(u32(j3 + 24), 5 | (1ULL << 48)); /* ParentFileReferenceNumber */
             j64(u32(j3 + 32), 0);
-            j64(u32(j3 + 40), 2);    /* Usn */
-            j64(u32(j3 + 48), 132000000000000001ULL); /* TimeStamp */
+            j64(u32(j3 + 40), 2);                      /* Usn */
+            j64(u32(j3 + 48), 132000000000000001ULL);  /* TimeStamp */
             j32(u32(j3 + 56), USN_REASON_FILE_DELETE); /* Reason */
             j32(u32(j3 + 60), 0);
             j32(u32(j3 + 64), 0);

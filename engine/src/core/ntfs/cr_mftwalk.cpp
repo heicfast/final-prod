@@ -22,7 +22,7 @@ namespace {
 constexpr u32 FRAG_DEPTH_LIMIT = 64;         /* attrlist chase depth (bootstrap parity) */
 constexpr u64 USN_HARVEST_CAP = 64ull << 20; /* journal bytes mined (audit plan) */
 constexpr u32 USN_RESYNC_LIMIT = 1u << 20;   /* 8-byte re-sync probes before
-                                                * giving up on a damaged $J */
+                                              * giving up on a damaged $J */
 
 struct EmittedNode {
     tree::FileNode* node = nullptr;
@@ -734,8 +734,8 @@ u32 walk_mft(NtfsVolume* vol, VolumeBitmap* bitmap, const WalkerFlags& flags, Ca
         size_t jp = 0;
         u32 resyncs = 0;
         while (jp + 64 <= jbuf.size()) {
-            const u32 rlen = u32(jbuf[jp]) | (u32(jbuf[jp + 1]) << 8) |
-                             (u32(jbuf[jp + 2]) << 16) | (u32(jbuf[jp + 3]) << 24);
+            const u32 rlen = u32(jbuf[jp]) | (u32(jbuf[jp + 1]) << 8) | (u32(jbuf[jp + 2]) << 16) |
+                             (u32(jbuf[jp + 3]) << 24);
             const u16 major = u16(jbuf[jp + 4]) | (u16(jbuf[jp + 5]) << 8);
             const u16 minor = u16(jbuf[jp + 6]) | (u16(jbuf[jp + 7]) << 8);
             if (rlen < 64 || jp + rlen > jbuf.size() || (major != 2 && major != 3) ||
@@ -748,7 +748,7 @@ u32 walk_mft(NtfsVolume* vol, VolumeBitmap* bitmap, const WalkerFlags& flags, Ca
                 jp += 8;
                 continue;
             }
-            const u32 ref_off = 8;                /* V2 */
+            const u32 ref_off = 8;                       /* V2 */
             const u32 parent_off = major == 2 ? 16 : 24; /* V3: 128-bit refs */
             const u32 ts_off = major == 2 ? 32 : 48;
             const u32 reason_off = major == 2 ? 40 : 56;
@@ -757,8 +757,8 @@ u32 walk_mft(NtfsVolume* vol, VolumeBitmap* bitmap, const WalkerFlags& flags, Ca
             const u32 name_off = major == 2 ? 64 : 80;
             const u64 file_ref =
                 mft_reference_record(u64_from_bytes_le(jbuf.data() + jp + ref_off));
-            const u64 parent = mft_reference_record(u64_from_bytes_le(jbuf.data() + jp +
-                                                                     parent_off));
+            const u64 parent =
+                mft_reference_record(u64_from_bytes_le(jbuf.data() + jp + parent_off));
             const u64 ts = u64_from_bytes_le(jbuf.data() + jp + ts_off);
             const u32 reason = u32_from_bytes_le(jbuf.data() + jp + reason_off);
             const u32 namelen = u32_from_bytes_le(jbuf.data() + jp + namelen_off);

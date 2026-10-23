@@ -200,7 +200,7 @@ std::vector<u8> build_volume() {
     /* --- superblock at 0x10000 --- */
     u8* sb = d.data() + 0x10000;
     put64(sb + 0x40, 0x4D5F53665248425FULL); /* magic */
-    memcpy(sb + 0x20, FSID, 16);            /* fsid */
+    memcpy(sb + 0x20, FSID, 16);             /* fsid */
     memcpy(sb + 0x60, CTUUID, 16);           /* chunk_tree_uuid */
     put64(sb + 0x48, 42);                    /* generation */
     put32(sb + 0x90, 4096);                  /* sectorsize */

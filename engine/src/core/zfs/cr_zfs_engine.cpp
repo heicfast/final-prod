@@ -46,15 +46,15 @@ namespace {
 
 /* ---- label geometry (OpenZFS vdev_impl.h) ---- */
 constexpr u64 LABEL_SIZE = 256ull << 10;
-constexpr u64 VDEV_PHYS_OFFSET = 16ull << 10;  /* 8K skip + 8K boot env */
+constexpr u64 VDEV_PHYS_OFFSET = 16ull << 10; /* 8K skip + 8K boot env */
 constexpr u64 VDEV_PHYS_SIZE = 112ull << 10;
 constexpr u64 UBRING_OFFSET = 128ull << 10;
 constexpr u32 UB_MAGIC = 0;
 constexpr u32 UB_TXG = 16;
 constexpr u32 UB_TIMESTAMP = 32;
-constexpr u32 UB_ROOTBP = 40; /* blkptr 128 bytes */
+constexpr u32 UB_ROOTBP = 40;        /* blkptr 128 bytes */
 constexpr u64 UBERBLOCK_SIZE = 1024; /* smallest slot; larger slots only
-                                        * use the first 1KiB for these fields */
+                                      * use the first 1KiB for these fields */
 constexpr u64 UBERBLOCK_MAGIC = 0x00BAB10CULL;
 
 /* ---- blkptr (OpenZFS spa.h) ----
@@ -166,7 +166,7 @@ constexpr u32 DMU_OT_OBJSET = 11;
 constexpr u32 DMU_OT_DSL_DIR_CHILD_MAP = 13;
 constexpr u32 DMU_OT_DSL_DS_SNAP_MAP = 14;
 constexpr u32 DMU_OT_DSL_PROPS = 15;
-constexpr u32 DMU_OT_ZNODE = 17;         /* legacy bonus (zfs_sa.h) */
+constexpr u32 DMU_OT_ZNODE = 17; /* legacy bonus (zfs_sa.h) */
 constexpr u32 DMU_OT_PLAIN_FILE_CONTENTS = 19;
 constexpr u32 DMU_OT_DIRECTORY_CONTENTS = 20;
 constexpr u32 DMU_OT_MASTER_NODE = 21;
@@ -174,7 +174,7 @@ constexpr u32 DMU_OT_ERROR_LOG = 28;
 constexpr u32 DMU_OT_POOL_PROPS = 31;
 constexpr u32 DMU_OT_DDT_ZAP = 42;
 constexpr u32 DMU_OT_DDT_STATS = 43;
-constexpr u32 DMU_OT_SA = 44;           /* SA bonus (dmu.h enum; 43 is DDT_STATS) */
+constexpr u32 DMU_OT_SA = 44; /* SA bonus (dmu.h enum; 43 is DDT_STATS) */
 constexpr u32 DMU_OT_SA_MASTER_NODE = 45;
 constexpr u32 DMU_OT_SA_ATTR_REGISTRATION = 46;
 constexpr u32 DMU_OT_SA_ATTR_LAYOUTS = 47;
@@ -204,7 +204,7 @@ bool zap_typed(u32 t) {
 
 /* legacy znode_phys (OpenZFS include/sys/zfs_sa.h - field order verified
  * against master: zp_atime@0 .. zp_zap@144, ACL at 176) */
-constexpr u32 ZP_ATIME = 0x00;  /* sec+usec pairs x4 */
+constexpr u32 ZP_ATIME = 0x00; /* sec+usec pairs x4 */
 constexpr u32 ZP_MTIME = 0x10;
 constexpr u32 ZP_CTIME = 0x20;
 constexpr u32 ZP_CRTIME = 0x30;
@@ -303,9 +303,8 @@ constexpr u32 NV_DATA_BOOLEAN_VALUE = 21;
 constexpr u32 NV_DATA_UINT64_ARRAY = 16;
 
 u64 be64(const u8* p) {
-    return (u64(p[0]) << 56) | (u64(p[1]) << 48) | (u64(p[2]) << 40) |
-           (u64(p[3]) << 32) | (u64(p[4]) << 24) | (u64(p[5]) << 16) |
-           (u64(p[6]) << 8) | u64(p[7]);
+    return (u64(p[0]) << 56) | (u64(p[1]) << 48) | (u64(p[2]) << 40) | (u64(p[3]) << 32) |
+           (u64(p[4]) << 24) | (u64(p[5]) << 16) | (u64(p[6]) << 8) | u64(p[7]);
 }
 u32 be32(const u8* p) {
     return (u32(p[0]) << 24) | (u32(p[1]) << 16) | (u32(p[2]) << 8) | u32(p[3]);
@@ -477,8 +476,7 @@ struct Volume {
             return false;
         out.resize(size_t(lsize));
         const u32 codec = compress::codec_from_zfs(zc);
-        if (!compress::decompress_block(codec, raw.data(), raw.size(), out.data(),
-                                        out.size())) {
+        if (!compress::decompress_block(codec, raw.data(), raw.size(), out.data(), out.size())) {
             ++damaged;
             return false;
         }
@@ -677,7 +675,7 @@ bool read_leaf(const std::vector<u8>& leaf, std::vector<ZapEntry>& out) {
         return false;
     if (rdle32(leaf.data() + ZL_MAGIC) != ZAP_LEAF_MAGIC)
         return false;
-    const u32 bshift = [] (u64 sz) {
+    const u32 bshift = [](u64 sz) {
         u32 s = 0;
         while ((u64(1) << s) < sz)
             ++s;
@@ -856,10 +854,10 @@ bool read_zap(Volume& v, ObjSet& os, u64 object, std::vector<ZapEntry>& out) {
  * gang-free single-vdev DVAs; embedded bps are returned separately) */
 struct FileExtentPlan {
     struct Item {
-        u64 offset;   /* vdev-relative byte offset */
-        u64 length;   /* logical bytes */
-        u64 psize;    /* on-disk bytes */
-        u32 codec;    /* generic codec (0 raw) */
+        u64 offset; /* vdev-relative byte offset */
+        u64 length; /* logical bytes */
+        u64 psize;  /* on-disk bytes */
+        u32 codec;  /* generic codec (0 raw) */
     };
     std::vector<Item> items;
     std::vector<std::vector<u8>> embedded; /* decoded embedded payloads */
@@ -897,7 +895,9 @@ bool plan_gang_pieces(Volume& v, const u8* dva, FileExtentPlan& plan, u32 depth 
         const u32 zc = bp_compress(gbp);
         if (lsize == 0 || psz == 0)
             continue;
-        if (v.vdev_offset + dva_offset(gdva) + (zc == 0 || zc == 1 || zc == 2 || zc == ZIO_COMPRESS_EMPTY ? lsize : psz) > v.total_bytes)
+        if (v.vdev_offset + dva_offset(gdva) +
+                (zc == 0 || zc == 1 || zc == 2 || zc == ZIO_COMPRESS_EMPTY ? lsize : psz) >
+            v.total_bytes)
             continue;
         FileExtentPlan::Item it;
         it.offset = v.vdev_offset + dva_offset(gdva);
@@ -926,8 +926,7 @@ bool plan_file_extents(Volume& v, const Dnode& dn, FileExtentPlan& plan) {
         std::vector<u8> node;
         u32 idx;
     };
-    std::function<bool(const u8*, u32)> walk = [&](const u8* bp,
-                                                   u32 level) -> bool {
+    std::function<bool(const u8*, u32)> walk = [&](const u8* bp, u32 level) -> bool {
         if (bp_is_hole(bp))
             return true; /* hole: gap in the file (sparse) */
         if (bp_is_embedded(bp)) {
@@ -1047,8 +1046,8 @@ u32 scan_zfs(IStorageDevice* slice, const ZfsScanFlags& flags, CancelToken* canc
         /* config nvlist at label+16K (first 112K is vdev_phys) */
         if (!cfg.valid) {
             std::vector<u8> phys(size_t(VDEV_PHYS_SIZE), 0);
-            if (slice->read_at(label_base[li] + VDEV_PHYS_OFFSET, phys.data(),
-                               u32(phys.size())) == OK) {
+            if (slice->read_at(label_base[li] + VDEV_PHYS_OFFSET, phys.data(), u32(phys.size())) ==
+                OK) {
                 std::map<std::string, NvValue> root;
                 if (nv_parse(phys.data(), u32(phys.size()), root)) {
                     auto it = root.find("name");
@@ -1305,87 +1304,87 @@ u32 scan_zfs(IStorageDevice* slice, const ZfsScanFlags& flags, CancelToken* canc
         };
 
         std::set<u64> visited;
-        std::function<void(u64, tree::FileNode*, int)> emit_dir =
-            [&](u64 dir_obj, tree::FileNode* parent, int depth) {
-                if (depth > MAX_DEPTH || visited.count(dir_obj))
+        std::function<void(u64, tree::FileNode*, int)> emit_dir = [&](u64 dir_obj,
+                                                                      tree::FileNode* parent,
+                                                                      int depth) {
+            if (depth > MAX_DEPTH || visited.count(dir_obj))
+                return;
+            visited.insert(dir_obj);
+            const ObjInfo* di = load_obj(dir_obj);
+            if (di == nullptr || !di->dir)
+                return;
+            std::vector<ZapEntry> entries;
+            if (!read_zap(v, zpl, dir_obj, entries))
+                return;
+            for (const auto& e : entries) {
+                if (cancel && cancel->cancelled())
                     return;
-                visited.insert(dir_obj);
-                const ObjInfo* di = load_obj(dir_obj);
-                if (di == nullptr || !di->dir)
+                if (e.name == "." || e.name == "..")
+                    continue;
+                const ObjInfo* ci = load_obj(e.value);
+                if (ci == nullptr)
+                    continue;
+                const bool is_dir = ci->dir;
+                auto* p = new (std::nothrow) tree::FileProperties();
+                if (!p)
                     return;
-                std::vector<ZapEntry> entries;
-                if (!read_zap(v, zpl, dir_obj, entries))
-                    return;
-                for (const auto& e : entries) {
-                    if (cancel && cancel->cancelled())
-                        return;
-                    if (e.name == "." || e.name == "..")
-                        continue;
-                    const ObjInfo* ci = load_obj(e.value);
-                    if (ci == nullptr)
-                        continue;
-                    const bool is_dir = ci->dir;
-                    auto* p = new (std::nothrow) tree::FileProperties();
-                    if (!p)
-                        return;
-                    for (char ch : e.name)
-                        p->name.push_back(u16(u8(ch)));
-                    p->fs_kind = 13; /* Zfs (corpus factory code) */
-                    p->logical_size = ci->size;
-                    p->allocated_size = ci->dn.maxblkid() != 0
-                                            ? u64(ci->dn.datablksz()) * (ci->dn.maxblkid() + 1)
-                                            : (ci->size ? u64(ci->dn.datablksz()) : 0);
-                    p->attributes = is_dir ? 0x10 : 0;
-                    p->record_ref = e.value;
-                    p->times.created = unix_to_filetime(i64(ci->crtime[0]));
-                    p->times.modified = unix_to_filetime(i64(ci->mtime[0]));
-                    p->times.changed = unix_to_filetime(i64(ci->ctime[0]));
-                    p->times.accessed = unix_to_filetime(i64(ci->atime[0]));
-                    if (!is_dir && ci->size > 0) {
-                        FileExtentPlan plan;
-                        if (plan_file_extents(v, ci->dn, plan)) {
-                            /* merge adjacent raw extents */
-                            u64 compressed = 0;
-                            for (auto& it : plan.items) {
-                                if (it.codec != 0)
-                                    ++compressed;
-                                if (!p->extents.empty() && it.codec == 0 &&
-                                    p->extents.back().codec == 0 &&
-                                    p->extents.back().offset + p->extents.back().length ==
-                                        it.offset) {
-                                    p->extents.back().length += it.length;
-                                    p->extents.back().psize = 0;
-                                } else {
-                                    tree::FileProperties::Extent ex;
-                                    ex.offset = it.offset;
-                                    ex.length = it.length;
-                                    ex.codec = it.codec;
-                                    ex.psize = it.psize;
-                                    p->extents.push_back(ex);
-                                }
+                for (char ch : e.name)
+                    p->name.push_back(u16(u8(ch)));
+                p->fs_kind = 13; /* Zfs (corpus factory code) */
+                p->logical_size = ci->size;
+                p->allocated_size = ci->dn.maxblkid() != 0
+                                        ? u64(ci->dn.datablksz()) * (ci->dn.maxblkid() + 1)
+                                        : (ci->size ? u64(ci->dn.datablksz()) : 0);
+                p->attributes = is_dir ? 0x10 : 0;
+                p->record_ref = e.value;
+                p->times.created = unix_to_filetime(i64(ci->crtime[0]));
+                p->times.modified = unix_to_filetime(i64(ci->mtime[0]));
+                p->times.changed = unix_to_filetime(i64(ci->ctime[0]));
+                p->times.accessed = unix_to_filetime(i64(ci->atime[0]));
+                if (!is_dir && ci->size > 0) {
+                    FileExtentPlan plan;
+                    if (plan_file_extents(v, ci->dn, plan)) {
+                        /* merge adjacent raw extents */
+                        u64 compressed = 0;
+                        for (auto& it : plan.items) {
+                            if (it.codec != 0)
+                                ++compressed;
+                            if (!p->extents.empty() && it.codec == 0 &&
+                                p->extents.back().codec == 0 &&
+                                p->extents.back().offset + p->extents.back().length == it.offset) {
+                                p->extents.back().length += it.length;
+                                p->extents.back().psize = 0;
+                            } else {
+                                tree::FileProperties::Extent ex;
+                                ex.offset = it.offset;
+                                ex.length = it.length;
+                                ex.codec = it.codec;
+                                ex.psize = it.psize;
+                                p->extents.push_back(ex);
                             }
-                            stats.compressed_extents += compressed;
-                            for (auto& em : plan.embedded) {
-                                if (em.size() <= (1u << 20)) {
-                                    p->resident_data.insert(p->resident_data.end(),
-                                                            em.begin(), em.end());
-                                    ++stats.embedded_files;
-                                }
+                        }
+                        stats.compressed_extents += compressed;
+                        for (auto& em : plan.embedded) {
+                            if (em.size() <= (1u << 20)) {
+                                p->resident_data.insert(p->resident_data.end(), em.begin(),
+                                                        em.end());
+                                ++stats.embedded_files;
                             }
                         }
                     }
-                    tree::FileNode* n = tree.add_file(parent, p);
-                    p->release();
-                    if (!n)
-                        continue;
-                    if (is_dir) {
-                        ++stats.dirs;
-                        emit_dir(e.value, n, depth + 1);
-                    } else {
-                        ++stats.files;
-                    }
                 }
-            };
+                tree::FileNode* n = tree.add_file(parent, p);
+                p->release();
+                if (!n)
+                    continue;
+                if (is_dir) {
+                    ++stats.dirs;
+                    emit_dir(e.value, n, depth + 1);
+                } else {
+                    ++stats.files;
+                }
+            }
+        };
         emit_dir(root_obj, ds_node, 0);
         if (progress)
             (void)progress(3, 4, progress_user);

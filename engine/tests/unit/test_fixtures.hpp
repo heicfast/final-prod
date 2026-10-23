@@ -94,7 +94,7 @@ struct VolSpec {
     u64 obj_id;
     const char* name;
     u8 int_volume_type; /* libldm _VOLUME_TYPE_GEN=3, RAID5=4 */
-    u64 size;       /* sectors */
+    u64 size;           /* sectors */
     u64 n_comps;
     bool as_composite = false; /* split into 2 fragments */
 };

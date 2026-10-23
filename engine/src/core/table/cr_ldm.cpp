@@ -669,7 +669,7 @@ bool parse_vblk_view(const u8* view, size_t len, LdmInfo& out) {
 struct FragGroup {
     u16 total = 0;
     u16 found = 0;
-    u32 mask = 0;    /* which entry slots arrived */
+    u32 mask = 0;        /* which entry slots arrived */
     bool broken = false; /* duplicate fragment: kernel marks the group
                           * permanently incomplete (map &= 0x7F) */
     std::vector<u8> data;

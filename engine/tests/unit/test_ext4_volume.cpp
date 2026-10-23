@@ -105,7 +105,7 @@ void write_sb(Img& img, u32 inodes_count) {
     put16(sb + 0x38, 0xEF53);            /* magic */
     put32(sb + 0x4C, 1);                 /* rev level 1 */
     put16(sb + 0x58, INO_SZ);            /* s_inode_size (u16@0x58; the
-                                           * u32 s_first_ino owns 0x54..57) */
+                                          * u32 s_first_ino owns 0x54..57) */
     put32(sb + 0x60, 0x0002);            /* incompat: FILETYPE */
     put32(sb + 0xE0, 8);                 /* journal inum */
     memcpy(sb + 0x78, "testvol", 8);
