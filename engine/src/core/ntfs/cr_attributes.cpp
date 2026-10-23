@@ -54,9 +54,15 @@ u32 enum_attributes(const u8* record, u32 record_size, std::vector<AttrView>& ou
             a.start_vcn = u64_from_bytes_le(record + pos + 16);
             a.last_vcn = u64_from_bytes_le(record + pos + 24);
             a.runlist_offset = u16_from_bytes_le(record + pos + 32);
+            /* NTFS spec nonresident tail: allocated@0x28, FILE SIZE (real
+             * bytes)@0x30, initialized@0x38. The old reads put the file
+             * size into 'initialized' (@0x30) and the initialized size
+             * into 'actual' (@0x38) - actual(=file size) is the field the
+             * whole stack consumes; on partially-written files the two
+             * differ (runner evidence: deleted records emitted size 0). */
             a.allocated = u64_from_bytes_le(record + pos + 40);
-            a.initialized = u64_from_bytes_le(record + pos + 48);
-            a.actual = u64_from_bytes_le(record + pos + 56);
+            a.actual = u64_from_bytes_le(record + pos + 48);
+            a.initialized = u64_from_bytes_le(record + pos + 56);
             if (a.runlist_offset < 0x40 || u32(a.runlist_offset) + 8 > len)
                 return ERR_BAD_PARAMETER;
         }

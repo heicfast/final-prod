@@ -49,7 +49,12 @@ function Write-SeedFile([string] $Path, [string] $Type, [long] $Size) {
             default { $h = [byte[]](0xB5, 0x5E, 0xF0, 0x7D); $fs.Write($h, 0, $h.Length) }
         }
         $buf = New-Object byte[] 65536
-        $remaining = $Size - $fs.Position
+        # pdf: the 6-byte "`n%%EOF" footer is appended AFTER the body - deduct
+        # it here so the final file length (and the manifest size) is exactly
+        # $Size (the old +6 drift failed every pdf name-level match)
+        $footerReserve = 0
+        if ($Type -eq 'pdf') { $footerReserve = 6 }
+        $remaining = $Size - $fs.Position - $footerReserve
         while ($remaining -gt 0) {
             $n = [int][Math]::Min($buf.Length, $remaining)
             $filled = New-Object byte[] $n

@@ -146,6 +146,67 @@ u32 build_props(NtfsVolume* vol, const std::vector<AttrView>& attrs, u64 record_
 
 } // namespace
 
+/* ---- $Recycle.Bin mapping (og parity: recycle-bin files surface under
+ * their pre-deletion name; $I metadata parsed, $R content remapped) ---- */
+struct RecycleInfo {
+    u64 size = 0;
+    u64 time = 0;
+    std::u16string orig_name; /* basename of the $I-recorded original path */
+};
+
+/* $I layout (verified against the shell's writer behavior): shared
+ * offsets for v1 (28 + 2*pathlen bytes) and v2 (544 fixed):
+ * version u32@0, size u64@8, time u64@16, pathlen u32@24, path@28 */
+static u32 parse_recycle_info(const std::vector<AttrView>& attrs, RecycleInfo& out) {
+    for (const AttrView& a : attrs) {
+        if (a.type != ATTR_TYPE_DATA || a.nonresident || a.name_length != 0)
+            continue;
+        const u8* d = nullptr;
+        u32 dlen = 0;
+        if (resident_span(a, d, dlen) != OK)
+            continue;
+        if (dlen < 28)
+            continue;
+        const u32 ver = u32_from_bytes_le(d);
+        if (ver != 1 && ver != 2)
+            continue;
+        const u64 size = u64_from_bytes_le(d + 8);
+        const u64 t = u64_from_bytes_le(d + 16);
+        const u32 plen = u32_from_bytes_le(d + 24);
+        const u32 maxp = ver == 2 ? 260 : 1024; /* v2: 520/2 wchars; v1 unbounded-ish */
+        if (plen == 0 || plen > maxp || 28 + u64(plen) * 2 > dlen)
+            continue;
+        std::u16string path(plen, u'\0');
+        for (u32 i = 0; i < plen; ++i)
+            path[i] = u16_from_bytes_le(d + 28 + i * 2);
+        const size_t slash = path.rfind(u'\\');
+        const std::u16string base = slash == std::u16string::npos ? path : path.substr(slash + 1);
+        if (base.empty())
+            continue;
+        out.size = size;
+        out.time = t;
+        out.orig_name = base;
+        return OK;
+    }
+    return ERR_UNSUPPORTED;
+}
+
+/* volume metafiles only - NOT every '$' name (the old blanket skip
+ * swallowed $Recycle.Bin/$Extend subtree content: recycle deletions
+ * vanished from the results; user files named '$...' also vanished) */
+static bool is_metafile_name(const std::u16string& n) {
+    static const std::u16string kMeta[] = {
+        u"$MFT",        u"$MFTMirr", u"$LogFile", u"$Volume", u"$AttrDef",  u"$Bitmap", u"$Boot",
+        u"$BadClus",    u"$Secure",  u"$UpCase",  u"$Extend", u"$Quota",    u"$ObjId",  u"$Reparse",
+        u"$RmMetadata", u"$UsnJrnl", u"$SDH",     u"$SII",    u"$Transact", u"$Config"};
+    for (const std::u16string& m : kMeta)
+        if (n == m)
+            return true;
+    return false;
+}
+
+constexpr u64 REMNANT_BLOCK = 4ull << 20;
+
 u32 walk_mft(NtfsVolume* vol, VolumeBitmap* bitmap, const WalkerFlags& flags, CancelToken* cancel,
              WalkProgress progress, void* progress_user, tree::ResultTree& tree,
              tree::FullNode* root_active, tree::FullNode* root_deleted, tree::FullNode* root_lost,
@@ -161,6 +222,8 @@ u32 walk_mft(NtfsVolume* vol, VolumeBitmap* bitmap, const WalkerFlags& flags, Ca
     /* $Extend/$UsnJrnl:$J capture (harvest input) */
     RunList usn_runs;
     bool have_usn = false;
+    /* $Recycle.Bin $I metadata seen so far (random suffix -> info) */
+    std::map<std::u16string, RecycleInfo> recycle_info;
 
     /* temp record buffer with fixup scratch */
     std::vector<u8> rec;
@@ -199,6 +262,8 @@ u32 walk_mft(NtfsVolume* vol, VolumeBitmap* bitmap, const WalkerFlags& flags, Ca
         std::vector<FileNameInfo> names;
         RunList data_runs, i30_runs;
         bool has_data = false, has_i30 = false, has_si = false;
+        u64 data_real_size = 0;       /* primary unnamed $DATA: authoritative size */
+        bool recycle_pending = false; /* this record is a $Recycle.Bin $R */
         tree::FileTimes si_times{};
         tree::FileProperties* scratch = nullptr;
         std::vector<u8> unnamed_resident;
@@ -325,8 +390,10 @@ u32 walk_mft(NtfsVolume* vol, VolumeBitmap* bitmap, const WalkerFlags& flags, Ca
             if (namespace_rank(n.namespace_type) > namespace_rank(best->namespace_type))
                 best = &n;
 
-        /* corpus filters: '$'-prefixed metafiles; SYSTEM files (flags & 4) */
-        if (!best->name.empty() && best->name[0] == u'$') {
+        /* corpus filters: KNOWN metafiles only (the old blanket '$'-skip
+         * also swallowed every $Recycle.Bin/$Extend SUBTREE file - recycle
+         * deletions vanished from the results entirely); SYSTEM files */
+        if (is_metafile_name(best->name)) {
             /* $UsnJrnl: capture the $J stream for the post-walk harvest
              * (journal-evidenced deleted names the MFT pass missed) */
             if (best->name == u"$UsnJrnl") {
@@ -357,6 +424,25 @@ u32 walk_mft(NtfsVolume* vol, VolumeBitmap* bitmap, const WalkerFlags& flags, Ca
             }
             ++stats.meta_skipped;
             continue;
+        }
+        /* $Recycle.Bin: $I<rand> carries the ORIGINAL path/size/time of the
+         * recycle-deleted file (resident $DATA, v1: 28+2*pathlen bytes,
+         * v2: 544 fixed); $R<rand> is the content. Map $R records back to
+         * their ORIGINAL name + $I-recorded size and mark them Deleted
+         * (they were deleted from the user's location; the record stays
+         * in-use in the bin). $I metadata files never surface. */
+        if (best->name.size() >= 3 && best->name[0] == u'$' &&
+            (best->name[1] == u'I' || best->name[1] == u'R')) {
+            const std::u16string rnd = best->name.substr(2);
+            if (best->name[1] == u'I') {
+                RecycleInfo ri;
+                if (parse_recycle_info(attrs, ri) == OK) {
+                    recycle_info[rnd] = ri;
+                    ++stats.recycle_info;
+                }
+                continue; /* bin metadata, not recoverable content */
+            }
+            recycle_pending = true; /* $R: mapped below if its $I was seen */
         }
         if (flags.skip_system_files && (best->dos_flags & 0x04)) {
             ++stats.system_skipped;
@@ -424,6 +510,21 @@ u32 walk_mft(NtfsVolume* vol, VolumeBitmap* bitmap, const WalkerFlags& flags, Ca
         props->allocated_size = best->allocated_size;
         props->times = has_si ? si_times : best->times;
         props->attributes = u16(best->dos_flags & 0xFF) | (is_dir ? 0x10 : 0);
+        /* $R<rand> recycle remap: the ORIGINAL name/size/time from the $I
+         * sibling (the $R record itself stays in-use inside the bin - it
+         * was deleted from the user's location, so the node is Deleted) */
+        bool recycle_remapped = false;
+        if (recycle_pending) {
+            recycle_pending = false;
+            auto it = recycle_info.find(best->name.substr(2));
+            if (it != recycle_info.end()) {
+                props->name = it->second.orig_name;
+                if (it->second.size != 0)
+                    props->logical_size = it->second.size;
+                props->times.modified = it->second.time;
+                recycle_remapped = true;
+            }
+        }
         props->flags = u16(in_use ? PFLAG_IN_USE : 0) | u16(is_dir ? PFLAG_IS_DIR : 0);
 
         /* extents in slice-relative bytes; the tree consumer resolves to
@@ -479,6 +580,10 @@ u32 walk_mft(NtfsVolume* vol, VolumeBitmap* bitmap, const WalkerFlags& flags, Ca
                 n->set_deleted_state(tree::DeletedState::Deleted);
                 if (conf == tree::Confidence::Overwritten)
                     n->set_deleted_state(tree::DeletedState::PartiallyOverwritten);
+            } else if (recycle_remapped) {
+                /* recycle-bin content: the record is in-use inside the bin,
+                 * but the file was deleted from the user's location */
+                n->set_deleted_state(tree::DeletedState::Deleted);
             }
             n->set_confidence(conf);
             n->set_origin(tree::Origin::Structured);
@@ -726,7 +831,6 @@ namespace {
  * scans in memory (records crossing block edges are re-read via a
  * record_size overlap). Semantics preserved exactly: 'FILE' prefilter at
  * 512-byte strides, fixup validation, first valid $FILE_NAME, $-skip. */
-constexpr u64 REMNANT_BLOCK = 4ull << 20;
 
 struct RemnantCtx {
     IStorageDevice* slice;
@@ -735,6 +839,7 @@ struct RemnantCtx {
     tree::ResultTree* tree;
     tree::FullNode* root_lost;
     std::atomic<u64> emitted{0};
+    std::atomic<u64> dup_skipped{0};
     std::atomic<bool> aborted{false};
 };
 
@@ -773,9 +878,43 @@ void scan_remnant_buffer(RemnantCtx& ctx, const u8* buf, u64 buf_len) {
                         ctx.aborted.store(true, std::memory_order_relaxed);
                         return;
                     }
+                    /* prefer a $DATA size from the same record (real
+                     * volumes leave $FILE_NAME sizes 0 for fresh files);
+                     * detached records have no other source */
+                    u64 rem_size = fi.real_size;
+                    for (const AttrView& da : attrs) {
+                        if (da.type != ATTR_TYPE_DATA || da.name_length != 0)
+                            continue;
+                        if (!da.nonresident && da.value_length != 0) {
+                            rem_size = da.value_length;
+                            break;
+                        }
+                        if (da.nonresident && da.actual != 0) {
+                            rem_size = da.actual;
+                            break;
+                        }
+                    }
+                    /* dedup vs structured results: if the parent dir node
+                     * (by record ref) already carries this name, the MFT
+                     * pass emitted this record - the remnant scan must not
+                     * add a size-0 duplicate */
+                    tree::FileNode* parent_node = ctx.tree->find_by_record(fi.parent_record);
+                    if (parent_node != nullptr) {
+                        for (tree::FileNode* c = parent_node->first_child(); c != nullptr;
+                             c = c->next_sibling()) {
+                            if (c->props() != nullptr && c->props()->name == fi.name) {
+                                ctx.dup_skipped.fetch_add(1, std::memory_order_relaxed);
+                                props->release();
+                                props = nullptr;
+                                break;
+                            }
+                        }
+                    }
+                    if (props == nullptr)
+                        continue;
                     props->name = fi.name;
                     props->fs_kind = 3;
-                    props->logical_size = fi.real_size;
+                    props->logical_size = rem_size;
                     props->times = fi.times;
                     props->attributes = u16(fi.dos_flags & 0xFF);
                     props->flags = 0; /* detached: no in-use knowledge */

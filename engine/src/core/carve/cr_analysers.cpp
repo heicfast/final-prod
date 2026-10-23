@@ -104,35 +104,13 @@ u64 probe_limit(IStorageDevice* s, u64 hit, u64 cap) {
     return std::min(hit + cap, s->size());
 }
 
-/* LAST occurrence of magic[mlen] in [start, limit) wins (incremental
- * updates append revisions at the tail). Ascending within-block scan so
- * the block's last match takes the final assignment; later blocks
- * overwrite earlier ones - the overall last match wins. Returns the
- * offset just past the last marker, or 0 when none found. */
-u64 scan_last_marker(IStorageDevice* s, u64 start, u64 limit, const char* magic, u32 mlen) {
-    if (mlen == 0 || limit <= start || limit - start < mlen)
-        return 0;
-    std::vector<u8> buf(kProbeBlock);
-    u64 best = 0;
-    u64 block = start;
-    while (block < limit) {
-        const u64 remain = limit - block;
-        const u32 take = u32(std::min<u64>(remain, kProbeBlock));
-        if (take < mlen)
-            break; /* tail sliver: no whole marker fits (seam already covered it) */
-        if (!rd(s, block, buf.data(), take))
-            break; /* IO break: keep the best found so far */
-        for (u32 i = 0; i + mlen <= take; ++i) {
-            if (std::memcmp(buf.data() + i, magic, mlen) == 0)
-                best = block + i + mlen;
-        }
-        if (block + take >= limit)
-            break;
-        /* advance with a (mlen - 1) seam so a marker straddling the block
-         * boundary is seen by at least one of the two windows */
-        block += u64(take) - (mlen - 1);
-    }
-    return best;
+/* finalize a validated PDF (end = offset just past the effective %%EOF) */
+static CarveResult carve_pdf_done(CarveResult r, u64 end) {
+    r.ok = true;
+    r.end = end;
+    r.confidence = 900;
+    r.note = "%%EOF(last-before-next-PDF,1MiB-blocks)";
+    return r;
 }
 
 /* FIRST geometry-consistent PK\x05\x06 in [start, limit) wins. The old
@@ -479,18 +457,42 @@ CarveResult validate_pdf(IStorageDevice* s, u64 hit, u64 cap) {
         return r;
     if (v[0] < '1' || v[0] > '9' || v[1] != '.')
         return r;
-    /* the LAST %%EOF within the cap wins (incremental updates append
-     * revisions at the tail). P1-12: 1 MiB block scan - the 1 KiB stepping
-     * this replaces issued up to 524,288 read_at calls per %PDF- hit. */
+    /* The LAST %%EOF before the NEXT '%PDF-' occurrence wins: incremental
+     * updates append revisions at the tail (multi-%%EOF is legitimate),
+     * but the old unbounded last-wins attributed every LATER pdf's %%EOF
+     * to this hit - cross-file absorption (runner benchmark evidence:
+     * every carved pdf came out ~300 MiB, the distance to the volume's
+     * last pdf). The next '%PDF-' is a hard boundary (standard carver
+     * behavior; a '%PDF-' literal inside content is vanishingly rare and
+     * truncates early - far cheaper than absorbing whole later files).
+     * P1-12: 1 MiB block reads throughout. */
     const u64 limit = probe_limit(s, hit, cap);
-    u64 best = scan_last_marker(s, hit, limit, "%%EOF", 5);
-    if (best == 0)
-        return r;
-    r.ok = true;
-    r.end = best;
-    r.confidence = 900;
-    r.note = "%%EOF(last,1MiB-blocks)";
-    return r;
+    std::vector<u8> buf(kProbeBlock);
+    u64 best = 0;         /* offset just past the last %%EOF before the boundary */
+    u64 block = hit + 16; /* skip the own header (+version digits) */
+    while (block < limit) {
+        const u64 remain = limit - block;
+        const u32 take = u32(std::min<u64>(remain, kProbeBlock));
+        if (take < 16)
+            break;
+        if (!rd(s, block, buf.data(), take))
+            break;
+        /* ordered scan: positions of both magics, ascending */
+        for (u32 i = 0; i + 5 <= take; ++i) {
+            if (std::memcmp(buf.data() + i, "%%EOF", 5) == 0) {
+                best = block + i + 5;
+                continue;
+            }
+            if (std::memcmp(buf.data() + i, "%PDF-", 5) == 0) {
+                /* next file's header: this candidate ends at its last %%EOF */
+                return best != 0 ? carve_pdf_done(r, best) : r;
+            }
+        }
+        if (block + take >= limit)
+            break;
+        block += u64(take) - 4; /* 5-byte magics: (mlen-1) seam */
+    }
+    return best != 0 ? carve_pdf_done(r, best) : r;
 }
 
 /* ---- ZIP family: local header + EOCD; DOCX adds [Content_Types].xml ---- */
