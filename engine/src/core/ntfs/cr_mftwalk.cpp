@@ -53,7 +53,7 @@ u32 build_props(NtfsVolume* vol, const std::vector<AttrView>& attrs, u64 record_
                 u16 record_flags, tree::FileProperties*& props_out,
                 std::vector<AttrListEntry>& attrlist_out, std::vector<FileNameInfo>& names_out,
                 RunList& unnamed_data_out, bool& has_unnamed_data, RunList& i30_out, bool& has_i30,
-                tree::FileTimes& si_times, bool& has_si) {
+                tree::FileTimes& si_times, bool& has_si, u64& data_real_size) {
     props_out = nullptr;
     attrlist_out.clear();
     names_out.clear();
@@ -62,6 +62,7 @@ u32 build_props(NtfsVolume* vol, const std::vector<AttrView>& attrs, u64 record_
     i30_out = RunList();
     has_i30 = false;
     has_si = false;
+    data_real_size = 0;
 
     for (const AttrView& a : attrs) {
         switch (a.type) {
@@ -89,8 +90,11 @@ u32 build_props(NtfsVolume* vol, const std::vector<AttrView>& attrs, u64 record_
                 if (!a.nonresident) {
                     const u8* d = nullptr;
                     u32 dlen = 0;
-                    if (resident_span(a, d, dlen) == OK)
+                    if (resident_span(a, d, dlen) == OK) {
                         has_unnamed_data = true; /* resident */
+                        if (a.value_length != 0)
+                            data_real_size = a.value_length;
+                    }
                 } else {
                     RunList rl;
                     if (parse_data_runs(a, vol->params().total_clusters, rl) == OK) {
@@ -99,6 +103,11 @@ u32 build_props(NtfsVolume* vol, const std::vector<AttrView>& attrs, u64 record_
                         for (const DataRun& r : rl.runs())
                             unnamed_data_out.runs().push_back(r);
                     }
+                    /* authoritative file size in bytes (tail @+0x30):
+                     * $FILE_NAME sizes are 0 on real volumes for
+                     * freshly-written files (runner benchmark evidence) */
+                    if (a.actual != 0)
+                        data_real_size = a.actual;
                 }
             }
             break;
@@ -179,10 +188,11 @@ u32 walk_mft(NtfsVolume* vol, VolumeBitmap* bitmap, const WalkerFlags& flags, Ca
         std::vector<FileNameInfo> names;
         RunList data_runs, i30_runs;
         bool has_data = false, has_i30 = false, has_si = false;
+        u64 data_real_size = 0; /* primary unnamed $DATA: authoritative size */
         tree::FileTimes si_times{};
         tree::FileProperties* scratch = nullptr;
         if (build_props(vol, attrs, record_no, rh.flags, scratch, attrlist, names, data_runs,
-                        has_data, i30_runs, has_i30, si_times, has_si) != OK) {
+                        has_data, i30_runs, has_i30, si_times, has_si, data_real_size) != OK) {
             ++stats.damaged;
             continue;
         }
@@ -242,6 +252,21 @@ u32 walk_mft(NtfsVolume* vol, VolumeBitmap* bitmap, const WalkerFlags& flags, Ca
                                     data_runs.runs().push_back(r);
                                 has_data = true;
                             }
+                            /* the $DATA tail's file-size-in-bytes (@+0x30) is
+                             * the authoritative size: $FILE_NAME's size field
+                             * is 0 on real volumes for freshly-written files
+                             * (runner benchmark evidence: every logical_size
+                             * came out 0 while exFAT/FAT dentry sizes were
+                             * correct) */
+                            if (ca.actual != 0)
+                                data_real_size = ca.actual;
+                        }
+                        if (ca.type == ATTR_TYPE_DATA && !ca.nonresident && ca.name_length == 0) {
+                            /* resident primary $DATA (small files): the
+                             * content length is the size; no runlist */
+                            has_data = true;
+                            if (ca.value_length != 0)
+                                data_real_size = ca.value_length;
                         }
                         if (ca.type == ATTR_TYPE_INDEX_ALLOCATION && ca.nonresident) {
                             RunList rl;
@@ -314,7 +339,7 @@ u32 walk_mft(NtfsVolume* vol, VolumeBitmap* bitmap, const WalkerFlags& flags, Ca
             const RunList& probe = is_dir ? (has_i30 ? i30_runs : RunList()) : data_runs;
             const u64 probe_size =
                 is_dir ? (has_i30 ? i30_runs.total_clusters() * vol->params().cluster_bytes : 0)
-                       : (has_data ? best->real_size : 0);
+                       : (data_real_size ? data_real_size : best->real_size);
             if (!is_dir && !has_data) {
                 conf = tree::Confidence::MetadataOnly;
             } else if (probe_size >= flags.viability_min_size && probe.total_clusters() > 0) {
@@ -362,7 +387,9 @@ u32 walk_mft(NtfsVolume* vol, VolumeBitmap* bitmap, const WalkerFlags& flags, Ca
         props->record_ref = (record_no) | (u64(rh.sequence) << 48);
         props->fs_kind = 3; /* NTFS (corpus FS type codes) */
         props->name = best->name;
-        props->logical_size = best->real_size;
+        /* $DATA size first (authoritative); $FILE_NAME size only as the
+         * metadata-only fallback (0 on real volumes for fresh files) */
+        props->logical_size = data_real_size ? data_real_size : best->real_size;
         props->allocated_size = best->allocated_size;
         props->times = has_si ? si_times : best->times;
         props->attributes = u16(best->dos_flags & 0xFF) | (is_dir ? 0x10 : 0);
@@ -401,7 +428,7 @@ u32 walk_mft(NtfsVolume* vol, VolumeBitmap* bitmap, const WalkerFlags& flags, Ca
                     return ERR_NO_MEMORY;
                 }
                 link_props->name = link_name->name;
-                link_props->logical_size = link_name->real_size;
+                link_props->logical_size = data_real_size ? data_real_size : link_name->real_size;
                 link_props->allocated_size = link_name->allocated_size;
                 link_props->times = link_name->times;
             }
