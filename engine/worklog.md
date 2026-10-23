@@ -526,3 +526,38 @@ Stage Summary:
   (workflows live, running), v0.2.0 tag (blocked on benchmark results),
   cross-disk LDM session registry (single-disk resolver works; the
   LdmVolumeDevice re-anchoring landed the correct primitive).
+
+---
+Task ID: S6-BENCH-LOOP
+Agent: main
+Task: Benchmark take-over loop - 4 defect generations found and fixed
+
+Work Log:
+- Gen 1 (183dfcd): geometry fix verified (512e: logical 512/physical 4096);
+  volume slices create; scans complete in 2-3.5 min (no stalls). rda
+  mystery CLOSED: CreateFile error 87 = the driver's classifier rejected
+  (NULL, 0) - the null-buffer guard ran before the empty-name GLOBAL gate
+  (IO manager leaves FileName.Buffer NULL for empty names). Fixed in
+  rda-driver 7e88e38, tagged v0.2.1; all three workflows now fetch v0.2.1.
+- Gen 2 (f553be2): every NTFS logical_size was 0 while exFAT dentry sizes
+  were exact - emission took $FILE_NAME's size (0 for fresh files on real
+  volumes). Fixed: data_real_size captured from $DATA (actual @+0x30 /
+  value_length), $FILE_NAME only as fallback; probe_size too.
+- Gen 3 (d0e41a0): recall 42.2%, keep FAIL -> four defects:
+  (a) $Recycle.Bin invisible (blanket $-skip) - recycle deletions (26/113)
+      vanished; now known-metafiles-only + $I/$R mapping (original name,
+      $I size/time, Deleted state; $I metadata never surfaces)
+  (b) PDF cross-file absorption (~300 MiB carved extents) - last-%%EOF
+      bounded by the next %PDF- (hard boundary)
+  (c) enum_attributes tail offsets SWAPPED (file-size into 'initialized',
+      initialized into 'actual') - the d##.txt size-0 class; fixture wrote
+      real_size at both +48/+56 masking it
+  (d) remnant scan: dedup by (parent,name) vs the tree + $DATA size
+      preferred; bench_seed pdf footer reserved from $Size (+6 drift)
+- Rebase conflicts with the agents' second verification round resolved
+  (WalkStats both fields; dedup data_real_size declaration). 137/137.
+
+Stage Summary:
+- Benchmark defect loop converged: each run's artifact diffs drove the
+  next fix. All three workflows retriggered on 22cc182. Awaiting the
+  first keep-control PASS.
