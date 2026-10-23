@@ -63,6 +63,24 @@ struct ScanConfig {
      * never own it). UTF-8, NUL-padded into the session record. */
     char volume_label[32] = {0};
 
+    /* ---- auto-checkpoint (G-13, issue #9) ----
+     * Invoked by the orchestrator at STAGE BOUNDARIES with a freshly
+     * serialized session (state + volume + contexts + tree + error map -
+     * the same record set save_session emits). The caller provides the
+     * IO triple (the file-backed sink writes <path>.tmp + flush +
+     * rename: atomic per the platform); a failed sink write ABORTS the
+     * scan with its error code (never a silent checkpoint gap). The
+     * serialized mask is truthful (actual completion), so resume() from
+     * the last checkpoint skips finished stages by construction. */
+    struct CheckpointSink {
+        u32 (*write)(void* user, const void* bytes, u32 len) = nullptr;
+        u64 (*tell)(void* user) = nullptr;
+        u32 (*seek)(void* user, u64 absolute) = nullptr;
+        void* user = nullptr;
+        explicit operator bool() const { return write && tell && seek; }
+    };
+    CheckpointSink checkpoint;
+
     /* Cross-disk LDM members (audit row 30 / LDM audit Bug 5): when a
      * whole-disk scan finds an LDM database, spanned/striped/mirrored/
      * RAID-5 volumes may reference member disks other than the scanned
@@ -185,6 +203,9 @@ public:
      * bad-sector map merged from the retry pipe. */
     ScanTelemetrySnapshot telemetry() const;
 
+    /* G-13: checkpoints emitted so far this run (0 when no sink). */
+    u64 checkpoint_count() const { return checkpoint_count_; }
+
     const ScanConfig& config() const { return cfg_; }
 
 private:
@@ -233,6 +254,10 @@ private:
      * progress calls - NEVER a hardcoded weighted() guess, which could
      * regress below what the bridge already forwarded mid-stage. */
     u32 tel_overall_() const;
+    /* G-13: emit one checkpoint through cfg_.checkpoint (a full session
+     * record set). Returns the sink's error on failure (the caller aborts
+     * the scan - no silent checkpoint gaps). */
+    u32 emit_checkpoint_() const;
 
     tree::ResultTree& tree_;
     ScanConfig cfg_;
@@ -263,6 +288,10 @@ private:
     u32 vol_logical_sector_ = 0;
     u32 vol_physical_sector_ = 0;
     u32 session_configured_mask_ = 0;
+    /* G-13: the run's stats reference for checkpoint serialization +
+     * emitted-checkpoint count (diagnostics) */
+    mutable ScanStats* checkpoint_stats_ = nullptr;
+    mutable u64 checkpoint_count_ = 0;
 };
 
 } // namespace orchestrator

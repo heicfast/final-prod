@@ -487,3 +487,115 @@ TEST(PauseResume, SessionRestoresVolumeInfoAndCandidates) {
     }
     std::remove(path.c_str());
 }
+
+/* ---------------- G-13: auto-checkpoint ---------------- */
+
+namespace {
+
+/* vector-backed CRSF IO (the checkpoint sink target) */
+struct VecIo {
+    std::vector<u8> data;
+    u64 pos = 0;
+    static u32 wr(void* user, const void* bytes, u32 len) {
+        auto* v = static_cast<VecIo*>(user);
+        if (v->pos + len > v->data.size())
+            v->data.resize(size_t(v->pos + len));
+        std::memcpy(v->data.data() + v->pos, bytes, len);
+        v->pos += len;
+        return 0;
+    }
+    static u64 tl(void* user) { return static_cast<VecIo*>(user)->pos; }
+    static u32 sk(void* user, u64 abs) {
+        static_cast<VecIo*>(user)->pos = abs;
+        return 0;
+    }
+    static u32 rd(void* user, void* buf, u32 len) {
+        auto* v = static_cast<VecIo*>(user);
+        if (v->pos + len > v->data.size())
+            return 1;
+        std::memcpy(buf, v->data.data() + v->pos, len);
+        v->pos += len;
+        return 0;
+    }
+    static u64 sz(void* user) { return static_cast<VecIo*>(user)->data.size(); }
+};
+
+} // namespace
+
+TEST(Checkpoint, StageBoundaryCheckpointResumesAfterCrash) {
+    /* crash simulation: the sink captures the post-quick checkpoint, then
+     * the progress callback cancels at the quick->deep boundary (the
+     * "process died after the first checkpoint" case). The captured
+     * bytes must be a valid resumable session: resume skips quick and
+     * completes deep+carve with reference-equal results. */
+    MemDevice dev(build_fat16());
+    tree::ResultTree tree;
+    ScanConfig cfg;
+    VecIo sink;
+    cfg.checkpoint.write = VecIo::wr;
+    cfg.checkpoint.tell = VecIo::tl;
+    cfg.checkpoint.seek = VecIo::sk;
+    cfg.checkpoint.user = &sink;
+    ScanController ctrl(tree, cfg);
+    ScanStats stats;
+    PausableToken tok;
+    /* crash point: after the quick stage STAMPS complete (the post-quick
+     * checkpoint is emitted), cancel before deep - the same boundary
+     * discrimination the SaveOnCancel test uses (the walk's final tick
+     * also reports 750 while quick.completed is still false) */
+    struct CrashCtx {
+        PausableToken* tok;
+        ScanController* ctrl;
+    } crash{&tok, &ctrl};
+    auto cancel_after_quick = [](u32 overall, void* user) {
+        CrashCtx* c = static_cast<CrashCtx*>(user);
+        if (overall >= 750 && c->ctrl->telemetry().quick.completed) {
+            c->tok->cancel(); /* "process dies" after checkpoint #1 */
+            return false;
+        }
+        return true;
+    };
+    ASSERT_EQ(ERR_CANCELLED, ctrl.run(&dev, &tok, cancel_after_quick, &crash, stats));
+    EXPECT_EQ(u64(1), ctrl.checkpoint_count());
+    ASSERT_FALSE(sink.data.empty());
+
+    /* the captured checkpoint resumes: quick results present, quick not
+     * re-run, deep+carve complete */
+    {
+        VecIo ckpt;
+        ckpt.data = sink.data; /* copy: read-only use */
+        ckpt.pos = 0;
+        session::Reader r(VecIo::rd, VecIo::sk, VecIo::sz, &ckpt);
+        tree::ResultTree tree2;
+        ScanStats stats2;
+        session::VolumeSessionInfo info;
+        std::unique_ptr<ScanController> resumed;
+        ASSERT_EQ(OK, ScanController::resume(r, tree2, cfg, stats2, info, resumed));
+        EXPECT_EQ(STAGE_QUICK, info.stage_done_mask);
+        EXPECT_FALSE(resumed->config().run_quick);
+        MemDevice dev2(build_fat16());
+        ASSERT_EQ(OK, resumed->run(&dev2, nullptr, nullptr, nullptr, stats2));
+
+        /* reference: fresh full scan */
+        tree::ResultTree ref_tree;
+        ScanController ref(ref_tree, ScanConfig{});
+        ScanStats ref_stats;
+        MemDevice ref_dev(build_fat16());
+        ASSERT_EQ(OK, ref.run(&ref_dev, nullptr, nullptr, nullptr, ref_stats));
+        EXPECT_EQ(ref_tree.node_count(), tree2.node_count());
+        EXPECT_EQ(ref_stats.files_found + ref_stats.deleted_found + ref_stats.carved_found,
+                  stats2.files_found + stats2.deleted_found + stats2.carved_found);
+    }
+}
+
+TEST(Checkpoint, CorruptMagicRefused) {
+    VecIo ckpt;
+    ckpt.data = {0xDE, 0xAD, 0xBE, 0xEF, 0, 0, 0, 0};
+    tree::ResultTree tree;
+    ScanStats stats;
+    session::VolumeSessionInfo info;
+    std::unique_ptr<ScanController> out;
+    session::Reader r(VecIo::rd, VecIo::sk, VecIo::sz, &ckpt);
+    EXPECT_EQ(ERR_SESSION_FORMAT, ScanController::resume(r, tree, ScanConfig{}, stats, info, out));
+    EXPECT_EQ(nullptr, out.get());
+}

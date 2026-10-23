@@ -262,6 +262,28 @@ u32 ScanController::tel_overall_() const {
     return tel_.snap.overall_permille;
 }
 
+u32 ScanController::emit_checkpoint_() const {
+    if (!cfg_.checkpoint)
+        return OK;
+    /* fresh container per checkpoint: the sink triple IS the writer's IO
+     * (a file-backed sink makes this <path>.tmp + flush + rename). The
+     * record set matches save_session exactly - mask truth included. */
+    session::Writer w(cfg_.checkpoint.write, cfg_.checkpoint.tell, cfg_.checkpoint.seek,
+                      cfg_.checkpoint.user);
+    if (u32 rc = w.open(0x52434B50)) /* 'RKPP' checkpoint container tag */
+        return rc;
+    /* snapshot the stats shape the session needs: counts live in the
+     * caller's stats object (run owns it); emit with a zero-stats shape
+     * is a LIE - instead defer to the caller: run() passes stats via a
+     * member captured at run() start (checkpoint_stats_) */
+    if (u32 rc = save_session(w, *checkpoint_stats_))
+        return rc;
+    if (u32 rc = w.finalize())
+        return rc;
+    ++checkpoint_count_;
+    return OK;
+}
+
 FsFamily ScanController::probe_family(IStorageDevice* slice) {
     if (slice == nullptr)
         return FsFamily::Unknown;
@@ -393,8 +415,11 @@ u32 ScanController::run(IStorageDevice* slice, CancelToken* cancel, bool (*progr
     };
     if (cancel && cancel->checkpoint())
         return stamp(ERR_CANCELLED);
+    checkpoint_stats_ = &stats; /* G-13: checkpoint serialization source */
     if (cfg_.run_quick) {
         if (u32 rc = run_quick(pipe, cancel, progress, progress_user, stats))
+            return stamp(rc);
+        if (u32 rc = emit_checkpoint_()) /* stage boundary (G-13) */
             return stamp(rc);
     }
     if (cfg_.run_deep) {
@@ -402,13 +427,18 @@ u32 ScanController::run(IStorageDevice* slice, CancelToken* cancel, bool (*progr
             return stamp(ERR_CANCELLED);
         if (u32 rc = run_deep(pipe, cancel, progress, progress_user, stats))
             return stamp(rc);
+        if (u32 rc = emit_checkpoint_()) /* stage boundary (G-13) */
+            return stamp(rc);
     }
     if (cfg_.run_carve) {
         if (cancel && cancel->checkpoint())
             return stamp(ERR_CANCELLED);
         if (u32 rc = run_carve_stage(pipe, cancel, progress, progress_user, stats))
             return stamp(rc);
+        if (u32 rc = emit_checkpoint_()) /* stage boundary (G-13) */
+            return stamp(rc);
     }
+    checkpoint_stats_ = nullptr;
     /* surface the retry layer's error map (R1.6; merged inside stamp for
      * every exit path) + cache counters */
     if (cached)
