@@ -67,7 +67,7 @@ remainders, CI state at HEAD (runs 39984781013 / 39984822801).
 | GAP-G-02b | **CLOSED (fc656d2)** | Writer value-driven enqueue (SafeWriter from snapshot rows, race-free mid-scan recovery). | UI-READINESS-PLAN.md:97-100 |
 | GAP-TREE-JSON | **CLOSED (code-verified)** | `rrecov tree --json`: scan/bench accept `--json`, tree does not. Projection via `query::run` rows; `--csv` grammar frozen byte-identical. | rrecov.cpp:654+ (cmd_tree has no --json) |
 | GAP-CAPMATRIX | **CLOSED (046889d)** | `docs/CAPABILITY-MATRIX.md` does not exist (W5 requires per-capability DONE/PARTIAL/MISSING/EXCLUDED, ReFS/LDM first-class with honest remaining gaps). | `ls docs/CAPABILITY-MATRIX.md` |
-| GAP-UI10-DOCS | PARTIAL | G-11 disposition + G-15..G-22 table exist inside UI-READINESS-PLAN but the README capability summary, ground-truth-contracts extension, and CORE-CONTRACT §13 sync for tree --json are not landed. | UI-READINESS-PLAN.md:290-303 |
+| GAP-UI10-DOCS | **CLOSED (this wave)** | README capability summary ADDED (CAPABILITY-MATRIX link + honest-gap naming + UI-surface-landed block); ground-truth-contracts §11 extension ADDED (the UI-surface contracts); roadmap v0.3 row updated (core-side UI surface landed, wizard front-end is the rda-wizard repo); CORE-CONTRACT §13 tree --json grammar synced (rda-wizard, coordinated update citing core 1005d14 + the normative §11 table). | README.md; docs/ground-truth-contracts.md §11; docs/roadmap.md; rda-wizard docs/CORE-CONTRACT.md §13 |
 
 ## 5. Benchmark truth (scoring validity)
 
@@ -84,11 +84,11 @@ remainders, CI state at HEAD (runs 39984781013 / 39984822801).
 | ID | Status | Item | Evidence |
 |---|---|---|---|
 | GAP-W5-DELTAS | **CLOSED (046889d)** | PARITY-DELTAS D-36..D-44 + refresh D-06/07/13c/17, D-28/29/30, U-8/12; removed-dead-surface appendix (D-44). | docs/PARITY-DELTAS.md (no D-36+) |
-| GAP-W5-CONTRACTS | PARTIAL | ground-truth-contracts §2/§3/§6 corrections (cache-coalesced reads, fixup gate wording, viability boundary, 0xFFF removal, LDM history note). | docs/ground-truth-contracts.md |
-| GAP-W5-REGISTRY | PARTIAL | error-fix-registry F11 correction (og renames `name_N` cap 10000, not overwrite) + F15 reword. | docs/error-fix-registry.md:22 lines only |
+| GAP-W5-CONTRACTS | **CLOSED (this wave)** | ground-truth-contracts: §3 fixup-gate/viability/0xFFF/nibble rows verified PRESENT (landed with 046889d); §2 cache-coalesced contract point ADDED (the reader is the batching point; NTFS-2/D-4x); §6 LDM history note verified present; §11 UI-binding-surface contracts ADDED (cr_ui ABI policy, zero-init configs, threading/progress single-flight, G-02 snapshot semantics, G-12 query, tree --csv/--json frozen schemas with the numeric enum table). | docs/ground-truth-contracts.md §2 + §11 |
+| GAP-W5-REGISTRY | **CLOSED (verified stale)** | error-fix-registry: F11 already carries the WRITER-2 correction ("the earlier 'collision = overwrite' reading of this row was wrong" - og renames `name_N`, cap 10000, DRWUI:357110-357136) and F15 is already reworded (fastsearch ini precise key U-11 + the honest no-stdout-preamble note). No edit needed; register row was stale. | docs/error-fix-registry.md:17,21 |
 | GAP-W5-BENCHREPORT | **CLOSED (e9e1176)** | `docs/BENCHMARK-REPORT.md` does not exist; must carry seeded-scenario numbers with MATCH/EXCEEDS/BELOW/NOT-COMPARABLE verdicts incl. the recycle 0/26 → 26/26 closure. | `ls docs/BENCHMARK-REPORT.md` |
 | GAP-W5-ERRATA | **CLOSED (easeus-drw-research 03ad46c)** | Corpus errata feed: 0xFFF misread, FUN_180041970 mislabel, FAT12 BAD raw-follow, ext4 backup-SB overreach, FileFilter 1,481 recount. | PARITY-REFACTOR-PLAN §3 W5 |
-| GAP-W5-TODO | PARTIAL | TODO/FIXME sweep: PARITY-REFACTOR-PLAN.md (1) + UI-READINESS-PLAN.md (1) carry TODOs; code is clean. Verified: `grep -c TODO docs/*` | grep this session |
+| GAP-W5-TODO | **CLOSED (verified zero)** | TODO sweep: the two counted matches are POLICY SENTENCES, not markers - PARITY-REFACTOR-PLAN.md:61 ("no implementation this session ... no stub, no TODO") and UI-READINESS-PLAN.md:337 ("No stubs, no TODOs, no fake data"). Zero actual TODO/FIXME markers in docs/ and src/. | grep -n TODO docs/*.md (this session) |
 | GAP-W6-WIN7 | **CLOSED (74f42c0; CI proof on next windows run)** | No `_WIN32_WINNT`/`NTDDI` pin in any CMake target (F-D-4); no user-mode import allowlist gate in CI (driver repo has stamp_osversion.py + verify_pe.py to port). | grep CMakeLists: 0 matches |
 | GAP-W6-RELEASE | MISSING | Release tag (v0.3.0-core) with cr_ui.dll, static lib, rrecov.exe, headers, SHA256SUMS, notes referencing this list + PARITY-DELTAS + BENCHMARK-REPORT. | no tags beyond v0.2.x |
 

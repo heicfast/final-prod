@@ -63,7 +63,10 @@
 - Any remote / network recovery feature
 
 ## v0.3 candidates (local features, tracked - not remote-deferred)
-- Wizard UI (the DRWUI-equivalent surface) on the engine layer
+- Wizard UI (the DRWUI-equivalent surface) on the engine layer — CORE-SIDE
+  SURFACE LANDED (cr_ui C-ABI shim + snapshots + query + auto-checkpoint +
+  tree --json, issues #1/#2/#8/#9 closed; the wizard front-end itself lives
+  in the rda-wizard repo)
 - File repair tools (video/PDF/office) - corpus Fixo chain
 - WinPE boot media builder
 - Surface test / disk wipe utilities (ToolsModule-class)

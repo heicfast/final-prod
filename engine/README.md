@@ -62,9 +62,24 @@ rrecov CLI ──────────────── cr_ui C-ABI shim (cr
 
 ## Status
 
+Per-capability truth (DONE / PARTIAL / MISSING with evidence per row) lives in
+[docs/CAPABILITY-MATRIX.md](docs/CAPABILITY-MATRIX.md) — ReFS and LDM are
+first-class (full decode + reconstruction); the honest remaining gaps
+(HFS+ journal replay, Btrfs free-space/tree-log recovery, ZFS multi-vdev
+reports, NTFS containers/security-attribute surfacing) are registered there,
+not hidden.
+
+The UI binding surface is landed: `cr_ui.dll` / `libcr_ui.so` (G-01, the og's
+in-process C-export factory pattern), mid-scan immutable snapshots (G-02),
+query/filter/sort/paging (G-12), auto-checkpointing (G-13), `rrecov tree
+--json` — the wizard binds in-process via
+[include/cr/cr_ui.h](include/cr/cr_ui.h) with a plain-C consumer
+(`tests/ui_abi_check.c`) proving the full lifecycle on every CI lane.
+
 See [docs/roadmap.md](docs/roadmap.md) and [worklog.md](worklog.md). CI runs the full
 matrix on every push: Ubuntu (gcc, -Werror -fsanitize=address on pure core), Windows
-(MSVC /W4 /WX), CodeQL, release pipeline.
+(MSVC /W4 /WX + the Win7 SP1 loader/import gate on every shipped PE), CodeQL, release
+pipeline.
 
 ## License
 

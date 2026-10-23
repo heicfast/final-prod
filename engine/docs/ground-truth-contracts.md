@@ -22,6 +22,11 @@ Engine reader (MFT batch / FAT chain run / carve window)
 
 Contract points (corpus-verified):
 - MFT reads are cluster-strided, batched (reference: 64 KB buffers) — never per-record.
+- **Cache-coalesced reads are the batching point**: per-record engine reads
+  land on the 64-KiB-block `CachedReader` (LRU), so the DEVICE sees
+  whole 64-KiB block fetches exactly like the og's bootstrap buffer —
+  the coalescing contract lives in the reader, not in the callers
+  (corpus ntfs-internals §2; our cr_scan pipe audit, NTFS-2/D-4x).
 - FAT directory reads batch whole runs (one device call per contiguous chain run).
 - The '.' self-entry detection `0x202020202020202E` + attr 0x10 anchors directory identity.
 - Cancel callback consulted inside every loop head (responsive cancellation).
@@ -124,3 +129,24 @@ Proven scheme we re-implement in our own .crsf format:
 - READ contract: byte lengths/offsets; Information = length * 512 (legacy scale);
   clients divide by sector size (verified both sides).
 - Direct fallbacks (reference duality): `\\.\PhysicalDriveN`, `\\.\HarddiskVolumeN`.
+
+## 11. UI binding surface (our contracts, G-01/G-02/G-12 - the og-parity wire)
+
+The reference wire is an IN-PROCESS C-export factory binding (DRWUI
+LoadLibrary's each `*SearchDLL.dll`, GetProcAddress'es `EUCreate<FS>Searcher`
+/ `EUCreate<FS>QuickSearcher` -> `ICompleteFileSystemSearchController`;
+corpus searchdll-family sec.1 + DRWUI-exe sec.9.2). Our equivalent is the
+`cr_ui` shim (cr_ui.dll / libcr_ui.so) - the wizard binds in-process, no IPC.
+
+| Contract | Value | Evidence |
+|---|---|---|
+| ABI identity | `CR_UI_ABI_VERSION 1u`; every `cr_ui_*` returns u32 from the cr::Err space; thread-local last-error; catch-all guard per export; abi_size-versioned PODs | include/cr/cr_ui.h; src/ui/cr_ui.cpp |
+| Config validity | configs are ZERO-INIT VALID (filters/paths/checkpoint optional) - the og factory pattern | cr_ui.h zero-init policy |
+| run() threading | runs on the CALLER's thread (the reference UI calls its controllers from its own worker); pause/cancel/telemetry/checkpoint_count safe from ANY thread, any time | cr_ui.h threading block; ScanController telemetry lock |
+| Progress callback | fired from scan worker threads, single-flight: serialized, strictly monotonic in overall_permille (stale out-of-order deliveries dropped; stage flips at a steady permille still emit) | scan_progress_bridge_ + CrScan::progress_mu |
+| Snapshot (G-02) | `Snapshot::capture(tree, running)` - copy-on-write value capture under the tree mutex; `partial=1` iff captured mid-run; enumeration DFS-identical to the live serializer; recovery-from-snapshot touches zero live-tree state (writer value-enqueue) | cr_snapshot.h/cpp; ADR-UI-SNAPSHOT |
+| Query (G-12) | `query::run` - name-substring / deleted-only filter, sort keys, offset+limit (limit 0 = all rows); stable emission order when SortKey::None | include/cr/query/cr_query.h |
+| `tree --csv` (frozen) | one row per file: `"full\path",logical_size,origin,deleted_state,confidence,first_extent_offset` - NO header row | rrecov.cpp print_tree |
+| `tree --json` (frozen, G-12 projection) | `{"total":<matched>,"rows":[{"path":"..","name":"..","size":N,"modified":N,"origin":N,"deleted":N,"confidence":N,"category":N}...]}` - all strings escape_json-escaped; `--csv` grammar frozen byte-identical alongside | rrecov.cpp print_tree_json |
+| Enum values (numeric on BOTH csv and json) | Origin: Structured=0 Carved=1 Lost=2 Virtual=3; DeletedState: Active=0 Deleted=1 PartiallyOverwritten=2 Damaged=3; Confidence: Unknown=0 Excellent=1 PartialRisk=2 Overwritten=3 MetadataOnly=4; Category: None=0 Image=1 Video=2 Audio=3 Document=4 Archive=5 Other=6 | include/cr/tree/cr_node.h:28-36; include/cr/query/cr_query.h:32-40 |
+| modified field | Unix epoch SECONDS (u64; 0 = unknown) | query::Row |
