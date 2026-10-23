@@ -63,12 +63,16 @@ bool query_disk(u32 n, PhysicalDisk& d) {
             const DWORD bus = u32_from_bytes_le(base + 28);
             if (prod_off && prod_off < sizeof(buf)) {
                 const char* p = reinterpret_cast<const char*>(base + prod_off);
-                while (*p)
+                /* bounded scan (audit row 44): a malformed descriptor
+                 * must not walk past the 4096-byte storage query buffer */
+                const char* mlim = reinterpret_cast<const char*>(base) + sizeof(buf);
+                while (p < mlim && *p)
                     d.model.push_back(wchar_t(*p++));
             }
             if (serial_off && serial_off < sizeof(buf)) {
                 const char* p = reinterpret_cast<const char*>(base + serial_off);
-                while (*p)
+                const char* slim = reinterpret_cast<const char*>(base) + sizeof(buf);
+                while (p < slim && *p)
                     d.serial.push_back(wchar_t(*p++));
             }
             d.removable = (bus == BusTypeUsb || bus == BusTypeSd || bus == BusTypeMmc);

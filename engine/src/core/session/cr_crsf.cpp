@@ -104,6 +104,13 @@ u32 Writer::open(u64 session_id) {
     hdr[0x19] = u8(sid_lo >> 8);
     hdr[0x1A] = u8(sid_lo >> 16);
     hdr[0x1B] = u8(sid_lo >> 24);
+    u32 sid_hi = u32(session_id >> 32);
+    hdr[0x1C] = u8(sid_hi);
+    hdr[0x1D] = u8(sid_hi >> 8);
+    hdr[0x1E] = u8(sid_hi >> 16);
+    hdr[0x1F] = u8(sid_hi >> 24); /* audit row 33: hi dword was never
+                                     written - 64-bit session ids were
+                                     silently truncated */
     return impl_->write(impl_->user, hdr, sizeof(hdr)) != 0 ? u32(0x50040002) : u32(OK);
 }
 

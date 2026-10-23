@@ -28,7 +28,10 @@ class DestIo {
 public:
     virtual ~DestIo() = default;
     /* create the temp file (unique name per item); returns handle id */
-    virtual u32 create_temp(u64 item_id, const std::u16string& final_path_utf16) = 0;
+    /* create the temp file; the per-item suffix (".part-<id>") keeps
+     * concurrent same-final-name items from colliding (audit row 35c) */
+    virtual u32 create_temp(u64 item_id, const std::u16string& final_path_utf16,
+                            const std::u16string& temp_suffix_utf16) = 0;
     virtual u32 write(u64 item_id, u64 offset, const void* data, u32 len) = 0;
     /* fsync-equivalent + atomic rename temp -> final */
     virtual u32 commit(u64 item_id) = 0;

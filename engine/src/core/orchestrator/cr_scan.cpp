@@ -24,8 +24,11 @@
 #include "cr/ntfs/cr_mftwalk.h"
 #include "cr/refs/cr_refs_engine.h"
 #include "cr/session/cr_crsf.h"
+#include "cr/storage/cr_cached.h"
+#include "cr/storage/cr_retry.h"
 #include "cr/storage/cr_slice.h"
 #include "cr/table/cr_ldm.h"
+#include "cr/table/cr_table_parse.h"
 #include "cr/zfs/cr_zfs_engine.h"
 #include <chrono>
 #include <cstring>
@@ -133,8 +136,24 @@ u32 ScanController::run(IStorageDevice* slice, CancelToken* cancel, bool (*progr
     if (slice == nullptr)
         return ERR_BAD_PARAMETER;
     const auto t0 = std::chrono::steady_clock::now();
+
+    /* R1.6 production wiring (audit row 40a): every engine read goes
+     * through retry+bisection (bad-sector isolation with Skip-mode
+     * zero-fill, so one dead spot cannot abort a scan) and a bounded LRU
+     * cache (MFT re-reads, FAT chains). The borrowed slice enters the
+     * chain via the non-owning SliceShim. The accumulated error map
+     * surfaces in ScanStats. */
+    RetryPolicy policy;
+    policy.max_attempts = 3;
+    policy.mode = RetryMode::Skip; /* surface + zero-fill, never abort */
+    auto shim = std::unique_ptr<IStorageDevice>(cr::SliceShim::shim(slice));
+    auto retry = RetryingDevice::create(std::move(shim), policy);
+    auto cached = CachedReader::create(std::move(retry), 8ull << 20, 64 * 1024);
+    IStorageDevice* pipe =
+        cached ? cached.get() : (retry ? static_cast<IStorageDevice*>(retry.get()) : slice);
+
     if (cfg_.fs_hint == FsFamily::Unknown && (cfg_.run_quick || cfg_.run_deep))
-        cfg_.fs_hint = probe_family(slice);
+        cfg_.fs_hint = probe_family(pipe);
 
     const auto stamp = [&stats, t0](u32 rc) -> u32 {
         const auto t1 = std::chrono::steady_clock::now();
@@ -143,16 +162,22 @@ u32 ScanController::run(IStorageDevice* slice, CancelToken* cancel, bool (*progr
         return rc;
     };
     if (cfg_.run_quick) {
-        if (u32 rc = run_quick(slice, cancel, progress, progress_user, stats))
+        if (u32 rc = run_quick(pipe, cancel, progress, progress_user, stats))
             return stamp(rc);
     }
     if (cfg_.run_deep) {
-        if (u32 rc = run_deep(slice, cancel, progress, progress_user, stats))
+        if (u32 rc = run_deep(pipe, cancel, progress, progress_user, stats))
             return stamp(rc);
     }
     if (cfg_.run_carve) {
-        if (u32 rc = run_carve_stage(slice, cancel, progress, progress_user, stats))
+        if (u32 rc = run_carve_stage(pipe, cancel, progress, progress_user, stats))
             return stamp(rc);
+    }
+    /* surface the retry layer's error map (R1.6) */
+    if (retry) {
+        stats.errors.merge(retry->error_map());
+        if (cached)
+            stats.cached_hits = cached->hits(), stats.cached_misses = cached->misses();
     }
     tree_.refresh_stats();
     return stamp(OK);
@@ -351,7 +376,15 @@ u32 ScanController::run_deep(IStorageDevice* slice, CancelToken* cancel,
     /* lost-partition discovery (whole-disk mode, R3) */
     if (cfg_.whole_disk) {
         lost::DiscoveryResult dr;
-        u32 lrc = lost::discover(slice, {}, 1, cancel, nullptr, nullptr, dr);
+        /* live table for overlap scoring (audit row 31a: passing {}
+         * left the Inside/Overlaps penalties dead code) */
+        std::vector<table::PartitionInfo> known;
+        {
+            table::DiskTable t;
+            if (table::parse_disk_table(slice, t) == OK)
+                known = t.partitions;
+        }
+        u32 lrc = lost::discover(slice, known, 1, cancel, nullptr, nullptr, dr);
         if (lrc == OK) {
             stats.lost_candidates = dr.candidates;
             stats.lost_partitions = dr.candidates.size();

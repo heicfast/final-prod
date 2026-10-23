@@ -59,9 +59,14 @@ u32 CachedReader::read_at(u64 offset, void* buffer, u32 length) {
                                             : inner_->size() - block_start);
             b.data.resize(blen);
             u32 rc = inner_->read_at(block_start, b.data.data(), blen);
-            if (rc != OK && rc != ERR_RETRY_EXHAUSTED)
-                return rc;
-            b.valid = (rc == OK);
+            if (rc != OK) {
+                /* audit row 38: failed blocks are NOT cached - the old code
+                 * pinned them as invalid forever, so every later hit failed
+                 * without re-attempting the transport. Fail this read; the
+                 * next one retries. */
+                return rc == ERR_RETRY_EXHAUSTED ? ERR_READ_FAILED : rc;
+            }
+            b.valid = true;
             blocks_.push_back(std::move(b));
             found = blocks_.size() - 1;
         } else {

@@ -87,9 +87,10 @@ u32 validate_boot_region(IStorageDevice* dev, ExfatParams& out) {
     p.bytes_per_sector = 1u << p.bytes_per_sector_shift;
     p.sectors_per_cluster_shift = main_b->sectors_per_cluster_shift;
     p.cluster_bytes = p.bytes_per_sector << p.sectors_per_cluster_shift;
-    p.volume_length = u32(main_b->volume_length); /* u64 field; u32 cast safe: < 2^32 sectors */
-    if (p.volume_length < 2048 || u64(p.volume_length) * bps > dev->size())
-        return ERR_BAD_PARAMETER;
+    p.volume_length = main_b->volume_length; /* full u64 (audit row 10) */
+    if (p.volume_length < 2048 || p.volume_length > (~u64(0)) / bps ||
+        p.volume_length * bps > dev->size())
+        return ERR_BAD_PARAMETER; /* overflow-safe bounds */
     p.fat_offset = main_b->fat_offset;
     p.fat_length = main_b->fat_length;
     p.cluster_heap_offset = main_b->cluster_heap_offset;

@@ -57,11 +57,15 @@ TEST(RefsDetect, CheckpointVariant) {
 TEST(RefsDetect, IdentificationFallback) {
     std::vector<u8> d(4ull << 20, 0);
     memcpy(d.data() + 0x200, "ReFS", 4);
+    /* boot-sector version bytes (audit row 28: real values, not a
+     * fabricated string) */
+    d[0x28] = 3;
+    d[0x29] = 4;
     MemDevice dev(d);
     refs::RefsInfo info;
     EXPECT_EQ(OK, refs::detect_refs(&dev, info));
     EXPECT_TRUE(info.found);
-    EXPECT_STREQ("ReFS", info.version);
+    EXPECT_STREQ("ReFS v3.4", info.version);
 }
 
 TEST(RefsDetect, NonRefsRejected) {

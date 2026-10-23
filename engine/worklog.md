@@ -364,6 +364,60 @@ Stage Summary:
   wave-4 infra (rows 34, 47-49).
 
 ---
+Task ID: S5-WAVE2
+Agent: main (session 5 continuation)
+Task: Wave-2 wiring/semantic fixes - audit rows 9, 10, 11, 28, 31, 33, 35, 38, 40, 41, 42, 43, 44, 45.
+
+Work Log:
+- Row 9 (FAT): backup-boot fallback reads at 6 * logical_sector (4Kn aware), not
+  the hardcoded 3072.
+- Row 10 (exFAT): volume_length is the full u64 from the spec field (the u32
+  cast capped volumes at 2 TiB@512 / 8 TiB@4Kn), with overflow-safe bounds.
+- Row 11 (exFAT): og stream-dentry reserved-field gates (reserved1/2/3 must be
+  zero on live streams) - damaged-set counting parity.
+- Row 28 (ReFS detect): the identification fallback reads the REAL boot-sector
+  major/minor (+0x28/+0x29) instead of fabricating the string "ReFS".
+- Row 31 (lost): the orchestrator passes the live parsed partition table to
+  lost::discover (the Inside/Overlaps penalties were dead code), and the
+  unknown-BPB candidate size derives from the device end instead of a
+  fabricated 2048.
+- Row 33 (CRSF): Writer::open writes the session-id hi dword at +0x1C (64-bit
+  ids were silently truncated).
+- Row 35 (SafeWriter): DestIo::create_temp carries the per-item suffix
+  (".part-<id>") - WinDestIo's bare ".part" let concurrent same-final-name
+  items collide; resume detection counts existing finals (stats.resumed,
+  idempotent re-runs).
+- Row 38 (CachedReader): failed blocks are no longer cached as permanently
+  invalid - the old code pinned them forever so later reads failed without
+  re-attempting the transport. Regression test added.
+- Row 40 (orchestrator): every production scan read now goes through the R1.6
+  pipe - RetryingDevice (bisection, Skip-mode zero-fill, live error map) +
+  8 MiB CachedReader - with the borrowed slice entering via SliceShim; the
+  error map and cache counters surface in ScanStats.
+- Row 41 (transport): session_get_next_block's granted estimate clamps to the
+  plan end (DataFirstSec+TotalSecs tracked per session handle); the cursor can
+  no longer overrun short plans.
+- Row 42 (BitLocker): auto-unlock extracts the registry values' BINARY data
+  (BEK-class blobs) to temp .BEK files and unlocks via the documented
+  -KeyFilePath (the old code passed value NAMES as recovery passwords -
+  GUIDs, could never succeed); status()'s dead Locked branch removed.
+- Row 43 (health): legacy SMART_RCV_DRIVE_DATA (0x7C088) fallback when
+  IOCTL_ATA_PASS_THROUGH is refused (old-drivers parity, header contract
+  honored).
+- Row 44 (enumerate): model/serial string scans bounded by the 4096-byte
+  descriptor buffer (malformed-descriptor overread).
+- Row 45 (fs_kind): canonical FsKindCode enum in cr_types.h adopting the
+  corpus factory map completely - Btrfs 7->11 (was colliding with exFAT),
+  carved 0xFF->Raw(6), ZFS 13 (already fixed in the ZFS wave); session load
+  remaps legacy 12->13; the indistinguishable legacy Btrfs-7 documented as
+  F16 in the error-fix-registry.
+
+Stage Summary:
+- 132/132 tests green on gcc+ASan, clang-format clean. Wave 2 closed. The
+  win/* changes (bitlocker/health/transport/destio/enumerate) compile on the
+  Windows CI (not locally verifiable). Remaining: wave-3 carving depth (row 32
+  - partially covered by the parallel session's P1-12 perf fix), wave-4 infra
+  (node indexes, per-parser fuzz, TSan job, doc refresh, release).
 Task ID: S6-WINDOWS-DLL
 Agent: main
 Task: The 0xc0000135 postmortem (three CI cycles to root cause)

@@ -4,6 +4,7 @@
  */
 
 #include "cr/refs/cr_refs_detect.h"
+#include <cstdio>
 #include <cstring>
 
 namespace cr {
@@ -50,10 +51,19 @@ u32 detect_refs(IStorageDevice* slice, RefsInfo& out) {
     }
     if (!out.found) {
         /* ReFS v3+ identification: the FS name "ReFS" at volume offset
-         * 0x200 of the identification page */
+         * 0x200 of the identification page. The version comes from the
+         * boot sector's real major/minor bytes (+0x28/+0x29, the same
+         * fields the engine reads - audit row 28: the old fallback
+         * fabricated the string "ReFS" instead). */
         if (probe > 0x204 && std::memcmp(buf.data() + 0x200, "ReFS", 4) == 0) {
             out.found = true;
-            std::memcpy(out.version, "ReFS", 4);
+            if (probe > 0x2A) {
+                const int major = buf[0x28];
+                const int minor = buf[0x29];
+                snprintf(out.version, sizeof(out.version), "ReFS v%d.%d", major, minor);
+            } else {
+                std::memcpy(out.version, "ReFS", 4);
+            }
         } else {
             return ERR_BAD_MAGIC;
         }

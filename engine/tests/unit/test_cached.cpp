@@ -61,3 +61,40 @@ TEST(Cached, BoundsReject) {
     u8 buf[16];
     EXPECT_EQ(c->read_at(100 * 512 - 8, buf, 16), ERR_RANGE_OUT_OF_BOUNDS);
 }
+
+TEST(Cached, FailedBlocksAreNotCachedForever) {
+    /* audit row 38: a block whose read fails must not be pinned as an
+     * invalid cache entry - after the device starts working again the
+     * same range must read successfully */
+    struct FlakyDevice final : IStorageDevice {
+        bool fail = true;
+        std::vector<u8> data = std::vector<u8>(8192, 0xAB);
+        u32 read_at(u64 off, void* buf, u32 len) override {
+            if (fail)
+                return ERR_READ_FAILED;
+            if (off > data.size() || len > data.size() - off)
+                return ERR_RANGE_OUT_OF_BOUNDS;
+            memcpy(buf, data.data() + off, len);
+            return OK;
+        }
+        const Geometry& geometry() const override { return g_; }
+        void sync_geom() {
+            g_.logical_sector = 512;
+            g_.physical_sector = 512;
+            g_.total_bytes = data.size();
+            g_.sector_count = data.size() / 512;
+        }
+        Geometry g_{};
+    };
+    FlakyDevice* flaky = new FlakyDevice();
+    flaky->sync_geom();
+    auto cache = CachedReader::create(std::unique_ptr<IStorageDevice>(flaky), 65536, 4096);
+    ASSERT_NE(cache, nullptr);
+    u8 buf[512];
+    /* first read fails (transport down) */
+    EXPECT_EQ(ERR_READ_FAILED, cache->read_at(0, buf, sizeof(buf)));
+    /* transport recovers: the retry must NOT hit a cached invalid block */
+    flaky->fail = false;
+    EXPECT_EQ(OK, cache->read_at(0, buf, sizeof(buf)));
+    EXPECT_EQ(u8(0xAB), buf[0]);
+}

@@ -116,8 +116,15 @@ u32 SafeWriter::recover_item(QueueItem& it, CancelToken* cancel, WriterStats& st
         /* metadata-only: nothing to read; an empty marker file still helps
          * the user see the name - write empty */
     }
+    /* resume detection (audit row 35a): a final file that already exists
+     * is counted and skipped - re-running a recovery must be idempotent */
+    if (io_.exists(it.dest_dir + it.final_name)) {
+        it.state = ItemState::Done;
+        ++stats.resumed;
+        return OK;
+    }
     it.state = ItemState::Reading;
-    if (u32 rc = io_.create_temp(it.item_id, it.dest_dir + it.final_name)) {
+    if (u32 rc = io_.create_temp(it.item_id, it.dest_dir + it.final_name, it.temp_suffix)) {
         it.state = ItemState::Error;
         it.error = rc;
         ++stats.errors;

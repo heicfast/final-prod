@@ -194,6 +194,8 @@ u32 deserialize_tree(const u8* data, size_t len, tree::ResultTree& tree) {
             return 0x50030009;
         props->record_ref = c.g64();
         props->fs_kind = c.g32();
+        if (props->fs_kind == 12)
+            props->fs_kind = 13; /* legacy content-map ZFS -> factory 13 (row 45) */
         props->logical_size = c.g64();
         props->allocated_size = c.g64();
         props->times.created = c.g64();

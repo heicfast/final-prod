@@ -403,6 +403,7 @@ u64 RdaClient::session_open(u32 disk_id, u64 data_first_sec, u64 total_secs, u32
     if (sector_size_out)
         *sector_size_out = os.sector_size;
     session_sector_size_ = os.sector_size ? os.sector_size : 512;
+    session_plans_[os.session_handle] = {data_first_sec, total_secs};
     if (err)
         *err = OK;
     return os.session_handle;
@@ -450,9 +451,17 @@ bool RdaClient::session_get_next_block(u64 handle, u64 cursor_sec, u32 max_sec, 
     if (progress)
         *progress = u8(io.progress);
     /* The worker pumps min(max_sec, plan-remaining, pump_capacity) sectors
-     * into the registered buffer; the client knows pump capacity. */
+     * into the registered buffer; the client knows pump capacity AND the
+     * plan bounds (audit row 41a: the old estimate could run the cursor
+     * past DataFirstSec+TotalSecs, overstating progress on short plans). */
     const u32 pump_secs = session_sector_size_ ? (pump_bytes_ / session_sector_size_) : 0;
-    const u32 granted = pump_secs && pump_secs < max_sec ? pump_secs : max_sec;
+    u32 granted = pump_secs && pump_secs < max_sec ? pump_secs : max_sec;
+    const auto pit = session_plans_.find(handle);
+    if (pit != session_plans_.end()) {
+        const u64 plan_end = pit->second.first + pit->second.second;
+        if (cursor_sec + granted > plan_end)
+            granted = u32(plan_end > cursor_sec ? plan_end - cursor_sec : 0);
+    }
     if (next_cursor)
         *next_cursor = cursor_sec + granted;
     if (stream_done)
@@ -480,6 +489,7 @@ bool RdaClient::session_cancel(u64 handle) {
 }
 
 bool RdaClient::session_close(u64 handle) {
+    session_plans_.erase(handle);
     SessionHandleIn in = {handle};
     return ctl_ioctl(kSessCloseSession + ioctl_base_, &in, sizeof(in), nullptr, 0, nullptr);
 }

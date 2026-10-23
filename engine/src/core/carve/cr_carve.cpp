@@ -128,7 +128,8 @@ u32 scan_one_window(ScanCtx& ctx, u64 base, const u8* win, u64 want, std::set<u6
             const u32 idx = ctx.file_index.fetch_add(1, std::memory_order_relaxed);
             props->name =
                 ctx.namer ? ctx.namer(sig, file_len, idx) : default_namer(sig, file_len, idx);
-            props->fs_kind = 0xFF; /* carved */
+            props->fs_kind =
+                u32(FsKindCode::Raw); /* carved (row 45: was invented 0xFF; factory RAW=6) */
             props->logical_size = file_len;
             props->carve_format = sig.id;
             props->carve_confidence = u16((sig.base_confidence + cr.confidence) / 2);

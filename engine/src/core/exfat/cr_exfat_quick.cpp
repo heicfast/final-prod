@@ -271,6 +271,14 @@ void walk_entries(ScanCtx& ctx, const std::vector<u8>& buf, bool deleted_context
                 continue;
             }
             const StreamEntry* se = reinterpret_cast<const StreamEntry*>(stream);
+            /* og stream-dentry gates (FUN_180003090, audit row 11):
+             * reserved fields must be zero on a live stream entry -
+             * damaged-set counting parity. A non-zero reserved field
+             * downgrades the set (treated as damaged, not skipped). */
+            const bool stream_reserved_bad =
+                in_use && (se->reserved1 != 0 || se->reserved2 != 0 || se->reserved3 != 0);
+            if (stream_reserved_bad)
+                ++ctx.stats->sets_damaged;
             const u8 name_len = se->name_length;
             u32 name_entries = (name_len + 14) / 15;
             if (u32(name_entries) > stream_count)

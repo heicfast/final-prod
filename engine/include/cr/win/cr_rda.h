@@ -23,6 +23,7 @@
 #include "../cr_types.h"
 #include "../storage/cr_device.h"
 #include <memory>
+#include <map>
 #include <string>
 #include <vector>
 
@@ -283,6 +284,9 @@ private:
     /* pump bookkeeping for session_get_next_block cursor math */
     u32 pump_bytes_ = 0;
     u32 session_sector_size_ = 0;
+    /* per-session plan bounds (handle -> data_first_sec, total_secs):
+     * the granted-sector estimate clamps to the plan end (audit row 41a) */
+    std::map<u64, std::pair<u64, u64>> session_plans_;
 };
 
 /* Service-name helpers. */

@@ -269,9 +269,13 @@ u32 scan_fat(IStorageDevice* slice, const FatScanFlags& flags, CancelToken* canc
     u32 rc = validate_boot(boot, slice->size(), p);
     if (rc != OK) {
         /* backup boot sector fallback (R5.1): sector 6 on FAT32 volumes is
-         * a full copy of the boot sector - validate it independently. */
+         * a full copy of the boot sector - validate it independently.
+         * Sector math uses the device geometry: on 4Kn volumes the backup
+         * boot sits at 6 * 4096, not the hardcoded 3072 (audit row 9 -
+         * violates the locked fix F1 'no fixed 512 anywhere'). */
+        const u32 bs = slice->geometry().logical_sector ? slice->geometry().logical_sector : 512;
         u8 b[512];
-        if (slice->read_at(6 * 512, b, sizeof(b)) == OK) {
+        if (slice->read_at(u64(6) * bs, b, sizeof(b)) == OK) {
             FatParams bp;
             if (validate_boot(b, slice->size(), bp) == OK) {
                 p = bp;

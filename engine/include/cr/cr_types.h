@@ -57,6 +57,29 @@ constexpr u64 round_down(u64 v, u64 m) {
     return v / m * m;
 }
 
+/* Canonical per-file FS codes (session/fs_kind wire values).
+ *
+ * Session-5 audit row 45: the corpus FACTORY map is the single source of
+ * truth - {0,1,2} FAT12/16/32, 3 NTFS, 6 RAW, 7 exFAT, 8 HFS+, 9 EXT4,
+ * 10 ReFS, 11 Btrfs, 13 ZFS. The old impl mixed the factory map with the
+ * .rsf CONTENT map (Btrfs=7 collided with exFAT; ZFS sat at the content
+ * map's 0xC; carved files used an invented 0xFF). Remap on session load:
+ * legacy 12 (content-map ZFS) -> 13; legacy Btrfs-7 is indistinguishable
+ * from exFAT-7 (documented as F16 in docs/error-fix-registry.md). */
+enum class FsKindCode : u32 {
+    Fat12 = 0,
+    Fat16 = 1,
+    Fat32 = 2,
+    Ntfs = 3,
+    Raw = 6, /* carved / raw-signature files */
+    Exfat = 7,
+    Hfsplus = 8,
+    Ext4 = 9,
+    Refs = 10,
+    Btrfs = 11,
+    Zfs = 13,
+};
+
 } // namespace cr
 
 #endif // CR_TYPES_H_

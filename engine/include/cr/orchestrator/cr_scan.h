@@ -61,6 +61,8 @@ struct ScanStats {
     u64 lost_partitions = 0;
     u64 bytes_scanned = 0;
     u64 elapsed_ms = 0;
+    u64 cached_hits = 0; /* R1.6 pipe counters (diagnostics) */
+    u64 cached_misses = 0;
     ReadErrorMap errors;
     std::vector<lost::Candidate> lost_candidates;
 };

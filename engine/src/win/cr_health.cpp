@@ -49,6 +49,42 @@ bool ata_passthrough(HANDLE h, u8 feature, u8 count, u8 command, u8* out512) {
     return true;
 }
 
+/* Legacy fallback (audit row 43): SMART_RCV_DRIVE_DATA - the pre-Vista
+ * driver interface, still required by old storage filter drivers that
+ * reject IOCTL_ATA_PASS_THROUGH. Same 512-byte data-in semantics. */
+#ifndef SMART_RCV_DRIVE_DATA
+#define SMART_RCV_DRIVE_DATA 0x0007c088
+#endif
+
+bool smart_rcv_legacy(HANDLE h, u8 feature, u8 count, u8 command, u8* out512) {
+    /* SENDCMDINPARAMS: cBufferSize + IDEREGS(8) + bDriveNumber + pad */
+    struct {
+        u32 cBufferSize;
+        u8 regs[8]; /* features, count, sector, cyl_lo, cyl_hi, drive, cmd, rsvd */
+        u8 drive_number;
+        u8 bReserved[3];
+        u32 dwReserved[4];
+    } in;
+    std::memset(&in, 0, sizeof(in));
+    in.regs[0] = feature;
+    in.regs[1] = count;
+    in.regs[5] = 0xA0; /* LBA mode + master */
+    in.regs[6] = command;
+    in.cBufferSize = 512;
+    /* SENDCMDOUTPARAMS: cBufferSize + DRIVERSTATUS(12) + data[512] */
+    struct {
+        u32 cBufferSize;
+        u8 driver_status[12];
+        u8 data[512];
+    } out;
+    DWORD br = 0;
+    if (!DeviceIoControl(h, SMART_RCV_DRIVE_DATA, &in, sizeof(in), &out, sizeof(out), &br,
+                         nullptr))
+        return false;
+    std::memcpy(out512, out.data, 512);
+    return true;
+}
+
 u16 word_at(const u8* p, u32 idx) {
     return u16(p[idx * 2]) | (u16(p[idx * 2 + 1]) << 8);
 }
@@ -129,18 +165,28 @@ u32 read_smart(void* disk_handle, SmartReport& out) {
     if (h == nullptr || h == INVALID_HANDLE_VALUE)
         return ERR_BAD_PARAMETER;
 
-    /* 1. IDENTIFY DEVICE (0xEC): confirm ATA + read ATA version. */
+    /* 1. IDENTIFY DEVICE (0xEC): confirm ATA + read ATA version. The
+     * modern ATA_PASS_THROUGH path first; old filter drivers take the
+     * legacy SMART_RCV_DRIVE_DATA fallback (audit row 43). */
     u8 identify[512];
-    if (!ata_passthrough(h, 0, 0, 0xEC, identify))
+    bool via_legacy = false;
+    if (ata_passthrough(h, 0, 0, 0xEC, identify)) {
+        out.transport = "ata-passthrough";
+    } else if (smart_rcv_legacy(h, 0, 0, 0xEC, identify)) {
+        via_legacy = true;
+        out.transport = "smart-rcv-drive-data";
+    } else {
         return ERR_HEALTH_UNAVAILABLE;
+    }
 
-    out.transport = "ata-passthrough";
     out.ata_version = word_at(identify, 80);
     out.available = true;
 
     /* 2. SMART READ DATA (command 0xB0, feature 0xD0). */
     u8 table[512];
-    if (!ata_passthrough(h, 0xD0, 0, 0xB0, table))
+    const bool got_table =
+        via_legacy ? smart_rcv_legacy(h, 0xD0, 0, 0xB0, table) : ata_passthrough(h, 0xD0, 0, 0xB0, table);
+    if (!got_table)
         return ERR_HEALTH_UNAVAILABLE;
     out.smart_version = u16(table[0]) | (u16(table[1]) << 8);
 

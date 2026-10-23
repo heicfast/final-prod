@@ -10,8 +10,9 @@
 namespace cr {
 namespace win {
 
-u32 WinDestIo::create_temp(u64 item_id, const std::u16string& final_path) {
-    std::u16string temp = final_path + u".part";
+u32 WinDestIo::create_temp(u64 item_id, const std::u16string& final_path,
+                           const std::u16string& temp_suffix) {
+    std::u16string temp = final_path + temp_suffix; /* per-item suffix (audit row 35c) */
     HANDLE h = CreateFileW(reinterpret_cast<const wchar_t*>(temp.c_str()), GENERIC_WRITE, 0,
                            nullptr, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
     if (h == INVALID_HANDLE_VALUE)

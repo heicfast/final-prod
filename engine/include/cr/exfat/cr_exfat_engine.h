@@ -36,7 +36,8 @@ struct ExfatParams {
     u8 bytes_per_sector_shift = 9;
     u8 sectors_per_cluster_shift = 0;
     u32 cluster_bytes = 0; /* bytes_per_sector << spc_shift */
-    u32 volume_length = 0; /* sectors */
+    u64 volume_length = 0; /* sectors (spec u64 @+0x48; the old u32 cast capped at 2 TiB@512/8
+                              TiB@4Kn - audit row 10) */
     u32 fat_offset = 0;
     u32 fat_length = 0; /* 0 legal? spec: >=1 typically; 0 = no FAT at all (contiguous-only) */
     u32 cluster_heap_offset = 0;

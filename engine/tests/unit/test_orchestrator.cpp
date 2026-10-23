@@ -110,7 +110,9 @@ struct MockIo final : DestIo {
     std::map<u64, std::u16string> finals; /* item_id -> final path */
     std::set<std::u16string> existing;    /* for exists() */
 
-    u32 create_temp(u64 id, const std::u16string& final_path) override {
+    u32 create_temp(u64 id, const std::u16string& final_path,
+                    const std::u16string& temp_suffix) override {
+        (void)temp_suffix;
         created.push_back(final_path);
         finals[id] = final_path;
         files[id] = {};

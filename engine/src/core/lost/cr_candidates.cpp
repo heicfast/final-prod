@@ -91,7 +91,12 @@ int probe_ntfs(IStorageDevice* disk, u64 boot_lba, Candidate& c) {
         c.sector_count = sectors;
         c.evidence.push_back({"bpb-valid", 25});
     } else {
-        c.sector_count = 2048; /* unknown: minimum plausible */
+        /* no usable BPB: derive from the device end (audit row 31b - the
+         * old fabricated 2048 hid real geometry); the materialize path
+         * clamps to the device anyway. */
+        const u64 end = disk->geometry().sector_count;
+        c.sector_count = end > boot_lba ? end - boot_lba : 1;
+        c.evidence.push_back({"size-from-device-end", 1});
     }
     c.evidence.push_back({"boot-sig", 15});
     return pts;

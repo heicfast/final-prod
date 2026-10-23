@@ -556,7 +556,7 @@ u32 scan_btrfs(IStorageDevice* slice, const BtrfsScanFlags& flags, CancelToken* 
         if (!sv_props)
             continue;
         sv_props->name = role16;
-        sv_props->fs_kind = 7;
+        sv_props->fs_kind = u32(FsKindCode::Btrfs);
         sv_props->attributes = 0x10;
         sv_props->record_ref = sv.id;
         tree::FileNode* sv_root = tree.add_file(root_active, sv_props);
@@ -643,53 +643,55 @@ u32 scan_btrfs(IStorageDevice* slice, const BtrfsScanFlags& flags, CancelToken* 
 
         /* phase 3: emit the tree from the subvol root dir */
         std::set<u64> emitted;
-        std::function<void(u64, tree::FileNode*, int)> populate =
-            [&](u64 dirid, tree::FileNode* node, int depth) {
-                if (depth > DIR_DEPTH_LIMIT)
+        std::function<void(u64, tree::FileNode*, int)> populate = [&](u64 dirid,
+                                                                      tree::FileNode* node,
+                                                                      int depth) {
+            if (depth > DIR_DEPTH_LIMIT)
+                return;
+            auto dit = dirs.find(dirid);
+            if (dit == dirs.end())
+                return;
+            for (const auto& de : dit->second) {
+                if (cancel && cancel->cancelled())
                     return;
-                auto dit = dirs.find(dirid);
-                if (dit == dirs.end())
+                if (de.name == u"." || de.name == u"..")
+                    continue;
+                if (emitted.count(de.child))
+                    continue; /* hard link: one instance in the tree */
+                auto cit = inodes.find(de.child);
+                if (cit == inodes.end())
+                    continue; /* dangling entry */
+                const bool is_dir = (cit->second.mode & 0xF000) == 0x4000;
+                auto* cp = new (std::nothrow) tree::FileProperties();
+                if (!cp)
                     return;
-                for (const auto& de : dit->second) {
-                    if (cancel && cancel->cancelled())
-                        return;
-                    if (de.name == u"." || de.name == u"..")
-                        continue;
-                    if (emitted.count(de.child))
-                        continue; /* hard link: one instance in the tree */
-                    auto cit = inodes.find(de.child);
-                    if (cit == inodes.end())
-                        continue; /* dangling entry */
-                    const bool is_dir = (cit->second.mode & 0xF000) == 0x4000;
-                    auto* cp = new (std::nothrow) tree::FileProperties();
-                    if (!cp)
-                        return;
-                    cp->name = de.name;
-                    cp->fs_kind = 7; /* CBtrfsFileProerties corpus id */
-                    cp->logical_size = cit->second.size;
-                    cp->attributes = is_dir ? 0x10 : 0;
-                    cp->times.created = cit->second.ctime;
-                    cp->times.modified = cit->second.mtime;
-                    cp->times.changed = cit->second.ctime;
-                    cp->times.accessed = cit->second.atime;
-                    cp->record_ref = de.child;
-                    for (const auto& e : cit->second.extents)
-                        cp->extents.push_back({e.first, e.second});
-                    if (cit->second.inline_data)
-                        ++stats.inline_files;
-                    tree::FileNode* child_node = tree.add_file(node, cp);
-                    cp->release();
-                    if (!child_node)
-                        continue;
-                    emitted.insert(de.child);
-                    if (is_dir) {
-                        ++stats.dirs;
-                        populate(de.child, child_node, depth + 1);
-                    } else {
-                        ++stats.files;
-                    }
+                cp->name = de.name;
+                cp->fs_kind =
+                    u32(FsKindCode::Btrfs); /* factory map (row 45: was 7, colliding with exFAT) */
+                cp->logical_size = cit->second.size;
+                cp->attributes = is_dir ? 0x10 : 0;
+                cp->times.created = cit->second.ctime;
+                cp->times.modified = cit->second.mtime;
+                cp->times.changed = cit->second.ctime;
+                cp->times.accessed = cit->second.atime;
+                cp->record_ref = de.child;
+                for (const auto& e : cit->second.extents)
+                    cp->extents.push_back({e.first, e.second});
+                if (cit->second.inline_data)
+                    ++stats.inline_files;
+                tree::FileNode* child_node = tree.add_file(node, cp);
+                cp->release();
+                if (!child_node)
+                    continue;
+                emitted.insert(de.child);
+                if (is_dir) {
+                    ++stats.dirs;
+                    populate(de.child, child_node, depth + 1);
+                } else {
+                    ++stats.files;
                 }
-            };
+            }
+        };
         /* the subvol's root dir: ROOT_ITEM root_dirid when sane, else the
          * smallest dir inode with entries */
         u64 root_dirid = sv.root_dirid >= 256 ? sv.root_dirid : 256;

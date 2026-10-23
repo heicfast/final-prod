@@ -6,6 +6,7 @@
 #include "cr/win/cr_bitlocker.h"
 #include "cr/cr_error.h"
 #include <windows.h>
+#include <vector>
 #include <cstdio>
 #include <cstdlib>
 
@@ -80,13 +81,9 @@ bool is_fve_volume(wchar_t letter) {
 
 bitlocker::Status status(wchar_t letter) {
     if (!is_fve_volume(letter)) {
-        /* clear or unlocked-encrypted? ask Windows via fs reflection */
-        wchar_t fs[32] = {};
-        wchar_t vol[8];
-        _snwprintf_s(vol, 8, _TRUNCATE, L"%c:\\", letter);
-        GetVolumeInformationW(vol, nullptr, 0, nullptr, nullptr, nullptr, fs, 32);
-        if (std::wcslen(fs) == 0 && is_fve_volume(letter))
-            return Status::Locked;
+        /* no FVE signature: the volume is clear (audit row 42b: the
+         * re-check of is_fve_volume() inside this branch was
+         * tautologically false - Status::Locked was unreachable here) */
         return Status::Clear;
     }
     /* FVE signature present: if the volume answers filesystem queries it is
@@ -130,27 +127,95 @@ u32 unlock(wchar_t letter, int key_type, const std::wstring& key_or_path) {
     return OK;
 }
 
+
+namespace {
+/* Write one binary auto-unlock blob to a temp .BEK file; returns the path
+ * (empty on failure). The blob is passed to Windows verbatim - no crypto
+ * is performed in-process (fix F13). */
+std::wstring write_temp_bek(const u8* data, DWORD len, DWORD index) {
+    wchar_t dir[MAX_PATH] = {};
+    if (GetTempPathW(MAX_PATH, dir) == 0)
+        return {};
+    wchar_t path[MAX_PATH] = {};
+    _snwprintf_s(path, MAX_PATH, _TRUNCATE, L"%scr_au_%u.bek", dir, unsigned(index));
+    HANDLE h =
+        CreateFileW(path, GENERIC_WRITE, 0, nullptr, CREATE_ALWAYS, FILE_ATTRIBUTE_TEMPORARY, nullptr);
+    if (h == INVALID_HANDLE_VALUE)
+        return {};
+    DWORD wrote = 0;
+    const BOOL ok_w = WriteFile(h, data, len, &wrote, nullptr);
+    CloseHandle(h);
+    if (!ok_w || wrote != len) {
+        DeleteFileW(path);
+        return {};
+    }
+    return path;
+}
+
+/* Enumerate every REG_BINARY value (>= 32 bytes) under `root`: direct
+ * values plus every subkey's values (the FVEAutoUnlock service nests
+ * per-volume external keys under Keys\<volume GUID>). */
+template <typename F>
+void enum_binary_blobs(HKEY root, F&& emit) {
+    wchar_t name[256];
+    for (DWORD i = 0;; ++i) {
+        DWORD name_len = 256;
+        DWORD type = 0;
+        DWORD size = 0;
+        const LSTATUS rc =
+            RegEnumValueW(root, i, name, &name_len, nullptr, &type, nullptr, &size);
+        if (rc != ERROR_SUCCESS)
+            break;
+        if (type != REG_BINARY || size < 32)
+            continue;
+        std::vector<u8> data(size);
+        name_len = 256;
+        DWORD got = size;
+        if (RegEnumValueW(root, i, name, &name_len, nullptr, &type, data.data(), &got) ==
+                ERROR_SUCCESS &&
+            got == size)
+            emit(data.data(), got);
+    }
+    for (DWORD sk = 0;; ++sk) {
+        wchar_t subname[256];
+        DWORD sublen = 256;
+        if (RegEnumKeyExW(root, sk, subname, &sublen, nullptr, nullptr, nullptr, nullptr) !=
+            ERROR_SUCCESS)
+            break;
+        HKEY sub = nullptr;
+        if (RegOpenKeyExW(root, subname, 0, KEY_READ, &sub) == ERROR_SUCCESS) {
+            enum_binary_blobs(sub, emit);
+            RegCloseKey(sub);
+        }
+    }
+}
+} // namespace
+
 u32 try_auto_unlock(wchar_t letter) {
-    /* FVEAutoUnlock keys (corpus DRWService path): HKLM\SYSTEM\...\FVEAutoUnlock
-     * enumerated; try each as a recovery password. No keys are ever
-     * extracted to plaintext outside Windows' own semantics. */
+    /* FVEAutoUnlock external keys (corpus DRWService path). Audit row 42a:
+     * the old code enumerated the registry VALUE NAMES and passed them as
+     * recovery passwords - the names are GUID strings, so that could never
+     * succeed. The auto-unlock protectors are the values' BINARY DATA
+     * (BEK-class external-key blobs): extract each to a temp .BEK file and
+     * unlock via the documented -KeyFilePath path (fix F13: no crypto
+     * in-process). Temp files are removed after use. */
     HKEY k = nullptr;
     if (RegOpenKeyExW(HKEY_LOCAL_MACHINE, L"SYSTEM\\CurrentControlSet\\Services\\FVEAutoUnlock", 0,
                       KEY_READ, &k) != ERROR_SUCCESS) {
         return ERR_FVE_LOCKED; /* no auto keys configured */
     }
-    wchar_t name[256];
-    DWORD name_len = 256;
     u32 best = ERR_FVE_LOCKED;
-    for (DWORD i = 0;
-         RegEnumValueW(k, i, name, &name_len, nullptr, nullptr, nullptr, nullptr) == ERROR_SUCCESS;
-         ++i, name_len = 256) {
-        std::wstring candidate(name, name_len);
-        if (unlock(letter, 1, candidate) == OK) {
+    DWORD index = 0;
+    enum_binary_blobs(k, [&](const u8* data, DWORD len) {
+        if (best == OK)
+            return;
+        const std::wstring path = write_temp_bek(data, len, index++);
+        if (path.empty())
+            return;
+        if (unlock(letter, 2, path) == OK)
             best = OK;
-            break;
-        }
-    }
+        DeleteFileW(path.c_str());
+    });
     RegCloseKey(k);
     return best;
 }
