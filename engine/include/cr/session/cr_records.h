@@ -90,7 +90,7 @@ u32 deserialize_partition_context(const u8* data, size_t len, PartitionContext& 
  * the orchestrator FsFamily the scan ran with (the wire value's true
  * meaning - see cr_scan.cpp save path). */
 struct VolumeSessionInfo {
-    u32 fs_family = 0;      /* orchestrator::FsFamily as stored (D-1 truth) */
+    u32 fs_family = 0;       /* orchestrator::FsFamily as stored (D-1 truth) */
     u32 stage_done_mask = 0; /* actual completion mask (quick|deep|carve) */
     u32 configured_mask = 0; /* stages the original run was configured for */
     u64 slice_offset = 0;

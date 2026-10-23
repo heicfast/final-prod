@@ -804,3 +804,31 @@ Stage Summary:
   tests -> registry + contract corrections -> issue triage -> CI
   restoration -> tags. Main green trajectory restored; remaining scope
   precisely filed.
+---
+Task ID: S5-CONT-1
+Agent: Session-5 continuation take-over (verification & reconciliation, round 2)
+Task: Re-run the session-5 mandate: independent line-by-line audit vs the RE corpus,
+fix everything, close the registered remainder (PARITY wave-2 batch, UI-facing gaps),
+full CI/benchmark/release.
+
+Work Log:
+- Context recovered: all 3 repos re-cloned at main (core 0beba6a, driver 7e88e38, corpus
+  18d6f14); 117-commit history reviewed; AUDIT.md + PARITY-AUDIT.md + PARITY-DELTAS.md +
+  docs/parity/* read in full; prior session-5 rounds 1-4 and the parity-auditor waves mapped.
+- CI state at take-over: runs 95-102 red (lint/tsan/windows cascades from the parallel
+  agents' landing cadence); 103/104 in flight at HEAD.
+- Immediate unblock: run 104 lint failed on clang-format drift in 4 files
+  (cr_scan.h / cr_records.h / cr_device.h / cr_fat_quick.cpp) left by the
+  pause/telemetry + writer-dirs waves; formatted with clang-format 18.1.8
+  (CI scope: src include tests only — fuzz/ + scripts/ldm_reference.* intentionally
+  left at their committed formatting, they are outside the lint gate).
+- Local gate before push: full build + 172/172 tests green (gcc 14.2 -Werror + ASan).
+- Session prompt re-saved (worklog/session-05-prompt.md, token redacted).
+
+Stage Summary:
+- Lint drift fixed at HEAD; main re-gated. Registered remainder to audit-verify then fix:
+  carve batch F-A3-2/3/4/5, Btrfs chunk-tree uuid + inline extents (F-A2-12/13),
+  ReFS next-chains + MSB tests (F-A2-2/5), ZFS gang tests (F-A2-7/8), F-A1 P2 code items
+  (A1-7/10/11/12), F-B abort-path merge + P3 batch, G-12 query/filter/sort paging (#8),
+  G-13 auto-checkpoint (#9), G-01/02/03 C ABI + snapshot (#1/#2), doc corrections
+  (D-family), then benchmark + v0.2.0 release.

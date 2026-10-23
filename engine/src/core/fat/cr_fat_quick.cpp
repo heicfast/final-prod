@@ -65,10 +65,10 @@ struct EmitCtx {
     tree::FullNode* root_deleted;
     tree::FullNode* root_lost;
     FatScanStats* stats;
-    CancelToken* cancel = nullptr;         /* pause-aware walk (G-07) */
+    CancelToken* cancel = nullptr;               /* pause-aware walk (G-07) */
     bool (*progress)(u64, u64, void*) = nullptr; /* live progress (G-04) */
     void* progress_user = nullptr;
-    u64 dentries_done = 0; /* cumulative dentries examined (progress unit) */
+    u64 dentries_done = 0;      /* cumulative dentries examined (progress unit) */
     std::set<u64> visited_dirs; /* cycle guard for dir recursion */
     int depth = 0;
     constexpr static int MAX_DEPTH = 64;

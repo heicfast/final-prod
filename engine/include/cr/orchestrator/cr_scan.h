@@ -111,9 +111,9 @@ struct ScanTelemetrySnapshot {
     u64 deleted_found = 0;
     u64 carved_found = 0;
     u64 lost_partitions = 0;
-    u64 bytes_scanned = 0;   /* carve-true-bytes (honest fill-rate) */
-    ReadErrorMap errors;     /* live bad-sector map snapshot (G-06) */
-    u64 elapsed_ms = 0;     /* pause-compensated run time so far */
+    u64 bytes_scanned = 0; /* carve-true-bytes (honest fill-rate) */
+    ReadErrorMap errors;   /* live bad-sector map snapshot (G-06) */
+    u64 elapsed_ms = 0;    /* pause-compensated run time so far */
     bool paused = false;
     bool running = false;
     bool cancelled = false;
@@ -143,7 +143,8 @@ public:
      * the loaded tree; internal completion flags restored so run()
      * continues where the session stopped). cfg must already have the
      * completed stages cleared (see load_session_summary). */
-    ScanController(tree::ResultTree& tree, ScanConfig cfg, const session::VolumeSessionInfo& resumed);
+    ScanController(tree::ResultTree& tree, ScanConfig cfg,
+                   const session::VolumeSessionInfo& resumed);
 
     /* probe the slice's FS family from the boot sector (OEM fields). */
     static FsFamily probe_family(IStorageDevice* slice);
@@ -200,8 +201,8 @@ private:
      * progress into stage `bridge_stage` (0=quick, 1=deep); when the pass
      * carries deep semantics for a quick+deep run it also feeds deep. */
     u32 run_engine_pass(IStorageDevice* slice, bool deep_mode, CancelToken* cancel,
-                        bool (*progress)(u32, void*), void* pu, ScanStats& stats,
-                        u32 bridge_stage, bool covers_both);
+                        bool (*progress)(u32, void*), void* pu, ScanStats& stats, u32 bridge_stage,
+                        bool covers_both);
     u32 scan_candidate(IStorageDevice* cand_slice, tree::FullNode* croot, CancelToken* cancel,
                        u64& files_out, u64& deleted_out, bool (*progress)(u64, u64, void*),
                        void* progress_user);
@@ -219,7 +220,7 @@ private:
         ScanController* self;
         bool (*overall)(u32, void*);
         void* user;
-        u32 stage; /* 0 quick, 1 deep, 2 carve */
+        u32 stage;        /* 0 quick, 1 deep, 2 carve */
         bool covers_both; /* the pass runs deep semantics for quick+deep */
         const CancelToken* cancel;
     };

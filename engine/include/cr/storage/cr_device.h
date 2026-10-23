@@ -142,8 +142,8 @@ public:
             if (!paused_)
                 return;
             paused_ms_ += std::chrono::duration_cast<std::chrono::milliseconds>(
-                             std::chrono::steady_clock::now() - pause_started_)
-                             .count();
+                              std::chrono::steady_clock::now() - pause_started_)
+                              .count();
             paused_ = false;
         }
         cv_.notify_all();
@@ -154,8 +154,8 @@ public:
             cancelled_ = true;
             if (paused_) {
                 paused_ms_ += std::chrono::duration_cast<std::chrono::milliseconds>(
-                                 std::chrono::steady_clock::now() - pause_started_)
-                                 .count();
+                                  std::chrono::steady_clock::now() - pause_started_)
+                                  .count();
                 paused_ = false;
             }
         }
