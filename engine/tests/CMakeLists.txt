@@ -32,6 +32,7 @@ add_executable(cr_tests
     unit/test_writer_dirs.cpp
     unit/test_report.cpp
     unit/test_preview.cpp
+    unit/test_snapshot.cpp
     unit/test_query.cpp
     unit/test_query_perf.cpp
     unit/test_rawfixer.cpp

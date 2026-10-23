@@ -35,6 +35,9 @@ enum class Confidence : u8 {
     MetadataOnly = 4, /* no extents at all (residentless / torn record) */
 };
 
+/* G-02: mid-scan value snapshot (defined in cr_snapshot.h). */
+class Snapshot;
+
 using FileTimes = ::cr::FileTimes; /* moved to cr_types.h (fundamental) */
 
 /*
@@ -197,6 +200,12 @@ public:
 
     /* clear without destroying (engines may reuse) */
     void reset();
+
+    /* G-02: immutable value snapshot - one O(n) copy under mutex_.
+     * `partial` stamps SNAP_PARTIAL (mid-stage captures never pretend
+     * to be final state). See cr_snapshot.h for the race-freedom
+     * rationale and the DFS byte-parity contract. */
+    std::unique_ptr<Snapshot> capture_snapshot(bool partial = false) const;
 
 private:
     void index_node_locked(FileNode* n); /* caller holds mutex_ */

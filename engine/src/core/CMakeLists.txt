@@ -47,6 +47,7 @@ add_library(cr_core STATIC
     refs/cr_refs_engine.cpp
     orchestrator/cr_scan.cpp
     tree/cr_node.cpp
+    tree/cr_snapshot.cpp
 )
 
 add_library(cr::core ALIAS cr_core)

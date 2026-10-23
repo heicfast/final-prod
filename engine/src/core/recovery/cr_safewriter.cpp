@@ -4,6 +4,7 @@
  */
 
 #include "cr/recovery/cr_safewriter.h"
+#include "cr/tree/cr_snapshot.h"
 #include "cr/compress/cr_decomp.h"
 #include <chrono>
 #include <cstring>
@@ -80,11 +81,34 @@ std::u16string SafeWriter::resolve_collision(const std::u16string& dir,
 u32 SafeWriter::enqueue(tree::FileNode* node, const std::u16string& dest_dir) {
     if (node == nullptr || node->props() == nullptr || source_ == nullptr)
         return ERR_BAD_PARAMETER;
-    const tree::FileProperties* pr = node->props();
+    return enqueue_common(node->props(), node, nullptr, dest_dir);
+}
+
+u32 SafeWriter::enqueue(const tree::Snapshot& snap, u32 snap_index,
+                        const std::u16string& dest_dir) {
+    /* G-02b: snapshot rows materialize into writer-owned props; the live
+     * tree is never touched (mid-scan recovery is race-free by
+     * construction - every byte the writer reads is snapshot-owned or
+     * device-served). */
+    if (source_ == nullptr || snap_index >= snap.node_count())
+        return ERR_BAD_PARAMETER;
+    std::unique_ptr<tree::FileProperties> owned(snap.materialize_props(snap_index));
+    if (!owned)
+        return ERR_NO_MEMORY;
+    value_store_.push_back(std::move(owned));
+    const tree::FileProperties* value = value_store_.back().get();
+    return enqueue_common(value, nullptr, value, dest_dir);
+}
+
+u32 SafeWriter::enqueue_common(const tree::FileProperties* pr, tree::FileNode* node,
+                               const tree::FileProperties* value_props,
+                               const std::u16string& dest_dir) {
+    if (pr == nullptr)
+        return ERR_BAD_PARAMETER;
     const bool is_dir = cfg_.reconstruct_dirs && (pr->attributes & 0x10) != 0;
 
-    /* R7.2 / F12: hard refusal on source/destination overlap. The node's
-     * extents are ABSOLUTE device offsets; the destination extent is the
+    /* R7.2 / F12: hard refusal on source/destination overlap. The extents
+     * are ABSOLUTE device offsets; the destination extent is the
      * destination volume's disk placement. Directory nodes carry no
      * extents - never refused (G-08). */
     if (!is_dir && have_dest_ && dest_bytes_ > 0) {
@@ -92,6 +116,7 @@ u32 SafeWriter::enqueue(tree::FileNode* node, const std::u16string& dest_dir) {
             if (intersects(e.offset, e.length, dest_start_, dest_bytes_)) {
                 QueueItem refused;
                 refused.node = node;
+                refused.value_props = value_props;
                 refused.dest_dir = dest_dir;
                 refused.item_id = next_id_++;
                 refused.state = ItemState::Refused;
@@ -104,6 +129,7 @@ u32 SafeWriter::enqueue(tree::FileNode* node, const std::u16string& dest_dir) {
 
     QueueItem it;
     it.node = node;
+    it.value_props = value_props; /* G-02b: null for node-based enqueues */
     it.dest_dir = dest_dir;
     if (!it.dest_dir.empty() && it.dest_dir.back() != u'\\' && it.dest_dir.back() != u'/')
         it.dest_dir.push_back(u'\\');
@@ -152,7 +178,11 @@ u32 SafeWriter::recover_item(QueueItem& it, CancelToken* cancel, WriterStats& st
 }
 
 u32 SafeWriter::recover_item_impl_(QueueItem& it, CancelToken* cancel, WriterStats& stats) {
-    const tree::FileProperties* pr = it.node->props();
+    /* G-02b: node-based items read the live props; snapshot items read
+     * the writer-owned value - exactly one of the two is non-null. */
+    const tree::FileProperties* pr = it.node ? it.node->props() : it.value_props;
+    if (pr == nullptr)
+        return ERR_BAD_PARAMETER;
     if (it.is_dir) {
         /* G-08: materialize the directory itself (idempotent - an existing
          * directory is success), so empty leaves survive reconstruction */

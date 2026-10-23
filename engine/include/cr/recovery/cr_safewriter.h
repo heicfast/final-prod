@@ -62,6 +62,10 @@ enum class ConflictPolicy : u8 { Rename = 0, Skip = 1, Overwrite = 2 };
 
 struct QueueItem {
     tree::FileNode* node = nullptr;
+    /* G-02b: snapshot-value path - when set, the writer reads this
+     * instead of node->props() (exactly one of the two is non-null for
+     * content items). */
+    const tree::FileProperties* value_props = nullptr;
     std::u16string dest_dir;    /* utf16 directory (with trailing sep) */
     std::u16string final_name;  /* collision-resolved */
     std::u16string temp_suffix; /* ".part-" + id */
@@ -119,6 +123,12 @@ public:
      * ERR_DEST_OVERLAP (refusal) when the node's extents hit the dest. */
     u32 enqueue(tree::FileNode* node, const std::u16string& dest_dir);
 
+    /* G-02b: value-enqueue from an immutable snapshot row - mid-scan
+     * recovery without touching the live tree. The snapshot owns every
+     * byte read here; the source device is contract-safe concurrently.
+     * Same collision/refusal semantics as the node-based enqueue. */
+    u32 enqueue(const tree::Snapshot& snap, u32 snap_index, const std::u16string& dest_dir);
+
     /* process the queue: read source extents -> temp -> verify -> commit. */
     u32 process(CancelToken* cancel, bool (*progress)(u64 done, u64 total, void*),
                 void* progress_user, WriterStats& stats);
@@ -146,6 +156,8 @@ public:
     static std::u16string sanitize_name(const std::u16string& in);
 
 private:
+    u32 enqueue_common(const tree::FileProperties* pr, tree::FileNode* node,
+                       const tree::FileProperties* value_props, const std::u16string& dest_dir);
     u32 recover_item(QueueItem& it, CancelToken* cancel, WriterStats& stats);
     /* timed body: recover_item stamps duration_ms on every exit path */
     u32 recover_item_impl_(QueueItem& it, CancelToken* cancel, WriterStats& stats);
@@ -158,6 +170,9 @@ private:
     u64 dest_bytes_ = 0;
     bool have_dest_ = false;
     u64 next_id_ = 1;
+    /* G-02b: snapshot-materialized props live here for the writer's
+     * lifetime (QueueItem holds a non-owning view; no copy hazards). */
+    std::vector<std::unique_ptr<tree::FileProperties>> value_store_;
     std::vector<QueueItem> queue_;
     std::set<std::u16string> made_dirs_; /* mkdir cache (G-08) */
     /* names assigned within THIS queue ("dir|name") - intra-queue
