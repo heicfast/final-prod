@@ -58,10 +58,15 @@ every CI lane. `rrecov tree --json` emits the frozen G-12 projection.
 
 ## Validation at this tag
 
-- 229/229 tests, plain + **ASan** (leak-detect) + **TSan** (the scan fans
+- 229/229 tests on Linux, plain + **ASan** (leak-detect) + **TSan** (the scan fans
   engine work over the thread pool; the UI progress bridge is single-flight
-  and monotonic under TSan).
-- MSVC `/W4 /WX` clean; **Win7 import gate** green on every shipped PE.
+  and monotonic under TSan); **230/230 on MSVC** `/W4 /WX` (the 230th is the
+  Windows-only WinDestIo contract suite — the drive-letter mkdir defect it
+  caught is fixed in this tag).
+- **Win7 import gate green on every shipped PE** (rrecov.exe 145, cr_tests.exe
+  250, cr_ui.dll 125 imports — all XP-/Vista-era or older; the Windows-8-only
+  `WaitOnAddress` family fails the gate by design and is self-tested to keep
+  biting).
 - libFuzzer smoke campaign green (preview short-window OOB class found by
   CI fuzzing was fixed with regression tests before this tag).
 - CodeQL clean.
