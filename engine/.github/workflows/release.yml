@@ -11,7 +11,7 @@ jobs:
   release:
     runs-on: windows-2022
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       - name: Build (Release, vcpkg manifest)
         shell: pwsh
         run: |
@@ -23,27 +23,72 @@ jobs:
           ctest --preset win-x64-release -C Release
           if ($LASTEXITCODE) { exit 1 }
 
-      - name: Stage artifacts
+      - name: Verify Win7 posture of shipped binaries
+        shell: pwsh
+        run: |
+          python tools/stamp_osversion_um.py build\win-x64-release\src\app\Release\rrecov.exe
+          if ($LASTEXITCODE) { exit 1 }
+          python tools/stamp_osversion_um.py build\win-x64-release\src\ui\Release\cr_ui.dll
+          if ($LASTEXITCODE) { exit 1 }
+          python tools/verify_pe_um.py build\win-x64-release\src\app\Release\rrecov.exe --allowlist tools/ref_imports_um.json
+          if ($LASTEXITCODE) { exit 1 }
+          python tools/verify_pe_um.py build\win-x64-release\src\ui\Release\cr_ui.dll --allowlist tools/ref_imports_um.json
+          if ($LASTEXITCODE) { exit 1 }
+
+      - name: Stage complete SDK and CLI artifacts
         shell: pwsh
         run: |
           $out = "stage"
-          New-Item -ItemType Directory -Force $out | Out-Null
-          Copy-Item build/win-x64-release/src/app/Release/rrecov.exe $out/
-          Copy-Item -Recurse docs $out/docs
-          Copy-Item README.md $out/
-          Copy-Item LICENSE $out/
-          # symbols next to the binary for crash triage
-          if (Test-Path build/win-x64-release/src/app/Release/rrecov.pdb) {
-            Copy-Item build/win-x64-release/src/app/Release/rrecov.pdb $out/
+          New-Item -ItemType Directory -Force "$out/bin", "$out/lib" | Out-Null
+          $required = @(
+            "build/win-x64-release/src/app/Release/rrecov.exe",
+            "build/win-x64-release/src/ui/Release/cr_ui.dll",
+            "build/win-x64-release/src/ui/Release/cr_ui.lib",
+            "build/win-x64-release/src/core/Release/cr_core.lib",
+            "build/win-x64-release/src/win/Release/cr_win.lib"
+          )
+          foreach ($artifact in $required) {
+            if (-not (Test-Path $artifact -PathType Leaf)) { throw "missing release artifact: $artifact" }
           }
+          Copy-Item build/win-x64-release/src/app/Release/rrecov.exe "$out/bin/"
+          Copy-Item build/win-x64-release/src/ui/Release/cr_ui.dll "$out/bin/"
+          Copy-Item build/win-x64-release/src/ui/Release/cr_ui.lib "$out/lib/"
+          Copy-Item build/win-x64-release/src/core/Release/cr_core.lib "$out/lib/"
+          Copy-Item build/win-x64-release/src/win/Release/cr_win.lib "$out/lib/"
+          Get-ChildItem build/win-x64-release/src/app/Release, build/win-x64-release/src/ui/Release -Filter *.dll |
+            Copy-Item -Destination "$out/bin/" -Force
+          Copy-Item -Recurse include "$out/"
+          Copy-Item -Recurse docs "$out/docs"
+          Copy-Item README.md, LICENSE "$out/"
+          foreach ($pdb in @("rrecov.pdb", "cr_ui.pdb")) {
+            $candidate = Get-ChildItem build/win-x64-release/src -Recurse -Filter $pdb | Select-Object -First 1
+            if ($candidate) { Copy-Item $candidate.FullName "$out/bin/" }
+          }
+          $root = (Resolve-Path $out).Path
           $sums = Get-ChildItem $out -Recurse -File |
             Get-FileHash -Algorithm SHA256 |
-            ForEach-Object { "{0}  {1}" -f $_.Hash, $_.Path.Substring($out.Length + 1) }
-          $sums | Set-Content "$out/SHA256SUMS"
+            ForEach-Object { "{0}  {1}" -f $_.Hash, $_.Path.Substring($root.Length + 1).Replace('\', '/') }
+          $sums | Set-Content "$out/SHA256SUMS" -Encoding ascii
           Compress-Archive -Path "$out/*" -DestinationPath rrecov-$env:GITHUB_REF_NAME.zip -Force
+          @"
+          # core_recovery $env:GITHUB_REF_NAME
+
+          Production core release. Signing is intentionally disabled.
+
+          Gate evidence:
+          - [CORE-GAP-LIST](https://github.com/heicfast/core_recovery/blob/$env:GITHUB_REF_NAME/docs/CORE-GAP-LIST.md)
+          - [PARITY-DELTAS](https://github.com/heicfast/core_recovery/blob/$env:GITHUB_REF_NAME/docs/PARITY-DELTAS.md)
+          - [BENCHMARK-REPORT](https://github.com/heicfast/core_recovery/blob/$env:GITHUB_REF_NAME/docs/BENCHMARK-REPORT.md)
+
+          The zip contains `bin/rrecov.exe`, `bin/cr_ui.dll`, required runtime DLLs,
+          `lib/cr_core.lib`, `lib/cr_win.lib`, the `cr_ui` import library, public
+          headers, documentation, symbols when produced, and `SHA256SUMS`.
+          "@ | Set-Content RELEASE-NOTES.md -Encoding utf8
 
       - name: Create GitHub release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2
         with:
-          files: rrecov-${{ github.ref_name }}.zip
-          generate_release_notes: true
+          files: |
+            rrecov-${{ github.ref_name }}.zip
+            stage/SHA256SUMS
+          body_path: RELEASE-NOTES.md

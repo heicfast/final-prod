@@ -1,27 +1,42 @@
 # Testing
 
-## Layer 1 - unit (every push, both platforms)
-132 tests over the pure core (session-5 audit wave: numbers move fast -
-count via `grep -c "TEST(" tests/unit/*.cpp`): fixup, runlist, tables
-(GPT/MBR/EBR + the corrected LDM GUIDs), slices, cache (incl. the
-failed-blocks-not-pinned regression), retry/bisection, node graph, full
-engine set end-to-end on synthetic volumes (NTFS incl. nested attrlists,
-resident ADS content, UsnJrnl harvest, FILE0 salvage; FAT; exFAT; ext4
-kernel-true layouts + jbd2 chain; HFS+; Btrfs kernel-true tree items;
-ZFS OpenZFS-true labels/ZAP/dnodes/compression; ReFS), LDM full-implementation
-(database graph, composite VBLKs, simple/spanned/striped/mirrored/RAID-5
-with real-parity reconstruction + missing-member failure, orchestrator
-dynamic-volume end-to-end), lost-partition discovery, SHA-256 NIST vectors,
-carving (grammar + specificity + dedup), CRSF sessions (round-trip +
-corruption), orchestrator staging + the R1.6 retry/cache pipe, safe writer
-(overlap refusal, collisions, hashing, resume).
+## Layer 1 — unit and ABI (every push, both platforms)
 
-## Layer 2 - integration (Windows hosts, scripts/)
-rda-driver integration: install the RDA service (scripts from the driver
-repo), then `rrecov list` / `rrecov scan --disk 0 --deep` against test
-media. Matrix: Win7 SP1 / Win10 / Win11 / WinPE; 512e, 4Kn, SMR; USB
-attach/detach during scan (cancel path).
+The GoogleTest suite covers fixups, runlists, GPT/MBR/EBR and LDM tables,
+bounded devices, cache/retry behavior, the node graph and snapshots, every
+filesystem engine, lost partitions, carving, CRSF, orchestration, query,
+preview, writer/reporting, health parsing and RawFixer. Fixtures include live
+and deleted trees, fragmented streams, hard links, ADS, sparse runs, damaged
+metadata, compressed extents, dynamic-volume mappings and rollback paths.
 
-## Layer 3 - benchmark (docs/benchmarking.md, v0.2)
-Scan throughput on the transport paths (RDA vs direct), carve rate per
-format, session save/load rate.
+`cr_ui_abi_check` is a plain-C11 consumer that scans a real FAT16 image through
+`cr_ui`, exercises snapshots/query/preview/recovery/session round-trips and
+byte-verifies recovered content. It runs on Linux and Windows.
+
+## Layer 2 — Windows CLI and device integration
+
+`tests/cli/cli_contract.ps1` consumes the CRSF produced by the C ABI scan and
+executes every named `rrecov` command. It checks exit codes, JSON output,
+strict corruption rejection, tolerant loading, byte-identical atomic save and
+`repair`/`fix` compatibility. It is registered in CTest, not a manual script.
+
+Seeded-VHD workflows exercise live/deleted/formatted/overwritten/fragmented
+cases and driver-installed transport paths. The comparison workflow asserts
+that the RDA path was actually used, preventing a silent direct-handle leg.
+The device matrix includes Win7 SP1 through Win11/WinPE posture, 512e/4Kn and
+attach/detach cancellation behavior where the runner supports it.
+
+## Layer 3 — sanitizers, fuzzing and static analysis
+
+Every push runs ASan, UBSan (`-fno-sanitize-recover=undefined`,
+`halt_on_error=1`) and TSan as separate builds, structure-aware libFuzzer smoke
+campaigns for every parser family, and CodeQL. Findings fail the job; there is
+no continue-on-error or analyzer suppression lane. MSVC builds use `/W4 /WX`;
+shipped PE files are stamped and checked against the Win7 import allowlist.
+
+## Layer 4 — benchmark
+
+`docs/benchmarking.md` defines transport throughput, seeded recall/precision,
+false-positive, memory/latency and cancellation measurements. Final numbers
+and MATCH/EXCEEDS/BELOW/NOT-COMPARABLE verdicts live in
+`docs/BENCHMARK-REPORT.md`; any BELOW verdict blocks release until fixed.

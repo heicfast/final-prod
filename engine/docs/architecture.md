@@ -1,13 +1,14 @@
 # Architecture
 
-> Status: v0.2 - the complete core engine layer (all local filesystems,
-> repair, health, benchmarking). See docs/roadmap.md for what ships next.
+> Status: v0.3 core hardening — engine layer, native C ABI, explicit session
+> CLI, strict validation and release/CI gates. The live capability boundary is
+> `CAPABILITY-MATRIX.md`; the remaining ZFS multi-vdev gap is not hidden.
 
 ## 1. Layering
 
 ```
-rrecov CLI (src/app)                        [Windows]
-   │
+rrecov CLI (src/app) / cr_ui.dll (src/ui)   [Windows]
+   │                                           versioned C ABI, opaque handles
    ▼
 orchestrator (cr::orchestrator)             staged pipeline, sessions, merge
    │ quick ──────────► deep ──────────► carve
@@ -90,3 +91,20 @@ the stage-boundary CheckpointSink).
 0x5009xxxx internal) - the reference engine convention, extended. Every
 failed read lands in the ReadErrorMap and travels with the scan result and
 the session record.
+
+## 6. Native ABI and session commands
+
+`cr_ui.dll` owns no UI state. It adapts the same controller, tree, snapshot,
+query, preview, session and writer objects used by the CLI to a versioned C ABI
+with opaque handles, explicit ownership and `cr::Err` return codes. The plain-C
+acceptance consumer exercises the complete lifecycle against a real FAT image;
+it is not a second implementation.
+
+The CLI exposes the full local core surface as `list`, `scan`, `tree`, `load`,
+`verify`, `save`, `recover`, `health`, `repair`, and `bench` (`fix` is retained
+as an alias). `load` uses tolerant CRSF salvage semantics; `verify` requires all
+record CRCs plus the session state and result-tree records; `save` performs the
+same strict validation and then streams a byte-preserving copy through a
+same-directory temporary file, flush and atomic replace. This avoids dropping
+unknown records during a load/re-serialize cycle and never publishes a partial
+copy.

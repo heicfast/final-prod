@@ -58,6 +58,25 @@
   ZFS nblkptr, ext4 extent bounds, exFAT recursion depth, decompression
   bomb, rollback integrity, DoS caps). DONE
 
+## v0.3 (core production gate)
+- Versioned `cr_ui.dll` C ABI with opaque scan/session/snapshot/recovery
+  handles and a plain-C full-lifecycle acceptance consumer. DONE
+- Immutable mid-scan snapshots, value-driven writer enqueue, core-side query,
+  bounded preview and automatic stage checkpoints. DONE
+- NTFS native LZNT1 compressed-$DATA recovery with bounded per-unit decode.
+  DONE
+- Explicit `load`, `verify`, `save`, and `repair` CLI commands; `fix` remains
+  compatible. Strict CRSF verification and atomic byte-preserving archival.
+  DONE
+- Windows CLI contract tests, ASan/UBSan/TSan, fuzz, CodeQL, Win7 PE import
+  gates and immutable action pins. IMPLEMENTED; final HEAD run is the gate.
+- Complete release bundle (`cr_ui.dll`, static/import libraries, `rrecov.exe`,
+  headers, runtime DLLs, SHA256SUMS and evidence-linked notes). IMPLEMENTED;
+  tagging occurs only after final CI and benchmark evidence.
+- ZFS multi-vdev reconstruction remains PARTIAL and release-blocking in
+  `CORE-GAP-LIST.md`; single-vdev support is not represented as topology
+  parity.
+
 ## Deferred (by decision - REMOTE features only)
 - NAS redirector (EuMrx-class) and cloud recovery (cloud_session/EuICloud)
 - Any remote / network recovery feature

@@ -1,4 +1,14 @@
-# UI-Readiness Plan — closing G-01…G-13 (issues #1–#10)
+# UI-Readiness — final core disposition (G-01…G-23)
+
+> **Final status.** The design and acceptance criteria below are retained as
+> evidence, not as a forward-looking work queue. G-01 (`cr_ui`), G-02 immutable
+> snapshots/value enqueue, G-12 query/tree JSON, G-13 checkpoints and the
+> landed G-04…G-10/G-14/G-19…G-23 surfaces are implemented and tested. G-11,
+> G-15 and G-16 are deliberate report-only/absent safety or scope decisions.
+> G-18 (ZFS multi-vdev) remains PARTIAL in `CORE-GAP-LIST.md`. G-22 reports
+> computed post-write hashes honestly; it never claims comparison against an
+> unavailable stored source digest. The explicit CLI session surface and its
+> Windows contract tests landed in `77ef393`.
 
 > **Status: PLAN.** Authored by the core UI-readiness sub-agent from a line-by-line
 > read of this repo @ `2473c03`, the `rda-wizard` contract (`docs/CORE-CONTRACT.md`
