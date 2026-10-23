@@ -6,7 +6,7 @@
  *   scan --disk N | --volume C: [--deep] [--quick-only] [--no-carve]
  *         [--threads N] [--out file.crsf] [--resume file.crsf] [--json]
  *         [--log file] [--csv] [--filter s] [--deleted-only]
- *   tree --in file.crsf [--filter substr] [--deleted-only] [--csv]
+ *   tree --in file.crsf [--filter substr] [--deleted-only] [--csv] [--json]
  *   recover --in file.crsf --disk N --to DIR [--deleted-only] [--filter s]
  *         [--report file.json]
  *   health --disk N
@@ -26,6 +26,7 @@
 
 #include "cr/orchestrator/cr_scan.h"
 #include "cr/recovery/cr_safewriter.h"
+#include "cr/query/cr_query.h"
 #include "cr/repair/cr_rawfixer.h"
 #include "cr/session/cr_crsf.h"
 #include "cr/session/cr_records.h"
@@ -314,6 +315,8 @@ int print_disks() {
 struct TreePrintFlags {
     bool deleted_only = false;
     bool csv = false;
+    bool json = false;  /* G-12 projection via query::run (frozen schema
+                         * below); --csv grammar stays byte-identical */
     std::string filter; /* substring, case-insensitive */
 };
 
@@ -679,6 +682,57 @@ int cmd_scan(int argc, wchar_t** argv, int& i) {
     return 0;
 }
 
+/* GAP-TREE-JSON: machine-readable tree projection via query::run (G-12).
+ * Schema (FROZEN, mirrors the --csv columns):
+ *   {"total":N,"rows":[{"path":"...","name":"...","size":N,
+ *     "modified":N,"origin":0..3,"deleted":0..3,
+ *     "confidence":0..4,"category":0..6},...]}
+ * - path/name: UTF-8, '/'-joined ancestry incl. root roles
+ * - modified: 100-ns units since 1601 (FileTimes wire unit)
+ * - origin/deleted/confidence: the same numeric enums as --csv
+ *   (cr_node.h 28-36)
+ * - category: cr::query::Category (1=Image 2=Video 3=Audio 4=Document
+ *   5=Archive 6=Other; 0=None)
+ * --filter/--deleted-only apply with query semantics (the filter applies
+ * to directories too, unlike --csv where dirs always print). */
+void print_tree_json(tree::ResultTree& t, const TreePrintFlags& f) {
+    query::Query q;
+    q.filter.name_substring = f.filter;
+    q.filter.deleted_only = f.deleted_only;
+    q.limit = 0; /* all matching rows */
+    const query::Result res = query::run(t, q);
+    std::string doc;
+    doc.reserve(size_t(128 + res.rows.size() * 192));
+    doc += "{\"total\":";
+    doc += std::to_string(res.total_matched);
+    doc += ",\"rows\":[";
+    bool first = true;
+    for (const query::Row& row : res.rows) {
+        if (!first)
+            doc.push_back(',');
+        first = false;
+        doc += "{\"path\":\"";
+        doc += recovery::report::escape_json(row.path_utf8);
+        doc += "\",\"name\":\"";
+        doc += recovery::report::escape_json(row.name_utf8);
+        doc += "\",\"size\":";
+        doc += std::to_string(row.size);
+        doc += ",\"modified\":";
+        doc += std::to_string(row.modified);
+        doc += ",\"origin\":";
+        doc += std::to_string(row.origin);
+        doc += ",\"deleted\":";
+        doc += std::to_string(row.deleted);
+        doc += ",\"confidence\":";
+        doc += std::to_string(row.confidence);
+        doc += ",\"category\":";
+        doc += std::to_string(row.category);
+        doc.push_back('}');
+    }
+    doc += "]}";
+    wprintf(L"%hs\n", doc.c_str());
+}
+
 /* ---------------------------------------------------------------------------
  * tree (load a session and print)
  * ------------------------------------------------------------------------- */
@@ -700,6 +754,10 @@ int cmd_tree(int argc, wchar_t** argv, int& i) {
         }
         if (has_flag(argc, argv, i, L"--csv")) {
             f.csv = true;
+            continue;
+        }
+        if (has_flag(argc, argv, i, L"--json")) {
+            f.json = true;
             continue;
         }
         wprintf(L"unknown tree option: %s\n", argv[i]);
@@ -724,6 +782,10 @@ int cmd_tree(int argc, wchar_t** argv, int& i) {
         return 1;
     }
     wprintf(L"session: %llu file(s)\n", stats.files_found);
+    if (f.json) {
+        print_tree_json(tree, f);
+        return 0;
+    }
     print_tree(tree, f);
     return 0;
 }
