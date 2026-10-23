@@ -173,7 +173,7 @@ void FatTable::set_raw(u32 cluster, u32 value) {
     }
 }
 
-ChainResult follow_chain(const FatTable& t, u32 start, u32 max_len) {
+ChainResult follow_chain(const FatTable& t, u32 start, u32 max_len, const CancelToken* cancel) {
     ChainResult r;
     if (start < 2 || start > t.max_cluster()) {
         r.broken = true;
@@ -183,6 +183,11 @@ ChainResult follow_chain(const FatTable& t, u32 start, u32 max_len) {
     u32 c = start;
     u32 guard = 0;
     while (c >= 2 && c <= t.max_cluster()) {
+        /* cancel poll at every chain step (F-A1-11, og cadence) */
+        if (cancel && cancel->checkpoint()) {
+            r.cancelled = true;
+            return r;
+        }
         if (++guard > max_len) {
             r.cycle = true;
             break;
@@ -210,7 +215,8 @@ ChainResult follow_chain(const FatTable& t, u32 start, u32 max_len) {
     return r;
 }
 
-ChainResult reconstruct_deleted_chain(const FatTable& t, u32 start, u32 expect_clusters) {
+ChainResult reconstruct_deleted_chain(const FatTable& t, u32 start, u32 expect_clusters,
+                                      const CancelToken* cancel) {
     /* For a deleted entry: FAT links may be gone (0) or intact. Walk while
      * entries are plausible; treat FREE mid-chain as end (salvage what's
      * linked). Expect bounds the walk. */
@@ -224,6 +230,11 @@ ChainResult reconstruct_deleted_chain(const FatTable& t, u32 start, u32 expect_c
     u32 guard = 0;
     u32 limit = expect_clusters ? expect_clusters : 0x10000;
     while (c >= 2 && c <= t.max_cluster() && guard < limit) {
+        /* cancel poll at every chain step (F-A1-11, og cadence) */
+        if (cancel && cancel->checkpoint()) {
+            r.cancelled = true;
+            return r;
+        }
         ++guard;
         for (u64 v : visited)
             if (v == c) {

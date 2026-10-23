@@ -77,6 +77,8 @@ struct QueueItem {
     bool resumed = false;   /* final pre-existed: counted + skipped */
     std::string sha256_hex; /* streamed digest (lowercase hex; empty when not computed) */
     report::HashStatus hash_status = report::HashStatus::NotComputed;
+    bool had_unreadable = false; /* FB-R02: a device/decompress failure
+                                  * zero-filled a span (Outcome::Salvaged) */
 };
 
 struct WriterConfig {
@@ -98,8 +100,9 @@ struct WriterStats {
     u64 refused = 0;
     u64 errors = 0;
     u64 hash_mismatch = 0;
-    u64 resumed = 0; /* detected complete .part files finalized */
-    u64 dirs = 0;    /* G-08: directory nodes materialized */
+    u64 resumed = 0;  /* detected complete .part files finalized */
+    u64 salvaged = 0; /* committed with zero-filled spans (FB-R02) */
+    u64 dirs = 0;     /* G-08: directory nodes materialized */
 };
 
 class SafeWriter {

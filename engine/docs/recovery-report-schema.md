@@ -58,12 +58,20 @@ Top level:
 
 `totals` — aggregate counts over the queue (all integer):
 - `queued` — items in the run (stamped upfront; true even for an aborted pass)
-- `done` — files committed (content written + renamed)
+- `done` — files committed (content written + renamed); includes the
+  `hash_mismatch` and `salvaged` sub-buckets (both are commits)
 - `dirs` — directory items materialized (G-08; counts mkdir successes)
 - `refused` — refused before any write (e.g. destination-overlap, F12)
 - `errors` — write/commit failures
 - `hash_mismatch` — committed, but the stored hash did not match
 - `resumed` — pre-existing finals counted + skipped (idempotent re-runs)
+- `salvaged` — committed with zero-filled spans (FB-R02: unreadable
+  device ranges / undecodable blocks; the byte count is right, not
+  every byte is recovered content) — an ours-only truth marker, no og
+  counterpart (og neither hash-verifies nor marks partial commits)
+- `pending` — never attempted in this pass (partial-run truth; the
+  reconciliation is queued == done + dirs + refused + errors +
+  resumed + pending, since done subsumes the committed sub-buckets)
 - `bytes` — sum of `bytes_total` over committed (non-resumed) file items
 
 `items[]` — one row per queued item, in queue order (`item_id` monotonic):
@@ -80,6 +88,8 @@ Top level:
   - `resumed` — final pre-existed; counted + skipped, never re-written
   - `pending` — **not attempted**: the pass aborted before this item
     (truthful reporting of a partial run - never reported as done)
+  - `salvaged` — committed with zero-filled spans (FB-R02; ours-only
+    truth marker - see totals.salvaged)
 - `reason` — `cr_error` code (hex value as integer); `0` for clean rows
 - `bytes` — logical size attempted (0 for dirs)
 - `duration_ms` — per-item processing time (0 for skipped/unprocessed)

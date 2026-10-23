@@ -292,11 +292,13 @@ u32 SafeWriter::recover_item_impl_(QueueItem& it, CancelToken* cancel, WriterSta
             if (source_->read_at(pr->extents[ext_i].offset, packed.data(), u32(psize)) != OK) {
                 std::memset(packed.data(), 0, size_t(psize)); /* Skip policy */
                 std::memset(plain.data(), 0, size_t(lsize));
+                it.had_unreadable = true; /* FB-R02: zero-filled span */
             } else if (!compress::decompress_block(pr->extents[ext_i].codec, packed.data(),
                                                    size_t(psize), plain.data(), size_t(lsize))) {
                 /* malformed compressed block: zero-fill (hash will
                  * mismatch) - never silently emit wrong bytes */
                 std::memset(plain.data(), 0, size_t(lsize));
+                it.had_unreadable = true; /* FB-R02 */
             }
             const u64 have = lsize - in_ext;
             const u32 take = u32(have < u64(got) ? have : u64(got));
@@ -321,6 +323,7 @@ u32 SafeWriter::recover_item_impl_(QueueItem& it, CancelToken* cancel, WriterSta
             /* zero-fill the unreadable span (Skip policy) and continue -
              * the hash will intentionally mismatch on damaged content */
             std::memset(chunk.data(), 0, got_raw);
+            it.had_unreadable = true; /* FB-R02: committed-but-partial */
         }
         if (u32 rc = io_.write(it.item_id, done, chunk.data(), got_raw)) {
             io_.close(it.item_id);
@@ -376,6 +379,9 @@ u32 SafeWriter::recover_item_impl_(QueueItem& it, CancelToken* cancel, WriterSta
     io_.close(it.item_id);
     it.state = ItemState::Done;
     ++stats.done;
+    if (it.had_unreadable)
+        ++stats.salvaged; /* committed sub-bucket: partial-content commits
+                             visible in the report (FB-R02) */
     return OK;
 }
 
@@ -460,6 +466,17 @@ report::Totals SafeWriter::report_totals(const std::string& source, const std::s
     t.errors = stats.errors;
     t.hash_mismatch = stats.hash_mismatch;
     t.resumed = stats.resumed;
+    t.salvaged = stats.salvaged;
+    {
+        /* partial-run truth: items still Pending at report time were
+         * queued but never attempted - without this count, queued cannot
+         * be reconciled after an aborted pass */
+        u64 pend = 0;
+        for (const auto& it : queue_)
+            if (it.state == ItemState::Pending)
+                ++pend;
+        t.pending = pend;
+    }
     u64 bytes = 0;
     for (const auto& it : queue_)
         if (!it.is_dir && it.state == ItemState::Done && !it.resumed)
@@ -495,6 +512,11 @@ std::vector<report::Item> SafeWriter::report_items() const {
         } else if (it.state == ItemState::Pending) {
             /* the pass aborted before this item - never claimed as done */
             r.outcome = report::Outcome::Pending;
+        } else if (it.had_unreadable) {
+            /* FB-R02: committed, but some spans were zero-filled - the
+             * commit is real, the content is not complete; surfaced as
+             * Salvaged (never silently Done) */
+            r.outcome = report::Outcome::Salvaged;
         } else if (it.error == ERR_HASH_MISMATCH) {
             r.outcome = report::Outcome::HashMismatch;
             r.reason = it.error;

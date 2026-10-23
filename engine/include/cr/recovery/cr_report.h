@@ -31,6 +31,10 @@ enum class Outcome : u8 {
     Resumed = 4,      /* final already existed - counted + skipped */
     Pending = 5,      /* not attempted: the pass aborted before this item
                        * (truthful reporting of a partial run) */
+    Salvaged = 6,     /* committed with zero-filled spans (unreadable
+                       * device ranges / undecodable blocks) - ours-only
+                       * truth marker (FB-R02): byte count is right but not
+                       * every byte is recovered content */
 };
 
 enum class HashStatus : u8 {
@@ -61,7 +65,13 @@ struct Totals {
     u64 errors = 0;
     u64 hash_mismatch = 0;
     u64 resumed = 0;
-    u64 bytes = 0; /* sum of committed file bytes */
+    u64 salvaged = 0; /* committed with zero-filled spans (FB-R02); a
+                       * sub-bucket of done (both are commits) */
+    u64 pending = 0;  /* never attempted in this pass (partial-run truth;
+                       * queued == done + dirs + refused + errors +
+                       * resumed + pending, done subsumes the committed
+                       * sub-buckets hash_mismatch and salvaged) */
+    u64 bytes = 0;    /* sum of committed file bytes */
     u64 elapsed_ms = 0;
     std::string source;      /* UTF-8 source identity (caller-supplied) */
     std::string destination; /* UTF-8 destination identity */

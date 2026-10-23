@@ -220,3 +220,115 @@ TEST(Mbr, EbrCycleGuard) {
      * the call must TERMINATE (the test would hang otherwise) */
     EXPECT_TRUE(rc == OK || rc == ERR_CYCLE_LIMIT);
 }
+
+/* ---- session-5 continuation: the og two-step GPT salvage (F-A3-2/CARVE-1) ----
+ * Ground truth: FUN_180006e20 (Partition_decompiled.c:4517-4634) - on
+ * primary-header verify failure it first retries the primary's OWN entry
+ * array (entries CRC only), and only then falls to the backup at the
+ * device-derived last LBA. The pre-fix code could never reach either
+ * path (last_lba came from the verified primary only), so a dead LBA1
+ * always meant GptDamaged with zero partitions. */
+
+namespace {
+/* shared builder: healthy-disk GPT pieces the salvage tests corrupt */
+struct GptDisk {
+    std::vector<u8> disk;
+    std::vector<u8> entries;
+    std::vector<u8> entry_copies() const { return entries; }
+};
+
+GptDisk make_gpt_disk() {
+    GptDisk gd;
+    gd.disk.assign(u64(2048) * 512, 0);
+    gd.disk[510] = 0x55;
+    gd.disk[511] = 0xAA;
+    gd.disk[446 + 4] = 0xEE;
+    put32(gd.disk, 446 + 8, 1);
+    put32(gd.disk, 446 + 12, 2047);
+
+    std::memcpy(gd.disk.data() + 512, "EFI PART", 8);
+    put32(gd.disk, 512 + 8, 0x00010000);
+    put32(gd.disk, 512 + 12, 92);
+    put64(gd.disk, 512 + 24, 1);
+    put64(gd.disk, 512 + 32, 2047);
+    put64(gd.disk, 512 + 40, 2);
+    put64(gd.disk, 512 + 48, 2046);
+    put64(gd.disk, 512 + 72, 2);
+    put32(gd.disk, 512 + 80, 4);
+    put32(gd.disk, 512 + 84, 128);
+
+    gd.entries.assign(4 * 128, 0);
+    const u8 basic[16] = {0xA2, 0xA0, 0xD0, 0xEB, 0xE5, 0xB9, 0x33, 0x44,
+                          0x87, 0xC0, 0x68, 0xB6, 0xB7, 0x26, 0x99, 0xC7};
+    std::memcpy(gd.entries.data(), basic, 16);
+    put64(gd.entries, 32, 100);
+    put64(gd.entries, 40, 200);
+    std::memcpy(gd.disk.data() + 2 * 512, gd.entries.data(), gd.entries.size());
+    put32(gd.disk, 512 + 88, crc32(gd.entries.data(), gd.entries.size()));
+    put32(gd.disk, 512 + 16, crc32(gd.disk.data() + 512, 92));
+
+    /* backup: entries at 2046, header at 2047 (mirrored LBAs) */
+    std::memcpy(gd.disk.data() + 2046 * 512, gd.entries.data(), gd.entries.size());
+    std::vector<u8> bh(gd.disk.begin() + 512, gd.disk.begin() + 1024);
+    put32(bh, 16, 0);
+    put64(bh, 24, 2047);
+    put64(bh, 32, 1);
+    put64(bh, 72, 2046);
+    put32(bh, 16, crc32(bh.data(), 92));
+    std::memcpy(gd.disk.data() + 2047 * 512, bh.data(), 512);
+    return gd;
+}
+} // namespace
+
+TEST(Gpt, DeadPrimaryHeaderSalvagesOwnEntries) {
+    /* step 1: header CRC destroyed, entry array + entries CRC intact ->
+     * partitions survive from the primary's own array; the header itself
+     * stays untrusted (gpt_primary_ok false), layout stays Gpt */
+    GptDisk gd = make_gpt_disk();
+    put32(gd.disk, 512 + 16, 0xDEADBEEF); /* header CRC wrong */
+
+    MemDevice dev(std::move(gd.disk));
+    DiskTable t;
+    ASSERT_EQ(parse_disk_table(&dev, t), OK);
+    EXPECT_EQ(t.layout, TableLayout::Gpt);
+    EXPECT_FALSE(t.gpt_primary_ok);
+    EXPECT_TRUE(t.gpt_backup_ok); /* informational probe still runs */
+    ASSERT_EQ(t.partitions.size(), 1u);
+    EXPECT_EQ(t.partitions[0].start_lba, 100u);
+    EXPECT_EQ(t.partitions[0].sector_count, 101u);
+    EXPECT_EQ(t.partitions[0].fs, FsKind::Ntfs); /* full classification */
+}
+
+TEST(Gpt, ProtectiveOnlyVolumeRecoversFromBackup) {
+    /* lost-partition shape: LBA1 dead entirely (no "EFI PART"), the
+     * protective MBR is the only hint, the backup header at the last LBA
+     * is intact -> og step 2 finds it (the pre-fix code never probed) */
+    GptDisk gd = make_gpt_disk();
+    std::memset(gd.disk.data() + 512, 0, 512); /* wipe the primary header */
+
+    MemDevice dev(std::move(gd.disk));
+    DiskTable t;
+    ASSERT_EQ(parse_disk_table(&dev, t), OK);
+    EXPECT_EQ(t.layout, TableLayout::Gpt);
+    EXPECT_FALSE(t.gpt_primary_ok);
+    EXPECT_TRUE(t.gpt_backup_ok);
+    ASSERT_EQ(t.partitions.size(), 1u);
+    EXPECT_EQ(t.partitions[0].start_lba, 100u);
+    EXPECT_EQ(t.partitions[0].sector_count, 101u);
+    EXPECT_EQ(t.partitions[0].fs, FsKind::Ntfs);
+}
+
+TEST(Gpt, HostileSalvageHeaderEntriesOutsideDiskRejected) {
+    /* a corrupt header pointing the entry array beyond the device must
+     * not be trusted by the salvage path (bounds gate) */
+    GptDisk gd = make_gpt_disk();
+    put32(gd.disk, 512 + 16, 0xDEADBEEF);             /* header CRC wrong */
+    put64(gd.disk, 512 + 72, 999999);                 /* entries_start_lba off-disk */
+    std::memset(gd.disk.data() + 2047 * 512, 0, 512); /* no backup either */
+
+    MemDevice dev(std::move(gd.disk));
+    DiskTable t;
+    ASSERT_EQ(parse_disk_table(&dev, t), OK);
+    EXPECT_EQ(t.layout, TableLayout::GptDamaged);
+    EXPECT_TRUE(t.partitions.empty());
+}

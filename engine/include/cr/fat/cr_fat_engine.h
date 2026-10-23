@@ -94,18 +94,23 @@ private:
 struct ChainResult {
     std::vector<u32> clusters; /* in order; empty on failure */
     bool cycle = false;
-    bool broken = false; /* chain ended prematurely (0/BAD mid-chain) */
+    bool broken = false;    /* chain ended prematurely (0/BAD mid-chain) */
+    bool cancelled = false; /* cancel token fired mid-walk (F-A1-11) */
     u32 length() const { return u32(clusters.size()); }
 };
 
 /* Follow a chain from `start`; visited-set cycle guard (corpus RB-tree
- * equivalent); max_len bounds. EOC terminates cleanly. */
-ChainResult follow_chain(const FatTable& t, u32 start, u32 max_len = 0x100000);
+ * equivalent); max_len bounds. EOC terminates cleanly. The cancel poll
+ * happens at every chain step (og cadence: FATSearchDLL FUN_18000fb80
+ * checks the token after every Next32() before the device read). */
+ChainResult follow_chain(const FatTable& t, u32 start, u32 max_len = 0x100000,
+                         const CancelToken* cancel = nullptr);
 
 /* Reconstruct a chain for a DELETED entry (dentry's first cluster known,
  * FAT may still link it): walk while entries look like a plausible chain
  * (not FREE, not BAD); stop at EOC/cycle/implausible jump. */
-ChainResult reconstruct_deleted_chain(const FatTable& t, u32 start, u32 expect_clusters);
+ChainResult reconstruct_deleted_chain(const FatTable& t, u32 start, u32 expect_clusters,
+                                      const CancelToken* cancel = nullptr);
 
 /* ---- LFN ---- */
 u8 lfn_checksum(const u8 short_name[11]);

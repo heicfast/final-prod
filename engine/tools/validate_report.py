@@ -17,9 +17,9 @@ SHA256 = re.compile(r"^[0-9a-f]{64}$")
 INT_KEYS = {"elapsed_ms"}
 TOTALS_KEYS = {
     "queued", "done", "dirs", "refused",
-    "errors", "hash_mismatch", "resumed", "bytes",
+    "errors", "hash_mismatch", "resumed", "salvaged", "pending", "bytes",
 }
-OUTCOMES = {"done", "refused", "error", "hash_mismatch", "resumed", "pending"}
+OUTCOMES = {"done", "refused", "error", "hash_mismatch", "resumed", "pending", "salvaged"}
 HASH_STATUS = {"verified", "computed", "mismatch", "not_computed"}
 ITEM_KEYS = {
     "item_id", "path", "name", "kind", "outcome", "reason",

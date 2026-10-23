@@ -22,11 +22,14 @@ struct DirBuffer {
 };
 
 /* Read a directory's content by following its cluster chain. Cycle guard
- * inside follow_chain (fix F7). Whole-run batched reads per contiguous run. */
+ * inside follow_chain (fix F7). Whole-run batched reads per contiguous run.
+ * The chain walker polls the cancel token at every cluster step (F-A1-11). */
 DirBuffer read_dir_chain(IStorageDevice* dev, const FatParams& p, const FatTable& t,
-                         u32 first_cluster, u32 max_bytes) {
+                         u32 first_cluster, u32 max_bytes, const CancelToken* cancel) {
     DirBuffer d;
-    ChainResult chain = follow_chain(t, first_cluster, 0x10000);
+    ChainResult chain = follow_chain(t, first_cluster, 0x10000, cancel);
+    if (chain.cancelled)
+        return d; /* unwinding: no half-directory walks */
     if (chain.clusters.empty())
         return d;
     u64 total = u64(chain.length()) * p.cluster_bytes;
@@ -103,7 +106,7 @@ void recurse_dir(EmitCtx& ctx, u32 first_cluster, tree::FileNode* host_node, boo
     }
     ctx.visited_dirs.insert(key);
     ++ctx.depth;
-    DirBuffer d = read_dir_chain(ctx.dev, ctx.p, *ctx.table, first_cluster, 4u << 20);
+    DirBuffer d = read_dir_chain(ctx.dev, ctx.p, *ctx.table, first_cluster, 4u << 20, ctx.cancel);
     if (d.valid) {
         /* '.' self-entry check (corpus): confirms real directory content */
         walk_dir_entries(ctx, d, host_node, deleted ? ctx.root_lost : nullptr);
@@ -121,6 +124,10 @@ void walk_dir_entries(EmitCtx& ctx, const DirBuffer& buf, tree::FileNode* host,
     const size_t count = buf.data.size() / 32;
     std::vector<const LfnEntry*> pending_lfn;
     for (size_t i = 0; i < count; ++i) {
+        /* per-dentry cancel poll (F-A1-11, og FUN_18000fb80 :11530 - the
+         * og checks the token at every 32-byte entry, not per directory) */
+        if (ctx.cancel && ctx.cancel->checkpoint())
+            return;
         /* live progress (G-04): one dentry examined per iteration - honest
          * cumulative counts; the orchestrator clamps permille monotonic. */
         ++ctx.dentries_done;
@@ -193,13 +200,16 @@ void emit_entry(EmitCtx& ctx, const DirEntry& e, const std::u16string& name, boo
     const bool is_dir = (e.attributes & ATTR_DIRECTORY) != 0;
     const u32 expect_clusters = u32((e.file_size + ctx.p.cluster_bytes - 1) / ctx.p.cluster_bytes);
 
-    /* chain resolution */
+    /* chain resolution (F-A1-11: the walkers poll the token per step) */
     ChainResult chain;
     if (!deleted) {
-        chain = follow_chain(*ctx.table, first_cluster, 0x10000);
+        chain = follow_chain(*ctx.table, first_cluster, 0x10000, ctx.cancel);
     } else if (ctx.flags.reconstruct_deleted_chains && first_cluster >= 2) {
-        chain = reconstruct_deleted_chain(*ctx.table, first_cluster, is_dir ? 0 : expect_clusters);
+        chain = reconstruct_deleted_chain(*ctx.table, first_cluster, is_dir ? 0 : expect_clusters,
+                                          ctx.cancel);
     }
+    if (chain.cancelled)
+        return; /* unwinding mid-chain: no partial emission */
 
     tree::FileProperties* props = new (std::nothrow) tree::FileProperties();
     if (props == nullptr)

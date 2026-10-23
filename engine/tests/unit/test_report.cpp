@@ -30,9 +30,17 @@ public:
         geom_.sector_count = data_.size() / 512;
         geom_.total_bytes = data_.size();
     }
+    /* FB-R02: reads inside [fail_from, fail_to) return ERR_READ_FAILED
+     * (simulates an unreadable span - the Skip policy zero-fills it) */
+    void fail_range(u64 from, u64 to) {
+        fail_from = from;
+        fail_to = to;
+    }
     u32 read_at(u64 off, void* buf, u32 len) override {
         if (off > data_.size() || len > data_.size() - off)
             return ERR_RANGE_OUT_OF_BOUNDS;
+        if (fail_from != fail_to && off < fail_to && off + len > fail_from)
+            return ERR_READ_FAILED;
         std::memcpy(buf, data_.data() + off, len);
         return OK;
     }
@@ -41,6 +49,7 @@ public:
 private:
     std::vector<u8> data_;
     Geometry geom_;
+    u64 fail_from = 0, fail_to = 0;
 };
 
 /* Mock DestIo: existing-path driven outcomes */
@@ -238,6 +247,76 @@ TEST(Report, WriterOutcomesAndHashHonesty) {
     const Totals t = writer.report_totals("src", "dst", 5, stats);
     EXPECT_EQ(5u, t.queued);
     EXPECT_EQ(u64(1), t.dirs);
+}
+
+TEST(Report, SalvagedOutcomeMarksZeroFilledCommits) {
+    /* FB-R02 (W2-18): a committed item whose device read failed mid-stream
+     * is ZERO-FILLED (Skip policy) and must surface as outcome "salvaged"
+     * - never silently "done". Totals gain the salvaged sub-bucket; the
+     * pending count keeps the partial-run reconciliation truthful.
+     *
+     * Writer cancel semantics (pinned by this test): the item IN FLIGHT
+     * when the token fires becomes Error(ERR_CANCELLED); items after it
+     * stay Pending - the pass stops without inventing outcomes. */
+    std::vector<u8> img(16 * 512, 0);
+    std::memcpy(img.data(), "DATA", 4);
+    MemDevice dev(std::move(img));
+    dev.fail_range(2048, 2560); /* bytes [2048,2560) unreadable */
+    tree::ResultTree tree;
+    auto* found = tree.add_root(u"Found");
+    auto* clean = add_node(tree, found, "clean.txt", 0, 4);
+    auto* damaged = add_node(tree, found, "damaged.bin", 2048, 512);
+    auto* victim = add_node(tree, found, "victim.bin", 512, 512);
+    auto* never = add_node(tree, found, "never.bin", 0, 4);
+    tree.refresh_stats();
+
+    ReportIo io;
+    WriterConfig cfg;
+    SafeWriter writer(io, &dev, cfg);
+    writer.set_destination(1ull << 40, 512); /* dest far away: no overlap */
+    ASSERT_EQ(OK, writer.enqueue(clean, u"out\\"));
+    ASSERT_EQ(OK, writer.enqueue(damaged, u"out\\"));
+    ASSERT_EQ(OK, writer.enqueue(victim, u"out\\"));
+    ASSERT_EQ(OK, writer.enqueue(never, u"out\\"));
+
+    /* fires on victim's first streaming poll (poll #3: clean, damaged,
+     * victim each stream exactly one read chunk) */
+    struct FireOnThirdToken final : CancelToken {
+        mutable std::atomic<u64> polls{0};
+        bool cancelled() const override { return polls.load() >= 3; }
+        bool checkpoint() const override { return ++polls >= 3; }
+    } tok;
+
+    WriterStats stats;
+    const u32 rc = writer.process(&tok, nullptr, nullptr, stats);
+    EXPECT_EQ(ERR_CANCELLED, rc);
+    EXPECT_EQ(u64(1), stats.salvaged);
+
+    const std::vector<report::Item> items = writer.report_items();
+    ASSERT_EQ(4u, items.size());
+    EXPECT_EQ(Outcome::Done, items[0].outcome);     /* clean.txt */
+    EXPECT_EQ(Outcome::Salvaged, items[1].outcome); /* damaged.bin: FB-R02 */
+    EXPECT_EQ(u32(0), items[1].reason);             /* the commit is clean;
+                                                       the content is not */
+    EXPECT_EQ(Outcome::Error, items[2].outcome);    /* victim: cancelled
+                                                        mid-flight */
+    EXPECT_EQ(u32(ERR_CANCELLED), items[2].reason);
+    EXPECT_EQ(Outcome::Pending, items[3].outcome); /* never attempted */
+
+    const Totals t2 = writer.report_totals("src", "dst", 9, stats);
+    EXPECT_EQ(u64(1), t2.salvaged);
+    EXPECT_EQ(u64(1), t2.pending);
+    EXPECT_EQ(u64(2), t2.done);   /* clean + damaged: done subsumes the
+                                     salvaged sub-bucket (both are commits) */
+    EXPECT_EQ(u64(0), t2.errors); /* cancellation is not an error - the
+                                     victim's Error outcome carries
+                                     ERR_CANCELLED per-item instead */
+    EXPECT_EQ(4u, t2.queued);     /* truthful even for the aborted pass */
+
+    /* the emitted JSON carries the new totals keys + "salvaged" outcome */
+    const std::string doc = build_report(items, t2);
+    EXPECT_NE(std::string::npos, doc.find("\"salvaged\""));
+    EXPECT_NE(std::string::npos, doc.find("\"pending\""));
 }
 
 TEST(Report, EmitsCiSchemaSample) {

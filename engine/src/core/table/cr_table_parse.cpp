@@ -69,6 +69,48 @@ u32 load_gpt_side(IStorageDevice* dev, u64 header_lba, GptHeader& header_out,
     return OK;
 }
 
+/* og two-step GPT salvage, step 1 (FUN_180006e20:4517-4560,
+ * Partition_decompiled.c): the primary header failed verification, but
+ * its OWN entry-array fields may still be sane - re-read the raw header,
+ * gate on signature + entry geometry, read the array at the header's
+ * entries_start_lba and require the entries CRC (hdr+0x58) to match. On
+ * success the volume keeps its partitions even though the header itself
+ * stays untrusted (gpt_primary_ok remains false). Stricter than the og
+ * on one point: we require the declared entry_size == 128 (the og
+ * hardcodes the 0x80 stride, which mis-sizes the array for corrupt
+ * non-128 headers). */
+u32 salvage_primary_entries(IStorageDevice* dev, GptHeader& raw_out,
+                            std::vector<GptEntry>& entries_out) {
+    std::vector<u8> sec;
+    if (!read_sectors(dev, 1, 1, sec))
+        return ERR_READ_FAILED;
+    GptHeader h;
+    std::memcpy(&h, sec.data(), sizeof(h));
+    if (std::memcmp(h.signature, GPT_SIGNATURE, 8) != 0)
+        return ERR_BAD_MAGIC;
+    if (h.entry_size != sizeof(GptEntry))
+        return ERR_BAD_PARAMETER;
+    if (h.entry_count == 0 || u64(h.entry_count) * h.entry_size > GPT_ENTRIES_READ_CAP)
+        return ERR_BAD_PARAMETER;
+    const u64 bytes = u64(h.entry_count) * h.entry_size;
+    const u64 ls = dev->geometry().logical_sector;
+    const u32 sectors = u32((bytes + ls - 1) / ls);
+    const u64 total_secs =
+        dev->geometry().sector_count ? dev->geometry().sector_count : dev->size() / ls;
+    if (h.entries_start_lba == 0 || h.entries_start_lba + sectors > total_secs)
+        return ERR_BAD_PARAMETER; /* hostile header: array outside the disk */
+    std::vector<u8> ebuf;
+    if (!read_sectors(dev, h.entries_start_lba, sectors, ebuf))
+        return ERR_READ_FAILED;
+    ebuf.resize(bytes);
+    if (crc32(ebuf.data(), bytes) != h.entries_crc32)
+        return ERR_BAD_CHECKSUM;
+    entries_out.resize(h.entry_count);
+    std::memcpy(entries_out.data(), ebuf.data(), bytes);
+    raw_out = h;
+    return OK;
+}
+
 } // namespace
 
 FsKind mbr_type_to_kind(u8 type) {
@@ -187,31 +229,37 @@ u32 parse_disk_table(IStorageDevice* device, DiskTable& out) {
     MbrSector mbr;
     std::memcpy(&mbr, sec.data(), sizeof(mbr));
 
-    /* GPT? LBA1 signature */
+    /* GPT? LBA1 signature, OR a protective MBR whose backup header may
+     * still be intact (og IsGPTDisk detection: 55AA + 0xEE @+0x1C2, then
+     * the last-LBA probe when LBA1 is dead - CGPTDiskAnalyzer
+     * FUN_180006e20:4208-4218). The protective-only shape is what a
+     * lost-partition GPT volume looks like on disk. */
     bool has_gpt = false;
+    bool lba1_gpt = false;
     {
         std::vector<u8> lba1;
         if (device->size() >= u64(2) * g.logical_sector && read_sectors(device, 1, 1, lba1) &&
-            std::memcmp(lba1.data(), GPT_SIGNATURE, 8) == 0)
+            std::memcmp(lba1.data(), GPT_SIGNATURE, 8) == 0) {
             has_gpt = true;
+            lba1_gpt = true;
+        }
+    }
+    if (!has_gpt) {
+        for (int i = 0; i < 4; ++i)
+            if (mbr_entry_used(mbr.entries[i]) && mbr.entries[i].type == 0xEE) {
+                has_gpt = true; /* protective MBR: GPT path, backup probe */
+                break;
+            }
     }
 
     if (has_gpt) {
         out.layout = TableLayout::Gpt;
-        GptHeader prim;
-        std::vector<GptEntry> pent;
-        u32 rc_p = load_gpt_side(device, 1, prim, pent);
-        GptHeader bak;
-        std::vector<GptEntry> bent;
-        u64 last_lba = 0;
-        if (rc_p == OK) {
-            out.gpt_primary_ok = true;
-            std::memcpy(out.disk_guid, prim.disk_guid, 16);
-            out.first_usable_lba = prim.first_usable_lba;
-            out.last_usable_lba = prim.last_usable_lba;
-            out.gpt_entry_count = prim.entry_count;
-            last_lba = prim.backup_lba;
-            for (const auto& e : pent) {
+        /* shared per-entry classification (verified primary, salvaged
+         * primary and backup all emit through this - the og reallocs and
+         * re-parses identically for the backup, Partition_decompiled.c
+         * :4580-4634) */
+        auto emit_gpt_entries = [&](const std::vector<GptEntry>& ents) {
+            for (const auto& e : ents) {
                 if (!gpt_entry_used(e))
                     continue;
                 PartitionInfo p;
@@ -236,35 +284,63 @@ u32 parse_disk_table(IStorageDevice* device, DiskTable& out) {
                 if (p.sector_count != 0)
                     out.partitions.push_back(p);
             }
-        }
-        if (last_lba != 0) {
-            u32 rc_b = load_gpt_side(device, last_lba, bak, bent);
-            if (rc_b == OK) {
+        };
+        auto copy_header_facts = [&](const GptHeader& h) {
+            std::memcpy(out.disk_guid, h.disk_guid, 16);
+            out.first_usable_lba = h.first_usable_lba;
+            out.last_usable_lba = h.last_usable_lba;
+            out.gpt_entry_count = h.entry_count;
+        };
+        const u64 dev_last =
+            (g.sector_count ? g.sector_count : device->size() / g.logical_sector) - 1;
+
+        GptHeader prim;
+        std::vector<GptEntry> pent;
+        const u32 rc_p = lba1_gpt ? load_gpt_side(device, 1, prim, pent) : ERR_BAD_MAGIC;
+        GptHeader bak;
+        std::vector<GptEntry> bent;
+        bool emitted = false;
+        if (rc_p == OK) {
+            out.gpt_primary_ok = true;
+            copy_header_facts(prim);
+            emit_gpt_entries(pent);
+            emitted = true;
+            /* informational backup probe at the TRUSTED primary's own
+             * backup LBA (healthy-disk case: both flags true) */
+            if (load_gpt_side(device, prim.backup_lba, bak, bent) == OK)
                 out.gpt_backup_ok = true;
-                if (!out.gpt_primary_ok) {
-                    /* salvage from the backup copy (fix F10 spirit) */
-                    std::memcpy(out.disk_guid, bak.disk_guid, 16);
-                    out.first_usable_lba = bak.first_usable_lba;
-                    out.last_usable_lba = bak.last_usable_lba;
-                    out.gpt_entry_count = bak.entry_count;
-                    for (const auto& e : bent) {
-                        if (!gpt_entry_used(e))
-                            continue;
-                        PartitionInfo p;
-                        p.start_lba = e.first_lba;
-                        p.sector_count = e.last_lba - e.first_lba + 1;
-                        p.from_gpt = true;
-                        p.used = true;
-                        p.fs = FsKind::Other;
-                        for (int i = 0; i < 36; ++i)
-                            p.name[i] = e.name[i];
-                        if (p.sector_count != 0)
-                            out.partitions.push_back(p);
-                    }
-                }
+        } else if (lba1_gpt) {
+            /* og two-step step 1: header dead, entry array maybe intact -
+             * salvage BEFORE touching the backup (FUN_180006e20:4530-4560
+             * sets try_backup=0 exactly when this succeeds) */
+            GptHeader raw;
+            std::vector<GptEntry> sent;
+            if (salvage_primary_entries(device, raw, sent) == OK) {
+                /* header stays untrusted (gpt_primary_ok false); the
+                 * volume keeps its partitions + the entry count fact */
+                out.gpt_entry_count = raw.entry_count;
+                emit_gpt_entries(sent);
+                emitted = true;
             }
         }
-        if (!out.gpt_primary_ok && !out.gpt_backup_ok)
+        if (!emitted) {
+            /* primary dead AND salvage failed (or protective-only entry):
+             * og step 2 - the backup header at the DEVICE-derived last LBA
+             * (a damaged primary's backup_lba field cannot be trusted) */
+            if (load_gpt_side(device, dev_last, bak, bent) == OK) {
+                out.gpt_backup_ok = true;
+                copy_header_facts(bak);
+                emit_gpt_entries(bent);
+                emitted = true;
+            }
+        } else if (!out.gpt_backup_ok && lba1_gpt && rc_p != OK) {
+            /* entries salvaged from a dead primary: still probe the
+             * backup for the informational flag (the og skips this; our
+             * gpt_backup_ok consumers expect the flag regardless) */
+            if (load_gpt_side(device, dev_last, bak, bent) == OK)
+                out.gpt_backup_ok = true;
+        }
+        if (!out.gpt_primary_ok && !out.gpt_backup_ok && !emitted)
             out.layout = TableLayout::GptDamaged;
         return OK;
     }
