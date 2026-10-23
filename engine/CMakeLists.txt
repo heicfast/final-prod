@@ -64,8 +64,20 @@ endif()
 #      widen to the liblz4/zstd/liblz4 naming variants).
 # ---------------------------------------------------------------------------
 find_package(liblz4 CONFIG QUIET)
-if(TARGET liblz4::liblz4 AND NOT TARGET PkgConfig::LZ4)
-    add_library(PkgConfig::LZ4 ALIAS liblz4::liblz4)
+if(NOT TARGET PkgConfig::LZ4)
+    # the port exports the UPSTREAM targets: namespace LZ4::, i.e.
+    # LZ4::lz4_shared / LZ4::lz4_static (verified against lz4 v1.10.0
+    # build/cmake: export(EXPORT lz4Targets NAMESPACE LZ4::)). There is
+    # no liblz4::liblz4 - the earlier alias guarded on a nonexistent
+    # target, silently fell through to pkg-config and re-created the
+    # release-bias link (exe imports lz4.dll, debug tree has lz4d.dll).
+    if(TARGET LZ4::lz4_shared)
+        add_library(PkgConfig::LZ4 ALIAS LZ4::lz4_shared)
+    elseif(TARGET liblz4::liblz4)
+        add_library(PkgConfig::LZ4 ALIAS liblz4::liblz4)
+    elseif(TARGET LZ4::lz4)
+        add_library(PkgConfig::LZ4 ALIAS LZ4::lz4)
+    endif()
 endif()
 find_package(PkgConfig QUIET)
 if(NOT TARGET PkgConfig::LZ4 AND PkgConfig_FOUND)
@@ -83,8 +95,12 @@ if(NOT TARGET PkgConfig::LZ4)
 endif()
 
 find_package(zstd CONFIG QUIET)
-if(TARGET zstd::libzstd AND NOT TARGET PkgConfig::ZSTD)
-    add_library(PkgConfig::ZSTD ALIAS zstd::libzstd)
+if(NOT TARGET PkgConfig::ZSTD)
+    if(TARGET zstd::libzstd)
+        add_library(PkgConfig::ZSTD ALIAS zstd::libzstd)
+    elseif(TARGET zstd::libzstd_shared)
+        add_library(PkgConfig::ZSTD ALIAS zstd::libzstd_shared)
+    endif()
 endif()
 if(NOT TARGET PkgConfig::ZSTD AND PkgConfig_FOUND)
     pkg_check_modules(ZSTD QUIET IMPORTED_TARGET libzstd)

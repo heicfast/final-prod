@@ -26,7 +26,13 @@ foreach(triplet ${triplet_dirs})
         continue()
     endif()
     if(CFG STREQUAL "Debug")
-        file(GLOB dlls "${triplet}/debug/bin/*.dll")
+        # BOTH trees: release names first, then debug/bin overwrites on
+        # collisions - covers import-name drift in either direction
+        # (evidence from the 0d0f706 diagnostics: the exe wanted the
+        # release name lz4.dll while only lz4d.dll was deployed).
+        file(GLOB rel_dlls "${triplet}/bin/*.dll")
+        file(GLOB dbg_dlls "${triplet}/debug/bin/*.dll")
+        set(dlls ${rel_dlls} ${dbg_dlls})
     else()
         file(GLOB dlls "${triplet}/bin/*.dll")
     endif()
