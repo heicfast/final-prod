@@ -55,6 +55,17 @@ if(PkgConfig_FOUND)
     pkg_check_modules(ZSTD QUIET IMPORTED_TARGET libzstd)
 endif()
 if(NOT TARGET PkgConfig::LZ4)
+    # vcpkg/CONFIG preference first: the config package knows the per-config
+    # import names (Debug links lz4d.lib -> liblz4d.dll), so applocal deploys
+    # the matching DLL. The bare find_library(NAMES lz4) fallback resolves to
+    # the RELEASE import lib even in Debug builds, planting a release-DLL
+    # import that the debug bin dir cannot satisfy (CI 0xc0000135).
+    find_package(liblz4 CONFIG QUIET)
+    if(TARGET liblz4::liblz4)
+        add_library(PkgConfig::LZ4 ALIAS liblz4::liblz4)
+    endif()
+endif()
+if(NOT TARGET PkgConfig::LZ4)
     find_library(LZ4_LIB NAMES lz4)
     find_path(LZ4_HEADER lz4.h)
     if(LZ4_LIB AND LZ4_HEADER)
@@ -62,6 +73,12 @@ if(NOT TARGET PkgConfig::LZ4)
         set_target_properties(PkgConfig::LZ4 PROPERTIES
             IMPORTED_LOCATION "${LZ4_LIB}"
             INTERFACE_INCLUDE_DIRECTORIES "${LZ4_HEADER}/..")
+    endif()
+endif()
+if(NOT TARGET PkgConfig::ZSTD)
+    find_package(zstd CONFIG QUIET)
+    if(TARGET zstd::libzstd)
+        add_library(PkgConfig::ZSTD ALIAS zstd::libzstd)
     endif()
 endif()
 if(NOT TARGET PkgConfig::ZSTD)

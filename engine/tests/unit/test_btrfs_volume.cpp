@@ -163,7 +163,7 @@ std::vector<u8> make_dir_item(u64 child, const char* name, u8 type) {
     put64(r.data() + 17, 1); /* transid */
     put16(r.data() + 25, 0); /* data_len */
     put16(r.data() + 27, u16(nlen));
-    r[29] = type;            /* BTRFS_FT_* of the entry itself */
+    r[29] = type; /* BTRFS_FT_* of the entry itself */
     memcpy(r.data() + 30, name, nlen);
     return r;
 }
@@ -417,7 +417,7 @@ TEST(Btrfs, PackedDirItemsInOneItem) {
     {
         NodeBuilder nb;
         Key ki;
-        ki.type = 1; /* INODE_ITEM */
+        ki.type = 1;       /* INODE_ITEM */
         ki.objectid = 256; /* subvol root dir */
         nb.add(ki, make_inode(0x4000, NODESIZE, 2, 1700000000ull));
         ki.objectid = 257;

@@ -251,8 +251,7 @@ bool walk_tree(Volume& v, u64 root_logical, CancelToken* cancel,
         } else {
             /* internal node: key_ptr array after the header */
             const u32 nritems = le32(node.data() + HDR_NR_ITEMS);
-            const u32 limit =
-                u32((node.size() - HDR_ITEM_ARRAY) / KP_SIZE);
+            const u32 limit = u32((node.size() - HDR_ITEM_ARRAY) / KP_SIZE);
             if (nritems == 0 || nritems > limit) {
                 ++damaged;
                 continue;
@@ -335,8 +334,8 @@ u32 scan_btrfs(IStorageDevice* slice, const BtrfsScanFlags& flags, CancelToken* 
      * {0x10000, 0x4000000, 0x4000000000, 0x4000000000000} - identical to the
      * kernel btrfs_sb_offset(): 64 KiB primary + mirrors at 64 MiB, 256 GiB
      * and 1 PiB (16K << 12*mirror). */
-    static const u64 kMirrorOffsets[] = {0x10000,          0x4000000,
-                                         0x4000000000ULL,  0x4000000000000ULL, 0};
+    static const u64 kMirrorOffsets[] = {0x10000, 0x4000000, 0x4000000000ULL, 0x4000000000000ULL,
+                                         0};
     SuperBlock best;
     bool have_best = false;
     std::vector<u8> sb_buf(4096);

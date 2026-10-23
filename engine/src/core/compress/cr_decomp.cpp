@@ -167,9 +167,8 @@ bool decompress_block(u32 codec, const u8* src, size_t psize, u8* dst, size_t ls
         return gzip_decompress(src, psize, dst, lsize);
     case kLz4:
 #if defined(CR_HAVE_LZ4)
-        return LZ4_decompress_safe(reinterpret_cast<const char*>(src),
-                                    reinterpret_cast<char*>(dst), int(psize),
-                                    int(lsize)) == int(lsize);
+        return LZ4_decompress_safe(reinterpret_cast<const char*>(src), reinterpret_cast<char*>(dst),
+                                   int(psize), int(lsize)) == int(lsize);
 #else
         return false;
 #endif

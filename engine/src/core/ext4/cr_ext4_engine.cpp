@@ -292,9 +292,8 @@ bool read_inode(Volume& v, u32 ino, InodeView& iv) {
      * good-old layout and i_extra_isize covers them (kernel rule). */
     if (v.sb.inode_size >= 0x98u && v.sb.rev_level >= 1) {
         const u32 extra_isize = rd16(raw + I_EXTRA_ISIZE);
-        const u32 covered = 128u + (extra_isize <= v.sb.inode_size - 128u
-                                        ? extra_isize
-                                        : v.sb.inode_size - 128u);
+        const u32 covered =
+            128u + (extra_isize <= v.sb.inode_size - 128u ? extra_isize : v.sb.inode_size - 128u);
         u32 nsec = 0;
         if (I_ATIME_EXTRA + 4 <= covered)
             iv.atime = decode_extra(iv.atime, rd32(raw + I_ATIME_EXTRA), nsec);

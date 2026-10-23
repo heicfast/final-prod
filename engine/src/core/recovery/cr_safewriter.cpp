@@ -197,8 +197,8 @@ u32 SafeWriter::recover_item(QueueItem& it, CancelToken* cancel, WriterStats& st
         if (pr->extents[ext_i].codec != 0) {
             /* compressed extent: decode the whole block on demand; the
              * logical bytes come from the decoded image, not the disk */
-            const u64 psize = pr->extents[ext_i].psize ? pr->extents[ext_i].psize
-                                                       : pr->extents[ext_i].length;
+            const u64 psize =
+                pr->extents[ext_i].psize ? pr->extents[ext_i].psize : pr->extents[ext_i].length;
             const u64 lsize = pr->extents[ext_i].length;
             if (psize == 0 || lsize == 0 || psize > (256ull << 20) || lsize > (256ull << 20)) {
                 io_.close(it.item_id);
@@ -213,7 +213,7 @@ u32 SafeWriter::recover_item(QueueItem& it, CancelToken* cancel, WriterStats& st
                 std::memset(packed.data(), 0, size_t(psize)); /* Skip policy */
                 std::memset(plain.data(), 0, size_t(lsize));
             } else if (!compress::decompress_block(pr->extents[ext_i].codec, packed.data(),
-                                                    size_t(psize), plain.data(), size_t(lsize))) {
+                                                   size_t(psize), plain.data(), size_t(lsize))) {
                 /* malformed compressed block: zero-fill (hash will
                  * mismatch) - never silently emit wrong bytes */
                 std::memset(plain.data(), 0, size_t(lsize));
