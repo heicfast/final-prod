@@ -698,7 +698,9 @@ TEST(CarveEngine, RawSignLayerHeaderAndTail) {
     CarveStats s;
     ASSERT_EQ(carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, s),
               OK);
-    EXPECT_GE(s.sign_hits, 2u);
+    /* F-A3-6 regression: exact count (was doubled by the copy-paste
+     * duplicate accumulation lines) */
+    EXPECT_EQ(s.sign_hits, 2u);
     tree::FileNode* sample_n = nullptr;
     tree::FileNode* tail_n = nullptr;
     for (tree::FileNode* c = root->first_child(); c; c = c->next_sibling()) {

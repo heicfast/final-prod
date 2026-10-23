@@ -419,8 +419,9 @@ u32 carve_slice(IStorageDevice* slice, const CarveFlags& flags, CancelToken* can
     stats.duplicates += ctx.duplicates.load();
     stats.hashed += ctx.hashed.load();
     stats.bytes_scanned += ctx.bytes_scanned.load();
-    stats.sign_hits += ctx.sign_hits.load();
-    stats.sign_validated += ctx.sign_validated.load();
+    /* PARITY-AUDIT F-A3-6: sign_hits/sign_validated were each added TWICE
+     * (copy-paste duplicate lines) — every raw-sign statistic reported
+     * double its true value. */
     stats.sign_hits += ctx.sign_hits.load();
     stats.sign_validated += ctx.sign_validated.load();
     return OK;
