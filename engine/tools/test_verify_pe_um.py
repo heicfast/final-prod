@@ -69,6 +69,13 @@ REAL_KERNEL32 = [
     "WakeAllConditionVariable", "SleepConditionVariableSRW",
     "SleepConditionVariableCS", "InitOnceBeginInitialize", "InitOnceComplete",
     "InitOnceExecuteOnce",
+    # second gate iteration (run 40013456484, cr_tests.exe): the
+    # std::filesystem machinery + locale/format helpers
+    "GetFileInformationByHandleEx", "GetFileInformationByHandle",
+    "GetFileAttributesExW", "FindFirstFileW", "FindFirstFileExW",
+    "FindNextFileW", "FindClose", "SetFileInformationByHandle",
+    "GetFinalPathNameByHandleW", "AreFileApisANSI", "GetLocaleInfoEx",
+    "FormatMessageA", "LocalFree", "GetProcAddress",
 ]
 REAL_ADVAPI32 = [
     "OpenProcessToken", "GetTokenInformation", "RegOpenKeyExW",

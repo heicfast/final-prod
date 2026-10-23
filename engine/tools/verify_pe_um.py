@@ -111,6 +111,26 @@ ALLOWLIST_ADDITIONS = {
     "InitOnceBeginInitialize": "one-shot guard (verified); Vista+",
     "InitOnceComplete": "one-shot guard (verified); Vista+",
     "InitOnceExecuteOnce": "one-shot execute (family); Vista+",
+    # linker-verified 2026-10-23 (second gate iteration, run 40013456484):
+    # cr_tests.exe's <filesystem> usage (test_tmpdir.hpp / writer-dirs /
+    # cr_ui acceptance fixtures) emits the directory-iteration + file-info
+    # machinery directly into the exe; the locale/format helpers come with
+    # the toolset's locale + strerror objects. Every member is XP- or
+    # Vista-era (minimum supported client) - all Win7-safe.
+    "GetFileInformationByHandleEx": "std::filesystem dir iteration; Vista+",
+    "GetFileInformationByHandle": "std::filesystem file info; XP-era",
+    "GetFileAttributesExW": "std::filesystem status(); XP-era",
+    "FindFirstFileW": "directory_iterator; XP-era",
+    "FindFirstFileExW": "directory_iterator (Ex form); XP-era",
+    "FindNextFileW": "directory_iterator advance; XP-era",
+    "FindClose": "directory_iterator close; XP-era",
+    "SetFileInformationByHandle": "std::filesystem remove/rename; Vista+",
+    "GetFinalPathNameByHandleW": "std::filesystem canonical path; Vista+",
+    "AreFileApisANSI": "file-API charset probe; XP-era",
+    "GetLocaleInfoEx": "locale-name machinery; Vista+",
+    "FormatMessageA": "CRT strerror/format; XP-era",
+    "LocalFree": "FormatMessage buffer free; XP-era",
+    "GetProcAddress": "dynamic symbol resolution (CRT helpers); XP-era",
     # deliberately NOT here: WaitOnAddress / WakeByAddress* / GetSystemTime-
     # PreciseAsFileTime - those are Windows 8+ ONLY; if the toolset ever
     # links them the gate must fail (that is the guard working).
