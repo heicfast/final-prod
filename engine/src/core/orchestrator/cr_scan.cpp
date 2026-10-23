@@ -497,6 +497,134 @@ u32 ScanController::run_quick(IStorageDevice* slice, CancelToken* cancel,
     return rc;
 }
 
+namespace {
+
+/* Single engine dispatch (ARCH-DUP-4 / W3-10): ONE table for the main
+ * engine pass and the lost-candidate path - the og's single factory
+ * dispatch shape (FUN_140577d40). The two old hand-maintained tables had
+ * already drifted (the candidate chain never set the deep-semantics
+ * flags - the engines' defaults are all true, so candidates ALWAYS ran
+ * deep extras while the quick pass disabled them; now one parameter
+ * makes that explicit at both call sites).
+ *
+ * deep_extras: the deep-semantics flags where an engine has them (FAT
+ * chain reconstruction, ext4 deleted-inode sweep, HFS+ freed-node sweep,
+ * ReFS deleted-row harvest). The main pass passes its deep_mode; the
+ * candidate path passes true (probe everything under a lost volume).
+ *
+ * candidate_mode: best-effort under a single display root - engine
+ * errors are swallowed (an unviable candidate volume is not a scan
+ * error) and the counters are the candidate display totals (per-engine
+ * shapes preserved: NTFS reports emitted, ext4/ReFS fold deleted into
+ * the total, HFS+ does not). Otherwise errors propagate and the
+ * counters are the main-path active/deleted split. */
+struct EngineRun {
+    u32 rc = OK;
+    u64 files = 0;
+    u64 deleted = 0;
+};
+
+EngineRun run_engine_dispatch(FsFamily fam, IStorageDevice* slice, bool deep_extras,
+                              bool candidate_mode, CancelToken* cancel,
+                              bool (*progress)(u64, u64, void*), void* pu, tree::ResultTree& tree,
+                              tree::FullNode* root_active, tree::FullNode* root_deleted,
+                              tree::FullNode* root_lost) {
+    EngineRun r;
+    u32 rc = OK;
+    switch (fam) {
+    case FsFamily::Ntfs: {
+        auto vol = ntfs::NtfsVolume::open(
+            std::unique_ptr<IStorageDevice>(cr::SliceShim::shim(slice)), &rc);
+        if (!vol) {
+            /* candidate mode: open failure = not a viable NTFS volume, not
+             * a scan error; main mode: propagate (open failure IS an error) */
+            r.rc = candidate_mode ? u32(OK) : (rc == OK ? u32(ERR_OPEN_FAILED) : rc);
+            return r;
+        }
+        std::unique_ptr<ntfs::VolumeBitmap> bm;
+        (void)ntfs::VolumeBitmap::load(vol.get(), bm);
+        ntfs::WalkerFlags wf;
+        ntfs::WalkStats ws;
+        rc = ntfs::walk_mft(vol.get(), bm.get(), wf, cancel, progress, pu, tree, root_active,
+                            root_deleted, root_lost, ws);
+        r.files = candidate_mode ? ws.emitted : ws.active;
+        r.deleted = ws.deleted;
+        break;
+    }
+    case FsFamily::Fat: {
+        fat::FatScanFlags fl;
+        fl.reconstruct_deleted_chains = deep_extras;
+        fat::FatScanStats fs;
+        rc = fat::scan_fat(slice, fl, cancel, progress, pu, tree, root_active, root_deleted,
+                           root_lost, fs);
+        r.files = fs.files;
+        r.deleted = fs.deleted_entries;
+        break;
+    }
+    case FsFamily::Exfat: {
+        exfat::ExfatScanFlags fl;
+        exfat::ExfatScanStats es;
+        rc = exfat::scan_exfat(slice, fl, cancel, progress, pu, tree, root_active, root_deleted,
+                               root_lost, es);
+        r.files = es.files;
+        r.deleted = es.deleted_entries;
+        break;
+    }
+    case FsFamily::Ext4: {
+        ext4::Ext4ScanFlags fl;
+        fl.scan_deleted_inodes = deep_extras;
+        ext4::Ext4ScanStats es;
+        rc = ext4::scan_ext4(slice, fl, cancel, progress, pu, tree, root_active, root_deleted,
+                             root_lost, es);
+        r.files = es.files + es.dirs + (candidate_mode ? es.deleted_inodes : 0);
+        r.deleted = es.deleted_inodes;
+        break;
+    }
+    case FsFamily::Hfsplus: {
+        hfsplus::HfsScanFlags fl;
+        fl.scan_freed_nodes = deep_extras;
+        hfsplus::HfsScanStats hs;
+        rc = hfsplus::scan_hfsplus(slice, fl, cancel, progress, pu, tree, root_active, root_deleted,
+                                   root_lost, hs);
+        r.files = hs.files + hs.dirs;
+        r.deleted = hs.orphans;
+        break;
+    }
+    case FsFamily::Btrfs: {
+        btrfs::BtrfsScanStats bs;
+        rc = btrfs::scan_btrfs(slice, cancel, progress, pu, tree, root_active, root_deleted,
+                               root_lost, bs);
+        r.files = bs.files + bs.dirs;
+        r.deleted = bs.subvolumes;
+        break;
+    }
+    case FsFamily::Zfs: {
+        zfs::ZfsScanStats zs;
+        rc = zfs::scan_zfs(slice, cancel, progress, pu, tree, root_active, root_deleted, root_lost,
+                           zs);
+        r.files = zs.files + zs.dirs;
+        break;
+    }
+    case FsFamily::Refs: {
+        refs::RefsScanFlags fl;
+        fl.harvest_deleted = deep_extras;
+        refs::RefsScanStats rs;
+        rc = refs::scan_refs(slice, fl, cancel, progress, pu, tree, root_active, root_deleted,
+                             root_lost, rs);
+        r.files = rs.files + rs.dirs + (candidate_mode ? rs.deleted_rows : 0);
+        r.deleted = rs.deleted_rows;
+        break;
+    }
+    default:
+        rc = OK; /* unknown FS: quick yields nothing; deep/carve still run */
+        break;
+    }
+    r.rc = candidate_mode ? u32(OK) : rc;
+    return r;
+}
+
+} // namespace
+
 u32 ScanController::run_engine_pass(IStorageDevice* slice, bool deep_mode, CancelToken* cancel,
                                     bool (*progress)(u32, void*), void* pu, ScanStats& stats,
                                     u32 bridge_stage, bool covers_both) {
@@ -558,90 +686,16 @@ u32 ScanController::run_engine_pass(IStorageDevice* slice, bool deep_mode, Cance
             return OK;
         }
     }
-    switch (cfg_.fs_hint) {
-    case FsFamily::Ntfs: {
-        auto vol = ntfs::NtfsVolume::open(
-            std::unique_ptr<IStorageDevice>(cr::SliceShim::shim(slice)), &rc);
-        if (!vol)
-            return rc == OK ? ERR_OPEN_FAILED : rc;
-        std::unique_ptr<ntfs::VolumeBitmap> bm;
-        (void)ntfs::VolumeBitmap::load(vol.get(), bm);
-        ntfs::WalkerFlags wf;
-        ntfs::WalkStats ws;
-        rc = ntfs::walk_mft(vol.get(), bm.get(), wf, cancel, ep, ep_user, tree_, root_found_,
-                            root_deleted_, root_lost_, ws);
-        stats.files_found += ws.active;
-        stats.deleted_found += ws.deleted;
-        break;
-    }
-    case FsFamily::Fat: {
-        fat::FatScanFlags fl;
-        fl.reconstruct_deleted_chains = deep_mode; /* complete behavior when deep runs */
-        fat::FatScanStats fs;
-        rc = fat::scan_fat(slice, fl, cancel, ep, ep_user, tree_, root_found_, root_deleted_,
-                           root_lost_, fs);
-        stats.files_found += fs.files;
-        stats.deleted_found += fs.deleted_entries;
-        break;
-    }
-    case FsFamily::Exfat: {
-        exfat::ExfatScanFlags fl;
-        exfat::ExfatScanStats es;
-        rc = exfat::scan_exfat(slice, fl, cancel, ep, ep_user, tree_, root_found_, root_deleted_,
-                               root_lost_, es);
-        stats.files_found += es.files;
-        stats.deleted_found += es.deleted_entries;
-        break;
-    }
-    case FsFamily::Ext4: {
-        ext4::Ext4ScanFlags fl;
-        fl.scan_deleted_inodes = deep_mode;
-        ext4::Ext4ScanStats es;
-        rc = ext4::scan_ext4(slice, fl, cancel, ep, ep_user, tree_, root_found_, root_deleted_,
-                             root_lost_, es);
-        stats.files_found += es.files + es.dirs;
-        stats.deleted_found += es.deleted_inodes;
-        break;
-    }
-    case FsFamily::Hfsplus: {
-        hfsplus::HfsScanFlags fl;
-        fl.scan_freed_nodes = deep_mode; /* freed-catalog orphan sweep */
-        hfsplus::HfsScanStats hs;
-        rc = hfsplus::scan_hfsplus(slice, fl, cancel, ep, ep_user, tree_, root_found_,
-                                   root_deleted_, root_lost_, hs);
-        stats.files_found += hs.files + hs.dirs;
-        stats.deleted_found += hs.orphans;
-        break;
-    }
-    case FsFamily::Btrfs: {
-        btrfs::BtrfsScanStats bs;
-        rc = btrfs::scan_btrfs(slice, cancel, ep, ep_user, tree_, root_found_, root_deleted_,
-                               root_lost_, bs);
-        stats.files_found += bs.files + bs.dirs;
-        stats.deleted_found += bs.subvolumes;
-        break;
-    }
-    case FsFamily::Zfs: {
-        zfs::ZfsScanStats zs;
-        rc = zfs::scan_zfs(slice, cancel, ep, ep_user, tree_, root_found_, root_deleted_,
-                           root_lost_, zs);
-        stats.files_found += zs.files + zs.dirs;
-        break;
-    }
-    case FsFamily::Refs: {
-        refs::RefsScanFlags fl;
-        fl.harvest_deleted = deep_mode;
-        refs::RefsScanStats rs;
-        rc = refs::scan_refs(slice, fl, cancel, ep, ep_user, tree_, root_found_, root_deleted_,
-                             root_lost_, rs);
-        stats.files_found += rs.files + rs.dirs;
-        stats.deleted_found += rs.deleted_rows;
-        break;
-    }
-    default:
-        rc = OK; /* unknown FS: quick yields nothing; deep/carve still run */
-        break;
-    }
+    /* single dispatch (ARCH-DUP-4): one table for the main pass and the
+     * candidate path; deep_extras = this pass's deep_mode, errors
+     * propagate, counters are the main-path active/deleted split. */
+    const EngineRun er =
+        run_engine_dispatch(cfg_.fs_hint, slice, deep_mode, false, cancel, ep, ep_user, tree_,
+                            root_found_, root_deleted_, root_lost_);
+    if (er.rc != OK)
+        return er.rc;
+    stats.files_found += er.files;
+    stats.deleted_found += er.deleted;
     return rc;
 }
 
@@ -789,80 +843,18 @@ u32 ScanController::run_deep(IStorageDevice* slice, CancelToken* cancel,
 u32 ScanController::scan_candidate(IStorageDevice* cand_slice, tree::FullNode* croot,
                                    CancelToken* cancel, u64& files_out, u64& deleted_out,
                                    bool (*progress)(u64, u64, void*), void* progress_user) {
-    FsFamily fam = probe_family(cand_slice);
-    u32 rc = OK;
+    const FsFamily fam = probe_family(cand_slice);
     files_out = 0;
     deleted_out = 0;
-    if (fam == FsFamily::Ntfs) {
-        auto vol = ntfs::NtfsVolume::open(
-            std::unique_ptr<IStorageDevice>(cr::SliceShim::shim(cand_slice)), &rc);
-        if (vol) {
-            std::unique_ptr<ntfs::VolumeBitmap> bm;
-            (void)ntfs::VolumeBitmap::load(vol.get(), bm);
-            ntfs::WalkerFlags wf;
-            ntfs::WalkStats ws;
-            (void)ntfs::walk_mft(vol.get(), bm.get(), wf, cancel, progress, progress_user, tree_,
-                                 croot, croot, croot, ws);
-            files_out += ws.emitted;
-            deleted_out += ws.deleted;
-        }
-        /* open failure = not a viable NTFS volume: not a scan error */
-        rc = OK;
-    } else if (fam == FsFamily::Fat) {
-        fat::FatScanFlags fl;
-        fat::FatScanStats fs;
-        (void)fat::scan_fat(cand_slice, fl, cancel, progress, progress_user, tree_, croot, croot,
-                            croot, fs);
-        files_out += fs.files;
-        deleted_out += fs.deleted_entries;
-        rc = OK;
-    } else if (fam == FsFamily::Exfat) {
-        exfat::ExfatScanFlags fl;
-        exfat::ExfatScanStats es;
-        (void)exfat::scan_exfat(cand_slice, fl, cancel, progress, progress_user, tree_, croot,
-                                croot, croot, es);
-        files_out += es.files;
-        deleted_out += es.deleted_entries;
-        rc = OK;
-    } else if (fam == FsFamily::Ext4) {
-        ext4::Ext4ScanFlags fl;
-        ext4::Ext4ScanStats es;
-        (void)ext4::scan_ext4(cand_slice, fl, cancel, progress, progress_user, tree_, croot, croot,
-                              croot, es);
-        files_out += es.files + es.dirs + es.deleted_inodes;
-        deleted_out += es.deleted_inodes;
-        rc = OK;
-    } else if (fam == FsFamily::Hfsplus) {
-        hfsplus::HfsScanFlags fl;
-        hfsplus::HfsScanStats hs;
-        (void)hfsplus::scan_hfsplus(cand_slice, fl, cancel, progress, progress_user, tree_, croot,
-                                    croot, croot, hs);
-        files_out += hs.files + hs.dirs;
-        deleted_out += hs.orphans;
-        rc = OK;
-    } else if (fam == FsFamily::Btrfs) {
-        btrfs::BtrfsScanStats bs;
-        (void)btrfs::scan_btrfs(cand_slice, cancel, progress, progress_user, tree_, croot, croot,
-                                croot, bs);
-        files_out += bs.files + bs.dirs;
-        deleted_out += bs.subvolumes;
-        rc = OK;
-    } else if (fam == FsFamily::Zfs) {
-        zfs::ZfsScanStats zs;
-        (void)zfs::scan_zfs(cand_slice, cancel, progress, progress_user, tree_, croot, croot, croot,
-                            zs);
-        files_out += zs.files + zs.dirs;
-        rc = OK;
-    } else if (fam == FsFamily::Refs) {
-        refs::RefsScanFlags fl;
-        refs::RefsScanStats rs;
-        (void)refs::scan_refs(cand_slice, fl, cancel, progress, progress_user, tree_, croot, croot,
-                              croot, rs);
-        files_out += rs.files + rs.dirs + rs.deleted_rows;
-        deleted_out += rs.deleted_rows;
-        rc = OK;
-    }
-    return rc;
+    /* single dispatch (ARCH-DUP-4): candidate mode - best-effort under the
+     * one display root (engine errors are not candidate errors) with the
+     * candidate display totals; deep_extras always true (probe everything
+     * under a lost volume - the engines' flag defaults). */
+    const EngineRun er = run_engine_dispatch(fam, cand_slice, true, true, cancel, progress,
+                                             progress_user, tree_, croot, croot, croot);
+    files_out += er.files;
+    deleted_out += er.deleted;
+    return OK;
 }
 
 u32 ScanController::run_carve_stage(IStorageDevice* slice, CancelToken* cancel,
