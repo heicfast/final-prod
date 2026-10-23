@@ -49,20 +49,26 @@ constexpr u32 FORK_LOGICAL_SIZE = 0x00;
 constexpr u32 FORK_TOTAL_BLOCKS = 0x0C;
 constexpr u32 FORK_EXTENTS = 0x10; /* 8 x (start u32, count u32) */
 
-/* B-tree node header (14 bytes) */
+/* B-tree node header (14 bytes) — TN1150 BTNodeDescriptor; og gate
+ * FUN_180010720 accepts kind in {-1,0,1,2} (kind+1 <= 3 unsigned) */
 constexpr u32 NH_FORWARD = 0x00;
 constexpr u32 NH_BACKWARD = 0x04;
-constexpr u32 NH_KIND = 0x08; /* 0 leaf, 1 index, 2 header, -1 map */
+constexpr i16 NH_KIND_LEAF = -1;   /* kBTLeafNode */
+constexpr i16 NH_KIND_INDEX = 0;   /* kBTIndexNode */
+constexpr i16 NH_KIND_HEADER = 1;  /* kBTHeaderNode */
+constexpr i16 NH_KIND_MAP = 2;     /* kBTMapNode */
+constexpr u32 NH_KIND = 0x08; /* SInt8 node type */
 constexpr u32 NH_HEIGHT = 0x09;
 constexpr u32 NH_NUM_RECORDS = 0x0A;
 
-/* BTHeaderRec (after the 14-byte node header of node 0):
- * 0x00 treeDepth u16, 0x02 rootNode u32, 0x04 leafRecords u32,
- * 0x08 firstLeafNode u32, 0x0C lastLeafNode u32, 0x10 nodeSize u16,
- * 0x12 maxKeyLength u16, 0x14 totalNodes u32, 0x18 freeNodes u32 */
-constexpr u32 BTH_FIRST_LEAF = 0x08;
-constexpr u32 BTH_LAST_LEAF = 0x0C;
-constexpr u32 BTH_NODE_SIZE = 0x10;
+/* BTHeaderRec (after the 14-byte node descriptor of node 0; 106 bytes,
+ * big-endian, packed — TN1150 / libyal layout table, og-verified):
+ * +0x00 treeDepth u16, +0x02 rootNode u32, +0x06 leafRecords u32,
+ * +0x0A firstLeafNode u32, +0x0E lastLeafNode u32, +0x12 nodeSize u16,
+ * +0x14 maxKeyLength u16, +0x16 totalNodes u32, +0x1A freeNodes u32 */
+constexpr u32 BTH_FIRST_LEAF = 0x0A;
+constexpr u32 BTH_LAST_LEAF = 0x0E;
+constexpr u32 BTH_NODE_SIZE = 0x12;
 
 /* catalog record types */
 constexpr i16 REC_FOLDER = 1;
@@ -303,7 +309,10 @@ bool for_each_record(u32 node_size, const std::vector<u8>& node, i16 want_kind,
                      const std::function<bool(const u8* rec, u32 len)>& fn) {
     if (node.size() < 14 + 2 || node_size == 0)
         return false;
-    const i16 kind = i16(node[NH_KIND]);
+    /* node type is a SInt8 at +8 — SIGN-extend before the kind compare
+     * (PARITY-AUDIT F-A2-17: i16(u8) zero-extended, so a real leaf node
+     * (0xFF = -1) could never match a negative kind constant) */
+    const i16 kind = static_cast<i16>(static_cast<i8>(node[NH_KIND]));
     if (kind != want_kind)
         return false;
     const u16 nrec = be16(node.data() + NH_NUM_RECORDS);
@@ -400,7 +409,7 @@ u32 scan_hfsplus(IStorageDevice* slice, const HfsScanFlags& flags, CancelToken* 
                 std::vector<u8> leaf;
                 if (!read_tree_node(v, v.extents_fork, CNID_EXTENTS_FILE, ext_node_size, cur, leaf))
                     break;
-                for_each_record(ext_node_size, leaf, 0, [&](const u8* rec, u32 len) {
+                for_each_record(ext_node_size, leaf, NH_KIND_LEAF, [&](const u8* rec, u32 len) {
                     /* overflow record: key{keyLength u16, forkType u8, pad u8,
                      * fileID u32, startBlock u32}, body = 8 extent descriptors */
                     if (len < 10 + 64)
@@ -459,7 +468,7 @@ u32 scan_hfsplus(IStorageDevice* slice, const HfsScanFlags& flags, CancelToken* 
             ++stats.bad_nodes;
             break;
         }
-        for_each_record(v.catalog_node_size, leaf, 0, [&](const u8* rec, u32 len) {
+        for_each_record(v.catalog_node_size, leaf, NH_KIND_LEAF, [&](const u8* rec, u32 len) {
             CatalogRecord cr;
             if (parse_catalog_record(rec, len, cr)) {
                 if (records.size() < (4u << 20)) /* P1-14: record cap */
@@ -615,10 +624,10 @@ u32 scan_hfsplus(IStorageDevice* slice, const HfsScanFlags& flags, CancelToken* 
             if (!read_tree_node(v, v.catalog_fork, CNID_CATALOG_FILE, v.catalog_node_size, ni,
                                 node))
                 continue;
-            const i16 kind = i16(node[NH_KIND]);
-            if (kind != 0) /* only freed LEAF nodes hold stale records */
+            const i16 kind = static_cast<i16>(static_cast<i8>(node[NH_KIND]));
+            if (kind != NH_KIND_LEAF) /* only freed LEAF nodes hold stale records */
                 continue;
-            for_each_record(v.catalog_node_size, node, 0, [&](const u8* rec, u32 len) {
+            for_each_record(v.catalog_node_size, node, NH_KIND_LEAF, [&](const u8* rec, u32 len) {
                 CatalogRecord cr;
                 if (!parse_catalog_record(rec, len, cr))
                     return true;

@@ -117,8 +117,8 @@ std::vector<u8> make_leaf_node(const std::vector<std::vector<u8>>& recs, u32 for
     std::vector<u8> node(NODE_SIZE, 0);
     be32(node.data() + 0, forward); /* forwardLink */
     be32(node.data() + 4, 0);       /* backwardLink */
-    node[8] = 0;                    /* kind = leaf */
-    node[9] = 1;                    /* height */
+    node[8] = 0xFF;                   /* kind = -1 (kBTLeafNode, TN1150) */
+    node[9] = 1;                      /* height */
     be16(node.data() + 10, u16(recs.size()));
     /* records packed downward, stopping below the offset array
      * (the last (nrec+1) u16 slots belong to the array) */
@@ -160,19 +160,20 @@ std::vector<u8> build_volume() {
     write_fork(vh + 0x110, 3 * NODE_SIZE, B_CAT_HDR, 3); /* catalog: 3 nodes */
     write_fork(vh + 0x160, 0, 0, 0);                     /* attributes: empty */
 
-    /* catalog header node (node 0): BTHeaderRec at +14 */
+    /* catalog header node (node 0): BTHeaderRec at +14 (TN1150 layout) */
     u8* hdr = d.data() + u64(B_CAT_HDR) * BS;
     be32(hdr + 0, B_CAT_LEAF1);       /* forwardLink -> leaf 1 (node idx 1) */
-    hdr[8] = 2;                       /* kind = header */
+    hdr[8] = 1;                       /* kind = 1 (kBTHeaderNode, TN1150) */
+    hdr[9] = 0;                       /* height 0 (og FUN_180010720 requires) */
     be16(hdr + 10, 3);                /* numRecords */
     be16(hdr + 14 + 0x00, 1);         /* treeDepth */
     be32(hdr + 14 + 0x02, 1);         /* rootNode = leaf 1 */
-    be32(hdr + 14 + 0x04, 4);         /* leafRecords */
-    be32(hdr + 14 + 0x08, 1);         /* firstLeafNode = node 1 */
-    be32(hdr + 14 + 0x0C, 1);         /* lastLeafNode = node 1 */
-    be16(hdr + 14 + 0x10, NODE_SIZE); /* nodeSize */
-    be32(hdr + 14 + 0x14, 3);         /* totalNodes */
-    be32(hdr + 14 + 0x18, 1);         /* freeNodes (node 2 freed) */
+    be32(hdr + 14 + 0x06, 4);         /* leafRecords */
+    be32(hdr + 14 + 0x0A, 1);         /* firstLeafNode = node 1 */
+    be32(hdr + 14 + 0x0E, 1);         /* lastLeafNode = node 1 */
+    be16(hdr + 14 + 0x12, NODE_SIZE); /* nodeSize */
+    be32(hdr + 14 + 0x16, 3);         /* totalNodes */
+    be32(hdr + 14 + 0x1A, 1);         /* freeNodes (node 2 freed) */
 
     /* leaf 1 (live): root folder, a child file, a subfolder, nested file */
     auto root_rec = make_record(1, u"Macintosh HD", 1, 2, 0, 0, 0, 0, 0, 0);
