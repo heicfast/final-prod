@@ -33,7 +33,19 @@ u32 FatTable::entry_at(const std::vector<u8>& f, u32 cluster) const {
         if (off + 2 > f.size())
             return 0;
         u32 v = u16_from_bytes_le(f.data() + off);
-        return (cluster & 1) ? (v >> 4) : (v & 0xFFF);
+        if (cluster & 1)
+            v >>= 4;
+        else
+            v &= 0xFFF;
+        /* canonicalize the 12-bit sentinels exactly like the FAT16/32
+         * branches: 0xFF7 = bad cluster, >= 0xFF8 = end of chain
+         * (PARITY-AUDIT F-A1-1: without this, every FAT12 chain ended
+         * "broken" — the raw 0xFFF EOC value is < CHAIN_EOC_MIN). */
+        if (v == 0xFF7)
+            return CHAIN_BAD;
+        if (v >= 0xFF8)
+            return CHAIN_EOC_MIN;
+        return v;
     }
     case Flavor::Fat16: {
         size_t off = size_t(cluster) * 2;

@@ -411,3 +411,114 @@ TEST(FatEngine, ChainCycleIsCut) {
     EXPECT_EQ(loopy->props()->extents.size(), 1u);
     EXPECT_EQ(loopy->props()->extents[0].offset, u64(74 + 38) * 512); /* cluster 40 */
 }
+
+/* ---- FAT12 (PARITY-AUDIT F-A1-1 regression) ------------------------- */
+
+/* 12-bit FAT entry write: entry i occupies bytes [i*3/2, i*3/2+2). */
+void set_fat12_entry(std::vector<u8>& img, size_t fat_off, u32 cluster, u32 value) {
+    size_t off = fat_off + cluster + cluster / 2;
+    if (cluster & 1) {
+        img[off] = u8((img[off] & 0x0F) | ((value & 0xF) << 4));
+        img[off + 1] = u8((value >> 4) & 0xFF);
+    } else {
+        img[off] = u8(value & 0xFF);
+        img[off + 1] = u8((img[off + 1] & 0xF0) | ((value >> 8) & 0xF));
+    }
+}
+
+/* FAT12 fixture: 600 sectors x 512B, 1 sec/cluster -> 562 data clusters
+ * (< 4085 => FAT12 flavor). Layout: reserved 2 | FAT 2x2 | root 32 | data.
+ * first_data_sector = 2 + 2*2 + 32 = 38. */
+std::vector<u8> build_fat12_image() {
+    std::vector<u8> img(u64(600) * 512, 0);
+    u8* b = img.data();
+    std::memcpy(b + 3, "MSDOS5.0", 8);
+    put16(img, 0x0B, 512);  /* bytes/sector */
+    b[0x0D] = 1;            /* sectors/cluster */
+    put16(img, 0x0E, 2);    /* reserved */
+    b[0x10] = 2;            /* FAT count */
+    put16(img, 0x11, 512);  /* root entries (32 sectors) */
+    put16(img, 0x13, 600);  /* total sectors 16 */
+    b[0x15] = 0xF8;
+    put16(img, 0x16, 2);    /* sectors/FAT */
+    put16(img, 0x18, 63);
+    put16(img, 0x1A, 255);
+    b[0x26] = 0x29;
+    put32v(img, 0x27, 0x5678);
+    std::memcpy(b + 0x2B, "FAT12VOL   ", 11);
+    std::memcpy(b + 0x36, "FAT12   ", 8);
+    b[510] = 0x55;
+    b[511] = 0xAA;
+
+    const size_t FAT1 = 2 * 512;
+    const size_t FAT2 = 4 * 512;
+    const size_t ROOT = 6 * 512;   /* 32 sectors */
+    const size_t DATA = 38 * 512;  /* cluster 2 */
+
+    auto link = [&](u32 c, u32 v) {
+        set_fat12_entry(img, FAT1, c, v);
+        set_fat12_entry(img, FAT2, c, v); /* mirrored FAT2 */
+    };
+    /* reserved entries 0/1 (media / EOC) */
+    img[FAT1 + 0] = 0xF8; img[FAT1 + 1] = 0xFF; img[FAT1 + 2] = 0xFF;
+    img[FAT2 + 0] = 0xF8; img[FAT2 + 1] = 0xFF; img[FAT2 + 2] = 0xFF;
+
+    /* live TWELVE.TXT: 2 -> 3 -> 4 (EOC 0xFFF), 3 clusters; deleted
+     * _OLD.TXT: 6 -> 7 (EOC 0xFFF), 2 clusters, chain intact */
+    link(2, 3);
+    link(3, 4);
+    link(4, 0xFFF);
+    link(6, 7);
+    link(7, 0xFFF);
+
+    u8* root = img.data() + ROOT;
+    make_dentry(root + 0 * 32, "TWELVE  TXT", 0x20, 2, 1536, 0x5A46, 0x6000, false);
+    make_dentry(root + 1 * 32, "XOLD    TXT", 0x20, 6, 1024, 0x5A46, 0x6000, true);
+
+    std::memcpy(img.data() + DATA + (2 - 2) * 512, "FAT12LIVEDATA", 13);
+    std::memcpy(img.data() + DATA + (6 - 2) * 512, "FAT12DEL DATA", 13);
+    return img;
+}
+
+TEST(FatEngine, Fat12ChainsCanonicalEocAndBad) {
+    /* F-A1-1: FAT12 BAD (0xFF7) / EOC (>=0xFF8) must canonicalize like the
+     * FAT16/32 branches. Before the fix the raw 0xFFF EOC value (4095) was
+     * followed as a next cluster -> out of range -> chain "broken" -> every
+     * FAT12 deleted file capped at PartialRisk + chains_broken inflated. */
+    auto img = build_fat12_image();
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* ra = tree.add_root(u"Found");
+    auto* rd = tree.add_root(u"Deleted");
+    FatScanFlags flags;
+    FatScanStats stats;
+    u32 rc = scan_fat(&dev, flags, nullptr, nullptr, nullptr, tree, ra, rd, nullptr, stats);
+    ASSERT_EQ(rc, OK) << err_text(rc);
+
+    auto all = collect_all(tree);
+    tree::FileNode* twelve = nullptr;
+    tree::FileNode* old = nullptr;
+    for (auto* n : all) {
+        if (n->name_utf8() == "TWELVE.TXT")
+            twelve = n;
+        if (n->name_utf8() == "_OLD.TXT")
+            old = n;
+    }
+    ASSERT_NE(twelve, nullptr) << "live FAT12 file missing";
+    ASSERT_NE(old, nullptr) << "deleted FAT12 file missing";
+
+    /* live chain 2->3->4 walked to the 12-bit EOC: single contiguous extent */
+    ASSERT_EQ(twelve->props()->extents.size(), 1u);
+    EXPECT_EQ(twelve->props()->extents[0].offset, u64(38) * 512); /* cluster 2 */
+    EXPECT_EQ(twelve->props()->extents[0].length, u64(3) * 512);
+    EXPECT_EQ(twelve->deleted_state(), tree::DeletedState::Active);
+
+    /* deleted chain 6->7 intact and complete for its size: Excellent, not
+     * the broken-chain PartialRisk, and no broken-chain accounting */
+    ASSERT_EQ(old->props()->extents.size(), 1u);
+    EXPECT_EQ(old->props()->extents[0].offset, u64(38 + 4) * 512); /* cluster 6 */
+    EXPECT_EQ(old->props()->extents[0].length, u64(2) * 512);
+    EXPECT_EQ(old->deleted_state(), tree::DeletedState::Deleted);
+    EXPECT_EQ(old->confidence(), tree::Confidence::Excellent);
+    EXPECT_EQ(stats.chains_broken, 0u);
+}
