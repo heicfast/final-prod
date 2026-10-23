@@ -21,6 +21,7 @@
 #include "cr/refs/cr_refs_detect.h"
 #include "cr/lost/cr_lostpart.h"
 #include "cr/repair/cr_rawfixer.h"
+#include "cr/table/cr_ldm.h"
 #include "cr/table/cr_table_parse.h"
 #include <cstring>
 #include <memory>
@@ -61,7 +62,7 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size) {
     auto* ra = tree.add_root(u"a");
     auto* rd = tree.add_root(u"d");
     auto* rl = tree.add_root(u"l");
-    switch (sel % 14) {
+    switch (sel % 16) {
     case 0:
         (void)cr::orchestrator::ScanController::probe_family(&dev);
         break;
@@ -154,6 +155,37 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size) {
         cr::orchestrator::ScanStats st;
         cr::orchestrator::ScanController sc(tree, cfg);
         (void)sc.run(&dev, nullptr, nullptr, nullptr, st);
+        break;
+    }
+    case 14: {
+        /* LDM dynamic-disk database: the full parse (PRIVHEAD/TOCBLOCK/
+         * VMDB/VBLK walk, composite reassembly, graph resolution) */
+        cr::table::LdmInfo info;
+        (void)cr::table::parse_ldm_database(&dev, info);
+        break;
+    }
+    case 15: {
+        /* LDM parse + volume device reads: exercises the spanned/stripe/
+         * raid5 translation and the XOR reconstruction paths against
+         * arbitrary member content */
+        cr::table::LdmInfo info;
+        if (cr::table::parse_ldm_database(&dev, info) == cr::OK) {
+            const cr::table::LdmGuid& self = info.ph.disk_guid_bin;
+            for (const auto& lay : info.layouts) {
+                if (lay.kind == cr::table::LdmVolumeKind::Broken || lay.copies.empty())
+                    continue;
+                cr::table::LdmVolumeDevice vol(
+                    lay, [&self, &dev](const cr::table::LdmGuid& g) -> cr::IStorageDevice* {
+                        return g == self ? &dev : nullptr;
+                    });
+                cr::u8 buf[512];
+                if (vol.size() >= 512) {
+                    (void)vol.read_at(0, buf, 512);
+                    (void)vol.read_at(vol.size() - 512, buf, 512);
+                    (void)vol.read_at(511, buf, 512); /* head+tail partials */
+                }
+            }
+        }
         break;
     }
     }

@@ -102,7 +102,7 @@ private:
     u32 run_engine_pass(IStorageDevice* slice, bool deep_mode, CancelToken* cancel,
                         bool (*progress)(u32, void*), void* pu, ScanStats& stats);
     u32 scan_candidate(IStorageDevice* cand_slice, tree::FullNode* croot, CancelToken* cancel,
-                       u64& files_out);
+                       u64& files_out, u64& deleted_out);
     tree::ResultTree& tree_;
     ScanConfig cfg_;
     tree::FullNode* root_found_ = nullptr;

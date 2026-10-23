@@ -20,6 +20,7 @@ add_executable(cr_tests
     unit/test_btrfs_volume.cpp
     unit/test_zfs_volume.cpp
     unit/test_refs_ldm.cpp
+    unit/test_ldm.cpp
     unit/test_lostpart.cpp
     unit/test_sha256.cpp
     unit/test_carve.cpp

@@ -25,6 +25,7 @@
 #include "cr/refs/cr_refs_engine.h"
 #include "cr/session/cr_crsf.h"
 #include "cr/storage/cr_slice.h"
+#include "cr/table/cr_ldm.h"
 #include "cr/zfs/cr_zfs_engine.h"
 #include <chrono>
 #include <cstring>
@@ -196,6 +197,37 @@ u32 ScanController::run_engine_pass(IStorageDevice* slice, bool deep_mode, Cance
     }
 
     u32 rc = OK;
+    /* Dynamic disks (LDM): the whole-disk slice carries no filesystem
+     * of its own - the volumes live in the 1 MiB database. Parse it and
+     * scan every reconstructed volume (simple / spanned / striped /
+     * mirrored / RAID-5, incl. reconstruction of a missing RAID-5
+     * column) through the standard candidate machinery. Non-LDM disks
+     * are rejected by the MBR/GPT type check after one 512-byte read. */
+    if (cfg_.fs_hint == FsFamily::Unknown) {
+        table::LdmInfo ldm;
+        if (table::parse_ldm_database(slice, ldm) == OK && ldm.found) {
+            const table::LdmGuid& self = ldm.ph.disk_guid_bin;
+            for (const auto& lay : ldm.layouts) {
+                if (lay.kind == table::LdmVolumeKind::Broken || lay.copies.empty())
+                    continue; /* surfaced via the LdmInfo report, not scannable */
+                std::u16string role = u"Dynamic Volume ";
+                for (const char* p = lay.name.c_str(); *p; ++p)
+                    role.push_back(u16(u8(*p)));
+                tree::FullNode* vroot = tree_.add_root(role);
+                table::LdmVolumeDevice vol(
+                    lay, [&self, slice](const table::LdmGuid& g) -> IStorageDevice* {
+                        return g == self ? slice : nullptr;
+                    });
+                u64 files = 0, deleted = 0;
+                (void)scan_candidate(&vol, vroot, cancel, files, deleted);
+                stats.files_found += files;
+                stats.deleted_found += deleted;
+            }
+            if (progress)
+                (void)progress(weighted_progress(cfg_.weights, 1000, 0, 0), pu);
+            return OK;
+        }
+    }
     switch (cfg_.fs_hint) {
     case FsFamily::Ntfs: {
         auto vol = ntfs::NtfsVolume::open(
@@ -348,6 +380,7 @@ u32 ScanController::run_deep(IStorageDevice* slice, CancelToken* cancel,
                          * plain counters); merged on the caller thread. */
                         struct Out {
                             u64 files = 0;
+                            u64 deleted = 0; /* unused for candidates */
                             u32 rc = OK;
                         };
                         std::vector<Out> outs(work.size());
@@ -357,8 +390,9 @@ u32 ScanController::run_deep(IStorageDevice* slice, CancelToken* cancel,
                         ThreadPool pool(threads);
                         PoolCancelToken pool_cancel(&pool);
                         u32 first_err = parallel_for(pool, n, [&](u64 i) -> u32 {
-                            out_arr[i].rc = scan_candidate(items[i].slice.get(), items[i].root,
-                                                           cancel, out_arr[i].files);
+                            out_arr[i].rc =
+                                scan_candidate(items[i].slice.get(), items[i].root, cancel,
+                                               out_arr[i].files, out_arr[i].deleted);
                             return OK; /* candidate misses never abort the scan */
                         });
                         for (const auto& o : outs) {
@@ -369,9 +403,10 @@ u32 ScanController::run_deep(IStorageDevice* slice, CancelToken* cancel,
                             rc = first_err;
                     } else {
                         for (auto& w : work) {
-                            u64 files = 0;
-                            (void)scan_candidate(w.slice.get(), w.root, cancel, files);
+                            u64 files = 0, deleted = 0;
+                            (void)scan_candidate(w.slice.get(), w.root, cancel, files, deleted);
                             stats.files_found += files;
+                            stats.deleted_found += deleted;
                         }
                     }
                 }
@@ -384,10 +419,11 @@ u32 ScanController::run_deep(IStorageDevice* slice, CancelToken* cancel,
 }
 
 u32 ScanController::scan_candidate(IStorageDevice* cand_slice, tree::FullNode* croot,
-                                   CancelToken* cancel, u64& files_out) {
+                                   CancelToken* cancel, u64& files_out, u64& deleted_out) {
     FsFamily fam = probe_family(cand_slice);
     u32 rc = OK;
     files_out = 0;
+    deleted_out = 0;
     if (fam == FsFamily::Ntfs) {
         auto vol = ntfs::NtfsVolume::open(
             std::unique_ptr<IStorageDevice>(cr::SliceShim::shim(cand_slice)), &rc);
@@ -399,6 +435,7 @@ u32 ScanController::scan_candidate(IStorageDevice* cand_slice, tree::FullNode* c
             (void)ntfs::walk_mft(vol.get(), bm.get(), wf, cancel, nullptr, nullptr, tree_, croot,
                                  croot, croot, ws);
             files_out += ws.emitted;
+            deleted_out += ws.deleted;
         }
         /* open failure = not a viable NTFS volume: not a scan error */
         rc = OK;
@@ -408,6 +445,7 @@ u32 ScanController::scan_candidate(IStorageDevice* cand_slice, tree::FullNode* c
         (void)fat::scan_fat(cand_slice, fl, cancel, nullptr, nullptr, tree_, croot, croot, croot,
                             fs);
         files_out += fs.files;
+        deleted_out += fs.deleted_entries;
         rc = OK;
     } else if (fam == FsFamily::Exfat) {
         exfat::ExfatScanFlags fl;
@@ -415,6 +453,7 @@ u32 ScanController::scan_candidate(IStorageDevice* cand_slice, tree::FullNode* c
         (void)exfat::scan_exfat(cand_slice, fl, cancel, nullptr, nullptr, tree_, croot, croot,
                                 croot, es);
         files_out += es.files;
+        deleted_out += es.deleted_entries;
         rc = OK;
     } else if (fam == FsFamily::Ext4) {
         ext4::Ext4ScanFlags fl;
@@ -422,6 +461,7 @@ u32 ScanController::scan_candidate(IStorageDevice* cand_slice, tree::FullNode* c
         (void)ext4::scan_ext4(cand_slice, fl, cancel, nullptr, nullptr, tree_, croot, croot, croot,
                               es);
         files_out += es.files + es.dirs + es.deleted_inodes;
+        deleted_out += es.deleted_inodes;
         rc = OK;
     } else if (fam == FsFamily::Hfsplus) {
         hfsplus::HfsScanFlags fl;
@@ -429,6 +469,7 @@ u32 ScanController::scan_candidate(IStorageDevice* cand_slice, tree::FullNode* c
         (void)hfsplus::scan_hfsplus(cand_slice, fl, cancel, nullptr, nullptr, tree_, croot, croot,
                                     croot, hs);
         files_out += hs.files + hs.dirs;
+        deleted_out += hs.orphans;
         rc = OK;
     } else if (fam == FsFamily::Btrfs) {
         btrfs::BtrfsScanFlags fl;
@@ -436,6 +477,7 @@ u32 ScanController::scan_candidate(IStorageDevice* cand_slice, tree::FullNode* c
         (void)btrfs::scan_btrfs(cand_slice, fl, cancel, nullptr, nullptr, tree_, croot, croot,
                                 croot, bs);
         files_out += bs.files + bs.dirs;
+        deleted_out += bs.subvolumes;
         rc = OK;
     } else if (fam == FsFamily::Zfs) {
         zfs::ZfsScanFlags fl;
@@ -450,6 +492,7 @@ u32 ScanController::scan_candidate(IStorageDevice* cand_slice, tree::FullNode* c
         (void)refs::scan_refs(cand_slice, fl, cancel, nullptr, nullptr, tree_, croot, croot, croot,
                               rs);
         files_out += rs.files + rs.dirs + rs.deleted_rows;
+        deleted_out += rs.deleted_rows;
         rc = OK;
     }
     return rc;

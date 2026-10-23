@@ -205,6 +205,70 @@ Stage Summary:
 - Session 5 opened. AUDIT.md is the gate: no fixes until it is on main.
 
 ---
+Task ID: S5-LDM
+Agent: main (session 5 continuation, post-workspace-reset)
+Task: Full LDM implementation - the audit's largest single rewrite (AUDIT.md row 30), lost to a workspace reset mid-session and rebuilt from the verified ground truth.
+
+Work Log:
+- Workspace was reset between sessions; recovered state from GitHub (5 session-5 commits
+  intact: prompt, scope docs, AUDIT.md, btrfs/ext4 fixes, ZFS rewrite). The in-flight LDM
+  work was lost; the Linux kernel ldm.c/h reference (42 KB) survived in scripts/ and was
+  re-read line by line.
+- Ground truth re-verified from three independent sources before writing a line:
+  * Linux kernel block/partitions/ldm.{c,h} (deployed MBR parser): record bases
+    0x18/0x1D/0x2D/0x2E with fixed gaps, VBLK_SIZE_* length checks, VMDB array geometry
+    (vblk_offset start, vblk_size*vblk_last bound), TOCBLOCK copies at config+1/2/2045/2046,
+    PRIVHEAD at LBA 6 + config+1856/+2047, version gates (2.11/2.12, 4.10).
+  * flatcap LDM technical docs (linux-ntfs): per-type field lists/names, variable-width
+    encodings, "Stripe Size LBA" = sectors, update-status semantics, GUID text slots.
+  * libldm (mdbooth/ldmtool, fetched and read): GPT dynamic-disk discovery (PRIVHEAD in the
+    LAST LBA of the LDM metadata partition), full VMDB field map (committed_seq@0x75, group
+    name@0x16/guid@0x35 - the old "disk_group_id@0x75" was actually committed_seq), composite
+    reassembly as payload concatenation, volume-kind rules, RAID-5 layout "raid5_ls" (= md
+    left-symmetric), chunk size in 512-byte sectors.
+- Discrepancies between sources resolved and documented in the header: the kernel's cmp3
+  "chunksize" reads the first vnum after the post-parent-id pad (dead code there, but the
+  position is real); flatcap's field lists are off by one in two gaps vs the deployed kernel
+  geometry; the kernel's raw-byte partnum read aliases a 1-byte vnum. Where the kernel and
+  libldm agree on geometry, they are followed exactly; per-type length checks mirror the
+  kernel (== for cmp3/dsk3/dgr3/dgr4, floor for prt3/vol5; dsk4 takes the floor as a
+  documented divergence - the kernel's == only holds for empty device names).
+- cr_ldm.{h,cpp} rewritten from 85 recognition-only lines to a full implementation:
+  PRIVHEAD (3 copies, cross-checked, backup fallback when the primary is damaged),
+  TOCBLOCK (4 copies), VMDB, the complete VBLK walk (standalone + composite reassembly with
+  duplicate/incomplete-group accounting), all 7 record types, the object graph, and volume
+  layout resolution (simple/spanned/striped/mirrored/RAID-5 with capacities and
+  missing-member counts). Damaged records are counted in LdmStats and skipped - never
+  silently, never aborting the walk (kernel/libldm abort; a recovery scanner must not).
+- LdmVolumeDevice: read-only virtual volume with 512-byte logical geometry, sector-granular
+  run batching (max 2 staged partial sectors per request), mirror copy failover, striped
+  interleave, RAID-5 left-symmetric translation P(row)=N-1-(row%N) with XOR reconstruction
+  of a missing/unreadable data column and honest failure when two columns are gone.
+- GPT LDM type GUIDs fixed in cr_table_wire.h: the data GUID was a fabricated
+  3B8F0848-... value; now the Microsoft PARTITION_LDM_*_GUID byte-for-byte (metadata
+  5808C8AA-..., data AF9B60A0-..., cross-checked kernel+libldm).
+- Orchestrator wiring: run_engine_pass detects dynamic disks on Unknown-family slices
+  (one 512-byte probe rejects non-LDM disks), parses the database, and scans every
+  reconstructed volume through scan_candidate under per-volume "Dynamic Volume <name>"
+  roots. scan_candidate extended to report deleted counts (all engines).
+- Tests: 12 new Ldm.* tests (database/graph parse, simple/spanned/striped/mirrored/RAID-5
+  resolution and reads, composite VBLK spanning two slots, missing-column reconstruction
+  with real parity, double-failure, mirror failover with a hole device, non-LDM rejection)
+  + the end-to-end Orchestrator.DynamicDiskVolumeScan (FAT16 inside an LDM simple volume,
+  files + deleted found through the virtual device). The two recognition-era tests that
+  asserted fabricated field placements were removed from test_refs_ldm.cpp. Shared fixtures
+  extracted to test_fixtures.hpp. Fuzz: engines harness extended with cases 14/15 (LDM
+  parse; parse + volume-device reads incl. reconstruction).
+- Real defects caught by the loop: per-type parsers took the cursor by value (consumed
+  always 0 - the floor checks passed vacuously, the equality checks failed); LdmGuid::
+  to_string indexed b[] with text positions; the composite emitter passed a full slot as
+  the view (payload shifted 16 bytes); the first RAID-5 fixture had overlapping stripe
+  members and no real parity (the reconstruction math was right; the fixture was wrong).
+
+Stage Summary:
+- 124/124 tests green on gcc+ASan, clang-format clean, no stubs. LDM is now full-depth:
+  both MBR and GPT dynamic disks, all five volume kinds, reconstruction. AUDIT.md row 30
+  closed; rows 31+ (NTFS wave, wiring/semantic wave, carving wave) remain.
 Task ID: S6-START
 Agent: main
 Task: Session 6 - context recovery + P1-12 + benchmark split (user direction)

@@ -4,6 +4,7 @@
 #include "cr/recovery/cr_safewriter.h"
 #include "cr/session/cr_crsf.h"
 #include "cr/storage/cr_device.h"
+#include "test_fixtures.hpp"
 #include <cstring>
 #include <vector>
 
@@ -145,6 +146,51 @@ std::u16string u16_(const char* s) {
     return o;
 }
 
+TEST(Orchestrator, DynamicDiskVolumeScan) {
+    /* a FAT16 volume living inside an LDM simple volume on an MBR dynamic
+     * disk: the orchestrator must parse the LDM database, build the
+     * virtual volume device and scan it like any candidate */
+    auto fat = build_fat16(); /* 5074 sectors */
+    constexpr u64 PART_START = 2048;
+    constexpr u64 PART_SIZE = 5074;
+    cr::testfixture::LdmFixture fx(40960); /* 20 MiB disk */
+    fx.set_disk(1000, "01234567-89AB-CDEF-0123-456789ABCDEF");
+    fx.add_dgr4(1, "TestPCDg0");
+    fx.add_dsk4(1000, "Disk1", "01234567-89AB-CDEF-0123-456789ABCDEF");
+    fx.add_volume({2000, "Volume1", 1, PART_SIZE, 1});
+    fx.add_component({3000, "Volume1-01", cr::table::LDM_COMP_CONCAT, 1, 2000, 0, 0});
+    fx.add_partition({4000, "Disk1-01", PART_START, PART_SIZE, 0, 3000, 0, 1000});
+    fx.finish();
+    auto img = fx.take();
+    std::memcpy(img.data() + PART_START * 512, fat.data(), fat.size());
+
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    ScanConfig cfg;
+    cfg.run_quick = true;
+    cfg.run_deep = true;
+    cfg.run_carve = false;
+    cfg.whole_disk = true;
+    ScanController ctrl(tree, cfg);
+    ScanStats stats;
+    u32 rc = ctrl.run(&dev, nullptr, nullptr, nullptr, stats);
+    ASSERT_EQ(rc, OK) << err_text(rc);
+    EXPECT_GE(stats.files_found, 1u);   /* DOC.TXT inside the dynamic volume */
+    EXPECT_GE(stats.deleted_found, 1u); /* DELFILE.TXT */
+
+    /* the volume was scanned under a "Dynamic Volume Volume1" root */
+    tree::FileNode* doc = nullptr;
+    std::function<void(tree::FileNode*)> collect = [&](tree::FileNode* n) {
+        for (tree::FileNode* c = n->first_child(); c; c = c->next_sibling()) {
+            if (c->name_utf8() == "DOC.TXT")
+                doc = c;
+            collect(c);
+        }
+    };
+    for (tree::FileNode* r : tree.roots())
+        collect(r);
+    ASSERT_NE(nullptr, doc);
+}
 } // namespace
 
 TEST(Orchestrator, WeightedProgress) {
