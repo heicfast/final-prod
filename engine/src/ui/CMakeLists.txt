@@ -28,4 +28,3 @@ else()
 endif()
 add_test(NAME cr_ui_abi_check
          COMMAND cr_ui_abi_check ${CMAKE_CURRENT_BINARY_DIR}/abi-tmp)
-cr_deploy_vcpkg_binaries(cr_ui_abi_check)

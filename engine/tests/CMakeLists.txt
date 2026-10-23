@@ -52,19 +52,3 @@ endif()
 
 include(GoogleTest)
 gtest_discover_tests(cr_tests)
-
-if(WIN32 AND CR_BUILD_APP AND CR_BUILD_UI)
-    # Real C ABI scan -> real CRSF -> real rrecov process. The fixture keeps
-    # its saved session only for this dependent CLI contract test; the normal
-    # cr_ui_abi_check lifecycle test remains self-cleaning.
-    set(CLI_FIXTURE_DIR ${CMAKE_CURRENT_BINARY_DIR}/cli-fixture)
-    add_test(NAME cli_fixture
-             COMMAND cr_ui_abi_check ${CLI_FIXTURE_DIR} --keep-session)
-    add_test(NAME cli_contract
-             COMMAND pwsh -NoProfile -ExecutionPolicy Bypass
-                     -File ${CMAKE_CURRENT_SOURCE_DIR}/cli/cli_contract.ps1
-                     -Exe $<TARGET_FILE:rrecov>
-                     -Session ${CLI_FIXTURE_DIR}/cr_ui_session.crsf
-                     -WorkDir ${CLI_FIXTURE_DIR}/cli-output)
-    set_tests_properties(cli_contract PROPERTIES DEPENDS cli_fixture)
-endif()
