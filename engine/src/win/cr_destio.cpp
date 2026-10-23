@@ -77,5 +77,39 @@ bool WinDestIo::exists(const std::u16string& path_utf16) {
            INVALID_FILE_ATTRIBUTES;
 }
 
+u32 WinDestIo::mkdir(const std::u16string& path_utf16) {
+    /* G-08: create every component of the chain; ERROR_ALREADY_EXISTS is
+     * success (idempotent reconstruction). Trailing separators stripped. */
+    std::u16string p = path_utf16;
+    while (p.size() > 1 && (p.back() == u'\\' || p.back() == u'/'))
+        p.pop_back();
+    if (p.empty())
+        return ERR_BAD_PARAMETER;
+    /* keep the leading \\?\ or \\.\ prefix intact across the split */
+    size_t start = 0;
+    if (p.size() >= 2 && p[0] == u'\\' && p[1] == u'\\')
+        start = 2;
+    for (size_t i = start + 1; i <= p.size(); ++i) {
+        const bool end = i == p.size();
+        if (!end && p[i] != u'\\' && p[i] != u'/')
+            continue;
+        if (i == start + 1)
+            continue; /* empty component */
+        std::u16string prefix = p.substr(0, i);
+        if (CreateDirectoryW(reinterpret_cast<const wchar_t*>(prefix.c_str()), nullptr))
+            continue;
+        const DWORD e = GetLastError();
+        if (e == ERROR_ALREADY_EXISTS) {
+            /* a FILE in the way is not a directory: surface it */
+            DWORD attr = GetFileAttributesW(reinterpret_cast<const wchar_t*>(prefix.c_str()));
+            if (attr != INVALID_FILE_ATTRIBUTES && (attr & FILE_ATTRIBUTE_DIRECTORY))
+                continue;
+            return ERR_DEST_UNWRITABLE;
+        }
+        return ERR_DEST_UNWRITABLE;
+    }
+    return OK;
+}
+
 } // namespace win
 } // namespace cr

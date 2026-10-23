@@ -48,11 +48,20 @@ std::u16string SafeWriter::resolve_collision(const std::u16string& dir,
     if (!prefix.empty() && prefix.back() != u'\\' && prefix.back() != u'/')
         prefix.push_back(u'\\');
     std::u16string cand = base_name;
-    for (u32 attempt = 2; attempt < cfg_.rename_attempts; ++attempt) {
-        if (!io_.exists(prefix + cand))
+    for (u32 attempt = 1; attempt < cfg_.rename_attempts; ++attempt) {
+        const std::u16string key = prefix + u"|" + cand;
+        const bool intra = claimed_names_.count(key) != 0;
+        /* pre-existing destination finals only conflict under Rename
+         * (corpus R7.1); Skip/Overwrite keep the name so the recover pass
+         * can detect + skip (idempotent) or replace the final */
+        const bool dest_taken =
+            cfg_.conflict == ConflictPolicy::Rename && io_.exists(prefix + cand);
+        if (!intra && !dest_taken) {
+            claimed_names_.insert(key);
             return cand;
+        }
         char buf[16];
-        snprintf(buf, sizeof(buf), " (%u)", attempt);
+        snprintf(buf, sizeof(buf), " (%u)", attempt + 1);
         std::u16string suffix;
         for (const char* p = buf; *p; ++p)
             suffix.push_back(u16(u8(*p)));
@@ -63,7 +72,6 @@ std::u16string SafeWriter::resolve_collision(const std::u16string& dir,
         } else {
             cand = base_name.substr(0, last_dot) + suffix + base_name.substr(last_dot);
         }
-        (void)prefix;
     }
     return base_name + u"_dup";
 }
@@ -72,11 +80,13 @@ u32 SafeWriter::enqueue(tree::FileNode* node, const std::u16string& dest_dir) {
     if (node == nullptr || node->props() == nullptr || source_ == nullptr)
         return ERR_BAD_PARAMETER;
     const tree::FileProperties* pr = node->props();
+    const bool is_dir = cfg_.reconstruct_dirs && (pr->attributes & 0x10) != 0;
 
     /* R7.2 / F12: hard refusal on source/destination overlap. The node's
      * extents are ABSOLUTE device offsets; the destination extent is the
-     * destination volume's disk placement. */
-    if (have_dest_ && dest_bytes_ > 0) {
+     * destination volume's disk placement. Directory nodes carry no
+     * extents - never refused (G-08). */
+    if (!is_dir && have_dest_ && dest_bytes_ > 0) {
         for (const auto& e : pr->extents) {
             if (intersects(e.offset, e.length, dest_start_, dest_bytes_)) {
                 QueueItem refused;
@@ -99,6 +109,15 @@ u32 SafeWriter::enqueue(tree::FileNode* node, const std::u16string& dest_dir) {
     const std::u16string clean = sanitize_name(pr->name);
     it.final_name = resolve_collision(it.dest_dir, clean);
     it.item_id = next_id_++;
+    it.is_dir = is_dir;
+    if (is_dir) {
+        /* G-08 structure item: no content, no temp file - the recover pass
+         * materializes the directory (mkdir) and stamps it Done. */
+        it.bytes_total = 0;
+        it.state = ItemState::Pending;
+        queue_.push_back(it);
+        return OK;
+    }
     char suf[32];
     snprintf(suf, sizeof(suf), ".part-%llu", (unsigned long long)it.item_id);
     it.temp_suffix.clear();
@@ -110,15 +129,52 @@ u32 SafeWriter::enqueue(tree::FileNode* node, const std::u16string& dest_dir) {
     return OK;
 }
 
+u32 SafeWriter::ensure_dir_(const std::u16string& dir) {
+    /* one mkdir per unique directory per run (the DestIo implementation
+     * creates parents recursively) */
+    if (dir.empty() || made_dirs_.count(dir))
+        return OK;
+    if (u32 rc = io_.mkdir(dir))
+        return rc;
+    made_dirs_.insert(dir);
+    return OK;
+}
+
 u32 SafeWriter::recover_item(QueueItem& it, CancelToken* cancel, WriterStats& stats) {
     const tree::FileProperties* pr = it.node->props();
+    if (it.is_dir) {
+        /* G-08: materialize the directory itself (idempotent - an existing
+         * directory is success), so empty leaves survive reconstruction */
+        if (u32 rc = ensure_dir_(it.dest_dir + it.final_name)) {
+            it.state = ItemState::Error;
+            it.error = rc;
+            ++stats.errors;
+            return rc;
+        }
+        it.state = ItemState::Done;
+        ++stats.dirs;
+        return OK;
+    }
     if (pr->extents.empty() && pr->resident_data.empty()) {
         /* metadata-only: nothing to read; an empty marker file still helps
          * the user see the name - write empty */
     }
+    /* G-08: the destination directory chain must exist before the temp
+     * file can be created in it */
+    if (cfg_.reconstruct_dirs) {
+        if (u32 rc = ensure_dir_(it.dest_dir)) {
+            it.state = ItemState::Error;
+            it.error = rc;
+            ++stats.errors;
+            return rc;
+        }
+    }
     /* resume detection (audit row 35a): a final file that already exists
-     * is counted and skipped - re-running a recovery must be idempotent */
-    if (io_.exists(it.dest_dir + it.final_name)) {
+     * is counted and skipped - under ConflictPolicy::Skip this makes
+     * re-running a recovery idempotent (the name is kept, so the second
+     * run lands HERE instead of colliding into "(2)" copies); under
+     * Rename the fresh name should not exist (kept for the race window) */
+    if (cfg_.conflict != ConflictPolicy::Overwrite && io_.exists(it.dest_dir + it.final_name)) {
         it.state = ItemState::Done;
         ++stats.resumed;
         return OK;
@@ -316,6 +372,7 @@ u32 SafeWriter::process(CancelToken* cancel, bool (*progress)(u64, u64, void*), 
         if (progress && !progress(done_bytes, total_bytes ? total_bytes : 1, progress_user))
             return ERR_CANCELLED;
     }
+    stats.queued = queue_.size();
     return OK;
 }
 

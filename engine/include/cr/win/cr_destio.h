@@ -18,6 +18,8 @@ class WinDestIo final : public recovery::DestIo {
 public:
     u32 create_temp(u64 item_id, const std::u16string& final_path_utf16,
                     const std::u16string& temp_suffix_utf16) override;
+    /* G-08: recursive CreateDirectoryW chain; already-exists is success */
+    u32 mkdir(const std::u16string& path_utf16) override;
     u32 write(u64 item_id, u64 offset, const void* data, u32 len) override;
     u32 commit(u64 item_id) override;
     void close(u64 item_id) override;

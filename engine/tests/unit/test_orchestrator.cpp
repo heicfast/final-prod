@@ -106,9 +106,10 @@ std::vector<u8> build_fat16() {
 struct MockIo final : DestIo {
     std::vector<std::u16string> created;
     std::vector<std::u16string> committed;
-    std::map<u64, std::vector<u8>> files; /* item_id -> content */
-    std::map<u64, std::u16string> finals; /* item_id -> final path */
-    std::set<std::u16string> existing;    /* for exists() */
+    std::map<u64, std::vector<u8>> files;  /* item_id -> content */
+    std::map<u64, std::u16string> finals;  /* item_id -> final path */
+    std::set<std::u16string> existing;     /* for exists() */
+    std::vector<std::u16string> made_dirs; /* G-08 mkdir log */
 
     u32 create_temp(u64 id, const std::u16string& final_path,
                     const std::u16string& temp_suffix) override {
@@ -116,6 +117,11 @@ struct MockIo final : DestIo {
         created.push_back(final_path);
         finals[id] = final_path;
         files[id] = {};
+        return 0;
+    }
+    u32 mkdir(const std::u16string& p) override {
+        made_dirs.push_back(p);
+        existing.insert(p); /* a made dir also exists */
         return 0;
     }
     u32 write(u64 id, u64 off, const void* data, u32 len) override {

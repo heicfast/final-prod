@@ -17,6 +17,7 @@
 #include "../crypto/cr_sha256.h"
 #include "../storage/cr_device.h"
 #include "../tree/cr_node.h"
+#include <set>
 #include <string>
 #include <vector>
 
@@ -32,6 +33,10 @@ public:
      * concurrent same-final-name items from colliding (audit row 35c) */
     virtual u32 create_temp(u64 item_id, const std::u16string& final_path_utf16,
                             const std::u16string& temp_suffix_utf16) = 0;
+    /* create a directory (recursively: parents first) - "already exists"
+     * is success, any other failure must surface as an error code
+     * (G-08: destination structure reconstruction). */
+    virtual u32 mkdir(const std::u16string& path_utf16) = 0;
     virtual u32 write(u64 item_id, u64 offset, const void* data, u32 len) = 0;
     /* fsync-equivalent + atomic rename temp -> final */
     virtual u32 commit(u64 item_id) = 0;
@@ -41,6 +46,16 @@ public:
 };
 
 enum class ItemState : u8 { Pending = 0, Reading, Writing, Verifying, Done, Error, Refused };
+
+/* Destination conflict policy (G-08/G-09): what to do when the exact
+ * final path already exists on the destination.
+ * - Rename (default): numeric suffix "name (2)" (corpus R7.1; og parity).
+ * - Skip: keep the name; the pre-existing final is counted and skipped
+ *   (idempotent re-runs; never overwrites user content).
+ * - Overwrite: temp + REPLACE_EXISTING onto the final.
+ * Intra-queue duplicates (two queued nodes, same dir+name) ALWAYS rename
+ * regardless of policy. */
+enum class ConflictPolicy : u8 { Rename = 0, Skip = 1, Overwrite = 2 };
 
 struct QueueItem {
     tree::FileNode* node = nullptr;
@@ -53,6 +68,7 @@ struct QueueItem {
     u64 bytes_done = 0;
     u64 bytes_total = 0;
     bool hash_verified = false;
+    bool is_dir = false; /* G-08: structure item - mkdir, no content */
 };
 
 struct WriterConfig {
@@ -60,6 +76,11 @@ struct WriterConfig {
     u32 rename_attempts = 64;   /* collision suffix cap */
     bool verify_hash = true;    /* refuse-after-write mismatch is an error */
     bool skip_hashless = false; /* items without a known hash still recover */
+    /* G-08: reconstruct the destination directory structure - every item's
+     * dest_dir is created (mkdir -p, cached per unique dir) before writing,
+     * and directory nodes are enqueueable so empty leaves materialize. */
+    bool reconstruct_dirs = true;
+    ConflictPolicy conflict = ConflictPolicy::Rename;
 };
 
 struct WriterStats {
@@ -69,6 +90,7 @@ struct WriterStats {
     u64 errors = 0;
     u64 hash_mismatch = 0;
     u64 resumed = 0; /* detected complete .part files finalized */
+    u64 dirs = 0;    /* G-08: directory nodes materialized */
 };
 
 class SafeWriter {
@@ -91,7 +113,10 @@ public:
 
     const std::vector<QueueItem>& queue() const { return queue_; }
 
-    /* collision resolution policy: "name" -> "name (2)", "name (3)"... */
+    /* collision resolution policy: intra-queue duplicates always rename
+     * ("name" -> "name (2)"...); pre-existing destination finals rename only
+     * under ConflictPolicy::Rename (corpus R7.1) - Skip keeps the name so
+     * the recover pass detects + skips them (idempotent re-runs). */
     std::u16string resolve_collision(const std::u16string& dir,
                                      const std::u16string& base_name) const;
 
@@ -101,6 +126,8 @@ public:
 
 private:
     u32 recover_item(QueueItem& it, CancelToken* cancel, WriterStats& stats);
+    /* G-08: create `dir` (recursive) once per unique directory per run */
+    u32 ensure_dir_(const std::u16string& dir);
     DestIo& io_;
     IStorageDevice* source_;
     WriterConfig cfg_;
@@ -109,6 +136,10 @@ private:
     bool have_dest_ = false;
     u64 next_id_ = 1;
     std::vector<QueueItem> queue_;
+    std::set<std::u16string> made_dirs_; /* mkdir cache (G-08) */
+    /* names assigned within THIS queue ("dir|name") - intra-queue
+     * collision source of truth, independent of destination state */
+    mutable std::set<std::u16string> claimed_names_;
 };
 
 } // namespace recovery

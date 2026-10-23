@@ -670,7 +670,8 @@ int cmd_recover(int argc, wchar_t** argv, int& i) {
         to_dir.push_back(L'\\');
     std::u16string dest16(to_dir.begin(), to_dir.end());
 
-    /* enqueue every matching file node */
+    /* enqueue every matching file node; directory nodes enqueue as
+     * structure items too (G-08) so empty leaves materialize */
     size_t queued = 0, refused = 0;
     std::function<void(tree::FileNode*, const std::u16string&)> plan =
         [&](tree::FileNode* n, const std::u16string& path) {
@@ -680,6 +681,10 @@ int cmd_recover(int argc, wchar_t** argv, int& i) {
                 const bool is_dir = (c->props()->attributes & 0x10) != 0;
                 const bool deleted = c->deleted_state() != tree::DeletedState::Active;
                 if (is_dir) {
+                    /* the directory itself becomes a queue item (mkdir on
+                     * process); descend regardless so deep leaves survive */
+                    if (writer.enqueue(c, path) == OK)
+                        ++queued;
                     plan(c, path + c->props()->name + u"\\");
                     continue;
                 }
