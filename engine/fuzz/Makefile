@@ -13,9 +13,14 @@
 #         make run-long  (2-minute campaign per target)
 
 CXX ?= clang++
+# optional codecs (ZFS compressed extents): picked up when present
+LZ4_FLAGS := $(shell pkg-config --exists liblz4 && echo -DCR_HAVE_LZ4=1)
+LZ4_LIBS := $(shell pkg-config --exists liblz4 && echo -llz4)
+ZSTD_FLAGS := $(shell pkg-config --exists libzstd && echo -DCR_HAVE_ZSTD=1)
+ZSTD_LIBS := $(shell pkg-config --exists libzstd && echo -lzstd)
 CXXFLAGS := -std=c++20 -g -O1 -fsanitize=fuzzer,address,undefined \
-            -fno-omit-frame-pointer -I../include -Wall -Wextra
-LDLIBS := -lz
+            -fno-omit-frame-pointer -I../include -Wall -Wextra $(LZ4_FLAGS) $(ZSTD_FLAGS)
+LDLIBS := -lz $(LZ4_LIBS) $(ZSTD_LIBS)
 
 BUILD := build
 CORE_SRCS := $(shell find ../src/core -name '*.cpp')

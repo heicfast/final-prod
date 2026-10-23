@@ -9,9 +9,14 @@
  * geometry) -> uberblock ring (max txg, checksum-checked ub_rootbp) -> MOS
  * objset -> object directory ZAP -> dataset directory chain -> per-dataset
  * objset_phys -> master-node ZAP -> ZPL directories (micro/macro ZAP) ->
- * znode bonus buffers (mode/size/times). DVAs resolve through the vdev's
- * ashift/qshift math; gang blocks and indirect vdevs are detected and
- * reported rather than mis-read.
+ * znode bonus buffers (SA layout 1 and legacy znode_phys; mode/size/times).
+ * DVAs resolve through the vdev offset from the label config; file data
+ * walks the full indirect-block ladder (any nlevels), embedded block
+ * pointers decode via the blkptr.c payload algorithm, and compressed
+ * blocks (lzjb/lz4/zle/gzip/zstd) are tagged on the extent for writer-time
+ * decode. Big-endian pools are detected and refused with ERR_UNSUPPORTED.
+ * Gang blocks are reported via stats.damaged_blocks (content assembly
+ * needs multi-DVA reads).
  *
  * Single-device pools (the overwhelmingly common external-drive case);
  * multi-vdev pools are detected and reported as unsupported at full depth.
@@ -42,6 +47,8 @@ struct ZfsScanStats {
     u64 damaged_blocks = 0;
     u64 unsupported_vdevs = 0; /* gang/indirect/mirror/raid multi-vdev */
     u64 txg = 0;               /* the selected uberblock's txg */
+    u64 embedded_files = 0;    /* files with embedded-bp content */
+    u64 compressed_extents = 0; /* extents carrying a codec */
 };
 
 struct ZfsScanFlags {

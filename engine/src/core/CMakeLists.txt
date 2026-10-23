@@ -30,6 +30,7 @@ add_library(cr_core STATIC
     zfs/cr_zfs_engine.cpp
     lost/cr_candidates.cpp
     crypto/cr_sha256.cpp
+    compress/cr_decomp.cpp
     carve/cr_registry.cpp
     carve/cr_analysers.cpp
     carve/cr_carve.cpp
@@ -46,6 +47,14 @@ add_library(cr::core ALIAS cr_core)
 target_include_directories(cr_core PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}/../../include)
 target_link_libraries(cr_core PUBLIC ZLIB::ZLIB)
+if(CR_LZ4_LINK)
+    target_link_libraries(cr_core PUBLIC ${CR_LZ4_LINK})
+    target_compile_definitions(cr_core PUBLIC CR_HAVE_LZ4=1)
+endif()
+if(CR_ZSTD_LINK)
+    target_link_libraries(cr_core PUBLIC ${CR_ZSTD_LINK})
+    target_compile_definitions(cr_core PUBLIC CR_HAVE_ZSTD=1)
+endif()
 
 if(CR_ENABLE_ASAN AND NOT MSVC)
     target_compile_options(cr_core PRIVATE -fsanitize=address)

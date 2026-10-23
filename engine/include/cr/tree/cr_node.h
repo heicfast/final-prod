@@ -53,11 +53,22 @@ public:
     u32 attributes = 0;  /* DOS attributes (dir/hidden/...) */
     u16 flags = 0;       /* internal: 4 = system-filter (corpus) */
     std::u16string name; /* full display name (LFN) */
+    /* resident content: NTFS resident $DATA / ADS streams, ZFS embedded
+     * block-pointer payloads, Btrfs inline extents. Present only when the
+     * content lives in metadata instead of disk extents (or alongside
+     * extents for mixed streams - resident bytes come first). Bounded by
+     * the metadata area that holds them. */
+    std::vector<u8> resident_data;
     /* extents in ABSOLUTE device bytes (resolved through the slice at emit
-     * time - engines work slice-relative, the graph stores absolute) */
+     * time - engines work slice-relative, the graph stores absolute).
+     * codec 0 = plain bytes (psize == length); codec != 0 = the on-disk
+     * psize bytes at `offset` decode to `length` logical bytes via
+     * cr::compress::decompress_block (ZFS-family compressed extents). */
     struct Extent {
         u64 offset;
         u64 length;
+        u32 codec = 0; /* cr::compress::Codec */
+        u64 psize = 0; /* on-disk size (0 == length: raw) */
     };
     std::vector<Extent> extents;
     /* carving provenance (Origin::Carved nodes) */

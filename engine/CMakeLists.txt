@@ -43,6 +43,44 @@ if(NOT ZLIB_FOUND)
     message(FATAL_ERROR "zlib not found - install zlib (apt: zlib1g-dev; vcpkg: zlib)")
 endif()
 
+# ---------------------------------------------------------------------------
+# LZ4 + zstd (ZFS compressed-extent decoding). Optional at build time: the
+# decompressor reports unavailable codecs instead of failing the build, but
+# CI builds must carry both so real pools decode (apt: liblz4-dev libzstd-dev;
+# vcpkg: lz4 zstd).
+# ---------------------------------------------------------------------------
+find_package(PkgConfig QUIET)
+if(PkgConfig_FOUND)
+    pkg_check_modules(LZ4 QUIET IMPORTED_TARGET liblz4)
+    pkg_check_modules(ZSTD QUIET IMPORTED_TARGET libzstd)
+endif()
+if(NOT TARGET PkgConfig::LZ4)
+    find_library(LZ4_LIB NAMES lz4)
+    find_path(LZ4_HEADER lz4.h)
+    if(LZ4_LIB AND LZ4_HEADER)
+        add_library(PkgConfig::LZ4 UNKNOWN IMPORTED)
+        set_target_properties(PkgConfig::LZ4 PROPERTIES
+            IMPORTED_LOCATION "${LZ4_LIB}"
+            INTERFACE_INCLUDE_DIRECTORIES "${LZ4_HEADER}/..")
+    endif()
+endif()
+if(NOT TARGET PkgConfig::ZSTD)
+    find_library(ZSTD_LIB NAMES zstd)
+    find_path(ZSTD_HEADER zstd.h)
+    if(ZSTD_LIB AND ZSTD_HEADER)
+        add_library(PkgConfig::ZSTD UNKNOWN IMPORTED)
+        set_target_properties(PkgConfig::ZSTD PROPERTIES
+            IMPORTED_LOCATION "${ZSTD_LIB}"
+            INTERFACE_INCLUDE_DIRECTORIES "${ZSTD_HEADER}/..")
+    endif()
+endif()
+if(TARGET PkgConfig::LZ4)
+    set(CR_LZ4_LINK "PkgConfig::LZ4")
+endif()
+if(TARGET PkgConfig::ZSTD)
+    set(CR_ZSTD_LINK "PkgConfig::ZSTD")
+endif()
+
 add_subdirectory(src)
 if(CR_ENABLE_TESTS)
     enable_testing()

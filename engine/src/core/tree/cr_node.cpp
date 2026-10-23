@@ -57,6 +57,7 @@ FileProperties* FileProperties::clone() const {
     p->attributes = attributes;
     p->flags = flags;
     p->name = name;
+    p->resident_data = resident_data;
     p->extents = extents;
     p->carve_format = carve_format;
     p->carve_confidence = carve_confidence;

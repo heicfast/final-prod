@@ -107,8 +107,22 @@ u32 serialize_tree(const tree::ResultTree& tree, std::vector<u8>& out) {
     for (size_t i = 0; i < order.size(); ++i) {
         const tree::FileNode* n = order[i];
         const tree::FileProperties* pr = n->props();
+        /* v2 node flags (stored in the v1 reserved slot; old readers skip
+         * the extra fields, old files read back with flags==0):
+         *   bit0: extents carry {u32 codec, u64 psize} each
+         *   bit1: resident_data blob follows the extents */
+        u16 nflags = 0;
+        if (pr) {
+            for (const auto& e : pr->extents)
+                if (e.codec != 0 || e.psize != 0) {
+                    nflags |= 1;
+                    break;
+                }
+            if (!pr->resident_data.empty())
+                nflags |= 2;
+        }
         put32(out, parent_ids[i]);
-        put16(out, 0); /* reserved v1 alignment */
+        put16(out, nflags);
         out.push_back(u8(n->is_full() ? 1 : 0));
         out.push_back(u8(n->origin()));
         out.push_back(u8(n->deleted_state()));
@@ -132,6 +146,14 @@ u32 serialize_tree(const tree::ResultTree& tree, std::vector<u8>& out) {
         for (const auto& e : (pr ? pr->extents : std::vector<tree::FileProperties::Extent>{})) {
             put64(out, e.offset);
             put64(out, e.length);
+            if (nflags & 1) {
+                put32(out, e.codec);
+                put64(out, e.psize);
+            }
+        }
+        if (nflags & 2) {
+            put32(out, u32(pr->resident_data.size()));
+            out.insert(out.end(), pr->resident_data.begin(), pr->resident_data.end());
         }
         put32(out, pr ? pr->carve_format : 0);
         put16(out, u16(pr ? pr->carve_confidence : 0));
@@ -162,8 +184,7 @@ u32 deserialize_tree(const u8* data, size_t len, tree::ResultTree& tree) {
     tree::FullNode* default_root = nullptr; /* lazy synthetic root */
     for (u32 i = 0; i < count; ++i) {
         const u32 parent_id = c.g32();
-        const u16 reserved = c.g16();
-        (void)reserved;
+        const u16 nflags = c.g16(); /* v1 reserved / v2 node flags */
         const u8 marker = c.g8();
         const u8 origin = c.g8();
         const u8 deleted = c.g8();
@@ -190,6 +211,16 @@ u32 deserialize_tree(const u8* data, size_t len, tree::ResultTree& tree) {
         for (u32 k = 0; k < ec; ++k) {
             props->extents[k].offset = c.g64();
             props->extents[k].length = c.g64();
+            if (nflags & 1) {
+                props->extents[k].codec = c.g32();
+                props->extents[k].psize = c.g64();
+            }
+        }
+        if (nflags & 2) {
+            const u32 rlen = c.g32();
+            props->resident_data.resize(rlen);
+            if (rlen && !c.bytes(props->resident_data.data(), rlen))
+                break;
         }
         props->carve_format = c.g32();
         props->carve_confidence = c.g16();

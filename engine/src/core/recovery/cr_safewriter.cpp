@@ -4,6 +4,7 @@
  */
 
 #include "cr/recovery/cr_safewriter.h"
+#include "cr/compress/cr_decomp.h"
 #include <cstring>
 
 namespace cr {
@@ -111,7 +112,7 @@ u32 SafeWriter::enqueue(tree::FileNode* node, const std::u16string& dest_dir) {
 
 u32 SafeWriter::recover_item(QueueItem& it, CancelToken* cancel, WriterStats& stats) {
     const tree::FileProperties* pr = it.node->props();
-    if (pr->extents.empty() || pr->logical_size == 0) {
+    if (pr->extents.empty() && pr->resident_data.empty()) {
         /* metadata-only: nothing to read; an empty marker file still helps
          * the user see the name - write empty */
     }
@@ -125,6 +126,23 @@ u32 SafeWriter::recover_item(QueueItem& it, CancelToken* cancel, WriterStats& st
     it.state = ItemState::Writing;
 
     crypto::Sha256 hash;
+    /* resident metadata content first (NTFS resident streams, ZFS embedded
+     * block-pointer payloads, Btrfs inline extents), then disk extents */
+    if (!pr->resident_data.empty()) {
+        const u64 emit = pr->resident_data.size() > pr->logical_size && pr->logical_size != 0
+                             ? pr->logical_size
+                             : u64(pr->resident_data.size());
+        if (emit) {
+            if (u32 rc = io_.write(it.item_id, 0, pr->resident_data.data(), u32(emit))) {
+                io_.close(it.item_id);
+                it.state = ItemState::Error;
+                it.error = rc;
+                ++stats.errors;
+                return rc;
+            }
+            hash.update(pr->resident_data.data(), u32(emit));
+        }
+    }
     std::vector<u8> chunk;
     chunk.resize(size_t(cfg_.read_chunk));
     u64 done = 0;
@@ -147,6 +165,22 @@ u32 SafeWriter::recover_item(QueueItem& it, CancelToken* cancel, WriterStats& st
             ++ext_i;
         }
         if (ext_i >= pr->extents.size()) {
+            if (!pr->resident_data.empty()) {
+                /* resident-only file: logical size may exceed the payload
+                 * (padded); zero-fill the remainder */
+                std::memset(chunk.data(), 0, size_t(want));
+                if (u32 rc = io_.write(it.item_id, done, chunk.data(), u32(want))) {
+                    io_.close(it.item_id);
+                    it.state = ItemState::Error;
+                    it.error = rc;
+                    ++stats.errors;
+                    return rc;
+                }
+                hash.update(chunk.data(), u32(want));
+                done += want;
+                it.bytes_done = done;
+                continue;
+            }
             io_.close(it.item_id);
             it.state = ItemState::Error;
             it.error = ERR_TRUNCATED;
@@ -160,20 +194,63 @@ u32 SafeWriter::recover_item(QueueItem& it, CancelToken* cancel, WriterStats& st
         if (want > chunk.size())
             want = chunk.size();
         const u32 got = u32(want);
-        if (source_->read_at(pr->extents[ext_i].offset + in_ext, chunk.data(), got) != OK) {
+        if (pr->extents[ext_i].codec != 0) {
+            /* compressed extent: decode the whole block on demand; the
+             * logical bytes come from the decoded image, not the disk */
+            const u64 psize = pr->extents[ext_i].psize ? pr->extents[ext_i].psize
+                                                       : pr->extents[ext_i].length;
+            const u64 lsize = pr->extents[ext_i].length;
+            if (psize == 0 || lsize == 0 || psize > (256ull << 20) || lsize > (256ull << 20)) {
+                io_.close(it.item_id);
+                it.state = ItemState::Error;
+                it.error = ERR_BAD_PARAMETER;
+                ++stats.errors;
+                return ERR_BAD_PARAMETER;
+            }
+            std::vector<u8> packed(static_cast<size_t>(psize), 0);
+            std::vector<u8> plain(static_cast<size_t>(lsize), 0);
+            if (source_->read_at(pr->extents[ext_i].offset, packed.data(), u32(psize)) != OK) {
+                std::memset(packed.data(), 0, size_t(psize)); /* Skip policy */
+                std::memset(plain.data(), 0, size_t(lsize));
+            } else if (!compress::decompress_block(pr->extents[ext_i].codec, packed.data(),
+                                                    size_t(psize), plain.data(), size_t(lsize))) {
+                /* malformed compressed block: zero-fill (hash will
+                 * mismatch) - never silently emit wrong bytes */
+                std::memset(plain.data(), 0, size_t(lsize));
+            }
+            const u64 have = lsize - in_ext;
+            const u32 take = u32(have < u64(got) ? have : u64(got));
+            if (take) {
+                if (u32 rc = io_.write(it.item_id, done, plain.data() + in_ext, take)) {
+                    io_.close(it.item_id);
+                    it.state = ItemState::Error;
+                    it.error = rc;
+                    ++stats.errors;
+                    return rc;
+                }
+                hash.update(plain.data() + in_ext, take);
+            }
+            done += take;
+            it.bytes_done = done;
+            if (take < got)
+                ++ext_i, ext_pos += lsize; /* consumed this extent */
+            continue;
+        }
+        const u32 got_raw = u32(want);
+        if (source_->read_at(pr->extents[ext_i].offset + in_ext, chunk.data(), got_raw) != OK) {
             /* zero-fill the unreadable span (Skip policy) and continue -
              * the hash will intentionally mismatch on damaged content */
-            std::memset(chunk.data(), 0, got);
+            std::memset(chunk.data(), 0, got_raw);
         }
-        if (u32 rc = io_.write(it.item_id, done, chunk.data(), got)) {
+        if (u32 rc = io_.write(it.item_id, done, chunk.data(), got_raw)) {
             io_.close(it.item_id);
             it.state = ItemState::Error;
             it.error = rc;
             ++stats.errors;
             return rc;
         }
-        hash.update(chunk.data(), got);
-        done += got;
+        hash.update(chunk.data(), got_raw);
+        done += got_raw;
         it.bytes_done = done;
     }
 
