@@ -1058,3 +1058,41 @@ Stage Summary:
 - NEXT AGENT SHOULD: verify CI green on 74f42c0+ (all lanes), consciously amend
   ref_imports_um.json if the gate trips, then execute the tag recipe above; the
   P1-1/G-01/G-02/BENCH work continues per the register owners.
+
+---
+Task ID: S5-CONT-4
+Agent: Session-5 continuation (S5-CONT-2 line, main)
+Task: G-01/G-02 UI integration surfaces + tree --json (the remaining
+items on this agent's queue after the P1/bench waves).
+
+Work Log:
+- G-02 (28309b2): cr::tree::Snapshot - the copy-on-write value snapshot
+  (ResultTree::capture_snapshot under the tree mutex; SNAP_PARTIAL truth;
+  DFS byte-parity with the live serializer) + SafeWriter value-enqueue
+  (writer-owned props store; mid-scan recovery touches zero live-tree
+  state). ADR-UI-SNAPSHOT written. 4 acceptance tests incl. the TSan
+  concurrent emit/capture/walk + recovery-determinism byte parity.
+- GAP-TREE-JSON (57403a0): rrecov tree --json - the query::run
+  projection with the frozen schema (same numeric enums as --csv;
+  report::escape_json for all strings). --csv byte-identical.
+- G-01 (e79d23f): include/cr/cr_ui.h + the cr_ui shared object - the
+  stable C ABI (ABI version, thread-local last_error, opaque handles,
+  abi_size-versioned PODs, catch-all per entry). Scan lifecycle (image-
+  file device w/ 64-bit stdio, pause/cancel/resume, telemetry POD),
+  snapshot+children, query (G-12 semantics, lock-free over the snapshot),
+  recovery (callback DestIo portable + Win32 path), report, preview,
+  sessions; Windows-only list/health/scan_disk exports guarded.
+  tools/cr_ui_abi_check.c: plain-C consumer (-std=c11, -Wall -Wextra
+  -Werror; /W4 /WX on MSVC) builds a FAT16 image from scratch and runs
+  the ENTIRE lifecycle - green under ASan with zero leaks (caught one
+  real null-deref + one handle leak in the shim during acceptance).
+  Registered in ctest for every lane.
+- e8da7ef: MSVC flag-spelling guard for the consumer target.
+
+Stage Summary:
+- This agent's register queue is EMPTY: GAP-P1-1..5, GAP-BENCH-1..5,
+  GAP-CI-1, GAP-W2-9, GAP-W2-19 (P1-4), GAP-G-01, GAP-G-02, GAP-G-02b,
+  GAP-TREE-JSON - all closed with regression evidence.
+- Remaining repo-wide (PARITY-W4's lane): W6 Win7 user-mode import gate
+  pins, the release tag + artifacts, GAP-CI-2 lane watching, the #10
+  umbrella disposition (README matrix pieces live in their W5 wave).
