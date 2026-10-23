@@ -1276,3 +1276,40 @@ Stage Summary:
   upgraded release workflow - the SDK bundle build gets its first live
   validation there), verify the release artifacts, flip GAP-W6-RELEASE to
   CLOSED, then #10 umbrella disposition.
+
+---
+Task ID: S5-CONT-5c
+Agent: Session-5 continuation (same lane)
+Task: The Win7 gate's designed convergence to green (the cr_tests +
+cr_ui.dll iterations) - tracked evidence.
+
+Work Log:
+- bb6a647 windows lane: rrecov.exe PASSED the gate ('OK 145 imports') -
+  the first amend (SRWLock/CV/InitOnce + real vcpkg DLL names) was
+  correct. Lane died gating cr_tests.exe for the first time (the original
+  74f42c0 run exited at rrecov and never reached it): 14 kernel32
+  imports = the std::filesystem machinery the test fixtures legitimately
+  pull (test_tmpdir.hpp / writer-dirs / cr_ui acceptance fixtures) +
+  locale/format helpers. All XP- or Vista-era; added with reasons
+  (46c2cf8). Self-test real-surface list grows the same 14.
+- Pre-empted the next iteration: every MSVC-linked DLL imports
+  DisableThreadLibraryCalls (CRT __DllMainCRTStartup) - added with reason
+  BEFORE cr_ui.dll's first gate verdict (b4ee4f6).
+- 46c2cf8 windows lane CONFIRMED the convergence: rrecov OK (145),
+  cr_tests OK (250), cr_ui.dll flagged exactly and only
+  DisableThreadLibraryCalls - prediction precise; b4ee4f6 carries the fix.
+- codeql GREEN on bb6a647 + 2dd6e01 (the C2039 was breaking its build;
+  the vcpkg env step was never the problem). fuzz GREEN everywhere.
+- Driver-repo commits audited (7e88e38 classifier error-87 fix: the null
+  guard inverted the reference's Chars==0 global gate - regression tests
+  added; 2b1db5f runner comparison: throughput parity, +52% hostile
+  dispatch, 64/64 byte-identical verify). Both consistent with the
+  release-notes claims.
+
+Stage Summary:
+- Gate state after three designed iterations: rrecov PASS, cr_tests PASS,
+  cr_ui.dll expected PASS on b4ee4f6 (in flight). The Win8-only guard
+  (WaitOnAddress et al.) deliberately absent and the self-test proves it
+  still bites.
+- Next: b4ee4f6 windows lane green (incl. the MSVC 229-test step that
+  runs for the first time post-G-01-rework) -> cut v0.3.0-parity.
