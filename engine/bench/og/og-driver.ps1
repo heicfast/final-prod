@@ -221,6 +221,53 @@ function Get-OgWindowCensus {
     try { return @([OgWE]::Go()) } catch { return @("census-failed: $($_.Exception.Message)") }
 }
 
+# ---- titled-window lookup (BENCH-OG-F1) -------------------------------------------
+# Run 40073093997 evidence (window-census-final.txt): the destination dialog
+# is its own top-level window class=Qt5QWindowIcon title=ChooseDestinationPathDialog,
+# and the 500 MB free-cap gate is class=Qt5QWindowIcon title=Dialog. The old
+# cap-gate detector ('census.Count -gt 2') FALSE-FIRED on the destination
+# dialog when the Save click missed -> 'Give Up' clicked into the destination
+# dialog -> the flow deadlocked 1200 s and recovered nothing (og permanent_
+# delete 0.0% was an automation defect, not og behavior).
+function Get-OgWindowByTitle {
+    param([string] $Title)
+    $pids = @(Get-Process DRWUI -ErrorAction SilentlyContinue | ForEach-Object { $_.Id })
+    if ($pids.Count -eq 0) { return $null }
+    foreach ($line in (Get-OgWindowCensus)) {
+        if ($line -match 'pid=(\d+) hwnd=(0x[0-9A-F]+) class=(Qt5QWindow\w*) title=(.+?) rect=\((-?\d+),(-?\d+)\)-\((-?\d+),(-?\d+)\)') {
+            if ($pids -notcontains [int]$Matches[1]) { continue }
+            if ($Matches[4].Trim() -ne $Title) { continue }
+            return [pscustomobject]@{
+                hwnd = [IntPtr][Convert]::ToInt64($Matches[2].Substring(2), 16)
+                l = [int]$Matches[5]; t = [int]$Matches[6]; r = [int]$Matches[7]; b = [int]$Matches[8]
+                line = $line
+            }
+        }
+    }
+    return $null
+}
+
+function Wait-OgWindowGone {
+    param([string] $Title, [int] $TimeoutSec = 30)
+    $t0 = Get-Date
+    while (((Get-Date) - $t0).TotalSeconds -lt $TimeoutSec) {
+        if (-not (Get-OgWindowByTitle $Title)) { return $true }
+        Start-Sleep -Milliseconds 500
+    }
+    return $null -eq (Get-OgWindowByTitle $Title)
+}
+
+function Wait-OgWindowAppear {
+    param([string] $Title, [int] $TimeoutSec = 30)
+    $t0 = Get-Date
+    while (((Get-Date) - $t0).TotalSeconds -lt $TimeoutSec) {
+        $w = Get-OgWindowByTitle $Title
+        if ($w) { return $w }
+        Start-Sleep -Milliseconds 500
+    }
+    return $null
+}
+
 # ---- app lifecycle ----------------------------------------------------------------
 
 function Start-OgApp {
@@ -260,14 +307,28 @@ function Wait-OgLanding {
 # ---- free-cap state (client-side, corpus-documented) -------------------------------
 
 function Get-OgQuota {
+    # The DRWNewFree\Metadata values are REG_BINARY (u64 little-endian); the
+    # first draft returned the raw byte arrays (evidence: run 40073093997
+    # og-quota.json - "enable_total_size": [0,0,0,32,...] = 0x20000000 =
+    # 512 MiB, the actual free limit; the cap gate fired at 520.29 MB).
     $q = [ordered]@{}
     try {
         $k = 'HKLM:\SOFTWARE\DRWNewFree\Metadata'
         if (Test-Path $k) {
-            $q.enable_total_size = (Get-ItemProperty -Path $k -ErrorAction SilentlyContinue).EnableTotalSize
-            $q.enable_total_file_count = (Get-ItemProperty -Path $k -ErrorAction SilentlyContinue).EnableTotalFileCount
-            $q.recovered_total_size_before = (Get-ItemProperty -Path $k -ErrorAction SilentlyContinue).RecoveredTotalSize
-            $q.recovered_total_file_count_before = (Get-ItemProperty -Path $k -ErrorAction SilentlyContinue).RecoveredTotalFileCount
+            $props = Get-ItemProperty -Path $k -ErrorAction SilentlyContinue
+            function Convert-OgQuotaValue($v) {
+                if ($null -eq $v) { return $null }
+                if ($v -is [byte[]]) {
+                    if ($v.Length -ge 8) { return [BitConverter]::ToUInt64($v, 0) }
+                    if ($v.Length -gt 0) { $padded = $v + (New-Object byte[] (8 - $v.Length)); return [BitConverter]::ToUInt64($padded, 0) }
+                    return 0
+                }
+                return $v
+            }
+            $q.enable_total_size = Convert-OgQuotaValue $props.EnableTotalSize
+            $q.enable_total_file_count = Convert-OgQuotaValue $props.EnableTotalFileCount
+            $q.recovered_total_size_before = Convert-OgQuotaValue $props.RecoveredTotalSize
+            $q.recovered_total_file_count_before = Convert-OgQuotaValue $props.RecoveredTotalFileCount
         } else { $q.key_missing = $true }
     } catch { $q.error = $_.Exception.Message }
     return $q

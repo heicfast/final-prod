@@ -276,14 +276,45 @@ Start-Sleep -Seconds 3
 New-OgShot '21_destination_dialog' $shotDir | Out-Null
 
 # ---- destination dialog: Local tab, Windows(C:), repair toggle OFF, Save -------------------
-Invoke-OgClickRel 410 222 'destination: Local tab' | Out-Null
-Start-Sleep -Seconds 2
-Invoke-OgClickRel 511 279 'destination: Windows(C:) row' | Out-Null
-Start-Sleep -Seconds 2
-Invoke-OgClickRel 255 613 'destination: file-repair toggle OFF' | Out-Null
-Start-Sleep -Seconds 1
-New-OgShot '22_destination_configured' $shotDir | Out-Null
-Invoke-OgClickRel 707 613 'destination: Save' | Out-Null
+# BENCH-OG-F1 (run 40073093997 permanent_delete evidence): the Save click can
+# land before the dialog is fully interactive; the dialog then PERSISTS, the
+# progress loop's census-count cap-gate detector false-fires on it, 'Give Up'
+# clicks into the destination dialog and the run deadlocks recovering nothing.
+# Fix: wait for the titled window (ChooseDestinationPathDialog), drive it,
+# verify it CLOSES, retry the Save up to 3 times - never proceed with it open.
+$destDialog = Wait-OgWindowAppear -Title 'ChooseDestinationPathDialog' -TimeoutSec 30
+if (-not $destDialog) {
+    New-OgShot '21b_destination_dialog_missing' $shotDir | Out-Null
+    Get-OgWindowCensus | Set-Content -Path (Join-Path $OutDir 'window-census-dest-missing.txt') -Encoding utf8
+    Get-OgLogs -CorpusDir $CorpusDir -OutDir $OutDir | Out-Null
+    throw 'destination dialog (ChooseDestinationPathDialog) never appeared - diagnostic artifacts retained'
+}
+$destSaved = $false
+for ($destAttempt = 1; $destAttempt -le 3; $destAttempt++) {
+    Invoke-OgClickRel 410 222 'destination: Local tab' | Out-Null
+    Start-Sleep -Seconds 2
+    Invoke-OgClickRel 511 279 'destination: Windows(C:) row' | Out-Null
+    Start-Sleep -Seconds 2
+    Invoke-OgClickRel 255 613 'destination: file-repair toggle OFF' | Out-Null
+    Start-Sleep -Seconds 1
+    New-OgShot ("22_destination_configured_try{0}" -f $destAttempt) $shotDir | Out-Null
+    Invoke-OgClickRel 707 613 'destination: Save' | Out-Null
+    Start-Sleep -Seconds 4
+    if (Wait-OgWindowGone -Title 'ChooseDestinationPathDialog' -TimeoutSec 20) {
+        $destSaved = $true
+        $run.notes += "destination dialog closed after Save (attempt $destAttempt)"
+        break
+    }
+    Write-Host "destination dialog still open after Save (attempt $destAttempt) - retrying"
+    Invoke-OgGateDismiss
+}
+if (-not $destSaved) {
+    New-OgShot '22c_destination_dialog_stuck' $shotDir | Out-Null
+    Get-OgWindowCensus | Set-Content -Path (Join-Path $OutDir 'window-census-dest-stuck.txt') -Encoding utf8
+    Get-OgLogs -CorpusDir $CorpusDir -OutDir $OutDir | Out-Null
+    Stop-OgApp
+    throw 'destination dialog never closed after 3 Save attempts - diagnostic artifacts retained'
+}
 
 # ---- recovery progress + free-cap gate ------------------------------------------------------
 # Funnel discipline (evidence: run 40073093997 og/permanent_delete - the periodic
@@ -318,15 +349,19 @@ while (((Get-Date) - $tRec).TotalSeconds -lt $RecoverWaitSec) {
         Start-Sleep -Seconds 10
         if ((Get-NewFileCount) -eq $fileCount) {
             $recoverDone = $true
-            # only NOW is a census-grown modal plausibly the free-cap gate
-            $census = Get-OgWindowCensus
-            if (-not $capGateSeen -and $census.Count -gt 2) {
-                New-OgShot '30_cap_gate_candidate' $shotDir | Out-Null
+            # quiescent + a titled 'Dialog' modal = the free-cap gate blocked
+            # the writes (title-based, BENCH-OG-F1 - never a bare census count)
+            $gate = Get-OgWindowByTitle 'Dialog'
+            if (-not $capGateSeen -and $gate) {
+                New-OgShot '30_cap_gate_quiescent' $shotDir | Out-Null
                 $capGateSeen = $true
                 $run.cap_gate.gate_seen = $true
                 $run.cap_gate.action = 'give-up-clicked'
-                $run.cap_gate.screenshot = '30_cap_gate_candidate.png'
-                Invoke-OgClickRel 432 470 'cap gate: Give Up (left button)' | Out-Null
+                $run.cap_gate.screenshot = '30_cap_gate_quiescent.png'
+                $run.cap_gate.dialog_rect = "($($gate.l),$($gate.t))-($($gate.r),$($gate.b))"
+                $gx = [int]($gate.l + 0.38 * ($gate.r - $gate.l))
+                $gy = [int]($gate.t + 0.78 * ($gate.b - $gate.t))
+                [OgAH]::Click($gx, $gy)
                 Start-Sleep -Seconds 8
                 New-OgShot '31_cap_gate_after' $shotDir | Out-Null
             }
@@ -336,6 +371,9 @@ while (((Get-Date) - $tRec).TotalSeconds -lt $RecoverWaitSec) {
     $lastFiles = $fileCount
     if ($fileCount -eq 0 -and ((Get-Date) - $tRec).TotalSeconds -gt 60 -and $redrives -lt 5) {
         # destination dialog probably reset (slow Save / stray click) - re-drive it
+        # (BENCH-OG-F1 merge: after the re-drive Save, VERIFY the titled dialog
+        # actually closed; a blind re-drive that never lands is recorded, not
+        # silently retried into the void)
         $redrives++
         New-OgShot ("27_redrive_{0:d2}" -f $redrives) $shotDir | Out-Null
         $run.attempts += @{ attempt = "redrive-$redrives"; reason = 'no files on C: after 60s - destination dialog re-drive' }
@@ -346,7 +384,33 @@ while (((Get-Date) - $tRec).TotalSeconds -lt $RecoverWaitSec) {
         Invoke-OgClickRel 255 613 'redrive: file-repair toggle OFF' | Out-Null
         Start-Sleep -Seconds 1
         Invoke-OgClickRel 707 613 'redrive: Save' | Out-Null
+        Start-Sleep -Seconds 4
+        if (Get-OgWindowByTitle 'ChooseDestinationPathDialog') {
+            $run.attempts += @{ attempt = "redrive-$redrives"; reason = 'destination dialog STILL OPEN after re-drive Save (recorded; will retry)' }
+        }
         Start-Sleep -Seconds 5
+    }
+    # cap-gate detection (BENCH-OG-F1): the gate is its own top-level window
+    # titled 'Dialog' (run 40073093997 delete_partition census evidence; the
+    # destination dialog is titled 'ChooseDestinationPathDialog' - the old
+    # census-count heuristic false-fired on it). Give Up is clicked at the
+    # DIALOG-RELATIVE position measured from the live rect (VLM-verified
+    # layout: bottom-left). Detected MID-recovery too: a gate UP blocks file
+    # writes, so quiescence alone cannot be the only trigger.
+    $gate = Get-OgWindowByTitle 'Dialog'
+    if (-not $capGateSeen -and $gate) {
+        New-OgShot '30_cap_gate_candidate' $shotDir | Out-Null
+        $capGateSeen = $true
+        $run.cap_gate.gate_seen = $true
+        $run.cap_gate.action = 'give-up-clicked'
+        $run.cap_gate.screenshot = '30_cap_gate_candidate.png'
+        $run.cap_gate.dialog_rect = "($($gate.l),$($gate.t))-($($gate.r),$($gate.b))"
+        $gx = [int]($gate.l + 0.38 * ($gate.r - $gate.l))
+        $gy = [int]($gate.t + 0.78 * ($gate.b - $gate.t))
+        [OgAH]::Click($gx, $gy)
+        Write-Host "cap gate: Give Up clicked at dialog-relative ($gx,$gy) rect $($run.cap_gate.dialog_rect)"
+        Start-Sleep -Seconds 5
+        New-OgShot '31_cap_gate_after' $shotDir | Out-Null
     }
     if (($i++ % 6) -eq 0) { New-OgShot ("25_recover_progress_{0:d2}" -f $i) $shotDir | Out-Null }
 }
@@ -432,6 +496,28 @@ foreach ($k in @('enable_total_size', 'enable_total_file_count')) {
 $quota.recovered_total_size_before = $quotaBefore.recovered_total_size_before
 $quota.recovered_total_size_after = $quotaAfter.recovered_total_size_before
 $quota.recovered_total_file_count_after = $quotaAfter.recovered_total_file_count_before
+# BENCH-OG-F1: post-hoc cap-gate reclassification. A window titled 'Dialog'
+# is the cap gate when the og's own quota accounting shows this run's
+# recovered bytes approaching the limit; a sub-90% run with a 'Dialog'
+# window was more plausibly a completion/other modal (the Give Up click on
+# it is harmless, but the evidence label must not claim a cap that did not
+# happen - run 40073093997 discipline).
+$recoveredThisRun = 0
+if ($null -ne $quota.recovered_total_size_after -and $null -ne $quota.recovered_total_size_before) {
+    $recoveredThisRun = [int64]$quota.recovered_total_size_after - [int64]$quota.recovered_total_size_before
+}
+$quota.recovered_bytes_this_run = $recoveredThisRun
+if ($run.cap_gate.gate_seen) {
+    $limit = 0
+    if ($null -ne $quota.enable_total_size) { $limit = [int64]$quota.enable_total_size }
+    if ($limit -gt 0 -and $recoveredThisRun -lt [int64]($limit * 0.9)) {
+        $run.cap_gate.reclassified = 'completion-or-other-dialog (recovered bytes < 90% of the limit; click harmless, label corrected)'
+        $run.cap_gate.gate_seen = $false
+        $run.cap_gate.action = 'dialog-dismissed'
+    } else {
+        $run.cap_gate.confirmed_by_quota = $true
+    }
+}
 $quota | ConvertTo-Json -Depth 3 | Set-Content -Path (Join-Path $OutDir 'og-quota.json') -Encoding utf8
 
 # ---- logs + census + close -------------------------------------------------------------------------
