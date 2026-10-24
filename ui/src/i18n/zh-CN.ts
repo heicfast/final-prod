@@ -103,6 +103,8 @@ export const zhCN: TranslationSchema = {
     completedStatus: '搜索完成',
     readingSector: '正在读取扇区：{{current}}/{{total}}',
     usedTime: '已用时间：{{time}}',
+    quickScanning: '快速扫描 {{percent}}',
+    advancedScanning: '高级搜索 {{percent}}',
     completedVerdict: '好消息：您的文件极有可能恢复。',
     goToRecover: '前往恢复',
     filesFound: '已找到文件',

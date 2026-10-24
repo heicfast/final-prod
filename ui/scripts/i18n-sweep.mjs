@@ -95,6 +95,18 @@ export function analyze() {
     ))
       used.add(m[1]);
   }
+  // Ternary/conditional keyed calls — t(cond ? 'a.b' : 'c.d') — and any other
+  // reference a key-shaped literal ANYWHERE in source. Over-approximation is
+  // deliberate: a false "used" only weakens the dead-key check, while a false
+  // "unused" deletes a live key and renders raw keys at runtime (this exact
+  // regression shipped scan.quickScanning once — the e2e caught it on
+  // Windows; the unit suite could not).
+  const NAMESPACES =
+    'app|about|common|nav|sidebar|home|categories|scan|results|preview|recovery|health|repair|settings|errors|a11y|devPanel|lostPartition';
+  for (const { s } of corpus) {
+    for (const m of s.matchAll(new RegExp(`'((${NAMESPACES})\\.[A-Za-z0-9_.]+)'`, 'g')))
+      used.add(m[1]);
+  }
   // Expand template families against defined keys.
   for (const prefix of DYNAMIC) {
     for (const k of defined) if (k.startsWith(prefix)) used.add(k);

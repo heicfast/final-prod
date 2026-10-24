@@ -101,6 +101,8 @@ export const en = {
     completedStatus: 'Search complete',
     readingSector: 'Reading sector: {{current}}/{{total}}',
     usedTime: 'Time used: {{time}}',
+    quickScanning: 'Quick scanning {{percent}}',
+    advancedScanning: 'Advanced searching {{percent}}',
     completedVerdict: 'Great news: your files are highly recoverable.',
     goToRecover: 'Go to Recover',
     filesFound: 'Files found',
