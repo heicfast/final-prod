@@ -29,6 +29,10 @@ New-Item -ItemType Directory -Force -Path $WorkDir | Out-Null
 $behavior = [ordered]@{ tool = 'ours'; probes = @() }
 
 # ---------- probe 1: driver absent ----------
+# Evidence from run 40064915424: the '[transport] RDA not available ... - direct
+# path' line is printed to STDOUT (pre-scan diagnostics); the --log stage file
+# only carries the scan summary lines. Primary check = stdout; the stage log
+# is kept as secondary evidence.
 $p1 = [ordered]@{ probe = 'nodriver'; driver_service_before = 'unknown' }
 try { $svc = Get-Service -Name rda -ErrorAction Stop; $p1.driver_service_before = $svc.Status } catch { $p1.driver_service_before = 'absent' }
 if ($p1.driver_service_before -eq 'Running') {
@@ -44,15 +48,17 @@ $p = Start-Process -FilePath $RrecovExe `
 $p1.exit_code = $p.ExitCode
 $p1.session_exists = (Test-Path $sess)
 $p1.transport_lines = @()
-if (Test-Path $log) {
-    $p1.transport_lines += @(Get-Content $log | Select-String -SimpleMatch '[transport]' | ForEach-Object { $_.Line.Trim() })
-}
+$p1.transport_lines_log = @()
 if (Test-Path $so) {
-    $p1.transport_lines += @(Get-Content $so | Select-String -SimpleMatch '[transport]' | ForEach-Object { $_.Line.Trim() })
+    $p1.transport_lines = @(Get-Content $so | Select-String -SimpleMatch '[transport]' | ForEach-Object { $_.Line.Trim() })
+}
+if (Test-Path $log) {
+    $p1.transport_lines_log = @(Get-Content $log | Select-String -SimpleMatch '[transport]' | ForEach-Object { $_.Line.Trim() })
 }
 $p1.fallback_seen = [bool]($p1.transport_lines | Where-Object { $_ -match 'RDA not available' -or $_ -match 'direct path' })
 $p1.passed = ($p1.exit_code -eq 0 -and $p1.session_exists -and $p1.fallback_seen)
 $behavior.probes += $p1
+Write-Host "nodriver probe: exit=$($p1.exit_code) session=$($p1.session_exists) fallback=$($p1.fallback_seen) transport_stdout=$($p1.transport_lines.Count) transport_log=$($p1.transport_lines_log.Count)"
 
 # ---------- probe 2: cancellation (hard-kill) -----------------------------------------
 # Cooperative CTRL_BREAK delivery to a console process group requires a custom
@@ -86,8 +92,15 @@ $p2.session_exists = (Test-Path $sess2)
 $p2.session_readable = $false
 if ($p2.session_exists) {
     $t = & $RrecovExe tree --in $sess2 --csv 2>$null | Out-String
-    $p2.session_readable = [bool]($t -and $t.Trim())
-    $p2.partial_tree_rows = @($t -split "`r?`n" | Where-Object { $_ -ne '' }).Count
+    # a load failure prints 'session load failed' to stdout - that is NOT a
+    # readable session (run 40064915424 misread the error line as 1 tree row)
+    if ($t -and $t.Trim() -and $t -notmatch 'session load failed') {
+        $p2.session_readable = $true
+        $p2.partial_tree_rows = @($t -split "`r?`n" | Where-Object { $_ -ne '' }).Count
+    } else {
+        $p2.partial_tree_rows = 0
+        $p2.tree_output = $t.Trim()
+    }
 }
 $p2.passed = ($p2.session_exists -and $gone)
 $behavior.probes += $p2
@@ -117,19 +130,25 @@ $p3.uninterrupted_exit = $up.ExitCode
 $p3.uninterrupted_session_exists = (Test-Path $sessU)
 
 if ($p3.resumed_session_exists -and $p3.uninterrupted_session_exists) {
-    $treeR = & $RrecovExe tree --in $sessR --csv | Out-String
-    $treeU = & $RrecovExe tree --in $sessU --csv | Out-String
-    $linesR = @($treeR -split "`r?`n" | Where-Object { $_ -ne '' } | Sort-Object)
-    $linesU = @($treeU -split "`r?`n" | Where-Object { $_ -ne '' } | Sort-Object)
-    $p3.rows_resumed = $linesR.Count
-    $p3.rows_uninterrupted = $linesU.Count
-    $p3.identical = (($linesR -join "`n") -eq ($linesU -join "`n"))
-    if (-not $p3.identical) {
-        $diffR = Compare-Object $linesU $linesR | Select-Object -First 20
-        $diffR | ForEach-Object { Write-Host "RESUME DIFF: $($_.SideIndicator) $($_.InputObject)" }
-        $p3.diff_sample = @($diffR | ForEach-Object { "$($_.SideIndicator) $($_.InputObject)" })
+    $treeR = & $RrecovExe tree --in $sessR --csv 2>$null | Out-String
+    $treeU = & $RrecovExe tree --in $sessU --csv 2>$null | Out-String
+    # guard: a load failure on either side is a probe failure, not a 1-row tree
+    if ($treeR -match 'session load failed' -or $treeU -match 'session load failed') {
+        $p3.load_error = ($treeR -match 'session load failed') ? $treeR.Trim() : $treeU.Trim()
+        $p3.passed = $false
+    } else {
+        $linesR = @($treeR -split "`r?`n" | Where-Object { $_ -ne '' } | Sort-Object)
+        $linesU = @($treeU -split "`r?`n" | Where-Object { $_ -ne '' } | Sort-Object)
+        $p3.rows_resumed = $linesR.Count
+        $p3.rows_uninterrupted = $linesU.Count
+        $p3.identical = (($linesR -join "`n") -eq ($linesU -join "`n"))
+        if (-not $p3.identical) {
+            $diffR = Compare-Object $linesU $linesR | Select-Object -First 20
+            $diffR | ForEach-Object { Write-Host "RESUME DIFF: $($_.SideIndicator) $($_.InputObject)" }
+            $p3.diff_sample = @($diffR | ForEach-Object { "$($_.SideIndicator) $($_.InputObject)" })
+        }
+        $p3.passed = $p3.identical
     }
-    $p3.passed = $p3.identical
 } else {
     $p3.passed = $false
 }

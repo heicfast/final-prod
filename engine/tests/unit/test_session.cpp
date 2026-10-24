@@ -234,3 +234,52 @@ TEST(Crsf, VolumeInfoIdentityCardRoundTrip) {
     EXPECT_EQ(old.boot_hash, 0u) << "v1 session: unverifiable, never verified";
     EXPECT_STREQ(old.model, "") << "no fabricated identity";
 }
+
+/* BENCH-F1 (torn-checkpoint salvage): a writer killed mid-emit leaves the
+ * header claiming N records with the Nth record header present but
+ * unfinalized (chain=0, crc=0 - the finalize patch never ran). The reader
+ * must expose the indexed N-1 prefix, never let read_record(N-1) hit the
+ * "index >= indexed size" path and surface ERR_SESSION_FORMAT. Reproduces
+ * the CI hard-kill cancel probe artifact byte-for-byte in structure. */
+TEST(Crsf, TornCheckpointSalvagesPrefix) {
+    MemFile mf;
+    {
+        Writer w(MemFile::wr, MemFile::tl, MemFile::sk, &mf);
+        ASSERT_EQ(w.open(0x52434B50ULL), OK);
+        auto p = compressible_payload();
+        ASSERT_EQ(w.add_record(REC_SESSION_STATE, p.data(), u32(p.size())), OK);
+        ASSERT_EQ(w.add_record(REC_VOLUME_INFO, "vi", 2), OK);
+        ASSERT_EQ(w.add_record(REC_ERROR_MAP, "em", 2), OK);
+        ASSERT_EQ(w.finalize(), OK); /* header says 3, all complete */
+    }
+    /* simulate the torn 4th record: header bytes with chain/crc zeroed */
+    {
+        std::vector<u8> torn(CRSF_RECORD_HEADER_BYTES, 0);
+        std::memcpy(torn.data(), "CRSR", 4);
+        const u32 type = REC_SESSION_STATE;
+        std::memcpy(torn.data() + 4, &type, 4);
+        const u64 sid = 0x52434B50ULL;
+        std::memcpy(torn.data() + 8, &sid, 8);
+        const u64 at = mf.data.size();
+        mf.data.resize(size_t(at + torn.size()));
+        mf.pos = at;
+        ASSERT_EQ(MemFile::wr(&mf, torn.data(), u32(torn.size())), 0);
+    }
+    /* also patch the header to claim 4 (the killed writer's in-progress count):
+     * record_count at container offset 0x10 */
+    const u32 four = 4;
+    std::memcpy(mf.data.data() + 0x10, &four, 4);
+
+    Reader r(MemFile::rd, MemFile::sk, MemFile::sz, &mf);
+    u32 count = 0;
+    ASSERT_EQ(r.open(&count), OK);
+    EXPECT_EQ(count, 3u) << "header claims 4, indexed prefix is 3 - clamp wins";
+    Record rec;
+    ASSERT_EQ(r.read_record(0, rec), OK);
+    ASSERT_EQ(r.read_record(1, rec), OK);
+    ASSERT_EQ(r.read_record(2, rec), OK);
+    /* the absent 4th record is out of range of the salvageable prefix - but it
+     * is never reached through open()'s clamped count; direct probing still
+     * reports format-error honestly */
+    EXPECT_EQ(r.read_record(3, rec), 0x50040001u);
+}

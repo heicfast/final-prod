@@ -28,6 +28,8 @@ public class OgAH {
     [DllImport("user32.dll")] public static extern bool ShowWindow(IntPtr h, int cmd);
     [DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr h);
     [DllImport("user32.dll")] public static extern bool IsIconic(IntPtr h);
+    [DllImport("user32.dll")] public static extern bool PostMessage(IntPtr h, uint msg, IntPtr w, IntPtr l);
+    [DllImport("user32.dll")] public static extern bool IsWindow(IntPtr h);
     [StructLayout(LayoutKind.Sequential)] public struct RECT { public int L, T, R, B; }
     public static void Click(int x, int y) {
         SetCursorPos(x, y);
@@ -95,13 +97,70 @@ function Stop-OgBrowsers {
     Start-Sleep -Milliseconds 400
 }
 
-# the retention nag gate (X at window-relative 809,135) + single ESC + browser kill:
-# the proven gate-dismissal sequence from the atlas driver
+# ---- nag/gate dismissal (corpus-evidenced) -----------------------------------------
+# The Free build raises PERIODIC retention nags (RetentionActiveDlg, every
+# 30-60 s of active use on ANY page - corpus atlas 35 #15) as separate
+# top-level Qt windows (class Qt5QWindowIcon, title 'DRWUI', ~540x380,
+# position VARIES run to run). Run 40048192077 evidence: the nag at
+# (232,134)-(772,514) swallowed every landing-tile click; the old fixed
+# (809,135) X-click missed it by 37 px, and the blind ESC provokes the
+# EXIT-retention gate on landing (corpus atlas: exit-attempt dialog).
+# Robust dismissal: enumerate the og pid's non-main Qt windows and click
+# EACH dialog's own X (atlas-verified offset r-11, t+24 from its rect),
+# verify it is gone, fall back to WM_CLOSE.
+function Get-OgNagWindows {
+    $nags = @()
+    $pids = @(Get-Process DRWUI -ErrorAction SilentlyContinue | ForEach-Object { $_.Id })
+    if ($pids.Count -eq 0) { return $nags }
+    foreach ($line in (Get-OgWindowCensus)) {
+        if ($line -match 'pid=(\d+) hwnd=(0x[0-9A-F]+) class=(Qt5QWindowIcon) title=(.+?) rect=\((-?\d+),(-?\d+)\)-\((-?\d+),(-?\d+)\)') {
+            $wpid = [int]$Matches[1]
+            if ($pids -notcontains $wpid) { continue }
+            $title = $Matches[4].Trim()
+            if ($title -ne 'DRWUI') { continue }   # main window is 'EaseUS Data Recovery Wizard'
+            $nags += [pscustomobject]@{
+                hwnd = [IntPtr][Convert]::ToInt64($Matches[2].Substring(2), 16)
+                l = [int]$Matches[5]; t = [int]$Matches[6]; r = [int]$Matches[7]; b = [int]$Matches[8]
+                line = $line
+            }
+        }
+    }
+    return $nags
+}
+
+function Invoke-OgNagDismiss {
+    param([int] $MaxRounds = 3)
+    $dismissed = @()
+    for ($round = 1; $round -le $MaxRounds; $round++) {
+        $nags = @(Get-OgNagWindows)
+        if ($nags.Count -eq 0) { break }
+        foreach ($n in $nags) {
+            # X close at the dialog's own top-right (atlas: X at rect.r-11, rect.t+24)
+            Restore-OgWin
+            [OgAH]::Click(($n.r - 11), ($n.t + 24))
+            Start-Sleep -Milliseconds 900
+            # still there? send WM_CLOSE to that exact hwnd
+            $still = @(Get-OgNagWindows | Where-Object { $_.line -eq $n.line })
+            if ($still.Count -gt 0 -and [OgAH]::IsWindow($n.hwnd)) {
+                [OgAH]::PostMessage($n.hwnd, 0x0010, [IntPtr]::Zero, [IntPtr]::Zero) | Out-Null
+                Start-Sleep -Milliseconds 900
+            }
+            $dismissed += $n.line
+        }
+    }
+    if ($dismissed.Count -gt 0) {
+        Start-Sleep -Milliseconds 500
+        Restore-OgWin
+        Write-Host "nag-dismiss: $($dismissed.Count) dialog(s): $($dismissed -join ' | ')"
+    }
+    return $dismissed.Count
+}
+
+# the retention nag gate + browser killer. NO blind ESC: on the landing page
+# ESC is an exit attempt and PROVOKES the exit-retention gate (corpus atlas
+# 35 #15; run 40048192077 screenshots 02_select_attempt_01..06).
 function Invoke-OgGateDismiss {
-    Invoke-OgClickRel 809 135 '(gate X)' | Out-Null
-    Start-Sleep -Milliseconds 600
-    [OgAH]::Esc()
-    Start-Sleep -Milliseconds 400
+    Invoke-OgNagDismiss | Out-Null
     Stop-OgBrowsers
     Restore-OgWin
 }

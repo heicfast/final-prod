@@ -255,6 +255,16 @@ u32 Reader::open(u32* record_count_out) {
     }
     if (count_ == 0)
         count_ = u32(impl_->record_offsets.size());
+    /* Torn-tail salvage (F10, BENCH-F1): the header's record_count is patched
+     * only on finalize. A writer killed mid-checkpoint (hard-kill cancel probe)
+     * leaves a header that claims N records while the walk indexes fewer -
+     * the unfinalized tail record stops it by construction. Exposing the
+     * header's N to the caller made read_record(N-1) fail with
+     * ERR_SESSION_FORMAT and defeated the documented "resumable by
+     * construction" contract (a torn checkpoint is no worse than none).
+     * The indexed prefix is the salvageable truth: clamp. */
+    else if (u32(impl_->record_offsets.size()) < count_)
+        count_ = u32(impl_->record_offsets.size());
     if (record_count_out)
         *record_count_out = count_;
     return OK;

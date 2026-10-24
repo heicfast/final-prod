@@ -99,20 +99,29 @@ function Get-ScanDriveLine {
     return ,$out
 }
 
+# Tile geometry re-measured from run 40048192077 screenshots by pixel analysis
+# (scripts evidence: card bbox + blue-border detection, cross-checked with
+# 6x-zoom VLM reads): the 3rd device (our BENCH volume) renders as a
+# white-background tile in row-2 LEFT: x ~310-580, y ~310-440 (icon y320-336,
+# label y352-372, capacity y424-432). The OLD primary (440,455) clicked empty
+# page BELOW the card; (440,295) hit the inter-row gap; (730,275) was 4 px
+# under the D: card (row-1 cards span y175-271). Row-1: C: left (310-581),
+# D: right (~600-870).
 $tiles = @(
-    @{ x = 440; y = 455 },   # BENCH(E:) - row2-left (VLM-verified primary)
-    @{ x = 440; y = 295 },   # Windows(C:) row1-left (fallback ordering)
-    @{ x = 730; y = 275 },   # Temporary Storage(D:) row1-right
-    @{ x = 400; y = 266 }, @{ x = 860; y = 266 },
-    @{ x = 400; y = 366 }, @{ x = 860; y = 366 },
-    @{ x = 860; y = 466 }
+    @{ x = 445; y = 370 },   # BENCH(E:) row2-left CARD CENTER (pixel-measured)
+    @{ x = 445; y = 395 },   # BENCH row2-left lower (capacity-line band)
+    @{ x = 445; y = 335 },   # BENCH row2-left upper (icon band)
+    @{ x = 730; y = 370 },   # row2-right (layout with 4+ devices)
+    @{ x = 445; y = 225 },   # row1-left (C: - verify/reject path)
+    @{ x = 730; y = 225 }    # row1-right (D: - verify/reject path)
 )
 if ($TargetMode -eq 'disk') {
     # whole-disk / lost-partition candidates: landing tile area then the
     # 'Lost Partition Rescue' sidebar page (atlas: sidebar ~ (135,374))
     $tiles = @(
-        @{ x = 440; y = 455 }, @{ x = 440; y = 560 },
-        @{ x = 440; y = 620 }, @{ x = 860; y = 560 }
+        @{ x = 445; y = 370 }, @{ x = 445; y = 335 },
+        @{ x = 730; y = 370 }, @{ x = 445; y = 560 },
+        @{ x = 445; y = 620 }, @{ x = 730; y = 560 }
     )
 }
 
@@ -148,14 +157,23 @@ foreach ($tile in $tiles) {
             break
         }
     }
-    # wrong tile: stop the scan, return HOME, dismiss gates before next attempt
+    # wrong tile: clean the scan, then RESTART the app for a pristine landing.
+    # (Run 40048192077 evidence: the old stop-confirm click (512,420) missed
+    # the dialog buttons - pixel-measured: Stop=(439,473) pink, Continue=(565,473)
+    # blue - so the dialog persisted and swallowed every later click. A restart
+    # is deterministic and immune to dialog-position drift.)
     Invoke-OgClickRel 127 698 'Stop' | Out-Null
     Start-Sleep -Seconds 3
     New-OgShot ("03_stop_confirm_{0:d2}" -f $selIdx) $shotDir | Out-Null
-    Invoke-OgClickRel 512 420 'stop confirm' | Out-Null
-    Start-Sleep -Seconds 5
-    Invoke-OgClickRel 135 120 'sidebar home' | Out-Null
-    Start-Sleep -Seconds 3
+    Invoke-OgClickRel 439 473 'stop confirm: Stop button (pixel-measured)' | Out-Null
+    Start-Sleep -Seconds 6
+    Stop-OgApp
+    $app = Start-OgApp -WorkDir $CorpusDir
+    if (-not (Wait-OgLanding -TimeoutSec 180 -ShotDir $shotDir)) {
+        Get-OgWindowCensus | Set-Content -Path (Join-Path $OutDir 'window-census-fail.txt') -Encoding utf8
+        Get-OgLogs -CorpusDir $CorpusDir -OutDir $OutDir | Out-Null
+        throw "og landing never appeared after wrong-tile restart (attempt $selIdx) - diagnostic artifacts retained"
+    }
     Invoke-OgGateDismiss
 }
 if (-not $selected -and $TargetMode -eq 'disk') {
