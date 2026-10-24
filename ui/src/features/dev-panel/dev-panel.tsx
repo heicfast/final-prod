@@ -1,5 +1,6 @@
 import * as React from 'react';
 import { useTranslation } from 'react-i18next';
+import { useQueryClient } from '@tanstack/react-query';
 import type { MockScenarioId } from '@/connector/contract';
 import { FlaskConicalIcon, GaugeIcon, RotateCcwIcon, XIcon } from 'lucide-react';
 import { useScenarioControl } from '@/queries/dev';
@@ -32,6 +33,7 @@ export function DevPanel(): React.JSX.Element {
   const { t } = useTranslation();
   const control = useScenarioControl();
   const ui = useUiStore();
+  const qc = useQueryClient();
   const { density, setDensity } = useTheme();
   const [scenario, setScenario] = React.useState<MockScenarioId>(
     control?.getScenario() ?? 'standard',
@@ -73,6 +75,10 @@ export function DevPanel(): React.JSX.Element {
               const next = e.target.value as MockScenarioId;
               setScenario(next);
               control.setScenario(next);
+              // The scenario reshapes the whole mock world (devices,
+              // scans, sessions) — invalidate everything so the UI
+              // reflects it immediately.
+              void qc.invalidateQueries();
             }}
             className="h-8 w-full rounded-sm border border-border bg-surface px-2 text-sm"
           >

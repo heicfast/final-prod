@@ -792,3 +792,22 @@ release notes state signing pending (unsigned builds).
 - Search-removal chip (breadcrumb ✕): transition-colors + hover/press tint
   - focus ring.
 - Tests: +3 jsdom press-state assertions. e2e 6/6; bundle 97.7/200 KB.
+
+### T11 — State surfaces — DONE (bug found + fixed)
+
+- Live verification via the dev panel exposed a real gap: the mock's
+  permission-denied scenario marks VOLUME C:'s status, but the home page
+  read device-level status only — the permission state never rendered.
+- Fixed: home-page banners + DeviceCard lock/offline/health now read
+  device OR volume status; per-volume scan chips are disabled (with
+  truthful title) when that volume is permission-denied/disconnected while
+  sibling volumes stay live; the device Scan button stays disabled only
+  when the whole device is affected.
+- Dev panel: scenario change now invalidates all queries (the scenario
+  reshapes the whole mock world — the stale-cache confusion that hid this
+  bug is gone).
+- Verified live: banner "administrator approval" + 2 lock icons on the
+  dev server (download/t11-permission-live.png); 3 regression tests
+  (volume-level banner ×2, chip gating). Gauge pause-freeze verified
+  structurally (progress stops → dashoffset static). Suite 109/109,
+  e2e 6/6.

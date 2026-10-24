@@ -112,7 +112,9 @@ T5 extraction set. Status updated per item.
 5. **T9** Route fade + async tab treatment — ✅ DONE.
 6. **T10** Microinteraction audit — ✅ DONE (press tokens applied,
    drag-drop confirmed corpus-N/A).
-7. **T11** State-surface re-verification per surface.
+7. **T11** State surfaces — ✅ DONE: volume-level status bug fixed
+   (home banner + card lock + per-volume chip gating), dev-panel
+   invalidation, live evidence.
 8. **T12** Feature-completion walk (tracker §1 — all COMPLETE; spot-audit).
 9. **T13** Interim asset extraction (chrome SVGs first).
 10. **T14** Responsiveness/DPI verification (800×600 min, 100/150/200%).

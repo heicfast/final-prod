@@ -161,8 +161,14 @@ export function HomePage(): React.JSX.Element {
     );
   }
 
-  const hasPermissionIssue = physical.some((d) => d.status === 'permission-denied');
-  const hasDisconnected = physical.some((d) => d.status === 'disconnected');
+  const hasPermissionIssue = physical.some(
+    (d) =>
+      d.status === 'permission-denied' ||
+      d.volumes.some((v) => v.status === 'permission-denied'),
+  );
+  const hasDisconnected = physical.some(
+    (d) => d.status === 'disconnected' || d.volumes.some((v) => v.status === 'disconnected'),
+  );
 
   return (
     <div className="flex h-full min-h-0 flex-col overflow-y-auto">
@@ -312,9 +318,12 @@ function DeviceCard({
   const { t, i18n } = useTranslation();
   const Icon =
     device.kind === 'sd' ? MemoryStickIcon : device.kind === 'usb' ? UsbIcon : HardDriveIcon;
-  const healthy = device.status === 'ok';
-  const locked = device.status === 'permission-denied';
-  const offline = device.status === 'disconnected';
+  const healthy = device.status === 'ok' && !device.volumes.some((v) => v.status !== 'ok');
+  const locked =
+    device.status === 'permission-denied' ||
+    device.volumes.some((v) => v.status === 'permission-denied');
+  const offline =
+    device.status === 'disconnected' || device.volumes.some((v) => v.status === 'disconnected');
   const hasLost = device.volumes.some((v) => v.lostPartition);
 
   return (
@@ -401,7 +410,15 @@ function DeviceCard({
               key={v.id}
               type="button"
               onClick={() => onScanVolume(v.id)}
-              className="rounded-xs px-1.5 py-0.5 text-xs font-medium text-primary hover:bg-primary-muted focus-visible:ring-2 focus-visible:ring-ring"
+              disabled={v.status === 'permission-denied' || v.status === 'disconnected'}
+              title={
+                v.status === 'permission-denied'
+                  ? t('home.permissionDenied')
+                  : v.status === 'disconnected'
+                    ? t('home.disconnected')
+                    : undefined
+              }
+              className="rounded-xs px-1.5 py-0.5 text-xs font-medium text-primary hover:bg-primary-muted focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
             >
               {v.label}
             </button>
