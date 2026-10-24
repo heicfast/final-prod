@@ -19,6 +19,7 @@
 #include <winioctl.h>
 #include <cstdio>
 #include <cstring>
+#include <vector>
 
 namespace cr {
 namespace win {
@@ -119,6 +120,52 @@ Geometry probe_geometry(HANDLE h, u64* out_size) {
 }
 
 /* ---------------------------------------------------------------------------
+ * Sector-alignment shim for raw handles (bench run 40073093997 finding):
+ * the Windows disk stack rejects ReadFile IRPs whose LENGTH (or offset) is
+ * not a multiple of the logical sector size - evidence: every recovered
+ * file with size % 512 != 0 was zero-filled 'salvaged' while all
+ * sector-multiple files hash-verified, on BOTH transports (RDA and direct).
+ * Engines never see this (the cache layer reads whole sectors); the recovery
+ * writer reads raw extents, so its tail chunk carries the exact file size.
+ * The IStorageDevice contract is BYTE-granular - the transport must honor
+ * it: an unaligned request is satisfied via an aligned bounce read.
+ * ------------------------------------------------------------------------ */
+u32 aligned_read_at(HANDLE h, u64 off, void* buf, u32 len, const Geometry& g, bool rda_scaled,
+                    u64 dev_size) {
+    if (len == 0)
+        return OK;
+    const u32 sector =
+        (g.logical_sector >= 512 && g.logical_sector <= 65536) ? g.logical_sector : 512u;
+    if (off % sector == 0 && len % sector == 0)
+        return overlapped_read(h, off, buf, len, rda_scaled);
+    /* clamp the aligned envelope to the device end (the tail sector of a
+     * ragged device still reads as a full sector through the disk stack) */
+    const u64 a_off = (off / sector) * sector;
+    u64 a_end = off + len;
+    a_end = ((a_end + sector - 1) / sector) * sector;
+    if (a_end > dev_size)
+        a_end = dev_size;
+    if (a_end <= a_off)
+        return ERR_RANGE_OUT_OF_BOUNDS;
+    const u32 a_len = u32(a_end - a_off);
+    /* the writer chunks at 1 MiB; anything bigger means caller-side
+     * chunking broke - refuse loudly instead of allocating wildly */
+    if (a_len > (1u << 20) + 65536)
+        return ERR_BAD_PARAMETER;
+    /* per-thread bounce (1 MiB + one chunk of slack): raw-handle reads can
+     * arrive from multiple worker items concurrently */
+    thread_local std::vector<u8> bounce;
+    bounce.resize(a_len);
+    const u32 rc = overlapped_read(h, a_off, bounce.data(), a_len, rda_scaled);
+    if (rc != OK)
+        return rc;
+    const u32 skip = u32(off - a_off);
+    const u32 take = len <= a_len - skip ? len : a_len - skip;
+    std::memcpy(buf, bounce.data() + skip, take);
+    return take == len ? OK : ERR_READ_FAILED;
+}
+
+/* ---------------------------------------------------------------------------
  * Direct (non-RDA) device: true byte counts from the IO manager.
  * ------------------------------------------------------------------------- */
 class DirectDevice final : public IStorageDevice {
@@ -133,7 +180,7 @@ public:
             return ERR_OPEN_FAILED;
         if (off > size() || len > size() - off)
             return ERR_RANGE_OUT_OF_BOUNDS;
-        return overlapped_read(h_, off, buf, len, false);
+        return aligned_read_at(h_, off, buf, len, geom_, false, size());
     }
     const Geometry& geometry() const override { return geom_; }
     u64 size() const { return geom_.total_bytes; }
@@ -183,7 +230,7 @@ public:
             return ERR_OPEN_FAILED;
         if (off > size() || len > size() - off)
             return ERR_RANGE_OUT_OF_BOUNDS;
-        return overlapped_read(h_, off, buf, len, true);
+        return aligned_read_at(h_, off, buf, len, geom_, true, size());
     }
     const Geometry& geometry() const override { return geom_; }
     u64 size() const { return geom_.total_bytes; }
