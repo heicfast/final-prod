@@ -19,23 +19,28 @@ export function connectorMode(): ConnectorMode {
   return v === 'tauri' ? 'tauri' : 'mock';
 }
 
-function createConnector(): RecoveryConnector {
-  return connectorMode() === 'tauri' ? createTauriConnector() : createMockConnector();
+/**
+ * Build the backend pair once: the connector the UI talks to, plus the
+ * concrete simulator instance when the backend IS the simulator (the dev
+ * panel's scenario controls need it; the real connector returns null).
+ */
+function createBackend(): { connector: RecoveryConnector; mock: MockConnector | null } {
+  if (connectorMode() === 'tauri') return { connector: createTauriConnector(), mock: null };
+  const mock = new MockConnector();
+  return { connector: mock, mock };
 }
 
-function createMockConnector(): RecoveryConnector {
-  return new MockConnector();
-}
+const backend = createBackend();
 
-export const connector: RecoveryConnector = createConnector();
+export const connector: RecoveryConnector = backend.connector;
 
 /**
  * Dev-panel hook: scenario control when the backend is the simulator.
  * Returns null on the real connector (the panel hides these controls).
  */
 export function scenarioControl(): ScenarioControl | null {
-  if (connectorMode() !== 'mock') return null;
-  const mock = connector as unknown as MockConnector;
+  const mock = backend.mock;
+  if (!mock) return null;
   return {
     setScenario: (scenario: MockScenarioId) => mock.setScenario(scenario),
     getScenario: () => mock.getScenario(),

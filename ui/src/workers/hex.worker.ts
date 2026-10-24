@@ -14,8 +14,13 @@ interface HexRequest {
   baseOffset: number;
 }
 
+// Module-scoped: this file IS a dedicated worker context. The app's tsconfig
+// also loads the DOM lib (whose `self` is Window), so the worker global is
+// declared here as the precise boundary type instead of cast.
+declare const self: DedicatedWorkerGlobalScope;
+
 self.onmessage = (e: MessageEvent<HexRequest>) => {
   const { bytes, baseOffset } = e.data;
   const rows = formatHexRows(new Uint8Array(bytes), baseOffset);
-  (self as unknown as Worker).postMessage(rows);
+  self.postMessage(rows);
 };
