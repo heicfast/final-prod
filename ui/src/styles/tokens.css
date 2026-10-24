@@ -1,0 +1,216 @@
+/*
+ * tokens.css — single source of truth for design tokens.
+ * Sources: docs/VISUAL-SPEC.md (every value carries corpus evidence).
+ * Themes: light (:root) / dark (.dark) / high-contrast (.hc, .hc.dark).
+ *
+ * Step (1/4) of the Tailwind v4 architecture: raw values here.
+ * Step (2/4): @custom-variant dark + (3/4) @theme inline mapping live in index.css.
+ * Step (4/4): @layer base defaults live in index.css.
+ */
+
+:root {
+  /* Canvas & surfaces */
+  --background: #f2f6ff;
+  --background-gradient-from: #eff5ff;
+  --background-gradient-to: #deeaff;
+  --surface: #ffffff;
+  --surface-muted: #f6f9fd;
+  --surface-tint: #e5eefb;
+  --surface-hover: #e6edf6;
+  --surface-selected: #dae7ff;
+
+  /* Text */
+  --text-primary: #1a1a1a;
+  --text-secondary: #616777;
+  --text-disabled: #a0a6b1;
+
+  /* Brand */
+  --accent: #0560fd;
+  --accent-hover: #0561fc;
+  --accent-pressed: #0448be;
+  --accent-foreground: #ffffff;
+  --accent-muted: #ecf4ff;
+  --accent-muted-border: #d5e5fe;
+  --cta-gradient-from: #0c99ff;
+  --cta-gradient-to: #0560fd;
+  --focus-ring: rgba(5, 96, 253, 0.9);
+  --focus-ring-offset: #ffffff;
+
+  /* Semantic */
+  --success: #30b373;
+  --success-muted: #e5f5ed;
+  --warning: #d4760b;
+  --warning-muted: #fff3d1;
+  --warning-amber: #ffc10e;
+  --danger: #f72c2c;
+  --danger-muted: #fdd5d5;
+  --danger-pressed: #d23636;
+
+  /* Borders & dividers (4-step neutral ladder) */
+  --border: #e7e7e7;
+  --border-inner: #dee1ed;
+  --border-strong: #c1ccdf;
+
+  /* Elevation */
+  --shadow-card: 0 1px 3px rgba(4, 5, 43, 0.08), 0 4px 12px rgba(4, 5, 43, 0.06);
+  --shadow-overlay: 0 8px 28px rgba(4, 5, 43, 0.22);
+  --shadow-dialog: 0 12px 44px rgba(4, 5, 43, 0.32);
+  --overlay-scrim: rgba(0, 0, 0, 0.4);
+
+  /* Typography (sizes/weights as CSS vars for the font-mixing below) */
+  --font-sans: "Segoe UI", "Segoe UI Variable Text", system-ui, -apple-system, sans-serif;
+  --font-mono: "Cascadia Mono", "Consolas", ui-monospace, monospace;
+  --text-2xs: 11px;
+  --text-xs: 12px;
+  --text-sm: 13px;
+  --text-base: 14px;
+  --text-md: 15px;
+  --text-lg: 16px;
+  --text-xl: 20px;
+  --text-2xl: 24px;
+  --text-hero: 28px;
+
+  /* Motion */
+  --dur-fast: 120ms;
+  --dur-base: 200ms;
+  --dur-slow: 320ms;
+  --ease-standard: cubic-bezier(0.2, 0, 0, 1);
+  --ease-in-out: cubic-bezier(0.4, 0, 0.2, 1);
+
+  /* Radius scale (QSS census) */
+  --radius-xs: 4px;
+  --radius-sm: 6px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+  --radius-xl: 16px;
+  --radius-full: 9999px;
+
+  /* Geometry */
+  --titlebar-height: 36px;
+  --sidebar-width: 208px;
+  --row-height: 40px;
+  --row-height-compact: 32px;
+
+  /* Scrollbars */
+  --scrollbar-width: 8px;
+}
+
+.dark {
+  --background: #191b1d;
+  --background-gradient-from: #1b1d1f;
+  --background-gradient-to: #18191b;
+  --surface: #202428;
+  --surface-muted: #1a1d20;
+  --surface-tint: #282f38;
+  --surface-hover: #2a323c;
+  --surface-selected: #284a7f;
+
+  --text-primary: #f1f5ff;
+  --text-secondary: #b0b5c0;
+  --text-disabled: #7b808a;
+
+  --accent: #5094ff;
+  --accent-hover: #68b4ff;
+  --accent-pressed: #3874ff;
+  --accent-foreground: #0b1220;
+  --accent-muted: #252b33;
+  --accent-muted-border: #335094ff;
+  --cta-gradient-from: #059afd;
+  --cta-gradient-to: #0ccdff;
+  --focus-ring: rgba(80, 148, 255, 0.9);
+  --focus-ring-offset: #14161a;
+
+  --success: #349a37;
+  --success-muted: #1c2a1e;
+  --warning: #ff7342;
+  --warning-muted: #33201a;
+  --warning-amber: #e29100;
+  --danger: #ff5a5a;
+  --danger-muted: #3a2223;
+  --danger-pressed: #ff8080;
+
+  --border: #434851;
+  --border-inner: #404c63;
+  --border-strong: #596680;
+
+  --shadow-card: 0 1px 3px rgba(0, 0, 0, 0.4), 0 4px 12px rgba(0, 0, 0, 0.3);
+  --shadow-overlay: 0 8px 28px rgba(0, 0, 0, 0.55);
+  --shadow-dialog: 0 12px 44px rgba(0, 0, 0, 0.65);
+  --overlay-scrim: rgba(0, 0, 0, 0.55);
+}
+
+/* High-contrast themes: no gradients, hard 1px borders, saturated semantics. */
+.hc {
+  --background: #ffffff;
+  --background-gradient-from: #ffffff;
+  --background-gradient-to: #ffffff;
+  --surface: #ffffff;
+  --surface-muted: #ffffff;
+  --surface-tint: #ffffff;
+  --surface-hover: #dcdcff;
+  --surface-selected: #c5d8ff;
+  --text-primary: #000000;
+  --text-secondary: #1f1f1f;
+  --text-disabled: #5f5f5f;
+  --accent: #003fbf;
+  --accent-hover: #0033a6;
+  --accent-pressed: #002a8a;
+  --accent-muted: #ffffff;
+  --accent-muted-border: #003fbf;
+  --cta-gradient-from: #003fbf;
+  --cta-gradient-to: #003fbf;
+  --border: #000000;
+  --border-inner: #000000;
+  --border-strong: #000000;
+  --success: #00783a;
+  --warning: #8a5300;
+  --danger: #c50f1f;
+  --shadow-card: none;
+  --shadow-overlay: none;
+  --shadow-dialog: none;
+}
+
+.hc.dark {
+  --background: #000000;
+  --background-gradient-from: #000000;
+  --background-gradient-to: #000000;
+  --surface: #000000;
+  --surface-muted: #000000;
+  --surface-tint: #000000;
+  --surface-hover: #2a2a44;
+  --surface-selected: #1f3a70;
+  --text-primary: #ffffff;
+  --text-secondary: #e8e8e8;
+  --text-disabled: #9a9a9a;
+  --accent: #7fb4ff;
+  --accent-hover: #9ac4ff;
+  --accent-pressed: #b3d3ff;
+  --accent-foreground: #000000;
+  --accent-muted: #000000;
+  --accent-muted-border: #7fb4ff;
+  --cta-gradient-from: #7fb4ff;
+  --cta-gradient-to: #7fb4ff;
+  --border: #ffffff;
+  --border-inner: #ffffff;
+  --border-strong: #ffffff;
+  --success: #4ad47f;
+  --warning: #ffb84d;
+  --danger: #ff8080;
+}
+
+/* CJK per-locale font substitution (QSS [style] stacks) */
+:lang(zh-CN) {
+  --font-sans: "Microsoft YaHei", "Segoe UI", "PingFang SC", system-ui, sans-serif;
+}
+:lang(ja) {
+  --font-sans: "Meiryo UI", "Segoe UI", system-ui, sans-serif;
+}
+:lang(ko) {
+  --font-sans: "Malgun Gothic", "Segoe UI", system-ui, sans-serif;
+}
+
+/* Density (comfortable default; compact swaps row metrics via [data-density]) */
+[data-density="compact"] {
+  --row-height: 32px;
+  --row-height-compact: 28px;
+}
