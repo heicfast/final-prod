@@ -323,3 +323,29 @@ published to GitHub Releases. main HEAD c0b6ec6 also green (CI + UI Smoke).
   "Searching: <path>" strip.
 - Engine scan setup is automatic (FS probe → quick searcher; advanced = full
   searcher set + RAW carver; sector size default 512) — no user-facing params.
+
+### T5 — Theme adoption (DONE)
+
+- Fetched ONLY the two designated raw files; verbatim copies committed at
+  src/theme/adopted/{themes.ts,tokens.css} (byte-identical, verified).
+- New architecture: adopted raw (immutable, knip-excluded) → semantic
+  mapping (src/styles/tokens.css rewritten: app names ← adopted names) →
+  Tailwind @theme inline. dark: variant now [data-scheme="dark"].
+- 5 palettes + system + derived HC; ThemeProvider reworked on the adopted
+  applyThemeAttributes(); title-bar quick menu + Settings updated; About
+  dialog implemented (was a placeholder toast).
+- A11y-driven mapping choices with MEASURED ratios (VISUAL-SPEC §A11):
+  text-grade accent #cc3d15 (4.95:1) vs source ink (2.80:1); status text
+  derivatives 5.0-5.4:1; focus ring solid (source 2.9:1); brand CTA keeps
+  the adopted gradient+glow as the documented exception; HC = derived layer.
+- Found + fixed two real CSS hazards: (a) header comment containing `*/`
+  inside "dur-*/ease-*" prematurely closed the comment and silently dropped
+  the whole first token rule from the build; (b) same-name var() forwards
+  (--border: var(--border)) are self-references resolving to fallback —
+  pass-through names are no longer redeclared.
+- Tests: tests/theme-snapshot.test.ts (block+value fixture pin, palette
+  registry, semantic-layer reference validity) + tests/i18n-parity.test.ts
+  (en⇄zh-CN key-surface, empty-value, placeholder parity) — 10 new tests
+  green. Browser-verified all 5 palettes + HC (computed tokens + VLM
+  critique, grade A-).
+- ADR-007 written.

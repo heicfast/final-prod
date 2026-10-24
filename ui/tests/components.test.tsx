@@ -18,30 +18,35 @@ function withProviders(ui: React.ReactElement): React.ReactElement {
   );
 }
 
-describe('ThemeProvider', () => {
-  it('applies light by default (no dark class on <html>)', () => {
+describe('ThemeProvider (ADR-007 two-layer attributes)', () => {
+  it('applies the light palette by default (system → light)', () => {
     render(withProviders(<div>probe</div>));
-    expect(document.documentElement.classList.contains('dark')).toBe(false);
+    expect(document.documentElement.getAttribute('data-theme')).toBe('light');
+    expect(document.documentElement.getAttribute('data-scheme')).toBe('light');
+    expect(document.documentElement.classList.contains('hc')).toBe(false);
   });
 
-  it('adds the dark class when mode is dark', () => {
-    function SetDark(): null {
-      React.useEffect(() => {
-        const stored = window.localStorage.getItem('rw.ui.theme');
-        void stored;
-      }, []);
-      return null;
+  it('applies data-theme/data-scheme for each adopted palette', () => {
+    for (const [mode, theme, scheme] of [
+      ['dark', 'dark', 'dark'],
+      ['ember', 'ember', 'dark'],
+      ['tide', 'tide', 'dark'],
+      ['blossom', 'blossom', 'light'],
+    ] as const) {
+      localStorage.setItem('rw.ui.theme', mode);
+      const { unmount } = render(withProviders(<div />));
+      expect(document.documentElement.getAttribute('data-theme')).toBe(theme);
+      expect(document.documentElement.getAttribute('data-scheme')).toBe(scheme);
+      unmount();
     }
-    localStorage.setItem('rw.ui.theme', 'dark');
-    render(withProviders(<SetDark />));
-    expect(document.documentElement.classList.contains('dark')).toBe(true);
     localStorage.removeItem('rw.ui.theme');
   });
 
-  it('adds hc classes for high-contrast mode', () => {
+  it('high-contrast keeps the family attributes and adds the derived .hc layer', () => {
     localStorage.setItem('rw.ui.theme', 'high-contrast');
     render(withProviders(<div />));
     expect(document.documentElement.classList.contains('hc')).toBe(true);
+    expect(document.documentElement.getAttribute('data-theme')).toBe('light');
     localStorage.removeItem('rw.ui.theme');
   });
 });

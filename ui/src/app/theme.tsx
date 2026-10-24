@@ -7,13 +7,31 @@ import {
   useState,
   type ReactNode,
 } from 'react';
+import {
+  THEME_IDS,
+  applyThemeAttributes,
+  familyOf,
+  validateThemeId,
+  type ThemeId,
+} from '@/theme/adopted/themes';
 
-export type ThemeMode = 'system' | 'light' | 'dark' | 'high-contrast';
+/**
+ * App theme state, composed on the adopted two-layer theme system
+ * (ADR-007): `data-theme="<palette>"` + `data-scheme="light|dark"` are
+ * written by the adopted module's applyThemeAttributes(). The app adds:
+ *  - 'system' — resolves to the canonical light/dark pair via matchMedia;
+ *  - 'high-contrast' — a DERIVED accessibility layer (the adopted sources
+ *    define no HC palette): keeps the light/dark family attributes and
+ *    adds the `.hc` class, which the semantic token layer overrides.
+ */
+export type ThemeMode = 'system' | ThemeId | 'high-contrast';
 export type Density = 'comfortable' | 'compact';
 
 interface ThemeContextValue {
   mode: ThemeMode;
-  /** Effective visual theme ('dark' when system resolves dark). */
+  /** The active palette (system resolved to light/dark). */
+  themeId: ThemeId;
+  /** Effective scheme family ('dark' when system resolves dark). */
   resolved: 'light' | 'dark';
   setMode: (mode: ThemeMode) => void;
   density: Density;
@@ -22,13 +40,14 @@ interface ThemeContextValue {
 
 const STORAGE_KEY = 'rw.ui.theme';
 const DENSITY_KEY = 'rw.ui.density';
+const THEME_MODES: readonly string[] = ['system', 'high-contrast', ...THEME_IDS];
 
 const ThemeContext = createContext<ThemeContextValue | null>(null);
 
 function readStoredMode(): ThemeMode {
   try {
     const v = localStorage.getItem(STORAGE_KEY);
-    if (v === 'light' || v === 'dark' || v === 'high-contrast' || v === 'system') return v;
+    if (v != null && THEME_MODES.includes(v)) return v as ThemeMode;
   } catch {
     /* storage unavailable — fall through */
   }
@@ -51,31 +70,28 @@ function systemPrefersDark(): boolean {
   );
 }
 
-/** Applies token classes to <html>. High-contrast tracks its own light/dark pair. */
-function applyTheme(mode: ThemeMode, systemDark: boolean): 'light' | 'dark' {
+/** Resolve a mode to the concrete palette id + apply all root attributes. */
+function applyTheme(mode: ThemeMode, systemDark: boolean): { themeId: ThemeId; resolved: 'light' | 'dark' } {
   const root = document.documentElement;
-  root.classList.remove('dark', 'hc');
-  let resolved: 'light' | 'dark';
-  if (mode === 'high-contrast') {
-    resolved = systemDark ? 'dark' : 'light';
+  root.classList.remove('hc');
+  let themeId: ThemeId;
+  if (mode === 'system') {
+    themeId = systemDark ? 'dark' : 'light';
+  } else if (mode === 'high-contrast') {
+    themeId = systemDark ? 'dark' : 'light';
     root.classList.add('hc');
-    if (systemDark) root.classList.add('dark');
-  } else if (mode === 'dark') {
-    resolved = 'dark';
-    root.classList.add('dark');
-  } else if (mode === 'light') {
-    resolved = 'light';
   } else {
-    resolved = systemDark ? 'dark' : 'light';
-    if (systemDark) root.classList.add('dark');
+    themeId = validateThemeId(mode);
   }
-  // HC must also react to forced-colors (Windows HC) by tracking it on data attr.
+  applyThemeAttributes(themeId);
+  // Track Windows forced-colors for diagnostics (the .hc layer harmonizes
+  // with it; forced-colors itself overrides all author colors).
   if (typeof window !== 'undefined' && window.matchMedia('(forced-colors: active)').matches) {
     root.dataset.forcedColors = 'active';
   } else {
     delete root.dataset.forcedColors;
   }
-  return resolved;
+  return { themeId, resolved: familyOf(themeId) };
 }
 
 export function ThemeProvider({ children }: { children: ReactNode }): React.JSX.Element {
@@ -99,7 +115,11 @@ export function ThemeProvider({ children }: { children: ReactNode }): React.JSX.
     return () => fc.removeEventListener('change', onFc);
   }, [mode, systemDark]);
 
-  const resolved = useMemo(() => applyTheme(mode, systemDark), [mode, systemDark]);
+  const { themeId, resolved } = useMemo(
+    () => applyTheme(mode, systemDark),
+    // applyTheme touches the DOM; run per mode/system change only.
+    [mode, systemDark],
+  );
 
   useEffect(() => {
     document.documentElement.dataset.density = density;
@@ -124,8 +144,8 @@ export function ThemeProvider({ children }: { children: ReactNode }): React.JSX.
   }, []);
 
   const value = useMemo<ThemeContextValue>(
-    () => ({ mode, resolved, setMode, density, setDensity }),
-    [mode, resolved, setMode, density, setDensity],
+    () => ({ mode, themeId, resolved, setMode, density, setDensity }),
+    [mode, themeId, resolved, setMode, density, setDensity],
   );
 
   return <ThemeContext.Provider value={value}>{children}</ThemeContext.Provider>;

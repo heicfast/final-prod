@@ -3,10 +3,10 @@ import { useTheme } from '@/app/theme';
 
 /** Toast surface bound to the token themes. */
 function Toaster(): React.JSX.Element {
-  const { mode, resolved } = useTheme();
+  const { resolved } = useTheme();
   return (
     <Sonner
-      theme={mode === 'high-contrast' ? resolved : resolved}
+      theme={resolved}
       position="bottom-right"
       offset={16}
       gap={8}

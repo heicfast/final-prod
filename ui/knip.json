@@ -1,13 +1,17 @@
 {
   "$schema": "https://unpkg.com/knip@6.42.1/schema.json",
-  "entry": ["tests/**/*.test.{ts,tsx}"],
+  "entry": [
+    "tests/**/*.test.{ts,tsx}"
+  ],
   "project": [
     "src/**/*.{ts,tsx,css}",
     "tests/**/*.{ts,tsx}",
     "e2e/**/*.ts",
     "scripts/**/*.mjs"
   ],
-  "ignoreDependencies": ["@tauri-apps/api"],
+  "ignoreDependencies": [
+    "@tauri-apps/api"
+  ],
   "ignoreExportsUsedInFile": true,
   "include": [
     "files",
@@ -18,5 +22,8 @@
     "exports",
     "types",
     "duplicates"
+  ],
+  "ignore": [
+    "src/theme/adopted/**"
   ]
 }

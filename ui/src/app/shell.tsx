@@ -9,13 +9,14 @@ import {
   HeartPulseIcon,
   InfoIcon,
   LanguagesIcon,
+  PaletteIcon,
   RefreshCcwIcon,
   SettingsIcon,
   UsbIcon,
   WrenchIcon,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { useTheme } from './theme';
+import { useTheme, type ThemeMode } from './theme';
 import { useScanSessionStore } from '@/stores/scan-session-store';
 import { useUiStore } from '@/stores/ui-store';
 import { DevPanel, PerfOverlay } from '@/features/dev-panel/dev-panel';
@@ -27,9 +28,9 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/menus';
+import { AboutDialog } from '@/features/settings-about/about-dialog';
 import { useConnectorMode } from '@/queries/dev';
 import { setLocale, SUPPORTED_LOCALES } from '@/i18n';
-import { toast } from 'sonner';
 
 /**
  * App shell: custom title bar (frameless window), left sidebar with the
@@ -47,13 +48,26 @@ const NAV_ADVANCED = [
   { to: '/repair', icon: WrenchIcon, labelKey: 'sidebar.volumeRepair', end: false },
 ] as const;
 
+/** Title-bar quick theme menu (corpus: hamburger → Theme submenu; the
+ *  adopted palette set from ADR-007 replaces the reference's Light/Dark pair). */
+const THEME_MENU_ITEMS: readonly { mode: ThemeMode; labelKey: string }[] = [
+  { mode: 'system', labelKey: 'settings.themeSystem' },
+  { mode: 'light', labelKey: 'settings.themeLight' },
+  { mode: 'dark', labelKey: 'settings.themeDark' },
+  { mode: 'ember', labelKey: 'settings.themeEmber' },
+  { mode: 'tide', labelKey: 'settings.themeTide' },
+  { mode: 'blossom', labelKey: 'settings.themeBlossom' },
+  { mode: 'high-contrast', labelKey: 'settings.themeHc' },
+];
+
 export function WizardShell(): React.JSX.Element {
   const { t } = useTranslation();
-  const { setMode } = useTheme();
+  const { mode, setMode } = useTheme();
   const connectorModeValue = useConnectorMode();
   const active = useScanSessionStore((s) => s.active);
   const navigate = useNavigate();
   const location = useLocation();
+  const [aboutOpen, setAboutOpen] = React.useState(false);
 
   const inResultsFlow =
     location.pathname.startsWith('/scan/') ||
@@ -64,7 +78,7 @@ export function WizardShell(): React.JSX.Element {
     <div className="flex h-full min-h-0 flex-col bg-background text-foreground">
       {/* Title bar */}
       <header
-        className="flex h-9 shrink-0 items-center justify-between border-b border-border bg-surface px-3 select-none"
+        className="flex shrink-0 items-center justify-between border-b border-border bg-surface px-3 select-none"
         style={{ height: 'var(--titlebar-height)' }}
         data-tauri-drag-region
       >
@@ -119,23 +133,21 @@ export function WizardShell(): React.JSX.Element {
                 aria-label={t('settings.theme')}
                 className="size-7"
               >
-                <SettingsIcon aria-hidden />
+                <PaletteIcon aria-hidden />
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
-              <DropdownMenuItem onClick={() => setMode('system')}>
-                {t('settings.themeSystem')}
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => setMode('light')}>
-                {t('settings.themeLight')}
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => setMode('dark')}>
-                {t('settings.themeDark')}
-              </DropdownMenuItem>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={() => setMode('high-contrast')}>
-                {t('settings.themeHc')}
-              </DropdownMenuItem>
+              {THEME_MENU_ITEMS.map((item) => (
+                <React.Fragment key={item.mode}>
+                  {item.mode === 'high-contrast' ? <DropdownMenuSeparator /> : null}
+                  <DropdownMenuItem
+                    onClick={() => setMode(item.mode)}
+                    aria-checked={mode === item.mode}
+                  >
+                    {t(item.labelKey)}
+                  </DropdownMenuItem>
+                </React.Fragment>
+              ))}
             </DropdownMenuContent>
           </DropdownMenu>
           <Button
@@ -152,7 +164,7 @@ export function WizardShell(): React.JSX.Element {
             size="icon"
             aria-label={t('nav.about')}
             className="size-7"
-            onClick={() => toast(t('common.learnMore'))}
+            onClick={() => setAboutOpen(true)}
           >
             <InfoIcon aria-hidden />
           </Button>
@@ -193,8 +205,6 @@ export function WizardShell(): React.JSX.Element {
                   {t('home.scanningHint')}
                 </button>
               ) : null}
-              <SidebarSection label={t('nav.settings')} />
-              <SidebarLink to="/settings" icon={SettingsIcon} labelKey="nav.settings" end />
             </>
           )}
           <div className="mt-auto space-y-0.5">
@@ -214,6 +224,7 @@ export function WizardShell(): React.JSX.Element {
 
       {/* Dev-only surfaces: lazy-gated so production builds never include them */}
       {import.meta.env.DEV ? <DevSurfaces /> : null}
+      <AboutDialog open={aboutOpen} onOpenChange={setAboutOpen} />
     </div>
   );
 }
