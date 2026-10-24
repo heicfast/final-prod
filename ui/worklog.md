@@ -612,3 +612,25 @@ release notes state signing pending (unsigned builds).
 2. Handoff items unchanged: engine-integration session per ROADMAP; the
    three Windows-hardware PARTIALs in docs/ACCEPTANCE.md; interim assets
    (Lucide → purpose-drawn v2).
+
+---
+
+## Session 5 — 2026-10-24 (Experience-layer craftsman session)
+
+### T1 — Baseline, prompt archive, sync — DONE
+
+- Synced local main to origin/main `8ab7234` (v0.2.1). Parallel audit
+  sessions 3–4 already landed: theme tokens (ADR-007), lost-data flow
+  correction (ADR-008), VLM extraction of all 63 corpus screenshots,
+  localization governance, axe-clean palettes, releases v0.2.0/v0.2.1.
+- Remote CI/UI-Smoke/Release all green at 8ab7234 (API check, runs
+  40097715450/40097713739/40097713674).
+- Re-cloned research corpus (11,495 files) to
+  `/home/z/my-project/repos/easeus-drw-research`.
+- Archived this session's prompt (token redacted) to
+  `worklog/session-experience-prompt.md`; read twice before starting.
+- This session owns: motion, dialogs/popups, custom window chrome,
+  collapsible sidebar, responsiveness/DPI, per-component verification,
+  plus completion of any missing feature surfaces. Gate docs before any
+  experience change: EXPERIENCE-SPEC / MOTION-SPEC / IMPLEMENTATION-STATUS /
+  INTERIM-ASSETS.
