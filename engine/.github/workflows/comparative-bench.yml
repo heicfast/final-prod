@@ -684,10 +684,16 @@ jobs:
         if: steps.reasons.outputs.ours_missing == ''
         run: |
           set -euo pipefail
+          # full-matrix runs must cover every baseline scenario (no silent
+          # drops); smoke runs are a subset by design - missing ones are notes
+          GATE_ARGS=""
+          if [ "${{ needs.prepare.outputs.profile }}" = "full" ]; then
+            GATE_ARGS="--require-all-baseline"
+          fi
           python bench/metrics/regression_gate.py \
             --baseline bench/baseline.json \
             --ours-root ours \
-            --out docs/regression-gate.json
+            --out docs/regression-gate.json $GATE_ARGS
 
       - name: Job summary
         run: |
