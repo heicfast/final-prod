@@ -107,8 +107,14 @@ foreach ($mode in $ScanModes) {
         summary = $summary
         transport_lines = @()
     }
+    $modeInfo.transport_lines = @()
     if (Test-Path $stageLog) {
-        $modeInfo.transport_lines = @(Get-Content $stageLog | Select-String -SimpleMatch '[transport]' |
+        $modeInfo.transport_lines += @(Get-Content $stageLog | Select-String -SimpleMatch '[transport]' |
+            ForEach-Object { $_.Line.Trim() })
+    }
+    $soPath = Join-Path $OutDir "scan-$mode.stdout"
+    if (Test-Path $soPath) {
+        $modeInfo.transport_lines += @(Get-Content $soPath | Select-String -SimpleMatch '[transport]' |
             ForEach-Object { $_.Line.Trim() })
     }
     if (-not $modeInfo.session_exists -and -not $sr.capped) {
@@ -208,10 +214,10 @@ $sampleKept = 0
 foreach ($mode in $ScanModes) {
     $src = Join-Path $OutDir "recovered-$mode"
     if (-not (Test-Path $src)) { continue }
-    foreach ($name in @('k00.jpg', 'k01.png', 's000.jpg', 's001.png', 't000.jpg')) {
+    foreach ($name in @('k00.jpg', 'k01.png', 'k02.heic', 's000.jpg', 's001.png', 's002.zip', 't000.jpg', 't001.png')) {
         $cand = Get-ChildItem $src -Recurse -Filter $name -ErrorAction SilentlyContinue |
-            Where-Object { $_.Length -le 65536 } | Select-Object -First 1
-        if ($cand -and $sampleKept -lt 6) {
+            Where-Object { $_.Length -le 262144 } | Select-Object -First 1
+        if ($cand -and $sampleKept -lt 8) {
             $dst = Join-Path $sampleDir ("$mode-" + $name)
             Copy-Item $cand.FullName $dst -Force -ErrorAction SilentlyContinue
             if (Test-Path $dst) { $sampleKept++ }

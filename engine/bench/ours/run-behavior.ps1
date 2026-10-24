@@ -45,7 +45,10 @@ $p1.exit_code = $p.ExitCode
 $p1.session_exists = (Test-Path $sess)
 $p1.transport_lines = @()
 if (Test-Path $log) {
-    $p1.transport_lines = @(Get-Content $log | Select-String -SimpleMatch '[transport]' | ForEach-Object { $_.Line.Trim() })
+    $p1.transport_lines += @(Get-Content $log | Select-String -SimpleMatch '[transport]' | ForEach-Object { $_.Line.Trim() })
+}
+if (Test-Path $so) {
+    $p1.transport_lines += @(Get-Content $so | Select-String -SimpleMatch '[transport]' | ForEach-Object { $_.Line.Trim() })
 }
 $p1.fallback_seen = [bool]($p1.transport_lines | Where-Object { $_ -match 'RDA not available' -or $_ -match 'direct path' })
 $p1.passed = ($p1.exit_code -eq 0 -and $p1.session_exists -and $p1.fallback_seen)

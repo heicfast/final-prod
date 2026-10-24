@@ -376,6 +376,7 @@ jobs:
             benchmark-results/**/*.stderr
             benchmark-results/**/*.png
             benchmark-results/**/*.zip
+            benchmark-results/sample-recovered/*
             rrecov-sha.txt
             driver-sha.txt
             driver-pe.json
