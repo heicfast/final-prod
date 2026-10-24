@@ -24,16 +24,18 @@ function getScanStore(scanId: string, qc: () => QueryClient): ScanProgressStore 
   let current: ScanProgressEvent | null = null;
   const listeners = new Set<() => void>();
   let lastStatus: string | null = null;
+  let lastBucket = -1;
   const emit = (): void => {
     for (const l of listeners) l();
   };
   const unsubscribe = connector.scan.onScanProgress(scanId, (event) => {
     current = event;
+    const invalidate = qc() as {
+      invalidateQueries: (q: { queryKey: readonly unknown[] }) => Promise<unknown>;
+    };
+    const bucket = Math.floor(event.overallProgress * 10);
     if (event.status !== lastStatus) {
       lastStatus = event.status;
-      const invalidate = qc() as {
-        invalidateQueries: (q: { queryKey: readonly unknown[] }) => Promise<unknown>;
-      };
       void invalidate.invalidateQueries({ queryKey: queryKeys.scanState(scanId) });
       if (
         event.status === 'completed' ||
@@ -42,8 +44,14 @@ function getScanStore(scanId: string, qc: () => QueryClient): ScanProgressStore 
       ) {
         void invalidate.invalidateQueries({ queryKey: ['scan', scanId, 'tree'] });
         void invalidate.invalidateQueries({ queryKey: ['scan', scanId, 'results'] });
+        void invalidate.invalidateQueries({ queryKey: ['scan', scanId, 'count'] });
         void invalidate.invalidateQueries({ queryKey: queryKeys.sessions });
       }
+    } else if (event.status === 'running' && bucket > lastBucket) {
+      lastBucket = bucket;
+      void invalidate.invalidateQueries({ queryKey: ['scan', scanId, 'tree'] });
+      void invalidate.invalidateQueries({ queryKey: ['scan', scanId, 'results'] });
+      void invalidate.invalidateQueries({ queryKey: ['scan', scanId, 'count'] });
     }
     emit();
   });

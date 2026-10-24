@@ -19,16 +19,32 @@ import { Skeleton } from '@/components/ui/skeleton';
  * directly). Each expanded level is its own query-backed sub-component.
  */
 
-function TreeIcon({ icon }: { icon: TreeNode['icon'] }): React.JSX.Element {
+function TreeIcon({
+  icon,
+  special,
+}: {
+  icon: TreeNode['icon'];
+  special?: TreeNode['special'];
+}): React.JSX.Element {
   switch (icon) {
     case 'category':
-      return <ShapesIcon className="size-4 shrink-0" aria-hidden />;
+      return <ShapesIcon className="size-4 shrink-0 text-amber-500" aria-hidden />;
     case 'group':
-      return <LayersIcon className="size-4 shrink-0" aria-hidden />;
+      return (
+        <LayersIcon
+          className={cn(
+            'size-4 shrink-0',
+            special === 'lost-path' ? 'text-amber-500' : 'text-sky-600',
+          )}
+          aria-hidden
+        />
+      );
     case 'device':
-      return <HardDriveIcon className="size-4 shrink-0" aria-hidden />;
+      return <HardDriveIcon className="size-4 shrink-0 text-[#1677FF]" aria-hidden />;
     default:
-      return <FolderIcon className="size-4 shrink-0" aria-hidden />;
+      return (
+        <FolderIcon className="size-4 shrink-0 fill-sky-400/30 text-sky-600" aria-hidden />
+      );
   }
 }
 
@@ -68,7 +84,7 @@ function TreeRow({
     node.id !== 'lost-paths' &&
     node.id !== 'raw-all';
   const isExpanded = expanded.has(node.id);
-  const isSelected = selectedId === node.id;
+  const isSelected = selectedId === node.id || (selectedId === null && node.id === 'root');
   const label = treeLabel(node, t);
 
   return (
@@ -83,18 +99,18 @@ function TreeRow({
           if (hasKids) onToggleExpand(node.id);
         }}
         className={cn(
-          'flex h-7 w-full items-center gap-1 rounded-xs px-1.5 text-left text-sm outline-none transition-colors',
+          'flex h-8 w-full items-center gap-1.5 rounded-sm px-2 text-left text-xs outline-none transition-colors',
           'focus-visible:ring-2 focus-visible:ring-ring',
           isSelected
-            ? 'bg-surface-selected font-medium text-primary'
-            : 'text-foreground-secondary hover:bg-surface-hover hover:text-foreground',
+            ? 'bg-[#CFE2FF] font-semibold text-slate-900 dark:bg-surface-selected dark:text-primary'
+            : 'text-foreground hover:bg-[#E4EEFC] dark:text-foreground-secondary dark:hover:bg-surface-hover',
         )}
-        style={{ paddingLeft: `${6 + depth * 14}px` }}
+        style={{ paddingLeft: `${8 + depth * 16}px` }}
       >
         {hasKids ? (
           <ChevronRightIcon
             className={cn(
-              'size-3.5 shrink-0 transition-transform duration-150',
+              'size-3.5 shrink-0 text-foreground-secondary transition-transform duration-150',
               isExpanded && 'rotate-90',
             )}
             aria-hidden
@@ -102,14 +118,21 @@ function TreeRow({
         ) : (
           <span className="w-3.5 shrink-0" aria-hidden />
         )}
-        <TreeIcon icon={node.icon} />
+        <span
+          aria-hidden
+          className={cn(
+            'inline-flex size-3.5 shrink-0 items-center justify-center rounded-[3px] border',
+            isSelected
+              ? 'border-[#1677FF] bg-white dark:bg-surface'
+              : 'border-slate-400/80 bg-white dark:border-border-strong dark:bg-surface',
+          )}
+        />
+        <TreeIcon icon={node.icon} special={node.special} />
         <span className="min-w-0 flex-1 truncate">{label}</span>
         <span className="shrink-0 text-2xs tabular text-foreground-secondary">
           {formatCountCompact(node.fileCount, i18n.language)}
         </span>
-        <span className="hidden shrink-0 text-2xs tabular text-foreground-secondary xl:inline">
-          {formatBytesCompact(node.sizeBytes, i18n.language)}
-        </span>
+        <span className="sr-only">{formatBytesCompact(node.sizeBytes, i18n.language)}</span>
       </button>
       {hasKids && isExpanded ? (
         <TreeLevel

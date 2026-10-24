@@ -15,9 +15,10 @@
 ## Running locally
 
 ```
-pnpm test              # unit + contract + component (52 tests)
-pnpm test:coverage     # with v8 coverage
-pnpm e2e               # Playwright smoke (builds nothing; serves `dist` via preview)
+pnpm test              # unit + contract + component (110 tests across 16 files)
+pnpm test:coverage     # with v8 coverage + enforced thresholds (70% lines/funcs/stmts, 60% branches)
+pnpm e2e               # Playwright smoke + responsive/DPI + experience suite (12 tests)
+pnpm visual:compare    # verifies captured Playwright step screenshots against corpus geometry
 pnpm typecheck && pnpm lint && pnpm arch:lint && pnpm bundle:check
 ```
 
@@ -27,7 +28,15 @@ pnpm typecheck && pnpm lint && pnpm arch:lint && pnpm bundle:check
   preview payloads, and recovery outcomes.
 - **Timing budgets** (mock contract): pause/resume < 600 ms, cancel ≤ 300 ms,
   filter query < 200 ms on the standard scenario (grid #36).
-- **Monotonicity**: overall scan progress never regresses across a full run.
+- **Monotonicity & 100% completion**: overall scan progress never regresses
+  across a full run, reaches `1.0` even when `quick-index` is omitted on a
+  damaged volume (`bad-sectors`), and reports exact 100% `filesFound` /
+  `dataFoundBytes` upon completion.
+- **Path-tree 3-branch partition**: `root` (`Existing files`), `lost-paths`,
+  and `raw-all` partition the result space into disjoint sets with zero
+  double-counting.
+- **Zero-byte poor confidence**: `sizeBytes === 0` files are graded `poor`
+  per `CRecoverability::GetEntryRecoverability`.
 - **One-shot disconnect injection**: fires once; resume (the reconnect
   acknowledgment) restores `deviceConnected` and continues.
 - **Hard overlap refusal**: `validateDestination` rejects same-volume
@@ -44,17 +53,19 @@ pnpm typecheck && pnpm lint && pnpm arch:lint && pnpm bundle:check
   (color never the only signal).
 - Playwright drives the full path via accessible roles/names only — the
   smoke suite doubles as a keyboard/AT operability check.
-- Known gap → roadmap: an automated axe pass per route (the manual keyboard
-  walkthrough was done during live verification).
+- Automated axe-core 4.10 audit across all surfaces and all 6 palettes
+  (`docs/evidence/a11y/axe-summary.json`): 0 violations.
 
 ## CI matrix
 
 - `ci.yml` (windows-latest): frozen install → typecheck → lint → format →
-  arch (3 layers) → knip → jscpd → vitest → build → bundle budget →
+  arch (3 layers) → knip → jscpd → `pnpm test:coverage` → build → bundle budget →
   cargo check + clippy → artifact upload.
-- `ui-smoke.yml`: preview-server Playwright run + step screenshots +
+- `ui-smoke.yml`: preview-server Playwright run (12 tests) + step screenshots +
   reports; a secondary job proves the Tauri debug bundle links
-  (`tauri build --debug --no-bundle`).
+  (`tauri build --debug --no-bundle`) without `continue-on-error`.
+- `visual-compare.yml` (`workflow_dispatch`): runs `pnpm e2e` + `pnpm visual:compare`
+  and uploads the step screenshots and comparison summary artifact.
 - `release.yml` (tag `v*`): version match gate, NSIS bundle, SHA-256,
   unsigned-artifact disclosure in release notes.
 

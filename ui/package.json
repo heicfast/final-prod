@@ -25,7 +25,8 @@
     "arch:lint": "node scripts/arch-lint.mjs",
     "knip": "knip",
     "jscpd": "jscpd src --min-tokens 70 --reporters consoleFull --ignore \"src/theme/adopted/**\"",
-    "bundle:check": "node scripts/bundle-check.mjs"
+    "bundle:check": "node scripts/bundle-check.mjs",
+    "visual:compare": "node scripts/visual-compare.mjs"
   },
   "dependencies": {
     "@radix-ui/react-checkbox": "1.4.1",

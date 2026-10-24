@@ -7,9 +7,10 @@ Windows-gated — rationale + plan noted) · **FAIL** (none open).
 Verification stack used this session:
 
 - Local (this repo's sandbox): typecheck, eslint, prettier, arch-lint,
-  ast-grep (2 rules), knip (0 findings), jscpd (0 clones), vitest 86/86,
-  production build + bundle budget (89.4/200 KB main, 273.5/500 KB total),
-  live agent-browser walkthrough of the production build (zero console/page
+  ast-grep (2 rules), knip (0 findings), jscpd (0 clones), vitest 110/110,
+  Playwright e2e 12/12, production build + bundle budget (98.0/200 KB main,
+  283.1/500 KB total),
+  live browser walkthrough of the production build (zero console/page
   errors), axe-core 4.10 audits (zero violations — see T13), keyboard
   Tab-order walkthrough with computed focus-ring inspection
   (docs/evidence/a11y/), full-corpus VLM extraction

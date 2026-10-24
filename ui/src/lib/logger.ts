@@ -46,7 +46,7 @@ function emit(
   }
   const entry: LogEntry = { t: Date.now(), level, scope, message, data };
   push(entry);
-  if (import.meta.env.DEV) {
+  if (import.meta.env.DEV && import.meta.env.MODE !== 'test') {
     const fn =
       level === 'debug'
         ? console.debug

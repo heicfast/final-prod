@@ -85,10 +85,10 @@ export function WizardShell(): React.JSX.Element {
     mainRef.current?.focus({ preventScroll: true });
   }, [location.pathname]);
 
-  const inResultsFlow =
-    location.pathname.startsWith('/scan/') ||
-    location.pathname.startsWith('/results') ||
-    location.pathname.startsWith('/recover');
+  const inExplorerFlow =
+    location.pathname.startsWith('/scan/') || location.pathname.startsWith('/results');
+
+  const inResultsFlow = inExplorerFlow || location.pathname.startsWith('/recover');
 
   /** Windows convention on custom chrome: double-click the title-bar drag
    *  region to toggle maximize/restore (corpus: frameless Qt shell; the OS
@@ -103,15 +103,20 @@ export function WizardShell(): React.JSX.Element {
     <div className="flex h-full min-h-0 flex-col bg-background text-foreground">
       {/* Title bar */}
       <header
-        className="flex shrink-0 items-center justify-between border-b border-border bg-surface px-3 select-none"
+        className="flex shrink-0 items-center justify-between border-b border-[#D8E5FA] bg-[#EBF2FF] px-3 select-none dark:border-border dark:bg-surface"
         style={{ height: 'var(--titlebar-height)' }}
         data-tauri-drag-region
         onDoubleClick={onTitleBarDoubleClick}
       >
         <div className="flex items-center gap-2">
-          <AppWindowIcon className="size-4 text-primary" aria-hidden />
-          <span className="text-sm font-semibold">{t('app.name')}</span>
-          <span className="rounded-full border border-primary-muted-border bg-primary-muted px-1.5 text-2xs font-semibold text-primary uppercase">
+          <span
+            className="inline-flex size-5 items-center justify-center rounded-sm bg-[#1677FF] text-white shadow-2xs"
+            aria-hidden
+          >
+            <AppWindowIcon className="size-3.5" />
+          </span>
+          <span className="text-xs font-semibold tracking-tight">{t('app.name')}</span>
+          <span className="rounded-sm border border-primary-muted-border bg-primary-muted px-1.5 text-2xs font-semibold text-primary uppercase">
             {connectorModeValue === 'mock'
               ? t('settings.connectorMock')
               : connectorModeValue === 'tauri'
@@ -199,96 +204,101 @@ export function WizardShell(): React.JSX.Element {
       </header>
 
       <div className="flex min-h-0 flex-1">
-        {/* Sidebar — collapsible (session mandate §2.1; app extension, the
-            corpus rail is fixed-width): width animates at --dur-slow while
-            labels fade at --dur-fast; icons keep their gutter so they land
-            centered on the 52px collapsed rail. State persists. */}
-        <nav
-          id="sidebar-nav"
-          aria-label={t('a11y.sidebarRegion')}
-          style={{ width: sidebarCollapsed ? 52 : undefined }}
-          className={cn(
-            'flex shrink-0 flex-col overflow-x-hidden overflow-y-auto border-r border-border bg-surface-muted/60 py-2',
-            !sidebarCollapsed && 'w-[var(--sidebar-width)]',
-            'sidebar-width-transition',
-          )}
-        >
-          <div className="mb-1 flex items-center justify-end px-2">
-            <button
-              type="button"
-              onClick={toggleSidebar}
-              aria-expanded={!sidebarCollapsed}
-              aria-controls="sidebar-nav"
-              aria-label={sidebarCollapsed ? t('sidebar.expand') : t('sidebar.collapse')}
-              data-testid="sidebar-toggle"
-              className="flex size-8 items-center justify-center rounded-sm text-foreground-secondary outline-none transition-colors hover:bg-surface-hover hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
-            >
-              {sidebarCollapsed ? (
-                <PanelLeftOpenIcon className="size-4" aria-hidden />
-              ) : (
-                <PanelLeftCloseIcon className="size-4" aria-hidden />
-              )}
-            </button>
-          </div>
-          {!inResultsFlow ? (
-            <>
-              <SidebarSection label={t('sidebar.dataRecovery')} collapsed={sidebarCollapsed} />
-              {NAV_MAIN.map((item) => (
-                <SidebarLink key={item.to} {...item} collapsed={sidebarCollapsed} />
-              ))}
-              <SidebarSection label={t('sidebar.advanced')} collapsed={sidebarCollapsed} />
-              {NAV_ADVANCED.map((item) => (
-                <SidebarLink key={item.to} {...item} collapsed={sidebarCollapsed} />
-              ))}
-            </>
-          ) : (
-            <>
-              <SidebarSection label={t('sidebar.dataRecovery')} collapsed={sidebarCollapsed} />
+        {/* Sidebar — shown on Home / Advanced / Recovery pages; hidden in the
+            3-pane Scan & Results Explorer where the Path/Type tree occupies
+            the left rail directly (matching reference screenshots). */}
+        {!inExplorerFlow ? (
+          <nav
+            id="sidebar-nav"
+            aria-label={t('a11y.sidebarRegion')}
+            style={{ width: sidebarCollapsed ? 52 : undefined }}
+            className={cn(
+              'flex shrink-0 flex-col overflow-x-hidden overflow-y-auto border-r border-border bg-surface-muted/60 py-2',
+              !sidebarCollapsed && 'w-[var(--sidebar-width)]',
+              'sidebar-width-transition',
+            )}
+          >
+            <div className="mb-1 flex items-center justify-end px-2">
+              <button
+                type="button"
+                onClick={toggleSidebar}
+                aria-expanded={!sidebarCollapsed}
+                aria-controls="sidebar-nav"
+                aria-label={sidebarCollapsed ? t('sidebar.expand') : t('sidebar.collapse')}
+                data-testid="sidebar-toggle"
+                className="flex size-8 items-center justify-center rounded-sm text-foreground-secondary outline-none transition-colors hover:bg-surface-hover hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
+              >
+                {sidebarCollapsed ? (
+                  <PanelLeftOpenIcon className="size-4" aria-hidden />
+                ) : (
+                  <PanelLeftCloseIcon className="size-4" aria-hidden />
+                )}
+              </button>
+            </div>
+            {!inResultsFlow ? (
+              <>
+                <SidebarSection
+                  label={t('sidebar.dataRecovery')}
+                  collapsed={sidebarCollapsed}
+                />
+                {NAV_MAIN.map((item) => (
+                  <SidebarLink key={item.to} {...item} collapsed={sidebarCollapsed} />
+                ))}
+                <SidebarSection label={t('sidebar.advanced')} collapsed={sidebarCollapsed} />
+                {NAV_ADVANCED.map((item) => (
+                  <SidebarLink key={item.to} {...item} collapsed={sidebarCollapsed} />
+                ))}
+              </>
+            ) : (
+              <>
+                <SidebarSection
+                  label={t('sidebar.dataRecovery')}
+                  collapsed={sidebarCollapsed}
+                />
+                <SidebarLink
+                  to="/"
+                  icon={HardDriveIcon}
+                  labelKey="nav.backToDevices"
+                  end
+                  collapsed={sidebarCollapsed}
+                />
+                {active ? (
+                  <button
+                    type="button"
+                    onClick={() => navigate(`/scan/${active.targetId}/live`)}
+                    title={t('home.scanningHint')}
+                    className={cn(
+                      'mx-2 flex h-8 items-center gap-2.5 rounded-sm px-2.5 text-sm text-primary hover:bg-surface-hover',
+                    )}
+                  >
+                    <span
+                      className="inline-block size-1.5 shrink-0 rounded-full bg-current animate-status-pulse"
+                      aria-hidden
+                    />
+                    <RefreshCcwIcon className="size-4 shrink-0" aria-hidden />
+                    <span
+                      className={cn(
+                        'sidebar-label-fade truncate',
+                        sidebarCollapsed && 'opacity-0',
+                      )}
+                    >
+                      {t('home.scanningHint')}
+                    </span>
+                  </button>
+                ) : null}
+              </>
+            )}
+            <div className="mt-auto space-y-0.5">
               <SidebarLink
-                to="/"
-                icon={HardDriveIcon}
-                labelKey="nav.backToDevices"
+                to="/settings"
+                icon={SettingsIcon}
+                labelKey="nav.settings"
                 end
                 collapsed={sidebarCollapsed}
               />
-              {active ? (
-                <button
-                  type="button"
-                  onClick={() => navigate(`/scan/${active.targetId}/live`)}
-                  title={t('home.scanningHint')}
-                  className={cn(
-                    'mx-2 flex h-8 items-center gap-2.5 rounded-sm px-2.5 text-sm text-primary hover:bg-surface-hover',
-                  )}
-                >
-                  {/* Liveness pulses on the dot only — animating text opacity
-                      transiently breaks its contrast ratio (axe-verified). */}
-                  <span
-                    className="inline-block size-1.5 shrink-0 rounded-full bg-current animate-status-pulse"
-                    aria-hidden
-                  />
-                  <RefreshCcwIcon className="size-4 shrink-0" aria-hidden />
-                  <span
-                    className={cn(
-                      'sidebar-label-fade truncate',
-                      sidebarCollapsed && 'opacity-0',
-                    )}
-                  >
-                    {t('home.scanningHint')}
-                  </span>
-                </button>
-              ) : null}
-            </>
-          )}
-          <div className="mt-auto space-y-0.5">
-            <SidebarLink
-              to="/settings"
-              icon={SettingsIcon}
-              labelKey="nav.settings"
-              end
-              collapsed={sidebarCollapsed}
-            />
-          </div>
-        </nav>
+            </div>
+          </nav>
+        ) : null}
 
         {/* Content — route change fades the incoming surface in at
             --dur-fast (MOTION-SPEC §3.4; corpus QStackedWidget swaps

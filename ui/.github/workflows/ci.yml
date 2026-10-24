@@ -59,8 +59,8 @@ jobs:
       - name: Duplication (jscpd)
         run: pnpm jscpd
 
-      - name: Unit + component tests
-        run: pnpm test
+      - name: Unit + component tests (with coverage thresholds)
+        run: pnpm test:coverage
 
       - name: Production build
         run: pnpm build

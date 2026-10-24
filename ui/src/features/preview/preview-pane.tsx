@@ -38,47 +38,77 @@ export function PreviewPane({
   // The connector owns kind inference (ADR-008) — the pane renders
   // whichever payload kind comes back.
   const preview = usePreview(scanId, nodeId);
+  const bodyRef = React.useRef<HTMLDivElement | null>(null);
 
   return (
-    <div className="flex h-full min-h-0 flex-col">
+    <div className="flex h-full min-h-0 flex-col bg-surface">
       {node ? (
         <>
-          <div className="flex items-start gap-3 border-b border-border p-3">
-            <div className="mt-0.5 size-10 shrink-0 overflow-hidden rounded-md bg-surface-tint">
+          {/* Reference top inspector card: 156×132 thumbnail card + filename + soft-blue Preview CTA */}
+          <div className="flex flex-col items-center px-3 pt-4 pb-3">
+            <div className="flex h-[128px] w-[152px] shrink-0 items-center justify-center overflow-hidden rounded-lg border border-[#E2ECF9] bg-[#F2F6FC] dark:border-border dark:bg-surface-tint">
               <Thumbnail scanId={scanId} nodeId={node.id} available={node.thumbnailAvailable} />
             </div>
-            <div className="min-w-0 flex-1">
-              <p className="truncate text-sm font-semibold" title={node.name}>
-                {node.name}
-              </p>
-              <div className="mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs text-foreground-secondary tabular">
-                <span>{formatBytes(node.sizeBytes, i18n.language)}</span>
-                <span>{formatDateTime(node.modifiedAt, i18n.language)}</span>
-                <span className="uppercase">{node.extension}</span>
+            <p
+              className="mt-2.5 w-full truncate px-2 text-center text-xs font-medium text-foreground"
+              title={node.name}
+            >
+              {node.name}
+            </p>
+            <button
+              type="button"
+              onClick={() => bodyRef.current?.scrollIntoView({ behavior: 'smooth' })}
+              className="mt-2 inline-flex h-8 w-[148px] items-center justify-center rounded-md bg-[#DCE9FE] text-xs font-semibold text-[#1677FF] transition-colors hover:bg-[#CBE0FE] focus-visible:ring-2 focus-visible:ring-ring dark:bg-primary-muted dark:text-primary"
+            >
+              {t('preview.title')}
+            </button>
+          </div>
+
+          {/* Stacked metadata matching reference inspector (Size, Date Modified, Path, Status, Recovery Chances) */}
+          <div className="space-y-2.5 border-b border-border px-4 pb-3 text-xs">
+            <div>
+              <div className="text-foreground-secondary">{t('results.column.size')}</div>
+              <div className="mt-0.5 font-medium tabular text-foreground">
+                {formatBytes(node.sizeBytes, i18n.language)}
+              </div>
+            </div>
+            <div>
+              <div className="text-foreground-secondary">{t('results.column.modified')}</div>
+              <div className="mt-0.5 font-medium tabular text-foreground">
+                {formatDateTime(node.modifiedAt, i18n.language)}
+              </div>
+            </div>
+            <div>
+              <div className="text-foreground-secondary">{t('results.pathTab')}</div>
+              <div
+                className="mt-0.5 truncate font-medium text-foreground"
+                title={node.path ?? 'C:\\'}
+              >
+                {node.path ?? 'C:\\'}
+              </div>
+            </div>
+            <div>
+              <div className="text-foreground-secondary">{t('results.column.type')}</div>
+              <div className="mt-0.5 flex items-center gap-2 font-medium text-foreground">
+                <span>
+                  {node.origin === 'existing'
+                    ? t('preview.statusExisting')
+                    : node.origin === 'raw'
+                      ? t('preview.statusRaw')
+                      : t('preview.statusDeleted')}
+                </span>
+                <span className="text-foreground-secondary uppercase">{node.extension}</span>
+              </div>
+            </div>
+            <div>
+              <div className="text-foreground-secondary">{t('results.column.condition')}</div>
+              <div className="mt-1">
+                <ConfidenceBadge grade={node.confidence} scanId={scanId} nodeId={node.id} />
               </div>
             </div>
           </div>
 
-          <div className="flex items-center justify-between border-b border-border px-3 py-1.5">
-            <ConfidenceBadge grade={node.confidence} scanId={scanId} nodeId={node.id} />
-            <Badge
-              variant={
-                node.origin === 'existing'
-                  ? 'neutral'
-                  : node.origin === 'raw'
-                    ? 'primary'
-                    : 'warning'
-              }
-            >
-              {node.origin === 'existing'
-                ? t('preview.statusExisting')
-                : node.origin === 'raw'
-                  ? t('preview.statusRaw')
-                  : t('preview.statusDeleted')}
-            </Badge>
-          </div>
-
-          <div className="min-h-0 flex-1 overflow-auto p-3">
+          <div ref={bodyRef} className="min-h-0 flex-1 overflow-auto p-3">
             <PreviewBody previewQuery={preview} />
           </div>
 
@@ -90,8 +120,10 @@ export function PreviewPane({
         </>
       ) : (
         <div className="flex flex-1 flex-col items-center justify-center gap-2 p-6 text-center text-foreground-secondary">
-          <ImageIcon className="size-8" strokeWidth={1.25} aria-hidden />
-          <p className="text-xs">{t('preview.title')}</p>
+          <div className="flex h-[128px] w-[152px] items-center justify-center rounded-lg border border-[#E2ECF9] bg-[#F2F6FC] dark:border-border dark:bg-surface-tint">
+            <ImageIcon className="size-10 text-[#4B8BF5]" strokeWidth={1.5} aria-hidden />
+          </div>
+          <p className="mt-2 text-xs">{t('preview.title')}</p>
         </div>
       )}
     </div>
@@ -113,7 +145,7 @@ function Thumbnail({
   }
   return (
     <div className="flex size-full items-center justify-center">
-      <ImageIcon className="size-4 text-foreground-disabled" aria-hidden />
+      <ImageIcon className="size-12 text-[#4B8BF5]" strokeWidth={1.5} aria-hidden />
     </div>
   );
 }

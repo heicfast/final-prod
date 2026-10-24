@@ -135,7 +135,7 @@ describe('MockConnector — lost-data flow (ADR-008)', () => {
     await c.scan.cancelScan(scanId);
   }, 120_000);
 
-  it('collapses the quick pass when the volume cannot be quick-indexed', async () => {
+  it('collapses the quick pass when the volume cannot be quick-indexed and still reaches 100% progress', async () => {
     const c = new MockConnector();
     c.setScenario('bad-sectors');
     const devices = await c.devices.listDevices();
@@ -145,6 +145,11 @@ describe('MockConnector — lost-data flow (ADR-008)', () => {
     const stages = new Set(events.map((e) => e.stage));
     expect(stages.has('quick-index')).toBe(false);
     expect(stages.has('deep-walk')).toBe(true);
+    const state = await c.scan.getScanState(scanId);
+    expect(state.status).toBe('completed');
+    expect(state.progress.overallProgress).toBe(1);
+    const exactCount = await c.results.countResults(scanId, BASE_FILTER);
+    expect(state.progress.filesFound).toBe(exactCount);
   }, 120_000);
 
   it('streams the live "Searching:" ticker during the advanced pass only', async () => {

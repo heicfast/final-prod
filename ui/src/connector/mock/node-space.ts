@@ -252,7 +252,10 @@ export class NodeSpace {
           size = randBell(rng, 2.4e5, 3e6);
           break;
       }
-      this.fSize[i] = Math.max(64, Math.round(size));
+      // ~1% of generated files are 0-byte stubs so the "Hide 0 KB files" filter
+      // has real zero-byte candidates to filter, and per CRecoverability::GetEntryRecoverability
+      // (corpus DRWUI-subsystems--assistant-grading-preview.md §3.3), size < 1 is always 'poor'.
+      this.fSize[i] = i % 97 === 0 ? 0 : Math.max(64, Math.round(size));
       this.fDay[i] = Math.min(0xffff, Math.round(randBell(rng, 1200, 2400)));
 
       if (i >= rawStart) {
@@ -271,6 +274,9 @@ export class NodeSpace {
               : ORIGINS.indexOf('lost-path');
         this.fConf[i] = Math.floor(rng() * CONFIDENCES.length);
       }
+      if (this.fSize[i] === 0) {
+        this.fConf[i] = CONFIDENCES.indexOf('poor');
+      }
     }
 
     // ---- capacity scaling: keep the aggregate within the volume budget ----
@@ -279,16 +285,24 @@ export class NodeSpace {
     if (totalSize > totalBytesBudget && totalSize > 0) {
       const scale = totalBytesBudget / totalSize;
       for (let i = 0; i < n; i++) {
-        this.fSize[i] = Math.max(64, Math.floor(this.fSize[i] * scale));
+        this.fSize[i] =
+          this.fSize[i] === 0 ? 0 : Math.max(64, Math.floor(this.fSize[i] * scale));
       }
       totalSize = 0;
       for (let i = 0; i < n; i++) totalSize += this.fSize[i];
     }
 
     // ---- precompute per-directory direct counts, then bottom-up subtree sums ----
+    // Corpus GT-scan §3 / §7 & SaveScan §5.4.6: the Path tree partitions files into
+    // three disjoint top-level branches:
+    //   1. `root` ("Existing files" — existing + normal deleted files with intact paths)
+    //   2. `lost-paths` (`origin === 'lost-path'`)
+    //   3. `raw-all` (`origin === 'raw'`, which have `path: null`)
     const directCount = new Float64Array(this.dirs.length);
     const directSize = new Float64Array(this.dirs.length);
     for (let i = 0; i < n; i++) {
+      const origin = this.originOf(i);
+      if (origin !== 'existing' && origin !== 'deleted') continue;
       const d = this.fDir[i];
       directCount[d] += 1;
       directSize[d] += this.fSize[i];
@@ -314,12 +328,38 @@ export class NodeSpace {
   // ------------------------------------------------------------------ names
 
   fileName(i: number): string {
-    const rng = mulberry32((this.seed ^ Math.imul(i + 1, 2654435761)) >>> 0);
-    const stem = pick(rng, NAME_STEMS);
+    let a = ((this.seed ^ Math.imul(i + 1, 2654435761)) + 0x6d2b79f5) | 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    const r1 = ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+
+    a = (a + 0x6d2b79f5) | 0;
+    t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    const r2 = ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+
+    const stem = NAME_STEMS[Math.floor(r1 * NAME_STEMS.length)];
     const ext = this.extPool[this.fExt[i]] ?? 'bin';
-    const suffix = Math.floor(rng() * 10_000);
+    const suffix = Math.floor(r2 * 10_000);
     const prefix = i % 20 === 0 ? 'old_' : i % 37 === 0 ? 'new_' : '';
     return `${prefix}${stem}_${String(suffix).padStart(4, '0')}.${ext}`;
+  }
+
+  private matchesSearch(i: number, q: string, alphaOnly: boolean): boolean {
+    if (alphaOnly) {
+      const a = ((this.seed ^ Math.imul(i + 1, 2654435761)) + 0x6d2b79f5) | 0;
+      let t = Math.imul(a ^ (a >>> 15), 1 | a);
+      t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+      const r1 = ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+      const stem = NAME_STEMS[Math.floor(r1 * NAME_STEMS.length)];
+      if (stem.includes(q)) return true;
+      const ext = this.extPool[this.fExt[i]] ?? 'bin';
+      if (ext.includes(q)) return true;
+      if (i % 20 === 0 && 'old'.includes(q)) return true;
+      if (i % 37 === 0 && 'new'.includes(q)) return true;
+      return false;
+    }
+    return this.fileName(i).includes(q);
   }
 
   modifiedIso(i: number): string {
@@ -454,7 +494,13 @@ export class NodeSpace {
 
   // ------------------------------------------------------------------ filter
 
-  private matches(i: number, filter: ResultsFilter, scope: Uint8Array | null): boolean {
+  private matches(
+    i: number,
+    filter: ResultsFilter,
+    scope: Uint8Array | null,
+    searchLower: string | null = filter.search ? filter.search.toLowerCase() : null,
+    searchAlphaOnly: boolean = searchLower !== null && /^[a-z]+$/.test(searchLower),
+  ): boolean {
     if (!this.inScope(i, scope)) return false;
     if (filter.categories && filter.categories.length > 0) {
       if (!filter.categories.includes(this.categoryOf(i))) return false;
@@ -486,13 +532,17 @@ export class NodeSpace {
     }
 
     if (filter.nodeId && filter.treeMode === 'path') {
-      const scope = filter.nodeId;
-      if (SPECIAL_PATH_GROUPS.includes(scope as (typeof SPECIAL_PATH_GROUPS)[number])) {
-        if (scope === 'lost-paths' && this.originOf(i) !== 'lost-path') return false;
-        if (scope === 'raw-all' && this.originOf(i) !== 'raw') return false;
-      } else if (scope !== 'root' && scope.startsWith('d')) {
-        // files directly inside this directory (explorer convention)
-        if (this.fDir[i] !== Number(scope.slice(1))) return false;
+      const nodeScope = filter.nodeId;
+      const origin = this.originOf(i);
+      if (SPECIAL_PATH_GROUPS.includes(nodeScope as (typeof SPECIAL_PATH_GROUPS)[number])) {
+        if (nodeScope === 'lost-paths' && origin !== 'lost-path') return false;
+        if (nodeScope === 'raw-all' && origin !== 'raw') return false;
+      } else if (nodeScope === 'root') {
+        if (origin !== 'existing' && origin !== 'deleted') return false;
+      } else if (nodeScope.startsWith('d')) {
+        // files directly inside this directory in the intact path hierarchy
+        if (origin !== 'existing' && origin !== 'deleted') return false;
+        if (this.fDir[i] !== Number(nodeScope.slice(1))) return false;
       }
     } else if (filter.nodeId && filter.treeMode === 'type') {
       if (filter.nodeId.startsWith('c')) {
@@ -503,9 +553,8 @@ export class NodeSpace {
       if (this.originOf(i) !== 'raw') return false;
     }
 
-    if (filter.search) {
-      const q = filter.search.toLowerCase();
-      if (!this.fileName(i).toLowerCase().includes(q)) return false;
+    if (searchLower !== null) {
+      if (!this.matchesSearch(i, searchLower, searchAlphaOnly)) return false;
     }
     return true;
   }
@@ -516,16 +565,36 @@ export class NodeSpace {
     offset: number,
     limit: number,
     scope: Uint8Array | null = null,
-  ): { nodes: ResultNode[]; total: number; elapsedMs: number } {
+  ): { nodes: ResultNode[]; total: number; totalBytes: number; elapsedMs: number } {
     const t0 = performance.now();
     const hits: number[] = [];
+    let totalBytes = 0;
+    const searchLower = filter.search ? filter.search.toLowerCase() : null;
+    const searchAlphaOnly = searchLower !== null && /^[a-z]+$/.test(searchLower);
     for (let i = 0; i < this.fileCount; i++) {
-      if (this.matches(i, filter, scope)) hits.push(i);
+      if (this.matches(i, filter, scope, searchLower, searchAlphaOnly)) {
+        hits.push(i);
+        totalBytes += this.fSize[i] ?? 0;
+      }
     }
-    const cmp = this.comparatorFor(sort);
-    hits.sort(cmp);
-    const page = hits.slice(offset, offset + limit).map((i) => this.nodeAt(i));
-    return { nodes: page, total: hits.length, elapsedMs: performance.now() - t0 };
+    let orderedHits: number[];
+    if (sort.field === 'name') {
+      const dir = sort.direction === 'asc' ? 1 : -1;
+      const keyed = hits.map((i) => ({ i, name: this.fileName(i) }));
+      keyed.sort((a, b) => (a.name < b.name ? -dir : a.name > b.name ? dir : 0));
+      orderedHits = keyed.map((k) => k.i);
+    } else {
+      const cmp = this.comparatorFor(sort);
+      hits.sort(cmp);
+      orderedHits = hits;
+    }
+    const page = orderedHits.slice(offset, offset + limit).map((i) => this.nodeAt(i));
+    return {
+      nodes: page,
+      total: orderedHits.length,
+      totalBytes,
+      elapsedMs: performance.now() - t0,
+    };
   }
 
   private comparatorFor(sort: {
@@ -539,12 +608,14 @@ export class NodeSpace {
       case 'modified':
         return (a, b) => ((this.fDay[a] ?? 0) - (this.fDay[b] ?? 0)) * dir;
       case 'type':
-        return (a, b) => this.extensionOf(a).localeCompare(this.extensionOf(b)) * dir;
+        return (a, b) => {
+          const ea = this.extensionOf(a);
+          const eb = this.extensionOf(b);
+          return ea < eb ? -dir : ea > eb ? dir : 0;
+        };
       case 'confidence':
-        return (a, b) => ((this.fConf[a] ?? 0) - (this.fConf[b] ?? 0)) * dir;
-      case 'name':
       default:
-        return (a, b) => this.fileName(a).localeCompare(this.fileName(b)) * dir;
+        return (a, b) => ((this.fConf[a] ?? 0) - (this.fConf[b] ?? 0)) * dir;
     }
   }
 
@@ -556,8 +627,10 @@ export class NodeSpace {
     limit: number,
   ): number[] {
     const hits: number[] = [];
+    const searchLower = filter.search ? filter.search.toLowerCase() : null;
+    const searchAlphaOnly = searchLower !== null && /^[a-z]+$/.test(searchLower);
     for (let i = 0; i < this.fileCount && hits.length < offset + limit; i++) {
-      if (this.matches(i, filter, scope)) hits.push(i);
+      if (this.matches(i, filter, scope, searchLower, searchAlphaOnly)) hits.push(i);
     }
     return hits.slice(offset, offset + limit);
   }
@@ -571,7 +644,7 @@ export class NodeSpace {
     const base = Math.floor(tick * 7) % Math.max(1, this.fileCount);
     for (let k = 0; k < 32; k++) {
       const i = (base + k * 131) % this.fileCount;
-      if (!this.matches(i, EMPTY_FILTER, scope)) continue;
+      if (!this.matches(i, EMPTY_FILTER, scope, null, false)) continue;
       const node = this.nodeAt(i);
       if (node.kind !== 'file') continue;
       const dir = node.path ?? '';
@@ -582,8 +655,10 @@ export class NodeSpace {
 
   count(filter: ResultsFilter, scope: Uint8Array | null = null): number {
     let total = 0;
+    const searchLower = filter.search ? filter.search.toLowerCase() : null;
+    const searchAlphaOnly = searchLower !== null && /^[a-z]+$/.test(searchLower);
     for (let i = 0; i < this.fileCount; i++) {
-      if (this.matches(i, filter, scope)) total++;
+      if (this.matches(i, filter, scope, searchLower, searchAlphaOnly)) total++;
     }
     return total;
   }
@@ -744,13 +819,17 @@ export class NodeSpace {
 
   stats(scope: Uint8Array | null = null): { files: number; size: number; rawFiles: number } {
     if (scope) {
-      const scopeRootIdx = scope.indexOf(1);
-      const rec = scopeRootIdx >= 0 ? this.dirs[scopeRootIdx] : null;
-      return {
-        files: rec?.fileCount ?? 0,
-        size: rec?.sizeBytes ?? 0,
-        rawFiles: this.countByOrigin('raw', scope),
-      };
+      let files = 0;
+      let size = 0;
+      let rawFiles = 0;
+      for (let i = 0; i < this.fileCount; i++) {
+        if (this.inScope(i, scope)) {
+          files++;
+          size += this.fSize[i] ?? 0;
+          if (this.originOf(i) === 'raw') rawFiles++;
+        }
+      }
+      return { files, size, rawFiles };
     }
     return {
       files: this.fileCount,

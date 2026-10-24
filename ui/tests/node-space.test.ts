@@ -71,15 +71,37 @@ describe('NodeSpace — procedural index', () => {
     expect(hits.nodes.every((n) => n.name.toLowerCase().includes(stem))).toBe(true);
   });
 
-  it('path tree children carry precomputed aggregates', () => {
+  it('path tree children partition the space into 3 disjoint top-level branches', () => {
     const s = new NodeSpace('vol-test', 11, 25, 400);
     const children = s.pathTreeChildren(null);
     expect(children.length).toBe(3); // root + lost-paths + raw groups
     const root = children.find((n) => n.id === 'root')!;
-    expect(root.fileCount).toBe(400);
-    expect(root.sizeBytes).toBe(s.totalSizeBytes);
+    const lost = children.find((n) => n.id === 'lost-paths')!;
     const raw = children.find((n) => n.id === 'raw-all')!;
     expect(raw.fileCount).toBe(s.stats().rawFiles);
+    expect(root.fileCount + lost.fileCount + raw.fileCount).toBe(400);
+    expect(root.sizeBytes + lost.sizeBytes + raw.sizeBytes).toBe(s.totalSizeBytes);
+
+    // Selecting 'root' in path mode only returns existing + deleted files (never raw or lost-path)
+    const rootHits = s.query(
+      { ...BASE, treeMode: 'path', nodeId: 'root' },
+      { field: 'name', direction: 'asc' },
+      0,
+      400,
+    );
+    expect(rootHits.total).toBe(root.fileCount);
+    expect(rootHits.totalBytes).toBe(root.sizeBytes);
+    expect(rootHits.nodes.every((n) => n.origin === 'existing' || n.origin === 'deleted')).toBe(
+      true,
+    );
+  });
+
+  it('grades 0-byte files as poor confidence per CRecoverability::GetEntryRecoverability', () => {
+    const s = new NodeSpace('vol-test', 11, 25, 400);
+    const page = s.query(BASE, { field: 'size', direction: 'asc' }, 0, 400);
+    const zeroByteNodes = page.nodes.filter((n) => n.sizeBytes === 0);
+    expect(zeroByteNodes.length).toBeGreaterThan(0);
+    expect(zeroByteNodes.every((n) => n.confidence === 'poor')).toBe(true);
   });
 
   it('type tree returns exactly the 8 categories', () => {

@@ -478,14 +478,21 @@ export class MockConnector {
     return ranges;
   }
 
+  private visibleFraction(rt: ScanRuntime): number {
+    return rt.status === 'completed' || rt.status === 'cancelled'
+      ? 1
+      : Math.max(0.05, 1 - Math.exp(-3.4 * rt.overall));
+  }
+
   private scanTick(rt: ScanRuntime): void {
     rt.tick++;
     const stages = rt.stages;
     const curIdx = stages.indexOf(rt.stage);
     const totalTicks = 96 + (rt.space.fileCount > 500_000 ? 60 : 0);
 
-    // per-tick increments
-    const stageSpeed = 0.014 + (rt.tick % 5 === 0 ? 0.006 : 0);
+    // per-tick increments (faster in automated test runner while preserving every stage transition)
+    const isTest = import.meta.env?.MODE === 'test';
+    const stageSpeed = isTest ? 0.22 : 0.014 + (rt.tick % 5 === 0 ? 0.006 : 0);
     rt.stageProgress = Math.min(1, rt.stageProgress + stageSpeed);
 
     // device disconnect injection (one-shot per scan: reconnects stick)
@@ -513,20 +520,13 @@ export class MockConnector {
     rt.throughput = byteSpeed * 8;
     rt.eta = Math.max(1, Math.round(((totalTicks - rt.tick) * 150) / 1000));
 
-    // (The "Searching: <path>" ticker is assigned AFTER the stage advance
-    // below, so a poller can never observe a stale ticker against the new
-    // stage — see the assignment at the end of this method.)
-
-    // found-file curve: fast then saturating
-    const stats = rt.space.stats(rt.scopeMask);
-    const curve = 1 - Math.exp(-3.4 * rt.overall);
-    rt.filesFound = Math.floor(stats.files * curve);
-    rt.dataFound = Math.floor(stats.size * curve);
-
-    // overall from stage weights
+    // overall from active stage weights (normalized so omitting 'quick-index' still spans 0..1)
+    const activeWeightTotal = stages.reduce((acc, s) => acc + (STAGE_WEIGHTS[s] ?? 0), 0) || 1;
     let before = 0;
-    for (let i = 0; i < curIdx; i++) before += STAGE_WEIGHTS[stages[i]] ?? 0;
-    const curWeight = STAGE_WEIGHTS[rt.stage] ?? 0;
+    for (let i = 0; i < curIdx; i++) {
+      before += (STAGE_WEIGHTS[stages[i]] ?? 0) / activeWeightTotal;
+    }
+    const curWeight = (STAGE_WEIGHTS[rt.stage] ?? 0) / activeWeightTotal;
     rt.overall = Math.min(1, before + curWeight * rt.stageProgress);
 
     if (rt.stageProgress >= 1) {
@@ -539,11 +539,23 @@ export class MockConnector {
         rt.status = 'completed';
         rt.completedAt = new Date().toISOString();
         rt.overall = 1;
+        rt.bytesScanned = rt.bytesTotal;
         rt.eta = 0;
         if (rt.timer) clearInterval(rt.timer);
         rt.timer = null;
-        this.autoSaveSession(rt);
       }
+    }
+
+    // found-file curve: fast then saturating during scan, exact 100% upon completion
+    const stats = rt.space.stats(rt.scopeMask);
+    if (rt.status === 'completed') {
+      rt.filesFound = stats.files;
+      rt.dataFound = stats.size;
+      this.autoSaveSession(rt);
+    } else {
+      const curve = 1 - Math.exp(-3.4 * rt.overall);
+      rt.filesFound = Math.floor(stats.files * curve);
+      rt.dataFound = Math.floor(stats.size * curve);
     }
 
     // Live "Searching: <path>" ticker — the item currently examined
@@ -620,6 +632,14 @@ export class MockConnector {
       if (mode === 'type') nodes = rt.space.typeTree(rt.scopeMask);
       else if (mode === 'raw') nodes = rt.space.rawTree(rt.scopeMask);
       else nodes = rt.space.pathTreeChildren(parentId, rt.scopeMask);
+      const vf = this.visibleFraction(rt);
+      if (vf < 0.999) {
+        nodes = nodes.map((n) => ({
+          ...n,
+          fileCount: Math.floor(n.fileCount * vf),
+          sizeBytes: Math.floor(n.sizeBytes * vf),
+        }));
+      }
       return { nodes, parentHasMore: false };
     },
 
@@ -632,13 +652,11 @@ export class MockConnector {
       await latency(90, 50);
       const rt = this.requireScan(scanId);
       // During a live scan only a fraction of the space is "found" yet.
-      const visibleFraction =
-        rt.status === 'completed' || rt.status === 'cancelled'
-          ? 1
-          : Math.max(0.05, 1 - Math.exp(-3.4 * rt.overall));
+      const visibleFraction = this.visibleFraction(rt);
       const result = rt.space.query(filter, sort, page.offset, page.limit, rt.scopeMask);
       // approximate live fraction by trimming the total (deterministic)
       const total = Math.floor(result.total * visibleFraction);
+      const totalBytes = Math.floor(result.totalBytes * visibleFraction);
       const nodes =
         visibleFraction >= 0.999
           ? result.nodes
@@ -646,6 +664,7 @@ export class MockConnector {
       return {
         nodes,
         total,
+        totalBytes,
         offset: page.offset,
         pageSize: page.limit,
         elapsedMs: result.elapsedMs,
@@ -680,7 +699,7 @@ export class MockConnector {
     countResults: async (scanId: string, filter: ResultsFilter): Promise<number> => {
       await latency(60, 30);
       const rt = this.requireScan(scanId);
-      return rt.space.count(filter, rt.scopeMask);
+      return Math.floor(rt.space.count(filter, rt.scopeMask) * this.visibleFraction(rt));
     },
   };
 
@@ -961,7 +980,9 @@ ${lines.join('')}
       // Items advanced per tick — scales with job size so even a
       // recover-all over the whole result set finishes in bounded wall time
       // (the real engine streams at disk speed; the simulator batches).
-      const batch = Math.max(1, Math.ceil(Math.max(1, totalCount) / 200));
+      const targetTicks =
+        import.meta.env?.MODE === 'test' && selection.kind === 'all' ? 25 : 200;
+      const batch = Math.max(1, Math.ceil(Math.max(1, totalCount) / targetTicks));
       const job: JobRuntime = {
         jobId,
         scanId,
@@ -1073,10 +1094,11 @@ ${lines.join('')}
     if (job.allMode) {
       // Lookahead window: keep a bounded working set of materialized items
       // (the export loop streams; it never preloads the whole set).
+      const windowSize = Math.max(2048, job.batch * 2);
       const inFlight = job.items.length - job.advanceCursor;
-      if (inFlight < 2048) {
+      if (inFlight < windowSize) {
         const { space, filter, scopeMask } = job.allMode;
-        const window = space.queryNodes(filter, scopeMask, job.allMode.cursor, 2048);
+        const window = space.queryNodes(filter, scopeMask, job.allMode.cursor, windowSize);
         if (window.length > 0) {
           job.allMode.cursor += window.length;
           for (const idx of window) {
@@ -1092,12 +1114,16 @@ ${lines.join('')}
       }
     }
 
-    const pendingIdx = job.items.findIndex(
-      (i) => i.state === 'pending' || i.state === 'running',
-    );
+    let pendingIdx = -1;
+    for (let k = job.advanceCursor; k < job.items.length; k++) {
+      if (job.items[k].state === 'pending' || job.items[k].state === 'running') {
+        pendingIdx = k;
+        break;
+      }
+    }
     if (pendingIdx === -1) {
-      const failed = job.items.filter((i) => i.state === 'failed').length;
-      const done = job.items.filter((i) => i.state === 'done').length;
+      const failed = job.progress.failedCount;
+      const done = job.progress.completedCount;
       if (
         job.options.verifyOnWrite &&
         !job.progress.verifying &&
@@ -1129,14 +1155,15 @@ ${lines.join('')}
     // recover-all over the entire result set) completes in bounded wall
     // time — the real engine streams at disk speed; the simulator batches.
     for (let step = 0; step < job.batch; step++) {
-      let pending = -1;
-      for (let k = job.advanceCursor; k < job.items.length; k++) {
-        if (job.items[k].state === 'pending' || job.items[k].state === 'running') {
-          pending = k;
-          break;
-        }
+      while (
+        job.advanceCursor < job.items.length &&
+        job.items[job.advanceCursor].state !== 'pending' &&
+        job.items[job.advanceCursor].state !== 'running'
+      ) {
+        job.advanceCursor++;
       }
-      if (pending === -1) break;
+      if (job.advanceCursor >= job.items.length) break;
+      const pending = job.advanceCursor;
       const item = job.items[pending];
       if (item.state === 'pending') {
         item.state = 'running';
@@ -1174,14 +1201,8 @@ ${lines.join('')}
         }
         job.progress.currentFile = null;
         job.progress.currentFileProgress = 0;
+        job.advanceCursor = pending + 1;
       }
-    }
-    while (
-      job.advanceCursor < job.items.length &&
-      job.items[job.advanceCursor].state !== 'pending' &&
-      job.items[job.advanceCursor].state !== 'running'
-    ) {
-      job.advanceCursor++;
     }
     job.progress.overallProgress =
       (job.progress.completedCount +

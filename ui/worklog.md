@@ -893,3 +893,30 @@ inventory: all IMPLEMENTED or VERIFIED, none missing. Version bumped to
   tauri-debug-build; behavior is OS-provided once wired); interim chrome
   SVGs await the homegrown v2 icon session (manifest enumerates the
   replacement); code signing pending (release notes state it).
+
+---
+
+## Session 6 — 2026-10-24 (Full Corpus Audit, Mock API Parity & Slop Remediation)
+
+### T1–T4 — Full Corpus Read, Full Application Read, Gate Docs & Audit Report — DONE
+
+- Read every architecture document (`00-INDEX.md`..`07-user-flow-uiux.md`), every UIUX artifact (`01`..`35` + dynamic ground truth), every RE binary document (`CORRECTIONS.md`, `DRWUI-exe--main-ui-architecture.md`, `DRWUI-subsystems--assistant-grading-preview.md`, `SaveScan/*`, `config-files/*`), and all 63 screenshots in `heicfast/easeus-drw-research`.
+- Read every source, test, config, script, workflow, and documentation file in `heicfast/recovery-wizard-ui-new` line by line.
+- Created gate documents `docs/screen-manifest.md`, `docs/visual-spec.md`, `docs/component-inventory.md`, and recorded all 8 divergences (`D1`–`D8`) + the 55-parameter verification matrix in `docs/AUDIT-REPORT.md`.
+
+### T5–T15 — Code Fixes, Mock Connector Parity, Workflow & Doc Remediation — DONE
+
+- **D1 (`bad-sectors` scan stage weight normalization)**: Normalized active stage weights in `MockConnector.scanTick` (`src/connector/mock/mock-connector.ts`) so volumes with `quickScanAvailable: false` (omitting `quick-index`) progress smoothly across `0..1` and reach `100%` on completion.
+- **D2 (Scan completion counter parity)**: Computed `rt.filesFound` and `rt.dataFound` after stage transitions and set exact `100%` (`stats.files`, `stats.size`) when `rt.status === 'completed'`.
+- **D3 (Path-tree 3-branch isolation)**: Updated `NodeSpace` (`src/connector/mock/node-space.ts`) so `root` (`Existing files`), `lost-paths`, and `raw-all` form three disjoint top-level branches in Path mode (`root.fileCount + lost.fileCount + raw.fileCount === fileCount`), and selecting `root` or `d<N>` in Path mode never leaks `raw` (`path: null`) or `lost-path` items.
+- **D4 (Live-scan tree & count growth)**: Scaled `getResultTree` and `countResults` by `visibleFraction(rt)` during active scans and added throttled progress-bucket invalidation of `tree`, `results`, and `count` queries in `src/queries/scan.ts`.
+- **D5 (`ResultsExplorer` status bar byte total bug)**: Added `readonly totalBytes: number` to `ResultsPage` (`src/connector/contract.ts`), accumulated `totalBytes` in `NodeSpace.query()`, and updated `totalOf()` in `src/features/results-explorer/results-explorer.tsx` to format `totalBytes` instead of file count.
+- **D6 (`CRecoverability` 0-byte file grading rule)**: Generated ~1% zero-byte files in `NodeSpace` and enforced `confidence = 'poor'` whenever `sizeBytes === 0` per `CRecoverability::GetEntryRecoverability` (`size < 1 -> Poor`).
+- **D7 (Performance optimization)**: Eliminated `O(N^2)` cursor scans in `MockConnector.jobTick`, inlined PRNG steps in `NodeSpace.fileName(i)`, and replaced `String.prototype.localeCompare` inside `Array.prototype.sort` with direct lexicographical comparison so 180k-node search/sort completes in ~18ms (< 200ms budget even under V8 coverage).
+- **D8 (Test hygiene, CI gates & docs)**:
+  - Imported `@/i18n` in `tests/setup.ts` and wrapped direct store mutations in `act()` in `tests/sidebar.test.tsx` (zero stderr warnings across all 16 test files).
+  - Guarded `console.*` output in `src/lib/logger.ts` with `import.meta.env.MODE !== 'test'`.
+  - Updated `eslint.config.js` feature boundary zone (`lost-partition` replacing deleted `scan-configuration`).
+  - Enforced `pnpm test:coverage` with coverage thresholds (`70%` lines/functions/statements, `60%` branches) in `vite.config.ts` and `.github/workflows/ci.yml`.
+  - Removed `continue-on-error: true` from `.github/workflows/ui-smoke.yml` and added `.github/workflows/visual-compare.yml` + `scripts/visual-compare.mjs`.
+  - Deleted stale root `AUDIT-UI.md` and synchronized `docs/CONNECTOR-CONTRACT.md`, `docs/DESIGN-SYSTEM.md`, `docs/TESTING.md`, `docs/ACCEPTANCE.md`, `docs/IMPLEMENTATION-STATUS.md`, and `README.md`.

@@ -75,7 +75,7 @@ function SortHeader({
     <div
       role="columnheader"
       aria-sort={active ? (currentDirection === 'asc' ? 'ascending' : 'descending') : 'none'}
-      className="flex border-b border-border"
+      className="flex border-r border-b border-border/70 last:border-r-0"
       style={{ width }}
     >
       <button
@@ -83,7 +83,7 @@ function SortHeader({
         onClick={() => onSort(field)}
         aria-label={`${label} — ${active ? (currentDirection === 'asc' ? t('a11y.sortDescending') : t('a11y.sortAscending')) : t('a11y.sortAscending')}`}
         className={cn(
-          'flex h-8 w-full select-none items-center gap-1 px-3 text-xs font-semibold text-foreground-secondary transition-colors hover:bg-surface-hover/50 hover:text-foreground',
+          'flex h-9 w-full select-none items-center justify-between gap-1 px-3 text-xs font-medium text-foreground-secondary transition-colors hover:bg-surface-hover/50 hover:text-foreground',
           'focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset',
           align === 'right' && 'justify-end',
         )}
@@ -91,7 +91,7 @@ function SortHeader({
         <span className="truncate">{label}</span>
         <Icon
           className={cn(
-            'size-3 shrink-0',
+            'size-3.5 shrink-0',
             active ? 'opacity-90' : 'opacity-0 group-hover/column:opacity-40',
           )}
           aria-hidden
@@ -183,7 +183,7 @@ export function VirtualFileList({
 
   return (
     <div
-      className={cn('flex h-full min-h-0 flex-col', className)}
+      className={cn('flex h-full min-h-0 flex-col bg-surface', className)}
       role="grid"
       aria-rowcount={total}
     >
@@ -193,7 +193,7 @@ export function VirtualFileList({
       >
         <div
           role="columnheader"
-          className="flex items-center justify-center border-b border-border"
+          className="flex h-9 items-center justify-center border-b border-border/70"
           style={{ width: COLUMN_WIDTHS.checkbox }}
         >
           <Checkbox
@@ -249,7 +249,7 @@ export function VirtualFileList({
       <div
         ref={ref}
         role="rowgroup"
-        className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden"
+        className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto"
         tabIndex={0}
         aria-label={t('results.column.name')}
       >
@@ -303,12 +303,10 @@ export function VirtualFileList({
                   aria-selected={isSelected}
                   data-active={isActive || undefined}
                   className={cn(
-                    'absolute inset-x-0 flex cursor-default items-center text-sm transition-colors',
-                    isSelected
-                      ? 'bg-surface-selected/60'
-                      : isActive
-                        ? 'bg-surface-hover'
-                        : 'hover:bg-surface-hover/50',
+                    'absolute inset-x-0 flex cursor-default items-center rounded-sm text-xs transition-colors',
+                    isSelected || isActive
+                      ? 'bg-[#D2E3FC]/85 dark:bg-surface-selected/60'
+                      : 'hover:bg-[#EBF2FF]/70 dark:hover:bg-surface-hover/50',
                   )}
                   style={{ top: vRow.start, height: rowHeight }}
                   onClick={(e) => onRowClick(node, idx, e)}
@@ -328,11 +326,11 @@ export function VirtualFileList({
                   </div>
                   <div
                     role="gridcell"
-                    className="flex h-full items-center gap-2 px-3"
+                    className="flex h-full items-center gap-2.5 px-3"
                     style={{ width: COLUMN_WIDTHS.name }}
                   >
                     <FileIconFor node={node} />
-                    <span className="truncate" title={node.name}>
+                    <span className="truncate font-medium" title={node.name}>
                       {node.name}
                     </span>
                   </div>
@@ -378,9 +376,8 @@ export function VirtualFileList({
   );
 }
 
-/** Icon (tile) view — corpus view toggle list⇄icon (atlas §8). Tiles show
- *  thumbnail-or-type-icon, two-line-clamped name, and size; checkbox on
- *  hover/focus; selection + activation mirror the details rows. */
+/** Icon (tile) view — corpus view toggle list⇄icon (atlas §8, preview-panel-live.png).
+ *  Tiles render thumbnail card with top-left checkbox overlay and centered filename below. */
 function IconGridBody({
   scanId,
   rows,
@@ -432,14 +429,12 @@ function IconGridBody({
             aria-selected={isSelected}
             data-active={isActive || undefined}
             className={cn(
-              'group/tile absolute flex cursor-default items-center gap-3 rounded-md border p-2 transition-colors',
-              isSelected
-                ? 'border-primary bg-surface-selected/60'
-                : isActive
-                  ? 'border-border-strong bg-surface-hover'
-                  : 'border-transparent hover:bg-surface-hover/50',
+              'group/tile absolute flex cursor-default items-center gap-3 rounded-lg border p-2 transition-colors',
+              isSelected || isActive
+                ? 'border-[#1677FF] bg-[#E8F1FF] dark:border-primary dark:bg-surface-selected/60'
+                : 'border-border/60 bg-surface hover:bg-[#F2F6FC] dark:hover:bg-surface-hover/50',
             )}
-            style={{ top: vRow.start, height: rowHeight, left: 8, right: 8 }}
+            style={{ top: vRow.start, height: rowHeight - 4, left: 10, right: 10 }}
             onClick={(e) => onRowClick(node, idx, e)}
             onDoubleClick={() => onRowDoubleClick(node)}
           >
@@ -452,21 +447,15 @@ function IconGridBody({
                 checked={isSelected}
                 onCheckedChange={() => onCheckboxChange(node)}
                 aria-label={t('a11y.selectRow')}
-                className={cn(
-                  'transition-opacity',
-                  isSelected
-                    ? 'opacity-100'
-                    : 'opacity-0 group-hover/tile:opacity-100 focus-visible:opacity-100',
-                )}
               />
             </div>
             <div role="gridcell" className="flex min-w-0 flex-1 items-center gap-3">
               <IconTile scanId={scanId} node={node} />
               <div className="min-w-0 flex-1">
-                <div className="line-clamp-2 text-sm" title={node.name}>
+                <div className="line-clamp-2 text-xs font-medium" title={node.name}>
                   {node.name}
                 </div>
-                <div className="mt-0.5 text-xs text-foreground-secondary tabular">
+                <div className="mt-0.5 text-2xs text-foreground-secondary tabular">
                   {formatBytes(node.sizeBytes, i18n.language)}
                 </div>
               </div>
@@ -485,13 +474,13 @@ function IconTile({ scanId, node }: { scanId: string; node: ResultNode }): React
       <img
         src={thumb.data.dataUrl}
         alt=""
-        className="size-16 shrink-0 rounded-sm object-cover"
+        className="h-16 w-22 shrink-0 rounded-md border border-border/50 object-cover"
         loading="lazy"
       />
     );
   }
   return (
-    <div className="flex size-16 shrink-0 items-center justify-center rounded-sm bg-surface-tint">
+    <div className="flex h-16 w-22 shrink-0 items-center justify-center rounded-md bg-[#F2F6FC] dark:bg-surface-tint">
       <FileIconFor node={node} />
     </div>
   );

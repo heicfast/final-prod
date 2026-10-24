@@ -18,28 +18,28 @@ Living design-system document for the Recovery Wizard UI. Token values live in
 ## 2. Token architecture
 
 ```
-tokens.css
-  :root            — light values (oklch where stable, hex from VISUAL-SPEC)
-  .dark            — dark overrides
-  .hc / .hc.dark   — high-contrast overrides (no gradients, hard borders)
-index.css
-  @import "tailwindcss"; @import "tw-animate-css";
-  @custom-variant dark (&:is(.dark *));
-  @theme inline — maps --color-* → --background/--surface/… (shadcn v4 pattern)
-  @layer base    — border-border, bg-background, text-foreground, font stack
+src/theme/adopted/
+  themes.ts     — 5 adopted palettes (theme-light, theme-dark, theme-Nord,
+                  theme-Solarized, theme-HighContrast) + 46 semantic variables
+  tokens.css    — base palette CSS variables
+src/styles/
+  tokens.css    — imports adopted/tokens.css + generated-tokens.css; maps
+                  --surface-*, --text-*, --accent-*, --status-* into semantic
+                  roles (--background, --surface, --primary, etc.) + .hc triad
+  index.css     — @import "tailwindcss"; @import "tw-animate-css";
+                  @custom-variant dark (&:is(.dark *)); @theme inline
 ```
 
-Component classes use Tailwind utilities + `@variant` only; no ad-hoc hexes.
-New tokens require a VISUAL-SPEC row with a source.
+Component classes use Tailwind utilities + `@variant` only; no ad-hoc hexes
+(enforced by `tests/theme-snapshot.test.ts`).
 
-## 3. Color roles (summary — full table in VISUAL-SPEC §1)
+## 3. Color roles (summary — full table in visual-spec.md & VISUAL-SPEC.md)
 
-- Canvas: blue-tinted gradient (light) / near-black (dark)
-- Surface: white / #202428; tint fills for selection/hover
-- Brand: `#0560fd` light, `#5094ff` dark; CTA gradient horizontal
-- Semantic: success `#30b373`, warning `#ffc10e`/dark `#ff7342`, danger `#f72c2c`/dark `#ff5a5a`
-- Neutral ladder for borders/dividers: 4 steps light / desaturated steel dark
-- Shadows: `rgba(4,5,43,*)` family light / `rgba(31,31,31,*)` dark
+- Canvas & Surfaces: `--surface-bg`, `--surface-card`, `--surface-elevated`, `--surface-hover`
+- Brand & CTA: `--accent-primary`, `--accent-hover`, `--accent-muted`, `--cta-gradient`
+- Semantic status: `--status-good`, `--status-warning`, `--status-danger`, `--status-info`
+- Borders & Elevation: `--border-subtle`, `--border-strong`, `--shadow-card`, `--shadow-dialog`
+- High Contrast (`.hc` / `.hc.dark`): gradients disabled (`--cta-gradient: var(--primary)`), 2px focus rings
 
 ## 4. Typography
 
@@ -48,18 +48,18 @@ Scale: 12 caption / 13 table+secondary / 14 body / 16 section / 20 page / 28 her
 weights 400 body, 500 emphasis, 600 headings+buttons. Line-heights 1.3 (titles) →
 1.45 (body). No font below 12px. All-numeric columns `tabular-nums`.
 
-## 5. Component inventory (owned shadcn/ui v4 base, restyled)
+## 5. Component inventory (18 primitives + 5 shell/domain components)
 
-button (primary gradient / secondary outline / ghost / danger / icon sizes sm–lg) ·
-input · label · select · checkbox · radio-group · switch · slider · tabs · tooltip ·
-popover · dropdown-menu · context-menu · dialog · alert · badge (incl. confidence) ·
-progress (linear + circular gauge) · skeleton · scroll-area · separator · toast
-(sonner) · table primitives · tree (custom) · virtualized list (custom) · stepper ·
-segmented control · empty-state · stat-tile.
+button (primary gradient / secondary outline / ghost / danger / link; sizes sm–lg + icon) ·
+input · label · checkbox · radio-group · switch · tooltip · popover ·
+dropdown-menu · context-menu · dialog · alert · badge (incl. confidence) ·
+progress (linear + circular gauge) · skeleton · separator · toast (sonner) ·
+segmented-control · empty-state · stat-tile · window-controls · results-tree ·
+virtual-file-list.
 
 State coverage per component: default / hover / active / focus-visible / disabled /
 loading / selected / (indeterminate where applicable) — verified by unit tests +
-storybook-like state matrix in VISUAL-ACCEPTANCE.
+Playwright e2e.
 
 ## 6. Motion
 
@@ -69,24 +69,27 @@ standard decelerating cubic-bezier. Progress and live counters animate linearly.
 
 ## 7. Iconography
 
-Lucide interim base (24px, 2px stroke, rounded joins) tinted via `currentColor`.
-Filetype glyphs: original two-tone SVG set generated at 24/48 with type-tinted
-accents. Interim assets tracked in INTERIM-ASSETS.md.
+Lucide interim base (24px, 2px stroke, rounded joins) tinted via `currentColor`,
+plus 32 corpus-extracted window-chrome SVGs (`src/assets/interim/chrome/`).
+Interim assets tracked in `docs/INTERIM-ASSETS.md`.
 
 ## 8. Layout system
 
-- Shell: title bar 36px / sidebar 200px / content fluid; window 1240×840 target,
-  800×600 floor.
-- Results: 200 / 1fr / 300px three-pane with 4px gutters, collapsible preview.
-- Density: comfortable (row 40px, pane padding 16) / compact (row 32, padding 12)
-  via `[data-density]` attribute + token swap; no layout breakage at either.
+- Shell: title bar 36px / collapsible sidebar 208px (`w-52`) expanded or 52px collapsed /
+  content fluid; window 1240×840 target, 800×600 floor.
+- Results: 224px (`w-56`) tree / `1fr` virtualized file list / resizable `220..520px`
+  (default `300px`) preview pane with 4px splitter handle.
+- Density: comfortable (`--row-height: 40px`, `--pane-pad: 16px`) / compact
+  (`--row-height: 32px`, `--pane-pad: 12px`) via `[data-density]` attribute.
 
 ## 9. Change process
 
-1. Proposal → VISUAL-SPEC row (with source) → tokens.css change.
+1. Proposal → `docs/visual-spec.md` & `docs/VISUAL-SPEC.md` row (with source) → `tokens.css` change.
 2. Component changes require updated state matrix + a11y check.
 3. Breaking token renames logged in this file's changelog section below.
 
 ### Changelog
 
-- v0.1.0 (this session): initial token set from corpus hard evidence + VLM census.
+- v0.1.0: initial token set from corpus hard evidence + VLM census.
+- v0.2.0: adopted 5-palette theme pair (`src/theme/adopted/`, ADR-007).
+- v0.3.0: collapsible sidebar (208px ⇄ 52px), window chrome 4-state SVGs, dialog/menu exit fades, press-scale tokens.

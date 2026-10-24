@@ -1,0 +1,54 @@
+name: Visual Compare
+
+on:
+  workflow_dispatch:
+    inputs:
+      threshold:
+        description: 'Maximum allowed layout/dimension delta percentage (default 2)'
+        required: false
+        default: '2'
+
+jobs:
+  visual-compare:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 12.15.0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Install Playwright browsers
+        run: pnpm exec playwright install --with-deps chromium
+
+      - name: Build frontend (mock connector, deterministic default seed)
+        run: pnpm build
+        env:
+          VITE_CONNECTOR: mock
+
+      - name: Capture UI smoke step screenshots
+        run: pnpm e2e
+        env:
+          CI: 'true'
+
+      - name: Run visual comparison against corpus spec
+        run: pnpm visual:compare
+        env:
+          VISUAL_THRESHOLD_PCT: ${{ inputs.threshold || '2' }}
+
+      - name: Upload visual comparison report and screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: visual-compare-report
+          path: |
+            test-results/
+          retention-days: 14

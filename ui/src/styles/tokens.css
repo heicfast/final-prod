@@ -55,8 +55,8 @@
   --accent-foreground: var(--on-ink);
   --accent-muted: var(--ink-soft);
   --accent-muted-border: color-mix(in srgb, var(--ink) 30%, transparent);
-  --cta-gradient: var(--ink-grad);
-  --cta-glow: var(--ink-glow);
+  --cta-gradient: linear-gradient(180deg, #1f7dff 0%, #1677ff 55%, #0066ff 100%);
+  --cta-glow: 0 2px 8px rgba(22, 119, 255, 0.28), 0 1px 2px rgba(0, 102, 255, 0.16);
 
   /* ── Status ──────────────────────────────────────────────────────────
    * A11Y-ADJUSTED MAPPING: source status hues (--free/--used/--seg-
@@ -146,6 +146,8 @@
   --accent: var(--ink);
   --accent-hover: var(--ink-strong);
   --accent-pressed: var(--ink);
+  --cta-gradient: var(--ink-grad);
+  --cta-glow: var(--ink-glow);
   --focus-ring: var(--ink);
   --success: var(--free); /* #30d158-class per theme — 6.9:1+ */
   --warning: var(--seg-compressed); /* dark-family amber #f5a623 — 6.9:1+ */
@@ -165,6 +167,8 @@
   --accent: #a83250; /* ← rose #d8506b, 5.79:1 on #fbf1ee */
   --accent-hover: #922a45;
   --accent-pressed: #7c243b;
+  --cta-gradient: var(--ink-grad);
+  --cta-glow: var(--ink-glow);
   --focus-ring: #a83250;
   --success: #157a3c; /* darkened green for cream surfaces (4.9:1 on #fbf1ee) */
 }

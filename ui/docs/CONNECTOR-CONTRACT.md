@@ -37,9 +37,15 @@ guarantees, and exactly how the real bridge replaces the simulator.
 
 ### Key payload shapes
 
-- `ScanProgressEvent`: weighted-monotonic `overallProgress` (never regresses),
-  per-stage `stageProgress` (may reset between stages), live counters, bad-sector
-  map, ETA, `recoverableDuringScan`, `deviceConnected`.
+- `ScanProgressEvent`: weighted-monotonic `overallProgress` (never regresses,
+  and normalizes active stage weights when `quick-index` is omitted on a volume
+  with `quickScanAvailable: false`), per-stage `stageProgress` (may reset
+  between stages), live counters (`filesFound` and `dataFoundBytes` reach 100%
+  of the volume/scope total upon completion), bad-sector map, ETA,
+  `recoverableDuringScan`, `deviceConnected`.
+- `ResultsPage`: `{ nodes, total, totalBytes, offset, pageSize, elapsedMs }` —
+  carries both the filtered file count (`total`) and the filtered byte total
+  (`totalBytes`) so the status bar renders accurate filtered byte sums.
 - `ResultsFilter`: pushed server-side — tree scope, search, categories, date
   range, size range, confidence, extensions, origins. The mock resolves it
   over typed-array scans; the real engine will resolve it in Rust.
@@ -66,8 +72,12 @@ neededBytes? }` — **the overlap refusal is hard**: the UI cannot proceed
 - `.rsf`-style sessions: save serializes the found-file tree + scan metadata;
   load returns a resumable `scanId`; a corrupt session must fail with
   `session-corrupt` (never a partial load).
-- Raw/signature-recovered files carry `origin: 'raw'` with null paths — they
-  render under the dedicated group, never inside the path tree.
+- Path-mode tree partitions files into three disjoint top-level branches
+  (`root` for existing + normal deleted files with intact paths, `lost-paths`
+  for `origin === 'lost-path'`, and `raw-all` for `origin === 'raw'` with
+  `path: null`).
+- Zero-byte files (`sizeBytes === 0`) are always graded `confidence: 'poor'`
+  per `CRecoverability::GetEntryRecoverability` (`size < 1 → Poor`).
 - Repair is transactional: every `applyRepair` must be undo-able via the
   undo log; `consentToken` must be the user's explicit acknowledgment
   (`REPAIR` typed confirmation in the UI).

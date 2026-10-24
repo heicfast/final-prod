@@ -37,6 +37,7 @@ function ProgressGauge({
   size = 56,
   thickness = 5,
   label,
+  completed = false,
   className,
   ...props
 }: Omit<React.ComponentProps<'svg'>, 'children' | 'strokeWidth' | 'width' | 'height'> & {
@@ -44,14 +45,16 @@ function ProgressGauge({
   size?: number;
   thickness?: number;
   label?: string;
+  completed?: boolean;
 }): React.JSX.Element {
   const clamped = Math.min(1, Math.max(0, Number.isFinite(value) ? value : 0));
+  const pct = Math.round(clamped * 100);
   const r = (size - thickness) / 2;
   const c = 2 * Math.PI * r;
   return (
     <svg
       role="progressbar"
-      aria-valuenow={Math.round(clamped * 100)}
+      aria-valuenow={pct}
       aria-valuemin={0}
       aria-valuemax={100}
       aria-label={label}
@@ -65,8 +68,8 @@ function ProgressGauge({
         cx={size / 2}
         cy={size / 2}
         r={r}
-        fill="none"
-        stroke="var(--surface-tint)"
+        fill="var(--surface)"
+        stroke="#D0E2FF"
         strokeWidth={thickness}
       />
       <circle
@@ -74,14 +77,36 @@ function ProgressGauge({
         cy={size / 2}
         r={r}
         fill="none"
-        stroke="var(--accent)"
+        stroke="#1677FF"
         strokeWidth={thickness}
         strokeLinecap="round"
         strokeDasharray={c}
-        strokeDashoffset={c * (1 - clamped)}
+        strokeDashoffset={completed ? 0 : c * (1 - clamped)}
         transform={`rotate(-90 ${size / 2} ${size / 2})`}
         style={{ transition: 'stroke-dashoffset 200ms linear' }}
       />
+      {completed ? (
+        <path
+          d={`M ${size * 0.32} ${size * 0.52} L ${size * 0.45} ${size * 0.65} L ${size * 0.7} ${size * 0.38}`}
+          fill="none"
+          stroke="#1677FF"
+          strokeWidth={2.75}
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+      ) : (
+        <text
+          x="50%"
+          y="50%"
+          dominantBaseline="central"
+          textAnchor="middle"
+          fill="#1677FF"
+          fontSize={size >= 50 ? 13 : 11}
+          fontWeight={700}
+        >
+          {pct}%
+        </text>
+      )}
     </svg>
   );
 }

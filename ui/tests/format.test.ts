@@ -1,20 +1,42 @@
 import { describe, expect, it } from 'vitest';
 import {
   formatBytes,
+  formatBytesCompact,
   formatCountCompact,
+  formatDate,
+  formatDateTime,
   formatDuration,
+  formatInteger,
   formatPercent,
   formatThroughput,
 } from '@/lib/format';
+import { formatHexRows } from '@/lib/hex-format';
 import { mulberry32, randInt } from '@/connector/mock/rng';
 
 describe('formatting (grid #49 — Intl-based)', () => {
   it('formats bytes with binary steps (Windows convention, corpus parity)', () => {
     expect(formatBytes(0, 'en')).toBe('0 B');
     expect(formatBytes(1536, 'en')).toBe('1.5 KB');
+    expect(formatBytes(1536, 'en', { inputUnit: 'KB' })).toBe('1.5 MB');
     expect(formatBytes(5 * 1024 ** 3, 'en')).toBe('5 GB');
     expect(formatBytes(149.45 * 1024 ** 3, 'en')).toBe('149.5 GB');
     expect(formatBytes(-1, 'en')).toBe('—');
+  });
+
+  it('formats compact bytes and integers', () => {
+    expect(formatBytesCompact(0, 'en')).toBe('0B');
+    expect(formatBytesCompact(2048, 'en')).toBe('2K');
+    expect(formatBytesCompact(-1, 'en')).toBe('—');
+    expect(formatInteger(1234567, 'en')).toBe('1,234,567');
+  });
+
+  it('formats dates and date-times with fallback on invalid values', () => {
+    expect(formatDate(null, 'en')).toBe('—');
+    expect(formatDate('invalid-date', 'en')).toBe('—');
+    expect(formatDate('2025-01-15T10:30:00Z', 'en')).toMatch(/2025/);
+    expect(formatDateTime(null, 'en')).toBe('—');
+    expect(formatDateTime('invalid-date', 'en')).toBe('—');
+    expect(formatDateTime(new Date('2025-01-15T10:30:00Z'), 'en')).toMatch(/2025/);
   });
 
   it('formats durations as mm:ss / hh:mm:ss', () => {
@@ -36,6 +58,15 @@ describe('formatting (grid #49 — Intl-based)', () => {
 
   it('compacts large counts', () => {
     expect(formatCountCompact(1_200_000, 'en')).toMatch(/1\.2M/);
+  });
+
+  it('formats 16-byte aligned hex rows with ASCII substitution', () => {
+    const bytes = new Uint8Array([0x48, 0x65, 0x6c, 0x6c, 0x6f, 0x00, 0xff, 0x20, 0x41]);
+    const rows = formatHexRows(bytes, 0x100);
+    expect(rows).toHaveLength(1);
+    expect(rows[0].offset).toBe(0x100);
+    expect(rows[0].ascii).toBe('Hello·· A');
+    expect(rows[0].hex.startsWith('48 65 6c 6c 6f 00 ff 20  41')).toBe(true);
   });
 });
 

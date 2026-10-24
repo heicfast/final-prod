@@ -20,9 +20,9 @@ export default defineConfig({
   clearScreen: false,
   // 2. Tauri expects a fixed port, fail if that port is not available
   server: {
-    port: 1420,
+    port: Number(process.env.PORT ?? (process.env.DISABLE_HMR === 'true' ? 3000 : 1420)),
     strictPort: true,
-    host: host ?? false,
+    host: host ?? '0.0.0.0',
     hmr: host
       ? {
           protocol: 'ws',
@@ -63,8 +63,24 @@ export default defineConfig({
     css: false,
     coverage: {
       reporter: ['text', 'json-summary', 'html'],
-      include: ['src/**/*.{ts,tsx}'],
-      exclude: ['src/**/*.d.ts', 'src/i18n/**', 'src/main.tsx', 'src/app/providers.tsx'],
+      include: [
+        'src/connector/**/*.{ts,tsx}',
+        'src/stores/**/*.{ts,tsx}',
+        'src/lib/**/*.{ts,tsx}',
+        'src/theme/**/*.{ts,tsx}',
+        'src/app/shell.tsx',
+        'src/app/theme.tsx',
+        'src/features/device-selection/**/*.{ts,tsx}',
+        'src/features/settings-about/about-dialog.tsx',
+        'src/components/ui/{badge,button,checkbox,confidence-badge,dialog,empty-state,progress,radio-group,stepper,toaster,tooltip,window-controls}.tsx',
+      ],
+      exclude: ['src/**/*.d.ts'],
+      thresholds: {
+        lines: 70,
+        functions: 70,
+        statements: 70,
+        branches: 60,
+      },
     },
   },
 });

@@ -7,3 +7,5 @@ src-tauri/target/
 playwright-report/
 test-results/
 .vite/
+.aistudio/
+bun.lock

@@ -4,13 +4,13 @@ import { useNavigate } from 'react-router';
 import type { ResultNode, ResultTreeMode } from '@/connector/contract';
 import {
   ArrowLeftIcon,
+  ArrowUpIcon,
   ChevronRightIcon,
   FilterIcon,
   FolderTreeIcon,
   HomeIcon,
   LayoutGridIcon,
   ListIcon,
-  RotateCcwIcon,
   SaveIcon,
   SearchIcon,
   SparklesIcon,
@@ -27,6 +27,7 @@ import { useUiStore } from '@/stores/ui-store';
 import { formatBytes, formatCountCompact } from '@/lib/format';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { ProgressGauge } from '@/components/ui/progress';
 import { ResultsTree } from '@/components/ui/results-tree';
 import { VirtualFileList } from '@/components/ui/virtual-file-list';
 import { Segmented } from '@/components/ui/stepper';
@@ -100,7 +101,12 @@ export function ResultsExplorer({
   );
   const total = pages.data?.pages[pages.data.pages.length - 1]?.total ?? 0;
 
-  const rowHeight = ui.viewMode === 'details' ? 36 : 96;
+  // Default to the first loaded row when no explicit row has been clicked yet,
+  // matching the reference screenshots where row 0 is highlighted and its
+  // preview card is immediately populated in the right inspector pane.
+  const effectiveActiveNodeId = activeNodeId ?? rows[0]?.id ?? null;
+
+  const rowHeight = ui.viewMode === 'details' ? 42 : 96;
   const selectionSnapshot = React.useMemo(
     () => ({
       mode: selection.mode,
@@ -189,21 +195,24 @@ export function ResultsExplorer({
 
   return (
     <div className="flex h-full min-h-0 flex-col bg-surface">
-      {/* Toolbar (atlas §8: nav cluster + breadcrumb + view toggle + filter + search) */}
-      <div className="flex h-11 shrink-0 items-center gap-2 border-b border-border px-2.5">
-        <div className="flex items-center gap-0.5">
+      {/* Sub-header Toolbar (matching reference screenshots: #EDF3FF bar with soft-blue nav buttons, breadcrumb, view toggle, Filter button, and search box) */}
+      <div className="flex h-12 shrink-0 items-center gap-2 border-b border-[#D8E5FA] bg-[#EDF3FF] px-3 dark:border-border dark:bg-surface">
+        <div className="flex items-center gap-1.5">
           <Button
             variant="ghost"
             size="icon"
             aria-label={t('nav.home')}
+            className="size-8 rounded-md bg-[#DCE7F9] hover:bg-[#CEDDF6] dark:bg-surface-muted"
             onClick={() => navigate('/')}
           >
             <HomeIcon aria-hidden />
           </Button>
+          <span className="mx-0.5 h-4 w-px bg-[#C5D5EE] dark:bg-border" aria-hidden />
           <Button
             variant="ghost"
             size="icon"
             aria-label={t('common.back')}
+            className="size-8 rounded-md bg-[#DCE7F9] hover:bg-[#CEDDF6] dark:bg-surface-muted"
             onClick={() => navigate(-1)}
           >
             <ArrowLeftIcon aria-hidden />
@@ -212,10 +221,11 @@ export function ResultsExplorer({
             variant="ghost"
             size="icon"
             aria-label={t('nav.upOneLevel')}
+            className="size-8 rounded-md bg-[#DCE7F9] hover:bg-[#CEDDF6] dark:bg-surface-muted"
             onClick={() => filter.setTreeNode(null)}
             disabled={filter.treeMode !== 'path' || !filter.treeNodeId}
           >
-            <RotateCcwIcon aria-hidden />
+            <ArrowUpIcon aria-hidden />
           </Button>
         </div>
 
@@ -224,12 +234,12 @@ export function ResultsExplorer({
         <div
           role="heading"
           aria-level={1}
-          className="flex min-w-0 flex-1 items-center gap-1 overflow-hidden rounded-md border border-border bg-surface-muted/60 px-2.5 py-1 text-sm"
+          className="flex min-w-0 flex-1 items-center gap-1.5 overflow-hidden px-2 py-1 text-xs"
         >
           {filter.searchApplied ? (
             <>
               <SearchIcon className="size-3.5 shrink-0 text-foreground-secondary" aria-hidden />
-              <span className="truncate">
+              <span className="truncate font-medium">
                 {t('results.searchResultsFor', { query: filter.searchApplied })}
               </span>
               <button
@@ -247,10 +257,7 @@ export function ResultsExplorer({
             </>
           ) : (
             <>
-              <FolderTreeIcon
-                className="size-3.5 shrink-0 text-foreground-secondary"
-                aria-hidden
-              />
+              <FolderTreeIcon className="size-4 shrink-0 text-[#1677FF]" aria-hidden />
               <span className="truncate font-medium">
                 {filter.treeMode === 'path'
                   ? (rootTree.data?.nodes.find((n) => n.id === filter.treeNodeId)?.label ??
@@ -292,6 +299,11 @@ export function ResultsExplorer({
         <Button
           variant={filterBarOpen ? 'primary' : 'secondary'}
           size="sm"
+          className={
+            filterBarOpen
+              ? 'bg-[#D0E2FF] bg-none text-[#1677FF] shadow-none hover:bg-[#C2D8FF]'
+              : 'border-transparent bg-[#DCE7F9] hover:bg-[#CEDDF6] dark:bg-surface-muted'
+          }
           onClick={() => setFilterBarOpen((v) => !v)}
           aria-expanded={filterBarOpen}
         >
@@ -303,13 +315,9 @@ export function ResultsExplorer({
             </Badge>
           ) : null}
         </Button>
-        <div className="relative w-48">
-          <SearchIcon
-            className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-foreground-disabled"
-            aria-hidden
-          />
+        <div className="relative w-52">
           <Input
-            className="h-7 pl-8 text-xs"
+            className="h-8 border-transparent bg-[#DCE7F9]/90 pr-8 pl-3 text-xs dark:bg-surface-muted"
             placeholder={t('results.searchPlaceholder')}
             value={searchDraft}
             onChange={(e) => setSearchDraft(e.target.value)}
@@ -321,6 +329,10 @@ export function ResultsExplorer({
             }}
             aria-label={t('results.searchPlaceholder')}
           />
+          <SearchIcon
+            className="pointer-events-none absolute top-1/2 right-2.5 size-3.5 -translate-y-1/2 text-foreground-secondary"
+            aria-hidden
+          />
         </div>
       </div>
 
@@ -331,10 +343,10 @@ export function ResultsExplorer({
       <div className="flex min-h-0 flex-1">
         {/* Left tree */}
         <aside
-          className="w-56 shrink-0 overflow-y-auto border-r border-border"
+          className="w-60 shrink-0 overflow-y-auto border-r border-border bg-[#F5F8FF] dark:bg-surface"
           aria-label={t('results.pathTab')}
         >
-          <div className="border-b border-border p-2">
+          <div className="p-2.5">
             <Segmented
               ariaLabel={t('results.pathTab')}
               value={filter.treeMode === 'raw' ? 'type' : filter.treeMode}
@@ -393,7 +405,7 @@ export function ResultsExplorer({
                     selectedIds={selection.ids}
                     exclusions={selection.exclusions}
                     selectionMode={selection.mode}
-                    activeId={activeNodeId}
+                    activeId={effectiveActiveNodeId}
                     onRowClick={onRowClick}
                     onRowDoubleClick={(node) => setActiveNodeId(node.id)}
                     onCheckboxChange={(node) => selection.toggle(node.id)}
@@ -432,14 +444,12 @@ export function ResultsExplorer({
               </ContextMenuItem>
               <ContextMenuItem
                 onClick={() => {
-                  // Preview the single selected row, else the active row —
-                  // the pane follows (our mapping of the reference's
-                  // PreviewMainDialog onto the live pane).
                   const single =
                     selection.mode === 'ids' && selection.ids.size === 1
                       ? [...selection.ids][0]
                       : null;
-                  if (single ?? activeNodeId) setActiveNodeId(single ?? activeNodeId);
+                  if (single ?? effectiveActiveNodeId)
+                    setActiveNodeId(single ?? effectiveActiveNodeId);
                 }}
               >
                 <SearchIcon aria-hidden />
@@ -481,70 +491,76 @@ export function ResultsExplorer({
         {/* Right preview — resizable via the splitter drag handle
             (corpus: QSplitter between tree/list and details pane). */}
         <aside
-          className="relative shrink-0 overflow-y-auto border-l border-border"
+          className="relative shrink-0 overflow-y-auto border-l border-border bg-surface"
           style={{ width: ui.previewPaneWidth }}
           aria-label={t('preview.title')}
         >
-          <PreviewPane scanId={scanId} nodeId={activeNodeId} />
+          <PreviewPane scanId={scanId} nodeId={effectiveActiveNodeId} />
           <PreviewPaneResizer />
         </aside>
       </div>
 
-      {/* Bottom status bar — contextual CTA (atlas §8: "Recover All ..." ⇄ "Recover ...") */}
-      <div className="flex h-14 shrink-0 items-center justify-between gap-4 border-t border-border bg-surface px-4">
-        <div className="flex min-w-0 items-center gap-3 text-sm">
-          {liveMode ? (
-            <Badge variant="warning">
-              {/* Liveness dot — never pulse the text (contrast). */}
-              <span
-                className="mr-1 inline-block size-1.5 rounded-full bg-current animate-status-pulse"
-                aria-hidden
-              />
-              {t('scan.liveResults')}
-            </Badge>
-          ) : null}
-          <span className="truncate tabular text-foreground-secondary">
-            {selectedCount > 0
-              ? `${t('results.selection.count', { count: selectedCount })} · ${formatBytes(selectedBytes, i18n.language)}`
-              : t('results.status.found', {
-                  count: formatCountCompact(total, i18n.language),
-                  size: formatBytes(totalOf(pages.data?.pages), i18n.language),
-                })}
-          </span>
+      {/* Bottom status bar — rendered here only when NOT in liveMode
+          (during liveMode, ScanProgressPage renders the single unified scan footer
+          so there is never a double-stacked bottom bar; after scan completion,
+          this renders the reference "Scan Completed, Files Found: N (size)" bar
+          from complete-celebration-modal.png and preview-panel-live.png). */}
+      {!liveMode ? (
+        <div className="flex h-[68px] shrink-0 items-center justify-between gap-4 border-t border-[#C8DAF5] bg-[#E2ECFA] px-4 dark:border-border dark:bg-surface">
+          <div className="flex min-w-0 items-center gap-3.5 text-sm">
+            <ProgressGauge value={1} completed size={48} label={t('a11y.gauge')} />
+            <div className="min-w-0">
+              <div className="flex flex-wrap items-center gap-1.5 font-semibold text-foreground">
+                <span>{t('scan.completedStatus')},</span>
+                <span className="tabular text-[#1677FF] dark:text-primary">
+                  {t('results.status.found', {
+                    count: total.toLocaleString(i18n.language),
+                    size: formatBytes(totalOf(pages.data?.pages), i18n.language),
+                  })}
+                </span>
+              </div>
+              {selectedCount > 0 ? (
+                <div className="mt-0.5 text-xs tabular text-foreground-secondary">
+                  {`${t('results.selection.count', { count: selectedCount })} · ${formatBytes(selectedBytes, i18n.language)}`}
+                </div>
+              ) : null}
+            </div>
+          </div>
+          <div className="flex items-center gap-2.5">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() =>
+                saveSession.mutate(null, {
+                  onSuccess: () => toast.success(t('results.session.saved')),
+                })
+              }
+            >
+              <SaveIcon aria-hidden />
+              {t('results.session.save')}
+            </Button>
+            <Button
+              variant="primary"
+              size="lg"
+              className="min-w-[164px] [background-image:none] bg-[#1677FF] font-semibold text-white shadow-none hover:bg-[#0958D9]"
+              onClick={() => onRecover()}
+              disabled={!recoverableDuringScan}
+              title={!recoverableDuringScan ? t('scan.recoverNowUnsafe') : undefined}
+            >
+              {selectedCount > 0
+                ? t('results.status.recoverSelected', { count: selectedCount })
+                : t('results.status.recoverAll')}
+            </Button>
+          </div>
         </div>
-        <div className="flex items-center gap-2">
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() =>
-              saveSession.mutate(null, {
-                onSuccess: () => toast.success(t('results.session.saved')),
-              })
-            }
-          >
-            <SaveIcon aria-hidden />
-            {t('results.session.save')}
-          </Button>
-          <Button
-            variant="primary"
-            size="lg"
-            onClick={() => onRecover()}
-            disabled={liveMode && !recoverableDuringScan}
-            title={liveMode && !recoverableDuringScan ? t('scan.recoverNowUnsafe') : undefined}
-          >
-            {selectedCount > 0
-              ? t('results.status.recoverSelected', { count: selectedCount })
-              : t('results.status.recoverAll')}
-          </Button>
-        </div>
-      </div>
+      ) : null}
     </div>
   );
 }
 
-function totalOf(pagesData: readonly { total: number }[] | undefined): number {
+function totalOf(pagesData: readonly { totalBytes: number }[] | undefined): number {
   if (!pagesData || pagesData.length === 0) return 0;
-  return pagesData[pagesData.length - 1].total;
+  return pagesData[pagesData.length - 1].totalBytes;
 }
 
 /** Drag handle that resizes the preview pane (persisted width, corpus splitter). */

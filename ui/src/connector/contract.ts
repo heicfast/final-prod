@@ -286,6 +286,7 @@ export interface ResultsFilter {
 export interface ResultsPage {
   readonly nodes: readonly ResultNode[];
   readonly total: number;
+  readonly totalBytes: number;
   readonly offset: number;
   readonly pageSize: number;
   /** Wall-time the connector took to resolve this page (perf grid #36). */

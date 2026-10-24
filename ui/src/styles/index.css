@@ -187,12 +187,10 @@
   }
 }
 
-/* Utility: gradient CTA — the adopted brand treatment (three-stop ink
- * gradient + glow). .hc collapses it to a flat solid via --cta-gradient. */
-.gradient-cta {
+.gradient-cta:not(.bg-none) {
   background-image: var(--cta-gradient);
 }
-.gradient-glow {
+.gradient-glow:not(.shadow-none) {
   box-shadow: var(--cta-glow);
 }
 

@@ -1,5 +1,5 @@
 import { describe, expect, it, beforeEach, afterEach } from 'vitest';
-import { render, screen, fireEvent, cleanup, within } from '@testing-library/react';
+import { act, render, screen, fireEvent, cleanup, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ThemeProvider } from '@/app/theme';
@@ -18,7 +18,10 @@ import '@/i18n';
  */
 
 function renderShell(): ReturnType<typeof render> {
-  const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  const qc = new QueryClient({
+    defaultOptions: { queries: { retry: false, staleTime: Infinity } },
+  });
+  qc.setQueryData(['devices'], []);
   return render(
     <ThemeProvider>
       <QueryClientProvider client={qc}>
@@ -83,9 +86,13 @@ describe('sidebar collapse', () => {
     expect(localStorage.getItem('rw.ui.sidebarCollapsed')).toBe('1');
     // a fresh boot (next session) reads the stored state — the store's
     // initializer is readStoredSidebarCollapsed(); simulate via the store API
-    useUiStore.getState().setSidebarCollapsed(false);
+    act(() => {
+      useUiStore.getState().setSidebarCollapsed(false);
+    });
     expect(localStorage.getItem('rw.ui.sidebarCollapsed')).toBe('0');
-    useUiStore.getState().toggleSidebar();
+    act(() => {
+      useUiStore.getState().toggleSidebar();
+    });
     expect(useUiStore.getState().sidebarCollapsed).toBe(true);
     expect(localStorage.getItem('rw.ui.sidebarCollapsed')).toBe('1');
   });

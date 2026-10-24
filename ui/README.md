@@ -17,11 +17,12 @@ changes.
 
 ```bash
 pnpm install          # pnpm 12.15.0, Node 24
-pnpm dev              # browser dev mode (mock connector, port 1420)
-pnpm test             # 83 unit/contract/component/governance tests
-pnpm e2e              # Playwright golden path (serves dist/ via preview)
+pnpm dev              # browser dev mode (mock connector, port 1420 / 3000)
+pnpm test             # 110 unit/contract/component/governance tests (16 test files)
+pnpm test:coverage    # unit tests with enforced v8 coverage thresholds
+pnpm e2e              # 12 Playwright e2e tests (serves dist/ via preview)
+pnpm visual:compare   # verify captured e2e step screenshots against corpus geometry
 pnpm build            # production bundle (budget-gated)
-pnpm gen:tokens       # regenerate the semantic token layer (ADR-007)
 pnpm tauri dev        # full Tauri shell (needs Rust toolchain)
 pnpm tauri build      # NSIS installer (unsigned; see release workflow)
 ```
@@ -40,19 +41,22 @@ The contract is specified in `src/connector/contract.ts` and documented in
 
 ## Documentation
 
-| Doc                           | Contents                                               |
-| ----------------------------- | ------------------------------------------------------ |
-| `docs/ACCEPTANCE.md`          | Session verdicts: the 55-parameter grid per surface    |
-| `docs/AUDIT-REPORT.md`        | The parity audit (pre-fix) + resolution status         |
-| `docs/SCREENSHOT-MANIFEST.md` | The 63-capture corpus inventory + VLM evidence index   |
-| `docs/VISUAL-SPEC.md`         | Design tokens with per-value sources + §A11 mapping    |
-| `docs/UI-MAP.md`              | Route graph, per-page state matrices, dialog inventory |
-| `docs/DESIGN-SYSTEM.md`       | Living system doc                                      |
-| `docs/ARCHITECTURE.md`        | Layers, boundaries, data flow                          |
-| `docs/adr/`                   | Eight accepted architecture decisions                  |
-| `docs/TESTING.md`             | Test strategy + verification evidence                  |
-| `docs/INTERIM-ASSETS.md`      | Interim assets + replacement plan                      |
-| `docs/ROADMAP.md`             | Next: wiring the real engine                           |
+| Doc                           | Contents                                                            |
+| ----------------------------- | ------------------------------------------------------------------- |
+| `docs/AUDIT-REPORT.md`        | Full corpus-to-application parity audit + 55-parameter grid + fixes |
+| `docs/screen-manifest.md`     | Screen & flow manifest derived from the corpus                      |
+| `docs/visual-spec.md`         | Visual parameters specification with corpus citations               |
+| `docs/component-inventory.md` | Complete component inventory derived from the reference             |
+| `docs/ACCEPTANCE.md`          | Session verdicts: the 55-parameter grid per surface                 |
+| `docs/SCREENSHOT-MANIFEST.md` | The 63-capture corpus inventory + VLM evidence index                |
+| `docs/VISUAL-SPEC.md`         | Design tokens with per-value sources + §A11 mapping                 |
+| `docs/UI-MAP.md`              | Route graph, per-page state matrices, dialog inventory              |
+| `docs/DESIGN-SYSTEM.md`       | Living system doc                                                   |
+| `docs/ARCHITECTURE.md`        | Layers, boundaries, data flow                                       |
+| `docs/adr/`                   | Eight accepted architecture decisions                               |
+| `docs/TESTING.md`             | Test strategy + verification evidence                               |
+| `docs/INTERIM-ASSETS.md`      | Interim assets + replacement plan                                   |
+| `docs/ROADMAP.md`             | Next: wiring the real engine                                        |
 
 The visual identity comes from the adopted theme pair (`src/theme/adopted/`,
 ADR-007 — five palettes + derived high-contrast, every color token-driven).
@@ -63,14 +67,15 @@ advanced pass automatically (ADR-008).
 ## Quality gates (all green at HEAD)
 
 `tsc --noEmit` · ESLint (0 errors) · Prettier · arch-lint + ast-grep · knip
-(0 findings) · jscpd (0 clones) · 83/83 tests · theme-drift + i18n-surface
-governance tests · production build · bundle budget (main 89 KB / 200 KB
-gzip; total 274 KB / 500 KB) · Playwright golden path with console-error
-assertions · live axe audit: 0 violations across all palettes + HC
-(`docs/evidence/a11y/`).
+(0 findings) · jscpd (0 clones) · 110/110 unit/contract/component tests ·
+theme-drift + i18n-surface governance tests · production build · bundle
+budget (main 98 KB / 200 KB gzip; total 283 KB / 500 KB) · 12/12 Playwright
+e2e tests with console-error assertions · live axe audit: 0 violations across
+all palettes + HC (`docs/evidence/a11y/`).
 
 CI runs the full matrix on `windows-latest` (`.github/workflows/`), including
-`cargo check` + `clippy` for the Tauri shell.
+`cargo check` + `clippy` for the Tauri shell and `visual-compare.yml` for
+step-screenshot verification.
 
 ## License
 

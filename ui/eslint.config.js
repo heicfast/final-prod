@@ -63,8 +63,8 @@ export default tseslint.config(
               from: './src/features/!(device-selection)',
             },
             {
-              target: './src/features/scan-configuration',
-              from: './src/features/!(scan-configuration)',
+              target: './src/features/lost-partition',
+              from: './src/features/!(lost-partition)',
             },
             { target: './src/features/scan-progress', from: './src/features/!(scan-progress)' },
             {
