@@ -781,3 +781,86 @@ TEST(ExtentBasis, LegacySliceRelativeSessionNormalizedOnLoad) {
         EXPECT_TRUE(tree_has_shifted_flags(tree));
     }
 }
+
+TEST(PauseResume, SaveAfterResumeReloadsCleanly) {
+    /* G-07 regression (bench run 40073093997 resume probe): resume a
+     * partially-complete session, run the remaining stages, SAVE - and the
+     * saved session must reload without the mask-integrity violation.
+     * The bug: save_session ORs only the RESIDUAL cfg stages into
+     * VolumeInfo.flags while stage_done_mask carries the completed stages
+     * from the ORIGINAL run; done-not-subset-of-configured refused the load.
+     * This exact save-after-resume flow had no coverage before. */
+    const std::string path = tmp_session_path();
+    ScanConfig cfg; /* quick+deep+carve all on */
+    tree::ResultTree tree;
+    ScanStats stats;
+    {
+        /* phase 1: fresh scan, cancel at the quick/deep boundary (quick+
+         * deep stamped done, carve not) - mirrors the bench cancel probe */
+        struct Ctx {
+            PausableToken* tok;
+            ScanController* ctrl;
+        };
+        MemDevice dev(build_fat16());
+        ScanController ctrl(tree, cfg);
+        PausableToken tok;
+        Ctx c{&tok, &ctrl};
+        auto cancel_at = [](u32 overall, void* user) {
+            Ctx* ctx = static_cast<Ctx*>(user);
+            if (overall >= 750 && ctx->ctrl->telemetry().quick.completed) {
+                ctx->tok->cancel();
+                return false;
+            }
+            return true;
+        };
+        ASSERT_EQ(ERR_CANCELLED, ctrl.run(&dev, &tok, cancel_at, &c, stats));
+        tree.refresh_stats();
+        FILE* f = fopen(path.c_str(), "wb");
+        ASSERT_NE(nullptr, f);
+        session::Writer w(file_write, file_tell, file_seek, f);
+        ASSERT_EQ(OK, w.open(0x52434F56));
+        ASSERT_EQ(OK, ctrl.save_session(w, stats));
+        ASSERT_EQ(OK, w.finalize());
+        fclose(f);
+    }
+    {
+        /* phase 2: resume + run the remaining carve + SAVE */
+        MemDevice dev(build_fat16());
+        tree::ResultTree tree2;
+        ScanStats stats2;
+        session::VolumeSessionInfo info;
+        FILE* f = fopen(path.c_str(), "rb");
+        ASSERT_NE(nullptr, f);
+        session::Reader r(file_read, file_seek, file_size, f);
+        std::unique_ptr<ScanController> resumed;
+        ASSERT_EQ(OK, ScanController::resume(r, tree2, cfg, stats2, info, resumed));
+        fclose(f);
+        ASSERT_EQ(OK, resumed->run(&dev, nullptr, nullptr, nullptr, stats2));
+        tree2.refresh_stats();
+        FILE* f2 = fopen(path.c_str(), "wb");
+        ASSERT_NE(nullptr, f2);
+        session::Writer w2(file_write, file_tell, file_seek, f2);
+        w2.set_flags(session::CRSF_FLAG_ABS_EXTENTS);
+        ASSERT_EQ(OK, w2.open(0x52434F56));
+        ASSERT_EQ(OK, resumed->save_session(w2, stats2));
+        ASSERT_EQ(OK, w2.finalize());
+        fclose(f2);
+    }
+    {
+        /* phase 3: the re-saved session MUST reload (the regression) and
+         * report a full completion mask under the FULL configured set */
+        tree::ResultTree tree3;
+        ScanStats stats3;
+        session::VolumeSessionInfo info3;
+        FILE* f = fopen(path.c_str(), "rb");
+        ASSERT_NE(nullptr, f);
+        session::Reader r(file_read, file_seek, file_size, f);
+        std::unique_ptr<ScanController> ctrl3;
+        const u32 rc = ScanController::resume(r, tree3, cfg, stats3, info3, ctrl3);
+        fclose(f);
+        ASSERT_EQ(OK, rc) << "save-after-resume session must reload without "
+                             "the mask-integrity violation";
+        EXPECT_EQ(STAGE_QUICK | STAGE_DEEP | STAGE_CARVE, info3.stage_done_mask);
+        EXPECT_EQ(STAGE_QUICK | STAGE_DEEP | STAGE_CARVE, info3.configured_mask);
+    }
+}

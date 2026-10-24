@@ -140,6 +140,15 @@ void ScanController::adopt_resume_state_(const session::VolumeSessionInfo& resum
     if (cfg_.volume_serial[0] == '\0')
         for (size_t i = 0; i < sizeof(cfg_.volume_serial); ++i)
             cfg_.volume_serial[i] = resumed.serial[i];
+    /* G-07 (bench run 40073093997 resume probe): the ORIGINAL configured
+     * stage set must survive a resume. cfg_ carries only the RESIDUAL stages
+     * (completed ones were masked off in ScanController::resume), so without
+     * this the re-save wrote vi.flags = residual-only while the truthful
+     * done_mask carried the completed stages too - done-not-subset-of-
+     * configured on reload = ERR_SESSION_FORMAT, and every save-after-resume
+     * session was unloadable. The member existed for exactly this and was
+     * never set. */
+    session_configured_mask_ = resumed.configured_mask;
 }
 
 /* ---- telemetry (G-04/G-05/G-06) ---- */
