@@ -110,7 +110,8 @@ T5 extraction set. Status updated per item.
    gap) and fixed with evidence (e2e + jsdom).
 4. **T8** Toast verification pass — ✅ DONE.
 5. **T9** Route fade + async tab treatment — ✅ DONE.
-6. **T10** Microinteraction audit (press states on toggles).
+6. **T10** Microinteraction audit — ✅ DONE (press tokens applied,
+   drag-drop confirmed corpus-N/A).
 7. **T11** State-surface re-verification per surface.
 8. **T12** Feature-completion walk (tracker §1 — all COMPLETE; spot-audit).
 9. **T13** Interim asset extraction (chrome SVGs first).

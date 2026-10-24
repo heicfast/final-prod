@@ -234,7 +234,7 @@ export function ResultsExplorer({
               </span>
               <button
                 type="button"
-                className="ml-auto rounded-full p-0.5 hover:bg-surface-hover"
+                className="ml-auto rounded-full p-0.5 text-foreground-secondary transition-colors hover:bg-surface-hover hover:text-foreground active:bg-surface-tint focus-visible:ring-2 focus-visible:ring-ring"
                 aria-label={t('results.clearFilter')}
                 onClick={() => {
                   filter.setSearch('');

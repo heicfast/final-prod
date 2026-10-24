@@ -777,3 +777,18 @@ release notes state signing pending (unsigned builds).
 - Reduced motion: global media query collapses the fade to instant.
 - Tests: +2 jsdom (fade wrapper present; pathname-vs-query remount
   semantics). e2e 6/6 still green.
+
+### T10 — Microinteractions — DONE
+
+- Applied the adopted press tokens to the toggle primitives (spec §14):
+  checkbox + radio `active:scale-[var(--press-scale)]` (0.985, with
+  transition-[colors,transform]); segmented options
+  `active:opacity-[var(--press-opacity)]` (0.75). State flips stay
+  immediate (Qt-swap parity) — the press layer is purely tactile.
+- Switch: thumb transform transition is the feedback (corpus-aligned; no
+  invented press art). Drag-resizer follows the pointer 1:1 (no animation,
+  verified in T3 read). Drag-and-drop: not evidenced in the corpus
+  recovery-core — N/A (not invented).
+- Search-removal chip (breadcrumb ✕): transition-colors + hover/press tint
+  - focus ring.
+- Tests: +3 jsdom press-state assertions. e2e 6/6; bundle 97.7/200 KB.
