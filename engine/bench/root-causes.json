@@ -13,5 +13,10 @@
   "quick_format": {
     "caveat": "The 0/592 recall in run 40073093997 was measured BEFORE the unaligned-read transport fix (d763cdb): all carved-file reads with non-sector-multiple sizes failed and were zero-filled. Re-measure before treating this row as an engine-level BELOW; the og's 51.5% (305/592 via carving after quick format) is the real comparison target.",
     "evidence": "run 40073093997 bench-ours-ntfs-quick_format report-quick.json (all salvaged/error)"
+  },
+  "behavior_probes": {
+    "root_cause": "resume-equivalence FAILS: the resumed scan's tree carries EXTRA carved entries the uninterrupted scan's tree does not (RESUME DIFF rows '=>' Carved000000.mkv / Carved000015.zip / Carved001026.zip etc.). Suspect: the carve dedup index (F9 extent-class) is not carried across the resume boundary, so the resumed carve re-emits extents the uninterrupted run suppressed - OR the post-resume carve pass sees a different dedup baseline from the restored tree. nodriver + cancel probes PASS (BENCH-F1 salvage proven: 1328 rows readable from the hard-killed checkpoint); this is the remaining red in ours-behavior.",
+    "fix_plan": "Engine session: capture_snapshot + resume path - verify the carve dedup index is restored from the session (or rebuilt from the loaded tree) before the resumed carve stage; regression test = the exact probe flow (kill at 6 s -> resume -> diff vs uninterrupted).",
+    "evidence": "runs 40073093997 + 40077233920 ours-behavior artifacts (behavior.json resume probe, RESUME DIFF samples); scripts in bench/ours/run-behavior.ps1 probe 3"
   }
 }
