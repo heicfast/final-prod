@@ -13,7 +13,9 @@
 #include "cr/session/cr_crsf.h"
 #include "cr/storage/cr_device.h"
 #include "cr/storage/cr_slice.h"
+#include <algorithm>
 #include <atomic>
+#include <functional>
 #include <chrono>
 #include <cstring>
 #include <thread>
@@ -593,4 +595,188 @@ TEST(Checkpoint, CorruptMagicRefused) {
     session::Reader r(VecIo::rd, VecIo::sk, VecIo::sz, &ckpt);
     EXPECT_EQ(ERR_SESSION_FORMAT, ScanController::resume(r, tree, ScanConfig{}, stats, info, out));
     EXPECT_EQ(nullptr, out.get());
+}
+
+/* =========================================================================
+ * F-1: extent-basis normalization (absolute device offsets in the tree)
+ * ========================================================================= */
+
+namespace {
+
+/* collect every props->extents offset in the tree (sorted) */
+std::vector<u64> all_extent_offsets(const tree::ResultTree& t) {
+    std::vector<u64> out;
+    std::function<void(const tree::FileNode*)> walk = [&](const tree::FileNode* n) {
+        if (n->props())
+            for (const auto& e : n->props()->extents)
+                out.push_back(e.offset);
+        for (auto* c = n->first_child(); c; c = c->next_sibling())
+            walk(c);
+    };
+    for (auto* r : const_cast<tree::ResultTree&>(t).roots())
+        walk(r);
+    std::sort(out.begin(), out.end());
+    return out;
+}
+
+bool tree_has_shifted_flags(const tree::ResultTree& t) {
+    std::function<bool(const tree::FileNode*)> walk = [&](const tree::FileNode* n) {
+        if (n->props() && !n->props()->extents.empty() &&
+            !(n->props()->flags & tree::NODE_FLAG_EXT_SHIFTED))
+            return false;
+        for (auto* c = n->first_child(); c; c = c->next_sibling())
+            if (!walk(c))
+                return false;
+        return true;
+    };
+    for (auto* r : const_cast<tree::ResultTree&>(t).roots())
+        if (!walk(r))
+            return false;
+    return true;
+}
+
+} // namespace
+
+TEST(ExtentBasis, TreeRebaseShiftsOnceAndIsIdempotent) {
+    tree::ResultTree t;
+    auto* root = t.add_root(u"R");
+    auto* p1 = new tree::FileProperties();
+    p1->name = u"a.txt";
+    p1->logical_size = 100;
+    p1->extents.push_back({1000, 100});
+    auto* n1 = t.add_file(root, p1);
+    ASSERT_NE(nullptr, n1);
+    /* hard link: the SAME props attached under a second parent */
+    auto* root2 = t.add_root(u"R2");
+    auto* n2 = t.add_file(root2, p1);
+    ASSERT_NE(nullptr, n2);
+
+    t.rebase_subtree_extents(root, 4096);
+    EXPECT_EQ(1000u + 4096u, p1->extents.front().offset);
+    EXPECT_TRUE(p1->flags & tree::NODE_FLAG_EXT_SHIFTED);
+    /* second pass (different base, other subtree): the flag must hold -
+     * a rebase may never shift twice (resume/normalization safety) */
+    t.rebase_subtree_extents(root2, 999999);
+    EXPECT_EQ(1000u + 4096u, p1->extents.front().offset)
+        << "hard-link shared props must not shift twice";
+    /* base == 0 must be a no-op */
+    t.rebase_subtree_extents(root, 0);
+    EXPECT_EQ(1000u + 4096u, p1->extents.front().offset);
+    p1->release(); /* caller's own ref (two attaches consumed two) */
+    p1->release();
+}
+
+TEST(ExtentBasis, SliceScanSavesAbsoluteExtents) {
+    /* THE F-1 contract: a scan through a PARTITION slice stores ABSOLUTE
+     * device offsets in the tree/session, so `recover --disk N` reads the
+     * right bytes. Fixture: FAT16 volume placed at LBA 63 of a disk image. */
+    const u64 kBase = 512u * 63;
+    const std::string path = tmp_session_path();
+    {
+        std::vector<u8> whole_bytes(u64(10148) * 512, 0);
+        {
+            std::vector<u8> fat = build_fat16();
+            std::memcpy(whole_bytes.data() + kBase, fat.data(), fat.size());
+        }
+        MemDevice whole(std::move(whole_bytes));
+        auto slice = PartitionSlice::create(&whole, kBase, 5074u * 512);
+        ASSERT_NE(nullptr, slice);
+        tree::ResultTree tree;
+        ScanController ctrl(tree, ScanConfig{});
+        ScanStats stats;
+        ASSERT_EQ(OK, ctrl.run(slice.get(), nullptr, nullptr, nullptr, stats));
+        ASSERT_GT(stats.files_found + stats.deleted_found, 0u);
+
+        /* in-memory tree: every extent must now be absolute (>= the slice
+         * base) and flagged */
+        for (u64 off : all_extent_offsets(tree))
+            EXPECT_GE(off, kBase) << "extent still slice-relative";
+        EXPECT_TRUE(tree_has_shifted_flags(tree));
+
+        FILE* f = fopen(path.c_str(), "wb");
+        ASSERT_NE(nullptr, f);
+        session::Writer w(file_write, file_tell, file_seek, f);
+        w.set_flags(session::CRSF_FLAG_ABS_EXTENTS);
+        ASSERT_EQ(OK, w.open(9));
+        ASSERT_EQ(OK, ctrl.save_session(w, stats));
+        ASSERT_EQ(OK, w.finalize());
+        fclose(f);
+    }
+    {
+        /* reload: the flag says absolute - no re-shift (extents stay >= base) */
+        tree::ResultTree tree;
+        ScanStats stats;
+        session::VolumeSessionInfo info;
+        FILE* f = fopen(path.c_str(), "rb");
+        ASSERT_NE(nullptr, f);
+        session::Reader r(file_read, file_seek, file_size, f);
+        std::unique_ptr<ScanController> ctrl;
+        ASSERT_EQ(OK, ScanController::resume(r, tree, ScanConfig{}, stats, info, ctrl));
+        fclose(f);
+        EXPECT_EQ(kBase, info.slice_offset);
+        for (u64 off : all_extent_offsets(tree))
+            EXPECT_GE(off, kBase) << "reload double-shifted extents";
+    }
+}
+
+TEST(ExtentBasis, LegacySliceRelativeSessionNormalizedOnLoad) {
+    /* A pre-F-1 session (container flag ABSENT, props flags absent) carries
+     * slice-relative extents; load_session_summary must normalize them with
+     * the recorded VolumeInfo.slice_offset exactly once. */
+    const u64 kBase = 512u * 63;
+    const std::string path = tmp_session_path();
+    {
+        /* hand-build the records: state + volume-info(slice_offset=kBase) +
+         * tree(relative extents, no SHIFTED flag) */
+        session::SessionState st;
+        st.stage_done_mask = STAGE_QUICK;
+        st.files_found = 1;
+        std::vector<u8> stb;
+        ASSERT_EQ(OK, session::serialize_session_state(st, stb));
+        session::VolumeInfo vi;
+        vi.fs_kind = u32(FsFamily::Fat);
+        vi.flags = STAGE_QUICK | STAGE_DEEP | STAGE_CARVE;
+        vi.slice_offset = kBase;
+        vi.slice_bytes = 5074u * 512;
+        std::vector<u8> vib;
+        ASSERT_EQ(OK, session::serialize_volume_info(vi, vib));
+
+        tree::ResultTree tree;
+        auto* root = tree.add_root(u"Deleted");
+        auto* p = new tree::FileProperties();
+        p->name = u"legacy.txt";
+        p->logical_size = 10;
+        p->extents.push_back({777, 10}); /* slice-relative, flag clear */
+        ASSERT_NE(nullptr, tree.add_file(root, p));
+        p->release();
+        std::vector<u8> tb;
+        ASSERT_EQ(OK, session::serialize_tree(tree, tb));
+
+        FILE* f = fopen(path.c_str(), "wb");
+        ASSERT_NE(nullptr, f);
+        session::Writer w(file_write, file_tell, file_seek, f);
+        ASSERT_EQ(OK, w.open(11)); /* NO CRSF_FLAG_ABS_EXTENTS - legacy file */
+        ASSERT_EQ(OK, w.add_record(session::REC_SESSION_STATE, stb.data(), u32(stb.size())));
+        ASSERT_EQ(OK, w.add_record(session::REC_VOLUME_INFO, vib.data(), u32(vib.size())));
+        ASSERT_EQ(OK, w.add_record(session::REC_RESULT_TREE, tb.data(), u32(tb.size())));
+        ASSERT_EQ(OK, w.finalize());
+        fclose(f);
+    }
+    {
+        tree::ResultTree tree;
+        ScanStats stats;
+        session::VolumeSessionInfo info;
+        FILE* f = fopen(path.c_str(), "rb");
+        ASSERT_NE(nullptr, f);
+        session::Reader r(file_read, file_seek, file_size, f);
+        std::unique_ptr<ScanController> ctrl;
+        ASSERT_EQ(OK, ScanController::resume(r, tree, ScanConfig{}, stats, info, ctrl));
+        fclose(f);
+        /* normalized: relative 777 + base -> absolute, and flagged so a
+         * re-save/re-load cycle never shifts again */
+        const auto offs = all_extent_offsets(tree);
+        ASSERT_EQ(1u, offs.size());
+        EXPECT_EQ(777u + kBase, offs[0]);
+        EXPECT_TRUE(tree_has_shifted_flags(tree));
+    }
 }

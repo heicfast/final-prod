@@ -176,6 +176,73 @@ FileNode* ResultTree::find_by_record(u64 record_ref) const {
     return it != by_record_.end() ? it->second : nullptr;
 }
 
+/* ---- F-1 basis normalization (see cr_node.h) ---- */
+
+u64 ResultTree::extent_len_class_(const FileProperties* p) {
+    u64 len_class = 0;
+    const u64 sz = p->logical_size;
+    if (sz >= (1 << 20)) {
+        while ((1ULL << len_class) < sz)
+            ++len_class;
+        len_class += 64;
+    } else {
+        len_class = sz / 65536;
+    }
+    return len_class;
+}
+
+void ResultTree::rebase_props_locked(FileNode* n, u64 base,
+                                      std::unordered_set<FileProperties*>& visited) {
+    FileProperties* p = n->props();
+    if (!p || p->extents.empty())
+        return;
+    if (p->flags & NODE_FLAG_EXT_SHIFTED)
+        return; /* already on the absolute basis (idempotency guard) */
+    if (!visited.insert(p).second)
+        return; /* hard-link shared props: shift exactly once */
+    const u64 len_class = extent_len_class_(p);
+    const u64 old_first = p->extents.front().offset;
+    for (auto& e : p->extents)
+        e.offset += base;
+    p->flags = u16(p->flags | NODE_FLAG_EXT_SHIFTED);
+    /* re-key the dedup index so post-scan find_by_extent stays truthful */
+    by_extent_.erase({old_first, len_class});
+    by_extent_[{p->extents.front().offset, len_class}] = n;
+}
+
+size_t ResultTree::node_count_snapshot() const {
+    std::lock_guard<std::mutex> lock(mutex_);
+    return nodes_.size();
+}
+
+void ResultTree::rebase_new_extents(size_t from_node, u64 base) {
+    if (base == 0)
+        return; /* whole-disk scan / synthetic device: already absolute */
+    std::lock_guard<std::mutex> lock(mutex_);
+    if (from_node >= nodes_.size())
+        return;
+    std::unordered_set<FileProperties*> visited;
+    for (size_t i = from_node; i < nodes_.size(); ++i)
+        rebase_props_locked(nodes_[i], base, visited);
+}
+
+void ResultTree::rebase_subtree_extents(FileNode* root, u64 base) {
+    if (base == 0 || !root)
+        return;
+    std::lock_guard<std::mutex> lock(mutex_);
+    std::unordered_set<FileProperties*> visited;
+    /* iterative DFS: candidate roots can hold millions of nodes */
+    std::vector<FileNode*> stack;
+    stack.push_back(root);
+    while (!stack.empty()) {
+        FileNode* n = stack.back();
+        stack.pop_back();
+        rebase_props_locked(n, base, visited);
+        for (FileNode* c = n->first_child(); c; c = c->next_sibling())
+            stack.push_back(c);
+    }
+}
+
 FileNode* ResultTree::find_by_extent(u64 first_offset, u64 length_class) const {
     std::lock_guard<std::mutex> lock(mutex_);
     const auto it = by_extent_.find({first_offset, length_class});

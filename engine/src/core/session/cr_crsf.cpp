@@ -93,6 +93,11 @@ u32 Writer::open(u64 session_id) {
     hdr[9] = u8(v >> 8);
     hdr[10] = u8(v >> 16);
     hdr[11] = u8(v >> 24);
+    /* F-1: container flags at +0x0C (reserved 0 in v1) */
+    hdr[0x0C] = u8(flags_);
+    hdr[0x0D] = u8(flags_ >> 8);
+    hdr[0x0E] = u8(flags_ >> 16);
+    hdr[0x0F] = u8(flags_ >> 24);
     /* record_count at +0x10 patched in finalize */
     u32 u = CRSF_UNIT;
     hdr[0x14] = u8(u);
@@ -222,6 +227,7 @@ u32 Reader::open(u32* record_count_out) {
     const u32 version = u32_from_bytes_le(buf.data() + 8);
     if (version != CRSF_VERSION)
         return 0x50040003; /* SESSION_VERSION */
+    flags_ = u32_from_bytes_le(buf.data() + 0x0C); /* F-1: basis flag */
     count_ = u32_from_bytes_le(buf.data() + 0x10);
     if (record_count_out)
         *record_count_out = count_;

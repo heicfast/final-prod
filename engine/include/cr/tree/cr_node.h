@@ -18,12 +18,21 @@
 #include "cr/storage/cr_device.h"
 #include <memory>
 #include <mutex>
+#include <unordered_set>
 #include <string>
 #include <unordered_map>
 #include <vector>
 
 namespace cr {
 namespace tree {
+
+/* NODE_FLAG_EXT_SHIFTED: tree-internal marker (bit 15 - no engine sets it)
+ * that this node's props->extents already carry the ABSOLUTE device basis.
+ * Set by the F-1 rebase paths exactly once; guards against double-shifts
+ * when several rebase passes (stage-end range, candidate subtree, old-session
+ * load-time normalization) could touch the same node. Persisted with the
+ * props - a reloaded session's nodes are already absolute. */
+constexpr u16 NODE_FLAG_EXT_SHIFTED = 0x8000;
 
 enum class Origin : u8 { Structured = 0, Carved = 1, Lost = 2, Virtual = 3 };
 enum class DeletedState : u8 { Active = 0, Deleted = 1, PartiallyOverwritten = 2, Damaged = 3 };
@@ -207,8 +216,35 @@ public:
      * rationale and the DFS byte-parity contract. */
     std::unique_ptr<Snapshot> capture_snapshot(bool partial = false) const;
 
+    /*
+     * F-1 basis normalization. Engines emit extents SLICE-RELATIVE
+     * (cr_mftwalk: "extents in slice-relative bytes; the tree consumer
+     * resolves to absolute via the slice base (orchestrator does this
+     * at merge)"). These methods ARE that merge step: they shift extent
+     * offsets by `base` so session/tree extents become ABSOLUTE device
+     * offsets - the basis every consumer (SafeWriter reads, the F12
+     * source/destination overlap check) is documented against.
+     *
+     * rebase_new_extents: shifts nodes appended since `from_node`
+     * (a node_count_snapshot() mark taken BEFORE the stage ran; ranges
+     * never overlap across stages, so no double-shift on resume).
+     * rebase_subtree_extents: shifts every node under `root` (lost
+     * candidates keep private roots; walked after their pool joins).
+     * Shared props (hard links) shift exactly once via the visited set.
+     * base == 0 is a no-op (whole-disk scans, synthetic devices).
+     * The extent dedup index is re-keyed so post-scan lookups stay
+     * truthful. LDM volume nodes keep their layout-relative basis
+     * (multi-disk bases are not expressible; registered limitation).
+     */
+    size_t node_count_snapshot() const;
+    void rebase_new_extents(size_t from_node, u64 base);
+    void rebase_subtree_extents(FileNode* root, u64 base);
+
 private:
     void index_node_locked(FileNode* n); /* caller holds mutex_ */
+    void rebase_props_locked(FileNode* n, u64 base,
+                             std::unordered_set<FileProperties*>& visited);
+    static u64 extent_len_class_(const FileProperties* p);
 
     std::vector<FileNode*> roots_;
     /* arena: linear storage, bulk-freed */

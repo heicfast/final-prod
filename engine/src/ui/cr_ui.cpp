@@ -1220,6 +1220,7 @@ u32 scan_save_session_impl(cr_ui_scan* scan, const char* utf8_path) {
     if (!f)
         return ret_(ERR_SESSION_IO, "cannot create session file %s", utf8_path);
     session::Writer w(f_write_cb, f_tell_cb, f_seek_cb, f);
+    w.set_flags(session::CRSF_FLAG_ABS_EXTENTS); /* F-1: absolute basis */
     u32 rc = w.open(0x52434F56);
     if (rc == OK)
         rc = s->ctrl->save_session(w, s->stats);
@@ -1693,7 +1694,12 @@ u32 preview_open_snapshot_impl(cr_ui_device* dev, cr_ui_snapshot* snap, uint32_t
         return ret_(ERR_NO_MEMORY, "props materialization failed");
     auto* p = new CrPreview();
     p->owned.reset(props);
-    p->reader.reset(new preview::PreviewReader(d->dev.get(), p->owned.get()));
+    /* F-1: extents are absolute - preview through the PARENT disk when the
+     * scan device is a volume slice (same basis rule as the recovery writer) */
+    IStorageDevice* src = d->dev.get();
+    if (d->volume_len != 0 && d->hold)
+        src = d->hold.get();
+    p->reader.reset(new preview::PreviewReader(src, p->owned.get()));
     *out = reinterpret_cast<cr_ui_preview*>(p);
     return ret_ok();
 }
@@ -1718,7 +1724,12 @@ u32 preview_open_session_impl(cr_ui_device* dev, cr_ui_session* sess, uint64_t n
         return ret_(ERR_NO_MEMORY, "props clone failed");
     auto* p = new CrPreview();
     p->owned.reset(props);
-    p->reader.reset(new preview::PreviewReader(d->dev.get(), p->owned.get()));
+    /* F-1: extents are absolute - preview through the PARENT disk when the
+     * scan device is a volume slice (same basis rule as the recovery writer) */
+    IStorageDevice* src = d->dev.get();
+    if (d->volume_len != 0 && d->hold)
+        src = d->hold.get();
+    p->reader.reset(new preview::PreviewReader(src, p->owned.get()));
     *out = reinterpret_cast<cr_ui_preview*>(p);
     return ret_ok();
 }
@@ -1844,7 +1855,15 @@ u32 recovery_create_impl(cr_ui_device* source, const cr_ui_recovery_config* cfg,
 #else
     r->io.reset(new FileDestIo());
 #endif
-    r->writer.reset(new recovery::SafeWriter(*r->io, d->dev.get(), wcfg));
+    /* F-1: tree extents are ABSOLUTE device offsets. When the scan device
+     * is a volume slice, the writer must read through the PARENT disk
+     * (absolute reads against the slice would shift every file by the
+     * partition start). Image-file devices without a slice keep their
+     * own basis (volume_len == 0). */
+    IStorageDevice* src = d->dev.get();
+    if (d->volume_len != 0 && d->hold)
+        src = d->hold.get();
+    r->writer.reset(new recovery::SafeWriter(*r->io, src, wcfg));
     *out = reinterpret_cast<cr_ui_recovery*>(r);
     return ret_ok();
 }

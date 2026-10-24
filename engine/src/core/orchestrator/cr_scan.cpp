@@ -288,6 +288,7 @@ u32 ScanController::emit_checkpoint_() const {
             return rc;
     session::Writer w(cfg_.checkpoint.write, cfg_.checkpoint.tell, cfg_.checkpoint.seek,
                       cfg_.checkpoint.user);
+    w.set_flags(session::CRSF_FLAG_ABS_EXTENTS); /* F-1: stage rebased */
     if (u32 rc = w.open(0x52434B50)) /* 'RKPP' checkpoint container tag */
         return rc;
     /* snapshot the stats shape the session needs: counts live in the
@@ -446,8 +447,13 @@ u32 ScanController::run(IStorageDevice* slice, CancelToken* cancel, bool (*progr
         return stamp(ERR_CANCELLED);
     checkpoint_stats_ = &stats; /* G-13: checkpoint serialization source */
     if (cfg_.run_quick) {
+        /* F-1: quick's nodes are slice-relative at emit; rebase to the
+         * absolute device basis BEFORE the stage-boundary checkpoint so
+         * sessions/checkpoints/consumers all see one basis */
+        const size_t quick_mark = tree_.node_count_snapshot();
         if (u32 rc = run_quick(pipe, cancel, progress, progress_user, stats))
             return stamp(rc);
+        tree_.rebase_new_extents(quick_mark, vol_offset_);
         if (u32 rc = emit_checkpoint_()) /* stage boundary (G-13) */
             return stamp(rc);
     }
@@ -462,8 +468,10 @@ u32 ScanController::run(IStorageDevice* slice, CancelToken* cancel, bool (*progr
     if (cfg_.run_carve) {
         if (cancel && cancel->checkpoint())
             return stamp(ERR_CANCELLED);
+        const size_t carve_mark = tree_.node_count_snapshot();
         if (u32 rc = run_carve_stage(pipe, cancel, progress, progress_user, stats))
             return stamp(rc);
+        tree_.rebase_new_extents(carve_mark, vol_offset_);
         if (u32 rc = emit_checkpoint_()) /* stage boundary (G-13) */
             return stamp(rc);
     }
@@ -710,8 +718,11 @@ u32 ScanController::run_deep(IStorageDevice* slice, CancelToken* cancel,
      * lost-partition candidates. When quick was disabled, run the engine
      * pass now with full deep semantics. */
     if (!quick_done_) {
+        /* F-1: the late engine pass's nodes are slice-relative; rebase */
+        const size_t pass_mark = tree_.node_count_snapshot();
         if (u32 e = run_engine_pass(slice, true, cancel, progress, pu, stats, 1, false))
             return e;
+        tree_.rebase_new_extents(pass_mark, vol_offset_);
         pass_deep_done_ = true;
     } else if (!pass_deep_done_) {
         /* quick ran the pass with deep semantics (deep_coming) - it counts
@@ -726,17 +737,21 @@ u32 ScanController::run_deep(IStorageDevice* slice, CancelToken* cancel,
     };
 
     if (cfg_.fs_hint == FsFamily::Ntfs) {
-        /* remnant sweep (R2.5) - parallel chunk fan-out */
+        /* remnant sweep (R2.5) - parallel chunk fan-out. F-1: remnant nodes
+         * are slice-relative; the fan-out joins before this returns, so the
+         * range rebase below is race-free */
         u32 rc2 = OK;
         {
             auto vol = ntfs::NtfsVolume::open(
                 std::unique_ptr<IStorageDevice>(cr::SliceShim::shim(slice)), &rc2);
             if (vol) {
+                const size_t rem_mark = tree_.node_count_snapshot();
                 ntfs::WalkStats rem;
                 rc = ntfs::scan_mft_remnants(slice, vol->params().sector_bytes,
                                              vol->params().cluster_bytes, vol->params().record_size,
                                              cancel, deep_cb, &dbridge, tree_, root_lost_, rem,
                                              threads);
+                tree_.rebase_new_extents(rem_mark, vol_offset_);
                 stats.files_found += rem.emitted;
             }
         }
@@ -763,6 +778,7 @@ u32 ScanController::run_deep(IStorageDevice* slice, CancelToken* cancel,
                 struct CandWork {
                     std::unique_ptr<IStorageDevice> slice;
                     tree::FullNode* root;
+                    u64 base; /* F-1: candidate start on the disk */
                 };
                 std::vector<CandWork> work;
                 for (const auto& c : dr.candidates) {
@@ -774,7 +790,8 @@ u32 ScanController::run_deep(IStorageDevice* slice, CancelToken* cancel,
                     snprintf(buf, sizeof(buf), " %llu", (unsigned long long)c.start_lba);
                     for (const char* p = buf; *p; ++p)
                         role.push_back(u16(u8(*p)));
-                    work.push_back({std::move(cand_slice), tree_.add_root(role)});
+                    const u64 cbase = cand_slice->absolute_base();
+                    work.push_back({std::move(cand_slice), tree_.add_root(role), cbase});
                 }
                 if (!work.empty()) {
                     if (threads > 1 && work.size() > 1) {
@@ -813,6 +830,11 @@ u32 ScanController::run_deep(IStorageDevice* slice, CancelToken* cancel,
                         }
                         if (first_err != OK)
                             rc = first_err;
+                        /* F-1: candidate nodes are CANDIDATE-relative; the pool
+                         * has joined, so rebase each candidate's private
+                         * subtree to the disk basis on this thread */
+                        for (const auto& w : work)
+                            tree_.rebase_subtree_extents(w.root, w.base);
                     } else {
                         for (auto& w : work) {
                             u64 files = 0, deleted = 0;
@@ -820,6 +842,7 @@ u32 ScanController::run_deep(IStorageDevice* slice, CancelToken* cancel,
                                                  deep_cb, &dbridge);
                             stats.files_found += files;
                             stats.deleted_found += deleted;
+                            tree_.rebase_subtree_extents(w.root, w.base);
                         }
                     }
                 }
@@ -1049,6 +1072,17 @@ u32 ScanController::load_session_summary(session::Reader& r, tree::ResultTree& t
     if ((info.stage_done_mask & ~info.configured_mask) != 0)
         return ERR_SESSION_FORMAT; /* mask integrity violation - never a
                                       silent partial resume */
+    /* F-1: pre-normalization sessions carry SLICE-RELATIVE extents (the
+     * merge-time rebase was never implemented before the flag existed).
+     * Normalize to the absolute basis using the recorded slice placement,
+     * so every consumer (writer reads, F12 overlap, re-save) sees one
+     * basis regardless of which build wrote the session. Old whole-disk
+     * sessions with lost candidates keep their candidate-relative nodes
+     * (the container carries no per-candidate placement for the tree) -
+     * documented limitation, unchanged behavior. */
+    if (!(r.flags() & session::CRSF_FLAG_ABS_EXTENTS) && info.slice_offset != 0)
+        for (auto* root : tree.roots())
+            tree.rebase_subtree_extents(root, info.slice_offset);
     stats.lost_partitions = stats.lost_candidates.size();
     return OK;
 }

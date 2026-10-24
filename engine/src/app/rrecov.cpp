@@ -630,6 +630,7 @@ int cmd_scan(int argc, wchar_t** argv, int& i) {
             return false;
         }
         session::Writer w(file_write_cb, file_tell_cb, file_seek_cb, f);
+        w.set_flags(session::CRSF_FLAG_ABS_EXTENTS); /* F-1: absolute basis */
         if (w.open(0x52434F56) != OK || ctrl->save_session(w, stats) != OK || w.finalize() != OK) {
             wprintf(L"session save failed\n");
             fclose(f);

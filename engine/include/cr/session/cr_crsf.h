@@ -32,6 +32,13 @@ constexpr u32 CRSF_HEADER_BYTES = 64;
 constexpr u32 CRSF_RECORD_HEADER_BYTES = 24;
 constexpr u32 CRSF_CHUNK_MAX = 4096;
 
+/* Container header flags (offset +0x0C, reserved 0 in v1 writes):
+ *   bit 0 - CRSF_FLAG_ABS_EXTENTS: the RESULT_TREE payload carries
+ *           ABSOLUTE device offsets (F-1 basis normalization). Absent =
+ *           the pre-F-1 slice-relative basis; loaders normalize old
+ *           sessions using the VolumeInfo.slice_offset on load. */
+constexpr u32 CRSF_FLAG_ABS_EXTENTS = 0x1;
+
 enum RecordType : u32 {
     REC_SESSION_STATE = 1,
     REC_VOLUME_INFO = 2,
@@ -61,10 +68,14 @@ public:
     u32 open(u64 session_id); /* emits the container header */
     u32 add_record(RecordType type, const void* data, u32 len);
     u32 finalize(); /* patches record_count + chain fields */
+    /* F-1: container flags written into the header. The scan-side save
+     * paths set CRSF_FLAG_ABS_EXTENTS; the default (0) matches v1. */
+    void set_flags(u32 flags) { flags_ = flags; }
 
 private:
     struct Impl;
     std::unique_ptr<Impl> impl_;
+    u32 flags_ = 0;
 };
 
 class Reader {
@@ -81,11 +92,15 @@ public:
     /* Reads record #index (0-based, in file order). */
     u32 read_record(u32 index, Record& out);
     u32 record_count() const { return count_; }
+    /* F-1: container flags from the header (0 = pre-F-1 slice-relative
+     * basis; loaders normalize with the session's VolumeInfo). */
+    u32 flags() const { return flags_; }
 
 private:
     struct Impl;
     std::unique_ptr<Impl> impl_;
     u32 count_ = 0;
+    u32 flags_ = 0;
 };
 
 /* Chunk framing exposed for tests. */

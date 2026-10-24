@@ -9,7 +9,9 @@ additions: explicit versioning, per-record CRC32, corruption skip-forward.
 ```
 +0x00  magic[8]     "CRSFMT01"
 +0x08  version u32  = 1
-+0x0C  flags u32    (reserved, 0)
++0x0C  flags u32    bit 0 = ABS_EXTENTS (F-1: RESULT_TREE extents are
+                    ABSOLUTE device offsets; absent = pre-F-1 slice-relative
+                    basis, loaders normalize via VolumeInfo.slice_offset)
 +0x10  record_count u32   (patched on finalize)
 +0x14  unit_size u32      = 512 (skip-forward granularity)
 +0x18  session_id lo u32
