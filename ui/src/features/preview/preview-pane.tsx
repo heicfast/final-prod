@@ -28,18 +28,50 @@ import { hexWorker } from '@/workers/hex-worker-client';
 
 function kindOfNode(node: ResultNode): PreviewKind {
   const ext = node.extension?.replace('.', '').toLowerCase() ?? '';
-  if (['jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp', 'svg', 'heic', 'tif', 'tiff', 'cr2', 'cr3', 'nef', 'arw', 'dng', 'raw', 'ico'].includes(ext)) return 'image';
-  if (['mp4', 'mov', 'avi', 'mkv', 'wmv', 'm4v', 'webm', 'mts', 'm2ts'].includes(ext)) return 'av';
+  if (
+    [
+      'jpg',
+      'jpeg',
+      'png',
+      'gif',
+      'bmp',
+      'webp',
+      'svg',
+      'heic',
+      'tif',
+      'tiff',
+      'cr2',
+      'cr3',
+      'nef',
+      'arw',
+      'dng',
+      'raw',
+      'ico',
+    ].includes(ext)
+  )
+    return 'image';
+  if (['mp4', 'mov', 'avi', 'mkv', 'wmv', 'm4v', 'webm', 'mts', 'm2ts'].includes(ext))
+    return 'av';
   if (['wav', 'mp3', 'flac', 'aac', 'ogg', 'wma', 'm4a'].includes(ext)) return 'av';
   if (['pdf'].includes(ext)) return 'pdf';
-  if (['txt', 'log', 'md', 'csv', 'tsv', 'ini', 'json', 'xml', 'html', 'htm'].includes(ext)) return 'text';
+  if (['txt', 'log', 'md', 'csv', 'tsv', 'ini', 'json', 'xml', 'html', 'htm'].includes(ext))
+    return 'text';
   if (['doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 'odt'].includes(ext)) return 'office';
-  if (['exe', 'dll', 'db', 'sqlite', 'bin', 'dat', 'tmp', 'pst', 'zip', 'rar', '7z'].includes(ext)) return 'hex';
+  if (
+    ['exe', 'dll', 'db', 'sqlite', 'bin', 'dat', 'tmp', 'pst', 'zip', 'rar', '7z'].includes(ext)
+  )
+    return 'hex';
   return 'hex';
 }
 
-export function PreviewPane({ scanId, nodeId }: { scanId: string; nodeId: string | null }): React.JSX.Element {
-  const { t } = useTranslation();
+export function PreviewPane({
+  scanId,
+  nodeId,
+}: {
+  scanId: string;
+  nodeId: string | null;
+}): React.JSX.Element {
+  const { t, i18n } = useTranslation();
   const detail = useNodeDetail(scanId, nodeId);
   const node = detail.data?.node ?? null;
   const kind = node ? kindOfNode(node) : null;
@@ -54,10 +86,12 @@ export function PreviewPane({ scanId, nodeId }: { scanId: string; nodeId: string
               <Thumbnail scanId={scanId} nodeId={node.id} available={node.thumbnailAvailable} />
             </div>
             <div className="min-w-0 flex-1">
-              <p className="truncate text-sm font-semibold" title={node.name}>{node.name}</p>
+              <p className="truncate text-sm font-semibold" title={node.name}>
+                {node.name}
+              </p>
               <div className="mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs text-foreground-secondary tabular">
-                <span>{formatBytes(node.sizeBytes, useLocale())}</span>
-                <span>{formatDateTime(node.modifiedAt, useLocale())}</span>
+                <span>{formatBytes(node.sizeBytes, i18n.language)}</span>
+                <span>{formatDateTime(node.modifiedAt, i18n.language)}</span>
                 <span className="uppercase">{node.extension}</span>
               </div>
             </div>
@@ -65,7 +99,15 @@ export function PreviewPane({ scanId, nodeId }: { scanId: string; nodeId: string
 
           <div className="flex items-center justify-between border-b border-border px-3 py-1.5">
             <ConfidenceBadge grade={node.confidence} scanId={scanId} nodeId={node.id} />
-            <Badge variant={node.origin === 'existing' ? 'neutral' : node.origin === 'raw' ? 'primary' : 'warning'}>
+            <Badge
+              variant={
+                node.origin === 'existing'
+                  ? 'neutral'
+                  : node.origin === 'raw'
+                    ? 'primary'
+                    : 'warning'
+              }
+            >
               {node.origin === 'existing'
                 ? t('preview.statusExisting')
                 : node.origin === 'raw'
@@ -75,10 +117,7 @@ export function PreviewPane({ scanId, nodeId }: { scanId: string; nodeId: string
           </div>
 
           <div className="min-h-0 flex-1 overflow-auto p-3">
-            <PreviewBody
-              previewQuery={preview}
-              kind={kind}
-            />
+            <PreviewBody previewQuery={preview} kind={kind} />
           </div>
 
           {detail.data?.confidenceReason ? (
@@ -97,7 +136,15 @@ export function PreviewPane({ scanId, nodeId }: { scanId: string; nodeId: string
   );
 }
 
-function Thumbnail({ scanId, nodeId, available }: { scanId: string; nodeId: string; available: boolean }): React.JSX.Element {
+function Thumbnail({
+  scanId,
+  nodeId,
+  available,
+}: {
+  scanId: string;
+  nodeId: string;
+  available: boolean;
+}): React.JSX.Element {
   const { data } = useThumbnail(scanId, nodeId, available);
   if (data?.dataUrl) {
     return <img src={data.dataUrl} alt="" className="size-full object-cover" />;
@@ -149,7 +196,9 @@ function PreviewBody({
     case 'image':
       return <ImagePreview payload={payload} />;
     case 'hex':
-      return <HexPreview payload={payload} />;
+      // key forces a fresh subcomponent per payload — state resets by
+      // remount instead of synchronous setState in an effect.
+      return <HexPreview key={`${previewQuery.dataUpdatedAt}`} payload={payload} />;
     case 'text':
       return <TextPreview payload={payload} />;
     case 'pdf':
@@ -164,20 +213,44 @@ function PreviewBody({
 
 // --------------------------------------------------------------------- kinds
 
-function ImagePreview({ payload }: { payload: Extract<PreviewPayload, { kind: 'image' }> }): React.JSX.Element {
+function ImagePreview({
+  payload,
+}: {
+  payload: Extract<PreviewPayload, { kind: 'image' }>;
+}): React.JSX.Element {
   const { t } = useTranslation();
   const [zoom, setZoom] = React.useState(1);
   return (
     <div className="flex h-full flex-col">
       <div className="flex items-center justify-end gap-1 pb-2">
-        <Button variant="ghost" size="icon" className="size-6" aria-label={t('preview.zoomOut')} onClick={() => setZoom((z) => Math.max(0.25, z / 1.25))}>
+        <Button
+          variant="ghost"
+          size="icon"
+          className="size-6"
+          aria-label={t('preview.zoomOut')}
+          onClick={() => setZoom((z) => Math.max(0.25, z / 1.25))}
+        >
           <MinusIcon aria-hidden />
         </Button>
-        <span className="w-12 text-center text-2xs tabular text-foreground-secondary">{Math.round(zoom * 100)}%</span>
-        <Button variant="ghost" size="icon" className="size-6" aria-label={t('preview.zoomIn')} onClick={() => setZoom((z) => Math.min(8, z * 1.25))}>
+        <span className="w-12 text-center text-2xs tabular text-foreground-secondary">
+          {Math.round(zoom * 100)}%
+        </span>
+        <Button
+          variant="ghost"
+          size="icon"
+          className="size-6"
+          aria-label={t('preview.zoomIn')}
+          onClick={() => setZoom((z) => Math.min(8, z * 1.25))}
+        >
           <PlusIcon aria-hidden />
         </Button>
-        <Button variant="ghost" size="icon" className="size-6" aria-label={t('preview.fit')} onClick={() => setZoom(1)}>
+        <Button
+          variant="ghost"
+          size="icon"
+          className="size-6"
+          aria-label={t('preview.fit')}
+          onClick={() => setZoom(1)}
+        >
           <Maximize2Icon aria-hidden />
         </Button>
       </div>
@@ -193,18 +266,27 @@ function ImagePreview({ payload }: { payload: Extract<PreviewPayload, { kind: 'i
   );
 }
 
-function TextPreview({ payload }: { payload: Extract<PreviewPayload, { kind: 'text' }> }): React.JSX.Element {
-  const { t } = useTranslation();
+function TextPreview({
+  payload,
+}: {
+  payload: Extract<PreviewPayload, { kind: 'text' }>;
+}): React.JSX.Element {
+  const { t, i18n } = useTranslation();
   return (
     <div className="flex h-full flex-col gap-2">
       {payload.truncated ? (
         <p className="text-xs text-foreground-secondary">
-          {t('preview.truncated', { size: formatBytes(payload.text.length, useLocale()), total: formatBytes(payload.totalSize, useLocale()) })}
+          {t('preview.truncated', {
+            size: formatBytes(payload.text.length, i18n.language),
+            total: formatBytes(payload.totalSize, i18n.language),
+          })}
         </p>
       ) : null}
       <div className="flex items-center gap-2 text-xs">
         <TextIcon className="size-3.5" aria-hidden />
-        <Badge variant="outline">{t('preview.encoding')}: {payload.encoding}</Badge>
+        <Badge variant="outline">
+          {t('preview.encoding')}: {payload.encoding}
+        </Badge>
       </div>
       <pre className="min-h-0 flex-1 overflow-auto rounded-md bg-surface-muted p-3 font-mono text-xs leading-relaxed whitespace-pre-wrap">
         {payload.text}
@@ -213,19 +295,39 @@ function TextPreview({ payload }: { payload: Extract<PreviewPayload, { kind: 'te
   );
 }
 
-function PdfPreview({ payload }: { payload: Extract<PreviewPayload, { kind: 'pdf' }> }): React.JSX.Element {
+function PdfPreview({
+  payload,
+}: {
+  payload: Extract<PreviewPayload, { kind: 'pdf' }>;
+}): React.JSX.Element {
   const { t } = useTranslation();
   const [page, setPage] = React.useState(0);
   const current = payload.pages[page];
   return (
     <div className="flex h-full flex-col gap-2">
-      <img src={current?.dataUrl} alt={`page ${page + 1}`} className="mx-auto max-h-full rounded-md border border-border shadow-card" />
+      <img
+        src={current?.dataUrl}
+        alt={`page ${page + 1}`}
+        className="mx-auto max-h-full rounded-md border border-border shadow-card"
+      />
       <div className="flex items-center justify-center gap-2 pt-1 text-xs tabular">
-        <Button variant="ghost" size="sm" onClick={() => setPage((p) => Math.max(0, p - 1))} disabled={page === 0} aria-label={t('preview.prevPage')}>
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() => setPage((p) => Math.max(0, p - 1))}
+          disabled={page === 0}
+          aria-label={t('preview.prevPage')}
+        >
           ‹
         </Button>
         <span>{t('preview.pageOf', { page: page + 1, total: payload.pageCount })}</span>
-        <Button variant="ghost" size="sm" onClick={() => setPage((p) => Math.min(payload.pageCount - 1, p + 1))} disabled={page >= payload.pageCount - 1} aria-label={t('preview.nextPage')}>
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() => setPage((p) => Math.min(payload.pageCount - 1, p + 1))}
+          disabled={page >= payload.pageCount - 1}
+          aria-label={t('preview.nextPage')}
+        >
           ›
         </Button>
       </div>
@@ -233,12 +335,20 @@ function PdfPreview({ payload }: { payload: Extract<PreviewPayload, { kind: 'pdf
   );
 }
 
-function AvPreview({ payload }: { payload: Extract<PreviewPayload, { kind: 'av' }> }): React.JSX.Element {
+function AvPreview({
+  payload,
+}: {
+  payload: Extract<PreviewPayload, { kind: 'av' }>;
+}): React.JSX.Element {
   const { t } = useTranslation();
   return (
     <div className="space-y-3">
       {payload.thumbnailDataUrl ? (
-        <img src={payload.thumbnailDataUrl} alt="" className="w-full rounded-md border border-border" />
+        <img
+          src={payload.thumbnailDataUrl}
+          alt=""
+          className="w-full rounded-md border border-border"
+        />
       ) : null}
       <dl className="space-y-1 text-xs">
         {Object.entries(payload.metadata).map(([k, v]) => (
@@ -250,7 +360,8 @@ function AvPreview({ payload }: { payload: Extract<PreviewPayload, { kind: 'av' 
       </dl>
       {payload.durationSeconds ? (
         <p className="text-xs text-foreground-secondary tabular">
-          {Math.floor(payload.durationSeconds / 60)}:{String(payload.durationSeconds % 60).padStart(2, '0')}
+          {Math.floor(payload.durationSeconds / 60)}:
+          {String(payload.durationSeconds % 60).padStart(2, '0')}
         </p>
       ) : null}
       {!payload.thumbnailDataUrl ? (
@@ -262,8 +373,12 @@ function AvPreview({ payload }: { payload: Extract<PreviewPayload, { kind: 'av' 
   );
 }
 
-function OfficePreview({ payload }: { payload: Extract<PreviewPayload, { kind: 'office' }> }): React.JSX.Element {
-  const { t } = useTranslation();
+function OfficePreview({
+  payload,
+}: {
+  payload: Extract<PreviewPayload, { kind: 'office' }>;
+}): React.JSX.Element {
+  const { t, i18n } = useTranslation();
   return (
     <div className="space-y-3">
       <dl className="space-y-1 text-xs">
@@ -278,25 +393,34 @@ function OfficePreview({ payload }: { payload: Extract<PreviewPayload, { kind: '
         <>
           {payload.truncated ? (
             <p className="text-xs text-foreground-secondary">
-              {t('preview.truncated', { size: formatBytes(payload.extractedText.length, useLocale()), total: formatBytes(Number(payload.metadata.pages ?? 1) * 24_000, useLocale()) })}
+              {t('preview.truncated', {
+                size: formatBytes(payload.extractedText.length, i18n.language),
+                total: formatBytes(Number(payload.metadata.pages ?? 1) * 24_000, i18n.language),
+              })}
             </p>
           ) : null}
-          <pre className="max-h-64 overflow-auto rounded-md bg-surface-muted p-3 text-xs whitespace-pre-wrap">{payload.extractedText}</pre>
+          <pre className="max-h-64 overflow-auto rounded-md bg-surface-muted p-3 text-xs whitespace-pre-wrap">
+            {payload.extractedText}
+          </pre>
         </>
       ) : null}
     </div>
   );
 }
 
-function HexPreview({ payload }: { payload: Extract<PreviewPayload, { kind: 'hex' }> }): React.JSX.Element {
-  const { t } = useTranslation();
-  const [rows, setRows] = React.useState<{ offset: number; hex: string; ascii: string }[] | null>(null);
+function HexPreview({
+  payload,
+}: {
+  payload: Extract<PreviewPayload, { kind: 'hex' }>;
+}): React.JSX.Element {
+  const { t, i18n } = useTranslation();
+  const [rows, setRows] = React.useState<
+    { offset: number; hex: string; ascii: string }[] | null
+  >(null);
   const [error, setError] = React.useState<string | null>(null);
 
   React.useEffect(() => {
     let cancelled = false;
-    setRows(null);
-    setError(null);
     hexWorker(payload.bytes, payload.baseOffset)
       .then((r) => {
         if (!cancelled) setRows(r);
@@ -319,9 +443,11 @@ function HexPreview({ payload }: { payload: Extract<PreviewPayload, { kind: 'hex
   return (
     <div className="space-y-2">
       <p className="text-xs text-foreground-secondary tabular">
-        {t('preview.firstBytes', { size: formatBytes(payload.bytes.byteLength, useLocale()) })}
+        {t('preview.firstBytes', {
+          size: formatBytes(payload.bytes.byteLength, i18n.language),
+        })}
         {payload.totalSize > payload.bytes.byteLength
-          ? ` ${t('preview.truncated', { size: formatBytes(payload.bytes.byteLength, useLocale()), total: formatBytes(payload.totalSize, useLocale()) })}`
+          ? ` ${t('preview.truncated', { size: formatBytes(payload.bytes.byteLength, i18n.language), total: formatBytes(payload.totalSize, i18n.language) })}`
           : ''}
       </p>
       <div className="overflow-x-auto rounded-md bg-surface-muted p-2">
@@ -329,7 +455,9 @@ function HexPreview({ payload }: { payload: Extract<PreviewPayload, { kind: 'hex
           <tbody>
             {rows.map((r) => (
               <tr key={r.offset}>
-                <td className="pr-3 text-foreground-disabled">{r.offset.toString(16).padStart(8, '0')}</td>
+                <td className="pr-3 text-foreground-disabled">
+                  {r.offset.toString(16).padStart(8, '0')}
+                </td>
                 <td className="whitespace-pre pr-3">{r.hex}</td>
                 <td className="whitespace-pre text-foreground-secondary">{r.ascii}</td>
               </tr>
@@ -339,11 +467,6 @@ function HexPreview({ payload }: { payload: Extract<PreviewPayload, { kind: 'hex
       </div>
     </div>
   );
-}
-
-function useLocale(): string {
-  const { i18n } = useTranslation();
-  return i18n.language;
 }
 
 export { cn };

@@ -36,7 +36,9 @@ function DropdownMenuItem({
   className,
   inset,
   ...props
-}: React.ComponentProps<typeof DropdownMenuPrimitive.Item> & { inset?: boolean }): React.JSX.Element {
+}: React.ComponentProps<typeof DropdownMenuPrimitive.Item> & {
+  inset?: boolean;
+}): React.JSX.Element {
   return (
     <DropdownMenuPrimitive.Item
       className={cn(
@@ -83,7 +85,10 @@ function DropdownMenuLabel({
 }: React.ComponentProps<typeof DropdownMenuPrimitive.Label>): React.JSX.Element {
   return (
     <DropdownMenuPrimitive.Label
-      className={cn('px-2 py-1.5 text-2xs font-semibold uppercase tracking-wide text-foreground-secondary', className)}
+      className={cn(
+        'px-2 py-1.5 text-2xs font-semibold uppercase tracking-wide text-foreground-secondary',
+        className,
+      )}
       {...props}
     />
   );
@@ -93,7 +98,12 @@ function DropdownMenuSeparator({
   className,
   ...props
 }: React.ComponentProps<typeof DropdownMenuPrimitive.Separator>): React.JSX.Element {
-  return <DropdownMenuPrimitive.Separator className={cn('-mx-1 my-1 h-px bg-border', className)} {...props} />;
+  return (
+    <DropdownMenuPrimitive.Separator
+      className={cn('-mx-1 my-1 h-px bg-border', className)}
+      {...props}
+    />
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -142,7 +152,12 @@ function ContextMenuSeparator({
   className,
   ...props
 }: React.ComponentProps<typeof ContextMenuPrimitive.Separator>): React.JSX.Element {
-  return <ContextMenuPrimitive.Separator className={cn('-mx-1 my-1 h-px bg-border', className)} {...props} />;
+  return (
+    <ContextMenuPrimitive.Separator
+      className={cn('-mx-1 my-1 h-px bg-border', className)}
+      {...props}
+    />
+  );
 }
 
 // ---------------------------------------------------------------------------

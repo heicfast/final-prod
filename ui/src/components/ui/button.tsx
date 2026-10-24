@@ -12,9 +12,9 @@ const buttonVariants = cva(
           'gradient-cta text-primary-foreground shadow-sm hover:brightness-110 active:brightness-95',
         secondary:
           'border border-border-strong bg-surface text-foreground hover:bg-surface-hover active:bg-surface-selected',
-        ghost: 'text-foreground-secondary hover:bg-surface-hover hover:text-foreground active:bg-surface-tint',
-        danger:
-          'bg-danger text-white shadow-sm hover:brightness-110 active:brightness-95',
+        ghost:
+          'text-foreground-secondary hover:bg-surface-hover hover:text-foreground active:bg-surface-tint',
+        danger: 'bg-danger text-white shadow-sm hover:brightness-110 active:brightness-95',
         dangerOutline:
           'border border-danger bg-transparent text-danger hover:bg-danger-muted active:brightness-95',
         link: 'text-primary underline-offset-4 hover:underline',

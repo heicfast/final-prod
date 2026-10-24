@@ -15,7 +15,10 @@ const alertVariants = cva('relative flex w-full gap-3 rounded-md border px-4 py-
   defaultVariants: { variant: 'info' },
 });
 
-const ICONS: Record<NonNullable<VariantProps<typeof alertVariants>['variant']>, React.ComponentType<{ className?: string }>> = {
+const ICONS: Record<
+  NonNullable<VariantProps<typeof alertVariants>['variant']>,
+  React.ComponentType<{ className?: string }>
+> = {
   info: InfoIcon,
   success: CheckCircle2Icon,
   warning: AlertTriangleIcon,

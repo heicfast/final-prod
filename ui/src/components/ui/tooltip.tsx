@@ -31,7 +31,13 @@ function TooltipContent({
 }
 
 /** Convenience wrapper: <Hint text="…"><thing/></Hint> */
-function Hint({ text, children }: { text: string; children: React.ReactNode }): React.JSX.Element {
+function Hint({
+  text,
+  children,
+}: {
+  text: string;
+  children: React.ReactNode;
+}): React.JSX.Element {
   return (
     <Tooltip>
       <TooltipTrigger asChild>{children}</TooltipTrigger>

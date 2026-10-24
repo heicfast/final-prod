@@ -39,14 +39,26 @@ function push(entry: LogEntry): void {
   }
 }
 
-function emit(level: LogLevel, scope: string, message: string, data?: Record<string, unknown>): void {
+function emit(
+  level: LogLevel,
+  scope: string,
+  message: string,
+  data?: Record<string, unknown>,
+): void {
   if (LEVEL_ORDER[level] < LEVEL_ORDER[minLevel]) {
     return;
   }
   const entry: LogEntry = { t: Date.now(), level, scope, message, data };
   push(entry);
   if (import.meta.env.DEV) {
-    const fn = level === 'debug' ? console.debug : level === 'info' ? console.info : level === 'warn' ? console.warn : console.error;
+    const fn =
+      level === 'debug'
+        ? console.debug
+        : level === 'info'
+          ? console.info
+          : level === 'warn'
+            ? console.warn
+            : console.error;
     if (data) fn(`[${scope}] ${message}`, data);
     else fn(`[${scope}] ${message}`);
   }
@@ -54,10 +66,14 @@ function emit(level: LogLevel, scope: string, message: string, data?: Record<str
 
 export function createLogger(scope: string) {
   return {
-    debug: (message: string, data?: Record<string, unknown>) => emit('debug', scope, message, data),
-    info: (message: string, data?: Record<string, unknown>) => emit('info', scope, message, data),
-    warn: (message: string, data?: Record<string, unknown>) => emit('warn', scope, message, data),
-    error: (message: string, data?: Record<string, unknown>) => emit('error', scope, message, data),
+    debug: (message: string, data?: Record<string, unknown>) =>
+      emit('debug', scope, message, data),
+    info: (message: string, data?: Record<string, unknown>) =>
+      emit('info', scope, message, data),
+    warn: (message: string, data?: Record<string, unknown>) =>
+      emit('warn', scope, message, data),
+    error: (message: string, data?: Record<string, unknown>) =>
+      emit('error', scope, message, data),
   };
 }
 
@@ -67,7 +83,10 @@ export function getLogBuffer(): readonly LogEntry[] {
 
 export function exportLogText(): string {
   return ring
-    .map((e) => `${new Date(e.t).toISOString()} ${e.level.toUpperCase().padEnd(5)} [${e.scope}] ${e.message}${e.data ? ` ${JSON.stringify(e.data)}` : ''}`)
+    .map(
+      (e) =>
+        `${new Date(e.t).toISOString()} ${e.level.toUpperCase().padEnd(5)} [${e.scope}] ${e.message}${e.data ? ` ${JSON.stringify(e.data)}` : ''}`,
+    )
     .join('\n');
 }
 
@@ -83,7 +102,7 @@ export function installMainThreadWatchdog(): () => void {
     }
   });
   try {
-    observer.observe({ type: 'longtask', buffered: true } as PerformanceObserverInit);
+    observer.observe({ type: 'longtask', buffered: true });
   } catch {
     // longtask observation unsupported — watchdog is best-effort only
   }

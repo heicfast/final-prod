@@ -26,13 +26,20 @@ function EmptyState({
 }): React.JSX.Element {
   const { t } = useTranslation();
   return (
-    <div className={cn('flex h-full min-h-48 flex-col items-center justify-center gap-3 p-8 text-center', className)}>
+    <div
+      className={cn(
+        'flex h-full min-h-48 flex-col items-center justify-center gap-3 p-8 text-center',
+        className,
+      )}
+    >
       <div className="flex size-16 items-center justify-center rounded-xl bg-surface-tint text-foreground-secondary">
         <Icon className="size-8" strokeWidth={1.5} aria-hidden />
       </div>
       <div className="space-y-1">
         <p className="text-base font-semibold">{title}</p>
-        {description ? <p className="max-w-sm text-sm text-foreground-secondary">{description}</p> : null}
+        {description ? (
+          <p className="max-w-sm text-sm text-foreground-secondary">{description}</p>
+        ) : null}
       </div>
       {actionLabel || secondaryLabel ? (
         <div className="mt-2 flex items-center gap-2">
@@ -110,7 +117,9 @@ function CapacityBar({
   const pct = ratio * 100;
   return (
     <div className={cn('w-full', className)}>
-      {label ? <div className="mb-1 text-xs text-foreground-secondary tabular">{label}</div> : null}
+      {label ? (
+        <div className="mb-1 text-xs text-foreground-secondary tabular">{label}</div>
+      ) : null}
       <div
         className="h-1.5 w-full overflow-hidden rounded-full bg-surface-tint"
         role="progressbar"
@@ -122,7 +131,11 @@ function CapacityBar({
         <div
           className={cn(
             'h-full rounded-full transition-[width] duration-300',
-            tone === 'danger' || ratio > 0.92 ? 'bg-danger' : tone === 'warning' || ratio > 0.8 ? 'bg-warning' : 'bg-primary',
+            tone === 'danger' || ratio > 0.92
+              ? 'bg-danger'
+              : tone === 'warning' || ratio > 0.8
+                ? 'bg-warning'
+                : 'bg-primary',
           )}
           style={{ width: `${pct}%` }}
         />

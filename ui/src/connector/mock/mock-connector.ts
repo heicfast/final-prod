@@ -49,15 +49,32 @@ import { fixturesFor } from './fixtures';
 import { NodeSpace } from './node-space';
 import { mulberry32, randBell, randInt } from './rng';
 
-function connError(code: ConnectorErrorCode, message: string, reasonKey?: string): ConnectorError {
-  return Object.assign(new Error(message), { code, reasonKey }) as ConnectorError;
+function connError(
+  code: ConnectorErrorCode,
+  message: string,
+  reasonKey?: string,
+): ConnectorError {
+  return Object.assign(new Error(message), { code, reasonKey });
 }
 const STAGE_WEIGHTS: Record<ScanParams['mode'], Partial<Record<ScanStage, number>>> = {
   quick: { 'volume-analysis': 0.08, 'quick-index': 0.62, 'tree-build': 0.3 },
   deep: { 'volume-analysis': 0.05, 'quick-index': 0.2, 'deep-walk': 0.47, 'tree-build': 0.28 },
-  'deep-carve': { 'volume-analysis': 0.04, 'quick-index': 0.14, 'deep-walk': 0.42, carve: 0.22, 'tree-build': 0.18 },
+  'deep-carve': {
+    'volume-analysis': 0.04,
+    'quick-index': 0.14,
+    'deep-walk': 0.42,
+    carve: 0.22,
+    'tree-build': 0.18,
+  },
 };
-const STAGE_ORDER: readonly ScanStage[] = ['volume-analysis', 'quick-index', 'deep-walk', 'carve', 'tree-build', 'done'];
+const STAGE_ORDER: readonly ScanStage[] = [
+  'volume-analysis',
+  'quick-index',
+  'deep-walk',
+  'carve',
+  'tree-build',
+  'done',
+];
 
 interface ScanRuntime {
   params: ScanParams;
@@ -172,14 +189,22 @@ export class MockConnector {
         ...f.device,
         volumes: f.volumes.map((v) => ({
           ...v,
-          status: this.scenario === 'permission-denied' && v.letter === 'C' ? 'permission-denied' : v.status,
+          status:
+            this.scenario === 'permission-denied' && v.letter === 'C'
+              ? 'permission-denied'
+              : v.status,
           quickScanAvailable: this.scenario === 'bad-sectors' ? false : v.quickScanAvailable,
         })),
         isSourceOfActiveScan: false,
       };
       this.deviceList.push(device);
-      const primary = f.volumes[0]!;
-      const space = new NodeSpace(primary.id, f.nodeSeed ^ this.seed, f.directoryCount, f.fileCount);
+      const primary = f.volumes[0];
+      const space = new NodeSpace(
+        primary.id,
+        f.nodeSeed ^ this.seed,
+        f.directoryCount,
+        f.fileCount,
+      );
       this.nodeSpaces.set(primary.id, space);
       void rng;
     }
@@ -301,6 +326,7 @@ export class MockConnector {
     },
 
     getScanState: async (scanId: string): Promise<ScanState> => {
+      await latency(40, 20);
       const rt = this.requireScan(scanId);
       return this.toScanState(rt);
     },
@@ -335,7 +361,7 @@ export class MockConnector {
 
   private scanTick(rt: ScanRuntime): void {
     rt.tick++;
-    const weights = STAGE_WEIGHTS[rt.params.mode] ?? STAGE_WEIGHTS.deep!;
+    const weights = STAGE_WEIGHTS[rt.params.mode] ?? STAGE_WEIGHTS.deep;
     const stages = STAGE_ORDER.filter((s) => (weights[s] ?? 0) > 0);
     const curIdx = stages.indexOf(rt.stage);
     const totalTicks = 150 + (rt.space.fileCount > 500_000 ? 120 : 0);
@@ -345,7 +371,12 @@ export class MockConnector {
     rt.stageProgress = Math.min(1, rt.stageProgress + stageSpeed);
 
     // device disconnect injection (one-shot per scan: reconnects stick)
-    if (this.scenario === 'disconnect-mid-scan' && !rt.disconnectHandled && !rt.disconnectFired && rt.overall > 0.38) {
+    if (
+      this.scenario === 'disconnect-mid-scan' &&
+      !rt.disconnectHandled &&
+      !rt.disconnectFired &&
+      rt.overall > 0.38
+    ) {
       rt.disconnectFired = true;
       rt.disconnectHandled = true;
       rt.status = 'paused';
@@ -372,7 +403,7 @@ export class MockConnector {
 
     // overall from stage weights
     let before = 0;
-    for (let i = 0; i < curIdx; i++) before += weights[stages[i]!] ?? 0;
+    for (let i = 0; i < curIdx; i++) before += weights[stages[i]] ?? 0;
     const curWeight = weights[rt.stage] ?? 0;
     rt.overall = Math.min(1, before + curWeight * rt.stageProgress);
 
@@ -425,7 +456,10 @@ export class MockConnector {
       badSectorMap: rt.badSectors,
       etaSeconds: rt.eta,
       throughputBytesPerSecond: rt.throughput,
-      recoverableDuringScan: rt.stage === 'tree-build' || rt.stage === 'deep-walk' ? rt.overall > 0.15 : rt.overall > 0.4,
+      recoverableDuringScan:
+        rt.stage === 'tree-build' || rt.stage === 'deep-walk'
+          ? rt.overall > 0.15
+          : rt.overall > 0.4,
       deviceConnected: !rt.disconnectFired,
     };
   }
@@ -445,7 +479,11 @@ export class MockConnector {
   // ------------------------------------------------------------ results
 
   readonly results = {
-    getResultTree: async (scanId: string, parentId: string | null, mode: ResultTreeMode): Promise<TreePage> => {
+    getResultTree: async (
+      scanId: string,
+      parentId: string | null,
+      mode: ResultTreeMode,
+    ): Promise<TreePage> => {
       await latency(60, 30);
       const rt = this.requireScan(scanId);
       let nodes: TreeNode[];
@@ -464,12 +502,24 @@ export class MockConnector {
       await latency(90, 50);
       const rt = this.requireScan(scanId);
       // During a live scan only a fraction of the space is "found" yet.
-      const visibleFraction = rt.status === 'completed' || rt.status === 'cancelled' ? 1 : Math.max(0.05, 1 - Math.exp(-3.4 * rt.overall));
+      const visibleFraction =
+        rt.status === 'completed' || rt.status === 'cancelled'
+          ? 1
+          : Math.max(0.05, 1 - Math.exp(-3.4 * rt.overall));
       const result = rt.space.query(filter, sort, page.offset, page.limit);
       // approximate live fraction by trimming the total (deterministic)
       const total = Math.floor(result.total * visibleFraction);
-      const nodes = visibleFraction >= 0.999 ? result.nodes : result.nodes.slice(0, Math.ceil(result.nodes.length * visibleFraction));
-      return { nodes, total, offset: page.offset, pageSize: page.limit, elapsedMs: result.elapsedMs };
+      const nodes =
+        visibleFraction >= 0.999
+          ? result.nodes
+          : result.nodes.slice(0, Math.ceil(result.nodes.length * visibleFraction));
+      return {
+        nodes,
+        total,
+        offset: page.offset,
+        pageSize: page.limit,
+        elapsedMs: result.elapsedMs,
+      };
     },
 
     getNodeDetail: async (scanId: string, nodeId: string): Promise<NodeDetail> => {
@@ -488,7 +538,9 @@ export class MockConnector {
         node,
         fullPhysicalPath: node.path ? `${node.path}\\${node.name}` : null,
         createdAt: node.modifiedAt,
-        accessedAt: new Date(new Date(node.modifiedAt ?? Date.now()).getTime() + 86400_000).toISOString(),
+        accessedAt: new Date(
+          new Date(node.modifiedAt ?? Date.now()).getTime() + 86400_000,
+        ).toISOString(),
         confidenceReason: reasonMap[node.confidence] ?? null,
         badSectorsOverlap: node.confidence === 'poor',
         clusterCount: Math.max(1, Math.ceil(node.sizeBytes / 4096)),
@@ -496,6 +548,7 @@ export class MockConnector {
     },
 
     countResults: async (scanId: string, filter: ResultsFilter): Promise<number> => {
+      await latency(60, 30);
       const rt = this.requireScan(scanId);
       return rt.space.count(filter);
     },
@@ -504,7 +557,11 @@ export class MockConnector {
   // ------------------------------------------------------------ preview
 
   readonly preview = {
-    requestPreview: async (scanId: string, nodeId: string, kind: PreviewKind): Promise<PreviewPayload> => {
+    requestPreview: async (
+      scanId: string,
+      nodeId: string,
+      kind: PreviewKind,
+    ): Promise<PreviewPayload> => {
       await latency(240, 160);
       const rt = this.requireScan(scanId);
       const idx = Number(nodeId.replace(/^f/, ''));
@@ -512,13 +569,16 @@ export class MockConnector {
       const rng = mulberry32((idx ^ 0x5eed) >>> 0);
 
       if (kind === 'image') {
-        if (node.extension === '.crypt') throw connError('preview-encrypted', 'encrypted', 'preview.reason.encrypted');
-        if (idx % 97 === 0) throw connError('preview-damaged', 'damaged', 'preview.reason.damaged');
+        if (node.extension === '.crypt')
+          throw connError('preview-encrypted', 'encrypted', 'preview.reason.encrypted');
+        if (idx % 97 === 0)
+          throw connError('preview-damaged', 'damaged', 'preview.reason.damaged');
         const { dataUrl, width, height } = this.syntheticImage(rng, node.name);
         return { kind: 'image', dataUrl, width, height, bounded: false };
       }
       if (kind === 'hex') {
-        if (node.sizeBytes > 64 * 1024 ** 3) throw connError('preview-too-large', 'too large', 'preview.reason.tooLarge');
+        if (node.sizeBytes > 64 * 1024 ** 3)
+          throw connError('preview-too-large', 'too large', 'preview.reason.tooLarge');
         const cap = Math.min(node.sizeBytes, 64 * 1024);
         const bytes = new Uint8Array(cap);
         const brng = mulberry32(idx ^ 0xbeef);
@@ -528,7 +588,18 @@ export class MockConnector {
       if (kind === 'text') {
         const lines: string[] = [];
         const trng = mulberry32(idx ^ 0x7e7e);
-        const words = ['recovered', 'fragment', 'volume', 'sector', 'index', 'journal', 'entry', 'cluster', 'stream', 'buffer'];
+        const words = [
+          'recovered',
+          'fragment',
+          'volume',
+          'sector',
+          'index',
+          'journal',
+          'entry',
+          'cluster',
+          'stream',
+          'buffer',
+        ];
         for (let l = 0; l < 220; l++) {
           const parts: string[] = [];
           for (let w = 0; w < 10; w++) parts.push(words[Math.floor(trng() * words.length)]);
@@ -544,7 +615,9 @@ export class MockConnector {
       }
       if (kind === 'pdf') {
         const pages = 1 + (idx % 3);
-        const pageImages = Array.from({ length: pages }, (_, p) => this.syntheticPage(rng, p + 1, pages));
+        const pageImages = Array.from({ length: pages }, (_, p) =>
+          this.syntheticPage(rng, p + 1, pages),
+        );
         return { kind: 'pdf', pages: pageImages, pageCount: pages };
       }
       if (kind === 'av') {
@@ -573,7 +646,10 @@ export class MockConnector {
         'Tables and images appear as placeholders in extracted text.',
         'Section headers and paragraphs are preserved in reading order.',
       ];
-      const text = Array.from({ length: 24 }, (_, i) => sentences[Math.floor(textRng() * sentences.length)] + ` (#${i + 1})`).join(' ');
+      const text = Array.from(
+        { length: 24 },
+        (_, i) => sentences[Math.floor(textRng() * sentences.length)] + ` (#${i + 1})`,
+      ).join(' ');
       return {
         kind: 'office',
         metadata: {
@@ -587,7 +663,10 @@ export class MockConnector {
       };
     },
 
-    getThumbnail: async (scanId: string, nodeId: string): Promise<{ dataUrl: string } | null> => {
+    getThumbnail: async (
+      scanId: string,
+      nodeId: string,
+    ): Promise<{ dataUrl: string } | null> => {
       await latency(120, 60);
       const rt = this.requireScan(scanId);
       const idx = Number(nodeId.replace(/^f/, ''));
@@ -598,7 +677,10 @@ export class MockConnector {
     },
   };
 
-  private syntheticImage(rng: () => number, name: string): { dataUrl: string; width: number; height: number } {
+  private syntheticImage(
+    rng: () => number,
+    name: string,
+  ): { dataUrl: string; width: number; height: number } {
     const width = 640;
     const height = 400;
     const hue = Math.floor(rng() * 360);
@@ -621,10 +703,18 @@ ${shapes.join('')}
 <rect x="16" y="${height - 56}" width="${width - 32}" height="40" rx="8" fill="rgba(0,0,0,0.45)"/>
 <text x="28" y="${height - 30}" font-family="Segoe UI, sans-serif" font-size="18" fill="#fff">${label.slice(0, 42)}</text>
 </svg>`;
-    return { dataUrl: `data:image/svg+xml;base64,${btoa(unescape(encodeURIComponent(svg)))}`, width, height };
+    return {
+      dataUrl: `data:image/svg+xml;base64,${btoa(unescape(encodeURIComponent(svg)))}`,
+      width,
+      height,
+    };
   }
 
-  private syntheticPage(rng: () => number, page: number, total: number): { dataUrl: string; width: number; height: number } {
+  private syntheticPage(
+    rng: () => number,
+    page: number,
+    total: number,
+  ): { dataUrl: string; width: number; height: number } {
     const width = 595;
     const height = 842;
     const lines = Array.from({ length: 18 }, (_, i) => {
@@ -637,7 +727,11 @@ ${shapes.join('')}
 <text x="70" y="80" font-family="Segoe UI, sans-serif" font-size="26" fill="#1a1a1a">Page ${page} of ${total}</text>
 ${lines.join('')}
 </svg>`;
-    return { dataUrl: `data:image/svg+xml;base64,${btoa(unescape(encodeURIComponent(svg)))}`, width, height };
+    return {
+      dataUrl: `data:image/svg+xml;base64,${btoa(unescape(encodeURIComponent(svg)))}`,
+      width,
+      height,
+    };
   }
 
   // ------------------------------------------------------------ sessions
@@ -664,7 +758,9 @@ ${lines.join('')}
 
     listSessions: async (): Promise<SessionMeta[]> => {
       await latency(120, 60);
-      return Array.from(this.sessionStore.values()).sort((a, b) => b.savedAt.localeCompare(a.savedAt));
+      return Array.from(this.sessionStore.values()).sort((a, b) =>
+        b.savedAt.localeCompare(a.savedAt),
+      );
     },
 
     loadSession: async (path: string): Promise<{ scanId: string }> => {
@@ -673,14 +769,16 @@ ${lines.join('')}
         throw connError('session-corrupt', 'corrupt session', 'errors.sessionCorrupt');
       }
       const scanId = this.sessionPathToScan.get(path);
-      if (!scanId) throw connError('session-not-found', 'session not found', 'errors.sessionCorrupt');
+      if (!scanId)
+        throw connError('session-not-found', 'session not found', 'errors.sessionCorrupt');
       return { scanId };
     },
 
     getSessionMeta: async (path: string): Promise<SessionMeta> => {
       await latency(100, 50);
       const scanId = this.sessionPathToScan.get(path);
-      if (!scanId) throw connError('session-not-found', 'session not found', 'errors.sessionCorrupt');
+      if (!scanId)
+        throw connError('session-not-found', 'session not found', 'errors.sessionCorrupt');
       const rt = this.requireScan(scanId);
       return {
         id: `sess-${path.length}`,
@@ -764,6 +862,7 @@ ${lines.join('')}
     },
 
     getRecoveryState: async (jobId: string): Promise<RecoveryJob> => {
+      await latency(30);
       const job = this.requireJob(jobId);
       return {
         jobId: job.jobId,
@@ -775,12 +874,19 @@ ${lines.join('')}
       };
     },
 
-    getRecoveryItems: async (jobId: string, page: { offset: number; limit: number }): Promise<readonly RecoveryItem[]> => {
+    getRecoveryItems: async (
+      jobId: string,
+      page: { offset: number; limit: number },
+    ): Promise<readonly RecoveryItem[]> => {
+      await latency(30);
       const job = this.requireJob(jobId);
       return job.items.slice(page.offset, page.offset + page.limit);
     },
 
-    onRecoveryProgress: (jobId: string, cb: (event: RecoveryProgressEvent) => void): (() => void) => {
+    onRecoveryProgress: (
+      jobId: string,
+      cb: (event: RecoveryProgressEvent) => void,
+    ): (() => void) => {
       const handler = (): void => {
         const job = this.jobs.get(jobId);
         if (job) cb({ ...job.progress });
@@ -790,6 +896,7 @@ ${lines.join('')}
     },
 
     getRecoveryReport: async (jobId: string): Promise<RecoveryReport> => {
+      await latency(40);
       const job = this.requireJob(jobId);
       return {
         jobId: job.jobId,
@@ -812,11 +919,18 @@ ${lines.join('')}
   }
 
   private jobTick(job: JobRuntime): void {
-    const pendingIdx = job.items.findIndex((i) => i.state === 'pending' || i.state === 'running');
+    const pendingIdx = job.items.findIndex(
+      (i) => i.state === 'pending' || i.state === 'running',
+    );
     if (pendingIdx === -1) {
       const failed = job.items.filter((i) => i.state === 'failed').length;
       const done = job.items.filter((i) => i.state === 'done').length;
-      if (job.options.verifyOnWrite && !job.progress.verifying && done > 0 && job.progress.completedCount === done) {
+      if (
+        job.options.verifyOnWrite &&
+        !job.progress.verifying &&
+        done > 0 &&
+        job.progress.completedCount === done
+      ) {
         job.progress.verifying = true;
         return;
       }
@@ -838,7 +952,7 @@ ${lines.join('')}
       return;
     }
 
-    const item = job.items[pendingIdx]!;
+    const item = job.items[pendingIdx];
     if (item.state === 'pending') {
       item.state = 'running';
       job.progress.currentFile = item.name;
@@ -869,7 +983,10 @@ ${lines.join('')}
       job.progress.currentFileProgress = 0;
     }
     job.progress.overallProgress =
-      (job.progress.completedCount + job.progress.failedCount + job.progress.skippedCount + job.progress.currentFileProgress) /
+      (job.progress.completedCount +
+        job.progress.failedCount +
+        job.progress.skippedCount +
+        job.progress.currentFileProgress) /
       Math.max(1, job.progress.totalCount);
     job.progress.throughputBytesPerSecond = randBell(mulberry32(pendingIdx + 1), 48e6, 30e6);
     job.progress.etaSeconds = Math.max(
@@ -886,32 +1003,106 @@ ${lines.join('')}
       const device = this.deviceList.find((d) => d.id === deviceId);
       if (!device) throw connError('device-gone', 'device not found', 'errors.deviceGone');
       const rng = mulberry32(this.seed ^ device.serial.length ^ 0xea17);
-      const isSsd = device.model.toLowerCase().includes('ssd') || device.model.toLowerCase().includes('evo') || device.kind === 'usb';
+      const isSsd =
+        device.model.toLowerCase().includes('ssd') ||
+        device.model.toLowerCase().includes('evo') ||
+        device.kind === 'usb';
       const caution = device.id === 'dev-data' || this.scenario === 'bad-sectors';
       const temp = Math.round(randBell(rng, 38, 10));
       const hours = Math.round(randBell(rng, 6400, 5200));
       const reallocated = caution ? randInt(rng, 12, 480) : randInt(rng, 0, 3);
       const pending = caution ? randInt(rng, 8, 260) : 0;
 
-      const mkAttr = (id: number, name: string, current: number | null, worst: number | null, threshold: number | null, raw: number, status: SmartAttribute['status']): SmartAttribute =>
-        ({ id, name, current, worst, threshold, raw, status });
+      const mkAttr = (
+        id: number,
+        name: string,
+        current: number | null,
+        worst: number | null,
+        threshold: number | null,
+        raw: number,
+        status: SmartAttribute['status'],
+      ): SmartAttribute => ({ id, name, current, worst, threshold, raw, status });
 
       const attributes: SmartAttribute[] = [
-        mkAttr(5, 'Reallocated Sectors Count', 100 - Math.min(64, Math.floor(reallocated / 8)), 100 - Math.min(80, Math.floor(reallocated / 4)), 36, reallocated, reallocated > 36 ? 'failing' : 'ok'),
+        mkAttr(
+          5,
+          'Reallocated Sectors Count',
+          100 - Math.min(64, Math.floor(reallocated / 8)),
+          100 - Math.min(80, Math.floor(reallocated / 4)),
+          36,
+          reallocated,
+          reallocated > 36 ? 'failing' : 'ok',
+        ),
         mkAttr(9, 'Power-On Hours', 98, 98, 0, hours, 'ok'),
-        mkAttr(10, 'Spin Retry Count', isSsd ? null : 100, isSsd ? null : 100, isSsd ? null : 97, isSsd ? 0 : randInt(rng, 0, 2), 'ok'),
+        mkAttr(
+          10,
+          'Spin Retry Count',
+          isSsd ? null : 100,
+          isSsd ? null : 100,
+          isSsd ? null : 97,
+          isSsd ? 0 : randInt(rng, 0, 2),
+          'ok',
+        ),
         mkAttr(12, 'Power Cycle Count', 99, 99, 0, Math.round(hours / 42), 'ok'),
         ...(isSsd
           ? [
-              mkAttr(177, 'Wear Leveling Count', Math.max(1, 100 - Math.round(randBell(rng, 22, 20))), 100, 5, 0, 'ok'),
+              mkAttr(
+                177,
+                'Wear Leveling Count',
+                Math.max(1, 100 - Math.round(randBell(rng, 22, 20))),
+                100,
+                5,
+                0,
+                'ok',
+              ),
               mkAttr(178, 'Used Reserved Blocks', 100, 100, 10, randInt(rng, 0, 14), 'ok'),
             ]
           : []),
         mkAttr(194, 'Temperature', temp, temp, 60, temp, temp > 55 ? 'failing' : 'ok'),
-        ...(isSsd ? [] : [mkAttr(196, 'Reallocation Event Count', 100, 100, 36, reallocated, reallocated > 36 ? 'failing' : 'ok')]),
-        mkAttr(197, 'Current Pending Sectors', 100, 100, 36, pending, pending > 36 ? 'failing' : 'ok'),
-        mkAttr(198, 'Uncorrectable Sectors', 100, 100, 36, pending > 12 ? randInt(rng, 2, pending) : 0, pending > 36 ? 'failing' : 'ok'),
-        ...(isSsd ? [mkAttr(231, 'SSD Life Left', Math.max(3, 100 - Math.round(randBell(rng, 28, 24))), 100, 10, 0, 'ok')] : []),
+        ...(isSsd
+          ? []
+          : [
+              mkAttr(
+                196,
+                'Reallocation Event Count',
+                100,
+                100,
+                36,
+                reallocated,
+                reallocated > 36 ? 'failing' : 'ok',
+              ),
+            ]),
+        mkAttr(
+          197,
+          'Current Pending Sectors',
+          100,
+          100,
+          36,
+          pending,
+          pending > 36 ? 'failing' : 'ok',
+        ),
+        mkAttr(
+          198,
+          'Uncorrectable Sectors',
+          100,
+          100,
+          36,
+          pending > 12 ? randInt(rng, 2, pending) : 0,
+          pending > 36 ? 'failing' : 'ok',
+        ),
+        ...(isSsd
+          ? [
+              mkAttr(
+                231,
+                'SSD Life Left',
+                Math.max(3, 100 - Math.round(randBell(rng, 28, 24))),
+                100,
+                10,
+                0,
+                'ok',
+              ),
+            ]
+          : []),
       ];
 
       const status: DiskHealth['status'] = caution ? 'caution' : 'good';
@@ -921,7 +1112,9 @@ ${lines.join('')}
         temperatureC: temp,
         powerOnHours: hours,
         diskClass: isSsd ? 'ssd' : 'hdd',
-        wearPercent: isSsd ? Math.min(99, Math.max(2, Math.round(randBell(rng, 24, 20)))) : null,
+        wearPercent: isSsd
+          ? Math.min(99, Math.max(2, Math.round(randBell(rng, 24, 20))))
+          : null,
         trimEnabled: isSsd ? rng() > 0.15 : null,
         reallocatedSectors: reallocated,
         pendingSectors: pending,
@@ -941,9 +1134,30 @@ ${lines.join('')}
         return {
           deviceId,
           findings: [
-            { id: 'fnd-1', kind: 'boot-sector-mismatch', where: 'LBA 0 (boot sector)', descriptionKey: 'repair.finding.bootSector', fixable: true, severity: 'warning' },
-            { id: 'fnd-2', kind: 'backup-dbr-stale', where: 'LBA 32 (backup)', descriptionKey: 'repair.finding.backupDbr', fixable: true, severity: 'info' },
-            { id: 'fnd-3', kind: 'fat-table-damaged', where: 'FAT region 1', descriptionKey: 'repair.finding.fatTable', fixable: true, severity: 'critical' },
+            {
+              id: 'fnd-1',
+              kind: 'boot-sector-mismatch',
+              where: 'LBA 0 (boot sector)',
+              descriptionKey: 'repair.finding.bootSector',
+              fixable: true,
+              severity: 'warning',
+            },
+            {
+              id: 'fnd-2',
+              kind: 'backup-dbr-stale',
+              where: 'LBA 32 (backup)',
+              descriptionKey: 'repair.finding.backupDbr',
+              fixable: true,
+              severity: 'info',
+            },
+            {
+              id: 'fnd-3',
+              kind: 'fat-table-damaged',
+              where: 'FAT region 1',
+              descriptionKey: 'repair.finding.fatTable',
+              fixable: true,
+              severity: 'critical',
+            },
           ],
           canApply: true,
         };
@@ -951,19 +1165,47 @@ ${lines.join('')}
       return { deviceId, findings: [], canApply: false };
     },
 
-    applyRepair: async (deviceId: string, options: { consentToken: string }): Promise<{ applied: number }> => {
+    applyRepair: async (
+      deviceId: string,
+      options: { consentToken: string },
+    ): Promise<{ applied: number }> => {
       if (options.consentToken !== 'REPAIR') {
-        throw connError('repair-consent-required', 'consent token missing', 'repair.consentRequired');
+        throw connError(
+          'repair-consent-required',
+          'consent token missing',
+          'repair.consentRequired',
+        );
       }
       await latency(900, 300);
       const existing = this.repairUndoLogs.get(deviceId) ?? [];
       const entries: RepairUndoEntry[] = [
-        { index: existing.length + 1, action: 'Restore boot sector from backup', where: 'LBA 0', at: new Date().toISOString(), snapshotBytes: 512 },
-        { index: existing.length + 2, action: 'Rebuild FAT chain from directory walk', where: 'FAT region 1', at: new Date().toISOString(), snapshotBytes: 131_072 },
-        { index: existing.length + 3, action: 'Refresh DBR checksum', where: 'LBA 32', at: new Date().toISOString(), snapshotBytes: 512 },
+        {
+          index: existing.length + 1,
+          action: 'Restore boot sector from backup',
+          where: 'LBA 0',
+          at: new Date().toISOString(),
+          snapshotBytes: 512,
+        },
+        {
+          index: existing.length + 2,
+          action: 'Rebuild FAT chain from directory walk',
+          where: 'FAT region 1',
+          at: new Date().toISOString(),
+          snapshotBytes: 131_072,
+        },
+        {
+          index: existing.length + 3,
+          action: 'Refresh DBR checksum',
+          where: 'LBA 32',
+          at: new Date().toISOString(),
+          snapshotBytes: 512,
+        },
       ];
       this.repairUndoLogs.set(deviceId, [...existing, ...entries]);
-      this.repairApplied.set(deviceId, (this.repairApplied.get(deviceId) ?? 0) + entries.length);
+      this.repairApplied.set(
+        deviceId,
+        (this.repairApplied.get(deviceId) ?? 0) + entries.length,
+      );
       return { applied: entries.length };
     },
 
@@ -983,21 +1225,31 @@ ${lines.join('')}
   // ------------------------------------------------------------ system
 
   readonly system: SystemDomain = {
-    getDriverStatus: async (): Promise<DriverStatus> => ({
-      installed: true,
-      version: 'mock-1.0.0',
-      running: true,
-    }),
+    getDriverStatus: async (): Promise<DriverStatus> => {
+      await latency(60);
+      return {
+        installed: true,
+        version: 'mock-1.0.0',
+        running: true,
+      };
+    },
 
-    getAppInfo: async (): Promise<AppInfo> => ({
-      name: 'Recovery Wizard',
-      version: '0.1.0',
-      connectorMode: 'mock',
-      engineVersion: null,
-      platform: typeof navigator !== 'undefined' ? navigator.platform : 'unknown',
-    }),
+    getAppInfo: async (): Promise<AppInfo> => {
+      await latency(40);
+      return {
+        name: 'Recovery Wizard',
+        version: '0.1.0',
+        connectorMode: 'mock',
+        engineVersion: null,
+        platform: typeof navigator !== 'undefined' ? navigator.platform : 'unknown',
+      };
+    },
 
-    validateDestination: async (path: string, sourceDeviceId: string, neededBytes: number): Promise<DestinationValidation> => {
+    validateDestination: async (
+      path: string,
+      sourceDeviceId: string,
+      neededBytes: number,
+    ): Promise<DestinationValidation> => {
       await latency(180, 80);
       const source = this.deviceList.find((d) => d.id === sourceDeviceId);
       const srcLetters = new Set(
@@ -1005,11 +1257,25 @@ ${lines.join('')}
       );
       const destLetter = /^[A-Za-z]:/.exec(path)?.[0]?.[0]?.toUpperCase();
       if (destLetter && srcLetters.has(destLetter)) {
-        return { allowed: false, reason: 'overlap', reasonKey: 'recovery.overlapReason', freeBytes: null, neededBytes };
+        return {
+          allowed: false,
+          reason: 'overlap',
+          reasonKey: 'recovery.overlapReason',
+          freeBytes: null,
+          neededBytes,
+        };
       }
-      const mount = this.mountPoints().find((m) => path.toUpperCase().startsWith(m.path[0]?.toUpperCase() ?? ''));
+      const mount = this.mountPoints().find((m) =>
+        path.toUpperCase().startsWith(m.path[0]?.toUpperCase() ?? ''),
+      );
       if (!mount) {
-        return { allowed: false, reason: 'invalid', reasonKey: 'errors.unknown', freeBytes: null, neededBytes };
+        return {
+          allowed: false,
+          reason: 'invalid',
+          reasonKey: 'errors.unknown',
+          freeBytes: null,
+          neededBytes,
+        };
       }
       if (this.scenario === 'out-of-space' && neededBytes > mount.freeBytes) {
         return {
@@ -1031,18 +1297,27 @@ ${lines.join('')}
       return `${suggestion.path}\\Recovered Files`;
     },
 
-    listMountPoints: async (): Promise<ReturnType<SystemDomain['listMountPoints']> extends Promise<infer T> ? T : never> => {
+    listMountPoints: async (): Promise<
+      ReturnType<SystemDomain['listMountPoints']> extends Promise<infer T> ? T : never
+    > => {
       await latency(100, 40);
       return this.mountPoints();
     },
 
     openPath: async (path: string): Promise<void> => {
+      await latency(30);
       void path;
       // Shell open is a real-adapter capability; the mock has no OS access.
     },
   };
 
-  private mountPoints(): { id: string; label: string; path: string; freeBytes: number; totalBytes: number }[] {
+  private mountPoints(): {
+    id: string;
+    label: string;
+    path: string;
+    freeBytes: number;
+    totalBytes: number;
+  }[] {
     return this.deviceList
       .flatMap((d) => d.volumes)
       .filter((v) => v.letter)

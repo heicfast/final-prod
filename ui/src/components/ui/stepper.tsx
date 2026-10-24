@@ -16,7 +16,11 @@ function Stepper({
       {steps.map((label, i) => {
         const state = i < current ? 'done' : i === current ? 'current' : 'todo';
         return (
-          <li key={label} className="flex items-center gap-2" aria-current={state === 'current' ? 'step' : undefined}>
+          <li
+            key={label}
+            className="flex items-center gap-2"
+            aria-current={state === 'current' ? 'step' : undefined}
+          >
             <span
               className={cn(
                 'flex size-5 items-center justify-center rounded-full text-2xs font-bold tabular',
@@ -36,7 +40,10 @@ function Stepper({
               {label}
             </span>
             {i < steps.length - 1 ? (
-              <span className={cn('h-px w-6', i < current ? 'bg-success' : 'bg-border')} aria-hidden />
+              <span
+                className={cn('h-px w-6', i < current ? 'bg-success' : 'bg-border')}
+                aria-hidden
+              />
             ) : null}
           </li>
         );
@@ -53,14 +60,25 @@ function Segmented<T extends string>({
   ariaLabel,
   className,
 }: {
-  options: readonly { value: T; label: string; icon?: React.ComponentType<{ className?: string }> }[];
+  options: readonly {
+    value: T;
+    label: string;
+    icon?: React.ComponentType<{ className?: string }>;
+  }[];
   value: T;
   onChange: (v: T) => void;
   ariaLabel: string;
   className?: string;
 }): React.JSX.Element {
   return (
-    <div role="radiogroup" aria-label={ariaLabel} className={cn('inline-flex h-8 items-center gap-0.5 rounded-md bg-surface-muted p-0.5', className)}>
+    <div
+      role="radiogroup"
+      aria-label={ariaLabel}
+      className={cn(
+        'inline-flex h-8 items-center gap-0.5 rounded-md bg-surface-muted p-0.5',
+        className,
+      )}
+    >
       {options.map((opt) => {
         const Icon = opt.icon;
         const active = opt.value === value;
@@ -74,7 +92,9 @@ function Segmented<T extends string>({
             className={cn(
               'inline-flex h-7 items-center gap-1.5 rounded-sm px-2.5 text-xs font-medium transition-colors outline-none',
               'focus-visible:ring-2 focus-visible:ring-ring',
-              active ? 'bg-surface text-foreground shadow-sm' : 'text-foreground-secondary hover:text-foreground',
+              active
+                ? 'bg-surface text-foreground shadow-sm'
+                : 'text-foreground-secondary hover:text-foreground',
             )}
           >
             {Icon ? <Icon className="size-4" aria-hidden /> : null}

@@ -12,13 +12,14 @@ import { cn } from '@/lib/utils';
  * never re-graded in the UI. Icon + label (never color alone, grid #14).
  * When detail is available the tooltip shows the connector's reason string.
  */
-const TONE: Record<ConfidenceGrade, 'success' | 'primary' | 'warning' | 'danger' | 'neutral'> = {
-  excellent: 'success',
-  good: 'primary',
-  fair: 'warning',
-  poor: 'danger',
-  unknown: 'neutral',
-};
+const TONE: Record<ConfidenceGrade, 'success' | 'primary' | 'warning' | 'danger' | 'neutral'> =
+  {
+    excellent: 'success',
+    good: 'primary',
+    fair: 'warning',
+    poor: 'danger',
+    unknown: 'neutral',
+  };
 
 const ICON: Record<ConfidenceGrade, React.ComponentType<{ className?: string }>> = {
   excellent: BadgeCheckIcon,
@@ -45,7 +46,10 @@ function ConfidenceBadge({
 
   // Optional reason from node detail (only for the preview pane; the table
   // skips this to avoid per-row queries).
-  const detail = useNodeDetail(grade !== 'unknown' && nodeId?.startsWith('f') ? scanId ?? null : null, nodeId ?? null);
+  const detail = useNodeDetail(
+    grade !== 'unknown' && nodeId?.startsWith('f') ? (scanId ?? null) : null,
+    nodeId ?? null,
+  );
 
   const badge = (
     <Badge variant={TONE[grade]} className={cn('gap-1', className)}>

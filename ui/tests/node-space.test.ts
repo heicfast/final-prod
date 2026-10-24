@@ -48,15 +48,25 @@ describe('NodeSpace — procedural index', () => {
     );
     expect(small.nodes.every((n) => n.sizeBytes <= 1024)).toBe(true);
 
-    const gfx = s.query({ ...BASE, categories: ['graphics'] }, { field: 'name', direction: 'asc' }, 0, 600);
+    const gfx = s.query(
+      { ...BASE, categories: ['graphics'] },
+      { field: 'name', direction: 'asc' },
+      0,
+      600,
+    );
     expect(gfx.nodes.every((n) => n.category === 'graphics')).toBe(true);
   });
 
   it('search matches substrings case-insensitively', () => {
     const s = new NodeSpace('vol-test', 5, 10, 300);
-    const probe = s.query(BASE, { field: 'name', direction: 'asc' }, 0, 1).nodes[0]!;
+    const probe = s.query(BASE, { field: 'name', direction: 'asc' }, 0, 1).nodes[0];
     const stem = probe.name.slice(0, 3).toLowerCase();
-    const hits = s.query({ ...BASE, search: stem }, { field: 'name', direction: 'asc' }, 0, 300);
+    const hits = s.query(
+      { ...BASE, search: stem },
+      { field: 'name', direction: 'asc' },
+      0,
+      300,
+    );
     expect(hits.total).toBeGreaterThan(0);
     expect(hits.nodes.every((n) => n.name.toLowerCase().includes(stem))).toBe(true);
   });

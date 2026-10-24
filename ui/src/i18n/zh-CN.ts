@@ -365,7 +365,8 @@ export const zhCN: TranslationSchema = {
   repair: {
     title: '卷修复',
     introTitle: '先修复再搜索',
-    introBody: '当卷的内部结构损坏时，修复流程可以让其中的文件重新可被搜索。所有修改都会记录撤销日志，可随时回滚。',
+    introBody:
+      '当卷的内部结构损坏时，修复流程可以让其中的文件重新可被搜索。所有修改都会记录撤销日志，可随时回滚。',
     dryRun: '分析问题',
     findings: '发现的问题',
     noFindings: '未发现可修复的问题。',

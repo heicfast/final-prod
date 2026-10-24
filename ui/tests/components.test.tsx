@@ -51,7 +51,13 @@ describe('EmptyState (grid #31)', () => {
     const onAction = vi.fn();
     render(
       withProviders(
-        <EmptyState icon={HardDriveIcon} title="No drives" description="Plug one in" actionLabel="Refresh" onAction={onAction} />,
+        <EmptyState
+          icon={HardDriveIcon}
+          title="No drives"
+          description="Plug one in"
+          actionLabel="Refresh"
+          onAction={onAction}
+        />,
       ),
     );
     expect(screen.getByText('No drives')).toBeInTheDocument();
@@ -92,11 +98,14 @@ describe('Progress primitives (grid #24)', () => {
 });
 
 describe('ConfidenceBadge (grid #14 — never color alone)', () => {
-  it.each(['excellent', 'good', 'fair', 'poor', 'unknown'] as const)('pairs %s grade with a label', (grade) => {
-    render(withProviders(<ConfidenceBadge grade={grade} />));
-    // The badge label comes from the i18n table (default en in tests).
-    expect(document.querySelector('[data-slot="badge"]')?.textContent).toBeTruthy();
-  });
+  it.each(['excellent', 'good', 'fair', 'poor', 'unknown'] as const)(
+    'pairs %s grade with a label',
+    (grade) => {
+      render(withProviders(<ConfidenceBadge grade={grade} />));
+      // The badge label comes from the i18n table (default en in tests).
+      expect(document.querySelector('[data-slot="badge"]')?.textContent).toBeTruthy();
+    },
+  );
 });
 
 describe('Badge variants', () => {

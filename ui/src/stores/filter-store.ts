@@ -1,5 +1,12 @@
 import { create } from 'zustand';
-import type { ConfidenceGrade, FileCategoryId, ResultTreeMode, ResultsFilter, SortDirection, SortField } from '@/connector/contract';
+import type {
+  ConfidenceGrade,
+  FileCategoryId,
+  ResultTreeMode,
+  ResultsFilter,
+  SortDirection,
+  SortField,
+} from '@/connector/contract';
 
 export type DateRangePreset = 'any' | 'yesterday' | 'week' | 'month' | 'custom';
 export type SizeRangePreset = 'any' | 'tiny' | 'small' | 'medium' | 'large' | 'huge' | 'custom';
@@ -60,7 +67,11 @@ const INITIAL: ResultsFilterUi = {
 
 const DAY_MS = 86_400_000;
 
-export function dateRangeOf(preset: DateRangePreset, from: string | null, to: string | null): { from: string | null; to: string | null } {
+export function dateRangeOf(
+  preset: DateRangePreset,
+  from: string | null,
+  to: string | null,
+): { from: string | null; to: string | null } {
   const now = Date.now();
   switch (preset) {
     case 'yesterday':
@@ -79,7 +90,11 @@ export function dateRangeOf(preset: DateRangePreset, from: string | null, to: st
   }
 }
 
-export function sizeRangeOf(preset: SizeRangePreset, min: string | null, max: string | null): { minBytes: number | null; maxBytes: number | null } {
+export function sizeRangeOf(
+  preset: SizeRangePreset,
+  min: string | null,
+  max: string | null,
+): { minBytes: number | null; maxBytes: number | null } {
   const MB = 1024 ** 2;
   switch (preset) {
     case 'tiny':
@@ -93,8 +108,10 @@ export function sizeRangeOf(preset: SizeRangePreset, min: string | null, max: st
     case 'huge':
       return { minBytes: 1 * 1024 ** 3, maxBytes: null };
     case 'custom': {
-      const minBytes = min !== null && min !== '' && Number.isFinite(Number(min)) ? Number(min) * MB : null;
-      const maxBytes = max !== null && max !== '' && Number.isFinite(Number(max)) ? Number(max) * MB : null;
+      const minBytes =
+        min !== null && min !== '' && Number.isFinite(Number(min)) ? Number(min) * MB : null;
+      const maxBytes =
+        max !== null && max !== '' && Number.isFinite(Number(max)) ? Number(max) * MB : null;
       return { minBytes, maxBytes };
     }
     default:
@@ -111,7 +128,9 @@ export const useFilterStore = create<ResultsUiState>((set, get) => ({
   toggleCategory: (c) =>
     set((state) => {
       const has = state.categories.includes(c);
-      return { categories: has ? state.categories.filter((x) => x !== c) : [...state.categories, c] };
+      return {
+        categories: has ? state.categories.filter((x) => x !== c) : [...state.categories, c],
+      };
     }),
   setCategories: (cs) => set({ categories: cs }),
   setDatePreset: (p, from, to) =>

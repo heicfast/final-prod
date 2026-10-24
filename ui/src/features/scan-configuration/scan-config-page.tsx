@@ -40,7 +40,18 @@ const ALL_CATEGORIES: readonly FileCategoryId[] = [
 
 const schema = z.object({
   mode: z.enum(['quick', 'deep', 'deep-carve']),
-  categories: z.array(z.enum(['graphics', 'video', 'audio', 'document', 'email', 'archive', 'bookmarks', 'other'])),
+  categories: z.array(
+    z.enum([
+      'graphics',
+      'video',
+      'audio',
+      'document',
+      'email',
+      'archive',
+      'bookmarks',
+      'other',
+    ]),
+  ),
   sectorSize: z.enum(['auto', '512', '4096']),
   badSectorPolicy: z.enum(['stop', 'skip', 'zero-fill']),
   retries: z.number().int().min(0).max(10),
@@ -50,7 +61,7 @@ type FormValues = z.infer<typeof schema>;
 
 export function ScanConfigPage(): React.JSX.Element {
   const { deviceId = '' } = useParams();
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const navigate = useNavigate();
   const deviceQuery = useDeviceInfo(deviceId);
 
@@ -87,7 +98,7 @@ export function ScanConfigPage(): React.JSX.Element {
       },
       {
         onSuccess: ({ scanId }) => {
-          navigate(`/scan/${targetId}/live?scanId=${scanId}`);
+          void navigate(`/scan/${targetId}/live?scanId=${scanId}`);
         },
         onError: (err) => {
           const reasonKey = (err as { reasonKey?: string }).reasonKey;
@@ -113,7 +124,11 @@ export function ScanConfigPage(): React.JSX.Element {
         <EmptyState
           icon={ShieldAlertIcon}
           title={t('errors.title')}
-          description={deviceQuery.error instanceof Error ? deviceQuery.error.message : t('errors.deviceGone')}
+          description={
+            deviceQuery.error instanceof Error
+              ? deviceQuery.error.message
+              : t('errors.deviceGone')
+          }
           actionLabel={t('common.retry')}
           onAction={() => void deviceQuery.refetch()}
           secondaryLabel={t('nav.backToDevices')}
@@ -131,12 +146,20 @@ export function ScanConfigPage(): React.JSX.Element {
       <div className="mx-auto w-full max-w-4xl flex-1 p-6">
         <div className="mb-6 flex items-center justify-between gap-4">
           <div className="flex items-center gap-3">
-            <Button type="button" variant="ghost" size="icon" onClick={() => navigate('/')} aria-label={t('common.back')}>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              onClick={() => navigate('/')}
+              aria-label={t('common.back')}
+            >
               <ArrowLeftIcon aria-hidden />
             </Button>
             <div>
               <h1 className="text-xl font-semibold">{t('scanConfig.title')}</h1>
-              <p className="mt-0.5 text-sm text-foreground-secondary">{t('scanConfig.deviceSummary')}: {device.label}</p>
+              <p className="mt-0.5 text-sm text-foreground-secondary">
+                {t('scanConfig.deviceSummary')}: {device.label}
+              </p>
             </div>
           </div>
         </div>
@@ -149,7 +172,10 @@ export function ScanConfigPage(): React.JSX.Element {
           <div className="min-w-0 flex-1">
             <div className="text-base font-semibold">{volume?.label ?? device.label}</div>
             <div className="text-xs text-foreground-secondary">
-              {(volume?.fs ?? 'raw').toUpperCase()} · {volume ? formatBytes(volume.capacity.totalBytes, useLocale()) : formatBytes(device.capacity.totalBytes, useLocale())}
+              {(volume?.fs ?? 'raw').toUpperCase()} ·{' '}
+              {volume
+                ? formatBytes(volume.capacity.totalBytes, i18n.language)
+                : formatBytes(device.capacity.totalBytes, i18n.language)}
             </div>
           </div>
           <div className="w-40">
@@ -207,7 +233,9 @@ export function ScanConfigPage(): React.JSX.Element {
                 className={cn(
                   'flex cursor-pointer items-center gap-2.5 rounded-md border p-3 text-sm transition-colors',
                   'focus-within:ring-2 focus-within:ring-ring',
-                  checked ? 'border-primary bg-primary-muted' : 'border-border bg-surface hover:bg-surface-hover',
+                  checked
+                    ? 'border-primary bg-primary-muted'
+                    : 'border-border bg-surface hover:bg-surface-hover',
                 )}
               >
                 <input
@@ -215,22 +243,38 @@ export function ScanConfigPage(): React.JSX.Element {
                   className="sr-only"
                   checked={checked}
                   onChange={() => {
-                    const next = checked ? values.categories.filter((c) => c !== cat) : [...values.categories, cat];
+                    const next = checked
+                      ? values.categories.filter((c) => c !== cat)
+                      : [...values.categories, cat];
                     form.setValue('categories', next);
                   }}
                 />
                 <CategoryIcon category={cat} />
-                <span className="min-w-0 flex-1 truncate font-medium">{t(`scanConfig.categories.${cat}`)}</span>
-                {checked ? <span className="text-2xs text-primary" aria-hidden>✓</span> : null}
+                <span className="min-w-0 flex-1 truncate font-medium">
+                  {t(`scanConfig.categories.${cat}`)}
+                </span>
+                {checked ? (
+                  <span className="text-2xs text-primary" aria-hidden>
+                    ✓
+                  </span>
+                ) : null}
               </label>
             );
           })}
         </div>
         <div className="mt-2 flex items-center gap-3 text-xs">
-          <button type="button" className="text-primary hover:underline" onClick={() => form.setValue('categories', [...ALL_CATEGORIES])}>
+          <button
+            type="button"
+            className="text-primary hover:underline"
+            onClick={() => form.setValue('categories', [...ALL_CATEGORIES])}
+          >
             {t('scanConfig.selectAll')}
           </button>
-          <button type="button" className="text-primary hover:underline" onClick={() => form.setValue('categories', [])}>
+          <button
+            type="button"
+            className="text-primary hover:underline"
+            onClick={() => form.setValue('categories', [])}
+          >
             {t('scanConfig.clearAll')}
           </button>
         </div>
@@ -246,7 +290,9 @@ export function ScanConfigPage(): React.JSX.Element {
               id="sector-size"
               className="h-8 w-full rounded-sm border border-border bg-surface px-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
               value={values.sectorSize}
-              onChange={(e) => form.setValue('sectorSize', e.target.value as FormValues['sectorSize'])}
+              onChange={(e) =>
+                form.setValue('sectorSize', e.target.value as FormValues['sectorSize'])
+              }
               disabled={!volume?.sectorSize}
             >
               <option value="auto">{t('scanConfig.sectorSizeAuto')}</option>
@@ -261,9 +307,21 @@ export function ScanConfigPage(): React.JSX.Element {
               onValueChange={(v) => form.setValue('badSectorPolicy', v as BadSectorPolicy)}
               className="space-y-1"
             >
-              <PolicyOption value="stop" label={t('scanConfig.badSectorStop')} destructive={false} />
-              <PolicyOption value="skip" label={t('scanConfig.badSectorSkip')} destructive={false} />
-              <PolicyOption value="zero-fill" label={t('scanConfig.badSectorZeroFill')} destructive />
+              <PolicyOption
+                value="stop"
+                label={t('scanConfig.badSectorStop')}
+                destructive={false}
+              />
+              <PolicyOption
+                value="skip"
+                label={t('scanConfig.badSectorSkip')}
+                destructive={false}
+              />
+              <PolicyOption
+                value="zero-fill"
+                label={t('scanConfig.badSectorZeroFill')}
+                destructive
+              />
             </RadioGroup>
           </div>
           <div className="space-y-1.5">
@@ -327,7 +385,9 @@ function ModeCard({
     <label
       className={cn(
         'relative flex cursor-pointer flex-col gap-2 rounded-lg border-2 p-4 transition-all',
-        active ? 'border-primary bg-primary-muted/40' : 'border-border bg-surface hover:border-border-strong',
+        active
+          ? 'border-primary bg-primary-muted/40'
+          : 'border-border bg-surface hover:border-border-strong',
         disabled && 'cursor-not-allowed opacity-60',
         'focus-within:ring-2 focus-within:ring-ring',
       )}
@@ -335,10 +395,15 @@ function ModeCard({
     >
       <RadioGroupItem value={value} className="absolute right-3 top-3" disabled={disabled} />
       <div className="flex items-center gap-2">
-        <Icon className={cn('size-5', active ? 'text-primary' : 'text-foreground-secondary')} aria-hidden />
+        <Icon
+          className={cn('size-5', active ? 'text-primary' : 'text-foreground-secondary')}
+          aria-hidden
+        />
         <span className="font-semibold">{title}</span>
       </div>
-      <p className="text-xs leading-relaxed text-foreground-secondary">{disabledReason ?? body}</p>
+      <p className="text-xs leading-relaxed text-foreground-secondary">
+        {disabledReason ?? body}
+      </p>
       {disabled ? (
         <span className="text-2xs font-semibold uppercase text-warning" role="status">
           {t('common.error')}
@@ -348,16 +413,19 @@ function ModeCard({
   );
 }
 
-function PolicyOption({ value, label, destructive }: { value: string; label: string; destructive: boolean }): React.JSX.Element {
+function PolicyOption({
+  value,
+  label,
+  destructive,
+}: {
+  value: string;
+  label: string;
+  destructive: boolean;
+}): React.JSX.Element {
   return (
     <label className="flex cursor-pointer items-center gap-2 text-sm">
       <RadioGroupItem value={value} />
       <span className={destructive ? 'text-danger' : undefined}>{label}</span>
     </label>
   );
-}
-
-function useLocale(): string {
-  const { i18n } = useTranslation();
-  return i18n.language;
 }

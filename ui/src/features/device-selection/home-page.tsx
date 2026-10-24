@@ -35,14 +35,16 @@ import { toast } from 'sonner';
  */
 
 export function HomePage(): React.JSX.Element {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const navigate = useNavigate();
   const devicesQuery = useDevices();
   const refresh = useRefreshDevices();
   const sessionsQuery = useSessions();
   const loadSession = useLoadSession();
   const [selectedId, setSelectedId] = React.useState<string | null>(null);
-  const showRemovable = new URLSearchParams(window.location.hash.split('?')[1] ?? '').has('media');
+  const showRemovable = new URLSearchParams(window.location.hash.split('?')[1] ?? '').has(
+    'media',
+  );
 
   const devices = devicesQuery.data ?? [];
   const internal = devices.filter((d) => d.kind === 'internal');
@@ -51,17 +53,23 @@ export function HomePage(): React.JSX.Element {
 
   const startScan = (): void => {
     if (!selected) return;
-    navigate(`/scan/${selected.id}`);
+    void navigate(`/scan/${selected.id}`);
   };
 
   const onResume = (path: string): void => {
-    loadSession.mutate(path, {
+    void loadSession.mutate(path, {
       onSuccess: ({ scanId }) => {
         toast.success(t('home.resume'));
-        navigate(`/results/${scanId}`);
+        void navigate(`/results/${scanId}`);
       },
       onError: (err) => {
-        toast.error(err instanceof Error ? (err as { reasonKey?: string }).reasonKey ? t((err as { reasonKey?: string }).reasonKey!) : err.message : t('errors.sessionCorrupt'));
+        toast.error(
+          err instanceof Error
+            ? (err as { reasonKey?: string }).reasonKey
+              ? t((err as { reasonKey?: string }).reasonKey!)
+              : err.message
+            : t('errors.sessionCorrupt'),
+        );
       },
     });
   };
@@ -85,11 +93,15 @@ export function HomePage(): React.JSX.Element {
         <EmptyState
           icon={CircleAlertIcon}
           title={t('errors.title')}
-          description={devicesQuery.error instanceof Error ? devicesQuery.error.message : t('errors.unknown')}
+          description={
+            devicesQuery.error instanceof Error
+              ? devicesQuery.error.message
+              : t('errors.unknown')
+          }
           actionLabel={t('common.retry')}
           onAction={() => void devicesQuery.refetch()}
           secondaryLabel={t('home.refreshDevices')}
-          onSecondary={() => refresh.mutate()}
+          onSecondary={() => void refresh.mutate()}
         />
       </div>
     );
@@ -121,7 +133,13 @@ export function HomePage(): React.JSX.Element {
             <h1 className="text-xl font-semibold">{t('home.title')}</h1>
             <p className="mt-1 text-sm text-foreground-secondary">{t('home.subtitle')}</p>
           </div>
-          <Button variant="ghost" size="sm" onClick={() => refresh.mutate()} loading={refresh.isPending} disabled={refresh.isPending}>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => void refresh.mutate()}
+            loading={refresh.isPending}
+            disabled={refresh.isPending}
+          >
             <RefreshCcwIcon aria-hidden />
             {t('home.refreshDevices')}
           </Button>
@@ -141,7 +159,8 @@ export function HomePage(): React.JSX.Element {
         ) : null}
 
         <h2 className="mb-3 text-sm font-semibold text-foreground-secondary">
-          {showRemovable ? t('home.removableGroup') : t('home.internalGroup')} ({visible.length})
+          {showRemovable ? t('home.removableGroup') : t('home.internalGroup')} ({visible.length}
+          )
         </h2>
 
         <div
@@ -159,10 +178,20 @@ export function HomePage(): React.JSX.Element {
           ))}
         </div>
 
-        <h2 className="mb-3 mt-8 text-sm font-semibold text-foreground-secondary">{t('home.quickTargets')}</h2>
+        <h2 className="mb-3 mt-8 text-sm font-semibold text-foreground-secondary">
+          {t('home.quickTargets')}
+        </h2>
         <div className="grid grid-cols-3 gap-4">
-          <QuickTarget icon={Trash2Icon} label={t('home.recycleBin')} onClick={() => toast(t('common.learnMore'))} />
-          <QuickTarget icon={MonitorSmartphoneIcon} label={t('home.desktop')} onClick={() => toast(t('common.learnMore'))} />
+          <QuickTarget
+            icon={Trash2Icon}
+            label={t('home.recycleBin')}
+            onClick={() => toast(t('common.learnMore'))}
+          />
+          <QuickTarget
+            icon={MonitorSmartphoneIcon}
+            label={t('home.desktop')}
+            onClick={() => toast(t('common.learnMore'))}
+          />
           <QuickTarget
             icon={FolderOpenIcon}
             label={t('home.chooseFolder')}
@@ -170,14 +199,16 @@ export function HomePage(): React.JSX.Element {
               // Folder targets are volume-scoped: route to the first internal
               // volume's configuration where a folder scope can be picked.
               const first = devices.flatMap((d) => d.volumes)[0];
-              if (first) navigate(`/scan/${first.id}`);
+              if (first) void navigate(`/scan/${first.id}`);
             }}
           />
         </div>
 
         {(sessionsQuery.data?.length ?? 0) > 0 ? (
           <>
-            <h2 className="mb-3 mt-8 text-sm font-semibold text-foreground-secondary">{t('home.recentSessions')}</h2>
+            <h2 className="mb-3 mt-8 text-sm font-semibold text-foreground-secondary">
+              {t('home.recentSessions')}
+            </h2>
             <div className="space-y-2">
               {sessionsQuery.data?.slice(0, 4).map((s) => (
                 <button
@@ -189,7 +220,8 @@ export function HomePage(): React.JSX.Element {
                   <div className="min-w-0">
                     <div className="truncate text-sm font-medium">{s.targetLabel}</div>
                     <div className="text-xs text-foreground-secondary tabular">
-                      {formatDate(s.savedAt, useLocale())} · {s.mode} · {s.filesFound.toLocaleString(useLocale())} {t('scan.filesFound')}
+                      {formatDate(s.savedAt, i18n.language)} · {s.mode} ·{' '}
+                      {s.filesFound.toLocaleString(i18n.language)} {t('scan.filesFound')}
                     </div>
                   </div>
                   <Button variant="secondary" size="sm">
@@ -206,21 +238,22 @@ export function HomePage(): React.JSX.Element {
       <div className="sticky bottom-0 flex items-center justify-end gap-3 border-t border-border bg-surface/90 px-6 py-3 backdrop-blur">
         <span className="text-sm text-foreground-secondary">
           {selected
-            ? `${selected.label} · ${formatBytes(selected.capacity.totalBytes, useLocale())}`
+            ? `${selected.label} · ${formatBytes(selected.capacity.totalBytes, i18n.language)}`
             : t('common.empty')}
         </span>
-        <Button variant="primary" size="lg" disabled={!selected} onClick={startScan} aria-keyshortcuts="Enter">
+        <Button
+          variant="primary"
+          size="lg"
+          disabled={!selected}
+          onClick={startScan}
+          aria-keyshortcuts="Enter"
+        >
           <SearchIcon aria-hidden />
           {t('home.scanAction')}
         </Button>
       </div>
     </div>
   );
-}
-
-function useLocale(): string {
-  const { i18n } = useTranslation();
-  return i18n.language;
 }
 
 function DeviceCard({
@@ -232,9 +265,10 @@ function DeviceCard({
   selected: boolean;
   onSelect: () => void;
 }): React.JSX.Element {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const navigate = useNavigate();
-  const Icon = device.kind === 'sd' ? MemoryStickIcon : device.kind === 'usb' ? UsbIcon : HardDriveIcon;
+  const Icon =
+    device.kind === 'sd' ? MemoryStickIcon : device.kind === 'usb' ? UsbIcon : HardDriveIcon;
   const healthy = device.status === 'ok';
   const locked = device.status === 'permission-denied';
   const offline = device.status === 'disconnected';
@@ -298,8 +332,8 @@ function DeviceCard({
         usedBytes={device.capacity.usedBytes}
         totalBytes={device.capacity.totalBytes}
         label={t('home.capacityUsed', {
-          used: formatBytes(device.capacity.usedBytes, useLocale()),
-          total: formatBytes(device.capacity.totalBytes, useLocale()),
+          used: formatBytes(device.capacity.usedBytes, i18n.language),
+          total: formatBytes(device.capacity.totalBytes, i18n.language),
         })}
       />
 
@@ -324,7 +358,7 @@ function DeviceCard({
               type="button"
               onClick={(e) => {
                 e.stopPropagation();
-                navigate(`/scan/${v.id}`);
+                void navigate(`/scan/${v.id}`);
               }}
               className="rounded-xs px-1.5 py-0.5 text-xs font-medium text-primary hover:bg-primary-muted focus-visible:ring-2 focus-visible:ring-ring"
             >
@@ -336,7 +370,7 @@ function DeviceCard({
             size="sm"
             onClick={(e) => {
               e.stopPropagation();
-              navigate(`/scan/${device.id}`);
+              void navigate(`/scan/${device.id}`);
             }}
             disabled={locked || offline}
           >
@@ -371,14 +405,14 @@ function QuickTarget({
 
 /** Landing stat row shown when devices exist (used by tests for visibility). */
 export function HomeStats(): React.JSX.Element {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const q = useDevices();
   const devices = q.data ?? [];
   const totalBytes = devices.reduce((acc, d) => acc + d.capacity.totalBytes, 0);
   return (
     <div className="grid grid-cols-3 gap-3">
       <StatTile label={t('common.total')} value={String(devices.length)} />
-      <StatTile label={t('scan.dataFound')} value={formatBytes(totalBytes, useLocale())} />
+      <StatTile label={t('scan.dataFound')} value={formatBytes(totalBytes, i18n.language)} />
     </div>
   );
 }

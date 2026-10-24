@@ -1,7 +1,13 @@
 import * as React from 'react';
 import { useTranslation } from 'react-i18next';
 import { useSearchParams } from 'react-router';
-import { ThermometerIcon, HeartPulseIcon, TimerIcon, ZapIcon, HardDriveIcon } from 'lucide-react';
+import {
+  ThermometerIcon,
+  HeartPulseIcon,
+  TimerIcon,
+  ZapIcon,
+  HardDriveIcon,
+} from 'lucide-react';
 import { useDevices } from '@/queries/devices';
 import { useHealth } from '@/queries/health';
 import { formatInteger } from '@/lib/format';
@@ -9,7 +15,14 @@ import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
 import { EmptyState, StatTile } from '@/components/ui/empty-state';
 import { Skeleton } from '@/components/ui/scroll-area';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
 
 /** Disk Health — SMART table + summary card, exactly the fields the connector returns. */
 export function HealthPage(): React.JSX.Element {
@@ -17,11 +30,10 @@ export function HealthPage(): React.JSX.Element {
   const [params] = useSearchParams();
   const devices = useDevices();
   const list = devices.data ?? [];
-  const [deviceId, setDeviceId] = React.useState<string | null>(params.get('device') ?? list[0]?.id ?? null);
-
-  React.useEffect(() => {
-    if (!deviceId && list.length > 0) setDeviceId(list[0]!.id);
-  }, [deviceId, list]);
+  const [pickedDeviceId, setPickedDeviceId] = React.useState<string | null>(
+    params.get('device'),
+  );
+  const deviceId: string | null = pickedDeviceId ?? list[0]?.id ?? null;
 
   const health = useHealth(deviceId);
 
@@ -37,7 +49,13 @@ export function HealthPage(): React.JSX.Element {
   if (list.length === 0) {
     return (
       <div className="p-6">
-        <EmptyState icon={HardDriveIcon} title={t('home.emptyTitle')} description={t('home.emptyBody')} actionLabel={t('home.refreshDevices')} onAction={() => void devices.refetch()} />
+        <EmptyState
+          icon={HardDriveIcon}
+          title={t('home.emptyTitle')}
+          description={t('home.emptyBody')}
+          actionLabel={t('home.refreshDevices')}
+          onAction={() => void devices.refetch()}
+        />
       </div>
     );
   }
@@ -53,10 +71,12 @@ export function HealthPage(): React.JSX.Element {
             key={d.id}
             type="button"
             aria-pressed={deviceId === d.id}
-            onClick={() => setDeviceId(d.id)}
+            onClick={() => setPickedDeviceId(d.id)}
             className={cn(
               'rounded-md border-2 px-4 py-2 text-left text-sm transition-colors',
-              deviceId === d.id ? 'border-primary bg-primary-muted' : 'border-border bg-surface hover:border-border-strong',
+              deviceId === d.id
+                ? 'border-primary bg-primary-muted'
+                : 'border-border bg-surface hover:border-border-strong',
             )}
           >
             <div className="font-medium">{d.label}</div>
@@ -71,7 +91,13 @@ export function HealthPage(): React.JSX.Element {
           <Skeleton className="h-64" />
         </>
       ) : health.isError ? (
-        <EmptyState icon={HeartPulseIcon} title={t('health.notAvailable')} description={health.error instanceof Error ? health.error.message : undefined} actionLabel={t('common.retry')} onAction={() => void health.refetch()} />
+        <EmptyState
+          icon={HeartPulseIcon}
+          title={t('health.notAvailable')}
+          description={health.error instanceof Error ? health.error.message : undefined}
+          actionLabel={t('common.retry')}
+          onAction={() => void health.refetch()}
+        />
       ) : health.data ? (
         <>
           <div
@@ -87,45 +113,83 @@ export function HealthPage(): React.JSX.Element {
             <HeartPulseIcon
               className={cn(
                 'size-8',
-                health.data.status === 'good' ? 'text-success' : health.data.status === 'caution' ? 'text-warning' : 'text-danger',
+                health.data.status === 'good'
+                  ? 'text-success'
+                  : health.data.status === 'caution'
+                    ? 'text-warning'
+                    : 'text-danger',
               )}
               aria-hidden
             />
             <div>
               <div className="text-lg font-semibold">
-                {health.data.status === 'good' ? t('health.statusGood') : health.data.status === 'caution' ? t('health.statusCaution') : t('health.statusBad')}
+                {health.data.status === 'good'
+                  ? t('health.statusGood')
+                  : health.data.status === 'caution'
+                    ? t('health.statusCaution')
+                    : t('health.statusBad')}
               </div>
-              {health.data.status !== 'good' ? <p className="text-sm text-foreground-secondary">{t('health.cautionNote')}</p> : null}
+              {health.data.status !== 'good' ? (
+                <p className="text-sm text-foreground-secondary">{t('health.cautionNote')}</p>
+              ) : null}
             </div>
           </div>
 
           <div className="mb-5 grid grid-cols-2 gap-3 md:grid-cols-4">
             <StatTile
               label={t('health.temperature')}
-              value={health.data.temperatureC != null ? `${formatInteger(health.data.temperatureC, i18n.language)} °C` : '—'}
+              value={
+                health.data.temperatureC != null
+                  ? `${formatInteger(health.data.temperatureC, i18n.language)} °C`
+                  : '—'
+              }
               icon={ThermometerIcon}
-              tone={health.data.temperatureC != null && health.data.temperatureC > 55 ? 'warning' : 'default'}
+              tone={
+                health.data.temperatureC != null && health.data.temperatureC > 55
+                  ? 'warning'
+                  : 'default'
+              }
             />
             <StatTile
               label={t('health.powerOnHours')}
-              value={health.data.powerOnHours != null ? formatInteger(health.data.powerOnHours, i18n.language) : '—'}
+              value={
+                health.data.powerOnHours != null
+                  ? formatInteger(health.data.powerOnHours, i18n.language)
+                  : '—'
+              }
               icon={TimerIcon}
             />
             <StatTile
               label={t('health.class')}
-              value={health.data.diskClass === 'ssd' ? t('health.ssd') : health.data.diskClass === 'hdd' ? t('health.hdd') : '—'}
+              value={
+                health.data.diskClass === 'ssd'
+                  ? t('health.ssd')
+                  : health.data.diskClass === 'hdd'
+                    ? t('health.hdd')
+                    : '—'
+              }
             />
             {health.data.diskClass === 'ssd' ? (
               <StatTile
                 label={t('health.trim')}
-                value={health.data.trimEnabled == null ? '—' : health.data.trimEnabled ? t('health.trimEnabled') : t('health.trimDisabled')}
+                value={
+                  health.data.trimEnabled == null
+                    ? '—'
+                    : health.data.trimEnabled
+                      ? t('health.trimEnabled')
+                      : t('health.trimDisabled')
+                }
                 icon={ZapIcon}
                 tone={health.data.trimEnabled === false ? 'warning' : 'default'}
               />
             ) : (
               <StatTile
                 label={t('health.wear')}
-                value={health.data.wearPercent != null ? formatInteger(health.data.wearPercent, i18n.language) : '—'}
+                value={
+                  health.data.wearPercent != null
+                    ? formatInteger(health.data.wearPercent, i18n.language)
+                    : '—'
+                }
               />
             )}
           </div>
@@ -137,9 +201,15 @@ export function HealthPage(): React.JSX.Element {
                 <TableRow>
                   <TableHead className="w-14">{t('health.smartCol.id')}</TableHead>
                   <TableHead>{t('health.smartCol.attribute')}</TableHead>
-                  <TableHead className="w-20 text-right">{t('health.smartCol.current')}</TableHead>
-                  <TableHead className="w-20 text-right">{t('health.smartCol.worst')}</TableHead>
-                  <TableHead className="w-20 text-right">{t('health.smartCol.threshold')}</TableHead>
+                  <TableHead className="w-20 text-right">
+                    {t('health.smartCol.current')}
+                  </TableHead>
+                  <TableHead className="w-20 text-right">
+                    {t('health.smartCol.worst')}
+                  </TableHead>
+                  <TableHead className="w-20 text-right">
+                    {t('health.smartCol.threshold')}
+                  </TableHead>
                   <TableHead className="w-24 text-right">{t('health.smartCol.raw')}</TableHead>
                   <TableHead className="w-24">{t('health.smartCol.status')}</TableHead>
                 </TableRow>
@@ -152,10 +222,24 @@ export function HealthPage(): React.JSX.Element {
                     <TableCell className="text-right tabular">{a.current ?? '—'}</TableCell>
                     <TableCell className="text-right tabular">{a.worst ?? '—'}</TableCell>
                     <TableCell className="text-right tabular">{a.threshold ?? '—'}</TableCell>
-                    <TableCell className="text-right tabular">{formatInteger(a.raw, i18n.language)}</TableCell>
+                    <TableCell className="text-right tabular">
+                      {formatInteger(a.raw, i18n.language)}
+                    </TableCell>
                     <TableCell>
-                      <Badge variant={a.status === 'ok' ? 'success' : a.status === 'failing' ? 'danger' : 'neutral'}>
-                        {a.status === 'ok' ? t('health.smartOk') : a.status === 'failing' ? t('health.smartFailing') : '—'}
+                      <Badge
+                        variant={
+                          a.status === 'ok'
+                            ? 'success'
+                            : a.status === 'failing'
+                              ? 'danger'
+                              : 'neutral'
+                        }
+                      >
+                        {a.status === 'ok'
+                          ? t('health.smartOk')
+                          : a.status === 'failing'
+                            ? t('health.smartFailing')
+                            : '—'}
                       </Badge>
                     </TableCell>
                   </TableRow>

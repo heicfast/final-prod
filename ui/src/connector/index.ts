@@ -15,7 +15,7 @@ import { createTauriConnector } from './tauri/tauri-connector';
 export type ConnectorMode = 'mock' | 'tauri';
 
 export function connectorMode(): ConnectorMode {
-  const v = import.meta.env.VITE_CONNECTOR;
+  const v = (import.meta.env as { readonly VITE_CONNECTOR?: unknown }).VITE_CONNECTOR;
   return v === 'tauri' ? 'tauri' : 'mock';
 }
 

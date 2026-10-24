@@ -8,7 +8,11 @@ const timeFormatters = new Map<string, Intl.DateTimeFormat>();
 const numberFormatters = new Map<string, Intl.NumberFormat>();
 
 /** Human byte size, e.g. 1.5 GB (decimal units, storage convention). */
-export function formatBytes(bytes: number, locale: string, opts?: { inputUnit?: 'B' | 'KB' }): string {
+export function formatBytes(
+  bytes: number,
+  locale: string,
+  opts?: { inputUnit?: 'B' | 'KB' },
+): string {
   const value = opts?.inputUnit === 'KB' ? bytes * 1024 : bytes;
   if (!Number.isFinite(value) || value < 0) return '—';
   const units = ['B', 'KB', 'MB', 'GB', 'TB', 'PB'];
@@ -18,7 +22,9 @@ export function formatBytes(bytes: number, locale: string, opts?: { inputUnit?: 
     v /= 1000;
     i++;
   }
-  const nf = new Intl.NumberFormat(locale, { maximumFractionDigits: v >= 100 || i === 0 ? 0 : 1 });
+  const nf = new Intl.NumberFormat(locale, {
+    maximumFractionDigits: v >= 100 || i === 0 ? 0 : 1,
+  });
   return `${nf.format(v)} ${units[i]}`;
 }
 
@@ -41,7 +47,10 @@ export function formatByteUnit(value: number, locale: string, unit: string): str
   return `${nf.format(value)} ${unit}`;
 }
 
-export function formatDate(iso: string | number | Date | null | undefined, locale: string): string {
+export function formatDate(
+  iso: string | number | Date | null | undefined,
+  locale: string,
+): string {
   if (iso === null || iso === undefined) return '—';
   const d = iso instanceof Date ? iso : new Date(iso);
   if (Number.isNaN(d.getTime())) return '—';
@@ -53,7 +62,10 @@ export function formatDate(iso: string | number | Date | null | undefined, local
   return f.format(d);
 }
 
-export function formatDateTime(iso: string | number | Date | null | undefined, locale: string): string {
+export function formatDateTime(
+  iso: string | number | Date | null | undefined,
+  locale: string,
+): string {
   if (iso === null || iso === undefined) return '—';
   const d = iso instanceof Date ? iso : new Date(iso);
   if (Number.isNaN(d.getTime())) return '—';
@@ -83,7 +95,10 @@ export function formatInteger(value: number, locale: string): string {
 
 /** Compact "1.2M"-style counts for live counters. */
 export function formatCountCompact(value: number, locale: string): string {
-  return new Intl.NumberFormat(locale, { notation: 'compact', maximumFractionDigits: 1 }).format(value);
+  return new Intl.NumberFormat(locale, {
+    notation: 'compact',
+    maximumFractionDigits: 1,
+  }).format(value);
 }
 
 /** Duration in seconds → localized mm:ss / hh:mm:ss. */

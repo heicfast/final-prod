@@ -1,0 +1,82 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  ci:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 12.15.0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Typecheck
+        run: pnpm typecheck
+
+      - name: Lint
+        run: pnpm lint
+
+      - name: Format check
+        run: pnpm format:check
+
+      - name: Architecture rules (arch-lint)
+        run: pnpm arch:lint
+
+      - name: Architecture rules (ast-grep)
+        shell: bash
+        run: |
+          set -e
+          npx sg scan --rule rules/no-raw-invoke.yml --globs '!src/connector/**' --globs 'src/**/*.ts' --globs 'src/**/*.tsx' --no-output-color | tee /tmp/sg.out
+          if grep -q "matches" /tmp/sg.out; then exit 1; fi
+          echo "ast-grep: clean"
+
+      - name: Dead code (knip)
+        run: pnpm knip
+
+      - name: Duplication (jscpd)
+        run: pnpm jscpd
+
+      - name: Unit + component tests
+        run: pnpm test
+
+      - name: Production build
+        run: pnpm build
+
+      - name: Bundle budget
+        run: pnpm bundle:check
+        env:
+          BUDGET_MAIN_KB: '200'
+          BUDGET_TOTAL_KB: '500'
+
+      - name: Rust check (shell)
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: stable
+
+      - name: Cargo check
+        working-directory: src-tauri
+        run: cargo check
+
+      - name: Clippy
+        working-directory: src-tauri
+        run: cargo clippy -- -D warnings
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: web-dist
+          path: dist/
+          retention-days: 7

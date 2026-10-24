@@ -91,7 +91,8 @@ export const en = {
       title: 'Deep search + file carving',
       body: 'Also scans raw sectors for file signatures — the most thorough option.',
     },
-    quickUnavailable: 'This volume’s index is unreadable, so a quick search cannot run. Use a deep search instead.',
+    quickUnavailable:
+      'This volume’s index is unreadable, so a quick search cannot run. Use a deep search instead.',
     typesTitle: 'What are you looking for?',
     selectAll: 'Select all',
     clearAll: 'Clear all',
@@ -113,7 +114,8 @@ export const en = {
     badSectorSkip: 'Skip and continue',
     badSectorZeroFill: 'Fill skipped areas with zeros (writes to the source!)',
     retryPolicy: 'Retries per area',
-    zeroFillWarning: 'Zero-filling writes to the disk you are recovering from. Only choose it if you understand the risk.',
+    zeroFillWarning:
+      'Zero-filling writes to the disk you are recovering from. Only choose it if you understand the risk.',
     start: 'Start searching',
     deviceSummary: 'Target',
   },
@@ -136,7 +138,8 @@ export const en = {
     resume: 'Resume',
     stop: 'Stop',
     stopTitle: 'Stop the search?',
-    stopBody: 'You can browse what has been found so far, or search again later. Stopping now saves time.',
+    stopBody:
+      'You can browse what has been found so far, or search again later. Stopping now saves time.',
     stopConfirm: 'Stop searching',
     keepGoing: 'Keep searching',
     pausedTitle: 'Search paused',
@@ -151,7 +154,8 @@ export const en = {
     statsTime: 'Time used',
     statsErrors: 'Unreadable areas',
     deviceLostTitle: 'Device disconnected',
-    deviceLostBody: 'The source device stopped responding. Reconnect it to continue the search.',
+    deviceLostBody:
+      'The source device stopped responding. Reconnect it to continue the search.',
     reconnect: 'I reconnected it',
     keepPartial: 'Browse results so far',
     recoverNowUnsafe: 'Recovery will be available once this stage completes safely.',
@@ -238,7 +242,8 @@ export const en = {
       load: 'Open a saved search',
       saved: 'Search saved',
       corruptTitle: 'Saved search cannot be opened',
-      corruptBody: 'The session file appears to be damaged or was created by a different version.',
+      corruptBody:
+        'The session file appears to be damaged or was created by a different version.',
       savedList: 'Saved searches',
       confirmOverwrite: 'Replace the existing save with the current results?',
     },
@@ -283,14 +288,16 @@ export const en = {
   recovery: {
     title: 'Recover files',
     destination: 'Where should files be saved?',
-    destinationHint: 'Saving to a different drive than the one you are recovering from is strongly recommended.',
+    destinationHint:
+      'Saving to a different drive than the one you are recovering from is strongly recommended.',
     local: 'This computer',
     chooseFolder: 'Choose folder…',
     pathLabel: 'Destination path',
     freeSpace: '{{free}} free of {{total}}',
     sameSource: 'This is the same drive you are recovering from — files could be overwritten.',
     overlapRefused: 'Cannot save onto the source drive',
-    overlapReason: 'Saving here would overwrite the very files being recovered. Pick another location.',
+    overlapReason:
+      'Saving here would overwrite the very files being recovered. Pick another location.',
     insufficientSpace: 'Not enough space',
     insufficientSpaceBody: 'Needs {{needed}} more. Free up space or choose another location.',
     continueAnyway: 'Continue anyway',
@@ -363,14 +370,16 @@ export const en = {
   repair: {
     title: 'Volume repair',
     introTitle: 'Repair before searching',
-    introBody: 'When a volume’s internal structure is damaged, a repair pass can make its files searchable again. Every change is reversible from the undo log.',
+    introBody:
+      'When a volume’s internal structure is damaged, a repair pass can make its files searchable again. Every change is reversible from the undo log.',
     dryRun: 'Analyze problems',
     findings: 'Findings',
     noFindings: 'No repairable problems were found.',
     fix: 'Repair {{count}} problem',
     fix_other: 'Repair {{count}} problems',
     consentTitle: 'Confirm the repair',
-    consentBody: 'The repair writes corrections to the volume’s structural records on disk. An undo log is kept so the changes can be rolled back.',
+    consentBody:
+      'The repair writes corrections to the volume’s structural records on disk. An undo log is kept so the changes can be rolled back.',
     consentAcknowledge: 'I understand this writes to the disk and want to continue',
     consentTypeHere: 'Type REPAIR to confirm',
     applying: 'Applying repairs…',
@@ -411,7 +420,8 @@ export const en = {
     connectorTauri: 'Recovery engine',
     engineStatus: 'Engine status',
     licenses: 'Open-source licenses',
-    licensesBody: 'This application builds on open-source components. Their licenses ship with the installation.',
+    licensesBody:
+      'This application builds on open-source components. Their licenses ship with the installation.',
   },
   errors: {
     title: 'That did not work',

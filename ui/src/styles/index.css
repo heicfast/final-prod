@@ -5,9 +5,9 @@
  *  (3) token mapping → @theme inline below
  *  (4) base defaults → @layer base below
  */
-@import "tailwindcss";
-@import "tw-animate-css";
-@import "./tokens.css";
+@import 'tailwindcss';
+@import 'tw-animate-css';
+@import './tokens.css';
 
 /* (2/4) class-based dark mode */
 @custom-variant dark (&:is(.dark *));
@@ -104,8 +104,8 @@
   }
   /* Tabular numerals for all data contexts (grid #9) */
   table,
-  [role="table"],
-  [role="row"],
+  [role='table'],
+  [role='row'],
   .tabular,
   .num {
     font-variant-numeric: tabular-nums;
@@ -177,9 +177,5 @@
 
 /* Utility: gradient CTA (token-driven; gradients disabled under .hc via token parity) */
 .gradient-cta {
-  background-image: linear-gradient(
-    to right,
-    var(--cta-gradient-from),
-    var(--cta-gradient-to)
-  );
+  background-image: linear-gradient(to right, var(--cta-gradient-from), var(--cta-gradient-to));
 }

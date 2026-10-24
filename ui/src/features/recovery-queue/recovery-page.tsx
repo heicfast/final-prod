@@ -15,7 +15,14 @@ import {
   XCircleIcon,
 } from 'lucide-react';
 import { useMountPoints, usePickDirectory, useValidateDestination } from '@/queries/system';
-import { useCancelRecovery, useRecoveryItems, useRecoveryJob, useRecoveryProgress, useRecoveryReport, useStartRecovery } from '@/queries/recovery';
+import {
+  useCancelRecovery,
+  useRecoveryItems,
+  useRecoveryJob,
+  useRecoveryProgress,
+  useRecoveryReport,
+  useStartRecovery,
+} from '@/queries/recovery';
 import { useResultsPages } from '@/queries/results';
 import { resolveFilter } from '@/stores/filter-store';
 import { useSelectionStore } from '@/stores/selection-store';
@@ -45,17 +52,21 @@ export function RecoveryPage(): React.JSX.Element {
   const { t, i18n } = useTranslation();
 
   const recoverAll = params.has('all');
-  const urlIds = params.get('ids')?.split(',').filter(Boolean) ?? [];
   const selection = useSelectionStore();
 
   const nodeIds = React.useMemo(() => {
+    const urlIds = params.get('ids')?.split(',').filter(Boolean) ?? [];
     if (urlIds.length > 0) return urlIds;
     if (!recoverAll) return Array.from(selection.selected);
     return [];
-  }, [urlIds, recoverAll, selection.selected]);
+  }, [params, recoverAll, selection.selected]);
 
   // "Recover all" needs the total node count for preflight sizing.
-  const allPages = useResultsPages(scanId, { ...resolveFilter(), nodeId: null, treeMode: 'path' }, { field: 'name', direction: 'asc' });
+  const allPages = useResultsPages(
+    scanId,
+    { ...resolveFilter(), nodeId: null, treeMode: 'path' },
+    { field: 'name', direction: 'asc' },
+  );
   const allTotal = allPages.data?.pages[allPages.data.pages.length - 1]?.total ?? 0;
 
   const mounts = useMountPoints();
@@ -64,9 +75,13 @@ export function RecoveryPage(): React.JSX.Element {
   const pickDirectory = usePickDirectory();
 
   const [destination, setDestination] = React.useState('');
-  const [validation, setValidation] = React.useState<
-    { allowed: boolean; reason?: 'overlap' | 'unwritable' | 'invalid' | 'out-of-space'; reasonKey?: string; freeBytes: number | null; neededBytes: number | null } | null
-  >(null);
+  const [validation, setValidation] = React.useState<{
+    allowed: boolean;
+    reason?: 'overlap' | 'unwritable' | 'invalid' | 'out-of-space';
+    reasonKey?: string;
+    freeBytes: number | null;
+    neededBytes: number | null;
+  } | null>(null);
   const [validating, setValidating] = React.useState(false);
 
   const [options, setOptions] = React.useState<RecoveryOptions>({
@@ -98,7 +113,13 @@ export function RecoveryPage(): React.JSX.Element {
       { path, neededBytes: estimatedBytes ?? allTotal * 2_400_000 },
       {
         onSuccess: (v) => setValidation(v),
-        onError: () => setValidation({ allowed: false, reason: 'invalid', freeBytes: null, neededBytes: null }),
+        onError: () =>
+          setValidation({
+            allowed: false,
+            reason: 'invalid',
+            freeBytes: null,
+            neededBytes: null,
+          }),
         onSettled: () => setValidating(false),
       },
     );
@@ -110,7 +131,12 @@ export function RecoveryPage(): React.JSX.Element {
     <div className="flex h-full min-h-0 flex-col overflow-y-auto">
       <div className="mx-auto w-full max-w-3xl flex-1 p-6">
         <div className="mb-6 flex items-center gap-3">
-          <Button variant="ghost" size="icon" onClick={() => navigate(-1)} aria-label={t('common.back')}>
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => navigate(-1)}
+            aria-label={t('common.back')}
+          >
             <ArrowLeftIcon aria-hidden />
           </Button>
           <div>
@@ -129,28 +155,28 @@ export function RecoveryPage(): React.JSX.Element {
           <>
             {/* Destination */}
             <h2 className="mb-3 text-base font-semibold">{t('recovery.destination')}</h2>
-            <p className="mb-3 text-sm text-foreground-secondary">{t('recovery.destinationHint')}</p>
+            <p className="mb-3 text-sm text-foreground-secondary">
+              {t('recovery.destinationHint')}
+            </p>
 
             <div className="space-y-2">
-              {mounts.isLoading ? (
-                Array.from({ length: 3 }, (_, i) => <Skeleton key={i} className="h-16" />)
-              ) : (
-                mounts.data?.map((m) => (
-                  <DestinationRow
-                    key={m.id}
-                    label={m.label}
-                    path={m.path}
-                    freeBytes={m.freeBytes}
-                    totalBytes={m.totalBytes}
-                    selected={destination === m.path}
-                    warning={destination === m.path && validation?.reason === 'overlap'}
-                    onSelect={() => {
-                      setDestination(m.path);
-                      validate(m.path);
-                    }}
-                  />
-                ))
-              )}
+              {mounts.isLoading
+                ? Array.from({ length: 3 }, (_, i) => <Skeleton key={i} className="h-16" />)
+                : mounts.data?.map((m) => (
+                    <DestinationRow
+                      key={m.id}
+                      label={m.label}
+                      path={m.path}
+                      freeBytes={m.freeBytes}
+                      totalBytes={m.totalBytes}
+                      selected={destination === m.path}
+                      warning={destination === m.path && validation?.reason === 'overlap'}
+                      onSelect={() => {
+                        setDestination(m.path);
+                        validate(m.path);
+                      }}
+                    />
+                  ))}
             </div>
 
             <div className="mt-3 grid grid-cols-[1fr_auto] items-end gap-2">
@@ -184,7 +210,9 @@ export function RecoveryPage(): React.JSX.Element {
             </div>
 
             {validating ? (
-              <p className="mt-2 text-xs text-foreground-secondary">{t('recovery.validating')}</p>
+              <p className="mt-2 text-xs text-foreground-secondary">
+                {t('recovery.validating')}
+              </p>
             ) : null}
 
             {validation && !validation.allowed ? (
@@ -200,9 +228,14 @@ export function RecoveryPage(): React.JSX.Element {
                   <p>
                     {validation.reason === 'overlap'
                       ? t('recovery.overlapReason')
-                      : validation.reason === 'out-of-space' && validation.neededBytes && validation.freeBytes
+                      : validation.reason === 'out-of-space' &&
+                          validation.neededBytes &&
+                          validation.freeBytes
                         ? t('recovery.insufficientSpaceBody', {
-                            needed: formatBytes(validation.neededBytes - validation.freeBytes, i18n.language),
+                            needed: formatBytes(
+                              validation.neededBytes - validation.freeBytes,
+                              i18n.language,
+                            ),
                           })
                         : t('errors.unknown')}
                   </p>
@@ -220,13 +253,15 @@ export function RecoveryPage(): React.JSX.Element {
                 <Label>{t('recovery.collisions')}</Label>
                 <RadioGroup
                   value={options.collision}
-                  onValueChange={(v) => setOptions((o) => ({ ...o, collision: v as CollisionPolicy }))}
+                  onValueChange={(v) =>
+                    setOptions((o) => ({ ...o, collision: v as CollisionPolicy }))
+                  }
                   className="flex flex-wrap gap-4"
                 >
                   {(['rename', 'overwrite', 'skip'] as const).map((c) => (
                     <label key={c} className="flex cursor-pointer items-center gap-2 text-sm">
                       <RadioGroupItem value={c} />
-                      {t(`recovery.collision${c[0]!.toUpperCase()}${c.slice(1)}`)}
+                      {t(`recovery.collision${c[0].toUpperCase()}${c.slice(1)}`)}
                     </label>
                   ))}
                 </RadioGroup>
@@ -256,7 +291,9 @@ export function RecoveryPage(): React.JSX.Element {
                 />
               </div>
               {options.verifyOnWrite ? (
-                <p className="text-xs text-foreground-secondary">{t('recovery.verifyingNote')}</p>
+                <p className="text-xs text-foreground-secondary">
+                  {t('recovery.verifyingNote')}
+                </p>
               ) : null}
             </div>
           </>
@@ -265,9 +302,7 @@ export function RecoveryPage(): React.JSX.Element {
 
       {/* Footer CTA */}
       <div className="sticky bottom-0 flex items-center justify-end gap-3 border-t border-border bg-surface/90 px-6 py-3 backdrop-blur">
-        {jobId && jobStatus === 'running' ? (
-          <CancelRecoveryButton jobId={jobId} />
-        ) : null}
+        {jobId && jobStatus === 'running' ? <CancelRecoveryButton jobId={jobId} /> : null}
         {!jobId ? (
           <>
             <Button variant="secondary" onClick={() => navigate(-1)}>
@@ -276,8 +311,16 @@ export function RecoveryPage(): React.JSX.Element {
             <Button
               variant="primary"
               size="lg"
-              disabled={!destination || validating || (validation !== null && !validation.allowed)}
-              title={!destination ? t('recovery.destinationRequired') : validation && !validation.allowed ? t('recovery.overlapReason') : undefined}
+              disabled={
+                !destination || validating || (validation !== null && !validation.allowed)
+              }
+              title={
+                !destination
+                  ? t('recovery.destinationRequired')
+                  : validation && !validation.allowed
+                    ? t('recovery.overlapReason')
+                    : undefined
+              }
               onClick={() => {
                 startRecovery.mutate(
                   { nodeIds, destination, options },
@@ -310,7 +353,7 @@ function CancelRecoveryButton({ jobId }: { jobId: string }): React.JSX.Element {
 }
 
 function RecoveryQueue({ jobId }: { jobId: string }): React.JSX.Element {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const items = useRecoveryItems(jobId);
   return (
     <div className="space-y-5">
@@ -319,9 +362,16 @@ function RecoveryQueue({ jobId }: { jobId: string }): React.JSX.Element {
         <h2 className="text-base font-semibold">{t('recovery.queue')}</h2>
         <div className="max-h-72 overflow-y-auto rounded-lg border border-border">
           {(items.data ?? []).slice(0, 200).map((item) => (
-            <div key={item.nodeId} className="flex items-center gap-3 border-b border-border px-4 py-2 text-sm last:border-0">
-              <span className="min-w-0 flex-1 truncate" title={item.name}>{item.name}</span>
-              <span className="shrink-0 text-xs tabular text-foreground-secondary">{formatBytes(item.sizeBytes, useLocaleStatic())}</span>
+            <div
+              key={item.nodeId}
+              className="flex items-center gap-3 border-b border-border px-4 py-2 text-sm last:border-0"
+            >
+              <span className="min-w-0 flex-1 truncate" title={item.name}>
+                {item.name}
+              </span>
+              <span className="shrink-0 text-xs tabular text-foreground-secondary">
+                {formatBytes(item.sizeBytes, i18n.language)}
+              </span>
               <QueueStateBadge state={item.state} reasonKey={item.error?.reasonKey} />
             </div>
           ))}
@@ -333,11 +383,6 @@ function RecoveryQueue({ jobId }: { jobId: string }): React.JSX.Element {
   );
 }
 
-function useLocaleStatic(): string {
-  const { i18n } = useTranslation();
-  return i18n.language;
-}
-
 function QueueProgress({ jobId }: { jobId: string }): React.JSX.Element {
   const { t, i18n } = useTranslation();
   const progress = useRecoveryProgress(jobId);
@@ -346,16 +391,35 @@ function QueueProgress({ jobId }: { jobId: string }): React.JSX.Element {
   return (
     <div className="space-y-2 rounded-lg border border-border bg-surface p-4">
       <div className="flex items-center justify-between text-sm">
-        <span className="font-medium">{done ? t('recovery.reportTitle') : t('recovery.progressOverall')}</span>
-        <span className="tabular font-semibold text-primary">{formatPercent(progress.overallProgress, i18n.language)}</span>
+        <span className="font-medium">
+          {done ? t('recovery.reportTitle') : t('recovery.progressOverall')}
+        </span>
+        <span className="tabular font-semibold text-primary">
+          {formatPercent(progress.overallProgress, i18n.language)}
+        </span>
       </div>
-      <Progress value={progress.overallProgress * 100} aria-label={t('recovery.progressOverall')} />
+      <Progress
+        value={progress.overallProgress * 100}
+        aria-label={t('recovery.progressOverall')}
+      />
       <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-foreground-secondary tabular">
-        {progress.currentFile ? <span className="max-w-64 truncate">{t('recovery.progressFile')}: {progress.currentFile}</span> : null}
-        <span>{progress.completedCount}/{progress.totalCount}</span>
-        {progress.failedCount > 0 ? <span className="text-danger">{progress.failedCount} ✕</span> : null}
-        {progress.verifying ? <span className="text-primary">{t('recovery.queueItem.verifying')}…</span> : null}
-        {!done && progress.etaSeconds ? <span>{formatDuration(progress.etaSeconds, i18n.language)}</span> : null}
+        {progress.currentFile ? (
+          <span className="max-w-64 truncate">
+            {t('recovery.progressFile')}: {progress.currentFile}
+          </span>
+        ) : null}
+        <span>
+          {progress.completedCount}/{progress.totalCount}
+        </span>
+        {progress.failedCount > 0 ? (
+          <span className="text-danger">{progress.failedCount} ✕</span>
+        ) : null}
+        {progress.verifying ? (
+          <span className="text-primary">{t('recovery.queueItem.verifying')}…</span>
+        ) : null}
+        {!done && progress.etaSeconds ? (
+          <span>{formatDuration(progress.etaSeconds, i18n.language)}</span>
+        ) : null}
       </div>
     </div>
   );
@@ -373,15 +437,29 @@ function QueueReport({ jobId }: { jobId: string }): React.JSX.Element | null {
     <div
       className={cn(
         'space-y-4 rounded-lg border p-5',
-        success ? 'border-success/40 bg-success-muted' : partial ? 'border-warning/40 bg-warning-muted' : 'border-danger/40 bg-danger-muted',
+        success
+          ? 'border-success/40 bg-success-muted'
+          : partial
+            ? 'border-warning/40 bg-warning-muted'
+            : 'border-danger/40 bg-danger-muted',
       )}
       role="status"
     >
       <div className="flex items-center gap-3">
-        {success ? <CheckCircle2Icon className="size-6 text-success" aria-hidden /> : partial ? <CircleAlertIcon className="size-6 text-warning" aria-hidden /> : <XCircleIcon className="size-6 text-danger" aria-hidden />}
+        {success ? (
+          <CheckCircle2Icon className="size-6 text-success" aria-hidden />
+        ) : partial ? (
+          <CircleAlertIcon className="size-6 text-warning" aria-hidden />
+        ) : (
+          <XCircleIcon className="size-6 text-danger" aria-hidden />
+        )}
         <div>
           <h2 className="text-lg font-semibold">
-            {success ? t('recovery.reportSuccess') : partial ? t('recovery.reportPartial') : t('recovery.reportFailed')}
+            {success
+              ? t('recovery.reportSuccess')
+              : partial
+                ? t('recovery.reportPartial')
+                : t('recovery.reportFailed')}
           </h2>
           <p className="text-sm tabular">
             {t('recovery.reportSummary', {
@@ -393,8 +471,16 @@ function QueueReport({ jobId }: { jobId: string }): React.JSX.Element | null {
         </div>
       </div>
       <div className="grid grid-cols-3 gap-3">
-        <StatTile label={t('recovery.queueItem.done')} value={String(data.succeeded.length)} tone="success" />
-        <StatTile label={t('recovery.queueItem.failed')} value={String(data.failed.length)} tone={data.failed.length > 0 ? 'danger' : 'default'} />
+        <StatTile
+          label={t('recovery.queueItem.done')}
+          value={String(data.succeeded.length)}
+          tone="success"
+        />
+        <StatTile
+          label={t('recovery.queueItem.failed')}
+          value={String(data.failed.length)}
+          tone={data.failed.length > 0 ? 'danger' : 'default'}
+        />
         <StatTile label={t('recovery.queueItem.skipped')} value={String(data.skipped.length)} />
       </div>
       {data.failed.length > 0 ? (
@@ -402,7 +488,9 @@ function QueueReport({ jobId }: { jobId: string }): React.JSX.Element | null {
           {data.failed.slice(0, 20).map((f) => (
             <div key={f.nodeId} className="flex items-center justify-between gap-3 py-1">
               <span className="truncate">{f.name}</span>
-              <span className="text-danger">{f.error?.reasonKey ? t(f.error.reasonKey) : ''}</span>
+              <span className="text-danger">
+                {f.error?.reasonKey ? t(f.error.reasonKey) : ''}
+              </span>
             </div>
           ))}
         </div>
@@ -425,7 +513,11 @@ function QueueReport({ jobId }: { jobId: string }): React.JSX.Element | null {
                   status: data.status,
                   startedAt: data.startedAt,
                   finishedAt: data.finishedAt,
-                  succeeded: data.succeeded.map((s) => ({ name: s.name, savedAs: s.savedAs ?? s.name, sizeBytes: s.sizeBytes })),
+                  succeeded: data.succeeded.map((s) => ({
+                    name: s.name,
+                    savedAs: s.savedAs ?? s.name,
+                    sizeBytes: s.sizeBytes,
+                  })),
                   failed: data.failed.map((f) => ({ name: f.name, reason: f.error?.code })),
                   skipped: data.skipped.map((s) => s.name),
                   totalBytesWritten: data.totalBytesWritten,
@@ -453,9 +545,18 @@ function QueueReport({ jobId }: { jobId: string }): React.JSX.Element | null {
   );
 }
 
-function QueueStateBadge({ state, reasonKey }: { state: string; reasonKey?: string }): React.JSX.Element {
+function QueueStateBadge({
+  state,
+  reasonKey,
+}: {
+  state: string;
+  reasonKey?: string;
+}): React.JSX.Element {
   const { t } = useTranslation();
-  const map: Record<string, { variant: 'neutral' | 'primary' | 'success' | 'warning' | 'danger'; label: string }> = {
+  const map: Record<
+    string,
+    { variant: 'neutral' | 'primary' | 'success' | 'warning' | 'danger'; label: string }
+  > = {
     pending: { variant: 'neutral', label: t('recovery.queueItem.pending') },
     running: { variant: 'primary', label: t('recovery.queueItem.running') },
     verifying: { variant: 'primary', label: t('recovery.queueItem.verifying') },
@@ -463,10 +564,15 @@ function QueueStateBadge({ state, reasonKey }: { state: string; reasonKey?: stri
     failed: { variant: 'danger', label: t('recovery.queueItem.failed') },
     skipped: { variant: 'warning', label: t('recovery.queueItem.skipped') },
   };
-  const cfg = map[state] ?? map.pending!;
+  const cfg = map[state] ?? map.pending;
   const badge = (
     <Badge variant={cfg.variant}>
-      {state === 'running' ? <span className="mr-1 inline-block size-1.5 animate-status-pulse rounded-full bg-current" aria-hidden /> : null}
+      {state === 'running' ? (
+        <span
+          className="mr-1 inline-block size-1.5 animate-status-pulse rounded-full bg-current"
+          aria-hidden
+        />
+      ) : null}
       {cfg.label}
     </Badge>
   );
@@ -497,7 +603,7 @@ function DestinationRow({
   warning: boolean;
   onSelect: () => void;
 }): React.JSX.Element {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   return (
     <button
       type="button"
@@ -505,10 +611,20 @@ function DestinationRow({
       aria-pressed={selected}
       className={cn(
         'flex w-full items-center gap-4 rounded-lg border-2 bg-surface p-4 text-left transition-colors',
-        selected ? 'border-primary' : 'border-transparent border-border hover:border-border-strong',
+        selected
+          ? 'border-primary'
+          : 'border-transparent border-border hover:border-border-strong',
       )}
     >
-      <RadioGroupItem value={path} checked={selected} />
+      <span
+        className={cn(
+          'flex size-4 shrink-0 items-center justify-center rounded-full border-2 transition-colors',
+          selected ? 'border-primary' : 'border-border-strong',
+        )}
+        aria-hidden
+      >
+        {selected ? <span className="size-2 rounded-full bg-primary" /> : null}
+      </span>
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-2">
           <span className="truncate font-semibold">{label}</span>
@@ -517,7 +633,14 @@ function DestinationRow({
         <div className="text-xs text-foreground-secondary font-mono">{path}</div>
       </div>
       <div className="w-40">
-        <CapacityBar usedBytes={totalBytes - freeBytes} totalBytes={totalBytes} label={t('recovery.freeSpace', { free: formatBytes(freeBytes, useLocaleStatic()), total: formatBytes(totalBytes, useLocaleStatic()) })} />
+        <CapacityBar
+          usedBytes={totalBytes - freeBytes}
+          totalBytes={totalBytes}
+          label={t('recovery.freeSpace', {
+            free: formatBytes(freeBytes, i18n.language),
+            total: formatBytes(totalBytes, i18n.language),
+          })}
+        />
       </div>
     </button>
   );

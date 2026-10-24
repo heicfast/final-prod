@@ -14,7 +14,9 @@ export interface HexRow {
 export async function hexWorker(bytes: Uint8Array, baseOffset: number): Promise<HexRow[]> {
   if (typeof Worker !== 'undefined') {
     return new Promise<HexRow[]>((resolve, reject) => {
-      const worker = new Worker(new URL('./hex.worker.ts', import.meta.url), { type: 'module' });
+      const worker = new Worker(new URL('./hex.worker.ts', import.meta.url), {
+        type: 'module',
+      });
       worker.onmessage = (e: MessageEvent<HexRow[]>) => {
         resolve(e.data);
         worker.terminate();
@@ -40,7 +42,7 @@ function hexInline(bytes: Uint8Array, baseOffset: number): HexRow[] {
     let hex = '';
     let ascii = '';
     for (let j = 0; j < slice.length; j++) {
-      const b = slice[j]!;
+      const b = slice[j];
       hex += HEX[b] + (j === 7 ? '  ' : ' ');
       ascii += b >= 32 && b < 127 ? String.fromCharCode(b) : '·';
     }

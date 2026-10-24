@@ -8,13 +8,13 @@ pages, AI assistant) are deliberately excluded — see §0.
 
 ## 0. Documented divergences from the reference corpus
 
-| Reference surface | Decision | Rationale |
-|---|---|---|
-| Retention/license/upsell gates | **Excluded** | Commercial funnel specific to the reference's monetization model; not part of a truthful recovery-tool IA. The connector never exposes them, so the UI cannot honestly render them. |
-| AI assistant / AI recommend | **Excluded this session** | Would be a UI-fabricated capability — the Mock Connector contract exposes no ranking model. Roadmap item if the engine ever provides one. |
-| Cloud/NAS/WeChat/iCloud targets | **Excluded this session** | Reference chains require network backends; connector exposes local devices + removable media only. Cloud/NAS marked as unavailable-with-reason in the UI (truthful degradation). |
-| Sidebar product pages (backup, crashed PC, etc.) | **Excluded** | Separate products, not recovery wizard flow. |
-| Auto-Recover after scan | **Excluded** | Requires engine orchestration the contract does not expose. |
+| Reference surface                                | Decision                  | Rationale                                                                                                                                                                           |
+| ------------------------------------------------ | ------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Retention/license/upsell gates                   | **Excluded**              | Commercial funnel specific to the reference's monetization model; not part of a truthful recovery-tool IA. The connector never exposes them, so the UI cannot honestly render them. |
+| AI assistant / AI recommend                      | **Excluded this session** | Would be a UI-fabricated capability — the Mock Connector contract exposes no ranking model. Roadmap item if the engine ever provides one.                                           |
+| Cloud/NAS/WeChat/iCloud targets                  | **Excluded this session** | Reference chains require network backends; connector exposes local devices + removable media only. Cloud/NAS marked as unavailable-with-reason in the UI (truthful degradation).    |
+| Sidebar product pages (backup, crashed PC, etc.) | **Excluded**              | Separate products, not recovery wizard flow.                                                                                                                                        |
+| Auto-Recover after scan                          | **Excluded**              | Requires engine orchestration the contract does not expose.                                                                                                                         |
 
 Everything else follows the corpus IA: 4-zone wizard stack, 3-pane results, scan lives
 inside the results page, celebration modal, destination dialog semantics, session
@@ -58,6 +58,7 @@ refresh devices, session import (file picker → connector loadSession), recent
 sessions list (resume → results), per-card Scan button.
 
 States:
+
 - loading: skeleton cards, device enumeration spinner (corpus "early" capture)
 - empty (no devices): coaching illustration + refresh CTA + guidance
 - error: connector error with reason + retry
@@ -168,18 +169,18 @@ localStorage for pure UI prefs (documented split).
 
 ## 3. Dialog inventory
 
-| Dialog | Trigger | Semantics |
-|---|---|---|
-| Stop-scan confirm | stop button | stats + Stop/Continue (destructive-first per corpus but ours: Continue default-safe) |
-| Celebration | scan completes | 540×380, stats grid, primary CTA "Open results" |
-| Destination | recover CTA | per §2.6 |
-| Space gate | preflight fail | needed-vs-free, Continue/Reselect (Continue only if connector allows) |
-| Context menu | right-click row | 6 actions per §2.4 |
-| Preview modal | preview action | large preview surface |
-| Session picker | import session | file list from connector |
-| Repair consent | apply repair | checkbox + consequence text, disabled until acknowledged |
-| Error dialog | unrecoverable errors | reason + retry/contact actions |
-| Confirm exit during scan | window close while scanning | guard: keep scanning / stop |
+| Dialog                   | Trigger                     | Semantics                                                                            |
+| ------------------------ | --------------------------- | ------------------------------------------------------------------------------------ |
+| Stop-scan confirm        | stop button                 | stats + Stop/Continue (destructive-first per corpus but ours: Continue default-safe) |
+| Celebration              | scan completes              | 540×380, stats grid, primary CTA "Open results"                                      |
+| Destination              | recover CTA                 | per §2.6                                                                             |
+| Space gate               | preflight fail              | needed-vs-free, Continue/Reselect (Continue only if connector allows)                |
+| Context menu             | right-click row             | 6 actions per §2.4                                                                   |
+| Preview modal            | preview action              | large preview surface                                                                |
+| Session picker           | import session              | file list from connector                                                             |
+| Repair consent           | apply repair                | checkbox + consequence text, disabled until acknowledged                             |
+| Error dialog             | unrecoverable errors        | reason + retry/contact actions                                                       |
+| Confirm exit during scan | window close while scanning | guard: keep scanning / stop                                                          |
 
 ## 4. Cross-cutting UX rules (from corpus interaction rules, adapted)
 

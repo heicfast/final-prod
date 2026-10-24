@@ -58,8 +58,8 @@
   --overlay-scrim: rgba(0, 0, 0, 0.4);
 
   /* Typography (sizes/weights as CSS vars for the font-mixing below) */
-  --font-sans: "Segoe UI", "Segoe UI Variable Text", system-ui, -apple-system, sans-serif;
-  --font-mono: "Cascadia Mono", "Consolas", ui-monospace, monospace;
+  --font-sans: 'Segoe UI', 'Segoe UI Variable Text', system-ui, -apple-system, sans-serif;
+  --font-mono: 'Cascadia Mono', 'Consolas', ui-monospace, monospace;
   --text-2xs: 11px;
   --text-xs: 12px;
   --text-sm: 13px;
@@ -200,17 +200,17 @@
 
 /* CJK per-locale font substitution (QSS [style] stacks) */
 :lang(zh-CN) {
-  --font-sans: "Microsoft YaHei", "Segoe UI", "PingFang SC", system-ui, sans-serif;
+  --font-sans: 'Microsoft YaHei', 'Segoe UI', 'PingFang SC', system-ui, sans-serif;
 }
 :lang(ja) {
-  --font-sans: "Meiryo UI", "Segoe UI", system-ui, sans-serif;
+  --font-sans: 'Meiryo UI', 'Segoe UI', system-ui, sans-serif;
 }
 :lang(ko) {
-  --font-sans: "Malgun Gothic", "Segoe UI", system-ui, sans-serif;
+  --font-sans: 'Malgun Gothic', 'Segoe UI', system-ui, sans-serif;
 }
 
 /* Density (comfortable default; compact swaps row metrics via [data-density]) */
-[data-density="compact"] {
+[data-density='compact'] {
   --row-height: 32px;
   --row-height-compact: 28px;
 }

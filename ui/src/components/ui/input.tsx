@@ -1,7 +1,11 @@
 import * as React from 'react';
 import { cn } from '@/lib/utils';
 
-function Input({ className, type, ...props }: React.ComponentProps<'input'>): React.JSX.Element {
+function Input({
+  className,
+  type,
+  ...props
+}: React.ComponentProps<'input'>): React.JSX.Element {
   return (
     <input
       type={type}
@@ -19,7 +23,10 @@ function Input({ className, type, ...props }: React.ComponentProps<'input'>): Re
   );
 }
 
-function Textarea({ className, ...props }: React.ComponentProps<'textarea'>): React.JSX.Element {
+function Textarea({
+  className,
+  ...props
+}: React.ComponentProps<'textarea'>): React.JSX.Element {
   return (
     <textarea
       data-slot="textarea"

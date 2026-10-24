@@ -17,9 +17,16 @@ const BASE_FILTER: ResultsFilter = {
   origins: null,
 };
 
-async function waitForScanCompletion(c: MockConnector, scanId: string, timeoutMs = 60_000): Promise<void> {
+async function waitForScanCompletion(
+  c: MockConnector,
+  scanId: string,
+  timeoutMs = 60_000,
+): Promise<void> {
   await new Promise<void>((resolve, reject) => {
-    const timeout = setTimeout(() => reject(new Error('scan did not finish in time')), timeoutMs);
+    const timeout = setTimeout(
+      () => reject(new Error('scan did not finish in time')),
+      timeoutMs,
+    );
     const unsub = c.scan.onScanProgress(scanId, (e) => {
       if (e.status === 'completed' || e.status === 'failed' || e.status === 'cancelled') {
         clearTimeout(timeout);
@@ -53,7 +60,7 @@ describe('MockConnector — scan lifecycle', () => {
   it('runs a scan to completion with monotonic overall progress', async () => {
     const c = new MockConnector();
     const devices = await c.devices.listDevices();
-    const target = devices[0]!.volumes[0]!.id;
+    const target = devices[0].volumes[0].id;
     const { scanId } = await c.scan.startScan({
       targetId: target,
       mode: 'quick',
@@ -63,7 +70,10 @@ describe('MockConnector — scan lifecycle', () => {
     });
     const seen: number[] = [];
     await new Promise<void>((resolve, reject) => {
-      const timeout = setTimeout(() => reject(new Error('scan did not complete in time')), 60_000);
+      const timeout = setTimeout(
+        () => reject(new Error('scan did not complete in time')),
+        60_000,
+      );
       const unsub = c.scan.onScanProgress(scanId, (e) => {
         seen.push(e.overallProgress);
         if (e.status === 'completed' || e.status === 'failed' || e.status === 'cancelled') {
@@ -75,7 +85,7 @@ describe('MockConnector — scan lifecycle', () => {
     });
     expect(seen.length).toBeGreaterThan(2);
     for (let i = 1; i < seen.length; i++) {
-      expect(seen[i]!).toBeGreaterThanOrEqual(seen[i - 1]! - 1e-9);
+      expect(seen[i]).toBeGreaterThanOrEqual(seen[i - 1] - 1e-9);
     }
     const state = await c.scan.getScanState(scanId);
     expect(state.status).toBe('completed');
@@ -86,7 +96,7 @@ describe('MockConnector — scan lifecycle', () => {
     const c = new MockConnector();
     const devices = await c.devices.listDevices();
     const { scanId } = await c.scan.startScan({
-      targetId: devices[0]!.volumes[0]!.id,
+      targetId: devices[0].volumes[0].id,
       mode: 'deep',
       categories: [],
       badSectorPolicy: 'skip',
@@ -108,7 +118,7 @@ describe('MockConnector — scan lifecycle', () => {
     const c = new MockConnector();
     const devices = await c.devices.listDevices();
     const { scanId } = await c.scan.startScan({
-      targetId: devices[0]!.volumes[0]!.id,
+      targetId: devices[0].volumes[0].id,
       mode: 'quick',
       categories: [],
       badSectorPolicy: 'skip',
@@ -125,7 +135,7 @@ describe('MockConnector — scan lifecycle', () => {
     c.setScenario('disconnect-mid-scan');
     const devices = await c.devices.listDevices();
     const { scanId } = await c.scan.startScan({
-      targetId: devices[0]!.volumes[0]!.id,
+      targetId: devices[0].volumes[0].id,
       mode: 'deep',
       categories: [],
       badSectorPolicy: 'skip',
@@ -157,14 +167,19 @@ describe('MockConnector — results', () => {
     const c = new MockConnector();
     const devices = await c.devices.listDevices();
     const { scanId } = await c.scan.startScan({
-      targetId: devices[0]!.volumes[0]!.id,
+      targetId: devices[0].volumes[0].id,
       mode: 'quick',
       categories: [],
       badSectorPolicy: 'skip',
       retries: 1,
     });
     await new Promise((r) => setTimeout(r, 700));
-    const page1 = await c.results.queryResults(scanId, BASE_FILTER, { field: 'name', direction: 'asc' }, { offset: 0, limit: 50 });
+    const page1 = await c.results.queryResults(
+      scanId,
+      BASE_FILTER,
+      { field: 'name', direction: 'asc' },
+      { offset: 0, limit: 50 },
+    );
     expect(page1.nodes.length).toBeGreaterThan(0);
     expect(page1.total).toBeGreaterThanOrEqual(page1.nodes.length);
 
@@ -187,7 +202,7 @@ describe('MockConnector — results', () => {
     const c = new MockConnector();
     const devices = await c.devices.listDevices();
     const { scanId } = await c.scan.startScan({
-      targetId: devices[0]!.volumes[0]!.id,
+      targetId: devices[0].volumes[0].id,
       mode: 'quick',
       categories: [],
       badSectorPolicy: 'skip',
@@ -210,14 +225,19 @@ describe('MockConnector — previews', () => {
     const c = new MockConnector();
     const devices = await c.devices.listDevices();
     const { scanId } = await c.scan.startScan({
-      targetId: devices[0]!.volumes[0]!.id,
+      targetId: devices[0].volumes[0].id,
       mode: 'quick',
       categories: [],
       badSectorPolicy: 'skip',
       retries: 1,
     });
     await new Promise((r) => setTimeout(r, 700));
-    const page = await c.results.queryResults(scanId, BASE_FILTER, { field: 'name', direction: 'asc' }, { offset: 0, limit: 100 });
+    const page = await c.results.queryResults(
+      scanId,
+      BASE_FILTER,
+      { field: 'name', direction: 'asc' },
+      { offset: 0, limit: 100 },
+    );
     const imageNode = page.nodes.find((n) => n.category === 'graphics');
     if (imageNode) {
       const p1 = await c.preview.requestPreview(scanId, imageNode.id, 'image');
@@ -229,9 +249,11 @@ describe('MockConnector — previews', () => {
     }
     const damaged = page.nodes[96];
     if (damaged) {
-      await expect(c.preview.requestPreview(scanId, damaged.id, 'image')).rejects.toMatchObject({
-        reasonKey: expect.stringContaining('preview.reason'),
-      });
+      await expect(c.preview.requestPreview(scanId, damaged.id, 'image')).rejects.toMatchObject(
+        {
+          reasonKey: expect.stringContaining('preview.reason'),
+        },
+      );
     }
     await c.scan.cancelScan(scanId);
   }, 30_000);
@@ -241,9 +263,13 @@ describe('MockConnector — recovery', () => {
   it('refuses destinations that overlap the source volume', async () => {
     const c = new MockConnector();
     const devices = await c.devices.listDevices();
-    const source = devices[0]!;
-    const letter = source.volumes[0]!.letter;
-    const validation = await c.system.validateDestination(`${letter}:\\Recovered`, source.id, 1024);
+    const source = devices[0];
+    const letter = source.volumes[0].letter;
+    const validation = await c.system.validateDestination(
+      `${letter}:\\Recovered`,
+      source.id,
+      1024,
+    );
     expect(validation.allowed).toBe(false);
     expect(validation.reason).toBe('overlap');
   });
@@ -251,25 +277,35 @@ describe('MockConnector — recovery', () => {
   it('runs a recovery job to completion with per-item states', async () => {
     const c = new MockConnector();
     const devices = await c.devices.listDevices();
-    const source = devices[0]!;
+    const source = devices[0];
     const { scanId } = await c.scan.startScan({
-      targetId: source.volumes[0]!.id,
+      targetId: source.volumes[0].id,
       mode: 'quick',
       categories: [],
       badSectorPolicy: 'skip',
       retries: 1,
     });
     await waitForScanCompletion(c, scanId);
-    const page = await c.results.queryResults(scanId, BASE_FILTER, { field: 'name', direction: 'asc' }, { offset: 0, limit: 6 });
+    const page = await c.results.queryResults(
+      scanId,
+      BASE_FILTER,
+      { field: 'name', direction: 'asc' },
+      { offset: 0, limit: 6 },
+    );
     expect(page.nodes.length).toBeGreaterThanOrEqual(5);
     const dest = await c.system.pickDirectory();
-    const { jobId } = await c.recovery.startRecovery(scanId, page.nodes.slice(0, 5).map((n) => n.id), dest!, {
-      collision: 'rename',
-      rebuildFolders: true,
-      keepEmptyFolders: false,
-      fileRepair: true,
-      verifyOnWrite: true,
-    });
+    const { jobId } = await c.recovery.startRecovery(
+      scanId,
+      page.nodes.slice(0, 5).map((n) => n.id),
+      dest!,
+      {
+        collision: 'rename',
+        rebuildFolders: true,
+        keepEmptyFolders: false,
+        fileRepair: true,
+        verifyOnWrite: true,
+      },
+    );
     await new Promise<void>((resolve, reject) => {
       const timeout = setTimeout(() => reject(new Error('job did not finish')), 60_000);
       const unsub = c.recovery.onRecoveryProgress(jobId, (e) => {
@@ -291,7 +327,7 @@ describe('MockConnector — health & repair', () => {
   it('returns SMART tables with the documented field set', async () => {
     const c = new MockConnector();
     const devices = await c.devices.listDevices();
-    const h = await c.health.getHealth(devices[0]!.id);
+    const h = await c.health.getHealth(devices[0].id);
     expect(h.attributes.length).toBeGreaterThan(6);
     for (const a of h.attributes) {
       expect(a).toHaveProperty('id');
@@ -306,16 +342,18 @@ describe('MockConnector — health & repair', () => {
     const c = new MockConnector();
     c.setScenario('bad-sectors');
     const devices = await c.devices.listDevices();
-    const dry = await c.repair.dryRunRepair(devices[0]!.id);
+    const dry = await c.repair.dryRunRepair(devices[0].id);
     expect(dry.findings.length).toBeGreaterThan(0);
-    await expect(c.repair.applyRepair(devices[0]!.id, { consentToken: 'YES' })).rejects.toMatchObject({
+    await expect(
+      c.repair.applyRepair(devices[0].id, { consentToken: 'YES' }),
+    ).rejects.toMatchObject({
       code: 'repair-consent-required',
     });
-    const { applied } = await c.repair.applyRepair(devices[0]!.id, { consentToken: 'REPAIR' });
+    const { applied } = await c.repair.applyRepair(devices[0].id, { consentToken: 'REPAIR' });
     expect(applied).toBeGreaterThan(0);
-    const log = await c.repair.getUndoLog(devices[0]!.id);
+    const log = await c.repair.getUndoLog(devices[0].id);
     expect(log.length).toBe(applied);
-    const undo = await c.repair.undoRepairs(devices[0]!.id);
+    const undo = await c.repair.undoRepairs(devices[0].id);
     expect(undo.rolledBack).toBe(applied);
   });
 });

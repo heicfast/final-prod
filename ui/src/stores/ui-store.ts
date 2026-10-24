@@ -34,7 +34,8 @@ export const useUiStore = create<UiState>((set) => ({
     set({ viewMode: mode });
   },
   togglePreviewPane: () => set((s) => ({ previewPaneVisible: !s.previewPaneVisible })),
-  setPreviewPaneWidth: (w) => set({ previewPaneWidth: Math.min(560, Math.max(240, Math.round(w))) }),
+  setPreviewPaneWidth: (w) =>
+    set({ previewPaneWidth: Math.min(560, Math.max(240, Math.round(w))) }),
   setDevPanelOpen: (open) => set({ devPanelOpen: open }),
   toggleDevPanel: () => set((s) => ({ devPanelOpen: !s.devPanelOpen })),
   setPerfOverlay: (visible) => set({ perfOverlayVisible: visible }),

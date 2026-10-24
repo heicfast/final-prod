@@ -28,7 +28,7 @@ self.onmessage = (e: MessageEvent<HexRequest>) => {
     let hex = '';
     let ascii = '';
     for (let j = 0; j < slice.length; j++) {
-      const b = slice[j]!;
+      const b = slice[j];
       hex += HEX[b] + (j === 7 ? '  ' : ' ');
       ascii += b >= 32 && b < 127 ? String.fromCharCode(b) : '·';
     }

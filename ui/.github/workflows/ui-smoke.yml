@@ -1,0 +1,79 @@
+name: UI Smoke
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  smoke:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 12.15.0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Install Playwright browsers
+        run: pnpm exec playwright install --with-deps chromium
+
+      - name: Build frontend (mock connector, deterministic default seed)
+        run: pnpm build
+        env:
+          VITE_CONNECTOR: mock
+
+      - name: Run UI smoke (preview server + golden path)
+        run: pnpm e2e
+        env:
+          CI: 'true'
+
+      - name: Upload step screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: smoke-screens
+          path: test-results/
+          retention-days: 7
+
+      - name: Upload Playwright report
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: playwright-report/
+          retention-days: 7
+
+  tauri-debug-build:
+    runs-on: windows-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 12.15.0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build Tauri app (debug bundle check)
+        run: pnpm tauri build --debug --bundles none
+        env:
+          VITE_CONNECTOR: mock

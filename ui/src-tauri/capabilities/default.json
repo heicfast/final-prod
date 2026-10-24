@@ -3,9 +3,5 @@
   "identifier": "default",
   "description": "Default capability for the main window. The frontend talks to the shell only through the connector layer; keep this minimal until the real bridge session expands it.",
   "windows": ["main"],
-  "permissions": [
-    "core:default",
-    "dialog:default",
-    "opener:default"
-  ]
+  "permissions": ["core:default", "dialog:default", "opener:default"]
 }

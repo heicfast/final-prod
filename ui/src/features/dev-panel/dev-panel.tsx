@@ -2,7 +2,7 @@ import * as React from 'react';
 import { useTranslation } from 'react-i18next';
 import type { MockScenarioId } from '@/connector/contract';
 import { FlaskConicalIcon, GaugeIcon, RotateCcwIcon, XIcon } from 'lucide-react';
-import { scenarioControl } from '@/connector';
+import { useScenarioControl } from '@/queries/dev';
 import { useUiStore } from '@/stores/ui-store';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
@@ -30,10 +30,12 @@ const SCENARIOS: readonly MockScenarioId[] = [
 
 export function DevPanel(): React.JSX.Element {
   const { t } = useTranslation();
-  const control = scenarioControl();
+  const control = useScenarioControl();
   const ui = useUiStore();
   const { density, setDensity } = useTheme();
-  const [scenario, setScenario] = React.useState<MockScenarioId>(control?.getScenario() ?? 'standard');
+  const [scenario, setScenario] = React.useState<MockScenarioId>(
+    control?.getScenario() ?? 'standard',
+  );
   const [seed, setSeed] = React.useState(42);
 
   if (!control) return <></>;
@@ -49,7 +51,13 @@ export function DevPanel(): React.JSX.Element {
           <FlaskConicalIcon className="size-4 text-primary" aria-hidden />
           {t('devPanel.title')}
         </span>
-        <Button variant="ghost" size="icon" className="size-6" onClick={() => ui.setDevPanelOpen(false)} aria-label={t('devPanel.closePanel')}>
+        <Button
+          variant="ghost"
+          size="icon"
+          className="size-6"
+          onClick={() => ui.setDevPanelOpen(false)}
+          aria-label={t('devPanel.closePanel')}
+        >
           <XIcon aria-hidden />
         </Button>
       </div>
@@ -94,8 +102,12 @@ export function DevPanel(): React.JSX.Element {
         <div className="space-y-1">
           <Label>{t('devPanel.language')}</Label>
           <div className="flex gap-2">
-            <Button variant="ghost" size="sm" onClick={() => setLocale('en')}>EN</Button>
-            <Button variant="ghost" size="sm" onClick={() => setLocale('zh-CN')}>中文</Button>
+            <Button variant="ghost" size="sm" onClick={() => setLocale('en')}>
+              EN
+            </Button>
+            <Button variant="ghost" size="sm" onClick={() => setLocale('zh-CN')}>
+              中文
+            </Button>
             <Button
               variant="ghost"
               size="sm"
@@ -108,7 +120,11 @@ export function DevPanel(): React.JSX.Element {
 
         <div className="space-y-1">
           <Label>{t('devPanel.perfOverlay')}</Label>
-          <Button variant={ui.perfOverlayVisible ? 'primary' : 'secondary'} size="sm" onClick={() => ui.setPerfOverlay(!ui.perfOverlayVisible)}>
+          <Button
+            variant={ui.perfOverlayVisible ? 'primary' : 'secondary'}
+            size="sm"
+            onClick={() => ui.setPerfOverlay(!ui.perfOverlayVisible)}
+          >
             <GaugeIcon aria-hidden />
             {ui.perfOverlayVisible ? 'ON' : 'OFF'}
           </Button>
@@ -159,7 +175,7 @@ export function PerfOverlay(): React.JSX.Element | null {
       obs = new PerformanceObserver((list) => {
         setLongTasks((n) => n + list.getEntries().length);
       });
-      obs.observe({ type: 'longtask', buffered: false } as PerformanceObserverInit);
+      obs.observe({ type: 'longtask', buffered: false });
     } catch {
       /* unsupported */
     }

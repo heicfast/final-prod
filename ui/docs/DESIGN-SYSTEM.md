@@ -88,4 +88,5 @@ accents. Interim assets tracked in INTERIM-ASSETS.md.
 3. Breaking token renames logged in this file's changelog section below.
 
 ### Changelog
+
 - v0.1.0 (this session): initial token set from corpus hard evidence + VLM census.

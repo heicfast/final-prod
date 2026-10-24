@@ -32,7 +32,13 @@ import { Segmented } from '@/components/ui/stepper';
 import { EmptyState } from '@/components/ui/empty-state';
 import { Skeleton } from '@/components/ui/scroll-area';
 import { Input } from '@/components/ui/input';
-import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuSeparator, ContextMenuTrigger } from '@/components/ui/menus';
+import {
+  ContextMenu,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuSeparator,
+  ContextMenuTrigger,
+} from '@/components/ui/menus';
 import { FilterBar } from './filter-bar';
 import { PreviewPane } from '@/features/preview/preview-pane';
 import { toast } from 'sonner';
@@ -69,20 +75,38 @@ export function ResultsExplorer({
 
   const filterPayload = React.useMemo(
     () => ({ ...resolveFilter(), nodeId: filter.treeNodeId, treeMode: filter.treeMode }),
-    [filter.treeNodeId, filter.treeMode, filter.searchApplied, filter.categories, filter.datePreset, filter.dateFrom, filter.dateTo, filter.sizePreset, filter.sizeMin, filter.sizeMax, filter.confidence, filter.extensions, filter.showDeletedOnly],
+    [
+      filter.treeNodeId,
+      filter.treeMode,
+      filter.searchApplied,
+      filter.categories,
+      filter.datePreset,
+      filter.dateFrom,
+      filter.dateTo,
+      filter.sizePreset,
+      filter.sizeMin,
+      filter.sizeMax,
+      filter.confidence,
+      filter.extensions,
+      filter.showDeletedOnly,
+    ],
   );
 
   const sort = { field: sortStore.field, direction: sortStore.direction };
   const pages = useResultsPages(scanId, filterPayload, sort);
   const rootTree = useResultTree(scanId, null, filter.treeMode);
 
-  const rows = React.useMemo(() => pages.data?.pages.flatMap((p) => p.nodes) ?? [], [pages.data]);
+  const rows = React.useMemo(
+    () => pages.data?.pages.flatMap((p) => p.nodes) ?? [],
+    [pages.data],
+  );
   const total = pages.data?.pages[pages.data.pages.length - 1]?.total ?? 0;
 
   const rowHeight = ui.viewMode === 'details' ? 36 : 84;
   const selectedCount = selection.selected.size;
   const selectedBytes = React.useMemo(
-    () => rows.filter((r) => selection.selected.has(r.id)).reduce((acc, r) => acc + r.sizeBytes, 0),
+    () =>
+      rows.filter((r) => selection.selected.has(r.id)).reduce((acc, r) => acc + r.sizeBytes, 0),
     [rows, selection.selected],
   );
 
@@ -111,10 +135,10 @@ export function ResultsExplorer({
     const finalIds = ids ?? Array.from(selection.selected);
     if (finalIds.length === 0) {
       // Recover-all path
-      navigate(`/recover/${scanId}?all=1`);
+      void navigate(`/recover/${scanId}?all=1`);
       return;
     }
-    navigate(`/recover/${scanId}?ids=${finalIds.slice(0, 500).join(',')}`);
+    void navigate(`/recover/${scanId}?ids=${finalIds.slice(0, 500).join(',')}`);
   };
 
   const treeModeLabel: Record<ResultTreeMode, string> = {
@@ -128,13 +152,29 @@ export function ResultsExplorer({
       {/* Toolbar */}
       <div className="flex h-11 shrink-0 items-center gap-2 border-b border-border px-2.5">
         <div className="flex items-center gap-0.5">
-          <Button variant="ghost" size="icon" aria-label={t('nav.home')} onClick={() => navigate('/')}>
+          <Button
+            variant="ghost"
+            size="icon"
+            aria-label={t('nav.home')}
+            onClick={() => navigate('/')}
+          >
             <HomeIcon aria-hidden />
           </Button>
-          <Button variant="ghost" size="icon" aria-label={t('common.back')} onClick={() => navigate(-1)}>
+          <Button
+            variant="ghost"
+            size="icon"
+            aria-label={t('common.back')}
+            onClick={() => navigate(-1)}
+          >
             <ArrowLeftIcon aria-hidden />
           </Button>
-          <Button variant="ghost" size="icon" aria-label={t('nav.upOneLevel')} onClick={() => filter.setTreeNode(null)} disabled={filter.treeMode !== 'path' || !filter.treeNodeId}>
+          <Button
+            variant="ghost"
+            size="icon"
+            aria-label={t('nav.upOneLevel')}
+            onClick={() => filter.setTreeNode(null)}
+            disabled={filter.treeMode !== 'path' || !filter.treeNodeId}
+          >
             <RotateCcwIcon aria-hidden />
           </Button>
         </div>
@@ -144,7 +184,9 @@ export function ResultsExplorer({
           {filter.searchApplied ? (
             <>
               <SearchIcon className="size-3.5 shrink-0 text-foreground-secondary" aria-hidden />
-              <span className="truncate">{t('results.searchPlaceholder')}: “{filter.searchApplied}”</span>
+              <span className="truncate">
+                {t('results.searchPlaceholder')}: “{filter.searchApplied}”
+              </span>
               <button
                 type="button"
                 className="ml-auto rounded-full p-0.5 hover:bg-surface-hover"
@@ -160,15 +202,25 @@ export function ResultsExplorer({
             </>
           ) : (
             <>
-              <FolderTreeIcon className="size-3.5 shrink-0 text-foreground-secondary" aria-hidden />
+              <FolderTreeIcon
+                className="size-3.5 shrink-0 text-foreground-secondary"
+                aria-hidden
+              />
               <span className="truncate font-medium">
                 {filter.treeMode === 'path'
-                  ? (rootTree.data?.nodes.find((n) => n.id === filter.treeNodeId)?.label ?? treeModeLabel[filter.treeMode])
+                  ? (rootTree.data?.nodes.find((n) => n.id === filter.treeNodeId)?.label ??
+                    treeModeLabel[filter.treeMode])
                   : treeModeLabel[filter.treeMode]}
               </span>
-              <ChevronRightIcon className="size-3.5 shrink-0 text-foreground-disabled" aria-hidden />
+              <ChevronRightIcon
+                className="size-3.5 shrink-0 text-foreground-disabled"
+                aria-hidden
+              />
               <span className="truncate text-foreground-secondary tabular">
-                {t('results.status.found', { count: formatCountCompact(total, i18n.language), size: formatBytes(0, i18n.language) }).replace(/ · .*$/, '')}
+                {t('results.status.found', {
+                  count: formatCountCompact(total, i18n.language),
+                  size: formatBytes(0, i18n.language),
+                }).replace(/ · .*$/, '')}
               </span>
             </>
           )}
@@ -191,10 +243,17 @@ export function ResultsExplorer({
         >
           <FilterIcon aria-hidden />
           {t('results.filter')}
-          {filter.hasActiveFilters() ? <Badge variant="neutral" className="ml-1 px-1.5">•</Badge> : null}
+          {filter.hasActiveFilters() ? (
+            <Badge variant="neutral" className="ml-1 px-1.5">
+              •
+            </Badge>
+          ) : null}
         </Button>
         <div className="relative w-48">
-          <SearchIcon className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-foreground-disabled" aria-hidden />
+          <SearchIcon
+            className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-foreground-disabled"
+            aria-hidden
+          />
           <Input
             className="h-7 pl-8 text-xs"
             placeholder={t('results.searchPlaceholder')}
@@ -217,7 +276,10 @@ export function ResultsExplorer({
       {/* 3-pane */}
       <div className="flex min-h-0 flex-1">
         {/* Left tree */}
-        <aside className="w-56 shrink-0 overflow-y-auto border-r border-border" aria-label={t('results.pathTab')}>
+        <aside
+          className="w-56 shrink-0 overflow-y-auto border-r border-border"
+          aria-label={t('results.pathTab')}
+        >
           <div className="border-b border-border p-2">
             <Segmented
               ariaLabel={t('results.pathTab')}
@@ -252,9 +314,19 @@ export function ResultsExplorer({
                 ) : rows.length === 0 ? (
                   <EmptyState
                     icon={filter.hasActiveFilters() ? FilterIcon : FolderTreeIcon}
-                    title={filter.hasActiveFilters() ? t('results.emptyFilterTitle') : t('results.emptyTitle')}
-                    description={filter.hasActiveFilters() ? t('results.emptyFilterBody') : t('results.emptyBody')}
-                    actionLabel={filter.hasActiveFilters() ? t('results.clearFilter') : undefined}
+                    title={
+                      filter.hasActiveFilters()
+                        ? t('results.emptyFilterTitle')
+                        : t('results.emptyTitle')
+                    }
+                    description={
+                      filter.hasActiveFilters()
+                        ? t('results.emptyFilterBody')
+                        : t('results.emptyBody')
+                    }
+                    actionLabel={
+                      filter.hasActiveFilters() ? t('results.clearFilter') : undefined
+                    }
                     onAction={filter.hasActiveFilters() ? () => filter.reset() : undefined}
                   />
                 ) : (
@@ -294,7 +366,11 @@ export function ResultsExplorer({
                 {t('results.context.openLocation')}
               </ContextMenuItem>
               <ContextMenuItem
-                onClick={() => selection.setOnly(rows.filter((r) => r.origin !== 'existing').map((r) => r.id))}
+                onClick={() =>
+                  selection.setOnly(
+                    rows.filter((r) => r.origin !== 'existing').map((r) => r.id),
+                  )
+                }
               >
                 <Trash2Icon aria-hidden />
                 {t('results.context.selectUnrecovered')}
@@ -328,16 +404,29 @@ export function ResultsExplorer({
       <div className="flex h-14 shrink-0 items-center justify-between gap-4 border-t border-border bg-surface px-4">
         <div className="flex min-w-0 items-center gap-3 text-sm">
           {liveMode ? (
-            <Badge variant="warning" className="animate-status-pulse">{t('scan.liveResults')}</Badge>
+            <Badge variant="warning" className="animate-status-pulse">
+              {t('scan.liveResults')}
+            </Badge>
           ) : null}
           <span className="truncate tabular text-foreground-secondary">
             {selectedCount > 0
               ? `${t('results.selection.count', { count: selectedCount })} · ${formatBytes(selectedBytes, i18n.language)}`
-              : t('results.status.found', { count: formatCountCompact(total, i18n.language), size: formatBytes(totalOf(pages.data?.pages), i18n.language) })}
+              : t('results.status.found', {
+                  count: formatCountCompact(total, i18n.language),
+                  size: formatBytes(totalOf(pages.data?.pages), i18n.language),
+                })}
           </span>
         </div>
         <div className="flex items-center gap-2">
-          <Button variant="ghost" size="sm" onClick={() => saveSession.mutate(null, { onSuccess: () => toast.success(t('results.session.saved')) })}>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() =>
+              saveSession.mutate(null, {
+                onSuccess: () => toast.success(t('results.session.saved')),
+              })
+            }
+          >
             <SaveIcon aria-hidden />
             {t('results.session.save')}
           </Button>
@@ -360,5 +449,5 @@ export function ResultsExplorer({
 
 function totalOf(pagesData: readonly { total: number }[] | undefined): number {
   if (!pagesData || pagesData.length === 0) return 0;
-  return pagesData[pagesData.length - 1]!.total;
+  return pagesData[pagesData.length - 1].total;
 }

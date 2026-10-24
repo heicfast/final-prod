@@ -27,8 +27,8 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/menus';
+import { useConnectorMode } from '@/queries/dev';
 import { setLocale, SUPPORTED_LOCALES } from '@/i18n';
-import { connectorMode } from '@/connector';
 import { toast } from 'sonner';
 
 /**
@@ -50,12 +50,15 @@ const NAV_ADVANCED = [
 export function WizardShell(): React.JSX.Element {
   const { t } = useTranslation();
   const { setMode } = useTheme();
+  const connectorModeValue = useConnectorMode();
   const active = useScanSessionStore((s) => s.active);
   const navigate = useNavigate();
   const location = useLocation();
 
   const inResultsFlow =
-    location.pathname.startsWith('/scan/') || location.pathname.startsWith('/results') || location.pathname.startsWith('/recover');
+    location.pathname.startsWith('/scan/') ||
+    location.pathname.startsWith('/results') ||
+    location.pathname.startsWith('/recover');
 
   return (
     <div className="flex h-full min-h-0 flex-col bg-background text-foreground">
@@ -69,25 +72,34 @@ export function WizardShell(): React.JSX.Element {
           <AppWindowIcon className="size-4 text-primary" aria-hidden />
           <span className="text-sm font-semibold">{t('app.name')}</span>
           <span className="rounded-full border border-primary-muted-border bg-primary-muted px-1.5 text-2xs font-semibold text-primary uppercase">
-            {connectorMode() === 'mock' ? t('settings.connectorMock') : t('settings.connectorTauri')}
+            {connectorModeValue === 'mock'
+              ? t('settings.connectorMock')
+              : connectorModeValue === 'tauri'
+                ? t('settings.connectorTauri')
+                : '…'}
           </span>
         </div>
         <div className="flex items-center gap-1">
-        {import.meta.env.DEV ? (
-          <Button
-            variant="ghost"
-            size="icon"
-            aria-label={t('devPanel.openPanel')}
-            className="size-7"
-            onClick={() => useUiStore.getState().toggleDevPanel()}
-            data-testid="dev-panel-toggle"
-          >
-            <FlaskConicalIcon aria-hidden />
-          </Button>
-        ) : null}
+          {import.meta.env.DEV ? (
+            <Button
+              variant="ghost"
+              size="icon"
+              aria-label={t('devPanel.openPanel')}
+              className="size-7"
+              onClick={() => useUiStore.getState().toggleDevPanel()}
+              data-testid="dev-panel-toggle"
+            >
+              <FlaskConicalIcon aria-hidden />
+            </Button>
+          ) : null}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="icon" aria-label={t('settings.language')} className="size-7">
+              <Button
+                variant="ghost"
+                size="icon"
+                aria-label={t('settings.language')}
+                className="size-7"
+              >
                 <LanguagesIcon aria-hidden />
               </Button>
             </DropdownMenuTrigger>
@@ -101,16 +113,29 @@ export function WizardShell(): React.JSX.Element {
           </DropdownMenu>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="icon" aria-label={t('settings.theme')} className="size-7">
+              <Button
+                variant="ghost"
+                size="icon"
+                aria-label={t('settings.theme')}
+                className="size-7"
+              >
                 <SettingsIcon aria-hidden />
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
-              <DropdownMenuItem onClick={() => setMode('system')}>{t('settings.themeSystem')}</DropdownMenuItem>
-              <DropdownMenuItem onClick={() => setMode('light')}>{t('settings.themeLight')}</DropdownMenuItem>
-              <DropdownMenuItem onClick={() => setMode('dark')}>{t('settings.themeDark')}</DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setMode('system')}>
+                {t('settings.themeSystem')}
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setMode('light')}>
+                {t('settings.themeLight')}
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setMode('dark')}>
+                {t('settings.themeDark')}
+              </DropdownMenuItem>
               <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={() => setMode('high-contrast')}>{t('settings.themeHc')}</DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setMode('high-contrast')}>
+                {t('settings.themeHc')}
+              </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
           <Button
@@ -136,7 +161,10 @@ export function WizardShell(): React.JSX.Element {
 
       <div className="flex min-h-0 flex-1">
         {/* Sidebar */}
-        <nav aria-label={t('a11y.sidebarRegion')} className="flex w-[var(--sidebar-width)] shrink-0 flex-col overflow-y-auto border-r border-border bg-surface-muted/60 py-2">
+        <nav
+          aria-label={t('a11y.sidebarRegion')}
+          className="flex w-[var(--sidebar-width)] shrink-0 flex-col overflow-y-auto border-r border-border bg-surface-muted/60 py-2"
+        >
           {!inResultsFlow ? (
             <>
               <SidebarSection label={t('sidebar.dataRecovery')} />
@@ -175,7 +203,11 @@ export function WizardShell(): React.JSX.Element {
         </nav>
 
         {/* Content */}
-        <main id="main-content" aria-label={t('a11y.mainRegion')} className="min-h-0 min-w-0 flex-1 overflow-hidden">
+        <main
+          id="main-content"
+          aria-label={t('a11y.mainRegion')}
+          className="min-h-0 min-w-0 flex-1 overflow-hidden"
+        >
           <Outlet />
         </main>
       </div>
@@ -186,10 +218,7 @@ export function WizardShell(): React.JSX.Element {
   );
 }
 
-function DevSurfaces(): React.JSX.Element | null {
-  const [loaded, setLoaded] = React.useState(false);
-  React.useEffect(() => setLoaded(true), []);
-  if (!loaded) return null;
+function DevSurfaces(): React.JSX.Element {
   return (
     <>
       <DevPanel />

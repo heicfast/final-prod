@@ -1,5 +1,11 @@
 import * as React from 'react';
-import { ChevronRightIcon, FolderIcon, HardDriveIcon, LayersIcon, ShapesIcon } from 'lucide-react';
+import {
+  ChevronRightIcon,
+  FolderIcon,
+  HardDriveIcon,
+  LayersIcon,
+  ShapesIcon,
+} from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import type { ResultTreeMode, TreeNode } from '@/connector/contract';
 import { useResultTree } from '@/queries/results';
@@ -87,7 +93,10 @@ function TreeRow({
       >
         {hasKids ? (
           <ChevronRightIcon
-            className={cn('size-3.5 shrink-0 transition-transform duration-150', isExpanded && 'rotate-90')}
+            className={cn(
+              'size-3.5 shrink-0 transition-transform duration-150',
+              isExpanded && 'rotate-90',
+            )}
             aria-hidden
           />
         ) : (
@@ -103,7 +112,16 @@ function TreeRow({
         </span>
       </button>
       {hasKids && isExpanded ? (
-        <TreeLevel scanId={scanId} parentId={node.id} mode={mode} depth={depth + 1} selectedId={selectedId} onSelect={onSelect} expanded={expanded} onToggleExpand={onToggleExpand} />
+        <TreeLevel
+          scanId={scanId}
+          parentId={node.id}
+          mode={mode}
+          depth={depth + 1}
+          selectedId={selectedId}
+          onSelect={onSelect}
+          expanded={expanded}
+          onToggleExpand={onToggleExpand}
+        />
       ) : null}
     </>
   );
@@ -133,7 +151,11 @@ function TreeLevel({
     return (
       <>
         {Array.from({ length: 4 }, (_, i) => (
-          <div key={i} className="flex items-center gap-2 py-1" style={{ paddingLeft: `${6 + depth * 14}px` }}>
+          <div
+            key={i}
+            className="flex items-center gap-2 py-1"
+            style={{ paddingLeft: `${6 + depth * 14}px` }}
+          >
             <Skeleton className="size-4" />
             <Skeleton className="h-3 flex-1" />
           </div>
@@ -142,7 +164,11 @@ function TreeLevel({
     );
   }
   if (query.isError || !query.data) {
-    return <div className="px-3 py-1 text-xs text-danger">{query.error instanceof Error ? query.error.message : 'error'}</div>;
+    return (
+      <div className="px-3 py-1 text-xs text-danger">
+        {query.error instanceof Error ? query.error.message : 'error'}
+      </div>
+    );
   }
   return (
     <>
@@ -177,21 +203,25 @@ export function ResultsTree({
   className?: string;
 }): React.JSX.Element {
   const { t } = useTranslation();
-  const [expanded, setExpanded] = React.useState<ReadonlySet<string>>(() => new Set(['root']));
+  // Expanded set is derived per mode; toggling writes the current mode's set.
+  const [expandedByMode, setExpandedByMode] = React.useState<
+    Record<string, ReadonlySet<string>>
+  >({
+    path: new Set(['root']),
+    type: new Set(),
+    raw: new Set(),
+  });
+  const expanded = expandedByMode[mode] ?? new Set<string>();
 
   const toggleExpand = (id: string): void => {
-    setExpanded((prev) => {
-      const next = new Set(prev);
+    setExpandedByMode((prev) => {
+      const current = prev[mode] ?? new Set<string>();
+      const next = new Set(current);
       if (next.has(id)) next.delete(id);
       else next.add(id);
-      return next;
+      return { ...prev, [mode]: next };
     });
   };
-
-  // Type/raw modes start collapsed at top level; path mode expands the root.
-  React.useEffect(() => {
-    setExpanded(mode === 'path' ? new Set(['root']) : new Set());
-  }, [mode]);
 
   return (
     <div role="tree" aria-label={t('a11y.sidebarRegion')} className={cn('p-1', className)}>

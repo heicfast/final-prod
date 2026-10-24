@@ -1,7 +1,7 @@
 allowBuilds:
-  "@ast-grep/cli": true
+  '@ast-grep/cli': true
   unrs-resolver: true
   esbuild: true
-  "@tauri-apps/cli": true
+  '@tauri-apps/cli': true
 minimumReleaseAgeExclude:
   - react-i18next@17.1.4

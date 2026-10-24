@@ -20,14 +20,7 @@
 export type Iso8601 = string;
 
 export type FileCategoryId =
-  | 'graphics'
-  | 'video'
-  | 'audio'
-  | 'document'
-  | 'email'
-  | 'archive'
-  | 'bookmarks'
-  | 'other';
+  'graphics' | 'video' | 'audio' | 'document' | 'email' | 'archive' | 'bookmarks' | 'other';
 
 /** Recovery-condition grades come from the connector; the UI never re-grades. */
 export type ConfidenceGrade = 'excellent' | 'good' | 'fair' | 'poor' | 'unknown';
@@ -152,12 +145,7 @@ export type ScanStatus =
   | 'failed';
 
 export type ScanStage =
-  | 'volume-analysis'
-  | 'quick-index'
-  | 'deep-walk'
-  | 'carve'
-  | 'tree-build'
-  | 'done';
+  'volume-analysis' | 'quick-index' | 'deep-walk' | 'carve' | 'tree-build' | 'done';
 
 export type BadSectorPolicy = 'stop' | 'skip' | 'zero-fill';
 
@@ -300,7 +288,11 @@ export interface NodeDetail {
 }
 
 export interface ResultsDomain {
-  getResultTree(scanId: string, parentId: string | null, mode: ResultTreeMode): Promise<TreePage>;
+  getResultTree(
+    scanId: string,
+    parentId: string | null,
+    mode: ResultTreeMode,
+  ): Promise<TreePage>;
   queryResults(
     scanId: string,
     filter: ResultsFilter,
@@ -340,7 +332,11 @@ export type PreviewPayload =
     }
   | {
       readonly kind: 'pdf';
-      readonly pages: readonly { readonly dataUrl: string; readonly width: number; readonly height: number }[];
+      readonly pages: readonly {
+        readonly dataUrl: string;
+        readonly width: number;
+        readonly height: number;
+      }[];
       readonly pageCount: number;
     }
   | {
@@ -408,12 +404,7 @@ export interface RecoveryJob {
 }
 
 export type RecoveryJobStatus =
-  | 'validating'
-  | 'running'
-  | 'completed'
-  | 'completed-partial'
-  | 'cancelled'
-  | 'failed';
+  'validating' | 'running' | 'completed' | 'completed-partial' | 'cancelled' | 'failed';
 
 export interface RecoveryItem {
   readonly nodeId: string;
@@ -460,7 +451,10 @@ export interface RecoveryDomain {
   ): Promise<{ jobId: string }>;
   cancelRecovery(jobId: string): Promise<void>;
   getRecoveryState(jobId: string): Promise<RecoveryJob>;
-  getRecoveryItems(jobId: string, page: { offset: number; limit: number }): Promise<readonly RecoveryItem[]>;
+  getRecoveryItems(
+    jobId: string,
+    page: { offset: number; limit: number },
+  ): Promise<readonly RecoveryItem[]>;
   onRecoveryProgress(jobId: string, cb: (event: RecoveryProgressEvent) => void): () => void;
   getRecoveryReport(jobId: string): Promise<RecoveryReport>;
 }
@@ -573,10 +567,22 @@ export interface DestinationValidation {
 export interface SystemDomain {
   getDriverStatus(): Promise<DriverStatus>;
   getAppInfo(): Promise<AppInfo>;
-  validateDestination(path: string, sourceDeviceId: string, neededBytes: number): Promise<DestinationValidation>;
+  validateDestination(
+    path: string,
+    sourceDeviceId: string,
+    neededBytes: number,
+  ): Promise<DestinationValidation>;
   /** Native folder picker; mock returns from a canned set in dev/browser mode. */
   pickDirectory(): Promise<string | null>;
-  listMountPoints(): Promise<readonly { id: string; label: string; path: string; freeBytes: number; totalBytes: number }[]>;
+  listMountPoints(): Promise<
+    readonly {
+      id: string;
+      label: string;
+      path: string;
+      freeBytes: number;
+      totalBytes: number;
+    }[]
+  >;
   openPath(path: string): Promise<void>;
 }
 

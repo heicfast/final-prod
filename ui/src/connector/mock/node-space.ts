@@ -24,8 +24,23 @@ import type {
 import { mulberry32, pick, randBell, randInt } from './rng';
 import { CATEGORY_BY_EXT, DIR_NAMES, EXT_WEIGHTS, NAME_STEMS } from './fixtures';
 
-const ORIGINS: readonly ResultOrigin[] = ['existing', 'deleted', 'deleted', 'deleted', 'raw', 'lost-path'];
-const CONFIDENCES: readonly ConfidenceGrade[] = ['excellent', 'good', 'good', 'good', 'fair', 'poor', 'unknown'];
+const ORIGINS: readonly ResultOrigin[] = [
+  'existing',
+  'deleted',
+  'deleted',
+  'deleted',
+  'raw',
+  'lost-path',
+];
+const CONFIDENCES: readonly ConfidenceGrade[] = [
+  'excellent',
+  'good',
+  'good',
+  'good',
+  'fair',
+  'poor',
+  'unknown',
+];
 
 export const CATEGORY_IDS: readonly FileCategoryId[] = [
   'graphics',
@@ -113,11 +128,18 @@ export class NodeSpace {
       for (let d = 0; d < climb; d++) {
         const kids = this.childrenOf.get(parent.id) ?? [];
         if (kids.length === 0) break;
-        parent = this.dirIndexById.get(kids[Math.floor(rng() * kids.length)]!) ?? root;
+        parent = this.dirIndexById.get(kids[Math.floor(rng() * kids.length)]) ?? root;
       }
       const name = pick(rng, DIR_NAMES);
       const id = `d${created}`;
-      const rec: DirectoryRecord = { id, parentId: parent.id, name, depth: parent.depth + 1, fileCount: 0, sizeBytes: 0 };
+      const rec: DirectoryRecord = {
+        id,
+        parentId: parent.id,
+        name,
+        depth: parent.depth + 1,
+        fileCount: 0,
+        sizeBytes: 0,
+      };
       this.dirs.push(rec);
       this.dirIndexById.set(id, rec);
       const siblings = this.childrenOf.get(parent.id) ?? [];
@@ -150,7 +172,7 @@ export class NodeSpace {
       const extRoll = rng() * extTotal;
       let extIdx = 0;
       for (let k = 0; k < extCum.length; k++) {
-        if (extRoll <= extCum[k]!) {
+        if (extRoll <= extCum[k]) {
           extIdx = k;
           break;
         }
@@ -191,21 +213,21 @@ export class NodeSpace {
     const directSize = new Float64Array(this.dirs.length);
     let totalSize = 0;
     for (let i = 0; i < n; i++) {
-      const d = this.fDir[i]!;
+      const d = this.fDir[i];
       directCount[d] += 1;
-      directSize[d] += this.fSize[i]!;
-      totalSize += this.fSize[i]!;
+      directSize[d] += this.fSize[i];
+      totalSize += this.fSize[i];
     }
     this.totalSizeBytes = totalSize;
     // pass 1: initialize every directory to its own direct totals
     for (let d = 0; d < this.dirs.length; d++) {
-      this.dirs[d]!.fileCount = directCount[d]!;
-      this.dirs[d]!.sizeBytes = directSize[d]!;
+      this.dirs[d].fileCount = directCount[d]!;
+      this.dirs[d].sizeBytes = directSize[d]!;
     }
     // pass 2: propagate subtree sums into parents (children always have a
     // higher creation index than their parent, so reverse order is safe)
     for (let d = this.dirs.length - 1; d >= 1; d--) {
-      const rec = this.dirs[d]!;
+      const rec = this.dirs[d];
       const parent = rec.parentId !== null ? this.dirIndexById.get(rec.parentId) : undefined;
       if (parent) {
         parent.fileCount += rec.fileCount;
@@ -285,11 +307,26 @@ export class NodeSpace {
       if (!filter.categories.includes(this.categoryOf(i))) return false;
     }
     if (filter.confidence && CONFIDENCES[this.fConf[i]] !== filter.confidence) return false;
-    if (filter.origins && filter.origins.length > 0 && !filter.origins.includes(this.originOf(i))) return false;
-    if (filter.sizeMinBytes !== null && (this.fSize[i] ?? 0) < filter.sizeMinBytes) return false;
-    if (filter.sizeMaxBytes !== null && (this.fSize[i] ?? 0) > filter.sizeMaxBytes) return false;
-    if (filter.dateFrom && new Date(this.modifiedIso(i)).getTime() < new Date(filter.dateFrom).getTime()) return false;
-    if (filter.dateTo && new Date(this.modifiedIso(i)).getTime() > new Date(filter.dateTo).getTime()) return false;
+    if (
+      filter.origins &&
+      filter.origins.length > 0 &&
+      !filter.origins.includes(this.originOf(i))
+    )
+      return false;
+    if (filter.sizeMinBytes !== null && (this.fSize[i] ?? 0) < filter.sizeMinBytes)
+      return false;
+    if (filter.sizeMaxBytes !== null && (this.fSize[i] ?? 0) > filter.sizeMaxBytes)
+      return false;
+    if (
+      filter.dateFrom &&
+      new Date(this.modifiedIso(i)).getTime() < new Date(filter.dateFrom).getTime()
+    )
+      return false;
+    if (
+      filter.dateTo &&
+      new Date(this.modifiedIso(i)).getTime() > new Date(filter.dateTo).getTime()
+    )
+      return false;
     if (filter.extensions && filter.extensions.length > 0) {
       const ext = this.extensionOf(i);
       if (!filter.extensions.some((e) => e.replace(/^\./, '') === ext)) return false;
@@ -337,7 +374,10 @@ export class NodeSpace {
     return { nodes: page, total: hits.length, elapsedMs: performance.now() - t0 };
   }
 
-  private comparatorFor(sort: { field: SortField; direction: SortDirection }): (a: number, b: number) => number {
+  private comparatorFor(sort: {
+    field: SortField;
+    direction: SortDirection;
+  }): (a: number, b: number) => number {
     const dir = sort.direction === 'asc' ? 1 : -1;
     switch (sort.field) {
       case 'size':
@@ -449,8 +489,8 @@ export class NodeSpace {
     const counts = new Float64Array(CATEGORY_IDS.length);
     const sizes = new Float64Array(CATEGORY_IDS.length);
     for (let i = 0; i < this.fileCount; i++) {
-      counts[this.fCat[i]!]! += 1;
-      sizes[this.fCat[i]!]! += this.fSize[i] ?? 0;
+      counts[this.fCat[i]] += 1;
+      sizes[this.fCat[i]] += this.fSize[i] ?? 0;
     }
     return Array.from({ length: CATEGORY_IDS.length }, (_, idx) => ({
       count: counts[idx] ?? 0,
@@ -466,8 +506,8 @@ export class NodeSpace {
       label: cat,
       icon: 'category' as const,
       childCount: 0,
-      fileCount: agg[idx]!.count,
-      sizeBytes: agg[idx]!.size,
+      fileCount: agg[idx].count,
+      sizeBytes: agg[idx].size,
       origin: 'existing' as const,
     }));
   }

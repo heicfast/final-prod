@@ -35,6 +35,7 @@ ast-grep architecture enforcement, knip. All dependencies pinned to latest stabl
 time and verified live against npm.
 
 Repositories:
+
 - Research corpus (ONLY source of truth): https://github.com/heicfast/easeus-drw-research
 - New UI repo (this repo): https://github.com/heicfast/recovery-wizard-ui-new
 - GitHub token (env/git config only, never committed): [REDACTED — lives only in env/git config]
@@ -70,20 +71,20 @@ docs/DESIGN-SYSTEM.md (living system doc). Commit and push this gate before scaf
 
 ## 2. Technology Decisions (verified latest stable, pinned at scaffold time)
 
-| Layer | Choice | Rationale |
-|---|---|---|
-| Shell | Tauri 2 | Native WebView2 on Win10/11; small binary; Rust core for window/tray/FS/notifications; NSIS/MSI bundling; WebView2 runtime check |
-| UI framework | React 19 + TypeScript 5.x strict | Actions, useOptimistic; React Compiler on |
-| Build | Vite 7 | Fast HMR, zero-config Tailwind v4 plugin |
-| Styling | Tailwind CSS v4 + shadcn/ui v4 | CSS-first: CSS vars at root, @theme inline mapping, @import tw-animate-css, no tailwind.config.ts; components copied in and owned |
-| State | Zustand v5 (UI) + TanStack Query v5 (server) | useState → Zustand for cross-component → Query for data not owned by app |
-| Routing | React Router v7 data mode or TanStack Router | justify in ADR |
-| Forms | React Hook Form + Zod | destination paths, filters, consent |
-| i18n | react-i18next, en + zh-CN | original strings only |
-| Icons | Original set per visual spec; Lucide interim (documented in INTERIM-ASSETS.md, v2 replacement planned) |
-| Testing | Vitest v4 + Testing Library, Playwright, @tauri-apps/api/mocks | |
-| Quality | ESLint, Prettier, ast-grep architecture rules, knip, jscpd, tsc --noEmit in CI, bundle budget | |
-| Packaging | Tauri NSIS primary; MSI optional; per-user install option; unsigned by default | |
+| Layer        | Choice                                                                                                 | Rationale                                                                                                                         |
+| ------------ | ------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------- |
+| Shell        | Tauri 2                                                                                                | Native WebView2 on Win10/11; small binary; Rust core for window/tray/FS/notifications; NSIS/MSI bundling; WebView2 runtime check  |
+| UI framework | React 19 + TypeScript 5.x strict                                                                       | Actions, useOptimistic; React Compiler on                                                                                         |
+| Build        | Vite 7                                                                                                 | Fast HMR, zero-config Tailwind v4 plugin                                                                                          |
+| Styling      | Tailwind CSS v4 + shadcn/ui v4                                                                         | CSS-first: CSS vars at root, @theme inline mapping, @import tw-animate-css, no tailwind.config.ts; components copied in and owned |
+| State        | Zustand v5 (UI) + TanStack Query v5 (server)                                                           | useState → Zustand for cross-component → Query for data not owned by app                                                          |
+| Routing      | React Router v7 data mode or TanStack Router                                                           | justify in ADR                                                                                                                    |
+| Forms        | React Hook Form + Zod                                                                                  | destination paths, filters, consent                                                                                               |
+| i18n         | react-i18next, en + zh-CN                                                                              | original strings only                                                                                                             |
+| Icons        | Original set per visual spec; Lucide interim (documented in INTERIM-ASSETS.md, v2 replacement planned) |
+| Testing      | Vitest v4 + Testing Library, Playwright, @tauri-apps/api/mocks                                         |                                                                                                                                   |
+| Quality      | ESLint, Prettier, ast-grep architecture rules, knip, jscpd, tsc --noEmit in CI, bundle budget          |                                                                                                                                   |
+| Packaging    | Tauri NSIS primary; MSI optional; per-user install option; unsigned by default                         |                                                                                                                                   |
 
 ## 3. Project Architecture (ast-grep enforced)
 

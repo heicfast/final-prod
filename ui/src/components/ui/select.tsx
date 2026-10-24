@@ -46,7 +46,8 @@ function SelectContent({
         className={cn(
           'relative z-50 max-h-96 min-w-32 overflow-hidden rounded-md border border-border bg-surface shadow-overlay',
           'data-[state=open]:animate-fade-in',
-          position === 'popper' && 'data-[side=bottom]:translate-y-1 data-[side=top]:-translate-y-1',
+          position === 'popper' &&
+            'data-[side=bottom]:translate-y-1 data-[side=top]:-translate-y-1',
           className,
         )}
         {...props}
@@ -102,10 +103,21 @@ function SelectLabel({
 }: React.ComponentProps<typeof SelectPrimitive.Label>): React.JSX.Element {
   return (
     <SelectPrimitive.Label
-      className={cn('px-2 py-1.5 text-2xs font-semibold uppercase tracking-wide text-foreground-secondary', className)}
+      className={cn(
+        'px-2 py-1.5 text-2xs font-semibold uppercase tracking-wide text-foreground-secondary',
+        className,
+      )}
       {...props}
     />
   );
 }
 
-export { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue };
+export {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectLabel,
+  SelectTrigger,
+  SelectValue,
+};

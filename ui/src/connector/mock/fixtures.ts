@@ -11,12 +11,7 @@
  *    corrupt-session: behavior-modifying injections
  */
 
-import type {
-  Device,
-  FileCategoryId,
-  MockScenarioId,
-  Volume,
-} from '../contract';
+import type { Device, FileCategoryId, MockScenarioId, Volume } from '../contract';
 
 export interface DeviceFixture {
   readonly device: Omit<Device, 'volumes' | 'isSourceOfActiveScan'>;
@@ -33,14 +28,73 @@ function register(category: FileCategoryId, exts: string[]): void {
   for (const e of exts) CATEGORY_BY_EXT[e] = category;
 }
 
-register('graphics', ['jpg', 'jpeg', 'png', 'gif', 'bmp', 'tif', 'tiff', 'webp', 'heic', 'svg', 'psd', 'cr2', 'cr3', 'nef', 'arw', 'dng', 'raw', 'ico']);
-register('video', ['mp4', 'mov', 'avi', 'mkv', 'wmv', 'flv', 'm4v', 'webm', 'mts', 'm2ts', '3gp']);
+register('graphics', [
+  'jpg',
+  'jpeg',
+  'png',
+  'gif',
+  'bmp',
+  'tif',
+  'tiff',
+  'webp',
+  'heic',
+  'svg',
+  'psd',
+  'cr2',
+  'cr3',
+  'nef',
+  'arw',
+  'dng',
+  'raw',
+  'ico',
+]);
+register('video', [
+  'mp4',
+  'mov',
+  'avi',
+  'mkv',
+  'wmv',
+  'flv',
+  'm4v',
+  'webm',
+  'mts',
+  'm2ts',
+  '3gp',
+]);
 register('audio', ['mp3', 'wav', 'flac', 'aac', 'ogg', 'wma', 'm4a', 'aiff', 'opus']);
-register('document', ['doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 'pdf', 'txt', 'rtf', 'odt', 'md', 'csv', 'tsv']);
+register('document', [
+  'doc',
+  'docx',
+  'xls',
+  'xlsx',
+  'ppt',
+  'pptx',
+  'pdf',
+  'txt',
+  'rtf',
+  'odt',
+  'md',
+  'csv',
+  'tsv',
+]);
 register('email', ['pst', 'ost', 'eml', 'msg', 'mbox']);
 register('archive', ['zip', 'rar', '7z', 'tar', 'gz', 'bz2', 'xz', 'cab', 'iso']);
 register('bookmarks', ['url', 'webloc']);
-register('other', ['exe', 'dll', 'sys', 'ini', 'log', 'dat', 'db', 'sqlite', 'xml', 'json', 'bin', 'tmp', 'crypt']);
+register('other', [
+  'exe',
+  'dll',
+  'sys',
+  'ini',
+  'log',
+  'dat',
+  'db',
+  'sqlite',
+  'xml',
+  'json',
+  'bin',
+  'tmp',
+  'crypt',
+]);
 
 export const EXTENSIONS: readonly string[] = Object.keys(CATEGORY_BY_EXT);
 
@@ -84,22 +138,110 @@ export const EXT_WEIGHTS: readonly { readonly ext: string; readonly weight: numb
 ];
 
 export const NAME_STEMS: readonly string[] = [
-  'report', 'notes', 'photo', 'img', 'document', 'draft', 'backup', 'project',
-  'invoice', 'resume', 'budget', 'plan', 'summary', 'screenshot', 'capture',
-  'render', 'scan', 'export', 'data', 'log', 'config', 'archive', 'video',
-  'clip', 'track', 'song', 'album', 'picture', 'image', 'final', 'copy',
-  'old', 'new', 'test', 'work', 'home', 'family', 'trip', 'holiday', 'event',
-  'meeting', 'presentation', 'design', 'asset', 'source', 'readme', 'manual',
-  'guide', 'worksheet', 'ledger', 'statement', 'receipt', 'contract', 'letter',
+  'report',
+  'notes',
+  'photo',
+  'img',
+  'document',
+  'draft',
+  'backup',
+  'project',
+  'invoice',
+  'resume',
+  'budget',
+  'plan',
+  'summary',
+  'screenshot',
+  'capture',
+  'render',
+  'scan',
+  'export',
+  'data',
+  'log',
+  'config',
+  'archive',
+  'video',
+  'clip',
+  'track',
+  'song',
+  'album',
+  'picture',
+  'image',
+  'final',
+  'copy',
+  'old',
+  'new',
+  'test',
+  'work',
+  'home',
+  'family',
+  'trip',
+  'holiday',
+  'event',
+  'meeting',
+  'presentation',
+  'design',
+  'asset',
+  'source',
+  'readme',
+  'manual',
+  'guide',
+  'worksheet',
+  'ledger',
+  'statement',
+  'receipt',
+  'contract',
+  'letter',
 ];
 
 export const DIR_NAMES: readonly string[] = [
-  'Documents', 'Downloads', 'Pictures', 'Photos', 'Videos', 'Music', 'Desktop',
-  'Projects', 'Work', 'Archive', 'Backups', 'Camera', 'Screenshots', 'Exports',
-  'Data', 'Logs', 'Config', 'Temp', 'Shared', 'Media', 'Movies', 'Records',
-  '2023', '2024', '2025', 'Q1', 'Q2', 'Q3', 'Q4', 'January', 'February', 'March',
-  'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November',
-  'December', 'vacation', 'birthday', 'wedding', 'office', 'personal', 'client',
+  'Documents',
+  'Downloads',
+  'Pictures',
+  'Photos',
+  'Videos',
+  'Music',
+  'Desktop',
+  'Projects',
+  'Work',
+  'Archive',
+  'Backups',
+  'Camera',
+  'Screenshots',
+  'Exports',
+  'Data',
+  'Logs',
+  'Config',
+  'Temp',
+  'Shared',
+  'Media',
+  'Movies',
+  'Records',
+  '2023',
+  '2024',
+  '2025',
+  'Q1',
+  'Q2',
+  'Q3',
+  'Q4',
+  'January',
+  'February',
+  'March',
+  'April',
+  'May',
+  'June',
+  'July',
+  'August',
+  'September',
+  'October',
+  'November',
+  'December',
+  'vacation',
+  'birthday',
+  'wedding',
+  'office',
+  'personal',
+  'client',
 ];
 
 function capacity(total: number, usedRatio: number) {
@@ -108,7 +250,10 @@ function capacity(total: number, usedRatio: number) {
   return { totalBytes, usedBytes, freeBytes: totalBytes - usedBytes };
 }
 
-function mkVolume(v: Omit<Volume, 'lostPartition' | 'quickScanAvailable' | 'sectorSize'> & Partial<Pick<Volume, 'lostPartition' | 'quickScanAvailable' | 'sectorSize'>>): Volume {
+function mkVolume(
+  v: Omit<Volume, 'lostPartition' | 'quickScanAvailable' | 'sectorSize'> &
+    Partial<Pick<Volume, 'lostPartition' | 'quickScanAvailable' | 'sectorSize'>>,
+): Volume {
   return {
     ...v,
     quickScanAvailable: v.quickScanAvailable ?? true,

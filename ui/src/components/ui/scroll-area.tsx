@@ -32,7 +32,11 @@ function ScrollArea({
   viewportRef?: React.Ref<HTMLDivElement>;
 }): React.JSX.Element {
   return (
-    <ScrollAreaPrimitive.Root data-slot="scroll-area" className={cn('relative overflow-hidden', className)} {...props}>
+    <ScrollAreaPrimitive.Root
+      data-slot="scroll-area"
+      className={cn('relative overflow-hidden', className)}
+      {...props}
+    >
       <ScrollAreaPrimitive.Viewport
         ref={viewportRef}
         className="size-full rounded-[inherit] outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
@@ -51,7 +55,9 @@ function ScrollArea({
 }
 
 function Skeleton({ className, ...props }: React.ComponentProps<'div'>): React.JSX.Element {
-  return <div className={cn('animate-pulse rounded-sm bg-surface-tint', className)} {...props} />;
+  return (
+    <div className={cn('animate-pulse rounded-sm bg-surface-tint', className)} {...props} />
+  );
 }
 
 export { ScrollArea, Separator, Skeleton };

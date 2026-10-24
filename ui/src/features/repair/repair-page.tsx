@@ -21,11 +21,10 @@ export function RepairPage(): React.JSX.Element {
   const [params] = useSearchParams();
   const devices = useDevices();
   const list = devices.data ?? [];
-  const [deviceId, setDeviceId] = React.useState<string | null>(params.get('device') ?? list[0]?.id ?? null);
-
-  React.useEffect(() => {
-    if (!deviceId && list.length > 0) setDeviceId(list[0]!.id);
-  }, [deviceId, list]);
+  const [pickedDeviceId, setPickedDeviceId] = React.useState<string | null>(
+    params.get('device'),
+  );
+  const deviceId: string | null = pickedDeviceId ?? list[0]?.id ?? null;
 
   const dryRun = useRepairDryRun(deviceId);
   const apply = useApplyRepair(deviceId);
@@ -47,7 +46,13 @@ export function RepairPage(): React.JSX.Element {
   if (list.length === 0) {
     return (
       <div className="p-6">
-        <EmptyState icon={WrenchIcon} title={t('home.emptyTitle')} description={t('home.emptyBody')} actionLabel={t('home.refreshDevices')} onAction={() => void devices.refetch()} />
+        <EmptyState
+          icon={WrenchIcon}
+          title={t('home.emptyTitle')}
+          description={t('home.emptyBody')}
+          actionLabel={t('home.refreshDevices')}
+          onAction={() => void devices.refetch()}
+        />
       </div>
     );
   }
@@ -66,7 +71,7 @@ export function RepairPage(): React.JSX.Element {
             type="button"
             aria-pressed={deviceId === d.id}
             onClick={() => {
-              setDeviceId(d.id);
+              setPickedDeviceId(d.id);
               setConsentChecked(false);
               setConsentText('');
             }}
@@ -93,8 +98,19 @@ export function RepairPage(): React.JSX.Element {
           <h2 className="text-base font-semibold">{t('repair.findings')}</h2>
           <ul className="space-y-2">
             {dryRun.data.findings.map((f) => (
-              <li key={f.id} className="flex items-start gap-3 rounded-md border border-border bg-surface p-3">
-                <Badge variant={f.severity === 'critical' ? 'danger' : f.severity === 'warning' ? 'warning' : 'neutral'}>
+              <li
+                key={f.id}
+                className="flex items-start gap-3 rounded-md border border-border bg-surface p-3"
+              >
+                <Badge
+                  variant={
+                    f.severity === 'critical'
+                      ? 'danger'
+                      : f.severity === 'warning'
+                        ? 'warning'
+                        : 'neutral'
+                  }
+                >
                   {f.severity}
                 </Badge>
                 <div className="min-w-0 flex-1">
@@ -111,7 +127,9 @@ export function RepairPage(): React.JSX.Element {
               <ShieldAlertIcon className="size-4 text-warning" aria-hidden />
               {t('repair.consentTitle')}
             </h3>
-            <p className="mt-1.5 text-sm text-foreground-secondary">{t('repair.consentBody')}</p>
+            <p className="mt-1.5 text-sm text-foreground-secondary">
+              {t('repair.consentBody')}
+            </p>
             <label className="mt-3 flex cursor-pointer items-start gap-2.5 text-sm">
               <input
                 type="checkbox"
@@ -122,7 +140,9 @@ export function RepairPage(): React.JSX.Element {
               {t('repair.consentAcknowledge')}
             </label>
             <div className="mt-3 flex items-center gap-2">
-              <span className="text-xs text-foreground-secondary">{t('repair.consentTypeHere')}:</span>
+              <span className="text-xs text-foreground-secondary">
+                {t('repair.consentTypeHere')}:
+              </span>
               <Input
                 className="w-32 font-mono"
                 value={consentText}
@@ -131,11 +151,16 @@ export function RepairPage(): React.JSX.Element {
               />
               <Button
                 variant="danger"
-                disabled={!consentChecked || consentText.trim().toUpperCase() !== 'REPAIR' || apply.isPending}
+                disabled={
+                  !consentChecked ||
+                  consentText.trim().toUpperCase() !== 'REPAIR' ||
+                  apply.isPending
+                }
                 loading={apply.isPending}
                 onClick={() => {
                   apply.mutate(consentText.trim().toUpperCase(), {
-                    onSuccess: ({ applied }) => toast.success(t('repair.applied') + ` (${applied})`),
+                    onSuccess: ({ applied }) =>
+                      toast.success(t('repair.applied') + ` (${applied})`),
                     onError: (err) => toast.error(err.message),
                   });
                 }}
@@ -155,7 +180,17 @@ export function RepairPage(): React.JSX.Element {
         <div className="mb-2 flex items-center justify-between">
           <h2 className="text-base font-semibold">{t('repair.undoLog')}</h2>
           {(undoLog.data?.length ?? 0) > 0 ? (
-            <Button variant="secondary" size="sm" loading={undo.isPending} onClick={() => undo.mutate(undefined, { onSuccess: ({ rolledBack }) => toast.success(t('repair.rolledBack') + ` (${rolledBack})`) })}>
+            <Button
+              variant="secondary"
+              size="sm"
+              loading={undo.isPending}
+              onClick={() =>
+                undo.mutate(undefined, {
+                  onSuccess: ({ rolledBack }) =>
+                    toast.success(t('repair.rolledBack') + ` (${rolledBack})`),
+                })
+              }
+            >
               <Undo2Icon aria-hidden />
               {t('repair.rollback')}
             </Button>
@@ -164,9 +199,15 @@ export function RepairPage(): React.JSX.Element {
         {(undoLog.data?.length ?? 0) > 0 ? (
           <ol className="space-y-1.5">
             {undoLog.data?.map((entry) => (
-              <li key={entry.index} className="flex items-center justify-between gap-3 rounded-md border border-border bg-surface px-4 py-2 text-sm">
+              <li
+                key={entry.index}
+                className="flex items-center justify-between gap-3 rounded-md border border-border bg-surface px-4 py-2 text-sm"
+              >
                 <span className="min-w-0 truncate">
-                  {entry.index}. {entry.action} — <span className="font-mono text-xs text-foreground-secondary">{entry.where}</span>
+                  {entry.index}. {entry.action} —{' '}
+                  <span className="font-mono text-xs text-foreground-secondary">
+                    {entry.where}
+                  </span>
                 </span>
                 <Badge variant="outline">{entry.snapshotBytes} B</Badge>
               </li>

@@ -1,6 +1,11 @@
 import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
 import { connector } from '@/connector';
-import type { ResultsFilter, ResultTreeMode, SortDirection, SortField } from '@/connector/contract';
+import type {
+  ResultsFilter,
+  ResultTreeMode,
+  SortDirection,
+  SortField,
+} from '@/connector/contract';
 import { queryKeys } from './client';
 
 export const RESULTS_PAGE_SIZE = 200;
@@ -13,7 +18,11 @@ export function sortKeyOf(sort: { field: SortField; direction: SortDirection }):
   return `${sort.field}:${sort.direction}`;
 }
 
-export function useResultTree(scanId: string | null, parentId: string | null, mode: ResultTreeMode) {
+export function useResultTree(
+  scanId: string | null,
+  parentId: string | null,
+  mode: ResultTreeMode,
+) {
   return useQuery({
     queryKey: queryKeys.tree(scanId ?? 'none', parentId, mode),
     queryFn: () => connector.results.getResultTree(scanId!, parentId, mode),
@@ -32,12 +41,10 @@ export function useResultsPages(
   return useInfiniteQuery({
     queryKey: queryKeys.results(scanId ?? 'none', fk, sk),
     queryFn: ({ pageParam }) =>
-      connector.results.queryResults(
-        scanId!,
-        filter,
-        sort,
-        { offset: pageParam as number, limit: RESULTS_PAGE_SIZE },
-      ),
+      connector.results.queryResults(scanId!, filter, sort, {
+        offset: pageParam,
+        limit: RESULTS_PAGE_SIZE,
+      }),
     initialPageParam: 0,
     getNextPageParam: (lastPage) => {
       const next = lastPage.offset + lastPage.pageSize;

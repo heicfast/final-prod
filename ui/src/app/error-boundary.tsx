@@ -19,7 +19,10 @@ export class ErrorBoundary extends React.Component<{ children: React.ReactNode }
   }
 
   override componentDidCatch(error: Error, info: React.ErrorInfo): void {
-    logger.error('ui-crash', { message: error.message, stack: info.componentStack?.slice(0, 400) });
+    logger.error('ui-crash', {
+      message: error.message,
+      stack: info.componentStack?.slice(0, 400),
+    });
   }
 
   override render(): React.ReactNode {
@@ -31,11 +34,20 @@ export class ErrorBoundary extends React.Component<{ children: React.ReactNode }
 }
 
 /** Designed error surface (grid #32): reason + recovery action, never a raw stack. */
-export function ErrorScreen({ error, onRetry }: { error: Error; onRetry?: () => void }): React.JSX.Element {
+export function ErrorScreen({
+  error,
+  onRetry,
+}: {
+  error: Error;
+  onRetry?: () => void;
+}): React.JSX.Element {
   const { t } = useTranslation();
   const navigate = useNavigate();
   return (
-    <div role="alert" className="flex h-full flex-col items-center justify-center gap-4 p-10 text-center">
+    <div
+      role="alert"
+      className="flex h-full flex-col items-center justify-center gap-4 p-10 text-center"
+    >
       <div className="flex size-16 items-center justify-center rounded-xl bg-danger-muted text-danger">
         <AlertTriangleIcon className="size-8" strokeWidth={1.5} aria-hidden />
       </div>
@@ -50,7 +62,10 @@ export function ErrorScreen({ error, onRetry }: { error: Error; onRetry?: () => 
           <HomeIcon aria-hidden />
           {t('nav.backToDevices')}
         </Button>
-        <Button variant="primary" onClick={() => (onRetry ? onRetry() : window.location.reload())}>
+        <Button
+          variant="primary"
+          onClick={() => (onRetry ? onRetry() : window.location.reload())}
+        >
           <RotateCcwIcon aria-hidden />
           {t('common.retry')}
         </Button>

@@ -1,4 +1,12 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
+  type ReactNode,
+} from 'react';
 
 export type ThemeMode = 'system' | 'light' | 'dark' | 'high-contrast';
 export type Density = 'comfortable' | 'compact';
@@ -38,14 +46,16 @@ function readStoredDensity(): Density {
 }
 
 function systemPrefersDark(): boolean {
-  return typeof window !== 'undefined' && window.matchMedia('(prefers-color-scheme: dark)').matches;
+  return (
+    typeof window !== 'undefined' && window.matchMedia('(prefers-color-scheme: dark)').matches
+  );
 }
 
 /** Applies token classes to <html>. High-contrast tracks its own light/dark pair. */
 function applyTheme(mode: ThemeMode, systemDark: boolean): 'light' | 'dark' {
   const root = document.documentElement;
   root.classList.remove('dark', 'hc');
-  let resolved: 'light' | 'dark' = 'light';
+  let resolved: 'light' | 'dark';
   if (mode === 'high-contrast') {
     resolved = systemDark ? 'dark' : 'light';
     root.classList.add('hc');

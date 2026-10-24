@@ -16,7 +16,8 @@ function Toaster(): React.JSX.Element {
             '!rounded-md !border !border-border !bg-surface !text-foreground !shadow-overlay !text-sm',
           description: '!text-foreground-secondary',
           actionButton: '!bg-primary !text-primary-foreground !rounded-xs',
-          cancelButton: '!bg-surface-muted !text-foreground-secondary !rounded-xs !border !border-border',
+          cancelButton:
+            '!bg-surface-muted !text-foreground-secondary !rounded-xs !border !border-border',
         },
       }}
     />

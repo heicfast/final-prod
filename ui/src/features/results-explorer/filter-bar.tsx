@@ -96,7 +96,10 @@ function CategoryPicker(): React.JSX.Element {
       {CATEGORIES.map((cat) => {
         const checked = f.categories.includes(cat);
         return (
-          <label key={cat} className="flex cursor-pointer items-center gap-2.5 rounded-xs px-2 py-1.5 text-sm hover:bg-surface-hover">
+          <label
+            key={cat}
+            className="flex cursor-pointer items-center gap-2.5 rounded-xs px-2 py-1.5 text-sm hover:bg-surface-hover"
+          >
             <input
               type="checkbox"
               className="sr-only"
@@ -106,7 +109,9 @@ function CategoryPicker(): React.JSX.Element {
             <span
               className={cn(
                 'flex size-4 items-center justify-center rounded-xs border text-2xs',
-                checked ? 'border-primary bg-primary text-primary-foreground' : 'border-border-strong',
+                checked
+                  ? 'border-primary bg-primary text-primary-foreground'
+                  : 'border-border-strong',
               )}
               aria-hidden
             >
@@ -135,14 +140,20 @@ function DatePicker(): React.JSX.Element {
             checked={f.datePreset === preset}
             onChange={() => f.setDatePreset(preset)}
           />
-          {t(`results.date${preset === 'any' ? 'Any' : preset === 'yesterday' ? 'Yesterday' : preset === 'week' ? 'Week' : 'Month'}`)}
+          {t(
+            `results.date${preset === 'any' ? 'Any' : preset === 'yesterday' ? 'Yesterday' : preset === 'week' ? 'Week' : 'Month'}`,
+          )}
         </label>
       ))}
       <div className="rounded-sm border border-border p-2">
-        <p className="mb-1.5 text-xs font-medium text-foreground-secondary">{t('results.dateCustom')}</p>
+        <p className="mb-1.5 text-xs font-medium text-foreground-secondary">
+          {t('results.dateCustom')}
+        </p>
         <div className="grid grid-cols-2 gap-2">
           <div>
-            <Label htmlFor="date-from" className="mb-1 text-2xs text-foreground-disabled">{t('results.dateFrom')}</Label>
+            <Label htmlFor="date-from" className="mb-1 text-2xs text-foreground-disabled">
+              {t('results.dateFrom')}
+            </Label>
             <Input
               id="date-from"
               type="date"
@@ -152,7 +163,9 @@ function DatePicker(): React.JSX.Element {
             />
           </div>
           <div>
-            <Label htmlFor="date-to" className="mb-1 text-2xs text-foreground-disabled">{t('results.dateTo')}</Label>
+            <Label htmlFor="date-to" className="mb-1 text-2xs text-foreground-disabled">
+              {t('results.dateTo')}
+            </Label>
             <Input
               id="date-to"
               type="date"
@@ -181,11 +194,15 @@ function SizePicker(): React.JSX.Element {
             checked={f.sizePreset === preset}
             onChange={() => f.setSizePreset(preset)}
           />
-          {t(`results.size${preset === 'any' ? 'Any' : preset === 'tiny' ? 'Tiny' : preset === 'small' ? 'Small' : preset === 'medium' ? 'Medium' : preset === 'large' ? 'Large' : 'Huge'}`)}
+          {t(
+            `results.size${preset === 'any' ? 'Any' : preset === 'tiny' ? 'Tiny' : preset === 'small' ? 'Small' : preset === 'medium' ? 'Medium' : preset === 'large' ? 'Large' : 'Huge'}`,
+          )}
         </label>
       ))}
       <div className="rounded-sm border border-border p-2">
-        <p className="mb-1.5 text-xs font-medium text-foreground-secondary">{t('results.sizeCustom')}</p>
+        <p className="mb-1.5 text-xs font-medium text-foreground-secondary">
+          {t('results.sizeCustom')}
+        </p>
         <div className="flex items-center gap-2">
           <Input
             aria-label={t('results.dateFrom')}
@@ -212,6 +229,5 @@ function SizePicker(): React.JSX.Element {
     </div>
   );
 }
-
 
 export { SearchIcon };

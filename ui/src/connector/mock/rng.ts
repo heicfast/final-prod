@@ -17,7 +17,7 @@ export function randInt(rng: () => number, min: number, max: number): number {
 }
 
 export function pick<T>(rng: () => number, arr: readonly T[]): T {
-  return arr[Math.floor(rng() * arr.length)] as T;
+  return arr[Math.floor(rng() * arr.length)];
 }
 
 /** Gaussian-ish value via sum of uniforms. */

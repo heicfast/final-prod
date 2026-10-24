@@ -20,11 +20,14 @@ export const queryKeys = {
   device: (id: string) => ['devices', id] as const,
   scanState: (scanId: string) => ['scan', scanId, 'state'] as const,
   scanProgress: (scanId: string) => ['scan', scanId, 'progress'] as const,
-  tree: (scanId: string, parentId: string | null, mode: string) => ['scan', scanId, 'tree', mode, parentId] as const,
-  results: (scanId: string, filterKey: string, sortKey: string) => ['scan', scanId, 'results', filterKey, sortKey] as const,
+  tree: (scanId: string, parentId: string | null, mode: string) =>
+    ['scan', scanId, 'tree', mode, parentId] as const,
+  results: (scanId: string, filterKey: string, sortKey: string) =>
+    ['scan', scanId, 'results', filterKey, sortKey] as const,
   nodeDetail: (scanId: string, nodeId: string) => ['scan', scanId, 'node', nodeId] as const,
   thumbnail: (scanId: string, nodeId: string) => ['scan', scanId, 'thumb', nodeId] as const,
-  preview: (scanId: string, nodeId: string, kind: string) => ['scan', scanId, 'preview', nodeId, kind] as const,
+  preview: (scanId: string, nodeId: string, kind: string) =>
+    ['scan', scanId, 'preview', nodeId, kind] as const,
   sessions: ['sessions'] as const,
   job: (jobId: string) => ['recovery', jobId] as const,
   jobItems: (jobId: string) => ['recovery', jobId, 'items'] as const,

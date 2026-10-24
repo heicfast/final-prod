@@ -25,7 +25,9 @@ export function SettingsPage(): React.JSX.Element {
       <h1 className="mb-6 text-xl font-semibold">{t('settings.title')}</h1>
 
       <section className="mb-8" aria-labelledby="settings-appearance">
-        <h2 id="settings-appearance" className="mb-3 text-base font-semibold">{t('settings.appearance')}</h2>
+        <h2 id="settings-appearance" className="mb-3 text-base font-semibold">
+          {t('settings.appearance')}
+        </h2>
         <div className="space-y-4 rounded-lg border border-border bg-surface p-4">
           <div className="flex items-center justify-between gap-4">
             <Label>{t('settings.theme')}</Label>
@@ -69,7 +71,9 @@ export function SettingsPage(): React.JSX.Element {
       </section>
 
       <section className="mb-8" aria-labelledby="settings-diagnostics">
-        <h2 id="settings-diagnostics" className="mb-3 text-base font-semibold">{t('settings.diagnostics')}</h2>
+        <h2 id="settings-diagnostics" className="mb-3 text-base font-semibold">
+          {t('settings.diagnostics')}
+        </h2>
         <div className="rounded-lg border border-border bg-surface p-4">
           <p className="mb-2 text-xs text-foreground-secondary">
             {t('settings.diagnosticsIntro', { count: getLogBuffer().length })}
@@ -79,7 +83,11 @@ export function SettingsPage(): React.JSX.Element {
             size="sm"
             onClick={() => {
               void navigator.clipboard
-                ?.writeText(getLogBuffer().map((e) => `[${e.level}] ${e.scope}: ${e.message}`).join('\n'))
+                ?.writeText(
+                  getLogBuffer()
+                    .map((e) => `[${e.level}] ${e.scope}: ${e.message}`)
+                    .join('\n'),
+                )
                 .then(() => toast.success(t('common.copied')))
                 .catch(() => toast.error(t('errors.unknown')));
             }}
@@ -90,31 +98,49 @@ export function SettingsPage(): React.JSX.Element {
       </section>
 
       <section aria-labelledby="settings-about">
-        <h2 id="settings-about" className="mb-3 text-base font-semibold">{t('settings.aboutTitle')}</h2>
+        <h2 id="settings-about" className="mb-3 text-base font-semibold">
+          {t('settings.aboutTitle')}
+        </h2>
         <div className="overflow-hidden rounded-lg border border-border bg-surface shadow-card">
           <Table>
             <TableBody>
               <TableRow>
-                <TableCell className="w-40 text-foreground-secondary">{t('settings.version')}</TableCell>
+                <TableCell className="w-40 text-foreground-secondary">
+                  {t('settings.version')}
+                </TableCell>
                 <TableCell className="tabular">{appInfo.data?.version ?? '—'}</TableCell>
               </TableRow>
               <TableRow>
-                <TableCell className="text-foreground-secondary">{t('settings.connectorMode')}</TableCell>
+                <TableCell className="text-foreground-secondary">
+                  {t('settings.connectorMode')}
+                </TableCell>
                 <TableCell>
-                  <Badge variant={appInfo.data?.connectorMode === 'mock' ? 'warning' : 'success'}>
-                    {appInfo.data?.connectorMode === 'mock' ? t('settings.connectorMock') : t('settings.connectorTauri')}
+                  <Badge
+                    variant={appInfo.data?.connectorMode === 'mock' ? 'warning' : 'success'}
+                  >
+                    {appInfo.data?.connectorMode === 'mock'
+                      ? t('settings.connectorMock')
+                      : t('settings.connectorTauri')}
                   </Badge>
                 </TableCell>
               </TableRow>
               <TableRow>
-                <TableCell className="text-foreground-secondary">{t('settings.engineStatus')}</TableCell>
+                <TableCell className="text-foreground-secondary">
+                  {t('settings.engineStatus')}
+                </TableCell>
                 <TableCell className="tabular">
-                  {driver.data ? `${driver.data.installed ? '✓' : '✕'} ${driver.data.version ?? '—'}${driver.data.running ? '' : ' (idle)'}` : '—'}
+                  {driver.data
+                    ? `${driver.data.installed ? '✓' : '✕'} ${driver.data.version ?? '—'}${driver.data.running ? '' : ' (idle)'}`
+                    : '—'}
                 </TableCell>
               </TableRow>
               <TableRow>
-                <TableCell className="text-foreground-secondary">{t('settings.licenses')}</TableCell>
-                <TableCell className="text-sm text-foreground-secondary">{t('settings.licensesBody')}</TableCell>
+                <TableCell className="text-foreground-secondary">
+                  {t('settings.licenses')}
+                </TableCell>
+                <TableCell className="text-sm text-foreground-secondary">
+                  {t('settings.licensesBody')}
+                </TableCell>
               </TableRow>
             </TableBody>
           </Table>

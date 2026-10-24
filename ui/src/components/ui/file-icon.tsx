@@ -21,7 +21,10 @@ import { cn } from '@/lib/utils';
  * (shape differs per category too, grid #14).
  */
 
-const CATEGORY_ICON: Record<FileCategoryId, React.ComponentType<{ className?: string; strokeWidth?: number }>> = {
+const CATEGORY_ICON: Record<
+  FileCategoryId,
+  React.ComponentType<{ className?: string; strokeWidth?: number }>
+> = {
   graphics: ImageIcon,
   video: VideoIcon,
   audio: AudioLinesIcon,
@@ -43,7 +46,10 @@ const CATEGORY_TINT: Record<FileCategoryId, string> = {
   other: 'text-foreground-secondary',
 };
 
-const EXT_OVERRIDE: Record<string, React.ComponentType<{ className?: string; strokeWidth?: number }>> = {
+const EXT_OVERRIDE: Record<
+  string,
+  React.ComponentType<{ className?: string; strokeWidth?: number }>
+> = {
   doc: FileTextIcon,
   docx: FileTextIcon,
   xls: SheetIcon,
@@ -54,12 +60,21 @@ const EXT_OVERRIDE: Record<string, React.ComponentType<{ className?: string; str
   pptx: PresentationIcon,
 };
 
-export function FileIconFor({ node, className }: { node: ResultNode; className?: string }): React.JSX.Element {
+export function FileIconFor({
+  node,
+  className,
+}: {
+  node: ResultNode;
+  className?: string;
+}): React.JSX.Element {
   const ext = node.extension?.replace('.', '').toLowerCase() ?? '';
   const category = node.category ?? 'other';
   const Icon = EXT_OVERRIDE[ext] ?? CATEGORY_ICON[category] ?? FileIcon;
   return (
-    <span className="relative inline-flex size-5 shrink-0 items-center justify-center" aria-hidden>
+    <span
+      className="relative inline-flex size-5 shrink-0 items-center justify-center"
+      aria-hidden
+    >
       <Icon className={cn('size-4', CATEGORY_TINT[category], className)} strokeWidth={1.75} />
     </span>
   );
@@ -73,5 +88,11 @@ export function CategoryIcon({
   className?: string;
 }): React.JSX.Element {
   const Icon = CATEGORY_ICON[category] ?? FileIcon;
-  return <Icon className={cn('size-5', CATEGORY_TINT[category], className)} strokeWidth={1.75} aria-hidden />;
+  return (
+    <Icon
+      className={cn('size-5', CATEGORY_TINT[category], className)}
+      strokeWidth={1.75}
+      aria-hidden
+    />
+  );
 }
