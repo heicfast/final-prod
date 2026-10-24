@@ -8,6 +8,7 @@
  * client-side re-grading — the UI consumes connector data as-is.
  */
 
+import { version as appVersion } from '../../../package.json';
 import type {
   AppInfo,
   BadSectorRange,
@@ -1449,7 +1450,7 @@ ${lines.join('')}
       await latency(40);
       return {
         name: 'Recovery Wizard',
-        version: '0.1.0',
+        version: appVersion,
         connectorMode: 'mock',
         engineVersion: null,
         platform: typeof navigator !== 'undefined' ? navigator.platform : 'unknown',
