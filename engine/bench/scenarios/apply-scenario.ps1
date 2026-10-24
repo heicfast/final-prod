@@ -243,7 +243,15 @@ elseif ($Mode -eq 'partial_overwrite') {
     foreach ($e in $deletable) {
         if (-not $e.extents -or $e.extents.Count -eq 0) { continue }
         $first = $e.extents[0]
-        $exts += ,@([long]$first[0] * [long]$bpc, [long]$first[1] * [long]$bpc)
+        # BENCH-F4c: inside an array literal the comma changes the parse -
+        # '@([long]$first[0] * [long]$bpc, ...)' evaluates as an Object[]
+        # multiplication and throws op_Multiply (reproduced locally with
+        # pwsh 7.4; first exercised by run 40077233920 partial_overwrite -
+        # every earlier run failed before reaching this line). The
+        # [long](expr) shape parses correctly.
+        $off = [long]($first[0] * $bpc)
+        $len = [long]($first[1] * $bpc)
+        $exts += , @($off, $len)
     }
     $written = Invoke-PartialOverwrite -Letter $Letter -Extents $exts -Sectors 8 -Pattern 0xAA
     $state.extra = @{ bytes_per_cluster = $bpc; files_overwritten = $exts.Count; sectors_per_file = 8; pattern = '0xAA'; written = $written }

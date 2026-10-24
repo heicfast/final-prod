@@ -96,6 +96,15 @@ jobs:
       scan_target: ${{ steps.mk.outputs.scan_target }}
       run_label: ${{ steps.mk.outputs.run_label }}
     steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      # F4 lesson: bench-script defects must surface BEFORE a 90-job matrix
+      # dispatches (the F4a/F4c class surfaced only ~4 min into each Windows
+      # job). Parse-only; pwsh ships on the ubuntu image.
+      - name: Parse-check the bench PS scripts
+        shell: pwsh
+        run: ./scripts/ps_parsecheck.ps1
+
       - name: Compute matrix
         id: mk
         run: |
