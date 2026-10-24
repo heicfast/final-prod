@@ -1,6 +1,23 @@
 # ROADMAP
 
-## v0.1.0-ui-mock (this session) — DONE
+## Session 4 (audit & completion) — DONE
+
+- Theme adoption from the designated source pair (ADR-007): verbatim adopted
+  layer, generated semantic mapping with drift-failing tests, 5 palettes +
+  derived HC, measured text-grade accents.
+- Lost-data flow corrected to the corpus behavior (ADR-008): direct start,
+  quick → advanced automatic, corpus status lines, real recover-all,
+  connector-owned preview kinds.
+- Slop purge + dedupe (jscpd 0 clones), dead deps removed, architecture
+  enforcement kept green.
+- Localization completed: en/zh surface-identical AND exactly the
+  referenced surface (i18n-sweep governance test: missing = 0, unused = 0).
+- Accessibility: live axe audit — 0 violations across every palette + HC +
+  scan/results surfaces (evidence in docs/evidence/a11y/).
+- Full 63/63 VLM extraction committed as evidence.
+- Acceptance grid filled per surface (docs/ACCEPTANCE.md).
+
+## v0.1.0-ui-mock — DONE (sessions 1–3)
 
 - Research gate: screenshot manifest, visual spec, UI map, design system.
 - Full Tauri 2 + React 19 + TS strict + Vite 8 scaffold, CI on windows.

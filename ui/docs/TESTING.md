@@ -54,7 +54,7 @@ pnpm typecheck && pnpm lint && pnpm arch:lint && pnpm bundle:check
   cargo check + clippy → artifact upload.
 - `ui-smoke.yml`: preview-server Playwright run + step screenshots +
   reports; a secondary job proves the Tauri debug bundle links
-  (`tauri build --debug --bundles none`).
+  (`tauri build --debug --no-bundle`).
 - `release.yml` (tag `v*`): version match gate, NSIS bundle, SHA-256,
   unsigned-artifact disclosure in release notes.
 

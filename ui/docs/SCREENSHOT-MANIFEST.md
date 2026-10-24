@@ -2,8 +2,11 @@
 
 Corpus: `easeus-drw-research/re-workspace/raw-evidence/ui-screenshots/` — 63 captures.
 All captures: light theme, ~1024×735 client on a 1024×768 runner desktop (100% DPI),
-comfortable density, maximized frameless window. VLM-extracted per-file records live in
-this session's `scripts/vlm-out/`; curated state labels below derive from the corpus
+comfortable density, maximized frameless window. Structured VLM extraction for every
+one of the 63 captures lives in `docs/evidence/vlm/shots/` (per-shot JSON: layout
+regions, verbatim text, hex candidates marked ESTIMATED, typography, control states,
+state classification — cross-checked against the QSS census and string tables, where
+hard evidence wins); curated state labels below derive from the corpus
 README reading pass. Commercial/monetization surfaces (retention/license gates) are
 captured for completeness of the corpus but are OUT OF SCOPE for this re-implementation
 (documented divergence — see UI-MAP §0).
