@@ -662,7 +662,8 @@ TEST(ExtentBasis, TreeRebaseShiftsOnceAndIsIdempotent) {
     /* base == 0 must be a no-op */
     t.rebase_subtree_extents(root, 0);
     EXPECT_EQ(1000u + 4096u, p1->extents.front().offset);
-    p1->release(); /* caller's own ref (two attaches consumed two) */
+    /* refcount contract: N attaches (hard links) consume the CALLER's single
+     * ref - release exactly once (two releases would over-free -> UAF) */
     p1->release();
 }
 

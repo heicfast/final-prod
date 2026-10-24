@@ -242,8 +242,7 @@ public:
 
 private:
     void index_node_locked(FileNode* n); /* caller holds mutex_ */
-    void rebase_props_locked(FileNode* n, u64 base,
-                             std::unordered_set<FileProperties*>& visited);
+    void rebase_props_locked(FileNode* n, u64 base, std::unordered_set<FileProperties*>& visited);
     static u64 extent_len_class_(const FileProperties* p);
 
     std::vector<FileNode*> roots_;

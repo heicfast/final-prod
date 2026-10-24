@@ -289,7 +289,7 @@ u32 ScanController::emit_checkpoint_() const {
     session::Writer w(cfg_.checkpoint.write, cfg_.checkpoint.tell, cfg_.checkpoint.seek,
                       cfg_.checkpoint.user);
     w.set_flags(session::CRSF_FLAG_ABS_EXTENTS); /* F-1: stage rebased */
-    if (u32 rc = w.open(0x52434B50)) /* 'RKPP' checkpoint container tag */
+    if (u32 rc = w.open(0x52434B50))             /* 'RKPP' checkpoint container tag */
         return rc;
     /* snapshot the stats shape the session needs: counts live in the
      * caller's stats object (run owns it); emit with a zero-stats shape

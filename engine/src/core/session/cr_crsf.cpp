@@ -226,7 +226,7 @@ u32 Reader::open(u32* record_count_out) {
         return 0x50030001; /* BAD_MAGIC */
     const u32 version = u32_from_bytes_le(buf.data() + 8);
     if (version != CRSF_VERSION)
-        return 0x50040003; /* SESSION_VERSION */
+        return 0x50040003;                         /* SESSION_VERSION */
     flags_ = u32_from_bytes_le(buf.data() + 0x0C); /* F-1: basis flag */
     count_ = u32_from_bytes_le(buf.data() + 0x10);
     if (record_count_out)

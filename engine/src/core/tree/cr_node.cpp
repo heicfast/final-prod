@@ -192,7 +192,7 @@ u64 ResultTree::extent_len_class_(const FileProperties* p) {
 }
 
 void ResultTree::rebase_props_locked(FileNode* n, u64 base,
-                                      std::unordered_set<FileProperties*>& visited) {
+                                     std::unordered_set<FileProperties*>& visited) {
     FileProperties* p = n->props();
     if (!p || p->extents.empty())
         return;
