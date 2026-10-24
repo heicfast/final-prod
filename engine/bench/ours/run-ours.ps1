@@ -25,7 +25,8 @@ param(
     [int] $Threads = 4,
     [string] $CoreSha = '',
     [string] $DriverInfo = '',
-    [int] $RecoverCapSec = 1800
+    [int] $RecoverCapSec = 1800,
+    [ValidateSet('volume', 'disk')] [string] $TargetMode = 'volume'
 )
 
 $ErrorActionPreference = 'Stop'
@@ -76,7 +77,7 @@ foreach ($mode in $ScanModes) {
     $session = Join-Path $OutDir "session-$mode.crsf"
     $stageLog = Join-Path $OutDir "stage-$mode.log"
     $scanArgs = @('scan')
-    if ($Scenario -eq 'delete_partition') {
+    if ($TargetMode -eq 'disk' -or $Scenario -eq 'delete_partition') {
         $scanArgs += @('--disk', "$DiskNumber", '--deep', '--threads', "$Threads")
         if ($mode -eq 'quick') { $scanArgs += '--quick-only' }
         elseif ($mode -eq 'deep') { $scanArgs += '--no-carve' }
@@ -197,6 +198,26 @@ foreach ($g in ($entries | Where-Object { $_.hardlink_group -gt 0 } | Group-Obje
     $pres.hardlink += @{ group = $g.Name; both_recovered = [bool]($la -and $lb); links_on_first = $links }
 }
 $pres | ConvertTo-Json -Depth 5 | Set-Content -Path $presFile -Encoding utf8
+
+# ---- preserve tiny sample recovered files for byte-level evidence ---------------
+# (the payloads are deleted after inventory; a few <64 KiB samples stay in the
+# artifact so any future content-mismatch finding is diffable byte-for-byte)
+$sampleDir = Join-Path $OutDir 'sample-recovered'
+New-Item -ItemType Directory -Force -Path $sampleDir | Out-Null
+$sampleKept = 0
+foreach ($mode in $ScanModes) {
+    $src = Join-Path $OutDir "recovered-$mode"
+    if (-not (Test-Path $src)) { continue }
+    foreach ($name in @('k00.jpg', 'k01.png', 's000.jpg', 's001.png', 't000.jpg')) {
+        $cand = Get-ChildItem $src -Recurse -Filter $name -ErrorAction SilentlyContinue |
+            Where-Object { $_.Length -le 65536 } | Select-Object -First 1
+        if ($cand -and $sampleKept -lt 6) {
+            $dst = Join-Path $sampleDir ("$mode-" + $name)
+            Copy-Item $cand.FullName $dst -Force -ErrorAction SilentlyContinue
+            if (Test-Path $dst) { $sampleKept++ }
+        }
+    }
+}
 
 $run.ended_utc = (Get-Date).ToUniversalTime().ToString('o')
 $run | ConvertTo-Json -Depth 8 | Set-Content -Path (Join-Path $OutDir 'ours-run.json') -Encoding utf8

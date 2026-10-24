@@ -48,6 +48,16 @@ on:
         description: 'Also upload compressed VHDX images (milestone runs only)'
         type: boolean
         default: false
+      driver_mode:
+        description: 'ours leg: install the RDA driver (present) or run direct-path (absent)'
+        type: choice
+        options: [present, absent]
+        default: present
+      scan_target:
+        description: 'ours leg scan basis: volume (default) or disk (A/B diagnostic for extent basis)'
+        type: choice
+        options: [volume, disk]
+        default: volume
   pull_request:
     paths:
       - 'bench/**'
@@ -82,6 +92,8 @@ jobs:
       profile: ${{ steps.mk.outputs.profile }}
       tools: ${{ steps.mk.outputs.tools }}
       upload_images: ${{ steps.mk.outputs.upload_images }}
+      driver_mode: ${{ steps.mk.outputs.driver_mode }}
+      scan_target: ${{ steps.mk.outputs.scan_target }}
       run_label: ${{ steps.mk.outputs.run_label }}
     steps:
       - name: Compute matrix
@@ -94,6 +106,8 @@ jobs:
           FSF="${{ inputs.fs_filter || '' }}"
           SCF="${{ inputs.scenarios_filter || '' }}"
           UPIMG="${{ inputs.upload_images || 'false' }}"
+          DRVMODE="${{ inputs.driver_mode || 'present' }}"
+          SCANTGT="${{ inputs.scan_target || 'volume' }}"
           [ -z "$PROFILE" ] && PROFILE=smoke
           [ -z "$TOOLS" ] && TOOLS=both
           if [ "$EVENT" = "pull_request" ] || [ "$EVENT" = "push" ]; then PROFILE=smoke; TOOLS=ours; fi
@@ -134,6 +148,8 @@ jobs:
             echo "profile=$PROFILE"
             echo "tools=$TOOLS"
             echo "upload_images=$UPIMG"
+            echo "driver_mode=$DRVMODE"
+            echo "scan_target=$SCANTGT"
             echo "run_label=${{ github.run_id }}-$PROFILE"
           } >> "$GITHUB_OUTPUT"
           echo "profile=$PROFILE tools=$TOOLS pairs=$(echo "$PAIRS" | jq -c .) ours_jobs=$OC og_jobs=$GC"
@@ -173,6 +189,7 @@ jobs:
           (Get-FileHash $exe -Algorithm SHA256).Hash | Out-File rrecov-sha.txt -Encoding utf8
 
       - name: Fetch RDA driver release (v0.2.1) + verify checksums
+        if: needs.prepare.outputs.driver_mode == 'present'
         shell: pwsh
         run: |
           $hdr = @{ Authorization = "token ${{ secrets.GITHUB_TOKEN }}" }
@@ -203,6 +220,7 @@ jobs:
           Get-Content driver-pe.json | Write-Host
 
       - name: Test-sign + install + verify the RDA driver (service 'rda')
+        if: needs.prepare.outputs.driver_mode == 'present'
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
@@ -245,7 +263,7 @@ jobs:
           $fs = '${{ matrix.fs }}'
           $scen = '${{ matrix.scenario }}'
           $coreSha = '${{ github.sha }}'
-          $drv = "service=rda;tag=$env:RDA_RELEASE_TAG;verified=rdacli-info;running"
+          $drv = if ('${{ needs.prepare.outputs.driver_mode }}' -eq 'present') { "service=rda;tag=$env:RDA_RELEASE_TAG;verified=rdacli-info;running" } else { "absent;direct-path-expected" }
           $rrecov = "$PWD\build\win-x64-release\src\app\Release\rrecov.exe"
           $sizeMB = if ($env:PROFILE -eq 'full') { 3072 } else { 1536 }
           $resDir = 'benchmark-results'
@@ -289,9 +307,11 @@ jobs:
                 -VolumeLabel 'BENCH' -DiskNumber $vol.disk -PartitionNumber $vol.partitions
             if ($LASTEXITCODE -ne 0) { throw "apply-scenario failed" }
 
+            $scanTarget = '${{ needs.prepare.outputs.scan_target }}'
             & "$PWD\bench\ours\run-ours.ps1" -RrecovExe $rrecov -Letter $vol.letter.TrimEnd(':') `
                 -DiskNumber $vol.disk -ManifestJsonl $manifest -OutDir $resDir `
-                -Scenario $scen -ScanModes quick, deep, deepcarve -CoreSha $coreSha -DriverInfo $drv
+                -Scenario $scen -ScanModes quick, deep, deepcarve -CoreSha $coreSha -DriverInfo $drv `
+                -TargetMode $scanTarget
             if ($LASTEXITCODE -ne 0) { throw "run-ours failed" }
 
             foreach ($mode in @('quick', 'deep', 'deepcarve')) {
@@ -325,7 +345,7 @@ jobs:
         run: |
           sc.exe stop rda 2>$null | Out-Null
           sc.exe delete rda 2>$null | Out-Null
-          if ($LASTEXITCODE -ne 0 -and $LASTEXITCODE -ne 1060) { exit 1 }
+          if ($LASTEXITCODE -ne 0 -and $LASTEXITCODE -ne 1060 -and $LASTEXITCODE -ne 0) { exit 1 }
           Remove-Item "$env:SystemRoot\System32\drivers\rda.sys" -Force -ErrorAction SilentlyContinue
           Get-ChildItem Cert:\LocalMachine\My |
             Where-Object { $_.Subject -eq 'CN=RRECOV-CMP-BENCH' } |
@@ -350,7 +370,6 @@ jobs:
             rrecov-sha.txt
             driver-sha.txt
             driver-pe.json
-            driver-info.json
           retention-days: 90
           if-no-files-found: error
 
@@ -600,22 +619,19 @@ jobs:
           set -euo pipefail
           mkdir -p ours og behavior
           for a in dl-ours/bench-ours-*; do
-            [ -d "$a" ] || continue
-            for s in "$a"/benchmark-results/*/; do
-              [ -d "$s" ] || continue
-              scen=$(basename "$s")
-              mkdir -p "ours/$scen"
-              cp -r "$s/." "ours/$scen/"
-            done
+            [ -d "$a/benchmark-results" ] || continue
+            scen=$(basename "$a" | sed 's/^bench-ours-[a-z0-9]*-//')
+            mkdir -p "ours/$scen"
+            cp -r "$a/benchmark-results/." "ours/$scen/"
+            # driver provenance files sit at the artifact root
+            cp "$a"/driver-*.json "$a"/driver-*.txt "ours/$scen/" 2>/dev/null || true
           done
           for a in dl-og/bench-og-*; do
-            [ -d "$a" ] || continue
-            for s in "$a"/benchmark-results/*/; do
-              [ -d "$s" ] || continue
-              scen=$(basename "$s")
-              mkdir -p "og/$scen"
-              cp -r "$s/." "og/$scen/"
-            done
+            [ -d "$a/benchmark-results" ] || continue
+            scen=$(basename "$a" | sed 's/^bench-og-[a-z0-9]*-//')
+            mkdir -p "og/$scen"
+            cp -r "$a/benchmark-results/." "og/$scen/"
+            cp "$a"/og-version.txt "$a"/og-pe.json "og/$scen/" 2>/dev/null || true
           done
           cp -r dl-behavior/ours-behavior/behavior-results/* behavior/ 2>/dev/null || true
           echo '--- ours scenarios:'; ls ours/ 2>/dev/null || true
