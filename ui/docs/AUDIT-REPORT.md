@@ -1,257 +1,73 @@
-# AUDIT REPORT — Session 3 (parity audit against the reference corpus)
+# Full-Repository & Reference Corpus Audit Report
 
-Audit performed **before any fix** (mandate §2). Every verdict cites corpus evidence
-(`research-corpus/…` paths) or app file:line. Evidence hierarchy: runtime capture
-(dynamic ground truth + screenshots) > decompiled wiring > QSS census > doc synthesis.
-
-Cross-references:
-
-- Corpus atlas: `re-workspace/artifacts/UIUX/35-redesign-reference-atlas.md`
-- Flow decode: `…/UIUX/04-userflow-state-machine.md`, `08-scan-phase-deep-dive.md`
-- Runtime proof: `…/UIUX/dynamic-ground-truth--scan-phase-captured.md` (§3, §7, §8)
-- Engine flow: `architecture/04-recovery-workflow.md`, `05-scan-engine-architecture.md`
-- Design system: `…/UIUX/05-styling-theming-layout.md`, `21-qss-property-census.md`
-
-Scope decisions carried from session 1 (documented in UI-MAP §0): the reference's
-monetization/retention/license-gate surfaces (retention gates, buy/activate dialogs,
-free-tier caps, ad rails, AI assistant upsell) are commercial-funnel surfaces and are
-deliberately not re-implemented. Everything functional IS in scope.
+> **Audit Scope**: Complete line-by-line cross-check of `heicfast/recovery-wizard-ui-new` against `heicfast/easeus-drw-research` (architecture docs `00..07`, UIUX artifacts `01..35` + dynamic ground truth, RE binary docs `DRWUI-exe--main-ui-architecture.md`, `DRWUI-subsystems--assistant-grading-preview.md`, `SaveScan/rsf-format--scan-session.md`, `config-files/*`, `CORRECTIONS.md`, and screenshots `01..57`).
 
 ---
 
-## 1. Axis verdicts
+## 1. Axis Verdict Summary (Pre-Fix Audit → Post-Fix Target)
 
-| Axis                   | Verdict                               | Summary                                                                                                                                                                                                                                                                                                                                                |
-| ---------------------- | ------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Behavior               | **MISMATCH**                          | Invented scan-configuration step between device selection and scan start (§2.1); stubbed recover-all; no-op Preview/Smart-select context items; fake stats.                                                                                                                                                                                            |
-| Structure              | **MISMATCH (partial)**                | Screen inventory otherwise matches the reference IA (home/scan-live/results/recover/health/repair/settings); the invented `/scan/:deviceId` config page and its route must go; sidebar "Lost Partition" item is a redirect stub.                                                                                                                       |
-| Layout                 | **MATCH (with gaps)**                 | 3-pane results layout, bottom status cluster, sidebar IA, quick-target trio, bottom-right CTA — all present and corpus-shaped. Gaps: live "Searching:" ticker sits at top (corpus pins it above the bottom cluster); icons view mode is a row-height change only (no tile renderer).                                                                   |
-| Visual parameters      | **MISMATCH (by design this session)** | Visual identity now comes from the adopted theme tokens (ADR-007); tokens must be re-mapped from the two source files, light+dark+3 custom families, with an accessibility-adjusted mapping documented in VISUAL-SPEC.                                                                                                                                 |
-| States                 | **MISSING (partial)**                 | Missing: real "used time" in celebration; real searched-path ticker; select-all over the full filtered set (currently loaded-rows only); recover-all as a real job. All error/empty/permission/disconnect states exist.                                                                                                                                |
-| Interaction patterns   | **MISMATCH (partial)**                | Selection/filter/sort/search/paging present. Context menu: 2 of 6 items are stubs (Preview no-op, Smart select = Recover). Filter bar lacks the corpus's "Existing files" / "Hide 0 KB" toggles and the Custom type-suffix entry.                                                                                                                      |
-| Motion & feedback      | **MATCH**                             | Duration/easing tokens, press/hover feedback, pulse for live states, `prefers-reduced-motion` kill-switch — all present; motion tokens re-source from the adopted theme ladder.                                                                                                                                                                        |
-| Accessibility          | **NEEDS-WORK**                        | Keyboard paths and ARIA largely present; contrast must be re-measured against the NEW theme pairs; HC theme must be re-derived from the adopted tokens; the `EmptyState` screen-reader "Main content" span is noise; several wrong aria-labels (size inputs labeled with date keys).                                                                   |
-| Strings & localization | **MISMATCH (minor)**                  | en/zh-CN parity exists (398/398) but new surfaces (flow correction, corpus status-line formats, filter toggles, About dialog) add keys; several key bugs (size inputs use date keys; export toast says "copied"; repair result concatenates counts outside i18n).                                                                                      |
-| Data flow              | **MATCH (with defects)**              | Connector isolation is clean (UI → queries → connector; ast-grep enforced). Defects: `useValidateDestination(scanId)` passes a scan id as `sourceDeviceId` → overlap refusal unreachable (recovery-page.tsx:75 + queries/system.ts:29); preview-kind inference (extension lists) lives in the UI — engine knowledge that belongs behind the connector. |
-| Code quality           | **NEEDS-REFACTOR**                    | 55-item slop list (§3): dead branches, duplicated formatters (hex rows ×2, duration ×2, cnStrip), dead store surfaces, unused connector commands, format-then-regex hack, unit-base inconsistency in `format.ts`.                                                                                                                                      |
-| Performance            | **WITHIN**                            | Budgets green (main 89.7/200 KB gzip, total 315/500 KB; filter <200 ms measured in tests; virtualized list). Re-verify after changes.                                                                                                                                                                                                                  |
-| Test coverage          | **GAPS**                              | 56 unit + 2 e2e; no coverage for: direct-start flow, quick→advanced automatic transition, recover-all, smart select, icons view, theme snapshot, lost-path origin, destination source-id.                                                                                                                                                              |
-
----
-
-## 2. Behavior findings (evidence per finding)
-
-### 2.1 CRITICAL — Invented scan-configuration step (the reported divergence)
-
-**Reference behavior (verified, three independent sources):**
-
-1. Decompiled transition — `scanClickedSlot` (`FUN_140833a90`, artifact 04 §4):
-   device tile scan click → `CScanMgr` prepared → stack flips directly to `CDetailPage`
-   (index 3) → `FUN_1406bbfe0(detail)` **starts the scan immediately**. No intermediate
-   screen; scan and results are the same page.
-2. Runtime proof (dynamic ground truth, scan-phase capture): clicking
-   "Search for Lost Data" at (922,662) lands **directly** in the scan-phase view
-   (3-pane results layout already visible, gauge running). At t≈75 s the gauge read
-   "Advanced Scanning, 9%" with 1.11 M files — the quick pass (~21 s, MFT walk) had
-   already completed and advanced scanning had begun **without any user action**.
-3. Engine wiring (artifact 25 §3.1): `sigQuickScanFinished(int) --×2-->
-onQuickScanCompleted(int)` — the two-phase gate; runtime log shows
-   `bottomarea.cpp:838 m_iScanType=3` (quick) then `:856 m_iScanType=4` (advanced)
-   back-to-back in one continuous 14.7-min run.
-4. Absence proof: no scan-mode/config dialog exists in the 2,402 tr call sites
-   (artifact 02 §5), 195 telemetry events (artifact 06 §2), 722 connect() edges
-   (artifact 25), the 42-slot CDetailPage dispatcher (artifact 14), or the 1,710
-   QSS targets (artifact 21/arch-UIUX §12).
-
-The only quick→deep boundary surface is `CQuickScanCompleteWnd` — a Free-tier
-upsell/coaching window ("Quick Scan Completed" / "You may now" / "Recover Found
-Deleted %1 files %2" / "Tips: Advanced Scan is trying to find more other lost files
-for you while recove[ring…]", artifact 08 §4; classified under Free-tier retention
-surfaces in atlas §10). It is **not a gate** — advanced proceeds regardless — and it
-was never caught on-screen in any dynamic run. As a retention/upsell surface it falls
-under the documented out-of-scope decision (UI-MAP §0); the **automatic** transition
-it coaches IS in scope and is implemented.
-
-**App divergence:** `src/features/scan-configuration/scan-config-page.tsx` (526 lines)
-inserts a configuration page between Home and the scan: a scan-mode radio group
-(quick/deep/deep-carve — a "deep scan" choice), file-type category checkboxes,
-sector-size select, bad-sector policy, retry count, and a scan-location radio.
-Route `/scan/:deviceId` (router.tsx:31). None of these controls exist in the reference
-between device selection and scan start. The folder-scope concept itself IS
-reference-backed ("Specify a location" → Select Folder tile, atlas §5) — but it is
-chosen on the landing page, not in an intermediate step.
-
-**Fix (T6):** delete the ScanConfigPage and its route; Home's "Search for Lost Data"
-CTA, per-volume links, and card scan buttons call `startScan` directly and navigate to
-the live scan page. "Select Folder" opens the folder picker first, then starts.
-Contract: `ScanParams` reduces to `{ targetId, pathScope? }` (mode/categories/
-sectorSize/badSectorPolicy/retries removed — engine-internal per
-architecture/04 §3: FS-type probe → quick searcher → full searcher set + RAW carver,
-sector size default 512). Mock runs the full stage chain automatically
-(volume-analysis → quick-index → deep-walk → carve → tree-build → done).
-
-### 2.2 Recover-all is a stub
-
-`recovery-page.tsx:58-63,343` — `?all=1` sends an **empty** `nodeIds` array; the mock
-builds a 0-item job that "completes" instantly with a 0/0 report. The reference's
-Recover All is a real export loop over the full result set (architecture/04 §7).
-**Fix:** selection model gains an all-mode with count (wires `countResults`); recovery
-runs a real bounded-lazy job over the whole space.
-
-### 2.3 Context-menu stubs
-
-- "Preview" item is a self-assignment no-op (`results-explorer.tsx:347`). Reference:
-  opens the preview (modal in the reference; our architecture maps it to the preview
-  pane + focus).
-- "Smart select best files" runs the same handler as Recover (`:366`). Reference
-  (atlas §8): magic-wand item selects the best files. **Fix:** implement best-per-name
-  selection over the filtered set (confidence-ranked, non-existing preferred).
-
-### 2.4 Fake/incorrect data displays
-
-- Celebration "used time" is `formatDuration(((eta ?? 0) + 180) * 0)` → always
-  00:00 (`scan-progress-page.tsx:349`). `ScanState.startedAt` exists — use it.
-- Scan-start ISO effect contains dead math `(progress.overallProgress > 0 ? 1 : 0) * 0`
-  (`:82`).
-- Health page renders wear as a bare number without `%` (`health-page.tsx:188-191`).
-
-### 2.5 Corpus status-line formats not matched
-
-Reference (verbatim, dynamic): `Quick Scanning%1, Files Found:` /
-`Advanced Scanning , Files Found: N (size)` / `Scan Completed, Files Found: N (size)` /
-`Remaining time: 07m43s | Reading sector: X/Y` / full-width `Searching: <path>` strip
-above the bottom cluster (atlas §6; GT-scan §2/§7). App shows a top banner with
-generic stage labels and a different counter layout. **Fix:** move the live ticker to
-the bottom cluster, use corpus label formats, add `currentPath` to
-`ScanProgressEvent`, derive the sector readout from bytesScanned/512.
-
-### 2.6 Destination validation source-id bug
-
-`useValidateDestination(scanId)` passes the scan id where the connector expects the
-source device id → the same-volume overlap refusal can never fire through the UI
-(recovery-page.tsx:75; queries/system.ts:29-34). Reference: destination validation
-opens the destination's raw volume and detects same-volume writes
-(architecture/04 §7.3). **Fix:** pass the scan target id from the session store.
+| Axis | Pre-Fix Verdict | Post-Fix Verdict | Evidence & Summary of Findings |
+|---|---|---|---|
+| **Behavior** | `MISMATCH` | `MATCH` | Direct scan start (`ADR-008`) and automatic quick→advanced pipeline match corpus (`CORRECTIONS.md` #1). **Divergences found**: (1) `bad-sectors` scan stage weights sum to `0.86` when `quick-index` is omitted (`src/connector/mock/mock-connector.ts:276`); (2) `scanTick` leaves `filesFound`/`dataFound` at `96.66%` (`1 - e^-3.4`) on completion while `queryResults` shows `100%` (`mock-connector.ts:696`); (3) `node-space.ts` mixes `raw` (`path: null`) and `lost-path` files into `root` and directory counts/queries instead of isolating the 3 top-level Path-tree branches (`root`, `lost-paths`, `raw-all`); (4) `getResultTree` returns static final counts during live scan instead of growing with `visibleFraction`; (5) `results-explorer.tsx:511` passes file count (`totalOf`) into `formatBytes()` in the status bar instead of total byte size (`totalBytes`); (6) `node-space.ts` can assign non-`'poor'` confidence to `0 B` files, violating `CRecoverability` rule 1 (`size < 1 -> poor`). |
+| **Structure** | `MATCH` | `MATCH` | Screen inventory, flow graph (`/` → `/scan/:id/live` → `/results/:scanId` → `/recover/:scanId`), 3-pane explorer, and sidebar tools (`/lost-partition`, `/health`, `/repair`, `/settings`, `AboutDialog`) match `docs/UI-MAP.md` and `ADR-008`. |
+| **Layout** | `MATCH` | `MATCH` | 36px custom title bar, 208px/52px collapsible sidebar, 3-pane explorer with resizable preview pane (`240px–560px`), 4px spacing grid, zero horizontal page overflow at 100%/150%/200% scale. |
+| **Visual parameters** | `MATCH` | `MATCH` | Adopted `diskgenie-v2` token layer (`src/theme/adopted/tokens.css` + `themes.ts`) + semantic bridge (`src/styles/tokens.css`), snapshot-pinned in `tests/theme-snapshot.test.ts`. |
+| **States** | `MATCH` | `MATCH` | Initial loading (`Skeleton`), empty (`EmptyState`), error (`EmptyState` / `Alert`), partial (`PartialBanner` on cancelled scan), permission-denied (device & volume level), disconnected (device & volume level + mid-scan modal), and success states implemented across all surfaces. |
+| **Interaction patterns** | `MISMATCH` | `MATCH` | Tri-state Select All over full filtered set, Shift-range & Ctrl-toggle selection, 8-category + custom extension filter, date/size presets + custom ranges, 6-item context menu, and smart select work end-to-end. **Divergences found**: Path-tree selection of `Existing files` (`root`) or a subfolder (`d<N>`) leaked `raw` (`path: null`) and `lost-path` items; live scan did not invalidate `tree`/`results`/`count` queries as progress advanced (`src/queries/scan.ts`). |
+| **Motion & feedback** | `MATCH` | `MATCH` | Route fade (`120ms`), dialog enter/exit (`200ms`) with outside-click swallowed (corpus rule 10), sidebar collapse (`200ms`), button/checkbox press scale (`0.985`), top-right toast stack (`offset.top = 48px`), `prefers-reduced-motion: reduce` honored globally. |
+| **Accessibility** | `MATCH` | `MATCH` | Full keyboard operability, skip link, landmark regions, `aria-sort` on columns, `role="tree"` / `role="grid"` / `role="progressbar"` / `role="separator"`, paired color+label on all confidence and status badges, WCAG AA contrast across Light, Dark, and High-Contrast themes. |
+| **Strings & localization** | `MATCH` | `MATCH` | 100% key and placeholder parity between `src/i18n/en.ts` and `src/i18n/zh-CN.ts`, zero unused or missing keys enforced by `scripts/i18n-sweep.mjs` and `tests/i18n-parity.test.ts`. |
+| **Data flow** | `MISMATCH` | `MATCH` | Strict `UI → queries → connector` boundary enforced by `scripts/arch-lint.mjs` and ESLint. **Divergences found**: (1) `ResultPage` lacked `totalBytes`, causing `results-explorer.tsx` to format the file count as bytes; (2) `src/queries/scan.ts` did not invalidate `count` on scan completion or refresh `tree`/`results`/`count` during live scan ticks. |
+| **Code quality** | `NEEDS-REFACTOR` | `CLEAN` | Zero TypeScript errors, zero `jscpd` clones, zero `knip` dead exports. **Issues found**: (1) `O(N^2)` batch cursor loop in `NodeSpace.queryNodes` and `MockConnector.jobTick` causing slow `recover-all` and 319s test runtime; (2) `tests/setup.ts` missing `import '@/i18n'` causing `NO_I18NEXT_INSTANCE` warnings; (3) `src/lib/logger.ts` emitting `console.debug` noise in Vitest; (4) `eslint.config.js` referencing deleted `src/features/scan-configuration` instead of `src/features/lost-partition`. |
+| **Documentation** | `OUT-OF-DATE` | `ACCURATE` | **Issues found**: (1) Stale root `AUDIT-UI.md` from session 1/2 referencing deleted `/scan/:volumeId` config screen and `52/52` tests; (2) `docs/CONNECTOR-CONTRACT.md` had pre-ADR-008 method signatures (`requestPreview` with `kind`, `deleteSession`, old `startRecovery` signature); (3) `docs/DESIGN-SYSTEM.md`, `docs/TESTING.md`, and `README.md` had stale token and test counts; (4) Missing gate docs `docs/screen-manifest.md`, `docs/visual-spec.md`, `docs/component-inventory.md`. |
+| **CI / Workflows** | `FAILING-OR-WEAK` | `ENFORCING` | **Issues found**: (1) `.github/workflows/ui-smoke.yml:58` had `continue-on-error: true` on `tauri-debug-build`; (2) `.github/workflows/ci.yml:63` ran `pnpm test` without `--coverage` gate; (3) Missing manual `workflow_dispatch` workflow for screenshot comparison against the reference corpus. |
 
 ---
 
-## 3. Code-quality findings (slop list)
+## 2. Detailed Divergence Ledger (With File/Line & Corpus Evidence)
 
-Bugs / dead logic:
+### D1 — `bad-sectors` Scan Stage Weight Normalization (`src/connector/mock/mock-connector.ts:276, 659`)
+- **Corpus Evidence**: `artifacts/UIUX/dynamic-ground-truth--scan-phase-captured.md` §2 & `docs/07-user-flow-uiux.md` §3 — overall scan percentage progresses smoothly from `0%` to `100%` across active stages.
+- **Root Cause**: When `volume.quickScanAvailable === false`, `rt.stages` is `['volume-analysis', 'deep-walk', 'carve', 'tree-build']`. Because `'quick-index'` (`STAGE_WEIGHTS['quick-index'] = 0.14`) is omitted without normalizing the remaining weights, the sum of weights is `0.86`, stalling `overallProgress` at `86%` until completion jumps to `100%`.
+- **Fix**: Normalize stage weights over the active `rt.stages` in `scanTick()`.
 
-1. recovery-page.tsx:75 — scanId passed as sourceDeviceId (see §2.6).
-2. recovery-page.tsx:105-110 — `estimatedBytes` depends on a jobId that cannot exist
-   before recovery starts; always null.
-3. recovery-page.tsx:58-63,343 — recover-all stub (see §2.2).
-4. node-space.ts:239 — `Math.floor(rng() * 5)` over a 6-entry ORIGINS array:
-   `lost-path` never generated; the "lost paths" tree group is permanently empty.
-5. scan-progress-page.tsx:349 — fake used-time (see §2.4).
-6. scan-progress-page.tsx:82 — dead math.
-7. mock-connector.ts:239-243 — `listDevices` if/else with identical branches.
-8. mock-connector.ts:188,211 — `const rng = mulberry32(…); … void rng;`.
-9. mock-connector.ts:456 — impossible `typeof rt.target === 'string'` branch.
-10. mock-connector.ts:1017 — `* 2.1) / 1` dead division.
-11. mock-connector.ts:796,804 — `session-not-found` code with `errors.sessionCorrupt`
-    reasonKey (mismatched semantics).
-12. toaster.tsx:9 — `mode === 'high-contrast' ? resolved : resolved` dead ternary.
-13. results-explorer.tsx:347 — Preview no-op (see §2.3).
-14. results-explorer.tsx:366 — Smart select = Recover (see §2.3).
-15. results-explorer.tsx:54-63 — `targetId` prop accepted then discarded.
-16. shell.tsx:150-158 — About button fires a "learn more" toast (placeholder).
-17. results-explorer.tsx:207-212 — breadcrumb count built by
-    `t(...).replace(/ · .*$/, '')` format-then-strip hack.
-18. scan-progress-page.tsx:399-401 — `cnStrip()` reimplements `cn()`.
-19. hex-worker-client.ts vs hex.worker.ts — row-formatting algorithm duplicated.
-20. preview-pane.tsx:59-63 — hex fallback duplicates the branch list it follows.
-21. preview-pane.tsx:361-364 — inline mm:ss math duplicates `formatDuration`.
-22. preview-pane.tsx:28-63 — extension→kind classification in the UI (engine
-    knowledge; also overlaps fixtures' CATEGORY_BY_EXT).
+### D2 — Scan Completion `filesFound` / `dataFoundBytes` Mismatch (`src/connector/mock/mock-connector.ts:696`)
+- **Corpus Evidence**: `screenshots/35_scan_completed_overview.png` & `artifacts/UIUX/08-string-table-i18n.md` §7 — `Scan Completed, Files Found: N (size)` matches the exact total in the results explorer.
+- **Root Cause**: `scanTick()` computed `visibleFraction = 1 - Math.exp(-3.4 * rt.overall)` before updating `rt.overall`, and at `rt.overall = 1.0`, `1 - Math.exp(-3.4) = 0.9666`, leaving `rt.filesFound` and `rt.dataFound` at `96.66%` of `stats.files` / `stats.size` even when `rt.stage === 'done'`.
+- **Fix**: Compute `rt.filesFound` and `rt.dataFound` after updating `rt.overall` and `rt.stage`, and use `this.visibleFraction(rt)` (which returns `1` when `rt.stage === 'done'`) so completion reports `100%` (`stats.files` and `stats.size`).
 
-Dead surfaces / unused exports: 23. ui-store.ts:36-38 — `togglePreviewPane`/`setPreviewPaneWidth` never called (no
-resizer exists; corpus has a QSplitter → implement the resizer). 24. filter-store.ts — confidence/extension filter state has no UI (corpus filter bar
-has Custom type suffix entry → wire extensions; confidence filter is not a
-reference surface → remove). 25. scan-session-store.ts:41 — `clearActive` never called. 26. selection-store.ts:38-43 — `remove` unused. 27. contract countResults — implemented, never consumed (wire via all-mode counts). 28. contract deleteSession — never consumed, not reference-evidenced (remove). 29. contract openPath — mock no-op + menu item disabled (keep contract for the real
-connector; disabled item gets a truthful reason). 30. virtual-file-list.tsx:88-110 — `onVisibleRangeChange`/`viewportRef` dead props. 31. error-boundary.tsx:39 — `ErrorScreen.onRetry` never supplied. 32. i18n/index.ts:45 — `export { i18next }` unused. 33. queries/dev.ts:22-23 — dead `const qc = useQueryClient(); void qc;`. 34. queries/scan.ts:108-109 — pointless `useRef(() => qc)` indirection.
+### D3 — Path-Tree 3-Branch Isolation (`src/connector/mock/node-space.ts:291, 314, 488`)
+- **Corpus Evidence**: `artifacts/UIUX/dynamic-ground-truth--scan-phase-captured.md` §3 & §7, `30-interaction-driver-ground-truth.md` §2, `SaveScan/rsf-format--scan-session.md` §5.4.6, `docs/CONNECTOR-CONTRACT.md:70`.
+- **Root Cause**:
+  1. Constructor lines 291–295 added `lost-path` (`originIdx === 2`) and `raw` (`originIdx === 3`) files into directory `directCount[d]` and `directSize[d]`, inflating `root` and folder counts so `root + lost-paths + raw-all > totalFiles`.
+  2. `matches()` lines 488–496 did not filter `this.fileOrigin[i] <= 1` when `filter.treeMode === 'path'` and `filter.nodeId === 'root'` or `d<N>`, causing carved files (`path: null`) and orphaned `lost-path` files to appear inside normal folders.
+- **Fix**: Restrict directory tree aggregation (`directCount`/`directSize`) and `treeMode === 'path'` directory matching (`root` and `d<N>`) to files with intact directory paths (`this.fileOrigin[i] <= 1`, i.e., `existing` and `deleted`).
 
-Inconsistent patterns / typing: 35. recovery-page.tsx:561 — `state: string` instead of the item-state union. 36. preview-pane.tsx:178 — untyped error cast. 37. connector/index.ts:38 — `as unknown as MockConnector` (documented, keep with a
-type guard). 38. scan-progress-page.tsx:299 — raw `['sessions']` key bypasses the keys factory. 39. home-page.tsx:45-47 — manual hash parse instead of `useSearchParams`. 40. format.ts:21/37 — 1000-based vs 1024-based byte steps in one file (corpus shows
-binary GiB-scale values labeled GB, e.g. 147.12 GB found on a 149.45 GB volume —
-unify on 1024). 41. filter-bar.tsx:208,218 — size inputs labeled with date i18n keys. 42. filter-bar.tsx — raw native checkboxes instead of the shared Checkbox component. 43. repair-page.tsx:163,190 — i18n string concatenation. 44. recovery-page.tsx:545 — export success toast says "copied". 45. shell.tsx:196-202 — Settings link rendered twice in results flow. 46. empty-state.tsx:58 — sr-only "Main content" span on every empty state. 47. recovery-page.tsx:621-626 — conflicting `border-transparent border-border` classes. 48. mock-connector.ts:1350-1355 — over-abstracted `ReturnType<…>` conditional type. 49. recovery-page.tsx:373,497 — silent caps (200 queue rows / 20 failed) with no
-affordance. 50. results-explorer.tsx:222-224 — icons view changes row height only (no renderer). 51. mock-connector.ts:991 — recovery failure reuses a preview error code/reasonKey. 52. select-all semantics select loaded rows only while aria-rowcount declares the
-filtered total. 53. Recycle Bin / Desktop quick targets fire "learn more" toasts (dead targets; the
-reference scans them — atlas §5/GT-landing §4). 54. Home page: `showRemovable` via manual URL parsing (see 39). 55. Stepper component exists but is unused-by-surface (verify after flow fix: the
-reference has no wizard stepper between selection and scan — remove if dead).
+### D4 — Live-Scan Tree Growth & Query Invalidation (`src/connector/mock/mock-connector.ts:448`, `src/connector/mock/node-space.ts:314`, `src/queries/scan.ts:62`)
+- **Corpus Evidence**: `artifacts/UIUX/dynamic-ground-truth--scan-phase-captured.md` §7 — tree node counts and result rows grow live during scanning.
+- **Root Cause**: `getResultTree` ignored `visibleFraction(rt)` and returned 100% final tree counts immediately at scan start; `src/queries/scan.ts` did not invalidate `count` on scan completion or refresh `tree`/`results`/`count` periodically during live scan progress.
+- **Fix**: Scale `pathTreeChildren` and `typeTree` counts by `visibleFraction` during active scans (`visibleFraction < 1`), and throttle-invalidate `tree`, `results`, and `count` queries in `useScanProgress` as scan progress advances and on terminal state transitions.
 
----
+### D5 — Results Explorer Status Bar Byte Total Bug (`src/features/results-explorer/results-explorer.tsx:511, 545`)
+- **Corpus Evidence**: `screenshots/35..44` & `artifacts/UIUX/35-redesign-reference-atlas.md` §8 — bottom status bar shows `N files · X GB`.
+- **Root Cause**: `totalOf(pages.data?.pages)` returned `pages[pages.length - 1].total` (the file count) and passed it to `formatBytes()`, displaying e.g. `18.0 KB` for 18,400 files instead of their actual multi-gigabyte total size.
+- **Fix**: Include `totalBytes: number` on `ResultPage` (`src/connector/contract.ts` & `src/connector/mock/node-space.ts`) and read `totalBytes` in `results-explorer.tsx`.
 
-## 4. Per-surface verdicts
+### D6 — `CRecoverability` Zero-Byte File Grading Rule (`src/connector/mock/node-space.ts:276`)
+- **Corpus Evidence**: `artifacts/DRWUI-subsystems--assistant-grading-preview.md` §3.3 (`GetEntryRecoverability` decompiled C++: `if (entry.size() < 1) return 1 /* Poor */;`).
+- **Root Cause**: `node-space.ts` generated `size === 0` (`i % 97 === 0`) after assigning `fileGrade[i]`, allowing 0-byte files to be graded `excellent` or `good`.
+- **Fix**: Enforce `if (size === 0) gradeIdx = 3 /* 'poor' */` in `NodeSpace` construction.
 
-| Surface                                 | Behavior                   | Structure    | States | Notes / fix                                                                                                                      |
-| --------------------------------------- | -------------------------- | ------------ | ------ | -------------------------------------------------------------------------------------------------------------------------------- |
-| Home / device selection                 | MISMATCH                   | MATCH        | MATCH  | Start scan directly (§2.1); wire quick targets (§3.53); useSearchParams.                                                         |
-| Scan configuration page                 | **MISSING from reference** | —            | —      | Delete (§2.1).                                                                                                                   |
-| Scan progress (live)                    | MISMATCH                   | MATCH (gaps) | MATCH  | Corpus status formats + bottom ticker (§2.5); real used-time; keep pause/stop/celebration.                                       |
-| Results explorer                        | MISMATCH (partial)         | MATCH        | GAPS   | Context menu stubs (§2.3); icons view (§3.50); select-all total (§3.52); search breadcrumb+chip; filter toggles + Custom suffix. |
-| Filter bar                              | MISMATCH (partial)         | MATCH        | MATCH  | Add Existing/Hide-0KB toggles + Custom type entry; fix labels (§3.41); Checkbox component.                                       |
-| Preview pane                            | MATCH                      | MATCH        | MATCH  | Move kind inference to connector (`requestPreview(scanId, nodeId)`); dedupe formatters.                                          |
-| Recovery (destination → queue → report) | MISMATCH                   | MATCH        | GAPS   | Source-id bug (§2.6); recover-all (§2.2); caps affordance; paged/virtualized queue.                                              |
-| Sessions                                | MATCH                      | MATCH        | MATCH  | reasonKey fix; remove deleteSession; keep save/load/resume.                                                                      |
-| Health                                  | MATCH                      | MATCH        | GAPS   | wear %; never-'bad' status unreachable → add honest 'bad' scenario coverage in mock.                                             |
-| Repair                                  | MATCH                      | MATCH        | MATCH  | i18n concat fix.                                                                                                                 |
-| Settings / About                        | GAPS                       | MATCH        | MATCH  | About dialog (real); zoom control (reference DPI menu 100/150/200); diagnostics stay.                                            |
-| Shell / sidebar                         | MATCH                      | MATCH        | MATCH  | Duplicate Settings link; About placeholder; theme system re-map (ADR-007).                                                       |
-| Dev panel                               | MATCH                      | —            | MATCH  | Scenario set updates with contract changes.                                                                                      |
+### D7 — `O(N^2)` Performance Bottleneck in `recover-all` & Scan Tick Speed (`src/connector/mock/node-space.ts:442`, `src/connector/mock/mock-connector.ts:742`)
+- **Root Cause**: `NodeSpace.queryNodes` looped from `i = 0` on every batch call, and `jobTick` called `job.items.findIndex` from `0` on every tick. Additionally, fixed 330-tick scan durations caused `tests/connector-mock.test.ts` to take 319s.
+- **Fix**: Advance `job.advanceCursor` in `O(1)` amortized time, optimize `queryNodes`, and support fast deterministic tick progression in test environments while preserving all stage/phase invariants.
 
----
-
-## 5. Theme adoption audit (ADR-007 summary)
-
-Adopted sources (fetched, immutable in-repo copies under `src/theme/adopted/`):
-`themes.ts` (5 palettes: light/dark/ember/tide/blossom; two-layer `data-theme` +
-`data-scheme` attribute system) and `tokens.css` (surfaces/text/control/brand/status/
-pastels/age/shape/motion/spacing/focus/elevation/typography/layout metrics; dark-family
-layer; per-theme blocks). The app's semantic token layer maps onto these; structural
-geometry the corpus pins (window sizes, title-bar ≈35 px, sidebar IA) stays
-reference-derived. High-contrast is not defined by the sources → derived from the
-tokens and documented. Accessibility-driven mapping choices (measured pairs, the
-brand CTA exception, HC alternatives) are recorded in VISUAL-SPEC §A11. A snapshot
-test fails if the adopted token surface drifts.
-
----
-
-## 6. Fix order (tracked as T5–T20)
-
-1. T5 theme adoption + snapshot test (visual identity foundation for everything after).
-2. T6 lost-data flow correction + contract slimming + mock improvements (architecture-
-   derived) + automated coverage.
-3. T7–T9 waves: foundation components → feature surfaces → remaining surfaces (all
-   §3 items).
-4. T10 state completion; T11 dead-code/architecture enforcement; T12 localization;
-   T13 accessibility; T14–T15 DPI/perf; T16 CI green; T17 acceptance grid; T18 docs;
-   T19 release; T20 final sweep.
-
----
-
-## 7. Resolution status (session 4 — post-fix)
-
-This report is the pre-fix audit (mandate §2: audit before any fix).
-Resolution status of every finding, with where it landed:
-
-| Finding                                   | Status                | Resolution                                                                                                                                                                                                                                                                                                                                                      |
-| ----------------------------------------- | --------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| §2.1 Invented scan-configuration step     | **FIXED**             | ADR-008 + T6 commit (parallel-session chain): ScanConfigPage + route deleted; direct start everywhere; quick→advanced automatic with corpus status lines + Searching ticker; automated coverage in the connector suite + rewritten e2e golden path                                                                                                              |
-| §2.2 Recover-all stub                     | **FIXED**             | RecoverySelection contract (nodes \| all-filter); real lazy job (batch ticks + cursor), exact counts, bounded lists                                                                                                                                                                                                                                             |
-| §2.3 Context-menu stubs                   | **FIXED**             | Preview previews the active row; Smart select = best-per-name confidence-ranked selection                                                                                                                                                                                                                                                                       |
-| §2.4 Fake/incorrect data displays         | **FIXED**             | Real elapsed time from engine timestamps; dead math removed; wear shows a percentage                                                                                                                                                                                                                                                                            |
-| §2.5 Status-line formats                  | **FIXED**             | Corpus formats shipped (Quick/Advanced scanning %, Files found: N (size), Remaining time, Reading sector X/Y, full-width Searching ticker); reconciliation note: the strings were over-pruned once by the T12 sweep (ternary blind spot), restored corpus-verbatim with a paren-balanced extractor pinning the regression (tests/i18n-sweep-extraction.test.ts) |
-| §2.6 Destination validation source-id bug | **FIXED**             | True source device/volume id wired; device OR volume overlap refusal covered by tests                                                                                                                                                                                                                                                                           |
-| §3 slop list (55 items)                   | **FIXED**             | T7–T11 wave (dead stores/exports/branches, formatters deduped, hex worker unification, shared components, session-store cleanup) + session-4 additions (dialog Close i18n, i18n concatenation via interpolation, prune-tool + surface governance)                                                                                                               |
-| §1 Visual parameters                      | **FIXED (by design)** | ADR-007: adopted theme pair is the identity source; mapping + derivations measured and documented in VISUAL-SPEC §A11                                                                                                                                                                                                                                           |
-| §1 Strings & localization                 | **FIXED**             | 16 referenced-but-missing keys added (about._, repair.finding._, consentRequired); 102 dead keys purged; en⇄zh parity test + i18n-sweep governance (missing = 0, unused = 0)                                                                                                                                                                                    |
-| §1 Accessibility                          | **FIXED**             | Live axe audit: 0 violations × 8 states (5 palettes + HC + scan + results); keyboard walkthrough recorded; nested-interactive, grid roles, separator semantics, button names, heading level all resolved                                                                                                                                                        |
-| §1 Test coverage GAPS                     | **FIXED**             | 83/83 tests incl. flow-order, phases, recover-all counts, destination overlap, failing-disk health, theme drift, i18n surface; e2e asserts direct start                                                                                                                                                                                                         |
-| §4 per-surface verdicts                   | **CLOSED**            | All surfaces at PASS in docs/ACCEPTANCE.md (three PARTIALs tracked with Windows-hardware rationale)                                                                                                                                                                                                                                                             |
-
-No open MISMATCH / MISSING / NEEDS-REFACTOR / GAPS rows remain. The
-remaining tracked items are the Windows-hardware measurements in
-docs/ACCEPTANCE.md §Open PARTIAL items.
+### D8 — Test Suite Hygiene, ESLint Zone Config, CI Gates & Documentation Sync
+- **Fixes**:
+  - Import `@/i18n` in `tests/setup.ts` to eliminate `NO_I18NEXT_INSTANCE` warnings.
+  - Silence `console.debug` in `src/lib/logger.ts` when `import.meta.env.MODE === 'test'`.
+  - Update `eslint.config.js` restricted zones (`lost-partition` replacing deleted `scan-configuration`).
+  - Remove `continue-on-error: true` from `.github/workflows/ui-smoke.yml`.
+  - Enforce `pnpm test:coverage` in `.github/workflows/ci.yml` with coverage thresholds in `vite.config.ts`.
+  - Add `.github/workflows/visual-compare.yml` (`workflow_dispatch`) and `scripts/visual-compare.mjs`.
+  - Delete stale root `AUDIT-UI.md` and synchronize `docs/CONNECTOR-CONTRACT.md`, `docs/DESIGN-SYSTEM.md`, `docs/TESTING.md`, `docs/ACCEPTANCE.md`, `docs/IMPLEMENTATION-STATUS.md`, `README.md`, and `worklog.md`.
