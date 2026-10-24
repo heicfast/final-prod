@@ -1400,3 +1400,50 @@ Stage Summary:
   (D-09), HFS+ journal replay / Btrfs tree-log (D-L), two-leg og
   comparison pending benchmark-machine availability (harness wired,
   scoring valid since 837a543).
+
+---
+Task ID: BENCH-SESSION-7
+Agent: bench session 7 (comparative-bench takeover)
+Task: Take over the failing comparative bench (10-commit failure streak), drive it to green with evidence-grade artifacts, ours vs og EaseUS DRW free.
+
+Work Log:
+- Full failure forensics on runs 40045370477..40064925245 (artifacts + logs + screenshots):
+  * BENCH-F1 (torn checkpoint): hard-killed scan leaves a header claiming N records
+    with the Nth torn (chain/crc unpatched); Reader::open exposed the header count,
+    read_record(N-1) -> 0x50040001 'session format error' on --resume, defeating
+    the documented F10 salvage contract. Fixed by clamping count_ to the indexed
+    prefix + unit test (runs 1..11 of the streak all failed here).
+  * nodriver probe: '[transport]' lines go to scan STDOUT, not the --log file; the
+    probe grepped the wrong stream (and tree 'session load failed' error text was
+    miscounted as a readable 1-row tree). Both probe checks fixed.
+  * og volume selection (run 40048192077 evidence chain): (a) the periodic
+    RetentionActiveDlg nag (corpus atlas #15: every 30-60 s on ANY page) sat over
+    the landing tiles and ate clicks - the fixed (809,135) X-click missed it and
+    the blind ESC PROVOKES the exit-retention gate; fixed with census-based
+    per-dialog X-dismissal + WM_CLOSE fallback, no blind ESC. (b) Tile geometry
+    re-measured by pixel analysis + 6x-zoom VLM cross-checks: row-1 cards
+    y175-271 (C: left x310-581, D: right), BENCH(E:) is a white tile at
+    x310-580 y310-440 (center (445,370)); the old primary (440,455) clicked empty
+    page below the card. (c) stop-confirm (512,420) missed the dialog buttons
+    (pixel-measured Stop=(439,473)/Continue=(565,473)) so the dialog persisted and
+    swallowed all later attempts; wrong-tile recovery now clicks the real Stop and
+    RESTARTS the app (deterministic, dialog-drift-immune).
+- F-1 (the other lane's finding, adopted after their handoff note in f571e83):
+  complete root-cause + fix. Extents were slice-relative end-to-end while
+  cmd_recover reads the raw disk (16 MiB backward shift; 0/584 hash matches incl.
+  0/8 live keep controls; 593 ERR_TRUNCATED). Implemented the documented
+  merge-time rebase: ResultTree::rebase_new_extents/rebase_subtree_extents with
+  the NODE_FLAG_EXT_SHIFTED idempotency guard, stage-boundary rebases before each
+  G-13 checkpoint, per-candidate subtree rebases after the pool joins, container
+  flag CRSF_FLAG_ABS_EXTENTS + legacy-session load-time normalization, UI
+  recovery/preview parent-disk unwrap. 223/223 plain+ASan+TSan (3 new
+  ExtentBasis tests). Commits 49af5c2 (bench fixes) + cd9ea16 (F-1).
+
+Stage Summary:
+- Runs dispatched: push cd9ea16 (ours smoke, F-1 validation) + tools=both dispatch
+  (og leg first exercise with the fixed driver). Full both-legs matrix after both
+  are green.
+- Registered remainders: LDM layout-relative extents (recover from LDM scans was
+  already misbased pre-F-1; needs per-node multi-disk bases - follow-up), mid-stage
+  snapshot extent basis for pool-added nodes (remnants/carve are rebased at stage
+  end; mid-stage UI previews of those nodes can shift - end state always correct).
