@@ -24,6 +24,7 @@ export const queryKeys = {
     ['scan', scanId, 'tree', mode, parentId] as const,
   results: (scanId: string, filterKey: string, sortKey: string) =>
     ['scan', scanId, 'results', filterKey, sortKey] as const,
+  count: (scanId: string, filterKey: string) => ['scan', scanId, 'count', filterKey] as const,
   nodeDetail: (scanId: string, nodeId: string) => ['scan', scanId, 'node', nodeId] as const,
   thumbnail: (scanId: string, nodeId: string) => ['scan', scanId, 'thumb', nodeId] as const,
   preview: (scanId: string, nodeId: string, kind: string) =>

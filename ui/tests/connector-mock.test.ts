@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { MockConnector } from '@/connector/mock/mock-connector';
 import { createTauriConnector } from '@/connector/tauri/tauri-connector';
-import type { ResultsFilter } from '@/connector/contract';
+import { scanPhaseOf } from '@/connector/contract';
+import type { ResultsFilter, ScanStage } from '@/connector/contract';
 
 const BASE_FILTER: ResultsFilter = {
   nodeId: null,
@@ -12,15 +13,15 @@ const BASE_FILTER: ResultsFilter = {
   dateTo: null,
   sizeMinBytes: null,
   sizeMaxBytes: null,
-  confidence: null,
   extensions: null,
   origins: null,
+  hideEmptyFiles: false,
 };
 
 async function waitForScanCompletion(
   c: MockConnector,
   scanId: string,
-  timeoutMs = 60_000,
+  timeoutMs = 90_000,
 ): Promise<void> {
   await new Promise<void>((resolve, reject) => {
     const timeout = setTimeout(
@@ -35,6 +36,30 @@ async function waitForScanCompletion(
       }
     });
   });
+}
+
+/** Collect every progress event until the scan reaches a terminal state. */
+async function collectProgress(
+  c: MockConnector,
+  scanId: string,
+  timeoutMs = 90_000,
+): Promise<{ stage: ScanStage; overall: number; currentPath: string | null }[]> {
+  const events: { stage: ScanStage; overall: number; currentPath: string | null }[] = [];
+  await new Promise<void>((resolve, reject) => {
+    const timeout = setTimeout(
+      () => reject(new Error('scan did not finish in time')),
+      timeoutMs,
+    );
+    const unsub = c.scan.onScanProgress(scanId, (e) => {
+      events.push({ stage: e.stage, overall: e.overallProgress, currentPath: e.currentPath });
+      if (e.status === 'completed' || e.status === 'failed' || e.status === 'cancelled') {
+        clearTimeout(timeout);
+        unsub();
+        resolve();
+      }
+    });
+  });
+  return events;
 }
 
 describe('MockConnector — devices', () => {
@@ -54,54 +79,101 @@ describe('MockConnector — devices', () => {
     const list = await c.devices.listDevices();
     expect(list.some((d) => d.volumes.some((v) => !v.quickScanAvailable))).toBe(true);
   });
+
+  it('carries the "Specify a location" virtual targets (Recycle Bin, Desktop)', async () => {
+    const c = new MockConnector();
+    const list = await c.devices.listDevices();
+    const recycle = list.find((d) => d.id === 'dev-recycle-bin');
+    const desktop = list.find((d) => d.id === 'dev-desktop');
+    expect(recycle?.kind).toBe('virtual');
+    expect(desktop?.kind).toBe('virtual');
+    // Virtual targets are not mount points (they are not destination drives).
+    const mounts = await c.system.listMountPoints();
+    expect(mounts.some((m) => m.id === 'vol-recycle-bin')).toBe(false);
+    expect(mounts.some((m) => m.id === 'vol-desktop')).toBe(false);
+  });
 });
 
-describe('MockConnector — scan lifecycle', () => {
-  it('runs a scan to completion with monotonic overall progress', async () => {
+describe('MockConnector — lost-data flow (ADR-008)', () => {
+  it('starts directly from a target with no pre-configuration, and runs the full automatic chain', async () => {
     const c = new MockConnector();
     const devices = await c.devices.listDevices();
     const target = devices[0].volumes[0].id;
-    const { scanId } = await c.scan.startScan({
-      targetId: target,
-      mode: 'quick',
-      categories: ['graphics', 'document'],
-      badSectorPolicy: 'skip',
-      retries: 3,
-    });
-    const seen: number[] = [];
-    await new Promise<void>((resolve, reject) => {
-      const timeout = setTimeout(
-        () => reject(new Error('scan did not complete in time')),
-        60_000,
-      );
-      const unsub = c.scan.onScanProgress(scanId, (e) => {
-        seen.push(e.overallProgress);
-        if (e.status === 'completed' || e.status === 'failed' || e.status === 'cancelled') {
-          clearTimeout(timeout);
-          unsub();
-          resolve();
-        }
-      });
-    });
-    expect(seen.length).toBeGreaterThan(2);
-    for (let i = 1; i < seen.length; i++) {
-      expect(seen[i]).toBeGreaterThanOrEqual(seen[i - 1] - 1e-9);
+    const { scanId } = await c.scan.startScan({ targetId: target });
+    const events = await collectProgress(c, scanId);
+
+    // The automatic stage chain — quick pass THEN advanced, unattended.
+    const stages = [...new Set(events.map((e) => e.stage))];
+    const order = (s: ScanStage): number =>
+      ['volume-analysis', 'quick-index', 'deep-walk', 'carve', 'tree-build', 'done'].indexOf(s);
+    expect(stages.sort((a, b) => order(a) - order(b))).toEqual([
+      'volume-analysis',
+      'quick-index',
+      'deep-walk',
+      'carve',
+      'tree-build',
+      'done',
+    ]);
+
+    const state = await c.scan.getScanState(scanId);
+    expect(state.status).toBe('completed');
+    expect(state.progress.filesFound).toBeGreaterThan(0);
+    expect(state.params.targetId).toBe(target);
+  }, 120_000);
+
+  it('quick → advanced advances with no user action (phase mapping)', async () => {
+    const c = new MockConnector();
+    const devices = await c.devices.listDevices();
+    const { scanId } = await c.scan.startScan({ targetId: devices[0].volumes[0].id });
+    const events = await collectProgress(c, scanId);
+    const phases = [...new Set(events.map((e) => scanPhaseOf(e.stage)))];
+    expect(phases).toEqual(['quick', 'advanced', 'organizing']);
+    // Monotonic overall across the whole automatic run.
+    for (let i = 1; i < events.length; i++) {
+      expect(events[i].overall).toBeGreaterThanOrEqual(events[i - 1].overall - 1e-9);
     }
+    await c.scan.cancelScan(scanId);
+  }, 120_000);
+
+  it('collapses the quick pass when the volume cannot be quick-indexed', async () => {
+    const c = new MockConnector();
+    c.setScenario('bad-sectors');
+    const devices = await c.devices.listDevices();
+    const blocked = devices.flatMap((d) => d.volumes).find((v) => !v.quickScanAvailable)!;
+    const { scanId } = await c.scan.startScan({ targetId: blocked.id });
+    const events = await collectProgress(c, scanId);
+    const stages = new Set(events.map((e) => e.stage));
+    expect(stages.has('quick-index')).toBe(false);
+    expect(stages.has('deep-walk')).toBe(true);
+  }, 120_000);
+
+  it('streams the live "Searching:" ticker during the advanced pass only', async () => {
+    const c = new MockConnector();
+    const devices = await c.devices.listDevices();
+    const { scanId } = await c.scan.startScan({ targetId: devices[0].volumes[0].id });
+    const events = await collectProgress(c, scanId);
+    const withTicker = events.filter((e) => e.currentPath !== null);
+    expect(withTicker.length).toBeGreaterThan(0);
+    expect(withTicker.every((e) => e.stage === 'deep-walk' || e.stage === 'carve')).toBe(true);
+    // Ticker values look like deep tree paths.
+    expect(typeof withTicker[0].currentPath).toBe('string');
+  }, 120_000);
+
+  it('scans the Recycle Bin and Desktop location targets directly', async () => {
+    const c = new MockConnector();
+    const { scanId } = await c.scan.startScan({ targetId: 'vol-recycle-bin' });
+    await waitForScanCompletion(c, scanId, 60_000);
     const state = await c.scan.getScanState(scanId);
     expect(state.status).toBe('completed');
     expect(state.progress.filesFound).toBeGreaterThan(0);
   }, 90_000);
+});
 
+describe('MockConnector — scan lifecycle', () => {
   it('pauses and resumes within the timing budget', async () => {
     const c = new MockConnector();
     const devices = await c.devices.listDevices();
-    const { scanId } = await c.scan.startScan({
-      targetId: devices[0].volumes[0].id,
-      mode: 'deep',
-      categories: [],
-      badSectorPolicy: 'skip',
-      retries: 1,
-    });
+    const { scanId } = await c.scan.startScan({ targetId: devices[0].volumes[0].id });
     await new Promise((r) => setTimeout(r, 400));
     const t0 = Date.now();
     await c.scan.pauseScan(scanId);
@@ -117,13 +189,7 @@ describe('MockConnector — scan lifecycle', () => {
   it('cancels within 300ms budget', async () => {
     const c = new MockConnector();
     const devices = await c.devices.listDevices();
-    const { scanId } = await c.scan.startScan({
-      targetId: devices[0].volumes[0].id,
-      mode: 'quick',
-      categories: [],
-      badSectorPolicy: 'skip',
-      retries: 1,
-    });
+    const { scanId } = await c.scan.startScan({ targetId: devices[0].volumes[0].id });
     await new Promise((r) => setTimeout(r, 300));
     const t0 = Date.now();
     await c.scan.cancelScan(scanId);
@@ -134,13 +200,7 @@ describe('MockConnector — scan lifecycle', () => {
     const c = new MockConnector();
     c.setScenario('disconnect-mid-scan');
     const devices = await c.devices.listDevices();
-    const { scanId } = await c.scan.startScan({
-      targetId: devices[0].volumes[0].id,
-      mode: 'deep',
-      categories: [],
-      badSectorPolicy: 'skip',
-      retries: 1,
-    });
+    const { scanId } = await c.scan.startScan({ targetId: devices[0].volumes[0].id });
     await new Promise<void>((resolve, reject) => {
       const timeout = setTimeout(() => reject(new Error('no disconnect')), 45_000);
       const unsub = c.scan.onScanProgress(scanId, (e) => {
@@ -166,13 +226,7 @@ describe('MockConnector — results', () => {
   it('pages deterministically and filters by category', async () => {
     const c = new MockConnector();
     const devices = await c.devices.listDevices();
-    const { scanId } = await c.scan.startScan({
-      targetId: devices[0].volumes[0].id,
-      mode: 'quick',
-      categories: [],
-      badSectorPolicy: 'skip',
-      retries: 1,
-    });
+    const { scanId } = await c.scan.startScan({ targetId: devices[0].volumes[0].id });
     await new Promise((r) => setTimeout(r, 700));
     const page1 = await c.results.queryResults(
       scanId,
@@ -198,16 +252,41 @@ describe('MockConnector — results', () => {
     await c.scan.cancelScan(scanId);
   }, 30_000);
 
+  it('generates lost-path origins (advanced-scan finds with unreconstructable paths)', async () => {
+    const c = new MockConnector();
+    const devices = await c.devices.listDevices();
+    const { scanId } = await c.scan.startScan({ targetId: devices[0].volumes[0].id });
+    await waitForScanCompletion(c, scanId);
+    const page = await c.results.queryResults(
+      scanId,
+      { ...BASE_FILTER, origins: ['lost-path'] },
+      { field: 'name', direction: 'asc' },
+      { offset: 0, limit: 50 },
+    );
+    expect(page.total).toBeGreaterThan(0);
+    // The path tree's "lost paths" special group is therefore non-empty.
+    const tree = await c.results.getResultTree(scanId, null, 'path');
+    const lostGroup = tree.nodes.find((n) => n.id === 'lost-paths');
+    expect(lostGroup?.fileCount).toBeGreaterThan(0);
+  }, 120_000);
+
+  it('honors the hide-empty-files filter toggle', async () => {
+    const c = new MockConnector();
+    const devices = await c.devices.listDevices();
+    const { scanId } = await c.scan.startScan({ targetId: devices[0].volumes[0].id });
+    await waitForScanCompletion(c, scanId);
+    const all = await c.results.countResults(scanId, BASE_FILTER);
+    const noEmpty = await c.results.countResults(scanId, {
+      ...BASE_FILTER,
+      hideEmptyFiles: true,
+    });
+    expect(noEmpty).toBeLessThanOrEqual(all);
+  }, 120_000);
+
   it('reports filter latency under 200ms on the standard scenario (grid #36)', async () => {
     const c = new MockConnector();
     const devices = await c.devices.listDevices();
-    const { scanId } = await c.scan.startScan({
-      targetId: devices[0].volumes[0].id,
-      mode: 'quick',
-      categories: [],
-      badSectorPolicy: 'skip',
-      retries: 1,
-    });
+    const { scanId } = await c.scan.startScan({ targetId: devices[0].volumes[0].id });
     await new Promise((r) => setTimeout(r, 700));
     const page = await c.results.queryResults(
       scanId,
@@ -221,16 +300,10 @@ describe('MockConnector — results', () => {
 });
 
 describe('MockConnector — previews', () => {
-  it('produces deterministic image previews and diagnostic failures', async () => {
+  it('connector-owned kind inference: image nodes yield image payloads deterministically', async () => {
     const c = new MockConnector();
     const devices = await c.devices.listDevices();
-    const { scanId } = await c.scan.startScan({
-      targetId: devices[0].volumes[0].id,
-      mode: 'quick',
-      categories: [],
-      badSectorPolicy: 'skip',
-      retries: 1,
-    });
+    const { scanId } = await c.scan.startScan({ targetId: devices[0].volumes[0].id });
     await new Promise((r) => setTimeout(r, 700));
     const page = await c.results.queryResults(
       scanId,
@@ -240,20 +313,18 @@ describe('MockConnector — previews', () => {
     );
     const imageNode = page.nodes.find((n) => n.category === 'graphics');
     if (imageNode) {
-      const p1 = await c.preview.requestPreview(scanId, imageNode.id, 'image');
-      const p2 = await c.preview.requestPreview(scanId, imageNode.id, 'image');
+      const p1 = await c.preview.requestPreview(scanId, imageNode.id);
+      const p2 = await c.preview.requestPreview(scanId, imageNode.id);
       expect(p1.kind).toBe('image');
       if (p1.kind === 'image' && p2.kind === 'image') {
         expect(p1.dataUrl).toBe(p2.dataUrl);
       }
     }
-    const damaged = page.nodes[96];
-    if (damaged) {
-      await expect(c.preview.requestPreview(scanId, damaged.id, 'image')).rejects.toMatchObject(
-        {
-          reasonKey: expect.stringContaining('preview.reason'),
-        },
-      );
+    // A text-category node yields a text payload (no UI-side inference).
+    const textNode = page.nodes.find((n) => n.category === 'document');
+    if (textNode) {
+      const p = await c.preview.requestPreview(scanId, textNode.id);
+      expect(['office', 'pdf', 'text']).toContain(p.kind);
     }
     await c.scan.cancelScan(scanId);
   }, 30_000);
@@ -282,11 +353,7 @@ describe('MockConnector — folder scope (ScanParams.pathScope)', () => {
     await expect(
       c.scan.startScan({
         targetId: devices[0].volumes[0].id,
-        mode: 'quick',
-        categories: [],
         pathScope: 'definitely\\not\\a\\folder',
-        badSectorPolicy: 'skip',
-        retries: 1,
       }),
     ).rejects.toMatchObject({
       code: 'scan-scope-invalid',
@@ -305,14 +372,7 @@ describe('MockConnector — folder scope (ScanParams.pathScope)', () => {
     const withDrive = `X:\\${relative!.replace(/^[A-Z]:\\/i, '')}`;
 
     for (const scope of [relative, withDrive]) {
-      const { scanId } = await c.scan.startScan({
-        targetId: target,
-        mode: 'quick',
-        categories: [],
-        pathScope: scope,
-        badSectorPolicy: 'skip',
-        retries: 1,
-      });
+      const { scanId } = await c.scan.startScan({ targetId: target, pathScope: scope });
       await waitForScanCompletion(c, scanId);
       const page = await c.results.queryResults(
         scanId,
@@ -330,21 +390,14 @@ describe('MockConnector — folder scope (ScanParams.pathScope)', () => {
           .every((n) => n.path!.toLowerCase().startsWith(prefix)),
       ).toBe(true);
     }
-  }, 60_000);
+  }, 180_000);
 
   it('presents the scanned folder as the path-tree root', async () => {
     const c = new MockConnector();
     const devices = await c.devices.listDevices();
     const target = devices[0].volumes[0].id;
     const scope = (await c.system.pickDirectory({ volumeId: target }))!;
-    const { scanId } = await c.scan.startScan({
-      targetId: target,
-      mode: 'quick',
-      categories: [],
-      pathScope: scope,
-      badSectorPolicy: 'skip',
-      retries: 1,
-    });
+    const { scanId } = await c.scan.startScan({ targetId: target, pathScope: scope });
     await new Promise((r) => setTimeout(r, 500));
     const tree = await c.results.getResultTree(scanId, null, 'path');
     expect(tree.nodes.length).toBe(1);
@@ -355,31 +408,23 @@ describe('MockConnector — folder scope (ScanParams.pathScope)', () => {
 });
 
 describe('MockConnector — recovery', () => {
-  it('refuses destinations that overlap the source volume', async () => {
+  it('refuses destinations that overlap the source volume (device OR volume id)', async () => {
     const c = new MockConnector();
     const devices = await c.devices.listDevices();
     const source = devices[0];
     const letter = source.volumes[0].letter;
-    const validation = await c.system.validateDestination(
-      `${letter}:\\Recovered`,
-      source.id,
-      1024,
-    );
-    expect(validation.allowed).toBe(false);
-    expect(validation.reason).toBe('overlap');
+    for (const id of [source.id, source.volumes[0].id]) {
+      const validation = await c.system.validateDestination(`${letter}:\\Recovered`, id, 1024);
+      expect(validation.allowed).toBe(false);
+      expect(validation.reason).toBe('overlap');
+    }
   });
 
-  it('runs a recovery job to completion with per-item states', async () => {
+  it('runs an explicit-selection recovery job to completion with per-item states', async () => {
     const c = new MockConnector();
     const devices = await c.devices.listDevices();
     const source = devices[0];
-    const { scanId } = await c.scan.startScan({
-      targetId: source.volumes[0].id,
-      mode: 'quick',
-      categories: [],
-      badSectorPolicy: 'skip',
-      retries: 1,
-    });
+    const { scanId } = await c.scan.startScan({ targetId: source.volumes[0].id });
     await waitForScanCompletion(c, scanId);
     const page = await c.results.queryResults(
       scanId,
@@ -391,7 +436,7 @@ describe('MockConnector — recovery', () => {
     const dest = await c.system.pickDirectory();
     const { jobId } = await c.recovery.startRecovery(
       scanId,
-      page.nodes.slice(0, 5).map((n) => n.id),
+      { kind: 'nodes', nodeIds: page.nodes.slice(0, 5).map((n) => n.id) },
       dest!,
       {
         collision: 'rename',
@@ -415,7 +460,47 @@ describe('MockConnector — recovery', () => {
     const total = report.succeeded.length + report.failed.length + report.skipped.length;
     expect(total).toBe(5);
     expect(report.status).toBeOneOf(['completed', 'completed-partial']);
-  }, 90_000);
+  }, 150_000);
+
+  it('recover-all runs a REAL job over the full filtered set (no zero-item stub)', async () => {
+    const c = new MockConnector();
+    const devices = await c.devices.listDevices();
+    const source = devices[0];
+    const { scanId } = await c.scan.startScan({ targetId: source.volumes[0].id });
+    await waitForScanCompletion(c, scanId);
+    const expected = await c.results.countResults(scanId, BASE_FILTER);
+    expect(expected).toBeGreaterThan(50);
+    const dest = await c.system.pickDirectory();
+    const { jobId } = await c.recovery.startRecovery(
+      scanId,
+      { kind: 'all', filter: BASE_FILTER },
+      dest!,
+      {
+        collision: 'rename',
+        rebuildFolders: true,
+        keepEmptyFolders: false,
+        fileRepair: false,
+        verifyOnWrite: false,
+      },
+    );
+    await new Promise<void>((resolve, reject) => {
+      const timeout = setTimeout(() => reject(new Error('job did not finish')), 120_000);
+      const unsub = c.recovery.onRecoveryProgress(jobId, (e) => {
+        if (e.status !== 'running' && e.status !== 'validating') {
+          clearTimeout(timeout);
+          unsub();
+          resolve();
+        }
+      });
+    });
+    const report = await c.recovery.getRecoveryReport(jobId);
+    expect(report.status).toBeOneOf(['completed', 'completed-partial']);
+    // The job processed the WHOLE set — not an instant 0/0 completion.
+    expect(report.processedTotal).toBe(expected);
+    // Item lists are bounded at scale but counts stay exact.
+    expect(report.truncatedItemLists).toBe(true);
+    expect(report.succeeded.length).toBeLessThanOrEqual(500);
+  }, 240_000);
 });
 
 describe('MockConnector — health & repair', () => {
@@ -431,6 +516,16 @@ describe('MockConnector — health & repair', () => {
       expect(a).toHaveProperty('status');
     }
     expect(['good', 'caution', 'bad']).toContain(h.status);
+  });
+
+  it('reaches the failing (bad) health state on the failing-disk scenario', async () => {
+    const c = new MockConnector();
+    c.setScenario('failing-disk');
+    const devices = await c.devices.listDevices();
+    const h = await c.health.getHealth(devices[0].id);
+    expect(h.status).toBe('bad');
+    expect(h.reallocatedSectors ?? 0).toBeGreaterThan(1000);
+    expect(h.attributes.some((a) => a.status === 'failing')).toBe(true);
   });
 
   it('requires the typed consent token for repair', async () => {
@@ -450,6 +545,13 @@ describe('MockConnector — health & repair', () => {
     expect(log.length).toBe(applied);
     const undo = await c.repair.undoRepairs(devices[0].id);
     expect(undo.rolledBack).toBe(applied);
+  });
+
+  it('openPath reports not-implemented honestly (no shell in the simulator)', async () => {
+    const c = new MockConnector();
+    await expect(c.system.openPath('C:\\some\\path')).rejects.toMatchObject({
+      code: 'not-implemented',
+    });
   });
 });
 

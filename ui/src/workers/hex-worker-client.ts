@@ -1,15 +1,12 @@
 /**
  * Hex worker client — spins up the module worker with a graceful in-line
- * fallback for environments without Worker (jsdom tests). Both paths produce
- * identical bounded output; the worker path is the default in browser and
- * WebView2.
+ * fallback for environments without Worker (jsdom tests). Both paths share
+ * the exact same row formatter (lib/hex-format); the worker path is the
+ * default in browser and WebView2.
  */
+import { formatHexRows, type HexRow } from '@/lib/hex-format';
 
-export interface HexRow {
-  offset: number;
-  hex: string;
-  ascii: string;
-}
+export type { HexRow };
 
 export async function hexWorker(bytes: Uint8Array, baseOffset: number): Promise<HexRow[]> {
   if (typeof Worker !== 'undefined') {
@@ -30,24 +27,5 @@ export async function hexWorker(bytes: Uint8Array, baseOffset: number): Promise<
       worker.postMessage({ bytes: copy, baseOffset }, [copy]);
     });
   }
-  return hexInline(bytes, baseOffset);
-}
-
-function hexInline(bytes: Uint8Array, baseOffset: number): HexRow[] {
-  const rows: HexRow[] = [];
-  const HEX: string[] = [];
-  for (let i = 0; i < 256; i++) HEX.push(i.toString(16).padStart(2, '0'));
-  for (let i = 0; i < bytes.length; i += 16) {
-    const slice = bytes.subarray(i, i + 16);
-    let hex = '';
-    let ascii = '';
-    for (let j = 0; j < slice.length; j++) {
-      const b = slice[j];
-      hex += HEX[b] + (j === 7 ? '  ' : ' ');
-      ascii += b >= 32 && b < 127 ? String.fromCharCode(b) : '·';
-    }
-    while (hex.length < 16 * 3 + 1) hex += ' ';
-    rows.push({ offset: baseOffset + i, hex, ascii });
-  }
-  return rows;
+  return formatHexRows(bytes, baseOffset);
 }

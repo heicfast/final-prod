@@ -5,14 +5,16 @@ import { CalendarIcon, FilterXIcon, RulerIcon, TagIcon } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Checkbox } from '@/components/ui/checkbox';
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/menus';
 import { CategoryIcon } from '@/components/ui/file-icon';
 import { useFilterStore } from '@/stores/filter-store';
-import { cn } from '@/lib/utils';
 
 /**
- * Filter bar — Path/Type/Date/Size dropdowns + deleted-only toggle + Reset,
- * mirroring the corpus filter row. All filters resolve into a connector
+ * Filter bar — the corpus filter row (atlas §9): File Type / Date Modified /
+ * File Size dropdowns (each with a Custom entry) + the "Existing" and
+ * "Hide 0 KB files" toggles + Reset. All filters resolve into a connector
  * ResultsFilter (server-side in the real backend; typed-array scan in the
  * mock — never client-side over paged data).
  */
@@ -35,14 +37,28 @@ export function FilterBar(): React.JSX.Element {
         <SizePicker />
       </FilterPopover>
 
-      <label className="flex cursor-pointer select-none items-center gap-1.5 text-xs text-foreground-secondary">
-        <input
-          type="checkbox"
-          className="accent-[var(--accent)]"
-          checked={f.showDeletedOnly}
-          onChange={(e) => f.setShowDeletedOnly(e.target.checked)}
+      <label
+        className="flex cursor-pointer select-none items-center gap-1.5 text-xs text-foreground-secondary"
+        htmlFor="filter-existing"
+      >
+        <Checkbox
+          id="filter-existing"
+          checked={f.existingOnly}
+          onCheckedChange={(v) => f.setExistingOnly(v === true)}
         />
-        {t('results.tree.deletedFiles')}
+        {t('results.filterExisting')}
+      </label>
+
+      <label
+        className="flex cursor-pointer select-none items-center gap-1.5 text-xs text-foreground-secondary"
+        htmlFor="filter-hide-empty"
+      >
+        <Checkbox
+          id="filter-hide-empty"
+          checked={f.hideEmptyFiles}
+          onCheckedChange={(v) => f.setHideEmptyFiles(v === true)}
+        />
+        {t('results.filterHideEmpty')}
       </label>
 
       {f.hasActiveFilters() ? (
@@ -91,6 +107,7 @@ const CATEGORIES: readonly FileCategoryId[] = [
 function CategoryPicker(): React.JSX.Element {
   const { t } = useTranslation();
   const f = useFilterStore();
+  const [customOpen, setCustomOpen] = React.useState(false);
   return (
     <div className="space-y-1" role="group" aria-label={t('results.filterType')}>
       {CATEGORIES.map((cat) => {
@@ -100,28 +117,50 @@ function CategoryPicker(): React.JSX.Element {
             key={cat}
             className="flex cursor-pointer items-center gap-2.5 rounded-xs px-2 py-1.5 text-sm hover:bg-surface-hover"
           >
-            <input
-              type="checkbox"
-              className="sr-only"
-              checked={checked}
-              onChange={() => f.toggleCategory(cat)}
-            />
-            <span
-              className={cn(
-                'flex size-4 items-center justify-center rounded-xs border text-2xs',
-                checked
-                  ? 'border-primary bg-primary text-primary-foreground'
-                  : 'border-border-strong',
-              )}
-              aria-hidden
-            >
-              {checked ? '✓' : ''}
-            </span>
+            <Checkbox checked={checked} onCheckedChange={() => f.toggleCategory(cat)} />
             <CategoryIcon category={cat} />
-            <span className="flex-1">{t(`scanConfig.categories.${cat}`)}</span>
+            <span className="flex-1">{t(`categories.${cat}`)}</span>
           </label>
         );
       })}
+      {/* Corpus Custom entry: "Enter the file type suffix, such as *.doc; *.xlsx" (atlas §9) */}
+      <div className="mt-2 border-t border-border pt-2">
+        {customOpen || (f.extensions?.length ?? 0) > 0 ? (
+          <div className="space-y-1.5 px-2 pb-1">
+            <Label htmlFor="filter-ext-custom" className="text-2xs text-foreground-secondary">
+              {t('results.typeCustomHint')}
+            </Label>
+            <div className="flex gap-2">
+              <Input
+                id="filter-ext-custom"
+                className="h-7 font-mono text-xs"
+                placeholder="*.doc; *.xlsx"
+                value={f.extensionInput}
+                onChange={(e) => f.setExtensionInput(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') f.commitExtensions();
+                }}
+              />
+              <Button variant="secondary" size="sm" onClick={() => f.commitExtensions()}>
+                {t('common.apply')}
+              </Button>
+            </div>
+            {(f.extensions?.length ?? 0) > 0 ? (
+              <p className="text-2xs text-primary">
+                {t('results.typeCustomActive', { list: f.extensions!.join(', ') })}
+              </p>
+            ) : null}
+          </div>
+        ) : (
+          <button
+            type="button"
+            className="w-full rounded-xs px-2 py-1.5 text-left text-sm text-primary hover:bg-surface-hover"
+            onClick={() => setCustomOpen(true)}
+          >
+            {t('results.typeCustom')}
+          </button>
+        )}
+      </div>
     </div>
   );
 }
@@ -131,20 +170,23 @@ function DatePicker(): React.JSX.Element {
   const f = useFilterStore();
   return (
     <div className="space-y-2">
-      {(['any', 'yesterday', 'week', 'month'] as const).map((preset) => (
-        <label key={preset} className="flex cursor-pointer items-center gap-2 text-sm">
-          <input
-            type="radio"
-            name="date-preset"
-            className="accent-[var(--accent)]"
-            checked={f.datePreset === preset}
-            onChange={() => f.setDatePreset(preset)}
-          />
-          {t(
-            `results.date${preset === 'any' ? 'Any' : preset === 'yesterday' ? 'Yesterday' : preset === 'week' ? 'Week' : 'Month'}`,
-          )}
-        </label>
-      ))}
+      <RadioGroup
+        value={f.datePreset}
+        onValueChange={(v) => f.setDatePreset(v as typeof f.datePreset)}
+        className="space-y-1"
+      >
+        {(['any', 'yesterday', 'week', 'month'] as const).map((preset) => (
+          <label
+            key={preset}
+            className="flex cursor-pointer items-center gap-2 rounded-xs px-2 py-1 text-sm hover:bg-surface-hover"
+          >
+            <RadioGroupItem value={preset} />
+            {t(
+              `results.date${preset === 'any' ? 'Any' : preset === 'yesterday' ? 'Yesterday' : preset === 'week' ? 'Week' : 'Month'}`,
+            )}
+          </label>
+        ))}
+      </RadioGroup>
       <div className="rounded-sm border border-border p-2">
         <p className="mb-1.5 text-xs font-medium text-foreground-secondary">
           {t('results.dateCustom')}
@@ -185,27 +227,30 @@ function SizePicker(): React.JSX.Element {
   const f = useFilterStore();
   return (
     <div className="space-y-2">
-      {(['any', 'tiny', 'small', 'medium', 'large', 'huge'] as const).map((preset) => (
-        <label key={preset} className="flex cursor-pointer items-center gap-2 text-sm">
-          <input
-            type="radio"
-            name="size-preset"
-            className="accent-[var(--accent)]"
-            checked={f.sizePreset === preset}
-            onChange={() => f.setSizePreset(preset)}
-          />
-          {t(
-            `results.size${preset === 'any' ? 'Any' : preset === 'tiny' ? 'Tiny' : preset === 'small' ? 'Small' : preset === 'medium' ? 'Medium' : preset === 'large' ? 'Large' : 'Huge'}`,
-          )}
-        </label>
-      ))}
+      <RadioGroup
+        value={f.sizePreset}
+        onValueChange={(v) => f.setSizePreset(v as typeof f.sizePreset)}
+        className="space-y-1"
+      >
+        {(['any', 'tiny', 'small', 'medium', 'large', 'huge'] as const).map((preset) => (
+          <label
+            key={preset}
+            className="flex cursor-pointer items-center gap-2 rounded-xs px-2 py-1 text-sm hover:bg-surface-hover"
+          >
+            <RadioGroupItem value={preset} />
+            {t(
+              `results.size${preset === 'any' ? 'Any' : preset === 'tiny' ? 'Tiny' : preset === 'small' ? 'Small' : preset === 'medium' ? 'Medium' : preset === 'large' ? 'Large' : 'Huge'}`,
+            )}
+          </label>
+        ))}
+      </RadioGroup>
       <div className="rounded-sm border border-border p-2">
         <p className="mb-1.5 text-xs font-medium text-foreground-secondary">
           {t('results.sizeCustom')}
         </p>
         <div className="flex items-center gap-2">
           <Input
-            aria-label={t('results.dateFrom')}
+            aria-label={t('results.sizeMinLabel')}
             type="number"
             min={0}
             placeholder="0"
@@ -215,7 +260,7 @@ function SizePicker(): React.JSX.Element {
           />
           <span className="text-xs text-foreground-disabled">MB —</span>
           <Input
-            aria-label={t('results.dateTo')}
+            aria-label={t('results.sizeMaxLabel')}
             type="number"
             min={0}
             placeholder="∞"

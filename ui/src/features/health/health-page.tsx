@@ -1,6 +1,5 @@
 import * as React from 'react';
 import { useTranslation } from 'react-i18next';
-import { useSearchParams } from 'react-router';
 import {
   ThermometerIcon,
   HeartPulseIcon,
@@ -8,8 +7,8 @@ import {
   ZapIcon,
   HardDriveIcon,
 } from 'lucide-react';
-import { useDevices } from '@/queries/devices';
 import { useHealth } from '@/queries/health';
+import { usePhysicalDevices } from '@/hooks/use-physical-devices';
 import { formatInteger } from '@/lib/format';
 import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
@@ -27,17 +26,17 @@ import {
 /** Disk Health — SMART table + summary card, exactly the fields the connector returns. */
 export function HealthPage(): React.JSX.Element {
   const { t, i18n } = useTranslation();
-  const [params] = useSearchParams();
-  const devices = useDevices();
-  const list = devices.data ?? [];
-  const [pickedDeviceId, setPickedDeviceId] = React.useState<string | null>(
-    params.get('device'),
-  );
-  const deviceId: string | null = pickedDeviceId ?? list[0]?.id ?? null;
+  const {
+    devices: list,
+    selectedId: deviceId,
+    setSelectedId,
+    isLoading,
+    refetch,
+  } = usePhysicalDevices();
 
-  const health = useHealth(deviceId);
+  const health = useHealth(deviceId || null);
 
-  if (devices.isLoading) {
+  if (isLoading) {
     return (
       <div className="p-6">
         <Skeleton className="mb-4 h-32" />
@@ -54,7 +53,7 @@ export function HealthPage(): React.JSX.Element {
           title={t('home.emptyTitle')}
           description={t('home.emptyBody')}
           actionLabel={t('home.refreshDevices')}
-          onAction={() => void devices.refetch()}
+          onAction={refetch}
         />
       </div>
     );
@@ -71,7 +70,7 @@ export function HealthPage(): React.JSX.Element {
             key={d.id}
             type="button"
             aria-pressed={deviceId === d.id}
-            onClick={() => setPickedDeviceId(d.id)}
+            onClick={() => setSelectedId(d.id)}
             className={cn(
               'rounded-md border-2 px-4 py-2 text-left text-sm transition-colors',
               deviceId === d.id

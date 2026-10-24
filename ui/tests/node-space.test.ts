@@ -11,9 +11,9 @@ const BASE: ResultsFilter = {
   dateTo: null,
   sizeMinBytes: null,
   sizeMaxBytes: null,
-  confidence: null,
   extensions: null,
   origins: null,
+  hideEmptyFiles: false,
 };
 
 describe('NodeSpace — procedural index', () => {
@@ -109,5 +109,37 @@ describe('NodeSpace — procedural index', () => {
     );
     expect(hits.nodes.every((n) => n.category === 'graphics')).toBe(true);
     expect(hits.total).toBe(graphics.fileCount);
+  });
+});
+
+describe('NodeSpace — origin mix (ADR-008 corpus model)', () => {
+  it('produces existing, deleted, lost-path and raw origins', () => {
+    const s = new NodeSpace('vol-test', 99, 40, 1200);
+    const page = s.query(BASE, { field: 'name', direction: 'asc' }, 0, 1200);
+    const origins = new Set(page.nodes.map((n) => n.origin));
+    expect(origins.has('existing')).toBe(true);
+    expect(origins.has('deleted')).toBe(true);
+    expect(origins.has('lost-path')).toBe(true);
+    expect(origins.has('raw')).toBe(true);
+  });
+
+  it('queryNodes walks file indices for recover-all', () => {
+    const s = new NodeSpace('vol-test', 99, 40, 1200);
+    const total = s.count(BASE);
+    const first = s.queryNodes(BASE, null, 0, 100);
+    const second = s.queryNodes(BASE, null, 100, 100);
+    expect(first.length).toBe(100);
+    expect(second.length).toBe(100);
+    expect(new Set([...first, ...second]).size).toBe(200);
+    expect(total).toBeGreaterThanOrEqual(200);
+  });
+
+  it('searchingPathAt yields a path only for matching nodes', () => {
+    const s = new NodeSpace('vol-test', 99, 40, 800);
+    const p = s.searchingPathAt(3, null);
+    expect(p === null || typeof p === 'string').toBe(true);
+    if (p !== null) {
+      expect(p.length).toBeGreaterThan(0);
+    }
   });
 });

@@ -72,6 +72,7 @@ export type ConnectorErrorCode =
   | 'preview-encrypted'
   | 'preview-timeout'
   | 'preview-missing-data'
+  | 'recovery-item-failed'
   | 'repair-consent-required'
   | 'repair-failed'
   | 'health-unavailable'
@@ -137,7 +138,6 @@ export interface DevicesDomain {
 // Scan
 // ---------------------------------------------------------------------------
 
-export type ScanMode = 'quick' | 'deep' | 'deep-carve';
 export type ScanStatus =
   | 'idle'
   | 'starting'
@@ -153,17 +153,21 @@ export type ScanStatus =
 export type ScanStage =
   'volume-analysis' | 'quick-index' | 'deep-walk' | 'carve' | 'tree-build' | 'done';
 
-export type BadSectorPolicy = 'stop' | 'skip' | 'zero-fill';
+/** Which reference-visible phase a stage belongs to (status-line labels). */
+export type ScanPhase = 'quick' | 'advanced' | 'organizing';
+
+export function scanPhaseOf(stage: ScanStage): ScanPhase {
+  if (stage === 'quick-index' || stage === 'volume-analysis') return 'quick';
+  if (stage === 'deep-walk' || stage === 'carve') return 'advanced';
+  return 'organizing';
+}
 
 export interface ScanParams {
   readonly targetId: string;
-  readonly mode: ScanMode;
-  readonly categories: readonly FileCategoryId[];
-  /** Optional folder restriction (volume-root-relative path). Null = whole volume. */
+  /** Optional folder restriction ("Specify a location" -> Select Folder).
+   * Null/omitted = whole volume. The scan ALWAYS runs quick -> advanced
+   * automatically (ADR-008): the reference exposes no mode selection. */
   readonly pathScope?: string | null;
-  readonly sectorSize?: number;
-  readonly badSectorPolicy: BadSectorPolicy;
-  readonly retries: number;
 }
 
 export interface ScanProgressEvent {
@@ -185,6 +189,8 @@ export interface ScanProgressEvent {
   /** True when results so far are safe to recover while the scan runs. */
   readonly recoverableDuringScan: boolean;
   readonly deviceConnected: boolean;
+  /** The item currently being examined — the live "Searching: ..." ticker. */
+  readonly currentPath: string | null;
 }
 
 export interface BadSectorRange {
@@ -271,9 +277,10 @@ export interface ResultsFilter {
   readonly dateTo: Iso8601 | null;
   readonly sizeMinBytes: number | null;
   readonly sizeMaxBytes: number | null;
-  readonly confidence: ConfidenceGrade | null;
   readonly extensions: readonly string[] | null;
   readonly origins: readonly ResultOrigin[] | null;
+  /** True = drop zero-byte files ("Hide 0 KB files" toggle). */
+  readonly hideEmptyFiles: boolean;
 }
 
 export interface ResultsPage {
@@ -314,8 +321,6 @@ export interface ResultsDomain {
 // ---------------------------------------------------------------------------
 // Preview
 // ---------------------------------------------------------------------------
-
-export type PreviewKind = 'image' | 'hex' | 'text' | 'pdf' | 'av' | 'office';
 
 export type PreviewPayload =
   | {
@@ -361,7 +366,10 @@ export type PreviewPayload =
     };
 
 export interface PreviewDomain {
-  requestPreview(scanId: string, nodeId: string, kind: PreviewKind): Promise<PreviewPayload>;
+  /** The connector decides the preview kind from its own file knowledge;
+   * the UI never classifies extensions (engine knowledge stays behind the
+   * connector boundary). */
+  requestPreview(scanId: string, nodeId: string): Promise<PreviewPayload>;
   getThumbnail(scanId: string, nodeId: string): Promise<{ dataUrl: string } | null>;
 }
 
@@ -374,7 +382,6 @@ export interface SessionMeta {
   readonly fileName: string;
   readonly savedAt: Iso8601;
   readonly targetLabel: string;
-  readonly mode: ScanMode;
   readonly filesFound: number;
   readonly dataFoundBytes: number;
   readonly completed: boolean;
@@ -385,7 +392,6 @@ export interface SessionsDomain {
   listSessions(): Promise<SessionMeta[]>;
   loadSession(path: string): Promise<{ scanId: string }>;
   getSessionMeta(path: string): Promise<SessionMeta>;
-  deleteSession(sessionId: string): Promise<void>;
 }
 
 // ---------------------------------------------------------------------------
@@ -448,12 +454,24 @@ export interface RecoveryReport {
   readonly skipped: readonly RecoveryItem[];
   readonly totalBytesWritten: number;
   readonly verified: boolean;
+  /** Exact number of items the job processed (succeeded+failed+skipped),
+   *  independent of the bounded per-item lists. */
+  readonly processedTotal: number;
+  /** True when the item lists were capped (recover-all at scale); counts
+   *  remain exact — only the per-item arrays are bounded. */
+  readonly truncatedItemLists: boolean;
 }
+
+/** What to recover: an explicit node list, or everything matching a filter
+ *  (the reference's Recover All — the export loop iterates the whole set). */
+export type RecoverySelection =
+  | { readonly kind: 'nodes'; readonly nodeIds: readonly string[] }
+  | { readonly kind: 'all'; readonly filter: ResultsFilter };
 
 export interface RecoveryDomain {
   startRecovery(
     scanId: string,
-    nodeIds: readonly string[],
+    selection: RecoverySelection,
     destination: string,
     options: RecoveryOptions,
   ): Promise<{ jobId: string }>;
@@ -564,6 +582,14 @@ export interface AppInfo {
   readonly platform: string;
 }
 
+export interface MountPoint {
+  readonly id: string;
+  readonly label: string;
+  readonly path: string;
+  readonly freeBytes: number;
+  readonly totalBytes: number;
+}
+
 export interface DestinationValidation {
   readonly allowed: boolean;
   readonly reason?: 'overlap' | 'unwritable' | 'invalid' | 'out-of-space';
@@ -591,15 +617,7 @@ export interface SystemDomain {
     readonly volumeId?: string | null;
     readonly excludeDeviceId?: string | null;
   }): Promise<string | null>;
-  listMountPoints(): Promise<
-    readonly {
-      id: string;
-      label: string;
-      path: string;
-      freeBytes: number;
-      totalBytes: number;
-    }[]
-  >;
+  listMountPoints(): Promise<readonly MountPoint[]>;
   openPath(path: string): Promise<void>;
 }
 
@@ -636,5 +654,6 @@ export type MockScenarioId =
   | 'permission-denied'
   | 'disconnect-mid-scan'
   | 'bad-sectors'
+  | 'failing-disk'
   | 'out-of-space'
   | 'corrupt-session';

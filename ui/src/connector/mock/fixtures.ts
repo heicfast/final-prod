@@ -281,10 +281,107 @@ function deviceBase(p: {
   };
 }
 
+/** Shared system-volume base (differs only by node seed + counts). */
+function sysVolumeFixture(
+  nodeSeed: number,
+  fileCount: number,
+  directoryCount: number,
+): DeviceFixture {
+  const cap = capacity(476 * GB, 0.66);
+  return {
+    device: deviceBase({
+      id: 'dev-sys',
+      kind: 'internal',
+      model: 'Samsung 970 EVO 500GB',
+      label: 'Windows (C:)',
+      serial: 'S4EWN0-500-33892',
+      cap,
+    }),
+    volumes: [
+      mkVolume({
+        id: 'vol-sys',
+        deviceId: 'dev-sys',
+        label: 'Windows (C:)',
+        letter: 'C',
+        fs: 'ntfs',
+        capacity: cap,
+        status: 'ok',
+      }),
+    ],
+    nodeSeed,
+    fileCount,
+    directoryCount,
+  };
+}
+
 const GB = 1024 ** 3;
 const TB = 1024 ** 4;
 
+/**
+ * The "Specify a location" entries (atlas §5 / GT-landing §4): Recycle Bin
+ * and Desktop are virtual scan targets, not drives — no letter, no mount
+ * point, excluded from health/repair pickers, scanned directly from the
+ * landing page's quick-target row.
+ */
+const LOCATION_FIXTURES: readonly DeviceFixture[] = [
+  {
+    device: deviceBase({
+      id: 'dev-recycle-bin',
+      kind: 'virtual',
+      model: 'Shell location',
+      label: 'Recycle Bin',
+      serial: 'LOC-RECYCLE',
+      cap: capacity(4 * GB, 0.35),
+      canScanWholeDisk: false,
+    }),
+    volumes: [
+      mkVolume({
+        id: 'vol-recycle-bin',
+        deviceId: 'dev-recycle-bin',
+        label: 'Recycle Bin',
+        letter: null,
+        fs: 'ntfs',
+        capacity: capacity(4 * GB, 0.35),
+        status: 'ok',
+      }),
+    ],
+    nodeSeed: 5501,
+    fileCount: 900,
+    directoryCount: 24,
+  },
+  {
+    device: deviceBase({
+      id: 'dev-desktop',
+      kind: 'virtual',
+      model: 'Shell location',
+      label: 'Desktop',
+      serial: 'LOC-DESKTOP',
+      cap: capacity(2 * GB, 0.5),
+      canScanWholeDisk: false,
+    }),
+    volumes: [
+      mkVolume({
+        id: 'vol-desktop',
+        deviceId: 'dev-desktop',
+        label: 'Desktop',
+        letter: null,
+        fs: 'ntfs',
+        capacity: capacity(2 * GB, 0.5),
+        status: 'ok',
+      }),
+    ],
+    nodeSeed: 6602,
+    fileCount: 420,
+    directoryCount: 12,
+  },
+];
+
 export function fixturesFor(scenario: MockScenarioId): readonly DeviceFixture[] {
+  const base = fixturesForScenario(scenario);
+  return [...base, ...LOCATION_FIXTURES];
+}
+
+function fixturesForScenario(scenario: MockScenarioId): readonly DeviceFixture[] {
   switch (scenario) {
     case 'sd-card':
       return [
@@ -400,58 +497,12 @@ export function fixturesFor(scenario: MockScenarioId): readonly DeviceFixture[] 
           fileCount: 1_200_000,
           directoryCount: 5_400,
         },
-        {
-          device: deviceBase({
-            id: 'dev-sys',
-            kind: 'internal',
-            model: 'Samsung 970 EVO 500GB',
-            label: 'Windows (C:)',
-            serial: 'S4EWN0-500-33892',
-            cap: capacity(476 * GB, 0.66),
-          }),
-          volumes: [
-            mkVolume({
-              id: 'vol-sys',
-              deviceId: 'dev-sys',
-              label: 'Windows (C:)',
-              letter: 'C',
-              fs: 'ntfs',
-              capacity: capacity(476 * GB, 0.66),
-              status: 'ok',
-            }),
-          ],
-          nodeSeed: 5506,
-          fileCount: 210_000,
-          directoryCount: 1_800,
-        },
+        sysVolumeFixture(5506, 210_000, 1_800),
       ];
     default:
       // standard
       return [
-        {
-          device: deviceBase({
-            id: 'dev-sys',
-            kind: 'internal',
-            model: 'Samsung 970 EVO 500GB',
-            label: 'Windows (C:)',
-            serial: 'S4EWN0-500-33892',
-            cap: capacity(476 * GB, 0.66),
-          }),
-          volumes: [
-            mkVolume({
-              id: 'vol-sys',
-              deviceId: 'dev-sys',
-              label: 'Windows (C:)',
-              letter: 'C',
-              fs: 'ntfs',
-              capacity: capacity(476 * GB, 0.66),
-              status: 'ok',
-            }),
-          ],
-          nodeSeed: 6607,
-          fileCount: 180_000,
-          directoryCount: 1_600,
-        },
+        sysVolumeFixture(6607, 180_000, 1_600),
         {
           device: deviceBase({
             id: 'dev-data',

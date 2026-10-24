@@ -54,6 +54,17 @@ export function useResultsPages(
   });
 }
 
+/** Filtered-total count — select-all semantics + recover-all sizing. */
+export function useCountResults(scanId: string | null, filter: ResultsFilter, enabled = true) {
+  const fk = filterKeyOf(filter);
+  return useQuery({
+    queryKey: queryKeys.count(scanId ?? 'none', fk),
+    queryFn: () => connector.results.countResults(scanId!, filter),
+    enabled: scanId !== null && enabled,
+    staleTime: 5_000,
+  });
+}
+
 export function useNodeDetail(scanId: string | null, nodeId: string | null) {
   return useQuery({
     queryKey: queryKeys.nodeDetail(scanId ?? 'none', nodeId ?? 'none'),

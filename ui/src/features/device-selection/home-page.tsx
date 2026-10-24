@@ -1,5 +1,5 @@
 import * as React from 'react';
-import { useNavigate } from 'react-router';
+import { useNavigate, useSearchParams } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import type { Device, Volume } from '@/connector/contract';
 import {
@@ -18,6 +18,8 @@ import {
 } from 'lucide-react';
 import { useDevices, useRefreshDevices } from '@/queries/devices';
 import { useSessions, useLoadSession } from '@/queries/sessions';
+import { useStartScan } from '@/queries/scan';
+import { usePickDirectory } from '@/queries/system';
 import { formatBytes, formatDate } from '@/lib/format';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -28,32 +30,69 @@ import { Hint } from '@/components/ui/tooltip';
 import { toast } from 'sonner';
 
 /**
- * Home / Device Selection — the corpus landing page IA: title, device tile
- * grid with capacity bars + health hints + lost-partition badges, quick
- * targets (recycle bin / desktop / choose folder), session import, recent
- * sessions, primary CTA bottom-right. All states implemented.
+ * Home / Device Selection — the corpus landing page (atlas §5): page title,
+ * device tile grid with capacity bars + health hints + lost-partition
+ * badges, the "Specify a location" quick-target row (Recycle Bin / Desktop /
+ * Select Folder — all REAL scan entries, GT-landing §4), recent sessions,
+ * and the "Search for Lost Data" CTA bottom-right.
+ *
+ * ADR-008: clicking the CTA (or any scan entry) starts the scan DIRECTLY —
+ * the app navigates to the live scan surface with no intermediate
+ * configuration step.
  */
+
+const RECYCLE_BIN_TARGET = 'vol-recycle-bin';
+const DESKTOP_TARGET = 'vol-desktop';
 
 export function HomePage(): React.JSX.Element {
   const { t, i18n } = useTranslation();
   const navigate = useNavigate();
+  const [params] = useSearchParams();
   const devicesQuery = useDevices();
   const refresh = useRefreshDevices();
   const sessionsQuery = useSessions();
   const loadSession = useLoadSession();
+  const startScan = useStartScan();
+  const pickDirectory = usePickDirectory();
   const [selectedId, setSelectedId] = React.useState<string | null>(null);
-  const showRemovable = new URLSearchParams(window.location.hash.split('?')[1] ?? '').has(
-    'media',
-  );
+  const showRemovable = params.has('media');
 
   const devices = devicesQuery.data ?? [];
-  const internal = devices.filter((d) => d.kind === 'internal');
-  const removable = devices.filter((d) => d.kind !== 'internal');
+  const physical = devices.filter((d) => d.kind !== 'virtual');
+  const internal = physical.filter((d) => d.kind === 'internal');
+  const removable = physical.filter((d) => d.kind !== 'internal');
   const selected = devices.find((d) => d.id === selectedId) ?? null;
 
-  const startScan = (): void => {
-    if (!selected) return;
-    void navigate(`/scan/${selected.id}`);
+  /** Direct start (ADR-008): device selection → scan, no config step. */
+  const beginScan = (targetId: string, pathScope?: string): void => {
+    startScan.mutate(
+      { targetId, ...(pathScope ? { pathScope } : {}) },
+      {
+        onSuccess: ({ scanId }) => {
+          void navigate(`/scan/${targetId}/live?scanId=${scanId}`);
+        },
+        onError: (err) => {
+          const reasonKey = (err as { reasonKey?: string }).reasonKey;
+          toast.error(reasonKey ? t(reasonKey) : err.message);
+        },
+      },
+    );
+  };
+
+  const onChooseFolder = (): void => {
+    // "Specify a location" → Select Folder (atlas §5): the native folder
+    // picker runs FIRST, then the scan starts directly on the chosen scope.
+    const hintVolume = devices.flatMap((d) => d.volumes)[0];
+    pickDirectory.mutate(
+      { volumeId: hintVolume?.id ?? null },
+      {
+        onSuccess: (picked) => {
+          if (!picked) return; // cancelled — stay on Home
+          beginScan(hintVolume?.id ?? '', picked);
+        },
+        onError: (err) => toast.error(err.message),
+      },
+    );
   };
 
   const onResume = (path: string): void => {
@@ -108,7 +147,7 @@ export function HomePage(): React.JSX.Element {
   }
 
   const visible = showRemovable ? removable : internal;
-  if (devices.length === 0) {
+  if (physical.length === 0) {
     return (
       <div className="p-6">
         <EmptyState
@@ -122,8 +161,8 @@ export function HomePage(): React.JSX.Element {
     );
   }
 
-  const hasPermissionIssue = devices.some((d) => d.status === 'permission-denied');
-  const hasDisconnected = devices.some((d) => d.status === 'disconnected');
+  const hasPermissionIssue = physical.some((d) => d.status === 'permission-denied');
+  const hasDisconnected = physical.some((d) => d.status === 'disconnected');
 
   return (
     <div className="flex h-full min-h-0 flex-col overflow-y-auto">
@@ -174,6 +213,8 @@ export function HomePage(): React.JSX.Element {
               device={device}
               selected={selectedId === device.id}
               onSelect={() => setSelectedId(device.id)}
+              onScan={() => beginScan(device.id)}
+              onScanVolume={(volumeId) => beginScan(volumeId)}
             />
           ))}
         </div>
@@ -185,22 +226,20 @@ export function HomePage(): React.JSX.Element {
           <QuickTarget
             icon={Trash2Icon}
             label={t('home.recycleBin')}
-            onClick={() => toast(t('common.learnMore'))}
+            onClick={() => beginScan(RECYCLE_BIN_TARGET)}
+            loading={startScan.isPending}
           />
           <QuickTarget
             icon={MonitorSmartphoneIcon}
             label={t('home.desktop')}
-            onClick={() => toast(t('common.learnMore'))}
+            onClick={() => beginScan(DESKTOP_TARGET)}
+            loading={startScan.isPending}
           />
           <QuickTarget
             icon={FolderOpenIcon}
             label={t('home.chooseFolder')}
-            onClick={() => {
-              // Folder targets are volume-scoped: route to the first internal
-              // volume's configuration with the folder-scope mode preselected.
-              const first = devices.flatMap((d) => d.volumes)[0];
-              if (first) void navigate(`/scan/${first.id}?folder=1`);
-            }}
+            onClick={onChooseFolder}
+            loading={pickDirectory.isPending || startScan.isPending}
           />
         </div>
 
@@ -220,7 +259,7 @@ export function HomePage(): React.JSX.Element {
                   <div className="min-w-0">
                     <div className="truncate text-sm font-medium">{s.targetLabel}</div>
                     <div className="text-xs text-foreground-secondary tabular">
-                      {formatDate(s.savedAt, i18n.language)} · {s.mode} ·{' '}
+                      {formatDate(s.savedAt, i18n.language)} ·{' '}
                       {s.filesFound.toLocaleString(i18n.language)} {t('scan.filesFound')}
                     </div>
                   </div>
@@ -234,7 +273,7 @@ export function HomePage(): React.JSX.Element {
         ) : null}
       </div>
 
-      {/* Bottom CTA bar */}
+      {/* Bottom CTA bar — "Search for Lost Data" (atlas §5: bottom-right) */}
       <div className="sticky bottom-0 flex items-center justify-end gap-3 border-t border-border bg-surface/90 px-6 py-3 backdrop-blur">
         <span className="text-sm text-foreground-secondary">
           {selected
@@ -244,8 +283,9 @@ export function HomePage(): React.JSX.Element {
         <Button
           variant="primary"
           size="lg"
-          disabled={!selected}
-          onClick={startScan}
+          disabled={!selected || startScan.isPending}
+          loading={startScan.isPending}
+          onClick={() => selected && beginScan(selected.id)}
           aria-keyshortcuts="Enter"
         >
           <SearchIcon aria-hidden />
@@ -260,13 +300,16 @@ function DeviceCard({
   device,
   selected,
   onSelect,
+  onScan,
+  onScanVolume,
 }: {
   device: Device;
   selected: boolean;
   onSelect: () => void;
+  onScan: () => void;
+  onScanVolume: (volumeId: string) => void;
 }): React.JSX.Element {
   const { t, i18n } = useTranslation();
-  const navigate = useNavigate();
   const Icon =
     device.kind === 'sd' ? MemoryStickIcon : device.kind === 'usb' ? UsbIcon : HardDriveIcon;
   const healthy = device.status === 'ok';
@@ -358,7 +401,7 @@ function DeviceCard({
               type="button"
               onClick={(e) => {
                 e.stopPropagation();
-                void navigate(`/scan/${v.id}`);
+                onScanVolume(v.id);
               }}
               className="rounded-xs px-1.5 py-0.5 text-xs font-medium text-primary hover:bg-primary-muted focus-visible:ring-2 focus-visible:ring-ring"
             >
@@ -370,7 +413,7 @@ function DeviceCard({
             size="sm"
             onClick={(e) => {
               e.stopPropagation();
-              void navigate(`/scan/${device.id}`);
+              onScan();
             }}
             disabled={locked || offline}
           >
@@ -386,16 +429,19 @@ function QuickTarget({
   icon: Icon,
   label,
   onClick,
+  loading,
 }: {
   icon: React.ComponentType<{ className?: string; strokeWidth?: number }>;
   label: string;
   onClick: () => void;
+  loading?: boolean;
 }): React.JSX.Element {
   return (
     <button
       type="button"
       onClick={onClick}
-      className="flex flex-col items-center gap-2 rounded-lg border border-border bg-surface px-4 py-5 text-sm font-medium shadow-card transition-colors hover:bg-surface-hover focus-visible:ring-2 focus-visible:ring-ring"
+      disabled={loading}
+      className="flex flex-col items-center gap-2 rounded-lg border border-border bg-surface px-4 py-5 text-sm font-medium shadow-card transition-colors hover:bg-surface-hover focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-60"
     >
       <Icon className="size-7 text-foreground-secondary" strokeWidth={1.5} aria-hidden />
       {label}

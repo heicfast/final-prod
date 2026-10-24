@@ -1,6 +1,6 @@
 import * as React from 'react';
 import { useTranslation } from 'react-i18next';
-import type { PreviewKind, PreviewPayload, ResultNode } from '@/connector/contract';
+import type { ConnectorError, PreviewPayload } from '@/connector/contract';
 import {
   FileWarningIcon,
   ImageIcon,
@@ -11,7 +11,7 @@ import {
 } from 'lucide-react';
 import { useNodeDetail, useThumbnail } from '@/queries/results';
 import { usePreview } from '@/queries/preview';
-import { formatBytes, formatDateTime } from '@/lib/format';
+import { formatBytes, formatDateTime, formatDuration } from '@/lib/format';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -25,44 +25,6 @@ import { hexWorker } from '@/workers/hex-worker-client';
  * image/pdf/av/office render connector-provided bounded artifacts.
  */
 
-function kindOfNode(node: ResultNode): PreviewKind {
-  const ext = node.extension?.replace('.', '').toLowerCase() ?? '';
-  if (
-    [
-      'jpg',
-      'jpeg',
-      'png',
-      'gif',
-      'bmp',
-      'webp',
-      'svg',
-      'heic',
-      'tif',
-      'tiff',
-      'cr2',
-      'cr3',
-      'nef',
-      'arw',
-      'dng',
-      'raw',
-      'ico',
-    ].includes(ext)
-  )
-    return 'image';
-  if (['mp4', 'mov', 'avi', 'mkv', 'wmv', 'm4v', 'webm', 'mts', 'm2ts'].includes(ext))
-    return 'av';
-  if (['wav', 'mp3', 'flac', 'aac', 'ogg', 'wma', 'm4a'].includes(ext)) return 'av';
-  if (['pdf'].includes(ext)) return 'pdf';
-  if (['txt', 'log', 'md', 'csv', 'tsv', 'ini', 'json', 'xml', 'html', 'htm'].includes(ext))
-    return 'text';
-  if (['doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 'odt'].includes(ext)) return 'office';
-  if (
-    ['exe', 'dll', 'db', 'sqlite', 'bin', 'dat', 'tmp', 'pst', 'zip', 'rar', '7z'].includes(ext)
-  )
-    return 'hex';
-  return 'hex';
-}
-
 export function PreviewPane({
   scanId,
   nodeId,
@@ -73,8 +35,9 @@ export function PreviewPane({
   const { t, i18n } = useTranslation();
   const detail = useNodeDetail(scanId, nodeId);
   const node = detail.data?.node ?? null;
-  const kind = node ? kindOfNode(node) : null;
-  const preview = usePreview(scanId, nodeId, kind);
+  // The connector owns kind inference (ADR-008) — the pane renders
+  // whichever payload kind comes back.
+  const preview = usePreview(scanId, nodeId);
 
   return (
     <div className="flex h-full min-h-0 flex-col">
@@ -116,7 +79,7 @@ export function PreviewPane({
           </div>
 
           <div className="min-h-0 flex-1 overflow-auto p-3">
-            <PreviewBody previewQuery={preview} kind={kind} />
+            <PreviewBody previewQuery={preview} />
           </div>
 
           {detail.data?.confidenceReason ? (
@@ -157,10 +120,8 @@ function Thumbnail({
 
 function PreviewBody({
   previewQuery,
-  kind,
 }: {
   previewQuery: ReturnType<typeof usePreview>;
-  kind: PreviewKind | null;
 }): React.JSX.Element | null {
   const { t } = useTranslation();
 
@@ -175,7 +136,7 @@ function PreviewBody({
   }
 
   if (previewQuery.isError) {
-    const err = previewQuery.error as { reasonKey?: string; message?: string };
+    const err = previewQuery.error as Partial<ConnectorError> & { message?: string };
     const reasonKey = err?.reasonKey;
     return (
       <div className="flex flex-col items-center justify-center gap-2 py-10 text-center">
@@ -189,7 +150,7 @@ function PreviewBody({
   }
 
   const payload = previewQuery.data;
-  if (!payload || !kind) return null;
+  if (!payload) return null;
 
   switch (payload.kind) {
     case 'image':
@@ -334,12 +295,26 @@ function PdfPreview({
   );
 }
 
+/** Key/value metadata list shared by the AV and Office preview kinds. */
+function MetaList({ metadata }: { metadata: Readonly<Record<string, string>> }) {
+  return (
+    <dl className="space-y-1 text-xs">
+      {Object.entries(metadata).map(([k, v]) => (
+        <div key={k} className="flex justify-between gap-3">
+          <dt className="text-foreground-secondary">{k}</dt>
+          <dd className="font-medium tabular">{v}</dd>
+        </div>
+      ))}
+    </dl>
+  );
+}
+
 function AvPreview({
   payload,
 }: {
   payload: Extract<PreviewPayload, { kind: 'av' }>;
 }): React.JSX.Element {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   return (
     <div className="space-y-3">
       {payload.thumbnailDataUrl ? (
@@ -349,18 +324,10 @@ function AvPreview({
           className="w-full rounded-md border border-border"
         />
       ) : null}
-      <dl className="space-y-1 text-xs">
-        {Object.entries(payload.metadata).map(([k, v]) => (
-          <div key={k} className="flex justify-between gap-3">
-            <dt className="text-foreground-secondary">{k}</dt>
-            <dd className="font-medium tabular">{v}</dd>
-          </div>
-        ))}
-      </dl>
+      <MetaList metadata={payload.metadata} />
       {payload.durationSeconds ? (
         <p className="text-xs text-foreground-secondary tabular">
-          {Math.floor(payload.durationSeconds / 60)}:
-          {String(payload.durationSeconds % 60).padStart(2, '0')}
+          {formatDuration(payload.durationSeconds ?? 0, i18n.language)}
         </p>
       ) : null}
       {!payload.thumbnailDataUrl ? (
@@ -380,14 +347,7 @@ function OfficePreview({
   const { t, i18n } = useTranslation();
   return (
     <div className="space-y-3">
-      <dl className="space-y-1 text-xs">
-        {Object.entries(payload.metadata).map(([k, v]) => (
-          <div key={k} className="flex justify-between gap-3">
-            <dt className="text-foreground-secondary">{k}</dt>
-            <dd className="font-medium tabular">{v}</dd>
-          </div>
-        ))}
-      </dl>
+      <MetaList metadata={payload.metadata} />
       {payload.extractedText ? (
         <>
           {payload.truncated ? (

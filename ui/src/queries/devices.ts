@@ -9,14 +9,6 @@ export function useDevices() {
   });
 }
 
-export function useDeviceInfo(deviceId: string | null) {
-  return useQuery({
-    queryKey: queryKeys.device(deviceId ?? 'none'),
-    queryFn: () => connector.devices.getDeviceInfo(deviceId!),
-    enabled: deviceId !== null,
-  });
-}
-
 export function useRefreshDevices() {
   const qc = useQueryClient();
   return useMutation({

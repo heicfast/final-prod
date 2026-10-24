@@ -1,9 +1,8 @@
 import * as React from 'react';
 import { useTranslation } from 'react-i18next';
-import { useSearchParams } from 'react-router';
 import { CircleCheckIcon, ShieldAlertIcon, Undo2Icon, WrenchIcon } from 'lucide-react';
-import { useDevices } from '@/queries/devices';
 import { useApplyRepair, useRepairDryRun, useUndoLog, useUndoRepairs } from '@/queries/repair';
+import { usePhysicalDevices } from '@/hooks/use-physical-devices';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Alert } from '@/components/ui/alert';
@@ -18,15 +17,15 @@ import { toast } from 'sonner';
  */
 export function RepairPage(): React.JSX.Element {
   const { t } = useTranslation();
-  const [params] = useSearchParams();
-  const devices = useDevices();
-  const list = devices.data ?? [];
-  const [pickedDeviceId, setPickedDeviceId] = React.useState<string | null>(
-    params.get('device'),
-  );
-  const deviceId: string | null = pickedDeviceId ?? list[0]?.id ?? null;
+  const {
+    devices: list,
+    selectedId: deviceId,
+    setSelectedId,
+    isLoading,
+    refetch,
+  } = usePhysicalDevices();
 
-  const dryRun = useRepairDryRun(deviceId);
+  const dryRun = useRepairDryRun(deviceId || null);
   const apply = useApplyRepair(deviceId);
   const undoLog = useUndoLog(deviceId);
   const undo = useUndoRepairs(deviceId);
@@ -34,7 +33,7 @@ export function RepairPage(): React.JSX.Element {
   const [consentChecked, setConsentChecked] = React.useState(false);
   const [consentText, setConsentText] = React.useState('');
 
-  if (devices.isLoading) {
+  if (isLoading) {
     return (
       <div className="p-6">
         <Skeleton className="mb-4 h-32" />
@@ -51,7 +50,7 @@ export function RepairPage(): React.JSX.Element {
           title={t('home.emptyTitle')}
           description={t('home.emptyBody')}
           actionLabel={t('home.refreshDevices')}
-          onAction={() => void devices.refetch()}
+          onAction={refetch}
         />
       </div>
     );
@@ -71,7 +70,7 @@ export function RepairPage(): React.JSX.Element {
             type="button"
             aria-pressed={deviceId === d.id}
             onClick={() => {
-              setPickedDeviceId(d.id);
+              setSelectedId(d.id);
               setConsentChecked(false);
               setConsentText('');
             }}

@@ -339,7 +339,7 @@ published to GitHub Releases. main HEAD c0b6ec6 also green (CI + UI Smoke).
   derivatives 5.0-5.4:1; focus ring solid (source 2.9:1); brand CTA keeps
   the adopted gradient+glow as the documented exception; HC = derived layer.
 - Found + fixed two real CSS hazards: (a) header comment containing `*/`
-  inside "dur-*/ease-*" prematurely closed the comment and silently dropped
+  inside "dur-_/ease-_" prematurely closed the comment and silently dropped
   the whole first token rule from the build; (b) same-name var() forwards
   (--border: var(--border)) are self-references resolving to fallback —
   pass-through names are no longer redeclared.
@@ -349,3 +349,73 @@ published to GitHub Releases. main HEAD c0b6ec6 also green (CI + UI Smoke).
   green. Browser-verified all 5 palettes + HC (computed tokens + VLM
   critique, grade A-).
 - ADR-007 written.
+
+### T6 — Lost-data flow correction (DONE — the critical behavioral fix)
+
+Corpus evidence (three independent sources): scanClickedSlot decode (artifact
+04 §4: stack flips directly to CDetailPage, scan starts immediately); dynamic
+ground-truth (click → scan-phase view, quick pass ~21 s then "Advanced
+Scanning 9%" with NO user action); runtime wiring (sigQuickScanFinished ×2 →
+onQuickScanCompleted; m_iScanType 3→4 back-to-back). NO config screen exists
+in the 2,402 tr sites / 195 telemetry events / 722 connect edges / QSS.
+
+- DELETED src/features/scan-configuration (526 lines) + /scan/:deviceId route
+  + its i18n section (categories moved to top level).
+- Home: "Search for Lost Data" CTA, card scan buttons, volume links, Recycle
+  Bin / Desktop / Choose-folder quick targets ALL start scans directly and
+  navigate to /scan/:id/live. Recycle Bin + Desktop are real virtual targets
+  in the fixtures (kind: virtual, no letter/mount; excluded from
+  health/repair pickers). Choose-folder: picker first, then start.
+- Contract (ADR-008): ScanParams = { targetId, pathScope? } (mode/
+  categories/sectorSize/badSectorPolicy/retries removed — engine-internal
+  per architecture/04 §3); ScanPhase + scanPhaseOf; ScanProgressEvent.
+  currentPath (the "Searching:" ticker); RecoverySelection (nodes | all
+  + filter); preview kind decided by the connector; SessionMeta.mode,
+  deleteSession, ResultsFilter.confidence removed; hideEmptyFiles added;
+  MountPoint + RecoveryReport.processedTotal/truncatedItemLists added.
+- Mock: single automatic stage chain (quick→advanced, quick collapsed when
+  !quickScanAvailable); searchingPathAt ticker; recover-all = REAL lazy job
+  (lookahead materialization, batch ticks, cursor — 340k-file job completes
+  in ~30 s); lost-path origins generated (weighted 62/26/12); failing-disk
+  scenario → health 'bad'; validateDestination accepts device OR volume id;
+  capacity-budgeted found-size scaling (corpus: 147 GB on 149 GB disk).
+- REAL BUGS FOUND LIVE: spaceFor fell back to the FIRST device's NodeSpace
+  for device-id targets (D: scans returned C:'s file counts) — fixed with
+  proper resolveTarget mapping; recover-all ETA was per-item (160 h at
+  scale) — now batch-cadence derived.
+- ScanProgressPage rebuilt per atlas §6/GT-scan: bottom cluster with corpus
+  status lines ("Quick/Advanced scanning X%" + "Files found: N (size)" +
+  "Remaining time" + "Reading sector: X/Y"), full-width "Searching:" ticker,
+  real used-time (engine startedAt; 1 s ticker, purity-safe), celebration
+  with 3 stats + "Go to Recover", no-Esc dismiss per corpus.
+- ResultsExplorer: Preview context item previews the single-selected/active
+  row; Smart select = best-per-name confidence-ranked selection (corpus
+  magic wand); select-all = tri-state over the FULL filtered count (all-mode
+  + exclusions in the selection store); icons view = real tile renderer
+  (thumbnails, 2-line names, hover checkbox); search breadcrumb "Search
+  results for …"; preview-pane drag resizer (corpus splitter); Open-location
+  disabled in mock with truthful reason.
+- FilterBar: corpus toggles (Existing files / Hide 0 KB) + Custom type
+  suffix entry ("*.doc; *.xlsx"); shared Checkbox/RadioGroup components
+  (no raw inputs); correct aria-labels on size inputs.
+- Recovery page: source-device validation fix (audit 2.6 — the scanId bug);
+  neededBytes from scan-state averages; recover-all through the selection
+  contract; queue show-more; report uses processedTotal + truncation notice.
+- Dedupe: hex formatter unified in lib/hex-format (worker + fallback);
+  MetaList; rowSelected/LoaderRow; usePhysicalDevices hook (health/repair);
+  sysVolumeFixture; jscpd → 0 clones (vendored theme excluded).
+- Removed dead deps: react-hook-form, @hookform/resolvers, zod,
+  @radix-ui/react-select (+ vendor-forms chunk); select.tsx; useDeviceInfo;
+  PreviewKind export.
+- Tests: connector suite rewritten for the new contract + new coverage
+  (direct-start chain order, quick→advanced automatic phases, collapsed
+  quick pass, ticker stage-gating, location targets, lost-path origins,
+  hide-empty filter, connector-owned preview kinds, recover-all real job
+  with exact counts + bounded lists, device/volume overlap refusal,
+  failing-disk health, openPath honesty). 81 unit tests green; e2e golden
+  path rewritten (direct start asserted) + new quick-target test.
+- Live-verified in browser: direct start (device → scan in one click),
+  quick→advanced automatic with corpus status formats, completion modal
+  with real stats, results 3-pane, select-all 340000, recover-all running
+  65311/340000 at 20% then completing with report. VLM critique of results
+  screen: clean 3-pane, aligned columns, no defects.

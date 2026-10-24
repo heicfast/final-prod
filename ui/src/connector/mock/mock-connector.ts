@@ -18,9 +18,10 @@ import type {
   DiskHealth,
   DriverStatus,
   MockScenarioId,
+  MountPoint,
   NodeDetail,
-  PreviewKind,
   PreviewPayload,
+  RecoverySelection,
   RecoveryItem,
   RecoveryJob,
   RecoveryJobStatus,
@@ -56,16 +57,86 @@ function connError(
 ): ConnectorError {
   return Object.assign(new Error(message), { code, reasonKey });
 }
-const STAGE_WEIGHTS: Record<ScanParams['mode'], Partial<Record<ScanStage, number>>> = {
-  quick: { 'volume-analysis': 0.08, 'quick-index': 0.62, 'tree-build': 0.3 },
-  deep: { 'volume-analysis': 0.05, 'quick-index': 0.2, 'deep-walk': 0.47, 'tree-build': 0.28 },
-  'deep-carve': {
-    'volume-analysis': 0.04,
-    'quick-index': 0.14,
-    'deep-walk': 0.42,
-    carve: 0.22,
-    'tree-build': 0.18,
-  },
+
+const IMAGE_EXTS = new Set([
+  'jpg',
+  'jpeg',
+  'png',
+  'gif',
+  'bmp',
+  'tif',
+  'tiff',
+  'webp',
+  'heic',
+  'svg',
+  'psd',
+  'cr2',
+  'cr3',
+  'nef',
+  'arw',
+  'dng',
+  'raw',
+  'ico',
+]);
+const AV_EXTS = new Set([
+  'mp4',
+  'mov',
+  'avi',
+  'mkv',
+  'wmv',
+  'flv',
+  'm4v',
+  'webm',
+  'mts',
+  'm2ts',
+  'mp3',
+  'wav',
+  'flac',
+  'aac',
+  'ogg',
+  'wma',
+]);
+const TEXT_EXTS = new Set([
+  'txt',
+  'log',
+  'md',
+  'json',
+  'xml',
+  'yml',
+  'yaml',
+  'ini',
+  'cfg',
+  'csv',
+  'tsv',
+]);
+const OFFICE_EXTS = new Set(['doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 'odt']);
+
+/** Connector-side preview-kind dispatch (mirrors the engine's per-type
+ *  previewer routing — artifact 10 §2). */
+function previewKindOf(node: {
+  category: string | null;
+  extension: string | null;
+}): 'image' | 'av' | 'pdf' | 'text' | 'office' | 'hex' {
+  const ext = (node.extension ?? '').replace(/^\./, '').toLowerCase();
+  if (ext === 'pdf') return 'pdf';
+  if (IMAGE_EXTS.has(ext)) return 'image';
+  if (AV_EXTS.has(ext)) return 'av';
+  if (OFFICE_EXTS.has(ext)) return 'office';
+  if (TEXT_EXTS.has(ext)) return 'text';
+  return 'hex';
+}
+/**
+ * The ONE automatic stage chain (ADR-008; architecture/04 §3-4, GT-scan
+ * §3/§7): volume probe -> quick pass (FS metadata) -> advanced pass (full
+ * searchers + RAW carving) -> organize. The quick pass is a short prefix
+ * (~21 s on the reference's runner volume); advanced dominates the run.
+ */
+const STAGE_WEIGHTS: Partial<Record<ScanStage, number>> = {
+  'volume-analysis': 0.04,
+  'quick-index': 0.14,
+  'deep-walk': 0.42,
+  carve: 0.24,
+  'tree-build': 0.16,
 };
 const STAGE_ORDER: readonly ScanStage[] = [
   'volume-analysis',
@@ -102,6 +173,10 @@ interface ScanRuntime {
   scanId: string;
   /** Folder-scope directory mask (null = whole volume). */
   scopeMask: Uint8Array | null;
+  /** Live "Searching: ..." ticker item (deep pass + carve). */
+  currentPath: string | null;
+  /** Stages to run (quick pass skipped when the engine cannot index). */
+  stages: readonly ScanStage[];
 }
 
 interface JobRuntime {
@@ -109,7 +184,17 @@ interface JobRuntime {
   scanId: string;
   destination: string;
   options: RecoveryOptions;
+  /** Explicit selection (kind: 'nodes'). */
   items: MutableRecoveryItem[];
+  /** Recover-all: lazily walk every matching node (kind: 'all'). */
+  allMode: null | {
+    filter: ResultsFilter;
+    space: NodeSpace;
+    scopeMask: Uint8Array | null;
+    cursor: number;
+    /** Deterministic per-index outcome rolls, resolved on demand. */
+    total: number;
+  };
   status: RecoveryJobStatus;
   progress: MutableJobProgress;
   timer: ReturnType<typeof setInterval> | null;
@@ -117,6 +202,10 @@ interface JobRuntime {
   finishedAt: string | null;
   bytesWritten: number;
   verified: boolean;
+  /** Items advanced per tick (scale-aware). */
+  batch: number;
+  /** First item index not yet known settled (avoids O(n) re-scans). */
+  advanceCursor: number;
 }
 
 /** Locally mutable mirror of contract progress/item types (mock-internal only). */
@@ -185,7 +274,6 @@ export class MockConnector {
     const fixtures = fixturesFor(this.scenario);
     this.deviceList = [];
     this.nodeSpaces.clear();
-    const rng = mulberry32(this.seed);
     for (const f of fixtures) {
       const device: Device = {
         ...f.device,
@@ -206,17 +294,20 @@ export class MockConnector {
         f.nodeSeed ^ this.seed,
         f.directoryCount,
         f.fileCount,
+        Math.round(primary.capacity.totalBytes * 0.985),
       );
       this.nodeSpaces.set(primary.id, space);
-      void rng;
     }
   }
 
   private spaceFor(targetId: string): NodeSpace {
-    const space = this.nodeSpaces.get(targetId);
-    if (space) return space;
-    // any volume of any device
-    for (const s of this.nodeSpaces.values()) return s;
+    const direct = this.nodeSpaces.get(targetId);
+    if (direct) return direct;
+    // A device id resolves to ITS first volume's space — never another
+    // device's (the old any-space fallback silently scanned the wrong disk).
+    const { volume } = this.resolveTarget(targetId);
+    const byVolume = this.nodeSpaces.get(volume.id);
+    if (byVolume) return byVolume;
     throw connError('scan-not-found', `no node space for ${targetId}`);
   }
 
@@ -236,9 +327,6 @@ export class MockConnector {
   readonly devices = {
     listDevices: async (): Promise<Device[]> => {
       await latency(180, 60);
-      if (this.scenario === 'permission-denied') {
-        return this.deviceList;
-      }
       return this.deviceList;
     },
     getDeviceInfo: async (deviceId: string): Promise<Device> => {
@@ -270,6 +358,11 @@ export class MockConnector {
       const scanId = `scan-${this.nextScanId++}`;
       const space = this.spaceFor(params.targetId);
       const bytesTotal = volume.capacity.totalBytes;
+      // Engine truthfulness: when the volume cannot be quick-indexed the
+      // quick pass collapses to a probe and the advanced pass carries the run.
+      const stages = volume.quickScanAvailable
+        ? STAGE_ORDER
+        : (['volume-analysis', 'deep-walk', 'carve', 'tree-build', 'done'] as const);
 
       // Folder scope (null/empty = whole volume). Unresolvable paths are a
       // hard contract error — the UI cannot override the connector verdict.
@@ -311,9 +404,11 @@ export class MockConnector {
         volumeId: volume.id,
         scanId,
         scopeMask,
+        currentPath: null,
+        stages,
       };
       this.scans.set(scanId, rt);
-      rt.timer = setInterval(() => this.scanTick(rt), 100 + (scanId.length % 3) * 50);
+      rt.timer = setInterval(() => this.scanTick(rt), 55 + (scanId.length % 3) * 25);
       return { scanId };
     },
 
@@ -335,7 +430,7 @@ export class MockConnector {
         rt.disconnectFired = false;
       }
       rt.status = 'running';
-      rt.timer = setInterval(() => this.scanTick(rt), 100 + (scanId.length % 3) * 50);
+      rt.timer = setInterval(() => this.scanTick(rt), 55 + (scanId.length % 3) * 25);
       await latency(200);
     },
 
@@ -384,10 +479,9 @@ export class MockConnector {
 
   private scanTick(rt: ScanRuntime): void {
     rt.tick++;
-    const weights = STAGE_WEIGHTS[rt.params.mode] ?? STAGE_WEIGHTS.deep;
-    const stages = STAGE_ORDER.filter((s) => (weights[s] ?? 0) > 0);
+    const stages = rt.stages;
     const curIdx = stages.indexOf(rt.stage);
-    const totalTicks = 150 + (rt.space.fileCount > 500_000 ? 120 : 0);
+    const totalTicks = 96 + (rt.space.fileCount > 500_000 ? 60 : 0);
 
     // per-tick increments
     const stageSpeed = 0.014 + (rt.tick % 5 === 0 ? 0.006 : 0);
@@ -418,6 +512,13 @@ export class MockConnector {
     rt.throughput = byteSpeed * 8;
     rt.eta = Math.max(1, Math.round(((totalTicks - rt.tick) * 150) / 1000));
 
+    // Live "Searching: <path>" ticker — the item currently examined
+    // (corpus GT-scan §2/§7: shown while the deep pass works the file table).
+    rt.currentPath =
+      rt.stage === 'deep-walk' || rt.stage === 'carve'
+        ? rt.space.searchingPathAt(rt.tick, rt.scopeMask)
+        : null;
+
     // found-file curve: fast then saturating
     const stats = rt.space.stats(rt.scopeMask);
     const curve = 1 - Math.exp(-3.4 * rt.overall);
@@ -426,8 +527,8 @@ export class MockConnector {
 
     // overall from stage weights
     let before = 0;
-    for (let i = 0; i < curIdx; i++) before += weights[stages[i]] ?? 0;
-    const curWeight = weights[rt.stage] ?? 0;
+    for (let i = 0; i < curIdx; i++) before += STAGE_WEIGHTS[stages[i]] ?? 0;
+    const curWeight = STAGE_WEIGHTS[rt.stage] ?? 0;
     rt.overall = Math.min(1, before + curWeight * rt.stageProgress);
 
     if (rt.stageProgress >= 1) {
@@ -453,8 +554,7 @@ export class MockConnector {
       id: `sess-${this.nextSessionId}`,
       fileName: `auto_${rt.volumeId}_${new Date().toISOString().replace(/[:.]/g, '-')}.rsf`,
       savedAt: new Date().toISOString(),
-      targetLabel: typeof rt.target === 'string' ? rt.target : rt.target.label,
-      mode: rt.params.mode,
+      targetLabel: rt.target.label,
       filesFound: rt.filesFound,
       dataFoundBytes: rt.dataFound,
       completed: true,
@@ -484,6 +584,7 @@ export class MockConnector {
           ? rt.overall > 0.15
           : rt.overall > 0.4,
       deviceConnected: !rt.disconnectFired,
+      currentPath: rt.currentPath,
     };
   }
 
@@ -580,16 +681,16 @@ export class MockConnector {
   // ------------------------------------------------------------ preview
 
   readonly preview = {
-    requestPreview: async (
-      scanId: string,
-      nodeId: string,
-      kind: PreviewKind,
-    ): Promise<PreviewPayload> => {
+    requestPreview: async (scanId: string, nodeId: string): Promise<PreviewPayload> => {
       await latency(240, 160);
       const rt = this.requireScan(scanId);
       const idx = Number(nodeId.replace(/^f/, ''));
       const node = rt.space.nodeAt(idx);
       const rng = mulberry32((idx ^ 0x5eed) >>> 0);
+      // The connector owns file knowledge: kind inference from the node's
+      // own category/extension, mirroring the engine's per-type previewer
+      // dispatch (artifact 10 §2).
+      const kind = previewKindOf(node);
 
       if (kind === 'image') {
         if (node.extension === '.crypt')
@@ -769,7 +870,6 @@ ${lines.join('')}
         fileName,
         savedAt: new Date().toISOString(),
         targetLabel: rt.target.label,
-        mode: rt.params.mode,
         filesFound: rt.filesFound,
         dataFoundBytes: rt.dataFound,
         completed: rt.status === 'completed',
@@ -793,7 +893,7 @@ ${lines.join('')}
       }
       const scanId = this.sessionPathToScan.get(path);
       if (!scanId)
-        throw connError('session-not-found', 'session not found', 'errors.sessionCorrupt');
+        throw connError('session-not-found', 'session not found', 'errors.sessionNotFound');
       return { scanId };
     },
 
@@ -801,27 +901,17 @@ ${lines.join('')}
       await latency(100, 50);
       const scanId = this.sessionPathToScan.get(path);
       if (!scanId)
-        throw connError('session-not-found', 'session not found', 'errors.sessionCorrupt');
+        throw connError('session-not-found', 'session not found', 'errors.sessionNotFound');
       const rt = this.requireScan(scanId);
       return {
         id: `sess-${path.length}`,
         fileName: path,
         savedAt: rt.completedAt ?? rt.startedAt,
         targetLabel: rt.target.label,
-        mode: rt.params.mode,
         filesFound: rt.filesFound,
         dataFoundBytes: rt.dataFound,
         completed: rt.status === 'completed',
       };
-    },
-
-    deleteSession: async (sessionId: string): Promise<void> => {
-      await latency(150);
-      const meta = this.sessionStore.get(sessionId);
-      if (meta) {
-        this.sessionStore.delete(sessionId);
-        this.sessionPathToScan.delete(meta.fileName);
-      }
     },
   };
 
@@ -830,25 +920,49 @@ ${lines.join('')}
   readonly recovery = {
     startRecovery: async (
       scanId: string,
-      nodeIds: readonly string[],
+      selection: RecoverySelection,
       destination: string,
       options: RecoveryOptions,
     ): Promise<{ jobId: string }> => {
       await latency(300, 100);
       const rt = this.requireScan(scanId);
       const space = rt.space;
-      const items: RecoveryItem[] = nodeIds.map((id) => {
-        const idx = Number(id.replace(/^f/, ''));
-        const node = space.nodeAt(idx);
-        return { nodeId: id, name: node.name, sizeBytes: node.sizeBytes, state: 'pending' };
-      });
+      const items: RecoveryItem[] =
+        selection.kind === 'nodes'
+          ? selection.nodeIds.map((id) => {
+              const idx = Number(id.replace(/^f/, ''));
+              const node = space.nodeAt(idx);
+              return {
+                nodeId: id,
+                name: node.name,
+                sizeBytes: node.sizeBytes,
+                state: 'pending',
+              };
+            })
+          : [];
+      const allMode =
+        selection.kind === 'all'
+          ? {
+              filter: selection.filter,
+              space,
+              scopeMask: rt.scopeMask,
+              cursor: 0,
+              total: space.count(selection.filter, rt.scopeMask),
+            }
+          : null;
+      const totalCount = items.length + (allMode?.total ?? 0);
       const jobId = `job-${this.nextJobId++}`;
+      // Items advanced per tick — scales with job size so even a
+      // recover-all over the whole result set finishes in bounded wall time
+      // (the real engine streams at disk speed; the simulator batches).
+      const batch = Math.max(1, Math.ceil(Math.max(1, totalCount) / 200));
       const job: JobRuntime = {
         jobId,
         scanId,
         destination,
         options,
         items,
+        allMode,
         status: 'running',
         progress: {
           jobId,
@@ -859,7 +973,7 @@ ${lines.join('')}
           completedCount: 0,
           failedCount: 0,
           skippedCount: 0,
-          totalCount: items.length,
+          totalCount: Math.max(1, totalCount),
           throughputBytesPerSecond: 0,
           verifying: false,
           etaSeconds: null,
@@ -869,9 +983,11 @@ ${lines.join('')}
         finishedAt: null,
         bytesWritten: 0,
         verified: options.verifyOnWrite,
+        batch,
+        advanceCursor: 0,
       };
       this.jobs.set(jobId, job);
-      job.timer = setInterval(() => this.jobTick(job), 130);
+      job.timer = setInterval(() => this.jobTick(job), 120);
       return { jobId };
     },
 
@@ -890,7 +1006,7 @@ ${lines.join('')}
       return {
         jobId: job.jobId,
         scanId: job.scanId,
-        nodeIds: job.items.map((i) => i.nodeId),
+        nodeIds: job.allMode ? [] : job.items.map((i) => i.nodeId),
         destination: job.destination,
         options: job.options,
         status: job.status,
@@ -921,16 +1037,20 @@ ${lines.join('')}
     getRecoveryReport: async (jobId: string): Promise<RecoveryReport> => {
       await latency(40);
       const job = this.requireJob(jobId);
+      const cap = 500;
       return {
         jobId: job.jobId,
         status: job.status,
         startedAt: job.startedAt,
         finishedAt: job.finishedAt,
-        succeeded: job.items.filter((i) => i.state === 'done'),
-        failed: job.items.filter((i) => i.state === 'failed'),
-        skipped: job.items.filter((i) => i.state === 'skipped'),
+        succeeded: job.items.filter((i) => i.state === 'done').slice(0, cap),
+        failed: job.items.filter((i) => i.state === 'failed').slice(0, cap),
+        skipped: job.items.filter((i) => i.state === 'skipped').slice(0, cap),
         totalBytesWritten: job.bytesWritten,
         verified: job.verified,
+        processedTotal:
+          job.progress.completedCount + job.progress.failedCount + job.progress.skippedCount,
+        truncatedItemLists: job.allMode != null && job.items.length > cap,
       };
     },
   };
@@ -942,6 +1062,30 @@ ${lines.join('')}
   }
 
   private jobTick(job: JobRuntime): void {
+    // Recover-all: materialize the next chunk of matching nodes on demand
+    // (bounded working set — the export loop streams, it does not preload).
+    if (job.allMode) {
+      // Lookahead window: keep a bounded working set of materialized items
+      // (the export loop streams; it never preloads the whole set).
+      const inFlight = job.items.length - job.advanceCursor;
+      if (inFlight < 2048) {
+        const { space, filter, scopeMask } = job.allMode;
+        const window = space.queryNodes(filter, scopeMask, job.allMode.cursor, 2048);
+        if (window.length > 0) {
+          job.allMode.cursor += window.length;
+          for (const idx of window) {
+            const node = space.nodeAt(idx);
+            job.items.push({
+              nodeId: `f${idx}`,
+              name: node.name,
+              sizeBytes: node.sizeBytes,
+              state: 'pending',
+            });
+          }
+        }
+      }
+    }
+
     const pendingIdx = job.items.findIndex(
       (i) => i.state === 'pending' || i.state === 'running',
     );
@@ -975,35 +1119,63 @@ ${lines.join('')}
       return;
     }
 
-    const item = job.items[pendingIdx];
-    if (item.state === 'pending') {
-      item.state = 'running';
-      job.progress.currentFile = item.name;
-      job.progress.currentFileProgress = 0;
-      return;
-    }
-    // advance running item
-    job.progress.currentFileProgress = Math.min(1, job.progress.currentFileProgress + 0.22);
-    if (job.progress.currentFileProgress >= 1) {
-      const roll = mulberry32(item.nodeId.length + pendingIdx)();
-      if (roll < 0.04) {
-        item.state = 'failed';
-        item.error = { code: 'preview-missing-data', reasonKey: 'preview.reason.missingData' };
-        job.progress.failedCount++;
-      } else if (job.options.collision === 'skip' && roll > 0.92) {
-        item.state = 'skipped';
-        job.progress.skippedCount++;
-      } else {
-        item.state = 'done';
-        item.savedAs =
-          job.options.collision === 'rename' && roll > 0.88
-            ? item.name.replace(/(\.[^.]+)$/, ' (1)$1')
-            : item.name;
-        job.progress.completedCount++;
-        job.bytesWritten += item.sizeBytes;
+    // Advance a scale-aware batch per tick so any job (including a
+    // recover-all over the entire result set) completes in bounded wall
+    // time — the real engine streams at disk speed; the simulator batches.
+    for (let step = 0; step < job.batch; step++) {
+      let pending = -1;
+      for (let k = job.advanceCursor; k < job.items.length; k++) {
+        if (job.items[k].state === 'pending' || job.items[k].state === 'running') {
+          pending = k;
+          break;
+        }
       }
-      job.progress.currentFile = null;
-      job.progress.currentFileProgress = 0;
+      if (pending === -1) break;
+      const item = job.items[pending];
+      if (item.state === 'pending') {
+        item.state = 'running';
+        job.progress.currentFile = item.name;
+        job.progress.currentFileProgress = 0;
+        if (job.batch > 1) {
+          // Batched (at-scale) jobs settle one item per step — the per-file
+          // progress animation only exists for small explicit selections.
+          job.progress.currentFileProgress = 1;
+        } else {
+          continue;
+        }
+      }
+      job.progress.currentFileProgress = Math.min(1, job.progress.currentFileProgress + 0.25);
+      if (job.progress.currentFileProgress >= 1) {
+        const roll = mulberry32(item.nodeId.length + pending)();
+        if (roll < 0.04) {
+          item.state = 'failed';
+          item.error = {
+            code: 'recovery-item-failed',
+            reasonKey: 'recovery.itemFailedReason',
+          };
+          job.progress.failedCount++;
+        } else if (job.options.collision === 'skip' && roll > 0.92) {
+          item.state = 'skipped';
+          job.progress.skippedCount++;
+        } else {
+          item.state = 'done';
+          item.savedAs =
+            job.options.collision === 'rename' && roll > 0.88
+              ? item.name.replace(/(\.[^.]+)$/, ' (1)$1')
+              : item.name;
+          job.progress.completedCount++;
+          job.bytesWritten += item.sizeBytes;
+        }
+        job.progress.currentFile = null;
+        job.progress.currentFileProgress = 0;
+      }
+    }
+    while (
+      job.advanceCursor < job.items.length &&
+      job.items[job.advanceCursor].state !== 'pending' &&
+      job.items[job.advanceCursor].state !== 'running'
+    ) {
+      job.advanceCursor++;
     }
     job.progress.overallProgress =
       (job.progress.completedCount +
@@ -1012,10 +1184,16 @@ ${lines.join('')}
         job.progress.currentFileProgress) /
       Math.max(1, job.progress.totalCount);
     job.progress.throughputBytesPerSecond = randBell(mulberry32(pendingIdx + 1), 48e6, 30e6);
-    job.progress.etaSeconds = Math.max(
-      1,
-      Math.round(((job.progress.totalCount - job.progress.completedCount) * 2.1) / 1),
+    // ETA from the job's own batch cadence (tick interval 120 ms) — not a
+    // per-item constant, which reads absurd at recover-all scale.
+    const remainingTicks = Math.ceil(
+      (job.progress.totalCount -
+        job.progress.completedCount -
+        job.progress.failedCount -
+        job.progress.skippedCount) /
+        Math.max(1, job.batch),
     );
+    job.progress.etaSeconds = Math.max(1, Math.round(remainingTicks * 0.12));
   }
 
   // ------------------------------------------------------------ health
@@ -1031,10 +1209,15 @@ ${lines.join('')}
         device.model.toLowerCase().includes('evo') ||
         device.kind === 'usb';
       const caution = device.id === 'dev-data' || this.scenario === 'bad-sectors';
+      const failing = this.scenario === 'failing-disk';
       const temp = Math.round(randBell(rng, 38, 10));
       const hours = Math.round(randBell(rng, 6400, 5200));
-      const reallocated = caution ? randInt(rng, 12, 480) : randInt(rng, 0, 3);
-      const pending = caution ? randInt(rng, 8, 260) : 0;
+      const reallocated = failing
+        ? randInt(rng, 1200, 6400)
+        : caution
+          ? randInt(rng, 12, 480)
+          : randInt(rng, 0, 3);
+      const pending = failing ? randInt(rng, 800, 3200) : caution ? randInt(rng, 8, 260) : 0;
 
       const mkAttr = (
         id: number,
@@ -1128,7 +1311,7 @@ ${lines.join('')}
           : []),
       ];
 
-      const status: DiskHealth['status'] = caution ? 'caution' : 'good';
+      const status: DiskHealth['status'] = failing ? 'bad' : caution ? 'caution' : 'good';
       return {
         deviceId,
         status,
@@ -1274,7 +1457,11 @@ ${lines.join('')}
       neededBytes: number,
     ): Promise<DestinationValidation> => {
       await latency(180, 80);
-      const source = this.deviceList.find((d) => d.id === sourceDeviceId);
+      // Accept a device OR volume id (scan targets are either); resolve to
+      // the owning device for the same-volume comparison.
+      const source = this.deviceList.find(
+        (d) => d.id === sourceDeviceId || d.volumes.some((v) => v.id === sourceDeviceId),
+      );
       const srcLetters = new Set(
         (source?.volumes ?? []).map((v) => v.letter?.toUpperCase()).filter(Boolean) as string[],
       );
@@ -1347,9 +1534,7 @@ ${lines.join('')}
       return suggestion ? `${suggestion.path}Recovered Files` : null;
     },
 
-    listMountPoints: async (): Promise<
-      ReturnType<SystemDomain['listMountPoints']> extends Promise<infer T> ? T : never
-    > => {
+    listMountPoints: async (): Promise<MountPoint[]> => {
       await latency(100, 40);
       return this.mountPoints();
     },
@@ -1357,17 +1542,18 @@ ${lines.join('')}
     openPath: async (path: string): Promise<void> => {
       await latency(30);
       void path;
-      // Shell open is a real-adapter capability; the mock has no OS access.
+      // Shell open is a real-adapter capability (the Tauri connector
+      // implements it via the OS opener); the mock has no OS access and
+      // reports so honestly instead of pretending.
+      throw connError(
+        'not-implemented',
+        'opening paths requires the desktop shell',
+        'errors.openPathMock',
+      );
     },
   };
 
-  private mountPoints(): {
-    id: string;
-    label: string;
-    path: string;
-    freeBytes: number;
-    totalBytes: number;
-  }[] {
+  private mountPoints(): MountPoint[] {
     return this.deviceList
       .flatMap((d) => d.volumes)
       .filter((v) => v.letter)

@@ -1,5 +1,5 @@
 import * as React from 'react';
-import { useVirtualizer } from '@tanstack/react-virtual';
+import { useVirtualizer, type Virtualizer } from '@tanstack/react-virtual';
 import type { ResultNode, SortField } from '@/connector/contract';
 import { ArrowDownIcon, ArrowUpIcon, ChevronsUpDownIcon } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
@@ -8,6 +8,7 @@ import { formatBytes, formatDate } from '@/lib/format';
 import { ConfidencePillInline } from './confidence-badge';
 import { Checkbox } from './checkbox';
 import { FileIconFor } from './file-icon';
+import { useThumbnail } from '@/queries/results';
 
 /**
  * Virtualized results table (1 M+ rows). Row height from the density token;
@@ -23,6 +24,28 @@ const COLUMN_WIDTHS: Record<string, number> = {
   size: 100,
   condition: 120,
 };
+
+/** Shared row-membership test across both selection modes. */
+function rowSelected(
+  selectionMode: 'ids' | 'all',
+  selectedIds: ReadonlySet<string>,
+  exclusions: ReadonlySet<string>,
+  id: string,
+): boolean {
+  return selectionMode === 'all' ? !exclusions.has(id) : selectedIds.has(id);
+}
+
+/** The infinite-scroll loader row (shared by both view renderers). */
+function LoaderRow({ top, height, label }: { top: number; height: number; label: string }) {
+  return (
+    <div
+      className="absolute inset-x-0 flex items-center justify-center"
+      style={{ top, height }}
+    >
+      <span className="text-xs text-foreground-secondary">{label}</span>
+    </div>
+  );
+}
 
 function SortHeader({
   field,
@@ -73,45 +96,50 @@ function SortHeader({
 }
 
 export function VirtualFileList({
+  scanId,
   rows,
   total,
   rowHeight,
-  selected,
+  viewMode = 'details',
+  selectionMode = 'ids',
+  selectedIds,
+  exclusions,
   activeId,
   onRowClick,
   onRowDoubleClick,
   onCheckboxChange,
   onSelectAll,
   allSelected,
+  someSelected = false,
   sort,
   onSortChange,
-  onVisibleRangeChange,
   loadMore,
   hasNextPage,
   className,
-  viewportRef,
 }: {
+  scanId: string;
   rows: readonly ResultNode[];
   total: number;
   rowHeight: number;
-  selected: ReadonlySet<string>;
+  viewMode?: 'details' | 'icons';
+  selectionMode?: 'ids' | 'all';
+  selectedIds: ReadonlySet<string>;
+  exclusions: ReadonlySet<string>;
   activeId: string | null;
   onRowClick: (node: ResultNode, index: number, e: React.MouseEvent) => void;
   onRowDoubleClick: (node: ResultNode) => void;
   onCheckboxChange: (node: ResultNode) => void;
   onSelectAll: (checked: boolean) => void;
   allSelected: boolean;
+  someSelected?: boolean;
   sort: { field: SortField; direction: 'asc' | 'desc' };
   onSortChange: (field: SortField) => void;
-  onVisibleRangeChange?: (start: number, end: number) => void;
   loadMore?: () => void;
   hasNextPage?: boolean;
   className?: string;
-  viewportRef?: React.RefObject<HTMLDivElement | null>;
 }): React.JSX.Element {
   const { t, i18n } = useTranslation();
-  const localRef = React.useRef<HTMLDivElement | null>(null);
-  const ref = viewportRef ?? localRef;
+  const ref = React.useRef<HTMLDivElement | null>(null);
 
   const virtualizer = useVirtualizer({
     count: rows.length + (hasNextPage ? 1 : 0),
@@ -139,13 +167,6 @@ export function VirtualFileList({
     return () => el.removeEventListener('scroll', onScroll);
   }, [loadMore, hasNextPage, ref]);
 
-  React.useEffect(() => {
-    const range = virtualizer.range;
-    if (range && onVisibleRangeChange) {
-      onVisibleRangeChange(range.startIndex, range.endIndex);
-    }
-  }, [virtualizer.range, onVisibleRangeChange]);
-
   const totalWidth =
     COLUMN_WIDTHS.checkbox +
     COLUMN_WIDTHS.name +
@@ -170,11 +191,7 @@ export function VirtualFileList({
         >
           <Checkbox
             checked={
-              rows.length > 0 && allSelected
-                ? true
-                : selected.size > 0
-                  ? 'indeterminate'
-                  : false
+              rows.length > 0 && allSelected ? true : someSelected ? 'indeterminate' : false
             }
             onCheckedChange={(v: boolean | 'indeterminate') => onSelectAll(v === true)}
             aria-label={t('results.selection.selectAll')}
@@ -228,103 +245,233 @@ export function VirtualFileList({
         tabIndex={0}
         aria-label={t('results.column.name')}
       >
-        <div
-          style={{
-            height: virtualizer.getTotalSize(),
-            position: 'relative',
-            width: totalWidth,
-          }}
-        >
-          {virtualizer.getVirtualItems().map((vRow) => {
-            const idx = vRow.index;
-            const isLoader = idx >= rows.length;
-            const node = rows[idx];
-            if (isLoader) {
+        {viewMode === 'icons' ? (
+          <IconGridBody
+            scanId={scanId}
+            rows={rows}
+            rowHeight={rowHeight}
+            selectionMode={selectionMode}
+            selectedIds={selectedIds}
+            exclusions={exclusions}
+            activeId={activeId}
+            virtualizer={virtualizer}
+            onRowClick={onRowClick}
+            onRowDoubleClick={onRowDoubleClick}
+            onCheckboxChange={onCheckboxChange}
+          />
+        ) : (
+          <div
+            style={{
+              height: virtualizer.getTotalSize(),
+              position: 'relative',
+              width: totalWidth,
+            }}
+          >
+            {virtualizer.getVirtualItems().map((vRow) => {
+              const idx = vRow.index;
+              const isLoader = idx >= rows.length;
+              const node = rows[idx];
+              if (isLoader) {
+                return (
+                  <div
+                    key="loader"
+                    className="absolute inset-x-0 flex items-center justify-center"
+                    style={{ top: vRow.start, height: rowHeight }}
+                  >
+                    <span className="text-xs text-foreground-secondary">
+                      {t('common.loading')}
+                    </span>
+                  </div>
+                );
+              }
+              const isSelected =
+                selectionMode === 'all' ? !exclusions.has(node.id) : selectedIds.has(node.id);
+              const isActive = activeId === node.id;
               return (
                 <div
-                  key="loader"
-                  className="absolute inset-x-0 flex items-center justify-center"
+                  key={node.id}
+                  role="row"
+                  aria-selected={isSelected}
+                  data-active={isActive || undefined}
+                  className={cn(
+                    'absolute inset-x-0 flex cursor-default items-center text-sm transition-colors',
+                    isSelected
+                      ? 'bg-surface-selected/60'
+                      : isActive
+                        ? 'bg-surface-hover'
+                        : 'hover:bg-surface-hover/50',
+                  )}
                   style={{ top: vRow.start, height: rowHeight }}
+                  onClick={(e) => onRowClick(node, idx, e)}
+                  onDoubleClick={() => onRowDoubleClick(node)}
                 >
-                  <span className="text-xs text-foreground-secondary">
-                    {t('common.loading')}
-                  </span>
+                  <div
+                    className="flex h-full items-center justify-center"
+                    style={{ width: COLUMN_WIDTHS.checkbox }}
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <Checkbox
+                      checked={isSelected}
+                      onCheckedChange={() => onCheckboxChange(node)}
+                      aria-label={t('a11y.selectRow')}
+                    />
+                  </div>
+                  <div
+                    className="flex h-full items-center gap-2 px-3"
+                    style={{ width: COLUMN_WIDTHS.name }}
+                  >
+                    <FileIconFor node={node} />
+                    <span className="truncate" title={node.name}>
+                      {node.name}
+                    </span>
+                  </div>
+                  <div
+                    className="flex h-full items-center px-3 text-foreground-secondary"
+                    style={{ width: COLUMN_WIDTHS.modified }}
+                  >
+                    <span className="truncate tabular">
+                      {formatDate(node.modifiedAt, i18n.language)}
+                    </span>
+                  </div>
+                  <div
+                    className="flex h-full items-center px-3 text-foreground-secondary"
+                    style={{ width: COLUMN_WIDTHS.type }}
+                  >
+                    <span className="truncate uppercase">
+                      {node.extension?.replace('.', '') ?? ''}
+                    </span>
+                  </div>
+                  <div
+                    className="flex h-full items-center justify-end px-3 tabular"
+                    style={{ width: COLUMN_WIDTHS.size }}
+                  >
+                    {formatBytes(node.sizeBytes, i18n.language)}
+                  </div>
+                  <div
+                    className="flex h-full items-center px-3"
+                    style={{ width: COLUMN_WIDTHS.condition }}
+                  >
+                    <ConfidencePillInline grade={node.confidence} />
+                  </div>
                 </div>
               );
-            }
-            const isSelected = selected.has(node.id);
-            const isActive = activeId === node.id;
-            return (
-              <div
-                key={node.id}
-                role="row"
-                aria-selected={isSelected}
-                data-active={isActive || undefined}
-                className={cn(
-                  'absolute inset-x-0 flex cursor-default items-center text-sm transition-colors',
-                  isSelected
-                    ? 'bg-surface-selected/60'
-                    : isActive
-                      ? 'bg-surface-hover'
-                      : 'hover:bg-surface-hover/50',
-                )}
-                style={{ top: vRow.start, height: rowHeight }}
-                onClick={(e) => onRowClick(node, idx, e)}
-                onDoubleClick={() => onRowDoubleClick(node)}
-              >
-                <div
-                  className="flex h-full items-center justify-center"
-                  style={{ width: COLUMN_WIDTHS.checkbox }}
-                  onClick={(e) => e.stopPropagation()}
-                >
-                  <Checkbox
-                    checked={isSelected}
-                    onCheckedChange={() => onCheckboxChange(node)}
-                    aria-label={t('a11y.selectRow')}
-                  />
-                </div>
-                <div
-                  className="flex h-full items-center gap-2 px-3"
-                  style={{ width: COLUMN_WIDTHS.name }}
-                >
-                  <FileIconFor node={node} />
-                  <span className="truncate" title={node.name}>
-                    {node.name}
-                  </span>
-                </div>
-                <div
-                  className="flex h-full items-center px-3 text-foreground-secondary"
-                  style={{ width: COLUMN_WIDTHS.modified }}
-                >
-                  <span className="truncate tabular">
-                    {formatDate(node.modifiedAt, i18n.language)}
-                  </span>
-                </div>
-                <div
-                  className="flex h-full items-center px-3 text-foreground-secondary"
-                  style={{ width: COLUMN_WIDTHS.type }}
-                >
-                  <span className="truncate uppercase">
-                    {node.extension?.replace('.', '') ?? ''}
-                  </span>
-                </div>
-                <div
-                  className="flex h-full items-center justify-end px-3 tabular"
-                  style={{ width: COLUMN_WIDTHS.size }}
-                >
-                  {formatBytes(node.sizeBytes, i18n.language)}
-                </div>
-                <div
-                  className="flex h-full items-center px-3"
-                  style={{ width: COLUMN_WIDTHS.condition }}
-                >
-                  <ConfidencePillInline grade={node.confidence} />
-                </div>
-              </div>
-            );
-          })}
-        </div>
+            })}
+          </div>
+        )}
       </div>
+    </div>
+  );
+}
+
+/** Icon (tile) view — corpus view toggle list⇄icon (atlas §8). Tiles show
+ *  thumbnail-or-type-icon, two-line-clamped name, and size; checkbox on
+ *  hover/focus; selection + activation mirror the details rows. */
+function IconGridBody({
+  scanId,
+  rows,
+  rowHeight,
+  selectionMode,
+  selectedIds,
+  exclusions,
+  activeId,
+  virtualizer,
+  onRowClick,
+  onRowDoubleClick,
+  onCheckboxChange,
+}: {
+  scanId: string;
+  rows: readonly ResultNode[];
+  rowHeight: number;
+  selectionMode: 'ids' | 'all';
+  selectedIds: ReadonlySet<string>;
+  exclusions: ReadonlySet<string>;
+  activeId: string | null;
+  virtualizer: Virtualizer<HTMLDivElement, Element>;
+  onRowClick: (node: ResultNode, index: number, e: React.MouseEvent) => void;
+  onRowDoubleClick: (node: ResultNode) => void;
+  onCheckboxChange: (node: ResultNode) => void;
+}): React.JSX.Element {
+  const { t, i18n } = useTranslation();
+  return (
+    <div style={{ height: virtualizer.getTotalSize(), position: 'relative' }}>
+      {virtualizer.getVirtualItems().map((vRow) => {
+        const idx = vRow.index;
+        const isLoader = idx >= rows.length;
+        const node = rows[idx];
+        if (isLoader) {
+          return (
+            <LoaderRow
+              key="loader"
+              top={vRow.start}
+              height={rowHeight}
+              label={t('common.loading')}
+            />
+          );
+        }
+        const isSelected = rowSelected(selectionMode, selectedIds, exclusions, node.id);
+        const isActive = activeId === node.id;
+        return (
+          <div
+            key={node.id}
+            role="row"
+            aria-selected={isSelected}
+            data-active={isActive || undefined}
+            className={cn(
+              'group/tile absolute flex cursor-default items-center gap-3 rounded-md border p-2 transition-colors',
+              isSelected
+                ? 'border-primary bg-surface-selected/60'
+                : isActive
+                  ? 'border-border-strong bg-surface-hover'
+                  : 'border-transparent hover:bg-surface-hover/50',
+            )}
+            style={{ top: vRow.start, height: rowHeight, left: 8, right: 8 }}
+            onClick={(e) => onRowClick(node, idx, e)}
+            onDoubleClick={() => onRowDoubleClick(node)}
+          >
+            <div className="flex h-full items-center" onClick={(e) => e.stopPropagation()}>
+              <Checkbox
+                checked={isSelected}
+                onCheckedChange={() => onCheckboxChange(node)}
+                aria-label={t('a11y.selectRow')}
+                className={cn(
+                  'transition-opacity',
+                  isSelected
+                    ? 'opacity-100'
+                    : 'opacity-0 group-hover/tile:opacity-100 focus-visible:opacity-100',
+                )}
+              />
+            </div>
+            <IconTile scanId={scanId} node={node} />
+            <div className="min-w-0 flex-1">
+              <div className="line-clamp-2 text-sm" title={node.name}>
+                {node.name}
+              </div>
+              <div className="mt-0.5 text-xs text-foreground-secondary tabular">
+                {formatBytes(node.sizeBytes, i18n.language)}
+              </div>
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function IconTile({ scanId, node }: { scanId: string; node: ResultNode }): React.JSX.Element {
+  const thumb = useThumbnail(scanId, node.id, node.thumbnailAvailable);
+  if (thumb.data?.dataUrl) {
+    return (
+      <img
+        src={thumb.data.dataUrl}
+        alt=""
+        className="size-16 shrink-0 rounded-sm object-cover"
+        loading="lazy"
+      />
+    );
+  }
+  return (
+    <div className="flex size-16 shrink-0 items-center justify-center rounded-sm bg-surface-tint">
+      <FileIconFor node={node} />
     </div>
   );
 }

@@ -1,5 +1,5 @@
 import * as React from 'react';
-import { useNavigate, useParams, useSearchParams } from 'react-router';
+import { useNavigate, useSearchParams } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import { useQueryClient } from '@tanstack/react-query';
 import {
@@ -10,15 +10,18 @@ import {
   SquareIcon,
   UnplugIcon,
 } from 'lucide-react';
-import { useCancelScan, usePauseScan, useResumeScan, useScanProgress } from '@/queries/scan';
-import { useScanSessionStore } from '@/stores/scan-session-store';
+import { scanPhaseOf } from '@/connector/contract';
 import {
-  formatBytes,
-  formatCountCompact,
-  formatDuration,
-  formatPercent,
-  formatThroughput,
-} from '@/lib/format';
+  useCancelScan,
+  usePauseScan,
+  useResumeScan,
+  useScanProgress,
+  useScanState,
+} from '@/queries/scan';
+import { queryKeys } from '@/queries/client';
+import { useScanSessionStore } from '@/stores/scan-session-store';
+import { formatBytes, formatCountCompact, formatDuration, formatPercent } from '@/lib/format';
+import { cn } from '@/lib/utils';
 import { ProgressGauge } from '@/components/ui/progress';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -37,12 +40,13 @@ import { ResultsPageFallback } from '@/features/results-explorer/page-fallback';
 
 /**
  * Scan Progress — the 3-pane results layout live during the scan, plus the
- * bottom status cluster (weighted-monotonic circular gauge, stage line,
- * counters, pause/stop) and the completion celebration. Scan runs INSIDE
- * the results surface, per the corpus state machine.
+ * corpus bottom control cluster (atlas §6, GT-scan §2/§7): circular gauge,
+ * the reference status-line formats ("Quick/Advanced Scanning, Files Found:
+ * N (size)" / "Remaining time: … | Reading sector: X/Y"), the full-width
+ * "Searching: <path>" ticker, pause/stop, and the completion celebration.
+ * The scan runs INSIDE the results surface, per the corpus state machine.
  */
 export function ScanProgressPage(): React.JSX.Element {
-  const { deviceId = '' } = useParams();
   const [params] = useSearchParams();
   const scanIdFromUrl = params.get('scanId');
   const { t, i18n } = useTranslation();
@@ -50,17 +54,15 @@ export function ScanProgressPage(): React.JSX.Element {
   const qc = useQueryClient();
 
   const active = useScanSessionStore((s) => s.active);
-  const known = useScanSessionStore((s) => s.known);
   const markStopped = useScanSessionStore((s) => s.markScanStopped);
   const markSeen = useScanSessionStore((s) => s.markCelebrationSeen);
   const seenFor = useScanSessionStore((s) => s.celebrationSeenFor);
   const setActiveStatus = useScanSessionStore((s) => s.setActiveStatus);
 
   const scanId = scanIdFromUrl ?? active?.scanId ?? null;
-  const session = scanId ? known[scanId] : null;
-  const targetId = session?.targetId ?? deviceId;
 
   const progress = useScanProgress(scanId);
+  const scanState = useScanState(scanId);
   const pause = usePauseScan(scanId);
   const resume = useResumeScan(scanId);
   const cancel = useCancelScan(scanId);
@@ -68,21 +70,12 @@ export function ScanProgressPage(): React.JSX.Element {
   const [stopStats, setStopStats] = React.useState<{ files: number; time: string } | null>(
     null,
   );
-  const scanStartIso = React.useRef<string | null>(null);
 
   const status = progress?.status ?? 'starting';
   const overall = progress?.overallProgress ?? 0;
   const completed = status === 'completed';
   const deviceLost = progress?.deviceConnected === false && status === 'paused';
-
-  // Record scan start once for elapsed-time stats (ref write, not state).
-  React.useEffect(() => {
-    if (progress && scanStartIso.current === null) {
-      scanStartIso.current = new Date(
-        Date.now() - (progress.overallProgress > 0 ? 1 : 0) * 0,
-      ).toISOString();
-    }
-  }, [progress]);
+  const phase = scanPhaseOf(progress?.stage ?? 'volume-analysis');
 
   // A completed scan is no longer 'active' — the sidebar stops pulsing.
   React.useEffect(() => {
@@ -95,90 +88,89 @@ export function ScanProgressPage(): React.JSX.Element {
     }
   }, [progress?.status, scanId, setActiveStatus]);
 
+  /** Elapsed since the engine recorded the scan start (real, not derived).
+   *  A 1 s ticker keeps it live while the scan runs; completion freezes it
+   *  at the engine's own timestamps (pure render — no Date.now() inline). */
+  const [nowMs, setNowMs] = React.useState(() => Date.now());
+  React.useEffect(() => {
+    if (completed) return;
+    const id = window.setInterval(() => setNowMs(Date.now()), 1_000);
+    return () => window.clearInterval(id);
+  }, [completed]);
+  const usedTime = React.useMemo(() => {
+    const startedAt = scanState.data?.startedAt;
+    if (!startedAt) return null;
+    const ref = scanState.data?.completedAt ? Date.parse(scanState.data.completedAt) : nowMs;
+    const secs = Math.max(0, (ref - Date.parse(startedAt)) / 1000);
+    return formatDuration(secs, i18n.language);
+  }, [scanState.data, nowMs, i18n.language]);
+
   if (!scanId) {
     return <ResultsPageFallback />;
   }
 
+  const sectorsScanned = Math.floor((progress?.bytesScanned ?? 0) / 512);
+  const sectorsTotal = Math.floor((progress?.bytesTotal ?? 0) / 512);
+
   return (
     <div className="flex h-full min-h-0 flex-col">
-      {/* Scan banner strip */}
-      {!completed ? (
-        <div
-          className={cnStrip(
-            'flex shrink-0 items-center gap-3 border-b border-border px-4 py-1.5 text-sm',
-            status === 'paused'
-              ? 'bg-danger-muted text-danger'
-              : 'bg-primary-muted text-primary',
-          )}
-          role="status"
-          aria-live="polite"
-        >
-          <span
-            className={cnStrip(
-              'inline-block size-2 rounded-full bg-current',
-              status === 'running' && 'animate-status-pulse',
-            )}
-          />
-          <span className="font-medium">
-            {status === 'paused'
-              ? t('scan.pausedTitle')
-              : t(`scan.stage.${progress?.stage ?? 'volume-analysis'}`)}
-          </span>
-          <span className="tabular">{formatPercent(overall, i18n.language)}</span>
-          <span className="ml-auto truncate text-xs opacity-80">
-            {t('scan.liveResultsNote')}
-          </span>
-        </div>
-      ) : null}
-
-      {/* Live results (partial) */}
+      {/* Live results (partial) — browse-while-scanning (GT-scan §3.2) */}
       <div className="min-h-0 flex-1">
         <ResultsExplorer
           scanId={scanId}
-          targetId={targetId}
           liveMode={!completed}
           recoverableDuringScan={progress?.recoverableDuringScan ?? false}
         />
       </div>
 
-      {/* Bottom status cluster */}
+      {/* "Searching: <path>" ticker — full-width strip above the control
+          cluster (corpus GT-scan §2; hidden when there is nothing to show). */}
+      {!completed && progress?.currentPath ? (
+        <div
+          className="flex shrink-0 items-center gap-2 border-t border-border bg-primary-muted px-4 py-1 text-xs text-primary"
+          role="status"
+        >
+          <span
+            className={cn(
+              'inline-block size-1.5 rounded-full bg-current',
+              status === 'running' && 'animate-status-pulse',
+            )}
+            aria-hidden
+          />
+          <span className="truncate font-mono">{progress.currentPath}</span>
+        </div>
+      ) : null}
+
+      {/* Bottom status cluster (atlas §6) */}
       <div className="flex shrink-0 items-center gap-4 border-t border-border bg-surface px-4 py-2.5">
         <ProgressGauge value={overall} size={52} label={t('a11y.gauge')} />
         <div className="min-w-0 flex-1 space-y-0.5 text-xs">
-          <div className="flex items-center gap-3">
-            <span className="font-medium">{t('scan.overall')}:</span>
-            <span className="tabular font-semibold text-primary">
-              {formatPercent(overall, i18n.language)}
+          {/* Reference status line: "Quick/Advanced Scanning , Files Found: N (size)" */}
+          <div
+            className="flex flex-wrap items-center gap-x-3 gap-y-0.5"
+            role="status"
+            aria-live="polite"
+          >
+            <span
+              className={cn(
+                'font-medium',
+                status === 'paused' ? 'text-danger' : 'text-foreground',
+              )}
+            >
+              {status === 'paused'
+                ? t('scan.pausedTitle')
+                : completed
+                  ? t('scan.completedStatus')
+                  : t(phase === 'quick' ? 'scan.quickScanning' : 'scan.advancedScanning', {
+                      percent: formatPercent(overall, i18n.language),
+                    })}
             </span>
             <span className="text-foreground-secondary tabular">
-              {t('scan.filesFound')}:{' '}
-              <strong className="text-foreground">
-                {formatCountCompact(progress?.filesFound ?? 0, i18n.language)}
-              </strong>
+              {t('scan.filesFoundWithSize', {
+                count: formatCountCompact(progress?.filesFound ?? 0, i18n.language),
+                size: formatBytes(progress?.dataFoundBytes ?? 0, i18n.language),
+              })}
             </span>
-            <span className="text-foreground-secondary tabular">
-              {t('scan.dataFound')}:{' '}
-              <strong className="text-foreground">
-                {formatBytes(progress?.dataFoundBytes ?? 0, i18n.language)}
-              </strong>
-            </span>
-          </div>
-          <div className="flex items-center gap-3 text-foreground-secondary tabular">
-            <span>
-              {t('scan.scanned')}: {formatBytes(progress?.bytesScanned ?? 0, i18n.language)} /{' '}
-              {formatBytes(progress?.bytesTotal ?? 0, i18n.language)}
-            </span>
-            <span>
-              {t('scan.throughput')}:{' '}
-              {formatThroughput(progress?.throughputBytesPerSecond ?? 0, i18n.language)}
-            </span>
-            {progress?.etaSeconds != null && progress.etaSeconds > 0 ? (
-              <span>
-                {t('scan.remaining', {
-                  time: formatDuration(progress.etaSeconds, i18n.language),
-                })}
-              </span>
-            ) : null}
             {(progress?.errors ?? 0) > 0 ? (
               <Hint text={t('scan.badSectorMap')}>
                 <Badge variant="danger">
@@ -186,6 +178,27 @@ export function ScanProgressPage(): React.JSX.Element {
                   {t('scan.errorsCount', { count: progress!.errors })}
                 </Badge>
               </Hint>
+            ) : null}
+          </div>
+          {/* Reference second line: "Remaining time: NNmNNs | Reading sector: X/Y" */}
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-foreground-secondary tabular">
+            {progress?.etaSeconds != null && progress.etaSeconds > 0 && !completed ? (
+              <span>
+                {t('scan.remaining', {
+                  time: formatDuration(progress.etaSeconds, i18n.language),
+                })}
+              </span>
+            ) : null}
+            {!completed ? (
+              <span>
+                {t('scan.readingSector', {
+                  current: sectorsScanned.toLocaleString(i18n.language),
+                  total: sectorsTotal.toLocaleString(i18n.language),
+                })}
+              </span>
+            ) : null}
+            {completed && usedTime ? (
+              <span>{t('scan.usedTime', { time: usedTime })}</span>
             ) : null}
           </div>
         </div>
@@ -216,13 +229,9 @@ export function ScanProgressPage(): React.JSX.Element {
               variant="dangerOutline"
               size="md"
               onClick={() => {
-                const started = scanStartIso.current ?? new Date().toISOString();
                 setStopStats({
                   files: progress?.filesFound ?? 0,
-                  time: formatDuration(
-                    Math.max(0, (Date.now() - Date.parse(started)) / 1000),
-                    i18n.language,
-                  ),
+                  time: usedTime ?? formatDuration(progress?.etaSeconds ?? 0, i18n.language),
                 });
                 setStopConfirmOpen(true);
               }}
@@ -268,7 +277,7 @@ export function ScanProgressPage(): React.JSX.Element {
         </Dialog>
       ) : null}
 
-      {/* Stop confirmation */}
+      {/* Stop confirmation (CScanCommonPopDlg: stat tiles + risk framing) */}
       <Dialog open={stopConfirmOpen} onOpenChange={setStopConfirmOpen}>
         <DialogContent className="max-w-sm" aria-label={t('scan.stopTitle')}>
           <DialogHeader>
@@ -296,7 +305,7 @@ export function ScanProgressPage(): React.JSX.Element {
                 void cancel.mutate(undefined, {
                   onSuccess: () => {
                     markStopped();
-                    void qc.invalidateQueries({ queryKey: ['sessions'] });
+                    void qc.invalidateQueries({ queryKey: queryKeys.sessions });
                     toast(t('common.stop'));
                     void navigate(`/results/${scanId}`);
                   },
@@ -309,7 +318,8 @@ export function ScanProgressPage(): React.JSX.Element {
         </DialogContent>
       </Dialog>
 
-      {/* Celebration modal */}
+      {/* Celebration modal (corpus §7: standalone 540×380, no Esc dismiss,
+          stats + Go to Recover CTA). */}
       <Dialog
         open={completed && seenFor !== scanId}
         onOpenChange={(open) => {
@@ -323,6 +333,7 @@ export function ScanProgressPage(): React.JSX.Element {
           showCloseButton={false}
           className="w-[540px] max-w-[92vw] rounded-xl p-6 text-center"
           aria-label={t('scan.completedTitle')}
+          onEscapeKeyDown={(e) => e.preventDefault()}
         >
           <div className="mx-auto mb-3 flex size-14 items-center justify-center rounded-full bg-success-muted text-success">
             <PartyPopperIcon className="size-7" strokeWidth={1.5} aria-hidden />
@@ -330,30 +341,17 @@ export function ScanProgressPage(): React.JSX.Element {
           <DialogTitle className="text-hero font-semibold">
             {t('scan.completedTitle')}
           </DialogTitle>
-          <DialogDescription className="mt-1">{t('scan.completedBody')}</DialogDescription>
-          <div className="mt-5 grid grid-cols-2 gap-3 text-left">
+          <DialogDescription className="mt-1">{t('scan.completedVerdict')}</DialogDescription>
+          <div className="mt-5 grid grid-cols-3 gap-3 text-left">
             <MiniStat
               label={t('scan.statsFiles')}
-              value={formatCountCompact(
-                stopStats?.files ?? progress?.filesFound ?? 0,
-                i18n.language,
-              )}
+              value={formatCountCompact(progress?.filesFound ?? 0, i18n.language)}
             />
             <MiniStat
               label={t('scan.statsSize')}
               value={formatBytes(progress?.dataFoundBytes ?? 0, i18n.language)}
             />
-            <MiniStat
-              label={t('scan.statsTime')}
-              value={
-                formatDuration(((progress?.etaSeconds ?? 0) + 180) * 0, i18n.language) || '—'
-              }
-            />
-            <MiniStat
-              label={t('scan.statsErrors')}
-              value={String(progress?.errors ?? 0)}
-              tone={(progress?.errors ?? 0) > 0 ? 'warning' : 'default'}
-            />
+            <MiniStat label={t('scan.statsTime')} value={usedTime ?? '—'} />
           </div>
           <Button
             variant="primary"
@@ -364,7 +362,7 @@ export function ScanProgressPage(): React.JSX.Element {
               void navigate(`/results/${scanId}`);
             }}
           >
-            {t('scan.goToResults')}
+            {t('scan.goToRecover')}
           </Button>
         </DialogContent>
       </Dialog>
@@ -385,17 +383,10 @@ function MiniStat({
     <div className="rounded-md border border-border bg-surface-muted px-3 py-2">
       <div className="text-xs text-foreground-secondary">{label}</div>
       <div
-        className={cnStrip(
-          'text-lg font-semibold tabular',
-          tone === 'warning' && 'text-warning',
-        )}
+        className={cn('text-lg font-semibold tabular', tone === 'warning' && 'text-warning')}
       >
         {value}
       </div>
     </div>
   );
-}
-
-function cnStrip(...parts: (string | false | undefined | null)[]): string {
-  return parts.filter(Boolean).join(' ');
 }

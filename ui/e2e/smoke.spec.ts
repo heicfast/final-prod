@@ -1,10 +1,12 @@
 import { expect, test, type Page } from '@playwright/test';
 
 /**
- * Golden-path UI smoke (grid #55): home → select device → scan config →
- * start scan → progress → results → filter → preview → select → recover →
- * report. Verifies state transitions and that no console errors or
- * unhandled rejections occur along the way.
+ * Golden-path UI smoke (grid #55; ADR-008 flow): home → select device →
+ * scan starts DIRECTLY (no configuration step — the reference's
+ * scanClickedSlot flips straight to the scan surface) → progress with the
+ * corpus status formats → completion → results → filter → preview →
+ * select → recover → report. Verifies state transitions and that no
+ * console errors or unhandled rejections occur along the way.
  */
 
 let consoleErrors: string[] = [];
@@ -31,26 +33,26 @@ test('golden path: scan → results → recover', async ({ page }) => {
   // label, which would trip Playwright's strict mode via getByText.
   await expect(page.getByRole('heading', { name: /internal drives/i })).toBeVisible();
 
-  // 2. Select the first device and open scan configuration
+  // 2. Select the first device, then click the card's scan button: the scan
+  //    must start DIRECTLY — no intermediate configuration surface exists.
   await page.getByRole('radio').first().click();
-  // Three buttons carry this label (one per device card + the primary CTA)
-  // — the first card's button is deterministic.
   const scanButton = page.getByRole('button', { name: /search for lost data/i }).first();
   await expect(scanButton).toBeEnabled();
   await scanButton.click();
-  await expect(page.getByRole('heading', { name: /search setup/i })).toBeVisible();
 
-  // 3. Start the scan (deep, defaults)
-  await page.getByRole('button', { name: /^start searching$/i }).click();
-  await expect(page.getByRole('status')).toBeVisible({ timeout: 20_000 });
+  // 3. The scan surface appears with the reference status line formats.
+  await expect(page.getByText(/quick scanning|advanced scanning/i).first()).toBeVisible({
+    timeout: 20_000,
+  });
+  await page.screenshot({ path: 'test-results/05-scan-live.png' });
 
-  // 4. Wait for completion modal (mock quick/deep runs finish < 60s)
+  // 4. Wait for completion modal (mock full chain finishes < 60 s)
   const modal = page.getByRole('dialog', { name: /search complete/i });
   await expect(modal).toBeVisible({ timeout: 90_000 });
   await page.screenshot({ path: 'test-results/10-scan-complete.png' });
 
   // 5. Open results
-  await modal.getByRole('button', { name: /open found files/i }).click();
+  await modal.getByRole('button', { name: /go to recover/i }).click();
   await expect(page.getByRole('grid')).toBeVisible({ timeout: 20_000 });
   await expect(page.getByRole('row').nth(1)).toBeVisible();
   await page.screenshot({ path: 'test-results/20-results.png' });
@@ -61,11 +63,11 @@ test('golden path: scan → results → recover', async ({ page }) => {
   await expect(page.getByRole('group', { name: /^type$/i })).toBeVisible();
   await page.screenshot({ path: 'test-results/30-filter-open.png' });
 
-  // 7. Search
+  // 7. Search — the breadcrumb becomes "Search results for …"
   const search = page.getByLabel(/search by name/i);
   await search.fill('a');
   await search.press('Enter');
-  await page.waitForTimeout(600);
+  await expect(page.getByText(/search results for/i)).toBeVisible({ timeout: 10_000 });
 
   // 8. Click the first data row — the complementary Preview pane shows the
   // node's confidence grade; then tick the row checkbox to select it for
@@ -97,6 +99,18 @@ test('golden path: scan → results → recover', async ({ page }) => {
     (e) => e.includes('Download the React DevTools') || e.includes('[vite]'),
   );
   expect(consoleErrors.filter((e) => !benign.includes(e))).toEqual([]);
+});
+
+test('quick targets start real scans directly (Recycle Bin)', async ({ page }) => {
+  await page.goto('/');
+  await expect(page.getByRole('heading', { name: /choose where to look/i })).toBeVisible({
+    timeout: 15_000,
+  });
+  // The "Specify a location" row: Recycle Bin scans immediately (GT-landing §4).
+  await page.getByRole('button', { name: /^recycle bin/i }).click();
+  await expect(page.getByText(/quick scanning|advanced scanning/i).first()).toBeVisible({
+    timeout: 20_000,
+  });
 });
 
 test('state surfaces: empty scan route falls back to home prompt', async ({ page }) => {

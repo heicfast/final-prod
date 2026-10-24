@@ -24,6 +24,20 @@ import type {
 import { mulberry32, pick, randBell, randInt } from './rng';
 import { CATEGORY_BY_EXT, DIR_NAMES, EXT_WEIGHTS, NAME_STEMS } from './fixtures';
 
+const EMPTY_FILTER: ResultsFilter = {
+  nodeId: null,
+  treeMode: 'path',
+  search: null,
+  categories: null,
+  dateFrom: null,
+  dateTo: null,
+  sizeMinBytes: null,
+  sizeMaxBytes: null,
+  extensions: null,
+  origins: null,
+  hideEmptyFiles: false,
+};
+
 const ORIGINS: readonly ResultOrigin[] = [
   'existing',
   'deleted',
@@ -123,7 +137,16 @@ export class NodeSpace {
 
   readonly totalSizeBytes: number;
 
-  constructor(volumeId: string, seed: number, dirCount: number, fileCount: number) {
+  constructor(
+    volumeId: string,
+    seed: number,
+    dirCount: number,
+    fileCount: number,
+    /** Found-data budget: the aggregate generated size is scaled down to
+     *  track the volume capacity (corpus GT-scan §8: 147.12 GB found on a
+     *  149.45 GB volume — deep coverage approaches, never exceeds, the disk). */
+    totalBytesBudget = Number.POSITIVE_INFINITY,
+  ) {
     this.volumeId = volumeId;
     this.seed = seed;
     this.dirCount = dirCount;
@@ -236,20 +259,39 @@ export class NodeSpace {
         this.fOrigin[i] = ORIGINS.indexOf('raw');
         this.fConf[i] = i % 3 === 0 ? 3 : 4;
       } else {
-        this.fOrigin[i] = Math.floor(rng() * 5);
+        // Weighted origin mix per the corpus model (atlas §5 / GT-scan §3):
+        // the existing tree dominates; deleted files and path-lost files
+        // (advanced-scan finds whose path could not be reconstructed) follow.
+        const r = rng();
+        this.fOrigin[i] =
+          r < 0.62
+            ? ORIGINS.indexOf('existing')
+            : r < 0.88
+              ? ORIGINS.indexOf('deleted')
+              : ORIGINS.indexOf('lost-path');
         this.fConf[i] = Math.floor(rng() * CONFIDENCES.length);
       }
+    }
+
+    // ---- capacity scaling: keep the aggregate within the volume budget ----
+    let totalSize = 0;
+    for (let i = 0; i < n; i++) totalSize += this.fSize[i];
+    if (totalSize > totalBytesBudget && totalSize > 0) {
+      const scale = totalBytesBudget / totalSize;
+      for (let i = 0; i < n; i++) {
+        this.fSize[i] = Math.max(64, Math.floor(this.fSize[i] * scale));
+      }
+      totalSize = 0;
+      for (let i = 0; i < n; i++) totalSize += this.fSize[i];
     }
 
     // ---- precompute per-directory direct counts, then bottom-up subtree sums ----
     const directCount = new Float64Array(this.dirs.length);
     const directSize = new Float64Array(this.dirs.length);
-    let totalSize = 0;
     for (let i = 0; i < n; i++) {
       const d = this.fDir[i];
       directCount[d] += 1;
       directSize[d] += this.fSize[i];
-      totalSize += this.fSize[i];
     }
     this.totalSizeBytes = totalSize;
     // pass 1: initialize every directory to its own direct totals
@@ -417,13 +459,13 @@ export class NodeSpace {
     if (filter.categories && filter.categories.length > 0) {
       if (!filter.categories.includes(this.categoryOf(i))) return false;
     }
-    if (filter.confidence && CONFIDENCES[this.fConf[i]] !== filter.confidence) return false;
     if (
       filter.origins &&
       filter.origins.length > 0 &&
       !filter.origins.includes(this.originOf(i))
     )
       return false;
+    if (filter.hideEmptyFiles && (this.fSize[i] ?? 0) === 0) return false;
     if (filter.sizeMinBytes !== null && (this.fSize[i] ?? 0) < filter.sizeMinBytes)
       return false;
     if (filter.sizeMaxBytes !== null && (this.fSize[i] ?? 0) > filter.sizeMaxBytes)
@@ -504,6 +546,38 @@ export class NodeSpace {
       default:
         return (a, b) => this.fileName(a).localeCompare(this.fileName(b)) * dir;
     }
+  }
+
+  /** File INDICES matching a filter in natural order (recover-all walk). */
+  queryNodes(
+    filter: ResultsFilter,
+    scope: Uint8Array | null,
+    offset: number,
+    limit: number,
+  ): number[] {
+    const hits: number[] = [];
+    for (let i = 0; i < this.fileCount && hits.length < offset + limit; i++) {
+      if (this.matches(i, filter, scope)) hits.push(i);
+    }
+    return hits.slice(offset, offset + limit);
+  }
+
+  /**
+   * A plausible deep-pass "Searching: <path>" item for the given tick —
+   * deterministic, derived from the space itself (corpus GT-scan §2: the
+   * ticker shows the file currently being examined deep in the tree).
+   */
+  searchingPathAt(tick: number, scope: Uint8Array | null): string | null {
+    const base = Math.floor(tick * 7) % Math.max(1, this.fileCount);
+    for (let k = 0; k < 32; k++) {
+      const i = (base + k * 131) % this.fileCount;
+      if (!this.matches(i, EMPTY_FILTER, scope)) continue;
+      const node = this.nodeAt(i);
+      if (node.kind !== 'file') continue;
+      const dir = node.path ?? '';
+      return `${dir}\\${node.name}`;
+    }
+    return null;
   }
 
   count(filter: ResultsFilter, scope: Uint8Array | null = null): number {

@@ -26,10 +26,13 @@ export function useMountPoints() {
   });
 }
 
-export function useValidateDestination(sourceDeviceId: string) {
+/** `sourceDeviceId` is the scan TARGET (device or volume id) — the
+ *  connector resolves volumes to their owning device for the overlap
+ *  refusal (same-volume writes are a hard block, architecture/04 §7.3). */
+export function useValidateDestination(sourceDeviceId: string | null) {
   return useMutation({
     mutationFn: (input: { path: string; neededBytes: number }) =>
-      connector.system.validateDestination(input.path, sourceDeviceId, input.neededBytes),
+      connector.system.validateDestination(input.path, sourceDeviceId ?? '', input.neededBytes),
   });
 }
 

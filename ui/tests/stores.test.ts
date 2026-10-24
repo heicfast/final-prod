@@ -1,7 +1,12 @@
 import { beforeEach, describe, expect, it } from 'vitest';
-import { useSelectionStore } from '@/stores/selection-store';
-import { useFilterStore, dateRangeOf, sizeRangeOf } from '@/stores/filter-store';
-import { useSortStore } from '@/stores/filter-store';
+import { selectedCountOf, useSelectionStore } from '@/stores/selection-store';
+import {
+  dateRangeOf,
+  resolveFilter,
+  sizeRangeOf,
+  useFilterStore,
+  useSortStore,
+} from '@/stores/filter-store';
 
 describe('selection store', () => {
   beforeEach(() => {
@@ -12,26 +17,44 @@ describe('selection store', () => {
     const s = useSelectionStore.getState();
     s.toggle('a');
     s.toggle('b');
-    expect(useSelectionStore.getState().selected.size).toBe(2);
+    expect(useSelectionStore.getState().ids.size).toBe(2);
     expect(useSelectionStore.getState().anchor).toBe('b');
     s.toggle('b');
-    expect(useSelectionStore.getState().selected.has('b')).toBe(false);
+    expect(useSelectionStore.getState().ids.has('b')).toBe(false);
   });
 
   it('setOnly replaces the selection and resets the anchor', () => {
     useSelectionStore.getState().setOnly(['x', 'y', 'z']);
-    expect(useSelectionStore.getState().selected.size).toBe(3);
+    expect(useSelectionStore.getState().ids.size).toBe(3);
     expect(useSelectionStore.getState().anchor).toBeNull();
   });
 
-  it('add/remove operate in bulk', () => {
+  it('select-all switches to all-mode with a filter snapshot + count', () => {
+    const filter = resolveFilter();
+    useSelectionStore.getState().setAll(filter, 1_000);
+    let s = useSelectionStore.getState();
+    expect(s.mode).toBe('all');
+    expect(s.allCount).toBe(1_000);
+    expect(s.allFilter).toBe(filter);
+    // Row toggles become exclusions, not membership.
+    s.toggle('row-1');
+    s = useSelectionStore.getState();
+    expect(s.exclusions.has('row-1')).toBe(true);
+    expect(s.isSelected('row-1')).toBe(false);
+    expect(s.isSelected('row-2')).toBe(true);
+    expect(selectedCountOf(s)).toBe(999);
+    // Untoggle restores membership.
+    s.toggle('row-1');
+    expect(selectedCountOf(useSelectionStore.getState())).toBe(1_000);
+  });
+
+  it('clear returns to empty ids-mode', () => {
+    useSelectionStore.getState().setAll(resolveFilter(), 10);
+    useSelectionStore.getState().clear();
     const s = useSelectionStore.getState();
-    s.add(['1', '2', '3']);
-    s.remove(['2']);
-    const cur = useSelectionStore.getState().selected;
-    expect(cur.has('1')).toBe(true);
-    expect(cur.has('2')).toBe(false);
-    expect(cur.size).toBe(2);
+    expect(s.mode).toBe('ids');
+    expect(s.ids.size).toBe(0);
+    expect(selectedCountOf(s)).toBe(0);
   });
 });
 
@@ -45,6 +68,7 @@ describe('filter store', () => {
     expect(f.hasActiveFilters()).toBe(false);
     f.setSearch('report');
     f.commitSearch();
+    expect(useSelectionStore.getState().mode).toBe('ids');
     expect(useFilterStore.getState().hasActiveFilters()).toBe(true);
     useFilterStore.getState().reset();
     expect(useFilterStore.getState().hasActiveFilters()).toBe(false);
@@ -64,6 +88,16 @@ describe('filter store', () => {
     f.setExtensionInput('*.doc; *.xlsx, ppt');
     f.commitExtensions();
     expect(useFilterStore.getState().extensions).toEqual(['doc', 'xlsx', 'ppt']);
+  });
+
+  it('carries the corpus filter toggles into the payload', () => {
+    const f = useFilterStore.getState();
+    f.setExistingOnly(true);
+    f.setHideEmptyFiles(true);
+    const payload = resolveFilter();
+    expect(payload.origins).toEqual(['existing']);
+    expect(payload.hideEmptyFiles).toBe(true);
+    expect(useFilterStore.getState().hasActiveFilters()).toBe(true);
   });
 });
 

@@ -82,7 +82,7 @@ export function useStartScan() {
   return useMutation({
     mutationFn: (params: ScanParams) => connector.scan.startScan(params),
     onSuccess: ({ scanId }, params) => {
-      setActive({ scanId, targetId: params.targetId, mode: params.mode });
+      setActive({ scanId, targetId: params.targetId });
       void qc.invalidateQueries({ queryKey: ['scan', scanId] });
     },
   });

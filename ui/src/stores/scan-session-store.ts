@@ -1,10 +1,8 @@
 import { create } from 'zustand';
-import type { ScanMode } from '@/connector/contract';
 
 interface ActiveScan {
   scanId: string;
   targetId: string;
-  mode: ScanMode;
 }
 
 interface ScanSessionState {
@@ -15,7 +13,6 @@ interface ScanSessionState {
   celebrationSeenFor: string | null;
   setActiveScan: (scan: ActiveScan) => void;
   markScanStopped: () => void;
-  clearActive: () => void;
   setActiveStatus: (scanId: string, status: 'completed' | 'cancelled' | 'failed') => void;
   markCelebrationSeen: (scanId: string) => void;
 }
@@ -38,7 +35,6 @@ export const useScanSessionStore = create<ScanSessionState>((set, get) => ({
       known: { ...state.known, [active.scanId]: { ...active } },
     }));
   },
-  clearActive: () => set({ active: null }),
   setActiveStatus: (scanId, status) => {
     if (status !== 'completed') {
       get().markScanStopped();

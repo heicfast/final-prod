@@ -1,17 +1,14 @@
 import { useQuery } from '@tanstack/react-query';
 import { connector } from '@/connector';
-import type { PreviewKind } from '@/connector/contract';
 import { queryKeys } from './client';
 
-export function usePreview(
-  scanId: string | null,
-  nodeId: string | null,
-  kind: PreviewKind | null,
-) {
+/** The connector owns kind inference (ADR-008 contract change); the UI
+ *  renders whatever payload kind comes back. */
+export function usePreview(scanId: string | null, nodeId: string | null) {
   return useQuery({
-    queryKey: queryKeys.preview(scanId ?? 'none', nodeId ?? 'none', kind ?? 'none'),
-    queryFn: () => connector.preview.requestPreview(scanId!, nodeId!, kind!),
-    enabled: scanId !== null && nodeId !== null && kind !== null,
+    queryKey: queryKeys.preview(scanId ?? 'none', nodeId ?? 'none', 'auto'),
+    queryFn: () => connector.preview.requestPreview(scanId!, nodeId!),
+    enabled: scanId !== null && nodeId !== null,
     staleTime: 60_000,
     retry: false, // preview failures are terminal diagnostics, not transient
   });

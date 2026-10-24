@@ -1,7 +1,7 @@
 import * as React from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router';
 import { useTranslation } from 'react-i18next';
-import type { CollisionPolicy, RecoveryOptions } from '@/connector/contract';
+import type { CollisionPolicy, RecoveryItem, RecoveryOptions } from '@/connector/contract';
 import {
   ArrowLeftIcon,
   CheckCircle2Icon,
@@ -23,7 +23,7 @@ import {
   useRecoveryReport,
   useStartRecovery,
 } from '@/queries/recovery';
-import { useResultsPages } from '@/queries/results';
+import { useScanState } from '@/queries/scan';
 import { resolveFilter } from '@/stores/filter-store';
 import { useScanSessionStore } from '@/stores/scan-session-store';
 import { useSelectionStore } from '@/stores/selection-store';
@@ -52,33 +52,40 @@ export function RecoveryPage(): React.JSX.Element {
   const navigate = useNavigate();
   const { t, i18n } = useTranslation();
 
-  const recoverAll = params.has('all');
   const selection = useSelectionStore();
-
-  const nodeIds = React.useMemo(() => {
-    const urlIds = params.get('ids')?.split(',').filter(Boolean) ?? [];
-    if (urlIds.length > 0) return urlIds;
-    if (!recoverAll) return Array.from(selection.selected);
-    return [];
-  }, [params, recoverAll, selection.selected]);
-
-  // "Recover all" needs the total node count for preflight sizing.
-  const allPages = useResultsPages(
-    scanId,
-    { ...resolveFilter(), nodeId: null, treeMode: 'path' },
-    { field: 'name', direction: 'asc' },
+  // Route markers (?all=1 / ?ids=1) carry intent; the selection itself
+  // lives in the store (all-mode = full filtered set + exclusions).
+  const recoverAll = params.has('all') || selection.mode === 'all';
+  const nodeIds = React.useMemo(
+    () => (recoverAll ? [] : Array.from(selection.ids)),
+    [recoverAll, selection.ids],
   );
-  const allTotal = allPages.data?.pages[allPages.data.pages.length - 1]?.total ?? 0;
+  const selectedCount = recoverAll
+    ? Math.max(0, selection.allCount - selection.exclusions.size)
+    : selection.ids.size;
+
+  // Sizing for the destination space check: average file size from the
+  // scan's own totals (honest engine-derived estimate, not a magic number).
+  const scanState = useScanState(scanId);
+  const avgFileBytes =
+    scanState.data && scanState.data.progress.filesFound > 0
+      ? scanState.data.progress.dataFoundBytes / scanState.data.progress.filesFound
+      : 2_400_000;
+  const neededBytes = Math.max(
+    1,
+    Math.round((recoverAll ? selection.allCount : selectedCount) * avgFileBytes),
+  );
 
   const mounts = useMountPoints();
   const startRecovery = useStartRecovery(scanId);
-  const validateDestination = useValidateDestination(scanId);
-  const pickDirectory = usePickDirectory();
-  // Source-device id (for the folder picker's do-not-suggest hint): the
-  // session store recorded the scan target when the search was started.
+  // Source-device id for overlap refusal + picker exclusion: the session
+  // store recorded the scan target when the search was started (audit 2.6 —
+  // the scan id was previously passed here, making the refusal unreachable).
   const sourceTargetId = useScanSessionStore((s) =>
     scanId ? s.known[scanId]?.targetId : null,
   );
+  const validateDestination = useValidateDestination(sourceTargetId);
+  const pickDirectory = usePickDirectory();
 
   const [destination, setDestination] = React.useState('');
   const [validation, setValidation] = React.useState<{
@@ -100,14 +107,6 @@ export function RecoveryPage(): React.JSX.Element {
 
   const jobId = startRecovery.data?.jobId ?? null;
   const jobQuery = useRecoveryJob(jobId);
-  const items = useRecoveryItems(jobId);
-
-  const estimatedBytes = React.useMemo(() => {
-    if (nodeIds.length > 0 && nodeIds.length <= 500) {
-      return items.data?.reduce((acc, i) => acc + i.sizeBytes, 0) ?? null;
-    }
-    return null;
-  }, [items.data, nodeIds.length]);
 
   const validate = (path: string): void => {
     if (!path) {
@@ -116,7 +115,7 @@ export function RecoveryPage(): React.JSX.Element {
     }
     setValidating(true);
     validateDestination.mutate(
-      { path, neededBytes: estimatedBytes ?? allTotal * 2_400_000 },
+      { path, neededBytes },
       {
         onSuccess: (v) => setValidation(v),
         onError: () =>
@@ -148,8 +147,8 @@ export function RecoveryPage(): React.JSX.Element {
           <div>
             <h1 className="text-xl font-semibold">{t('recovery.title')}</h1>
             <p className="mt-0.5 text-sm text-foreground-secondary tabular">
-              {nodeIds.length > 0
-                ? t('recovery.start', { count: nodeIds.length })
+              {selectedCount > 0
+                ? t('recovery.start', { count: selectedCount })
                 : t('results.status.recoverAll')}
             </p>
           </div>
@@ -332,7 +331,16 @@ export function RecoveryPage(): React.JSX.Element {
               }
               onClick={() => {
                 startRecovery.mutate(
-                  { nodeIds, destination, options },
+                  {
+                    selection: recoverAll
+                      ? {
+                          kind: 'all',
+                          filter: selection.allFilter ?? resolveFilter(),
+                        }
+                      : { kind: 'nodes', nodeIds },
+                    destination,
+                    options,
+                  },
                   {
                     onError: (err) => toast.error(err.message),
                   },
@@ -340,8 +348,8 @@ export function RecoveryPage(): React.JSX.Element {
               }}
             >
               <DownloadIcon aria-hidden />
-              {nodeIds.length > 0
-                ? t('recovery.start', { count: nodeIds.length })
+              {selectedCount > 0
+                ? t('recovery.start', { count: selectedCount })
                 : t('results.status.recoverAll')}
             </Button>
           </>
@@ -364,13 +372,15 @@ function CancelRecoveryButton({ jobId }: { jobId: string }): React.JSX.Element {
 function RecoveryQueue({ jobId }: { jobId: string }): React.JSX.Element {
   const { t, i18n } = useTranslation();
   const items = useRecoveryItems(jobId);
+  const [visibleCount, setVisibleCount] = React.useState(100);
+  const all = items.data ?? [];
   return (
     <div className="space-y-5">
       <QueueProgress jobId={jobId} />
       <div className="space-y-1.5">
         <h2 className="text-base font-semibold">{t('recovery.queue')}</h2>
         <div className="max-h-72 overflow-y-auto rounded-lg border border-border">
-          {(items.data ?? []).slice(0, 200).map((item) => (
+          {all.slice(0, visibleCount).map((item) => (
             <div
               key={item.nodeId}
               className="flex items-center gap-3 border-b border-border px-4 py-2 text-sm last:border-0"
@@ -384,7 +394,19 @@ function RecoveryQueue({ jobId }: { jobId: string }): React.JSX.Element {
               <QueueStateBadge state={item.state} reasonKey={item.error?.reasonKey} />
             </div>
           ))}
-          {(items.data?.length ?? 0) === 0 ? <Skeleton className="m-2 h-8" /> : null}
+          {all.length === 0 ? <Skeleton className="m-2 h-8" /> : null}
+          {all.length > visibleCount ? (
+            <button
+              type="button"
+              className="w-full py-2 text-xs text-primary hover:bg-surface-hover"
+              onClick={() => setVisibleCount((c) => Math.min(c + 200, all.length))}
+            >
+              {t('recovery.showMoreItems', {
+                shown: Math.min(visibleCount, all.length),
+                total: all.length,
+              })}
+            </button>
+          ) : null}
         </div>
       </div>
       <QueueReport jobId={jobId} />
@@ -472,8 +494,8 @@ function QueueReport({ jobId }: { jobId: string }): React.JSX.Element | null {
           </h2>
           <p className="text-sm tabular">
             {t('recovery.reportSummary', {
-              done: data.succeeded.length,
-              total: data.succeeded.length + data.failed.length + data.skipped.length,
+              done: data.processedTotal - data.failed.length - data.skipped.length,
+              total: data.processedTotal,
               failed: data.failed.length,
             })}
           </p>
@@ -503,6 +525,11 @@ function QueueReport({ jobId }: { jobId: string }): React.JSX.Element | null {
             </div>
           ))}
         </div>
+      ) : null}
+      {data.truncatedItemLists ? (
+        <p className="text-xs text-foreground-secondary">
+          {t('recovery.listsTruncated', { total: data.processedTotal })}
+        </p>
       ) : null}
       <div className="flex items-center justify-between gap-3">
         <span className="text-xs text-foreground-secondary tabular">
@@ -542,7 +569,7 @@ function QueueReport({ jobId }: { jobId: string }): React.JSX.Element | null {
               a.download = `recovery-report-${jobId}.json`;
               a.click();
               URL.revokeObjectURL(url);
-              toast.success(t('common.copied'));
+              toast.success(t('recovery.exported'));
             }}
           >
             <DownloadIcon aria-hidden />
@@ -558,7 +585,7 @@ function QueueStateBadge({
   state,
   reasonKey,
 }: {
-  state: string;
+  state: RecoveryItem['state'];
   reasonKey?: string;
 }): React.JSX.Element {
   const { t } = useTranslation();

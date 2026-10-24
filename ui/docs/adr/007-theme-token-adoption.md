@@ -43,17 +43,17 @@ reference's look rather than the project's own visual identity.
      (#cc3d15, 4.95:1) in light-family themes; dark-family inks already pass
      (6.4:1+) and map through; Blossom's rose gets the same treatment.
    - Brand CTA exception: the primary button keeps the adopted ink gradient
-     + glow with `--on-ink` text — the source's own signature treatment
-     (analogous to Apple's system buttons); documented, and the HC layer
-     provides the accessible alternative.
+     - glow with `--on-ink` text — the source's own signature treatment
+       (analogous to Apple's system buttons); documented, and the HC layer
+       provides the accessible alternative.
    - Status text grades are darkened derivatives of `--free` / `--used` /
      `--seg-compressed`; muted backgrounds keep source values.
    - Focus ring: solid text-grade ink (the source's 0.8-alpha coral ring
      measures 2.9:1; WCAG 2.2 focus indicators need 3:1).
 5. **High contrast is derived, not adopted.** The sources define no HC
-     palette; the app keeps its `.hc` layer (flat surfaces, saturated
-     semantics, hard 1px borders, no gradients/shadows, 3px focus ring),
-     re-derived from the adopted ink hue and documented.
+   palette; the app keeps its `.hc` layer (flat surfaces, saturated
+   semantics, hard 1px borders, no gradients/shadows, 3px focus ring),
+   re-derived from the adopted ink hue and documented.
 6. **Structural geometry stays corpus-derived.** Title-bar height (36px ≈
    the corpus pixel-scan ~35px), sidebar width, and row height are layout
    structure of the reference, not theme identity, and remain

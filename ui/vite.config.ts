@@ -47,13 +47,6 @@ export default defineConfig({
     rollupOptions: {
       output: {
         manualChunks(id: string) {
-          if (
-            id.includes('react-hook-form') ||
-            id.includes('zod') ||
-            id.includes('@hookform/resolvers')
-          ) {
-            return 'vendor-forms';
-          }
           if (id.includes('i18next')) return 'vendor-i18n';
           if (id.includes('@tanstack') || id.includes('zustand')) return 'vendor-query';
           if (id.includes('react') || id.includes('scheduler')) return 'vendor-react';

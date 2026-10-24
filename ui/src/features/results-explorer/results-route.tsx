@@ -33,6 +33,5 @@ export function ResultsRoute(): React.JSX.Element {
     return <ResultsPageFallback />;
   }
 
-  const targetId = state.data.params.targetId;
-  return <ResultsExplorer scanId={scanId} targetId={targetId} liveMode={false} />;
+  return <ResultsExplorer scanId={scanId} liveMode={false} />;
 }

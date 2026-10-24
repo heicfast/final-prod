@@ -71,7 +71,10 @@ function systemPrefersDark(): boolean {
 }
 
 /** Resolve a mode to the concrete palette id + apply all root attributes. */
-function applyTheme(mode: ThemeMode, systemDark: boolean): { themeId: ThemeId; resolved: 'light' | 'dark' } {
+function applyTheme(
+  mode: ThemeMode,
+  systemDark: boolean,
+): { themeId: ThemeId; resolved: 'light' | 'dark' } {
   const root = document.documentElement;
   root.classList.remove('hc');
   let themeId: ThemeId;

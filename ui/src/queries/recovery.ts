@@ -1,7 +1,11 @@
-import { useRef, useSyncExternalStore } from 'react';
+import { useSyncExternalStore } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { connector } from '@/connector';
-import type { RecoveryOptions, RecoveryProgressEvent } from '@/connector/contract';
+import type {
+  RecoverySelection,
+  RecoveryOptions,
+  RecoveryProgressEvent,
+} from '@/connector/contract';
 import { queryKeys } from './client';
 
 // ---------------------------------------------------------------------------
@@ -63,13 +67,13 @@ export function useStartRecovery(scanId: string | null) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (input: {
-      nodeIds: readonly string[];
+      selection: RecoverySelection;
       destination: string;
       options: RecoveryOptions;
     }) =>
       connector.recovery.startRecovery(
         scanId!,
-        input.nodeIds,
+        input.selection,
         input.destination,
         input.options,
       ),
@@ -81,14 +85,9 @@ export function useStartRecovery(scanId: string | null) {
 
 export function useRecoveryProgress(jobId: string | null): RecoveryProgressEvent | null {
   const qc = useQueryClient();
-  const getQueryClient = useRef(() => qc);
   return useSyncExternalStore(
-    jobId
-      ? (listener) => getJobStore(jobId, () => getQueryClient.current()).subscribe(listener)
-      : noopSubscribe,
-    jobId
-      ? () => getJobStore(jobId, () => getQueryClient.current()).getSnapshot()
-      : () => NULL_SNAPSHOT,
+    jobId ? (listener) => getJobStore(jobId, () => qc).subscribe(listener) : noopSubscribe,
+    jobId ? () => getJobStore(jobId, () => qc).getSnapshot() : () => NULL_SNAPSHOT,
     () => NULL_SNAPSHOT,
   );
 }

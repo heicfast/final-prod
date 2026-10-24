@@ -49,7 +49,13 @@ describe('i18n parity (en ⇄ zh-CN)', () => {
 
   it('CJK strings are present where en uses CJK-capable copy paths', () => {
     // Spot-check a representative set across surfaces.
-    for (const key of ['app.name', 'home.title', 'scan.stopTitle', 'results.filter', 'recovery.title']) {
+    for (const key of [
+      'app.name',
+      'home.title',
+      'scan.stopTitle',
+      'results.filter',
+      'recovery.title',
+    ]) {
       expect(zhFlat[key], key).toBeTruthy();
       expect(enFlat[key], key).toBeTruthy();
     }

@@ -1,6 +1,5 @@
 import { create } from 'zustand';
 import type {
-  ConfidenceGrade,
   FileCategoryId,
   ResultTreeMode,
   ResultsFilter,
@@ -24,10 +23,12 @@ export interface ResultsFilterUi {
   sizePreset: SizeRangePreset;
   sizeMin: string | null; // user-entered number, MB
   sizeMax: string | null;
-  confidence: ConfidenceGrade | null;
   extensionInput: string;
   extensions: string[] | null;
-  showDeletedOnly: boolean;
+  /** Corpus filter toggle: "Existing" (existing-files filter, atlas §9). */
+  existingOnly: boolean;
+  /** Corpus filter toggle: "Hide 0KB Files" (atlas §9). */
+  hideEmptyFiles: boolean;
 }
 
 interface ResultsUiState extends ResultsFilterUi {
@@ -39,10 +40,10 @@ interface ResultsUiState extends ResultsFilterUi {
   setCategories: (cs: FileCategoryId[]) => void;
   setDatePreset: (p: DateRangePreset, from?: string | null, to?: string | null) => void;
   setSizePreset: (p: SizeRangePreset, min?: string | null, max?: string | null) => void;
-  setConfidence: (c: ConfidenceGrade | null) => void;
   setExtensionInput: (v: string) => void;
   commitExtensions: () => void;
-  setShowDeletedOnly: (v: boolean) => void;
+  setExistingOnly: (v: boolean) => void;
+  setHideEmptyFiles: (v: boolean) => void;
   reset: () => void;
   hasActiveFilters: () => boolean;
 }
@@ -59,10 +60,10 @@ const INITIAL: ResultsFilterUi = {
   sizePreset: 'any',
   sizeMin: null,
   sizeMax: null,
-  confidence: null,
   extensionInput: '',
   extensions: null,
-  showDeletedOnly: false,
+  existingOnly: false,
+  hideEmptyFiles: false,
 };
 
 const DAY_MS = 86_400_000;
@@ -145,7 +146,6 @@ export const useFilterStore = create<ResultsUiState>((set, get) => ({
       sizeMin: min !== undefined ? min : state.sizeMin,
       sizeMax: max !== undefined ? max : state.sizeMax,
     })),
-  setConfidence: (c) => set({ confidence: c }),
   setExtensionInput: (v) => set({ extensionInput: v }),
   commitExtensions: () => {
     const raw = get().extensionInput;
@@ -155,7 +155,8 @@ export const useFilterStore = create<ResultsUiState>((set, get) => ({
       .filter((s) => s.length > 0);
     set({ extensions: list.length > 0 ? list : null });
   },
-  setShowDeletedOnly: (v) => set({ showDeletedOnly: v }),
+  setExistingOnly: (v) => set({ existingOnly: v }),
+  setHideEmptyFiles: (v) => set({ hideEmptyFiles: v }),
   reset: () => set({ ...INITIAL }),
   hasActiveFilters: () => {
     const s = get();
@@ -164,9 +165,9 @@ export const useFilterStore = create<ResultsUiState>((set, get) => ({
       s.categories.length > 0 ||
       s.datePreset !== 'any' ||
       s.sizePreset !== 'any' ||
-      s.confidence !== null ||
       (s.extensions?.length ?? 0) > 0 ||
-      s.showDeletedOnly
+      s.existingOnly ||
+      s.hideEmptyFiles
     );
   },
 }));
@@ -208,8 +209,8 @@ export function resolveFilter(): ResultsFilter {
     dateTo: date.to,
     sizeMinBytes: size.minBytes,
     sizeMaxBytes: size.maxBytes,
-    confidence: f.confidence,
     extensions: f.extensions,
-    origins: f.showDeletedOnly ? ['deleted'] : null,
+    origins: f.existingOnly ? ['existing'] : null,
+    hideEmptyFiles: f.hideEmptyFiles,
   };
 }
