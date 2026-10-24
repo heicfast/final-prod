@@ -72,14 +72,22 @@ function Start-InGroup {
     param([string] $BatchFile, [string] $StdoutFile)
     # launch cmd.exe on a generated batch file in its own process group - the
     # flat command line ("/c <batch> > <stdout> 2>&1") has no nested quotes to
-    # mis-parse, and the group lets us deliver CTRL_BREAK to just the child
+    # mis-parse, and the group lets us deliver CTRL_BREAK to just the child.
+    # NOTE: $env:ComSpec has proven empty in the runner's pwsh environment
+    # (GLE 3/123 across runs) - resolve cmd.exe via SystemRoot instead.
+    $cmdExe = Join-Path $env:SystemRoot 'System32\cmd.exe'
+    if (-not (Test-Path $cmdExe)) {
+        $cmdExe = [Environment]::GetEnvironmentVariable('ComSpec', 'Machine')
+    }
+    if (-not $cmdExe -or -not (Test-Path $cmdExe)) { throw "cmd.exe not resolvable (SystemRoot=$env:SystemRoot)" }
+    Write-Host "Start-InGroup: cmd=$cmdExe comspec_env=[$env:ComSpec] batch=$BatchFile"
     $si = New-Object BenchLaunch+STARTUPINFO
     $si.cb = [System.Runtime.InteropServices.Marshal]::SizeOf($si)
     $pi = New-Object BenchLaunch+PROCESS_INFORMATION
     $cmdLine = '/c "{0}" > "{1}" 2>&1' -f $BatchFile, $StdoutFile
-    $ok = [BenchLaunch]::CreateProcessW($env:ComSpec, $cmdLine, [IntPtr]::Zero, [IntPtr]::Zero, $false,
+    $ok = [BenchLaunch]::CreateProcessW($cmdExe, $cmdLine, [IntPtr]::Zero, [IntPtr]::Zero, $false,
         0x00000200, [IntPtr]::Zero, $null, [ref]$si, [ref]$pi)   # CREATE_NEW_PROCESS_GROUP
-    if (-not $ok) { throw "CreateProcessW failed GLE=$([Runtime.InteropServices.Marshal]::GetLastWin32Error()) cmd=[$cmdLine]" }
+    if (-not $ok) { throw "CreateProcessW failed GLE=$([Runtime.InteropServices.Marshal]::GetLastWin32Error()) cmd=[$cmdLine] app=[$cmdExe]" }
     [System.Runtime.InteropServices.Marshal]::ReleaseHandle($pi.hThread) | Out-Null
     return @{ pid = $pi.dwProcessId; handle = $pi.hProcess }
 }
