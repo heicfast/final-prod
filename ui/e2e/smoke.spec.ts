@@ -117,3 +117,19 @@ test('state surfaces: empty scan route falls back to home prompt', async ({ page
   await page.goto('/#/results/scan-does-not-exist');
   await expect(page.getByText(/try again, or go back/i)).toBeVisible({ timeout: 15_000 });
 });
+
+test('window chrome: cluster hidden in browser (host provides controls — no dead buttons)', async ({
+  page,
+}) => {
+  await page.goto('/');
+  await expect(page.getByRole('heading', { name: /choose where to look/i })).toBeVisible({
+    timeout: 15_000,
+  });
+  // The Tauri-only window controls must not render in the browser runtime.
+  await expect(page.getByTestId('window-controls')).toHaveCount(0);
+  // The title bar itself is present and double-click is inert here.
+  const header = page.locator('header[data-tauri-drag-region]');
+  await expect(header).toBeVisible();
+  await header.dblclick();
+  await expect(page.getByRole('heading', { name: /choose where to look/i })).toBeVisible();
+});

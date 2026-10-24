@@ -38,6 +38,12 @@ export const en = {
     empty: 'Nothing here yet',
     copied: 'Copied to clipboard',
   },
+  chrome: {
+    minimize: 'Minimize',
+    maximize: 'Maximize',
+    restore: 'Restore',
+    close: 'Close',
+  },
   nav: {
     home: 'Home',
     upOneLevel: 'Up one level',

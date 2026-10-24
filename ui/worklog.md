@@ -677,3 +677,29 @@ release notes state signing pending (unsigned builds).
   docs/MOTION-SPEC.md, docs/IMPLEMENTATION-STATUS.md,
   docs/INTERIM-ASSETS.md (corpus-extraction layer added).
 - Working order confirmed: T5 chrome → T6 sidebar → T7 dialogs → …
+
+### T5 — Custom window chrome — DONE
+
+- Corpus-extracted the 4-state chrome SVGs (min/max/restore/close ×
+  nor/hov/pre/dis × light/dark = 32 files) into
+  `src/assets/interim/chrome/` + `manifest.json` (INTERIM-ASSETS §A layer;
+  extraction script persisted at scripts/extract-chrome-assets.mjs in the
+  workspace, not the repo).
+- `WindowControls` component (components/ui/window-controls.tsx): corpus
+  order min→max/restore→close, 24×24 corpus glyphs (hover plate rx4 baked
+  in), instant nor/hov/pre swaps (ART21: Qt QSS has no transitions),
+  live maximize/restore glyph via debounced onResized→isMaximized, i18n
+  aria-labels (chrome.* in en+zh), 32×32 hit areas, focus-visible ring.
+- Browser truthfulness: the cluster renders ONLY in the Tauri runtime
+  (lib/runtime.ts gate) — browser/Playwright get host chrome, no dead
+  buttons. Live-verified: controls null, header present, dblclick inert,
+  zero console errors (download/t5-browser-mode.png).
+- Shell: title-bar dblclick toggles maximize (Tauri-only, ignored over
+  interactive children).
+- Capabilities: +core:window:{minimize,toggle-maximize,is-maximized,close,
+  start-dragging} (compile-time validated by the tauri-debug-build gate).
+- knip: @tauri-apps/api ignore removed (now genuinely imported); SVGs
+  inline as data URIs in the bundle (both palette fills verified in dist).
+- Gates: tsc ✓, eslint 0 err (1 pre-existing compiler warning), prettier ✓,
+  arch-lint ✓, ast-grep ✓, knip 0 ✓, jscpd 0.00% ✓, vitest 91/91 (5 new),
+  build ✓ 96.6/200 KB main. e2e: +browser-mode chrome test.

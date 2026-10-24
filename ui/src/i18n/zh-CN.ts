@@ -40,6 +40,12 @@ export const zhCN: TranslationSchema = {
     empty: '暂无内容',
     copied: '已复制到剪贴板',
   },
+  chrome: {
+    minimize: '最小化',
+    maximize: '最大化',
+    restore: '还原',
+    close: '关闭',
+  },
   nav: {
     home: '首页',
     upOneLevel: '上一级',

@@ -1,6 +1,7 @@
 import * as React from 'react';
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router';
 import { useTranslation } from 'react-i18next';
+import { getCurrentWindow } from '@tauri-apps/api/window';
 import {
   AppWindowIcon,
   CrosshairIcon,
@@ -31,6 +32,8 @@ import {
 import { AboutDialog } from '@/features/settings-about/about-dialog';
 import { useConnectorMode } from '@/queries/dev';
 import { setLocale, SUPPORTED_LOCALES } from '@/i18n';
+import { WindowControls } from '@/components/ui/window-controls';
+import { isTauriRuntime } from '@/lib/runtime';
 
 /**
  * App shell: custom title bar (frameless window), left sidebar with the
@@ -74,6 +77,15 @@ export function WizardShell(): React.JSX.Element {
     location.pathname.startsWith('/results') ||
     location.pathname.startsWith('/recover');
 
+  /** Windows convention on custom chrome: double-click the title-bar drag
+   *  region to toggle maximize/restore (corpus: frameless Qt shell; the OS
+   *  provides snap/Aero for drag). Ignored over interactive children. */
+  const onTitleBarDoubleClick = (e: React.MouseEvent<HTMLElement>): void => {
+    if (!isTauriRuntime()) return;
+    if ((e.target as HTMLElement).closest('button, a, input, [role="menu"]')) return;
+    void getCurrentWindow().toggleMaximize();
+  };
+
   return (
     <div className="flex h-full min-h-0 flex-col bg-background text-foreground">
       {/* Title bar */}
@@ -81,6 +93,7 @@ export function WizardShell(): React.JSX.Element {
         className="flex shrink-0 items-center justify-between border-b border-border bg-surface px-3 select-none"
         style={{ height: 'var(--titlebar-height)' }}
         data-tauri-drag-region
+        onDoubleClick={onTitleBarDoubleClick}
       >
         <div className="flex items-center gap-2">
           <AppWindowIcon className="size-4 text-primary" aria-hidden />
@@ -168,6 +181,7 @@ export function WizardShell(): React.JSX.Element {
           >
             <InfoIcon aria-hidden />
           </Button>
+          <WindowControls />
         </div>
       </header>
 

@@ -11,7 +11,7 @@
 
 | Surface                                                              | Corpus ref  | State                 | Gaps                                                                                                                                                                        | Plan                                                                                                             |
 | -------------------------------------------------------------------- | ----------- | --------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
-| Window chrome (min/max/restore/close)                                | EXP-SPEC §1 | **MISSING**           | No window-control cluster in the shell; Tauri capability lacks `core:window:*`; no double-click-title toggle; no corpus 4-state button treatment                            | T5: capabilities + `WindowControls` component + corpus SVG states + e2e                                          |
+| Window chrome (min/max/restore/close)                                | EXP-SPEC §1 | **COMPLETE** (T5)     | Wiring + corpus 4-state glyphs + dblclick toggle; real-window drag/snap verified via Windows tauri-debug-build gate (capabilities compile-time-validated)                   | —                                                                                                                |
 | Left sidebar                                                         | EXP-SPEC §2 | **PARTIAL**           | Fixed width; no collapse/expand; no toggle control; no state persistence; content IA + selected/hover states complete                                                       | T6: collapse with 360 ms width transition, label fade, icon retention, keyboard toggle, localStorage persistence |
 | Dialogs & popups                                                     | EXP-SPEC §3 | **PARTIAL**           | All corpus dialogs present with correct ESC discipline; **no exit animations** (Radix unmounts instantly); stop-confirm allows click-outside where corpus requires a choice | T7: exit fades; per-dialog outside-click audit; scroll lock verify                                               |
 | Toasts                                                               | EXP-SPEC §4 | **COMPLETE** (verify) | sonner stack — verify hover-pause, focus/aria, offset vs sidebar/CTA overlap at all widths                                                                                  | T8: verification + rich-color treatment                                                                          |
@@ -25,24 +25,24 @@
 | Recovery flow                                                        | UI-MAP §5   | **COMPLETE**          | —                                                                                                                                                                           | —                                                                                                                |
 | Health / Repair / Settings / LostPartition                           | UI-MAP      | **COMPLETE**          | —                                                                                                                                                                           | —                                                                                                                |
 | i18n (en/zh-CN)                                                      | —           | **COMPLETE**          | New UI strings for T5/T6 must land in both catalogs                                                                                                                         | per item                                                                                                         |
-| Interim asset layer                                                  | mandate §3  | **MISSING**           | No corpus assets extracted yet; icons are Lucide v1                                                                                                                         | T13                                                                                                              |
+| Interim asset layer                                                  | mandate §3  | **PARTIAL**           | Chrome SVGs extracted + manifest (T5); broader set pending                                                                                                                  | T13                                                                                                              |
 
 ## 2. Components (experience-critical set)
 
-| Component                                          | Purpose                       | Ref behavior                                                | State                          | Gaps                                     |
-| -------------------------------------------------- | ----------------------------- | ----------------------------------------------------------- | ------------------------------ | ---------------------------------------- |
-| `WindowControls` (new)                             | min/max/restore/close cluster | 4-state, order min→max→close, 24 px glyphs, hover plate rx4 | **MISSING**                    | T5                                       |
-| `TitleBar` (shell header)                          | drag region + app identity    | ~35 px, drag, dblclick toggles max                          | **PARTIAL**                    | no dblclick handler; drag region present |
-| `SidebarNav` (shell nav)                           | IA navigation                 | fixed rail; collapse is app extension                       | **PARTIAL**                    | T6                                       |
-| `Dialog`                                           | modal surface                 | fade enter; exit fade; Freeze                               | PARTIAL                        | exit animation                           |
-| `DropdownMenu` / `ContextMenu` / `Popover`         | menus                         | 120 ms fade enter                                           | PARTIAL                        | exit fade                                |
-| `Toaster`                                          | toasts                        | sonner stack                                                | COMPLETE                       | verify                                   |
-| `Button`                                           | all CTAs                      | instant state swap ≤120 ms fade                             | COMPLETE                       | —                                        |
-| `Checkbox` / `Switch` / `RadioGroup` / `Segmented` | toggles                       | instant state swap                                          | COMPLETE (verify press states) | T10                                      |
-| `ProgressGauge`                                    | scan % ring                   | animated fill, freeze on pause                              | COMPLETE                       | verify freeze on pause                   |
-| `VirtualFileList`                                  | virtualized rows              | no scroll jank                                              | COMPLETE                       | T15                                      |
-| `ResultsTree`                                      | tree nav                      | async expand                                                | COMPLETE                       | —                                        |
-| `PreviewPaneResizer`                               | drag resize                   | 1:1 pointer follow                                          | COMPLETE                       | —                                        |
+| Component                                          | Purpose                       | Ref behavior                                                | State                                                                                        | Gaps                   |
+| -------------------------------------------------- | ----------------------------- | ----------------------------------------------------------- | -------------------------------------------------------------------------------------------- | ---------------------- |
+| `WindowControls` (new)                             | min/max/restore/close cluster | 4-state, order min→max→close, 24 px glyphs, hover plate rx4 | **COMPLETE** (T5: jsdom 5/5)                                                                 | —                      |
+| `TitleBar` (shell header)                          | drag region + app identity    | ~35 px, drag, dblclick toggles max                          | **COMPLETE** (T5: dblclick wired, inert over interactive children; drag region pre-existing) | —                      |
+| `SidebarNav` (shell nav)                           | IA navigation                 | fixed rail; collapse is app extension                       | **PARTIAL**                                                                                  | T6                     |
+| `Dialog`                                           | modal surface                 | fade enter; exit fade; Freeze                               | PARTIAL                                                                                      | exit animation         |
+| `DropdownMenu` / `ContextMenu` / `Popover`         | menus                         | 120 ms fade enter                                           | PARTIAL                                                                                      | exit fade              |
+| `Toaster`                                          | toasts                        | sonner stack                                                | COMPLETE                                                                                     | verify                 |
+| `Button`                                           | all CTAs                      | instant state swap ≤120 ms fade                             | COMPLETE                                                                                     | —                      |
+| `Checkbox` / `Switch` / `RadioGroup` / `Segmented` | toggles                       | instant state swap                                          | COMPLETE (verify press states)                                                               | T10                    |
+| `ProgressGauge`                                    | scan % ring                   | animated fill, freeze on pause                              | COMPLETE                                                                                     | verify freeze on pause |
+| `VirtualFileList`                                  | virtualized rows              | no scroll jank                                              | COMPLETE                                                                                     | T15                    |
+| `ResultsTree`                                      | tree nav                      | async expand                                                | COMPLETE                                                                                     | —                      |
+| `PreviewPaneResizer`                               | drag resize                   | 1:1 pointer follow                                          | COMPLETE                                                                                     | —                      |
 
 ## 3. Experience parameters (§4 set) — verdicts per surface
 
@@ -74,24 +74,24 @@ this session's audit; re-verified per item as work lands.)
 
 ## 4. Motion inventory (from MOTION-SPEC §3)
 
-| Motion                                | Status                                      |
-| ------------------------------------- | ------------------------------------------- |
-| Dialog overlay fade-in                | IMPLEMENTED                                 |
-| Dialog content fade-in                | IMPLEMENTED                                 |
-| Dialog exit fade                      | **MISSING → T7**                            |
-| Menu (dropdown/context/popover) enter | IMPLEMENTED (fade)                          |
-| Menu exit fade                        | **MISSING → T7**                            |
-| Toast enter/stack/dismiss/pause       | IMPLEMENTED (sonner)                        |
-| Route-change fade (160 ms)            | **MISSING → T9**                            |
-| Type⇄Path async tab switch            | partial — verify tree-rebuild opacity → T9  |
-| Sidebar collapse transition           | **MISSING → T6**                            |
-| Chrome button state swaps             | **MISSING → T5**                            |
-| Gauge animated fill / pause freeze    | IMPLEMENTED (200 ms linear) — verify freeze |
-| Ticker status pulse                   | IMPLEMENTED (2.4 s, dot only)               |
-| Progress stripes                      | IMPLEMENTED (1.1 s)                         |
-| Button hover/press fades              | IMPLEMENTED (100 ms)                        |
-| Card selection (device tiles)         | IMPLEMENTED (instant + border)              |
-| Reduced-motion global                 | IMPLEMENTED                                 |
+| Motion                                | Status                                                      |
+| ------------------------------------- | ----------------------------------------------------------- |
+| Dialog overlay fade-in                | IMPLEMENTED                                                 |
+| Dialog content fade-in                | IMPLEMENTED                                                 |
+| Dialog exit fade                      | **MISSING → T7**                                            |
+| Menu (dropdown/context/popover) enter | IMPLEMENTED (fade)                                          |
+| Menu exit fade                        | **MISSING → T7**                                            |
+| Toast enter/stack/dismiss/pause       | IMPLEMENTED (sonner)                                        |
+| Route-change fade (160 ms)            | **MISSING → T9**                                            |
+| Type⇄Path async tab switch            | partial — verify tree-rebuild opacity → T9                  |
+| Sidebar collapse transition           | **MISSING → T6**                                            |
+| Chrome button state swaps             | **IMPLEMENTED** (T5: nor/hov/pre corpus SVGs, instant swap) |
+| Gauge animated fill / pause freeze    | IMPLEMENTED (200 ms linear) — verify freeze                 |
+| Ticker status pulse                   | IMPLEMENTED (2.4 s, dot only)                               |
+| Progress stripes                      | IMPLEMENTED (1.1 s)                                         |
+| Button hover/press fades              | IMPLEMENTED (100 ms)                                        |
+| Card selection (device tiles)         | IMPLEMENTED (instant + border)                              |
+| Reduced-motion global                 | IMPLEMENTED                                                 |
 
 ## 5. Interim assets
 
@@ -101,8 +101,8 @@ T5 extraction set. Status updated per item.
 
 ## 6. Open items (priority order)
 
-1. **T5** Window chrome — capabilities, component, corpus states, dblclick,
-   e2e coverage.
+1. **T5** Window chrome — ✅ DONE: capabilities, component, corpus states,
+   dblclick, e2e coverage.
 2. **T6** Sidebar collapse — transition, persistence, keyboard, no CLS.
 3. **T7** Dialog/menu exit animations + outside-click audit.
 4. **T8** Toast verification pass.

@@ -1,7 +1,16 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "Default capability for the main window. The frontend talks to the shell only through the connector layer; keep this minimal until the real bridge session expands it.",
+  "description": "Default capability for the main window. The frontend talks to the shell only through the connector layer; the window-chrome cluster (title bar controls + drag region) needs the explicit window permissions below. Keep this minimal until the real bridge session expands it.",
   "windows": ["main"],
-  "permissions": ["core:default", "dialog:default", "opener:default"]
+  "permissions": [
+    "core:default",
+    "dialog:default",
+    "opener:default",
+    "core:window:allow-minimize",
+    "core:window:allow-toggle-maximize",
+    "core:window:allow-is-maximized",
+    "core:window:allow-close",
+    "core:window:allow-start-dragging"
+  ]
 }

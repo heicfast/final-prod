@@ -7,7 +7,7 @@
     "e2e/**/*.ts",
     "scripts/**/*.mjs"
   ],
-  "ignoreDependencies": ["@tauri-apps/api"],
+  "ignoreDependencies": [],
   "ignoreExportsUsedInFile": true,
   "include": [
     "files",
