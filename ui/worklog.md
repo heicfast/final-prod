@@ -275,3 +275,20 @@ check, clippy, Playwright golden path, Tauri debug build). Tag
 v0.1.0-ui-mock on d90a8d0 → Release SUCCEEDED: unsigned NSIS installer
 (Recovery.Wizard_0.1.0-ui-mock_x64-setup.exe, 1.4 MB) + SHA-256 checksum
 published to GitHub Releases. main HEAD c0b6ec6 also green (CI + UI Smoke).
+
+---
+
+## Session 3 — 2026-10-24 (Audit & completion against reference; theme adoption; lost-data flow correction)
+
+### T1 — Baseline (DONE)
+
+- Cloned fresh: research corpus at /home/z/my-project/research-corpus (11,495
+  files), app at /home/z/my-project/app (147 tracked files, HEAD 90a24f9).
+- Baseline: main green (CI + UI Smoke on c0b6ec6; 90a24f9 worklog-only).
+- Session prompt saved (token redated → redacted) to worklog/session-audit-prompt.md.
+- Session goals: (a) full corpus re-read incl. VLM on all 63 screenshots;
+  (b) full app read; (c) AUDIT-REPORT.md; (d) theme adoption from the two
+  diskgenie-v2 raw files as visual identity source of truth; (e) correct the
+  lost-data flow (remove invented ScanConfig intermediate step — reference
+  goes device → scan directly, quick→deep automatic); (f) mock API
+  improvements per architecture docs only; (g) full quality grid.
