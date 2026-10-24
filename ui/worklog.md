@@ -545,3 +545,70 @@ signing pending).
 2. Windows-hardware measurements for the three tracked PARTIALs in
    docs/ACCEPTANCE.md (cold start number, 125/175% DPI capture matrix).
 3. Interim assets per docs/INTERIM-ASSETS.md (Lucide → purpose-drawn v2).
+
+---
+
+## Session 4 continuation — 2026-10-24 (parallel-push reconciliation + sweep hardening + v0.2.1)
+
+### Context
+
+Picked up from c584524 (VLM extraction complete). While this session diagnosed
+the failing CI (runs 40091335090..40093467405), a parallel session pushed the
+rest of T13–T20 (axe-zero accessibility, ACCEPTANCE grid, docs sweep, release
+v0.2.0, worklog handoff) plus its own restore of the same two purged i18n keys
+(ae5fe4c). Rebased on top — never force-push; reconciled both directions.
+
+### Root cause of the CI/Smoke failures (independently re-diagnosed)
+
+`scripts/i18n-prune.mjs` (one-shot T12 tool) could not see ternary key
+literals inside t() calls that contain nested parens:
+`t(phase === 'quick' ? 'scan.quickScanning' : 'scan.advancedScanning',
+formatPercent(...))`. Both keys were reported unused → purged from BOTH
+catalogs (d0dac17) → the live scan status line rendered raw keys → Windows
+UI-Smoke failed on /quick scanning|advanced scanning/i at both spec sites;
+knip failed on the orphaned prune script itself.
+
+### Reconciliation with ae5fe4c (the parallel fix)
+
+- Catalogs: ONE canonical pair, corpus-verbatim — 'Quick scanning
+  {{percent}}' / 'Advanced scanning {{percent}}' (en), 快速扫描/高级扫描
+  (zh). ae5fe4c's en value said 'Advanced searching' (transcription slip:
+  contradicts its own commit message's corpus citation, and /advanced
+  scanning/i can never match it). Verified live: Quick scanning 0.9% →
+  Advanced scanning 20% → 77.9% through the automatic phase chain.
+- Sweep: kept their NAMESPACES over-approximation (never-prune-a-live-key
+  safety net) AND added the precise paren-balanced t() extraction
+  (tCalls + firstArgKeyLiterals) + real-domain family resolution
+  (ConfidenceGrade/CollisionPolicy/FileCategoryId unions from contract.ts);
+  unknown template prefixes resolving to zero defined keys now report as
+  missing families instead of passing silently.
+- Real latent bug found by the precise extractor: results-tree type-mode
+  category nodes still addressed the deleted scanConfig.categories.*
+  namespace — raw-key render on the By-type tree, outside e2e reach. Fixed
+  to categories.* (contract union). Live-verified: 'Photos & images | Videos
+  | Audio | Documents | Email | Archives | Bookmarks | Everything else'.
+- Regression pin: tests/i18n-sweep-extraction.test.ts (3 tests, the exact
+  nested-paren ternary shape). Suite now 86/86.
+
+### Verification on the merged tree (ea1fd44)
+
+tsc ✓ · eslint 0 errors · prettier ✓ · arch-lint ✓ · ast-grep both rules ✓ ·
+knip 0 · jscpd 0.00% · vitest 86/86 · build 89.4/200 KB main,
+273.5/500 KB total · sweep 332 defined / 0 unused / 0 missing · live
+golden path on the production build: restructured DeviceCard (radio name no
+longer nests the scan buttons — axe fix intact), direct start, both phase
+strings, completion modal → results → type tree, zero console/page errors.
+
+### v0.2.1 (patch release)
+
+v0.2.0 was tagged at 2ae9ee4 — BEFORE the key restore — so the published
+installer renders raw i18n keys in the scan status line (its own UI-Smoke
+run failed). Cutting v0.2.1 from the reconciled HEAD with the fix;
+release notes state signing pending (unsigned builds).
+
+### Next
+
+1. Watch CI + UI-Smoke green on ea1fd44, Release succeed on v0.2.1.
+2. Handoff items unchanged: engine-integration session per ROADMAP; the
+   three Windows-hardware PARTIALs in docs/ACCEPTANCE.md; interim assets
+   (Lucide → purpose-drawn v2).

@@ -7,7 +7,7 @@ Windows-gated — rationale + plan noted) · **FAIL** (none open).
 Verification stack used this session:
 
 - Local (this repo's sandbox): typecheck, eslint, prettier, arch-lint,
-  ast-grep (2 rules), knip (0 findings), jscpd (0 clones), vitest 83/83,
+  ast-grep (2 rules), knip (0 findings), jscpd (0 clones), vitest 86/86,
   production build + bundle budget (89.4/200 KB main, 273.5/500 KB total),
   live agent-browser walkthrough of the production build (zero console/page
   errors), axe-core 4.10 audits (zero violations — see T13), keyboard
@@ -33,7 +33,7 @@ all rendered with adopted tokens; contrast verified (axe, 6 palettes).
 ## 2. Scan progress (live) — PASS
 
 Corpus bottom cluster (atlas §6, GT-scan §2/§7): gauge + "Quick/Advanced
-searching X%" status line + "Files found: N (size)" + remaining time +
+scanning X%" status line + "Files found: N (size)" + remaining time +
 "Reading sector: X/Y" (512 B sectors, corpus convention), full-width
 "Searching: <path>" ticker, pause/stop with confirm dialog (stat tiles +
 risk framing), celebration modal (no-Esc per corpus §7, stats + "Go to
