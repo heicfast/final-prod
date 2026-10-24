@@ -281,13 +281,18 @@ export function WizardShell(): React.JSX.Element {
           </div>
         </nav>
 
-        {/* Content */}
+        {/* Content — route change fades the incoming surface in at
+            --dur-fast (MOTION-SPEC §3.4; corpus QStackedWidget swaps
+            instantly — the fade is the documented premium refinement).
+            Keyed by pathname: same-path query changes never remount. */}
         <main
           id="main-content"
           aria-label={t('a11y.mainRegion')}
           className="min-h-0 min-w-0 flex-1 overflow-hidden"
         >
-          <Outlet />
+          <div key={location.pathname} className="h-full route-fade">
+            <Outlet />
+          </div>
         </main>
       </div>
 

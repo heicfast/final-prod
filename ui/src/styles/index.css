@@ -207,3 +207,10 @@
 .sidebar-label-fade {
   transition: opacity var(--dur-fast) var(--ease-out);
 }
+
+/* Route-change fade (MOTION-SPEC §3.4): the incoming page fades in at the
+ * fast duration — opacity only, so the layout box is stable (zero CLS).
+ * Reduced motion collapses it to instant via the global media query. */
+.route-fade {
+  animation: fade-in var(--dur-fast) var(--ease-out);
+}

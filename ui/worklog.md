@@ -760,3 +760,20 @@ release notes state signing pending (unsigned builds).
   aria-live polite. Evidence: download/t8-toast-topright.png.
 - jsdom test pins the placement semantics (lazy container mount quirk
   documented). Suite 101 tests total.
+
+### T9 — Page transitions — DONE
+
+- Route-change fade: `.route-fade` (fade-in var(--dur-fast) ease-out,
+  opacity-only so the layout box is stable — zero CLS by construction),
+  keyed by pathname in the shell (query-string changes never remount).
+  Corpus note: QStackedWidget swaps instantly — the 160ms fade is the
+  documented ESTIMATED premium refinement (MOTION-SPEC §3.4).
+- Live-verified on the production build: animationName fade-in,
+  0.16s duration, --ease-out curve, home→health remount, zero console
+  errors.
+- Type⇄Path tab switch verified as already corpus-aligned: Segmented
+  highlights instantly, the tree rebuilds through skeleton rows (async
+  query), matching the mid-transition capture.
+- Reduced motion: global media query collapses the fade to instant.
+- Tests: +2 jsdom (fade wrapper present; pathname-vs-query remount
+  semantics). e2e 6/6 still green.
