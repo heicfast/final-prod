@@ -22,7 +22,7 @@ function DropdownMenuContent({
         sideOffset={sideOffset}
         className={cn(
           'z-50 min-w-44 overflow-hidden rounded-md border border-border bg-surface p-1 shadow-overlay',
-          'data-[state=open]:animate-fade-in',
+          'data-[state=open]:animate-fade-in data-[state=closed]:animate-fade-out',
           className,
         )}
         {...props}
@@ -80,7 +80,7 @@ function ContextMenuContent({
       <ContextMenuPrimitive.Content
         className={cn(
           'z-50 min-w-52 overflow-hidden rounded-md border border-border bg-surface p-1 shadow-overlay',
-          'data-[state=open]:animate-fade-in',
+          'data-[state=open]:animate-fade-in data-[state=closed]:animate-fade-out',
           className,
         )}
         {...props}
@@ -138,7 +138,7 @@ function PopoverContent({
         sideOffset={sideOffset}
         className={cn(
           'z-50 w-72 rounded-md border border-border bg-surface p-3 shadow-overlay outline-none',
-          'data-[state=open]:animate-fade-in',
+          'data-[state=open]:animate-fade-in data-[state=closed]:animate-fade-out',
           className,
         )}
         {...props}

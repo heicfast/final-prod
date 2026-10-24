@@ -105,7 +105,9 @@ T5 extraction set. Status updated per item.
    dblclick, e2e coverage.
 2. **T6** Sidebar collapse — ✅ DONE: transition, persistence, keyboard,
    no CLS (same-DOM-node assertion + live 208⇄52 verification).
-3. **T7** Dialog/menu exit animations + outside-click audit.
+3. **T7** Dialog/menu exit animations + outside-click audit — ✅ DONE:
+   focus-return-to-invoker bug found (Radix controlled-dialog triggerRef
+   gap) and fixed with evidence (e2e + jsdom).
 4. **T8** Toast verification pass.
 5. **T9** Route fade + async tab treatment.
 6. **T10** Microinteraction audit (press states on toggles).

@@ -166,3 +166,25 @@ test('sidebar: collapse/expand with persistence (keyboard-operable toggle)', asy
   await expect(page.locator('#sidebar-nav')).toHaveCSS('width', '208px');
   await expect(page.getByTestId('sidebar-toggle')).toHaveAttribute('aria-expanded', 'true');
 });
+
+test('dialogs: corpus choreography — outside click swallowed, ESC closes, focus returns', async ({
+  page,
+}) => {
+  await page.goto('/');
+  await expect(page.getByRole('heading', { name: /choose where to look/i })).toBeVisible({
+    timeout: 15_000,
+  });
+
+  const about = page.getByRole('button', { name: 'About' });
+  await about.click();
+  await expect(page.getByRole('dialog')).toBeVisible();
+
+  // Outside click on the scrim is swallowed (corpus atlas §12 rule 10).
+  await page.mouse.click(10, 300);
+  await expect(page.getByRole('dialog')).toBeVisible();
+
+  // ESC closes the dismissible dialog and focus returns to the trigger.
+  await page.keyboard.press('Escape');
+  await expect(page.getByRole('dialog')).toHaveCount(0);
+  await expect(about).toBeFocused();
+});

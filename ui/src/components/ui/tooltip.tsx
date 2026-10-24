@@ -19,7 +19,7 @@ function TooltipContent({
         sideOffset={sideOffset}
         className={cn(
           'z-50 max-w-[400px] rounded-md bg-primary px-2.5 py-1 text-xs text-primary-foreground shadow-overlay',
-          'data-[state=delayed-open]:animate-fade-in',
+          'data-[state=delayed-open]:animate-fade-in data-[state=closed]:animate-fade-out',
           className,
         )}
         {...props}

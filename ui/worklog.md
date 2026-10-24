@@ -724,3 +724,25 @@ release notes state signing pending (unsigned builds).
   round-trip, title affordance, same-DOM-node no-shift) + e2e sidebar
   spec (width/opacity/persistence/keyboard). Suite 96/96. Gates: tsc ✓,
   eslint 0 err, prettier ✓, arch-lint ✓, bundle 97.3/200 KB.
+
+### T7 — Dialogs & popups: exit choreography + corpus audit — DONE
+
+- Exit fades: `animate-fade-out` (var(--dur-base), ease-in) bound via
+  data-[state=closed] on Dialog overlay + content, DropdownMenu,
+  ContextMenu, Popover, and Tooltip; Radix Presence holds the tree until
+  the animation ends (verified in built CSS + live).
+- Outside-click swallow (corpus atlas §12 rule 10): baked into the shared
+  DialogContent as the default — every modal (stop-confirm, destination,
+  cancel-confirm, about, insufficient-space) now blocks click-through;
+  call sites keep their explicit handlers (device-lost also blocks ESC;
+  celebration blocks ESC per corpus).
+- Focus choreography BUG found and fixed: Radix's default close-focus
+  targets `triggerRef.current` — null for controlled dialogs opened
+  without DialogTrigger, so focus fell to BODY on every close. Our
+  DialogContent now captures the invoking element at open-auto-focus
+  (StrictMode-safe containment guard) and restores it at close-auto-focus.
+  Evidence: Playwright e2e (About → ESC → focused) + jsdom test; live
+  instrumentation confirmed the missing focus call before the fix.
+- Tests: +4 jsdom (enter/exit classes, outside swallow, ESC, focus
+  return) + e2e dialog spec. Suite 100/100; e2e 6/6 locally; gates:
+  tsc ✓ eslint 0 prettier ✓ arch-lint ✓ knip 0 jscpd 0.
