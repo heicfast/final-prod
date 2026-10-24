@@ -360,7 +360,7 @@ onQuickScanCompleted; m_iScanType 3→4 back-to-back). NO config screen exists
 in the 2,402 tr sites / 195 telemetry events / 722 connect edges / QSS.
 
 - DELETED src/features/scan-configuration (526 lines) + /scan/:deviceId route
-  + its i18n section (categories moved to top level).
+  - its i18n section (categories moved to top level).
 - Home: "Search for Lost Data" CTA, card scan buttons, volume links, Recycle
   Bin / Desktop / Choose-folder quick targets ALL start scans directly and
   navigate to /scan/:id/live. Recycle Bin + Desktop are real virtual targets
@@ -370,9 +370,9 @@ in the 2,402 tr sites / 195 telemetry events / 722 connect edges / QSS.
   categories/sectorSize/badSectorPolicy/retries removed — engine-internal
   per architecture/04 §3); ScanPhase + scanPhaseOf; ScanProgressEvent.
   currentPath (the "Searching:" ticker); RecoverySelection (nodes | all
-  + filter); preview kind decided by the connector; SessionMeta.mode,
-  deleteSession, ResultsFilter.confidence removed; hideEmptyFiles added;
-  MountPoint + RecoveryReport.processedTotal/truncatedItemLists added.
+  - filter); preview kind decided by the connector; SessionMeta.mode,
+    deleteSession, ResultsFilter.confidence removed; hideEmptyFiles added;
+    MountPoint + RecoveryReport.processedTotal/truncatedItemLists added.
 - Mock: single automatic stage chain (quick→advanced, quick collapsed when
   !quickScanAvailable); searchingPathAt ticker; recover-all = REAL lazy job
   (lookahead materialization, batch ticks, cursor — 340k-file job completes
@@ -391,10 +391,10 @@ in the 2,402 tr sites / 195 telemetry events / 722 connect edges / QSS.
 - ResultsExplorer: Preview context item previews the single-selected/active
   row; Smart select = best-per-name confidence-ranked selection (corpus
   magic wand); select-all = tri-state over the FULL filtered count (all-mode
-  + exclusions in the selection store); icons view = real tile renderer
-  (thumbnails, 2-line names, hover checkbox); search breadcrumb "Search
-  results for …"; preview-pane drag resizer (corpus splitter); Open-location
-  disabled in mock with truthful reason.
+  - exclusions in the selection store); icons view = real tile renderer
+    (thumbnails, 2-line names, hover checkbox); search breadcrumb "Search
+    results for …"; preview-pane drag resizer (corpus splitter); Open-location
+    disabled in mock with truthful reason.
 - FilterBar: corpus toggles (Existing files / Hide 0 KB) + Custom type
   suffix entry ("*.doc; *.xlsx"); shared Checkbox/RadioGroup components
   (no raw inputs); correct aria-labels on size inputs.

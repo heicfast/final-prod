@@ -7,7 +7,9 @@ const dateFormatters = new Map<string, Intl.DateTimeFormat>();
 const timeFormatters = new Map<string, Intl.DateTimeFormat>();
 const numberFormatters = new Map<string, Intl.NumberFormat>();
 
-/** Human byte size, e.g. 1.5 GB (decimal units, storage convention). */
+/** Human byte size, e.g. 1.5 GB — binary (1024) steps with decimal-style
+ *  labels, matching Windows/Qt convention the corpus volumes use
+ *  (GT-scan §8: "147.12 GB" found on a 149.45 GB volume = binary GiB). */
 export function formatBytes(
   bytes: number,
   locale: string,
@@ -18,8 +20,8 @@ export function formatBytes(
   const units = ['B', 'KB', 'MB', 'GB', 'TB', 'PB'];
   let v = value;
   let i = 0;
-  while (v >= 1000 && i < units.length - 1) {
-    v /= 1000;
+  while (v >= 1024 && i < units.length - 1) {
+    v /= 1024;
     i++;
   }
   const nf = new Intl.NumberFormat(locale, {

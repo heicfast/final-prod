@@ -30,11 +30,11 @@
  */
 
 /** The persisted theme ids, in picker order. */
-export const THEME_IDS = ['light', 'dark', 'ember', 'tide', 'blossom'] as const;
+export const THEME_IDS = ["light", "dark", "ember", "tide", "blossom"] as const;
 
 export type ThemeId = (typeof THEME_IDS)[number];
 
-export type ThemeFamily = 'light' | 'dark';
+export type ThemeFamily = "light" | "dark";
 
 /** Display metadata — the picker's labels/tooltips + the toggle hint. */
 export interface ThemeMeta {
@@ -44,11 +44,11 @@ export interface ThemeMeta {
 }
 
 export const THEMES: Record<ThemeId, ThemeMeta> = {
-  light: { id: 'light', label: 'Light', family: 'light' },
-  dark: { id: 'dark', label: 'Dark', family: 'dark' },
-  ember: { id: 'ember', label: 'Ember', family: 'dark' },
-  tide: { id: 'tide', label: 'Tide', family: 'dark' },
-  blossom: { id: 'blossom', label: 'Blossom', family: 'light' },
+  light: { id: "light", label: "Light", family: "light" },
+  dark: { id: "dark", label: "Dark", family: "dark" },
+  ember: { id: "ember", label: "Ember", family: "dark" },
+  tide: { id: "tide", label: "Tide", family: "dark" },
+  blossom: { id: "blossom", label: "Blossom", family: "light" },
 };
 
 /** The picker's ordered list (THEME_IDS guaranteed present). */
@@ -64,25 +64,25 @@ export function familyOf(id: ThemeId): ThemeFamily {
  * pairing, including CanvasViz's repaint observer). */
 export function applyThemeAttributes(id: ThemeId): void {
   const root = document.documentElement;
-  root.setAttribute('data-theme', id);
-  root.setAttribute('data-scheme', familyOf(id));
+  root.setAttribute("data-theme", id);
+  root.setAttribute("data-scheme", familyOf(id));
 }
 
 /** The native window theme the Tauri side should match (families map
  * onto the two values setTheme accepts; custom themes follow their
  * family so native menus/tooltips stay coherent). */
-export function nativeThemeFor(id: ThemeId): 'light' | 'dark' {
+export function nativeThemeFor(id: ThemeId): "light" | "dark" {
   return familyOf(id);
 }
 
-const STORAGE_KEY = 'diskgenie.theme';
+const STORAGE_KEY = "diskgenie.theme";
 
 /** Validate a stored/loaded value — anything unknown falls back to
  * the light default (the pre-mount script and useTheme share this). */
 export function validateThemeId(value: string | null | undefined): ThemeId {
   return value != null && (THEME_IDS as readonly string[]).includes(value)
     ? (value as ThemeId)
-    : 'light';
+    : "light";
 }
 
 /** Read the persisted choice (best-effort; hardened WebView profiles
@@ -91,7 +91,7 @@ export function readSavedTheme(): ThemeId {
   try {
     return validateThemeId(window.localStorage.getItem(STORAGE_KEY));
   } catch {
-    return 'light';
+    return "light";
   }
 }
 
@@ -108,6 +108,6 @@ export function persistTheme(id: ThemeId): void {
 /** Read the theme the pre-mount script already applied (fallback:
  * light — matches the default the script guarantees). */
 export function currentDomTheme(): ThemeId {
-  const dom = document.documentElement.getAttribute('data-theme');
+  const dom = document.documentElement.getAttribute("data-theme");
   return validateThemeId(dom);
 }

@@ -24,7 +24,7 @@ src/components/       Design-system primitives (shadcn/ui v4 base, restyled):
                       empty state, stat tile, capacity bar, stepper,
                       segmented control, filetype icons.
 src/features/         One folder per wizard surface: device-selection,
-                      scan-configuration, scan-progress, results-explorer,
+                      scan-progress, results-explorer, lost-partition,
                       preview, recovery-queue, health, repair, settings-about,
                       dev-panel (DEV-gated).
 src/app/              providers, theme (light/dark/HC + density), router

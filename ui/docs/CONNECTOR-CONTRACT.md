@@ -50,7 +50,8 @@ guarantees, and exactly how the real bridge replaces the simulator.
   override the connector verdict. Scoped scans list only files inside the
   subtree; the path-mode tree presents the scanned folder itself as root.
 - `pickDirectory(hint?)`: the optional hint roots the native dialog at a
-  volume (`{ volumeId }`) — used by the scan-configuration folder picker.
+  volume (`{ volumeId }`) — used by the Home "Select Folder" quick target
+  (picker runs first, then the scan starts directly on the chosen scope).
   Destination picking (recovery) calls it without a hint.
 - `RecoveryOptions`: collision policy (`rename`/`overwrite`/`skip`), folder
   reconstruction, empty-folder preservation, file repair, hash-on-write verify.

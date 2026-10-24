@@ -512,12 +512,9 @@ export class MockConnector {
     rt.throughput = byteSpeed * 8;
     rt.eta = Math.max(1, Math.round(((totalTicks - rt.tick) * 150) / 1000));
 
-    // Live "Searching: <path>" ticker — the item currently examined
-    // (corpus GT-scan §2/§7: shown while the deep pass works the file table).
-    rt.currentPath =
-      rt.stage === 'deep-walk' || rt.stage === 'carve'
-        ? rt.space.searchingPathAt(rt.tick, rt.scopeMask)
-        : null;
+    // (The "Searching: <path>" ticker is assigned AFTER the stage advance
+    // below, so a poller can never observe a stale ticker against the new
+    // stage — see the assignment at the end of this method.)
 
     // found-file curve: fast then saturating
     const stats = rt.space.stats(rt.scopeMask);
@@ -547,6 +544,14 @@ export class MockConnector {
         this.autoSaveSession(rt);
       }
     }
+
+    // Live "Searching: <path>" ticker — the item currently examined
+    // (corpus GT-scan §2/§7). Assigned AFTER the stage advance so the
+    // ticker and stage are always consistent in a polled snapshot.
+    rt.currentPath =
+      rt.stage === 'deep-walk' || rt.stage === 'carve'
+        ? rt.space.searchingPathAt(rt.tick, rt.scopeMask)
+        : null;
   }
 
   private autoSaveSession(rt: ScanRuntime): void {

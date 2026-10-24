@@ -9,7 +9,7 @@ import {
 } from 'lucide-react';
 import { useHealth } from '@/queries/health';
 import { usePhysicalDevices } from '@/hooks/use-physical-devices';
-import { formatInteger } from '@/lib/format';
+import { formatInteger, formatPercent } from '@/lib/format';
 import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
 import { EmptyState, StatTile } from '@/components/ui/empty-state';
@@ -186,7 +186,7 @@ export function HealthPage(): React.JSX.Element {
                 label={t('health.wear')}
                 value={
                   health.data.wearPercent != null
-                    ? formatInteger(health.data.wearPercent, i18n.language)
+                    ? formatPercent(health.data.wearPercent / 100, i18n.language)
                     : '—'
                 }
               />

@@ -9,10 +9,11 @@ import {
 import { mulberry32, randInt } from '@/connector/mock/rng';
 
 describe('formatting (grid #49 — Intl-based)', () => {
-  it('formats bytes with decimal units', () => {
+  it('formats bytes with binary steps (Windows convention, corpus parity)', () => {
     expect(formatBytes(0, 'en')).toBe('0 B');
     expect(formatBytes(1536, 'en')).toBe('1.5 KB');
-    expect(formatBytes(5 * 1000 ** 3, 'en')).toBe('5 GB');
+    expect(formatBytes(5 * 1024 ** 3, 'en')).toBe('5 GB');
+    expect(formatBytes(149.45 * 1024 ** 3, 'en')).toBe('149.5 GB');
     expect(formatBytes(-1, 'en')).toBe('—');
   });
 
@@ -29,7 +30,7 @@ describe('formatting (grid #49 — Intl-based)', () => {
   });
 
   it('formats throughput with units', () => {
-    expect(formatThroughput(2 * 1000 ** 2, 'en')).toBe('2 MB/s');
+    expect(formatThroughput(2 * 1024 ** 2, 'en')).toBe('2 MB/s');
     expect(formatThroughput(0, 'en')).toBe('—');
   });
 

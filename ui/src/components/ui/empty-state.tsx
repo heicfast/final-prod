@@ -1,7 +1,6 @@
 import * as React from 'react';
 import type { LucideIcon } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { useTranslation } from 'react-i18next';
 import { Button } from './button';
 
 /** Designed empty state: illustration slot + guidance + primary action (grid #31). */
@@ -24,7 +23,6 @@ function EmptyState({
   onSecondary?: () => void;
   className?: string;
 }): React.JSX.Element {
-  const { t } = useTranslation();
   return (
     <div
       className={cn(
@@ -55,7 +53,6 @@ function EmptyState({
           ) : null}
         </div>
       ) : null}
-      <span className="sr-only">{t('a11y.mainRegion')}</span>
     </div>
   );
 }

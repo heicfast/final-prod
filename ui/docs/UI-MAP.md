@@ -23,21 +23,25 @@ save/load, contextual CTAs.
 ## 1. Route graph
 
 ```
-/                      Home (device selection)
-/scan/:deviceId        Scan Configuration (mode, types, advanced)
-/scan/:deviceId/live   Scan Progress + live results (3-pane, scan-in-progress banner)
+/                      Home (device selection + quick targets)
+/scan/:deviceId/live   Scan Progress + live results (the SAME 3-pane surface;
+                       corpus CDetailPage — scan runs inside the results page)
 /results/:scanId       Results Explorer (3-pane)
-/recover/:scanId       Recovery Queue + Destination + Report
-/health/:deviceId      Disk Health (SMART)
-/repair/:scanId        Volume Repair (RawFixer surface)
-/settings              Settings & About
+/recover/:scanId       Recovery (destination → queue → report)
+/health                Disk Health (SMART)
+/repair                Volume Repair (RawFixer surface)
+/lost-partition        Lost Partition Rescue (scenario cards + disk list)
+/settings              Settings
 ```
 
-Router: React Router v7 data mode, `createHashRouter` (ADR-001). Guards:
-`/scan/:deviceId/live` and `/results/:scanId` require a live/loaded session via
-connector `getScanState`/`getSessionMeta` — otherwise redirect `/` with a toast.
-Back-navigation follows the wizard stack (Home ⇄ every page; results keeps a
-"resume scanning" path while scan is live).
+Router: React Router v7 data mode, `createHashRouter` (ADR-001). There is NO
+configuration step between device selection and the scan (ADR-008 — corpus
+`scanClickedSlot` flips directly to the scan surface and starts). Every scan
+entry (CTA, card buttons, volume links, Recycle Bin / Desktop / Select Folder)
+starts the scan directly. Guards: `/scan/:id/live` and `/results/:scanId`
+require a live/loaded session via connector `getScanState`/`getSessionMeta` —
+otherwise redirect `/` with a fallback prompt. The scan ALWAYS runs
+quick → advanced automatically (corpus two-phase model).
 
 Transitions: cross-fade 160ms; scan→results is explicit via celebration modal CTA
 (auto-dismiss optional); disconnect error → inline reconnect prompt, not a route change.
@@ -66,19 +70,24 @@ States:
 - disconnected: card marked offline mid-listing, rescan offered
 - success: populated grid, selection, CTA enabled on selection
 
-### 2.2 Scan Configuration
+### 2.2 Scan Progress (live inside results layout — starts DIRECTLY, ADR-008)
 
-Zones: header (device summary card), mode cards (Quick / Deep / Deep+Carve staged
-model), file-type pre-selection grid (8 categories with icons + counts from
-connector filter metadata), advanced disclosure (sector-size override if exposed,
-bad-sector policy: stop / skip / zero-fill [zero-fill requires explicit opt-in],
-retry policy visibility), footer (Back, Start Scan primary).
+There is no scan-configuration surface. Clicking any scan entry starts the
+scan immediately; the quick pass runs first and the advanced pass (full
+searchers + RAW carving) begins automatically when it completes — the corpus
+two-phase model, with no user action in between. When a volume cannot be
+quick-indexed the quick pass collapses to a probe and the advanced pass
+carries the run (engine truthfulness, not a user choice).
 
-States: loading (device info), filesystem-unavailable (quick scan impossible →
-truthful warning + deep-only), permission-denied, error (device gone → back to
-home), success.
-
-### 2.3 Scan Progress (live inside results layout)
+Zones: the 3-pane results layout live during the scan (browse-while-scanning,
+corpus GT-scan §3.2); the full-width "Searching: <path>" ticker above the
+bottom cluster; bottom status cluster (atlas §6): circular overall gauge
+(weighted monotonic), the reference status line ("Quick/Advanced scanning
+X%" · "Files found: N (size)" · unreadable-areas badge), the second line
+("Remaining time: …" · "Reading sector: X/Y" · used time when complete);
+controls pause / resume / stop (confirm dialog with stat tiles); the
+"Recover All…" CTA lives in the results bottom bar (enabled only when the
+contract marks extents safe; otherwise disabled with a tooltip).
 
 Zones: 3-pane results layout with scan-in-progress banner ("results so far" marked
 as partial); bottom status cluster: circular overall gauge (weighted monotonic),
@@ -93,7 +102,7 @@ gauge + red strip), resuming, stopping, completed (celebration modal), cancelled
 scenarios: bad-sectors (error map + count), device-disconnected (pause + reconnect
 prompt, no crash), permission-lost.
 
-### 2.4 Results Explorer
+### 2.3 Results Explorer
 
 Zones: toolbar (Home/Back/Up cluster, breadcrumb address, view toggle
 detail⇄icons, filter button, search box with type scope) / filter bar (toggle row:
@@ -114,7 +123,7 @@ empty-results (coaching), partial (scan incomplete banner + resume link), error
 recovery requires source reconnection — truthful message), session-corrupt on load
 (clear failure, no partial load), success.
 
-### 2.5 Preview (pane + modal)
+### 2.4 Preview (pane)
 
 Kinds: image (bounded decode, zoom/fit/1:1), hex (first 64 KiB + offset nav),
 text (size-capped, encoding badge), PDF (page bitmaps from connector, pager),
@@ -124,7 +133,7 @@ text). Failure = diagnostic reason from connector error code (never generic).
 States: loading (bounded worker), ready, unsupported (reason), failed (reason),
 partial (truncated notice when bounded).
 
-### 2.6 Recovery (Queue + Destination + Report)
+### 2.5 Recovery (Destination → Queue → Report)
 
 Zones: queue list (per-item state icons, collision-naming policy selector, folder
 reconstruction + empty-folder preservation toggles), destination section (volume
@@ -138,7 +147,7 @@ connector: needed vs free; Continue-anyway only when connector allows), running,
 cancelled, completed-partial (failures listed with reasons), completed-success,
 error (destination unavailable).
 
-### 2.7 Health
+### 2.6 Health
 
 Zones: disk selector, health summary card (status Good/Caution, temperature,
 power-on hours, class SSD/HDD, TRIM state for SSD), SMART attribute table
@@ -147,7 +156,7 @@ caution.
 
 States: loading, error, not-smart-available (reason), success.
 
-### 2.8 Repair (volume structure repair — RawFixer surface)
+### 2.7 Repair (volume structure repair — RawFixer surface)
 
 Zones: damage summary (from dry-run: findings list), consent gate (typed/checkbox
 acknowledgment with consequence text), apply progress, undo-log viewer (actions
@@ -157,7 +166,7 @@ States: idle, dry-run loading, dry-run findings (none → nothing-to-do state),
 consent required, applying, applied (with undo available), failed (reason), undo
 log empty.
 
-### 2.9 Settings & About
+### 2.8 Settings & About
 
 Zones: theme (system/light/dark/high-contrast), language (en/zh-CN), density,
 default scan mode, default destination, log location + open-log-folder, about
