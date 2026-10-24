@@ -7,8 +7,11 @@
 import { readFileSync, readdirSync } from 'node:fs';
 import { gzipSync } from 'node:zlib';
 import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
-const DIST = new URL('../dist/assets', import.meta.url).pathname;
+// fileURLToPath (not .pathname): URL pathnames keep a leading "/" before the
+// drive letter on Windows, which breaks path resolution there.
+const DIST = fileURLToPath(new URL('../dist/assets', import.meta.url));
 const MAIN_BUDGET_KB = Number(process.env.BUDGET_MAIN_KB ?? 200);
 const TOTAL_BUDGET_KB = Number(process.env.BUDGET_TOTAL_KB ?? 500);
 

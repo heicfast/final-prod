@@ -21,8 +21,12 @@
 
 import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { join, relative } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
-const ROOT = new URL('..', import.meta.url).pathname;
+// fileURLToPath (not .pathname): URL pathnames keep a leading "/" before the
+// drive letter on Windows, which path.join then resolves as a drive-absolute
+// path — producing the phantom "D:\D:\a\..." root.
+const ROOT = fileURLToPath(new URL('..', import.meta.url));
 const SRC = join(ROOT, 'src');
 
 const violations = [];
