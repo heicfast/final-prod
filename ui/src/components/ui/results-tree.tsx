@@ -104,10 +104,10 @@ function TreeRow({
         )}
         <TreeIcon icon={node.icon} />
         <span className="min-w-0 flex-1 truncate">{label}</span>
-        <span className="shrink-0 text-2xs tabular text-foreground-disabled">
+        <span className="shrink-0 text-2xs tabular text-foreground-secondary">
           {formatCountCompact(node.fileCount, i18n.language)}
         </span>
-        <span className="hidden shrink-0 text-2xs tabular text-foreground-disabled xl:inline">
+        <span className="hidden shrink-0 text-2xs tabular text-foreground-secondary xl:inline">
           {formatBytesCompact(node.sizeBytes, i18n.language)}
         </span>
       </button>

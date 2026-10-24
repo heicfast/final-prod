@@ -319,66 +319,67 @@ function DeviceCard({
 
   return (
     <div
-      role="radio"
-      aria-checked={selected}
-      tabIndex={0}
-      onClick={onSelect}
-      onKeyDown={(e) => {
-        if (e.key === 'Enter' || e.key === ' ') {
-          e.preventDefault();
-          onSelect();
-        }
-      }}
       className={cn(
-        'group flex cursor-pointer flex-col gap-3 rounded-lg border-2 bg-surface p-4 shadow-card outline-none transition-all duration-150',
-        'hover:shadow-overlay focus-visible:ring-2 focus-visible:ring-ring',
+        'group flex flex-col gap-3 rounded-lg border-2 bg-surface p-4 shadow-card transition-all duration-150',
+        'hover:shadow-overlay',
         selected ? 'border-primary' : 'border-transparent hover:border-border-strong',
         offline && 'opacity-60',
       )}
     >
-      <div className="flex items-start gap-3">
-        <div className="relative">
-          <div
-            className={cn(
-              'flex size-12 items-center justify-center rounded-md',
-              healthy ? 'bg-primary-muted text-primary' : 'bg-warning-muted text-warning',
-            )}
-          >
-            <Icon className="size-6" strokeWidth={1.5} aria-hidden />
+      {/* Selectable card body — the ONLY interactive element carrying radio
+          semantics. The actions row below is a sibling, never a descendant
+          (axe nested-interactive: interactive controls must not nest). */}
+      <button
+        type="button"
+        role="radio"
+        aria-checked={selected}
+        onClick={onSelect}
+        className="flex flex-col gap-3 text-left outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      >
+        <div className="flex items-start gap-3">
+          <div className="relative">
+            <div
+              className={cn(
+                'flex size-12 items-center justify-center rounded-md',
+                healthy ? 'bg-primary-muted text-primary' : 'bg-warning-muted text-warning',
+              )}
+            >
+              <Icon className="size-6" strokeWidth={1.5} aria-hidden />
+            </div>
+            {selected ? (
+              <span className="absolute -right-1.5 -top-1.5 flex size-5 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-sm">
+                <CircleCheckIcon className="size-3.5" aria-hidden />
+              </span>
+            ) : null}
           </div>
-          {selected ? (
-            <span className="absolute -right-1.5 -top-1.5 flex size-5 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-sm">
-              <CircleCheckIcon className="size-3.5" aria-hidden />
-            </span>
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center gap-2">
+              <span className="truncate text-base font-semibold">{device.label}</span>
+              {hasLost ? <Badge variant="primary">{t('home.lostPartitionBadge')}</Badge> : null}
+            </div>
+            <div className="truncate text-xs text-foreground-secondary">{device.model}</div>
+          </div>
+          {locked ? (
+            <Hint text={t('home.permissionDenied')}>
+              <LockIcon className="size-4 text-warning" aria-hidden />
+            </Hint>
+          ) : null}
+          {offline ? (
+            <Hint text={t('home.disconnected')}>
+              <PlugZapIcon className="size-4 text-danger" aria-hidden />
+            </Hint>
           ) : null}
         </div>
-        <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-2">
-            <span className="truncate text-base font-semibold">{device.label}</span>
-            {hasLost ? <Badge variant="primary">{t('home.lostPartitionBadge')}</Badge> : null}
-          </div>
-          <div className="truncate text-xs text-foreground-secondary">{device.model}</div>
-        </div>
-        {locked ? (
-          <Hint text={t('home.permissionDenied')}>
-            <LockIcon className="size-4 text-warning" aria-hidden />
-          </Hint>
-        ) : null}
-        {offline ? (
-          <Hint text={t('home.disconnected')}>
-            <PlugZapIcon className="size-4 text-danger" aria-hidden />
-          </Hint>
-        ) : null}
-      </div>
 
-      <CapacityBar
-        usedBytes={device.capacity.usedBytes}
-        totalBytes={device.capacity.totalBytes}
-        label={t('home.capacityUsed', {
-          used: formatBytes(device.capacity.usedBytes, i18n.language),
-          total: formatBytes(device.capacity.totalBytes, i18n.language),
-        })}
-      />
+        <CapacityBar
+          usedBytes={device.capacity.usedBytes}
+          totalBytes={device.capacity.totalBytes}
+          label={t('home.capacityUsed', {
+            used: formatBytes(device.capacity.usedBytes, i18n.language),
+            total: formatBytes(device.capacity.totalBytes, i18n.language),
+          })}
+        />
+      </button>
 
       <div className="flex items-center justify-between gap-2">
         <span className="flex items-center gap-1 text-xs font-medium">
@@ -399,10 +400,7 @@ function DeviceCard({
             <button
               key={v.id}
               type="button"
-              onClick={(e) => {
-                e.stopPropagation();
-                onScanVolume(v.id);
-              }}
+              onClick={() => onScanVolume(v.id)}
               className="rounded-xs px-1.5 py-0.5 text-xs font-medium text-primary hover:bg-primary-muted focus-visible:ring-2 focus-visible:ring-ring"
             >
               {v.label}
@@ -411,10 +409,7 @@ function DeviceCard({
           <Button
             variant="secondary"
             size="sm"
-            onClick={(e) => {
-              e.stopPropagation();
-              onScan();
-            }}
+            onClick={() => onScan()}
             disabled={locked || offline}
           >
             {t('home.scanAction')}

@@ -203,6 +203,7 @@ export const zhCN: TranslationSchema = {
     },
     views: {
       details: '详细信息视图',
+      icons: '图标视图',
     },
     session: {
       save: '保存此次搜索',
@@ -387,6 +388,7 @@ export const zhCN: TranslationSchema = {
     sortDescending: '降序排列',
     selectRow: '选择行',
     gauge: '总体完成度',
+    resizePreview: '调整预览窗格宽度',
   },
   devPanel: {
     title: '开发者面板',

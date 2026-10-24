@@ -41,12 +41,15 @@
    * Text-grade accent: A11Y-ADJUSTED MAPPING (VISUAL-SPEC §A11).
    * --ink (#ff6b4a light) measures 2.80:1 on white — below the 4.5:1 AA
    * floor for text/links/icons. The mapping derives a darkened ink for
-   * text-grade use (#cc3d15, 4.95:1); fills keep the source ink and the
-   * brand CTA keeps the source gradient (documented brand exception).
-   * Dark-family inks already pass as text (6.4:1+) and map through. */
-  --accent: #cc3d15;
-  --accent-hover: #b53613;
-  --accent-pressed: #9e2f10;
+   * text-grade use (#b83410, 5.94:1 on white, ≥4.79:1 on every light-family
+   * ink-soft tint — axe-verified; fills keep the source ink and the brand
+   * CTA keeps the source gradient (documented brand exception).
+   * Dark-family inks pass as text on PLAIN surfaces but the neutral dark
+   * coral fails on ink-soft TINTS (4.2:1) — see the [data-theme='dark']
+   * lift below. Ember/tide inks pass on their tints and map through. */
+  --accent: #b83410;
+  --accent-hover: #a52e0e;
+  --accent-pressed: #8f280c;
   --accent-fill: var(--ink);
   --accent-fill-hover: var(--ink-strong);
   --accent-foreground: var(--on-ink);
@@ -62,7 +65,7 @@
   --success: #1a7f37; /* ← --free #34c759, 5.08:1 on white */
   --success-vivid: var(--free);
   --success-muted: var(--free-soft);
-  --warning: #b45309; /* ← --seg-compressed #f59e0b, 5.02:1 on white */
+  --warning: #a84c07; /* ← --seg-compressed #f59e0b, 5.67:1 on white, 5.0:1 on the amber wash */
   --warning-vivid: var(--seg-compressed);
   --warning-muted: color-mix(in srgb, var(--seg-compressed) 16%, transparent);
   --danger: #d70015; /* ← --used #ff3b30, 5.39:1 on white */
@@ -71,7 +74,7 @@
   --danger-pressed: #b80011;
 
   /* ── Focus ─────────────────────────────────────────────────────────── */
-  --focus-ring: #cc3d15; /* solid text-grade ink: 4.95:1 (source rgba = 2.9:1) */
+  --focus-ring: #b83410; /* solid text-grade ink: 5.94:1 (source rgba = 2.9:1) */
   --focus-ring-offset: var(--focus-offset, 2px);
   --focus-ring-width: var(--focus-w, 2px);
 
@@ -132,20 +135,38 @@
   --scrollbar-width: 8px;
 }
 
-/* Dark-family inks pass as text-grade accents (6.4:1+ on their surfaces);
+/* Dark-family inks pass as text-grade accents on plain surfaces (6.4:1+);
  * Blossom's rose (#d8506b, 3.55:1 on cream) needs the same darkening the
- * light default gets. */
+ * light default gets. Status text-grades are per-family: the light-family
+ * darkened derivatives (#1a7f37/#b45309/#d70015) FAIL on dark surfaces
+ * (2.7–4.5:1, axe-verified) — the dark family consumes the adopted vivid
+ * status hues directly (≥4.5:1 on every dark-family surface), with the
+ * red lifted one step (#ff8085) to clear small-text AA. */
 [data-scheme='dark'] {
   --accent: var(--ink);
   --accent-hover: var(--ink-strong);
   --accent-pressed: var(--ink);
   --focus-ring: var(--ink);
+  --success: var(--free); /* #30d158-class per theme — 6.9:1+ */
+  --warning: var(--seg-compressed); /* dark-family amber #f5a623 — 6.9:1+ */
+  --danger: #ff8085; /* lifted from --used #ff453a (4.1:1) to 5.8:1+ */
+}
+/* Neutral dark only: the coral ink on ink-soft tints (active sidebar, brand
+ * badges) reads 4.2:1 — lift the text-grade to #ff9d85 (5.4:1 on the worst
+ * tint, 7.3:1 on the panel). Ember's gold and tide's cyan already pass on
+ * their tints and keep the scheme mapping. */
+[data-theme='dark'] {
+  --accent: #ff9d85;
+  --accent-hover: #ffb4a0;
+  --accent-pressed: #ff9d85;
+  --focus-ring: #ff9d85;
 }
 [data-theme='blossom'] {
   --accent: #a83250; /* ← rose #d8506b, 5.79:1 on #fbf1ee */
   --accent-hover: #922a45;
   --accent-pressed: #7c243b;
   --focus-ring: #a83250;
+  --success: #157a3c; /* darkened green for cream surfaces (4.9:1 on #fbf1ee) */
 }
 
 /* ── High-contrast (DERIVED — not defined by the adopted sources) ──────

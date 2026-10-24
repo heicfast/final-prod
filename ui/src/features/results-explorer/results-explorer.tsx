@@ -219,8 +219,13 @@ export function ResultsExplorer({
           </Button>
         </div>
 
-        {/* Breadcrumb — "Search results for <q>" while searching (atlas §8) */}
-        <div className="flex min-w-0 flex-1 items-center gap-1 overflow-hidden rounded-md border border-border bg-surface-muted/60 px-2.5 py-1 text-sm">
+        {/* Breadcrumb — "Search results for <q>" while searching (atlas §8).
+            Carries the surface's level-one heading semantics (grid #1/#26). */}
+        <div
+          role="heading"
+          aria-level={1}
+          className="flex min-w-0 flex-1 items-center gap-1 overflow-hidden rounded-md border border-border bg-surface-muted/60 px-2.5 py-1 text-sm"
+        >
           {filter.searchApplied ? (
             <>
               <SearchIcon className="size-3.5 shrink-0 text-foreground-secondary" aria-hidden />
@@ -270,8 +275,18 @@ export function ResultsExplorer({
           value={ui.viewMode}
           onChange={(v) => ui.setViewMode(v)}
           options={[
-            { value: 'details', label: '', icon: ListIcon },
-            { value: 'icons', label: '', icon: LayoutGridIcon },
+            {
+              value: 'details',
+              label: '',
+              icon: ListIcon,
+              srLabel: t('results.views.details'),
+            },
+            {
+              value: 'icons',
+              label: '',
+              icon: LayoutGridIcon,
+              srLabel: t('results.views.icons'),
+            },
           ]}
         />
         <Button
@@ -479,7 +494,12 @@ export function ResultsExplorer({
       <div className="flex h-14 shrink-0 items-center justify-between gap-4 border-t border-border bg-surface px-4">
         <div className="flex min-w-0 items-center gap-3 text-sm">
           {liveMode ? (
-            <Badge variant="warning" className="animate-status-pulse">
+            <Badge variant="warning">
+              {/* Liveness dot — never pulse the text (contrast). */}
+              <span
+                className="mr-1 inline-block size-1.5 rounded-full bg-current animate-status-pulse"
+                aria-hidden
+              />
               {t('scan.liveResults')}
             </Badge>
           ) : null}
@@ -529,6 +549,7 @@ function totalOf(pagesData: readonly { total: number }[] | undefined): number {
 
 /** Drag handle that resizes the preview pane (persisted width, corpus splitter). */
 function PreviewPaneResizer(): React.JSX.Element {
+  const { t } = useTranslation();
   const width = useUiStore((s) => s.previewPaneWidth);
   const setWidth = useUiStore((s) => s.setPreviewPaneWidth);
   const onPointerDown = (e: React.PointerEvent<HTMLDivElement>): void => {
@@ -550,7 +571,10 @@ function PreviewPaneResizer(): React.JSX.Element {
       role="separator"
       aria-orientation="vertical"
       tabIndex={0}
-      aria-label="Resize preview pane"
+      aria-label={t('a11y.resizePreview')}
+      aria-valuenow={width}
+      aria-valuemin={240}
+      aria-valuemax={560}
       onPointerDown={onPointerDown}
       onKeyDown={(e) => {
         if (e.key === 'ArrowLeft') setWidth(width - 24);

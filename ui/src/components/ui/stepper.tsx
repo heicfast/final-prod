@@ -1,7 +1,8 @@
 import * as React from 'react';
 import { cn } from '@/lib/utils';
 
-/** Small two-option segmented control (view toggle, path/type). */
+/** Small segmented control (view toggle, path/type). Icon-only options
+ * MUST pass srLabel — every radio needs a discernible accessible name. */
 function Segmented<T extends string>({
   options,
   value,
@@ -13,6 +14,8 @@ function Segmented<T extends string>({
     value: T;
     label: string;
     icon?: React.ComponentType<{ className?: string }>;
+    /** Accessible name for icon-only options (required when label is empty). */
+    srLabel?: string;
   }[];
   value: T;
   onChange: (v: T) => void;
@@ -37,6 +40,8 @@ function Segmented<T extends string>({
             type="button"
             role="radio"
             aria-checked={active}
+            aria-label={opt.label || opt.srLabel}
+            title={opt.srLabel}
             onClick={() => onChange(opt.value)}
             className={cn(
               'inline-flex h-7 items-center gap-1.5 rounded-sm px-2.5 text-xs font-medium transition-colors outline-none',

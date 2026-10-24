@@ -196,11 +196,14 @@ export function WizardShell(): React.JSX.Element {
                 <button
                   type="button"
                   onClick={() => navigate(`/scan/${active.targetId}/live`)}
-                  className={cn(
-                    'mx-2 flex h-8 items-center gap-2 rounded-sm px-2.5 text-sm text-primary hover:bg-surface-hover',
-                    'animate-status-pulse',
-                  )}
+                  className="mx-2 flex h-8 items-center gap-2 rounded-sm px-2.5 text-sm text-primary hover:bg-surface-hover"
                 >
+                  {/* Liveness pulses on the dot only — animating text opacity
+                      transiently breaks its contrast ratio (axe-verified). */}
+                  <span
+                    className="inline-block size-1.5 shrink-0 rounded-full bg-current animate-status-pulse"
+                    aria-hidden
+                  />
                   <RefreshCcwIcon className="size-4" aria-hidden />
                   {t('home.scanningHint')}
                 </button>
@@ -240,7 +243,7 @@ function DevSurfaces(): React.JSX.Element {
 
 function SidebarSection({ label }: { label: string }): React.JSX.Element {
   return (
-    <div className="px-4 pb-1 pt-4 text-2xs font-semibold uppercase tracking-wide text-foreground-disabled">
+    <div className="px-4 pb-1 pt-4 text-2xs font-semibold uppercase tracking-wide text-foreground-secondary">
       {label}
     </div>
   );

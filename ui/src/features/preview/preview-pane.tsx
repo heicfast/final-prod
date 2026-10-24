@@ -89,7 +89,7 @@ export function PreviewPane({
           ) : null}
         </>
       ) : (
-        <div className="flex flex-1 flex-col items-center justify-center gap-2 p-6 text-center text-foreground-disabled">
+        <div className="flex flex-1 flex-col items-center justify-center gap-2 p-6 text-center text-foreground-secondary">
           <ImageIcon className="size-8" strokeWidth={1.25} aria-hidden />
           <p className="text-xs">{t('preview.title')}</p>
         </div>

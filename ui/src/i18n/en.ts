@@ -203,6 +203,7 @@ export const en = {
     },
     views: {
       details: 'Details view',
+      icons: 'Icon view',
     },
     session: {
       save: 'Save this search',
@@ -392,6 +393,7 @@ export const en = {
     sortDescending: 'Sort descending',
     selectRow: 'Select row',
     gauge: 'Overall completion gauge',
+    resizePreview: 'Resize preview pane',
   },
   devPanel: {
     title: 'Developer panel',
