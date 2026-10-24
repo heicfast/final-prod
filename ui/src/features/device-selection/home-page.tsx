@@ -113,6 +113,23 @@ export function HomePage(): React.JSX.Element {
     });
   };
 
+  const startGuidedPath = (path: RecoveryPath): void => {
+    if (path === 'deleted') {
+      beginScan(RECYCLE_BIN_TARGET);
+      return;
+    }
+    if (path === 'missing') {
+      void navigate('/lost-partition');
+      return;
+    }
+    void navigate('/repair');
+  };
+
+  const chooseGuidedPath = (path: RecoveryPath): void => {
+    setGuidePath(path);
+    setGuideOpen(true);
+  };
+
   if (devicesQuery.isLoading) {
     return (
       <div className="p-7">
@@ -331,6 +348,12 @@ export function HomePage(): React.JSX.Element {
           {t('home.scanAction')}
         </button>
       </div>
+      <RecoveryGuideDialog
+        open={guideOpen}
+        path={guidePath}
+        onOpenChange={setGuideOpen}
+        onStart={startGuidedPath}
+      />
     </div>
   );
 }

@@ -136,6 +136,7 @@ export function ScanProgressPage(): React.JSX.Element {
           scanId={scanId}
           liveMode
           recoverableDuringScan={progress?.recoverableDuringScan ?? false}
+          showFooter={false}
         />
       </div>
 

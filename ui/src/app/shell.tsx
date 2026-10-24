@@ -156,6 +156,16 @@ export function WizardShell(): React.JSX.Element {
           <span className="text-[12.5px] font-semibold tracking-tight text-[#1E293B] dark:text-foreground">
             {t('app.name')}
           </span>
+          <span className="text-sm font-medium">{t('app.name')}</span>
+          {!inResultsFlow ? (
+            <span className="rounded-full border border-primary-muted-border bg-primary-muted px-1.5 text-2xs font-semibold text-primary uppercase">
+              {connectorModeValue === 'mock'
+                ? t('settings.connectorMock')
+                : connectorModeValue === 'tauri'
+                  ? t('settings.connectorTauri')
+                  : '…'}
+            </span>
+          ) : null}
         </div>
 
         <div className="flex items-center gap-1.5">

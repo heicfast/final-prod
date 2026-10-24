@@ -109,6 +109,7 @@ export function VirtualFileList({
   onSortChange,
   loadMore,
   hasNextPage,
+  compact = false,
   className,
 }: {
   scanId: string;
@@ -130,6 +131,8 @@ export function VirtualFileList({
   onSortChange: (field: SortField) => void;
   loadMore?: () => void;
   hasNextPage?: boolean;
+  /** Live scan uses the reference's three-column, high-density file view. */
+  compact?: boolean;
   className?: string;
 }): React.JSX.Element {
   const { t, i18n } = useTranslation();
@@ -161,13 +164,17 @@ export function VirtualFileList({
     return () => el.removeEventListener('scroll', onScroll);
   }, [loadMore, hasNextPage, ref]);
 
-  const totalWidth =
-    COLUMN_WIDTHS.checkbox +
-    COLUMN_WIDTHS.name +
-    COLUMN_WIDTHS.modified +
-    COLUMN_WIDTHS.type +
-    COLUMN_WIDTHS.size +
-    COLUMN_WIDTHS.condition;
+  const columnWidths = compact
+    ? { checkbox: 36, name: 250, modified: 150, type: 96 }
+    : COLUMN_WIDTHS;
+  const totalWidth = compact
+    ? columnWidths.checkbox + columnWidths.name + columnWidths.modified + columnWidths.type
+    : COLUMN_WIDTHS.checkbox +
+      COLUMN_WIDTHS.name +
+      COLUMN_WIDTHS.modified +
+      COLUMN_WIDTHS.type +
+      COLUMN_WIDTHS.size +
+      COLUMN_WIDTHS.condition;
 
   return (
     <div
@@ -319,7 +326,7 @@ export function VirtualFileList({
                   <div
                     role="gridcell"
                     className="flex h-full items-center justify-center"
-                    style={{ width: COLUMN_WIDTHS.checkbox }}
+                    style={{ width: columnWidths.checkbox }}
                     onClick={(e) => e.stopPropagation()}
                   >
                     <Checkbox
@@ -341,7 +348,7 @@ export function VirtualFileList({
                   <div
                     role="gridcell"
                     className="flex h-full items-center px-3 text-foreground-secondary"
-                    style={{ width: COLUMN_WIDTHS.modified }}
+                    style={{ width: columnWidths.modified }}
                   >
                     <span className="truncate tabular">
                       {formatDate(node.modifiedAt, i18n.language)}
@@ -350,26 +357,30 @@ export function VirtualFileList({
                   <div
                     role="gridcell"
                     className="flex h-full items-center px-3 text-foreground-secondary"
-                    style={{ width: COLUMN_WIDTHS.type }}
+                    style={{ width: columnWidths.type }}
                   >
                     <span className="truncate uppercase">
                       {node.extension?.replace('.', '') ?? ''}
                     </span>
                   </div>
-                  <div
-                    role="gridcell"
-                    className="flex h-full items-center justify-end px-3 tabular"
-                    style={{ width: COLUMN_WIDTHS.size }}
-                  >
-                    {formatBytes(node.sizeBytes, i18n.language)}
-                  </div>
-                  <div
-                    role="gridcell"
-                    className="flex h-full items-center px-3"
-                    style={{ width: COLUMN_WIDTHS.condition }}
-                  >
-                    <ConfidencePillInline grade={node.confidence} />
-                  </div>
+                  {!compact ? (
+                    <div
+                      role="gridcell"
+                      className="flex h-full items-center justify-end px-3 tabular"
+                      style={{ width: COLUMN_WIDTHS.size }}
+                    >
+                      {formatBytes(node.sizeBytes, i18n.language)}
+                    </div>
+                  ) : null}
+                  {!compact ? (
+                    <div
+                      role="gridcell"
+                      className="flex h-full items-center px-3"
+                      style={{ width: COLUMN_WIDTHS.condition }}
+                    >
+                      <ConfidencePillInline grade={node.confidence} />
+                    </div>
+                  ) : null}
                 </div>
               );
             })}
