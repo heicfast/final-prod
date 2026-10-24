@@ -226,11 +226,15 @@ def main():
             gt_ = scan_time(g) if name == 'og' else None
             if name == 'og' and ot is None:
                 ot = scan_time(ours.get(scen))
-        # verdict line
+        # verdict line - RAW og recall is the verdict basis (uncapped vs uncapped
+        # is the only symmetric comparison). The attempted-set column stays
+        # informational: when the free cap gates hard the attempted set equals
+        # the recovered set and its recall is trivially 1.0 - using it would
+        # fabricate a BELOW that the raw numbers do not support.
         if om and gm:
-            og_recall = gm.get('recall_attempted_set') if (gm.get('og_cap') or {}).get('cap_gate_hit') else gm.get('recall')
+            og_recall = gm.get('recall')
             v = verdict(om.get('recall'), og_recall)
-            capn = ' *(og cap-normalized)*' if og_recall != gm.get('recall') else ''
+            capn = ''
             md.append(f"| {scen} ({fs}) | **verdict** | {fmt(om.get('recall'))} vs {fmt(og_recall)}{capn} | "
                       f"{fmt(om.get('precision'))} vs {fmt(gm.get('precision'))} | "
                       f"{fmt(om.get('f1'))} vs {fmt(gm.get('f1'))} | - | - | - | **{v}** |")
