@@ -89,7 +89,7 @@ function Write-SeedBody([string] $Path, [string] $Type, [long] $Size) {
         $remaining = $Size - $fs.Position - $footerReserve
         $buf = New-Object byte[] 65536
         while ($remaining -gt 0) {
-            $n = [int][Math]::Min(65536, $remaining)
+            $n = [int][Math]::Min([long]65536, [long]$remaining)
             $filled = New-Object byte[] $n
             [void](Next-Bytes $filled)
             [Array]::Copy($filled, $buf, $n)
@@ -460,9 +460,16 @@ foreach ($e in $script:Entries) {
 # measured fragmentation (proof, not claim)
 foreach ($e in $script:Entries) {
     if ($e.extents -and $e.extents.Count -gt 0) {
-        $clusters = 0; foreach ($x in $e.extents) { $clusters += $x[1] }
+        [long]$clusters = 0
+        foreach ($x in $e.extents) { [long]$clusters += [long]$x[1] }
         $e.frag_measured_extents = $e.extents.Count
-        $e.frag_measured_ratio = [math]::Round($e.extents.Count / [math]::Max(1, $clusters), 4)
+        if ($clusters -gt 0) {
+            $e.frag_measured_ratio = [math]::Round([double]$e.extents.Count / [double][math]::Max([double]1, [double]$clusters), 4)
+        }
+        if ($clusters -gt 2147483647) {
+            # implausible cluster total recorded as an anomaly (never silently clamped)
+            $e.frag_measured_anomaly = "cluster total $clusters exceeds int32 range"
+        }
     } else {
         $e.frag_measured_extents = $null; $e.frag_measured_ratio = $null
     }
