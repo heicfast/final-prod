@@ -237,3 +237,39 @@ screenshots verify2-01..05.
 
 Windows-only gates (NSIS, cargo, Playwright-on-Windows, DPI) re-armed on the
 tagged commit via Release/UI-Smoke/CI runs.
+
+### Session 2 continuation — Windows-only landmines (found by the relaunched CI)
+
+The relaunch surfaced defects that no Linux-side check could catch:
+
+6. **arch-lint/bundle-check Windows path bug**: `new URL('..').pathname`
+   keeps a leading `/` before the drive letter on Windows; `path.join` then
+   resolves the phantom `D:\D:\a\...` root → ENOENT. Fixed with
+   `fileURLToPath`. (First CI run where arch-lint ever executed.)
+7. **Rust compile errors** (first cargo run ever): `std::env::consts::os/arch/
+family` don't exist — the constants are `OS/ARCH/FAMILY`. Fixed.
+8. **e2e spec was never runnable** (written blind, browsers unavailable in the
+   sandbox): three more strict-mode/phantom locators — `/search for lost
+data/i` matches 3 buttons (cards + CTA) → `.first()`; the filter "Type"
+   option group renders only AFTER expanding the Type dropdown (added the
+   click); `/recovery condition/i` matched nothing (assert the preview pane's
+   confidence badge instead, scoped to the complementary region).
+9. **Cross-effect regression caught by re-verification**: the scope-suggested
+   pickDirectory change made destination Browse propose a SOURCE-volume folder
+   → hard overlap refusal. Contract fix: `pickDirectory(hint)` now also takes
+   `excludeDeviceId`; the recovery page passes the scan target so the mock
+   suggests a different device (regression test added).
+10. **Celebration modal auto-redirected after 1.2 s** — the completion surface
+    was effectively un-interactable (and un-testable); removed per corpus
+    (explicit CTA only).
+11. Live agent-browser re-verification of the FULL golden path on the fixed
+    build: persistent completion modal → results → filter/search → row click
+    updates preview → checkbox selects → Recover 1 item → Browse suggests
+    D:\Recovered Files → report. Zero console errors (verify2-06).
+
+### Final state
+
+CI ✅ and UI Smoke ✅ on d90a8d0 (Windows runner: typecheck, lint, format,
+arch-lint, ast-grep, knip, jscpd, 56/56 tests, build, bundle budget, cargo
+check, clippy, Playwright golden path, Tauri debug build). Tag
+v0.1.0-ui-mock moved to d90a8d0 → Release (NSIS) running.
