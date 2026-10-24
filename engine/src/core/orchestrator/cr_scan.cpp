@@ -85,6 +85,16 @@ ScanController::ScanController(tree::ResultTree& tree, ScanConfig cfg)
 ScanController::ScanController(tree::ResultTree& tree, ScanConfig cfg,
                                const session::VolumeSessionInfo& resumed)
     : tree_(tree), cfg_(std::move(cfg)) {
+    /* BENCH-F2: preserve the ORIGINAL configured set through the resume.
+     * save_session computes VolumeInfo.flags as session_configured_mask_ |
+     * cfg_.run_* - on the resume path cfg_.run_* hold only the REMAINING
+     * stages (resume() cleared the completed ones), so without this
+     * assignment a quick+deep-complete / carve-remaining session would
+     * re-save flags=CARVE while stamping done=ALL -> the reloaded session
+     * fails its own mask-integrity check (ERR_SESSION_FORMAT; bench run
+     * 40073093997 resume probe, artifacts ours-behavior.zip). The union
+     * also covers a resume that ADDS a stage the original never ran. */
+    session_configured_mask_ = resumed.configured_mask;
     /* The saved session already carries the roots the ORIGINAL run created
      * (the ctor created them before any stage executed, so even a
      * quick-incomplete session has them). Recover the pointers by role

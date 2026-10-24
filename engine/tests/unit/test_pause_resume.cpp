@@ -426,6 +426,83 @@ TEST(PauseResume, MaskIntegrityViolationRefusesResume) {
     std::remove(path.c_str());
 }
 
+TEST(PauseResume, ResumedSessionPreservesOriginalConfiguredMask) {
+    /* BENCH-F2 regression (bench run 40073093997, resume probe): a session
+     * with quick+deep complete is resumed by a FULL config (carve newly
+     * allowed); after the resumed run completes, the re-saved session must
+     * carry VolumeInfo.flags = ORIGINAL configured (quick|deep) UNION the
+     * resume-added stage (carve) - and must RELOAD cleanly. The bug:
+     * session_configured_mask_ was never assigned on the resume path, so
+     * flags collapsed to the remaining stages (carve only) while done
+     * stamped all three -> the session failed its own mask-integrity check
+     * on the next load (tree --in / --resume both refused it). */
+    const std::string path1 = tmp_session_path();
+    const std::string path2 = tmp_session_path() + ".2";
+    {
+        /* Phase 1: quick+deep only (the '--deep --no-carve' shape) */
+        MemDevice dev(build_fat16());
+        tree::ResultTree tree;
+        ScanConfig cfg;
+        cfg.run_carve = false;
+        ScanController ctrl(tree, cfg);
+        ScanStats stats;
+        ASSERT_EQ(OK, ctrl.run(&dev, nullptr, nullptr, nullptr, stats));
+        tree.refresh_stats();
+        FILE* f = fopen(path1.c_str(), "wb");
+        ASSERT_NE(nullptr, f);
+        session::Writer w(file_write, file_tell, file_seek, f);
+        ASSERT_EQ(OK, w.open(0x52434F46));
+        ASSERT_EQ(OK, ctrl.save_session(w, stats));
+        ASSERT_EQ(OK, w.finalize());
+        fclose(f);
+    }
+    {
+        /* Phase 2: resume with the FULL config (carve newly configured).
+         * resume() must skip quick+deep and run carve only. */
+        MemDevice dev(build_fat16());
+        tree::ResultTree tree;
+        ScanStats stats;
+        session::VolumeSessionInfo info;
+        FILE* f = fopen(path1.c_str(), "rb");
+        ASSERT_NE(nullptr, f);
+        session::Reader r(file_read, file_seek, file_size, f);
+        std::unique_ptr<ScanController> ctrl;
+        ASSERT_EQ(OK, ScanController::resume(r, tree, ScanConfig{}, stats, info, ctrl));
+        fclose(f);
+        ASSERT_NE(nullptr, ctrl.get());
+        EXPECT_FALSE(ctrl->config().run_quick);
+        EXPECT_FALSE(ctrl->config().run_deep);
+        EXPECT_TRUE(ctrl->config().run_carve);
+        ASSERT_EQ(OK, ctrl->run(&dev, nullptr, nullptr, nullptr, stats));
+        tree.refresh_stats();
+        FILE* f2 = fopen(path2.c_str(), "wb");
+        ASSERT_NE(nullptr, f2);
+        session::Writer w2(file_write, file_tell, file_seek, f2);
+        ASSERT_EQ(OK, w2.open(0x52434F47));
+        ASSERT_EQ(OK, ctrl->save_session(w2, stats));
+        ASSERT_EQ(OK, w2.finalize());
+        fclose(f2);
+    }
+    {
+        /* Phase 3: the re-saved session must reload cleanly with the union
+         * mask - this is exactly the bench probe's `tree --in` step that
+         * failed with 0x50040001 before the fix. */
+        tree::ResultTree tree;
+        ScanStats stats;
+        session::VolumeSessionInfo info;
+        FILE* f = fopen(path2.c_str(), "rb");
+        ASSERT_NE(nullptr, f);
+        session::Reader r(file_read, file_seek, file_size, f);
+        std::unique_ptr<ScanController> ctrl;
+        EXPECT_EQ(OK, ScanController::resume(r, tree, ScanConfig{}, stats, info, ctrl));
+        fclose(f);
+        EXPECT_EQ(STAGE_QUICK | STAGE_DEEP | STAGE_CARVE, info.stage_done_mask);
+        EXPECT_EQ(STAGE_QUICK | STAGE_DEEP | STAGE_CARVE, info.configured_mask);
+    }
+    std::remove(path1.c_str());
+    std::remove(path2.c_str());
+}
+
 TEST(PauseResume, SessionRestoresVolumeInfoAndCandidates) {
     /* G-14/G-23: a saved session restores slice placement, label, elapsed,
      * and (with a synthetic partition context) lost candidates. */
