@@ -80,3 +80,68 @@ scan-complete 2, results 14, preview 2, recovery 15). VLM extraction next (T2).
 
 T2 — VLM extraction across all 63 screenshots → SCREENSHOT-MANIFEST.md + VISUAL-SPEC.md draft;
 T3 QSS cross-check; T4 UI-MAP.md; push gate docs.
+
+---
+
+## Session 1 continued — 2026-10-24 (build → verification → handoff)
+
+### T5–T8 — Scaffold, tokens, primitives, connector (DONE)
+
+- Versions verified live; ADR-005 records the three spec/registry conflicts
+  (Vite 7 nonexistent → 8.3.5; TS 7 exists → kept spec-named 5.9.3; RR8/Vitest5
+  exist → kept spec-named 7.18.4/4.1.12; RHF beta → 7.91.0; 3 packages repinned
+  past the 24 h minimumReleaseAge policy).
+- pnpm 12: build approvals via `allowBuilds` map in pnpm-workspace.yaml.
+- Tailwind v4 four-step architecture (tokens.css → @theme inline → base).
+- Connector: contract.ts (9 domains), mock (mulberry32-seeded; NodeSpace
+  typed-array index for 1.2 M nodes with two-pass subtree aggregates),
+  tauri stub, factory.
+
+### T9–T17 — All feature surfaces (DONE)
+
+Home (device cards, quick targets, session resume), ScanConfig (staged modes,
+8 categories, advanced policies, zero-fill warning), ScanProgress (live 3-pane
+results, gauge cluster, pause/stop/celebration, device-lost prompt), Results
+(toolbar, filter bar, lazy tree, virtualized list, context menu, contextual
+CTA), Preview (bounded kinds, worker hex, diagnostics), Recovery (destination
+validation with hard overlap refusal, queue, report export), Health (SMART
+table), Repair (REPAIR-typed consent, undo log), Settings (theme/density/
+locale, diagnostics, about).
+
+### T19 — Tests, enforcement, CI (DONE)
+
+- 52 Vitest tests green (contract timing budgets asserted: cancel ≤300 ms,
+  pause/resume <600 ms, filter <200 ms; determinism; injections; overlap
+  refusal; repair consent round-trip).
+- eslint recommendedTypeChecked + react-hooks v7 (compiler rules): 0 errors;
+  external-store pattern (useSyncExternalStore) for progress streams.
+- arch-lint + ast-grep + eslint zones: connector boundary clean (A1–A5).
+- CI/ui-smoke/release workflows complete (windows-latest).
+
+### Live verification (agent-browser, evidence screenshots verify-01..08)
+
+Full golden path PASS with 0 page errors: home → select → config → scan →
+completion modal → results (filter, tree, 200-row pages) → row select →
+preview pane → recover → destination → job → report. Two real defects found
+and fixed during verification:
+
+1. Row checkbox double-toggle (span wrapper + Radix onCheckedChange both
+   toggled) — root-caused via Radix source read; fixed in virtual-file-list.
+2. RadioGroupItem used outside RadioGroup in DestinationRow — surfaced by
+   the error boundary; replaced with a self-contained radio indicator.
+   Also fixed: query-client thunk invocation in the scan progress store;
+   one-shot disconnect injection; completed-scan sidebar cleanup.
+
+### T20 — Docs, acceptance, handoff (DONE)
+
+- docs/: CONNECTOR-CONTRACT, ARCHITECTURE, adr/001–005, TESTING, ROADMAP,
+  INTERIM-ASSETS, VISUAL-ACCEPTANCE (55-grid), README, AUDIT-UI.
+- Budget gates PASS: main 86/200 KB gzip, total 301/500 KB.
+
+### Handoff — next session
+
+Wire the real engine: implement RecoveryConnector in connector/tauri over
+invoke()/emit, add Rust commands mirroring the contract, keep every UI file
+untouched (factory swap via VITE_CONNECTOR=tauri). See docs/ROADMAP.md for
+the full ordered list, including re-measuring the PARTIAL grid items on
+Windows hardware.
