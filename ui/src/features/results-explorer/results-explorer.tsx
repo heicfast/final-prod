@@ -63,10 +63,13 @@ export function ResultsExplorer({
   scanId,
   liveMode = false,
   recoverableDuringScan = true,
+  showFooter = true,
 }: {
   scanId: string;
   liveMode?: boolean;
   recoverableDuringScan?: boolean;
+  /** The live-scan route provides its own combined status/recovery dock. */
+  showFooter?: boolean;
 }): React.JSX.Element {
   const { t, i18n } = useTranslation();
   const navigate = useNavigate();
@@ -99,6 +102,12 @@ export function ResultsExplorer({
     [pages.data],
   );
   const total = pages.data?.pages[pages.data.pages.length - 1]?.total ?? 0;
+
+  // The desktop reference keeps one currently inspected item visible while a
+  // scan is running. This is an active row only — it never changes recovery
+  // selection or starts an operation. Deriving the initial active item keeps
+  // the first paint synchronous and avoids an extra render after results land.
+  const inspectedNodeId = activeNodeId ?? (liveMode ? (rows[0]?.id ?? null) : null);
 
   const rowHeight = ui.viewMode === 'details' ? 36 : 96;
   const selectionSnapshot = React.useMemo(
@@ -190,7 +199,7 @@ export function ResultsExplorer({
   return (
     <div className="flex h-full min-h-0 flex-col bg-surface">
       {/* Toolbar (atlas §8: nav cluster + breadcrumb + view toggle + filter + search) */}
-      <div className="flex h-11 shrink-0 items-center gap-2 border-b border-border px-2.5">
+      <div className="flex h-[60px] shrink-0 items-center gap-2 border-b border-border bg-[#edf4ff] px-2.5 sm:px-3">
         <div className="flex items-center gap-0.5">
           <Button
             variant="ghost"
@@ -224,7 +233,7 @@ export function ResultsExplorer({
         <div
           role="heading"
           aria-level={1}
-          className="flex min-w-0 flex-1 items-center gap-1 overflow-hidden rounded-md border border-border bg-surface-muted/60 px-2.5 py-1 text-sm"
+          className="flex min-w-0 flex-1 items-center gap-1 overflow-hidden px-1.5 py-1 text-sm"
         >
           {filter.searchApplied ? (
             <>
@@ -303,7 +312,7 @@ export function ResultsExplorer({
             </Badge>
           ) : null}
         </Button>
-        <div className="relative w-48">
+        <div className="relative w-44 sm:w-52">
           <SearchIcon
             className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-foreground-disabled"
             aria-hidden
@@ -331,7 +340,7 @@ export function ResultsExplorer({
       <div className="flex min-h-0 flex-1">
         {/* Left tree */}
         <aside
-          className="w-56 shrink-0 overflow-y-auto border-r border-border"
+          className="w-[min(27vw,280px)] min-w-52 shrink-0 overflow-y-auto border-r border-border bg-surface"
           aria-label={t('results.pathTab')}
         >
           <div className="border-b border-border p-2">
@@ -393,7 +402,7 @@ export function ResultsExplorer({
                     selectedIds={selection.ids}
                     exclusions={selection.exclusions}
                     selectionMode={selection.mode}
-                    activeId={activeNodeId}
+                    activeId={inspectedNodeId}
                     onRowClick={onRowClick}
                     onRowDoubleClick={(node) => setActiveNodeId(node.id)}
                     onCheckboxChange={(node) => selection.toggle(node.id)}
@@ -421,6 +430,7 @@ export function ResultsExplorer({
                     onSortChange={(field) => sortStore.setSort(field)}
                     loadMore={() => void pages.fetchNextPage()}
                     hasNextPage={pages.hasNextPage}
+                    compact={liveMode}
                   />
                 )}
               </div>
@@ -482,62 +492,66 @@ export function ResultsExplorer({
             (corpus: QSplitter between tree/list and details pane). */}
         <aside
           className="relative shrink-0 overflow-y-auto border-l border-border"
-          style={{ width: ui.previewPaneWidth }}
+          style={{ width: `clamp(200px, ${ui.previewPaneWidth}px, 26vw)` }}
           aria-label={t('preview.title')}
         >
-          <PreviewPane scanId={scanId} nodeId={activeNodeId} />
+          <PreviewPane scanId={scanId} nodeId={inspectedNodeId} />
           <PreviewPaneResizer />
         </aside>
       </div>
 
       {/* Bottom status bar — contextual CTA (atlas §8: "Recover All ..." ⇄ "Recover ...") */}
-      <div className="flex h-14 shrink-0 items-center justify-between gap-4 border-t border-border bg-surface px-4">
-        <div className="flex min-w-0 items-center gap-3 text-sm">
-          {liveMode ? (
-            <Badge variant="warning">
-              {/* Liveness dot — never pulse the text (contrast). */}
-              <span
-                className="mr-1 inline-block size-1.5 rounded-full bg-current animate-status-pulse"
-                aria-hidden
-              />
-              {t('scan.liveResults')}
-            </Badge>
-          ) : null}
-          <span className="truncate tabular text-foreground-secondary">
-            {selectedCount > 0
-              ? `${t('results.selection.count', { count: selectedCount })} · ${formatBytes(selectedBytes, i18n.language)}`
-              : t('results.status.found', {
-                  count: formatCountCompact(total, i18n.language),
-                  size: formatBytes(totalOf(pages.data?.pages), i18n.language),
-                })}
-          </span>
+      {showFooter ? (
+        <div className="flex h-14 shrink-0 items-center justify-between gap-4 border-t border-border bg-surface px-4">
+          <div className="flex min-w-0 items-center gap-3 text-sm">
+            {liveMode ? (
+              <Badge variant="warning">
+                {/* Liveness dot — never pulse the text (contrast). */}
+                <span
+                  className="mr-1 inline-block size-1.5 rounded-full bg-current animate-status-pulse"
+                  aria-hidden
+                />
+                {t('scan.liveResults')}
+              </Badge>
+            ) : null}
+            <span className="truncate tabular text-foreground-secondary">
+              {selectedCount > 0
+                ? `${t('results.selection.count', { count: selectedCount })} · ${formatBytes(selectedBytes, i18n.language)}`
+                : t('results.status.found', {
+                    count: formatCountCompact(total, i18n.language),
+                    size: formatBytes(totalOf(pages.data?.pages), i18n.language),
+                  })}
+            </span>
+          </div>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() =>
+                saveSession.mutate(null, {
+                  onSuccess: () => toast.success(t('results.session.saved')),
+                })
+              }
+            >
+              <SaveIcon aria-hidden />
+              {t('results.session.save')}
+            </Button>
+            <Button
+              variant="primary"
+              size="lg"
+              onClick={() => onRecover()}
+              disabled={liveMode && !recoverableDuringScan}
+              title={
+                liveMode && !recoverableDuringScan ? t('scan.recoverNowUnsafe') : undefined
+              }
+            >
+              {selectedCount > 0
+                ? t('results.status.recoverSelected', { count: selectedCount })
+                : t('results.status.recoverAll')}
+            </Button>
+          </div>
         </div>
-        <div className="flex items-center gap-2">
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() =>
-              saveSession.mutate(null, {
-                onSuccess: () => toast.success(t('results.session.saved')),
-              })
-            }
-          >
-            <SaveIcon aria-hidden />
-            {t('results.session.save')}
-          </Button>
-          <Button
-            variant="primary"
-            size="lg"
-            onClick={() => onRecover()}
-            disabled={liveMode && !recoverableDuringScan}
-            title={liveMode && !recoverableDuringScan ? t('scan.recoverNowUnsafe') : undefined}
-          >
-            {selectedCount > 0
-              ? t('results.status.recoverSelected', { count: selectedCount })
-              : t('results.status.recoverAll')}
-          </Button>
-        </div>
-      </div>
+      ) : null}
     </div>
   );
 }

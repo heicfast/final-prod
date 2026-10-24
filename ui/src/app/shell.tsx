@@ -10,6 +10,7 @@ import {
   HardDriveIcon,
   HeartPulseIcon,
   InfoIcon,
+  KeyRoundIcon,
   KeyboardIcon,
   LayoutGridIcon,
   LanguagesIcon,
@@ -136,21 +137,28 @@ export function WizardShell(): React.JSX.Element {
     <div className="flex h-full min-h-0 flex-col bg-background text-foreground">
       {/* Title bar */}
       <header
-        className="flex shrink-0 items-center justify-between border-b border-border bg-surface px-3 select-none"
+        className={cn(
+          'flex shrink-0 items-center justify-between border-b border-border px-3 select-none',
+          inResultsFlow ? 'bg-[#edf4ff]' : 'bg-surface',
+        )}
         style={{ height: 'var(--titlebar-height)' }}
         data-tauri-drag-region
         onDoubleClick={onTitleBarDoubleClick}
       >
         <div className="flex items-center gap-2">
-          <AppWindowIcon className="size-4 text-primary" aria-hidden />
-          <span className="text-sm font-semibold">{t('app.name')}</span>
-          <span className="rounded-full border border-primary-muted-border bg-primary-muted px-1.5 text-2xs font-semibold text-primary uppercase">
-            {connectorModeValue === 'mock'
-              ? t('settings.connectorMock')
-              : connectorModeValue === 'tauri'
-                ? t('settings.connectorTauri')
-                : '…'}
+          <span className="flex size-5 items-center justify-center rounded-sm bg-primary-fill text-primary-foreground shadow-sm">
+            <AppWindowIcon className="size-3.5" aria-hidden />
           </span>
+          <span className="text-sm font-medium">{t('app.name')}</span>
+          {!inResultsFlow ? (
+            <span className="rounded-full border border-primary-muted-border bg-primary-muted px-1.5 text-2xs font-semibold text-primary uppercase">
+              {connectorModeValue === 'mock'
+                ? t('settings.connectorMock')
+                : connectorModeValue === 'tauri'
+                  ? t('settings.connectorTauri')
+                  : '…'}
+            </span>
+          ) : null}
         </div>
         <div className="flex items-center gap-1">
           <Button
@@ -180,7 +188,7 @@ export function WizardShell(): React.JSX.Element {
                 variant="ghost"
                 size="icon"
                 aria-label={t('settings.language')}
-                className="size-7"
+                className={cn('size-7', inResultsFlow && 'hidden')}
               >
                 <LanguagesIcon aria-hidden />
               </Button>
@@ -199,7 +207,7 @@ export function WizardShell(): React.JSX.Element {
                 variant="ghost"
                 size="icon"
                 aria-label={t('settings.theme')}
-                className="size-7"
+                className={cn('size-7', inResultsFlow && 'hidden')}
               >
                 <PaletteIcon aria-hidden />
               </Button>
@@ -222,7 +230,7 @@ export function WizardShell(): React.JSX.Element {
             variant="ghost"
             size="icon"
             aria-label={t('shortcuts.title')}
-            className="size-7"
+            className={cn('size-7', inResultsFlow && 'hidden')}
             onClick={() => setShortcutsOpen(true)}
           >
             <KeyboardIcon aria-hidden />
@@ -251,24 +259,38 @@ export function WizardShell(): React.JSX.Element {
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
-          <Button
-            variant="ghost"
-            size="icon"
-            aria-label={t('nav.settings')}
-            className="size-7"
-            onClick={() => navigate('/settings')}
-          >
-            <SettingsIcon aria-hidden />
-          </Button>
-          <Button
-            variant="ghost"
-            size="icon"
-            aria-label={t('nav.about')}
-            className="size-7"
-            onClick={() => setAboutOpen(true)}
-          >
-            <InfoIcon aria-hidden />
-          </Button>
+          {inResultsFlow ? (
+            <Button
+              variant="ghost"
+              size="icon"
+              aria-label={t('activation.open')}
+              className="size-7"
+              onClick={() => setActivationOpen(true)}
+            >
+              <KeyRoundIcon aria-hidden />
+            </Button>
+          ) : (
+            <>
+              <Button
+                variant="ghost"
+                size="icon"
+                aria-label={t('nav.settings')}
+                className="size-7"
+                onClick={() => navigate('/settings')}
+              >
+                <SettingsIcon aria-hidden />
+              </Button>
+              <Button
+                variant="ghost"
+                size="icon"
+                aria-label={t('nav.about')}
+                className="size-7"
+                onClick={() => setAboutOpen(true)}
+              >
+                <InfoIcon aria-hidden />
+              </Button>
+            </>
+          )}
           <WindowControls />
         </div>
       </header>
@@ -286,6 +308,9 @@ export function WizardShell(): React.JSX.Element {
             'flex shrink-0 flex-col overflow-x-hidden overflow-y-auto border-r border-border bg-surface-muted/60 py-2',
             !sidebarCollapsed && 'w-[var(--sidebar-width)]',
             'sidebar-width-transition',
+            // Result scanning is a full-window workspace in the reference;
+            // keeping the global navigation here compressed the file browser.
+            inResultsFlow && 'hidden',
           )}
         >
           <div className="mb-1 flex items-center justify-end px-2">

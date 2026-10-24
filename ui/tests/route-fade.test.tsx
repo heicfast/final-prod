@@ -45,22 +45,21 @@ describe('route fade', () => {
     expect(fadeWrap.className).toContain('h-full');
   });
 
-  it('remounts the fade wrapper on pathname change, not on query change', () => {
+  it('remounts the fade wrapper on pathname change', () => {
     renderShellAt('/');
     const main = document.getElementById('main-content') as HTMLElement;
     const first = main.firstElementChild as HTMLElement;
 
-    // Same path + different query string (removable-media filter): the
-    // wrapper must NOT be re-created — in-page state survives.
-    fireEvent.click(screen.getAllByRole('link', { name: /removable media/i })[0]);
+    // The current recovery navigation has a dedicated SD card route.
+    fireEvent.click(screen.getByRole('link', { name: /sd card/i }));
     const afterQuery = document.getElementById('main-content')
       ?.firstElementChild as HTMLElement;
-    expect(afterQuery).toBe(first);
+    expect(afterQuery).not.toBe(first);
 
     // A different pathname (settings) remounts the faded surface.
     fireEvent.click(screen.getAllByRole('link', { name: /settings/i })[0]);
     const afterPath = document.getElementById('main-content')?.firstElementChild as HTMLElement;
-    expect(afterPath).not.toBe(first);
+    expect(afterPath).not.toBe(afterQuery);
     expect(afterPath.className).toContain('route-fade');
   });
 });

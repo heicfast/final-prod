@@ -230,3 +230,20 @@ solution frame. The sidebar now has SD Card, More Recovery Tools, File Repair,
 Lost Partition Rescue, and a distinct ChronoSnap Archive group; every implemented
 action routes to a real workflow. Provider-dependent reference cards open an
 explicit requirement dialog and never start a fabricated operation.
+
+## Phase 3 — active scan workspace (reference states 21–30)
+
+The supplied active-scan frames revealed a structural mismatch: the scan route
+was nesting a generic results footer and the global sidebar under a scan footer.
+The live route is now a full-window task workspace driven exclusively by the
+scan and result queries; no visual-only progress path was introduced.
+
+| Reference concern               | Verdict              | Evidence                                                                                                                                                                                                                                     |
+| ------------------------------- | -------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Full-width file workspace       | PASS (static + unit) | `WizardShell` hides global navigation only for scan/results/recovery routes, giving the scan surface the whole content width.                                                                                                                |
+| Three-pane live scan layout     | PASS (static + unit) | `ResultsExplorer` has Path/Type tree, compact live table (Name, Date Modified, Type), and a resizable preview pane.                                                                                                                          |
+| Active item and preview         | PASS (static)        | First arriving live result is derived as the inspected item without altering recovery selection; preview remains data-bound.                                                                                                                 |
+| Live scan header                | PASS (static)        | Compact pale-blue toolbar combines navigation, location, view, filter, and search controls.                                                                                                                                                  |
+| Search ticker and recovery dock | PASS (unit)          | A single ticker sits over a single combined dock: gauge, real file/byte/sector data, pause/resume, stop confirmation, and wired Recover All route.                                                                                           |
+| Paused/resumed/stopped states   | PASS (unit)          | Existing mutation-backed Pause, Resume, and Stop flows remain; Stop still requires deliberate confirmation.                                                                                                                                  |
+| Runtime validation              | PASS                 | `pnpm typecheck`, focused component/reference/first-run/route tests (21), production build, and bundle budget checks passed on 2026-10-25. ESLint has no errors; its lone TanStack Virtual React Compiler compatibility warning pre-existed. |

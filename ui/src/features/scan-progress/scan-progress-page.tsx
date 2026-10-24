@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { useQueryClient } from '@tanstack/react-query';
 import {
   CircleAlertIcon,
+  Clock3Icon,
   PartyPopperIcon,
   PauseIcon,
   PlayIcon,
@@ -120,6 +121,7 @@ export function ScanProgressPage(): React.JSX.Element {
           scanId={scanId}
           liveMode={!completed}
           recoverableDuringScan={progress?.recoverableDuringScan ?? false}
+          showFooter={false}
         />
       </div>
 
@@ -127,7 +129,7 @@ export function ScanProgressPage(): React.JSX.Element {
           cluster (corpus GT-scan §2; hidden when there is nothing to show). */}
       {!completed && progress?.currentPath ? (
         <div
-          className="flex shrink-0 items-center gap-2 border-t border-border bg-primary-muted px-4 py-1 text-xs text-primary"
+          className="flex h-6 shrink-0 items-center gap-2 border-t border-border bg-[#cfe2ff] px-3 text-xs text-primary"
           role="status"
         >
           <span
@@ -142,9 +144,9 @@ export function ScanProgressPage(): React.JSX.Element {
       ) : null}
 
       {/* Bottom status cluster (atlas §6) */}
-      <div className="flex shrink-0 items-center gap-4 border-t border-border bg-surface px-4 py-2.5">
-        <ProgressGauge value={overall} size={52} label={t('a11y.gauge')} />
-        <div className="min-w-0 flex-1 space-y-0.5 text-xs">
+      <div className="flex min-h-[88px] shrink-0 items-center gap-3 border-t border-border bg-surface px-3 py-2.5 sm:px-4">
+        <ProgressGauge value={overall} size={58} label={t('a11y.gauge')} />
+        <div className="min-w-0 flex-1 space-y-1 text-xs">
           {/* Reference status line: "Quick/Advanced Scanning , Files Found: N (size)" */}
           <div
             className="flex flex-wrap items-center gap-x-3 gap-y-0.5"
@@ -153,7 +155,7 @@ export function ScanProgressPage(): React.JSX.Element {
           >
             <span
               className={cn(
-                'font-medium',
+                'text-md font-semibold',
                 status === 'paused' ? 'text-danger' : 'text-foreground',
               )}
             >
@@ -202,32 +204,34 @@ export function ScanProgressPage(): React.JSX.Element {
             ) : null}
           </div>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex shrink-0 items-center gap-1.5">
           {status === 'running' ? (
             <Button
-              variant="secondary"
-              size="md"
+              variant="ghost"
+              size="icon"
               onClick={() => void pause.mutate()}
               disabled={pause.isPending}
+              aria-label={t('scan.pause')}
+              title={t('scan.pause')}
             >
               <PauseIcon aria-hidden />
-              {t('scan.pause')}
             </Button>
           ) : status === 'paused' && !deviceLost ? (
             <Button
-              variant="secondary"
-              size="md"
+              variant="ghost"
+              size="icon"
               onClick={() => void resume.mutate()}
               disabled={resume.isPending}
+              aria-label={t('scan.resume')}
+              title={t('scan.resume')}
             >
               <PlayIcon aria-hidden />
-              {t('scan.resume')}
             </Button>
           ) : null}
           {!completed ? (
             <Button
               variant="dangerOutline"
-              size="md"
+              size="icon"
               onClick={() => {
                 setStopStats({
                   files: progress?.filesFound ?? 0,
@@ -235,11 +239,27 @@ export function ScanProgressPage(): React.JSX.Element {
                 });
                 setStopConfirmOpen(true);
               }}
+              aria-label={t('scan.stop')}
+              title={t('scan.stop')}
             >
               <SquareIcon aria-hidden />
-              {t('scan.stop')}
             </Button>
           ) : null}
+          <Button
+            variant="primary"
+            size="lg"
+            className="ml-2 min-w-40 rounded-lg px-5"
+            disabled={!completed && !progress?.recoverableDuringScan}
+            title={
+              !completed && !progress?.recoverableDuringScan
+                ? t('scan.recoverNowUnsafe')
+                : undefined
+            }
+            onClick={() => void navigate(`/recover/${scanId}?all=1`)}
+          >
+            <Clock3Icon aria-hidden />
+            {t('results.status.recoverAll')}
+          </Button>
         </div>
       </div>
 
