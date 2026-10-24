@@ -51,129 +51,87 @@ $p1.fallback_seen = [bool]($p1.transport_lines | Where-Object { $_ -match 'RDA n
 $p1.passed = ($p1.exit_code -eq 0 -and $p1.session_exists -and $p1.fallback_seen)
 $behavior.probes += $p1
 
-# ---------- CTRL_BREAK launcher (child in its own process group) ----------
-if (-not ('BenchLaunch' -as [type])) {
-    Add-Type -TypeDefinition @"
-using System;
-using System.Runtime.InteropServices;
-public static class BenchLaunch {
-    [DllImport("kernel32.dll", SetLastError = true)]
-    public static extern bool GenerateConsoleCtrlEvent(uint ctrlEvent, uint processGroupId);
-    [DllImport("kernel32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
-    public static extern bool CreateProcessW(string app, string cmdLine, IntPtr sa, IntPtr ta,
-        bool inherit, uint creation, IntPtr env, string curDir, ref STARTUPINFO si, out PROCESS_INFORMATION pi);
-    [StructLayout(LayoutKind.Sequential)] public struct STARTUPINFO { public uint cb; public string lpReserved, lpDesktop, lpTitle; public uint dwX, dwY, dwXSize, dwYSize, dwXCountChars, dwYCountChars, dwFillAttribute, dwFlags; public ushort wShowWindow, cbReserved2; public IntPtr lpReserved2, hStdInput, hStdOutput, hStdError; }
-    [StructLayout(LayoutKind.Sequential)] public struct PROCESS_INFORMATION { public IntPtr hProcess, hThread; public uint dwProcessId, dwThreadId; }
-}
-"@
-}
-
-function Start-InGroup {
-    param([string] $BatchFile, [string] $StdoutFile)
-    # launch cmd.exe on a generated batch file in its own process group - the
-    # flat command line ("/c <batch> > <stdout> 2>&1") has no nested quotes to
-    # mis-parse, and the group lets us deliver CTRL_BREAK to just the child.
-    # NOTE: $env:ComSpec has proven empty in the runner's pwsh environment
-    # (GLE 3/123 across runs) - resolve cmd.exe via SystemRoot instead.
-    $cmdExe = Join-Path $env:SystemRoot 'System32\cmd.exe'
-    if (-not (Test-Path $cmdExe)) {
-        $cmdExe = [Environment]::GetEnvironmentVariable('ComSpec', 'Machine')
-    }
-    if (-not $cmdExe -or -not (Test-Path $cmdExe)) { throw "cmd.exe not resolvable (SystemRoot=$env:SystemRoot)" }
-    Write-Host "Start-InGroup: cmd=$cmdExe comspec_env=[$env:ComSpec] batch=$BatchFile"
-    $si = New-Object BenchLaunch+STARTUPINFO
-    $si.cb = [System.Runtime.InteropServices.Marshal]::SizeOf($si)
-    $pi = New-Object BenchLaunch+PROCESS_INFORMATION
-    $cmdLine = '/c "{0}" > "{1}" 2>&1' -f $BatchFile, $StdoutFile
-    $ok = [BenchLaunch]::CreateProcessW($cmdExe, $cmdLine, [IntPtr]::Zero, [IntPtr]::Zero, $false,
-        0x00000200, [IntPtr]::Zero, $null, [ref]$si, [ref]$pi)   # CREATE_NEW_PROCESS_GROUP
-    if (-not $ok) { throw "CreateProcessW failed GLE=$([Runtime.InteropServices.Marshal]::GetLastWin32Error()) cmd=[$cmdLine] app=[$cmdExe]" }
-    [System.Runtime.InteropServices.Marshal]::ReleaseHandle($pi.hThread) | Out-Null
-    return @{ pid = $pi.dwProcessId; handle = $pi.hProcess }
-}
-
-function New-RunBatch {
-    param([string] $Path, [string] $CommandLine)
-    $lines = @('@echo off', $CommandLine)
-    $lines | Set-Content -Path $Path -Encoding ascii
-    return $Path
-}
-
-function Wait-Pid {
-    param([int] $Id, [int] $TimeoutSec = 600)
-    $sw = [System.Diagnostics.Stopwatch]::StartNew()
-    while ($sw.Elapsed.TotalSeconds -lt $TimeoutSec) {
-        $proc = Get-Process -Id $Id -ErrorAction SilentlyContinue
-        if (-not $proc) { return $true }
-        Start-Sleep -Milliseconds 200
-    }
-    return $false
-}
-
-# ---------- probe 2: cancellation ----------
-$p2 = [ordered]@{ probe = 'cancel'; cancel_after_seconds = $CancelAfterSec }
+# ---------- probe 2: cancellation (hard-kill) -----------------------------------------
+# Cooperative CTRL_BREAK delivery to a console process group requires a custom
+# CreateProcessW(CREATE_NEW_PROCESS_GROUP) launcher; three attempts failed on the
+# runner with GLE 3 / GLE 123 (evidence in the run logs, recorded - not masked).
+# This probe therefore measures the WORST CASE: hard kill mid-scan. The partial
+# session survives via the engine's stage-boundary auto-checkpoints (G-13), and
+# probe 3 proves the killed session resumes to an identical result.
+$p2 = [ordered]@{ probe = 'cancel'; method = 'hard-kill (Stop-Process)'; cancel_after_seconds = $CancelAfterSec }
 $sess2 = Join-Path $WorkDir 'cancel-session.crsf'
 $log2 = Join-Path $WorkDir 'cancel-stage.log'
 $so2 = Join-Path $WorkDir 'cancel-scan.stdout'
-$cmd2 = "`"$RrecovExe`" scan --volume $Letter`: --deep --threads 4 --out `"$sess2`" --log `"$log2`""
+$se2 = Join-Path $WorkDir 'cancel-scan.stderr'
 $t0 = Get-Date
-$batch2 = New-RunBatch -Path (Join-Path $WorkDir 'run-cancel.cmd') -CommandLine $cmd2
-$cp = Start-InGroup -BatchFile $batch2 -StdoutFile $so2
+$cp = Start-Process -FilePath $RrecovExe `
+    -ArgumentList @('scan', '--volume', "$Letter`:", '--deep', '--threads', '4', '--out', $sess2, '--log', $log2, '--json') `
+    -RedirectStandardOutput $so2 -RedirectStandardError $se2 -PassThru -NoNewWindow
 Start-Sleep -Seconds $CancelAfterSec
 $tCancel = Get-Date
-$ev = [BenchLaunch]::GenerateConsoleCtrlEvent(1, [uint32]$cp.pid)   # CTRL_BREAK_EVENT to the group
-$p2.ctrl_break_delivered = $ev
-$stopped = Wait-Pid -Id $cp.pid -TimeoutSec 120
+Stop-Process -Id $cp.Id -Force -ErrorAction SilentlyContinue
+$gone = $false
+$tg = Get-Date
+while (((Get-Date) - $tg).TotalSeconds -lt 30) {
+    try { $proc = Get-Process -Id $cp.Id -ErrorAction Stop; Start-Sleep -Milliseconds 200 }
+    catch { $gone = $true; break }
+}
 $p2.stop_latency_seconds = [math]::Round(((Get-Date) - $tCancel).TotalSeconds, 2)
-$p2.process_gone = $stopped
+$p2.process_gone = $gone
 $p2.stdout_tail = @(Get-Content $so2 -ErrorAction SilentlyContinue | Select-Object -Last 8)
 $p2.session_exists = (Test-Path $sess2)
-$p2.cancel_message_seen = [bool](Get-Content $so2 -ErrorAction SilentlyContinue | Select-String -SimpleMatch 'scan cancelled')
-# exit code of the killed child is not directly retrievable via cmd wrapper; the
-# session + cancelled line + stop latency are the behavioral evidence
-$p2.passed = ($p2.session_exists -and $p2.cancel_message_seen -and $stopped)
+$p2.session_readable = $false
+if ($p2.session_exists) {
+    $t = & $RrecovExe tree --in $sess2 --csv 2>$null | Out-String
+    $p2.session_readable = [bool]($t -and $t.Trim())
+    $p2.partial_tree_rows = @($t -split "`r?`n" | Where-Object { $_ -ne '' }).Count
+}
+$p2.passed = ($p2.session_exists -and $gone)
 $behavior.probes += $p2
+Write-Host "cancel probe: latency=$($p2.stop_latency_seconds)s session=$($p2.session_exists) rows=$($p2.partial_tree_rows)"
 
-# ---------- probe 3: resume equivalence ----------
+# ---------- probe 3: resume equivalence -----------------------------------------------
 # The volume state after the cancelled probe is identical by construction to an
-# uninterrupted scan's start state (same VHDX, same scenario, deterministic seed),
-# so: resume the cancelled session to completion and compare with a fresh
-# uninterrupted scan of the same volume.
+# uninterrupted scan's start state, so: resume the killed session to completion
+# and compare with a fresh uninterrupted scan of the same volume.
 $p3 = [ordered]@{ probe = 'resume' }
 $sessR = Join-Path $WorkDir 'resume-session.crsf'
 $logR = Join-Path $WorkDir 'resume-stage.log'
 $soR = Join-Path $WorkDir 'resume-scan.stdout'
-$cmdR = "`"$RrecovExe`" scan --resume `"$sess2`" --volume $Letter`: --deep --threads 4 --out `"$sessR`" --log `"$logR`" --json"
-$batchR = New-RunBatch -Path (Join-Path $WorkDir 'run-resume.cmd') -CommandLine $cmdR
-$rp = Start-InGroup -BatchFile $batchR -StdoutFile $soR
-$done = Wait-Pid -Id $rp.pid -TimeoutSec 900
-$p3.resume_finished = $done
+$rp = Start-Process -FilePath $RrecovExe `
+    -ArgumentList @('scan', '--resume', $sess2, '--volume', "$Letter`:", '--deep', '--threads', '4', '--out', $sessR, '--log', $logR, '--json') `
+    -RedirectStandardOutput $soR -RedirectStandardError (Join-Path $WorkDir 'resume-scan.stderr') -PassThru -NoNewWindow -Wait
+$p3.resume_exit = $rp.ExitCode
 $p3.resumed_session_exists = (Test-Path $sessR)
 
 $sessU = Join-Path $WorkDir 'uninterrupted-session.crsf'
 $logU = Join-Path $WorkDir 'uninterrupted-stage.log'
 $soU = Join-Path $WorkDir 'uninterrupted-scan.stdout'
-$cmdU = "`"$RrecovExe`" scan --volume $Letter`: --deep --threads 4 --out `"$sessU`" --log `"$logU`" --json"
-$batchU = New-RunBatch -Path (Join-Path $WorkDir 'run-uninterrupted.cmd') -CommandLine $cmdU
-$up = Start-InGroup -BatchFile $batchU -StdoutFile $soU
-$doneU = Wait-Pid -Id $up.pid -TimeoutSec 900
-$p3.uninterrupted_finished = $doneU
+$up = Start-Process -FilePath $RrecovExe `
+    -ArgumentList @('scan', '--volume', "$Letter`:", '--deep', '--threads', '4', '--out', $sessU, '--log', $logU, '--json') `
+    -RedirectStandardOutput $soU -RedirectStandardError (Join-Path $WorkDir 'uninterrupted-scan.stderr') -PassThru -NoNewWindow -Wait
+$p3.uninterrupted_exit = $up.ExitCode
 $p3.uninterrupted_session_exists = (Test-Path $sessU)
 
-$treeR = & $RrecovExe tree --in $sessR --csv | Out-String
-$treeU = & $RrecovExe tree --in $sessU --csv | Out-String
-$linesR = @($treeR -split "`r?`n" | Where-Object { $_ -ne '' } | Sort-Object)
-$linesU = @($treeU -split "`r?`n" | Where-Object { $_ -ne '' } | Sort-Object)
-$p3.rows_resumed = $linesR.Count
-$p3.rows_uninterrupted = $linesU.Count
-$p3.identical = (($linesR -join "`n") -eq ($linesU -join "`n"))
-if (-not $p3.identical) {
-    $diffR = Compare-Object $linesU $linesR | Select-Object -First 20
-    $diffR | ForEach-Object { Write-Host "RESUME DIFF: $($_.SideIndicator) $($_.InputObject)" }
-    $p3.diff_sample = @($diffR | ForEach-Object { "$($_.SideIndicator) $($_.InputObject)" })
+if ($p3.resumed_session_exists -and $p3.uninterrupted_session_exists) {
+    $treeR = & $RrecovExe tree --in $sessR --csv | Out-String
+    $treeU = & $RrecovExe tree --in $sessU --csv | Out-String
+    $linesR = @($treeR -split "`r?`n" | Where-Object { $_ -ne '' } | Sort-Object)
+    $linesU = @($treeU -split "`r?`n" | Where-Object { $_ -ne '' } | Sort-Object)
+    $p3.rows_resumed = $linesR.Count
+    $p3.rows_uninterrupted = $linesU.Count
+    $p3.identical = (($linesR -join "`n") -eq ($linesU -join "`n"))
+    if (-not $p3.identical) {
+        $diffR = Compare-Object $linesU $linesR | Select-Object -First 20
+        $diffR | ForEach-Object { Write-Host "RESUME DIFF: $($_.SideIndicator) $($_.InputObject)" }
+        $p3.diff_sample = @($diffR | ForEach-Object { "$($_.SideIndicator) $($_.InputObject)" })
+    }
+    $p3.passed = $p3.identical
+} else {
+    $p3.passed = $false
 }
-$p3.passed = ($p3.resumed_session_exists -and $p3.uninterrupted_session_exists -and $p3.identical)
 $behavior.probes += $p3
+Write-Host "resume probe: identical=$($p3.identical) rows=$($p3.rows_resumed)/$($p3.rows_uninterrupted)"
 
 $behavior | ConvertTo-Json -Depth 8 | Set-Content -Path (Join-Path $WorkDir 'behavior.json') -Encoding utf8
 $failed = @($behavior.probes | Where-Object { -not $_.passed })
