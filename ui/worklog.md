@@ -655,3 +655,25 @@ release notes state signing pending (unsigned builds).
   sweep now structurally incapable of the ternary blind spot (extraction
   pin + family domains + missing-family flagging + over-approximation
   net).
+
+---
+
+### T2–T4 — Corpus full-read, app full-read, gate docs — DONE
+
+- Corpus read: architecture docs (00/04/05-uiux/07), UIUX artifacts 35
+  (atlas — complete), 16 (shell/chrome), 21 (QSS state census), plus
+  VLM JSONs (splash, hamburger, paused, midtransition, celebration,
+  destination) and the 63-shot README. RE evidence: chrome SVG 4-state
+  fills extracted (light #616777/#D3DCE7/#0560FD/#1A1A1A/#A0A6B1; dark
+  #B0B5C0/#323D4C/#F1F5FF/#5094FF), QSS pseudo-state census
+  (hover 224 / pressed 195 / disabled 147 — no transition property in
+  2,805 rules), QPropertyAnimation/QEasingCurve imports (18) → motion
+  philosophy: instant swaps + sparse fades + live progress.
+- App read: all experience-relevant sources (shell, router, dialog,
+  toaster, button, progress, menus, ui-store, theme, scan-progress,
+  results-explorer, filter-bar, home) + structured scan of the rest.
+  Baseline verified: tsc clean, 86/86 tests.
+- Gap analysis → gate docs pushed: docs/EXPERIENCE-SPEC.md,
+  docs/MOTION-SPEC.md, docs/IMPLEMENTATION-STATUS.md,
+  docs/INTERIM-ASSETS.md (corpus-extraction layer added).
+- Working order confirmed: T5 chrome → T6 sidebar → T7 dialogs → …

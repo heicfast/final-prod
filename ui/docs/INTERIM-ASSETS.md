@@ -1,5 +1,44 @@
 # INTERIM-ASSETS
 
+Two distinct layers live in this document:
+
+1. **v1 placeholder set** (shipped since v0.1.0) — third-party/open-source
+   placeholders pending the homegrown v2 set.
+2. **Corpus-extracted interim layer** (experience session, mandate §3) —
+   visual assets extracted from the research corpus
+   (`re-workspace/reversed/ui-resources/drw_{light,dark}/`), placed under
+   `src/assets/interim/` with an `interim:` naming convention and a manifest,
+   authorized for the interim phase only. Release notes and this manifest
+   make their interim status explicit; the homegrown set replaces them
+   mechanically via the manifest enumeration.
+
+## A. Corpus-extracted interim layer (this session)
+
+Manifest lives at `src/assets/interim/manifest.json`; every file below the
+`interim/` directory is corpus-derived by convention.
+
+| File (app repo)                                                    | Corpus source                                                  | Depicts                       | Used at                          | Replacement plan                                      |
+| ------------------------------------------------------------------ | -------------------------------------------------------------- | ----------------------------- | -------------------------------- | ----------------------------------------------------- |
+| `src/assets/interim/chrome/close-{nor,hov,pre,dis}.svg` (light)    | `drw_light/Resource/btn_close_*.svg`                           | close glyph 24×24, 4 states   | title-bar close button           | homegrown chrome set, delivery phase: v2 icon session |
+| `src/assets/interim/chrome/maximize-{nor,hov,pre,dis}.svg` (light) | `drw_light/Resource/btn_max_*.svg`                             | maximize square, 4 states     | title-bar maximize button        | same                                                  |
+| `src/assets/interim/chrome/restore-{nor,hov,pre,dis}.svg` (light)  | `drw_light/Resource/btn_restore_*.svg`                         | restore dual-square, 4 states | title-bar restore button         | same                                                  |
+| `src/assets/interim/chrome/minimize-{nor,hov,pre,dis}.svg` (light) | `drw_light/Resource/Titlebar/titlebar_btn_min_*.svg`           | minimize bar, 4 states        | title-bar minimize button        | same                                                  |
+| `…/dark/` variants                                                 | `drw_dark/ResourceDark/btn_*`, `…/Titlebar/titlebar_btn_min_*` | same glyphs, dark palette     | same buttons, dark-family themes | same                                                  |
+
+State palettes (corpus-verbatim fills, documented in EXPERIENCE-SPEC §1):
+light nor `#616777` · hov bg `#D3DCE7` rx4 + glyph `#0560FD` · pre bg
+`#D3DCE7` + glyph `#1A1A1A` · dis `#A0A6B1`; dark nor `#B0B5C0` · hov bg
+`#323D4C` + glyph `#F1F5FF` · pre bg `#323D4C` + glyph `#5094FF`.
+
+Bulk-replacement protocol: `src/assets/interim/manifest.json` enumerates
+every entry (src in app → corpus path → usage → replacement). A future
+homegrown session replaces files 1:1 and deletes the manifest. Interim
+status is discoverable from both the path convention and the manifest.
+
+**Strings are never imported from the corpus** — visual assets only.
+
+## B. v1 placeholder set (pre-existing)
+
 Assets shipped in v0.1.0 that are placeholders pending the v2 original set,
 per the interim-asset policy.
 
@@ -14,4 +53,4 @@ per the interim-asset policy.
 the illustration-free empty states (icon + copy, no borrowed art), and the
 icon's NSIS header BMP. Nothing in the repo is copied from the reference
 product or any third-party asset library beyond the declared Lucide/ISC
-usage.
+usage and the §A corpus-extracted interim layer above.
