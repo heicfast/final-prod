@@ -17,6 +17,7 @@ import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { ConfidenceBadge } from '@/components/ui/confidence-badge';
 import { Hint } from '@/components/ui/tooltip';
+import { RobotMascotAvatar } from '@/components/ui/brand-icons';
 import { hexWorker } from '@/workers/hex-worker-client';
 
 /**
@@ -35,46 +36,43 @@ export function PreviewPane({
   const { t, i18n } = useTranslation();
   const detail = useNodeDetail(scanId, nodeId);
   const node = detail.data?.node ?? null;
-  // The connector owns kind inference (ADR-008) — the pane renders
-  // whichever payload kind comes back.
   const preview = usePreview(scanId, nodeId);
   const bodyRef = React.useRef<HTMLDivElement | null>(null);
 
   return (
-    <div className="flex h-full min-h-0 flex-col bg-surface">
+    <div className="relative flex h-full min-h-0 flex-col bg-surface">
       {node ? (
         <>
-          {/* Reference top inspector card: 156×132 thumbnail card + filename + soft-blue Preview CTA */}
-          <div className="flex flex-col items-center px-3 pt-4 pb-3">
-            <div className="flex h-[128px] w-[152px] shrink-0 items-center justify-center overflow-hidden rounded-lg border border-[#E2ECF9] bg-[#F2F6FC] dark:border-border dark:bg-surface-tint">
-              <Thumbnail scanId={scanId} nodeId={node.id} available={node.thumbnailAvailable} />
+          {/* Reference top inspector header & live thumbnail with overlaid "Preview" button */}
+          <div className="flex flex-col items-center px-3 pt-3 pb-3">
+            <div className="mb-2 flex w-full items-center justify-between px-1">
+              <p className="truncate text-xs font-semibold text-foreground" title={node.name}>
+                {node.name}
+              </p>
             </div>
-            <p
-              className="mt-2.5 w-full truncate px-2 text-center text-xs font-medium text-foreground"
-              title={node.name}
-            >
-              {node.name}
-            </p>
-            <button
-              type="button"
-              onClick={() => bodyRef.current?.scrollIntoView({ behavior: 'smooth' })}
-              className="mt-2 inline-flex h-8 w-[148px] items-center justify-center rounded-md bg-[#DCE9FE] text-xs font-semibold text-[#1677FF] transition-colors hover:bg-[#CBE0FE] focus-visible:ring-2 focus-visible:ring-ring dark:bg-primary-muted dark:text-primary"
-            >
-              {t('preview.title')}
-            </button>
+            <div className="relative flex h-[136px] w-full items-center justify-center overflow-hidden rounded-lg border border-[#E2ECF9] bg-[#F2F6FC] dark:border-border dark:bg-surface-tint">
+              <Thumbnail scanId={scanId} nodeId={node.id} available={node.thumbnailAvailable} />
+              <button
+                type="button"
+                onClick={() => bodyRef.current?.scrollIntoView({ behavior: 'smooth' })}
+                className="absolute bottom-3 inline-flex h-8 min-w-[116px] items-center justify-center rounded-md border border-[#BFDBFE] bg-[#EAF2FF]/95 px-4 text-xs font-semibold text-[#1677FF] shadow-xs backdrop-blur-xs transition-colors hover:bg-[#DCE9FE] focus-visible:ring-2 focus-visible:ring-ring"
+              >
+                {t('preview.title')}
+              </button>
+            </div>
           </div>
 
           {/* Stacked metadata matching reference inspector (Size, Date Modified, Path, Status, Recovery Chances) */}
           <div className="space-y-2.5 border-b border-border px-4 pb-3 text-xs">
             <div>
               <div className="text-foreground-secondary">{t('results.column.size')}</div>
-              <div className="mt-0.5 font-medium tabular text-foreground">
+              <div className="mt-0.5 font-medium text-foreground tabular">
                 {formatBytes(node.sizeBytes, i18n.language)}
               </div>
             </div>
             <div>
               <div className="text-foreground-secondary">{t('results.column.modified')}</div>
-              <div className="mt-0.5 font-medium tabular text-foreground">
+              <div className="mt-0.5 font-medium text-foreground tabular">
                 {formatDateTime(node.modifiedAt, i18n.language)}
               </div>
             </div>
@@ -126,6 +124,11 @@ export function PreviewPane({
           <p className="mt-2 text-xs">{t('preview.title')}</p>
         </div>
       )}
+
+      {/* Floating Robot Mascot Helper badge in bottom-right of preview pane (preview-panel-live_343e85c9.png) */}
+      <div className="pointer-events-none absolute right-3 bottom-3 opacity-90" aria-hidden>
+        <RobotMascotAvatar className="size-8 drop-shadow-xs" />
+      </div>
     </div>
   );
 }

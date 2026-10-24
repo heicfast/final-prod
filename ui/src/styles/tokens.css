@@ -98,7 +98,7 @@
    * Family from the adopted tokens; scale is corpus-derived (Segoe UI
    * 14px base, QSS census artifact 21/05) and CJK stacks per locale. */
   --font-sans:
-    var(--font-ui), 'Microsoft YaHei', 'PingFang SC', 'Noto Sans SC', 'Meiryo UI',
+    'Inter', var(--font-ui), 'Microsoft YaHei', 'PingFang SC', 'Noto Sans SC', 'Meiryo UI',
     'Malgun Gothic', sans-serif;
   --text-2xs: 10px;
   --text-xs: 11px;

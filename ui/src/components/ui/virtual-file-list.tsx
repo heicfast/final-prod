@@ -1,5 +1,5 @@
 import * as React from 'react';
-import { useVirtualizer, type Virtualizer } from '@tanstack/react-virtual';
+import { useVirtualizer } from '@tanstack/react-virtual';
 import type { ResultNode, SortField } from '@/connector/contract';
 import { ArrowDownIcon, ArrowUpIcon, ChevronsUpDownIcon } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
@@ -33,18 +33,6 @@ function rowSelected(
   id: string,
 ): boolean {
   return selectionMode === 'all' ? !exclusions.has(id) : selectedIds.has(id);
-}
-
-/** The infinite-scroll loader row (shared by both view renderers). */
-function LoaderRow({ top, height, label }: { top: number; height: number; label: string }) {
-  return (
-    <div
-      className="absolute inset-x-0 flex items-center justify-center"
-      style={{ top, height }}
-    >
-      <span className="text-xs text-foreground-secondary">{label}</span>
-    </div>
-  );
 }
 
 function SortHeader({
@@ -187,65 +175,83 @@ export function VirtualFileList({
       role="grid"
       aria-rowcount={total}
     >
-      <div
-        className="group/column flex shrink-0 border-b border-border bg-surface text-sm"
-        role="row"
-      >
+      {viewMode === 'icons' ? (
         <div
-          role="columnheader"
-          className="flex h-9 items-center justify-center border-b border-border/70"
-          style={{ width: COLUMN_WIDTHS.checkbox }}
+          className="flex h-9 shrink-0 items-center gap-2.5 border-b border-border bg-surface px-3.5 text-xs font-medium text-foreground"
+          role="row"
         >
-          <Checkbox
-            checked={
-              rows.length > 0 && allSelected ? true : someSelected ? 'indeterminate' : false
-            }
-            onCheckedChange={(v: boolean | 'indeterminate') => onSelectAll(v === true)}
-            aria-label={t('results.selection.selectAll')}
+          <div role="columnheader" className="flex items-center gap-2">
+            <Checkbox
+              checked={
+                rows.length > 0 && allSelected ? true : someSelected ? 'indeterminate' : false
+              }
+              onCheckedChange={(v: boolean | 'indeterminate') => onSelectAll(v === true)}
+              aria-label={t('results.selection.selectAll')}
+            />
+            <span>{t('results.selection.selectAll')}</span>
+          </div>
+        </div>
+      ) : (
+        <div
+          className="group/column flex shrink-0 border-b border-border bg-surface text-sm"
+          role="row"
+        >
+          <div
+            role="columnheader"
+            className="flex h-9 items-center justify-center border-b border-border/70"
+            style={{ width: COLUMN_WIDTHS.checkbox }}
+          >
+            <Checkbox
+              checked={
+                rows.length > 0 && allSelected ? true : someSelected ? 'indeterminate' : false
+              }
+              onCheckedChange={(v: boolean | 'indeterminate') => onSelectAll(v === true)}
+              aria-label={t('results.selection.selectAll')}
+            />
+          </div>
+          <SortHeader
+            field="name"
+            label={t('results.column.name')}
+            currentField={sort.field}
+            currentDirection={sort.direction}
+            onSort={onSortChange}
+            width={COLUMN_WIDTHS.name}
+          />
+          <SortHeader
+            field="modified"
+            label={t('results.column.modified')}
+            currentField={sort.field}
+            currentDirection={sort.direction}
+            onSort={onSortChange}
+            width={COLUMN_WIDTHS.modified}
+          />
+          <SortHeader
+            field="type"
+            label={t('results.column.type')}
+            currentField={sort.field}
+            currentDirection={sort.direction}
+            onSort={onSortChange}
+            width={COLUMN_WIDTHS.type}
+          />
+          <SortHeader
+            field="size"
+            label={t('results.column.size')}
+            currentField={sort.field}
+            currentDirection={sort.direction}
+            onSort={onSortChange}
+            width={COLUMN_WIDTHS.size}
+            align="right"
+          />
+          <SortHeader
+            field="confidence"
+            label={t('results.column.condition')}
+            currentField={sort.field}
+            currentDirection={sort.direction}
+            onSort={onSortChange}
+            width={COLUMN_WIDTHS.condition}
           />
         </div>
-        <SortHeader
-          field="name"
-          label={t('results.column.name')}
-          currentField={sort.field}
-          currentDirection={sort.direction}
-          onSort={onSortChange}
-          width={COLUMN_WIDTHS.name}
-        />
-        <SortHeader
-          field="modified"
-          label={t('results.column.modified')}
-          currentField={sort.field}
-          currentDirection={sort.direction}
-          onSort={onSortChange}
-          width={COLUMN_WIDTHS.modified}
-        />
-        <SortHeader
-          field="type"
-          label={t('results.column.type')}
-          currentField={sort.field}
-          currentDirection={sort.direction}
-          onSort={onSortChange}
-          width={COLUMN_WIDTHS.type}
-        />
-        <SortHeader
-          field="size"
-          label={t('results.column.size')}
-          currentField={sort.field}
-          currentDirection={sort.direction}
-          onSort={onSortChange}
-          width={COLUMN_WIDTHS.size}
-          align="right"
-        />
-        <SortHeader
-          field="confidence"
-          label={t('results.column.condition')}
-          currentField={sort.field}
-          currentDirection={sort.direction}
-          onSort={onSortChange}
-          width={COLUMN_WIDTHS.condition}
-        />
-      </div>
+      )}
       <div
         ref={ref}
         role="rowgroup"
@@ -257,12 +263,10 @@ export function VirtualFileList({
           <IconGridBody
             scanId={scanId}
             rows={rows}
-            rowHeight={rowHeight}
             selectionMode={selectionMode}
             selectedIds={selectedIds}
             exclusions={exclusions}
             activeId={activeId}
-            virtualizer={virtualizer}
             onRowClick={onRowClick}
             onRowDoubleClick={onRowDoubleClick}
             onCheckboxChange={onCheckboxChange}
@@ -381,45 +385,29 @@ export function VirtualFileList({
 function IconGridBody({
   scanId,
   rows,
-  rowHeight,
   selectionMode,
   selectedIds,
   exclusions,
   activeId,
-  virtualizer,
   onRowClick,
   onRowDoubleClick,
   onCheckboxChange,
 }: {
   scanId: string;
   rows: readonly ResultNode[];
-  rowHeight: number;
   selectionMode: 'ids' | 'all';
   selectedIds: ReadonlySet<string>;
   exclusions: ReadonlySet<string>;
   activeId: string | null;
-  virtualizer: Virtualizer<HTMLDivElement, Element>;
   onRowClick: (node: ResultNode, index: number, e: React.MouseEvent) => void;
   onRowDoubleClick: (node: ResultNode) => void;
   onCheckboxChange: (node: ResultNode) => void;
 }): React.JSX.Element {
-  const { t, i18n } = useTranslation();
+  const { t } = useTranslation();
+  const visibleRows = rows.slice(0, 120);
   return (
-    <div style={{ height: virtualizer.getTotalSize(), position: 'relative' }}>
-      {virtualizer.getVirtualItems().map((vRow) => {
-        const idx = vRow.index;
-        const isLoader = idx >= rows.length;
-        const node = rows[idx];
-        if (isLoader) {
-          return (
-            <LoaderRow
-              key="loader"
-              top={vRow.start}
-              height={rowHeight}
-              label={t('common.loading')}
-            />
-          );
-        }
+    <div className="grid grid-cols-2 gap-3.5 p-3.5 sm:grid-cols-3 md:grid-cols-4">
+      {visibleRows.map((node, idx) => {
         const isSelected = rowSelected(selectionMode, selectedIds, exclusions, node.id);
         const isActive = activeId === node.id;
         return (
@@ -429,18 +417,17 @@ function IconGridBody({
             aria-selected={isSelected}
             data-active={isActive || undefined}
             className={cn(
-              'group/tile absolute flex cursor-default items-center gap-3 rounded-lg border p-2 transition-colors',
+              'group/tile relative flex h-[142px] cursor-default flex-col items-center justify-between rounded-[8px] border p-2.5 transition-all',
               isSelected || isActive
-                ? 'border-[#1677FF] bg-[#E8F1FF] dark:border-primary dark:bg-surface-selected/60'
-                : 'border-border/60 bg-surface hover:bg-[#F2F6FC] dark:hover:bg-surface-hover/50',
+                ? 'border-[#1677FF] bg-[#EDF4FF] ring-1 ring-[#1677FF]'
+                : 'border-[#E2E8F0] bg-white hover:border-[#93C5FD] hover:bg-[#F8FAFC]',
             )}
-            style={{ top: vRow.start, height: rowHeight - 4, left: 10, right: 10 }}
             onClick={(e) => onRowClick(node, idx, e)}
             onDoubleClick={() => onRowDoubleClick(node)}
           >
             <div
               role="gridcell"
-              className="flex h-full items-center"
+              className="absolute left-2.5 top-2.5 z-10"
               onClick={(e) => e.stopPropagation()}
             >
               <Checkbox
@@ -449,15 +436,16 @@ function IconGridBody({
                 aria-label={t('a11y.selectRow')}
               />
             </div>
-            <div role="gridcell" className="flex min-w-0 flex-1 items-center gap-3">
+            <div
+              role="gridcell"
+              className="flex min-h-0 w-full flex-1 flex-col items-center justify-center pt-2"
+            >
               <IconTile scanId={scanId} node={node} />
-              <div className="min-w-0 flex-1">
-                <div className="line-clamp-2 text-xs font-medium" title={node.name}>
-                  {node.name}
-                </div>
-                <div className="mt-0.5 text-2xs text-foreground-secondary tabular">
-                  {formatBytes(node.sizeBytes, i18n.language)}
-                </div>
+              <div
+                className="mt-2 w-full truncate text-center text-xs font-medium text-[#1E293B]"
+                title={node.name}
+              >
+                {node.name}
               </div>
             </div>
           </div>
@@ -474,13 +462,13 @@ function IconTile({ scanId, node }: { scanId: string; node: ResultNode }): React
       <img
         src={thumb.data.dataUrl}
         alt=""
-        className="h-16 w-22 shrink-0 rounded-md border border-border/50 object-cover"
+        className="h-[82px] w-[112px] shrink-0 rounded-[4px] border border-[#E2E8F0] object-cover"
         loading="lazy"
       />
     );
   }
   return (
-    <div className="flex h-16 w-22 shrink-0 items-center justify-center rounded-md bg-[#F2F6FC] dark:bg-surface-tint">
+    <div className="flex h-[82px] w-[112px] shrink-0 items-center justify-center rounded-[4px] bg-[#F2F6FC] dark:bg-surface-tint">
       <FileIconFor node={node} />
     </div>
   );

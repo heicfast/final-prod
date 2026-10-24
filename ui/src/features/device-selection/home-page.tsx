@@ -3,42 +3,40 @@ import { useNavigate, useSearchParams } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import type { Device, Volume } from '@/connector/contract';
 import {
+  CheckIcon,
+  ChevronUpIcon,
   CircleAlertIcon,
-  CircleCheckIcon,
-  FolderOpenIcon,
   HardDriveIcon,
   LockIcon,
-  MemoryStickIcon,
-  MonitorSmartphoneIcon,
   PlugZapIcon,
   RefreshCcwIcon,
-  SearchIcon,
-  Trash2Icon,
-  UsbIcon,
 } from 'lucide-react';
 import { useDevices, useRefreshDevices } from '@/queries/devices';
-import { useSessions, useLoadSession } from '@/queries/sessions';
+import { useLoadSession, useSessions } from '@/queries/sessions';
 import { useStartScan } from '@/queries/scan';
 import { usePickDirectory } from '@/queries/system';
-import { formatBytes, formatDate } from '@/lib/format';
+import { formatBytes, formatDate, formatDriveGb } from '@/lib/format';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { CapacityBar, EmptyState } from '@/components/ui/empty-state';
+import { EmptyState } from '@/components/ui/empty-state';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Hint } from '@/components/ui/tooltip';
+import {
+  Desktop3dIcon,
+  Drive3dIcon,
+  RecycleBin3dIcon,
+  SelectFolder3dIcon,
+} from '@/components/ui/brand-icons';
 import { toast } from 'sonner';
 
 /**
- * Home / Device Selection — the corpus landing page (atlas §5): page title,
- * device tile grid with capacity bars + health hints + lost-partition
- * badges, the "Specify a location" quick-target row (Recycle Bin / Desktop /
- * Select Folder — all REAL scan entries, GT-landing §4), recent sessions,
- * and the "Search for Lost Data" CTA bottom-right.
- *
- * ADR-008: clicking the CTA (or any scan entry) starts the scan DIRECTLY —
- * the app navigates to the live scan surface with no intermediate
- * configuration step.
+ * Home / Hardware Disk page (reference: landing-baseline_53c354a9.png &
+ * landing-after-activate-close_b5f42dd5.png) — "Select a location to search
+ * for lost data" + circular refresh button, "Internal drives (2)" horizontal
+ * cards with 3D drive icons + Windows OS badge + top-right blue checkmark on
+ * selected card, "Specify a location" (Recycle Bin, Desktop, Select Folder),
+ * and bottom bar with "Unable to find your hard drive? ^" + "Search for Lost Data".
  */
 
 const RECYCLE_BIN_TARGET = 'vol-recycle-bin';
@@ -55,13 +53,17 @@ export function HomePage(): React.JSX.Element {
   const startScan = useStartScan();
   const pickDirectory = usePickDirectory();
   const [selectedId, setSelectedId] = React.useState<string | null>(null);
+  const [helpOpen, setHelpOpen] = React.useState(false);
   const showRemovable = params.has('media');
 
   const devices = devicesQuery.data ?? [];
   const physical = devices.filter((d) => d.kind !== 'virtual');
   const internal = physical.filter((d) => d.kind === 'internal');
   const removable = physical.filter((d) => d.kind !== 'internal');
-  const selected = devices.find((d) => d.id === selectedId) ?? null;
+  const visible = showRemovable ? removable : internal;
+
+  const effectiveSelectedId = selectedId ?? visible[0]?.id ?? null;
+  const selected = devices.find((d) => d.id === effectiveSelectedId) ?? null;
 
   /** Direct start (ADR-008): device selection → scan, no config step. */
   const beginScan = (targetId: string, pathScope?: string): void => {
@@ -80,14 +82,12 @@ export function HomePage(): React.JSX.Element {
   };
 
   const onChooseFolder = (): void => {
-    // "Specify a location" → Select Folder (atlas §5): the native folder
-    // picker runs FIRST, then the scan starts directly on the chosen scope.
     const hintVolume = devices.flatMap((d) => d.volumes)[0];
     pickDirectory.mutate(
       { volumeId: hintVolume?.id ?? null },
       {
         onSuccess: (picked) => {
-          if (!picked) return; // cancelled — stay on Home
+          if (!picked) return;
           beginScan(hintVolume?.id ?? '', picked);
         },
         onError: (err) => toast.error(err.message),
@@ -115,11 +115,11 @@ export function HomePage(): React.JSX.Element {
 
   if (devicesQuery.isLoading) {
     return (
-      <div className="p-6">
+      <div className="p-7">
         <Skeleton className="mb-5 h-7 w-72" />
-        <div className="grid grid-cols-2 gap-4 xl:grid-cols-3">
-          {Array.from({ length: 4 }, (_, i) => (
-            <Skeleton key={i} className="h-40" />
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          {Array.from({ length: 2 }, (_, i) => (
+            <Skeleton key={i} className="h-24" />
           ))}
         </div>
       </div>
@@ -128,7 +128,7 @@ export function HomePage(): React.JSX.Element {
 
   if (devicesQuery.isError) {
     return (
-      <div className="p-6">
+      <div className="p-7">
         <EmptyState
           icon={CircleAlertIcon}
           title={t('errors.title')}
@@ -146,10 +146,9 @@ export function HomePage(): React.JSX.Element {
     );
   }
 
-  const visible = showRemovable ? removable : internal;
   if (physical.length === 0) {
     return (
-      <div className="p-6">
+      <div className="p-7">
         <EmptyState
           icon={HardDriveIcon}
           title={t('home.emptyTitle')}
@@ -171,23 +170,29 @@ export function HomePage(): React.JSX.Element {
   );
 
   return (
-    <div className="flex h-full min-h-0 flex-col overflow-y-auto">
-      <div className="mx-auto w-full max-w-5xl flex-1 p-6">
-        <div className="mb-6 flex items-end justify-between gap-4">
+    <div className="flex h-full min-h-0 flex-col justify-between overflow-y-auto">
+      <div className="mx-auto w-full max-w-5xl flex-1 px-8 pt-6 pb-4">
+        {/* Title + Circular Refresh Button */}
+        <div className="mb-6 flex items-center justify-between gap-4">
           <div>
-            <h1 className="text-xl font-semibold">{t('home.title')}</h1>
-            <p className="mt-1 text-sm text-foreground-secondary">{t('home.subtitle')}</p>
+            <h1
+              aria-label={`${t('home.title')} — Choose where to look for lost data`}
+              className="text-[20px] font-bold tracking-tight text-[#1E293B]"
+            >
+              {t('home.title')}
+            </h1>
+            <p className="sr-only">{t('home.subtitle')}</p>
           </div>
-          <Button
-            variant="ghost"
-            size="sm"
+          <button
+            type="button"
             onClick={() => void refresh.mutate()}
-            loading={refresh.isPending}
             disabled={refresh.isPending}
+            aria-label={t('home.refreshDevices')}
+            title={t('home.refreshDevices')}
+            className="flex size-8 shrink-0 items-center justify-center rounded-full border border-[#E2E8F0] bg-white text-[#64748B] shadow-2xs transition-colors hover:border-[#BFDBFE] hover:bg-[#F8FAFC] hover:text-[#1677FF] focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
           >
-            <RefreshCcwIcon aria-hidden />
-            {t('home.refreshDevices')}
-          </Button>
+            <RefreshCcwIcon className="size-4" aria-hidden />
+          </button>
         </div>
 
         {hasPermissionIssue ? (
@@ -203,7 +208,8 @@ export function HomePage(): React.JSX.Element {
           </div>
         ) : null}
 
-        <h2 className="mb-3 text-sm font-semibold text-foreground-secondary">
+        {/* Internal drives (N) */}
+        <h2 className="mb-3.5 text-[14px] font-bold text-[#1E293B]">
           {showRemovable ? t('home.removableGroup') : t('home.internalGroup')} ({visible.length}
           )
         </h2>
@@ -217,7 +223,7 @@ export function HomePage(): React.JSX.Element {
             <DeviceCard
               key={device.id}
               device={device}
-              selected={selectedId === device.id}
+              selected={effectiveSelectedId === device.id}
               onSelect={() => setSelectedId(device.id)}
               onScan={() => beginScan(device.id)}
               onScanVolume={(volumeId) => beginScan(volumeId)}
@@ -225,24 +231,25 @@ export function HomePage(): React.JSX.Element {
           ))}
         </div>
 
-        <h2 className="mb-3 mt-8 text-sm font-semibold text-foreground-secondary">
+        {/* Specify a location */}
+        <h2 className="mb-3.5 mt-8 text-[14px] font-bold text-[#1E293B]">
           {t('home.quickTargets')}
         </h2>
-        <div className="grid grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
           <QuickTarget
-            icon={Trash2Icon}
+            icon={<RecycleBin3dIcon />}
             label={t('home.recycleBin')}
             onClick={() => beginScan(RECYCLE_BIN_TARGET)}
             loading={startScan.isPending}
           />
           <QuickTarget
-            icon={MonitorSmartphoneIcon}
+            icon={<Desktop3dIcon />}
             label={t('home.desktop')}
             onClick={() => beginScan(DESKTOP_TARGET)}
             loading={startScan.isPending}
           />
           <QuickTarget
-            icon={FolderOpenIcon}
+            icon={<SelectFolder3dIcon />}
             label={t('home.chooseFolder')}
             onClick={onChooseFolder}
             loading={pickDirectory.isPending || startScan.isPending}
@@ -251,20 +258,22 @@ export function HomePage(): React.JSX.Element {
 
         {(sessionsQuery.data?.length ?? 0) > 0 ? (
           <>
-            <h2 className="mb-3 mt-8 text-sm font-semibold text-foreground-secondary">
+            <h2 className="mb-3 mt-7 text-[13px] font-bold text-[#475569]">
               {t('home.recentSessions')}
             </h2>
             <div className="space-y-2">
-              {sessionsQuery.data?.slice(0, 4).map((s) => (
+              {sessionsQuery.data?.slice(0, 3).map((s) => (
                 <button
                   key={s.id}
                   type="button"
                   onClick={() => onResume(s.fileName)}
-                  className="flex w-full items-center justify-between gap-4 rounded-md border border-border bg-surface px-4 py-2.5 text-left transition-colors hover:bg-surface-hover focus-visible:ring-2 focus-visible:ring-ring"
+                  className="flex w-full items-center justify-between gap-4 rounded-[8px] border border-[#E2E8F0] bg-[#F8FAFD] px-4 py-2.5 text-left transition-colors hover:bg-[#F1F5F9] focus-visible:ring-2 focus-visible:ring-ring"
                 >
                   <div className="min-w-0">
-                    <div className="truncate text-sm font-medium">{s.targetLabel}</div>
-                    <div className="text-xs text-foreground-secondary tabular">
+                    <div className="truncate text-[13px] font-medium text-[#1E293B]">
+                      {s.targetLabel}
+                    </div>
+                    <div className="text-[11px] text-[#64748B] tabular">
                       {formatDate(s.savedAt, i18n.language)} ·{' '}
                       {s.filesFound.toLocaleString(i18n.language)} {t('scan.filesFound')}
                     </div>
@@ -279,24 +288,48 @@ export function HomePage(): React.JSX.Element {
         ) : null}
       </div>
 
-      {/* Bottom CTA bar — "Search for Lost Data" (atlas §5: bottom-right) */}
-      <div className="sticky bottom-0 flex items-center justify-end gap-3 border-t border-border bg-surface/90 px-6 py-3 backdrop-blur">
-        <span className="text-sm text-foreground-secondary">
-          {selected
-            ? `${selected.label} · ${formatBytes(selected.capacity.totalBytes, i18n.language)}`
-            : t('common.empty')}
-        </span>
-        <Button
-          variant="primary"
-          size="lg"
+      {/* Bottom Footer Bar — "Unable to find your hard drive? ^" on left, "Search for Lost Data" on right */}
+      <div className="sticky bottom-0 flex items-center justify-between gap-3 bg-white/95 px-8 py-4 backdrop-blur">
+        <div className="relative">
+          <button
+            type="button"
+            onClick={() => setHelpOpen((v) => !v)}
+            className="inline-flex items-center gap-1 text-[13px] text-[#64748B] transition-colors hover:text-[#1677FF] focus-visible:ring-2 focus-visible:ring-ring"
+          >
+            <span>{t('home.unableToFindDrive')}</span>
+            <ChevronUpIcon
+              className={cn('size-3.5 transition-transform', helpOpen && 'rotate-180')}
+              aria-hidden
+            />
+          </button>
+          {helpOpen ? (
+            <div className="absolute bottom-8 left-0 z-20 w-72 rounded-[10px] border border-[#DCE8FF] bg-white p-3.5 shadow-lg">
+              <p className="text-[12px] leading-relaxed text-[#475569]">
+                {t('lostPartition.subtitle')}
+              </p>
+              <button
+                type="button"
+                onClick={() => {
+                  setHelpOpen(false);
+                  void navigate('/lost-partition');
+                }}
+                className="mt-2 text-[12px] font-semibold text-[#1677FF] hover:underline"
+              >
+                {t('sidebar.lostPartition')} →
+              </button>
+            </div>
+          ) : null}
+        </div>
+
+        <button
+          type="button"
           disabled={!selected || startScan.isPending}
-          loading={startScan.isPending}
           onClick={() => selected && beginScan(selected.id)}
           aria-keyshortcuts="Enter"
+          className="inline-flex h-10 min-w-[184px] items-center justify-center rounded-[6px] bg-[#1677FF] px-6 text-[14px] font-semibold text-white shadow-xs transition-colors hover:bg-[#0958D9] focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
         >
-          <SearchIcon aria-hidden />
           {t('home.scanAction')}
-        </Button>
+        </button>
       </div>
     </div>
   );
@@ -316,134 +349,142 @@ function DeviceCard({
   onScanVolume: (volumeId: string) => void;
 }): React.JSX.Element {
   const { t, i18n } = useTranslation();
-  const Icon =
-    device.kind === 'sd' ? MemoryStickIcon : device.kind === 'usb' ? UsbIcon : HardDriveIcon;
-  const healthy = device.status === 'ok' && !device.volumes.some((v) => v.status !== 'ok');
   const locked =
     device.status === 'permission-denied' ||
     device.volumes.some((v) => v.status === 'permission-denied');
   const offline =
     device.status === 'disconnected' || device.volumes.some((v) => v.status === 'disconnected');
   const hasLost = device.volumes.some((v) => v.lostPartition);
+  const isSystemDrive = device.volumes.some((v) => v.letter === 'C');
+
+  const freeBytes = Math.max(0, device.capacity.totalBytes - device.capacity.usedBytes);
+  const usedRatio =
+    device.capacity.totalBytes > 0
+      ? Math.min(
+          100,
+          Math.max(
+            2,
+            Math.round((device.capacity.usedBytes / device.capacity.totalBytes) * 100),
+          ),
+        )
+      : 0;
+
+  // Format label to match reference "Windows(C:)" / "Temporary Storage(D:)"
+  const compactLabel = device.label.replace(/\s+\(([A-Z]:)\)/, '($1)');
+  const showVolumeChips =
+    device.volumes.length > 1 || device.volumes.some((v) => v.status !== 'ok');
 
   return (
     <div
+      onDoubleClick={() => {
+        if (!locked && !offline) onScan();
+      }}
       className={cn(
-        'group flex flex-col gap-3 rounded-lg border-2 bg-surface p-4 shadow-card transition-all duration-150',
-        'hover:shadow-overlay',
-        selected ? 'border-primary' : 'border-transparent hover:border-border-strong',
+        'group relative flex flex-col justify-center rounded-[10px] border bg-[#F8FAFD] px-5 py-4 transition-all duration-150',
+        selected
+          ? 'border-[#1677FF] bg-[#F4F8FF] ring-1 ring-[#1677FF]'
+          : 'border-transparent hover:border-[#CBD5E1] hover:bg-[#F1F5F9]',
         offline && 'opacity-60',
       )}
     >
-      {/* Selectable card body — the ONLY interactive element carrying radio
-          semantics. The actions row below is a sibling, never a descendant
-          (axe nested-interactive: interactive controls must not nest). */}
+      {/* Top-right blue checkmark circle on selected card */}
+      {selected ? (
+        <span
+          className="absolute -right-2 -top-2 z-10 flex size-5 items-center justify-center rounded-full bg-[#1677FF] text-white shadow-xs ring-2 ring-white"
+          aria-hidden
+        >
+          <CheckIcon className="size-3 stroke-[3]" />
+        </span>
+      ) : null}
+
       <button
         type="button"
         role="radio"
         aria-checked={selected}
         onClick={onSelect}
-        className="flex flex-col gap-3 text-left outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        className="flex w-full items-center gap-4 text-left outline-none focus-visible:ring-2 focus-visible:ring-ring"
       >
-        <div className="flex items-start gap-3">
-          <div className="relative">
-            <div
-              className={cn(
-                'flex size-12 items-center justify-center rounded-md',
-                healthy ? 'bg-primary-muted text-primary' : 'bg-warning-muted text-warning',
-              )}
-            >
-              <Icon className="size-6" strokeWidth={1.5} aria-hidden />
-            </div>
-            {selected ? (
-              <span className="absolute -right-1.5 -top-1.5 flex size-5 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-sm">
-                <CircleCheckIcon className="size-3.5" aria-hidden />
-              </span>
+        <Drive3dIcon isSystemDrive={isSystemDrive} />
+
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-2">
+            <span className="truncate text-[14px] font-semibold text-[#1E293B]">
+              {compactLabel}
+            </span>
+            {hasLost ? <Badge variant="primary">{t('home.lostPartitionBadge')}</Badge> : null}
+            {locked ? (
+              <Hint text={t('home.permissionDenied')}>
+                <LockIcon className="size-3.5 text-warning" aria-hidden />
+              </Hint>
+            ) : null}
+            {offline ? (
+              <Hint text={t('home.disconnected')}>
+                <PlugZapIcon className="size-3.5 text-danger" aria-hidden />
+              </Hint>
             ) : null}
           </div>
-          <div className="min-w-0 flex-1">
-            <div className="flex items-center gap-2">
-              <span className="truncate text-base font-semibold">{device.label}</span>
-              {hasLost ? <Badge variant="primary">{t('home.lostPartitionBadge')}</Badge> : null}
-            </div>
-            <div className="truncate text-xs text-foreground-secondary">{device.model}</div>
-          </div>
-          {locked ? (
-            <Hint text={t('home.permissionDenied')}>
-              <LockIcon className="size-4 text-warning" aria-hidden />
-            </Hint>
-          ) : null}
-          {offline ? (
-            <Hint text={t('home.disconnected')}>
-              <PlugZapIcon className="size-4 text-danger" aria-hidden />
-            </Hint>
-          ) : null}
-        </div>
 
-        <CapacityBar
-          usedBytes={device.capacity.usedBytes}
-          totalBytes={device.capacity.totalBytes}
-          label={t('home.capacityUsed', {
-            used: formatBytes(device.capacity.usedBytes, i18n.language),
-            total: formatBytes(device.capacity.totalBytes, i18n.language),
-          })}
-        />
+          {/* Reference capacity bar */}
+          <div
+            className="mt-2 h-[6px] w-full overflow-hidden rounded-full bg-[#DCE6F5]"
+            aria-hidden
+          >
+            <div
+              className="h-full rounded-full bg-[#1677FF] transition-all"
+              style={{ width: `${usedRatio}%` }}
+            />
+          </div>
+
+          <div
+            className="mt-1.5 text-[12px] text-[#64748B] tabular"
+            aria-label={t('home.capacityUsed', {
+              used: formatBytes(device.capacity.usedBytes, i18n.language),
+              total: formatBytes(device.capacity.totalBytes, i18n.language),
+            })}
+          >
+            {formatDriveGb(freeBytes)}/{formatDriveGb(device.capacity.totalBytes)}
+          </div>
+        </div>
       </button>
 
-      <div className="flex items-center justify-between gap-2">
-        <span className="flex items-center gap-1 text-xs font-medium">
-          {healthy ? (
-            <>
-              <CircleCheckIcon className="size-3.5 text-success" aria-hidden />
-              <span className="text-success">{t('home.healthGood')}</span>
-            </>
-          ) : (
-            <>
-              <CircleAlertIcon className="size-3.5 text-warning" aria-hidden />
-              <span className="text-warning">{t('home.healthCaution')}</span>
-            </>
-          )}
-        </span>
-        <span className="flex items-center gap-2">
-          {device.volumes.map((v: Volume) => (
-            <button
-              key={v.id}
-              type="button"
-              onClick={() => onScanVolume(v.id)}
-              disabled={v.status === 'permission-denied' || v.status === 'disconnected'}
-              title={
-                v.status === 'permission-denied'
-                  ? t('home.permissionDenied')
-                  : v.status === 'disconnected'
-                    ? t('home.disconnected')
-                    : undefined
-              }
-              className="rounded-xs px-1.5 py-0.5 text-xs font-medium text-primary hover:bg-primary-muted focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              {v.label}
-            </button>
-          ))}
-          <Button
-            variant="secondary"
-            size="sm"
-            onClick={() => onScan()}
-            disabled={locked || offline}
-          >
-            {t('home.scanAction')}
-          </Button>
-        </span>
-      </div>
+      {showVolumeChips ? (
+        <div className="mt-3 flex items-center justify-between gap-2 border-t border-[#E2E8F0] pt-2">
+          <span className="text-[11px] font-medium text-[#64748B]">
+            {locked || offline ? t('home.healthCaution') : t('home.healthGood')}
+          </span>
+          <span className="flex items-center gap-1.5">
+            {device.volumes.map((v: Volume) => (
+              <button
+                key={v.id}
+                type="button"
+                onClick={() => onScanVolume(v.id)}
+                disabled={v.status === 'permission-denied' || v.status === 'disconnected'}
+                title={
+                  v.status === 'permission-denied'
+                    ? t('home.permissionDenied')
+                    : v.status === 'disconnected'
+                      ? t('home.disconnected')
+                      : undefined
+                }
+                className="rounded-xs px-1.5 py-0.5 text-xs font-medium text-[#1677FF] hover:bg-[#EBF3FF] focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {v.label}
+              </button>
+            ))}
+          </span>
+        </div>
+      ) : null}
     </div>
   );
 }
 
 function QuickTarget({
-  icon: Icon,
+  icon,
   label,
   onClick,
   loading,
 }: {
-  icon: React.ComponentType<{ className?: string; strokeWidth?: number }>;
+  icon: React.ReactNode;
   label: string;
   onClick: () => void;
   loading?: boolean;
@@ -453,10 +494,10 @@ function QuickTarget({
       type="button"
       onClick={onClick}
       disabled={loading}
-      className="flex flex-col items-center gap-2 rounded-lg border border-border bg-surface px-4 py-5 text-sm font-medium shadow-card transition-colors hover:bg-surface-hover focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-60"
+      className="flex items-center gap-3.5 rounded-[10px] border border-transparent bg-[#F8FAFD] px-5 py-4 text-left text-[13.5px] font-medium text-[#1E293B] transition-all hover:border-[#CBD5E1] hover:bg-[#F4F8FF] focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-60"
     >
-      <Icon className="size-7 text-foreground-secondary" strokeWidth={1.5} aria-hidden />
-      {label}
+      {icon}
+      <span className="truncate">{label}</span>
     </button>
   );
 }

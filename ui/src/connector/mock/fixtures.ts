@@ -287,7 +287,9 @@ function sysVolumeFixture(
   fileCount: number,
   directoryCount: number,
 ): DeviceFixture {
-  const cap = capacity(476 * GB, 0.66);
+  const totalBytes = Math.round(149.45 * GB);
+  const freeBytes = Math.round(31.16 * GB);
+  const cap = { totalBytes, usedBytes: totalBytes - freeBytes, freeBytes };
   return {
     device: deviceBase({
       id: 'dev-sys',
@@ -508,18 +510,26 @@ function fixturesForScenario(scenario: MockScenarioId): readonly DeviceFixture[]
             id: 'dev-data',
             kind: 'internal',
             model: 'WD Blue 2TB',
-            label: 'Data (D:)',
+            label: 'Temporary Storage (D:)',
             serial: 'WD-2TB-71042',
-            cap: capacity(2 * TB, 0.58),
+            cap: {
+              totalBytes: 150 * GB,
+              freeBytes: Math.round(146.12 * GB),
+              usedBytes: Math.round((150 - 146.12) * GB),
+            },
           }),
           volumes: [
             mkVolume({
               id: 'vol-data',
               deviceId: 'dev-data',
-              label: 'Data (D:)',
+              label: 'Temporary Storage (D:)',
               letter: 'D',
               fs: 'ntfs',
-              capacity: capacity(2 * TB, 0.58),
+              capacity: {
+                totalBytes: 150 * GB,
+                freeBytes: Math.round(146.12 * GB),
+                usedBytes: Math.round((150 - 146.12) * GB),
+              },
               status: 'ok',
             }),
           ],

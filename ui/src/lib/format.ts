@@ -44,6 +44,14 @@ export function formatBytesCompact(bytes: number, locale: string): string {
   return `${nf.format(v)}${units[i]}`;
 }
 
+/** 2-decimal GB label matching the reference drive cards ("31.16 GB", "149.45 GB", "150 GB"). */
+export function formatDriveGb(bytes: number): string {
+  if (!Number.isFinite(bytes) || bytes < 0) return '—';
+  const gb = bytes / 1024 ** 3;
+  const rounded = Math.round(gb * 100) / 100;
+  return `${Number(rounded.toFixed(2))} GB`;
+}
+
 export function formatDate(
   iso: string | number | Date | null | undefined,
   locale: string,

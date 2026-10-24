@@ -3,20 +3,17 @@ import { NavLink, Outlet, useLocation, useNavigate } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import { getCurrentWindow } from '@tauri-apps/api/window';
 import {
-  AppWindowIcon,
-  CrosshairIcon,
-  FlaskConicalIcon,
-  HardDriveIcon,
   HeartPulseIcon,
   InfoIcon,
+  KeyRoundIcon,
   LanguagesIcon,
+  MenuIcon,
   PaletteIcon,
   PanelLeftCloseIcon,
   PanelLeftOpenIcon,
   RefreshCcwIcon,
   SettingsIcon,
-  UsbIcon,
-  WrenchIcon,
+  ShoppingCartIcon,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useTheme, type ThemeMode } from './theme';
@@ -30,31 +27,80 @@ import {
   DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
 } from '@/components/ui/menus';
 import { AboutDialog } from '@/features/settings-about/about-dialog';
-import { useConnectorMode } from '@/queries/dev';
+import { ActivationDialog } from '@/features/settings-about/activation-dialog';
 import { setLocale, SUPPORTED_LOCALES } from '@/i18n';
 import { WindowControls } from '@/components/ui/window-controls';
+import {
+  BrandBriefcaseLogo,
+  RobotMascotAvatar,
+  SidebarChronoSnapIcon,
+  SidebarFileRepairIcon,
+  SidebarHardwareDiskIcon,
+  SidebarLostPartitionIcon,
+  SidebarMoreToolsIcon,
+  SidebarSdCardIcon,
+} from '@/components/ui/brand-icons';
 import { isTauriRuntime } from '@/lib/runtime';
 
 /**
- * App shell: custom title bar (frameless window), left sidebar with the
- * wizard's information architecture, and the routed content area.
+ * App shell (reference: landing-baseline_53c354a9.png) — #EBF2FF ice-blue
+ * outer window frame, custom title bar with briefcase-plus emblem, robot
+ * mascot helper popover ("Hi! Guess you need:"), orange Buy Now pill, key
+ * activation modal trigger, 3-group left sidebar (Data Recovery, Advanced
+ * Features, File Backup), and white rounded-tl-2xl content card.
  */
 
-const NAV_MAIN = [
-  { to: '/', icon: HardDriveIcon, labelKey: 'sidebar.hardwareDisk', end: true },
-  { to: '/?media=1', icon: UsbIcon, labelKey: 'sidebar.removable', end: false },
-  { to: '/lost-partition', icon: CrosshairIcon, labelKey: 'sidebar.lostPartition', end: false },
+const NAV_DATA_RECOVERY = [
+  {
+    to: '/',
+    icon: SidebarHardwareDiskIcon,
+    labelKey: 'sidebar.hardwareDisk',
+    ariaLabel: 'Hardware Disk (Internal Drives)',
+    end: true,
+  },
+  {
+    to: '/sd-card',
+    icon: SidebarSdCardIcon,
+    labelKey: 'sidebar.sdCard',
+    end: false,
+  },
+  {
+    to: '/tools',
+    icon: SidebarMoreToolsIcon,
+    labelKey: 'sidebar.moreTools',
+    end: false,
+  },
 ] as const;
 
 const NAV_ADVANCED = [
-  { to: '/health', icon: HeartPulseIcon, labelKey: 'sidebar.diskHealth', end: false },
-  { to: '/repair', icon: WrenchIcon, labelKey: 'sidebar.volumeRepair', end: false },
+  {
+    to: '/repair',
+    icon: SidebarFileRepairIcon,
+    labelKey: 'sidebar.fileRepair',
+    end: false,
+  },
+  {
+    to: '/lost-partition',
+    icon: SidebarLostPartitionIcon,
+    labelKey: 'sidebar.lostPartition',
+    end: false,
+  },
 ] as const;
 
-/** Title-bar quick theme menu (corpus: hamburger → Theme submenu; the
- *  adopted palette set from ADR-007 replaces the reference's Light/Dark pair). */
+const NAV_BACKUP = [
+  {
+    to: '/backup',
+    icon: SidebarChronoSnapIcon,
+    labelKey: 'sidebar.chronoSnap',
+    end: false,
+  },
+] as const;
+
 const THEME_MENU_ITEMS: readonly { mode: ThemeMode; labelKey: string }[] = [
   { mode: 'system', labelKey: 'settings.themeSystem' },
   { mode: 'light', labelKey: 'settings.themeLight' },
@@ -68,19 +114,16 @@ const THEME_MENU_ITEMS: readonly { mode: ThemeMode; labelKey: string }[] = [
 export function WizardShell(): React.JSX.Element {
   const { t } = useTranslation();
   const { mode, setMode } = useTheme();
-  const connectorModeValue = useConnectorMode();
   const active = useScanSessionStore((s) => s.active);
   const navigate = useNavigate();
   const location = useLocation();
   const [aboutOpen, setAboutOpen] = React.useState(false);
+  const [activationOpen, setActivationOpen] = React.useState(false);
+  const [helperOpen, setHelperOpen] = React.useState(false);
   const sidebarCollapsed = useUiStore((s) => s.sidebarCollapsed);
   const toggleSidebar = useUiStore((s) => s.toggleSidebar);
   const mainRef = React.useRef<HTMLElement | null>(null);
 
-  // SPA focus choreography (mandate §4.17): after a route change, focus
-  // lands on the new surface (main landmark) — keyboard users Tab from the
-  // top of the new content and screen readers get the context switch.
-  // preventScroll keeps the viewport untouched (zero jump).
   React.useEffect(() => {
     mainRef.current?.focus({ preventScroll: true });
   }, [location.pathname]);
@@ -90,9 +133,6 @@ export function WizardShell(): React.JSX.Element {
 
   const inResultsFlow = inExplorerFlow || location.pathname.startsWith('/recover');
 
-  /** Windows convention on custom chrome: double-click the title-bar drag
-   *  region to toggle maximize/restore (corpus: frameless Qt shell; the OS
-   *  provides snap/Aero for drag). Ignored over interactive children. */
   const onTitleBarDoubleClick = (e: React.MouseEvent<HTMLElement>): void => {
     if (!isTauriRuntime()) return;
     if ((e.target as HTMLElement).closest('button, a, input, [role="menu"]')) return;
@@ -100,52 +140,127 @@ export function WizardShell(): React.JSX.Element {
   };
 
   return (
-    <div className="flex h-full min-h-0 flex-col bg-background text-foreground">
-      {/* Title bar */}
+    <div className="flex h-full min-h-0 flex-col bg-[#EBF2FF] text-foreground dark:bg-background">
+      {/* Top Window Chrome */}
       <header
-        className="flex shrink-0 items-center justify-between border-b border-[#D8E5FA] bg-[#EBF2FF] px-3 select-none dark:border-border dark:bg-surface"
+        className={cn(
+          'flex shrink-0 items-center justify-between bg-[#EBF2FF] px-3.5 select-none dark:border-border dark:bg-surface',
+          inExplorerFlow && 'border-b border-[#D8E5FA]',
+        )}
         style={{ height: 'var(--titlebar-height)' }}
         data-tauri-drag-region
         onDoubleClick={onTitleBarDoubleClick}
       >
         <div className="flex items-center gap-2">
-          <span
-            className="inline-flex size-5 items-center justify-center rounded-sm bg-[#1677FF] text-white shadow-2xs"
-            aria-hidden
-          >
-            <AppWindowIcon className="size-3.5" />
-          </span>
-          <span className="text-xs font-semibold tracking-tight">{t('app.name')}</span>
-          <span className="rounded-sm border border-primary-muted-border bg-primary-muted px-1.5 text-2xs font-semibold text-primary uppercase">
-            {connectorModeValue === 'mock'
-              ? t('settings.connectorMock')
-              : connectorModeValue === 'tauri'
-                ? t('settings.connectorTauri')
-                : '…'}
+          <BrandBriefcaseLogo className="size-5" />
+          <span className="text-[12.5px] font-semibold tracking-tight text-[#1E293B] dark:text-foreground">
+            {t('app.name')}
           </span>
         </div>
-        <div className="flex items-center gap-1">
-          {import.meta.env.DEV ? (
-            <Button
-              variant="ghost"
-              size="icon"
-              aria-label={t('devPanel.openPanel')}
-              className="size-7"
-              onClick={() => useUiStore.getState().toggleDevPanel()}
-              data-testid="dev-panel-toggle"
+
+        <div className="flex items-center gap-1.5">
+          {/* Robot Mascot Helper Popover ("Hi! Guess you need:") */}
+          <Popover open={helperOpen} onOpenChange={setHelperOpen}>
+            <PopoverTrigger asChild>
+              <button
+                type="button"
+                aria-label={t('guide.trigger')}
+                title={t('guide.trigger')}
+                data-testid="header-mascot-trigger"
+                className="flex size-7 items-center justify-center rounded-full transition-transform hover:scale-105 focus-visible:ring-2 focus-visible:ring-ring"
+              >
+                <RobotMascotAvatar className="size-6" />
+              </button>
+            </PopoverTrigger>
+            <PopoverContent
+              align="end"
+              className="w-64 rounded-[12px] border border-[#DCE8FF] bg-white p-4 shadow-xl"
             >
-              <FlaskConicalIcon aria-hidden />
-            </Button>
-          ) : null}
+              <div className="flex items-center gap-2.5 pb-2.5">
+                <RobotMascotAvatar className="size-8" />
+                <p className="text-[13px] font-bold text-[#1E293B]">{t('guide.panelTitle')}</p>
+              </div>
+              <div className="space-y-1.5 border-t border-[#F1F5F9] pt-2.5">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setHelperOpen(false);
+                    void navigate('/lost-partition');
+                  }}
+                  className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-[12.5px] text-[#334155] transition-colors hover:bg-[#F1F5F9] hover:text-[#1677FF]"
+                >
+                  <span className="size-1.5 shrink-0 rounded-full bg-[#1677FF]" aria-hidden />
+                  <span>{t('guide.missing')}</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setHelperOpen(false);
+                    void navigate('/repair');
+                  }}
+                  className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-[12.5px] text-[#334155] transition-colors hover:bg-[#F1F5F9] hover:text-[#1677FF]"
+                >
+                  <span className="size-1.5 shrink-0 rounded-full bg-[#1677FF]" aria-hidden />
+                  <span>{t('guide.damaged')}</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setHelperOpen(false);
+                    void navigate('/');
+                  }}
+                  className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-[12.5px] text-[#334155] transition-colors hover:bg-[#F1F5F9] hover:text-[#1677FF]"
+                >
+                  <span className="size-1.5 shrink-0 rounded-full bg-[#1677FF]" aria-hidden />
+                  <span>{t('guide.deleted')}</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setHelperOpen(false);
+                    setAboutOpen(true);
+                  }}
+                  className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-[12.5px] text-[#334155] transition-colors hover:bg-[#F1F5F9] hover:text-[#1677FF]"
+                >
+                  <span className="size-1.5 shrink-0 rounded-full bg-[#1677FF]" aria-hidden />
+                  <span>{t('guide.chat')}</span>
+                </button>
+              </div>
+            </PopoverContent>
+          </Popover>
+
+          {/* Orange Buy Now Pill / Cart Button */}
+          <button
+            type="button"
+            onClick={() => setActivationOpen(true)}
+            className="inline-flex h-6 items-center gap-1 rounded-full bg-gradient-to-r from-[#FF7A2F] to-[#FF4D00] px-2.5 text-[11px] font-semibold text-white shadow-2xs transition-all hover:brightness-105 focus-visible:ring-2 focus-visible:ring-ring"
+          >
+            <ShoppingCartIcon className="size-3" aria-hidden />
+            <span>{t('activation.buyPill')}</span>
+          </button>
+
+          {/* Key Icon — Opens Activate EaseUS Data Recovery Wizard Modal */}
+          <Button
+            variant="ghost"
+            size="icon"
+            aria-label={t('activation.open')}
+            title={t('activation.open')}
+            data-testid="header-activate-trigger"
+            className="size-7 text-[#475569] hover:bg-[#DCE8FF]"
+            onClick={() => setActivationOpen(true)}
+          >
+            <KeyRoundIcon className="size-3.5" aria-hidden />
+          </Button>
+
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button
                 variant="ghost"
                 size="icon"
                 aria-label={t('settings.language')}
-                className="size-7"
+                className="size-7 text-[#475569] hover:bg-[#DCE8FF]"
               >
-                <LanguagesIcon aria-hidden />
+                <LanguagesIcon className="size-3.5" aria-hidden />
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
@@ -156,15 +271,16 @@ export function WizardShell(): React.JSX.Element {
               ))}
             </DropdownMenuContent>
           </DropdownMenu>
+
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button
                 variant="ghost"
                 size="icon"
                 aria-label={t('settings.theme')}
-                className="size-7"
+                className="size-7 text-[#475569] hover:bg-[#DCE8FF]"
               >
-                <PaletteIcon aria-hidden />
+                <PaletteIcon className="size-3.5" aria-hidden />
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
@@ -181,71 +297,89 @@ export function WizardShell(): React.JSX.Element {
               ))}
             </DropdownMenuContent>
           </DropdownMenu>
+
           <Button
             variant="ghost"
             size="icon"
             aria-label={t('nav.settings')}
-            className="size-7"
+            className="size-7 text-[#475569] hover:bg-[#DCE8FF]"
             onClick={() => navigate('/settings')}
           >
-            <SettingsIcon aria-hidden />
+            <SettingsIcon className="size-3.5" aria-hidden />
           </Button>
+
           <Button
             variant="ghost"
             size="icon"
             aria-label={t('nav.about')}
-            className="size-7"
+            className="size-7 text-[#475569] hover:bg-[#DCE8FF]"
             onClick={() => setAboutOpen(true)}
           >
-            <InfoIcon aria-hidden />
+            <InfoIcon className="size-3.5" aria-hidden />
           </Button>
+
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon"
+                aria-label={t('menu.label')}
+                className="size-7 text-[#475569] hover:bg-[#DCE8FF]"
+              >
+                <MenuIcon className="size-3.5" aria-hidden />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={() => setActivationOpen(true)}>
+                {t('activation.open')}
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => navigate('/health')}>
+                {t('sidebar.diskHealth')}
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => navigate('/settings')}>
+                {t('nav.settings')}
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={() => setAboutOpen(true)}>
+                {t('nav.about')}
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+
           <WindowControls />
         </div>
       </header>
 
       <div className="flex min-h-0 flex-1">
-        {/* Sidebar — shown on Home / Advanced / Recovery pages; hidden in the
-            3-pane Scan & Results Explorer where the Path/Type tree occupies
-            the left rail directly (matching reference screenshots). */}
+        {/* Left Sidebar — matches reference 3-section layout on Home/Sidebar pages */}
         {!inExplorerFlow ? (
           <nav
             id="sidebar-nav"
             aria-label={t('a11y.sidebarRegion')}
             style={{ width: sidebarCollapsed ? 52 : undefined }}
             className={cn(
-              'flex shrink-0 flex-col overflow-x-hidden overflow-y-auto border-r border-border bg-surface-muted/60 py-2',
+              'flex shrink-0 flex-col overflow-x-hidden overflow-y-auto bg-[#EBF2FF] py-2 select-none dark:border-r dark:border-border dark:bg-surface-muted/60',
               !sidebarCollapsed && 'w-[var(--sidebar-width)]',
               'sidebar-width-transition',
             )}
           >
-            <div className="mb-1 flex items-center justify-end px-2">
-              <button
-                type="button"
-                onClick={toggleSidebar}
-                aria-expanded={!sidebarCollapsed}
-                aria-controls="sidebar-nav"
-                aria-label={sidebarCollapsed ? t('sidebar.expand') : t('sidebar.collapse')}
-                data-testid="sidebar-toggle"
-                className="flex size-8 items-center justify-center rounded-sm text-foreground-secondary outline-none transition-colors hover:bg-surface-hover hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
-              >
-                {sidebarCollapsed ? (
-                  <PanelLeftOpenIcon className="size-4" aria-hidden />
-                ) : (
-                  <PanelLeftCloseIcon className="size-4" aria-hidden />
-                )}
-              </button>
-            </div>
             {!inResultsFlow ? (
               <>
                 <SidebarSection
                   label={t('sidebar.dataRecovery')}
                   collapsed={sidebarCollapsed}
                 />
-                {NAV_MAIN.map((item) => (
+                {NAV_DATA_RECOVERY.map((item) => (
                   <SidebarLink key={item.to} {...item} collapsed={sidebarCollapsed} />
                 ))}
+
                 <SidebarSection label={t('sidebar.advanced')} collapsed={sidebarCollapsed} />
                 {NAV_ADVANCED.map((item) => (
+                  <SidebarLink key={item.to} {...item} collapsed={sidebarCollapsed} />
+                ))}
+
+                <SidebarSection label={t('sidebar.fileBackup')} collapsed={sidebarCollapsed} />
+                {NAV_BACKUP.map((item) => (
                   <SidebarLink key={item.to} {...item} collapsed={sidebarCollapsed} />
                 ))}
               </>
@@ -257,7 +391,7 @@ export function WizardShell(): React.JSX.Element {
                 />
                 <SidebarLink
                   to="/"
-                  icon={HardDriveIcon}
+                  icon={SidebarHardwareDiskIcon}
                   labelKey="nav.backToDevices"
                   end
                   collapsed={sidebarCollapsed}
@@ -267,12 +401,10 @@ export function WizardShell(): React.JSX.Element {
                     type="button"
                     onClick={() => navigate(`/scan/${active.targetId}/live`)}
                     title={t('home.scanningHint')}
-                    className={cn(
-                      'mx-2 flex h-8 items-center gap-2.5 rounded-sm px-2.5 text-sm text-primary hover:bg-surface-hover',
-                    )}
+                    className="mx-2 flex h-9 items-center gap-2.5 rounded-[8px] px-3 text-[13px] text-[#1677FF] hover:bg-[#DCE8FF]"
                   >
                     <span
-                      className="inline-block size-1.5 shrink-0 rounded-full bg-current animate-status-pulse"
+                      className="inline-block size-1.5 shrink-0 animate-status-pulse rounded-full bg-current"
                       aria-hidden
                     />
                     <RefreshCcwIcon className="size-4 shrink-0" aria-hidden />
@@ -288,28 +420,49 @@ export function WizardShell(): React.JSX.Element {
                 ) : null}
               </>
             )}
-            <div className="mt-auto space-y-0.5">
-              <SidebarLink
-                to="/settings"
-                icon={SettingsIcon}
-                labelKey="nav.settings"
-                end
-                collapsed={sidebarCollapsed}
-              />
+
+            <div className="mt-auto space-y-0.5 pt-2">
+              <div className="sr-only focus-within:not-sr-only">
+                <SidebarLink
+                  to="/health"
+                  icon={HeartPulseIcon}
+                  labelKey="sidebar.diskHealth"
+                  end
+                  collapsed={sidebarCollapsed}
+                />
+              </div>
+              <div className="flex items-center justify-end px-2 pt-1">
+                <button
+                  type="button"
+                  onClick={toggleSidebar}
+                  aria-expanded={!sidebarCollapsed}
+                  aria-controls="sidebar-nav"
+                  aria-label={sidebarCollapsed ? t('sidebar.expand') : t('sidebar.collapse')}
+                  data-testid="sidebar-toggle"
+                  className="flex size-7 items-center justify-center rounded-md text-[#64748B] outline-none transition-colors hover:bg-[#DCE8FF] hover:text-[#1E293B] focus-visible:ring-2 focus-visible:ring-ring"
+                >
+                  {sidebarCollapsed ? (
+                    <PanelLeftOpenIcon className="size-3.5" aria-hidden />
+                  ) : (
+                    <PanelLeftCloseIcon className="size-3.5" aria-hidden />
+                  )}
+                </button>
+              </div>
             </div>
           </nav>
         ) : null}
 
-        {/* Content — route change fades the incoming surface in at
-            --dur-fast (MOTION-SPEC §3.4; corpus QStackedWidget swaps
-            instantly — the fade is the documented premium refinement).
-            Keyed by pathname: same-path query changes never remount. */}
+        {/* Main Content Surface — rounded-tl-2xl white card inside #EBF2FF frame on sidebar pages */}
         <main
           ref={mainRef}
           id="main-content"
           tabIndex={-1}
           aria-label={t('a11y.mainRegion')}
-          className="min-h-0 min-w-0 flex-1 overflow-hidden outline-none"
+          className={cn(
+            'min-h-0 min-w-0 flex-1 overflow-hidden bg-white outline-none dark:bg-background',
+            !inExplorerFlow &&
+              'rounded-tl-[16px] shadow-[-2px_-2px_12px_rgba(22,119,255,0.04)]',
+          )}
         >
           <div key={location.pathname} className="h-full route-fade">
             <Outlet />
@@ -317,9 +470,9 @@ export function WizardShell(): React.JSX.Element {
         </main>
       </div>
 
-      {/* Dev-only surfaces: lazy-gated so production builds never include them */}
       {import.meta.env.DEV ? <DevSurfaces /> : null}
       <AboutDialog open={aboutOpen} onOpenChange={setAboutOpen} />
+      <ActivationDialog open={activationOpen} onOpenChange={setActivationOpen} />
     </div>
   );
 }
@@ -343,7 +496,7 @@ function SidebarSection({
   return (
     <div
       className={cn(
-        'px-4 pb-1 pt-4 text-2xs font-semibold uppercase tracking-wide text-foreground-secondary',
+        'px-4 pt-3.5 pb-1 text-[11px] font-medium text-[#7A8BA8]',
         'sidebar-label-fade',
         collapsed && 'opacity-0',
       )}
@@ -357,12 +510,14 @@ function SidebarLink({
   to,
   icon: Icon,
   labelKey,
+  ariaLabel,
   end,
   collapsed,
 }: {
   to: string;
   icon: React.ComponentType<{ className?: string }>;
   labelKey: string;
+  ariaLabel?: string;
   end?: boolean;
   collapsed: boolean;
 }): React.JSX.Element {
@@ -371,22 +526,23 @@ function SidebarLink({
     <NavLink
       to={to}
       end={end}
+      aria-label={ariaLabel}
       title={collapsed ? t(labelKey) : undefined}
       className={({ isActive }) =>
         cn(
-          'mx-2 flex h-8 items-center gap-2.5 rounded-sm px-2.5 text-sm outline-none transition-colors',
+          'relative mx-2 flex h-9 items-center gap-2 rounded-[8px] px-2.5 text-[12.5px] tracking-[-0.01em] outline-none transition-colors',
           'focus-visible:ring-2 focus-visible:ring-ring',
           isActive
-            ? 'bg-primary-muted font-medium text-primary'
-            : 'text-foreground-secondary hover:bg-surface-hover hover:text-foreground',
+            ? 'bg-[#DCE8FF] font-semibold text-[#1E293B] before:absolute before:top-2 before:bottom-2 before:left-0 before:w-[3.5px] before:rounded-full before:bg-[#1677FF] dark:bg-primary-muted dark:text-primary'
+            : 'font-medium text-[#334155] hover:bg-[#E1ECFF] hover:text-[#1E293B] dark:text-foreground-secondary',
         )
       }
     >
-      <Icon className="size-4 shrink-0" aria-hidden />
+      <Icon className="size-[18px] shrink-0" aria-hidden />
       <span
         className={cn(
           'sidebar-label-fade truncate',
-          collapsed && 'opacity-0 pointer-events-none',
+          collapsed && 'pointer-events-none opacity-0',
         )}
       >
         {t(labelKey)}
