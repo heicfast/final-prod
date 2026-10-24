@@ -36,7 +36,7 @@ function treeLabel(node: TreeNode, t: (k: string) => string): string {
   if (node.special === 'lost-path') return t('results.tree.lostPaths');
   if (node.special === 'raw-found') return t('results.tree.rawFound');
   if (node.id === 'root') return t('results.tree.existingFiles');
-  if (node.icon === 'category') return t(`scanConfig.categories.${node.label}`);
+  if (node.icon === 'category') return t(`categories.${node.label}`);
   if (node.icon === 'group' && node.label === 'raw') return t('results.tree.rawFound');
   return node.label;
 }

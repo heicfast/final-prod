@@ -98,11 +98,12 @@ export const en = {
   },
   scan: {
     filesFoundWithSize: 'Files found: {{count}} ({{size}})',
+    // Corpus status lines (artifact 08 §7): "Quick Scanning%1" / "Advanced Scanning , …"
+    quickScanning: 'Quick scanning {{percent}}',
+    advancedScanning: 'Advanced scanning {{percent}}',
     completedStatus: 'Search complete',
     readingSector: 'Reading sector: {{current}}/{{total}}',
     usedTime: 'Time used: {{time}}',
-    quickScanning: 'Quick scanning {{percent}}',
-    advancedScanning: 'Advanced searching {{percent}}',
     completedVerdict: 'Great news: your files are highly recoverable.',
     goToRecover: 'Go to Recover',
     filesFound: 'Files found',
