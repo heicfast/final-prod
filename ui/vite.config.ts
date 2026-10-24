@@ -42,7 +42,7 @@ export default defineConfig({
   },
   build: {
     target: "chrome110",
-    minify: "esbuild",
+    minify: true,
     sourcemap: false,
     rollupOptions: {
       output: {
