@@ -25,7 +25,7 @@ export function formatBytes(
     i++;
   }
   const nf = new Intl.NumberFormat(locale, {
-    maximumFractionDigits: v >= 100 || i === 0 ? 0 : 1,
+    maximumFractionDigits: i === 0 ? 0 : 1,
   });
   return `${nf.format(v)} ${units[i]}`;
 }

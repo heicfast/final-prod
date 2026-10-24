@@ -419,3 +419,11 @@ in the 2,402 tr sites / 195 telemetry events / 722 connect edges / QSS.
   with real stats, results 3-pane, select-all 340000, recover-all running
   65311/340000 at 20% then completing with report. VLM critique of results
   screen: clean 3-pane, aligned columns, no defects.
+
+### Follow-up verification fixes
+
+- Added an inline original SVG favicon so the production preview does not
+  request a missing `/favicon.ico` and fail the console-error smoke gate.
+- Corrected `formatBytes` to retain one fractional digit for all non-byte
+  units. The corpus-parity formatter test now renders a 149.45 GiB volume as
+  `149.5 GB`, rather than silently truncating it to `149 GB`.
