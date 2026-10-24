@@ -169,11 +169,14 @@ foreach ($tile in $tiles) {
     Start-Sleep -Seconds 6
     Stop-OgApp
     $app = Start-OgApp -WorkDir $CorpusDir
-    if (-not (Wait-OgLanding -TimeoutSec 180 -ShotDir $shotDir)) {
+    # no ShotDir: Wait-OgLanding's internal '01_landing' shot would overwrite
+    # the ORIGINAL landing evidence; the restart landing gets its own name
+    if (-not (Wait-OgLanding -TimeoutSec 180)) {
         Get-OgWindowCensus | Set-Content -Path (Join-Path $OutDir 'window-census-fail.txt') -Encoding utf8
         Get-OgLogs -CorpusDir $CorpusDir -OutDir $OutDir | Out-Null
         throw "og landing never appeared after wrong-tile restart (attempt $selIdx) - diagnostic artifacts retained"
     }
+    New-OgShot ("03_restart_landing_{0:d2}" -f $selIdx) $shotDir | Out-Null
     Invoke-OgGateDismiss
 }
 if (-not $selected -and $TargetMode -eq 'disk') {
