@@ -1,0 +1,17 @@
+{
+  "_comment": "Evidence-based root-cause register for BELOW/odd findings. Keys are scenario names as they appear in metrics. compare.py merges these into the BELOW register of docs/COMPARATIVE-BENCHMARK.md. Every entry cites the run + artifact that produced it. Updated by bench forensics; never fabricated.",
+  "delete_partition": {
+    "root_cause": "lost::discover returns ONE candidate when TWO NTFS partitions were deleted: the deep tree carries only 'Candidate @ 32768' (668 rows = partition A; 0 rows for partition B / BENCH2). The og found BOTH partitions in the same state (rsf roots 'BENCH (NTFS)' 1213 rows + 'BENCH2 (NTFS)' 1183 rows). The raw-recall tie (ours 43.0% vs og 42.7%) is deceptive: ours is DISCOVERY-limited, og is CAP-limited (og Give-Up at 520.29 MB of 512 MiB quota while recovering partition A; B never attempted - the attempted-set normalization exposes it). Suspect: candidate A's extent covers partition B's boot-sector window (nested same-fs dedup) or the B-window probe is rejected by overlap scoring vs the live (empty) table.",
+    "fix_plan": "Engine session: unit fixture with two deleted NTFS partitions at unequal offsets; debug lost::discover candidate enumeration + dedup/overlap scoring; the og's SearchDLL finds both (corpus reference).",
+    "evidence": "run 40073093997: bench-ours-ntfs-delete_partition tree-deep.csv/tree-deep.json (Candidate @ 32768 only); bench-og-ntfs-delete_partition og-found.csv (BENCH + BENCH2 roots); og 30_cap_gate_candidate.png (VLM: 597 files / 520.29 MB / 27.0% completed)"
+  },
+  "permanent_delete": {
+    "ours_precision_note": "MetadataOnly 'Lost' copies (remnant/orphan reconstruction, no extents) are enqueued by recover-all and committed as zero-filled files (991 'salvaged' in run 40073093997) - they count as false positives against the manifest. The writer's Skip-policy zero-fill is designed for PARTIAL spans of real files; whole no-extent items produce full-size zero files.",
+    "fix_plan": "Engine session: decide the product behavior for MetadataOnly items (skip with 'nothing to recover' outcome vs current zero-fill commit); the og does not emit content for metadata-only entries.",
+    "evidence": "run 40073093997: report-deepcarve.json outcomes {done 758, salvaged 991, error 599}; tree-deepcarve.json Lost Files/t000.jpg rows origin=2 deleted=3 confidence=4 (MetadataOnly), extents null"
+  },
+  "quick_format": {
+    "caveat": "The 0/592 recall in run 40073093997 was measured BEFORE the unaligned-read transport fix (d763cdb): all carved-file reads with non-sector-multiple sizes failed and were zero-filled. Re-measure before treating this row as an engine-level BELOW; the og's 51.5% (305/592 via carving after quick format) is the real comparison target.",
+    "evidence": "run 40073093997 bench-ours-ntfs-quick_format report-quick.json (all salvaged/error)"
+  }
+}

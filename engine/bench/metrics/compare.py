@@ -23,6 +23,17 @@ import sys
 
 TOL = 0.02  # 2% absolute tolerance for MATCH on ratio metrics
 
+# Evidence-based root-cause register (bench/root-causes.json) - forensics
+# output, cited by run+artifact; merged into the BELOW register. Absent
+# entries fall back to honest TODO placeholders.
+ROOT_CAUSES = {}
+try:
+    _rcp = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'root-causes.json')
+    with open(_rcp, 'r', encoding='utf-8-sig') as _f:
+        ROOT_CAUSES = json.load(_f)
+except Exception:
+    pass
+
 
 def load_json(path):
     if not path or not os.path.exists(path):
@@ -224,11 +235,15 @@ def main():
                       f"{fmt(om.get('precision'))} vs {fmt(gm.get('precision'))} | "
                       f"{fmt(om.get('f1'))} vs {fmt(gm.get('f1'))} | - | - | - | **{v}** |")
             if v == 'BELOW':
+                rc = ROOT_CAUSES.get(scen) or {}
                 below_findings.append({
                     'scenario': scen, 'metric': 'recall',
                     'ours': om.get('recall'), 'og': og_recall,
-                    'root_cause_hypothesis': 'TODO - engine-level investigation next session',
-                    'fix_plan': 'register in docs/CORE-GAP-LIST.md and fix in a follow-up session',
+                    'root_cause_hypothesis': rc.get('root_cause',
+                        'TODO - engine-level investigation next session'),
+                    'fix_plan': rc.get('fix_plan',
+                        'register in docs/CORE-GAP-LIST.md and fix in a follow-up session'),
+                    'evidence': rc.get('evidence', ''),
                 })
         summary['scenarios'][scen] = entry
 
@@ -339,9 +354,27 @@ def main():
         for b in below_findings:
             md.append(f"- `{b['scenario']}` recall: ours {fmt(b['ours'])} vs og {fmt(b['og'])} - "
                       f"root cause: {b['root_cause_hypothesis']} - plan: {b['fix_plan']}")
+            if b.get('evidence'):
+                md.append(f"  - evidence: {b['evidence']}")
     else:
         md.append('_No BELOW findings in this run._')
     summary['below_findings'] = below_findings
+
+    # ---- forensic notes (root-causes entries for scenarios present here, even when not BELOW) ----
+    md.append('')
+    md.append('## Forensic notes (carried from bench/root-causes.json)')
+    md.append('')
+    notes_shown = 0
+    for scen in scenarios:
+        rc = ROOT_CAUSES.get(scen) or {}
+        for note_key in ('root_cause', 'ours_precision_note', 'caveat'):
+            if rc.get(note_key):
+                md.append(f"- `{scen}` ({note_key}): {rc[note_key]}")
+                if rc.get('evidence') and note_key != 'root_cause':
+                    md.append(f"  - evidence: {rc['evidence']}")
+                notes_shown += 1
+    if not notes_shown:
+        md.append('_None._')
 
     # ---- NOT-COMPARABLE register ----
     md.append('')
