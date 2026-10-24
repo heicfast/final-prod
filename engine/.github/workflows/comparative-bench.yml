@@ -298,13 +298,25 @@ jobs:
             & "$PWD\bench\seed\generate_seed.ps1" -Root "$($vol.letter)\seed" `
                 -ManifestOut "$scenDir\seed-manifest.jsonl" -CsvOut "$scenDir\manifest.csv" `
                 -Profile $env:PROFILE -FileSystem $fs
-            if ($LASTEXITCODE -ne 0) { throw "seed failed" }
+            # BENCH-F4a: a .ps1 invoked with & does NOT set $LASTEXITCODE -
+            # with no native command in the step it stays $null and
+            # ($null -ne 0) is $true -> every non-NTFS seed false-failed
+            # (fsutil sparse runs on NTFS only; run 40076073289: 'seeded
+            # 10209 files' printed, then 'seed failed' thrown). Success =
+            # the manifest exists and carries entries.
+            if (-not (Test-Path "$scenDir\seed-manifest.jsonl") -or
+                @((Get-Content "$scenDir\seed-manifest.jsonl")).Count -lt 10) {
+                throw "seed failed - manifest absent or suspiciously small"
+            }
             $manifest = "$scenDir\seed-manifest.jsonl"
             if ($second) {
               & "$PWD\bench\seed\generate_seed.ps1" -Root "$($vol.letters[1])\seed" `
                   -ManifestOut "$scenDir\seed-manifest-b.jsonl" -CsvOut "$scenDir\manifest-b.csv" `
                   -Profile $env:PROFILE -FileSystem $fs -DeletableTag 'seedb'
-              if ($LASTEXITCODE -ne 0) { throw "seed-B failed" }
+              if (-not (Test-Path "$scenDir\seed-manifest-b.jsonl") -or
+                  @((Get-Content "$scenDir\seed-manifest-b.jsonl")).Count -lt 10) {
+                  throw "seed-B failed - manifest absent or suspiciously small"
+              }
               $merged = @(Get-Content $manifest) + @(Get-Content "$scenDir\seed-manifest-b.jsonl" | Select-Object -Skip 1)
               $merged | Set-Content -Path "$scenDir\seed-manifest-merged.jsonl" -Encoding utf8
               $manifest = "$scenDir\seed-manifest-merged.jsonl"
@@ -314,14 +326,18 @@ jobs:
                 -Root "$($vol.letter)\seed" -ManifestJsonl $manifest -OutDir $resDir `
                 -VolumeBytes $vol.volume_bytes -KeepRoot "$($vol.letter)\keep" -FileSystem $fs `
                 -VolumeLabel 'BENCH' -DiskNumber $vol.disk -PartitionNumber $vol.partitions
-            if ($LASTEXITCODE -ne 0) { throw "apply-scenario failed" }
+            if (-not (Test-Path "$resDir\scenario-state.json")) {
+                throw "apply-scenario failed - scenario-state.json absent"
+            }
 
             $scanTarget = '${{ needs.prepare.outputs.scan_target }}'
             & "$PWD\bench\ours\run-ours.ps1" -RrecovExe $rrecov -Letter $vol.letter.TrimEnd(':') `
                 -DiskNumber $vol.disk -ManifestJsonl $manifest -OutDir $resDir `
                 -Scenario $scen -ScanModes quick, deep, deepcarve -CoreSha $coreSha -DriverInfo $drv `
                 -TargetMode $scanTarget
-            if ($LASTEXITCODE -ne 0) { throw "run-ours failed" }
+            if (-not (Test-Path "$resDir\ours-run.json")) {
+                throw "run-ours failed - ours-run.json absent"
+            }
 
             foreach ($mode in @('quick', 'deep', 'deepcarve')) {
               $rdest = Join-Path $resDir "recovered-$mode"
@@ -414,16 +430,16 @@ jobs:
           & "$PWD\bench\seed\generate_seed.ps1" -Root "$($vol.letter)\seed" `
               -ManifestOut "$scenDir\seed-manifest.jsonl" -CsvOut "$scenDir\manifest.csv" `
               -Profile smoke -FileSystem NTFS
-          if ($LASTEXITCODE -ne 0) { throw 'seed failed' }
+          if (-not (Test-Path "$scenDir\seed-manifest.jsonl")) { throw 'seed failed - manifest absent' }
           & "$PWD\bench\scenarios\apply-scenario.ps1" -Mode permanent_delete -Letter $vol.letter.TrimEnd(':') `
               -Root "$($vol.letter)\seed" -ManifestJsonl "$scenDir\seed-manifest.jsonl" `
               -OutDir behavior-results -VolumeBytes $vol.volume_bytes `
               -KeepRoot "$($vol.letter)\keep" -FileSystem NTFS
-          if ($LASTEXITCODE -ne 0) { throw 'behavior scenario setup failed' }
+          if (-not (Test-Path 'behavior-results\scenario-state.json')) { throw 'behavior scenario setup failed - scenario-state.json absent' }
           & "$PWD\bench\ours\run-behavior.ps1" -RrecovExe "$PWD\build\win-x64-release\src\app\Release\rrecov.exe" `
               -WorkDir "$PWD\behavior-results" -DiskNumber $vol.disk -Letter $vol.letter.TrimEnd(':') `
               -ManifestJsonl "$scenDir\seed-manifest.jsonl"
-          if ($LASTEXITCODE -ne 0) { throw 'behavior probes failed' }
+          if (-not (Test-Path 'behavior-results\behavior.json')) { throw 'behavior probes failed - behavior.json absent' }
           Remove-BenchVolume -VhdPath "$scenDir\vol.vhdx"
 
       - name: Upload behavior artifacts
@@ -497,13 +513,25 @@ jobs:
             & "$PWD\bench\seed\generate_seed.ps1" -Root "$($vol.letter)\seed" `
                 -ManifestOut "$scenDir\seed-manifest.jsonl" -CsvOut "$scenDir\manifest.csv" `
                 -Profile $env:PROFILE -FileSystem $fs
-            if ($LASTEXITCODE -ne 0) { throw "seed failed" }
+            # BENCH-F4a: a .ps1 invoked with & does NOT set $LASTEXITCODE -
+            # with no native command in the step it stays $null and
+            # ($null -ne 0) is $true -> every non-NTFS seed false-failed
+            # (fsutil sparse runs on NTFS only; run 40076073289: 'seeded
+            # 10209 files' printed, then 'seed failed' thrown). Success =
+            # the manifest exists and carries entries.
+            if (-not (Test-Path "$scenDir\seed-manifest.jsonl") -or
+                @((Get-Content "$scenDir\seed-manifest.jsonl")).Count -lt 10) {
+                throw "seed failed - manifest absent or suspiciously small"
+            }
             $manifest = "$scenDir\seed-manifest.jsonl"
             if ($second) {
               & "$PWD\bench\seed\generate_seed.ps1" -Root "$($vol.letters[1])\seed" `
                   -ManifestOut "$scenDir\seed-manifest-b.jsonl" -CsvOut "$scenDir\manifest-b.csv" `
                   -Profile $env:PROFILE -FileSystem $fs -DeletableTag 'seedb'
-              if ($LASTEXITCODE -ne 0) { throw "seed-B failed" }
+              if (-not (Test-Path "$scenDir\seed-manifest-b.jsonl") -or
+                  @((Get-Content "$scenDir\seed-manifest-b.jsonl")).Count -lt 10) {
+                  throw "seed-B failed - manifest absent or suspiciously small"
+              }
               $merged = @(Get-Content $manifest) + @(Get-Content "$scenDir\seed-manifest-b.jsonl" | Select-Object -Skip 1)
               $merged | Set-Content -Path "$scenDir\seed-manifest-merged.jsonl" -Encoding utf8
               $manifest = "$scenDir\seed-manifest-merged.jsonl"
@@ -513,13 +541,17 @@ jobs:
                 -Root "$($vol.letter)\seed" -ManifestJsonl $manifest -OutDir $resDir `
                 -VolumeBytes $vol.volume_bytes -KeepRoot "$($vol.letter)\keep" -FileSystem $fs `
                 -VolumeLabel 'BENCH' -DiskNumber $vol.disk -PartitionNumber $vol.partitions
-            if ($LASTEXITCODE -ne 0) { throw "apply-scenario failed" }
+            if (-not (Test-Path "$resDir\scenario-state.json")) {
+                throw "apply-scenario failed - scenario-state.json absent"
+            }
 
             $target = if ($scen -eq 'delete_partition') { 'disk' } else { 'volume' }
             & "$PWD\bench\og\run-og.ps1" -CorpusDir $corpus -Letter $vol.letter.TrimEnd(':') `
                 -ManifestJsonl $manifest -OutDir $resDir -Scenario $scen `
                 -CompareOgRsfPy $rsfPy -TargetMode $target
-            if ($LASTEXITCODE -ne 0) { throw "run-og failed" }
+            if (-not (Test-Path "$resDir\og-run.json")) {
+                throw "run-og failed - og-run.json absent"
+            }
 
             # inventory over the og recovered destination (roots recorded in og-run.json)
             $ogr = Get-Content "$resDir\og-run.json" -Raw | ConvertFrom-Json

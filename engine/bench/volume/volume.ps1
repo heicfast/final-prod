@@ -84,9 +84,29 @@ public static class BenchRaw
 
     private static void LockAndDismount(SafeFileHandle h)
     {
+        // BENCH-F4b: right after shell (recycle-bin) deletions the shell can
+        // still hold transient handles on $Recycle.Bin - FSCTL_LOCK_VOLUME
+        // returns GLE=5 (access denied) for a few seconds. A bounded retry
+        // (5 x 2s) rides that out; a still-locked volume after the retry is a
+        // real failure (evidence: run 40076073289 bench-ours ntfs/recycle_bin,
+        // post-delete HashVolume "FSCTL_LOCK_VOLUME failed GLE=5" ~1 s after
+        // the shell-delete loop finished).
         uint ret;
-        if (!DeviceIoControl(h, FSCTL_LOCK_VOLUME, null, 0, null, 0, out ret, IntPtr.Zero))
-            throw new IOException("FSCTL_LOCK_VOLUME failed GLE=" + Marshal.GetLastWin32Error());
+        bool locked = false;
+        for (int attempt = 0; attempt < 5; attempt++)
+        {
+            if (DeviceIoControl(h, FSCTL_LOCK_VOLUME, null, 0, null, 0, out ret, IntPtr.Zero))
+            {
+                locked = true;
+                break;
+            }
+            int gle = Marshal.GetLastWin32Error();
+            if (gle != 5 && gle != 32) // 5=access denied, 32=sharing violation
+                break;                 // not a transient-handle failure
+            System.Threading.Thread.Sleep(2000);
+        }
+        if (!locked)
+            throw new IOException("FSCTL_LOCK_VOLUME failed GLE=" + Marshal.GetLastWin32Error() + " (retried 5x on GLE 5/32 - a handle is still open on the volume)");
         if (!DeviceIoControl(h, FSCTL_DISMOUNT_VOLUME, null, 0, null, 0, out ret, IntPtr.Zero))
             throw new IOException("FSCTL_DISMOUNT_VOLUME failed GLE=" + Marshal.GetLastWin32Error());
     }
