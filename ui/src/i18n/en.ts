@@ -4,6 +4,11 @@ export const en = {
   app: {
     name: 'Recovery Wizard',
   },
+  splash: {
+    booting: 'Preparing your recovery workspace…',
+    loading: 'Reading connected drives…',
+    safety: 'Your files are never changed during a search.',
+  },
   about: {
     subtitle: 'Build and runtime information — every row comes from the data source.',
     version: 'Version',
@@ -16,6 +21,17 @@ export const en = {
     driverStopped: 'stopped',
     driverMissing: 'Not installed',
     platform: 'Platform',
+  },
+  activation: {
+    open: 'Buy & activate',
+    title: 'Activate Recovery Wizard',
+    description: 'Enter a product key to connect an eligible recovery license.',
+    keyLabel: 'Product key',
+    placeholder: 'XXXXX-XXXXX-XXXXX-XXXXX',
+    activate: 'Activate',
+    note: 'Activation never changes existing scan results or recovered files.',
+    providerUnavailable:
+      'A licensing provider is not configured in this build. No license was activated.',
   },
   categories: {
     graphics: 'Photos & images',
@@ -51,16 +67,94 @@ export const en = {
     about: 'About',
     backToDevices: 'Choose another device',
   },
+  menu: {
+    label: 'More options',
+    shortcuts: 'Keyboard shortcuts',
+  },
   sidebar: {
     dataRecovery: 'Data Recovery',
     advanced: 'Advanced',
+    fileBackup: 'File Backup',
     hardwareDisk: 'Internal Drives',
-    removable: 'Removable Media',
+    sdCard: 'SD Card',
+    moreTools: 'More Recovery Tools',
     lostPartition: 'Lost Partition Rescue',
     diskHealth: 'Disk Health',
-    volumeRepair: 'Volume Repair',
+    fileRepair: 'File Repair',
+    chronoSnap: 'ChronoSnap Archive',
     collapse: 'Collapse sidebar',
     expand: 'Expand sidebar',
+  },
+  tools: {
+    title: 'More recovery tools',
+    subtitle:
+      'Choose a focused workflow. Each tool keeps the same safety checks and recovery data.',
+    lostTitle: 'Lost partition rescue',
+    lostBody:
+      'Find partitions that disappeared after formatting, repartitioning, or an interrupted update.',
+    repairTitle: 'File system repair',
+    repairBody: 'Inspect and repair recoverable volume-structure issues with an undo log.',
+    healthTitle: 'Disk health',
+    healthBody: 'Check SMART signals before a failing drive gets worse.',
+    crashedTitle: 'Crashed PC recovery',
+    crashedBody: 'Recover data from an unbootable computer with a dedicated boot environment.',
+    nasTitle: 'NAS and Linux recovery',
+    nasBody: 'Connect and analyze supported network or Linux storage volumes.',
+    raidTitle: 'RAID recovery',
+    raidBody: 'Reconstruct a supported RAID layout before scanning its contents.',
+    cloudTitle: 'Cloud recovery',
+    cloudBody: 'Connect an approved cloud provider and search its recovery data.',
+    imageTitle: 'Disk image recovery',
+    imageBody: 'Search a verified disk image without writing to the source device.',
+    openTool: 'Open tool',
+    requirements: 'View requirements',
+    providerTitle: 'Additional recovery provider required',
+    providerBody:
+      'This build does not have the required provider configured. No scan, connection, or data transfer was started.',
+  },
+  backup: {
+    title: 'ChronoSnap Recovery Archive',
+    subtitle:
+      'Recovery sessions are saved as checkpoints so you can return to their results without starting over.',
+    sessionsTitle: 'Saved recovery checkpoints',
+    emptyTitle: 'No recovery checkpoints yet',
+    emptyBody: 'Start a search and save it from Results to create a checkpoint here.',
+    startSearch: 'Start a search',
+    open: 'Open checkpoint',
+  },
+  guide: {
+    trigger: 'Help me choose',
+    panelTitle: 'What happened to your files?',
+    title: 'Find the right recovery path',
+    description: 'Answer two quick questions. You can change course at any time.',
+    deleted: 'I deleted files',
+    deletedBody: 'Search a known location such as the Recycle Bin first.',
+    missing: 'A drive or partition is missing',
+    missingBody: 'Search the entire disk for partition records and files.',
+    damaged: 'A drive opens with errors',
+    damagedBody: 'Inspect the volume structure before searching for files.',
+    confirmTitle: 'Check the safest path',
+    deletedCheck:
+      'A targeted search reduces unnecessary work and keeps the likely location clear.',
+    missingCheck:
+      'A whole-disk search can find partition records and paths that Windows no longer shows.',
+    damagedCheck:
+      'Reviewing the structure first can make more files searchable without risking the source.',
+    step: 'Step {{current}} of 3',
+    progress: 'Recovery guide progress',
+    stepOneBody:
+      'We will preserve the original device and use the narrowest reliable path first.',
+    stepTwoBody:
+      'You can return to this choice at any time. No action here changes the source drive.',
+    stepThreeBody:
+      'The next screen starts the selected recovery workflow and explains every irreversible action.',
+    next: 'Continue',
+    back: 'Back',
+    resultTitle: 'Recommended next step',
+    deletedResult: 'Start with a targeted search of the Recycle Bin.',
+    missingResult: 'Run Lost Partition Rescue on the affected disk.',
+    damagedResult: 'Review File Repair findings before you search.',
+    start: 'Start this path',
   },
   home: {
     title: 'Choose where to look for lost data',
@@ -84,6 +178,16 @@ export const en = {
     refreshDevices: 'Refresh drives',
     capacityUsed: '{{used}} used of {{total}}',
     scanningHint: 'Searching this device…',
+  },
+  sdCard: {
+    title: 'Connect your memory card',
+    subtitle:
+      'Insert an SD card or connect a card reader. We will only read it while searching for recoverable files.',
+    emptyTitle: 'No memory card detected',
+    emptyBody:
+      'Connect a card, then refresh this page. Your internal drives remain available from Internal Drives.',
+    refresh: 'Refresh devices',
+    start: 'Search this card',
   },
   lostPartition: {
     title: 'Lost Partition Rescue',
@@ -385,6 +489,15 @@ export const en = {
     licenses: 'Open-source licenses',
     licensesBody:
       'This application builds on open-source components. Their licenses ship with the installation.',
+  },
+  shortcuts: {
+    title: 'Keyboard shortcuts',
+    description: 'Use the keyboard throughout Recovery Wizard. Focus is always visible.',
+    openHelp: 'Open this shortcut list',
+    dismiss: 'Close the current menu or dialog',
+    nextControl: 'Move to the next control',
+    previousControl: 'Move to the previous control',
+    activate: 'Activate the focused control',
   },
   errors: {
     title: 'That did not work',
