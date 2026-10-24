@@ -328,11 +328,25 @@ for ($destAttempt = 1; $destAttempt -le 3; $destAttempt++) {
     Invoke-OgGateDismiss
 }
 if (-not $destSaved) {
+    # BENCH-OG-F3 (run 40079065019 og fat32/decay_80 evidence): the og can
+    # fabricate found-sets that exceed any destination ('You have 20253 file(s)
+    # (502.33 GB) to recover' on a 3 GB volume, decayed FAT32) - Save then
+    # does nothing and the dialog never closes. That is TRUE og behavior, not
+    # an automation defect: the honest outcome is an EVIDENCE-PRESERVING
+    # abort of the recovery phase (found-set .rsf + og-found.csv + screenshots
+    # retained; recovery metrics recorded as not-attempted) - never a silent
+    # skip, and never losing the scan-phase evidence by dying before harvest.
     New-OgShot '22c_destination_dialog_stuck' $shotDir | Out-Null
     Get-OgWindowCensus | Set-Content -Path (Join-Path $OutDir 'window-census-dest-stuck.txt') -Encoding utf8
-    Get-OgLogs -CorpusDir $CorpusDir -OutDir $OutDir | Out-Null
-    Stop-OgApp
-    throw 'destination dialog never closed after 3 Save attempts - diagnostic artifacts retained'
+    $run.recover_phase = @{
+        aborted = 'destination-dialog-stuck-after-3-attempts (og refused to start: suspected found-set/destination capacity mismatch; see 22c screenshot + census)'
+        wall_seconds = 0
+        completed = $false
+    }
+    $run.cap_gate = @{ gate_seen = $false; action = 'not-reached (recovery aborted)' }
+    $recoveryAborted = $true
+    New-OgShot '26_recover_end' $shotDir | Out-Null
+    Write-Host 'WARNING: destination dialog stuck - recovery phase aborted, scan-phase evidence preserved'
 }
 
 # ---- recovery progress + free-cap gate ------------------------------------------------------
@@ -351,6 +365,7 @@ $recoverDone = $false
 $lastFiles = -1
 $i = 0
 $redrives = 0
+if (-not (Get-Variable recoveryAborted -ErrorAction SilentlyContinue)) { $recoveryAborted = $false }
 function Get-NewFileCount {
     $post = Get-RootSnapshot
     $nd = @($post.dirs | Where-Object { $preC.dirs -notcontains $_ })
@@ -360,7 +375,7 @@ function Get-NewFileCount {
     }
     return $fc
 }
-while (((Get-Date) - $tRec).TotalSeconds -lt $RecoverWaitSec) {
+while (-not $recoveryAborted -and ((Get-Date) - $tRec).TotalSeconds -lt $RecoverWaitSec) {
     Start-Sleep -Seconds 10
     $fileCount = Get-NewFileCount
     if ($fileCount -eq $lastFiles -and $fileCount -gt 0) {
@@ -433,10 +448,15 @@ while (((Get-Date) - $tRec).TotalSeconds -lt $RecoverWaitSec) {
     }
     if (($i++ % 6) -eq 0) { New-OgShot ("25_recover_progress_{0:d2}" -f $i) $shotDir | Out-Null }
 }
-$run.recover_phase = @{ redrives = $redrives }
-$run.recover_phase.wall_seconds = [math]::Round(((Get-Date) - $tRec).TotalSeconds, 1)
-$run.recover_phase.completed = $recoverDone
-New-OgShot '26_recover_end' $shotDir | Out-Null
+if (-not $recoveryAborted) {
+    $run.recover_phase = @{ redrives = $redrives }
+    $run.recover_phase.wall_seconds = [math]::Round(((Get-Date) - $tRec).TotalSeconds, 1)
+    $run.recover_phase.completed = $recoverDone
+    New-OgShot '26_recover_end' $shotDir | Out-Null
+} else {
+    $run.recover_phase.redrives = $redrives
+    $run.notes += 'recovery phase ABORTED at the destination dialog (og refused; found-set + scan evidence above are the comparable data)'
+}
 
 # ---- harvest ----------------------------------------------------------------------------------
 $rsfPath = $rsfResult.rsf

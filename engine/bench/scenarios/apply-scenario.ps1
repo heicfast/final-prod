@@ -238,6 +238,29 @@ elseif ($Mode -eq 'partial_overwrite') {
     $state.delete_failures += Invoke-PermanentDelete
     Write-VolumeCache -DriveLetter $Letter -ErrorAction SilentlyContinue | Out-Null
     $bpc = Get-BootClusterSize -Letter $Letter
+    if ($FileSystem -eq 'ReFS' -or $bpc -le 0) {
+        # BENCH-F5c: ReFS has no BPB cluster geometry at the FAT-style boot-
+        # sector offsets - GetBootClusterSize returns garbage/-1 (run 40079065019
+        # refs/partial_overwrite 'bad cluster size'). Derive from the manifest
+        # ground truth: the largest SINGLE-extent file's size / cluster count
+        # (the big seed files are power-of-2 MiB sized, so the division is
+        # exact for any sane cluster size).
+        $probe = @($deletable | Where-Object { $_.extents -and $_.extents.Count -eq 1 -and $_.extents[0][1] -ge 64 }) |
+            Sort-Object { - $_.size } | Select-Object -First 1
+        if ($probe -and [long]$probe.extents[0][1] -gt 0) {
+            $derived = [math]::Floor([double]$probe.size / [double]$probe.extents[0][1])
+            $p2 = 512
+            while ($p2 -lt $derived -and $p2 -lt 1MB) { $p2 *= 2 }
+            if ($p2 -ge 512 -and $p2 -le 1MB) {
+                $bpc = $p2
+                $state.notes += "ReFS cluster size derived from manifest (probe $($probe.name): $($probe.size) / $($probe.extents[0][1]) -> $bpc)"
+            }
+        }
+        if ($bpc -le 0) {
+            $bpc = 4096
+            $state.notes += 'ReFS cluster size: derivation failed, assuming 4096 (ReFS default for volumes < 16 TiB) - recorded assumption, not silent'
+        }
+    }
     if ($bpc -le 0) { throw "bad cluster size $bpc" }
     $exts = @()
     foreach ($e in $deletable) {

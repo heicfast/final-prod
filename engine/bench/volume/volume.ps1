@@ -368,8 +368,13 @@ public static class BenchRaw
         long bpc = 0; int recSize = 0; long mftOff = 0;
         using (SafeFileHandle h = OpenVolumeRaw(letter))
         {
-            LockAndDismount(h);
+            // BENCH-F5: GET_NTFS_VOLUME_DATA needs a MOUNTED filesystem -
+            // after FSCTL_DISMOUNT_VOLUME it fails GLE=21 (device not ready).
+            // Read the geometry BEFORE locking/dismounting (evidence: run
+            // 40079065019 mft_corrupt 'CorruptMft ... GET_NTFS_VOLUME_DATA
+            // failed GLE=21' - mft_corrupt never ran before F4a unlocked it).
             long[] nd = NtfsData(h);
+            LockAndDismount(h);
             bpc = nd[0];
             recSize = MftRecordSize(nd[1], nd[2]);
             mftOff = nd[2] * bpc;
@@ -449,8 +454,10 @@ public static class BenchRaw
     {
         using (SafeFileHandle h = OpenVolumeRaw(letter))
         {
+            // BENCH-F5: geometry query must precede the dismount (see CorruptMft)
+            long[] nd = NtfsData(h);
             LockAndDismount(h);
-            return NtfsData(h);
+            return nd;
         }
     }
 }
