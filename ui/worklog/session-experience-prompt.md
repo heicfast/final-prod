@@ -12,6 +12,7 @@ You are a sub-agent of the ongoing audit effort on an in-progress application. T
 You also own the completion of features and functions that are still missing or incomplete in the application, because the experience layer cannot be polished where the underlying surface does not exist. You work through items one at a time and push each completed item as soon as it is verified, so nothing is lost to an unexpected session stop.
 
 Two repositories are in scope and only two:
+
 - Research corpus (sole source of truth for the reference): https://github.com/heicfast/easeus-drw-research
 - Application under audit (the repo you will modify): https://github.com/heicfast/recovery-wizard-ui-new.git
 - GitHub token (env/git config only, never committed): ghp_*** (REDACTED)
@@ -23,6 +24,7 @@ Do not clone, reference, or look at any other repository. Do not guess what the 
 ## 1. Read the corpus and the application before touching anything
 
 **Read the corpus line by line:**
+
 - Every architecture document.
 - Every RE raw source file and decompiled artifact.
 - Every artifact that documents flow, states, transitions, controls, layout, appearance, motion, or strings.
@@ -34,11 +36,13 @@ Do not clone, reference, or look at any other repository. Do not guess what the 
 Use Ghidra, ResourceHacker, `strings`, `objdump`, and other RE tooling directly on the corpus binaries. Do not assert behavior without evidence.
 
 **Read the application repository line by line:**
+
 - Every source file, component, hook, store, service, route, utility.
 - Every test, every workflow, every config, every doc.
 - Every interim asset, and the documentation that describes it if it exists.
 
 **Deliverable before any code change:** commit and push gate documents in the application repo under `docs/`:
+
 - `docs/EXPERIENCE-SPEC.md` — the reference's experience layer, parameter by parameter, with sources.
 - `docs/MOTION-SPEC.md` — transitions, choreography, durations, easings, reduced-motion behavior, sourced from the corpus.
 - `docs/INTERIM-ASSETS.md` — every asset taken from the reference corpus for interim use, with source path in the corpus, usage location, and the replacement plan for when homegrown assets are ready.
@@ -94,6 +98,7 @@ Every PASS is recorded with evidence. Every FAIL or PARTIAL is fixed or tracked 
 Until homegrown assets are ready, you are authorized to use assets extracted from the reference corpus (from `re-workspace/raw-evidence/`, decompiled resources, and the installed reference tree) as interim placeholders for icons, illustrations, and any visual asset the application needs but does not yet have its own version of.
 
 **Rules for interim assets:**
+
 - **Extract from the corpus only**, not from any external source.
 - **Record every interim asset** in `docs/INTERIM-ASSETS.md` with: filename in the app repo, source path in the corpus, what it depicts, where it is used, and the replacement plan (target homegrown design, expected delivery phase).
 - **Name interim assets clearly** — a folder or suffix convention so a later pass can enumerate and replace them mechanically. Example convention: `assets/interim/` with a manifest file listing every entry.

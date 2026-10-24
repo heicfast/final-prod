@@ -634,3 +634,24 @@ release notes state signing pending (unsigned builds).
   plus completion of any missing feature surfaces. Gate docs before any
   experience change: EXPERIENCE-SPEC / MOTION-SPEC / IMPLEMENTATION-STATUS /
   INTERIM-ASSETS.
+
+### Session-4 continuation — final record
+
+- CI/UI-Smoke/Release on v0.2.1 (8ab7234): all green on Windows
+  (runs 40097715450 / 40097713739 / 40097713674 — release artifacts:
+  Recovery.Wizard_0.2.1_x64-setup.exe + SHA-256, notes state signing
+  pending). ea1fd44 also green — the reconciliation fix verified on the
+  full Windows gate.
+- Cast-removal pass (70b2d17): the last two `as unknown as` casts
+  replaced with typed boundaries (connector factory returns the concrete
+  mock instance; worker global declared as DedicatedWorkerGlobalScope).
+  Hex preview verified live through the worker on the production build.
+- Format-gate rescue: session-5's baseline committed its prompt archive
+  without prettier (the 24aabf0 failure class repeating) — normalized;
+  CI green restored.
+- Session-4 audit mandate closed: no open MISMATCH rows in AUDIT-REPORT
+  §7; ACCEPTANCE per-surface PASS with three Windows-hardware PARTIALs
+  tracked; v0.2.0's raw-key installer defect patched by v0.2.1; the i18n
+  sweep now structurally incapable of the ternary blind spot (extraction
+  pin + family domains + missing-family flagging + over-approximation
+  net).
