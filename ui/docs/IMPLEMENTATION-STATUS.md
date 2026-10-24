@@ -124,8 +124,12 @@ T5 extraction set. Status updated per item.
 11. **T15** Per-component verification — ✅ DONE: parameter grid final;
     SPA focus-on-main-landmark added (route transitions) + keyboard-flow
     e2e.
-12. **T16** Playwright experience-path coverage.
-13. **T17** Frame-budget watchdog review.
+12. **T16** Playwright experience coverage — ✅ DONE: chrome (browser
+    mode), sidebar toggle, dialog choreography, toast (golden path export
+    step), page transitions, keyboard flow — all in the 12-test suite.
+13. **T17** Frame budget — ✅ DONE: PerformanceObserver longtask probe —
+    ZERO tasks >50ms through repeated sidebar toggles during a live scan
+    (the heaviest state); route fade is opacity-only.
 14. **T18** Full CI green.
 15. **T19** Final tracker update.
 16. **T20** Handoff.

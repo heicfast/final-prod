@@ -845,3 +845,18 @@ release notes state signing pending (unsigned builds).
   (focus assertion failed against the old build) — caught, rebuilt, all
   green. Gates: 12/12 e2e, 109/109 unit, tsc/eslint/prettier/arch-lint ✓,
   bundle 98.0/200 KB.
+
+### T16 + T17 — Playwright experience coverage + frame budget — DONE
+
+- T16: the e2e suite (12 tests) now covers every experience-critical path
+  the mandate lists: window chrome (browser-mode truthfulness + title-bar
+  inert dblclick), sidebar toggle (+ persistence + keyboard), dialog
+  choreography (outside-swallow / ESC / focus return), toast behavior
+  (golden-path export step asserts the top-right stack), page
+  transitions (route-fade unit + navigation assertions), and the keyboard
+  flow through the primary task (link → Enter → scan starts).
+- T17: frame-budget probe — PerformanceObserver longtask entries read
+  through repeated sidebar toggles (incl. 5 rapid toggles) during a LIVE
+  scan (heaviest state: virtualized list + animated width + ticker): zero
+  tasks over 50ms. No findings introduced by this session's work.
+- e2e 12/12, zero console errors end-to-end.

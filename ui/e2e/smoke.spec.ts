@@ -89,9 +89,12 @@ test('golden path: scan → results → recover', async ({ page }) => {
   await page.getByRole('button', { name: /choose folder/i }).click();
   await page.getByRole('button', { name: /recover 1 item/i }).click();
 
-  // 11. Report appears
+  // 11. Report appears — and the export action fires a toast (top-right
+  //     stack, MOTION-SPEC §3.3).
   const report = page.getByRole('status').filter({ hasText: /recovery finished/i });
   await expect(report).toBeVisible({ timeout: 60_000 });
+  await page.getByRole('button', { name: /export/i }).click();
+  await expect(page.getByText(/report exported/i)).toBeVisible({ timeout: 10_000 });
   await page.screenshot({ path: 'test-results/50-report.png' });
 
   // 12. No console errors along the whole path
