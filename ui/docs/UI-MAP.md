@@ -8,13 +8,13 @@ pages, AI assistant) are deliberately excluded — see §0.
 
 ## 0. Documented divergences from the reference corpus
 
-| Reference surface                                | Decision                  | Rationale                                                                                                                                                                           |
-| ------------------------------------------------ | ------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Retention/license/upsell gates                   | **Excluded**              | Commercial funnel specific to the reference's monetization model; not part of a truthful recovery-tool IA. The connector never exposes them, so the UI cannot honestly render them. |
-| AI assistant / AI recommend                      | **Excluded this session** | Would be a UI-fabricated capability — the Mock Connector contract exposes no ranking model. Roadmap item if the engine ever provides one.                                           |
-| Cloud/NAS/WeChat/iCloud targets                  | **Excluded this session** | Reference chains require network backends; connector exposes local devices + removable media only. Cloud/NAS marked as unavailable-with-reason in the UI (truthful degradation).    |
-| Sidebar product pages (backup, crashed PC, etc.) | **Excluded**              | Separate products, not recovery wizard flow.                                                                                                                                        |
-| Auto-Recover after scan                          | **Excluded**              | Requires engine orchestration the contract does not expose.                                                                                                                         |
+| Reference surface               | Decision                  | Rationale                                                                                                                                                                           |
+| ------------------------------- | ------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Retention/license/upsell gates  | **Excluded**              | Commercial funnel specific to the reference's monetization model; not part of a truthful recovery-tool IA. The connector never exposes them, so the UI cannot honestly render them. |
+| AI assistant / AI recommend     | **Reframed**              | Implemented as a deterministic Recovery Guide that routes a stated problem to a real search, partition-rescue, or repair flow; it makes no fabricated AI/ranking claim.             |
+| Cloud/NAS/WeChat/iCloud targets | **Excluded this session** | Reference chains require network backends; connector exposes local devices + removable media only. Cloud/NAS marked as unavailable-with-reason in the UI (truthful degradation).    |
+| Sidebar tool/archive pages      | **Implemented**           | More Recovery Tools routes exclusively to implemented rescue/repair/health pages. ChronoSnap is an archive of real saved recovery sessions, not a fabricated file backup.           |
+| Auto-Recover after scan         | **Excluded**              | Requires engine orchestration the contract does not expose.                                                                                                                         |
 
 Everything else follows the corpus IA: 4-zone wizard stack, 3-pane results, scan lives
 inside the results page, celebration modal, destination dialog semantics, session
@@ -31,6 +31,8 @@ save/load, contextual CTAs.
 /health                Disk Health (SMART)
 /repair                Volume Repair (RawFixer surface)
 /lost-partition        Lost Partition Rescue (scenario cards + disk list)
+/tools                 More Recovery Tools (implemented flow hub)
+/backup                ChronoSnap Recovery Archive (saved session checkpoints)
 /settings              Settings
 ```
 
@@ -51,8 +53,8 @@ Transitions: cross-fade 160ms; scan→results is explicit via celebration modal 
 ### 2.1 Home (Device Selection)
 
 Zones: title bar / left sidebar (sections: Data Recovery rows — Hardware Disk,
-Removable Media, Lost Partition Rescue; Advanced Features — Disk Health, Volume
-Repair; footer: Settings, About) / content (page title, internal-drives group,
+SD Card, More Recovery Tools, Lost Partition Rescue; Advanced Features — File
+Repair, Disk Health, ChronoSnap Archive; footer: Settings, About) / content (page title, internal-drives group,
 removable group, quick targets row: Recycle Bin / Desktop / Choose Folder,
 primary CTA bottom-right).
 
@@ -69,6 +71,19 @@ States:
 - permission-denied: banner asking for elevation, per-device lock icon + reason
 - disconnected: card marked offline mid-listing, rescan offered
 - success: populated grid, selection, CTA enabled on selection
+- guide: a three-choice deterministic recovery guide maps delete / missing
+  partition / damaged-volume intent to a real downstream action; no invented AI state.
+
+### 2.9 More Recovery Tools and ChronoSnap Archive
+
+More Recovery Tools is a three-card hub for existing Lost Partition Rescue,
+File Repair, and Disk Health routes. Every card opens its actual tool.
+
+ChronoSnap Recovery Archive displays connector-provided saved sessions. Open
+resumes the stored recovery session into its real result set; no control claims
+to create a filesystem backup because that operation is not in the connector
+contract. States: loading, actionable error/retry, empty with a Start Search
+CTA, and populated checkpoints.
 
 ### 2.2 Scan Progress (live inside results layout — starts DIRECTLY, ADR-008)
 

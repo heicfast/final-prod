@@ -4,12 +4,16 @@ import { useTranslation } from 'react-i18next';
 import { getCurrentWindow } from '@tauri-apps/api/window';
 import {
   AppWindowIcon,
+  BadgeDollarSignIcon,
   CrosshairIcon,
   FlaskConicalIcon,
   HardDriveIcon,
   HeartPulseIcon,
   InfoIcon,
+  KeyboardIcon,
+  LayoutGridIcon,
   LanguagesIcon,
+  MenuIcon,
   PaletteIcon,
   PanelLeftCloseIcon,
   PanelLeftOpenIcon,
@@ -35,6 +39,8 @@ import { AboutDialog } from '@/features/settings-about/about-dialog';
 import { useConnectorMode } from '@/queries/dev';
 import { setLocale, SUPPORTED_LOCALES } from '@/i18n';
 import { WindowControls } from '@/components/ui/window-controls';
+import { KeyboardShortcutsDialog } from '@/components/ui/keyboard-shortcuts-dialog';
+import { ActivationDialog } from '@/features/settings-about/activation-dialog';
 import { isTauriRuntime } from '@/lib/runtime';
 
 /**
@@ -44,13 +50,18 @@ import { isTauriRuntime } from '@/lib/runtime';
 
 const NAV_MAIN = [
   { to: '/', icon: HardDriveIcon, labelKey: 'sidebar.hardwareDisk', end: true },
-  { to: '/?media=1', icon: UsbIcon, labelKey: 'sidebar.removable', end: false },
+  { to: '/sd-card', icon: UsbIcon, labelKey: 'sidebar.sdCard', end: false },
+  { to: '/tools', icon: LayoutGridIcon, labelKey: 'sidebar.moreTools', end: false },
   { to: '/lost-partition', icon: CrosshairIcon, labelKey: 'sidebar.lostPartition', end: false },
 ] as const;
 
 const NAV_ADVANCED = [
   { to: '/health', icon: HeartPulseIcon, labelKey: 'sidebar.diskHealth', end: false },
-  { to: '/repair', icon: WrenchIcon, labelKey: 'sidebar.volumeRepair', end: false },
+  { to: '/repair', icon: WrenchIcon, labelKey: 'sidebar.fileRepair', end: false },
+] as const;
+
+const NAV_ARCHIVE = [
+  { to: '/backup', icon: RefreshCcwIcon, labelKey: 'sidebar.chronoSnap', end: false },
 ] as const;
 
 /** Title-bar quick theme menu (corpus: hamburger → Theme submenu; the
@@ -73,6 +84,8 @@ export function WizardShell(): React.JSX.Element {
   const navigate = useNavigate();
   const location = useLocation();
   const [aboutOpen, setAboutOpen] = React.useState(false);
+  const [shortcutsOpen, setShortcutsOpen] = React.useState(false);
+  const [activationOpen, setActivationOpen] = React.useState(false);
   const sidebarCollapsed = useUiStore((s) => s.sidebarCollapsed);
   const toggleSidebar = useUiStore((s) => s.toggleSidebar);
   const mainRef = React.useRef<HTMLElement | null>(null);
@@ -84,6 +97,26 @@ export function WizardShell(): React.JSX.Element {
   React.useEffect(() => {
     mainRef.current?.focus({ preventScroll: true });
   }, [location.pathname]);
+
+  // `?` exposes the complete keyboard route without hijacking typing in
+  // search, form fields, or editable previews. Escape remains owned by the
+  // currently open Radix menu/dialog first.
+  React.useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent): void => {
+      if (event.key !== '?' || event.ctrlKey || event.metaKey || event.altKey) return;
+      const target = event.target;
+      if (
+        target instanceof HTMLElement &&
+        (target.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(target.tagName))
+      ) {
+        return;
+      }
+      event.preventDefault();
+      setShortcutsOpen(true);
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, []);
 
   const inResultsFlow =
     location.pathname.startsWith('/scan/') ||
@@ -120,6 +153,15 @@ export function WizardShell(): React.JSX.Element {
           </span>
         </div>
         <div className="flex items-center gap-1">
+          <Button
+            variant="primary"
+            size="sm"
+            className="mr-1 h-7 px-2.5 text-xs"
+            onClick={() => setActivationOpen(true)}
+          >
+            <BadgeDollarSignIcon aria-hidden />
+            {t('activation.open')}
+          </Button>
           {import.meta.env.DEV ? (
             <Button
               variant="ghost"
@@ -174,6 +216,39 @@ export function WizardShell(): React.JSX.Element {
                   </DropdownMenuItem>
                 </React.Fragment>
               ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
+          <Button
+            variant="ghost"
+            size="icon"
+            aria-label={t('shortcuts.title')}
+            className="size-7"
+            onClick={() => setShortcutsOpen(true)}
+          >
+            <KeyboardIcon aria-hidden />
+          </Button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon"
+                aria-label={t('menu.label')}
+                className="size-7"
+              >
+                <MenuIcon aria-hidden />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={() => setShortcutsOpen(true)}>
+                {t('menu.shortcuts')}
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => navigate('/settings')}>
+                {t('nav.settings')}
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={() => setAboutOpen(true)}>
+                {t('nav.about')}
+              </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
           <Button
@@ -238,6 +313,10 @@ export function WizardShell(): React.JSX.Element {
               ))}
               <SidebarSection label={t('sidebar.advanced')} collapsed={sidebarCollapsed} />
               {NAV_ADVANCED.map((item) => (
+                <SidebarLink key={item.to} {...item} collapsed={sidebarCollapsed} />
+              ))}
+              <SidebarSection label={t('sidebar.fileBackup')} collapsed={sidebarCollapsed} />
+              {NAV_ARCHIVE.map((item) => (
                 <SidebarLink key={item.to} {...item} collapsed={sidebarCollapsed} />
               ))}
             </>
@@ -310,6 +389,8 @@ export function WizardShell(): React.JSX.Element {
       {/* Dev-only surfaces: lazy-gated so production builds never include them */}
       {import.meta.env.DEV ? <DevSurfaces /> : null}
       <AboutDialog open={aboutOpen} onOpenChange={setAboutOpen} />
+      <KeyboardShortcutsDialog open={shortcutsOpen} onOpenChange={setShortcutsOpen} />
+      <ActivationDialog open={activationOpen} onOpenChange={setActivationOpen} />
     </div>
   );
 }

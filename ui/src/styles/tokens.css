@@ -1,12 +1,10 @@
 /*
  * tokens.css — the app's SEMANTIC token layer (ADR-007).
  *
- * Token source of truth: src/theme/adopted/tokens.css + themes.ts — verbatim
- * in-repo copies of the two adopted theme source files (diskgenie-v2
- * src/theme/themes.ts + tokens.css). That file is IMMUTABLE; every adjustment
- * for this application happens HERE, as a mapping, and is documented in
- * docs/VISUAL-SPEC.md §A11 (accessibility-driven mapping choices, with
- * measured contrast ratios).
+ * Token source of truth: src/theme/adopted/tokens.css + themes.ts. The raw
+ * theme family remains intact; this semantic layer owns Recovery Wizard's
+ * product identity. Its light default is the restrained blue Fluent-derived
+ * language measured from the supplied reference corpus.
  *
  * Layer order (see index.css):
  *   1. adopted/tokens.css   — raw palette blocks (:root, [data-scheme="dark"],
@@ -25,12 +23,12 @@
 
 :root {
   /* ── Canvas & surfaces ─────────────────────────────────────────────── */
-  --background: var(--panel);
-  --surface: var(--card);
-  --surface-muted: var(--chip);
-  --surface-tint: var(--control-hover);
-  --surface-hover: var(--control-hover);
-  --surface-selected: color-mix(in srgb, var(--ink) 14%, var(--card));
+  --background: #f5f8fa;
+  --surface: #ffffff;
+  --surface-muted: #eef5ff;
+  --surface-tint: #f6f9fe;
+  --surface-hover: #eef5ff;
+  --surface-selected: #dbeafe;
 
   /* ── Text ──────────────────────────────────────────────────────────── */
   --text-primary: var(--text);
@@ -38,25 +36,19 @@
   --text-disabled: var(--text-tertiary);
 
   /* ── Accent ──────────────────────────────────────────────────────────
-   * Text-grade accent: A11Y-ADJUSTED MAPPING (VISUAL-SPEC §A11).
-   * --ink (#ff6b4a light) measures 2.80:1 on white — below the 4.5:1 AA
-   * floor for text/links/icons. The mapping derives a darkened ink for
-   * text-grade use (#b83410, 5.94:1 on white, ≥4.79:1 on every light-family
-   * ink-soft tint — axe-verified; fills keep the source ink and the brand
-   * CTA keeps the source gradient (documented brand exception).
-   * Dark-family inks pass as text on PLAIN surfaces but the neutral dark
-   * coral fails on ink-soft TINTS (4.2:1) — see the [data-theme='dark']
-   * lift below. Ember/tide inks pass on their tints and map through. */
-  --accent: #b83410;
-  --accent-hover: #a52e0e;
-  --accent-pressed: #8f280c;
-  --accent-fill: var(--ink);
-  --accent-fill-hover: var(--ink-strong);
-  --accent-foreground: var(--on-ink);
-  --accent-muted: var(--ink-soft);
-  --accent-muted-border: color-mix(in srgb, var(--ink) 30%, transparent);
-  --cta-gradient: var(--ink-grad);
-  --cta-glow: var(--ink-glow);
+   * Reference corpus: blue #1677ff is used for direct actions and the
+   * darker #0958d9 derivative is reserved for text, icon and focus states
+   * so every small target clears AA on white and blue-tinted surfaces. */
+  --accent: #0958d9;
+  --accent-hover: #004fc4;
+  --accent-pressed: #003e9c;
+  --accent-fill: #1677ff;
+  --accent-fill-hover: #0958d9;
+  --accent-foreground: #ffffff;
+  --accent-muted: #e8f1ff;
+  --accent-muted-border: #91caff;
+  --cta-gradient: linear-gradient(180deg, #4096ff 0%, #1677ff 54%, #0958d9 100%);
+  --cta-glow: 0 2px 8px rgb(22 119 255 / 0.28), 0 1px 2px rgb(9 88 217 / 0.16);
 
   /* ── Status ──────────────────────────────────────────────────────────
    * A11Y-ADJUSTED MAPPING: source status hues (--free/--used/--seg-
@@ -74,7 +66,7 @@
   --danger-pressed: #b80011;
 
   /* ── Focus ─────────────────────────────────────────────────────────── */
-  --focus-ring: #b83410; /* solid text-grade ink: 5.94:1 (source rgba = 2.9:1) */
+  --focus-ring: #0958d9;
   --focus-ring-offset: var(--focus-offset, 2px);
   --focus-ring-width: var(--focus-w, 2px);
 

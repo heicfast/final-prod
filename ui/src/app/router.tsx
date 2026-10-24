@@ -11,6 +11,10 @@ import { RepairPage } from '@/features/repair/repair-page';
 import { SettingsPage } from '@/features/settings-about/settings-page';
 import { LostPartitionPage } from '@/features/lost-partition/lost-partition-page';
 import { ResultsRoute } from '@/features/results-explorer/results-route';
+import { StartupGate } from './startup-gate';
+import { ToolsPage } from '@/features/tools/tools-page';
+import { BackupPage } from '@/features/backup/backup-page';
+import { SdCardPage } from '@/features/device-selection/sd-card-page';
 
 /**
  * Router (ADR-001): React Router v7 data mode with a HASH history — hash
@@ -40,11 +44,18 @@ export const router = createHashRouter([
       { path: 'repair', element: <RepairPage /> },
       { path: 'settings', element: <SettingsPage /> },
       { path: 'lost-partition', element: <LostPartitionPage /> },
+      { path: 'tools', element: <ToolsPage /> },
+      { path: 'backup', element: <BackupPage /> },
+      { path: 'sd-card', element: <SdCardPage /> },
       { path: '*', element: <ResultsPageFallback /> },
     ],
   },
 ]);
 
 export function App(): React.JSX.Element {
-  return <RouterProvider router={router} />;
+  return (
+    <StartupGate>
+      <RouterProvider router={router} />
+    </StartupGate>
+  );
 }

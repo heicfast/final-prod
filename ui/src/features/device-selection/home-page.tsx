@@ -27,6 +27,11 @@ import { Badge } from '@/components/ui/badge';
 import { CapacityBar, EmptyState } from '@/components/ui/empty-state';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Hint } from '@/components/ui/tooltip';
+import {
+  RecoveryGuideDialog,
+  RecoveryGuideLauncher,
+  type RecoveryPath,
+} from './recovery-guide-dialog';
 import { toast } from 'sonner';
 
 /**
@@ -55,6 +60,8 @@ export function HomePage(): React.JSX.Element {
   const startScan = useStartScan();
   const pickDirectory = usePickDirectory();
   const [selectedId, setSelectedId] = React.useState<string | null>(null);
+  const [guideOpen, setGuideOpen] = React.useState(false);
+  const [guidePath, setGuidePath] = React.useState<RecoveryPath | null>(null);
   const showRemovable = params.has('media');
 
   const devices = devicesQuery.data ?? [];
@@ -111,6 +118,23 @@ export function HomePage(): React.JSX.Element {
         );
       },
     });
+  };
+
+  const startGuidedPath = (path: RecoveryPath): void => {
+    if (path === 'deleted') {
+      beginScan(RECYCLE_BIN_TARGET);
+      return;
+    }
+    if (path === 'missing') {
+      void navigate('/lost-partition');
+      return;
+    }
+    void navigate('/repair');
+  };
+
+  const chooseGuidedPath = (path: RecoveryPath): void => {
+    setGuidePath(path);
+    setGuideOpen(true);
   };
 
   if (devicesQuery.isLoading) {
@@ -178,16 +202,19 @@ export function HomePage(): React.JSX.Element {
             <h1 className="text-xl font-semibold">{t('home.title')}</h1>
             <p className="mt-1 text-sm text-foreground-secondary">{t('home.subtitle')}</p>
           </div>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => void refresh.mutate()}
-            loading={refresh.isPending}
-            disabled={refresh.isPending}
-          >
-            <RefreshCcwIcon aria-hidden />
-            {t('home.refreshDevices')}
-          </Button>
+          <div className="flex shrink-0 items-center gap-2">
+            <RecoveryGuideLauncher onChoose={chooseGuidedPath} />
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => void refresh.mutate()}
+              loading={refresh.isPending}
+              disabled={refresh.isPending}
+            >
+              <RefreshCcwIcon aria-hidden />
+              {t('home.refreshDevices')}
+            </Button>
+          </div>
         </div>
 
         {hasPermissionIssue ? (
@@ -298,6 +325,12 @@ export function HomePage(): React.JSX.Element {
           {t('home.scanAction')}
         </Button>
       </div>
+      <RecoveryGuideDialog
+        open={guideOpen}
+        path={guidePath}
+        onOpenChange={setGuideOpen}
+        onStart={startGuidedPath}
+      />
     </div>
   );
 }
