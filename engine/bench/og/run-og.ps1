@@ -286,50 +286,73 @@ New-OgShot '22_destination_configured' $shotDir | Out-Null
 Invoke-OgClickRel 707 613 'destination: Save' | Out-Null
 
 # ---- recovery progress + free-cap gate ------------------------------------------------------
+# Funnel discipline (evidence: run 40073093997 og/permanent_delete - the periodic
+# gate-dismiss ESC CANCELED the slow destination dialog and the flow stalled for
+# 20 min; VLM screenshots 20-25 show the dialog re-opening fresh with Save
+# disabled). During the funnel we send NO blind ESC and NO blind gate clicks:
+#   - files landing on C:  -> wait for quiescence; only THEN a census-grown modal
+#                             is treated as the free-cap gate (Give Up clicked once)
+#   - no files after 60 s  -> the dialog likely reset: RE-DRIVE the destination
+#                             sequence (Local tab, C: row, repair OFF, Save),
+#                             recorded, up to 5 times
 $tRec = Get-Date
 $capGateSeen = $false
 $recoverDone = $false
 $lastFiles = -1
 $i = 0
+$redrives = 0
+function Get-NewFileCount {
+    $post = Get-RootSnapshot
+    $nd = @($post.dirs | Where-Object { $preC.dirs -notcontains $_ })
+    $fc = 0
+    foreach ($d in $nd) {
+        $fc += @(Get-ChildItem (Join-Path 'C:\' $d) -Recurse -File -ErrorAction SilentlyContinue).Count
+    }
+    return $fc
+}
 while (((Get-Date) - $tRec).TotalSeconds -lt $RecoverWaitSec) {
     Start-Sleep -Seconds 10
-    Invoke-OgGateDismiss
-    $post = Get-RootSnapshot
-    $newDirs = @($post.dirs | Where-Object { $preC.dirs -notcontains $_ })
-    $fileCount = 0
-    foreach ($d in $newDirs) {
-        $fileCount += @(Get-ChildItem (Join-Path 'C:\' $d) -Recurse -File -ErrorAction SilentlyContinue).Count
-    }
+    $fileCount = Get-NewFileCount
     if ($fileCount -eq $lastFiles -and $fileCount -gt 0) {
-        # quiescent for one full poll interval - take one more look then finish
+        # quiescent for one full poll interval - one more look, then finish
         Start-Sleep -Seconds 10
-        $post2 = Get-RootSnapshot
-        $fc2 = 0
-        foreach ($d in ($post2.dirs | Where-Object { $preC.dirs -notcontains $_ })) {
-            $fc2 += @(Get-ChildItem (Join-Path 'C:\' $d) -Recurse -File -ErrorAction SilentlyContinue).Count
+        if ((Get-NewFileCount) -eq $fileCount) {
+            $recoverDone = $true
+            # only NOW is a census-grown modal plausibly the free-cap gate
+            $census = Get-OgWindowCensus
+            if (-not $capGateSeen -and $census.Count -gt 2) {
+                New-OgShot '30_cap_gate_candidate' $shotDir | Out-Null
+                $capGateSeen = $true
+                $run.cap_gate.gate_seen = $true
+                $run.cap_gate.action = 'give-up-clicked'
+                $run.cap_gate.screenshot = '30_cap_gate_candidate.png'
+                Invoke-OgClickRel 432 470 'cap gate: Give Up (left button)' | Out-Null
+                Start-Sleep -Seconds 8
+                New-OgShot '31_cap_gate_after' $shotDir | Out-Null
+            }
+            break
         }
-        if ($fc2 -eq $fileCount) { $recoverDone = $true; break }
     }
     $lastFiles = $fileCount
-    # cap-gate detection: a new modal window appears mid-recovery (CRecoverLimitDlg)
-    $census = Get-OgWindowCensus
-    if (-not $capGateSeen -and $census.Count -gt 2) {
-        New-OgShot '30_cap_gate_candidate' $shotDir | Out-Null
-        $capGateSeen = $true
-        $run.cap_gate.gate_seen = $true
-        $run.cap_gate.action = 'give-up-clicked'
-        $run.cap_gate.screenshot = '30_cap_gate_candidate.png'
-        # 'Give Up' = the left button of the gate pair (atlas: buttons Give Up | Recover Remaining)
-        Invoke-OgClickRel 432 470 'cap gate: Give Up (left button)' | Out-Null
+    if ($fileCount -eq 0 -and ((Get-Date) - $tRec).TotalSeconds -gt 60 -and $redrives -lt 5) {
+        # destination dialog probably reset (slow Save / stray click) - re-drive it
+        $redrives++
+        New-OgShot ("27_redrive_{0:d2}" -f $redrives) $shotDir | Out-Null
+        $run.attempts += @{ attempt = "redrive-$redrives"; reason = 'no files on C: after 60s - destination dialog re-drive' }
+        Invoke-OgClickRel 410 222 'redrive: Local tab' | Out-Null
+        Start-Sleep -Seconds 2
+        Invoke-OgClickRel 511 279 'redrive: Windows(C:) row' | Out-Null
+        Start-Sleep -Seconds 2
+        Invoke-OgClickRel 255 613 'redrive: file-repair toggle OFF' | Out-Null
+        Start-Sleep -Seconds 1
+        Invoke-OgClickRel 707 613 'redrive: Save' | Out-Null
         Start-Sleep -Seconds 5
-        New-OgShot '31_cap_gate_after' $shotDir | Out-Null
     }
     if (($i++ % 6) -eq 0) { New-OgShot ("25_recover_progress_{0:d2}" -f $i) $shotDir | Out-Null }
 }
-$run.recover_phase = @{
-    wall_seconds = [math]::Round(((Get-Date) - $tRec).TotalSeconds, 1)
-    completed = $recoverDone
-}
+$run.recover_phase = @{ redrives = $redrives }
+$run.recover_phase.wall_seconds = [math]::Round(((Get-Date) - $tRec).TotalSeconds, 1)
+$run.recover_phase.completed = $recoverDone
 New-OgShot '26_recover_end' $shotDir | Out-Null
 
 # ---- harvest ----------------------------------------------------------------------------------
