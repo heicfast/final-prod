@@ -1,0 +1,52 @@
+{
+ "_comment": "Versioned regression baseline for the ours leg. Updated ONLY by human-reviewed commits. Format: scenarios.<scenario>.{recall,precision,perf.<mode>.scan_wall_seconds} as produced by bench/metrics/compute_metrics.py. Source: run 40073093997-smoke via bench/metrics/make_baseline.py.",
+ "schema": 1,
+ "source_run_id": "40073093997-smoke",
+ "scenarios": {
+  "delete_partition": {
+   "recall": 0.4299,
+   "precision": 0.1981,
+   "perf": {
+    "deep": {
+     "scan_wall_seconds": 8.03
+    },
+    "deepcarve": {
+     "scan_wall_seconds": 90.06
+    },
+    "quick": {
+     "scan_wall_seconds": 0.51
+    }
+   }
+  },
+  "permanent_delete": {
+   "recall": 0.8716,
+   "precision": 0.3026,
+   "perf": {
+    "deep": {
+     "scan_wall_seconds": 7.05
+    },
+    "deepcarve": {
+     "scan_wall_seconds": 59.87
+    },
+    "quick": {
+     "scan_wall_seconds": 0.52
+    }
+   }
+  },
+  "quick_format": {
+   "recall": 0.0,
+   "precision": 0.0,
+   "perf": {
+    "deep": {
+     "scan_wall_seconds": 2.01
+    },
+    "deepcarve": {
+     "scan_wall_seconds": 41.98
+    },
+    "quick": {
+     "scan_wall_seconds": 0.53
+    }
+   }
+  }
+ }
+}
