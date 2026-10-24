@@ -358,22 +358,75 @@ function Get-OgRsfBaseline {
 }
 
 function Wait-OgRsf {
-    param([array] $Baseline, [string] $CorpusDir, [int] $TimeoutSec, [string] $ShotDir, [string] $SamplesCsv)
+    param([array] $Baseline, [string] $CorpusDir, [int] $TimeoutSec, [string] $ShotDir, [string] $SamplesCsv,
+          [string] $LogPath = '', [long] $LogOffset = 0)
     $ss = Join-Path $CorpusDir 'SaveScan'
     $t0 = Get-Date
     $lastTitle = ''
     $i = 0
     $samples = New-Object System.Collections.Generic.List[string]
     $samples.Add('t_ms,working_set_bytes,cpu_seconds')
+    $finishedMarker = $false
     while (((Get-Date) - $t0).TotalSeconds -lt $TimeoutSec) {
-        # completion signal: a NEW auto_*.rsf appears (auto-saved at scan completion)
+        # completion signal 1: a NEW auto_*.rsf appears (auto-saved at scan
+        # completion WHEN SOMETHING WAS FOUND)
         $now = @(Get-ChildItem $ss -Filter '*.rsf' -ErrorAction SilentlyContinue | ForEach-Object { $_.FullName })
         $new = @($now | Where-Object { $Baseline -notcontains $_ })
         if ($new.Count -gt 0) {
             Start-Sleep -Seconds 5   # let the completion modal settle
             if ($ShotDir) { New-OgShot '10_scan_complete_modal' $ShotDir | Out-Null }
             $samples | Set-Content -Path $SamplesCsv -Encoding utf8
-            return @{ rsf = $new[0]; all_new = $new; seconds = [math]::Round(((Get-Date) - $t0).TotalSeconds, 1) }
+            return @{ rsf = $new[0]; all_new = $new; seconds = [math]::Round(((Get-Date) - $t0).TotalSeconds, 1); empty = $false }
+        }
+        # completion signal 2 (BENCH-OG-F4, run 40079065019 ntfs/full_format
+        # evidence): the og does NOT auto-save an .rsf when the found-set is
+        # EMPTY - the UI shows 'Scan Completed' with an empty tree and the
+        # .rsf wait burns its whole 900 s timeout. The og's own log carries
+        # clean completion markers ('Build tree finish.' / 'CScanMgr::
+        # ScanFinished') - poll those too, give the .rsf a grace period,
+        # then return the completed-empty verdict (found 0, honestly).
+        if (-not $finishedMarker -and $LogPath -and (Test-Path $LogPath)) {
+            try {
+                $fs = [System.IO.File]::Open($LogPath, 'Open', 'Read', 'ReadWrite')
+                try {
+                    if ($fs.Length -gt $LogOffset) {
+                        $fs.Seek($LogOffset, 'Begin') | Out-Null
+                        $sr = New-Object System.IO.StreamReader($fs)
+                        $text = $sr.ReadToEnd()
+                        if ($text -match 'Build tree finish|ScanFinished') {
+                            $finishedMarker = $true
+                            $script:OgLogSizeAtMarker = $fs.Length
+                            Write-Host 'og scan completion marker seen in DRWUI.log (quick-phase tree built; watching for the deep phase / .rsf)'
+                        }
+                    }
+                } finally { $fs.Close() }
+            } catch { }
+        }
+        if ($finishedMarker) {
+            # marker fires at QUICK-phase tree build; the deep phase then runs
+            # (auto-continues). A found-set gets the .rsf; an EMPTY found-set
+            # never does and the og goes idle with no further log output.
+            # Empty verdict = marker seen + LOG QUIET for 150 s + no .rsf.
+            $quietSec = 0
+            try { $quietSec = ((Get-Date) - $script:OgMarkerQuietStart).TotalSeconds } catch { }
+            if (-not $script:OgMarkerQuietStart) {
+                try { $script:OgLogSizeAtQuiet = $script:OgLogSizeAtMarker } catch { }
+                $script:OgMarkerQuietStart = Get-Date
+            }
+            try {
+                $cur = (Get-Item $LogPath).Length
+                if ($cur -ne $script:OgLogSizeAtQuiet) {
+                    # the og is still working (deep phase logging) - reset the quiet window
+                    $script:OgLogSizeAtQuiet = $cur
+                    $script:OgMarkerQuietStart = Get-Date
+                }
+            } catch { }
+            $quietSec = ((Get-Date) - $script:OgMarkerQuietStart).TotalSeconds
+            if ($quietSec -ge 150) {
+                if ($ShotDir) { New-OgShot '10_scan_completed_empty' $ShotDir | Out-Null }
+                $samples | Set-Content -Path $SamplesCsv -Encoding utf8
+                return @{ rsf = $null; all_new = @(); seconds = [math]::Round(((Get-Date) - $t0).TotalSeconds, 1); empty = $true }
+            }
         }
         # sampling + gate dismissal + evidence
         try {

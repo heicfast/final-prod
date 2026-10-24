@@ -210,7 +210,8 @@ New-OgShot '04_scan_started' $shotDir | Out-Null
 # ---- scan phase --------------------------------------------------------------------------
 $tScan = Get-Date
 $rsfResult = Wait-OgRsf -Baseline $rsfBaseline -CorpusDir $CorpusDir -TimeoutSec $ScanWaitSec `
-    -ShotDir $shotDir -SamplesCsv (Join-Path $OutDir 'og-samples.csv')
+    -ShotDir $shotDir -SamplesCsv (Join-Path $OutDir 'og-samples.csv') `
+    -LogPath $logPath -LogOffset $script:LogOffset
 $run.scan_phase = @{
     wall_seconds = [math]::Round(((Get-Date) - $tScan).TotalSeconds, 1)
     timeout = ($null -eq $rsfResult)
@@ -221,7 +222,28 @@ if ($null -eq $rsfResult) {
     Get-OgLogs -CorpusDir $CorpusDir -OutDir $OutDir | Out-Null
     Get-OgWindowCensus | Set-Content -Path (Join-Path $OutDir 'window-census-fail.txt') -Encoding utf8
     Stop-OgApp
-    throw "og scan did not complete within $ScanWaitSec s (no new .rsf) - diagnostic artifacts retained"
+    throw "og scan did not complete within $ScanWaitSec s (no new .rsf, no completion marker) - diagnostic artifacts retained"
+}
+if ($rsfResult.empty) {
+    # BENCH-OG-F4: completed with an EMPTY found-set (no .rsf is written for
+    # empty results - full_format-class scenarios). Record honestly: found 0,
+    # recovery not attempted, everything downstream handled with an empty
+    # found-set. Never a silent skip - the verdict + screenshot are evidence.
+    $run.scan_phase.rsf = $null
+    $run.scan_phase.rsf_seconds = $rsfResult.seconds
+    $run.scan_phase.found_set = 'EMPTY (og completed; no .rsf auto-saved for an empty result)'
+    $run.notes += 'og scan completed with an EMPTY found-set (10_scan_completed_empty.png); recovery not attempted (nothing to recover); og-found.csv emitted header-only'
+    'path,size,origin,deleted,confidence,extent' | Set-Content -Path (Join-Path $OutDir 'og-found.csv') -Encoding utf8
+    $run.recover_phase = @{ aborted = 'not-attempted (empty found-set)'; wall_seconds = 0; completed = $false }
+    $run.recovered_roots = @()
+    $run.cap_gate = @{ gate_seen = $false; action = 'not-reached (empty found-set)' }
+    Get-OgLogs -CorpusDir $CorpusDir -OutDir $OutDir | Out-Null
+    Get-OgWindowCensus | Set-Content -Path (Join-Path $OutDir 'window-census-final.txt') -Encoding utf8
+    Stop-OgApp
+    $run.ended_utc = (Get-Date).ToUniversalTime().ToString('o')
+    $run | ConvertTo-Json -Depth 8 | Set-Content -Path (Join-Path $OutDir 'og-run.json') -Encoding utf8
+    Write-Host "og run complete (EMPTY found-set): scenario=$Scenario"
+    return
 }
 $run.scan_phase.rsf = $rsfResult.rsf
 $run.scan_phase.rsf_seconds = $rsfResult.seconds
