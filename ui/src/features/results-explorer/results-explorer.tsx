@@ -257,7 +257,7 @@ export function ResultsExplorer({
                 aria-hidden
               />
               <span className="truncate text-foreground-secondary tabular">
-                {t('results.status.countOnly', {
+                {t('results.countOnly', {
                   count: formatCountCompact(total, i18n.language),
                 })}
               </span>

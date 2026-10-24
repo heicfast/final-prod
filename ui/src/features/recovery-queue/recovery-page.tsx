@@ -39,6 +39,14 @@ import { Badge } from '@/components/ui/badge';
 import { Alert } from '@/components/ui/alert';
 import { CapacityBar, StatTile } from '@/components/ui/empty-state';
 import { Skeleton } from '@/components/ui/skeleton';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import { toast } from 'sonner';
 
 /**
@@ -362,10 +370,41 @@ export function RecoveryPage(): React.JSX.Element {
 function CancelRecoveryButton({ jobId }: { jobId: string }): React.JSX.Element {
   const { t } = useTranslation();
   const cancel = useCancelRecovery(jobId);
+  const [confirmOpen, setConfirmOpen] = React.useState(false);
+
+  // Corpus: stopping the export is a confirm-gated action
+  // (CScanCommonPopDlg "Sure to Stop Recovering?" — partial results are kept).
+  const requestCancel = (): void => {
+    setConfirmOpen(false);
+    cancel.mutate();
+  };
+
   return (
-    <Button variant="dangerOutline" onClick={() => cancel.mutate()} loading={cancel.isPending}>
-      {t('recovery.cancel')}
-    </Button>
+    <>
+      <Button
+        variant="dangerOutline"
+        onClick={() => setConfirmOpen(true)}
+        loading={cancel.isPending}
+      >
+        {t('recovery.cancel')}
+      </Button>
+      <Dialog open={confirmOpen} onOpenChange={setConfirmOpen}>
+        <DialogContent className="max-w-sm" aria-label={t('recovery.cancelConfirm')}>
+          <DialogHeader>
+            <DialogTitle className="text-base">{t('recovery.cancelConfirm')}</DialogTitle>
+            <DialogDescription>{t('recovery.cancelBody')}</DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="secondary" onClick={() => setConfirmOpen(false)}>
+              {t('common.continue')}
+            </Button>
+            <Button variant="danger" onClick={requestCancel}>
+              {t('recovery.cancel')}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }
 

@@ -1,24 +1,85 @@
 import * as React from 'react';
 import { useTranslation } from 'react-i18next';
-import { useTheme } from '@/app/theme';
+import { useTheme, type ThemeMode } from '@/app/theme';
 import { useAppInfo, useDriverStatus } from '@/queries/system';
 import { exportLogText, getLogBuffer } from '@/lib/logger';
-import { setLocale, SUPPORTED_LOCALES } from '@/i18n';
+import { setLocale, SUPPORTED_LOCALES, type AppLocale } from '@/i18n';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Segmented } from '@/components/ui/stepper';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/menus';
 import { Table, TableBody, TableCell, TableRow } from '@/components/ui/table';
-import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
+import { PaletteIcon } from 'lucide-react';
+
+/** Picker order: app modes wrapping the adopted palettes (ADR-007). */
+const THEME_MODES: readonly ThemeMode[] = [
+  'system',
+  'light',
+  'dark',
+  'ember',
+  'tide',
+  'blossom',
+  'high-contrast',
+];
+
+const THEME_LABEL_KEY: Record<ThemeMode, string> = {
+  system: 'settings.themeSystem',
+  light: 'settings.themeLight',
+  dark: 'settings.themeDark',
+  ember: 'settings.themeEmber',
+  tide: 'settings.themeTide',
+  blossom: 'settings.themeBlossom',
+  'high-contrast': 'settings.themeHc',
+};
+
+const SCALE_KEY = 'rw.ui.scale';
+const SCALES = [1, 1.5, 2] as const;
+
+function readStoredScale(): number {
+  try {
+    const v = Number(localStorage.getItem(SCALE_KEY));
+    if (v === 1 || v === 1.5 || v === 2) return v;
+  } catch {
+    /* storage unavailable */
+  }
+  return 1;
+}
+
+function isAppLocale(value: string): value is AppLocale {
+  return (SUPPORTED_LOCALES as readonly string[]).includes(value);
+}
 
 export function SettingsPage(): React.JSX.Element {
   const { t, i18n } = useTranslation();
   const { mode, setMode, density, setDensity } = useTheme();
   const appInfo = useAppInfo();
   const driver = useDriverStatus();
-  const locale = (SUPPORTED_LOCALES as readonly string[]).includes(i18n.language)
-    ? (i18n.language as (typeof SUPPORTED_LOCALES)[number])
-    : 'en';
+  const locale = isAppLocale(i18n.language) ? i18n.language : 'en';
+  const [scale, setScaleState] = React.useState<number>(() => readStoredScale());
+
+  const setScale = (next: number): void => {
+    setScaleState(next);
+    document.documentElement.style.zoom = next === 1 ? '' : String(next);
+    try {
+      localStorage.setItem(SCALE_KEY, String(next));
+    } catch {
+      /* storage unavailable */
+    }
+  };
+
+  React.useEffect(() => {
+    // Re-apply a persisted non-default scale on mount.
+    const stored = readStoredScale();
+    if (stored !== 1) document.documentElement.style.zoom = String(stored);
+  }, []);
 
   return (
     <div className="mx-auto w-full max-w-3xl overflow-y-auto p-6">
@@ -31,16 +92,32 @@ export function SettingsPage(): React.JSX.Element {
         <div className="space-y-4 rounded-lg border border-border bg-surface p-4">
           <div className="flex items-center justify-between gap-4">
             <Label>{t('settings.theme')}</Label>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="secondary" size="sm" className="gap-2">
+                  <PaletteIcon className="size-4" aria-hidden />
+                  {t(THEME_LABEL_KEY[mode])}
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                {THEME_MODES.map((m) => (
+                  <React.Fragment key={m}>
+                    {m === 'high-contrast' ? <DropdownMenuSeparator /> : null}
+                    <DropdownMenuItem onClick={() => setMode(m)} aria-checked={mode === m}>
+                      {t(THEME_LABEL_KEY[m])}
+                    </DropdownMenuItem>
+                  </React.Fragment>
+                ))}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
+          <div className="flex items-center justify-between gap-4">
+            <Label>{t('settings.scale')}</Label>
             <Segmented
-              ariaLabel={t('settings.theme')}
-              value={mode}
-              onChange={(v) => setMode(v)}
-              options={[
-                { value: 'system', label: t('settings.themeSystem') },
-                { value: 'light', label: t('settings.themeLight') },
-                { value: 'dark', label: t('settings.themeDark') },
-                { value: 'high-contrast', label: t('settings.themeHc') },
-              ]}
+              ariaLabel={t('settings.scale')}
+              value={String(scale)}
+              onChange={(v) => setScale(Number(v))}
+              options={SCALES.map((s) => ({ value: String(s), label: `${s * 100}%` }))}
             />
           </div>
           <div className="flex items-center justify-between gap-4">

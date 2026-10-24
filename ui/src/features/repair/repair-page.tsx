@@ -159,7 +159,7 @@ export function RepairPage(): React.JSX.Element {
                 onClick={() => {
                   apply.mutate(consentText.trim().toUpperCase(), {
                     onSuccess: ({ applied }) =>
-                      toast.success(t('repair.applied') + ` (${applied})`),
+                      toast.success(t('repair.appliedCount', { count: applied })),
                     onError: (err) => toast.error(err.message),
                   });
                 }}
@@ -186,7 +186,7 @@ export function RepairPage(): React.JSX.Element {
               onClick={() =>
                 undo.mutate(undefined, {
                   onSuccess: ({ rolledBack }) =>
-                    toast.success(t('repair.rolledBack') + ` (${rolledBack})`),
+                    toast.success(t('repair.rolledBackCount', { count: rolledBack })),
                 })
               }
             >
