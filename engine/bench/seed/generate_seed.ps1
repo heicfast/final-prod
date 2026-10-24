@@ -436,6 +436,9 @@ foreach ($e in $script:Entries) {
     if (-not ($e.PSObject.Properties['frag_measured_ratio'])) {
         Add-Member -InputObject $e -NotePropertyName frag_measured_ratio -NotePropertyValue $null
     }
+    if (-not ($e.PSObject.Properties['frag_measured_anomaly'])) {
+        Add-Member -InputObject $e -NotePropertyName frag_measured_anomaly -NotePropertyValue $null
+    }
 }
 # extents + NTFS record numbers enrichment follows
 $lettersOk = $true
@@ -467,8 +470,10 @@ foreach ($e in $script:Entries) {
             $e.frag_measured_ratio = [math]::Round([double]$e.extents.Count / [double][math]::Max([double]1, [double]$clusters), 4)
         }
         if ($clusters -gt 2147483647) {
-            # implausible cluster total recorded as an anomaly (never silently clamped)
-            $e.frag_measured_anomaly = "cluster total $clusters exceeds int32 range"
+            # implausible cluster total recorded as an anomaly with the raw extents
+            # (diagnosable from the manifest artifact; never silently clamped)
+            $raw = ($e.extents | ForEach-Object { "[$($_[0]),$($_[1])]" }) -join ' '
+            $e.frag_measured_anomaly = "cluster total $clusters exceeds int32 range; extents: $raw"
         }
     } else {
         $e.frag_measured_extents = $null; $e.frag_measured_ratio = $null

@@ -111,7 +111,7 @@ try {
     Start-Sleep -Seconds 2
     $out = (& $Rdacli info) 2>$null
     $aliasResult = ($out -join ' ')
-    if ($LASTEXITCODE -ne 0) { $aliasResult = "rdacli info exit=$LASTEXITCODE: $aliasResult" }
+    if ($LASTEXITCODE -ne 0) { $aliasResult = "rdacli info exit=${LASTEXITCODE}: $aliasResult" }
 } catch {
     $aliasResult = "alias check error: $($_.Exception.Message)"
 } finally {

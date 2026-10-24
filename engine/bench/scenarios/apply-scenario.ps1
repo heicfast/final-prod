@@ -190,7 +190,7 @@ elseif ($Mode -eq 'delete_partition') {
     }
     # the disk is left fully unallocated: both seeded partitions' entries are gone
     # (data sectors untouched) - lost-partition recovery must rebuild from raw scan
-    $state.notes += "GPT entries removed on disk $DiskNumber: partitions $($removed -join ',') (Remove-Partition; data sectors untouched); disk left unallocated"
+    $state.notes += "GPT entries removed on disk ${DiskNumber}: partitions $($removed -join ',') (Remove-Partition; data sectors untouched); disk left unallocated"
 }
 elseif ($Mode.StartsWith('decay_')) {
     $pct = [int]($Mode -replace 'decay_', '')
