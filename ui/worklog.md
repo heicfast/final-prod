@@ -427,3 +427,121 @@ in the 2,402 tr sites / 195 telemetry events / 722 connect edges / QSS.
 - Corrected `formatBytes` to retain one fractional digit for all non-byte
   units. The corpus-parity formatter test now renders a 149.45 GiB volume as
   `149.5 GB`, rather than silently truncating it to `149 GB`.
+
+---
+
+## Session 4 — 2026-10-24 (Audit verification, theme completion, localization, accessibility, acceptance, release)
+
+### Session model note
+
+Two parallel sessions worked this mandate concurrently. The remote session
+executed T5–T11 (its commits 811d328 → f9df1c8 landed first, verified green);
+this session had independently produced its own T5 on a local branch — that
+variant was preserved on `session4-t5-parallel` and the remote chain adopted
+per the pull-frequently/never-force-push rule. This session's unique
+contributions then continued on top: corpus verification of the parallel
+chain, VLM evidence completion, T12–T13, T17–T20.
+
+### T1 — Baseline — DONE
+
+Fresh clones; CI on the audit commit was RED at Format check — prettier
+normalized (24aabf0) and main restored to green before any feature work.
+Prompt archived (token redacted) at worklog/session-4-audit-prompt.md.
+
+### T2 — Corpus pass — DONE
+
+- Direct reads: architecture 00/04/05u/07, artifacts 01/02/04/05/07/08/09/
+  10/11/14/21/31/35, GT-scan-phase, CORRECTIONS.md.
+- Two extraction agents (2-a: 29 artifact/arch docs; 2-b: raw string tables,
+  telemetry census, config values, themdark palette slots) — full structured
+  reports with line citations.
+- VLM: all 63 screenshots extracted (docs/evidence/vlm/shots/ — checkpointed
+  foreground driver; the sandbox reaps background processes ~1 min after the
+  launching call — root-caused, documented, worked around with budgeted
+  foreground chunks).
+
+### T3–T4 — App read + audit verification — DONE
+
+Every source file read directly or via the inventory agent (usage maps, slop
+scan, i18n key inventory). The parallel session's T5–T11 chain was verified
+against this session's independent corpus knowledge: the flow correction
+(direct start, quick→advanced automatic, corpus status lines, no-Esc
+celebration, real elapsed time, stop-confirm, device-lost) matches artifact
+04 §4, GT-scan §2/§7/§8, atlas §6, artifact 08 §3 on every checked point.
+
+### T12 — Localization to the exact-referenced surface — DONE
+
+- Found + fixed 16 REFERENCED-BUT-MISSING keys (raw-key render bugs): new
+  about.* namespace (AboutDialog shipped with 11 unresolvable keys),
+  repair.finding.* (finding descriptions), repair.consentRequired,
+  results.status.countOnly reference typo.
+- Purged 102 dead keys from BOTH catalogs; plural-pair semantics fixed
+  (X/X_other is one i18next entry — the first prune over-deleted 5 pairs,
+  restored + regression-guarded).
+- audit §3.43 concatenation fixed properly (repair.appliedCount/
+  rolledBackCount interpolation); dialog Close aria-label i18n'd.
+- Governance: scripts/i18n-sweep.mjs + tests/i18n-sweep.test.ts —
+  missing = 0 AND unused = 0, enforced in CI. Settings gained the full
+  7-mode theme picker (ember/tide/blossom were unreachable from Settings)
+  and the corpus-backed Scale control (100/150/200%, reference DPI menu).
+- Wired the two reference-backed states that had keys but no UI: results
+  partial-state banner (with honest search-again preserving pathScope) and
+  the recovery cancel-confirm (CScanCommonPopDlg family).
+
+### T13 — Accessibility — DONE (axe: 0 violations)
+
+Live production-build audit (agent-browser + axe-core 4.10) with full
+evidence in docs/evidence/a11y/:
+
+- nested-interactive: DeviceCard radio restructured (actions are siblings).
+- Light-family text-grade accent re-derived: #b83410 (the previous #cc3d15
+  failed on ink-soft tints — badges 4.36:1, active sidebar 3.98:1);
+  warning grade #a84c07; focus rings follow.
+- Dark-family status text-grades fixed (light derivatives leaked: success
+  2.74:1 on dark) — scheme maps to adopted vivid hues, danger lifted to
+  #ff8085; neutral-dark accent lifted to #ff9d85 (raw coral failed on its
+  own tint); ember/tide verified passing; blossom cream-grade success.
+- Meaningful text moved off the disabled tier (sidebar headers, tree
+  counts, preview placeholder).
+- Grid ARIA completed (columnheader + aria-sort, rowgroup, gridcell,
+  presentation loaders); separator resizer got valuenow/min/max + i18n
+  label; icon-only radios named; breadcrumb carries the level-1 heading.
+- Pulse discipline: liveness animations moved to dots — animating TEXT
+  opacity transiently breaks contrast (axe caught a badge at 1.84:1
+  mid-pulse).
+- Final: 0 violations across home ×6 states (5 palettes + HC) + scan +
+  results; keyboard walkthrough recorded; zero console/page errors.
+
+### T15 — Perf gates — DONE (re-measured)
+
+Bundle 89.4/200 KB main, 273.5/500 KB total (down from 315.7 — dead deps +
+purged surface); filter <200 ms asserted on the 340k space; jscpd 0 clones;
+knip 0 findings (the one-shot prune tool removed after use).
+
+### T17 — ACCEPTANCE.md — DONE
+
+Per-surface 55-grid verdicts with evidence; every surface PASS; 3 PARTIALs
+tracked with precise Windows-hardware rationale (cold start, fractional-DPI
+capture, RTL as documented non-goal).
+
+### T18 — Docs sweep — DONE
+
+AUDIT-REPORT §7 resolution table (no open rows); README current; TESTING
+--no-bundle fix; SCREENSHOT-MANIFEST VLM index; ROADMAP session-4 section;
+ADR-005 RHF row updated (dep removed in ADR-008).
+
+### T19 — Release — DONE
+
+v0.2.0: three manifests bumped in lockstep; app version now flows from
+package.json (tree-shaken named import) instead of a hardcoded literal;
+tag v0.2.0 pushed → Release workflow (unsigned NSIS + SHA-256, notes state
+signing pending).
+
+### Handoff — next actions
+
+1. Engine-integration session per ROADMAP (wire connector/tauri over
+   invoke(); delete the loud stub; engine Rust commands; real destination
+   validation; re-measure grid #34–44 on real hardware).
+2. Windows-hardware measurements for the three tracked PARTIALs in
+   docs/ACCEPTANCE.md (cold start number, 125/175% DPI capture matrix).
+3. Interim assets per docs/INTERIM-ASSETS.md (Lucide → purpose-drawn v2).
