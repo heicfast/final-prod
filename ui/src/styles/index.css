@@ -18,12 +18,14 @@
 @theme inline {
   --color-background: var(--background);
   --color-surface: var(--surface);
+  --color-surface-elevated: var(--surface-elevated);
   --color-surface-muted: var(--surface-muted);
   --color-surface-tint: var(--surface-tint);
   --color-surface-hover: var(--surface-hover);
   --color-surface-selected: var(--surface-selected);
   --color-foreground: var(--text-primary);
   --color-foreground-secondary: var(--text-secondary);
+  --color-foreground-muted: var(--text-muted);
   --color-foreground-disabled: var(--text-disabled);
   --color-primary: var(--accent);
   --color-primary-hover: var(--accent-hover);
@@ -187,28 +189,34 @@
   }
 }
 
-.gradient-cta:not(.bg-none) {
-  background-image: var(--cta-gradient);
-}
-.gradient-glow:not(.shadow-none) {
-  box-shadow: var(--cta-glow);
-}
+@layer components {
+  .gradient-cta:not(.bg-none) {
+    background-image: var(--cta-gradient);
+  }
+  .gradient-cta:not(.bg-none):hover:not(:disabled) {
+    background-image: var(--cta-gradient-hover);
+  }
+  .gradient-glow:not(.shadow-none) {
+    box-shadow: var(--cta-glow);
+  }
 
-/* Sidebar collapse choreography (MOTION-SPEC §3.5): width settles at the
- * slow duration while labels fade on the fast one — icons retain their
- * gutter (18px to icon center = 26px = the 52px rail's center), so nothing
- * re-animates but the width. Reduced motion collapses both to instant via
- * the global media query above. */
-.sidebar-width-transition {
-  transition: width var(--dur-slow) var(--ease-in-out);
-}
-.sidebar-label-fade {
-  transition: opacity var(--dur-fast) var(--ease-out);
-}
+  /* Sidebar collapse choreography (MOTION-SPEC §3.5): width settles at the
+   * slow duration while labels fade on the fast one — icons retain their
+   * gutter (18px to icon center = 26px = the 52px rail's center), so nothing
+   * re-animates but the width. Reduced motion collapses both to instant via
+   * the global media query above. */
+  .sidebar-width-transition {
+    transition: width var(--dur-slow) var(--ease-in-out);
+  }
+  .sidebar-label-fade {
+    transition: opacity var(--dur-fast) var(--ease-out);
+  }
 
-/* Route-change fade (MOTION-SPEC §3.4): the incoming page fades in at the
- * fast duration — opacity only, so the layout box is stable (zero CLS).
- * Reduced motion collapses it to instant via the global media query. */
-.route-fade {
-  animation: fade-in var(--dur-fast) var(--ease-out);
+  /* Route-change fade (MOTION-SPEC §3.4): the incoming page fades in at the
+   * fast duration — opacity only, so the layout box is stable (zero CLS).
+   * Reduced motion collapses it to instant via the global media query. */
+  .route-fade {
+    animation: fade-in var(--dur-fast) var(--ease-out);
+    will-change: opacity;
+  }
 }

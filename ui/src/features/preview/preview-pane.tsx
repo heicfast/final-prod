@@ -55,7 +55,7 @@ export function PreviewPane({
               <button
                 type="button"
                 onClick={() => bodyRef.current?.scrollIntoView({ behavior: 'smooth' })}
-                className="absolute bottom-3 inline-flex h-8 min-w-[116px] items-center justify-center rounded-md border border-[#BFDBFE] bg-[#EAF2FF]/95 px-4 text-xs font-semibold text-[#1677FF] shadow-xs backdrop-blur-xs transition-colors hover:bg-[#DCE9FE] focus-visible:ring-2 focus-visible:ring-ring"
+                className="absolute bottom-3 inline-flex h-8 min-w-[116px] items-center justify-center rounded-md border border-[#93C5FD] bg-[#EAF2FF]/95 px-4 text-xs font-semibold text-[#0958D9] shadow-xs backdrop-blur-xs transition-colors hover:bg-[#DCE8FF] focus-visible:ring-2 focus-visible:ring-ring dark:border-border dark:bg-surface-elevated/95 dark:text-primary dark:hover:bg-surface-hover"
               >
                 {t('preview.title')}
               </button>

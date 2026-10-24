@@ -27,6 +27,7 @@
   /* ── Canvas & surfaces ─────────────────────────────────────────────── */
   --background: var(--panel);
   --surface: var(--card);
+  --surface-elevated: var(--card);
   --surface-muted: var(--chip);
   --surface-tint: var(--control-hover);
   --surface-hover: var(--control-hover);
@@ -35,6 +36,7 @@
   /* ── Text ──────────────────────────────────────────────────────────── */
   --text-primary: var(--text);
   --text-secondary: var(--text-secondary);
+  --text-muted: var(--text-tertiary);
   --text-disabled: var(--text-tertiary);
 
   /* ── Accent ──────────────────────────────────────────────────────────
@@ -56,6 +58,7 @@
   --accent-muted: var(--ink-soft);
   --accent-muted-border: color-mix(in srgb, var(--ink) 30%, transparent);
   --cta-gradient: linear-gradient(180deg, #1f7dff 0%, #1677ff 55%, #0066ff 100%);
+  --cta-gradient-hover: linear-gradient(180deg, #1677ff 0%, #0958d9 55%, #0050b3 100%);
   --cta-glow: 0 2px 8px rgba(22, 119, 255, 0.28), 0 1px 2px rgba(0, 102, 255, 0.16);
 
   /* ── Status ──────────────────────────────────────────────────────────
@@ -147,6 +150,7 @@
   --accent-hover: var(--ink-strong);
   --accent-pressed: var(--ink);
   --cta-gradient: var(--ink-grad);
+  --cta-gradient-hover: linear-gradient(180deg, var(--ink) 0%, var(--ink-strong) 100%);
   --cta-glow: var(--ink-glow);
   --focus-ring: var(--ink);
   --success: var(--free); /* #30d158-class per theme — 6.9:1+ */
@@ -168,6 +172,7 @@
   --accent-hover: #922a45;
   --accent-pressed: #7c243b;
   --cta-gradient: var(--ink-grad);
+  --cta-gradient-hover: linear-gradient(180deg, #d8506b 0%, #b5324e 100%);
   --cta-glow: var(--ink-glow);
   --focus-ring: #a83250;
   --success: #157a3c; /* darkened green for cream surfaces (4.9:1 on #fbf1ee) */
@@ -198,6 +203,7 @@
   --accent-muted: #f2e6e0;
   --accent-muted-border: #a02800;
   --cta-gradient: #a02800;
+  --cta-gradient-hover: #7d1f00;
   --cta-glow: none;
 
   --success: #005a20;
@@ -248,6 +254,7 @@
   --accent-muted: #2b120a;
   --accent-muted-border: #ffb59e;
   --cta-gradient: #ff8a5e;
+  --cta-gradient-hover: #ffc4b0;
   --cta-glow: none;
 
   --success: #6bd98f;

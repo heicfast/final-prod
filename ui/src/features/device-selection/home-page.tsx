@@ -177,7 +177,7 @@ export function HomePage(): React.JSX.Element {
           <div>
             <h1
               aria-label={`${t('home.title')} — Choose where to look for lost data`}
-              className="text-[20px] font-bold tracking-tight text-[#1E293B]"
+              className="text-[20px] font-bold tracking-tight text-[#1E293B] dark:text-foreground"
             >
               {t('home.title')}
             </h1>
@@ -189,7 +189,7 @@ export function HomePage(): React.JSX.Element {
             disabled={refresh.isPending}
             aria-label={t('home.refreshDevices')}
             title={t('home.refreshDevices')}
-            className="flex size-8 shrink-0 items-center justify-center rounded-full border border-[#E2E8F0] bg-white text-[#64748B] shadow-2xs transition-colors hover:border-[#BFDBFE] hover:bg-[#F8FAFC] hover:text-[#1677FF] focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
+            className="flex size-8 shrink-0 items-center justify-center rounded-full border border-[#E2E8F0] bg-white text-[#475569] shadow-2xs transition-all hover:border-[#93C5FD] hover:bg-[#EBF2FF] hover:text-[#1677FF] active:scale-[var(--press-scale)] focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50 dark:border-border dark:bg-surface dark:text-foreground-secondary dark:hover:border-primary dark:hover:bg-surface-hover dark:hover:text-primary"
           >
             <RefreshCcwIcon className="size-4" aria-hidden />
           </button>
@@ -209,7 +209,7 @@ export function HomePage(): React.JSX.Element {
         ) : null}
 
         {/* Internal drives (N) */}
-        <h2 className="mb-3.5 text-[14px] font-bold text-[#1E293B]">
+        <h2 className="mb-3.5 text-[14px] font-bold text-[#1E293B] dark:text-foreground">
           {showRemovable ? t('home.removableGroup') : t('home.internalGroup')} ({visible.length}
           )
         </h2>
@@ -232,7 +232,7 @@ export function HomePage(): React.JSX.Element {
         </div>
 
         {/* Specify a location */}
-        <h2 className="mb-3.5 mt-8 text-[14px] font-bold text-[#1E293B]">
+        <h2 className="mb-3.5 mt-8 text-[14px] font-bold text-[#1E293B] dark:text-foreground">
           {t('home.quickTargets')}
         </h2>
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
@@ -258,7 +258,7 @@ export function HomePage(): React.JSX.Element {
 
         {(sessionsQuery.data?.length ?? 0) > 0 ? (
           <>
-            <h2 className="mb-3 mt-7 text-[13px] font-bold text-[#475569]">
+            <h2 className="mb-3 mt-7 text-[13px] font-bold text-[#475569] dark:text-foreground-secondary">
               {t('home.recentSessions')}
             </h2>
             <div className="space-y-2">
@@ -267,13 +267,13 @@ export function HomePage(): React.JSX.Element {
                   key={s.id}
                   type="button"
                   onClick={() => onResume(s.fileName)}
-                  className="flex w-full items-center justify-between gap-4 rounded-[8px] border border-[#E2E8F0] bg-[#F8FAFD] px-4 py-2.5 text-left transition-colors hover:bg-[#F1F5F9] focus-visible:ring-2 focus-visible:ring-ring"
+                  className="flex w-full items-center justify-between gap-4 rounded-[8px] border border-[#E2E8F0] bg-[#F8FAFD] px-4 py-2.5 text-left transition-colors hover:border-[#93C5FD] hover:bg-[#EBF2FF]/60 focus-visible:ring-2 focus-visible:ring-ring dark:border-border dark:bg-surface dark:hover:bg-surface-hover"
                 >
                   <div className="min-w-0">
-                    <div className="truncate text-[13px] font-medium text-[#1E293B]">
+                    <div className="truncate text-[13px] font-medium text-[#1E293B] dark:text-foreground">
                       {s.targetLabel}
                     </div>
-                    <div className="text-[11px] text-[#64748B] tabular">
+                    <div className="text-[11px] text-[#64748B] tabular dark:text-foreground-secondary">
                       {formatDate(s.savedAt, i18n.language)} ·{' '}
                       {s.filesFound.toLocaleString(i18n.language)} {t('scan.filesFound')}
                     </div>
@@ -289,12 +289,12 @@ export function HomePage(): React.JSX.Element {
       </div>
 
       {/* Bottom Footer Bar — "Unable to find your hard drive? ^" on left, "Search for Lost Data" on right */}
-      <div className="sticky bottom-0 flex items-center justify-between gap-3 bg-white/95 px-8 py-4 backdrop-blur">
+      <div className="sticky bottom-0 flex items-center justify-between gap-3 bg-white/95 px-8 py-4 backdrop-blur dark:bg-background/95">
         <div className="relative">
           <button
             type="button"
             onClick={() => setHelpOpen((v) => !v)}
-            className="inline-flex items-center gap-1 text-[13px] text-[#64748B] transition-colors hover:text-[#1677FF] focus-visible:ring-2 focus-visible:ring-ring"
+            className="inline-flex items-center gap-1 rounded-xs px-1 py-0.5 text-[13px] text-[#64748B] transition-colors hover:text-[#1677FF] focus-visible:ring-2 focus-visible:ring-ring dark:text-foreground-secondary dark:hover:text-primary"
           >
             <span>{t('home.unableToFindDrive')}</span>
             <ChevronUpIcon
@@ -303,8 +303,8 @@ export function HomePage(): React.JSX.Element {
             />
           </button>
           {helpOpen ? (
-            <div className="absolute bottom-8 left-0 z-20 w-72 rounded-[10px] border border-[#DCE8FF] bg-white p-3.5 shadow-lg">
-              <p className="text-[12px] leading-relaxed text-[#475569]">
+            <div className="absolute bottom-8 left-0 z-20 w-72 rounded-[10px] border border-[#DCE8FF] bg-white p-3.5 shadow-lg dark:border-border dark:bg-surface">
+              <p className="text-[12px] leading-relaxed text-[#475569] dark:text-foreground-secondary">
                 {t('lostPartition.subtitle')}
               </p>
               <button
@@ -313,7 +313,7 @@ export function HomePage(): React.JSX.Element {
                   setHelpOpen(false);
                   void navigate('/lost-partition');
                 }}
-                className="mt-2 text-[12px] font-semibold text-[#1677FF] hover:underline"
+                className="mt-2 text-[12px] font-semibold text-[#1677FF] hover:underline dark:text-primary"
               >
                 {t('sidebar.lostPartition')} →
               </button>
@@ -326,7 +326,7 @@ export function HomePage(): React.JSX.Element {
           disabled={!selected || startScan.isPending}
           onClick={() => selected && beginScan(selected.id)}
           aria-keyshortcuts="Enter"
-          className="inline-flex h-10 min-w-[184px] items-center justify-center rounded-[6px] bg-[#1677FF] px-6 text-[14px] font-semibold text-white shadow-xs transition-colors hover:bg-[#0958D9] focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
+          className="inline-flex h-10 min-w-[184px] items-center justify-center rounded-[6px] bg-[#1677FF] px-6 text-[14px] font-semibold text-white shadow-xs transition-all hover:bg-[#0958D9] hover:text-white active:bg-[#003EB3] active:scale-[var(--press-scale)] focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50 dark:bg-primary-fill dark:text-primary-foreground dark:hover:bg-primary-fill-hover"
         >
           {t('home.scanAction')}
         </button>
@@ -380,17 +380,17 @@ function DeviceCard({
         if (!locked && !offline) onScan();
       }}
       className={cn(
-        'group relative flex flex-col justify-center rounded-[10px] border bg-[#F8FAFD] px-5 py-4 transition-all duration-150',
+        'group relative flex flex-col justify-center rounded-[10px] border bg-[#F8FAFD] px-5 py-4 transition-all duration-150 dark:bg-surface',
         selected
-          ? 'border-[#1677FF] bg-[#F4F8FF] ring-1 ring-[#1677FF]'
-          : 'border-transparent hover:border-[#CBD5E1] hover:bg-[#F1F5F9]',
+          ? 'border-[#1677FF] bg-[#F4F8FF] ring-1 ring-[#1677FF] dark:border-primary dark:bg-primary-muted/40 dark:ring-primary'
+          : 'border-transparent hover:border-[#93C5FD] hover:bg-[#EEF4FF] dark:border-border dark:hover:border-border-strong dark:hover:bg-surface-hover',
         offline && 'opacity-60',
       )}
     >
       {/* Top-right blue checkmark circle on selected card */}
       {selected ? (
         <span
-          className="absolute -right-2 -top-2 z-10 flex size-5 items-center justify-center rounded-full bg-[#1677FF] text-white shadow-xs ring-2 ring-white"
+          className="absolute -right-2 -top-2 z-10 flex size-5 items-center justify-center rounded-full bg-[#1677FF] text-white shadow-xs ring-2 ring-white dark:bg-primary-fill dark:text-primary-foreground dark:ring-background"
           aria-hidden
         >
           <CheckIcon className="size-3 stroke-[3]" />
@@ -408,7 +408,7 @@ function DeviceCard({
 
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">
-            <span className="truncate text-[14px] font-semibold text-[#1E293B]">
+            <span className="truncate text-[14px] font-semibold text-[#1E293B] dark:text-foreground">
               {compactLabel}
             </span>
             {hasLost ? <Badge variant="primary">{t('home.lostPartitionBadge')}</Badge> : null}
@@ -426,17 +426,17 @@ function DeviceCard({
 
           {/* Reference capacity bar */}
           <div
-            className="mt-2 h-[6px] w-full overflow-hidden rounded-full bg-[#DCE6F5]"
+            className="mt-2 h-[6px] w-full overflow-hidden rounded-full bg-[#DCE6F5] dark:bg-surface-tint"
             aria-hidden
           >
             <div
-              className="h-full rounded-full bg-[#1677FF] transition-all"
+              className="h-full rounded-full bg-[#1677FF] transition-all dark:bg-primary-fill"
               style={{ width: `${usedRatio}%` }}
             />
           </div>
 
           <div
-            className="mt-1.5 text-[12px] text-[#64748B] tabular"
+            className="mt-1.5 text-[12px] text-[#64748B] tabular dark:text-foreground-secondary"
             aria-label={t('home.capacityUsed', {
               used: formatBytes(device.capacity.usedBytes, i18n.language),
               total: formatBytes(device.capacity.totalBytes, i18n.language),
@@ -448,8 +448,8 @@ function DeviceCard({
       </button>
 
       {showVolumeChips ? (
-        <div className="mt-3 flex items-center justify-between gap-2 border-t border-[#E2E8F0] pt-2">
-          <span className="text-[11px] font-medium text-[#64748B]">
+        <div className="mt-3 flex items-center justify-between gap-2 border-t border-[#E2E8F0] pt-2 dark:border-border">
+          <span className="text-[11px] font-medium text-[#64748B] dark:text-foreground-secondary">
             {locked || offline ? t('home.healthCaution') : t('home.healthGood')}
           </span>
           <span className="flex items-center gap-1.5">
@@ -466,7 +466,7 @@ function DeviceCard({
                       ? t('home.disconnected')
                       : undefined
                 }
-                className="rounded-xs px-1.5 py-0.5 text-xs font-medium text-[#1677FF] hover:bg-[#EBF3FF] focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
+                className="rounded-xs px-1.5 py-0.5 text-xs font-medium text-[#1677FF] hover:bg-[#DCE8FF] focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 dark:text-primary dark:hover:bg-surface-hover"
               >
                 {v.label}
               </button>
@@ -494,7 +494,7 @@ function QuickTarget({
       type="button"
       onClick={onClick}
       disabled={loading}
-      className="flex items-center gap-3.5 rounded-[10px] border border-transparent bg-[#F8FAFD] px-5 py-4 text-left text-[13.5px] font-medium text-[#1E293B] transition-all hover:border-[#CBD5E1] hover:bg-[#F4F8FF] focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-60"
+      className="flex items-center gap-3.5 rounded-[10px] border border-transparent bg-[#F8FAFD] px-5 py-4 text-left text-[13.5px] font-medium text-[#1E293B] transition-all hover:border-[#93C5FD] hover:bg-[#EEF4FF] hover:text-[#0F172A] active:scale-[var(--press-scale)] focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-60 dark:border-border dark:bg-surface dark:text-foreground dark:hover:border-border-strong dark:hover:bg-surface-hover"
     >
       {icon}
       <span className="truncate">{label}</span>

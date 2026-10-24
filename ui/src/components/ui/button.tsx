@@ -4,19 +4,20 @@ import { cva, type VariantProps } from 'class-variance-authority';
 import { cn } from '@/lib/utils';
 
 const buttonVariants = cva(
-  'inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-semibold transition-[background-color,border-color,color,box-shadow] duration-100 outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:shrink-0',
+  'inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-semibold transition-[background-color,border-color,color,box-shadow,transform] duration-100 outline-none active:scale-[var(--press-scale)] focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:shrink-0',
   {
     variants: {
       variant: {
         primary:
-          'gradient-cta gradient-glow text-primary-foreground hover:brightness-110 active:brightness-95',
+          'gradient-cta gradient-glow bg-[#1677FF] text-primary-foreground hover:bg-[#0958D9] hover:text-primary-foreground active:bg-[#003EB3] dark:bg-primary-fill dark:hover:bg-primary-fill-hover',
         secondary:
-          'border border-border-strong bg-surface text-foreground hover:bg-surface-hover active:bg-surface-selected',
+          'border border-border-strong bg-surface text-foreground shadow-2xs hover:border-[#94A3B8] hover:bg-[#E2E8F0]/80 hover:text-foreground active:bg-surface-selected dark:hover:border-border-strong dark:hover:bg-surface-hover',
         ghost:
-          'text-foreground-secondary hover:bg-surface-hover hover:text-foreground active:bg-surface-tint',
-        danger: 'bg-danger text-white shadow-sm hover:brightness-110 active:brightness-95',
+          'text-foreground-secondary hover:bg-[#DCE8FF]/85 hover:text-foreground active:bg-surface-tint dark:hover:bg-surface-hover dark:hover:text-foreground',
+        danger:
+          'bg-danger text-white shadow-xs hover:bg-[#B91C1C] hover:text-white active:bg-danger-pressed',
         dangerOutline:
-          'border border-danger bg-transparent text-danger hover:bg-danger-muted active:brightness-95',
+          'border border-danger bg-transparent text-danger hover:bg-danger-muted hover:text-danger active:bg-danger-muted/80',
         link: 'text-primary underline-offset-4 hover:underline',
       },
       size: {

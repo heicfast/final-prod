@@ -79,10 +79,12 @@ export function LostPartitionPage(): React.JSX.Element {
       <div className="mx-auto w-full max-w-5xl">
         {/* Reference Header */}
         <div>
-          <h1 className="text-[20px] font-bold tracking-tight text-[#1E293B]">
+          <h1 className="text-[20px] font-bold tracking-tight text-[#1E293B] dark:text-foreground">
             {t('lostPartition.title')}
           </h1>
-          <p className="mt-1.5 text-[13px] text-[#64748B]">{t('lostPartition.subtitle')}</p>
+          <p className="mt-1.5 text-[13px] text-[#64748B] dark:text-foreground-secondary">
+            {t('lostPartition.subtitle')}
+          </p>
         </div>
 
         {/* Two-column reference split: 3 partition rows + Start CTA on left, disc + robot illustration on right */}
@@ -110,7 +112,7 @@ export function LostPartitionPage(): React.JSX.Element {
                 type="button"
                 disabled={startScan.isPending}
                 onClick={() => beginScan()}
-                className="inline-flex h-10 w-[136px] items-center justify-center rounded-[6px] bg-[#1677FF] text-[14px] font-semibold text-white shadow-xs transition-colors hover:bg-[#0958D9] focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
+                className="inline-flex h-10 w-[136px] items-center justify-center rounded-[6px] bg-[#1677FF] text-[14px] font-semibold text-white shadow-xs transition-all hover:bg-[#0958D9] active:scale-[var(--press-scale)] focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50 dark:bg-primary dark:text-primary-foreground dark:hover:bg-primary-hover"
               >
                 {t('lostPartition.start')}
               </button>
@@ -118,7 +120,7 @@ export function LostPartitionPage(): React.JSX.Element {
                 <button
                   type="button"
                   onClick={() => setShowDiskPicker((v) => !v)}
-                  className="text-[12.5px] font-medium text-[#64748B] underline decoration-[#CBD5E1] underline-offset-4 hover:text-[#1677FF]"
+                  className="text-[12.5px] font-medium text-[#64748B] underline decoration-[#CBD5E1] underline-offset-4 hover:text-[#0958D9] dark:text-foreground-secondary dark:hover:text-primary"
                 >
                   {t('lostPartition.diskList')} ({selected?.label ?? disks[0]?.label})
                 </button>
@@ -133,8 +135,8 @@ export function LostPartitionPage(): React.JSX.Element {
 
         {/* Expandable Disk Picker when user wants to switch target disk */}
         {showDiskPicker && disks.length > 0 ? (
-          <div className="mt-8 border-t border-[#E2E8F0] pt-5">
-            <h2 className="mb-3 text-[13px] font-semibold text-[#475569]">
+          <div className="mt-8 border-t border-[#E2E8F0] pt-5 dark:border-border">
+            <h2 className="mb-3 text-[13px] font-semibold text-[#475569] dark:text-foreground-secondary">
               {t('lostPartition.diskList')}
             </h2>
             <div
@@ -156,23 +158,23 @@ export function LostPartitionPage(): React.JSX.Element {
                       'flex items-center gap-3.5 rounded-[10px] border px-4 py-3 text-left transition-all',
                       'focus-visible:ring-2 focus-visible:ring-ring',
                       isSel
-                        ? 'border-[#1677FF] bg-[#F4F8FF] ring-1 ring-[#1677FF]'
-                        : 'border-[#E2E8F0] bg-[#F8FAFD] hover:border-[#93C5FD]',
+                        ? 'border-[#1677FF] bg-[#F4F8FF] ring-1 ring-[#1677FF] dark:border-primary dark:bg-surface-selected dark:ring-primary'
+                        : 'border-[#E2E8F0] bg-[#F8FAFD] hover:border-[#93C5FD] hover:bg-[#EFF5FF] dark:border-border dark:bg-surface-elevated dark:hover:border-primary/60 dark:hover:bg-surface-hover',
                     )}
                   >
-                    <div className="flex size-10 shrink-0 items-center justify-center rounded-md bg-[#EBF3FF] text-[#1677FF]">
+                    <div className="flex size-10 shrink-0 items-center justify-center rounded-md bg-[#EBF3FF] text-[#1677FF] dark:bg-surface-tint dark:text-primary">
                       <UsbIcon className="size-5" strokeWidth={1.5} aria-hidden />
                     </div>
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-2">
-                        <span className="truncate text-[13.5px] font-semibold text-[#1E293B]">
+                        <span className="truncate text-[13.5px] font-semibold text-[#1E293B] dark:text-foreground">
                           {disk.label}
                         </span>
                         {disk.volumes.some((v) => v.lostPartition) ? (
                           <Badge variant="primary">{t('home.lostPartitionBadge')}</Badge>
                         ) : null}
                       </div>
-                      <div className="text-[12px] text-[#64748B] tabular">
+                      <div className="text-[12px] text-[#64748B] tabular dark:text-foreground-secondary">
                         {disk.model} · {formatBytes(disk.capacity.totalBytes, i18n.language)}
                       </div>
                     </div>
@@ -201,7 +203,7 @@ function PartitionScenarioRow({
   return (
     <div className="flex items-start gap-4">
       <div
-        className="mt-0.5 flex size-10 shrink-0 items-center justify-center rounded-full bg-[#F1F5F9]"
+        className="mt-0.5 flex size-10 shrink-0 items-center justify-center rounded-full bg-[#F1F5F9] dark:bg-surface-elevated"
         aria-hidden
       >
         <svg viewBox="0 0 24 24" fill="none" className="size-5">
@@ -217,8 +219,10 @@ function PartitionScenarioRow({
         </svg>
       </div>
       <div className="min-w-0">
-        <div className="text-[14px] font-bold text-[#1E293B]">{title}</div>
-        <p className="mt-0.5 text-[12.5px] leading-relaxed text-[#64748B]">{body}</p>
+        <div className="text-[14px] font-bold text-[#1E293B] dark:text-foreground">{title}</div>
+        <p className="mt-0.5 text-[12.5px] leading-relaxed text-[#64748B] dark:text-foreground-secondary">
+          {body}
+        </p>
         {note ? <span className="sr-only">{note}</span> : null}
       </div>
     </div>

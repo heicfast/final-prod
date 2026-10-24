@@ -351,7 +351,7 @@ export function ScanProgressPage(): React.JSX.Element {
           <div className="mt-5 flex items-center justify-center gap-3">
             <Button
               variant="danger"
-              className="min-w-[110px] [background-image:none] bg-[#FDE2E2] text-[#E03131] shadow-none hover:bg-[#FBD1D1]"
+              className="min-w-[110px] [background-image:none] bg-[#FDE2E2] text-[#C92A2A] shadow-none hover:bg-[#F8C2C2] dark:bg-danger-muted dark:text-danger dark:hover:bg-danger/25"
               onClick={() => {
                 setStopConfirmOpen(false);
                 void cancel.mutate(undefined, {

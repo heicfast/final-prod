@@ -72,10 +72,12 @@ export function ToolsPage(): React.JSX.Element {
   return (
     <div className="h-full overflow-y-auto px-8 py-6">
       <div className="mx-auto w-full max-w-5xl">
-        <h1 className="text-[20px] font-bold tracking-tight text-[#1E293B]">
+        <h1 className="text-[20px] font-bold tracking-tight text-[#1E293B] dark:text-foreground">
           {t('tools.title')}
         </h1>
-        <p className="mt-1.5 text-[13px] text-[#64748B]">{t('tools.subtitle')}</p>
+        <p className="mt-1.5 text-[13px] text-[#64748B] dark:text-foreground-secondary">
+          {t('tools.subtitle')}
+        </p>
 
         <div className="mt-7 grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
           {TOOL_ITEMS.map((item) => (
@@ -89,20 +91,20 @@ export function ToolsPage(): React.JSX.Element {
                   setSelectedTool(item.id);
                 }
               }}
-              className="group relative flex min-h-[168px] flex-col overflow-hidden rounded-[12px] border border-[#EBF2FF] bg-[#F8FAFF] p-6 pt-16 text-left shadow-[0_2px_10px_rgba(22,119,255,0.03)] transition-all hover:border-[#93C5FD] hover:bg-white hover:shadow-md focus-visible:ring-2 focus-visible:ring-ring"
+              className="group relative flex min-h-[168px] flex-col overflow-hidden rounded-[12px] border border-[#DCE8FF] bg-[#F8FAFF] p-6 pt-16 text-left shadow-[0_2px_10px_rgba(22,119,255,0.04)] transition-all hover:border-[#60A5FA] hover:bg-[#EEF4FF] hover:shadow-md active:scale-[var(--press-scale)] focus-visible:ring-2 focus-visible:ring-ring dark:border-border dark:bg-surface-elevated dark:hover:border-primary/60 dark:hover:bg-surface-hover"
             >
               {/* Top-left curved corner badge */}
               <div
-                className="absolute left-0 top-0 flex h-12 w-16 items-center justify-center rounded-br-[28px] bg-[#EBF2FF] transition-colors group-hover:bg-[#DCE8FF]"
+                className="absolute left-0 top-0 flex h-12 w-16 items-center justify-center rounded-br-[28px] bg-[#EBF2FF] transition-colors group-hover:bg-[#DCE8FF] dark:bg-surface-tint dark:group-hover:bg-primary/25"
                 aria-hidden
               >
                 <ToolCornerIcon id={item.id} />
               </div>
 
-              <h2 className="text-[15px] font-bold text-[#1E293B] group-hover:text-[#1677FF]">
+              <h2 className="text-[15px] font-bold text-[#1E293B] transition-colors group-hover:text-[#0958D9] dark:text-foreground dark:group-hover:text-primary">
                 {t(item.labelKey)}
               </h2>
-              <p className="mt-2 text-[12.5px] leading-relaxed text-[#64748B]">
+              <p className="mt-2 text-[12.5px] leading-relaxed text-[#475569] dark:text-foreground-secondary">
                 {t(item.descriptionKey)}
               </p>
             </button>
@@ -115,18 +117,18 @@ export function ToolsPage(): React.JSX.Element {
         onOpenChange={(open) => !open && setSelectedTool(null)}
       >
         <DialogContent
-          className="max-w-[440px] rounded-[12px] bg-white p-6 shadow-2xl"
+          className="max-w-[440px] rounded-[12px] border border-[#E2E8F0] bg-white p-6 shadow-2xl dark:border-border dark:bg-surface-elevated"
           aria-label={activeItem ? t(activeItem.labelKey) : t('tools.providerTitle')}
         >
           <DialogHeader>
-            <DialogTitle className="text-[16px] font-bold text-[#1E293B]">
+            <DialogTitle className="text-[16px] font-bold text-[#1E293B] dark:text-foreground">
               {activeItem ? t(activeItem.labelKey) : t('tools.providerTitle')}
             </DialogTitle>
-            <DialogDescription className="mt-1 text-[13px] text-[#64748B]">
+            <DialogDescription className="mt-1 text-[13px] text-[#64748B] dark:text-foreground-secondary">
               {activeItem ? t(activeItem.descriptionKey) : ''}
             </DialogDescription>
           </DialogHeader>
-          <p className="text-[13px] leading-relaxed text-[#475569]">
+          <p className="text-[13px] leading-relaxed text-[#475569] dark:text-foreground-secondary">
             {t('tools.providerBody')}
           </p>
           <DialogFooter className="mt-4">

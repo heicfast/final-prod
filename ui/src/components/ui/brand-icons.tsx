@@ -94,17 +94,18 @@ export function SidebarHardwareDiskIcon({
         height="14.5"
         rx="2.2"
         fill="#DCE8FF"
-        stroke="#475569"
+        fillOpacity="0.85"
+        stroke="currentColor"
         strokeWidth="1.35"
       />
-      <circle cx="9" cy="8.5" r="3.2" stroke="#475569" strokeWidth="1.25" fill="white" />
+      <circle cx="9" cy="8.5" r="3.2" stroke="currentColor" strokeWidth="1.25" fill="white" />
       <circle cx="9" cy="8.5" r="1" fill="#1677FF" />
       <line
         x1="5"
         y1="14.2"
         x2="8"
         y2="14.2"
-        stroke="#475569"
+        stroke="currentColor"
         strokeWidth="1.3"
         strokeLinecap="round"
       />
@@ -134,7 +135,8 @@ export function SidebarSdCardIcon({ className }: { className?: string }): React.
       <path
         d="M5 2.5H12.2L15.5 5.8V16.2C15.5 17.1 14.8 17.8 13.9 17.8H5C4.1 17.8 3.4 17.1 3.4 16.2V4.1C3.4 3.2 4.1 2.5 5 2.5Z"
         fill="#E2ECFF"
-        stroke="#475569"
+        fillOpacity="0.85"
+        stroke="currentColor"
         strokeWidth="1.35"
         strokeLinejoin="round"
       />
@@ -165,7 +167,7 @@ export function SidebarSdCardIcon({ className }: { className?: string }): React.
         strokeWidth="1.35"
         strokeLinecap="round"
       />
-      <rect x="5.8" y="11" width="7.4" height="4.2" rx="1" fill="#93C5FD" opacity="0.65" />
+      <rect x="5.8" y="11" width="7.4" height="4.2" rx="1" fill="#93C5FD" opacity="0.7" />
     </svg>
   );
 }
@@ -185,7 +187,8 @@ export function SidebarMoreToolsIcon({ className }: { className?: string }): Rea
         height="6"
         rx="1.4"
         fill="#E2ECFF"
-        stroke="#475569"
+        fillOpacity="0.85"
+        stroke="currentColor"
         strokeWidth="1.35"
       />
       <rect
@@ -195,7 +198,8 @@ export function SidebarMoreToolsIcon({ className }: { className?: string }): Rea
         height="6"
         rx="1.4"
         fill="#E2ECFF"
-        stroke="#475569"
+        fillOpacity="0.85"
+        stroke="currentColor"
         strokeWidth="1.35"
       />
       <rect
@@ -205,7 +209,8 @@ export function SidebarMoreToolsIcon({ className }: { className?: string }): Rea
         height="6"
         rx="1.4"
         fill="#93C5FD"
-        stroke="#475569"
+        fillOpacity="0.85"
+        stroke="currentColor"
         strokeWidth="1.35"
       />
       <rect
@@ -242,7 +247,8 @@ export function SidebarFileRepairIcon({
         height="14.5"
         rx="2"
         fill="#E2ECFF"
-        stroke="#475569"
+        fillOpacity="0.85"
+        stroke="currentColor"
         strokeWidth="1.35"
       />
       <line
@@ -250,7 +256,7 @@ export function SidebarFileRepairIcon({
         y1="6.5"
         x2="11.5"
         y2="6.5"
-        stroke="#475569"
+        stroke="currentColor"
         strokeWidth="1.3"
         strokeLinecap="round"
       />
@@ -259,7 +265,7 @@ export function SidebarFileRepairIcon({
         y1="9.5"
         x2="9.8"
         y2="9.5"
-        stroke="#475569"
+        stroke="currentColor"
         strokeWidth="1.3"
         strokeLinecap="round"
       />
@@ -288,7 +294,8 @@ export function SidebarLostPartitionIcon({
         height="14.5"
         rx="2"
         fill="#E2ECFF"
-        stroke="#475569"
+        fillOpacity="0.85"
+        stroke="currentColor"
         strokeWidth="1.35"
       />
       <line
@@ -296,7 +303,7 @@ export function SidebarLostPartitionIcon({
         y1="6.2"
         x2="11.8"
         y2="6.2"
-        stroke="#475569"
+        stroke="currentColor"
         strokeWidth="1.3"
         strokeLinecap="round"
       />
@@ -329,7 +336,8 @@ export function SidebarChronoSnapIcon({
       <path
         d="M2.5 5C2.5 3.9 3.4 3 4.5 3H8.2L9.8 4.8H15.5C16.6 4.8 17.5 5.7 17.5 6.8V14.5C17.5 15.6 16.6 16.5 15.5 16.5H4.5C3.4 16.5 2.5 15.6 2.5 14.5V5Z"
         fill="#E2ECFF"
-        stroke="#475569"
+        fillOpacity="0.85"
+        stroke="currentColor"
         strokeWidth="1.35"
       />
       <circle cx="14" cy="13.8" r="4.2" fill="white" stroke="#1677FF" strokeWidth="1.35" />

@@ -41,10 +41,10 @@ export function SdCardPage(): React.JSX.Element {
       {/* Header */}
       <div className="flex items-start justify-between gap-4">
         <div>
-          <h1 className="text-[20px] font-bold tracking-tight text-[#1E293B]">
+          <h1 className="text-[20px] font-bold tracking-tight text-[#1E293B] dark:text-foreground">
             {t('sdCard.title')}
           </h1>
-          <p className="mt-1.5 max-w-3xl text-[13px] leading-relaxed text-[#64748B]">
+          <p className="mt-1.5 max-w-3xl text-[13px] leading-relaxed text-[#64748B] dark:text-foreground-secondary">
             {t('sdCard.subtitle')}
           </p>
         </div>
@@ -54,7 +54,7 @@ export function SdCardPage(): React.JSX.Element {
           disabled={refresh.isPending}
           aria-label={t('sdCard.refresh')}
           title={t('sdCard.refresh')}
-          className="mt-1 flex size-8 shrink-0 items-center justify-center rounded-full border border-[#E2E8F0] bg-white text-[#64748B] shadow-2xs transition-colors hover:border-[#BFDBFE] hover:bg-[#F8FAFC] hover:text-[#1677FF] focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
+          className="mt-1 flex size-8 shrink-0 items-center justify-center rounded-full border border-[#E2E8F0] bg-white text-[#64748B] shadow-2xs transition-colors hover:border-[#93C5FD] hover:bg-[#EFF6FF] hover:text-[#0958D9] focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50 dark:border-border dark:bg-surface-elevated dark:text-foreground-secondary dark:hover:border-primary/60 dark:hover:bg-surface-hover dark:hover:text-primary"
         >
           <RefreshCcwIcon className="size-4" aria-hidden />
         </button>
@@ -85,28 +85,28 @@ export function SdCardPage(): React.JSX.Element {
 
         {/* Optional expanded external devices tray when user clicks "Show all external devices" */}
         {showExternal && externalDevices.length > 0 ? (
-          <div className="mt-5 w-full max-w-2xl rounded-[10px] border border-[#DCE8FF] bg-[#F8FAFD] p-3.5">
-            <div className="mb-2 text-[12px] font-semibold text-[#475569]">
+          <div className="mt-5 w-full max-w-2xl rounded-[10px] border border-[#DCE8FF] bg-[#F8FAFD] p-3.5 dark:border-border dark:bg-surface-elevated">
+            <div className="mb-2 text-[12px] font-semibold text-[#475569] dark:text-foreground-secondary">
               {t('home.removableGroup')} ({externalDevices.length})
             </div>
             <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
               {externalDevices.map((dev) => (
                 <div
                   key={dev.id}
-                  className="flex items-center justify-between gap-3 rounded-[8px] border border-[#E2E8F0] bg-white px-3.5 py-2.5"
+                  className="flex items-center justify-between gap-3 rounded-[8px] border border-[#E2E8F0] bg-white px-3.5 py-2.5 dark:border-border dark:bg-surface"
                 >
                   <div className="min-w-0">
-                    <div className="truncate text-[13px] font-semibold text-[#1E293B]">
+                    <div className="truncate text-[13px] font-semibold text-[#1E293B] dark:text-foreground">
                       {dev.label}
                     </div>
-                    <div className="text-[11px] text-[#64748B] tabular">
+                    <div className="text-[11px] text-[#64748B] tabular dark:text-foreground-secondary">
                       {dev.model} · {formatBytes(dev.capacity.totalBytes, i18n.language)}
                     </div>
                   </div>
                   <button
                     type="button"
                     onClick={() => beginScan(dev.id)}
-                    className="shrink-0 rounded-[6px] bg-[#1677FF] px-3 py-1.5 text-[12px] font-semibold text-white hover:bg-[#0958D9]"
+                    className="shrink-0 rounded-[6px] bg-[#1677FF] px-3 py-1.5 text-[12px] font-semibold text-white transition-colors hover:bg-[#0958D9] dark:bg-primary dark:text-primary-foreground dark:hover:bg-primary-hover"
                   >
                     {t('sdCard.start')}
                   </button>
@@ -118,12 +118,12 @@ export function SdCardPage(): React.JSX.Element {
       </div>
 
       {/* Bottom Floating Info Banner */}
-      <div className="mx-auto w-full max-w-4xl rounded-[8px] bg-[#EBF3FF] px-5 py-3 text-center text-[13px] text-[#475569]">
+      <div className="mx-auto w-full max-w-4xl rounded-[8px] bg-[#EBF3FF] px-5 py-3 text-center text-[13px] text-[#475569] dark:bg-surface-tint dark:text-foreground-secondary">
         <span>{t('sdCard.bannerPrefix')} </span>
         <button
           type="button"
           onClick={() => setShowExternal((v) => !v)}
-          className="font-medium text-[#1677FF] underline decoration-[#1677FF]/60 underline-offset-2 hover:text-[#0958D9]"
+          className="font-semibold text-[#1677FF] underline decoration-[#1677FF]/60 underline-offset-2 hover:text-[#0958D9] dark:text-primary dark:hover:text-primary-hover"
         >
           {t('sdCard.showExternal')}
         </button>
@@ -131,7 +131,7 @@ export function SdCardPage(): React.JSX.Element {
         <button
           type="button"
           onClick={() => toast.info(t('sdCard.helpToast'))}
-          className="font-medium text-[#1677FF] underline decoration-[#1677FF]/60 underline-offset-2 hover:text-[#0958D9]"
+          className="font-semibold text-[#1677FF] underline decoration-[#1677FF]/60 underline-offset-2 hover:text-[#0958D9] dark:text-primary dark:hover:text-primary-hover"
         >
           {t('sdCard.getHelp')}
         </button>
@@ -152,16 +152,20 @@ function FeatureBadgeItem({
   return (
     <div className="flex items-start gap-3">
       <div
-        className="flex size-10 shrink-0 flex-col items-center justify-center rounded-[8px] border border-[#DCE6F5] bg-[#F4F7FC] text-[#475569]"
+        className="flex size-10 shrink-0 flex-col items-center justify-center rounded-[8px] border border-[#DCE6F5] bg-[#F4F7FC] text-[#475569] dark:border-border dark:bg-surface-elevated dark:text-foreground-secondary"
         aria-hidden
       >
-        <span className="rounded-[3px] bg-[#64748B] px-1.5 py-0.5 text-[9px] font-bold tracking-wider text-white">
+        <span className="rounded-[3px] bg-[#64748B] px-1.5 py-0.5 text-[9px] font-bold tracking-wider text-white dark:bg-primary dark:text-primary-foreground">
           {badge}
         </span>
       </div>
       <div className="min-w-0">
-        <div className="text-[13.5px] font-bold text-[#1E293B]">{title}</div>
-        <div className="mt-0.5 text-[12px] text-[#64748B]">{body}</div>
+        <div className="text-[13.5px] font-bold text-[#1E293B] dark:text-foreground">
+          {title}
+        </div>
+        <div className="mt-0.5 text-[12px] text-[#64748B] dark:text-foreground-secondary">
+          {body}
+        </div>
       </div>
     </div>
   );

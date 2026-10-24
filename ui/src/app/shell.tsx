@@ -174,20 +174,22 @@ export function WizardShell(): React.JSX.Element {
             </PopoverTrigger>
             <PopoverContent
               align="end"
-              className="w-64 rounded-[12px] border border-[#DCE8FF] bg-white p-4 shadow-xl"
+              className="w-64 rounded-[12px] border border-[#DCE8FF] bg-white p-4 shadow-xl dark:border-border dark:bg-surface"
             >
               <div className="flex items-center gap-2.5 pb-2.5">
                 <RobotMascotAvatar className="size-8" />
-                <p className="text-[13px] font-bold text-[#1E293B]">{t('guide.panelTitle')}</p>
+                <p className="text-[13px] font-bold text-[#1E293B] dark:text-foreground">
+                  {t('guide.panelTitle')}
+                </p>
               </div>
-              <div className="space-y-1.5 border-t border-[#F1F5F9] pt-2.5">
+              <div className="space-y-1.5 border-t border-[#F1F5F9] pt-2.5 dark:border-border">
                 <button
                   type="button"
                   onClick={() => {
                     setHelperOpen(false);
                     void navigate('/lost-partition');
                   }}
-                  className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-[12.5px] text-[#334155] transition-colors hover:bg-[#F1F5F9] hover:text-[#1677FF]"
+                  className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-[12.5px] text-[#334155] transition-colors hover:bg-[#EBF2FF] hover:text-[#1677FF] dark:text-foreground-secondary dark:hover:bg-surface-hover dark:hover:text-primary"
                 >
                   <span className="size-1.5 shrink-0 rounded-full bg-[#1677FF]" aria-hidden />
                   <span>{t('guide.missing')}</span>
@@ -198,7 +200,7 @@ export function WizardShell(): React.JSX.Element {
                     setHelperOpen(false);
                     void navigate('/repair');
                   }}
-                  className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-[12.5px] text-[#334155] transition-colors hover:bg-[#F1F5F9] hover:text-[#1677FF]"
+                  className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-[12.5px] text-[#334155] transition-colors hover:bg-[#EBF2FF] hover:text-[#1677FF] dark:text-foreground-secondary dark:hover:bg-surface-hover dark:hover:text-primary"
                 >
                   <span className="size-1.5 shrink-0 rounded-full bg-[#1677FF]" aria-hidden />
                   <span>{t('guide.damaged')}</span>
@@ -209,7 +211,7 @@ export function WizardShell(): React.JSX.Element {
                     setHelperOpen(false);
                     void navigate('/');
                   }}
-                  className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-[12.5px] text-[#334155] transition-colors hover:bg-[#F1F5F9] hover:text-[#1677FF]"
+                  className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-[12.5px] text-[#334155] transition-colors hover:bg-[#EBF2FF] hover:text-[#1677FF] dark:text-foreground-secondary dark:hover:bg-surface-hover dark:hover:text-primary"
                 >
                   <span className="size-1.5 shrink-0 rounded-full bg-[#1677FF]" aria-hidden />
                   <span>{t('guide.deleted')}</span>
@@ -220,7 +222,7 @@ export function WizardShell(): React.JSX.Element {
                     setHelperOpen(false);
                     setAboutOpen(true);
                   }}
-                  className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-[12.5px] text-[#334155] transition-colors hover:bg-[#F1F5F9] hover:text-[#1677FF]"
+                  className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-[12.5px] text-[#334155] transition-colors hover:bg-[#EBF2FF] hover:text-[#1677FF] dark:text-foreground-secondary dark:hover:bg-surface-hover dark:hover:text-primary"
                 >
                   <span className="size-1.5 shrink-0 rounded-full bg-[#1677FF]" aria-hidden />
                   <span>{t('guide.chat')}</span>
@@ -233,7 +235,7 @@ export function WizardShell(): React.JSX.Element {
           <button
             type="button"
             onClick={() => setActivationOpen(true)}
-            className="inline-flex h-6 items-center gap-1 rounded-full bg-gradient-to-r from-[#FF7A2F] to-[#FF4D00] px-2.5 text-[11px] font-semibold text-white shadow-2xs transition-all hover:brightness-105 focus-visible:ring-2 focus-visible:ring-ring"
+            className="inline-flex h-6 items-center gap-1 rounded-full bg-gradient-to-r from-[#FF7A2F] to-[#FF4D00] px-2.5 text-[11px] font-semibold text-white shadow-2xs transition-all hover:from-[#F26518] hover:to-[#E03E00] active:scale-[var(--press-scale)] focus-visible:ring-2 focus-visible:ring-ring"
           >
             <ShoppingCartIcon className="size-3" aria-hidden />
             <span>{t('activation.buyPill')}</span>
@@ -246,7 +248,7 @@ export function WizardShell(): React.JSX.Element {
             aria-label={t('activation.open')}
             title={t('activation.open')}
             data-testid="header-activate-trigger"
-            className="size-7 text-[#475569] hover:bg-[#DCE8FF]"
+            className="size-7 text-[#475569] hover:bg-[#DCE8FF] hover:text-[#0F172A] dark:text-foreground-secondary dark:hover:bg-surface-hover dark:hover:text-foreground"
             onClick={() => setActivationOpen(true)}
           >
             <KeyRoundIcon className="size-3.5" aria-hidden />
@@ -258,7 +260,7 @@ export function WizardShell(): React.JSX.Element {
                 variant="ghost"
                 size="icon"
                 aria-label={t('settings.language')}
-                className="size-7 text-[#475569] hover:bg-[#DCE8FF]"
+                className="size-7 text-[#475569] hover:bg-[#DCE8FF] hover:text-[#0F172A] dark:text-foreground-secondary dark:hover:bg-surface-hover dark:hover:text-foreground"
               >
                 <LanguagesIcon className="size-3.5" aria-hidden />
               </Button>
@@ -278,7 +280,7 @@ export function WizardShell(): React.JSX.Element {
                 variant="ghost"
                 size="icon"
                 aria-label={t('settings.theme')}
-                className="size-7 text-[#475569] hover:bg-[#DCE8FF]"
+                className="size-7 text-[#475569] hover:bg-[#DCE8FF] hover:text-[#0F172A] dark:text-foreground-secondary dark:hover:bg-surface-hover dark:hover:text-foreground"
               >
                 <PaletteIcon className="size-3.5" aria-hidden />
               </Button>
@@ -302,7 +304,7 @@ export function WizardShell(): React.JSX.Element {
             variant="ghost"
             size="icon"
             aria-label={t('nav.settings')}
-            className="size-7 text-[#475569] hover:bg-[#DCE8FF]"
+            className="size-7 text-[#475569] hover:bg-[#DCE8FF] hover:text-[#0F172A] dark:text-foreground-secondary dark:hover:bg-surface-hover dark:hover:text-foreground"
             onClick={() => navigate('/settings')}
           >
             <SettingsIcon className="size-3.5" aria-hidden />
@@ -312,7 +314,7 @@ export function WizardShell(): React.JSX.Element {
             variant="ghost"
             size="icon"
             aria-label={t('nav.about')}
-            className="size-7 text-[#475569] hover:bg-[#DCE8FF]"
+            className="size-7 text-[#475569] hover:bg-[#DCE8FF] hover:text-[#0F172A] dark:text-foreground-secondary dark:hover:bg-surface-hover dark:hover:text-foreground"
             onClick={() => setAboutOpen(true)}
           >
             <InfoIcon className="size-3.5" aria-hidden />
@@ -324,7 +326,7 @@ export function WizardShell(): React.JSX.Element {
                 variant="ghost"
                 size="icon"
                 aria-label={t('menu.label')}
-                className="size-7 text-[#475569] hover:bg-[#DCE8FF]"
+                className="size-7 text-[#475569] hover:bg-[#DCE8FF] hover:text-[#0F172A] dark:text-foreground-secondary dark:hover:bg-surface-hover dark:hover:text-foreground"
               >
                 <MenuIcon className="size-3.5" aria-hidden />
               </Button>
@@ -368,6 +370,7 @@ export function WizardShell(): React.JSX.Element {
                 <SidebarSection
                   label={t('sidebar.dataRecovery')}
                   collapsed={sidebarCollapsed}
+                  isFirst
                 />
                 {NAV_DATA_RECOVERY.map((item) => (
                   <SidebarLink key={item.to} {...item} collapsed={sidebarCollapsed} />
@@ -388,6 +391,7 @@ export function WizardShell(): React.JSX.Element {
                 <SidebarSection
                   label={t('sidebar.dataRecovery')}
                   collapsed={sidebarCollapsed}
+                  isFirst
                 />
                 <SidebarLink
                   to="/"
@@ -401,17 +405,16 @@ export function WizardShell(): React.JSX.Element {
                     type="button"
                     onClick={() => navigate(`/scan/${active.targetId}/live`)}
                     title={t('home.scanningHint')}
-                    className="mx-2 flex h-9 items-center gap-2.5 rounded-[8px] px-3 text-[13px] text-[#1677FF] hover:bg-[#DCE8FF]"
+                    className={cn(
+                      'mx-2 flex h-9 items-center rounded-[8px] pl-[9px] text-[12.5px] text-[#1677FF] transition-colors hover:bg-[#DCE8FF] dark:text-primary dark:hover:bg-surface-hover',
+                      sidebarCollapsed ? 'gap-0 pr-[9px]' : 'gap-2 pr-2.5',
+                    )}
                   >
-                    <span
-                      className="inline-block size-1.5 shrink-0 animate-status-pulse rounded-full bg-current"
-                      aria-hidden
-                    />
-                    <RefreshCcwIcon className="size-4 shrink-0" aria-hidden />
+                    <RefreshCcwIcon className="size-[18px] shrink-0" aria-hidden />
                     <span
                       className={cn(
                         'sidebar-label-fade truncate',
-                        sidebarCollapsed && 'opacity-0',
+                        sidebarCollapsed && 'pointer-events-none w-0 overflow-hidden opacity-0',
                       )}
                     >
                       {t('home.scanningHint')}
@@ -431,18 +434,27 @@ export function WizardShell(): React.JSX.Element {
                   collapsed={sidebarCollapsed}
                 />
               </div>
-              <div className="flex items-center justify-end px-2 pt-1">
+              <div
+                className={cn(
+                  'flex items-center pt-1',
+                  sidebarCollapsed ? 'justify-center px-2' : 'justify-end px-2',
+                )}
+              >
                 <button
                   type="button"
                   onClick={toggleSidebar}
                   aria-expanded={!sidebarCollapsed}
                   aria-controls="sidebar-nav"
                   aria-label={sidebarCollapsed ? t('sidebar.expand') : t('sidebar.collapse')}
+                  title={sidebarCollapsed ? t('sidebar.expand') : t('sidebar.collapse')}
                   data-testid="sidebar-toggle"
-                  className="flex size-7 items-center justify-center rounded-md text-[#64748B] outline-none transition-colors hover:bg-[#DCE8FF] hover:text-[#1E293B] focus-visible:ring-2 focus-visible:ring-ring"
+                  className={cn(
+                    'flex items-center justify-center rounded-[8px] text-[#64748B] outline-none transition-colors hover:bg-[#DCE8FF] hover:text-[#1E293B] focus-visible:ring-2 focus-visible:ring-ring dark:text-foreground-secondary dark:hover:bg-surface-hover dark:hover:text-foreground',
+                    sidebarCollapsed ? 'size-9' : 'size-7',
+                  )}
                 >
                   {sidebarCollapsed ? (
-                    <PanelLeftOpenIcon className="size-3.5" aria-hidden />
+                    <PanelLeftOpenIcon className="size-4" aria-hidden />
                   ) : (
                     <PanelLeftCloseIcon className="size-3.5" aria-hidden />
                   )}
@@ -489,19 +501,25 @@ function DevSurfaces(): React.JSX.Element {
 function SidebarSection({
   label,
   collapsed,
+  isFirst = false,
 }: {
   label: string;
   collapsed: boolean;
+  isFirst?: boolean;
 }): React.JSX.Element {
   return (
     <div
       className={cn(
-        'px-4 pt-3.5 pb-1 text-[11px] font-medium text-[#7A8BA8]',
+        'relative overflow-hidden whitespace-nowrap text-[11px] font-medium text-[#7A8BA8] dark:text-foreground-disabled',
         'sidebar-label-fade',
-        collapsed && 'opacity-0',
+        collapsed
+          ? isFirst
+            ? 'h-1 p-0 opacity-0'
+            : 'mx-auto my-2 h-px w-6 bg-[#CBD9F0] p-0 text-transparent dark:bg-border'
+          : 'px-4 pt-3.5 pb-1 opacity-100',
       )}
     >
-      {label}
+      <span className={cn(collapsed && 'opacity-0')}>{label}</span>
     </div>
   );
 }
@@ -530,11 +548,12 @@ function SidebarLink({
       title={collapsed ? t(labelKey) : undefined}
       className={({ isActive }) =>
         cn(
-          'relative mx-2 flex h-9 items-center gap-2 rounded-[8px] px-2.5 text-[12.5px] tracking-[-0.01em] outline-none transition-colors',
+          'relative mx-2 my-0.5 flex h-9 items-center rounded-[8px] pl-[9px] text-[12.5px] tracking-[-0.01em] outline-none transition-colors',
+          collapsed ? 'gap-0 pr-[9px]' : 'gap-2.5 pr-2.5',
           'focus-visible:ring-2 focus-visible:ring-ring',
           isActive
-            ? 'bg-[#DCE8FF] font-semibold text-[#1E293B] before:absolute before:top-2 before:bottom-2 before:left-0 before:w-[3.5px] before:rounded-full before:bg-[#1677FF] dark:bg-primary-muted dark:text-primary'
-            : 'font-medium text-[#334155] hover:bg-[#E1ECFF] hover:text-[#1E293B] dark:text-foreground-secondary',
+            ? 'bg-[#DCE8FF] font-semibold text-[#1E293B] before:absolute before:top-2 before:bottom-2 before:left-0 before:w-[3.5px] before:rounded-full before:bg-[#1677FF] dark:bg-primary-muted dark:text-primary dark:before:bg-primary'
+            : 'font-medium text-[#334155] hover:bg-[#DCE8FF]/70 hover:text-[#0F172A] dark:text-foreground-secondary dark:hover:bg-surface-hover dark:hover:text-foreground',
         )
       }
     >
@@ -542,7 +561,7 @@ function SidebarLink({
       <span
         className={cn(
           'sidebar-label-fade truncate',
-          collapsed && 'pointer-events-none opacity-0',
+          collapsed && 'pointer-events-none w-0 overflow-hidden opacity-0',
         )}
       >
         {t(labelKey)}

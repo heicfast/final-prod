@@ -161,8 +161,8 @@ export function RecoveryPage(): React.JSX.Element {
       : t('results.status.recoverAll');
 
   return (
-    <div className="flex h-full min-h-0 flex-col items-center justify-center overflow-y-auto bg-[#F1F5F9]/70 p-4 sm:p-6">
-      <div className="w-full max-w-[600px] rounded-[12px] border border-[#E2E8F0] bg-white p-6 shadow-xl sm:p-7">
+    <div className="flex h-full min-h-0 flex-col items-center justify-center overflow-y-auto bg-[#F1F5F9]/70 p-4 sm:p-6 dark:bg-background/80">
+      <div className="w-full max-w-[600px] rounded-[12px] border border-[#E2E8F0] bg-white p-6 shadow-xl sm:p-7 dark:border-border dark:bg-surface-elevated">
         {/* Top Row with Save Icon and Close X */}
         <div className="flex items-start justify-between gap-4">
           <div className="flex items-start gap-4">
@@ -170,11 +170,11 @@ export function RecoveryPage(): React.JSX.Element {
             <div>
               <h1
                 aria-label={`${t('recovery.destination')} — ${t('recovery.title')}`}
-                className="text-[18px] font-bold tracking-tight text-[#1E293B]"
+                className="text-[18px] font-bold tracking-tight text-[#1E293B] dark:text-foreground"
               >
                 {t('recovery.destination')}
               </h1>
-              <p className="mt-1 text-[13px] text-[#64748B] tabular">
+              <p className="mt-1 text-[13px] text-[#64748B] tabular dark:text-foreground-secondary">
                 {t('recovery.filesToRecover', {
                   count: Math.max(1, selectedCount),
                   size: formatBytes(neededBytes, i18n.language),
@@ -186,7 +186,7 @@ export function RecoveryPage(): React.JSX.Element {
             type="button"
             onClick={() => navigate(-1)}
             aria-label={t('common.back')}
-            className="rounded-md p-1 text-[#94A3B8] transition-colors hover:bg-[#F1F5F9] hover:text-[#475569]"
+            className="rounded-md p-1 text-[#94A3B8] transition-colors hover:bg-[#E2E8F0] hover:text-[#1E293B] dark:text-foreground-muted dark:hover:bg-surface-hover dark:hover:text-foreground"
           >
             <XIcon className="size-4" aria-hidden />
           </button>
@@ -204,15 +204,15 @@ export function RecoveryPage(): React.JSX.Element {
         ) : (
           <>
             {/* Segmented Local | Cloud Tabs */}
-            <div className="mt-5 grid grid-cols-2 rounded-[8px] bg-[#F1F5F9] p-1">
+            <div className="mt-5 grid grid-cols-2 rounded-[8px] bg-[#F1F5F9] p-1 dark:bg-surface">
               <button
                 type="button"
                 onClick={() => setDestTab('local')}
                 className={cn(
                   'h-8 rounded-[6px] text-[13px] font-semibold transition-all',
                   destTab === 'local'
-                    ? 'bg-white text-[#1E293B] shadow-2xs'
-                    : 'text-[#64748B] hover:text-[#1E293B]',
+                    ? 'bg-white text-[#1E293B] shadow-2xs dark:bg-surface-elevated dark:text-foreground'
+                    : 'text-[#64748B] hover:text-[#1E293B] dark:text-foreground-secondary dark:hover:text-foreground',
                 )}
               >
                 {t('recovery.tabLocal')}
@@ -223,8 +223,8 @@ export function RecoveryPage(): React.JSX.Element {
                 className={cn(
                   'h-8 rounded-[6px] text-[13px] font-semibold transition-all',
                   destTab === 'cloud'
-                    ? 'bg-white text-[#1E293B] shadow-2xs'
-                    : 'text-[#64748B] hover:text-[#1E293B]',
+                    ? 'bg-white text-[#1E293B] shadow-2xs dark:bg-surface-elevated dark:text-foreground'
+                    : 'text-[#64748B] hover:text-[#1E293B] dark:text-foreground-secondary dark:hover:text-foreground',
                 )}
               >
                 {t('recovery.tabCloud')}
@@ -233,7 +233,7 @@ export function RecoveryPage(): React.JSX.Element {
 
             {/* Destination Radio List */}
             {destTab === 'local' ? (
-              <div className="mt-4 max-h-[270px] divide-y divide-[#F1F5F9] overflow-y-auto rounded-[8px] border border-[#E2E8F0] bg-white">
+              <div className="mt-4 max-h-[270px] divide-y divide-[#F1F5F9] overflow-y-auto rounded-[8px] border border-[#E2E8F0] bg-white dark:divide-border dark:border-border dark:bg-surface">
                 {mounts.isLoading
                   ? Array.from({ length: 2 }, (_, i) => (
                       <Skeleton key={i} className="m-2 h-12" />
@@ -259,12 +259,14 @@ export function RecoveryPage(): React.JSX.Element {
                             <span
                               className={cn(
                                 'flex size-4 shrink-0 items-center justify-center rounded-full border-2 transition-colors',
-                                isSel ? 'border-[#1677FF]' : 'border-[#CBD5E1]',
+                                isSel
+                                  ? 'border-[#1677FF] dark:border-primary'
+                                  : 'border-[#CBD5E1] dark:border-border-strong',
                               )}
                               aria-hidden
                             >
                               {isSel ? (
-                                <span className="size-2 rounded-full bg-[#1677FF]" />
+                                <span className="size-2 rounded-full bg-[#1677FF] dark:bg-primary" />
                               ) : null}
                             </span>
 
@@ -274,18 +276,20 @@ export function RecoveryPage(): React.JSX.Element {
                             />
 
                             <div className="flex min-w-0 flex-1 items-center gap-1.5 text-[13px]">
-                              <span className="truncate font-semibold text-[#1E293B]">
+                              <span className="truncate font-semibold text-[#1E293B] dark:text-foreground">
                                 {m.label}
                               </span>
                               <span className="ml-1.5 tabular">
                                 <span
                                   className={cn(
-                                    isOverlap ? 'text-[#EF4444]' : 'text-[#64748B]',
+                                    isOverlap
+                                      ? 'text-[#EF4444]'
+                                      : 'text-[#64748B] dark:text-foreground-secondary',
                                   )}
                                 >
                                   {formatDriveGb(m.freeBytes)}
                                 </span>
-                                <span className="text-[#64748B]">
+                                <span className="text-[#64748B] dark:text-foreground-secondary">
                                   {' / '}
                                   {formatDriveGb(m.totalBytes)}
                                 </span>
@@ -305,7 +309,7 @@ export function RecoveryPage(): React.JSX.Element {
                           </button>
 
                           {isSel && isOverlap ? (
-                            <div className="mt-2.5 ml-7 rounded-[6px] bg-[#FFF7ED] px-3.5 py-2 text-[12px] leading-relaxed text-[#EA580C]">
+                            <div className="mt-2.5 ml-7 rounded-[6px] bg-[#FFF7ED] px-3.5 py-2 text-[12px] leading-relaxed text-[#EA580C] dark:bg-warning-muted dark:text-warning">
                               {t('recovery.destinationHint')}
                             </div>
                           ) : null}
@@ -318,23 +322,23 @@ export function RecoveryPage(): React.JSX.Element {
                   <button
                     type="button"
                     onClick={handlePickFolder}
-                    className="flex w-full items-center gap-3 text-left text-[13px] font-medium text-[#1E293B] outline-none hover:text-[#1677FF] focus-visible:ring-2 focus-visible:ring-ring"
+                    className="flex w-full items-center gap-3 text-left text-[13px] font-medium text-[#1E293B] outline-none hover:text-[#0958D9] focus-visible:ring-2 focus-visible:ring-ring dark:text-foreground dark:hover:text-primary"
                   >
                     <span
                       className={cn(
                         'flex size-4 shrink-0 items-center justify-center rounded-full border-2 transition-colors',
                         destination && !mounts.data?.some((m) => m.path === destination)
-                          ? 'border-[#1677FF]'
-                          : 'border-[#CBD5E1]',
+                          ? 'border-[#1677FF] dark:border-primary'
+                          : 'border-[#CBD5E1] dark:border-border-strong',
                       )}
                       aria-hidden
                     >
                       {destination && !mounts.data?.some((m) => m.path === destination) ? (
-                        <span className="size-2 rounded-full bg-[#1677FF]" />
+                        <span className="size-2 rounded-full bg-[#1677FF] dark:bg-primary" />
                       ) : null}
                     </span>
                     <FolderIcon
-                      className="size-5 shrink-0 fill-[#60A5FA] text-[#1677FF]"
+                      className="size-5 shrink-0 fill-[#60A5FA] text-[#1677FF] dark:text-primary"
                       aria-hidden
                     />
                     <span className="truncate">
@@ -347,7 +351,7 @@ export function RecoveryPage(): React.JSX.Element {
                 </div>
               </div>
             ) : (
-              <div className="mt-4 rounded-[8px] border border-[#E2E8F0] bg-[#F8FAFC] p-6 text-center text-[13px] text-[#64748B]">
+              <div className="mt-4 rounded-[8px] border border-[#E2E8F0] bg-[#F8FAFC] p-6 text-center text-[13px] text-[#64748B] dark:border-border dark:bg-surface dark:text-foreground-secondary">
                 {t('tools.providerBody')}
               </div>
             )}
@@ -357,7 +361,7 @@ export function RecoveryPage(): React.JSX.Element {
               <button
                 type="button"
                 onClick={() => setShowAdvanced((v) => !v)}
-                className="inline-flex items-center gap-1 text-[12px] text-[#64748B] hover:text-[#1677FF]"
+                className="inline-flex items-center gap-1 text-[12px] text-[#64748B] hover:text-[#0958D9] dark:text-foreground-secondary dark:hover:text-primary"
               >
                 <span>{t('recovery.pathLabel')}</span>
                 <ChevronDownIcon
@@ -367,7 +371,7 @@ export function RecoveryPage(): React.JSX.Element {
               </button>
 
               {showAdvanced ? (
-                <div className="mt-2 space-y-3 rounded-[8px] border border-[#E2E8F0] bg-[#F8FAFC] p-3">
+                <div className="mt-2 space-y-3 rounded-[8px] border border-[#E2E8F0] bg-[#F8FAFC] p-3 dark:border-border dark:bg-surface">
                   <div className="space-y-1">
                     <Label htmlFor="dest-path" className="text-xs">
                       {t('recovery.pathLabel')}
@@ -406,7 +410,9 @@ export function RecoveryPage(): React.JSX.Element {
             </div>
 
             {validating ? (
-              <p className="mt-2 text-xs text-[#64748B]">{t('recovery.validating')}</p>
+              <p className="mt-2 text-xs text-[#64748B] dark:text-foreground-secondary">
+                {t('recovery.validating')}
+              </p>
             ) : null}
 
             {validation && !validation.allowed ? (
@@ -440,7 +446,10 @@ export function RecoveryPage(): React.JSX.Element {
             {/* Bottom Footer Bar: Enable file repair switch on left, Save / Recover button on right */}
             <div className="mt-6 flex items-center justify-between gap-4 pt-2">
               <div className="flex items-center gap-2.5">
-                <Label htmlFor="file-repair-switch" className="text-[13px] text-[#334155]">
+                <Label
+                  htmlFor="file-repair-switch"
+                  className="text-[13px] text-[#334155] dark:text-foreground"
+                >
                   {t('recovery.fileRepair')}
                 </Label>
                 <Switch
@@ -480,7 +489,7 @@ export function RecoveryPage(): React.JSX.Element {
                     },
                   );
                 }}
-                className="inline-flex h-9 min-w-[116px] items-center justify-center rounded-[6px] bg-[#1677FF] px-6 text-[13.5px] font-semibold text-white shadow-xs transition-colors hover:bg-[#0958D9] focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
+                className="inline-flex h-9 min-w-[116px] items-center justify-center rounded-[6px] bg-[#1677FF] px-6 text-[13.5px] font-semibold text-white shadow-xs transition-all hover:bg-[#0958D9] active:scale-[var(--press-scale)] focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50 dark:bg-primary dark:text-primary-foreground dark:hover:bg-primary-hover"
               >
                 {t('recovery.saveButton')}
               </button>
@@ -492,17 +501,17 @@ export function RecoveryPage(): React.JSX.Element {
       {/* Insufficient Disk Space Modal Gate (reference: recovery-insufficient-space-gate_d768e6b3.png) */}
       <Dialog open={spaceModalOpen} onOpenChange={setSpaceModalOpen}>
         <DialogContent
-          className="max-w-[440px] rounded-[12px] bg-white p-6 shadow-2xl"
+          className="max-w-[440px] rounded-[12px] border border-[#E2E8F0] bg-white p-6 shadow-2xl dark:border-border dark:bg-surface-elevated"
           aria-label={t('recovery.insufficientSpace')}
         >
           <div className="flex items-start gap-4">
             <SaveDestinationIcon withWarning />
             <div className="min-w-0 flex-1">
               <DialogHeader>
-                <DialogTitle className="text-[16px] font-bold text-[#1E293B]">
+                <DialogTitle className="text-[16px] font-bold text-[#1E293B] dark:text-foreground">
                   {t('recovery.insufficientSpace')}
                 </DialogTitle>
-                <DialogDescription className="mt-1.5 text-[13px] leading-relaxed text-[#64748B]">
+                <DialogDescription className="mt-1.5 text-[13px] leading-relaxed text-[#64748B] dark:text-foreground-secondary">
                   {t('recovery.insufficientSpaceBody', {
                     needed:
                       validation?.neededBytes && validation?.freeBytes
@@ -520,7 +529,7 @@ export function RecoveryPage(): React.JSX.Element {
             <button
               type="button"
               onClick={() => setSpaceModalOpen(false)}
-              className="h-9 min-w-[104px] rounded-[6px] bg-[#EBF3FF] px-5 text-[13px] font-semibold text-[#1677FF] transition-colors hover:bg-[#DCE8FF]"
+              className="h-9 min-w-[104px] rounded-[6px] bg-[#EBF3FF] px-5 text-[13px] font-semibold text-[#0958D9] transition-colors hover:bg-[#DCE8FF] dark:bg-surface-tint dark:text-primary dark:hover:bg-surface-selected"
             >
               {t('common.continue')}
             </button>
@@ -530,7 +539,7 @@ export function RecoveryPage(): React.JSX.Element {
                 setSpaceModalOpen(false);
                 handlePickFolder();
               }}
-              className="h-9 min-w-[104px] rounded-[6px] bg-[#1677FF] px-5 text-[13px] font-semibold text-white transition-colors hover:bg-[#0958D9]"
+              className="h-9 min-w-[104px] rounded-[6px] bg-[#1677FF] px-5 text-[13px] font-semibold text-white transition-colors hover:bg-[#0958D9] dark:bg-primary dark:text-primary-foreground dark:hover:bg-primary-hover"
             >
               {t('recovery.reselect')}
             </button>

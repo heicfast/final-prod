@@ -41,10 +41,12 @@ export function RepairPage(): React.JSX.Element {
       <div className="mx-auto w-full max-w-5xl">
         {/* Reference Header */}
         <div>
-          <h1 className="text-[20px] font-bold tracking-tight text-[#1E293B]">
+          <h1 className="text-[20px] font-bold tracking-tight text-[#1E293B] dark:text-foreground">
             {t('repair.title')}
           </h1>
-          <p className="mt-1.5 text-[13px] text-[#64748B]">{t('repair.introBody')}</p>
+          <p className="mt-1.5 text-[13px] text-[#64748B] dark:text-foreground-secondary">
+            {t('repair.introBody')}
+          </p>
         </div>
 
         {/* Two-column reference split: 3 repair feature rows + Start CTA on left, illustration on right */}
@@ -58,7 +60,7 @@ export function RepairPage(): React.JSX.Element {
               <button
                 type="button"
                 onClick={() => setWorkbenchOpen((v) => !v)}
-                className="inline-flex h-10 w-[136px] items-center justify-center rounded-[6px] bg-[#1677FF] text-[14px] font-semibold text-white shadow-xs transition-colors hover:bg-[#0958D9] focus-visible:ring-2 focus-visible:ring-ring"
+                className="inline-flex h-10 w-[136px] items-center justify-center rounded-[6px] bg-[#1677FF] text-[14px] font-semibold text-white shadow-xs transition-all hover:bg-[#0958D9] active:scale-[var(--press-scale)] focus-visible:ring-2 focus-visible:ring-ring dark:bg-primary dark:text-primary-foreground dark:hover:bg-primary-hover"
               >
                 {t('repair.start')}
               </button>
@@ -72,7 +74,7 @@ export function RepairPage(): React.JSX.Element {
 
         {/* Interactive Volume & File Repair Workbench (expanded when Start is clicked) */}
         {workbenchOpen ? (
-          <div className="mt-10 border-t border-[#E2E8F0] pt-6">
+          <div className="mt-10 border-t border-[#E2E8F0] pt-6 dark:border-border">
             {isLoading ? (
               <div className="space-y-3">
                 <Skeleton className="h-16" />
@@ -101,12 +103,16 @@ export function RepairPage(): React.JSX.Element {
                       }}
                       className={
                         deviceId === d.id
-                          ? 'rounded-md border-2 border-[#1677FF] bg-[#EBF3FF] px-4 py-2 text-left text-sm'
-                          : 'rounded-md border-2 border-[#E2E8F0] bg-white px-4 py-2 text-left text-sm hover:border-[#93C5FD]'
+                          ? 'rounded-md border-2 border-[#1677FF] bg-[#EBF3FF] px-4 py-2 text-left text-sm dark:border-primary dark:bg-surface-selected'
+                          : 'rounded-md border-2 border-[#E2E8F0] bg-white px-4 py-2 text-left text-sm hover:border-[#93C5FD] hover:bg-[#F4F8FF] dark:border-border dark:bg-surface-elevated dark:hover:border-primary/60 dark:hover:bg-surface-hover'
                       }
                     >
-                      <div className="font-medium text-[#1E293B]">{d.label}</div>
-                      <div className="text-xs text-[#64748B]">{d.model}</div>
+                      <div className="font-medium text-[#1E293B] dark:text-foreground">
+                        {d.label}
+                      </div>
+                      <div className="text-xs text-[#64748B] dark:text-foreground-secondary">
+                        {d.model}
+                      </div>
                     </button>
                   ))}
                 </div>
@@ -128,7 +134,7 @@ export function RepairPage(): React.JSX.Element {
                       {dryRun.data.findings.map((f) => (
                         <li
                           key={f.id}
-                          className="flex items-start gap-3 rounded-md border border-[#E2E8F0] bg-white p-3"
+                          className="flex items-start gap-3 rounded-md border border-[#E2E8F0] bg-white p-3 dark:border-border dark:bg-surface-elevated"
                         >
                           <Badge
                             variant={
@@ -143,7 +149,9 @@ export function RepairPage(): React.JSX.Element {
                           </Badge>
                           <div className="min-w-0 flex-1">
                             <div className="text-sm font-medium">{f.kind}</div>
-                            <div className="font-mono text-xs text-[#64748B]">{f.where}</div>
+                            <div className="font-mono text-xs text-[#64748B] dark:text-foreground-secondary">
+                              {f.where}
+                            </div>
                           </div>
                         </li>
                       ))}
@@ -154,7 +162,9 @@ export function RepairPage(): React.JSX.Element {
                         <ShieldAlertIcon className="size-4 text-warning" aria-hidden />
                         {t('repair.consentTitle')}
                       </h3>
-                      <p className="mt-1.5 text-sm text-[#64748B]">{t('repair.consentBody')}</p>
+                      <p className="mt-1.5 text-sm text-[#64748B] dark:text-foreground-secondary">
+                        {t('repair.consentBody')}
+                      </p>
                       <label className="mt-3 flex cursor-pointer items-start gap-2.5 text-sm">
                         <input
                           type="checkbox"
@@ -165,7 +175,7 @@ export function RepairPage(): React.JSX.Element {
                         {t('repair.consentAcknowledge')}
                       </label>
                       <div className="mt-3 flex items-center gap-2">
-                        <span className="text-xs text-[#64748B]">
+                        <span className="text-xs text-[#64748B] dark:text-foreground-secondary">
                           {t('repair.consentTypeHere')}:
                         </span>
                         <Input
@@ -225,11 +235,11 @@ export function RepairPage(): React.JSX.Element {
                       {undoLog.data?.map((entry) => (
                         <li
                           key={entry.index}
-                          className="flex items-center justify-between gap-3 rounded-md border border-[#E2E8F0] bg-white px-4 py-2 text-sm"
+                          className="flex items-center justify-between gap-3 rounded-md border border-[#E2E8F0] bg-white px-4 py-2 text-sm dark:border-border dark:bg-surface-elevated"
                         >
                           <span className="min-w-0 truncate">
                             {entry.index}. {entry.action} —{' '}
-                            <span className="font-mono text-xs text-[#64748B]">
+                            <span className="font-mono text-xs text-[#64748B] dark:text-foreground-secondary">
                               {entry.where}
                             </span>
                           </span>
@@ -238,7 +248,9 @@ export function RepairPage(): React.JSX.Element {
                       ))}
                     </ol>
                   ) : (
-                    <p className="text-sm text-[#64748B]">{t('repair.nothingToUndo')}</p>
+                    <p className="text-sm text-[#64748B] dark:text-foreground-secondary">
+                      {t('repair.nothingToUndo')}
+                    </p>
                   )}
                 </div>
               </>
@@ -260,7 +272,7 @@ function RepairFeatureRow({
   return (
     <div className="flex items-center gap-4">
       <div
-        className="flex size-10 shrink-0 items-center justify-center rounded-full bg-[#F1F5F9]"
+        className="flex size-10 shrink-0 items-center justify-center rounded-full bg-[#F1F5F9] dark:bg-surface-elevated"
         aria-hidden
       >
         {kind === 'video' ? (
@@ -337,7 +349,7 @@ function RepairFeatureRow({
           </svg>
         )}
       </div>
-      <span className="text-[14px] font-bold text-[#1E293B]">{label}</span>
+      <span className="text-[14px] font-bold text-[#1E293B] dark:text-foreground">{label}</span>
     </div>
   );
 }

@@ -301,8 +301,8 @@ export function ResultsExplorer({
           size="sm"
           className={
             filterBarOpen
-              ? 'bg-[#D0E2FF] bg-none text-[#1677FF] shadow-none hover:bg-[#C2D8FF]'
-              : 'border-transparent bg-[#DCE7F9] hover:bg-[#CEDDF6] dark:bg-surface-muted'
+              ? 'bg-[#D0E2FF] [background-image:none] text-[#0958D9] shadow-none hover:bg-[#B8D0FA] dark:bg-primary/25 dark:text-primary dark:hover:bg-primary/35'
+              : 'border-transparent bg-[#DCE7F9] hover:bg-[#C8DAF5] dark:bg-surface-muted dark:hover:bg-surface-hover'
           }
           onClick={() => setFilterBarOpen((v) => !v)}
           aria-expanded={filterBarOpen}

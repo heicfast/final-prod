@@ -419,8 +419,8 @@ function IconGridBody({
             className={cn(
               'group/tile relative flex h-[142px] cursor-default flex-col items-center justify-between rounded-[8px] border p-2.5 transition-all',
               isSelected || isActive
-                ? 'border-[#1677FF] bg-[#EDF4FF] ring-1 ring-[#1677FF]'
-                : 'border-[#E2E8F0] bg-white hover:border-[#93C5FD] hover:bg-[#F8FAFC]',
+                ? 'border-[#1677FF] bg-[#EDF4FF] ring-1 ring-[#1677FF] dark:border-primary dark:bg-surface-selected dark:ring-primary'
+                : 'border-[#E2E8F0] bg-white hover:border-[#93C5FD] hover:bg-[#EFF5FF] dark:border-border dark:bg-surface-elevated dark:hover:border-primary/60 dark:hover:bg-surface-hover',
             )}
             onClick={(e) => onRowClick(node, idx, e)}
             onDoubleClick={() => onRowDoubleClick(node)}
@@ -442,7 +442,7 @@ function IconGridBody({
             >
               <IconTile scanId={scanId} node={node} />
               <div
-                className="mt-2 w-full truncate text-center text-xs font-medium text-[#1E293B]"
+                className="mt-2 w-full truncate text-center text-xs font-medium text-[#1E293B] dark:text-foreground"
                 title={node.name}
               >
                 {node.name}
@@ -462,7 +462,7 @@ function IconTile({ scanId, node }: { scanId: string; node: ResultNode }): React
       <img
         src={thumb.data.dataUrl}
         alt=""
-        className="h-[82px] w-[112px] shrink-0 rounded-[4px] border border-[#E2E8F0] object-cover"
+        className="h-[82px] w-[112px] shrink-0 rounded-[4px] border border-[#E2E8F0] object-cover dark:border-border"
         loading="lazy"
       />
     );
