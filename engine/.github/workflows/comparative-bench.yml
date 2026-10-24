@@ -213,9 +213,18 @@ jobs:
           (Get-FileHash driver\rda.sys -Algorithm SHA256).Hash | Out-File driver-sha.txt -Encoding utf8
 
       - name: PE provenance (driver + rrecov)
+        if: needs.prepare.outputs.driver_mode == 'present'
         shell: pwsh
         run: |
           python bench\tools\pe_info.py driver\rda.sys build\win-x64-release\src\app\Release\rrecov.exe |
+            Out-File driver-pe.json -Encoding utf8
+          Get-Content driver-pe.json | Write-Host
+
+      - name: PE provenance (rrecov, driver absent)
+        if: needs.prepare.outputs.driver_mode != 'present'
+        shell: pwsh
+        run: |
+          python bench\tools\pe_info.py build\win-x64-release\src\app\Release\rrecov.exe |
             Out-File driver-pe.json -Encoding utf8
           Get-Content driver-pe.json | Write-Host
 
