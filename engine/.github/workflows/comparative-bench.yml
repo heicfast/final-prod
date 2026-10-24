@@ -248,7 +248,7 @@ jobs:
           $scenMap = '${{ needs.prepare.outputs.scenarios_per_fs }}' | ConvertFrom-Json
           $scenarios = $scenMap.PSObject.Properties[$fs].Value
           $coreSha = '${{ github.sha }}'
-          $drv = "service=rda;tag=$env:RDA_RELEASE_TAG;verified=rdacli-info"
+          $drv = "service=rda;tag=$env:RDA_RELEASE_TAG;verified=rdacli-info;running"
           $rrecov = "$PWD\build\win-x64-release\src\app\Release\rrecov.exe"
           $sizeMB = if ($env:PROFILE -eq 'full') { 3072 } else { 1536 }
           New-Item -ItemType Directory -Force -Path benchmark-results | Out-Null

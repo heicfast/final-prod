@@ -243,10 +243,10 @@ elseif ($Mode -eq 'partial_overwrite') {
     foreach ($e in $deletable) {
         if (-not $e.extents -or $e.extents.Count -eq 0) { continue }
         $first = $e.extents[0]
-        $exts += @{ lcn = [long]$first[0]; clusters = [long]$first[1]; rel = $e.rel }
+        $exts += ,@([long]$first[0] * [long]$bpc, [long]$first[1] * [long]$bpc)
     }
-    $written = Invoke-PartialOverwrite -Letter $Letter -Extents $exts -Sectors 8 -Pattern 0xAA -BytesPerCluster $bpc
-    $state.extra = @{ bytes_per_cluster = $bpc; files_overwritten = $exts.Count; sectors_per_file = 8; pattern = '0xAA' }
+    $written = Invoke-PartialOverwrite -Letter $Letter -Extents $exts -Sectors 8 -Pattern 0xAA
+    $state.extra = @{ bytes_per_cluster = $bpc; files_overwritten = $exts.Count; sectors_per_file = 8; pattern = '0xAA'; written = $written }
     $state.notes += "permanent delete -> first 8 sectors (4096 B) of each deleted file's first extent overwritten with 0xAA via locked-volume raw IO"
 }
 elseif ($Mode -eq 'mft_corrupt') {
@@ -257,8 +257,7 @@ elseif ($Mode -eq 'mft_corrupt') {
     Write-VolumeCache -DriveLetter $Letter -ErrorAction SilentlyContinue | Out-Null
     $records = @()
     foreach ($e in $deletable) { if ($null -ne $e.mft_record) { $records += [long]$e.mft_record } }
-    $corruptJson = Invoke-MftCorrupt -Letter $Letter -Records $records -AdjacentRecords $AdjacentRecords -AlsoBitmap
-    $corrupt = $corruptJson | ConvertFrom-Json
+    $corrupt = Invoke-MftCorrupt -Letter $Letter -Records $records -AdjacentRecords $AdjacentRecords -AlsoBitmap
     $state.extra = @{
         ntfs = $corrupt
         records_requested = $records.Count

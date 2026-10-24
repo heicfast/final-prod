@@ -2,11 +2,10 @@
 #
 # Dot-source:  . $PSScriptRoot\volume.ps1
 #
-# Provides:
-#   New-BenchVolume / Remove-BenchVolume / Get-BenchVolumeJson
-#   [BenchRaw] C# helpers: raw open/lock/dismount, FSCTL_GET_RETRIEVAL_POINTERS,
-#   BY_HANDLE file id, NTFS volume data (cluster size / MFT LCN), MFT-record
-#   read+fixup, $Bitmap run parse, pattern writes, volume hash-map capture.
+# Design note ( FileStream-over-SafeFileHandle owns the handle on Dispose ):
+# every multi-step raw operation is a SINGLE C# composite call that opens,
+# locks, dismounts, does all IO on one FileStream, then closes. PS wrappers
+# never share one handle across several C# calls.
 #
 # Licensed under the MIT license. See LICENSE.
 
@@ -58,7 +57,9 @@ public static class BenchRaw
         public uint FileIndexLow;
     }
 
-    public static SafeFileHandle OpenVolumeRaw(string letter)
+    // ---- handle helpers ----------------------------------------------------
+
+    private static SafeFileHandle OpenVolumeRaw(string letter)
     {
         string name = @"\\.\" + letter.TrimEnd(':') + ":";
         SafeFileHandle h = CreateFileW(name, GENERIC_READ | GENERIC_WRITE, FILE_SHARE_ALL, IntPtr.Zero, OPEN_EXISTING, 0, IntPtr.Zero);
@@ -66,28 +67,32 @@ public static class BenchRaw
         return h;
     }
 
-    public static SafeFileHandle OpenFileForInfo(string path)
+    private static SafeFileHandle OpenDiskRaw(int diskNumber)
+    {
+        string name = @"\\.\" + "PhysicalDrive" + diskNumber;
+        SafeFileHandle h = CreateFileW(name, GENERIC_READ, 0x3, IntPtr.Zero, OPEN_EXISTING, 0, IntPtr.Zero);
+        if (h.IsInvalid) throw new IOException("OpenDiskRaw " + name + " failed GLE=" + Marshal.GetLastWin32Error());
+        return h;
+    }
+
+    private static SafeFileHandle OpenFileForInfo(string path)
     {
         SafeFileHandle h = CreateFileW(path, GENERIC_READ, FILE_SHARE_ALL, IntPtr.Zero, OPEN_EXISTING, FILE_FLAG_BACKUP_SEMANTICS, IntPtr.Zero);
         if (h.IsInvalid) throw new IOException("OpenFileForInfo " + path + " failed GLE=" + Marshal.GetLastWin32Error());
         return h;
     }
 
-    public static void LockVolume(SafeFileHandle h)
+    private static void LockAndDismount(SafeFileHandle h)
     {
         uint ret;
         if (!DeviceIoControl(h, FSCTL_LOCK_VOLUME, null, 0, null, 0, out ret, IntPtr.Zero))
             throw new IOException("FSCTL_LOCK_VOLUME failed GLE=" + Marshal.GetLastWin32Error());
-    }
-
-    public static void DismountVolume(SafeFileHandle h)
-    {
-        uint ret;
         if (!DeviceIoControl(h, FSCTL_DISMOUNT_VOLUME, null, 0, null, 0, out ret, IntPtr.Zero))
             throw new IOException("FSCTL_DISMOUNT_VOLUME failed GLE=" + Marshal.GetLastWin32Error());
     }
 
-    // extents: array of [lcn, lengthInClusters] pairs (volume-relative, clusters)
+    // ---- per-file info (single DeviceIoControl per handle: no FileStream) --
+
     public static long[][] GetExtents(string path)
     {
         using (SafeFileHandle h = OpenFileForInfo(path))
@@ -132,67 +137,16 @@ public static class BenchRaw
         }
     }
 
-    // NTFS_VOLUME_DATA_BUFFER: {bytesPerCluster, clustersPerFRS(signed), mftStartLcn, totalClusters}
-    public static long[] GetNtfsVolumeData(SafeFileHandle h)
-    {
-        byte[] b = new byte[256];
-        uint ret;
-        if (!DeviceIoControl(h, FSCTL_GET_NTFS_VOLUME_DATA, null, 0, b, (uint)b.Length, out ret, IntPtr.Zero))
-            throw new IOException("GET_NTFS_VOLUME_DATA failed GLE=" + Marshal.GetLastWin32Error());
-        long bytesPerCluster = BitConverter.ToInt64(b, 40);
-        long clustersPerFRS = BitConverter.ToInt64(b, 48);
-        long mftStartLcn = BitConverter.ToInt64(b, 56);
-        long totalClusters = BitConverter.ToInt64(b, 16);
-        return new long[] { bytesPerCluster, clustersPerFRS, mftStartLcn, totalClusters };
-    }
+    // ---- MFT record helpers (called under one stream) ----------------------
 
-    public static int MftRecordSize(long clustersPerFRS, long bytesPerCluster)
-    {
-        if (clustersPerFRS < 0) return 1 << (int)(-clustersPerFRS);
-        return (int)(clustersPerFRS * bytesPerCluster);
-    }
-
-    private static FileStream R(SafeFileHandle h) { return new FileStream(h, FileAccess.Read, 4096, false); }
-    private static FileStream W(SafeFileHandle h) { return new FileStream(h, FileAccess.Write, 4096, false); }
-
-    public static byte[] ReadRange(SafeFileHandle h, long offset, int len)
-    {
-        using (FileStream fs = R(h))
-        {
-            fs.Seek(offset, SeekOrigin.Begin);
-            byte[] buf = new byte[len];
-            int got = 0;
-            while (got < len)
-            {
-                int n = fs.Read(buf, got, len - got);
-                if (n <= 0) break;
-                got += n;
-            }
-            if (got != len) throw new IOException("short read " + got + "/" + len + " @" + offset);
-            return buf;
-        }
-    }
-
-    public static void WriteRange(SafeFileHandle h, long offset, byte[] data)
-    {
-        using (FileStream fs = W(h))
-        {
-            fs.Seek(offset, SeekOrigin.Begin);
-            fs.Write(data, 0, data.Length);
-            fs.Flush();
-        }
-    }
-
-    // apply USA fixups in place so attribute parsing sees true bytes
     private static void ApplyFixup(byte[] rec)
     {
         int usaOff = BitConverter.ToUInt16(rec, 0x04);
         int usaCount = BitConverter.ToUInt16(rec, 0x06);
-        int sectorSize = 512;
         int sectors = (usaCount > 0) ? usaCount - 1 : 0;
         for (int i = 0; i < sectors; i++)
         {
-            int sectorEnd = (i + 1) * sectorSize;
+            int sectorEnd = (i + 1) * 512;
             if (sectorEnd - 2 < rec.Length && usaOff + 2 + 2 * (i + 1) <= rec.Length)
             {
                 rec[sectorEnd - 2] = rec[usaOff + 2 + 2 * (i + 1)];
@@ -201,15 +155,48 @@ public static class BenchRaw
         }
     }
 
-    public static byte[] ReadMftRecord(SafeFileHandle h, long mftStartOffset, int recordSize, long recordNumber)
+    private static byte[] ReadRange(FileStream fs, long offset, int len)
     {
-        byte[] rec = ReadRange(h, mftStartOffset + recordNumber * recordSize, recordSize);
-        ApplyFixup(rec);
-        return rec;
+        fs.Seek(offset, SeekOrigin.Begin);
+        byte[] buf = new byte[len];
+        int got = 0;
+        while (got < len)
+        {
+            int n = fs.Read(buf, got, len - got);
+            if (n <= 0) break;
+            got += n;
+        }
+        if (got != len) throw new IOException("short read " + got + "/" + len + " @" + offset);
+        return buf;
     }
 
-    // $DATA runlist of a fixed-up MFT record: [volumeByteOffset, lengthBytes][]
-    public static long[][] GetDataRuns(byte[] rec, int recordSize, long bytesPerCluster)
+    private static void WriteRange(FileStream fs, long offset, byte[] data)
+    {
+        fs.Seek(offset, SeekOrigin.Begin);
+        fs.Write(data, 0, data.Length);
+        fs.Flush();
+    }
+
+    private static long[] NtfsData(SafeFileHandle h)
+    {
+        byte[] b = new byte[256];
+        uint ret;
+        if (!DeviceIoControl(h, FSCTL_GET_NTFS_VOLUME_DATA, null, 0, b, (uint)b.Length, out ret, IntPtr.Zero))
+            throw new IOException("GET_NTFS_VOLUME_DATA failed GLE=" + Marshal.GetLastWin32Error() + " (NTFS only?)");
+        return new long[] {
+            BitConverter.ToInt64(b, 40),   // bytesPerCluster
+            BitConverter.ToInt64(b, 48),   // clustersPerFRS (signed)
+            BitConverter.ToInt64(b, 56),   // mftStartLcn
+            BitConverter.ToInt64(b, 16) }; // totalClusters
+    }
+
+    private static int MftRecordSize(long clustersPerFRS, long bytesPerCluster)
+    {
+        if (clustersPerFRS < 0) return 1 << (int)(-clustersPerFRS);
+        return (int)(clustersPerFRS * bytesPerCluster);
+    }
+
+    private static long[][] GetDataRuns(byte[] rec, int recordSize, long bytesPerCluster)
     {
         List<long[]> runs = new List<long[]>();
         int off = BitConverter.ToUInt16(rec, 0x14);
@@ -251,49 +238,23 @@ public static class BenchRaw
         return runs.ToArray();
     }
 
-    // zero an MFT record (targeted corruption); returns previous 16 bytes as hex for the record
-    public static string ZeroMftRecord(SafeFileHandle h, long mftStartOffset, int recordSize, long recordNumber)
-    {
-        byte[] rec = ReadRange(h, mftStartOffset + recordNumber * recordSize, recordSize);
-        string prev = BitConverter.ToString(rec, 0, 16).Replace("-", "");
-        byte[] zero = new byte[recordSize];
-        WriteRange(h, mftStartOffset + recordNumber * recordSize, zero);
-        return prev;
-    }
+    // ---- composite public operations ---------------------------------------
+    // Each: open -> lock -> dismount -> all IO on ONE FileStream -> close.
 
-    // XOR a byte range with a pattern (bitmap corruption); returns prev-hash
-    public static string XorRange(SafeFileHandle h, long offset, int len)
-    {
-        byte[] b = ReadRange(h, offset, len);
-        string prev;
-        using (SHA256 sha = SHA256.Create()) { prev = Convert.ToHexString(sha.ComputeHash(b)); }
-        for (int i = 0; i < len; i++) b[i] ^= 0xFF;
-        WriteRange(h, offset, b);
-        return prev;
-    }
-
-    // fill a byte range with a pattern byte
-    public static void FillRange(SafeFileHandle h, long offset, int len, byte pattern)
-    {
-        byte[] b = new byte[len];
-        for (int i = 0; i < len; i++) b[i] = pattern;
-        WriteRange(h, offset, b);
-    }
-
-    // volume hash map: lines "offset,sha256" per block
-    public static List<string> HashVolumeBlocks(SafeFileHandle h, long volumeBytes, long blockBytes)
+    public static List<string> HashVolume(string letter, long volumeBytes, long blockBytes)
     {
         List<string> lines = new List<string>();
-        using (SHA256 sha = SHA256.Create())
+        using (SafeFileHandle h = OpenVolumeRaw(letter))
         {
-            for (long off = 0; off < volumeBytes; off += blockBytes)
+            LockAndDismount(h);
+            using (SHA256 sha = SHA256.Create())
+            using (FileStream fs = new FileStream(h, FileAccess.Read, 4096, false))
             {
-                int n = (int)Math.Min(blockBytes, volumeBytes - off);
-                byte[] buf;
-                using (FileStream fs = R(h))
+                for (long off = 0; off < volumeBytes; off += blockBytes)
                 {
+                    int n = (int)Math.Min(blockBytes, volumeBytes - off);
                     fs.Seek(off, SeekOrigin.Begin);
-                    buf = new byte[n];
+                    byte[] buf = new byte[n];
                     int got = 0;
                     while (got < n)
                     {
@@ -301,27 +262,167 @@ public static class BenchRaw
                         if (r <= 0) break;
                         got += r;
                     }
-                    if (got < n) { byte[] t = new byte[got]; Array.Copy(buf, t, got); buf = t; }
+                    if (got < n)
+                    {
+                        byte[] t = new byte[got];
+                        Array.Copy(buf, t, got);
+                        buf = t;
+                    }
+                    lines.Add(off + "," + Convert.ToHexString(sha.ComputeHash(buf)));
                 }
-                string hh = Convert.ToHexString(sha.ComputeHash(buf));
-                lines.Add(off + "," + hh);
             }
         }
         return lines;
     }
 
-    public static SafeFileHandle OpenDiskRaw(int diskNumber)
+    public static List<string> HashDisk(int diskNumber, long diskBytes, long blockBytes)
     {
-        string name = @"\\.\PhysicalDrive" + diskNumber;
-        SafeFileHandle h = CreateFileW(name, GENERIC_READ, 0x3, IntPtr.Zero, OPEN_EXISTING, 0, IntPtr.Zero);
-        if (h.IsInvalid) throw new IOException("OpenDiskRaw " + name + " failed GLE=" + Marshal.GetLastWin32Error());
-        return h;
+        List<string> lines = new List<string>();
+        using (SafeFileHandle h = OpenDiskRaw(diskNumber))
+        using (SHA256 sha = SHA256.Create())
+        using (FileStream fs = new FileStream(h, FileAccess.Read, 4096, false))
+        {
+            for (long off = 0; off < diskBytes; off += blockBytes)
+            {
+                int n = (int)Math.Min(blockBytes, diskBytes - off);
+                fs.Seek(off, SeekOrigin.Begin);
+                byte[] buf = new byte[n];
+                int got = 0;
+                while (got < n)
+                {
+                    int r = fs.Read(buf, got, n - got);
+                    if (r <= 0) break;
+                    got += r;
+                }
+                if (got < n)
+                {
+                    byte[] t = new byte[got];
+                    Array.Copy(buf, t, got);
+                    buf = t;
+                }
+                lines.Add(off + "," + Convert.ToHexString(sha.ComputeHash(buf)));
+            }
+        }
+        return lines;
     }
 
-    public static long VolumeBytesFromQuery(string letter)
+    // cluster size from the boot sector: NTFS/FAT u16 bps @0x0B + u8 spc @0x0D;
+    // exFAT shift bytes @0x78/@0x79. Returns -1 when unrecognized.
+    public static long GetBootClusterSize(string letter)
     {
-        // not used by callers; volume size comes from Get-Volume (PS side)
-        return 0;
+        using (SafeFileHandle h = OpenVolumeRaw(letter))
+        {
+            LockAndDismount(h);
+            using (FileStream fs = new FileStream(h, FileAccess.Read, 512, false))
+            {
+                byte[] b = ReadRange(fs, 0, 512);
+                string oem = Encoding.ASCII.GetString(b, 3, 8).Trim();
+                if (oem == "EXFAT")
+                {
+                    int s1 = b[0x78]; int s2 = b[0x79];
+                    return (long)(Math.Pow(2, s1) * Math.Pow(2, s2));
+                }
+                int bps = BitConverter.ToUInt16(b, 0x0B);
+                int spc = b[0x0D];
+                if (bps <= 0 || spc <= 0) return -1;
+                return (long)bps * (long)spc;
+            }
+        }
+    }
+
+    // zero the given MFT records (+adjacent) and optionally XOR 4 KiB of $Bitmap;
+    // returns a JSON-ready summary string
+    public static string CorruptMft(string letter, long[] records, int adjacent, bool alsoBitmap)
+    {
+        var zeroed = new List<string>();
+        string bitmapJson = "null";
+        long bpc = 0; int recSize = 0; long mftOff = 0;
+        using (SafeFileHandle h = OpenVolumeRaw(letter))
+        {
+            LockAndDismount(h);
+            long[] nd = NtfsData(h);
+            bpc = nd[0];
+            recSize = MftRecordSize(nd[1], nd[2]);
+            mftOff = nd[2] * bpc;
+            using (FileStream fs = new FileStream(h, FileAccess.Read | FileAccess.Write, 4096, false))
+            {
+                var seen = new HashSet<long>();
+                foreach (long r0 in records)
+                {
+                    for (int k = 0; k <= adjacent; k++)
+                    {
+                        long r = r0 + k;
+                        if (r < 24) continue;              // never touch system records 0..23
+                        if (!seen.Add(r)) continue;
+                        byte[] prev = ReadRange(fs, mftOff + r * recSize, recSize);
+                        string head = BitConverter.ToString(prev, 0, 16).Replace("-", "");
+                        WriteRange(fs, mftOff + r * recSize, new byte[recSize]);
+                        zeroed.Add("{\"record\":" + r + ",\"prev_head\":\"" + head + "\"}");
+                    }
+                }
+                if (alsoBitmap)
+                {
+                    byte[] rec6 = ReadRange(fs, mftOff + 6 * recSize, recSize);
+                    ApplyFixup(rec6);
+                    long[][] runs = GetDataRuns(rec6, recSize, bpc);
+                    if (runs.Length > 0)
+                    {
+                        long off = runs[0][0];
+                        int len = 4096;
+                        if (runs[0][1] < len) len = (int)runs[0][1];
+                        byte[] blk = ReadRange(fs, off, len);
+                        string prevHash;
+                        using (SHA256 sha = SHA256.Create()) { prevHash = Convert.ToHexString(sha.ComputeHash(blk)); }
+                        for (int i = 0; i < len; i++) blk[i] ^= 0xFF;
+                        WriteRange(fs, off, blk);
+                        bitmapJson = "{\"offset\":" + off + ",\"len\":" + len + ",\"prev_sha256\":\"" + prevHash + "\"}";
+                    }
+                    else
+                    {
+                        bitmapJson = "{\"error\":\"no $Bitmap data runs parsed\"}";
+                    }
+                }
+            }
+        }
+        return "{\"bytes_per_cluster\":" + bpc + ",\"mft_record_size\":" + recSize +
+               ",\"mft_start_offset\":" + mftOff + ",\"records_zeroed\":[" + string.Join(",", zeroed.ToArray()) +
+               "],\"bitmap\":" + bitmapJson + "}";
+    }
+
+    // overwrite the first N sectors of each extent with a pattern byte
+    public static string PartialOverwrite(string letter, long[][] extents, int sectors, byte pattern)
+    {
+        var written = new List<string>();
+        using (SafeFileHandle h = OpenVolumeRaw(letter))
+        {
+            LockAndDismount(h);
+            using (FileStream fs = new FileStream(h, FileAccess.Read | FileAccess.Write, 4096, false))
+            {
+                foreach (long[] e in extents)
+                {
+                    if (e == null || e.Length < 2) continue;
+                    long off = e[0];
+                    long avail = e[1];
+                    int len = sectors * 512;
+                    if (avail < len) len = (int)avail;
+                    if (len <= 0) continue;
+                    byte[] b = new byte[len];
+                    for (int i = 0; i < len; i++) b[i] = pattern;
+                    WriteRange(fs, off, b);
+                    written.Add("{\"offset\":" + off + ",\"len\":" + len + "}");
+                }
+            }
+        }
+        return "[" + string.Join(",", written.ToArray()) + "]";
+    }
+
+    public static long[] NtfsGeometry(string letter)
+    {
+        using (SafeFileHandle h = OpenVolumeRaw(letter))
+        {
+            LockAndDismount(h);
+            return NtfsData(h);
+        }
     }
 }
 "@
@@ -376,7 +477,7 @@ function New-BenchVolume {
     $letters = @()
     $parts = @()
     if ($SecondVolume) {
-        # two ~equal partitions: A = corpus target, B = stays living (delete_partition scenario)
+        # two ~equal partitions: A = corpus target, B = stays (delete_partition scenario deletes both)
         $free = [long](Get-Disk -Number $disk).LargestFreeExtent
         $half = [long]($free / 2)
         $p1 = New-Partition -DiskNumber $disk -Size $half -AssignDriveLetter
@@ -404,136 +505,58 @@ function New-BenchVolume {
 
 function Remove-BenchVolume {
     param([Parameter(Mandatory = $true)] [string] $VhdPath)
-    foreach ($l in @('Dismount-VHD')) {
-        try { Dismount-VHD -Path $VhdPath -ErrorAction Stop } catch {
-            $dp = "select vdisk file=`"$VhdPath`"`r`ndetach vdisk"
-            $tmp = [System.IO.Path]::GetTempFileName()
-            $dp | Set-Content -Path $tmp -Encoding ascii
-            diskpart /s $tmp 2>$null | Out-Null
-            Remove-Item $tmp -Force -ErrorAction SilentlyContinue
-        }
+    try { Dismount-VHD -Path $VhdPath -ErrorAction Stop } catch {
+        $dp = "select vdisk file=`"$VhdPath`"`r`ndetach vdisk"
+        $tmp = [System.IO.Path]::GetTempFileName()
+        $dp | Set-Content -Path $tmp -Encoding ascii
+        diskpart /s $tmp 2>$null | Out-Null
+        Remove-Item $tmp -Force -ErrorAction SilentlyContinue
     }
     Remove-Item -LiteralPath $VhdPath -Force -ErrorAction SilentlyContinue
 }
 
-# ---- raw operations (lock + dismount wrappers) --------------------------------
+# ---- raw operation wrappers (single composite C# call each) ------------------
 
 function Invoke-VolumeHashCapture {
     param([string] $Letter, [string] $OutFile, [long] $VolumeBytes, [int] $BlockMB = 1)
-    $h = [BenchRaw]::OpenVolumeRaw($Letter)
-    try {
-        [BenchRaw]::LockVolume($h)
-        [BenchRaw]::DismountVolume($h)
-        $lines = [BenchRaw]::HashVolumeBlocks($h, $VolumeBytes, [long]$BlockMB * 1MB)
-        $lines | Set-Content -Path $OutFile -Encoding utf8
-    } finally { $h.Close() }
+    $lines = [BenchRaw]::HashVolume($Letter, $VolumeBytes, [long]$BlockMB * 1MB)
+    $lines | Set-Content -Path $OutFile -Encoding utf8
     Write-Host "hash map: $((Get-Item $OutFile).Length) bytes -> $OutFile"
 }
-
-function Invoke-PartialOverwrite {
-    param([string] $Letter, [array] $Extents, [int] $Sectors = 8, [byte] $Pattern = 0xAA, [long] $BytesPerCluster)
-    # Extents: @{ lcn = X; clusters = Y } entries from the manifest
-    $h = [BenchRaw]::OpenVolumeRaw($Letter)
-    $written = @()
-    try {
-        [BenchRaw]::LockVolume($h)
-        [BenchRaw]::DismountVolume($h)
-        foreach ($e in $Extents) {
-            $off = [long]$e.lcn * $BytesPerCluster
-            $len = [int]($Sectors * 512)
-            if ($e.clusters * $BytesPerCluster -lt $len) { $len = [int]($e.clusters * $BytesPerCluster) }
-            if ($len -gt 0) {
-                [BenchRaw]::FillRange($h, $off, $len, $Pattern)
-                $written += @{ offset = $off; len = $len }
-            }
-        }
-    } finally { $h.Close() }
-    return ,$written
-}
-
-function Invoke-MftCorrupt {
-    param([string] $Letter, [array] $Records, [int] $AdjacentRecords = 0, [switch] $AlsoBitmap)
-    $h = [BenchRaw]::OpenVolumeRaw($Letter)
-    $result = [ordered]@{ records_zeroed = @(); bitmap = $null; bytes_per_cluster = 0; mft_record_size = 0; mft_start_offset = 0 }
-    try {
-        [BenchRaw]::LockVolume($h)
-        [BenchRaw]::DismountVolume($h)
-        $ntfs = [BenchRaw]::GetNtfsVolumeData($h)
-        $bpc = $ntfs[0]; $cpfrs = $ntfs[1]; $mftLcn = $ntfs[2]
-        $recSize = [BenchRaw]::MftRecordSize($cpfrs, $bpc)
-        $mftOff = $mftLcn * $bpc
-        $result.bytes_per_cluster = $bpc
-        $result.mft_record_size = $recSize
-        $result.mft_start_offset = $mftOff
-        $all = New-Object System.Collections.Generic.List[long]
-        foreach ($r in $Records) {
-            $all.Add([long]$r)
-            for ($i = 1; $i -le $AdjacentRecords; $i++) { $all.Add([long]$r + $i) }
-        }
-        $seen = @{}
-        foreach ($r in $all) {
-            if ($r -lt 24) { continue }   # never touch system records 0..23 ($Mft..$Secure)
-            if ($seen.ContainsKey($r)) { continue }
-            $seen[$r] = $true
-            $prev = [BenchRaw]::ZeroMftRecord($h, $mftOff, $recSize, $r)
-            $result.records_zeroed += @{ record = $r; prev_head = $prev }
-        }
-        if ($AlsoBitmap) {
-            $rec6 = [BenchRaw]::ReadMftRecord($h, $mftOff, $recSize, 6)
-            $runs = [BenchRaw]::GetDataRuns($rec6, $recSize, $bpc)
-            if ($runs.Length -gt 0) {
-                $off = $runs[0][0]
-                $len = 4096
-                if ($runs[0][1] -lt $len) { $len = [int]$runs[0][1] }
-                $prevHash = [BenchRaw]::XorRange($h, $off, $len)
-                $result.bitmap = @{ offset = $off; len = $len; prev_sha256 = $prevHash }
-            } else {
-                $result.bitmap = @{ error = 'no $Bitmap data runs parsed' }
-            }
-        }
-    } finally { $h.Close() }
-    return ($result | ConvertTo-Json -Depth 5)
-}
-
-function Get-BenchNtfsGeometry {
-    param([string] $Letter)
-    $h = [BenchRaw]::OpenVolumeRaw($Letter)
-    try {
-        [BenchRaw]::LockVolume($h)
-        [BenchRaw]::DismountVolume($h)
-        $ntfs = [BenchRaw]::GetNtfsVolumeData($h)
-        return @{ bytes_per_cluster = $ntfs[0]; clusters_per_frs = $ntfs[1]; mft_lcn = $ntfs[2]; total_clusters = $ntfs[3] }
-    } finally { $h.Close() }
-}
-
 
 function Invoke-DiskHashCapture {
     param([int] $DiskNumber, [string] $OutFile, [int] $BlockMB = 1)
     $size = [long](Get-Disk -Number $DiskNumber).Size
-    $h = [BenchRaw]::OpenDiskRaw($DiskNumber)
-    try {
-        $lines = [BenchRaw]::HashVolumeBlocks($h, $size, [long]$BlockMB * 1MB)
-        $lines | Set-Content -Path $OutFile -Encoding utf8
-    } finally { $h.Close() }
+    $lines = [BenchRaw]::HashDisk($DiskNumber, $size, [long]$BlockMB * 1MB)
+    $lines | Set-Content -Path $OutFile -Encoding utf8
     Write-Host "disk hash map: $((Get-Item $OutFile).Length) bytes -> $OutFile"
 }
 
 function Get-BootClusterSize {
-    # NTFS/FAT(12/16/32): bytes/sector u16 @0x0B, sectors/cluster u8 @0x0D
-    # exFAT: BytesPerSectorShift u8 @0x78, SectorsPerClusterShift u8 @0x79
     param([string] $Letter)
-    $h = [BenchRaw]::OpenVolumeRaw($Letter)
-    try {
-        [BenchRaw]::LockVolume($h)
-        [BenchRaw]::DismountVolume($h)
-        $b = [BenchRaw]::ReadRange($h, 0, 512)
-    } finally { $h.Close() }
-    $oem = [System.Text.Encoding]::ASCII.GetString($b, 3, 8).Trim()
-    if ($oem -eq 'EXFAT') {
-        $s1 = [int]$b[0x78]; $s2 = [int]$b[0x79]
-        return [int][math]::Pow(2, $s1) * [int][math]::Pow(2, $s2)
+    return [BenchRaw]::GetBootClusterSize($Letter)
+}
+
+function Invoke-PartialOverwrite {
+    param([string] $Letter, [array] $Extents, [int] $Sectors = 8, [byte] $Pattern = 0xAA)
+    # Extents: flat [volumeByteOffset, lengthBytes] pairs (lcn * bytesPerCluster precomputed)
+    $pairs = New-Object 'System.Collections.Generic.List[long[]]'
+    foreach ($e in $Extents) {
+        $pairs.Add(([long[]]@([long]$e[0], [long]$e[1])))
     }
-    $bps = [int][BitConverter]::ToUInt16($b, 0x0B)
-    $spc = [int]$b[0x0D]
-    return $bps * $spc
+    $json = [BenchRaw]::PartialOverwrite($Letter, $pairs.ToArray(), $Sectors, $Pattern)
+    return ($json | ConvertFrom-Json)
+}
+
+function Invoke-MftCorrupt {
+    param([string] $Letter, [array] $Records, [int] $AdjacentRecords = 0, [switch] $AlsoBitmap)
+    $recs = [long[]]@($Records | ForEach-Object { [long]$_ })
+    $json = [BenchRaw]::CorruptMft($Letter, $recs, $AdjacentRecords, [bool]$AlsoBitmap)
+    return ($json | ConvertFrom-Json)
+}
+
+function Get-BenchNtfsGeometry {
+    param([string] $Letter)
+    $nd = [BenchRaw]::NtfsGeometry($Letter)
+    return @{ bytes_per_cluster = $nd[0]; clusters_per_frs = $nd[1]; mft_lcn = $nd[2]; total_clusters = $nd[3] }
 }
