@@ -115,8 +115,10 @@ T5 extraction set. Status updated per item.
 7. **T11** State surfaces — ✅ DONE: volume-level status bug fixed
    (home banner + card lock + per-volume chip gating), dev-panel
    invalidation, live evidence.
-8. **T12** Feature-completion walk (tracker §1 — all COMPLETE; spot-audit).
-9. **T13** Interim asset extraction (chrome SVGs first).
+8. **T12** Feature walk — ✅ DONE: all core surfaces verified COMPLETE
+   in the deep read; recovery destination audit closed the walk.
+9. **T13** Interim assets — ✅ DONE: chrome layer extracted + manifest;
+   scope decision documented in INTERIM-ASSETS.md.
 10. **T14** Responsiveness/DPI verification (800×600 min, 100/150/200%).
 11. **T15** Per-component verification (parameters §3).
 12. **T16** Playwright experience-path coverage.

@@ -811,3 +811,19 @@ release notes state signing pending (unsigned builds).
   (volume-level banner ×2, chip gating). Gauge pause-freeze verified
   structurally (progress stops → dashoffset static). Suite 109/109,
   e2e 6/6.
+
+### T12 + T13 — Feature walk + interim asset layer — DONE
+
+- T12: walked every feature surface against the tracker (deep reads in
+  T3 + this pass): home, scan, results, filter bar, recovery
+  (destination rows / choose-folder with source-device exclusion /
+  overlap + insufficient-space gates / repair + verify-on-write toggles /
+  save gating / queue / report), health, repair, settings, lost-partition,
+  i18n — all COMPLETE; no missing surfaces, no invented surfaces.
+- T13: interim corpus layer is deliberately scoped to the WINDOW CHROME
+  (the only asset class the app lacked entirely): 32 SVGs + manifest.json
+  under src/assets/interim/chrome/, all referenced from WindowControls.
+  Content icons stay on the documented Lucide v1 placeholder set — a
+  smaller replacement debt and the copyright-cautious reading of the
+  interim policy (fewer corpus-derived assets shipped). Recorded in
+  INTERIM-ASSETS.md §A.
