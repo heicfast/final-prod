@@ -79,6 +79,7 @@ interface ScanRuntime {
   tick: number;
   timer: ReturnType<typeof setInterval> | null;
   disconnectFired: boolean;
+  disconnectHandled: boolean;
   space: NodeSpace;
   volumeId: string;
   scanId: string;
@@ -258,6 +259,7 @@ export class MockConnector {
         tick: 0,
         timer: null,
         disconnectFired: false,
+        disconnectHandled: false,
         space,
         volumeId: volume.id,
         scanId,
@@ -342,9 +344,10 @@ export class MockConnector {
     const stageSpeed = 0.014 + (rt.tick % 5 === 0 ? 0.006 : 0);
     rt.stageProgress = Math.min(1, rt.stageProgress + stageSpeed);
 
-    // device disconnect injection
-    if (this.scenario === 'disconnect-mid-scan' && !rt.disconnectFired && rt.overall > 0.38) {
+    // device disconnect injection (one-shot per scan: reconnects stick)
+    if (this.scenario === 'disconnect-mid-scan' && !rt.disconnectHandled && !rt.disconnectFired && rt.overall > 0.38) {
       rt.disconnectFired = true;
+      rt.disconnectHandled = true;
       rt.status = 'paused';
       if (rt.timer) clearInterval(rt.timer);
       rt.timer = null;

@@ -197,17 +197,19 @@ export class NodeSpace {
       totalSize += this.fSize[i]!;
     }
     this.totalSizeBytes = totalSize;
-    // bottom-up by reverse creation order (children always created after parents)
-    for (let d = this.dirs.length - 1; d >= 0; d--) {
+    // pass 1: initialize every directory to its own direct totals
+    for (let d = 0; d < this.dirs.length; d++) {
+      this.dirs[d]!.fileCount = directCount[d]!;
+      this.dirs[d]!.sizeBytes = directSize[d]!;
+    }
+    // pass 2: propagate subtree sums into parents (children always have a
+    // higher creation index than their parent, so reverse order is safe)
+    for (let d = this.dirs.length - 1; d >= 1; d--) {
       const rec = this.dirs[d]!;
-      rec.fileCount = directCount[d]!;
-      rec.sizeBytes = directSize[d]!;
-      if (rec.parentId !== null) {
-        const parent = this.dirIndexById.get(rec.parentId);
-        if (parent) {
-          parent.fileCount += rec.fileCount;
-          parent.sizeBytes += rec.sizeBytes;
-        }
+      const parent = rec.parentId !== null ? this.dirIndexById.get(rec.parentId) : undefined;
+      if (parent) {
+        parent.fileCount += rec.fileCount;
+        parent.sizeBytes += rec.sizeBytes;
       }
     }
   }

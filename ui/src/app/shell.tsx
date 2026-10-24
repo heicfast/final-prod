@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next';
 import {
   AppWindowIcon,
   CrosshairIcon,
+  FlaskConicalIcon,
   HardDriveIcon,
   HeartPulseIcon,
   InfoIcon,
@@ -16,6 +17,8 @@ import {
 import { cn } from '@/lib/utils';
 import { useTheme } from './theme';
 import { useScanSessionStore } from '@/stores/scan-session-store';
+import { useUiStore } from '@/stores/ui-store';
+import { DevPanel, PerfOverlay } from '@/features/dev-panel/dev-panel';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
@@ -70,6 +73,18 @@ export function WizardShell(): React.JSX.Element {
           </span>
         </div>
         <div className="flex items-center gap-1">
+        {import.meta.env.DEV ? (
+          <Button
+            variant="ghost"
+            size="icon"
+            aria-label={t('devPanel.openPanel')}
+            className="size-7"
+            onClick={() => useUiStore.getState().toggleDevPanel()}
+            data-testid="dev-panel-toggle"
+          >
+            <FlaskConicalIcon aria-hidden />
+          </Button>
+        ) : null}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="ghost" size="icon" aria-label={t('settings.language')} className="size-7">
@@ -164,7 +179,22 @@ export function WizardShell(): React.JSX.Element {
           <Outlet />
         </main>
       </div>
+
+      {/* Dev-only surfaces: lazy-gated so production builds never include them */}
+      {import.meta.env.DEV ? <DevSurfaces /> : null}
     </div>
+  );
+}
+
+function DevSurfaces(): React.JSX.Element | null {
+  const [loaded, setLoaded] = React.useState(false);
+  React.useEffect(() => setLoaded(true), []);
+  if (!loaded) return null;
+  return (
+    <>
+      <DevPanel />
+      <PerfOverlay />
+    </>
   );
 }
 
