@@ -868,3 +868,28 @@ release notes state signing pending (unsigned builds).
   output (process lesson: never tail-filter lint output). Fixed with an
   explicit awaited microtask flush. e2e/every other gate unaffected
   (UI-Smoke on 408728a was green).
+
+### T19 — Final tracker update — DONE
+
+Every surface row and every experience parameter resolved. Motion
+inventory: all IMPLEMENTED or VERIFIED, none missing. Version bumped to
+0.3.0 in lockstep (package.json, tauri.conf.json, Cargo.toml).
+
+### T20 — Handoff — v0.3.0
+
+- Session 5 (experience layer) delivered: custom window chrome (corpus
+  4-state SVGs as interim assets + manifest), collapsible sidebar (52px
+  rail, 360/160ms choreography, persistence, keyboard), dialog exit
+  fades + corpus outside-click swallow + the Radix controlled-dialog
+  focus-return fix, toast repositioning + live-verified choreography,
+  route-change fade + SPA focus-on-main, press-token microinteractions,
+  volume-level state-surface bug fix, responsive/DPI e2e (6 tests),
+  keyboard-flow e2e, frame-budget probe (zero >50ms longtasks).
+- Gates at handoff: tsc ✓, eslint 0, prettier ✓, arch-lint ✓, ast-grep ✓,
+  knip 0, jscpd 0.00%, vitest 109/109, e2e 12/12 (local + Windows),
+  bundle 98.0/200 KB main, Windows CI + UI-Smoke green on 72c51dc.
+- Remaining tracked items (rationale): real-window drag/snap feel is
+  Windows-hardware-gated (capabilities compile-validated by
+  tauri-debug-build; behavior is OS-provided once wired); interim chrome
+  SVGs await the homegrown v2 icon session (manifest enumerates the
+  replacement); code signing pending (release notes state it).
