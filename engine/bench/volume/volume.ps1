@@ -93,7 +93,7 @@ public static class BenchRaw
         // the shell-delete loop finished).
         uint ret;
         bool locked = false;
-        for (int attempt = 0; attempt < 5; attempt++)
+        for (int attempt = 0; attempt < 12; attempt++)
         {
             if (DeviceIoControl(h, FSCTL_LOCK_VOLUME, null, 0, null, 0, out ret, IntPtr.Zero))
             {
