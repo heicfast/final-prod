@@ -148,6 +148,7 @@ $presFile = Join-Path $OutDir 'preservation.json'
 $pres = [ordered]@{ ads = @(); hardlink = @(); sparse = @(); timestamps = @() }
 $entries = @()
 Get-Content -LiteralPath $ManifestJsonl | ForEach-Object {
+    if (-not $_.Trim()) { return }
     $o = $_ | ConvertFrom-Json
     if (-not $o._meta) { $entries += $o }
 }

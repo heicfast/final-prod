@@ -489,7 +489,7 @@ $meta = [ordered]@{
     capabilities = $cap
     total_bytes = ($script:Entries | Measure-Object -Property size -Sum).Sum
 }
-$meta | ConvertTo-Json -Depth 4 | Set-Content -Path $ManifestOut -Encoding utf8
+$meta | ConvertTo-Json -Depth 4 -Compress | Set-Content -Path $ManifestOut -Encoding utf8
 foreach ($e in $script:Entries) {
     $e | ConvertTo-Json -Depth 5 -Compress | Add-Content -Path $ManifestOut -Encoding utf8
 }

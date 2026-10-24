@@ -41,6 +41,7 @@ New-Item -ItemType Directory -Force -Path $OutDir | Out-Null
 # ---- load manifest -------------------------------------------------------------
 $entries = @()
 Get-Content -LiteralPath $ManifestJsonl | ForEach-Object {
+    if (-not $_.Trim()) { return }
     $o = $_ | ConvertFrom-Json
     if (-not $o._meta) { $entries += $o }
 }
