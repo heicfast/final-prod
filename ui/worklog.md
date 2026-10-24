@@ -272,4 +272,6 @@ data/i` matches 3 buttons (cards + CTA) → `.first()`; the filter "Type"
 CI ✅ and UI Smoke ✅ on d90a8d0 (Windows runner: typecheck, lint, format,
 arch-lint, ast-grep, knip, jscpd, 56/56 tests, build, bundle budget, cargo
 check, clippy, Playwright golden path, Tauri debug build). Tag
-v0.1.0-ui-mock moved to d90a8d0 → Release (NSIS) running.
+v0.1.0-ui-mock on d90a8d0 → Release SUCCEEDED: unsigned NSIS installer
+(Recovery.Wizard_0.1.0-ui-mock_x64-setup.exe, 1.4 MB) + SHA-256 checksum
+published to GitHub Releases. main HEAD c0b6ec6 also green (CI + UI Smoke).
