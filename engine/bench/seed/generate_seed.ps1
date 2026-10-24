@@ -138,8 +138,14 @@ $full = $false
 if ($Profile -eq 'full') { $full = $true }
 
 # capability map per filesystem (recorded skips - never silent)
+# ADS: NTFS ONLY. ReFS has no named data streams (MS "Resilient File System
+# overview"; CreateFile on <file>:<stream> fails with ERROR_INVALID_PARAMETER)
+# - the map previously claimed ads on ReFS and every refs seeding would have
+# died at Add-Content -Stream under ErrorActionPreference=Stop. Hard links:
+# both NTFS and ReFS. Sparse: NTFS (ReFS sparse is supported by the fs but
+# fsutil setrange semantics differ; kept NTFS-only conservatively).
 $cap = @{
-    ads = ($FileSystem -eq 'NTFS' -or $FileSystem -eq 'ReFS')
+    ads = ($FileSystem -eq 'NTFS')
     hardlink = ($FileSystem -eq 'NTFS' -or $FileSystem -eq 'ReFS')
     sparse = ($FileSystem -eq 'NTFS')
     long_path = ($FileSystem -ne 'FAT32')

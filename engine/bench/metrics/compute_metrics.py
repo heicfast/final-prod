@@ -329,7 +329,13 @@ def main():
         pass
 
     keep_control = None
-    if keep_gt and scenario not in FORMAT_SCENARIOS:
+    # keep-control semantics: "never-deleted files must come back" - only
+    # meaningful when the keep files actually survived the scenario. Format
+    # scenarios reinitialize the volume and delete_partition removes every
+    # partition (keep files included, deliberately): there the keep entries
+    # are ordinary ground-truth members (counted in recall above), and a
+    # keep-control row would report a FALSE failure. Exclude both families.
+    if keep_gt and scenario not in FORMAT_SCENARIOS and scenario not in WHOLE_DISK_SCENARIOS:
         keep_ok = sum(1 for e in keep_gt if norm(e['rel']) in recovered_keep)
         keep_control = {'total': len(keep_gt), 'recovered_hash_ok': keep_ok,
                         'ok': keep_ok == len(keep_gt)}
