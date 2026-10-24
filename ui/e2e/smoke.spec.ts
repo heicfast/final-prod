@@ -27,7 +27,9 @@ test('golden path: scan → results → recover', async ({ page }) => {
   await expect(page.getByRole('heading', { name: /choose where to look/i })).toBeVisible({
     timeout: 15_000,
   });
-  await expect(page.getByText(/internal drives/i)).toBeVisible();
+  // Scoped to the section heading — the sidebar nav item carries the same
+  // label, which would trip Playwright's strict mode via getByText.
+  await expect(page.getByRole('heading', { name: /internal drives/i })).toBeVisible();
 
   // 2. Select the first device and open scan configuration
   await page.getByRole('radio').first().click();

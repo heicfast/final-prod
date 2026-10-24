@@ -43,6 +43,3 @@ export function scenarioControl(): ScenarioControl | null {
     reset: () => mock.reset(),
   };
 }
-
-export { isScenarioControl } from './contract';
-export type { MockScenarioId };

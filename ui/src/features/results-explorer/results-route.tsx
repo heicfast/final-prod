@@ -3,7 +3,7 @@ import { useParams } from 'react-router';
 import { useScanState } from '@/queries/scan';
 import { ResultsExplorer } from './results-explorer';
 import { ResultsPageFallback } from './page-fallback';
-import { Skeleton } from '@/components/ui/scroll-area';
+import { Skeleton } from '@/components/ui/skeleton';
 
 /**
  * Results route guard — verifies the scan session exists via the connector

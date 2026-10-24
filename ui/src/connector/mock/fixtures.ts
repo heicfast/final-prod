@@ -96,8 +96,6 @@ register('other', [
   'crypt',
 ]);
 
-export const EXTENSIONS: readonly string[] = Object.keys(CATEGORY_BY_EXT);
-
 /** Weighted extension pools so generated content looks realistic. */
 export const EXT_WEIGHTS: readonly { readonly ext: string; readonly weight: number }[] = [
   { ext: 'jpg', weight: 18 },

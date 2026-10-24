@@ -64,6 +64,37 @@ interface DirectoryRecord {
 
 const SPECIAL_PATH_GROUPS = ['lost-paths', 'raw-all'] as const;
 
+/** A folder-scoped view over the node space (ADR-004 scope extension). */
+export interface NodeScope {
+  /** Directory-index mask (1 = inside the scanned subtree). */
+  readonly mask: Uint8Array;
+  /** Array index of the scope root directory. */
+  readonly rootIndex: number;
+  /** Directory id (e.g. 'd17') of the scope root. */
+  readonly rootId: string;
+  /** Scope-root path as the user typed it (normalized). */
+  readonly normalizedPath: string;
+  /** Subtree file count (precomputed aggregate). */
+  readonly files: number;
+  /** Subtree size in bytes (precomputed aggregate). */
+  readonly sizeBytes: number;
+}
+
+function normalizeDirPath(path: string): string {
+  return (
+    path
+      .trim()
+      // An absolute path on the target volume is accepted: the engine (and the
+      // mock) resolves scopes relative to the volume root, so drop any
+      // drive-letter prefix before normalizing separators.
+      .replace(/^[a-z]:\\/i, '')
+      .replace(/\//g, '\\')
+      .replace(/^\\+/, '')
+      .replace(/\\+$/, '')
+      .toLowerCase()
+  );
+}
+
 function catIndex(cat: FileCategoryId): number {
   return CATEGORY_IDS.indexOf(cat);
 }
@@ -77,6 +108,8 @@ export class NodeSpace {
   private readonly dirs: DirectoryRecord[] = [];
   private readonly dirIndexById = new Map<string, DirectoryRecord>();
   private readonly childrenOf = new Map<string, string[]>();
+  /** Normalized full path → dir array index (built lazily for scope resolution). */
+  private readonly dirIndexByPath = new Map<string, number>();
 
   private readonly fDir: Uint32Array;
   private readonly fCat: Uint8Array;
@@ -300,9 +333,87 @@ export class NodeSpace {
     };
   }
 
+  // ------------------------------------------------------------------ scope
+
+  /**
+   * Resolve a volume-root-relative folder path into a subtree scope.
+   * Returns null when the path does not exist in this space — the connector
+   * then raises `scan-scope-invalid`.
+   */
+  resolveScope(path: string): NodeScope | null {
+    const normalizedPath = normalizeDirPath(path);
+    if (normalizedPath === '') return null;
+    if (this.dirIndexByPath.size === 0) this.buildDirPathIndex();
+    const rootIndex = this.dirIndexByPath.get(normalizedPath);
+    if (rootIndex === undefined) return null;
+
+    const mask = new Uint8Array(this.dirs.length);
+    mask[rootIndex] = 1;
+    // BFS over the children map — dir ids map 1:1 to array indexes (d{i}).
+    const queue: number[] = [rootIndex];
+    for (let head = 0; head < queue.length; head++) {
+      const rec = this.dirs[queue[head]];
+      for (const kidId of this.childrenOf.get(rec.id) ?? []) {
+        const kidIndex = Number(kidId.slice(1));
+        if (!mask[kidIndex]) {
+          mask[kidIndex] = 1;
+          queue.push(kidIndex);
+        }
+      }
+    }
+    const root = this.dirs[rootIndex];
+    return {
+      mask,
+      rootIndex,
+      rootId: root.id,
+      normalizedPath,
+      files: root.fileCount,
+      sizeBytes: root.sizeBytes,
+    };
+  }
+
+  /** A volume-root-relative folder that actually exists (for suggestions). */
+  suggestedScopePath(): string | null {
+    const first = (this.childrenOf.get('root') ?? [])[0];
+    if (!first) return null;
+    const rec = this.dirIndexById.get(first);
+    if (!rec) return null;
+    const parts: string[] = [];
+    let cur: DirectoryRecord | undefined = rec;
+    let guard = 0;
+    while (cur && cur.parentId !== null && guard < 32) {
+      parts.unshift(cur.name);
+      cur = this.dirIndexById.get(cur.parentId);
+      guard++;
+    }
+    return parts.join('\\');
+  }
+
+  private buildDirPathIndex(): void {
+    for (let d = 0; d < this.dirs.length; d++) {
+      const rec = this.dirs[d];
+      if (rec.parentId === null) continue; // volume root has no path
+      const parts: string[] = [];
+      let cur: DirectoryRecord | undefined = rec;
+      let guard = 0;
+      while (cur && cur.parentId !== null && guard < 32) {
+        parts.unshift(cur.name);
+        cur = this.dirIndexById.get(cur.parentId);
+        guard++;
+      }
+      const path = parts.join('\\').toLowerCase();
+      if (!this.dirIndexByPath.has(path)) this.dirIndexByPath.set(path, d);
+    }
+  }
+
+  private inScope(i: number, scope: Uint8Array | null | undefined): boolean {
+    return scope === null || scope === undefined || scope[this.fDir[i]] === 1;
+  }
+
   // ------------------------------------------------------------------ filter
 
-  private matches(i: number, filter: ResultsFilter): boolean {
+  private matches(i: number, filter: ResultsFilter, scope: Uint8Array | null): boolean {
+    if (!this.inScope(i, scope)) return false;
     if (filter.categories && filter.categories.length > 0) {
       if (!filter.categories.includes(this.categoryOf(i))) return false;
     }
@@ -362,11 +473,12 @@ export class NodeSpace {
     sort: { field: SortField; direction: SortDirection },
     offset: number,
     limit: number,
+    scope: Uint8Array | null = null,
   ): { nodes: ResultNode[]; total: number; elapsedMs: number } {
     const t0 = performance.now();
     const hits: number[] = [];
     for (let i = 0; i < this.fileCount; i++) {
-      if (this.matches(i, filter)) hits.push(i);
+      if (this.matches(i, filter, scope)) hits.push(i);
     }
     const cmp = this.comparatorFor(sort);
     hits.sort(cmp);
@@ -394,10 +506,10 @@ export class NodeSpace {
     }
   }
 
-  count(filter: ResultsFilter): number {
+  count(filter: ResultsFilter, scope: Uint8Array | null = null): number {
     let total = 0;
     for (let i = 0; i < this.fileCount; i++) {
-      if (this.matches(i, filter)) total++;
+      if (this.matches(i, filter, scope)) total++;
     }
     return total;
   }
@@ -405,13 +517,35 @@ export class NodeSpace {
   // ------------------------------------------------------------------ trees
 
   /** Path-mode tree children (directories + special groups at top level). */
-  pathTreeChildren(parentId: string | null): TreeNode[] {
+  pathTreeChildren(parentId: string | null, scope: Uint8Array | null = null): TreeNode[] {
     if (parentId === null) {
+      // A scoped scan presents the scanned folder itself as the tree root.
+      if (scope) {
+        const scopeRootIdx = scope.indexOf(1);
+        if (scopeRootIdx >= 0) {
+          const rec = this.dirs[scopeRootIdx];
+          const topDirs = (this.childrenOf.get(rec.id) ?? [])
+            .map((id) => Number(id.slice(1)))
+            .filter((idx) => scope[idx] === 1);
+          return [
+            {
+              id: rec.id,
+              parentId: null,
+              label: rec.name,
+              icon: 'directory',
+              childCount: topDirs.length,
+              fileCount: rec.fileCount,
+              sizeBytes: rec.sizeBytes,
+              origin: 'existing',
+            },
+          ];
+        }
+      }
       const rootRec = this.dirIndexById.get('root')!;
-      const lostCount = this.countByOrigin('lost-path');
-      const lostSize = this.sizeByOrigin('lost-path');
-      const rawCount = this.countByOrigin('raw');
-      const rawSize = this.sizeByOrigin('raw');
+      const lostCount = this.countByOrigin('lost-path', scope);
+      const lostSize = this.sizeByOrigin('lost-path', scope);
+      const rawCount = this.countByOrigin('raw', scope);
+      const rawSize = this.sizeByOrigin('raw', scope);
       return [
         {
           id: 'root',
@@ -455,6 +589,7 @@ export class NodeSpace {
     for (const kid of kidIds) {
       const rec = this.dirIndexById.get(kid);
       if (!rec) continue;
+      if (scope && scope[Number(kid.slice(1))] !== 1) continue;
       out.push({
         id: rec.id,
         parentId: rec.parentId,
@@ -469,26 +604,29 @@ export class NodeSpace {
     return out;
   }
 
-  private countByOrigin(origin: ResultOrigin): number {
+  private countByOrigin(origin: ResultOrigin, scope: Uint8Array | null = null): number {
     let c = 0;
     for (let i = 0; i < this.fileCount; i++) {
-      if (this.originOf(i) === origin) c++;
+      if (this.originOf(i) === origin && this.inScope(i, scope)) c++;
     }
     return c;
   }
 
-  private sizeByOrigin(origin: ResultOrigin): number {
+  private sizeByOrigin(origin: ResultOrigin, scope: Uint8Array | null = null): number {
     let s = 0;
     for (let i = 0; i < this.fileCount; i++) {
-      if (this.originOf(i) === origin) s += this.fSize[i] ?? 0;
+      if (this.originOf(i) === origin && this.inScope(i, scope)) s += this.fSize[i] ?? 0;
     }
     return s;
   }
 
-  private categoryAggregates(): { count: number; size: number }[] {
+  private categoryAggregates(
+    scope: Uint8Array | null = null,
+  ): { count: number; size: number }[] {
     const counts = new Float64Array(CATEGORY_IDS.length);
     const sizes = new Float64Array(CATEGORY_IDS.length);
     for (let i = 0; i < this.fileCount; i++) {
+      if (!this.inScope(i, scope)) continue;
       counts[this.fCat[i]] += 1;
       sizes[this.fCat[i]] += this.fSize[i] ?? 0;
     }
@@ -498,8 +636,8 @@ export class NodeSpace {
     }));
   }
 
-  typeTree(): TreeNode[] {
-    const agg = this.categoryAggregates();
+  typeTree(scope: Uint8Array | null = null): TreeNode[] {
+    const agg = this.categoryAggregates(scope);
     return CATEGORY_IDS.map((cat, idx) => ({
       id: `c${idx}`,
       parentId: 'root',
@@ -512,9 +650,9 @@ export class NodeSpace {
     }));
   }
 
-  rawTree(): TreeNode[] {
-    const count = this.countByOrigin('raw');
-    const size = this.sizeByOrigin('raw');
+  rawTree(scope: Uint8Array | null = null): TreeNode[] {
+    const count = this.countByOrigin('raw', scope);
+    const size = this.sizeByOrigin('raw', scope);
     return [
       {
         id: 'raw-all',
@@ -530,7 +668,16 @@ export class NodeSpace {
     ];
   }
 
-  stats(): { files: number; size: number; rawFiles: number } {
+  stats(scope: Uint8Array | null = null): { files: number; size: number; rawFiles: number } {
+    if (scope) {
+      const scopeRootIdx = scope.indexOf(1);
+      const rec = scopeRootIdx >= 0 ? this.dirs[scopeRootIdx] : null;
+      return {
+        files: rec?.fileCount ?? 0,
+        size: rec?.sizeBytes ?? 0,
+        rawFiles: this.countByOrigin('raw', scope),
+      };
+    }
     return {
       files: this.fileCount,
       size: this.totalSizeBytes,

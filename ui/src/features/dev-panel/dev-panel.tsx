@@ -39,6 +39,7 @@ export function DevPanel(): React.JSX.Element {
   const [seed, setSeed] = React.useState(42);
 
   if (!control) return <></>;
+  if (!ui.devPanelOpen) return <></>;
 
   return (
     <aside

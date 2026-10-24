@@ -30,7 +30,7 @@ import { ResultsTree } from '@/components/ui/results-tree';
 import { VirtualFileList } from '@/components/ui/virtual-file-list';
 import { Segmented } from '@/components/ui/stepper';
 import { EmptyState } from '@/components/ui/empty-state';
-import { Skeleton } from '@/components/ui/scroll-area';
+import { Skeleton } from '@/components/ui/skeleton';
 import { Input } from '@/components/ui/input';
 import {
   ContextMenu,
@@ -73,23 +73,11 @@ export function ResultsExplorer({
   const [searchDraft, setSearchDraft] = React.useState(filter.search);
   const [activeNodeId, setActiveNodeId] = React.useState<string | null>(null);
 
+  // resolveFilter() reads the store imperatively, so the subscribed state
+  // object itself is the dependency (identity changes on every store update).
   const filterPayload = React.useMemo(
     () => ({ ...resolveFilter(), nodeId: filter.treeNodeId, treeMode: filter.treeMode }),
-    [
-      filter.treeNodeId,
-      filter.treeMode,
-      filter.searchApplied,
-      filter.categories,
-      filter.datePreset,
-      filter.dateFrom,
-      filter.dateTo,
-      filter.sizePreset,
-      filter.sizeMin,
-      filter.sizeMax,
-      filter.confidence,
-      filter.extensions,
-      filter.showDeletedOnly,
-    ],
+    [filter],
   );
 
   const sort = { field: sortStore.field, direction: sortStore.direction };

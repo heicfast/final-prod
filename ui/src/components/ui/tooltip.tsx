@@ -46,4 +46,4 @@ function Hint({
   );
 }
 
-export { Hint, Tooltip, TooltipContent, TooltipProvider, TooltipTrigger };
+export { Hint, TooltipProvider };

@@ -26,11 +26,7 @@ const LEVEL_ORDER: Record<LogLevel, number> = {
   error: 40,
 };
 
-let minLevel: LogLevel = import.meta.env.DEV ? 'debug' : 'warn';
-
-export function setLogLevel(level: LogLevel): void {
-  minLevel = level;
-}
+const minLevel: LogLevel = import.meta.env.DEV ? 'debug' : 'warn';
 
 function push(entry: LogEntry): void {
   ring.push(entry);

@@ -2,7 +2,7 @@ import * as React from 'react';
 import { useTranslation } from 'react-i18next';
 import { useTheme } from '@/app/theme';
 import { useAppInfo, useDriverStatus } from '@/queries/system';
-import { getLogBuffer } from '@/lib/logger';
+import { exportLogText, getLogBuffer } from '@/lib/logger';
 import { setLocale, SUPPORTED_LOCALES } from '@/i18n';
 import { Badge } from '@/components/ui/badge';
 import { Label } from '@/components/ui/label';
@@ -83,11 +83,7 @@ export function SettingsPage(): React.JSX.Element {
             size="sm"
             onClick={() => {
               void navigator.clipboard
-                ?.writeText(
-                  getLogBuffer()
-                    .map((e) => `[${e.level}] ${e.scope}: ${e.message}`)
-                    .join('\n'),
-                )
+                ?.writeText(exportLogText())
                 .then(() => toast.success(t('common.copied')))
                 .catch(() => toast.error(t('errors.unknown')));
             }}

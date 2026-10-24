@@ -12,10 +12,9 @@ import {
 import { useNodeDetail, useThumbnail } from '@/queries/results';
 import { usePreview } from '@/queries/preview';
 import { formatBytes, formatDateTime } from '@/lib/format';
-import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Skeleton } from '@/components/ui/scroll-area';
+import { Skeleton } from '@/components/ui/skeleton';
 import { ConfidenceBadge } from '@/components/ui/confidence-badge';
 import { Hint } from '@/components/ui/tooltip';
 import { hexWorker } from '@/workers/hex-worker-client';
@@ -468,5 +467,3 @@ function HexPreview({
     </div>
   );
 }
-
-export { cn };

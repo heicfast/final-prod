@@ -35,6 +35,6 @@ export function useValidateDestination(sourceDeviceId: string) {
 
 export function usePickDirectory() {
   return useMutation({
-    mutationFn: () => connector.system.pickDirectory(),
+    mutationFn: (hint?: { volumeId?: string | null }) => connector.system.pickDirectory(hint),
   });
 }

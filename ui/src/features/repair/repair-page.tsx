@@ -9,7 +9,7 @@ import { Input } from '@/components/ui/input';
 import { Alert } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { EmptyState } from '@/components/ui/empty-state';
-import { Skeleton } from '@/components/ui/scroll-area';
+import { Skeleton } from '@/components/ui/skeleton';
 import { toast } from 'sonner';
 
 /**

@@ -95,6 +95,17 @@ for (const file of files) {
       }
     }
   }
+
+  // A6: no `any` in exported types of connector contract files (docs/ARCHITECTURE.md)
+  if (path.startsWith('src/connector/')) {
+    const exportedAny = /export\s+(?:type|interface)\s+\w+[^=]*=\s*[^;\n]*\bany\b/.test(text);
+    const anyProp = /export\s+(?:type|interface)\b[\s\S]*?:\s*any\b/.test(
+      text.match(/export\s+(?:type|interface)\b[\s\S]*?(?=\nexport|\n*$)/g)?.join('\n') ?? '',
+    );
+    if (exportedAny || anyProp) {
+      violations.push(`A6 ${path}: exported type uses \`any\``);
+    }
+  }
 }
 
 if (violations.length > 0) {

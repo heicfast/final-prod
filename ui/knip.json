@@ -1,16 +1,14 @@
 {
   "$schema": "https://unpkg.com/knip@6.42.1/schema.json",
-  "entry": ["src/main.tsx"],
+  "entry": ["tests/**/*.test.{ts,tsx}"],
   "project": [
-    "src/**/*.{ts,tsx}",
-    "tests/**/*.ts",
+    "src/**/*.{ts,tsx,css}",
+    "tests/**/*.{ts,tsx}",
     "e2e/**/*.ts",
-    "scripts/**/*.mjs",
-    "vite.config.ts",
-    "playwright.config.ts"
+    "scripts/**/*.mjs"
   ],
-  "ignore": ["src/workers/hex.worker.ts", "src/i18n/**"],
   "ignoreDependencies": ["@tauri-apps/api"],
+  "ignoreExportsUsedInFile": true,
   "include": [
     "files",
     "dependencies",

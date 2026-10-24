@@ -145,3 +145,95 @@ invoke()/emit, add Rust commands mirroring the contract, keep every UI file
 untouched (factory swap via VITE_CONNECTOR=tauri). See docs/ROADMAP.md for
 the full ordered list, including re-measuring the PARTIAL grid items on
 Windows hardware.
+
+---
+
+## Session 2 — 2026-10-24 (CI red → green: full re-verification)
+
+User report: release failing, all CI failing, "looks like incomplete fast
+implementation — give more time and attention, verify all again."
+
+### Diagnosis (from downloaded Actions logs)
+
+Five failed runs, four distinct root causes:
+
+1. **CI Format check**: Windows runners default `core.autocrlf=true` → the
+   checkout rewrites every text file to CRLF → Prettier (endOfLine=lf) failed
+   on 121 files at once. Typecheck/lint had PASSED before it; everything after
+   (arch-lint, ast-grep, knip, jscpd, tests, build, cargo) never ran — the
+   "all checks failing" impression was mostly this cascade.
+2. **UI Smoke tauri-debug-build**: `tauri build --debug --bundles none` is
+   invalid CLI (possible values msi/nsis) → `--no-bundle`.
+3. **UI Smoke smoke**: Playwright strict-mode violation —
+   `getByText(/internal drives/i)` matched both the sidebar nav item and the
+   section heading → role-scoped locator.
+4. **Release**: tag `v0.1.0-ui-mock` vs app version `0.1.0` mismatch → all
+   three manifests bumped to `0.1.0-ui-mock` (the task-brief tag).
+5. **knip would have failed anyway**: never ran, but found 60+ findings when
+   run locally (dead code, misconfigured project globs).
+
+### Fixes and completion work
+
+- `.gitattributes` (`* text=auto eol=lf`, CRLF for .bat/.cmd/.ps1, binary
+  marks) — makes Windows checkouts byte-stable.
+- Completed the dangling `ScanParams.pathScope` feature (contract field was
+  added but nothing consumed it):
+  - NodeSpace: `resolveScope` (drive-prefix/case/separator normalization),
+    per-scan Uint8Array dir mask threaded through query/count/trees/aggregates
+    (state kept in ScanRuntime — the space instance is shared per volume);
+    scoped path-tree presents the scanned folder as root; `suggestedScopePath`.
+  - Mock connector: `scan-scope-invalid` hard error with reason key; scope-aware
+    found-file curve via scoped stats; `pickDirectory(hint?)` roots at a volume
+    (contract change, documented) and returns a folder that actually resolves.
+  - UI: "Scan location" section in scan-config (whole drive vs folder, input +
+    Browse + hint + disabled-Start guard); Home "Choose a folder…" passes
+    `?folder=1`; i18n keys en/zh-CN (parity 398/398).
+  - 3 new contract tests (invalid scope error; absolute+relative forms list
+    only in-scope files; path-tree root) — suite now 55/55.
+- **Real bug found & fixed (pre-existing)**: `/scan/:volumeId` routes (device-card
+  volume links, choose-folder) failed with "device not found" — mock
+  `getDeviceInfo` only resolved device ids. Now resolves volume → owning
+  device, matching startScan semantics; contract doc updated.
+- **Real bug found & fixed (pre-existing, dev-only)**: DevPanel rendered
+  unconditionally — its Close button toggled a store flag nothing consumed.
+  Panel now gated on `devPanelOpen`.
+- Accessibility upgrade: the three scan-progress modals (stop confirm,
+  celebration, device-lost) were hand-rolled `role="dialog"` divs without
+  focus trap or Esc handling → rebuilt on Radix Dialog (device-lost is
+  non-dismissable: reconnect is the only honest action). Live-verified: Esc
+  closes stop-confirm, dialog names announced, zero console errors.
+- Dead-code purge (knip → 0 findings): removed Stepper, Textarea,
+  ScrollArea/Separator (scroll-area.tsx renamed skeleton.tsx — only Skeleton
+  was consumed), tabs.tsx, 30+ unused re-exports/variants/helpers
+  (expect/hashString/clamp, formatByteUnit, setLogLevel, EXTENSIONS,
+  HomeStats, raw Tooltip/DropdownMenu re-exports); wired `exportLogText`
+  into Settings→Diagnostics (was duplicated inline); wired Radix Select into
+  scan-config sector size (was a native `<select>`). Dependencies removed:
+  @radix-ui/react-{tabs,scroll-area,separator,slider,toggle-group},
+  @testing-library/user-event.
+- knip.json: tests tsx entry (was `tests/**/*.ts` — .tsx invisible), CSS in
+  project (resolves tw-animate-css `@import`), `ignoreExportsUsedInFile`
+  (router/ErrorScreen/ConnectorMode class of false positives);
+  `src/connector/contract.ts` types stay via in-file usage — no ignores needed.
+- CI hardening: `KNIP_DISABLE_RAW_TRANSFER=1` on the knip step (oxc raw
+  transfer reserves a 6 GiB buffer per core — fragile on runners, and crashes
+  this 4 GB sandbox outright).
+- Rust clippy pre-fix: `format!("/select,{}", path)` → `{path}` inline
+  (uninlined_format_args is warn-by-default; CI runs clippy -D warnings, and
+  clippy had NEVER run — the format check blocked it). serde_json already
+  removed from Cargo.toml matches the (serde-only) sources.
+
+### Re-verification (local, sandbox-representable parts)
+
+typecheck ✓ · eslint 0 errors (2 informational react-compiler notices on
+RHF/TanStack APIs — inherent to spec'd libraries) · prettier ✓ · arch-lint ✓ ·
+ast-grep both rules ✓ (negative-tested: injected violations are caught) ·
+knip 0 findings ✓ · jscpd 0.42% ✓ · vitest 55/55 ✓ · build ✓ · bundle budget
+89.7/200 KB main, 315.2/500 KB total ✓ · i18n parity 398/398 ✓ ·
+agent-browser live pass: choose-folder → folder-mode preselect → Browse fills a
+resolvable path → scoped scan → completion dialog → scoped results (Config as
+tree root) → stop-confirm Esc/Keep/Stop — zero console errors, evidence
+screenshots verify2-01..05.
+
+Windows-only gates (NSIS, cargo, Playwright-on-Windows, DPI) re-armed on the
+tagged commit via Release/UI-Smoke/CI runs.

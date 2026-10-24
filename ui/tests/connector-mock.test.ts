@@ -259,6 +259,85 @@ describe('MockConnector — previews', () => {
   }, 30_000);
 });
 
+describe('MockConnector — folder scope (ScanParams.pathScope)', () => {
+  it('rejects an unresolvable scope with scan-scope-invalid and a reason key', async () => {
+    const c = new MockConnector();
+    const devices = await c.devices.listDevices();
+    await expect(
+      c.scan.startScan({
+        targetId: devices[0].volumes[0].id,
+        mode: 'quick',
+        categories: [],
+        pathScope: 'definitely\\not\\a\\folder',
+        badSectorPolicy: 'skip',
+        retries: 1,
+      }),
+    ).rejects.toMatchObject({
+      code: 'scan-scope-invalid',
+      reasonKey: 'errors.scanScopeInvalid',
+    });
+  });
+
+  it('lists only files inside the scanned folder (absolute and relative forms)', async () => {
+    const c = new MockConnector();
+    const devices = await c.devices.listDevices();
+    const target = devices[0].volumes[0].id;
+    // The volume-root-relative and the absolute (drive-letter) form must
+    // resolve to the same scope.
+    const relative = await c.system.pickDirectory({ volumeId: target });
+    expect(relative).toBeTruthy();
+    const withDrive = `X:\\${relative!.replace(/^[A-Z]:\\/i, '')}`;
+
+    for (const scope of [relative, withDrive]) {
+      const { scanId } = await c.scan.startScan({
+        targetId: target,
+        mode: 'quick',
+        categories: [],
+        pathScope: scope,
+        badSectorPolicy: 'skip',
+        retries: 1,
+      });
+      await waitForScanCompletion(c, scanId);
+      const page = await c.results.queryResults(
+        scanId,
+        BASE_FILTER,
+        { field: 'name', direction: 'asc' },
+        { offset: 0, limit: 50 },
+      );
+      expect(page.total).toBeGreaterThan(0);
+      // Raw-origin nodes have no path; every path-bearing node must sit
+      // inside the scanned subtree.
+      const prefix = relative!.replace(/^[A-Z]:\\/i, '').toLowerCase();
+      expect(
+        page.nodes
+          .filter((n) => n.path !== null)
+          .every((n) => n.path!.toLowerCase().startsWith(prefix)),
+      ).toBe(true);
+    }
+  }, 60_000);
+
+  it('presents the scanned folder as the path-tree root', async () => {
+    const c = new MockConnector();
+    const devices = await c.devices.listDevices();
+    const target = devices[0].volumes[0].id;
+    const scope = (await c.system.pickDirectory({ volumeId: target }))!;
+    const { scanId } = await c.scan.startScan({
+      targetId: target,
+      mode: 'quick',
+      categories: [],
+      pathScope: scope,
+      badSectorPolicy: 'skip',
+      retries: 1,
+    });
+    await new Promise((r) => setTimeout(r, 500));
+    const tree = await c.results.getResultTree(scanId, null, 'path');
+    expect(tree.nodes.length).toBe(1);
+    expect(tree.nodes[0].id).toMatch(/^d\d+$/);
+    expect(tree.nodes[0].parentId).toBeNull();
+    await c.scan.cancelScan(scanId);
+  }, 30_000);
+});
+
 describe('MockConnector — recovery', () => {
   it('refuses destinations that overlap the source volume', async () => {
     const c = new MockConnector();

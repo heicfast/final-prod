@@ -11,7 +11,7 @@ import type { ResultTreeMode, TreeNode } from '@/connector/contract';
 import { useResultTree } from '@/queries/results';
 import { formatBytesCompact, formatCountCompact } from '@/lib/format';
 import { cn } from '@/lib/utils';
-import { Skeleton } from './scroll-area';
+import { Skeleton } from '@/components/ui/skeleton';
 
 /**
  * Left navigation tree for the results explorer — path/type/raw modes with

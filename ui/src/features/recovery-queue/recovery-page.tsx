@@ -37,7 +37,7 @@ import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Badge } from '@/components/ui/badge';
 import { Alert } from '@/components/ui/alert';
 import { CapacityBar, StatTile } from '@/components/ui/empty-state';
-import { Skeleton } from '@/components/ui/scroll-area';
+import { Skeleton } from '@/components/ui/skeleton';
 import { toast } from 'sonner';
 
 /**

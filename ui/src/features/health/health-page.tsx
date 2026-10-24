@@ -14,7 +14,7 @@ import { formatInteger } from '@/lib/format';
 import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
 import { EmptyState, StatTile } from '@/components/ui/empty-state';
-import { Skeleton } from '@/components/ui/scroll-area';
+import { Skeleton } from '@/components/ui/skeleton';
 import {
   Table,
   TableBody,

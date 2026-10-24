@@ -59,6 +59,7 @@ export type ConnectorErrorCode =
   | 'scan-not-found'
   | 'scan-not-paused'
   | 'scan-not-running'
+  | 'scan-scope-invalid'
   | 'session-corrupt'
   | 'session-not-found'
   | 'destination-overlap'
@@ -123,6 +124,11 @@ export interface LostPartitionHint {
 
 export interface DevicesDomain {
   listDevices(): Promise<Device[]>;
+  /**
+   * Device info for a scan target. `deviceId` may be a device id or a volume
+   * id — the connector resolves a volume to its owning device (matching
+   * startScan's target semantics).
+   */
   getDeviceInfo(deviceId: string): Promise<Device>;
   refreshDevices(): Promise<Device[]>;
 }
@@ -153,6 +159,8 @@ export interface ScanParams {
   readonly targetId: string;
   readonly mode: ScanMode;
   readonly categories: readonly FileCategoryId[];
+  /** Optional folder restriction (volume-root-relative path). Null = whole volume. */
+  readonly pathScope?: string | null;
   readonly sectorSize?: number;
   readonly badSectorPolicy: BadSectorPolicy;
   readonly retries: number;
@@ -572,8 +580,12 @@ export interface SystemDomain {
     sourceDeviceId: string,
     neededBytes: number,
   ): Promise<DestinationValidation>;
-  /** Native folder picker; mock returns from a canned set in dev/browser mode. */
-  pickDirectory(): Promise<string | null>;
+  /**
+   * Native folder picker; mock returns from a canned set in dev/browser mode.
+   * The optional hint roots the dialog at a volume (scan-scope picking on the
+   * scanned device); the connector still owns validation of the result.
+   */
+  pickDirectory(hint?: { readonly volumeId?: string | null }): Promise<string | null>;
   listMountPoints(): Promise<
     readonly {
       id: string;
@@ -621,14 +633,3 @@ export type MockScenarioId =
   | 'bad-sectors'
   | 'out-of-space'
   | 'corrupt-session';
-
-export function isScenarioControl(value: unknown): value is ScenarioControl {
-  return (
-    typeof value === 'object' &&
-    value !== null &&
-    'setScenario' in value &&
-    'getScenario' in value &&
-    'setSeed' in value &&
-    'reset' in value
-  );
-}

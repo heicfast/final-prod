@@ -23,17 +23,17 @@ guarantees, and exactly how the real bridge replaces the simulator.
 
 ## Domains
 
-| Domain   | Commands                                                                                                                                        | Events                          |
-| -------- | ----------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------- |
-| Devices  | `listDevices`, `getDeviceInfo(id)`, `refreshDevices`                                                                                            | —                               |
-| Scan     | `startScan(params) → {scanId}`, `pauseScan`, `resumeScan`, `cancelScan`, `getScanState`                                                         | `onScanProgress(scanId, cb)`    |
-| Results  | `getResultTree(scanId, parentId, mode)`, `queryResults(scanId, filter, sort, page)`, `getNodeDetail`, `countResults`                            | —                               |
-| Preview  | `requestPreview(scanId, nodeId, kind)` → bounded payload union, `getThumbnail`                                                                  | —                               |
-| Sessions | `saveSession(scanId, path)`, `listSessions`, `loadSession(path) → {scanId}`, `getSessionMeta`, `deleteSession`                                  | —                               |
-| Recovery | `startRecovery(scanId, nodeIds, destination, options) → {jobId}`, `cancelRecovery`, `getRecoveryState`, `getRecoveryItems`, `getRecoveryReport` | `onRecoveryProgress(jobId, cb)` |
-| Health   | `getHealth(deviceId)` → SMART table, class, TRIM, wear                                                                                          | —                               |
-| Repair   | `dryRunRepair(deviceId)`, `applyRepair(deviceId, {consentToken})`, `getUndoLog`, `undoRepairs`                                                  | —                               |
-| System   | `getDriverStatus`, `getAppInfo`, `validateDestination(path, sourceDeviceId, neededBytes)`, `pickDirectory`, `listMountPoints`, `openPath`       | —                               |
+| Domain   | Commands                                                                                                                                         | Events                          |
+| -------- | ------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------- |
+| Devices  | `listDevices`, `getDeviceInfo(id)` (id may be a device or volume id), `refreshDevices`                                                           | —                               |
+| Scan     | `startScan(params) → {scanId}` (params include optional `pathScope`), `pauseScan`, `resumeScan`, `cancelScan`, `getScanState`                    | `onScanProgress(scanId, cb)`    |
+| Results  | `getResultTree(scanId, parentId, mode)`, `queryResults(scanId, filter, sort, page)`, `getNodeDetail`, `countResults`                             | —                               |
+| Preview  | `requestPreview(scanId, nodeId, kind)` → bounded payload union, `getThumbnail`                                                                   | —                               |
+| Sessions | `saveSession(scanId, path)`, `listSessions`, `loadSession(path) → {scanId}`, `getSessionMeta`, `deleteSession`                                   | —                               |
+| Recovery | `startRecovery(scanId, nodeIds, destination, options) → {jobId}`, `cancelRecovery`, `getRecoveryState`, `getRecoveryItems`, `getRecoveryReport`  | `onRecoveryProgress(jobId, cb)` |
+| Health   | `getHealth(deviceId)` → SMART table, class, TRIM, wear                                                                                           | —                               |
+| Repair   | `dryRunRepair(deviceId)`, `applyRepair(deviceId, {consentToken})`, `getUndoLog`, `undoRepairs`                                                   | —                               |
+| System   | `getDriverStatus`, `getAppInfo`, `validateDestination(path, sourceDeviceId, neededBytes)`, `pickDirectory(hint?)`, `listMountPoints`, `openPath` | —                               |
 
 ### Key payload shapes
 
@@ -43,6 +43,15 @@ guarantees, and exactly how the real bridge replaces the simulator.
 - `ResultsFilter`: pushed server-side — tree scope, search, categories, date
   range, size range, confidence, extensions, origins. The mock resolves it
   over typed-array scans; the real engine will resolve it in Rust.
+- `ScanParams.pathScope`: optional folder restriction. Volume-root-relative
+  path; an absolute path on the target volume is also accepted (the connector
+  strips the drive-letter prefix). `null`/omitted = whole volume. An
+  unresolvable folder is a hard `scan-scope-invalid` error — the UI cannot
+  override the connector verdict. Scoped scans list only files inside the
+  subtree; the path-mode tree presents the scanned folder itself as root.
+- `pickDirectory(hint?)`: the optional hint roots the native dialog at a
+  volume (`{ volumeId }`) — used by the scan-configuration folder picker.
+  Destination picking (recovery) calls it without a hint.
 - `RecoveryOptions`: collision policy (`rename`/`overwrite`/`skip`), folder
   reconstruction, empty-folder preservation, file repair, hash-on-write verify.
 - `DestinationValidation`: `{ allowed, reason?, reasonKey?, freeBytes?,

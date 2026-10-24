@@ -15,10 +15,6 @@ import { FileIconFor } from './file-icon';
  * shared selection store contract passed in as props.
  */
 
-export interface FileListRow {
-  node: ResultNode;
-}
-
 const COLUMN_WIDTHS: Record<string, number> = {
   checkbox: 40,
   name: 320,

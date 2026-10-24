@@ -23,22 +23,4 @@ function Input({
   );
 }
 
-function Textarea({
-  className,
-  ...props
-}: React.ComponentProps<'textarea'>): React.JSX.Element {
-  return (
-    <textarea
-      data-slot="textarea"
-      className={cn(
-        'flex min-h-16 w-full rounded-sm border border-border bg-surface px-3 py-2 text-sm text-foreground outline-none',
-        'placeholder:text-foreground-disabled focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-ring/40',
-        'disabled:cursor-not-allowed disabled:opacity-50',
-        className,
-      )}
-      {...props}
-    />
-  );
-}
-
-export { Input, Textarea };
+export { Input };

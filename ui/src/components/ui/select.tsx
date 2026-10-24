@@ -4,7 +4,6 @@ import { CheckIcon, ChevronDownIcon, ChevronUpIcon } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 const Select = SelectPrimitive.Root;
-const SelectGroup = SelectPrimitive.Group;
 const SelectValue = SelectPrimitive.Value;
 
 function SelectTrigger({
@@ -97,27 +96,4 @@ function SelectItem({
   );
 }
 
-function SelectLabel({
-  className,
-  ...props
-}: React.ComponentProps<typeof SelectPrimitive.Label>): React.JSX.Element {
-  return (
-    <SelectPrimitive.Label
-      className={cn(
-        'px-2 py-1.5 text-2xs font-semibold uppercase tracking-wide text-foreground-secondary',
-        className,
-      )}
-      {...props}
-    />
-  );
-}
-
-export {
-  Select,
-  SelectContent,
-  SelectGroup,
-  SelectItem,
-  SelectLabel,
-  SelectTrigger,
-  SelectValue,
-};
+export { Select, SelectContent, SelectItem, SelectTrigger, SelectValue };

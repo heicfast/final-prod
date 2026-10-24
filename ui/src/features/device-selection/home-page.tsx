@@ -22,8 +22,8 @@ import { formatBytes, formatDate } from '@/lib/format';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { CapacityBar, EmptyState, StatTile } from '@/components/ui/empty-state';
-import { Skeleton } from '@/components/ui/scroll-area';
+import { CapacityBar, EmptyState } from '@/components/ui/empty-state';
+import { Skeleton } from '@/components/ui/skeleton';
 import { Hint } from '@/components/ui/tooltip';
 import { toast } from 'sonner';
 
@@ -197,9 +197,9 @@ export function HomePage(): React.JSX.Element {
             label={t('home.chooseFolder')}
             onClick={() => {
               // Folder targets are volume-scoped: route to the first internal
-              // volume's configuration where a folder scope can be picked.
+              // volume's configuration with the folder-scope mode preselected.
               const first = devices.flatMap((d) => d.volumes)[0];
-              if (first) void navigate(`/scan/${first.id}`);
+              if (first) void navigate(`/scan/${first.id}?folder=1`);
             }}
           />
         </div>
@@ -400,19 +400,5 @@ function QuickTarget({
       <Icon className="size-7 text-foreground-secondary" strokeWidth={1.5} aria-hidden />
       {label}
     </button>
-  );
-}
-
-/** Landing stat row shown when devices exist (used by tests for visibility). */
-export function HomeStats(): React.JSX.Element {
-  const { t, i18n } = useTranslation();
-  const q = useDevices();
-  const devices = q.data ?? [];
-  const totalBytes = devices.reduce((acc, d) => acc + d.capacity.totalBytes, 0);
-  return (
-    <div className="grid grid-cols-3 gap-3">
-      <StatTile label={t('common.total')} value={String(devices.length)} />
-      <StatTile label={t('scan.dataFound')} value={formatBytes(totalBytes, i18n.language)} />
-    </div>
   );
 }

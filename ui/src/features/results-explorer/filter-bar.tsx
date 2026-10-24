@@ -1,7 +1,7 @@
 import * as React from 'react';
 import { useTranslation } from 'react-i18next';
 import type { FileCategoryId } from '@/connector/contract';
-import { CalendarIcon, FilterXIcon, RulerIcon, SearchIcon, TagIcon } from 'lucide-react';
+import { CalendarIcon, FilterXIcon, RulerIcon, TagIcon } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -229,5 +229,3 @@ function SizePicker(): React.JSX.Element {
     </div>
   );
 }
-
-export { SearchIcon };

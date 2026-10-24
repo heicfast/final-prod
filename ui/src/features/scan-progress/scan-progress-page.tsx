@@ -22,8 +22,15 @@ import {
 import { ProgressGauge } from '@/components/ui/progress';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { EmptyState } from '@/components/ui/empty-state';
 import { Hint } from '@/components/ui/tooltip';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import { ResultsExplorer } from '@/features/results-explorer/results-explorer';
 import { toast } from 'sonner';
 import { ResultsPageFallback } from '@/features/results-explorer/page-fallback';
@@ -236,133 +243,140 @@ export function ScanProgressPage(): React.JSX.Element {
         </div>
       </div>
 
-      {/* Device-lost reconnect prompt */}
+      {/* Device-lost reconnect prompt — modal, non-dismissable: the scan
+          stays paused until the source device comes back. */}
       {deviceLost ? (
-        <div
-          className="fixed inset-x-0 bottom-24 mx-auto w-fit rounded-lg border border-warning/50 bg-surface p-4 shadow-dialog"
-          role="alertdialog"
-          aria-label={t('scan.deviceLostTitle')}
-        >
-          <div className="flex items-start gap-3">
-            <UnplugIcon className="mt-0.5 size-5 text-warning" aria-hidden />
-            <div>
-              <p className="font-semibold">{t('scan.deviceLostTitle')}</p>
-              <p className="text-sm text-foreground-secondary">{t('scan.deviceLostBody')}</p>
+        <Dialog open onOpenChange={() => undefined}>
+          <DialogContent
+            showCloseButton={false}
+            className="max-w-md"
+            onEscapeKeyDown={(e) => e.preventDefault()}
+            onInteractOutside={(e) => e.preventDefault()}
+          >
+            <div className="flex items-start gap-3">
+              <UnplugIcon className="mt-0.5 size-5 shrink-0 text-warning" aria-hidden />
+              <DialogHeader className="min-w-0">
+                <DialogTitle className="text-base">{t('scan.deviceLostTitle')}</DialogTitle>
+                <DialogDescription>{t('scan.deviceLostBody')}</DialogDescription>
+              </DialogHeader>
             </div>
-            <Button
-              variant="primary"
-              size="sm"
-              onClick={() => {
-                void resume.mutate(undefined, {
-                  onSuccess: () => toast.success(t('scan.resume')),
-                  onError: (err) => toast.error(err.message),
-                });
-              }}
-            >
-              {t('scan.reconnect')}
-            </Button>
-          </div>
-        </div>
-      ) : null}
-
-      {/* Stop confirmation */}
-      {stopConfirmOpen ? (
-        <div
-          className="fixed inset-0 z-40 flex items-center justify-center bg-[var(--overlay-scrim)]"
-          role="dialog"
-          aria-modal="true"
-          aria-label={t('scan.stopTitle')}
-        >
-          <div className="w-full max-w-sm rounded-lg border border-border bg-surface p-5 shadow-dialog">
-            <h2 className="text-base font-semibold">{t('scan.stopTitle')}</h2>
-            <p className="mt-1.5 text-sm text-foreground-secondary">{t('scan.stopBody')}</p>
-            <div className="mt-4 grid grid-cols-2 gap-2">
-              <MiniStat
-                label={t('scan.statsFiles')}
-                value={formatCountCompact(
-                  stopStats?.files ?? progress?.filesFound ?? 0,
-                  i18n.language,
-                )}
-              />
-              <MiniStat label={t('scan.statsTime')} value={stopStats?.time ?? '—'} />
-            </div>
-            <div className="mt-5 flex justify-end gap-2">
-              <Button variant="secondary" onClick={() => setStopConfirmOpen(false)}>
-                {t('scan.keepGoing')}
-              </Button>
+            <DialogFooter>
               <Button
-                variant="danger"
+                variant="primary"
                 onClick={() => {
-                  setStopConfirmOpen(false);
-                  void cancel.mutate(undefined, {
-                    onSuccess: () => {
-                      markStopped();
-                      void qc.invalidateQueries({ queryKey: ['sessions'] });
-                      toast(t('common.stop'));
-                      void navigate(`/results/${scanId}`);
-                    },
+                  void resume.mutate(undefined, {
+                    onSuccess: () => toast.success(t('scan.resume')),
+                    onError: (err) => toast.error(err.message),
                   });
                 }}
               >
-                {t('scan.stopConfirm')}
+                {t('scan.reconnect')}
               </Button>
-            </div>
-          </div>
-        </div>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       ) : null}
 
-      {/* Celebration modal */}
-      {completed && seenFor !== scanId ? (
-        <div
-          className="fixed inset-0 z-40 flex items-center justify-center bg-[var(--overlay-scrim)]"
-          role="dialog"
-          aria-modal="true"
-          aria-label={t('scan.completedTitle')}
-        >
-          <div className="w-[540px] max-w-[92vw] rounded-xl border border-border bg-surface p-6 text-center shadow-dialog">
-            <div className="mx-auto mb-3 flex size-14 items-center justify-center rounded-full bg-success-muted text-success">
-              <PartyPopperIcon className="size-7" strokeWidth={1.5} aria-hidden />
-            </div>
-            <h2 className="text-hero font-semibold">{t('scan.completedTitle')}</h2>
-            <p className="mt-1 text-sm text-foreground-secondary">{t('scan.completedBody')}</p>
-            <div className="mt-5 grid grid-cols-2 gap-3 text-left">
-              <MiniStat
-                label={t('scan.statsFiles')}
-                value={formatCountCompact(
-                  stopStats?.files ?? progress?.filesFound ?? 0,
-                  i18n.language,
-                )}
-              />
-              <MiniStat
-                label={t('scan.statsSize')}
-                value={formatBytes(progress?.dataFoundBytes ?? 0, i18n.language)}
-              />
-              <MiniStat
-                label={t('scan.statsTime')}
-                value={
-                  formatDuration(((progress?.etaSeconds ?? 0) + 180) * 0, i18n.language) || '—'
-                }
-              />
-              <MiniStat
-                label={t('scan.statsErrors')}
-                value={String(progress?.errors ?? 0)}
-                tone={(progress?.errors ?? 0) > 0 ? 'warning' : 'default'}
-              />
-            </div>
+      {/* Stop confirmation */}
+      <Dialog open={stopConfirmOpen} onOpenChange={setStopConfirmOpen}>
+        <DialogContent className="max-w-sm" aria-label={t('scan.stopTitle')}>
+          <DialogHeader>
+            <DialogTitle className="text-base">{t('scan.stopTitle')}</DialogTitle>
+            <DialogDescription>{t('scan.stopBody')}</DialogDescription>
+          </DialogHeader>
+          <div className="grid grid-cols-2 gap-2">
+            <MiniStat
+              label={t('scan.statsFiles')}
+              value={formatCountCompact(
+                stopStats?.files ?? progress?.filesFound ?? 0,
+                i18n.language,
+              )}
+            />
+            <MiniStat label={t('scan.statsTime')} value={stopStats?.time ?? '—'} />
+          </div>
+          <DialogFooter>
+            <Button variant="secondary" onClick={() => setStopConfirmOpen(false)}>
+              {t('scan.keepGoing')}
+            </Button>
             <Button
-              variant="primary"
-              size="xl"
-              className="mt-6 w-full"
+              variant="danger"
               onClick={() => {
-                markSeen(scanId);
-                void navigate(`/results/${scanId}`);
+                setStopConfirmOpen(false);
+                void cancel.mutate(undefined, {
+                  onSuccess: () => {
+                    markStopped();
+                    void qc.invalidateQueries({ queryKey: ['sessions'] });
+                    toast(t('common.stop'));
+                    void navigate(`/results/${scanId}`);
+                  },
+                });
               }}
             >
-              {t('scan.goToResults')}
+              {t('scan.stopConfirm')}
             </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Celebration modal */}
+      <Dialog
+        open={completed && seenFor !== scanId}
+        onOpenChange={(open) => {
+          if (!open && scanId) {
+            markSeen(scanId);
+            void navigate(`/results/${scanId}`);
+          }
+        }}
+      >
+        <DialogContent
+          showCloseButton={false}
+          className="w-[540px] max-w-[92vw] rounded-xl p-6 text-center"
+          aria-label={t('scan.completedTitle')}
+        >
+          <div className="mx-auto mb-3 flex size-14 items-center justify-center rounded-full bg-success-muted text-success">
+            <PartyPopperIcon className="size-7" strokeWidth={1.5} aria-hidden />
           </div>
-        </div>
-      ) : null}
+          <DialogTitle className="text-hero font-semibold">
+            {t('scan.completedTitle')}
+          </DialogTitle>
+          <DialogDescription className="mt-1">{t('scan.completedBody')}</DialogDescription>
+          <div className="mt-5 grid grid-cols-2 gap-3 text-left">
+            <MiniStat
+              label={t('scan.statsFiles')}
+              value={formatCountCompact(
+                stopStats?.files ?? progress?.filesFound ?? 0,
+                i18n.language,
+              )}
+            />
+            <MiniStat
+              label={t('scan.statsSize')}
+              value={formatBytes(progress?.dataFoundBytes ?? 0, i18n.language)}
+            />
+            <MiniStat
+              label={t('scan.statsTime')}
+              value={
+                formatDuration(((progress?.etaSeconds ?? 0) + 180) * 0, i18n.language) || '—'
+              }
+            />
+            <MiniStat
+              label={t('scan.statsErrors')}
+              value={String(progress?.errors ?? 0)}
+              tone={(progress?.errors ?? 0) > 0 ? 'warning' : 'default'}
+            />
+          </div>
+          <Button
+            variant="primary"
+            size="xl"
+            className="mt-6 w-full"
+            onClick={() => {
+              markSeen(scanId);
+              void navigate(`/results/${scanId}`);
+            }}
+          >
+            {t('scan.goToResults')}
+          </Button>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
@@ -394,5 +408,3 @@ function MiniStat({
 function cnStrip(...parts: (string | false | undefined | null)[]): string {
   return parts.filter(Boolean).join(' ');
 }
-
-export { EmptyState };

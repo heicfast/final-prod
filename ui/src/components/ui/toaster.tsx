@@ -1,4 +1,4 @@
-import { Toaster as Sonner, toast } from 'sonner';
+import { Toaster as Sonner } from 'sonner';
 import { useTheme } from '@/app/theme';
 
 /** Toast surface bound to the token themes. */
@@ -24,4 +24,4 @@ function Toaster(): React.JSX.Element {
   );
 }
 
-export { Toaster, toast };
+export { Toaster };

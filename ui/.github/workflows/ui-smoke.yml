@@ -74,6 +74,6 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Build Tauri app (debug bundle check)
-        run: pnpm tauri build --debug --bundles none
+        run: pnpm tauri build --debug --no-bundle
         env:
           VITE_CONNECTOR: mock

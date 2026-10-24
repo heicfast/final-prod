@@ -100,6 +100,8 @@ interface ScanRuntime {
   space: NodeSpace;
   volumeId: string;
   scanId: string;
+  /** Folder-scope directory mask (null = whole volume). */
+  scopeMask: Uint8Array | null;
 }
 
 interface JobRuntime {
@@ -242,8 +244,12 @@ export class MockConnector {
     getDeviceInfo: async (deviceId: string): Promise<Device> => {
       await latency(90, 40);
       const d = this.deviceList.find((x) => x.id === deviceId);
-      if (!d) throw connError('device-gone', 'device not found', 'errors.deviceGone');
-      return d;
+      if (d) return d;
+      // A volume id resolves to the owning device — scan targets may be
+      // either a whole device or one of its volumes (see resolveTarget).
+      const owner = this.deviceList.find((x) => x.volumes.some((v) => v.id === deviceId));
+      if (owner) return owner;
+      throw connError('device-gone', 'device not found', 'errors.deviceGone');
     },
     refreshDevices: async (): Promise<Device[]> => {
       await latency(700, 200);
@@ -264,6 +270,22 @@ export class MockConnector {
       const scanId = `scan-${this.nextScanId++}`;
       const space = this.spaceFor(params.targetId);
       const bytesTotal = volume.capacity.totalBytes;
+
+      // Folder scope (null/empty = whole volume). Unresolvable paths are a
+      // hard contract error — the UI cannot override the connector verdict.
+      let scopeMask: Uint8Array | null = null;
+      if (params.pathScope != null && params.pathScope !== '') {
+        const scope = space.resolveScope(params.pathScope);
+        if (!scope) {
+          throw connError(
+            'scan-scope-invalid',
+            `folder ${params.pathScope} not found on ${volume.label}`,
+            'errors.scanScopeInvalid',
+          );
+        }
+        scopeMask = scope.mask;
+      }
+
       const rt: ScanRuntime = {
         params,
         target: params.targetId.startsWith('vol-') ? volume : device,
@@ -288,6 +310,7 @@ export class MockConnector {
         space,
         volumeId: volume.id,
         scanId,
+        scopeMask,
       };
       this.scans.set(scanId, rt);
       rt.timer = setInterval(() => this.scanTick(rt), 100 + (scanId.length % 3) * 50);
@@ -396,7 +419,7 @@ export class MockConnector {
     rt.eta = Math.max(1, Math.round(((totalTicks - rt.tick) * 150) / 1000));
 
     // found-file curve: fast then saturating
-    const stats = rt.space.stats();
+    const stats = rt.space.stats(rt.scopeMask);
     const curve = 1 - Math.exp(-3.4 * rt.overall);
     rt.filesFound = Math.floor(stats.files * curve);
     rt.dataFound = Math.floor(stats.size * curve);
@@ -487,9 +510,9 @@ export class MockConnector {
       await latency(60, 30);
       const rt = this.requireScan(scanId);
       let nodes: TreeNode[];
-      if (mode === 'type') nodes = rt.space.typeTree();
-      else if (mode === 'raw') nodes = rt.space.rawTree();
-      else nodes = rt.space.pathTreeChildren(parentId);
+      if (mode === 'type') nodes = rt.space.typeTree(rt.scopeMask);
+      else if (mode === 'raw') nodes = rt.space.rawTree(rt.scopeMask);
+      else nodes = rt.space.pathTreeChildren(parentId, rt.scopeMask);
       return { nodes, parentHasMore: false };
     },
 
@@ -506,7 +529,7 @@ export class MockConnector {
         rt.status === 'completed' || rt.status === 'cancelled'
           ? 1
           : Math.max(0.05, 1 - Math.exp(-3.4 * rt.overall));
-      const result = rt.space.query(filter, sort, page.offset, page.limit);
+      const result = rt.space.query(filter, sort, page.offset, page.limit, rt.scopeMask);
       // approximate live fraction by trimming the total (deterministic)
       const total = Math.floor(result.total * visibleFraction);
       const nodes =
@@ -550,7 +573,7 @@ export class MockConnector {
     countResults: async (scanId: string, filter: ResultsFilter): Promise<number> => {
       await latency(60, 30);
       const rt = this.requireScan(scanId);
-      return rt.space.count(filter);
+      return rt.space.count(filter, rt.scopeMask);
     },
   };
 
@@ -1289,12 +1312,23 @@ ${lines.join('')}
       return { allowed: true, freeBytes: mount.freeBytes, neededBytes };
     },
 
-    pickDirectory: async (): Promise<string | null> => {
+    pickDirectory: async (hint?: { volumeId?: string | null }): Promise<string | null> => {
       await latency(150);
+      // Root the suggestion at the hinted volume when it has a node space —
+      // a folder picked for a scan scope must resolve on the scanned device.
+      const hinted = hint?.volumeId
+        ? this.mountPoints().find((m) => m.id === hint.volumeId)
+        : null;
+      if (hinted) {
+        const folder = this.nodeSpaces.get(hinted.id)?.suggestedScopePath();
+        if (folder) return `${hinted.path}${folder}`;
+      }
       const mounts = this.mountPoints();
       const suggestion = mounts[this.pickIndex % mounts.length] ?? mounts[0];
       this.pickIndex++;
-      return `${suggestion.path}\\Recovered Files`;
+      const space = this.nodeSpaces.get(suggestion.id);
+      const folder = space?.suggestedScopePath() ?? 'Recovered Files';
+      return `${suggestion.path}${folder}`;
     },
 
     listMountPoints: async (): Promise<

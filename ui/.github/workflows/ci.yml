@@ -39,12 +39,22 @@ jobs:
         shell: bash
         run: |
           set -e
-          npx sg scan --rule rules/no-raw-invoke.yml --globs '!src/connector/**' --globs 'src/**/*.ts' --globs 'src/**/*.tsx' --no-output-color | tee /tmp/sg.out
-          if grep -q "matches" /tmp/sg.out; then exit 1; fi
+          # Rule 1: raw invoke() may only appear inside src/connector/**.
+          # (Negation globs only — ast-grep ORs mixed globs, so a positive
+          # glob would re-include the excluded tree.)
+          npx ast-grep scan --rule rules/no-raw-invoke.yml --globs '!src/connector/**' src | tee /tmp/sg-invoke.out
+          if grep -q "error\[" /tmp/sg-invoke.out; then exit 1; fi
+          # Rule 2: the connector factory may only be imported by queries/ and connector/.
+          npx ast-grep scan --rule rules/no-connector-import-outside-queries.yml --globs '!src/queries/**' --globs '!src/connector/**' src | tee /tmp/sg-import.out
+          if grep -q "error\[" /tmp/sg-import.out; then exit 1; fi
           echo "ast-grep: clean"
 
       - name: Dead code (knip)
         run: pnpm knip
+        env:
+          # oxc raw-transfer reserves a 6 GiB buffer per parsing core —
+          # unnecessary on CI and fragile on memory-constrained runners.
+          KNIP_DISABLE_RAW_TRANSFER: '1'
 
       - name: Duplication (jscpd)
         run: pnpm jscpd

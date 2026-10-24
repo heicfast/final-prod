@@ -96,6 +96,15 @@ export const en = {
     typesTitle: 'What are you looking for?',
     selectAll: 'Select all',
     clearAll: 'Clear all',
+    scopeTitle: 'Scan location',
+    scopeVolume: 'Entire drive',
+    scopeFolder: 'A specific folder',
+    scopePlaceholder: 'e.g. Documents\\Projects',
+    scopeBrowse: 'Browse',
+    scopeHint:
+      'Only files inside this folder and its subfolders will be listed. The connector validates the folder when the search starts.',
+    scopeRequired: 'Enter a folder to search, or choose Entire drive.',
+    scopeFolderLabel: 'Folder to search',
     categories: {
       graphics: 'Photos & images',
       video: 'Videos',
@@ -427,6 +436,7 @@ export const en = {
     title: 'That did not work',
     deviceGone: 'The selected device is no longer connected.',
     devicePermission: 'The system denied access to this device.',
+    scanScopeInvalid: 'That folder was not found on the selected drive.',
     sessionCorrupt: 'The saved search could not be read.',
     outOfSpace: 'There is not enough space on the destination.',
     unknown: 'An unexpected problem occurred. The diagnostics log has the details.',

@@ -4,18 +4,18 @@ Honest accounting against the session mandate.
 
 ## Claimed complete, with evidence
 
-| Claim                            | Evidence                                                                                                                                      |
-| -------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
-| Corpus read before code          | Reading pass logged in worklog; 4 gate docs pushed BEFORE scaffold (commit 37a7a86)                                                           |
-| 63/63 screenshots VLM-extracted  | scripts/vlm-out (63 JSON), aggregate digest; SCREENSHOT-MANIFEST.md 63 rows                                                                   |
-| Tokens have sources              | VISUAL-SPEC: every value cites themdark/QSS/config/atlas/VLM; conflicts resolved in writing                                                   |
-| Mock Connector contract-complete | 9 domains + 2 event streams + scenario control; contract tests assert lifecycle/timing/injections                                             |
-| All pages, all states            | UI-MAP state matrices implemented; walkthrough exercised home/config/scan/results/preview/recover; error/empty/partial surfaces code-verified |
-| No UI-side backend logic         | connector called only via queries/ (arch-lint A1 + eslint zones + ast-grep, all green)                                                        |
-| No dead controls                 | unavailable actions disabled with truthful reasons (open-location needs engine; mid-scan recovery gated by contract)                          |
-| No TODO/placeholder comments     | grep clean (docs' roadmap items are tracked work, not stubs)                                                                                  |
-| Tests green                      | 52/52 Vitest; Playwright spec written + config wired; CI workflows complete                                                                   |
-| Budgets                          | bundle gate PASS; perf budgets measured where possible (filter <200 ms asserted)                                                              |
+| Claim                            | Evidence                                                                                                                                                    |
+| -------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Corpus read before code          | Reading pass logged in worklog; 4 gate docs pushed BEFORE scaffold (commit 37a7a86)                                                                         |
+| 63/63 screenshots VLM-extracted  | scripts/vlm-out (63 JSON), aggregate digest; SCREENSHOT-MANIFEST.md 63 rows                                                                                 |
+| Tokens have sources              | VISUAL-SPEC: every value cites themdark/QSS/config/atlas/VLM; conflicts resolved in writing                                                                 |
+| Mock Connector contract-complete | 9 domains + 2 event streams + scenario control; contract tests assert lifecycle/timing/injections                                                           |
+| All pages, all states            | UI-MAP state matrices implemented; walkthrough exercised home/config/scan/results/preview/recover; error/empty/partial surfaces code-verified               |
+| No UI-side backend logic         | connector called only via queries/ (arch-lint A1 + eslint zones + ast-grep, all green)                                                                      |
+| No dead controls                 | unavailable actions disabled with truthful reasons (open-location needs engine; mid-scan recovery gated by contract); knip 0 findings after session-2 purge |
+| No TODO/placeholder comments     | grep clean (docs' roadmap items are tracked work, not stubs)                                                                                                |
+| Tests green                      | 52/52 Vitest; Playwright spec written + config wired; CI workflows complete                                                                                 |
+| Budgets                          | bundle gate PASS; perf budgets measured where possible (filter <200 ms asserted)                                                                            |
 
 ## Honest limitations (all tracked, none hidden)
 
@@ -34,6 +34,16 @@ Honest accounting against the session mandate.
    systematic screenshot diffs, axe-in-CI, RTL/pseudo-length sweeps.
 5. **Interim icons**: Lucide base per v1 policy, replacement planned
    (INTERIM-ASSETS.md).
+
+## Session 2 additions (CI-recovery pass)
+
+- Radix Dialog now backs all three scan-phase modals (focus trap, Esc) —
+  previously hand-rolled divs; device-lost dialog is non-dismissable.
+- Folder-scoped scans (`ScanParams.pathScope`) implemented end-to-end with
+  contract-level tests; "Choose a folder…" quick target lands preselected.
+- Fixed: `/scan/:volumeId` device-info resolution; DevPanel close button.
+- Windows-runner CI stabilized (.gitattributes LF normalization, --no-bundle,
+  knip raw-transfer disabled, clippy-safe Rust format strings).
 
 ## Divergences from the reference (documented, deliberate)
 

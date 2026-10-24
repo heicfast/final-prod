@@ -42,11 +42,6 @@ export function formatBytesCompact(bytes: number, locale: string): string {
   return `${nf.format(v)}${units[i]}`;
 }
 
-export function formatByteUnit(value: number, locale: string, unit: string): string {
-  const nf = new Intl.NumberFormat(locale, { maximumFractionDigits: 1 });
-  return `${nf.format(value)} ${unit}`;
-}
-
 export function formatDate(
   iso: string | number | Date | null | undefined,
   locale: string,

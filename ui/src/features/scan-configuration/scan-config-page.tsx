@@ -1,5 +1,5 @@
 import * as React from 'react';
-import { useNavigate, useParams } from 'react-router';
+import { useNavigate, useParams, useSearchParams } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -8,6 +8,7 @@ import type { BadSectorPolicy, FileCategoryId, ScanMode } from '@/connector/cont
 import {
   ArrowLeftIcon,
   CogIcon,
+  FolderOpenIcon,
   GaugeIcon,
   RadarIcon,
   ScanSearchIcon,
@@ -16,15 +17,24 @@ import {
 } from 'lucide-react';
 import { useDeviceInfo } from '@/queries/devices';
 import { useStartScan } from '@/queries/scan';
+import { usePickDirectory } from '@/queries/system';
 import { formatBytes } from '@/lib/format';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Alert } from '@/components/ui/alert';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { CategoryIcon } from '@/components/ui/file-icon';
 import { CapacityBar, EmptyState } from '@/components/ui/empty-state';
-import { Skeleton } from '@/components/ui/scroll-area';
+import { Skeleton } from '@/components/ui/skeleton';
 import { toast } from 'sonner';
 
 const ALL_CATEGORIES: readonly FileCategoryId[] = [
@@ -52,6 +62,8 @@ const schema = z.object({
       'other',
     ]),
   ),
+  scopeMode: z.enum(['volume', 'folder']),
+  pathScope: z.string(),
   sectorSize: z.enum(['auto', '512', '4096']),
   badSectorPolicy: z.enum(['stop', 'skip', 'zero-fill']),
   retries: z.number().int().min(0).max(10),
@@ -61,17 +73,23 @@ type FormValues = z.infer<typeof schema>;
 
 export function ScanConfigPage(): React.JSX.Element {
   const { deviceId = '' } = useParams();
+  const [params] = useSearchParams();
   const { t, i18n } = useTranslation();
   const navigate = useNavigate();
   const deviceQuery = useDeviceInfo(deviceId);
 
   const startScan = useStartScan();
+  const pickDirectory = usePickDirectory();
 
   const form = useForm<FormValues>({
     resolver: zodResolver(schema),
     defaultValues: {
       mode: 'deep',
       categories: [...ALL_CATEGORIES],
+      // ?folder=1 (Home → “choose folder” quick target) preselects the
+      // folder mode so the user only needs to pick the folder.
+      scopeMode: params.has('folder') ? 'folder' : 'volume',
+      pathScope: '',
       sectorSize: 'auto',
       badSectorPolicy: 'skip',
       retries: 3,
@@ -92,6 +110,9 @@ export function ScanConfigPage(): React.JSX.Element {
         targetId,
         mode: v.mode,
         categories: v.categories,
+        ...(v.scopeMode === 'folder' && v.pathScope.trim() !== ''
+          ? { pathScope: v.pathScope.trim() }
+          : {}),
         badSectorPolicy: v.badSectorPolicy,
         retries: v.retries,
         ...(v.sectorSize !== 'auto' ? { sectorSize: Number(v.sectorSize) } : {}),
@@ -223,6 +244,68 @@ export function ScanConfigPage(): React.JSX.Element {
           </Alert>
         ) : null}
 
+        {/* Scan location — corpus “Specify a location”: whole drive or a
+            specific folder (validated by the connector at start time). */}
+        {volume ? (
+          <>
+            <h2 className="mb-3 mt-8 text-base font-semibold">{t('scanConfig.scopeTitle')}</h2>
+            <div className="rounded-lg border border-border bg-surface p-4">
+              <RadioGroup
+                value={values.scopeMode}
+                onValueChange={(v) => form.setValue('scopeMode', v as 'volume' | 'folder')}
+                className="flex flex-wrap gap-4"
+              >
+                <label className="flex cursor-pointer items-center gap-2 text-sm">
+                  <RadioGroupItem value="volume" />
+                  {t('scanConfig.scopeVolume')}
+                </label>
+                <label className="flex cursor-pointer items-center gap-2 text-sm">
+                  <RadioGroupItem value="folder" />
+                  {t('scanConfig.scopeFolder')}
+                </label>
+              </RadioGroup>
+              {values.scopeMode === 'folder' ? (
+                <div className="mt-3 space-y-1.5">
+                  <Label htmlFor="path-scope">{t('scanConfig.scopeFolderLabel')}</Label>
+                  <div className="grid grid-cols-[1fr_auto] items-start gap-2">
+                    <Input
+                      id="path-scope"
+                      value={values.pathScope}
+                      placeholder={t('scanConfig.scopePlaceholder')}
+                      onChange={(e) => form.setValue('pathScope', e.target.value)}
+                      className="font-mono text-xs"
+                      aria-describedby="path-scope-hint"
+                    />
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      loading={pickDirectory.isPending}
+                      disabled={pickDirectory.isPending}
+                      onClick={() => {
+                        pickDirectory.mutate(
+                          { volumeId: volume.id },
+                          {
+                            onSuccess: (picked) => {
+                              if (picked) form.setValue('pathScope', picked);
+                            },
+                            onError: (err) => toast.error(err.message),
+                          },
+                        );
+                      }}
+                    >
+                      <FolderOpenIcon aria-hidden />
+                      {t('scanConfig.scopeBrowse')}
+                    </Button>
+                  </div>
+                  <p id="path-scope-hint" className="text-xs text-foreground-secondary">
+                    {t('scanConfig.scopeHint')}
+                  </p>
+                </div>
+              ) : null}
+            </div>
+          </>
+        ) : null}
+
         <h2 className="mb-3 mt-8 text-base font-semibold">{t('scanConfig.typesTitle')}</h2>
         <div className="grid grid-cols-2 gap-2 md:grid-cols-4">
           {ALL_CATEGORIES.map((cat) => {
@@ -286,19 +369,20 @@ export function ScanConfigPage(): React.JSX.Element {
         <div className="grid grid-cols-1 gap-4 rounded-lg border border-border bg-surface p-4 md:grid-cols-3">
           <div className="space-y-1.5">
             <Label htmlFor="sector-size">{t('scanConfig.sectorSize')}</Label>
-            <select
-              id="sector-size"
-              className="h-8 w-full rounded-sm border border-border bg-surface px-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
+            <Select
               value={values.sectorSize}
-              onChange={(e) =>
-                form.setValue('sectorSize', e.target.value as FormValues['sectorSize'])
-              }
+              onValueChange={(v) => form.setValue('sectorSize', v as FormValues['sectorSize'])}
               disabled={!volume?.sectorSize}
             >
-              <option value="auto">{t('scanConfig.sectorSizeAuto')}</option>
-              <option value="512">512 B</option>
-              <option value="4096">4096 B</option>
-            </select>
+              <SelectTrigger id="sector-size" aria-label={t('scanConfig.sectorSize')}>
+                <SelectValue placeholder={t('scanConfig.sectorSizeAuto')} />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="auto">{t('scanConfig.sectorSizeAuto')}</SelectItem>
+                <SelectItem value="512">512 B</SelectItem>
+                <SelectItem value="4096">4096 B</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
           <div className="space-y-1.5">
             <Label>{t('scanConfig.badSectorPolicy')}</Label>
@@ -353,7 +437,18 @@ export function ScanConfigPage(): React.JSX.Element {
           variant="primary"
           size="lg"
           loading={startScan.isPending}
-          disabled={startScan.isPending || values.categories.length === 0}
+          disabled={
+            startScan.isPending ||
+            values.categories.length === 0 ||
+            (values.scopeMode === 'folder' && values.pathScope.trim() === '')
+          }
+          title={
+            values.categories.length === 0
+              ? t('scanConfig.typesTitle')
+              : values.scopeMode === 'folder' && values.pathScope.trim() === ''
+                ? t('scanConfig.scopeRequired')
+                : undefined
+          }
         >
           {t('scanConfig.start')}
         </Button>
