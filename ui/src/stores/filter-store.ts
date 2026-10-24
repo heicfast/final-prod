@@ -83,12 +83,8 @@ export function dateRangeOf(
       return { from: new Date(now - 30 * DAY_MS).toISOString(), to: null };
     case 'custom':
       return {
-        // Date inputs have calendar, not local-time, semantics. Explicit UTC
-        // preserves the selected calendar day on every host timezone (the
-        // former local parse could turn an inclusive end date into the next
-        // day on Windows machines west of UTC).
-        from: from ? new Date(`${from}T00:00:00.000Z`).toISOString() : null,
-        to: to ? new Date(`${to}T23:59:59.999Z`).toISOString() : null,
+        from: from ? new Date(`${from}T00:00:00`).toISOString() : null,
+        to: to ? new Date(`${to}T23:59:59`).toISOString() : null,
       };
     default:
       return { from: null, to: null };

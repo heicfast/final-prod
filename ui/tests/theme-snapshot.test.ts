@@ -114,11 +114,7 @@ describe('adopted theme token surface (ADR-007)', () => {
       if (semanticDefs.has(name) || name === '--focus-offset' || name === '--focus-w') continue;
       adoptedRefs.add(name);
     }
-    // The reference-aligned light palette is intentionally expressed as
-    // semantic constants instead of forwarding raw coral tokens. The
-    // remaining motion, typography, radii, status and dark-family mappings
-    // still exercise the adopted surface broadly enough to catch drift.
-    expect(adoptedRefs.size).toBeGreaterThanOrEqual(15);
+    expect(adoptedRefs.size).toBeGreaterThan(20);
     const missing = [...adoptedRefs].filter((name) => !defined.has(name));
     expect(missing).toEqual([]);
   });

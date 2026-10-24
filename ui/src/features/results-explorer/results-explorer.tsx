@@ -64,13 +64,10 @@ export function ResultsExplorer({
   scanId,
   liveMode = false,
   recoverableDuringScan = true,
-  showFooter = true,
 }: {
   scanId: string;
   liveMode?: boolean;
   recoverableDuringScan?: boolean;
-  /** The live-scan route provides its own combined status/recovery dock. */
-  showFooter?: boolean;
 }): React.JSX.Element {
   const { t, i18n } = useTranslation();
   const navigate = useNavigate();
@@ -436,7 +433,6 @@ export function ResultsExplorer({
                     onSortChange={(field) => sortStore.setSort(field)}
                     loadMore={() => void pages.fetchNextPage()}
                     hasNextPage={pages.hasNextPage}
-                    compact={liveMode}
                   />
                 )}
               </div>

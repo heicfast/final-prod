@@ -1,10 +1,12 @@
 /*
  * tokens.css — the app's SEMANTIC token layer (ADR-007).
  *
- * Token source of truth: src/theme/adopted/tokens.css + themes.ts. The raw
- * theme family remains intact; this semantic layer owns Recovery Wizard's
- * product identity. Its light default is the restrained blue Fluent-derived
- * language measured from the supplied reference corpus.
+ * Token source of truth: src/theme/adopted/tokens.css + themes.ts — verbatim
+ * in-repo copies of the two adopted theme source files (diskgenie-v2
+ * src/theme/themes.ts + tokens.css). That file is IMMUTABLE; every adjustment
+ * for this application happens HERE, as a mapping, and is documented in
+ * docs/VISUAL-SPEC.md §A11 (accessibility-driven mapping choices, with
+ * measured contrast ratios).
  *
  * Layer order (see index.css):
  *   1. adopted/tokens.css   — raw palette blocks (:root, [data-scheme="dark"],
@@ -75,7 +77,7 @@
   --danger-pressed: #b80011;
 
   /* ── Focus ─────────────────────────────────────────────────────────── */
-  --focus-ring: #0958d9;
+  --focus-ring: #b83410; /* solid text-grade ink: 5.94:1 (source rgba = 2.9:1) */
   --focus-ring-offset: var(--focus-offset, 2px);
   --focus-ring-width: var(--focus-w, 2px);
 
