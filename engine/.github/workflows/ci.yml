@@ -3,6 +3,7 @@ name: CI
 on:
   push:
     branches: [main]
+    paths-ignore: ['**.md', 'docs/**', 'worklog.md', 'worklog/**', 'AUDIT*.md']
   pull_request:
 
 permissions:
@@ -138,7 +139,14 @@ jobs:
           $env:VCPKG_ROOT = $env:VCPKG_INSTALLATION_ROOT
           ctest --preset win-x64-release -C Release
 
+  # DISABLED for the comparative-bench session (user directive 2026-10-24):
+  # "strictly skip all other CI workflows like codeql, fuzz - we are not
+  # doing core code changes, it saves time and slots for the benchmark
+  # workflows." Re-enable after the bench evidence base lands. The windows
+  # lane (MSVC build + full test suite) stays ON: it validates the same
+  # source tree the bench builds its rrecov from.
   fuzz:
+    if: false  # bench-session skip (recorded, not silent)
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     steps:
@@ -165,6 +173,7 @@ jobs:
           if-no-files-found: ignore
 
   codeql:
+    if: false  # bench-session skip (recorded, not silent)
     runs-on: windows-2022
     permissions:
       security-events: write
