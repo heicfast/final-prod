@@ -73,26 +73,46 @@ if (-not (Wait-OgLanding -TimeoutSec 180 -ShotDir $shotDir)) {
 $run.launch_seconds = [math]::Round(((Get-Date) - $t0).TotalSeconds, 1)
 
 # ---- volume selection with self-verification ------------------------------------------
-# candidate tile positions on the landing page (1024x768 maximized client):
-# 'Connected drives' cards, 2 per row. The runner has C:+D:, so our VHD volume
-# is the 3rd+ tile. Verification: DRWUI.log 'Scan drive:<letter>' must match ours.
+# Landing layout (VLM-verified against run-40048192077 screenshots, 1024x768):
+# 'Internal drives' cards, 2 per row - Windows(C:) row1-left (~440,295),
+# Temporary Storage(D:) row1-right (~730,275), BENCH(E:) row2-left (~440,455).
+# Verification: the og appends 'Scan drive:<letter>' lines to DRWUI.log - we
+# snapshot the log length at launch and only trust lines appended after it
+# (the corpus checkout carries the vendor's own QA lines with stale stamps).
 $logPath = Join-Path $CorpusDir 'log\DRWUI.log'
+$script:LogOffset = 0
+if (Test-Path $logPath) { $script:LogOffset = (Get-Item $logPath).Length }
 function Get-ScanDriveLine {
     if (-not (Test-Path $logPath)) { return @() }
-    return @(Get-Content $logPath -ErrorAction SilentlyContinue |
-        Select-String -Pattern 'doScan: Scan drive' | ForEach-Object { $_.Line })
+    $out = @()
+    try {
+        $fs = [System.IO.File]::Open($logPath, 'Open', 'Read', 'ReadWrite')
+        try {
+            if ($fs.Length -gt $script:LogOffset) {
+                $fs.Seek($script:LogOffset, 'Begin') | Out-Null
+                $sr = New-Object System.IO.StreamReader($fs)
+                $text = $sr.ReadToEnd()
+                $out = @($text -split "`r?`n" | Where-Object { $_ -match 'Scan drive:' })
+            }
+        } finally { $fs.Close() }
+    } catch { }
+    return ,$out
 }
 
 $tiles = @(
+    @{ x = 440; y = 455 },   # BENCH(E:) - row2-left (VLM-verified primary)
+    @{ x = 440; y = 295 },   # Windows(C:) row1-left (fallback ordering)
+    @{ x = 730; y = 275 },   # Temporary Storage(D:) row1-right
     @{ x = 400; y = 266 }, @{ x = 860; y = 266 },
     @{ x = 400; y = 366 }, @{ x = 860; y = 366 },
-    @{ x = 400; y = 466 }, @{ x = 860; y = 466 }
+    @{ x = 860; y = 466 }
 )
 if ($TargetMode -eq 'disk') {
-    # whole-disk tiles live below the volume cards ('Hard Drives' section)
+    # whole-disk / lost-partition candidates: landing tile area then the
+    # 'Lost Partition Rescue' sidebar page (atlas: sidebar ~ (135,374))
     $tiles = @(
-        @{ x = 400; y = 560 }, @{ x = 400; y = 620 },
-        @{ x = 860; y = 560 }, @{ x = 400; y = 460 }
+        @{ x = 440; y = 455 }, @{ x = 440; y = 560 },
+        @{ x = 440; y = 620 }, @{ x = 860; y = 560 }
     )
 }
 
@@ -114,27 +134,49 @@ foreach ($tile in $tiles) {
         Start-Sleep -Seconds 3
     }
     $run.attempts += @{ attempt = $selIdx; tile = $tile; scan_line = $line }
-    if ($TargetMode -eq 'volume' -and $line -and ($line -match "drive:$Letter")) {
+    if ($TargetMode -eq 'volume' -and $line -and ($line -match "Scan drive:$Letter(\W|$)")) {
         $selected = $true
+        $run.notes += "volume selection verified by fresh log line: $line"
         break
     }
     if ($TargetMode -eq 'disk' -and $line) {
-        # a whole-disk scan logs a drive line without a letter match; accept on
-        # any fresh doScan line that is NOT the system drive, then let the .rsf
-        # found-set prove what was actually scanned
-        if ($line -notmatch 'drive:C' -and $line -notmatch 'drive:D') {
+        # a whole-disk scan logs a non-system drive line; the .rsf found-set
+        # then proves what was actually scanned
+        if ($line -notmatch 'Scan drive:C(\W|$)' -and $line -notmatch 'Scan drive:D(\W|$)') {
             $selected = $true
-            $run.notes += "disk-mode selection verified by non-system doScan line: $line"
+            $run.notes += "disk-mode selection: fresh non-system log line: $line"
             break
         }
     }
-    # wrong tile: stop the scan before the next attempt
+    # wrong tile: stop the scan, return HOME, dismiss gates before next attempt
     Invoke-OgClickRel 127 698 'Stop' | Out-Null
     Start-Sleep -Seconds 3
     New-OgShot ("03_stop_confirm_{0:d2}" -f $selIdx) $shotDir | Out-Null
     Invoke-OgClickRel 512 420 'stop confirm' | Out-Null
     Start-Sleep -Seconds 5
+    Invoke-OgClickRel 135 120 'sidebar home' | Out-Null
+    Start-Sleep -Seconds 3
     Invoke-OgGateDismiss
+}
+if (-not $selected -and $TargetMode -eq 'disk') {
+    # last resort for delete_partition: the Lost Partition Rescue sidebar page
+    Invoke-OgGateDismiss
+    Invoke-OgClickRel 135 374 'sidebar Lost Partition Rescue' | Out-Null
+    Start-Sleep -Seconds 5
+    New-OgShot '02b_lost_partition_page' $shotDir | Out-Null
+    Invoke-OgClickRel 440 295 'lost-partition page: first disk row' | Out-Null
+    Start-Sleep -Seconds 2
+    Invoke-OgClickRel 897 678 'Search CTA (lost-partition page)' | Out-Null
+    $tLp = Get-Date
+    while (((Get-Date) - $tLp).TotalSeconds -lt 60) {
+        $lines = Get-ScanDriveLine
+        if ($lines.Count -gt 0) {
+            $run.notes += "lost-partition rescue flow produced: $($lines[-1])"
+            $selected = $true
+            break
+        }
+        Start-Sleep -Seconds 5
+    }
 }
 if (-not $selected) {
     New-OgShot '99_selection_failed' $shotDir | Out-Null

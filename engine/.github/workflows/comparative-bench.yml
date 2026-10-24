@@ -253,14 +253,22 @@ jobs:
           $sizeMB = if ($env:PROFILE -eq 'full') { 3072 } else { 1536 }
           New-Item -ItemType Directory -Force -Path benchmark-results | Out-Null
           . "$PWD\bench\volume\volume.ps1"
+          $failedScenarios = @()
           foreach ($scen in $scenarios) {
+          try {
             Write-Host "=================== ours: fs=$fs scenario=$scen ==================="
-            $scenDir = "D:\bench\$scen"
+            # working dirs on C: (~170 GB free) - the D: workspace disk is tight
+            # and a dynamic VHDX that cannot grow fails as 'volume out of space'
+            $scenDir = "C:\bench\$scen"
             $resDir = "benchmark-results\$scen"
             New-Item -ItemType Directory -Force -Path $scenDir, $resDir | Out-Null
+            Get-PSDrive -PSProvider FileSystem | Select-Object Name, @{n='FreeGB';e={[math]::Round($_.Free/1GB,1)}} |
+              Format-Table -AutoSize | Out-String | Set-Content "$resDir\disk-free-at-start.txt" -Encoding utf8
             $vhd = "$scenDir\vol.vhdx"
             $second = ($scen -eq 'delete_partition')
-            New-BenchVolume -VhdPath $vhd -SizeMB $sizeMB -FileSystem $fs -Label 'BENCH' `
+            $thisSize = $sizeMB
+            if ($second) { $thisSize = if ($env:PROFILE -eq 'full') { 5120 } else { 3072 } }
+            New-BenchVolume -VhdPath $vhd -SizeMB $thisSize -FileSystem $fs -Label 'BENCH' `
                 -SecondVolume:$second -OutJson "$scenDir\volume.json" | Out-Null
             $vol = Get-Content "$scenDir\volume.json" -Raw | ConvertFrom-Json
             Write-Host "volume: disk=$($vol.disk) letter=$($vol.letter) fs=$($vol.fs) bytes=$($vol.volume_bytes)"
@@ -300,6 +308,9 @@ jobs:
                   --scenario "$resDir\scenario-state.json" --inventory "$resDir\inventory-$mode.json" `
                   --outdir $resDir --tool ours --fs $fs --mode $mode --outname "metrics-$mode.json"
               if ($LASTEXITCODE -ne 0) { throw "compute_metrics failed for $scen/$mode" }
+              # recovered payload is evidenced by hashes; delete per-mode to keep
+              # disk headroom for the next scenario
+              Remove-Item $rdest -Recurse -Force -ErrorAction SilentlyContinue
             }
             Copy-Item $manifest "$resDir\seed-manifest.jsonl" -Force
             Copy-Item "$scenDir\volume.json" "$resDir\" -Force
@@ -307,12 +318,20 @@ jobs:
             if ('${{ needs.prepare.outputs.upload_images }}' -eq 'true') {
               Compress-Archive -Path $vhd -DestinationPath "$resDir\vol.vhdx.zip" -CompressionLevel Fastest
             }
-            # recovered file payloads are evidenced by hashes/inventories, not shipped
-            foreach ($mode in @('quick', 'deep', 'deepcarve')) {
-              Remove-Item (Join-Path $resDir "recovered-$mode") -Recurse -Force -ErrorAction SilentlyContinue
-            }
             Remove-BenchVolume -VhdPath $vhd
             Remove-Item $scenDir -Recurse -Force -ErrorAction SilentlyContinue
+          } catch {
+            # scenario-level failure: RECORD it and continue - later scenarios
+            # still produce evidence; the job fails at the end (no masking)
+            Write-Host "SCENARIO FAILED: $scen - $($_.Exception.Message)"
+            @{ scenario = $scen; tool = 'ours'; error = $_.Exception.Message; at = (Get-Date).ToUniversalTime().ToString('o') } |
+              ConvertTo-Json | Set-Content -Path "benchmark-results\$scen\ours-failed.json" -Encoding utf8
+            $failedScenarios += $scen
+            try { Remove-BenchVolume -VhdPath "$scenDir\vol.vhdx" } catch { }
+          }
+          }
+          if ($failedScenarios.Count -gt 0) {
+            throw "ours leg: $($failedScenarios.Count) scenario(s) failed: $($failedScenarios -join ', ') (see ours-failed.json artifacts)"
           }
 
       - name: Cleanup driver (always)
@@ -445,14 +464,21 @@ jobs:
           $sizeMB = if ($env:PROFILE -eq 'full') { 3072 } else { 1536 }
           New-Item -ItemType Directory -Force -Path benchmark-results | Out-Null
           . "$PWD\bench\volume\volume.ps1"
+          $failedScenarios = @()
           foreach ($scen in $scenarios) {
+          try {
             Write-Host "=================== og: fs=$fs scenario=$scen ==================="
-            $scenDir = "D:\bench\$scen"
+            # working dirs on C: (~170 GB free) - the D: workspace disk is tight
+            $scenDir = "C:\bench\$scen"
             $resDir = "benchmark-results\$scen"
             New-Item -ItemType Directory -Force -Path $scenDir, $resDir | Out-Null
+            Get-PSDrive -PSProvider FileSystem | Select-Object Name, @{n='FreeGB';e={[math]::Round($_.Free/1GB,1)}} |
+              Format-Table -AutoSize | Out-String | Set-Content "$resDir\disk-free-at-start.txt" -Encoding utf8
             $vhd = "$scenDir\vol.vhdx"
             $second = ($scen -eq 'delete_partition')
-            New-BenchVolume -VhdPath $vhd -SizeMB $sizeMB -FileSystem $fs -Label 'BENCH' `
+            $thisSize = $sizeMB
+            if ($second) { $thisSize = if ($env:PROFILE -eq 'full') { 5120 } else { 3072 } }
+            New-BenchVolume -VhdPath $vhd -SizeMB $thisSize -FileSystem $fs -Label 'BENCH' `
                 -SecondVolume:$second -OutJson "$scenDir\volume.json" | Out-Null
             $vol = Get-Content "$scenDir\volume.json" -Raw | ConvertFrom-Json
 
@@ -506,6 +532,19 @@ jobs:
             }
             Remove-BenchVolume -VhdPath $vhd
             Remove-Item $scenDir -Recurse -Force -ErrorAction SilentlyContinue
+          } catch {
+            # scenario-level failure: RECORD it and continue - later scenarios
+            # still produce evidence; the job fails at the end (no masking)
+            Write-Host "SCENARIO FAILED: $scen - $($_.Exception.Message)"
+            @{ scenario = $scen; tool = 'og'; error = $_.Exception.Message; at = (Get-Date).ToUniversalTime().ToString('o') } |
+              ConvertTo-Json | Set-Content -Path "benchmark-results\$scen\og-failed.json" -Encoding utf8
+            $failedScenarios += $scen
+            Stop-OgApp
+            try { Remove-BenchVolume -VhdPath "$scenDir\vol.vhdx" } catch { }
+          }
+          }
+          if ($failedScenarios.Count -gt 0) {
+            throw "og leg: $($failedScenarios.Count) scenario(s) failed: $($failedScenarios -join ', ') (see og-failed.json artifacts)"
           }
 
       - name: Cleanup og processes (always)

@@ -69,17 +69,26 @@ public static class BenchLaunch {
 }
 
 function Start-InGroup {
-    param([string] $Exe, [string] $CmdLine, [string] $StdoutFile)
-    # use cmd.exe redirection to keep it simple and robust in-process-group
+    param([string] $BatchFile, [string] $StdoutFile)
+    # launch cmd.exe on a generated batch file in its own process group - the
+    # flat command line ("/c <batch> > <stdout> 2>&1") has no nested quotes to
+    # mis-parse, and the group lets us deliver CTRL_BREAK to just the child
     $si = New-Object BenchLaunch+STARTUPINFO
     $si.cb = [System.Runtime.InteropServices.Marshal]::SizeOf($si)
     $pi = New-Object BenchLaunch+PROCESS_INFORMATION
-    $cmd = "`"$env:ComSpec`" /c `"$CmdLine > `"$StdoutFile`" 2>&1`""
-    $ok = [BenchLaunch]::CreateProcessW($null, $cmd, [IntPtr]::Zero, [IntPtr]::Zero, $false,
-        0x00000200, [IntPtr]::Zero, (Get-Location).Path, [ref]$si, [ref]$pi)   # CREATE_NEW_PROCESS_GROUP
-    if (-not $ok) { throw "CreateProcessW failed GLE=$([Runtime.InteropServices.Marshal]::GetLastWin32Error())" }
+    $cmdLine = '/c "{0}" > "{1}" 2>&1' -f $BatchFile, $StdoutFile
+    $ok = [BenchLaunch]::CreateProcessW($env:ComSpec, $cmdLine, [IntPtr]::Zero, [IntPtr]::Zero, $false,
+        0x00000200, [IntPtr]::Zero, $null, [ref]$si, [ref]$pi)   # CREATE_NEW_PROCESS_GROUP
+    if (-not $ok) { throw "CreateProcessW failed GLE=$([Runtime.InteropServices.Marshal]::GetLastWin32Error()) cmd=[$cmdLine]" }
     [System.Runtime.InteropServices.Marshal]::ReleaseHandle($pi.hThread) | Out-Null
     return @{ pid = $pi.dwProcessId; handle = $pi.hProcess }
+}
+
+function New-RunBatch {
+    param([string] $Path, [string] $CommandLine)
+    $lines = @('@echo off', $CommandLine)
+    $lines | Set-Content -Path $Path -Encoding ascii
+    return $Path
 }
 
 function Wait-Pid {
@@ -100,7 +109,8 @@ $log2 = Join-Path $WorkDir 'cancel-stage.log'
 $so2 = Join-Path $WorkDir 'cancel-scan.stdout'
 $cmd2 = "`"$RrecovExe`" scan --volume $Letter`: --deep --threads 4 --out `"$sess2`" --log `"$log2`""
 $t0 = Get-Date
-$cp = Start-InGroup -Exe $RrecovExe -CmdLine $cmd2 -StdoutFile $so2
+$batch2 = New-RunBatch -Path (Join-Path $WorkDir 'run-cancel.cmd') -CommandLine $cmd2
+$cp = Start-InGroup -BatchFile $batch2 -StdoutFile $so2
 Start-Sleep -Seconds $CancelAfterSec
 $tCancel = Get-Date
 $ev = [BenchLaunch]::GenerateConsoleCtrlEvent(1, [uint32]$cp.pid)   # CTRL_BREAK_EVENT to the group
@@ -126,7 +136,8 @@ $sessR = Join-Path $WorkDir 'resume-session.crsf'
 $logR = Join-Path $WorkDir 'resume-stage.log'
 $soR = Join-Path $WorkDir 'resume-scan.stdout'
 $cmdR = "`"$RrecovExe`" scan --resume `"$sess2`" --volume $Letter`: --deep --threads 4 --out `"$sessR`" --log `"$logR`" --json"
-$rp = Start-InGroup -Exe $RrecovExe -CmdLine $cmdR -StdoutFile $soR
+$batchR = New-RunBatch -Path (Join-Path $WorkDir 'run-resume.cmd') -CommandLine $cmdR
+$rp = Start-InGroup -BatchFile $batchR -StdoutFile $soR
 $done = Wait-Pid -Id $rp.pid -TimeoutSec 900
 $p3.resume_finished = $done
 $p3.resumed_session_exists = (Test-Path $sessR)
@@ -135,7 +146,8 @@ $sessU = Join-Path $WorkDir 'uninterrupted-session.crsf'
 $logU = Join-Path $WorkDir 'uninterrupted-stage.log'
 $soU = Join-Path $WorkDir 'uninterrupted-scan.stdout'
 $cmdU = "`"$RrecovExe`" scan --volume $Letter`: --deep --threads 4 --out `"$sessU`" --log `"$logU`" --json"
-$up = Start-InGroup -Exe $RrecovExe -CmdLine $cmdU -StdoutFile $soU
+$batchU = New-RunBatch -Path (Join-Path $WorkDir 'run-uninterrupted.cmd') -CommandLine $cmdU
+$up = Start-InGroup -BatchFile $batchU -StdoutFile $soU
 $doneU = Wait-Pid -Id $up.pid -TimeoutSec 900
 $p3.uninterrupted_finished = $doneU
 $p3.uninterrupted_session_exists = (Test-Path $sessU)
