@@ -290,6 +290,12 @@ if (-not $destDialog) {
     throw 'destination dialog (ChooseDestinationPathDialog) never appeared - diagnostic artifacts retained'
 }
 $destSaved = $false
+# Full-profile evidence (run 40077233920): with 10228 selected files the og
+# keeps the destination dialog up while it prepares the copy list AFTER the
+# Save click - the smoke-profile 20 s close-wait false-failed all full-matrix
+# og legs ('destination dialog never closed after 3 Save attempts'). 90 s per
+# attempt, and the retry sequence only re-runs when the dialog is REALLY
+# still there.
 for ($destAttempt = 1; $destAttempt -le 3; $destAttempt++) {
     Invoke-OgClickRel 410 222 'destination: Local tab' | Out-Null
     Start-Sleep -Seconds 2
@@ -299,13 +305,26 @@ for ($destAttempt = 1; $destAttempt -le 3; $destAttempt++) {
     Start-Sleep -Seconds 1
     New-OgShot ("22_destination_configured_try{0}" -f $destAttempt) $shotDir | Out-Null
     Invoke-OgClickRel 707 613 'destination: Save' | Out-Null
-    Start-Sleep -Seconds 4
-    if (Wait-OgWindowGone -Title 'ChooseDestinationPathDialog' -TimeoutSec 20) {
+    Start-Sleep -Seconds 3
+    # keyboard fallback: ENTER activates the dialog's default button (Save)
+    # when the coordinate click lands during a busy re-layout. NEVER send ESC
+    # here - on a Qt dialog ESC is reject/cancel (that is how lane A's
+    # original bug canceled the dialog in run 40073093997).
+    if ($destAttempt -ge 2 -and (Get-OgWindowByTitle 'ChooseDestinationPathDialog')) {
+        if (-not ('OgKB' -as [type])) {
+            Add-Type -TypeDefinition 'using System.Runtime.InteropServices; public class OgKB { [DllImport("user32.dll")] public static extern void keybd_event(byte vk, byte scan, uint flags, System.UIntPtr extra); }'
+        }
+        Restore-OgWin
+        [OgKB]::keybd_event(0x0D, 0, 0, [UIntPtr]::Zero)
+        [OgKB]::keybd_event(0x0D, 0, 2, [UIntPtr]::Zero)
+        Write-Host "destination: ENTER key fallback sent (attempt $destAttempt)"
+    }
+    if (Wait-OgWindowGone -Title 'ChooseDestinationPathDialog' -TimeoutSec 90) {
         $destSaved = $true
         $run.notes += "destination dialog closed after Save (attempt $destAttempt)"
         break
     }
-    Write-Host "destination dialog still open after Save (attempt $destAttempt) - retrying"
+    Write-Host "destination dialog still open 90 s after Save (attempt $destAttempt) - retrying the drive sequence"
     Invoke-OgGateDismiss
 }
 if (-not $destSaved) {
