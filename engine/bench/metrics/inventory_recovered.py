@@ -89,11 +89,13 @@ def main():
     by_path = {}
     by_namesize = {}
     by_name = {}
+    by_hash = {}
     for e in entries:
         p = normalize_path(e['rel'])
         by_path[p] = e
         by_namesize.setdefault((e['name'].lower(), int(e['size'])), []).append(e)
         by_name.setdefault(e['name'].lower(), []).append(e)
+        by_hash.setdefault(e['sha256'], []).append(e)
 
     records = []
     total_files = 0
@@ -123,8 +125,20 @@ def main():
                         m, level = by_namesize[key][0], 'namesize'
                     elif fn.lower() in by_name:
                         m, level = by_name[fn.lower()][0], 'name'
-                if m:
+                h = None
+                if m is None:
+                    # hash-only match (FAT32 8.3-name class, run 40079065019:
+                    # the engine recovered the CONTENT but lost the LFN -
+                    # recovered files carry _000.JPG-style short names that no
+                    # path/name match can find. A SHA-256 match proves the
+                    # content was recovered; the NAME loss stays visible in
+                    # the path-preservation metrics and the match_level.)
                     h = sha256_file(fp)
+                    if h in by_hash:
+                        m, level = by_hash[h][0], 'hash'
+                if m:
+                    if h is None:
+                        h = sha256_file(fp)
                     records.append({
                         'file': rel, 'match_level': level, 'manifest_rel': m['rel'],
                         'size': st.st_size, 'expected_size': int(m['size']),
@@ -141,7 +155,7 @@ def main():
                         cls = 'noise'
                     records.append({
                         'file': rel, 'match_level': None, 'manifest_rel': None,
-                        'size': st.st_size, 'sha256': sha256_file(fp),
+                        'size': st.st_size, 'sha256': h if h is not None else sha256_file(fp),
                         'hash_match': False, 'mtime': st.st_mtime, 'fp_class': cls,
                     })
 
@@ -156,6 +170,7 @@ def main():
         'matched_path': sum(1 for r in matched if r['match_level'] == 'path'),
         'matched_namesize': sum(1 for r in matched if r['match_level'] == 'namesize'),
         'matched_name_only': sum(1 for r in matched if r['match_level'] == 'name'),
+        'matched_hash_only': sum(1 for r in matched if r['match_level'] == 'hash'),
         'hash_match': len(hash_ok),
         'false_positives': len(fps),
         'fp_class': {
@@ -168,7 +183,8 @@ def main():
     with open(args.out, 'w', encoding='utf-8') as f:
         json.dump(out, f, indent=1)
     print(f"inventory[{args.label}]: files={total_files} matched={len(matched)} "
-          f"(path={out['matched_path']} namesize={out['matched_namesize']} name={out['matched_name_only']}) "
+          f"(path={out['matched_path']} namesize={out['matched_namesize']} name={out['matched_name_only']} "
+          f"hash-only={out['matched_hash_only']}) "
           f"hash_ok={len(hash_ok)} fp={len(fps)}")
 
 
