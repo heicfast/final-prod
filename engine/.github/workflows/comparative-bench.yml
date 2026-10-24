@@ -4,23 +4,26 @@ name: Comparative Bench
 # DRW free build (corpus snapshot), on GitHub-hosted Windows runners.
 #
 #   prepare        -> computes the fs x scenario matrix from inputs/event
-#   bench-ours     -> per-fs job: build, driver install+verify, scenario loop
-#                     (volume -> seed -> deletion -> hash maps -> scans quick/deep/
-#                     deep+carve -> recover -> inventory -> metrics), artifacts 90d
+#   bench-ours     -> matrix over (fs, scenario): build, driver install+verify,
+#                     volume -> seed -> deletion -> hash maps -> scans
+#                     quick/deep/deep+carve -> recover --report -> inventory ->
+#                     per-mode metrics. ONE SCENARIO PER JOB so artifacts always
+#                     survive (a per-job timeout can only lose that scenario,
+#                     recorded by compare as a leg-failure incident).
 #   ours-behavior  -> driver-absent probe, cancellation responsiveness, resume
-#                     equivalence
-#   bench-og       -> per-fs job: drives the og UI (DRW.exe loader, coordinate
-#                     driver + log-verified volume selection), .rsf harvest,
-#                     Recover-All funnel with 500MB free-cap gate, artifacts 90d
-#   compare        -> COMPARATIVE-BENCHMARK.md + benchmark-summary.json + regression
-#                     gate vs bench/baseline.json (human-reviewed updates only)
+#                     equivalence (single job, ntfs)
+#   bench-og       -> matrix over (fs, scenario): drives the og UI (DRW.exe
+#                     loader, coordinate driver + log-verified volume selection),
+#                     .rsf harvest, Recover-All funnel with 500 MB free-cap gate
+#   compare        -> COMPARATIVE-BENCHMARK.md + benchmark-summary.json +
+#                     regression gate vs bench/baseline.json
 #
-# Masking policy: NO continue-on-error anywhere. A leg that fails fails the run;
-# the compare job records the failure as an incident with its artifact reference.
+# Masking policy: NO continue-on-error anywhere. Failed legs fail the run; the
+# compare job records every failure as an incident with artifact references.
 # PRs run ours-only smoke (og UI automation is dispatch/nightly only).
 #
-# Supersedes: benchmark.yml (broken - stray brace, 5 consecutive failed dispatches),
-# comparison-ours.yml, comparison-easeus.yml (both deleted - absorbed here).
+# Supersedes: benchmark.yml (broken - stray brace, 5 consecutive failed
+# dispatches), comparison-ours.yml, comparison-easeus.yml (both deleted).
 
 on:
   workflow_dispatch:
@@ -74,7 +77,6 @@ jobs:
     outputs:
       ours_matrix: ${{ steps.mk.outputs.ours_matrix }}
       og_matrix: ${{ steps.mk.outputs.og_matrix }}
-      scenarios_per_fs: ${{ steps.mk.outputs.scenarios_per_fs }}
       ours_count: ${{ steps.mk.outputs.ours_count }}
       og_count: ${{ steps.mk.outputs.og_count }}
       profile: ${{ steps.mk.outputs.profile }}
@@ -112,21 +114,21 @@ jobs:
             SC=$(echo "$SC" | jq -c --arg f "$SCF" '[.[] | select(. as $x | ($f | split(",")) | index($x))]')
             if [ "$(echo "$SC" | jq length)" -eq 0 ]; then echo "scenarios_filter matched nothing" >&2; exit 1; fi
           fi
-          # mft_corrupt is NTFS-only (no MFT elsewhere): excluded per-fs and the
-          # reason is recorded in skip-reasons.json -> compare.py NOT-COMPARABLE
-          SPF=$(jq -nc --argjson fs "$FS" --argjson sc "$SC" \
-            '$fs | map({(.): (if . == "ntfs" then $sc else [$sc[] | select(. != "mft_corrupt")] end)}) | add')
-          jq -n --argjson spf "$SPF" '{mft_corrupt_non_ntfs: "NOT-COMPARABLE: mft_corrupt is NTFS-only (no master file table on this fs)"}' > skip-reasons.json
+          # fs x scenario pairs; mft_corrupt is NTFS-only (no MFT elsewhere) -
+          # the exclusion reason is recorded in skip-reasons.json and surfaces as
+          # NOT-COMPARABLE in the report
+          PAIRS=$(jq -nc --argjson fs "$FS" --argjson sc "$SC" \
+            '[ $fs[] as $f | $sc[] as $s | select($s != "mft_corrupt" or $f == "ntfs") | {fs: $f, scenario: $s} ]')
+          jq -n '{mft_corrupt_non_ntfs: "NOT-COMPARABLE: mft_corrupt is NTFS-only (no master file table on this fs)"}' > skip-reasons.json
 
           OURS='[]'; OG='[]'
-          if [ "$TOOLS" = "ours" ] || [ "$TOOLS" = "both" ]; then OURS="$FS"; fi
-          if [ "$TOOLS" = "og" ] || [ "$TOOLS" = "both" ]; then OG="$FS"; fi
+          if [ "$TOOLS" = "ours" ] || [ "$TOOLS" = "both" ]; then OURS="$PAIRS"; fi
+          if [ "$TOOLS" = "og" ] || [ "$TOOLS" = "both" ]; then OG="$PAIRS"; fi
           OC=$(echo "$OURS" | jq length); GC=$(echo "$OG" | jq length)
 
           {
             echo "ours_matrix=$OURS"
             echo "og_matrix=$OG"
-            echo "scenarios_per_fs=$(echo "$SPF" | jq -c .)"
             echo "ours_count=$OC"
             echo "og_count=$GC"
             echo "profile=$PROFILE"
@@ -134,7 +136,7 @@ jobs:
             echo "upload_images=$UPIMG"
             echo "run_label=${{ github.run_id }}-$PROFILE"
           } >> "$GITHUB_OUTPUT"
-          echo "profile=$PROFILE tools=$TOOLS fs=$FS scenarios=$SC ours_jobs=$OC og_jobs=$GC"
+          echo "profile=$PROFILE tools=$TOOLS pairs=$(echo "$PAIRS" | jq -c .) ours_jobs=$OC og_jobs=$GC"
       - name: Upload skip reasons
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
@@ -147,11 +149,12 @@ jobs:
     needs: prepare
     if: needs.prepare.outputs.ours_count != '0'
     runs-on: windows-2022
-    timeout-minutes: ${{ needs.prepare.outputs.profile == 'full' && 350 || 150 }}
+    timeout-minutes: ${{ needs.prepare.outputs.profile == 'full' && 240 || 150 }}
     strategy:
       fail-fast: false
       matrix:
-        fs: ${{ fromJSON(needs.prepare.outputs.ours_matrix) }}
+        include: ${{ fromJSON(needs.prepare.outputs.ours_matrix) }}
+    name: bench-ours ${{ matrix.fs }} / ${{ matrix.scenario }}
     env:
       PROFILE: ${{ needs.prepare.outputs.profile }}
     steps:
@@ -184,9 +187,9 @@ jobs:
             $parts = $line -split '\s+', 2
             if ($parts.Count -ne 2) { continue }
             $want = $parts[0].Trim().ToLowerInvariant(); $name = $parts[1].Trim()
-            $p = "driver\$name"
-            if (-not (Test-Path $p)) { continue }
-            $got = (Get-FileHash $p -Algorithm SHA256).Hash.ToLowerInvariant()
+            $pp = "driver\$name"
+            if (-not (Test-Path $pp)) { continue }
+            $got = (Get-FileHash $pp -Algorithm SHA256).Hash.ToLowerInvariant()
             if ($got -ne $want) { Write-Host "SHA MISMATCH for $name (want $want got $got)"; exit 1 }
           }
           Get-ChildItem driver | Format-Table Name, Length | Out-String | Write-Host
@@ -205,7 +208,6 @@ jobs:
           $ErrorActionPreference = 'Stop'
           # hosted runners have SecureBoot off: a job-local self-signed cert in
           # Root+TrustedPublisher loads the driver without testsigning/reboot
-          # (proven by the comparison-ours.yml runs this workflow supersedes)
           $cert = New-SelfSignedCertificate -Type CodeSigningCert -Subject "CN=RRECOV-CMP-BENCH" `
             -KeyExportPolicy Exportable -NotAfter (Get-Date).AddDays(2) `
             -CertStoreLocation Cert:\LocalMachine\My
@@ -218,8 +220,8 @@ jobs:
             Sort-Object FullName -Descending | Select-Object -First 1
           & $signtool.FullName sign /fd SHA256 /f rda-test.pfx /p rrecov-cmp driver\rda.sys
           if ($LASTEXITCODE -ne 0) { exit 1 }
-          # install via the release's own installer, service name 'rda' (the core's
-          # default \\.\RDA namespace)
+          # the release's install.ps1 (recorded when it fails; manual fallback is the
+          # proven flow from the superseded comparison-ours.yml runs)
           powershell -ExecutionPolicy Bypass -File driver\install.ps1 -ServiceName rda -Source "$PWD\driver\rda.sys" -IoctlBase 0
           if ($LASTEXITCODE -ne 0) {
             Write-Host "install.ps1 failed ($LASTEXITCODE) - manual sc.exe fallback"
@@ -233,34 +235,27 @@ jobs:
             Get-WinEvent -LogName System -MaxEvents 30 | Format-List | Out-String | Write-Host
             exit 1
           }
-          # verification: service state + \\.\RDA device open + version IOCTLs.
-          # (the release's rdacli.exe hardcodes the \\.\EPRDTDRV drop-in namespace;
-          # verify-driver.ps1 performs the equivalent proof on the namespace rrecov uses)
-          $ErrorActionPreference = 'Stop'
           & bench\ours\verify-driver.ps1 -ServiceName rda -Device RDA -OutJson driver-info.json
           if ($LASTEXITCODE -ne 0) { exit 1 }
 
-      - name: Run the scenario matrix (ours)
+      - name: Run the scenario (ours)
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
           $fs = '${{ matrix.fs }}'
-          $scenMap = '${{ needs.prepare.outputs.scenarios_per_fs }}' | ConvertFrom-Json
-          $scenarios = $scenMap.PSObject.Properties[$fs].Value
+          $scen = '${{ matrix.scenario }}'
           $coreSha = '${{ github.sha }}'
           $drv = "service=rda;tag=$env:RDA_RELEASE_TAG;verified=rdacli-info;running"
           $rrecov = "$PWD\build\win-x64-release\src\app\Release\rrecov.exe"
           $sizeMB = if ($env:PROFILE -eq 'full') { 3072 } else { 1536 }
-          New-Item -ItemType Directory -Force -Path benchmark-results | Out-Null
+          $resDir = 'benchmark-results'
+          New-Item -ItemType Directory -Force -Path $resDir | Out-Null
           . "$PWD\bench\volume\volume.ps1"
-          $failedScenarios = @()
-          foreach ($scen in $scenarios) {
           try {
             Write-Host "=================== ours: fs=$fs scenario=$scen ==================="
             # working dirs on C: (~170 GB free) - the D: workspace disk is tight
             # and a dynamic VHDX that cannot grow fails as 'volume out of space'
             $scenDir = "C:\bench\$scen"
-            $resDir = "benchmark-results\$scen"
             New-Item -ItemType Directory -Force -Path $scenDir, $resDir | Out-Null
             Get-PSDrive -PSProvider FileSystem | Select-Object Name, @{n='FreeGB';e={[math]::Round($_.Free/1GB,1)}} |
               Format-Table -AutoSize | Out-String | Set-Content "$resDir\disk-free-at-start.txt" -Encoding utf8
@@ -276,12 +271,13 @@ jobs:
             & "$PWD\bench\seed\generate_seed.ps1" -Root "$($vol.letter)\seed" `
                 -ManifestOut "$scenDir\seed-manifest.jsonl" -CsvOut "$scenDir\manifest.csv" `
                 -Profile $env:PROFILE -FileSystem $fs
+            if ($LASTEXITCODE -ne 0) { throw "seed failed" }
             $manifest = "$scenDir\seed-manifest.jsonl"
-            $keepRoot = "$($vol.letter)\keep"
             if ($second) {
               & "$PWD\bench\seed\generate_seed.ps1" -Root "$($vol.letters[1])\seed" `
                   -ManifestOut "$scenDir\seed-manifest-b.jsonl" -CsvOut "$scenDir\manifest-b.csv" `
                   -Profile $env:PROFILE -FileSystem $fs -DeletableTag 'seedb'
+              if ($LASTEXITCODE -ne 0) { throw "seed-B failed" }
               $merged = @(Get-Content $manifest) + @(Get-Content "$scenDir\seed-manifest-b.jsonl" | Select-Object -Skip 1)
               $merged | Set-Content -Path "$scenDir\seed-manifest-merged.jsonl" -Encoding utf8
               $manifest = "$scenDir\seed-manifest-merged.jsonl"
@@ -289,27 +285,27 @@ jobs:
 
             & "$PWD\bench\scenarios\apply-scenario.ps1" -Mode $scen -Letter $vol.letter.TrimEnd(':') `
                 -Root "$($vol.letter)\seed" -ManifestJsonl $manifest -OutDir $resDir `
-                -VolumeBytes $vol.volume_bytes -KeepRoot $keepRoot -FileSystem $fs `
+                -VolumeBytes $vol.volume_bytes -KeepRoot "$($vol.letter)\keep" -FileSystem $fs `
                 -VolumeLabel 'BENCH' -DiskNumber $vol.disk -PartitionNumber $vol.partitions
-            if ($LASTEXITCODE -ne 0) { throw "apply-scenario failed for $scen" }
+            if ($LASTEXITCODE -ne 0) { throw "apply-scenario failed" }
 
             & "$PWD\bench\ours\run-ours.ps1" -RrecovExe $rrecov -Letter $vol.letter.TrimEnd(':') `
                 -DiskNumber $vol.disk -ManifestJsonl $manifest -OutDir $resDir `
                 -Scenario $scen -ScanModes quick, deep, deepcarve -CoreSha $coreSha -DriverInfo $drv
-            if ($LASTEXITCODE -ne 0) { throw "run-ours failed for $scen" }
+            if ($LASTEXITCODE -ne 0) { throw "run-ours failed" }
 
             foreach ($mode in @('quick', 'deep', 'deepcarve')) {
               $rdest = Join-Path $resDir "recovered-$mode"
               if (-not (Test-Path $rdest)) { New-Item -ItemType Directory -Force -Path $rdest | Out-Null }
               python bench\metrics\inventory_recovered.py --root $rdest --manifest $manifest `
                   --out "$resDir\inventory-$mode.json" --tool ours --label "$scen-$mode"
-              if ($LASTEXITCODE -ne 0) { throw "inventory failed for $scen/$mode" }
+              if ($LASTEXITCODE -ne 0) { throw "inventory failed for $mode" }
               python bench\metrics\compute_metrics.py --manifest $manifest `
                   --scenario "$resDir\scenario-state.json" --inventory "$resDir\inventory-$mode.json" `
                   --outdir $resDir --tool ours --fs $fs --mode $mode --outname "metrics-$mode.json"
-              if ($LASTEXITCODE -ne 0) { throw "compute_metrics failed for $scen/$mode" }
+              if ($LASTEXITCODE -ne 0) { throw "compute_metrics failed for $mode" }
               # recovered payload is evidenced by hashes; delete per-mode to keep
-              # disk headroom for the next scenario
+              # disk headroom
               Remove-Item $rdest -Recurse -Force -ErrorAction SilentlyContinue
             }
             Copy-Item $manifest "$resDir\seed-manifest.jsonl" -Force
@@ -318,20 +314,9 @@ jobs:
             if ('${{ needs.prepare.outputs.upload_images }}' -eq 'true') {
               Compress-Archive -Path $vhd -DestinationPath "$resDir\vol.vhdx.zip" -CompressionLevel Fastest
             }
-            Remove-BenchVolume -VhdPath $vhd
-            Remove-Item $scenDir -Recurse -Force -ErrorAction SilentlyContinue
-          } catch {
-            # scenario-level failure: RECORD it and continue - later scenarios
-            # still produce evidence; the job fails at the end (no masking)
-            Write-Host "SCENARIO FAILED: $scen - $($_.Exception.Message)"
-            @{ scenario = $scen; tool = 'ours'; error = $_.Exception.Message; at = (Get-Date).ToUniversalTime().ToString('o') } |
-              ConvertTo-Json | Set-Content -Path "benchmark-results\$scen\ours-failed.json" -Encoding utf8
-            $failedScenarios += $scen
-            try { Remove-BenchVolume -VhdPath "$scenDir\vol.vhdx" } catch { }
-          }
-          }
-          if ($failedScenarios.Count -gt 0) {
-            throw "ours leg: $($failedScenarios.Count) scenario(s) failed: $($failedScenarios -join ', ') (see ours-failed.json artifacts)"
+          } finally {
+            Remove-BenchVolume -VhdPath "C:\bench\$scen\vol.vhdx"
+            Remove-Item "C:\bench\$scen" -Recurse -Force -ErrorAction SilentlyContinue
           }
 
       - name: Cleanup driver (always)
@@ -351,7 +336,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
-          name: bench-ours-${{ matrix.fs }}
+          name: bench-ours-${{ matrix.fs }}-${{ matrix.scenario }}
           path: |
             benchmark-results/**/*.json
             benchmark-results/**/*.jsonl
@@ -392,7 +377,7 @@ jobs:
         run: |
           $ErrorActionPreference = 'Stop'
           . "$PWD\bench\volume\volume.ps1"
-          $scenDir = 'D:\bench\behavior'
+          $scenDir = 'C:\bench\behavior'
           New-Item -ItemType Directory -Force -Path $scenDir, behavior-results | Out-Null
           New-BenchVolume -VhdPath "$scenDir\vol.vhdx" -SizeMB 1536 -FileSystem NTFS -Label 'BENCH' `
               -OutJson "$scenDir\volume.json" | Out-Null
@@ -400,6 +385,7 @@ jobs:
           & "$PWD\bench\seed\generate_seed.ps1" -Root "$($vol.letter)\seed" `
               -ManifestOut "$scenDir\seed-manifest.jsonl" -CsvOut "$scenDir\manifest.csv" `
               -Profile smoke -FileSystem NTFS
+          if ($LASTEXITCODE -ne 0) { throw 'seed failed' }
           & "$PWD\bench\scenarios\apply-scenario.ps1" -Mode permanent_delete -Letter $vol.letter.TrimEnd(':') `
               -Root "$($vol.letter)\seed" -ManifestJsonl "$scenDir\seed-manifest.jsonl" `
               -OutDir behavior-results -VolumeBytes $vol.volume_bytes `
@@ -425,11 +411,12 @@ jobs:
     needs: prepare
     if: needs.prepare.outputs.og_count != '0'
     runs-on: windows-2022
-    timeout-minutes: ${{ needs.prepare.outputs.profile == 'full' && 350 || 180 }}
+    timeout-minutes: ${{ needs.prepare.outputs.profile == 'full' && 240 || 180 }}
     strategy:
       fail-fast: false
       matrix:
-        fs: ${{ fromJSON(needs.prepare.outputs.og_matrix) }}
+        include: ${{ fromJSON(needs.prepare.outputs.og_matrix) }}
+    name: bench-og ${{ matrix.fs }} / ${{ matrix.scenario }}
     env:
       PROFILE: ${{ needs.prepare.outputs.profile }}
     steps:
@@ -452,25 +439,21 @@ jobs:
             Out-File og-pe.json -Encoding utf8
           Get-Content og-version.txt | Write-Host
 
-      - name: Run the scenario matrix (og)
+      - name: Run the scenario (og)
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
           $fs = '${{ matrix.fs }}'
-          $scenMap = '${{ needs.prepare.outputs.scenarios_per_fs }}' | ConvertFrom-Json
-          $scenarios = $scenMap.PSObject.Properties[$fs].Value
+          $scen = '${{ matrix.scenario }}'
           $corpus = "$PWD\research\og-codebase"
           $rsfPy = "$PWD\scripts\compare_og_rsf.py"
           $sizeMB = if ($env:PROFILE -eq 'full') { 3072 } else { 1536 }
-          New-Item -ItemType Directory -Force -Path benchmark-results | Out-Null
+          $resDir = 'benchmark-results'
+          New-Item -ItemType Directory -Force -Path $resDir | Out-Null
           . "$PWD\bench\volume\volume.ps1"
-          $failedScenarios = @()
-          foreach ($scen in $scenarios) {
           try {
             Write-Host "=================== og: fs=$fs scenario=$scen ==================="
-            # working dirs on C: (~170 GB free) - the D: workspace disk is tight
-            $scenDir = "C:\bench\$scen"
-            $resDir = "benchmark-results\$scen"
+            $scenDir = "C:\bench\og-$scen"
             New-Item -ItemType Directory -Force -Path $scenDir, $resDir | Out-Null
             Get-PSDrive -PSProvider FileSystem | Select-Object Name, @{n='FreeGB';e={[math]::Round($_.Free/1GB,1)}} |
               Format-Table -AutoSize | Out-String | Set-Content "$resDir\disk-free-at-start.txt" -Encoding utf8
@@ -485,11 +468,13 @@ jobs:
             & "$PWD\bench\seed\generate_seed.ps1" -Root "$($vol.letter)\seed" `
                 -ManifestOut "$scenDir\seed-manifest.jsonl" -CsvOut "$scenDir\manifest.csv" `
                 -Profile $env:PROFILE -FileSystem $fs
+            if ($LASTEXITCODE -ne 0) { throw "seed failed" }
             $manifest = "$scenDir\seed-manifest.jsonl"
             if ($second) {
               & "$PWD\bench\seed\generate_seed.ps1" -Root "$($vol.letters[1])\seed" `
                   -ManifestOut "$scenDir\seed-manifest-b.jsonl" -CsvOut "$scenDir\manifest-b.csv" `
                   -Profile $env:PROFILE -FileSystem $fs -DeletableTag 'seedb'
+              if ($LASTEXITCODE -ne 0) { throw "seed-B failed" }
               $merged = @(Get-Content $manifest) + @(Get-Content "$scenDir\seed-manifest-b.jsonl" | Select-Object -Skip 1)
               $merged | Set-Content -Path "$scenDir\seed-manifest-merged.jsonl" -Encoding utf8
               $manifest = "$scenDir\seed-manifest-merged.jsonl"
@@ -499,13 +484,13 @@ jobs:
                 -Root "$($vol.letter)\seed" -ManifestJsonl $manifest -OutDir $resDir `
                 -VolumeBytes $vol.volume_bytes -KeepRoot "$($vol.letter)\keep" -FileSystem $fs `
                 -VolumeLabel 'BENCH' -DiskNumber $vol.disk -PartitionNumber $vol.partitions
-            if ($LASTEXITCODE -ne 0) { throw "apply-scenario failed for $scen" }
+            if ($LASTEXITCODE -ne 0) { throw "apply-scenario failed" }
 
             $target = if ($scen -eq 'delete_partition') { 'disk' } else { 'volume' }
             & "$PWD\bench\og\run-og.ps1" -CorpusDir $corpus -Letter $vol.letter.TrimEnd(':') `
                 -ManifestJsonl $manifest -OutDir $resDir -Scenario $scen `
                 -CompareOgRsfPy $rsfPy -TargetMode $target
-            if ($LASTEXITCODE -ne 0) { throw "run-og failed for $scen" }
+            if ($LASTEXITCODE -ne 0) { throw "run-og failed" }
 
             # inventory over the og recovered destination (roots recorded in og-run.json)
             $ogr = Get-Content "$resDir\og-run.json" -Raw | ConvertFrom-Json
@@ -515,11 +500,11 @@ jobs:
             foreach ($r in $roots) { $argList += @('--root', $r) }
             $argList += @('--manifest', $manifest, '--out', "$resDir\inventory.json", '--tool', 'og', '--label', $scen)
             python @argList
-            if ($LASTEXITCODE -ne 0) { throw "og inventory failed for $scen" }
+            if ($LASTEXITCODE -ne 0) { throw "og inventory failed" }
             python bench\metrics\compute_metrics.py --manifest $manifest `
                 --scenario "$resDir\scenario-state.json" --inventory "$resDir\inventory.json" `
                 --outdir $resDir --tool og --fs $fs
-            if ($LASTEXITCODE -ne 0) { throw "og compute_metrics failed for $scen" }
+            if ($LASTEXITCODE -ne 0) { throw "og compute_metrics failed" }
             Copy-Item $manifest "$resDir\seed-manifest.jsonl" -Force
             Copy-Item "$scenDir\volume.json" "$resDir\" -Force
 
@@ -530,21 +515,10 @@ jobs:
             foreach ($r in $roots) {
               if ($r -like 'C:\*' -and (Test-Path $r)) { Remove-Item $r -Recurse -Force -ErrorAction SilentlyContinue }
             }
-            Remove-BenchVolume -VhdPath $vhd
-            Remove-Item $scenDir -Recurse -Force -ErrorAction SilentlyContinue
-          } catch {
-            # scenario-level failure: RECORD it and continue - later scenarios
-            # still produce evidence; the job fails at the end (no masking)
-            Write-Host "SCENARIO FAILED: $scen - $($_.Exception.Message)"
-            @{ scenario = $scen; tool = 'og'; error = $_.Exception.Message; at = (Get-Date).ToUniversalTime().ToString('o') } |
-              ConvertTo-Json | Set-Content -Path "benchmark-results\$scen\og-failed.json" -Encoding utf8
-            $failedScenarios += $scen
-            Stop-OgApp
-            try { Remove-BenchVolume -VhdPath "$scenDir\vol.vhdx" } catch { }
-          }
-          }
-          if ($failedScenarios.Count -gt 0) {
-            throw "og leg: $($failedScenarios.Count) scenario(s) failed: $($failedScenarios -join ', ') (see og-failed.json artifacts)"
+          } finally {
+            Stop-Process -Name DRWUI, DRW -Force -ErrorAction SilentlyContinue
+            Remove-BenchVolume -VhdPath "C:\bench\og-$scen\vol.vhdx"
+            Remove-Item "C:\bench\og-$scen" -Recurse -Force -ErrorAction SilentlyContinue
           }
 
       - name: Cleanup og processes (always)
@@ -567,7 +541,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
-          name: bench-og-${{ matrix.fs }}
+          name: bench-og-${{ matrix.fs }}-${{ matrix.scenario }}
           path: |
             benchmark-results/**/*.json
             benchmark-results/**/*.jsonl
@@ -653,12 +627,12 @@ jobs:
           set -euo pipefail
           OM=""; GM=""
           if [ "${{ needs.bench-ours.result }}" = "failure" ] || [ "${{ needs.bench-ours.result }}" = "cancelled" ]; then
-            OM="ours leg FAILED (${{ needs.bench-ours.result }}) - see bench-ours-* artifacts and job logs"
+            OM="ours leg had FAILED matrix jobs (${{ needs.bench-ours.result }}) - see bench-ours-* artifacts and job logs"
           elif [ "${{ needs.bench-ours.result }}" = "skipped" ]; then
             OM="ours leg not requested (tools=${{ needs.prepare.outputs.tools }})"
           fi
           if [ "${{ needs.bench-og.result }}" = "failure" ] || [ "${{ needs.bench-og.result }}" = "cancelled" ]; then
-            GM="og leg FAILED (${{ needs.bench-og.result }}) - see bench-og-* artifacts and job logs"
+            GM="og leg had FAILED matrix jobs (${{ needs.bench-og.result }}) - see bench-og-* artifacts and job logs"
           elif [ "${{ needs.bench-og.result }}" = "skipped" ]; then
             GM="og leg not requested (tools=${{ needs.prepare.outputs.tools }})"
           fi
@@ -710,7 +684,7 @@ jobs:
           git remote set-url origin "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}"
           git add docs/COMPARATIVE-BENCHMARK.md docs/benchmark-summary.json docs/regression-gate.json
           git commit -m "bench: comparative report for run ${{ github.run_id }} (profile=${{ needs.prepare.outputs.profile }})" || echo 'nothing to commit'
-          git push origin "HEAD:refs/heads/${{ github.event.ref }}" || echo 'push rejected (report retained as artifact)'
+          git push origin "HEAD:refs/heads/main" || echo 'push rejected (report retained as artifact)'
 
       - name: Upload the combined report
         if: always()

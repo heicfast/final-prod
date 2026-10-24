@@ -78,6 +78,8 @@ foreach ($mode in $ScanModes) {
     $scanArgs = @('scan')
     if ($Scenario -eq 'delete_partition') {
         $scanArgs += @('--disk', "$DiskNumber", '--deep', '--threads', "$Threads")
+        if ($mode -eq 'quick') { $scanArgs += '--quick-only' }
+        elseif ($mode -eq 'deep') { $scanArgs += '--no-carve' }
     } else {
         $scanArgs += @('--volume', "$Letter`:", '--threads', "$Threads")
         if ($mode -eq 'quick') { $scanArgs += '--quick-only' }
