@@ -103,12 +103,21 @@ public static class BenchRaw
             if (!DeviceIoControl(h, FSCTL_GET_RETRIEVAL_POINTERS, inBuf, 8, outBuf, (uint)outBuf.Length, out ret, IntPtr.Zero))
                 throw new IOException("GET_RETRIEVAL_POINTERS " + path + " failed GLE=" + Marshal.GetLastWin32Error());
             int count = BitConverter.ToInt32(outBuf, 0);
-            long prevVcn = BitConverter.ToInt64(outBuf, 4);
+            /* RETRIEVAL_POINTERS_BUFFER true layout (BENCH-F3): ExtentCount
+             * u32 @0, 4 bytes padding, StartingVcn i64 @8, then per extent
+             * @16+16i: NextVcn i64, Lcn i64. The first draft read
+             * StartingVcn@4 / Extents@12 - a 4-byte shift that composed
+             * garbage: every 1-cluster extent decoded with length exactly
+             * 2^32 (evidence: run 40073093997 manifests, t000.jpg
+             * [[9092445765632, 4294967296]] for a 2849-byte file). All
+             * manifest extents were wrong -> partial_overwrite and
+             * mft_corrupt targeted the wrong disk locations. */
+            long prevVcn = BitConverter.ToInt64(outBuf, 8);
             List<long[]> list = new List<long[]>();
             for (int i = 0; i < count; i++)
             {
-                long nextVcn = BitConverter.ToInt64(outBuf, 12 + 16 * i);
-                long lcn = BitConverter.ToInt64(outBuf, 12 + 16 * i + 8);
+                long nextVcn = BitConverter.ToInt64(outBuf, 16 + 16 * i);
+                long lcn = BitConverter.ToInt64(outBuf, 16 + 16 * i + 8);
                 if (lcn >= 0)
                     list.Add(new long[] { lcn, nextVcn - prevVcn });
                 prevVcn = nextVcn;

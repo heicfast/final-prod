@@ -447,10 +447,15 @@ foreach ($e in $script:Entries) {
     }
 }
 # extents + NTFS record numbers enrichment follows
+# (keep-file base fix: the keep dir is <vol>\keep - $keepRoot is the VOLUME
+# root here (E:\), so joining it with the 'keep/'-stripped rel produced
+# E:\k00.jpg -> GLE=2, extents=None for every keep entry; evidence run
+# 40073093997 manifest. Use the actual keep directory.)
+$keepDirFull = Join-Path $keepRoot 'keep'
 $lettersOk = $true
 foreach ($e in $script:Entries) {
     $winRel = ($e.rel -replace '^seed/', '' -replace '^keep/', '')
-    $base = if ($e.rel.StartsWith('seed/')) { $Root } else { $keepRoot }
+    $base = if ($e.rel.StartsWith('seed/')) { $Root } else { $keepDirFull }
     $p = Join-Path $base $winRel
     if ($e.long_path) { $p = "\\?\$p" }
     try {
