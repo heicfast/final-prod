@@ -33,7 +33,9 @@ test('golden path: scan → results → recover', async ({ page }) => {
 
   // 2. Select the first device and open scan configuration
   await page.getByRole('radio').first().click();
-  const scanButton = page.getByRole('button', { name: /search for lost data/i });
+  // Three buttons carry this label (one per device card + the primary CTA)
+  // — the first card's button is deterministic.
+  const scanButton = page.getByRole('button', { name: /search for lost data/i }).first();
   await expect(scanButton).toBeEnabled();
   await scanButton.click();
   await expect(page.getByRole('heading', { name: /search setup/i })).toBeVisible();
@@ -53,9 +55,10 @@ test('golden path: scan → results → recover', async ({ page }) => {
   await expect(page.getByRole('row').nth(1)).toBeVisible();
   await page.screenshot({ path: 'test-results/20-results.png' });
 
-  // 6. Filter bar opens and filters
+  // 6. Filter bar opens; expand the Type dropdown — its option group renders
   await page.getByRole('button', { name: /^filter$/i }).click();
-  await expect(page.getByRole('group', { name: /file type/i })).toBeVisible();
+  await page.getByRole('button', { name: /^type$/i }).click();
+  await expect(page.getByRole('group', { name: /^type$/i })).toBeVisible();
   await page.screenshot({ path: 'test-results/30-filter-open.png' });
 
   // 7. Search
@@ -64,12 +67,16 @@ test('golden path: scan → results → recover', async ({ page }) => {
   await search.press('Enter');
   await page.waitForTimeout(600);
 
-  // 8. Select the first row (checkbox) — preview pane updates
+  // 8. Click the first data row — the complementary Preview pane shows the
+  // node's confidence grade; then tick the row checkbox to select it for
+  // recovery (checkbox clicks intentionally do not move the preview).
+  await page.getByRole('row').nth(1).click();
+  const previewPane = page.getByRole('complementary', { name: 'Preview' });
+  await expect(previewPane.getByText(/excellent|good|fair|poor|unknown/i)).toBeVisible();
   await page
     .getByLabel(/select row/i)
     .first()
     .click();
-  await expect(page.getByText(/recovery condition/i)).toBeVisible();
   await page.screenshot({ path: 'test-results/40-preview.png' });
 
   // 9. Recover the selection

@@ -95,15 +95,6 @@ export function ScanProgressPage(): React.JSX.Element {
     }
   }, [progress?.status, scanId, setActiveStatus]);
 
-  // Auto-redirect shortly after completion unless the user is browsing.
-  React.useEffect(() => {
-    if (!completed || !scanId || seenFor === scanId) return;
-    const id = window.setTimeout(() => {
-      void navigate(`/results/${scanId}`);
-    }, 1200);
-    return () => window.clearTimeout(id);
-  }, [completed, scanId, seenFor, navigate]);
-
   if (!scanId) {
     return <ResultsPageFallback />;
   }

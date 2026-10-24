@@ -583,9 +583,14 @@ export interface SystemDomain {
   /**
    * Native folder picker; mock returns from a canned set in dev/browser mode.
    * The optional hint roots the dialog at a volume (scan-scope picking on the
-   * scanned device); the connector still owns validation of the result.
+   * scanned device) or asks it to avoid a device (destination picking must
+   * not suggest the recovery source); the connector still owns validation of
+   * the result.
    */
-  pickDirectory(hint?: { readonly volumeId?: string | null }): Promise<string | null>;
+  pickDirectory(hint?: {
+    readonly volumeId?: string | null;
+    readonly excludeDeviceId?: string | null;
+  }): Promise<string | null>;
   listMountPoints(): Promise<
     readonly {
       id: string;

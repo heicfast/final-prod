@@ -25,6 +25,7 @@ import {
 } from '@/queries/recovery';
 import { useResultsPages } from '@/queries/results';
 import { resolveFilter } from '@/stores/filter-store';
+import { useScanSessionStore } from '@/stores/scan-session-store';
 import { useSelectionStore } from '@/stores/selection-store';
 import { formatBytes, formatDuration, formatPercent } from '@/lib/format';
 import { cn } from '@/lib/utils';
@@ -73,6 +74,11 @@ export function RecoveryPage(): React.JSX.Element {
   const startRecovery = useStartRecovery(scanId);
   const validateDestination = useValidateDestination(scanId);
   const pickDirectory = usePickDirectory();
+  // Source-device id (for the folder picker's do-not-suggest hint): the
+  // session store recorded the scan target when the search was started.
+  const sourceTargetId = useScanSessionStore((s) =>
+    scanId ? s.known[scanId]?.targetId : null,
+  );
 
   const [destination, setDestination] = React.useState('');
   const [validation, setValidation] = React.useState<{
@@ -194,14 +200,17 @@ export function RecoveryPage(): React.JSX.Element {
               <Button
                 variant="secondary"
                 onClick={() => {
-                  pickDirectory.mutate(undefined, {
-                    onSuccess: (picked) => {
-                      if (picked) {
-                        setDestination(picked);
-                        validate(picked);
-                      }
+                  pickDirectory.mutate(
+                    { excludeDeviceId: sourceTargetId ?? null },
+                    {
+                      onSuccess: (picked) => {
+                        if (picked) {
+                          setDestination(picked);
+                          validate(picked);
+                        }
+                      },
                     },
-                  });
+                  );
                 }}
               >
                 <HardDriveIcon aria-hidden />

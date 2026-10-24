@@ -1312,23 +1312,39 @@ ${lines.join('')}
       return { allowed: true, freeBytes: mount.freeBytes, neededBytes };
     },
 
-    pickDirectory: async (hint?: { volumeId?: string | null }): Promise<string | null> => {
+    pickDirectory: async (hint?: {
+      volumeId?: string | null;
+      excludeDeviceId?: string | null;
+    }): Promise<string | null> => {
       await latency(150);
-      // Root the suggestion at the hinted volume when it has a node space —
-      // a folder picked for a scan scope must resolve on the scanned device.
-      const hinted = hint?.volumeId
-        ? this.mountPoints().find((m) => m.id === hint.volumeId)
-        : null;
-      if (hinted) {
-        const folder = this.nodeSpaces.get(hinted.id)?.suggestedScopePath();
-        if (folder) return `${hinted.path}${folder}`;
+      // Scan-scope picking: root the suggestion at the hinted volume so the
+      // chosen folder resolves on the scanned device.
+      if (hint?.volumeId) {
+        const hinted = this.mountPoints().find((m) => m.id === hint.volumeId);
+        const folder = hinted ? this.nodeSpaces.get(hinted.id)?.suggestedScopePath() : null;
+        const mount = hinted ?? this.mountPoints()[0];
+        if (mount && folder) return `${mount.path}${folder}`;
       }
-      const mounts = this.mountPoints();
-      const suggestion = mounts[this.pickIndex % mounts.length] ?? mounts[0];
+      // Destination picking: never suggest a folder on the excluded (source)
+      // device — writing recoveries back to the source is a hard refusal.
+      const all = this.mountPoints();
+      let pool = all;
+      if (hint?.excludeDeviceId) {
+        const excludedVolumes = new Set(
+          this.deviceList
+            .filter(
+              (d) =>
+                d.id === hint.excludeDeviceId ||
+                d.volumes.some((v) => v.id === hint.excludeDeviceId),
+            )
+            .flatMap((d) => d.volumes.map((v) => v.id)),
+        );
+        const others = all.filter((m) => !excludedVolumes.has(m.id));
+        if (others.length > 0) pool = others;
+      }
+      const suggestion = pool[this.pickIndex % pool.length] ?? pool[0];
       this.pickIndex++;
-      const space = this.nodeSpaces.get(suggestion.id);
-      const folder = space?.suggestedScopePath() ?? 'Recovered Files';
-      return `${suggestion.path}${folder}`;
+      return suggestion ? `${suggestion.path}Recovered Files` : null;
     },
 
     listMountPoints: async (): Promise<

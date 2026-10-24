@@ -50,9 +50,9 @@ pub fn path_exists(path: String) -> bool {
 #[tauri::command]
 pub fn app_environment() -> AppEnvironment {
     AppEnvironment {
-        os: std::env::consts::os.to_string(),
-        arch: std::env::consts::arch.to_string(),
-        family: std::env::consts::family.to_string(),
+        os: std::env::consts::OS.to_string(),
+        arch: std::env::consts::ARCH.to_string(),
+        family: std::env::consts::FAMILY.to_string(),
         webview_version: String::from("webview2"),
     }
 }

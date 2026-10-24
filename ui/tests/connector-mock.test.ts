@@ -260,6 +260,22 @@ describe('MockConnector — previews', () => {
 });
 
 describe('MockConnector — folder scope (ScanParams.pathScope)', () => {
+  it('destination picking avoids the excluded (source) device', async () => {
+    const c = new MockConnector();
+    const devices = await c.devices.listDevices();
+    const source = devices[0].volumes[0].id;
+    const picked = await c.system.pickDirectory({ excludeDeviceId: source });
+    expect(picked).toBeTruthy();
+    // The suggestion must not live on the source volume (or its device).
+    const sourceLetters = devices[0].volumes
+      .filter((v) => v.letter)
+      .map((v) => `${v.letter}:\\`);
+    expect(sourceLetters.some((l) => picked!.startsWith(l))).toBe(false);
+    // An unexcluded pick may land anywhere (deterministic first mount).
+    const anyPick = await c.system.pickDirectory();
+    expect(anyPick).toBeTruthy();
+  });
+
   it('rejects an unresolvable scope with scan-scope-invalid and a reason key', async () => {
     const c = new MockConnector();
     const devices = await c.devices.listDevices();
