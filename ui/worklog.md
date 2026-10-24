@@ -827,3 +827,21 @@ release notes state signing pending (unsigned builds).
   smaller replacement debt and the copyright-cautious reading of the
   interim policy (fewer corpus-derived assets shipped). Recorded in
   INTERIM-ASSETS.md §A.
+
+### T14 + T15 — Responsiveness/DPI + per-component verification — DONE
+
+- New e2e/responsive.spec.ts (6 tests): layout invariants at 800×600
+  (Tauri min), 1024×768 square, 1920×1080 wide — no horizontal overflow,
+  CTA reachable, sidebar collapse verified at each size; DPI 150%
+  (deviceScaleFactor 1.5) same invariants; results 3-pane at 800×600 with
+  collapsed sidebar; keyboard flow (link → Enter → scan starts).
+- Screenshots archived per config (test-results/70-72 — CI smoke-screens
+  artifact): 100% and 150% DPI evidence per the mandate.
+- SPA focus choreography: main landmark is programmatically focusable
+  (tabIndex -1) and receives focus on every route change (preventScroll —
+  zero viewport jump). Verified by e2e: after keyboard navigation,
+  document.activeElement is #main-content.
+- One process lesson: the local preview had a stale dist during this pass
+  (focus assertion failed against the old build) — caught, rebuilt, all
+  green. Gates: 12/12 e2e, 109/109 unit, tsc/eslint/prettier/arch-lint ✓,
+  bundle 98.0/200 KB.

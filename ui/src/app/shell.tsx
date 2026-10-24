@@ -75,6 +75,15 @@ export function WizardShell(): React.JSX.Element {
   const [aboutOpen, setAboutOpen] = React.useState(false);
   const sidebarCollapsed = useUiStore((s) => s.sidebarCollapsed);
   const toggleSidebar = useUiStore((s) => s.toggleSidebar);
+  const mainRef = React.useRef<HTMLElement | null>(null);
+
+  // SPA focus choreography (mandate §4.17): after a route change, focus
+  // lands on the new surface (main landmark) — keyboard users Tab from the
+  // top of the new content and screen readers get the context switch.
+  // preventScroll keeps the viewport untouched (zero jump).
+  React.useEffect(() => {
+    mainRef.current?.focus({ preventScroll: true });
+  }, [location.pathname]);
 
   const inResultsFlow =
     location.pathname.startsWith('/scan/') ||
@@ -286,9 +295,11 @@ export function WizardShell(): React.JSX.Element {
             instantly — the fade is the documented premium refinement).
             Keyed by pathname: same-path query changes never remount. */}
         <main
+          ref={mainRef}
           id="main-content"
+          tabIndex={-1}
           aria-label={t('a11y.mainRegion')}
-          className="min-h-0 min-w-0 flex-1 overflow-hidden"
+          className="min-h-0 min-w-0 flex-1 overflow-hidden outline-none"
         >
           <div key={location.pathname} className="h-full route-fade">
             <Outlet />

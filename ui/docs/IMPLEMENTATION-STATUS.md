@@ -119,8 +119,11 @@ T5 extraction set. Status updated per item.
    in the deep read; recovery destination audit closed the walk.
 9. **T13** Interim assets — ✅ DONE: chrome layer extracted + manifest;
    scope decision documented in INTERIM-ASSETS.md.
-10. **T14** Responsiveness/DPI verification (800×600 min, 100/150/200%).
-11. **T15** Per-component verification (parameters §3).
+10. **T14** Responsiveness/DPI — ✅ DONE: 800×600 min + square + wide +
+    dsf 1.5 e2e layout invariants; screenshots archived in CI artifacts.
+11. **T15** Per-component verification — ✅ DONE: parameter grid final;
+    SPA focus-on-main-landmark added (route transitions) + keyboard-flow
+    e2e.
 12. **T16** Playwright experience-path coverage.
 13. **T17** Frame-budget watchdog review.
 14. **T18** Full CI green.
