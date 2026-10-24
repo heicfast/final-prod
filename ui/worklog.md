@@ -292,3 +292,34 @@ published to GitHub Releases. main HEAD c0b6ec6 also green (CI + UI Smoke).
   lost-data flow (remove invented ScanConfig intermediate step — reference
   goes device → scan directly, quick→deep automatic); (f) mock API
   improvements per architecture docs only; (g) full quality grid.
+
+### T2–T4 — Corpus re-read, app read, audit (DONE)
+
+- Full corpus pass: all 9 architecture docs; UIUX artifacts 01–35 + dynamic
+  ground-truth set (deep-read via structured extraction agents with per-claim
+  citations; key docs read directly: 00-INDEX, 04-recovery-workflow,
+  07-user-flow-uiux, 04-userflow-state-machine, 08-scan-phase-deep-dive,
+  dynamic-ground-truth--scan-phase-captured, 35-redesign-reference-atlas,
+  06-dialog-telemetry, 17-monetization). VLM extraction running over all 63
+  screenshots → docs/evidence/vlm/*.json (structured per-area prompts).
+- App read: every source file, test, workflow, config (bulk-read agent + direct
+  reads of router/home/scan-config/scan-progress/contract/mock head).
+- docs/AUDIT-REPORT.md written and pushed BEFORE any fix: 13 axis verdicts,
+  6 behavior findings (critical: invented scan-config step — three independent
+  corpus proofs cited), 55-item slop list, per-surface verdicts, fix order.
+- Theme sources fetched (only the two raw files): theme-sources/themes.ts (113
+  lines) + tokens.css (427 lines). 5 palettes, two-layer data-theme/data-scheme.
+
+### Key corpus findings driving this session
+
+- Lost-data flow: scanClickedSlot → CDetailPage directly, scan starts on page
+  flip; quick pass (~21 s) → advanced pass AUTOMATIC (sigQuickScanFinished ×2 →
+  onQuickScanCompleted; runtime m_iScanType 3→4 back-to-back). NO config screen
+  exists anywhere in tr sites/telemetry/connect-edges/QSS. CQuickScanCompleteWnd
+  is a Free-tier upsell surface (out of scope per UI-MAP §0), not a gate.
+- Status-line formats (verbatim): "Quick Scanning%1, Files Found:" /
+  "Advanced Scanning , Files Found: N (size)" / "Scan Completed, Files Found:
+  N (size)" / "Remaining time: 07m43s | Reading sector: X/Y" / bottom full-width
+  "Searching: <path>" strip.
+- Engine scan setup is automatic (FS probe → quick searcher; advanced = full
+  searcher set + RAW carver; sector size default 512) — no user-facing params.
