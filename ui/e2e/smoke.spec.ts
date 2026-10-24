@@ -133,3 +133,36 @@ test('window chrome: cluster hidden in browser (host provides controls — no de
   await header.dblclick();
   await expect(page.getByRole('heading', { name: /choose where to look/i })).toBeVisible();
 });
+
+test('sidebar: collapse/expand with persistence (keyboard-operable toggle)', async ({
+  page,
+}) => {
+  await page.goto('/');
+  await expect(page.getByRole('heading', { name: /choose where to look/i })).toBeVisible({
+    timeout: 15_000,
+  });
+  const nav = page.locator('#sidebar-nav');
+  const toggle = page.getByTestId('sidebar-toggle');
+  await expect(toggle).toBeVisible();
+  await expect(toggle).toHaveAttribute('aria-expanded', 'true');
+
+  // Collapse: rail narrows to 52px and labels fade out of the visual tree.
+  await toggle.click();
+  await expect(nav).toHaveCSS('width', '52px');
+  await expect(toggle).toHaveAttribute('aria-expanded', 'false');
+  const firstLink = nav.getByRole('link').first();
+  await expect(firstLink.locator('span')).toHaveCSS('opacity', '0');
+  await expect(firstLink.locator('svg')).toBeVisible(); // icons retained
+  await page.screenshot({ path: 'test-results/60-sidebar-collapsed.png' });
+
+  // Persistence: reload keeps the collapsed state.
+  await page.reload();
+  await expect(page.getByTestId('sidebar-toggle')).toHaveAttribute('aria-expanded', 'false');
+  await expect(page.locator('#sidebar-nav')).toHaveCSS('width', '52px');
+
+  // Expand back: keyboard path (focus + Enter), full width restored.
+  await page.getByTestId('sidebar-toggle').focus();
+  await page.keyboard.press('Enter');
+  await expect(page.locator('#sidebar-nav')).toHaveCSS('width', '208px');
+  await expect(page.getByTestId('sidebar-toggle')).toHaveAttribute('aria-expanded', 'true');
+});

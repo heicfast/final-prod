@@ -61,6 +61,8 @@ export const zhCN: TranslationSchema = {
     lostPartition: '丢失分区救援',
     diskHealth: '磁盘健康',
     volumeRepair: '卷修复',
+    collapse: '收起侧边栏',
+    expand: '展开侧边栏',
   },
   home: {
     title: '选择要搜索丢失数据的位置',

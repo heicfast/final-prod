@@ -59,6 +59,8 @@ export const en = {
     lostPartition: 'Lost Partition Rescue',
     diskHealth: 'Disk Health',
     volumeRepair: 'Volume Repair',
+    collapse: 'Collapse sidebar',
+    expand: 'Expand sidebar',
   },
   home: {
     title: 'Choose where to look for lost data',

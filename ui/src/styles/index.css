@@ -185,3 +185,15 @@
 .gradient-glow {
   box-shadow: var(--cta-glow);
 }
+
+/* Sidebar collapse choreography (MOTION-SPEC §3.5): width settles at the
+ * slow duration while labels fade on the fast one — icons retain their
+ * gutter (18px to icon center = 26px = the 52px rail's center), so nothing
+ * re-animates but the width. Reduced motion collapses both to instant via
+ * the global media query above. */
+.sidebar-width-transition {
+  transition: width var(--dur-slow) var(--ease-in-out);
+}
+.sidebar-label-fade {
+  transition: opacity var(--dur-fast) var(--ease-out);
+}

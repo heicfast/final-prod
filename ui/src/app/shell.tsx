@@ -11,6 +11,8 @@ import {
   InfoIcon,
   LanguagesIcon,
   PaletteIcon,
+  PanelLeftCloseIcon,
+  PanelLeftOpenIcon,
   RefreshCcwIcon,
   SettingsIcon,
   UsbIcon,
@@ -71,6 +73,8 @@ export function WizardShell(): React.JSX.Element {
   const navigate = useNavigate();
   const location = useLocation();
   const [aboutOpen, setAboutOpen] = React.useState(false);
+  const sidebarCollapsed = useUiStore((s) => s.sidebarCollapsed);
+  const toggleSidebar = useUiStore((s) => s.toggleSidebar);
 
   const inResultsFlow =
     location.pathname.startsWith('/scan/') ||
@@ -186,31 +190,66 @@ export function WizardShell(): React.JSX.Element {
       </header>
 
       <div className="flex min-h-0 flex-1">
-        {/* Sidebar */}
+        {/* Sidebar — collapsible (session mandate §2.1; app extension, the
+            corpus rail is fixed-width): width animates at --dur-slow while
+            labels fade at --dur-fast; icons keep their gutter so they land
+            centered on the 52px collapsed rail. State persists. */}
         <nav
+          id="sidebar-nav"
           aria-label={t('a11y.sidebarRegion')}
-          className="flex w-[var(--sidebar-width)] shrink-0 flex-col overflow-y-auto border-r border-border bg-surface-muted/60 py-2"
+          style={{ width: sidebarCollapsed ? 52 : undefined }}
+          className={cn(
+            'flex shrink-0 flex-col overflow-x-hidden overflow-y-auto border-r border-border bg-surface-muted/60 py-2',
+            !sidebarCollapsed && 'w-[var(--sidebar-width)]',
+            'sidebar-width-transition',
+          )}
         >
+          <div className="mb-1 flex items-center justify-end px-2">
+            <button
+              type="button"
+              onClick={toggleSidebar}
+              aria-expanded={!sidebarCollapsed}
+              aria-controls="sidebar-nav"
+              aria-label={sidebarCollapsed ? t('sidebar.expand') : t('sidebar.collapse')}
+              data-testid="sidebar-toggle"
+              className="flex size-8 items-center justify-center rounded-sm text-foreground-secondary outline-none transition-colors hover:bg-surface-hover hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
+            >
+              {sidebarCollapsed ? (
+                <PanelLeftOpenIcon className="size-4" aria-hidden />
+              ) : (
+                <PanelLeftCloseIcon className="size-4" aria-hidden />
+              )}
+            </button>
+          </div>
           {!inResultsFlow ? (
             <>
-              <SidebarSection label={t('sidebar.dataRecovery')} />
+              <SidebarSection label={t('sidebar.dataRecovery')} collapsed={sidebarCollapsed} />
               {NAV_MAIN.map((item) => (
-                <SidebarLink key={item.to} {...item} />
+                <SidebarLink key={item.to} {...item} collapsed={sidebarCollapsed} />
               ))}
-              <SidebarSection label={t('sidebar.advanced')} />
+              <SidebarSection label={t('sidebar.advanced')} collapsed={sidebarCollapsed} />
               {NAV_ADVANCED.map((item) => (
-                <SidebarLink key={item.to} {...item} />
+                <SidebarLink key={item.to} {...item} collapsed={sidebarCollapsed} />
               ))}
             </>
           ) : (
             <>
-              <SidebarSection label={t('sidebar.dataRecovery')} />
-              <SidebarLink to="/" icon={HardDriveIcon} labelKey="nav.backToDevices" end />
+              <SidebarSection label={t('sidebar.dataRecovery')} collapsed={sidebarCollapsed} />
+              <SidebarLink
+                to="/"
+                icon={HardDriveIcon}
+                labelKey="nav.backToDevices"
+                end
+                collapsed={sidebarCollapsed}
+              />
               {active ? (
                 <button
                   type="button"
                   onClick={() => navigate(`/scan/${active.targetId}/live`)}
-                  className="mx-2 flex h-8 items-center gap-2 rounded-sm px-2.5 text-sm text-primary hover:bg-surface-hover"
+                  title={t('home.scanningHint')}
+                  className={cn(
+                    'mx-2 flex h-8 items-center gap-2.5 rounded-sm px-2.5 text-sm text-primary hover:bg-surface-hover',
+                  )}
                 >
                   {/* Liveness pulses on the dot only — animating text opacity
                       transiently breaks its contrast ratio (axe-verified). */}
@@ -218,14 +257,27 @@ export function WizardShell(): React.JSX.Element {
                     className="inline-block size-1.5 shrink-0 rounded-full bg-current animate-status-pulse"
                     aria-hidden
                   />
-                  <RefreshCcwIcon className="size-4" aria-hidden />
-                  {t('home.scanningHint')}
+                  <RefreshCcwIcon className="size-4 shrink-0" aria-hidden />
+                  <span
+                    className={cn(
+                      'sidebar-label-fade truncate',
+                      sidebarCollapsed && 'opacity-0',
+                    )}
+                  >
+                    {t('home.scanningHint')}
+                  </span>
                 </button>
               ) : null}
             </>
           )}
           <div className="mt-auto space-y-0.5">
-            <SidebarLink to="/settings" icon={SettingsIcon} labelKey="nav.settings" end />
+            <SidebarLink
+              to="/settings"
+              icon={SettingsIcon}
+              labelKey="nav.settings"
+              end
+              collapsed={sidebarCollapsed}
+            />
           </div>
         </nav>
 
@@ -255,9 +307,21 @@ function DevSurfaces(): React.JSX.Element {
   );
 }
 
-function SidebarSection({ label }: { label: string }): React.JSX.Element {
+function SidebarSection({
+  label,
+  collapsed,
+}: {
+  label: string;
+  collapsed: boolean;
+}): React.JSX.Element {
   return (
-    <div className="px-4 pb-1 pt-4 text-2xs font-semibold uppercase tracking-wide text-foreground-secondary">
+    <div
+      className={cn(
+        'px-4 pb-1 pt-4 text-2xs font-semibold uppercase tracking-wide text-foreground-secondary',
+        'sidebar-label-fade',
+        collapsed && 'opacity-0',
+      )}
+    >
       {label}
     </div>
   );
@@ -268,17 +332,20 @@ function SidebarLink({
   icon: Icon,
   labelKey,
   end,
+  collapsed,
 }: {
   to: string;
   icon: React.ComponentType<{ className?: string }>;
   labelKey: string;
   end?: boolean;
+  collapsed: boolean;
 }): React.JSX.Element {
   const { t } = useTranslation();
   return (
     <NavLink
       to={to}
       end={end}
+      title={collapsed ? t(labelKey) : undefined}
       className={({ isActive }) =>
         cn(
           'mx-2 flex h-8 items-center gap-2.5 rounded-sm px-2.5 text-sm outline-none transition-colors',
@@ -290,7 +357,14 @@ function SidebarLink({
       }
     >
       <Icon className="size-4 shrink-0" aria-hidden />
-      <span className="truncate">{t(labelKey)}</span>
+      <span
+        className={cn(
+          'sidebar-label-fade truncate',
+          collapsed && 'opacity-0 pointer-events-none',
+        )}
+      >
+        {t(labelKey)}
+      </span>
     </NavLink>
   );
 }

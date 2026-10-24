@@ -703,3 +703,24 @@ release notes state signing pending (unsigned builds).
 - Gates: tsc ✓, eslint 0 err (1 pre-existing compiler warning), prettier ✓,
   arch-lint ✓, ast-grep ✓, knip 0 ✓, jscpd 0.00% ✓, vitest 91/91 (5 new),
   build ✓ 96.6/200 KB main. e2e: +browser-mode chrome test.
+
+### T6 — Collapsible left sidebar — DONE
+
+- ui-store: sidebarCollapsed + toggleSidebar/setSidebarCollapsed with
+  localStorage persistence (rw.ui.sidebarCollapsed), matching the
+  theme/density persistence pattern.
+- Shell sidebar: 52px collapsed icon rail; width transition var(--dur-slow)
+  360ms ease-in-out; label/section fade var(--dur-fast) 160ms; icons keep
+  their 18px gutter so they land centered on the collapsed rail (no
+  re-animation); overflow-x hidden during transition; title attribute on
+  collapsed links (hover discovery) while labels stay in the a11y tree.
+- Toggle: real button (Tab-reachable) with aria-expanded/aria-controls and
+  i18n'd labels (sidebar.collapse/expand, en+zh); PanelLeft icons.
+- Reduced motion: global media query collapses both transitions to instant.
+- Verified live on the production build: 208→52px, labels opacity 0 with
+  icons retained, persistence across reload, keyboard expand (focus+Enter),
+  zero console errors. Evidence: download/t6-sidebar-collapsed*.png.
+- Tests: 5 new jsdom (aria wiring, collapse geometry, persistence
+  round-trip, title affordance, same-DOM-node no-shift) + e2e sidebar
+  spec (width/opacity/persistence/keyboard). Suite 96/96. Gates: tsc ✓,
+  eslint 0 err, prettier ✓, arch-lint ✓, bundle 97.3/200 KB.
