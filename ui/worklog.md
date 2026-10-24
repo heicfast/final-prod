@@ -860,3 +860,11 @@ release notes state signing pending (unsigned builds).
   scan (heaviest state: virtualized list + animated width + ticker): zero
   tasks over 50ms. No findings introduced by this session's work.
 - e2e 12/12, zero console errors end-to-end.
+
+### T18 — Windows CI — lint fix (require-await)
+
+- CI failed at Lint on b203e60/408728a: tests/toaster.test.tsx async
+  act() without await — hidden locally by a `tail -1` truncating the lint
+  output (process lesson: never tail-filter lint output). Fixed with an
+  explicit awaited microtask flush. e2e/every other gate unaffected
+  (UI-Smoke on 408728a was green).

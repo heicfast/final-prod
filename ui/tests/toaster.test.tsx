@@ -24,9 +24,11 @@ describe('Toaster', () => {
         <Toaster />
       </ThemeProvider>,
     );
-    // Sonner mounts its container lazily — publish a toast first.
+    // Sonner mounts its container lazily — publish a toast first. The
+    // awaited microtask flush lets its promise-based render settle.
     await act(async () => {
       toast.success('Session saved');
+      await Promise.resolve();
     });
     expect(await screen.findByText('Session saved')).toBeTruthy();
 
