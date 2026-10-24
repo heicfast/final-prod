@@ -746,3 +746,17 @@ release notes state signing pending (unsigned builds).
 - Tests: +4 jsdom (enter/exit classes, outside swallow, ESC, focus
   return) + e2e dialog spec. Suite 100/100; e2e 6/6 locally; gates:
   tsc ✓ eslint 0 prettier ✓ arch-lint ✓ knip 0 jscpd 0.
+
+### T8 — Toasts & notifications — DONE
+
+- Repositioned the stack top-right BELOW the custom title bar
+  (offset-top 48px = 36px title bar + 12px gap; corpus VLM placement of
+  the results-phase toast) — clears the bottom-right Recover CTA
+  (parameter 6: no overlap with persistent surfaces).
+- Explicit duration 4000ms; gap 8; token-bound styling unchanged.
+- Live-verified on the production build: container fixed at top-right
+  (offsets via --offset-top/right), toast visible on fire, auto-dismiss
+  at 4 s, HOVER-PAUSE proven (mouseenter dispatch → toast survived 6 s+),
+  aria-live polite. Evidence: download/t8-toast-topright.png.
+- jsdom test pins the placement semantics (lazy container mount quirk
+  documented). Suite 101 tests total.

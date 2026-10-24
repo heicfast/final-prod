@@ -108,7 +108,7 @@ T5 extraction set. Status updated per item.
 3. **T7** Dialog/menu exit animations + outside-click audit — ✅ DONE:
    focus-return-to-invoker bug found (Radix controlled-dialog triggerRef
    gap) and fixed with evidence (e2e + jsdom).
-4. **T8** Toast verification pass.
+4. **T8** Toast verification pass — ✅ DONE.
 5. **T9** Route fade + async tab treatment.
 6. **T10** Microinteraction audit (press states on toggles).
 7. **T11** State-surface re-verification per surface.
