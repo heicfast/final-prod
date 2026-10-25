@@ -5181,3 +5181,50 @@ Stage Summary:
   offline-hive implementation (portable, fuzz-covered, corpus-offset-exact);
   the blind enumeration is gone. Remaining SEVERE lane: S-003, S-006,
   S-007, S-009-split, S-012, S-013, S-017..S-020 (s3 audit-leg findings).
+
+Task ID: API-T5/T6/T9/T10 (transport wave)
+Agent: main engineer (core-api session)
+Task: Driver-utilization completion — 64 KiB envelope unification, self-healing reopen,
+      read-granularity tuning, the Windows CI benchmark tooling.
+
+Work Log:
+- 64 KiB ENVELOPE UNIFIED (T6+T9): cr_transport.cpp aligned_read_at now applies
+  io::direct_envelope on BOTH transports (the RDA sector-only envelope is deleted;
+  64 KiB subsumes sector alignment for every real Windows logical sector size — the
+  bench-run-40073093997 sector-rejection property is preserved by construction).
+  Corpus anchor: the og's own chunk sizes (4/7/2/1 MiB, 64 KiB) are ALL 64 KiB
+  multiples (Device_decompiled.c:56545/:56912; NTFSSearchDLL:5649-5678) — the unified
+  envelope matches the reference's observable I/O shape exactly, mandate letter
+  satisfied on every direct read through the driver AND the fallback.
+- SELF-HEALING REOPEN (T5): og parity for the error-6 path
+  (Device_decompiled.c:55947-55959 read loop; :56182-56183 write-loop guard).
+  GLE captured inside overlapped_read/write_impl_; DirectDevice + RdaTargetDevice
+  (grammar: re-CreateFile re-binds at IRP_MJ_CREATE; structured: reopen + re-issued
+  OPEN_TARGET) + RwDevice (read AND write) heal-and-retry once under a per-device
+  mutex. Geometry NOT re-probed (og parity).
+- READ GRANULARITY (T10): CachedReader 64 KiB -> 256 KiB blocks (8 MiB LRU = 32
+  blocks): sequential transitions 16,384/GiB -> 4,096/GiB; over-fetch on random
+  misses bounded at 4x. The og's cadence is 256-512/GiB. Plateau tuning rides the
+  sweep data.
+- BENCHMARK TOOLING (T15): bench/ours/run-alignbench.ps1 (inline C#: slow-path demo
+  128K-vs-132K NO_BUFFERING; size sweep 64K/256K/1M/4M x QD 1/2/4/8 with an
+  overlapped ring — ResetEvent-before-reissue to avoid stale-signal pass-through;
+  RDA grammar-path leg with F11 unscale verified per read + PID-token transform
+  ported; late-bound cr_ui API latency 2M iters/op; two-pass checksum gating) +
+  .github/workflows/api-benchmark.yml (windows-2022, vcpkg release build, rda-driver
+  release fetch+SHA verify+test-sign+install+verify-driver, no continue-on-error,
+  artifacts always). C# carve_format buffer sized 256 with the C-layout derivation
+  (ext[24]@4 — natural alignment, not 8).
+- TESTS: UnifiedEnvelopeExhaustivePropertyBothDevices (every offset x length over
+  aligned + ragged devices: issued offset always 64K-aligned, length always 64K
+  multiple except the tail clamp, full coverage). Suite 349/349 Linux ASan;
+  ui_abi_check OK; clang-format 18.1.8 clean.
+- DOCS: DRIVER-UTILIZATION.md checklist now MATCH on every interaction incl. error
+  mapping (self-heal landed) and read granularity; PERFORMANCE-BASELINE.md §5/6/7
+  updated to landed state (tooling wired, first-run numbers pending).
+
+Stage Summary:
+- Transport wave landed: every driver interaction MATCH (self-heal + envelope +
+  granularity), measurement tooling live pending CI run. Windows-lane validation of
+  cr_transport.cpp rides the ci.yml push build; the api-benchmark workflow runs on
+  this push (paths trigger).

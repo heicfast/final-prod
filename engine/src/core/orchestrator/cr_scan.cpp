@@ -626,7 +626,17 @@ u32 ScanController::run(IStorageDevice* slice, CancelToken* cancel, bool (*progr
      * destroys it, so the pointer is only published when `cached` owns
      * it and the pipe falls back to the bare slice. */
     RetryingDevice* retry_raw = retry.get();
-    auto cached = CachedReader::create(std::move(retry), 8ull << 20, 64 * 1024);
+    /* Cache block 256 KiB (core-api session, read-granularity tuning): the
+     * reference's device layer chunks ReadFile at 4 MiB and its NTFS engine
+     * batches the MFT stream at 2 MiB (Device_decompiled.c:56545;
+     * NTFSSearchDLL_decompiled.c:5649-5678) - every og chunk is a 64 KiB
+     * multiple by construction. 64 KiB blocks paid 16x the user/kernel
+     * transitions per byte; 256 KiB recovers 4x of that while bounding the
+     * over-fetch on random misses (FAT deleted-chain walks) at 4x. The
+     * transport-level sweep (bench/tools/alignbench, PERFORMANCE-BASELINE
+     * section 5) measures the full curve; tune on its data. Cache stays
+     * 8 MiB total (capacity = 32 blocks). */
+    auto cached = CachedReader::create(std::move(retry), 8ull << 20, 256 * 1024);
     IStorageDevice* pipe = cached ? static_cast<IStorageDevice*>(cached.get())
                                   : (retry_raw ? static_cast<IStorageDevice*>(retry_raw) : slice);
     if (cached)

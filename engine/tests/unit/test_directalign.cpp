@@ -100,3 +100,40 @@ TEST(DirectAlign, IssuedLengthAlwaysSixtyFourKMultipleExceptTail) {
         EXPECT_EQ(e.take, u64(8192));
     }
 }
+
+TEST(DirectAlign, UnifiedEnvelopeExhaustivePropertyBothDevices) {
+    /* core-api unification sweep: EVERY (offset, length) combination over
+     * both an aligned and a ragged device must satisfy the mandate property -
+     * the issued length is a 64 KiB multiple UNLESS the envelope is clamped
+     * at the device tail (the documented exception), the issued offset is
+     * always 64 KiB-aligned, and the request is always fully covered. This
+     * is the property BOTH transports now enforce (cr_transport.cpp
+     * aligned_read_at - one envelope, driver path and direct path alike). */
+    const u64 k64 = 65536;
+    const u64 devices[] = {8ULL * 1024 * 1024,          /* aligned end */
+                           8ULL * 1024 * 1024 + 12345}; /* ragged end */
+    const u32 lengths[] = {512,   4096,   8192,   12288,  65535,   65536,
+                           65537, 131072, 262144, 500000, 1048576, 1048577};
+    for (const u64 dev : devices) {
+        for (u64 off = 0; off + 1048577ull <= dev; off += 4093) {
+            for (const u32 len : lengths) {
+                if (off + len > dev)
+                    continue;
+                const auto e = direct_envelope(off, len, dev);
+                ASSERT_TRUE(e.ok) << "dev=" << dev << " off=" << off << " len=" << len;
+                /* offset always 64 KiB-aligned */
+                EXPECT_EQ(e.issued_off % k64, 0u)
+                    << "dev=" << dev << " off=" << off << " len=" << len;
+                /* length is a 64 KiB multiple OR the tail clamp engaged */
+                const bool tail_clamped = (e.issued_off + e.issued_len == dev);
+                if (!tail_clamped) {
+                    EXPECT_EQ(e.issued_len % k64, 0u)
+                        << "dev=" << dev << " off=" << off << " len=" << len;
+                }
+                /* the request is fully covered (never a short take) */
+                EXPECT_EQ(e.take, u64(len)) << "dev=" << dev << " off=" << off << " len=" << len;
+                EXPECT_EQ(e.skip, off - e.issued_off);
+            }
+        }
+    }
+}
