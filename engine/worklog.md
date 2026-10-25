@@ -1835,8 +1835,6 @@ Stage Summary:
   into the tracked-open file.
 - New sub-finding (sparse-run accounting in reused_ratio) to be fixed with S-001 and noted
   in its Resolution; no new finding file needed (same code path, same decompile evidence).
-<<<<<<< HEAD
----
 ---
 Task ID: 11-20 (T11..T20)
 Agent: main auditor
@@ -1871,8 +1869,6 @@ Work Log:
 Stage Summary:
 - Audit complete at baseline 67193b6 (concurrent fixes through 7777e1c verified in-tree). Corpus 03ad46c. Counts: 1 ACUTE, 9 SEVERE, 4 MAJOR, 12 MINOR, 5 INFORMATIONAL, 9 tracked-open.
 - Recommended first 20 fixes + parallel RE track in diff-to-fix/SUMMARY.md. All commits pushed to main. No source modified.
-=======
-
 ---
 Task ID: 3 (A-001 fix)
 Agent: main engineer (diff-to-fix remediation session)
@@ -1917,7 +1913,6 @@ Stage Summary:
 - Finding corrected (byte-order table), evidence corrected (og-binary hits are
   disk-order, not text-order) — the audit's own conclusion was right, its byte
   transcription was not.
->>>>>>> ce6e6d7 (fix: A-001 - six GPT type GUIDs to canonical mixed-endian disk bytes)
 
 ---
 Task ID: 4 (S-005 fix)
@@ -1960,3 +1955,32 @@ Stage Summary:
   whole pipeline (disk UTF-8 -> u16 -> report/session UTF-8); CJK pool names included.
 - Discovered-and-fixed sub-site: ZFS pool display name (not in the finding's reference list);
   noted in the Resolution.
+
+---
+Task ID: 1-R (continuation leg bootstrap + coordination claim)
+Agent: main engineer (diff-to-fix remediation, second parallel leg)
+Task: Session bootstrap — baseline, audit-trail repair, verification of in-flight parallel fixes
+
+Work Log:
+- Pulled both repos fresh. Start baseline: core 1cb6a43 (A-001 fix), corpus 03ad46c (unmoved).
+  Mid-bootstrap, the parallel remediation leg pushed 2f3237d (S-005 fix, 281/281 green per
+  its entry) — rebased onto it; this entry and the repair below now sit on 2f3237d.
+- Token hygiene verified: real token string appears nowhere in either repo (worktree +
+  full history, git grep + git log -S both empty). Session prompt re-read from
+  worklog/session-diff-fix-prompt.md (token-redacted, already saved by prior leg).
+- Repaired worklog.md: commit 1cb6a43 had landed with unresolved merge-conflict markers
+  (auditor's T11-20/20-FINAL closeout vs the A-001 fix entry). Both sides kept, in commit
+  order; markers and one duplicated separator removed. S-005's entry (appended by the
+  parallel leg after the stale >>>>>>> marker) preserved untouched.
+- Will independently verify the parallel leg's S-005 fix on this leg's environment (full
+  suite + spot re-read of the decoder against the cited corpus evidence) before building
+  on it — same rule the mandate applies to audit findings: trust nothing unverified.
+
+COORDINATION CLAIM (worklog is the shared medium; read before each fix per SOP):
+- This leg takes, in order: S-008 (RawFixer pre-scan wiring + subset), then S-006
+  (lost-partition probe families), then S-007 (carve formats). Parallel leg: please
+  continue the SUMMARY.md order from S-002 downward (decmpfs, journal, ext4-journal).
+- All other findings untouched by this leg until claimed here or completed and pushed.
+
+Stage Summary:
+- Baseline on 2f3237d; audit trail repaired; S-005 verification queued before T3 code reads.
