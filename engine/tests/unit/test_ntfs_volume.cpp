@@ -1424,7 +1424,6 @@ TEST(NtfsVolume, EndToEndWalk) {
     EXPECT_GE(root_active->stats().file_count, 0u);
 }
 
-
 TEST(NtfsVolume, RecycleBinMapping) {
     Image img;
     build_image(img);
@@ -2642,11 +2641,11 @@ std::vector<u8> build_indx_block(const std::vector<IndxTestEntry>& entries, u32 
                                  std::vector<IndxTestEntry>* slack = nullptr) {
     std::vector<u8> blk(4096, 0);
     std::memcpy(blk.data(), "INDX", 4);
-    RecBuilder::u16_from_bytes_le_wr(blk, 0x04, 0x28); /* usa offset */
-    RecBuilder::u16_from_bytes_le_wr(blk, 0x06, 9);    /* usa count: 8 sectors + 1 */
-    RecBuilder::u32_from_bytes_le_wr(blk, 0x18, 0x28); /* entries offset (rel. +0x18) */
+    RecBuilder::u16_from_bytes_le_wr(blk, 0x04, 0x28);        /* usa offset */
+    RecBuilder::u16_from_bytes_le_wr(blk, 0x06, 9);           /* usa count: 8 sectors + 1 */
+    RecBuilder::u32_from_bytes_le_wr(blk, 0x18, 0x28);        /* entries offset (rel. +0x18) */
     RecBuilder::u32_from_bytes_le_wr(blk, 0x20, 4096 - 0x18); /* allocated (rel. +0x18) */
-    RecBuilder::u32_from_bytes_le_wr(blk, 0x24, 1);    /* leaf */
+    RecBuilder::u32_from_bytes_le_wr(blk, 0x24, 1);           /* leaf */
     size_t at = 0x40;
     for (const IndxTestEntry& e : entries)
         at = write_indx_entry(blk, at, e);
@@ -2670,13 +2669,13 @@ std::vector<u8> build_indx_block(const std::vector<IndxTestEntry>& entries, u32 
 /* resident $INDEX_ROOT attribute carrying the given entries */
 void attr_index_root_entries(RecBuilder& r, const std::vector<IndxTestEntry>& es) {
     std::vector<u8> val(0x400, 0);
-    RecBuilder::u32_from_bytes_le_wr(val, 0x00, 0x30); /* $I30 */
-    RecBuilder::u32_from_bytes_le_wr(val, 0x04, 1);    /* collation */
-    RecBuilder::u32_from_bytes_le_wr(val, 0x08, 512);  /* index block size */
-    val[0x0C] = 1;                      /* clusters per index block */
-    RecBuilder::u32_from_bytes_le_wr(val, 0x10, 0x10); /* entries offset (rel. to +0x10) */
+    RecBuilder::u32_from_bytes_le_wr(val, 0x00, 0x30);         /* $I30 */
+    RecBuilder::u32_from_bytes_le_wr(val, 0x04, 1);            /* collation */
+    RecBuilder::u32_from_bytes_le_wr(val, 0x08, 512);          /* index block size */
+    val[0x0C] = 1;                                             /* clusters per index block */
+    RecBuilder::u32_from_bytes_le_wr(val, 0x10, 0x10);         /* entries offset (rel. to +0x10) */
     RecBuilder::u32_from_bytes_le_wr(val, 0x18, 0x400 - 0x10); /* allocated */
-    RecBuilder::u32_from_bytes_le_wr(val, 0x1C, 0);    /* flags: not large-index */
+    RecBuilder::u32_from_bytes_le_wr(val, 0x1C, 0);            /* flags: not large-index */
     size_t at = 0x20;
     for (const IndxTestEntry& e : es)
         at = write_indx_entry(val, at, e);
@@ -2785,8 +2784,7 @@ TEST(NtfsVolume, IndxSlackNeverHarvested) {
             {(1ull << 48) | 9201, (1ull << 48) | 55, 512, 512, 0x20, u"live-entry.dat", true},
         };
         std::vector<IndxTestEntry> slack = {
-            {(1ull << 48) | 9202, (1ull << 48) | 55, 8000, 8000, 0x20, u"slack-ghost.dat",
-             false},
+            {(1ull << 48) | 9202, (1ull << 48) | 55, 8000, 8000, 0x20, u"slack-ghost.dat", false},
         };
         auto blk = build_indx_block(entries, 0, &slack);
         std::memcpy(img.sec(20), blk.data(), blk.size());
@@ -2818,9 +2816,11 @@ TEST(NtfsVolume, RemnantDirRecordHarvestsIndexRootChildren) {
         r.attr_si(0x30);
         r.attr_file_name(5, u"orphandir", FILE_NAME_WIN32, 0x30, 0, 0);
         attr_index_root_entries(r, {
-            {(1ull << 48) | 9301, (1ull << 48) | 40, 2048, 1500, 0x20, u"rootchild-a.txt", false},
-            {(1ull << 48) | 9302, (1ull << 48) | 40, 256, 200, 0x20, u"rootchild-b.txt", true},
-        });
+                                       {(1ull << 48) | 9301, (1ull << 48) | 40, 2048, 1500, 0x20,
+                                        u"rootchild-a.txt", false},
+                                       {(1ull << 48) | 9302, (1ull << 48) | 40, 256, 200, 0x20,
+                                        u"rootchild-b.txt", true},
+                                   });
         r.finish();
         std::memcpy(img.sec(40), r.buf.data(), RECORD_SIZE);
     }

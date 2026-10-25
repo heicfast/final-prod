@@ -283,7 +283,7 @@ TEST(FatEngine, Fat32RootChainAndBackupBoot) {
     put32v(img, 0x2C, 2); /* root cluster */
     put16(img, 0x32, 6);  /* backup boot sector */
     /* N-010b: real FAT32 boot sectors carry the FS-name string at +0x52;
-    * the og's engine-open validator (FUN_18002f970) requires it. */
+     * the og's engine-open validator (FUN_18002f970) requires it. */
     std::memcpy(b + 0x52, "FAT32   ", 8);
     b[510] = 0x55;
     b[511] = 0xAA;
@@ -1156,10 +1156,9 @@ TEST(FatEngine, DateSanityRejectedInStrictMode) {
     auto* ra2 = tree2.add_root(u"Found");
     FatScanFlags default_flags;
     FatScanStats stats2;
-    ASSERT_EQ(
-        scan_fat(&dev2, default_flags, nullptr, nullptr, nullptr, tree2, ra2, nullptr, nullptr,
-                 stats2),
-        OK);
+    ASSERT_EQ(scan_fat(&dev2, default_flags, nullptr, nullptr, nullptr, tree2, ra2, nullptr,
+                       nullptr, stats2),
+              OK);
     EXPECT_NE(find_node(tree2, "MONTH13.TXT"), nullptr) << "default flow keeps N-021 emission";
     EXPECT_EQ(stats2.date_rejected, 0u);
 }

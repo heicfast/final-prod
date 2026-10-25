@@ -406,7 +406,9 @@ u32 scan_fat(IStorageDevice* slice, const FatScanFlags& flags, CancelToken* canc
      * other engines / raw carving on both sides. FAT12 is exempt (the
      * og validator has no FAT12 branch; the core keeps FAT12 recovery
      * as the documented I-002-family superset). */
-    rc = boot_passes_open_gates(gating_sector, slice->geometry().logical_sector, p);
+    rc = boot_passes_open_gates(
+        gating_sector,
+        u16(slice->geometry().logical_sector ? slice->geometry().logical_sector : 512), p);
     if (rc != OK)
         return rc;
 

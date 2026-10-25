@@ -117,7 +117,14 @@ namespace {
  * deep gates enumerate the same set {1,2,4,8,0x10,0x20,0x40,0x80}. */
 bool spc_in_og_set(u8 spc) {
     switch (spc) {
-    case 1: case 2: case 4: case 8: case 16: case 32: case 64: case 128:
+    case 1:
+    case 2:
+    case 4:
+    case 8:
+    case 16:
+    case 32:
+    case 64:
+    case 128:
         return true;
     default:
         return false;
@@ -460,18 +467,17 @@ int lost_boot_flavor(const u8* sector512) {
     const u32 clusters = u32((total - u64(reserved) - spf * num_fats - root_sectors) / spc);
 
     /* the three gates, exactly as decoded (see header comment) */
-    const bool fat12_gate = num_fats != 0 && (total16 != 0 || total32 != 0) &&
-                            spf16 >= 1 && spf16 <= 200;
+    const bool fat12_gate =
+        num_fats != 0 && (total16 != 0 || total32 != 0) && spf16 >= 1 && spf16 <= 200;
     const bool fat16_gate = num_fats != 0 && (total16 != 0 || total32 != 0) && spf16 != 0;
-    const bool fat32_gate = std::memcmp(sector512 + 0x52, "FAT32   ", 8) == 0 &&
-                            num_fats != 0 && total32 != 0 && spf32 != 0;
+    const bool fat32_gate = std::memcmp(sector512 + 0x52, "FAT32   ", 8) == 0 && num_fats != 0 &&
+                            total32 != 0 && spf32 != 0;
 
-    const int order_small[3] = {1, 2, 3};  /* < 0xFF5:  12, 16, 32 */
-    const int order_mid[3] = {2, 3, 1};    /* < 0xFFF5: 16, 32, 12 */
-    const int order_large[3] = {3, 2, 1};  /* < 0xFFFFFF0: 32, 16, 12 */
-    const int* order = clusters < 0xFF5
-                           ? order_small
-                           : (clusters < 0xFFF5 ? order_mid : order_large);
+    const int order_small[3] = {1, 2, 3}; /* < 0xFF5:  12, 16, 32 */
+    const int order_mid[3] = {2, 3, 1};   /* < 0xFFF5: 16, 32, 12 */
+    const int order_large[3] = {3, 2, 1}; /* < 0xFFFFFF0: 32, 16, 12 */
+    const int* order =
+        clusters < 0xFF5 ? order_small : (clusters < 0xFFF5 ? order_mid : order_large);
     if (clusters >= 0xFFFFFF0)
         return 0;
     for (int k = 0; k < 3; ++k) {

@@ -5813,3 +5813,26 @@ Work Log:
 
 Stage Summary:
 - main's ASan lane is green again; the 4 GuidDump/SizeZeroRescue tests pass clean.
+Task ID: DF-CIGREEN (CI triage + green restore)
+Agent: main engineer (diff-to-fix fix session)
+Task: The 5f1a212/cdd340b CI runs failed (linux ASan leaks, lint format, windows C4244,
+alignbench no-artifact). Triage and restore main to green.
+
+Work Log:
+- Linux ASan/LSan: the S-012 dump-emit ref leak was already fixed by the parallel
+  api-session leg (e7deda8, dp->release() after add_file); verified first-hand with
+  detect_leaks=1 locally (36/36 NtfsVolume, then 379/379 full) - my earlier local ASan
+  runs had detect_leaks=0, which is why the leak escaped this session; lesson recorded
+  (always run the ASan lane with leaks ON before pushing memory-touching fixes).
+- lint: 62 clang-format-18 violations across 6 files (both sessions' S-012/S-022 edits
+  plus the parallel legs' exfat/fat/lost/candidates/test edits) - formatted with the
+  CI-pinned clang-format 18.1.8 (version-matched to the lane), 0 violations after.
+- windows/alignbench: MSVC /W4 /WX C4244 at cr_fat_quick.cpp:409 (N-010b gate call
+  passing u32 logical_sector into a u16 param) - explicit checked cast (512 fallback,
+  matching the same file's backup-boot geometry math); alignbench's artifact-missing
+  error was downstream of the same compile failure.
+- Suite after fixes: 379/379 Linux default + 379/379 Linux ASan detect_leaks=1.
+
+Stage Summary:
+- main restored to green locally on every lane this container can run; CI will confirm
+  (windows needs the runner). The remaining CI-red commits in history pre-date the fixes.
