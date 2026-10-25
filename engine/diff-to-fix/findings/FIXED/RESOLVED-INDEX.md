@@ -7,9 +7,7 @@ against the original finding. They are NOT counted in the active
 severity totals in `diff-to-fix/SUMMARY.md` and are NOT part of the
 active roadmap.
 
-## Resolved findings (27 — sessions 1-4 combined: 12 from session-1/2 legs + A-002, A-004 (+S-016), M-009, S-006, S-011, S-013, S-015, S-017, S-018(INVALID), N-021, S-014, S-019; every file in this directory has a row)
-## Resolved findings (37 — sessions 1-4 combined + the parallel fix legs' batches + M-023 (close-all-tiers session); every file in this directory has a row)
-## Resolved findings (38 — sessions 1-4 combined: 12 from session-1/2 legs + A-002, A-004 (+S-016), M-009, S-006, S-011, S-013, S-015, S-017, S-018(INVALID), N-021, S-014; every file in this directory has a row)
+## Resolved findings (49 — every finding file in this directory has a row; live file inventory)
 
 | ID | Severity (orig) | Title | Fix commit | Resolution |
 |---|---|---|---|---|
@@ -36,6 +34,7 @@ active roadmap.
 | M-001 | MAJOR | NTFS bootstrap rejects record sizes the og clamps | `5d6da5f` | Degradation ladder in `validate_boot_sector`: unusable encodings fall back to og's 0x200; usable values pass through; 0x400 min clamp both paths. Both callers (`NtfsVolume::open`, `lost::probe_ntfs`) benefit; classifier scores torn-DBR candidates. 5 fail-before/pass-after tests. Suite 287/287. |
 | M-006 | MAJOR (combined w/ S-009) | Fuzz CI disabled | `e30b84d` | Fuzz CI job re-enabled (`if: false` removed). CodeQL lane deferred (documented deliberate decision). The combined S-009/M-006 finding file remains in SEVERE/ pending split (S-009 disk-map visualization was FIXED via GAP-S6-11 `56cce87`; M-006 fuzz CI FIXED here). Split tracked in N-020. |
 | M-023 | MAJOR | Filter model: 8-cat/1,481-ext runtime XML vs 7-cat/64-ext hard table; Email+Bookmarks missing | (this session's M-023 fix commit) | Category enum +Email(7)/+Bookmarks(8) append-only; generated 1,481-entry table (scripts/gen_filefilter.py from the corpus FileFilter.xml, first-writer-wins for the 8 cross-listed); binary-search lookup; category_mask 0xFF→0x1FF. 5 tests (behavioral fail-before probe + enum-by-construction). Suite 401/401 Release + ASan. |
+| S-023 | SEVERE (S4) | No post-scan grading engine (CRecoverability) | (this session's S-023 fix commit) | tree::Grade with og setter semantics (monotonic-max, sticky-2, overlap); cr_grading.cpp decision tree (size floor, Email fast path, existing-file rule, carve small-file rule, NTFS device-index + QuickScanDeleteExtend, 169-entry extension-table-gated twin detection); regrade API; AssistantStats (8 counters + categories + small-result gauge); ABI (grade fields + sort 6 + scan_assistant + session_regrade); session persistence (node bit 3 + REC_ASSISTANT_STATS=6); report scan_analysis block. 15 tests + C-consumer lifecycle; 429/429 Release+ASan. |
 | N-002 | MINOR | FAT mask-24 EOC family alternate values mark chains broken | `fb44073` | FAT mask-24 EOC family handled og-parity: 0x0FFFFFF8..0x0FFFFFFF all treated as EOC (not just 0x0FFFFFF8). Fail-before/pass-after test. |
 | N-003 | MINOR | exFAT entry-set checksum enforced beyond og | `fb44073` | exFAT entry-set checksum default switched to og-parity (lenient on damaged sets — keep them, don't drop). Fail-before/pass-after test. |
 | N-010 (parallel-leg-theirs) | MINOR | FatTable::next swallows the BAD sentinel into the reserved-range EOC branch | `cb8dafd` | `v == CHAIN_BAD` test moved before the reserved-range branch in `next()`. BAD-terminated chains now grade broken on both sides (was: clean end). Grading-only divergence (recovered bytes identical). Discovered during I-002's pin-test addition. Suite 313/313. |

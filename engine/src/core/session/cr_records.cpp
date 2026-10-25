@@ -117,7 +117,9 @@ u32 serialize_tree(const tree::ResultTree& tree, std::vector<u8>& out) {
          *   bit0: extents carry {u32 codec, u64 psize} each
          *   bit1: resident_data blob follows the extents
          *   bit2: short_name follows the name (N-011a, versioned
-         *         optional: u16 length + UTF-16 units) */
+         *         optional: u16 length + UTF-16 units)
+         *   bit3: the S-023 grade byte follows the short name (2-bit
+         *         grade | 0x04 overlap flag | 0xF8 reserved-zero) */
         u16 nflags = 0;
         if (pr) {
             for (const auto& e : pr->extents)
@@ -129,6 +131,8 @@ u32 serialize_tree(const tree::ResultTree& tree, std::vector<u8>& out) {
                 nflags |= 2;
             if (!pr->short_name.empty())
                 nflags |= 4;
+            if (n->grade() != tree::Grade::Average || n->overlap())
+                nflags |= 8;
         }
         put32(out, parent_ids[i]);
         put16(out, nflags);
@@ -136,6 +140,8 @@ u32 serialize_tree(const tree::ResultTree& tree, std::vector<u8>& out) {
         out.push_back(u8(n->origin()));
         out.push_back(u8(n->deleted_state()));
         out.push_back(u8(n->confidence()));
+        if (nflags & 8) /* S-023: grade | overlap */
+            out.push_back(u8(n->grade()) | (n->overlap() ? 0x04 : 0));
         put64(out, pr ? pr->record_ref : 0);
         put32(out, pr ? pr->fs_kind : 0);
         put64(out, pr ? pr->logical_size : 0);
@@ -204,6 +210,7 @@ u32 deserialize_tree(const u8* data, size_t len, tree::ResultTree& tree) {
         const u8 origin = c.g8();
         const u8 deleted = c.g8();
         const u8 confidence = c.g8();
+        const u8 grade_byte = (nflags & 8) ? c.g8() : 0; /* S-023 */
         auto* props = new (std::nothrow) tree::FileProperties();
         if (!props)
             return 0x50030009;
@@ -288,6 +295,12 @@ u32 deserialize_tree(const u8* data, size_t len, tree::ResultTree& tree) {
         n->set_origin(tree::Origin(origin));
         n->set_deleted_state(tree::DeletedState(deleted));
         n->set_confidence(tree::Confidence(confidence));
+        if (nflags & 8) { /* S-023: restore grade + overlap (direct field
+                           * restore - round-trip, not a rule application) */
+            n->set_grade_raw(tree::Grade(grade_byte & 0x03));
+            if (grade_byte & 0x04)
+                n->set_overlap();
+        }
         by_id[i] = n;
         created.push_back(n);
         if (c.fail)
@@ -401,5 +414,44 @@ u32 deserialize_partition_context(const u8* data, size_t len, PartitionContext& 
     return c.fail ? u32(0x50040001) : u32(OK);
 }
 
+/* ---- S-023 assistant statistics (REC_ASSISTANT_STATS) ---- */
+
+u32 serialize_assistant_stats(const tree::grading::AssistantStats& st, std::vector<u8>& out) {
+    out.clear();
+    put64(out, st.total_file_count);
+    put64(out, st.raw_count);
+    put64(out, st.lost_partition_exist_file_count);
+    put64(out, st.lost_partition_delete_file_count);
+    put64(out, st.quick_scan_exist_file_count);
+    put64(out, st.quick_scan_delete_file_count);
+    put64(out, st.deep_scan_file_count);
+    put64(out, st.quick_scan_delete_extend);
+    for (size_t i = 0; i < 8; ++i)
+        put64(out, st.category_counts[i]);
+    put64(out, st.matched);
+    put64(out, st.total);
+    put64(out, st.graded_count);
+    put32(out, st.small_result ? 1u : 0u);
+    return OK;
+}
+
+u32 deserialize_assistant_stats(const u8* data, size_t len, tree::grading::AssistantStats& st) {
+    Cursor c{data, len};
+    st.total_file_count = c.g64();
+    st.raw_count = c.g64();
+    st.lost_partition_exist_file_count = c.g64();
+    st.lost_partition_delete_file_count = c.g64();
+    st.quick_scan_exist_file_count = c.g64();
+    st.quick_scan_delete_file_count = c.g64();
+    st.deep_scan_file_count = c.g64();
+    st.quick_scan_delete_extend = c.g64();
+    for (size_t i = 0; i < 8 && !c.fail; ++i)
+        st.category_counts[i] = c.g64();
+    st.matched = c.g64();
+    st.total = c.g64();
+    st.graded_count = c.g64();
+    st.small_result = c.g32() != 0;
+    return c.fail ? u32(0x50040001) : u32(OK);
+}
 } // namespace session
 } // namespace cr

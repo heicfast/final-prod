@@ -6652,6 +6652,57 @@ renamed to session-5b to keep both prompts). The leg's counts in the S5B
 entry were refreshed post-rebase: 96 active (9 SEVERE / 38 MAJOR / 31 MINOR
 / 18 INFO) + 49 FIXED by direct file inventory at the rebase head.
 
+Task ID: CT-S023 (S-023 fix — the grading engine)
+Agent: main engineer (diff-to-fix close-all-tiers session)
+Task: SEVERE S-023 — implement the og's post-scan CRecoverability grading
+engine (3-grade model + RecoveryAssistant statistics), on top of M-023 (the
+category source) and OQ-S4-1 (the 169-entry table dump).
+
+Work Log:
+- Corpus re-verification BEFORE coding: the s4 evidence file re-read in full
+  (s4-crecoverability-grading-engine.md); the category mapper FUN_14039aa40
+  re-read first-hand (:614863-614910) confirming 0xC = the email-class rewrite
+  (type 6 + bit 35 of node+0x89); the table lookup + gate decision re-read at
+  :605297-605304 and :605736-605741 (map::find + found-vs-end semantics); the
+  device-walk job FUN_14038b0e0 re-read (:605879-605930) for the NTFS index
+  rule, the vt+0xe8 carve-device branch, and the extent-end-key arithmetic
+  (kinds {1,4} → −2 on the INDEX — confirmed an address offset, never a grade).
+- The 169-entry table extracted first-hand from the corpus DRWUI.exe binary
+  (.data VA 0x141bb0500 → file offset 0x1baef00; PE section walk script; all
+  entries 9 bytes {8-char NUL-padded key, flag=0}; UPPERCASE keys — the
+  membership lookup normalizes case).
+- Classification: CONFIRMED-DIVERGENCE (no grading surface existed — grep
+  'grade|recoverab|assistant' over src/core → 0 hits, re-verified).
+- Fix (7 surfaces): (1) tree::Grade on FileNode (bitfields) with the og setter
+  semantics; (2) cr_grading.cpp + cr_grading.h — the decision tree + twin
+  detection + regrade + the 169-entry table; (3) orchestrator wiring at scan
+  completion (post-refresh_stats, single-slot GradeContext — the ABI scans one
+  device; multi-disk ordinal registered as not expressible); (4) session
+  persistence (node nflags bit 3 + REC_ASSISTANT_STATS=6 with len-gated
+  deserializer); (5) report scan_analysis block (CLI + ABI recovery paths,
+  truthful absence without scan context); (6) ABI: node grade/overlap, query
+  row grade, sort key 6, cr_ui_scan_assistant, cr_ui_session_regrade
+  (append-only; ABI stays 1); (7) ScanStats.assistant.
+- Tests: 15 unit (the finding's full list incl. the two case fixes my first
+  draft got wrong — the table stores UPPERCASE; JSON has no space after the
+  colon) + C-consumer lifecycle (assistant populated, DOC.TXT grade==2, row
+  grades, regrade gate refuses grade-2). FAIL-BEFORE by construction (no
+  tree::Grade pre-fix — the S-014 capability-absence precedent).
+- Suite: 429/429 Linux Release (414 + 15) + 429/429 Linux ASan detect_leaks=1;
+  cr_ui_abi_check OK; clang-format 18.1.8 clean.
+- Audit trail: S-023 → FIXED/ with Resolution (incl. the registered
+  non-adoptions: the UNDECODED vt+0xb8/vt+0x100 sub-rule; the og's internal
+  matched/total composition); RESOLVED-INDEX row; CROSS-REF-MATRIX
+  orchestrator + query rows; modules/orchestration.md grading verdicts
+  section; modules/query.md P15 note; SUMMARY (SEVERE 10 active / 96 total).
+
+Stage Summary:
+- S-023 CLOSED: the og's headline "Recovery Chances" capability now exists —
+  grades are computed, monotonic, sticky-2, persisted, re-gradable on
+  selection, and surfaced through the ABI + report. Next per the lane: S-024
+  (health grading), then S-025/S-026/S-027 (ext4 trio), S-028, S-020, S-007,
+  S-009-remainder.
+
 ---
 Task ID: DF4-M026-M027
 Agent: main engineer (diff-to-fix session 4)

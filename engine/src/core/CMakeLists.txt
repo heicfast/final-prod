@@ -49,6 +49,7 @@ add_library(cr_core STATIC
     refs/cr_refs_engine.cpp
     orchestrator/cr_scan.cpp
     tree/cr_node.cpp
+    tree/cr_grading.cpp
     tree/cr_diskmap.cpp
     tree/cr_snapshot.cpp
 )

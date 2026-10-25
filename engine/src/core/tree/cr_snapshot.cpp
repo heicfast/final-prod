@@ -37,6 +37,8 @@ std::unique_ptr<Snapshot> ResultTree::capture_snapshot(bool partial) const {
         s.origin = u8(n->origin());
         s.deleted = u8(n->deleted_state());
         s.confidence = u8(n->confidence());
+        s.grade = u8(n->grade());
+        s.overlap = n->overlap();
         if (const FileProperties* p = n->props()) {
             s.name = p->name;
             s.fs_kind = p->fs_kind;

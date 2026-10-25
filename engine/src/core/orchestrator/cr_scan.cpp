@@ -743,6 +743,21 @@ u32 ScanController::run(IStorageDevice* slice, CancelToken* cancel, bool (*progr
     if (cached)
         stats.cached_hits = cached->hits(), stats.cached_misses = cached->misses();
     tree_.refresh_stats();
+    /* S-023: the post-scan CRecoverability grading pass - the og runs its
+     * two "Recoverability analyze" jobs at scan completion (DRWUI
+     * FUN_14038aad0); ours is one deterministic pass over the stable
+     * tree. Device context: this scan's single slice (ordinal 0 - the
+     * ABI scans one device; the og's multi-disk device index is not
+     * expressible here, registered in the S-023 Resolution). */
+    {
+        tree::grading::GradeContext gctx;
+        tree::grading::DeviceSlot slot;
+        slot.base = 0; /* extents are absolute device bytes post-rebase */
+        slot.disk_ordinal = 0;
+        slot.fs_kind = 0; /* per-node props->fs_kind is the truth source */
+        gctx.devices.push_back(slot);
+        tree::grading::grade_tree(tree_, gctx, stats.assistant);
+    }
     return stamp(OK);
 }
 
@@ -1211,6 +1226,13 @@ u32 ScanController::save_session(session::Writer& w, const ScanStats& stats) con
         if (u32 rc = w.add_record(session::REC_SESSION_STATE, blob.data(), u32(blob.size())))
             return rc;
 
+    /* S-023: the grading pass's statistics (optional record - readers
+     * that predate it skip unknown types; sessions saved without a
+     * grading pass simply lack it). */
+    if (session::serialize_assistant_stats(stats.assistant, blob) == OK)
+        if (u32 rc = w.add_record(session::REC_ASSISTANT_STATS, blob.data(), u32(blob.size())))
+            return rc;
+
     session::VolumeInfo vi;
     vi.fs_kind = u32(cfg_.fs_hint); /* FsFamily on the wire (D-1 truth) */
     vi.flags = session_configured_mask_ | (cfg_.run_quick ? STAGE_QUICK : 0u) |
@@ -1294,6 +1316,10 @@ u32 ScanController::load_session_summary(session::Reader& r, tree::ResultTree& t
         }
         case session::REC_ERROR_MAP:
             (void)session::deserialize_error_map(rec.data.data(), rec.data.size(), stats.errors);
+            break;
+        case session::REC_ASSISTANT_STATS: /* S-023 */
+            (void)session::deserialize_assistant_stats(rec.data.data(), rec.data.size(),
+                                                       stats.assistant);
             break;
         case session::REC_VOLUME_INFO:
             if (session::deserialize_volume_info(rec.data.data(), rec.data.size(), vi) == OK)

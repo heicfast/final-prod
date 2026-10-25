@@ -1061,13 +1061,31 @@ int cmd_recover(int argc, wchar_t** argv, int& i) {
      * Emitted even when items failed - the per-item outcomes carry the
      * truth, including "pending" for an aborted pass. */
     if (!report_path.empty()) {
+        /* S-023: the scan-analysis block from the loaded session (the
+         * grading pass's RecoveryAssistant statistics). */
+        recovery::report::ScanAnalysis analysis;
+        analysis.total_file_count = stats.assistant.total_file_count;
+        analysis.raw_count = stats.assistant.raw_count;
+        analysis.lost_partition_exist_file_count = stats.assistant.lost_partition_exist_file_count;
+        analysis.lost_partition_delete_file_count =
+            stats.assistant.lost_partition_delete_file_count;
+        analysis.quick_scan_exist_file_count = stats.assistant.quick_scan_exist_file_count;
+        analysis.quick_scan_delete_file_count = stats.assistant.quick_scan_delete_file_count;
+        analysis.deep_scan_file_count = stats.assistant.deep_scan_file_count;
+        analysis.quick_scan_delete_extend = stats.assistant.quick_scan_delete_extend;
+        for (size_t k = 0; k < 8; ++k)
+            analysis.category_counts[k] = stats.assistant.category_counts[k];
+        analysis.matched = stats.assistant.matched;
+        analysis.total = stats.assistant.total;
+        analysis.small_result = stats.assistant.small_result;
         const std::string doc = recovery::report::build_report(
             writer.report_items(),
             writer.report_totals(narrow(in_path), narrow(to_dir),
                                  u64(std::chrono::duration_cast<std::chrono::milliseconds>(
                                          std::chrono::steady_clock::now() - t_recover0)
                                          .count()),
-                                 wstats));
+                                 wstats),
+            stats.assistant.graded_count ? &analysis : nullptr);
         FILE* rf = nullptr;
         if (_wfopen_s(&rf, report_path.c_str(), L"wb") != 0 || !rf) {
             wprintf(L"cannot write report %s\n", report_path.c_str());

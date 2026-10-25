@@ -14,6 +14,7 @@
 #include "../cr_types.h"
 #include "../storage/cr_device.h"
 #include "../tree/cr_node.h"
+#include "../tree/cr_grading.h"
 #include <vector>
 
 namespace cr {
@@ -92,6 +93,12 @@ struct PartitionContext {
     u8 kind = 0;   /* 0 live, 1 lost candidate */
 };
 u32 serialize_partition_context(const PartitionContext& pc, std::vector<u8>& out);
+
+/* ---- S-023 assistant statistics (REC_ASSISTANT_STATS payload) ----
+ * Fixed-layout wire form (v1): 8 u64 counters + 8 u64 category counts +
+ * matched + total + graded + small_result flag. */
+u32 serialize_assistant_stats(const tree::grading::AssistantStats& st, std::vector<u8>& out);
+u32 deserialize_assistant_stats(const u8* data, size_t len, tree::grading::AssistantStats& st);
 u32 deserialize_partition_context(const u8* data, size_t len, PartitionContext& pc);
 
 /* ---- restored session summary (G-14/G-23: what load_session gives back

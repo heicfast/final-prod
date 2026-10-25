@@ -38,9 +38,10 @@ are session 4's.
 - **P18 (paging model)** — finding **M-029**: og virtualizes at the UI layer with no
   page-size constant; core offset/limit default 100 — no og counterpart to check
   against (must be recorded as deliberate, not parity-claimed).
-- **P15-adjacent (confidence filter)** — `M`-with-open-question: `confidence_min`
-  filters the core's own 5-tier model (S-023: different model from the og's grades —
-  the og has no confidence filter; its gauge is display-only).
+- **P15-adjacent (confidence filter)** — `M`-note: `confidence_min`
+  filters the core's own 5-tier model (S-023 now FIXED: the og's grade model
+  exists alongside — rows carry `grade`, sort key 6 = grade; the og has no
+  confidence filter; its gauge is display-only).
 - **P10-adjacent (name normalization)** — `M`-note: `contains_ci` is ASCII-only
   case-folding (matches the og's `_strnicmp`-family semantics for the results search);
   M-010 covers the UTF-8 storage axis.

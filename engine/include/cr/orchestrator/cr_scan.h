@@ -12,6 +12,7 @@
 #ifndef CR_SCAN_H_
 #define CR_SCAN_H_
 
+#include "cr/tree/cr_grading.h"
 #include "../storage/cr_device.h"
 #include "../storage/cr_retry.h"
 #include "../table/cr_ldm.h"
@@ -228,6 +229,11 @@ struct ScanStats {
     bool repair_writer_unavailable = false;
     std::vector<std::string> repair_advisories;
     repair::UndoLog repair_undo;
+
+    /* ---- S-023: post-scan grading (the og's CRecoverability model) ----
+     * Filled by the grading pass at scan completion; the per-node grades
+     * live on the tree nodes (tree::Grade) and persist with the session. */
+    tree::grading::AssistantStats assistant;
 };
 
 /* ---- live scan observability (G-04/G-05/G-06) ----
