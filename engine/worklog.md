@@ -7235,3 +7235,52 @@ Stage Summary:
   all in PARITY-DELTAS (D-48 family + D-59a..k). Next: MINOR tier (31 files,
   29 active findings + N-004..N-006 group), then MAJOR (38), SEVERE (9),
   TRACKED-OPEN (13).
+
+
+---
+Task ID: DF4-T3 (S-007)
+Task: SEVERE S-007 (primary set) - the og's hardcoded common carve formats:
+GIF, BMP, headerless MP3, AAC ADTS, RTF, OLE compound, MPEG video, DWG.
+
+Work Log:
+- Corpus verification first-hand at the cited registrations: GIF8 u32
+  0x38464947 :2009; BM u16 0x4d42 :2898; the MPEG-audio u16 family
+  FF E2..E7 / F2..F7 / FA..FF (:2565-2721 - grep-extracted the full
+  local_60[0] key set); AAC ADTS 0xf1ff + 0xf9ff (the second key
+  decompiler-rendered as decimal 63999 at :2775); RTF 0x74725c7b :2087;
+  OLE D0CF11E0 :2341; MPEG 00 00 01 B3/BA :1843/:1851; DWG "AC10"
+  0x30314341 :1997.
+- Implementation: 27 appended FormatIds + 9 validators (gif/bmp/mp3_raw/
+  aac_adts/rtf/ole/mpegps/mpeges/dwg), kTrialOrder placement after the
+  specific-magic set. Two calibration decisions registered in D-57:
+  (a) the headerless audio gate = 10 consecutive frames (the og's 2-frame
+  gate is sector-aligned-calibrated; the core's byte-granular scan needs
+  the stricter gate); (b) Signature::suppress_overlap on the audio family -
+  mid-stream re-syncs of an emitted stream are the same stream (the og's
+  walker runs once per stream; the core would emit overlapping per-frame
+  candidates - caught by the hostile smoke: seed validated=11 pre-fix vs
+  7 post-fix with all 8 families still pinned by the gtest).
+- Debug lessons honestly recorded: the CFB (N+1)*ssz offset rule (sector
+  N's data at (N+1)*sector_size - the 512-byte header occupies the first
+  sector slot; the first validator + fixture draft both misplaced FAT/dir
+  sectors); the ADTS frame-length high bits live at byte-3 bits 1-0 (the
+  fixture ORed channel bits into them); channel_config spans b2[0]+b3[7:6]
+  (not b2[1:0]); MPEG-PS min_size 32 (a 44-byte pack+sys+PES stream is a
+  valid minimum - the first draft's 64 floor rejected it).
+- Tests: Carve.S007CommonFormatsCarve (the finding's falsifiable claim:
+  all 8 families carve), S007ValidatorsRejectNoise (7 noise classes
+  reject), S007TruncatedSalvageSemantics (GIF/RTF partial-salvage).
+  Fail-before 3/3 (enum kept, impl stashed). Suite 436/436 Linux ASan.
+- Fuzz smoke: scripts/hostile_smoke_s007.cpp - 300 mutated multi-format
+  fixtures through the full carve_slice pipeline under ASan, clean.
+- Audit trail: finding Resolution (primary FIXED; the niche ~25-format
+  remainder with the corrected magic table as the implementation list;
+  DBF dropped per the session-3 correction); finding moved to FIXED/;
+  matrix row; modules/carve.md; CAPABILITY-MATRIX rows; D-57; SUMMARY
+  delta + remediation row.
+
+Stage Summary:
+- The carve surface now covers the og's hardcoded common-format set: the
+  pre-fix registry carved zero of the finding's eight families; post-fix
+  all eight + the full 18-key MPEG-audio sync family carve with the og's
+  FP discipline. Suite 436/436.

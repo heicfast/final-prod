@@ -250,3 +250,21 @@ All 6 RAWSearchDLL family artifacts + per-engine-function-map were read for the 
   none.
 - S-007 re-confirmed with the family rosters (no new formats beyond its addenda; the
   census's counts win where the family files conflict — corpus errata row 38).
+
+## Session-4 update (2026-10-26, diff-fix session 4 — the S-007 lane)
+
+**S-007 FIXED (primary set):** the og's hardcoded common formats landed
+with corpus-exact keys — GIF8, BM, the 18-key headerless MPEG-audio
+family (FF E2..E7/F2..F7/FA..FF), AAC ADTS (FF F1/FF F9), {\rt, OLE
+D0CF11E0 (DIFAT + directory-chain walk, CFB (N+1)*ssz rule), MPEG PS/ES
+start codes, DWG AC10 (version gate + bounded extent). 27 registry
+entries + 9 validators; the audio family carries `suppress_overlap`
+(one stream = one node — the og's walker semantics at the core's
+byte-granular grid); the headerless audio gate is 10 consecutive frames
+(byte-granular FP calibration, registered in D-57). 3 new tests
+(S007CommonFormatsCarve / S007ValidatorsRejectNoise /
+S007TruncatedSalvageSemantics), fail-before 3/3; suite 436/436; hostile
+ASan smoke clean. **Remainder (precisely scoped in the finding):** the
+~25 niche og-only formats (CHM/AU/MIDI/APE/EPS-AI/DXF/DMG/... — the
+session-2/3-corrected table in the finding file is the implementation
+list) + the bench seed-matrix extension (Windows runner).

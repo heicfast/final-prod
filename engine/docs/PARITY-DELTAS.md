@@ -1779,3 +1779,43 @@ Verified against corpus 03ad46c and the running core before acknowledgment.
   fields with no og carrier.
 - **D-60l — Core-only carve anchors (I-022-6, ACCEPTED).** ISO9660, RAR5,
   M4A, ZIP-CD/naked-MOV (S-007's register).
+
+
+### D-57 — Carve common formats: the og's hardcoded dual-registry set (S-007 primary)
+
+**Class:** parity + two registered calibration deltas · **Finding:** diff-to-fix S-007 (SEVERE, primary set FIXED; niche tail scoped in the finding) · **Date:** 2026-10-26
+
+The og hard-codes the common user formats in the dual magic registry
+(GIF8, BM, the MPEG-audio sync family, AAC ADTS, `{\rt`, OLE D0CF11E0,
+MPEG start codes, AC10 — corpus registrations cited in the finding). The
+core's registry had none of them; `raw_signs.json` never covered them.
+
+**Core decision (S-007 fix):** 27 appended registry entries with 9
+grammar validators, corpus-exact keys, reimplemented from the format
+grammar (OGG behavior as the model). Two deliberate calibration deltas,
+both registered:
+
+- **The headerless audio gate is 10 consecutive frames** (MP3/AAC), not
+  the og's 2 (:37152-92). The og's gate is calibrated for
+  sector-aligned probing (mid-stream noise never reaches its grid); the
+  core's scan is byte-granular (the I-009 documented superset), so the
+  finer grid needs the stricter frame gate to hold the false-positive
+  rate. Net vs og: streams under 10 frames that happen to start
+  sector-aligned are og-carved and core-rejected (a ~0.26 s audio
+  floor); mid-sector streams of any length are core-only.
+- **`suppress_overlap` on the audio family:** every frame of a
+  headerless stream re-matches the 2-byte sync, so the byte-granular
+  scan would emit overlapping per-frame candidates (a 12-frame stream =
+  3 nodes). The og's BruteForce walker runs once per stream start; the
+  flag reproduces that at the core's grid (a later candidate starting
+  strictly inside an emitted same-format stream is the same stream).
+  Other formats keep the exact-start dedup only — nested cross-format
+  files (zip-in-docx) stay carvable.
+
+**Scoped remainder:** the ~25 niche og-only formats (the corrected table
+in the finding file) + the OLE CLSID name classification (single-ext
+per-signature shape) + the DWG section-locator walk (version gate +
+bounded extent now) + the bench seed-matrix extension (Windows runner).
+
+**Pin tests:** `Carve.S007CommonFormatsCarve`, `Carve.S007ValidatorsRejectNoise`,
+`Carve.S007TruncatedSalvageSemantics`.

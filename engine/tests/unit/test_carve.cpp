@@ -1407,3 +1407,333 @@ TEST(Carve, RegistrySelfProbeReachesEveryFormat) {
     for (const Signature* s : bad)
         ADD_FAILURE() << "unreachable signature: " << (s ? s->name : "?");
 }
+
+/* ---- S-007: the og's hardcoded common formats --------------------------- */
+
+namespace {
+
+/* A valid single-image GIF: header + LSD (+GCT) + image descriptor + one
+ * LZW sub-block + trailer. */
+size_t plant_gif(std::vector<u8>& img, size_t at) {
+    std::memcpy(img.data() + at, "GIF89a", 6);
+    put16(img, at + 6, 16);  /* width */
+    put16(img, at + 8, 16);  /* height */
+    img[at + 10] = 0x80 | 2; /* GCT flag, 8-entry table (3<<3 = 24 bytes) */
+    img[at + 11] = 0;
+    img[at + 12] = 0;
+    size_t p = at + 13 + 24; /* header + LSD + GCT */
+    img[p] = 0x2C;           /* image descriptor */
+    put16(img, p + 1, 0);
+    put16(img, p + 3, 0);
+    put16(img, p + 5, 16);
+    put16(img, p + 7, 16);
+    img[p + 9] = 0; /* no local color table */
+    p += 10;
+    img[p] = 8; /* LZW min code size */
+    ++p;
+    img[p] = 32; /* one sub-block of 32 bytes */
+    for (int i = 0; i < 32; ++i)
+        img[p + 1 + size_t(i)] = u8(i);
+    p += 33;
+    img[p] = 0; /* sub-block terminator */
+    ++p;
+    img[p] = 0x3B; /* trailer */
+    return (p + 1) - at;
+}
+
+/* A valid uncompressed 4x4 24-bpp BMP. */
+size_t plant_bmp(std::vector<u8>& img, size_t at) {
+    img[at] = 'B';
+    img[at + 1] = 'M';
+    const u32 off_bits = 14 + 40;
+    const u32 image_bytes = 4 * 4 * 3;           /* rows already 4-aligned */
+    put32v(img, at + 2, off_bits + image_bytes); /* bfSize */
+    put32v(img, at + 10, off_bits);
+    put32v(img, at + 14, 40); /* BITMAPINFOHEADER */
+    put32v(img, at + 18, 4);  /* width */
+    put32v(img, at + 22, 4);  /* height */
+    put16(img, at + 26, 1);   /* planes */
+    put16(img, at + 28, 24);  /* bpp */
+    put32v(img, at + 30, 0);  /* BI_RGB */
+    put32v(img, at + 34, image_bytes);
+    for (u32 i = 0; i < image_bytes; ++i)
+        img[at + off_bits + i] = u8(0x40 + (i % 64));
+    return off_bits + image_bytes;
+}
+
+/* N headerless MPEG-1 Layer III frames at a fixed, simple bitrate. */
+size_t plant_mp3_raw(std::vector<u8>& img, size_t at, int frames) {
+    /* FF FB: MPEG1 Layer III no-CRC; 0x9000 = 128kbps idx, 0x00 = 44100 */
+    size_t p = at;
+    for (int f = 0; f < frames; ++f) {
+        img[p] = 0xFF;
+        img[p + 1] = 0xFB;
+        img[p + 2] = 0x90;
+        img[p + 3] = 0x00;
+        /* frame size = 144*128000/44100 = 417 (+pad 0) */
+        for (int i = 4; i < 417; ++i)
+            img[p + size_t(i)] = u8((i * 7) & 0x7F); /* non-sync payload */
+        p += 417;
+    }
+    return p - at;
+}
+
+/* N AAC ADTS frames: AAC-LC 44.1kHz stereo, 13-bit lengths. */
+size_t plant_aac_adts(std::vector<u8>& img, size_t at, int frames) {
+    size_t p = at;
+    const u32 flen = 200; /* fixed frame length for the fixture */
+    for (int f = 0; f < frames; ++f) {
+        img[p] = 0xFF;
+        img[p + 1] = 0xF1;                        /* sync, MPEG-4, layer 00, no CRC */
+        img[p + 2] = 0x50;                        /* profile 1 (LC), sr idx 4 (44100), private 0 */
+        img[p + 3] = 0x80 | u8((flen >> 11) & 3); /* chan_lo=2 + len hi bits */
+        img[p + 4] = u8((flen >> 3) & 0xFF);
+        img[p + 5] = u8((flen & 7) << 5) | 0x1F; /* len lo + buffer fullness */
+        img[p + 6] = 0xFC;                       /* buffer fullness tail + blocks-in-frame 0 */
+        for (u32 i = 7; i < flen; ++i)
+            img[p + i] = u8((i * 13) & 0x7F);
+        p += flen;
+    }
+    return p - at;
+}
+
+/* A brace-balanced RTF. */
+size_t plant_rtf(std::vector<u8>& img, size_t at) {
+    const char* body =
+        "{\\rtf1\\ansi{\\fonttbl{\\f0 Times New Roman;}}\\pard Hello, \\{world\\}!\\par}";
+    const size_t n = std::strlen(body);
+    std::memcpy(img.data() + at, body, n);
+    return n;
+}
+
+/* A minimal Compound File: header + DIFAT head pointing at FAT sector 1,
+ * directory chain sector 0..1. */
+size_t plant_ole(std::vector<u8>& img, size_t at) {
+    const u64 ssz = 512; /* sector shift 9 */
+    std::memcpy(img.data() + at, "\xD0\xCF\x11\xE0\xA1\xB1\x1A\xE1", 8);
+    put16(img, at + 24, 0x003E); /* minor */
+    put16(img, at + 26, 3);      /* major */
+    put16(img, at + 28, 0xFFFE); /* byte order */
+    put16(img, at + 30, 9);      /* sector shift */
+    put16(img, at + 32, 6);      /* mini shift */
+    put32v(img, at + 44, 1);     /* one FAT sector */
+    put32v(img, at + 48, 0);     /* first dir sector */
+    put32v(img, at + 56, 4096);  /* mini cutoff */
+    put32v(img, at + 72, 0);     /* no DIFAT chain */
+    put32v(img, at + 76, 1);     /* DIFAT[0] = FAT at sector 1 */
+    for (u32 i = 1; i < 109; ++i)
+        put32v(img, at + 76 + i * 4, 0xFFFFFFFF); /* FREESECT */
+    /* CFB layout: the 512-byte header occupies the first sector slot;
+     * sector N's data lives at (N+1)*ssz. FAT = sector 1 (offset 2*ssz);
+     * directory = sector 0 (offset 1*ssz). */
+    put32v(img, at + 2 * ssz + 0, 0xFFFFFFFE); /* FAT[0]: dir chain ends */
+    put32v(img, at + 2 * ssz + 4, 0xFFFFFFFD); /* FAT[1]: FATSECT itself */
+    std::memcpy(img.data() + at + 1 * ssz + 0, "Root Entry", 10);
+    return 3 * ssz;
+}
+
+/* An MPEG-PS: one MPEG-2 pack + one system header + one video packet +
+ * end code. */
+size_t plant_mpegps(std::vector<u8>& img, size_t at) {
+    size_t p = at;
+    img[p] = 0;
+    img[p + 1] = 0;
+    img[p + 2] = 1;
+    img[p + 3] = 0xBA; /* pack header, MPEG-2 form */
+    img[p + 4] = 0x44; /* SCR markers => MPEG-2 14-byte pack */
+    for (int i = 5; i < 14; ++i)
+        img[p + size_t(i)] = u8(0x10 + i);
+    p += 14;
+    img[p + 0] = 0;
+    img[p + 1] = 0;
+    img[p + 2] = 1;
+    img[p + 3] = 0xBB;    /* system header */
+    put16(img, p + 4, 6); /* length */
+    for (int i = 0; i < 6; ++i)
+        img[p + 6 + size_t(i)] = 0;
+    p += 6 + 6;
+    img[p + 0] = 0;
+    img[p + 1] = 0;
+    img[p + 2] = 1;
+    img[p + 3] = 0xE0;    /* video packet */
+    put16(img, p + 4, 8); /* PES length */
+    for (int i = 0; i < 8; ++i)
+        img[p + 6 + size_t(i)] = u8(0x20 + i);
+    p += 6 + 8;
+    img[p + 0] = 0;
+    img[p + 1] = 0;
+    img[p + 2] = 1;
+    img[p + 3] = 0xB9; /* end code */
+    return (p + 4) - at;
+}
+
+/* An R2000 DWG (AC1015) with the r13+ sentinel. */
+size_t plant_dwg(std::vector<u8>& img, size_t at) {
+    std::memcpy(img.data() + at, "AC1015", 6);
+    std::memcpy(img.data() + at + 6, "\x0D\x0A\x0D\x0A\x00", 5);
+    for (size_t i = 11; i < 4096; ++i)
+        img[at + i] = u8((i * 31) & 0xFF);
+    return 4096;
+}
+
+} // namespace
+
+TEST(Carve, S007CommonFormatsCarve) {
+    /* S-007's falsifiable claim: gif, bmp, headerless mp3, rtf, OLE doc,
+     * mpg and dwg plants yield carve results - the pre-fix registry had
+     * none of these families. */
+    std::vector<u8> img(256 * 1024, 0);
+    const size_t gif_at = 512, bmp_at = 4096, mp3_at = 8192, rtf_at = 20480, ole_at = 24576,
+                 mpg_at = 32768, dwg_at = 65536, aac_at = 131072;
+    const size_t gif_len = plant_gif(img, gif_at);
+    const size_t bmp_len = plant_bmp(img, bmp_at);
+    plant_mp3_raw(img, mp3_at, 12);
+    const size_t rtf_len = plant_rtf(img, rtf_at);
+    const size_t ole_len = plant_ole(img, ole_at);
+    const size_t mpg_len = plant_mpegps(img, mpg_at);
+    const size_t dwg_len = plant_dwg(img, dwg_at);
+    plant_aac_adts(img, aac_at, 12);
+
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"Lost Files");
+    CarveFlags flags;
+    CarveStats stats;
+    ASSERT_EQ(
+        carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, stats),
+        OK)
+        << err_text(OK);
+
+    std::vector<tree::FileNode*> all;
+    std::function<void(tree::FileNode*)> collect = [&](tree::FileNode* n) {
+        for (tree::FileNode* c = n->first_child(); c; c = c->next_sibling()) {
+            all.push_back(c);
+            collect(c);
+        }
+    };
+    collect(root);
+
+    auto find_at = [&](size_t off) -> tree::FileNode* {
+        for (tree::FileNode* n : all)
+            if (!n->props()->extents.empty() && n->props()->extents.front().offset == off)
+                return n;
+        return nullptr;
+    };
+    auto expect_carved = [&](size_t off, u32 fmt, size_t min_len, const char* what) {
+        tree::FileNode* n = find_at(off);
+        ASSERT_NE(n, nullptr) << what << " must carve (S-007)";
+        EXPECT_EQ(n->props()->carve_format, fmt) << what;
+        EXPECT_GE(n->props()->logical_size, min_len) << what;
+    };
+    expect_carved(gif_at, FMT_GIF, gif_len, "GIF");
+    expect_carved(bmp_at, FMT_BMP, bmp_len, "BMP");
+    expect_carved(mp3_at, FMT_MPGA_FB, 12u * 417u, "headerless MP3");
+    expect_carved(rtf_at, FMT_RTF, rtf_len, "RTF");
+    expect_carved(ole_at, FMT_OLE, ole_len, "OLE compound");
+    expect_carved(mpg_at, FMT_MPEGPS, mpg_len, "MPEG-PS");
+    expect_carved(dwg_at, FMT_DWG, dwg_len, "DWG");
+    expect_carved(aac_at, FMT_AAC, 12u * 200u, "AAC ADTS");
+}
+
+TEST(Carve, S007ValidatorsRejectNoise) {
+    /* The 2-byte keys (BM, FF xx) match noise constantly - the grammar
+     * gates are the discriminator: <10-frame audio, bad DIB, bad GIF
+     * version, wrong OLE shift, unknown DWG version all reject. */
+    std::vector<u8> img(128 * 1024, 0);
+    /* "BM" + garbage DIB size at 512 */
+    img[512] = 'B';
+    img[513] = 'M';
+    put32v(img, 514 + 0, 0); /* bfSize */
+    put32v(img, 514 + 8, 64);
+    put32v(img, 514 + 12, 33); /* bogus DIB size */
+    /* GIF8 + bad version at 1024 */
+    std::memcpy(img.data() + 1024, "GIF88a", 6);
+    /* 3-frame headerless MP3 at 2048 */
+    plant_mp3_raw(img, 2048, 3);
+    /* 4-frame ADTS at 4096 */
+    plant_aac_adts(img, 4096, 4);
+    /* OLE magic + wrong sector shift at 8192 */
+    std::memcpy(img.data() + 8192, "\xD0\xCF\x11\xE0\xA1\xB1\x1A\xE1", 8);
+    put16(img, 8192 + 26, 3);
+    put16(img, 8192 + 28, 0xFFFE);
+    put16(img, 8192 + 30, 11); /* invalid shift */
+    put16(img, 8192 + 32, 6);
+    /* unknown DWG version at 16384 */
+    std::memcpy(img.data() + 16384, "AC1099", 6);
+    /* lone MPEG pack header at 32768 (no following elements) */
+    std::memcpy(img.data() + 32768, "\x00\x00\x01\xBA\x44\x10\x10\x10\x10\x10\x10\x10\x10\x10", 14);
+
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"Lost Files");
+    CarveFlags flags;
+    CarveStats stats;
+    ASSERT_EQ(
+        carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, stats),
+        OK);
+    std::vector<tree::FileNode*> all;
+    std::function<void(tree::FileNode*)> collect = [&](tree::FileNode* n) {
+        for (tree::FileNode* c = n->first_child(); c; c = c->next_sibling()) {
+            all.push_back(c);
+            collect(c);
+        }
+    };
+    collect(root);
+    for (tree::FileNode* n : all) {
+        const u64 off = n->props()->extents.front().offset;
+        /* none of the noise plants may carve (the JPEG-tail raw-sign
+         * layer is NOT in this fixture - every node here is grammar) */
+        const u64 fmt = n->props()->carve_format;
+        EXPECT_FALSE(off == 512 && fmt == FMT_BMP) << "bad-DIB BMP rejected";
+        EXPECT_FALSE(off == 1024 && fmt == FMT_GIF) << "bad-version GIF rejected";
+        EXPECT_FALSE(off == 2048 && (fmt == FMT_MPGA_FB || fmt >= FMT_MPGA_E2))
+            << "3-frame MP3 rejected (10-frame gate)";
+        EXPECT_FALSE(off == 4096 && (fmt == FMT_AAC || fmt == FMT_AAC2))
+            << "4-frame ADTS rejected (10-frame gate)";
+        EXPECT_FALSE(off == 8192 && fmt == FMT_OLE) << "bad-shift OLE rejected";
+        EXPECT_FALSE(off == 16384 && fmt == FMT_DWG) << "unknown DWG version rejected";
+        EXPECT_FALSE(off == 32768 && fmt == FMT_MPEGPS) << "lone pack header rejected";
+    }
+    EXPECT_TRUE(stats.rejected >= 7) << "each noise plant must reach a validator rejection";
+}
+
+TEST(Carve, S007TruncatedSalvageSemantics) {
+    /* GIF truncated after images: salvage at degraded confidence; RTF
+     * with unclosed groups: salvage to the slab end. */
+    std::vector<u8> img(64 * 1024, 0);
+    const size_t gif_at = 512;
+    const size_t gif_len = plant_gif(img, gif_at);
+    img[gif_at + gif_len - 1] = 0x21; /* destroy the trailer: truncated */
+    const size_t rtf_at = 4096;
+    const char kOpen[] = "{\\rtf1\\ansi{\\b unclosed";
+    std::memcpy(img.data() + rtf_at, kOpen, sizeof(kOpen) - 1);
+
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"Lost Files");
+    CarveFlags flags;
+    CarveStats stats;
+    ASSERT_EQ(
+        carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, stats),
+        OK);
+    std::vector<tree::FileNode*> all;
+    std::function<void(tree::FileNode*)> collect = [&](tree::FileNode* n) {
+        for (tree::FileNode* c = n->first_child(); c; c = c->next_sibling()) {
+            all.push_back(c);
+            collect(c);
+        }
+    };
+    collect(root);
+    tree::FileNode* gif = nullptr;
+    tree::FileNode* rtf = nullptr;
+    for (tree::FileNode* n : all) {
+        if (n->props()->extents.front().offset == gif_at)
+            gif = n;
+        else if (n->props()->extents.front().offset == rtf_at)
+            rtf = n;
+    }
+    ASSERT_NE(gif, nullptr) << "truncated GIF salvages after its images";
+    EXPECT_LT(gif->props()->logical_size, gif_len) << "extent stops before the broken trailer";
+    ASSERT_NE(rtf, nullptr) << "unclosed-group RTF salvages to the slab end";
+    EXPECT_EQ(rtf->props()->logical_size, size_t(64 * 1024 - rtf_at));
+}

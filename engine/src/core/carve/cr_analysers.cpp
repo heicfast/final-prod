@@ -1456,5 +1456,619 @@ CarveResult validate_iso(IStorageDevice* s, u64 hit, u64 cap) {
     return r;
 }
 
+/* ---- S-007 (diff-to-fix): the og's hardcoded common-format set ---------- */
+/*
+ * Corpus: RAWSearchDLL_decompiled.c registrations - GIF8 u32 0x38464947
+ * (:2009), BM u16 0x4d42 (:2898), headerless MP3 MPEG-sync family
+ * FF E2..FF E7 / FF F2..FF F7 / FF FA..FF FF (u16 keys :2565-2721), AAC
+ * ADTS FF F1 / FF F9 (:2761/:2775, the 0xf9ff key decompiler-rendered as
+ * decimal 63999), RTF u32 0x74725c7b (:2087), OLE D0CF11E0 (:2341), MPEG
+ * 00 00 01 B3 / 00 00 01 BA (:1843/:1851), DWG "AC10" u32 0x30314341
+ * (:1997). Validators are reimplemented from the format grammar (never
+ * pasted from the decompile); the og's BruteForce frame-walkers are the
+ * behavioral model for the headerless audio family.
+ */
+
+CarveResult validate_gif(IStorageDevice* s, u64 hit, u64 cap) {
+    /* GIF87a/GIF89a: Logical Screen Descriptor (+ optional global color
+     * table), then block stream (extensions 0x21 with sub-blocks, image
+     * descriptors 0x2C with LZW-coded sub-blocks) to the trailer 0x3B.
+     * Accept requires at least ONE image descriptor - a bare
+     * header+trailer is a degenerate the 4-byte "GIF8" key would accept
+     * on pure noise. */
+    CarveResult r;
+    u8 h[7];
+    if (!rd(s, hit, h, 7))
+        return r;
+    if (std::memcmp(h, "GIF8", 4) != 0)
+        return r;
+    if (std::memcmp(h + 4, "7a", 2) != 0 && std::memcmp(h + 4, "9a", 2) != 0)
+        return r;
+    const u64 limit = probe_limit(s, hit, cap);
+    u64 q = hit + 6;
+    u8 lsd[7];
+    if (!rd(s, q, lsd, 7))
+        return r;
+    if (lsd[4] & 0x80)
+        q += u64(3) << ((lsd[4] & 7) + 1); /* global color table */
+    q += 7;
+    bool saw_image = false;
+    u64 images_end = 0;
+    /* sub-block walker: returns false on slice break */
+    auto skip_subblocks = [&](u64& p) -> bool {
+        for (;;) {
+            u8 bl = 0;
+            if (!rd(s, p, &bl, 1) || p + 1 > limit)
+                return false;
+            ++p;
+            if (bl == 0)
+                return true;
+            if (p + bl > limit)
+                return false;
+            p += bl;
+        }
+    };
+    for (int guard = 0; guard < 65536; ++guard) {
+        u8 b = 0;
+        if (!rd(s, q, &b, 1) || q >= limit)
+            break;
+        if (b == 0x3B) { /* trailer */
+            if (!saw_image)
+                return r;
+            r.ok = true;
+            r.end = q + 1;
+            r.confidence = 840;
+            r.note = "GIF-blocks-to-trailer";
+            return r;
+        }
+        if (b == 0x21) { /* extension: label + sub-blocks */
+            q += 2;
+            if (!skip_subblocks(q))
+                break;
+            continue;
+        }
+        if (b == 0x2C) { /* image descriptor */
+            u8 idesc[10];
+            if (!rd(s, q + 1, idesc, 9))
+                break;
+            q += 10;
+            if (idesc[8] & 0x80)
+                q += u64(3) << ((idesc[8] & 7) + 1); /* local color table */
+            u8 lzw_min = 0;
+            if (!rd(s, q, &lzw_min, 1) || lzw_min == 0 || lzw_min > 11)
+                break;
+            ++q;
+            if (!skip_subblocks(q))
+                break;
+            saw_image = true;
+            images_end = q;
+            continue;
+        }
+        break; /* unknown block: grammar break */
+    }
+    if (saw_image && images_end > hit) {
+        /* truncated before the trailer: salvage the walked extent (the
+         * og's BruteForce school accepts partial frames the same way) */
+        r.ok = true;
+        r.end = std::min(images_end, limit);
+        r.confidence = 600;
+        r.note = "GIF-truncated-after-images";
+        return r;
+    }
+    return r;
+}
+
+CarveResult validate_bmp(IStorageDevice* s, u64 hit, u64 cap) {
+    /* BITMAPFILEHEADER (14) + DIB header. Extent = bfOffBits + the
+     * computed image size for the common uncompressed forms (S-007 fix
+     * plan); floor 512 per the plan. The 2-byte "BM" key matches noise
+     * constantly - the DIB gates are the discriminator. */
+    CarveResult r;
+    u8 fh[18];
+    if (!rd(s, hit, fh, 18))
+        return r;
+    if (fh[0] != 'B' || fh[1] != 'M')
+        return r;
+    const u32 bf_size = u32_from_bytes_le(fh + 2);
+    const u32 off_bits = u32_from_bytes_le(fh + 10);
+    const u32 dib = u32_from_bytes_le(fh + 14);
+    if (dib != 12 && dib != 16 && dib != 40 && dib != 52 && dib != 56 && dib != 64 && dib != 68 &&
+        dib != 108 && dib != 124)
+        return r; /* known DIB sizes only (S-007: 12..124 family) */
+    if (off_bits < 14 + dib || off_bits > 512ull << 20)
+        return r;
+    u64 image_bytes = 0;
+    if (dib == 12) {                       /* BITMAPCOREHEADER */
+        const u32 w = fh[18 - 18 + 4 + 0]; /* read fresh below instead */
+        (void)w;
+        u8 core[10];
+        if (!rd(s, hit + 18, core, 10))
+            return r;
+        const u32 width = core[0] | (u32(core[1]) << 8);
+        const u32 height = core[2] | (u32(core[3]) << 8);
+        const u32 bpp = core[8] | (u32(core[9]) << 8);
+        if (width == 0 || height == 0 || bpp == 0 || bpp > 24)
+            return r;
+        image_bytes = (u64(height) * ((u64(width) * bpp + 31) / 32 * 4));
+    } else {
+        u8 info[40];
+        if (!rd(s, hit + 14, info, 40))
+            return r;
+        const i32 width = i32(u32_from_bytes_le(info + 4));
+        const i32 height = i32(u32_from_bytes_le(info + 8));
+        const u32 bpp = u32_from_bytes_le(info + 14) & 0xFFFF;
+        const u32 compression = u32_from_bytes_le(info + 16);
+        if (width <= 0 || height == 0 || bpp == 0 || bpp > 32)
+            return r;
+        if (compression == 0) { /* BI_RGB */
+            image_bytes =
+                u64(u32(height < 0 ? -height : height)) * ((u64(u32(width)) * bpp + 31) / 32 * 4);
+        } else if (compression == 3 && (bpp == 16 || bpp == 32)) { /* BITFIELDS */
+            image_bytes = u64(u32(height < 0 ? -height : height)) * u64(u32(width)) * (bpp / 8);
+        } else {
+            /* compressed / unknown: trust the declared bfSize when sane */
+            if (bf_size > off_bits && bf_size <= 512ull << 20)
+                image_bytes = bf_size - off_bits;
+            else
+                return r; /* no honest extent */
+        }
+    }
+    const u64 floor = 512;
+    u64 end = hit + off_bits + image_bytes;
+    if (end - hit < floor)
+        end = hit + floor;
+    const u64 limit = probe_limit(s, hit, cap);
+    if (end > limit)
+        end = limit; /* slab-truncated extent */
+    if (end - hit < 64)
+        return r;
+    r.ok = true;
+    r.end = end;
+    r.confidence = 780;
+    r.note = "BM+DIB+offBits-extent";
+    return r;
+}
+
+CarveResult validate_mp3_raw(IStorageDevice* s, u64 hit, u64 cap) {
+    /* S-007: headerless MPEG audio - the og's BruteForce frame walkers
+     * (:2565-2721 registrations; the 2-consecutive-frame grammar
+     * :37152-92 is the og gate). The core's scan is byte-granular (the
+     * og probes sector-aligned only, I-009), so the frame gate is raised
+     * to 10 to hold the false-positive rate at the finer grid (the
+     * finding's fix plan). */
+    CarveResult r;
+    const u64 limit = probe_limit(s, hit, cap);
+    std::vector<u8> buf(kProbeBlock);
+    u64 fill_at = 0;
+    u32 fill_len = 0;
+    auto ensure4 = [&](u64 q) -> const u8* {
+        if (q < fill_at || q + 4 > fill_at + fill_len) {
+            const u64 remain = limit - q;
+            const u32 take = u32(std::min<u64>(remain, kProbeBlock));
+            if (take < 4)
+                return nullptr;
+            if (!rd(s, q, buf.data(), take))
+                return nullptr;
+            fill_at = q;
+            fill_len = take;
+        }
+        return buf.data() + (q - fill_at);
+    };
+    u64 q = hit;
+    u32 nframes = 0;
+    u64 frames_end = 0;
+    while (q + 4 <= limit) {
+        const u8* fh = ensure4(q);
+        if (!fh)
+            break;
+        const u32 fsize = mp3_frame_size(fh);
+        if (fsize == 0)
+            break;
+        if (q + fsize > limit)
+            break;
+        q += fsize;
+        ++nframes;
+        frames_end = q;
+        if (nframes > (1u << 20))
+            break; /* bounded walk */
+    }
+    if (nframes < 10)
+        return r; /* headerless gate: 10 consecutive frames (S-007) */
+    r.ok = true;
+    r.end = frames_end;
+    r.confidence = 700;
+    r.note = "mpeg-audio-10-frame-sync";
+    return r;
+}
+
+CarveResult validate_aac_adts(IStorageDevice* s, u64 hit, u64 cap) {
+    /* ADTS: 12-bit sync (FFF), layer 00, profile != reserved(3),
+     * sampling index != 15; 13-bit frame length in the fixed header;
+     * 10-frame gate (same byte-granular rationale as validate_mp3_raw). */
+    CarveResult r;
+    u8 h[7];
+    if (!rd(s, hit, h, 7))
+        return r;
+    if (h[0] != 0xFF || (h[1] & 0xF0) != 0xF0)
+        return r;
+    if (((h[1] >> 1) & 3) != 0)
+        return r; /* layer must be 00 */
+    const u8 profile = (h[2] >> 6) & 3;
+    const u8 sr_idx = (h[2] >> 2) & 0xF;
+    const u8 chan = (u8((h[2] & 1) << 2)) | u8(h[3] >> 6); /* 3 bits: b2[0] + b3[7:6] */
+    if (profile == 3 || sr_idx == 15 || chan > 7)
+        return r;
+    const u64 limit = probe_limit(s, hit, cap);
+    std::vector<u8> buf(kProbeBlock);
+    u64 fill_at = 0;
+    u32 fill_len = 0;
+    auto ensure7 = [&](u64 q) -> const u8* {
+        if (q < fill_at || q + 7 > fill_at + fill_len) {
+            const u64 remain = limit - q;
+            const u32 take = u32(std::min<u64>(remain, kProbeBlock));
+            if (take < 7)
+                return nullptr;
+            if (!rd(s, q, buf.data(), take))
+                return nullptr;
+            fill_at = q;
+            fill_len = take;
+        }
+        return buf.data() + (q - fill_at);
+    };
+    u64 q = hit;
+    u32 nframes = 0;
+    u64 frames_end = 0;
+    while (q + 7 <= limit) {
+        const u8* fh = ensure7(q);
+        if (!fh)
+            break;
+        if (fh[0] != 0xFF || (fh[1] & 0xF0) != 0xF0 || ((fh[1] >> 1) & 3) != 0)
+            break;
+        const u32 flen = (u32(fh[3] & 3) << 11) | (u32(fh[4]) << 3) | (u32(fh[5]) >> 5);
+        if (flen < 7 || flen > 8192)
+            break;
+        if (q + flen > limit)
+            break;
+        q += flen;
+        ++nframes;
+        frames_end = q;
+        if (nframes > (1u << 20))
+            break;
+    }
+    if (nframes < 10)
+        return r;
+    r.ok = true;
+    r.end = frames_end;
+    r.confidence = 700;
+    r.note = "adts-10-frame-sync";
+    return r;
+}
+
+CarveResult validate_rtf(IStorageDevice* s, u64 hit, u64 cap) {
+    /* "{\rtf" + brace-group walk to the matching close. Backslash escapes
+     * the following character (\{ \} are literals); the walk accepts a
+     * truncated stream (never-closed groups) at degraded confidence -
+     * the same partial-salvage stance as the MP3 frame walker. */
+    CarveResult r;
+    u8 h[6];
+    if (!rd(s, hit, h, 6))
+        return r;
+    if (std::memcmp(h, "{\\rtf", 5) != 0)
+        return r;
+    const u64 limit = probe_limit(s, hit, cap);
+    u64 depth = 1; /* the opening group */
+    std::vector<u8> buf(kProbeBlock);
+    u64 p = hit + 5;
+    u64 close_at = 0;
+    while (p < limit) {
+        const u64 remain = limit - p;
+        const u32 take = u32(std::min<u64>(remain, kProbeBlock));
+        if (take == 0)
+            break;
+        if (!rd(s, p, buf.data(), take))
+            break;
+        u64 i = 0;
+        for (; i < take; ++i) {
+            const u8 c = buf[i];
+            if (c == '\\') {
+                ++i; /* escaped char: skip it (\'hh, \\, \{, \}) */
+                continue;
+            }
+            if (c == '{')
+                ++depth;
+            else if (c == '}') {
+                --depth;
+                if (depth == 0) {
+                    close_at = p + i + 1;
+                    break;
+                }
+                if (depth == 0)
+                    break;
+            }
+        }
+        if (close_at != 0)
+            break;
+        if (i < take)
+            break; /* closed inside this block - handled above */
+        p += take;
+    }
+    if (close_at != 0 && depth == 0) {
+        r.ok = true;
+        r.end = close_at;
+        r.confidence = 800;
+        r.note = "rtf-brace-close";
+        return r;
+    }
+    if (depth >= 1 && p >= limit) { /* truncated groups: salvage the walk */
+        r.ok = true;
+        r.end = limit;
+        r.confidence = 600;
+        r.note = "rtf-truncated-groups";
+        return r;
+    }
+    return r;
+}
+
+CarveResult validate_ole(IStorageDevice* s, u64 hit, u64 cap) {
+    /* Compound File (legacy .doc/.xls/.ppt + MSI): D0CF11E0A1B11AE1,
+     * major version 3/4, sector shift 9/12, byte order 0xFFFE. Extent =
+     * the last sector referenced by the DIFAT FAT-sector array and the
+     * root directory chain, x sector size (S-007 fix plan). */
+    CarveResult r;
+
+    u8 h[80];
+    if (!rd(s, hit, h, 80))
+        return r;
+    static const u8 kMagic[8] = {0xD0, 0xCF, 0x11, 0xE0, 0xA1, 0xB1, 0x1A, 0xE1};
+    if (std::memcmp(h, kMagic, 8) != 0)
+        return r;
+    const u16 minor = u16_from_bytes_le(h + 24);
+    const u16 major = u16_from_bytes_le(h + 26);
+    const u16 order = u16_from_bytes_le(h + 28);
+    const u16 shift = u16_from_bytes_le(h + 30);
+    const u16 mini_shift = u16_from_bytes_le(h + 32);
+    (void)minor;
+    if (major != 3 && major != 4)
+        return r;
+    if (order != 0xFFFE)
+        return r;
+    if ((shift != 9 && shift != 12) || mini_shift != 6)
+        return r;
+    const u64 ssz = u64(1) << shift;
+    const u32 num_fat = u32_from_bytes_le(h + 44);
+    const u32 first_dir = u32_from_bytes_le(h + 48);
+    const u32 num_difat = u32_from_bytes_le(h + 72);
+    if (num_fat == 0 || num_fat > (1u << 20))
+        return r;
+    if (first_dir == 0xFFFFFFFF || first_dir == 0xFFFFFFFE)
+        return r;
+    if (num_difat > (1u << 16))
+        return r;
+    const u64 limit = probe_limit(s, hit, cap);
+    u64 max_sector = first_dir;
+    /* DIFAT head: 109 sector ids at +76 */
+    for (u32 i = 0; i < 109 && i < num_fat; ++i) {
+        const u32 fs = u32_from_bytes_le(h + 76 + i * 4);
+        if (fs == 0xFFFFFFFF || fs == 0xFFFFFFFE)
+            continue;
+        if (fs > max_sector)
+            max_sector = fs;
+    }
+    /* the directory chain through the FIRST FAT sector's entries */
+    if (first_dir != 0xFFFFFFFF) {
+        u32 sector = first_dir;
+        for (u32 hop = 0; hop < 4096; ++hop) {
+            if (sector > max_sector)
+                max_sector = sector;
+            if (sector == 0xFFFFFFFE)
+                break; /* ENDOFCHAIN */
+            /* FAT entry lookup bounded to the header DIFAT head */
+            const u32 fat_idx = sector >> (shift - 2);
+            if (fat_idx >= 109 || fat_idx >= num_fat)
+                break;
+            const u32 fat_sector = u32_from_bytes_le(h + 76 + fat_idx * 4);
+            if (fat_sector == 0xFFFFFFFF || fat_sector == 0xFFFFFFFE)
+                break;
+            /* CFB sector N's data lives at (N+1)*ssz: the header occupies
+             * the first sector slot (512 bytes at shift 9, 4096 at 12) */
+            const u64 ent_at = hit + u64(fat_sector + 1) * ssz + u64(sector) * 4;
+            if (ent_at + 4 > limit)
+                break;
+            const u32 next = rd32(s, ent_at);
+            if (next == 0xFFFFFFFF || next == 0xFFFFFFFE)
+                break;
+            sector = next;
+        }
+    }
+    const u64 end = hit + (max_sector + 2) * ssz; /* +2: header slot + last sector */
+    if (end <= hit + 1024)
+        return r; /* degenerate: header + nothing referenced */
+    if (end > limit) {
+        /* slab-truncated: floor at the header + the referenced sectors that
+         * fit; never below header + one sector */
+        const u64 floored = std::max(hit + 1024, limit);
+        r.ok = true;
+        r.end = floored;
+        r.confidence = 700;
+        r.note = "ole-difat-extent-truncated";
+        return r;
+    }
+    r.ok = true;
+    r.end = end;
+    r.confidence = 850;
+    r.note = "ole-difat-extent";
+    return r;
+}
+
+CarveResult validate_mpegps(IStorageDevice* s, u64 hit, u64 cap) {
+    /* MPEG program stream: 00 00 01 BA pack header (MPEG-1 12 bytes /
+     * MPEG-2 14 bytes - the SCR marker nibble discriminates), then the
+     * start-code packet walk (lengths for packet codes, fixed sizes for
+     * pack/system headers) to the first invalid position (S-007 plan,
+     * BruteForce-style). */
+    CarveResult r;
+    u8 h[14];
+    if (!rd(s, hit, h, 14))
+        return r;
+    if (h[0] != 0 || h[1] != 0 || h[2] != 1 || h[3] != 0xBA)
+        return r;
+    const bool mpeg2 = (h[4] & 0xC4) == 0x44; /* marker bits 01..10 in SCR */
+    u64 q = hit + (mpeg2 ? 14 : 12);
+    const u64 limit = probe_limit(s, hit, cap);
+    u32 packs = 1, elements = 0;
+    for (u32 guard = 0; guard < (1u << 20); ++guard) {
+        u8 sc[4];
+        if (q + 4 > limit || !rd(s, q, sc, 4))
+            break;
+        if (sc[0] != 0 || sc[1] != 0 || sc[2] != 1)
+            break; /* first invalid start code ends the stream */
+        const u8 code = sc[3];
+        if (code == 0xB9) { /* end code */
+            q += 4;
+            ++elements;
+            break;
+        }
+        if (code == 0xBA) {
+            u8 pk[14];
+            if (!rd(s, q, pk, 14))
+                break;
+            q += (pk[4] & 0xC4) == 0x44 ? 14 : 12;
+            ++packs;
+            ++elements;
+            continue;
+        }
+        if (code == 0xBB) { /* system header: length follows */
+            const u32 len = rd16(s, q + 4);
+            if (len < 6 || q + 6 + len > limit)
+                break;
+            q += 6 + len;
+            ++elements;
+            continue;
+        }
+        if ((code & 0xE0) == 0xE0 || (code & 0xC0) == 0xC0 || code == 0xBD || code == 0xBE) {
+            /* stream packets + padding: PES length field */
+            const u32 len = rd16(s, q + 4);
+            if (q + 6 + len > limit)
+                break;
+            q += 6 + len;
+            ++elements;
+            continue;
+        }
+        break; /* unknown start code: stop (conservative end) */
+    }
+    if (packs < 1 || elements < 2)
+        return r; /* a lone pack header is noise-class for the 4-byte key */
+    r.ok = true;
+    r.end = std::min(q, limit);
+    r.confidence = 650;
+    r.note = "mpeg-ps-startcode-walk";
+    return r;
+}
+
+CarveResult validate_mpeges(IStorageDevice* s, u64 hit, u64 cap) {
+    /* MPEG video elementary stream anchored on a picture start code
+     * (00 00 01 B3): walk picture/slice/group codes to the first break.
+     * Accept requires at least one slice after the picture header (the
+     * 4-byte key alone is weak). */
+    CarveResult r;
+    u8 h[10];
+    if (!rd(s, hit, h, 10))
+        return r;
+    if (h[0] != 0 || h[1] != 0 || h[2] != 1 || h[3] != 0xB3)
+        return r;
+    const u64 limit = probe_limit(s, hit, cap);
+    u64 q = hit + 10; /* temporal reference(2) + code(1) + vbv(4) + ... */
+    u32 pictures = 1, slices = 0;
+    for (u32 guard = 0; guard < (1u << 20); ++guard) {
+        u8 sc[4];
+        if (q + 4 > limit || !rd(s, q, sc, 4))
+            break;
+        if (sc[0] != 0 || sc[1] != 0 || sc[2] != 1)
+            break;
+        const u8 code = sc[3];
+        if (code == 0x00) { /* picture start */
+            q += 4 + 8;     /* ref(2)+code(1)+vbv delay(3)+stuffing */
+            ++pictures;
+            continue;
+        }
+        if (code >= 0x01 && code <= 0xAF) { /* slice */
+            u32 len = 0;
+            /* walk the slice bytes to the next start-code prefix */
+            u64 p = q + 4;
+            std::vector<u8> buf(kProbeBlock);
+            while (p + 4 <= limit) {
+                const u64 remain = limit - p;
+                const u32 take = u32(std::min<u64>(remain, kProbeBlock - 3));
+                if (take == 0 || !rd(s, p, buf.data(), take))
+                    break;
+                u64 i = 0;
+                for (; i + 3 < take; ++i) {
+                    if (buf[i] == 0 && buf[i + 1] == 0 && buf[i + 2] == 1)
+                        break;
+                }
+                p += i;
+                if (i + 3 < take)
+                    break; /* found the next start code */
+            }
+            len = 0;
+            (void)len;
+            q = p;
+            ++slices;
+            continue;
+        }
+        if (code == 0xB8) { /* GOP header: fixed 8 bytes after the code */
+            q += 4 + 8;
+            ++slices; /* structure element */
+            continue;
+        }
+        break;
+    }
+    if (pictures < 1 || slices < 1)
+        return r;
+    r.ok = true;
+    r.end = std::min(q, limit);
+    r.confidence = 600;
+    r.note = "mpeg-es-slice-walk";
+    return r;
+}
+
+CarveResult validate_dwg(IStorageDevice* s, u64 hit, u64 cap) {
+    /* AutoCAD DWG: "AC10xx" version gate over the known release set
+     * (r13..R2018), then the bounded extent (the finding's sanctioned
+     * heuristic: the R13-R2000 section-locator map is version-dependent
+     * and the R2004+ map is compressed - a full section walk is a
+     * follow-up; the version gate + bounded extent is the honest floor). */
+    CarveResult r;
+    u8 v[6];
+    if (!rd(s, hit, v, 6))
+        return r;
+    if (std::memcmp(v, "AC10", 4) != 0)
+        return r;
+    static const char* kVersions[] = {"12", "14", "15", "18", "21", "24", "27", "30", "32"};
+    bool known = false;
+    for (const char* ver : kVersions)
+        if (v[4] == ver[0] && v[5] == ver[1])
+            known = true;
+    if (!known)
+        return r;
+    /* the R13-R2000 sentinel follows the version string: 0D 0A 0D 0A 00 */
+    u8 sent[5];
+    if (rd(s, hit + 6, sent, 5) && sent[0] == 0x0D && sent[1] == 0x0A && sent[2] == 0x0D &&
+        sent[3] == 0x0A && sent[4] == 0x00) {
+        known = true; /* strengthens the classification */
+    }
+    const u64 limit = probe_limit(s, hit, cap);
+    u64 end = hit + (64ull << 20); /* the finding's 64 MiB cap */
+    if (end > limit)
+        end = limit;
+    if (end - hit < 512)
+        return r;
+    r.ok = true;
+    r.end = end;
+    r.confidence = 620; /* bounded-extent honesty: raw-sign class */
+    r.note = "dwg-version-gate,bounded-extent";
+    return r;
+}
+
 } // namespace carve
 } // namespace cr
