@@ -1,12 +1,53 @@
-# SUMMARY.md — executive summary (session 2 — both legs reconciled, second close-out pass)
+# SUMMARY.md — executive summary (session 3 reconciled; sessions 1+2 below)
 
-**Audited commit:** `5d6da5f` (session 1 baseline `67193b6` plus concurrent fixes) →
-`8574039` (first close-out baseline) → `5f638a3` (current; includes the Windows CRT
-exclusive-open CI repair on top of the parallel audit leg). **Corpus:** `03ad46c`
-(unmoved). **Audit dates:** 2026-10-25 (session 1) + 2026-10-25 (session 2, two legs).
+**Audited commit:** session 1 `67193b6` → session 2 `5d6da5f`/`8574039`/`5f638a3` →
+**session 3: `2ce2e6b` + in-flight fixes through `34b3441`+rebase** (S-010 `3e34ed2`,
+M-009 `7fd00e0` verified landed mid-session). **Corpus:** `03ad46c` (unmoved).
+**Audit dates:** 2026-10-25 (sessions 1, 2 and 3 — three legs in session 2, one in 3).
 **Status:** session 2 waves 1–3 complete (parallel leg: 17 new findings + FIXED/ cleanup;
 this leg: 8 more landed fixes independently re-verified first-hand and CLOSED, + M-010
 filed). The decompile-vs-core deep pass continues below the session-1 module parameters.
+
+## Session-3 delta (2026-10-25 — the "go deeper, remove the fixed, mark the remainder" session)
+
+Mandate: find what sessions 1-2 missed, verify/retire the fixed things, go deeper on
+the og-codebase vs core comparison. State at session-3 close:
+
+- **Retired (verified first-hand):** S-010 FIXED by the fix leg (`3e34ed2`+`414f56c`+
+  `34b3441`, already in FIXED/; this session reconciled the stale SUMMARY that still
+  listed it as top risk #1); M-009 FIXED (`7fd00e0`, `RwDevice::read_at` now routes
+  through `aligned_read_at` — verified in-tree, Resolution added).
+- **Still live (re-verified at HEAD):** A-002 (fabricated LDM GPT GUIDs at
+  `cr_table_wire.h:87-90` + self-referential tests — the only pre-existing ACUTE at
+  session open); S-011 (exFAT tz subtraction at `cr_exfat_quick.cpp:138`).
+- **New findings (7):** S-015 (SEVERE — raw_signs.json min/max are KiB in the og
+  (`max << 10`, default 0x7d000 KiB) vs bytes in the core: the 139-format raw-sign
+  recall window is 1024x too small, 50 KiB vs 50 MiB); M-022 (ReFS file-value grammar:
+  og type@key+0 dual-layout {0x178 old / >=0x29 modern, gated on system-dir-count >= 8}
+  + $I recycle handler + all-rows iteration vs core 0x80@key+8 first-match-break);
+  M-023 (filter model: 8-cat/1,481-ext runtime XML vs 7-cat/64-ext hard-coded;
+  Email+Bookmarks missing — filed from the old unnumbered GAP-cats row); N-030
+  (raw_signs confidence field is dead data in the og — parser consumes offset+hex only;
+  the core invents confidence semantics); N-031 (carve dispatch deltas: og
+  u32→u16→linear→sign-DB order decoded, sector-relative stride, all-zero-sector skip,
+  only_common config gate); N-032 (health transports: og companion's CSMI/USB-bridge/
+  Realtek-NVMe accessors missing in core); I-012 (GAP-ADS RESOLVED: the og does not
+  recover ReFS ADS either — .rsf/RTTI/emission evidence; core MATCH, shared limitation,
+  mandate clause satisfied by parity).
+- **OQ-T8 RESOLVED** (the decode above; the parallel s2-third-leg's convergent evidence
+  block had the u16/sweep legs swapped — corrected with disassembly proof, addendum
+  appended to their evidence file). OQ-T9 was resolved by the s2-third-leg (M-017,
+  187-row-verified ln(count)/ln(max) scoring model — convergent read this session).
+- **Cross-leg coordination:** IDs renumbered past the s2-third-leg's S-012..S-014 /
+  N-023..N-029 (this leg's raw-signs findings became S-015/N-030/N-031); corpus errata
+  19-21 filed (dispatch order inversion, dead confidence field, KiB units).
+- **Architectural verification:** CPartitionVirtualVolumeDevice (the og's virtual-volume
+  device layer) = the core's IStorageDevice + slice adapters (equivalent; GAP-S6-8's
+  absolute_base covers the base semantics).
+- **Coverage added:** ReFSSearchDLL file pipeline (first deep pass in any session),
+  RAWSearchDLL raw_signs loader/parser/scan-loop/dispatch (first), FileFilter.xml
+  (first), diskhealth companion transports (first), exFAT/FATCalcPartition verified
+  convergent via M-017's decode.
 
 ## Session 2 + parallel-leg combined delta
 
@@ -66,17 +107,19 @@ ID retired); this leg's evidence quote `evidence/decompiled-quotes/s2-zfs-utf8-c
 supports M-010. This leg's dormant-rotations finding is renumbered **I-008** (ID
 collision with the parallel leg's I-006 ext4-nanoseconds, cleared).
 
-## Counts per severity (active — excludes FIXED/)
+## Counts per severity (active — excludes FIXED/) — session-3 reconciled
 
 | Severity | Active | FIXED (in `findings/FIXED/`) | IDs (active) |
 |---|---|---|---|
-| ACUTE | 1 | A-001, **A-003** (discovered by the continuation leg; `repair::rebase_plan` parent-basis fix — RENUMBERED from its local A-002 to clear the collision with this leg's A-002 GUID-regression finding, which landed on main first) | **A-002 (third-leg addendum — fix-induced regression)** |
-| SEVERE | 6 | S-001, S-002, S-004, S-005, S-008 | S-003, S-006, S-007, S-009 (partial), S-010, S-011 |
-| MAJOR | 6 | M-001 | M-002, M-005, M-007, M-008, M-009, M-010 |
-| MINOR | 17 | N-002, N-003, N-010 | N-001, N-004..N-009, N-011..N-021, **N-022 (third leg: FAT mirror consult on BAD)** |
-| INFORMATIONAL | 8 (7 ACKNOWLEDGED + 1 informational-record) | — | I-001..I-007, I-008 (dormant RAID-5 rotations — a MATCH record) |
-| tracked-open | 12 | OQ-T1, OQ-T2 (RESOLVED), OQ-T5 (RESOLVED), OQ-T7 (RESOLVED) | OQ-T3*, OQ-T4*, OQ-T6 (bounded), OQ-T8, OQ-T9 (machinery located), OQ-S2A-1..4, OQ-S2C-3 |
-| **Total active findings** | **45** | **12** | |
+| ACUTE | 2 | A-001 (partial — ESP/MSR half stands fixed; LDM half false-positive), A-003 | **A-002 (LDM GUID regression — roadmap #1, still live at audit close)**, A-004 (event-sink crash, S2-third-leg) |
+| SEVERE | 9 | S-001, S-002, S-004, S-005, S-008, **S-010 (3e34ed2 — volume quiesce, session-3-verified)** | S-003, S-006, S-007, S-009 (split pending N-020), S-011, S-012, S-013, S-014, **S-015 (S3: raw_signs KiB units)** |
+| MAJOR | 18 | M-001, **M-009 (7fd00e0 — 64 KiB envelope on the repair read path, session-3-verified)** | M-002, M-005, M-007, M-008, M-010, M-011..M-021, **M-022 (S3: ReFS file-value grammar)**, **M-023 (S3: filter model)** |
+| MINOR | 27 | N-002, N-003, N-010-theirs | N-001, N-004..N-009 (grouped), N-011..N-022, N-023..N-029 (S2-third-leg, grouped), **N-030..N-032 (S3)** |
+| INFORMATIONAL | 10 | — | I-001..I-011, **I-012 (S3: GAP-ADS resolved — parity, shared limitation)** |
+| tracked-open | 6 files | OQ-T1/T2/T5/T7/T8/T9 + all 9 S2-third-leg OQs RESOLVED across legs | OQ-T3*, OQ-T4*, OQ-T6 (bounded), OQ-S2A-1..4, OQ-S2C-3, OQ-S2M-1/2 (see files) |
+| **Total active findings** | **66** | **18** | |
+
+*(Counts by file inventory at session-3 close: 2+9+18+27+10 = 66 active, 18 FIXED.)*
 
 **Note on S-009/M-006:** the S-009 disk-map component was FIXED via GAP-S6-11
 (`56cce87` — `cr_diskmap.cpp/.h` verified in-tree by this leg); the M-006 fuzz-CI
@@ -117,13 +160,11 @@ ext4/Btrfs invalid-UTF-8 finding (briefly M-007 in a local commit) renumbered to
 
 ## Top risks (ranked — post-reconciliation)
 
-1. **S-010 (session 2, safety) — RawFixer write device bypasses FSCTL_LOCK_VOLUME +
-   FSCTL_DISMOUNT_VOLUME.** The og's `RecoveryModule.dll` performs the full
-   lock+unmount+flush+sleep-2s-settle+verify sequence at
-   `RecoveryModule_decompiled.c:44686-44720`. The core's `RwDevice` opens with
-   `FILE_SHARE_READ|WRITE` and no lock. Concurrent processes can race with repair
-   writes — silent volume corruption. Compounds the (now-fixed) S-008 wiring with a
-   safety gap on the write path.
+1. **A-002 (ACUTE, blocks all GPT dynamic-disk recovery)** — still the roadmap #1;
+   see the A-002 block above. **S-015 (session 3) — raw-sign recall window 1024x too
+   small** (raw_signs.json min/max read as bytes vs the og's KiB): every raw-sign
+   format caps at 50 KiB (200 KiB for the media entries) where the og carves 50 MiB
+   (200 MiB) — the largest single recall gap found in session 3; one-generator fix.
 2. **S-011 (session 2, parity) — exFAT `tz_offset` applied (core) vs ignored (og).**
    Every non-UTC exFAT file's `.rsf` diverges by `tz_offset × 900 × 10⁷` (100ns units).
    Spec-correct UTC vs og's local-as-UTC. One-line fix.

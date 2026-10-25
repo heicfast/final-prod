@@ -38,10 +38,10 @@ Legend: `M` = MATCH · `A-n`/`S-n`/`M-n`/`N-n`/`I-n` = finding ID (in
 | tree | M | M | NA | M | M | NA | NA | ok | M | NA | M |
 | session | M | M (D12), N-014 (S2) | M | NA | M; N-014 (S2) | NA | NA | M | M | I-005.7 ack | M (debt) |
 | writer+report | M | M | NA | M | M | M | NA | ok | M | **N-013 (S2), N-015 (S2)**, N-009d | M (debt) |
-| health | M | NA | N-009a | NA | M | NA | NA | NA | M | M | THIN |
+| health | M | NA | N-009a | NA | M | NA | NA | NA | M | M | M + **N-032 (S3: CSMI/USB-bridge transports)** |
 | rawfixer | M (S-008+S-010 fixed) | NA | M | M (S-008 fixed) | M | NA | NA | M (M-009 fixed) | M | M (S-008+S-010 fixed) | M |
 | orchestrator | M | M | NA | M-005 | M; **N-016 (S2), N-017 (S2)** | M | NA | M | M | M | M |
-| visualization | S-009 (partial-FIXED-in-tree, finding file stale — N-020) | GAP-cats, M | NA | M | M | NA | M | M | M | NA | M |
+| visualization | S-009 (partial-FIXED-in-tree, finding file stale — N-020) | **M-023 (S3)** (filter model: 8-cat/1481-ext runtime XML vs 7-cat/64-ext hard-coded; Email+Bookmarks missing) | NA | M | M | NA | M | M | M | NA | M |
 | abi (cr_ui) | NA | M | ok | NA | M | M | S-009 | M | M | M | M |
 | cli | N-009c | NA | M | NA | M | NA | M | NA | M | M | ok; N-020 (S2) |
 | quality (cross-cutting) | NA | NA | NA | NA | NA | NA | NA | NA | NA | NA | **N-018 (S2), N-019 (S2), N-020 (S2)**; M-006 FIXED |
@@ -62,6 +62,16 @@ underlying parameter is MATCH as of that fix. Cells with finding IDs marked **(S
 session-2 findings; the previous `M` verdict was refuted by first-hand decompile + core
 source read. Cells marked `ack` are ACKNOWLEDGED informational findings (deliberate supersets
 with pin tests, stay in INFORMATIONAL/).
+
+**Session-3 changes (this leg):** S-015 (rawsigns KiB units, SEVERE), M-022 (ReFS
+file-value grammar), M-023 (filter model — replaces the old GAP-cats note), N-030
+(rawsigns confidence dead in og), N-031 (carve dispatch/stride deltas; OQ-T8
+RESOLVED), N-032 (health transports), I-012 (GAP-ADS resolved — parity). Fixed
+since the last matrix pass: S-010 (3e34ed2), M-009 (7fd00e0) — both first-hand
+verified in FIXED/. CPartitionVirtualVolumeDevice (og virtual-volume device
+layer) verified architecturally equivalent to the core IStorageDevice + slice
+adapters (devirtualized field reads sector-size@+0x38/size via vt[3]/vt[5] —
+HFSPlusSearchDLL :454/:550-572; evidence s3-refs-file-pipeline.md §7 context).
 
 Group keys: B behavioral · D data model · C constants/formats · A algorithms ·
 S state machine · O orchestration · P API · X performance · R architecture ·
