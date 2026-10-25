@@ -24,10 +24,10 @@ namespace win {
 /* Open the RDA driver under the given service name (default RDA, matching
  * the deployed driver). open_rda_partition opens the 3-segment EPMNtDrv
  * grammar path \\.\SVC\<token>\<disk>\<part> ONLY (FB-L01: no cascade -
- * the 2-segment and Volume\<n> variants are separate functions /
- * RdaClient::open_disk_grammar / open_volume_grammar, TRANSPORT-CONTRACT
- * §2.1). Returns null + err when the driver is unavailable (caller falls
- * back to direct handles). */
+ * the 2-segment and Volume\<n> variants are separate grammar functions,
+ * TRANSPORT-CONTRACT §2.1; the structured-open RdaClient was deleted by
+ * N-041 - zero callers since introduction). Returns null + err when the
+ * driver is unavailable (caller falls back to direct handles). */
 std::unique_ptr<IStorageDevice> open_rda_partition(const wchar_t* service_name, u32 disk, u32 part,
                                                    u32* err);
 std::unique_ptr<IStorageDevice> open_rda_volume(const wchar_t* service_name, u32 volume, u32* err);
@@ -50,16 +50,6 @@ std::unique_ptr<IStorageDevice> open_disk(u32 disk, bool prefer_rda, const wchar
  * RDA path. Open the read view separately with open_disk() for analyze(). */
 std::unique_ptr<cr::repair::IWriteDevice> open_disk_rw(u32 disk, bool prefer_rda,
                                                        const wchar_t* service, u32* err);
-
-/* Map a volume letter (e.g. L'C') to its disk+partition (IOCTL_VOLUME_GET_VOLUME_DISK_EXTENTS
- * for disk number + extent start, then the disk's parsed table for the 1-based partition
- * number - FB-L02 comment fix).
- *
- * W4 KEEP-note (AUDIT-ARCH 8a #4, plan ruling): currently 0 callers - the
- * CLI uses volume_extent instead. Retained as the natural preflight for
- * the writer's destination-overlap refusal (destination letter -> source
- * disk comparison); wiring candidate for the writer hardening track. */
-bool volume_letter_to_disk(wchar_t letter, u32* disk, u32* part);
 
 /* Full extent of the volume containing a drive letter: disk number, byte
  * offset on that disk, byte length (used for recovery-overlap refusal).

@@ -20,6 +20,21 @@ jobs:
           find src include tests -name '*.h' -o -name '*.hpp' -o -name '*.cpp' -o -name '*.c' \
             | xargs clang-format-18 --dry-run --Werror
 
+      - name: dead-surface absence lint (N-041)
+        run: |
+          # N-041: the structured-open RdaClient + volume_letter_to_disk were
+          # deleted (zero callers since introduction). The lint fails if the
+          # symbols ever return to production code. Documentation mentions
+          # (N-041 notes/deletions) are excluded; cr_rda.h's wire-contract
+          # structs are documented driver-side protocol, not client code.
+          if grep -rn --include='*.cpp' --include='*.h' --include='*.c' \
+               -e 'RdaClient::' -e 'class RdaClient' -e 'volume_letter_to_disk' \
+               src include tests tools bench fuzz; then
+            echo "FAIL: deleted dead-surface symbols found in production code"
+            exit 1
+          fi
+          echo "OK: no deleted-surface symbols present"
+
   linux:
     runs-on: ubuntu-24.04
     steps:

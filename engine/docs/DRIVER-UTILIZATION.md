@@ -36,7 +36,7 @@ only session engine in the lineage (EUDCPEPM) belongs to the WinPE disk-copy
 chain with no DRW client. The RDA driver's session engine (18-code protocol,
 rebuilt from EUDCPEPM) is therefore a **copy/imaging surface, not a recovery
 transport**. The core matches the reference by driving plain
-grammar-open + ReadFile for scans; the session client (`rda::RdaClient`,
+grammar-open + ReadFile for scans; the session client (deleted by N-041 -
 wire-exact vs `rda_ioctl.h` with static_asserts) is retained as the
 imaging/verification surface — production-dark, same as the og's non-use.
 This is the documented reconciliation.
@@ -47,11 +47,11 @@ This is the documented reconciliation.
 
 | Aspect | Reference (corpus) | Core (verified) | Verdict |
 |---|---|---|---|
-| Device path grammar | `\\.\{SYM}\<PID-token>\<disk>\<part>` (3-segment); `\\.\{SYM}\<PID-token>\Volume\<N>`; `\\.\{SYM}\<PID-token>\<disk>` (2-segment) — `epmntdrv-trio §3.3`; client sites `Device_decompiled.c:329, 7793, 50628, 52414, 54621` | `open_rda_partition`: `\\.\%s\%u\%u\%u` (cr_transport.cpp:617-624); `open_rda_volume`: `\Volume\%u` (:642-664); 2-segment via `RdaClient::open_disk_grammar` | **MATCH** |
+| Device path grammar | `\\.\{SYM}\<PID-token>\<disk>\<part>` (3-segment); `\\.\{SYM}\<PID-token>\Volume\<N>`; `\\.\{SYM}\<PID-token>\<disk>` (2-segment) — `epmntdrv-trio §3.3`; client sites `Device_decompiled.c:329, 7793, 50628, 52414, 54621` | `open_rda_partition`: `\\.\%s\%u\%u\%u` (cr_transport.cpp:617-624); `open_rda_volume`: `\Volume\%u` (:642-664); 2-segment via the grammar bridges (the RdaClient bridges were deleted by N-041) | **MATCH** |
 | PID token | `b0 \| (b0+b1)<<8 \| (b1+b2)<<16 \| (b2+b3)<<24` over caller PID LE bytes, 8-bit wrapping adds; driver re-derives at IRP_MJ_CREATE, mismatch → `STATUS_INVALID_PARAMETER` | `compute_pid_token` — byte-identical transform (cr_transport.cpp:285-289 vs driver `rda_compat.h:49-57`) | **MATCH** |
 | Service-name-derived device | driver builds `\Device\` + UPPERCASE(last registry-path component); client hardcodes the service name (`EPRDTDRV`) | core uses service name `RDA` (driver installed as `rda` → `\\.\RDA`); parameterized in every open function | **MATCH** (name differs by deployment; mechanism identical) |
 | Access/share | volume: GENERIC_READ share 0; disk functor: share 0; clone default 0xC0000000 share 3 | GENERIC_READ, share R\|W\|D (cr_transport.cpp:622-624) | **PARTIAL** — core's share set is a documented superset (coexistence with OS handles on the same disk while scanning; the driver device is non-exclusive). No contract effect: the driver applies no share checks |
-| Handshake on open | none (token only; no version/magic exchange) | none — production path matches; `RdaClient::open` adds GET_INFO + wrong-driver refusal but is production-dark | **MATCH** |
+| Handshake on open | none (token only; no version/magic exchange) | none — production path matches; the structured client surface was deleted by N-041 (production-dark, zero callers) | **MATCH** |
 | Geometry on open | passthrough IOCTLs (0x70000 geometry, 0x74004 partition-info-ex, 0x7405c length) through the EPRDTDRV handle; sector default 512 | `probe_geometry`: IOCTL_DISK_GET_LENGTH_INFO + GEOMETRY_EX + STORAGE_QUERY_PROPERTY (access-alignment, corrected +0x10/+0x14) (cr_transport.cpp:63-122) | **MATCH+** (exact-length + 512e/4Kn correction superset) |
 
 ### 1.2 Request shape — **MATCH** (one gap: read granularity, §1.7)
@@ -61,7 +61,7 @@ This is the documented reconciliation.
 | Read units | bytes at absolute byte offsets (driver passes `Read.Length` raw; sector math client-side) | bytes at absolute offsets (SetFilePointer-equivalent via OVERLAPPED) | **MATCH** |
 | Reported-count contract (F11) | driver reports `Information = Length × 512`; client guard: `if (chunk < got) got /= 512` (`Device_decompiled.c:55964-55968`) | `overlapped_read` accepts `got == len` or `got == len×512` when rda_scaled (cr_transport.cpp:43-59) | **MATCH** — the core implements the same compensation pair the og does |
 | Write path | twin, same ×512 scale | `RwDevice::write_at` accepts both counts (cr_transport.cpp:817-854) | **MATCH** |
-| Control IOCTLs | 0x60002400/04/08 through the handle (GetProcName/GetFileObjName/GetDiskContextMode) + storage passthrough | implemented in `cr_rda.h`/RdaClient (production-dark); storage passthrough achieved by issuing standard IOCTLs on the grammar handle (`probe_geometry`) — the same passthrough the og exploits | **MATCH** |
+| Control IOCTLs | 0x60002400/04/08 through the handle (GetProcName/GetFileObjName/GetDiskContextMode) + storage passthrough | wire structs documented in `cr_rda.h` (client deleted by N-041); storage passthrough achieved by issuing standard IOCTLs on the grammar handle (`probe_geometry`) — the same passthrough the og exploits | **MATCH** |
 
 ### 1.3 Completion model — **MATCH**
 
