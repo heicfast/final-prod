@@ -1694,3 +1694,13 @@ Work Log:
 - Agents A (corpus architecture, ~115 docs), B (SearchDLL+PartitionRecovery artifacts, 44 docs, 10 per-engine sheets, ~184 cited constants), C (core public surface, 53 headers + build/CI/docs), D (core src, 52 files / 24,793 LOC + 37 test files), E (binary probes: 38 PE dumps, IOCTL census, raw_signs.json, core Linux build + live table-parser fixture run) all complete.
 - Sheets consolidated under scratch (outside repo, per read-only rule). Key empirical finds already surfaced: E-1 four wrong GPT type GUIDs in cr_table_wire.h; E-2 EBR salvage gap; B: NTFS $-skip blanket vs known-metafiles, FAT12 BAD cluster raw-follow, exFAT boot-checksum coverage, Btrfs og complete-searcher NULL stub, ZFS nvlist 0x1C000 single-read, RAW analyser 106+chains vs core 34, corpus OQ-1 NTFS flags-0x10 folder-vs-inuse conflict.
 - Next: T3 skeleton docs (PARAMETERS/SEVERITY/README/SUMMARY), T4 matrix scaffold, then module waves.
+
+---
+Task ID: 5 (T5)
+Agent: main auditor
+Task: NTFS module audit — all applicable parameters
+
+Work Log:
+- Cross-read B-ntfs.md vs D-ntfs.md; spot-verified critical claims in code (is_metafile_name list, viability gate strict >, Overwritten emission path, mirror fallback record_no<4, bootstrap record-size rejection, Confidence/DeletedState enums).
+- Wrote findings: S-001 (overwritten-deleted emitted vs og destroy — SEVERE), M-001 (record-size reject vs og clamp — MAJOR), N-001 (MFTMirr hardcoded 0..3 — MINOR), I-001 (metafile filter deviation — INFO), OQ-T1 tracked-open (secondary claim map).
+- Wrote evidence/decompiled-quotes/ntfs-viability-and-filters.md (6 quotes with file+line), modules/ntfs.md (full parameter verdicts + 2 corpus errata candidates: runlist nibble prose, flags-0x10 conflict resolution).
