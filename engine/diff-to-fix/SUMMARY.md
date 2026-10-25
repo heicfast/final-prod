@@ -1,4 +1,38 @@
-# SUMMARY.md — executive summary (diff-fix session 14 on top; earlier sessions below)
+# SUMMARY.md — executive summary (session 10's close-out on top; earlier sessions below)
+
+## Session-10 delta — the SEVERE tier close-out (2026-10-26)
+
+This lane (DFX10) executed the published order S-009 -> S-029 -> S-030
+against a hot remote (three independent S-009 implementations converged;
+S-030 landed from the DFX8 lane mid-session):
+
+**S-009 — converged + hardened:** this lane's independent fix rebase-
+absorbed into the landed storage::FreeMap implementation (c55bd45);
+first-hand verification of THEIR code found and closed four defects (FAT
++ exFAT virtual-cluster false-free over the root-dir/boot tail; exFAT
+2-cluster under-coverage; the torn-bitmap read painting zeros free) plus
+the found-content rule convergence (deleted/carved content cells stay
+Unknown — the finding's plan verbatim). 4 pin tests; suite 577/577.
+
+**S-030 — landed by the parallel lane (b30354d):** flat/VMDK/VHD image
+devices + --image CLI (re-verified green in this lane's baselines).
+
+**S-029 — CLOSED (this lane):** the lost-partition apply path, the
+recovery endgame. New consent-gated cr/apply module on the rawfixer
+seams: plan_apply (read-only, containment-refusing) + execute_apply
+(A1 consent callback — denied OR absent = ERR_APPLY_CONSENT_DENIED with
+zero writes; A2 stale-table revalidation; quiesce first; A4 transaction
+with read-back verify + rollback) + the shared CRUNDO01 undo. CLI
+`rrecov apply --disk N --session F --candidate N [--apply]`; win layer
+`refresh_disk_properties` (the og's UPDATE_PROPERTIES + settle). 10
+Apply.* tests; suite **590/590** Linux ASan. PARITY-DELTAS D-65/D-66.
+
+**The SEVERE tier is CLOSED** (0 open). Live inventory at this push:
+MAJOR 33 · MINOR 44 · INFO 22 · FIXED 95 · tracked-open 16. Active lane
+claims respected: DFX15 (MAJOR head), DFX9-T7 (M-052/M-035/M-018/
+M-013/M-014), DFX14 (M-005).
+
+
 
 ## Session-14 delta (2026-10-26 — DFX14: bootstrap, two merge repairs, the reconciliation wave)
 
