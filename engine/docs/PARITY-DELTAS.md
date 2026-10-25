@@ -422,10 +422,13 @@ Split verdict — three sub-claims:
 ### D-19 — Recovery queue: collision naming, atomic writes, hash verify, resume (F11)
 
 - **WHAT OG DOES:** Writes recovered files directly to destination via normal
-  file APIs after `CreateDirectoryW` path reconstruction; collision handling not
-  evidenced as rename-policy (corpus `architecture/04-recovery-workflow.md` §7.5;
-  no collision policy in any artifact — AUDIT-UI §5.7 calls it "unevidenced in
-  og").
+  file APIs after `CreateDirectoryW` path reconstruction. Collision handling IS
+  evidenced as a rename policy (N-074 doc-truth correction, re-verified
+  first-hand: `DRWUI_decompiled.c:357110-357131` — `FID_conflict_sprintf_s(
+  ..., L"%s_%d", ...)` / the two-argument `L"%s_%d%s"` form, wrapped by a
+  `10000 < attempts` cap that tears the queue down; the earlier "no collision
+  policy in any artifact — AUDIT-UI §5.7" claim predates this decompile and is
+  superseded; see N-065 for the full decode and the mkdir-gate family).
 - **WHAT WE DO:** Collision naming `name (N).ext` + corpus sanitizer
   (`cr_safewriter.cpp:29`), atomic temp+rename via DestIo, SHA-256 verify with
   per-item mismatch accounting, resumable queue (`.part-<id>` suffix, resumed
@@ -889,13 +892,17 @@ Split verdict — three sub-claims:
 - **RISK:** Device coverage may differ on exotic SAT layers.
 - **VERDICT: ACCEPTED.**
 
-### D-43 — Cache-coalesced MFT reads (D-D/NTFS-2): 64-KiB coalescing at the cache layer
+### D-43 — Cache-coalesced MFT reads (D-D/NTFS-2): coalescing at the cache layer (N-074 doc-truth: block size updated)
 
 - **WHAT OG DOES:** 64-KiB bootstrap read buffer feeding the MFT batch walk
   (corpus ntfs deep-dive §2).
 - **WHAT WE DO:** Engine reads per-record; the `CachedReader` (8 MiB LRU,
-  64-KiB blocks) coalesces — device-read count equals the og's bootstrap
-  buffer behavior (verified: read-count parity in tests).
+  **256-KiB blocks** at the live call site — `cr_scan.cpp:732`
+  `CachedReader::create(std::move(retry), 8ull << 20, 256 * 1024)` since
+  a4053c4; this row's earlier "64-KiB blocks" text predated that landing)
+  coalesces — device-read count equals the og's bootstrap buffer behavior
+  (verified: read-count parity in tests). D-51 registers the block-size
+  reality independently; the budget divergence is D-72's (8 vs 4 MiB).
 - **WHY:** layering (one cache serves every engine, not just NTFS).
 - **RISK:** none measured.
 - **VERDICT: ACCEPTED** (contract §2/§3 amended accordingly in W5).

@@ -11013,3 +11013,41 @@ Work Log:
 Stage Summary:
 - N-040 FIXED (tally: 3 — N-045, N-046, N-040). MINOR 34 remain.
   Next: N-020/N-074 (doc-drift pairs), then N-043/N-048/N-060/N-061.
+
+---
+Task ID: DFX22-T4 (N-074 — doc-drift group #2)
+Agent: main engineer (diff-to-fix minors-first session 22)
+Task: N-074 — five doc-truth sub-items, each re-verified first-hand on
+the current tree before editing.
+
+Work Log:
+- Sub-1 CAPABILITY-MATRIX LZNT1: implementation verified in-tree
+  (cr_decomp.cpp:147 lznt1_payload_decode; cr_mftwalk.cpp:944
+  expand_compressed_data); XPRESS/LZX verified absent from the corpus
+  (0 hits) — row split DONE + MATCH-by-omission.
+- Sub-2 GAP-S6-11: S-009 surface verified in-tree (cr_scan.cpp:896-931
+  FreeMap producer, cr_records.h serialize_free_map, cr_carve.h gate) —
+  row CLOSED with the pointer set.
+- Sub-3 D-43: live call site verified (cr_scan.cpp:732,
+  8ull<<20 / 256*1024, since a4053c4) — text re-worded with D-51/D-72
+  cross-refs.
+- Sub-4 D-19: the collision decompile RE-READ first-hand
+  (DRWUI_decompiled.c:357110-357131 — FID_conflict_sprintf_s %s_%d /
+  %s_%d%s + the 10000 cap) — "not evidenced" premise refuted; N-065
+  cross-referenced (its engine-side scope untouched).
+- Sub-5 cr_health.h: 0xD1 verified NOW issued (cr_health.cpp:192-200,
+  S-024); 0xD8 verified NOT issued (grep 0 hits) and NOT
+  corpus-evidenced (corpus-wide search: struct offsets only) — command
+  list corrected to the issued set with the removal rationale note.
+- Pin: Health.SmartCommandListHeaderIsTruthful (read_repo_file pattern,
+  the N-045 D-72 pin family) — fail-before EXECUTED by restoring the
+  pre-fix header text (pin FAILs on the 0xD8-in-issued-list check),
+  pass-after green. Win-layer parse gate re-run green on the edited
+  header.
+- Suite 682/682 linux-release. Audit trail: Resolution + FIXED/ move,
+  RESOLVED-INDEX row, matrix quality row.
+
+Stage Summary:
+- Session tally: 6 resolutions (M-055, N-077, N-020, N-070, M-056,
+  N-074). MINOR live count 32. Next: N-047 (grouped engine minors) or
+  N-043 (progress liveness watchdog).

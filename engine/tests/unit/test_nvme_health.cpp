@@ -8,6 +8,7 @@
  * offset cannot pass by coincidence. */
 #include <gtest/gtest.h>
 #include "cr/health/cr_nvme.h"
+#include "test_tmpdir.hpp" /* N-074 doc-truth pin: read_repo_file */
 #include "cr/cr_error.h"
 #include <cstring>
 #include <vector>
@@ -155,4 +156,34 @@ TEST(Nvme, CliTempFractionIsCelsiusDecidegrees) {
     health::NvmeHealthInfo h;
     h.temperature_k = 310; /* the page's 16-bit field carries whole K only */
     EXPECT_EQ(h.decidegrees_c(), 369u);
+}
+
+/* ---- N-074 doc-truth pin: the health header's SMART command list ---- */
+/* (the cr_test::read_repo_file helper - CR_SOURCE_DIR stamped by
+ * tests/CMakeLists.txt; same pattern as the N-045 D-72 pin) */
+
+TEST(Health, SmartCommandListHeaderIsTruthful) {
+    /* The win health header documents the ATA SMART commands this
+     * implementation actually issues: 0xB0 feature 0xD0 READ_DATA /
+     * 0xD1 READ_THRESHOLDS (S-024) / 0xEC IDENTIFY, plus the legacy
+     * 0x7C088 fallback. The earlier list also claimed 0xD8
+     * RETURN_STATUS - never issued, never corpus-evidenced (it is a
+     * status-poll command outside the health read path). The pin fails
+     * if the header re-claims an unissued command or drops the N-074
+     * correction note. */
+    const auto hdr = cr_test::read_repo_file("include/cr/win/cr_health.h");
+    ASSERT_FALSE(hdr.empty());
+    EXPECT_NE(std::string::npos, hdr.find("0xD0"))
+        << "READ_DATA must stay in the documented issued set";
+    EXPECT_NE(std::string::npos, hdr.find("0xD1"))
+        << "READ_THRESHOLDS (S-024) must stay in the documented issued set";
+    EXPECT_NE(std::string::npos, hdr.find("0xEC"))
+        << "IDENTIFY must stay in the documented issued set";
+    /* the unissued command must appear ONLY inside the correction note
+     * that explains its removal - never in the issued-set sentence */
+    const size_t corr = hdr.find("N-074 doc-truth: the earlier list also claimed 0xD8");
+    ASSERT_NE(std::size_t(0), corr) << "the N-074 correction note must stay";
+    const size_t issued = hdr.find("0xD1 READ_THRESHOLDS / 0xD8");
+    EXPECT_EQ(std::string::npos, issued)
+        << "0xD8 must not appear in the issued-command list (only the correction note)";
 }
