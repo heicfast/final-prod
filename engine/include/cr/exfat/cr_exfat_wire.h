@@ -69,9 +69,14 @@ struct FileEntry {
     u32 access_timestamp; /* +0x10 */
     u8 create_10ms;       /* +0x14 10ms units 0..199 */
     u8 modify_10ms;       /* +0x15 */
-    u8 create_tz;         /* +0x16 quarter-hours | 0x80; 0x00 = unused */
-    u8 modify_tz;         /* +0x17 */
-    u8 access_tz;         /* +0x18 */
+    u8 create_tz;         /* +0x16 quarter-hours | 0x80; 0x00 = unused.
+                           * Parsed for completeness but NOT applied (S-011):
+                           * the og's engine never reads these bytes - it
+                           * feeds the raw date/time words to
+                           * DosDateTimeToFileTime (six call sites, zero
+                           * quarter-hour arithmetic in the whole DLL). */
+    u8 modify_tz;         /* +0x17 (same) */
+    u8 access_tz;         /* +0x18 (same) */
     u8 reserved2[7];      /* +0x19 */
 };
 static_assert(sizeof(FileEntry) == 32);

@@ -61,7 +61,7 @@ void put64(std::vector<u8>& v, size_t at, u64 x) {
 struct SetBuilder {
     std::vector<u8> entries;
 
-    void file_entry(u16 attribute, u32 ts) {
+    void file_entry(u16 attribute, u32 ts, u8 tz = 0) {
         u8* e = add();
         e[0] = 0x85;
         e[1] = 2;                         /* secondary count: stream + 1 name */
@@ -72,9 +72,12 @@ struct SetBuilder {
         put32v(entries, cur_off() + 16, ts); /* access */
         e[20] = 0;
         e[21] = 0; /* 10ms */
-        e[22] = 0;
-        e[23] = 0;
-        e[24] = 0; /* tz: 0x00 = unused */
+        /* tz bytes at +0x16/+0x17/+0x18 (create/modify/access). S-011
+         * fixtures set them to prove the engine does NOT apply them (og
+         * parity: the bytes are parsed but ignored). */
+        e[22] = tz;
+        e[23] = tz;
+        e[24] = tz;
     }
     void file_entry_deleted(u16 attribute, u32 ts) {
         file_entry(attribute, ts);
@@ -127,7 +130,7 @@ private:
     size_t cur_off() const { return entries.size() - 32; }
 };
 
-std::vector<u8> build_exfat_image() {
+std::vector<u8> build_exfat_image(u8 tz = 0) {
     /* 2048 sectors (1MB) - spec minimum volume size; layout keeps the
      * small fixture geometry inside (heap 25..124, rest unused) */
     std::vector<u8> img(u64(2048) * 512, 0);
@@ -248,11 +251,13 @@ std::vector<u8> build_exfat_image() {
             put16(img, ROOT + at + 2 + i * 2, lbl[i]);
         at += 32;
     }
-    /* photo.jpg: live NoFatChain (clusters 10-11, 1024B) */
+    /* photo.jpg: live NoFatChain (clusters 10-11, 1024B). Carries the
+     * caller's tz bytes (S-011: non-zero values prove the engine leaves
+     * them unapplied). */
     {
         SetBuilder sb;
         size_t set_at = ROOT + at;
-        sb.file_entry(0x20, TS);
+        sb.file_entry(0x20, TS, tz);
         sb.stream_entry(0x03 /*AllocPossible|NoFatChain*/, 9, 10, 1024);
         sb.name_entry(u"photo.jpg");
         std::memcpy(img.data() + set_at, sb.entries.data(), sb.entries.size());
@@ -335,6 +340,82 @@ std::vector<tree::FileNode*> collect_all(tree::ResultTree& t) {
 }
 
 } // namespace
+
+/* ---- S-011: exFAT timestamps match the og's tz-ignored semantics ------- */
+
+namespace {
+
+/* Scan a fixture built with the given photo.jpg tz bytes into the CALLER-
+ * owned tree (the tree owns the nodes) and return the photo.jpg node (the
+ * fixture's other sets always carry tz = 0x00). */
+tree::FileNode* scan_photo_with_tz(u8 tz, tree::ResultTree& tree) {
+    auto img = build_exfat_image(tz);
+    MemDevice dev(std::move(img));
+    auto* ra = tree.add_root(u"Found");
+    auto* rd = tree.add_root(u"Deleted");
+    auto* rl = tree.add_root(u"Lost");
+    ExfatScanFlags flags;
+    ExfatScanStats stats;
+    if (scan_exfat(&dev, flags, nullptr, nullptr, nullptr, tree, ra, rd, rl, stats) != OK)
+        return nullptr;
+    for (auto* n : collect_all(tree))
+        if (n->name_utf8() == "photo.jpg")
+            return n;
+    return nullptr;
+}
+
+} // namespace
+
+TEST(ExfatEngine, TimestampsMatchOgLocalAsUtc) {
+    /* S-011: the og's exFATSearchDLL never reads the dentry tz bytes
+     * (imports census: zero TZ-conversion APIs; six DosDateTimeToFileTime
+     * call sites at exFATSearchDLL_decompiled.c:5215-5235 / :45174-45194,
+     * date/time words only; zero quarter-hour arithmetic in the DLL).
+     * A file whose entries carry tz = 0x88 (7-bit two's-complement, +2h)
+     * must store the ON-DISK time as the FILETIME, exactly as a tz byte
+     * of 0x00 would - the spec-correct -2h subtraction is the divergence
+     * this test pins out (pre-fix core stored 10:00; the og stores 12:00
+     * on every host, matching the on-disk wall clock through the shared
+     * FAT-family datetime core). */
+    tree::ResultTree tree;
+    tree::FileNode* photo = scan_photo_with_tz(0x88, tree);
+    ASSERT_NE(photo, nullptr);
+    /* 2025-02-06 12:00 on-disk, carried through as-is (og parity) */
+    const u64 want = 1738843200ULL * 10000000ULL + 116444736000000000ULL;
+    EXPECT_EQ(photo->props()->times.created, want);
+    EXPECT_EQ(photo->props()->times.modified, want);
+    EXPECT_EQ(photo->props()->times.accessed, want);
+}
+
+TEST(ExfatEngine, TimestampsZeroTzPassThrough) {
+    /* S-011 regression guard: tz = 0x00 is the spec's "offset not
+     * specified" sentinel - both sides pass the on-disk time through
+     * unchanged. (EndToEnd pins the same value via the default fixture;
+     * this is the named guard for the S-011 fix.) */
+    tree::ResultTree tree;
+    tree::FileNode* photo = scan_photo_with_tz(0x00, tree);
+    ASSERT_NE(photo, nullptr);
+    const u64 want = 1738843200ULL * 10000000ULL + 116444736000000000ULL;
+    EXPECT_EQ(photo->props()->times.created, want);
+    EXPECT_EQ(photo->props()->times.modified, want);
+    EXPECT_EQ(photo->props()->times.accessed, want);
+}
+
+TEST(ExfatEngine, TimestampsMatchExplorerDisplay) {
+    /* S-011: tz = 0x20 (+8h - the East-Asia camera/SD-card case, where
+     * consumer devices DO write the offset): the stored FILETIME is the
+     * on-disk wall-clock time, which is what Explorer shows for exFAT on
+     * the volume's home host and what the og's .rsf carries. UTC->local
+     * display conversion is the consumer's job (the DRWUI layer); the
+     * engine contract is the stored value, pinned here. */
+    tree::ResultTree tree;
+    tree::FileNode* photo = scan_photo_with_tz(0x20, tree);
+    ASSERT_NE(photo, nullptr);
+    const u64 want = 1738843200ULL * 10000000ULL + 116444736000000000ULL;
+    EXPECT_EQ(photo->props()->times.created, want);
+    EXPECT_EQ(photo->props()->times.modified, want);
+    EXPECT_EQ(photo->props()->times.accessed, want);
+}
 
 TEST(ExfatEngine, EndToEnd) {
     auto img = build_exfat_image();

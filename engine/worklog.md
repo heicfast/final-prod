@@ -4485,3 +4485,53 @@ Stage Summary:
   S3-W2 entry): ext4/HFS+/Btrfs findings from the restored inventories, NTFS
   remainder past S-012/N-024, ZFS/LDM remainder past M-019/M-016, orchestration/
   session/writer remainder — while the api-session leg works the API/driver/perf lane.
+---
+Task ID: 4-S-011 (SEVERE fix — second item of the fix session)
+Agent: main engineer (diff-to-fix remediation, session 4)
+Task: SEVERE S-011 — exFAT tz_offset applied (core) vs ignored (og); FileTime diverges by tz hours
+
+Work Log:
+- Independent verification BEFORE touching code (first-hand, not the audit's
+  recorded output): ghidra-searchdll/exFATSearchDLL_imports.txt = zero
+  LocalFileTimeToFileTime / FileTimeToLocalFileTime / GetTimeZoneInformation /
+  SystemTimeToFileTime / FileTimeToSystemTime imports (only DosDateTimeToFileTime
+  itself); zero *900 / *0x384 quarter-hour arithmetic anywhere in
+  exFATSearchDLL_decompiled.c; six DosDateTimeToFileTime call sites
+  (:5215-5235 x3, :45174-45194 x3) each passing only (date_word, time_word, &ft).
+  Classification: CONFIRMED-DIVERGENCE.
+- Consistency check that decided the fix shape: the core's FAT engine already
+  carries DOS time through the shared FAT-family datetime core host-independent,
+  on-disk-as-UTC, and holds a MATCH verdict for it - the exFAT engine was the only
+  FAT-family member applying a TZ interpretation. The parity model (og-on-UTC0-host
+  byte-equivalence, host-independent) is the established project semantics.
+- Fix: tz subtraction removed from exfat_time_to_unix100 (signature reduced to
+  (ts); three call sites updated); wire tz fields stay parsed with the og-parity
+  note in cr_exfat_wire.h (parsed-for-completeness, deliberately unapplied).
+- Tests: SetBuilder::file_entry gained a tz parameter (checksum-correct fixtures);
+  build_exfat_image(tz=0) threads it into photo.jpg. Three guards:
+  ExfatEngine.TimestampsMatchOgLocalAsUtc (tz=0x88, +2h), TimestampsZeroTzPassThrough
+  (tz=0x00 sentinel), TimestampsMatchExplorerDisplay (tz=0x20, +8h East-Asia
+  camera case). Fail-before proven by stashing only cr_exfat_quick.cpp: the two
+  behavior tests FAIL on the pre-fix engine (stored 10:00 / 04:00), the sentinel
+  guard passes both sides exactly as the finding predicted. Full suite 325/325
+  Linux ASan (322 post-A-004/S-016 baseline + 3 new), clang-format 18.1.8 clean.
+- Audit trail: S-011 Resolution + move to findings/FIXED/; RESOLVED-INDEX row
+  (plus 6 missing rows repaired: A-004, S-002, S-010, S-016, M-009, N-001 were in
+  FIXED/ without index rows - parallel-leg gaps; count header corrected to 19
+  pre-S-011); modules/exfat.md B9 -> M with the fix note; SUMMARY (SEVERE 9->8,
+  ACUTE row corrected for the already-landed A-004/S-016 c33236f fix: totals now
+  63 active / 21 FIXED, remediation-log row, top-risks retirement, fix-order row);
+  CROSS-REF-MATRIX exfat B/D cells -> M; docs/PARITY-DELTAS.md D-49 (the
+  deliberate-divergence record: parity-over-spec decision, --strict-utc
+  considered-and-deferred rationale, pin tests).
+- Note: the finding's fix-plan pointer "docs/AUDIT-FALLBACKS.md exFAT section"
+  does not exist (that doc has no exFAT section; it is the fallback/quality-gate
+  census) - the canonical homes used instead: docs/PARITY-DELTAS.md D-49 +
+  modules/exfat.md. Recorded in the Resolution.
+
+Stage Summary:
+- S-011 FIXED: exFAT timestamps now byte-match the og's tz-ignored semantics
+  through the same datetime core FAT uses; the spec-correct UTC interpretation
+  is retired to a documented deliberate divergence (D-49). Next: S-015 (raw-signs
+  KiB units, one-generator fix), then S-013 (exFAT FAT-over-32MiB truncation) or
+  S-003 (HFS+ journal replay).

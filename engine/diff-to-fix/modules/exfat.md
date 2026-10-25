@@ -91,18 +91,22 @@ Core (audited commit `67193b6`): `src/core/exfat/` (2 files, 678 LOC) +
 
 ## Session 2 re-audit (audited commit `5d6da5f`)
 
-- **B9 tz_offset — S-011 (SEVERE, parity):** exFAT stores each file's
-  create/modify/access timestamps as local time on disk PLUS a per-timestamp
-  `UtcOffset` byte (7-bit two's-complement quarter-hours from UTC). The og's
-  `exFATSearchDLL.dll` imports NONE of `LocalFileTimeToFileTime`/
-  `FileTimeToLocalFileTime`/`GetTimeZoneInformation` (verified by full read of
-  `rabin2_imports.txt`). The og's `FUN_180001370` at
+- **B9 tz_offset — `M` (**S-011 FIXED**: tz subtraction removed from
+  `exfat_time_to_unix100` — on-disk time carried through the shared
+  FAT-family datetime core exactly like the FAT engine (host-independent,
+  on-disk-as-UTC), which is the parity model the FAT engine holds a MATCH
+  verdict on. og re-verified first-hand in the fix session: zero TZ-conversion
+  imports beyond DosDateTimeToFileTime, six call sites taking (date_word,
+  time_word, &ft) only, zero `*900` arithmetic in the DLL. Wire tz fields stay
+  parsed, unapplied (og parity); guards: TimestampsMatchOgLocalAsUtc (0x88),
+  TimestampsZeroTzPassThrough, TimestampsMatchExplorerDisplay (0x20)).**
+  exFAT stores each file's create/modify/access timestamps as local time on
+  disk PLUS a per-timestamp `UtcOffset` byte (7-bit two's-complement
+  quarter-hours from UTC). The og's `exFATSearchDLL.dll` imports NONE of
+  `LocalFileTimeToFileTime`/`FileTimeToLocalFileTime`/`GetTimeZoneInformation`
+  (verified by full read of the imports census). The og's `FUN_180001370` at
   `exFATSearchDLL_decompiled.c:5215-5235` calls `DosDateTimeToFileTime` on the
-  raw date+time words (host-timezone-dependent local-as-UTC). The core's
-  `exfat_time_to_unix100(ts, tz)` (`cr_exfat_quick.cpp:121-139`) reads the `tz`
-  byte and SUBTRACTS the offset to produce true UTC. The two diverge by
-  exactly `tz_offset × 900 × 10⁷` (100ns units). For UTC+8 files that's 8
-  hours. Spec-correct UTC vs og's local-as-UTC. Parity-breaking.
+  raw date+time words (host-timezone-dependent local-as-UTC).
 
 ### Session 2 findings index (this module)
 

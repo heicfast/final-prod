@@ -21,7 +21,9 @@ the og-codebase vs core comparison. State at session-3 close:
   Microsoft/og LDM GUIDs (`…0434cfb3`/`…714a69ad`; this leg re-extracted them from four
   og binaries independently, converging with the third leg's evidence and the 6-source
   external table) and de-self-referenced the tests. The #1 roadmap item is CLOSED.
-  **Still live:** S-011 (exFAT tz subtraction at `cr_exfat_quick.cpp:138`).
+  **S-011 was FIXED by the fix session after session-3 close** (tz subtraction
+  removed; on-disk time carried through the shared FAT-family datetime core
+  exactly like FAT; 3 guards, fail-before proven; suite 325/325 Linux ASan).
 - **New findings (7):** S-015 (SEVERE — raw_signs.json min/max are KiB in the og
   (`max << 10`, default 0x7d000 KiB) vs bytes in the core: the 139-format raw-sign
   recall window is 1024x too small, 50 KiB vs 50 MiB); M-022 (ReFS file-value grammar:
@@ -128,15 +130,16 @@ collision with the parallel leg's I-006 ext4-nanoseconds, cleared).
 
 | Severity | Active | FIXED (in `findings/FIXED/`) | IDs (active) |
 |---|---|---|---|
-| ACUTE | 1 | A-001 (partial — ESP/MSR half stands fixed; LDM half false-positive), A-003, **A-002 (`7f2c83e` — real Microsoft/og GUIDs restored, session-3-verified by an independent og-binary scan; tests de-self-referenced)** | **A-004 (event-sink crash, S2-third-leg)** |
-| SEVERE | 9 | S-001, S-002, S-004, S-005, S-008, **S-010 (3e34ed2 — volume quiesce, session-3-verified)** | S-003, S-006, S-007, S-009 (split pending N-020), S-011, S-012, S-013, S-014, **S-015 (S3: raw_signs KiB units)** |
+| ACUTE | **0** | A-001 (partial — ESP/MSR half stands fixed; LDM half false-positive), A-003, **A-002 (`7f2c83e` — real Microsoft/og GUIDs restored, session-3-verified; tests de-self-referenced)**, **A-004 + S-016 (`c33236f` — live-sink ErrorRange delivery + live snapshot error map)** | — |
+| SEVERE | 8 | S-001, S-002, S-004, S-005, S-008, **S-010 (3e34ed2 — volume quiesce, session-3-verified)**, **S-011 (this fix session — tz bytes not applied, og parity; 3 guards)** | S-003, S-006, S-007, S-009 (split pending N-020), S-012, S-013, S-014, **S-015 (S3: raw_signs KiB units)** |
 | MAJOR | 18 | M-001, **M-009 (7fd00e0 — 64 KiB envelope on the repair read path, session-3-verified)** | M-002, M-005, M-007, M-008, M-010, M-011..M-021, **M-022 (S3: ReFS file-value grammar)**, **M-023 (S3: filter model)** |
 | MINOR | 27 | N-002, N-003, N-010-theirs | N-001, N-004..N-009 (grouped), N-011..N-022, N-023..N-029 (S2-third-leg, grouped), **N-030..N-032 (S3)** |
 | INFORMATIONAL | 10 | — | I-001..I-011, **I-012 (S3: GAP-ADS resolved — parity, shared limitation)** |
 | tracked-open | 6 files | OQ-T1/T2/T5/T7/T8/T9 + all 9 S2-third-leg OQs RESOLVED across legs | OQ-T3*, OQ-T4*, OQ-T6 (bounded), OQ-S2A-1..4, OQ-S2C-3, OQ-S2M-1/2 (see files) |
-| **Total active findings** | **65** | **19** | |
+| **Total active findings** | **63** | **21** | |
 
-*(Counts by file inventory at session-3 close, after the mid-session A-002 fix: 1+9+18+27+10 = 65 active, 19 FIXED.)*
+*(Counts by file inventory, fix-session state after A-004/S-016 (c33236f) and S-011 (this
+session): 0+8+18+27+10 = 63 active, 21 FIXED.)*
 
 **Note on S-009/M-006:** the S-009 disk-map component was FIXED via GAP-S6-11
 (`56cce87` — `cr_diskmap.cpp/.h` verified in-tree by this leg); the M-006 fuzz-CI
@@ -184,9 +187,11 @@ ext4/Btrfs invalid-UTF-8 finding (briefly M-007 in a local commit) renumbered to
    small** (raw_signs.json min/max read as bytes vs the og's KiB): every raw-sign
    format caps at 50 KiB (200 KiB for the media entries) where the og carves 50 MiB
    (200 MiB) — the largest single recall gap found in session 3; one-generator fix.
-2. **S-011 (session 2, parity) — exFAT `tz_offset` applied (core) vs ignored (og).**
-   Every non-UTC exFAT file's `.rsf` diverges by `tz_offset × 900 × 10⁷` (100ns units).
-   Spec-correct UTC vs og's local-as-UTC. One-line fix.
+2. ~~**S-011 — exFAT `tz_offset` applied (core) vs ignored (og).**~~ **FIXED**
+   this fix session (tz subtraction removed; on-disk time through the shared
+   FAT-family datetime core, host-independent on-disk-as-UTC; guards
+   TimestampsMatchOgLocalAsUtc / TimestampsZeroTzPassThrough /
+   TimestampsMatchExplorerDisplay).
 3. **S-003 — HFS+ journal replay missing.** Crashed volumes lose journal-carried recent
    state. Journal replay mechanics decoded first-hand (`b85c084` evidence addendum);
    fix deferred with precise scope.
@@ -209,7 +214,7 @@ ext4/Btrfs invalid-UTF-8 finding (briefly M-007 in a local commit) renumbered to
 | # | Finding | Rationale |
 |---|---|---|
 | 1 | S-010 | safety regression on the repair path; can corrupt volumes during concurrent access |
-| 2 | S-011 | exFAT tz_offset parity break; one-line fix (drop the tz subtraction) |
+| ~~2~~ | ~~S-011~~ | **FIXED this fix session** (tz subtraction dropped; 3 guards; suite 325/325) |
 | 3 | S-003 | HFS+ journal replay (mechanics decoded; fix scoped) |
 | 4 | S-006 | lost-partition probe families (engine wiring only) |
 | 5 | S-007 | carve formats GIF/BMP/MP3/AAC/RTF/OLE/MPEG/DWG |
@@ -286,6 +291,7 @@ ext4/Btrfs invalid-UTF-8 finding (briefly M-007 in a local commit) renumbered to
 | 2026-10-25 | M-009 | **FIXED** | RwDevice::read_at routed through the GAP-S6-13 64 KiB envelope (same aligned_read_at the scan devices use); structural routing parity + envelope unit tests; 4Kn executed numbers deferred to the bench harness (no Windows/4Kn host here - same limitation the finding records) |
 | 2026-10-26 | **A-002** | **FIXED** | Real Microsoft LDM GUIDs restored in `cr_table_wire.h` (PARTITION_LDM_METADATA_GUID {5808c8aa-7e8f-42e0-85d2-e1e90434cfb3} / PARTITION_LDM_DATA_GUID {af9b60a0-1431-4f62-bc68-3311714a69ad}); regression tests de-self-referenced to hard-coded real bytes; negative guard (fabricated values → ERR_BAD_MAGIC) + bytes→text guard added; harness + probe log + parity doc corrected; suite 303/303 Linux ASan |
 | 2026-10-26 | **A-004 + S-016** | **FIXED** (same delivery path, one commit) | A-004: ErrorRange delivered through the live sink (`event_fn_`), not the config copy (null-call crash / mis-delivery on the documented set_event_sink pattern); S-016 (discovered during A-004's fail-before proof): `tel_counts_` now feeds the live retry-pipe error map into the snapshot before every boundary emit — the ErrorRange event stream was dead code (snapshot error map was merged only after the emitters). Two ScanEvents tests (ErrorRangeGoesToLiveSink, SinkSwitchDeliversAllTypes); suite 305/305 Linux ASan || 2026-10-25 | S-010 | **FIXED** | volume quiesce on the repair write path (IWriteDevice lock contract, execute() lock-before-write + zero-write refusal, Windows RwDevice runs the corpus RecoveryModule LOCK/DeleteMountPoint/Flush/settle/verify/DISMOUNT sequence); finding's destination-lock bullet corrected (corpus: destination open is writability+detection only); 3 fail-before tests, suite 316/316 |
+| 2026-10-26 | S-011 | **FIXED** | exFAT tz subtraction removed — on-disk time through the shared FAT-family datetime core (og parity, host-independent); wire tz fields parsed-but-unapplied (documented in PARITY-DELTAS + AUDIT-FALLBACKS); 3 guards (TimestampsMatchOgLocalAsUtc 0x88 + TimestampsMatchExplorerDisplay 0x20 fail-before/pass-after, TimestampsZeroTzPassThrough sentinel); suite 325/325 Linux ASan |
 | 2026-10-25 | S-008 | **FIXED** | RawFixer pre-scan wiring + CheckMFT/CheckFatTable/FixByScanSector (`e0175b3`); independently re-verified this leg; in `findings/FIXED/` |
 | 2026-10-25 | S-009 (disk-map half) | **FIXED** | GAP-S6-11 disk-map data producer (`56cce87`); split of the combined file tracked in N-020 |
 | 2026-10-25 | M-006 | **FIXED** | fuzz CI re-enabled (`e30b84d`); verified this leg (ci.yml :147-160) |

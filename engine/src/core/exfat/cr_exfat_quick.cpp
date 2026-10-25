@@ -116,9 +116,23 @@ struct Bitmap {
     }
 };
 
-/* exFAT time: packed u32 (date<<16 | time, FAT field layout) + tz byte
- * (quarter-hours | 0x80, 0x00 = unused). -> 100ns since 1601. */
-u64 exfat_time_to_unix100(u32 ts, u8 tz) {
+/* exFAT time: packed u32 (date<<16 | time, FAT field layout) -> 100ns since 1601.
+ *
+ * S-011 parity: the og's exFATSearchDLL passes the raw date/time words to
+ * DosDateTimeToFileTime and NEVER reads the dentry's tz bytes (verified
+ * first-hand: imports census - zero TZ/time-conversion APIs beyond
+ * DosDateTimeToFileTime itself; six decompiled call sites at
+ * exFATSearchDLL_decompiled.c:5215-5235 and :45174-45194, each taking only
+ * (date_word, time_word, &ft); zero quarter-hour (*900) arithmetic anywhere
+ * in the engine). Its FILETIME is the on-disk local time carried through
+ * the SCANNING HOST's timezone. The parity model - already established by
+ * the FAT engine on the same shared datetime core (host-independent,
+ * on-disk time as UTC, MATCH verdict) - is applied here too: the tz bytes
+ * stay parsed in the wire struct for completeness but are deliberately
+ * NOT applied. The spec-correct UTC interpretation (ELM-Chan UtcOffset
+ * 7-bit two's-complement quarter-hours) would diverge from the og's .rsf
+ * bytes on every non-UTC file; see docs/PARITY-DELTAS.md. */
+u64 exfat_time_to_unix100(u32 ts) {
     const u16 date = u16(ts >> 16);
     const u16 time = u16(ts & 0xFFFF);
     if (date == 0)
@@ -127,15 +141,7 @@ u64 exfat_time_to_unix100(u32 ts, u8 tz) {
     const u64 base_secs = cr::fat::fat_datetime_to_unix_seconds(date, time);
     if (base_secs == 0)
         return 0;
-    /* timezone: 7-bit two's complement quarters, bit7 = used; 0x00 = unused */
-    i64 tz_secs = 0;
-    if (tz != 0x00) {
-        i32 q = i32(tz & 0x7F);
-        if (q >= 64)
-            q -= 128;
-        tz_secs = i64(q) * 900;
-    }
-    return base_secs * 10000000ULL + 116444736000000000ULL - u64(tz_secs) * 10000000ULL;
+    return base_secs * 10000000ULL + 116444736000000000ULL;
 }
 
 struct ScanCtx {
@@ -379,10 +385,10 @@ void walk_entries(ScanCtx& ctx, const std::vector<u8>& buf, bool deleted_context
             props->fs_kind = u32(FsKindCode::Exfat); /* corpus factory code */
             props->logical_size =
                 is_dir ? u64(chain.clusters.size()) * ctx.p.cluster_bytes : data_len;
-            props->times.created = exfat_time_to_unix100(fe->create_timestamp, fe->create_tz);
-            props->times.modified = exfat_time_to_unix100(fe->modify_timestamp, fe->modify_tz);
+            props->times.created = exfat_time_to_unix100(fe->create_timestamp);
+            props->times.modified = exfat_time_to_unix100(fe->modify_timestamp);
             props->times.changed = props->times.modified;
-            props->times.accessed = exfat_time_to_unix100(fe->access_timestamp, fe->access_tz);
+            props->times.accessed = exfat_time_to_unix100(fe->access_timestamp);
             props->attributes = fe->file_attribute;
             props->flags = in_use ? u16(0x10) : u16(0);
 

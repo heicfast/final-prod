@@ -1143,3 +1143,41 @@ numbered entries (or close) in the final registry:
 parity-refactor session. Cross-check against the engine-semantics,
 orchestration/CLI, UI, and architecture parity reports before promoting to
 `docs/PARITY-DELTAS.md`.*
+
+### D-49 — exFAT timestamps: on-disk time carried as-UTC, tz bytes not applied (S-011 parity)
+
+**Class:** parity-over-spec (engine semantics) · **Finding:** diff-to-fix S-011 (SEVERE, FIXED) · **Date:** 2026-10-26
+
+exFAT stores each file's create/modify/access timestamps as a local time on
+disk PLUS a per-timestamp `UtcOffset` byte (7-bit two's-complement
+quarter-hours). The exFAT spec (ELM-Chan, Standard File Entry) says a reader
+SHOULD apply the offset to get true UTC. The og's `exFATSearchDLL` does not:
+it passes the raw date/time words to `DosDateTimeToFileTime` and never reads
+the tz bytes (verified first-hand: zero TZ-conversion imports beyond
+`DosDateTimeToFileTime` itself; six call sites at
+`exFATSearchDLL_decompiled.c:5215-5235` / `:45174-45194` taking
+`(date_word, time_word, &ft)` only; zero `*900` quarter-hour arithmetic in
+the whole DLL). The og's resulting FILETIME therefore depends on the
+SCANNING HOST's timezone — a portability defect the og ships.
+
+**Core decision (S-011 fix):** the core's `exfat_time_to_unix100` does NOT
+apply the tz bytes either. It carries the on-disk time through the shared
+FAT-family datetime core (`fat_datetime_to_unix_seconds`), host-independent,
+on-disk-time-as-UTC — exactly what the core's FAT engine already does for
+the same wire format (and holds a MATCH verdict for). This matches the og
+byte-for-byte on a UTC+0 host and is host-independent everywhere (better
+cross-host .rsf portability than the og). The spec-correct UTC
+interpretation was REMOVED by this fix (it diverged from the og's .rsf
+bytes on every non-UTC file by exactly `tz_offset × 900 × 10⁷` 100ns
+units). The wire tz fields remain parsed for completeness
+(`cr_exfat_wire.h` carries the note).
+
+Considered and deferred: a `--strict-utc` opt-in (the finding's open
+question). The engine layer has no flag surface for it; a CLI/ABI grammar
+addition for a mode no og comparison consumes is scope creep; this delta
+record is the semantic cover. Revisit only if a consumer asks for
+spec-correct timestamps.
+
+**Pin tests:** `ExfatEngine.TimestampsMatchOgLocalAsUtc` (tz = 0x88),
+`ExfatEngine.TimestampsZeroTzPassThrough` (tz = 0x00),
+`ExfatEngine.TimestampsMatchExplorerDisplay` (tz = 0x20).
