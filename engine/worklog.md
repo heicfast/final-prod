@@ -8569,3 +8569,29 @@ Stage Summary:
   S-028/S-031/S-032), MAJOR 39, MINOR 55 (34 unresolved), INFO 22 (acked),
   FIXED 73, OQ 16. Next: N-044 (--deep naming), N-020 (doc drift), the
   carve-magic quartet N-051..N-054, N-045 (cache budget), then the groups.
+
+---
+Task ID: DFX11-T1 (bootstrap)
+Agent: main engineer (diff-to-fix fix session 11)
+Task: Session bootstrap — repos pulled, baseline recorded, prompt saved.
+
+Work Log:
+- Pulled core_recovery (HEAD 7c44bdc — M-053 + the FF lineage landings all
+  present); corpus easeus-drw-research at 03ad46c (unmoved, the pin held by
+  every prior session). Token in git credential store only, never committed.
+- Session prompt mandate: fix ALL tiers, 20+ fixes target, majors first by
+  impact, fixed findings moved to findings/FIXED/, all audit-trail docs updated.
+- Prompt saved token-redacted at worklog/session-diff-fix-prompt.md.
+- Live inventory at 7c44bdc (direct file count): SEVERE 3 (S-009, S-029,
+  S-030) · MAJOR 39 · MINOR 55 · INFO 22 (all ACKNOWLEDGED) = 119 active /
+  72 FIXED / 17 tracked-open files. Six MINOR files carry Resolutions from
+  prior legs but were never moved to FIXED/ (N-004/N-006, N-009, N-013,
+  N-015, N-018, N-036) — hygiene repair queued for their module batches.
+- Duplicate ID spotted in MAJOR/: two M-029 files (query-model) — to be
+  reconciled when the query module batch is reached.
+
+Stage Summary:
+- Session open. Fix order: S-009 → S-029 → S-030 (SEVERE), then MAJOR by
+  impact/tractability, then MINOR batches. Baseline build running.
+  (Session ID DFX11 — a parallel leg also filed as DFX10; this leg's pushes
+  carry DFX11 stamps to keep the shared worklog unambiguous.)
