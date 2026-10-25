@@ -11189,3 +11189,21 @@ Stage Summary:
 - N-074 FIXED (tally: 4 — N-045, N-046, N-040, N-074). MINOR 33
   remain. Next: N-043 (progress watchdog) or N-060/N-061 (session
   save-cancel / runlog).
+Task ID: DFX17-CLAIM (session 17, lane claim — MINOR queue, posted before the next fix)
+Agent: main engineer (diff-to-fix fix session 17 — DFX17, MINOR-first mandate)
+Task: Lane claim against the hot remote. Landed so far this session: the
+N-067 convergence verification, baseline repair 1 (M-054 test expectation,
+converged with the parallel lanes), baseline repair 2 (the deserialize_tree
+leak — three convergent landings, session-22's PropsRef canonical), and
+N-078 (the carve_note silent-OK exit, 3daf1f0 — unique to this leg, not
+covered by any parallel landing; the five-path test's case (4) pins it).
+
+Claim for the next batch (one-finding-one-commit-one-push, MINOR tier):
+N-029 (UTF-8 replacement residuals), N-063 (carve default naming scheme),
+N-056 (windestio temp leak on failed rename), N-046 (no geometry refresh),
+N-043 (progress liveness watchdog). N-068/N-065 are the DFX16 lane's
+published queue (their handoff names them next) — not claimed here to
+avoid duplicate work.
+
+Stage Summary:
+- Claim posted; execution begins with N-029.
