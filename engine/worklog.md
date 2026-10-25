@@ -5447,3 +5447,47 @@ Stage Summary:
   accidental engine dispatch on ciphertext. The BitLocker pair (S-014
   unlock path + S-019 discovery) is fully closed this session. Remaining
   SEVERE: S-003, S-007, S-009-split, S-012, S-020, S-021, S-022.
+
+---
+Task ID: S5-T1 (session-5 diff-audit bootstrap)
+Agent: session-5 parity auditor (read-only continuation leg — coverage-hole closing + remaining-surface marking)
+Task: Continue the diff-to-fix audit: verify post-session-4 fixes, close the corpus/core citation gaps found by systematic inventory, decode tracked-open OQs, mark every remaining og feature/function as a finding ("focus on every minor detailing too").
+
+Work Log:
+- Bootstrap: repos pulled. Core at 7cf6754 (one commit after session-4 close d870dd3: the
+  S-019 BitLocker-partition fix, landed by the parallel fix leg with its own audit trail —
+  RESOLVED-INDEX row, matrix cell, modules/lost-partition.md, SUMMARY counts, 3 fail-before
+  tests, suite 365/365). Corpus unmoved at 03ad46c. Prompt saved token-redacted at
+  worklog/session-5-diff-audit-prompt.md (distinct from the 2026-10-23 dev-era
+  session-05-prompt.md), read twice.
+- Citation-gap inventory (systematic): extracted all corpus paths cited across
+  diff-to-fix/findings + modules (83 unique) and diffed against the corpus artifact tree.
+  NEVER-CITED in-scope candidates found: SearchDLL/rawsearchdll--family-{brance,bruteforce,
+  filegen,rawspeed,special,xjq}.md (6 carving-family artifacts — the whole RAW analyser
+  family layer), SearchDLL/per-engine-function-map.md, SaveScan/rsf-record4--tree-node-
+  grammar.md, SaveScan/ifileproperties-part3--btrfs-zfs-raw-generic.md, config-files/
+  {drwcfg-bin--aes-config-cache,userdata-remoteconfig--signature-and-flags,vendor-logs--
+  qa-session-forensics}.md, UIUX/{31-filterbar-family-decode,13-ui-core-wiring-state,
+  19-diskhealth-quick-ui,24-dynamic-ground-truth-ingestion,25-connect-wiring-graph,
+  20-moc-surface-sink-architecture,33-objectname-loop-closure,34-navigatebar-bottomarea-
+  chrome,06-dialog-telemetry-inventory}.md, MOM-modules/{CheckVersion,Common,Config,Error,
+  Log,Thread,bitlockerhelp,FileSystemCheck}.md (Error/Thread are in-scope semantics:
+  error map + threading), WinPE/{eusendmessage--wm-copydata-messenger,boot-config--
+  winpeshl-autobat-regdrv}.md.
+- Core-tree citation gap (same method, src/+include/ basenames): never-cited files include
+  src/win/cr_elevate.cpp (elevation — no prior audit), include/cr/win/cr_destio.h
+  (destination I/O contract), src/core/tree/cr_snapshot.cpp, src/core/storage/cr_cached.cpp,
+  src/core/compress/cr_decomp.cpp, src/core/crypto/cr_sha256.cpp, src/core/err/cr_error.cpp
+  (error map implementation), include/cr/tree/cr_diskmap.h (visualization model).
+- Baseline: suite evidence deferred to the consolidation wave (prior leg's 365/365 at this
+  exact commit stands; this session re-runs it before close).
+
+Stage Summary:
+- Session-5 lanes defined: (A) RAWSearchDLL 6-family carving layer never read by any
+  session; (B) rsf-record4 tree-node grammar + ifileproperties-part3 save semantics;
+  (C) config-files + MOM Error/Thread/Common/Config in-scope semantics; (D) UIUX
+  filterbar/wiring/diskhealth-UI artifacts vs query/health/callback model; (E) core
+  never-cited files (elevate/destio/snapshot/cached/decomp/err); (F) OQ-S4-1 grading
+  extension table dump + OQ-S4-2 RAW naming-hook consumption; (G) og-codebase data
+  files (Dict/, DataFile.ini) disposition; (H) fixes landed since session-4 audited
+  commit (S-019 verified in-tree this entry).
