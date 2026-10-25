@@ -143,7 +143,7 @@ export function HealthPage(): React.JSX.Element {
           {list.map((d) => {
             const isSelected = deviceId === d.id;
             const isSys = d.volumes.some((v) => v.letter === 'C');
-            const hasBitlocker = d.volumes.some((v) => v.bitlocker);
+            const bitlockerState = d.volumes.find((v) => v.bitlocker)?.bitlocker;
             const freeBytes = Math.max(0, d.capacity.totalBytes - d.capacity.usedBytes);
             const usedRatio =
               d.capacity.totalBytes > 0
@@ -180,7 +180,7 @@ export function HealthPage(): React.JSX.Element {
                   </span>
                 ) : null}
 
-                <Drive3dIcon isSystemDrive={isSys} bitlocker={hasBitlocker} />
+                <Drive3dIcon isSystemDrive={isSys} bitlocker={bitlockerState} />
 
                 <div className="min-w-0 flex-1">
                   <div className="truncate text-[13.5px] font-semibold text-[#1E293B] dark:text-foreground">

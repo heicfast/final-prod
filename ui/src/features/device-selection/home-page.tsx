@@ -517,7 +517,11 @@ function DeviceCard({
     device.status === 'disconnected' || device.volumes.some((v) => v.status === 'disconnected');
   const hasLost = device.volumes.some((v) => v.lostPartition);
   const isSystemDrive = device.volumes.some((v) => v.letter === 'C');
-  const hasBitlocker = device.volumes.some((v) => v.bitlocker);
+  const bitlockerState =
+    device.volumes.find((v) => v.bitlocker)?.bitlocker ??
+    (device.status === 'locked' || device.volumes.some((v) => v.status === 'locked')
+      ? 'locked'
+      : undefined);
 
   const freeBytes = Math.max(0, device.capacity.totalBytes - device.capacity.usedBytes);
   const usedRatio =
@@ -566,7 +570,7 @@ function DeviceCard({
         onClick={onSelect}
         className="flex w-full items-center gap-4 text-left outline-none focus-visible:ring-2 focus-visible:ring-ring"
       >
-        <Drive3dIcon isSystemDrive={isSystemDrive} bitlocker={hasBitlocker} />
+        <Drive3dIcon isSystemDrive={isSystemDrive} bitlocker={bitlockerState} />
 
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">

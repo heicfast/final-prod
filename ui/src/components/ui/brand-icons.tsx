@@ -294,12 +294,15 @@ export function SidebarChronoSnapIcon({
 export function Drive3dIcon({
   isSystemDrive,
   bitlocker,
+  bitlockerLocked,
   className,
 }: {
   isSystemDrive?: boolean;
-  bitlocker?: boolean;
+  bitlocker?: boolean | 'unlocked' | 'locked';
+  bitlockerLocked?: boolean;
   className?: string;
 }): React.JSX.Element {
+  const isLocked = bitlocker === 'locked' || Boolean(bitlockerLocked);
   return (
     <div
       className={cn('relative flex size-12 shrink-0 items-center justify-center', className)}
@@ -350,18 +353,42 @@ export function Drive3dIcon({
         </span>
       ) : null}
       {bitlocker ? (
-        <span className="absolute bottom-0.5 left-0.5 flex size-4 items-center justify-center rounded-[4px] bg-white shadow-xs ring-1 ring-[#BFDBFE]">
-          <svg viewBox="0 0 12 12" fill="none" className="size-3">
+        <svg
+          viewBox="0 0 16 16"
+          fill="none"
+          className="absolute bottom-0.5 right-0 size-[17px] bg-transparent drop-shadow-[0_1px_1.5px_rgba(15,23,42,0.25)]"
+          aria-hidden
+        >
+          {isLocked ? (
+            /* Closed shackle (BitLocker locked) */
             <path
-              d="M3.8 5.2V3.6C3.8 2.4 4.7 1.5 5.9 1.5C6.9 1.5 7.7 2.1 8 3"
+              d="M4.8 7V4.4C4.8 2.6 6.2 1.2 8 1.2C9.8 1.2 11.2 2.6 11.2 4.4V7"
               stroke="#64748B"
-              strokeWidth="1.3"
+              strokeWidth="1.65"
               strokeLinecap="round"
             />
-            <rect x="2.5" y="5" width="7" height="5.5" rx="1.2" fill="#0078D4" />
-            <circle cx="6" cy="7.8" r="1" fill="white" />
-          </svg>
-        </span>
+          ) : (
+            /* Open shackle (BitLocker unlocked) */
+            <path
+              d="M4.8 7V4.2C4.8 2.4 6.2 1.1 8 1.1C9.5 1.1 10.7 2 11.1 3.3"
+              stroke="#64748B"
+              strokeWidth="1.65"
+              strokeLinecap="round"
+            />
+          )}
+          <rect
+            x="3"
+            y="6.6"
+            width="10"
+            height="7.6"
+            rx="1.6"
+            fill={isLocked ? '#F59E0B' : '#0078D4'}
+            stroke="white"
+            strokeWidth="0.9"
+          />
+          <circle cx="8" cy="10" r="1.15" fill="white" />
+          <path d="M8 10.8V12.4" stroke="white" strokeWidth="1.1" strokeLinecap="round" />
+        </svg>
       ) : null}
     </div>
   );

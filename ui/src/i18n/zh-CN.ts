@@ -34,14 +34,6 @@ export const zhCN: TranslationSchema = {
     buyToast: '正在打开许可证商店…',
     providerUnavailable: '当前离线环境无法验证此许可证代码，尚未激活任何许可证。',
   },
-  guide: {
-    trigger: '恢复助手',
-    panelTitle: '您好！猜您需要：',
-    missing: '找不到您的硬盘？',
-    damaged: '尝试高级文件修复',
-    deleted: '快速入门指南',
-    chat: '联系我们',
-  },
   menu: {
     label: '菜单',
   },
@@ -75,7 +67,6 @@ export const zhCN: TranslationSchema = {
   nav: {
     home: '首页',
     upOneLevel: '上一级',
-    settings: '设置',
     about: '关于',
     backToDevices: '重新选择设备',
   },

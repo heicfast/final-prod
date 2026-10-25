@@ -33,14 +33,6 @@ export const en = {
     providerUnavailable:
       'Licensing server could not verify this code offline. No license was activated.',
   },
-  guide: {
-    trigger: 'Recovery Assistant',
-    panelTitle: 'Hi! Guess you need:',
-    missing: 'Unable to find your hard drive?',
-    damaged: 'Try Advanced File Repair',
-    deleted: 'Quick start guide',
-    chat: 'Chat with us',
-  },
   menu: {
     label: 'Menu',
   },
@@ -74,7 +66,6 @@ export const en = {
   nav: {
     home: 'Home',
     upOneLevel: 'Up one level',
-    settings: 'Settings',
     about: 'About',
     backToDevices: 'Choose another device',
   },

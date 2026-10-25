@@ -3,19 +3,15 @@ import { NavLink, Outlet, useLocation, useNavigate } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import { getCurrentWindow } from '@tauri-apps/api/window';
 import {
-  InfoIcon,
   KeyRoundIcon,
   LanguagesIcon,
   MenuIcon,
-  PaletteIcon,
   PanelLeftCloseIcon,
   PanelLeftOpenIcon,
   RefreshCcwIcon,
-  SettingsIcon,
   ShoppingCartIcon,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { useTheme, type ThemeMode } from './theme';
 import { useScanSessionStore } from '@/stores/scan-session-store';
 import { useUiStore } from '@/stores/ui-store';
 import { DevPanel, PerfOverlay } from '@/features/dev-panel/dev-panel';
@@ -27,7 +23,6 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/menus';
-import { AboutDialog } from '@/features/settings-about/about-dialog';
 import { ActivationDialog } from '@/features/settings-about/activation-dialog';
 import { setLocale, SUPPORTED_LOCALES } from '@/i18n';
 import { WindowControls } from '@/components/ui/window-controls';
@@ -96,23 +91,11 @@ const NAV_BACKUP = [
   },
 ] as const;
 
-const THEME_MENU_ITEMS: readonly { mode: ThemeMode; labelKey: string }[] = [
-  { mode: 'system', labelKey: 'settings.themeSystem' },
-  { mode: 'light', labelKey: 'settings.themeLight' },
-  { mode: 'dark', labelKey: 'settings.themeDark' },
-  { mode: 'ember', labelKey: 'settings.themeEmber' },
-  { mode: 'tide', labelKey: 'settings.themeTide' },
-  { mode: 'blossom', labelKey: 'settings.themeBlossom' },
-  { mode: 'high-contrast', labelKey: 'settings.themeHc' },
-];
-
 export function WizardShell(): React.JSX.Element {
   const { t } = useTranslation();
-  const { mode, setMode } = useTheme();
   const active = useScanSessionStore((s) => s.active);
   const navigate = useNavigate();
   const location = useLocation();
-  const [aboutOpen, setAboutOpen] = React.useState(false);
   const [activationOpen, setActivationOpen] = React.useState(false);
   const sidebarCollapsed = useUiStore((s) => s.sidebarCollapsed);
   const toggleSidebar = useUiStore((s) => s.toggleSidebar);
@@ -201,52 +184,6 @@ export function WizardShell(): React.JSX.Element {
               <Button
                 variant="ghost"
                 size="icon"
-                aria-label={t('settings.theme')}
-                className="size-7 text-[#475569] hover:bg-[#DCE8FF] hover:text-[#0F172A] dark:text-foreground-secondary dark:hover:bg-surface-hover dark:hover:text-foreground"
-              >
-                <PaletteIcon className="size-3.5" aria-hidden />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              {THEME_MENU_ITEMS.map((item) => (
-                <React.Fragment key={item.mode}>
-                  {item.mode === 'high-contrast' ? <DropdownMenuSeparator /> : null}
-                  <DropdownMenuItem
-                    onClick={() => setMode(item.mode)}
-                    aria-checked={mode === item.mode}
-                  >
-                    {t(item.labelKey)}
-                  </DropdownMenuItem>
-                </React.Fragment>
-              ))}
-            </DropdownMenuContent>
-          </DropdownMenu>
-
-          <Button
-            variant="ghost"
-            size="icon"
-            aria-label={t('nav.settings')}
-            className="size-7 text-[#475569] hover:bg-[#DCE8FF] hover:text-[#0F172A] dark:text-foreground-secondary dark:hover:bg-surface-hover dark:hover:text-foreground"
-            onClick={() => navigate('/settings')}
-          >
-            <SettingsIcon className="size-3.5" aria-hidden />
-          </Button>
-
-          <Button
-            variant="ghost"
-            size="icon"
-            aria-label={t('nav.about')}
-            className="size-7 text-[#475569] hover:bg-[#DCE8FF] hover:text-[#0F172A] dark:text-foreground-secondary dark:hover:bg-surface-hover dark:hover:text-foreground"
-            onClick={() => setAboutOpen(true)}
-          >
-            <InfoIcon className="size-3.5" aria-hidden />
-          </Button>
-
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button
-                variant="ghost"
-                size="icon"
                 aria-label={t('menu.label')}
                 className="size-7 text-[#475569] hover:bg-[#DCE8FF] hover:text-[#0F172A] dark:text-foreground-secondary dark:hover:bg-surface-hover dark:hover:text-foreground"
               >
@@ -260,29 +197,15 @@ export function WizardShell(): React.JSX.Element {
               <DropdownMenuItem onClick={() => navigate('/health')}>
                 {t('sidebar.diskHealth')}
               </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => navigate('/settings')}>
-                {t('nav.settings')}
+              <DropdownMenuItem onClick={() => navigate('/backup')}>
+                {t('sidebar.chronoSnap')}
               </DropdownMenuItem>
               <DropdownMenuSeparator />
-              <div className="px-2 py-1 text-[11px] font-semibold text-foreground-secondary">
-                {t('guide.trigger')} — {t('guide.panelTitle')}
-              </div>
-              <DropdownMenuItem onClick={() => navigate('/lost-partition')}>
-                {t('guide.missing')}
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => navigate('/repair')}>
-                {t('guide.damaged')}
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => navigate('/')}>
-                {t('guide.deleted')}
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => setAboutOpen(true)}>
-                {t('guide.chat')}
-              </DropdownMenuItem>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={() => setAboutOpen(true)}>
-                {t('nav.about')}
-              </DropdownMenuItem>
+              {SUPPORTED_LOCALES.map((loc) => (
+                <DropdownMenuItem key={loc} onClick={() => setLocale(loc)}>
+                  {loc === 'en' ? 'English' : '简体中文'}
+                </DropdownMenuItem>
+              ))}
             </DropdownMenuContent>
           </DropdownMenu>
 
@@ -415,7 +338,6 @@ export function WizardShell(): React.JSX.Element {
       </div>
 
       {import.meta.env.DEV ? <DevSurfaces /> : null}
-      <AboutDialog open={aboutOpen} onOpenChange={setAboutOpen} />
       <ActivationDialog open={activationOpen} onOpenChange={setActivationOpen} />
     </div>
   );
