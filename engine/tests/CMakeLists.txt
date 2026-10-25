@@ -42,6 +42,7 @@ add_executable(cr_tests
     unit/test_query.cpp
     unit/test_query_perf.cpp
     unit/test_diskmap.cpp
+    unit/test_apply.cpp
     unit/test_rawfixer.cpp
     unit/test_refs_volume.cpp
 )

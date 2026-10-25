@@ -9458,3 +9458,57 @@ Scope per the finding's fix plan: consent-gated apply module
 MBR-path v1 (GPT + boot-chain M-040 explicitly out of scope), the
 revalidation + transaction + rollback guarantees, the CLI surface with
 --apply consent + undo log, tests for every guarantee.
+
+---
+Task ID: DFX10-S029 (session 10, finding 2 — the SEVERE tier close-out)
+Agent: main engineer (diff-to-fix session 10)
+Task: S-029 — the lost-partition APPLY path (the og's two-step product
+flow: discover, then write the recovered entry into the user's MBR).
+Claimed per lane coordination; implemented v1 per the finding's fix plan.
+
+Work Log:
+- Re-verified the corpus citations first-hand (the finding's decompile
+  references were lead-verified at filing; re-read the rawfixer seams
+  S-008/S-010 established - IWriteDevice with lock_volume quiesce, the
+  CRUNDO01 undo container, the fix --apply consent posture).
+- New module cr/apply (cr_apply.h/.cpp): ApplyPlan (entry slot, type byte,
+  CHS pair at 255/63 with the cylinder-1023 clamp, the 0x55AA restore
+  planned only when absent, the sector-0 snapshot for revalidation,
+  boot_repair_available boundary field) + plan_apply (read-only,
+  containment refusals: overlap / LBA 0 / past-disk / GPT protective /
+  full table / zero size; first-zero-slot pick; family->type map D-66) +
+  execute_apply (A1 consent callback - denied OR absent = zero writes;
+  A2 stale-table revalidation before consent; quiesce first - busy volume
+  = clean refusal; A4 transaction with read-back verify + reverse-order
+  rollback). Undo = the shared repair::undo (CRUNDO01).
+- New error codes ERR_APPLY_CONSENT_DENIED / ERR_APPLY_STALE (+ texts).
+- CLI: rrecov apply --disk N --session F --candidate N [--apply] [--undo]
+  - dry-run default (prints the plan + candidate list from the session),
+  --apply is the consent, the undo log saves beside the session with the
+  fix --undo-apply restore hint. Usage text + dispatch updated.
+- Win layer: refresh_disk_properties (IOCTL_DISK_UPDATE_PROPERTIES +
+  3x Sleep(1000) settle, PR:46873-46880) called best-effort after apply.
+- cr_lostpart.h R3.2 comment superseded (materializer stays read-only BY
+  DESIGN; the write path is the separate consent-gated module).
+- PARITY-DELTAS D-65 (the apply-path v1 boundaries) + D-66 (the MBR
+  type-map convention, corpus-undecoded).
+- Tests (10, fail-before by absence): PlansEntryIntoFirstFreeSlot,
+  ExecuteWritesEntryVerifiesAndUndoes (byte-exact undo roundtrip),
+  RefusedWithoutConsent (denied + absent callbacks),
+  StaleTableRefusedBeforeConsent, QuiesceFailureIsACleanRefusal,
+  WriteFailureRollsBackEverything (mid-transaction rollback),
+  ContainmentRefusals (6 refusal classes), SignatureRestorePlannedWhenAbsent,
+  ChsClampsBeyondCylinder1023 (+ real-CHS math), FamilyTypeMap.
+- Full suite 590/590 Linux ASan (577 baseline + 10 apply + 3 parallel).
+- Audit trail: finding -> FIXED/ with Resolution (v1 scope + follow-ups
+  registered: GPT variant, M-040 chaining, cr_ui ABI surface);
+  RESOLVED-INDEX row; matrix lost-partition + mom-capabilities rows +
+  the scope-decision note; modules/lost-partition.md; SUMMARY session-10
+  delta (SEVERE tier CLOSED); PARITY-DELTAS D-65/D-66.
+
+Stage Summary:
+- THE SEVERE TIER IS CLOSED (S-009 converged+hardened, S-030 parallel,
+  S-029 this lane). Suite 590/590. The apply endgame is live: a
+  consent-gated, transactional, undoable MBR-entry write from a scanned
+  candidate, with the og's settle semantics. Next: the MAJOR tier in
+  impact order, respecting the active lane claims.

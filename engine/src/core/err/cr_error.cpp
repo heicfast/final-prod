@@ -65,6 +65,10 @@ const char* err_text(u32 code) {
         return "repair undo failed";
     case ERR_VOLUME_LOCK_FAILED:
         return "volume lock failed (volume busy - close other programs and retry)";
+    case ERR_APPLY_CONSENT_DENIED: /* S-029 */
+        return "apply consent denied (nothing was written)";
+    case ERR_APPLY_STALE: /* S-029 */
+        return "partition table changed since planning (re-run discovery and replan)";
     case ERR_INTERNAL:
         return "internal error";
     default:

@@ -1075,6 +1075,33 @@ std::unique_ptr<cr::repair::IWriteDevice> open_disk_rw(u32 disk, bool prefer_rda
                      FILE_SHARE_READ | FILE_SHARE_WRITE));
 }
 
+u32 refresh_disk_properties(u32 disk) {
+    /* S-029 (apply): the corpus settle pattern - IOCTL_DISK_UPDATE_PROPERTIES
+     * (0x70140) with up to 3 x Sleep(1000) retries (PartitionRecovery
+     * PR:46873-46880). The table write already succeeded when this runs;
+     * the refresh makes the OS re-read the layout so the recovered volume
+     * becomes visible. Best-effort by contract: a refusal (permissions,
+     * transient busy) reports its code, the caller surfaces it without
+     * failing the apply. */
+    wchar_t path[64];
+    _snwprintf_s(path, 64, _TRUNCATE, L"\\\\.\\PhysicalDrive%u", disk);
+    HANDLE h = CreateFileW(path, GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE,
+                           nullptr, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr);
+    if (h == INVALID_HANDLE_VALUE)
+        return ERR_OPEN_FAILED;
+    DWORD bytes = 0;
+    for (int attempt = 0; attempt < 3; ++attempt) {
+        if (DeviceIoControl(h, IOCTL_DISK_UPDATE_PROPERTIES, nullptr, 0, nullptr, 0, &bytes,
+                            nullptr)) {
+            CloseHandle(h);
+            return OK;
+        }
+        Sleep(1000); /* corpus :46877 settle between retries */
+    }
+    CloseHandle(h);
+    return ERR_WRITE_FAILED;
+}
+
 bool volume_letter_to_disk(wchar_t letter, u32* disk, u32* part) {
     wchar_t vol[8];
     _snwprintf_s(vol, 8, _TRUNCATE, L"\\\\.\\%c:", letter);

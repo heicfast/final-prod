@@ -1922,3 +1922,35 @@ same way. Pinned by `RawFixer.NtfsPrimaryDamaged4Kn`,
   Pins: `Image.VmdkMonolithicSparseReadsAndScans`,
   `Image.VhdDynamicDiskReadsAndScans`, `Image.RejectsBrokenInputs`
   (VHDX → ERR_UNSUPPORTED).
+
+## M. diff-to-fix session 10 (2026-10-26)
+
+- **D-65 — the lost-partition apply path (S-029, IMPLEMENTED).** The
+  og's apply is a consent-gated product flow (RecoveryModule
+  `CreateRecoveryPartitionObject` → PartitionRecovery FUN_1800566d0
+  "rebuild disk layout": DELETE_DRIVE_LAYOUT + raw sector-0 rewrite +
+  SET_DRIVE_LAYOUT, UPDATE_PROPERTIES with settle). The core implements
+  the SEMANTIC through the rawfixer seams: `apply::plan_apply` (read-only,
+  containment-refusing) + `apply::execute_apply` (consent callback →
+  revalidation → transactional sector-0 write → read-back verify →
+  rollback) + the shared CRUNDO01 undo, surfaced as `rrecov apply --disk
+  N --session F --candidate N [--apply]`. Deliberate v1 boundaries,
+  registered: (a) **MBR only** — GPT layouts are refused cleanly (the
+  og's GPT variant FUN_1800392f0 incl. GUID regen is v2 scope); (b) the
+  write lands through the raw sector-0 path (one of the og's two
+  equivalent legs) rather than the kernel IOCTL chain — same resulting
+  table, verifiable, undoable; the win layer adds the og's
+  IOCTL_DISK_UPDATE_PROPERTIES + 3×Sleep(1000) settle after the write;
+  (c) the entry is written **not-bootable** (the og's decoded flow
+  carries no boot-flag decision for the recovered entry; auto-activating
+  a boot flag would be a guess); (d) **boot-chain repair (M-040) is not
+  chained** — the og's apply composites BootIni_Init + Fixup.mo BCD
+  repair; the core's apply exposes the boundary truthfully through the
+  plan's `boot_repair_available` field and refuses to pretend.
+- **D-66 — the apply MBR type-byte map (convention, corpus-undecoded).**
+  The og's own family→type map for the recovered entry is not decoded in
+  the corpus for this path. The core uses the industry conventions:
+  NTFS/exFAT/ReFS/BitLocker→0x07, FAT→0x06, ext2/Btrfs→0x83,
+  HFS+→0xAF, ZFS→0xBF, unclassified→0x07 (generic data). Any future
+  corpus decode that differs supersedes this map (registered in the
+  S-029 Resolution when it happens).

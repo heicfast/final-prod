@@ -51,6 +51,15 @@ std::unique_ptr<IStorageDevice> open_disk(u32 disk, bool prefer_rda, const wchar
 std::unique_ptr<cr::repair::IWriteDevice> open_disk_rw(u32 disk, bool prefer_rda,
                                                        const wchar_t* service, u32* err);
 
+/* S-029 (apply): IOCTL_DISK_UPDATE_PROPERTIES on \\.\PhysicalDriveN with
+ * the corpus settle pattern (3 x Sleep(1000) retries, PartitionRecovery
+ * PR:46873-46880) - after a table write the OS must re-read the layout or
+ * the new entry stays invisible to the volume manager. Returns OK when
+ * the refresh was accepted (or the settle exhausted - the table write
+ * itself already succeeded; the refresh is best-effort by contract, the
+ * caller reports it, never fails the apply on it). */
+u32 refresh_disk_properties(u32 disk);
+
 /* Map a volume letter (e.g. L'C') to its disk+partition (IOCTL_VOLUME_GET_VOLUME_DISK_EXTENTS
  * for disk number + extent start, then the disk's parsed table for the 1-based partition
  * number - FB-L02 comment fix).

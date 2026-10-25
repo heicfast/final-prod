@@ -27,6 +27,7 @@
 #include "cr/orchestrator/cr_scan.h"
 #include "cr/recovery/cr_safewriter.h"
 #include "cr/query/cr_query.h"
+#include "cr/apply/cr_apply.h"
 #include "cr/repair/cr_rawfixer.h"
 #include "cr/session/cr_crsf.h"
 #include "cr/session/cr_records.h"
@@ -1559,6 +1560,195 @@ int cmd_bench(int argc, wchar_t** argv, int& i) {
     return 1;
 }
 
+/* ---- S-029 lost-partition apply --------------------------------------
+ * The og's two-step product flow (discover, then APPLY the recovered
+ * entry into the user's MBR - RecoveryModule CreateRecoveryPartitionObject
+ * -> PartitionRecovery FUN_1800566d0 "rebuild disk layout"). The CLI
+ * posture mirrors fix: default is a DRY-RUN that prints the plan;
+ * --apply is the explicit consent; the undo log (the shared CRUNDO01
+ * container) is saved beside the session for 'fix --undo-apply'.
+ * Candidates come from a whole-disk scan's saved session (--whole-disk
+ * discovery persists them; 'tree --in' lists them). */
+struct ApplyCliCtx {
+    bool apply = false;
+};
+bool apply_cli_consent(const apply::ApplyPlan& plan, void* user) {
+    auto* c = static_cast<ApplyCliCtx*>(user);
+    if (!c->apply) {
+        wprintf(L"[apply] consent NOT given: rerun with --apply to write the entry\n");
+        return false;
+    }
+    wprintf(L"[apply] consent given (--apply): writing the entry now (volumes on the disk "
+            L"are locked and dismounted for the write)\n");
+    (void)plan;
+    return true;
+}
+
+int cmd_apply(int argc, wchar_t** argv, int& i) {
+    std::wstring v;
+    u32 disk = 0;
+    bool have_disk = false;
+    std::wstring in_path;
+    int candidate = -1; /* 1-based, the session's lost-candidate index */
+    bool do_apply = false;
+    bool use_rda = true;
+    std::wstring undo_path;
+    while (i < argc) {
+        if (get_opt(argc, argv, i, L"--disk", &v)) {
+            disk = u32(wcstoul(v.c_str(), nullptr, 10));
+            have_disk = true;
+            continue;
+        }
+        if (get_opt(argc, argv, i, L"--session", &v) || get_opt(argc, argv, i, L"--in", &v)) {
+            in_path = v;
+            continue;
+        }
+        if (get_opt(argc, argv, i, L"--candidate", &v)) {
+            candidate = int(wcstol(v.c_str(), nullptr, 10));
+            continue;
+        }
+        if (get_opt(argc, argv, i, L"--undo", &v)) {
+            undo_path = v;
+            continue;
+        }
+        if (wcscmp(argv[i], L"--apply") == 0) {
+            do_apply = true;
+            ++i;
+            continue;
+        }
+        if (wcscmp(argv[i], L"--no-rda") == 0) {
+            use_rda = false;
+            ++i;
+            continue;
+        }
+        wprintf(L"unknown apply option: %s\n", argv[i]);
+        return 1;
+    }
+    if (!have_disk || in_path.empty()) {
+        wprintf(L"apply needs --disk N --session file.crsf [--candidate N] [--apply]\n");
+        return 1;
+    }
+
+    /* load the session's lost candidates (the discovery results the scan
+     * scored - apply never invents geometry, it transcribes a candidate) */
+    FILE* fin = nullptr;
+    if (_wfopen_s(&fin, in_path.c_str(), L"rb") != 0 || fin == nullptr) {
+        wprintf(L"cannot open session %s\n", in_path.c_str());
+        return 1;
+    }
+    tree::ResultTree tree;
+    orchestrator::ScanStats stats;
+    session::VolumeSessionInfo info;
+    session::Reader r(file_read_cb, file_seek_cb, file_size_cb, fin);
+    u32 rc = orchestrator::ScanController::load_session_summary(r, tree, stats, info);
+    fclose(fin);
+    if (rc != OK) {
+        wprintf(L"session load failed (rc=%08x %hs)\n", rc, err_text(rc));
+        return 2;
+    }
+    if (stats.lost_candidates.empty()) {
+        wprintf(L"the session carries no lost-partition candidates "
+                L"(run: rrecov scan --disk %u --whole-disk)\n",
+                disk);
+        return 1;
+    }
+    wprintf(L"session candidates:\n");
+    for (size_t k = 0; k < stats.lost_candidates.size(); ++k) {
+        const auto& c = stats.lost_candidates[k];
+        wprintf(L"  %zu: LBA %llu, %llu sectors, score %d%s\n", k + 1,
+                static_cast<unsigned long long>(c.start_lba),
+                static_cast<unsigned long long>(c.sector_count), c.score,
+                int(k) == candidate - 1 ? L"  <-- selected" : L"");
+    }
+    if (candidate < 1 || size_t(candidate) > stats.lost_candidates.size()) {
+        wprintf(L"select a candidate with --candidate N (1..%zu)\n",
+                stats.lost_candidates.size());
+        return 1;
+    }
+    const lost::Candidate& c = stats.lost_candidates[size_t(candidate) - 1];
+
+    /* plan (read-only) */
+    u32 e = 0;
+    auto view = win::open_disk(disk, use_rda, use_rda ? L"RDA" : nullptr, &e);
+    if (!view) {
+        wprintf(L"cannot open disk %u (rc=%08x)\n", disk, e);
+        return 2;
+    }
+    apply::ApplyPlan plan;
+    rc = apply::plan_apply(view.get(), c, plan);
+    if (rc != OK) {
+        wprintf(L"plan failed: rc=%08x %hs\n", rc, err_text(rc));
+        return 2;
+    }
+    if (plan.refused) {
+        wprintf(L"REFUSED: %hs\n", plan.refusal_reason.c_str());
+        wprintf(L"no writes performed (dry-run is the default; nothing is ever written "
+                L"without --apply)\n");
+        return 0;
+    }
+    wprintf(L"apply plan: entry slot %u, type 0x%02X, LBA %llu, %llu sectors%s\n",
+            plan.entry_index, plan.mbr_type, static_cast<unsigned long long>(plan.start_lba),
+            static_cast<unsigned long long>(plan.sector_count),
+            plan.restores_signature ? L" + 0x55AA signature restore" : L"");
+    for (const auto& a : plan.actions)
+        wprintf(L"  [apply] offset=%llu len=%zu : %hs\n",
+                static_cast<unsigned long long>(a.offset), a.after.size(), a.reason.c_str());
+    if (!plan.boot_repair_available)
+        wprintf(L"  [apply] boot-chain repair: not available in this build (the entry is "
+                L"written; BCD/boot.ini fixup is separate scope)\n");
+
+    if (!do_apply) {
+        wprintf(L"dry-run only - re-run with --apply to execute (undo log saved automatically)\n");
+        return 0;
+    }
+
+    /* execute (consent-gated transactional write) */
+    auto wdev = win::open_disk_rw(disk, use_rda, use_rda ? L"RDA" : nullptr, &e);
+    if (!wdev) {
+        wprintf(L"cannot open disk %u for write (rc=%08x): %hs\n", disk, e,
+                cr::win::is_elevated()
+                    ? "write access denied even elevated (device busy, locked or protected)"
+                    : "administrator rights required (elevate and retry)");
+        return 2;
+    }
+    ApplyCliCtx ctx;
+    ctx.apply = do_apply;
+    repair::UndoLog log;
+    rc = apply::execute_apply(wdev.get(), plan, apply_cli_consent, &ctx, log);
+    if (rc != OK) {
+        wprintf(L"execute FAILED: rc=%08x %hs (any written bytes were rolled back)\n", rc,
+                err_text(rc));
+        return 2;
+    }
+    wprintf(L"apply OK: %zu write(s) + verified; the partition entry is in the table\n",
+            log.entries.size());
+
+    /* the OS must re-read the table (the og's IOCTL_DISK_UPDATE_PROPERTIES
+     * + settle, PR:46873-46880 - the win layer's refresh helper) */
+    if (u32 rrc = win::refresh_disk_properties(disk))
+        wprintf(L"[apply] table refresh refused (rc=%08x) - replug/reboot to see the volume\n",
+                rrc);
+    else
+        wprintf(L"[apply] disk layout refreshed - the volume should mount on next rescan\n");
+
+    /* save the undo log (the shared CRUNDO01 container) */
+    if (undo_path.empty())
+        undo_path = L"rrecov-apply-disk" + std::to_wstring(disk) + L".undo";
+    std::vector<u8> blob;
+    log.serialize(blob);
+    FILE* f = nullptr;
+    if (_wfopen_s(&f, undo_path.c_str(), L"wb") == 0 && f != nullptr) {
+        fwrite(blob.data(), 1, blob.size(), f);
+        fclose(f);
+        wprintf(L"undo log saved: %s (%zu bytes) - restore with: rrecov fix --disk %u "
+                L"--undo-apply %s\n",
+                undo_path.c_str(), blob.size(), disk, undo_path.c_str());
+    } else {
+        wprintf(L"WARNING: could not save the undo log to %s\n", undo_path.c_str());
+    }
+    return 0;
+}
+
 int cmd_fix(int argc, wchar_t** argv, int& i) {
     std::wstring v;
     u32 disk = 0;
@@ -1788,6 +1978,8 @@ int wmain(int argc, wchar_t** argv) {
             L"             [--report file.json]\n"
             L"  rrecov health --disk N\n"
             L"  rrecov fix --disk N [--part P] [--apply] [--undo file] [--undo-apply file]\n"
+            L"  rrecov apply --disk N --session file.crsf --candidate N [--apply] [--undo file]\n"
+            L"             (writes a lost-partition candidate's MBR entry; dry-run by default)\n"
             L"  rrecov bench --disk N [--mode seq|rand|open|read|info] [--mb N] [--block-kb N]\n"
             L"              [--iterations N] [--seed N] [--json] [--no-rda]\n");
         return 0;
@@ -1806,6 +1998,8 @@ int wmain(int argc, wchar_t** argv) {
         return cmd_health(argc, argv, i);
     if (cmd == L"fix")
         return cmd_fix(argc, argv, i);
+    if (cmd == L"apply")
+        return cmd_apply(argc, argv, i);
     if (cmd == L"bench")
         return cmd_bench(argc, argv, i);
     wprintf(L"unknown command: %s\n", cmd.c_str());
