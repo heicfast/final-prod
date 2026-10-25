@@ -118,3 +118,83 @@ TEST(DevMap, AddMergeSerialize) {
     EXPECT_EQ(m2.ranges()[0].offset, 100u);
     EXPECT_EQ(m2.ranges()[0].length, 145u);
 }
+
+/* ---- N-046: geometry refresh after removable-media change ------------- */
+
+namespace {
+/* A parent whose geometry can change mid-session (the removable-reader
+ * swap model). Data backing store is irrelevant here; only geometry is
+ * consumed by create/refresh. */
+class MutableGeomDevice final : public IStorageDevice {
+public:
+    void set_geometry(u32 logical, u32 physical, u64 total_bytes) {
+        geom_.logical_sector = logical;
+        geom_.physical_sector = physical;
+        geom_.total_bytes = total_bytes;
+        geom_.sector_count = logical ? total_bytes / logical : 0;
+    }
+    u32 read_at(u64, void*, u32) override { return OK; }
+    const Geometry& geometry() const override { return geom_; }
+
+private:
+    Geometry geom_{};
+};
+} // namespace
+
+TEST(Slice, GeometryRefreshAfterMediaChange) {
+    /* og FUN_140643870 (DRWUI_decompiled.c:1044889-1044895): the virtual
+     * volume device re-derives its bytes-per-sector from the parent - the
+     * media-change refresh our slice lacked (N-046). Pre-fix behavior
+     * (fail-before by construction: no refresh path existed - the call
+     * did not compile): the slice served the stale 512 snapshot forever. */
+    MutableGeomDevice dev;
+    dev.set_geometry(512, 512, u64(100) * 4096);
+    u32 err = 0;
+    auto slice = PartitionSlice::create(&dev, 10 * 4096, 20 * 4096, &err);
+    ASSERT_NE(slice, nullptr);
+    EXPECT_EQ(err, OK);
+    EXPECT_EQ(slice->geometry().logical_sector, 512u);
+    EXPECT_EQ(slice->geometry().sector_count, u64(20 * 4096) / 512);
+
+    /* the reader swaps: same capacity, 4Kn media */
+    dev.set_geometry(4096, 4096, u64(100) * 4096);
+    /* the stale snapshot is still served until an explicit refresh (the
+     * finding's premise - geometry was frozen at creation) */
+    EXPECT_EQ(slice->geometry().logical_sector, 512u);
+    ASSERT_EQ(slice->refresh_geometry(), OK);
+    EXPECT_EQ(slice->geometry().logical_sector, 4096u);
+    EXPECT_EQ(slice->geometry().physical_sector, 4096u);
+    EXPECT_EQ(slice->geometry().sector_count, u64(20 * 4096) / 4096);
+    EXPECT_EQ(slice->geometry().total_bytes, u64(20 * 4096));
+    /* reads are unaffected: the bound was always in bytes */
+    u8 buf[16];
+    EXPECT_EQ(slice->read_at(0, buf, sizeof(buf)), OK);
+}
+
+TEST(Slice, GeometryRefreshRefusesInvalidatingChange) {
+    /* Registered hardening over the og's blind store (FUN_140643870
+     * returns 1 unconditionally): a media change that invalidates the
+     * slice is REFUSED and the snapshot stays untouched. */
+    MutableGeomDevice dev;
+    dev.set_geometry(512, 512, u64(100) * 4096);
+    u32 err = 0;
+    auto slice = PartitionSlice::create(&dev, 9 * 4096, 20 * 4096, &err);
+    ASSERT_NE(slice, nullptr);
+
+    /* (a) new sector size misaligns the start: 9*4096 % 8192 == 4096 */
+    dev.set_geometry(8192, 8192, u64(100) * 4096);
+    EXPECT_EQ(slice->refresh_geometry(), ERR_BAD_PARAMETER);
+    EXPECT_EQ(slice->geometry().logical_sector, 512u)
+        << "refused refresh leaves the snapshot unchanged";
+
+    /* (b) parent shrank below the slice end */
+    dev.set_geometry(512, 512, 9 * 4096 + 512);
+    EXPECT_EQ(slice->refresh_geometry(), ERR_RANGE_OUT_OF_BOUNDS);
+    EXPECT_EQ(slice->geometry().logical_sector, 512u);
+    EXPECT_EQ(slice->geometry().sector_count, u64(20 * 4096) / 512);
+
+    /* (c) degenerate zero sector size */
+    dev.set_geometry(0, 0, u64(100) * 4096);
+    EXPECT_EQ(slice->refresh_geometry(), ERR_BAD_PARAMETER);
+    EXPECT_EQ(slice->geometry().logical_sector, 512u);
+}

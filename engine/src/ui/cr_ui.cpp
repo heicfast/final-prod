@@ -838,6 +838,9 @@ u32 fill_scan_config(const cr_ui_scan_config* in, orchestrator::ScanConfig& out)
         case 9:
             out.fs_hint = orchestrator::FsFamily::Refs;
             break;
+        case 11: /* M-044: UDF - classification + carve-only (no engine) */
+            out.fs_hint = orchestrator::FsFamily::Udf;
+            break;
         default:
             return ret_(ERR_BAD_PARAMETER, "fs_hint %u is not a valid FsFamily value", in->fs_hint);
         }
@@ -2121,6 +2124,10 @@ u32 query_run_impl(cr_ui_session* sess, const cr_ui_query* q, cr_ui_query_row** 
         break;
     case 6: /* S-023: grade sort (the og's comparator puts grade-2 first) */
         cq.sort = query::SortKey::Grade;
+        break;
+    case 7: /* M-029: the og's Type column (iconIndex category order,
+             * then extension, then name) */
+        cq.sort = query::SortKey::Type;
         break;
     default:
         cq.sort = query::SortKey::None;

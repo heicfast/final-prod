@@ -10536,3 +10536,308 @@ Stage Summary:
 - N-045 FIXED (tally 1/20+). MINOR 40 remain. Next: N-046 (geometry
   refresh), then N-041, N-057.
 
+
+---
+Task ID: DFX11-M029 (session 11, finding 7 — partial by design)
+Agent: main engineer (diff-to-fix fix session 11 — DFX11)
+Task: M-029 (query model) — the slice the corpus can verify today.
+
+Work Log:
+- Corpus re-verified first-hand: the filterbar family decode (artifact
+  31) + the DRWUI sort columns; the class-table comments
+  ("Today/3 days/week...", "<128MB/<1GB/<5GB...") are APPROXIMATIONS —
+  the Date/Size buckets select by the node+0x89 bits-11-14 date TAGS,
+  not ranges; a range translation without the tag decode would INVENT
+  constants. Decision: the bucket-ID translation stays open with the
+  decode next step recorded (the port never guesses).
+- Closed this push (all corpus-verifiable): (1) SortKey::Type (ABI code
+  7, append-only; iconIndex order then extension then name; pinned with
+  the full 8-row expected sequence); (2) the modified-unit doc lie
+  (ground-truth-contracts: FILETIME 100-ns since 1601; the old "Unix
+  seconds" line was false — 369-year mis-parse; pinned by
+  Query.ModifiedUnitIsFiletimeEverywhere; the stale Category enum row
+  fixed in the same pass); (3) paging documented as the deliberate
+  difference (no og page-size constant; offset+limit is host-side).
+- Tests: Query.TypeSortKeyOrdersByCategoryThenExtension +
+  Query.ModifiedUnitIsFiletimeEverywhere. Suite 636/636. Fail-before:
+  the Type sort key did not exist (capability-absence); the unit pin
+  asserts the OPPOSITE of the frozen doc's claim (the doc was the bug).
+- Audit trail: session-11 addendum on the finding (stays ACTIVE with
+  the two decode-blocked items + next steps); matrix query rows;
+  modules/query.md; ABI-CONTRACT's new query-paging section; SUMMARY.
+
+Stage Summary:
+- Session tally: 6 fixes + 2 partials (M-029 slice, S-009 verification).
+  Remaining claimed: M-049. Next: M-049 (error model divergence).
+Task ID: DFX14-T6 (M-043 — completed)
+Agent: main engineer (diff-to-fix session 14)
+Task: M-043 (MAJOR, ntfs recognition): verify, classify, fix, prove.
+
+Work Log:
+- Corpus re-verification FIRST (ghidra-mo/
+  NTFSFileSystemAnalyser_decompiled.c :4259-4340 read in full):
+  DISPROVED the finding's first half. The analyser gates on the primary
+  boot and bails before result 4; the backup "verification" is a memcmp
+  storing the verified location (+0x510, +1-when-identical) as the REPAIR
+  input; NTFSSearchDLL has zero backup reads. The og NEVER scans from the
+  backup — the finding's "torn-DBR volumes: the og proceeds" premise is
+  false. The core's refuse-then-rawfixer shape was already parity.
+- The CONFIRMED half (no content proof before engine dispatch) fixed at
+  the og's boundary: probe_family NTFS branch = og boot gates (bps
+  512-multiple <= 0x1000; SPC pow2 nonzero) + record-0 proof (FILE magic,
+  USA count [1,0x11), USA offset [0x2a,0x201)), one 512-byte read at the
+  $MFT LCN; failure falls through to the other family probes.
+- Fail-before EXECUTED: Orchestrator.ProbeFamily's spoofed-OEM leg failed
+  on the fixed tree before its expectation was corrected — the existing
+  test had ASSERTED the divergence (a FAT volume with spoofed "NTFS    "
+  OEM dispatched the NTFS engine). New NtfsProbeContentProof (5 legs) +
+  TornPrimaryBootWithIntactBackupStillRefusedUntilRepair pin (torn
+  primary + byte-identical volume-end backup -> ERR_BAD_MAGIC; the scan
+  path never consults the backup). Suite 599/599.
+- No backup-fallback code added (corpus-disproven premise — correcting
+  the finding, not "fixing" by breaking parity). Audit trail: Resolution
+  + move to FIXED/; RESOLVED-INDEX; matrix ntfs row; modules/ntfs.md;
+  SUMMARY delta + counts (MAJOR 35, FIXED 84 files).
+
+Stage Summary:
+- DFX14 tally: 10 finding-level resolutions (N-073, M-029 fold, clobber
+  repair x4, M-005, I-006 pin, M-043) + the INFO verification pass.
+  Session 14 continues; next claim after the next pull.
+
+---
+Task ID: DFX15-F6..F8 (session 15 continuation, MAJOR lane)
+Agent: core-parity-fix-agent (main)
+Task: M-045, M-043, M-024 + the M-054 baseline repair + PARITY-DELTAS rows
+
+Work Log:
+- M-045 (FAT validate_boot gates): corpus re-verified (FUN_004610 + 3
+  validators). (b)(c)(f) already landed via N-034/N-010b; closed the
+  (a)(d)(e) residuals — any-512-multiple bps (32768 documented ceiling,
+  D-70), numFATs==0 hard reject, cluster_count >= 0xFFFFFF0 reject.
+  4 tests, 3 fail-before proven. Commit bf547cf.
+- M-043 (NTFS backup boot + content proof): open() falls back to the
+  volume-end backup DBR (last sector — the corpus-decoded rawfixer
+  location) on signature OR validate failure; VolumeParams::
+  boot_from_backup report-only; probe_family requires FILE magic at
+  $MFT LCN. 5 tests, torn-primary pair fail-before proven. Also
+  repaired the M-054 rebase-union red (root-caused at clean HEAD: their
+  test vs producer convention — remote's own repair landed first, mine
+  dropped as redundant). Commit 1468393.
+- M-024 (runtime format filter): CarveFlags::disabled_formats +
+  carve_token_listed/carve_format_listed; grammar layer gates by trial
+  slot; raw-sign layer filters pre-best-pick; D-72 (default-off = host
+  policy). 3 tests, construction-level fail-before. The first
+  implementation's OOB trial-slot array (kTrialCount=65 > magic 64) was
+  caught by the new tests BEFORE landing — fixed with static_assert
+  bounds. Commit 12eb3b1.
+
+Stage Summary:
+- 7 MAJOR findings FIXED by this lane (M-002/M-037/M-031/M-046/M-045/
+  M-043/M-024) + 1 convergent (M-047, parallel lane landed first) + 1
+  baseline repair (M-054 union, redundant with remote's own).
+- Suite green at every push (533 -> 631+ across the session).
+- SEVERE tier: 0 open across all lanes. MAJOR remaining ~20 (several
+  claimed by DFX9/DFX11/DFX20/DFX21 lanes).
+
+
+---
+Task ID: DFX11-M049 (session 11, finding 8 — partial by design)
+Agent: main engineer (diff-to-fix fix session 11 — DFX11)
+Task: M-049 (error model) — the corpus-verifiable slice.
+
+Work Log:
+- Closed: the header parity claim rewritten to the value-space truth
+  (family-prefix only, D-68; the og has TWO corpus-documented 12-digit
+  codes — renumbering to them would break 26 others arbitrarily);
+  err_text tested for the first time (Error.ErrTextCoversEveryCode: 18
+  codes, distinct texts, fallback, OK=0). Suite 643/643.
+- Open (design-gated, next step recorded in the finding): the engine-
+  side error-context subset (module/operation/retry-state) — the natural
+  seam is the event stream's error-range family; the og's CErrorManager
+  layer stays out of core scope (MOM UI bus).
+- Audit trail: finding addendum (stays ACTIVE); matrix cell; SUMMARY.
+
+Stage Summary:
+- Session tally: 8 landings (6 full + 2 partial) + S-009 verification.
+  MAJOR tier now fully claimed by the legs; this lane moves to the
+  unclaimed MINOR pool next (engine-correctness first: N-067 exFAT
+  upcase, N-068 ZIP gates, N-069 CAB key; then the orchestrator UX
+  pair N-043/N-060).
+
+---
+Task ID: DFX14-T7 (T14 — the tracked-open queue)
+Agent: main engineer (diff-to-fix session 14)
+Task: Resolve-or-push-forward the 16 tracked-open items.
+
+Work Log:
+- SIX resolved-but-stranded items moved to FIXED/ with RESOLVED-INDEX
+  rows: OQ-S003 (records reconciled — the filename carried the RESOLVED
+  stamp while both file bodies kept pre-resolution text; the stale
+  FIXED/ duplicate removed, the closing-session record written in),
+  OQ-S2M-1 (s4, folded into S-023), OQ-S4-1 (s5, the grading table
+  dump), OQ-S4-2 (s5, residual redirected to N-063), OQ-T2-T5 (s2),
+  OQ-T8-T9 (s3, via N-031 + M-017).
+- TEN genuinely-open items pushed forward with session-14 addenda; two
+  with NEW corpus evidence: OQ-S5-1 (CheckVersion — zero DRWUI callers,
+  zero RecoveryModule/MainModule call sites, module IS in the 31-module
+  MOM load list, PE drops the whole MOM system; load documented,
+  invocation undecoded anywhere; next step refined to a
+  MainModule-decompile pass over the module-init vtable) and OQ-S2M-2
+  (probe 1 RUN as specified: zero hits for direct 0x3c/0x1e/0x14 stores
+  into candidate-info +0x68 — the store goes through a register/local;
+  next step refined to the SearchDLL candidate-info serializer decode).
+  OQ-T6-T7's T7 half noted resolved via I-008; OQ-S6-3's anchor-B half
+  noted superseded by M-051's landing. The rest stand with their filed
+  next steps (Windows-hardware, undecoded targets, RE-artifact gaps).
+- tracked-open/ is now 10 files, every one with a current session-14
+  addendum stating why it was not resolvable this session and the exact
+  next step.
+
+Stage Summary:
+- T14 CLOSED: no stranded resolutions remain in tracked-open/; the
+  queue's next-session entry points are precise. DFX14 tally: 10
+  finding-level resolutions + the INFO pass + T14 + 13 merge repairs.---
+Task ID: DFX19-M019 (session 19, second MAJOR fix)
+Agent: main engineer (diff-to-fix fix session 19 — DFX19)
+Task: M-019 — ZFS multi-vdev fallback + fletcher4 verify + next-DVA retry.
+
+Work Log:
+- Corpus re-verified FIRST-HAND: FUN_1800168b0 :19544-56 (registry loop,
+  first-entry fallback), :17996 (+4 MiB skip), :18010 (checksum field =
+  blk_prop bits 40-47), :18076 gate {7,0}, :18093-18111 (interleaved
+  fletcher4), :18117 (32-byte memcmp vs bp+0x60), :18124-131 (index<2
+  retry). Both fletcher4 encodings (og-interleaved vs textbook)
+  cross-checked numerically for 10 lengths incl. tails - identical.
+- Fix: (1) read_raw vdev!=0 refusal -> foreign_vdev_reads counter;
+  (2) read_block fletcher4 gate + 32-byte compare + next-DVA retry on
+  mismatch AND read failure (the og's empty-buffer path); drops counted;
+  (3) plan_file_extents L0 skip -> fallback-position extents, counted.
+  ZfsScanStats appended foreign_vdev_reads + checksum_drops (no ABI
+  consumer - C++ only, M-036's append pattern).
+- Fixtures upgraded to checksum-carrying pools: make_bp stamps type-7
+  fletcher4 from the image; ordered stamping pass for the circular
+  objset chain (uberblock -> B_MOS -> MOS array -> B_ZPL -> ZPL array);
+  restamp_zpl_array helper closes the full chain for tests that mutate
+  blocks. NonAscii test re-stamps its rewritten zap.
+- Fail-before PROVEN by temporary revert of the three behavior hunks:
+  ChecksumFailDropsAndRetriesNextDva RED (decoy zap accepted, real
+  entries hidden), StripedPoolForeignVdevFallbackRead RED (foreign file
+  extentless). MirrorSecondMemberScan pins the id-0 mirror walk.
+- Suite 614/614 (linux-gcc RelWithDebInfo + ASan) - includes the
+  parallel lanes' new tests absorbed by rebase.
+- Audit trail: Resolution, finding -> FIXED/, RESOLVED-INDEX row, matrix
+  zfs cell -> FIXED (s19), modules/zfs.md verdict + the OQ-T6
+  disagreement paragraph resolved in favor of recovery-yield, SUMMARY
+  session-19 section extended.
+
+Stage Summary:
+- M-019 FIXED (session tally: 2). Next: M-038 (ZFS SA layout registry).
+  finding-level resolutions + the INFO pass + T14 + 13 merge repairs.
+
+
+---
+Task ID: DFX14-HANDOFF (session 14 close-out)
+Agent: main engineer (diff-fix session 14)
+Task: Session handoff — what this leg proved, fixed, and repaired; the exact
+head; remaining findings with next steps.
+
+Work Log (session summary, pushes in order):
+- Bootstrap at 7c44bdc (suite 533/533); corpus 03ad46c unmoved all session.
+  15+ merge repairs absorbed ~40 parallel landings (the field ran DFX10
+  through DFX21+ concurrently).
+- CROSS-LANE REPAIRS: (1) the 5aaf044 "style(lint)" clobber — a
+  four-finding semantic rollback (S-009 snapshot capture, N-042
+  decidegrees, N-044 --whole-disk, M-012 mirror) disguised as formatting;
+  caught by the suite-after-every-pull gate, restored from the
+  verified-green state (c4e37d1); the clobbering lineage re-applied
+  their pass content-identically and recorded the lesson (61ee43e).
+  (2) my own 7dc57f2 committed a worklog marker block unresolved —
+  repaired immediately; lesson recorded: check the marker grep BEFORE
+  committing any merge. (3) the S-030 finding's parallel-merge marker
+  residue repaired with both landings preserved (5efba59). (4) the D-72
+  numbering collision renumbered per the errata convention (mine became
+  D-73). (5) the M-043 double-landing reconciled: the merged probe keeps
+  the og gates + USA bounds at the CORRECT $MFT LCN field 0x30 (kernel
+  layout — my 0x28 read was the error; their positive control caught
+  it); their backup fallback kept and re-registered as a deliberate
+  recovery SUPERSET (D-73) with the corpus decode proving the og has NO
+  scan-path fallback.
+- FINDING-LEVEL RESOLUTIONS (10): N-073 FIXED-ALREADY (3 engine-path
+  proof tests through the exact call chain it cited); the M-029
+  duplicate folded; the clobber repair restored 4 findings (S-009,
+  N-042, N-044, M-012); M-005 FIXED (the carve allocation-bitmap gate —
+  corpus-reverified first-hand, both dispatch layers gated, bench
+  1.88x/1.89x on 50% used, plan expected >= 1.5x); the I-006 nsec pin
+  (the INFO tier's missing guard, caught by the re-verification pass);
+  M-043 FIXED with the backup-fallback premise DISPROVEN and corrected
+  in the finding (the corpus wins over the audit text — no fallback code
+  was added for it; the concurrent landing's fallback re-registered).
+- TIER DUTIES: T13 CLOSED (INFO 22/22 re-verified on the current tree;
+  anchors survived the clobber window; one missing pin landed). T14
+  CLOSED (6 resolved OQs moved out of tracked-open with index rows; the
+  10 genuinely-open pushed forward — 2 with new corpus evidence, each
+  with the precise next step).
+- Field-wide during this window: SEVERE 3 -> 0 (S-009, S-030, S-029 all
+  landed by parallel lanes; S-029 last), FIXED 72 -> 118 files.
+
+Stage Summary (handoff at the next pull head):
+- Remaining: MAJOR 23 · MINOR 37 · INFO 22 (all acknowledged) ·
+  tracked-open 10 (every file carries a current addendum + next step).
+  Suite 647/647 linux-release on this leg's tree.
+- The biggest unclaimed items: M-040 (boot-chain repair — NOW UNBLOCKED:
+  S-029's landing settled the apply-path scope decision; the consent-gate
+  architecture it established is the pattern M-040 should follow),
+  M-041 (the check phase — CCheckFAT/CCheckNTFSVolume + 0x1001-0x100e),
+  M-034 (NAS device layer), M-039 (occupancy bitmap), M-025 (the carve
+  read-model rework — the I-009/D-59c byte-granularity pins guard it).
+- Active lane claims on record: DFX17 (MINOR queue), DFX18 (N-045 first),
+  DFX19 (M-016 first — landed; check their queue), DFX21 (M-044 first),
+  the DFX10 lineage (S-029 — landed; now free), DFX12 (MINOR waves).
+- Protocol lessons this session (all recorded in-place): never absorb a
+  "style" commit without diffing it; never commit a merge without the
+  marker grep; the suite-after-every-pull gate is what catches clobbers;
+  verify the finding's premise against the corpus BEFORE implementing
+  (M-043's half was false — correcting it was the fix); USA field
+  offsets and BPB field offsets come from the spec-exact wire struct,
+  not memory.
+
+---
+
+---
+Task ID: DFX18-T2 (session 18, second fix — N-046)
+Agent: main engineer (diff-to-fix fix session 18 — DFX18)
+Task: N-046 slice geometry refresh — implement the og's
+RefreshSectorSize-from-parent surface with revalidation hardening.
+
+Work Log:
+- Corpus re-verified first-hand: FUN_140643870
+  (DRWUI_decompiled.c:1044889-1044895) — parent vcall at vtable+0x28,
+  store at +0x38, return 1 unconditionally; the surrounding
+  :104497-1044979 block is the M-032 tail-clamp family (consistent
+  with the landed M-032 decode).
+- Fix: PartitionSlice::refresh_geometry() (cr_slice.h declaration with
+  the full corpus cite + exclusion rationale; cr_slice.cpp
+  implementation) — re-read parent geometry, revalidate (zero sector /
+  start alignment / slice-fits-parent), recompute derived fields
+  (total_bytes = slice length; sector_count re-floors). Refusal leaves
+  the snapshot untouched (registered hardening over the og's blind
+  store — documented in the header).
+- Orchestrator auto-refresh branch EXCLUDED per the fix plan's
+  "or document the exclusion" alternative: the corpus exposes the
+  method but no scan-path caller; an invented trigger would be
+  hallucinated parity. Exclusion documented in the header comment.
+- Tests: Slice.GeometryRefreshAfterMediaChange (stale-snapshot premise
+  asserted first, then the 512→4096 swap picked up; reads unaffected —
+  the bound was always in bytes) + Slice.GeometryRefreshRefuses-
+  InvalidatingChange (misaligning 8192 / shrunken parent / zero sector
+  all refused with the snapshot intact; first run caught my own test
+  math — 10*4096 is 8192-aligned, corrected to 9*4096). Fail-before by
+  construction: the API did not exist pre-fix.
+- Audit trail: Resolution + FIXED/ move, RESOLVED-INDEX row (97
+  header), matrix storage S35/Q43 row, storage.md N-026→N-046 verdict,
+  SUMMARY session-18 counts refresh (live inventory: SEVERE 0 · MAJOR
+  24 · MINOR 35 · FIXED 112).
+
+Stage Summary:
+- N-046 FIXED (session tally: 2 — N-045, N-046). Next: N-040 (ABI doc
+  truthfulness), then N-020/N-074 (doc-drift pairs).

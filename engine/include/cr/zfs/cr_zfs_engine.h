@@ -59,6 +59,11 @@ struct ZfsScanStats {
     u64 txg = 0;                /* the selected uberblock's txg */
     u64 embedded_files = 0;     /* files with embedded-bp content */
     u64 compressed_extents = 0; /* extents carrying a codec */
+    u64 foreign_vdev_reads = 0; /* M-019: DVAs naming another vdev id,
+                                 * served via the og's first-entry
+                                 * fallback (the scanned disk) */
+    u64 checksum_drops = 0;     /* M-019: blocks dropped after fletcher4
+                                 * mismatch on every DVA copy */
 };
 
 /* Parsed label config (nvlist subset we need). */

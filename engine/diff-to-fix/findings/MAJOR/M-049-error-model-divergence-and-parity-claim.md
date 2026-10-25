@@ -93,3 +93,21 @@ error surface beyond the raw u32.
 The og's full error-code table (beyond the two documented values) is corpus-UNVERIFIED —
 any future decode of the SearchDLL error-emitting sites could pin more values; tracked as
 part of this finding, not blocking the recommended option (b).
+
+## Session-11 addendum (2026-11 style, 2026-10-26, DFX11 — header truth + the test; the context struct stays open)
+
+Closed this push: (1) the header's false parity claim REWRITTEN to the
+value-space truth (family-prefix convention only, 0x5002..0x5009; numeric
+values core-internal — the og has only TWO corpus-documented codes,
+12-hex-digit 0x5002200000004/0x5002c0000004; renumbering to them would
+break 26 others arbitrarily). Registered D-68. (2) `err_text()` tested
+for the first time (Error.ErrTextCoversEveryCode: 18 codes, distinct
+non-empty texts, the unknown-code fallback, OK=0). Suite 643/643.
+
+Still open (the plan's step 2, design-gated): the engine-side error-
+context subset (module id / operation / retry state) exposed through
+cr_ui as optional metadata. NEXT STEP: decide the carrier seam — the
+natural fit is the event stream's error-range family (already carries
+offset/length/attempts) extended with a module/operation pair at the
+orchestrator's emit sites; the og's CErrorManager/CErrorTrackManager
+layer stays out of core scope (MOM UI bus).

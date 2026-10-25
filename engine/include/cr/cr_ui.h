@@ -264,8 +264,10 @@ CR_UI_API uint32_t cr_ui_enumerate_volumes(cr_ui_volume_info* out, uint32_t* cou
  * choice (cr_ui_scan_save_session), matching the CLI's --out policy. */
 
 /* fs_hint values (orchestrator::FsFamily, serialized values): 0 auto-probe,
- * 1 NTFS, 2 FAT, 3 exFAT, 4 ext4, 6 HFS+, 7 Btrfs, 8 ZFS, 9 ReFS
- * (5 reserved on the wire - never produced). */
+ * 1 NTFS, 2 FAT, 3 exFAT, 4 ext4, 6 HFS+, 7 Btrfs, 8 ZFS, 9 ReFS, 11 UDF
+ * (M-044; classification + carve-only - no structured engine exists on
+ * either side) (5 reserved on the wire - never produced; 10 BitLocker is
+ * probe-only, never a valid hint). */
 /* ---- pre-scan repair consent (S-008; ABI-since 1.2) --------------------
  * Corpus lineage: the reference runs RawFixer PRE-SCAN with a UI consent
  * prompt (rawfixer-fs-repair.md: invoked during scan preparation; the
@@ -529,9 +531,16 @@ CR_UI_API uint32_t cr_ui_snapshot_dfs(cr_ui_snapshot* snap, uint32_t* indices, u
 
 /* sort: 0 none (emission order), 1 name, 2 size, 3 modified, 4 confidence,
  * 5 path, 6 grade (S-023: the CRecoverability verdict; desc = High first,
- * the og's results comparator order). dir: 0 asc, 1 desc. category bits:
+ * the og's results comparator order), 7 type (M-029: the og's results-view
+ * Type column - category in the FileFilter.xml iconIndex order, then
+ * extension, then name). dir: 0 asc, 1 desc. category bits:
  * 1 image, 2 video, 3 audio, 4 document, 5 archive, 6 other, 7 email,
- * 8 bookmarks. Zero-initialized struct = match-all. */
+ * 8 bookmarks. Zero-initialized struct = match-all.
+ * Paging: offset+limit is a HOST-side model (default limit 100) - the og
+ * has NO page-size constant (its results view virtualizes at the UI
+ * layer, ~1000-item incremental batches, sigResetStartIdx); the core
+ * claims no paging parity against it (M-029's registered deliberate
+ * difference). */
 typedef struct cr_ui_query {
     uint32_t category_mask;              /* 0 = all categories */
     uint64_t size_min, size_max;         /* 0 = unbounded */

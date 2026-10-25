@@ -104,7 +104,6 @@ The og's edisk backend (FUN_1400dafc0) and `CImageFileDeviceWithDecompress`
 internals are undecoded (corpus next artifacts: DRWUI:948270-948278,
 :993808) — needed only if product wants edisk/compressed-image parity.
 
-<<<<<<< HEAD
 ---
 
 ## Resolution (first landing — flat/VMDK/VHD)
@@ -113,7 +112,6 @@ internals are undecoded (corpus next artifacts: DRWUI:948270-948278,
 **Fixed in commit:** (this session's S-030 commit — see `git log` for "fix: S-030")
 **Verified by:** 8 new tests in `tests/unit/test_image.cpp` (fail-before by construction: no image-format code existed — grep `rg -i "vmdk|vhdx|edisk" src include` returned zero hits at filing): `Image.FlatFileScansMbr` (flat device + LBA0 MBR classification + a full FAT scan finds the fixture's files), `Image.Lba0LayoutClassification` (protective-GPT, torn-protective-with-intact-EFI-PART, unrecognizable), `Image.VmdkMonolithicSparseReadsAndScans` (a hand-built monolithicSparse image holding the FAT16 fixture with only nonzero grains allocated — < half the flat size; byte-identical full readback + unaligned/tail reads + an engine scan finds the same files), `Image.VmdkDescriptorWithFlatAndZeroExtents` (a split image: FLAT + ZERO + FLAT-with-offset extents across sibling files through the ops seam; the ZERO hole reads zeros), `Image.VhdDynamicDiskReadsAndScans` (dynamic VHD with per-sector bitmaps; byte-identical readback incl. an unaligned cross-block read; engine scan green), `Image.VhdFixedDiskIsFlatMinusFooter`, `Image.RejectsBrokenInputs` (under-a-sector input, VHDX → ERR_UNSUPPORTED, garbage VMDK magic → ERR_BAD_MAGIC, descriptorless → ERR_BAD_MAGIC, out-of-bounds device reads), `Image.SessionRoundTripCarriesTheImagePath` (the VolumeInfo v3 tail round-trips through save/load). The updated `Crsf.VolumeInfoIdentityCardRoundTrip` pins the v3 layout (80+84+256) with v2/v1 backward-compat assertions. Suite **525/525 + cr_ui_tests 21/21 + cr_ui_abi_check** green on Release AND ASan (merged tree). Fuzz: `fuzz/fuzz_image.cpp` added to the suite (Makefile target + run/corpus rules) — the S-030 parsers are structure-aware-fuzzed on the CI fuzz lane like every other parser (local pre-verification not possible: no clang/libFuzzer in this environment — recorded, not claimed; the M-006 precedent).
 **Resolution notes:** The core module `include/cr/storage/cr_image.h` + `src/core/storage/cr_image.cpp` implements the og's import surface re-implemented from format understanding (no libvmdk, no decompiled code): content sniffing (VMDK magic / text descriptor head, "conectix" TRAILING footer for VHD — the tests caught the head-only sniff missing fixed VHDs), flat fallback with the sector-granular bound, VMDK monolithicSparse (embedded descriptor; the source is the single extent) and standalone descriptors (FLAT/SPARSE/ZERO extent lines opened through the injected `ImageFileOps` seam, relative to the descriptor's directory), grain-directory/grain-table mapping with grain-segment batching (one GDE/GTE lookup per grain run; unallocated grains read zeros), VHD fixed (data minus footer) and dynamic (BAT + per-block sector bitmaps, state-run splitting), and the og's LBA0 MBR/GPT classification (FUN_140178250's model: 55AA + partition entries vs the 0xEE protective entry / EFI PART header). Layering honesty: the core stays OS-header-free (its own build rule) — every byte flows through the host-injected `ImageByteSource`; the CLI provides the FILE source (`rrecov.cpp` `CliImageSource`, `_wfopen_s`), tests/fuzz provide memory sources. The CLI grammar: `scan --image FILE` and `recover --image FILE` (the F12 dest-overlap warning is disk-scoped, guarded for image sources), with the og's print shape (size + layout) at open; the identity card carries the image path (ScanConfig.volume_image → VolumeInfo v3 tail → VolumeSessionInfo.image; v1/v2 sessions load with an empty path, append-only, old readers unaffected). Deliberate exclusions + remainders registered as **PARITY-DELTAS D-64** (edisk/dmg exclusions; VHDX + parent-chains/compressed-grains/differencing as tracked capability remainders — ERR_UNSUPPORTED, never silent). Scope note recorded for the next session: the UI shim's `cr_ui_open_image` keeps its flat-only reader (the S-008 writer coupling deserves its own careful migration onto the core module — the seam is the byte source, mechanical follow-up, tracked here rather than risked mid-flight).
-=======
 ## Resolution (session-10 convergence upgrade — two parallel lanes, union landed)
 
 **Status:** FIXED (core scope; two registered remainders — D-64 converged entry)
@@ -181,4 +179,9 @@ file-reads (no direct-I/O alignment constraints; M-009's 64 KiB envelope
 does not apply to file-backed reads) — VHDX logical-sector-size metadata
 (512/4096) drives geometry. Win7-inclusive gate: the Win32 IO uses
 CreateFileW/GetFileSizeEx/ReadFile only — no new import families.
->>>>>>> 0b24f69 (fix(S-030): disk-image scan targets — flat/VMDK/VHD/VHDX as first-class devices)
+
+### Concurrent-landing reconciliation (session 14, DFX14 — repair of the marker block committed by a parallel merge)
+
+Both landings' Resolutions are preserved verbatim below in order (the
+first landing's flat/VMDK/VHD, then the extended landing's VHDX pass).
+The union keeps both records; the extended landing supersedes on scope.

@@ -445,3 +445,5 @@ deleted-phase walk; pass 1 (FUN_180017390) emits every record AND builds
 the child-record list (:18461-18464, plVar9 non-NULL) — the og chases
 deleted records at depth 1 too. OQ-S2A-1 resolved by the same evidence;
 OQ-S2A-4 ($MFT bootstrap depth) stays open. 3 tests; suite 593/593.
+
+- **M-043 (s5b):** FIXED (s14) — the recognition content proof landed at probe_family (the og analyser boundary); the "backup-boot fallback missing" half was corpus-disproven (the analyser memcmp-verifies the backup as the repair input only; NTFSSearchDLL never reads it) and corrected in the finding.

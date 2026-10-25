@@ -2087,3 +2087,49 @@ block must stay in lockstep).
 
 >>>>>>> f6c2e36 (fix(N-045): scan-cache budget+algorithm registered as PARITY-DELTAS D-72 with doc-truth pin)
 
+### D-73 — NTFS scan-path volume-end backup fallback (M-043, session 14; renumbered from a D-72 collision with the scan-cache register — the errata convention)
+
+**Deliberate recovery SUPERSET — not og parity (corpus-proven).** The og
+has NO scan-path backup-boot fallback: the analyser's backup step
+(FUN_180005470 :4309-4327, decode read first-hand) is a memcmp storing the
+verified location at +0x510 as the REPAIR input, and NTFSSearchDLL carries
+zero backup reads. The og refuses torn-primary DBRs on the scan path. The
+core opens from the volume-end backup instead: read-only, flagged
+`VolumeParams::boot_from_backup`; repairing the primary stays
+consent-gated rawfixer territory (S-008). Bench comparisons must expect
+core-only finds on torn-DBR NTFS fixtures. Registered by DFX14 while
+reconciling the concurrent M-043 landing (1468393 + this leg).
+
+*(D-numbering erratum, session 14: this section was first registered as
+D-72 in this leg's push; the parallel leg's scan-cache register (N-045)
+landed as D-72 in the same window. The FAT-entry precedent applies — the
+later landing renumbers; this one is now D-73. All references updated.)*
+
+
+### D-72 — carve default-off formats are host policy, not engine constants (M-024)
+
+The og's RawConfig.ini [Filter] ships STL and VPJ default-DISABLED — its
+effective carve set differs from its compiled set. The core ships every
+compiled format ENABLED and expresses default-off through
+`CarveFlags::disabled_formats` (the host's policy layer — the CLI/UI can
+mirror the og's shipped defaults by passing "stl vpj"). Rationale: an
+engine constant would bake one vendor's config into the library; the og
+itself separates engine (compiled analysers) from policy (the ini). Pinned
+by `CarveEngine.AllFormatsEnabledByDefault`.
+
+### D-68 — Error value space: family-prefix convention only; numeric values core-internal (M-049, ACCEPTED)
+
+The og's engine errors are 12-hex-digit HRESULT-shaped codes
+(0x5002200000004 open-fail, 0x5002c0000004 read-fail — the only two
+corpus-documented values; the og's full table is not documented), carried
+by an error-object architecture (CErrorManager/CErrorTrackManager, the
+MOM UI bus). The core's 28-code family keeps the HRESULT-style family
+PREFIX convention (0x5002 open/transport .. 0x5009) with core-internal
+numeric values; the old header claim ("reproduces the reference engine
+convention") was false as written — value equality was never true for any
+code. Renumbering to the two known 12-digit values would break 26 others
+arbitrarily (the og table is undocumented); the family-prefix match is
+the honest extent of the parity. The error-object layer stays out of core
+scope (UI-bus architecture); the engine-side subset (module/operation/
+retry-state context) is the registered open item in the finding. Pinned
+by Error.ErrTextCoversEveryCode + the header truth.

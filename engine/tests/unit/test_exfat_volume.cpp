@@ -1172,6 +1172,32 @@ std::vector<u8> build_exfat_large_fat_image() {
     return img;
 }
 
+
+/* N-067 empirical pin: the checksum algorithm is whatever REAL volume
+ * writers use. tests/data/exfat/upcase-table-mkfs-exfat-1.2.9.bin is the
+ * 5836-byte spec up-case table extracted from a fresh mkfs.exfat
+ * (exfatprogs 1.2.9) image, whose on-disk TableChecksum is 0xE619D30D.
+ * A second lane's first cut computed the MS-spec seeded CRC-32 instead
+ * (0x673C42A0) - spec-memory, wrong in reality; this pin holds the
+ * algorithm to the interoperable truth (Windows mounts exfatprogs
+ * images, so the value real tools write IS the algorithm). */
+TEST(ExfatEngine, UpcaseAlgorithmMatchesRealMkfsExfat) {
+    FILE* f = fopen("data/exfat/upcase-table-mkfs-exfat-1.2.9.bin", "rb");
+    if (!f) {
+        GTEST_SKIP() << "fixture data/exfat/upcase-table-mkfs-exfat-1.2.9.bin not present";
+        return;
+    }
+    std::vector<u8> table;
+    u8 chunk[4096];
+    size_t got = 0;
+    while ((got = fread(chunk, 1, sizeof(chunk), f)) > 0)
+        table.insert(table.end(), chunk, chunk + got);
+    fclose(f);
+    ASSERT_EQ(table.size(), 5836u) << "the spec up-case table is exactly 5836 bytes";
+    EXPECT_EQ(checksum32(table.data(), u32(table.size()), 0), 0xE619D30Du)
+        << "must match mkfs.exfat 1.2.9's on-disk TableChecksum";
+}
+
 } // namespace
 
 TEST(ExfatEngine, LargeFatFullChains) {

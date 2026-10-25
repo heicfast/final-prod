@@ -2267,6 +2267,18 @@ TEST(NtfsVolume, RemnantReachableUnderTornDbr) {
     ASSERT_NE(found, nullptr) << "remnant sweep never ran / remnant lost";
 }
 
+/* (Session 14 reconciliation note: this leg's pre-fallback pin
+ * TornPrimaryBootWithIntactBackupStillRefusedUntilRepair — asserting the
+ * scan path refuses torn primaries even with an intact volume-end backup
+ * — was superseded by the concurrent M-043 landing's read-only fallback
+ * (1468393) and removed in the union merge. The corpus truth it guarded
+ * (the og has NO scan-path backup fallback) is registered in the M-043
+ * finding's concurrent-filing reconciliation and PARITY-DELTAS D-73; the
+ * landing's own test set (TornPrimaryBackupBootScans /
+ * TornPrimaryShapeBackupBootScans / BackupBadFallsBackToRefusal /
+ * BootFromBackupFlagged / SpoofedOemRejectedEarly) pins the merged
+ * behavior.) */
+
 /* ---- N-001: mirror service derives from the runlist span ---------------- */
 
 namespace {

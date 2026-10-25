@@ -57,12 +57,24 @@ fail-before executed RED on the stash-isolated pre-fix tree, pass-after
 green; suite 592/592. Finding → FIXED/; RESOLVED-INDEX row; matrix
 storage P47/P48 cell → MATCH(registered); storage.md verdict updated.
 
-**Counts after this landing (direct file inventory at the N-045 push,
-pre-rebase tree):** SEVERE 1 (S-029) · MAJOR 32 · MINOR 40 · INFO 22
-(0 actionable) · tracked-open 16 · FIXED 96 files (95 findings +
-RESOLVED-INDEX). (Post-rebase note: the parallel session-10 close-out
-below landed S-029 + M-043 + M-016 + N-016a in the same window — the
-live inventory at this commit is lower; see the session-10 section.)
+**N-046 FIXED:** `PartitionSlice::refresh_geometry()` — the og's
+RefreshSectorSize-from-parent surface (FUN_140643870,
+DRWUI_decompiled.c:1044889-1044895, re-verified first-hand: parent
+vcall +0x28, store at +0x38, returns 1 unconditionally) with
+revalidation hardening over the og's blind store (misaligned /
+shrunken / zero-sector media changes refused, snapshot untouched);
+orchestrator auto-refresh excluded and documented in the header (the
+corpus exposes no scan-path caller — an invented trigger would be
+hallucinated parity). Slice.GeometryRefreshAfterMediaChange +
+Slice.GeometryRefreshRefusesInvalidatingChange; fail-before by
+construction (the API did not exist). Finding → FIXED/.
+
+**Counts after this landing (direct file inventory at the N-046 push):**
+SEVERE 0 · MAJOR 24 · MINOR 35 · INFO 22 (0 actionable) · tracked-open
+16 · FIXED 112 files (111 findings + RESOLVED-INDEX). (The hot parallel
+window absorbed S-029/S-030/M-008/M-016/M-032/M-043/M-050/N-041/N-057/
+N-058/N-067/N-016a + the S-033 INVALID filing; counts are the live
+inventory at this commit.)
 
 
 ## Session-10 delta — the SEVERE tier close-out (2026-10-26)
@@ -97,15 +109,48 @@ MAJOR 33 · MINOR 44 · INFO 22 · FIXED 95 · tracked-open 16. Active lane
 claims respected: DFX15 (MAJOR head), DFX9-T7 (M-052/M-035/M-018/
 M-013/M-014), DFX14 (M-005).
 
-# SUMMARY.md — executive summary (diff-fix session 19 on top; earlier sessions below)
+## Session-21 delta (2026-10-26 — DFX21: the tail-half MAJOR lane opens with M-044)
 
-# SUMMARY.md — executive summary (diff-fix session 15 on top; earlier sessions below)
+Baseline the union tree at `b7dd874`-lineage (595/595 linux-release verified
+first-hand; corpus `03ad46c` unmoved). Lane: the tail half of the unclaimed
+MAJOR tier (queue split against the DFX19 head-half and the DFX20/ex-DFX18
+M-033 lane — three same-window lane-ID collisions resolved per the
+first-landing-wins protocol, this leg stamped DFX21).
+
+**M-044 FIXED (UDF recognition):** the og's CFatVolumeAnalyser probe
+(FUN_180002580 :1413-1435, re-verified first-hand) reproduced exactly in
+`probe_family` — boot-bytes fast-reject (jump code short-circuits the probe),
+AVDP sector at +0x100 device sectors, Main-VDS sector at u32@(AVDP+0x14),
+"UDF"@[0x19..0x1b] -> `FsFamily::Udf` (new value 11, append-only). No
+structured engine exists on either side (verified against the factory-map
+artifact: the og's 9-engine set has no UDF SearchDLL) — carve-only
+disposition, proven end-to-end (auto-probe -> carve recovers a planted JPEG,
+quick/deep yield nothing, VolumeInfo.fs_kind == 11 round-trips). cr_ui ABI
+fs_hint 11. 4 tests, all fail-before; suite 599/599.
+
+Session counts at this landing: MAJOR open 30 -> 29 (M-044 moved to FIXED/),
+FIXED set grows to 99 files in findings/FIXED/.
 
 ## Session-19 delta (2026-10-26 — DFX19: MAJOR-first lane, first landing M-016)
 
 Bootstrap `ff734d7` (union of the parallel lanes' claims: DFX18 on the MINOR
 tier, this leg on the unclaimed MAJOR batch); baseline suite **594/594**
 Linux RelWithDebInfo + ASan. Corpus `03ad46c` unmoved.
+
+**M-019 FIXED (second landing):** ZFS multi-vdev + integrity — read_raw
+drops the `vdev != 0` refusal (the og's registry first-entry fallback,
+FUN_1800168b0 :19544-56 — foreign reads now served and counted);
+read_block gains the og's exact fletcher4 gate (`(zc==7)||(zc==0)`,
+interleaved 4-accumulator port) over the RAW bytes with the 32-byte
+stored compare and next-DVA retry on mismatch and read failure; the L0
+extent walk plans foreign-vdev blocks at the fallback position instead
+of skipping them. Fixtures upgraded to checksum-carrying pools (type-7
+fletcher4 stamped in dependency order; the fixture uses an independent
+textbook encoding so engine and fixture cross-check). Fail-before
+proven both claims: the torn-DVA0 decoy zap entered results as valid
+(now dropped + DVA1 retry recovers the real entries); the foreign-vdev
+file was left extentless (now planned at the fallback position). Suite
+614/614. findings/FIXED/M-019; matrix zfs B1/B2/A25/D15 MATCH.
 
 **M-016 FIXED (first landing):** LDM TOCBLOCK candidate set/order — the
 core's list was `{+1,+2,+2045,+2046}` (config+0 never probed; +1 outranked
@@ -235,6 +280,25 @@ name/role lengths bounds-checked BEFORE allocation. 6 tests; suite
 602/602. Counts: SEVERE 2 · MAJOR 32 · MINOR 46 · INFO 22 · FIXED 86
 files (85 findings + index).
 
+**M-029 (partial — three sub-items closed, the finding stays ACTIVE):**
+Type sort CLOSED (SortKey::Type, ABI code 7 append-only — iconIndex
+category order then extension then name; pinned with the full 8-row
+sequence); the modified-unit doc lie FIXED (FILETIME 100-ns since 1601 —
+the old "Unix seconds" line was false; pinned by
+Query.ModifiedUnitIsFiletimeEverywhere; the stale Category enum row
+fixed too); paging DOCUMENTED as the deliberate difference (no og
+page-size constant — UI-layer virtualization). Remaining (decode-blocked,
+next steps recorded in the finding): the bucket-ID translation (the og's
+buckets select by node+0x89 date TAGS, not ranges) + the general-raw
+naming bucket. Suite 636/636.
+
+**M-049 (partial):** the header's false parity claim REWRITTEN to the
+value-space truth (family-prefix convention only, D-68; the og has only
+two corpus-documented 12-digit codes — renumbering to them would break 26
+others arbitrarily); err_text tested for the first time (18 codes,
+distinct texts, fallback, OK=0). The engine-side error-context subset
+stays open (design-gated; next step in the finding). Suite 643/643.
+
 # SUMMARY.md — executive summary (diff-fix session 14 on top; earlier sessions below)
 ## Session-14 delta (2026-10-26 — DFX14: bootstrap, two merge repairs, the reconciliation wave)
 
@@ -286,9 +350,27 @@ Bench lesson recorded: all-0xFF fixtures are adversarial (FMT_MPGA_FF's
 {0xFF,0xFF} magic — parity with the og's FF sync family); representative
 mixed-content fill is the honest measurement. Suite 575/575.
 
+**M-043 FIXED, one sub-claim DISPROVEN (this push):** NTFS recognition
+content proof. Corpus re-verified FIRST — and it overturned the finding's
+first half: FUN_180005470 decoded in full shows the analyser gates on the
+PRIMARY boot and bails before result 4; its "backup-boot verification"
+(:4309-4327) is a memcmp storing the verified location at +0x510 as the
+REPAIR input — and NTFSSearchDLL carries ZERO backup reads. The og has NO
+scan-path backup fallback; the core's refuse-then-rawfixer shape was
+already parity on that half (no fallback code added — the finding's text
+is corrected, not "fixed" by breaking parity). The CONFIRMED half landed
+at the exact og boundary: probe_family's NTFS branch now applies the
+og boot gates (bps 512-multiple <= 0x1000; SPC pow2 — NFA :4292-4307) +
+record-0 proof (FILE magic; USA count [1,0x11); USA offset [0x2a,0x201) —
+FUN_180005180 :4038-4058), one 512-byte read at $MFT LCN. Executed
+fail-before: ProbeFamily's spoofed-OEM leg (a FAT volume with a spoofed
+"NTFS    " OEM used to dispatch the NTFS engine — the existing test
+ASSERTED the divergence). New: NtfsProbeContentProof (5 legs) +
+TornPrimaryBootWithIntactBackupStillRefusedUntilRepair pin. Suite 599/599.
+
 **Counts after this wave (direct file inventory):** SEVERE 2 (S-029, S-030) ·
-MAJOR 36 · MINOR 48 · INFO 22 (0 actionable) · tracked-open 16 · FIXED 83
-files (82 findings + RESOLVED-INDEX).
+MAJOR 35 · MINOR 48 · INFO 22 (0 actionable) · tracked-open 16 · FIXED 84
+files (83 findings + RESOLVED-INDEX).
 
 # SUMMARY.md — executive summary (diff-fix session 11 on top; earlier sessions below)
 

@@ -269,6 +269,52 @@ Result run(const tree::ResultTree& tree, const Query& q) {
         case SortKey::Path:
         case SortKey::None:
             break; /* Path: rows below sort lexicographically by path */
+        case SortKey::Type: {
+            /* M-029: the og's Type column. Category in the FileFilter.xml
+             * iconIndex display order (Graphic=0 Document=1 Email=2
+             * Audio=3 Video=4 Other=5 Archive=6 Bookmarks=7 - the finding's
+             * corpus census), then extension, then name; None last. */
+            const auto type_order = [](const tree::FileNode* n) -> u32 {
+                switch (cat_of(n->name_utf8())) {
+                case Category::Image:
+                    return 0;
+                case Category::Document:
+                    return 1;
+                case Category::Email:
+                    return 2;
+                case Category::Audio:
+                    return 3;
+                case Category::Video:
+                    return 4;
+                case Category::Other:
+                    return 5;
+                case Category::Archive:
+                    return 6;
+                case Category::Bookmarks:
+                    return 7;
+                default:
+                    return 8; /* None: sorts last */
+                }
+            };
+            const auto ext_of = [](const tree::FileNode* n) -> std::string {
+                const std::string nm = n->name_utf8();
+                const size_t dot = nm.find_last_of('.');
+                return dot == std::string::npos ? std::string() : nm.substr(dot + 1);
+            };
+            std::stable_sort(ctx.matched.begin(), ctx.matched.end(),
+                             [&](const tree::FileNode* a, const tree::FileNode* b) {
+                                 const u32 xa = type_order(a), xb = type_order(b);
+                                 if (xa != xb)
+                                     return desc ? xa > xb : xa < xb;
+                                 const std::string ea = ext_of(a), eb = ext_of(b);
+                                 const int r = ea.compare(eb);
+                                 if (r != 0)
+                                     return desc ? r > 0 : r < 0;
+                                 const int rn = key_name(a).compare(key_name(b));
+                                 return desc ? rn > 0 : rn < 0;
+                             });
+            break;
+        }
         default:
             break;
         }

@@ -22,3 +22,12 @@ The reader-side semantics require the decompile walk; the artifact documents the
 ## Related findings
 
 S-031 (carve emission — the validation-payload/tail-anchor items), M-051+N-075 (node-field gaps — the RAW payload field set).
+
+---
+
+## Session-14 addendum (DFX14 — partially superseded by M-051's landing)
+
+M-051 landed carve_anchor_b (the tail-paired exact position) with the og
+semantics registered as the deliberate superset for the flag carrier. The
+remaining open half (the CRAW reader's +0xF4 boolean semantics,
+FUN_140c40d80) is unchanged; no new evidence this session.

@@ -22,3 +22,11 @@ The artifact lists the capa finding without the call graph; the PRGA's role (cac
 ## Related findings
 
 N-072 (BtrfsCache.txt — hypothesis (b) makes this OQ a dependency of that finding's cache design); S-028 (Btrfs xattr recovery — the active SEVERE in the same engine).
+
+---
+
+## Session-14 addendum (DFX14 — pushed forward, unchanged)
+
+Capa-verified primitive, target still undecoded; no new evidence this
+session. The next concrete step stands (the Btrfs dataset-decrypt call
+site in BtrfsSearchDLL).

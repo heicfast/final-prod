@@ -1,9 +1,16 @@
 /*
  * cr_error.h - error-code family for the recovery stack.
  *
- * Reproduces the reference engine convention (HRESULT-style 0x5002xxxx family,
- * corpus: 05-scan-engine-architecture.md section 4) while extending it with
- * explicit codes our layers need. Success is always 0.
+ * M-049 (diff-to-fix) - the value-space truth: the og's engine errors are
+ * 12-hex-digit HRESULT-shaped codes with only TWO values corpus-documented
+ * (open-fail 0x5002200000004, read-fail 0x5002c0000004 - architecture/05
+ * section 4 :62); the og's full code table is NOT corpus-documented, and its
+ * error-object architecture (CErrorManager/CErrorTrackManager, the MOM bus)
+ * is a UI-layer surface. This core owns its error space: the FAMILY-PREFIX
+ * convention matches (0x5002 open/transport .. 0x5009, HRESULT-style), and
+ * the numeric values are CORE-INTERNAL (registered PARITY-DELTAS D-68) -
+ * the old "reproduces the reference engine convention" claim was false as
+ * written (value equality was never true for any code). Success is 0.
  *
  * Licensed under the MIT license. See LICENSE.
  */

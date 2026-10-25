@@ -111,10 +111,11 @@ it is now FIXED and lives in `findings/FIXED/`.)
 - **OQ-T6 RESOLVED:** og probes the FRONT label region only (112 KiB label @0x4000 + 128 KiB
   ring @0x20000; no L1-L3); anchors on "vdev_tree"/"id" only (never name/version/guid);
   newest-txg selection; core's label-field reads are a superset (registered, I-010).
-- **B1/B2 → M-019 (new):** multi-vdev — og attempts with first-entry fallback (never refuses),
-  verifies fletcher4 with next-DVA retry; core refuses (`vdev != 0`) and has **no checksum
-  verify / no DVA retry at all**. The session-1 B3 line "M checksum-aware reads" was WRONG for
-  the core — corrected here.
+- **B1/B2 → M-019 FIXED (s19):** multi-vdev — the core now resolves every DVA through
+  the og's first-entry fallback (foreign reads counted), verifies fletcher4 for checksum
+  types {7, 0} over the raw bytes with the 32-byte stored compare, retries the next DVA
+  on mismatch/read-failure, and plans L0 extents at the fallback position. Fixtures are
+  now checksum-carrying pools. Resolution in findings/FIXED/M-019.
 - **D15-adjacent:** og grading = ZfsDecider txg-based block decisions (from_txg/birth_txg);
   shared-controller grading is undecodable in the DLL (consistent with OQ-S2M-1).
 - **Matches confirmed:** DVA encoding (+4 MiB vdev skip), BPE embedded-block layout,
@@ -126,9 +127,9 @@ The parallel leg's OQ-T6 close-out calls the core's `unsupported_vdevs` refusal 
 superset." This leg disagrees on parity grounds with quoted evidence: the og **attempts**
 foreign-vdev reads and falls back to the scanned disk (`FUN_1800168b0 :19544-56` — never
 fails), so mirror members read correctly and stripe members yield their local halves;
-refusing loses that partial yield. M-019 stands, with the fallback + fletcher4/DVA-retry
-payload; the disagreement is recorded for the fix session to decide (honesty-of-reporting
-vs recovery-yield). Label superset rows unchanged (I-010).
+refusing loses that partial yield. RESOLVED s19 in favor of recovery-yield exactly as
+this leg argued: the fallback + fletcher4/DVA-retry payload landed (findings/FIXED/M-019).
+Label superset rows unchanged (I-010).
 
 ---
 

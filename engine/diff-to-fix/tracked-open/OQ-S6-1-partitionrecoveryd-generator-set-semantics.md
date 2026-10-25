@@ -24,3 +24,11 @@ The artifacts present class inventories and strings only; the generator-set divi
 ## Related findings
 
 I-024 (the register), M-017 (the core's single-pass scorer), S-006-FIXED / S-019-FIXED (the probe families the generator sets would drive).
+
+---
+
+## Session-14 addendum (DFX14 — pushed forward, unchanged)
+
+Needs the PartitionRecoveryD decompile pass as filed; no new evidence this
+session. I-024's acknowledgement (session-7 INFO wave) already records the
+register's refusal to inflate severity on class/string evidence alone.

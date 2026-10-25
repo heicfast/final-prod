@@ -59,14 +59,18 @@ constexpr u64 UBERBLOCK_SIZE = 1024; /* smallest slot; larger slots only
 constexpr u64 UBERBLOCK_MAGIC = 0x00BAB10CULL;
 
 /* ---- blkptr (OpenZFS spa.h) ----
- * blk_dva[3] @0 (16B each), blk_prop u64@48, blk_pad@56/64,
- * blk_phys_birth@64, blk_birth@72, blk_fill@80, blk_cksum@88..119.
+ * blk_dva[3] @0 (16B each), blk_prop u64@48, blk_pad u64@56/@64,
+ * blk_phys_birth@72, blk_birth@80, blk_fill@88, blk_cksum@96..127.
  * prop: lsize bits0-24 ((v+1)<<9), psize bits25-31 ((v+1)<<9),
- * comp bits32-38 (7), embedded bit39, etype bits40-47, byteorder bit63.
- * DVA (spa.h DVA_GET_*): vdev = (w0>>32) & 0xFFFFFF (SPA_VDEVBITS=24),
- *      asize = (w0 & 0xFFFFFF)<<9, offset = (w1 & 2^63-1)<<9, gang = w1 bit63. */
+ * comp bits32-38 (7), embedded bit39; NON-embedded: checksum bits40-47
+ * (the og's verify gate reads exactly this field, ZfsSearchDLL
+ * :18010 uVar22 = prop>>0x28 & 0xff); embedded: etype bits40-47.
+ * byteorder bit63. DVA (spa.h DVA_GET_*): vdev = (w0>>32) & 0xFFFFFF
+ * (SPA_VDEVBITS=24), asize = (w0 & 0xFFFFFF)<<9,
+ * offset = (w1 & 2^63-1)<<9, gang = w1 bit63. */
 constexpr u32 BP_DVA = 0;
 constexpr u32 BP_PROP = 48;
+constexpr u32 BP_CKSUM = 96; /* blk_cksum (zio_cksum_t, 32 bytes) */
 constexpr u32 BP_BIRTH = 72;
 constexpr u32 BP_SIZE = 128;
 
@@ -102,6 +106,11 @@ u32 bp_compress(const u8* bp) {
     /* SPA_COMPRESSBITS = 7: bit 39 is the embedded flag, not compress */
     return u32((le64(bp + BP_PROP) >> 32) & 0x7F);
 }
+u32 bp_checksum(const u8* bp) {
+    /* checksum type: prop bits 40-47 (spa.h BP_GET_CHECKSUM; the og reads
+     * exactly this field for its verify gate, ZfsSearchDLL :18010) */
+    return u32((le64(bp + BP_PROP) >> 40) & 0xFF);
+}
 u32 bpe_etype(const u8* bp) {
     return u32((le64(bp + BP_PROP) >> 40) & 0xFF);
 }
@@ -116,6 +125,46 @@ u64 dva_offset(const u8* dva) {
 }
 bool dva_is_gang(const u8* dva) {
     return (le64(dva + 8) >> 63) & 1;
+}
+
+/* M-019: fletcher4 over LE u32 words - byte-exact port of the og's
+ * interleaved accumulator form (ZfsSearchDLL :18093-18111: two words per
+ * iteration, D split across two partial sums, single-word tail; final
+ * D = tail-C + D1 + D2). Mathematically the standard four-accumulator
+ * fletcher4: A += w; B += A; C += B; D += C (mod 2^64). The og computes
+ * it over the RAW (on-disk, pre-decompression) bytes and compares the
+ * 32-byte result against blk_cksum at bp+0x60 (:18117 memcmp 0x20). */
+void fletcher4(const u8* p, size_t len, u64 out[4]) {
+    u64 a = 0, b = 0, c = 0, d1 = 0, d2 = 0, d_tail = 0;
+    const size_t words = len >> 2;
+    size_t i = 0;
+    auto rdw = [&](size_t k) {
+        u32 w;
+        std::memcpy(&w, p + k * 4, 4); /* LE host + LE pool = LE words */
+        return w;
+    };
+    if (words >= 2) {
+        for (; i + 1 < words; i += 2) {
+            const u32 w0 = rdw(i), w1 = rdw(i + 1);
+            b = a + b + w0;
+            c = c + b;
+            d1 = d1 + c;
+            a = a + w1 + w0;
+            b = b + a;
+            c = c + b;
+            d2 = d2 + c;
+        }
+    }
+    if (i < words) {
+        a = a + rdw(i);
+        b = b + a;
+        c = c + b;
+        d_tail = c;
+    }
+    out[0] = a;
+    out[1] = b;
+    out[2] = c;
+    out[3] = d_tail + d1 + d2;
 }
 
 /* BPE payload decode - byte-exact port of module/zfs/blkptr.c
@@ -399,24 +448,37 @@ struct Volume {
     u64 vdev_asize = 0;
     u64 total_bytes = 0;
     u64 damaged = 0; /* failed block reads */
+    u64 foreign_vdev_reads = 0; /* M-019: DVAs naming another vdev id,
+                                 * served through the og's first-entry
+                                 * fallback (the scanned disk) */
+    u64 checksum_drops = 0; /* M-019: blocks dropped after fletcher4
+                             * mismatch on every DVA copy */
     u64 microzap_entries = 0;
     u64 macrozap_entries = 0;
 
-    /* read the raw (possibly compressed) bytes a DVA points at */
+    /* read the raw (possibly compressed) bytes a DVA points at.
+     * M-019: the og NEVER refuses a DVA on vdev id - it resolves the
+     * vdev registry and, on no match, falls back to the FIRST registry
+     * entry, which is the scanned disk (FUN_1800168b0 :19544-19556:
+     * loop ends -> take *(param_1+0x18), the registry head). With a
+     * single scanned stream every DVA therefore reads from this device;
+     * the fletcher4 gate in read_block rejects the garbage a fallback
+     * read can produce (mirror members read correct content; stripe
+     * members get checksum-detected failures -> next DVA -> drop). */
     bool read_raw(const u8* bp, u32 dva_index, std::vector<u8>& out) {
         const u8* dva = bp + BP_DVA + u64(dva_index) * 16;
-        const u64 vdev = dva_vdev(dva);
-        if (vdev != 0)
-            return false; /* multi-vdev pool: single-disk resolvable only */
+        if (dva_vdev(dva) != 0)
+            ++foreign_vdev_reads; /* the og's first-entry fallback path */
         if (dva_is_gang(dva))
             return false; /* gang leader: read_gang handles it */
         const u64 off = dva_offset(dva);
         const u64 asz = dva_asize(dva);
         const u64 psz = bp_psize(bp);
         if (psz == 0 || asz == 0 || psz > asz)
-            return false;
+            return false; /* zero/short DVA slot: natural retry bound */
         if (vdev_offset + off + psz > total_bytes)
-            return false;
+            return false; /* bounds guard (safety hardening; the og's
+                           * device layer fails the same read) */
         out.resize(size_t(psz));
         if (dev->read_at(vdev_offset + off, out.data(), u32(out.size())) != OK) {
             ++damaged;
@@ -425,18 +487,37 @@ struct Volume {
         return true;
     }
 
-    /* read + decompress a block to its logical image */
+    /* M-019: the og retries the NEXT DVA copy when a read or the
+     * checksum gate fails (ZfsSearchDLL :18124-131: index < 2 ->
+     * FUN_180014360(..., index + 1); after the last copy the block is
+     * dropped). A failed read reaches the same retry in the og: the
+     * empty buffer fails the checksum memcmp unless the stored checksum
+     * is all-zero (an unobservable-on-real-pools quirk noted here, not
+     * replicated). */
     bool read_block(const u8* bp, u32 dva_index, std::vector<u8>& out) {
         /* gang leaders assemble through the 512B header */
         if (dva_is_gang(bp + BP_DVA + u64(dva_index) * 16))
             return read_gang(bp + BP_DVA + u64(dva_index) * 16, out);
         std::vector<u8> raw;
         if (!read_raw(bp, dva_index, raw))
-            return false;
-        const u32 zc = bp_compress(bp);
-        if (zc == 0 || zc == 1 || zc == 2 || zc == ZIO_COMPRESS_EMPTY) {
+            return dva_index < 2 ? read_block(bp, dva_index + 1, out) : false;
+        /* fletcher4 gate: checksum types {7, 0} are verified against
+         * blk_cksum over the RAW bytes (the og's exact gate,
+         * :18076 `(uVar22 == 7) || (uVar22 == 0)`; other types pass
+         * unverified - og parity). */
+        const u32 zc = bp_checksum(bp);
+        if (zc == 7 || zc == 0) {
+            u64 ck[4];
+            fletcher4(raw.data(), raw.size(), ck);
+            if (std::memcmp(bp + BP_CKSUM, ck, 32) != 0) {
+                ++checksum_drops;
+                return dva_index < 2 ? read_block(bp, dva_index + 1, out) : false;
+            }
+        }
+        const u32 zio_c = bp_compress(bp);
+        if (zio_c == 0 || zio_c == 1 || zio_c == 2 || zio_c == ZIO_COMPRESS_EMPTY) {
             /* off/on/inherit/empty: no transform (empty = zero block) */
-            if (zc == ZIO_COMPRESS_EMPTY)
+            if (zio_c == ZIO_COMPRESS_EMPTY)
                 std::memset(raw.data(), 0, raw.size());
             out = std::move(raw);
             return true;
@@ -445,7 +526,7 @@ struct Volume {
         if (lsize == 0 || lsize > (256ull << 20))
             return false;
         out.resize(size_t(lsize));
-        const u32 codec = compress::codec_from_zfs(zc);
+        const u32 codec = compress::codec_from_zfs(zio_c);
         if (!compress::decompress_block(codec, raw.data(), raw.size(), out.data(), out.size())) {
             ++damaged;
             return false;
@@ -935,9 +1016,16 @@ bool plan_file_extents(Volume& v, const Dnode& dn, FileExtentPlan& plan) {
             const u64 psz = bp_psize(bp);
             const u32 zc = bp_compress(bp);
             const u8* dva = bp + BP_DVA;
-            if (dva_vdev(dva) != 0) {
-                return true; /* other vdev: single-disk scan skips */
-            }
+            /* M-019: the og resolves every DVA through the registry with
+             * the first-entry fallback (FUN_1800168b0) - a foreign vdev
+             * id reads from the scanned disk. The extent is therefore
+             * planned at the fallback position and counted; content
+             * integrity is enforced at stream time in the extent-lazy
+             * model (the registered architectural divergence), while
+             * every block the scan READS goes through the fletcher4
+             * gate in read_block. */
+            if (dva_vdev(dva) != 0)
+                ++v.foreign_vdev_reads; /* og first-entry fallback path */
             FileExtentPlan::Item it;
             it.offset = v.vdev_offset + dva_offset(dva);
             it.length = lsize;
@@ -1352,6 +1440,8 @@ u32 scan_zfs(IStorageDevice* slice, CancelToken* cancel, WalkProgressLike progre
     stats.damaged_blocks = v.damaged;
     stats.microzap_entries = v.microzap_entries;
     stats.macrozap_entries = v.macrozap_entries;
+    stats.foreign_vdev_reads = v.foreign_vdev_reads; /* M-019 */
+    stats.checksum_drops = v.checksum_drops;         /* M-019 */
     if (progress)
         (void)progress(4, 4, progress_user);
     return OK;

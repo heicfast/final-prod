@@ -2690,3 +2690,105 @@ TEST(CarveEngine, NoBitmapCarvesEverything) {
     run(&invalid, 2, st); /* invalid map must not gate either */
     EXPECT_EQ(st.bitmap_skipped_bytes, 0u);
 }
+
+/* ===================================================================== */
+/* M-024 (diff-to-fix): the runtime per-format enable/disable surface —   */
+/* the og's RawConfig.ini [Filter] + IAnalyserFilter registry rebuild    */
+/* (RAWSearchDLL FUN_180006b30 :4386-4434; 37 named toggles, STL/VPJ     */
+/* ship default-off). The core's CarveFlags::disabled_formats gate.      */
+/* ===================================================================== */
+
+TEST(CarveEngine, FormatDisabledSkipsSignature) {
+    /* "jpg" disabled -> the grammar layer never dispatches the JPEG
+     * signature; PNG (not listed) still carves. Fail-before: no disable
+     * surface existed at all. */
+    auto img = build_carve_image();
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"Lost Files");
+    CarveFlags flags;
+    flags.disabled_formats = "jpg, JPEG"; /* both spellings, case-insensitive */
+    CarveStats stats;
+    u32 rc =
+        carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, stats);
+    ASSERT_EQ(rc, OK) << err_text(rc);
+
+    int jpg = 0, png = 0;
+    std::function<void(tree::FileNode*)> collect = [&](tree::FileNode* n) {
+        for (tree::FileNode* c = n->first_child(); c; c = c->next_sibling()) {
+            if (c->props() && c->origin() == tree::Origin::Carved) {
+                const std::string nm = c->name_utf8();
+                if (nm.size() >= 3) {
+                    const std::string ext = nm.substr(nm.size() - 3);
+                    if (ext == "jpg")
+                        ++jpg;
+                    if (ext == "png")
+                        ++png;
+                }
+            }
+            collect(c);
+        }
+    };
+    collect(root);
+    EXPECT_EQ(jpg, 0) << "jpg is on the disabled list: no JPEG may carve";
+    EXPECT_GE(png, 1) << "png is NOT on the list: PNG must still carve";
+}
+
+TEST(CarveEngine, FormatDisabledRawSignsToo) {
+    /* the raw-sign layer honors the same list: the "sample" format
+     * (#!/bin/sh) disabled -> its header sign never fires. Fail-before:
+     * no disable surface existed. */
+    std::vector<u8> img(2 * 1024 * 1024, 0);
+    std::memcpy(img.data() + 4096, "#!/bin/sh\n", 10);
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"Lost Files");
+    CarveFlags flags;
+    flags.disabled_formats = "sample";
+    CarveStats stats;
+    u32 rc =
+        carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, stats);
+    ASSERT_EQ(rc, OK) << err_text(rc);
+    EXPECT_EQ(stats.sign_hits, 0u) << "the disabled raw-sign format must not fire";
+    EXPECT_EQ(root->stats().file_count + root->stats().dir_count, 0u)
+        << "nothing may be emitted from the disabled format";
+
+    /* positive control: without the list the sample sign fires (the
+     * RawSignCarvedNodesAreDeleted pin's shape) */
+    std::vector<u8> img2(2 * 1024 * 1024, 0);
+    std::memcpy(img2.data() + 4096, "#!/bin/sh\n", 10);
+    MemDevice dev2(std::move(img2));
+    tree::ResultTree tree2;
+    auto* root2 = tree2.add_root(u"Lost Files");
+    CarveFlags flags2;
+    CarveStats stats2;
+    ASSERT_EQ(carve_slice(&dev2, flags2, nullptr, nullptr, nullptr, tree2, root2, nullptr,
+                          nullptr, stats2),
+              OK);
+    EXPECT_GE(stats2.sign_hits, 1u) << "enabled by default: the sample sign fires";
+}
+
+TEST(CarveEngine, AllFormatsEnabledByDefault) {
+    /* null/empty list = every format enabled (the og's compiled-in set;
+     * its STL/VPJ default-off is HOST policy expressed through
+     * RawConfig.ini, not an engine constant). The enumeration surface:
+     * registry order IS FormatId order, one entry per id. */
+    EXPECT_EQ(carve::registry_size(), carve::registry_size());
+    EXPECT_GE(carve::registry_size(), 30u) << "the compiled registry carries the full set";
+    for (size_t i = 0; i < carve::registry_size(); ++i) {
+        const Signature& sig = carve::registry()[i];
+        EXPECT_FALSE(carve_format_listed(nullptr, sig));
+        EXPECT_FALSE(carve_format_listed("", sig));
+        EXPECT_NE(sig.ext, nullptr);
+        EXPECT_NE(sig.name, nullptr);
+    }
+    /* the og's [Filter] keys are name-form tokens: the ext and the name
+     * both address a format; separators are comma/space/semicolon */
+    const Signature& jpg = carve::registry()[FMT_JPG];
+    EXPECT_TRUE(carve_format_listed("jpg", jpg));
+    EXPECT_TRUE(carve_format_listed("JPG", jpg));
+    EXPECT_TRUE(carve_format_listed("heic, jpg", jpg));
+    EXPECT_TRUE(carve_format_listed("heic;jpg", jpg));
+    EXPECT_TRUE(carve_format_listed("heic jpg", jpg));
+    EXPECT_FALSE(carve_format_listed("jpe", jpg));
+}
