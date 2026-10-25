@@ -23,6 +23,7 @@
 #include <filesystem>
 #include <string>
 #include <thread>
+#include <future>
 #include <vector>
 
 /* ---------------------------------------------------------------- */
@@ -664,4 +665,245 @@ TEST(CrUi, ErrorPathsAndPlatformTruth) {
     EXPECT_EQ(cr_ui_health_read(0, &hr, nullptr, 0, &ac), 0x50030008u);
     EXPECT_NE(std::strstr(cr_ui_last_error(), "Windows platform layer"), nullptr);
 #endif
+}
+
+/* ---- GAP-S6-10: the typed event stream ---- */
+
+namespace {
+struct EventLog {
+    std::vector<cr_ui_event> events;
+    uint32_t stage_transitions = 0;
+    uint32_t progress_samples = 0;
+    uint32_t files_events = 0;
+    uint32_t checkpoints = 0;
+    uint32_t unknown_types = 0;
+    bool saw_quick = false, saw_deep = false, saw_carve = false;
+    void record(const cr_ui_event* e) {
+        events.push_back(*e);
+        switch (e->type) {
+        case CR_EVT_SCAN_STAGE:
+            ++stage_transitions;
+            if (e->stage == 0)
+                saw_quick = true;
+            if (e->stage == 1)
+                saw_deep = true;
+            if (e->stage == 2)
+                saw_carve = true;
+            break;
+        case CR_EVT_SCAN_PROGRESS:
+            ++progress_samples;
+            break;
+        case CR_EVT_FILES_FOUND:
+            ++files_events;
+            break;
+        case CR_EVT_CHECKPOINT:
+            ++checkpoints;
+            break;
+        default:
+            if (e->type > CR_EVT_LOST_CANDIDATE)
+                ++unknown_types; /* must never happen from this build */
+            break;
+        }
+    }
+};
+void event_cb(void* user, const cr_ui_event* e) {
+    static_cast<EventLog*>(user)->record(e);
+}
+} // namespace
+
+TEST(CrUi, TypedEventStreamFullLifecycle) {
+    Ui u;
+    std::string img = write_fixture("events");
+    ASSERT_FALSE(img.empty());
+    ASSERT_EQ(cr_ui_open_image(img.c_str(), 0, 0, &u.dev), CR_UI_OK);
+    EventLog log;
+    cr_ui_scan_config cfg{};
+    cfg.stage_mask = 7; /* quick + deep + carve: three stage transitions */
+    const std::string ck_path = img + ".ck";
+    cfg.checkpoint_path_utf8 = ck_path.c_str();
+    ASSERT_EQ(cr_ui_scan_create(&cfg, &u.scan), CR_UI_OK);
+    ASSERT_EQ(cr_ui_scan_attach_device(u.scan, u.dev), CR_UI_OK);
+    ASSERT_EQ(cr_ui_scan_set_event_fn(u.scan, event_cb, &log), CR_UI_OK);
+    ASSERT_EQ(cr_ui_scan_run(u.scan), CR_UI_OK);
+
+    /* stage transitions: in scan order, exactly once each */
+    EXPECT_GE(log.stage_transitions, 3u);
+    EXPECT_TRUE(log.saw_quick);
+    EXPECT_TRUE(log.saw_deep);
+    EXPECT_TRUE(log.saw_carve);
+    /* stage order: quick before deep before carve */
+    int quick_i = -1, deep_i = -1, carve_i = -1;
+    for (size_t i = 0; i < log.events.size(); ++i) {
+        if (log.events[i].type == CR_EVT_SCAN_STAGE) {
+            if (log.events[i].stage == 0 && quick_i < 0)
+                quick_i = int(i);
+            if (log.events[i].stage == 1 && deep_i < 0)
+                deep_i = int(i);
+            if (log.events[i].stage == 2 && carve_i < 0)
+                carve_i = int(i);
+        }
+    }
+    EXPECT_LT(quick_i, deep_i);
+    EXPECT_LT(deep_i, carve_i);
+    /* progress samples: coalesced, monotonic overall permille */
+    EXPECT_GE(log.progress_samples, 1u);
+    uint32_t last_pm = 0;
+    for (const auto& e : log.events)
+        if (e.type == CR_EVT_SCAN_PROGRESS) {
+            EXPECT_GE(e.overall_permille, last_pm);
+            last_pm = e.overall_permille;
+        }
+    /* files-found: cumulative, monotonic, ended non-zero (the fixture
+     * carries structured + carved files) */
+    EXPECT_GE(log.files_events, 1u);
+    uint64_t last_files = 0;
+    for (const auto& e : log.events)
+        if (e.type == CR_EVT_FILES_FOUND) {
+            EXPECT_GE(e.files_found, last_files);
+            last_files = e.files_found;
+        }
+    EXPECT_GT(last_files, 0u);
+    /* checkpoints: the G-13 cadence fired (3 stage boundaries) */
+    EXPECT_GE(log.checkpoints, 1u);
+    /* no unknown event types from this build */
+    EXPECT_EQ(log.unknown_types, 0u);
+    /* the payload is POD-serializable: no self-referencing pointers by
+     * construction (compile-time shape; sanity: sizes stable) */
+    EXPECT_EQ(sizeof(cr_ui_event) % 8u, 0u);
+
+    /* subscribing WHILE run() executes is refused (the mid-run swap could
+     * double-deliver or drop events) - proven with the pause gate: pause
+     * the token before run, run on a worker thread, the scan parks in the
+     * cooperative gate with running=true, the subscribe is refused, then
+     * resume lets the scan finish cleanly */
+    {
+        Ui u2;
+        std::string img2 = write_fixture("events_mid");
+        ASSERT_FALSE(img2.empty());
+        ASSERT_EQ(cr_ui_open_image(img2.c_str(), 0, 0, &u2.dev), CR_UI_OK);
+        cr_ui_scan_config cfg2{};
+        ASSERT_EQ(cr_ui_scan_create(&cfg2, &u2.scan), CR_UI_OK);
+        ASSERT_EQ(cr_ui_scan_attach_device(u2.scan, u2.dev), CR_UI_OK);
+        ASSERT_EQ(cr_ui_scan_pause(u2.scan), CR_UI_OK); /* park at the gate */
+        auto fut = std::async(std::launch::async, [&u2] {
+            return cr_ui_scan_run(u2.scan);
+        });
+        /* wait for the running flag via telemetry (bounded; the pause
+         * parks the scan inside the first engine gate) */
+        cr_ui_telemetry t;
+        for (int i = 0; i < 3000; ++i) {
+            if (cr_ui_scan_telemetry(u2.scan, &t) == CR_UI_OK && t.running)
+                break;
+            std::this_thread::sleep_for(std::chrono::milliseconds(1));
+        }
+        EXPECT_EQ(t.running, 1u) << "the scan must be parked RUNNING in the pause gate";
+        /* the pause parks the scan with running=true -> refusal expected */
+        EXPECT_EQ(cr_ui_scan_set_event_fn(u2.scan, event_cb, &log),
+                  0x50030003u /* ERR_BAD_PARAMETER */);
+        ASSERT_EQ(cr_ui_scan_resume(u2.scan), CR_UI_OK);
+        ASSERT_EQ(fut.get(), CR_UI_OK);
+    }
+}
+
+TEST(CrUi, EventStreamUnsubscribeAndResubscribe) {
+    Ui u;
+    std::string img = write_fixture("events2");
+    ASSERT_FALSE(img.empty());
+    ASSERT_EQ(cr_ui_open_image(img.c_str(), 0, 0, &u.dev), CR_UI_OK);
+    EventLog log;
+    cr_ui_scan_config cfg{};
+    ASSERT_EQ(cr_ui_scan_create(&cfg, &u.scan), CR_UI_OK);
+    ASSERT_EQ(cr_ui_scan_attach_device(u.scan, u.dev), CR_UI_OK);
+    /* subscribe then unsubscribe before run: zero events must arrive */
+    ASSERT_EQ(cr_ui_scan_set_event_fn(u.scan, event_cb, &log), CR_UI_OK);
+    ASSERT_EQ(cr_ui_scan_set_event_fn(u.scan, nullptr, nullptr), CR_UI_OK);
+    ASSERT_EQ(cr_ui_scan_run(u.scan), CR_UI_OK);
+    EXPECT_EQ(log.events.size(), 0u) << "unsubscribed scans must emit nothing";
+}
+
+/* ---- GAP-S6-11: the disk-map data producer ---- */
+
+TEST(CrUi, DiskMapSessionGeometryAndOverlays) {
+    Ui u;
+    std::string img, crsf;
+    ASSERT_TRUE(scan_to_session("dmap", u, img, crsf));
+    /* the session carried a full scan (carve completed): coverage must be
+     * all-1, the geometry must report the session view, and the found /
+     * confidence / allocation overlays must reflect real extents. */
+    cr_ui_disk_map_geometry want{};
+    cr_ui_disk_map_geometry got{};
+    uint8_t *alloc = nullptr, *cov = nullptr, *fnd = nullptr, *conf = nullptr;
+    uint32_t bad_count = 0;
+    ASSERT_EQ(cr_ui_disk_map(u.sess, nullptr, &want, &got, &alloc, &cov, &fnd, &conf, nullptr, 0,
+                             &bad_count),
+              CR_UI_OK);
+    ASSERT_NE(alloc, nullptr);
+    ASSERT_NE(cov, nullptr);
+    ASSERT_NE(fnd, nullptr);
+    ASSERT_NE(conf, nullptr);
+    EXPECT_GT(got.cell_count, 0u);
+    EXPECT_GE(got.cell_bytes, 65536ull); /* default granularity class */
+    /* coverage: the fixture scan completed carve -> every cell covered */
+    bool all_cov = true;
+    for (uint64_t i = 0; i < got.cell_count; ++i)
+        if (cov[i] == 0)
+            all_cov = false;
+    EXPECT_TRUE(all_cov) << "carve completion must mark the whole view covered";
+    /* found: at least one cell with content (the fixture files) */
+    bool any_found = false;
+    for (uint64_t i = 0; i < got.cell_count; ++i)
+        if (fnd[i] > 0)
+            any_found = true;
+    EXPECT_TRUE(any_found) << "the fixture's file extents must appear in the found overlay";
+    /* confidence: max ordinal of covering content is in 0..4 */
+    for (uint64_t i = 0; i < got.cell_count; ++i)
+        EXPECT_LE(conf[i], 4u);
+    /* allocation values are the documented enum */
+    for (uint64_t i = 0; i < got.cell_count; ++i)
+        EXPECT_LE(alloc[i], 3u);
+    cr_ui_disk_map_free(alloc);
+    cr_ui_disk_map_free(cov);
+    cr_ui_disk_map_free(fnd);
+    cr_ui_disk_map_free(conf);
+
+    /* exactly-one-of rule + overlay requirement */
+    EXPECT_NE(cr_ui_disk_map(u.sess, nullptr, &want, &got, nullptr, nullptr, nullptr, nullptr,
+                             nullptr, 0, &bad_count),
+              CR_UI_OK);
+    /* want view outside the session slice is refused (fresh out pointer) */
+    cr_ui_disk_map_geometry bad_want{};
+    bad_want.start_byte = 1ull << 48;
+    bad_want.total_bytes = 4096;
+    uint8_t* fnd2 = nullptr;
+    EXPECT_NE(cr_ui_disk_map(u.sess, nullptr, &bad_want, &got, &fnd2, nullptr, nullptr, nullptr,
+                             nullptr, 0, &bad_count),
+              CR_UI_OK);
+    EXPECT_EQ(fnd2, nullptr) << "refused calls must not allocate overlays";
+    cr_ui_disk_map_free(fnd2);
+}
+
+TEST(CrUi, DiskMapSnapshotRequiresViewGeometry) {
+    Ui u;
+    std::string img, crsf;
+    ASSERT_TRUE(scan_to_session("dmap2", u, img, crsf));
+    cr_ui_snapshot* snap = nullptr;
+    ASSERT_EQ(cr_ui_session_snapshot(u.sess, &snap), CR_UI_OK);
+    /* snapshots carry no view: want->start/total are REQUIRED */
+    cr_ui_disk_map_geometry want{};
+    cr_ui_disk_map_geometry got{};
+    uint8_t* fnd = nullptr;
+    uint32_t bad_count = 0;
+    EXPECT_NE(cr_ui_disk_map(nullptr, snap, &want, &got, &fnd, nullptr, nullptr, nullptr, nullptr,
+                             0, &bad_count),
+              CR_UI_OK);
+    /* with the view supplied the map builds; the image is the whole view */
+    want.start_byte = 0;
+    want.total_bytes = 512ull * 5074; /* the FAT16 fixture size */
+    ASSERT_EQ(cr_ui_disk_map(nullptr, snap, &want, &got, &fnd, nullptr, nullptr, nullptr, nullptr,
+                             0, &bad_count),
+              CR_UI_OK);
+    ASSERT_NE(fnd, nullptr);
+    EXPECT_GT(got.cell_count, 0u);
+    cr_ui_disk_map_free(fnd);
+    cr_ui_snapshot_close(snap);
 }

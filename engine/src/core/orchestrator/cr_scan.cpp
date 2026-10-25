@@ -73,6 +73,8 @@ u32 weighted_progress(const StageWeights& w, u32 quick_pm, u32 deep_pm, u32 carv
 
 ScanController::ScanController(tree::ResultTree& tree, ScanConfig cfg)
     : tree_(tree), cfg_(std::move(cfg)) {
+    event_fn_ = cfg_.event_fn; /* GAP-S6-10: config seed, setter overrides */
+    event_user_ = cfg_.event_user;
     if (cfg_.run_quick || cfg_.run_deep) {
         root_found_ = tree_.add_root(u"Found");
         root_deleted_ = tree_.add_root(u"Deleted");
@@ -85,6 +87,8 @@ ScanController::ScanController(tree::ResultTree& tree, ScanConfig cfg)
 ScanController::ScanController(tree::ResultTree& tree, ScanConfig cfg,
                                const session::VolumeSessionInfo& resumed)
     : tree_(tree), cfg_(std::move(cfg)) {
+    event_fn_ = cfg_.event_fn; /* GAP-S6-10: config seed, setter overrides */
+    event_user_ = cfg_.event_user;
     /* BENCH-F2 note: the ORIGINAL configured set is carried into
      * session_configured_mask_ by adopt_resume_state_ at the end of this
      * ctor (commit d20f374; independently also found from the same
@@ -117,6 +121,15 @@ ScanController::ScanController(tree::ResultTree& tree, ScanConfig cfg,
     if (cfg_.run_carve && root_carved_ == nullptr)
         root_carved_ = tree_.add_root(u"Other Deleted Files (Carved)");
     adopt_resume_state_(resumed);
+}
+
+u32 ScanController::set_event_sink(event::EventFn fn, void* user) {
+    if (tel_running_.load(std::memory_order_acquire))
+        return ERR_BAD_PARAMETER; /* pre-run only: a mid-run swap could
+                                     double-deliver or drop events */
+    event_fn_ = fn;
+    event_user_ = user;
+    return OK;
 }
 
 void ScanController::adopt_resume_state_(const session::VolumeSessionInfo& resumed) {
@@ -167,14 +180,17 @@ u64 ms_since(std::chrono::steady_clock::time_point t0) {
 } // namespace
 
 void ScanController::tel_stage_begin_(u32 stage, const CancelToken* cancel) {
-    std::lock_guard<std::mutex> lock(tel_.m);
-    tel_.stage_t0 = std::chrono::steady_clock::now();
-    tel_.stage_pause_base = cancel ? cancel->paused_ms() : 0;
-    tel_stage_.store(stage, std::memory_order_relaxed);
-    StageTelemetry& st = stage == 0   ? tel_.snap.quick
-                         : stage == 1 ? tel_.snap.deep
-                                      : tel_.snap.carve;
-    st = StageTelemetry{};
+    {
+        std::lock_guard<std::mutex> lock(tel_.m);
+        tel_.stage_t0 = std::chrono::steady_clock::now();
+        tel_.stage_pause_base = cancel ? cancel->paused_ms() : 0;
+        tel_stage_.store(stage, std::memory_order_relaxed);
+        StageTelemetry& st = stage == 0   ? tel_.snap.quick
+                             : stage == 1 ? tel_.snap.deep
+                                          : tel_.snap.carve;
+        st = StageTelemetry{};
+    }
+    emit_event_(event::Type::ScanStage, stage); /* GAP-S6-10 (outside the lock) */
 }
 
 void ScanController::tel_stage_end_(u32 stage, const CancelToken* cancel) {
@@ -241,11 +257,113 @@ void ScanController::tel_counts_(const ScanStats& stats, const CancelToken* canc
     tel_.snap.paused = cancel ? cancel->paused() : false;
 }
 
+/* ---- typed event stream (GAP-S6-10; ABI-CONTRACT.md section 6) ----
+ * Emissions never hold the telemetry mutex (callbacks must not block and
+ * must never be called under a core lock). */
+
+void ScanController::emit_event_(event::Type type, u32 stage) const {
+    if (event_fn_ == nullptr)
+        return;
+    event::Event e;
+    e.type = type;
+    e.stage = stage;
+    {
+        std::lock_guard<std::mutex> lock(tel_.m);
+        e.timestamp_ms = tel_.snap.elapsed_ms;
+        e.overall_permille = tel_.snap.overall_permille;
+        e.files_found = tel_.snap.files_found;
+        e.deleted_found = tel_.snap.deleted_found;
+        e.carved_found = tel_.snap.carved_found;
+        e.error_ranges = u32(tel_.snap.errors.ranges().size());
+        const StageTelemetry& st = stage == 0   ? tel_.snap.quick
+                                   : stage == 1 ? tel_.snap.deep
+                                                : tel_.snap.carve;
+        e.stage_permille = st.permille;
+        e.bytes_done = stage == 2 ? st.bytes_done : 0;
+        e.bytes_total = stage == 2 ? st.units_total : 0;
+    }
+    event_fn_(e, event_user_);
+}
+
+void ScanController::emit_progress_event_(u32 stage) const {
+    if (event_fn_ == nullptr)
+        return;
+    /* coalesce: fire only when the overall permille advanced (<= 1000
+     * events per scan plus stage flips - the documented sample cadence) */
+    u32 overall;
+    {
+        std::lock_guard<std::mutex> lock(tel_.m);
+        overall = tel_.snap.overall_permille;
+    }
+    u32 last = evt_last_overall_.load(std::memory_order_relaxed);
+    if (overall == last)
+        return;
+    if (last != 0xFFFFFFFFu && overall < last)
+        return; /* stale out-of-order worker delivery */
+    if (!evt_last_overall_.compare_exchange_strong(last, overall, std::memory_order_relaxed))
+        return; /* another worker emitted this step first */
+    emit_event_(event::Type::ScanProgress, stage);
+}
+
+void ScanController::emit_boundary_events_(u32 stage) const {
+    if (event_fn_ == nullptr)
+        return;
+    /* FilesFound: cumulative counters at the boundary where they advance */
+    emit_event_(event::Type::FilesFound, stage);
+    /* ErrorRange deltas: the newest appended range + the cumulative count */
+    u64 newest_start = 0, newest_len = 0;
+    u32 count = 0;
+    {
+        std::lock_guard<std::mutex> lock(tel_.m);
+        const auto& ranges = tel_.snap.errors.ranges();
+        count = u32(ranges.size());
+        if (count > 0) {
+            newest_start = ranges[size_t(count) - 1].offset;
+            newest_len = ranges[size_t(count) - 1].length;
+        }
+    }
+    const u32 last = evt_last_errors_.load(std::memory_order_relaxed);
+    if (count > last) {
+        u32 expected = last;
+        if (evt_last_errors_.compare_exchange_strong(expected, count, std::memory_order_relaxed)) {
+            event::Event e;
+            e.type = event::Type::ErrorRange;
+            e.stage = stage;
+            {
+                std::lock_guard<std::mutex> lock(tel_.m);
+                e.timestamp_ms = tel_.snap.elapsed_ms;
+                e.overall_permille = tel_.snap.overall_permille;
+                e.error_ranges = u32(tel_.snap.errors.ranges().size());
+            }
+            e.err_start_bytes = newest_start;
+            e.err_len_bytes = newest_len;
+            cfg_.event_fn(e, cfg_.event_user);
+        }
+    }
+}
+
+void ScanController::emit_lost_candidate_(const lost::Candidate& cand) const {
+    if (event_fn_ == nullptr)
+        return;
+    event::Event e;
+    e.type = event::Type::LostCandidate;
+    e.stage = 1; /* the deep stage's discovery pass */
+    e.candidate_lba = cand.start_lba;
+    {
+        std::lock_guard<std::mutex> lock(tel_.m);
+        e.timestamp_ms = tel_.snap.elapsed_ms;
+        e.overall_permille = tel_.snap.overall_permille;
+        e.error_ranges = u32(tel_.snap.errors.ranges().size());
+    }
+    event_fn_(e, event_user_);
+}
+
 bool ScanController::engine_progress_bridge_(u64 done, u64 total, void* user) {
     StageBridge* b = static_cast<StageBridge*>(user);
     b->self->tel_publish_(b->stage, done, total, b->stage == 2, b->cancel);
     if (b->covers_both)
         b->self->tel_publish_(1, done, total, false, b->cancel);
+    b->self->emit_progress_event_(b->stage); /* GAP-S6-10 */
     if (b->overall) {
         u32 overall;
         {
@@ -314,6 +432,22 @@ u32 ScanController::emit_checkpoint_() const {
     if (u32 rc = w.finalize())
         return rc;
     ++checkpoint_count_;
+    if (event_fn_ != nullptr) { /* GAP-S6-10 */
+        event::Event e;
+        e.type = event::Type::Checkpoint;
+        e.stage = tel_stage_.load(std::memory_order_relaxed);
+        e.checkpoint_index = checkpoint_count_;
+        {
+            std::lock_guard<std::mutex> lock(tel_.m);
+            e.timestamp_ms = tel_.snap.elapsed_ms;
+            e.overall_permille = tel_.snap.overall_permille;
+            e.files_found = tel_.snap.files_found;
+            e.deleted_found = tel_.snap.deleted_found;
+            e.carved_found = tel_.snap.carved_found;
+            e.error_ranges = u32(tel_.snap.errors.ranges().size());
+        }
+        event_fn_(e, event_user_);
+    }
     return OK;
 }
 
@@ -440,6 +574,8 @@ u32 ScanController::run(IStorageDevice* slice, CancelToken* cancel, bool (*progr
         if (RetryingDevice* rd = tel_retry_.load(std::memory_order_acquire))
             stats.errors.merge(rd->error_map_copy());
         tel_counts_(stats, cancel);
+    emit_boundary_events_(tel_stage_.load(std::memory_order_relaxed)); /* GAP-S6-10 */
+        emit_boundary_events_(tel_stage_.load(std::memory_order_relaxed)); /* GAP-S6-10 */
         {
             std::lock_guard<std::mutex> lock(tel_.m);
             /* Finalize under the same lock telemetry() queries: the snapshot
@@ -513,6 +649,7 @@ u32 ScanController::run_quick(IStorageDevice* slice, CancelToken* cancel,
         quick_done_ = true;
     tel_stage_end_(0, cancel);
     tel_counts_(stats, cancel);
+    emit_boundary_events_(tel_stage_.load(std::memory_order_relaxed)); /* GAP-S6-10 */
     /* boundary tick: forward the POST-STAMP telemetry overall - never a
      * hardcoded weighted() (with covers_both the walk already fed the
      * deep stage, so the bridge has forwarded values up to 750; a
@@ -800,6 +937,7 @@ u32 ScanController::run_deep(IStorageDevice* slice, CancelToken* cancel,
                 };
                 std::vector<CandWork> work;
                 for (const auto& c : dr.candidates) {
+                    emit_lost_candidate_(c); /* GAP-S6-10 */
                     auto cand_slice = lost::materialize(slice, c);
                     if (!cand_slice)
                         continue;
@@ -875,6 +1013,7 @@ u32 ScanController::run_deep(IStorageDevice* slice, CancelToken* cancel,
         deep_extras_done_ = true;
     tel_stage_end_(1, cancel);
     tel_counts_(stats, cancel);
+    emit_boundary_events_(tel_stage_.load(std::memory_order_relaxed)); /* GAP-S6-10 */
     /* boundary tick: post-stamp telemetry overall (monotonic truth) */
     if (progress)
         (void)progress(tel_overall_(), pu);
@@ -928,6 +1067,7 @@ u32 ScanController::run_carve_stage(IStorageDevice* slice, CancelToken* cancel,
         carve_done_ = true;
     tel_stage_end_(2, cancel);
     tel_counts_(stats, cancel);
+    emit_boundary_events_(tel_stage_.load(std::memory_order_relaxed)); /* GAP-S6-10 */
     /* boundary tick: post-stamp telemetry overall (monotonic truth) */
     if (progress)
         (void)progress(tel_overall_(), pu);

@@ -51,6 +51,61 @@ struct StageWeights {
     u32 carve = 25;
 };
 
+/* ---- typed event stream (GAP-S6-10; ABI-CONTRACT.md section 6) ----
+ *
+ * Corpus lineage: the reference pipes engine events to the UI through a
+ * typed message hub (INotifyObserver::Notify -> CMessageProxy thread
+ * marshaling -> doDispatchMessage(int, void*, int&) fan-out - MOM-modules
+ * section 4, UIUX/13 section 3). This is the core's equivalent: a flat
+ * typed event a consumer subscribes to incrementally - stage transitions,
+ * progress samples, files-found counts, error-map deltas, checkpoints,
+ * lost-partition candidates. Transport-agnostic by construction (a POD
+ * with no pointers - a bridge can serialize it byte-for-byte).
+ *
+ * Contract:
+ *  - Events may fire from ENGINE WORKER THREADS (the same threads the
+ *    progress callback uses); the core does not serialize deliveries
+ *    (single-flight is the bridge's job, as the cr_ui shim does).
+ *  - Must not block; no cancellation semantics (the token is).
+ *  - Stage transitions fire in scan order, exactly once each. Progress
+ *    samples fire when the overall permille advances (coalesced, <= 1000
+ *    per scan plus stage flips). Files-found/error events are STAGE-BOUNDARY
+ *    samples (the engines do not publish per-file increments); the
+ *    error-map delta carries the newest appended range plus the
+ *    cumulative count. Checkpoint fires per G-13 emission. Lost-candidate
+ *    events fire per discovered candidate (deep stage, whole-disk scans).
+ *  - Unknown `type` values MUST be ignored by consumers (forward compat). */
+namespace event {
+enum class Type : u32 {
+    ScanStage = 1,   /* a stage transition (quick/deep/carve) */
+    ScanProgress = 2,/* a coalesced progress sample */
+    FilesFound = 3,  /* files-found counters advanced (stage boundary) */
+    ErrorRange = 4,  /* a read-failure range was appended (delta) */
+    Checkpoint = 5,  /* a G-13 checkpoint was written */
+    LostCandidate = 6 /* a lost-partition candidate was found */
+};
+
+struct Event {
+    Type type = Type::ScanStage;
+    u32 stage = 0xFFFFFFFFu;      /* 0 quick, 1 deep, 2 carve, 0xFFFFFFFF none */
+    u64 timestamp_ms = 0;         /* run-elapsed, pause-compensated */
+    /* ScanProgress */
+    u64 bytes_done = 0, bytes_total = 0; /* stage-true bytes where counted (carve) */
+    u32 stage_permille = 0, overall_permille = 0;
+    /* FilesFound (cumulative counters, not deltas) */
+    u64 files_found = 0, deleted_found = 0, carved_found = 0;
+    /* ErrorRange: the newest appended span (absolute device bytes) */
+    u64 err_start_bytes = 0, err_len_bytes = 0;
+    u32 error_ranges = 0;        /* cumulative count after the append */
+    /* Checkpoint */
+    u64 checkpoint_index = 0;
+    /* LostCandidate */
+    u64 candidate_lba = 0;
+};
+
+using EventFn = void (*)(const Event& evt, void* user);
+} // namespace event
+
 struct ScanConfig {
     bool run_quick = true;
     bool run_deep = true;
@@ -97,6 +152,12 @@ struct ScanConfig {
      * scan). Empty resolver = single-disk semantics (only the scanned
      * disk's volumes resolve). */
     table::LdmDiskResolver ldm_resolver;
+
+    /* ---- typed event stream (GAP-S6-10) ----
+     * Optional; null = no events. May fire from engine worker threads
+     * (see the event:: namespace contract above). Zero-init safe. */
+    event::EventFn event_fn = nullptr;
+    void* event_user = nullptr;
 };
 
 struct ScanStats {
@@ -214,6 +275,14 @@ public:
     /* G-13: checkpoints emitted so far this run (0 when no sink). */
     u64 checkpoint_count() const { return checkpoint_count_; }
 
+    /* GAP-S6-10: subscribe/replace the typed event sink. PRE-RUN only
+     * (returns ERR_BAD_PARAMETER once run() has started - a mid-run sink
+     * swap could double-deliver or drop events). NULL unsubscribes. The
+     * initial sink comes from ScanConfig (construction time); this setter
+     * exists so the RESUMED flow (controller built inside resume()) can
+     * subscribe after the handle exists, before run(). */
+    u32 set_event_sink(event::EventFn fn, void* user);
+
     const ScanConfig& config() const { return cfg_; }
 
 private:
@@ -266,6 +335,24 @@ private:
      * record set). Returns the sink's error on failure (the caller aborts
      * the scan - no silent checkpoint gaps). */
     u32 emit_checkpoint_() const;
+
+    /* ---- typed event stream (GAP-S6-10) ----
+     * emit_event_ fills the common fields (stage/timestamp) and calls the
+     * configured sink; emit_progress_event_ coalesces by overall permille
+     * (an atomic last-emitted tracker); emit_boundary_events_ fires
+     * FilesFound + ErrorRange deltas at the stage-boundary/stamp merge
+     * points (where the counters + error map actually advance). */
+    void emit_event_(event::Type type, u32 stage) const;
+    void emit_progress_event_(u32 stage) const;
+    void emit_boundary_events_(u32 stage) const;
+    void emit_lost_candidate_(const lost::Candidate& cand) const;
+    mutable std::atomic<u32> evt_last_overall_{0xFFFFFFFFu};
+    mutable std::atomic<u32> evt_last_errors_{0};
+    /* the live sink (constructed from cfg_; overridable pre-run so the
+     * resumed flow - whose controller is built inside resume() - can
+     * subscribe after the handle exists) */
+    event::EventFn event_fn_ = nullptr;
+    void* event_user_ = nullptr;
 
     tree::ResultTree& tree_;
     ScanConfig cfg_;

@@ -117,6 +117,56 @@ typedef void (*cr_ui_progress_fn)(void* user, uint32_t stage, uint32_t stage_per
 /* Recovery: cumulative bytes done / total across the queue. */
 typedef void (*cr_ui_recovery_progress_fn)(void* user, uint64_t bytes_done, uint64_t bytes_total);
 
+/* ---- typed event stream (GAP-S6-10; docs/ABI-CONTRACT.md section 6) ----
+ * Corpus lineage: the reference pipes engine events to the UI through a
+ * typed message hub (INotifyObserver::Notify -> CMessageProxy ->
+ * doDispatchMessage(int, void*, int&) fan-out). This is the equivalent
+ * consumer surface: stage transitions, progress samples, files-found
+ * counts, error-map deltas, checkpoints, lost-partition candidates -
+ * delivered incrementally, no polling.
+ *
+ * Contract: POD payload (no pointers to free - a transport bridge can
+ * serialize it byte-for-byte); events may fire from ENGINE WORKER
+ * THREADS (the shim does NOT serialize event deliveries - single-flight
+ * is this callback's own discipline if it needs it); must not block; no
+ * cancellation semantics (the token functions are the cancel path);
+ * stage transitions fire in scan order; progress samples coalesce by
+ * overall permille; files-found/error events are stage-boundary samples
+ * (the engines do not publish per-file increments); unknown type values
+ * MUST be ignored (forward compatibility). */
+#define CR_EVT_SCAN_STAGE 1u      /* stage transition */
+#define CR_EVT_SCAN_PROGRESS 2u   /* coalesced progress sample */
+#define CR_EVT_FILES_FOUND 3u     /* files-found counters (cumulative) */
+#define CR_EVT_ERROR_RANGE 4u     /* read-failure range appended (delta) */
+#define CR_EVT_CHECKPOINT 5u      /* a G-13 checkpoint was written */
+#define CR_EVT_LOST_CANDIDATE 6u  /* lost-partition candidate found */
+
+typedef struct cr_ui_event {
+    uint32_t type;            /* CR_EVT_* above */
+    uint32_t stage;           /* 0 quick, 1 deep, 2 carve, 0xFFFFFFFF none */
+    uint64_t timestamp_ms;    /* run-elapsed, pause-compensated */
+    /* progress sample (CR_EVT_SCAN_PROGRESS) */
+    uint64_t bytes_done, bytes_total; /* stage-true bytes where counted */
+    uint32_t stage_permille, overall_permille;
+    /* counters (CR_EVT_FILES_FOUND; cumulative, not deltas) */
+    uint64_t files_found, deleted_found, carved_found;
+    /* error-map delta (CR_EVT_ERROR_RANGE): the newly-failed span */
+    uint64_t err_start_bytes, err_len_bytes;
+    uint32_t error_ranges;    /* cumulative count after the append */
+    /* checkpoint (CR_EVT_CHECKPOINT) */
+    uint64_t checkpoint_index;
+    /* lost candidate (CR_EVT_LOST_CANDIDATE) */
+    uint64_t candidate_lba;
+    uint32_t reserved[2];     /* zero - appended fields only (ABI-since 1.1) */
+} cr_ui_event;
+
+typedef void (*cr_ui_event_fn)(void* user, const cr_ui_event* evt);
+
+/* Subscribe BEFORE run() (the sink is read at scan start; calling it while
+ * run() executes is ERR_BAD_PARAMETER). Pass fn == NULL to unsubscribe.
+ * One sink per scan handle. */
+CR_UI_API uint32_t cr_ui_scan_set_event_fn(cr_ui_scan* s, cr_ui_event_fn fn, void* user);
+
 /* ---- devices -------------------------------------------------------------
  * A device is a READ view handed to scans, previews and recovery. Sources:
  * a raw image FILE (portable - the ABI-check/test surface), a physical
@@ -407,6 +457,47 @@ CR_UI_API uint32_t cr_ui_query_run(cr_ui_session* sess, const cr_ui_query* q,
                                    cr_ui_query_row** rows, uint32_t* row_count,
                                    uint64_t* total_matched);
 CR_UI_API void cr_ui_query_rows_free(cr_ui_query_row* rows, uint32_t row_count);
+
+/* ---- disk map (GAP-S6-11; docs/ABI-CONTRACT.md section 7) ------------------
+ * The visualization DATA PRODUCER (corpus lineage: AnalysisGridWidget
+ * sector grid + the engines' IBuildVolumeBitmap interface): geometry +
+ * per-cell overlays a front-end paints. Exactly ONE of sess/snap.
+ *
+ * want (optional for sessions, REQUIRED for snapshots): caller geometry
+ * hints - start_byte/total_bytes select the mapped view (snapshots are
+ * value objects and carry no view; sessions default to the scanned
+ * slice), cell_bytes = 0 picks the engine cluster size or the 64 KiB
+ * default. got always reports the geometry ACTUALLY used.
+ *
+ * Overlays (each optional, at least one required): heap arrays of
+ * got->cell_count bytes, freed with cr_ui_disk_map_free:
+ *   allocation: 0 unknown, 1 used (active structured files - the only
+ *               claim a session proves), 3 fs-marked bad
+ *   coverage:   0 unscanned, 1 scanned (carve completion = all cells)
+ *   found:      distinct found files covering the cell (capped 255)
+ *   confidence: max Confidence ordinal 0..4 of covering content
+ * bad_ranges: caller buffer of u64 PAIRS [start,len] (absolute bytes),
+ * bad_cap the pair capacity; *bad_count returns the needed pair count
+ * either way; bad_cap < needed -> CR_UI_ERR_TRUNCATED after filling. */
+
+typedef struct cr_ui_disk_map_geometry {
+    uint64_t start_byte;  /* in: view base (snapshot path); out: used base */
+    uint64_t total_bytes; /* in: view extent; out: used extent */
+    uint64_t cell_bytes;  /* in: 0 = auto; out: the granularity used */
+    uint64_t cell_count;  /* out: the overlay array lengths */
+    uint32_t cluster_bytes; /* out: 0 when no cluster model was known */
+    uint32_t fs_family;     /* out: orchestrator::FsFamily value */
+} cr_ui_disk_map_geometry;
+
+CR_UI_API uint32_t cr_ui_disk_map(cr_ui_session* sess, cr_ui_snapshot* snap,
+                                  const cr_ui_disk_map_geometry* want,
+                                  cr_ui_disk_map_geometry* got, uint8_t** allocation,
+                                  uint8_t** coverage, uint8_t** found, uint8_t** confidence,
+                                  uint64_t* bad_ranges, uint32_t bad_cap, uint32_t* bad_count);
+
+/* Frees an overlay array returned by cr_ui_disk_map (each array
+ * separately; NULL is a no-op). */
+CR_UI_API void cr_ui_disk_map_free(uint8_t* overlay);
 
 /* ---- preview ---------------------------------------------------------------
  * Bounded, chunked reads of one node's logical content with NO recovery

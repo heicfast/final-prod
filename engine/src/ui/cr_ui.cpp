@@ -22,6 +22,7 @@
 #include "cr/cr_ui.h"
 
 #include "cr/orchestrator/cr_scan.h"
+#include "cr/tree/cr_diskmap.h"
 #include "cr/preview/cr_preview.h"
 #include "cr/query/cr_query.h"
 #include "cr/recovery/cr_report.h"
@@ -490,6 +491,9 @@ struct CrScan {
     orchestrator::ScanStats stats;
     cr_ui_progress_fn progress = nullptr;
     void* progress_user = nullptr;
+    /* GAP-S6-10: typed event sink (subscribed pre-run; read once at start) */
+    cr_ui_event_fn event_fn = nullptr;
+    void* event_user = nullptr;
     std::atomic<bool> running{false};
     bool started = false;  /* run() entered at least once (one-shot) */
     bool has_ctrl = false; /* fresh-run or resumed controller exists */
@@ -553,6 +557,35 @@ struct CrRecovery {
  * per-stage detail derived from the telemetry truth (no invention - the
  * running stage is inferred from configured + started/completed stages)
  * ========================================================================= */
+
+/* GAP-S6-10: core event -> cr_ui_event trampoline (field-for-field; both
+ * sides are PODs by contract - ABI-CONTRACT section 6). Fired from engine
+ * worker threads exactly like the core sink; no shim-side serialization
+ * (documented). */
+void scan_event_trampoline_(const orchestrator::event::Event& e, void* user) {
+    auto* s = static_cast<CrScan*>(user);
+    if (!s || !s->event_fn)
+        return;
+    cr_ui_event out;
+    out.type = u32(e.type);
+    out.stage = e.stage;
+    out.timestamp_ms = e.timestamp_ms;
+    out.bytes_done = e.bytes_done;
+    out.bytes_total = e.bytes_total;
+    out.stage_permille = e.stage_permille;
+    out.overall_permille = e.overall_permille;
+    out.files_found = e.files_found;
+    out.deleted_found = e.deleted_found;
+    out.carved_found = e.carved_found;
+    out.err_start_bytes = e.err_start_bytes;
+    out.err_len_bytes = e.err_len_bytes;
+    out.error_ranges = e.error_ranges;
+    out.checkpoint_index = e.checkpoint_index;
+    out.candidate_lba = e.candidate_lba;
+    out.reserved[0] = 0;
+    out.reserved[1] = 0;
+    s->event_fn(s->event_user, &out);
+}
 
 bool scan_progress_bridge_(u32 overall_pm, void* user) {
     auto* s = static_cast<CrScan*>(user);
@@ -1148,6 +1181,31 @@ u32 scan_cancel_impl(cr_ui_scan* scan) {
     return ret_ok();
 }
 
+u32 scan_set_event_fn_impl(cr_ui_scan* scan, cr_ui_event_fn fn, void* user) {
+    if (!scan)
+        return ret_(ERR_BAD_PARAMETER, "bad argument: scan");
+    auto* s = reinterpret_cast<CrScan*>(scan);
+    if (s->running.load())
+        return ret_(ERR_BAD_PARAMETER, "scan is running (subscribe before run)");
+    s->event_fn = fn;
+    s->event_user = user;
+    /* fresh path: the config seed reaches the controller at construction
+     * (run() builds it from s->cfg); resumed path: the controller already
+     * exists - set its sink directly (pre-run only, enforced above) */
+    s->cfg.event_fn = fn ? scan_event_trampoline_ : nullptr;
+    s->cfg.event_user = fn ? static_cast<void*>(s) : nullptr;
+    if (s->has_ctrl) {
+        std::lock_guard<std::mutex> lock(s->ctrl_mu);
+        if (s->ctrl) {
+            const u32 rc = s->ctrl->set_event_sink(fn ? scan_event_trampoline_ : nullptr,
+                                                   fn ? static_cast<void*>(s) : nullptr);
+            if (rc != OK)
+                return ret_(rc, "set_event_sink: %s", err_text(rc));
+        }
+    }
+    return ret_ok();
+}
+
 void fill_stage_tel(const orchestrator::StageTelemetry& in, cr_ui_stage_tel& out) {
     out.permille = in.permille;
     out.units_done = in.units_done;
@@ -1293,6 +1351,10 @@ extern "C" CR_UI_API uint32_t cr_ui_scan_pause(cr_ui_scan* scan) {
 extern "C" CR_UI_API uint32_t cr_ui_scan_resume(cr_ui_scan* scan) {
     return guarded(scan_resume_impl, scan);
 }
+extern "C" CR_UI_API uint32_t cr_ui_scan_set_event_fn(cr_ui_scan* scan, cr_ui_event_fn fn,
+                                                      void* user) {
+    return guarded(scan_set_event_fn_impl, scan, fn, user);
+}
 extern "C" CR_UI_API uint32_t cr_ui_scan_cancel(cr_ui_scan* scan) {
     return guarded(scan_cancel_impl, scan);
 }
@@ -1392,6 +1454,103 @@ u32 session_snapshot_impl(cr_ui_session* sess, cr_ui_snapshot** out) {
     return ret_ok();
 }
 
+/* GAP-S6-11: the disk-map data producer over a session or a snapshot.
+ * Session path: the scanned view + carve completion + error map come from
+ * the loaded session (truth on disk). Snapshot path: the view geometry
+ * MUST come from `want` (snapshots are value objects). */
+u32 disk_map_impl(cr_ui_session* sess, cr_ui_snapshot* snap, const cr_ui_disk_map_geometry* want,
+                  cr_ui_disk_map_geometry* got, uint8_t** allocation, uint8_t** coverage,
+                  uint8_t** found, uint8_t** confidence, uint64_t* bad_ranges, uint32_t bad_cap,
+                  uint32_t* bad_count) {
+    if ((sess == nullptr) == (snap == nullptr))
+        return ret_(ERR_BAD_PARAMETER, "exactly one of sess/snap must be non-null");
+    if (!got)
+        return ret_(ERR_BAD_PARAMETER, "bad argument: got");
+    if (!allocation && !coverage && !found && !confidence)
+        return ret_(ERR_BAD_PARAMETER, "at least one overlay is required");
+    if (bad_count == nullptr)
+        return ret_(ERR_BAD_PARAMETER, "bad argument: bad_count");
+
+    viz::DiskMapInputs in;
+    std::unique_ptr<tree::Snapshot> owned_snap;
+    const tree::Snapshot* snap_view = nullptr;
+    ReadErrorMap errors;
+
+    if (sess != nullptr) {
+        auto* s = reinterpret_cast<CrSession*>(sess);
+        in.slice_start = s->info.slice_offset;
+        in.slice_bytes = s->info.slice_bytes;
+        in.fs_family = s->info.fs_family;
+        in.cluster_bytes = 0; /* not persisted in v1/v2 sessions -> 64 KiB cells */
+        in.carve_completed = (s->info.stage_done_mask & orchestrator::STAGE_CARVE) != 0;
+        errors = s->stats.errors; /* copy: builder reads it without locks */
+        in.errors = &errors;
+        owned_snap = tree::Snapshot::capture(s->tree, false);
+        if (!owned_snap)
+            return ret_(ERR_NO_MEMORY, "snapshot capture failed");
+        snap_view = owned_snap.get();
+        /* caller override of the mapped view (zoom into a range) */
+        if (want && want->total_bytes != 0) {
+            if (want->start_byte < in.slice_start ||
+                want->start_byte + want->total_bytes > in.slice_start + in.slice_bytes)
+                return ret_(ERR_RANGE_OUT_OF_BOUNDS, "want view is outside the session slice");
+            in.slice_start = want->start_byte;
+            in.slice_bytes = want->total_bytes;
+        }
+    } else {
+        auto* w = reinterpret_cast<CrSnapshot*>(snap);
+        snap_view = w->snap.get();
+        if (!want || want->total_bytes == 0)
+            return ret_(ERR_BAD_PARAMETER,
+                        "snapshots carry no view: want->start_byte/total_bytes are required");
+        in.slice_start = want->start_byte;
+        in.slice_bytes = want->total_bytes;
+        in.cluster_bytes = want->cluster_bytes; /* caller hint when known */
+        in.carve_completed = false;            /* mid-scan value view: extent coverage */
+    }
+
+    std::vector<u8> a, cv, f, cf;
+    std::vector<std::pair<u64, u64>> bad;
+    viz::DiskMapGeometry g;
+    const u32 rc = viz::build_disk_map(in, *snap_view, g, allocation ? &a : nullptr,
+                                       coverage ? &cv : nullptr, found ? &f : nullptr,
+                                       confidence ? &cf : nullptr, bad, bad_cap, bad_count);
+    if (rc != OK && rc != ERR_TRUNCATED)
+        return ret_(rc, "disk map: %s", err_text(rc));
+    *got = cr_ui_disk_map_geometry{};
+    got->start_byte = g.start_byte;
+    got->total_bytes = g.total_bytes;
+    got->cell_bytes = g.cell_bytes;
+    got->cell_count = g.cell_count;
+    got->cluster_bytes = g.cluster_bytes;
+    got->fs_family = g.fs_family;
+    auto move_out = [](std::vector<u8>& v, uint8_t** out) -> bool {
+        if (out == nullptr)
+            return true;
+        if (v.empty()) {
+            *out = nullptr;
+            return true;
+        }
+        uint8_t* p = static_cast<uint8_t*>(std::malloc(v.size()));
+        if (p == nullptr)
+            return false;
+        std::memcpy(p, v.data(), v.size());
+        *out = p;
+        return true;
+    };
+    if (!move_out(a, allocation) || !move_out(cv, coverage) || !move_out(f, found) ||
+        !move_out(cf, confidence))
+        return ret_(ERR_NO_MEMORY, "overlay allocation failed");
+    if (bad_ranges && bad_cap > 0) {
+        const u32 pairs = u32(bad.size()) < bad_cap ? u32(bad.size()) : bad_cap;
+        for (u32 i = 0; i < pairs; ++i) {
+            bad_ranges[u64(i) * 2] = bad[i].first;
+            bad_ranges[u64(i) * 2 + 1] = bad[i].second;
+        }
+    }
+    return rc == OK ? ret_ok() : ret_(rc, "bad_ranges truncated (%u pairs needed)", *bad_count);
+}
+
 u32 session_resume_impl(cr_ui_session* sess, const cr_ui_scan_config* original_cfg,
                         cr_ui_scan** out) {
     if (!sess || !out)
@@ -1437,6 +1596,20 @@ u32 session_resume_impl(cr_ui_session* sess, const cr_ui_scan_config* original_c
 extern "C" CR_UI_API uint32_t cr_ui_session_load(const char* utf8_path, cr_ui_session** out) {
     return guarded(session_load_impl, utf8_path, out);
 }
+extern "C" CR_UI_API uint32_t cr_ui_disk_map(cr_ui_session* sess, cr_ui_snapshot* snap,
+                                             const cr_ui_disk_map_geometry* want,
+                                             cr_ui_disk_map_geometry* got, uint8_t** allocation,
+                                             uint8_t** coverage, uint8_t** found,
+                                             uint8_t** confidence, uint64_t* bad_ranges,
+                                             uint32_t bad_cap, uint32_t* bad_count) {
+    return guarded(disk_map_impl, sess, snap, want, got, allocation, coverage, found, confidence,
+                   bad_ranges, bad_cap, bad_count);
+}
+
+extern "C" CR_UI_API void cr_ui_disk_map_free(uint8_t* overlay) {
+    std::free(overlay);
+}
+
 extern "C" CR_UI_API void cr_ui_session_close(cr_ui_session* sess) {
     if (!sess)
         return;
