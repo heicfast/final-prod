@@ -41,7 +41,7 @@
 
 | Capability | og | Ours | Status | Evidence / gap |
 |---|---|---|---|---|
-| Lost-partition discovery | CGenericRecoveryController insert | deep-stage whole-disk discover, candidate scoring, virtual volume materialization, parallel candidate scans; probe families NTFS/FAT/exFAT/GPT/ext/HFS+/Btrfs/ZFS/ReFS (S-006) + BitLocker "-FVE-FS-" (S-019, og type-0xB classifier gate; locked-volume surfacing) | **DONE** | test_lostpart.cpp incl. LostBitlocker* S-019 tests; deleted_found merge F-B-11 |
+| Lost-partition discovery | CGenericRecoveryController insert | deep-stage whole-disk discover, candidate scoring, virtual volume materialization, parallel candidate scans; probe families NTFS/FAT/exFAT/GPT/ext/HFS+/Btrfs/ZFS/ReFS (S-006) + BitLocker "-FVE-FS-" (S-019, og type-0xB classifier gate; locked-volume surfacing) + UDF (M-044: the og's AVDP→Main-VDS descriptor probe, analyser result 0xc; no engine on either side — carve-only) | **DONE** | test_lostpart.cpp incl. LostBitlocker* S-019 tests; deleted_found merge F-B-11 |
 | GPT two-step salvage | IsGPTDisk + backup (FUN_180006e20) | primary-entry salvage + device-derived backup LBA + protective-only entry | **DONE** | 3267d26 (W2-19); 3 new tests |
 | MBR/EBR chains | Partition.mo | EBR chain walk with cycle guards | **DONE** | test_crc32_gpt.cpp EBR cases |
 | Carving registry | raw_signs.json 139 ext + the hardcoded dual-registry common set (S-007) | signature registry + load-time validator gate (F8), BE-TIFF/ORF wired, +27 S-007 entries (GIF/BMP/audio family/AAC/RTF/OLE/MPEG/DWG) | **DONE+** | W2 CARVE-3; D-57 (S-007); test_carve.cpp |

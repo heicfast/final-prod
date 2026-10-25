@@ -48,7 +48,12 @@ enum class FsFamily : u8 {
     Refs,
     /* 10: S-019 - lost BitLocker (FVE) volumes; no walk engine (locked
      * encrypted content), the candidate surfaces as a locked volume. */
-    BitLocker
+    BitLocker,
+    /* 11: M-044 - UDF (the og's CFatVolumeAnalyser result 0xc). No
+     * structured engine exists on either side (no UDF SearchDLL in the
+     * og's 9-engine set): recognition + classification only, content
+     * recovery rides the carve stage, exactly the og's RAW disposition. */
+    Udf
 };
 
 struct StageWeights {

@@ -109,9 +109,27 @@ MAJOR 33 · MINOR 44 · INFO 22 · FIXED 95 · tracked-open 16. Active lane
 claims respected: DFX15 (MAJOR head), DFX9-T7 (M-052/M-035/M-018/
 M-013/M-014), DFX14 (M-005).
 
-# SUMMARY.md — executive summary (diff-fix session 19 on top; earlier sessions below)
+## Session-21 delta (2026-10-26 — DFX21: the tail-half MAJOR lane opens with M-044)
 
-# SUMMARY.md — executive summary (diff-fix session 15 on top; earlier sessions below)
+Baseline the union tree at `b7dd874`-lineage (595/595 linux-release verified
+first-hand; corpus `03ad46c` unmoved). Lane: the tail half of the unclaimed
+MAJOR tier (queue split against the DFX19 head-half and the DFX20/ex-DFX18
+M-033 lane — three same-window lane-ID collisions resolved per the
+first-landing-wins protocol, this leg stamped DFX21).
+
+**M-044 FIXED (UDF recognition):** the og's CFatVolumeAnalyser probe
+(FUN_180002580 :1413-1435, re-verified first-hand) reproduced exactly in
+`probe_family` — boot-bytes fast-reject (jump code short-circuits the probe),
+AVDP sector at +0x100 device sectors, Main-VDS sector at u32@(AVDP+0x14),
+"UDF"@[0x19..0x1b] -> `FsFamily::Udf` (new value 11, append-only). No
+structured engine exists on either side (verified against the factory-map
+artifact: the og's 9-engine set has no UDF SearchDLL) — carve-only
+disposition, proven end-to-end (auto-probe -> carve recovers a planted JPEG,
+quick/deep yield nothing, VolumeInfo.fs_kind == 11 round-trips). cr_ui ABI
+fs_hint 11. 4 tests, all fail-before; suite 599/599.
+
+Session counts at this landing: MAJOR open 30 -> 29 (M-044 moved to FIXED/),
+FIXED set grows to 99 files in findings/FIXED/.
 
 ## Session-19 delta (2026-10-26 — DFX19: MAJOR-first lane, first landing M-016)
 

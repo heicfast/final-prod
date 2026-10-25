@@ -838,6 +838,9 @@ u32 fill_scan_config(const cr_ui_scan_config* in, orchestrator::ScanConfig& out)
         case 9:
             out.fs_hint = orchestrator::FsFamily::Refs;
             break;
+        case 11: /* M-044: UDF - classification + carve-only (no engine) */
+            out.fs_hint = orchestrator::FsFamily::Udf;
+            break;
         default:
             return ret_(ERR_BAD_PARAMETER, "fs_hint %u is not a valid FsFamily value", in->fs_hint);
         }

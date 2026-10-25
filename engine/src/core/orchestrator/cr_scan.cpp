@@ -544,6 +544,41 @@ FsFamily ScanController::probe_family(IStorageDevice* slice) {
                 return FsFamily::Hfsplus;
         }
     }
+    /* UDF (M-044): the og's CFatVolumeAnalyser probes UDF BEFORE FAT
+     * classification (FATFileSystemAnalyser_decompiled.c FUN_180002580
+     * :1413-1435, re-verified first-hand against the corpus). The probe,
+     * exactly the og's arithmetic:
+     *  - fast-reject: boot bytes[0..2] ALL non-zero (jump code) -> the
+     *    og's ||-short-circuit skips the probe entirely (a FAT/NTFS boot
+     *    sector never touches the UDF path);
+     *  - read one sector at volume start + 0x100 sectors (the UDF spec
+     *    Anchor Volume Descriptor Pointer at LBA 256);
+     *  - read one sector at volume start + u32@(AVDP + 0x14) (the
+     *    ECMA-167 MainVolumeDescriptorSequenceExtent location field);
+     *  - classify UDF iff bytes[0x19..0x1b] == "UDF" (the og's analyser
+     *    result 0xc). Both reads go through the slice contract, so a
+     *    truncated/foreign device fails the probe clean (the og's fail
+     *    path) instead of guessing. Sector units: the og reads device
+     *    sectors through its IStorageDevice vtable; our logical_sector
+     *    is the same quantity (512 or 4096 on real transports).
+     * No engine dispatch follows on either side (no UDF SearchDLL exists
+     * in the og's 9-engine set) - the default dispatch yields nothing
+     * for quick/deep and carve recovers content by signature. */
+    if (sec[0] == 0 || sec[1] == 0 || sec[2] == 0) {
+        const u32 ss = slice->geometry().logical_sector;
+        if (ss >= 512 && ss <= 4096) {
+            u8 anchor[4096];
+            if (slice->read_at(u64(0x100) * ss, anchor, ss) == OK) {
+                const u32 vds_lba =
+                    u32(anchor[0x14]) | (u32(anchor[0x15]) << 8) | (u32(anchor[0x16]) << 16) |
+                    (u32(anchor[0x17]) << 24);
+                u8 vds[4096];
+                if (slice->read_at(u64(vds_lba) * ss, vds, ss) == OK && vds[0x19] == 'U' &&
+                    vds[0x1a] == 'D' && vds[0x1b] == 'F')
+                    return FsFamily::Udf;
+            }
+        }
+    }
     /* FAT: bytes-per-sector sane + 55AA + numFATs != 0 (the og FAT
      * analyser's gate - M-045's landed corpus set; an NTFS BPB has zeros
      * at 0x10-0x27, so a spoofed-NTFS boot falling through after a failed

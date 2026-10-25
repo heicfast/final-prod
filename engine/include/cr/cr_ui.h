@@ -264,8 +264,10 @@ CR_UI_API uint32_t cr_ui_enumerate_volumes(cr_ui_volume_info* out, uint32_t* cou
  * choice (cr_ui_scan_save_session), matching the CLI's --out policy. */
 
 /* fs_hint values (orchestrator::FsFamily, serialized values): 0 auto-probe,
- * 1 NTFS, 2 FAT, 3 exFAT, 4 ext4, 6 HFS+, 7 Btrfs, 8 ZFS, 9 ReFS
- * (5 reserved on the wire - never produced). */
+ * 1 NTFS, 2 FAT, 3 exFAT, 4 ext4, 6 HFS+, 7 Btrfs, 8 ZFS, 9 ReFS, 11 UDF
+ * (M-044; classification + carve-only - no structured engine exists on
+ * either side) (5 reserved on the wire - never produced; 10 BitLocker is
+ * probe-only, never a valid hint). */
 /* ---- pre-scan repair consent (S-008; ABI-since 1.2) --------------------
  * Corpus lineage: the reference runs RawFixer PRE-SCAN with a UI consent
  * prompt (rawfixer-fs-repair.md: invoked during scan preparation; the

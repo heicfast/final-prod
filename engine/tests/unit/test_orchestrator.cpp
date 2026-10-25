@@ -304,6 +304,192 @@ TEST(Orchestrator, NtfsProbeContentProof) {
     }
 }
 
+/* ---- M-044: UDF volume recognition (the og's analyser result 0xc) ----
+ *
+ * Minimal ECMA-167 recognition chain, og-arithmetic-exact (the probe
+ * decoded at FATFileSystemAnalyser_decompiled.c FUN_180002580:1413-1435):
+ *  - LBA 0: the reserved area (first three bytes zero - the og's
+ *    fast-reject gate: all-nonzero boot bytes = jump code -> never UDF);
+ *  - LBA 0x100: AnchorVolumeDescriptorPointer; the Main Volume
+ *    Descriptor Sequence extent location sits at +0x14 (ECMA-167 AVDP
+ *    layout: 16-byte DescriptorTag, then ExtentDescriptor pairs);
+ *  - the Main VDS start descriptor (Primary Volume Descriptor shape)
+ *    carrying "UDF" at [0x19..0x1b] - a CS0 dstring volume identifier
+ *    "12345678UDF" (len byte at +0x10, chars from +0x11) lands exactly
+ *    there, the position the og's three byte-compares read. */
+std::vector<u8> build_udf(size_t vds_lba = 0x101) {
+    std::vector<u8> img((vds_lba + 2) * 512, 0);
+    put32v(img, 0x100 * 512 + 0x14, u32(vds_lba)); /* AVDP main VDS location */
+    u8* pvd = img.data() + vds_lba * 512;
+    pvd[0] = 1;  /* DescriptorTag.TagIdentifier = 1 (PVD) */
+    pvd[1] = 1;  /* DescriptorVersion */
+    pvd[0x10] = 0x0B; /* VolumeIdentifier dstring: 11 chars */
+    std::memcpy(pvd + 0x11, "12345678UDF", 11); /* "UDF" at +0x19..0x1b */
+    return img;
+}
+
+TEST(Orchestrator, ProbesUdfVolume) {
+    MemDevice dev(build_udf());
+    EXPECT_EQ(ScanController::probe_family(&dev), FsFamily::Udf);
+    /* the descriptor chain may live anywhere the AVDP points */
+    MemDevice dev2(build_udf(0x140));
+    EXPECT_EQ(ScanController::probe_family(&dev2), FsFamily::Udf);
+}
+
+TEST(Orchestrator, UdfProbeRequiresBothDescriptorReads) {
+    /* truncated device: the AVDP at +0x100 sectors is unreachable ->
+     * the og's second read fails -> the fail path, never UDF (and no
+     * crash: reads are bounded by the device contract) */
+    MemDevice dev(std::vector<u8>(0x100 * 512, 0));
+    EXPECT_EQ(ScanController::probe_family(&dev), FsFamily::Unknown);
+    /* AVDP present but the VDS descriptor does not carry "UDF" at
+     * [0x19..0x1b] -> Unknown (the og's three byte-compares fail) */
+    auto img = build_udf();
+    std::memcpy(img.data() + 0x101 * 512 + 0x11, "12345678XYZ", 11);
+    MemDevice dev2(std::move(img));
+    EXPECT_EQ(ScanController::probe_family(&dev2), FsFamily::Unknown);
+}
+
+TEST(Orchestrator, UdfNotConfusedWithFat) {
+    /* a boot sector with jump code (all-nonzero first three bytes) skips
+     * the UDF probe entirely (the og's ||-short-circuit) even when a
+     * complete UDF descriptor chain sits behind it - and the 55AA+BPB
+     * gate then classifies FAT */
+    auto img = build_udf();
+    u8* b = img.data();
+    b[0] = 0xEB;
+    b[1] = 0x3C;
+    b[2] = 0x90;                     /* FAT jump code */
+    std::memcpy(b + 3, "MSDOS5.0", 8); /* OEM */
+    put16(img, 0x0B, 512);           /* pow2 bps */
+    b[510] = 0x55;
+    b[511] = 0xAA;
+    MemDevice dev(std::move(img));
+    EXPECT_EQ(ScanController::probe_family(&dev), FsFamily::Fat);
+}
+
+TEST(Orchestrator, UdfSurfacesAsCarveFamily) {
+    /* a UDF volume has no structured engine on either side (no UDF
+     * SearchDLL exists in the og's 9-engine set); quick/deep yield
+     * nothing and carve recovers content by signature, with the family
+     * recorded as Udf */
+    auto img = build_udf();
+    img.resize(0x400 * 512, 0);
+    /* plant a JPEG in the untracked space behind the descriptors */
+    {
+        u8* at = img.data() + 0x200 * 512;
+        at[0] = 0xFF;
+        at[1] = 0xD8; /* SOI */
+        at[2] = 0xFF;
+        at[3] = 0xE0; /* APP0 */
+        at[4] = 0;
+        at[5] = 16;
+        std::memcpy(at + 6, "JFIF", 4);
+        at[10] = 1;
+        at[11] = 1;
+        at[14] = 1;
+        at[15] = 0;
+        at[16] = 0;
+        at[17] = 0; /* APP0 done: 2+2+16 */
+        size_t p = 20;
+        at[p] = 0xFF;
+        at[p + 1] = 0xFE; /* COM */
+        at[p + 2] = 0x01;
+        at[p + 3] = 0xD2; /* 466: big payload (grammar floor) */
+        for (int i = 0; i < 462; ++i)
+            at[p + 4 + i] = u8('A' + (i % 26));
+        p += 2 + 466;
+        at[p] = 0xFF;
+        at[p + 1] = 0xC0; /* SOF0 */
+        at[p + 2] = 0;
+        at[p + 3] = 17;
+        at[p + 4] = 8;
+        at[p + 5] = 0;
+        at[p + 6] = 64;
+        at[p + 7] = 0;
+        at[p + 8] = 48;
+        at[p + 9] = 1;
+        at[p + 10] = 1;
+        at[p + 11] = 0x22;
+        at[p + 12] = 0;
+        p += 2 + 17;
+        at[p] = 0xFF;
+        at[p + 1] = 0xDA; /* SOS */
+        at[p + 2] = 0;
+        at[p + 3] = 12;
+        for (int i = 4; i < 14; ++i)
+            at[p + i] = 0;
+        p += 2 + 12;
+        at[p] = 0x00;
+        at[p + 1] = 0x11;
+        at[p + 2] = 0x22;
+        at[p + 3] = 0x33;
+        at[p + 4] = 0xFF;
+        at[p + 5] = 0xD9; /* EOI */
+    }
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    ScanConfig cfg;
+    cfg.run_quick = true;
+    cfg.run_deep = true;
+    cfg.run_carve = true;
+    cfg.whole_disk = false;
+    ScanController ctrl(tree, cfg);
+    ScanStats stats;
+    const u32 rc = ctrl.run(&dev, nullptr, nullptr, nullptr, stats);
+    ASSERT_EQ(rc, OK) << err_text(rc);
+    /* quick/deep produced nothing structured (files_found counts engine
+     * emissions only); the JPEG came from the carve stage */
+    EXPECT_EQ(stats.files_found, 0u);
+    EXPECT_GE(stats.carved_found, 1u);
+    /* the family the auto-probe picked is recorded as Udf on the session
+     * VolumeInfo (fs_kind carries FsFamily on the wire - D-1 truth) */
+    struct MemFile {
+        std::vector<u8> data;
+        u64 pos = 0;
+        static u32 wr(void* u, const void* b, u32 len) {
+            auto* m = static_cast<MemFile*>(u);
+            if (m->pos + len > m->data.size())
+                m->data.resize(size_t(m->pos + len));
+            std::memcpy(m->data.data() + m->pos, b, len);
+            m->pos += len;
+            return 0;
+        }
+        static u64 tl(void* u) { return static_cast<MemFile*>(u)->pos; }
+        static u32 sk(void* u, u64 abs) {
+            static_cast<MemFile*>(u)->pos = abs;
+            return 0;
+        }
+    } mf;
+    {
+        session::Writer w(MemFile::wr, MemFile::tl, MemFile::sk, &mf);
+        ASSERT_EQ(w.open(7), OK);
+        ASSERT_EQ(ctrl.save_session(w, stats), OK);
+        ASSERT_EQ(w.finalize(), OK);
+    }
+    session::Reader r(+[](void* u, void* b, u32 len) -> u32 {
+        auto* m = static_cast<MemFile*>(u);
+        if (m->pos + len > m->data.size())
+            return 1;
+        std::memcpy(b, m->data.data() + m->pos, len);
+        m->pos += len;
+        return 0;
+    }, MemFile::sk, +[](void* u) -> u64 { return static_cast<MemFile*>(u)->data.size(); }, &mf);
+    ASSERT_EQ(r.open(nullptr), OK);
+    bool saw_vi = false;
+    for (u32 i = 0; i < r.record_count(); ++i) {
+        session::Record rec;
+        ASSERT_EQ(r.read_record(i, rec), OK);
+        if (rec.type != session::REC_VOLUME_INFO)
+            continue;
+        session::VolumeInfo vi;
+        ASSERT_EQ(session::deserialize_volume_info(rec.data.data(), rec.data.size(), vi), OK);
+        EXPECT_EQ(vi.fs_kind, u32(FsFamily::Udf));
+        saw_vi = true;
+    }
+    EXPECT_TRUE(saw_vi);
+}
+
 TEST(Orchestrator, StagedRunAndSessionRoundTrip) {
     auto img = build_fat16();
     MemDevice dev(std::move(img));
