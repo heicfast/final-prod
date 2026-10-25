@@ -139,14 +139,13 @@ jobs:
           $env:VCPKG_ROOT = $env:VCPKG_INSTALLATION_ROOT
           ctest --preset win-x64-release -C Release
 
-  # DISABLED for the comparative-bench session (user directive 2026-10-24):
-  # "strictly skip all other CI workflows like codeql, fuzz - we are not
-  # doing core code changes, it saves time and slots for the benchmark
-  # workflows." Re-enable after the bench evidence base lands. The windows
-  # lane (MSVC build + full test suite) stays ON: it validates the same
-  # source tree the bench builds its rrecov from.
+  # Re-enabled by the diff-to-fix session (M-006, diff-to-fix SEVERE
+  # S-009/M-006 finding): the bench-session skip premise ("we are not doing
+  # core code changes") no longer holds - the remediation session changes
+  # parser code every push. The 45s/target smoke budget comes from the
+  # Makefile; crash corpus is uploaded on failure.
   fuzz:
-    if: false  # bench-session skip (recorded, not silent)
+    # if: false  # bench-session skip - RE-ENABLED (M-006)
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     steps:

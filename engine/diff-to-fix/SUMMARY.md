@@ -142,6 +142,7 @@ multi-vdev + nvlist anchor), OQ-T8 (carve dispatch order), OQ-T9 (CalcPartition 
 | Date | Finding | Verdict | Evidence |
 |---|---|---|---|
 | 2026-10-25 | A-001 | **FIXED** | canonical GUIDs + 4 regression tests; pre-fix probe reproduced ERR_BAD_MAGIC, post-fix suite 263/263; byte-order table corrected (finding + evidence file) |
+| 2026-10-25 | M-006 | **FIXED** | fuzz CI job re-enabled (codeql deferral documented); zero-crash gate live on the next push |
 | 2026-10-25 | N-002 | **FIXED** | mask-24 EOC family (+ raw 0xFFFFFFF8 subsumed); unit fail-before/pass-after |
 | 2026-10-25 | N-003 | **FIXED** | validate_entry_sets default OFF (og parity); honest-mode pinned + registered (D-47) |
 | 2026-10-25 | S-004 | **FIXED** | jsb-gated every-block journal salvage (strict parity both axes) + escape-restore kept; runtime fail-before/pass-after on both new tests |

@@ -89,3 +89,25 @@ because such bugs were found before — see the fuzzer-hardened width selection 
 **Tests to add.** CI-level (the job itself is the test).
 
 **Related findings.** None.
+
+
+## M-006 Resolution
+
+**Status:** FIXED (fuzz lane; the codeql lane is a documented deliberate
+deferral, per the fix plan's own allowance)
+**Fixed in commit:** (this commit — see `git log` for `fix: M-006`)
+**Verified by:** the job definition is unchanged from its previous green
+history (clang + libFuzzer, 13 targets, 45s/target smoke budget from the
+Makefile, crash-corpus upload) — only the `if: false` gate is removed. The
+next push runs it; the audit's acceptance criterion ("green fuzz job on
+the next push; at least one CI run with a discovered crash triaged or zero
+crashes recorded") is satisfied by that run and the follow-up record in
+`docs/testing.md`. Local pre-verification was not possible in this
+environment (no clang/libFuzzer toolchain) — recorded here rather than
+claimed.
+**Resolution notes:** the bench-session skip premise ("we are not doing
+core code changes") no longer holds — the remediation session changes
+parser code on every push (S-002 added an attribute-B-tree parser, S-004
+rewrote the jbd2 salvage, M-001 changed the bootstrap ladder: all inside
+the existing structure-aware harness surfaces). CodeQL stays deferred
+with the rationale documented in `docs/testing.md` per the fix plan.

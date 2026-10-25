@@ -25,3 +25,18 @@ attach/detach during scan (cancel path).
 ## Layer 3 - benchmark (docs/benchmarking.md, v0.2)
 Scan throughput on the transport paths (RDA vs direct), carve rate per
 format, session save/load rate.
+
+## Fuzz + CodeQL CI status (M-006, diff-to-fix session)
+
+- **Fuzz job: ENABLED.** The comparative-bench session's skip directive
+  ("we are not doing core code changes") no longer holds — the remediation
+  session changes parser code on every push. The job builds all 13
+  structure-aware harnesses (`fuzz/Makefile`, clang + libFuzzer) and runs the
+  45s-per-target smoke campaign with a zero-crash gate; crash corpora upload
+  on failure (`fuzz/build/*crash*|leak*|timeout*`). A discovered crash is a
+  red main by design — triage it, fix the root cause, re-run.
+- **CodeQL job: deliberately deferred** (`if: false`, recorded not silent).
+  Rationale: the comparative-bench slot rationale still applies to the
+  static-analysis lane (it never blocked a release and its findings were
+  informational); revisit when the remediation wave closes. This is the
+  deferral the M-006 finding asked to be documented.
