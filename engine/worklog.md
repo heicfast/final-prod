@@ -7489,3 +7489,40 @@ Stage Summary:
 - The core's API surface and kernel-driver utilization are production-complete,
   exact-to-reference where the corpus defines the reference, divergent only where
   registered with evidence (PARITY-DELTAS K), and measured (PERFORMANCE-BASELINE).
+
+---
+Task ID: CT-S028 (S-028 fix — btrfs xattrs)
+Agent: main engineer (diff-to-fix close-all-tiers session)
+Task: SEVERE S-028 — Btrfs xattr recovery (user.DOSATTRIB / user.* streams /
+the compression property tag).
+
+Work Log:
+- Corpus re-verification BEFORE coding (first-hand): the DOSATTRIB match
+  re-read (BtrfsSearchDLL :3424-3441 — name_len 0xE, the 14 name bytes
+  compared as split LE reads, data_len copied out); the compression map
+  re-read (:3517-3543 — "zlib"->1, "zlo"->2 [the vendor misspelling],
+  "zstd"->3, else 0); the user.* predicate re-read (:3544-3602 — name_len>5
+  + "user" + '.'); the record shape confirmed shared with dir_item
+  (data_len@+0x19, name_len@+0x1b, name@+0x1e).
+- Classification: CONFIRMED-DIVERGENCE (no KEY_XATTR case — grep-verified).
+- Fix: KEY_XATTR(24) branch in the phase-1 item walk: DOSATTRIB -> Windows
+  bits on FileProperties::attributes (Samba "0x20" text via strtoul base-0,
+  OR'd with the dir bit); btrfs.compression -> per-inode tag counted in
+  stats.compression_property_files (metadata alongside the per-extent
+  truth per I-014 B4 — deliberately NOT written onto extents); other
+  user.* xattrs -> ..xattr/<name> child nodes with resident values (the
+  N-011 ADS-children shape, mirroring S-002's ..namedfork precedent),
+  counted in stats.xattr_records.
+- Tests: 3 (the finding's full list). FAIL-BEFORE by construction (no
+  XATTR dispatch pre-fix). 9 pre-existing btrfs tests stay green.
+- Suite: 484/484 Linux Release (481 + 3); clang-format 18.1.8 clean.
+- Audit trail: S-028 -> FIXED/ with Resolution; RESOLVED-INDEX row (60
+  files); matrix btrfs row; modules/btrfs.md verdict; SUMMARY live counts
+  (111 active — the parallel audit legs keep filing new findings; the fix
+  legs keep closing them).
+
+Stage Summary:
+- S-028 CLOSED. Remaining SEVERE: S-009, S-029, S-030, S-031, S-032 (the
+  s5b/s7 audit legs' new filings + the disk-map remainder). Next: S-031
+  (carved files never marked deleted) — small + user-visible.
+>>>>>>> 7fdd51a (fix(S-028): btrfs xattr recovery — user.DOSATTRIB attribute bits, user.* stream records, the compression-property tag)

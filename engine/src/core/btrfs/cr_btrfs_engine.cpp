@@ -65,6 +65,7 @@ constexpr u8 KEY_EXTENT_DATA = 108;
 constexpr u8 KEY_DIR_ITEM = 84;
 constexpr u8 KEY_ROOT_ITEM = 132;
 constexpr u8 KEY_CHUNK = 228;
+constexpr u8 KEY_XATTR = 24; /* S-028: BTRFS_XATTR_ITEM_KEY (og type 0x18) */
 
 /* objectids */
 constexpr u64 OID_CHUNK_TREE = 3;
@@ -614,6 +615,11 @@ u32 scan_btrfs(IStorageDevice* slice, CancelToken* cancel, WalkProgressLike prog
             };
             std::vector<Ext> extents;
             std::vector<u8> inline_bytes; /* BTR-3: inline extent content */
+            /* S-028: xattr-derived state (BtrfsSearchDLL :3424-3602) */
+            u32 dos_attrib = 0; /* user.DOSATTRIB value (Windows bits) */
+            bool have_dos = false;
+            u8 comp_property = 0; /* btrfs.compression: zlib=1, "zlo"=2, zstd=3 */
+            std::vector<std::pair<std::string, std::vector<u8>>> user_xattrs;
         };
         std::map<u64, InodeInfo> inodes;
         auto on_item = [&](const Key& k, const u8* data, u32 len) {
@@ -677,6 +683,53 @@ u32 scan_btrfs(IStorageDevice* slice, CancelToken* cancel, WalkProgressLike prog
                         if (comp != 0)
                             ++stats.compressed_extents;
                     }
+                }
+            } else if (k.type == KEY_XATTR && len >= DI_HEADER) {
+                InodeInfo& ii = inodes[k.objectid];
+                /* S-028 (BtrfsSearchDLL :3424-3602): XATTR items carry the
+                 * SAME dir_item record shape (the kernel shares the struct
+                 * for dir entries, xattrs and verity descriptors). The og
+                 * extracts user.DOSATTRIB (:3424-3441, name_len 0xE + the
+                 * 14 name bytes), maps btrfs.compression values
+                 * {"zlib"->1, "zlo"->2, "zstd"->3} (:3517-3543), and
+                 * surfaces every other user.* xattr (:3544-3602). */
+                u32 off = 0;
+                while (off + DI_HEADER <= len) {
+                    const u8* di = data + off;
+                    const u16 data_len = le16(di + DI_DATALEN);
+                    const u16 name_len = le16(di + DI_NAMELEN);
+                    if (u64(off) + DI_HEADER + u64(name_len) + u64(data_len) > len)
+                        break; /* truncated tail: stop, keep what we have */
+                    const char* nm = reinterpret_cast<const char*>(di) + DI_NAME;
+                    const u32 nlen = name_len > 255 ? 255 : name_len;
+                    const std::string name(nm, nm + nlen);
+                    const u8* val = di + DI_HEADER + name_len;
+                    if (name == "user.DOSATTRIB" && data_len > 0 && data_len <= 16) {
+                        /* Samba stores the Windows attribute set as text
+                         * ("0x20" hex). The og copies the raw value out
+                         * (:3431-3440); the text->bits conversion: */
+                        char txt[17];
+                        std::memcpy(txt, val, data_len);
+                        txt[data_len] = 0;
+                        ii.dos_attrib = u32(strtoul(txt, nullptr, 0));
+                        ii.have_dos = true;
+                    } else if (name == "btrfs.compression" && data_len > 0 && data_len <= 8) {
+                        char txt[9];
+                        std::memcpy(txt, val, data_len);
+                        txt[data_len] = 0;
+                        if (strcmp(txt, "zlib") == 0)
+                            ii.comp_property = 1;
+                        else if (strcmp(txt, "zlo") == 0)
+                            ii.comp_property = 2;
+                        else if (strcmp(txt, "zstd") == 0)
+                            ii.comp_property = 3;
+                        /* any other value: the og writes 0 (:3529 LAB) */
+                    } else if (name.size() > 5 && name.compare(0, 5, "user.") == 0) {
+                        /* the og's per-file attribute list (:3544-3602):
+                         * every other user.* xattr is a record */
+                        ii.user_xattrs.emplace_back(name, std::vector<u8>(val, val + data_len));
+                    }
+                    off += DI_HEADER + name_len + data_len;
                 }
             }
             return true;
@@ -760,10 +813,42 @@ u32 scan_btrfs(IStorageDevice* slice, CancelToken* cancel, WalkProgressLike prog
                         cp->resident_data = cit->second.inline_bytes;
                         ++stats.inline_files;
                     }
+                    /* S-028: user.DOSATTRIB carries the Windows attribute
+                     * bits onto the node (the og applies them at :3424-
+                     * 3441's consumer; the dir bit stays). */
+                    if (cit->second.have_dos)
+                        cp->attributes |= cit->second.dos_attrib;
+                    if (cit->second.comp_property != 0)
+                        ++stats.compression_property_files;
                     tree::FileNode* child_node = tree.add_file(node, cp);
                     cp->release();
                     if (!child_node)
                         continue;
+                    /* S-028: other user.* xattrs surface as per-file
+                     * attribute records (the og's per-file list :3544-3602;
+                     * our shape: the N-011 ADS-children pattern - a
+                     * ..xattr/<name> child carrying the value as resident
+                     * content, mirroring the HFS+ ..namedfork shape S-002
+                     * established). */
+                    for (const auto& xa : cit->second.user_xattrs) {
+                        auto* xp = new (std::nothrow) tree::FileProperties();
+                        if (!xp)
+                            break;
+                        std::u16string xn;
+                        xn.assign(u"..xattr/");
+                        for (char c : xa.first)
+                            xn.push_back(u16(u8(c)));
+                        xp->name = xn;
+                        xp->fs_kind = u32(FsKindCode::Btrfs);
+                        xp->logical_size = xa.second.size();
+                        xp->resident_data = xa.second;
+                        tree::FileNode* xnode = tree.add_file(child_node, xp);
+                        xp->release();
+                        if (xnode) {
+                            xnode->set_origin(tree::Origin::Structured);
+                            ++stats.xattr_records;
+                        }
+                    }
                     emitted.insert(de.child);
                     if (is_dir) {
                         ++stats.dirs;

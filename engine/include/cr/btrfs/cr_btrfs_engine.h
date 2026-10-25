@@ -52,6 +52,12 @@ struct BtrfsScanStats {
     u64 lzo_extents = 0;        /* lzo extents: no codec - counted, unmapped */
     u64 nodes_read = 0;
     u64 damaged_nodes = 0;
+    /* S-028: xattr surfaces */
+    u64 xattr_records = 0;              /* user.* xattrs emitted as records */
+    u64 compression_property_files = 0; /* files carrying btrfs.compression
+                                         * (the og's +0x88 codec tag; the
+                                         * per-extent truth stays on the
+                                         * extents - I-014 B4) */
 };
 
 /* One chunk mapping: [logical_start, +logical_len) -> device bytes. */

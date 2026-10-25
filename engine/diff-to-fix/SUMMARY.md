@@ -1194,3 +1194,14 @@ collisions (recorded above).
 **Live counts (after S-025):** ACUTE 0 · SEVERE 5 · MAJOR 36 ·
 MINOR 31 · INFO 18 · tracked-open 12 = **90 active** / **56 files in FIXED/**.
 >>>>>>> 24d566f (fix(S-025): ext4 journal reparenting — the og's two-pass model; latent live-file duplicate found and fixed)
+
+- **S-028 FIXED** (btrfs xattrs): KEY_XATTR(24) dispatch — user.DOSATTRIB
+  lands the Windows bits on the node (Samba hex text parsed); other user.*
+  xattrs surface as ..xattr/<name> child records with resident values
+  (the N-011 ADS shape); btrfs.compression tags the per-file codec property
+  (zlib=1/"zlo"=2/zstd=3, the og's exact strings incl. the vendor
+  misspelling) as metadata alongside the per-extent truth (I-014 B4).
+  3 tests; 484/484 Release.
+
+**Live counts (after S-028):** ACUTE 0 · SEVERE 5 · MAJOR 42 ·
+MINOR 44 · INFO 20 · tracked-open 12 = **111 active** / **60 files in FIXED/**.
