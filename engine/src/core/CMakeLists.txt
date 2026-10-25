@@ -9,6 +9,7 @@ add_library(cr_core STATIC
     health/cr_grade.cpp
     health/cr_family.cpp
     storage/cr_devmap.cpp
+    storage/cr_image.cpp
     storage/cr_slice.cpp
     storage/cr_cached.cpp
     storage/cr_retry.cpp

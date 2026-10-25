@@ -8990,3 +8990,165 @@ Stage Summary:
 - M-047 FIXED (520/520 + 21/21 + C OK). Counts: 113 active / 73 FIXED.
 - Next MAJOR targets: M-051 (raw carve provenance), M-035 (engine-side
   filefilter validation), M-018 (FilterFolder), M-013/M-014 (exFAT).
+
+---
+Task ID: DFX15-T1 (session 15 bootstrap — MAJOR-tier fix lane)
+Agent: core-parity-fix-agent (main, session 10 of this conversation)
+Task: Claim the MAJOR tier and begin fixing. Lane coordination: DFX8 owns
+S-030 (in flight), DFX10's published queue has S-029, DFX12/DFX13/DFX14
+run MINOR-first/reconciliation lanes. This lane takes the open MAJOR
+findings in impact order: M-002 -> M-037 -> M-031 -> M-046 -> M-045 ->
+M-013 -> M-052 -> M-043 -> M-018 -> M-005(+carve gating) -> M-014 ->
+M-051 -> M-050. Pull --rebase before every push.
+
+Work Log:
+- Pulled remote (23 new commits since session bootstrap): M-047 landed via
+  DFX9-T5 (6d0f1fd - convergent with this lane's own local fix, which was
+  then dropped in favor of the landed one); S-009 landed (c55bd45 + DFX14's
+  repair of the 5aaf044 clobber); N-051..N-054 + N-013/N-015/N-018/N-042
+  + M-053 reconciliations landed.
+- Current open inventory (direct): SEVERE 2 (S-029, S-030 - both owned by
+  other lanes) · MAJOR 38 · MINOR 49 · INFO 22 · FIXED 81.
+
+Stage Summary:
+- DFX15 lane claimed: the MAJOR tier. Baseline rebuild next; fixes follow
+  one-finding-one-commit-one-push.
+---
+Task ID: FF-CODA (session close — the clobber lesson + final state)
+Agent: main engineer (diff-to-fix closing session — fix-all-tiers continuation)
+Task: Record the 5aaf044 clobber + its repair; final session state.
+
+Work Log:
+- The 5aaf044 "style-only" push clobbered the S-009/N-044 legs' code in
+  rrecov.cpp/cr_chain.cpp/cr_ui.cpp (built on a stale tree, pushed
+  wholesale past the union tool's code-guard). The parallel arc repaired
+  it at c4e37d1 within minutes (the lane-watch discipline works);
+  357ede6 redoes ONLY the formatting against the current head. LESSON
+  RECORDED: the code-guard exists for every push, including style-only
+  ones - bypassing it while parallel legs land is exactly how the
+  clobber chain happened three times this session.
+- Session CI-red kills (all verified against live job logs): the first
+  S-024 landing's health::HealthGrade MSVC break (1a8cebb), test_text
+  C4310 (00125bd), the Linux-lane SEGV root-caused to the C consumer
+  fixture's missing FAT16 media pair (abf5663, with the loud-fail row
+  guard), the UBSan query-perf budget scaling (6f36e31), three lint
+  sweeps (hfsplus at 6f36e31; rrecov/cr_ui/cr_chain at 357ede6).
+- Live at close (1ef812ba lineage): linux/tsan/ubsan/fuzz GREEN at the
+  5aaf044-era fixes; windows reds from the disk-image lane's mid-flight
+  VolExtent state are theirs (their landings superseded); S-009 landed
+  FIXED (c55bd45) with M-057 carving the residual; SEVERE at last
+  direct count: S-029, S-030 (mid-flight), S-032 — all younger than
+  this session's mandate start and in active lanes.
+
+Stage Summary:
+- Session final: S-024 upgraded to the decoded truth (both finding open
+  questions RESOLVED from the corpus), M-036 + N-055 closed, 2 MSVC
+  breaks + 1 Linux SEGV + 1 UBSan scaling + 3 lint sweeps closed,
+  3 audit-trail clobber recoveries + the transport hardened
+  (api_git.py + union_push.py with 404/section/index/matrix handling),
+  the worklog's conflict markers resolved (both sides kept), the stale
+  S-031 duplicate removed, the full decode evidence for the health
+  surface recorded (s6-health-grading-decode.md), and the handoff
+  (FF-HANDOFF) + final counts (SUMMARY) pushed. The audit trail tells
+  the truth at close.
+Task ID: DFX9-T6 (M-051)
+Agent: main engineer (diff-to-fix closing session 9)
+Task: M-051 — RAW carve provenance fields.
+
+Work Log:
+- Corpus re-verified: ifileproperties-part3 :77-90 (checksum +0x56 w/
+  0xFFFFFFFF marker + 12,030/12,147 census; note +0x5A usually empty;
+  anchors +0x8C/+0x94; boolean +0xF4). CONFIRMED.
+- Fix: FileProperties + {carve_checksum=0xFFFFFFFF default,
+  carve_note, carve_anchor_b, carve_flag}; clone() copies; both emit
+  sites compute CRC32(first 512 bytes) via table::crc32; raw-sign
+  tail-paired rows set anchor B at the EXACT tail-sign position
+  (stride base + sign->offset); note stays empty (no analyser emits
+  notes — inventing one would be hallucination); flag stays false
+  (og semantics undecoded, OQ-S6-3 tracks the consumer). Session
+  record 4 nflags bit4 block (checksum + note + anchor + flag),
+  append-only after the hash.
+- Tests: 2 new — ProvenanceChecksumAndAnchorsPersist (record rows
+  verified by RECOMPUTING the CRC32 from the extent at test time;
+  inner-entry children keep the honest invalid marker; round-trip
+  population preserved) + TailAnchorCarriedOnTailPairedHits (the S-015
+  sqlite fixture pins the exact anchor). 2/2 fail-before. 530/530.
+- Mid-arc incident: git checkout restored cr_carve.cpp from the index
+  during the fail-before proof (uncommitted state) — the carve changes
+  were reapplied from the patch script; no loss.
+
+Stage Summary:
+- M-051 FIXED (530/530). Counts: 112 active / 74 FIXED.
+
+---
+Task ID: DFX9-T7 (lane claim — MAJOR tail)
+Agent: main engineer (diff-to-fix closing session 9)
+Task: Lane coordination: this leg claims the MAJOR-tail queue —
+M-052 (recycle-bin pairing) FIRST, then M-035 (engine-side filefilter
+validation), M-018 (FilterFolder), M-013/M-014 (exFAT family). DFX15
+owns M-002 onward from the head of the MAJOR list; no overlap intended —
+if a finding moves to FIXED/ by another lane, this leg re-verifies and
+skips to the next claim.
+
+Stage Summary:
+- Claim posted before implementation (the lane convention).
+
+Task ID: DFX8-S030 (session 8, finding 3)
+Agent: main engineer (diff-to-fix closing session 8)
+Task: S-030 — disk-image scan targets (.vmdk/.vhd/.img as first-class
+devices). Verified against the corpus citations, implemented, tested.
+
+Work Log:
+- Re-verified the finding's claims first-hand: the corpus citations
+  (DRWUI FUN_1405b3410 extension dispatch + FUN_140178250 LBA0 classify
+  + Device.mo libvmdk reads) hold; the core had zero image-format code
+  (grep vmdk|vhdx|edisk = 0 hits).
+- Implementation: NEW include/cr/storage/cr_image.h +
+  src/core/storage/cr_image.cpp — the og's import surface re-implemented
+  from format understanding: content sniff (VMDK magic / text descriptor
+  head; VHD by the TRAILING conectix footer — the test suite caught the
+  head-only sniff missing fixed VHDs), flat fallback, VMDK
+  monolithicSparse (embedded descriptor, source-is-the-extent) +
+  standalone descriptors (FLAT/SPARSE/ZERO extents through the injected
+  ImageFileOps seam), grain-directory/grain-table mapping with
+  grain-segment batching, VHD fixed + dynamic (BAT + per-block sector
+  bitmaps with state-run splitting), classify_boot_layout (MBR/GPT/
+  Unknown, protective-entry + EFI PART). OS-header-free core: every byte
+  through the host-injected ImageByteSource (the CLI supplies the FILE
+  source; tests/fuzz memory).
+- CLI (rrecov.cpp): CliImageSource + open_image_view with the og's
+  open-time print (size + layout); scan --image / recover --image; the
+  F12 dest-overlap warning guarded for image targets; ScanConfig
+  .volume_image filled for the identity card.
+- Session: VolumeInfo/VolumeSessionInfo v3 tail (image[256],
+  append-only; v1/v2 deserialize with empty); save/load wiring; the
+  Crsf.VolumeInfoIdentityCardRoundTrip pin updated to the v3 layout with
+  v2/v1 back-compat assertions.
+- Tests (8, tests/unit/test_image.cpp — fail-before by construction):
+  FlatFileScansMbr, Lba0LayoutClassification (protective/torn/blank),
+  VmdkMonolithicSparseReadsAndScans (sparse < half flat size; byte-
+  identical readback + unaligned/tail + engine scan),
+  VmdkDescriptorWithFlatAndZeroExtents (multi-file ops seam + ZERO
+  hole), VhdDynamicDiskReadsAndScans (cross-block unaligned + scan),
+  VhdFixedDiskIsFlatMinusFooter, RejectsBrokenInputs (VHDX →
+  ERR_UNSUPPORTED, bad magic, bounds), SessionRoundTripCarriesTheImagePath.
+- Fuzz: fuzz/fuzz_image.cpp (memory source; read-shape spread + bounds
+  refusal) wired into the suite Makefile (target + run + corpus rules).
+- Docs: PARITY-DELTAS D-64 (edisk/dmg exclusions; VHDX + parent chains/
+  compressed grains/differencing remainders); modules/imaging.md (new
+  module row with the verdict table); matrix transport row; RESOLVED-
+  INDEX row; SUMMARY counts.
+- Verification: 525/525 cr_tests + 21/21 cr_ui_tests + cr_ui_abi_check
+  green on Release AND ASan lanes. The CLI compiles on the Windows lane
+  only (CR_BUILD_APP is Windows-only) — the W4/WX compile is the CI
+  lane's proof (no local Windows environment; recorded, not claimed).
+- The UI shim's flat-only cr_ui_open_image stays as-is this session
+  (S-008 writer coupling; the byte-source seam makes the migration
+  mechanical — recorded in the Resolution as the follow-up).
+
+Stage Summary:
+- S-030 FIXED. SEVERE tier: S-029 only remains (consent-gated apply
+  path — claimed by DFX10's queue per the lane coordination). Counts:
+  SEVERE 1 / MAJOR 39 / MINOR 55 / INFO 22 / 74 FIXED. Session tally:
+  S-009, S-030, M-053 (filed+fixed) + the S-032/S-009 parallel-landing
+  reconciliations.

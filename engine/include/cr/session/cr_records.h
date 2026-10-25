@@ -72,6 +72,9 @@ struct VolumeInfo {
     char model[48] = {0};
     char serial[32] = {0};
     u32 boot_hash = 0;
+    /* S-030 (v3 tail - v1/v2 sessions deserialize with zeros): the image
+     * FILE path when the scan target was a disk image; empty otherwise. */
+    char image[256] = {0};
 };
 u32 serialize_volume_info(const VolumeInfo& vi, std::vector<u8>& out);
 u32 deserialize_volume_info(const u8* data, size_t len, VolumeInfo& vi);
@@ -129,6 +132,9 @@ struct VolumeSessionInfo {
     char model[48] = {0};
     char serial[32] = {0};
     u32 boot_hash = 0;
+    /* S-030 (v3 tail): the image file path when the scan target was a
+     * disk image; empty for disk/volume targets and old sessions. */
+    char image[256] = {0};
 };
 
 } // namespace session

@@ -1275,6 +1275,9 @@ u32 ScanController::save_session(session::Writer& w, const ScanStats& stats) con
     vi.boot_hash = vol_boot_hash_;
     vi.scanned_bytes = stats.bytes_scanned;
     vi.elapsed_ms = stats.elapsed_ms;
+    /* S-030 v3 tail: the image target's file path (empty otherwise) */
+    for (size_t i = 0; i < sizeof(vi.image) - 1 && cfg_.volume_image[i]; ++i)
+        vi.image[i] = cfg_.volume_image[i];
     if (session::serialize_volume_info(vi, blob) == OK)
         if (u32 rc = w.add_record(session::REC_VOLUME_INFO, blob.data(), u32(blob.size())))
             return rc;
@@ -1409,6 +1412,8 @@ u32 ScanController::load_session_summary(session::Reader& r, tree::ResultTree& t
         info.model[i] = vi.model[i];
     for (size_t i = 0; i < sizeof(info.serial); ++i)
         info.serial[i] = vi.serial[i];
+    for (size_t i = 0; i < sizeof(info.image); ++i)
+        info.image[i] = vi.image[i];
     info.boot_hash = vi.boot_hash;
     info.scanned_bytes = vi.scanned_bytes;
     info.elapsed_ms = vi.elapsed_ms;

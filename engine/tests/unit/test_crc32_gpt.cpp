@@ -224,6 +224,100 @@ TEST(Mbr, EbrCycleGuard) {
     EXPECT_TRUE(rc == OK || rc == ERR_CYCLE_LIMIT);
 }
 
+/* ===================================================================== */
+/* M-002 (diff-to-fix): a torn EBR link must NOT discard the volumes the */
+/* chain already walked (salvage-over-purity; the og's deep-scan block    */
+/* parsers re-find volumes independently of the EBR chain — corpus       */
+/* mo-module-map). The old gate kept ext[] only on OK/CYCLE_LIMIT.       */
+/* ===================================================================== */
+
+TEST(Mbr, TornLinkKeepsPriorVolumes) {
+    /* 3-link chain; the 3rd EBR sector is torn (no 0x55AA): volumes 1-2
+     * must survive, status Partial, break LBA reported. Fail-before: the
+     * caller's rc gate dropped BOTH walked volumes -> 0 logical volumes. */
+    std::vector<u8> disk(u64(6144) * 512, 0);
+    disk[510] = 0x55;
+    disk[511] = 0xAA;
+    /* extended container at LBA 1024 */
+    disk[446 + 16 + 4] = 0x05;
+    put32(disk, 446 + 16 + 8, 1024);
+    put32(disk, 446 + 16 + 12, 4000);
+
+    /* EBR1 at 1024: volume at +63 len 500; next EBR at +1024 */
+    put32(disk, 1024 * 512 + 446 + 0 * 16 + 4, 0x07);
+    put32(disk, 1024 * 512 + 446 + 0 * 16 + 8, 63);
+    put32(disk, 1024 * 512 + 446 + 0 * 16 + 12, 500);
+    put32(disk, 1024 * 512 + 446 + 1 * 16 + 4, 0x05);
+    put32(disk, 1024 * 512 + 446 + 1 * 16 + 8, 1024);
+    disk[1024 * 512 + 510] = 0x55;
+    disk[1024 * 512 + 511] = 0xAA;
+
+    /* EBR2 at 2048: volume at +63 len 700; next EBR at base+2048=3072 */
+    put32(disk, 2048 * 512 + 446 + 0 * 16 + 4, 0x0B);
+    put32(disk, 2048 * 512 + 446 + 0 * 16 + 8, 63);
+    put32(disk, 2048 * 512 + 446 + 0 * 16 + 12, 700);
+    put32(disk, 2048 * 512 + 446 + 1 * 16 + 4, 0x05);
+    put32(disk, 2048 * 512 + 446 + 1 * 16 + 8, 2048); /* base-relative */
+    disk[2048 * 512 + 510] = 0x55;
+    disk[2048 * 512 + 511] = 0xAA;
+
+    /* EBR3 at 3072: TORN SECTOR (no 0x55AA signature) */
+    put32(disk, 3072 * 512 + 446 + 0 * 16 + 4, 0x07);
+    put32(disk, 3072 * 512 + 446 + 0 * 16 + 8, 63);
+    put32(disk, 3072 * 512 + 446 + 0 * 16 + 12, 500);
+
+    MemDevice dev(std::move(disk));
+    DiskTable t;
+    ASSERT_EQ(parse_disk_table(&dev, t), OK);
+    /* the two WALKED logical volumes survive the torn 3rd link */
+    ASSERT_EQ(t.partitions.size(), 2u);
+    EXPECT_EQ(t.partitions[0].start_lba, 1024u + 63u);
+    EXPECT_EQ(t.partitions[0].fs, FsKind::Ntfs);
+    EXPECT_EQ(t.partitions[1].start_lba, 2048u + 63u);
+    EXPECT_EQ(t.partitions[1].fs, FsKind::Fat32);
+    /* chain shape honesty */
+    EXPECT_EQ(t.ebr_status, EbrChainStatus::Partial);
+    EXPECT_EQ(t.ebr_break_lba, 3072u);
+}
+
+TEST(Mbr, TornLinkStatusReported) {
+    /* The status vocabulary: whole chain -> Ok/break 0; first link dead
+     * and nothing walked -> Failed with the break LBA; no extended
+     * container -> None. */
+    std::vector<u8> disk(u64(4096) * 512, 0);
+    disk[510] = 0x55;
+    disk[511] = 0xAA;
+    disk[446 + 16 + 4] = 0x05;
+    put32(disk, 446 + 16 + 8, 2048);
+    put32(disk, 446 + 16 + 12, 2040);
+    /* EBR1 at 2048 is itself torn: no signature anywhere in the chain */
+    MemDevice dev(std::move(disk));
+    DiskTable t;
+    ASSERT_EQ(parse_disk_table(&dev, t), OK);
+    EXPECT_EQ(t.ebr_status, EbrChainStatus::Failed);
+    EXPECT_EQ(t.ebr_break_lba, 2048u);
+    EXPECT_EQ(t.partitions.size(), 0u);
+
+    /* whole chain -> Ok, break 0 (the PlainWithExtended shape) */
+    std::vector<u8> disk2(u64(4096) * 512, 0);
+    disk2[510] = 0x55;
+    disk2[511] = 0xAA;
+    disk2[446 + 16 + 4] = 0x05;
+    put32(disk2, 446 + 16 + 8, 2048);
+    put32(disk2, 446 + 16 + 12, 2040);
+    put32(disk2, 2048 * 512 + 446 + 0 * 16 + 4, 0x07);
+    put32(disk2, 2048 * 512 + 446 + 0 * 16 + 8, 63);
+    put32(disk2, 2048 * 512 + 446 + 0 * 16 + 12, 500);
+    disk2[2048 * 512 + 510] = 0x55;
+    disk2[2048 * 512 + 511] = 0xAA;
+    MemDevice dev2(std::move(disk2));
+    DiskTable t2;
+    ASSERT_EQ(parse_disk_table(&dev2, t2), OK);
+    EXPECT_EQ(t2.ebr_status, EbrChainStatus::Ok);
+    EXPECT_EQ(t2.ebr_break_lba, 0u);
+    EXPECT_EQ(t2.partitions.size(), 1u);
+}
+
 /* ---- session-5 continuation: the og two-step GPT salvage (F-A3-2/CARVE-1) ----
  * Ground truth: FUN_180006e20 (Partition_decompiled.c:4517-4634) - on
  * primary-header verify failure it first retries the primary's OWN entry

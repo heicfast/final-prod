@@ -49,7 +49,7 @@ fixtures) + 3 new guards; real GPT dynamic disks parse end-to-end again.
   CLI. **A-002 FIXED (session 3): the GPT side is unblocked** — real-GUID dynamic
   disks parse end-to-end again (Ldm.GptDynamicDiskCanonicalGuidsParse with
   hard-coded Microsoft bytes; fabricated values rejected — see B1/C19).
-- **B6 damaged-volume** — **M-002** (EBR torn-chain discards walked volumes);
+- **B6 damaged-volume** — **M-002 FIXED (s10)** (torn chain keeps the walked prefix + ebr_status/ebr_break_lba honesty — findings/FIXED/M-002);
   `M` on two-step GPT salvage + backup-at-end.
 
 ## Constants and formats
@@ -100,7 +100,7 @@ fixtures) + 3 new guards; real GPT dynamic disks parse end-to-end again.
 |---|---|---|
 | A-001 | ACUTE | Six wrong GPT type GUIDs — GPT dynamic disks get zero LDM recovery (executed proof) — **4 of 6 constants FIXED (diff-to-fix session); LDM half was a FALSE POSITIVE, REOPENED, superseded by A-002** |
 | A-002 | ACUTE (session 2) — **FIXED (session 3)** | The A-001 fix corrupted both LDM GUIDs with fabricated values — real GPT dynamic disks failed LDM discovery (executed proof + og binary extraction + Microsoft Learn). FIXED: constants restored to the real Microsoft GUIDs, tests de-self-referenced + negative guard added; full Resolution in the finding file |
-| M-002 | MAJOR | Torn EBR chain discards already-walked logical volumes |
+| M-002 | MAJOR | Torn EBR chain discards walked volumes — **FIXED (s10)**: walked prefix kept unconditionally; status+break-LBA recorded |
 | I-008 | INFO (session 2) | og Raid5VolumeStorage carries 4 selectable rotations, only left-symmetric enabled (ctor-hard-zeroed); core implements the enabled mode exactly |
 | OQ-T7 | tracked-open | **RESOLVED (session 2)** — RAID-5 rotation = left-symmetric both sides, MATCH |
 
@@ -129,7 +129,7 @@ ldm-specific divergences surfaced.
   a core superset, conflict preference +2 vs +1.
 - **N-025 filed:** config-size gate (og rejects ≥ 1 MiB; core clamps 4 MiB) and RAID-5
   zero-interleave default (og 64 KiB; core refuses chunk==0).
-- **M-002 note:** EBR torn-chain policy NOT re-verified this session (stays open with
+- **M-002 note (superseded s10):** FIXED — TornLinkKeepsPriorVolumes/TornLinkStatusReported prove the walked-prefix survival and the status vocabulary. Prior note (
   session-1 evidence; decompile locations now mapped for the next pass).
 
 ### Session-2 addendum (post-reconciliation)

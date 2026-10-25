@@ -146,7 +146,8 @@ FsKind mbr_type_to_kind(u8 type) {
     }
 }
 
-u32 parse_ebr_chain(IStorageDevice* device, u64 first_ebr_lba, std::vector<PartitionInfo>& out) {
+u32 parse_ebr_chain(IStorageDevice* device, u64 first_ebr_lba, std::vector<PartitionInfo>& out,
+                    u64* break_lba) {
     const Geometry& g = device->geometry();
     if (g.logical_sector == 0)
         return ERR_BAD_PARAMETER;
@@ -162,10 +163,16 @@ u32 parse_ebr_chain(IStorageDevice* device, u64 first_ebr_lba, std::vector<Parti
             if (v == walk)
                 return ERR_CYCLE_LIMIT;
         visited.push_back(walk);
-        if (!read_sectors(device, walk, 1, sec))
+        if (!read_sectors(device, walk, 1, sec)) {
+            if (break_lba)
+                *break_lba = walk; /* M-002: the honest break point */
             return ERR_READ_FAILED;
-        if (!mbr_signature_ok(sec.data()))
+        }
+        if (!mbr_signature_ok(sec.data())) {
+            if (break_lba)
+                *break_lba = walk; /* M-002: the honest break point */
             return ERR_BAD_MAGIC;
+        }
         MbrSector mbr;
         std::memcpy(&mbr, sec.data(), sizeof(mbr));
         /* entry 0: this segment's volume; entry 1: next EBR (absolute base +
@@ -383,10 +390,26 @@ u32 parse_disk_table(IStorageDevice* device, DiskTable& out) {
     }
     if (has_ebr && ebr_base != 0) {
         std::vector<PartitionInfo> ext;
-        u32 rc = parse_ebr_chain(device, ebr_base, ext);
+        u64 break_lba = 0;
+        u32 rc = parse_ebr_chain(device, ebr_base, ext, &break_lba);
+        /* M-002 (diff-to-fix): salvage-over-purity — the volumes already
+         * walked are NEVER discarded on a torn link. The og's lost-volume
+         * discovery does not gate on EBR-chain integrity (Partition.mo's
+         * chain parse feeds the same candidate pool the deep-scan block
+         * parsers fill independently — corpus mo-module-map); a broken
+         * link degrades to the walked prefix, it does not erase it. The
+         * chain shape is recorded for honest reporting ("N volumes
+         * found; chain broken at LBA X"). */
+        for (auto& p : ext)
+            out.partitions.push_back(p);
         if (rc == OK || rc == ERR_CYCLE_LIMIT) {
-            for (auto& p : ext)
-                out.partitions.push_back(p);
+            out.ebr_status = EbrChainStatus::Ok;
+        } else if (!ext.empty()) {
+            out.ebr_status = EbrChainStatus::Partial;
+            out.ebr_break_lba = break_lba;
+        } else {
+            out.ebr_status = EbrChainStatus::Failed;
+            out.ebr_break_lba = break_lba;
         }
     }
     return OK;

@@ -133,6 +133,10 @@ u32 serialize_tree(const tree::ResultTree& tree, std::vector<u8>& out) {
                 nflags |= 4;
             if (n->grade() != tree::Grade::Average || n->overlap())
                 nflags |= 8;
+            if (n->origin() == tree::Origin::Carved &&
+                (pr->carve_checksum != 0xFFFFFFFFu || !pr->carve_note.empty() ||
+                 pr->carve_anchor_b != 0 || pr->carve_flag))
+                nflags |= 16; /* M-051: RAW provenance follows */
         }
         put32(out, parent_ids[i]);
         put16(out, nflags);
@@ -181,6 +185,19 @@ u32 serialize_tree(const tree::ResultTree& tree, std::vector<u8>& out) {
         out.push_back(pr && pr->hash_valid ? 1 : 0);
         if (pr && pr->hash_valid)
             out.insert(out.end(), pr->sha128, pr->sha128 + 16);
+        /* M-051 (nflags bit4): the RAW provenance block — the og's
+         * CRAWFileProperties fields (ifileproperties-part3 :77-90):
+         * checksum u32 (0xFFFFFFFF = invalid), note string, tail anchor B
+         * u64, flag u8. */
+        if (nflags & 16) {
+            put32(out, pr->carve_checksum);
+            const std::u16string& note = pr->carve_note;
+            put16(out, u16(note.size()));
+            for (u16 ch : note)
+                put16(out, ch);
+            put64(out, pr->carve_anchor_b);
+            out.push_back(pr->carve_flag ? 1 : 0);
+        }
         if (n->is_full()) {
             const tree::FullNode* f = static_cast<const tree::FullNode*>(n);
             put16(out, u16(f->role.size()));
@@ -259,6 +276,17 @@ u32 deserialize_tree(const u8* data, size_t len, tree::ResultTree& tree) {
             if (!c.bytes(props->sha128, 16))
                 break;
             props->hash_valid = true;
+        }
+        if (nflags & 16) { /* M-051: restore the RAW provenance */
+            props->carve_checksum = c.g32();
+            const u16 nl = c.g16();
+            if (c.left < size_t(nl) * 2u)
+                break;
+            props->carve_note.resize(nl);
+            for (u16 k = 0; k < nl; ++k)
+                props->carve_note[k] = c.g16();
+            props->carve_anchor_b = c.g64();
+            props->carve_flag = c.g8() != 0;
         }
         tree::FileNode* n = nullptr;
         if (marker == 1) {
@@ -387,6 +415,9 @@ u32 serialize_volume_info(const VolumeInfo& vi, std::vector<u8>& out) {
     out.insert(out.end(), vi.model, vi.model + 48);
     out.insert(out.end(), vi.serial, vi.serial + 32);
     put32(out, vi.boot_hash);
+    /* S-030 v3 tail: the image file path (empty for disk/volume targets;
+    * old readers stop before it - the record stays loadable) */
+    out.insert(out.end(), vi.image, vi.image + 256);
     return OK;
 }
 
@@ -404,13 +435,19 @@ u32 deserialize_volume_info(const u8* data, size_t len, VolumeInfo& vi) {
     vi.flags = c.g32();
     /* v2 identity tail: absent on v1 records - zeros mean "unverifiable",
      * never "verified" (the resume side skips comparison on zero hash).
-     * v1 prefix is 80 bytes (4+8+8+4+4+32+8+8+4); the tail adds 48+32+4. */
+     * v1 prefix is 80 bytes (4+8+8+4+4+32+8+8+4); the tail adds 48+32+4.
+     * S-030 v3 tail adds the 256-byte image path (zeros when absent). */
     if (!c.fail && len >= 80 + 84) {
         if (!c.bytes(reinterpret_cast<u8*>(vi.model), 48))
             return 0x50040001;
         if (!c.bytes(reinterpret_cast<u8*>(vi.serial), 32))
             return 0x50040001;
         vi.boot_hash = c.g32();
+        if (len >= 80 + 84 + 256) {
+            if (!c.bytes(reinterpret_cast<u8*>(vi.image), 256))
+                return 0x50040001;
+            vi.image[255] = 0; /* never trust a torn NUL */
+        }
     }
     return c.fail ? u32(0x50040001) : u32(OK);
 }
