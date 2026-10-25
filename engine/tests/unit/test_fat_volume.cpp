@@ -893,3 +893,30 @@ TEST(FatEngine, Fat32EocMask24AndAlternateFamiliesEndClean) {
     EXPECT_FALSE(r3.broken);
     ASSERT_EQ(1u, r3.clusters.size());
 }
+
+TEST(FatEngine, Fat16BadClusterStillCanonical) {
+    /* I-002 (diff-to-fix, INFORMATIONAL): the DELIBERATE delta is FAT12-only
+     * (og follows 0xFF7 raw, CORRECTIONS row 3; we truncate honestly). On
+     * FAT16 the og canonicalizes 0xFFF7 to BAD like us - this pin guards
+     * the boundary: nobody "fixing" FAT12 parity may break the FAT16
+     * semantics both sides share. */
+    auto img = build_fat16_image();
+    /* link cluster 40 (currently free) -> BAD chain: 40 -> 41 -> 0xFFF7 */
+    const size_t FAT1 = 2 * 512, FAT2 = 22 * 512;
+    auto link16 = [&](u32 c, u16 v) {
+        set_fat16_entry(img, FAT1, c, v);
+        set_fat16_entry(img, FAT2, c, v);
+    };
+    link16(40, 41);
+    link16(41, u16(0xFFF7));
+    u8 boot[512];
+    std::memcpy(boot, img.data(), 512);
+    MemDevice dev(std::move(img));
+    FatParams p;
+    ASSERT_EQ(validate_boot(boot, u64(5074) * 512, p), OK);
+    FatTable t;
+    ASSERT_EQ(t.load(&dev, p), OK);
+    ChainResult r = follow_chain(t, 40, 0x10000, nullptr);
+    EXPECT_TRUE(r.broken) << "FAT16 BAD (0xFFF7) must canonicalize to CHAIN_BAD";
+    ASSERT_EQ(2u, r.clusters.size());
+}

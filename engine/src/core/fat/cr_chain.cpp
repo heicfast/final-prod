@@ -116,6 +116,13 @@ u32 FatTable::next(u32 cluster) const {
         if (alt != 0 && alt != CHAIN_BAD)
             return alt;
     }
+    /* N-010 (diff-to-fix, discovered by I-002's pin test): the BAD sentinel
+     * (0x0FFFFFF7) sits inside the 0x0FFFFFF0..F7 reserved window by
+     * construction - it must be returned BEFORE the reserved-range test, or
+     * every BAD-terminated chain grades as a clean end (the og canonicalizes
+     * 0xFFF7 -> 0xFFFFFF7 -> out of range -> chain BROKEN, :54125). */
+    if (v == CHAIN_BAD)
+        return CHAIN_BAD;
     if (v >= CHAIN_EOC_MIN && v < 0x0FFFFFF0)
         return CHAIN_EOC_MIN; /* canonical marker */
     if (v >= 0x0FFFFFF0) {
@@ -123,7 +130,7 @@ u32 FatTable::next(u32 cluster) const {
          * reserved-value -> end of chain for walking purposes */
         return CHAIN_EOC_MIN;
     }
-    if (v == 0 || v == CHAIN_BAD)
+    if (v == 0)
         return v;
     return v;
 }

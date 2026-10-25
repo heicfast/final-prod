@@ -2255,3 +2255,47 @@ Work Log:
 Stage Summary:
 - N-002 + N-003 FIXED: FAT chains written by BIOS/embedded formatters end cleanly like
   the og; exFAT grading is og-parity by default with the honest strictness one flag away.
+
+---
+Task ID: 11 (I-001..I-005 acknowledgements)
+Agent: main engineer (diff-to-fix remediation session)
+Task: INFORMATIONAL I-001..I-005 — verify rationale, ACKNOWLEDGE, register, pin
+
+Work Log:
+- PARITY-DELTAS coverage check per each finding's "check before duplicating":
+  already registered: I-001 (D-12 known-metafiles+recycle), I-002 (D-39 verdict,
+  FAT-4 cross-ref), I-005.1 RAR5 + I-005.2 PST (D-13a/b), I-005.3 ashift (D-04),
+  driver-absent fallback (D-37/D-24). Missing rows registered as D-48:
+  btrfs mirror probing + deep scan (I-003), ReFS version-gate superset (I-004),
+  64 KiB transport envelope (I-005.4).
+- Rationale verification: I-001 (first-hand: the blanket '$'-skip at FUN_18001acc0
+  :21186 confirmed; the known-20 + recycle remap is a reviewed recovery-positive
+  superset), I-002 (CORRECTIONS row 3 confirms the og's raw-follow; core keeps the
+  honest truncation - the INFORMATIONAL classification holds, no code change),
+  I-003 (NULL-stub + abort-rule decompiles verified in the finding), I-004 (gate
+  semantics documented in code comment), I-005 (each sub-row spot-checked).
+- Pin tests added: NtfsVolume.UserFileNamedDollarNotHidden (I-001's requested
+  regression guard - active "$notes.txt" must surface; guards against anyone
+  "fixing" parity by restoring the blanket skip), FatEngine.Fat16BadClusterStillCanonical
+  (I-002's second test: FAT16 0xFFF7 stays CHAIN_BAD - the og canonicalizes there).
+  I-003's requested pin ALREADY EXISTS as Btrfs.MirrorSelectionNewestGeneration
+  (primary smashed -> mirror recovers) - noted in the resolution.
+
+---
+Task ID: 12 (N-010 fix — discovered divergence)
+Agent: main engineer (diff-to-fix remediation session)
+Task: NEW MINOR N-010 — FatTable::next swallows the BAD sentinel into the reserved-range EOC branch
+
+Work Log:
+- I-002's requested regression pin (FAT16 0xFFF7 stays CHAIN_BAD) FAILED against current
+  main - the pin found a real divergence the audit's FAT wave missed: CHAIN_BAD
+  (0x0FFFFFF7) sits inside the 0x0FFFFFF0..F7 reserved window, and next()'s range test
+  re-interpreted it as a clean EOC end. The og canonicalizes 0xFFF7 -> 0xFFFFFF7 -> out
+  of range -> chain BROKEN (FATSearchDLL :54125). Grading-only divergence (same bytes).
+- Fix: the v == CHAIN_BAD test moved before the reserved-range branch in next().
+- Filed as diff-to-fix MINOR N-010 (announced in the commit), fixed with the discovering
+  test as its fail-before proof. Suite 313/313 (Linux ASan) after the fix.
+
+Stage Summary:
+- N-010 filed and FIXED: BAD-terminated chains grade broken on both sides again; the
+  I-002 pin passes; chains_broken accounting counts them once more.
