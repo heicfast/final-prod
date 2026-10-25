@@ -66,6 +66,12 @@ public:
     u32 attributes = 0;  /* DOS attributes (dir/hidden/...) */
     u16 flags = 0;       /* internal: 4 = system-filter (corpus) */
     std::u16string name; /* full display name (LFN) */
+    /* N-011a (diff-to-fix): the og's props carry a separate 8.3 short
+     * name (GetShortNameLen/SetShortName/GetShortNamePtr vtable surface;
+     * persisted per SaveScan ifileproperties-part1 :19-21). Empty when
+     * the record has no distinct DOS-namespace $FILE_NAME (modern
+     * volumes usually carry one WIN32_AND_DOS name that serves both). */
+    std::u16string short_name; /* 8.3 DOS name when distinct from `name` */
     /* resident content: NTFS resident $DATA / ADS streams, ZFS embedded
      * block-pointer payloads, Btrfs inline extents. Present only when the
      * content lives in metadata instead of disk extents (or alongside

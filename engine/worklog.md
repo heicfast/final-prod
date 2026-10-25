@@ -6079,3 +6079,37 @@ Work log:
   INFO/tracked-open. The df5 leg signaled "lane moves to S-003" (HFS+ journal pair
   S-003/S-021) — left to them; if their lane stalls, this session takes it after its
   claimed queue.
+
+---
+Task ID: MFIX-B2 (minors-focus session, batch 2/12)
+Agent: main engineer (diff-to-fix minors session)
+Task: NTFS minors batch — N-011, N-012, N-024 (N-011a..e), N-039.
+
+Work Log:
+- Corpus re-verification first-hand: NTFSSearchDLL :5153-5167 (sparse/compressed
+  internal flags), :5351-5368 ($SI serialized flags - per-bit RO/hidden/system/
+  archive + 0x400 OFFLINE), :5159-5160 (ADS skip, for N-011); NTFSLib
+  LoadNtfsVolume :19292-19344 (boot ladder: bps 512-multiple, signed spc shift
+  decode, cpr 0/0-result reject, index-block 0 reject, no clamp, no 0xAA55);
+  the N-039 gate quotes re-read via the evidence file.
+- Code: cr_bootstrap.cpp (volume-open ladder = og; pow2/0x400/0x200-fallback
+  removed at open; index-block gate added), cr_node.h + cr_mftwalk.cpp +
+  cr_records.cpp (short_name field, capture, nflags-bit-2 session persistence),
+  cr_mftwalk.cpp ($SI attribute source + 0x7FF mask at both emit sites; USN
+  tail-mining window), tests (M-001 trio rescoped to the corrected open
+  semantics; RawFixer fixture index-block byte).
+- Fail-before proven (worktree at e7deda8): BootRecordSizeZeroRejected,
+  BootNoPow2RecordSizeAcceptedAtDecodedValue, BootNegativeExponentOverflowRejected
+  (N-011b), AttributesFromSIWhenAvailable, AttributesPreserveOfflineBit (N-012)
+  - 5/5 fail before, pass after. Guards pass both sides; API-gated tests
+  (short_name, tail mining) fail-by-construction pre-fix.
+- Audit trail: 4 finding Resolutions (N-011 FIXED-ALREADY, N-012/N-024/N-039
+  FIXED) -> FIXED/; matrix rows; modules/ntfs.md; SUMMARY; PARITY-DELTAS D-52;
+  ABI-CONTRACT §4 og error-facility mapping (N-011e); RESOLVED-INDEX +4.
+- M-001's session-2 verification addendum called exactly this re-scope ("audit
+  the landed ladder against those exact bounds") - executed as specified.
+
+Stage Summary:
+- 4 MINOR findings closed (1 FIXED-ALREADY). Suite 384/384 Release + ASan-clean.
+- The M-001-era open-time fallback ladder was mis-scoped (walk-function
+  evidence); rescoped with test updates per the audit's own instruction.

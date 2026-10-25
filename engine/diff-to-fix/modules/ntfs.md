@@ -338,3 +338,34 @@ implements the same harvest in the remnant path — in-use entries only, never s
 gates exact (validator, chain parent-consistency, entry flag gates, 0x1f5 cap,
 $-name filter for directories). The wire family lives documented in `cr_ntfs_wire.h`
 (D-N ruling re-decided). See findings/FIXED/S-022-*.md.
+## Minors-fix session update (2026-10-26)
+
+**N-011 FIXED-ALREADY + pinned** — `WalkerFlags::emit_ads` (367561d) already
+implements the finding's opt-in parity shape; the missing parity pin
+(`NtfsVolume.AdsDroppedInParityMode`) and a default-superset guard are new.
+
+**N-012 FIXED** — serialized attributes now source from
+$STANDARD_INFORMATION's dos_flags (og FUN_180044f60 @ :5351-5368) with the
+$FILE_NAME fallback; mask 0xFF → 0x7FF preserves the OFFLINE bit. Dump-pass
+emit applies the same rule with the dumped record's own $SI.
+
+**N-024 group FIXED/REGISTERED** —
+- N-011a: `FileProperties::short_name` (distinct DOS-namespace $FILE_NAME),
+  persisted as session-record nflags bit 2 (versioned optional).
+- N-011b: volume open = NTFSLib LoadNtfsVolume exactly: bps 512-multiple,
+  signed spc decode (non-pow2 accepted), cpr==0/0-result/sub-sector REJECTED,
+  index-block 0 rejected, no 0x400 clamp at open. The M-001 walk ladder's
+  evidence stands (buffer capacity inside the walk). Registered hardening
+  kept (D-52): 4096 bps cap, P1-4 exponent guard, P1-3 size sanity,
+  bps-vs-device match.
+- N-011c/d: stride quirk + namespace ranking registered as core supersets.
+- N-011e: og error-facility mapping table registered in ABI-CONTRACT §4.
+
+**N-039 FIXED** — 0x20000 gate kept (og's 0x200 mask = an og defect,
+registered); >64 MiB $J streams mine the TAIL (circular journal — newest
+records last); the fixture's mislabeled 0x100 constant renamed
+`kFixtureReasonBit` (HARD_LINK_CHANGE, not FILE_CREATE).
+
+**Tests:** +11 (2 fail-before discriminators for N-012, 3 for N-011b via the
+rescoped M-001 trio + 2 new, ADS pins ×2, USN pins ×3 + tail-mining).
+Suite 384/384.

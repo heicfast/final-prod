@@ -157,3 +157,10 @@ deliberate choice. Mirrors M-007's shape.
   its ADS handling wouldn't affect the scan result set. But the
   writer/UI might surface ADS via a separate path. Needs RE of
   `NTFSLib`/`NTFSUtil` to confirm no scan-path ADS handling exists.
+
+## Resolution
+
+**Status:** FIXED-ALREADY (the flag predates this session) + missing parity pin added
+**Fixed in commit:** `367561d` (`WalkerFlags::emit_ads`, default ON, ADS loop gated at cr_mftwalk.cpp:980); this session's NTFS batch adds the finding's missing `AdsDroppedInParityMode` pin + a default-superset guard.
+**Verified by:** `NtfsVolume.AdsDroppedInParityMode` (emit_ads=false → stats.ads == 0, no colon-names anywhere, host node unaffected) and `NtfsVolume.AdsEmittedByDefaultSuperset` (defaults keep 1+ ADS child) — both green on the current tree; `ResidentAdsCarriesContent`/`AdsAttachesToFirstLink` (pre-existing) pin the content and first-link behavior the finding's test list asked for. Reproduction of current behavior = the four tests; the flag-off test cannot pass on the pre-`367561d` tree (the flag did not exist).
+**Resolution notes:** The finding's fix plan is exactly what `367561d` implemented (flag default ON = superset, OFF = og parity drop; the og's `FUN_1800069e0 :5159-5160` named-$DATA skip verified in the finding). This session closes the gap between the plan and the pin set: the parity-mode test the finding listed as "FAILS today (at audit time)" now exists and passes. Registered in PARITY-DELTAS D-52 (mirrors M-007's opt-in parity shape). OQ-S2A-3 (og downstream ADS handling) remains the finding's open question — NTFSUtil is the NTFS→FAT converter, not the scan engine; no scan-path ADS handling found since.
