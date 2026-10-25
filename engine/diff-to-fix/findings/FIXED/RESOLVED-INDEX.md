@@ -126,3 +126,4 @@ correction) sections appended in place:
   architecture — S-012); S-005 the U+FFFD anchoring + N-029 residuals; S-002/S-004/S-008
   the og-parity boundaries for auditing their landed fixes; M-001 the re-derived ladder;
   N-001 the inclusive-bound nuance.
+| S-026 | SEVERE (S3 storage/census leg) | ext4 meta_bg group-descriptor resolution missing: files silently missing on meta_bg volumes | (this session's fix commit; `git log` "fix: S-026") | Kernel/e2fsprogs-correct resolver (meta_group_size = block_size/desc_size; desc block at first_data_block + m*meta_size*bpg, +1 only for m==0; s_first_meta_bg front region; lazy per-meta-group cache, bounded). Empirically verified on two real mke2fs -O meta_bg images built this session (dumpe2fs+hexdump byte-match). Og's stride (s_desc_size) and missing-first_data_block defects NOT adopted → PARITY-DELTAS D-58. 5 tests (4 fail-before on engine-reverted build); suite 401/401; ASan/UBSan fuzz smoke clean. |

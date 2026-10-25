@@ -1128,6 +1128,37 @@ NOT registered here — see docs/DRIVER-UTILIZATION.md's checklist.
   surface exposes the core's truthful taxonomy; the completion is tracked
   as M-023 (filter model), not silently over-claimed here.
 
+## L. diff-to-fix closing session (all-tier remediation, 2026-10-26)
+
+Deliberate divergences introduced or pinned while closing the audit roadmap.
+
+### D-58 — ext4 meta_bg descriptor resolution: kernel/e2fsprogs-correct arithmetic, two og defects NOT adopted (S-026)
+
+- **WHAT OG DOES:** seeds its meta-group stride from `s_desc_size`
+  (EXT4SearchDLL :3368-3373; asm `divl 0xdf8(%rcx)` at 180004cb9) and reads
+  the meta-group descriptor block at `m * blocks_per_group * block_size +
+  base` with no `first_data_block` adjustment (:3582-3583, asm `imul` chain
+  at 180004d8d-180004d9a). That is correct only when `desc_size^2 ==
+  block_size` AND `first_data_block == 0` (the canonical 4KiB/64B-desc
+  geometry); it misresolves 2KiB/32B and 4KiB/32B volumes and reads one
+  block early on 1KiB-block volumes.
+- **WHAT WE DO:** `meta_group_size = block_size / desc_size`
+  (EXT2_DESC_PER_BLOCK); descriptor block for meta-group m at
+  `first_data_block + (m * meta_group_size) * blocks_per_group` (+1 only for
+  m == 0); meta-groups below `s_first_meta_bg` keep the classic front
+  location `first_data_block + 1 + m`. Verified empirically this session on
+  two real mke2fs 1.47.2 `-O meta_bg` images (1KiB/64B and 4KiB/64B;
+  dumpe2fs + hexdump byte-matching descriptor contents).
+- **WHY:** correctness — the og's arithmetic silently drops every group
+  whose descriptor is not where it looks on non-canonical geometries; same
+  defect family as the documented 1KiB front-GDT og-bug (I-014 E9).
+- **RISK:** none — the adopted arithmetic is the e2fsprogs
+  `ext2fs_descriptor_block_loc2` formula; on canonical 4KiB/64B meta_bg
+  volumes both implementations resolve identically (the og's only working
+  configuration).
+- **VERDICT: ACCEPTED** (pinned by `Ext4Engine.MetaBg*` — 5 tests, 4
+  fail-before proven on the engine-reverted build).
+
 ## J. UNDOCUMENTED DIVERGENCE CANDIDATES
 
 Things our code/docs do differently with no (or stale/contradictory) rationale

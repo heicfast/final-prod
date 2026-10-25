@@ -6343,3 +6343,40 @@ Work Log:
 - Build + full suite verified green first-hand (396/396).
 - Audit trail reading begins (T2): SUMMARY, matrix, all finding files, modules,
   evidence — before any code change.
+
+---
+Task ID: CF-S026 (closing session)
+Agent: main engineer (diff-to-fix closing session)
+Task: S-026 — ext4 meta_bg group-descriptor resolution: verify, classify, fix.
+
+Work Log:
+- Reproduced the mechanism first-hand: the pre-fix engine bulk-read
+  groups*desc_size bytes from the front GDT block, so on meta_bg volumes
+  groups beyond the front meta-group parsed bitmap/inode-table bytes as
+  descriptors → silent missing files (fail-before proven: 4/5 new tests
+  failed on the engine-reverted build).
+- Corpus re-verification went beyond the decompile: built two REAL
+  mke2fs 1.47.2 -O meta_bg images (1KiB/64B-desc, 4KiB/64B-desc), pinned
+  the layout with dumpe2fs + hexdump (byte-matched descriptor contents:
+  bitmap/itable blocks). Fetched e2fsprogs ext2fs_descriptor_block_loc2
+  verbatim. FINDING'S LOCATION FORMULA CORRECTED: multiplier is
+  blocks_per_group (not 1); og asm re-verified at 180004cb9/180004d8d-d9a.
+- Facts: meta_group_size = block_size/desc_size; desc block for meta-group
+  m at first_data_block + m*meta_size*bpg (+1 only for m==0); meta-group
+  starts carry NO backup SB; s_first_meta_bg front region classic.
+- Fix: SuperBlock.first_meta_bg (SB+0x230); Volume::group() lazy
+  per-meta-group cache (bounded 4096 reads); front-GDT bulk read now
+  non-meta_bg only. Og's two defects (stride=s_desc_size; no
+  first_data_block) NOT adopted → PARITY-DELTAS D-58. OQ-E2 RESOLVED.
+- Tests: 5 new (MetaBgVolumeRecoversAllGroups,
+  MetaBgDeletedSweepReachesDistributedGroups, MetaBgDescriptorBlockReadOnce,
+  MetaBgFirstMetaBgFrontRegion [front-region regression guard — passes
+  pre-fix by fixture compatibility, documented], MetaBgSuperblockFieldsParsed).
+  Suite 401/401 Linux Release. ASan+UBSan+leak fuzz smoke clean (6
+  structured meta_bg seeds x3 rounds).
+
+Stage Summary:
+- S-026 FIXED with empirical layout proof (real images, first in the audit
+  trail); finding moved to FIXED/ with Resolution; RESOLVED-INDEX row;
+  matrix ext4 row + modules/ext4.md updated; SUMMARY re-baselined
+  (10 SEVERE / 34 MAJOR / 37 MINOR / 18 INFO active, 36 FIXED).

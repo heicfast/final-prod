@@ -1,3 +1,28 @@
+# SUMMARY.md — executive summary (closing session on top of session 4; earlier sessions below)
+
+## diff-to-fix closing session delta (2026-10-26 — the "fix ALL tiers" session)
+
+Session start `b65f1e6` (baseline 396/396 Linux Release, verified first-hand on
+this host). Corpus `03ad46c` (unmoved). Mandate: close every finding — verify
+each independently against the corpus AND the running code before any change;
+fix with tests that fail before and pass after; keep the audit trail exact.
+
+**S-026 FIXED (this push):** ext4 meta_bg group-descriptor resolution. The
+verification went beyond the decompile — two REAL `mke2fs -O meta_bg` images
+were built with e2fsprogs 1.47.2 (1KiB/64B-desc and 4KiB/64B-desc) and the
+layout pinned empirically (dumpe2fs + hexdump byte-matching). Implemented the
+kernel/e2fsprogs-correct arithmetic (`meta_group_size = block_size/desc_size`;
+descriptor block at `first_data_block + m*meta_size*bpg`, +1 only for m==0;
+`s_first_meta_bg` classic front region; lazy bounded per-meta-group cache).
+The og's stride (`s_desc_size`) and missing-`first_data_block` defects are
+deliberately NOT adopted — registered as **PARITY-DELTAS D-58**; OQ-E2
+RESOLVED by the same evidence. 5 tests (4 fail-before proven on the
+engine-reverted build); suite **401/401** Linux Release; ASan+UBSan fuzz
+smoke clean over structured meta_bg seeds.
+
+**Counts after S-026 (direct file inventory):** ACUTE 0 · **SEVERE 10** ·
+MAJOR 34 · MINOR 37 · INFO 18 = **99 active** / **36 FIXED**.
+
 # SUMMARY.md — executive summary (session 4 reconciled on top of the session-3 continuation; earlier sessions below)
 
 ## Close-all-tiers session delta (2026-10-26 — the "fix every finding" session)

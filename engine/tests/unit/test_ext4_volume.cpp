@@ -35,7 +35,7 @@ private:
     std::vector<u8> data_;
 };
 
-class MemDevice final : public IStorageDevice {
+class MemDevice : public IStorageDevice {
 public:
     explicit MemDevice(std::vector<u8> d) : d_(std::move(d)) {
         g_.logical_sector = 512;
@@ -582,6 +582,272 @@ TEST(Ext4Engine, NonAsciiNamesDecodedNotByteLifted) {
             }
         }
     }
+}
+
+
+/* ===================================================================== */
+/* S-026: meta_bg group-descriptor resolution.                           */
+/*                                                                       */
+/* The og resolves meta-group descriptors only for geometries where      */
+/* s_desc_size^2 == block_size (FUN_180004c70 :3526 stride = s_desc_size */
+/* at :3368-3373; read at m*blocks_per_group*block_size :3582-3583,      */
+/* asm-verified) and reads one block early on first_data_block == 1       */
+/* volumes. This suite implements the kernel/e2fsprogs-correct layout,   */
+/* verified this session on real mke2fs images (1K/64B and 4K/64B):      */
+/*  - meta_group_size = block_size / desc_size                           */
+/*  - descriptor block for meta-group m at                               */
+/*    first_data_block + m*meta_group_size*bpg (+1 only for m == 0)      */
+/*  - meta-groups below s_first_meta_bg keep the classic front blocks    */
+/*    first_data_block + 1 + m                                           */
+/* ===================================================================== */
+
+namespace {
+
+constexpr u32 MBG_BPG = 64;    /* blocks per group (synthetic, small) */
+constexpr u32 MBG_IPG = 16;    /* inodes per group */
+constexpr u32 MBG_GROUPS = 32; /* groups 0..31 -> meta-groups 0 and 1 */
+constexpr u32 MBG_META = 16;   /* 1024 / 64 descriptors per meta-group */
+constexpr u64 MBG_BLOCKS = u64(MBG_GROUPS) * MBG_BPG;
+
+/* meta-group 0 descriptor block = first_data_block + 1 = block 2 */
+constexpr u64 MBG_FRONT_DESC = 2;
+/* group 16's first block = first_data_block + 16*bpg = 1 + 1024 */
+constexpr u64 MBG_G16_DESC = 1 + 16 * MBG_BPG;
+constexpr u64 MBG_G16_ITABLE = MBG_G16_DESC + 1; /* right after the desc block */
+constexpr u64 MBG_G16_BITMAP = MBG_G16_DESC + 3;
+constexpr u64 MBG_ROOTDIR = 6;
+constexpr u64 MBG_HELLO_DATA = 7;
+constexpr u64 MBG_FAR_DATA = MBG_G16_DESC + 4;
+
+constexpr u32 MBG_INO_FAR = 16 * MBG_IPG + 1; /* first inode of group 16 */
+
+/* write an inode into the table of ITS OWN group (tables at different
+ * blocks per group) */
+void mbg_write_inode(Img& img, u32 ino, u16 mode, u64 size, u64 extent_block,
+                     u32 extent_blocks, u16 links, u32 dtime, u64 itable_block) {
+    u8* p = img.block(itable_block) + size_t((ino - 1) % MBG_IPG) * INO_SZ;
+    memset(p, 0, INO_SZ);
+    put16(p + 0x00, mode);
+    put32(p + 0x04, u32(size));
+    put32(p + 0x08, 1000);
+    put32(p + 0x0C, 2000);
+    put32(p + 0x10, 3000);
+    put32(p + 0x14, dtime);
+    put16(p + 0x1A, links);
+    put32(p + 0x20, 0x80000); /* EXTENTS_FL */
+    u8* ib = p + 0x28;
+    put16(ib + 0, 0xF30A);
+    put16(ib + 2, 1);
+    put16(ib + 4, 4);
+    put16(ib + 6, 0);
+    put32(ib + 8, 0);
+    put32(ib + 12, 0);
+    put16(ib + 16, u16(extent_blocks));
+    put16(ib + 18, 0);
+    put32(ib + 20, u32(extent_block));
+}
+
+/* meta_bg superblock: 64bit + meta_bg + filetype; desc_size 64 */
+void mbg_write_sb(Img& img, u32 first_meta_bg) {
+    u8* sb = img.block(1);
+    memset(sb, 0, BS);
+    put32(sb + 0x00, MBG_GROUPS * MBG_IPG); /* s_inodes_count */
+    put32(sb + 0x04, u32(MBG_BLOCKS));      /* s_blocks_count_lo */
+    put32(sb + 0x14, 1);                    /* s_first_data_block */
+    put32(sb + 0x18, 0);                    /* log_block_size 0 (1024) */
+    put32(sb + 0x20, MBG_BPG);              /* s_blocks_per_group */
+    put32(sb + 0x28, MBG_IPG);              /* s_inodes_per_group */
+    put16(sb + 0x38, 0xEF53);
+    put32(sb + 0x4C, 1);                    /* rev level 1 */
+    put16(sb + 0x58, INO_SZ);
+    put32(sb + 0x60, 0x0092);               /* filetype | meta_bg | 64bit */
+    put16(sb + 0xFE, 64);                   /* s_desc_size */
+    put32(sb + 0x230, first_meta_bg);       /* s_first_meta_bg */
+    put32(sb + 0xE0, 8);
+}
+
+Img build_metabg_volume(u32 first_meta_bg) {
+    Img img(MBG_BLOCKS);
+    mbg_write_sb(img, first_meta_bg);
+
+    /* meta-group 0 descriptor block (front, group 0's start + 1):
+     * only group 0's descriptor is populated; groups 1..15 unused */
+    u8* d0 = img.block(MBG_FRONT_DESC);
+    memset(d0, 0, BS);
+    put32(d0 + 0x00, u32(MBG_G16_BITMAP)); /* group 0 block bitmap (any) */
+    put32(d0 + 0x08, 3);                   /* group 0 inode table at 3 */
+
+    if (first_meta_bg == 0) {
+        /* distributed layout: meta-group 1's descriptor block IS group 16's
+         * first block (no backup SB - empirically verified) */
+        u8* d1 = img.block(MBG_G16_DESC);
+        memset(d1, 0, BS);
+        put32(d1 + 0x00, u32(MBG_G16_BITMAP)); /* group 16 block bitmap */
+        put32(d1 + 0x08, u32(MBG_G16_ITABLE)); /* group 16 inode table */
+        /* 64-bit high words (desc_size 64): inode_table_hi@+0x28 */
+        put32(d1 + 0x28, 0);
+    } else {
+        /* classic front region (s_first_meta_bg >= 2): meta-group 1's
+         * descriptors at first_data_block + 1 + 1 (the second front block) */
+        u8* d1 = img.block(MBG_FRONT_DESC + 1);
+        memset(d1, 0, BS);
+        put32(d1 + 0x00, u32(MBG_G16_BITMAP));
+        put32(d1 + 0x08, u32(MBG_G16_ITABLE));
+        put32(d1 + 0x28, 0);
+    }
+
+    /* inodes: group 0 table at block 3 (2 blocks for 16 x 128B) */
+    mbg_write_inode(img, INO_ROOT, 0x4000, BS, MBG_ROOTDIR, 1, 2, 0, 3);
+    mbg_write_inode(img, INO_HELLO, 0x8000, 14, MBG_HELLO_DATA, 1, 1, 0, 3);
+    mbg_write_inode(img, 8, 0x8000, 0, 0, 0, 1, 0, 3); /* journal: empty */
+    /* group 16 table: the far inode lives BEYOND the front GDT reach */
+    mbg_write_inode(img, MBG_INO_FAR, 0x8000, 33, MBG_FAR_DATA, 1, 1, 0,
+                    MBG_G16_ITABLE);
+
+    /* root dir: ".", "..", hello.txt, far.bin */
+    u8* root = img.block(MBG_ROOTDIR);
+    memset(root, 0, BS);
+    u32 cur = 0;
+    add_dirent(root, cur, INO_ROOT, ".", 2);
+    add_dirent(root, cur, INO_ROOT, "..", 2);
+    add_dirent(root, cur, INO_HELLO, "hello.txt", 1);
+    add_dirent(root, cur, MBG_INO_FAR, "far.bin", 1);
+
+    memcpy(img.block(MBG_HELLO_DATA), "meta-front", 11);
+    memset(img.block(MBG_FAR_DATA), 0x5A, 33);
+    return img;
+}
+
+/* device that counts reads at a given byte range (cache-reuse probe) */
+class CountingDevice final : public MemDevice {
+public:
+    CountingDevice(std::vector<u8> d, u64 watch_off)
+        : MemDevice(std::move(d)), watch_(watch_off) {}
+    u32 read_at(u64 off, void* buf, u32 len) override {
+        if (off == watch_)
+            ++hits_;
+        return MemDevice::read_at(off, buf, len);
+    }
+    u64 hits() const { return hits_; }
+
+private:
+    u64 watch_ = 0;
+    u64 hits_ = 0;
+};
+
+std::set<std::string> collect_names(tree::FileNode* n) {
+    std::set<std::string> out;
+    std::function<void(tree::FileNode*)> walk = [&](tree::FileNode* p) {
+        for (tree::FileNode* c = p->first_child(); c; c = c->next_sibling()) {
+            if (c->props())
+                out.insert(c->name_utf8());
+            walk(c);
+        }
+    };
+    walk(n);
+    return out;
+}
+
+} // namespace
+
+TEST(Ext4Engine, MetaBgVolumeRecoversAllGroups) {
+    /* files whose inodes live in a group served by a DISTRIBUTED
+     * meta-group descriptor block must resolve: the pre-fix engine read the
+     * whole "GDT" from the front block, so group 16's descriptor came from
+     * bitmap bytes and far.bin silently vanished */
+    auto img = build_metabg_volume(0);
+    MemDevice dev(img.raw());
+    tree::ResultTree tree;
+    auto* ra = tree.add_root(u"Found");
+    auto* rd = tree.add_root(u"Deleted");
+    auto* rl = tree.add_root(u"Lost Files");
+    Ext4ScanFlags fl;
+    Ext4ScanStats st;
+    u32 rc = scan_ext4(&dev, fl, nullptr, nullptr, nullptr, tree, ra, rd, rl, st);
+    ASSERT_EQ(OK, rc) << err_text(rc);
+    EXPECT_EQ(32u, st.block_groups);
+
+    const auto found = collect_names(ra);
+    EXPECT_TRUE(found.count("hello.txt")) << "front-group file missing";
+    ASSERT_TRUE(found.count("far.bin")) << "meta-group-1 file missing (S-026)";
+}
+
+TEST(Ext4Engine, MetaBgDeletedSweepReachesDistributedGroups) {
+    /* the deleted-inode sweep resolves every group too: an inode in group
+     * 16 with dtime set must be emitted under Deleted (pre-fix: silently
+     * missing for the same front-GDT reason) */
+    auto img = build_metabg_volume(0);
+    mbg_write_inode(img, MBG_INO_FAR + 1, 0x8000, 64, MBG_FAR_DATA + 1, 1, 0, 4242,
+                    MBG_G16_ITABLE);
+    MemDevice dev(img.raw());
+    tree::ResultTree tree;
+    auto* ra = tree.add_root(u"Found");
+    auto* rd = tree.add_root(u"Deleted");
+    Ext4ScanFlags fl;
+    Ext4ScanStats st;
+    u32 rc = scan_ext4(&dev, fl, nullptr, nullptr, nullptr, tree, ra, rd, nullptr, st);
+    ASSERT_EQ(OK, rc) << err_text(rc);
+    const auto deleted = collect_names(rd);
+    EXPECT_NE(0u, deleted.size());
+    bool has_far_deleted = false;
+    for (const auto& n : deleted)
+        if (n.find("Inode258") == 0)
+            has_far_deleted = true;
+    EXPECT_TRUE(has_far_deleted) << "group-16 deleted inode missing (S-026)";
+}
+
+TEST(Ext4Engine, MetaBgDescriptorBlockReadOnce) {
+    /* per-meta-group cache: repeated group-16 inode reads must hit the ONE
+     * descriptor-block read, not re-read it (the og caches per meta-group
+     * :3664-3703; the perf-guard twin of that behavior) */
+    auto img = build_metabg_volume(0);
+    /* a second dirent in group 16 forces multiple inode reads there */
+    mbg_write_inode(img, MBG_INO_FAR + 1, 0x8000, 8, MBG_FAR_DATA + 1, 1, 1, 0,
+                    MBG_G16_ITABLE);
+    u8* root = img.block(MBG_ROOTDIR);
+    u32 cur = 76;
+    add_dirent(root, cur, MBG_INO_FAR + 1, "far2.bin", 1);
+    CountingDevice dev(img.raw(), MBG_G16_DESC * BS);
+    tree::ResultTree tree;
+    auto* ra = tree.add_root(u"Found");
+    auto* rd = tree.add_root(u"Deleted");
+    Ext4ScanFlags fl;
+    Ext4ScanStats st;
+    u32 rc = scan_ext4(&dev, fl, nullptr, nullptr, nullptr, tree, ra, rd, nullptr, st);
+    ASSERT_EQ(OK, rc) << err_text(rc);
+    EXPECT_EQ(1u, dev.hits()) << "meta-group descriptor block re-read";
+}
+
+TEST(Ext4Engine, MetaBgFirstMetaBgFrontRegion) {
+    /* s_first_meta_bg = 2: descriptor blocks 0 AND 1 live in the classic
+     * front region (first_data_block + 1 + m for m < 2), per e2fsprogs
+     * ext2fs_descriptor_block_loc2's i < s_first_meta_bg branch; with
+     * first_meta_bg = 1 meta-group 1 is already distributed, so 2 is the
+     * minimal probe of the front-region branch */
+    auto img = build_metabg_volume(2);
+    MemDevice dev(img.raw());
+    tree::ResultTree tree;
+    auto* ra = tree.add_root(u"Found");
+    auto* rd = tree.add_root(u"Deleted");
+    Ext4ScanFlags fl;
+    Ext4ScanStats st;
+    u32 rc = scan_ext4(&dev, fl, nullptr, nullptr, nullptr, tree, ra, rd, nullptr, st);
+    ASSERT_EQ(OK, rc) << err_text(rc);
+    const auto found = collect_names(ra);
+    EXPECT_TRUE(found.count("hello.txt"));
+    ASSERT_TRUE(found.count("far.bin")) << "front-region meta-group unresolved";
+}
+
+TEST(Ext4Engine, MetaBgSuperblockFieldsParsed) {
+    auto img = build_metabg_volume(0);
+    SuperBlock sb;
+    ASSERT_TRUE(validate_superblock(img.block(1), sb));
+    EXPECT_EQ(0u, sb.first_meta_bg);
+    EXPECT_NE(0u, sb.feature_incompat & 0x10);
+    EXPECT_EQ(64u, sb.desc_size);
+    put32(img.block(1) + 0x230, 2);
+    ASSERT_TRUE(validate_superblock(img.block(1), sb));
+    EXPECT_EQ(2u, sb.first_meta_bg);
 }
 
 } // namespace ext4

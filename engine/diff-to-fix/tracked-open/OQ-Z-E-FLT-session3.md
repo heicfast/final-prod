@@ -55,6 +55,17 @@ The og seeds the meta-group stride from s_desc_size (:3368-3373, `+0xdf8`)
 which looks wrong vs the kernel's `block_size/desc_size * blocks_per_group`.
 Build a `-O meta_bg` mkfs image and record which groups each side resolves.
 
+**RESOLVED (closing session, 2026-10-26):** the real-image experiment was run
+(e2fsprogs 1.47.2, `mke2fs -O meta_bg` at 1KiB/64B-desc and 4KiB/64B-desc;
+dumpe2fs + hexdump byte-matching descriptor contents). The TRUE stride
+(meta-group size) is `block_size / desc_size` (EXT2_DESC_PER_BLOCK), NOT
+s_desc_size; the og's seed coincides only when desc_size^2 == block_size and
+misresolves other geometries. Descriptor block for meta-group m sits at
+`first_data_block + (m * meta_group_size) * blocks_per_group` (+1 only for
+m == 0; meta-group starts carry NO backup SB — empirically confirmed).
+Implemented in the S-026 fix with the og's two defects registered as
+non-adopted (PARITY-DELTAS D-58). The question is closed; no residual.
+
 ## OQ-FLT-1 — Is the 170-entry extension table engine-wide or exFAT-only?
 
 Byte-search the x9-byte-stride table pattern (DAT_18005a090) in every
