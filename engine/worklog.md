@@ -7922,3 +7922,61 @@ Work Log:
 
 Stage Summary:
 - Session open. Baseline commit 4a924d1 recorded; no code changes yet.
+Task ID: S6-CLOSE (session-6 deep-continuation close-out)
+Agent: session-6 parity auditor (read-only continuation leg)
+Task: Close the deep-continuation session — handoff with audited commits, coverage
+statistics, and the recommended fix order.
+
+Work Log:
+- Wave 2 landed: OQ-S003 RESOLVED (FUN_180003ea0 = the B-tree node-cache installer,
+  decoded first-hand at HFSPlusSearchDLL_decompiled.c:2344-2420 — the journal fallback
+  installs kind-valid node images into the hot-node cache chain param_1+0xd8→+0x150,
+  so journal-region content IS served through the node-read path; the core returns
+  early on bad JNL magic at cr_hfsplus_engine.cpp:757 — the residual divergence
+  scoped with fix shape + 2 tests; the parallel leg's 44-byte-header-cache insight
+  preserved in the merge); OQ-Z1 refined (the OQ's kernel-reference text was
+  mis-transcribed — the core's dsl constants verified OpenZFS-correct at
+  cr_zfs_engine.cpp:231-237; the ACUTE gate downgraded to og-quirk documentation;
+  decode chain entry FUN_180017690 recorded for the next session); S-031's just-landed
+  fix verified first-hand (both emit sites patched, cr_carve.cpp:213/:373; the
+  scan-timestamp sub-item remains open — noted in the finding).
+- Read-only verification: every commit this session (022c81d, df3e729, 517c56c,
+  6b15ede) touched ONLY diff-to-fix/ + worklog/ (verified by per-commit file-list
+  audit). No source, headers, tests, workflows, build files, or existing docs were
+  modified by this lane.
+- Rebase discipline: three mid-wave remote landings absorbed (a1a07e5, 5b0bc7b's
+  50-commit fix+audit wave, 3da12c0), all conflicts resolved append-only with both
+  legs' entries preserved; one parallel-leg file merge (their OQ-S003 header-cache
+  insight) folded into the RESOLVED rename.
+
+Stage Summary:
+- Session-6 deliverables: 14 unique findings (M-052, N-065..N-075, I-023/I-024) + 3
+  convergent harvest-addenda (S-031/S-032/N-059) + 9 verification addenda
+  (S-007/S-009/S-024/M-017/M-029/M-030/N-033/N-045 + S-031 fix verification) + 2
+  post-resolution corrections (S-007 MPEG landed; S-024 0xD1 landed) + 2 OQ
+  resolutions/refinements (S-003 RESOLVED, Z1 refined) + 3 new tracked OQs
+  (S6-1/S6-2/S6-3) + 4 evidence files + matrix reconciliation + 13 module rows +
+  SUMMARY/README updates. 23 never-cited corpus artifacts and 8 never-cited core
+  files first-cited (the session-5 citation-gap lanes A-H executed end-to-end).
+- Final state at close (direct file inventory, refreshed after the last mid-push
+  landing): 0 ACUTE (A-006 fixed in-window) · 5 SEVERE (S-009 residual, S-029,
+  S-030, S-031, S-032) · 40 MAJOR · 55 MINOR · 22 INFO = **122 active / 68 FIXED /
+  16 tracked-open**. The parallel fix legs consumed 34 findings in the same window
+  (S-007, S-020..S-028, S-031, M-010, M-022..M-027, N-005/N-011/N-012/N-024/
+  N-028/N-038/N-039, A-005, A-006 among them) — S-031's deleted-flag half fixed
+  mid-session and verified first-hand by this leg (the timestamp residual stays
+  open).
+- Recommended next-10 for the fix lanes (this session's crop, ordered by
+  capability-value/effort): M-052 recycle pairing → S-031's timestamp residual →
+  N-074 doc batch (incl. the D-19 rewrite + the 0xD8 line) → N-068 ZIP EOCD/LFH
+  validators → N-065 writer collision/mkdir → N-070 overlap scoring → S-032's
+  inventory payload → N-067 exFAT upcase → N-075 busy/stopping query exports →
+  N-073 ext4 catch-buffer backtrack.
+- Honest not-completed-by-this-leg: OQ-S6-1 (PartitionRecoveryD generator-set
+  semantics — needs the PartitionRecoveryD decompile walk), OQ-S6-2 (Btrfs RC4
+  target — needs the PRGA xref walk), OQ-S6-3 (CRAW reader +0xF4/anchor-B — needs
+  FUN_140c40d80), OQ-Z1's og-side read (FUN_180017690 chain), OQ-S4-3 (Windows
+  bench), the og-execution benches generally (Windows-only), and a deeper
+  UIUX/07/08/09/11 pass (deliberately deferred — the in-scope contracts those four
+  hold are covered by the landed findings N-043/D-18/M-029/M-030 family; the
+  remaining content is UI-layer).
