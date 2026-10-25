@@ -339,6 +339,9 @@ private:
     std::wstring path_;
     DWORD access_ = GENERIC_READ;
     DWORD share_ = FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE;
+    std::mutex heal_mu_; /* M-055: N-041's deletion dropped the member but
+                          * kept read_at's heal lock; restored (DirectDevice
+                          * line ~271 keeps the same pattern) */
 };
 
 } // namespace
@@ -361,8 +364,6 @@ std::wstring control_device_path(const wchar_t* service_name) {
     p += service_name ? service_name : L"RDA";
     return p;
 }
-
-} // namespace
 
 } // namespace rda
 
@@ -720,11 +721,39 @@ std::unique_ptr<cr::repair::IWriteDevice> open_disk_rw(u32 disk, bool prefer_rda
                      FILE_SHARE_READ | FILE_SHARE_WRITE));
 }
 
-} // namespace win
-} // namespace cr
+u32 refresh_disk_properties(u32 disk) {
+    /* S-029 (apply): the corpus settle pattern - IOCTL_DISK_UPDATE_PROPERTIES
+     * (0x70140) with up to 3 x Sleep(1000) retries (PartitionRecovery
+     * PR:46873-46880). The table write already succeeded when this runs;
+     * the refresh makes the OS re-read the layout so the recovered volume
+     * becomes visible. Best-effort by contract: a refusal (permissions,
+     * transient busy) reports its code, the caller surfaces it without
+     * failing the apply. */
+    wchar_t path[64];
+    _snwprintf_s(path, 64, _TRUNCATE, L"\\\\.\\PhysicalDrive%u", disk);
+    HANDLE h = CreateFileW(path, GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE,
+                           nullptr, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr);
+    if (h == INVALID_HANDLE_VALUE)
+        return ERR_OPEN_FAILED;
+    DWORD bytes = 0;
+    for (int attempt = 0; attempt < 3; ++attempt) {
+        if (DeviceIoControl(h, IOCTL_DISK_UPDATE_PROPERTIES, nullptr, 0, nullptr, 0, &bytes,
+                            nullptr)) {
+            CloseHandle(h);
+            return OK;
+        }
+        Sleep(1000); /* corpus :46877 settle between retries */
+    }
+    CloseHandle(h);
+    return ERR_WRITE_FAILED;
+}
 
 /* ---------------------------------------------------------------------------
  * N-013: destination-side overlap arming, full-extent edition.
+ * (M-055: these two definitions must sit INSIDE namespace cr::win to match
+ * cr_transport.h's declarations - they were born after the namespace close,
+ * which both broke the VolExtent lookup and left the declared functions
+ * undefined at link time.)
  * ------------------------------------------------------------------------- */
 bool volume_extents(wchar_t letter, std::vector<VolExtent>* out) {
     if (!out)
@@ -793,3 +822,6 @@ bool destination_volume_letter(const std::wstring& path, wchar_t* letter) {
     *letter = root[0];
     return true;
 }
+
+} // namespace win
+} // namespace cr

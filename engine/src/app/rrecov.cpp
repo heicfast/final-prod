@@ -3,7 +3,7 @@
  *
  * Commands:
  *   list                                  enumerate disks/volumes
- *   scan --disk N | --volume C: | --image FILE [--whole-disk] [--quick-only] [--no-carve]
+ *   scan --disk N | --volume C: [--whole-disk] [--quick-only] [--no-carve]
  *         [--threads N] [--out file.crsf] [--resume file.crsf] [--json]
  *         [--log file] [--csv] [--filter s] [--deleted-only]
  *   tree --in file.crsf [--filter substr] [--deleted-only] [--csv] [--json]
@@ -27,11 +27,11 @@
 #include "cr/orchestrator/cr_scan.h"
 #include "cr/recovery/cr_safewriter.h"
 #include "cr/query/cr_query.h"
+#include "cr/apply/cr_apply.h"
 #include "cr/repair/cr_rawfixer.h"
 #include "cr/session/cr_crsf.h"
 #include "cr/session/cr_records.h"
 #include "cr/storage/cr_slice.h"
-#include "cr/storage/cr_image.h"
 #include "cr/table/cr_ldm.h"
 #include "cr/table/cr_table_parse.h"
 #include "cr/win/cr_bitlocker.h"
@@ -162,9 +162,8 @@ struct OpenResult {
     u32 disk = 0;
     u64 volume_start = 0; /* 0 = whole-disk view */
     u64 volume_len = 0;
-    /* S-030: the image path when the target is a disk image file (kept
-     * for the session identity card; empty for --disk/--volume) */
-    std::string image_path;
+    bool is_image = false;    /* S-030: the target is a disk-image file */
+    std::wstring image_path;  /* the --image argument (identity + resume) */
 };
 
 /* ---- S-008 pre-scan repair (scan --repair / --repair-apply) ----
@@ -245,6 +244,46 @@ void fill_identity_card(u32 disk, orchestrator::ScanConfig& cfg) {
     };
     narrow(disks[disk].model, cfg.volume_model, sizeof(cfg.volume_model));
     narrow(disks[disk].serial, cfg.volume_serial, sizeof(cfg.volume_serial));
+}
+
+/* S-030: open a disk-image file as the scan target (the og's "Import a
+ * disk image" flow - DRWUI's extension factory with the flat fallback).
+ * Prints the format + the LBA0 layout classification exactly like the
+ * og's construction-time classify (DRWUI:275877-275880). */
+bool open_image_view(const std::wstring& path, OpenResult& out) {
+    u32 err = 0;
+    std::u16string p16(path.begin(), path.end());
+    auto dev = storage::open_image(win::image_file_io(), p16, &err);
+    if (!dev) {
+        const wchar_t* hint = err == ERR_UNSUPPORTED
+                                  ? L" (proprietary/unsupported container family - see "
+                                    L"docs/PARITY-DELTAS.md)"
+                                  : L"";
+        wprintf(L"[image] cannot open %s: %hs (0x%08x)%s\n", path.c_str(), err_text(err), err,
+                hint);
+        return false;
+    }
+    const storage::ImageFormat fmt = storage::classify_extension(p16);
+    const wchar_t* fmt_name = fmt == storage::ImageFormat::Vmdk ? L"VMDK"
+                              : fmt == storage::ImageFormat::Vhd ? L"VHD"
+                              : fmt == storage::ImageFormat::Vhdx ? L"VHDX"
+                                                                  : L"raw";
+    /* LBA0 classification (the og reads 0x1000 bytes and classifies
+     * MBR/GPT at construction; a failed read prints unknown) */
+    u8 lba0[512] = {};
+    const wchar_t* layout = L"unknown layout";
+    if (dev->read_at(0, lba0, sizeof(lba0)) == OK) {
+        const storage::Lba0Layout lay = storage::classify_lba0(lba0, sizeof(lba0));
+        layout = lay == storage::Lba0Layout::Mbr  ? L"MBR"
+                 : lay == storage::Lba0Layout::Gpt ? L"GPT"
+                                                   : L"unknown layout";
+    }
+    wprintf(L"[image] %s (%s, %s, %llu MiB)\n", path.c_str(), fmt_name, layout,
+            static_cast<unsigned long long>(dev->size() >> 20));
+    out.device = std::move(dev);
+    out.is_image = true;
+    out.image_path = path;
+    return true;
 }
 
 bool open_disk_view(u32 n, OpenResult& out) {
@@ -424,10 +463,13 @@ int print_disks() {
     for (const auto& d : list) {
         wprintf(L"  Disk %u: %llu MiB (%s) %s [%s] %s\n", d.number, d.size_bytes >> 20,
                 d.model.c_str(), d.serial.c_str(), d.removable ? L"removable" : L"fixed",
-                d.table_ok ? (d.table.layout == table::TableLayout::Gpt
-                                  ? L"GPT"
-                                  : (d.table.layout == table::TableLayout::Mbr ? L"MBR" : L"-"))
-                           : L"no-table");
+                d.table_ok
+                    ? (d.table.layout == table::TableLayout::Gpt
+                           ? L"GPT"
+                           : (d.table.layout == table::TableLayout::Mbr
+                                  ? L"MBR"
+                                  : (d.table.layout == table::TableLayout::Ebr ? L"EBR" : L"-")))
+                    : L"no-table");
         for (const auto& v : vols) {
             if (v.disk == d.number) {
                 wprintf(L"    %c: %s %s %llu MiB %s\n", v.letter, v.fs_name.c_str(),
@@ -531,100 +573,6 @@ u32 file_seek_cb(void* user, u64 absolute) {
     return _fseeki64(static_cast<FILE*>(user), __int64(absolute), SEEK_SET) == 0 ? OK
                                                                                  : ERR_SESSION_IO;
 }
-/* ---- S-030: disk-image scan targets --------------------------------------
- * The og's "Import a disk image" flow: vmdk/vhd/vhdx/edisk dispatch with a
- * flat-file fallback for raw/.img (DRWUI FUN_1405b3410 + FUN_140178250).
- * The CLI provides the FILE byte source (the core image layer stays
- * OS-header-free; every byte flows through the injected seam). */
-class CliImageSource final : public storage::ImageByteSource {
-public:
-    static std::unique_ptr<CliImageSource> open(const wchar_t* wpath, u32* err) {
-        *err = OK;
-        FILE* f = nullptr;
-        if (_wfopen_s(&f, wpath, L"rb") != 0 || f == nullptr) {
-            *err = ERR_OPEN_FAILED;
-            return nullptr;
-        }
-        return std::unique_ptr<CliImageSource>(new CliImageSource(f));
-    }
-    ~CliImageSource() override {
-        if (f_)
-            std::fclose(f_);
-    }
-    u32 read(u64 at, void* buf, u32 len) override {
-        if (at > size_ || u64(len) > size_ - at)
-            return ERR_RANGE_OUT_OF_BOUNDS;
-        if (len == 0)
-            return OK;
-        if (_fseeki64(f_, __int64(at), SEEK_SET) != 0)
-            return ERR_READ_FAILED;
-        if (std::fread(buf, 1, len, f_) != len)
-            return ERR_READ_FAILED;
-        return OK;
-    }
-    u64 size() const override { return size_; }
-
-private:
-    explicit CliImageSource(FILE* f) : f_(f) {
-        const __int64 cur = _ftelli64(f);
-        _fseeki64(f, 0, SEEK_END);
-        size_ = u64(_ftelli64(f));
-        _fseeki64(f, cur, SEEK_SET);
-    }
-    FILE* f_;
-    u64 size_ = 0;
-};
-
-u32 cli_open_image_source(void*, const char* utf8_path, std::unique_ptr<storage::ImageByteSource>& out) {
-    /* extent files: the descriptor directory is ASCII-safe in practice;
-     * non-ASCII sibling names widen losslessly only for BMP chars - the
-     * scan still works, the name display is the only lossy edge */
-    std::wstring w;
-    for (const char* p = utf8_path; *p; ++p) {
-        const unsigned char c = unsigned char(*p);
-        if (c < 0x80)
-            w.push_back(wchar_t(c));
-        else
-            w.push_back(L'?');
-    }
-    u32 err = OK;
-    auto f = CliImageSource::open(w.c_str(), &err);
-    if (!f)
-        return err;
-    out = std::move(f);
-    return OK;
-}
-
-bool open_image_view(const std::wstring& wpath, OpenResult& out) {
-    u32 err = OK;
-    auto src = CliImageSource::open(wpath.c_str(), &err);
-    if (!src) {
-        wprintf(L"[image] cannot open %s: %hs\n", wpath.c_str(), err_text(err));
-        return false;
-    }
-    /* the descriptor base directory (sibling extent files) */
-    std::string base;
-    const std::string n8 = narrow(wpath);
-    if (const size_t slash = n8.find_last_of("/\\"); slash != std::string::npos)
-        base = n8.substr(0, slash + 1);
-    storage::ImageFileOps ops;
-    ops.open = &cli_open_image_source;
-    std::unique_ptr<IStorageDevice> dev;
-    const u32 rc = storage::open_image(std::move(src), ops, base.c_str(), dev);
-    if (rc != OK) {
-        wprintf(L"[image] %s: %hs\n", wpath.c_str(), err_text(rc));
-        return false;
-    }
-    out.device = std::move(dev);
-    out.image_path = n8;
-    wprintf(L"[image] %s opened (%llu bytes, layout %hs)\n", wpath.c_str(),
-            static_cast<unsigned long long>(out.device->size()),
-            storage::classify_boot_layout(out.device.get()) == storage::BootLayout::Gpt  ? "GPT"
-            : storage::classify_boot_layout(out.device.get()) == storage::BootLayout::Mbr ? "MBR"
-                                                                                          : "unknown");
-    return true;
-}
-
 u32 file_read_cb(void* user, void* buf, u32 len) {
     FILE* f = static_cast<FILE*>(user);
     return fread(buf, 1, len, f) == len ? OK : ERR_SESSION_IO;
@@ -682,8 +630,8 @@ int cmd_scan(int argc, wchar_t** argv, int& i) {
             continue;
         }
         if (get_opt(argc, argv, i, L"--image", &v)) {
-            /* S-030: disk-image scan targets - the og's import flow
-             * (vmdk/vhd/flat with vhdx/edisk honestly refused) */
+            if (v.empty())
+                return 1;
             if (!open_image_view(v, target))
                 return 1;
             have_target = true;
@@ -757,7 +705,7 @@ int cmd_scan(int argc, wchar_t** argv, int& i) {
         return 1;
     }
     if (!have_target) {
-        wprintf(L"scan needs --disk N or --volume C:%s\n",
+        wprintf(L"scan needs --disk N, --volume C:, or --image file%s\n",
                 resume_path.empty() ? L"" : L" (plus the ORIGINAL target of the saved session)");
         return 1;
     }
@@ -773,9 +721,25 @@ int cmd_scan(int argc, wchar_t** argv, int& i) {
              cfg.threads, int(cfg.run_quick), int(cfg.run_deep), int(cfg.run_carve),
              int(cfg.whole_disk), int(repair), int(repair_apply));
     fill_identity_card(target.disk, cfg); /* SESS-2: model/serial into the card */
-    /* S-030: the image target's file path into the identity card (v3) */
-    for (size_t k = 0; k + 1 < sizeof(cfg.volume_image) && k < target.image_path.size(); ++k)
-        cfg.volume_image[k] = target.image_path[k];
+    if (target.is_image) {
+        /* S-030: the image identity - format as model, path into the v3
+         * tail (the resume path warns when the path changes) */
+        const storage::ImageFormat fmt =
+            storage::classify_extension(std::u16string(target.image_path.begin(),
+                                                       target.image_path.end()));
+        const char* model = fmt == storage::ImageFormat::Vmdk ? "Disk image (VMDK)"
+                            : fmt == storage::ImageFormat::Vhd ? "Disk image (VHD)"
+                            : fmt == storage::ImageFormat::Vhdx ? "Disk image (VHDX)"
+                                                                : "Disk image (raw)";
+        for (size_t k = 0; k < sizeof(cfg.volume_model) - 1 && model[k]; ++k)
+            cfg.volume_model[k] = model[k];
+        std::string narrow;
+        for (wchar_t c : target.image_path)
+            if (c < 0x80)
+                narrow.push_back(char(c));
+        for (size_t k = 0; k < sizeof(cfg.volume_image) - 1 && k < narrow.size(); ++k)
+            cfg.volume_image[k] = narrow[k];
+    }
 
     /* S-008 pre-scan repair hooks: --repair analyzes + reports; the
      * --repair-apply FLAG is the consent (non-interactive CLI posture);
@@ -785,11 +749,22 @@ int cmd_scan(int argc, wchar_t** argv, int& i) {
     if (repair) {
         cfg.pre_scan_repair = true;
         repair_ctx.apply = repair_apply;
-        repair_ctx.disk = target.disk; /* the parent basis for the undo log */
-        cfg.repair.consent = scan_repair_consent;
-        cfg.repair.open_writer = scan_repair_open_writer;
-        cfg.repair.close_writer = scan_repair_close_writer;
-        cfg.repair.user = &repair_ctx;
+        if (target.is_image) {
+            /* S-030: repairs target PHYSICAL disks (the write path opens a
+             * disk RW handle). On an image scan the analysis still runs
+             * and surfaces its plan; the null writer = "repair unavailable
+             * this scan" (the orchestrator's documented contract), so
+             * nothing is ever written into the evidence image. */
+            repair_ctx.disk = 0xFFFFFFFF;
+            cfg.repair.consent = scan_repair_consent;
+            cfg.repair.user = &repair_ctx;
+        } else {
+            repair_ctx.disk = target.disk; /* the parent basis for the undo log */
+            cfg.repair.consent = scan_repair_consent;
+            cfg.repair.open_writer = scan_repair_open_writer;
+            cfg.repair.close_writer = scan_repair_close_writer;
+            cfg.repair.user = &repair_ctx;
+        }
     }
 
     /* Cross-disk LDM members (audit row 30): on a whole-disk scan of an
@@ -888,6 +863,21 @@ int cmd_scan(int argc, wchar_t** argv, int& i) {
                 table::crc32(boot, sizeof(boot)) != info.boot_hash)
                 wprintf(L"[resume] WARNING: volume identity mismatch - this session was "
                         L"saved on a different volume (boot hash differs)\n");
+        }
+        /* S-030: the session's image-path identity (v3 tail; empty on
+         * older sessions = skip). Compare with the CURRENT --image. */
+        if (info.image[0] != '\0') {
+            std::string cur;
+            for (wchar_t c : target.image_path)
+                if (c < 0x80)
+                    cur.push_back(char(c));
+            if (!target.is_image || cur != info.image)
+                wprintf(L"[resume] WARNING: this session was saved over image %hs - "
+                        L"re-run scan with --image of that file for exact results\n",
+                        info.image);
+        } else if (target.is_image) {
+            wprintf(L"[resume] note: resuming a non-image session over an image target "
+                    L"- results may differ from the original run\n");
         }
     } else {
         ctrl.reset(new orchestrator::ScanController(tree, cfg));
@@ -1117,11 +1107,10 @@ int cmd_tree(int argc, wchar_t** argv, int& i) {
  * ------------------------------------------------------------------------- */
 
 int cmd_recover(int argc, wchar_t** argv, int& i) {
-    std::wstring in_path, to_dir, filter, report_path;
+    std::wstring in_path, to_dir, filter, report_path, image_path;
     bool deleted_only = false;
     u32 disk = 0;
-    bool have_disk = false;
-    std::wstring image_path; /* S-030: --image source */
+    bool have_disk = false, have_image = false;
     while (i < argc) {
         std::wstring v;
         if (get_opt(argc, argv, i, L"--in", &in_path))
@@ -1134,9 +1123,10 @@ int cmd_recover(int argc, wchar_t** argv, int& i) {
             continue;
         }
         if (get_opt(argc, argv, i, L"--image", &v)) {
-            /* S-030: recover from the image the session was scanned from */
+            if (v.empty())
+                return 1;
             image_path = v;
-            have_disk = true; /* a target is a target */
+            have_image = true;
             continue;
         }
         if (get_opt(argc, argv, i, L"--filter", &filter))
@@ -1150,8 +1140,8 @@ int cmd_recover(int argc, wchar_t** argv, int& i) {
         wprintf(L"unknown recover option: %s\n", argv[i]);
         return 1;
     }
-    if (in_path.empty() || to_dir.empty() || !have_disk) {
-        wprintf(L"recover needs --in file.crsf --disk N --to DIR\n");
+    if (in_path.empty() || to_dir.empty() || (!have_disk && !have_image)) {
+        wprintf(L"recover needs --in file.crsf (--disk N | --image file) --to DIR\n");
         return 1;
     }
 
@@ -1171,10 +1161,10 @@ int cmd_recover(int argc, wchar_t** argv, int& i) {
         return 1;
     }
 
-    /* open the SOURCE (extents in sessions are absolute): --disk or the
-     * --image the session was scanned from (S-030) */
+    /* open the SOURCE (extents in sessions are absolute): the disk the
+     * session ran on, or the image file it ran over (--image) */
     OpenResult src;
-    if (!image_path.empty()) {
+    if (have_image) {
         if (!open_image_view(image_path, src))
             return 1;
     } else if (!open_disk_view(disk, src)) {
@@ -1187,7 +1177,11 @@ int cmd_recover(int argc, wchar_t** argv, int& i) {
         u32 ddisk = 0;
         u64 dstart = 0, dlen = 0;
         if (win::volume_extent(to_dir[0], &ddisk, &dstart, &dlen)) {
-            if (ddisk == disk && image_path.empty())
+            if (have_image)
+                wprintf(L"[dest] disk %u @%llu +%llu (source is an image file - no overlap)\n",
+                        ddisk, static_cast<unsigned long long>(dstart),
+                        static_cast<unsigned long long>(dlen));
+            else if (ddisk == disk)
                 wprintf(L"[F12] WARNING: destination is on the SOURCE disk %u\n", ddisk);
             else
                 wprintf(L"[dest] disk %u @%llu +%llu\n", ddisk,
@@ -1401,8 +1395,8 @@ int cmd_health(int argc, wchar_t** argv, int& i) {
          * to ~0.55 C; now identical to the ABI spelling to the digit. */
         const u32 dec_c = nv.decidegrees_c();
         wprintf(L"NVMe health: temp=%u.%uC spare=%u%%/threshold=%u%% used=%llu%% - %hs\n",
-                dec_c / 10, dec_c % 10, nv.available_spare, nv.available_spare_threshold,
-                static_cast<unsigned long long>(nv.percentage_used),
+                dec_c / 10, dec_c % 10, nv.available_spare,
+                nv.available_spare_threshold, static_cast<unsigned long long>(nv.percentage_used),
                 cr::health::health_grade_name(cr::health::grade_nvme(nv)));
         wprintf(L"  read=%llu bytes written=%llu bytes (M-036: units x 512,000)\n",
                 static_cast<unsigned long long>(nv.data_bytes_read),
@@ -1636,6 +1630,195 @@ int cmd_bench(int argc, wchar_t** argv, int& i) {
     return 1;
 }
 
+/* ---- S-029 lost-partition apply --------------------------------------
+ * The og's two-step product flow (discover, then APPLY the recovered
+ * entry into the user's MBR - RecoveryModule CreateRecoveryPartitionObject
+ * -> PartitionRecovery FUN_1800566d0 "rebuild disk layout"). The CLI
+ * posture mirrors fix: default is a DRY-RUN that prints the plan;
+ * --apply is the explicit consent; the undo log (the shared CRUNDO01
+ * container) is saved beside the session for 'fix --undo-apply'.
+ * Candidates come from a whole-disk scan's saved session (--whole-disk
+ * discovery persists them; 'tree --in' lists them). */
+struct ApplyCliCtx {
+    bool apply = false;
+};
+bool apply_cli_consent(const apply::ApplyPlan& plan, void* user) {
+    auto* c = static_cast<ApplyCliCtx*>(user);
+    if (!c->apply) {
+        wprintf(L"[apply] consent NOT given: rerun with --apply to write the entry\n");
+        return false;
+    }
+    wprintf(L"[apply] consent given (--apply): writing the entry now (volumes on the disk "
+            L"are locked and dismounted for the write)\n");
+    (void)plan;
+    return true;
+}
+
+int cmd_apply(int argc, wchar_t** argv, int& i) {
+    std::wstring v;
+    u32 disk = 0;
+    bool have_disk = false;
+    std::wstring in_path;
+    int candidate = -1; /* 1-based, the session's lost-candidate index */
+    bool do_apply = false;
+    bool use_rda = true;
+    std::wstring undo_path;
+    while (i < argc) {
+        if (get_opt(argc, argv, i, L"--disk", &v)) {
+            disk = u32(wcstoul(v.c_str(), nullptr, 10));
+            have_disk = true;
+            continue;
+        }
+        if (get_opt(argc, argv, i, L"--session", &v) || get_opt(argc, argv, i, L"--in", &v)) {
+            in_path = v;
+            continue;
+        }
+        if (get_opt(argc, argv, i, L"--candidate", &v)) {
+            candidate = int(wcstol(v.c_str(), nullptr, 10));
+            continue;
+        }
+        if (get_opt(argc, argv, i, L"--undo", &v)) {
+            undo_path = v;
+            continue;
+        }
+        if (wcscmp(argv[i], L"--apply") == 0) {
+            do_apply = true;
+            ++i;
+            continue;
+        }
+        if (wcscmp(argv[i], L"--no-rda") == 0) {
+            use_rda = false;
+            ++i;
+            continue;
+        }
+        wprintf(L"unknown apply option: %s\n", argv[i]);
+        return 1;
+    }
+    if (!have_disk || in_path.empty()) {
+        wprintf(L"apply needs --disk N --session file.crsf [--candidate N] [--apply]\n");
+        return 1;
+    }
+
+    /* load the session's lost candidates (the discovery results the scan
+     * scored - apply never invents geometry, it transcribes a candidate) */
+    FILE* fin = nullptr;
+    if (_wfopen_s(&fin, in_path.c_str(), L"rb") != 0 || fin == nullptr) {
+        wprintf(L"cannot open session %s\n", in_path.c_str());
+        return 1;
+    }
+    tree::ResultTree tree;
+    orchestrator::ScanStats stats;
+    session::VolumeSessionInfo info;
+    session::Reader r(file_read_cb, file_seek_cb, file_size_cb, fin);
+    u32 rc = orchestrator::ScanController::load_session_summary(r, tree, stats, info);
+    fclose(fin);
+    if (rc != OK) {
+        wprintf(L"session load failed (rc=%08x %hs)\n", rc, err_text(rc));
+        return 2;
+    }
+    if (stats.lost_candidates.empty()) {
+        wprintf(L"the session carries no lost-partition candidates "
+                L"(run: rrecov scan --disk %u --whole-disk)\n",
+                disk);
+        return 1;
+    }
+    wprintf(L"session candidates:\n");
+    for (size_t k = 0; k < stats.lost_candidates.size(); ++k) {
+        const auto& c = stats.lost_candidates[k];
+        wprintf(L"  %zu: LBA %llu, %llu sectors, score %d%s\n", k + 1,
+                static_cast<unsigned long long>(c.start_lba),
+                static_cast<unsigned long long>(c.sector_count), c.score,
+                int(k) == candidate - 1 ? L"  <-- selected" : L"");
+    }
+    if (candidate < 1 || size_t(candidate) > stats.lost_candidates.size()) {
+        wprintf(L"select a candidate with --candidate N (1..%zu)\n",
+                stats.lost_candidates.size());
+        return 1;
+    }
+    const lost::Candidate& c = stats.lost_candidates[size_t(candidate) - 1];
+
+    /* plan (read-only) */
+    u32 e = 0;
+    auto view = win::open_disk(disk, use_rda, use_rda ? L"RDA" : nullptr, &e);
+    if (!view) {
+        wprintf(L"cannot open disk %u (rc=%08x)\n", disk, e);
+        return 2;
+    }
+    apply::ApplyPlan plan;
+    rc = apply::plan_apply(view.get(), c, plan);
+    if (rc != OK) {
+        wprintf(L"plan failed: rc=%08x %hs\n", rc, err_text(rc));
+        return 2;
+    }
+    if (plan.refused) {
+        wprintf(L"REFUSED: %hs\n", plan.refusal_reason.c_str());
+        wprintf(L"no writes performed (dry-run is the default; nothing is ever written "
+                L"without --apply)\n");
+        return 0;
+    }
+    wprintf(L"apply plan: entry slot %u, type 0x%02X, LBA %llu, %llu sectors%s\n",
+            plan.entry_index, plan.mbr_type, static_cast<unsigned long long>(plan.start_lba),
+            static_cast<unsigned long long>(plan.sector_count),
+            plan.restores_signature ? L" + 0x55AA signature restore" : L"");
+    for (const auto& a : plan.actions)
+        wprintf(L"  [apply] offset=%llu len=%zu : %hs\n",
+                static_cast<unsigned long long>(a.offset), a.after.size(), a.reason.c_str());
+    if (!plan.boot_repair_available)
+        wprintf(L"  [apply] boot-chain repair: not available in this build (the entry is "
+                L"written; BCD/boot.ini fixup is separate scope)\n");
+
+    if (!do_apply) {
+        wprintf(L"dry-run only - re-run with --apply to execute (undo log saved automatically)\n");
+        return 0;
+    }
+
+    /* execute (consent-gated transactional write) */
+    auto wdev = win::open_disk_rw(disk, use_rda, use_rda ? L"RDA" : nullptr, &e);
+    if (!wdev) {
+        wprintf(L"cannot open disk %u for write (rc=%08x): %hs\n", disk, e,
+                cr::win::is_elevated()
+                    ? "write access denied even elevated (device busy, locked or protected)"
+                    : "administrator rights required (elevate and retry)");
+        return 2;
+    }
+    ApplyCliCtx ctx;
+    ctx.apply = do_apply;
+    repair::UndoLog log;
+    rc = apply::execute_apply(wdev.get(), plan, apply_cli_consent, &ctx, log);
+    if (rc != OK) {
+        wprintf(L"execute FAILED: rc=%08x %hs (any written bytes were rolled back)\n", rc,
+                err_text(rc));
+        return 2;
+    }
+    wprintf(L"apply OK: %zu write(s) + verified; the partition entry is in the table\n",
+            log.entries.size());
+
+    /* the OS must re-read the table (the og's IOCTL_DISK_UPDATE_PROPERTIES
+     * + settle, PR:46873-46880 - the win layer's refresh helper) */
+    if (u32 rrc = win::refresh_disk_properties(disk))
+        wprintf(L"[apply] table refresh refused (rc=%08x) - replug/reboot to see the volume\n",
+                rrc);
+    else
+        wprintf(L"[apply] disk layout refreshed - the volume should mount on next rescan\n");
+
+    /* save the undo log (the shared CRUNDO01 container) */
+    if (undo_path.empty())
+        undo_path = L"rrecov-apply-disk" + std::to_wstring(disk) + L".undo";
+    std::vector<u8> blob;
+    log.serialize(blob);
+    FILE* f = nullptr;
+    if (_wfopen_s(&f, undo_path.c_str(), L"wb") == 0 && f != nullptr) {
+        fwrite(blob.data(), 1, blob.size(), f);
+        fclose(f);
+        wprintf(L"undo log saved: %s (%zu bytes) - restore with: rrecov fix --disk %u "
+                L"--undo-apply %s\n",
+                undo_path.c_str(), blob.size(), disk, undo_path.c_str());
+    } else {
+        wprintf(L"WARNING: could not save the undo log to %s\n", undo_path.c_str());
+    }
+    return 0;
+}
+
 int cmd_fix(int argc, wchar_t** argv, int& i) {
     std::wstring v;
     u32 disk = 0;
@@ -1854,9 +2037,9 @@ int wmain(int argc, wchar_t** argv) {
             L"rrecov - core_recovery CLI\n"
             L"usage:\n"
             L"  rrecov list\n"
-            L"  rrecov scan --disk N | --volume C: [--whole-disk] [--quick-only] [--no-carve]\n"
-            L"             (deep stage always on; --quick-only disables it; --whole-disk = "
-            L"lost-partition discovery)\n"
+            L"  rrecov scan --disk N | --volume C: | --image file.vmdk|.vhd|.vhdx|.img [.dmg raw]\n"
+            L"             [--whole-disk] [--quick-only] [--no-carve]\n"
+            L"             (deep stage always on; --quick-only disables it; --whole-disk = lost-partition discovery)\n"
             L"             [--threads N] [--out file.crsf] [--resume file.crsf] [--log file]\n"
             L"             [--json] [--csv] [--filter s] [--deleted-only]\n"
             L"             [--repair] [--repair-apply] [--repair-undo file]\n"
@@ -1864,10 +2047,12 @@ int wmain(int argc, wchar_t** argv) {
             L"                                     64/128 hex chars - in-stack XTS-AES\n"
             L"                                     decrypt, engines see plaintext)\n"
             L"  rrecov tree --in file.crsf [--filter s] [--deleted-only] [--csv]\n"
-            L"  rrecov recover --in file.crsf --disk N --to DIR [--deleted-only] [--filter s]\n"
+            L"  rrecov recover --in file.crsf (--disk N | --image file) --to DIR [--deleted-only] [--filter s]\n"
             L"             [--report file.json]\n"
             L"  rrecov health --disk N\n"
             L"  rrecov fix --disk N [--part P] [--apply] [--undo file] [--undo-apply file]\n"
+            L"  rrecov apply --disk N --session file.crsf --candidate N [--apply] [--undo file]\n"
+            L"             (writes a lost-partition candidate's MBR entry; dry-run by default)\n"
             L"  rrecov bench --disk N [--mode seq|rand|open|read|info] [--mb N] [--block-kb N]\n"
             L"              [--iterations N] [--seed N] [--json] [--no-rda]\n");
         return 0;
@@ -1886,6 +2071,8 @@ int wmain(int argc, wchar_t** argv) {
         return cmd_health(argc, argv, i);
     if (cmd == L"fix")
         return cmd_fix(argc, argv, i);
+    if (cmd == L"apply")
+        return cmd_apply(argc, argv, i);
     if (cmd == L"bench")
         return cmd_bench(argc, argv, i);
     wprintf(L"unknown command: %s\n", cmd.c_str());

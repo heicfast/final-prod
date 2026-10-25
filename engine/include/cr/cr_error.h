@@ -1,9 +1,16 @@
 /*
  * cr_error.h - error-code family for the recovery stack.
  *
- * Reproduces the reference engine convention (HRESULT-style 0x5002xxxx family,
- * corpus: 05-scan-engine-architecture.md section 4) while extending it with
- * explicit codes our layers need. Success is always 0.
+ * M-049 (diff-to-fix) - the value-space truth: the og's engine errors are
+ * 12-hex-digit HRESULT-shaped codes with only TWO values corpus-documented
+ * (open-fail 0x5002200000004, read-fail 0x5002c0000004 - architecture/05
+ * section 4 :62); the og's full code table is NOT corpus-documented, and its
+ * error-object architecture (CErrorManager/CErrorTrackManager, the MOM bus)
+ * is a UI-layer surface. This core owns its error space: the FAMILY-PREFIX
+ * convention matches (0x5002 open/transport .. 0x5009, HRESULT-style), and
+ * the numeric values are CORE-INTERNAL (registered PARITY-DELTAS D-68) -
+ * the old "reproduces the reference engine convention" claim was false as
+ * written (value equality was never true for any code). Success is 0.
  *
  * Licensed under the MIT license. See LICENSE.
  */
@@ -59,6 +66,12 @@ enum Err : u32 {
     ERR_REPAIR_REFUSED = 0x50080001,
     ERR_REPAIR_UNDO_FAILED = 0x50080002,
     ERR_VOLUME_LOCK_FAILED = 0x50080003, /* S-010: volume busy, quiesce refused */
+    /* S-029 apply (consent-gated lost-partition table write) */
+    ERR_APPLY_CONSENT_DENIED = 0x50080004, /* A1: the consent callback refused */
+    ERR_APPLY_STALE = 0x50080005, /* A2: sector 0 changed since planning */
+
+    /* --- image containers (S-030: vmdk/vhd/vhdx scan targets) --- */
+    ERR_IMAGE_CORRUPT = 0x500A0001, /* structural nonsense inside the container */
 
     /* --- generic engine failure (task exceptions, defensive) --- */
     ERR_INTERNAL = 0x50090001,

@@ -1905,23 +1905,68 @@ same way. Pinned by `RawFixer.NtfsPrimaryDamaged4Kn`,
   grammar gates the false-positive surface. Do not tighten for parity. Pin:
   Carve.JpegFourthByteOutsideOgSet.
 
-- **D-64 — image-container scope (S-030, ACCEPTED).** The og's import
-  factory dispatches six backends: edisk, vhdx, vmdk, vhd + the flat
-  fallback (.img/.dmg/raw) (DRWUI FUN_1405b3410). The core's image layer
-  implements flat, VMDK (monolithicSparse + standalone descriptors with
-  FLAT/SPARSE/ZERO extents), and VHD (fixed + dynamic). Two deliberate
-  exclusions and two tracked remainders, honestly registered:
-  **edisk** (EaseUS Todo-Backup's proprietary container — undecodable
-  without product internals; ERR_UNSUPPORTED) and **dmg** (Apple's
-  container; the og treats it as a FLAT file only when uncompressed,
-  which our flat fallback already covers — the compressed
-  ADC/ZLIB/LZFSE variants are out of scope). Remainders (capability, not
-  divergence): **VHDX** (the og's CVHDXDisk; ERR_UNSUPPORTED until the
-  metadata-table format lands) and **VMDK parent chains /
-  compressed grains / VHD differencing** (v1 reads base images only).
-  Pins: `Image.VmdkMonolithicSparseReadsAndScans`,
-  `Image.VhdDynamicDiskReadsAndScans`, `Image.RejectsBrokenInputs`
-  (VHDX → ERR_UNSUPPORTED).
+- **D-64 — image-container scope (S-030, ACCEPTED; CONVERGED across two
+  parallel landings — b30354d's flat/VMDK/VHD core, then the convergence
+  upgrade adding VHDX + the differencing families + the qemu-fixture
+  compatibility proof layer).** The og's import factory dispatches
+  edisk/vhdx/vmdk/vhd + the flat fallback for everything else including
+  .dmg (DRWUI FUN_1405b3410 — note: the factory has NO dmg case; the og
+  opens .dmg as raw flat bytes, compressed or not, and the scan reads
+  what a raw read yields; parity is the same flat fallback, NOT Apple
+  container parsing). The core now implements flat raw, VMDK
+  (monolithicSparse + descriptor extents FLAT/SPARSE/ZERO + parent
+  chains via parentFileNameHint, depth-capped), VHD (fixed + dynamic +
+  differencing via W2ku/W2ru locators), and VHDX dynamic (header pair
+  CRC-32C + region table + metadata + chunk-ratio BAT) with a READ-ONLY
+  in-memory log replay overlay (qemu vhdx-log.c walk semantics — a
+  recovery tool never rewrites its input; qemu itself refuses read-only
+  opens with a valid log sequence). One exclusion and two remainders,
+  honestly registered: **edisk** (EaseUS Todo-Backup proprietary,
+  undecoded in the corpus; ERR_UNSUPPORTED); **compressed VMDK**
+  (streamOptimized/streamMonolithic + the ESX VMFS extent families;
+  refused precisely, never mis-read as flat); **VHDX differencing**
+  (parent-locator metadata + sector-bitmap blocks; refused precisely).
+  Pins: `Image.VmdkSparseExtentReads`,
+  `Image.VmdkDifferencingChainReadsParent`,
+  `Image.VmdkStreamOptimizedRefused`, `Image.VhdDynamicDisk`,
+  `Image.VhdDifferencingReadsParentOnClearBitmap`,
+  `Image.VhdxDynamicReads`, `Image.VhdxLogOverlayServesUnflushedWrites`,
+  `Image.VhdxDifferencingRefusedPrecisely`,
+  `Image.EdiskRefusedAsRegisteredExclusion`, and the qemu-img-10.0.13
+  compatibility fixtures (`Image.QemuVmdkCompat`, `Image.QemuVhdCompat`,
+  `Image.QemuVhdxCompat` over tests/data/images).
+
+## M. diff-to-fix session 10 (2026-10-26)
+
+- **D-68 — the lost-partition apply path (S-029, IMPLEMENTED).** The
+  og's apply is a consent-gated product flow (RecoveryModule
+  `CreateRecoveryPartitionObject` → PartitionRecovery FUN_1800566d0
+  "rebuild disk layout": DELETE_DRIVE_LAYOUT + raw sector-0 rewrite +
+  SET_DRIVE_LAYOUT, UPDATE_PROPERTIES with settle). The core implements
+  the SEMANTIC through the rawfixer seams: `apply::plan_apply` (read-only,
+  containment-refusing) + `apply::execute_apply` (consent callback →
+  revalidation → transactional sector-0 write → read-back verify →
+  rollback) + the shared CRUNDO01 undo, surfaced as `rrecov apply --disk
+  N --session F --candidate N [--apply]`. Deliberate v1 boundaries,
+  registered: (a) **MBR only** — GPT layouts are refused cleanly (the
+  og's GPT variant FUN_1800392f0 incl. GUID regen is v2 scope); (b) the
+  write lands through the raw sector-0 path (one of the og's two
+  equivalent legs) rather than the kernel IOCTL chain — same resulting
+  table, verifiable, undoable; the win layer adds the og's
+  IOCTL_DISK_UPDATE_PROPERTIES + 3×Sleep(1000) settle after the write;
+  (c) the entry is written **not-bootable** (the og's decoded flow
+  carries no boot-flag decision for the recovered entry; auto-activating
+  a boot flag would be a guess); (d) **boot-chain repair (M-040) is not
+  chained** — the og's apply composites BootIni_Init + Fixup.mo BCD
+  repair; the core's apply exposes the boundary truthfully through the
+  plan's `boot_repair_available` field and refuses to pretend.
+- **D-69 — the apply MBR type-byte map (convention, corpus-undecoded).**
+  The og's own family→type map for the recovered entry is not decoded in
+  the corpus for this path. The core uses the industry conventions:
+  NTFS/exFAT/ReFS/BitLocker→0x07, FAT→0x06, ext2/Btrfs→0x83,
+  HFS+→0xAF, ZFS→0xBF, unclassified→0x07 (generic data). Any future
+  corpus decode that differs supersedes this map (registered in the
+  S-029 Resolution when it happens).
 
 - **D-66 — raw-sign confidence consumption (N-030, ACCEPTED SUPERSET).**
   The og's raw_signs.json parser (FUN_18001e510, decompiled
@@ -1979,7 +2024,7 @@ only in this mode (the og's scan has no such counter). Pinned by
 `NtfsVolume.HardLinkFanOutOptIn` (per-link names, per-parent nodes) and
 `NtfsVolume.HardLinkSingleLinkMatchesOg` (the parity default).
 
-### D-66 — Attrlist chase depth: the multi-hop BFS default (M-008, REGISTERED SUPERSET — the default)
+### D-73 — Attrlist chase depth: the multi-hop BFS default (M-008, REGISTERED SUPERSET — the default)
 
 The og's $ATTRIBUTE_LIST chase is depth-1 (FUN_180041df0 iterates the
 pass-1 child-record list, never recursing into child records' own lists).
@@ -1997,7 +2042,7 @@ notes assumed does NOT exist on either side. Pinned by
 
 ## T. diff-to-fix session 20 (DFX20 MAJOR lane, 2026-10-26)
 
-**D-72 — BitLocker in-stack decrypt: FVEK-input key surface (M-033's
+**D-75 — BitLocker in-stack decrypt: FVEK-input key surface (M-033's
 documented scope).** The og acquires FVE keys through its full protector
 chain (user password/recovery-key/BEK → stretch → VMK → FVEK, inside
 BitLockerLib) and the DRWService auto-unlock pipe; the corpus pins that
@@ -2013,3 +2058,95 @@ per-sector LE-index tweaks, decrypt below the engines, locked-without-key
 refusal preserved. Deliberate, documented, and temporary in intent: the
 derivation interop is the tracked next step. Do NOT remove the refusal
 path or the weak-key rejection when extending the key surface.
+### D-74 — Slice tail-read refusal vs the og's clamp+zero-fill (M-032, ACCEPTED SAFETY DIVERGENCE)
+
+The og's virtual-volume layer (HFSPlusSearchDLL FUN_180009290 :7219-7264,
+DRWUI twin :1044939-1044979) CLAMPS a tail-crossing read: the in-bounds
+prefix is read from the parent and the past-end tail is zero-filled, and
+the call succeeds. Our PartitionSlice refuses the whole read with
+ERR_RANGE_OUT_OF_BOUNDS. This is a deliberate safety divergence: a refused
+read is honest; a zero-filled read can fabricate structure near a volume's
+computed end (ragged candidates). The engine audit (M-032's decision gate,
+session 11) found no reliance on the og contract — journal_ring_read bounds
+every take within the ring; all other engine reads are explicitly bounded;
+refusals degrade through the damage counters. The og's own tail memset is
+in SECTOR units (count-n, :7258) — an under-zeroing defect NOT adopted.
+Pinned by Slice.TailReadRefusalPinned + the updated Slice.BoundsEnforced.
+If a future engine needs the og contract, the documented next step is the
+opt-in clamped-read primitive from the finding's path (2) — added THEN,
+not as dead code now.
+
+
+(The original session-10 D-64 draft was folded into the converged entry above.)
+
+### D-72 — scan cache: 8 MiB reactive LRU vs og 4 MiB prefetch read-ahead (N-045, REGISTERED DIVERGENCE — budget + algorithm)
+
+The og's `CStorageDeviceWithCache` sizes its cache at **4 MiB**
+(DRWUI_decompiled.c:919080-:919092 — cache block count =
+`0x400000 / bytes_per_sector`, fallback `0x2000` blocks; constructor
+:962250-:962292 with a 1000-entry cache count; one instance per
+physical disk, shared across all partition scans) and runs it as a
+**prefetch read-ahead engine** — a dedicated prefetch thread, a 10-run
+look-ahead window, 1000-sector default runs, CRITICAL_SECTION locking
+(:962250-:962597). The core's scan pipe builds an **8 MiB** reactive
+true-LRU (`CachedReader::create(..., 8ull << 20, 256 * 1024)` at
+cr_scan.cpp; 256 KiB block size separately registered as D-51) with no
+prefetch thread. Both divergences are deliberate: the 2x budget rides
+the 256 KiB block curve measured by the alignbench transport sweep
+(PERFORMANCE-BASELINE section 5), and the sequential latency-hiding the
+og obtains from its prefetch thread is provided one layer down by the
+transport's large 64 KiB-multiple reads. Aligning the budget to 4 MiB or
+introducing a prefetch thread is a benchmark-gated tuning decision
+(docs/benchmarking.md), not a parity fix. Placement parity confirmed:
+both caches sit below the slice layer and are shared across candidate
+scans. Pinned by `Cached.ScanCacheBudgetIsTheRegisteredDivergence`
+(doc-truth pin: source constant + this row + the cr_cached.h divergence
+block must stay in lockstep).
+
+
+### D-73 — NTFS scan-path volume-end backup fallback (M-043, session 14; renumbered from a D-72 collision with the scan-cache register — the errata convention)
+
+**Deliberate recovery SUPERSET — not og parity (corpus-proven).** The og
+has NO scan-path backup-boot fallback: the analyser's backup step
+(FUN_180005470 :4309-4327, decode read first-hand) is a memcmp storing the
+verified location at +0x510 as the REPAIR input, and NTFSSearchDLL carries
+zero backup reads. The og refuses torn-primary DBRs on the scan path. The
+core opens from the volume-end backup instead: read-only, flagged
+`VolumeParams::boot_from_backup`; repairing the primary stays
+consent-gated rawfixer territory (S-008). Bench comparisons must expect
+core-only finds on torn-DBR NTFS fixtures. Registered by DFX14 while
+reconciling the concurrent M-043 landing (1468393 + this leg).
+
+*(D-numbering erratum, session 14: this section was first registered as
+D-72 in this leg's push; the parallel leg's scan-cache register (N-045)
+landed as D-72 in the same window. The FAT-entry precedent applies — the
+later landing renumbers; this one is now D-73. All references updated.)*
+
+
+### D-72 — carve default-off formats are host policy, not engine constants (M-024)
+
+The og's RawConfig.ini [Filter] ships STL and VPJ default-DISABLED — its
+effective carve set differs from its compiled set. The core ships every
+compiled format ENABLED and expresses default-off through
+`CarveFlags::disabled_formats` (the host's policy layer — the CLI/UI can
+mirror the og's shipped defaults by passing "stl vpj"). Rationale: an
+engine constant would bake one vendor's config into the library; the og
+itself separates engine (compiled analysers) from policy (the ini). Pinned
+by `CarveEngine.AllFormatsEnabledByDefault`.
+
+### D-68 — Error value space: family-prefix convention only; numeric values core-internal (M-049, ACCEPTED)
+
+The og's engine errors are 12-hex-digit HRESULT-shaped codes
+(0x5002200000004 open-fail, 0x5002c0000004 read-fail — the only two
+corpus-documented values; the og's full table is not documented), carried
+by an error-object architecture (CErrorManager/CErrorTrackManager, the
+MOM UI bus). The core's 28-code family keeps the HRESULT-style family
+PREFIX convention (0x5002 open/transport .. 0x5009) with core-internal
+numeric values; the old header claim ("reproduces the reference engine
+convention") was false as written — value equality was never true for any
+code. Renumbering to the two known 12-digit values would break 26 others
+arbitrarily (the og table is undocumented); the family-prefix match is
+the honest extent of the parity. The error-object layer stays out of core
+scope (UI-bus architecture); the engine-side subset (module/operation/
+retry-state context) is the registered open item in the finding. Pinned
+by Error.ErrTextCoversEveryCode + the header truth.

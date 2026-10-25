@@ -54,3 +54,39 @@ I-017 (the slice layer's deliberate supersets — this finding is the one behavi
 ## Open questions
 
 Does any og engine deliberately read past the virtual volume end relying on zero-fill (HFS+ journal, ext backup SBs)? A focused probe of HFSPlusSearchDLL's journal read lengths decides; until then the impact stays bounded.
+
+## Resolution (session 11 — DFX11, the decision-gate outcome)
+
+**Status:** FIXED (by the fix plan's own decision path 1: keep the safer
+refusal, register the deliberate divergence, pin it — no behavior change
+is wanted; changing it would diverge FROM safety FOR parity)
+**Fixed in commit:** this session's fix commit (`fix: M-032` — see git log)
+**Verified by:** `Slice.TailReadRefusalPinned` (new: the finding's
+falsifiable claim pinned — the crossing read that would succeed with
+zeros under the og semantics refuses here and never touches the buffer)
++ `Slice.BoundsEnforced` updated with the full og-contract citation
+(HFSPlusSearchDLL FUN_180009290 :7219-7264 + the og's sector-unit
+under-zeroing defect noted). Both pass by design — they PIN the
+deliberate divergence; the finding's own plan prescribes exactly this
+("current behavior pinned with a comment citing the og contract").
+
+**Resolution notes:** the fix plan's decision gate was executed first:
+audited every engine's read patterns for intentional end-crossing. The
+only end-adjacent surface is the HFS+ journal ring
+(journal_ring_read bounds every take within [jbase, jbase+jsize) —
+wrap-aware, never crossing); every other engine reads with explicitly
+bounded lengths and degrades gracefully through the damage counters on
+refusal. NO engine relies on the og's clamp+zero-fill contract, so
+path (2) — an opt-in read_at_clamped — would be dead code on arrival
+(the repo just swept dead code in N-041). The divergence is real and
+deliberate: ours is the safer contract (a refused read is honest; a
+zero-filled read can fabricate structure). Registered PARITY-DELTAS
+D-74. The og's own tail memset is in SECTOR units (count-n, :7258) —
+an under-zeroing defect NOT adopted. The open question (does any og
+engine deliberately read past the end relying on zero-fill?) is
+resolved for OUR side by the audit; the og-side probe (HFS+
+journal/ext-backup-SB read lengths) remains OQ-tracked via I-017's
+register — no change wanted until an engine actually needs the og
+contract, at which point the opt-in primitive from path (2) is the
+documented next step. Cross-refs: I-017 (the slice layer's deliberate
+supersets register), M-033 (same layer family, untouched here).

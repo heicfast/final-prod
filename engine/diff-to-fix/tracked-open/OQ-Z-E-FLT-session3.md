@@ -105,3 +105,10 @@ M-019 depends on the answer.
 Decode `FUN_1406f91d0` + the 0x48-byte layout (7 enable-bit groups at dword
 offsets 0/4/8/32/60/64 + one more) — exact per-group semantics, the tag
 vocabulary's source, and the path matching mode.
+
+---
+
+## Session-14 addendum (DFX14 — pushed forward, unchanged)
+
+The session-3 storage/census residuals stand as filed; no new evidence
+this session.

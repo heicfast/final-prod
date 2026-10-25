@@ -699,5 +699,58 @@ u32 self_probe_registry(std::vector<const Signature*>* bad) {
     return failures;
 }
 
+/* ---- M-024 (diff-to-fix): the per-format enable/disable surface ---- */
+
+namespace {
+bool ci_token_eq(const char* tok, size_t len, const char* want) {
+    if (want == nullptr)
+        return false;
+    /* EXACT length: a token must equal the full ext/name - "jpe" is a
+     * prefix of "JPEG" and must NOT match (the first form bounded the
+     * length scan by the token and accepted prefixes). */
+    size_t wl = 0;
+    while (want[wl] != 0)
+        ++wl;
+    if (wl != len)
+        return false;
+    for (size_t i = 0; i < len; ++i) {
+        char a = tok[i], b = want[i];
+        if (a >= 'A' && a <= 'Z')
+            a = char(a - 'A' + 'a');
+        if (b >= 'A' && b <= 'Z')
+            b = char(b - 'A' + 'a');
+        if (a != b)
+            return false;
+    }
+    return true;
+}
+} // namespace
+
+bool carve_token_listed(const char* disabled_list, const char* ext, const char* name) {
+    if (disabled_list == nullptr || *disabled_list == 0)
+        return false;
+    const char* p = disabled_list;
+    while (*p != 0) {
+        while (*p == ',' || *p == ';' || *p == ' ' || *p == '\t')
+            ++p;
+        const char* tok = p;
+        while (*p != 0 && *p != ',' && *p != ';' && *p != ' ' && *p != '\t')
+            ++p;
+        const size_t len = size_t(p - tok);
+        if (len != 0) {
+            if (ci_token_eq(tok, len, ext))
+                return true;
+            if (ci_token_eq(tok, len, name))
+                return true;
+        }
+    }
+    return false;
+}
+
+bool carve_format_listed(const char* disabled_list, const Signature& sig) {
+    return carve_token_listed(disabled_list, sig.ext, sig.name);
+}
+
+
 } // namespace carve
 } // namespace cr

@@ -5,6 +5,36 @@
  * ntfs-engine-internals.md): "in front to survive MFT re-reads economically".
  * Bounded by construction; hit rate reported for benchmarking.
  *
+ * ------------------------------------------------------------------
+ * REGISTERED DIVERGENCE (N-045, PARITY-DELTAS D-72) — do not "fix"
+ * without updating the register + the doc-truth pin test:
+ *
+ *   og budget   : 4 MiB  (DRWUI_decompiled.c:919080-:919092 —
+ *                 CStorageDeviceWithCache sizes its cache count as
+ *                 0x400000 / bytes_per_sector, fallback 0x2000 blocks;
+ *                 ctor :962250-:962292, cache count 1000, constructed
+ *                 once per physical disk, shared across partition scans).
+ *   core budget : 8 MiB at the scan pipe (cr_scan.cpp — 8ull << 20,
+ *                 256 KiB blocks; block size separately registered
+ *                 as D-51).
+ *
+ *   og algorithm: a PREFETCH read-ahead engine — dedicated prefetch
+ *                 thread, 10-run look-ahead window, 1000-sector default
+ *                 runs, CRITICAL_SECTION locking (ctor :962250-:962597).
+ *   core        : reactive true-LRU (this file) — std::mutex, move-to-
+ *                 front eviction; no prefetch thread.
+ *
+ * The 2x budget + reactive LRU are deliberate: the core's cache also
+ * fronts the retry pipe's zero-fill reads and the carve windows, and
+ * the transport-level sweep (bench alignbench, PERFORMANCE-BASELINE
+ * section 5) measured the 256 KiB block curve this budget rides on.
+ * Sequential read-ahead latency-hiding the og gets from its prefetch
+ * thread is provided one layer down by the transport's large reads;
+ * aligning the budget to 4 MiB or adding a prefetch thread is a
+ * benchmark-gated decision (docs/benchmarking.md), not a parity fix.
+ * Pinned by Cached.ScanCacheBudgetIsTheRegisteredDivergence.
+ * ------------------------------------------------------------------
+ *
  * Licensed under the MIT license. See LICENSE.
  */
 

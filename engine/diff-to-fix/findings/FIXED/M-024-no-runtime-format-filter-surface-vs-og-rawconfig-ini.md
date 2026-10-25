@@ -87,3 +87,37 @@ Corpus-doc + decompiled (strengths 3/2): RawConfig.ini quoted above;
 
 Which host component writes RawConfig.ini (DRWUI settings vs. installed default)
 is not decoded; the file in `og-codebase/` is the installed default. Low priority.
+
+## Resolution
+
+**Status:** FIXED
+**Fixed in commit:** (this session's M-024 commit — see `git log` for "fix: M-024")
+**Verified by:** `CarveEngine.FormatDisabledSkipsSignature` ("jpg, JPEG" listed → the
+grammar layer never dispatches the JPEG signature; PNG unlisted still carves),
+`CarveEngine.FormatDisabledRawSignsToo` (the "sample" format disabled → its header
+sign never fires — sign_hits == 0; positive control: the sign fires unlisted), and
+`CarveEngine.AllFormatsEnabledByDefault` (null/empty list = every format enabled;
+the enumeration surface: registry order IS FormatId order; token matching is
+exact-length, case-insensitive, comma/space/semicolon-separated — "jpe" does NOT
+match "JPEG"/"jpg"). Fail-before is construction-level: the tests cannot compile
+against the old CarveFlags (no disable field existed — the S-019 convention for
+capability-absence findings). Full suite 631/631 Linux Release.
+**Resolution notes:** the og's IAnalyserFilter registry-rebuild model
+(FUN_180006b30 :4386-4434 — the removal loop destroys disabled analysers out of the
+working containers) maps onto the core as: `CarveFlags::disabled_formats`
+(comma/space/semicolon-separated extensions or display names, case-insensitive —
+the og's [Filter] keys are name-form: HEIC, WEBM, 7Z...) + `carve_token_listed` /
+`carve_format_listed` (cr_registry.cpp, the tokenizer) + per-layer skip maps built
+once per scan (the grammar layer gates by trial slot BEFORE the first-byte fast
+path; the raw-sign layer filters matches before the best-pick — the og's filter
+removes the analyser so its signs never fire). The fix plan's step 2
+(capability enumeration) is satisfied by the existing stable table order (one
+entry per FormatId; registry()/registry_size() were already public in
+cr_signatures.h) — no new ABI surface needed, N-033's cr_ui-export question stays
+with N-033. Step 3 (consume a config file) is deliberately NOT wired: the og's
+STL/VPJ default-off is HOST policy (the ini), not an engine constant — the core
+ships all formats enabled and the host mirrors og defaults through the new flag;
+registered as D-72 in PARITY-DELTAS. During verification this session's own first
+implementation crashed on an OOB trial-slot array (kTrialCount=65 > a magic 64) —
+caught by the new tests, fixed with a static_assert-bounded array (the defect
+never landed on main).

@@ -384,3 +384,14 @@ closure — no consumer impact.
 - No remote/cloud/NAS surfaces (standing scope exclusion, roadmap).
 - No cancellation through callbacks: the reference separates progress events
   from its scan-abort event; we keep the same separation (§6).
+
+### Query paging + the Type sort (M-029, session 11)
+
+The `cr_ui_query` paging model (offset + limit, default 100) is a HOST-side
+convenience: the reference has NO page-size constant — its results view
+virtualizes at the UI layer (~1000-item incremental tree batches,
+`sigResetStartIdx`; corpus DRWUI decode). The core claims no paging parity
+against it; this is a registered deliberate difference. Sort code 7 (Type)
+mirrors the og's results-view Type column: category in the FileFilter.xml
+iconIndex order (Graphic/Document/Email/Audio/Video/Other/Archive/
+Bookmarks), then extension, then name.

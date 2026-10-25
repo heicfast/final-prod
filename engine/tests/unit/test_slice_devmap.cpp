@@ -41,11 +41,44 @@ TEST(Slice, BoundsEnforced) {
     u8 buf[512];
     EXPECT_EQ(slice->read_at(0, buf, 512), OK);
     EXPECT_EQ(buf[0], u8((10 * 512) & 0xFF));
-    /* read crossing the end - refused */
+    /* read crossing the end - refused. M-032/D-74: the og's virtual
+     * volume CLAMPS + zero-fills tail-crossing reads (HFSPlusSearchDLL
+     * FUN_180009290 :7219-7264: in-bounds prefix + memset tail, call
+     * succeeds); ours refuses the whole read - the registered deliberate
+     * divergence. The engine audit found no reliance on the og contract
+     * (the HFS+ journal ring reads are bounded within the ring; every
+     * other engine reads with explicitly bounded lengths and degrades
+     * gracefully on refusal). The og's tail memset is in SECTOR units
+     * (count-n, :7258) - an under-zeroing defect NOT adopted here. */
     EXPECT_EQ(slice->read_at(20 * 512 - 16, buf, 32), ERR_RANGE_OUT_OF_BOUNDS);
     /* read fully outside */
     EXPECT_EQ(slice->read_at(20 * 512 + 1, buf, 512), ERR_RANGE_OUT_OF_BOUNDS);
     /* read at very end edge - fine */
+    EXPECT_EQ(slice->read_at(20 * 512 - 512, buf, 512), OK);
+}
+
+/* M-032 (diff-to-fix), decision-gate outcome pinned: the slice layer's
+ * tail-crossing refusal is a DELIBERATE divergence from the og's
+ * clamp+zero-fill virtual-volume contract (corpus
+ * HFSPlusSearchDLL_decompiled.c FUN_180009290 :7219-7264, evidence
+ * s3-virtual-volume-device.md section 2). Engine audit this session: no
+ * engine issues crossing reads relying on zero-fill (journal_ring_read
+ * bounds every take within the ring; all other reads are explicitly
+ * bounded; refusals degrade through the damage counters). Registered as
+ * PARITY-DELTAS D-74 - the safer contract stays. */
+TEST(Slice, TailReadRefusalPinned) {
+    auto dev = std::make_unique<MemDevice>(u64(100) * 512);
+    u32 err = 0;
+    auto slice = PartitionSlice::create(dev.get(), 10 * 512, 20 * 512, &err);
+    ASSERT_NE(slice, nullptr);
+    EXPECT_EQ(err, OK);
+    u8 buf[512] = {0};
+    std::memset(buf, 0xAA, sizeof(buf));
+    /* the falsifiable claim from the finding: under the og semantics this
+     * succeeds with 512 zeros past the end; ours refuses */
+    EXPECT_EQ(slice->read_at(20 * 512 - 16, buf, 32), ERR_RANGE_OUT_OF_BOUNDS);
+    EXPECT_EQ(buf[0], u8(0xAA)) << "a refused read never touches the buffer";
+    /* prefix-only reads still succeed */
     EXPECT_EQ(slice->read_at(20 * 512 - 512, buf, 512), OK);
 }
 
@@ -84,4 +117,84 @@ TEST(DevMap, AddMergeSerialize) {
     ASSERT_EQ(m2.ranges().size(), 1u);
     EXPECT_EQ(m2.ranges()[0].offset, 100u);
     EXPECT_EQ(m2.ranges()[0].length, 145u);
+}
+
+/* ---- N-046: geometry refresh after removable-media change ------------- */
+
+namespace {
+/* A parent whose geometry can change mid-session (the removable-reader
+ * swap model). Data backing store is irrelevant here; only geometry is
+ * consumed by create/refresh. */
+class MutableGeomDevice final : public IStorageDevice {
+public:
+    void set_geometry(u32 logical, u32 physical, u64 total_bytes) {
+        geom_.logical_sector = logical;
+        geom_.physical_sector = physical;
+        geom_.total_bytes = total_bytes;
+        geom_.sector_count = logical ? total_bytes / logical : 0;
+    }
+    u32 read_at(u64, void*, u32) override { return OK; }
+    const Geometry& geometry() const override { return geom_; }
+
+private:
+    Geometry geom_{};
+};
+} // namespace
+
+TEST(Slice, GeometryRefreshAfterMediaChange) {
+    /* og FUN_140643870 (DRWUI_decompiled.c:1044889-1044895): the virtual
+     * volume device re-derives its bytes-per-sector from the parent - the
+     * media-change refresh our slice lacked (N-046). Pre-fix behavior
+     * (fail-before by construction: no refresh path existed - the call
+     * did not compile): the slice served the stale 512 snapshot forever. */
+    MutableGeomDevice dev;
+    dev.set_geometry(512, 512, u64(100) * 4096);
+    u32 err = 0;
+    auto slice = PartitionSlice::create(&dev, 10 * 4096, 20 * 4096, &err);
+    ASSERT_NE(slice, nullptr);
+    EXPECT_EQ(err, OK);
+    EXPECT_EQ(slice->geometry().logical_sector, 512u);
+    EXPECT_EQ(slice->geometry().sector_count, u64(20 * 4096) / 512);
+
+    /* the reader swaps: same capacity, 4Kn media */
+    dev.set_geometry(4096, 4096, u64(100) * 4096);
+    /* the stale snapshot is still served until an explicit refresh (the
+     * finding's premise - geometry was frozen at creation) */
+    EXPECT_EQ(slice->geometry().logical_sector, 512u);
+    ASSERT_EQ(slice->refresh_geometry(), OK);
+    EXPECT_EQ(slice->geometry().logical_sector, 4096u);
+    EXPECT_EQ(slice->geometry().physical_sector, 4096u);
+    EXPECT_EQ(slice->geometry().sector_count, u64(20 * 4096) / 4096);
+    EXPECT_EQ(slice->geometry().total_bytes, u64(20 * 4096));
+    /* reads are unaffected: the bound was always in bytes */
+    u8 buf[16];
+    EXPECT_EQ(slice->read_at(0, buf, sizeof(buf)), OK);
+}
+
+TEST(Slice, GeometryRefreshRefusesInvalidatingChange) {
+    /* Registered hardening over the og's blind store (FUN_140643870
+     * returns 1 unconditionally): a media change that invalidates the
+     * slice is REFUSED and the snapshot stays untouched. */
+    MutableGeomDevice dev;
+    dev.set_geometry(512, 512, u64(100) * 4096);
+    u32 err = 0;
+    auto slice = PartitionSlice::create(&dev, 9 * 4096, 20 * 4096, &err);
+    ASSERT_NE(slice, nullptr);
+
+    /* (a) new sector size misaligns the start: 9*4096 % 8192 == 4096 */
+    dev.set_geometry(8192, 8192, u64(100) * 4096);
+    EXPECT_EQ(slice->refresh_geometry(), ERR_BAD_PARAMETER);
+    EXPECT_EQ(slice->geometry().logical_sector, 512u)
+        << "refused refresh leaves the snapshot unchanged";
+
+    /* (b) parent shrank below the slice end */
+    dev.set_geometry(512, 512, 9 * 4096 + 512);
+    EXPECT_EQ(slice->refresh_geometry(), ERR_RANGE_OUT_OF_BOUNDS);
+    EXPECT_EQ(slice->geometry().logical_sector, 512u);
+    EXPECT_EQ(slice->geometry().sector_count, u64(20 * 4096) / 512);
+
+    /* (c) degenerate zero sector size */
+    dev.set_geometry(0, 0, u64(100) * 4096);
+    EXPECT_EQ(slice->refresh_geometry(), ERR_BAD_PARAMETER);
+    EXPECT_EQ(slice->geometry().logical_sector, 512u);
 }

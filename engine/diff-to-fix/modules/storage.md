@@ -37,7 +37,7 @@ orchestrator pipe `src/core/orchestrator/cr_scan.cpp:595-614`.
 | M-017 (= global M-033) | MAJOR | BitLocker: og in-stack decrypt vs our pre-unlock gate — **FIXED (DFX20, findings/FIXED/M-033)** |
 | M-018 | MAJOR | No NAS/remote device layer (CRemoteDevice/EuMrx) |
 | N-025 | MINOR | Cache budget 8 vs 4 MiB |
-| N-026 | MINOR | No geometry refresh path |
+| N-026 (=N-046) | MINOR — **FIXED (session 18, DFX18)** | No geometry refresh path — `PartitionSlice::refresh_geometry()` (og FUN_140643870 RefreshSectorSize-from-parent, DRWUI_decompiled.c:1044889-1044895) with revalidation hardening (misaligned/shrunken/zero-sector media changes refused, snapshot untouched); Slice.GeometryRefreshAfterMediaChange + GeometryRefreshRefusesInvalidatingChange |
 | I-012 | INFO | Deliberate supersets ledger (units, eager validation, error map) |
 
 ## Notes
@@ -68,10 +68,24 @@ storage devices audited here). Findings: M-032/M-033/M-034/N-045/N-046/I-017
 
 | ID | Severity | One-line |
 |---|---|---|
-| N-045 addendum | — | Algorithm divergence added: og CStorageDeviceWithCache is a prefetch read-ahead engine (prefetch thread, 10-run window, 1000-sector runs) vs core reactive true-LRU; cite refreshed to cr_scan.cpp:647 / 256 KiB blocks |
+| N-045 addendum → **FIXED (session 18, DFX18)** | — | Algorithm divergence added: og CStorageDeviceWithCache is a prefetch read-ahead engine (prefetch thread, 10-run window, 1000-sector runs) vs core reactive true-LRU; cite refreshed to cr_scan.cpp:647 / 256 KiB blocks. **Resolution:** budget + algorithm REGISTERED as PARITY-DELTAS D-75 (corpus cites re-verified first-hand: DRWUI_decompiled.c:919080-:919092 `0x400000/sector` + fallback 0x2000; ctor :962250-:962597); divergence block in cr_cached.h; benchmarking.md §4 intent note; doc-truth pin `Cached.ScanCacheBudgetIsTheRegisteredDivergence` (fail-before RED on the pre-fix tree, suite 592/592 after). Finding file in FIXED/. |
 | N-055 | MINOR | Enumeration breadth: og spans WMI+SetupAPI+VDS+StorageSpaces+FunctionDiscovery; core is the PhysicalDrive CreateFileW loop (cr_enumerate.cpp:15-60) |
 
 MATCH/verified registers from the never-cited-files read: cr_elevate's probe is a byte-shape
 twin of DRWUI's elevation check (elevation ACTION is host-side — deliberate, no finding);
 cr_decomp's NTFS LZNT1 parity re-verified (N-058 fixes the stale CAPABILITY-MATRIX claim);
 cr_sha256 is a deliberate core addition (carve ids + writer verify — D-19 side registered).
+
+---
+
+## Session-11 fix row (2026-10-26, DFX11 — M-032 closed by decision)
+
+**M-032 FIXED** (the fix plan's own decision path 1 — no behavior change
+wanted): the slice tail-read refusal stays; the divergence from the og's
+clamp+zero-fill virtual-volume contract (FUN_180009290 :7219-7264) is
+registered D-74 and pinned (Slice.TailReadRefusalPinned + the updated
+BoundsEnforced). Engine audit: no reliance on the og contract (the HFS+
+journal ring reads are bounded within the ring; everything else is
+explicitly bounded; refusals degrade via the damage counters). The
+opt-in clamped-read primitive (path 2) is the documented next step WHEN
+an engine needs it. I-017's register is unchanged; M-033 untouched.

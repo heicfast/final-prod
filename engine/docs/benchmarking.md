@@ -111,6 +111,15 @@ maximum evidence for offline analysis.
 - `refs::RefsScanStats`, `zfs::ZfsScanStats`, ... - per-engine counters
   surfaced by `rrecov scan --json --log`
 
+Cache-budget intent (N-045, PARITY-DELTAS D-72): the scan pipe's
+`CachedReader` runs an 8 MiB / 256 KiB-block reactive LRU where the og's
+`CStorageDeviceWithCache` is a 4 MiB prefetch read-ahead engine
+(DRWUI_decompiled.c:919080-:919092, :962250-:962597). The 2x budget and
+the reactive algorithm are REGISTERED deliberate divergences — the
+transport-level alignbench sweep owns the tuning decision; the budget
+must not drift silently (doc-truth pin:
+`Cached.ScanCacheBudgetIsTheRegisteredDivergence`).
+
 ## Regression baselines
 
 The benchmark workflow is manual-trigger (`workflow_dispatch`) with

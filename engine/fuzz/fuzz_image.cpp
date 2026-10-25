@@ -1,55 +1,74 @@
 /* fuzz_image.cpp - libFuzzer harness for the S-030 disk-image parsers:
  * VMDK (monolithicSparse header + embedded descriptor, standalone text
- * descriptors with FLAT/SPARSE/ZERO extents, grain mapping) and VHD
- * (fixed/dynamic footers, dynamic header, BAT + sector bitmaps), plus
- * the flat fallback and the LBA0 classifier. All input flows through a
- * memory byte source; sibling extent files resolve to fuzz-owned copies
- * of the same bytes (the multi-file path exercises the ops seam).
+ * descriptors with FLAT/SPARSE/ZERO extents, grain mapping, parent chains)
+ * and VHD (fixed/dynamic/differencing footers, dynamic header, BAT +
+ * sector bitmaps), plus VHDX (header pair, region table, metadata, BAT,
+ * log-overlay walk) and the flat fallback + LBA0 classifier. All input
+ * flows through a memory ImageFileIo; sibling extent files resolve to
+ * fuzz-owned copies of the same bytes (the multi-file path exercises the
+ * IO seam), parent chains resolve to the same image (depth-capped).
  *
  * Licensed under the MIT license. See LICENSE.
  */
 
 #include "cr/storage/cr_image.h"
 #include <cstring>
+#include <map>
 #include <memory>
 #include <vector>
 
 namespace {
 
-class FuzzSource final : public cr::storage::ImageByteSource {
+using namespace cr;
+using cr::storage::ImageFileIo;
+
+/* every "file" the parsers ask for is a copy of the fuzz input: extent
+ * data files and parent-chain images resolve deterministically without
+ * inventing content, and the same-bytes recursion exercises the depth
+ * cap on circular parent references. */
+class FuzzIo final : public ImageFileIo {
 public:
-    FuzzSource(const uint8_t* d, size_t n) : d_(d), n_(n) {}
-    uint32_t read(uint64_t at, void* buf, uint32_t len) override {
-        if (at > n_ || uint64_t(len) > n_ - at)
-            return cr::ERR_RANGE_OUT_OF_BOUNDS;
-        if (len)
-            memcpy(buf, d_ + size_t(at), len);
-        return cr::OK;
+    explicit FuzzIo(std::vector<uint8_t> bytes) : bytes_(std::move(bytes)) {}
+    u32 open(const std::u16string&, u32*) override {
+        next_ += 1;
+        open_.insert(next_);
+        return next_;
     }
-    uint64_t size() const override { return n_; }
+    u32 read(u64 file, u64 at, void* buf, u32 len) override {
+        if (!open_.count(file))
+            return ERR_BAD_PARAMETER;
+        if (at > bytes_.size() || u64(len) > bytes_.size() - at)
+            return ERR_TRUNCATED;
+        if (len)
+            memcpy(buf, bytes_.data() + size_t(at), len);
+        return OK;
+    }
+    u64 size(u64 file) const override { return open_.count(file) ? bytes_.size() : 0; }
+    void close(u64 file) override { open_.erase(file); }
 
 private:
-    const uint8_t* d_;
-    size_t n_;
+    std::vector<uint8_t> bytes_;
+    std::map<u64, u64> open_;
+    u64 next_ = 0;
 };
-
-/* every sibling "file" is a copy of the fuzz input: the descriptor's
- * extent lines resolve deterministically without inventing paths */
-uint32_t fuzz_open(void*, const char*, std::unique_ptr<cr::storage::ImageByteSource>& out) {
-    return 1; /* ERR_OPEN_FAILED-equivalent: exercises the no-extent-file
-                 error path for split descriptors */
-}
 
 } // namespace
 
 extern "C" int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size) {
     if (size < 16)
         return 0;
-    std::unique_ptr<cr::storage::ImageByteSource> src(new FuzzSource(data, size));
-    cr::storage::ImageFileOps ops;
-    ops.open = &fuzz_open;
-    std::unique_ptr<cr::IStorageDevice> dev;
-    if (cr::storage::open_image(std::move(src), ops, "/fuzz/", dev) == cr::OK) {
+    FuzzIo io(std::vector<uint8_t>(data, data + size));
+    u32 err = 0;
+    std::unique_ptr<IStorageDevice> dev = storage::open_image(io, u"fuzz.img", &err);
+    /* dispatch through every extension family on the same bytes */
+    if (!dev) {
+        dev = storage::open_image(io, u"fuzz.vmdk", &err);
+        if (!dev)
+            dev = storage::open_image(io, u"fuzz.vhd", &err);
+        if (!dev)
+            dev = storage::open_image(io, u"fuzz.vhdx", &err);
+    }
+    if (dev) {
         /* the device must be readable at a spread of shapes without
          * crashing: whole, head/tail, unaligned, block-boundary probes */
         uint8_t buf[8192];
@@ -59,9 +78,7 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size) {
             (void)dev->read_at(total - sizeof(buf), buf, sizeof(buf));
         (void)dev->read_at(total / 3, buf, 517);
         (void)dev->read_at(total / 2, buf, 4096);
-        (void)cr::storage::classify_boot_layout(dev.get());
-        /* bounds refusal must hold under fuzzed geometry */
-        if (total > 8)
+        if (total > 8) /* bounds refusal must hold under fuzzed geometry */
             (void)dev->read_at(total - 4, buf, 8);
     }
     return 0;

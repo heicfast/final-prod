@@ -361,7 +361,10 @@ u32 parse_disk_table(IStorageDevice* device, DiskTable& out) {
     /* plain MBR (possibly with EBR chain) */
     out.layout = TableLayout::Mbr;
     u64 ebr_base = 0;
-    bool has_ebr = false;
+    bool has_ebr = false; /* N-057: flips the layout to Ebr below - the
+                           * extended chain is a first-class classification
+                           * in the og's partition model (MOM Partition.md),
+                           * and the ABI surfaces it as the appended code 3 */
     for (int i = 0; i < 4; ++i) {
         const MbrPartitionEntry& e = mbr.entries[i];
         if (!mbr_entry_used(e))
@@ -392,6 +395,11 @@ u32 parse_disk_table(IStorageDevice* device, DiskTable& out) {
         std::vector<PartitionInfo> ext;
         u64 break_lba = 0;
         u32 rc = parse_ebr_chain(device, ebr_base, ext, &break_lba);
+        /* N-057: an extended chain makes the EBR layout the table's
+         * classification (the og models EBR/extended as a first-class
+         * layout; ebr_status carries the chain's integrity separately).
+         * Plain 4-primary MBR disks keep TableLayout::Mbr. */
+        out.layout = TableLayout::Ebr;
         /* M-002 (diff-to-fix): salvage-over-purity — the volumes already
          * walked are NEVER discarded on a torn link. The og's lost-volume
          * discovery does not gate on EBR-chain integrity (Partition.mo's

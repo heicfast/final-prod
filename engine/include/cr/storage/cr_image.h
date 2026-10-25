@@ -1,24 +1,48 @@
 /*
- * cr_image.h - disk-image scan targets (S-030): file-backed storage
- * devices with per-format parsing (flat / VMDK sparse / VHD dynamic).
+ * cr_image.h - disk-image scan targets (S-030).
  *
- * Corpus lineage: the og treats image FILES as first-class scan targets.
- * DRWUI's import flow dispatches on extension to per-format backends
- * (edisk, vhdx, vmdk, vhd) with a flat-file fallback for raw/.img
- * (FUN_1405b3410 :948237-948409; the flat fallback CreateFileW +
- * GetFileSizeEx :948389-948393), reads LBA0 and classifies MBR/GPT
- * (FUN_140178250 :275877-275880). Device.mo's VMDK block device reads
- * through libvmdk at 512-byte sector granularity incl. extent files and
- * parent chains (FUN_1800545c0 :49106-49124, FUN_180054120
- * :48965-49100). This module re-implements that surface from format
- * understanding - no libvmdk, no decompiled code.
+ * The og treats disk-image FILES as first-class scan targets: DRWUI's
+ * "Import a disk image" flow dispatches on extension to per-format backends
+ * (edisk/vhdx/vmdk/vhd) with a flat-file fallback for unrecognized
+ * extensions (.img/.dmg/raw) - corpus
+ * re-workspace/reversed/ghidra-drwui/DRWUI_decompiled.c :948237-948409
+ * ("edisk"->FUN_1400dafc0 :948270, "vhdx"->CVHDXDisk :948293,
+ * "vmdk"->VmdkDevice :948311, "vhd"->CVHDDisk :948347; flat fallback
+ * CreateFileW + GetFileSizeEx :948389-948393), reads LBA0 (0x1000 bytes)
+ * and classifies MBR/GPT (:275877-275880), and Device.mo exposes a
+ * libvmdk-backed VMDK block device with extent files and parent chains
+ * (Device_decompiled.c :49106-49124, :48965-49100).
  *
- * Layering: the core stays OS-header-free - every byte flows through the
- * injected ImageByteSource/ImageFileOps seams (the CLI and the UI shim
- * provide FILE-backed sources; tests and the fuzz harness provide
- * memory sources). VHDX and the proprietary edisk/Apple dmg containers
- * are out of scope v1 (tracked in the finding's Resolution +
- * PARITY-DELTAS for the deliberate exclusions).
+ * This module is the clean-room equivalent, in the pure core:
+ *   - ImageFileIo is the injected raw-file IO (Win32 implementation in the
+ *     platform layer; in-memory implementation in tests) - the core stays
+ *     free of OS headers.
+ *   - open_image() dispatches exactly like the og: extension first, then
+ *     content verification. A .vmdk/.vhd/.vhdx that fails its magic check
+ *     is an error (the og's embedded parser: "Unsupported or corrupt VMDK
+ *     (magic mismatch)", DRWUI:978668), NOT a silent flat fallback.
+ *   - .img/.dmg/raw/unknown extensions take the flat-file fallback exactly
+ *     like the og (the og does NOT parse Apple UDIF for .dmg - it opens
+ *     the file raw; parity means we do the same).
+ *   - .edisk (EaseUS Todo-Backup proprietary format, undecoded in the
+ *     corpus) is a registered deliberate exclusion: refused with
+ *     ERR_UNSUPPORTED (see docs/PARITY-DELTAS.md).
+ *
+ * Formats implemented (read-only, evidence integrity preserved):
+ *   - Flat raw (any size, 512-byte logical sectors)
+ *   - VMDK: monolithicSparse + descriptor-with-extent-files (FLAT and
+ *     SPARSE extents, version 1/2/3 sparse headers, grain directory /
+ *     grain table translation at 512-byte sectors like libvmdk), plus
+ *     differencing chains via parentFileNameHint (depth-capped).
+ *     streamOptimized (compressed) extents are refused (ERR_UNSUPPORTED).
+ *   - VHD: fixed + dynamic + differencing (footer/dynamic-header/BAT,
+ *     512-byte sector-bitmap per block, parent chains via W2KU/W2RU
+ *     locators, depth-capped).
+ *   - VHDX: dynamic (header pair, region table, metadata, BAT with the
+ *     chunk-ratio sector-bitmap interleave) with a READ-ONLY in-memory
+ *     log replay overlay (a recovery tool never rewrites its input;
+ *     qemu itself refuses read-only opens with a valid log sequence -
+ *     we instead serve the logged bytes from the log region).
  *
  * Licensed under the MIT license. See LICENSE.
  */
@@ -28,72 +52,63 @@
 
 #include "cr_device.h"
 #include <memory>
+#include <string>
 
 namespace cr {
 namespace storage {
 
-/* ---- byte sources (host-provided) -------------------------------------- */
-
-/* A seekable read-only byte source. Contract: read fills exactly len
- * bytes or returns an error (ERR_READ_FAILED / ERR_RANGE_OUT_OF_BOUNDS);
- * engines never see the source, only the device over it. Hosts provide
- * FILE*-backed sources (UTF-8 paths); tests/fuzz provide memory. */
-class ImageByteSource {
+/* Raw-file IO seam (the platform layer owns real files; tests own memory).
+ * Handles are nonzero ids valid until close(); open returns 0 on failure. */
+class ImageFileIo {
 public:
-    virtual ~ImageByteSource() = default;
-    virtual u32 read(u64 at, void* buf, u32 len) = 0;
-    virtual u64 size() const = 0;
+    virtual ~ImageFileIo() = default;
+    /* open a file by UTF-16 path; 0 = failure (err carries the code) */
+    virtual u32 open(const std::u16string& path_utf16, u32* err) = 0;
+    /* exact-size read; OK fills len bytes, else an error code */
+    virtual u32 read(u64 file, u64 offset, void* buffer, u32 len) = 0;
+    virtual u64 size(u64 file) const = 0;
+    virtual void close(u64 file) = 0;
 };
 
-/* Opener for SIBLING files a multi-file image references (VMDK extent
- * files, resolved relative to the descriptor's directory). The platform
- * owner (CLI / UI / test) supplies this; open_image never invents paths. */
-struct ImageFileOps {
-    u32 (*open)(void* user, const char* utf8_path, std::unique_ptr<ImageByteSource>& out);
-    void* user = nullptr;
-    bool valid() const { return open != nullptr; }
+/* Detected image container (classification mirrors the og's extension
+ * dispatch; INFO only - never changes read semantics). */
+enum class ImageFormat : u32 {
+    Flat = 0, /* .img/.dmg/.raw/unknown - the og's flat fallback */
+    Vmdk = 1,
+    Vhd = 2,
+    Vhdx = 3,
 };
 
-/* ---- format dispatch ---------------------------------------------------- */
+/* LBA0 layout classification - the og reads the first 0x1000 bytes and
+ * classifies MBR/GPT at device construction (DRWUI:275877-275880). */
+enum class Lba0Layout : u32 {
+    Unknown = 0,
+    Mbr = 1, /* 0x55AA at 510, no GPT signature */
+    Gpt = 2, /* "EFI PART" at 512 (protective MBR optional) */
+};
 
-enum class ImageFormat : u8 { Flat = 0, Vmdk, Vhd, Vhdx, Edisk, Unknown };
+/* S-030 image error codes (0x500A family - see cr_error.h). */
 
-/* Content sniff over the first bytes of the image (extension-independent
- * truth; the og's factory dispatches on extension but every backend
- * validates content first - "Unsupported or corrupt VMDK (magic
- * mismatch)", DRWUI :978668). */
-ImageFormat sniff_image_format(const u8* first_bytes, size_t n);
+/* Open an image file as a storage device. The returned device is
+ * self-contained: it holds every file handle it needs (extent files,
+ * parent-chain images) until destruction. Errors: ERR_BAD_MAGIC (extension
+ * says vmdk/vhd/vhdx but content does not verify), ERR_BAD_CHECKSUM
+ * (footer/header checksum mismatch), ERR_TRUNCATED (structural metadata
+ * beyond EOF), ERR_UNSUPPORTED (.edisk, compressed VMDK extents, VHDX
+ * differencing), ERR_DEPTH_LIMIT (parent chain too deep), ERR_OPEN_FAILED /
+ * ERR_READ_FAILED (IO), ERR_BAD_PARAMETER (structural nonsense). */
+std::unique_ptr<IStorageDevice> open_image(ImageFileIo& io, const std::u16string& path_utf16,
+                                           u32* err);
 
-/* Build the scan device over an image source.
- *
- *  - Flat: the whole source (sector-granular bound, like every device
- *    here - sub-sector tail bytes are not addressable).
- *  - Vmdk: a monolithicSparse image (embedded descriptor, the source is
- *    the extent) or a standalone text descriptor whose extent lines
- *    (FLAT / SPARSE / ZERO) are opened via `ops` relative to
- *    `utf8_base_dir`. Sparse extents read through the grain-directory /
- *    grain-table mapping; unallocated grains read as zeros.
- *  - Vhd: fixed (data minus the trailing footer) or dynamic (BAT +
- *    per-block sector bitmaps); unallocated blocks read as zeros.
- *
- * Errors: ERR_BAD_MAGIC (a recognizable container with a bad header),
- * ERR_UNSUPPORTED (VHDX/edisk/dmg containers, VMDK parent chains /
- * compressed grains / VMFS extent types, VHD differencing disks),
- * ERR_OPEN_FAILED / ERR_READ_FAILED (io), ERR_BAD_PARAMETER.
- *
- * v1 scope honesty (tracked in the S-030 Resolution): no VMDK parent
- * chains (differencing), no compressed grains, no VHDX. */
-u32 open_image(std::unique_ptr<ImageByteSource> src, const ImageFileOps& ops,
-               const char* utf8_base_dir, std::unique_ptr<IStorageDevice>& out);
+/* The extension/format classification the og's factory performs
+ * (DRWUI:948237-948409). Pure function over the path. */
+ImageFormat classify_extension(const std::u16string& path_utf16);
 
-/* ---- the og's LBA0 classification ---------------------------------------
- * FUN_140178250 reads the first 0x1000 bytes and classifies the layout
- * (MBR vs GPT); one sector of the MBR plus the protective-entry check
- * carries the same truth. */
-enum class BootLayout : u8 { Unknown = 0, Mbr, Gpt };
-BootLayout classify_boot_layout(IStorageDevice* dev);
+/* LBA0 classification (see Lba0Layout). len must be >= 512; shorter
+ * buffers classify as Unknown. */
+Lba0Layout classify_lba0(const u8* lba0, size_t len);
 
 } // namespace storage
 } // namespace cr
 
-#endif /* CR_IMAGE_H_ */
+#endif // CR_IMAGE_H_

@@ -159,12 +159,16 @@ sub-claim was corrected (u8 domain false positive — see modules/fat.md).
 New rows on this module's surface (full detail in
 `modules/mom-capabilities.md`):
 
-- **APPLY path (the recovery endgame)** — `S-029` (SEVERE): the og writes
-  the recovered partition into the table (RecoveryModule
+- **APPLY path (the recovery endgame)** — `S-029` **FIXED (s10)**: the og
+  writes the recovered partition into the table (RecoveryModule
   `CreateRecoveryPartitionObject` → PartitionRecovery.dll IOCTL chain
-  0x7C100/0x7C010/0x7C058 + GPT GUID regen); the core is contractually
-  read-only (cr_lostpart.h:91-92). Scope decision required: implement
-  consent-gated apply or register the exclusion.
+  0x7C100/0x7C010/0x7C058 + GPT GUID regen); the core implemented the
+  scope decision as a consent-gated apply module (cr/apply:
+  plan/execute/undo on the rawfixer seams, A1-A4 safety standard, MBR v1,
+  GPT + boot-chain refused cleanly, PARITY-DELTAS D-68/D-69) surfaced as
+  `rrecov apply --disk N --session F --candidate N [--apply]`. 10 tests;
+  suite 590/590. The materializer stays read-only BY DESIGN (the
+  content-recovery path never needed writes).
 - **S-006's FATX scoped remainder** — RESOLVED: no Xbox FATX parser exists
   in the og; `CFatxBlockParser` is the FAT12/16/32 boot parser ("Fatx" =
   FAT-x), and its accept gates diverge from the core's on six specific

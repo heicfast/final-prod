@@ -36,6 +36,22 @@ public:
     const Geometry& geometry() const override { return geom_; }
     u64 absolute_base() const override { return start_; }
 
+    /* N-046 (og FUN_140643870, DRWUI_decompiled.c:1044889-1044895: the
+     * virtual volume device re-derives its bytes-per-sector from the
+     * parent's vtable call and stores it - the removable-media-change
+     * refresh; HFS twin :7163-7177). Re-reads the parent geometry and
+     * recomputes this slice's derived fields (total_bytes stays the
+     * slice length; sector_count re-floors). Revalidates first: if the
+     * new geometry invalidates the slice (zero sector size, start no
+     * longer parent-aligned, or the slice no longer fits the parent)
+     * the refresh is REFUSED with the error and the snapshot stays
+     * unchanged - a registered hardening over the og's blind store
+     * (FUN_140643870 returns 1 unconditionally). The orchestrator does
+     * NOT auto-call this: the corpus exposes the method but no caller
+     * on the scan path (media-change detection is transport-layer;
+     * read failures surface through the error map either way). */
+    u32 refresh_geometry();
+
     IStorageDevice* parent() const { return parent_; }
     u64 start() const { return start_; }
     u64 length() const { return length_; }

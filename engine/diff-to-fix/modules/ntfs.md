@@ -397,7 +397,7 @@ was re-verified line-by-line against the corpus; three corrections landed:
 
 ## Session-5 addendum (2026-10-26, audited `7cf6754`)
 
-- **Content-proof recognition + scanner backup-boot** — `M-043` (MAJOR):
+- **Content-proof recognition + scanner backup-boot — `M-043` FIXED (s10):** open() falls back to the volume-end backup DBR (boot_from_backup flag; repair stays consent-gated); probe_family requires FILE magic at $MFT LCN. TornPrimaryBackupBootScans/TornPrimaryShapeBackupBootScans/BackupBadFallsBackToRefusal/BootFromBackupFlagged/SpoofedOemRejectedEarly; suite 600/600. findings/FIXED/M-043. ~~original text:
   the og's NTFSFileSystemAnalyser verifies the volume-end backup boot
   sector and requires the $Volume MFT signature before recognition; the
   core's probe_family is boot-bytes-only and NO scanner path reads the
@@ -438,10 +438,12 @@ the hard-link emission model now matches the og by default.
 
 **M-008 FIXED** (with the premise corrected against the corpus):
 `WalkerFlags::single_hop_attrlist` (default FALSE = the multi-hop BFS
-superset, D-66 — the finding's own recommendation); TRUE = og parity
+superset, D-73 — the finding's own recommendation); TRUE = og parity
 (depth-1, corpus FUN_180041df0 :52615-52687). The deleted-gate premise
 was STALE: FUN_18001acc0 is the GUID-DUMP pass 2 (S-012's decode), not a
 deleted-phase walk; pass 1 (FUN_180017390) emits every record AND builds
 the child-record list (:18461-18464, plVar9 non-NULL) — the og chases
 deleted records at depth 1 too. OQ-S2A-1 resolved by the same evidence;
 OQ-S2A-4 ($MFT bootstrap depth) stays open. 3 tests; suite 593/593.
+
+- **M-043 (s5b):** FIXED (s14) — the recognition content proof landed at probe_family (the og analyser boundary); the "backup-boot fallback missing" half was corpus-disproven (the analyser memcmp-verifies the backup as the repair input only; NTFSSearchDLL never reads it) and corrected in the finding.

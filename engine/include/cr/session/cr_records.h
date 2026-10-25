@@ -38,7 +38,8 @@ namespace session {
  *   if full: u16 role_len + role bytes + stats (u64 x4)
  * Container: u32 node_count header + nodes. */
 u32 serialize_tree(const tree::ResultTree& tree, std::vector<u8>& out);
-u32 deserialize_tree(const u8* data, size_t len, tree::ResultTree& tree);
+u32 deserialize_tree(const u8* data, size_t len, tree::ResultTree& tree,
+                      u32* reparented_out = nullptr);
 
 /* ---- read error map (REC_ERROR_MAP payload) ---- */
 u32 serialize_error_map(const ReadErrorMap& map, std::vector<u8>& out);

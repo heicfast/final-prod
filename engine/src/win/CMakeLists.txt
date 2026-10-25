@@ -1,6 +1,7 @@
 # src/win - Windows-only platform layer (MSVC).
 add_library(cr_win STATIC
     cr_transport.cpp
+    cr_image_win.cpp
     cr_enumerate.cpp
     cr_bitlocker.cpp
     cr_health.cpp

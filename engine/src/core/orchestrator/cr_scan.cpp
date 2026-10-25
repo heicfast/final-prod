@@ -13,8 +13,10 @@
  */
 
 #include "cr/orchestrator/cr_scan.h"
+#include "cr/cr_bits.h"
 #include "cr/btrfs/cr_btrfs_engine.h"
 #include "cr/carve/cr_carve.h"
+#include "cr/cr_bits.h"
 #include "cr/cr_parallel.h"
 #include "cr/exfat/cr_exfat_engine.h"
 #include "cr/ext4/cr_ext4_engine.h"
@@ -477,8 +479,46 @@ FsFamily ScanController::probe_family(IStorageDevice* slice) {
     u8 sec[512];
     if (slice->read_at(0, sec, 512) != OK)
         return FsFamily::Unknown;
-    if (std::memcmp(sec + 3, "NTFS    ", 8) == 0)
-        return FsFamily::Ntfs;
+    if (std::memcmp(sec + 3, "NTFS    ", 8) == 0) {
+        /* M-043 (the confirmed half): the og's analyser proves NTFS by
+         * content BEFORE the engine - the boot gates (bps 512-multiple
+         * <= 0x1000, SPC pow2 nonzero; FUN_180005470 :4292-4307, decode
+         * re-verified first-hand this session) then the first-records
+         * probe with per-record validation (FILE magic + USA count < 0x11
+         * + USA offset in [0x2a, 0x2a+0xd7); FUN_180005180 :4038-4058).
+         * The cheap form here: record 0's magic + USA bounds after a
+         * plausible-geometry check ($MFT LCN u64@0x30 per the spec-exact
+         * wire struct - kernel NTFS_BOOT_SECTOR layout: total_sectors
+         * occupies 0x28; spc u8@0x0D, bps u16@0x0B). A spoofed OEM on a non-NTFS sector no longer
+         * dispatches the engine - the og's analyser bails the same way
+         * (it never reaches result 4). Failure falls through to the
+         * remaining family probes. NOTE (M-043 corrected half, corpus-
+         * proven): the og has NO scan-path backup-boot fallback - the
+         * analyser only memcmp-verifies the volume-end backup against
+         * the primary and stores the verified location (+0x510) as the
+         * REPAIR input; neither it nor NTFSSearchDLL (zero backup reads
+         * in the decompile) ever scans from the backup. The core's
+         * consent-gated rawfixer owns that path. */
+        const u16 bps = u16_from_bytes_le(sec + 0x0B);
+        const u8 spc = sec[0x0D];
+        const u64 mft_lcn = le64(sec + 0x30); /* $MFT LCN (0x28 is total_sectors) */
+        if (bps >= 512 && bps <= 0x1000 && (bps % 512) == 0 && spc != 0 &&
+            (spc & (spc - 1)) == 0 && mft_lcn != 0) {
+            const u64 at = mft_lcn * u64(spc) * bps;
+            u8 rec[512]; /* the USA fields live in record 0's first sector */
+            if (slice->read_at(at, rec, sizeof(rec)) == OK &&
+                std::memcmp(rec, "FILE", 4) == 0) {
+                /* spec offsets: USA offset u16@0x04, USA count u16@0x06 (the
+                 * og's bounds: count in [1,0x11), offset in [0x2a,0x201) —
+                 * FUN_180005180 :4038-4058) */
+                const u16 usa_off = u16_from_bytes_le(rec + 0x04);
+                const u16 usa_cnt = u16_from_bytes_le(rec + 0x06);
+                if (usa_cnt != 0 && usa_cnt < 0x11 && usa_off >= 0x2a && usa_off < 0x2a + 0xd7)
+                    return FsFamily::Ntfs;
+            }
+        }
+        /* content proof failed: not NTFS by proof - fall through */
+    }
     if (std::memcmp(sec + 3, "EXFAT   ", 8) == 0)
         return FsFamily::Exfat;
     /* ReFS: OEM "ReFS" + the DBR bytes-per-sector field (u32 @+0x20 == 512,
@@ -504,10 +544,49 @@ FsFamily ScanController::probe_family(IStorageDevice* slice) {
                 return FsFamily::Hfsplus;
         }
     }
-    /* FAT: bytes-per-sector sane + 55AA */
+    /* UDF (M-044): the og's CFatVolumeAnalyser probes UDF BEFORE FAT
+     * classification (FATFileSystemAnalyser_decompiled.c FUN_180002580
+     * :1413-1435, re-verified first-hand against the corpus). The probe,
+     * exactly the og's arithmetic:
+     *  - fast-reject: boot bytes[0..2] ALL non-zero (jump code) -> the
+     *    og's ||-short-circuit skips the probe entirely (a FAT/NTFS boot
+     *    sector never touches the UDF path);
+     *  - read one sector at volume start + 0x100 sectors (the UDF spec
+     *    Anchor Volume Descriptor Pointer at LBA 256);
+     *  - read one sector at volume start + u32@(AVDP + 0x14) (the
+     *    ECMA-167 MainVolumeDescriptorSequenceExtent location field);
+     *  - classify UDF iff bytes[0x19..0x1b] == "UDF" (the og's analyser
+     *    result 0xc). Both reads go through the slice contract, so a
+     *    truncated/foreign device fails the probe clean (the og's fail
+     *    path) instead of guessing. Sector units: the og reads device
+     *    sectors through its IStorageDevice vtable; our logical_sector
+     *    is the same quantity (512 or 4096 on real transports).
+     * No engine dispatch follows on either side (no UDF SearchDLL exists
+     * in the og's 9-engine set) - the default dispatch yields nothing
+     * for quick/deep and carve recovers content by signature. */
+    if (sec[0] == 0 || sec[1] == 0 || sec[2] == 0) {
+        const u32 ss = slice->geometry().logical_sector;
+        if (ss >= 512 && ss <= 4096) {
+            u8 anchor[4096];
+            if (slice->read_at(u64(0x100) * ss, anchor, ss) == OK) {
+                const u32 vds_lba =
+                    u32(anchor[0x14]) | (u32(anchor[0x15]) << 8) | (u32(anchor[0x16]) << 16) |
+                    (u32(anchor[0x17]) << 24);
+                u8 vds[4096];
+                if (slice->read_at(u64(vds_lba) * ss, vds, ss) == OK && vds[0x19] == 'U' &&
+                    vds[0x1a] == 'D' && vds[0x1b] == 'F')
+                    return FsFamily::Udf;
+            }
+        }
+    }
+    /* FAT: bytes-per-sector sane + 55AA + numFATs != 0 (the og FAT
+     * analyser's gate - M-045's landed corpus set; an NTFS BPB has zeros
+     * at 0x10-0x27, so a spoofed-NTFS boot falling through after a failed
+     * content proof must NOT land here: the og's FAT analyser refuses it
+     * the same way and the family result is Unknown). */
     if (sec[510] == 0x55 && sec[511] == 0xAA) {
         const u16 bps = u16_from_bytes_le(sec + 0x0B);
-        if (bps >= 512 && bps <= 4096 && (bps & (bps - 1)) == 0)
+        if (sec[0x10] != 0 && bps >= 512 && bps <= 4096 && (bps & (bps - 1)) == 0)
             return FsFamily::Fat;
     }
     /* ext2/3/4: superblock magic at byte offset 1024+0x38 */
@@ -644,7 +723,12 @@ u32 ScanController::run(IStorageDevice* slice, CancelToken* cancel, bool (*progr
      * over-fetch on random misses (FAT deleted-chain walks) at 4x. The
      * transport-level sweep (bench/tools/alignbench, PERFORMANCE-BASELINE
      * section 5) measures the full curve; tune on its data. Cache stays
-     * 8 MiB total (capacity = 32 blocks). */
+     * 8 MiB total (capacity = 32 blocks). The 8-vs-4 MiB budget AND the
+     * reactive-LRU-vs-og-prefetch-thread algorithm are REGISTERED
+     * deliberate divergences (N-045, PARITY-DELTAS D-72; og cites:
+     * DRWUI_decompiled.c:919080-:919092 budget 0x400000/sector,
+     * :962250-:962597 prefetch engine) — pinned by
+     * Cached.ScanCacheBudgetIsTheRegisteredDivergence. */
     auto cached = CachedReader::create(std::move(retry), 8ull << 20, 256 * 1024);
     IStorageDevice* pipe = cached ? static_cast<IStorageDevice*>(cached.get())
                                   : (retry_raw ? static_cast<IStorageDevice*>(retry_raw) : slice);

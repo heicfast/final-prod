@@ -28,3 +28,15 @@ criterion for any future chunking change.
 RESOLVED when the comparative bench reports both strategies' MB/s, time-to-first-
 result, and CPU on the same fixture set; record the verdict in M-030's Resolution
 addendum. UNVERIFIED-BY-EXECUTION until then.
+
+---
+
+## Session-14 addendum (DFX14 — pushed forward, not resolvable this session)
+
+The question is Windows-hardware by nature (64 KiB direct-I/O vs 4/7 MiB
+buffered-synchronous chunks). Not resolvable from the Linux container; the
+standing acceptance path is the Windows bench lane (bench/ours/run-ours.ps1
++ alignbench on the seeded fixtures, Windows CI verification). No new
+evidence this session; the next concrete step is unchanged and precise:
+run the paired bench on the Windows lane and record the numbers in this
+file + SUMMARY's performance section.

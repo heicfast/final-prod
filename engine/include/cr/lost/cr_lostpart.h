@@ -88,8 +88,11 @@ enum class Overlap : u8 { None = 0, Inside, Overlaps, Contains };
 
 Overlap classify_overlap(u64 start, u64 count, const std::vector<table::PartitionInfo>& known);
 
-/* Materialize a candidate as a bounded virtual volume (R3.2: read-only,
- * the user's table is never repaired). */
+/* Materialize a candidate as a bounded virtual volume: the READ-ONLY
+ * recovery path (scanning a lost volume's content without touching the
+ * user's table). S-029 adds the WRITE path as a separate consent-gated
+ * module (cr/apply/cr_apply.h: plan_apply/execute_apply - MBR entry,
+ * transactional, undoable); this materializer stays read-only by design. */
 std::unique_ptr<PartitionSlice> materialize(IStorageDevice* disk, const Candidate& c);
 
 } // namespace lost

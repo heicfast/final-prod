@@ -146,3 +146,25 @@ skip-forward container, Confidence grading, allocated_size, changed-time, stage-
 | ID | Verdict |
 |---|---|
 | M-047 | **FIXED** — refresh_stats is recursive (the og's +0x58 accumulator semantics; iterative DFS, no depth risk; S-032 inner-entry rows count as tree rows); the reader stores the persisted 4×u64 root stats (the "reader stores the image directly" trust model, rsf-format :318-320); the load-time recompute runs only on partial loads (corruption salvage). 3 fail-before tests. |
+
+---
+
+## Session-11 fix row (2026-10-26, DFX11 — M-050 + N-058 closed, one loader change)
+
+**M-050 FIXED** (findings/FIXED/M-050): carrier audit re-scoped post
+S-023/M-051/M-047 — grade+overlap, provenance, root stats, short names
+were ALREADY carried (the schema debt this finding predicted was paid by
+those landings); now pinned by Session.GradeRoleAndProvenanceRoundTrip +
+Session.OldFormatStillLoads (the forward-compat guard). Roles persist as
+u16 strings (richer than the og's root-role u32 pair). Deliberate
+NOT-PERSISTED, OQ-tracked: the hidden-root bit (no in-memory concept),
+f_6c/f_68 sentinels + f_71 enum (undecoded in the corpus).
+
+**N-058 FIXED** (same change, per M-050's plan step 2): (a) forward
+parent references deferred + resolved post-loop, the never-resolving
+count surfaced via the new optional deserialize_tree out-param
+`reparented_out`; (b) marker outside {0,1} fails the record (never
+normalized to a light node); (c) c.fail alone fails the load (a degraded
+final node no longer loads as OK); (d) name AND full-node role lengths
+bounds-checked BEFORE allocation (the hostile 128 KiB-per-node resize
+gone). 6 tests; suite 602/602.

@@ -76,9 +76,49 @@ void put64(u8* p, u64 v) {
     put32(p, u32(v));
     put32(p + 4, u32(v >> 32));
 }
+u64 get64(const u8* p) {
+    return u64(u32(p[0]) | (u32(p[1]) << 8) | (u32(p[2]) << 16) | (u32(p[3]) << 24)) |
+           (u64(u32(p[4]) | (u32(p[5]) << 8) | (u32(p[6]) << 16) | (u32(p[7]) << 24)) << 32);
+}
 
-/* ---- blkptr construction (OpenZFS spa.h packing) ---- */
-void make_bp(u8* bp, u64 offset, u64 psize, u64 lsize, u32 compress) {
+/* ---- blkptr construction (OpenZFS spa.h packing) ----
+ * M-019: every fixture bp now carries a REAL fletcher4 checksum (type
+ * 7) stamped over the raw on-disk bytes - real pools are
+ * checksum-carrying, and the engine's verify gate (the og's
+ * ZfsSearchDLL :18076 `(zc==7)||(zc==0)` + :18117 32-byte memcmp)
+ * rejects bps whose stored checksum does not match their data. The
+ * fixture's fletcher4 below is the STRAIGHTFORWARD textbook loop - an
+ * encoding path INDEPENDENT of the engine's interleaved port (two
+ * encodings of ground truth must agree; the paired tests fail if
+ * either side drifts). */
+void fletcher4_ref(const u8* p, size_t len, u64 out[4]) {
+    u64 a = 0, b = 0, c = 0, d = 0;
+    for (size_t i = 0; i + 4 <= len; i += 4) {
+        u32 w;
+        memcpy(&w, p + i, 4);
+        a += w;
+        b += a;
+        c += b;
+        d += c;
+    }
+    out[0] = a;
+    out[1] = b;
+    out[2] = c;
+    out[3] = d;
+}
+void stamp_fletcher4(u8* bp, const u8* raw_data, size_t psize) {
+    u64 ck[4];
+    fletcher4_ref(raw_data, psize, ck);
+    put64(bp + 96, ck[0]);
+    put64(bp + 96 + 8, ck[1]);
+    put64(bp + 96 + 16, ck[2]);
+    put64(bp + 96 + 24, ck[3]);
+    /* checksum type 7 (fletcher4) in prop bits 40-47 */
+    const u64 prop = (get64(bp + 48) & ~(0xFFull << 40)) | (7ull << 40);
+    put64(bp + 48, prop);
+}
+void make_bp(u8* bp, u64 offset, u64 psize, u64 lsize, u32 compress,
+             const std::vector<u8>* img = nullptr) {
     memset(bp, 0, 128);
     /* DVA0: w0 = vdev(24b)<<32 | asize>>9 ; w1 = offset>>9
      * (spa.h DVA_SET_VDEV writes bits 32..55 of word 0) */
@@ -90,6 +130,8 @@ void make_bp(u8* bp, u64 offset, u64 psize, u64 lsize, u32 compress) {
                      (u64(compress) << 32);
     put64(bp + 48, prop);
     put64(bp + 72, TXG); /* birth */
+    if (img)
+        stamp_fletcher4(bp, img->data() + offset, size_t(psize));
 }
 
 /* ---- dnode construction (OpenZFS dnode.h) ---- */
@@ -341,7 +383,7 @@ struct NvBuf {
     }
 };
 
-std::vector<u8> build_pool() {
+std::vector<u8> build_pool(const char* vdev_type = "disk") {
     std::vector<u8> d(size_t(IMG), 0);
 
     /* ---- the objdir ZAP: "root_dataset" -> dsl_dir object 2 ----
@@ -359,7 +401,7 @@ std::vector<u8> build_pool() {
         {
             u8 dn[512];
             make_dnode(dn, 1 /* OBJECT_DIRECTORY */, 0, 1 /* 512B */, 1, 1, 0);
-            make_bp(dn + 64, B_OBJDIR_ZAP, 512, 512, 0);
+            make_bp(dn + 64, B_OBJDIR_ZAP, 512, 512, 0, &d);
             memcpy(blk.data() + 512, dn, 512);
         }
         /* object 2 at slot 2: dsl_dir dnode (dsl_dir_phys: head_dataset_obj
@@ -386,7 +428,7 @@ std::vector<u8> build_pool() {
         /* fix object 3's blkptr to the child zap */
         {
             u8* dn = d.data() + B_MOS_DNODES + 3 * 512;
-            make_bp(dn + 64, B_MOS_DNODES + 4096, 512, 512, 0);
+            make_bp(dn + 64, B_MOS_DNODES + 4096, 512, 512, 0, &d);
         }
         /* object 4 at slot 4: head dataset dnode (bonus bp@128 -> ZPL) */
         {
@@ -394,7 +436,7 @@ std::vector<u8> build_pool() {
             make_dnode(dn, 16 /* DSL_DATASET */, 16, 1, 1, 1, 256);
             u8* bonus = dn + 64 + 128;
             u8 bp[128];
-            make_bp(bp, B_ZPL, 4096, 4096, 0); /* ZPL objset block */
+            make_bp(bp, B_ZPL, 4096, 4096, 0); /* ZPL objset block - forward ref: stamped after the ZPL block lands */
             memcpy(bonus + 128, bp, 128);
         }
         /* object 5 at slot 5: nested dsl dir (no children, head 6) */
@@ -418,7 +460,7 @@ std::vector<u8> build_pool() {
         std::vector<u8> os(2048, 0);
         u8* meta = os.data();
         make_dnode(meta, 10 /* DNODE */, 0, 8 /* 4096B */, 1, 1, 0);
-        make_bp(meta + 64, B_MOS_DNODES, 4096, 4096, 0);
+        make_bp(meta + 64, B_MOS_DNODES, 4096, 4096, 0); /* checksum stamped in the ordered pass below */
         /* objset fields at 512+ (sync funcs etc.) left zero */
         memcpy(d.data() + B_MOS, os.data(), os.size());
     }
@@ -473,7 +515,7 @@ std::vector<u8> build_pool() {
         {
             u8* dn = blk.data() + 1 * 512;
             make_dnode(dn, 21 /* MASTER_NODE */, 0, 1, 1, 1, 0);
-            make_bp(dn + 64, B_MASTER_ZAP, 512, 512, 0);
+            make_bp(dn + 64, B_MASTER_ZAP, 512, 512, 0, &d);
         }
         /* object 2: root directory (SA bonus; bonustype SA=44) */
         {
@@ -488,7 +530,7 @@ std::vector<u8> build_pool() {
             /* root dir's blkptr 0 points at the root-dir ZAP... but the
              * ZAP is the object's data - ZFS stores it via the dnode's
              * blkptrs (object 2's own data). read_zap reads blkptr 0. */
-            make_bp(dn + 64, B_ROOTDIR_ZAP, 512, 512, 0);
+            make_bp(dn + 64, B_ROOTDIR_ZAP, 512, 512, 0, &d);
             const u32 blen = u32(bonus.size());
             put16(dn + 10, u16(blen));
             memcpy(dn + 64 + 128, bonus.data(), bonus.size());
@@ -504,7 +546,7 @@ std::vector<u8> build_pool() {
             a.mtime = a.ctime = a.crtime = 1700000000;
             auto bonus = make_sa_bonus(a);
             make_dnode(dn, 19 /* PLAIN_FILE_CONTENTS */, 44, 1, 1, 1, 0);
-            make_bp(dn + 64, B_FILE_DATA, 512, 512, 0);
+            make_bp(dn + 64, B_FILE_DATA, 512, 512, 0, &d);
             const u32 blen = u32(bonus.size());
             put16(dn + 10, u16(blen));
             memcpy(dn + 64 + 128, bonus.data(), bonus.size());
@@ -519,8 +561,8 @@ std::vector<u8> build_pool() {
             a.size = 512;
             auto bonus = make_sa_bonus(a);
             make_dnode(dn, 20, 44, 1, 2, 1, 0);                      /* TWO blkptrs: hdr + leaf */
-            make_bp(dn + 64, B_BIGDIR_ZAP, 512, 512, 0);             /* block 0 */
-            make_bp(dn + 64 + 128, B_BIGDIR_ZAP + 512, 512, 512, 0); /* block 1 */
+            make_bp(dn + 64, B_BIGDIR_ZAP, 512, 512, 0, &d);         /* block 0 */
+            make_bp(dn + 64 + 128, B_BIGDIR_ZAP + 512, 512, 512, 0, &d); /* block 1 */
             const u32 blen = u32(bonus.size());
             put16(dn + 10, u16(blen));
             memcpy(dn + 64 + 2 * 128, bonus.data(), bonus.size()); /* bonus after 2 bps */
@@ -535,7 +577,7 @@ std::vector<u8> build_pool() {
             a.size = 4096;
             auto bonus = make_sa_bonus(a);
             make_dnode(dn, 19, 44, 8, 1, 1, 0);
-            make_bp(dn + 64, B_ZLE_DATA, 512, 4096, 14 /* ZLE */);
+            make_bp(dn + 64, B_ZLE_DATA, 512, 4096, 14 /* ZLE */, &d);
             put16(dn + 10, u16(bonus.size()));
             memcpy(dn + 64 + 128, bonus.data(), bonus.size());
         }
@@ -582,7 +624,7 @@ std::vector<u8> build_pool() {
             a.mtime = 1699999999;
             auto bonus = make_znode_bonus(a);
             make_dnode(dn, 19, 17 /* ZNODE */, 1, 1, 1, 0);
-            make_bp(dn + 64, B_FILE_DATA, 512, 512, 0);
+            make_bp(dn + 64, B_FILE_DATA, 512, 512, 0, &d);
             put16(dn + 10, u16(bonus.size()));
             memcpy(dn + 64 + 128, bonus.data(), bonus.size());
         }
@@ -596,7 +638,7 @@ std::vector<u8> build_pool() {
             a.size = 18;
             auto bonus = make_sa_bonus(a);
             make_dnode(dn, 19, 44, 1, 1, 1, 0);
-            make_bp(dn + 64, B_FILE_DATA, 512, 512, 0);
+            make_bp(dn + 64, B_FILE_DATA, 512, 512, 0, &d);
             put16(dn + 10, u16(bonus.size()));
             memcpy(dn + 64 + 128, bonus.data(), bonus.size());
         }
@@ -608,8 +650,25 @@ std::vector<u8> build_pool() {
         std::vector<u8> os(2048, 0);
         u8* meta = os.data();
         make_dnode(meta, 10, 0, 32 /* 16K blocks */, 1, 1, 0);
-        make_bp(meta + 64, B_ZPL_DNODES, 16384, 16384, 0);
+        make_bp(meta + 64, B_ZPL_DNODES, 16384, 16384, 0, &d);
         memcpy(d.data() + B_ZPL, os.data(), os.size());
+    }
+
+    /* ---- M-019: ordered checksum stamping ----
+     * The objset blocks reference each other's arrays, so their bps are
+     * stamped in dependency order now that every block has landed:
+     *   1. MOS object 4's head-dataset bp (in the MOS dnode array;
+     *      dnode at B_MOS_DNODES+4*512, bonus at +64+128, bp at
+     *      bonus+128) over the final ZPL objset block at B_ZPL (its
+     *      meta bp was already stamped when that block was built).
+     *   2. The MOS objset's meta dnode bp (at B_MOS+64) over the final
+     *      B_MOS_DNODES content - AFTER (1), since (1) mutates that
+     *      block. The uberblock rootbp (stamped in the label loop
+     *      below) reads B_MOS after this, closing the chain. */
+    {
+        stamp_fletcher4(d.data() + B_MOS_DNODES + 4 * 512 + 64 + 128 + 128, d.data() + B_ZPL,
+                        4096);
+        stamp_fletcher4(d.data() + B_MOS + 64, d.data() + B_MOS_DNODES, 4096);
     }
 
     /* ---- labels (all 4 at OpenZFS positions); config nvlist is XDR
@@ -617,7 +676,7 @@ std::vector<u8> build_pool() {
     std::vector<u8> nv;
     {
         NvBuf vt; /* vdev_tree nested nvlist */
-        vt.str_pair("type", "disk");
+        vt.str_pair("type", vdev_type);
         vt.u64_pair("ashift", 9);
         vt.u64_pair("asize", IMG);
         vt.u64_pair("offset", 0);
@@ -641,9 +700,10 @@ std::vector<u8> build_pool() {
         put64(ub + 16, TXG);       /* txg */
         put64(ub + 32, 1700000000);
         u8 bp[128];
-        make_bp(bp, B_MOS, 2048, 2048, 0);
+        make_bp(bp, B_MOS, 2048, 2048, 0, &d);
         memcpy(ub + 40, bp, 128); /* rootbp */
     }
+
     return d;
 }
 
@@ -738,7 +798,7 @@ TEST(Zfs, NewestTxgAcrossLabelsWins) {
     put64(ub + 0, 0x00BAB10C);
     put64(ub + 16, TXG + 5);
     u8 bp[128];
-    make_bp(bp, B_MOS, 2048, 2048, 0);
+    make_bp(bp, B_MOS, 2048, 2048, 0, &img);
     memcpy(ub + 40, bp, 128);
     MemDevice dev(img);
     tree::ResultTree tree;
@@ -746,6 +806,185 @@ TEST(Zfs, NewestTxgAcrossLabelsWins) {
     ZfsScanStats st;
     ASSERT_EQ(OK, scan_zfs(&dev, nullptr, nullptr, nullptr, tree, ra, nullptr, nullptr, st));
     EXPECT_EQ(u64(TXG + 5), st.txg);
+}
+
+/* M-019: re-stamp the ZPL dnode array's enclosing-block checksum after
+ * any test mutates a bp INSIDE the array (a real pool writes the whole
+ * array block + its checksum together). The checksum chain is
+ *   uberblock rootbp -> B_MOS -> (MOS meta bp) -> B_MOS_DNODES
+ *     -> (obj-4 bp) -> B_ZPL -> (ZPL meta bp) -> B_ZPL_DNODES
+ * so every re-stamp mutates its parent block and the whole chain up to
+ * the four label uberblocks must be re-stamped in order. */
+void restamp_zpl_array(std::vector<u8>& img) {
+    stamp_fletcher4(img.data() + B_ZPL + 64, img.data() + B_ZPL_DNODES, 16384);
+    stamp_fletcher4(img.data() + B_MOS_DNODES + 4 * 512 + 64 + 128 + 128, img.data() + B_ZPL,
+                    4096);
+    stamp_fletcher4(img.data() + B_MOS + 64, img.data() + B_MOS_DNODES, 4096);
+    for (int li = 0; li < 4; ++li) {
+        const u64 base = li < 2 ? u64(li) * (256ull << 10) : IMG - (4 - li) * (256ull << 10);
+        stamp_fletcher4(img.data() + base + (128ull << 10) + 40, img.data() + B_MOS, 2048);
+    }
+}
+
+TEST(Zfs, ChecksumFailDropsAndRetriesNextDva) {
+    /* M-019: the og verifies fletcher4 over the raw on-disk bytes and
+     * retries the NEXT DVA copy on mismatch before dropping the block
+     * (ZfsSearchDLL :18076 gate `(zc==7)||(zc==0)` + :18129
+     * FUN_180014360(..., index+1)). The old engine trusted every read:
+     * a torn first copy entered results as if valid - here DVA0 serves
+     * a well-formed DECOY microzap, so the tree shows decoy.txt and
+     * hides every real entry (the exact silent-garbage class). */
+    auto img = build_pool();
+    /* a well-formed decoy microzap in the free gap after the child zap
+     * (B_MOS_DNODES + 4096 is the child zap; +512 past it is unused) */
+    const u64 B_DECOY = B_MOS_DNODES + 4096 + 512;
+    auto z = make_microzap({{"decoy.txt", 10}});
+    memcpy(img.data() + B_DECOY, z.data(), z.size());
+    /* rewrite the root-dir dnode's bp: DVA0 -> decoy, DVA1 -> the real
+     * zap; stored checksum = fletcher4 of the REAL copy */
+    u8* bp = img.data() + B_ZPL_DNODES + 2 * 512 + 64;
+    memset(bp, 0, 128);
+    put64(bp + 0, (511ull + 1) >> 9); /* DVA0: vdev 0, asize 512 */
+    put64(bp + 8, B_DECOY >> 9);
+    put64(bp + 16, (511ull + 1) >> 9); /* DVA1: vdev 0, asize 512 */
+    put64(bp + 24, B_ROOTDIR_ZAP >> 9);
+    const u64 prop = ((512 >> 9) - 1) | (((512 >> 9) - 1) << 16);
+    put64(bp + 48, prop);
+    put64(bp + 72, TXG);
+    stamp_fletcher4(bp, img.data() + B_ROOTDIR_ZAP, 512);
+    restamp_zpl_array(img); /* the bp lives inside the checksummed array */
+    MemDevice dev(img);
+
+    tree::ResultTree tree;
+    auto* ra = tree.add_root(u"Found");
+    ZfsScanStats st;
+    ASSERT_EQ(OK, scan_zfs(&dev, nullptr, nullptr, nullptr, tree, ra, nullptr, nullptr, st));
+
+    std::set<std::string> paths;
+    std::function<void(tree::FileNode*, std::string)> walk = [&](tree::FileNode* n,
+                                                                 const std::string& p) {
+        for (tree::FileNode* c = n->first_child(); c; c = c->next_sibling()) {
+            if (!c->props())
+                continue;
+            const std::string nm = c->name_utf8();
+            const std::string full = p.empty() ? nm : p + "/" + nm;
+            paths.insert(full);
+            walk(c, full);
+        }
+    };
+    walk(ra, "");
+
+    /* the REAL zap content wins through DVA1; the decoy is dropped by
+     * the checksum gate and counted */
+    EXPECT_TRUE(paths.count("tank/hello.txt")) << "real entry missing - decoy won";
+    EXPECT_FALSE(paths.count("tank/decoy.txt")) << "torn first copy entered results";
+    EXPECT_GE(st.checksum_drops, u64(1));
+}
+
+TEST(Zfs, StripedPoolForeignVdevFallbackRead) {
+    /* M-019: the og NEVER refuses a DVA on vdev id - the registry
+     * lookup falls back to the FIRST entry (the scanned disk,
+     * FUN_1800168b0 :19544-19556) and the fletcher4 gate decides
+     * validity. A stripe member's block whose copy also exists on the
+     * scanned disk therefore RECOVERS through the fallback read; the
+     * old engine refused every foreign-vdev DVA outright (silent
+     * unsupported_vdevs counter, no read attempt). */
+    auto img = build_pool();
+    /* the "sibling member's" copy of alpha.bin's data block, on the
+     * scanned disk (what a mirror-in-stripe / copies=2 layout produces) */
+    const u64 B_STRIPE_COPY = 0xA4000;
+    memcpy(img.data() + B_STRIPE_COPY, "Hello, ZFS world!", 18);
+    /* rewrite alpha.bin's (object 20) bp: DVA0 names vdev 1 */
+    u8* bp = img.data() + B_ZPL_DNODES + 20 * 512 + 64;
+    memset(bp, 0, 128);
+    put64(bp + 0, (1ull << 32) | (512ull >> 9)); /* vdev 1, asize 512 */
+    put64(bp + 8, B_STRIPE_COPY >> 9);
+    const u64 prop = ((512 >> 9) - 1) | (((512 >> 9) - 1) << 16);
+    put64(bp + 48, prop);
+    put64(bp + 72, TXG);
+    stamp_fletcher4(bp, img.data() + B_STRIPE_COPY, 512);
+    restamp_zpl_array(img); /* the bp lives inside the checksummed array */
+    MemDevice dev(img);
+
+    tree::ResultTree tree;
+    auto* ra = tree.add_root(u"Found");
+    ZfsScanStats st;
+    ASSERT_EQ(OK, scan_zfs(&dev, nullptr, nullptr, nullptr, tree, ra, nullptr, nullptr, st));
+
+    std::set<std::string> paths;
+    std::function<void(tree::FileNode*, std::string)> walk = [&](tree::FileNode* n,
+                                                                 const std::string& p) {
+        for (tree::FileNode* c = n->first_child(); c; c = c->next_sibling()) {
+            if (!c->props())
+                continue;
+            const std::string nm = c->name_utf8();
+            const std::string full = p.empty() ? nm : p + "/" + nm;
+            paths.insert(full);
+            walk(c, full);
+        }
+    };
+    walk(ra, "");
+
+    /* the foreign-vdev block is PLANNED at the fallback position (the
+     * og's registry fallback reads the scanned disk); before the fix
+     * the L0 walk skipped every foreign-vdev DVA, leaving alpha.bin
+     * extentless (silent refusal) */
+    EXPECT_TRUE(paths.count("tank/bigdir/alpha.bin")) << "foreign-vdev file dropped";
+    EXPECT_TRUE(paths.count("tank/bigdir/beta.bin"));
+    bool alpha_extent = false;
+    for (tree::FileNode* c0 = ra->first_child(); c0; c0 = c0->next_sibling())
+        for (tree::FileNode* f = c0->first_child(); f; f = f->next_sibling()) {
+            if (!f->props())
+                continue;
+            if (f->name_utf8() == "bigdir") {
+                for (tree::FileNode* g = f->first_child(); g; g = g->next_sibling()) {
+                    if (g->props() && g->name_utf8() == "alpha.bin") {
+                        ASSERT_EQ(1u, g->props()->extents.size())
+                            << "foreign-vdev extent skipped";
+                        EXPECT_EQ(B_STRIPE_COPY, g->props()->extents[0].offset);
+                        alpha_extent = true;
+                    }
+                }
+            }
+        }
+    EXPECT_TRUE(alpha_extent);
+    EXPECT_GE(st.foreign_vdev_reads, u64(1));
+    EXPECT_EQ(u64(0), st.checksum_drops); /* the fallback copy is valid */
+}
+
+TEST(Zfs, MirrorSecondMemberScan) {
+    /* M-019 pin: a mirrored pool's DVAs name the top-level MIRROR vdev
+     * (id 0), so a scan of either member reads correct content through
+     * vdev 0 - the "accidental MATCH at id 0" is the designed og
+     * behavior, pinned here so it stays intentional. The mirror
+     * topology still reports through unsupported_vdevs (label-level
+     * report, not a refusal). */
+    auto img = build_pool("mirror");
+    MemDevice dev(img);
+    tree::ResultTree tree;
+    auto* ra = tree.add_root(u"Found");
+    ZfsScanStats st;
+    ASSERT_EQ(OK, scan_zfs(&dev, nullptr, nullptr, nullptr, tree, ra, nullptr, nullptr, st));
+
+    std::set<std::string> paths;
+    std::function<void(tree::FileNode*, std::string)> walk = [&](tree::FileNode* n,
+                                                                 const std::string& p) {
+        for (tree::FileNode* c = n->first_child(); c; c = c->next_sibling()) {
+            if (!c->props())
+                continue;
+            const std::string nm = c->name_utf8();
+            const std::string full = p.empty() ? nm : p + "/" + nm;
+            paths.insert(full);
+            walk(c, full);
+        }
+    };
+    walk(ra, "");
+
+    EXPECT_TRUE(paths.count("tank/hello.txt"));
+    EXPECT_TRUE(paths.count("tank/bigdir/alpha.bin"));
+    EXPECT_GE(st.unsupported_vdevs, u64(1)); /* reported, not refused */
+    EXPECT_EQ(u64(0), st.checksum_drops);    /* every read verified clean */
+    EXPECT_EQ(u64(0), st.foreign_vdev_reads);
 }
 
 TEST(Zfs, BadMagicRejected) {
@@ -927,6 +1166,11 @@ TEST(Zfs, NonAsciiNamesDecodedNotByteLifted) {
                                 {"embedded.txt", 13},
                                 {"legacy.txt", 14}});
         memcpy(img.data() + B_ROOTDIR_ZAP, z.data(), z.size());
+        /* M-019: the rewritten zap block needs its bp checksum re-stamped
+         * (a real pool always writes a matching fletcher4) */
+        stamp_fletcher4(img.data() + B_ZPL_DNODES + 2 * 512 + 64, img.data() + B_ROOTDIR_ZAP,
+                        512);
+        restamp_zpl_array(img); /* the bp lives inside the checksummed array */
         /* pool display name: patch the 4-byte nvlist string "tank" in all
          * four vdev labels to the 4-byte UTF-8 name "\xe6\x96\x87x" ("文x")
          * - same length, so the packed nvlist stays structurally valid */

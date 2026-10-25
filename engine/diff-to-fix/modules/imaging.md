@@ -31,3 +31,26 @@ Fuzz: `fuzz/fuzz_image.cpp` (memory byte source; head/tail/unaligned/
 block-boundary read shapes + the bounds-refusal contract) — wired into
 the fuzz suite's Makefile (target + run + corpus), executed on the CI
 fuzz lane.
+
+
+## Session-10 convergence update (the VHDX + differencing families + the compatibility proof layer)
+
+The parallel S-030 landing above (flat/VMDK/VHD) was converged with a
+second lane's superset implementation; the merged surface is now:
+
+| Parameter | Verdict | Evidence |
+|---|---|---|
+| VHDX dynamic | **MATCH** (header pair CRC-32C + highest-sequence selection, region table, metadata incl. block size / virtual size / logical sector, chunk-ratio BAT interleave; states 0/1/2/3/5 read zeros, 6 = data, 7 without parent = refused) | `Image.VhdxDynamicReads` |
+| VHDX log replay | **MATCH-with-hardening D-64d** (read-only in-memory overlay serving journaled bytes — qemu vhdx-log.c walk: guid match, seq+1 chains, CRC-32C over header+descriptors+data, flushed-offset truncation rule) | `Image.VhdxLogOverlayServesUnflushedWrites` |
+| VMDK parent chains | **MATCH** (parentFileNameHint, relative resolution, depth cap 32; unallocated grains read the parent at the same virtual offset) | `Image.VmdkDifferencingChainReadsParent` |
+| VHD differencing | **MATCH** (BAT + 512-byte sector bitmaps, bit-clear = parent, W2ku/W2ru UTF-16BE locators) | `Image.VhdDifferencingReadsParentOnClearBitmap` |
+| .dmg | **MATCH** (the og's factory has NO dmg case — .dmg rides the flat fallback as raw bytes; ours does the same, no UDIF parsing) | `Image.ExtensionClassificationMatchesOgDispatch` |
+| refusals | **MATCH** (corrupt .vmdk/.vhd/.vhdx magic → error, never silent flat fallback — DRWUI:978668; streamOptimized/VMFS/VHDX-diff/edisk → ERR_UNSUPPORTED) | `Image.BadMagicVmdkRefusedNotFlatFallback`, `Image.VmdkStreamOptimizedRefused`, `Image.VhdxDifferencingRefusedPrecisely`, `Image.EdiskRefusedAsRegisteredExclusion` |
+| session identity v3 | **MATCH** (image_path[512] tail — widened from the first landing's 256; v1/v2 back-compat pinned) | `Crsf.VolumeInfoIdentityCardRoundTrip`, `Image.SessionRoundTripPersistsImagePath` |
+| real-world compat | **NEW PROOF LAYER** (qemu-img 10.0.13 fixtures committed under tests/data/images with generation provenance; caught two spec-memory transpositions — the VHDX log-descriptor field order and the metadata-region GUID data3 — that in-memory builders could not) | `Image.QemuVmdkCompat`, `Image.QemuVhdCompat`, `Image.QemuVhdxCompat` |
+
+The v1 seam (`ImageByteSource`/`ImageFileOps`) was superseded by the
+converged `ImageFileIo` single seam (the core opens paths itself through
+the injected IO; Win32 implementation `src/win/cr_image_win.cpp`). The
+`cr_ui_open_image` flat-only UI-shim migration follow-up recorded above
+stays open.

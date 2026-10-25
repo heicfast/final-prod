@@ -104,3 +104,12 @@ grading-level tolerance for a rotation mismatch.
 
 **Related:** A-001 (fixing the GUIDs is what makes GPT dynamic disks reach this code at
 all).
+
+---
+
+## Session-14 addendum (DFX14 — T7 half RESOLVED via I-008's landing; T6 stands)
+
+T7 (LDM RAID-5 rotation parity) was resolved by I-008's verification (the
+four og rotations are dormant dead-code; the enabled left-symmetric mode
+is a proven MATCH — see FIXED/INFORMATIONAL/I-008). T6 (the ZFS nvlist
+anchor / multi-vdev DVA / uberblock geometry set) remains open as filed.

@@ -43,7 +43,7 @@ artifact with the byte layout, then a `cr_fve_metadata.cpp` parser +
 the recovery-password KDF (SHA-256 stretch chain per the decoded round
 count) + `SetProcessProtectorKeyFromBEK`-equivalent, gated by the same
 S61 key-required posture. Until then the FVEK-input surface is the
-honest, documented scope (PARITY-DELTAS D-72).
+honest, documented scope (PARITY-DELTAS D-75).
 
 ## Consumers that would change
 

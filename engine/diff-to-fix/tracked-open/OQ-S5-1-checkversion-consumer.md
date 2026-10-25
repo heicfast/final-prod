@@ -40,3 +40,20 @@ RESOLVED when a consumer is found (→ file the missing-capability finding
 with the consumer's call chain) or the payload sweep is exhausted (→
 register MATCH-by-omission with dead-shipping evidence in
 modules/mom-capabilities.md).
+
+---
+
+## Session-14 addendum (DFX14 — pushed forward with NEW negative-result evidence)
+
+Corpus probes run this session: (a) zero CheckVersion references in
+DRWUI_decompiled.c (grep clean — no UI-side callers); (b) zero call sites
+in the ghidra-partition decompiles (RecoveryModule/MainModule) outside
+CheckVersion's own module; (c) the module IS in the 31-module MOM load
+list (mom-module-system--architecture.md :69; mo-module-map.md :47 lists
+it as the Windows-aware-recovery component alongside RegLib); (d) the PE
+edition drops the entire MOM system (pe-payload-census :53), so the
+capability is full-edition-only. The live-vs-legacy question remains
+open: the LOAD is documented, the INVOCATION is not decoded anywhere.
+Next concrete step (refined): a MainModule_decompiled.c pass over the
+module-init/dispatch vtable to find CheckVersion's registered callbacks —
+the corpus lacks that decompile today; queue it as the next RE artifact.

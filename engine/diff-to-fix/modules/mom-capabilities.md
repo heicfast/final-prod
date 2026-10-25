@@ -64,7 +64,7 @@ Audited 2026-10-26 (session 5) — first-time coverage for every row here.
   verify; core boot-bytes-only, no scanner backup read).
 - **P1 FAT recognition** — `M-045` (gate family) + `N-050` (root-dir proof
   absent).
-- **P1 UDF recognition** — `M-044` (result 0xc; no core family).
+- **P1 UDF recognition** — **M-044 FIXED (s21)**: `FsFamily::Udf` (11) + the og-exact probe in `probe_family` (boot-bytes fast-reject; AVDP sector at +0x100; Main-VDS sector at u32@AVDP+0x14; "UDF"@[0x19..0x1b] — FUN_180002580 :1413-1435). No engine on either side (no UDF SearchDLL in the og 9-engine set); carve-only disposition; fs_hint 11 in the ABI. Findings/FIXED/M-044.
 - **P1 ext recognition** — MATCH (S-006's CExtX accept-gate decode is the
   probe_ext implementation).
 - **P15 damage grading** — MATCH-by-omission (analysers output type +
@@ -116,7 +116,7 @@ Audited 2026-10-26 (session 5) — first-time coverage for every row here.
 | M-041 | MAJOR | Damage-audit/check phase missing (chkdsk-grade FAT/NTFS audit + WinChkdsk ladder) |
 | M-042 | MAJOR | Session-resume re-validation + layout snapshot missing (lostpart.dat semantics) |
 | M-043 | MAJOR | NTFS content-proof recognition + scanner backup-boot read missing |
-| M-044 | MAJOR | UDF recognition family missing (analyser result 0xc) |
+| M-044 | MAJOR | UDF recognition family missing (analyser result 0xc) — **FIXED (s21)** |
 | M-045 | MAJOR | FAT boot-gate family diverges (bps/SPC/label/numFATs/cap/band-retry) — resolves S-006's FATX remainder |
 | N-048 | MINOR | Engine-level logging seam absent (three og layers) |
 | N-049 | MINOR | Persisted lost records thinner than og (geometry/evidence fields) |

@@ -49,4 +49,23 @@ u32 PartitionSlice::read_at(u64 offset, void* buffer, u32 length) {
     return parent_->read_at(start_ + offset, buffer, length);
 }
 
+u32 PartitionSlice::refresh_geometry() {
+    if (parent_ == nullptr)
+        return ERR_BAD_PARAMETER;
+    /* N-046: the og's RefreshSectorSize-from-parent (FUN_140643870)
+     * blindly stores the parent's sector size and returns 1. We
+     * revalidate before adopting: a media change that invalidates the
+     * slice (misaligned start, shrunken parent) is refused with the
+     * snapshot untouched - the honest refusal over the silent adoption. */
+    const Geometry pg = parent_->geometry();
+    if (pg.logical_sector == 0 || start_ % pg.logical_sector != 0)
+        return ERR_BAD_PARAMETER;
+    if (start_ + length_ > parent_->size())
+        return ERR_RANGE_OUT_OF_BOUNDS;
+    geom_ = pg;
+    geom_.total_bytes = length_;
+    geom_.sector_count = length_ / geom_.logical_sector;
+    return OK;
+}
+
 } // namespace cr

@@ -32,6 +32,11 @@ struct VolumeParams {
     u64 mft_lcn = 0;
     u64 mftmirr_lcn = 0;
     u16 flags = 0; /* from DBR-derived volume state */
+    /* M-043 (diff-to-fix): the volume was OPENED FROM THE VOLUME-END
+     * BACKUP DBR (the primary was torn/damaged) — report-only summary
+     * flag mirroring the og analyser's verified-backup state (+0x510);
+     * repairing the primary stays consent-gated (rawfixer, S-008). */
+    bool boot_from_backup = false;
 };
 
 /* Opened NTFS volume: owns the MFT stream mapping and the geometry. */

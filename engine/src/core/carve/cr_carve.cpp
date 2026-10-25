@@ -60,6 +60,14 @@ constexpr u32 kTrialCount = sizeof(kTrialOrder) / sizeof(kTrialOrder[0]);
 struct ScanCtx {
     IStorageDevice* slice;
     const Signature* reg;
+    /* M-024: per-trial-slot and per-raw-sign-format disable maps, built
+     * once in carve_slice from flags->disabled_formats (null list ->
+     * all-zero = every format enabled). */
+    /* sized by the trial table; the static_assert keeps the fixed array
+     * honest when formats are added */
+    static constexpr u32 kMaxTrialSlots = 96;
+    bool trial_disabled[kMaxTrialSlots] = {};
+    std::vector<bool> rawsign_disabled;
     const CarveFlags* flags;
     tree::ResultTree* tree;
     tree::FullNode* carve_root;
@@ -173,6 +181,8 @@ u32 scan_one_window(ScanCtx& ctx, u64 base, const u8* win, u64 want, std::set<u6
          * primitive the S-017 F8 self-probe runs, so a magic the scan
          * cannot reach fails at load time (one source of truth). */
         for (u32 ti = 0; ti < kTrialCount; ++ti) {
+            if (ctx.trial_disabled[ti])
+                continue; /* M-024: format disabled by the host */
             const Signature& sig = ctx.reg[kTrialOrder[ti]];
             if (sig.header[0] != c)
                 continue; /* first-byte fast path */
@@ -368,6 +378,18 @@ u32 scan_one_window(ScanCtx& ctx, u64 base, const u8* win, u64 want, std::set<u6
             idx.probe_header(win + off, want - off, matches);
             if (matches.empty())
                 continue;
+            /* M-024: drop disabled formats before the best-pick (the og's
+             * filter removes the analyser from the working registry -
+             * FUN_180006b30's removal loop - so its signs never fire) */
+            if (!ctx.rawsign_disabled.empty()) {
+                size_t w = 0;
+                for (size_t r = 0; r < matches.size(); ++r)
+                    if (!ctx.rawsign_disabled[matches[r]->fmt])
+                        matches[w++] = matches[r];
+                matches.resize(w);
+                if (matches.empty())
+                    continue;
+            }
             /* highest-confidence hit drives the candidate */
             const rawsigns::RawSign* best = matches[0];
             for (const auto* m : matches)
@@ -592,6 +614,20 @@ u32 carve_slice(IStorageDevice* slice, const CarveFlags& flags, CancelToken* can
     /* M-005: the allocation-bitmap gate (nullable; slice-relative basis -
      * the orchestrator rebases stats.free_map before the call) */
     ctx.free_map = flags.free_map;
+    /* M-024: build the per-format disable maps from the host list (one
+     * pass; the hot loops then test a single bool). The grammar layer
+     * gates by trial slot; the raw-sign layer gates by format index. */
+    if (flags.disabled_formats != nullptr && *flags.disabled_formats != 0) {
+        static_assert(kTrialCount <= 96, "grow trial_disabled with the trial table");
+        for (u32 ti = 0; ti < kTrialCount; ++ti)
+            ctx.trial_disabled[ti] =
+                carve_format_listed(flags.disabled_formats, ctx.reg[kTrialOrder[ti]]);
+        const rawsigns::SignIndex& idx = rawsigns::SignIndex::get();
+        ctx.rawsign_disabled.assign(rawsigns::kFormatCount, false);
+        for (u32 fi = 0; fi < rawsigns::kFormatCount; ++fi)
+            ctx.rawsign_disabled[fi] =
+                carve_token_listed(flags.disabled_formats, idx.format(fi).ext, nullptr);
+    }
     /* S-031 residual: stamp the scan time once per run — every carved
      * record carries it (the og's per-record formatted timestamp). */
     ctx.scan_time = unix_to_filetime(i64(std::time(nullptr)));

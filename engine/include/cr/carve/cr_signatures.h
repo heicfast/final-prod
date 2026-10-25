@@ -177,6 +177,21 @@ struct Signature {
 const Signature* registry();
 size_t registry_size();
 
+/* M-024 (diff-to-fix): the runtime per-format enable/disable surface.
+ * The og rebuilds its working registry per search from a host-supplied
+ * IAnalyserFilter driven by RawConfig.ini [Filter] (37 named toggles;
+ * STL and VPJ ship DISABLED; the removal loop is RAWSearchDLL
+ * FUN_180006b30 :4386-4434 - an analyser whose filter callback rejects
+ * it is destroyed out of the u32 map / u16 multimap / list). The core's
+ * form: CarveFlags::disabled_formats carries a comma/space/semicolon-
+ * separated list of EXTENSIONS or display NAMES (case-insensitive; the
+ * og's [Filter] keys are name-form: HEIC, WEBM, 7Z...); both carve
+ * layers skip listed formats. Enumeration: registry()'s table order IS
+ * FormatId order (one entry per FormatId) - hosts enumerate formats +
+ * names + enabled state in one stable order (N-033's surface). */
+bool carve_token_listed(const char* disabled_list, const char* ext, const char* name);
+bool carve_format_listed(const char* disabled_list, const Signature& sig);
+
 /* F8 gate: validate every entry; returns 0 = OK, else the count of rejects
  * (with a diagnostic list in `bad`). */
 u32 validate_registry(std::vector<const Signature*>* bad);

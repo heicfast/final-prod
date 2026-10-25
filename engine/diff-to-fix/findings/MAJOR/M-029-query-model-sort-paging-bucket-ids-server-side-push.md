@@ -269,3 +269,43 @@ extends this finding's filter-model evidence without changing its scope:
   vtable+0x48 hook is a one-shot per-scan "filter_generalraw" config fetch, i.e. it
   belongs to THIS finding's server-side filter-push section (the push mechanism's config
   source), not to naming.
+
+## Session-11 addendum (2026-10-26, DFX11 — three sub-items closed; the finding stays ACTIVE)
+
+**Closed this push** (the finding remains active; corpus-decode-blocked
+items stay open with precise next steps):
+1. **The Type sort key — CLOSED.** `SortKey::Type` (C ABI sort code 7,
+   append-only): category in the FileFilter.xml iconIndex display order
+   (Graphic/Document/Email/Audio/Video/Other/Archive/Bookmarks, iconIndex
+   0-7 — this finding's own census), then extension, then name; None
+   last. Pinned by `Query.TypeSortKeyOrdersByCategoryThenExtension`
+   (scrambled emission order, 8 rows, full expected sequence asserted).
+2. **The `modified` unit doc lie — CLOSED** (the fix plan's do-FIRST
+   item). ground-truth-contracts.md: the "Unix epoch SECONDS" line is now
+   "FILETIME 100-ns since 1601 — the engines' native unit
+   (cr_fat_quick.cpp:256-259: unix*1e7 + 116444736000000000; the old
+   claim was FALSE — a consumer trusting it mis-parsed every timestamp
+   by 369 years)". Pinned by `Query.ModifiedUnitIsFiletimeEverywhere`.
+   Also fixed in the same doc pass: the stale Enum-values row (Category
+   now lists Email=7, Bookmarks=8 — the M-023 landing missed that line).
+3. **The paging parity claim — DOCUMENTED as the deliberate difference.**
+   The og has NO page-size constant (its results view virtualizes at the
+   UI layer, ~1000-item batches, sigResetStartIdx); the core's
+   offset+limit (default 100) is a host-side convenience and claims no
+   parity against it. Registered in the cr_ui.h contract block +
+   ABI-CONTRACT's new "Query paging + the Type sort" section.
+
+**Still open (decode-blocked; next steps recorded so the port never
+guesses):** the Date/Size bucket-ID translation (0x100..0x103+0x105 /
+0x1000..0x1004+0x1006) — the class-table comments in the corpus
+("Today/3 days/week...", "<128MB/<1GB/<5GB...") are approximations, and
+the og's date buckets select by the node+0x89 bits-11-14 date TAGS
+(derived at node-build time with 1600/1601/>2100 special cases), not by
+ranges; implementing a range translation without decoding the tag
+semantics would invent constants. NEXT STEP: decode the tag derivation +
+the CTimeFilterBtn/CSizeFilterBtn menu ID->range/tag mapping in
+DRWUI_decompiled.c (the node+0x89 bits 11-14 consumer). The general-raw
+naming bucket (the narrowed server-side push): NEXT STEP: the
+"filter_generalraw" key's consumer-side naming chain is decoded
+(OQ-S4-2); what remains is the stable core-side surface for hosts - an
+optional name-override on the scan API per the session-5 correction.

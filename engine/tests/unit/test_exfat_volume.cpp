@@ -145,6 +145,19 @@ private:
     size_t cur_off() const { return entries.size() - 32; }
 };
 
+/* N-067 helper: the fixture's 64-entry upcase table (a-z folded) and its
+ * exact checksum32 stamp - the dentry and the stream stay consistent by
+ * construction. Mirrors the bytes build_exfat_image plants at cluster 60. */
+u32 exfat_test_upcase_table_checksum() {
+    std::vector<u8> tbl(128, 0);
+    for (u32 i = 0; i < 64; ++i) {
+        const u32 ch = (i >= 'a' && i <= 'z') ? (i - 0x20) : i;
+        tbl[i * 2] = u8(ch);
+        tbl[i * 2 + 1] = u8(ch >> 8);
+    }
+    return checksum32(tbl.data(), u32(tbl.size()), 0);
+}
+
 std::vector<u8> build_exfat_image(u8 tz = 0) {
     /* 2048 sectors (1MB) - spec minimum volume size; layout keeps the
      * small fixture geometry inside (heap 25..124, rest unused) */
@@ -210,6 +223,7 @@ std::vector<u8> build_exfat_image(u8 tz = 0) {
     put32v(img, FAT + 21 * 4, 22);
     put32v(img, FAT + 22 * 4, 0xFFFFFFFF); /* doc.txt 20-22 */
     put32v(img, FAT + 50 * 4, 0xFFFFFFFF); /* bitmap */
+    put32v(img, FAT + 60 * 4, 0xFFFFFFFF); /* upcase table */
     put32v(img, FAT + 70 * 4, 0xFFFFFFFF); /* subdir */
 
     /* ---- allocation bitmap at cluster 50 (sector 75) ----
@@ -229,6 +243,7 @@ std::vector<u8> build_exfat_image(u8 tz = 0) {
         setbit(21);
         setbit(22); /* doc.txt */
         setbit(50); /* bitmap itself */
+        setbit(60); /* upcase table */
         setbit(70); /* subdir */
         setbit(80); /* inner.txt */
         setbit(40); /* over.dat's cluster: REUSED */
@@ -250,14 +265,23 @@ std::vector<u8> build_exfat_image(u8 tz = 0) {
         put64(img, ROOT + 24, 13); /* (100+7)/8 */
         at += 32;
     }
-    /* 0x82 upcase (skipped by engine; present for realism) */
+    /* 0x82 upcase: a REAL 64-entry table at cluster 60 with its exact
+     * checksum32 stamp (N-067: the volume-integrity pass validates this
+     * stream; corrupt-checksum variants mutate the dentry/bytes). */
     {
         u8* e = img.data() + ROOT + at;
         std::memset(e, 0, 32);
         e[0] = 0x82;
-        put32v(img, ROOT + at + 4, 0xDEADBEEF);
+        put32v(img, ROOT + at + 4, exfat_test_upcase_table_checksum());
         put32v(img, ROOT + at + 20, 60);
         put64(img, ROOT + at + 24, 128);
+        /* the table bytes at cluster 60 = sector 83: 64 u16 upcase
+         * entries, ASCII a-z folded (identical bytes to the checksum
+         * helper above) */
+        for (u32 i = 0; i < 64; ++i) {
+            const u32 ch = (i >= 'a' && i <= 'z') ? (i - 0x20) : i;
+            put16(img, 83 * 512 + i * 2, char16_t(ch));
+        }
         at += 32;
     }
     /* 0x83 volume label */
@@ -490,7 +514,7 @@ TEST(ExfatEngine, FreeMapExcludesVirtualClustersAndMatchesBitmap) {
     auto cl_free = [&](u32 c) { return fm.range_free(HEAP + u64(c - 2) * 512, 512); };
     for (u32 c : {4u, 9u, 12u, 19u, 23u, 30u, 39u, 41u, 49u, 51u, 69u, 71u, 79u, 81u, 101u})
         EXPECT_TRUE(cl_free(c)) << "cluster " << c << " must be free";
-    for (u32 c : {2u, 3u, 10u, 11u, 20u, 21u, 22u, 40u, 50u, 70u, 80u})
+    for (u32 c : {2u, 3u, 10u, 11u, 20u, 21u, 22u, 40u, 50u, 60u, 70u, 80u})
         EXPECT_FALSE(cl_free(c)) << "cluster " << c << " is bitmap-allocated";
 }
 
@@ -543,8 +567,7 @@ TEST(ExfatEngine, TornBitmapReadYieldsNoFreeMap) {
     storage::FreeMap fm;
     u32 rc = scan_exfat(&dev, flags, nullptr, nullptr, nullptr, tree, ra, rd, rl, stats, &fm);
     ASSERT_EQ(rc, OK) << err_text(rc) << " (a torn bitmap is not a scan error)";
-    EXPECT_FALSE(fm.valid())
-        << "a torn bitmap read must yield NO free map - zeros are not truth";
+    EXPECT_FALSE(fm.valid()) << "a torn bitmap read must yield NO free map - zeros are not truth";
 }
 
 TEST(ExfatEngine, EndToEnd) {
@@ -621,6 +644,101 @@ TEST(ExfatEngine, EndToEnd) {
     EXPECT_EQ(photo->props()->times.created, 1738843200ULL * 10000000ULL + 116444736000000000ULL);
 }
 
+/* N-067: the og's volume analyzer validates the upcase table as part of
+ * volume integrity (boot + upcase checks, CExFatVolumeAnalyer - corpus
+ * fat-exfat-engine-internals.md:63-64). Grade, not reject: a corrupt
+ * table flags the integrity signal; the scan itself continues (the og's
+ * corrupt-volume posture, the EXFAT-2 salvage lineage). The upcase
+ * dentry sits right after the bitmap dentry at the root start. */
+static size_t count_found_files(tree::FileNode* found_root) {
+    size_t n = 0;
+    for (tree::FileNode* c = found_root->first_child(); c; c = c->next_sibling())
+        ++n;
+    return n;
+}
+
+TEST(ExfatEngine, UpcaseTableChecksumValidated) {
+    /* clean fixture: the table's checksum32 stamp matches its stream ->
+     * validated, zero mismatches */
+    {
+        auto img = build_exfat_image();
+        MemDevice dev(std::move(img));
+        tree::ResultTree tree;
+        auto* ra = tree.add_root(u"Found");
+        auto* rd = tree.add_root(u"Deleted");
+        auto* rl = tree.add_root(u"Lost");
+        ExfatScanFlags flags;
+        ExfatScanStats stats;
+        ASSERT_EQ(
+            scan_exfat(&dev, flags, nullptr, nullptr, nullptr, tree, ra, rd, rl, stats, nullptr),
+            OK);
+        EXPECT_GE(stats.upcase_validated, 1u) << "the in-use upcase dentry must be checked";
+        EXPECT_EQ(stats.upcase_mismatches, 0u) << "the clean table must not flag";
+    }
+    /* corrupt TableChecksum: the flag fires and the scan still finds the
+     * same files (grade, not reject) */
+    {
+        auto img = build_exfat_image();
+        const size_t ROOT = 25 * 512;
+        put32v(img, ROOT + 32 + 4, 0xDEADBEEF); /* the upcase dentry's stamp */
+        MemDevice dev(std::move(img));
+        tree::ResultTree tree;
+        auto* ra = tree.add_root(u"Found");
+        auto* rd = tree.add_root(u"Deleted");
+        auto* rl = tree.add_root(u"Lost");
+        ExfatScanFlags flags;
+        ExfatScanStats stats;
+        ASSERT_EQ(
+            scan_exfat(&dev, flags, nullptr, nullptr, nullptr, tree, ra, rd, rl, stats, nullptr),
+            OK)
+            << "a corrupt upcase checksum must never stop the scan";
+        EXPECT_EQ(stats.upcase_validated, 0u) << "a corrupt table does not count as validated";
+        EXPECT_EQ(stats.upcase_mismatches, 1u) << "the corrupt stamp must flag";
+        EXPECT_NE(count_found_files(ra), 0u) << "files are still found";
+    }
+}
+
+TEST(ExfatEngine, UpcaseLengthSanity) {
+    const size_t ROOT = 25 * 512;
+    /* DataLength = 0: a contentless table cannot satisfy the mandatory
+     * mapping - flagged, scan continues */
+    {
+        auto img = build_exfat_image();
+        put64(img, ROOT + 32 + 24, 0);
+        MemDevice dev(std::move(img));
+        tree::ResultTree tree;
+        auto* ra = tree.add_root(u"Found");
+        auto* rd = tree.add_root(u"Deleted");
+        auto* rl = tree.add_root(u"Lost");
+        ExfatScanFlags flags;
+        ExfatScanStats stats;
+        ASSERT_EQ(
+            scan_exfat(&dev, flags, nullptr, nullptr, nullptr, tree, ra, rd, rl, stats, nullptr),
+            OK);
+        EXPECT_EQ(stats.upcase_mismatches, 1u) << "zero-length table must flag";
+        EXPECT_NE(count_found_files(ra), 0u);
+    }
+    /* DataLength absurd (4 GiB): flagged WITHOUT the over-read - the
+     * sanity bar refuses before any stream access */
+    {
+        auto img = build_exfat_image();
+        put64(img, ROOT + 32 + 24, 0x100000000ull);
+        MemDevice dev(std::move(img));
+        tree::ResultTree tree;
+        auto* ra = tree.add_root(u"Found");
+        auto* rd = tree.add_root(u"Deleted");
+        auto* rl = tree.add_root(u"Lost");
+        ExfatScanFlags flags;
+        ExfatScanStats stats;
+        ASSERT_EQ(
+            scan_exfat(&dev, flags, nullptr, nullptr, nullptr, tree, ra, rd, rl, stats, nullptr),
+            OK)
+            << "an absurd length must never hang or fault the scan";
+        EXPECT_EQ(stats.upcase_mismatches, 1u) << "the absurd length must flag";
+        EXPECT_NE(count_found_files(ra), 0u);
+    }
+}
+
 TEST(ExfatEngine, FreeMapProducerMatchesSpecBitMapping) {
     /* M-054 pin: the S-009 free-map producer must reflect the SPEC bit
      * mapping (on-disk bit i = cluster i+2, MS exFAT spec section 7.1).
@@ -640,28 +758,31 @@ TEST(ExfatEngine, FreeMapProducerMatchesSpecBitMapping) {
     ExfatScanFlags flags;
     ExfatScanStats stats;
     storage::FreeMap fm;
-    ASSERT_EQ(scan_exfat(&dev, flags, nullptr, nullptr, nullptr, tree, ra, rd, rl, stats, &fm),
-              OK)
+    ASSERT_EQ(scan_exfat(&dev, flags, nullptr, nullptr, nullptr, tree, ra, rd, rl, stats, &fm), OK)
         << err_text(0);
     ASSERT_TRUE(fm.valid());
     EXPECT_EQ(fm.cluster_bytes, 512u);
     /* the 0ba21d8 hardening: cluster numbers 0..cluster_count+1 (the two
      * virtual + ALL data clusters - the first landing dropped the last
-     * two data clusters out of coverage) */
+     * two data clusters out of coverage); FreeMap::cluster_count is the
+     * SLOT-COVERAGE count (cr_freemap.h - is_free bounds cluster <
+     * cluster_count), so the map covers 2 virtual + 100 data slots = 102.
+     * The M-054 pin initially raced the hardening (expected the raw spec
+     * field 100); re-pinned by both lanes convergently. */
     EXPECT_EQ(fm.cluster_count, 102u);
     /* heap base = sector 25; the map's virtual cluster 0 sits 2 clusters
      * below it (the landed base's linear-cluster convention) */
     EXPECT_EQ(fm.base_byte, u64(25 - 2) * 512);
     /* in-use clusters read NOT free: the structural set (root 2-3, photo
-     * 10-11, doc 20-22, bitmap 50, subdir 70, inner 80) + over.dat's
-     * REUSED cluster 40 (the M-054 sentinel: pre-fix, bit 40 was read for
+     * 10-11, doc 20-22, bitmap 50, upcase table 60, subdir 70, inner 80)
+     * + over.dat's REUSED cluster 40 (the M-054 sentinel: pre-fix, bit 40 was read for
      * cluster 40 - the bit that actually belongs to cluster 42) */
-    for (u32 c : {2u, 3u, 10u, 11u, 20u, 21u, 22u, 40u, 50u, 70u, 80u})
+    for (u32 c : {2u, 3u, 10u, 11u, 20u, 21u, 22u, 40u, 50u, 60u, 70u, 80u})
         EXPECT_FALSE(fm.is_free(c)) << "cluster " << c << " must read in-use";
     /* free clusters read free: gone.dat's cluster 30 (the deleted-free
      * sentinel), untouched heap clusters, and the LAST two data clusters
      * (100/101 - the 0ba21d8 under-coverage fix's sentinel) */
-    for (u32 c : {30u, 4u, 5u, 12u, 19u, 35u, 60u, 90u, 100u, 101u})
+    for (u32 c : {30u, 4u, 5u, 12u, 19u, 35u, 90u, 100u, 101u})
         EXPECT_TRUE(fm.is_free(c)) << "cluster " << c << " must read free";
     /* byte-granular truth at the sentinel: over.dat's cluster-40 byte
      * range is NOT range-free; gone.dat's cluster-30 range IS */
@@ -1049,6 +1170,32 @@ std::vector<u8> build_exfat_large_fat_image() {
         sb.finish_set(img, FAR2);
     }
     return img;
+}
+
+
+/* N-067 empirical pin: the checksum algorithm is whatever REAL volume
+ * writers use. tests/data/exfat/upcase-table-mkfs-exfat-1.2.9.bin is the
+ * 5836-byte spec up-case table extracted from a fresh mkfs.exfat
+ * (exfatprogs 1.2.9) image, whose on-disk TableChecksum is 0xE619D30D.
+ * A second lane's first cut computed the MS-spec seeded CRC-32 instead
+ * (0x673C42A0) - spec-memory, wrong in reality; this pin holds the
+ * algorithm to the interoperable truth (Windows mounts exfatprogs
+ * images, so the value real tools write IS the algorithm). */
+TEST(ExfatEngine, UpcaseAlgorithmMatchesRealMkfsExfat) {
+    FILE* f = fopen("data/exfat/upcase-table-mkfs-exfat-1.2.9.bin", "rb");
+    if (!f) {
+        GTEST_SKIP() << "fixture data/exfat/upcase-table-mkfs-exfat-1.2.9.bin not present";
+        return;
+    }
+    std::vector<u8> table;
+    u8 chunk[4096];
+    size_t got = 0;
+    while ((got = fread(chunk, 1, sizeof(chunk), f)) > 0)
+        table.insert(table.end(), chunk, chunk + got);
+    fclose(f);
+    ASSERT_EQ(table.size(), 5836u) << "the spec up-case table is exactly 5836 bytes";
+    EXPECT_EQ(checksum32(table.data(), u32(table.size()), 0), 0xE619D30Du)
+        << "must match mkfs.exfat 1.2.9's on-disk TableChecksum";
 }
 
 } // namespace

@@ -844,6 +844,9 @@ u32 fill_scan_config(const cr_ui_scan_config* in, orchestrator::ScanConfig& out)
         case 9:
             out.fs_hint = orchestrator::FsFamily::Refs;
             break;
+        case 11: /* M-044: UDF - classification + carve-only (no engine) */
+            out.fs_hint = orchestrator::FsFamily::Udf;
+            break;
         default:
             return ret_(ERR_BAD_PARAMETER, "fs_hint %u is not a valid FsFamily value", in->fs_hint);
         }
@@ -1175,6 +1178,11 @@ u32 enumerate_disks_impl(cr_ui_disk_info* out, uint32_t* count) {
                 o.layout = 2;
             else if (d.table.layout == table::TableLayout::Mbr)
                 o.layout = 1;
+            else if (d.table.layout == table::TableLayout::Ebr)
+                /* N-057: APPENDED code 3 (0=none/1=MBR/2=GPT frozen);
+                 * the extended-chain layout is a first-class og
+                 * classification (MOM Partition.md) */
+                o.layout = 3;
         }
         copy_bstr(o.model, sizeof(o.model), ws_to_u8(d.model));
         copy_bstr(o.serial, sizeof(o.serial), ws_to_u8(d.serial));
@@ -2211,6 +2219,10 @@ u32 query_run_impl(cr_ui_session* sess, const cr_ui_query* q, cr_ui_query_row** 
         break;
     case 6: /* S-023: grade sort (the og's comparator puts grade-2 first) */
         cq.sort = query::SortKey::Grade;
+        break;
+    case 7: /* M-029: the og's Type column (iconIndex category order,
+             * then extension, then name) */
+        cq.sort = query::SortKey::Type;
         break;
     default:
         cq.sort = query::SortKey::None;

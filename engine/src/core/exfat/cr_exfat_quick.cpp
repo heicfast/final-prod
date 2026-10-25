@@ -325,7 +325,7 @@ void walk_entries(ScanCtx& ctx, const std::vector<u8>& buf, bool deleted_context
                             run = u32(total - filled);
                         if (ctx.dev->read_at(off, ctx.bitmap.data.data() + filled, run) != OK)
                             ctx.bitmap_reads_ok = false; /* S-009: torn
-                             * bitmap never feeds the free map */
+                                                          * bitmap never feeds the free map */
                         filled += run;
                         ++k;
                     }
@@ -336,7 +336,83 @@ void walk_entries(ScanCtx& ctx, const std::vector<u8>& buf, bool deleted_context
             ++i;
             continue;
         }
-        if (t == TYPE_UPCASE || t == TYPE_VOLUME_LABEL) {
+        if (t == TYPE_UPCASE && in_use) {
+            /* N-067 (diff-to-fix): the og's volume analyzer validates the
+             * upcase table as part of volume integrity (boot + upcase
+             * checks, CExFatVolumeAnalyer - fat-exfat-engine-internals.md
+             * :63-64; the 0x82-dentry shape gates are the og's own walk
+             * validation, decompile :24440-24452). GRADE, NOT REJECT: a
+             * corrupt table raises the integrity signal but never stops
+             * the scan (the og's corrupt-volume posture, the EXFAT-2
+             * salvage lineage - the finding's open question records that
+             * the og's failure path is not decoded; this follows the
+             * plan's grade-not-reject default). */
+            UpcaseEntry ue;
+            std::memcpy(&ue, f, sizeof(ue));
+            auto flag_mismatch = [&ctx]() { ++ctx.stats->upcase_mismatches; };
+            /* the og's shape gates: reserved1 @+1..+3 and reserved2
+             * @+8..+0x13 zero-checked, the TableChecksum field @+4 free,
+             * first_cluster >= 2 (the bitmap entry's +1 flags byte is
+             * NOT free here - that difference IS the shape test) */
+            bool shape_ok = true;
+            for (u32 k = 1; k <= 3; ++k)
+                if (f[k] != 0)
+                    shape_ok = false;
+            for (u32 k = 8; k <= 0x13; ++k)
+                if (f[k] != 0)
+                    shape_ok = false;
+            /* length sanity: a contentless table cannot carry the
+             * mandatory upcase mapping; an absurd length is flagged
+             * without any stream access (the 1 MiB bar is OUR honest
+             * cap - real tables are 5836/14942 bytes; the og's shape
+             * gate only requires the length to fit the volume) */
+            const bool length_ok = ue.data_length != 0 && ue.data_length <= (1ull << 20) &&
+                                   ue.data_length <= ctx.dev->size();
+            if (!shape_ok || ue.first_cluster < 2 || !length_ok) {
+                flag_mismatch();
+            } else {
+                /* stream read: chain-follow with the contiguous fallback
+                 * (the bitmap branch's contract), bounded, incremental
+                 * checksum32 - the same ROL31+add the boot region and
+                 * entry sets use */
+                ChainResult bc = ctx.have_fat ? follow_exfat_chain(ctx.fat, ue.first_cluster,
+                                                                   0x10000, ctx.p.cluster_count)
+                                              : contiguous_chain(ue.first_cluster, 1);
+                if (bc.clusters.empty())
+                    bc = contiguous_chain(ue.first_cluster, 1);
+                std::vector<u8> chunk;
+                chunk.resize(size_t(std::min<u64>(ue.data_length, 64 * 1024)));
+                u64 remaining = ue.data_length;
+                u32 sum = 0;
+                bool read_ok = true;
+                size_t k = 0;
+                while (remaining > 0 && k < bc.clusters.size()) {
+                    const u64 off = cluster_offset(ctx.p, bc.clusters[k]);
+                    const u64 take = std::min<u64>(ctx.p.cluster_bytes, remaining);
+                    u64 done = 0;
+                    while (done < take) {
+                        const u32 piece = u32(std::min<u64>(take - done, chunk.size()));
+                        if (ctx.dev->read_at(off + done, chunk.data(), piece) != OK) {
+                            read_ok = false;
+                            break;
+                        }
+                        sum = checksum32(chunk.data(), piece, sum);
+                        done += piece;
+                    }
+                    if (!read_ok)
+                        break;
+                    remaining -= take;
+                    ++k;
+                }
+                if (read_ok && remaining == 0 && sum == ue.table_checksum)
+                    ++ctx.stats->upcase_validated;
+                else
+                    flag_mismatch(); /* torn read or checksum mismatch */
+            }
+            ++i;
+            continue;
+        }
+        if (t == TYPE_VOLUME_LABEL) {
             ++i;
             continue; /* not results */
         }
@@ -635,9 +711,9 @@ u32 scan_exfat(IStorageDevice* slice, const ExfatScanFlags& flags, CancelToken* 
              * fell out of the map's coverage, never reading free) */
             free_out->cluster_count = u64(p.cluster_count) + 2;
             free_out->bits.assign(size_t((free_out->cluster_count + 7) / 8), 0);
-            const size_t avail =
-                free_out->bits.size() < ctx.bitmap.data.size() ? free_out->bits.size()
-                                                               : ctx.bitmap.data.size();
+            const size_t avail = free_out->bits.size() < ctx.bitmap.data.size()
+                                     ? free_out->bits.size()
+                                     : ctx.bitmap.data.size();
             const u64 covered = u64(avail) * 8;
             for (u64 c = 2; c < covered && c < free_out->cluster_count; ++c) {
                 if (!ctx.bitmap.test(u32(c)))

@@ -106,9 +106,82 @@ internals are undecoded (corpus next artifacts: DRWUI:948270-948278,
 
 ---
 
-## Resolution
+## Resolution (first landing — flat/VMDK/VHD)
 
 **Status:** FIXED
 **Fixed in commit:** (this session's S-030 commit — see `git log` for "fix: S-030")
 **Verified by:** 8 new tests in `tests/unit/test_image.cpp` (fail-before by construction: no image-format code existed — grep `rg -i "vmdk|vhdx|edisk" src include` returned zero hits at filing): `Image.FlatFileScansMbr` (flat device + LBA0 MBR classification + a full FAT scan finds the fixture's files), `Image.Lba0LayoutClassification` (protective-GPT, torn-protective-with-intact-EFI-PART, unrecognizable), `Image.VmdkMonolithicSparseReadsAndScans` (a hand-built monolithicSparse image holding the FAT16 fixture with only nonzero grains allocated — < half the flat size; byte-identical full readback + unaligned/tail reads + an engine scan finds the same files), `Image.VmdkDescriptorWithFlatAndZeroExtents` (a split image: FLAT + ZERO + FLAT-with-offset extents across sibling files through the ops seam; the ZERO hole reads zeros), `Image.VhdDynamicDiskReadsAndScans` (dynamic VHD with per-sector bitmaps; byte-identical readback incl. an unaligned cross-block read; engine scan green), `Image.VhdFixedDiskIsFlatMinusFooter`, `Image.RejectsBrokenInputs` (under-a-sector input, VHDX → ERR_UNSUPPORTED, garbage VMDK magic → ERR_BAD_MAGIC, descriptorless → ERR_BAD_MAGIC, out-of-bounds device reads), `Image.SessionRoundTripCarriesTheImagePath` (the VolumeInfo v3 tail round-trips through save/load). The updated `Crsf.VolumeInfoIdentityCardRoundTrip` pins the v3 layout (80+84+256) with v2/v1 backward-compat assertions. Suite **525/525 + cr_ui_tests 21/21 + cr_ui_abi_check** green on Release AND ASan (merged tree). Fuzz: `fuzz/fuzz_image.cpp` added to the suite (Makefile target + run/corpus rules) — the S-030 parsers are structure-aware-fuzzed on the CI fuzz lane like every other parser (local pre-verification not possible: no clang/libFuzzer in this environment — recorded, not claimed; the M-006 precedent).
 **Resolution notes:** The core module `include/cr/storage/cr_image.h` + `src/core/storage/cr_image.cpp` implements the og's import surface re-implemented from format understanding (no libvmdk, no decompiled code): content sniffing (VMDK magic / text descriptor head, "conectix" TRAILING footer for VHD — the tests caught the head-only sniff missing fixed VHDs), flat fallback with the sector-granular bound, VMDK monolithicSparse (embedded descriptor; the source is the single extent) and standalone descriptors (FLAT/SPARSE/ZERO extent lines opened through the injected `ImageFileOps` seam, relative to the descriptor's directory), grain-directory/grain-table mapping with grain-segment batching (one GDE/GTE lookup per grain run; unallocated grains read zeros), VHD fixed (data minus footer) and dynamic (BAT + per-block sector bitmaps, state-run splitting), and the og's LBA0 MBR/GPT classification (FUN_140178250's model: 55AA + partition entries vs the 0xEE protective entry / EFI PART header). Layering honesty: the core stays OS-header-free (its own build rule) — every byte flows through the host-injected `ImageByteSource`; the CLI provides the FILE source (`rrecov.cpp` `CliImageSource`, `_wfopen_s`), tests/fuzz provide memory sources. The CLI grammar: `scan --image FILE` and `recover --image FILE` (the F12 dest-overlap warning is disk-scoped, guarded for image sources), with the og's print shape (size + layout) at open; the identity card carries the image path (ScanConfig.volume_image → VolumeInfo v3 tail → VolumeSessionInfo.image; v1/v2 sessions load with an empty path, append-only, old readers unaffected). Deliberate exclusions + remainders registered as **PARITY-DELTAS D-64** (edisk/dmg exclusions; VHDX + parent-chains/compressed-grains/differencing as tracked capability remainders — ERR_UNSUPPORTED, never silent). Scope note recorded for the next session: the UI shim's `cr_ui_open_image` keeps its flat-only reader (the S-008 writer coupling deserves its own careful migration onto the core module — the seam is the byte source, mechanical follow-up, tracked here rather than risked mid-flight).
+## Resolution (session-10 convergence upgrade — two parallel lanes, union landed)
+
+**Status:** FIXED (core scope; two registered remainders — D-64 converged entry)
+**Fixed in commits:** b30354d (first landing: flat/VMDK/VHD + CLI --image) + this push (convergence: VHDX dynamic + log overlay, VMDK parent chains, VHD differencing, .dmg flat-parity correction, image_path widened to 512, qemu compat fixtures; supersedes the first landing's ImageByteSource/ImageFileOps seam with the single ImageFileIo seam)
+**Verified by:** 20 tests in tests/unit/test_image.cpp, all fail-before by
+absence (no image code path existed — grep-verified at audit time):
+`Image.FlatFileScansMbr`, `Image.FlatRejectsEmptyAndMissing`,
+`Image.ImageRejectsTruncatedFile`, `Image.EdiskRefusedAsRegisteredExclusion`,
+`Image.BadMagicVmdkRefusedNotFlatFallback`, `Image.VmdkSparseExtentReads`,
+`Image.VmdkDifferencingChainReadsParent`, `Image.VmdkStreamOptimizedRefused`,
+`Image.VhdDynamicDisk`, `Image.VhdDifferencingReadsParentOnClearBitmap`,
+`Image.VhdBadChecksumRefused`, `Image.VhdxDynamicReads`,
+`Image.VhdxLogOverlayServesUnflushedWrites`, `Image.VhdxDifferencingRefusedPrecisely`,
+`Image.Lba0LayoutClassification`, `Image.ExtensionClassificationMatchesOgDispatch`,
+`Image.SessionRoundTripPersistsImagePath`, `Image.QemuVmdkCompat`,
+`Image.QemuVhdCompat`, `Image.QemuVhdxCompat`. Full suite 555/555 Linux
+Release (was 533/533 at session start). The three `Qemu*Compat` tests run
+against real qemu-img 10.0.13 images committed under tests/data/images
+(generation commands recorded in tests/data/images/README.md) — the
+compatibility proof that the parsers read what real tools write, not just
+self-built structures. That proof layer earned its keep during development:
+it caught a descriptor-field transposition and a metadata-region GUID
+transposition that the in-memory builders (written from the same
+misreading) could never catch.
+
+**Resolution notes:** implemented exactly the finding's fix plan, verified
+against the corpus dispatch semantics (extension factory
+DRWUI:948237-948409, flat fallback :948389-948393, LBA0 classify
+:275877-275880, corrupt-VMDK refusal :978668) and against the public
+on-disk formats, empirically pinned structure-by-structure on
+qemu-img-10.0.13-written files (VMDK packed sparse header — capacity at
+0x0C, not the padded 0x10 a from-spec-memory implementation would write;
+VHD one's-complement checksum rule — 32-bit ~S comparison, verified
+against qemu's own footer bytes; VHDX log descriptor layout —
+trailing@0x04/leading@0x08/file_offset@0x10/sequence@0x18 and the
+metadata-region GUID data3=4B9A, both pinned byte-exact on the qemu file).
+Scope landed: pure-core `cr::storage::open_image` (include/cr/storage/
+cr_image.h + src/core/storage/cr_image.cpp) with the injected
+`ImageFileIo` seam (Win32 impl src/win/cr_image_win.cpp — CreateFileW +
+GetFileSizeEx, the og's own primitives); flat raw (.img/.dmg/.raw/unknown —
+the og does NOT parse Apple UDIF for .dmg, it opens the file raw, and
+parity means we do the same); VMDK monolithicSparse + descriptor extents
+(FLAT/SPARSE/ZERO), grain-directory/grain-table translation at 512-byte
+sectors (the libvmdk contract, Device.mo:49106-49124), differencing chains
+via parentFileNameHint with depth cap; VHD fixed + dynamic + differencing
+(footer/dynamic-header checksums, BAT, 512-byte sector bitmaps, W2ku/W2ru
+parent locators); VHDX dynamic (header pair with CRC-32C + highest-sequence
+selection, region table pair, metadata, chunk-ratio BAT interleave) with a
+READ-ONLY in-memory log replay overlay (qemu vhdx-log.c walk semantics —
+see D-64d: a recovery tool never rewrites its input; qemu itself refuses
+read-only opens with a valid log — we instead serve the journaled bytes).
+CLI: `scan --image` and `recover --image` (usage text updated; LBA0
+classification printed at open like the og's construction; repair on an
+image target stays analysis-only — the writer hook is not wired, the
+orchestrator's documented "repair unavailable" path). Session: identity
+card v3 tail `image_path[512]` (VolumeInfo + VolumeSessionInfo +
+ScanConfig.volume_image; v1/v2 records deserialize with an empty tail —
+pinned in Crsf.VolumeInfoIdentityCardRoundTrip); the resume path warns on
+image/target mismatch like the model/serial identity. Registered
+non-adoptions (PARITY-DELTAS D-64): .edisk proprietary (refused,
+ERR_UNSUPPORTED), compressed VMDK streamOptimized/VMFS families (refused),
+VHDX differencing (refused — parent-locator metadata + SB blocks are the
+next concrete step, tracked here). M-046's 4Kn note: image devices are
+file-reads (no direct-I/O alignment constraints; M-009's 64 KiB envelope
+does not apply to file-backed reads) — VHDX logical-sector-size metadata
+(512/4096) drives geometry. Win7-inclusive gate: the Win32 IO uses
+CreateFileW/GetFileSizeEx/ReadFile only — no new import families.
+
+### Concurrent-landing reconciliation (session 14, DFX14 — repair of the marker block committed by a parallel merge)
+
+Both landings' Resolutions are preserved verbatim below in order (the
+first landing's flat/VMDK/VHD, then the extended landing's VHDX pass).
+The union keeps both records; the extended landing supersedes on scope.

@@ -55,6 +55,17 @@ struct CarveFlags {
      * everything (raw disks unchanged). SLICE-RELATIVE basis (the
      * orchestrator rebases stats.free_map from the absolute basis). */
     const storage::FreeMap* free_map = nullptr;
+    /* M-024 (diff-to-fix): runtime per-format enable/disable — the og's
+     * RawConfig.ini [Filter] + IAnalyserFilter registry rebuild
+     * (RAWSearchDLL FUN_180006b30 :4386-4434; 37 named toggles, STL/VPJ
+     * ship default-off). A comma/space/semicolon-separated list of
+     * extensions or display names (case-insensitive; "jpg,JPEG" or
+     * "HEIC WEBM"); both carve layers (grammar + raw-sign) skip listed
+     * formats. null/empty = every format enabled (the default; the
+     * core ships no format off - the og's STL/VPJ defaults are a host
+     * policy, not an engine constant, and are documented in
+     * PARITY-DELTAS). */
+    const char* disabled_formats = nullptr;
 };
 
 /* Naming callback: returns the display name for a carved hit (host policy). */
