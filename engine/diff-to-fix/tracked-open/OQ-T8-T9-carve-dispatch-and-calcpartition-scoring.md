@@ -1,11 +1,36 @@
-# OQ-T8 (tracked-open) — RAWSearch dispatch order (u16 → u32 4CC → raw_signs) inferred, not decoded
-# OQ-T9 (tracked-open) — CalcPartition scoring internals (lost-partition candidate ranking)
+# OQ-T8 (RESOLVED session 3 — see N-031) · OQ-T9 (tracked-open) — CalcPartition scoring internals (lost-partition candidate ranking)
 
 ---
 
-## OQ-T8 — RAWSearch dispatch order
+## OQ-T8 — RAWSearch dispatch order — **RESOLVED 2026-10-25 (session 3)**
 
-**Status:** UNVERIFIED · **Module:** carve · **Parameters:** A28, C19, B3
+**Status:** RESOLVED (decompiled first-hand) · **Module:** carve · **Parameters:** A28, C19, B3
+
+**Resolution (supersedes the question below):** the dispatch is `FUN_18000cf60`
+(RAWSearchDLL :9730-9930), called per sector from the scan loop `FUN_18000c820`
+(:9385; call at VA 0x18000cadc proven by disassembly: `call 0x18000cf60; test
+rax,rax; je 0x18000ccfc` — the NULL edge goes to `FUN_18000d670`, the
+raw_signs.json layer). Order decoded:
+
+1. `config/config.ini` `[User]` `only_common` gate (once-flag DAT_180118204);
+2. **u32 4CC registry FIRST** — `std::map` exact lookup on the first 4 bytes,
+   only when the first u32 != 0 (the corpus artifact's inferred "u16 first"
+   was inverted — erratum 19);
+3. **u16 registry second** (`FUN_18000d3e0`, first-2-bytes, skipped when the
+   first u32 is 0);
+4. linear walk of the whole analyser registry (also the only_common mode);
+5. total miss → **raw_signs.json layer LAST** (`FUN_18000d670`).
+
+The core's layering (grammar layer first; raw-sign layer second honoring
+grammar-owned positions) is semantically equivalent on the ordering question
+that mattered (raw_signs is the last resort on both sides). Residual deltas
+are filed as **N-031** (sector-relative stride, all-zero-sector skip,
+only_common gate, chain-vs-specificity collision order); the min/max unit
+decode from the same session is **S-015** and the dead confidence field is
+**N-030**. Evidence:
+`evidence/decompiled-quotes/s3-rawsigns-units-and-dispatch.md`.
+
+**Original question (superseded):**
 **Corpus artifact to examine next:** `re-workspace/reversed/ghidra-searchdll/RAWSearchDLL_decompiled.c`
 — the dispatch site that consults the two registries: builder `FUN_180004320`
 (corpus lines 2517–2918), find-or-create `FUN_18000ac20`, append `FUN_18000ac70`.
