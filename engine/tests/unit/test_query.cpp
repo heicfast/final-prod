@@ -90,6 +90,54 @@ TEST(Query, CategoryMap) {
     EXPECT_EQ(Category::Other, category_for_extension("xyzzy"));
 }
 
+/* M-023: the corpus FileFilter.xml category model (8 categories, 1,481
+ * unique extensions) vs the old 6-category/64-extension hand table. */
+TEST(Query, EmailCategoryExists) {
+    /* the og's Email class: pst/eml/emlx/dbx/nsf/edb/... (19 extensions) */
+    EXPECT_EQ(Category::Email, category_for_extension("pst"));
+    EXPECT_EQ(Category::Email, category_for_extension("PST"));
+    EXPECT_EQ(Category::Email, category_for_extension("eml"));
+    EXPECT_EQ(Category::Email, category_for_extension("emlx"));
+    EXPECT_EQ(Category::Email, category_for_extension("dbx"));
+    EXPECT_EQ(Category::Email, category_for_extension("nsf"));
+}
+
+TEST(Query, BookmarksCategory) {
+    EXPECT_EQ(Category::Bookmarks, category_for_extension("bookmarks"));
+}
+
+TEST(Query, CameraRawClassified) {
+    /* camera-RAW extensions the old 64-entry table did not carry:
+     * a "Graphic only" filter dropped exactly these */
+    EXPECT_EQ(Category::Image, category_for_extension("cr3"));
+    EXPECT_EQ(Category::Image, category_for_extension("x3f"));
+    EXPECT_EQ(Category::Image, category_for_extension("srw"));
+    EXPECT_EQ(Category::Image, category_for_extension("3fr"));
+    EXPECT_EQ(Category::Image, category_for_extension("erf"));
+    EXPECT_EQ(Category::Image, category_for_extension("mef"));
+    EXPECT_EQ(Category::Image, category_for_extension("pef"));
+    EXPECT_EQ(Category::Image, category_for_extension("mrw"));
+    EXPECT_EQ(Category::Image, category_for_extension("mos"));
+}
+
+TEST(Query, TableCountMatchesCorpusUniques) {
+    /* regeneration-drift guard: the corpus FileFilter.xml at 03ad46c
+     * carries 1,481 unique extensions (1,489 entries, 8 cross-listed) */
+    EXPECT_EQ(size_t(1481), filefilter_entry_count());
+}
+
+TEST(Query, CrossListedFirstWriterWins) {
+    /* the og's document order decides the cross-listed extensions
+     * (verified against the corpus XML first-hand): ari and md appear in
+     * two categories - Video/Document first, then Archive; gz/xz/jar/uzip
+     * repeat within/into Archive only (their first listing IS Archive). */
+    EXPECT_EQ(Category::Document, category_for_extension("md"));
+    EXPECT_EQ(Category::Video, category_for_extension("ari"));
+    EXPECT_EQ(Category::Archive, category_for_extension("gz"));
+    EXPECT_EQ(Category::Archive, category_for_extension("xz"));
+    EXPECT_EQ(Category::Archive, category_for_extension("jar"));
+}
+
 TEST(Query, FilterSortPageCorrectness) {
     tree::ResultTree t;
     auto* found = t.add_root(u"Found");

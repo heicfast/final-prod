@@ -27,8 +27,10 @@
 namespace cr {
 namespace query {
 
-/* Result categories (the core-side extension map mirrors the corpus
- * FileFilter.xml families: Image/Video/Audio/Document/Archive/Other). */
+/* Result categories. The extension membership mirrors the corpus
+ * FileFilter.xml (8 categories / 1,481 unique extensions) via the
+ * generated table in cr_filefilter_data.cpp (M-023). Email and
+ * Bookmarks were absent from the original 64-entry hand table. */
 enum class Category : u8 {
     None = 0,
     Image = 1,
@@ -37,16 +39,23 @@ enum class Category : u8 {
     Document = 4,
     Archive = 5,
     Other = 6,
+    Email = 7,
+    Bookmarks = 8,
 };
 
-/* "jpg" (no dot, any case) -> Image; unknown extensions -> Other. */
+/* "jpg" (no dot, any case) -> Image; unknown extensions -> Other.
+ * Binary search over the generated 1,481-entry table. */
 Category category_for_extension(const std::string& ext_utf8);
+
+/* The generated table's entry count (regeneration-drift guard:
+ * Filter.TableCount pins it to the corpus unique count). */
+size_t filefilter_entry_count();
 
 /* The predicate set. All conditions AND together; unset fields are
  * pass-through. Sizes are logical bytes; dates are the node's `modified`
  * time in 100-ns units (FileTimes wire unit). */
 struct Filter {
-    u32 category_mask = 0xFF; /* Category bits */
+    u32 category_mask = 0x1FF; /* Category bits (None..Bookmarks) */
     u64 size_min = 0;
     u64 size_max = ~u64(0);
     u64 modified_from = 0;

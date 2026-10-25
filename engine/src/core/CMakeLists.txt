@@ -43,6 +43,7 @@ add_library(cr_core STATIC
     recovery/cr_report.cpp
     preview/cr_preview.cpp
     query/cr_query.cpp
+    query/cr_filefilter_data.cpp
     repair/cr_rawfixer.cpp
     reghive/cr_reghive.cpp
     refs/cr_refs_engine.cpp

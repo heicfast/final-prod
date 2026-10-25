@@ -6186,3 +6186,58 @@ Stage Summary:
   open). Fixture notes: HFS+ leaf links are NODE indices (not block numbers);
   extent lengths are block-granular; the freed-node sweep needed the same
   gates as the live walk (both are record sources).
+
+Task ID: CT-M023 (M-023 fix + OQ-S4-1 resolve)
+Agent: main engineer (diff-to-fix close-all-tiers session)
+Task: Verify and fix M-023 (filter category model); resolve OQ-S4-1 (the S-023
+dependency chain: grading engine needs the category source + the extension table).
+
+Work Log:
+- Corpus verification BEFORE the fix (first-hand): FileFilter.xml parsed directly
+  (8 FileCategory nodes: Graphic 320 ext / Document 432 / Email 19 / Audio 281 /
+  Video 217 / Other 0 / Archive 219 / Bookmarks 1; 1,489 entries, 1,481 unique,
+  8 cross-listed: ari gz insp insv jar md uzip xz — first-writer-wins per the og's
+  document order; verified ari→Video, md→Document, gz/xz/jar→Archive against the
+  XML — my initial gz→Document test guess was WRONG and corrected per the
+  corpus-wins rule).
+- OQ-S4-1 resolved first-hand: the 169-entry grading table extracted from the corpus
+  DRWUI.exe binary (.data VA 0x141bb0500, 169 × 9-byte {8-char key, flag=0}, first
+  key "Raw") — full enumeration recorded in the OQ file's Resolution; feeds S-023.
+- Classification: CONFIRMED-DIVERGENCE (pst→Other pre-fix proven; Email/Bookmarks
+  absent from the enum pre-fix proven by compile).
+- Fix: Category enum +Email(7)/+Bookmarks(8) (append-only, ABI-safe); generated
+  table src/core/query/cr_filefilter_data.cpp (scripts/gen_filefilter.py in the
+  rawsigns pattern; 1,481 entries sorted for binary search; extern-qualified
+  definitions — const namespace-scope objects default to internal linkage);
+  category_for_extension + cat_of via lower_bound; filefilter_entry_count()
+  drift guard; Filter::category_mask default 0xFF→0x1FF + cr_ui's 0→all mapping
+  (Bookmarks bit 8); CMakeLists registration.
+- Tests: 5 new (EmailCategoryExists, BookmarksCategory, CameraRawClassified,
+  TableCountMatchesCorpusUniques, CrossListedFirstWriterWins). FAIL-BEFORE
+  PROVEN: behavioral probe on the pre-fix worktree FAILED 6/6 assertions
+  (cr3/x3f/srw/3fr/erf/pef → Other(6)); Email/Bookmarks fail-by-construction
+  (compile). PASS-AFTER: 6/6 (incl. existing CategoryMap).
+- Suite: 401/401 Linux Release (396 + 5) + 401/401 Linux ASan detect_leaks=1;
+  clang-format 18.1.8 clean (the CI-pinned version).
+- Audit trail: M-023 → FIXED/ with Resolution; RESOLVED-INDEX row + count 29→30;
+  CROSS-REF-MATRIX visualization+query rows; modules/query.md P16 verdict +
+  findings index; modules/visualization.md GAP row → M-023 FIXED;
+  SUMMARY close-all-tiers delta section; OQ-S4-1 → RESOLVED with the dump.
+
+Stage Summary:
+- M-023 CLOSED: 8-category / 1,481-extension filter parity (content axis);
+  the runtime-editable XML surface is the documented deliberate non-adoption.
+  OQ-S4-1 CLOSED: the grading extension table is in hand. S-023 (the grading
+  engine) is next — category source now exists, extension gate now known.
+
+---
+Task ID: CT-COORD2 (lane coordination marker)
+Agent: main engineer (diff-to-fix close-all-tiers session — the b8d91b5 claimant)
+
+The df-close leg's T1 (64eca23) adopted this session's lane claim via the ff05314
+merge. To prevent duplicate S-023 work: **this session STARTS S-023 NOW** (the
+grading engine; M-023 category source + the OQ-S4-1 169-entry table are landed
+in 3ff213c — both were S-023's dependencies). df-close leg: please take S-024
+(health grading) or S-025..S-027 (ext4 trio) next. The MFIX minors session stays
+on MINOR batches (their B3 landed N-028/N-038/N-005). Convergence protocol
+applies if we still collide (their landing stands; duplicate discarded).
