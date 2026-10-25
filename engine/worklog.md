@@ -5329,3 +5329,71 @@ Stage Summary:
   N-032's RST/USB hardware verification (carried from S3), and the remaining
   UNVERIFIED-BY-EXECUTION cells in the matrix (all carried in tracked-open with
   precise next artifacts).
+
+---
+Task ID: S4-CLOSE (session-4 diff-audit close-out)
+Agent: session-4 parity auditor (read-only continuation leg)
+Task: Session close-out — handoff record for the never-audited-modules + API-lane session.
+
+Work Log:
+- Audited commit: 204137b-lineage → close at the M-030-addendum commit (+ harness
+  embedding); corpus 03ad46c throughout. Three mid-session rebases onto the actively
+  moving remote (abe26b8 → ed00020 → 74b0854/a4053c4 window) — every conflict
+  resolved append-only with both legs' entries preserved; this leg's 11 finding IDs
+  renumbered past the parallel legs' IDs; the parallel legs' stale duplicate carve
+  matrix row removed with a legend note.
+- Wave-1 deliverables: 11 findings (S-023 SEVERE; M-028/M-029/M-030 MAJOR;
+  N-040..N-044 MINOR; I-015/I-016 INFO), 3 first-time module rows (preview/query/
+  transport), 2 decompile-quote evidence files + 2 executed-evidence files (suite
+  306/306 + ABI check; preview caps bypass with embedded harness source), corpus
+  errata rows 29-36, OQ-S2M-1 RESOLVED, OQ-S2M-2 partial, M-022 OQ-1/OQ-3 resolved,
+  M-023 counts corrected, M-030 partial-fix addendum (a4053c4 verified first-hand),
+  three new tracked-open OQs (S4-1/S4-2/S4-3).
+- Coverage statistics (cumulative across all sessions): 24 of 24 module rows in the
+  matrix now carry per-parameter verdicts (21 prior + preview/query/transport); the
+  5-agent reading wave covered the DRWUI subsystems artifacts + decompiles (grading/
+  assistant/preview/filter/sort), the 9-engine factory contract, the driver family
+  + client, the core's entire src/include tree line-cited, and independent
+  verification of every load-bearing claim (two-agent convergence on the grading
+  decode; three corrections to the corpus's own artifacts fed back via errata).
+- Executed verification this session: full Linux suite green at the audited tree;
+  the cr_ui C-ABI plain-C lifecycle check green; the preview caps-bypass harness
+  (scratch) proving M-028's contract violation by execution.
+
+Stage Summary:
+- Session-4 end state (by direct file inventory at close): 86 active (9 SEVERE /
+  25 MAJOR / 38 MINOR / 14 INFO) + 26 FIXED, plus 8 tracked-open files (3 new).
+- Recommended fix order (first 20, updated for this session's findings — the parallel
+  fix legs are consuming the roadmap actively, so the order favors small-executed-proof
+  items and capability gaps):
+  1. M-028 preview caps bypass (executed proof in evidence; smallest verified fix:
+     route docx reads through the Window cap check + doc re-anchoring)
+  2. S-023 grading engine (largest missing capability; start with OQ-S4-1's
+     extension-table dump, then the monotonic 2-bit field + the decision tree)
+  3. N-042 CLI temp fractional digit (one-line fix + decidegree accessor)
+  4. N-044 --deep naming hazard (rename to --whole-disk + usage-text fix)
+  5. N-040 ABI doc truthfulness bundle (five doc fixes, the frozen-contract unit
+     line FIRST — consumer-facing correctness trap)
+  6. M-030 remainder (WinPE gate + terminal OFFLINE + LDM-path 32→200 + silent
+     fallback + stale cite — the fix leg already landed the handle ladder + envelope)
+  7. N-041 dead code decision (wire-or-delete RdaClient + volume_letter_to_disk)
+  8. M-029 query model (frozen-doc unit fix is in N-040; then bucket-ID translation
+     + Type sort key; the server-side filter push needs OQ-S4-2 first)
+  9. N-043 progress heartbeat decision (accept-and-document vs heartbeat event)
+  10. S-020 ReFS attribute layer (S3-REFS; needs the real-volume fixtures)
+  11. S-012 NTFS pass-2 (standing #1 from prior sessions)
+  12. S-019/S-021/S-022 (the S3 audit legs' SEVEREs)
+  13. M-022 remainder (grammar work; OQ-2 real-volume dump is the gate)
+  14. M-017 lost-partition scoring port (OQ-S2M-2's NTFS bonus setters now decoded)
+  15. M-011..M-015 FAT/exFAT family
+  16. M-024 (theirs — RawConfig toggle surface; pairs with M-029)
+  17. M-025/M-026/M-027 (theirs — ReFS model family)
+  18. N-038/N-039 (theirs — HFS+ fork predicate / NTFS UsnJrnl gate)
+  19. I-016's engine-enable-gates note (fs_exclude_mask — optional)
+  20. OQ-S4-3 chunking relative perf (Windows bench leg — closes M-030's perf axis)
+- Honest not-completed-by-this-leg: OQ-S4-1/S4-2/S4-3 as tracked; the grading
+  fix plan's vt+0xb8/vt+0x100 conditions; og-execution benches (Windows-only);
+  N-032's hardware verification (carried); a deeper DRWReport/DRWService pass was
+  deliberately not attempted (agent-A verified DRWReport is a crash reporter with no
+  scan-report surface — the core's report is a documented deliberate addition, see
+  M-029/N-040 family).
