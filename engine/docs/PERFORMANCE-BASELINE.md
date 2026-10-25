@@ -70,26 +70,61 @@ the alignbench sweep (§6) measures the plateau before any further tuning.
 Self-healing reopen (og error-6 parity) landed on every device class — no
 throughput claim, correctness only.
 
-## 6. The Windows CI benchmark (tooling landed; numbers pending first run)
+## 6. The Windows CI benchmark — FIRST MEASURED NUMBERS (run 40227375329,
+windows-2022, 512 MiB span per cell, two passes checksum-gated; the vcpkg-release
+build; the driver service `rda` loaded from the rda-driver v0.2.1 release)
 
-`bench/ours/run-alignbench.ps1` + `.github/workflows/api-benchmark.yml`
-(windows-2022, driver loaded as service `rda`, direct cells against
-`\\.\C:`, RDA cells through the exact production grammar path, API latency
-late-bound against the built cr_ui.dll):
+Leg 1 — the 4-KiB-vs-64-KiB slow-path demonstration (NO_BUFFERING, QD1,
+`\\.\C:`):
 
-| # | Measurement | Method | Status |
-|---|---|---|---|
-| 1 | The 4 KiB-vs-64 KiB slow-path demonstration (the ~3.5× claim) | NO_BUFFERING 128 KiB vs 132 KiB chunks over the same 512 MiB span | **tooling landed; first run pending** — ratio recorded to alignbench.json (hardware may attenuate; virtualized runner storage differs from the mandate's mid-range NVMe) |
-| 2 | Read-size sweep (64 KiB / 256 KiB / 1 MiB / 4 MiB) | same job, production flag shape | **tooling landed; first run pending** |
-| 3 | Queue-depth sweep (1/2/4/8 outstanding) | FILE_FLAG_OVERLAPPED ring | **tooling landed; first run pending** — reference is QD=1 per handle; changes only if the plateau justifies it |
-| 4 | API call overhead (cheap ops) | late-bound cr_ui loop, 2M iterations/op | **tooling landed; first run pending** |
-| 5 | Driver round-trip overhead from the core | RDA grammar-path reads with F11 unscale verified + direct comparison cell | **tooling landed; first run pending** |
-| 6 | Scan end-to-end throughput | comparative-bench harness | **planned** (existing harness; transport cells above land first) |
-| 7 | C-consumer lifecycle wall time | ui_abi_check timing | **planned (T13)** |
+| Shape | Throughput | Notes |
+|---|---:|---|
+| 128 KiB chunks (64 KiB multiple) | **240.0 MiB/s** | the fast-path shape |
+| 132 KiB chunks (4 KiB multiple, NOT 64 KiB) | **233.6 MiB/s** | the slow-path shape |
+| **Ratio** | **1.03×** | the documented ~3.5× does NOT manifest on the runner's virtualized C: volume — recorded honestly; the transport's 64 KiB envelope stays mandated by construction (the mandate's 830-vs-2900 MB/s figure is mid-range NVMe hardware, not Azure VM storage) |
 
-Rules for every number: environment recorded (runner, build preset), both
-measurement passes checksum-verified (the harness fails on mismatch), no
-continue-on-error, artifacts kept. Numbers land in this file as they arrive.
+Leg 2 — read-size × queue-depth sweep (production flag shape, `\\.\C:`):
+
+| Chunk | QD1 | QD2 | QD4 | QD8 |
+|---|---:|---:|---:|---:|
+| 64 KiB | 208.6 | 233.1 | 231.1 | 235.5 |
+| 256 KiB | 238.9 | 240.6 | 236.1 | 237.3 |
+| 1 MiB | 224.4 | 241.9 | 241.2 | 241.3 |
+| 4 MiB | 202.8 | 241.3 | 238.1 | 242.4 |
+
+**Read of the sweep:** the runner's C: caps at ~240 MiB/s — every size ≥256 KiB
+saturates it at QD1 and QD>1 buys nothing beyond noise. The plateau is
+size-flat on this hardware, which (a) validates keeping the og-matched
+synchronous QD1 model (no architectural change justified by measurement) and
+(b) validates 256 KiB cache blocks as sufficient to the plateau on this class
+of storage. Fast local NVMe will re-measure via the weekly cron / dispatch.
+
+Leg 3 — the RDA driver grammar-path round-trip (F11 Information ×512 unscale
+verified on EVERY read; the exact production grammar
+`\\.\rda\<PID-token>\<disk>\<part>`):
+
+| Config | Throughput | Reads |
+|---|---:|---:|
+| RDA 64 KiB QD1 | **201.9 MiB/s** | 8192 |
+| RDA 256 KiB QD1 | **169.3 MiB/s** | 2048 |
+| RDA 1 MiB QD1 | **160.5 MiB/s** | 512 |
+| direct `\\.\PhysicalDrive0` 256 KiB QD1 | **151.5 MiB/s** | 2048 |
+
+**Read:** on this runner the DRIVER path beats the direct path at the same
+chunk (169.3 vs 151.5 MiB/s @256 KiB) — the driver's per-read overhead is
+repaid by its direct-IRP forwarding. The end-to-end integration is proven:
+service install → test-sign → grammar open with the PID token → 8,192+
+F11-scaled reads → checksum-stable. The driver-loaded integration test the
+mandate requires now exists and runs on every push touching the transport.
+
+Leg 4 — cr_ui cheap-op API latency: the late-bound loop failed on the first
+run (LoadLibraryW could not resolve cr_ui.dll's vcpkg runtime deps — PATH fix
+landed in the workflow; numbers from the next green run).
+
+Tooling: `bench/ours/run-alignbench.ps1` +
+`.github/workflows/api-benchmark.yml` (windows-2022; driver from the
+rda-driver release, SHA256SUMS-verified, test-signed, installed as `rda`,
+verified via verify-driver.ps1; no continue-on-error; artifacts always).
 
 ## 7. Acceptance targets for this session
 

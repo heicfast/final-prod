@@ -125,6 +125,11 @@ jobs:
         run: |
           $span = '${{ github.event.inputs.span_mib }}'
           if (-not $span) { $span = '512' }
+          # cr_ui.dll links the vcpkg runtime (z/zstd/lz4): put the vcpkg bin
+          # tree first on PATH so the harness's LoadLibraryW resolves them
+          # (the first run failed exactly here: LoadLibraryW -> module not
+          # found, run 40227375329)
+          $env:PATH = "build\win-x64-release\vcpkg_installed\x64-windows\bin;$env:PATH"
           & bench\ours\run-alignbench.ps1 `
             -Target '\\.\C:' `
             -RdaService 'rda' -RdaDisk 0 `
