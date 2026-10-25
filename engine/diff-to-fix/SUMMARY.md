@@ -25,6 +25,17 @@ things) landed in two parallel legs, reconciled here:
   raw passthrough; ZFS edge verified parity first-hand via FUN_18001c630).
 ## ⚠️ THIRD-LEG ADDENDUM (LDM deep-pass leg, session 2) — ACUTE A-002 filed
 
+**Session-2 third-leg state at close (2026-10-25):** this leg resolved OQ-T2 (FAT mirror
+consult — per-entry zero-fallback, N-022 filed), OQ-T5 (exFAT ChecksumDBR — spec skip-set
+{106,107,112}, core MATCH), OQ-T7 (RAID-5 rotation — left-symmetric both sides, I-008),
+and bounded OQ-T6 (the og's ZFS engine is vdev-type-blind: zero vdev-type/geometry keys
+in the binary; fixed 0x1C000 anchor quote-confirmed; id-only vdev registry — the core's
+explicit unsupported_vdevs refusal is the honest superset). OQ-T9's CalcPartition
+machinery is located (vtable slot 4, Fat32 direct-field fast path) for a future scoring
+decode. **A-002 remains the roadmap's #1 item** (two-line constant restore + de-self-
+referencing the two regression tests).
+
+
 **A-002 (ACUTE, fix-induced regression, highest priority in the whole roadmap):** the
 A-001 fix `1cb6a43` replaced the two LDM GPT type-GUIDs — which were **byte-for-byte
 the real Microsoft `PARTITION_LDM_METADATA_GUID`/`PARTITION_LDM_DATA_GUID`** — with

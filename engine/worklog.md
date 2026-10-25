@@ -3622,3 +3622,56 @@ Stage Summary:
 - OQ-T6 bounded decisively (og is vdev-type-blind; core's refusal is the honest
   superset; mirror first-child residual recorded).
 - OQ-T9 machinery located for a future scoring decode.
+
+---
+Task ID: S2-CLOSE (session-2 diff-audit close-out — third leg)
+Agent: session-2 parity auditor (read-only, LDM-deep-pass leg)
+Task: Session close-out — handoff record.
+
+Work Log:
+- This leg's session-2 contributions (3 pushed waves: 23adad1, f620234, 5c3a5ce):
+  * A-002 ACUTE filed with executed proof + og-binary extraction + 4 external sources
+    (the A-001 fix corrupted both LDM GPT type GUIDs; real GPT dynamic disks fail LDM
+    discovery on the current tree). A-001 reopened for its false-positive LDM half.
+  * OQ-T2 RESOLVED (FAT mirror consult decoded; N-022 divergence filed).
+  * OQ-T5 RESOLVED (exFAT ChecksumDBR = spec skip-set; core MATCH).
+  * OQ-T7 RESOLVED (RAID-5 left-symmetric both sides; I-008 dormant rotations).
+  * OQ-T6 bounded decisively (og vdev-type-blind; core's refusal = honest superset).
+  * OQ-T9 machinery located. 5 evidence files + 3 finding files + module/matrix/
+    SUMMARY/tracked-open updates; all reconciled with the two parallel session-2 legs
+    (ID collisions cleared both directions: my I-006->I-008, my N-010 dropped as
+    superseded by their M-010, their A-002->A-003 crediting mine).
+- Verified first-hand this session: the 5 session-1 fixes (A-001 partial, S-001, M-001,
+  N-001, S-005) — S-001/M-001/N-001 decompile cites re-read byte-exact, suite 288/288
+  (ASan, gtest built from source); the parallel legs later re-ran 313/313 at newer
+  baselines.
+- Not completed by this leg (honest handoff): OQ-T8 (carve dispatch order in
+  RAWSearchDLL - 80k lines, machinery not yet located), OQ-T9's scoring feature/weight
+  table decode (machinery located: FATSearchDLL :5744 vtable slot 4), the ReFS ADS
+  recovery gap (project GAP-ADS still open - the mandate's "ReFS first-class" clause),
+  and the NTFS/ext4/HFS+/Btrfs per-engine deep passes (the parallel legs covered NTFS
+  deeply: M-007/M-008/N-011/N-012; ext4/HFS+ timestamps: I-006/I-007; S-002/S-004
+  verified fixed; S-003 deferred with a decoded-evidence addendum).
+
+Stage Summary:
+- Recommended first 20 fixes (updated for session-2 state): 1) A-002 (two-line constant
+  restore + de-self-reference the regression tests - the ONLY ACUTE, blocks all GPT
+  dynamic-disk recovery); 2) A-003 (fix --part LBA-0 write bug, landed 9888ec9 - verify);
+  3) S-003 (HFS+ journal replay - evidence addendum decoded); 4) S-006 (lost-partition
+  probe families); 5) S-007 (carve formats); 6) S-009/N-020 (disk-map finding split);
+  7) S-010 (rawfixer write-path volume lock); 8) S-011 (exFAT TZ offset); 9) M-002 (EBR
+  torn-chain salvage); 10) M-005 (carve bitmap gating); 11) M-007 (NTFS hard-link
+  fan-out); 12) M-008 (attribute-list chase scope); 13) M-009 (rawfixer 64KiB envelope);
+  14) M-010 (invalid-UTF-8 name fidelity - raw bytes to session); 15) N-022 (FAT mirror
+  BAD-consult policy decision); 16) N-011..N-021 (NTFS ADS nodes, dest-overlap,
+  checkpoint atomicity, writer pre-check, emit-boundary, cancel-watcher, UBSan CI,
+  regression tests, doc drift, FAT invalid date); 17) I-008 (comment-only); 18-20) the
+  remaining minors from the parallel legs' waves.
+- Coverage statistics for this leg: read first-hand this session: LdmManager_decompiled.c
+  (RAID-5 + GPT gate + PRIVHEAD paths, ~600 lines deep), Partition_decompiled.c (GPT
+  entry scan), ZfsSearchDLL_decompiled.c (nvlist/vdev/name paths, ~350 lines), FATSearchDLL_decompiled.c
+  (CDoubleFATTable cluster + child tables + CalcPartition sites, ~450 lines),
+  RawFixer_decompiled.c (ChecksumDBR + predicate chain, ~120 lines),
+  NTFSSearchDLL/NTFSLib decompiles (verification cites), plus binary extractions
+  (LdmManager.mo, Partition.mo, ZfsSearchDLL.dll, FATSearchDLL.dll, RawFixer.dll
+  - RTTI vtables, GUID constants, skip-set arrays, strings censuses).
