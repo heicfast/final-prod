@@ -100,3 +100,38 @@ accepts non-pow2 bps — the FATFileSystemAnalyser's validators
 (FFA:429-504) check SPC bitmasks but the bps gate there was not fully
 decoded; the fix leg should pin FFA's bps check before relaxing the
 engine gate (fixture evidence preferred).
+
+## Resolution
+
+**Status:** FIXED
+**Fixed in commit:** (this session's M-045 commit — see `git log` for "fix: M-045")
+**Verified by:** `FatEngine.FatBps1536Accepted`, `FatEngine.FatZeroNumFatsRejected`,
+`FatEngine.FatClusterCountOverflowRejected` (all three fail-before PROVEN by
+temporarily restoring the old gates and rebuilding: 3/3 FAILED; fix restored →
+green), plus `FatEngine.FatBps32768CeilingAndNonMultipleRejected` (the documented
+bound pin). Full suite 588/588 Linux Release.
+**Resolution notes:** verified-first-hand against the corpus this session
+(PartitionRecoveryD FUN_004610 :2516-2608 classifier + FUN_0048f0/4a40/4b70
+validators, all re-read in the decompile). IMPORTANT context: the finding's six
+gates were substantially absorbed by the parallel N-034/N-010b landings BEFORE
+this session — `lost_boot_flavor` (cr_chain.cpp) already implements the og
+classifier EXACTLY (band-ordered retry <0xFF5→[12,16,32], <0xFFF5→[16,32,12],
+<0xFFFFFF0→[32,16,12]; any-512-multiple bps; the "FAT32   "@+0x52 label;
+numFATs≠0; SPF16≤200 FAT12 quirk; cluster-cap; 55AA) and `boot_passes_open_gates`
+already hard-requires the FAT16/FAT32 labels at engine open (FUN_18002f970
+decode); the SPC-set pin and label tests exist (SpcDomainMatchesOgSet,
+BootStringGate*). This session closed the three REMAINING validate_boot
+residuals the finding's falsifiable claims still hit end-to-end (probe_fat runs
+validate_boot as its FIRST gate, so these three still made og-accepted
+candidates invisible): (a) bps is now ANY 512-multiple ((bps & 0x1FF) == 0, the
+og :2542 rule) with the documented deliberate 32768 ceiling the og lacks
+(PARITY-DELTAS row; downstream arithmetic is bps-multiplied so non-pow2 sizes
+are safe — the ceiling only cuts absurd-volume noise); (d) numFATs == 0 is a
+hard reject (the old fat_area=0 latent path); (e) cluster_count ≥ 0xFFFFFF0 is
+rejected (the og classifier's final-band else-branch; spec max 0x0FFFFFF6).
+Gate (b) SPC-256 was a documented false positive (u8 unrepresentable —
+SpcDomainMatchesOgSet walks the whole domain); gate (c) is hard at BOTH og
+sites and both core layers; gate (f) is live in lost_boot_flavor. The finding's
+open question (FFA's engine-side bps gate undecoded) stands as recorded; the
+classifier-parity rule was chosen for validate_boot to restore probe coherence
+(a candidate lost_boot_flavor accepts must survive validate_boot).

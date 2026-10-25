@@ -536,8 +536,19 @@ u32 validate_boot(const u8* sector512, u64 device_bytes, FatParams& out) {
         return ERR_BAD_MAGIC;
     FatParams p;
     p.bytes_per_sector = u16_from_bytes_le(sector512 + 0x0B);
-    if (p.bytes_per_sector < 512 || p.bytes_per_sector > 4096 ||
-        (p.bytes_per_sector & (p.bytes_per_sector - 1)) != 0)
+    /* M-045 (diff-to-fix): the og's classifier accepts ANY 512-multiple
+     * bps ((bps & 0x1ff) == 0, PartitionRecoveryD FUN_180004610 :2542;
+     * lost_boot_flavor already applies the same rule) - 1536/2560/8192
+     * are rare-but-real volumes. The old pow2-in-[512,4096] gate made the
+     * probe incoherent: lost_boot_flavor classified a bps=1536 candidate
+     * while validate_boot (probe_fat's FIRST gate, cr_candidates.cpp)
+     * rejected it -> invisible. All downstream arithmetic is
+     * bps-multiplied (offsets, root sectors, FAT areas), so non-pow2
+     * sizes are safe. Deliberate documented bound (PARITY-DELTAS): the
+     * 32768 ceiling the og lacks (a u16 field tops at 65535; no real
+     * format writes past 32768 - this only cuts absurd-volume noise). */
+    if (p.bytes_per_sector < 512 || p.bytes_per_sector > 32768 ||
+        (p.bytes_per_sector & 0x1FF) != 0)
         return ERR_BAD_PARAMETER;
     p.sectors_per_cluster = sector512[0x0D];
     /* N-010b/N-034 (diff-to-fix, corrected this session): SPC is a u8
@@ -551,6 +562,11 @@ u32 validate_boot(const u8* sector512, u64 device_bytes, FatParams& out) {
     p.cluster_bytes = u32(p.sectors_per_cluster) * p.bytes_per_sector;
     p.reserved_sectors = u16_from_bytes_le(sector512 + 0x0E);
     p.fat_count = sector512[0x10];
+    /* M-045: numFATs == 0 is a hard reject (the og's every gate requires
+     * it nonzero; the old code let fat_area = 0 through - a latent
+     * nonsense-geometry path). */
+    if (p.fat_count == 0)
+        return ERR_BAD_PARAMETER;
 
     p.root_entries = u16_from_bytes_le(sector512 + 0x11);
     u32 total16 = u16_from_bytes_le(sector512 + 0x13);
@@ -585,6 +601,12 @@ u32 validate_boot(const u8* sector512, u64 device_bytes, FatParams& out) {
         return ERR_BAD_PARAMETER;
     const u32 data_sectors = total - u32(p.first_data_sector);
     p.cluster_count = data_sectors / p.sectors_per_cluster;
+    /* M-045: the og's classifier rejects cluster counts >= 0xFFFFFF0
+     * outright (FUN_180004610 :2595-2598 - the final band's else-branch);
+     * the spec's own reserved-cluster max is 0x0FFFFFF6, so this only
+     * cuts spec-overflow noise the og never surfaces. */
+    if (p.cluster_count >= 0xFFFFFF0u)
+        return ERR_BAD_PARAMETER;
 
     p.flavor = flavor_from_clusters(p.cluster_count);
     p.fat2_start = p.fat_count >= 2 ? p.fat_start + u64(p.fat_sectors) * p.bytes_per_sector : 0;

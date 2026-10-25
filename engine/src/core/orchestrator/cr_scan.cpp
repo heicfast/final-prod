@@ -1203,6 +1203,22 @@ u32 ScanController::run_carve_stage(IStorageDevice* slice, CancelToken* cancel,
     };
     carve::CarveFlags cf;
     cf.threads = threads;
+    /* M-005: gate the sweep with the engine pass's allocation truth (the
+     * S-009 FreeMap). stats.free_map is on the ABSOLUTE basis (F-1 rebase
+     * at the engine dispatch tail); the carve works slice-relative - copy
+     * with the base shifted back. No valid map (carve-only runs, raw
+     * disks, pre-S-009 sessions) -> null gate -> carve everything, the
+     * og's no-bitmap behavior. */
+    storage::FreeMap carve_fm;
+    if (stats.free_map.valid()) {
+        carve_fm = stats.free_map;
+        if (slice->absolute_base() != 0)
+            carve_fm.base_byte = carve_fm.base_byte >= slice->absolute_base()
+                                      ? carve_fm.base_byte - slice->absolute_base()
+                                      : 0; /* defensive: a map starting before
+                                              this slice gates from its start */
+        cf.free_map = &carve_fm;
+    }
     carve::CarveStats cs;
     carve::NameCallback namer = [](const carve::Signature& sig, u64 size, u32 index) {
         (void)size;
@@ -1217,6 +1233,7 @@ u32 ScanController::run_carve_stage(IStorageDevice* slice, CancelToken* cancel,
                                 namer, cs);
     stats.carved_found = cs.validated;
     stats.bytes_scanned += cs.bytes_scanned;
+    stats.carve_bitmap_skipped_bytes = cs.bitmap_skipped_bytes; /* M-005 */
     if (rc == OK)
         carve_done_ = true;
     tel_stage_end_(2, cancel);

@@ -967,7 +967,7 @@ CarveResult validate_mkv(IStorageDevice* s, u64 hit, u64 cap) {
      * and matroska, reject every other DocType (an exotic EBML use is
      * rejected by the og's analyser and now by ours). */
     {
-        u8 hdr[512]; /* <= 0x200 by the bounds gate above */
+        u8 hdr[512];                           /* <= 0x200 by the bounds gate above */
         const u64 hdr_len = 4 + u64(vlen) + v; /* id(4) + size vint + payload */
         if (hdr_len > sizeof(hdr) || !rd(s, hit, hdr, u32(hdr_len)))
             return r;
@@ -1637,7 +1637,12 @@ CarveResult validate_cab(IStorageDevice* s, u64 hit, u64 cap) {
     u8 h[36];
     if (!rd(s, hit, h, 36))
         return r;
-    if (std::memcmp(h, "MSCF", 4) != 0)
+    /* N-069: the og registers TWO magic keys for this case-insensitive
+     * format - "MSCF" and "mscf" (registry census :94, duplicate-key
+     * policy :127). The validator serves both rows, so it re-accepts
+     * exactly the two registered spellings (mixed case never anchors -
+     * no registry row keys it). */
+    if (std::memcmp(h, "MSCF", 4) != 0 && std::memcmp(h, "mscf", 4) != 0)
         return r;
     const u32 cbCab = rd32(s, hit + 8);
     const u16 cFolders = u16(h[26]) | (u16(h[27]) << 8);

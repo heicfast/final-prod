@@ -82,3 +82,10 @@ finding's fix plan:
 3. The consumer is the og's LIST-tier analyser `RawFormat_xjq::CommonRawAnalyser`
    (format id 0xa8) — placement matches our post-grammar second pass (see
    N-031's dispatch decode).
+
+## Resolution
+
+**Status:** FIXED (as a REGISTERED DELIBERATE SUPERSET — the fix plan's option (b))
+**Fixed in commit:** this session's carve-minors batch (DFX12)
+**Verified by:** the two existing pins, re-cited and now load-bearing for this resolution: `CarveEngine.RawSignLayerHeaderOnlyAndSharedMagic` (the best-confidence header sign wins the shared flp/fst position — winner selection by conf, not table order) and `CarveEngine.RawSignTailPairWithinFormat` (the (header+tail)/2 + 100 blend asserted on the emitted node's carve_confidence). Suite 577/577 linux-release.
+**Resolution notes:** the fix plan's own decision gate governs here: option (a) — removing the confidence semantics — is gated on decoding the og's emitted grade for raw-sign files (FUN_18000d670's result fill), which remains UNDECODED in the corpus; adopting (a) blind would replace a working ranking with an unknown. Option (b) executed as written: the cr_rawsigns.h divergence block now states the field is DEAD DATA in the og with the full citation chain (FUN_18001e510 :23522-23765 — the parser consumes part[0]/part[1], never part[2]; the rawsearch-carving deep-dive's "confidence combination ranks overlapping candidates" claim corrected — corpus erratum 19), PARITY-DELTAS D-66 registers the superset with do-not-remove guidance, and the two pins guard both consumed semantics (winner selection + the tail blend) so a future parity session cannot "fix" them accidentally. The honest remainder — decoding FUN_18000d670 to learn what grade the og actually emits for raw-sign files — is recorded in D-66 as the precondition for any future option-(a) revisit.

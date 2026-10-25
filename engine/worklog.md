@@ -9206,8 +9206,12 @@ Stage Summary:
   hardening tests; corpus citations re-verified first-hand by both legs).
   SEVERE tier: S-029 + S-030 remain. Session tally: M-053, union repair,
   S-009 (verification + hardening port). Next: S-030 (image scan targets),
-  then S-029 (apply path), then the MAJOR/MINOR waves.>>>>>>> 33c0722 (test(S-009 hardening): port the second leg's unique free-overlay proof set onto the landed implementation)
----
+  then S-029 (apply path), then the MAJOR/MINOR waves.
+  [union-repaired by DFX11 session 11: the a3e5fd8 landing's merge left a
+  committed '>>>>>>> 33c0722' tail here; both sides preserved - the
+  DFX9-T1b entry above is the kept record]
+
+(union note: the parallel a3e5fd8 S-009-hardening landing ends here — marker stripped by the DFX16 union pass)---
 Task ID: DFX9-T2 (lane claim — unclaimed MINOR high-value trio + module batches)
 Agent: main engineer (diff-to-fix session 9, the M-053/union-repair/S-009-hardening leg)
 Task: Claim the unclaimed MINOR findings per multi-leg coordination: N-065
@@ -9512,3 +9516,427 @@ Stage Summary:
   consent-gated, transactional, undoable MBR-entry write from a scanned
   candidate, with the og's settle semantics. Next: the MAJOR tier in
   impact order, respecting the active lane claims.
+
+---
+---
+Task ID: DFX11-S009V (session 11, S-009 verification + convergence record)
+Agent: main engineer (diff-to-fix fix session 11 — DFX11)
+Task: S-009 was fixed CONVERGENTLY by this leg and the parallel DFX8/DFX9
+arc (c55bd45 + a3e5fd8 landed first). This entry records the independent
+verification, the corpus arbitrations, and the fold decision.
+
+Work Log:
+- This leg implemented the full free-overlay stack independently (Volume
+  AllocMap polarity, REC_ALLOC_MAP, snapshot context, want-relaxation,
+  13 tests, 547/547 at the pre-landing tree) — the rebase onto the
+  parallel landing (c55bd45, +M-031 d487928/6f6210f) exposed the
+  collision; per the lane protocol the FIRST LANDING wins and this leg's
+  convergent implementation was DROPPED CLEANLY (reset to origin/main).
+- Verification of the LANDED implementation, first-hand at 6f6210f:
+  suite 575/575 Linux Release. Corpus arbitrations from this pass:
+  * FAT free map: this leg had corrected the finding's plan text against
+    the corpus (no FAT BUILDER class in the RTTI evidence); the landed
+    leg derives the FAT free map from the loaded table. The corpus
+    settles it FOR the landed design: searchdll-family--architecture.md
+    :98 - "RAW pass: RAWSearchDLL carves by signatures across unallocated
+    clusters (VOLUME BITMAP FROM FS ENGINE) + free space" - the pipeline
+    demands the FS engine supply the volume bitmap, and for FAT the only
+    allocation truth IS the table (entry 0 = free). My narrow reading is
+    corrected here; the landed FAT free map is og-faithful.
+  * found-content suppression clause: the finding's plan text ("no
+    found-content covers") was stricter than the og; the landed rule
+    paints bitmap-free cells regardless of found content - which matches
+    the og's IBuildVolumeBitmap truth (the grid colors from the bitmap;
+    deleted content on free clusters shows FREE in the og too). The
+    landed design wins this arbitration as well.
+  * want-relaxation (NULL want -> session view) and the frozen
+    carve-completed mask on the snapshot path: this leg's variants were
+    considered and NOT folded - the landed contract (want required +
+    bounds-checked, carve_completed=false on value views, plus the NEW
+    cr_ui_scan_snapshot live surface) is coherent, pinned by their
+    tests, and covers the mid-scan use through the dedicated path.
+    Folding would churn the ABI contract twice for a nicety.
+- The a3e5fd8 landing's committed conflict tail in this worklog repaired
+  (both sides preserved; see the DFX9-T1b entry note).
+
+Stage Summary:
+- S-009 stands FIXED via the parallel landing; verified by this leg.
+  SEVERE remaining: S-029 (DFX10's claim), S-030 (DFX8 in flight).
+  This session's fix tally: 0 (verification only) - the 20+ target
+  continues on the MAJOR tier below.
+
+---
+Task ID: DFX11-CLAIM (session 11, lane claim — unclaimed MAJOR batch)
+Agent: main engineer (diff-to-fix fix session 11 — DFX11)
+Task: Lane claim, posted before any finding work. Per the worklog claim
+map: DFX15 owns M-046/M-045/M-013/M-052/M-043/M-018/M-014 (+M-002/M-037/
+M-031 landed), DFX9-T7 owns M-035/M-018/M-013/M-014, DFX14 owns M-005,
+DFX9-T2 owns N-065/N-070/N-075, DFX13 owns N-045/N-067/N-068/N-069,
+S-029 is DFX10's, S-030 is DFX8's. This leg claims the UNCLAIMED MAJOR
+batch, one-finding-one-commit-one-push:
+M-007 (NTFS hard-link fan-out), M-008 (NTFS attrlist chase scope/depth),
+M-032 (slice tail read clamp vs refusal), M-050 (session node-model
+roundtrip gaps), M-029 (query model sort/paging/bucket-ids/server-push),
+M-049 (error model divergence + parity claim). Extensions announced in
+this worklog as each lands.
+
+Stage Summary:
+- Claim posted; execution begins with M-007.
+
+Task ID: DFX16-N069 (union-tree repair + first MINOR fix)
+Agent: main engineer (diff-to-fix session 11 — DFX16; see the DFX13-T1
+entry for this leg's ID history: DFX11 -> DFX13 (squatted) -> this leg
+now stamps DFX16 to stay unambiguous against the DFX14/DFX15 lanes)
+Task: Re-baseline the union tree; repair the 5aaf044 clobber if still
+needed; fix N-069 end to end with fail-before proof.
+
+Work Log:
+- Union-tree baseline: full suite 543/547 RED (4 S-009 disk-map tests).
+  Root-caused by worktree bisect: green at c55bd45 (S-009 landing), red
+  from 5aaf044 — the "style(lint)" commit that claimed content-identical
+  formatting but actually pushed STALE file versions, deleting the S-009
+  snapshot implementation from cr_ui.cpp and reverting N-042 + N-044 in
+  rrecov.cpp. Repaired locally (restore + clang-format, 547/547 green)
+  and pushed 786ff05; the parallel DFX14 lane landed the equivalent
+  repair c4e37d1 in the same window — rebase union kept theirs, my commit
+  dropped as superseded (recorded here; no duplicate repair in history).
+- Re-baselined on the union: 567/567 green at a3e5fd8 (S-030, M-002,
+  M-047, M-051 + S-009 hardening tests now in-tree from the parallel
+  lanes). Inventory: SEVERE 1 (S-029, claimed by DFX10's queue) · MAJOR
+  36 · MINOR 49 (41 unresolved files) · INFO 22 · FIXED 80 · OQ 16.
+- N-069 verified then fixed. Corpus: registry census :94 ("MSCF"/"mscf"
+  dual keys, FileCABAnalyser) + :127 (duplicate-key policy, no
+  case-folding). Fail-before executed: `Carve.CabLowercaseMagic` RED on
+  the pre-fix tree (lowercase CFHEADER never probed — exactly the
+  finding's falsifiable claim). Fix: FMT_CAB_LC appended to FormatId,
+  registry row {'m','s','c','f'} sharing validate_cab, trial-order slot
+  after FMT_CAB. The fail-before run exposed a SECOND site the fix plan
+  missed: validate_cab's internal uppercase-only memcmp re-check killed
+  the lowercase hits post-anchor — now accepts exactly the two
+  registered spellings (mixed case never anchors; no row keys it).
+  Pass-after: both cases carve, lowercase node carries FMT_CAB_LC;
+  registry F8 + self-probe gates pass (row appended, order = FormatId).
+- Full suite 568/568 green (linux-gcc RelWithDebInfo + ASan); clang-format
+  clean on all six touched files. Audit trail: Resolution in the finding,
+  moved to findings/FIXED/, RESOLVED-INDEX row, matrix carve cell
+  (B1/C19 -> FIXED), modules/carve.md verdict paragraph, SUMMARY
+  session-11 landing note (MINOR 48 · FIXED 80).
+
+Stage Summary:
+- Baseline honesty restored (the clobber is repaired by DFX14's union;
+  this leg's identical repair dropped as superseded, both attempts in
+  history). Session fix tally: 1 (N-069). Next: N-067 (exFAT upcase
+  validation), N-068 (ZIP EOCD anchor), then the naming/policy group
+  N-063/N-065.
+
+---
+---
+Task ID: DFX15-F2..F5 (session 15, MAJOR lane)
+Agent: core-parity-fix-agent (main)
+Task: M-002, M-037, M-031, M-046 — four MAJOR findings verified + fixed
+
+Work Log:
+- M-002 (EBR torn chain): CONFIRMED-DIVERGENCE. Caller merges the walked
+  prefix unconditionally; new DiskTable::ebr_status/ebr_break_lba; optional
+  parse_ebr_chain break_lba out-param. 2 tests fail-before proven. Commit
+  (rebased): fb6acdc.
+- M-037 (ext4 dir parse): corpus re-decoded FIRST-HAND from FUN_180005820
+  (:4146-4168) — the audit's "skip entry" is a 4-BYTE RESYNC SLIDE; gates =
+  padded floor (name_len+11)&~3, type 1..7, inode#<=count; inode-0 stops og.
+  Fix implements the exact slide + gates; inode-0 continue kept as pinned
+  superset; count gate live-walk-only (journal surface exempt — S-004
+  fixtures pin ghost inodes); valid entries keep rec_len advance (documented
+  divergence). Fail-before proven by temporary revert (2/3 FAILED).
+  Commit d487928.
+- M-031 (ReFS progress): Walker carries progress; emit_file ticks every 16th
+  file (done, done+16) growing-estimate; terminal (n,n). Both tests
+  fail-before proven by temporary revert. Commit 6f6210f.
+- M-046 (4Kn): LDM GPT path geometry-correct ×3 + exFAT damaged-primary
+  bps-sized + DISCOVERED-and-fixed the LDM 512-LBA unit family (end-of-disk
+  candidates, backup bound, capacity gate — g.sector_count vs 512-LBA
+  units). 3 tests fail-before proven. Commit cf137fc.
+
+Stage Summary:
+- 4 MAJOR findings FIXED this lane so far (M-002/M-037/M-031/M-046); suite
+  578/578 at each push; audit trail updated per fix (finding Resolution,
+  RESOLVED-INDEX, matrix, module docs).
+- Next: M-045 (FAT boot gates) → M-043 (NTFS backup boot) → M-005 (carve
+  bitmap gating) → M-007/M-008 (NTFS).
+
+---
+Task ID: DFX12-T4 (carve-minors batch — N-069 + N-030)
+Agent: main engineer (diff-to-fix minors-first session 12)
+Task: Close two carve MINOR findings with corpus-first verification.
+
+Work Log:
+- N-069: corpus verified first-hand (census :94 "MSCF / mscf | 0x4643534d,
+  0x6663736d ... both cases"; :127 the duplicate-key policy). Fix:
+  FMT_CAB_LC row appended (serialized ids stable) keyed on the
+  lowercase bytes with the same validate_cab; the validator's
+  belt-and-braces magic check now accepts either case (like the og's
+  FileCABAnalyser on whichever key dispatched); kTrialOrder adjacency;
+  ABI enumeration surfaces both rows. Carve.CabLowercaseMagic; fail-
+  before by construction (byte-exact memcmp scan, zero lowercase rows
+  pre-fix - the enum id exists only on the fixed tree).
+- N-030: corpus re-verified (FUN_18001e510 decode: part[0]=offset,
+  part[1]=hex, part[2] NEVER read; the deep-dive ranking claim
+  corrected by erratum 19). The fix plan's option (a) (remove the
+  confidence semantics) is gated on the undecoded FUN_18000d670 grade
+  emission - adopting it blind would replace a working ranking with an
+  unknown. Option (b) executed as the plan writes it: cr_rawsigns.h
+  divergence block carries the dead-data citation + do-not-remove
+  guidance; PARITY-DELTAS D-66; the two consumed semantics (winner
+  selection at shared positions, the (hdr+tail)/2+100 blend) pinned by
+  the existing RawSignLayerHeaderOnlyAndSharedMagic /
+  RawSignTailPairWithinFormat tests, re-cited as load-bearing.
+- Suite 577/577 linux-release (full ctest). Audit trail: two
+  Resolutions + FIXED/ moves, RESOLVED-INDEX rows, matrix cell
+  updates (N-069 detail row + the session-3 N-030 note), SUMMARY
+  carve-minors paragraph, carve module doc batch section.
+- ASan lane for the quartet-union tree completed clean earlier
+  (/tmp/asan_ctest.log); the batch's ASan re-run queued with the next
+  push's full sweep.
+
+Stage Summary:
+- Session unique resolutions: 9 (6 reconciliation moves + N-076 + N-069
+  + N-030). MINOR 43 remain. Next: N-073 duplicate verification (quick),
+  N-029a maximal-subpart, N-056 temp leak, N-063 naming.
+
+---
+Task ID: DFX12-T4-CONV (N-069 collision resolution)
+Agent: main engineer (diff-to-fix minors-first session 12)
+Task: Rebase union for the N-069 same-window collision (the parallel s11
+lane's b8b0318 landed first — canonical) — N-030 stands as this
+session's unique resolution.
+
+Work Log:
+- Their N-069 implementation taken as canonical (FMT_CAB_LC dual row +
+  two-spelling validator re-check + the dual-case
+  Carve.CabLowercaseMagic with the cab_header helper — richer than this
+  leg's simpler single-case fixture; my duplicate test removed, both
+  landings preserved in git history).
+- My N-030 resolution stands untouched (their commit did not touch it):
+  cr_rawsigns.h divergence block + PARITY-DELTAS D-66 + the two
+  re-cited pins (RawSignLayerHeaderOnlyAndSharedMagic /
+  RawSignTailPairWithinFormat) + the Resolution with the option-(a)
+  gate documented (FUN_18000d670 undecoded).
+- Matrix: their N-069 FIXED row; the session-3 N-030 note kept from my
+  side. carve.md: their N-069 verdict + my N-030 batch section (header
+  re-annotated to record the canonical landing).
+
+Stage Summary:
+- Session unique resolutions: 8 (6 reconciliation + N-076 + N-030).
+  N-069 credited to the parallel lane (convergent). MINOR 43 remain.
+---
+Task ID: DFX10-T2 (session 15, the S-009 convergence + M-054)
+Agent: main engineer (diff-to-fix closing session 15 — the DFX10 lineage
+renumbered past the parallel legs' sessions 11-14)
+Task: S-009 (claimed first) + the convergence with the parallel landing +
+M-054 (NEW-FINDING discovered during the S-009 producer verification).
+
+Work Log:
+- Built a third independent S-009 implementation first (cr::AllocClusterMap:
+  used-bits, slice-relative + alloc_base, byte_origin, covered/truncated
+  fail-open, RLE REC_ALLOC_MAP persistence; 5 DiskMap tests + CrUi + C
+  consumer acceptance; behavioral fail-before by toggling the producer and
+  cr_ui feeds off — both reds reproduced). Preserved on branch
+  s009-allocmap-impl (fb2bb91) for the record.
+- Mid-flight the remote advanced to d487928: the parallel lanes landed S-009
+  (storage::FreeMap design + snapshot capture + their own tests), S-030
+  (disk-image targets), M-002, M-051, M-037, N-073 and more. Union rules
+  applied: their landed implementation is the base; my third design dropped
+  cleanly (no tree conflict — the rebase started from their head).
+- Corpus verification during the third implementation produced M-054: the
+  MS exFAT spec section 7.1 pins bitmap bit i = cluster i+2; the engine's
+  Bitmap::test read bit c for cluster c (a two-cluster shift on every real
+  volume), the fixtures encoded the same shift (self-consistently wrong
+  suite), and the LANDED S-009 exFAT free-map producer inherited the shift.
+- M-054 FIXED on the landed base: Bitmap::test reads bit c-2 (clusters 0/1
+  reserved-never-heap); both fixtures write the spec-correct bit (setbit(c)
+  -> bit c-2); grading expectations unchanged (the intended behavior);
+  new pin test ExfatEngine.FreeMapProducerMatchesSpecBitMapping (producer
+  free/used at the sentinel clusters + range_free at the sentinel bytes).
+- Fail-before EXECUTED on the landed base: fixtures corrected + engine body
+  reverted -> ExfatEngine.EndToEnd red (over.dat Excellent(1) vs
+  Overwritten(3)) AND the new producer pin red; restored -> green.
+- Suites executed on the final tree: 574/574 Release + 574/574 ASan +
+  574/574 UBSan.
+- Merge-hygiene repair: committed conflict-marker remnant stripped from
+  worklog.md:9187 (trailing '- Audit trail: FIXED/M-054 (filed + Resolution), FIXED/S-009 session-15
+  convergence addendum (third implementation preserved on the branch, the
+  landed Resolution operative, M-054 the correction on top), RESOLVED-INDEX
+  M-054 row, matrix exfat row, modules/exfat.md session-15 row, SUMMARY
+  session-15 delta (counts re-baselined to the direct inventory).
+
+Stage Summary:
+- S-009: converged (landed design stands; third design preserved on
+  s009-allocmap-impl). M-054: filed + fixed with an executed fail-before.
+- SEVERE tier: S-029 only. Next: M-005 (carve bitmap gating — the same
+  plumbing's second consumer; includes the 8->64 MiB cap raise where the
+  fail-open/truncation semantics are load-bearing), then S-029, then the
+  MAJOR wave by user impact.
+
+---
+Task ID: DFX11-M007 (session 11, finding 2)
+Agent: main engineer (diff-to-fix fix session 11 — DFX11)
+Task: M-007 — hard-link emission parity. Verified, classified
+CONFIRMED-DIVERGENCE, fixed, proven.
+
+Work Log:
+- Corpus re-verified first-hand: FUN_180006db0 :5273 (one props build per
+  record) + FUN_1800448b0 :54124-54162 (two-$FILE_NAME fetch, index 0/1
+  only) + FUN_180043330 (namespace ranking) - the finding's citations are
+  exact. Core re-verified at HEAD: the per-parent fan-out + the
+  names[0]-seeded per-parent name selection.
+- Fix: WalkerFlags::single_link_per_record (default TRUE = og parity: ONE
+  node per record, namespace-best name from the FULL list, first-seen
+  wins ties, under ITS parent). FALSE = the registered opt-in fan-out
+  (PARITY-DELTAS D-65); hardlinks counts only in fan-out mode. The
+  fan-out path's per-parent name selection REPAIRED (per-parent names
+  from that parent's OWN entries - a pre-existing divergence-class bug
+  the new 3-namespace fixture exposed: mixed-rank multi-parent records
+  gave every parent the highest-rank sibling's name).
+- Tests: 2 new (HardLinkSingleLinkMatchesOg - the finding's acceptance;
+  HardLinkFanOutOptIn - the opt-out regression guard) + EndToEndWalk and
+  AdsAttachesToFirstLink rewritten for both modes. Fail-before: walker
+  -revert (flag declared, engine not honoring: 3 nodes vs 1; the
+  Win32/DOS links unfindable). Suite 582/582.
+- Audit trail: Resolution + FIXED/ move; RESOLVED-INDEX (73); matrix ntfs
+  row; modules/ntfs.md (B7 verdict -> MATCH + session row); AUDIT-NTFS
+  5.4 (the UNVERIFIED entry -> DECODED+LANDED); PARITY-DELTAS D-65;
+  SUMMARY session delta (re-top'd over the session-14 layer).
+
+Stage Summary:
+- M-007 FIXED (session tally: 1). Next in my claimed batch: M-008 (NTFS
+  attrlist chase scope/depth).
+
+---
+Task ID: DFX17-T1 (session 17 bootstrap — baseline + inventory)
+Agent: main engineer (diff-to-fix fix session 17 — DFX17, MINOR-first mandate; renamed from DFX15 to stay unambiguous against the parallel session-15 MAJOR lane above)
+Task: Pull both repos, record audited vs current commit, verify green
+baseline before any finding work; establish the MINOR work queue.
+
+Work Log:
+- Core cloned at `b8b0318` (main HEAD, 2026-10-25 22:46:25 +0000 —
+  the N-069 landing; audited-commit lineage per diff-to-fix/README.md
+  session-5b `7cf6754`-lineage, sessions 6-14 landings on top).
+  Corpus at `03ad46c` (unmoved, verified).
+- Baseline build: linux-gcc preset (RelWithDebInfo + ASan), full build
+  clean. Test sweep: cr_tests **562/562**, cr_ui_tests **21/21**,
+  cr_ui_abi_check OK (4 progress calls, 0 recovery calls). GREEN.
+- Session prompt saved token-redacted to
+  `worklog/session-diff-fix-17-minors-prompt.md`.
+- Inventory (direct file count at `b8b0318`): SEVERE 1 (S-029) ·
+  MAJOR 32 · MINOR 43 files · INFO 22 · FIXED 94 (incl. RESOLVED-INDEX)
+  · tracked-open 16.
+- Mandate: MINOR findings first, 20+ fixes this session. Queue from
+  the DFX16 handoff + unresolved MINOR files: N-067, N-068, N-063,
+  N-065, N-056, N-029, N-030, then the group files and the rest of
+  the MINOR tier.
+
+Stage Summary:
+- Baseline verified green at `b8b0318`. MINOR-first queue established.
+  Execution begins with N-067 (exFAT upcase-table validation).
+  (Post-rebase note: N-030 landed by the parallel DFX15 lane at 11afbfa
+  while this bootstrap pushed — dropped from this queue; queue head is
+  N-067, then N-068, N-063, N-065, N-056, N-029.)
+
+---
+Task ID: DFX18-CLAIM (session 18 lane claim — MINOR-first, disjoint from DFX17)
+Agent: main engineer (diff-to-fix fix session 18 — DFX18, MINOR-first mandate)
+Task: Lane claim, posted before any finding work. DFX17's queue (per its
+bootstrap entry) is N-067, N-068, N-063, N-065, N-056, N-029 + group
+files. This lane claims the DISJOINT remainder of the MINOR tier, in
+this order: N-045 (cache budget), N-046 (geometry refresh), N-041 (dead
+code rdaclient), N-057 (TableLayout EBR dead enum), N-040 (ABI doc
+truthfulness), N-020 + N-074 (doc-drift pairs), N-061 (runlog/auto-name),
+N-062 (memory monitor), N-064 (dict), N-048 (logging seam), N-043
+(progress watchdog), N-060 (save-progress cancel), N-059/N-058/N-066
+(session persistence/identity trio), N-049/N-050/N-035 (lost-record
+family), N-031/N-033 (carve dispatch/registry), N-007-I-004, N-008,
+N-025, N-026, N-027, N-032, N-036 (container half), N-071, N-072, N-014,
+N-019, and the DFX9-T2-era claims N-070/N-075 if those lanes stay
+silent. One finding, one verified fix, one push. Baseline this session:
+linux-release 584/584 green at eeeccbd lineage (rebased prompt push
+e21de3e).
+
+Stage Summary:
+- Claim posted; execution begins with N-045.
+
+---
+Task ID: DFX19-T1 (session 19 bootstrap + lane claim — ID renamed from DFX17: that ID was squatted by the parallel minors lane above, now DFX18)
+Agent: main engineer (diff-to-fix fix session 19 — DFX19, MAJOR-first mandate)
+Task: Baseline the union tree, save the session prompt (token redacted),
+post the lane claim, then execute the MAJOR tier one-by-one per the user's
+directive (fix majors first; 20+ fixes targeted).
+
+Work Log:
+- Baseline: pulled to `11afbfa` (the N-030/N-069-converged landing; one
+  commit past 5d63124). Corpus `easeus-drw-research` @ `03ad46c` (unmoved).
+- Full suite at `11afbfa`: **584/584 green** (linux-gcc RelWithDebInfo +
+  ASan, cmake 4.4.4 via pip --user, g++ 14.2).
+- Prompt saved to `worklog/session-diff-fix-19-prompt.md` (token redacted).
+- Inventory at baseline: SEVERE 1 (S-029, DFX10's claim) · MAJOR 32 active ·
+  MINOR 43 active · INFO 22 · FIXED 94 · tracked-open 13 non-resolved.
+- Lane claim (avoiding DFX15's announced queue M-045→M-043→M-005→M-007/
+  M-008 and the session-11 claims M-007/M-008/M-032/M-050/M-029/M-049 and
+  the DFX15/DFX9-T7 claims M-013/M-014/M-018/M-052/M-035): this leg claims
+  the unclaimed MAJOR batch in impact order — **M-016 (LDM TOCBLOCK
+  candidates), M-019 (ZFS multivdev+fletcher4), M-038 (ZFS SA layout
+  registry), M-017 (lost scoring), M-020 (btrfs profile), M-021 (carve
+  video repair), M-033 (BitLocker in-stack decrypt), M-039 (occupancy
+  bitmap), M-024 (runtime format filter), M-028 (preview caps), M-042
+  (session resume revalidation), M-044 (UDF recognition), M-048 (user
+  signature DB), M-025 (carve read model, benched), M-030/M-034/M-040/
+  M-041 (architectural, last)**. MINOR/INFO/tracked-open after the MAJOR
+  queue. First-landing-wins arbitration per the lane protocol.
+
+Stage Summary:
+- Baseline green and claimed. Execution begins with M-016.
+Task ID: DFX14-T4 (M-005 — completed)
+Agent: main engineer (diff-to-fix session 14)
+Task: M-005 (MAJOR, carve): verify, classify, fix, prove, document.
+
+Work Log:
+- Classification: CONFIRMED-DIVERGENCE at 8783c2f (verified in the claim
+  entry): the S-009 landing produced the FreeMap producer + stats surface
+  only; the carve received no bitmap.
+- Corpus re-verified first-hand (ghidra-searchdll/RAWSearchDLL_decompiled.c
+  :9440-9466 + FUN_180058df0 :67842-67856): (a) OOB (bit-count bound [2])
+  or no bitmap -> dispatch PROCEEDS; (b) the cluster jump requires
+  cluster-ALIGNED positions (pos % spc == 0); (c) the og's bitmap is the
+  USED map — the core's FreeMap inverts the gate's polarity.
+- Implementation: CarveFlags.free_map (nullable, slice-relative) ->
+  ScanCtx gate helpers (gate_used / gate_next_cluster /
+  gate_check_and_skip) -> gates in BOTH dispatch layers (grammar per-byte
+  + raw-sign 512-stride); run_carve_stage rebases stats.free_map
+  slice-relative; CarveStats.bitmap_skipped_clusters/_bytes counted at
+  the grammar layer ONLY (the sign layer rides without double-counting —
+  the first test run caught the double-count, fixed with the count flag);
+  ScanStats.carve_bitmap_skipped_bytes surface.
+- Tests (fail-before intrinsic — CarveFlags had no free_map pre-fix):
+  Carve.BitmapSkipsUsedClusters (used-cluster PNG suppressed, free-cluster
+  PNG carved, telemetry exactly 2/8192) + Carve.NoBitmapCarvesEverything
+  (null AND invalid maps carve everything). Suite 575/575.
+- Bench (scripts/bench_m005.cpp, 16 MiB deterministic LCG-random, 4 KiB
+  clusters, 50% used, 1 thread, median of 3, two invocations): ungated
+  1137.8/1124.7 ms, gated 606.3/594.4 ms = 1.88x/1.89x (plan >= 1.5x).
+  BENCH LESSON: an all-0xFF fixture is adversarial, not representative —
+  FMT_MPGA_FF carries magic {0xFF,0xFF} (og parity: its raw-sign table has
+  the same FF family), so all-0xFF makes every position a candidate and
+  validation dominates; two bench timeouts taught it. Pseudo-random
+  mixed-content fill is the honest fixture. (Also a C++ lesson: a
+  `std::vector<u8> img(size_t(IMG));` line is a vexing-parse function
+  declaration — the compiler caught it; use a named size variable.)
+- Audit trail: Resolution + move to FIXED/; RESOLVED-INDEX 82-header +
+  row; matrix carve+orchestrator rows; modules/carve.md (A25, cost note,
+  index, decompile note); N-008 group file's canonical pointer updated to
+  the FIXED/ path; SUMMARY session-14 delta extended + counts (MAJOR 36,
+  FIXED 83 files).
+
+Stage Summary:
+- M-005 FIXED: the carve now gates its sweep on the engine's allocation
+  truth — perf (1.88x on 50% used) + false-positive reduction (live-file
+  regions never offered). DFX14 tally: N-073 (FIXED-ALREADY, proven) +
+  M-029 fold + the clobber repair (4 findings) + M-005 = 7 finding-level
+  resolutions. Next: pull, re-verify lane map, claim the next item.

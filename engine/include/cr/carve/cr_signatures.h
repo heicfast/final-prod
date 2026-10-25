@@ -112,6 +112,13 @@ enum FormatId : u32 {
      * takes the og binding; FMT_RW2 becomes the fallback after TIFF/EP
      * rejects. Id APPENDED. */
     FMT_TIFF_EP,
+    /* N-069 (diff-to-fix): the og registers case-insensitive formats with
+     * DUPLICATE keys, not case-folding - "MSCF"/"mscf" are two separate
+     * registry rows pointing at FileCABAnalyser (registry census :94;
+     * "deliberate registry bloat for correctness", :127). This row is the
+     * lowercase CAB key; it shares validate_cab with FMT_CAB. Id APPENDED
+     * (serialized carve_format values stay stable). */
+    FMT_CAB_LC,
     FMT_COUNT
 };
 
@@ -123,8 +130,8 @@ constexpr u32 REGISTRY_VERSION = 1;
  * contents (rawsearchdll--zip-analyser-carving.md :29-38,
  * analyser-granular-batch1 :36-41). */
 struct CarveEntry {
-    std::string name; /* inner file name (archive-native bytes, UTF-8 pass-through) */
-    u64 size = 0;     /* uncompressed size */
+    std::string name;    /* inner file name (archive-native bytes, UTF-8 pass-through) */
+    u64 size = 0;        /* uncompressed size */
     u64 data_offset = 0; /* slice-relative data start (0 = not localized) */
     u64 data_len = 0;    /* compressed data length (0 = not localized) */
 };
@@ -132,9 +139,9 @@ struct CarveEntry {
 /* Validator outcome. */
 struct CarveResult {
     bool ok = false;
-    u64 end = 0;           /* absolute end offset (slice-relative) */
-    u16 confidence = 0;    /* 0..1000 */
-    const char* note = ""; /* evidence note for the node registry */
+    u64 end = 0;                     /* absolute end offset (slice-relative) */
+    u16 confidence = 0;              /* 0..1000 */
+    const char* note = "";           /* evidence note for the node registry */
     std::vector<CarveEntry> entries; /* S-032: inner-entry inventory */
 };
 

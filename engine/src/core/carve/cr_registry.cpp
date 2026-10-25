@@ -584,16 +584,7 @@ const Signature kTable[] = {
     /* N-052: HEIF-family siblings (heix/mif1/msf1) - the og rewrites their
      * display label to L"HEIF" (analyser-granular-batch1 :67-80). Same
      * magic/offset/limits as FMT_HEIC (which now takes heic-proper only). */
-    {FMT_HEIF,
-     "heif",
-     {'f', 't', 'y', 'p'},
-     4,
-     4,
-     128,
-     512ull << 20,
-     750,
-     validate_heif,
-     "HEIF"},
+    {FMT_HEIF, "heif", {'f', 't', 'y', 'p'}, 4, 4, 128, 512ull << 20, 750, validate_heif, "HEIF"},
     /* N-053: the og binds the IIU\0 key to the TIFF chain (census :53,
      * BruteForce::TiffAnalyzer - the TIFF/EP variant). FMT_RW2 stays as
      * the post-reject fallback (its validator gained the IIU-salvage
@@ -608,6 +599,11 @@ const Signature kTable[] = {
      850,
      validate_tiff,
      "TIFF/EP"},
+    /* N-069: the og's duplicate-key row for case-insensitive formats -
+     * lowercase `mscf` (census :94, policy :127). Shares validate_cab
+     * with FMT_CAB; a distinct format id keeps the case-insensitive
+     * pair enumerable like the og's registry. */
+    {FMT_CAB_LC, "cab", {'m', 's', 'c', 'f'}, 4, 0, 36, 2ull << 30, 870, validate_cab, "Cabinet"},
 };
 } // namespace
 

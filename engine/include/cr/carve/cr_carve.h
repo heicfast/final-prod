@@ -13,6 +13,7 @@
 #define CR_CARVE_H_
 
 #include "../storage/cr_device.h"
+#include "../storage/cr_freemap.h"
 #include "../tree/cr_node.h"
 #include "cr_signatures.h"
 #include <functional>
@@ -32,12 +33,28 @@ struct CarveStats {
     u64 sign_validated = 0;  /* header+tail paired hits */
     u64 windows_skipped = 0; /* unreadable windows (post-retry); their bytes
                                 are NOT in bytes_scanned (FB-C01 honesty) */
+    /* M-005: allocation-bitmap gating (the og's block-scan cluster gate,
+     * RAWSearchDLL FUN_18000c820 :9446-9460 + FUN_180058df0 :67842-67856,
+     * corpus-verified first-hand). Counted at the GRAMMAR layer (the
+     * per-byte dispatch dominates cost); the raw-sign layer's suppression
+     * rides the same map but does not double-count. */
+    u64 bitmap_skipped_clusters = 0;
+    u64 bitmap_skipped_bytes = 0; /* skipped_clusters x cluster_bytes (0 when
+                                     no map was supplied) */
 };
 
 struct CarveFlags {
     bool hash_small_files = true; /* <= 8 MiB: compute 128-bit id at emit */
     u64 hash_threshold = 8ull << 20;
     u32 threads = 1; /* 1 = single-threaded; >1 = worker fan-out */
+    /* M-005: allocation-bitmap gate (nullable). Bit set = cluster FREE
+     * (the S-009 FreeMap, inverted from the og's USED bitmap). With a
+     * valid map, candidate positions whose cluster is USED are
+     * suppressed from dispatch, cluster-aligned hits skip the whole
+     * cluster (the og's local_1e0 += spc-1); null/invalid map -> carve
+     * everything (raw disks unchanged). SLICE-RELATIVE basis (the
+     * orchestrator rebases stats.free_map from the absolute basis). */
+    const storage::FreeMap* free_map = nullptr;
 };
 
 /* Naming callback: returns the display name for a carved hit (host policy). */

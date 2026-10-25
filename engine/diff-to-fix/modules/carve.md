@@ -46,7 +46,7 @@ Core (audited commit `67193b6` + concurrent `03ddcd2` GAP-S6-8 fix in tree):
 - **A29 merge/dedup** — `M` post-GAP-S6-8: carve emits disk-absolute extents with
   NODE_FLAG_EXT_SHIFTED; dedup vs structured on the absolute basis (the resume
   extra-entries bug fixed in-audit-window with fail-before/pass-after tests).
-- **A25** — **M-005** (whole-slice vs og's bitmap-gated free-space pass on volume
+- **A25** — ~~M-005~~ **FIXED (s14, FIXED/M-005)** (the allocation-bitmap gate: CarveFlags.free_map -> both dispatch layers; used clusters suppressed wholesale, cluster-aligned jumps; absent/invalid map carves everything — the og's raw-disk rule)
   scans).
 
 ## State machine
@@ -60,7 +60,7 @@ Core (audited commit `67193b6` + concurrent `03ddcd2` GAP-S6-8 fix in tree):
 
 - **X47/X51** — `M` 1 MiB windows + 4 KiB overlap; P1-12 probe blocks (1 MiB windowed
   field scans replacing per-512B stepping); raw-sign 512-byte strides; SHA-256 hashing
-  of small files (≤8 MiB re-read). **M-005** cost note (whole-slice carving ≈ 2× the og
+  of small files (≤8 MiB re-read). **M-005** cost note (whole-slice carving ≈ 2× the og — **CLOSED s14**: the gate halves dispatch on 50%-used volumes; measured 1.88x/1.89x
   on half-full volumes).
 
 ## Safety
@@ -78,7 +78,7 @@ Core (audited commit `67193b6` + concurrent `03ddcd2` GAP-S6-8 fix in tree):
 | ID | Severity | One-line |
 |---|---|---|
 | S-007 | SEVERE | Missing common formats (GIF/BMP/headerless-MP3/AAC/RTF/OLE-Office/MPEG/DWG) |
-| M-005 | MAJOR | Whole-slice carving vs og's bitmap-gated free-space pass |
+| M-005 | MAJOR | Whole-slice carving vs og's bitmap-gated free-space pass — **FIXED (s14: gate in both dispatch layers + telemetry; bench 1.88x/1.89x on 50% used; suite 575/575)** |
 | N-008 | MINOR | ZIP padding cap off-by-one + alignment; v0x62/ZIP64 chain semantics |
 | OQ-T8 | tracked-open | Dispatch order (u16→u32→signs); JPEG full grammar; no-bitmap og behavior |
 
@@ -148,7 +148,7 @@ carve-specific divergences surfaced.
 - **OQ-T8 RESOLVED:** og dispatch = sector-aligned probing, 3-layer first-accept-wins
   (u32 RB-tree → u16 multimap → list sweep), per-key modern→legacy chains, no cross-layer
   resolution. Core byte-steps = detection superset (registered, I-009).
-- **M-005 now decompile-proven:** og bitmap-gates carve (bit test + cluster skip +
+- **M-005 now decompile-proven and FIXED (s14):** og bitmap-gates carve (bit test + cluster skip +
   dispatch suppression); core has no gate — full standalone finding file created.
 - **S-007 evidence completed both directions:** all 8 session-1 formats confirmed +
   ~26 additional og-only formats (bytes cited); ISO9660 is core-only (og cannot carve ISO).
@@ -332,3 +332,24 @@ Fail-before evidence for this session's independent run: 8/10 of this
 leg's tests RED on the stash-isolated pre-fix engine (the parallel leg's
 8 tests carry their own fail-by-absence proofs). Suite post-union:
 549/549 linux-release.
+
+**N-069 (MINOR, S5) — FIXED (s11):** the og's duplicate-key policy for
+case-insensitive formats is now mirrored — FMT_CAB_LC (lowercase `mscf`)
+is its own registry row sharing validate_cab, and the validator's internal
+magic re-check accepts exactly the two registered spellings (census :94,
+policy :127; mixed case never anchors — no row keys it).
+`Carve.CabLowercaseMagic` proves both cases carve; the lowercase node
+carries the distinct format id. B1/C19 verdict for this row: MATCH.
+## Session-12 carve-minors batch (N-030 — N-069 landed by the parallel s11 lane, canonical b8b0318)
+
+- **N-030 (D15/B3/D13) FIXED as the registered deliberate superset:**
+  the raw_signs.json confidence field is DEAD DATA in the og (parser
+  FUN_18001e510 consumes offset + hex body, never part[2] — decompiled
+  :23522-23765; the deep-dive's ranking claim corrected, erratum 19).
+  Option (b) of the finding's own fix plan: cr_rawsigns.h's divergence
+  block now carries the dead-data citation + do-not-remove guidance;
+  PARITY-DELTAS D-66; winner selection and the tail-pair blend pinned
+  by the existing RawSignLayerHeaderOnlyAndSharedMagic /
+  RawSignTailPairWithinFormat tests. Option (a) (table-order parity)
+  stays gated on decoding the og's own emitted grade — FUN_18000d670's
+  result fill — recorded as the revisit precondition.

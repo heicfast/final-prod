@@ -41,10 +41,12 @@ Core (audited commit `67193b6`): `src/core/ntfs/` (6 files, 2,311 LOC) +
   structured results, skip-forward on unreadable blocks. Note (no finding):
   prefilter stride hardcoded 512 (`cr_mftwalk.cpp:1113`) — harmless for
   detection on 4Kn (4096 ⊂ 512-multiples), wasted probes only.
-- **B7 hard-link/ADS/sparse** — `M` one node per distinct parent with shared
-  refcounted props (mirrors og LOCK/unlock AddRef/Release sharing), ADS as
-  child nodes with resident capture, sparse runs via off_width==0. Og-side
-  result shape for ADS not fully decoded in corpus — no contradiction found.
+- **B7 hard-link/ADS/sparse** — hard-link emission `MATCH` as of M-007
+  (default single_link_per_record: ONE node per record, the namespace-best
+  name under its parent — the og's decoded model; the per-parent fan-out
+  is the registered opt-in D-65); ADS as child nodes with resident capture
+  (the og drops named $DATA - N-011's registered superset), sparse runs
+  via off_width==0.
 - **B8 multi-volume/cross-partition** — `NA` for the engine (orchestrator/LDM
   scope).
 - **B9 timestamps** — `M` raw 100ns-1601 stored; SI-times-preferred-else-
@@ -406,3 +408,26 @@ was re-verified line-by-line against the corpus; three corrections landed:
   (check phase): og gates {1.2, 3.0, 3.1} (0x100a) and cross-checks every
   allocated MFT record against $Bitmap (0x1002/0x1003); core has neither
   (cr_bitmap.cpp is grading-only).
+
+---
+
+## Session-11 fix row (2026-10-26, DFX11 — M-007 closed)
+
+**M-007 FIXED** (findings/FIXED/M-007, this session's `fix: M-007` commit):
+the hard-link emission model now matches the og by default.
+- `WalkerFlags::single_link_per_record` (default TRUE): ONE node per MFT
+  record - the namespace-best $FILE_NAME from the FULL list (first-seen
+  wins ties), emitted under ITS parent. Corpus: FUN_180006db0 :5273 (one
+  props build per record) + FUN_1800448b0 :54124-54162 (two-name fetch) +
+  FUN_180043330 (namespace ranking) - the finding's citations, re-verified
+  first-hand.
+- FALSE = the registered opt-in fan-out (one node per distinct parent,
+  per-link names; D-65) - the "show all hard-links" mode. The hardlinks
+  stat counts only there (the og's scan has no such counter).
+- The fan-out path's per-parent name selection REPAIRED: per-parent names
+  are now selected from that parent's OWN entries (the old code seeded
+  the search from the GLOBAL first name, so on mixed-rank multi-parent
+  records every lower-rank parent inherited the highest-rank name - a
+  real pre-existing divergence-class bug that no earlier fixture exposed).
+- B7 verdict moves to MATCH for the emission model; the finding's OQ-S2A-2
+  (consumer-side fan-out) remains open by design. Suite 582/582.

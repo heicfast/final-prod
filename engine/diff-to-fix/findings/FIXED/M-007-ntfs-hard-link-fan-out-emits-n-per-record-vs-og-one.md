@@ -223,3 +223,42 @@ S-001 `destroy_fully_overwritten` flag pattern).
   ratio is 1.0, the whole record is destroyed, including all
   per-parent clones). If the og fires per-link, the destroy rule
   would need to be re-scoped. Resolving OQ-S2A-2 would clarify.
+
+## Resolution (session 11 — DFX11, the parity-mode landing)
+
+**Status:** FIXED
+**Fixed in commit:** this session's fix commit (`fix: M-007` — see git log)
+**Verified by:** `NtfsVolume.HardLinkSingleLinkMatchesOg` (the finding's
+acceptance test - 1 node for a 3-link record, POSIX winner under root,
+hardlinks==0), `NtfsVolume.HardLinkFanOutOptIn` (the regression guard for
+the opt-out path: 3 per-parent nodes, per-link names, hardlinks==3 on the
+enriched fixture), `NtfsVolume.AdsAttachesToFirstLink` (rewritten: both
+modes - parity one-link + fan-out first-link canonical ADS host),
+`NtfsVolume.EndToEndWalk` updated to the parity default (hard@root.txt
+dropped, hardlinks 1->0). Fail-before executed: walker-revert build (flag
+declared, engine not honoring it) - both mode tests fail (3 nodes vs 1;
+the Win32/DOS per-parent links missing, which also exposed and fixed a
+PRE-EXISTING per-parent selection bug: the per-parent link name was
+initialized from the GLOBAL first name, so a lower-namespace parent's
+links inherited a higher-ranked sibling's name instead of their own -
+tri.txt/TRI.TXT were unfindable pre-fix); with the full pre-M-007 tree
+the new tests fail-before by construction (no single_link_per_record
+field exists). Suite 582/582 Linux Release.
+
+**Resolution notes:** exactly per the finding's fix plan:
+`WalkerFlags::single_link_per_record` (default TRUE = og parity: ONE node
+per record, the namespace-best $FILE_NAME from the FULL list - first-seen
+wins ties, deterministic - emitted under ITS parent; corpus
+FUN_180006db0 :5273 one-props-build-per-record + FUN_1800448b0 :54124-54162
+two-name fetch + FUN_180043330 namespace ranking, re-verified first-hand
+this session). FALSE = the registered opt-in superset (one node per
+distinct parent, per-link names; PARITY-DELTAS D-65) - the "show all
+hard-links" mode; the hardlinks stat counts only in fan-out mode (the
+og's scan has no such counter). The fan-out path's per-parent name
+selection was REPAIRED in the same change (per-parent names now selected
+from that parent's OWN entries, never seeded from the global first name -
+a real divergence-class bug the new 3-namespace fixture exposed; no
+prior fixture had mixed-rank multi-parent records). OQ-S2A-2 stays
+unresolved by this fix (the consumer-side fan-out question is unchanged);
+the destroy-rule scoping question stays with S-012's landed two-pass
+model (destroy lives in pass 2 - per-record, as landed).

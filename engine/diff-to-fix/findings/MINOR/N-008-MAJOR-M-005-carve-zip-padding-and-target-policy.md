@@ -88,7 +88,7 @@ with the fix plan's step 2.
 ## Session-2 housekeeping (2026-10-25)
 
 The **M-005 (carve bitmap gating) content** now has a canonical standalone file
-(`MAJOR/M-005-carve-bitmap-gating.md`) carrying the decompile proof this leg landed
+(`findings/FIXED/M-005-carve-bitmap-gating.md` since session 14 — FIXED with the gate landing) carrying the decompile proof this leg landed
 (`FUN_18000c820 :9446-60` bit test + cluster skip + dispatch suppression). The ZIP half of
 this group is refined by **N-027d**: the og's padding loop absorbs NON-EMPTY trailing
 sectors after a broken record chain (salvage, `:18462-500`) and never inflates clean

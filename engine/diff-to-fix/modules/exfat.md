@@ -182,3 +182,9 @@ the word-test form) + two guards.
 |---|---|---|
 | M-040 | MAJOR | exFAT recycle-bin handling mirrored from FAT in the og (fat-exfat-engine-internals.md:71) — same missing pairing as the FAT side |
 | N-051 | MINOR | Upcase-table validation skipped entirely (TYPE_UPCASE bare-continue at cr_exfat_quick.cpp:319-321; og validates via CExFatVolumeAnalyer, :63-64) |
+
+## Session-10 row — M-054 (NEW-FINDING) FIXED
+
+| ID | Severity | One-line |
+|---|---|---|
+| M-054 | MAJOR — **FIXED** (findings/FIXED/M-054) | Allocation bitmap read at bit `c` for cluster `c` (MS exFAT spec §7.1: bit `i` = cluster `i+2`) — deleted-viability grading AND the landed S-009 free-map producer consulted the wrong clusters on every real volume; both fixtures encoded the same shift (suite self-consistently wrong). `Bitmap::test` reads bit `c-2`; fixtures write the spec-correct bit; `ExfatEngine.FreeMapProducerMatchesSpecBitMapping` pins the producer seam. Fail-before EXECUTED on the landed base (EndToEnd + producer pin both red with the body reverted). |
