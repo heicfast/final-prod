@@ -9772,3 +9772,25 @@ Stage Summary:
   (Post-rebase note: N-030 landed by the parallel DFX15 lane at 11afbfa
   while this bootstrap pushed — dropped from this queue; queue head is
   N-067, then N-068, N-063, N-065, N-056, N-029.)
+
+---
+Task ID: DFX18-CLAIM (session 18 lane claim — MINOR-first, disjoint from DFX17)
+Agent: main engineer (diff-to-fix fix session 18 — DFX18, MINOR-first mandate)
+Task: Lane claim, posted before any finding work. DFX17's queue (per its
+bootstrap entry) is N-067, N-068, N-063, N-065, N-056, N-029 + group
+files. This lane claims the DISJOINT remainder of the MINOR tier, in
+this order: N-045 (cache budget), N-046 (geometry refresh), N-041 (dead
+code rdaclient), N-057 (TableLayout EBR dead enum), N-040 (ABI doc
+truthfulness), N-020 + N-074 (doc-drift pairs), N-061 (runlog/auto-name),
+N-062 (memory monitor), N-064 (dict), N-048 (logging seam), N-043
+(progress watchdog), N-060 (save-progress cancel), N-059/N-058/N-066
+(session persistence/identity trio), N-049/N-050/N-035 (lost-record
+family), N-031/N-033 (carve dispatch/registry), N-007-I-004, N-008,
+N-025, N-026, N-027, N-032, N-036 (container half), N-071, N-072, N-014,
+N-019, and the DFX9-T2-era claims N-070/N-075 if those lanes stay
+silent. One finding, one verified fix, one push. Baseline this session:
+linux-release 584/584 green at eeeccbd lineage (rebased prompt push
+e21de3e).
+
+Stage Summary:
+- Claim posted; execution begins with N-045.
