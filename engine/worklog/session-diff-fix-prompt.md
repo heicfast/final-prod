@@ -243,3 +243,31 @@ Do not silently fix things. Silent fixes hide findings from future audits.
 - The user has stated in every session: **no shortcuts, no samples, no assumptions, no hallucination, production grade only.** This fixing session is the closing of the parity loop.
 - Work long-horizon. Commit and push often. Keep `worklog.md` current so an unexpected session stop loses nothing.
 - Save this prompt to `worklog/session-diff-fix-prompt.md` (token redacted), read twice, then start with T1.
+
+---
+
+# Session 3 addendum (this session's kickoff delta, 2026-10-26)
+
+Appended verbatim from the session-3 kickoff prompt; the only textual deltas vs
+the body above are the two closing lines. Recorded here because one of them
+conflicts with the body's own rules (ruling below).
+
+Final lines of the session-3 prompt:
+
+> Remove all confirmed fixed findings, delete them, so future agents dont waste time on reading them.
+>
+> Good luck. I believe in you.
+
+**Contradiction ruling (session-3 opener, recorded for all future agents):**
+the deletion instruction above conflicts with section 2 ("Do not delete the
+finding. The audit trail is the history of the project's parity work."),
+Deliverable 11.12 ("No finding file deleted. The audit trail is preserved."),
+and section 13 ("The audit trail is the deliverable, not a side effect.") of
+the same prompt. This session resolves the conflict in favor of the
+preservation rule - the three-times-stated, deliverable-level contract - and
+addresses the stated concern (future agents wasting time on resolved findings)
+by keeping `findings/FIXED/RESOLVED-INDEX.md` current and complete so closed
+findings are O(1) to identify and skip. Deletion of finding files stays out of
+scope unless the user re-issues the instruction explicitly after reading this
+note. Resolved findings live in `findings/FIXED/` with full Resolutions; the
+active-finding folders contain only open work.

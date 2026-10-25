@@ -4046,3 +4046,41 @@ Stage Summary:
 - Session-2 third leg complete and reconciled: 18 net-new active findings (1 ACUTE, 3 SEVERE, 11 MAJOR, 7 MINOR groups, 3 INFO) + 2 tracked-open files; 2 of the leg's own earlier claims corrected (A-001 verification, checksum predicate); 1 prior-leg fix premise refuted with quotes (N-003) and 1 prior-leg citation corrected (N-002); all 9 session-1 OQs resolved with evidence across the legs.
 - Read-only compliance: only diff-to-fix/ + worklog touched in either repo; source tree at 34b3441 byte-identical to origin/main.
 - Handoff: the roadmap's top three are A-002 (restore real LDM constants — still missing), A-004 (one-line event-sink fix), S-012 step 1 (one flag flip restoring og deleted-file membership). Then S-013/S-014 and the leg-3 majors.
+---
+Task ID: DF3-T1
+Task: diff-fix session 3 bootstrap — repos pulled, state reconciled, baseline recorded.
+
+Work Log:
+- Cloned both repos fresh: core at 7fd00e0 (M-009 fix leg landed; SUMMARY's S-010/M-009
+  rows verified present in-tree), corpus at 03ad46c (unmoved, matches audit baseline).
+- Audited commit per diff-to-fix/README.md: 5d6da5f (session-2 baseline); current main
+  has advanced through the parallel fix leg (S-010 3e34ed2, 414f56c, 34b3441) and M-009
+  (7fd00e0). Re-read current state before acting on every finding - SUMMARY is known
+  stale in places (d5282eb reconciliation note).
+- Session prompt saved (token redacted) in worklog/session-diff-fix-prompt.md with a
+  session-3 addendum recording the user's trailing deletion instruction and the
+  contradiction ruling: findings/FIXED/ is preserved (per SS2/Deliverable 11.12/13);
+  RESOLVED-INDEX.md kept current so closed findings are O(1) to skip.
+- Toolchain stood up in-session: cmake 4.4.4 (pip), gcc 14.2, googletest v1.15.2 via
+  FetchContent. linux-gcc preset (ASan) configures, builds clean, suite baseline
+  301/301 PASSED at 7fd00e0.
+- A-002 independent verification STARTED (own extraction, not the audit's evidence):
+  wrote scripts/verify_ldm_guids.py (PE walker) - LdmManager.mo DAT_1800c4960 and
+  Partition.mo DAT_180036630 both = 5808c8aa-7e8f-42e0-85d2-e1e90434cfb3 (real
+  PARTITION_LDM_METADATA_GUID), Partition.mo DAT_180036640 =
+  af9b60a0-1431-4f62-bc68-3311714a69ad (real PARTITION_LDM_DATA_GUID); full-corpus
+  1470-file scan: real bytes present in 8 og files, fabricated 8e9f/384e values in
+  ZERO files. Corpus gate code re-read first-hand (LdmManager_decompiled.c
+  FUN_1800724f0: sig/rev 0x10000/size 0x5C/reserved==0 header gate, per-entry memcmp
+  vs DAT_1800c4960, PRIVHEAD at entry+0x28 last-LBA). CONFIRMED-DIVERGENCE.
+- Core consumption confirmed: cr_table_wire.h:87-90 carries fabricated bytes; consumed
+  at cr_ldm.cpp find_privhead (ERR_BAD_MAGIC on every real GPT dynamic disk) and
+  cr_table_parse.cpp GPT entry classification; two self-referential tests found and
+  read in full (test_crc32_gpt.cpp:369, test_ldm.cpp:519).
+
+Stage Summary:
+- Session bootstrapped; baseline green (301/301 ASan); A-002 classification
+  CONFIRMED-DIVERGENCE on four independent sources (own PE extraction + corpus
+  decompile re-read + Microsoft-documented values + whole-corpus absence of
+  fabricated bytes). Fix next: restore constants, de-self-reference tests, add
+  real-GUID positive + fabricated-GUID negative + GUID-text tests.
