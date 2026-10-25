@@ -120,3 +120,15 @@ on main mid-session are that lane's in-flight state, not health.
 |---|---|---|
 | S-024 addendum | — | Doc-truth sub-item: cr_health.h:8 claims 0xD1 READ_THRESHOLDS/0xD8 RETURN_STATUS in the issued set; cr_health.cpp issues only 0xEC + 0xB0/D0 (grep-verified). The Threshold/Status/tri-state capability gap itself remains S-024's scope (UIUX/19:26-27 first-cited this session) |
 | N-058 §5 | MINOR | The header-comment fix rides the doc-truth group |
+---
+
+## Session-6 fix leg — M-036 closed (2026-10-26)
+
+| Parameter | Verdict |
+|---|---|
+| B11 NVMe node fields | **MATCH** — host_reads/host_writes/controller_busy_time/num_error_log_entries surfaced (+64/+80/+96/+176, le128); the og's 5-byte unit read is value-equivalent for realistic counts |
+| B13 report units | **MATCH** — data_bytes_read/written = units × 512,000 (the og's exact conversion, :5589-5614); raw counts kept alongside; the cr_ui C-ABI report appends the six fields with ABI v2 (appended fields bump per ABI-CONTRACT §9) |
+| Q65 | FullFieldSurface / DataUnitsConvertedToBytes / PercentageUsedIsU8Width / the 192-byte gate test |
+
+Open health items after this leg: N-032 (CSMI/USB-bridge transports),
+N-042 (CLI temp fractional digit), N-064 (Dict password dictionary).
