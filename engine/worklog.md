@@ -8442,3 +8442,35 @@ Work Log:
 Stage Summary:
 - No semantic overlap remains: S-032 is FIXED by the parallel lane (dropped
   from this session's SEVERE queue — S-009/S-029/S-030 remain).
+
+
+---
+Task ID: DFX10-T1 (session 10 bootstrap)
+Agent: main engineer (diff-to-fix session 10)
+Task: Session bootstrap — pull both repos, record baseline, establish green suite, archive session prompt.
+
+Work Log:
+- Pulled core_recovery at 7c44bdc (main only, 318 commits; push dry-run
+  "Everything up-to-date" — no parallel landings since clone); corpus
+  easeus-drw-research at 03ad46c (unmoved — matches every prior session's
+  pin). Token in git credential store only, never committed.
+- Session prompt archived (token redacted) at worklog/session-diff-fix-10-prompt.md; read twice before reading began.
+- Audit trail read: README (session lineage), SUMMARY (session-8 delta on
+  top), SEVERITY-SCALE, PARAMETERS, CROSS-REF-MATRIX, RESOLVED-INDEX,
+  CORPUS-ERRATA; open inventory by direct file count: SEVERE 3 (S-009 /
+  S-029 / S-030) · MAJOR 39 · MINOR 55 · INFO 22 (all previously
+  ACKNOWLEDGED — this session re-verifies the rationales) · tracked-open 16
+  (3 RESOLVED-stamped) · FIXED 72 (incl. RESOLVED-INDEX).
+- Noted for follow-up: stray committed artifact
+  cr_ui_abi_check.img.dest2/DOC.TXT.part-1 at repo root (provenance
+  b1f9210, the N-018 UBSan lane) — hygiene classification due.
+- Baseline build: cmake 4.4.4 (pip venv), linux-release preset, full build
+  clean. Baseline suite: 533/533 green at 7c44bdc (Linux Release), no
+  flakes observed.
+
+Stage Summary:
+- Session open. Baseline 7c44bdc + corpus 03ad46c recorded; suite 533/533 green.
+- Fix order (FF-HANDOFF lane): S-009 (with M-005 shared plumbing) -> S-030
+  (re-verify landed state first) -> S-029 (consent-gated apply scope
+  decision) -> MAJOR tier by impact -> MINOR batches -> INFO verification
+  -> tracked-open.
