@@ -3757,3 +3757,42 @@ Work Log:
 
 Stage Summary:
 - Both CI regressions from the S-010 push repaired at their documented roots.
+
+---
+Task ID: S3-BOOT
+Agent: session-3 parity auditor (read-only continuation)
+Task: Session-3 bootstrap — state reconciliation at HEAD 34b3441 (sessions 1+2 complete; engineering fixed S-010 in between)
+
+Work Log:
+- Cloned both repos at core `34b3441` / corpus `03ad46c` (unmoved). Prompt saved redacted
+  to worklog/session-3-diff-audit-prompt.md, read twice.
+- Read the full session-2 state: SUMMARY.md, README.md, CROSS-REF-MATRIX.md, all 34 active
+  finding IDs, 3 tracked-open files, RESOLVED-INDEX, worklog tail (handoff).
+- STATE FINDINGS (to reconcile this session):
+  * S-010 (rawfixer write-path volume lock) — FIXED by engineer (3e34ed2 + 414f56c +
+    34b3441, tests 317/317); already moved to findings/FIXED/ by the fix leg. The active
+    SUMMARY/README still list it as top risk #1 -> STALE, will reconcile.
+  * A-002 (LDM GPT GUID regression, the only ACUTE) — STILL LIVE: fabricated GUIDs
+    confirmed in-tree at include/cr/table/cr_table_wire.h:87-90 + self-referential tests
+    at tests/unit/test_crc32_gpt.cpp:385-386.
+  * M-009 (RwDevice read path 64KiB envelope) — engineer's lane said "next"; to verify
+    at HEAD this session.
+- NEW DEEP-DIVE TARGETS IDENTIFIED (session-3 scope):
+  * raw_signs.json semantics (RAWSearchDLL FUN_18001ea40 loads it via ifstream): the
+    core's raw-sign layer (cr_rawsigns.h, landed 9b61246 pre-audit) DOCUMENTS its
+    semantics as assumed ("whose exact hit handler was not RE'd to completion") —
+    512-byte stride, tail-pairing bounds, conf formula all unverified. Decode from
+    the decompile; file divergences.
+  * OQ-T8 (RAWSearch dispatch order) + OQ-T9 (CalcPartition scoring) — both carry
+    located machinery; decode this session.
+  * ReFS first-class deep pass (mandate clause): ReFSSearchDLL_decompiled.c (545KB) +
+    refs artifacts vs core cr_refs; the GAP-ADS open item.
+  * CPartitionVirtualVolumeDevice (og virtual-volume device layer, HFSPlusSearchDLL +
+    DRWUI RTTI) — never audited; compare against core storage/table layers.
+  * FileFilter.xml (filter model, 8 cats / 1481 ext per CORRECTIONS #5) vs core filter.
+  * Health module (matrix verdict THIN): diskhealth artifacts + SMART companion vs core.
+
+Stage Summary:
+- Session-3 scope locked: reconcile fixed findings, then six deep passes (raw-signs
+  decode, OQ-T8, OQ-T9, ReFS, CPartitionVirtualVolumeDevice, filter/health), then
+  consolidation + push waves.
