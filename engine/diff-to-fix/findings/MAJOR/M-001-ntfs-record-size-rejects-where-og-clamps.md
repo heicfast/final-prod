@@ -5,7 +5,7 @@
 **Parameters affected:** B1 (detection correctness), S35 (error recovery), C20 (on-disk struct offsets and sizes)
 **Corpus references:** `re-workspace/artifacts/SearchDLL/ntfs-engine-algorithms-v2--deleted-viability.md` §1 (record-size acquisition, lines :21130–21137 agent-B verified); `re-workspace/artifacts/SearchDLL/ntfs-engine-internals.md` §"MFT acquisition" (record size via clusters-per-record or negative exponent)
 **Core references:** `src/core/ntfs/cr_bootstrap.cpp:51–61` (`validate_boot_sector` record-size block), `include/cr/ntfs/cr_ntfs_wire.h:208–217` (`record_size_from_dbr`) — audited commit `67193b6`
-**Status:** READ-ONLY FINDING — no fix applied
+**Status:** CLOSED — FIXED in `5d6da5f` (verified independently by the session-2 audit: ladder + FUN_18001acc0 :21134-21142 cite re-read first-hand, suite 288/288; see Resolution)
 
 ## Summary
 

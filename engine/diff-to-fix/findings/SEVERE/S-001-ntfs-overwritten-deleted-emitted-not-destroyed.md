@@ -5,7 +5,7 @@
 **Parameters affected:** B1 (detection correctness — result-set membership), B4 (deleted-file classification), D15 (confidence grading model)
 **Corpus references:** `re-workspace/artifacts/SearchDLL/ntfs-engine-algorithms-v2--deleted-viability.md` §1; decompiled `re-workspace/reversed/ghidra-searchdll/NTFSSearchDLL_decompiled.c` FUN_18001acc0, lines ~21128–21300 (destroy branch ~:21250, agent-B spot-verified)
 **Core references:** `src/core/ntfs/cr_mftwalk.cpp:649–691` (grading), `:674` (Overwritten), `:808–812` (emission + DeletedState::PartiallyOverwritten), `include/cr/tree/cr_node.h:39–46` (Confidence enum) — audited commit `67193b6`
-**Status:** READ-ONLY FINDING — no fix applied
+**Status:** CLOSED — FIXED in `e93decf` (verified independently by the session-2 audit: destroy rule + FUN_18001acc0 :21249-21262 cite re-read first-hand, suite 288/288; see Resolution)
 
 ## Summary
 

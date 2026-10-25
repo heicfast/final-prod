@@ -5,7 +5,7 @@
 **Parameters affected:** B1 (detection correctness — salvage coverage), C20 (on-disk struct offsets and sizes)
 **Corpus references:** `re-workspace/artifacts/SearchDLL/zfs-vdev--mftmirr--calcpartition.md` §2 (NTFSLib `InitMFTMirror`, decompiled `re-workspace/reversed/ghidra-mo/NTFSLib_decompiled.c:17310–17430`, agent-B verified)
 **Core references:** `src/core/ntfs/cr_bootstrap.cpp:250–305` (`load_mftmirr_stream`, `enum_mirr_attrs`), `:377–386` (`read_record` mirror fallback `record_no < 4`) — audited commit `67193b6`
-**Status:** READ-ONLY FINDING — no fix applied
+**Status:** CLOSED — FIXED in `d7f3c78` (verified independently by the session-2 audit: runlist span + NTFSLib :17411-17413/:17460 cites re-read first-hand, suite 288/288; see Resolution)
 
 ## Summary
 

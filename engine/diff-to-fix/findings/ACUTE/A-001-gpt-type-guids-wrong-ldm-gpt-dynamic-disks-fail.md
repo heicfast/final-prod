@@ -5,7 +5,7 @@
 **Parameters affected:** C19 (magic bytes and signatures), B1 (detection correctness), B8 (multi-volume/cross-partition), A30 (lost-partition candidate inputs), Q68 (documentation accuracy — the fix comment is false)
 **Corpus references:** og binaries themselves (ground truth): `og-codebase/PartitionRecovery/Partition.mo`, `LdmManager.mo`, `MainModule.dll`, `RecoveryModule.dll`, `UILogic.dll`, `DeviceManager.mo` contain the **canonical** ESP GUID `c12a7328-f81f-11d2-ba4b-00a0c93ec93b` and MSR GUID `e3c9e316-0b5c-4db8-817d-f92df00215ae` byte-for-byte (binary scan this session, `evidence/executions/gpt-guid-probe.md`); canonical LDM GUIDs per Microsoft `winioctl.h` `PARTITION_LDM_METADATA_GUID` {5808c8aa-8e9f-4c87-aea2-af0aa3c41687} / `PARTITION_LDM_DATA_GUID` {af9b60a0-384e-4f7d-8fa5-b1c3d6a9e2b0}
 **Core references:** `include/cr/table/cr_table_wire.h:58–75` (six constants), consumed at `src/core/table/cr_table_parse.cpp:269–279` (classification) and `src/core/table/cr_ldm.cpp:1020` (LDM metadata partition finder) — audited commit `67193b6`
-**Status:** READ-ONLY FINDING — no fix applied
+**Status:** CLOSED — FIXED in `1cb6a43` (verified independently by the session-2 audit: canonical values re-derived and cross-checked against an external GPT type-GUID reference; suite 288/288; see Resolution)
 
 ## Summary
 
