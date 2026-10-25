@@ -1972,8 +1972,7 @@ Work Log:
 - Repaired worklog.md: commit 1cb6a43 had landed with unresolved merge-conflict markers
   (auditor's T11-20/20-FINAL closeout vs the A-001 fix entry). Both sides kept, in commit
   order; markers and one duplicated separator removed. S-005's entry (appended by the
-  parallel leg after the stale >>>>>>> marker) preserved untouched.
-- Will independently verify the parallel leg's S-005 fix on this leg's environment (full
+  parallel leg after the stale - Will independently verify the parallel leg's S-005 fix on this leg's environment (full
   suite + spot re-read of the decoder against the cited corpus evidence) before building
   on it — same rule the mandate applies to audit findings: trust nothing unverified.
 
@@ -5657,3 +5656,38 @@ Stage Summary:
   this container; fix legs' 363/363 at d374064 stands per their logs); OQ-Z1's
   pool-image probe; OQ-RS-2's resident fixture build (belongs to S-020's fix
   lane).
+Task ID: MFIX-B1 (minors-focus session, batch 1/12)
+Agent: main engineer (diff-to-fix minors session)
+Task: FAT/exFAT/lost-partition minors batch — N-022, N-023 (N-010a..f), N-034 + N-001 duplicate reconciliation.
+
+Work Log:
+- Re-verified every og constant first-hand before touching code: FATSearchDLL
+  FUN_18002f970 (engine-open validator, :38037-38090), FUN_180021000 (:26318 0xE bail),
+  FUN_180007e50 (:5219-31 flavor brackets), FUN_1800365a0 (:44298-44315 date gate +
+  the config singleton +0x40 gate at :44305), CDoubleFATTable FUN_180041de0
+  (:54216-18 mirror consult), exFAT FUN_180003090 (:1840-1866 — byte-OR reserved form,
+  single-byte loads confirmed in the decompile rendering); PartitionRecoveryD
+  FUN_180004610 ladder (:2516-2606) + FUN_1800048f0/4a40/4b70 gates (:2613-2730) incl.
+  the total32-preference (:2531-35) and floor root-division (:2553).
+- Code: cr_chain.cpp (flavor boundary 65524; SPC og set — domain-equal to the old pow2
+  check over u8, stated explicitly; mirror consult FREE-only default + opt-in BAD
+  salvage; new boot_passes_open_gates + lost_boot_flavor), cr_fat_quick.cpp (engine-open
+  gate wiring + backup-sector gating; strict_date_sanity dentry gate), cr_candidates.cpp
+  (probe_fat requires a deep-gate pass), cr_exfat_quick.cpp (byte-OR reserved form).
+- Tests: 20 new (10 FAT engine, 7 lost gates, 3 exFAT). Fail-before proven on a pre-fix
+  worktree (ba55913): 6 discriminating tests fail before / pass after; 4 guards pass
+  both sides; API-gated tests fail-by-construction (compile). Suite 366/366 Linux Release.
+- Audit trail: Resolutions in the three finding files (moved to FIXED/); CROSS-REF-MATRIX
+  rows → FIXED; modules/fat.md + exfat.md + lost-partition.md updated; SUMMARY.md counts
+  (71 active / 29 FIXED); PARITY-DELTAS D-51 (5 registered deltas); RESOLVED-INDEX +3
+  rows + N-001 reconciliation note; stale N-001 duplicate removed from MINOR/.
+- Audit corrections recorded: N-010b/N-034's "SPC 256+ accepted" sub-claim is a false
+  positive (SPC is a u8 BPB field — the old pow2 check was set-equal to the og's set
+  over the representable domain); the deep FAT32 string gate is case-SENSITIVE (memcmp)
+  unlike the engine-open _strnicmp; the og ladder prefers total32 when nonzero.
+
+Stage Summary:
+- 3 MINOR findings closed (N-022, N-023 group, N-034); 1 sub-item FIXED-ALREADY (N-010d
+  via S-011); 1 audit sub-claim corrected (SPC domain); N-001 duplicate reconciled.
+- MINOR tier: 29 files remain. Suite 366/366 green. FAT12 engine-open recovery preserved
+  (registered superset D-51) — future sessions must not "fix" it away.

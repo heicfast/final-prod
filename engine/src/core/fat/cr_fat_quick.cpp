@@ -204,6 +204,33 @@ void walk_dir_entries(EmitCtx& ctx, const DirBuffer& buf, tree::FileNode* host,
         if (name.empty())
             continue;
 
+        /* N-010c (diff-to-fix): the og's dentry validator
+         * (FUN_1800365a0 :44298-44315) rejects a dentry whose create
+         * (+0x10) / write (+0x18) / access (+0x12) date field is nonzero
+         * with month > 12 or day == 0 - corrupt-date dentries are
+         * destroyed, not emitted. Whole-zero fields PASS (they flow to
+         * the N-021 zero-FileTime conversion, exactly like the og).
+         * Config-gated in the og (singleton +0x40); the flag mirrors
+         * that gate, default OFF. */
+        if (ctx.flags.strict_date_sanity) {
+            const u16 dates[3] = {e->creation_date, e->write_date, e->access_date};
+            bool bad_date = false;
+            for (u16 d : dates) {
+                if (d == 0)
+                    continue; /* whole-zero field passes the og's gate */
+                const u32 month = (d >> 5) & 0x0F;
+                const u32 day = d & 0x1F;
+                if (month > 12 || day == 0) {
+                    bad_date = true;
+                    break;
+                }
+            }
+            if (bad_date) {
+                ++ctx.stats->date_rejected;
+                continue;
+            }
+        }
+
         emit_entry(ctx, *e, name, deleted, host, deleted_host);
     }
     if (ctx.progress && count)
@@ -348,6 +375,8 @@ u32 scan_fat(IStorageDevice* slice, const FatScanFlags& flags, CancelToken* canc
         return ERR_CANCELLED;
 
     FatParams p;
+    u8 gating_sector[512]; /* N-010b: gate the sector that won */
+    std::memcpy(gating_sector, boot, sizeof(gating_sector));
     u32 rc = validate_boot(boot, slice->size(), p);
     if (rc != OK) {
         /* backup boot sector fallback (R5.1): FAT32 reserves a full copy of
@@ -364,13 +393,25 @@ u32 scan_fat(IStorageDevice* slice, const FatScanFlags& flags, CancelToken* canc
             if (validate_boot(b, slice->size(), bp) == OK && bp.flavor == Flavor::Fat32) {
                 p = bp;
                 rc = OK;
+                std::memcpy(gating_sector, b, sizeof(gating_sector));
             }
         }
         if (rc != OK)
             return rc;
     }
+    /* N-010b (diff-to-fix): the og's engine-open gates (FATSearchDLL
+     * FUN_18002f970 - FS-name string, numFATs {1,2}, bps == device
+     * sector, FAT16 root floor + divisibility). The og's quick engine
+     * declines (flavor 0xE) when these fail; the volume then routes to
+     * other engines / raw carving on both sides. FAT12 is exempt (the
+     * og validator has no FAT12 branch; the core keeps FAT12 recovery
+     * as the documented I-002-family superset). */
+    rc = boot_passes_open_gates(gating_sector, slice->geometry().logical_sector, p);
+    if (rc != OK)
+        return rc;
 
     FatTable table;
+    table.set_mirror_bad_salvage(flags.mirror_bad_salvage); /* N-022 */
     rc = table.load(slice, p);
     if (rc != OK)
         return rc;

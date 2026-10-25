@@ -1,5 +1,33 @@
 # SUMMARY.md — executive summary (session 4 reconciled on top of the session-3 continuation; earlier sessions below)
 
+## Minors-fix session delta (2026-10-26 — the "fix all tiers, focus the 33 minors" session)
+
+Session start `ed00020` (baseline 345/345 Linux Release; +1 test from the concurrent
+transport wave `a4053c4` → 346). Corpus `03ad46c` (unmoved). Mandate: verify every
+finding independently against the corpus before fixing; focus the MINOR tier.
+
+**Batch 1 — FAT/exFAT/lost-partition minors (this push):**
+- **N-022 FIXED** (mirror consult on primary FREE only by default; BAD-salvage opt-in;
+  fail-before proven on the pre-fix worktree).
+- **N-023 group FIXED** (N-010a flavor boundary 65524; N-010b engine-open gates;
+  N-010c date sanity behind `strict_date_sanity`; N-010e exFAT byte-OR reserved form;
+  N-010d FIXED-ALREADY via S-011; N-010f registered D-51). **SPC sub-claim corrected
+  as a false positive** (u8 field domain — audit correction, no code break).
+- **N-034 FIXED** (og deep-scan ladder `fat::lost_boot_flavor` + `probe_fat` rewiring;
+  engine-open layering pinned; SPC sub-claim correction shared with N-010b).
+- **N-001 duplicate reconciled** (stale copy in MINOR/ removed; FIXED/N-001 canonical).
+- PARITY-DELTAS **D-51** added (5 registered deltas: FAT12 engine-open exemption,
+  date-gate default OFF, mirror-BAD salvage opt-in, mid-chain FREE/BAD shape,
+  underflow guard).
+- Suite **366/366** Linux Release (346 + 20 new tests; 6 fail-before discriminators
+  proven against the pre-fix source in a worktree).
+
+**Counts after batch 1 (direct file inventory):** ACUTE 0 · SEVERE 8 · MAJOR 22 ·
+**MINOR 29** · INFO 12 = **71 active** / **29 FIXED** (FIXED/ holds 29 findings +
+RESOLVED-INDEX).
+
+
+
 **Audited commit:** session 1 `67193b6` → session 2 `5d6da5f`/`8574039`/`5f638a3` →
 session 3 `2ce2e6b` + in-flight fixes through `34b3441`+rebase → session-3 continuation
 through `43149ff` (S3 lead) → fix legs through `ed00020` → **session 4 (this leg):

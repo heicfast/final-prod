@@ -108,9 +108,9 @@ F safety · Q quality (definitions in `PARAMETERS.md`).
 | ntfs | B1/B4/D15/A26/B5 | **S-012 FIXED (diff-fix session)** — two-pass landed: pass-1 membership restored (destroy default off), GUID-dump pass 2 (claim-map viability, 0x3ff + blanket-$ + folder rules), size-0 rescue (mirror resident + same-name merge); Resolution in findings/FIXED/S-012-*.md |
 | ntfs | C19/C20/D11/D12/B7/C23 | **N-024** (8.3 short-name field; two-sided boot ladder; pass-2 stride quirk superset; namespace-ranking superset; og error facility codes) |
 | fat | B1/S35/X49 | **M-011** (table-size windows: og FAT32 128 KiB–300 MiB, FAT16 ≥12 sectors; core 16 MiB reject = scan-failure class) |
-| fat | A27/B2/S35 | **M-012** (mirror policy: primary-wins-on-nonzero incl. BAD, scrutinized mirror answers, mirror-only mode; supersedes the N-022 sub-case) |
+| fat | A27/B2/S35 | **M-012** (mirror policy: primary-wins-on-nonzero incl. BAD, scrutinized mirror answers, mirror-only mode; supersedes the N-022 sub-case) — **N-022 sub-case FIXED (minors session, 2026-10-26)**: mirror consult now primary-FREE-only by default (`FatScanFlags::mirror_bad_salvage` opt-in; see findings/FIXED/N-022) |
 | fat | B1/B3/A27 | **M-015** (og validates loaded tables: media-word canonical, cross-link wholesale rejection, 98% watermark) |
-| fat | B1/C19/C20/B3 | **N-023** (65524 flavor boundary; BPB FS-string/bps/spc-set gates; dentry date sanity; mid-chain FREE/BAD handling) |
+| fat | B1/C19/C20/B3 | **N-023 — FIXED (minors session, 2026-10-26)** (65524 flavor boundary ✓; BPB FS-string/numFATs/bps gates at engine open ✓; dentry date sanity behind `strict_date_sanity` ✓; exFAT tz = FIXED-ALREADY via S-011; stream reserved byte-OR ✓; mid-chain FREE/BAD registered D-51 — see findings/FIXED/N-023) |
 | exfat | B2/A27/X47 | **S-013 — FIXED (session 3)** (windowed-FAT accessor, og 1 MiB windows; have_fat never false; extent coverage pinned; windowed failures degrade to the EXFAT-2 salvage) |
 | exfat | B3/B4/B5/D15 | **M-013** (og DOES validate entry-set checksums — dual-form incl. deleted sets + reconstruction oracle; refutes the N-003 fix's verified-absence premise; supersedes N-003) |
 | exfat | B3/B4/B10 | **M-014** (structural gates: secondary_count ∈ [2,18], timestamp sanity, empty files dropped, name-entry validation) |
@@ -150,7 +150,7 @@ reading was wrong — corrected in `evidence/decompiled-quotes/fat-exfat-session
 | carve | A25/A28/C19 | **N-031 addendum** (u16 equal_range chains = insertion order; id-8 continuation records; TTF-vs-MDB u32 pre-emption; TIFF-family same-class relabeling — kTrialOrder equivalence verified per family) |
 | lost-partition | A30/B1 | **S-019** (BitLocker "-FVE-FS-" probe family missing — S-006 under-listed the og; distinct from S-014's unlock-path finding) |
 | lost-partition | A30 | **M-017 addendum** (RTTI proof: *CalcPartition = geometry calculators, slot 4 = SPC; full AdjustPartitionInfoOrder: containment drop, FS-grouped dedup, 0.1/0.3 tie rules, ±16 MiB promotion, cap 2/4/5/6, stable merge sort) |
-| lost-partition | C20/B1 | **N-034** (FAT lost-boot gates: numFATs ∈ {1,2}, FAT12 spf ≤ 200 probe, root×32 % bps — complements N-010b's engine-side gates) |
+| lost-partition | C20/B1 | **N-034 — FIXED (minors session, 2026-10-26)** (full og deep-scan ladder `fat::lost_boot_flavor` + engine-open gates `boot_passes_open_gates`; SPC sub-claim corrected as false positive — u8 domain; see findings/FIXED/N-034) |
 | lost-partition | A29/C20 | **N-035** (candidate extents data-area-anchored vs whole-volume — M-017's containment/16-MiB rules consume different extents) |
 | refs | B2/B7/A25 | **S-020** (resident/inline content never materialized: FUN_18000e490/ea30 build CRefsResidentDataRunList, lead re-verified :10413-10462; core resident_data never populated + val_len ≥ 0x28 gate; answers M-022's step 4; needs M-022's grammar walk first) |
 | refs | B4/B5 | **M-026** (deleted model: og stale-"MSB+"-page sweep FUN_180005330 vs core row-flag 0x4 + ID2 — different on-disk premise; CoW favors og) |

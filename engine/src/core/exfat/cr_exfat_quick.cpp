@@ -333,11 +333,21 @@ void walk_entries(ScanCtx& ctx, const std::vector<u8>& buf, bool deleted_context
             }
             const StreamEntry* se = reinterpret_cast<const StreamEntry*>(stream);
             /* og stream-dentry gates (FUN_180003090, audit row 11):
-             * reserved fields must be zero on a live stream entry -
-             * damaged-set counting parity. A non-zero reserved field
-             * downgrades the set (treated as damaged, not skipped). */
+             * reserved fields - damaged-set counting parity. N-010e
+             * (diff-to-fix): the og's tests are BYTE-granular with an
+             * OR form (single-byte loads in the decompile, :1843-1846):
+             * reserved1 byte@+2 must be 0; reserved2 passes when EITHER
+             * byte (+6/+7) is 0; reserved3 passes when ANY of its four
+             * bytes (+0x10..0x13) is 0. The old word-nonzero tests
+             * rejected partially-nonzero reserved fields the og accepts
+             * (BIOS/embedded formatters leave stray low bytes). A
+             * failing set is downgraded (damaged), not skipped. */
+            const u8* sb = reinterpret_cast<const u8*>(se);
             const bool stream_reserved_bad =
-                in_use && (se->reserved1 != 0 || se->reserved2 != 0 || se->reserved3 != 0);
+                in_use &&
+                (sb[0x02] != 0 ||
+                 !(sb[0x06] == 0 || sb[0x07] == 0) ||
+                 !(sb[0x10] == 0 || sb[0x11] == 0 || sb[0x12] == 0 || sb[0x13] == 0));
             if (stream_reserved_bad)
                 ++ctx.stats->sets_damaged;
             const u8 name_len = se->name_length;

@@ -1262,3 +1262,84 @@ FUN_180004070/FUN_180004610 chain entered but unresolved). No invented gates.
 `Ext4BlockGroupCopyNotACandidateStart`, `HfsPlusVolumeHeaderAnchorsDeletedPartition`,
 `BtrfsSuperblockAnchorsDeletedPartition`, `ZfsLabelAnchorsDeletedPartition`,
 `RefsBootAnchorsDeletedPartition`, `SuperblockNoiseRejected`.
+
+### D-51 — FAT/exFAT engine-open + lost-scan gates: og parity with three registered core deltas (N-010b/N-010c/N-022/N-034)
+
+**Class:** parity + registered superset (engine semantics) · **Findings:** diff-to-fix N-010a..f (N-023 group), N-022, N-034 (MINOR, FIXED 2026-10-26) · **Date:** 2026-10-26
+
+The FAT batch aligns the core's boot/dentry gates with the og's two-layer
+architecture, verified first-hand this session:
+
+- **Engine open** (`fat::boot_passes_open_gates`, mirrors FATSearchDLL
+  `FUN_18002f970` + the quick-search 0xE bail at `FUN_180021000:26318`):
+  FS-name string ("FAT16   " +0x36 / "FAT32   " +0x52, `_strnicmp`
+  case-insensitive), numFATs ∈ {1,2}, bps == device sector size, FAT16
+  root_entries ≥ 224 + root×32 % bps == 0, spf ≠ 0. A failing volume
+  declines the engine (routes to other engines / raw carving) exactly like
+  the og.
+- **Lost scan** (`fat::lost_boot_flavor`, mirrors PartitionRecoveryD
+  `FUN_180004610` + gates `FUN_1800048f0/4a40/4b70`): 512-multiple bps,
+  og cluster-count arithmetic (total32-preferred, floor root sectors),
+  bracket-ordered gate walk with the FAT12 small-FAT probe (spf16 ∈ [1,200])
+  and the case-SENSITIVE "FAT32   " memcmp.
+- **Flavor boundary**: 65524 data clusters is FAT32 (og `FUN_180007e50`
+  brackets [0xFF5, 0xFFF4) / [0xFFF4, …)); the core's old `< 65525` read
+  the boundary volume as FAT16.
+- **exFAT stream reserved fields** (N-010e): the og's byte-OR form
+  (`FUN_180003090:1843-1846`, single-byte loads) — reserved2 passes when
+  either byte is 0, reserved3 when any byte is 0, reserved1 strictly 0.
+
+**Registered core deltas (preserved deliberately):**
+
+1. **FAT12 engine-open exemption.** The og's engine-open validator has NO
+   FAT12 branch — its quick engine declines every FAT12 volume (flavor 0xE);
+   only the deep scan generates FAT12 candidates. The core keeps structural
+   FAT12 recovery at engine open (the I-002-family superset): FAT12 volumes
+   pass the geometry gates (numFATs/bps) but no string gate (there is no og
+   string gate to mirror). Future sessions must NOT "fix" this by declining
+   FAT12 — that would delete a documented recovery surface.
+2. **Date-sanity gate default OFF (N-010c).** The og's dentry date-sanity
+   rejection (`FUN_1800365a0:44298-44315`) is config-gated (singleton
+   +0x40); its default runtime value is corpus-undecoded. The core exposes
+   `FatScanFlags::strict_date_sanity` (default OFF, preserving the
+   N-021-pinned zero-FileTime emission flow that the og's
+   `DosDateTimeToFileTime` zero-out at :32135 proves happens for
+   gate-passing dentries).
+3. **Mirror-BAD salvage opt-in (N-022).** Default path is og parity
+   (mirror consulted on primary FREE only — `CDoubleFATTable::GetNext`
+   `FUN_180041de0:54216-18`); `FatScanFlags::mirror_bad_salvage` keeps the
+   old torn-pair salvage as an explicit recovery mode, never the default.
+4. **Mid-chain FREE/BAD content shape (N-010f, registered no-chase).** The
+   og's directory walk continues at cluster+1 on mid-chain FREE only when
+   the range is in the claim/bitmap RB-trees (`FUN_18000f950:11075-11116`)
+   and aborts the whole directory read on canonical BAD
+   (`FUN_18000fb80:11231-11243`); the core keeps pre-BAD clusters and marks
+   the chain broken. Informational-grade difference on damaged volumes;
+   registered, not chased (the finding's own recommendation).
+5. **Underflow guard in the lost ladder.** The og computes the deep-scan
+   cluster count in wrapping uint arithmetic (an underflowing corrupt BPB
+   wraps to ~4 G and lands in the FAT32 bracket by accident); the core
+   rejects underflowing BPBs outright — same outcome for every sane input,
+   no wraparound path.
+
+**Correction to the audit (recorded):** N-010b/N-034's "we accept any pow2
+SPC incl. 256+" sub-claim is a false positive — SPC is a u8 BPB field, so
+the old any-pow2 check already accepted exactly {1,2,4,8,16,32,64,128} =
+the og's set over the representable domain. The explicit-set code and the
+`FatEngine.SpcDomainMatchesOgSet` domain-walk pin (all 256 values) keep the
+gate stated and pinned. N-010d (exFAT tz) was already fixed by S-011
+(D-49); N-023's resolution marks it FIXED-ALREADY.
+
+**Pin tests:** `FatEngine.FlavorBoundary65524IsFat32`,
+`FatEngine.BootStringGateDeclinesTornStringVolume`,
+`FatEngine.BootStringCaseInsensitiveAccepted`,
+`FatEngine.Fat16LowRootEntriesDeclined`,
+`FatEngine.Fat16RootEntriesNotSectorMultipleDeclined`,
+`FatEngine.NumFatsThreeDeclined`, `FatEngine.SpcDomainMatchesOgSet`,
+`FatEngine.DateSanityRejectedInStrictMode`,
+`FatEngine.BadPrimaryServedWithoutMirrorConsult`,
+`FatEngine.PrimaryFreeStillConsultsMirror`,
+`LostFatGates.*` (7 tests), `LostDiscovery.FatBootWithOgGatesBecomesCandidate`,
+`ExfatEngine.StreamReservedPartiallyNonzeroPassesOgByteOr`,
+`ExfatEngine.StreamReservedAllBytesNonzeroStillDamaged`,
+`ExfatEngine.StreamReserved1ByteStrictlyZero`.

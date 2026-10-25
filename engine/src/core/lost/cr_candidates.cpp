@@ -117,13 +117,26 @@ int probe_fat(IStorageDevice* disk, u64 boot_lba, Candidate& c) {
     fat::FatParams p;
     if (fat::validate_boot(sec, disk->size(), p) != OK)
         return -100;
-    int pts = 20; /* valid FAT BPB */
+    /* N-034 (diff-to-fix): the og's deep-scan ladder gates
+     * (PartitionRecoveryD FUN_180004610 + FUN_1800048f0/4a40/4b70):
+     * the flavor is picked by the bracket-ordered gate walk - FAT12
+     * (spf <= 200 probe), FAT16 (no string), FAT32 (case-sensitive
+     * "FAT32   " memcmp + total32 + spf32). A boot sector every og
+     * gate rejects is not a FAT candidate on the og's deep scan; the
+     * old core accepted any structurally-valid BPB (noise the og never
+     * surfaces). */
+    const int flavor = fat::lost_boot_flavor(sec);
+    if (flavor == 0)
+        return -100;
+    int pts = 20; /* valid FAT BPB (og gate passed) */
     c.sector_count = p.total_bytes / p.bytes_per_sector;
     /* FAT area probe: entries 2..4 readable and first data cluster sane */
     u8 fat_probe[16];
     if (disk->read_at(p.fat_start + 8, fat_probe, 16) == OK)
         pts += 10;
     c.evidence.push_back({"fat-bpb", 20});
+    c.evidence.push_back({flavor == 3 ? "fat32-gate" : (flavor == 2 ? "fat16-gate" : "fat12-gate"),
+                          5});
     if (pts > 20)
         c.evidence.push_back({"fat-probe", 10});
     return pts;

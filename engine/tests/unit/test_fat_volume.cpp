@@ -282,6 +282,9 @@ TEST(FatEngine, Fat32RootChainAndBackupBoot) {
     put16(img, 0x28, 0);
     put32v(img, 0x2C, 2); /* root cluster */
     put16(img, 0x32, 6);  /* backup boot sector */
+    /* N-010b: real FAT32 boot sectors carry the FS-name string at +0x52;
+    * the og's engine-open validator (FUN_18002f970) requires it. */
+    std::memcpy(b + 0x52, "FAT32   ", 8);
     b[510] = 0x55;
     b[511] = 0xAA;
     std::memcpy(img.data() + 6 * 512, b, 512); /* backup copy */
@@ -374,6 +377,9 @@ TEST(FatEngine, Fat32BackupBootFallback) {
     put32v(img, 0x24, 512);
     put32v(img, 0x2C, 2);
     put16(img, 0x32, 6);
+    /* N-010b: the engine-open gates require the FS-name string; real
+     * backup boot sectors carry it (the backup is a full copy). */
+    std::memcpy(b + 0x52, "FAT32   ", 8);
     b[510] = 0x55;
     b[511] = 0xAA;
     std::memcpy(img.data() + 6 * 512, b, 512);
@@ -1012,4 +1018,195 @@ TEST(FatEngine, ValidDateYieldsCorrectFileTime) {
     tree::FileNode* r = find_node(tree, "readme_document_v1.txt");
     ASSERT_NE(r, nullptr);
     EXPECT_EQ(r->props()->times.modified, 1738843200ULL * 10000000ULL + 116444736000000000ULL);
+}
+
+/* ---- N-010a/N-010b/N-010c/N-022 (diff-to-fix session) ------------------ */
+
+TEST(FatEngine, FlavorBoundary65524IsFat32) {
+    /* N-010a: the og's FATSearchDLL boundary (FUN_180007e50 :5219-5231)
+     * makes 0xFFF4 = 65524 data clusters FAT32 (lower bound inclusive);
+     * the core's old `< 65525` read it as FAT16. The FAT32 fixture's
+     * 65530 clusters stay FAT32; 65523 stays FAT16. */
+    EXPECT_EQ(flavor_from_clusters(65524), Flavor::Fat32);
+    EXPECT_EQ(flavor_from_clusters(65523), Flavor::Fat16);
+    EXPECT_EQ(flavor_from_clusters(4085), Flavor::Fat16);
+    EXPECT_EQ(flavor_from_clusters(4084), Flavor::Fat12);
+}
+
+TEST(FatEngine, BootStringGateDeclinesTornStringVolume) {
+    /* N-010b: the og's engine-open validator (FUN_18002f970) requires
+     * "FAT16   " at +0x36 / "FAT32   " at +0x52; a torn reserved area
+     * declines the engine on the og (flavor 0xE) and must decline here
+     * too - the volume routes to other engines / raw carving. */
+    auto img = build_fat16_image();
+    std::memset(img.data() + 0x36, 0, 8); /* tear the FS-name string */
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* ra = tree.add_root(u"Found");
+    FatScanFlags flags;
+    FatScanStats stats;
+    u32 rc = scan_fat(&dev, flags, nullptr, nullptr, nullptr, tree, ra, nullptr, nullptr, stats);
+    EXPECT_NE(rc, OK) << "torn FS-name string must decline the FAT engine (og parity)";
+}
+
+TEST(FatEngine, BootStringCaseInsensitiveAccepted) {
+    /* N-010b: the og uses _strnicmp - "fat16   " (lowercase, some
+     * third-party formatters) must open. */
+    auto img = build_fat16_image();
+    std::memcpy(img.data() + 0x36, "fat16   ", 8);
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* ra = tree.add_root(u"Found");
+    FatScanFlags flags;
+    FatScanStats stats;
+    EXPECT_EQ(scan_fat(&dev, flags, nullptr, nullptr, nullptr, tree, ra, nullptr, nullptr, stats),
+              OK);
+}
+
+TEST(FatEngine, Fat16LowRootEntriesDeclined) {
+    /* N-010b: root_entries >= 224 is the og's engine-open floor
+     * (:38054 `0xdf < root`); 16-entry boots are declined. */
+    auto img = build_fat16_image();
+    put16(img, 0x11, 16);
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* ra = tree.add_root(u"Found");
+    FatScanFlags flags;
+    FatScanStats stats;
+    u32 rc = scan_fat(&dev, flags, nullptr, nullptr, nullptr, tree, ra, nullptr, nullptr, stats);
+    EXPECT_NE(rc, OK) << "root_entries < 224 must decline (og engine-open floor)";
+}
+
+TEST(FatEngine, Fat16RootEntriesNotSectorMultipleDeclined) {
+    /* N-010b: root_entries*32 % bps == 0 (:38055). 225 entries x 32 B
+     * is 7200 bytes - not a 512 multiple. */
+    auto img = build_fat16_image();
+    put16(img, 0x11, 225);
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* ra = tree.add_root(u"Found");
+    FatScanFlags flags;
+    FatScanStats stats;
+    u32 rc = scan_fat(&dev, flags, nullptr, nullptr, nullptr, tree, ra, nullptr, nullptr, stats);
+    EXPECT_NE(rc, OK) << "root_entries*32 % bps != 0 must decline";
+}
+
+TEST(FatEngine, NumFatsThreeDeclined) {
+    /* N-010b: numFATs in {1,2} (:38049). Triple-FAT boots are declined
+     * by the og's engine-open validator. */
+    auto img = build_fat16_image();
+    img[0x10] = 3;
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* ra = tree.add_root(u"Found");
+    FatScanFlags flags;
+    FatScanStats stats;
+    u32 rc = scan_fat(&dev, flags, nullptr, nullptr, nullptr, tree, ra, nullptr, nullptr, stats);
+    EXPECT_NE(rc, OK) << "numFATs == 3 must decline (og {1,2} gate)";
+}
+
+TEST(FatEngine, SpcDomainMatchesOgSet) {
+    /* N-010b/N-034 correction (verified this session): SPC is a u8 BPB
+     * field, so the old any-pow2 check already accepted exactly
+     * {1,2,4,8,16,32,64,128} - the og's set (FUN_18002f970 bitmask +
+     * 0x80 case) over the same domain. The audit's "SPC 256 accepted"
+     * sub-claim was a false positive (256 is unrepresentable in u8).
+     * This pin walks the whole 0..255 domain so any future loosening
+     * (e.g. a u16 field) fails loudly. */
+    auto img = build_fat16_image();
+    u8 boot[512];
+    FatParams p;
+    for (int v = 0; v <= 255; ++v) {
+        img[0x0D] = u8(v);
+        std::memcpy(boot, img.data(), 512);
+        const bool pow2 = v >= 1 && (v & (v - 1)) == 0;
+        const u32 rc = validate_boot(boot, u64(5074) * 512, p);
+        if (pow2)
+            EXPECT_EQ(rc, OK) << "SPC " << v << " must be accepted (og set)";
+        else
+            EXPECT_NE(rc, OK) << "SPC " << v << " must be rejected (og set)";
+    }
+}
+
+TEST(FatEngine, DateSanityRejectedInStrictMode) {
+    /* N-010c: FUN_1800365a0 :44298-44315 - a nonzero date field with
+     * month > 12 or day == 0 rejects the dentry (strict mode). The
+     * default flow keeps the N-021 zero-FileTime emission. */
+    /* month=13 (0x0D << 5 | 6), day valid */
+    const u16 month13 = u16((13u << 5) | 6u);
+    /* day = 0, month valid */
+    const u16 day0 = u16((7u << 5) | 0u);
+    auto img = build_fat16_image_with_bad_dates(0, month13, day0);
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* ra = tree.add_root(u"Found");
+    FatScanFlags flags;
+    flags.strict_date_sanity = true;
+    FatScanStats stats;
+    ASSERT_EQ(scan_fat(&dev, flags, nullptr, nullptr, nullptr, tree, ra, nullptr, nullptr, stats),
+              OK);
+    EXPECT_EQ(find_node(tree, "MONTH13.TXT"), nullptr) << "month 13 dentry must be rejected";
+    EXPECT_EQ(find_node(tree, "DAYZERO.TXT"), nullptr) << "day 0 dentry must be rejected";
+    EXPECT_NE(find_node(tree, "ZERODAT.TXT"), nullptr) << "whole-zero date passes the gate";
+    EXPECT_EQ(stats.date_rejected, 2u);
+    /* default flow (flag off): N-021 semantics preserved - emitted
+     * with zero FileTime, not rejected */
+    MemDevice dev2(build_fat16_image_with_bad_dates(0, month13, day0));
+    tree::ResultTree tree2;
+    auto* ra2 = tree2.add_root(u"Found");
+    FatScanFlags default_flags;
+    FatScanStats stats2;
+    ASSERT_EQ(
+        scan_fat(&dev2, default_flags, nullptr, nullptr, nullptr, tree2, ra2, nullptr, nullptr,
+                 stats2),
+        OK);
+    EXPECT_NE(find_node(tree2, "MONTH13.TXT"), nullptr) << "default flow keeps N-021 emission";
+    EXPECT_EQ(stats2.date_rejected, 0u);
+}
+
+TEST(FatEngine, BadPrimaryServedWithoutMirrorConsult) {
+    /* N-022: the og's CDoubleFATTable::GetNext consults the mirror only
+     * on a primary FREE entry; a primary BAD truncates the chain even
+     * when the mirror holds a live link (torn pair). */
+    auto img = build_fat16_image();
+    const size_t FAT1 = 2 * 512, FAT2 = 22 * 512;
+    /* torn pair at cluster 10: primary BAD, mirror says 11 */
+    set_fat16_entry(img, FAT1, 10, u16(0xFFF7));
+    set_fat16_entry(img, FAT2, 10, 11);
+    /* keep the rest of the chain intact on both */
+    u8 boot[512];
+    std::memcpy(boot, img.data(), 512);
+    MemDevice dev(std::move(img));
+    FatParams p;
+    ASSERT_EQ(validate_boot(boot, u64(5074) * 512, p), OK);
+    FatTable t;
+    ASSERT_EQ(t.load(&dev, p), OK);
+    /* default (og parity): the chain truncates at the BAD cluster */
+    ChainResult r = follow_chain(t, 10, 0x10000, nullptr);
+    EXPECT_TRUE(r.broken) << "primary BAD must truncate (og serves primary directly)";
+    ASSERT_EQ(1u, r.clusters.size()) << "no mirror consult on primary BAD";
+    /* opt-in salvage: the torn pair recovers through the mirror link */
+    t.set_mirror_bad_salvage(true);
+    ChainResult rs = follow_chain(t, 10, 0x10000, nullptr);
+    EXPECT_FALSE(rs.broken) << "opt-in salvage continues through the mirror";
+    ASSERT_EQ(3u, rs.clusters.size());
+    EXPECT_EQ(rs.clusters[1], 11u);
+    EXPECT_EQ(rs.clusters[2], 12u);
+}
+
+TEST(FatEngine, PrimaryFreeStillConsultsMirror) {
+    /* N-022 companion pin: primary FREE + mirror link still serves the
+     * mirror answer (unchanged by the fix - the og's gated-serve path). */
+    auto img = build_fat16_image();
+    const size_t FAT1 = 2 * 512, FAT2 = 22 * 512;
+    set_fat16_entry(img, FAT1, 10, 0);  /* primary FREE */
+    set_fat16_entry(img, FAT2, 10, 11); /* mirror alive */
+    u8 boot[512];
+    std::memcpy(boot, img.data(), 512);
+    MemDevice dev(std::move(img));
+    FatParams p;
+    ASSERT_EQ(validate_boot(boot, u64(5074) * 512, p), OK);
+    FatTable t;
+    ASSERT_EQ(t.load(&dev, p), OK);
+    EXPECT_EQ(t.next(10), 11u) << "primary FREE must consult the mirror (og gate)";
 }

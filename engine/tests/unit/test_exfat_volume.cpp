@@ -968,3 +968,95 @@ TEST(ExfatEngine, LargeFatDirectoryWalk) {
     ASSERT_EQ(fardir_n->props()->extents.size(), size_t(1));
     EXPECT_EQ(fardir_n->props()->extents.front().length, u64(1024)); /* was 512 pre-fix */
 }
+
+/* ---- N-010e (diff-to-fix session): og byte-OR reserved-field form ------ */
+
+TEST(ExfatEngine, StreamReservedPartiallyNonzeroPassesOgByteOr) {
+    /* N-010e: the og's stream-entry gate (FUN_180003090 :1843-1846) is
+     * BYTE-granular with an OR form - reserved2 passes when either byte
+     * is 0, reserved3 when any of its four bytes is 0 (single-byte loads
+     * in the decompile, not a u16/u32 word test). A partially-nonzero
+     * reserved field the old core word-test flagged as damaged is NOT
+     * damaged on the og. reserved1 (byte +2) stays strictly zero. */
+    auto img = build_exfat_image();
+    const size_t ROOT = 25 * 512;
+    const size_t AT = ROOT + 576;
+    {
+        SetBuilder sb;
+        sb.file_entry(0x20, 0);
+        sb.stream_entry(0x01, 11, 60, 512);
+        sb.name_entry(u"partres.dat");
+        std::memcpy(img.data() + AT, sb.entries.data(), sb.entries.size());
+        sb.finish_set(img, AT);
+        /* reserved2 (u16 @+6): high byte set, low byte zero -> og passes */
+        img[AT + 32 + 7] = 0x01;
+        /* reserved3 (u32 @+0x10): one nonzero byte, three zero -> og passes */
+        img[AT + 32 + 0x11] = 0x02;
+    }
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* ra = tree.add_root(u"Found");
+    ExfatScanFlags flags;
+    ExfatScanStats stats;
+    ASSERT_EQ(scan_exfat(&dev, flags, nullptr, nullptr, nullptr, tree, ra, nullptr, nullptr, stats),
+              OK);
+    EXPECT_EQ(stats.sets_damaged, 0u)
+        << "partially-nonzero reserved2/3 must pass the og byte-OR form";
+    auto all = collect_all(tree);
+    tree::FileNode* partres = nullptr;
+    for (auto* n : all)
+        if (n->name_utf8() == "partres.dat")
+            partres = n;
+    ASSERT_NE(partres, nullptr) << "the set must still be emitted undamaged";
+}
+
+TEST(ExfatEngine, StreamReservedAllBytesNonzeroStillDamaged) {
+    /* N-010e companion: reserved2 with BOTH bytes nonzero fails the og's
+     * byte-OR form (no zero byte in the field) - still damaged. */
+    auto img = build_exfat_image();
+    const size_t ROOT = 25 * 512;
+    const size_t AT = ROOT + 576;
+    {
+        SetBuilder sb;
+        sb.file_entry(0x20, 0);
+        sb.stream_entry(0x01, 11, 60, 512);
+        sb.name_entry(u"fullres.dat");
+        std::memcpy(img.data() + AT, sb.entries.data(), sb.entries.size());
+        sb.finish_set(img, AT);
+        img[AT + 32 + 6] = 0x01;
+        img[AT + 32 + 7] = 0x02;
+    }
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* ra = tree.add_root(u"Found");
+    ExfatScanFlags flags;
+    ExfatScanStats stats;
+    ASSERT_EQ(scan_exfat(&dev, flags, nullptr, nullptr, nullptr, tree, ra, nullptr, nullptr, stats),
+              OK);
+    EXPECT_GE(stats.sets_damaged, 1u) << "all-nonzero reserved2 must stay damaged";
+}
+
+TEST(ExfatEngine, StreamReserved1ByteStrictlyZero) {
+    /* N-010e: reserved1 (byte @+2) is a strict zero test on the og
+     * (param_1[2] == 0 with no OR escape) - any nonzero value damages. */
+    auto img = build_exfat_image();
+    const size_t ROOT = 25 * 512;
+    const size_t AT = ROOT + 576;
+    {
+        SetBuilder sb;
+        sb.file_entry(0x20, 0);
+        sb.stream_entry(0x01, 8, 60, 512);
+        sb.name_entry(u"res1.dat");
+        std::memcpy(img.data() + AT, sb.entries.data(), sb.entries.size());
+        sb.finish_set(img, AT);
+        img[AT + 32 + 2] = 0x01; /* reserved1 */
+    }
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* ra = tree.add_root(u"Found");
+    ExfatScanFlags flags;
+    ExfatScanStats stats;
+    ASSERT_EQ(scan_exfat(&dev, flags, nullptr, nullptr, nullptr, tree, ra, nullptr, nullptr, stats),
+              OK);
+    EXPECT_GE(stats.sets_damaged, 1u) << "reserved1 != 0 must damage (strict og test)";
+}

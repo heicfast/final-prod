@@ -138,3 +138,16 @@ Downstream: FsFamily::BitLocker + probe_family OEM branch (encrypted content nev
 the ext4-magic probe); engine-dispatch default surfaces the candidate as a locked volume.
 3 fail-before/pass-after tests (`LostDiscovery.LostBitlocker*`); suite 365/365 ASan.
 See `findings/FIXED/S-019-*.md`.
+## Minors-fix session update (2026-10-26)
+
+**N-034 FIXED** — `fat::lost_boot_flavor` implements the og's PartitionRecoveryD
+deep-scan ladder (FUN_180004610 + gates FUN_1800048f0/4a40/4b70, all constants
+re-verified first-hand): 0x55AA, 512-multiple bps, og cluster-count arithmetic
+(total32 preferred, floor root sectors), bracket-ordered gate walk with the
+FAT12 spf16 ∈ [1,200] small-FAT probe and the case-SENSITIVE "FAT32   " memcmp.
+`probe_fat` now requires a gate pass — the old any-valid-BPB acceptance
+generated candidates the og's deep scan never surfaces (noise into M-017's
+scoring). The engine-open {1,2} numFATs gate declines deep-accepted triple-FAT
+candidates — the og's exact layering, pinned by
+`LostFatGates.NumFatsZeroRejectedThreeAcceptedByDeepGates`. The finding's SPC
+sub-claim was corrected (u8 domain false positive — see modules/fat.md).
