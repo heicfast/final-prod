@@ -114,8 +114,18 @@ RESOLVED by the same evidence. 5 tests (4 fail-before proven on the
 engine-reverted build); suite **401/401** Linux Release; ASan+UBSan fuzz
 smoke clean over structured meta_bg seeds.
 
-**Counts after S-026 (direct file inventory):** ACUTE 0 · **SEVERE 10** ·
-MAJOR 34 · MINOR 37 · INFO 18 = **99 active** / **36 FIXED**.
+**S-027 FIXED (this push):** ext4 backup-superblock rescue (the og's
+engine-side lost-volume walk, FUN_180001b00 slot 53 — re-verified first-hand
+incl. the vtable .rdata reference). Implemented inside scan_ext4: canonical-
+position probe grid (1 MiB, both +0/+1024 families), exact volume-base
+recovery from the backup's own s_block_group_nr (verified on real images:
+group-1 copy = 1), GDT ladder front-first then backup-GDT-after-SB (full
+table classic / meta-group-0 for meta_bg, verified). Og boot-area rebase
+NOT adopted → **PARITY-DELTAS D-59**. 4 tests (3 fail-before); suite
+434/434 serial; ASan/UBSan fuzz smoke clean.
+
+**Counts after S-027 (direct file inventory):** ACUTE 0 · **SEVERE 8** ·
+MAJOR 34 · MINOR 37 · INFO 18 = **97 active** / **38 FIXED**.
 
 # SUMMARY.md — executive summary (session 4 reconciled on top of the session-3 continuation; earlier sessions below)
 

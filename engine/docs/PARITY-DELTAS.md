@@ -1159,6 +1159,42 @@ Deliberate divergences introduced or pinned while closing the audit roadmap.
 - **VERDICT: ACCEPTED** (pinned by `Ext4Engine.MetaBg*` — 5 tests, 4
   fail-before proven on the engine-reverted build).
 
+
+### D-59 — ext4 backup-SB rescue: canonical-position grid + exact s_block_group_nr rebasing (S-027)
+
+- **WHAT OG DOES:** its engine-side walker (EXT4SearchDLL FUN_180001b00,
+  CEXT4CompleteSearchController vtable slot 53 — the only reference, no
+  textual caller) probes caller-supplied sector positions, validates with
+  the primary's superblock validator (FUN_180004710), and rebases each
+  sub-searcher at `found − 0x400` — a boot-area model that misplaces every
+  structure by 1024 bytes for backup copies (group g's copy sits at the
+  group's first block with no 1024 boot skip: same defect family as the
+  og's 1KiB front-GDT bug, I-014 E9). It also aborts the whole walk on the
+  first failed read (its CatchBuffer proxy pre-salvages).
+- **WHAT WE DO:** probe a 1 MiB grid (m >= 8; one buffered 8 KiB read per
+  window, ~0.8% of the slice, bounded at 4 TiB) covering every canonical
+  geometry's group-boundary backup positions (m*1MiB + {0, 1024}); adopt
+  the first valid backup; compute the EXACT volume base from the backup's
+  own `s_block_group_nr` (SB+0x5A — verified on real mke2fs images:
+  primary 0, group-1 copy 1, group-3 copy 3); GDT ladder front-GDT-first
+  with the backup GDT (the block after the found copy — e2fsprogs
+  "Backup superblock at B, Group descriptors at B+1", full table on
+  classic volumes, verified) as fallback. Failed probe reads skip onward
+  (the transport retry layer owns bad sectors). Emitted extents are
+  base-adjusted so downstream recovery reads land correctly.
+- **WHY:** correctness — the og's rebase reads every structure 1024
+  bytes off on the rescue path; the grid replaces the og's unpinned
+  caller-side sector range with the artifact-documented canonical
+  positions (ext4-engine--deep-dive.md SS2: "backup superblock blocks:
+  8193, 32768...").
+- **RISK:** volume starts not aligned to the 1 MiB grid are covered only
+  when the engine is dispatched on a volume-start slice (partition /
+  lost-candidate materialization — the og's own sub-searcher dispatch
+  shape); cylinder-aligned legacy starts on whole-disk scans fall to the
+  carve layer (documented limitation).
+- **VERDICT: ACCEPTED** (pinned by `Ext4Engine.Backup*` — 4 tests, 3
+  fail-before proven on the engine-reverted build).
+
 ## J. UNDOCUMENTED DIVERGENCE CANDIDATES
 
 Things our code/docs do differently with no (or stale/contradictory) rationale

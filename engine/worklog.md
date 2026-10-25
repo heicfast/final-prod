@@ -6761,7 +6761,9 @@ Work Log:
   S-021+S-003 `c75f646`).
 - Saved session prompt (token redacted) to worklog/session-diff-fix-7-prompt.md.
 - Found committed merge-conflict markers in diff-to-fix/CROSS-REF-MATRIX.md:48-54
-  (`<<<<<<< HEAD` / `=======` / `>>>>>>> 08c66f8`), introduced by c75f646 — a bad
+  (` / `
+
+ / `
   merge against a phantom ref `08c66f8` (same S-021+S-003 message; object does
   not exist in history — the marker text was committed with the file).
 - Resolved: ext4 row takes the HEAD side (newest — includes S-026 FIXED/D-58);
@@ -6929,3 +6931,42 @@ Stage Summary:
   Linux ASan. A-005 stands (the ACUTE record-span fix). Remaining SEVERE per
   the current inventory: S-003 (dispositioned by s5 — see its postscript),
   S-007 (claimed by another lane), S-009-partial, S-020, S-023..S-028.
+
+---
+Task ID: CF-S027 (closing session)
+Agent: main engineer (diff-to-fix closing session)
+Task: S-027 — ext4 backup-superblock lost-volume scan: verify, classify, fix.
+
+Work Log:
+- Corpus re-verification first-hand: FUN_180001b00 decoded (walker: probe
+  (i+param_2)*sector, validate via FUN_180004710, sub-searcher rebased at
+  found-0x400, collect-if-yields). Found its ONLY reference via raw .rdata
+  scan: vtable slot 53 at 0x180016880 (CEXT4CompleteSearchController) —
+  no textual caller; the audit's "strides group boundaries" gloss on the
+  parameters is UNPINNABLE (recorded in the Resolution).
+- Empirical ground truth added: real mke2fs images prove backup SBs at
+  (fdb + g*bpg)*bs with s_block_group_nr = g (SB+0x5A: 0/1/3 verified);
+  backup GDT at SB-block+1 (FULL table classic — "Group descriptors at
+  8194-8197" — meta-group-0 block for meta_bg).
+- Fix in scan_ext4: primary invalid -> 1 MiB-grid canonical-position probe
+  (m>=8, one 8KiB buffered window per MiB, cancel-polled, read-failure
+  tolerant, 4TiB bound) -> adopt backup SB, exact base from
+  s_block_group_nr, GDT ladder front-first -> backup-at-SB+1 (meta_bg
+  resolver interop via alt_gdt_block + cache reset). Extents base-adjusted
+  (slice-relative for downstream). Og's found-0x400 boot-area rebase NOT
+  adopted (misplaces structures 1024B — same family as I-014 E9) ->
+  PARITY-DELTAS D-59.
+- Tests: 4 new (BackupSuperblockRescueWhenPrimaryDestroyed,
+  BackupRescueFallsBackToBackupGdt, BackupRescueWholeDiskRebase [rebase +
+  slice-relative extents], BadMagicWithoutBackupsStillRejected [contract
+  guard]). 3 fail-before proven (engine-reverted build: ERR_BAD_MAGIC).
+  Suite 434/434 serial (one pre-existing parallel-ctest timing flake in
+  Snapshot.ConcurrentEmitCaptureWalk — reproduced with/without the change,
+  serial green). ASan+UBSan+leak fuzz smoke clean (9 seeds incl.
+  dead-primary + hostile-magic shapes).
+
+Stage Summary:
+- S-027 FIXED; finding moved to FIXED/ with Resolution; RESOLVED-INDEX row;
+  matrix ext4 row; modules/ext4.md; SUMMARY (8 SEVERE / 97 active / 38
+  FIXED); PARITY-DELTAS D-59. Ext4 family remaining: S-025 (journal
+  reparenting).

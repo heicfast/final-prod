@@ -38,12 +38,20 @@ struct Ext4ScanStats {
     u64 journal_blocks = 0;
     u64 journal_salvaged = 0; /* names recovered from journal dir blocks */
     u64 block_groups = 0;
+    u64 backup_sb_probes = 0;   /* S-027: candidate positions examined */
+    u64 backup_sb_block = 0;    /* S-027: volume-relative block of the adopted
+                                  backup superblock (0 = primary in use) */
+    bool gdt_from_backup = false; /* S-027: descriptors came from the backup
+                                      GDT after the found SB, not the front */
 };
 
 struct Ext4ScanFlags {
     bool keep_deleted = true;
     bool scan_deleted_inodes = true; /* whole-table sweep for i_dtime */
     bool salvage_journal = true;     /* journal chain -> directory blocks */
+    bool rescue_backup_sb = true;    /* S-027: primary SB invalid -> probe
+                                        backup-SB positions (og stride walker
+                                        FUN_180001b00 + sub-searcher spawn) */
 };
 
 /* Superblock geometry (validated by validate_superblock). */
@@ -63,6 +71,10 @@ struct SuperBlock {
     u32 first_meta_bg = 0; /* S-026: meta_bg front-region descriptor blocks
                             * (s_first_meta_bg @SB+0x230; 0 = fully
                             * distributed meta_bg layout) */
+    u16 block_group_nr = 0; /* S-027: s_block_group_nr @SB+0x5A - which
+                             * group this superblock copy belongs to (0 =
+                             * primary; backups carry their group number -
+                             * verified on real mke2fs images) */
     u16 rev_level = 0;
     u8 volume_name[17] = {0};
     bool valid = false;
