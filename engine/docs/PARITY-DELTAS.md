@@ -1937,3 +1937,29 @@ same way. Pinned by `RawFixer.NtfsPrimaryDamaged4Kn`,
   Pinned by `CarveEngine.RawSignLayerHeaderOnlyAndSharedMagic` (the
   best-confidence winner at the flp/fst shared position) and
   `CarveEngine.RawSignTailPairWithinFormat` (the blend arithmetic).
+
+## S. diff-to-fix session 15 (MAJOR lane, 2026-10-26)
+
+### D-70 — FAT engine bps ceiling 32768 (M-045)
+
+The og's classifier accepts ANY 512-multiple bytes-per-sector with no
+upper bound (FUN_180004610 :2542, `(bps & 0x1ff) == 0` — the u16 field
+tops at 65535, so 33280..65280 are og-classifiable). The core's
+`validate_boot` adopts the 512-multiple rule (probe coherence with
+`lost_boot_flavor`) but bounds bps at **32768**: no real format writes
+past 32768 (512 through 32768 covers every FAT spec geometry and every
+known formatter), and the bound only cuts absurd-volume noise the og's
+own engine would fail on anyway. Documented deliberate bound; pinned by
+`FatEngine.FatBps32768CeilingAndNonMultipleRejected`.
+
+### D-71 — ext4 valid-entry advance by rec_len (M-037)
+
+The og's dir-block walk advances VALID entries by the padded-name size
+`(name_len+11)&~3` (FUN_180005820's emit path) and relies on zero-fill
+tails / inode-0 termination for slack regions. The core keeps advancing
+by `rec_len` (the structurally-validated field), which handles
+non-zeroed tail slack and merged deleted-entry regions without
+terminating the walk — a strict superset on real damaged volumes. The
+SKIP path (invalid entries) matches the og exactly (the 4-byte resync
+slide). Pinned by `Ext4Engine.CorruptRecLenSkipsEntryNotBlock` and the
+inode-0 superset pin `Ext4Engine.InodeZeroHoleContinues`.
