@@ -7612,3 +7612,69 @@ Stage Summary:
 - The ACUTE tier is empty again: the repair path is 4Kn-safe end to end
   (ASan-proven), and the exFAT via-backup plan writes full sectors.
   Suite 477/477 Linux ASan.
+---
+Task ID: DF4-CLOSE (diff-fix session 4 close-out handoff)
+Task: Session handoff — exact commits, remaining items with rationale, next
+concrete steps.
+
+Session arc (this leg, diff-fix session 4 — "verify, reconcile, correct"):
+- Bootstrap at `597a9c6` (suite 350/350 re-run in-container); corpus
+  `03ad46c` unmoved; prompt saved token-redacted
+  (worklog/session-diff-fix-s4-prompt.md).
+- **S-012** (`d8efbd8`): this leg implemented steps 1+2 independently,
+  then reconciled with the parallel `5f1a212` landing (its size-0 rescue
+  made it the more complete substrate - my duplicate was discarded per
+  the pull-frequently SOP) and RE-VERIFIED the landed code line-by-line:
+  three corpus-proven corrections landed - the dump-walk stride (record
+  size on every path: uVar8 at :21151/LAB_18001b0cb, uVar16 only after
+  props-fail/skip/destroy), the pseudo record# arithmetic
+  (:21150-51), and **N-040** (the pass-1 filter is the og's og-15-table
+  AND $SI-SYSTEM+HIDDEN gate - FUN_180040f20 decoded first-hand; the
+  corpus-less $FILE_NAME gate removed with its flag/counter). Fail-before
+  3/3 + hostile smoke. Also registered the D-50/D-51 numbering errata.
+- **S-007 primary** (`587a98a`): the og's hardcoded common carve formats
+  with corpus-exact keys - GIF8/BM/18-key MPEG-audio family/AAC ADTS/
+  {\\rt/OLE D0CF11E0/MPEG PS+ES/DWG AC10: 27 registry entries + 9
+  validators, `suppress_overlap` on the audio family (one stream = one
+  node) and the 10-frame headerless gate (byte-granular FP calibration)
+  both registered in D-57. Fail-before 3/3 + hostile smoke. The ~25
+  niche og-only formats are the scoped remainder (the corrected table in
+  the finding is the implementation list).
+- **A-005 ACUTE** (`604bd2c`): the rawfixer 4Kn stack-buffer overflow -
+  the four analyze() buffers sector-sized, the exFAT via-backup plan
+  sector-correct, the checksum-mirror full-sector (restore_len threaded,
+  M-046-bounded). Fail-before = the ASan stack-buffer-overflow itself.
+  D-61. The ACUTE tier is empty again at push time.
+
+Process notes, honestly recorded: the parallel lanes pushed ~15 commits
+during this leg's three fixes - every push raced and needed
+pull-rebase cycles (the keep-both resolution for concurrent worklog/
+audit-trail sections; one conflict-resolution lesson from another leg's
+history was heeded). The lane-claim protocol in the worklog prevented
+duplicate work twice (S-024/S-009 claimed by another leg while I was
+finishing S-007; A-005 claimed by me before starting).
+
+State at close (604bd2c):
+- Suite 477/477 Linux ASan green (the remote is at 479/479 with the
+  parallel S-025/S-028 arc - rebase-clean).
+- ACUTE tier: EMPTY (A-005 closed this leg).
+- This leg's findings closed: S-012 (corrected+final), S-007 (primary),
+  N-040, A-005.
+- Remaining SEVERE (5, all with owners or unclaimed): S-009 (claimed -
+  the S-024/S-009 lane), S-029/S-030 (unclaimed, new s5b findings),
+  S-031/S-032 (unclaimed, new s5b findings). S-025/S-028 landed mid-
+  session by the parallel arc.
+
+Next concrete steps (recommended order for the next leg):
+1. S-031 (carved files never marked deleted) - user-visible deleted-
+   state semantics on the carve surface; the S-007 registry work makes
+   its surface bigger now.
+2. S-029 (lost-partition apply-table write path) + S-030 (disk-image
+   scan targets) - the lost-partition pair, same module neighborhood.
+3. The S-007 niche-format batch (~25 formats, the corrected table in the
+   finding; batch per og analyser school with the S-007 test pattern).
+4. M-046 (LDM 512-LBAs + the rawfixer bps-branch - the A-005 Resolution
+   notes the overlap; the sector-sizing groundwork is in).
+5. The INFORMATIONAL sweep if not finished by the parallel legs
+   (859f986/896cee3 covered I-006..I-022; verify the remaining I-file
+   inventory is all ACKNOWLEDGED with rationale).
