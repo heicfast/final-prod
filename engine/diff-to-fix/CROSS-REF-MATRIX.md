@@ -1,6 +1,6 @@
 # CROSS-REF-MATRIX.md — module × parameter verdict matrix (post-rebase with parallel leg)
 
-**Session-22 changes (2026-10-26, DFX22 — build-integrity NEW-FINDING):** **M-055**
+**Session-22 changes (2026-10-26, DFX22 — build-integrity NEW-FINDING + the carve overlap/scoring wave):** **M-055**
 (MAJOR) — the `src/win` platform layer was UNCOMPILABLE since `3b5397a`/`915bce3`/
 `d8f6808` (four structural breaks; see the finding for the per-commit decomposition);
 Q67 buildability now MATCH (win_syntax_check parse gate on the Linux lane — the
@@ -292,7 +292,7 @@ not-BAAD both sides; FAT quick-scan threading — already registered D-30x).
 | exfat | B1/A25/S35 | **N-067 FIXED s11** (upcase-table validation — og shape gates + checksum32 stream check, soft stats signal; findings/FIXED/); B4/B5/D11 **M-052** (recycle mirror) |
 | carve | A25/D11/P42 | **S-032 (converged)** (archive inner-file inventories missing) |
 | carve | B1/C19 | **N-069 FIXED s11** (CAB mscf case key — FMT_CAB_LC dual row + two-spelling validator re-check; findings/FIXED/); B1/A28 **N-068** (ZIP EOCD anchor + LFH sanity gates) |
-| carve | A28/A29/D15/B3 | **N-070** (overlap scoring + two-generation fallback); **S-007 addendum** (bare-MPEG dispatch gap — 18+ u16 sync keys vs ID3-only; family roster with provenance) |
+| carve | A28/A29/D15/B3 | **N-070 (S5) FIXED s22** (overlap scoring: accumulated base+verdict ranking implemented, fail-before CR2-vs-DNG; two-generation fallback REGISTERED as D-75 — legacy bodies undecoded); **M-056 (S22 NEW-FINDING) FIXED** (TIFF-family size basis mix — multi-strip TIFFs carved at the 256 MiB cap); **S-007 addendum** (bare-MPEG dispatch gap — 18+ u16 sync keys vs ID3-only; family roster with provenance) |
 | session | D11/D12/B4/B9 | **S-031 (converged)** (carved files: deleted flag + timestamp + validator payload dropped at emission; sessions round-trip the misstatement) |
 | session | D12/S36 | **N-066** (identity card: firmware/WWN/interface + 512-byte boot snapshot vs model/serial/CRC32) |
 | session/tree | D11/D12/P42 | **M-051+N-059 (converged)** (type-registry ID + per-FS secondary payload slots missing) |

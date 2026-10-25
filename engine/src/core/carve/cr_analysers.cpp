@@ -389,7 +389,15 @@ static CarveResult tiff_common(IStorageDevice* s, u64 hit, u64 cap, bool cr2) {
             /* value: either inline (4 bytes at ep+8) or offset at ep+8 */
             u32 val = le ? rd32(s, ep + 8) : rdbe32(s, ep + 8);
             if (count > 4) {
-                u64 data_at = hit + u64(val);
+                /* M-056: the value field is an offset RELATIVE to the
+                 * TIFF base (hit) - the data end feeds end_data, which is
+                 * later re-based by r.end = hit + end_data. The old
+                 * `data_at = hit + val` produced end_data in ABSOLUTE
+                 * coordinates, so every out-of-line entry (all real
+                 * multi-strip TIFFs: StripOffsets/StripByteCounts) added
+                 * the candidate offset to its own size - on real disks
+                 * the 256 MiB cap then swallowed the neighborhood. */
+                u64 data_at = u64(val);
                 u64 sz =
                     u64(count) *
                     (type == 3 ? 2

@@ -1154,6 +1154,108 @@ TEST(CarveEngine, BeTiffAndOrfVariantsCarve) {
     EXPECT_TRUE(mmor) << "MMOR anchor must carve";
 }
 
+TEST(CarveEngine, OverlapScorePrefersHigherConfidence) {
+    /* N-070: at a position where several magics coincide the og emits the
+     * highest accumulated header+tail-confidence candidate (the engine
+     * "accumulates header + tail confidences to rank candidate carves
+     * (multiple overlapping candidates resolved by score)" -
+     * searchdll-family--architecture.md:73), not whichever registry row
+     * sits first in trial order. Discriminating fixture: II*\0 with BOTH
+     * the "CR" sub-magic at +8 (CR2 accepts: base 850 + validator 850 =
+     * 1700) and a DNGVersion tag 0xC612 in the IFD (DNG accepts: base
+     * 880 + validator 880 = 1760). Pre-fix the trial loop broke at the
+     * first accept (CR2 - kTrialOrder puts it before DNG); post-fix the
+     * accumulated score picks DNG. */
+    std::vector<u8> img(2 * 1024 * 1024, 0);
+    const size_t at = 1024 * 1024;
+    u8* t = img.data() + at;
+    auto w16 = [&](size_t o, u16 v) { t[o] = u8(v); t[o + 1] = u8(v >> 8); };
+    auto w32 = [&](size_t o, u32 v) {
+        for (int i = 0; i < 4; ++i)
+            t[o + i] = u8(v >> (8 * i));
+    };
+    std::memcpy(t, "II\x2A\x00", 4);
+    w32(4, 16); /* IFD offset */
+    t[8] = 'C';
+    t[9] = 'R'; /* CR2 sub-magic (validate_cr2's +8 probe) */
+    w16(16, 1); /* one IFD entry */
+    w16(18, 0xC612); /* DNGVersion (validate_dng's accept tag) */
+    w16(20, 1); /* type BYTE */
+    w32(22, 8); /* count > 4: data at the value offset */
+    w32(26, 1200); /* value = data offset */
+    w32(30, 0); /* next IFD = 0 */
+    for (int i = 0; i < 8; ++i)
+        t[1200 + i] = 0x22;
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"Lost Files");
+    CarveFlags flags;
+    CarveStats s;
+    ASSERT_EQ(carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, s),
+              OK);
+    int nodes_at = 0;
+    for (tree::FileNode* c = root->first_child(); c; c = c->next_sibling()) {
+        if (c->props() && !c->props()->extents.empty() &&
+            c->props()->extents.front().offset == at) {
+            ++nodes_at;
+            EXPECT_EQ(c->props()->carve_format, u32(FMT_DNG))
+                << "the higher accumulated score (DNG 1760 vs CR2 1700) must win the position";
+            EXPECT_EQ(c->props()->logical_size, size_t(1208));
+        }
+    }
+    EXPECT_EQ(nodes_at, 1) << "exactly one winner per overlap position";
+    EXPECT_EQ(s.validated, 1u);
+}
+
+TEST(CarveEngine, TiffVsRawTiebreak) {
+    /* N-070 companion pin: the census's own collision family (TIFF `II*.`
+     * vs camera RAW, rawsearchdll--analyser-registry-census.md:53) has a
+     * deterministic winner for the PLAIN case - no CR sub-magic and no
+     * DNGVersion: CR2 and DNG both reject, TIFF accepts (800 + 800).
+     * This outcome is identical pre- and post-fix (single acceptor); the
+     * test pins that the scoring change did not disturb it. */
+    std::vector<u8> img(2 * 1024 * 1024, 0);
+    const size_t at = 1024 * 1024;
+    u8* t = img.data() + at;
+    auto w16 = [&](size_t o, u16 v) { t[o] = u8(v); t[o + 1] = u8(v >> 8); };
+    auto w32 = [&](size_t o, u32 v) {
+        for (int i = 0; i < 4; ++i)
+            t[o + i] = u8(v >> (8 * i));
+    };
+    std::memcpy(t, "II\x2A\x00", 4);
+    w32(4, 8); /* IFD offset */
+    w16(8, 1); /* one entry */
+    w16(10, 0x0100); /* ImageWidth */
+    w16(12, 3); /* type SHORT */
+    w32(14, 5); /* count > 4: data at the value offset */
+    w32(18, 1200); /* value = data offset */
+    w32(22, 0); /* next IFD = 0 */
+    for (int i = 0; i < 10; ++i)
+        t[1200 + i] = 0x33;
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"Lost Files");
+    CarveFlags flags;
+    CarveStats s;
+    ASSERT_EQ(carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, s),
+              OK);
+    bool tiff = false;
+    for (tree::FileNode* c = root->first_child(); c; c = c->next_sibling()) {
+        if (c->props() && !c->props()->extents.empty() &&
+            c->props()->extents.front().offset == at) {
+            EXPECT_EQ(c->props()->carve_format, u32(FMT_TIFF));
+            /* M-056: the out-of-line entry (count 5 SHORTs at +1200) ends
+             * the file at 1210 RELATIVE - the pre-fix absolute-basis end
+             * reported hit + 1210 (the candidate offset added to its own
+             * size; on real disks the 256 MiB cap then absorbed the
+             * neighborhood). */
+            EXPECT_EQ(c->props()->logical_size, size_t(1210));
+            tiff = true;
+        }
+    }
+    EXPECT_TRUE(tiff) << "plain II*\\0 file: TIFF is the single acceptor (deterministic winner)";
+}
+
 TEST(CarveEngine, PstUnknownVersionAcceptedAtFloor) {
     /* CARVE-4: og FUN_180041eb0 accepts unknown PST generations with the
      * 1 MiB floor - the old reject had the polarity inverted. Standalone

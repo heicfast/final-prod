@@ -353,3 +353,31 @@ carries the distinct format id. B1/C19 verdict for this row: MATCH.
   RawSignTailPairWithinFormat tests. Option (a) (table-order parity)
   stays gated on decoding the og's own emitted grade — FUN_18000d670's
   result fill — recorded as the revisit precondition.
+
+## Session-22 carve batch (N-070 + M-056 — the overlap-scoring wave)
+
+- **N-070 (A28/A29/D15/B3) FIXED (half 1 implemented, half 2 registered):**
+  the grammar-layer trial loop now ACCUMULATES every accepting candidate
+  at a magic position and emits the highest `base_confidence + validator
+  confidence` one (ties: registry trial order — deterministic); the og
+  ranks overlapping candidates by accumulated header+tail confidence
+  (searchdll-family--architecture.md:73, re-verified first-hand). Every
+  gate's break/continue semantics preserved exactly (already-emitted
+  break, suppress_overlap mid-stream skip, F9 dedup resolution). The
+  two-generation `File*Analyser` fallback chain is REGISTERED as
+  PARITY-DELTAS **D-75** (legacy bodies undecoded in the corpus; the two
+  fully-decoded legacy grammars — MKV vint walk, RAR4 fast validator —
+  are already the core's validators). Tests:
+  `CarveEngine.OverlapScorePrefersHigherConfidence` (fail-before: trial
+  order emitted CR2 1700 over DNG 1760 — the discriminator fixture),
+  `CarveEngine.TiffVsRawTiebreak` (the census's collision family pinned,
+  deterministic single-acceptor outcome unchanged).
+- **M-056 (NEW-FINDING, filed+fixed in the same batch):** tiff_common's
+  out-of-line-entry end was computed ABSOLUTE but consumed RELATIVE —
+  every TIFF-family carve with count>4 entries (all real multi-strip
+  TIFFs: StripOffsets/StripByteCounts) sized at `hit + real_size`, which
+  on real disks clamped to the 256 MiB cap and absorbed the neighborhood.
+  `data_at = u64(val)` (TIFF-base-relative, matching the inline branch).
+  Both new tests pin exact structural sizes (1208 / 1210); fail-before
+  executed on the stash-isolated pre-fix tree with the hit-inflated
+  values quoted in the finding. A28/B1 verdict: MATCH.

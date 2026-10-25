@@ -2133,3 +2133,25 @@ the honest extent of the parity. The error-object layer stays out of core
 scope (UI-bus architecture); the engine-side subset (module/operation/
 retry-state context) is the registered open item in the finding. Pinned
 by Error.ErrTextCoversEveryCode + the header truth.
+
+### D-75 — carve validator chain: single modern validator per format, no legacy File*Analyser fallback generation (N-070, REGISTERED SIMPLIFICATION — deliberately not ported)
+
+The og's analyser registry wires every magic key to a two-generation chain:
+a modern (namespaced) analyser plus — where one exists — a legacy
+first-generation `File*Analyser` fallback; a candidate is discarded only
+when BOTH validators fail (rawsearchdll--analyser-registry-census.md:43,
+:45-117 the chain roster). The core has exactly one validator per registry
+row; a rejection is final at the grammar layer. Decision (explicit, per
+the finding's own fix-plan option): the legacy validator BODIES are not
+decoded in the corpus — the census carries class names and chain wiring
+only; the two legacy grammars that ARE fully decoded (the FileMKVAnalyser
+EBML vint walk, analyser-granular-batch1 :43-61; the FileRARAnalyser fast
+validator, :25-40) are already the core's validators (N-051 quartet).
+Porting the undecoded remainder would be invented grammar — fabrication,
+not parity. The N-070 half this registers away from is the second-chance
+accept-rate; the overlap-scoring half (accumulated header+tail confidence
+ranking) IS implemented (the finding's fix). Revisit precondition: a
+future corpus decode of any legacy File*Analyser body makes its port
+evidenced — until then this stays a registered simplification, pinned by
+CarveEngine.OverlapScorePrefersHigherConfidence (which proves the scoring
+half) and the absence of any fallback path in cr_registry.cpp.
