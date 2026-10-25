@@ -8272,8 +8272,6 @@ Stage Summary (handoff at 70ebced):
   API-only transports; never tree-replace worklog/SUMMARY/matrix/
   PARITY-DELTAS/RESOLVED-INDEX without re-unioning first.
 
-
-
 ---
 Task ID: CF-S032 (closing session)
 Agent: main engineer (diff-to-fix closing session)
@@ -8384,8 +8382,6 @@ Stage Summary:
   the known Windows+Linux CI reds from this window are all addressed
   except the cr_transport VolExtent break owned by the mid-flight
   disk-image lane (their landing supersedes).
-
-
 
 ---
 Task ID: DFX8-M053 (session 8, finding 1)
@@ -10988,6 +10984,47 @@ Stage Summary:
   group N-074.
 
 ---
+Task ID: DFX22-T3 (N-070 + M-056 — the carve overlap-scoring wave)
+Agent: main engineer (diff-to-fix minors-first session 22)
+Task: N-070 (carve overlap scoring + two-generation fallback) — verify,
+classify, fix, prove.
+
+Work Log:
+- Corpus re-verified first-hand: searchdll-family--architecture.md:73
+  ("the engine accumulates header + tail confidences to rank candidate
+  carves (multiple overlapping candidates resolved by score)") and the
+  census's two-generation chain roster (:43, :45-117) + its own TIFF-vs-
+  camera-RAW collision family (:53). CONFIRMED for half 1.
+- Core re-verified: grammar trial loop broke at the first accepting row
+  (cr_carve.cpp:347-348 pre-fix); the raw-sign layer ALREADY picks
+  max-confidence among matching signs (N-054-era landing).
+- Half 1 FIX: the trial loop accumulates every accepting candidate and
+  emits the highest base+verdict score; ties break by registry order.
+  Gate semantics preserved exactly (already-emitted break, overlap skip,
+  F9 dedup resolution). Fail-before executed (stash-isolated): the
+  CR2-vs-DNG discriminator emitted FMT 3 (CR2, 1700) over FMT 18 (DNG,
+  1760); pass-after DNG wins.
+- Half 2 DECISION (the finding's own plan option): REGISTERED as
+  PARITY-DELTAS D-75 — the legacy File*Analyser bodies are undecoded in
+  the corpus (names + wiring only); the two decoded ones (MKV vint walk,
+  RAR4 fast validator) are already our validators; porting the rest
+  would be invented grammar. Revisit precondition recorded in D-75.
+- NEW-FINDING M-056 (discovered by the new fixture's size assertion):
+  tiff_common's count>4 branch computed the out-of-line data end
+  ABSOLUTE (hit + val) but r.end re-based it — file sizes = hit +
+  real_size; every real multi-strip TIFF carved at the 256 MiB cap on
+  real disks. Fixed (data_at = val, TIFF-base-relative like the inline
+  branch); both tests pin exact sizes; fail-before executed (1049784 vs
+  1208; 1049786 vs 1210).
+- Suite 659/659 linux-release. Audit trail: two Resolutions + FIXED/
+  moves, RESOLVED-INDEX rows, matrix carve row, carve.md session-22
+  batch section, PARITY-DELTAS D-75.
+
+Stage Summary:
+- Session tally: M-055 + N-077 + N-020 + N-070 + M-056 = 5 resolutions
+  (4 code fixes + 1 reconciliation). MINOR live count 35. Next: N-074
+  (doc drift group 2), N-040 (ABI/doc truthfulness).
+
 Task ID: DFX18-T3 (session 18, third fix — N-040)
 Agent: main engineer (diff-to-fix fix session 18 — DFX18)
 Task: N-040 ABI/doc truthfulness ×5 — re-verify every defect on the

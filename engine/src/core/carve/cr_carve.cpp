@@ -1,8 +1,11 @@
 /* cr_carve.cpp - carving pipeline (R4).
  *
  * Scan: offset-outer with a first-byte dispatch; per-hit formats are tried
- * in specificity order (DOCX before ZIP, CR2 before TIFF) and the first
- * grammar-validated format wins the candidate.
+ * in specificity order (DOCX before ZIP, CR2 before TIFF) and, at a
+ * position where several magics coincide, the highest accumulated-score
+ * accepting candidate is emitted (N-070: the og ranks overlapping
+ * candidates by accumulated header+tail confidence, searchdll-family--
+ * architecture.md:73; ties break by registry order - deterministic).
  *
  * Parallel mode (flags.threads > 1): the window-index space is fanned out
  * over a ThreadPool; emission serializes inside ResultTree; per-worker
@@ -179,7 +182,20 @@ u32 scan_one_window(ScanCtx& ctx, u64 base, const u8* win, u64 want, std::set<u6
          * The match itself (magic compare + window-head clip + candidate
          * shift) is match_signature in cr_signatures.h - the SAME
          * primitive the S-017 F8 self-probe runs, so a magic the scan
-         * cannot reach fails at load time (one source of truth). */
+         * cannot reach fails at load time (one source of truth).
+         *
+         * N-070 (diff-to-fix): every registry row whose magic matches is
+         * validated at this position and the highest accumulated-score
+         * accepting candidate wins (score = base_confidence +
+         * validator confidence; ties break by registry trial order,
+         * deterministic). The og ranks overlapping candidates by
+         * accumulated header+tail confidence (searchdll-family--
+         * architecture.md:73); the pre-fix first-accept-wins break emitted
+         * whichever row happened to sit earlier in kTrialOrder. */
+        const Signature* best_sig = nullptr;
+        CarveResult best_cr;
+        u64 best_len = 0;
+        u64 best_cand_abs = 0;
         for (u32 ti = 0; ti < kTrialCount; ++ti) {
             if (ctx.trial_disabled[ti])
                 continue; /* M-024: format disabled by the host */
@@ -194,8 +210,10 @@ u32 scan_one_window(ScanCtx& ctx, u64 base, const u8* win, u64 want, std::set<u6
                 continue;
             ctx.hits.fetch_add(1, std::memory_order_relaxed);
 
-            /* try THIS format's grammar; first validated format at this
-             * magic position wins (specificity order) */
+            /* try THIS format's grammar; accepting candidates accumulate
+             * into best_sig (N-070) - the winner is emitted after the
+             * loop. Position-resolution breaks (already-emitted here, F9
+             * dedup) still exit the trial loop immediately. */
             CarveResult cr = sig.validator(ctx.slice, cand_abs, sig.max_size);
             if (!cr.ok) {
                 ctx.rejected.fetch_add(1, std::memory_order_relaxed);
@@ -245,6 +263,23 @@ u32 scan_one_window(ScanCtx& ctx, u64 base, const u8* win, u64 want, std::set<u6
                                                 raw-sign layer must not re-probe it) */
                 break;
             }
+
+            /* N-070: candidate accepted - accumulate; strictly greater
+             * score replaces (ties keep the earlier trial-order row). */
+            if (best_sig == nullptr ||
+                u32(sig.base_confidence) + u32(cr.confidence) >
+                    u32(best_sig->base_confidence) + u32(best_cr.confidence)) {
+                best_sig = &sig;
+                best_cr = std::move(cr);
+                best_len = file_len;
+                best_cand_abs = cand_abs;
+            }
+        }
+        if (best_sig != nullptr) {
+            const Signature& sig = *best_sig;
+            const u64 cand_abs = best_cand_abs;
+            const u64 file_len = best_len;
+            CarveResult& cr = best_cr;
 
             tree::FileProperties* props = new (std::nothrow) tree::FileProperties();
             if (props == nullptr) {
@@ -344,8 +379,9 @@ u32 scan_one_window(ScanCtx& ctx, u64 base, const u8* win, u64 want, std::set<u6
                                                    : tree::Confidence::MetadataOnly);
             }
             ctx.validated.fetch_add(1, std::memory_order_relaxed);
-            emitted_at.insert(cand_abs);
-            break; /* this magic position resolved */
+            emitted_at.insert(cand_abs); /* this magic position resolved (N-070: the
+                                              winner's start; the raw-sign layer must
+                                              not re-probe it) */
         }
     }
 

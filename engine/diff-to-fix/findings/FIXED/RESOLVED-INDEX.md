@@ -1,6 +1,13 @@
 # diff-to-fix/findings/FIXED/ — resolved findings (audit trail)
 
-## Resolved findings (session-22 wave: +M-055 NEW-FINDING, +N-077 NEW-FINDING, +N-020 reconciliation move; live file inventory)
+## Resolved findings (session-22 wave: +M-055, +N-077, +N-020, +N-070 +M-056 (NEW-FINDING, discovered during N-070 verification); live file inventory)
+
+| ID | Severity (orig) | Title | Fix commit | Resolution |
+|---|---|---|---|---|
+| N-070 | MINOR (S5) | Carve overlap resolution: trial-order first-wins vs the og's accumulated-score ranking; two-generation validator fallback missing | (this session's N-070/M-056 carve batch — file carries the Resolution) | Grammar layer now accumulates every accepting candidate and emits the highest base+verdict score (ties: registry order); every gate's break/continue semantics preserved exactly. OverlapScorePrefersHigherConfidence fail-before executed (CR2-vs-DNG discriminator: trial order emitted 1700 over 1760); TiffVsRawTiebreak pins the census collision family; carve suite 58/58. The fallback half REGISTERED as D-75 (legacy bodies undecoded; the two decoded ones are already our validators). |
+| M-056 | MAJOR (S22 NEW-FINDING, discovered during N-070 fixture design) | TIFF-family carved sizes inflated by the candidate offset (tiff_common absolute/relative basis mix): every real multi-strip TIFF carved at the 256 MiB cap | (this session's N-070/M-056 carve batch — file carries the evidence + Resolution) | `data_at = u64(val)` — the out-of-line entry offset is TIFF-base-relative (as the inline branch already assumed). Fail-before: both new tests RED with hit-inflated sizes (1049784 vs 1208; 1049786 vs 1210); pass-after carve suite 58/58. Multi-strip TIFFs now carve at their structural end. |
+
+
 
 | ID | Severity (orig) | Title | Fix commit | Resolution |
 |---|---|---|---|---|
