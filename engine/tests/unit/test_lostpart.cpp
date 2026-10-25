@@ -186,3 +186,53 @@ TEST(LostDiscovery, OverlapClassification) {
     EXPECT_EQ(classify_overlap(900, 200, known), Overlap::Overlaps);
     EXPECT_EQ(classify_overlap(900, 800, known), Overlap::Contains);
 }
+
+/* ---- GAP-S6-6: TWO deleted NTFS partitions must BOTH surface ----
+ *
+ * Bench run 40073093997 delete_partition: the deep tree carried only
+ * 'Candidate @ 32768' (partition A) while the og found BOTH deleted
+ * partitions. Registered suspect: the nested-same-fs dedup when the
+ * outer candidate's size came from the DEVICE-TAIL FALLBACK (a probe
+ * failure path) - a fallback-sized extent spans to disk end and
+ * swallows every later peer. */
+
+TEST(LostDiscovery, TwoHealthyDeletedPartitionsBothSurface) {
+    /* the bench shape: two ~equal NTFS partitions at unequal offsets,
+     * both boot sectors intact (GPT entries removed - data untouched). */
+    std::vector<u8> img(u64(16384) * 512, 0); /* 8 MiB disk */
+    plant_ntfs(img, 32768 / 8, 4096, 64);        /* A: LBA 4096, 2 MiB */
+    plant_ntfs(img, 12288, 4096, 64);            /* B: LBA 12288, 2 MiB */
+    MemDevice dev(std::move(img));
+    DiscoveryResult r;
+    ASSERT_EQ(discover(&dev, {}, 1, nullptr, nullptr, nullptr, r), OK);
+    size_t ntfs = 0;
+    for (const auto& c : r.candidates)
+        if (c.fs == CandidateFs::Ntfs)
+            ++ntfs;
+    EXPECT_EQ(ntfs, 2u) << "both healthy deleted NTFS partitions must surface";
+}
+
+TEST(LostDiscovery, DamagedBpbFallbackMustNotSwallowPeer) {
+    /* A's BPB is damaged (fallback size = device tail - spans to the end);
+     * B (healthy) starts inside that envelope. The nested-same-fs dedup
+     * must NOT treat a fallback-sized extent as containment evidence. */
+    std::vector<u8> img(u64(16384) * 512, 0);
+    plant_ntfs(img, 4096, 4096, 64);   /* A: healthy shape first */
+    plant_ntfs(img, 12288, 4096, 64);  /* B: healthy, later offset */
+    /* damage A's BPB AFTER planting (total-sectors field destroyed -> the
+     * probe falls back to the device-end size) */
+    put64(img, 4096 * 512 + 0x28, 0);
+    MemDevice dev(std::move(img));
+    DiscoveryResult r;
+    ASSERT_EQ(discover(&dev, {}, 1, nullptr, nullptr, nullptr, r), OK);
+    size_t ntfs = 0;
+    u64 b_found = 0;
+    for (const auto& c : r.candidates)
+        if (c.fs == CandidateFs::Ntfs) {
+            ++ntfs;
+            if (c.start_lba == 12288)
+                b_found = 1;
+        }
+    EXPECT_EQ(ntfs, 2u) << "the fallback-sized A must not dedup away B";
+    EXPECT_EQ(b_found, 1u) << "B (healthy probe, inside A's fallback envelope) must surface";
+}

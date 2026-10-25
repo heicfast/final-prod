@@ -145,6 +145,20 @@ u32 SafeWriter::enqueue_common(const tree::FileProperties* pr, tree::FileNode* n
         queue_.push_back(it);
         return OK;
     }
+    /* GAP-S6-7 (bench 40073093997 permanent_delete: 991 zero-filled
+     * 'salvaged' false positives vs manifest): a file node claiming a
+     * POSITIVE size with NO extents and NO resident data is a metadata-
+     * only reconstruction - the writer must not commit a full-size zero
+     * file for it (the zero-fill Skip policy exists for PARTIAL spans of
+     * real files). The og emits no content for metadata-only entries.
+     * Empty files (size 0) are real content and keep the normal path. */
+    if (pr->logical_size > 0 && pr->extents.empty() && pr->resident_data.empty()) {
+        it.nothing_to_recover = true;
+        it.bytes_total = 0; /* nothing attempted - the report stays truthful */
+        it.state = ItemState::Done; /* counted at process(); never Pending */
+        queue_.push_back(it);
+        return OK;
+    }
     char suf[32];
     snprintf(suf, sizeof(suf), ".part-%llu", (unsigned long long)it.item_id);
     it.temp_suffix.clear();
@@ -428,6 +442,12 @@ u32 SafeWriter::process(CancelToken* cancel, bool (*progress)(u64, u64, void*), 
             ++stats.refused;
             continue;
         }
+        if (it.nothing_to_recover) {
+            /* GAP-S6-7: counted, reported, never written - zero bytes of
+             * I/O (process() short-circuit; the report row tells the truth) */
+            ++stats.nothing_to_recover;
+            continue;
+        }
         if (it.state == ItemState::Done) {
             done_bytes += it.bytes_total;
             continue;
@@ -497,6 +517,7 @@ report::Totals SafeWriter::report_totals(const std::string& source, const std::s
     t.hash_mismatch = stats.hash_mismatch;
     t.resumed = stats.resumed;
     t.salvaged = stats.salvaged;
+    t.nothing_to_recover = stats.nothing_to_recover;
     {
         /* partial-run truth: items still Pending at report time were
          * queued but never attempted - without this count, queued cannot
@@ -534,6 +555,9 @@ std::vector<report::Item> SafeWriter::report_items() const {
         if (it.state == ItemState::Refused) {
             r.outcome = report::Outcome::Refused;
             r.reason = it.error;
+        } else if (it.nothing_to_recover) {
+            /* GAP-S6-7: skipped before any write - metadata-only item */
+            r.outcome = report::Outcome::NothingToRecover;
         } else if (it.state == ItemState::Error) {
             r.outcome = report::Outcome::Error;
             r.reason = it.error;

@@ -932,8 +932,9 @@ int cmd_recover(int argc, wchar_t** argv, int& i) {
         return 1;
     }
     wprintf(L"recovered: %llu done, %llu refused, %llu error(s), %llu hash mismatch"
-            L", %llu salvaged (zero-filled spans)\n",
-            wstats.done, wstats.refused, wstats.errors, wstats.hash_mismatch, wstats.salvaged);
+            L", %llu salvaged (zero-filled spans), %llu nothing-to-recover (metadata-only)\n",
+            wstats.done, wstats.refused, wstats.errors, wstats.hash_mismatch, wstats.salvaged,
+            wstats.nothing_to_recover);
 
     /* G-09: machine-readable report (schema: docs/recovery-report-schema.md).
      * Emitted even when items failed - the per-item outcomes carry the

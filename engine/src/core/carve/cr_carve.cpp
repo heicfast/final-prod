@@ -63,6 +63,13 @@ struct ScanCtx {
     std::atomic<u64> windows_skipped{0}; /* unreadable after retry (FB-C01) */
     std::atomic<u32> file_index{0};
     std::atomic<bool> aborted{false};
+    /* GAP-S6-8: the disk-absolute basis for extents + dedup queries.
+    * Carve positions are slice-relative (reads, bounds, emitted_at stay
+    * relative); the TREE keys must be disk-absolute so the resumed carve
+    * dedups against checkpoint-loaded nodes (which are absolute - F-1)
+    * instead of re-emitting them as extra entries. Base 0 on synthetic /
+    * whole-disk devices: behavior identical to the old code. */
+    u64 ext_base = 0;
 };
 
 /* Scan ONE window [base, base+want) fully (magic dispatch, validation,
@@ -117,9 +124,10 @@ u32 scan_one_window(ScanCtx& ctx, u64 base, const u8* win, u64 want, std::set<u6
                 len_class = file_len / 65536;
             }
             bool dup = false;
-            if (ctx.dedup_tree && ctx.dedup_tree->find_by_extent(cand_abs, len_class))
+            if (ctx.dedup_tree &&
+                ctx.dedup_tree->find_by_extent(cand_abs + ctx.ext_base, len_class))
                 dup = true;
-            if (!dup && ctx.tree->find_by_extent(cand_abs, len_class))
+            if (!dup && ctx.tree->find_by_extent(cand_abs + ctx.ext_base, len_class))
                 dup = true;
             if (dup) {
                 ctx.duplicates.fetch_add(1, std::memory_order_relaxed);
@@ -143,7 +151,11 @@ u32 scan_one_window(ScanCtx& ctx, u64 base, const u8* win, u64 want, std::set<u6
             props->carve_confidence = u16((sig.base_confidence + cr.confidence) / 2);
             if (props->carve_confidence > 1000)
                 props->carve_confidence = 1000;
-            props->extents.push_back({cand_abs, file_len});
+            /* GAP-S6-8: disk-absolute extent + the idempotency guard so the
+             * stage-boundary rebase never double-shifts carved nodes */
+            props->extents.push_back({cand_abs + ctx.ext_base, file_len});
+            if (ctx.ext_base != 0)
+                props->flags = u16(props->flags | tree::NODE_FLAG_EXT_SHIFTED);
 
             if (ctx.flags->hash_small_files && file_len <= ctx.flags->hash_threshold &&
                 file_len <= MAX_FILE_READ_FOR_HASH) {
@@ -233,9 +245,10 @@ u32 scan_one_window(ScanCtx& ctx, u64 base, const u8* win, u64 want, std::set<u6
                 len_class = len / 65536;
             }
             bool dup = false;
-            if (ctx.dedup_tree && ctx.dedup_tree->find_by_extent(start_abs, len_class))
+            if (ctx.dedup_tree &&
+                ctx.dedup_tree->find_by_extent(start_abs + ctx.ext_base, len_class))
                 dup = true;
-            if (!dup && ctx.tree->find_by_extent(start_abs, len_class))
+            if (!dup && ctx.tree->find_by_extent(start_abs + ctx.ext_base, len_class))
                 dup = true;
             if (dup) {
                 ctx.duplicates.fetch_add(1, std::memory_order_relaxed);
@@ -258,7 +271,11 @@ u32 scan_one_window(ScanCtx& ctx, u64 base, const u8* win, u64 want, std::set<u6
             props->logical_size = len;
             props->carve_format = 0xFFFF0000u + best->fmt; /* raw-sign tag */
             props->carve_confidence = conf;
-            props->extents.push_back({start_abs, len});
+            /* GAP-S6-8: disk-absolute extent + the idempotency guard (see
+             * the grammar layer above) */
+            props->extents.push_back({start_abs + ctx.ext_base, len});
+            if (ctx.ext_base != 0)
+                props->flags = u16(props->flags | tree::NODE_FLAG_EXT_SHIFTED);
             if (ctx.flags->hash_small_files && len <= ctx.flags->hash_threshold &&
                 len <= MAX_FILE_READ_FOR_HASH) {
                 std::vector<u8> content((size_t(len)));
@@ -344,6 +361,7 @@ u32 carve_slice(IStorageDevice* slice, const CarveFlags& flags, CancelToken* can
     ctx.dedup_tree = dedup_tree;
     ctx.namer = namer;
     ctx.total = slice->size();
+    ctx.ext_base = slice->absolute_base(); /* GAP-S6-8: disk-absolute basis */
 
     const u64 window_count = (ctx.total + WINDOW - 1) / WINDOW;
     const bool multi = flags.threads > 1 && window_count > 1 && ctx.total > 0;

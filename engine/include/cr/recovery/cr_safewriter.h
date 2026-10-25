@@ -76,6 +76,8 @@ struct QueueItem {
     u64 bytes_total = 0;
     bool hash_verified = false;
     bool is_dir = false; /* G-08: structure item - mkdir, no content */
+    bool nothing_to_recover = false; /* GAP-S6-7: skip before any write -
+                                      * no extents, no resident data, size>0 */
     /* ---- G-09 report evidence (captured during process) ---- */
     u64 duration_ms = 0;    /* per-item processing time */
     bool resumed = false;   /* final pre-existed: counted + skipped */
@@ -107,6 +109,8 @@ struct WriterStats {
     u64 resumed = 0;  /* detected complete .part files finalized */
     u64 salvaged = 0; /* committed with zero-filled spans (FB-R02) */
     u64 dirs = 0;     /* G-08: directory nodes materialized */
+    u64 nothing_to_recover = 0; /* GAP-S6-7: no-extent/no-resident items
+                                 * skipped before any write */
 };
 
 class SafeWriter {

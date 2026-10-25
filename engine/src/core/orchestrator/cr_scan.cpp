@@ -485,6 +485,9 @@ u32 ScanController::run(IStorageDevice* slice, CancelToken* cancel, bool (*progr
         const size_t carve_mark = tree_.node_count_snapshot();
         if (u32 rc = run_carve_stage(pipe, cancel, progress, progress_user, stats))
             return stamp(rc);
+        /* GAP-S6-8: carve now emits DISK-absolute extents with the
+         * NODE_FLAG_EXT_SHIFTED guard (cr_carve.cpp) - this rebase skips
+         * every carved node and is retained as the boundary invariant. */
         tree_.rebase_new_extents(carve_mark, vol_offset_);
         if (u32 rc = emit_checkpoint_()) /* stage boundary (G-13) */
             return stamp(rc);

@@ -9,6 +9,7 @@
 #include <gtest/gtest.h>
 #include "test_tmpdir.hpp"
 #include "cr/recovery/cr_safewriter.h"
+#include "cr/recovery/cr_report.h"
 #include "cr/storage/cr_device.h"
 #include <atomic>
 #include <cstring>
@@ -371,4 +372,76 @@ TEST(WriterDirs, PerItemErrorCollectedQueueContinues) {
     EXPECT_TRUE(got.count("f:out/a.txt"));
     EXPECT_TRUE(got.count("f:out/c.txt"));
     EXPECT_FALSE(got.count("f:out/b.txt"));
+}
+
+/* ---- GAP-S6-7: metadata-only items skip, never zero-fill ----
+ *
+ * Bench 40073093997 permanent_delete: 991 MetadataOnly 'Lost' items
+ * (remnant/orphan reconstruction, no extents) were enqueued by
+ * recover-all and committed as FULL-SIZE ZERO files - false positives
+ * against the manifest. The zero-fill Skip policy exists for PARTIAL
+ * spans of real files; a whole no-extent item has nothing to recover
+ * (the og emits no content for metadata-only entries). */
+
+TEST(WriterDirs, MetadataOnlyItemSkipsNotZeroFills) {
+    TmpDir tmp;
+    FsIo io(tmp.p);
+    MemDevice src(std::vector<u8>(64 * 1024, 0));
+    SafeWriter writer(io, &src, WriterConfig{});
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"Found");
+    auto* meta = tree.add_root(u"Lost");
+    /* a metadata-only node: positive size, NO extents, NO resident data */
+    tree::FileProperties* p1 = new tree::FileProperties();
+    p1->name = u"ghost.txt";
+    p1->logical_size = 4096;
+    tree::FileNode* ghost = tree.add_file(meta, p1);
+    p1->release();
+    ASSERT_NE(ghost, nullptr);
+    /* a real content node: resident data (recoverable) */
+    tree::FileProperties* p2 = new tree::FileProperties();
+    p2->name = u"real.txt";
+    p2->logical_size = 4;
+    p2->resident_data = {0x41, 0x42, 0x43, 0x44};
+    tree::FileNode* real = tree.add_file(root, p2);
+    p2->release();
+    ASSERT_NE(real, nullptr);
+    /* an empty file: size 0 is REAL content - must still commit */
+    tree::FileProperties* p3 = new tree::FileProperties();
+    p3->name = u"empty.txt";
+    p3->logical_size = 0;
+    tree::FileNode* empty = tree.add_file(root, p3);
+    p3->release();
+    ASSERT_NE(empty, nullptr);
+
+    ASSERT_EQ(writer.enqueue(ghost, u""), OK);
+    ASSERT_EQ(writer.enqueue(real, u""), OK);
+    ASSERT_EQ(writer.enqueue(empty, u""), OK);
+
+    WriterStats stats;
+    ASSERT_EQ(writer.process(nullptr, nullptr, nullptr, stats), OK);
+    EXPECT_EQ(stats.nothing_to_recover, 1u);
+    EXPECT_EQ(stats.done, 2u); /* real + empty committed */
+    /* NO zero-filled ghost file on disk */
+    EXPECT_FALSE(fs::exists(tmp.p / FsIo::norm(u"ghost.txt")))
+        << "metadata-only items must not materialize as zero files";
+    EXPECT_TRUE(fs::exists(tmp.p / FsIo::norm(u"real.txt")));
+    EXPECT_TRUE(fs::exists(tmp.p / FsIo::norm(u"empty.txt")));
+
+    /* the report tells the truth: outcome nothing_to_recover + totals */
+    const auto items = writer.report_items();
+    ASSERT_EQ(items.size(), 3u);
+    EXPECT_EQ(items[0].outcome, report::Outcome::NothingToRecover);
+    EXPECT_EQ(items[0].bytes, 0u);
+    EXPECT_EQ(items[1].outcome, report::Outcome::Done);
+    EXPECT_EQ(items[2].outcome, report::Outcome::Done);
+    report::Totals t = writer.report_totals("src", "dst", 0, stats);
+    EXPECT_EQ(t.nothing_to_recover, 1u);
+    /* reconciliation: queued == done + refused + errors + resumed +
+     * nothing_to_recover + pending */
+    EXPECT_EQ(t.queued, t.done + t.refused + t.errors + t.resumed + t.nothing_to_recover +
+                           t.pending + t.dirs);
+    /* the JSON round-trips the new outcome + totals field (validator) */
+    const std::string doc = report::build_report(items, t);
+    EXPECT_NE(doc.find("nothing_to_recover"), std::string::npos);
 }

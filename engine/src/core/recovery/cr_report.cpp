@@ -141,6 +141,8 @@ const char* outcome_name(Outcome o) {
         return "pending";
     case Outcome::Salvaged:
         return "salvaged";
+    case Outcome::NothingToRecover:
+        return "nothing_to_recover";
     }
     return "error";
 }
@@ -187,6 +189,7 @@ std::string build_report(const std::vector<Item>& items, const Totals& t) {
     append_num(out, "hash_mismatch", t.hash_mismatch, true);
     append_num(out, "resumed", t.resumed, true);
     append_num(out, "salvaged", t.salvaged, true);
+    append_num(out, "nothing_to_recover", t.nothing_to_recover, true);
     append_num(out, "pending", t.pending, true);
     append_num(out, "bytes", t.bytes, true);
     out.append("},\n");

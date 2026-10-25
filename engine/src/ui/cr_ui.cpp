@@ -2080,6 +2080,7 @@ u32 recovery_stats_impl(cr_ui_recovery* rec, cr_ui_recovery_stats* out) {
     out->resumed = r->stats.resumed;
     out->salvaged = r->stats.salvaged;
     out->dirs = r->stats.dirs;
+    out->nothing_to_recover = r->stats.nothing_to_recover; /* GAP-S6-7 */
     return ret_ok();
 }
 

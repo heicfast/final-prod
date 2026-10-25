@@ -509,6 +509,9 @@ CR_UI_API uint32_t cr_ui_recovery_cancel(cr_ui_recovery* rec);
 
 typedef struct cr_ui_recovery_stats {
     uint64_t queued, done, refused, errors, hash_mismatch, resumed, salvaged, dirs;
+    uint64_t nothing_to_recover; /* GAP-S6-7: metadata-only items skipped before
+                                  * any write (no file created; ABI-since 1.1,
+                                  * appended field - zero-init safe) */
 } cr_ui_recovery_stats;
 
 CR_UI_API uint32_t cr_ui_recovery_get_stats(cr_ui_recovery* rec, cr_ui_recovery_stats* out);

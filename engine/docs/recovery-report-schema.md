@@ -69,9 +69,17 @@ Top level:
   device ranges / undecodable blocks; the byte count is right, not
   every byte is recovered content) — an ours-only truth marker, no og
   counterpart (og neither hash-verifies nor marks partial commits)
+- `nothing_to_recover` — GAP-S6-7: skipped BEFORE any write; the node
+  claimed a positive size but carried no extents and no resident data
+  (metadata-only reconstruction). Nothing was written and nothing was
+  attempted - the zero-fill Skip policy exists for PARTIAL spans of
+  real files, not whole no-extent items (bench 40073093997: 991
+  full-size zero-file false positives). The og emits no content for
+  metadata-only entries.
 - `pending` — never attempted in this pass (partial-run truth; the
   reconciliation is queued == done + dirs + refused + errors +
-  resumed + pending, since done subsumes the committed sub-buckets)
+  resumed + nothing_to_recover + pending, since done subsumes the
+  committed sub-buckets)
 - `bytes` — sum of `bytes_total` over committed (non-resumed) file items
 
 `items[]` — one row per queued item, in queue order (`item_id` monotonic):
@@ -90,6 +98,9 @@ Top level:
     (truthful reporting of a partial run - never reported as done)
   - `salvaged` — committed with zero-filled spans (FB-R02; ours-only
     truth marker - see totals.salvaged)
+  - `nothing_to_recover` — GAP-S6-7: skipped before any write (metadata-
+    only item: no extents, no resident data, positive claimed size);
+    no file was created and no bytes were attempted
 - `reason` — `cr_error` code (hex value as integer); `0` for clean rows
 - `bytes` — logical size attempted (0 for dirs)
 - `duration_ms` — per-item processing time (0 for skipped/unprocessed)

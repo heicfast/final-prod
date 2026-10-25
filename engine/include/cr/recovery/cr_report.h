@@ -35,6 +35,12 @@ enum class Outcome : u8 {
                        * device ranges / undecodable blocks) - ours-only
                        * truth marker (FB-R02): byte count is right but not
                        * every byte is recovered content */
+    NothingToRecover = 7, /* GAP-S6-7: skipped BEFORE any write - the node
+                       * carries no extents and no resident data (metadata-
+                       * only reconstruction) while claiming a positive
+                       * size; the og emits no content for metadata-only
+                       * entries (root-causes permanent_delete). Empty
+                       * files (size 0) are real content and stay Done. */
 };
 
 enum class HashStatus : u8 {
@@ -67,10 +73,14 @@ struct Totals {
     u64 resumed = 0;
     u64 salvaged = 0; /* committed with zero-filled spans (FB-R02); a
                        * sub-bucket of done (both are commits) */
+    u64 nothing_to_recover = 0; /* GAP-S6-7: metadata-only items skipped
+                                 * before any write (separate bucket, NOT a
+                                 * done sub-bucket - nothing was written) */
     u64 pending = 0;  /* never attempted in this pass (partial-run truth;
                        * queued == done + dirs + refused + errors +
-                       * resumed + pending, done subsumes the committed
-                       * sub-buckets hash_mismatch and salvaged) */
+                       * resumed + nothing_to_recover + pending, done
+                       * subsumes the committed sub-buckets hash_mismatch
+                       * and salvaged) */
     u64 bytes = 0;    /* sum of committed file bytes */
     u64 elapsed_ms = 0;
     std::string source;      /* UTF-8 source identity (caller-supplied) */

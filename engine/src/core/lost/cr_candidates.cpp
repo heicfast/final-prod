@@ -92,9 +92,14 @@ int probe_ntfs(IStorageDevice* disk, u64 boot_lba, Candidate& c) {
     } else {
         /* no usable BPB: derive from the device end (audit row 31b - the
          * old fabricated 2048 hid real geometry); the materialize path
-         * clamps to the device anyway. */
+         * clamps to the device anyway. GAP-S6-6: mark the fallback - a
+         * tail-bounded extent is NOT containment evidence (it spans to
+         * disk end by construction and would swallow every later peer
+         * in the nested-same-fs dedup; bench 40073093997: ours surfaced
+         * ONE of TWO deleted NTFS partitions). */
         const u64 end = disk->geometry().sector_count;
         c.sector_count = end > boot_lba ? end - boot_lba : 1;
+        c.size_from_device_end = true;
         c.evidence.push_back({"size-from-device-end", 1});
     }
     c.evidence.push_back({"boot-sig", 15});
@@ -244,11 +249,15 @@ u32 discover(IStorageDevice* disk, const std::vector<table::PartitionInfo>& know
             }
             if (pts < 0)
                 continue;
-            if (c.sector_count == 0)
+            if (c.sector_count == 0) {
                 /* no probe set a size: bound by the device tail (audit row
-                 * 31b - the old fabricated 2048 hid real geometry) */
+                 * 31b - the old fabricated 2048 hid real geometry).
+                 * GAP-S6-6: tail fallback - marked, never containment
+                 * evidence */
                 c.sector_count =
                     disk->size() / ls > c.start_lba ? disk->size() / ls - c.start_lba : 1;
+                c.size_from_device_end = true;
+            }
             /* bound by device tail */
             if (c.start_lba + c.sector_count > disk->size() / ls)
                 c.sector_count = disk->size() / ls - c.start_lba;
@@ -264,6 +273,12 @@ u32 discover(IStorageDevice* disk, const std::vector<table::PartitionInfo>& know
         for (size_t j = 0; j < keep.size(); ++j) {
             if (found[i].fs == keep[j].fs && found[i].start_lba >= keep[j].start_lba &&
                 found[i].start_lba < keep[j].start_lba + keep[j].sector_count) {
+                /* GAP-S6-6: a fallback-sized outer candidate spans to disk
+                 * end BY CONSTRUCTION - its "containment" of a later peer
+                 * is an artifact, not evidence of nesting. Only probe-
+                 * derived sizes may claim containment. */
+                if (keep[j].size_from_device_end)
+                    continue;
                 dup = true; /* same fs, nested: the outer/earlier wins */
                 break;
             }

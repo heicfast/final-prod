@@ -38,6 +38,10 @@ struct Candidate {
     CandidateFs fs = CandidateFs::Unknown;
     int score = 0;
     std::vector<Evidence> evidence;
+    bool size_from_device_end = false; /* GAP-S6-6: the size is the
+                                       * device-tail FALLBACK (probe could
+                                       * not read a real volume size) -
+                                       * never containment evidence */
 };
 
 /* The full result set of one discovery pass. */

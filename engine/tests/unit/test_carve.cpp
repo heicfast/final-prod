@@ -2,6 +2,7 @@
 #include <gtest/gtest.h>
 #include "cr/carve/cr_carve.h"
 #include "cr/storage/cr_device.h"
+#include "cr/storage/cr_slice.h"
 #include <cstring>
 #include <vector>
 
@@ -999,4 +1000,56 @@ TEST(CarveEngine, JpegSof0PrecisionGate) {
             c->props()->extents.front().offset == 512)
             FAIL() << "SOF0 precision!=8 must not validate as grammar JPEG";
     }
+}
+
+/* ---- GAP-S6-8: the carve basis must be disk-absolute on sliced devices ----
+ *
+ * Bench ours-behavior probe (runs 40073093997 + 40077233920): the resumed
+ * scan's tree carried EXTRA carved entries the uninterrupted scan's tree
+ * did not - the resumed carve re-emitted extents the first pass had
+ * already emitted, because the dedup queries ran on the SLICE-relative
+ * basis while the checkpoint-loaded tree keys were DISK-absolute (F-1).
+ * Carve now emits + queries disk-absolute (reads and bounds stay
+ * slice-relative); the resumed re-carve dedups exactly like
+ * SecondPassFullyDeduped does on a flat device. */
+TEST(CarveEngine, SlicedDeviceSecondPassFullyDedupedAndAbsolute) {
+    /* parent disk with the carve image living INSIDE a slice at a nonzero
+     * base - the volume-scan shape */
+    const u64 kSliceStart = 512ULL * 2048; /* 1 MiB */
+    std::vector<u8> disk(kSliceStart + 2 * 1024 * 1024, 0);
+    auto img = build_carve_image();
+    std::memcpy(disk.data() + kSliceStart, img.data(), img.size());
+
+    MemDevice parent(std::move(disk));
+    u32 err = 0;
+    auto slice = PartitionSlice::create(&parent, kSliceStart, 2 * 1024 * 1024, &err);
+    ASSERT_NE(slice, nullptr) << err_text(err);
+
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"Lost Files");
+    CarveFlags flags;
+    CarveStats s1, s2;
+    ASSERT_EQ(carve_slice(slice.get(), flags, nullptr, nullptr, nullptr, tree, root, nullptr,
+                          nullptr, s1),
+              OK);
+    ASSERT_GT(s1.validated, 0u) << "pass 1 must carve the fixture";
+    /* every carved extent is DISK-absolute (slice base + relative) */
+    for (auto* n = root->first_child(); n; n = n->next_sibling()) {
+        if (n->props() && !n->props()->extents.empty()) {
+            EXPECT_GE(n->props()->extents.front().offset, kSliceStart)
+                << "carved extents must be disk-absolute on sliced devices";
+        }
+    }
+    const size_t nodes_after_p1 = tree.node_count();
+
+    /* the resume shape: a SECOND pass over the same slice against the SAME
+     * tree (the checkpoint-loaded nodes are already in it) must add ZERO */
+    ASSERT_EQ(carve_slice(slice.get(), flags, nullptr, nullptr, nullptr, tree, root, nullptr,
+                          nullptr, s2),
+              OK);
+    EXPECT_EQ(s2.validated, 0u);
+    EXPECT_EQ(tree.node_count(), nodes_after_p1)
+        << "the resumed carve must not re-emit pass-1 entries (the exact "
+           "ours-behavior resume-equivalence failure)";
+    EXPECT_GE(s2.duplicates, 4u);
 }
