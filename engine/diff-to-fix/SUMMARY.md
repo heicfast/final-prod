@@ -1,5 +1,35 @@
 # SUMMARY.md — executive summary (session 5b on top of the closing sessions; earlier sessions below)
 
+## Closing-session verification delta (2026-10-26 — the df5 lineage verification pass)
+
+The S-003/S-021 lane (claimed at ff05314) was landed by the parallel close-all-tiers
+leg at c75f646; this lineage executed the independent verification pass it had
+already completed the corpus decode for (CHFSPlusJournal ctor/walker/validator
+asm-exact + TN1150 journal-section fetch). Verification outcome: the walk mechanics
+are og-exact, but the landed fix carried a **false-parity JIB layout** (magic@+4,
+offset@+8, size@+0x10 — TN1150's JournalInfoBlock has NO magic; device_signature[8]
+occupies +4..+0x23, offset@+0x24, size@+0x2C per the FUN_18000db70 disassembly +
+TN1150 verbatim) — a silent zero-harvest on every real journaled volume (the test
+fixture encoded the same wrong layout, so 429 tests stayed green). Corrections
+landed this session: JIB layout, the two missing og entry gates (VH
+kHFSVolumeJournaledBit 0x2000; JIB kJIJournalInFSMask bit 0), the og-exact node
+validator (first-offset==14 + monotone bounded offset table, asm-decoded), the
+missing attributes branch (decmpfs-size fallback), the fallback salvage
+(OQ-S003 resolved), and the in_fork u32 overflow.
+
+**NEW-FINDING A-005 (ACUTE) filed during the same verification:** the
+extents-overflow record parser read its 8 descriptors from key+10 — the
+TN1150-verbatim key is 12 bytes (keyLength field + 10 data bytes), so fragmented
+forks (>8 extents) silently lost their tail extents (the bounds clamp dropped the
+garbage descriptor). Zero prior test coverage (every fixture's overflow fork was
+empty). FIXED this session with the first populated overflow fixture; fail-before
+executed (1/2 extents) — `evidence/executions/a005-extents-off-by-two.md`.
+
+**Counts after the closing-session verification pass:** ACUTE **0** (A-005 filed
+AND fixed in-session) · SEVERE 9 (unchanged this pass) · MAJOR 38 · MINOR 31 ·
+INFO 18 = 96 active / **50 FIXED** (+A-005; S-003/S-021 stay FIXED with
+verification addenda recording the corrections).
+
 ## Session-5b delta (2026-10-26 — the never-dispositioned MOM/product-capabilities leg)
 
 Mandate: find what ALL prior sessions missed, verify landed fixes, go deeper on

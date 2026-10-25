@@ -6749,3 +6749,33 @@ Stage Summary:
 - The ReFS engine tier is COMPLETE for the audit's findings: attribute layer (S-020/
   M-022), deleted model (M-026), object identity + recycle (M-027). Remaining ReFS
   items: N-036's container-map population (real-volume probe) + the OQ-2 dump.
+
+---
+Task ID: S7-A005
+Agent: main engineer (closing session, df5 lineage)
+Task: A-005 (NEW-FINDING, ACUTE) — HFS+ extents-overflow descriptors off-by-two; discovered during the S-003/S-021 verification decode.
+
+Work Log:
+- Discovered while verifying the landed S-021 journal extents branch: both it
+  and the live overflow walk parse descriptors from rec+10; TN1150 (fetched
+  verbatim this session) pins HFSPlusExtentKey = 12 bytes on disk (keyLength
+  field + 10 data bytes), descriptors at key+12; session-2 evidence
+  ("extents-overflow key {10, cnid, startBlock} :7931-35") concurs.
+- Filed findings/ACUTE/A-005 (first ACUTE since A-004; the directory was
+  empty). Fixed both sites (key+12, gate 12+64).
+- Fail-before executed on the stashed pre-fix engine: 1/2 extents (the
+  overflow extent silently dropped by the bounds clamp - the production
+  failure mode); pass-after 2/2 at the exact offsets; evidence in
+  evidence/executions/a005-extents-off-by-two.md.
+- First populated extents-overflow fixture in suite history (header node +
+  one-record leaf + fragmented file).
+- Repaired two pieces of merge damage left by the parallel legs: committed
+  conflict markers in CROSS-REF-MATRIX.md (ext4/hfsplus rows - both sides
+  preserved: S-026 + S-003/S-021) and a stray '>>>>>>> a4e366f' tail in
+  FIXED/S-023.
+- Suite 457/457 Linux Release first-hand.
+
+Stage Summary:
+- A-005 FIXED (filed + fixed + proven in one push). Audit trail: matrix row,
+  RESOLVED-INDEX row, SUMMARY counts (96 active / 50 FIXED).
+- The S-003/S-021 verification corrections (JIB layout et al.) land next.

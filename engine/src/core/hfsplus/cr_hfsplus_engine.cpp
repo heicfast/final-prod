@@ -771,14 +771,15 @@ static void journal_harvest_pass(Volume& v, CancelToken* cancel,
                     for_each_record(image_size, image, NH_KIND_LEAF,
                                     [&](const u8* rec, u32 len) {
                                         /* overflow record format (same as the
-                                         * live overflow walk) */
-                                        if (len < 10 + 64)
+                                         * live overflow walk; A-005: 12-byte key
+                                         * + 64-byte descriptor block) */
+                                        if (len < 12 + 64)
                                             return true;
                                         const u32 file_id = be32(rec + 4);
                                         for (int i = 0; i < 8; ++i) {
                                             ForkData::Extent ex;
-                                            ex.start_block = be32(rec + 10 + u32(i) * 8);
-                                            ex.block_count = be32(rec + 10 + u32(i) * 8 + 4);
+                                            ex.start_block = be32(rec + 12 + u32(i) * 8);
+                                            ex.block_count = be32(rec + 12 + u32(i) * 8 + 4);
                                             if (ex.block_count)
                                                 ext_out[file_id].push_back(ex);
                                         }
@@ -953,16 +954,19 @@ u32 scan_hfsplus(IStorageDevice* slice, const HfsScanFlags& flags, CancelToken* 
                 if (!read_tree_node(v, v.extents_fork, CNID_EXTENTS_FILE, ext_node_size, cur, leaf))
                     break;
                 for_each_record(ext_node_size, leaf, NH_KIND_LEAF, [&](const u8* rec, u32 len) {
-                    /* overflow record: key{keyLength u16, forkType u8, pad u8,
-                     * fileID u32, startBlock u32}, body = 8 extent descriptors */
-                    if (len < 10 + 64)
+                    /* overflow record: key{keyLength u16 = 10 (data length;
+                     * the field itself makes the key 12 bytes), forkType u8,
+                     * pad u8, fileID u32, startBlock u32} then the 64-byte
+                     * HFSPlusExtentRecord (8 descriptors) at key+12
+                     * (A-005: TN1150-verbatim - was off by two) */
+                    if (len < 12 + 64)
                         return true;
                     const u8 fork_type = rec[2];
                     const u32 file_id = be32(rec + 4);
                     ForkData::Extent ext[8];
                     for (int i = 0; i < 8; ++i) {
-                        ext[i].start_block = be32(rec + 10 + u32(i) * 8);
-                        ext[i].block_count = be32(rec + 10 + u32(i) * 8 + 4);
+                        ext[i].start_block = be32(rec + 12 + u32(i) * 8);
+                        ext[i].block_count = be32(rec + 12 + u32(i) * 8 + 4);
                     }
                     auto& list = v.overflow[file_id][fork_type];
                     for (int i = 0; i < 8; ++i)

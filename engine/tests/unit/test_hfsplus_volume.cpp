@@ -801,6 +801,105 @@ TEST(HfsPlus, LargeBlockSizeAccepted) {
 } // namespace cr
 
 /* ------------------------------------------------------------------ */
+/* A-005: extents-overflow tree fixture + test                          */
+/* ------------------------------------------------------------------ */
+
+namespace cr {
+namespace hfsplus {
+namespace {
+
+/* A volume with a POPULATED extents-overflow tree (the base fixture's is
+ * empty): block 9 = overflow header node, block 10 = overflow leaf with one
+ * record for cnid 40 (fragmented.dat: initial extent blocks 11..18, extent
+ * 9 = block 19 via the overflow record). 20 blocks total. */
+std::vector<u8> build_volume_overflow() {
+    auto d = build_volume();
+    d.resize(20 * BS, 0);
+    u8* vh = d.data() + 1024;
+    be32(vh + 0x2C, 20);                         /* totalBlocks */
+    write_fork(vh + 0xC0, 2 * NODE_SIZE, 9, 2);  /* extents overflow fork */
+
+    /* overflow header node (block 9): node 1 is the only leaf */
+    u8* oh = d.data() + u64(9) * BS;
+    be32(oh + 0, 1);          /* forwardLink -> leaf node 1 */
+    oh[8] = 1;                /* kind = 1 (kBTHeaderNode) */
+    oh[9] = 0;                /* height 0 */
+    be16(oh + 10, 3);         /* numRecords */
+    be32(oh + 14 + 0x0A, 1);  /* firstLeafNode = 1 */
+    be32(oh + 14 + 0x0E, 1);  /* lastLeafNode = 1 */
+    be16(oh + 14 + 0x12, NODE_SIZE);
+
+    /* the overflow record: 12-byte key {keyLength u16 = 10 (DATA length -
+     * the field itself makes the key 12 bytes), forkType 0, pad, fileID 40,
+     * startBlock 8} + the 64-byte HFSPlusExtentRecord at key+12 (TN1150) */
+    std::vector<u8> orec(12 + 64, 0);
+    be16(orec.data(), 10);
+    orec[2] = 0;                 /* forkType: data fork */
+    orec[3] = 0;                 /* pad */
+    be32(orec.data() + 4, 40);   /* fileID = fragmented.dat's cnid */
+    be32(orec.data() + 8, 8);    /* startBlock (fork-relative) */
+    be32(orec.data() + 12, 19);  /* descriptor 0: allocation block 19 */
+    be32(orec.data() + 16, 1);   /* ... count 1 */
+    auto oleaf = make_leaf_node({orec}, 0);
+    memcpy(d.data() + u64(10) * BS, oleaf.data(), NODE_SIZE);
+
+    /* leaf 1 gains the fragmented file (8-block initial extent at 11..18) */
+    auto root_rec = make_record(1, u"Macintosh HD", 1, 2, 0, 0, 0, 0, 0, 0);
+    auto file_rec = make_record(2, u"readme.txt", 2, 20, 26, B_FILE_DATA, 1, 0, 0, 0);
+    auto dir_rec = make_record(2, u"Documents", 1, 21, 0, 0, 0, 0, 0, 0);
+    auto nested_rec = make_record(21, u"notes.rtf", 2, 22, 44, B_RSRC_DATA, 1, 8, B_GONE_DATA, 1);
+    auto frag_rec = make_record(2, u"fragmented.dat", 2, 40, 9 * BS, 11, 8, 0, 0, 0);
+    auto leaf1 = make_leaf_node({root_rec, file_rec, dir_rec, nested_rec, frag_rec}, 0);
+    memcpy(d.data() + u64(B_CAT_LEAF1) * BS, leaf1.data(), NODE_SIZE);
+
+    memset(d.data() + u64(19) * BS, 0x5A, BS); /* overflow-extent content */
+    return d;
+}
+
+} // namespace
+
+TEST(HfsPlus, ExtentsOverflowRecordResolvesFragmentedFork) {
+    /* A-005: the overflow record's descriptors live at key+12, not key+10.
+     * Pre-fix, the first parsed descriptor was assembled from the key's
+     * startBlock bytes - a garbage block number whose extent the bounds
+     * clamp silently DROPPED (fragmented tails vanished from recovery). */
+    auto img = build_volume_overflow();
+    MemDevice dev(img);
+
+    tree::ResultTree tree;
+    auto* ra = tree.add_root(u"Found");
+    auto* rd = tree.add_root(u"Deleted");
+    auto* rl = tree.add_root(u"Lost Files");
+    HfsScanFlags fl;
+    HfsScanStats st;
+    u32 rc = scan_hfsplus(&dev, fl, nullptr, nullptr, nullptr, tree, ra, rd, rl, st);
+    ASSERT_EQ(OK, rc) << err_text(rc);
+    EXPECT_EQ(1u, st.overflow_extents) << "the overflow record must be walked";
+
+    tree::FileNode* frag = nullptr;
+    std::function<void(tree::FileNode*)> collect = [&](tree::FileNode* n) {
+        for (tree::FileNode* c = n->first_child(); c; c = c->next_sibling()) {
+            if (c->props() && c->name_utf8() == "fragmented.dat")
+                frag = c;
+            collect(c);
+        }
+    };
+    for (auto* r : tree.roots())
+        collect(r);
+    ASSERT_NE(frag, nullptr) << "the fragmented file must be found";
+    EXPECT_EQ(u64(9) * BS, frag->props()->logical_size);
+    ASSERT_EQ(2u, frag->props()->extents.size())
+        << "the overflow-sourced 9th extent must resolve";
+    EXPECT_EQ(u64(11) * BS, frag->props()->extents[0].offset);
+    EXPECT_EQ(u64(8) * BS, frag->props()->extents[0].length);
+    EXPECT_EQ(u64(19) * BS, frag->props()->extents[1].offset);
+    EXPECT_EQ(u64(BS), frag->props()->extents[1].length);
+}
+
+} // namespace hfsplus
+} // namespace cr
+
+/* ------------------------------------------------------------------ */
 /* S-021: journal deleted-record harvest fixtures + tests               */
 /* ------------------------------------------------------------------ */
 
