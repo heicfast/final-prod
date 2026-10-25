@@ -91,3 +91,25 @@ refs-specific divergences surfaced.
   (N-013a).
 - **B4 og-boundary:** no deleted-grading classes exist in ReFSSearchDLL — core's
   medium-allocator deleted grading remains a core-only feature (registered).
+
+## Session-3 deep pass (2026-10-25, core `34b3441`+rebase — the file-pipeline decode)
+
+**New findings (evidence: `../evidence/decompiled-quotes/s3-refs-file-pipeline.md`):**
+- **I-012 (INFORMATIONAL — mandate item RESOLVED):** GAP-ADS settled — the og does NOT
+  recover ReFS named streams either (no stream RTTI; one properties block + one runlist +
+  one emission per file row in FUN_18000ba90; .rsf RefsFileProperties has a single
+  name/size/runlist — no stream field). Core's default-stream-only = MATCH. The prior
+  module row "(project GAP) ReFS ADS ... — re-verified open" is superseded: it is a
+  shared limitation, not a parity debt.
+- **M-022 (MAJOR):** the file-value walk diverges — og reads the row type at key+0
+  (`FUN_18000b820` = `*(u16*)key`) with id space {0xf8→flag3, 0x108→flag1, 0x178→old-layout
+  data-run handler, modern: key-size 0x28 + type >= 0x29/0xb1, 100+"$I"→recycle special},
+  iterates ALL value rows, and switches old/modern grammar on `param_1[10] >= 8` = the
+  system-directory list count built from the DBR offset table. Core reads type at key+8
+  (`attr_type_of`), matches only 0x80, breaks at the first data row, has no grammar gate
+  and no $I handler. The type-space/offset reconciliation needs one real-volume dump
+  (fix plan step 1).
+- Convergence checks: directory-level row markers (0x10 / 0x30+subtype@+2) = the core's
+  packed u32 markers ✓; root dir 0x600 ✓ (quick-path bootstrap `plVar4[10] = 0x600`).
+- Not decoded to verdict (M-022 OQ-3): the quick-searcher's dot-extension prefilter
+  (`memchr` '.' loop) — quick-search surface only.
