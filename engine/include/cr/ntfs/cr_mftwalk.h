@@ -36,9 +36,17 @@ constexpr u16 PFLAG_IN_USE = 0x0010;
 constexpr u16 PFLAG_IS_DIR = 0x0002; /* mirrors record flag 0x02 */
 
 struct WalkerFlags {
-    bool skip_system_files = true; /* corpus: dos_flags & 4 -> skip */
-    bool emit_ads = true;          /* named $DATA -> child nodes */
-    bool harvest_usnjrnl = true;   /* $Extend/$UsnJrnl:$J deleted-name harvest */
+    bool emit_ads = true;        /* named $DATA -> child nodes */
+    bool harvest_usnjrnl = true; /* $Extend/$UsnJrnl:$J deleted-name harvest */
+    /* N-040 (diff-to-fix): the og's pass-1 attribute gate is
+     * (og-15 metafile name) AND ($STANDARD_INFORMATION SYSTEM+HIDDEN)
+     * - FUN_180034b20 -> FUN_180040f20 (the 15-entry name table) +
+     * FUN_180040ea0 (the $SI attributes dword check). There is no
+     * $FILE_NAME-flags system filter in the og's pass 1; the core's old
+     * `dos_flags & 4` gate is removed (the known-name metafile list
+     * above subsumes the og-15 table - I-001's documented superset; real
+     * metafiles always carry $SI SYSTEM|HIDDEN, so name-list-only
+     * filtering reproduces the og gate on every real volume). */
     /* S-012 (diff-to-fix): the og's NTFS scan is TWO-PASS. Pass 1 (live
      * MFT walk) emits EVERY record - deleted included - with no viability
      * destroy; the destroy machinery (all-run-starts-claimed vs the pass-1
@@ -81,7 +89,9 @@ struct WalkStats {
     u64 examined = 0;
     u64 emitted = 0;
     u64 meta_skipped = 0;
-    u64 system_skipped = 0;
+    /* N-040: system_skipped removed with the $FILE_NAME-flags gate - the
+     * og's pass-1 gate is the og-15-name AND $SI SYSTEM+HIDDEN check,
+     * subsumed by the known-name list (see cr_mftwalk.cpp). */
     u64 damaged = 0;
     u64 deleted = 0;
     u64 active = 0;

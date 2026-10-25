@@ -15,7 +15,7 @@
 
 | Capability | og (corpus evidence) | Ours | Status | Evidence / remaining gap |
 |---|---|---|---|---|
-| NTFS live tree | full (NTFSSearchDLL) | $MFT walk, fixups, $ATTRIBUTE_LIST chase, hard links per-parent, ADS children, metafile filter | **DONE** | test_ntfs_volume.cpp (TreeStructure, HardLinks, Ads); AUDIT-NTFS MATCH rows |
+| NTFS live tree | full (NTFSSearchDLL) | $MFT walk, fixups, $ATTRIBUTE_LIST chase, hard links per-parent, ADS children, metafile filter (known-name list subsumes the og's og-15+$SI SYSTEM+HIDDEN gate - N-040) | **DONE** | test_ntfs_volume.cpp (TreeStructure, HardLinks, Ads); AUDIT-NTFS MATCH rows |
 | NTFS deleted grading | binary found/destroyed (v2 §1) | four-tier $Bitmap grading (Excellent/PartialRisk/Overwritten/MetadataOnly) | **DONE+** | D-14 F5; tests ViabilityGate*; boundary 0x3FF strict `>` (NTFS-1, W2) |
 | NTFS remnant scan | stride salvage (corpus §5) | 4 MiB block-buffered stride + threads, meta-only nodes under Lost | **DONE** | scan_mft_remnants; test RemnantScan* |
 | NTFS $MFTMirr bootstrap | mirror cross-check (Dec 52032/52102) | read_record mirror fallback for records 0..3 | **DONE** | cr_bootstrap read_record; test_ntfs_volume mirror cases |

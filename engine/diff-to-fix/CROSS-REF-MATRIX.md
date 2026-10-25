@@ -5,6 +5,24 @@ Legend: `M` = MATCH · `A-n`/`S-n`/`M-n`/`N-n`/`I-n` = finding ID (in
 `ok` = MATCH-with-note (see module file). Full per-parameter expansion in each
 `modules/<module>.md`.
 
+**Session-5b changes (2026-10-26, audited `7cf6754` rebased onto `c75f646`):** one NEW
+module row — `mom-capabilities` (first-time coverage of the never-dispositioned
+MOM/product surfaces: apply-write, boot-repair, imaging, check-phase, recognition,
+session-persistence, logging, mom-tool-ops, mom-runtime) with findings
+**S-029, S-030, M-040..M-045, N-048..N-050, I-019, I-020** (13 new — renumbered
+past the storage/census leg's S-024..S-028/M-031..M-039/N-045..N-047/I-017/I-018;
+no content overlap); existing rows gain: ntfs += M-043 (content-proof recognition
++ scanner backup-boot), fat += M-045 (boot-gate family — resolves S-006's FATX
+remainder: no Xbox parser exists), session += M-042/N-049 (lostpart.dat resume
+re-validation + record richness), lost-partition += S-029 (apply/table-write
+path). OQ-S4-1 RESOLVED (the 169-entry grading extension table dumped — `.data`,
+unsorted; S-023's fix-plan step 3 input complete); OQ-S4-2 RESOLVED (the RAW
+naming hook = single-site "filter_generalraw" display-name mapping; M-029 §Gap
+(b) corrected); S-019's fix verified in-source; corpus errata rows 37-42 filed;
+one new tracked-open OQ-S5-1 (CheckVersion's consumer). The stale duplicate
+fat/exfat row pair (lines 44-45 vs 46-47, an old parallel-leg merge artifact)
+consolidated — the S-013/S-021-current rows survive (f210b7e precedent).
+
 **Session-4 changes (2026-10-26, audited `63a9167`):** three NEW module rows —
 `preview`, `query`, `transport` (first-time audits of modules no prior session
 covered) — with findings **S-023, M-028, M-029, M-030, N-040..N-044, I-015, I-016**
@@ -40,21 +58,24 @@ dispositions is the surviving one).
 
 | Module \ Group | B | D | C | A | S | O | P | X | R | F | Q |
 |---|---|---|---|---|---|---|---|---|---|---|---|
-| ntfs | M-007, M-008 (S2); N-011 FIXED-ALREADY + N-012 FIXED (minors session 2026-10-26, D-52); I-001 ack; S-012 FIXED (two-pass: pass-1 membership + pass-2 dump walk + size-0 rescue; convergent dual-agent fix) | M (S-001+S-012 fixed: membership keep), N-012 (S2) | M | M-008 (S2) | M (M-001 fixed), N-001 | NA | NA | M | M | M | M (debt), N-019 (S2) |
-| fat | M (N-021 fixed) | M (N-021 fixed) | M | I-002 ack, OQ-T2 | M | NA | NA | M | M | M | M (debt) |
-| exfat | M (S-011 fixed), N-003 FIXED, OQ-T5 | N-003 FIXED; M (S-011 fixed) | M | M | M | NA | NA | M | M | M | M (debt) |
-| fat | M; N-021 (S2) | M; N-021 (S2) | M | I-002 ack, OQ-T2 | M | NA | NA | M | M | M | M (debt) |
+| ntfs | M-007, M-008 (S2); N-011 FIXED-ALREADY + N-012 FIXED (minors session 2026-10-26, D-52); I-001 ack; S-012 FIXED (two-pass: pass-1 membership + pass-2 dump walk + size-0 rescue; convergent dual-agent fix); **M-043 (S5b: content-proof recognition + scanner backup-boot)** | M (S-001+S-012 fixed: membership keep), N-012 (S2) | M | M-008 (S2) | M (M-001 fixed), N-001 | NA | NA | M | M | M | M (debt), N-019 (S2) |
+| fat | M; N-021 (S2); **M-045 (S5b: boot-gate family — bps/SPC/label/numFATs/cap/band-retry; resolves S-006's FATX remainder)** | M; N-021 (S2) | M | I-002 ack, OQ-T2 | M | NA | NA | M | M | M | M (debt) |
 | exfat | M (S-011 + S-013 fixed), N-003 FIXED, OQ-T5 | N-003 FIXED; M (S-011 fixed) | M | M | M | NA | NA | M (S-013 windowed-FAT FIXED) | M | M | M (debt) |
-| ext4 | S-003 OPEN, S-004 FIXED; **M-010**, I-006 (S2), I-007 (S2) | ok; **M-010**, I-006 (S2), I-007 (S2) | M | S-003 OPEN, S-004 FIXED | N-004 | NA | NA | M | M | N-004 | M (debt) |
+<<<<<<< HEAD
+| ext4 | S-003 OPEN, S-004 FIXED, S-026 FIXED (meta_bg resolver, D-58); **M-010**, I-006 (S2), I-007 (S2) | ok; **M-010**, I-006 (S2), I-007 (S2) | M (S-026 fixed: meta-group desc blocks) | S-003 OPEN, S-004 FIXED, S-025 OPEN | N-004 | NA | NA | M | M | N-004 | M (debt) |
 | hfsplus | S-002 OPEN, S-003 OPEN, N-005; I-007 (S2) | M; I-007 (S2) | M | M | M | NA | NA | M | M | M | THIN |
+=======
+| ext4 | S-003 OPEN, S-004 FIXED; **M-010**, I-006 (S2), I-007 (S2) | ok; **M-010**, I-006 (S2), I-007 (S2) | M | S-003 OPEN, S-004 FIXED | N-004 | NA | NA | M | M | N-004 | M (debt) |
+| hfsplus | S-002 FIXED, **S-003 FIXED (s5)**, **S-021 FIXED (s5 — journal harvest)**, N-005 FIXED, N-038 FIXED; I-007 (S2) | M; I-007 (S2) | M | M | M | NA | NA | M | M | M | M (S-021 tests; THIN closed) |
+>>>>>>> 08c66f8 (fix: S-021 + S-003 - HFS+ journal differential harvest (the og's PRIMARY deleted surface))
 | btrfs | I-003 ack, M (S-005 fixed), N-006; **M-010**, I-007 (S2) | M; **M-010**, I-007 (S2) | M | M | M | NA | NA | M | M | M | M |
 | zfs | OQ-T6, M (S-005 fixed); I-007 (S2) | ok | OQ-T6 | M | M | NA | NA | M | M | M | M |
 | refs | N-007, I-004 ack, **M-022 FIXED (s4)**, I-012 (S3: GAP-ADS resolved); **S-020 FIXED (s4)**; **M-026/M-027 FIXED (s4: stale-page sweep + identity keep-one + recycle routing)** | M | M | **M-022 FIXED (s4)** | M | NA | NA | M | M | M | M |
 | table+ldm | M (A-002 FIXED — real Microsoft GUIDs restored), M-002 | M | M (A-002 FIXED; A-001 fixed) | M-002, M (OQ-T7 resolved — I-008) | ok | NA | NA | M | M | M | M (debt) |
 | carve | S-007, M-005 | M | S-007, N-008; M (S-015 units FIXED), M (S-017 ftyp magics FIXED) | S-007, N-008, M-005 | M | NA | NA | M (S-015 tail-walk FIXED: named 8 MiB bound, og range documented) | M | M | M |
-| lost-partition | M (S-006 fixed; S-019 FIXED s4 — BitLocker family), OQ-T9 RESOLVED (M-017 formula) | NA | M (S-006 fixed; S-019) | M | M | NA | NA | M | M | M | M |
+| lost-partition | M (S-006 fixed; S-019 FIXED s4 — BitLocker family), OQ-T9 RESOLVED (M-017 formula) | NA | M (S-006 fixed; S-019) | **S-029 (S5b: apply/table-write path missing — the recovery endgame)** | M | NA | NA | M | M | M | M |
 | tree | M | M | NA | M | M | NA | NA | ok | M | NA | M |
-| session | M | M (D12), N-014 (S2) | M | NA | M; N-014 (S2) | NA | NA | M | M | I-005.7 ack | M (debt) |
+| session | M | M (D12), N-014 (S2) | **M-042 (S5b: lostpart.dat resume re-validation + layout snapshot missing)**; N-049 (S5b: record richness) | NA | M; N-014 (S2) | NA | NA | M | M | I-005.7 ack | M (debt) |
 | writer+report | M | M | NA | M | M | M | NA | ok | M | **N-013 (S2), N-015 (S2)**, N-009d | M (debt) |
 | health | M (S-014 FIXED s4 — live+offline auto-unlock) | NA | N-009a | NA | M | NA | NA | NA | M | M | M + **N-032 (S3: CSMI/USB-bridge transports)**; **N-042 (S4: CLI temp fractional digit — renumbered past the parallel legs' N-033..N-039)** |
 | rawfixer | M (S-008+S-010 fixed) | NA | M | M (S-008 fixed) | M | NA | NA | M (M-009 fixed) | M | M (S-008+S-010 fixed) | M |
@@ -66,6 +87,11 @@ dispositions is the surviving one).
 | preview (S4 NEW) | NA | NA | NA | NA | NA | NA | NA | NA | NA | **M-024 (S4: caps bypass — executed proof; provenance misattributions)** | I-013 (S4: architecture register — og socket protocol vs in-process reader) |
 | query (S4 NEW) | **M-029 (S4: sort/paging/bucket-IDs/server-side push)** + ~~M-023~~ FIXED (FIXED/M-023: category source now the generated table) | NA | NA | NA | NA | NA | NA | NA | NA | **M-029, N-040 (frozen-doc unit lie)** | M-029 (S4); S-023-adjacent (no precomputed category map) |
 | transport (S4 NEW) | M-030 (S4: WinPE gate, stale-handle ladder, terminal OFFLINE, 32-disk cap) | M-030 | M-030 (IOCTL numbers = own driver's, grammar shape M) | M-030 (chunking provenance corrected; OQ-S4-3 perf open) | M-030 | NA | NA | M-030 (silent RDA fallback) | M-030 | M | **N-041 (S4: dead RdaClient + volume_letter_to_disk)**; I-016 (S4: wire register) |
+| mom-capabilities (S5b NEW) | **M-043 (S5b: NTFS content-proof + backup-boot)**; **M-044 (S5b: UDF family)**; **M-045 (S5b: FAT gates)**; N-050 (S5b: boot-only recognition) | **M-042 (S5b: lostpart persistence semantics)**; N-049 (S5b: record richness) | I-020 (S5b: corpus-doc corrections register) | **S-029 (S5b: apply/table write)** | **M-040 (S5b: BCD/NVRAM/boot.ini/chkdsk family)**; **M-041 (S5b: check phase + error taxonomy 0x1001-0x100e)** | **S-030 (S5b: image scan targets)** | **N-048 (S5b: logging seam)** | **I-019 (S5b: EPM tool-ops scope register)**; OQ-S5-1 (CheckVersion consumer) | NA (pending scope decisions S-029/M-040) | NA |
+
+**Session-5 fix note (2026-10-26):** S-021 + S-003 FIXED (HFS+ journal
+differential harvest — PARITY-DELTAS D-56; the fallback residual tracked in
+OQ-S003-journal-fallback-salvage.md).
 
 Cross-cutting rows: **Q66 = M-006 FIXED** (fuzz CI re-enabled by parallel leg `e30b84d`;
 codeql deferral documented). **Q67 = M + N-018 (S2)** (ASan/TSan CI green; UBSan NOT enabled —
@@ -105,7 +131,7 @@ F safety · Q quality (definitions in `PARAMETERS.md`).
 
 | Module | Parameter(s) | Verdict change (evidence in the finding + `evidence/decompiled-quotes/*session2*`) |
 |---|---|---|
-| ntfs | B1/B4/D15/A26/B5 | **S-012 — FIXED (convergent dual-agent fix, session 4)** — two-pass architecture landed: destroy default OFF (pass-1 membership, :18630), full pass-2 GUID-dump walk with claim map + og gates (:21152-21264), size-0 rescue (mirror resident + same-name merge); one finding premise corrected (no cross-pass dedup og-side — see the Resolution's session-4 convergence addendum) |
+| ntfs | B1/B4/D15/A26/B5 | **S-012 — FIXED (convergent multi-agent fix, session 4 + verification/correction)** — two-pass architecture landed: destroy default OFF (pass-1 membership, :18630), full pass-2 GUID-dump walk with claim map + og gates (:21152-21264), size-0 rescue (mirror resident + same-name merge); finding premises corrected (no cross-pass dedup og-side; $Boot = the claim gate's 6-byte compare); the verification leg's corrections on top: dump-walk stride = record size on every path (corpus uVar8/uVar16 decode), pseudo record# arithmetic, N-040 (pass-1 filter = og-15 table AND $SI SYSTEM+HIDDEN; the $FILE_NAME gate removed); Resolution + both addenda in findings/FIXED/S-012-*.md, N-040 in findings/FIXED/ |
 | ntfs | C19/C20/D11/D12/B7/C23 | **N-024** (8.3 short-name field; two-sided boot ladder; pass-2 stride quirk superset; namespace-ranking superset; og error facility codes) |
 | ntfs | B1/B4/D15/A26/B5 | **S-012 FIXED (diff-fix session)** — two-pass landed: pass-1 membership restored (destroy default off), GUID-dump pass 2 (claim-map viability, 0x3ff + blanket-$ + folder rules), size-0 rescue (mirror resident + same-name merge); Resolution in findings/FIXED/S-012-*.md |
 | ntfs | C19/C20/D11/D12/B7/C23 | **N-024 — FIXED (minors session, 2026-10-26)** (short_name field + session persistence ✓; boot ladder = LoadNtfsVolume exactly ✓; stride quirk + namespace ranking registered D-52; error-code mapping registered in ABI-CONTRACT §4 — see findings/FIXED/N-024) |
@@ -161,7 +187,7 @@ reading was wrong — corrected in `evidence/decompiled-quotes/fat-exfat-session
 | refs | B3/A27 | **N-037 — FIXED (s4, folded into S-020)** (granularity discard vs allocated size; premise corrected on the :10213 re-read) |
 | refs | F-gate/B1 | **I-013** (host-OS runtime gate: og refuses < Win8 hosts; core host-agnostic — deliberate portability superset) |
 | refs | (convergence) | I-012 named-streams parity confirmed convergent; C21/A26/X51/B10 newly-M (see modules/refs.md S3 rows) |
-| hfsplus | B4/B5/B2/A25 | **S-021** (journal deleted-record harvester GetDeleteRecord :13637-14252 + emit FUN_18000c8f0 — the og's PRIMARY deleted surface; core parses journal_info_block and never uses it) |
+| hfsplus | B4/B5/B2/A25 | **S-021 — FIXED (s5)** (`journal_harvest_pass`: ring walk + differential + deleted-tier emission; D-56; the tx-magic derivation stays OQ) |
 | hfsplus | B2/B7 | **N-038** (fork-selection predicate: og record byte +0x29 bit 0x20 → rsrc fork + decmpfs mark; core data-fork + empty-fork substitution; field-name UNVERIFIED) |
 | ext4 | B1/B4/A27/Q51 | **I-014** (deleted-inode sweep superset; fragmented-journal-walk correctness advantage — og physical+1 is wrong, core extent-map correct; X51 MATCH; "do not replicate" registrations) |
 | hfsplus | B1/B7 (rows 4-6) | **I-014** (allocation-bitmap grading probable superset — UNVERIFIED residual; hard links/hot files MATCH-by-omission; decmpfs modes 1/2 MATCH-by-omission) |

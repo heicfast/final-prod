@@ -151,3 +151,23 @@ scoring). The engine-open {1,2} numFATs gate declines deep-accepted triple-FAT
 candidates — the og's exact layering, pinned by
 `LostFatGates.NumFatsZeroRejectedThreeAcceptedByDeepGates`. The finding's SPC
 sub-claim was corrected (u8 domain false positive — see modules/fat.md).
+
+---
+
+## Session-5 addendum (2026-10-26, audited `7cf6754`)
+
+New rows on this module's surface (full detail in
+`modules/mom-capabilities.md`):
+
+- **APPLY path (the recovery endgame)** — `S-029` (SEVERE): the og writes
+  the recovered partition into the table (RecoveryModule
+  `CreateRecoveryPartitionObject` → PartitionRecovery.dll IOCTL chain
+  0x7C100/0x7C010/0x7C058 + GPT GUID regen); the core is contractually
+  read-only (cr_lostpart.h:91-92). Scope decision required: implement
+  consent-gated apply or register the exclusion.
+- **S-006's FATX scoped remainder** — RESOLVED: no Xbox FATX parser exists
+  in the og; `CFatxBlockParser` is the FAT12/16/32 boot parser ("Fatx" =
+  FAT-x), and its accept gates diverge from the core's on six specific
+  points → `M-045` (the gate deltas now carry the surface).
+- **lostpart.dat/partinfo.dat persistence semantics** — `M-042` (the
+  session-module's resume re-validation row) + `N-049` (record richness).

@@ -173,3 +173,18 @@ rejects; mirror-only mode) stays open.
   was set-equal to the og's); `FatEngine.SpcDomainMatchesOgSet` pins all 256
   values.
 - exFAT half (N-010d/e) resolved in modules/exfat.md.
+
+---
+
+## Session-5 addendum (2026-10-26, audited `7cf6754`)
+
+- **Boot-validation gate family** — `M-045` (MAJOR): six gate deltas vs the
+  og's CFatxBlockParser classification (bps any-512-multiple vs pow2-
+  512..4096; SPC ≤128 vs unbounded; "FAT32   "@+0x52 label required by og;
+  numFATs≠0 required by og; cluster ≥0xFFFFFF0 rejected by og; band-ordered
+  flavor retry vs deterministic). Full gate table in
+  `evidence/decompiled-quotes/s5-image-fscheck-persistence.md` §F. Extends
+  the M-015 family (engine-load validation) to the probe/classifier layer.
+- **FAT copy-compare reporting** — folded into `M-041` (the check phase):
+  the og reports FAT1/FAT2 disagreement (0x1005) as an audit error; the
+  core's mirror arbitration (cr_chain.cpp:109-118) chooses silently.

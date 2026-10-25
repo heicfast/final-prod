@@ -32,6 +32,10 @@ constexpr u32 SB_VOLUME_NAME = 0x78;
 constexpr u32 SB_JOURNAL_INUM = 0xE0;
 constexpr u32 SB_DESC_SIZE = 0xFE;
 constexpr u32 SB_BLOCKS_HI = 0x150;
+constexpr u32 SB_FIRST_META_BG = 0x230; /* s_first_meta_bg u32 - meta_bg
+                                            * front-region bound (e2fsprogs
+                                            * ext2_fs.h; verified on real
+                                            * mkfs images this session) */
 constexpr u32 SB_INODE_SIZE = 0x58; /* u16; s_first_ino u32 owns 0x54..0x57 */
 constexpr u16 SB_MAGIC_VALUE = 0xEF53;
 
@@ -39,6 +43,10 @@ constexpr u32 INCOMPAT_64BIT = 0x0080;
 constexpr u32 INCOMPAT_FILETYPE = 0x0002;
 constexpr u32 INCOMPAT_EXTENTS = 0x0040;
 constexpr u32 INCOMPAT_BIGALLOC = 0x0400;
+constexpr u32 INCOMPAT_META_BG = 0x0010;
+constexpr u32 MAX_META_DESC_READS = 4096; /* lazy meta-group block-read budget
+                                             * (bounded; one read per
+                                             * meta-group, cached) */
 
 constexpr u32 ROOT_INODE = 2;
 constexpr u32 JOURNAL_INODE_DEFAULT = 8;
@@ -144,6 +152,15 @@ bool validate_superblock(const u8 sb[1024], SuperBlock& out) {
     if (out.journal_inum == 0)
         out.journal_inum = JOURNAL_INODE_DEFAULT;
     out.groups = groups;
+    /* S-026: meta_bg front-region bound. s_first_meta_bg counts the
+     * descriptor blocks kept in the classic front GDT region (blocks
+     * first_data_block+1 .. +s_first_meta_bg); meta-groups beyond it keep
+     * their single descriptor block at their own meta-group boundary.
+     * mkfs writes 0 for a full meta_bg layout (verified on real images:
+     * 1K/64B-desc and 4K/64B-desc, this session). */
+    out.first_meta_bg = le32(sb + SB_FIRST_META_BG);
+    if (out.first_meta_bg > out.groups)
+        out.first_meta_bg = u32(out.groups);
     if ((out.feature_incompat & INCOMPAT_64BIT) != 0) {
         out.desc_size = le16(sb + SB_DESC_SIZE);
         if (out.desc_size < 64)
@@ -168,15 +185,79 @@ struct Volume {
     IStorageDevice* dev = nullptr;
     SuperBlock sb;
 
-    /* GDT bytes (raw) - descriptors are indexed per group */
+    /* GDT bytes (raw) - descriptors are indexed per group. For meta_bg
+     * volumes gdt stays EMPTY: descriptors resolve per meta-group through
+     * the lazy cache below (S-026). */
     std::vector<u8> gdt;
     u64 gdt_block = 0;
 
-    GroupDesc group(u64 g) const {
+    /* S-026 meta_bg state (kernel/e2fsprogs-correct, og divergences
+     * deliberately NOT adopted - see PARITY-DELTAS):
+     *  - meta_group_size = block_size / desc_size (EXT2_DESC_PER_BLOCK);
+     *    the og seeds its stride from s_desc_size (:3368-3373), which only
+     *    coincides when desc_size^2 == block_size (4K/64B, 1K/32B) and is
+     *    wrong for 2K/32B and 4K/32B layouts.
+     *  - descriptor block for meta-group m sits at the meta-group boundary:
+     *    first_data_block + (m * meta_group_size) * blocks_per_group,
+     *    +1 only for m == 0 (the primary superblock's group). Verified
+     *    empirically on real mke2fs images (dumpe2fs + hexdump, this
+     *    session): meta-group starts carry NO backup superblock, the
+     *    descriptor block IS the group's first block. The og reads at
+     *    m*blocks_per_group with no first_data_block adjustment
+     *    (FUN_180004c70 :3582-3583, asm-verified), which is correct only
+     *    for first_data_block == 0 geometries.
+     *  - meta-groups below s_first_meta_bg keep the classic front GDT
+     *    location first_data_block + 1 + m (e2fsprogs
+     *    ext2fs_descriptor_block_loc2).
+     */
+    bool meta_bg = false;
+    u32 meta_group_size = 0;
+    u32 meta_desc_reads = 0;                 /* one per cached meta-group */
+    std::map<u64, std::vector<u8>> meta_cache; /* meta-group -> desc block */
+
+    u64 desc_block_for(u64 m) const {
+        if (m < sb.first_meta_bg)
+            return sb.first_data_block + 1 + m;
+        const u64 bg = m * meta_group_size; /* first group of the meta-group */
+        /* bg == 0 only when first_meta_bg == 0: group 0 hosts the primary
+         * superblock, its descriptor block follows it. Every other
+         * meta-group boundary empirically has no backup SB (powers of two
+         * never collide with the sparse_super 3/5/7 powers). */
+        return sb.first_data_block + bg * u64(sb.blocks_per_group) + (bg == 0 ? 1 : 0);
+    }
+
+    GroupDesc group(u64 g) {
         GroupDesc d{};
-        if (g >= sb.groups || gdt.empty())
+        if (g >= sb.groups)
             return d;
-        const u8* p = gdt.data() + size_t(g) * sb.desc_size;
+        const u8* p = nullptr;
+        if (!meta_bg) {
+            if (gdt.empty())
+                return d;
+            p = gdt.data() + size_t(g) * sb.desc_size;
+        } else {
+            if (meta_group_size == 0)
+                return d;
+            const u64 m = g / meta_group_size;
+            const u32 idx = u32(g % meta_group_size);
+            auto it = meta_cache.find(m);
+            if (it == meta_cache.end()) {
+                if (meta_desc_reads >= MAX_META_DESC_READS)
+                    return d; /* bounded: stop resolving new meta-groups */
+                ++meta_desc_reads;
+                const u64 db = desc_block_for(m);
+                std::vector<u8> buf(size_t(sb.block_size));
+                if (db == 0 || db >= sb.blocks_count ||
+                    dev->read_at(db * sb.block_size, buf.data(), u32(buf.size())) != OK)
+                    buf.clear();
+                it = meta_cache.emplace(m, std::move(buf)).first;
+            }
+            if (it->second.empty())
+                return d;
+            if (size_t(idx) * sb.desc_size + sb.desc_size > it->second.size())
+                return d;
+            p = it->second.data() + size_t(idx) * sb.desc_size;
+        }
         d.block_bitmap = le32(p + 0x00);
         d.inode_bitmap = le32(p + 0x04);
         d.inode_table = le32(p + 0x08);
@@ -434,14 +515,32 @@ u32 scan_ext4(IStorageDevice* slice, const Ext4ScanFlags& flags, CancelToken* ca
                                  * block-granular extents would be WRONG -
                                  * refused loudly, never silently faked */
 
-    /* 2. group descriptors (block first_data_block + 1) */
+    /* 2. group descriptors. Non-meta_bg: the whole table is the front GDT
+     * at block first_data_block + 1 (classic layout). meta_bg (S-026): the
+     * front region holds only the s_first_meta_bg descriptor blocks (a
+     * full-meta_bg mkfs writes 0 - one descriptor block at group 0's start
+     * +1); every later meta-group keeps its single descriptor block at its
+     * own boundary, resolved lazily by Volume::group() with a bounded read
+     * budget. Bulk-reading groups*desc_size from the front block would
+     * swallow bitmap/inode-table blocks as "descriptors" - exactly the
+     * silent-missing-files bug this fix closes. */
+    v.meta_bg = (v.sb.feature_incompat & INCOMPAT_META_BG) != 0;
     v.gdt_block = v.sb.first_data_block + 1;
-    const u64 gdt_bytes = v.sb.groups * v.sb.desc_size;
-    if (gdt_bytes == 0 || gdt_bytes > (8ull << 20))
-        return ERR_BAD_PARAMETER;
-    v.gdt.resize(size_t(gdt_bytes));
-    if (slice->read_at(v.gdt_block * v.sb.block_size, v.gdt.data(), u32(gdt_bytes)) != OK)
-        return ERR_READ_FAILED;
+    if (v.meta_bg) {
+        v.meta_group_size = v.sb.desc_size ? v.sb.block_size / v.sb.desc_size : 0;
+        if (v.meta_group_size == 0)
+            return ERR_BAD_PARAMETER; /* desc_size > block_size: impossible
+                                       * geometry, refuse loudly */
+        /* seed the front meta-group (m == 0) from the classic location so
+         * the common groups resolve without an extra device round trip */
+    } else {
+        const u64 gdt_bytes = v.sb.groups * v.sb.desc_size;
+        if (gdt_bytes == 0 || gdt_bytes > (8ull << 20))
+            return ERR_BAD_PARAMETER;
+        v.gdt.resize(size_t(gdt_bytes));
+        if (slice->read_at(v.gdt_block * v.sb.block_size, v.gdt.data(), u32(gdt_bytes)) != OK)
+            return ERR_READ_FAILED;
+    }
     stats.block_groups = v.sb.groups;
 
     const bool filetype = (v.sb.feature_incompat & INCOMPAT_FILETYPE) != 0;

@@ -799,3 +799,266 @@ TEST(HfsPlus, LargeBlockSizeAccepted) {
 
 } // namespace hfsplus
 } // namespace cr
+
+/* ------------------------------------------------------------------ */
+/* S-021: journal deleted-record harvest fixtures + tests               */
+/* ------------------------------------------------------------------ */
+
+namespace cr {
+namespace hfsplus {
+namespace {
+
+constexpr u32 B_JINFO = 9;  /* JournalInfoBlock */
+constexpr u32 B_JDATA = 14; /* harvested file's content (free in bitmap) */
+
+void le16j(u8* p, u16 v) {
+    p[0] = u8(v);
+    p[1] = u8(v >> 8);
+}
+void le32j(u8* p, u32 v) {
+    p[0] = u8(v);
+    p[1] = u8(v >> 8);
+    p[2] = u8(v >> 16);
+    p[3] = u8(v >> 24);
+}
+void le64j(u8* p, u64 v) {
+    le32j(p, u32(v));
+    le32j(p + 4, u32(v >> 32));
+}
+
+/* Write the JournalInfoBlock (TN1150 BE fields) + the LE jnl_header. */
+void write_journal_info(std::vector<u8>& d, u32 jinfo_block, u64 jbase, u64 jsize, u64 jstart,
+                        u32 size_a, u32 size_b) {
+    u8* ji = d.data() + u64(jinfo_block) * BS;
+    be32(ji + 0, 0);            /* flags */
+    be32(ji + 4, 0x6A6E6C78);   /* 'jnlx' */
+    be64(ji + 8, jbase);        /* journal byte offset */
+    be64(ji + 16, jsize);       /* journal size */
+    u8* jh = d.data() + jbase;
+    le32j(jh + 0, 0x4A4E4C78);  /* JNLx (jnl.c, LE) */
+    le32j(jh + 4, 0x12345678);  /* endian marker */
+    le64j(jh + 8, jbase + jsize);
+    le64j(jh + 0x10, jstart);
+    le64j(jh + 0x18, jsize);    /* cross-checked against the info size */
+    le32j(jh + 0x20, size_a);   /* transaction block-list size */
+    le32j(jh + 0x28, size_b);   /* walk/classification block size */
+}
+
+/* Write one transaction block-list at ring offset `tx_off` (relative to
+ * jbase). magic = (size_a >> 4) - 1 (the corpus-decoded og gate);
+ * count = entries + 1 (the og loop processes count-1 entries). */
+void write_tx(std::vector<u8>& d, u64 jbase, u64 tx_off, u32 size_a, u32 entries) {
+    u8* tx = d.data() + jbase + tx_off;
+    /* journal-internal structures are LITTLE-endian (jnl.c; the og's
+     * ushort loads are native LE) */
+    le16j(tx + 0, u16((size_a >> 4) - 1));
+    le16j(tx + 2, u16(entries + 1));
+}
+
+/* One 16-byte entry: {u64 target_block LE, u32 image_size LE, pad}. */
+void write_tx_entry(std::vector<u8>& d, u64 jbase, u64 tx_off, u32 idx, u64 target_block,
+                    u32 image_size) {
+    u8* e = d.data() + jbase + tx_off + 0x20 + u64(idx) * 16;
+    le64j(e + 0, target_block);
+    le32j(e + 8, image_size);
+}
+
+/* A 512-byte index-kind node image (passes the node gate, skipped by the
+ * leaf-only rule). */
+std::vector<u8> make_index_node() {
+    std::vector<u8> n(512, 0);
+    n[8] = 1; /* kBTIndexNode */
+    n[9] = 0; /* height 0 (og FUN_180010720 gate) */
+    return n;
+}
+
+} // namespace
+
+/* Journal layout (test A): JournalInfoBlock @9; journal region 10..13
+ * (4 blocks); tx at ring BS (block 11); entry[0] image = a catalog leaf
+ * (block 12) carrying {journaldeleted.dat, readme.txt-live-copy};
+ * entry[1] image = an index node (block 13, 512B) - leaf gate skips it. */
+static std::vector<u8> build_volume_journal() {
+    auto d = build_volume();
+    d.resize(16 * BS, 0); /* already 16 blocks */
+    be32(d.data() + 1024 + 0x0C, B_JINFO); /* VH journalInfoBlock */
+
+    const u64 jbase = u64(10) * BS;
+    const u64 jsize = u64(4) * BS;
+    write_journal_info(d, B_JINFO, jbase, jsize, BS /*start*/, BS /*size_a*/, BS /*size_b*/);
+    write_tx(d, jbase, BS, BS, 2);
+
+    /* entry[0]: catalog leaf with the harvested records */
+    auto jd = make_record(2, u"journaldeleted.dat", 2, 40, 512, B_JDATA, 1, 0, 0, 0);
+    auto live_copy = make_record(2, u"readme.txt", 2, 20, 26, B_FILE_DATA, 1, 0, 0, 0);
+    auto leaf = make_leaf_node({jd, live_copy}, 0);
+    memcpy(d.data() + jbase + u64(2) * BS, leaf.data(), NODE_SIZE);
+    write_tx_entry(d, jbase, BS, 0, B_CAT_LEAF2 /*catalog fork*/, NODE_SIZE);
+
+    /* entry[1]: index-kind image - read + gated, but not a leaf */
+    auto idx = make_index_node();
+    memcpy(d.data() + jbase + u64(3) * BS, idx.data(), 512);
+    write_tx_entry(d, jbase, BS, 1, B_CAT_LEAF2, 512);
+
+    /* bitmap: 8..13 in use (journal region live), 14..15 free */
+    d[u64(5) * BS + 1] = 0xFC;
+    return d;
+}
+
+TEST(HfsPlus, JournalHarvestEmitsDeletedRecords) {
+    auto img = build_volume_journal();
+    MemDevice dev(img);
+
+    tree::ResultTree tree;
+    auto* ra = tree.add_root(u"Found");
+    auto* rd = tree.add_root(u"Deleted");
+    auto* rl = tree.add_root(u"Lost Files");
+    HfsScanFlags fl;
+    HfsScanStats st;
+    u32 rc = scan_hfsplus(&dev, fl, nullptr, nullptr, nullptr, tree, ra, rd, rl, st);
+    ASSERT_EQ(OK, rc) << err_text(rc);
+
+    /* the ring walk: one transaction, two images, one leaf */
+    EXPECT_EQ(1u, st.journal_tx);
+    EXPECT_EQ(2u, st.journal_images);
+    EXPECT_EQ(1u, st.journal_leaves);
+    EXPECT_EQ(1u, st.journal_records);
+    EXPECT_EQ(1u, st.journal_emitted);
+
+    /* the harvested file surfaces in the deleted tier with its content
+     * extents (data block 14 free -> Excellent) */
+    tree::FileNode* jd = nullptr;
+    int readme_count = 0;
+    std::function<void(tree::FileNode*)> collect = [&](tree::FileNode* n) {
+        for (tree::FileNode* c = n->first_child(); c; c = c->next_sibling()) {
+            if (!c->props())
+                continue;
+            if (c->name_utf8() == "journaldeleted.dat")
+                jd = c;
+            if (c->name_utf8() == "readme.txt")
+                ++readme_count;
+            collect(c);
+        }
+    };
+    for (auto* r : tree.roots())
+        collect(r);
+    ASSERT_NE(jd, nullptr) << "the journal harvest must surface the deleted record";
+    EXPECT_EQ(tree::DeletedState::Deleted, jd->deleted_state());
+    EXPECT_EQ(u64(512), jd->props()->logical_size);
+    ASSERT_EQ(1u, jd->props()->extents.size());
+    EXPECT_EQ(u64(B_JDATA) * BS, jd->props()->extents[0].offset);
+    EXPECT_EQ(tree::Confidence::Excellent, jd->confidence());
+    /* differential: the live-copy record in the same image is suppressed
+     * (live catalog holds the same key with the same fileID) */
+    EXPECT_EQ(1, readme_count) << "journal copy of a live record must not double-emit";
+}
+
+TEST(HfsPlus, JournalDifferentialDifferentFileIdKept) {
+    /* A harvested record whose (parent, name) matches a LIVE record but
+     * with a DIFFERENT fileID is kept (og :13958-62 - the file was
+     * re-created: the old incarnation is deleted evidence). */
+    auto img = build_volume_journal();
+    /* overwrite the image's second record: same key as live readme.txt,
+     * cnid 21 (a stale incarnation; live readme.txt is cnid 20) */
+    auto stale = make_record(2, u"readme.txt", 2, 21, 26, B_FILE_DATA, 1, 0, 0, 0);
+    auto jd = make_record(2, u"journaldeleted.dat", 2, 40, 512, B_JDATA, 1, 0, 0, 0);
+    auto leaf = make_leaf_node({jd, stale}, 0);
+    memcpy(img.data() + u64(10) * BS + u64(2) * BS, leaf.data(), NODE_SIZE);
+
+    MemDevice dev(img);
+    tree::ResultTree tree;
+    auto* ra = tree.add_root(u"Found");
+    auto* rd = tree.add_root(u"Deleted");
+    auto* rl = tree.add_root(u"Lost Files");
+    HfsScanFlags fl;
+    HfsScanStats st;
+    u32 rc = scan_hfsplus(&dev, fl, nullptr, nullptr, nullptr, tree, ra, rd, rl, st);
+    ASSERT_EQ(OK, rc) << err_text(rc);
+    EXPECT_EQ(2u, st.journal_emitted);
+    int deleted_readme = 0;
+    for (tree::FileNode* c = rd->first_child(); c; c = c->next_sibling()) {
+        if (c->props() && c->name_utf8() == "readme.txt")
+            ++deleted_readme;
+    }
+    EXPECT_EQ(1, deleted_readme) << "stale incarnation (different fileID) is kept";
+}
+
+TEST(HfsPlus, JournalBadHeaderGates) {
+    /* invalid JournalInfoBlock magic / jnl magic / size cross-check each
+     * degrade to a no-harvest (never a scan failure) */
+    for (int mode = 0; mode < 3; ++mode) {
+        auto img = build_volume_journal();
+        if (mode == 0)
+            be32(img.data() + u64(B_JINFO) * BS + 4, 0xDEADBEEF); /* info magic */
+        else if (mode == 1)
+            le32j(img.data() + u64(10) * BS + 0, 0xDEADBEEF); /* jnl magic */
+        else
+            le64j(img.data() + u64(10) * BS + 0x18, 12345); /* size mismatch */
+        MemDevice dev(img);
+        tree::ResultTree tree;
+        auto* ra = tree.add_root(u"Found");
+        auto* rd = tree.add_root(u"Deleted");
+        auto* rl = tree.add_root(u"Lost Files");
+        HfsScanFlags fl;
+        HfsScanStats st;
+        u32 rc = scan_hfsplus(&dev, fl, nullptr, nullptr, nullptr, tree, ra, rd, rl, st);
+        ASSERT_EQ(OK, rc) << "mode " << mode << ": " << err_text(rc);
+        EXPECT_EQ(0u, st.journal_tx) << "mode " << mode;
+        EXPECT_EQ(0u, st.journal_emitted) << "mode " << mode;
+        /* the freed-node sweep still works (deleted.bin present) */
+        bool has_bin = false;
+        for (tree::FileNode* c = rd->first_child(); c; c = c->next_sibling())
+            if (c->props() && c->name_utf8() == "deleted.bin")
+                has_bin = true;
+        EXPECT_TRUE(has_bin) << "mode " << mode;
+    }
+}
+
+TEST(HfsPlus, JournalWrapHandled) {
+    /* image spanning the ring end: journal = 3 blocks; the transaction
+     * block-list is 6144 bytes (size_a), so the image starts at ring
+     * 10240 and its last 2048 bytes wrap onto ring [0, 2048) - the split
+     * read must reconstruct the node (records + offset array live in the
+     * wrapped tail; the jnl header's 44 bytes overlap only the node's
+     * free space). */
+    auto d = build_volume();
+    be32(d.data() + 1024 + 0x0C, B_JINFO);
+
+    const u64 jbase = u64(10) * BS;
+    const u64 jsize = u64(3) * BS;
+    /* write the wrapped image FIRST (tail at ring 0), then the header
+     * overwrites the node's free-space bytes at ring [0,44) */
+    auto wr = make_record(2, u"wrapped.dat", 2, 50, 512, 13, 1, 0, 0, 0);
+    auto leaf = make_leaf_node({wr}, 0);
+    memcpy(d.data() + jbase + 10240, leaf.data(), 2048);           /* image head */
+    memcpy(d.data() + jbase + 0, leaf.data() + 2048, 2048);        /* image tail */
+    write_journal_info(d, B_JINFO, jbase, jsize, BS, BS + 2048, BS);
+    write_tx(d, jbase, BS, BS + 2048, 1);
+    write_tx_entry(d, jbase, BS, 0, B_CAT_LEAF2, NODE_SIZE);
+
+    /* bitmap: 8..12 in use (journal live), 13..15 free */
+    d[u64(5) * BS + 1] = 0xF8;
+
+    MemDevice dev(d);
+    tree::ResultTree tree;
+    auto* ra = tree.add_root(u"Found");
+    auto* rd = tree.add_root(u"Deleted");
+    auto* rl = tree.add_root(u"Lost Files");
+    HfsScanFlags fl;
+    HfsScanStats st;
+    u32 rc = scan_hfsplus(&dev, fl, nullptr, nullptr, nullptr, tree, ra, rd, rl, st);
+    ASSERT_EQ(OK, rc) << err_text(rc);
+    EXPECT_EQ(1u, st.journal_tx);
+    EXPECT_EQ(1u, st.journal_emitted);
+    tree::FileNode* found = nullptr;
+    for (tree::FileNode* c = rd->first_child(); c; c = c->next_sibling())
+        if (c->props() && c->name_utf8() == "wrapped.dat")
+            found = c;
+    ASSERT_NE(found, nullptr) << "the wrap-spanning image must be reconstructed";
+    EXPECT_EQ(u64(512), found->props()->logical_size);
+    ASSERT_EQ(1u, found->props()->extents.size());
+    EXPECT_EQ(u64(13) * BS, found->props()->extents[0].offset);
+}
+
+} // namespace hfsplus
+} // namespace cr

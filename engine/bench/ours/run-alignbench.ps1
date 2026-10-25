@@ -16,8 +16,11 @@
 #   4. cr_ui cheap-op API latency (optional): late-bound DllImport loop over
 #      abi_version / last_error / carve_format_count / carve_format_info.
 #
-# Hard gates (exit non-zero): open failures, any failed read, checksum
-# mismatch between the first and last pass over a config, missing results.
+# Hard gates (exit non-zero): open failures, any failed read, wrong read
+# counts (the F11 len*512 contract), missing results. The two-pass checksums
+# are RECORDED (checksum_match) - live OS targets (\\.\C:, the OS disk)
+# mutate legitimately between passes, so byte-stability is telemetry, not a
+# gate; the per-read length checks carry the correctness weight.
 # NO continue-on-error semantics.
 #
 # Licensed under the MIT license. See LICENSE.
@@ -45,7 +48,13 @@ using System.Text;
 public class BenchResult {
     public string config;
     public double mib_per_s;
-    public ulong checksum;
+    public ulong checksum;      /* pass-1 checksum */
+    public ulong checksum2;     /* pass-2 checksum: equal on quiesced targets */
+    public bool checksum_match; /* live OS volumes mutate legitimately -
+                                  * recorded, NOT gated (reading \\.\C: twice
+                                  * while the OS writes pagefiles/logs differs
+                                  * by design; the per-read length checks are
+                                  * the hard gates) */
     public ulong bytes;
     public double ms;
     public int reads;
@@ -177,9 +186,9 @@ public static class AlignBench {
                     for (int i = 0; i < qd; ++i) if (ovs[i].hEvent != IntPtr.Zero) CloseHandle(ovs[i].hEvent);
                 }
             }
-            if (r.checksum != check)
-                throw new IOException("checksum mismatch between pass 1 and 2: "
-                    + r.checksum + " vs " + check + " (data changed under the benchmark)");
+            r.checksum2 = check;
+            r.checksum_match = (r.checksum == check); /* live-volume mutation is
+                * expected (the OS writes under us); recorded, never gated */
         } finally {
             CloseHandle(h);
         }
@@ -267,12 +276,14 @@ $apiLatency = $null
 
 function Add-Result($r) {
     $results.Add([ordered]@{
-        config    = $r.config
-        mib_per_s = [math]::Round($r.mib_per_s, 2)
-        ms        = [math]::Round($r.ms, 1)
-        reads     = $r.reads
-        bytes     = $r.bytes
-        checksum  = $r.checksum
+        config         = $r.config
+        mib_per_s      = [math]::Round($r.mib_per_s, 2)
+        ms             = [math]::Round($r.ms, 1)
+        reads          = $r.reads
+        bytes          = $r.bytes
+        checksum       = $r.checksum
+        checksum2      = $r.checksum2
+        checksum_match = $r.checksum_match
     })
     Write-Host ("  {0}  ->  {1} MiB/s ({2} reads, {3} ms)" -f $r.config, [math]::Round($r.mib_per_s, 2), $r.reads, [math]::Round($r.ms, 1))
 }

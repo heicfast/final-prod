@@ -60,6 +60,9 @@ struct SuperBlock {
     u32 feature_incompat = 0;
     u32 feature_ro_compat = 0;
     u32 journal_inum = 0;
+    u32 first_meta_bg = 0; /* S-026: meta_bg front-region descriptor blocks
+                            * (s_first_meta_bg @SB+0x230; 0 = fully
+                            * distributed meta_bg layout) */
     u16 rev_level = 0;
     u8 volume_name[17] = {0};
     bool valid = false;

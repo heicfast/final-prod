@@ -117,9 +117,26 @@ service install → test-sign → grammar open with the PID token → 8,192+
 F11-scaled reads → checksum-stable. The driver-loaded integration test the
 mandate requires now exists and runs on every push touching the transport.
 
-Leg 4 — cr_ui cheap-op API latency: the late-bound loop failed on the first
-run (LoadLibraryW could not resolve cr_ui.dll's vcpkg runtime deps — PATH fix
-landed in the workflow; numbers from the next green run).
+Leg 4 — cr_ui cheap-op API latency (late-bound, 2M iterations/op, run
+40228880804 — the first fully green alignbench run):
+
+| Operation | ns/op |
+|---|---:|
+| `cr_ui_abi_version` | **10.7** |
+| `cr_ui_last_error` | **11.3** |
+| `cr_ui_carve_format_count` | **12.6** (count = 174: 35 grammar + 139 raw-sign) |
+| `cr_ui_carve_format_info` | **166.3** (80-byte struct fill + the raw-sign confidence scan) |
+
+**Read:** the cheap-op target (< 1 µs) is beaten ~100×; the shim's per-call
+overhead (guarded wrapper + thread-local diagnostics) is single-digit
+nanoseconds of real cost on top of the ~10 ns floor of a no-op P/Invoke loop.
+`carve_format_info`'s 166 ns is the registry confidence scan — O(header
+signs), documented in ABI-CONTRACT §7a.
+
+The second measured run (40228880804) also re-confirms legs 1-3 within noise
+(alignment ratio 0.99 — flat on virtualized storage; two-pass checksums now
+recorded as `checksum_match` telemetry since the live OS volume legitimately
+mutates between passes).
 
 Tooling: `bench/ours/run-alignbench.ps1` +
 `.github/workflows/api-benchmark.yml` (windows-2022; driver from the

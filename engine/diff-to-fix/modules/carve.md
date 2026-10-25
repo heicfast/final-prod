@@ -209,3 +209,15 @@ leg that landed first; registry decode evidence: `evidence/decompiled-quotes/s3-
 Evidence: `evidence/decompiled-quotes/s3-rawsigns-consumer-decode.md` (the
 loader/matcher/CommonRawAnalyser decode, complementing the lead leg's
 `s3-rawsigns-units-and-dispatch.md`).
+
+---
+
+## Session-5 addendum (2026-10-26, audited `7cf6754`)
+
+- **M-029 §Gap (b) corrected via OQ-S4-2 resolution**: the RAW naming hook
+  is a single-site category display-name mapping (reserved key
+  "filter_generalraw" → the general-raw filter node's display name via
+  DRWUI's firebase.json map) — NOT a per-file rename/filter gate. Decode:
+  `evidence/decompiled-quotes/s5-oq-s4-2-raw-naming-hook.md`. No carve
+  emission-path change required for parity; the fix narrows to the
+  category-bucket naming surface.
