@@ -936,3 +936,171 @@ TEST(RawFixer, UnlockHappensOnRollbackPath) {
 }
 } // namespace repair
 } // namespace cr
+
+/* ---- A-005: the 4Kn paths (512-byte stacks received 4096-byte reads) --- */
+
+namespace cr {
+namespace repair {
+namespace {
+
+class RamDevice4k final : public IStorageDevice {
+public:
+    explicit RamDevice4k(std::vector<u8> d) : d_(std::move(d)) {
+        g_.logical_sector = 4096;
+        g_.physical_sector = 4096;
+        g_.total_bytes = d_.size();
+        g_.sector_count = d_.size() / 4096;
+    }
+    u32 read_at(u64 off, void* buf, u32 len) override {
+        if (off > d_.size() || len > d_.size() - off)
+            return ERR_RANGE_OUT_OF_BOUNDS;
+        memcpy(buf, d_.data() + off, len);
+        return OK;
+    }
+    const Geometry& geometry() const override { return g_; }
+
+private:
+    std::vector<u8> d_;
+    Geometry g_{};
+};
+
+/* an exFAT boot at 4 KiB sectors: shift 12, volume >= 24 sectors */
+void build_exfat_boot_4k(u8* b, u32 volume_length_sec) {
+    memset(b, 0, 4096);
+    b[0] = 0xEB;
+    b[1] = 0x76;
+    b[2] = 0x90;
+    memcpy(b + 3, "EXFAT   ", 8);
+    put64(b + 0x48, volume_length_sec);
+    put32(b + 0x50, 24);
+    put32(b + 0x54, 8);
+    put32(b + 0x58, 40);
+    put32(b + 0x5C, volume_length_sec - 40);
+    put32(b + 0x60, 2);
+    put32(b + 0x64, 0x12345678);
+    put16(b + 0x68, 0x0100);
+    b[0x6C] = 12; /* BytesPerSectorShift: 4096 */
+    b[0x6D] = 0;
+    b[0x6E] = 1;
+    b[0x6F] = 0x80;
+    b[510] = 0x55;
+    b[511] = 0xAA;
+}
+
+} // namespace
+
+TEST(RawFixer, NtfsPrimaryDamaged4Kn) {
+    /* A-005: the volume-end backup restore on a 4Kn slice - the pre-fix
+     * analyze() overflowed its 512-byte stack buffers on the very first
+     * read_at (4096 bytes in). The restore plan is sector-sized. */
+    std::vector<u8> img(4096ull * 2048, 0); /* 2048 x 4KiB sectors = 8 MiB */
+    memcpy(img.data() + 3, "NTFS    ", 8);
+    img[510] = 0x55;
+    img[511] = 0xAA;
+    u8* b = img.data() + img.size() - 4096;
+    memcpy(b + 3, "NTFS    ", 8);
+    put16(b + 0x0B, 4096);
+    b[0x0D] = 1;
+    put64(b + 0x28, 2048);
+    put64(b + 0x30, 4);
+    b[0x40] = 0xF6;
+
+    RamDevice4k dev(img);
+    RepairPlan plan;
+    ASSERT_EQ(OK, analyze(&dev, plan)) << "A-005: 4Kn analyze must not corrupt the stack";
+    EXPECT_TRUE(plan.detected);
+    EXPECT_EQ("ntfs", plan.fs_family);
+    ASSERT_EQ(1u, plan.actions.size());
+    EXPECT_EQ(ActionKind::RestoreBootFromBackup, plan.actions[0].kind);
+    EXPECT_EQ(4096u, plan.actions[0].length) << "the restore plan is sector-sized";
+    ASSERT_EQ(4096u, plan.actions[0].after.size());
+
+    RamWriteDevice wd(img);
+    UndoLog undo_log;
+    ASSERT_EQ(OK, execute(&wd, plan, undo_log));
+    EXPECT_EQ(0, memcmp(wd.d_.data(), img.data() + img.size() - 4096, 4096));
+}
+
+TEST(RawFixer, ExfatViaBackup4Kn) {
+    /* A-005 + the sector-correct via-backup plan: destroyed primary,
+     * backup at 12*4096, checksums over the 4 KiB boot region. */
+    std::vector<u8> img(4096ull * 2048, 0); /* 8 MiB: the spec's 2048-sector floor at 4 KiB */
+    build_exfat_boot_4k(img.data(), 2048);
+    build_exfat_boot_4k(img.data() + 12 * 4096, 2048);
+    fill_exfat_checksums(img, 4096);
+    const std::vector<u8> backup_boot(img.begin() + 12 * 4096, img.begin() + 13 * 4096);
+    memset(img.data(), 0x77, 4096); /* destroy the primary boot sector */
+
+    RamDevice4k dev(img);
+    RepairPlan plan;
+    ASSERT_EQ(OK, analyze(&dev, plan)) << "A-005: 4Kn analyze must not corrupt the stack";
+    EXPECT_TRUE(plan.detected);
+    EXPECT_EQ("exfat", plan.fs_family);
+    ASSERT_GE(plan.actions.size(), 1u);
+    EXPECT_EQ(ActionKind::RestoreBootFromBackup, plan.actions[0].kind);
+    EXPECT_EQ(4096u, plan.actions[0].length) << "A-005: the restore is sector-sized (was 512)";
+    ASSERT_EQ(4096u, plan.actions[0].after.size());
+    ASSERT_EQ(2u, plan.actions.size());
+    EXPECT_EQ(ActionKind::RepairBootChecksum, plan.actions[1].kind);
+
+    RamWriteDevice wd(img);
+    UndoLog undo_log;
+    ASSERT_EQ(OK, execute(&wd, plan, undo_log));
+    EXPECT_EQ(2u, wd.writes);
+    EXPECT_EQ(0, memcmp(wd.d_.data(), backup_boot.data(), 4096));
+    /* checksum fill consistent with the restored 4 KiB region */
+    const u32 expect = exfat::boot_region_checksum(wd.d_.data(), 4096);
+    EXPECT_EQ(expect, u32(wd.d_[11 * 4096]) | (u32(wd.d_[11 * 4096 + 1]) << 8) |
+                          (u32(wd.d_[11 * 4096 + 2]) << 16) | (u32(wd.d_[11 * 4096 + 3]) << 24));
+}
+
+TEST(RawFixer, AnalyzeAllBranches4KnAsan) {
+    /* A-005's overflow sites are the ENTRY of every analyze branch - drive
+     * them all on 4Kn devices (the pre-fix code died on the first read). */
+    /* clean exFAT (checksums valid) */
+    {
+        std::vector<u8> img(4096ull * 2048, 0);
+        build_exfat_boot_4k(img.data(), 2048);
+        fill_exfat_checksums(img, 4096);
+        RamDevice4k dev(img);
+        RepairPlan plan;
+        EXPECT_EQ(OK, analyze(&dev, plan));
+        EXPECT_TRUE(plan.detected);
+    }
+    /* checksum-broken exFAT (repair planned, no restore) */
+    {
+        std::vector<u8> img(4096ull * 2048, 0);
+        build_exfat_boot_4k(img.data(), 2048);
+        fill_exfat_checksums(img, 4096);
+        put32(img.data() + 0x64, 0x99999999); /* break the volume serial: sum mismatch */
+        RamDevice4k dev(img);
+        RepairPlan plan;
+        EXPECT_EQ(OK, analyze(&dev, plan));
+        EXPECT_TRUE(plan.detected);
+    }
+    /* NTFS clean + NTFS damaged without backup (deep-scan refusal path) */
+    {
+        std::vector<u8> img(4096ull * 2048, 0);
+        u8* b = img.data();
+        memcpy(b + 3, "NTFS    ", 8);
+        put16(b + 0x0B, 4096);
+        b[0x0D] = 1;
+        put64(b + 0x28, 2048);
+        put64(b + 0x30, 4);
+        b[0x40] = 0xF6;
+        b[510] = 0x55;
+        b[511] = 0xAA;
+        RamDevice4k dev(img);
+        RepairPlan plan;
+        EXPECT_EQ(OK, analyze(&dev, plan)); /* clean: refused, no writes */
+    }
+    {
+        std::vector<u8> img(4096ull * 2048, 0); /* zeros: unknown family */
+        RamDevice4k dev(img);
+        RepairPlan plan;
+        EXPECT_EQ(OK, analyze(&dev, plan));
+        EXPECT_FALSE(plan.detected);
+    }
+}
+} // namespace repair
+} // namespace cr

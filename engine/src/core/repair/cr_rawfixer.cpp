@@ -404,12 +404,16 @@ void exfat_check_root_advise(IStorageDevice* slice, RepairPlan& plan, const u8* 
  * whose new bytes are `restore` (the action list order guarantees the
  * restore applies first). Shared by the backup restore and the
  * FixByScanSector candidate paths. */
-void plan_exfat_checksum_after(IStorageDevice* slice, RepairPlan& plan, u32 bps,
-                               const u8* restore) {
+void plan_exfat_checksum_after(IStorageDevice* slice, RepairPlan& plan, u32 bps, const u8* restore,
+                               u32 restore_len) {
     std::vector<u8> region(size_t(12) * bps, 0);
     if (slice->read_at(0, region.data(), u32(region.size())) != OK)
         return; /* analyze already failed reads upstream in practice */
-    std::memcpy(region.data(), restore, 512);
+    /* A-005: mirror the FULL restored sector (the pre-fix 512-byte copy
+     * checksummed a half-stale region whenever bps > 512) */
+    if (restore_len > region.size())
+        restore_len = u32(region.size());
+    std::memcpy(region.data(), restore, restore_len);
     const u32 new_sum = exfat::boot_region_checksum(region.data(), bps);
     RepairAction c;
     c.kind = ActionKind::RepairBootChecksum;
@@ -554,25 +558,29 @@ u32 analyze(IStorageDevice* slice, RepairPlan& plan) {
     if (total < u64(24) * sector)
         return ERR_BAD_PARAMETER;
 
-    u8 primary[512];
-    if (slice->read_at(0, primary, sector) != OK)
+    /* A-005 (diff-to-fix): the four boot-sector buffers are sized by the
+     * DEVICE sector (the FIX-3 read lengths were already sector-sized -
+     * the 512-byte stacks overflowed by 3,584 bytes on every 4Kn read).
+     * Heap vectors: the geometry guard accepts up to 64 KiB sectors. */
+    std::vector<u8> primary(sector, 0);
+    if (slice->read_at(0, primary.data(), sector) != OK)
         return ERR_READ_FAILED;
 
     /* ---- family detection (corpus CheckPartition) ----
      * A destroyed primary OEM still identifies the family through the
      * backup boot sector (exFAT sector 12 / FAT sector 6 / NTFS volume
      * end) - those probes run inside the family branches below. */
-    const bool is_ntfs = std::memcmp(primary + 3, "NTFS    ", 8) == 0;
-    const bool is_exfat = std::memcmp(primary + 3, "EXFAT   ", 8) == 0;
+    const bool is_ntfs = std::memcmp(primary.data() + 3, "NTFS    ", 8) == 0;
+    const bool is_exfat = std::memcmp(primary.data() + 3, "EXFAT   ", 8) == 0;
     const bool fat_sig = primary[510] == 0x55 && primary[511] == 0xAA;
-    const bool is_fat = !is_ntfs && !is_exfat && fat_sig && fat_boot_sane(primary, total);
+    const bool is_fat = !is_ntfs && !is_exfat && fat_sig && fat_boot_sane(primary.data(), total);
     /* exFAT with a destroyed primary: the backup boot sector at 12 keeps
      * the signature (corpus FixFromDBR primary/backup pair). */
     bool exfat_via_backup = false;
-    if (!is_ntfs && !is_exfat && !is_fat && total >= 24 * 512) {
-        u8 bak[512];
-        if (slice->read_at(u64(12) * sector, bak, sector) == OK &&
-            exfat_boot_sane(bak, total, sector))
+    if (!is_ntfs && !is_exfat && !is_fat && total >= u64(24) * sector) {
+        std::vector<u8> bak(sector, 0);
+        if (slice->read_at(u64(12) * sector, bak.data(), sector) == OK &&
+            exfat_boot_sane(bak.data(), total, sector))
             exfat_via_backup = true;
     }
 
@@ -582,22 +590,24 @@ u32 analyze(IStorageDevice* slice, RepairPlan& plan) {
     if (is_ntfs) {
         plan.detected = true;
         plan.fs_family = "ntfs";
-        if (ntfs_boot_sane(primary, total)) {
-            ntfs_check_mft(slice, plan, primary, total); /* corpus: CheckDBR ok -> CheckMFT */
-            return OK; /* S2: clean boot; MFT check adds only what it proved */
+        if (ntfs_boot_sane(primary.data(), total)) {
+            ntfs_check_mft(slice, plan, primary.data(),
+                           total); /* corpus: CheckDBR ok -> CheckMFT */
+            return OK;             /* S2: clean boot; MFT check adds only what it proved */
         }
-        u8 backup[512];
-        if (slice->read_at(total - sector, backup, sector) == OK && ntfs_boot_sane(backup, total)) {
+        std::vector<u8> backup(sector, 0);
+        if (slice->read_at(total - sector, backup.data(), sector) == OK &&
+            ntfs_boot_sane(backup.data(), total)) {
             RepairAction a;
             a.kind = ActionKind::RestoreBootFromBackup;
             a.offset = 0;
             a.length = sector;
-            a.after.assign(backup, backup + sector);
+            a.after.assign(backup.begin(), backup.end());
             a.reason = "primary NTFS boot sector damaged; restore from volume-end backup";
             plan.actions.push_back(std::move(a));
             /* corpus order: UpdateDBR then VERIFY (IsValidRootDir/CheckMFT)
              * - the checks run against the to-be-restored boot image */
-            ntfs_check_mft(slice, plan, backup, total);
+            ntfs_check_mft(slice, plan, backup.data(), total);
             return OK;
         }
         /* FixByScanSector (deep): the only NTFS-shaped candidate in the
@@ -634,23 +644,28 @@ u32 analyze(IStorageDevice* slice, RepairPlan& plan) {
         if (exfat_via_backup) {
             /* the primary is too damaged to trust any field in it:
              * restore the boot sector from the backup copy, then plan the
-             * checksum recompute (the restored sector changes the sum). */
-            u8 backup[512];
-            if (slice->read_at(u64(12) * sector, backup, sector) != OK)
+             * checksum recompute (the restored sector changes the sum).
+             * A-005: the restore plan is SECTOR-sized (a 512-of-4096
+             * restore leaves the rest of the 4Kn boot sector garbage) and
+             * the checksum-after mirrors the full restored sector. */
+            std::vector<u8> backup(sector, 0);
+            if (slice->read_at(u64(12) * sector, backup.data(), sector) != OK)
                 return ERR_READ_FAILED;
             RepairAction a;
             a.kind = ActionKind::RestoreBootFromBackup;
             a.offset = 0;
-            a.length = 512;
-            a.after.assign(backup, backup + 512);
+            a.length = sector;
+            a.after.assign(backup.begin(), backup.end());
             a.reason = "primary exFAT boot sector destroyed; restore from backup sector 12";
             plan.actions.push_back(std::move(a));
-            /* recompute the checksum over the restored primary */
-            plan_exfat_checksum_after(slice, plan, 512, backup);
-            exfat_check_root_advise(slice, plan, backup, total); /* S-008 CheckRoot */
+            /* recompute the checksum over the restored primary (the boot
+             * region's sector size is the device sector here - the primary
+             * is destroyed, so the device geometry is the only source) */
+            plan_exfat_checksum_after(slice, plan, sector, backup.data(), sector);
+            exfat_check_root_advise(slice, plan, backup.data(), total); /* S-008 CheckRoot */
             return OK;
         }
-        const auto* m = reinterpret_cast<const exfat::BootSectorMain*>(primary);
+        const auto* m = reinterpret_cast<const exfat::BootSectorMain*>(primary.data());
         const u32 bps_shift = m->bytes_per_sector_shift >= 9 && m->bytes_per_sector_shift <= 12
                                   ? m->bytes_per_sector_shift
                                   : 9;
@@ -662,7 +677,7 @@ u32 analyze(IStorageDevice* slice, RepairPlan& plan) {
         const u32 cluster_count = m->cluster_count;  /* +0x5C */
         const u64 vol_len = m->volume_length;        /* sectors, +0x48 */
 
-        const bool boot_shape_ok = exfat_boot_sane(primary, total, bps);
+        const bool boot_shape_ok = exfat_boot_sane(primary.data(), total, bps);
 
         /* Geometry invariants (corpus TryFixFromSectorsPerCluster): the
          * heap must start at/after fat_offset + fat_length, and the
@@ -691,8 +706,8 @@ u32 analyze(IStorageDevice* slice, RepairPlan& plan) {
         }
 
         if (checksum_ok && geometry_ok) {
-            exfat_check_root_advise(slice, plan, primary, total); /* S-008 CheckRoot */
-            return OK;                                            /* S2: clean */
+            exfat_check_root_advise(slice, plan, primary.data(), total); /* S-008 CheckRoot */
+            return OK;                                                   /* S2: clean */
         }
 
         /* Primary boot shape damaged beyond the OEM? Restore the boot
@@ -727,7 +742,8 @@ u32 analyze(IStorageDevice* slice, RepairPlan& plan) {
                     a.reason = "primary exFAT boot damaged, no valid backup; rebuild from the "
                                "only boot-shaped sector in the 64 MiB window (FixByScanSector)";
                     plan.actions.push_back(std::move(a));
-                    plan_exfat_checksum_after(slice, plan, bps, cands[0].bytes.data());
+                    plan_exfat_checksum_after(slice, plan, bps, cands[0].bytes.data(),
+                                              u32(cands[0].bytes.size()));
                     exfat_check_root_advise(slice, plan, cands[0].bytes.data(), total);
                     return OK;
                 }
@@ -751,8 +767,13 @@ u32 analyze(IStorageDevice* slice, RepairPlan& plan) {
              * restored primary into the region before checksumming */
             std::vector<u8> after_region(region.begin(), region.end());
             for (const auto& act : plan.actions)
-                if (act.kind == ActionKind::RestoreBootFromBackup && act.offset == 0)
-                    std::memcpy(after_region.data(), act.after.data(), 512);
+                if (act.kind == ActionKind::RestoreBootFromBackup && act.offset == 0) {
+                    /* A-005: mirror the restore's ACTUAL length (a 4Kn
+                     * restore is 4096 bytes; the fixed 512 left the rest
+                     * of the region stale for the checksum) */
+                    const size_t n = std::min(act.after.size(), after_region.size());
+                    std::memcpy(after_region.data(), act.after.data(), n);
+                }
             const u32 new_sum = exfat::boot_region_checksum(after_region.data(), bps);
             std::vector<u8> fixed(bps, 0);
             for (u32 i = 0; i < bps; i += 4) {
@@ -799,7 +820,7 @@ u32 analyze(IStorageDevice* slice, RepairPlan& plan) {
                 return OK;
             }
         }
-        exfat_check_root_advise(slice, plan, primary, total); /* S-008 CheckRoot */
+        exfat_check_root_advise(slice, plan, primary.data(), total); /* S-008 CheckRoot */
         return OK;
     }
 
@@ -809,7 +830,7 @@ u32 analyze(IStorageDevice* slice, RepairPlan& plan) {
         plan.fs_family = "fat";
         /* corpus FATFixer order: CheckDBR ok -> CheckBackupDBR ->
          * CheckFatTable -> CheckRootDir/CheckCluster */
-        fat_check_tables_and_root(slice, plan, primary, sector, total);
+        fat_check_tables_and_root(slice, plan, primary.data(), sector, total);
         return OK; /* S2: clean boot; the table check adds only what it proved */
     }
 
@@ -818,21 +839,21 @@ u32 analyze(IStorageDevice* slice, RepairPlan& plan) {
      * but a sane backup there is evidence enough - the corpus FATFixer
      * checks CheckBackupDBR the same way). */
     {
-        u8 backup[512];
-        if (total >= 7 * sector && slice->read_at(6 * sector, backup, sector) == OK) {
-            if (fat_boot_sane(backup, total)) {
+        std::vector<u8> backup(sector, 0); /* A-005: sector-sized (was u8[512]) */
+        if (total >= 7 * sector && slice->read_at(6 * sector, backup.data(), sector) == OK) {
+            if (fat_boot_sane(backup.data(), total)) {
                 plan.detected = true;
                 plan.fs_family = "fat";
                 RepairAction a;
                 a.kind = ActionKind::RestoreBootFromBackup;
                 a.offset = 0;
                 a.length = sector;
-                a.after.assign(backup, backup + sector);
+                a.after.assign(backup.begin(), backup.end());
                 a.reason = "primary FAT boot sector damaged; restore from backup sector 6";
                 plan.actions.push_back(std::move(a));
                 /* corpus order: UpdateDBR then verify - the table/root
                  * checks run against the to-be-restored boot image */
-                fat_check_tables_and_root(slice, plan, backup, sector, total);
+                fat_check_tables_and_root(slice, plan, backup.data(), sector, total);
                 return OK;
             }
         }
@@ -867,7 +888,8 @@ u32 analyze(IStorageDevice* slice, RepairPlan& plan) {
             if (cand_exfat) {
                 const u32 cand_bps =
                     1u << (cand.bytes[0x6C] >= 9 && cand.bytes[0x6C] <= 12 ? cand.bytes[0x6C] : 9);
-                plan_exfat_checksum_after(slice, plan, cand_bps, cand.bytes.data());
+                plan_exfat_checksum_after(slice, plan, cand_bps, cand.bytes.data(),
+                                          u32(cand.bytes.size()));
                 exfat_check_root_advise(slice, plan, cand.bytes.data(), total);
             } else if (plan.fs_family == "ntfs") {
                 ntfs_check_mft(slice, plan, cand.bytes.data(), total);

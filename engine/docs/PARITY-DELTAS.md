@@ -1844,3 +1844,24 @@ FUN_18001c630 :24995+ (CP_UTF8, flags 0 — replacement).
 `Text.LosslessRoundTripRecoversRawBytes`, `Btrfs.Latin1NameRoundTripsRawBytes`,
 the updated `Ext4Engine`/`Btrfs` `NonAsciiNamesDecodedNotByteLifted` (lossless
 assertions).
+
+### D-61 — RawFixer 4Kn sector-parametric buffers + sector-correct restore plans (A-005)
+
+**Class:** parity/correctness fix (no deliberate divergence) · **Finding:** diff-to-fix A-005 (ACUTE, FIXED) · **Date:** 2026-10-26
+
+The og's repair chain is sector-parametric end to end (corpus
+`rawfixer-v2--method-inventory.md`; the FIX-3 wave already made the READ
+LENGTHS device-sector-sized). The pre-A-005 core kept four 512-byte stack
+buffers receiving `sector`-byte reads — a 3,584-byte stack overflow per
+read on 4Kn hardware (ASan-proven: the pre-fix tree dies with
+`stack-buffer-overflow` in memcpy on the first 4Kn analyze). Fix: the
+four analyze() boot-sector buffers are heap vectors sized by the device
+sector; the exFAT via-backup restore plan is sector-sized (the old
+512-of-4096 restore left the rest of the boot sector garbage);
+`plan_exfat_checksum_after` mirrors the FULL restored sector (the old
+fixed-512 mirror checksummed a half-stale region), with the restore
+length threaded through so the deep-scan 512-byte captures (M-046's
+scope) stay bounded. The FAT backup-branch buffer is sector-sized the
+same way. Pinned by `RawFixer.NtfsPrimaryDamaged4Kn`,
+`RawFixer.ExfatViaBackup4Kn`, `RawFixer.AnalyzeAllBranches4KnAsan`
+(the fail-before is the ASan abort itself).

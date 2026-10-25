@@ -7574,3 +7574,41 @@ Stage Summary:
   remaining S-003/S-021 verification corrections (JIB magic check removal,
   VH journaled-bit gate, strict validator, attributes branch, fallback
   salvage, in_fork overflow).
+
+---
+Task ID: DF4-T4 (A-005)
+Task: ACUTE A-005 - rawfixer analyze() 4Kn stack-buffer overflow (512-byte
+buffers receiving 4096-byte reads) + the co-located plan correctness.
+
+Work Log:
+- Verified first-hand: cr_rawfixer.cpp :557/:573/:589/:638 all read
+  `sector` (device geometry, 4096 on 4Kn) into u8[512] stacks; the RW
+  transport reports the real sector size. The finding's falsifiable
+  claim is exact - reproduced under ASan on the reverted build.
+- Fix: the four buffers -> heap vectors sized by the device sector;
+  every pointer consumer re-keyed (.data()); the exFAT via-backup plan
+  sector-correct (a.length/a.after/checksum-after with `sector`);
+  plan_exfat_checksum_after gains restore_len and mirrors the FULL
+  restored sector (bounded - M-046's 512-byte deep-scan captures stay
+  safe); the !checksum_ok post-restore mirror copies the restore's
+  actual length; the FAT backup branch buffer sector-sized; the
+  24*512 gate corrected to 24*sector.
+- Tests: RawFixer.NtfsPrimaryDamaged4Kn (volume-end restore, 4096-byte
+  plan), RawFixer.ExfatViaBackup4Kn (backup at 12*4096, 4KiB checksum
+  region, 2x4096-byte writes, undo-consistent), RawFixer.AnalyzeAll
+  Branches4KnAsan (clean/checksum-broken exFAT + clean NTFS + unknown
+  family on 4Kn). FAIL-BEFORE = the ASan stack-buffer-overflow itself
+  (all three die on the reverted build). Fixture lesson: the exFAT spec
+  floor is 2048 SECTORS (8 MiB at 4KiB) - the first draft's 512-sector
+  image failed exfat_boot_sane's volume_length >= 2048 gate.
+- M-046 boundary respected (and noted in both Resolutions): LDM 512-LBAs
+  + the :702-709 bps-branch + the deep-scan 512-byte captures stay in
+  M-046's scope; A-005 took the overflows + the via-backup plan +
+  the checksum-mirror correctness it requires.
+- Audit trail: finding Resolution + move to findings/FIXED/; D-61;
+  SUMMARY delta + remediation row; worklog DF4-T4.
+
+Stage Summary:
+- The ACUTE tier is empty again: the repair path is 4Kn-safe end to end
+  (ASan-proven), and the exFAT via-backup plan writes full sectors.
+  Suite 477/477 Linux ASan.
