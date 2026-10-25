@@ -8938,3 +8938,26 @@ Stage Summary:
 - M-047 FIXED (520/520 + 21/21 + C OK). Counts: 113 active / 73 FIXED.
 - Next MAJOR targets: M-051 (raw carve provenance), M-035 (engine-side
   filefilter validation), M-018 (FilterFolder), M-013/M-014 (exFAT).
+
+---
+Task ID: DFX15-T1 (session 15 bootstrap — MAJOR-tier fix lane)
+Agent: core-parity-fix-agent (main, session 10 of this conversation)
+Task: Claim the MAJOR tier and begin fixing. Lane coordination: DFX8 owns
+S-030 (in flight), DFX10's published queue has S-029, DFX12/DFX13/DFX14
+run MINOR-first/reconciliation lanes. This lane takes the open MAJOR
+findings in impact order: M-002 -> M-037 -> M-031 -> M-046 -> M-045 ->
+M-013 -> M-052 -> M-043 -> M-018 -> M-005(+carve gating) -> M-014 ->
+M-051 -> M-050. Pull --rebase before every push.
+
+Work Log:
+- Pulled remote (23 new commits since session bootstrap): M-047 landed via
+  DFX9-T5 (6d0f1fd - convergent with this lane's own local fix, which was
+  then dropped in favor of the landed one); S-009 landed (c55bd45 + DFX14's
+  repair of the 5aaf044 clobber); N-051..N-054 + N-013/N-015/N-018/N-042
+  + M-053 reconciliations landed.
+- Current open inventory (direct): SEVERE 2 (S-029, S-030 - both owned by
+  other lanes) · MAJOR 38 · MINOR 49 · INFO 22 · FIXED 81.
+
+Stage Summary:
+- DFX15 lane claimed: the MAJOR tier. Baseline rebuild next; fixes follow
+  one-finding-one-commit-one-push.
