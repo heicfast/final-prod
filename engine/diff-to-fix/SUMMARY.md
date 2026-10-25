@@ -153,6 +153,25 @@ N-063/N-065/N-056/N-029 and the remaining MINOR tier.
 
 # SUMMARY.md — executive summary (session 10's close-out on top; earlier sessions below)
 
+---
+**N-074 FIXED (doc-drift group #2, all five):** CAPABILITY-MATRIX LZNT1
+row split (DONE with code+test cites; XPRESS/LZX the SHARED limitation
+— the og is LZNT1-only too); GAP-S6-11 CLOSED (the disk-map surface
+landed; S-009's free overlay noted; host-side rendering the design);
+D-43 re-worded to the 256 KiB block reality (D-51/D-72 cross-refs); D-19
+rewritten per the DECODED og collision policy (corpus
+:357116-357131 re-verified first-hand — `%s_%d`/cap-10000; our
+`name (N)`/cap-64 scheme now the REGISTERED divergence, the
+atomic/hash/resume layers still registered supersets); cr_health.h's
+command list corrected (0xD1 ships since S-024 — kept; 0xD8 never
+issued — dropped). New pin: Health.SmartCommandListMatchesImplementation
+(fail-before RED executed on the stash-isolated pre-fix tree). Suite
+662/662. Finding → FIXED/.
+
+**Counts after this landing (direct file inventory at the N-074 push):**
+SEVERE 0 · MAJOR 24 · MINOR 33 · INFO 22 (0 actionable) · tracked-open
+16 · FIXED 114 files (113 findings + RESOLVED-INDEX).
+
 ## Session-10 delta — the SEVERE tier close-out (2026-10-26)
 
 This lane (DFX10) executed the published order S-009 -> S-029 -> S-030

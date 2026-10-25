@@ -312,7 +312,7 @@ not-BAAD both sides; FAT quick-scan threading — already registered D-30x).
 | visualization | P42/D-model | **S-009 addendum** (stale premise corrected — surface landed; residual: kCellAllocFree dead, VolumeBitmap discarded) |
 | query | P42 (sort Type) | M-029 addendum (path-group CLOSED session-6) + **session-11: Type sort CLOSED (SortKey::Type, ABI code 7, iconIndex order) + the modified-unit doc lie fixed (FILETIME, pinned) + paging documented as the deliberate difference (no og page-size constant); REMAINING: bucket-ID translation + general-raw naming (decode-blocked, next steps recorded in the finding)** |
 | abi (cr_ui) | P42 | **N-033 addendum** (carve-format registry landed — ABI sub-item CLOSED; CLI listing sub-item remains) |
-| quality (cross-cutting) | P46/P68 | **N-074** (doc-drift group #2: CAPABILITY-MATRIX LZNT1, CGL:135 diskmap, D-43 block size, D-19 collision, cr_health.h SMART list) |
+| quality (cross-cutting) | P46/P68 | ~~N-074~~ **FIXED (s18 DFX18: all five corrected — LZNT1 row split DONE/SHARED, GAP-S6-11 CLOSED, D-43 → 256 KiB, D-19 rewritten per the decoded og collision policy (:357116-357131), health header 0xD8 dropped; pin Health.SmartCommandListMatchesImplementation fail-before-proven)** |
 
 New tracked-open: **OQ-S6-1** (PartitionRecoveryD generator-set semantics), **OQ-S6-2**
 (Btrfs RC4 target), **OQ-S6-3** (CRAW +0xF4/anchor-B/checksum consumption) — 14 tracked-open

@@ -52,3 +52,10 @@ N-020 (documentation-drift group #1 — this is group #2, same family); N-040 (A
 ## Open questions
 
 None.
+
+## Resolution
+
+**Status:** FIXED
+**Fixed in commit:** (this session's N-074 commit — DFX18 session 18)
+**Verified by:** `Health.SmartCommandListMatchesImplementation` (the N-040-family doc-lint applied to the health header — fail-before RED executed on the stash-isolated pre-fix tree: the header still claimed 0xD8; pass-after green). Items 1-4 are prose-doc corrections with the acceptance greps returning the corrected texts (verified this session). Suite 662/662 linux-release at the landing tree.
+**Resolution notes:** All five re-verified on the CURRENT tree before fixing (LZNT1 implementation re-confirmed: lznt1_payload_decode at cr_decomp.cpp:147 + expand_compressed_data wired at cr_mftwalk.cpp:944 + NtfsVolume.Lznt1MsXcaDocumentedVector; GAP-S6-11's surface confirmed present incl. S-009's free overlay; D-43's call-site re-read at cr_scan.cpp — 256 KiB since a4053c4; D-19's corpus evidence re-read first-hand at DRWUI_decompiled.c:357116-357131 — FID_conflict_sprintf_s with `%s_%d`/`%s_%d%s` and the 10,000 cap; cr_health.cpp's command set re-grepped — 0xD1 ships at :192-200, 0xD8 has zero hits). Fixes: (1) CAPABILITY-MATRIX row SPLIT — LZNT1 DONE (cited code + tests), XPRESS/LZX MISSING-as-SHARED-limitation (the og is LZNT1-only too); (2) GAP-S6-11 CLOSED with the S-009 free-overlay note and the host-side-rendering residual explanation; (3) D-43 re-worded to the 256 KiB reality with the D-51/D-72 cross-refs; (4) D-19 rewritten per the decoded og policy (naming scheme + cap now documented as the REGISTERED divergence: `name (N)`/cap-64 vs the og's `%s_%d`/cap-10000, our atomic/hash/resume layers still registered supersets); (5) cr_health.h's command list corrected — 0xD1 kept (it ships since S-024), 0xD8 dropped (never issued), with the new pin forcing comment/code lockstep forever.

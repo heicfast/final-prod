@@ -11154,3 +11154,38 @@ Stage Summary:
   repairs (one converged) + 1 convergence verification (N-067). Next:
   N-068 (ZIP EOCD anchor + LFH sanity gates), then N-063/N-065/N-056/
   N-029.
+
+---
+
+---
+Task ID: DFX18-T4 (session 18, fourth fix — N-074)
+Agent: main engineer (diff-to-fix fix session 18 — DFX18)
+Task: N-074 doc-drift group #2 — five stale claims, all doc-truth
+corrections + one pin.
+
+Work Log:
+- All five re-verified on the current tree first (LZNT1 code+tests,
+  GAP-S6-11 surface presence, D-43 call site, D-19 corpus, health
+  command grep). D-19's corpus evidence re-read first-hand:
+  DRWUI_decompiled.c:357116-357131 — FID_conflict_sprintf_s %s_%d /
+  %s_%d%s with the 10,000 cap, exactly as the finding's N-065 decode.
+- Fixes: (1) CAPABILITY-MATRIX row SPLIT (LZNT1 DONE citing
+  lznt1_payload_decode + expand_compressed_data +
+  NtfsVolume.Lznt1MsXcaDocumentedVector; XPRESS/LZX = MISSING as the
+  SHARED limitation, og is LZNT1-only); (2) GAP-S6-11 CLOSED with the
+  S-009 residual note; (3) D-43 → 256 KiB + D-51/D-72 cross-refs;
+  (4) D-19 og-clause rewritten (policy decoded; our scheme the
+  REGISTERED divergence name (N)/cap-64 vs %s_%d/cap-10000; atomic/
+  hash/resume supersets kept); (5) cr_health.h command list corrected
+  (0xD1 kept — ships since S-024 at :192-200; 0xD8 dropped — zero
+  hits in cr_health.cpp).
+- Pin: Health.SmartCommandListMatchesImplementation (the N-040-family
+  doc-lint applied to the health header; fail-before RED EXECUTED on
+  the stash-isolated pre-fix tree). Suite 662/662 linux-release.
+- Audit trail: Resolution + FIXED/ move, index row (99 header), matrix
+  quality cell, SUMMARY counts.
+
+Stage Summary:
+- N-074 FIXED (tally: 4 — N-045, N-046, N-040, N-074). MINOR 33
+  remain. Next: N-043 (progress watchdog) or N-060/N-061 (session
+  save-cancel / runlog).
