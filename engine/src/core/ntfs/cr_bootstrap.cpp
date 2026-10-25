@@ -13,8 +13,7 @@
 namespace cr {
 namespace ntfs {
 
-namespace {
-} // namespace
+namespace {} // namespace
 
 u32 validate_boot_sector(const BootSector& bs, const Geometry& geom, VolumeParams& out) {
     if (!oem_is_ntfs(bs))

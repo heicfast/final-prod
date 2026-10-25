@@ -1,4 +1,4 @@
-# A-005 fail-before / pass-after execution record
+# A-006 fail-before / pass-after execution record
 
 Date: 2026-10-26 (closing session, df5 lineage). Tree: `2aa4530` + this change.
 Corpus anchor: TN1150 "Extents Overflow File Key" (verbatim quote in the finding)

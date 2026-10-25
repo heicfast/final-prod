@@ -61,3 +61,22 @@ corrections for these same modules).
 ## Open questions
 
 None.
+
+## Resolution
+
+**Status:** ACKNOWLEDGED
+**Verified by:** grep re-run this session: Ntfs2FAT / VolumeMerge / FatFormat / IMAPI2 - zero hits in src/; the corpus cites (EditLdm2 family unreachable outside LdmManager.mo, CTbCreator Burn) re-checked via the finding's evidence.
+**Resolution notes:** Scope boundary, confirmed: EPM tool operations (LDM write-side edit, NTFS-to-FAT conversion, partition merge/resize, WinPE FAT formatting, disc burning) are not recovery surfaces and stay excluded. The core's LDM support remains read-side only (first-class mandate = read-side recovery, which stands).
+
+**Status:** ACKNOWLEDGED (deliberate scope boundary — registered)
+**Verified by:** this session: grep over `src/` + `include/` for
+EditLdm2 / Ntfs2FAT / VolumeMerge / FatFormat / IMAPI2 — zero hits (the
+core's LDM support is read-side only, `cr_ldm.cpp`). Corpus consumer
+analysis stands (no recovery module references these surfaces; EPM hosts
+only). S-029 (the apply path where the write-side DOES matter for
+recovery) is a separate SEVERE finding and is not covered by this
+exclusion.
+**Resolution notes:** no code change. Registered as PARITY-DELTAS
+**D-59k**. Future sessions must not re-litigate these surfaces as gaps;
+if the product ever wants spanned-volume repair, the EditLdm2 decode in
+this finding is the starting evidence.

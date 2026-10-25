@@ -221,3 +221,50 @@ loader/matcher/CommonRawAnalyser decode, complementing the lead leg's
   `evidence/decompiled-quotes/s5-oq-s4-2-raw-naming-hook.md`. No carve
   emission-path change required for parity; the fix narrows to the
   category-bucket naming surface.
+
+## Session-5 audit (audited commit `7cf6754`) — the never-cited family-artifact wave
+
+All 6 RAWSearchDLL family artifacts + per-engine-function-map were read for the first time
+(any session). Verdict changes and additions:
+
+- **B4 deleted classification — S-031 (SEVERE, NEW):** the og flags every carved record
+  deleted (FLAGS=0x0020 constant, 12,147/12,147 census); the core's carve path never sets
+  deleted state, so `deleted_only` queries and `deleted_count` stats exclude the entire
+  carve set.
+- **B1/B2 archive inventories — S-032 (SEVERE, NEW):** the og's ZIP analyser returns the
+  complete inner-entry inventory (FUN_180045690 + FUN_180007060; LFH/CD/EOCD anchors) and
+  the RAR walker stitches multi-part sets (272-byte name buffer); the core emits one flat
+  node per archive.
+- **A28 validator details — N-051/N-052/N-053/N-054 (MINOR, NEW):** MKV DocType
+  discrimination + element-bounds gate; HEIC brand relabel to L"HEIF"; IIU bound to RW2 in
+  the core vs the og's TIFF/EP chain; RAF 4-byte vs 16-byte magic strictness (miss) and
+  JPEG 4th-byte superset (register).
+- **B10 naming — N-063 (MINOR, NEW):** the core's `File%06u` default namer is an invention
+  (its "corpus policy" comment is false); the og names per-analyser (content-embedded
+  names; MP4/MOV "Lost Name File (...)_EaseUS" template). OQ-S4-2 RESOLVED (the +0x48 hook
+  is a per-scan "filter_generalraw" config fetch).
+- **Runtime extensibility — M-048 (MAJOR, NEW):** EUUserData (111-extension user signature
+  DB, `"offset,hex"` + MIME) has no core counterpart.
+- **D12 provenance — M-051 (MAJOR, NEW):** the og's RAW records carry a timestamp string,
+  analyser checksum (0xFFFFFFFF=invalid marker), note, tail anchor, boolean; the core sets
+  none.
+- S-007 re-confirmed with the family rosters (no new formats beyond its addenda; the
+  census's counts win where the family files conflict — corpus errata row 38).
+
+## Session-4 update (2026-10-26, diff-fix session 4 — the S-007 lane)
+
+**S-007 FIXED (primary set):** the og's hardcoded common formats landed
+with corpus-exact keys — GIF8, BM, the 18-key headerless MPEG-audio
+family (FF E2..E7/F2..F7/FA..FF), AAC ADTS (FF F1/FF F9), {\rt, OLE
+D0CF11E0 (DIFAT + directory-chain walk, CFB (N+1)*ssz rule), MPEG PS/ES
+start codes, DWG AC10 (version gate + bounded extent). 27 registry
+entries + 9 validators; the audio family carries `suppress_overlap`
+(one stream = one node — the og's walker semantics at the core's
+byte-granular grid); the headerless audio gate is 10 consecutive frames
+(byte-granular FP calibration, registered in D-57). 3 new tests
+(S007CommonFormatsCarve / S007ValidatorsRejectNoise /
+S007TruncatedSalvageSemantics), fail-before 3/3; suite 436/436; hostile
+ASan smoke clean. **Remainder (precisely scoped in the finding):** the
+~25 niche og-only formats (CHM/AU/MIDI/APE/EPS-AI/DXF/DMG/... — the
+session-2/3-corrected table in the finding file is the implementation
+list) + the bench seed-matrix extension (Windows runner).

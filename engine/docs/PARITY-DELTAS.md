@@ -1159,6 +1159,42 @@ Deliberate divergences introduced or pinned while closing the audit roadmap.
 - **VERDICT: ACCEPTED** (pinned by `Ext4Engine.MetaBg*` — 5 tests, 4
   fail-before proven on the engine-reverted build).
 
+
+### D-59 — ext4 backup-SB rescue: canonical-position grid + exact s_block_group_nr rebasing (S-027)
+
+- **WHAT OG DOES:** its engine-side walker (EXT4SearchDLL FUN_180001b00,
+  CEXT4CompleteSearchController vtable slot 53 — the only reference, no
+  textual caller) probes caller-supplied sector positions, validates with
+  the primary's superblock validator (FUN_180004710), and rebases each
+  sub-searcher at `found − 0x400` — a boot-area model that misplaces every
+  structure by 1024 bytes for backup copies (group g's copy sits at the
+  group's first block with no 1024 boot skip: same defect family as the
+  og's 1KiB front-GDT bug, I-014 E9). It also aborts the whole walk on the
+  first failed read (its CatchBuffer proxy pre-salvages).
+- **WHAT WE DO:** probe a 1 MiB grid (m >= 8; one buffered 8 KiB read per
+  window, ~0.8% of the slice, bounded at 4 TiB) covering every canonical
+  geometry's group-boundary backup positions (m*1MiB + {0, 1024}); adopt
+  the first valid backup; compute the EXACT volume base from the backup's
+  own `s_block_group_nr` (SB+0x5A — verified on real mke2fs images:
+  primary 0, group-1 copy 1, group-3 copy 3); GDT ladder front-GDT-first
+  with the backup GDT (the block after the found copy — e2fsprogs
+  "Backup superblock at B, Group descriptors at B+1", full table on
+  classic volumes, verified) as fallback. Failed probe reads skip onward
+  (the transport retry layer owns bad sectors). Emitted extents are
+  base-adjusted so downstream recovery reads land correctly.
+- **WHY:** correctness — the og's rebase reads every structure 1024
+  bytes off on the rescue path; the grid replaces the og's unpinned
+  caller-side sector range with the artifact-documented canonical
+  positions (ext4-engine--deep-dive.md SS2: "backup superblock blocks:
+  8193, 32768...").
+- **RISK:** volume starts not aligned to the 1 MiB grid are covered only
+  when the engine is dispatched on a volume-start slice (partition /
+  lost-candidate materialization — the og's own sub-searcher dispatch
+  shape); cylinder-aligned legacy starts on whole-disk scans fall to the
+  carve layer (documented limitation).
+- **VERDICT: ACCEPTED** (pinned by `Ext4Engine.Backup*` — 4 tests, 3
+  fail-before proven on the engine-reverted build).
+
 ## J. UNDOCUMENTED DIVERGENCE CANDIDATES
 
 Things our code/docs do differently with no (or stale/contradictory) rationale
@@ -1611,3 +1647,200 @@ gate stated and pinned. N-010d (exFAT tz) was already fixed by S-011
 **Pin tests:** `ScanEvents.SingleBoundaryAtTeardown` (count == 3),
 `Pool.CancelPoolWatcherDrainsQueueWithinOneTick`, `Pool.CancelPoolWatcherNullTokenIsInert`,
 `NvmeHealth.PercentageUsedIsU8Width`, `WriterDirs.ProgressExcludesErrorItems`.
+### D-52 — HFS+ journal deleted-record harvest (S-021) + the record-span convention fix (A-005)
+
+**Session:** diff-to-fix remediation (S-021 + A-005). **Corpus:**
+HFSPlusSearchDLL CHFSPlusJournal (`hfsplusjournal.cpp` trace strings)
+:13637-14252 + FUN_18000c8f0 :10017-10127 + FUN_180010720 :13049-13108.
+
+- **A-005 (correctness, og-exact):** the HFS+ B-tree record-span convention
+  corrected to the on-disk format (TN1150, and the og's executable journal-image
+  validator): records pack UP from offset 14, [end-2] = record 0's offset = 14,
+  deeper slots ascend, deepest = free-space start. Record i =
+  [slot(i+1), slot(i+2)). The pre-fix core (and its fixtures) were inverted —
+  on real volumes only record 0 per node was emitted.
+- **Journal harvest (og-exact mechanics):** JIB gates (flags bit 0; base/size;
+  the VH journaled flag 0x2000), jhdr gates ('JNLx' LE magic, endian, size
+  cross-check), the ring walk (u16 header test `(blhdr_size>>4)-1`; block lists
+  + serial images with wrap; termination at the walk origin), the og's
+  node-image validator, leaf-only harvest, fork classification by VOLUME
+  address ranges, the catalog differential (keep absent-key or different-fileID
+  records; skip cnid == parentCNID), extents side map for empty-fork records.
+- **Deliberate divergences:**
+  - **Corruption step-cap** on the ring walk (journal_size/512 + 16 probes): the
+    og relies on the ring's own termination; a hostile/edited header could loop
+    the og forever. Bounded here — the harvest degrades to a partial ring, never
+    hangs.
+  - **Differential via the collected live keys** instead of per-record live-tree
+    searches: identical result set, one pass instead of O(records × log tree).
+  - **Freed-node sweep dedup against harvested cnids** (the sweep is a core
+    superset — I-014; both surfaces finding the same record emit once).
+  - `HfsScanFlags::journal_harvest = false` off switch; harvested records with
+    content carry `Confidence::Unknown` (the og emits ungraded).
+  - Attributes/allocation/startup journal images are walked (validated,
+    counted) but not harvested — the og uses their branches for other
+    consumers; the deleted-record surface is catalog+extents only.
+
+**Pin tests:** `HfsPlus.JournalHarvestEmitsDeletedRecords`,
+`HfsPlus.JournalWrapHandled`, `HfsPlus.NonLeafImagesSkipped`,
+`HfsPlus.JournalHarvestDisabledByFlag`, `HfsPlus.LeafNodeLayoutMatchesOnDiskFormat`
+(the A-005 convention guard).
+
+### D-59 — Audit-acknowledged supersets and registers, session-7 INFO tier (I-006..I-020 batch)
+
+Rows registered here had no prior PARITY-DELTAS entry; every rationale was
+re-verified against corpus `03ad46c` and the running core this session
+before acknowledgment. Future work must PRESERVE every row in this entry
+unless the row itself is first re-audited against the corpus.
+
+- **D-59a — ext4 nanosecond timestamps (I-006, ACCEPTED).** Og
+  EXT4SearchDLL is second-only (`_gmtime32_s` + `wMilliseconds = 0` at
+  :5494-5515; 3rd/4th FILETIME slots zeroed at :6255-6258). Core preserves
+  nsec at 100ns (`decode_extra` + `unix_to_filetime_ns`). Bench comparisons
+  diverge mechanically on sub-second units — expected, not a regression.
+- **D-59b — 4-of-4 timestamps on ext4/HFS+/Btrfs (I-007, ACCEPTED).** Og
+  reads 2/4 (ext4), 3/4 (HFS+ — no access_date), 3/4 (Btrfs — otime never
+  converted; `+0x94` zeroed only). Core reads all four on every engine,
+  including both HFS+ record sources (catalog walk + S-021 journal
+  emission).
+- **D-59c — carve byte-granular probing (I-009, ACCEPTED + pinned).** Og
+  steps whole sectors (RAWSearchDLL :9496); core byte-steps
+  (scan_one_window). A header starting mid-sector is invisible to the og.
+  Pin: `CarveEngine.CarvesMidSectorStart` (PNG at sector+137 must carve).
+  The M-025 read-model rework must not adopt sector stepping.
+- **D-59d — LDM RAID-5 dormant rotations (I-008, ACCEPTED).** Og's
+  selector (+0x2a8) is constructor-hard-zeroed; only left-symmetric is
+  constructible. Core implements exactly the enabled mode (algebraic
+  identity verified). Do NOT implement the dead rotations 1/2/3.
+- **D-59e — scope/superset registers (I-010, ACCEPTED).** ZFS label-field
+  superset (name/ashift/asize/offset/guid vs og vdev_tree/id only); ext4
+  BIGALLOC refusal (safety choice, og has no gate); ReFS one-record shape
+  confirmed post-S-020 (no ADS children — matches og's structural no-ADS).
+- **D-59f — ReFS host gate (I-013, ACCEPTED).** Og refuses hosts < Win8
+  (GetVersion, FUN_1800010d0); core is host-agnostic (the only
+  "GetVersion" in the tree is the RDA-driver IOCTL). Non-Windows bench
+  lanes are not og-divergent by this row.
+- **D-59g — ext4/HFS+ superset registers (I-014, ACCEPTED).** ext4
+  deleted-inode dtime sweep default-on (no og counterpart); fragmented
+  journal walked via the extent map (the og's physical+1 walk is an og
+  defect — do not replicate); HFS+ bitmap-grading rows consumed by the
+  S-021 landing (D-56).
+- **D-59h — preview architecture (I-015, ACCEPTED).** Og = UI-layer
+  socket/thumbnail protocol (602-byte header, 1 MiB BMP, 10 s wait, ports
+  20171/20172, 100 MB cap, 15 s free-tier video); core = in-process
+  bounded reader (4 MiB read / 256 MiB decode). Different layers; parity
+  tests must not byte-compare payloads across them.
+- **D-59i — engine factory contract (I-016, ACCEPTED).** Og = per-DLL
+  searcher factories + vtable host binding + per-FS enable gates; core =
+  flat C ABI + in-process FsFamily switch. FS-code spaces are DIFFERENT
+  (og {3,9,0xB,0xD,6} vs core {1,4,7,8}) — every parity table translates,
+  never equates.
+- **D-59j — slice-layer supersets (I-017, ACCEPTED).** Byte units with
+  enforced alignment; eager ctor validation; rich per-call errors +
+  persistent ReadErrorMap; NO sticky error, NO null-buffer guard (the
+  og's ctor validates nothing — that is why it needs them; our ctor
+  boundary already rejects). The one behavioral divergence (tail reads)
+  is M-032, not this row.
+- **D-59k — EPM tool operations excluded (I-019, ACCEPTED).** EditLdm2*
+  write-side, Ntfs2FAT conversion, partition merge/resize deals, FatFormat,
+  IMAPI2 burn — tool ops, not recovery; zero code in the core (grep-
+  verified). S-029 (apply path) is deliberately NOT covered by this
+  exclusion.
+
+### D-60 — Session-5 scope/superset registers (I-021/I-022, session-7 verification)
+
+Verified against corpus 03ad46c and the running core before acknowledgment.
+
+- **D-60a — Elevation (I-021-1, ACCEPTED).** Og: DRW.exe + DRWUI.exe =
+  requireAdministrator, DRWService.exe = asInvoker (manifest strings
+  re-verified per binary); the og has no non-elevated path. Core:
+  `cr_elevate` probe + graceful degradation. Do NOT demand elevation.
+- **D-60b — EuSendMessage (I-021-2, SCOPE).** WM_COPYDATA{999} to
+  "DRW_Installer" — installer-only; zero engine contract.
+- **D-60c — Destination repair toggle (I-021-3, LAYER).** UI-layer toggle;
+  the core's repair hook stays pre-scan (S-008 scope).
+- **D-60d — CRecoveryFilter layering (I-021-4, LAYER).** Og pushes filter
+  state into the write phase; core filters at query, writer takes the
+  filtered set. Equivalent semantics.
+- **D-60e — PENetwork SMB destinations (I-021-5, LANE).** WinPE-lane
+  validation item (N-056 test gap), not an engine gap.
+- **D-60f — DRWCfg.bin (I-021-6, SCOPE).** UI-layer AES config cache; the
+  engine reads RawConfig/FileFilter/raw_signs/EUUserData only.
+- **D-60g — Session robustness (I-022-1, ACCEPTED).** Per-record CRC32 of
+  the decompressed payload, F10 resync + torn-tail salvage, decompression
+  bomb caps (cr_crsf.cpp) — the og's loader is per-field only. Keep.
+- **D-60h — Btrfs compressed extents (I-022-2, ACCEPTED).** Structured
+  {codec, psize} vs the og's opaque dual-shape buffer.
+- **D-60i — ZFS runlist (I-022-3, ACCEPTED).** Decoded absolute extents +
+  allocated_size vs the og's polymorphic unvalidated shape.
+- **D-60j — Naming wire (I-022-4, ACCEPTED).** Single UTF-16LE field vs the
+  og's per-class length mix. Documented in the session contract.
+- **D-60k — changed/allocated props (I-022-5, ACCEPTED).** Core superset
+  fields with no og carrier.
+- **D-60l — Core-only carve anchors (I-022-6, ACCEPTED).** ISO9660, RAR5,
+  M4A, ZIP-CD/naked-MOV (S-007's register).
+
+
+### D-57 — Carve common formats: the og's hardcoded dual-registry set (S-007 primary)
+
+**Class:** parity + two registered calibration deltas · **Finding:** diff-to-fix S-007 (SEVERE, primary set FIXED; niche tail scoped in the finding) · **Date:** 2026-10-26
+
+The og hard-codes the common user formats in the dual magic registry
+(GIF8, BM, the MPEG-audio sync family, AAC ADTS, `{\rt`, OLE D0CF11E0,
+MPEG start codes, AC10 — corpus registrations cited in the finding). The
+core's registry had none of them; `raw_signs.json` never covered them.
+
+**Core decision (S-007 fix):** 27 appended registry entries with 9
+grammar validators, corpus-exact keys, reimplemented from the format
+grammar (OGG behavior as the model). Two deliberate calibration deltas,
+both registered:
+
+- **The headerless audio gate is 10 consecutive frames** (MP3/AAC), not
+  the og's 2 (:37152-92). The og's gate is calibrated for
+  sector-aligned probing (mid-stream noise never reaches its grid); the
+  core's scan is byte-granular (the I-009 documented superset), so the
+  finer grid needs the stricter frame gate to hold the false-positive
+  rate. Net vs og: streams under 10 frames that happen to start
+  sector-aligned are og-carved and core-rejected (a ~0.26 s audio
+  floor); mid-sector streams of any length are core-only.
+- **`suppress_overlap` on the audio family:** every frame of a
+  headerless stream re-matches the 2-byte sync, so the byte-granular
+  scan would emit overlapping per-frame candidates (a 12-frame stream =
+  3 nodes). The og's BruteForce walker runs once per stream start; the
+  flag reproduces that at the core's grid (a later candidate starting
+  strictly inside an emitted same-format stream is the same stream).
+  Other formats keep the exact-start dedup only — nested cross-format
+  files (zip-in-docx) stay carvable.
+
+**Scoped remainder:** the ~25 niche og-only formats (the corrected table
+in the finding file) + the OLE CLSID name classification (single-ext
+per-signature shape) + the DWG section-locator walk (version gate +
+bounded extent now) + the bench seed-matrix extension (Windows runner).
+
+**Pin tests:** `Carve.S007CommonFormatsCarve`, `Carve.S007ValidatorsRejectNoise`,
+`Carve.S007TruncatedSalvageSemantics`.
+
+### D-53 — ext4/Btrfs lossless invalid-UTF-8 name mapping (M-010)
+
+**Session:** diff-to-fix remediation (M-010). **Corpus:** EXT4SearchDLL /
+BtrfsSearchDLL imports (zero conversion APIs — re-verified); ZfsSearchDLL
+FUN_18001c630 :24995+ (CP_UTF8, flags 0 — replacement).
+
+- The og's ext4/Btrfs engines pass raw name bytes through UNCONVERTED into the
+  session; the core's internal representation is UTF-16, so raw bytes must be
+  ENCODED reversibly: every byte that cannot start or continue a valid UTF-8
+  sequence maps to **U+E000 + byte** (private-use plane; bijective). This is a
+  *fidelity* superset over the og's observable behavior (the og keeps the bytes;
+  the core keeps a reversible encoding of them — `lossless_u16_to_utf8`
+  recovers the original byte string).
+- **ZFS stays U+FFFD** (the strict `utf8_to_u16`): the og's ZFS engine converts
+  via `MultiByteToWideChar(CP_UTF8, 0)` and bakes replacements — the engine
+  asymmetry IS the parity. Pinned by `Text.ZfsDecoderStaysReplacement` and the
+  unchanged `Zfs.NonAsciiNamesDecodedNotByteLifted`.
+- Downstream layers (session/report/CLI) must NOT sanitize private-use units —
+  they round-trip arbitrary UTF-16 today; the round-trip tests guard this.
+
+**Pin tests:** `Text.InvalidByteLosslessMapping`,
+`Text.LosslessRoundTripRecoversRawBytes`, `Btrfs.Latin1NameRoundTripsRawBytes`,
+the updated `Ext4Engine`/`Btrfs` `NonAsciiNamesDecodedNotByteLifted` (lossless
+assertions).

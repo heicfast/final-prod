@@ -1,4 +1,4 @@
-# ACUTE A-005 — extents-overflow descriptors parsed at key+10 instead of key+12 (off-by-two)
+# ACUTE A-006 — extents-overflow descriptors parsed at key+10 instead of key+12 (off-by-two)
 
 **Severity:** ACUTE
 **Module:** hfsplus
@@ -76,7 +76,7 @@ dropped or corrupted.
   extents branch) — direct code cite.
 - Executed: the fail-before run for `ExtentsOverflowRecordResolvesFragmentedFork`
   (this fix's test) on the pre-fix tree — 8/9 extents resolved, the 9th
-  dropped; `evidence/executions/a005-extents-off-by-two.md`.
+  dropped; `evidence/executions/a006-extents-off-by-two.md`.
 
 ## Fix plan
 
@@ -106,6 +106,6 @@ None; the layout is TN1150-verbatim.
 ## Resolution
 
 **Status:** FIXED
-**Fixed in commit:** (this commit — "fix(A-005): HFS+ extents-overflow descriptors off-by-two — key is 12 bytes, not 10")
-**Verified by:** HfsPlus.ExtentsOverflowRecordResolvesFragmentedFork — fail-before executed on the pre-fix tree (extents 8/9, the overflow extent silently dropped by the bounds clamp; `evidence/executions/a005-extents-off-by-two.md`), pass-after (9/9 at the correct byte offset); full suite green.
+**Fixed in commit:** (this commit — "fix(A-006): HFS+ extents-overflow descriptors off-by-two — key is 12 bytes, not 10")
+**Verified by:** HfsPlus.ExtentsOverflowRecordResolvesFragmentedFork — fail-before executed on the pre-fix tree (extents 8/9, the overflow extent silently dropped by the bounds clamp; `evidence/executions/a006-extents-off-by-two.md`), pass-after (9/9 at the correct byte offset); full suite green.
 **Resolution notes:** CONFIRMED-DIVERGENCE, fixed. Both parse sites (the live overflow walk and the S-021 journal extents branch) now read the eight descriptors from `rec + 12` with the `12 + 64` length gate — the TN1150-verbatim layout (12-byte key incl. the keyLength field + 64-byte HFSPlusExtentRecord). The new fixture populates the extents-overflow tree for the first time in the suite's history (header node + one-record leaf) and pins the 9th-extent resolution that the old code silently dropped.

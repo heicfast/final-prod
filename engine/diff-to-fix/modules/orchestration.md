@@ -120,3 +120,21 @@ dedup), GAP-S6-13 (64 KiB transport envelope).
   its message-pump implementation detail).
 - Registered non-adoptions (in the Resolution): the og's UNDECODED NTFS
   vt+0xb8/vt+0x100 sub-rule and its internal matched/total composition.
+
+---
+
+## Session-5 audit (audited commit `7cf6754`)
+
+- **N-061 (MINOR, NEW):** no persistent engine run-log (the og's EPMLOG.log + qa/vendor
+  channels record doScan, sector ranges, filter pushes, batch-1000 tree builds,
+  CalcPartition resolution) and no session auto-naming convention.
+- **N-062 (MINOR, NEW):** no memory monitor (og CMemMonitorManager — advisory only; do
+  not couple to scheduling without corpus evidence).
+- **N-060 (MINOR, NEW):** save_session lacks progress/cancel (og 40%→65% per-node with
+  per-child IsCancelled teardown).
+- **S-023 addendum:** OQ-S4-1 RESOLVED — the 169-entry grading extension table dumped
+  byte-exact (evidence/decompiled-quotes/s5-grading-extension-table-dump.md); the fix
+  plan's step 3 is actionable (last-dot substring → ASCII-uppercase → exact set::find,
+  with the `""` and dead-`Raw` quirks).
+- **N-043 addendum:** the og's live "%1 file chunks scanned" milestone cadence cited
+  (UIUX 06); fix decision unchanged.

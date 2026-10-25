@@ -138,3 +138,14 @@ executed proof, restore landed `23adad1`), A-003 (fix --part LBA-0 basis, FIXED)
 (the og's rotation modes 1-3 are dormant dead code — consistent with this leg's
 hardwired-layout-0 finding; OQ-T7 RESOLVED-MATCH). This leg's active LDM items: M-016
 (TOCBLOCK candidates) + N-025 (config-size + zero-interleave geometry).
+
+---
+
+## Session-5 audit (audited commit `7cf6754`)
+
+- **M-046 (MAJOR, NEW — LDM half):** the LDM-over-GPT discovery path hardcodes 512-byte
+  LBAs (`cr_ldm.cpp:1007/:1014/:1021` — `read_at(1*512,…)`, `entries_start_lba*512`,
+  `last_lba*512`) while the main GPT parser is geometry-correct
+  (`cr_table_parse.cpp:19-22`). On 4Kn GPT disks the LDM metadata partition is looked up
+  at wrong offsets → dynamic-disk recovery fails through this path. Fix: thread
+  `geometry().logical_sector` through the three sites.

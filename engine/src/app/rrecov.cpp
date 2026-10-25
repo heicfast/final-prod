@@ -1143,11 +1143,13 @@ int cmd_health(int argc, wchar_t** argv, int& i) {
         any_health_source = true;
         wprintf(L"SMART (%hs): ATA version %u, %zu attribute(s)\n", sm.transport.c_str(),
                 sm.ata_version, sm.attributes.size());
-        wprintf(L"  %-4s %-6s %-6s %-12s %hs\n", L"ID", L"value", L"worst", L"raw", "name");
+        wprintf(L"  %-4s %-6s %-6s %-6s %-12s %-9s %hs\n", L"ID", L"value", L"worst", L"thr",
+                L"raw", L"grade", "name");
         for (const auto& a : sm.attributes) {
             u64 raw = u64(a.raw[0]) | (u64(a.raw[1]) << 8) | (u64(a.raw[2]) << 16);
-            wprintf(L"  %-4u %-6u %-6u %-12llu %hs\n", a.id, a.value, a.worst,
-                    static_cast<unsigned long long>(raw), a.name.c_str());
+            wprintf(L"  %-4u %-6u %-6u %-6u %-12llu %-9hs %hs\n", a.id, a.value, a.worst,
+                    a.vendor_threshold, static_cast<unsigned long long>(raw),
+                    health::health_grade_name(a.grade), a.name.c_str());
         }
         wprintf(L"  reallocated=%llu pending=%llu uncorrectable=%llu hours=%llu temp=%lluC\n",
                 static_cast<unsigned long long>(sm.reallocated_sectors),
@@ -1155,6 +1157,13 @@ int cmd_health(int argc, wchar_t** argv, int& i) {
                 static_cast<unsigned long long>(sm.uncorrectable),
                 static_cast<unsigned long long>(sm.power_on_hours),
                 static_cast<unsigned long long>(sm.temperature_c));
+        /* S-024: the og DiskHealth 4-status verdict */
+        wprintf(L"  health: %hs (%hs)\n", health::health_grade_name(sm.grade),
+                sm.is_ssd ? "SSD" : "HDD/unknown");
+        if (sm.grade == health::HealthGrade::Bad)
+            wprintf(L"  WARNING: BAD - back up data immediately\n");
+        else if (sm.grade == health::HealthGrade::Caution)
+            wprintf(L"  WARNING: Caution - recover data FIRST, image before any scan\n");
         if (sm.failing_now)
             wprintf(L"  WARNING: failing attribute present\n");
         if (sm.pending_sectors || sm.uncorrectable)
@@ -1168,9 +1177,10 @@ int cmd_health(int argc, wchar_t** argv, int& i) {
     rc = win::health::read_nvme_health(h, nv);
     if (rc == OK && nv.available) {
         any_health_source = true;
-        wprintf(L"NVMe health: temp=%u.%uC spare=%u%%/threshold=%u%% used=%llu%%\n",
+        wprintf(L"NVMe health: temp=%u.%uC spare=%u%%/threshold=%u%% used=%llu%% - %hs\n",
                 u32(nv.temperature_k) - 273, (u32(nv.temperature_k) % 10), nv.available_spare,
-                nv.available_spare_threshold, static_cast<unsigned long long>(nv.percentage_used));
+                nv.available_spare_threshold, static_cast<unsigned long long>(nv.percentage_used),
+                health::health_grade_name(health::grade_nvme(nv)));
         wprintf(L"  read=%llu units written=%llu units power-on=%lluh unsafe-shutdowns=%llu "
                 L"media-errors=%llu\n",
                 static_cast<unsigned long long>(nv.data_units_read),

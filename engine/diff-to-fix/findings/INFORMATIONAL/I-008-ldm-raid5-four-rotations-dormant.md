@@ -95,3 +95,25 @@ None beyond the existing RAID-5 tests (they already pin the enabled-mode mapping
 ## Open questions
 
 None.
+
+## Resolution
+
+**Status:** ACKNOWLEDGED
+**Verified by:** first-hand corpus re-read (the constructor at :68942 is the ONLY write to the rotation selector this+0x2a8 in the 91,475-line decompile - initialized 0 = left-symmetric; the core implements that mode) + the cr_ldm.cpp RAID-5 mapping/stripe machinery confirmed in-tree.
+**Resolution notes:** Deliberate minimalism, preserved: the og's three unselectable rotations (dead switch paths) are NOT ported; the enabled mode is a proven MATCH. If a future corpus revision surfaces volumes using another rotation, re-visit; until then porting dead og switches would be untested code.
+
+**Status:** ACKNOWLEDGED (enabled-mode MATCH; dormant og dead-code not replicated — registered)
+**Verified by:** first-hand re-verification this session: corpus
+`ghidra-mo/LdmManager_decompiled.c` — grep over the module confirms
+`0x2a8) = ` has exactly ONE write (:68942, constructor, value 0); the
+rotation read at :68718/:68829 branches on all four values (:68777-68876
+region re-read). Core: `src/core/table/cr_ldm.cpp:1352+` — the left-symmetric
+mapping `P=(N-1)-(row%N); col=(P+1+i)%N` is algebraically identical to the
+og's R=0 branch `((N-1-s%N)+1+f)%N`; reconstruct-on-failure XOR at
+`:1372-1389` (xor_into, second-missing-column surfaced as failure, never
+zeroed) matches ComputeDataWithOtherDisk :68393-68451.
+**Resolution notes:** rationale correct: no og-reproducible volume can
+exercise rotations 1/2/3 (selector hard-zeroed at construction; no VBLK
+field, setter, or config path writes it). The core implements the only
+constructible mode exactly. No code change. Registered as PARITY-DELTAS
+**D-59d** (do not implement the dead rotations).

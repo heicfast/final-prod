@@ -192,3 +192,44 @@ ReadData traces), dedup map keyed by {parentCNID, cnid, name} (:2432-2450 —
 byte+2, u32+4, u32 comparisons), record-kind dispatch by tree id 3/4/8
 (:2404-2524). Sibling-chain/leaf-first/last geometry per S-002/session-1
 verdicts — unchanged.
+
+## 3a. Fix-session addendum (DF4-S021, 2026-10-26) — the GetDeleteRecord field map, corrected
+
+Every gate re-verified first-hand this session during the S-021 implementation; three
+corrections to §3's mechanical rendering (all from Ghidra pointer-type traps):
+
+1. **The transaction-header test reads the FIRST U16** — `*local_c8` is `ushort *`,
+   so `(uint)*local_c8 == (u32@(jinfo+0x20) >> 4) - 1` compares the u16 at
+   blocklist+0 (Ghidra's `(uint)` cast is a widening, not a u32 read). The entry
+   COUNT is the separate u16 at +2.
+2. **Entry layout (16-byte stride, confirmed by `local_d0 = local_d0 + 8` at :14187):**
+   `{u64 target volume block @+0, u32 image size @+8, u32 next @+12}`. The earlier
+   rendering `{?, size@+4, target u16@+8}` mis-decoded `local_d0[4]` (u16@+8 = the
+   SIZE's low half, passed as the node size to `FUN_180010110` and `FUN_180010720`
+   — both take the NODE SIZE, whose gate is `>= 0x200 && %512 == 0`); the target
+   block is the u64 at +0, multiplied by `u32@(jhdr+0x28)` (the block size) for
+   the fork classification probe (`FUN_18000cb70` — volume address ranges).
+3. **The journal object chain (constructor FUN_180010e10 :13400-13630):**
+   JIB read at `blockSize(VH+0x28) x journalInfoBlock(VH+0x0C)`, 180 bytes,
+   byte-swapped in place by FUN_18000db70 (flags u32@+0 — bit 0 required; journal
+   base BE-u64@+0x24; journal size BE-u64@+0x2C); the journal header (44 bytes)
+   read at the JIB base: magic u32 == 0x4A4E4C78 ('JNLx', LE-stored per jnl.c),
+   endian u32 == 0x12345678, walk origin u64@+0x10, size u64@+0x18 (cross-checked
+   == the JIB size), block-list extent u32@+0x20 (the probe re-read size, the ring
+   advance, AND the header-test base), jhdr size u32@+0x24, block size u32@+0x28
+   (the probe size + the target multiplier). The ring terminates when the cursor
+   returns to the walk origin (:14197-99: `_Var18 == *(u64*)(param_1[3]+0x10)`),
+   advancing by block_size on non-matches, by blhdr_size + image sizes inside a
+   transaction, wrapping modulo the JIB size. The node-image validator
+   FUN_180010720 (:13049-13108): node size >= 0x200 && 512-aligned; u32@+8 nonzero
+   (kind/height/numRecords); kind in {-1,0,1,2} with header=>height 0,
+   leaf=>height 1; the BE-u16 at node end-2 == 14 with ASCENDING offsets in
+   deeper slots (lenient: a mid-chain violation stops the walk but does not
+   reject).
+
+**A-005 (discovered here):** the validator's `[end-2] == 14` + ascending chain is
+the TN1150 records-UP convention (record 0 always at offset 14; the deepest slot =
+free-space start). The core's reader/fixtures were records-DOWN — inverted vs the
+format; on real volumes the pre-fix reader silently skips every record except
+record 0 of each node. Filed ACUTE (now FIXED): the journal fixture's images
+failing this validator is what exposed it.

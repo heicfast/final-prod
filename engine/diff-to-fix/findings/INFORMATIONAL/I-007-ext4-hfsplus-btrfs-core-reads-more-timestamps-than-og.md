@@ -193,3 +193,24 @@ correct behavior; no fix is needed. The finding is recorded for:
 ## Open questions
 
 None. The deliberate superset is documented; no further RE needed.
+
+## Resolution
+
+**Status:** ACKNOWLEDGED
+**Verified by:** first-hand code re-read (all four ext4 slots populated via decode_extra; the HFS+/Btrfs og sites carry only three conversions each per the cited decodes; the core fills created/modified/changed/accessed for all three engines).
+**Resolution notes:** Deliberate superset, preserved. The core reads atime/crtime (ext4), access_date (HFS+), otime/crtime (Btrfs) that the og never assigns; the extra slots surface in results and reports. Bench comparisons must field-mask the extra slots, not treat them as divergences.
+
+**Status:** ACKNOWLEDGED (deliberate superset — preserved)
+**Verified by:** first-hand re-verification this session: corpus
+`EXT4SearchDLL_decompiled.c:6255-6258` (slots +0x4b/+0x55 zeroed, never
+assigned); `HFSPlusSearchDLL_decompiled.c:8005-8048` (exactly THREE
+conversion functions — +0xc0/+0xc4/+0xc8(200); no 4th); Btrfs
+`BtrfsSearchDLL_decompiled.c` FUN_180006ba0 (:4425-4450, three timespec
+conversions; `+0x94` appears only as a zeroing write at :271 — otime never
+converted). Core: ext4 `cr_ext4_engine.cpp:603-607,702-704`; HFS+
+`cr_hfsplus_engine.cpp:853-856` AND `:1093-1096` (both record sources —
+catalog walk and the S-021 journal emission carry all four); Btrfs
+`cr_btrfs_engine.cpp:83-86,626-632` (INO_otime=0x94 read).
+**Resolution notes:** rationale correct on both sides: og reads 2/4 (ext4),
+3/4 (HFS+), 3/4 (Btrfs); core reads 4/4 on every engine. No code change.
+Registered as PARITY-DELTAS **D-59b**. Future work must PRESERVE this.

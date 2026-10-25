@@ -69,16 +69,16 @@ struct RefsScanStats {
     u64 damaged_nodes = 0;  /* nodes failing validation */
     u64 allocator_rows = 0; /* allocator bitmap rows loaded (0 = none) */
     /* S-020/M-022 (og attribute-layer parity) */
-    u64 resident_files = 0;   /* inline files materialized as resident extents */
-    u64 dollar_i_rows = 0;    /* $Recycle.Bin "$I" resident records read */
-    u64 paged_chases = 0;     /* indirect/paged run-table pages followed */
+    u64 resident_files = 0;       /* inline files materialized as resident extents */
+    u64 dollar_i_rows = 0;        /* $Recycle.Bin "$I" resident records read */
+    u64 paged_chases = 0;         /* indirect/paged run-table pages followed */
     u64 granularity_discards = 0; /* runlists discarded by the og granularity
                                    * gate (garbage-run false-positive guard) */
     /* M-026/M-027 (stale-page sweep + object identity) */
-    u64 stale_pages = 0;      /* stale MSB+ pages harvested (not live-reachable) */
-    u64 identity_dedups = 0;  /* duplicate object rows collapsed (keep-one) */
-    u64 recycle_routed = 0;   /* "$R…"/"S-…"/SVI rows routed to the recycle flush */
-    u64 dollar_i_pairs = 0;   /* $R nodes remapped from their $I evidence */
+    u64 stale_pages = 0;     /* stale MSB+ pages harvested (not live-reachable) */
+    u64 identity_dedups = 0; /* duplicate object rows collapsed (keep-one) */
+    u64 recycle_routed = 0;  /* "$R…"/"S-…"/SVI rows routed to the recycle flush */
+    u64 dollar_i_pairs = 0;  /* $R nodes remapped from their $I evidence */
 };
 
 struct RefsScanFlags {

@@ -706,10 +706,11 @@ u32 scan_btrfs(IStorageDevice* slice, CancelToken* cancel, WalkProgressLike prog
                 DirEntry de;
                 de.child = le64(di + DI_LOCATION);
                 de.type = di[DI_TYPE];
-                /* S-005 (diff-to-fix): Btrfs dir-item names are UTF-8
-                 * bytes the og passes through unconverted - decode
-                 * strictly; bad sequences become U+FFFD */
-                de.name = text::utf8_to_u16(std::string_view(
+                /* S-005 + M-010 (diff-to-fix): Btrfs dir-item names are
+                 * raw bytes the og passes through unconverted - decode
+                 * strictly, invalid bytes LOSSLESSLY (U+E000 + byte,
+                 * bijective; M-010: the og keeps the raw bytes) */
+                de.name = text::utf8_to_u16_lossless(std::string_view(
                     reinterpret_cast<const char*>(di) + DI_NAME, name_len > 255 ? 255 : name_len));
                 if (!de.name.empty())
                     dirs[k.objectid].push_back(std::move(de));

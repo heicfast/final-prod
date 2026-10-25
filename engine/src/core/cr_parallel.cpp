@@ -168,7 +168,9 @@ CancelPoolWatcher::CancelPoolWatcher(ThreadPool& pool, const CancelToken* token)
     });
 }
 
-CancelPoolWatcher::~CancelPoolWatcher() { done(); }
+CancelPoolWatcher::~CancelPoolWatcher() {
+    done();
+}
 
 void CancelPoolWatcher::done() {
     submit_done_.store(true, std::memory_order_release);

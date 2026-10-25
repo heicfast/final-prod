@@ -66,6 +66,39 @@ enum FormatId : u32 {
      * ftyp box was destroyed (naked moov). Id APPENDED to keep serialized
      * carve_format values stable. */
     FMT_MOV_NAKED,
+    /* S-007 (diff-to-fix): the og's hardcoded common-format carve set -
+     * the dual-registry keys the core lacks entirely (GIF8, BM, the
+     * MPEG-audio sync family, AAC ADTS, {\\rt, OLE D0CF11E0, MPEG PS/ES,
+     * AC10). All APPENDED (serialized carve_format values stable). */
+    FMT_GIF,
+    FMT_BMP,
+    FMT_RTF,
+    FMT_OLE,
+    FMT_MPEGPS,
+    FMT_MPEGES,
+    FMT_DWG,
+    FMT_AAC,
+    FMT_AAC2, /* FF F9: the second ADTS sync (MPEG-2 branch) */
+    /* headerless MPEG audio: the og's u16 sync family
+     * (RAWSearchDLL :2565-2721) - one entry per key, shared validator */
+    FMT_MPGA_E2,
+    FMT_MPGA_E3,
+    FMT_MPGA_E4,
+    FMT_MPGA_E5,
+    FMT_MPGA_E6,
+    FMT_MPGA_E7,
+    FMT_MPGA_F2,
+    FMT_MPGA_F3,
+    FMT_MPGA_F4,
+    FMT_MPGA_F5,
+    FMT_MPGA_F6,
+    FMT_MPGA_F7,
+    FMT_MPGA_FA,
+    FMT_MPGA_FB,
+    FMT_MPGA_FC,
+    FMT_MPGA_FD,
+    FMT_MPGA_FE,
+    FMT_MPGA_FF,
     FMT_COUNT
 };
 
@@ -97,6 +130,14 @@ struct Signature {
     u16 base_confidence; /* 0..1000 before validator delta */
     Validator validator;
     const char* name; /* human label */
+    /* S-007: true for the repeating-sync audio family - every frame of a
+     * headerless MPEG/AAC stream re-matches the 2-byte magic, so a later
+     * candidate starting strictly INSIDE an already-emitted stream of the
+     * same format is the SAME stream (the og's sector-aligned probe never
+     * sees mid-stream syncs; one walker run = one file). Other formats
+     * keep the exact-start dedup only (nested cross-format files stay
+     * carvable). */
+    bool suppress_overlap = false;
 };
 
 /* The compile-time table (one entry per FormatId, order = FormatId). */

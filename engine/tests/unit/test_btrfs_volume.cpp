@@ -7,6 +7,7 @@
  */
 
 #include "cr/btrfs/cr_btrfs_engine.h"
+#include "cr/cr_text.h"
 #include <gtest/gtest.h>
 #include <zlib.h>
 #include "cr/compress/cr_decomp.h"
@@ -756,9 +757,6 @@ TEST(Btrfs, InlineAndCompressedExtents) {
     EXPECT_GE(stats.compressed_extents, 1u);
 }
 
-} // namespace
-} // namespace btrfs
-} // namespace cr
 
 namespace cr {
 namespace btrfs {
@@ -821,9 +819,65 @@ TEST(Btrfs, NonAsciiNamesDecodedNotByteLifted) {
     EXPECT_EQ(names["\xe7\x85\xa7\xe7\x89\x87.jpg"], std::u16string(u"\u7167\u7247.jpg"));
     ASSERT_TRUE(names.count("caf\xc3\xa9.txt") != 0);
     EXPECT_EQ(names["caf\xc3\xa9.txt"], std::u16string(u"caf\u00e9.txt"));
-    ASSERT_TRUE(names.count("\xef\xbf\xbd(bad") != 0);
-    EXPECT_EQ(names["\xef\xbf\xbd(bad"], std::u16string(u"\ufffd(bad"));
+    /* M-010: invalid lead bytes are now LOSSLESS (U+E000 + byte) on
+     * ext4/Btrfs - the og engines keep raw names; the map key is the
+     * tree's UTF-8 projection of U+E0FF (EE 83 BF) */
+    ASSERT_TRUE(names.count("\xee\x83\xbf(bad") != 0);
+    EXPECT_EQ(names["\xee\x83\xbf(bad"], std::u16string(u"\uE0FF(bad"));
 }
 
+} // namespace btrfs
+} // namespace cr
+
+TEST(Btrfs, Latin1NameRoundTripsRawBytes) {
+    /* M-010 (diff-to-fix): Btrfs dir-item names are raw bytes the og's
+     * engine passes through UNCONVERTED (BtrfsSearchDLL imports no
+     * conversion API; .rsf stores UTF-8). A Latin-1 name's bytes must
+     * stay reconstructible: the lossless mapping yields U+E000 + byte
+     * per invalid byte (bijective; unit - 0xE000 = 0xE9). */
+    auto img = build_volume();
+    {
+        NodeBuilder nb;
+        Key ki;
+        ki.type = 1;
+        ki.objectid = 256;
+        nb.add(ki, make_inode(0x4000, NODESIZE, 2, 1700000000ull));
+        ki.objectid = 259;
+        nb.add(ki, make_inode(0x8000, 10, 1, 1700000000ull));
+        Key ke;
+        ke.type = 108;
+        ke.objectid = 259;
+        ke.offset = 0;
+        nb.add(ke, make_extent_data(L_DATA, 4096));
+        Key kd;
+        kd.type = 84;
+        kd.objectid = 256;
+        kd.offset = 0x11110001;
+        /* "r\xE9sum\xE9.txt" in Latin-1: 0xE9 is not valid UTF-8 */
+        nb.add(kd, make_dir_item(259, "r\xE9sum\xE9.txt", 1));
+        auto nd = nb.finish(L_FS_TREE, 0);
+        memcpy(img.data() + L_FS_TREE, nd.data(), NODESIZE);
+    }
+    MemDevice dev(img);
+    tree::ResultTree tree;
+    auto* ra = tree.add_root(u"F");
+    BtrfsScanStats st;
+    ASSERT_EQ(OK, scan_btrfs(&dev, nullptr, nullptr, nullptr, tree, ra, nullptr, nullptr, st));
+    tree::FileNode* found = nullptr;
+    for (tree::FileNode* c = ra->first_child(); c; c = c->next_sibling())
+        for (tree::FileNode* x = c->first_child(); x; x = x->next_sibling())
+            if (x->props() && x->props()->name.size() == 10 && x->props()->name[1] == u16(0xE0E9))
+                found = x;
+    ASSERT_NE(found, nullptr) << "the Latin-1-named file must surface";
+    /* the exact lossless form: 'r' U+E0E9 's' 'u' 'm' U+E0E9 '.' 't' 'x' 't' */
+    const std::u16string want = u"r\uE0E9sum\uE0E9.txt";
+    EXPECT_EQ(want, found->props()->name);
+    /* and the raw bytes are recoverable through the inverse */
+    std::string back;
+    ASSERT_TRUE(text::lossless_u16_to_utf8(found->props()->name, back));
+    EXPECT_EQ(std::string("r\xE9sum\xE9.txt"), back);
+}
+
+} // namespace
 } // namespace btrfs
 } // namespace cr
