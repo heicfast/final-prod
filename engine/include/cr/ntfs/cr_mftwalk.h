@@ -93,14 +93,18 @@ u32 walk_mft(NtfsVolume* vol, VolumeBitmap* bitmap, const WalkerFlags& flags, Ca
 /*
  * scan_mft_remnants - post-format / severe-damage pass (R2.5): stride the
  * whole slice at record_size, validate 'FILE' records outside the live MFT
- * stream. Emits metadata-only nodes under root_lost. Used by the complete
- * engine and by lost-partition candidates. Block-buffered (4 MiB reads,
- * record-size overlap); threads > 1 fans chunk ranges over a worker pool.
+ * stream. GAP-S6-4: records carrying an unnamed $DATA attribute are emitted
+ * WITH their content (resident stream or runlist extents, PartialRisk);
+ * records without recoverable content (or with compressed streams - the
+ * honest refusal, never raw LZNT1 as content) stay metadata-only under
+ * root_lost. Used by the complete engine and by lost-partition candidates.
+ * Block-buffered (4 MiB reads, record-size overlap); threads > 1 fans
+ * chunk ranges over a worker pool.
  */
 u32 scan_mft_remnants(IStorageDevice* slice, u32 sector_bytes, u32 cluster_bytes, u64 record_size,
-                      CancelToken* cancel, WalkProgress progress, void* progress_user,
-                      tree::ResultTree& tree, tree::FullNode* root_lost, WalkStats& stats,
-                      u32 threads = 1);
+                      u64 total_clusters, CancelToken* cancel, WalkProgress progress,
+                      void* progress_user, tree::ResultTree& tree, tree::FullNode* root_lost,
+                      WalkStats& stats, u32 threads = 1);
 
 } // namespace ntfs
 } // namespace cr

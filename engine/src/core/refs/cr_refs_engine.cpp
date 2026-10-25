@@ -11,6 +11,8 @@
 #include "cr/refs/cr_refs_engine.h"
 #include "cr/cr_bits.h" /* shared byte readers (W4 dedup, DC-12) */
 #include "cr/cr_error.h"
+#include <cstdio>
+#include <cstdlib>
 #include <cstring>
 #include <functional>
 #include <map>
@@ -393,13 +395,46 @@ u32 scan_refs(IStorageDevice* slice, const RefsScanFlags& flags, CancelToken* ca
         return ERR_BAD_PARAMETER;
     (void)root_lost;
 
+    /* GAP-S6-3 diagnostics: CR_REFS_DEBUG=1 dumps every detection gate's
+     * verdict + the first 64 bytes of each probed page to stderr, so a
+     * failing REAL volume is pinpointed from the bench stage logs (the
+     * synthetic fixtures can only prove what they model - run 40079065019
+     * proved the gap the hard way). Zero cost when unset. */
+    const bool dbg = [] {
+#ifdef _WIN32
+        char v[8] = {};
+        size_t n = 0;
+        return getenv_s(&n, v, sizeof(v), "CR_REFS_DEBUG") == 0 && n > 0 && v[0] == '1';
+#else
+        const char* v = getenv("CR_REFS_DEBUG");
+        return v != nullptr && v[0] == '1';
+#endif
+    }();
+    auto dump = [&](const char* what, const u8* p, size_t n) {
+        if (!dbg)
+            return;
+        std::fprintf(stderr, "[refs-dbg] %s:", what);
+        for (size_t i = 0; i < n; ++i)
+            std::fprintf(stderr, "%s%02x", (i & 15) == 0 ? "\n  " : " ", unsigned(p[i]));
+        std::fprintf(stderr, "\n");
+    };
+
     /* ---- 1. boot ---- */
     u8 sec[512];
     if (slice->read_at(0, sec, 512) != OK)
         return ERR_READ_FAILED;
+    dump("DBR sector 0", sec, 64);
     RefsBoot boot;
-    if (!validate_boot(sec, boot))
+    if (!validate_boot(sec, boot)) {
+        if (dbg)
+            std::fprintf(stderr,
+                         "[refs-dbg] boot REJECTED: oem=%.4s fsrs=%08x bps=%u spc=%u major=%u "
+                         "minor=%u sectors=%llu\n",
+                         sec + 3, le32(sec + 0x10), le32(sec + 0x20), le32(sec + 0x24),
+                         unsigned(sec[0x28]), unsigned(sec[0x29]),
+                         static_cast<unsigned long long>(le64(sec + 0x18)));
         return ERR_BAD_MAGIC;
+    }
 
     Engine eng;
     eng.slice = slice;
@@ -414,6 +449,14 @@ u32 scan_refs(IStorageDevice* slice, const RefsScanFlags& flags, CancelToken* ca
     if (eng.page_clusters > 4)
         eng.page_clusters = 4;
     eng.page_bytes = eng.page_clusters * u32(boot.cluster_bytes);
+    if (dbg)
+        std::fprintf(stderr,
+                     "[refs-dbg] boot ok: bps=%u spc=%u cluster=%u clusters=%llu major=%u "
+                     "minor=%u page=%u x %u clusters\n",
+                     boot.bytes_per_sector, boot.sectors_per_cluster,
+                     unsigned(boot.cluster_bytes),
+                     static_cast<unsigned long long>(boot.volume_clusters), boot.major, boot.minor,
+                     eng.page_bytes, eng.page_clusters);
 
     /* ---- 2. superblock: cluster 30, backups in the 2nd/3rd-last clusters ---- */
     auto load_superblock = [&](u64 cluster, std::vector<u8>& out) -> bool {
@@ -434,8 +477,15 @@ u32 scan_refs(IStorageDevice* slice, const RefsScanFlags& flags, CancelToken* ca
         if (!have_sup && n > 4)
             have_sup = load_superblock(n - 2, sup);
     }
-    if (!have_sup)
+    if (!have_sup) {
+        if (dbg)
+            std::fprintf(stderr,
+                         "[refs-dbg] superblock NOT FOUND (probed clusters 30, %llu, %llu)\n",
+                         static_cast<unsigned long long>(boot.volume_clusters - 3),
+                         static_cast<unsigned long long>(boot.volume_clusters - 2));
         return ERR_BAD_MAGIC;
+    }
+    dump("superblock page", sup.data(), 64);
 
     /* volume signature from the GUID (4 x u32 XOR, thesis fig 4.27) */
     const u32 vol_sig = le32(sup.data() + 0x50) ^ le32(sup.data() + 0x54) ^
@@ -461,6 +511,15 @@ u32 scan_refs(IStorageDevice* slice, const RefsScanFlags& flags, CancelToken* ca
     std::vector<u8> chkp, chkp2;
     const bool ok1 = load_checkpoint(chkp_clusters[0], chkp);
     const bool ok2 = load_checkpoint(chkp_clusters[1], chkp2);
+    if (dbg)
+        std::fprintf(stderr,
+                     "[refs-dbg] checkpoint probes: cluster %llu -> %s, cluster %llu -> %s "
+                     "(vol_sig=%08x)\n",
+                     static_cast<unsigned long long>(chkp_clusters[0]), ok1 ? "CHKP+sig-ok" : "FAIL",
+                     static_cast<unsigned long long>(chkp_clusters[1]), ok2 ? "CHKP+sig-ok" : "FAIL",
+                     vol_sig);
+    if (ok1)
+        dump("checkpoint page", chkp.data(), 64);
     if (ok1 && ok2)
         chkp = le64(chkp.data() + 0x60) >= le64(chkp2.data() + 0x60) ? chkp : chkp2;
     else if (ok2)
@@ -496,7 +555,21 @@ u32 scan_refs(IStorageDevice* slice, const RefsScanFlags& flags, CancelToken* ca
     const u32 ptr_count = le32(chkp.data() + 0x90); /* body+0x40, both layouts */
     if (ptr_count == 0 || ptr_count > 16)
         return ERR_BAD_MAGIC;
-    const u32 ptr_lst_off = boot.minor >= 0x0E ? 0xA8 : 0x94; /* body+0x58 / body+0x44 */
+    /* GAP-S6-3 (bench 40079065019: real Server-2022 ReFS 3.7 refused with
+     * ERR_BAD_MAGIC in ~2 ms): the layout gate must read the CHECKPOINT
+     * BODY minor - og FUN_180012650: `lVar7 = 0x58; if (*(ushort
+     * *)(param_2 + uVar14 + 6) < 0xe) lVar7 = 0x44;` where param_2+uVar14
+     * IS the body - not the VBR minor (7 on ReFS 3.7). The VBR and the
+     * body layout version are independent: a 3.7 volume carries VBR
+     * minor=7 with a body layout minor >= 14. The old code keyed on
+     * boot.minor and read the WRONG descriptor list on every such volume
+     * -> table_root(0) garbage -> BAD_MAGIC. */
+    const u32 ptr_lst_off = le16(chkp.data() + 0x56) >= 0x0E ? 0xA8 : 0x94; /* body+0x58 / body+0x44 */
+    if (dbg)
+        std::fprintf(stderr,
+                     "[refs-dbg] checkpoint body: major=%u minor=%u ptr_count=%u list@0x%x "
+                     "(gated on the BODY minor, og FUN_180012650)\n",
+                     le16(chkp.data() + 0x54), le16(chkp.data() + 0x56), ptr_count, ptr_lst_off);
     u32 ptrs[16] = {};
     for (u32 i = 0; i < ptr_count && i < 16; ++i)
         ptrs[i] = le32(chkp.data() + ptr_lst_off + i * 4);

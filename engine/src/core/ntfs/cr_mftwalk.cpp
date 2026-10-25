@@ -1098,6 +1098,8 @@ namespace {
 struct RemnantCtx {
     IStorageDevice* slice;
     u32 sector_bytes;
+    u32 cluster_bytes;
+    u64 total_clusters;
     u64 record_size;
     tree::ResultTree* tree;
     tree::FullNode* root_lost;
@@ -1105,6 +1107,53 @@ struct RemnantCtx {
     std::atomic<u64> dup_skipped{0};
     std::atomic<bool> aborted{false};
 };
+
+/* GAP-S6-4: extract the remnant record's unnamed $DATA into recoverable
+ * content - resident streams travel in the props, non-resident runlists
+ * become slice-relative extents exactly like the main walk (LCN x
+ * cluster_bytes). COMPRESSED streams get NO extents: surfacing raw LZNT1 /
+ * XPRESS bytes as file content is the silent-corruption class GAP-P1-1
+ * removed from the main walk; remnant reconstruction of compressed units
+ * is a registered bounded gap (CORE-GAP-LIST GAP-S6-4 note). Returns true
+ * when the node carries recoverable content (extents or resident data). */
+static bool remnant_extract_data(const std::vector<AttrView>& attrs, const RemnantCtx& ctx,
+                                  tree::FileProperties* props, u64& rem_size) {
+    bool have_content = false;
+    for (const AttrView& da : attrs) {
+        if (da.type != ATTR_TYPE_DATA || da.name_length != 0)
+            continue;
+        if ((da.flags & ATTR_FLAG_COMPRESSED) != 0) {
+            /* honest refusal: compressed remnant content stays
+             * MetadataOnly - never raw compressed bytes as content */
+            return false;
+        }
+        if (!da.nonresident && da.value_length != 0) {
+            const u8* d = nullptr;
+            u32 dlen = 0;
+            if (resident_span(da, d, dlen) == OK && dlen > 0) {
+                rem_size = dlen;
+                props->resident_data.assign(d, d + dlen);
+                have_content = true; /* resident content IS recoverable */
+            }
+            break;
+        }
+        if (da.nonresident) {
+            if (da.actual != 0)
+                rem_size = da.actual;
+            RunList rl;
+            if (parse_data_runs(da, ctx.total_clusters, rl) == OK && rl.total_clusters() > 0) {
+                std::vector<RunList::Extent> ex;
+                rl.extents(ex);
+                for (const auto& e : ex)
+                    props->extents.push_back({e.lcn * ctx.cluster_bytes,
+                                              e.clusters * ctx.cluster_bytes});
+                have_content = !props->extents.empty();
+            }
+            break;
+        }
+    }
+    return have_content;
+}
 
 void scan_remnant_buffer(RemnantCtx& ctx, const u8* buf, u64 buf_len) {
     if (buf_len < ctx.record_size)
@@ -1157,6 +1206,12 @@ void scan_remnant_buffer(RemnantCtx& ctx, const u8* buf, u64 buf_len) {
                             break;
                         }
                     }
+                    /* GAP-S6-4: parse the record's $DATA runlist instead of
+                     * downgrading every remnant to MetadataOnly - the og
+                     * rebuilds full files from post-format remnants (bench
+                     * quick_format: ours 0/10228 vs og 51.5%; 10013 of them
+                     * were ERR_TRUNCATED with the content still on disk) */
+                    const bool have_content = remnant_extract_data(attrs, ctx, props, rem_size);
                     /* dedup vs structured results: if the parent dir node
                      * (by record ref) already carries this name, the MFT
                      * pass emitted this record - the remnant scan must not
@@ -1185,7 +1240,12 @@ void scan_remnant_buffer(RemnantCtx& ctx, const u8* buf, u64 buf_len) {
                     if (n) {
                         n->set_origin(tree::Origin::Lost);
                         n->set_deleted_state(tree::DeletedState::Damaged);
-                        n->set_confidence(tree::Confidence::MetadataOnly);
+                        /* GAP-S6-4: content-bearing remnants are PartialRisk
+                         * (reconstructed runlist, allocation state
+                         * unverifiable post-format); empty ones stay
+                         * MetadataOnly */
+                        n->set_confidence(have_content ? tree::Confidence::PartialRisk
+                                                        : tree::Confidence::MetadataOnly);
                         ctx.emitted.fetch_add(1, std::memory_order_relaxed);
                     }
                     props->release();
@@ -1249,9 +1309,15 @@ void scan_remnant_buffer(RemnantCtx& ctx, const u8* buf, u64 buf_len) {
                 ctx.aborted.store(true, std::memory_order_relaxed);
                 return;
             }
+            /* GAP-S6-4 applies to the shifted-header salvage too: attempt
+             * the $DATA extraction on the salvaged record (bounds-checked;
+             * a runlist torn by the truncation fails cleanly -> the node
+             * stays MetadataOnly, exactly the pre-existing shape) */
+            u64 rem_size = fi.real_size;
+            const bool have_content = remnant_extract_data(sattrs, ctx, props, rem_size);
             props->name = fi.name;
             props->fs_kind = u32(FsKindCode::Ntfs);
-            props->logical_size = fi.real_size;
+            props->logical_size = rem_size;
             props->times = fi.times;
             props->attributes = u16(fi.dos_flags & 0xFF);
             props->flags = 0;
@@ -1259,7 +1325,8 @@ void scan_remnant_buffer(RemnantCtx& ctx, const u8* buf, u64 buf_len) {
             if (n) {
                 n->set_origin(tree::Origin::Lost);
                 n->set_deleted_state(tree::DeletedState::Damaged);
-                n->set_confidence(tree::Confidence::MetadataOnly);
+                n->set_confidence(have_content ? tree::Confidence::PartialRisk
+                                                : tree::Confidence::MetadataOnly);
                 ctx.emitted.fetch_add(1, std::memory_order_relaxed);
             }
             props->release();
@@ -1295,17 +1362,18 @@ u32 remnant_range_scan(RemnantCtx& ctx, u64 start, u64 end) {
 } // namespace
 
 u32 scan_mft_remnants(IStorageDevice* slice, u32 sector_bytes, u32 cluster_bytes, u64 record_size,
-                      CancelToken* cancel, WalkProgress progress, void* progress_user,
-                      tree::ResultTree& tree, tree::FullNode* root_lost, WalkStats& stats,
-                      u32 threads) {
+                      u64 total_clusters, CancelToken* cancel, WalkProgress progress,
+                      void* progress_user, tree::ResultTree& tree, tree::FullNode* root_lost,
+                      WalkStats& stats, u32 threads) {
     if (slice == nullptr || root_lost == nullptr || record_size < 0x400)
         return ERR_BAD_PARAMETER;
-    (void)cluster_bytes;
 
     const u64 total = slice->size();
     RemnantCtx ctx;
     ctx.slice = slice;
     ctx.sector_bytes = sector_bytes;
+    ctx.cluster_bytes = cluster_bytes ? cluster_bytes : 4096;
+    ctx.total_clusters = total_clusters ? total_clusters : total / ctx.cluster_bytes;
     ctx.record_size = record_size;
     ctx.tree = &tree;
     ctx.root_lost = root_lost;

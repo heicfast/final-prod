@@ -252,8 +252,8 @@ TEST(ParallelRemnants, SameRecordsAsSequential) {
         auto* root = tree.add_root(u"lost");
         ntfs::WalkStats ws;
         auto dev = std::make_unique<MemDevice>(build_remnant_fixture());
-        const u32 rc = ntfs::scan_mft_remnants(dev.get(), 512, 512, 1024, nullptr, nullptr, nullptr,
-                                               tree, root, ws, threads);
+        const u32 rc = ntfs::scan_mft_remnants(dev.get(), 512, 512, 1024, 512, nullptr, nullptr,
+                                               nullptr, tree, root, ws, threads);
         EXPECT_EQ(OK, rc);
         return ws.emitted;
     };

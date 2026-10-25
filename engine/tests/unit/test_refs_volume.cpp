@@ -691,6 +691,77 @@ TEST(Refs, Pre34CheckpointRejected) {
               scan_refs(&dev, flags, nullptr, nullptr, nullptr, tree, ra, nullptr, nullptr, stats));
 }
 
+TEST(Refs, CheckpointBodyMinorGatesLayoutNotVbr) {
+    /* GAP-S6-3 (bench 40079065019: real Server-2022 ReFS 3.7 refused at
+     * detection): the VBR minor and the checkpoint BODY layout minor are
+     * INDEPENDENT - a 3.7 volume carries VBR minor=7 with body minor>=14.
+     * The og gates the pointer-list offset on the BODY minor
+     * (FUN_180012650: `lVar7 = 0x58; if (*(ushort*)(param_2 + uVar14 + 6)
+     * < 0xe) lVar7 = 0x44;`); the old code keyed on boot.minor and read
+     * the wrong descriptor list on every such volume -> BAD_MAGIC in 2 ms.
+     * This fixture: VBR minor=7, body minor=14, list ONLY at 0xA8. */
+    auto img = build_volume();
+    {
+        u8* b = img.data();
+        b[0x29] = 7; /* VBR minor: ReFS 3.7 */
+        u8* p = img.data() + 100 * CLUSTER;
+        put16(p + 0x56, 14); /* checkpoint body layout minor */
+        u32 ptrs[13] = {};
+        for (int i = 0; i < 13; ++i)
+            ptrs[i] = u32(p[0x94 + i * 4]) | (u32(p[0x94 + i * 4 + 1]) << 8) |
+                      (u32(p[0x94 + i * 4 + 2]) << 16) | (u32(p[0x94 + i * 4 + 3]) << 24);
+        memset(p + 0x94, 0, 13 * 4);
+        for (int i = 0; i < 13; ++i)
+            put32(p + 0xA8 + i * 4, ptrs[i]);
+    }
+    RamDevice dev(img);
+    tree::ResultTree tree;
+    auto* ra = tree.add_root(u"Found");
+    auto* rd = tree.add_root(u"Deleted");
+    auto* rl = tree.add_root(u"Lost Files");
+    RefsScanFlags flags;
+    RefsScanStats stats;
+    u32 rc = scan_refs(&dev, flags, nullptr, nullptr, nullptr, tree, ra, rd, rl, stats);
+    ASSERT_EQ(OK, rc) << err_text(rc);
+    std::vector<tree::FileNode*> all;
+    for (auto* r : tree.roots())
+        collect(r, all);
+    bool hello = false;
+    for (auto* n : all)
+        if (n->props() && n->name_utf8() == "hello.txt")
+            hello = true;
+    EXPECT_TRUE(hello) << "body-minor-14 layout must be honored even when the VBR says 3.7";
+}
+
+TEST(Refs, VbrMinor14BodyMinorOldListStillOldLayout) {
+    /* the gate is the BODY minor alone: VBR 0x0E with an old body layout
+     * (minor 10) must keep the 0x94 list (the reverse independence case -
+     * boot.minor must never drive the layout choice). */
+    auto img = build_volume();
+    {
+        u8* b = img.data();
+        b[0x29] = 14; /* VBR minor 0x0E */
+        /* body stays minor 10 (build_volume default): list at 0x94 */
+    }
+    RamDevice dev(img);
+    tree::ResultTree tree;
+    auto* ra = tree.add_root(u"Found");
+    auto* rd = tree.add_root(u"Deleted");
+    auto* rl = tree.add_root(u"Lost Files");
+    RefsScanFlags flags;
+    RefsScanStats stats;
+    u32 rc = scan_refs(&dev, flags, nullptr, nullptr, nullptr, tree, ra, rd, rl, stats);
+    ASSERT_EQ(OK, rc) << err_text(rc);
+    std::vector<tree::FileNode*> all;
+    for (auto* r : tree.roots())
+        collect(r, all);
+    bool hello = false;
+    for (auto* n : all)
+        if (n->props() && n->name_utf8() == "hello.txt")
+            hello = true;
+    EXPECT_TRUE(hello) << "old body layout (0x94) must be used when the BODY minor is old";
+}
+
 } // namespace
 } // namespace refs
 } // namespace cr

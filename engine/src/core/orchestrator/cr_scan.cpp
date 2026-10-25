@@ -763,6 +763,7 @@ u32 ScanController::run_deep(IStorageDevice* slice, CancelToken* cancel,
                 ntfs::WalkStats rem;
                 rc = ntfs::scan_mft_remnants(slice, vol->params().sector_bytes,
                                              vol->params().cluster_bytes, vol->params().record_size,
+                                             vol->params().total_clusters,
                                              cancel, deep_cb, &dbridge, tree_, root_lost_, rem,
                                              threads);
                 tree_.rebase_new_extents(rem_mark, vol_offset_);

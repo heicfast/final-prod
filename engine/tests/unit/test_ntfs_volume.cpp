@@ -41,6 +41,7 @@ constexpr u64 MFT_CLUSTERS = 68; /* records 0..33 (30..33: recycle fixture) */
 constexpr u64 MIRR_LCN = 68;
 constexpr u64 BITMAP_LCN = 80;
 constexpr u64 BITMAP_CLUSTERS = 4;
+constexpr u64 TOTAL_CLUSTERS = NSECTORS; /* spc = 1: cluster count == sector count */
 
 class Image {
 public:
@@ -1189,8 +1190,8 @@ TEST(NtfsVolume, ShiftedHeaderSalvage) {
     tree::ResultTree tree;
     auto* root_lost = tree.add_root(u"Lost Files");
     WalkStats stats;
-    u32 rc = scan_mft_remnants(&dev, SEC, CLUSTER, RECORD_SIZE, nullptr, nullptr, nullptr, tree,
-                               root_lost, stats);
+    u32 rc = scan_mft_remnants(&dev, SEC, CLUSTER, RECORD_SIZE, TOTAL_CLUSTERS, nullptr, nullptr,
+                               nullptr, tree,                               root_lost, stats);
     ASSERT_EQ(rc, OK);
     tree::FileNode* found = nullptr;
     for (tree::FileNode* c = root_lost->first_child(); c; c = c->next_sibling())
@@ -1441,8 +1442,8 @@ TEST(NtfsVolume, RemnantScanFindsDetachedRecord) {
     tree::ResultTree tree;
     auto* root_lost = tree.add_root(u"Lost Files");
     WalkStats stats;
-    u32 rc = scan_mft_remnants(&dev, SEC, CLUSTER, RECORD_SIZE, nullptr, nullptr, nullptr, tree,
-                               root_lost, stats);
+    u32 rc = scan_mft_remnants(&dev, SEC, CLUSTER, RECORD_SIZE, TOTAL_CLUSTERS, nullptr, nullptr,
+                               nullptr, tree,                               root_lost, stats);
     ASSERT_EQ(rc, OK);
     /* find the floating node */
     tree::FileNode* found = nullptr;
@@ -1723,4 +1724,111 @@ TEST(NtfsVolume, Lznt1MsXcaDocumentedVector) {
     ASSERT_TRUE(compress::decompress_block(compress::kLznt1, payload, sizeof(payload), out.data(),
                                            out.size()));
     EXPECT_EQ(0, std::memcmp(out.data(), expected, sizeof(expected)));
+}
+
+/* ---- GAP-S6-4: remnant records reconstruct their $DATA content ----
+ *
+ * Bench quick_format (runs 40073093997 + 40079065019): the remnant scanner
+ * found the old MFT records (10093 rows) but downgraded every one to
+ * MetadataOnly - recovery produced 10013 ERR_TRUNCATED and 0/10228
+ * hash-true while the og rebuilt full files from the same remnants (51.5%
+ * smoke). The records survive a quick format with their $DATA runlists
+ * intact; the remnant path must parse them. */
+
+TEST(NtfsVolume, RemnantScanReconstructsDataRunlist) {
+    /* a detached record with a non-resident $DATA runlist: the emitted node
+     * must carry slice-relative extents and PartialRisk (reconstructed
+     * runlist, allocation state unverifiable), not MetadataOnly. */
+    Image img;
+    {
+        RecBuilder r;
+        r.header(999, 0);
+        r.attr_si(0x20);
+        r.attr_file_name(16, u"survivor.bin", FILE_NAME_WIN32_AND_DOS, 0x20, 8192, 8192);
+        r.attr_data_runlist(200, 8, 8192); /* 8 clusters at LCN 200 */
+        r.finish();
+        std::memcpy(img.sec(10), r.buf.data(), RECORD_SIZE);
+        std::memcpy(img.sec(200), "CONTENT-MARKER", 14); /* the data is on disk */
+    }
+    MemDevice dev(img.raw(), img.geom());
+    tree::ResultTree tree;
+    auto* root_lost = tree.add_root(u"Lost Files");
+    WalkStats stats;
+    u32 rc = scan_mft_remnants(&dev, SEC, CLUSTER, RECORD_SIZE, TOTAL_CLUSTERS, nullptr, nullptr,
+                               nullptr, tree, root_lost, stats);
+    ASSERT_EQ(rc, OK);
+    tree::FileNode* found = nullptr;
+    for (tree::FileNode* c = root_lost->first_child(); c; c = c->next_sibling())
+        if (c->name_utf8() == "survivor.bin")
+            found = c;
+    ASSERT_NE(found, nullptr);
+    EXPECT_EQ(found->origin(), tree::Origin::Lost);
+    /* the reconstructed extents: LCN 200 x 8 clusters, slice-relative */
+    ASSERT_EQ(found->props()->extents.size(), 1u);
+    EXPECT_EQ(found->props()->extents[0].offset, u64(200) * CLUSTER);
+    EXPECT_EQ(found->props()->extents[0].length, u64(8) * CLUSTER);
+    EXPECT_EQ(found->props()->logical_size, 8192u);
+    EXPECT_EQ(found->confidence(), tree::Confidence::PartialRisk);
+}
+
+TEST(NtfsVolume, RemnantScanReconstructsResidentData) {
+    /* a detached record with a resident $DATA stream: the content travels
+     * in the props (the writer emits resident_data before extents). */
+    Image img;
+    {
+        RecBuilder r;
+        r.header(998, 0);
+        r.attr_si(0x20);
+        r.attr_file_name(16, u"tiny.txt", FILE_NAME_WIN32_AND_DOS, 0x20, 8, 8);
+        r.attr_data_resident(u"", 2); /* unnamed resident $DATA */
+        r.finish();
+        std::memcpy(img.sec(10), r.buf.data(), RECORD_SIZE);
+    }
+    MemDevice dev(img.raw(), img.geom());
+    tree::ResultTree tree;
+    auto* root_lost = tree.add_root(u"Lost Files");
+    WalkStats stats;
+    u32 rc = scan_mft_remnants(&dev, SEC, CLUSTER, RECORD_SIZE, TOTAL_CLUSTERS, nullptr, nullptr,
+                               nullptr, tree, root_lost, stats);
+    ASSERT_EQ(rc, OK);
+    tree::FileNode* found = nullptr;
+    for (tree::FileNode* c = root_lost->first_child(); c; c = c->next_sibling())
+        if (c->name_utf8() == "tiny.txt")
+            found = c;
+    ASSERT_NE(found, nullptr);
+    EXPECT_FALSE(found->props()->resident_data.empty())
+        << "resident remnant content must travel in the props";
+    EXPECT_EQ(found->confidence(), tree::Confidence::PartialRisk);
+}
+
+TEST(NtfsVolume, RemnantScanCompressedStreamStaysMetadataOnly) {
+    /* GAP-S6-4 honesty boundary: a compressed remnant stream gets NO
+     * extents - surfacing raw LZNT1 bytes as content is the
+     * silent-corruption class GAP-P1-1 removed from the main walk. The
+     * node stays MetadataOnly (registered bounded gap). */
+    Image img;
+    {
+        RecBuilder r;
+        r.header(997, 0);
+        r.attr_si(0x20);
+        r.attr_file_name(16, u"packed.bin", FILE_NAME_WIN32_AND_DOS, 0x20, 4096, 4096);
+        r.attr_data_runlist_compressed(150, 4, 4096, 4);
+        r.finish();
+        std::memcpy(img.sec(10), r.buf.data(), RECORD_SIZE);
+    }
+    MemDevice dev(img.raw(), img.geom());
+    tree::ResultTree tree;
+    auto* root_lost = tree.add_root(u"Lost Files");
+    WalkStats stats;
+    u32 rc = scan_mft_remnants(&dev, SEC, CLUSTER, RECORD_SIZE, TOTAL_CLUSTERS, nullptr, nullptr,
+                               nullptr, tree, root_lost, stats);
+    ASSERT_EQ(rc, OK);
+    tree::FileNode* found = nullptr;
+    for (tree::FileNode* c = root_lost->first_child(); c; c = c->next_sibling())
+        if (c->name_utf8() == "packed.bin")
+            found = c;
+    ASSERT_NE(found, nullptr);
+    EXPECT_TRUE(found->props()->extents.empty())
+        << "compressed remnant streams must NOT carry raw compressed extents";
+    EXPECT_EQ(found->confidence(), tree::Confidence::MetadataOnly);
 }
