@@ -10088,3 +10088,44 @@ Work Log:
 Stage Summary:
 - M-032 FIXED (session tally: 3). Next in my claimed batch: M-050
   (session node-model roundtrip gaps).
+
+
+---
+Task ID: DFX14-T5 (INFORMATIONAL tier — the re-verification pass)
+Agent: main engineer (diff-to-fix session 14)
+Task: T13 duty: read all 22 INFO findings, verify each deliberate-difference
+rationale against the corpus citations and the CURRENT code, confirm the
+ACKNOWLEDGED standings; add any missing pins.
+
+Work Log:
+- Read all 22 files (6 deep-read: I-001/I-002/I-003/I-006/I-007/I-009; 16 via
+  structured status/resolution dump); every file carries (at least one, most
+  two) ACKNOWLEDGED Resolution(s) with first-hand corpus verification from
+  prior sessions - the tier was closed with real verification, not stamps.
+- Drift-guard spot-checks on CURRENT main (the 300+ landings since could have
+  silently flipped an acknowledged delta):
+  * pin tests present: UserFileNamedDollarNotHidden (test_ntfs_volume),
+    Fat16BadClusterStillCanonical (test_fat_volume),
+    MirrorSelectionNewestGeneration (test_btrfs_volume),
+    CarvesMidSectorStart (test_carve).
+  * code anchors intact: I-002 (cr_chain.cpp:47 FAT12 0xFF7->CHAIN_BAD —
+    survived the 5aaf044 clobber repair correctly), I-009 (byte-stepped
+    dispatch loop), I-015 (kMaxRead 4 MiB / kMaxDecode 256 MiB),
+    I-017 (cr_slice.cpp:15-41 eager null/zero/alignment/overflow validation
+    — direct read; only the grep phrase differed).
+- GAP CAUGHT AND FIXED: I-006's own "Tests to add" (a pin guarding the
+  nsec superset) was never landed by the prior INFO wave — its Resolution
+  verified the code but skipped the test. Added this session:
+  Ext4Engine.NanosecondsPreservedFromExtraField (s_inode_size 152 fixture,
+  i_mtime_extra 0x5DC00000 -> nsec 393,216,000 preserved at 100ns; the
+  second-only value is the og's forced wMilliseconds=0). Two test-constant
+  arithmetic slips on my side were corrected against the engine's
+  (correct) output - the third EXPECT is exact. Landed 2fad125, suite
+  594/594.
+- No rationale was found wrong; no code change required by any INFO
+  finding. All 22 divergences remain intentional and preserved.
+
+Stage Summary:
+- T13 CLOSED: INFO tier 22/22 re-verified on the current tree with one
+  missing pin landed. DFX14 tally: 9 finding-level resolutions
+  (N-073, M-029 fold, clobber repair x4, M-005, I-006 pin) + this pass.
