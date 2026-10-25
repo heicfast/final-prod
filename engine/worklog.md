@@ -9560,3 +9560,37 @@ Stage Summary:
   history). Session fix tally: 1 (N-069). Next: N-067 (exFAT upcase
   validation), N-068 (ZIP EOCD anchor), then the naming/policy group
   N-063/N-065.
+=======
+
+---
+Task ID: DFX15-F2..F5 (session 15, MAJOR lane)
+Agent: core-parity-fix-agent (main)
+Task: M-002, M-037, M-031, M-046 — four MAJOR findings verified + fixed
+
+Work Log:
+- M-002 (EBR torn chain): CONFIRMED-DIVERGENCE. Caller merges the walked
+  prefix unconditionally; new DiskTable::ebr_status/ebr_break_lba; optional
+  parse_ebr_chain break_lba out-param. 2 tests fail-before proven. Commit
+  (rebased): fb6acdc.
+- M-037 (ext4 dir parse): corpus re-decoded FIRST-HAND from FUN_180005820
+  (:4146-4168) — the audit's "skip entry" is a 4-BYTE RESYNC SLIDE; gates =
+  padded floor (name_len+11)&~3, type 1..7, inode#<=count; inode-0 stops og.
+  Fix implements the exact slide + gates; inode-0 continue kept as pinned
+  superset; count gate live-walk-only (journal surface exempt — S-004
+  fixtures pin ghost inodes); valid entries keep rec_len advance (documented
+  divergence). Fail-before proven by temporary revert (2/3 FAILED).
+  Commit d487928.
+- M-031 (ReFS progress): Walker carries progress; emit_file ticks every 16th
+  file (done, done+16) growing-estimate; terminal (n,n). Both tests
+  fail-before proven by temporary revert. Commit 6f6210f.
+- M-046 (4Kn): LDM GPT path geometry-correct ×3 + exFAT damaged-primary
+  bps-sized + DISCOVERED-and-fixed the LDM 512-LBA unit family (end-of-disk
+  candidates, backup bound, capacity gate — g.sector_count vs 512-LBA
+  units). 3 tests fail-before proven. Commit cf137fc.
+
+Stage Summary:
+- 4 MAJOR findings FIXED this lane so far (M-002/M-037/M-031/M-046); suite
+  578/578 at each push; audit trail updated per fix (finding Resolution,
+  RESOLVED-INDEX, matrix, module docs).
+- Next: M-045 (FAT boot gates) → M-043 (NTFS backup boot) → M-005 (carve
+  bitmap gating) → M-007/M-008 (NTFS).
