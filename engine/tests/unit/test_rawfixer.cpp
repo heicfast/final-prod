@@ -831,7 +831,7 @@ TEST(RawFixer, RebasedPartitionPlanWritesAtDiskBasisNeverLba0) {
      * log carries disk-absolute offsets (the documented --undo-apply
      * contract). Fail-before is structural: without the rebase call the
      * same execute writes at disk offset 0 and the MBR assertions fail. */
-    NtfsVolumeImage v(true); /* torn $MFT record 0 -> a one-action plan */
+    NtfsVolumeImage v(true);             /* torn $MFT record 0 -> a one-action plan */
     const u64 part_base = 4096ull * 512; /* partition start LBA 4096 */
     std::vector<u8> disk(16ull << 20, 0);
     /* place the volume image at the partition base */
@@ -873,7 +873,6 @@ TEST(RawFixer, RebasedPartitionPlanWritesAtDiskBasisNeverLba0) {
     ASSERT_EQ(1u, log.entries.size());
     EXPECT_EQ(NtfsVolumeImage::MFT_OFF + part_base, log.entries[0].offset);
 }
-
 
 /* ---- S-010: volume quiesce contract (corpus RecoveryModule lock sequence) ---- */
 

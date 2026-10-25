@@ -30,6 +30,11 @@ import sys
 # Audited additions beyond the checked-in baseline, with reasons. Every
 # entry is present on Windows 7 SP1 x64.
 ALLOWLIST_ADDITIONS = {
+    # S-010 (diff-to-fix): the corpus RecoveryModule repair sequence removes the
+    # volume's drive letter before dismounting (RecoveryModule_decompiled.c:44699,
+    # DeleteVolumeMountPointA there; W variant is the same syscall). Available
+    # since Windows 2000 - Win7-inclusive by construction.
+    "DeleteVolumeMountPointW": "S-010 repair quiesce (corpus :44699); Win2000-era API",
     # CRT / exe-startup surface the linker pulls into kernel32
     "GetCommandLineW": "CRT startup (wmain argc/argv); XP-era",
     "GetCommandLineA": "CRT startup fallback; XP-era",

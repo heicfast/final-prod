@@ -3739,3 +3739,21 @@ Work Log:
 Stage Summary:
 - S-010 and A-002 integrated cleanly; the repair write path now carries BOTH the
   disk-absolute offset truth (A-002) and the volume quiesce (S-010).
+
+---
+Task ID: 18-c (S-010 CI follow-ups: import gate + format)
+Agent: main engineer (diff-to-fix remediation, second parallel leg)
+Task: S-010 push tripped the Win7 import allowlist + format gate
+
+Work Log:
+- The Windows PE gate (verify_pe_um.py) failed on the S-010 import
+  DeleteVolumeMountPointW (kernel32). The gate's documented process: conscious
+  ALLOWLIST_ADDITIONS entry with a reason. Added: the corpus sequence removes the
+  drive letter before dismounting (RecoveryModule_decompiled.c:44699, A-variant there,
+  W = same syscall; Win2000-era API, Win7-inclusive by construction). The gate's own
+  test (tools/test_verify_pe_um.py) passes with the addition.
+- test_rawfixer.cpp re-formatted (the rebase-resolution merge left two drift lines).
+- Local gates: 317/317, format clean (18.1.8), PE-gate unit tests pass.
+
+Stage Summary:
+- Both CI regressions from the S-010 push repaired at their documented roots.
