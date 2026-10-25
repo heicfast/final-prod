@@ -390,3 +390,19 @@ was re-verified line-by-line against the corpus; three corrections landed:
 - **Pseudo record#** corrected to the og's lVar18 arithmetic.
 - D-51 corrected in place; D-50/D-51 numbering collisions registered as
   errata (the FAT entry renumbered D-56).
+
+---
+
+## Session-5 addendum (2026-10-26, audited `7cf6754`)
+
+- **Content-proof recognition + scanner backup-boot** — `M-043` (MAJOR):
+  the og's NTFSFileSystemAnalyser verifies the volume-end backup boot
+  sector and requires the $Volume MFT signature before recognition; the
+  core's probe_family is boot-bytes-only and NO scanner path reads the
+  NTFS backup DBR (cr_bootstrap.cpp:329-376 — only the consent-gated
+  rawfixer does, cr_rawfixer.cpp:589-600). Torn-primary + intact-backup
+  volumes require --repair in the core where the og proceeds.
+- **NTFS version gate + MFT×$Bitmap cross-check** — folded into `M-041`
+  (check phase): og gates {1.2, 3.0, 3.1} (0x100a) and cross-checks every
+  allocated MFT record against $Bitmap (0x1002/0x1003); core has neither
+  (cr_bitmap.cpp is grading-only).

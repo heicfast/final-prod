@@ -1,4 +1,98 @@
-# SUMMARY.md — executive summary (closing session on top of session 4; earlier sessions below)
+# SUMMARY.md — executive summary (session 5b on top of the closing sessions; earlier sessions below)
+
+## Session-5b delta (2026-10-26 — the never-dispositioned MOM/product-capabilities leg)
+
+Mandate: find what ALL prior sessions missed, verify landed fixes, go deeper on
+og-vs-core, mark remaining surfaces as findings. Method: coverage-gap map (corpus
+inventory 11,495 files vs every citation in diff-to-fix/+worklog+AUDIT docs)
+exposed the entire `ghidra-mo`/`ghidra-partition` `.mo` family and the
+ghidra-partition remainders as never-audited; four parallel read agents (A:
+boot-repair/partition-write/OS-aware; B: disk-image/device layer; C: FS
+analysers/check phase/virtual views; D: persistence/logging/LDM-write/FATX) +
+lead verification of every load-bearing citation. **ID coordination:** this leg's
+13 findings are renumbered past the storage/census parallel leg's
+S-024..S-028/M-031..M-039/N-045..N-047/I-017/I-018 (no content overlap — pure ID
+deconfliction, append-only convention).
+
+**Counts after session 5b (direct file inventory at the rebase head on
+`c75f646`):** ACUTE 0 · **SEVERE 9** (S-007, S-009-partial, S-023, S-024,
+S-025, S-027, S-028, S-029, S-030) · **MAJOR 38** · **MINOR 31** ·
+**INFO 18** = **96 active** / **49 FIXED** (findings/FIXED/ by file inventory
+minus RESOLVED-INDEX; includes the fix legs' S-012/S-020/S-021/S-003/S-022/
+S-026/M-022/M-023/N-037 landings visible at rebase time).
+
+**The session's headline discoveries (all first-time findings; renumbered IDs):**
+
+- **S-029 (SEVERE)** — the lost-partition APPLY path: the og writes the
+  recovered partition into the table (RecoveryModule `CreateRecoveryPartitionObject`
+  → PartitionRecovery.dll IOCTL chain 0x7C100/0x7C010/0x7C058 + GPT GUID
+  regeneration); the core is contractually read-only (cr_lostpart.h:91-92). The
+  endgame of lost-partition recovery is absent — scope decision forced
+  (consent-gated apply vs documented exclusion).
+- **S-030 (SEVERE)** — disk-image scan targets: the og scans
+  .vmdk/.vhd/.vhdx/.edisk/.img/.dmg as first-class devices (DRWUI
+  CImageFileDevice extension factory + Device.mo/libvmdk with extent/parent-chain
+  support); the core accepts only --disk/--volume. A whole input class missing.
+- **M-040 (MAJOR)** — the boot-chain repair family: Fixup.mo binary-patches BCD
+  hive cells (newLBA<<9 at offset fields, dual-store Boot\BCD + ESP store,
+  ZwUnloadKey force-unlock, DASD flush), EFIBoot.mo manipulates UEFI NVRAM
+  Boot####/BootOrder (GUID 8BE4DF61), boot.ini ARC rewrite, post-op
+  `ChkDsk.exe %C: /F /X` + Bcd_RestoreBcdFile undo — wired into the
+  RecoveryModule/MainModule apply/undo chains; core has zero of it and no
+  disposition.
+- **M-041 (MAJOR)** — the damage-audit/check phase: CCheckFAT (pairwise
+  FAT-copy compare 0x1005, entry-hole + duplicate-reference scans, dir-tree
+  audit incl. cycles/cross-links/size≠chain, orphan sweep) and CCheckNTFSVolume
+  ($MFT/$MFTMirr proofs, version gate {1.2,3.0,3.1}, $Bitmap structural,
+  MFT×$Bitmap cross-check), error taxonomy 0x1001-0x100e, WinChkdsk delegation.
+  Core has only repair-oriented rawfixer checks.
+- **M-042 (MAJOR)** — lostpart.dat resume semantics: the og re-validates each
+  persisted candidate against the disk and drops stale records (with a
+  partinfo.dat whole-disk layout snapshot); the core's session restore is
+  blind. Full 0x448-byte record layout decoded and cross-validated against the
+  shipped .dat files.
+- **M-043 (MAJOR)** — NTFS recognition: og requires MFT $Volume content proof +
+  verifies the volume-end backup boot; the core's scanner never reads the NTFS
+  backup DBR (torn-primary volumes require --repair).
+- **M-044 (MAJOR)** — UDF recognition family missing (og analyser result 0xc;
+  core has no UDF branch in probe_family).
+- **M-045 (MAJOR)** — FAT boot-gate family: six concrete gate deltas (bps
+  any-512-multiple vs pow2-512..4096; SPC ≤128 vs unbounded; "FAT32   "@+0x52
+  label; numFATs≠0; cluster ≥0xFFFFFF0 cap; band-ordered flavor retry).
+  Resolves S-006's FATX scoped remainder: **CFatxBlockParser is the
+  FAT12/16/32 parser — no Xbox FATX exists in the og** (definitive negative
+  grep; corpus-errata row 41).
+- **N-048/N-049/N-050 (MINOR)** — engine logging seam absent (3 og layers);
+  persisted lost records thinner (no bps/SPC/evidence); recognition contract
+  boot-only (no content proof before engine dispatch).
+- **I-019/I-020 (INFO)** — EPM tool ops registered as scope exclusion
+  (EditLdm2*, Ntfs2FATProc conversion, partition merge/resize, FatFormat,
+  Burn — no recovery-flow consumers); corpus-doc corrections register
+  (CTbFile is a boot.ini wrapper not an image abstraction — the real image
+  layer is DRWUI+libvmdk; CFatVirtualView is conversion not recovery;
+  EFIBoot is NVRAM not ESP; Fixup is link-time not MOM; the grading table is
+  .data/unsorted).
+
+**Resolutions this session:** OQ-S4-1 (the 169-entry grading extension table
+dumped — `.data` 0x141bb0500, 9-byte stride, first "Raw", last "COMMON";
+S-023's fix-plan step 3 input complete); OQ-S4-2 (the RAW naming hook =
+single-site "filter_generalraw" category display-name mapping via DRWUI's
+firebase.json — no per-file filter; M-029 §Gap (b) corrected); S-006's FATX
+remainder dissolved; S-019's fix verified in-source; two stale duplicate
+matrix rows consolidated; two accidental finding-file duplicates caught and
+fixed in-session.
+
+**Top-risk update (post session 5b):** #1 S-023 (grading — NOW UNBLOCKED:
+the extension table is dumped), #2 S-024 (health grading — the storage/census
+leg's; same engine lane), #3 **S-029 (apply-path scope decision — blocks
+M-040)**, #4 S-020's family remainder (S-025/S-027/S-028 — ext4/Btrfs
+lanes claimed by the fix legs), #5 **S-030 (image scan targets — also
+unblocks og-vs-core executed comparisons on identical image fixtures)**,
+#6 **M-041 (check phase — error taxonomy test-scoped)**, #7 M-028 (preview
+caps, executed proof), #8 S-007 (carve formats — lane claimed), then the
+M-042/M-043/M-045 family and the prior backlog order below.
+
+
 
 ## diff-to-fix closing session delta (2026-10-26 — the "fix ALL tiers" session)
 

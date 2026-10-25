@@ -178,3 +178,18 @@ per-category statistics nor phase-decomposed counters.
    rule (nonzero → grade 0) is pinned.
 3. Og-execution verification of grade outputs (needs the Windows bench leg; the corpus
    DRWUI.log telemetry strings corroborate the model but not per-file values).
+
+---
+
+## Session-5 addendum (2026-10-26) — fix-plan step 3 input complete: the 169-entry extension table is dumped
+
+OQ-S4-1 is RESOLVED this session (tracked-open updated). The deep-validation
+extension gate's exact entry set — the 9-byte-stride static table at
+`.data` 0x141bb0500 in DRWUI.exe — is dumped in full at
+`evidence/decompiled-quotes/s5-oq-s4-1-extension-table-dump.md` (entries
+0..168, first "Raw", last "COMMON"; corrections: the table is in `.data`
+not `.rdata`, and it is unsorted build order — the runtime map sorts).
+Step 3 of this finding's fix plan can now be executed verbatim against the
+dumped list; the extension-gate test should pin membership for
+representative entries per family (documents DOCX/PDF, photo raws NEF/CR3,
+video MP4/MKV, archives ZIP/7Z, and the "Raw"/"COMMON" sentinels).

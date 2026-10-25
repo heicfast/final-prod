@@ -118,3 +118,34 @@ unchanged from session 1's evidence.
 **Fixed in commit:** (this session's S-006 fix commit — see `git log` for "fix: S-006")
 **Verified by:** fail-before/pass-after executed this session: with only `cr_candidates.cpp` reverted, 5 of 7 new tests FAIL (`Ext4SuperblockAnchorsDeletedPartition`, `HfsPlusVolumeHeaderAnchorsDeletedPartition`, `BtrfsSuperblockAnchorsDeletedPartition`, `ZfsLabelAnchorsDeletedPartition`, `RefsBootAnchorsDeletedPartition` — no candidates surfaced); the 2 negative guards (`Ext4BlockGroupCopyNotACandidateStart`, `SuperblockNoiseRejected`) pass both sides by design. Full suite 332/332 Linux ASan (325 baseline + 7 new). Corpus verification first-hand this session: the parser-tree wiring decoded from `PartitionRecoveryD_decompiled.c` (CBlockParseWin32 ctor FUN_180001c50 wires CFatxBlockParser + CNTFSBlockParser + CExFatBlockParser + BitlockerParser; CBlockParserLinux ctor FUN_180001b40 wires CExtXBlockParser as its ONLY sub-parser); the CExtX accept criteria decoded in full (validator FUN_180002880: magic 0xEF53 @SB+0x38, nonzero inodes/blocks/bpg/ipg, s_first_ino>=3, group-count cross-check `(blocks-first_data_block-1)/bpg+1 == (inodes-1)/ipg+1`, first_data_block==(block_size==1024); parse FUN_180002b90: s_block_group_nr==0 — the partition-start anchor).
 **Resolution notes:** classification CONFIRMED-DIVERGENCE for the ext family (the finding's falsifiable claim — a deleted ext4 partition yields a lost-partition candidate in the og and none in ours — is now closed: `probe_ext` implements the og's exact accept gates on top of the core's `ext4::validate_superblock`, plus a GDT liveness probe; SB-derived real size, no device-end fallback for intact superblocks). **Finding corrected against the corpus (corpus wins):** the og's PartitionRecoveryD deep scan carries NO HFS+/Btrfs/ZFS/ReFS block parsers (the ctor wiring above is exhaustive) — the finding's impact paragraph over-claimed og coverage for "a deleted Linux, Mac, or ReFS partition" yielding candidates in the og; only the ext family is og lost-scan coverage. The HFS+/Btrfs/ZFS/ReFS probes are therefore implemented and documented as DELIBERATE SUPERSETS (docs/PARITY-DELTAS.md D-50): the core's engines exist for all four (the materialize->probe_family->engine dispatch was already wired — this fix adds only the discovery anchors), ReFS is first-class per the audit mandate, and the superset family is consistent with the acknowledged I-003 (Btrfs deep-scan superset). The ReFS DBR (OEM "ReFS" + 55AA) previously fell into the FAT catch-all and was dropped as noise — it now dispatches to `probe_refs` before the catch-all, which runs the existing `refs::detect_refs` page-signature probe over a bounded 8 MiB window from the candidate start. ZFS anchors on the label-0 uberblock ring head (LE magic 0x00BAB10C at +128 KiB, txg liveness) — the same anchor `probe_family` uses; Btrfs anchors on the primary superblock at +64 KiB (`btrfs::validate_superblock`). To bound scan cost, the two out-of-window anchors (btrfs +64 KiB, ZFS +128 KiB) are gated on 1 MiB grid alignment (the standard partition-start alignment; ~2 bounded reads per MiB) — non-aligned lost Linux-partition starts below 1 MiB granularity are not surfaced by these two superset probes (documented in D-50; ext/HFS+/FAT/NTFS/exFAT/ReFS remain stride-1). ZFS/Btrfs/ReFS candidate sizes carry the flagged `size_from_device_end` fallback (the label/MSB geometry is engine-side work; the GAP-S6-6 dedup rule keeps fallback-sized candidates from claiming containment). `CandidateFs` appended Ext2..Refs (6..10; session-serialized positions preserved; the resume-side validation bound extended with old sessions staying valid). **Scoped remainder:** the og's `CFatxBlockParser` (Xbox-original FATX, a legacy EaseUS surface per mo-module-map insight 7) is NOT implemented — its accept criteria are not decoded in the corpus at parser depth (the chain FUN_180006250 -> FUN_180004070/FUN_180004610 was entered but not resolved this session); per the no-hallucinated-parity rule the FATX probe is tracked as this finding's remainder rather than guessed (next step: decode the CFatxBlockParser vtable parse in PartitionRecoveryD_decompiled.c). **M-017 split:** the finding's session-2 update asked for the scoring formula to land together; this session lands the probe families (M-017 remains open in its own right — its ln(count)/ln(max) formula operates on exactly the content counts these probes now surface, and implementing it under its own ID keeps one-finding-one-fix). The finding's test names are realized under the suite's `LostDiscovery` prefix.
+
+---
+
+## Session-5 addendum (2026-10-26) — the FATX scoped remainder is RESOLVED: there is no Xbox FATX parser
+
+Session-5's decode (agent D + lead verification,
+`evidence/decompiled-quotes/s5-image-fscheck-persistence.md` §F) resolves the
+scoped remainder by falsifying its premise:
+
+- **`CFatxBlockParser` is the FAT12/16/32 boot-sector parser — "Fatx" =
+  FAT-x, not Xbox.** FatLib.mo's `FATXDBR` struct is the classic FAT BPB
+  (bps +0xb, SPC +0xd, reserved +0xe, numFats +0x10, root entries +0x11,
+  total16 +0x13, SPF16 +0x16, total32 +0x20, SPF32 +0x24 —
+  FatLib_decompiled.c:594-690). The og's accept chain is
+  `FUN_180006250` → classification `FUN_180004610` (PRD:2516-2726) with the
+  BitLocker pre-gate (:2604-2606), bps-any-512-multiple (:2542-2543),
+  band-ordered flavor try-order (:2547-2598), and per-type validators
+  (:2613-2726). **The Xbox magic 0x58544658/"XTFA" appears NOWHERE in the
+  corpus** (definitive negative grep over reversed/ + og-codebase/).
+- mo-module-map.md insight 7 ("FATX = Xbox-original filesystem support, a
+  legacy EaseUS capability surface") is therefore wrong — corpus-errata row
+  41 (I-020).
+- **Consequence for this finding:** no `probe_fatx` is needed; the
+  remainder dissolves. The og's FAT gates ARE the parity surface, and they
+  diverge from the core's `validate_boot` on six specific gates — tracked
+  as **M-045** (SEVERE-lane sibling of this finding: same surface class,
+  per-gate edge cases). This finding stays closed with its ext-family fix
+  and superset anchors; M-045 carries the gate deltas.
+
+**Remediation log (this addendum):** remainder RESOLVED (dissolved); no
+code change required by this addendum.

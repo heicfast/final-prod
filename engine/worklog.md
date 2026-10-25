@@ -6517,3 +6517,137 @@ Stage Summary:
   deleted-tier results with content extents. Remaining SEVERE lane:
   S-007 (carve formats), S-009 (disk-map split), S-020 (ReFS attribute
   layer), S-023..S-028 (the new audit wave).
+
+---
+Task ID: S5B (session-5b diff-audit — the never-dispositioned MOM/product-capabilities leg; ID-coordinated past the parallel storage/census session-5 leg)
+Agent: session-5 parity auditor (read-only continuation)
+Task: Continuation of the multi-session parity audit: find what ALL prior sessions
+missed, verify landed fixes, go deeper on og-vs-core, mark remaining surfaces as
+findings — with attention to every minor detail.
+
+Work Log:
+- Bootstrap: fresh environment; both repos recloned (core pulled to `7cf6754` —
+  the S-019 fix leg had landed remotely; corpus `03ad46c` unmoved). Session-5
+  prompt saved token-redacted at worklog/session-5b-diff-audit-prompt.md, read twice.
+- Coverage-gap analysis (scripts/s5-coverage-map.sh, scratch): corpus file
+  inventory (11,495 files) vs every path cited across diff-to-fix/ + worklog +
+  AUDIT docs → 890 cited; the meaningful never-cited clusters identified as
+  ghidra-mo (the PartitionRecovery .mo decompile tree), ghidra-partition
+  remainders (MainModule/Win32Bcd/WinChkdsk/Boot/etc.), all of ghidra-repair
+  (EUFileRepair — already scope-excluded per PARITY-CORE-REC.md:164), per-binary
+  artifacts, and the MOM-modules artifact family. Core-side file-coverage check
+  (extension-less reference matching) confirmed prior sessions' core coverage
+  was real (the initial "never cited" list was a matching artifact).
+- Prior-state triage: S-019's fix (7cf6754) verified first-hand in-source
+  (probe_bitlocker's exact `-FVE-FS-` memcmp gate at cr_candidates.cpp:177,
+  dispatch BEFORE the FAT catch-all at :518-524, 3 tests present); the fix
+  leg's audit trail (finding moved to FIXED/, RESOLVED-INDEX, matrix, SUMMARY
+  remediation row) checked and found complete. PARITY-ARCH.md's own F-D-5
+  (partition-table write path), F-D-6 (logging seam), CheckVersion "MISSING
+  (minor, unlisted)" — none had ever become diff-to-fix findings: the
+  never-dispositioned list was confirmed.
+- Reading wave: 4 parallel agents (A: Fixup/EFIBoot/CheckVersion/MainModule/
+  Win32Bcd/WinChkdsk boot-repair + partition-write + OS-aware decode; B: CTbFile/
+  libvmdk/CImageFileDevice disk-image layer + core input-surface verification;
+  C: FileSystemCheck + the 5 FileSystemAnalysers + NTFSUtil virtual views;
+  D: lostpart.dat/partinfo.dat persistence + logging seam + EditLdm2* + the
+  CFatxBlockParser decode). One agent retry (B) after a context-deadline, with
+  a tighter scope. Context sheets consolidated to evidence files by the lead.
+- Lead verification: every load-bearing citation re-read first-hand — Fixup's
+  BCD offset rewrite (WriteFile of newLBA<<9 at -0x1c seek), PartitionRecovery
+  dll's IOCTL write chain (0x7C100/0x7C010/0x7C058), the NFA backup-boot
+  verify block, FFA's UDF probe ("UDF"@+0x19 → result 0xc) and BitLocker
+  u64 constant, FSC's NTFS version-gate set {0x102, 3, 0x301}, CheckVersion's
+  ServerNT/LanmanNT compares, PRD's lostpart append/re-validation sites,
+  cr_lostpart.h's read-only contract, rrecov.cpp's --disk/--volume-only CLI,
+  cr_chain.cpp's validate_boot gates, cr_scan.cpp's blind restore.
+- Lead-executed OQ resolutions: OQ-S4-1 — the 169-entry CRecoverability
+  extension table extracted directly from DRWUI.exe's .data (PE parse, 9-byte
+  null-padded ASCII stride; entries 0..168, first "Raw", last "COMMON";
+  corrections: .data not .rdata, unsorted build order); OQ-S4-2 — the RAW
+  naming hook decoded end-to-end via an RTTI-driven vtable extraction of
+  CRAWSearchController (slot +0x48 setter FUN_18000b8d0 → std::function at
+  +0x30; the ONLY invocation site RAW:9090 with the literal key
+  "filter_generalraw"; DRWUI side maps it via <appdir>/firebase.json) —
+  display-name mapping only, no per-file filter; M-029 §Gap (b) corrected.
+- Findings filed (13, all corpus+core cited, lead-verified):
+  S-029 (SEVERE — lost-partition APPLY/table-write path missing: the og's
+  RecoveryModule CreateRecoveryPartitionObject + IOCTL chain vs the core's
+  contractually-read-only lost module), S-030 (SEVERE — disk-image scan
+  targets missing: DRWUI CImageFileDevice vmdk/vhd/vhdx/edisk/img/dmg +
+  Device.mo/libvmdk vs --disk/--volume-only), M-040 (boot-chain repair family:
+  Fixup.mo BCD hive patching + EFIBoot.mo UEFI NVRAM + boot.ini ARC rewrite +
+  post-op ChkDsk /F /X + Bcd_RestoreBcdFile undo), M-041 (damage-audit/check
+  phase: CCheckFAT copy-compare/entry-hole/dup-ref/dir-tree/orphan +
+  CCheckNTFSVolume version gate + MFT×$Bitmap cross-check, taxonomy
+  0x1001-0x100e, WinChkdsk ladder), M-042 (lostpart.dat resume re-validation
+  + partinfo.dat layout snapshot vs blind core restore), M-043 (NTFS
+  content-proof recognition + scanner backup-boot read missing), M-044 (UDF
+  recognition family missing), M-045 (FAT boot-gate family: 6 deltas —
+  resolves S-006's FATX scoped remainder: CFatxBlockParser = FAT12/16/32
+  parser, no Xbox FATX exists), N-048 (engine logging seam), N-049 (record
+  richness), N-050 (boot-only recognition contract), I-019 (EPM tool ops
+  scope register: EditLdm2*/Ntfs2FATProc/merge-resize/FatFormat/Burn),
+  I-020 (corpus-doc corrections register).
+- Doc layers updated: modules/mom-capabilities.md (NEW — the module row for
+  all nine capability surfaces with verdicts + OQ-S5-1 for CheckVersion's
+  dead-or-live consumer question); module addenda for lost-partition/session/
+  fat/ntfs/carve; CROSS-REF-MATRIX session-5 legend + mom-capabilities row +
+  updated ntfs/fat/session/lost-partition cells + two stale duplicate rows
+  (old merge fat/exfat pair) consolidated with a legend note; CORPUS-ERRATA
+  rows 37-42 (CTbFile, CFatVirtualView family, EFIBoot mechanism, Fixup
+  binding, FATX naming, extension-table location/sorting); tracked-open
+  OQ-S4-1/OQ-S4-2 RESOLVED headers; S-006/S-023/M-029 addenda; SUMMARY
+  session-5 delta + counts; README audited-commit refresh.
+- Hygiene: two accidental duplicate finding files (created by appending to
+  guessed filenames) caught by the duplicate-ID sweep and fixed in-session
+  (addenda moved to the canonical files; strays deleted); a final sweep
+  confirms one file per finding ID.
+
+Stage Summary:
+- Session-5 end state (direct file inventory): 98 active (10 SEVERE / 31 MAJOR /
+  41 MINOR / 16 INFO) + 28 FIXED entries, 9 tracked-open files (OQ-S4-1/S4-2
+  now RESOLVED-in-place, OQ-S5-1 new). Corpus errata rows 37-42 filed.
+- The never-dispositioned MOM/product-capability surface is now fully covered:
+  every .mo module and product DLL in og-codebase/PartitionRecovery/ has a
+  verdict (finding, scope register, or resolved question). The audit's corpus
+  coverage is now complete for every non-UI-resource artifact family.
+- Recommended fix order update (first 20, session-5 additions in bold):
+  1. S-023 grading (NOW UNBLOCKED — the extension table is dumped; step 3
+     executable verbatim), 2. **S-029 apply-path scope decision** (blocks
+     M-040 and any product-level partition recovery), 3. S-020 ReFS attribute
+     layer, 4. S-012 NTFS pass-2, 5. **S-030 image scan targets** (also
+     unblocks og-vs-core executed comparisons on identical image fixtures),
+     6. M-028 preview caps (executed proof), 7. **M-041 check phase**
+     (error taxonomy is test-scoped already), 8. S-021/S-022, 9. M-029
+     (narrowed by OQ-S4-2: category-bucket naming, not per-file filter),
+     10. **M-043 NTFS backup-boot** (small, high recovery value),
+     11. **M-042 resume re-validation** (test-scoped), 12. **M-045 FAT gates**
+     (six unit-fixture tests), 13. M-030 remainder, 14. N-042/N-044/N-040
+     CLI/doc quick wins, 15. **M-044 UDF probe** (S-019-pattern copy),
+     16. **N-048 logging seam** (optional, host-sink design), 17. M-017
+     scoring port, 18. M-011..M-015 FAT family, 19. M-024..M-027 (theirs),
+     20. OQ-S4-3 Windows bench leg (+ OQ-S5-1's payload sweep rides along).
+- Honest not-completed-by-this-leg: the exFAT/ReFS analyser recognition
+  bodies (N-050's open note), M-043's backup-sector index formula
+  (FUN_1800048f0 — one 20-line read for the fix leg), CheckVersion's
+  consumer (OQ-S5-1), the edisk/compressed-image backends (S-030's open
+  question), and og-execution benches (Windows-only, OQ-S4-3 carried).
+
+
+### S5B rebase coordination note (post-rebase onto `c75f646`)
+
+The parallel legs moved main while this leg was in flight: the storage/census
+session-5 leg had already filed S-024..S-028 / M-031..M-039 / N-045..N-047 /
+I-017/I-018 (no content overlap with this leg's surfaces — verified
+file-by-file), and the fix legs landed S-012 (convergent dual-agent), S-022,
+S-020/M-022/N-037, S-026, S-021+S-003, M-023, and the minors batches
+(N-005/N-011/N-012/N-022/N-023/N-024/N-028/N-034/N-038/N-039/N-040-pass-1).
+All 13 of this leg's findings were therefore RENUMBERED past theirs
+(S-029/S-030, M-040..M-045, N-048..N-050, I-019/I-020) and every
+cross-reference updated; the conflict resolutions above are append-only
+(both legs' entries kept; the two stale duplicate fat/exfat matrix rows
+consolidated with a legend note, f210b7e precedent; this leg's prompt file
+renamed to session-5b to keep both prompts). The leg's counts in the S5B
+entry were refreshed post-rebase: 96 active (9 SEVERE / 38 MAJOR / 31 MINOR
+/ 18 INFO) + 49 FIXED by direct file inventory at the rebase head.

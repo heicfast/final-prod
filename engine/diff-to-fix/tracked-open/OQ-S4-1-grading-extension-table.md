@@ -1,6 +1,16 @@
 # OQ-S4-1 — The CRecoverability 169-entry extension table (blob at 0x141bb0500) was located but not dumped
 
-**Status:** OPEN (session 4) · **Module:** drwui/grading · **Parameters:** P15 (confidence grading model — deep-validation extension gate)
+> **RESOLVED (session 5, 2026-10-26):** the 169 entries are dumped in full
+> at `diff-to-fix/evidence/decompiled-quotes/s5-oq-s4-1-extension-table-dump.md`
+> (extraction: PE parse of og-codebase/DRWUI.exe, `.data` file offset
+> 0x1baef00, 9-byte null-padded ASCII stride, entries 0..168, first "Raw",
+> last "COMMON", clean zero boundaries). Two OQ corrections: the table is in
+> **`.data`** (not .rdata) and is **unsorted** (build order; the loader loop
+> DRWUI:605297-605304 inserts into a runtime map which sorts). Fold into
+> S-023's fix plan step 3 (the extension gate's exact entry set) and
+> re-pin its extension-gate test against this list. Corpus-errata row 42.
+
+**Status:** RESOLVED (session 5; was OPEN session 4) · **Module:** drwui/grading · **Parameters:** P15 (confidence grading model — deep-validation extension gate)
 **Audited commit:** `63a9167` · corpus `03ad46c`
 
 ## The precise question

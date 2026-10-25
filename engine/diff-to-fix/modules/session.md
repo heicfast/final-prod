@@ -94,3 +94,16 @@ Core (audited `67193b6`): `src/core/session/` (721 LOC) + `include/cr/session/` 
   any filter-state fields.
 - Session lifecycle/crash-resume verdicts unchanged (S2-F sweep re-confirmed the og's
   checkpoint cadence claims).
+
+---
+
+## Session-5 addendum (2026-10-26, audited `7cf6754`)
+
+- **Resume re-validation** — `M-042` (MAJOR): the og's lostpart.dat flow
+  re-reads each persisted candidate's boot sector on load and drops stale
+  records (PRD:20748-20842) with a partinfo.dat whole-disk layout snapshot
+  for change detection; the core's REC_PARTITION_CONTEXT restore
+  (cr_scan.cpp:1293-1310) is blind. Full decode in
+  `evidence/decompiled-quotes/s5-image-fscheck-persistence.md` §D.
+- **Record richness** — `N-049`: persisted candidates lack bps/SPC/hidden/
+  size-source/evidence fields the og's 0x448-byte record carries.

@@ -183,3 +183,29 @@ core translation instead).
 2. The 8 cross-listed duplicate extensions' precedence rules in FileFilter.xml
    (which category wins when an extension appears twice) — needs a 5-minute config
    read during the fix leg; recorded so the port does not guess.
+
+---
+
+## Session-5 addendum (2026-10-26) — Gap (b) corrected: the RAW naming hook is a single-site category display-name mapping, not a per-file filter
+
+OQ-S4-2 is RESOLVED this session (tracked-open updated; full decode at
+`evidence/decompiled-quotes/s5-oq-s4-2-raw-naming-hook.md`):
+
+- Registration confirmed (DRWUI:917271-917296 → controller vtable slot
+  +0x48 setter FUN_18000b8d0, RAW:8695-8705; std::function stored at
+  controller+0x30, impl at +0x68).
+- **The single consumption site is RAW:9090** (inside vtable-slot-13
+  method FUN_18000beb0): the hook is invoked ONCE with the reserved key
+  **"filter_generalraw"** + empty string, and the returned string NAMES the
+  general-RAW filter/category node (tree node type 6) in the RAW result
+  tree (FUN_180057b80/FUN_1800579b0/FUN_180057e80 attach it).
+- DRWUI side maps the key via `<appdir>/firebase.json`
+  (FUN_140161460 :263298-263340) with an external callback fallback
+  (FUN_140160ab0 :263193-263290) and an "url_" special case; the hook
+  ALWAYS returns a name (no drop/empty path).
+- **Fix-plan step 1 correction:** the "server-side filter push" decision is
+  narrower than assumed — what the core needs is (a) a stable, nameable
+  general-raw category bucket (the og's display name is localized/
+  remote-config-driven), and (b) optionally a name-override callback on the
+  scan API for UI hosts. No per-file rename or filter gating is required
+  for parity.
