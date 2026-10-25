@@ -8650,7 +8650,6 @@ Stage Summary:
   before each push (pull --rebase every time).
 
 ---
-<<<<<<< HEAD
 Task ID: DFX8-S009 (session 8, finding 2)
 Agent: main engineer (diff-to-fix closing session 8)
 Task: S-009 — the disk-map free overlay (the residual the session-6 addendum
