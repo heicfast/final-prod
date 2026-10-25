@@ -53,6 +53,8 @@ const char* err_text(u32 code) {
         return "destination not writable";
     case ERR_HASH_MISMATCH:
         return "hash mismatch after write";
+    case ERR_DEST_FULL:
+        return "destination full";
     case ERR_FVE_LOCKED:
         return "volume locked (FVE)";
     case ERR_HEALTH_UNAVAILABLE:

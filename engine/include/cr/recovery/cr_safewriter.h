@@ -44,6 +44,11 @@ public:
     /* fsync-equivalent + atomic rename temp -> final */
     virtual u32 commit(u64 item_id) = 0;
     virtual void close(u64 item_id) = 0;
+    /* N-015: free bytes at the destination root (0 = unknown -> the
+     * writer's pre-check is skipped; the ENOSPC fast-fail still guards
+     * the pass). WinDestIo maps GetDiskFreeSpaceExW "available to
+     * caller"; mock IOs default 0. */
+    virtual u64 free_bytes(const std::u16string&) const { return 0; }
     /* check existing final path (resume detection) */
     virtual bool exists(const std::u16string& path_utf16) = 0;
 };
@@ -111,6 +116,9 @@ struct WriterStats {
     u64 dirs = 0;               /* G-08: directory nodes materialized */
     u64 nothing_to_recover = 0; /* GAP-S6-7: no-extent/no-resident items
                                  * skipped before any write */
+    /* N-015: the pass aborted (or refused upfront) because the
+     * destination ran out of space - remaining items stayed Pending. */
+    bool dest_full = false;
 };
 
 class SafeWriter {

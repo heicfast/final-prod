@@ -445,6 +445,26 @@ u32 SafeWriter::process(CancelToken* cancel, bool (*progress)(u64, u64, void*), 
         total_bytes += it.bytes_total;
     stats.queued = queue_.size(); /* stamped upfront: an aborted pass
                                     still reports the true queue size */
+
+    /* N-015 pre-check: the og computes destination free space before
+     * writing (RecoveryModule :47033-47038). When the figure is known
+     * and cannot hold the queue, refuse UPFRONT: no create-temp/write
+     * cycle is attempted, every item stays Pending (truthful partial-run
+     * reporting), and the caller gets ERR_DEST_FULL at 0% instead of
+     * 9,900 wasted CreateFile+DeleteFile cycles at 100%-with-errors. */
+    if (total_bytes > 0) {
+        const std::u16string* root = nullptr;
+        for (const auto& it : queue_) /* top-most dest dir = probe root */
+            if (!it.dest_dir.empty() && (!root || it.dest_dir.size() < root->size()))
+                root = &it.dest_dir;
+        if (root) {
+            const u64 free_at_root = io_.free_bytes(*root);
+            if (free_at_root > 0 && free_at_root < total_bytes) {
+                stats.dest_full = true;
+                return ERR_DEST_FULL;
+            }
+        }
+    }
     for (auto& it : queue_) {
         if (it.state == ItemState::Refused) {
             ++stats.refused;
@@ -471,6 +491,15 @@ u32 SafeWriter::process(CancelToken* cancel, bool (*progress)(u64, u64, void*), 
          * only hard abort. */
         if (rc == ERR_CANCELLED)
             return ERR_CANCELLED;
+        /* N-015 fast-fail: ENOSPC is terminal for this pass - every
+         * subsequent item would fail identically. Stop now: the failing
+         * item carries Error(ERR_DEST_FULL); the rest stay Pending (the
+         * report's truthful "not attempted" state), never pointlessly
+         * attempted. Mirrors the ERR_CANCELLED abort shape. */
+        if (rc == ERR_DEST_FULL) {
+            stats.dest_full = true;
+            return ERR_DEST_FULL;
+        }
         /* N-009b (diff-to-fix): progress honesty - error items never
          * count toward done_bytes (the og's ExportThread counts WRITTEN
          * bytes; the old unconditional add over-reported on error-heavy

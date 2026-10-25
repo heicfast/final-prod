@@ -1048,7 +1048,14 @@ int cmd_recover(int argc, wchar_t** argv, int& i) {
         },
         &prog, wstats);
     prog.done();
-    if (rc != OK) {
+    if (rc == ERR_DEST_FULL) {
+        /* N-015: destination-full is a completed-with-failures pass, not
+         * an abort: the report below still emits (per-item outcomes carry
+         * the truth, including "pending" for the never-attempted tail). */
+        wprintf(L"[dest] destination full: %hs (0x%08x) - stopped early, "
+                L"remaining items stay pending\n",
+                err_text(rc), rc);
+    } else if (rc != OK) {
         wprintf(L"recovery failed: %hs (0x%08x)\n", err_text(rc), rc);
         return 1;
     }
