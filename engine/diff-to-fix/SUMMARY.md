@@ -469,3 +469,37 @@ formats the og recovers and the core cannot — S-017's ftyp bug makes the four 
 common video/photo containers uncarvable TODAY), **S-020 joins the ReFS first-class
 blockers** (with M-022/M-026/M-027), **S-019 joins S-006's probe wiring** (implement
 together).
+
+---
+
+## Session-3 S3-parallel wave-2 addendum (2026-10-26 — engine remainders closed)
+
+The continuation leg's second wave closed the engine remainders that survived both
+prior legs' coverage (NTFS attributes/USN/second-source; HFS+ journal consumer;
+ext4/HFS+ inventory residues):
+
+| ID | Severity | Module | One-line |
+|---|---|---|---|
+| S-021 | SEVERE | hfsplus | Journal deleted-record harvester missing (GetDeleteRecord :13637-14252 + emit driver) — the og's PRIMARY deleted surface; core parses journal_info_block and never uses it |
+| S-022 | SEVERE | ntfs | Orphaned-record sweep missing: INDX/MFT records outside live $MFT + $INDEX_ROOT $FILE_NAME harvest — second-source names for files whose MFT records are gone; core has NO INDX decode |
+| N-038 | MINOR | hfsplus | Fork-selection predicate: og record byte +0x29 bit 0x20 → rsrc fork + decmpfs mark vs core empty-fork substitution (field-name UNVERIFIED; refines N-015b) |
+| N-039 | MINOR | ntfs | $UsnJrnl gate: og reason & 0x200 (COMPRESSION_CHANGE) with dead harvest-all flag vs core true FILE_DELETE — core is the correct side; bounds deltas both ways |
+| I-014 | INFO | ext4+hfsplus | Supersets registered: deleted-inode sweep; fragmented-journal-walk correctness (og physical+1 is wrong); allocation-grading (UNVERIFIED); hard links/hot files/decmpfs modes 1-2 MATCH-by-omission; ext4 X51 MATCH |
+
+NTFS remainder closed with MATCH verdicts (lead-verified by targeted greps): $EA/
+$EA_INFORMATION/volume/$LOGGED_UTILITY_STREAM ignored by BOTH engines (zero type
+comparisons in the og decompile; core dispatches 0x10/0x20/0x30/0x80/0xA0 only);
+compression engines MATCH (both LZNT1-only; LZX/XPRESS = shared limitation via the
+sparse+WOF path). EFS content-grading = UNVERIFIED (no fixture, no code either side).
+OQ-T9's residue (the dead agent's USN probe) is dispositioned inside N-039 — its
+premise was inverted, probe retained as core-behavior evidence.
+
+**Counts after wave 2 (file inventory):** ACUTE **0** · SEVERE **15** (S-003, S-006,
+S-007, S-009-partial, S-011..S-015, S-017..S-022) · MAJOR **22** · MINOR **34** ·
+INFO **12** · **total active 83** (20 FIXED). The deleted-file recovery surface now
+carries the two largest engine gaps: **S-021** (HFS+ journal harvest) and **S-022**
+(NTFS INDX second source) — both are name/metadata-yield gaps on the product's
+flagship scenario, ranking with S-012 (NTFS two-pass membership) and S-020 (ReFS
+resident content) in the recommended fix order (see the fix session's lane note:
+S-012's flag flip first, then the S-021/S-022 substrates, then the S-017/S-018 carve
+pair with M-025's state machine).

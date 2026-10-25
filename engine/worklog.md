@@ -4791,3 +4791,53 @@ Stage Summary:
   throughout. M-017 (scoring) sized and deliberately left for a fresh session
   (multi-hour: content-probe pass + 6-rule AdjustPartitionInfoOrder port +
   N-035 extents + stable sort) with its plan fully decoded in the finding.
+
+---
+Task ID: S3-W2 (session-3 wave 2 — engine remainders closed)
+Agent: session-3 continuation auditor (read-only, S3 lead) + S3-NTFS2 agent (partial, completed by lead)
+Task: Close the engine remainders neither prior leg covered: NTFS attributes/USN/
+second-source, HFS+ journal consumer, ext4/HFS+ inventory residues, matrix rows.
+
+Work Log:
+- HFS+ residues from the restored s3-hfsplus-inventory: S-021 SEVERE filed (journal
+  deleted-record harvester GetDeleteRecord :13637-14252 + FUN_18000c8f0 emit — the
+  og's PRIMARY HFS+ deleted surface; core journal_info_block parsed-but-unused,
+  cr_hfsplus_engine.cpp:525); N-038 filed (fork-selection predicate byte +0x29 bit
+  0x20 vs empty-fork substitution; TN1150 field-name ambiguity honestly recorded
+  as UNVERIFIED after the corpus docs + two web probes failed to settle it);
+  I-014 filed (EHB supersets register: ext4 deleted-inode sweep, fragmented-journal
+  -walk correctness advantage, allocation-grading UNVERIFIED residual, hard-link/
+  hot-file/decmpfs-1-2 MATCH-by-omission, ext4 X51 MATCH).
+- ext4 residues: mechanics evidence for S-004's inode-image note completed
+  (FUN_18000e5b0 pre-pass + FUN_180005e50 walk, stride/bound/collect conditions);
+  disposition headers added to both restored inventories mapping the agent's
+  pre-merge planned IDs to their post-merge filings.
+- S3-NTFS2 agent (second attempt, incremental-filing discipline): filed S-022
+  (orphaned-record sweep: raw-cluster INDX/MFT recognition outside live $MFT +
+  $INDEX_ROOT $FILE_NAME harvest — the classic second source; core has NO INDX
+  decode) and N-039 ($UsnJrnl gate decode: og reason & 0x200 = COMPRESSION_CHANGE
+  per winioctl, harvest-all byte write-once-zero dead; core gates on true
+  FILE_DELETE — the dead first-wave agent's probe premise inverted, dispositioned)
+  before its deadline. Lead completed the remaining items by targeted greps:
+  $EA/$EA_INFORMATION/volume/$LOGGED_UTILITY_STREAM MATCH-by-omission (zero type
+  comparisons in the og; core dispatch set = 0x10/0x20/0x30/0x80/0xA0), EFS
+  MATCH-by-omission at type level (content grading UNVERIFIED, no code either
+  side), compression engines MATCH (both LZNT1-only — og ladder 0x3f/0x800/0x8000
+  at :2916/:3814; LZX/XPRESS = shared limitation via sparse+WOF). modules/ntfs.md
+  S3-NTFS2 rows appended; scratch report completed with the lead note.
+- btrfs/ZFS/LDM/orchestration/session/writer/visualization/health/CLI checked
+  against the prior legs' module state: fully covered by M-019/M-020/M-016/N-025/
+  M-018/M-023/N-028/N-032/N-024 + the session-2 OQ resolutions — no new gaps
+  (the api-session leg holds the API/driver/measured-perf lane).
+- CROSS-REF-MATRIX: S3-parallel-leg cells appended (22 rows + renumber map).
+- SUMMARY wave-2 addendum: counts 0 ACUTE / 15 SEVERE / 22 MAJOR / 34 MINOR / 12
+  INFO = 83 active / 20 FIXED; S-021/S-022 ranked into the recommended fix order.
+
+Stage Summary:
+- All planned engine remainders closed with verdicts (findings or MATCH
+  registrations). Two new SEVERE deleted-surface gaps (S-021 HFS+ journal harvest,
+  S-022 NTFS INDX second source) + two MINOR + one INFO register. Unverified
+  residuals are precise and few: TN1150 fork-predicate field name, EFS content
+  grading, allocation-grading visibility, og's journal transaction-magic derivation
+  (S-021 open question), S-022's orphan-collection $-name filtering. IDs returned
+  to the pool unused: M-028/M-029, N-040..N-042, I-015.

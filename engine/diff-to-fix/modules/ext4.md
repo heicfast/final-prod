@@ -129,3 +129,31 @@ runs-in-main-scan condition remain open — see the S-004 FIXED file's session-2
 S-005 (FIXED) og-anchor re-confirmed: ext4 passthrough. Parallel-leg cross-refs: I-006
 (nanoseconds superset), I-007 (timestamp breadth), M-010 (invalid-UTF-8 destruction —
 complementary to this leg's N-029).
+
+---
+
+## Session-3 parallel-leg addendum (S3-EHB residues; core `34b3441`, corpus `03ad46c`)
+
+The parallel leg's ext4 inventory (`evidence/decompiled-quotes/s3-ext4-inventory.md`)
+deepens the rows above without changing verdicts:
+
+- **Journal-image mechanics completed (S-004's missing-subsystem item):** the
+  pre-pass `FUN_18000e5b0` feeds every journal block to the inode-image walk
+  `FUN_180005e50` (stride = inode_size, bound = block_size, :4417/:4422), collecting
+  {size≠0, EXTENTS_FL, 0xF30A} images — the og's only mechanism that gives zero-size
+  deleted dirs a size. Core has no counterpart (per S-004's session-2 note); this
+  file is now the mechanics evidence for that note.
+- **I-014 (rows 1-3):** (1) core's deleted-inode sweep = superset (og has NO dtime
+  sweep; its deleted surface = journal remnants + stale merges + image sizes);
+  (2) og's journal inode walk steps physical+1 per logical block (:12361/:12247) —
+  WRONG for fragmented journal inodes; the core's extent-map read (:678-680) is
+  correct — register "do not replicate"; (3) X51 read patterns MATCH (og
+  block-granular in-engine cache vs core 8 MiB/64 KiB CachedReader — equivalent
+  device traffic).
+- **Dedup semantics:** og skips physical blocks already seen (:12329-12343); core
+  dedups by {inode,name} (:830) — different keys, same net effect on yield (no
+  finding; matrix note).
+- **Re-verified MATCH:** SB gate `:3223` ↔ `:102-104`; primary-SB-only parity
+  (`:3303`); 64-bit GDT; block-size ladder; journal escape restoration (core
+  strictly better, og-compatible); BIGALLOC refusal stays a registered safety
+  choice (og gate NOT-FOUND — unchanged).

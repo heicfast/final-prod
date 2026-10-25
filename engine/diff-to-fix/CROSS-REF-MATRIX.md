@@ -120,3 +120,38 @@ ChecksumDBR "no-skip" candidate — the og's fixer skips {106,107,112} via a
 `std::find == end()` gate over the −1-terminated table at `DAT_180079a40`; the core's
 spec-skip is a MATCH (the parallel leg's binary extraction was right; this leg's first
 reading was wrong — corrected in `evidence/decompiled-quotes/fat-exfat-session2.md`).
+
+# S3-parallel-leg cells (session 3, second continuation leg — wave 1 + residues; core `34b3441`)
+
+| Module | Parameter(s) | Verdict change (evidence: finding file + `evidence/decompiled-quotes/s3-*` / `evidence/executions/s3-*`) |
+|---|---|---|
+| carve | C19/B1/B2 | **S-017** (ftyp-family signatures encode box SIZE as zeros — MP4/MOV/M4A/HEIC carve dead in core; executed proof) |
+| carve | A28/B2 | **S-018** (JPEG: neither og analyser generation requires EOI; core requires EOI+SOF+SOS → truncated photos dropped by core, salvaged by og) |
+| carve | A42/A45 | **M-024** (no runtime format-filter surface vs og RawConfig.ini [Filter], 37 toggles, STL/VPJ default-off) + **N-033** (registry exports consumed by FS engines — no core ABI) |
+| carve | P47–P53/X47/X50 | **M-025** (8 MiB ping-pong + sector dispatch + pending-object streaming vs 1 MiB byte-granularity stateless; M-021's hook depends on its state machine) |
+| carve | A25/A28/C19 | **N-031 addendum** (u16 equal_range chains = insertion order; id-8 continuation records; TTF-vs-MDB u32 pre-emption; TIFF-family same-class relabeling — kTrialOrder equivalence verified per family) |
+| lost-partition | A30/B1 | **S-019** (BitLocker "-FVE-FS-" probe family missing — S-006 under-listed the og; distinct from S-014's unlock-path finding) |
+| lost-partition | A30 | **M-017 addendum** (RTTI proof: *CalcPartition = geometry calculators, slot 4 = SPC; full AdjustPartitionInfoOrder: containment drop, FS-grouped dedup, 0.1/0.3 tie rules, ±16 MiB promotion, cap 2/4/5/6, stable merge sort) |
+| lost-partition | C20/B1 | **N-034** (FAT lost-boot gates: numFATs ∈ {1,2}, FAT12 spf ≤ 200 probe, root×32 % bps — complements N-010b's engine-side gates) |
+| lost-partition | A29/C20 | **N-035** (candidate extents data-area-anchored vs whole-volume — M-017's containment/16-MiB rules consume different extents) |
+| refs | B2/B7/A25 | **S-020** (resident/inline content never materialized: FUN_18000e490/ea30 build CRefsResidentDataRunList, lead re-verified :10413-10462; core resident_data never populated + val_len ≥ 0x28 gate; answers M-022's step 4; needs M-022's grammar walk first) |
+| refs | B4/B5 | **M-026** (deleted model: og stale-"MSB+"-page sweep FUN_180005330 vs core row-flag 0x4 + ID2 — different on-disk premise; CoW favors og) |
+| refs | B7/A29-adj | **M-027** (object-identity keep-one + Recycle-Bin routing/$I resident read missing; core double-emits hard links) |
+| refs | C20/A27 | **N-036** (datarun flags 0x40 + container-map translation vs core 0x10 + never-populated map) |
+| refs | B3/A27 | **N-037** (runlist granularity validation — og discards cluster-inconsistent runlists as FP guard) |
+| refs | F-gate/B1 | **I-013** (host-OS runtime gate: og refuses < Win8 hosts; core host-agnostic — deliberate portability superset) |
+| refs | (convergence) | I-012 named-streams parity confirmed convergent; C21/A26/X51/B10 newly-M (see modules/refs.md S3 rows) |
+| hfsplus | B4/B5/B2/A25 | **S-021** (journal deleted-record harvester GetDeleteRecord :13637-14252 + emit FUN_18000c8f0 — the og's PRIMARY deleted surface; core parses journal_info_block and never uses it) |
+| hfsplus | B2/B7 | **N-038** (fork-selection predicate: og record byte +0x29 bit 0x20 → rsrc fork + decmpfs mark; core data-fork + empty-fork substitution; field-name UNVERIFIED) |
+| ext4 | B1/B4/A27/Q51 | **I-014** (deleted-inode sweep superset; fragmented-journal-walk correctness advantage — og physical+1 is wrong, core extent-map correct; X51 MATCH; "do not replicate" registrations) |
+| hfsplus | B1/B7 (rows 4-6) | **I-014** (allocation-bitmap grading probable superset — UNVERIFIED residual; hard links/hot files MATCH-by-omission; decmpfs modes 1/2 MATCH-by-omission) |
+| ntfs | B4/B5/A26 | **S-022** (orphaned-record sweep: INDX/MFT records outside live $MFT + $INDEX_ROOT entry harvest — second-source names for files with dead MFT records; core has NO INDX decode) |
+| ntfs | B4/C19 | **N-039** ($UsnJrnl harvest gate: og reason & 0x200 = COMPRESSION_CHANGE, harvest-all flag dead code; core true FILE_DELETE — core correct side; bounds deltas both ways; dead-agent probe disposition) |
+| ntfs | B7/C19 (remainder) | MATCH-by-omission rows ($EA/$EA_INFORMATION/$VOLUME_*/$LOGGED_UTILITY_STREAM ignored by both — lead-verified by targeted greps); compression engines MATCH (both LZNT1-only; LZX/XPRESS = shared limitation via sparse+WOF path) — see modules/ntfs.md S3-NTFS2 rows |
+| cross-cutting | Q68 | errata **E22-E28** (registry census corrections: CEPS-not-dBase :1985, OneNote-not-LZH :2156-2177, CRW/PST/DBX/HLP attributions, 35/33 key count) + **S-007 correction addendum** (fix plan's DBF validator dropped; OneNote magic + list-layer LZH replace it) |
+
+*(Renumber map from the pre-merge wave-1 IDs: S-012→S-017, S-013→S-018, S-014→S-019,
+S-015→S-020, M-011→M-024, M-012→M-025, M-015→M-026, M-016→M-027, N-025→N-033,
+N-027→N-034, N-028→N-035, N-030→N-036, N-031→N-037, I-011→I-013; merged as
+addenda: dispatch→N-031, video-feed→M-021, scoring/merge→M-017, resident-bodies→M-022,
+byte-pin→I-009, probe-row→I-010; dropped as dups: boot-geometry→N-013b, byte-granularity→I-009.)*

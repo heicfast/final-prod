@@ -1,3 +1,12 @@
+> **ID-disposition note (added at the session-3 merge, 2026-10-26):** this inventory
+> was written before the parallel-leg renumber; its in-text planned IDs map as
+> follows — §3's "→ S-017" (journal deleted-record harvest) → filed as **S-021**;
+> §2's "→ I-013" (fork-selection predicate) → filed as **N-038** (with the
+> field-name UNVERIFIED noted); §7's allocation-grading superset → **I-014** item 4;
+> hard-link/hot-file MATCHes → **I-014** item 5; §5's mode-3 completion nuance →
+> UNVERIFIED residual (see N-038's companion note; settle with one mode-3 fixture
+> against the current core).
+
 # s3-hfsplus-inventory — HFSPlusSearchDLL function/feature inventory (S3-EHB, session 3)
 
 Reference: `re-workspace/reversed/ghidra-searchdll/HFSPlusSearchDLL_decompiled.c`

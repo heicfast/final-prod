@@ -118,3 +118,42 @@ rsrc is a core superset to register). S-003 remains OPEN with two models on the 
 (differential salvage vs node-image overlay — see the S-003 session-2 note) plus the
 info-block-invalid raw-node salvage fallback both legs confirmed. N-028 carries the sink/
 fork minors.
+
+---
+
+## Session-3 parallel-leg addendum (S3-EHB residues; core `34b3441`, corpus `03ad46c`)
+
+Complements S-003/N-028 above (parallel leg's inventories:
+`evidence/decompiled-quotes/s3-hfsplus-inventory.md` — 0xFunction-trace method map,
+volume header re-verification, catalog decode, journal GetDeleteRecord decode,
+attributes-tree remaining sites, names, hard links/hot files/allocation, leaf walk):
+
+- **S-021 (SEVERE):** the journal has a SECOND consumer besides replay — a
+  **deleted-record harvester** (`CHFSPlusJournal::GetDeleteRecord` :13637-14252 +
+  emit `FUN_18000c8f0` :10017-10127): ring walk → transaction block images →
+  leaf-kind gate → tree-by-address-range (catalog→extents→attributes→allocation→
+  startup) → emit as kind-5 deleted nodes. The og's PRIMARY HFS+ deleted surface.
+  Core parses `journal_info_block` and never uses it (:525; grep "journal" = 1 hit) —
+  only the freed-node sweep. Non-overlapping surfaces: implement on the same
+  ring-walk substrate as S-003's replay.
+- **N-038 (MINOR):** fork-selection predicate — og: record byte +0x29 bit 0x20
+  (:7665, quoted) → resource fork + decmpfs mark (+0xce |= 4); core: data fork
+  always + empty-fork decmpfs substitution (:693-733). Two disagreement populations
+  (marked-not-compressed; compressed-with-data). Field-name UNVERIFIED (TN1150
+  layout ambiguity vs decmpfs literature) — one real volume settles. Refines
+  N-015b's branch note.
+- **I-014 registrations (rows 4-6):** allocation-bitmap grading of freed nodes =
+  probable core superset (og's GetDeleteRecord uses the allocation file only for
+  address mapping :13815; grading not visible — UNVERIFIED residual, low impact);
+  hard links MATCH-by-omission (no 0xF0000000/cnid-15 handling either side); hot
+  files MATCH-by-omission (neither walks .hotfiles.btree; og's startup-file use is
+  journal address mapping only); decmpfs modes 1/2 MATCH-by-omission.
+- **Re-verified MATCH:** volume header gates; catalog leaf walk (A26 — sibling-chain/
+  leaf-first geometry unchanged); record-kind dispatch by tree id 3/4/8; dedup map
+  {parentCNID, cnid, name} (:2432-2450); names/Unicode B10 rows unchanged.
+- **UNVERIFIED residual (new):** §5's decmpfs completion site reads only the size
+  (`node->size = *(u64*)(value+8)` :7840-7843) with NO mode-3/4 branch — mode-3
+  inline payloads may not be wired to content at this site (the S-002-fixed core
+  DOES wire mode 3). Needs one mode-3 fixture against the current core to decide
+  MATCH vs core-superset; next artifact: a mode-3 decmpfs xattr fixture + the og's
+  marked-node content path re-read at :7880+.

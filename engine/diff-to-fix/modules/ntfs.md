@@ -266,3 +266,54 @@ M-007 (hard-link fan-out: og one props per record vs core n-per-parent), M-008
 read (S-012: pass 1 emits one item per record; namespaces unranked; single-FN pick). The
 session-1 session-1 findings fixed in the meantime (N-001 runlist span, M-001 ladder) are
 verified in their FIXED/ files with this leg's decompile quotes.
+
+---
+
+## Session-3 parallel-leg addendum (S3-NTFS2; core `34b3441`, corpus `03ad46c`)
+
+- **S-022 (SEVERE):** the og's full scan carries an "orphaned-record sweep" the corpus
+  never decoded — a raw-cluster walk (claim-map gated) recognizing INDX blocks and
+  MFT records in volume space OUTSIDE the live $MFT, plus a $INDEX_ROOT entry
+  harvest: directory entries' embedded $FILE_NAME (record ref + parent + times +
+  real size + name) become real CNTFSFileProperties per entry; files feed a
+  cross-source orphan collection the post-walk merger consumes; directories emit
+  directly (dedup'd). Recovers names/metadata for files whose MFT records are gone
+  but whose parent's index blocks survive — the classic second source. The core has
+  NO INDX/INDEX_ROOT decode at all. Evidence:
+  `evidence/decompiled-quotes/s3-ntfs-indx-second-source.md`.
+- **N-039 (MINOR):** $UsnJrnl harvest gate — og: `reason & 0x200` (COMPRESSION_CHANGE
+  per winioctl.h, not FILE_DELETE 0x20000); the `||`-combined harvest-all byte
+  (+0x80) is write-once-zero with no setter anywhere (exhaustively verified) — dead
+  code; bounds: og 512 B record cap / no version gate / no journal-size cap; core:
+  true FILE_DELETE bit, V2+V3 gates, 64 MiB cap, UTF-16. The dead first-wave agent's
+  USN probe premise was inverted (its 0x80000200 = CLOSE|COMPRESSION_CHANGE, not
+  delete) — probe output retained as core-behavior evidence, interpretation
+  corrected. Evidence: `evidence/decompiled-quotes/s3-ntfs-usn-gate.md` +
+  `evidence/executions/s3-ntfs-usn-reason/`.
+- **Attribute-type dispatch (remaining types) — MATCH-by-omission, lead-verified by
+  targeted greps (2026-10-26):** the og's entire decompile carries ZERO type
+  comparisons against $EA (0xE0), $EA_INFORMATION (0xD0), $VOLUME_NAME (0x60),
+  $VOLUME_INFORMATION (0x70), $REPARSE as a type-constant, or
+  $LOGGED_UTILITY_STREAM (0x100) — its handled set is the same family the core
+  dispatches (0x10 SI / 0x20 ATTR_LIST / 0x30 FILE_NAME / 0x80 DATA+named / 0xA0
+  INDEX_ALLOC; cr_mftwalk.cpp:79-139). Both engines therefore ignore $EA and
+  volume attributes identically.
+- **EFS — MATCH-by-omission (type level):** no EFS/encrypt strings and no
+  FILE_ATTRIBUTE_ENCRYPTED checks in the og; encrypted files emit as their
+  (encrypted) $DATA on both sides. Content-level grading (does either flag EFS
+  files as unrecoverable?) is UNVERIFIED — neither tree has a fixture; next
+  artifact: an EFS fixture against both (low priority: neither side has any
+  EFS-specific code to diverge).
+- **Compression engines — MATCH (LZNT1-only, both sides):** the og's compression
+  constants are the LZNT1 unit-size ladder (0x3f / 0x800 / 0x8000 comparisons at
+  :2916/:3814; 0x8000 chunk allocations) with no LZX/XPRESS engine strings or
+  dispatch; the core implements MS-XCA LZNT1 only (cr_decomp.cpp:131). compact.exe
+  /LZX and WOF-compressed files use a sparse+reparse storage path outside BOTH
+  engines' scope — register as a shared limitation (PARITY-DELTAS row), not a
+  divergence.
+- **$VOLUME_NAME/$VOLUME_INFO both-ignore:** re-confirmed (session-2 verdict
+  stands; zero 0x60/0x70 type comparisons in the og).
+- **Open (from S-022's decode, for the next pass):** the og's orphan-collection
+  `$`-name filtering / re-parenting by the dir map (:20104-20110) is undecoded;
+  whether FUN_18000c890 (run coalescer) and FUN_18002a780 (B6 remnant scanner) are
+  one sweep's two modes or two entries.

@@ -1,3 +1,11 @@
+> **ID-disposition note (added at the session-3 merge, 2026-10-26):** this inventory
+> was written before the parallel-leg renumber; its in-text planned IDs map as
+> follows — "S-017" (planned, ext4 journal-image) → the substance is filed inside
+> **S-004's FIXED file session-2 note** (journal inode-image salvage, 0xF30A) with
+> this file as the mechanics evidence; "M-020/I-013" (planned, ext4 supersets) →
+> **I-014** (grouped register); X51 rows → I-014 item 3. The og-walk-quirk
+> (physical+1) and deleted-sweep superset are I-014 items 1-2.
+
 # s3-ext4-inventory — EXT4SearchDLL function/feature inventory (S3-EHB, session 3)
 
 Reference: `re-workspace/reversed/ghidra-searchdll/EXT4SearchDLL_decompiled.c`
