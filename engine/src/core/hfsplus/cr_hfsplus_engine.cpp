@@ -784,15 +784,15 @@ static void journal_fallback_salvage(
         }
         if (first != nullptr && first_len >= 12) {
             const u32 klen = be16(first); /* key data length (catalog/
-                                          * extents convention: excludes self) */
+                                           * extents convention: excludes self) */
             const u32 ktotal = 2 + klen + (klen & 1);
             const u32 body = first_len > ktotal ? first_len - ktotal : 0;
             const i16 rtype = i16(be16(first + ktotal));
             const bool cat_shape = (body == 0x58 && rtype == 1) || /* folder */
-                                   (body == 0xF8 && rtype == 2);  /* file */
+                                   (body == 0xF8 && rtype == 2);   /* file */
             const bool ext_shape = (klen == 10 && first_len >= 12 + 64);
-            const bool attr_shape = !cat_shape && !ext_shape && klen >= 14 &&
-                                    (klen & 1) == 0 && first_len > ktotal + 15 &&
+            const bool attr_shape = !cat_shape && !ext_shape && klen >= 14 && (klen & 1) == 0 &&
+                                    first_len > ktotal + 15 &&
                                     be32(first + ktotal) == ATTR_INLINE_DATA;
             if (cat_shape) {
                 for_each_record(u32(sz), win, NH_KIND_LEAF, [&](const u8* rec, u32 len) {
@@ -832,8 +832,7 @@ static void journal_fallback_salvage(
                     if (be32(data) != ATTR_INLINE_DATA)
                         return true;
                     const u32 value_len = be32(data + 12);
-                    if (value_len == 0 ||
-                        u64(key_len) + ATTR_DATA_HEADER + value_len > len)
+                    if (value_len == 0 || u64(key_len) + ATTR_DATA_HEADER + value_len > len)
                         return true;
                     AttrEntry a;
                     for (u32 i = 0; i < name_len; ++i)
@@ -866,13 +865,13 @@ static void journal_fallback_salvage(
 /* The harvest pass. Returns OK on completion (a damaged journal degrades
  * to a no-harvest, never a scan failure - the og treats it as evidence,
  * not an error). */
-static void journal_harvest_pass(Volume& v, CancelToken* cancel,
-                                 const std::map<std::pair<u32, std::u16string>, u32>& live_by_key,
-                                 const std::set<std::tuple<u32, u32, std::u16string>>& live_attr_keys,
-                                 tree::ResultTree& tree, tree::FullNode* root_deleted,
-                                 HfsScanStats& stats, bool emit,
-                                 std::map<u32, std::vector<ForkData::Extent>>& ext_out,
-                                 std::set<u32>& emitted_cnids) {
+static void
+journal_harvest_pass(Volume& v, CancelToken* cancel,
+                     const std::map<std::pair<u32, std::u16string>, u32>& live_by_key,
+                     const std::set<std::tuple<u32, u32, std::u16string>>& live_attr_keys,
+                     tree::ResultTree& tree, tree::FullNode* root_deleted, HfsScanStats& stats,
+                     bool emit, std::map<u32, std::vector<ForkData::Extent>>& ext_out,
+                     std::set<u32>& emitted_cnids) {
     /* og entry gate :13456 - kHFSVolumeJournaledBit (0x2000) in the VH
      * attributes must be set (TN1150: the journalInfoBlock field is only
      * valid when it is); plus a non-zero info block number. */
@@ -921,187 +920,189 @@ static void journal_harvest_pass(Volume& v, CancelToken* cancel,
 
     /* jnl_header: 44 bytes, LITTLE-endian (jnl.c) */
     u8 jh[44];
-    if (v.dev->read_at(jbase, jh, 44) == OK &&
-        le32j(jh + 0) == 0x4A4E4C78 && le32j(jh + 4) == 0x12345678 &&
+    if (v.dev->read_at(jbase, jh, 44) == OK && le32j(jh + 0) == 0x4A4E4C78 &&
+        le32j(jh + 4) == 0x12345678 &&
         le64j(jh + 0x18) == jsize) { /* og cross-check vs the info size */
         const u64 jstart = le64j(jh + 0x10);
         const u32 size_a = le32j(jh + 0x20); /* transaction block-list size */
         const u32 size_b = le32j(jh + 0x28); /* walk/classification block size */
-        if (size_a != 0 && size_b != 0 && size_a <= (16u << 20) &&
-            size_b <= (16u << 20) && jstart < jsize) {
+        if (size_a != 0 && size_b != 0 && size_a <= (16u << 20) && size_b <= (16u << 20) &&
+            jstart < jsize) {
             walk_ok = true;
             std::vector<u8> block(std::max<size_t>(size_a, size_b));
             std::vector<u8> image;
             u64 off = jstart;
             u64 advanced = 0;
-    /* fork classification helper: is byte address inside a fork's extents? */
-    auto in_fork = [&](const ForkData& fork, u32 tree_cnid, u64 addr) -> bool {
-        std::vector<ForkData::Extent> ext(fork.extents, fork.extents + 8);
-        auto it = v.overflow.find(tree_cnid);
-        if (it != v.overflow.end()) {
-            auto fit = it->second.find(0);
-            if (fit != it->second.end())
-                for (const auto& e : fit->second)
-                    ext.push_back(e);
-        }
-        for (const auto& e : ext)
-            if (e.block_count != 0 && addr >= u64(e.start_block) * bs &&
-                addr < u64(e.start_block + e.block_count) * bs)
-                return true;
-        return false;
-    };
+            /* fork classification helper: is byte address inside a fork's extents? */
+            auto in_fork = [&](const ForkData& fork, u32 tree_cnid, u64 addr) -> bool {
+                std::vector<ForkData::Extent> ext(fork.extents, fork.extents + 8);
+                auto it = v.overflow.find(tree_cnid);
+                if (it != v.overflow.end()) {
+                    auto fit = it->second.find(0);
+                    if (fit != it->second.end())
+                        for (const auto& e : fit->second)
+                            ext.push_back(e);
+                }
+                for (const auto& e : ext)
+                    if (e.block_count != 0 && addr >= u64(e.start_block) * bs &&
+                        addr < u64(e.start_block + e.block_count) * bs)
+                        return true;
+                return false;
+            };
 
-    while (advanced <= jsize) { /* one full ring of advances at most */
-        if (cancel && cancel->checkpoint())
-            return;
-        if (!journal_ring_read(v.dev, jbase, jsize, off, block.data(), size_b))
-            return;
-        const u16 first = u16(block[0]) | (u16(block[1]) << 8);
-        if (first == u16((size_a >> 4) - 1)) {
-            /* transaction block-list: re-read the full size_a bytes */
-            u64 tx_off = off < size_b ? off + jsize - size_b : off - size_b;
-            if (!journal_ring_read(v.dev, jbase, jsize, tx_off, block.data(), size_a))
-                return;
-            off = tx_off;
-            advanced += size_a;
-            ++stats.journal_tx;
-            const u32 count = u16(block[2]) | (u16(block[3]) << 8);
-            /* og loop: entries [0 .. count-2] (local_108 = 1 .. count-1) */
-            const u32 entries = count > 0 ? count - 1 : 0;
-            const u8* ep = block.data() + 0x20;
-            for (u32 ei = 0; ei < entries && 0x20 + u64(ei + 1) * 16 <= size_a; ++ei) {
+            while (advanced <= jsize) { /* one full ring of advances at most */
                 if (cancel && cancel->checkpoint())
                     return;
-                const u8* e = ep + u64(ei) * 16;
-                const u64 target_block = le64j(e + 0);
-                const u32 image_size = le32j(e + 8);
-                if (image_size == 0 || image_size > (16u << 20))
-                    continue;
-                image.assign(image_size, 0);
-                const u64 img_ring_off = off; /* ring read advances off */
-                if (!journal_ring_read(v.dev, jbase, jsize, off, image.data(), image_size))
-                    continue; /* damaged image: skip, keep walking */
-                advanced += image_size;
-                ++stats.journal_images;
-                if (!journal_node_image_ok(image.data(), image_size))
-                    continue;
-                if (int(i8(image[8])) != -1) /* leaves only (og :13799) */
-                    continue;
-                ++stats.journal_leaves;
-                /* absolute slice offset of the image (journal attribute
-                 * values live inside the image bytes) */
-                const u64 image_abs = jbase + img_ring_off;
-                /* classify the target by fork ranges, og order */
-                const u64 addr = u64(size_b) * target_block;
-                int which = 0; /* 1 catalog, 2 extents, 3 attributes, 4 allocation */
-                if (in_fork(v.catalog_fork, CNID_CATALOG_FILE, addr))
-                    which = 1;
-                else if (in_fork(v.extents_fork, CNID_EXTENTS_FILE, addr))
-                    which = 2;
-                else if (v.attributes_fork.extents[0].block_count != 0 &&
-                         in_fork(v.attributes_fork, CNID_ATTRIBUTES_FILE, addr))
-                    which = 3;
-                else if (in_fork(v.allocation_fork, 6, addr))
-                    which = 4;
-                if (which == 1) {
-                    for_each_record(image_size, image, NH_KIND_LEAF, [&](const u8* rec, u32 len) {
-                        CatalogRecord cr;
-                        if (!parse_catalog_record(rec, len, cr))
-                            return true;
-                        kept[{cr.parent_cnid, cr.name, cr.cnid}] = cr;
-                        return true;
-                    });
-                } else if (which == 2) {
-                    for_each_record(image_size, image, NH_KIND_LEAF, [&](const u8* rec, u32 len) {
-                        /* overflow record format (same as the
-                         * live overflow walk; A-006: 12-byte key +
-                         * 64-byte descriptor block at key+12) */
-                        if (len < 12 + 64)
-                            return true;
-                        const u32 file_id = be32(rec + 4);
-                        for (int i = 0; i < 8; ++i) {
-                            ForkData::Extent ex;
-                            ex.start_block = be32(rec + 12 + u32(i) * 8);
-                            ex.block_count = be32(rec + 12 + u32(i) * 8 + 4);
-                            if (ex.block_count)
-                                ext_out[file_id].push_back(ex);
+                if (!journal_ring_read(v.dev, jbase, jsize, off, block.data(), size_b))
+                    return;
+                const u16 first = u16(block[0]) | (u16(block[1]) << 8);
+                if (first == u16((size_a >> 4) - 1)) {
+                    /* transaction block-list: re-read the full size_a bytes */
+                    u64 tx_off = off < size_b ? off + jsize - size_b : off - size_b;
+                    if (!journal_ring_read(v.dev, jbase, jsize, tx_off, block.data(), size_a))
+                        return;
+                    off = tx_off;
+                    advanced += size_a;
+                    ++stats.journal_tx;
+                    const u32 count = u16(block[2]) | (u16(block[3]) << 8);
+                    /* og loop: entries [0 .. count-2] (local_108 = 1 .. count-1) */
+                    const u32 entries = count > 0 ? count - 1 : 0;
+                    const u8* ep = block.data() + 0x20;
+                    for (u32 ei = 0; ei < entries && 0x20 + u64(ei + 1) * 16 <= size_a; ++ei) {
+                        if (cancel && cancel->checkpoint())
+                            return;
+                        const u8* e = ep + u64(ei) * 16;
+                        const u64 target_block = le64j(e + 0);
+                        const u32 image_size = le32j(e + 8);
+                        if (image_size == 0 || image_size > (16u << 20))
+                            continue;
+                        image.assign(image_size, 0);
+                        const u64 img_ring_off = off; /* ring read advances off */
+                        if (!journal_ring_read(v.dev, jbase, jsize, off, image.data(), image_size))
+                            continue; /* damaged image: skip, keep walking */
+                        advanced += image_size;
+                        ++stats.journal_images;
+                        if (!journal_node_image_ok(image.data(), image_size))
+                            continue;
+                        if (int(i8(image[8])) != -1) /* leaves only (og :13799) */
+                            continue;
+                        ++stats.journal_leaves;
+                        /* absolute slice offset of the image (journal attribute
+                         * values live inside the image bytes) */
+                        const u64 image_abs = jbase + img_ring_off;
+                        /* classify the target by fork ranges, og order */
+                        const u64 addr = u64(size_b) * target_block;
+                        int which = 0; /* 1 catalog, 2 extents, 3 attributes, 4 allocation */
+                        if (in_fork(v.catalog_fork, CNID_CATALOG_FILE, addr))
+                            which = 1;
+                        else if (in_fork(v.extents_fork, CNID_EXTENTS_FILE, addr))
+                            which = 2;
+                        else if (v.attributes_fork.extents[0].block_count != 0 &&
+                                 in_fork(v.attributes_fork, CNID_ATTRIBUTES_FILE, addr))
+                            which = 3;
+                        else if (in_fork(v.allocation_fork, 6, addr))
+                            which = 4;
+                        if (which == 1) {
+                            for_each_record(image_size, image, NH_KIND_LEAF,
+                                            [&](const u8* rec, u32 len) {
+                                                CatalogRecord cr;
+                                                if (!parse_catalog_record(rec, len, cr))
+                                                    return true;
+                                                kept[{cr.parent_cnid, cr.name, cr.cnid}] = cr;
+                                                return true;
+                                            });
+                        } else if (which == 2) {
+                            for_each_record(
+                                image_size, image, NH_KIND_LEAF, [&](const u8* rec, u32 len) {
+                                    /* overflow record format (same as the
+                                     * live overflow walk; A-006: 12-byte key +
+                                     * 64-byte descriptor block at key+12) */
+                                    if (len < 12 + 64)
+                                        return true;
+                                    const u32 file_id = be32(rec + 4);
+                                    for (int i = 0; i < 8; ++i) {
+                                        ForkData::Extent ex;
+                                        ex.start_block = be32(rec + 12 + u32(i) * 8);
+                                        ex.block_count = be32(rec + 12 + u32(i) * 8 + 4);
+                                        if (ex.block_count)
+                                            ext_out[file_id].push_back(ex);
+                                    }
+                                    return true;
+                                });
                         }
-                        return true;
-                    });
-                }
-                /* attributes branch (which==3): the og harvests inline
-                 * attribute records into volume+0x78's map (:14085-14145,
-                 * not-found-only differential vs the live attributes tree)
-                 * and consumes them as the decmpfs fallback for harvested
-                 * files (FUN_180009f40). Allocation (which==4) / startup
-                 * images have no harvest branch og-side. */
-                if (which == 3) {
-                    for_each_record(image_size, image, NH_KIND_LEAF,
-                                    [&](const u8* rec, u32 len) {
-                        /* attribute record: keyLength (counts itself) +
-                         * pad + fileId + startBlock + nameLen + name, then
-                         * [recordType BE][r1][r2][length BE][value] */
-                        if (len < 16)
-                            return true;
-                        const u32 key_len = be16(rec);
-                        if (key_len < 16 || u64(key_len) + ATTR_DATA_HEADER > len)
-                            return true;
-                        const u32 file_id = be32(rec + ATTR_KEY_FILE_ID);
-                        const u32 start_block = be32(rec + ATTR_KEY_START_BLOCK);
-                        const u32 name_len = be16(rec + ATTR_KEY_NAME_LEN);
-                        if (key_len < 14 + 2 * u64(name_len) || name_len > MAX_RECORD_NAME)
-                            return true;
-                        const u8* data = rec + key_len;
-                        if (be32(data) != ATTR_INLINE_DATA)
-                            return true; /* og: inline records only */
-                        const u32 value_len = be32(data + 12);
-                        if (value_len == 0 ||
-                            u64(key_len) + ATTR_DATA_HEADER + value_len > len)
-                            return true;
-                        AttrEntry a;
-                        for (u32 i = 0; i < name_len; ++i)
-                            a.name.push_back(be16(rec + ATTR_KEY_NAME + u32(i) * 2));
-                        a.start_block = start_block;
-                        a.value_len = value_len;
-                        a.value_off = image_abs + u64(rec - image.data()) + key_len +
-                                      ATTR_DATA_HEADER;
-                        /* live-tree differential: not-found-only (the og
-                         * searches the live attributes tree by key
-                         * {fileId, startBlock, name} before keeping) */
-                        if (live_attr_keys.count({file_id, start_block, a.name}))
-                            return true;
-                        /* decmpfs facts (value fields LITTLE-endian) */
-                        if (a.value_len >= 12 && a.name == u"com.apple.decmpfs" &&
-                            le32(data + ATTR_DATA_HEADER) == DECMPFS_MAGIC_LE) {
-                            a.decmpfs = true;
-                            a.decmpfs_mode = le32(data + ATTR_DATA_HEADER + 4);
-                            a.uncompressed_size = le32(data + ATTR_DATA_HEADER + 8);
-                            if (a.decmpfs_mode == 4 && a.value_len >= 16)
-                                a.rsrc_offset = le32(data + ATTR_DATA_HEADER + 12);
+                        /* attributes branch (which==3): the og harvests inline
+                         * attribute records into volume+0x78's map (:14085-14145,
+                         * not-found-only differential vs the live attributes tree)
+                         * and consumes them as the decmpfs fallback for harvested
+                         * files (FUN_180009f40). Allocation (which==4) / startup
+                         * images have no harvest branch og-side. */
+                        if (which == 3) {
+                            for_each_record(
+                                image_size, image, NH_KIND_LEAF, [&](const u8* rec, u32 len) {
+                                    /* attribute record: keyLength (counts itself) +
+                                     * pad + fileId + startBlock + nameLen + name, then
+                                     * [recordType BE][r1][r2][length BE][value] */
+                                    if (len < 16)
+                                        return true;
+                                    const u32 key_len = be16(rec);
+                                    if (key_len < 16 || u64(key_len) + ATTR_DATA_HEADER > len)
+                                        return true;
+                                    const u32 file_id = be32(rec + ATTR_KEY_FILE_ID);
+                                    const u32 start_block = be32(rec + ATTR_KEY_START_BLOCK);
+                                    const u32 name_len = be16(rec + ATTR_KEY_NAME_LEN);
+                                    if (key_len < 14 + 2 * u64(name_len) ||
+                                        name_len > MAX_RECORD_NAME)
+                                        return true;
+                                    const u8* data = rec + key_len;
+                                    if (be32(data) != ATTR_INLINE_DATA)
+                                        return true; /* og: inline records only */
+                                    const u32 value_len = be32(data + 12);
+                                    if (value_len == 0 ||
+                                        u64(key_len) + ATTR_DATA_HEADER + value_len > len)
+                                        return true;
+                                    AttrEntry a;
+                                    for (u32 i = 0; i < name_len; ++i)
+                                        a.name.push_back(be16(rec + ATTR_KEY_NAME + u32(i) * 2));
+                                    a.start_block = start_block;
+                                    a.value_len = value_len;
+                                    a.value_off = image_abs + u64(rec - image.data()) + key_len +
+                                                  ATTR_DATA_HEADER;
+                                    /* live-tree differential: not-found-only (the og
+                                     * searches the live attributes tree by key
+                                     * {fileId, startBlock, name} before keeping) */
+                                    if (live_attr_keys.count({file_id, start_block, a.name}))
+                                        return true;
+                                    /* decmpfs facts (value fields LITTLE-endian) */
+                                    if (a.value_len >= 12 && a.name == u"com.apple.decmpfs" &&
+                                        le32(data + ATTR_DATA_HEADER) == DECMPFS_MAGIC_LE) {
+                                        a.decmpfs = true;
+                                        a.decmpfs_mode = le32(data + ATTR_DATA_HEADER + 4);
+                                        a.uncompressed_size = le32(data + ATTR_DATA_HEADER + 8);
+                                        if (a.decmpfs_mode == 4 && a.value_len >= 16)
+                                            a.rsrc_offset = le32(data + ATTR_DATA_HEADER + 12);
+                                    }
+                                    auto& list = journal_attrs[file_id];
+                                    if (list.size() < (1u << 16))
+                                        list.push_back(std::move(a));
+                                    ++stats.journal_attr_records;
+                                    return true;
+                                });
                         }
-                        auto& list = journal_attrs[file_id];
-                        if (list.size() < (1u << 16))
-                            list.push_back(std::move(a));
-                        ++stats.journal_attr_records;
-                        return true;
-                    });
+                    }
+                } else {
+                    /* the probe read already advanced `off` by size_b */
+                    advanced += size_b;
                 }
+                if (off == jstart)
+                    break; /* wrapped back to the start: walk complete (og gate) */
             }
-        } else {
-            /* the probe read already advanced `off` by size_b */
-            advanced += size_b;
-        }
-            if (off == jstart)
-                break; /* wrapped back to the start: walk complete (og gate) */
-        }
         }
     } else {
         /* the jnl_header gates failed - the og's volume-open salvage
          * ladder (:1715-1760 + FUN_180003ea0): if the block at jbase is
          * node-shaped, salvage the first validator-passing node image on
          * the size ladder into the same harvest maps. */
-        journal_fallback_salvage(v, jbase, live_attr_keys, kept, ext_out, journal_attrs,
-                                 stats);
+        journal_fallback_salvage(v, jbase, live_attr_keys, kept, ext_out, journal_attrs, stats);
     }
     (void)walk_ok;
 
@@ -1218,8 +1219,8 @@ static void journal_harvest_pass(Volume& v, CancelToken* cancel,
                     }
                     if (ext_ok) {
                         props->extents.clear();
-                        props->extents.push_back({abs, u64(dec->uncompressed_size),
-                                                  u32(compress::kZlib), psize});
+                        props->extents.push_back(
+                            {abs, u64(dec->uncompressed_size), u32(compress::kZlib), psize});
                         props->logical_size = dec->uncompressed_size;
                         ++stats.decmpfs_files;
                     }
