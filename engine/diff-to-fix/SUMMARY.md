@@ -385,14 +385,16 @@ verified in-tree), N-045 (cache algorithm divergence + cite refresh). **New trac
 (3):** OQ-S6-1 (PartitionRecoveryD generator-set semantics), OQ-S6-2 (Btrfs RC4 target),
 OQ-S6-3 (CRAW +0xF4/anchor-B/checksum).
 
-**Counts after the session-6 reconciliation (direct file inventory at the merged tree):**
-ACUTE 1 (A-006, parallel leg) · SEVERE 5 (S-009 residual, S-029, S-030, S-031, S-032) ·
-MAJOR 43 · MINOR 55 · INFO 22 = **126 active** / 61 FIXED; 16 tracked-open files. (The
-parallel legs' fix wave moved 27 findings to FIXED in the same window — S-007, S-020..S-028,
-M-010, M-022..M-027, N-005, N-011, N-012, N-024, N-028, N-038, N-039 among them — while
-their audit legs filed A-006, S-029..S-032, M-043..M-051, N-048..N-064, I-021/I-022 and
-landed the fix for A-005 as well; this session's addenda re-verified the overlapping
-fixes first-hand where its citations touched them.)
+**Counts after the session-6 reconciliation (direct file inventory, refreshed through the
+last mid-session landings):** ACUTE 0 (A-005/A-006 both fixed in-window) · SEVERE 5
+(S-009 residual, S-029, S-030, S-031, S-032 — S-031's deleted-flag half fixed and
+verified mid-session; the timestamp residual stays open) · MAJOR 40 · MINOR 55 · INFO 22
+= **122 active / 68 FIXED**; 16 tracked-open files. (The parallel legs' fix wave moved
+34 findings to FIXED in the same window — S-007, S-020..S-028, S-031, M-010, M-022..M-027,
+N-005, N-011, N-012, N-024, N-028, N-038, N-039, A-005, A-006 among them — while their
+audit legs filed A-006, S-029..S-032, M-043..M-051, N-048..N-064, I-021/I-022; this
+session's addenda re-verified the overlapping fixes first-hand where its citations
+touched them.)
 
 **Recommended first-10 from this session's crop (for the fix legs):**
 1. M-052 (recycle pairing — generalize the NTFS model; 3 fail-before tests specified)
