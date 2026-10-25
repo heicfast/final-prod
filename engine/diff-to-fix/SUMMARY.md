@@ -148,6 +148,20 @@ fs_hint 11. 4 tests, all fail-before; suite 599/599.
 Session counts at this landing: MAJOR open 30 -> 29 (M-044 moved to FIXED/),
 FIXED set grows to 99 files in findings/FIXED/.
 
+**M-028 FIXED (preview caps bypass):** the audit's executed bypass
+(65,568 device bytes pulled against a 4,096-byte cap with truncated=false
+on the docx/zip path) reproduced first-hand as the fail-before, then closed
+architecturally: `PreviewReader::read_cost` prices every fetch before the
+device is touched (compressed windows cost the whole psize block),
+`Window::fetch_any` gates on cost, all four docx reads route through the
+new `Window::checked_read` (honest archive/zip degrade + truncated=true),
+the over-budget head path propagates truncated, and a post-extraction
+device-delta belt guards future parsers. Header provenance corrected (og
+preview cap = 1 MiB at the UI socket layer per I-015; IInWindowStream =
+7-Zip's LZ input interface; the core's 4 MiB kept as documented superset)
++ the compressed-extent whole-block cost disclosed. 5 tests fail-before;
+fuzz tight-budget trap added; suite 662/662. MAJOR open 28.
+
 ## Session-19 delta (2026-10-26 — DFX19: MAJOR-first lane, first landing M-016)
 
 Bootstrap `ff734d7` (union of the parallel lanes' claims: DFX18 on the MINOR
