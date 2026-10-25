@@ -4,6 +4,8 @@
  */
 
 #include "cr/ext4/cr_ext4_engine.h"
+#include "cr/storage/cr_retry.h"
+#include <utility>
 #include <gtest/gtest.h>
 #include <cstring>
 #include <functional>
@@ -522,6 +524,135 @@ TEST(Ext4Engine, JournalFirstBlockNotJsbNoSalvage) {
     for (tree::FileNode* c = rl->first_child(); c; c = c->next_sibling())
         if (c->props())
             ADD_FAILURE() << "no journal node may surface without a jsb";
+}
+
+/* ===================================================================== */
+/* M-037 (diff-to-fix): the og's dir-block damage model — decoded from   */
+/* EXT4SearchDLL FUN_180005820 (:4146-4168): invalid entries SKIP by a   */
+/* 4-byte resync slide (entries after a corruption survive); type must   */
+/* be 1..7; rec_len >= (name_len+11)&~3; inode# <= inodes_count. The     */
+/* core's deliberate superset: walking PAST inode-0 holes (og stops).    */
+/* ===================================================================== */
+
+TEST(Ext4Engine, CorruptRecLenSkipsEntryNotBlock) {
+    /* "hello.txt" sits at root-block offset 24; corrupting its rec_len
+     * must cost ONLY that entry — "sub" (at 44) and its nested file must
+     * survive the 4-byte resync slide. Fail-before: the old break dropped
+     * every entry after the corruption. */
+    auto img = build_volume();
+    u8* root = img.block(B_ROOTDIR);
+    put16(root + 24 + 4, 0x00FF); /* misaligned rec_len on hello.txt */
+    MemDevice dev(img.raw());
+
+    tree::ResultTree tree;
+    auto* ra = tree.add_root(u"Found");
+    auto* rd = tree.add_root(u"Deleted");
+    auto* rl = tree.add_root(u"Lost Files");
+    Ext4ScanFlags fl;
+    Ext4ScanStats st;
+    u32 rc = scan_ext4(&dev, fl, nullptr, nullptr, nullptr, tree, ra, rd, rl, st);
+    ASSERT_EQ(OK, rc) << err_text(rc);
+
+    std::set<std::string> found;
+    std::function<void(tree::FileNode*, const std::string&)> collect =
+        [&](tree::FileNode* n, const std::string& p) {
+            for (tree::FileNode* c = n->first_child(); c; c = c->next_sibling()) {
+                if (!c->props())
+                    continue;
+                const std::string nm = c->name_utf8();
+                const std::string full = p.empty() ? nm : (p == "/" ? "/" + nm : p + "/" + nm);
+                found.insert(full);
+                collect(c, full);
+            }
+        };
+    collect(ra, "");
+    EXPECT_FALSE(found.count("/hello.txt")) << "the corrupt entry itself is lost";
+    EXPECT_TRUE(found.count("/sub")) << "entries after the corruption must survive";
+    EXPECT_TRUE(found.count("/sub/nested.bin"));
+}
+
+TEST(Ext4Engine, InodeZeroHoleContinues) {
+    /* Deliberate superset PIN (M-037): the og's walk STOPS at an inode-0
+     * hole (FUN_180005820 :4155); the core continues past it, recovering
+     * the live entries that follow. Rebuild the root dir with a hole
+     * between ".." and the live files. */
+    auto img = build_volume();
+    u8* root = img.block(B_ROOTDIR);
+    memset(root, 0, BS);
+    u32 cur = 0;
+    add_dirent(root, cur, INO_ROOT, ".", 2);
+    add_dirent(root, cur, INO_ROOT, "..", 2);
+    add_dirent(root, cur, 0, "hole-entry", 1); /* the og stops here */
+    add_dirent(root, cur, INO_HELLO, "hello.txt", 1);
+    add_dirent(root, cur, INO_DIR, "sub", 2);
+    MemDevice dev(img.raw());
+
+    tree::ResultTree tree;
+    auto* ra = tree.add_root(u"Found");
+    auto* rd = tree.add_root(u"Deleted");
+    auto* rl = tree.add_root(u"Lost Files");
+    Ext4ScanFlags fl;
+    Ext4ScanStats st;
+    u32 rc = scan_ext4(&dev, fl, nullptr, nullptr, nullptr, tree, ra, rd, rl, st);
+    ASSERT_EQ(OK, rc) << err_text(rc);
+
+    std::set<std::string> found;
+    std::function<void(tree::FileNode*, const std::string&)> collect =
+        [&](tree::FileNode* n, const std::string& p) {
+            for (tree::FileNode* c = n->first_child(); c; c = c->next_sibling()) {
+                if (!c->props())
+                    continue;
+                const std::string nm = c->name_utf8();
+                const std::string full = p.empty() ? nm : (p == "/" ? "/" + nm : p + "/" + nm);
+                found.insert(full);
+                collect(c, full);
+            }
+        };
+    collect(ra, "");
+    EXPECT_TRUE(found.count("/hello.txt")) << "past-hole live entries survive (our superset)";
+    EXPECT_TRUE(found.count("/sub"));
+    EXPECT_TRUE(found.count("/sub/nested.bin"));
+}
+
+TEST(Ext4Engine, FileTypeGateSkipsInvalid) {
+    /* The og's type gate (1..7) skips entries whose type byte is invalid
+     * without dropping the rest of the block. Fail-before: no type gate
+     * existed, so a type-8 entry was emitted as a file. */
+    auto img = build_volume();
+    u8* root = img.block(B_ROOTDIR);
+    memset(root, 0, BS);
+    u32 cur = 0;
+    add_dirent(root, cur, INO_ROOT, ".", 2);
+    add_dirent(root, cur, INO_ROOT, "..", 2);
+    add_dirent(root, cur, INO_HELLO, "badtype8.txt", 8); /* EXT4_FT max is 7 */
+    add_dirent(root, cur, INO_DIR, "sub", 2);
+    MemDevice dev(img.raw());
+
+    tree::ResultTree tree;
+    auto* ra = tree.add_root(u"Found");
+    auto* rd = tree.add_root(u"Deleted");
+    auto* rl = tree.add_root(u"Lost Files");
+    Ext4ScanFlags fl;
+    Ext4ScanStats st;
+    u32 rc = scan_ext4(&dev, fl, nullptr, nullptr, nullptr, tree, ra, rd, rl, st);
+    ASSERT_EQ(OK, rc) << err_text(rc);
+
+    std::set<std::string> found;
+    std::function<void(tree::FileNode*, const std::string&)> collect =
+        [&](tree::FileNode* n, const std::string& p) {
+            for (tree::FileNode* c = n->first_child(); c; c = c->next_sibling()) {
+                if (!c->props())
+                    continue;
+                const std::string nm = c->name_utf8();
+                const std::string full = p.empty() ? nm : (p == "/" ? "/" + nm : p + "/" + nm);
+                found.insert(full);
+                collect(c, full);
+            }
+        };
+    collect(ra, "");
+    EXPECT_FALSE(found.count("/badtype8.txt")) << "type-8 entries are skipped (og gate 1..7)";
+    EXPECT_TRUE(found.count("/sub")) << "the block survives the skipped entry";
+    EXPECT_TRUE(found.count("/sub/nested.bin"));
 }
 
 /* ---- S-005: on-disk UTF-8 names decode, never byte-lift ---------------- */
@@ -1167,6 +1298,200 @@ TEST(Ext4Engine, TwoPassJournalClaimInteraction) {
     EXPECT_EQ(size_t(1), count) << "the live claim wins - no journal duplicate";
     EXPECT_EQ(2u, st.journal_salvaged) << "only the S-004 orphan remnants (ghost + esc) surface; "
                                           "the live-claimed entries do not duplicate";
+}
+
+/* ---------------------------------------------------------------------------
+ * N-073 pin (classified FIXED-ALREADY: N-004's landing at the transport
+ * layer covers the engine path N-073 filed against). The og's ext4
+ * CEXT4CatchBufferDeviceProxy 1 KiB-backtrack shifted-window salvage
+ * (corpus ext4-engine--deep-dive.md :25-33), proven here through the
+ * ENGINE path - scan_ext4's dir-walk content reads (read_extent_data ->
+ * v.dev, exactly the call chain N-073 cites), driven on the production
+ * pipe shape (engine -> RetryingDevice -> fault -> image).
+ *
+ * The fault device models the alignment-dependent transport failure class
+ * the CatchBuffer exists for: the named exact (offset,length) windows
+ * fail; every other request - crucially the 1 KiB-backtrack shifted
+ * windows - succeeds. The root dir content read is [B_ROOTDIR*BS,
+ * +BS) = [5120, 6144); its bisect halves are (5120,512)/(5632,512);
+ * the backtracks are (4096,2048) for the full window and (4608,1536)
+ * for the high half. */
+class ExactFaultDevice : public IStorageDevice {
+public:
+    ExactFaultDevice(std::unique_ptr<IStorageDevice> inner,
+                     std::set<std::pair<u64, u32>> dead)
+        : inner_(std::move(inner)), dead_(std::move(dead)) {}
+    u32 read_at(u64 off, void* buf, u32 len) override {
+        if (dead_.count({off, len}))
+            return ERR_READ_FAILED;
+        return inner_->read_at(off, buf, len);
+    }
+    const Geometry& geometry() const override { return inner_->geometry(); }
+
+private:
+    std::unique_ptr<IStorageDevice> inner_;
+    std::set<std::pair<u64, u32>> dead_;
+};
+
+namespace {
+/* N-073: the fault set defeats the same-window retries AND both bisect
+ * halves; ONLY the full window's 1 KiB-backtrack (4096,2048) succeeds.
+ * With backtrack ON (the og-parity default) the dir content is salvaged
+ * and the tree is intact; with backtrack OFF (the pre-N-004 world N-073
+ * filed: "core zero-fills the failed extent") the same read zero-fills
+ * and the dir parses as nothing. (The halves' own backtracks are never
+ * reached: with backtrack ON the main window fires first; with OFF no
+ * backtrack runs at all.) */
+const std::set<std::pair<u64, u32>> kN073DeadFull = {
+    {u64(B_ROOTDIR) * BS, u32(BS)},        /* direct window (5120,1024) */
+    {u64(B_ROOTDIR) * BS, 512u},           /* bisect low half (5120,512) */
+    {u64(B_ROOTDIR) * BS + 512, 512u},     /* bisect high half (5632,512) */
+};
+} // namespace
+
+TEST(Ext4Engine, CatchBufferBacktrackSalvage) {
+    auto img = build_volume();
+    auto mem = std::make_unique<MemDevice>(img.raw());
+    auto dev = RetryingDevice::create(
+        std::make_unique<ExactFaultDevice>(std::move(mem), kN073DeadFull),
+        RetryPolicy{3, RetryMode::Skip, /*backtrack=*/true});
+    ASSERT_NE(nullptr, dev);
+
+    tree::ResultTree tree;
+    auto* ra = tree.add_root(u"Found");
+    auto* rd = tree.add_root(u"Deleted");
+    Ext4ScanFlags fl;
+    Ext4ScanStats st;
+    u32 rc = scan_ext4(dev.get(), fl, nullptr, nullptr, nullptr, tree, ra, rd, nullptr, st);
+    ASSERT_EQ(OK, rc) << err_text(rc);
+
+    std::set<std::string> found;
+    std::function<void(tree::FileNode*, const std::string&)> collect =
+        [&](tree::FileNode* n, const std::string& p) {
+            for (tree::FileNode* c = n->first_child(); c; c = c->next_sibling()) {
+                if (!c->props())
+                    continue;
+                const std::string nm = c->name_utf8();
+                const std::string full = p.empty() ? nm : (p == "/" ? "/" + nm : p + "/" + nm);
+                found.insert(full);
+                collect(c, full);
+            }
+        };
+    collect(ra, "");
+    EXPECT_TRUE(found.count("/hello.txt"));
+    EXPECT_TRUE(found.count("/sub"));
+    EXPECT_TRUE(found.count("/sub/nested.bin"));
+    EXPECT_EQ(2u, st.files);
+    /* the og-parity tail: a CatchBuffer-salvaged region is never recorded
+     * bad - the shifted window succeeded, so no error-map entry exists. */
+    EXPECT_EQ(0u, dev->error_map().ranges().size());
+}
+
+TEST(Ext4Engine, BacktrackOffZeroFillsTheWindow) {
+    /* The control leg: identical fault, backtrack OFF = the pre-N-004 tree
+     * = the exact behavior N-073 filed. The dir window zero-fills under
+     * Skip mode, parse_dir_block's majority gate rejects the zeros, the
+     * walk surfaces metadata-only, and the read failure is mapped. */
+    auto img = build_volume();
+    auto mem = std::make_unique<MemDevice>(img.raw());
+    auto dev = RetryingDevice::create(
+        std::make_unique<ExactFaultDevice>(std::move(mem), kN073DeadFull),
+        RetryPolicy{3, RetryMode::Skip, /*backtrack=*/false});
+    ASSERT_NE(nullptr, dev);
+
+    tree::ResultTree tree;
+    auto* ra = tree.add_root(u"Found");
+    Ext4ScanFlags fl;
+    Ext4ScanStats st;
+    u32 rc = scan_ext4(dev.get(), fl, nullptr, nullptr, nullptr, tree, ra, nullptr, nullptr, st);
+    ASSERT_EQ(OK, rc) << err_text(rc);
+
+    std::set<std::string> found;
+    std::function<void(tree::FileNode*, const std::string&)> collect =
+        [&](tree::FileNode* n, const std::string& p) {
+            for (tree::FileNode* c = n->first_child(); c; c = c->next_sibling()) {
+                if (!c->props())
+                    continue;
+                const std::string nm = c->name_utf8();
+                found.insert(p.empty() ? nm : (p == "/" ? "/" + nm : p + "/" + nm));
+                collect(c, p.empty() ? nm : p + "/" + nm);
+            }
+        };
+    collect(ra, "");
+    EXPECT_FALSE(found.count("/hello.txt"));
+    EXPECT_FALSE(found.count("/sub"));
+    EXPECT_EQ(0u, st.files);
+    /* zero-filled after exhaustion: both halves mapped (the pre-N-004
+     * behavior - the whole span lands in the error map). */
+    EXPECT_EQ(u64(1024), dev->error_map().total_bytes());
+}
+
+TEST(Ext4Engine, ZeroFillOnlyWhenBacktrackAlsoFails) {
+    /* N-073's second named test. The main backtrack window (4096,2048) is
+     * now also dead; bisection splits the window and only the truly
+     * unreadable HALF is zero-filled: the low half (5120,512) is healthy
+     * and passes at try, the high half (5632,512) is dead (its own
+     * backtrack (4608,1536) is dead too). A "tail.txt" dirent placed at
+     * dir offset 512 - inside the dead half - proves the split: the
+     * first-half dirents surface, the dead-half one does not. */
+    auto img = build_volume();
+    u8* root = img.block(B_ROOTDIR);
+    /* pad entry [56,512): inode 0, rec_len 456, name_len 0 - ext2's
+     * reserved-entry form; keeps the parser walking across the gap so
+     * the tail dirent at 512 is reachable when the half is readable. */
+    put32(root + 56, 0);
+    put16(root + 56 + 4, 456);
+    root[56 + 6] = 0;
+    root[56 + 7] = 0;
+    u32 cur = 512;
+    add_dirent(root, cur, INO_HELLO, "tail.txt", 1);
+
+    auto mem = std::make_unique<MemDevice>(img.raw());
+    auto dev = RetryingDevice::create(
+        std::make_unique<ExactFaultDevice>(
+            std::move(mem),
+            std::set<std::pair<u64, u32>>{
+                {u64(B_ROOTDIR) * BS, u32(BS)},         /* direct (5120,1024) */
+                {u64(B_ROOTDIR) * BS - 1024, 2048u},    /* main backtrack (4096,2048) */
+                {u64(B_ROOTDIR) * BS + 512, 512u},      /* high half (5632,512) */
+                {u64(B_ROOTDIR) * BS - 1024 + 512, 1536u}, /* hi's backtrack (4608,1536) */
+            }),
+        RetryPolicy{3, RetryMode::Skip, /*backtrack=*/true});
+    ASSERT_NE(nullptr, dev);
+
+    tree::ResultTree tree;
+    auto* ra = tree.add_root(u"Found");
+    auto* rd = tree.add_root(u"Deleted");
+    Ext4ScanFlags fl;
+    Ext4ScanStats st;
+    u32 rc = scan_ext4(dev.get(), fl, nullptr, nullptr, nullptr, tree, ra, rd, nullptr, st);
+    ASSERT_EQ(OK, rc) << err_text(rc);
+
+    std::set<std::string> found;
+    std::function<void(tree::FileNode*, const std::string&)> collect =
+        [&](tree::FileNode* n, const std::string& p) {
+            for (tree::FileNode* c = n->first_child(); c; c = c->next_sibling()) {
+                if (!c->props())
+                    continue;
+                const std::string nm = c->name_utf8();
+                const std::string full = p.empty() ? nm : (p == "/" ? "/" + nm : p + "/" + nm);
+                found.insert(full);
+                collect(c, full);
+            }
+        };
+    collect(ra, "");
+    /* the readable half arrived: the fixture dirents (offsets 0..56) live */
+    EXPECT_TRUE(found.count("/hello.txt"));
+    EXPECT_TRUE(found.count("/sub"));
+    EXPECT_TRUE(found.count("/sub/nested.bin"));
+    EXPECT_EQ(2u, st.files);
+    /* the dead half was zero-filled, not the whole window: tail.txt (its
+     * dirent sits at offset 512, inside the dead half) never surfaces. */
+    EXPECT_FALSE(found.count("/tail.txt"));
+    /* and only the unreadable half is in the error map. */
+    ASSERT_EQ(1u, dev->error_map().ranges().size());
+    EXPECT_EQ(u64(B_ROOTDIR) * BS + 512, dev->error_map().ranges()[0].offset);
+    EXPECT_EQ(u64(512), dev->error_map().ranges()[0].length);
 }
 
 } // namespace

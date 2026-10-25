@@ -8912,6 +8912,58 @@ Stage Summary:
 - The clobber is repaired; S-009/N-042/N-044/M-012 landings stand again.
   Watch for the clobbering lineage pushing the rollback forward - if it
   reappears, re-apply this repair and flag the lineage in this worklog.
+
+
+---
+Task ID: DFX14-T3 (the reconciliation queue: N-073 + the M-029 duplicate)
+Agent: main engineer (diff-to-fix session 14)
+Task: The unclaimed audit-trail reconciliation queue (per the DFX14 lane
+claim): classify N-073 (the "probable duplicate of N-004" per DFX12-T2) with
+execution proof; fold the duplicate M-029 pair flagged by DFX11/DFX12.
+
+Work Log:
+- N-073 verified per the SOP: premise TRUE at filing (zero backtrack sites),
+  stopped being true at N-004's landing 7f03c4b (RetryPolicy::backtrack at
+  the transport boundary). The engine-path coverage verified by composition:
+  cr_scan.cpp:714/723 pass the pipe (cache->RetryingDevice->shim->slice)
+  into run_quick/run_deep; scan_ext4 sets v.dev = that pipe (cr_ext4_engine
+  :663); read_extent_data's salvage sites (:495/:565/:592) cite exactly this
+  layering in-source.
+- Engine-path proof = the finding's own plan's tests, executed this session
+  on an ExactFaultDevice (alignment-fault model, exact (offset,length)
+  windows): CatchBufferBacktrackSalvage (fault defeats same-window retries
+  AND both bisect halves; only the 1 KiB-backtrack (4096,2048) succeeds;
+  tree intact; error map EMPTY - the og-parity "salvaged is never bad");
+  BacktrackOffZeroFillsTheWindow (backtrack OFF = the pre-N-004 world =
+  the finding's claim, whole-window zero-fill, metadata-only tree, full
+  span mapped); ZeroFillOnlyWhenBacktrackAlsoFails (low half real, high
+  half dead - tail.txt dirent in the dead half never surfaces; map exactly
+  [5632,512)). First run caught two test-construction defects (wrong
+  backtrack pair offset 4096 vs 4608; fixture dir-block gap broke the
+  parser walk before the tail dirent) - both fixed (pad dirent + correct
+  pairs); all three then green.
+- N-073 -> findings/FIXED/ with the Resolution; RESOLVED-INDEX row +
+  81-header; matrix ext4 row; modules/ext4.md: S35 row, findings-index
+  rows, and the session-6 table's stale N-057 ID corrected to N-073
+  (renumbered at integration - ext4.md:187 had carried the pre-coordination
+  local number).
+- M-029 pair reconciled: the fragment
+  M-029-query-model-gaps-sort-paging-buckets-server-push.md (stray session-5
+  addendum, no title/header, merge-era) folded VERBATIM into the canonical
+  M-029 file with a fold note; fragment removed (git history preserves it;
+  nothing referenced it by filename - all M-029 references are by ID).
+  The M-053 pair was verified already-reconciled (both files carry the
+  concurrent-filing sections; both RESOLVED-INDEX rows stand, one row per
+  file - the DFX12-T2 flag is closed by inspection).
+- SUMMARY session-14 delta on top; counts after the wave: SEVERE 2 (S-029,
+  S-030) / MAJOR 37 / MINOR 48 / INFO 22 (0 actionable) / tracked-open 16 /
+  FIXED 82 files (81 findings + index). Suite 553/553 (linux-release).
+
+Stage Summary:
+- Reconciliation queue CLOSED (all three DFX12-T2 flags resolved: M-053
+  already done, M-029 folded, N-073 classified+proven). DFX14 next: MAJOR
+  tier in module batches with per-finding claims (D-11 lane map above);
+  S-030 stays the DFX8-legacy lane's, S-029 the 5ff4db7 lineage's.
 ---
 Task ID: DFX9-T5 (M-047)
 Agent: main engineer (diff-to-fix closing session 9)
@@ -9121,3 +9173,90 @@ Stage Summary:
 - Baseline green; session order per mandate + user directive: SEVERE
   (S-009 diskmap residual, S-029 apply path, S-030 image scan) -> MAJOR
   tier in impact order -> MINOR batches. Target 20+ verified fixes.
+
+Task ID: DFX9-T1b (S-009 — concurrent-collision union + hardening port)
+Agent: main engineer (diff-to-fix session 9)
+Task: Absorb the parallel S-009 landing (the second concurrent collision of
+the session after M-053); port this leg's unique assets onto the landed
+implementation.
+
+Work Log:
+- This leg's own S-009 fix (viz::FreeSpaceMap design, fail-before 6 red,
+  539/539 ASan+UBSan) hit the remote mid-push: the parallel lane had landed
+  storage::FreeMap + REC_ALLOC_MAP + snapshot capture, integrated with
+  M-047/N-051..54/style landings. Union discipline: their implementation is
+  the base; my commit's unique assets extracted and ported.
+- Ported (adapted to storage::FreeMap): test_diskmap.cpp (4 tests: the
+  range_free edge matrix incl. the sub-cluster-span semantics correction —
+  the map is cluster-granular, a span inside a free cluster reads free),
+  the REC_ALLOC_MAP round-trip + hostile-input rejection, the zoom-window
+  truth, the downsample truth preservation;
+  NtfsVolume.DiskMapFreeCellsFromRealBitmap (real $Bitmap through the
+  dispatch's invert contract); the C-consumer free-cell assertions (the
+  finding's original acceptance criterion).
+- Verification: FULL ctest 555/555 on linux-gcc (ASan) AND 555/555 on
+  linux-ubsan.
+- Audit trail: the session-9 verification + hardening addendum appended to
+  the landed S-009 finding (FIXED/), recording both legs' work and the
+  union decision.
+
+Stage Summary:
+- S-009 CLOSED (landed implementation + this leg's verification and
+  hardening tests; corpus citations re-verified first-hand by both legs).
+  SEVERE tier: S-029 + S-030 remain. Session tally: M-053, union repair,
+  S-009 (verification + hardening port). Next: S-030 (image scan targets),
+  then S-029 (apply path), then the MAJOR/MINOR waves.>>>>>>> 33c0722 (test(S-009 hardening): port the second leg's unique free-overlay proof set onto the landed implementation)
+---
+Task ID: DFX9-T2 (lane claim — unclaimed MINOR high-value trio + module batches)
+Agent: main engineer (diff-to-fix session 9, the M-053/union-repair/S-009-hardening leg)
+Task: Claim the unclaimed MINOR findings per multi-leg coordination: N-065
+(writer destination-policy collision/mkdir gates), N-070 (carve overlap
+scoring + two-generation fallback), N-075 (busy/stopping query exports),
+then the writer/carve/query module minors in batches. S-029 stays with
+DFX10's queue (their published order S-009->S-029->S-030; S-009/S-030
+landed from other lanes, so S-029 is their active item — no collision from
+this lane).
+
+Work Log:
+- Lane deconfliction read from the worklog: DFX15 = MAJOR (M-002 landed,
+  M-037/M-031/M-046/M-045/M-013/M-052/M-043/M-018/M-005/M-014 queue);
+  DFX9-T7 = MAJOR tail (M-052 first); DFX13 = N-045/N-067/N-068/N-069 +
+  doc trios; DFX14 = N-073/N-004 duplicate probe. N-065/N-070/N-075
+  unclaimed at this instant.
+
+Stage Summary:
+- Lane claimed; execution begins with N-065.
+
+
+---
+Task ID: DFX14-T4 (lane claim — M-005)
+Agent: main engineer (diff-to-fix session 14)
+Task: Claim recorded before any finding work: M-005 (MAJOR, carve) — the
+allocation-bitmap carve gate.
+
+Work Log:
+- Verified per the SOP before claiming: M-005 is CONFIRMED-DIVERGENCE at
+  HEAD 8783c2f — the S-009 landing produced the FreeMap producer side and
+  stats surface only; run_carve_stage (cr_scan.cpp:1194) still passes no
+  bitmap to carve_slice and the carve probes the whole slice
+  unconditionally (grep: zero free_map consumers in src/core/carve/).
+- Corpus verified first-hand this session (ghidra-searchdll/
+  RAWSearchDLL_decompiled.c :9440-9466 + FUN_180058df0 :67842-67856 —
+  richer than the finding's paraphrase): bit SET in the og's bitmap =
+  used cluster -> position suppressed from dispatch; cluster-aligned hit
+  skips the whole cluster (local_1e0 += spc-1); OOB (bit-count bound [2])
+  or no bitmap -> dispatch proceeds (raw disks unchanged). The og's
+  bitmap is the USED map; the core's FreeMap is inverted (bit set =
+  free) - the gate inverts: clear = used.
+- Plan: CarveFlags.free_map (nullable FreeMap*) -> ScanCtx gate helpers
+  -> grammar-loop + raw-sign-loop suppression with the cluster skip ->
+  CarveStats.bitmap_skipped_clusters/_bytes -> ScanStats.
+  carve_bitmap_skipped_bytes (orchestrator wiring rebases the map
+  slice-relative at the run_carve_stage call site) -> tests
+  (Carve.BitmapSkipsUsedClusters / Carve.NoBitmapCarvesEverything /
+  telemetry) + a local wall-clock bench on a 50%-used fixture, numbers
+  to the Resolution per the performance SOP.
+
+Stage Summary:
+- M-005 in flight on DFX14. Other lanes' queues unaffected (no overlap
+  with DFX9-T7's M-052/M-035/M-018/M-013/M-014 or DFX9-T2's MINOR trio).

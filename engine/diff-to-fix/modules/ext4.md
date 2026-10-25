@@ -49,7 +49,7 @@ Core (audited commit `67193b6`): `src/core/ext4/cr_ext4_engine.cpp` (851 LOC) +
 ## State machine
 
 - **S32** — `M` cancel per journal block / per inode window.
-- **S35** — **N-004** (CatchBuffer layering), `M` on SB-reject posture (core rejects
+- **S35** — ~~N-004~~ **FIXED** (`FIXED/N-004-N-006` group: RetryPolicy::backtrack at the transport layer) + ~~N-073~~ **FIXED-ALREADY** (FIXED/N-073, session 14: the ext4-path residual closed by the same landing, proven with 3 engine-path pin tests); `M` on SB-reject posture (core rejects
   invalid SB like og; no clamp-vs-reject divergence here — both reject on the quoted
   field set).
 
@@ -70,7 +70,8 @@ Core (audited commit `67193b6`): `src/core/ext4/cr_ext4_engine.cpp` (851 LOC) +
 |---|---|---|
 | S-004 | SEVERE | Journal salvage: descriptor-referenced only vs og every-block (+ jsb gate direction) — **FIXED `51ac671` (session-2 verified)** |
 | S-005 | SEVERE | Names byte-lifted → mojibake (cross-engine, filed here for ext4) — **FIXED (diff-to-fix session)** |
-| N-004 | MINOR | CatchBuffer backtrack lives in transport layer, not in-engine |
+| N-004 | MINOR | CatchBuffer backtrack lives in transport layer, not in-engine — **FIXED (transport landing, DFX12-reconciled)** |
+| N-073 | MINOR (s6) | The engine-path residual of the same salvage (this finding's text) — **FIXED-ALREADY (session 14: N-004's landing + engine-path pin tests)** |
 
 ## Corpus errata candidates surfaced by this wave
 
@@ -170,7 +171,7 @@ during reconciliation; the ext4 supersets register itself is the lead leg's I-01
 | S-025 | SEVERE | Journal-salvaged entries flat vs og two-pass + reparenting — **FIXED (closing session): orphan map from "."".." heads, topological pre-pass with full inode truth + live anchors, iNode%u fallback for unresolvable chains, claim checks via live_nodes, sweep skip-set; 3 tests all fail-before; suite 465/465** |
 | S-026 | SEVERE | meta_bg group-descriptor resolution missing — files silently missing on meta_bg volumes — **FIXED (closing session): kernel/e2fsprogs-correct resolver, empirically verified on real mke2fs meta_bg images; og stride/offset defects not adopted (D-58); 5 tests, 4 fail-before; suite 401/401** |
 | S-027 | SEVERE | Backup-superblock lost-volume scan missing — **FIXED (closing session): engine-side rescue in scan_ext4 — 1 MiB-grid canonical-position probe, exact s_block_group_nr rebasing, GDT front-to-backup ladder; og rebase defect NOT adopted (D-59); 4 tests, 3 fail-before; suite 434/434** |
-| M-037 | MAJOR | Dir-block parse resilience inverted: og skip-and-continue on invalid dirents / stop on inode-0; ours break-on-invalid / continue-past-inode-0 |
+| M-037 | MAJOR | Dir-block parse resilience — **FIXED (s10)**: the og's 4-byte resync slide + padded floor + type gate + inode#-count gate (live walk); inode-0 continue kept as pinned superset. findings/FIXED/M-037 |
 
 Residual probes: OQ-E1 (orphan reachability semantics), OQ-E2 (meta_bg stride
 constant — **RESOLVED by the S-026 fix**: the true stride is block_size/desc_size,
@@ -184,4 +185,4 @@ constant) — `tracked-open/OQ-Z-E-FLT-session3.md`.
 
 | ID | Severity | One-line |
 |---|---|---|
-| N-057 | MINOR | CatchBuffer bad-sector salvage: og re-reads a 1 KiB-backtrack shifted window on failure (ext4-engine--deep-dive.md:25-33); core zero-fills the extent after transport retries |
+| N-057→N-073 | MINOR | (renumbered at integration — the table's original N-057 ID was a pre-coordination session-6 local number) CatchBuffer bad-sector salvage: og re-reads a 1 KiB-backtrack shifted window on failure (ext4-engine--deep-dive.md:25-33); core zero-fills the extent after transport retries — **FIXED-ALREADY (session 14: N-004's transport landing covers it; 3 engine-path pin tests in test_ext4_volume.cpp)** |

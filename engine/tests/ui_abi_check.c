@@ -646,6 +646,24 @@ int main(int argc, char** argv) {
         CHECK(got.cell_count > 0);
         CHECK(alloc != NULL);
         CHECK(cov != NULL);
+        /* S-009: the persisted engine allocation bitmap (the FAT on this
+         * fixture) surfaces as free cells through the four-overlay C
+         * consumer call - the og's IBuildVolumeBitmap free/used truth;
+         * the sparse fixture is overwhelmingly provably free and the
+         * active DOC.TXT cell stays used (1) */
+        {
+            uint64_t free_cells = 0, used_cells = 0;
+            uint64_t ci;
+            for (ci = 0; ci < got.cell_count; ++ci) {
+                if (alloc[ci] == 2u)
+                    ++free_cells;
+                else if (alloc[ci] == 1u)
+                    ++used_cells;
+            }
+            CHECK(free_cells > got.cell_count / 2);
+            CHECK(used_cells >= 1);
+            CHECK(got.cluster_bytes == 512u); /* the map's cluster hint */
+        }
         cr_ui_disk_map_free(alloc);
         cr_ui_disk_map_free(cov);
         cr_ui_disk_map_free(found);

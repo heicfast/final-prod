@@ -88,7 +88,7 @@ dispositions is the surviving one).
 | orchestrator | M | M | NA | M-005 | M; **N-016 (S2), N-017 (S2)** | **S-023 (S4) FIXED** (FIXED/S-023: post-scan grading pass + RecoveryAssistant statistics + ABI regrade); N-043 (S4: progress watchdog) | NA | M | M | M | M |
 | visualization | S-009 (partial-FIXED-in-tree, finding file stale — N-020) | **M-023 (S3)** FIXED (findings/FIXED/M-023: generated 1,481-ext table + Email/Bookmarks cats; runtime-XML surface = deliberate non-adoption) | NA | M | M | NA | M | M | M | NA | M |
 
-| ext4 | S-003 FIXED (HFS+ journal differential harvest, landed with S-021), S-004 FIXED, S-026 FIXED (meta_bg resolver, D-58); **M-010**, I-006 (S2), I-007 (S2) | ok; **M-010**, I-006 (S2), I-007 (S2) | M (S-026 fixed: meta-group desc blocks) | S-025 OPEN (theirs: journal reparenting), S-004 FIXED | N-004 | NA | NA | M | M | N-004 | M (debt) |
+| ext4 | S-003 FIXED (HFS+ journal differential harvest, landed with S-021), S-004 FIXED, S-026 FIXED (meta_bg resolver, D-58); **M-010**, I-006 (S2), I-007 (S2); **M-037 FIXED (s10: resync-slide damage model — findings/FIXED/M-037)** | ok; **M-010**, I-006 (S2), I-007 (S2) | M (S-026 fixed: meta-group desc blocks) | S-025 OPEN (theirs: journal reparenting), S-004 FIXED | N-004 | NA | NA | M | M | N-004 | M (debt) |
 | hfsplus | S-002 FIXED, S-003 FIXED, S-021 FIXED (s5 — journal harvest, the og's PRIMARY deleted surface), N-005 FIXED, N-038 FIXED; I-007 (S2) | M; I-007 (S2) | M | M | M | NA | NA | M | M | M | M (S-021 tests; THIN closed) |
 | btrfs | I-003 ack, M (S-005 fixed), N-006; **M-010**, I-007 (S2) | M; **M-010**, I-007 (S2) | M | M | M | NA | NA | M | M | M | M |
 | zfs | OQ-T6, M (S-005 fixed); I-007 (S2) | ok | OQ-T6 | M | M | NA | NA | M | M | M | M |
@@ -287,7 +287,7 @@ not-BAAD both sides; FAT quick-scan threading — already registered D-30x).
 | health | P46/P68 | **S-024 addendum** (cr_health.h claims 0xD1/0xD8 never issued — doc-truth sub-item; capability gap stays S-024) |
 | storage | B8/P42/A54 | **N-071** (enumeration breadth: 5-stack fan-in vs PhysicalDrive loop) |
 | storage | P47/P48 | **N-045 addendum** (cache ALGORITHM: og prefetch read-ahead vs core reactive LRU; cite refreshed to :647/256 KiB) |
-| ext4 | A27/S35/B2 | **N-073** (CatchBuffer 1 KiB-backtrack shifted-window salvage vs zero-fill) |
+| ext4 | A27/S35/B2 | ~~N-073~~ **FIXED-ALREADY** (FIXED/N-073, session 14: N-004's transport-level CatchBuffer landing covers the engine path — 3 engine-path pin tests; the S35 row in modules/ext4.md carries both N-004 and N-073 closed) |
 | btrfs | P47/P48/S36 | **N-072** (BtrfsCache.txt re-scan cache); **OQ-S6-2** (RC4 PRGA target) |
 | zfs | A25/S35 | **N-072** (label import polling); INFO-register (lzjb/zle/gzip decode — no divergence claimable, evidence ledger only) |
 | lost-partition | A30/A37/D12 | **I-024** (PartitionRecoveryD generator-sets + .dat persistence register) + **OQ-S6-1** (decode request); **M-017 addendum** (CalcPartition class evidence) |

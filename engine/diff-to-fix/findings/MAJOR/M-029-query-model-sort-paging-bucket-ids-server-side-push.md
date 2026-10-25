@@ -231,3 +231,41 @@ re-verified at `include/cr/query/cr_query.h:68` this session), Date/Size bucket-
 translation (0x100..0x105 / 0x1000..0x1006), paging semantics parity claim, and
 the server-side filter push (gated on OQ-S4-2). Severity stays MAJOR; the finding
 remains active with the path-group sub-item CLOSED.
+
+
+---
+
+## Session-5 addendum — the filterbar family decode (folded 2026-10-26 from the duplicate M-029 file)
+
+> Fold note (session 14, DFX14): this section preserves verbatim the content of
+> `findings/MAJOR/M-029-query-model-gaps-sort-paging-buckets-server-push.md` —
+> a merge-era fragment that carried only this addendum under a duplicate M-029
+> filename (no title, no finding header). The fragment is removed in the same
+> change; nothing else in the audit trail referenced it by filename (all
+> M-029 references are by ID). Its summary also lives in modules/query.md's
+> Session-5 audit section. The finding remains ACTIVE (Type sort key, bucket-ID
+> translation, paging parity claim, server-side push still open).
+
+## Session-5 addendum (2026-10-26) — the filterbar family decode (artifact 31, first read) + the naming-hook correction (OQ-S4-2)
+
+The never-cited UIUX/31-filterbar-family-decode.md was read in full this session; it
+extends this finding's filter-model evidence without changing its scope:
+
+- **7-dimension AdvanceFilterCondition layout confirmed** (0x48-byte struct:
+  type/time/size/state/tag/path/search) — this finding's "7-group" row is the same object;
+  the **tag and path dimensions have no core field at all** (the core's filter carries
+  name-pattern, category, deleted, size, time — no tag, no path).
+- **Per-mode persistence**: the og keeps 3 filter-slot memories (CAdvanceFileFilterMgr)
+  with Path-mode and Type-mode bars persisting independently; re-assert action IDs
+  0x1a/0x105/0x1006; the core has no filter-slot persistence.
+- **CSetFilterThread**: the og refilters on a dedicated worker (SetFilter vtbl+0x10,
+  classify +0xf0) — the core's query is synchronous; register as the async-query contract
+  item (N-0xx family).
+- **CCheckNodeThread re-grade wiring**: recoverability re-grading runs on a TimeCritical
+  worker per selection — S-023's per-selection re-grade now has its threading evidence.
+- **OQ-S4-2 naming correction (folds into this finding's doc-accuracy family)**: the og
+  has NO "FileNNNN" carve-naming scheme (see N-063) — the corpus deep-dive artifact's
+  "File0001.jpg lives in the UI" claim is wrong and is filed as a corpus-errata row; the
+  vtable+0x48 hook is a one-shot per-scan "filter_generalraw" config fetch, i.e. it
+  belongs to THIS finding's server-side filter-push section (the push mechanism's config
+  source), not to naming.
