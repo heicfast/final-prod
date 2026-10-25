@@ -1477,3 +1477,29 @@ Task: Full read-only parity audit of core_recovery @ 064fcf44ba09823c8089cbfe0c5
 Work Log:
 - T1: Cloned both repos; recorded commit hashes; saved redacted prompt to worklog/session-diff-audit-prompt.md; created diff-to-fix/ skeleton; this worklog entry.
 - Next: parallel context-sheet reads (agents A-E), then PARAMETERS/SEVERITY/README/SUMMARY skeletons, then module-by-module audit waves.
+
+---
+Task ID: CORE-FINAL-1
+Agent: core-final session (main lane)
+Task: T1-T3 gate phase - read both repos line-by-line where it matters, verify every open finding against code + corpus decompiles + independent probes, produce the session-6 gate documents (CORE-GAP-LIST session-6 register, ABI-CONTRACT, PERFORMANCE-PROFILE), push before any code change.
+
+Work Log:
+- Pulled both repos (core @064fcf4, corpus @03ad46c); token kept in git credential store only (never committed, never logged).
+- Saved the redacted session prompt to worklog/session-core-final-prompt.md; read twice.
+- Read the truth docs end to end: CAPABILITY-MATRIX, CORE-GAP-LIST (all prior waves), PARITY-DELTAS roll-up, UI-READINESS-PLAN, BENCHMARK-REPORT, worklog.md tail (bench sessions 7 + comparative lanes).
+- Established the local baseline: linux-gcc (ASan) 225/225 in 8.46 s; linux-release 225/225 in 3.04 s; QueryPerf 362 ms cold (1M nodes); engine suites 22 ms.
+- Verified every open bench finding against the code AND the corpus decompiles:
+  * FAT32 deleted-LFN (GAP-S6-1): code shows lfn_checksum over 0xE5 bytes (always fails for deleted); INDEPENDENT PROBE (mtools FAT32 image, mdel, raw dentry dump) proves deletion 0xE5's byte 0 of every entry - for LFN slots that is the SEQUENCE byte, name chunks fully intact, per-slot checksums equal; brute-forcing the 8.3 first byte against the stored checksum is deterministic (bijection). Probe image kept at ../probe/fat32.img.
+  * FAT32 deleted-chain (GAP-S6-2): reconstruct_deleted_chain stops at first FREE entry -> 1-cluster extents -> zero-filled plausible-size files (46/10143 hash-true).
+  * ReFS real-volume refusal (GAP-S6-3): our gate uses boot.minor where the og (FUN_180012650 decompile) gates on the checkpoint BODY minor (*(ushort*)(body+6) < 0xE); body offset also dynamic (0x20 + ref size) in the og vs our hardcoded 0x50.
+  * quick_format (GAP-S6-4): remnant path emits $FILE_NAME only, never parses $DATA runlists (cr_mftwalk.cpp:1109-1194).
+  * ntfs decay cliff (GAP-S6-5): registered root-cause hypothesis CONTRADICTED by code (extents emit regardless of grade; recover-all enqueues regardless of grade) -> corrected to physical-destruction analysis + physical-ceiling bench metric action.
+  * delete_partition (GAP-S6-6): orchestrator scans all candidates (verified) -> defect bounded to discover's nested-same-fs dedup + the device-tail fallback size (cr_candidates.cpp:96-98,247-251,260-273).
+  * MetadataOnly zero-fill FPs (GAP-S6-7) + resume carve dedup (GAP-S6-8): confirmed as registered.
+- Surveyed the corpus for the visualization model: AnalysisGridWidget (54 v-methods, sector-grid painting, UIUX/08 + 03 + 04) fed by INotifyObserver -> CMessageProxy -> doDispatchMessage(int,void*,int&) (MOM-modules §4, UIUX/13 §3) + IBuildVolumeBitmap shared interface (SearchDLL family §2). The core's job: geometry/allocation/coverage/confidence/bad-sector producer - documented in ABI-CONTRACT §7.
+- Verified absent at HEAD: SQLite layer (0 engine hits), typed event stream, disk-map surface, docs/ABI-CONTRACT.md, docs/PERFORMANCE-PROFILE.md, 64 KiB direct-I/O envelope (transport is 512-sector aligned).
+- Wrote the three gate documents: docs/CORE-GAP-LIST.md session-6 register (GAP-S6-1..15 with closure order), docs/ABI-CONTRACT.md (normative: conformance, ownership table, threading, error model, lifecycle flows, typed event schema §6, disk-map model §7, SQLite sidecar §8, stability policy §9), docs/PERFORMANCE-PROFILE.md (local first-hand baselines + bench-run baselines + 64 KiB constraint + re-measure list).
+
+Stage Summary:
+- Gate phase complete per mandate §1 (docs before code). 15 session-6 GAP rows registered, every one evidence-cited (code line + corpus artifact or local probe).
+- Next: P0 engine wave in closure order - GAP-S6-1 (FAT LFN brute-force), GAP-S6-2 (FAT contiguous chain), GAP-S6-3 (ReFS body-minor gate), GAP-S6-4 (remnant $DATA extents), each with fail-before/pass-after tests.
