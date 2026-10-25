@@ -187,7 +187,13 @@ struct Recorder {
             CloseHandle(h);
         }
         std::wstring w = bek_path;
-        self->attempts.emplace_back(std::string(w.begin(), w.end()), std::move(bytes));
+        /* MSVC C4244: a wchar_t->char narrowing via the string iterator ctor;
+         * narrow explicitly (the paths are ASCII GUID/BEK names in this test) */
+        std::string narrow;
+        narrow.reserve(w.size());
+        for (wchar_t c : w)
+            narrow.push_back(char(u8(c)));
+        self->attempts.emplace_back(std::move(narrow), std::move(bytes));
         return self->rc;
     }
 };
