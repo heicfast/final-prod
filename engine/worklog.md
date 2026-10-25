@@ -9794,3 +9794,34 @@ e21de3e).
 
 Stage Summary:
 - Claim posted; execution begins with N-045.
+
+---
+Task ID: DFX19-T1 (session 19 bootstrap + lane claim — ID renamed from DFX17: that ID was squatted by the parallel minors lane above, now DFX18)
+Agent: main engineer (diff-to-fix fix session 19 — DFX19, MAJOR-first mandate)
+Task: Baseline the union tree, save the session prompt (token redacted),
+post the lane claim, then execute the MAJOR tier one-by-one per the user's
+directive (fix majors first; 20+ fixes targeted).
+
+Work Log:
+- Baseline: pulled to `11afbfa` (the N-030/N-069-converged landing; one
+  commit past 5d63124). Corpus `easeus-drw-research` @ `03ad46c` (unmoved).
+- Full suite at `11afbfa`: **584/584 green** (linux-gcc RelWithDebInfo +
+  ASan, cmake 4.4.4 via pip --user, g++ 14.2).
+- Prompt saved to `worklog/session-diff-fix-19-prompt.md` (token redacted).
+- Inventory at baseline: SEVERE 1 (S-029, DFX10's claim) · MAJOR 32 active ·
+  MINOR 43 active · INFO 22 · FIXED 94 · tracked-open 13 non-resolved.
+- Lane claim (avoiding DFX15's announced queue M-045→M-043→M-005→M-007/
+  M-008 and the session-11 claims M-007/M-008/M-032/M-050/M-029/M-049 and
+  the DFX15/DFX9-T7 claims M-013/M-014/M-018/M-052/M-035): this leg claims
+  the unclaimed MAJOR batch in impact order — **M-016 (LDM TOCBLOCK
+  candidates), M-019 (ZFS multivdev+fletcher4), M-038 (ZFS SA layout
+  registry), M-017 (lost scoring), M-020 (btrfs profile), M-021 (carve
+  video repair), M-033 (BitLocker in-stack decrypt), M-039 (occupancy
+  bitmap), M-024 (runtime format filter), M-028 (preview caps), M-042
+  (session resume revalidation), M-044 (UDF recognition), M-048 (user
+  signature DB), M-025 (carve read model, benched), M-030/M-034/M-040/
+  M-041 (architectural, last)**. MINOR/INFO/tracked-open after the MAJOR
+  queue. First-landing-wins arbitration per the lane protocol.
+
+Stage Summary:
+- Baseline green and claimed. Execution begins with M-016.
