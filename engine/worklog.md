@@ -4270,3 +4270,26 @@ Stage Summary:
 - A-004 FIXED + S-016 (new, discovered+fixed) CLOSED: the ErrorRange event stream is
   live for the first time, delivered to the right sink, pinned by two tests. ACUTE tier
   is now EMPTY (A-002, A-004 both closed this session). Suite 305/305.
+
+Task ID: API-T1 (session-core-api bootstrap)
+Agent: main engineer (core-api session)
+Task: Session bootstrap — repos pulled, prompt saved, state reconciled.
+
+Work Log:
+- Baselines: core 7d0ffa6 (session-3 close-out), rda-driver 7e88e38 (classifier/gate/SLIST
+  fix wave), corpus 03ad46c (unmoved). All three pulled fresh.
+- Session prompt saved token-redacted at worklog/session-core-api-prompt.md; read twice.
+- Prior-state reconciliation: this session's lane is DIFFERENT from the s1-s3 engine-parity
+  lane. Target: (a) API surface (cr_ui C ABI) exact-to-reference per corpus, (b) kernel-driver
+  utilization matching og's driver usage pattern per interaction, (c) measured performance
+  (64 KiB direct-read alignment mandatory, read-size/queue-depth sweep, round-trip overhead).
+  Gate docs BEFORE code: docs/API-SURFACE-AUDIT.md, docs/DRIVER-UTILIZATION.md,
+  docs/PERFORMANCE-BASELINE.md.
+- Note: prior session's X51 finding says 64KiB envelope "verified post-GAP-S6-13" in the
+  RwDevice read path — this session must re-verify first-hand everywhere a direct read is
+  issued (driver path AND direct fallback), not trust the claim.
+- Reading wave launched (4 parallel legs): corpus driver-usage, driver repo full, core repo
+  full, corpus API-facing behavior.
+
+Stage Summary:
+- Bootstrap complete; reading wave in flight; gate docs next; no source touched yet.
