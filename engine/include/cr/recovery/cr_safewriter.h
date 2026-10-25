@@ -123,6 +123,11 @@ public:
      */
     void set_destination(u64 dest_disk_start, u64 dest_disk_bytes);
 
+    /* N-013: ALL disk spans of the destination volume (a spanned/RAID
+     * destination has more than one extent - first-extent-only arming
+     * misses overlap on the second+ spans). Replaces any prior arming. */
+    void set_destination_spans(const std::vector<std::pair<u64, u64>>& spans);
+
     /* enqueue one node; computes the collision-resolved name. Returns
      * ERR_DEST_OVERLAP (refusal) when the node's extents hit the dest. */
     u32 enqueue(tree::FileNode* node, const std::u16string& dest_dir);
@@ -170,8 +175,9 @@ private:
     DestIo& io_;
     IStorageDevice* source_;
     WriterConfig cfg_;
-    u64 dest_start_ = 0;
-    u64 dest_bytes_ = 0;
+    /* N-013: every armed destination span (multi-extent volumes). The
+     * legacy single-extent pair is span[0] of this vector. */
+    std::vector<std::pair<u64, u64>> dest_spans_;
     bool have_dest_ = false;
     u64 next_id_ = 1;
     /* G-02b: snapshot-materialized props live here for the writer's

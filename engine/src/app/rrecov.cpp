@@ -969,29 +969,41 @@ int cmd_recover(int argc, wchar_t** argv, int& i) {
     if (!open_disk_view(disk, src))
         return 1;
 
-    /* destination validation + overlap refusal (F12): the destination
-     * volume extent must not intersect the source disk */
-    if (to_dir.size() >= 2 && to_dir[1] == L':') {
-        u32 ddisk = 0;
-        u64 dstart = 0, dlen = 0;
-        if (win::volume_extent(to_dir[0], &ddisk, &dstart, &dlen)) {
-            if (ddisk == disk)
-                wprintf(L"[F12] WARNING: destination is on the SOURCE disk %u\n", ddisk);
-            else
-                wprintf(L"[dest] disk %u @%llu +%llu\n", ddisk,
-                        static_cast<unsigned long long>(dstart),
-                        static_cast<unsigned long long>(dlen));
-        }
-    }
-
     win::WinDestIo io;
     recovery::WriterConfig wcfg;
     recovery::SafeWriter writer(io, src.device.get(), wcfg);
-    if (to_dir.size() >= 2 && to_dir[1] == L':') {
-        u64 dstart = 0, dlen = 0;
-        u32 ddisk = 0;
-        if (win::volume_extent(to_dir[0], &ddisk, &dstart, &dlen))
-            writer.set_destination(dstart, dlen);
+
+    /* destination validation + overlap refusal (F12 + N-013): any path
+     * that resolves to a volume is evaluated (the og opens \\.\X: for
+     * every local destination - the pre-N-013 drive-letter gate missed
+     * UNC/relative/junction destinations; junctions resolve to the
+     * TARGET's volume). Arming uses ALL extents (spanned destinations
+     * have more than one - first-extent-only missed overlap there). */
+    {
+        wchar_t dletter = 0;
+        if (win::destination_volume_letter(to_dir, &dletter)) {
+            std::vector<win::VolExtent> ve;
+            if (win::volume_extents(dletter, &ve)) {
+                bool on_source = false;
+                for (const auto& v : ve)
+                    if (v.disk == disk) {
+                        on_source = true;
+                        break;
+                    }
+                if (on_source)
+                    wprintf(L"[F12] WARNING: destination is on the SOURCE disk %u\n", disk);
+                else
+                    wprintf(L"[dest] %c: disk %u @%llu +%llu (%zu extent(s))\n", dletter,
+                            ve.front().disk,
+                            static_cast<unsigned long long>(ve.front().start),
+                            static_cast<unsigned long long>(ve.front().len), ve.size());
+                std::vector<std::pair<u64, u64>> spans;
+                spans.reserve(ve.size());
+                for (const auto& v : ve)
+                    spans.push_back({v.start, v.len});
+                writer.set_destination_spans(spans);
+            }
+        }
     }
 
     /* normalize the destination dir (trailing backslash) */

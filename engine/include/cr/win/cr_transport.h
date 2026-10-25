@@ -16,6 +16,7 @@
 #include "cr/repair/cr_rawfixer.h"
 #include <memory>
 #include <string>
+#include <vector>
 
 namespace cr {
 namespace win {
@@ -61,8 +62,35 @@ std::unique_ptr<cr::repair::IWriteDevice> open_disk_rw(u32 disk, bool prefer_rda
 bool volume_letter_to_disk(wchar_t letter, u32* disk, u32* part);
 
 /* Full extent of the volume containing a drive letter: disk number, byte
- * offset on that disk, byte length (used for recovery-overlap refusal). */
+ * offset on that disk, byte length (used for recovery-overlap refusal).
+ * N-013: reports the FIRST extent only - kept for the source-disk lookup
+ * call sites; destination arming must use volume_extents() (all spans). */
 bool volume_extent(wchar_t letter, u32* disk, u64* start, u64* len);
+
+/* N-013: ALL disk extents of the volume containing a drive letter. A
+ * spanned/RAID destination has more than one extent; first-extent-only
+ * arming (the pre-N-013 behavior) misses overlap on the second+ spans.
+ * The IOCTL buffer holds 8 extents; a volume reporting more is truncated
+ * to the first 8 (documented cap - the kernel rarely exceeds 8 on real
+ * spanned volumes). Returns false if the volume cannot be opened or
+ * reports none. */
+struct VolExtent {
+    u32 disk;
+    u64 start;
+    u64 len;
+};
+bool volume_extents(wchar_t letter, std::vector<VolExtent>* out);
+
+/* N-013: resolve ANY local destination path (relative, junction, mount
+ * point) to the volume that CONTAINS it. GetFinalPathNameByHandleW
+ * resolves reparse points (a junction into another volume yields the
+ * TARGET's volume - the og compares the resolved placement, never the
+ * junction's host); GetVolumePathNameW then maps the final path to its
+ * volume root. Network paths return false (the og's PathIsNetworkPathW
+ * branch: cannot be evaluated, never armed). If the path cannot be
+ * opened (not yet created), falls back to GetVolumePathNameW on the path
+ * itself without reparse resolution. */
+bool destination_volume_letter(const std::wstring& path, wchar_t* letter);
 
 /* Device existence probes used by enumeration. When the control-device
  * open fails, *last_error (if given) receives the CreateFile GetLastError
