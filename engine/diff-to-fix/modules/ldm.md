@@ -3,35 +3,56 @@
 Reference: Partition.mo / LdmManager.mo / PartitionRecoveryD per corpus artifacts
 `PartitionRecovery/mo-module-map.md`, `PartitionRecovery/rawfixer-v2--method-inventory.md`,
 `SearchDLL/zfs-vdev--mftmirr--calcpartition.md` §2–3; og binaries themselves (A-001
-binary evidence).
+binary evidence; session-2 direct extraction — `evidence/executions/s2-ldm-guid-constants.md`).
 
-Core (audited commit `67193b6`): `src/core/table/` (cr_table_parse, cr_ldm, cr_crc32 —
-1,900 LOC) + `include/cr/table/` + `tests/unit/test_crc32_gpt.cpp` (334 LOC) +
+Core (audited commit `67193b6`, session-2 re-verified at `2545b83`→`4f0c841`):
+`src/core/table/` (cr_table_parse, cr_ldm, cr_crc32 — 1,900 LOC) +
+`include/cr/table/` + `tests/unit/test_crc32_gpt.cpp` (334 LOC) +
 `test_ldm.cpp` (506 LOC) + `test_refs_ldm.cpp` (81 LOC).
+
+**Session-2 deep pass (T7):** GPT-LDM gating, PRIVHEAD candidate selection, RAID-5
+rotation + reconstruct, and Partition.mo's entry scan read first-hand from the
+decompiles (`evidence/decompiled-quotes/s2-ldm-gpt-gate.md`,
+`s2-ldm-raid5-rotation.md`). OQ-T7 RESOLVED (left-symmetric, MATCH). **A-002
+filed**: the A-001 fix corrupted both LDM GUIDs — real GPT dynamic disks fail
+LDM discovery on the current tree (executed proof).
 
 ## Behavioral
 
-- **B1 detection** — `M` post-A-001-fix (six GPT type GUIDs corrected to canonical
-  mixed-endian disk bytes; GPT dynamic disks now discover their LDM database —
-  `Ldm.GptDynamicDiskCanonicalGuidsParse`; ESP/MSR/Linux/BIOS-boot/LDM-metadata
-  classify correctly, ESP via the new FsKind::EfiSystem); `M` on MBR parsing (0x42
-  dynamic detection at fixed 6×512 metadata offset — works), GPT header/entry CRC
-  validation, backup-GPT salvage at device end, GPT_ENTRIES_READ_CAP.
+- **B1 detection** — **A-002 (session 2, ACUTE)**: the A-001 fix `1cb6a43` corrupted
+  both LDM GUIDs with fabricated values — on the current tree every **real** GPT
+  dynamic disk fails `find_privhead` (ERR_BAD_MAGIC); pre-fix values were the real
+  Microsoft GUIDs (byte-for-byte what the og's LdmManager.mo DAT_1800c4960 and
+  Partition.mo DAT_180036630/0x36640 carry — extracted this session). ESP/MSR/
+  BIOS-boot/Linux half remains fixed correctly. `M` on MBR parsing (0x42 dynamic
+  detection at fixed 6×512 metadata offset — matches the og's default candidate
+  sector 6), GPT header/entry CRC validation, backup-GPT salvage at device end,
+  GPT_ENTRIES_READ_CAP; og-side: GPT-LDM gate checks revision/reserved where the
+  core does not (informational — both accept all real disks).
 - **B2 recovery correctness** — `M` on MBR-dynamic path (PRIVHEAD/TOCBLOCK/VMDB parse,
   VBLK composites with kernel-quirk parity, fragment rules, dup-fragment → broken
-  group); **OQ-T7** (RAID-5 rotation vs LdmManager.mo — left-symmetric assumed, og
-  undecoded); re-anchoring per member (per-member PRIVHEAD lds) implemented.
+  group); **OQ-T7 RESOLVED (session 2): RAID-5 rotation = left-symmetric on both sides
+  (algebraically identical formulas; og selector ctor-hard-zeroed, R=1/2/3 dormant —
+  I-008); reconstruct-on-failure XOR-folds the other columns, second missing member
+  = surfaced failure, never zeroed, on both sides**; re-anchoring per member
+  (per-member PRIVHEAD lds) implemented. PRIVHEAD candidate anchor: both sides read
+  the GPT entry's LAST LBA (og `:59448` entry+0x28; core `cr_ldm.cpp:1020-1024`) —
+  `M`. PRIVHEAD validation: og accepts version 2.11/2.12 only (`:59700-59706`), core
+  accepts 2.x — informational (covers all real disks).
 - **B3** — `M` unknown VBLK types counted (not silent).
 - **B8 multi-volume/cross-partition** — `M` spanned/mirrored/stripped/RAID-5 layouts
   resolved; unresolved kept as Broken (no silent drops); cross-disk member registry in
-  CLI. **A-001** blocks the GPT side of this entirely.
+  CLI. **A-002 blocks the GPT side of this entirely on the current tree** (the A-001
+  fix's corrupted GUIDs — see B1).
 - **B6 damaged-volume** — **M-002** (EBR torn-chain discards walked volumes);
   `M` on two-step GPT salvage + backup-at-end.
 
 ## Constants and formats
 
-- **C19** — `M` post-A-001-fix (constants regression-guarded by
-  `Gpt.CanonicalTypeGuidConstantsMatchRealDiskBytes`); `M` on MBR/EBR/GPT signatures, PRIVHEAD/
+- **C19** — **A-002** (both LDM constants corrupted by the A-001 fix; the regression
+  guard `Gpt.CanonicalTypeGuidConstantsMatchRealDiskBytes` is self-referential and
+  pins the fabricated bytes — restore the real Microsoft GUIDs per A-002's fix plan);
+  `M` on MBR/EBR/GPT signatures, PRIVHEAD/
   TOCBLOCK/VMDB magics, VBLK types 0x32/0x33/0x34/0x44/0x35/0x45/0x51.
 - **C20** — `M` (header/entry layouts, end-of-disk PRIVHEAD fallbacks
   last−2048+1856/+2047/last−1).
@@ -40,7 +61,10 @@ Core (audited commit `67193b6`): `src/core/table/` (cr_table_parse, cr_ldm, cr_c
 
 - **A30 lost-partition inputs** — `M` (partition table feeds the lost scanner; A-001's
   misclassifications pollute these inputs — fixed by A-001).
-- **A27** — `M` on spanned/mirror/stripe reads; **OQ-T7** RAID-5 rotation.
+- **A27** — `M` on spanned/mirror/stripe reads; **OQ-T7 RESOLVED (session 2): RAID-5
+  rotation MATCH — left-symmetric on both sides (algebraically identical); og's
+  R=1/2/3 rotations are dormant dead code (I-008); reconstruct-on-failure semantics
+  identical**.
 
 ## State machine
 
@@ -67,9 +91,11 @@ Core (audited commit `67193b6`): `src/core/table/` (cr_table_parse, cr_ldm, cr_c
 
 | ID | Severity | One-line |
 |---|---|---|
-| A-001 | ACUTE | Six wrong GPT type GUIDs — GPT dynamic disks get zero LDM recovery (executed proof) — **FIXED (diff-to-fix session)** |
+| A-001 | ACUTE | Six wrong GPT type GUIDs — GPT dynamic disks get zero LDM recovery (executed proof) — **4 of 6 constants FIXED (diff-to-fix session); LDM half was a FALSE POSITIVE, REOPENED, superseded by A-002** |
+| A-002 | ACUTE (session 2) | The A-001 fix corrupted both LDM GUIDs with fabricated values — real GPT dynamic disks fail LDM discovery on the current tree (executed proof + og binary extraction + Microsoft Learn) |
 | M-002 | MAJOR | Torn EBR chain discards already-walked logical volumes |
-| OQ-T7 | tracked-open | RAID-5 rotation (left-symmetric assumed) vs LdmManager.mo |
+| I-008 | INFO (session 2) | og Raid5VolumeStorage carries 4 selectable rotations, only left-symmetric enabled (ctor-hard-zeroed); core implements the enabled mode exactly |
+| OQ-T7 | tracked-open | **RESOLVED (session 2)** — RAID-5 rotation = left-symmetric both sides, MATCH |
 
 ## Post-baseline note
 

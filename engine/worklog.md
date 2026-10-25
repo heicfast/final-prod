@@ -3443,3 +3443,65 @@ Work Log:
 Stage Summary:
 - Windows red root cause fixed at the source (CRT exclusive opens -> _SH_DENYNO);
   the S-008 image-repair lifecycle should now run identically on both platforms.
+Task ID: S2-T7 (session-2 diff-audit: PartitionRecovery/LDM deep pass)
+Agent: session-2 parity auditor (read-only)
+Task: Deep decompile-vs-core pass over LdmManager/Partition (T7): resolve OQ-T7 (RAID-5
+rotation), the GPT-LDM gating question raised by T2's A-001 re-verification, and hunt
+for divergences session 1 missed.
+
+Work Log:
+- Read LdmManager_decompiled.c (91,475 lines) targeted: SEH crash-handler strings
+  :88592-:88709 map function names -> RVAs; cross-checked LdmManager_functions.txt.
+- RAID-5 (OQ-T7 RESOLVED): Raid5VolumeStorage::ReadSector = FUN_180086a90 :68777-68876.
+  Four rotation branches on this+0x2a8: R=0 left-symmetric ((N-1-s%N)+1+f)%N; R=1
+  left-asymmetric (fill-from-0, skip parity N-1-s); R=2 right-symmetric (s%N+1+f)%N;
+  R=3 right-asymmetric (fill-from-0, skip parity s%N). Selector ctor-hard-zeroed
+  (:68942, the ONLY write in 91,475 lines - grep-verified) -> R=1/2/3 dead code.
+  Core cr_ldm.cpp:1349-1359 is ALGEBRAICALLY IDENTICAL to R=0. MATCH.
+  ComputeDataWithOtherDisk = FUN_180085c30 :68393-68451: XOR-fold other columns,
+  first-read memcpy; second missing member -> failure (0), matches core :1372-1389.
+  Filed as INFORMATIONAL I-006 (dormant rotations) + OQ-T7 resolution note.
+- GPT-LDM gating (A-001 follow-up): LdmManager FUN_1800724f0 :59393-59472 scans GPT
+  entries against DAT_1800c4960 (extracted from LdmManager.mo: aac808588f7ee04285d2-
+  e1e90434cfb3 = 5808c8aa-7e8f-42e0-85d2-e1e90434cfb3 = the REAL PARTITION_LDM_METADATA_
+  GUID); PRIVHEAD candidate = entry+0x28 (partition LAST LBA - the documented backup
+  copy); no CRC checks (same as core). Partition.mo FUN_180002bd0 :1290-1340 scans both
+  LDM GUIDs for its labels; DAT_180036630/0x36640 = the same REAL values.
+- DISCOVERY -> ACUTE A-002: the A-001 fix (1cb6a43) replaced the core's LDM constants -
+  which were byte-for-byte the REAL Microsoft GUIDs (pre-fix {AA,C8,08,58,8F,7E,E0,42,
+  85,D2,E1,E9,04,34,CF,B3}/{A0,60,9B,AF,31,14,62,4F,BC,68,33,11,71,4A,69,AD}) - with
+  fabricated values (5808c8aa-8e9f-4c87-.../af9b60a0-384e-4f7d-...) that appear in NO
+  og binary, NO authoritative source (Microsoft Learn PARTITION_INFORMATION_GPT,
+  ntdoc, MagnumDB, phnt ntbcd.h, Linux kernel efi.h, Wikipedia all carry the real
+  values), and NO real disk. Session-1's "canonical" table fabricated them via
+  mixed-endian mis-decode; its harness wrote the fabricated bytes into its fixture,
+  the pre-fix core (correctly) rejected it -> false positive recorded; the "fix" then
+  made the wrong fixture pass. Regression tests are self-referential (write the
+  constants into the fixtures).
+- EXECUTED PROOF (A-002): suite fixture GptDynamicDiskCanonicalGuidsParse body with
+  ONLY the entry GUIDs swapped to the real Microsoft bytes: current tree FAILS
+  parse_ldm_database (rc=1342373889 ERR_BAD_MAGIC); pre-1cb6a43 constants (scratch
+  include copy, repo untouched) PASSES (2 layouts resolved, is_gpt). Evidence:
+  diff-to-fix/evidence/executions/s2-ldm-real-guid-proof.md + scripts dir.
+- Also found (T2 follow-through, S-005 residual): ZfsSearchDLL :24985-25014
+  (FUN_18001c630) converts a name via MultiByteToWideChar(0xfde9=CP_UTF8, 0, ...),
+  unlike EXT4/Btrfs (0 conversion imports - verified). Core bakes U+FFFD at scan time
+  (cr_text.h policy) while og EXT4/Btrfs pass raw bytes to the UTF-8 .rsf. Filed
+  MINOR N-010 (invalid-name fidelity) + evidence quote; ZFS path identification
+  tracked as Z-1 open question.
+- Audit trail updated: A-002 + I-006 + N-010 filed; A-001 REOPENED (LDM half false
+  positive, addendum written); OQ-T7 tracked-open file RESOLVED section; modules/ldm.md
+  B1/B2/B8/C19/A27 + findings index; CROSS-REF-MATRIX table+ldm/ext4/btrfs/zfs/session
+  rows; SUMMARY session-2 header + counts + top risk.
+
+Stage Summary:
+- OQ-T7 RESOLVED: RAID-5 rotation = left-symmetric on both sides (MATCH); og's other
+  three rotations are dormant dead code (I-006).
+- A-002 ACUTE filed with executed proof: the current tree cannot recover ANY real GPT
+  dynamic disk (A-001 fix regression; the fix's "canonical" LDM values are fabricated).
+- A-001 reopened for its LDM half (false positive documented; its 4 non-LDM constants
+  stand fixed).
+- GPT-LDM gating resolved: og gates on the REAL metadata GUID + last-LBA PRIVHEAD
+  anchor, no CRCs - matching the core's structure exactly.
+- New: N-010 (invalid-UTF-8 name fidelity: og EXT4/Btrfs raw-bytes-to-.rsf vs core
+  FFFD-baked; og ZFS CP_UTF8-converts at least one path).

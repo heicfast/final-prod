@@ -22,12 +22,12 @@ Legend: `M` = MATCH · `A-n`/`S-n`/`M-n`/`N-n`/`I-n` = finding ID (in
 | ntfs | M-007, M-008 (S2), N-011, N-012 (S2); I-001 ack | M (S-001 fixed), N-012 (S2) | M | M-008 (S2) | M (M-001 fixed), N-001 | NA | NA | M | M | M | M (debt), N-019 (S2) |
 | fat | M; N-021 (S2) | M; N-021 (S2) | M | I-002 ack, OQ-T2 | M | NA | NA | M | M | M | M (debt) |
 | exfat | **S-011 (S2)**, N-003 FIXED, OQ-T5 | N-003 FIXED; **S-011 (S2)** | M | M | M | NA | NA | M | M | M | M (debt) |
-| ext4 | S-003 OPEN, S-004 FIXED; I-006 (S2), I-007 (S2) | ok; I-006 (S2), I-007 (S2) | M | S-003 OPEN, S-004 FIXED | N-004 | NA | NA | M | M | N-004 | M (debt) |
+| ext4 | S-003 OPEN, S-004 FIXED; **M-010**, I-006 (S2), I-007 (S2) | ok; **M-010**, I-006 (S2), I-007 (S2) | M | S-003 OPEN, S-004 FIXED | N-004 | NA | NA | M | M | N-004 | M (debt) |
 | hfsplus | S-002 OPEN, S-003 OPEN, N-005; I-007 (S2) | M; I-007 (S2) | M | M | M | NA | NA | M | M | M | THIN |
-| btrfs | I-003 ack, M (S-005 fixed), N-006; I-007 (S2) | M; I-007 (S2) | M | M | M | NA | NA | M | M | M | M |
+| btrfs | I-003 ack, M (S-005 fixed), N-006; **M-010**, I-007 (S2) | M; **M-010**, I-007 (S2) | M | M | M | NA | NA | M | M | M | M |
 | zfs | OQ-T6, M (S-005 fixed); I-007 (S2) | ok | OQ-T6 | M | M | NA | NA | M | M | M | M |
 | refs | N-007, I-004 ack, GAP-ADS | M | M | M | M | NA | NA | M | M | M | M |
-| table+ldm | M (A-001 fixed), M-002 | M | M (A-001 fixed) | M-002, OQ-T7 | ok | NA | NA | M | M | M | M (debt) |
+| table+ldm | **A-002 (S2-LDM leg)**, M-002 | M | **A-002 (S2-LDM leg)**, M (A-001 fixed) | M-002, M (OQ-T7 resolved — I-008) | ok | NA | NA | M | M | M | M (debt) |
 | lost-partition | S-006, OQ-T9 | NA | M | OQ-T9 | M | NA | NA | M | M | M | THIN |
 | carve | S-007, M-005 | M | S-007, N-008 | S-007, N-008, M-005 | M | NA | NA | M-005 | M | M | M |
 | tree | M | M | NA | M | M | NA | NA | ok | M | NA | M |

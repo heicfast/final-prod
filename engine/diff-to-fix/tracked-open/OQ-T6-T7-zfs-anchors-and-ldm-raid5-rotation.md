@@ -35,11 +35,34 @@ the fixed nvlist read at `:21044–21100` (`FUN_180018730` parse loop), the uber
 
 ## OQ-T7 — LDM RAID-5 rotation parity
 
-**Status:** UNVERIFIED · **Module:** ldm · **Parameters:** B2, A27
-**Corpus artifact to examine next:** `re-workspace/reversed/ghidra-mo/LdmManager_decompiled.c`
-(91,475 lines) — the RAID-5 read path (XOR reconstruction loop; look for the column/parity
-index arithmetic).
+**Status:** RESOLVED (session-2 decompile read, first-hand) · **Module:** ldm · **Parameters:** B2, A27
+**Resolution (2026-10-25, session 2):** the og's rotation is **left-symmetric** and the core's
+formula is **algebraically identical** — the safety-critical question resolves to MATCH.
 
+- The og's `Raid5VolumeStorage::ReadSector` (mapped via SEH crash-handler strings
+  `:88602-:88709` to FUN_180086a90, `LdmManager_decompiled.c :68777-68876`) branches on a
+  rotation selector at `this+0x2a8` with FOUR modes: R=0 left-symmetric
+  `col = ((N-1 - s%N) + 1 + f) % N`, R=1 left-asymmetric (fill-from-0, skip parity N-1-s),
+  R=2 right-symmetric `col = (s%N + 1 + f) % N`, R=3 right-asymmetric (fill-from-0, skip
+  parity s%N). Full verbatim quote: `evidence/decompiled-quotes/s2-ldm-raid5-rotation.md`.
+- The selector is constructor-initialized to 0 (`:68942`) and has **no other write site in
+  the entire 91,475-line decompile** (grep-verified) — R=1/2/3 are unreachable dead code in
+  this build. Recorded as INFORMATIONAL finding **I-008**.
+- Core `cr_ldm.cpp:1349-1359`: `row = k/(N-1)`, `P = (N-1)-(row mod N)`, `col = (P+1+i) mod N`
+  — with the og's s=row, f=i this is exactly `((N-1 - s%N) + 1 + f) % N`. **MATCH.**
+- Failure reconstruct: og `ComputeDataWithOtherDisk` (FUN_180085c30, `:68393-68451`) XOR-folds
+  every other column, first-read memcpy, and returns failure when a second member is also
+  unreadable — identical to the core's `:1372-1389` (surfaced, never zeroed). **MATCH.**
+- The same deep pass resolved the GPT-LDM gating question raised by session-2's A-001
+  re-verification: the og gates its GPT-LDM analysis on the **real**
+  `PARTITION_LDM_METADATA_GUID` (`5808c8aa-7e8f-42e0-85d2-e1e90434cfb3`, extracted from
+  LdmManager.mo DAT_1800c4960 — FUN_1800724f0 `:59445`), reads the PRIVHEAD candidate at the
+  matching partition's **last LBA** (entry+0x28, `:59448` — same anchor as the core's
+  `find_privhead`), and performs **no GPT CRC checks** on this path (same as the core).
+  See `evidence/decompiled-quotes/s2-ldm-gpt-gate.md` and finding **A-002** (the current
+  core's constant is the fabricated A-001 value and fails real disks).
+
+**Original question (for the record):**
 **Precise question:** our core reconstructs RAID-5 members with **left-symmetric**
 rotation — `P(row) = N−1−(row mod N)`, data chunk i on column `(P+1+i) mod N`
 (`src/core/table/cr_ldm.cpp:1352–1389`, audited `67193b6`, libldm/kernel-documented

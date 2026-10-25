@@ -23,18 +23,49 @@ things) landed in two parallel legs, reconciled here:
   S-002 to FIXED/ (the parallel leg's summary listed it open — stale), and filed
   **M-010** (S-005's residual invalid-UTF-8 edge: ext4/Btrfs name bytes destroyed vs og
   raw passthrough; ZFS edge verified parity first-hand via FUN_18001c630).
+## ⚠️ THIRD-LEG ADDENDUM (LDM deep-pass leg, session 2) — ACUTE A-002 filed
+
+**A-002 (ACUTE, fix-induced regression, highest priority in the whole roadmap):** the
+A-001 fix `1cb6a43` replaced the two LDM GPT type-GUIDs — which were **byte-for-byte
+the real Microsoft `PARTITION_LDM_METADATA_GUID`/`PARTITION_LDM_DATA_GUID`** — with
+fabricated values (`5808c8aa-8e9f-4c87-…`/`af9b60a0-384e-4f7d-…`) that appear in no og
+binary, no authoritative source (Microsoft Learn `PARTITION_INFORMATION_GPT`, ntdoc,
+MagnumDB, phnt, Linux kernel efi.h, Wikipedia all carry the real values), and no real
+disk. **On the current tree every real Windows GPT dynamic disk fails LDM discovery
+(ERR_BAD_MAGIC) — zero dynamic-volume recovery.** Session-1's A-001 LDM rows were a
+false positive (mixed-endian mis-decode; its executed "proof" fixture carried the
+fabricated GUIDs, which the pre-fix core correctly rejected); the fix then made the
+wrong fixture pass, and the new regression tests are self-referential (they write the
+constants into the fixtures). Executed proof: the suite's own
+`GptDynamicDiskCanonicalGuidsParse` body with ONLY the entry GUIDs swapped to the real
+Microsoft bytes **fails** on the current tree and **passes** with the pre-`1cb6a43`
+constants — `findings/ACUTE/A-002-*.md` + `evidence/executions/s2-ldm-real-guid-proof.md`.
+**Fix = restore the two pre-`1cb6a43` constant lines + hard-code the real bytes in the
+two regression tests (de-self-reference them).**
+
+Also from the same LDM deep pass: **OQ-T7 RESOLVED** (RAID-5 rotation = left-symmetric
+on both sides, algebraically identical formulas; the og's other three rotation modes
+are dormant dead code — finding **I-008**; reconstruct-on-failure semantics identical);
+the GPT-LDM gating question resolved (og gates on the real metadata GUID, PRIVHEAD
+candidate at the partition's last LBA, no CRC checks — all matching the core);
+**A-001 REOPENED** for its false-positive LDM half (its ESP/MSR/BIOS-boot/Linux half
+stands fixed). The invalid-UTF-8 name-fidelity finding this leg drafted (N-010) is
+**superseded by M-010** (same substance, filed by the close-out leg — dropped here,
+ID retired); this leg's evidence quote `evidence/decompiled-quotes/s2-zfs-utf8-conversion.md`
+supports M-010. This leg's dormant-rotations finding is renumbered **I-008** (ID
+collision with the parallel leg's I-006 ext4-nanoseconds, cleared).
 
 ## Counts per severity (active — excludes FIXED/)
 
 | Severity | Active | FIXED (in `findings/FIXED/`) | IDs (active) |
 |---|---|---|---|
-| ACUTE | 0 | A-001 | — |
+| ACUTE | 1 | A-001 | **A-002 (third-leg addendum — fix-induced regression)** |
 | SEVERE | 6 | S-001, S-002, S-004, S-005, S-008 | S-003, S-006, S-007, S-009 (partial), S-010, S-011 |
 | MAJOR | 6 | M-001 | M-002, M-005, M-007, M-008, M-009, M-010 |
 | MINOR | 16 | N-002, N-003, N-010 | N-001, N-004..N-009, N-011..N-020, N-021 |
-| INFORMATIONAL | 7 (all ACKNOWLEDGED) | — | I-001..I-007 |
-| tracked-open | 13 | OQ-T1 (RESOLVED) | OQ-T2..T9, OQ-S2A-1..4, OQ-S2C-3 |
-| **Total active findings** | **43** | **11** | |
+| INFORMATIONAL | 8 (7 ACKNOWLEDGED + 1 informational-record) | — | I-001..I-007, I-008 (dormant RAID-5 rotations — a MATCH record) |
+| tracked-open | 12 | OQ-T1, OQ-T7 (RESOLVED) | OQ-T2..T6, OQ-T8, OQ-T9, OQ-S2A-1..4, OQ-S2C-3 |
+| **Total active findings** | **45** | **11** | |
 
 **Note on S-009/M-006:** the S-009 disk-map component was FIXED via GAP-S6-11
 (`56cce87` — `cr_diskmap.cpp/.h` verified in-tree by this leg); the M-006 fuzz-CI
@@ -58,7 +89,7 @@ ext4/Btrfs invalid-UTF-8 finding (briefly M-007 in a local commit) renumbered to
 | btrfs | – | – | 1 (M-010) | 1 (N-006) | 2 (I-003 ack, I-007) | – | ✔ |
 | zfs | – | – | – | – | 1 (I-007) | OQ-T6 | ✔ |
 | refs | – | – | (project GAP: ADS) | 1 (N-007) | 1 (I-004 ack) | – | ✔ |
-| ldm/table | – | – | 1 (M-002) | – | – | OQ-T7 | ✔ |
+| ldm/table | 1 (**A-002**) | – | 1 (M-002) | – | 1 (I-008) | OQ-T7 **RESOLVED (this leg)** | ✔ |
 | lost-partition | – | 1 (S-006) | – | – | – | OQ-T9 | ✔ |
 | carve | – | 1 (S-007) | 1 (M-005) | 1 (N-008) | – | OQ-T8 | ✔ |
 | session | – | – | – | 1 (N-014) | (I-005.7 ack) | – | ✔ |

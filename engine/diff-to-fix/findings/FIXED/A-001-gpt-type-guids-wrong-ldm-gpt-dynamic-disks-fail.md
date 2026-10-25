@@ -5,7 +5,7 @@
 **Parameters affected:** C19 (magic bytes and signatures), B1 (detection correctness), B8 (multi-volume/cross-partition), A30 (lost-partition candidate inputs), Q68 (documentation accuracy — the fix comment is false)
 **Corpus references:** og binaries themselves (ground truth): `og-codebase/PartitionRecovery/Partition.mo`, `LdmManager.mo`, `MainModule.dll`, `RecoveryModule.dll`, `UILogic.dll`, `DeviceManager.mo` contain the **canonical** ESP GUID `c12a7328-f81f-11d2-ba4b-00a0c93ec93b` and MSR GUID `e3c9e316-0b5c-4db8-817d-f92df00215ae` byte-for-byte (binary scan this session, `evidence/executions/gpt-guid-probe.md`); canonical LDM GUIDs per Microsoft `winioctl.h` `PARTITION_LDM_METADATA_GUID` {5808c8aa-8e9f-4c87-aea2-af0aa3c41687} / `PARTITION_LDM_DATA_GUID` {af9b60a0-384e-4f7d-8fa5-b1c3d6a9e2b0}
 **Core references:** `include/cr/table/cr_table_wire.h:58–75` (six constants), consumed at `src/core/table/cr_table_parse.cpp:269–279` (classification) and `src/core/table/cr_ldm.cpp:1020` (LDM metadata partition finder) — audited commit `67193b6`
-**Status:** CLOSED — FIXED in `1cb6a43` (verified independently by the session-2 audit: canonical values re-derived and cross-checked against an external GPT type-GUID reference; suite 288/288; see Resolution)
+**Status:** REOPENED (session 2, 2026-10-25) — the LDM half of this finding was a **false positive**; the fix `1cb6a43` regressed it. See **A-002** for the regression finding and the full correction. The ESP/MSR/BIOS-boot/Linux half of the finding remains CLOSED/FIXED (those four constants were genuinely wrong and the fix's values are correct). See the session-2 addendum below the Resolution.
 
 ## Summary
 
@@ -151,6 +151,38 @@ decide whether ESP maps to `Reserved` (skip-scan posture) or gets its own kind s
 reports. The og treats ESP as a scannable FAT volume (DRW lists it as a volume); if the
 core intends og parity there, ESP should NOT be lumped under Reserved. Resolve during the
 fix (needs a one-line product decision, recorded here).
+
+## Session-2 addendum (2026-10-25) — LDM half REOPENED, superseded by A-002
+
+The session-2 deep pass (T7) re-verified this finding with the og binaries
+**extracted directly** (PE section walker) and four external sources (Microsoft
+Learn `PARTITION_INFORMATION_GPT`, ntdoc, MagnumDB, phnt, plus the Linux kernel's
+EFI GUID set):
+
+- The **pre-fix** core constants were **byte-for-byte the real Microsoft
+  `PARTITION_LDM_METADATA_GUID` (`5808c8aa-7e8f-42e0-85d2-e1e90434cfb3`) and
+  `PARTITION_LDM_DATA_GUID` (`af9b60a0-1431-4f62-bc68-3311714a69ad`)** — identical
+  to what the og's `LdmManager.mo` (DAT_1800c4960, the GPT-LDM gate at
+  `LdmManager_decompiled.c :59445`) and `Partition.mo` (DAT_180036630/0x36640)
+  carry at runtime.
+- The "canonical" LDM values in this finding's corrected table and in the fix
+  (`5808c8aa-8e9f-4c87-aea2-af0aa3c41687` / `af9b60a0-384e-4f7d-8fa5-b1c3d6a9e2b0`)
+  **exist in no authoritative source and in no og binary** — they were fabricated
+  by a mixed-endian mis-decode in this session's original table.
+- The executed "proof" that the pre-fix core failed GPT dynamic disks used a
+  fixture carrying the fabricated GUIDs (`gpt-guid-probe-harness.cpp :88-91`),
+  which the pre-fix core correctly rejected — misrecorded as a core defect.
+- The regression tests added by the fix are **self-referential** (they write the
+  constants into the fixtures), so they pin the fabricated values.
+- Executed session-2 proof: the suite's own fixture with the **real** Microsoft
+  entry GUIDs **fails** `parse_ldm_database` on the post-fix tree and **passes**
+  with the pre-fix constants — `evidence/executions/s2-ldm-real-guid-proof.md`.
+
+Consequence: **every real Windows GPT dynamic disk gets zero LDM recovery on the
+post-`1cb6a43` tree** (ACUTE A-002). The LDM rows of the byte table above are wrong
+as "canonical"; the real rows are in A-002. Everything else in this finding
+(BIOS-boot mangling, MSR holding the ESP duplicate, the fabricated pre-fix
+Linux-FS constant, ESP classification) was verified true and stands fixed.
 
 ## Resolution
 
