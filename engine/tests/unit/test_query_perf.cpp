@@ -64,8 +64,17 @@ TEST(QueryPerf, MillionNodesFilterCountUnder200ms) {
            (unsigned long long)r.total_matched);
 #if defined(__SANITIZE_THREAD__)
     constexpr u64 kBudgetMs = 2000; /* TSan instrumentation slowdown */
+#elif defined(__SANITIZE_UNDEFINED__)
+    constexpr u64 kBudgetMs = 2000; /* UBSan instrumentation slowdown (the
+                                     * ubsan CI lane runs this exact binary;
+                                     * the observed value is ~2.7s vs 200ms
+                                     * unscaled - the same ~10x class as
+                                     * TSan; the gate must measure the code,
+                                     * not the sanitizer) */
 #elif defined(__has_feature)
 #if __has_feature(thread_sanitizer)
+    constexpr u64 kBudgetMs = 2000;
+#elif __has_feature(undefined_behavior_sanitizer)
     constexpr u64 kBudgetMs = 2000;
 #else
     constexpr u64 kBudgetMs = 200;

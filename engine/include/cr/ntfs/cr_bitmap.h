@@ -43,6 +43,11 @@ public:
 
     bool valid() const { return !buffer_.empty(); }
 
+    /* S-009 (free-overlay producer): the cluster-granular truth the
+     * disk-map consumes. bit_count = the volume's cluster count. */
+    u64 bit_count() const { return bit_count_; }
+    const std::vector<u8>& buffer() const { return buffer_; }
+
 private:
     VolumeBitmap() = default;
     std::vector<u8> buffer_;

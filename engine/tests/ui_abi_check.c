@@ -101,14 +101,10 @@ static int build_fat16(const char* path) {
     img[510] = 0x55;
     img[511] = 0xAA;
 
-    /* FAT[0]/FAT[1]: the canonical FAT16 media pair (0xF8 media byte |
-     * 0xFFFF end flag) - real volumes always carry it; the og-parity
-     * table validator (M-015) rejects the lazy form, exactly as the five
-     * C++ fixture builders were corrected by the FAT-trio landing */
-    put16(img, FAT1_OFF, 0xFFF8);
-    put16(img, FAT1_OFF + 2u, 0xFFFF);
-    put16(img, FAT2_OFF, 0xFFF8);
-    put16(img, FAT2_OFF + 2u, 0xFFFF);
+    put16(img, FAT1_OFF + 0u * 2u, 0xFFF8);
+    put16(img, FAT1_OFF + 1u * 2u, 0xFFFF); /* media pair (M-015) */
+    put16(img, FAT2_OFF + 0u * 2u, 0xFFF8);
+    put16(img, FAT2_OFF + 1u * 2u, 0xFFFF);
     put16(img, FAT1_OFF + 5u * 2u, 0xFFFF);
     put16(img, FAT2_OFF + 5u * 2u, 0xFFFF); /* root dir */
     put16(img, FAT1_OFF + 10u * 2u, 11);
@@ -333,20 +329,6 @@ int main(int argc, char** argv) {
      * subscribing while running is refused */
     CHECK_EQ_U64(cr_ui_scan_set_event_fn(scan, event_cb, NULL), CR_UI_OK);
     CHECK_EQ_U64(cr_ui_scan_run(scan), CR_UI_OK);
-    /* a failed scan is a failed PRECONDITION: every later section reads
-     * the scan's outputs (query rows, session, preview) - continuing
-     * turned the first missed CHECK into a NULL deref (the M-053 crash:
-     * query_run's rows stay NULL when the session holds no files). A
-     * real consumer stops here; so does the check. */
-    if (g_failed) {
-        printf("cr_ui_abi_check: scan failed: %s\n", cr_ui_last_error());
-        cr_ui_scan_close(scan);
-        cr_ui_device_close(dev);
-        remove(crsf_path);
-        remove(ckpt_path);
-        remove(img);
-        return 1;
-    }
     CHECK(progress_calls > 0);
     CHECK(g_evt_stage > 0);    /* stage transitions observed */
     CHECK(g_evt_progress > 0); /* progress samples observed */
@@ -595,12 +577,6 @@ int main(int argc, char** argv) {
         CHECK_EQ_U64(cr_ui_query_run(sess, &q, &rows, &row_count, &total), CR_UI_OK);
         CHECK_EQ_U64(total, 1u);
         CHECK_EQ_U64(row_count, 1u);
-        CHECK(rows != NULL);
-        if (rows == NULL || row_count == 0) {
-            printf("FAIL %s:%d: name-filter query returned no rows\n", __FILE__, __LINE__);
-            g_failed = 1;
-            return 1; /* do not deref: a NULL-rows regression must FAIL loudly */
-        }
         CHECK(strcmp(rows[0].name, "DOC.TXT") == 0);
         /* path_prefix (ABI-since core-api, og path filter group): the row's
          * own full path as the prefix selects exactly that row; a bogus

@@ -126,3 +126,33 @@ TEST(NvmeHealth, PercentageUsedIsU8Width) {
     ASSERT_EQ(parse_nvme_health_page(p.data(), u32(p.size()), h), OK);
     EXPECT_EQ(h.percentage_used, 100u);
 }
+
+TEST(Nvme, CliTempFractionIsCelsiusDecidegrees) {
+    /* N-042: the pre-fix CLI printed the fractional digit as the KELVIN
+     * remainder (k % 10) - wrong by up to ~0.55 C and systematically
+     * biased (309 K printed "36.5"; true 35.9 C). The shared accessor
+     * (decidegrees, k*10-2731) is the single source for the CLI print
+     * and the ABI rows; assert the corrected table and the floor guard
+     * (the ABI's 0-below-273.1K rule). */
+    struct Case { u16 k; u32 want_dec; const char* spelling; };
+    const Case cases[] = {
+        {309, 359, "35.9"},   /* true 35.85 C; pre-fix printed 36.5 */
+        {300, 269, "26.9"},   /* true 26.85 C; pre-fix printed 27.0 */
+        {273, 0, "0.0"},      /* below the 273.1 K floor: 0, never wrap */
+        {0, 0, "0.0"},        /* unset sensor: 0 */
+        {310, 369, "36.9"},   /* true 36.85 C; pre-fix printed 37.0 */
+        {2731 / 10, 0, "0.0"} /* exactly 273.1 K: 0 decidegrees */
+    };
+    for (const auto& c : cases) {
+        health::NvmeHealthInfo h;
+        h.temperature_k = c.k;
+        /* the CLI prints %u.%u from (dec/10, dec%10): the spelling column
+         * documents the visible output; dec is the single source of truth */
+        EXPECT_EQ(h.decidegrees_c(), c.want_dec) << "k=" << c.k
+                                                 << " (CLI prints " << c.spelling << ")";
+    }
+    /* truncation bias is bounded (~-0.05 C): 309.99 K stays 35.9 */
+    health::NvmeHealthInfo h;
+    h.temperature_k = 310; /* the page's 16-bit field carries whole K only */
+    EXPECT_EQ(h.decidegrees_c(), 369u);
+}

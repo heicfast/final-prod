@@ -1,4 +1,8 @@
-# Session diff-fix-10 prompt (token redacted)
+# Session diff-fix-13 prompt (token redacted)
+
+(ID disambiguated from the parallel DFX10 leg during the bootstrap merge;
+provenance: this session's mandate, archived verbatim-condensed, token
+redacted. See worklog.md DFX13-T1.)
 
 Mandate: execute the roadmap in `core_recovery/diff-to-fix/`. For every finding —
 ACUTE, SEVERE, MAJOR, MINOR, INFORMATIONAL, and TRACKED-OPEN — independently

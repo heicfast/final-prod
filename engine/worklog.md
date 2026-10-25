@@ -8443,9 +8443,325 @@ Stage Summary:
 - No semantic overlap remains: S-032 is FIXED by the parallel lane (dropped
   from this session's SEVERE queue — S-009/S-029/S-030 remain).
 
+---
+Task ID: DFX9-T0 (diff-fix session 9 bootstrap + baseline repair)
+Agent: main engineer (diff-to-fix session 9)
+Task: Session bootstrap — pull both repos, record baseline commits, establish
+a green build/test baseline; file and fix the regression found in the
+baseline (M-053).
+
+Work Log:
+- Pulled core_recovery at HEAD c231f2f (audit-trail lineage; the S-021
+  journal-gate re-append head); corpus easeus-drw-research at 03ad46c
+  (unmoved, matches every prior session's pin). Token in the git credential
+  store only, never committed; prompt saved redacted to
+  worklog/session-diff-fix-9-prompt.md.
+- Build baseline (linux-gcc preset, RelWithDebInfo + ASan): build clean;
+  full ctest 517/518 — cr_ui_abi_check SEGV (ui_abi_check.c:576, ASan READ
+  at 0x8). CI-gating red at HEAD: root-caused BEFORE any finding work.
+- Root cause chain (standalone repro, session scratch): scan_run fails
+  "scan bad magic" — fat_table_validate Flavor::Fat16 media-word gate
+  (cr_chain.cpp:194-199) rejects the ui_abi_check fixture whose FAT[0]/FAT[1]
+  were never written. The validator is og-correct M-015 parity (corpus
+  CFAT16 FUN_1800041b00 :54052-141); the fixture is not a valid FAT16 volume.
+- Timeline proven by worktree builds: 63d9067 (M-015 parent) abi check
+  GREEN; 6dc1e32 (M-015 landing) abi check SEGV — the landing updated
+  test_fat_volume.cpp + test_orchestrator.cpp with the canonical media pair
+  but missed tests/ui_abi_check.c:build_fat16() (the ported C-consumer
+  twin). Linux CI gate red for the whole 6dc1e32..c231f2f window (every
+  "suite N/N green" claim in that window named only the cr_tests runner).
+- NEW-FINDING M-053 (MAJOR) filed per the discovered-divergence SOP.
+  Fixture repaired in-session (build_fat16() media pair; standalone repro
+  post-fix: files_found=2 deleted_found=1; name-substring query total=1,
+  rows[0].name="DOC.TXT" — the exact crashing assertion; FULL ctest 518/518
+  green on the pre-rebase tree).
+- REBASE UNION: the parallel DFX7 lane had landed the byte-equivalent
+  fixture repair inside b1f9210 (N-018's UBSan defect set, "recovered by
+  the DFX7 session" in-code) WITHOUT filing the regression. Union kept
+  their bytes; M-053 reclassified FIXED-ALREADY with both proofs (their
+  landing + this session's worktree bisect at the regression point:
+  63d9067 green / 6dc1e32 SEGV). Evidence:
+  diff-to-fix/evidence/executions/s9-m053-abi-fixture-regression.md.
+- Audit trail updated with the push: M-053 finding (FIXED-ALREADY,
+  findings/FIXED/), RESOLVED-INDEX row, CROSS-REF-MATRIX session-9
+  section, SUMMARY session-9 delta with exact baseline counts.
+
+Stage Summary:
+- Baseline green established; CI-gating regression M-053 filed+fixed+pushed
+  (session fix #1). Next: SEVERE tier in impact order — S-031 timestamp
+  residual, S-032 inventory payload, S-009 diskmap residual, then the
+  scope-decision items S-029/S-030 — then the S6-close recommended next-10
+  (M-052, N-074, N-068, N-065, N-070, N-067, N-075, N-073).
 
 ---
-Task ID: DFX10-T1 (session 10 bootstrap)
+Task ID: DFX9-T0b (union repair — the remote's broken merge + the S-031 x S-032 contract hole)
+Agent: main engineer (diff-to-fix session 9)
+Task: Absorb the remote's parallel landings (S-032 archive inventory, S-031
+timestamp residual, N-018 UBSan lane, INFO-tier acknowledgements) — the
+rebase surfaced a broken remote main and a cross-finding contract hole.
+
+Work Log:
+- Remote moved during the first push attempt: b1f9210..origin/main brought
+  the S-032 lane (1a25869), the INFO acknowledgements (b2bd91b), and the
+  N-018 UBSan lane (b1f9210). Rebased; four conflicts resolved (worklog
+  union, RESOLVED-INDEX union, ui_abi_check — the remote's N-018 defect set
+  carried the byte-equivalent M-053 fixture repair, so M-053 reclassified
+  FIXED-ALREADY with both proofs).
+- REMOTE MAIN WAS BROKEN: tests/unit/test_carve.cpp carried committed
+  conflict markers (the S-031 timestamp leg and the S-032 inventory leg both
+  appended tests; git interleaved them on the shared MemDevice boilerplate;
+  -Werror rejects the markers). Reconstructed the file with BOTH legs' tests
+  in order (S-031's three timestamp tests, then S-032's helper + three
+  inventory tests; 26 CarveEngine tests total, zero markers).
+- Cross-finding defect found on the union tree (fail-before executed):
+  CarvedNodesCarryScanTimestamp + ScanTimestampSurvivesSessionRoundTrip RED
+  — the S-032 inventory children are raw records with NO scan stamp while
+  S-031's contract (and the og: FUN_140c41aa0 per-record timestamp,
+  ifileproperties-part3 :80) stamps EVERY record. Fixed: ep->times.modified
+  = ctx.scan_time in the emission loop, citation comment in-source.
+- Also repaired the committed markers inside findings/FIXED/S-024 (the s6
+  recon merge left HEAD/incoming duplicates of the N-058->N-074 renumber;
+  kept the richer side with the post-resolution correction).
+- Pass-after: FULL ctest 533/533 green (31.5 s) on the union tree. S-032
+  finding carries the session-9 addendum documenting the residue + fix.
+
+Stage Summary:
+- Remote main un-broken and green again (533/533); M-053 FIXED-ALREADY
+  (audit record stands); S-031 x S-032 contract hole closed with the
+  per-entry stamp. Session tally so far: M-053 (filed+verified), merge
+  repair, contract fix. Next: the remaining SEVERE tier (S-009 diskmap
+  residual, S-029 apply path, S-030 image scan) and the S6-close
+  recommended next-10.
+
+---
+Task ID: DFX7-T2 (MINOR tier, waves 3-4)
+Agent: main engineer (diff-to-fix session 7)
+Task: Continue the MINOR tier; repair cross-lane landing corruption as found.
+
+Work Log:
+- N-018 FIXED: linux-ubsan preset + CI job (Q67's third prong). The lane's
+  first run caught 3 real defects, all fixed: (a) test_fat_volume LFN fixture
+  builders stored through unaligned u16 members (name1 at odd offset +1) -
+  byte-wise put_u16; (b) cr_lfn.cpp loaded the same arrays through u16* -
+  engine-side unaligned-load UB - byte-wise le16 loads; (c) ui_abi_check.c's
+  fixture missed the M-015 canonical media words (the parallel M-015 landing
+  updated only the C++ fixtures) - the C consumer had been silently SEGVing
+  on main (stdout block-buffering hid the FAIL prints; the crash lost them).
+  522/522 UBSan-clean + 522/522 ASan. NOTE: QueryPerf.MillionNodes... gained
+  a UBSan budget rung (2000ms; 113ms standalone; the 200ms contract stays on
+  the ASan/Release lanes).
+- N-042 FIXED: one decidegree source (NvmeHealthInfo::decidegrees_c(),
+  k*10-2731, 273.1K floor) for the CLI print and the ABI
+  temperature_c_x10; the pre-fix CLI fractional digit was the KELVIN
+  remainder (k%10) - up to ~0.55 C wrong. Test
+  Nvme.CliTempFractionIsCelsiusDecidegrees (309K -> 35.9 was "36.5").
+- Cross-lane repair (superseded mid-flight by the parallel leg's identical
+  8e79960): the S-032 landing had committed 3 conflict blocks in
+  test_carve.cpp (S-031 timestamp tests interleaved with S-032 inventory
+  tests); reconstructed deterministically; the S-032 inventory-children emit
+  missed the S-031 scan-time stamp (CarvedNodesCarryScanTimestamp walks
+  children and caught the zero stamps). My duplicate repair was SKIPPED in
+  the rebase (their landing is canonical); both attempts are in history.
+- Session tally so far: N-004/N-006/N-013/N-015/N-018/N-042 fixed by this
+  session; INFO 22/22 acknowledged (I-023/I-024 by the parallel leg).
+
+Stage Summary:
+- Inventory now: SEVERE 3 (parallel legs closed S-007/S-024/S-025/S-027/
+  S-028/S-031/S-032), MAJOR 39, MINOR 55 (34 unresolved), INFO 22 (acked),
+  FIXED 73, OQ 16. Next: N-044 (--deep naming), N-020 (doc drift), the
+  carve-magic quartet N-051..N-054, N-045 (cache budget), then the groups.
+
+---
+Task ID: DFX11-T1 (bootstrap)
+Agent: main engineer (diff-to-fix fix session 11)
+Task: Session bootstrap — repos pulled, baseline recorded, prompt saved.
+
+Work Log:
+- Pulled core_recovery (HEAD 7c44bdc — M-053 + the FF lineage landings all
+  present); corpus easeus-drw-research at 03ad46c (unmoved, the pin held by
+  every prior session). Token in git credential store only, never committed.
+- Session prompt mandate: fix ALL tiers, 20+ fixes target, majors first by
+  impact, fixed findings moved to findings/FIXED/, all audit-trail docs updated.
+- Prompt saved token-redacted at worklog/session-diff-fix-prompt.md.
+- Live inventory at 7c44bdc (direct file count): SEVERE 3 (S-009, S-029,
+  S-030) · MAJOR 39 · MINOR 55 · INFO 22 (all ACKNOWLEDGED) = 119 active /
+  72 FIXED / 17 tracked-open files. Six MINOR files carry Resolutions from
+  prior legs but were never moved to FIXED/ (N-004/N-006, N-009, N-013,
+  N-015, N-018, N-036) — hygiene repair queued for their module batches.
+- Duplicate ID spotted in MAJOR/: two M-029 files (query-model) — to be
+  reconciled when the query module batch is reached.
+
+Stage Summary:
+- Session open. Fix order: S-009 → S-029 → S-030 (SEVERE), then MAJOR by
+  impact/tractability, then MINOR batches. Baseline build running.
+  (Session ID DFX11 — a parallel leg also filed as DFX10; this leg's pushes
+  carry DFX11 stamps to keep the shared worklog unambiguous.)
+
+---
+Task ID: DFX12-BOOT (session 12, minors-first closing leg)
+Agent: main engineer (diff-to-fix minors-first session 12)
+Task: Session bootstrap — baseline, prompt saved, inventory recorded.
+
+Work Log:
+- Saved this session's mandate (token redacted) to
+  worklog/session-diff-fix-12-minors-prompt.md; read twice.
+- Recorded state: core HEAD 7c44bdc (session-8 M-053 head); corpus 03ad46c
+  (unmoved, verified first-hand).
+- Environment bring-up: cmake 4.4.4 (pip), gcc 14.2, system zlib/lz4/zstd,
+  gtest via FetchContent v1.15.2. linux-release configured + built clean.
+- Baseline executed: **533/533 green** (ctest, linux-release) at 7c44bdc;
+  the suite grew past the session-8 record of 526 (M-053/S-032/N-018 lanes).
+- Live inventory (direct file count at 7c44bdc): findings/SEVERE 3
+  (S-009, S-029, S-030) · findings/MAJOR 43 · findings/MINOR 51 ·
+  findings/INFORMATIONAL 24 (all carrying Resolution/acknowledgement) ·
+  tracked-open 16 · findings/FIXED 71 (incl. RESOLVED-INDEX).
+- Session order (user-specified): MINOR-first waves, every finding
+  independently re-verified against corpus 03ad46c and the running code
+  before any change; one finding, one verified fix, one push; fixed
+  findings move to findings/FIXED/ with Resolution + RESOLVED-INDEX row.
+- Housekeeping targets identified (convergent with DFX11's inventory):
+  N-004/N-006, N-009, N-013, N-015, N-018, N-036 carry complete
+  Resolution sections from prior legs but were never moved out of MINOR/ —
+  first commits will reconcile the audit trail (no code change).
+
+Stage Summary:
+- Session 12 open: baseline green at 533/533, inventory recorded,
+  MINOR-first fix waves begin. Target: 20+ findings resolved this
+  session with fail-before/pass-after proof for each. (Session ID DFX12
+  chosen to disambiguate from the parallel DFX9/DFX10/DFX11 legs.)
+
+---
+Task ID: DFX10-T1
+Agent: DFX10 (diff-fix session 10)
+Task: Session bootstrap — pull both repos, record commits, save prompt, green baseline
+
+Work Log:
+- Cloned core_recovery (HEAD 8e79960 at pull; rebased onto 7444fd6 after parallel
+  DFX11/DFX12 pushes) and easeus-drw-research (03ad46c, unmoved corpus).
+- Saved session prompt (token redacted) to worklog/session-diff-fix-prompt.md.
+- Audited commit per README: session-5b lineage `7cf6754`-rebased-onto-`c75f646`;
+  session-9 started at `c231f2f`. Live inventory rebased: SEVERE 3 (S-009, S-029,
+  S-030) · MAJOR 39 · MINOR 55 (34 unresolved per DFX7) · INFO 22 · FIXED 72.
+- Linux Release build + full ctest: **533/533 green** (includes cr_ui_abi_check).
+
+Stage Summary:
+- Baseline green. DFX10 fix order: SEVERE (S-009 → S-029 → S-030) then MAJOR by
+  impact. Note: DFX12 runs MINOR-first waves in parallel — coordinate via worklog
+  before each push (pull --rebase every time).
+
+---
+Task ID: DFX8-S009 (session 8, finding 2)
+Agent: main engineer (diff-to-fix closing session 8)
+Task: S-009 — the disk-map free overlay (the residual the session-6 addendum
+scoped): kCellAllocFree never produced, no persistence, snapshot paths carry
+no error map. Verified, fixed, proven.
+
+Work Log:
+- Re-verified the finding first-hand: grep kCellAllocFree assignment sites in
+  src/ = 0 (the finding's claim holds at session start); the session-6
+  addendum's fix plan (bitmap producer -> fill pass -> downsampled
+  persistence -> tests) executed as written.
+- Implementation (files): include/cr/storage/cr_freemap.h (NEW — FreeMap:
+  bit set = free, out-of-range never free, conservative range_free);
+  ntfs/cr_bitmap.h (bit_count/buffer accessors); fat/exfat engine scan
+  signatures gained optional FreeMap* out (FAT: table entry-0 truth,
+  cluster-0 base = data base - 2 clusters; exFAT: allocation-bitmap dentry
+  inverted, 8 MiB loader cap tail stays not-free);
+  orchestrator/cr_scan.{h,cpp} (EngineRun.free_map; NTFS $Bitmap inverted;
+  absolute rebase at the dispatch tail exactly like tree extents; main pass
+  owns stats.free_map, candidates never overwrite);
+  tree/cr_diskmap.{h,cpp} (DiskMapInputs.free_map + the fill pass: FREE only
+  on still-unknown cells fully covered; downsample_free_map with the same
+  choose_cell_bytes budget); session records (REC_ALLOC_MAP type 7 +
+  serialize/deserialize with bits-coverage validation); save/load wiring;
+  ui/cr_ui.cpp (session path feeds map+cluster hint; CrSnapshot captures
+  errors+free map+view; scan snapshots capture live telemetry errors under
+  ctrl_mu + the completed map when !running; snapshot want bounds-checked).
+- Docs: cr_diskmap.h truth rule + cr_ui.h overlay comments + ABI-CONTRACT
+  section 7 corrected (free = engine bitmap; bad = retry-layer spans, not
+  FS-marked); visualization.md session-8 verdict table.
+- Tests (4 new, fail-before by construction — zero kCellAllocFree producers
+  existed): DiskMapFreeOverlayFromFatTable (FAT truth: USED at doc chain /
+  UNKNOWN at deleted chain / FREE at >4500 cells), FreeCellsSurviveSessionReload
+  AndSnapshot (record round-trip + snapshot parity + OOB refusal),
+  ScanSnapshotCarriesFreeMap, FreeNeverOverridesUsedOrBadAndDownsampleIs
+  Conservative (hostile-map precedence + conservative downsample tail).
+  The stale 64KiB-cell assertion in DiskMapSessionGeometryAndOverlays
+  updated to the new cluster-hint truth.
+- Verification on the merged tree (incl. the parallel lanes' S-032 + N-018
+  landings): 515/515 cr_tests + 21/21 cr_ui_tests + cr_ui_abi_check green,
+  on Release AND ASan lanes.
+- Audit trail: finding -> FIXED/ with full Resolution; RESOLVED-INDEX row;
+  matrix visualization+abi rows; visualization.md session-8 verdict;
+  SUMMARY session-8 delta + counts (SEVERE 2 remain: S-029, S-030); N-057
+  addendum (bad-overlay coverage paid; Ebr enum + budget-growth remain).
+
+Stage Summary:
+- S-009 FIXED. The disk map now paints the og's IBuildVolumeBitmap truth
+  (free/used) for every engine that owns an allocation bitmap, persists it
+  budget-bounded, and carries it through both snapshot paths. Counts:
+  SEVERE 2 (S-029 lost-partition apply, S-030 image targets) / MAJOR 39 /
+  MINOR 55 / INFO 22 / 72 FIXED. Next: S-030 (image scan targets - the
+  flat-file device + --image CLI + VMDK sparse extents), then S-029
+  (consent-gated apply path).
+
+---
+Task ID: DFX8-S030-CLAIM (session 8, lane claim)
+Agent: main engineer (diff-to-fix session 8)
+Task: Lane claim — S-030 (disk-image scan targets) taken by this session
+(DFX8). DFX10's published order was S-009 → S-029 → S-030; S-009 landed
+here (c55bd45), so this lane takes S-030 next and leaves S-029 for DFX10
+unless it stalls. DFX12 stays MINOR-first.
+
+Work Log:
+- Claim recorded before any S-030 work; pull --rebase before every push.
+
+Stage Summary:
+- S-030 in flight on DFX8. S-029 unclaimed-at-this-instant (DFX10's queue).
+
+---
+Task ID: DFX12-T2 (audit-trail reconciliation — six stale-resolved MINOR moves)
+Agent: main engineer (diff-to-fix minors-first session 12)
+Task: Move six findings whose fixes landed in prior sessions (Resolutions
+already written, commit evidence verified first-hand) out of MINOR/ into
+findings/FIXED/; repair the audit-trail damage found during the move.
+
+Work Log:
+- Verified each Resolution's commit evidence first-hand: N-004/N-006
+  (7f03c4b — RetryPolicy::backtrack in cr_device.h/cr_retry.cpp, pin test
+  Btrfs.NonPow2NodesizeRejectedRegistered, PARITY-DELTAS D-62a), N-013
+  (DFX7 writer-minors batch — win::destination_volume_letter /
+  volume_extents / set_destination_spans; Report.MultiExtentSpannedVolume-
+  Refused), N-015 (915bce3 — ERR_DEST_FULL end to end), N-018 (b1f9210 —
+  linux-ubsan preset + CI job), N-042 (3678cbf — decidegrees_c single
+  source), N-044 (779eb21 — --whole-disk rename).
+- AUDIT-TRAIL DAMAGE FOUND AND REPAIRED: b2bd91b's "housekeeping" note
+  ("N-004/N-006 group returned to MINOR/") accidentally truncated the
+  group file from 99 lines to the 7-line N-005 stub — the original
+  three-finding text and the N-004/N-006 Resolution sections were gone
+  from the working tree. Restored byte-identical from git history
+  (f3ec0bb blob); all cited tests verified present in the tree.
+- Moves: N-004-N-006, N-013, N-015, N-018, N-042, N-044 → findings/FIXED/.
+  RESOLVED-INDEX rows added (one per file, commit SHAs + test names).
+- N-009 (c/d sub-rows open) and N-036 (container-map half open) stay in
+  MINOR/ — partial by design, not stale.
+- SUMMARY session-12 delta added: live counts after reconciliation —
+  SEVERE 3 · MAJOR 39 · MINOR 49 · INFO 22 (0 actionable) · tracked-open
+  16 · FIXED 79 files (78 findings + index). Also noted: N-073 is a
+  probable duplicate of the N-004 landing (session-6 citation-gap
+  filing); duplicate M-029 pair and duplicate M-053 files in FIXED/
+  queued for reconciliation.
+
+Stage Summary:
+- Six findings formally closed in the audit trail (no code change — code
+  was already og-parity from prior sessions; this wave is the bookkeeping
+  the prior legs left behind). Session resolution tally: 6.
+
+---
+Task ID: DFX13-T1 (session 13 bootstrap — renamed from DFX10 during this
+merge; a parallel leg had already claimed the DFX10 ID at 5ff4db7. The
+prompt file is renamed session-diff-fix-10 -> session-diff-fix-13 in the
+same merge commit.)
 Agent: main engineer (diff-to-fix session 10)
 Task: Session bootstrap — pull both repos, record baseline, establish green suite, archive session prompt.
 
@@ -8468,9 +8784,19 @@ Work Log:
   clean. Baseline suite: 533/533 green at 7c44bdc (Linux Release), no
   flakes observed.
 
-Stage Summary:
-- Session open. Baseline 7c44bdc + corpus 03ad46c recorded; suite 533/533 green.
-- Fix order (FF-HANDOFF lane): S-009 (with M-005 shared plumbing) -> S-030
-  (re-verify landed state first) -> S-029 (consent-gated apply scope
-  decision) -> MAJOR tier by impact -> MINOR batches -> INFO verification
-  -> tracked-open.
+Stage Summary (post-merge union, supersedes the pre-merge order above):
+- Baseline 7c44bdc + corpus 03ad46c recorded; suite 533/533 green pre-merge.
+- The merge absorbed: S-009 FIXED by the DFX8-legacy lane (c55bd45 + 74e4d36
+  — the free-overlay landing this leg had queued is done by them, not
+  racing); N-020 doc drift + six MINOR bookkeeping moves by DFX12
+  (f4fe677); N-042/N-044/UBSan-lane reds by the parallel legs; a duplicate
+  M-053 landing from the DFX9 lineage (797af18) — the duplicate pair in
+  FIXED/ is now this leg's first work item.
+- Live lane map after union: DFX8-legacy -> S-030 (in flight; S-029 only as
+  their fallback), DFX10 (5ff4db7 lineage) -> S-029 published, DFX11 ->
+  MAJOR by impact, DFX12 -> MINOR waves. DFX13 (this leg) takes the
+  unclaimed audit-trail reconciliation queue first (duplicate M-053 pair in
+  FIXED/, duplicate M-029 pair in MAJOR/, N-073-vs-N-004 probable duplicate
+  — flagged by DFX12-T2, unclaimed), then MAJOR in module batches with
+  per-finding claims recorded before work. Pull before every push; full
+  suite re-run after every pull.

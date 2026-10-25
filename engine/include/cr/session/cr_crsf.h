@@ -50,6 +50,13 @@ enum RecordType : u32 {
      * session saved by a build without the grading pass simply lacks it
      * and the counters re-derive as zeros on load. */
     REC_ASSISTANT_STATS = 6,
+    /* S-009: the downsampled engine free map (the IBuildVolumeBitmap
+     * truth, cell-granular and budget-bounded). OPTIONAL with the same
+     * skip-unknown-types rule - sessions saved before the free overlay
+     * lack it and the disk map degrades to unknown cells, never a
+     * guess. Payload: u32 cluster_bytes, u32 reserved(0), u64 base_byte,
+     * u64 cluster_count, u32 bits_len, bits bytes. */
+    REC_ALLOC_MAP = 7,
 };
 
 /* In-memory record. */

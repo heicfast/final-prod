@@ -17,6 +17,7 @@
 #define CR_FAT_ENGINE_H_
 
 #include "../storage/cr_device.h"
+#include "../storage/cr_freemap.h"
 #include "../tree/cr_node.h"
 #include "cr_fat_wire.h"
 #include <memory>
@@ -242,11 +243,16 @@ struct FatScanFlags {
 };
 
 /* Quick + complete in one entry: flags toggle complete behaviors.
- * Emits under root_active (live) / root_deleted / root_lost (orphans). */
+ * Emits under root_active (live) / root_deleted / root_lost (orphans).
+ *
+ * S-009 (free overlay): free_out, when non-null, receives the
+ * cluster-granular free map derived from the loaded FAT (entry 0 =
+ * free cluster - the IBuildVolumeBitmap truth). Optional so existing
+ * callers are untouched; a failed table load leaves it cleared. */
 u32 scan_fat(IStorageDevice* slice, const FatScanFlags& flags, CancelToken* cancel,
              WalkProgressLike progress, void* progress_user, tree::ResultTree& tree,
              tree::FullNode* root_active, tree::FullNode* root_deleted, tree::FullNode* root_lost,
-             FatScanStats& stats);
+             FatScanStats& stats, storage::FreeMap* free_out = nullptr);
 
 } // namespace fat
 } // namespace cr

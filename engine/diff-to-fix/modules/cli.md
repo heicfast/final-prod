@@ -9,11 +9,15 @@ Core (audited `67193b6`): `src/app/rrecov.cpp` (1,498 LOC).
 
 ## Verdicts
 
-- **C24 exit codes** — own contract, `M`-as-documented: 0 success / 1 usage / 2 scan
-  error / 3 recover error (documented; consistent).
-- **Commands** — `M`-as-designed: scan (3 modes), recover, report, session
-  save/load/resume, repair/undo (S-008 wiring), verify, query. The `--json` tree output
-  and recovery report are CI-validated.
+- **C24 exit codes** — own contract, `M`-as-documented (N-020 drift corrected to the
+  rrecov.cpp:17-19 docstring): scan 0 ok / 1 failure / 3 cancelled (session saved when
+  --out was given); list 1 on enumeration failure; health 3 when every health source is
+  unavailable; recover 2 partial (item errors / hash mismatch).
+- **Commands** — `M`-as-designed (N-020 drift corrected): wmain dispatches exactly
+  7 commands - list, scan, tree, recover, health, fix, bench. verify and query are
+  API-only surfaces (`cr_ui_scan_verify_identity`, `cr_ui_query_run`); `tree --json`
+  uses `query::run` internally but accepts no user query predicates. The `--json` tree
+  output and recovery report are CI-validated.
 - **F62/F63** — `M`: destination overlap refusal surfaced; repair consent = explicit
   command.
 - **B10** — **N-009c** (--filter ASCII-only mangling).

@@ -176,13 +176,14 @@ Findings:
 | Stats | queued stamped upfront; done/dirs/refused/errors/hash_mismatch/resumed; per-item duration + Pending outcome truth | n/a | MATCH (honest) |
 
 Findings:
-- **WRITER-1 (P2, OPEN — F-A4-8)**: the handoff claim "writer mkdir+abort fixed by the
-  UI-readiness agent" is **half-true**: mkdir landed (G-08), the queue-abort did NOT.
-  `if (u32 rc = recover_item(it, cancel, stats)) return rc;` aborts the whole queue on the
-  first per-item error (create_temp/write/truncated/commit failures; only hash-mismatch
-  continues). One unreadable file still cancels the remaining 10,000; `stats.errors` caps at 1.
-  *Acceptance:* 3-item queue where item 2's dest is unwritable → items 1+3 Done,
-  `stats.errors==1`, summary rc non-fatal; cancel remains the only hard abort.
+- **WRITER-1 (P2, FIXED — F-A4-8; N-020 drift corrected)**: the queue-abort is
+  FIXED in tree (cr_safewriter.cpp process loop): per-item failures are
+  COLLECTED (`stats.errors`, the og's ExportThread "%1 files/%2 failed"
+  semantics); only ERR_CANCELLED is a hard abort - and, since N-015,
+  ERR_DEST_FULL (a terminal destination-full state, distinct from per-item
+  errors: the remaining items stay Pending, never attempted). The acceptance
+  case (item 2 unwritable -> items 1+3 Done, errors==1, rc non-fatal) is
+  pinned by Report.WriterOutcomesAndHashHonesty.
 - **WRITER-2 (P2, OPEN — F-A4-15, registry error)**: docs/error-fix-registry.md row F11
   still states the reference behavior is "collision = overwrite" — contradicted by the
   decompile (rename `name_N`, cap 10000). Future agents could "re-fix" our correct rename into

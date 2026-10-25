@@ -61,6 +61,16 @@ struct NvmeHealthInfo {
     u64 unsafe_shutdowns = 0;
     u64 media_errors = 0;
     u64 num_error_log_entries = 0;
+
+    /* N-042: the single temperature spelling. The pre-N-042 CLI printed
+     * the fractional digit as the KELVIN remainder (k % 10 - up to
+     * ~0.55 C wrong, systematically biased); the ABI already used
+     * decidegrees (k*10 - 2731, truncation, ~-0.05 C bias). One source:
+     * every surface (CLI print, ABI rows) derives from this accessor.
+     * 0 below 273.1 K (mirrors the ABI's floor guard). */
+    u32 decidegrees_c() const {
+        return u32(temperature_k) * 10 >= 2731 ? u32(temperature_k) * 10 - 2731 : 0;
+    }
 };
 
 /* Parse a health log page buffer (bytes >= 192 - the page's last field,

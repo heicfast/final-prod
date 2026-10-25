@@ -609,13 +609,23 @@ CR_UI_API uint32_t cr_ui_carve_format_info(uint32_t index, cr_ui_carve_format* o
  * Overlays (each optional, at least one required): heap arrays of
  * got->cell_count bytes, freed with cr_ui_disk_map_free:
  *   allocation: 0 unknown, 1 used (active structured files - the only
- *               claim a session proves), 3 fs-marked bad
+ *               structured claim a session proves), 2 free (S-009: the
+ *               engine allocation bitmap's truth - NTFS $Bitmap /
+ *               FAT / exFAT table; only where no extent and no error
+ *               span claims the cell), 3 bad (retry-layer error spans)
  *   coverage:   0 unscanned, 1 scanned (carve completion = all cells)
  *   found:      distinct found files covering the cell (capped 255)
  *   confidence: max Confidence ordinal 0..4 of covering content
  * bad_ranges: caller buffer of u64 PAIRS [start,len] (absolute bytes),
  * bad_cap the pair capacity; *bad_count returns the needed pair count
- * either way; bad_cap < needed -> CR_UI_ERR_TRUNCATED after filling. */
+ * either way; bad_cap < needed -> CR_UI_ERR_TRUNCATED after filling.
+ *
+ * S-009 free overlay: the session path feeds the persisted REC_ALLOC_MAP
+ * (downsampled to the map's own cell granularity, budget-bounded); the
+ * snapshot path feeds the value-captured map (session snapshots) or the
+ * completed scan's map (scan snapshots, !running captures only - a live
+ * mid-scan map would be a racy read and stays absent). Sessions saved
+ * before the record existed degrade to unknown cells, never a guess. */
 
 typedef struct cr_ui_disk_map_geometry {
     uint64_t start_byte;    /* in: view base (snapshot path); out: used base */

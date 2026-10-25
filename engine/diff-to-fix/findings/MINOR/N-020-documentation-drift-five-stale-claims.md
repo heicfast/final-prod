@@ -108,3 +108,10 @@ None — this is a doc-accuracy finding.
   the docs for known-stale claims (e.g. "BELOW the 64 KiB contract"
   after GAP-S6-13 lands)? Low priority — the discipline is human,
   not automated.
+
+## Resolution
+
+**Status:** FIXED (all six drift instances corrected)
+**Fixed in commit:** this session's doc-accuracy batch
+**Verified by:** first-hand re-read of each corrected file against the current tree: AUDIT-PIPELINE.md WRITER-1 now FIXED (citing the cr_safewriter process loop + the Report.WriterOutcomesAndHashHonesty pin + the N-015 DEST_FULL addition); modules/cli.md commands row now lists the 7 dispatched commands with verify/query marked API-only and exit codes match the rrecov.cpp:17-19 docstring; PERFORMANCE-PROFILE.md carries the session-6 historical-baseline note, the Direct raw handles row now reads ABOVE (contract met) with GAP-S6-13 LANDED 7777e1c, and the engine-reads row cites the real 8 MiB orchestrator cache (cr_cached.h:25's 1 MiB default noted as overridden); the S-009/M-006 finding file moved to findings/FIXED/ with its Resolution (both halves closed: 56cce87 + e30b84d) and a RESOLVED-INDEX row.
+**Resolution notes:** every stale claim in the table now matches the code state. The open question (a CI grep for known-stale claims) is deliberately NOT adopted - the discipline stays human per the finding's own "low priority" note. Spot-check acceptance: the five additional claims sampled during this pass (matrix S-023 row, PARITY-DELTAS D-56 numbering, visualization D16, SUMMARY INFO counts, README audited-commit lineage) were all corrected in earlier waves of this session or by parallel legs.

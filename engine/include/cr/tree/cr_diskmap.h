@@ -14,9 +14,12 @@
  *
  * Truth rules (nothing invented):
  *  - allocation = USED only where ACTIVE structured files' extents lie
- *    (the only "allocated" claim a session can prove); everything else is
- *    UNKNOWN - deleted/carved content may sit in free or reused clusters,
- *    and the engine bitmap is not persisted (registered follow-up).
+ *    (the only "allocated" claim a session can prove); FREE exactly where
+ *    the engine allocation bitmap (S-009: NTFS $Bitmap / FAT / exFAT
+ *    table truth, persisted cell-granular in the session as REC_ALLOC_MAP)
+ *    marks free AND no structured extent and no error span claims the
+ *    cell; everything else is UNKNOWN - deleted/carved content may sit in
+ *    free or reused clusters.
  *  - coverage = ALL cells when the carve stage completed (carve reads the
  *    whole slice), else exactly the cells covered by found-file extents
  *    (the result-bearing coverage; metadata-only reads are not tracked).
@@ -38,6 +41,7 @@
 
 #include "cr/tree/cr_snapshot.h"
 #include "cr/storage/cr_device.h"
+#include "cr/storage/cr_freemap.h"
 #include <memory>
 #include <utility>
 #include <vector>
@@ -69,6 +73,11 @@ struct DiskMapInputs {
     u32 fs_family = 0;                    /* orchestrator::FsFamily value */
     bool carve_completed = false;         /* coverage truth: carve read everything */
     const ReadErrorMap* errors = nullptr; /* bad-sector overlay source */
+    /* S-009: the engine allocation bitmap (IBuildVolumeBitmap truth).
+     * Null/invalid = no free overlay (cells stay unknown - never a
+     * guess). Cells the bitmap marks free AND no structured-active
+     * content covers AND no error span marks become kCellAllocFree. */
+    const storage::FreeMap* free_map = nullptr;
 };
 
 /* Build the map over a live tree (session trees are the stable case).
@@ -86,6 +95,17 @@ u32 build_disk_map(const DiskMapInputs& in, const tree::Snapshot& snap, DiskMapG
                    std::vector<u8>* allocation, std::vector<u8>* coverage, std::vector<u8>* found,
                    std::vector<u8>* confidence, std::vector<std::pair<u64, u64>>& bad_ranges,
                    u32 bad_cap, u32* bad_needed);
+
+/* S-009 persistence: downsample a raw cluster-granular free map to the
+ * disk map's own cell granularity (the same choose_cell_bytes sizing,
+ * bounded by the overlay budget - a 16 TiB volume's map persists in
+ * <= 8 MiB, not 512 MiB). A cell's bit is set only when EVERY cluster
+ * it covers is free and fully inside the map's coverage (conservative:
+ * partial coverage is unknown, not free). The output map's "cluster
+ * 0" is the view's first cell, so a reloaded map aligns with the
+ * rebuilt grid by construction. */
+u32 downsample_free_map(const storage::FreeMap& raw, u64 slice_start, u64 slice_bytes,
+                        storage::FreeMap& out);
 
 } // namespace viz
 } // namespace cr

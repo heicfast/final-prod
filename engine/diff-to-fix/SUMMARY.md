@@ -1,11 +1,97 @@
-# SUMMARY.md — executive summary (session-6 fix leg + session 7 below; earlier sessions below)
+# SUMMARY.md — executive summary (diff-fix session 9 on top; earlier sessions below)
 
-## Session-8 delta (2026-10-26 — the closing-verification fix session, S-009 first lane)
+## Session-9 delta (2026-10-26 — baseline repair + the SEVERE/MAJOR/MINOR fix waves)
+
+Session start `c231f2f` (audit-trail lineage; the S-021 journal-gate
+re-append head); corpus `03ad46c` unmoved. Baseline pull found Linux CI RED:
+`cr_ui_abi_check` SEGV — root-caused first, before any finding work (a
+session does not fix findings on a red baseline).
+
+**NEW-FINDING M-053 (MAJOR) filed — FIXED-ALREADY (rebase union):** the
+M-015 landing (`6dc1e32`) updated the two C++ FAT16 fixture builders with
+the canonical media pair but missed the third —
+`tests/ui_abi_check.c:build_fat16()` (the ported C-consumer twin). From
+`6dc1e32` the plain-C ABI proof was dead (scan `ERR_BAD_MAGIC` on the
+invalid fixture → NULL rows → SEGV at :576) and the Linux CI gate red on
+every push in the window. This session root-caused it independently
+(worktree bisect: parent `63d9067` green / landing SEGV; standalone repro
+of the full failure chain; own fixture repair 518/518 green) and filed the
+finding per the discovered-divergence SOP — while the parallel DFX7 lane
+landed the byte-equivalent fixture repair inside `b1f9210` (N-018's UBSan
+defect set) WITHOUT filing the regression. The rebase union kept their
+bytes; M-053 is the formal record of the red window, classified
+FIXED-ALREADY with both proofs. Evidence:
+`evidence/executions/s9-m053-abi-fixture-regression.md`.
+
+**Counts at session-9 start (direct file inventory at `c231f2f`):**
+SEVERE 5 (S-009 residual, S-029, S-030, S-031 stub — timestamp residual,
+S-032) · MAJOR 40 · MINOR 55 · INFO 22 = 122 active; findings/FIXED/ 67
+finding files + RESOLVED-INDEX; tracked-open 16 files. After the M-053
+filing+fix: active count unchanged (122 — the finding was born fixed in the
+same push); FIXED 68 finding files. Subsequent session-9 landings append
+their deltas below as they push.
+
+# SUMMARY.md — executive summary (session 12 on top of session 9; earlier sessions below)
+
+## Session-12 delta (2026-10-26 — the minors-first reconciliation wave, DFX12)
+
+Session start `7c44bdc` (bootstrapped at `7444fd6` after rebase onto the
+parallel lanes' N-044/UBSan-CI landings); corpus `03ad46c` unmoved.
+Baseline before any change: Linux Release suite **533/533** green.
+Order per user mandate: MINOR-first waves; every finding independently
+re-verified before fixing; fixed findings move to `findings/FIXED/`.
+
+**Audit-trail reconciliation (this wave):** six MINOR files whose fixes
+landed in prior sessions (commit evidence verified first-hand: `7f03c4b`,
+`915bce3`, `b1f9210`, `3678cbf`, `779eb21`) had never been moved out of
+MINOR/ — N-004/N-005/N-006 (group), N-013, N-015, N-018, N-042, N-044
+now live in FIXED/ with RESOLVED-INDEX rows. **Audit-trail damage
+repaired:** the b2bd91b "housekeeping" commit had accidentally truncated
+the N-004/N-005/N-006 group file from 99 lines to the 7-line N-005 stub
+(the original finding text + the N-004/N-006 Resolution sections were
+lost from the working tree; git history held them) — restored in full
+and all three cited test sets verified present (Retry.Backtrack* x3,
+HfsPlus.LargeBlockSizeAccepted, Btrfs.NonPow2NodesizeRejectedRegistered).
+N-009 (c/d sub-rows open) and N-036 (container-map half open) stay in
+MINOR/ as partially resolved by design.
+
+**Counts after the reconciliation (direct file inventory at this
+commit):** SEVERE 3 (S-009, S-029, S-030) · MAJOR 39 (incl. the known
+duplicate M-029 pair) · MINOR 49 · INFO 22 (all ACKNOWLEDGED — 0
+actionable) · tracked-open 16 · **FIXED/ 79 files (78 findings +
+RESOLVED-INDEX)**. Session fix tally (resolutions this session): 6
+moved-with-evidence + the group-file restoration. Ongoing: MINOR-first
+fix waves targeting 20+ in-session resolutions; N-073 noted as a
+probable N-004 duplicate (session-6 filing) — verification queued.
+
+## Session-8 delta (2026-10-26 — the closing-verification fix session, SEVERE lane first)
 
 Session start `4a924d1` (rebased bootstrap `3494606`); corpus `03ad46c`
 unmoved. Baseline before any change: Linux Release suite **500/500** +
 `cr_ui_tests` 21/21. Order per mandate: SEVERE → MAJOR → MINOR → INFO →
 TRACKED-OPEN; every finding independently re-verified before fixing.
+
+**S-009 FIXED (SEVERE — the disk-map free overlay; the last open half of
+the S-009/M-006 split file):** the engine bitmap truth is now produced,
+consumed, and persisted. `storage::FreeMap` (new type) filled by NTFS
+(`$Bitmap` inverted), FAT (table entry-0 = free), exFAT (allocation-bitmap
+dentry inverted) — rebased to the absolute device basis exactly like the
+tree extents; `build_disk_map` paints `kCellAllocFree` only on
+still-unknown cells fully covered by bitmap-free clusters (USED and FsBad
+are never overridden — hostile-map precedence proven by test);
+`REC_ALLOC_MAP` (new optional record) persists the DOWNSAMPLED
+cell-granular map (the same 64 MiB-budget sizing — ≤ 8 MiB on a 16 TiB
+volume, never a raw $Bitmap copy) and restores it as the session's
+cluster hint; both snapshot paths value-carry the truth (session
+snapshots: errors + free map + view bounds; scan snapshots: the live
+telemetry error map + the completed map). Doc drift retired (the header's
+"not persisted (registered follow-up)" rule; ABI-CONTRACT §7's "3 bad
+(marked by the FS)"). 4 fail-before-by-construction tests (the finding
+itself grep-verified `kCellAllocFree` had ZERO assignment sites); suite
+**515/515 + cr_ui_tests 21/21 + cr_ui_abi_check** green on Release AND
+ASan (merged tree incl. the parallel lanes' S-032/N-018 landings).
+N-057's bad-overlay coverage item paid; Ebr enum + budget-growth test
+remain its scope.
 
 **NEW-FINDING M-053 (MAJOR, filed + FIXED):** discovered during the S-009
 verification pass — the C-ABI consumer check (`cr_ui_abi_check`, registered
@@ -19,8 +105,16 @@ differing bytes between the passing C++ fixture and the failing C fixture
 are the two media-word pairs). Fix: canonical media words in the fixture +
 a precondition bail-out after a failed scan (a real consumer checks the
 return code and stops). Engine untouched — M-015's exact-pair validator is
-correct og parity. `cr_ui_abi_check` green on release AND ASan (executed
-both lanes). Findings/FIXED/M-053 + RESOLVED-INDEX row + matrix Q66 note.
+correct og parity. CONVERGENT with the parallel N-018 lane's fixture fix
+(`b1f9210`/`abf5663`); this leg's unique contribution is the formal finding
+record + the bail-out hardening. `cr_ui_abi_check` green on release AND
+ASan (executed both lanes).
+
+**Counts after the session-8 SEVERE lane (direct file inventory):**
+ACUTE 0 · **SEVERE 2** (S-029, S-030 — S-032 was fixed by the parallel
+lane in-window) · MAJOR 39 (M-053 filed+fixed in-session) · MINOR 55 ·
+INFO 22 (all ACKNOWLEDGED) = **118 active / 72 FIXED** (live inventory:
+findings/FIXED/ = 73 files incl. RESOLVED-INDEX).
 
 ## Session-6 delta (2026-10-26 — the S-024 decoded-truth upgrade)
 

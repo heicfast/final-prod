@@ -14,6 +14,7 @@
 
 #include "cr/tree/cr_grading.h"
 #include "../storage/cr_device.h"
+#include "../storage/cr_freemap.h"
 #include "../storage/cr_retry.h"
 #include "../table/cr_ldm.h"
 #include "../tree/cr_node.h"
@@ -213,6 +214,16 @@ struct ScanStats {
     u64 cached_misses = 0;
     ReadErrorMap errors;
     std::vector<lost::Candidate> lost_candidates;
+
+    /* ---- S-009: the engine allocation bitmap (the og's shared
+     * IBuildVolumeBitmap truth - "which clusters are free/used",
+     * searchdll-family--architecture.md section 2). Filled by the main
+     * engine pass from the filesystem allocation structures (NTFS
+     * $Bitmap, FAT/exFAT tables); ABSOLUTE device bytes (rebased like
+     * the tree extents - F-1). Empty for engines without a bitmap and
+     * for sessions saved before the record existed; the disk-map free
+     * overlay degrades to unknown in that case, never to a guess. ---- */
+    storage::FreeMap free_map;
 
     /* ---- S-008 pre-scan repair outcome (filled when cfg.pre_scan_repair) ----
      * repair_status: OK (clean, applied, or surfaced-but-denied), or the

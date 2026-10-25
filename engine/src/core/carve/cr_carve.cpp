@@ -240,7 +240,12 @@ u32 scan_one_window(ScanCtx& ctx, u64 base, const u8* win, u64 want, std::set<u6
                 ep->fs_kind = u32(FsKindCode::Raw);
                 ep->logical_size = e.size;
                 ep->carve_format = sig.id;
-                ep->times.modified = ctx.scan_time; /* S-031: children stamp too */
+                /* S-031 x S-032 (merge residue): the og stamps EVERY raw
+                 * record with the per-record scan time (FUN_140c41aa0,
+                 * ifileproperties-part3 :80) — the inventory entries are
+                 * records in their own right, so they carry the same
+                 * run-stamp as the archive parent */
+                ep->times.modified = ctx.scan_time;
                 if (e.data_len != 0 && e.data_offset != 0)
                     ep->extents.push_back({e.data_offset + ctx.ext_base, e.data_len});
                 tree::FileNode* en = ctx.tree->add_file(n, ep);
