@@ -8,3 +8,11 @@
 3. **exFAT FAT loading (og)** is 1 MiB-windowed with no cap (S-007's fix model) vs the core's whole-load — the *model* is registered as the fix direction in S-013.
 
 **Action:** registration only (bench-filter note + `docs/parity/PARITY-DELTAS.md` rows).
+
+---
+
+**Session-3 addendum (2026-10-26):** the parallel leg's byte-granularity finding
+(renumbered into this addendum to avoid duplication) adds one action item: pin the
+property with a test — `Carve.ByteGranularityFindsMidSectorStart` (a planted valid
+file at sector offset +137 must be carved) — so the M-025 read-model rework cannot
+silently regress the superset by adopting sector-aligned dispatch.

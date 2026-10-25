@@ -53,3 +53,45 @@ Result ordering is user-visible (which lost volume sits at the top of the list) 
 ## Open questions
 
 The bonus (+0x68) setter inside the SearchDLLs is not yet pinned (observed values and the IPC consumer are decoded) — tracked in OQ-S2M-2.
+
+---
+
+## Session-3 parallel-leg addendum (2026-10-26, S3-LOST agent — OQ-T9's premise corrected; merge-order decode completed)
+
+The parallel S3-LOST leg resolved OQ-T9 from the other end and renumbered its
+two findings into this addendum (full decode: `evidence/decompiled-quotes/s3-calcpartition-scoring.md`
++ executed vtable dumps in `evidence/executions/s3-calcpartition-vtables/`):
+
+1. **The `*CalcPartition` classes are NOT scorers — OQ-T9's premise was half-wrong.**
+   An executed RTTI COL walk on the og binaries resolved
+   `Fat32CalcPartition::vftable @ 0x180053680` and `ExFatCalcPartition::vftable @
+   0x18004b9f0`: vtable slot 4 (the "score" call site the session-2 leg located at
+   FATSearchDLL_decompiled.c:5744-5747) returns `*(u32*)(this+0x18)` — the volume's
+   **sectors-per-cluster** — proved by the read outside the table,
+   `(cluster−2)*SPC + start` at :39076-39083. These classes are per-lost-volume
+   **geometry calculators** that let the FAT/exFAT engines read files outside the
+   allocation table; only those two engines instantiate them (zero refs in the
+   other seven SearchDLLs). OQ-T9's "scoring via CalcPartition" framing is retired;
+   this finding's DRWUI decode is the real scoring model.
+2. **Scoring model confirmed independently + extended.** The parallel leg decoded
+   the same `FUN_14050fda0` constants (files + 50·folders NTFS family; FS==8 →
+   f + 10·d — **FS code 8 is HFS+**; FAT 1/2 → (f+d)·50) and the same +0x68
+   per-FS bonus and +500 table-match bonus, and arithmetically validated against
+   the same CalcPartition.log (3 rounds, ≤2e-5 residual) — independent
+   confirmation of this finding's numbers.
+3. **`AdjustPartitionInfoOrder` decoded in full** (beyond the post-hoc paragraph
+   above): `FUN_140510410 :842495-842859` runs (a) containment-in-known-partition
+   drop, (b) FS-grouped dedup, (c) top-2 tie rules (score gap ≤ 0.1 keep both;
+   ≤ 0.3 keep when the runner-up is FAT — **NTFS-over-FAT priority**), (d) FAT
+   multi-vector drop, (e) **±16 MiB size-match promotion to result #2**
+   (log-proven in CalcPartition.log round 3), (f) surfaced-result **cap
+   2/4/5/6**, and sorts by a **stable descending merge sort** (order stability
+   for equal scores — the core's `std::sort` is not stable; `std::stable_sort`
+   or an explicit tie key is needed for parity).
+4. **Related new findings from the same decode:** N-034 (FAT lost-boot gate
+   constants: numFATs ∈ {1,2}, FAT12 spf ≤ 200 probe, root_entries×32 % bps —
+   complements the N-010b engine-side gates), N-035 (candidate extents are
+   **data-area-anchored** `EndSec = DataAreaStart + totalSector` vs the core's
+   whole-volume extent — the containment-drop and 16-MiB rules consume different
+   extents than the core's), S-019 (BitLocker "-FVE-FS-" lost-partition probe
+   family missing — S-006 under-listed the og).

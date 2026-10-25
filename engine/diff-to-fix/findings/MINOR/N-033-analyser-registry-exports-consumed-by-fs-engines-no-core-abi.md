@@ -1,0 +1,82 @@
+# MINOR N-033 — EUGetAnalyserList/Map/Multimap are consumed by the FS engines (registry clone); the core exposes no carve-capability ABI
+
+**Severity:** MINOR
+**Module:** carve (+ abi)
+**Parameters affected:** P42 (public surface shape — capability enumeration), P46 (documentation of the contract)
+**Corpus references:** exports `EUGetAnalyserList/Map/Multimap` (RAWSearchDLL_decompiled.c:72170-72208; `rabin2_exports.txt` entries 3-5; singleton master containers at +0x30/+0x40/+0x50, built by `FUN_180006730` :4216-4248); **consumer**: `FATSearchDLL_decompiled.c:13872-13977` — `LoadLibraryA("RAWSearchDLL.dll")`, `GetProcAddress("EUGetAnalyserList"/"EUGetAnalyserMap"/"EUGetAnalyserMultimap")` (:13881, :13897, :13942), then **std::map/multimap/list clone** of each returned container into the FAT engine's own members (+0xb8 list, +0xd0 map, +0xe0 multimap; tree-copy with leftmost/rightmost fixups :13903-13930, :13946-13975); second copy of the same sequence at :29290-29361 (per-scan re-fetch); deep-dive artifact §1 ("the host enumerates carvers through these to build 'which formats can we carve' UI")
+**Core references:** `src/core/carve/cr_registry.cpp:300-305` (`registry()`/`registry_size()` — internal C++ accessors, no ABI surface), `docs/ABI-CONTRACT.md` (no carve-registry or capability query — grep: only stage/progress fields), the og-consumer role in the core would be the orchestrator/UI, both of which link the core statically — audited commit `34b3441`
+**Status:** READ-ONLY FINDING — no fix applied
+
+## Summary
+
+The og exports its analyser registry in three projections, and the FS SearchDLLs
+themselves import RAWSearchDLL.dll at runtime to clone the master registry into
+their own state — the engines keep a snapshot of "what can the raw layer carve" for
+capability enumeration (and per-scan refresh). The core's registry is a static
+table with internal accessors only; no host-facing API can enumerate carve
+formats. This is the decoded answer to the "who consumes EUGetAnalyserMultimap"
+question (task item 6 / parameters A42-A45 in the prompt → taxonomy P42).
+
+## What the reference does
+
+(Quoted in the corpus header.) The three exports return the master (unfiltered)
+containers; the working copies used by the scan are separate members rebuilt per
+search with the host filter (M-024). The FAT engine clones all three — including
+the multimap, which exists precisely because several analysers share keys (e.g.
+u16 0x2125 '%!' → [PdfAnalyzer, CEPSAnalyser]; u16 0xfeff → [MP3Analyzer,
+HTMLAnalyser]) — a consumer that needs the FULL chain per key must get the
+multimap, not the map.
+
+## What our core does
+
+`registry()`/`registry_size()` are namespace functions used by the F8 gate and the
+scan loop; `include/cr/carve/` exposes no enumeration API, `docs/ABI-CONTRACT.md`
+defines no carve-capability query. Since the core is one process/static lib the
+cross-DLL clone pattern is unnecessary — but the *capability question* ("which
+formats, which extensions, what confidence") has no answer surface at all.
+
+## Gap
+
+Falsifiable claim: the og host can enumerate every carve format with its key(s),
+analyser chain and enabled state (three exports + GetRawUserInfoMap); the core
+host cannot enumerate anything beyond hard-coding knowledge of the table.
+
+## Impact
+
+- UI/CLI cannot render "formats we can recover" lists or per-format filter UIs
+  (ties to M-024's filter surface).
+- Parity tooling (benches, docs generation) cannot self-describe the carve set;
+  S-007 + s3-rawsearch-inventory coverage comparisons had to be done by hand against the source.
+
+## Reproduction / verification
+
+Decompiled (strength 2): export bodies :72170-72208; FAT consumer :13872-13977
+(the LoadLibrary/GetProcAddress/clone sequence) + :29290-29361; evidence file §1,
+§7. Core: code-cited.
+
+## Fix plan (for the engineering team)
+
+1. Add a small stable enumeration to the ABI: `size_t cr_carve_format_count(void)`,
+   `const cr_carve_format_info* cr_carve_format(size_t i)` where the info struct
+   carries {id, ext, display name, base_confidence, min/max size, enabled} —
+   table order, append-only (P45 versioning: grow the struct by trailing fields).
+2. Wire it into the CLI (`rrecov --list-carve-formats`) and the UI readiness plan;
+   document in ABI-CONTRACT.
+3. Tests: `ABI_Carve_Format_Enumeration_Matches_Registry` (count == FMT_COUNT,
+   ids in order), `ABI_Carve_Format_Info_Stable` (golden struct layout check).
+
+## Tests to add
+
+(fix plan step 3)
+
+## Related findings
+
+- M-024 (the filter half of the same surface).
+- N-031 (dispatch decode — why the multimap projection exists: shared keys; my session-3 chain-semantics decode is an addendum there).
+
+## Open questions
+
+Whether the FAT engine's cloned registry is consulted during ITS OWN scanning
+(beyond capability enumeration) is undecoded — the clone call sites feed members
+that this session did not trace into the FAT scan path. Next artifact:
+`FATSearchDLL_decompiled.c` readers of members +0xb8/+0xd0/+0xe0.

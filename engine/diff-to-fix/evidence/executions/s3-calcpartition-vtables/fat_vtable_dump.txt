@@ -1,0 +1,27 @@
+== /home/z/my-project/audit/easeus-drw-research/og-codebase/FATSearchDLL.dll (image base 0x180000000) ==
+  Fat32CalcPartition: vftable @ 0x180053680
+    slot 0: 0x180030520  undefined __fastcall FUN_180030520(longlong param_1, undefined8 param_2)
+    slot 1: 0x180030530  undefined __fastcall FUN_180030530(longlong param_1, undefined4 param_2)
+    slot 2: 0x180030b90  undefined __fastcall FUN_180030b90(longlong param_1, undefined8 * param_2)
+    slot 3: 0x180030540  undefined8 __fastcall FUN_180030540(longlong param_1)
+    slot 4: 0x180030550  undefined4 __fastcall FUN_180030550(longlong param_1)
+    slot 5: 0x1800015f0  undefined __fastcall _guard_check_icall(void)
+    slot 6: 0x180030a20  undefined8 * __fastcall FUN_180030a20(undefined8 * param_1, uint param_2)
+    slot 7: 0x180030560  undefined8 __fastcall FUN_180030560(longlong param_1)
+    slot 8: 0x180002d60  undefined8 __fastcall FUN_180002d60(void)
+    slot 9: 0x1800015f0  undefined __fastcall _guard_check_icall(void)
+    slot 10: 0x180001600  undefined1 __fastcall FUN_180001600(void)
+    slot 11: 0x180030bc0  undefined8 __fastcall FUN_180030bc0(longlong param_1, longlong param_2)
+    slot 12: 0x53656c69465f5f5f  <no Ghidra symbol>
+    slot 13: 0x64343649253a7465  <no Ghidra symbol>
+  ICalcPartition: vftable @ 0x180053618
+    slot 0: 0x18004843e  undefined _purecall(void)
+    slot 1: 0x18004843e  undefined _purecall(void)
+    slot 2: 0x18004843e  undefined _purecall(void)
+    slot 3: 0x18004843e  undefined _purecall(void)
+    slot 4: 0x18004843e  undefined _purecall(void)
+    slot 5: 0x1800015f0  undefined __fastcall _guard_check_icall(void)
+    slot 6: 0x1800304c0  undefined8 * __fastcall FUN_1800304c0(undefined8 * param_1, ulonglong param_2)
+    slot 7: 0x180002d60  undefined8 __fastcall FUN_180002d60(void)
+    slot 8: 0x180002d60  undefined8 __fastcall FUN_180002d60(void)
+    slot 9: 0x1800015f0  undefined __fastcall _guard_check_icall(void)

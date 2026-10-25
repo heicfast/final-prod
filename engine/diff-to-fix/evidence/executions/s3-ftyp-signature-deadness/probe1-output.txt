@@ -1,0 +1,5 @@
+rc=0 hits=6 validated=0 rejected=6 sign_hits=3
+node[0] name=File000000.lrf fmt=0xffff0036 conf=1000 size=51200 ext0=512
+node[1] name=File000001.lrf fmt=0xffff0036 conf=1000 size=51200 ext0=2097152
+node[2] name=File000002.jfif fmt=0xffff002f conf=780 size=51200 ext0=3145728
+total_nodes=3

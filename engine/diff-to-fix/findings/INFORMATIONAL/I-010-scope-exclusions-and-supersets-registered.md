@@ -18,3 +18,13 @@
 **Coverage admission (session-1 gap, closed by session 2):** F61 (BitLocker) was never scored by session 1 and had no module file coverage for the win transport; the substantive result of closing it is S-014. F59 (driver-absent) re-verified MATCH (probe `\\.\EPRDTDRV\…` → direct `\\.\PhysicalDrive%d` fallback, `Device_decompiled.c:7793-7822` ↔ `cr_transport.h:23-37`); PID-token handshake, 200-disk cap, IOCTL table (0x60002400/04/08) all re-confirmed byte-exact.
 
 **Action:** register rows in `docs/parity/PARITY-DELTAS.md`; no engine changes.
+
+**Session-3 row (2026-10-26, S3-LOST agent):**
+- **Lost-partition probe surface (post-S-006) is a deliberate superset.** Once
+  S-006's missing probe families land, the core's probe set exceeds the og's
+  (the og probes FAT/exFAT/NTFS/ext/HFS+/ReFS/Btrfs/ZFS/BitLocker-FVE + raw
+  signature classes; the core adds probe families the og does not carry — see
+  S-006's fix plan + S-019's BitLocker family). Register the superset in
+  PARITY-DELTAS and pin it so a future "og-parity only" toggle does not remove
+  finds the og cannot make. (Renumbered into this register from the parallel
+  leg's stand-alone I-010.)

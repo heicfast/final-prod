@@ -48,3 +48,21 @@ Decompile-verified wiring chain (agent S2-D2; `evidence/decompiled-quotes/carve-
 ## Open questions
 
 None.
+
+---
+
+## Session-3 parallel-leg addendum (2026-10-26, S3-CARVE agent — chunk-level feed decoded)
+
+The parallel leg decoded the feed's granularity before renumbering its finding
+into this addendum: beyond the per-finalized-video check this finding cites
+(`FUN_18000d670 :10130-10136`), the og ALSO offers **every scanned 4 MiB chunk**
+to the repair engine as it is filled (`:9625` region — the chunk-complete
+callback), and a carved MOV/MP4 that finalizes is submitted **with its stream
+geometry** (the `GetVideoInfo` vtable call feeds duration/track data, not just
+bytes). Open-ended videos are tracked as **pending `CRawFileInfo` objects
+extended across chunk boundaries by per-sector Continue calls** (:10114) — i.e.
+the repair hook sees partial videos mid-scan, not only completed ones. Fix-plan
+consequence: if/when a repair hook is added to the core, the wiring point is the
+chunk-complete and finalize callbacks (both), and the pending-object state
+machine is a prerequisite (see **M-025**, the read-model finding, whose fix plan
+builds that state machine).

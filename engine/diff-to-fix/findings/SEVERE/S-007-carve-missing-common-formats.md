@@ -136,3 +136,35 @@ modern→legacy analyser chains, no cross-layer overlap resolution; **carve is
 allocation-bitmap-gated when a bitmap exists** (`:9446-60` — decompile-proof for M-005).
 ZIP validator semantics corrected in N-027d (padding inversion + two-tier version gates).
 Fix-plan ordering note: implement the missing formats with the og's exact bytes above.
+
+---
+
+## Session-3 CORRECTION addendum (2026-10-26 — two rows of the addendum above are wrong; decompile re-verified first-hand)
+
+The session-3 S3-CARVE registry decode (`evidence/decompiled-quotes/s3-rawsearch-inventory.md`
+§3–§4, §8) — re-verified first-hand by the session-3 lead at the cited lines — corrects
+two rows in the addendum above (the "~26 additional og-only formats" list):
+
+1. **"dBase `C5 D0 D3 C6`" is WRONG.** That key is
+   `BruteForce::CEPSAnalyser` (format id **0x1b**), registered in the u32 map at
+   `RAWSearchDLL_decompiled.c:1975-1987` (`local_res10[0] = 0xc6d3d0c5` immediately
+   after the CEPSAnalyser vftable store) — Adobe Illustrator **AI/EPS**, not dBase.
+   **No dBase/DBF analyser exists anywhere in the decoded registry** (all 35 u16
+   registrations + 33 u16 keys + the u32 map + the list layer were enumerated).
+   Consequence for this finding's fix plan: **drop the DBF validator from the
+   og-parity list**; add EPS/AI (magic `C5 D0 D3 C6` → CEPS grammar) if format
+   parity is pursued beyond S-007's original families.
+2. **"LZH `E4 52 2C 7B`" is WRONG twice.** The key at that registration site is
+   `0x7b5c52e4` = bytes **E4 52 5C 7B** (not 2C), and it maps to
+   `RawSpeed::OneAnalyser` + `FileONEAnalyser` (format id **0x31**) — the OneNote
+   `{E4525C7B-…}` GUID prefix (`RAWSearchDLL_decompiled.c:2156-2177`, vftable stores
+   at :2162/:17144). **LZH lives in the LIST layer** as `Brance::LZHAnalyser`
+   (vftable at :3097, class bodies at :46896+) — a structural/text analyser, not a
+   4CC-keyed one. Fix-plan consequence: the OneNote magic is `E4 52 5C 7B`; LZH
+   must be implemented as a list-layer structural validator (or via raw-signs), not
+   as a signature key.
+
+The addendum's other rows (3DS `MM` vs TIFF-BE, MRW `\0MRM`, HLP `3F 5F 03 00`,
+PST `!BDN`, DBX keys, OneNote) are consistent with the session-3 decode where both
+legs overlapped; the six census-row mis-attributions are cataloged as corpus errata
+(session-3 rows in `CORPUS-ERRATA.md`).

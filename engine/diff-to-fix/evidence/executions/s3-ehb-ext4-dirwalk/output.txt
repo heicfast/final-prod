@@ -1,0 +1,7 @@
+scan rc=0 (OK) groups=1 files=2 dirs=0 deleted_inodes=1 journal_salvaged=0
+Found: "/" deleted_state=0 logical_size=0
+Found: "alpha.txt" deleted_state=0 logical_size=16
+Found: "gamma.txt" deleted_state=0 logical_size=16
+Deleted: "Inode7" deleted_state=1 logical_size=512
+RESULT: PASS - core advances by rec_len (skips merged + inode-0 space); the merged entry's NAME never surfaces
+exit=0

@@ -113,3 +113,55 @@ refs-specific divergences surfaced.
   packed u32 markers ✓; root dir 0x600 ✓ (quick-path bootstrap `plVar4[10] = 0x600`).
 - Not decoded to verdict (M-022 OQ-3): the quick-searcher's dot-extension prefilter
   (`memchr` '.' loop) — quick-search surface only.
+
+---
+
+## Session-3 parallel-leg addendum (S3-REFS; core `34b3441`, corpus `03ad46c`)
+
+Complements M-022/I-012 above (same session, parallel leg; full inventory:
+`evidence/decompiled-quotes/s3-refs-engine-inventory.md`, ~75% of ReFSSearchDLL's
+20,270 lines read, all capability-relevant functions in full):
+
+- **S-020 (SEVERE):** the og **materializes resident/inline content** —
+  `FUN_18000e490` (:10410-10462) and `FUN_18000ea30` (:10723-10768) construct
+  `CRefsResidentDataRunList` objects (one-entry runlist {offset, length}, cluster
+  -granularity gate, val_len stored) — answering M-022's fix-plan step 4 about the
+  special-handler bodies. The core never populates `resident_data` (grep-proven)
+  and its `val_len ≥ 0x28` gate drops resident-sized rows → inline files recover
+  as metadata-only. Fix requires M-022's dual-grammar/all-rows walk first.
+- **M-026 (MAJOR):** deleted-recovery model — og sweeps **stale "MSB+" metadata
+  pages** unreachable from the live checkpoint chain, force-marks their records
+  deleted, emits through the normal pipeline (FUN_180005330 :2819-3054), and marks
+  live runs in a used-space map; core harvests row-flag 0x4 + ID2 name-evidence
+  rows + allocator-bitmap grading. Copy-on-write ReFS keeps deleted objects as
+  stale page versions — the og's model matches the medium; escalation candidate
+  if real volumes turn out not to set flag 0x4 (UNVERIFIED residual).
+- **M-027 (MAJOR):** object-identity keep-one (name/priority compare, loser
+  destroyed) + Recycle-Bin routing ($R*/S-*/SVI collection flushed after the main
+  map, $I resident read) — core emits one result per ROW_FILE with no dedup
+  (hard-linked objects recovered N times). Cross-ref M-022's $I call-site decode.
+- **N-036 (MINOR):** datarun entry grammar — og requires flag **0x40** (block
+  reference) and translates non-physical runs (flag 0x20 clear) through a
+  per-volume container map (`base = map[((block/cluster)>>1) − 2]`); core requires
+  flag **0x10**, strips a top-nibble tag, and its container map is **never
+  populated** (grep-proven) — every run is treated as physical.
+- **N-037 (MINOR):** runlist granularity validation — og computes the extents'
+  power-of-two granularity band and discards the whole runlist on cluster-size
+  mismatch (damaged-record FP guard); core accepts any in-bounds parse.
+- **I-013 (INFO):** host-OS runtime gate — og's DLL refuses hosts < Win8 (6.2);
+  core is host-agnostic (deliberate portability; parity benches on Linux are not
+  og-divergent). On-disk gates remain I-004 + N-026/N-013b.
+- **Convergence with the leg above:** my agent's row-grammar findings
+  (directory rows 0x10 / 0x30+subtype; `0x00010030` packed markers ≡ og key+0
+  type/key+2 subtype) independently match the M-022 convergence checks ✓; the
+  named-streams parity (one name/size/runlist per row in .rsf, no stream field)
+  matches I-012 ✓.
+- **Newly-MATCH (matrix rows):** C21 (fs code 10 at a fresh site,
+  FUN_180010390:12125), A26 (row grammar identity), X51 (I/O read pattern),
+  B10 (name handling). Report-only concern resolved negative: core `scan_refs`
+  is a full recovery engine (no detect-vs-recover mismatch finding).
+- **UNVERIFIED residuals (7):** complete-open offset +0x170 semantics; container
+  -map value composition (→ ghidra-mo RefsFileSystemAnalyser); row-flag-0x4
+  reality on real volumes (decides M-026 escalation); run-flag polarity (decides
+  N-036 fix-vs-INFO); FUN_1800089f0 consumer; keep-one tie-break fields; ReFS
+  perf parameters X47–X50/X52 (needs a real ReFS volume — corpus has none).

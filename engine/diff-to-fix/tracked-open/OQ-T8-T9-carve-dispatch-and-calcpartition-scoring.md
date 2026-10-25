@@ -1,4 +1,4 @@
-# OQ-T8 (RESOLVED session 3 — see N-031) · OQ-T9 (tracked-open) — CalcPartition scoring internals (lost-partition candidate ranking)
+# OQ-T8 (RESOLVED session 3 — see N-031) · OQ-T9 (RESOLVED session 3 — see M-017 + the session-3 addendum there) — CalcPartition scoring internals (lost-partition candidate ranking)
 
 ---
 
@@ -60,28 +60,34 @@ record the key-width order and the per-key analyser-chain order; compare against
 
 ---
 
-## OQ-T9 — CalcPartition scoring internals
+## OQ-T9 — CalcPartition scoring internals — **RESOLVED 2026-10-26 (session 3, both legs)**
 
-**Status:** UNVERIFIED · **Module:** lost-partition · **Parameters:** A30, B3
-**Corpus artifacts to examine next:** `re-workspace/reversed/ghidra-searchdll/FATSearchDLL_decompiled.c`
-and `exFATSearchDLL_decompiled.c` — the `Fat32CalcPartition` (39 vftable refs) and
-`ExFatCalcPartition` (54 refs) class families; plus `PartitionRecovery/qa-logs--session-forensics.md`
-(AdjustPartitionInfoOrder ranking of 15+ overlapping NTFS candidates — QA-log evidence).
+**Status:** RESOLVED · **Module:** lost-partition · **Parameters:** A30, B3, A29
+**Resolution:** the OQ's premise was half-wrong, and the real scoring is decoded.
 
-**Precise question:** what evidence features and thresholds do the og's per-FS
-geometry calculators score (boot-field consistency? FAT-table sampling? index walk?),
-and what ranking does `AdjustPartitionInfoOrder` apply to overlapping candidates? Our
-core uses an evidence-points model (NTFS: OEM +15 / valid BPB +25 / $MFT liveness +30;
-overlap penalties −20 inside / −10 overlapping) with first-nested-wins dedup
-(post-GAP-S6-6: probe-sized outers only). No corpus contradiction is demonstrable, but
-the og's model is undecoded — comparative benches on damaged-partition fixtures are the
-empirical vehicle (the bench harness already generates delete_partition scenarios).
+1. **The `*CalcPartition` classes are NOT scorers** — executed RTTI COL walk on the
+   og binaries resolved `Fat32CalcPartition::vftable @ 0x180053680` and
+   `ExFatCalcPartition::vftable @ 0x18004b9f0`; vtable slot 4 returns
+   `*(u32*)(this+0x18)` = the volume's **sectors-per-cluster** (proved by
+   `(cluster−2)*SPC + start` at FATSearchDLL_decompiled.c:39076-39083) — per-lost-volume
+   geometry calculators letting the FAT/exFAT engines read files outside the allocation
+   table. Only those two engines instantiate them (zero refs in the other seven
+   SearchDLLs). Evidence: `evidence/executions/s3-calcpartition-vtables/`.
+2. **The real scoring** is in DRWUI.exe `FUN_14050fda0` (:842164-842279), decoded by
+   both legs independently with identical constants: count = files + 50·folders
+   (NTFS family; FS==8 → f + 10·d — HFS+; FAT 1/2 → (f+d)·50), `+= *(longlong*)(info+0x68)`
+   per-FS bonus, `+= 500` on partition-table match; `score = ln(count)/ln(maxCount)`
+   (count==1 keeps numerator 1.0); **stable** descending merge sort. Validated
+   against the vendor's own `CalcPartition.log` (187 rows to 6 decimals / 3 rounds
+   to ≤2e-5 residual). Filed as **M-017**.
+3. **`AdjustPartitionInfoOrder`** (`FUN_140510410`, :842495-842859) fully decoded in
+   the M-017 addendum: containment-in-known drop → FS-grouped dedup → top-2 tie rules
+   (≤0.1; ≤0.3 with FAT runner-up = NTFS-over-FAT priority) → FAT multi-vector drop →
+   **±16 MiB size-match promotion to result #2** → surfaced-result **cap 2/4/5/6**.
+4. **Residues filed as findings:** S-019 (BitLocker "-FVE-FS-" probe family missing —
+   S-006 under-listed), N-034 (FAT lost-boot gate constants), N-035 (data-area-anchored
+   extents), and the bonus setter tracked in **OQ-S2M-2** (observed: NTFS 60/30, FAT32
+   20, usually 0; setter inside the SearchDLLs, not yet located).
 
-**Suggested probe:** decompile the CalcPartition vtable walk in the FAT engine; extract
-the scoring arithmetic (constants + field reads); cross-check against QA-log traces of
-AdjustPartitionInfoOrder ordering decisions.
-
----
-
-**Related findings:** S-006 (probe SET — orthogonal to scoring), S-007 (carve coverage),
-M-005 (carve target policy).
+**Related findings:** S-006 (probe SET — orthogonal, stays open), S-007 (carve coverage),
+M-005 (carve target policy), M-017 (the scoring divergence + addendum).

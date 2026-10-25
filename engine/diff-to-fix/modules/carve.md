@@ -111,3 +111,42 @@ carve-specific divergences surfaced.
 - **M-021 filed:** video-repair pre-scan wiring absent (og loads EUVideoRepair.dll and runs
   a per-candidate repair check).
 - **N-014b/c filed:** carved-name split inside the core; runtime per-format config surface.
+
+---
+
+## Session-3 parallel-leg addendum (S3-CARVE; core `34b3441`, corpus `03ad46c`)
+
+Complements the section above (same session, parallel leg — IDs renumbered past the
+leg that landed first; registry decode evidence: `evidence/decompiled-quotes/s3-rawsearch-inventory.md`):
+
+- **S-017 (SEVERE, executed proof):** the four ISO-BMFF signatures in the core's
+  table encode the ftyp box SIZE as literal zero bytes — real MP4/MOV/M4A/HEIC
+  headers (size 0x14/0x18/0x20) can never match; `cand_abs = match − 4` then puts
+  the brand read on the "ftyp" bytes themselves. Executed comparison: zero grammar
+  hits for four planted real-world BMFF files. The og carves these via its u32
+  4CC layer + MovAnalyzer/HEICAnalyser. (evidence/executions/s3-ftyp-signature-deadness/)
+- **S-018 (SEVERE):** JPEG accept policy — neither og JPEG analyser generation
+  looks for EOI (no 0xD9 constant in either body); size = SOF-dimension
+  arithmetic. Core requires EOI+SOF+SOS → truncated JPEGs (the canonical
+  damaged-photo case) are salvaged by the og and silently dropped by the core.
+- **M-024 (MAJOR):** no runtime format-filter surface — the og rebuilds its
+  registry per search from `config/RawConfig.ini [Filter]` (37 named toggles,
+  STL/VPJ default-off) and exports three registry projections
+  (**N-033**: consumed by the FS SearchDLLs, which clone the master registry into
+  per-engine state); the core's table is compile-time with no enumeration ABI
+  (A42/A45).
+- **M-025 (MAJOR):** read model — og = 4 MiB device reads into an 8 MiB ping-pong
+  buffer, one dispatch per sector-aligned position, allocated-cluster skip,
+  open-ended formats tracked as pending CRawFileInfo objects extended across
+  chunk boundaries (streaming state machine); core = 1 MiB windows, byte
+  granularity (superset, I-009), stateless validators that re-read extents from
+  the device (≤8 MiB extra re-read for hashing). M-021's repair-hook fix depends
+  on M-025's pending-object state machine.
+- **Dispatch chain semantics (addendum to N-031):** u16 equal_range chains iterate
+  in insertion order; plain-accept-after-special-reject records format id 8
+  (generic) and continues; `00 01 00 00` = TTF (u32 layer) pre-empts MDB (u16).
+- **S-007 correction (this leg, decompile re-verified at :1985/:2156-2177/:3097):**
+  the addendum above carries two wrong rows — C5 D0 D3 C6 is **CEPSAnalyser**
+  (AI/EPS), not dBase (no DBF analyser exists); E4 52 **5C** 7B is **OneNote**
+  (OneAnalyser/FileONEAnalyser), not LZH (LZH = list-layer LZHAnalyser). Errata
+  rows 22-28.

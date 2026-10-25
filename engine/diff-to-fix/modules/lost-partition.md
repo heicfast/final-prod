@@ -84,3 +84,41 @@ lost-partition-specific divergences surfaced.
 - **S-006 stays open** (probe families); its scoring half is now decoded — implement M-017
   together with the probe-family wiring so candidate content probes feed the og formula.
 - **OQ-T9 residue:** bonus (+0x68) setter in the SearchDLLs unpinned → OQ-S2M-2.
+
+---
+
+## Session-3 parallel-leg addendum (S3-LOST; core `34b3441`, corpus `03ad46c`)
+
+Complements the OQ-T9 resolution above (same session, parallel leg; full decode:
+`evidence/decompiled-quotes/s3-calcpartition-scoring.md` + executed RTTI vtable
+dumps in `evidence/executions/s3-calcpartition-vtables/`):
+
+- **OQ-T9 premise corrected (M-017 addendum):** the `*CalcPartition` classes are
+  **geometry calculators, not scorers** — executed RTTI COL walk on the og
+  binaries: `Fat32CalcPartition::vftable @ 0x180053680`, `ExFatCalcPartition::vftable
+  @ 0x18004b9f0`, slot 4 returns `*(u32*)(this+0x18)` = sectors-per-cluster (proved
+  by `(cluster−2)*SPC + start` at FATSearchDLL:39076-39083); only FAT/exFAT
+  engines instantiate them. The scoring lives in DRWUI (`FUN_14050fda0`) as the
+  leg above decoded.
+- **AdjustPartitionInfoOrder completed (M-017 addendum):** containment-in-known
+  drop → FS-grouped dedup → top-2 tie rules (≤0.1 keep; ≤0.3 keep when runner-up
+  is FAT — NTFS-over-FAT priority) → FAT multi-vector drop → **±16 MiB size-match
+  promotion to result #2** → surfaced-result **cap 2/4/5/6**; **stable** descending
+  merge sort (the core's sort is not stable — parity needs std::stable_sort or an
+  explicit tie key).
+- **S-019 (SEVERE):** S-006 under-listed the og — the lost-partition prober also
+  probes **BitLocker "-FVE-FS-"** partitions (executed string-probe + decompile
+  evidence); core has no such probe family. Distinct from S-014 (the win-layer
+  unlock-path finding) — S-019 is the discovery-side probe. Implement together
+  with S-006's families.
+- **N-034 (MINOR):** FAT lost-candidate gate constants — numFATs ∈ {1,2} on open,
+  FAT12-only "small FAT" probe (spf ≤ 200 sectors), root_entries×32 % bps == 0 for
+  FAT16; complements the N-010b engine-side gates (same og constants, different
+  consumer: `src/core/lost/` validate_boot).
+- **N-035 (MINOR):** candidate extents are **data-area-anchored** in the og
+  (`CSearchedPartitionInfo` carries StartSector + DataAreaStart; EndSec =
+  DataAreaStart + totalSector) vs the core's whole-volume extent — the
+  containment-drop and ±16 MiB rules consume different extents (up to hundreds of
+  MiB delta on large FAT32). Fix M-017 + N-035 together.
+- **I-010 row appended** (probe surface post-S-006 = deliberate superset, register
+  + pin).

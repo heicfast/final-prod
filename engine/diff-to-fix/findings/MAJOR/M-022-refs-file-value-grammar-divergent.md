@@ -60,3 +60,31 @@ I-012 (ADS parity — same decode session), N-007/I-004 (detection strictness / 
 ## Open questions
 
 (1) The exact semantics of `FUN_18000ea30` ($I recycle: pairing vs grading vs both) and `FUN_18000e490` — both are located and small; decode before implementing step 4. (2) Whether the core's key+8/0x80 grammar matches ANY shipped ReFS generation or is synthetic-fixture-only — resolvable only by step 1's real-volume dump. (3) The quick-searcher's dot-extension prefilter (`memchr(name, '.')` at :8271-8287 — files whose names lack a `.` take a different path in `RefsQuickSearchFiles`) was noted but not decoded to a verdict; low priority (quick-search surface only).
+
+---
+
+## Session-3 parallel-leg addendum (2026-10-26 — the special-handler bodies decoded: RESIDENT-CONTENT materialization)
+
+The parallel S3-REFS leg read the bodies of the two special handlers this finding
+calls out but does not descend into — and the answer resolves this finding's fix-plan
+step 4 ("decode its body"):
+
+- **`FUN_18000e490` (:10410-10462, the `size-0x10 + local_f8 == 1` special):** its
+  body constructs a **`CRefsResidentDataRunList`** — `operator_new(0x50)` with
+  `IDataRunList::vftable` swapped to `CRefsResidentDataRunList::vftable`, a
+  one-entry runlist `{offset, length}` pushed via `FUN_180015b60`, cluster-granularity
+  sanity gate (`runlength < 4` clusters → resident path), `*(int*)(obj+9) = val_len` —
+  i.e. it **materializes resident/inline content as a synthetic data run** so the
+  normal pipeline can recover it.
+- **`FUN_18000ea30` (:10723-10768, the type-100 `"$I…"` recycle handler):** the same
+  `CRefsResidentDataRunList` construction — consistent with `$I` files being small
+  resident metadata records.
+
+**Consequence:** the og's resident/inline files (and its `$I` recycle records) are
+recovered WITH content through this path; the core never populates its `resident_data`
+member (grep-proven) and its `val_len ≥ 0x28` gate drops resident-sized rows —
+inline files surface metadata-only. That recovery-correctness gap is filed as
+**S-020** (SEVERE) with this finding cross-referenced; implementing S-020's fix
+requires this finding's grammar work (the resident rows are only reachable once the
+dual-grammar/all-rows walk lands). The two findings share the real-volume fixture
+prerequisite noted below (no ReFS 1.x/2.x/3.x images exist in either tree).

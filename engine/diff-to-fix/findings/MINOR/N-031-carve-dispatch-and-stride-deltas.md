@@ -55,3 +55,34 @@ S-015 (units), N-030 (confidence), S-007 (missing grammar formats), OQ-T8 (RESOL
 ## Open questions
 
 Whether the og's u32/u16 analyser chains apply secondary ordering among chained analysers at the same key (the chain walk was decoded structurally, not per-key); low impact given the core's table covers the same formats.
+
+---
+
+## Session-3 parallel-leg addendum (2026-10-26, S3-CARVE agent — chain semantics decoded)
+
+The parallel S3-CARVE leg independently decoded the dispatch and filed the same
+order (u32 4CC first → u16 multimap → list layer) before renumbering its finding
+into this addendum. Its decode adds three mechanics this finding's text did not
+carry (all cites: `RAWSearchDLL_decompiled.c`, full walk-through in
+`evidence/decompiled-quotes/s3-rawsearch-inventory.md` §1–§2):
+
+1. **u16 chain iteration order.** `FUN_18000d3e0` (:9933-10063) performs
+   `equal_range(u16key)` on the multimap and iterates the equal-key chain in
+   **insertion order** — first accept wins and returns; a plain-accept that
+   follows a special-reject records the position with **format id 8 (generic)**
+   and CONTINUES the chain (the downstream consumer of id-8 records is still
+   undecoded — position-map readers `FUN_18000e980/e9d0`).
+2. **Cross-layer collision semantics.** An exact u32 hit runs ONE analyser
+   (slot-8 special/fallback dance first, else plain `Analyse(header)`); accept →
+   emit and STOP — the u16 and list layers never run for that position. Example
+   with parity weight: key `00 01 00 00` is TTF in the u32 layer and MDB in the
+   u16 layer — the og carves TTF, never MDB, at that position.
+3. **TIFF-family equivalence (OQ-T8's original worry, resolved).** Each
+   TIFF-family magic keys a DISTINCT u32 entry of the SAME `TiffAnalyzer` class,
+   which relabels internally — there is no cross-analyser collision to resolve.
+   The core's `kTrialOrder` (CR2>DNG>TIFF) is functionally equivalent for every
+   shared format (per-family verification in the inventory §2.3/§9).
+
+The errata this decode produced (dispatch order + key widths + six census-row
+mis-attributions) are cataloged in `CORPUS-ERRATA.md` session-3 rows; two of them
+correct S-007's format table (see the S-007 correction addendum — CEPS/OneNote).

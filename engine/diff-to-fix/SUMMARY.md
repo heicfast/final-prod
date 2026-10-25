@@ -386,3 +386,77 @@ membership), then S-011/S-013/S-014, then the leg-3 majors in M-011..M-021 order
 Read-only compliance held throughout: only `diff-to-fix/` + `worklog.md` written; the
 282/282 run was out-of-tree (Release); no source, test, build, workflow, or doc file of
 either repository was modified.
+
+---
+
+## Session-3 PARALLEL-LEG addendum (2026-10-26 — S3 lead's wave-1, reconciled onto main)
+
+A second session-3 leg (S3-CARVE / S3-LOST / S3-REFS parallel agents + lead) worked the
+same mandate concurrently with the leg above and reconciles here. Its 17 findings were
+**renumbered past the IDs that landed on main first**; five were merged as addenda into
+this tree's findings (convergent decodes), one was dropped as a duplicate, one as a
+superseded constant set. Final disposition:
+
+**New standalone findings (14):**
+
+| ID | Severity | Module | One-line |
+|---|---|---|---|
+| S-017 | SEVERE | carve | ftyp-family signatures unreachable — MP4/MOV/M4A/HEIC carve dead in core (box SIZE encoded as literal zeros; executed proof, 0 grammar hits for 4 planted real BMFF files) |
+| S-018 | SEVERE | carve | JPEG EOI policy: neither og analyser generation requires EOI (size = SOF arithmetic); core requires EOI+SOF+SOS → truncated photos salvaged by og, dropped by core |
+| S-019 | SEVERE | lost-partition | BitLocker "-FVE-FS-" lost-partition probe family missing (S-006 under-listed the og; executed string-probe evidence; distinct from S-014's win-layer unlock-path finding) |
+| S-020 | SEVERE | refs | ReFS resident/inline content never materialized: FUN_18000e490/ea30 build CRefsResidentDataRunList (lead re-verified first-hand at :10413-10462); core's resident_data never populated + val_len ≥ 0x28 gate drops resident rows → inline files metadata-only. Answers M-022's fix-plan step 4; needs M-022's grammar walk first |
+| M-024 | MAJOR | carve | No runtime format-filter surface vs og RawConfig.ini [Filter] (37 toggles, STL/VPJ default-off) — registry rebuilt per search |
+| M-025 | MAJOR | carve | Read model: og 8 MiB ping-pong + sector dispatch + pending-CRawFileInfo streaming across chunks; core 1 MiB byte-granularity stateless + extent re-reads. M-021's hook fix depends on this state machine |
+| M-026 | MAJOR | refs | ReFS deleted-recovery model: og stale-"MSB+"-page sweep (FUN_180005330) force-marks unreachable-page records deleted; core harvests row-flag 0x4 + ID2 rows — different on-disk premise (CoW medium favors the og's model) |
+| M-027 | MAJOR | refs | ReFS object-identity keep-one + Recycle-Bin routing ($R*/S-*/SVI collection, $I resident read) missing; core emits hard-linked objects N times |
+| N-033 | MINOR | carve | Analyser registry exports (List/Map/Multimap) consumed by the FS SearchDLLs (registry snapshot clones); no core ABI to enumerate carve formats |
+| N-034 | MINOR | lost-partition | FAT lost-boot gate constants: numFATs ∈ {1,2}, FAT12 spf ≤ 200 probe, root_entries×32 % bps — complements N-010b's engine-side gates (same og constants, `src/core/lost/` consumer) |
+| N-035 | MINOR | lost-partition | Lost-candidate extents are data-area-anchored in the og (EndSec = DataAreaStart + totalSector) vs core whole-volume — the M-017 containment/16-MiB rules consume different extents |
+| N-036 | MINOR | refs | ReFS datarun flags: og requires 0x40 + container-map translation for non-physical runs; core requires 0x10, map never populated |
+| N-037 | MINOR | refs | ReFS runlist granularity validation (og discards cluster-inconsistent runlists as FP guard) missing in core |
+| I-013 | INFO | refs | ReFS host-OS runtime gate (og refuses < Win8 hosts) — core host-agnostic, deliberate portability superset |
+
+**Merged as addenda (5) + drops (2):** dispatch chain semantics + id-8 continuation
+records → **N-031 addendum** (convergent with its decode; adds u16 insertion-order
+chains, TTF-vs-MDB u32 pre-emption, TIFF-family same-class relabeling); EUVideoRepair
+per-chunk feed + stream-geometry submission → **M-021 addendum**; RTTI proof that
+*CalcPartition classes are geometry calculators (slot 4 = sectors-per-cluster, executed
+vtable walk) + full AdjustPartitionInfoOrder decode (containment drop, FS-grouped
+dedup, 0.1/0.3 tie rules, ±16 MiB promotion, cap 2/4/5/6, stable merge sort) →
+**M-017 addendum** (OQ-T9's premise corrected — the classes are NOT scorers; the
+DRWUI decode above is the real model, independently confirmed to identical constants);
+resident-materialization answer → **M-022 addendum**; byte-granularity pin test →
+**I-009 addendum**; lost-probe superset row → **I-010 addendum**. Dropped: this leg's
+N-029 (ReFS boot-geometry gate — duplicate of N-026's N-013b, which is more precise)
+and its stand-alone I-009/I-010/M-013/M-014/N-023/N-024 (superseded by the merges
+above).
+
+**S-007 CORRECTED (decompile re-verified first-hand by this leg's lead at
+RAWSearchDLL_decompiled.c:1985 / :2156-2177 / :3097):** the session-3 addendum inside
+S-007 carries two wrong rows — `C5 D0 D3 C6` is **CEPSAnalyser (AI/EPS)**, not dBase
+(no DBF analyser exists anywhere in the decoded registry), and the LZH row's bytes are
+wrong on both counts: `E4 52 5C 7B` is **OneNote** (OneAnalyser, format id 0x31);
+LZH is a list-layer structural analyser (LZHAnalyser). The fix plan's DBF validator is
+dropped; OneNote magic + list-layer LZH take its place. Errata rows 22-28 filed.
+
+**A-002 status chain (for the audit trail):** this leg independently re-verified the
+og GUIDs (re-executed the LdmManager.mo/Partition.mo probe + external cross-check)
+while the tree still carried the wrong constants — then found the fix leg had landed
+`7f2c83e` mid-session on main; the fix is verified (constants = `5808c8aa-7e8f-42e0-
+85d2-e1e90434cfb3` / `af9b60a0-1431-4f62-bc68-3311714a69ad`, tests de-self-referenced
+with text-compare + negative guard at test_crc32_gpt.cpp:394-395/:432-433,
+test_ldm.cpp:616-617). **A-002 stays CLOSED.**
+
+**OQ-T9 tracking reconciled:** the tracked-open file's stale UNVERIFIED header is
+replaced with the full resolution (both legs' decodes merged; residues → S-019/N-034/
+N-035 + OQ-S2M-2's bonus setter).
+
+**Counts after this addendum (by direct file inventory):** ACUTE **0** (A-004 now
+FIXED — moved by `c33236f`, which also fixed S-016) · SEVERE 9+4 = **13** (S-003,
+S-006, S-007, S-009-partial, S-011, S-012, S-013, S-014, S-015 + S-017..S-020) ·
+MAJOR 18+4 = **22** · MINOR 27+5 = **32** · INFO 10+1 = **11** · **total active 78**
+(20 in FIXED/). Top-risk insertion: **S-017/S-018 join the carve priorities** (media
+formats the og recovers and the core cannot — S-017's ftyp bug makes the four most
+common video/photo containers uncarvable TODAY), **S-020 joins the ReFS first-class
+blockers** (with M-022/M-026/M-027), **S-019 joins S-006's probe wiring** (implement
+together).
