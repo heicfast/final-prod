@@ -109,3 +109,10 @@ UF_COMPRESSED as a BSD `st_flags` bit without pinning its HFS+ catalog byte. The
 mechanical predicate (+0x29 bit 0x20) is decompile-quoted regardless; one real
 compressed volume (istat/`hfsdebug` dump of a decmpfs file's catalog record) settles
 which field it is and whether the og's read is a bug or the intended location.
+
+## Resolution
+
+**Status:** FIXED
+**Fixed in commit:** this session's HFS+ batch (cr_hfsplus_engine.cpp: owner_flags parsed at +0x29; rsrc-marked path in both record sources)
+**Verified by:** `HfsPlus.RecordBit29SelectsResourceFork` — fail-before on the pre-batch source (both forks populated, marked: the data fork won before; the rsrc fork's size/extents win after) + the unmarked-sibling guard (readme.txt keeps its data fork). Suite 392/392.
+**Resolution notes:** Implemented per the fix plan verbatim: the record bit wins fork selection when set (rsrc fork as content + decmpfs completion engagement — a decmpfs attribute's uncompressed size feeds logical_size through the existing S-002 resolution); the empty-data-fork substitution stays as the fallback for bit-clear records. Both disagreement populations from the finding are covered: (a) marked-but-not-compressed files emit rsrc bytes at the rsrc's own size; (b) marked compressed files take the decmpfs resolution. The +0x29 field NAME (ownerFlags vs UF_COMPRESSED) remains corpus-unresolved (the finding's open question) — the mechanical predicate is what the decompile quotes and what is implemented; D-53 records this.

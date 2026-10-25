@@ -43,6 +43,14 @@ RESOLVED-INDEX).
   N-040..N-047, I-015..I-018 inventory; their own fixes). The minors-focus
   session continues against the live inventory.
 
+**Batch 3 — HFS+ minors (this push):**
+- **N-028 group FIXED/REGISTERED** (sink filter both sources; 'prdf'
+  folderization; rsrc superset registered D-53).
+- **N-038 FIXED** (ownerFlags 0x20 → rsrc fork + decmpfs completion).
+- **N-005 FIXED** (block bound 16 MiB + product sanity; floor registered).
+- Suite **392/392** Linux Release (+8 tests; 3 fail-before discriminators
+  proven against the pre-batch source).
+
 
 
 **Audited commit:** session 1 `67193b6` → session 2 `5d6da5f`/`8574039`/`5f638a3` →

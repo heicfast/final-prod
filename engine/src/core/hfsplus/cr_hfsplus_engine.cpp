@@ -246,6 +246,13 @@ struct CatalogRecord {
     ForkData rsrc_fork;
     u32 create_date = 0, mod_date = 0, attr_date = 0, access_date = 0;
     u16 flags = 0;
+    /* N-038/N-028c (diff-to-fix): the og's fork-selection predicate reads
+     * the record's ownerFlags byte (+0x29, permissions block) - bit 0x20
+     * selects the resource fork and marks the node for the decmpfs
+     * completion path (FUN_180009940 :7665/:7677-78); the FinderInfo
+     * fileType (+0x30) 'prdf' folderizes the record (:7687-89). */
+    u8 owner_flags = 0;
+    u32 finder_file_type = 0;
 };
 
 /* Parse one leaf record body after the key. */
@@ -281,6 +288,8 @@ bool parse_catalog_record(const u8* key, u32 rec_bytes, CatalogRecord& out) {
         out.access_date = be32(body + CF_ACCESS_DATE);
         out.data_fork = parse_fork(body + CF_DATA_FORK);
         out.rsrc_fork = parse_fork(body + CF_RESOURCE_FORK);
+        out.owner_flags = body[0x29];          /* N-038: fork-selection bit */
+        out.finder_file_type = be32(body + 0x30); /* N-028c: 'prdf' gate */
         return out.cnid >= CNID_FIRST_USER || out.cnid == CNID_ROOT_FOLDER;
     }
     if (type == REC_FOLDER) {
@@ -503,7 +512,14 @@ bool validate_volume_header(const u8 vh[512], VolumeHeader& out) {
     if (version >= 0x11)
         return false;
     const u32 block_size = be32(vh + VH_BLOCK_SIZE);
-    if ((block_size & 0x1FF) != 0 || block_size < 512 || block_size > 65536)
+    /* N-005 (diff-to-fix): the og's gate (FUN_180012c00-class, HFSPlus-
+     * SearchDLL :10005-10010) has NO upper bound on blockSize beyond the
+     * 512-multiple mask - large-allocation-block volumes (legal on very
+     * large disks formatted with big blocks) open on the og. Upper bound
+     * relaxed 64 KiB -> 16 MiB; the total-volume product sanity runs at
+     * the caller (device size known there). The >= 512 floor stays
+     * (blockSize 0 is geometrically unusable - registered hardening). */
+    if ((block_size & 0x1FF) != 0 || block_size < 512 || block_size > (1u << 24))
         return false;
     const u32 total_blocks = be32(vh + VH_TOTAL_BLOCKS);
     if (total_blocks == 0)
@@ -540,6 +556,12 @@ u32 scan_hfsplus(IStorageDevice* slice, const HfsScanFlags& flags, CancelToken* 
     Volume v;
     if (!validate_volume_header(vh_raw, v.vh))
         return ERR_BAD_MAGIC;
+    /* N-005: total-volume product sanity (the og has no such check; a
+     * torn blockSize/totalBlocks pair would feed absurd offsets - mirror
+     * of the NTFS P1-3 guard, 2x slack for truncated-tail volumes). */
+    if (slice->size() != 0 &&
+        u64(v.vh.block_size) * u64(v.vh.total_blocks) > slice->size() * 2)
+        return ERR_BAD_PARAMETER;
     v.dev = slice;
     v.allocation_fork = parse_fork(vh_raw + VH_ALLOCATION_FORK);
     v.extents_fork = parse_fork(vh_raw + VH_EXTENTS_FORK);
@@ -667,21 +689,52 @@ u32 scan_hfsplus(IStorageDevice* slice, const HfsScanFlags& flags, CancelToken* 
         const auto& r = records[i];
         if (r.cnid < CNID_FIRST_USER && r.cnid != CNID_ROOT_FOLDER)
             continue;
+        /* N-028a (diff-to-fix): the og's result sink (FUN_1800057d0
+         * :3714-3718) destroys dot-prefixed names and the hardlink
+         * metadata directory before emission:
+         *   if ((*_Str == '.') || (len == 17 && strstr(_Str,
+         *       "HFS+ Private Data"))) { destroy; return 1; }
+         * (.DS_Store, .Spotlight-V100, the metadata dir itself). */
+        if (!r.name.empty() && r.name[0] == u'.') {
+            ++stats.sink_filtered;
+            continue;
+        }
+        if (r.name == u"HFS+ Private Data") {
+            ++stats.sink_filtered;
+            continue;
+        }
         auto* props = new (std::nothrow) tree::FileProperties();
         if (!props)
             return ERR_NO_MEMORY;
-        const bool is_dir = r.rec_type == REC_FOLDER;
+        bool is_dir = r.rec_type == REC_FOLDER;
+        /* N-028c: the og folderizes a FILE record whose FinderInfo
+         * fileType is 'prdf' (FUN_180009940 :7687-89: mark +0xce |= 2,
+         * folder kind, forks not parsed). */
+        if (!is_dir && r.finder_file_type == 0x70726466u /* BE "prdf" */) {
+            is_dir = true;
+            ++stats.prf_folderized;
+        }
+        /* N-038: the og's fork-selection predicate - record ownerFlags
+         * (+0x29) bit 0x20 selects the RESOURCE fork as the node's
+         * content and marks the node for the decmpfs completion path
+         * (FUN_180009940 :7665-7684). */
+        const bool rsrc_marked = !is_dir && (r.owner_flags & 0x20) != 0;
+        if (rsrc_marked)
+            ++stats.rsrc_marked_files;
+        const ForkData& content_fork = rsrc_marked ? r.rsrc_fork : r.data_fork;
         props->name = r.name;
         props->fs_kind = u32(FsKindCode::Hfsplus); /* corpus factory code */
         props->attributes = is_dir ? 0x10 : 0;
-        props->logical_size = is_dir ? 0 : r.data_fork.logical_size;
+        props->logical_size = is_dir ? 0 : content_fork.logical_size;
         props->times.created = mac_to_filetime(r.create_date);
         props->times.modified = mac_to_filetime(r.mod_date);
         props->times.changed = mac_to_filetime(r.attr_date ? r.attr_date : r.mod_date);
         props->times.accessed = mac_to_filetime(r.access_date);
         props->record_ref = r.cnid;
-        for (const auto& ex : resolve_file_extents(v, r.cnid, 0, r.data_fork, v.total_bytes()))
-            props->extents.push_back({ex.first, ex.second});
+        if (!is_dir)
+            for (const auto& ex : resolve_file_extents(v, r.cnid, rsrc_marked ? 0xFF : 0,
+                                                       content_fork, v.total_bytes()))
+                props->extents.push_back({ex.first, ex.second});
         /* S-002: decmpfs-compressed files - the data fork is empty and the
          * content lives in com.apple.decmpfs (mode 3: zlib stream inside
          * the attribute record; mode 4: zlib stream at an offset inside
@@ -690,7 +743,8 @@ u32 scan_hfsplus(IStorageDevice* slice, const HfsScanFlags& flags, CancelToken* 
          * compressed-extent contract (cr_safewriter decode path), no
          * memory-resident blob and no size cap below the writer's own
          * 256 MiB guard. */
-        if (flags.resolve_decmpfs && !is_dir && r.data_fork.logical_size == 0) {
+        if (flags.resolve_decmpfs && !is_dir &&
+            (rsrc_marked || r.data_fork.logical_size == 0)) {
             auto ait = attributes.find(r.cnid);
             if (ait != attributes.end()) {
                 const AttrEntry* dec = nullptr;
@@ -888,20 +942,43 @@ u32 scan_hfsplus(IStorageDevice* slice, const HfsScanFlags& flags, CancelToken* 
                     return true;
                 if (by_cnid.count(cr.cnid))
                     return true; /* still live */
+                /* N-028a: the og's sink filter is global (one result
+                 * callback) - orphan-harvested names pass it too. */
+                if (!cr.name.empty() && cr.name[0] == u'.') {
+                    ++stats.sink_filtered;
+                    return true;
+                }
+                if (cr.name == u"HFS+ Private Data") {
+                    ++stats.sink_filtered;
+                    return true;
+                }
                 ++stats.orphans;
+                /* N-028c/N-038: the record-processor gates apply to every
+                 * record source on the og (FUN_180009940 is shared). */
+                bool o_dir = cr.rec_type == REC_FOLDER;
+                if (!o_dir && cr.finder_file_type == 0x70726466u) {
+                    o_dir = true;
+                    ++stats.prf_folderized;
+                }
+                const bool o_rsrc_marked = !o_dir && (cr.owner_flags & 0x20) != 0;
+                if (o_rsrc_marked)
+                    ++stats.rsrc_marked_files;
+                const ForkData& o_fork = o_rsrc_marked ? cr.rsrc_fork : cr.data_fork;
                 auto* props = new (std::nothrow) tree::FileProperties();
                 if (!props)
                     return false;
                 props->name = cr.name.empty() ? u"unnamed" : cr.name;
                 props->fs_kind = u32(FsKindCode::Hfsplus);
-                props->logical_size = cr.rec_type == REC_FILE ? cr.data_fork.logical_size : 0;
-                props->attributes = cr.rec_type == REC_FOLDER ? 0x10 : 0;
+                props->logical_size = cr.rec_type == REC_FILE && !o_dir ? o_fork.logical_size : 0;
+                props->attributes = o_dir ? 0x10 : 0;
                 props->times.created = mac_to_filetime(cr.create_date);
                 props->times.modified = mac_to_filetime(cr.mod_date);
                 props->record_ref = cr.cnid;
-                for (const auto& ex :
-                     resolve_file_extents(v, cr.cnid, 0, cr.data_fork, v.total_bytes()))
-                    props->extents.push_back({ex.first, ex.second});
+                if (cr.rec_type == REC_FILE && !o_dir)
+                    for (const auto& ex :
+                         resolve_file_extents(v, cr.cnid, o_rsrc_marked ? 0xFF : 0, o_fork,
+                                              v.total_bytes()))
+                        props->extents.push_back({ex.first, ex.second});
                 tree::FileNode* n = tree.add_file(root_deleted, props);
                 props->release();
                 if (!n)

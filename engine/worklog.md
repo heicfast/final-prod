@@ -6158,3 +6158,31 @@ Work Log:
 
 Stage Summary:
 - Baseline green 405/405; inventory reconciled to file-count truth; lane active.
+Task ID: MFIX-B3 (minors-focus session, batch 3/12)
+Agent: main engineer (diff-to-fix minors session)
+Task: HFS+ minors batch — N-028 (N-015a/b/c), N-038, N-005.
+
+Work Log:
+- Corpus re-verification first-hand: FUN_1800057d0 :3714-3718 (sink filter:
+  dotfiles + 17-char "HFS+ Private Data" substring), FUN_180009940
+  :7663-7689 (fork-selection bit +0x29/0x20 with the rsrc+decmpfs-mark path;
+  'prdf' 0x66647270 LE-load = on-disk "prdf" at the FinderInfo fileType).
+- Code: parse owner_flags (+0x29) + finder_file_type (+0x30); sink filter at
+  the live walk AND the orphan sweep (og's single result callback is
+  source-global); 'prdf' folderization both sources; rsrc-marked fork
+  selection both sources (decmpfs completion engages for marked files);
+  block bound 64 KiB -> 16 MiB + scan-level product sanity (block x total <=
+  2x device); stats: sink_filtered / prf_folderized / rsrc_marked_files.
+- Fail-before proven (worktree at 3928f33): DotfileAndPrivateDataFiltered,
+  PrdfRecordFolderized, RecordBit29SelectsResourceFork, LargeBlockSizeAccepted
+  - 4/4 fail before (stats asserts stripped for the pre-fix compile), pass
+  after. Suite 392/392.
+- Audit trail: 3 finding Resolutions (N-028, N-038 -> FIXED/; N-005 resolved
+  inside its group file with N-004/N-006 explicitly left open); matrix;
+  modules/hfsplus.md; SUMMARY; PARITY-DELTAS D-53; RESOLVED-INDEX +3.
+
+Stage Summary:
+- 3 MINOR findings closed (one as part of a group file with the others left
+  open). Fixture notes: HFS+ leaf links are NODE indices (not block numbers);
+  extent lengths are block-granular; the freed-node sweep needed the same
+  gates as the live walk (both are record sources).

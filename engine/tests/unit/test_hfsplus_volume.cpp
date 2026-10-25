@@ -562,3 +562,240 @@ TEST(HfsPlus, BadSignatureRejected) {
 } // namespace
 } // namespace hfsplus
 } // namespace cr
+
+namespace cr {
+namespace hfsplus {
+
+/* ---- N-028 / N-038 / N-005 (diff-to-fix minors session) ----------------- */
+
+namespace {
+
+/* patch a file record's ownerFlags (+0x29) and FinderInfo fileType (+0x30)
+ * inside a make_record() blob (key is padded to even, then the body) */
+void patch_file_record(cr::u8* rec, const std::u16string& name, cr::u8 owner_flags,
+                       const char file_type[4]) {
+    const cr::u32 key_len = cr::u32(2 + 4 + 2 + name.size() * 2);
+    cr::u32 body_off = key_len;
+    if (body_off & 1)
+        ++body_off;
+    rec[body_off + 0x29] = owner_flags;
+    if (file_type)
+        std::memcpy(rec + body_off + 0x30, file_type, 4);
+}
+
+} // namespace
+
+TEST(HfsPlus, DotfileAndPrivateDataFiltered) {
+    /* N-028a: the og's result sink (FUN_1800057d0 :3714-3718) destroys
+     * dot-prefixed names and "HFS+ Private Data" before emission - the
+     * core's scan is the equivalent sink and must filter both. */
+    auto d = build_volume();
+    auto dot_rec = make_record(2, u".DS_Store", 2, 40, 12, B_GONE_DATA, 1, 0, 0, 0);
+    auto priv_rec = make_record(2, u"HFS+ Private Data", 1, 41, 0, 0, 0, 0, 0, 0);
+    auto keep_rec = make_record(2, u"visible.txt", 2, 42, 12, B_GONE_DATA, 1, 0, 0, 0);
+    /* new LIVE leaf at block 9 (in-use per the bitmap) - the freed leaf2
+     * stays the orphan-sweep source, untouched */
+    constexpr u32 B_CAT_LEAF3 = 9;     /* block 9 = catalog node 7 */
+    constexpr u32 NODE3 = 7;           /* node index (catalog fork base = block 2) */
+    auto leaf3 = make_leaf_node({dot_rec, priv_rec, keep_rec}, 0);
+    memcpy(d.data() + u64(B_CAT_LEAF3) * BS, leaf3.data(), NODE_SIZE);
+    {
+        u8* vh = d.data() + 1024;
+        write_fork(vh + 0x110, 8 * NODE_SIZE, B_CAT_HDR, 8); /* catalog span */
+        u8* hdr = d.data() + u64(B_CAT_HDR) * BS;
+        be32(hdr + 14 + 0x06, 7);               /* leafRecords: +3 */
+        be32(hdr + 14 + 0x0E, NODE3);           /* lastLeafNode */
+        be32(hdr + 14 + 0x16, 8);               /* totalNodes */
+        be32(hdr + 14 + 0x1A, 5);               /* freeNodes: nodes 2..6 */
+        u8* leaf1 = d.data() + u64(B_CAT_LEAF1) * BS;
+        be32(leaf1 + 0, NODE3);                 /* chain: leaf1 -> leaf3 */
+    }
+    MemDevice dev(d);
+    tree::ResultTree tree;
+    auto* ra = tree.add_root(u"Found");
+    auto* rd = tree.add_root(u"Deleted");
+    auto* rl = tree.add_root(u"Lost");
+    HfsScanFlags fl;
+    HfsScanStats st;
+    ASSERT_EQ(scan_hfsplus(&dev, fl, nullptr, nullptr, nullptr, tree, ra, rd, rl, st), OK);
+    int dot = 0, priv = 0, keep = 0;
+    std::function<void(tree::FileNode*)> scan = [&](tree::FileNode* n) {
+        for (tree::FileNode* c = n->first_child(); c; c = c->next_sibling()) {
+            if (c->name_utf8() == ".DS_Store")
+                ++dot;
+            if (c->name_utf8() == "HFS+ Private Data")
+                ++priv;
+            if (c->name_utf8() == "visible.txt")
+                ++keep;
+            scan(c);
+        }
+    };
+    scan(ra);
+    scan(rd);
+    scan(rl);
+    EXPECT_EQ(dot, 0) << "dotfiles must be filtered (og sink parity)";
+    EXPECT_EQ(priv, 0) << "the hardlink metadata dir must be filtered";
+    EXPECT_EQ(keep, 1) << "regular files are unaffected";
+    EXPECT_EQ(st.sink_filtered, 2u);
+}
+
+TEST(HfsPlus, PrdfRecordFolderized) {
+    /* N-028c: a FILE record whose FinderInfo fileType is 'prdf' is
+     * folderized by the og (FUN_180009940 :7687-89 - mark, folder kind,
+     * forks not parsed). */
+    auto d = build_volume();
+    auto prdf_rec = make_record(2, u"prdfthing", 2, 43, 512, B_GONE_DATA, 1, 0, 0, 0);
+    patch_file_record(prdf_rec.data(), u"prdfthing", 0, "prdf");
+    constexpr u32 B_CAT_LEAF3 = 9;
+    constexpr u32 NODE3 = 7;
+    auto leaf3 = make_leaf_node({prdf_rec}, 0);
+    memcpy(d.data() + u64(B_CAT_LEAF3) * BS, leaf3.data(), NODE_SIZE);
+    {
+        u8* vh = d.data() + 1024;
+        write_fork(vh + 0x110, 8 * NODE_SIZE, B_CAT_HDR, 8);
+        u8* hdr = d.data() + u64(B_CAT_HDR) * BS;
+        be32(hdr + 14 + 0x06, 5);
+        be32(hdr + 14 + 0x0E, NODE3);
+        be32(hdr + 14 + 0x16, 8);
+        be32(hdr + 14 + 0x1A, 5);
+        u8* leaf1 = d.data() + u64(B_CAT_LEAF1) * BS;
+        be32(leaf1 + 0, NODE3);
+    }
+    MemDevice dev(d);
+    tree::ResultTree tree;
+    auto* ra = tree.add_root(u"Found");
+    auto* rd = tree.add_root(u"Deleted");
+    auto* rl = tree.add_root(u"Lost");
+    HfsScanFlags fl;
+    HfsScanStats st;
+    ASSERT_EQ(scan_hfsplus(&dev, fl, nullptr, nullptr, nullptr, tree, ra, rd, rl, st), OK);
+    tree::FileNode* n = nullptr;
+    std::function<void(tree::FileNode*)> scan = [&](tree::FileNode* p) {
+        for (tree::FileNode* c = p->first_child(); c; c = c->next_sibling()) {
+            if (c->name_utf8() == "prdfthing")
+                n = c;
+            scan(c);
+        }
+    };
+    scan(ra);
+    scan(rd);
+    scan(rl);
+    ASSERT_NE(n, nullptr);
+    EXPECT_NE(n->props()->attributes & 0x10, 0u) << "'prdf' must emit as a folder";
+    EXPECT_EQ(n->props()->logical_size, 0u) << "forks are not parsed for prdf records";
+    EXPECT_TRUE(n->props()->extents.empty()) << "no content extents for prdf records";
+    EXPECT_EQ(st.prf_folderized, 1u);
+}
+
+TEST(HfsPlus, RecordBit29SelectsResourceFork) {
+    /* N-038: record ownerFlags (+0x29) bit 0x20 selects the RESOURCE
+     * fork as the node's content (FUN_180009940 :7665/:7677-78). A marked
+     * file with BOTH forks populated must emit the rsrc bytes, not the
+     * data fork. */
+    auto d = build_volume();
+    /* both forks populated, marked: rsrc at B_RSRC_DATA ("notes resource
+     * fork data"), data at B_FILE_DATA ("readme content here!!") */
+    auto marked_rec = make_record(2, u"marked.rsrc", 2, 44, 22, B_FILE_DATA, 1, 25, B_RSRC_DATA,
+                                  1);
+    patch_file_record(marked_rec.data(), u"marked.rsrc", 0x20, nullptr);
+    constexpr u32 B_CAT_LEAF3 = 9;
+    constexpr u32 NODE3 = 7;
+    auto leaf3 = make_leaf_node({marked_rec}, 0);
+    memcpy(d.data() + u64(B_CAT_LEAF3) * BS, leaf3.data(), NODE_SIZE);
+    {
+        u8* vh = d.data() + 1024;
+        write_fork(vh + 0x110, 8 * NODE_SIZE, B_CAT_HDR, 8);
+        u8* hdr = d.data() + u64(B_CAT_HDR) * BS;
+        be32(hdr + 14 + 0x06, 5);
+        be32(hdr + 14 + 0x0E, NODE3);
+        be32(hdr + 14 + 0x16, 8);
+        be32(hdr + 14 + 0x1A, 5);
+        u8* leaf1 = d.data() + u64(B_CAT_LEAF1) * BS;
+        be32(leaf1 + 0, NODE3);
+    }
+    MemDevice dev(d);
+    tree::ResultTree tree;
+    auto* ra = tree.add_root(u"Found");
+    auto* rd = tree.add_root(u"Deleted");
+    auto* rl = tree.add_root(u"Lost");
+    HfsScanFlags fl;
+    HfsScanStats st;
+    ASSERT_EQ(scan_hfsplus(&dev, fl, nullptr, nullptr, nullptr, tree, ra, rd, rl, st), OK);
+    tree::FileNode* n = nullptr;
+    std::function<void(tree::FileNode*)> scan = [&](tree::FileNode* p) {
+        for (tree::FileNode* c = p->first_child(); c; c = c->next_sibling()) {
+            if (c->name_utf8() == "marked.rsrc")
+                n = c;
+            scan(c);
+        }
+    };
+    scan(ra);
+    scan(rd);
+    scan(rl);
+    ASSERT_NE(n, nullptr);
+    ASSERT_NE(n->props(), nullptr);
+    EXPECT_EQ(n->props()->logical_size, 25u) << "the rsrc fork's size must win";
+    ASSERT_EQ(n->props()->extents.size(), 1u);
+    EXPECT_EQ(n->props()->extents[0].offset, u64(B_RSRC_DATA) * BS)
+        << "content extents must come from the resource fork";
+    EXPECT_EQ(n->props()->extents[0].length, BS) << "extent length is block-granular";
+    EXPECT_EQ(st.rsrc_marked_files, 1u);
+    /* the unmarked sibling (fixture's readme.txt) still takes its data fork */
+    tree::FileNode* readme = nullptr;
+    std::function<void(tree::FileNode*)> scan2 = [&](tree::FileNode* p) {
+        for (tree::FileNode* c = p->first_child(); c; c = c->next_sibling()) {
+            if (c->name_utf8() == "readme.txt")
+                readme = c;
+            scan2(c);
+        }
+    };
+    scan2(ra);
+    ASSERT_NE(readme, nullptr);
+    EXPECT_EQ(readme->props()->logical_size, 26u) << "unmarked files keep the data fork";
+    EXPECT_EQ(readme->props()->extents[0].offset, u64(B_FILE_DATA) * BS);
+}
+
+TEST(HfsPlus, LargeBlockSizeAccepted) {
+    /* N-005: the og has no upper bound beyond the 512-multiple mask; the
+     * core's cap is relaxed 64 KiB -> 16 MiB with a device-size product
+     * sanity at scan time. Zero stays rejected (geometrically unusable -
+     * registered hardening). */
+    auto d = build_volume();
+    u8* vh = d.data() + 1024;
+    be32(vh + 0x28, 1u << 20); /* blockSize = 1 MiB (512-multiple) */
+    be32(vh + 0x2C, 15);       /* totalBlocks: 15 MiB < 16 MiB image */
+    hfsplus::VolumeHeader h;
+    EXPECT_TRUE(hfsplus::validate_volume_header(vh, h))
+        << "1 MiB allocation blocks with valid geometry must validate";
+    EXPECT_EQ(h.block_size, 1u << 20);
+
+    auto d2 = build_volume();
+    u8* vh2 = d2.data() + 1024;
+    be32(vh2 + 0x28, 0); /* blockSize 0: geometrically unusable */
+    be32(vh2 + 0x2C, 16);
+    hfsplus::VolumeHeader h2;
+    EXPECT_FALSE(hfsplus::validate_volume_header(vh2, h2))
+        << "blockSize 0 stays rejected (registered floor)";
+
+    auto d3 = build_volume();
+    u8* vh3 = d3.data() + 1024;
+    be32(vh3 + 0x28, 1u << 20);
+    be32(vh3 + 0x2C, 0x10000); /* 64 GiB claimed on a 16 MiB image */
+    hfsplus::VolumeHeader h3;
+    EXPECT_TRUE(hfsplus::validate_volume_header(vh3, h3))
+        << "VH validation alone cannot know the device (og parity)";
+    {
+        /* the scan-level product sanity must refuse the absurd geometry */
+        MemDevice dev(d3);
+        tree::ResultTree tree;
+        auto* ra = tree.add_root(u"Found");
+        HfsScanFlags fl;
+        HfsScanStats st;
+        const u32 rc = scan_hfsplus(&dev, fl, nullptr, nullptr, nullptr, tree, ra, nullptr,
+                                    nullptr, st);
+        EXPECT_NE(OK, rc) << "the product sanity must refuse absurd geometry";
+    }
+}
+
+} // namespace hfsplus
+} // namespace cr

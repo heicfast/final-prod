@@ -1474,3 +1474,33 @@ gate stated and pinned. N-010d (exFAT tz) was already fixed by S-011
 `AdsDroppedInParityMode`, `AdsEmittedByDefaultSuperset`,
 `UsnHarvestTrueDeleteReason0x80020000`, `UsnHarvestRejectsCompressionChangeOnly`,
 `UsnHarvestCapMinesTail`.
+
+### D-53 — HFS+ sink filter, fork selection, prdf folderization, block-size bound (N-028/N-038/N-005)
+
+**Class:** parity + registered superset (engine semantics) · **Findings:** diff-to-fix N-028 (N-015a/b/c), N-038, N-005 (MINOR, FIXED 2026-10-26) · **Date:** 2026-10-26
+
+- **Sink filter (N-015a):** the og's result sink (FUN_1800057d0 :3714-3718)
+  destroys dot-prefixed names and "HFS+ Private Data" before emission. The
+  core filters both at the live/deleted walk AND the freed-node orphan sweep
+  (the og's single result callback covers every source).
+- **Fork selection (N-038):** record ownerFlags (+0x29) bit 0x20 selects the
+  resource fork as the node's content and marks the decmpfs completion path
+  (FUN_180009940 :7665/:7677-78) — implemented in both record sources; the
+  empty-data-fork decmpfs substitution stays as the fallback predicate for
+  bit-clear records. The documented-field NAME of +0x29 stays unresolved
+  (ownerFlags vs UF_COMPRESSED per the finding's open question); the
+  mechanical predicate is decompile-quoted and now implemented.
+- **'prdf' folderization (N-015c):** FinderInfo fileType (+0x30) "prdf" →
+  the record emits as a folder, forks not parsed (:7687-89).
+- **Block size (N-005):** upper bound relaxed 64 KiB → 16 MiB (the og has no
+  upper bound beyond the 512-multiple mask; large-allocation-block volumes
+  open on the og). **Registered hardening kept:** the ≥ 512 floor
+  (blockSize 0 is geometrically unusable) and a NEW device-size product
+  sanity (block × total ≤ 2× device — the og lacks it; torn VH pairs would
+  feed absurd offsets).
+- **Registered superset kept (N-015b):** `..namedfork/rsrc` child nodes for
+  unmarked files remain a core superset (the og reads the data fork only
+  outside the UF_COMPRESSED branch) — parity benches filter rsrc children.
+
+**Pin tests:** `HfsPlus.DotfileAndPrivateDataFiltered`, `PrdfRecordFolderized`,
+`RecordBit29SelectsResourceFork`, `LargeBlockSizeAccepted`.
