@@ -144,3 +144,10 @@ Q67's three-pronged definition (ASan/UBSan/TSan) is partially met.
   `-fsanitize=address,undefined` form), or kept separate? ASan +
   UBSan together is the standard "kitchen sink" combo, but separate
   lanes give cleaner error attribution. Engineering decision.
+
+## Resolution
+
+**Status:** FIXED
+**Fixed in commit:** this session's quality-minors batch (linux-ubsan preset + CI job; three real defects the lane's first run exposed, all fixed)
+**Verified by:** full suite 522/522 UBSan-clean locally under `-fno-sanitize-recover=undefined` (preset linux-ubsan, gcc 14.2) AND 522/522 ASan-clean on linux-gcc - the lane is green from its first landable state.
+**Resolution notes:** added the `linux-ubsan` CMake preset (UBSan + PIE, Debug, ASan off) and the `linux-ubsan` CI job (N-018's fix plan verbatim). The lane's FIRST run immediately caught three real defects, now fixed in the same change: (1) `tests/unit/test_fat_volume.cpp` built LFN fixtures through unaligned u16 member stores (the on-disk LFN layout puts name1 at odd offset +1) - byte-wise put_u16 stores now; (2) `src/core/fat/cr_lfn.cpp` loaded the same u16 name arrays through u16* members - genuine engine-side unaligned-load UB (fine on x86, trapped by UBSan, wrong on strict-alignment targets) - byte-wise le16 loads, compiler folds to the same instructions; (3) `tests/ui_abi_check.c`'s FAT16 fixture was silently broken on main (SEGV at :576 under both ASan and UBSan; the outputs were lost to block-buffered stdout on SEGV): the parallel M-015 fix added the whole-table media-word validation and updated the C++ fixtures but MISSED the C consumer fixture - FAT[0]=0 rejected the volume, the scan failed ERR_BAD_MAGIC, and every downstream CHECK cascaded into a NULL-rows deref. The C fixture now carries the M-015 canonical media words (0xFFF8/0xFFFF) with a provenance comment. Per the fix-plan's acceptance criteria: Q67 now has all three prongs (ASan every push, TSan lane, UBSan lane).

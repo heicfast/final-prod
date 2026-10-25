@@ -101,6 +101,14 @@ static int build_fat16(const char* path) {
     img[510] = 0x55;
     img[511] = 0xAA;
 
+    /* M-015 canonical media words (real-volume shape) - the parallel
+     * M-015 fix updated the C++ fixtures but missed this C consumer
+     * fixture; the whole-table validation rejected FAT[0]=0 and the
+     * scan failed ERR_BAD_MAGIC (recovered by the DFX7 session) */
+    put16(img, FAT1_OFF + 0u * 2u, 0xFFF8);
+    put16(img, FAT1_OFF + 1u * 2u, 0xFFFF);
+    put16(img, FAT2_OFF + 0u * 2u, 0xFFF8);
+    put16(img, FAT2_OFF + 1u * 2u, 0xFFFF);
     put16(img, FAT1_OFF + 5u * 2u, 0xFFFF);
     put16(img, FAT2_OFF + 5u * 2u, 0xFFFF); /* root dir */
     put16(img, FAT1_OFF + 10u * 2u, 11);

@@ -49,11 +49,18 @@ bool lfn_assemble(const std::vector<const LfnEntry*>& slots, u8 checksum, std::u
     for (const LfnEntry* e : ordered) {
         if (e->checksum != checksum)
             return false;
-        /* 13 chars per slot: 5 + 6 + 2 */
-        const u16* parts[3] = {e->name1, e->name2, e->name3};
+        /* 13 chars per slot: 5 + 6 + 2. N-018/UBSan: the on-disk LFN
+         * layout puts name1 at an ODD offset (+1); loading through u16*
+         * members is unaligned UB (fine on x86, trapped by UBSan, wrong
+         * on strict-alignment targets). Byte-wise le16 loads - the
+         * compiler folds them to the same instructions on x86. */
+        const u8* base = reinterpret_cast<const u8*>(e);
+        static constexpr size_t kNameOff[3] = {1, 14, 28}; /* name1/2/3 */
+        static constexpr int kNameCnt[3] = {5, 6, 2};
         for (int pi = 0; pi < 3; ++pi) {
-            for (int ci = 0; ci < (pi == 0 ? 5 : (pi == 1 ? 6 : 2)); ++ci) {
-                u16 ch = parts[pi][ci];
+            for (int ci = 0; ci < kNameCnt[pi]; ++ci) {
+                u16 ch = u16(base[kNameOff[pi] + 2 * size_t(ci)]) |
+                         u16(base[kNameOff[pi] + 2 * size_t(ci) + 1]) << 8;
                 if (ch == 0x0000) { /* end of name */
                     return !out.empty();
                 }

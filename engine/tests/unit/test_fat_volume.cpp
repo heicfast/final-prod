@@ -47,6 +47,11 @@ void put16(std::vector<u8>& v, size_t at, u16 x) {
     v[at] = u8(x);
     v[at + 1] = u8(x >> 8);
 }
+/* N-018/UBSan: byte-wise u16 store for raw (possibly unaligned) buffers */
+inline void put_u16(u8* p, u16 x) {
+    p[0] = u8(x);
+    p[1] = u8(x >> 8);
+}
 void put32v(std::vector<u8>& v, size_t at, u32 x) {
     v[at] = u8(x);
     v[at + 1] = u8(x >> 8);
@@ -82,19 +87,21 @@ void set_fat16_entry(std::vector<u8>& img, size_t fat_byte_off, u32 cluster, u16
 }
 
 void make_lfn_slot(u8* slot, u8 seq, u8 checksum, const char16_t* fragment) {
+    /* N-018/UBSan: the on-disk LFN layout puts u16 name arrays at ODD
+     * offsets (name1 at +1); storing through u16* members is unaligned
+     * UB flagged by the UBSan lane. Same bytes, byte-wise stores. */
     std::u16string f = fragment;
-    LfnEntry* l = reinterpret_cast<LfnEntry*>(slot);
-    l->sequence = seq;
-    l->attributes = ATTR_LFN;
-    l->type = 0;
-    l->checksum = checksum;
-    l->first_cluster = 0;
+    slot[0] = seq;      /* sequence */
+    slot[11] = ATTR_LFN;
+    slot[12] = 0;       /* type */
+    slot[13] = checksum;
+    put_u16(slot + 26, 0); /* first_cluster */
     const int counts[3] = {5, 6, 2};
-    u16* parts[3] = {l->name1, l->name2, l->name3};
+    const size_t offs[3] = {1, 14, 28}; /* name1/name2/name3 */
     size_t fi = 0;
     for (int p = 0; p < 3; ++p)
         for (int c = 0; c < counts[p]; ++c)
-            parts[p][c] = (fi < f.size()) ? f[fi++] : 0xFFFF;
+            put_u16(slot + offs[p] + 2 * size_t(c), (fi < f.size()) ? f[fi++] : 0xFFFF);
 }
 
 void make_dentry(u8* slot, const char* name8_3, u8 attrs, u32 first_cluster, u32 size,
@@ -719,14 +726,18 @@ TEST(FatEngine, LfnDeletedChecksumBijection) {
     for (u32 orig = 1; orig <= 0xFF; orig += 7) {
         u8 name11[11] = {u8(orig), 'X', 'Y', '~', '1', 'T', 'X', 'T', ' ', ' ', ' '};
         const u8 chk = lfn_checksum(name11);
-        LfnEntry slot = {};
-        slot.sequence = 0x41;
-        slot.attributes = ATTR_LFN;
-        slot.type = 0;
-        slot.checksum = chk;
-        slot.first_cluster = 0;
+        /* N-018/UBSan: byte-wise stores - name1 sits at an odd offset */
+        u8 slotbuf[32] = {};
+        slotbuf[0] = 0x41; /* sequence */
+        slotbuf[11] = ATTR_LFN;
+        slotbuf[12] = 0;
+        slotbuf[13] = chk;
+        put_u16(slotbuf + 26, 0); /* first_cluster */
         for (int i = 0; i < 5; ++i)
-            slot.name1[i] = 0xFFFF;
+            put_u16(slotbuf + 1 + 2 * i, 0xFFFF);
+        LfnEntry slot = {};
+        std::memcpy(&slot, slotbuf, sizeof(slot)); /* plain C++ object; the
+            engine reads it through le16/le8 - no alignment UB on OUR side */
         u8 raw[11] = {0xE5, 'X', 'Y', '~', '1', 'T', 'X', 'T', ' ', ' ', ' '};
         u8 first = 0, got_chk = 0;
         std::vector<const LfnEntry*> slots = {&slot};
