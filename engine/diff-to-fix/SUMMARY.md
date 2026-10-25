@@ -547,6 +547,14 @@ The whole ReFS engine tier is now landed: attribute layer + deleted model + iden
 + recycle; remaining ReFS items are N-036's container map and the OQ-2 real-volume
 dump.)*
 
+*(Session-4 continuation 3: **the INFORMATIONAL tier CLOSED** — I-006..I-020 all
+ACKNOWLEDGED with first-hand verification of each deliberate-difference rationale
+(code/corpus spot-checks recorded per finding; I-018 is a positive MATCH record;
+I-012 closes the ReFS ADS question as shared limitation). The INFO tier joins
+I-001/I-002/I-003 (acknowledged earlier). No code changes — the mandate's rule for
+safety-hardening/superset registrations: preserve the divergences, never "fix"
+down to the og.)*
+
 **Note on S-009/M-006:** the S-009 disk-map component was FIXED via GAP-S6-11
 (`56cce87` — `cr_diskmap.cpp/.h` verified in-tree by this leg); the M-006 fuzz-CI
 component was FIXED (`e30b84d`). The combined finding file stays in `SEVERE/` until the

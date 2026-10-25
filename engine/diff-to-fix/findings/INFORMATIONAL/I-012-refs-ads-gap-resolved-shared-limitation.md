@@ -50,3 +50,9 @@ M-022 (file-value grammar divergence — filed same session), N-011 (NTFS ADS su
 ## Open questions
 
 None.
+
+## Resolution
+
+**Status:** ACKNOWLEDGED
+**Verified by:** the S-020/M-022 landing re-proved the premise from the decompile this session (one properties block, one runlist slot props+0x62, one emission per file row; the .rsf RefsFileProperties type-6 layout carries exactly ONE DataRunList).
+**Resolution notes:** Shared limitation, at parity: ReFS named streams (ADS) are not recovered by EITHER side - the og has no stream machinery and the .rsf contract has no stream field. The project's GAP-ADS row for ReFS is resolved AS a parity row (not a gap). N-011 (NTFS ADS-as-children) is the NTFS-side analogue and stays its own finding.

@@ -44,3 +44,9 @@
 **Action:** register rows in `docs/parity/PARITY-DELTAS.md`; add pin tests where a
 future "og-parity" refactor could silently delete the superset
 (`Ext4.DeletedInodeSweepStaysDefaultOn`, `Ext4.FragmentedJournalWalkReadsExtents`).
+
+## Resolution
+
+**Status:** ACKNOWLEDGED
+**Verified by:** the s3-ext4-inventory/s3-hfsplus-inventory evidence files re-checked (the cited decode rows); the ext4 deleted-inode sweep + fragmented-journal-walk correctness advantage (og physical+1 is wrong, core extent-map correct) confirmed in-tree by the existing engine tests.
+**Resolution notes:** Grouped registrations, preserved: ext4 deleted-inode sweep (superset), fragmented-journal-walk correctness advantage ("do not replicate the og's physical+1 bug" - registered), HFS+ allocation-bitmap grading probable superset (UNVERIFIED residual noted in the finding), hard-links/hot-files MATCH-by-omission, decmpfs modes 1/2 MATCH-by-omission. No core change.

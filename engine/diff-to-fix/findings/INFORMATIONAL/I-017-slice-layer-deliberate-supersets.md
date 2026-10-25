@@ -28,3 +28,9 @@ M-032 (the behavioral divergence), N-045/N-046 (the same layer's minor ledger).
 ## Open questions
 
 None.
+
+## Resolution
+
+**Status:** ACKNOWLEDGED
+**Verified by:** cr_slice.cpp eager validation (null/zero/alignment/overflow) re-read this session; byte units + per-call error codes + persistent ReadErrorMap confirmed; the og's sector-units/sticky-error/null-guard model cited in evidence/s3-virtual-volume-device.md.
+**Resolution notes:** Deliberate storage-layer supersets, preserved: byte anchoring (F1), eager ctor validation, per-call HRESULT-styled errors, the clean-room ReadErrorMap. The og's sticky last-error and null-buffer -2 semantics are NOT ported (weaker contract). Future work must keep the eager validation.

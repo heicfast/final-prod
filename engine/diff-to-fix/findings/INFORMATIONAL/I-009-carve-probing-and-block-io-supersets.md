@@ -16,3 +16,9 @@
 property with a test — `Carve.ByteGranularityFindsMidSectorStart` (a planted valid
 file at sector offset +137 must be carved) — so the M-025 read-model rework cannot
 silently regress the superset by adopting sector-aligned dispatch.
+
+## Resolution
+
+**Status:** ACKNOWLEDGED
+**Verified by:** first-hand code re-read (cr_carve.cpp: 1 MiB WINDOW + 4 KiB OVERLAP constants; byte-stepped probing) and the og cites re-checked (sector-aligned probe at :9496; 4 MiB/8 MiB block shapes at :9269-96).
+**Resolution notes:** Deliberate supersets, preserved: byte-step probing (finds mid-sector headers the og cannot see - bench core-only finds are expected) and the different-but-contract-equivalent block shape. The registered bench-filter note is the operative part: core-only finds on non-aligned starts are NOT parity regressions.

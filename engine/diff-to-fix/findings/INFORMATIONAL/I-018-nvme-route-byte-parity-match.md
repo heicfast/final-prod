@@ -28,3 +28,9 @@ M-036 (field surface), S-024 (grading), N-009a (percentage_used width).
 ## Open questions
 
 None.
+
+## Resolution
+
+**Status:** ACKNOWLEDGED (positive MATCH record)
+**Verified by:** src/win/cr_health.cpp:252-278 re-read this session - IOCTL_STORAGE_QUERY_PROPERTY with STORAGE_PROTOCOL_SPECIFIC_DATA {ProtocolType Nvme, DataType LogPage, health page}, offset/length per the corpus cite - line-by-line identical route to DiskHealth_decompiled.c :13351-13375.
+**Resolution notes:** No divergence: the NVMe health transport route is byte-parity MATCH. Recorded so the route is never "improved" without a corpus reason. The NVMe field-coverage/units item (M-036) remains its own finding.

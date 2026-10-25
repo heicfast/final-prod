@@ -151,3 +151,9 @@ correct behavior; no fix is needed. The finding is recorded for:
 ## Open questions
 
 None. The deliberate superset is documented; no further RE needed.
+
+## Resolution
+
+**Status:** ACKNOWLEDGED
+**Verified by:** first-hand code re-read this session (decode_extra at cr_ext4_engine.cpp:96, unix_to_filetime_ns at cr_types.h:56 - the kernel ext4_decode_extra_time algorithm; og cites at :5494-5515/:6262-6282 re-checked: sec-only reads + wMilliseconds=0).
+**Resolution notes:** Deliberate superset, preserved. The core keeps nanosecond timestamps the og drops to second-granularity; users gain precision, parity benches diverge mechanically on non-zero nsec (bench-filter note, not a regression). Future work must PRESERVE this divergence; do not "fix" precision DOWN to the og.

@@ -193,3 +193,9 @@ correct behavior; no fix is needed. The finding is recorded for:
 ## Open questions
 
 None. The deliberate superset is documented; no further RE needed.
+
+## Resolution
+
+**Status:** ACKNOWLEDGED
+**Verified by:** first-hand code re-read (all four ext4 slots populated via decode_extra; the HFS+/Btrfs og sites carry only three conversions each per the cited decodes; the core fills created/modified/changed/accessed for all three engines).
+**Resolution notes:** Deliberate superset, preserved. The core reads atime/crtime (ext4), access_date (HFS+), otime/crtime (Btrfs) that the og never assigns; the extra slots surface in results and reports. Bench comparisons must field-mask the extra slots, not treat them as divergences.

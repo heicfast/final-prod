@@ -75,3 +75,9 @@ None (register).
 ## Open questions
 
 None.
+
+## Resolution
+
+**Status:** ACKNOWLEDGED
+**Verified by:** kMaxRead 4 MiB / kMaxDecode 256 MiB confirmed in cr_preview.h this session; the og's socket-protocol constants (602-byte MediaInfo, 10 s bounded wait, ports 20171/20172, 100 MB UI cap) are recorded in the finding so parity tests target the right layer.
+**Resolution notes:** Deliberate architectural difference, preserved: the og previews through a UI-layer ZeroMQ media-agent child process; the core's in-process bounded reader is the engine-side equivalent. The reference constants stay registered for the day a UI layer exists. No core change.

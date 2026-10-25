@@ -95,3 +95,9 @@ None beyond the existing RAID-5 tests (they already pin the enabled-mode mapping
 ## Open questions
 
 None.
+
+## Resolution
+
+**Status:** ACKNOWLEDGED
+**Verified by:** first-hand corpus re-read (the constructor at :68942 is the ONLY write to the rotation selector this+0x2a8 in the 91,475-line decompile - initialized 0 = left-symmetric; the core implements that mode) + the cr_ldm.cpp RAID-5 mapping/stripe machinery confirmed in-tree.
+**Resolution notes:** Deliberate minimalism, preserved: the og's three unselectable rotations (dead switch paths) are NOT ported; the enabled mode is a proven MATCH. If a future corpus revision surfaces volumes using another rotation, re-visit; until then porting dead og switches would be untested code.

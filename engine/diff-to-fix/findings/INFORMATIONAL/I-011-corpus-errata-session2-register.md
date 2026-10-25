@@ -18,3 +18,9 @@ Session-2 exhaustive decompile reads contradicted eight corpus artifact claims. 
 **CORRECTIONS.md fold-in status (session-1's 8 rows):** rows 2/3/4/6/7/8 folded into verdicts; row 1 (MSVC string-dtor artifact) moot — no verdict depends on it and the core has no 0xFFF resident gate; row 5 partially folded — `modules/visualization.md:16/:33` still quotes the stale "og 8/1489" figure (fix those two lines when the module file is next touched).
 
 **Action:** file as an errata PR against the research corpus (out of this repo's write scope); meanwhile every session-2 finding cites the decompile, not the corrected artifacts.
+
+## Resolution
+
+**Status:** ACKNOWLEDGED
+**Verified by:** the eight corrections cross-checked against diff-to-fix/CORPUS-ERRATA.md (rows present; the session-2 register mirrors the corpus-side CORRECTIONS.md the read-only repo carries).
+**Resolution notes:** Corpus-side errata register, acknowledged as evidence-quality maintenance: future sessions must cite the CORRECTED facts (flags 0x10 = DIRECTORY; pass 2 parses GUID-dump contents not the live MFT; small records are DESTROYED not kept; HFS+ journal magic 0x4a4e4c78 little-endian). Items 1-3 fed S-001/S-012 and are now embodied in those findings' resolutions; no core change.

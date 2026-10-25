@@ -6749,3 +6749,31 @@ Stage Summary:
 - The ReFS engine tier is COMPLETE for the audit's findings: attribute layer (S-020/
   M-022), deleted model (M-026), object identity + recycle (M-027). Remaining ReFS
   items: N-036's container-map population (real-volume probe) + the OQ-2 dump.
+
+---
+Task ID: DF4-INFO-BATCH
+Agent: main engineer (diff-to-fix session 4)
+Task: The INFORMATIONAL tier — verify every open finding's deliberate-difference
+rationale first-hand and mark ACKNOWLEDGED (no code change unless a rationale broke).
+
+Work Log:
+- Read I-006..I-020 in full (I-001/I-002/I-003 were already ACKNOWLEDGED).
+- First-hand spot-verification of each claim against the tree and corpus:
+  ext4 nsec decode (decode_extra + unix_to_filetime_ns), the four-slot timestamp
+  population; the LDM RAID-5 rotation-selector single-write decode (constructor
+  :68942 — the only write to this+0x2a8 in 91,475 lines, value 0 = left-symmetric);
+  carve 1 MiB/4 KiB window constants + byte-stepped probing; scope-exclusion doc
+  lines; CORPUS-ERRATA rows; the ReFS one-stream premise (re-proved by the S-020
+  landing); the og GetVersion host gate vs the core's absence; preview caps
+  (kMaxRead 4 MiB / kMaxDecode 256 MiB); the 61-export flat ABI; cr_slice eager
+  validation; the NVMe route line-by-line (I-018 = positive MATCH); the
+  Ntfs2FAT/VolumeMerge/IMAPI2 absence grep; errata rows 37-42.
+- All 15 ACKNOWLEDGED with per-finding Resolution sections recording the
+  verification and the preservation mandate (never "fix" precision/scope DOWN to
+  the og). No rationale broke — no code changes.
+- SUMMARY continuation 3 records the INFO tier closure.
+
+Stage Summary:
+- INFORMATIONAL tier: 18/18 findings ACKNOWLEDGED (3 earlier + 15 this batch).
+  Session tally so far: S-012 (convergent), S-020, M-022, M-026, M-027, N-037,
+  N-036 (half), + 15 INFO acknowledgments.

@@ -86,3 +86,9 @@ M-045/S-006 (correction 6), S-023/OQ-S4-1 (correction 7), I-019
 ## Open questions
 
 None.
+
+## Resolution
+
+**Status:** ACKNOWLEDGED
+**Verified by:** CORPUS-ERRATA.md rows 37-42 present and cross-checked against the finding's six corrections (CTbFile = TB-scale disk-IMAGE abstraction; CFatVirtualView family = tool-ops virtualization; EFIBoot mechanism; Fixup binding; FATX naming; extension-table location/sorting).
+**Resolution notes:** Corpus-side documentation corrections, fed back via the errata register; no core change. Future sessions citing mo-module-map.md or Fixup.md must use the corrected characterizations. The OQ-S4-1 grading-table claims (".rdata"/"sorted string-map") carry the correction into that tracked item's evidence base.

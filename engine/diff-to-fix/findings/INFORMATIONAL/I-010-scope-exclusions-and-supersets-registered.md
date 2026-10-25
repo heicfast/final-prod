@@ -28,3 +28,9 @@
   PARITY-DELTAS and pin it so a future "og-parity only" toggle does not remove
   finds the og cannot make. (Renumbered into this register from the parallel
   leg's stand-alone I-010.)
+
+## Resolution
+
+**Status:** ACKNOWLEDGED
+**Verified by:** the cited doc lines re-checked this session (CAPABILITY-MATRIX scope rows, PARITY-CORE-REC:164 repair-chain exclusion, PARITY-DELTAS D-26 family).
+**Resolution notes:** Scope-exclusion registrations confirmed: cloud/NAS/repair-chain/WinPE-builder/installer/licensing/i18n/crash-reporter/runtime-families stay excluded with documented rationale; the engine supersets stay registered in PARITY-DELTAS. M-021 (carve-side video-repair HOOK) remains in scope as the finding itself notes - it is a pipeline hook, not the repair chain.

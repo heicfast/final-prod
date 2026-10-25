@@ -83,3 +83,9 @@ If note 1 lands: `Scan.ExcludeExt4`, `Scan.ExcludeZfs`.
 ## Open questions
 
 None.
+
+## Resolution
+
+**Status:** ACKNOWLEDGED
+**Verified by:** the flat C ABI (61 exports, version 1u) confirmed in cr_ui.h/cr_ui.cpp; the og's per-DLL factory/vtable contract and the FS-code spaces (btrfs 0xB, ext4 9, zfs 0xD) registered in the finding + engine-matrix artifact.
+**Resolution notes:** Deliberate architectural difference, preserved: in-process registry vs 10 lazily-loaded engine DLLs. The embedded decision item (engine-enable gates scanext4/scanzfs vs the core's always-on engines) is noted for the engineering team as a policy question, not a defect; the dead FS codes are registered. No core change.

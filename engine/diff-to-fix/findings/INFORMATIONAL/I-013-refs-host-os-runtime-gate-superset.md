@@ -62,3 +62,9 @@ None (no behavior to pin).
 ## Open questions
 
 None.
+
+## Resolution
+
+**Status:** ACKNOWLEDGED
+**Verified by:** first-hand re-read of FUN_1800010d0 :37-49 (GetVersion; major<6||minor<2 -> refuse) + grep-verified absence of any host-OS gate in the core refs module.
+**Resolution notes:** Deliberate portability superset, preserved: the core parses ReFS on any host (the Win7-inclusive posture cuts BOTH ways - Q70 keeps the import gate while the ReFS engine drops the og's Win8+ host gate). The gate exists og-side because ReFS client-read support is OS-gated; a user-mode parser has no such dependency. Future work must NOT add a host gate.
