@@ -120,3 +120,19 @@ behavior re-verified first-hand this session: `.rsf` name field is UTF-8
 MultiByteToWideChar/WideCharToMultiByte/CharToOem import (fresh binary scan).
 N-009c (CLI `--filter` mangling) is confirmed to reuse this decoder when
 that finding is remediated.
+
+## Session-2 main-auditor verification addendum (2026-10-25)
+
+Og-anchored end-to-end verification of this fix: `.rsf` record-4 names stay raw UTF-8
+(`rsf-format--scan-session.md:326`), and the og substitutes invalid bytes at
+display/restore via `MultiByteToWideChar(CP_UTF8=0xFDE9, dwFlags=0)`
+(`DRWUI_decompiled.c:534592-612` node names; restore path `:357527` → `:264664-694` →
+sanitize `:357536-545`). The core substitutes at scan time — same net effect for restored
+filenames (byte-identical for valid UTF-8, U+FFFD-substituted for invalid). Engine anchors
+re-verified: EXT4SearchDLL imports no conversion API (passthrough); ZfsSearchDLL has its own
+`MB2WC(0xFDE9,0,…)` site (`ZfsSearchDLL_decompiled.c:24985/:25014`, right after ZPL_CRTIME);
+BtrfsSearchDLL has NO conversion import (anchor NOT-FOUND — see OQ-S2M-2). Two residuals
+filed as N-029 (replacement-count policy: per-bad-lead + resync vs Windows
+maximal-subpart; substitution timing: core `.crsf` stores substituted names, og `.rsf`
+keeps original bytes). Cross-references the parallel leg's M-010 (ext4/Btrfs invalid-UTF-8
+name destruction) — the two findings describe complementary edges of the same decode story.

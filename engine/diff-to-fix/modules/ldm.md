@@ -110,3 +110,24 @@ No new ldm-specific findings in session 2. The session-1 verdicts
 stand. Session 2's parallel agents re-verified the architecture parameters
 (R54-R58) and safety parameters (F60-F64) cross-cuttingly; no new
 ldm-specific divergences surfaced.
+## Session-2 update (2026-10-25, core `e93decf`)
+
+**Verdict changes (quotes in `../evidence/decompiled-quotes/ldm-raid5-and-scoring.md`):**
+- **OQ-T7 RESOLVED — MATCH (safety-critical closure):** og RAID-5 rotation is hardwired
+  layout 0 = LEFT-SYMMETRIC (ctor zeroes the selector; SPEC copy never reaches it; no other
+  writer); core's formula is identical (parity col, data col, member offset, degraded-XOR set).
+  **No transformation needed.** Interleave both config-driven from the component VBLK.
+- **B1/C20 → M-016 (new):** TOCBLOCK candidates — og {config+2, config+0, config+1}
+  first-valid-wins vs core {+1, +2, +2045, +2046}: config+0 missed by core, tail copies are
+  a core superset, conflict preference +2 vs +1.
+- **N-025 filed:** config-size gate (og rejects ≥ 1 MiB; core clamps 4 MiB) and RAID-5
+  zero-interleave default (og 64 KiB; core refuses chunk==0).
+- **M-002 note:** EBR torn-chain policy NOT re-verified this session (stays open with
+  session-1 evidence; decompile locations now mapped for the next pass).
+
+### Session-2 addendum (post-reconciliation)
+Cross-references to the parallel legs' LDM findings: A-002 (the 1cb6a43 LDM-GUID regression,
+executed proof, restore landed `23adad1`), A-003 (fix --part LBA-0 basis, FIXED), I-008
+(the og's rotation modes 1-3 are dormant dead code — consistent with this leg's
+hardwired-layout-0 finding; OQ-T7 RESOLVED-MATCH). This leg's active LDM items: M-016
+(TOCBLOCK candidates) + N-025 (config-size + zero-interleave geometry).

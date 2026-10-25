@@ -43,3 +43,14 @@ No new abi-specific findings in session 2. The session-1 verdicts
 stand. Session 2's parallel agents re-verified the architecture parameters
 (R54-R58) and safety parameters (F60-F64) cross-cuttingly; no new
 abi-specific divergences surfaced.
+## Session-2 update (2026-10-25, core `e93decf`)
+
+- **S-009 remainder lands here:** the disk-map ABI (`cr_ui_disk_map`, geometry + 4 overlays)
+  exists and follows ABI-CONTRACT §7's shape, but §7's "state 2 free" no longer matches the
+  ABI enum (`cr_ui.h:474-75`) and §"3 bad" semantics conflate FS-marked bad with retry-layer
+  ranges — doc must be reconciled when the engine-bitmap wiring lands.
+- **A-004 is an ABI-contract finding:** `set_event_sink` post-construction subscription is
+  violated for ErrorRange events — the ABI surface shape (P42/R56) is correct, the delivery
+  is not.
+- N-011e: og error facility codes (0x2980005 family) vs core `cr::Err` — a consumer-facing
+  mapping table belongs in ABI-CONTRACT (registration item).

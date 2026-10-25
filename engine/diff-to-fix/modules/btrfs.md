@@ -88,3 +88,18 @@ Core (audited commit `67193b6`): `src/core/btrfs/cr_btrfs_engine.cpp` (799 LOC) 
 | ID | Severity | One-line |
 |---|---|---|
 | I-007 | INFO | Core reads 4 timestamps (incl. otime→created), og reads 3 (otime dropped) |
+## Session-2 update (2026-10-25, core `e93decf`)
+
+**Verdict changes (quotes in `../evidence/decompiled-quotes/btrfs-zfs-refs-session2.md`):**
+- **B2/B1 → M-020 (new):** og has chunk-profile machinery — RAID10 geometry gate, 2-copy
+  (DUP/RAID1/RAID10) **rotating-mirror** logical→physical resolution, per-node error-map
+  integration; core is stripe-0-only. Default-subvolume pick ("default" DIR_ITEM hash
+  0x8dbfc2d2, root-5 fallback) vs core synthetic `subvol-<id>`.
+- **I-003 re-confirmed with exact quotes:** mirror-0 magic miss ABORTS the SB loop
+  (`:10311-12`); core probes all mirrors = superset (registered).
+- **N-006 re-confirmed with doc-drift note:** nodesize band upper bound is **inclusive**
+  [0x86, 0x10000] (`:10301`) — session-1's "(…+0xFF7B)" text drift only.
+- **B3 phrasing corrected:** neither og nor core validates node-header crc32c (core uses
+  bytenr/fsid/chunk-tree-uuid identity gates; no crc32c immediates in the og DLL either).
+- **S-005 og-anchor for Btrfs: NOT-FOUND** (no conversion import in BtrfsSearchDLL) —
+  tracked in OQ-S2M-2.

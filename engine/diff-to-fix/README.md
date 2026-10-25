@@ -134,3 +134,36 @@ tests) where feasible — logs in `evidence/executions/`.
   `findings/FIXED/RESOLVED-INDEX.md`).
 - **Top priority for next remediation wave:** S-010 (safety regression on
   the repair path) — see SUMMARY.md recommended fix order.
+
+---
+
+# Third leg — main-auditor (session 2, 2026-10-25): the decompile-exhaustive pass
+
+**What this leg added** (on top of the two prior session-2 legs): the exhaustive reads of
+the decompiled trees that session 1 only spot-checked (NTFSSearchDLL two-pass architecture,
+FAT/exFAT mirror+windows+validators, EXT4/HFS+ journal+decmpfs payloads, Btrfs/ZFS/ReFS
+labels/profiles/pages, RAWSearchDLL dispatch+signatures, RawFixer 33-method repair set,
+LdmManager RAID-5+TOCBLOCK+SPEC, DRWUI scoring+restore naming, NTFSLib boot ladder,
+BitLocker DRWService/bitlockerhelp paths), a 424-file cited-vs-uncited corpus coverage
+sweep, independent first-hand re-verification of every ACUTE/SEVERE claim, and a 282/282
+Linux suite run at the audited commit (`evidence/executions/build-suite-session2.md`).
+
+**IDs are renumbered past both prior legs:** A-004 · S-012/S-013/S-014 · M-011..M-021 ·
+N-023..N-029 · I-009/I-010/I-011 · tracked-open OQ-S2M-1/OQ-S2M-2. One candidate was
+**retracted by this leg's own re-verification** (exFAT fixer checksum predicate — core
+MATCH, see `modules/exfat.md` and the evidence correction) and one of this leg's earlier
+notes was corrected (A-001's LDM half — the parallel leg's executed proof wins; recorded in
+`findings/FIXED/A-001-*.md`).
+
+**Verified tree facts for whoever executes next:**
+- **A-002's constant restore has still not landed** — `cr_table_wire.h:87-89` carries the
+  fabricated LDM GUIDs with comments claiming Microsoft identity (checked at `34b3441`).
+- The `fb44073` N-003 fix's `validate_entry_sets = false` default rests on a refuted
+  premise — the og DOES validate (dual-form, incl. deleted sets); M-013 carries the fix.
+- S-001's destroy rule is mis-scoped (S-012): one flag flip restores og pass-1 membership
+  parity today; the GUID-dump pass 2 is the real missing feature.
+
+Navigation: `SUMMARY.md` (third-leg close-out section at the end) · `CROSS-REF-MATRIX.md`
+(main-auditor leg cell table) · `findings/FIXED/RESOLVED-INDEX.md` (this leg's verification
+addenda) · `evidence/decompiled-quotes/*session2*` + `ntfs-pass2-guid-dump.md` +
+`ldm-raid5-and-scoring.md` (the quote sheets).

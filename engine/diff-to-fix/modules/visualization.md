@@ -40,3 +40,21 @@ No new visualization-specific findings in session 2. The session-1 verdicts
 stand. Session 2's parallel agents re-verified the architecture parameters
 (R54-R58) and safety parameters (F60-F64) cross-cuttingly; no new
 visualization-specific divergences surfaced.
+## Session-2 update (2026-10-25, core `e93decf`)
+
+- **S-009 PARTIALLY FIXED by 56cce87:** geometry/overlays/bad-ranges/zoom/64 MiB budget +
+  `cr_ui_disk_map` ABI landed with tests; the finding's own plan items remain open — engine
+  bitmaps not wired into the producer (`kCellAllocFree` unreachable; allocation overlay is
+  active-structured-only, `cr_diskmap.cpp:64-68`), no versioned CRSF disk-map record, snapshot
+  path carries no error map, two acceptance tests absent, ABI-CONTRACT §7 "2 free" doc drift.
+- Stale figure note (I-011, CORRECTIONS row 5 residue): lines 16/33 of this file still quote
+  the old "og 8/1489" count — update to the corrected 1,481 figure when this file is next
+  edited for the S-009 remainder work.
+- M-006 (fuzz CI) unchanged/open.
+
+### Session-2 addendum (post-reconciliation)
+**M-006 is now FIXED** (`e30b84d` re-enabled the fuzz job; verified on the current tree) —
+the line in the appended session-2 section above saying "M-006 (fuzz CI) unchanged/open"
+predates that fix landing and is superseded. Only the S-009 disk-map remainder stands
+(bitmap wiring → `kCellAllocFree`, CRSF record, snapshot error map, acceptance tests,
+§7 doc reconciliation).

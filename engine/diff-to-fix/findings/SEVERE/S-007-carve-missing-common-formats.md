@@ -104,3 +104,35 @@ carve results for all of them in the og and **zero** of them in the core.
 
 The og's dispatch order (u16 → u32 → raw_signs) is corpus-INFERRED (OQ-T8); the coverage
 gap here does not depend on it.
+
+## Session-2 update (2026-10-25) — signature payload completed, both directions, dispatch resolved
+
+The full decompile read of RAWSearchDLL (main-auditor leg; quotes in
+`../evidence/decompiled-quotes/carve-rawfixer-bitlocker-session2.md`) upgrades this
+finding's evidence:
+
+**All 8 session-1 formats confirmed present in the og registry and absent from the core**
+(GIF `47 49 46 38` u32 0x38464947 `:2009`; BMP `42 4D` u16 `:2898`; headerless MP3
+MPEG-sync family `FF F2..FF FF`/`FF E2..FF E7` `:2565-2721` + 2-consecutive-frame grammar
+`:37152-92`; AAC ADTS `FF F1`/`FF F9` `:2761/2775`; RTF `7B 5C 72 74` u32 0x74725c7b
+`:2087`; OLE `D0 CF 11 E0` `:2341` + Word6 `DB A5 2D 00`/`94 A6 2E 00`; MPEG `00 00 01 B3`/
+`00 00 01 BA` `:1843/1851`; DWG `41 43 31 30` "AC10" u32 0x30314341 `:1997`).
+
+**~26 additional og-only formats session 1 missed, all decompile-verified:** CHM `ITSF`;
+AU `.snd`; MIDI `MThd`; APE `MAC `; dBase `C5 D0 D3 C6`; EPS `%!`; DXF `"  0\r"` 0xd302020;
+DMG `BZh1`; SWF; TAR; LZH `E4 52 2C 7B`; WPG; PSP `Pain`; **3DS `MM`** (`:2885-88` — the
+census artifact's "MM = TIFF-BE" is an erratum, see I-011); MRW `II\x1A`/`MM\x1A`/`\0MRM`;
+X3F `FOVb`; HLP `3F 5F 03 00`; ICO/CUR `00 01 00 00`/`00 02 00 00`; WMF/EMF `01 00 09 00`
++ `D7 CD C6 9A`; TTF; WPD; MNY `MS`; MDB `00 01`; MTS/M2TS; 3GP; AIF/AIFF `FORM`; AEP; GPX;
+VCF; HIK/POS/OSP/HFP; FCPEVENT; RealMedia `.RMF`; OGG `OggS`; MXF `06 0E 2B 34`;
+HTML/XML/SVG `<h`/`<H`/`<!`/UTF-16 `FF FE`/`<?xm`/`<svg`; gzip `1F 8B`; StuffIt `Stuf`;
+CAB lowercase `mscf`; Dbx `JMF6`/`FE 12 AD CF`/`F7 89 34 2C`. **One core-only superset:**
+ISO9660 `CD001`@0x8001 — the og cannot carve ISO images at all (informational; register).
+
+**Dispatch resolved (OQ-T8):** sector-aligned probing only (headers starting mid-sector are
+invisible to the og — the core byte-steps and is a detection superset, registered I-009);
+3-layer first-accept-wins (u32 RB-tree → u16 multimap → list sweep), per-key
+modern→legacy analyser chains, no cross-layer overlap resolution; **carve is
+allocation-bitmap-gated when a bitmap exists** (`:9446-60` — decompile-proof for M-005).
+ZIP validator semantics corrected in N-027d (padding inversion + two-tier version gates).
+Fix-plan ordering note: implement the missing formats with the og's exact bytes above.

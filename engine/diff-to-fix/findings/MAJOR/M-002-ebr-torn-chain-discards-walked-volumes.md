@@ -97,3 +97,10 @@ logical volumes in ours.
 ## Open questions
 
 None.
+
+## Session-2 note (2026-10-25)
+
+Not re-verified this session: this leg's partition agents closed OQ-T7/T9 + TOCBLOCK +
+geometry edges first and did not reach the EBR extended-chain walk. Stays open with its
+session-1 evidence; the LdmManager/PartitionRecovery decompile locations are now mapped
+(`../evidence/decompiled-quotes/ldm-raid5-and-scoring.md`) — prioritize alongside M-016.

@@ -48,3 +48,10 @@ Core (audited `67193b6`): `src/app/rrecov.cpp` (1,498 LOC).
 | ID | Severity | One-line |
 |---|---|---|
 | N-020 (partial) | MINOR | cli.md commands list + exit codes conflate; verify/query are API-only |
+## Session-2 update (2026-10-25, core `e93decf`)
+
+- **N-009c group gains a neighbor:** A-004's sink mismatch is reachable from any embedder
+  that wires events post-construction the way the CLI/ABI docs describe — the CLI's own shim
+  sets both sinks and is unaffected; CLI verdicts unchanged otherwise.
+- RawFixer remains manual-CLI only (`rrecov.cpp:1388/1431`) — S-008's pre-scan wiring gap is
+  CLI-visible (no `--auto-fix` story yet); note for the S-008 fix plan.

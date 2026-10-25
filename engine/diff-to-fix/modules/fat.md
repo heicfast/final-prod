@@ -122,3 +122,28 @@ Core (audited commit `67193b6`, includes concurrent GAP-S6-1/S6-2 fix `9fc82b0`)
   in memory at construction (single bulk read, `:44687-44781`) with per-flavor
   cluster-count sanity windows.
 - **OQ-T2 RESOLVED** (see `tracked-open/OQ-T2-T5-...md`).
+## Session-2 update (2026-10-25, core `e93decf`)
+
+**Verdict changes (decompile-exhaustive; quotes in `../evidence/decompiled-quotes/fat-exfat-session2.md`):**
+- **A27/B2 → M-012 (new):** mirror policy — og trusts primary on ANY non-zero answer (BAD
+  included), scrutinizes mirror answers (shifted-copy/cross-link rejects), has a mirror-only
+  mode; core consults mirror on BAD, accepts unscrutinized, fails the volume when FAT1 is
+  unreadable.
+- **B1/S35 → M-011 (new):** table-size windows — og FAT32 spf up to 300 MiB (FAT16 ≥ 12
+  sectors); core rejects > 16 MiB (volume-scan failure class).
+- **B1/B3/A27 → M-015 (new):** og validates loaded tables (media 0xFFFFFFF8 canonical,
+  cross-link wholesale rejection, 98% watermark); core loads unvalidated.
+- **N-002 confirmed** (mechanism corrected — core's 0x0FFFFFFF mask vs og raw + walker bound).
+- **I-002 confirmed verbatim** (FAT12 0xFF7 raw). **OQ-T2 RESOLVED** (see tracked-open/resolved).
+- **N-010a/b/c/f filed** (flavor boundary 65524, BPB string/bps/spc gates, dentry date sanity,
+  mid-chain FREE/BAD handling).
+- **Matches confirmed:** EOC-family walker bounds at the directory level, cancel cadence,
+  '.'/'..' anchors, LFN slot gate.
+
+### Session-2 addendum (post-reconciliation)
+Cross-references: N-010 (BAD-sentinel ordering, parallel leg, FIXED `cb8dafd` — distinct
+from this leg's N-023 group), N-021 (invalid-date filetime, parallel leg — distinct from
+N-023c's date-sanity dentry gate; both quote different code paths), N-022 (mirror-on-BAD,
+parallel leg — the consult-policy sub-case of this leg's fuller M-012), and the FIXED N-002
+(mask-24 family; this leg verified the behavior and corrected the citation — see the FIXED
+file's session-2 note).

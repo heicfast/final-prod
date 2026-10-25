@@ -167,3 +167,32 @@ test never fires in the og build; our single-map grading is not missing
 any og input. Downstream: bench comparisons should re-run `permanent_delete`
 (the finding's own note) — the og-side inventory no longer needs the
 PartiallyOverwritten exclusion under default flags.
+
+## ⚠ Session-2 discovery — the fix was implemented faithfully, but the finding's scope premise was wrong (2026-10-25)
+
+Session-2 decompile re-reads (main-auditor leg; quotes in
+`../evidence/decompiled-quotes/ntfs-pass2-guid-dump.md`) established that
+`FUN_18001acc0` — the destroy/viability loop this finding quotes — is **pass 2 of a two-pass
+architecture**: it parses the contents of *live GUID-named files* (MFT-record dumps matching
+`{3808876b-c176-4e48-b7ae-04046e6cc752}`) as MFT record buffers. The **main walk (pass 1,
+`FUN_180017cf0` → `FUN_180017390`) emits every deleted record from the live MFT with no
+viability grading and no destroy** (`:18630` unconditional emit; gates :18952-18955;
+deleted records merely marked, `:18562-66`).
+
+Consequences, filed as **S-012** (this leg's active findings — renumbered from the parallel
+timeline's S-010):
+1. The landed `destroy_fully_overwritten` rule in the core's *only* walk
+   (`cr_mftwalk.cpp:704`, default ON per `cr_mftwalk.h:54`) makes the core a **subset** of
+   the og on live-MFT deleted files — the og keeps and shows fully-overwritten deleted files
+   from the main MFT; the core now destroys them. Og-parity for the main walk = keep,
+   ungraded (flag OFF restores membership parity but keeps the extra grade).
+2. The destroy rule's og-faithful home is a *GUID-dump pass 2 the core does not have at all* —
+   a missing subsystem, not a policy flag (pass 2 also carries the per-run-entry viability
+   accounting, the 0x3ff destroy, the blanket-`$` filter, and the size-0 resident rescue).
+3. The og's pass-2 viability map is the pass-1 **claim map** (live+dir+deleted-size>0
+   extents), not the volume $Bitmap.
+
+This file stays in FIXED/ (the remediation implemented the finding's plan exactly, with the
+sparse-run sub-fix verified correct); S-012 carries the corrected model and the rework plan.
+The corpus docs that fed the original mis-scoping are recorded in I-011 (both NTFS artifacts
+describe pass 2 only).

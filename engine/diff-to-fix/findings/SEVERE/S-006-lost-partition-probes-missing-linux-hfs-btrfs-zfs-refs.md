@@ -100,3 +100,14 @@ names).
 The og's *scoring* internals (CalcPartition classes, AdjustPartitionInfoOrder ranking)
 remain corpus-undecoded (tracked-open OQ-T9); this finding covers the probe SET, not the
 scores.
+
+## Session-2 update (2026-10-25)
+
+The scoring half of the lost-partition story is now fully decoded by this leg: the og ranks
+candidates by content-driven ln(count)/ln(max) with per-FS weights, a search-DLL bonus, and
++500 for a partition-table match — see **M-017** (this leg; resolves OQ-T9 with a
+187-log-row-verified formula) and `../evidence/decompiled-quotes/ldm-raid5-and-scoring.md`.
+Implement M-017 together with the probe-family wiring this finding carries, so candidate
+content probes feed the og formula directly. The probe-family enumeration itself (Check* /
+CExtXBlockParser accept criteria, deep-scan grid constants) is still artifact-derived —
+unchanged from session 1's evidence.

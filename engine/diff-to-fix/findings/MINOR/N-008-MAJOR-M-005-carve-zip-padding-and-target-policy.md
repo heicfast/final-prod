@@ -84,3 +84,17 @@ unaffected.
 **Open questions (OQ-T8):** og dispatch order u16→u32→signs (INFERRED); og whole-device
 behavior when no bitmap exists (raw disks) — corpus suggests whole-region, consistent
 with the fix plan's step 2.
+
+## Session-2 housekeeping (2026-10-25)
+
+The **M-005 (carve bitmap gating) content** now has a canonical standalone file
+(`MAJOR/M-005-carve-bitmap-gating.md`) carrying the decompile proof this leg landed
+(`FUN_18000c820 :9446-60` bit test + cluster skip + dispatch suppression). The ZIP half of
+this group is refined by **N-027d**: the og's padding loop absorbs NON-EMPTY trailing
+sectors after a broken record chain (salvage, `:18462-500`) and never inflates clean
+archives; the core absorbs zero-16-byte-blocks after the EOCD (inflating intact ZIPs with
+zero slack); version gates are two-tier (quick `≤0x13 || ==0x62` at `:18288-96`;
+first-record LFH `≤10` + namelen ∈ [1..259] at `:18389-99`) where the core has none. OQ-T8's
+dispatch inference is resolved by this leg (u32 → u16 → list, first-accept-wins — the
+artifact's u16-first claim was wrong; see
+`../evidence/decompiled-quotes/carve-rawfixer-bitlocker-session2.md`).

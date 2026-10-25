@@ -102,3 +102,25 @@ double the offset); `ImageWriteDevice` opens at base 0. Undo logs — and
 documented contract. Proof: `RawFixer.RebasedPartitionPlanWritesAtDiskBasisNeverLba0`
 (disk LBA 0 byte-identical, partition-absolute landing, disk-absolute undo
 offsets). Finding + Resolution in `findings/FIXED/A-003-*.md` (renumbered from the local A-002 to clear the collision with the diff-audit-s2 leg's A-002 GUID-regression finding).
+## Session-2 update (2026-10-25, core `e93decf`)
+
+**Verdict changes (quotes in `../evidence/decompiled-quotes/carve-rawfixer-bitlocker-session2.md`):**
+- **S-008 evidence upgraded to the full 33-method og table:** CheckMFT (mirror-backed MFT
+  repair with disk write + spec-exact record sizing), CheckFatTable (FAT2→FAT1 disk-write
+  repair), UpdateDBR (main AND backup 12+12 sector rewrites from an 11-sector template),
+  FixByScanSector, TryFixFromSectorsPerCluster, CheckRootDir/CheckCluster/ReadCluster verify,
+  CopySectors snapshot + Undo on every path; consent = pre-scan DRWUI phase (no in-DLL prompt).
+- **Core state re-verified at `e93decf`:** still boot-sector-only (NTFS volume-end backup is
+  og-parity; exFAT backup-12 + checksum + SPC rederivation), still NOT wired pre-scan.
+- **N-017 filed (new):** og's ChecksumDBR predicate = no-skip ROL31 over sectors 0..10 vs the
+  core's shared spec-skip value — the fixer must use the og's predicate on repair writes
+  (OQ-T5's fixer-half resolution).
+
+### Session-2 addendum (post-reconciliation)
+- **S-008's wiring + method set landed** (`e0175b3`: pre-scan wiring + CheckMFT +
+  CheckFatTable + FixByScanSector) — this leg's appended section above describes the og's
+  FULL 33-method table for auditing completeness of that fix (remaining edges: backup-region
+  rewrite, ReadCluster verify, CheckRootDir/CheckCluster, N-025 geometry defaults).
+- **Retraction:** the N-017 candidate (checksum predicate divergence) is RETRACTED after the
+  main auditor's own decompile re-read (skip-table {106,107,112}; core MATCH). The parallel
+  leg's S-010 (write-path volume lock) is also FIXED (`3e34ed2` + follow-ups).

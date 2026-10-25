@@ -81,3 +81,13 @@ Core (audited `67193b6` + concurrent GAP-S6-7 in tree): `src/core/recovery/` (77
 | N-013 | MINOR | Destination overlap check optional (drive-letter only) + first-extent-only |
 | N-015 | MINOR | No disk-full pre-check or fast-fail (wasted cycles after ENOSPC) |
 | N-009d (refined) | MINOR | ACL drop is the only divergence (timestamps/attributes match og) |
+## Session-2 update (2026-10-25, core `e93decf`)
+
+- **N-016a filed:** U+FFFD replacement-count policy (core per-bad-lead + resync vs og's
+  Windows maximal-subpart via MB2WC CP_UTF8 dwFlags=0 on the restore path,
+  `DRWUI_decompiled.c:264664-94`/`:357529`) — restored filenames can differ in FFFD count;
+  fix = maximal-subpart decoder + restore from raw bytes (with N-016b).
+- Observation (owner note for N-009b/d): og restore-name sanitizer replaces `:?\|*><"`
+  including backslash → `#` (`:357536-545`); core's `sanitize_name` replaces 8 chars with `_`
+  and does NOT sanitize backslash — fold into the N-009 group when touched.
+- N-014b: carved-name split (`Carved%06u` vs `File%06u` inside one scan) — writer-visible.

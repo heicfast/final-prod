@@ -82,3 +82,15 @@ Core (audited `67193b6`): `src/core/session/` (721 LOC) + `include/cr/session/` 
 | ID | Severity | One-line |
 |---|---|---|
 | N-014 | MINOR | Stage checkpoint not atomic (truncate-then-write; previous destroyed on crash) |
+## Session-2 update (2026-10-25, core `e93decf`)
+
+- **N-016b filed:** core `.crsf` stores the U+FFFD-substituted name where the og `.rsf` keeps
+  the original on-disk bytes (substitution at scan vs display/restore) — add a versioned raw
+  name field for true round-trips of invalid-UTF-8 names.
+- **S-009 remainder:** the disk-map session record (downsampled copy, versioned) is still
+  absent — resumed sessions recompute at fixed 64 KiB cells.
+- **M-018 interplay:** the junk-filter policy choice determines what sessions persist (hide
+  at emission vs presentation-only) — register the choice before the session format gains
+  any filter-state fields.
+- Session lifecycle/crash-resume verdicts unchanged (S2-F sweep re-confirmed the og's
+  checkpoint cadence claims).

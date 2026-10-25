@@ -167,3 +167,22 @@ Safety posture preserved and extended (noted per mandate): the consent gate (S1)
 scan), transaction (S4) and verify (S5) all hold; S6's scope line was rewritten to include the
 two new mirror-backed restore families (FAT table copies, $MFT record 0 from $MFTMirr) while
 directory CONTENT stays unwritable by design.
+
+## Session-2 main-auditor leg — full 33-method og repair table for fix auditing (2026-10-25)
+
+`e0175b3` (pre-scan wiring + CheckMFT/CheckFatTable/FixByScanSector) verified as a
+substantial down-payment; the complete og set (RawFixer_decompiled.c, quotes in
+`../evidence/decompiled-quotes/carve-rawfixer-bitlocker-session2.md`) for auditing
+completeness: FixFromDBR (NTFS fallback = **last sector of volume** `:66010-14`; exFAT
+backup-12) · FixDBR in-place · **UpdateDBR: 11-sector template + sector-0 overlay, checksum
+fill-repeated, read-back verify, writes 12 sectors @LBA0 AND 12 @LBA12 (main AND
+backup)** `:11413-66` · FixByScanSector · CheckMFT (spec-exact record sizing `cpr<0 →
+1<<(-cpr&0x1f)` else `cpr*bps` `:67878-87`, mirror-backed repair, disk write) ·
+CheckBackupDBR (FAT sector-6) · **CheckFatTable (FAT2 mirror read at FAT1+spf, repair =
+WriteSector FAT2→FAT1)** `:60940-81` · CheckRootDir/CheckCluster · ChecksumDBR (predicate =
+ROL31+add skipping table DAT_180079a40 = {106,107,112} — MS-spec skip, core MATCH; this leg
+corrected its own earlier no-skip mis-read) · TryFixFromSectorsPerCluster · CheckMustBeZero ·
+CheckRoot · ReadCluster post-repair verify · CopySectors snapshot + **Undo on every path** ·
+consent = pre-scan DRWUI damaged-volume phase (no in-DLL prompt). Remaining edges if the fix
+aims at full parity: backup-region rewrite, ReadCluster verify, CheckRootDir/CheckCluster
+wiring, and N-025's geometry defaults (zero-interleave → 64 KiB).

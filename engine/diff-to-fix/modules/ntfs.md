@@ -233,3 +233,36 @@ by session 2's line-by-line decompile read. Three new findings + one minor:
 | N-001 | MINOR | $MFTMirr fallback hardcoded records 0..3 vs runlist span |
 | I-001 | INFO | Known-20 metafile filter vs blanket `$`-skip (deliberate, documented) |
 | OQ-T1 | ~~tracked-open~~ → FIXED | Secondary claim map semantics — moved to `findings/FIXED/` |
+## Session-2 update (2026-10-25, core `e93decf`) — decompile-exhaustive re-read
+
+**Verdict changes (decompile-verified; quotes in `../evidence/decompiled-quotes/ntfs-pass2-guid-dump.md`):**
+- **B1/B4/D15 → S-012 (SEVERE, new):** the og is two-pass — pass 1 emits every live-MFT
+  record (deleted included) **ungraded, never destroyed**; the viability/destroy/0x3ff machinery
+  lives in a **GUID-dump pass 2** the core does not have. The S-001 destroy fix (landed, moved
+  to resolved/) implemented a pass-2 rule in the core's only walk — mis-scoped; default flags
+  now make the core a subset of the og on live-MFT deleted files.
+- **B1 (metafile filter) → I-001 refined:** og pass 1 = 15-entry name table + SI
+  hidden+system; blanket-`$` is pass-2-only. Core's blanket-`$` skips live `$foo` files og
+  emits.
+- **B4 (viability accounting) → S-012:** og = per-RUNLIST-ENTRY, one probe at run START against
+  a pass-1 claim map (live+dir+deleted-size>0 extents); core = per-cluster vs volume $Bitmap.
+- **B5 (rescue) → S-012:** og rescues size-0 deleted records from MFT-copy resident data +
+  same-name merges; core has none.
+- **C19/C20 (boot ladder) → M-001 revised + N-011b:** og rejects cpr==0/0-result, no pow2, no
+  0x400 clamp, no 0xAA55; core pow2+clamp+%bps — two-sided divergence; the session-1 ladder
+  quote was mis-attributed (bytes-per-sector lines).
+- **N-001 CONFIRMED** (mirror capacity computed from mirror runlist, inclusive bound) +
+  **N-002 mechanism-corrected** (claim stands; evidence was FAT[0]/[1] signature probes).
+- **Matches confirmed:** SI-times precedence, $DATA size selection, compression/sparse flag
+  propagation, fixup apply/undo equivalence, single-FN pick (core namespace ranking = superset,
+  register).
+- **Open:** grading locus for UI "Recovery Chances" (OQ-S2M-1) + engine +0x258/0x259 defaults.
+
+### Session-2 addendum (post-reconciliation)
+Cross-references to the parallel legs' NTFS findings this leg did not file duplicates of:
+M-007 (hard-link fan-out: og one props per record vs core n-per-parent), M-008
+($ATTRIBUTE_LIST chase scope/depth superset), N-011 (ADS child nodes vs og drops), N-012
+(compressed/sparse flag source+mask) — all consistent with this leg's pass-architecture
+read (S-012: pass 1 emits one item per record; namespaces unranked; single-FN pick). The
+session-1 session-1 findings fixed in the meantime (N-001 runlist span, M-001 ladder) are
+verified in their FIXED/ files with this leg's decompile quotes.

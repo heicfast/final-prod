@@ -77,3 +77,17 @@ No new refs-specific findings in session 2. The session-1 verdicts
 stand. Session 2's parallel agents re-verified the architecture parameters
 (R54-R58) and safety parameters (F60-F64) cross-cuttingly; no new
 refs-specific divergences surfaced.
+## Session-2 update (2026-10-25, core `e93decf`)
+
+**Verdict changes (quotes in `../evidence/decompiled-quotes/btrfs-zfs-refs-session2.md`):**
+- **N-026 filed (new):** checkpoint body offset — og dynamic (`*(uint*)(page+4)`) vs core
+  hardcoded 0x50/0x56/0xA8; boot gates two-sided (og bps {256..4096} + cluster ∈ {4K,64K}
+  ONLY vs core bps {512,4096} + pow2 cluster); second-copy location og START+MID vs core
+  START+TAIL; volume-open read size (informational).
+- **N-007/I-004 re-confirmed verbatim:** first-DWORD page dispatch (`:11701`); 3.4+ version
+  gate; SUPB/CHKP constants byte-exact.
+- **GAP-S6-3 (landed fix) verified og-parity:** body-minor gate source (`minor >= 0xE →
+  0x58/0xA8` family) matches `:13744-56` — the fix's remaining edge is the dynamic body base
+  (N-013a).
+- **B4 og-boundary:** no deleted-grading classes exist in ReFSSearchDLL — core's
+  medium-allocator deleted grading remains a core-only feature (registered).

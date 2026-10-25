@@ -245,3 +245,78 @@ ext4/Btrfs invalid-UTF-8 finding (briefly M-007 in a local commit) renumbered to
 | N-010 | **CLOSED** (`cb8dafd`) | FUN_180041c80 re-read :54124-54137 (0xfff7 → 0xffffff7 → BROKEN); core CHAIN_BAD-before-reserved-range; pin green |
 | M-006 | **CLOSED** (`e30b84d`) | fuzz lane re-enabled in ci.yml :147-160 (codeql deferral documented) |
 | I-001..I-005 | **ACKNOWLEDGED** (`f74a5dd`) | rationale re-verified; pins UserFileNamedDollarNotHidden / Fat16BadClusterStillCanonical / Btrfs.MirrorSelectionNewestGeneration green; D-12/D-39/D-46/D-47/D-48a-c registered |
+
+---
+
+# Third leg — main-auditor close-out (session 2, 2026-10-25; core `e93decf` audited, tree re-verified at `34b3441`)
+
+The decompile-exhaustive pass session 1 never made (11 parallel read agents + main-auditor
+first-hand verification of every ACUTE/SEVERE claim), the 424-file corpus coverage sweep,
+and the post-closeout-code audit — re-applied onto this reconciled tree with IDs renumbered
+past the two prior legs (**A-004, S-012..S-014, M-011..M-021, N-023..N-029, I-009..I-011**,
+OQ-S2M-1/2; one candidate RETRACTED by this leg's own re-read).
+
+## Verification of this tree's state (read-only facts the roadmap needs)
+
+1. **A-002 is still UNFIXED on the current tree** — verified at `34b3441`:
+   `include/cr/table/cr_table_wire.h:87-89` still carries the fabricated
+   `{5808C8AA-8E9F-4C87-…}`/`{AF9B60A0-384E-4F7D-…}` LDM constants with comments claiming
+   `PARTITION_LDM_METADATA_GUID`/`PARTITION_LDM_DATA_GUID` identity (the real Microsoft
+   values differ in fields 2-3: `…-7E8F-42E0-85D2-…`/`…-1431-4F62-…`). `23adad1` filed the
+   proof and the regression fixture but the constant restore itself never landed (the
+   commit touches no source file). **A-002 remains the roadmap's #1 item** — agreed with the
+   third-leg close-out, now with a current-tree citation.
+2. **M-006 verified FIXED** (`e30b84d`; fuzz job re-enabled, codeql deferral documented).
+3. **The `fb44073` N-003 fix introduced a divergence:** its `validate_entry_sets = false`
+   default rests on a "verified-absence" premise the decompile refutes (`FUN_18001eba0` =
+   the dual-form checksum incl. deleted sets — quoted in the FIXED/N-003 note). Og parity
+   = validating; **M-013** carries the correct fix. Recommend scheduling it with the next
+   exFAT pass rather than leaving the false default.
+4. **S-001's landed destroy rule is mis-scoped** (S-012): og pass 1 emits every live-MFT
+   deleted record ungraded/undestroyed; the destroy+viability machinery lives in a
+   GUID-dump pass 2 the core does not have. First fix step is one flag flip (restore
+   membership parity); the real feature is pass 2.
+5. **Empirical:** full Linux suite at `e93decf` → **282/282 PASS** (this leg's own run,
+   Release build; `evidence/executions/build-suite-session2.md`). ASan build not runnable
+   in this container (memory reaping) — CI carries it.
+
+## Third-leg additions (all active; renumbered)
+
+| Severity | New IDs | One-liners |
+|---|---|---|
+| ACUTE | **A-004** | ErrorRange events fire through the config sink while the guard checks the live sink (latent null-call crash on the documented `set_event_sink` pattern) |
+| SEVERE | **S-012** | NTFS single-pass: og's GUID-dump pass 2 (viability/destroy/0x3ff/blanket-$) + size-0 rescue missing; destroy mis-scoped into the main walk |
+| SEVERE | **S-013** | exFAT: FAT > 32 MiB silently dropped → every FAT-chained file/directory truncates to one cluster (~34 GB+ volumes) |
+| SEVERE | **S-014** | BitLocker auto-unlock: wrong live registry path (Services vs Control) + offline-hive path absent + unassociated enumeration (F61 — never scored before) |
+| MAJOR | **M-011..M-015** | FAT table-size windows · mirror policy (subsumes N-022's sub-case) · exFAT dual-form checksums+oracle (supersedes N-003's premise) · exFAT structural gates · FAT table validation |
+| MAJOR | **M-016, M-017** | LDM TOCBLOCK candidates · lost-partition scoring formula (OQ-T9 resolved: ln(count)/ln(max), +500 table-match, count==1 quirk — 187-row-verified) |
+| MAJOR | **M-018..M-021** | FilterFolder junk filter · ZFS multi-vdev fallback + fletcher4/DVA-retry · Btrfs chunk profiles + default subvol · carve video-repair hook |
+| MINOR | **N-023..N-029** | FAT/exFAT gates · NTFS gates/fields · LDM geometry · ReFS pages · carve/writer · HFS+ sink/forks · U+FFFD residuals (cross-refs M-010) |
+| INFO | **I-009..I-011** | carve probing supersets · scope-exclusion/supersets register · corpus errata (8 claims; feeds CORPUS-ERRATA.md) |
+| tracked-open | **OQ-S2M-1/2** | NTFS grading locus (D15) · SearchDLL bonus setter / ZFS pool name / Btrfs anchor |
+
+**Retraction (recorded):** the exFAT fixer-checksum "no-skip" candidate — this leg's own
+decompile re-read found the skip-table {106,107,112} (`std::find == end()` over the
+−1-terminated `DAT_180079a40`); the core's spec-skip is a MATCH, the parallel leg's binary
+extraction was right. Corrected in `evidence/decompiled-quotes/fat-exfat-session2.md`.
+This leg also corrects its own first A-001 verification note (FIXED/A-001): the parallel
+leg's executed proof wins — recorded in place.
+
+**Direction corrections to prior findings (fix plans replaced in-place):** S-002 (og never
+decompresses decmpfs — size-from-attributes-tree + raw-rsrc content is the parity target;
+landed `c9e8860` should be audited against that boundary) · S-003 (journal =
+differential-salvage evidence vs the overlay model — both readings recorded, consumption-
+side quotes favor salvage) · S-004 residue (journal **inode-image salvage**, magic 0xf30a —
+not covered by `51ac671`).
+
+**Counts (all three legs combined, active):** 2 ACUTE (A-002, A-004) · 9 SEVERE (S-003,
+S-006, S-007, S-009-remainder, S-011, S-012, S-013, S-014 + S-010 per leg-3's table) ·
+17 MAJOR (M-002, M-005, M-007..M-021) · 24 MINOR files · 11 INFO · 2 new tracked-open
+files. FIXED/: 12 findings + all OQ-T1..T9 resolutions. **Recommended order unchanged at
+the top: A-002 (restore the real Microsoft LDM constants — still missing at `34b3441`),
+then A-004 + S-012 step 1 (both one-liners restoring crash-safety and og result-set
+membership), then S-013/S-014, then the leg-3 majors in M-011..M-021 order.**
+
+Read-only compliance held throughout: only `diff-to-fix/` + `worklog.md` written; the
+282/282 run was out-of-tree (Release); no source, test, build, workflow, or doc file of
+either repository was modified.

@@ -120,3 +120,30 @@ Core (audited commit `67193b6`): `src/core/exfat/` (2 files, 678 LOC) +
   exactly. Evidence: `evidence/decompiled-quotes/s2-exfat-checksumdbr.md`. Corpus erratum
   confirmed: rawfixer-v2--method-inventory.md S4's "bytes 11..209 + 510" is wrong.
 - **OQ-T5 RESOLVED** (see `tracked-open/OQ-T2-T5-...md`).
+## Session-2 update (2026-10-25, core `e93decf`)
+
+**Verdict changes (quotes in `../evidence/decompiled-quotes/fat-exfat-session2.md`):**
+- **B2 → S-013 (SEVERE, new):** FAT > 32 MiB silently dropped → every FAT-chained
+  file/directory truncated to ONE cluster. og = 1 MiB windowed reads, no cap.
+- **B3/B4/B5 → M-013 (new):** og validates entry-set checksums DUAL-FORM (raw + InUse-restored)
+  including deleted sets and uses them as a torn-set reconstruction oracle; core = live-only
+  downgrade. **N-003's corpus claim REFUTED** (superseded by M-013).
+- **B3/B4/B10 → M-014 (new):** structural gates missing (secondary_count ∈ [2,18], timestamp
+  sanity, stream fields non-zero → empty files dropped, name-entry validation, root triple).
+- **Stream-gate polarity re-confirmed** (core right, artifact wrong — `:1857-59` ↔
+  `cr_exfat_quick.cpp:343`). **OQ-T5 RESOLVED** (scanner never gates on boot checksum; fixer
+  predicate divergence → N-017).
+- **N-010d/e filed** (tz offset core-only; reserved-field byte-OR nuance). Matches: boot
+  ladder EXFAT-4, NoFatChain bit, EXFAT-2 assumed-contiguous semantics, checksum-sector
+  fill-consistency.
+
+### Session-2 addenda (post-reconciliation)
+- **Retraction:** the N-017 candidate (og fixer "no-skip" checksum) is RETRACTED — the main
+  auditor's own decompile re-read found the `std::find == end()` skip-table pattern over
+  `DAT_180079a40` = {106,107,112} (MS-spec skip); the core's spec-skip is a MATCH. Full
+  correction in `../evidence/decompiled-quotes/fat-exfat-session2.md`.
+- **Divergence introduced by the N-003 fix:** `fb44073` set `validate_entry_sets = false` on
+  a "verified-absence" premise that is refuted by the decompile (`FUN_18001eba0` = dual-form
+  checksum incl. deleted sets — quoted in `../findings/FIXED/N-003-*.md`). The og-parity
+  direction is validating, not skipping; M-013 carries the correct fix.
+- Cross-references: S-011 (tz, parallel leg — cross-confirmed) · M-013/M-014/N-023 (this leg).

@@ -41,3 +41,12 @@ per session 1's verdicts.
 ### Session 2 findings index (this module)
 
 (No new findings in session 2.)
+## Session-2 update (2026-10-25, core `e93decf`)
+
+- **F61 (BitLocker) — never scored by session 1 — now audited: S-014 (SEVERE)** (wrong live
+  registry path, no offline-hive path, unassociated enumeration). The module's F61 row moves
+  from unscored to S-014.
+- **F59/F60 re-verified MATCH** by the coverage sweep: driver-absent duality (EPRDTDRV probe →
+  direct PhysicalDrive fallback), PID token, 200-disk cap, IOCTL table; DiskHealth semantics
+  covered by the retry-layer error-map model.
+- N-009a unchanged.

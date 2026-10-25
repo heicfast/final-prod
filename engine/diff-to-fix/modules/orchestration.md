@@ -78,3 +78,17 @@ dedup), GAP-S6-13 (64 KiB transport envelope).
 |---|---|---|
 | N-016 | MINOR | emit_boundary_events_ double-call bug (telemetry inflation) |
 | N-017 | MINOR | Cancel watcher coverage inconsistent (carve has, orchestrator doesn't) |
+## Session-2 update (2026-10-25, core `e93decf`)
+
+**Verdict changes (post-closeout commits 56cce87/e93decf were never session-1-audited):**
+- **A-004 (ACUTE, new):** `emit_boundary_events_` guards on the live sink but delivers
+  ErrorRange through `cfg_.event_fn` (`cr_scan.cpp:309` vs `:340`) — latent null-call crash
+  on the documented `set_event_sink` pattern; in-tree `cr_ui` shim masks it.
+- **N-014a filed:** duplicate boundary emission at scan teardown (`:577-578`).
+- **M-018 filed:** og's default junk filter (FilterFolder.ini family, PushFolderFilter
+  wiring) has no core counterpart and was never registered.
+- **M-017:** og candidate scoring lives in DRWUI (content-driven) — orchestration-level
+  consequence: lost-partition ordering diverges.
+- **GAP-S6-10 typed event stream otherwise verified consistent** with the og's event-bus
+  model (granularity/payloads; the og's MO-layer progress weighting remains matched per
+  session-1 verdicts — no new deltas found in the MO sweep).

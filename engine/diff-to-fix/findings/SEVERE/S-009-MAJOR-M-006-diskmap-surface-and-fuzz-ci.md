@@ -111,3 +111,27 @@ parser code on every push (S-002 added an attribute-B-tree parser, S-004
 rewrote the jbd2 salvage, M-001 changed the bootstrap ladder: all inside
 the existing structure-aware harness surfaces). CodeQL stays deferred
 with the rationale documented in `docs/testing.md` per the fix plan.
+
+## Session-2 main-auditor leg update (2026-10-25)
+
+**M-006 (fuzz CI): FIXED by `e30b84d`** — verified on the current tree: the fuzz job's
+`if: false` is commented out with the M-006 marker (`ci.yml:147-148`); codeql remains
+deliberately deferred with its own documented comment. The M-006 half of this file is CLOSED.
+
+**S-009 (disk-map) remainder — unchanged and still open** after auditing `56cce87`
+(this leg audited the post-session-1 commits the first session never saw):
+1. Engine bitmaps not wired into the producer: the NTFS `VolumeBitmap` IS loaded and passed
+   to the walk (`cr_scan.cpp:706-707`) but the disk-map allocation overlay derives from
+   active-structured extents only (`cr_diskmap.cpp:64-68`) — **`kCellAllocFree` is never
+   produced**; the og's free/used distinction (`IBuildVolumeBitmap`,
+   `searchdll-family--architecture.md:31`) is unreachable in our map.
+2. No versioned CRSF disk-map record (`cr_records.cpp` has only the pre-existing
+   `serialize_error_map`); resumed sessions recompute at fixed 64 KiB cells.
+3. Snapshot path carries no error map (`cr_ui.cpp:525-27`): mid-scan maps (the og's
+   AnalysisGridWidget primary use, UIUX/04:110) can never show bad/unreadable cells.
+4. Acceptance tests from the original plan (`DiskMap_Ntfs_Allocated_Free_Regions`,
+   `DiskMap_Bad_Sectors_From_ErrorMap`) still absent; both existing tests pass
+   `bad_ranges=nullptr`.
+5. Doc drift: ABI-CONTRACT §7 "state 2 free" vs the ABI enum (`cr_ui.h:474-75`) and §"3 bad
+   (marked by the FS)" applied to retry-layer ranges.
+Items 1 and M-005 share one plumbing fix (BitmapProvider) — implement together.

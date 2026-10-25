@@ -78,3 +78,20 @@ DecmpfsDisabledLeavesEmptyShell green in the 313/313 ASan suite.
 **Resolution:** attributes B-tree leaf-chain walk; decmpfs modes 3/4 emit codec-tagged
 extents the writer inflates at recovery time; named attributes surface as
 `..namedfork/<name>` children (D-46 superset registered).
+
+## Session-2 main-auditor leg addenda (2026-10-25)
+
+The fixed findings above carry this leg's independent verification (and, in two cases,
+correction) sections appended in place:
+- **A-001:** my leg's initial verification note inverted the LDM-GUID conclusion; the
+  appended correction accepts the parallel leg's executed proof (A-002) and the
+  `23adad1` restore; the four non-LDM GUIDs + ESP-category verification stand.
+- **N-003:** appended note refutes the fix's "verified-absence" premise with the
+  `FUN_18001eba0` dual-form checksum quote — the og DOES validate entry sets (incl.
+  deleted); M-013 carries the correct parity fix.
+- **N-002:** behavior verified; citation corrected (:8030-48 is the lost-FAT region
+  signature validator; real termination evidence quoted).
+- S-001 carries the mis-scoped postscript (destroy belongs to the missing pass-2
+  architecture — S-012); S-005 the U+FFFD anchoring + N-029 residuals; S-002/S-004/S-008
+  the og-parity boundaries for auditing their landed fixes; M-001 the re-derived ladder;
+  N-001 the inclusive-bound nuance.

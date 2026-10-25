@@ -92,3 +92,29 @@ Core (audited commit `67193b6`): `src/core/hfsplus/cr_hfsplus_engine.cpp` (680 L
 | ID | Severity | One-line |
 |---|---|---|
 | I-007 | INFO | Core reads 4 timestamps (incl. access_date), og reads 3 (access_date dropped) |
+## Session-2 update (2026-10-25, core `e93decf`)
+
+**Verdict changes (quotes in `../evidence/decompiled-quotes/ext4-hfsplus-session2.md`):**
+- **S-002 DIRECTION CORRECTED:** the og does NOT decompress decmpfs (no zlib import at all) —
+  it surfaces compressed files with the TRUE uncompressed size (decmpfs header offset 8) and
+  content = raw resource-fork bytes (type 4) or nothing (type 3). Fix plan replaced:
+  metadata pass (UF_COMPRESSED flag 0x20 → rsrc fork data-run + size), not content
+  decompression.
+- **S-003 DIRECTION CORRECTED:** the journal is a **deleted-record salvage**
+  (GetDeleteRecord: live-tree differential → deleted records + extents/attributes harvest
+  maps, emitted with grade 5), NOT a replay/overlay. Magic 0x4a4e4c78, LE-only, JIB flags
+  bit 0, jhdr.size == JIB.size.
+- **B3/B5/B7 → N-028 filed** (dotfile/"HFS+ Private Data" sink filter; rsrc-fork superset
+  `..namedfork/rsrc`; 'prdf' 0x66647270 folderization).
+- **Matches confirmed:** VH gates/read offset, catalog leaf chain, extents-overflow key
+  {10,cnid,startBlock}, collation fold, names (UTF-16→UTF-8 with '_' fallback — an og nuance
+  the core lacks, cosmetic), 1904-epoch dates, N-005's extra bps bound is core-only (harmless).
+
+### Session-2 addendum (post-reconciliation)
+S-002's core half is FIXED (`c9e8860`); audit it against the og-parity boundary recorded in
+the FIXED file's session-2 note (og: decmpfs SIZE from attributes tree + raw-rsrc content
+for type-4, NO decompression anywhere, type-3 zero content — recovered-content beyond raw
+rsrc is a core superset to register). S-003 remains OPEN with two models on the table
+(differential salvage vs node-image overlay — see the S-003 session-2 note) plus the
+info-block-invalid raw-node salvage fallback both legs confirmed. N-028 carries the sink/
+fork minors.

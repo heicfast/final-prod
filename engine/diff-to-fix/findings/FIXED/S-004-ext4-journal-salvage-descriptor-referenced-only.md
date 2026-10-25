@@ -140,3 +140,20 @@ the magic), which is what recovers the escaped block's first dirent the
 og's raw parse loses. The self-contradictory D-07 comment was rewritten
 (step 4). Per-block cancel checkpoint matches the og's per-block cancel
 (:12234-12238).
+
+## Session-2 main-auditor verification + one residue (2026-10-25)
+
+`51ac671` (every block of the jsb-declared range + jsb gate) matches the og's pass-1 shape
+— re-verified from the decompile: `bswap(jsb+0) == 0xC03B3998`, blocktype ∈ {3,4},
+blocksize/jsb+0xC, start/jsb+0x14, then EVERY block from jsb.start in 1 MiB windows with
+per-block cancel (`EXT4SearchDLL_decompiled.c :12206-46`), pass 2 walking
+jsb.start..s_maxlen binding journal dir-block parents/names into the orphan sweep
+(`FUN_1800043f0 :3150-3170`). Two notes for the fix audit: (1) the og runs the journal
+passes in the **main scan** (healthy volumes too, `:2773/:2778`) — if the landed fix keeps a
+`root_lost`-only gate, that condition remains open; (2) **residue not covered by the landed
+fix: journal inode-image salvage** — the per-block recognizer scans non-dir blocks at
+inode-size strides for inode images (`i_size_lo != 0`, `flags & 0x80000`, extent-header
+magic **0xf30a** with `eh_entries != 0`, `:4419-20`) and copies 0x40-byte images into a
+salvage list (`:4514-40`). No core counterpart exists for that subsystem — tracked here
+rather than a new finding since it is the same journal machinery; implement alongside or
+file separately if it grows.

@@ -214,3 +214,22 @@ passes. Downstream doc corrections made in the same commit:
 `docs/parity/PARITY-CORE-REC.md` "GPT — LDM GUIDs" row (claimed MATCH with the
 wrong data-GUID text — now corrected), `AUDIT-PIPELINE.md` GPT recognition row,
 `docs/CAPABILITY-MATRIX.md` LDM row (GPT-dynamic discovery note).
+
+## Session-2 main-auditor leg — correction of my own earlier verification (2026-10-25)
+
+This leg's first verification note (drafted before the push that revealed the parallel legs)
+accepted the `1cb6a43` values as canonical — **that conclusion was wrong for the two LDM
+GUIDs, and the parallel leg's A-002 is right**: the pre-`1cb6a43` constants were the real
+Microsoft `PARTITION_LDM_METADATA_GUID`/`PARTITION_LDM_DATA_GUID` byte forms; the "canonical
+mixed-endian" values `1cb6a43` installed for those two were fabricated (they match no og
+binary — my own leg found them only in DRWUI's *legacy* registration path and mis-read that
+as provenance for the error, when it was actually evidence the og matches the REAL values
+in its active path). The parallel leg's executed proof (real GPT dynamic disks failing LDM
+discovery on the post-`1cb6a43` tree; suite fixture self-reference) is stronger evidence
+than my leg's static hand-decode, and the corpus-wins rule applies to my leg here: recorded
+so future sessions weight executed proofs over citation-reasoning in this corpus.
+The `23adad1` restore (pre-`1cb6a43` bytes + de-self-referenced tests) is the correct fix;
+the remaining four GUIDs (ESP/MSR/basic-data/BIOS-boot) in `1cb6a43` were byte-exact and
+needed no restore — my leg's og-binary scan (ESP disk-order hits ×8 binaries, MSR ×7,
+basic-data ×6, zero text-order hits) and the ESP-as-own-category confirmation
+(`DRWUI_decompiled.c:893855` +0xc4 flag) stand unchanged.

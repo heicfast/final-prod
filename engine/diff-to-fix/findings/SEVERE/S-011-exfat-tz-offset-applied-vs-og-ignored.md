@@ -229,3 +229,13 @@ output.
   doesn't take a position — engineering decides. A `--strict-utc`
   flag could be the escape hatch for users who want spec-correct
   timestamps at the cost of parity.
+
+## Session-2 main-auditor cross-confirmation (2026-10-25)
+
+Independently confirmed from a separate sweep of `exFATSearchDLL_decompiled.c`: zero
+`*900`/`*0x384`/`*3600` arithmetic patterns anywhere in the engine (the tz bytes at dentry
++0x16..0x18 are never read; the validators only sanity-check the timestamp fields —
+`FUN_180002f90 :1787-91`). The DRWUI-side conversion possibility this finding already flags
+remains the one open out (cross-listed in OQ-S2M-2 as a sibling probe). Adjacent gates from
+the same read are filed in N-023 (dentry date sanity, BPB string/bps/spc sets, reserved-field
+tests, mid-chain FREE/BAD handling) and M-014 (exFAT structural entry gates).

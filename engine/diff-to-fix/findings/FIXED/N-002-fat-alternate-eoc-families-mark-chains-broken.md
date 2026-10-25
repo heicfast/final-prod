@@ -118,3 +118,19 @@ chain. The single-entry approximation for the og's two-slot forms
 ((entry,next) pairs) is documented in the code comment as the finding's
 fix plan prescribed — our walker tests one entry at a time and the masked
 tests collapse the two-slot semantics.
+
+## Session-2 main-auditor verification + citation correction (2026-10-25)
+
+The landed `fb44073` behavior (mask-24 family + reserved range treated as chain end) is
+og-consistent — but the commit's citation (":8030-8048 chain termination") is mis-attributed:
+main-auditor first-hand read shows `:8012-8050` is the **lost-FAT region-signature
+validator** (candidate FAT[0]/FAT[1] word families: `DAT_1800704a0 & 0xfffffff` ∈
+{0xffffff8, 0xffffff0} with matching FAT[1] masks — region acceptance, not chain walking).
+The real termination evidence for the behavior: `CFAT32Table::Next` returns the raw u32
+(`FUN_1800419e0 :53958-61`), and the directory walker bounds at `uVar7 < 0xffffff8`
+(`FUN_18000fb80 :11231`) — any ≥ 0x0FFFFFF8 value ends chains cleanly, including high-bit-
+dirty forms. Sub-case for the record: the og's orphan-chain walk (`FUN_180031250 :39465-66`)
+terminates only on {0, 0x0FFFFFFF, 0x0FFFFFF8, 0xFFFFFFFF} (+2000-iteration cap) and would
+chase 0x0FFFFFF9-E as bogus clusters where the core canonicalizes them as EOC — opposite
+direction, registered only if orphan-chain parity ever matters. Evidence:
+`../evidence/decompiled-quotes/fat-exfat-session2.md`.

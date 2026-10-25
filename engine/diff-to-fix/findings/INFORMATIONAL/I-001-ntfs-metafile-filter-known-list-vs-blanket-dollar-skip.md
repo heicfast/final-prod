@@ -104,3 +104,20 @@ code-documented. Pin test `NtfsVolume.UserFileNamedDollarNotHidden` added
 (active `$notes.txt` must surface — guards against anyone "fixing" parity by
 restoring the blanket skip). Already registered: PARITY-DELTAS D-12 (known-
 metafiles + $I/$R remap). Future work must PRESERVE this divergence.
+
+## Session-2 refinement (2026-10-25) — both filters exist, in different passes
+
+The decompile shows the og uses BOTH policies, in different passes — which this finding's
+either/or framing missed: **pass 1** gates metafiles via `FUN_180034b20` = the 15-entry name
+table ($MFT/$MFTMirr/$LogFile/$Boot/$UpCase/$Quota/$ObjId/$BadClus/$Reparse/$Extend/$UsnJrnl/
+$AttrDef/…) **AND** the record's $STANDARD_INFORMATION hidden+system flags (`FUN_180044f60
+(flags&4)&&(flags&2)`); **pass 2** (the GUID-dump walk, see S-012) applies the blanket
+`name[0] == '$'` skip (`:21186`) plus `(flags&4) || !name`. `FUN_180006db0` additionally
+drops "$Tops"/"$TxfLog"/"$RmMetadata"/"$Repair" in props construction (:5295-5317). So the
+core's blanket-`$` skip matches the og's PASS-2 policy and is BROADER than pass 1's: a live
+user file legitimately named `$foo` is emitted by og pass 1 but skipped by the core.
+Falsifiable: `$foo` on a healthy volume → present in og results, absent in core's. Fix:
+move the core's main-walk filter to the name-table+hidden-system policy (keep blanket-`$`
+for any future dump pass). The acknowledged rationale this file's parallel-leg ACK records
+stands for the hidden/system pairing; this note narrows the remaining delta to the
+non-metafile `$`-prefixed live files. See S-012 for the pass architecture.

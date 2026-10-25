@@ -132,3 +132,28 @@ The corpus maintainers should:
 
 This file is append-only. Future audit sessions should add their errata
 candidates below this line.
+
+## Main-auditor leg addendum (session 2, 2026-10-25)
+
+This leg's independent errata register is filed as
+`findings/INFORMATIONAL/I-011-corpus-errata-session2-register.md` (8 corrected artifact
+claims). Overlaps with the register above are convergent reads; unique to I-011:
+- **NTFS pass-structure + 0x3ff semantics** — both NTFS artifacts describe
+  `FUN_18001acc0`'s loop as "the deleted-file pipeline" without noting it parses
+  GUID-dump contents (see S-012), and the artifacts' "small-files fast-path keep" is
+  actually a destroy fall-through (`:21208`/`:21256`).
+- **NTFS flags-0x10** — `ntfs-engine--deep-dive.md:77-80` ("in-use") vs
+  `ntfs-engine-algorithms-v2--deleted-viability.md:41` ("not a folder"): the decompile
+  settles it as the $FILE_NAME DIRECTORY bit (`FUN_180043700 :53481`, 0x10000000).
+- **ZFS argument order** — `zfs-vdev--mftmirr--calcpartition.md:13` swaps
+  `FUN_180018220(dev, &buf, 0x4000, 0x1c000)`'s arguments; the read is 0x1C000 bytes at
+  offset 0x4000, and "4 labels × 128KB" is contradicted (front region only).
+- **HFS+ journal magic** — session-1's guessed 0x6a6e6c78 → the real gate is raw
+  0x4A4E4C78 + endian marker 0x12345678 (`:13542-43`, LE journals only).
+- Plus: ZIP two-tier version gates; three carve-census mislabels (`MM`=3DS not TIFF-BE;
+  `DI`=MP3 not AIFF; `0xd302020`=DXF not MPEG sync); IOCTL 0x60002400 = GetProcName.
+
+Session-2 self-retraction recorded here for the corpus maintainers: this leg's earlier
+"fixer checksum = no-skip" reading was wrong — the skip-table {106,107,112} reading (the
+parallel leg's binary extraction) is correct; corrected in the leg's evidence files
+(`evidence/decompiled-quotes/fat-exfat-session2.md`).

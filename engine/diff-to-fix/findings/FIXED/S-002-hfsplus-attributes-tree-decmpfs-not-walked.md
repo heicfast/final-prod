@@ -126,3 +126,24 @@ on-disk semantics implemented: value = {magic LE, mode=4, uncompressed
 size u32 LE, resource-fork offset u32 LE}; the mode-3 zlib stream starts
 at value+12. HfsScanFlags::resolve_decmpfs/named_forks (default on) gate
 both surfaces.
+
+## Session-2 main-auditor leg — og-parity boundary for the landed fix (2026-10-25)
+
+For auditing `c9e8860` (modes 3 and 4) against og parity, the exact og behavior
+(`HFSPlusSearchDLL_decompiled.c`, quotes in `../evidence/decompiled-quotes/ext4-hfsplus-session2.md`):
+
+- The og does **NOT decompress** decmpfs data — **no zlib import in HFSPlusSearchDLL at
+  all**. UF_COMPRESSED (record byte 41 & 0x20) → the file's **size and data run are taken
+  from the RESOURCE FORK** (`FUN_180009940 :7666-80`), kind flag `|= 0x800` (`:7699-701`).
+- The attributes tree is consulted ONLY to fetch the decmpfs header's **uncompressed size**
+  (`FUN_180009c10 :7713-7859`: key "com.apple.decmpfs", keyLength 48, fork-8 search,
+  recordType 0x10 only, size at header+8, payload freed). Type-0x20/0x30 records rejected.
+- **User-visible og output:** type-4 (rsrc-stored) files → true uncompressed size, content =
+  **raw resource-fork bytes** (un-decompressed); type-3 (inline) files → true size, **zero
+  content**. Journal-harvested deleted attribute records serve as the fallback map.
+
+So: mode-4 content-as-raw-rsrc = og parity; mode-3 content recovery = core superset beyond
+og (register it in PARITY-DELTAS if the landed fix recovers content there); and the
+attributes-tree walk beyond the decmpfs key is og-absent (the og never enumerates other
+attribute names — a core superset wherever the walk surfaces them). See also N-028
+(dotfile/"HFS+ Private Data" sink filter, rsrc-fork child-node superset, 'prdf' folderization).

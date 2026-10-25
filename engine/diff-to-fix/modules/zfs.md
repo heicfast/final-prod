@@ -105,3 +105,27 @@ it is now FIXED and lives in `findings/FIXED/`.)
 - **B10 names** — the og converts at least one name path via
   MultiByteToWideChar(CP_UTF8, flags=0) (`:24985-25014`, FUN_18001c630) — supports
   M-010's parity verdict for the ZFS edge.
+## Session-2 update (2026-10-25, core `e93decf`)
+
+**Verdict changes (quotes in `../evidence/decompiled-quotes/btrfs-zfs-refs-session2.md`):**
+- **OQ-T6 RESOLVED:** og probes the FRONT label region only (112 KiB label @0x4000 + 128 KiB
+  ring @0x20000; no L1-L3); anchors on "vdev_tree"/"id" only (never name/version/guid);
+  newest-txg selection; core's label-field reads are a superset (registered, I-010).
+- **B1/B2 → M-019 (new):** multi-vdev — og attempts with first-entry fallback (never refuses),
+  verifies fletcher4 with next-DVA retry; core refuses (`vdev != 0`) and has **no checksum
+  verify / no DVA retry at all**. The session-1 B3 line "M checksum-aware reads" was WRONG for
+  the core — corrected here.
+- **D15-adjacent:** og grading = ZfsDecider txg-based block decisions (from_txg/birth_txg);
+  shared-controller grading is undecodable in the DLL (consistent with OQ-S2M-1).
+- **Matches confirmed:** DVA encoding (+4 MiB vdev skip), BPE embedded-block layout,
+  LZ4-with-BE-length compression site (core's codec registry = superset, registered),
+  "root_dataset" enumeration anchor, FS code 13.
+
+### Session-2 addendum (post-reconciliation — engaging the parallel leg's OQ-T6 stance)
+The parallel leg's OQ-T6 close-out calls the core's `unsupported_vdevs` refusal "the honest
+superset." This leg disagrees on parity grounds with quoted evidence: the og **attempts**
+foreign-vdev reads and falls back to the scanned disk (`FUN_1800168b0 :19544-56` — never
+fails), so mirror members read correctly and stripe members yield their local halves;
+refusing loses that partial yield. M-019 stands, with the fallback + fletcher4/DVA-retry
+payload; the disagreement is recorded for the fix session to decide (honesty-of-reporting
+vs recovery-yield). Label superset rows unchanged (I-010).

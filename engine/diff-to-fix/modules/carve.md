@@ -96,3 +96,18 @@ No new carve-specific findings in session 2. The session-1 verdicts
 stand. Session 2's parallel agents re-verified the architecture parameters
 (R54-R58) and safety parameters (F60-F64) cross-cuttingly; no new
 carve-specific divergences surfaced.
+## Session-2 update (2026-10-25, core `e93decf`)
+
+**Verdict changes (quotes in `../evidence/decompiled-quotes/carve-rawfixer-bitlocker-session2.md`):**
+- **OQ-T8 RESOLVED:** og dispatch = sector-aligned probing, 3-layer first-accept-wins
+  (u32 RB-tree → u16 multimap → list sweep), per-key modern→legacy chains, no cross-layer
+  resolution. Core byte-steps = detection superset (registered, I-009).
+- **M-005 now decompile-proven:** og bitmap-gates carve (bit test + cluster skip +
+  dispatch suppression); core has no gate — full standalone finding file created.
+- **S-007 evidence completed both directions:** all 8 session-1 formats confirmed +
+  ~26 additional og-only formats (bytes cited); ISO9660 is core-only (og cannot carve ISO).
+- **N-014d filed:** ZIP padding semantic inversion (og salvages non-empty trailing sectors
+  after broken chains, never inflates clean archives; two-tier version gates) — N-008 refined.
+- **M-021 filed:** video-repair pre-scan wiring absent (og loads EUVideoRepair.dll and runs
+  a per-candidate repair check).
+- **N-014b/c filed:** carved-name split inside the core; runtime per-format config surface.

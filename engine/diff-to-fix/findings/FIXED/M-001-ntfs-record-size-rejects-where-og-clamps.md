@@ -134,3 +134,16 @@ nothing); this is a recovery-availability superset over the og on that
 edge, registered in the same spirit as the I-001 superset. The
 RemnantReachable test proves the end-to-end availability claim (torn DBR →
 volume opens → remnant sweep runs → shifted-header remnant surfaces).
+
+## Session-2 main-auditor verification of `5d6da5f` (2026-10-25)
+
+The ladder the landed fix implements was re-derived from the decompile by this leg and the
+original finding's quoted evidence re-attributed: the session-1 lines cited as the og's
+record-size ladder (`:21130-37`) are the **pass-2 dump parser's bytes-per-sector
+acquisition** — the real semantics live in NTFSLib `CNtfsVolume::LoadNtfsVolume
+:19292-19344`: cpr i8@+0x40 negative → `(2^(-cpr))/bps` sectors, positive → `cpr×spc`
+sectors, **cpr == 0 or a 0-result → volume REJECTED** ("It is not a NTFS volume!");
+index-block byte +0x44 same pattern, 0 → reject; **no pow2 checks, no 0x400 clamp, no
+0xAA55 check**. Audit the landed ladder against those exact bounds (reject cpr==0 and
+0-results; do not clamp < 0x400; keep the core's device-size sanity as registered safety —
+the og lacks it). N-024a carries the two-sided boot-gate minors from the same re-read.

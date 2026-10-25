@@ -146,3 +146,32 @@ ring fixture). Estimated: one focused session.
 **Finding text correction:** the fix-plan's `magic 0x6a6e6c78` must read
 `0x4A4E4C78` (jnl.c JOURNAL_INFO_MAGIC, LE-stored) — the audit's value was
 wrong; corrected here per the corpus-wins rule.
+
+## Session-2 main-auditor leg — GetDeleteRecord differential-salvage reading (2026-10-25) — reconcile with the overlay model above
+
+This leg decoded the same journal machinery independently and read the CONSUMPTION side the
+overlay framing above does not cite. Quotes (`HFSPlusSearchDLL_decompiled.c`, full chain in
+`../evidence/decompiled-quotes/ext4-hfsplus-session2.md`):
+
+- `CHFSPlusJournal::GetDeleteRecord` = `FUN_180011300 :13637-14252`: ring walk from
+  `jhdr.start`, **LEAF nodes only** (kind == -1, `:13799`), per-block owning-fork
+  classification (:13809-17), and the deciding differential — for catalog leaves, the live
+  tree is searched and the record is kept **only if not-found or the fileID differs**
+  (`:13958-62`); extents entries not-found → volume+0x68 map (:13859); attribute records
+  not-found-live → volume+0x78 map (:14096).
+- Consumption `FUN_18000c8f0 :10017-10127`: the harvested records become FileNodes flagged
+  deleted and are **emitted with grade 5** (:10069, :10083); **the live catalog tree is then
+  walked unchanged** (:10122) — this line is the datum the overlay model must reconcile:
+  if journal blocks were overlaid onto the live tree, the post-harvest walk would not be
+  "unchanged". Extent/attribute harvests feed data-run and decmpfs-size **fallbacks**
+  (`FUN_180009f40 :7937-82`), not tree replacement.
+
+Both legs agree on: magic 0x4A4E4C78 LE + endian marker + size cross-check; ring arithmetic;
+per-entry cancel; the info-block-invalid raw-node salvage fallback (a real second behavior —
+this leg confirms it exists at `:1715-60` per the parallel leg's citation). The open question
+for the fix session is which model the *salvaged-node installer* (`FUN_180003ea0`, the
+parallel leg's "second installer") serves: delete-record construction or live-tree overlay.
+The consumption-side evidence above (:10083 emit-grade-5, :10122 unchanged walk) favors
+**differential salvage** as the primary user-visible behavior — recently-deleted files get
+surfaced with extents/sizes; the og never "makes live entries newer". Recommend the fix
+implement the differential first and pin `FUN_180003ea0` before any overlay work.

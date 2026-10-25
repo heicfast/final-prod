@@ -9,6 +9,11 @@ Legend: `M` = MATCH · `A-n`/`S-n`/`M-n`/`N-n`/`I-n` = finding ID (in
 - New finding IDs (session 2): S-010, S-011, M-007, M-008, M-009, N-011, N-012,
   N-013, N-014, N-015, N-016, N-017, N-018, N-019, N-020, N-021 (was N-010,
   renumbered to avoid conflict with parallel-leg's N-010), I-006, I-007.
+- New finding IDs (session-2 MAIN-AUDITOR leg, renumbered post-rebase to avoid the
+  collisions above): **A-004, S-012, S-013, S-014, M-011..M-021, N-023..N-029,
+  I-009, I-010, I-011**, plus OQ-S2M-1/OQ-S2M-2 (tracked-open). One candidate
+  RETRACTED by the leg's own re-verification (exFAT fixer checksum predicate —
+  core MATCH; see modules/exfat.md addendum).
 - New finding ID (parallel leg): N-010 (FAT BAD sentinel) — FIXED in same commit.
 - Resolved (moved to `findings/FIXED/`): A-001, S-001, S-004, S-005, S-008,
   M-001, M-006 (combined with S-009 — split tracked in N-020), N-002, N-003,
@@ -61,3 +66,43 @@ with pin tests, stay in INFORMATIONAL/).
 Group keys: B behavioral · D data model · C constants/formats · A algorithms ·
 S state machine · O orchestration · P API · X performance · R architecture ·
 F safety · Q quality (definitions in `PARAMETERS.md`).
+
+
+---
+
+# Main-auditor leg cells (session 2, third leg — decompile-exhaustive reads; core `e93decf` re-verified on `34b3441`)
+
+| Module | Parameter(s) | Verdict change (evidence in the finding + `evidence/decompiled-quotes/*session2*`) |
+|---|---|---|
+| ntfs | B1/B4/D15/A26/B5 | **S-012** — two-pass architecture: og pass 1 emits deleted ungraded/undestroyed; destroy+viability+0x3ff+blanket-$ live in the missing GUID-dump pass 2; size-0 rescue missing; S-001's fix mis-scoped (see FIXED/S-001 postscript) |
+| ntfs | C19/C20/D11/D12/B7/C23 | **N-024** (8.3 short-name field; two-sided boot ladder; pass-2 stride quirk superset; namespace-ranking superset; og error facility codes) |
+| fat | B1/S35/X49 | **M-011** (table-size windows: og FAT32 128 KiB–300 MiB, FAT16 ≥12 sectors; core 16 MiB reject = scan-failure class) |
+| fat | A27/B2/S35 | **M-012** (mirror policy: primary-wins-on-nonzero incl. BAD, scrutinized mirror answers, mirror-only mode; supersedes the N-022 sub-case) |
+| fat | B1/B3/A27 | **M-015** (og validates loaded tables: media-word canonical, cross-link wholesale rejection, 98% watermark) |
+| fat | B1/C19/C20/B3 | **N-023** (65524 flavor boundary; BPB FS-string/bps/spc-set gates; dentry date sanity; mid-chain FREE/BAD handling) |
+| exfat | B2/A27/X47 | **S-013** (FAT > 32 MiB silently dropped → 1-cluster truncation of every FAT-chained file) |
+| exfat | B3/B4/B5/D15 | **M-013** (og DOES validate entry-set checksums — dual-form incl. deleted sets + reconstruction oracle; refutes the N-003 fix's verified-absence premise; supersedes N-003) |
+| exfat | B3/B4/B10 | **M-014** (structural gates: secondary_count ∈ [2,18], timestamp sanity, empty files dropped, name-entry validation) |
+| hfsplus | B3/B5/B7/C20 | **N-028** (dotfile + "HFS+ Private Data" sink filter; `..namedfork/rsrc` superset; 'prdf' folderization) |
+| btrfs | B1/B2/A26/B5 | **M-020** (chunk-profile machinery: RAID10 gate, 2-copy rotating mirrors vs stripe-0-only; default-subvol pick) |
+| zfs | B1/B2/A25/D15 | **M-019** (multi-vdev: og attempts with first-entry fallback, fletcher4 verify + next-DVA retry; core refuses and never verifies — engages the parallel leg's "honest superset" stance with quoted evidence) |
+| refs | B1/C19/C20/A25 | **N-026** (checkpoint dynamic body offset vs hardcode; two-sided boot gates; second-copy location START+MID vs START+TAIL) |
+| table+ldm | B1/C20 | **M-016** (TOCBLOCK candidates: og {+2,+0,+1} vs core {+1,+2,+2045,+2046} — config+0 missed, conflict preference +2 vs +1) |
+| table+ldm | B1/A27/X49 | **N-025** (config-size gate; RAID-5 zero-interleave 64 KiB default vs core refusal) |
+| lost-partition | A30 | **M-017** (OQ-T9 resolved: og ln(count)/ln(max) content scoring, +500 table-match, count==1 quirk, AdjustPartitionInfoOrder rules — verified vs 187 log rows; core absolute points divergent) |
+| carve | B1/X47/X51 | **I-009** (byte-stepped probing = detection superset; block-shape constants) |
+| carve | B2-adj/R54/R57 | **M-021** (video-repair pre-scan hook absent) |
+| carve | D13/B10 | **N-027** (carved-name split inside the core; runtime per-format config surface; ZIP padding inversion + two-tier version gates — refines N-008) |
+| session | B10/D12 | **N-029** (U+FFFD replacement-count policy + substitution timing in saved sessions; cross-refs parallel leg's M-010) |
+| health | F61/B1 | **S-014** (BitLocker auto-unlock: wrong live registry path, offline-hive path absent, unassociated enumeration — F61 was never scored before) |
+| orchestrator | O38/P42/R56 | **A-004** (ErrorRange fires through the config sink while the guard checks the live sink — latent null-call crash) |
+| orchestrator/wide | B1/D16 | **M-018** (FilterFolder junk-filter family absent and unregistered) |
+| visualization | (S-009 remainder) | disk-map: engine bitmaps unwired (`kCellAllocFree` unreachable), no CRSF record, snapshot path no error map, 2 acceptance tests missing, §7 doc drift |
+| cross-cutting | Q68 (corpus docs) | **I-011** (8 corpus artifact claims corrected against the decompile; see CORPUS-ERRATA.md addendum) |
+| cross-cutting | Q68/Q46 | **I-010** (scope exclusions + supersets registered: cloud/NAS/repair/WinPE/installer/licensing/i18n; ZFS label-field superset; ext4 primary-SB-only = og parity) |
+
+**Retracted by this leg's own re-verification (recorded, not filed):** the exFAT
+ChecksumDBR "no-skip" candidate — the og's fixer skips {106,107,112} via a
+`std::find == end()` gate over the −1-terminated table at `DAT_180079a40`; the core's
+spec-skip is a MATCH (the parallel leg's binary extraction was right; this leg's first
+reading was wrong — corrected in `evidence/decompiled-quotes/fat-exfat-session2.md`).

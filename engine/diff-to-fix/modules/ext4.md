@@ -107,3 +107,25 @@ Core (audited commit `67193b6`): `src/core/ext4/cr_ext4_engine.cpp` (851 LOC) +
 |---|---|---|
 | I-006 | INFO | Nanoseconds superset (core preserves nsec; og drops to second-only) |
 | I-007 | INFO | Core reads 4 timestamps, og reads 2 (created/accessed dropped) |
+## Session-2 update (2026-10-25, core `e93decf`)
+
+**Verdict changes (quotes in `../evidence/decompiled-quotes/ext4-hfsplus-session2.md`):**
+- **S-004 CONFIRMED + mechanism refined + NEW subsystem:** og journal passes run in the MAIN
+  scan (healthy volumes too); pass 1 scans EVERY block from jsb.start (not
+  descriptor-referenced); jsb gates (magic 0xC03B3998 bswapped, blocktype {3,4}) — core gates
+  nothing; **journal inode-image salvage (extent magic 0xf30a, 0x40-byte image copy) has no
+  core counterpart** — filed inside S-004's session-2 update as the missing-subsystem item.
+- **S-005 (fixed) og-anchor re-confirmed:** EXT4 passthrough (zero conversion imports).
+- **Matches confirmed:** SB gate (`:3223` ↔ `:102-104`), **primary-SB-only is og parity**
+  (`:3303` — no backup probes; settles the CORRECTIONS row 4 question), 64-bit GDT, block-size
+  ladder, journal escape restoration (core strictly better, og-compatible), naming/cancel
+  discipline. BIGALLOC: og gate NOT-FOUND in detection; core refusal stays a registered
+  safety choice.
+
+### Session-2 addendum (post-reconciliation)
+S-004's core half is FIXED (`51ac671` — every-block + jsb gate, verified against the
+decompile in the FIXED file); the journal **inode-image salvage** residue (0xf30a) and the
+runs-in-main-scan condition remain open — see the S-004 FIXED file's session-2 note.
+S-005 (FIXED) og-anchor re-confirmed: ext4 passthrough. Parallel-leg cross-refs: I-006
+(nanoseconds superset), I-007 (timestamp breadth), M-010 (invalid-UTF-8 destruction —
+complementary to this leg's N-029).

@@ -69,3 +69,18 @@ No new lost-partition-specific findings in session 2. The session-1 verdicts
 stand. Session 2's parallel agents re-verified the architecture parameters
 (R54-R58) and safety parameters (F60-F64) cross-cuttingly; no new
 lost-partition-specific divergences surfaced.
+## Session-2 update (2026-10-25, core `e93decf`)
+
+**Verdict changes (quotes in `../evidence/decompiled-quotes/ldm-raid5-and-scoring.md`):**
+- **OQ-T9 RESOLVED — DIVERGENT → M-017 (new MAJOR):** og scoring decoded and verified against
+  all 187 CalcPartition.log rows: count = files + 50·folders (NTFS-family; FS==8 → f+10·d;
+  FAT → (f+d)·50) + per-FS bonus + **+500** on partition-table match; score =
+  **ln(count)/ln(maxCount)** (per-scan relative normalization); count==1 keeps numerator 1.0
+  (quirk). Core = absolute structural evidence points — ordering diverges on almost any
+  multi-candidate fixture.
+- **A29-adjacent → M-017:** AdjustPartitionInfoOrder post-hoc rules (0.1/0.3 gap keeps,
+  ~16 MiB over-large duplicate re-score + splice-to-front, FAT multi-child keep) — no core
+  counterpart.
+- **S-006 stays open** (probe families); its scoring half is now decoded — implement M-017
+  together with the probe-family wiring so candidate content probes feed the og formula.
+- **OQ-T9 residue:** bonus (+0x68) setter in the SearchDLLs unpinned → OQ-S2M-2.
