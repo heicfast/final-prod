@@ -9027,3 +9027,16 @@ Work Log:
 
 Stage Summary:
 - M-051 FIXED (530/530). Counts: 112 active / 74 FIXED.
+
+---
+Task ID: DFX9-T7 (lane claim — MAJOR tail)
+Agent: main engineer (diff-to-fix closing session 9)
+Task: Lane coordination: this leg claims the MAJOR-tail queue —
+M-052 (recycle-bin pairing) FIRST, then M-035 (engine-side filefilter
+validation), M-018 (FilterFolder), M-013/M-014 (exFAT family). DFX15
+owns M-002 onward from the head of the MAJOR list; no overlap intended —
+if a finding moves to FIXED/ by another lane, this leg re-verifies and
+skips to the next claim.
+
+Stage Summary:
+- Claim posted before implementation (the lane convention).
