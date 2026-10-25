@@ -4084,3 +4084,54 @@ Stage Summary:
   decompile re-read + Microsoft-documented values + whole-corpus absence of
   fabricated bytes). Fix next: restore constants, de-self-reference tests, add
   real-GUID positive + fabricated-GUID negative + GUID-text tests.
+
+  envelope - the GAP-S6-13 mandate holds repo-wide.
+---
+Task ID: HANDOFF (this leg's close-out)
+Agent: main engineer (diff-to-fix remediation, second parallel leg)
+Task: Session close — handoff with exact commits, remaining scope, next steps
+
+Work Log (this leg's landed work, all pushed to main with green CI):
+1. worklog/audit-trail repair: 1cb6a43's unresolved merge-conflict markers resolved (both
+   histories preserved); token hygiene verified repo-wide (worktree + full history).
+2. S-008 (SEVERE) FIXED: RawFixer pre-scan consent-gated wiring + the og's method surface
+   (CheckMFT with $MFTMirr restore, CheckFatTable sector-granular mirror restore,
+   CheckRootDir/IsValidRootDir/CheckRoot advisories, FixByScanSector bounded 64 MiB probe)
+   + CLI --repair/--repair-apply/--repair-undo + cr_ui ABI 1.2 consent surface. 16 tests,
+   fail-before proven; engine-boundary proof: torn $MFT record 0 -> NtfsVolume::open fails,
+   repaired -> opens. Commits: e0175b3 (+ CI follow-ups 0532415/8574039/fee4437/9d2cac2).
+3. S-010 (SEVERE) FIXED: volume quiesce on the repair write path — IWriteDevice
+   lock_volume/unlock_volume (S7), execute() lock-before-write + zero-write refusal,
+   Windows RwDevice runs the corpus RecoveryModule LOCK/DeleteMountPoint/Flush/settle/
+   verify/DISMOUNT sequence per mounted volume; finding's destination-lock bullet
+   CORRECTED against the corpus (destination open = writability+detection only).
+   3 tests, fail-before proven. Commits: 3e34ed2 (+ integration 414f56c + gates 34b3441).
+4. M-009 (MAJOR) FIXED: RwDevice::read_at routed through the GAP-S6-13 64 KiB envelope
+   (structural parity with the scan devices). Commit: 7fd00e0. CI green.
+5. CI red repairs (both legs' debt): missing <algorithm> (MSVC std::search), CRT
+   exclusive-open root cause (_wfopen_s -> _wfsopen _SH_DENYNO for image devices),
+   clang-format sweeps at the CI-exact 18.1.8, DeleteVolumeMountPointW allowlist entry
+   with reason, per the gate's documented process.
+6. Verified the parallel legs' landings locally at each rebase (S-005, S-001, M-001,
+   N-001, S-002, S-004, A-002, N-002/N-003, M-006, N-010, I-001..I-005): every integration
+   point re-ran the full suite (309 -> 313 -> 316 -> 317 green).
+
+Remaining scope (this leg's lane, NOT started - handed to the active s3/parallel legs
+per their claimed targets):
+- S-006 (lost-partition probe families: Linux/HFS/Btrfs/ZFS/ReFS) — the s3 leg's
+  CPartitionVirtualVolumeDevice deep-pass covers adjacent surface; the finding file's
+  fix plan (engine wiring only) remains the concrete next step.
+- S-007 (carve formats GIF/BMP/MP3/AAC/RTF/OLE/MPEG/DWG) — the s3 raw-signs deep decode
+  (bdcb77e, S-012/N-023/N-024/OQ-T8) is the correct prerequisite wave; the finding's
+  format list stands.
+- S-003 (HFS+ journal replay) — the prior leg deferred it with precise scope and a
+  first-hand decoded evidence addendum (b85c084); the next step is in that addendum.
+- S-009/S-011/S-012/M-002/M-007/M-008/M-010 and the N-* wave — owned by the active
+  legs' queues; see diff-to-fix/SUMMARY.md's live remediation log.
+
+Stage Summary:
+- This leg closed: S-008, S-010, M-009 (+ the audit-trail/CI infrastructure repairs),
+  each with fail-before/pass-after tests, corpus-first verification, honest Resolutions
+  (including one finding correction), and green CI on Linux + Windows at every landing.
+- main is green at 7fd00e0; the s3 leg has already bootstrapped on top of it. The corpus
+  (03ad46c) was never modified. No token material ever entered either repository.
