@@ -8342,3 +8342,45 @@ Stage Summary:
   this session's convergent deltas folded; the flake fix is back on main.
 - Suite 515/515 x3. SEVERE remaining: S-009 (free overlay), S-029 (apply
   path), S-030 (disk images). Next: S-009.
+---
+Task ID: FF-CI-CLOSE (the Linux-lane SEGV — root cause + fix)
+Agent: main engineer (diff-to-fix closing session — fix-all-tiers continuation)
+Task: The linux-lane red on every push since c1adb68d (cr_ui_abi_check
+SEGV): root-caused, fixed, proven in both build modes.
+
+Work Log:
+- Timeline (CI job records): linux lane GREEN at 604bd2c (20:50), RED
+  from c1adb68d (20:53, the FAT-trio M-011/M-012/M-015 merge) through
+  every later push. NOT caused by this session's code (S-024 upgrade
+  landed 20:57 onto an already-red lane).
+- Root cause chain (proven first-hand, release AND ASan builds): the
+  M-015 og-parity FAT table validator rejects FAT16 volumes whose
+  FAT[0]/FAT[1] media pair is absent; the landing corrected FIVE C++
+  fixture builders but missed the C consumer's inline build_fat16 —
+  its image gets ERR_BAD_MAGIC at engine open, the scan yields an
+  empty tree, the name-filter query returns NULL rows, and the
+  unguarded rows[0].name deref SEGVs. The SEGV then MASKED the real
+  failure: the consumer's FAIL printfs sit in block-buffered stdout
+  and are lost on the abort, so every log showed only the ASan trace.
+- Measurement lesson recorded: my first "passing" local consumer runs
+  measured `tail`'s exit code through a pipeline, not the binary's —
+  `cmd | tail -5; echo $?` reports TAIL. Always capture the binary's
+  own exit status (redirect, no pipe) when a test's pass/fail is the
+  deliverable.
+- Fix (abf5663): build_fat16 writes the canonical media pair
+  (FAT[0]=0xFFF8 / FAT[1]=0xFFFF, both copies — same values as the
+  corrected C++ fixtures); the name-filter section now GUARDS the rows
+  deref so a future query regression FAILS loudly instead of crashing
+  the checker.
+- Verified: ASan 0 FAILs exit 0; release 0 FAILs exit 0; cr_tests
+  512/512. Note: Snapshot.ConcurrentEmitCaptureWalk is a 2-core-box
+  flake (the capturer thread starves behind the two emitters; the CI
+  runners pass it) — left for the snapshot lane; a yield() in the
+  emit loops is the candidate fix if CI ever shows it.
+
+Stage Summary:
+- The linux lane's red since 20:53 is closed at abf5663; combined with
+  1a8cebb (cr_health.h qualification) + 00125bd (test_text C4310),
+  the known Windows+Linux CI reds from this window are all addressed
+  except the cr_transport VolExtent break owned by the mid-flight
+  disk-image lane (their landing supersedes).
