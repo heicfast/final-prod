@@ -3,7 +3,7 @@
  *
  * Commands:
  *   list                                  enumerate disks/volumes
- *   scan --disk N | --volume C: [--whole-disk] [--quick-only] [--no-carve]
+ *   scan --disk N | --volume C: | --image FILE [--whole-disk] [--quick-only] [--no-carve]
  *         [--threads N] [--out file.crsf] [--resume file.crsf] [--json]
  *         [--log file] [--csv] [--filter s] [--deleted-only]
  *   tree --in file.crsf [--filter substr] [--deleted-only] [--csv] [--json]
@@ -31,6 +31,7 @@
 #include "cr/session/cr_crsf.h"
 #include "cr/session/cr_records.h"
 #include "cr/storage/cr_slice.h"
+#include "cr/storage/cr_image.h"
 #include "cr/table/cr_ldm.h"
 #include "cr/table/cr_table_parse.h"
 #include "cr/win/cr_bitlocker.h"
@@ -156,6 +157,9 @@ struct OpenResult {
     u32 disk = 0;
     u64 volume_start = 0; /* 0 = whole-disk view */
     u64 volume_len = 0;
+    /* S-030: the image path when the target is a disk image file (kept
+     * for the session identity card; empty for --disk/--volume) */
+    std::string image_path;
 };
 
 /* ---- S-008 pre-scan repair (scan --repair / --repair-apply) ----
@@ -463,6 +467,100 @@ u32 file_seek_cb(void* user, u64 absolute) {
     return _fseeki64(static_cast<FILE*>(user), __int64(absolute), SEEK_SET) == 0 ? OK
                                                                                  : ERR_SESSION_IO;
 }
+/* ---- S-030: disk-image scan targets --------------------------------------
+ * The og's "Import a disk image" flow: vmdk/vhd/vhdx/edisk dispatch with a
+ * flat-file fallback for raw/.img (DRWUI FUN_1405b3410 + FUN_140178250).
+ * The CLI provides the FILE byte source (the core image layer stays
+ * OS-header-free; every byte flows through the injected seam). */
+class CliImageSource final : public storage::ImageByteSource {
+public:
+    static std::unique_ptr<CliImageSource> open(const wchar_t* wpath, u32* err) {
+        *err = OK;
+        FILE* f = nullptr;
+        if (_wfopen_s(&f, wpath, L"rb") != 0 || f == nullptr) {
+            *err = ERR_OPEN_FAILED;
+            return nullptr;
+        }
+        return std::unique_ptr<CliImageSource>(new CliImageSource(f));
+    }
+    ~CliImageSource() override {
+        if (f_)
+            std::fclose(f_);
+    }
+    u32 read(u64 at, void* buf, u32 len) override {
+        if (at > size_ || u64(len) > size_ - at)
+            return ERR_RANGE_OUT_OF_BOUNDS;
+        if (len == 0)
+            return OK;
+        if (_fseeki64(f_, __int64(at), SEEK_SET) != 0)
+            return ERR_READ_FAILED;
+        if (std::fread(buf, 1, len, f_) != len)
+            return ERR_READ_FAILED;
+        return OK;
+    }
+    u64 size() const override { return size_; }
+
+private:
+    explicit CliImageSource(FILE* f) : f_(f) {
+        const __int64 cur = _ftelli64(f);
+        _fseeki64(f, 0, SEEK_END);
+        size_ = u64(_ftelli64(f));
+        _fseeki64(f, cur, SEEK_SET);
+    }
+    FILE* f_;
+    u64 size_ = 0;
+};
+
+u32 cli_open_image_source(void*, const char* utf8_path, std::unique_ptr<storage::ImageByteSource>& out) {
+    /* extent files: the descriptor directory is ASCII-safe in practice;
+     * non-ASCII sibling names widen losslessly only for BMP chars - the
+     * scan still works, the name display is the only lossy edge */
+    std::wstring w;
+    for (const char* p = utf8_path; *p; ++p) {
+        const unsigned char c = unsigned char(*p);
+        if (c < 0x80)
+            w.push_back(wchar_t(c));
+        else
+            w.push_back(L'?');
+    }
+    u32 err = OK;
+    auto f = CliImageSource::open(w.c_str(), &err);
+    if (!f)
+        return err;
+    out = std::move(f);
+    return OK;
+}
+
+bool open_image_view(const std::wstring& wpath, OpenResult& out) {
+    u32 err = OK;
+    auto src = CliImageSource::open(wpath.c_str(), &err);
+    if (!src) {
+        wprintf(L"[image] cannot open %s: %hs\n", wpath.c_str(), err_text(err));
+        return false;
+    }
+    /* the descriptor base directory (sibling extent files) */
+    std::string base;
+    const std::string n8 = narrow(wpath);
+    if (const size_t slash = n8.find_last_of("/\\"); slash != std::string::npos)
+        base = n8.substr(0, slash + 1);
+    storage::ImageFileOps ops;
+    ops.open = &cli_open_image_source;
+    std::unique_ptr<IStorageDevice> dev;
+    const u32 rc = storage::open_image(std::move(src), ops, base.c_str(), dev);
+    if (rc != OK) {
+        wprintf(L"[image] %s: %hs\n", wpath.c_str(), err_text(rc));
+        return false;
+    }
+    out.device = std::move(dev);
+    out.image_path = n8;
+    wprintf(L"[image] %s opened (%llu bytes, layout %hs)\n", wpath.c_str(),
+            static_cast<unsigned long long>(out.device->size()),
+            storage::classify_boot_layout(out.device.get()) == storage::BootLayout::Gpt  ? "GPT"
+            : storage::classify_boot_layout(out.device.get()) == storage::BootLayout::Mbr ? "MBR"
+                                                                                          : "unknown");
+    return true;
+}
+
 u32 file_read_cb(void* user, void* buf, u32 len) {
     FILE* f = static_cast<FILE*>(user);
     return fread(buf, 1, len, f) == len ? OK : ERR_SESSION_IO;
@@ -502,6 +600,14 @@ int cmd_scan(int argc, wchar_t** argv, int& i) {
             if (v.size() < 1)
                 return 1;
             if (!open_volume_view(v[0], target))
+                return 1;
+            have_target = true;
+            continue;
+        }
+        if (get_opt(argc, argv, i, L"--image", &v)) {
+            /* S-030: disk-image scan targets - the og's import flow
+             * (vmdk/vhd/flat with vhdx/edisk honestly refused) */
+            if (!open_image_view(v, target))
                 return 1;
             have_target = true;
             continue;
@@ -590,6 +696,9 @@ int cmd_scan(int argc, wchar_t** argv, int& i) {
              cfg.threads, int(cfg.run_quick), int(cfg.run_deep), int(cfg.run_carve),
              int(cfg.whole_disk), int(repair), int(repair_apply));
     fill_identity_card(target.disk, cfg); /* SESS-2: model/serial into the card */
+    /* S-030: the image target's file path into the identity card (v3) */
+    for (size_t k = 0; k + 1 < sizeof(cfg.volume_image) && k < target.image_path.size(); ++k)
+        cfg.volume_image[k] = target.image_path[k];
 
     /* S-008 pre-scan repair hooks: --repair analyzes + reports; the
      * --repair-apply FLAG is the consent (non-interactive CLI posture);
@@ -935,6 +1044,7 @@ int cmd_recover(int argc, wchar_t** argv, int& i) {
     bool deleted_only = false;
     u32 disk = 0;
     bool have_disk = false;
+    std::wstring image_path; /* S-030: --image source */
     while (i < argc) {
         std::wstring v;
         if (get_opt(argc, argv, i, L"--in", &in_path))
@@ -944,6 +1054,12 @@ int cmd_recover(int argc, wchar_t** argv, int& i) {
         if (get_opt(argc, argv, i, L"--disk", &v)) {
             disk = u32(wcstoul(v.c_str(), nullptr, 10));
             have_disk = true;
+            continue;
+        }
+        if (get_opt(argc, argv, i, L"--image", &v)) {
+            /* S-030: recover from the image the session was scanned from */
+            image_path = v;
+            have_disk = true; /* a target is a target */
             continue;
         }
         if (get_opt(argc, argv, i, L"--filter", &filter))
@@ -978,10 +1094,15 @@ int cmd_recover(int argc, wchar_t** argv, int& i) {
         return 1;
     }
 
-    /* open the SOURCE disk (extents in sessions are absolute) */
+    /* open the SOURCE (extents in sessions are absolute): --disk or the
+     * --image the session was scanned from (S-030) */
     OpenResult src;
-    if (!open_disk_view(disk, src))
+    if (!image_path.empty()) {
+        if (!open_image_view(image_path, src))
+            return 1;
+    } else if (!open_disk_view(disk, src)) {
         return 1;
+    }
 
     /* destination validation + overlap refusal (F12): the destination
      * volume extent must not intersect the source disk */
@@ -989,7 +1110,7 @@ int cmd_recover(int argc, wchar_t** argv, int& i) {
         u32 ddisk = 0;
         u64 dstart = 0, dlen = 0;
         if (win::volume_extent(to_dir[0], &ddisk, &dstart, &dlen)) {
-            if (ddisk == disk)
+            if (ddisk == disk && image_path.empty())
                 wprintf(L"[F12] WARNING: destination is on the SOURCE disk %u\n", ddisk);
             else
                 wprintf(L"[dest] disk %u @%llu +%llu\n", ddisk,

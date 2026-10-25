@@ -169,6 +169,12 @@ struct ScanConfig {
     char volume_model[48] = {0};
     char volume_serial[32] = {0};
 
+    /* S-030 (image targets): the image FILE path when the scan target is
+     * a disk image (the og's import flow keeps the file identity for the
+     * device list and the resume flow). UTF-8, NUL-padded; empty for
+     * --disk/--volume targets and pre-v3 sessions. */
+    char volume_image[256] = {0};
+
     /* ---- auto-checkpoint (G-13, issue #9) ----
      * Invoked by the orchestrator at STAGE BOUNDARIES with a freshly
      * serialized session (state + volume + contexts + tree + error map -

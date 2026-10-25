@@ -146,11 +146,30 @@ correct og parity. CONVERGENT with the parallel N-018 lane's fixture fix
 record + the bail-out hardening. `cr_ui_abi_check` green on release AND
 ASan (executed both lanes).
 
+**S-030 FIXED (SEVERE — disk-image scan targets):** the og's import
+surface re-implemented from format understanding in the new core module
+`cr/storage/cr_image.{h,cpp}`: flat files, VMDK (monolithicSparse with
+embedded descriptors + standalone descriptors whose FLAT/SPARSE/ZERO
+extent lines open through the host-injected ops seam, grain-directory/
+grain-table mapping with grain-segment batching), VHD (fixed = flat minus
+the trailing footer; dynamic = BAT + per-block sector bitmaps), content
+sniffing incl. the TRAILING-footer VHD identity (the tests caught the
+head-only sniff missing fixed VHDs), and the og's LBA0 MBR/GPT
+classification. The core stays OS-header-free (byte-source injection);
+the CLI gains `scan --image FILE` / `recover --image FILE`; the session
+identity card gains the v3 image-path tail (v1/v2 back-compat pinned).
+8 tests incl. engine scans over a sparse VMDK (< half the flat size,
+byte-identical readback) and a dynamic VHD; fuzz_image added to the fuzz
+suite; D-64 registers the edisk/dmg exclusions + VHDX/parent-chain
+remainders. Suite **525/525 + 21/21 + abi check** green on Release AND
+ASan. SEVERE tier: **only S-029 remains** (the consent-gated
+lost-partition apply path).
+
 **Counts after the session-8 SEVERE lane (direct file inventory):**
-ACUTE 0 · **SEVERE 2** (S-029, S-030 — S-032 was fixed by the parallel
-lane in-window) · MAJOR 39 (M-053 filed+fixed in-session) · MINOR 55 ·
-INFO 22 (all ACKNOWLEDGED) = **118 active / 72 FIXED** (live inventory:
-findings/FIXED/ = 73 files incl. RESOLVED-INDEX).
+ACUTE 0 · **SEVERE 1** (S-029 — S-032 was fixed by the parallel lane
+in-window) · MAJOR 39 (M-053 filed+fixed in-session) · MINOR 55 ·
+INFO 22 (all ACKNOWLEDGED) = **117 active / 74 FIXED** (live inventory:
+findings/FIXED/ = 75 files incl. RESOLVED-INDEX).
 
 ## Session-6 delta (2026-10-26 — the S-024 decoded-truth upgrade)
 

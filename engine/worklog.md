@@ -9040,3 +9040,63 @@ skips to the next claim.
 
 Stage Summary:
 - Claim posted before implementation (the lane convention).
+
+Task ID: DFX8-S030 (session 8, finding 3)
+Agent: main engineer (diff-to-fix closing session 8)
+Task: S-030 — disk-image scan targets (.vmdk/.vhd/.img as first-class
+devices). Verified against the corpus citations, implemented, tested.
+
+Work Log:
+- Re-verified the finding's claims first-hand: the corpus citations
+  (DRWUI FUN_1405b3410 extension dispatch + FUN_140178250 LBA0 classify
+  + Device.mo libvmdk reads) hold; the core had zero image-format code
+  (grep vmdk|vhdx|edisk = 0 hits).
+- Implementation: NEW include/cr/storage/cr_image.h +
+  src/core/storage/cr_image.cpp — the og's import surface re-implemented
+  from format understanding: content sniff (VMDK magic / text descriptor
+  head; VHD by the TRAILING conectix footer — the test suite caught the
+  head-only sniff missing fixed VHDs), flat fallback, VMDK
+  monolithicSparse (embedded descriptor, source-is-the-extent) +
+  standalone descriptors (FLAT/SPARSE/ZERO extents through the injected
+  ImageFileOps seam), grain-directory/grain-table mapping with
+  grain-segment batching, VHD fixed + dynamic (BAT + per-block sector
+  bitmaps with state-run splitting), classify_boot_layout (MBR/GPT/
+  Unknown, protective-entry + EFI PART). OS-header-free core: every byte
+  through the host-injected ImageByteSource (the CLI supplies the FILE
+  source; tests/fuzz memory).
+- CLI (rrecov.cpp): CliImageSource + open_image_view with the og's
+  open-time print (size + layout); scan --image / recover --image; the
+  F12 dest-overlap warning guarded for image targets; ScanConfig
+  .volume_image filled for the identity card.
+- Session: VolumeInfo/VolumeSessionInfo v3 tail (image[256],
+  append-only; v1/v2 deserialize with empty); save/load wiring; the
+  Crsf.VolumeInfoIdentityCardRoundTrip pin updated to the v3 layout with
+  v2/v1 back-compat assertions.
+- Tests (8, tests/unit/test_image.cpp — fail-before by construction):
+  FlatFileScansMbr, Lba0LayoutClassification (protective/torn/blank),
+  VmdkMonolithicSparseReadsAndScans (sparse < half flat size; byte-
+  identical readback + unaligned/tail + engine scan),
+  VmdkDescriptorWithFlatAndZeroExtents (multi-file ops seam + ZERO
+  hole), VhdDynamicDiskReadsAndScans (cross-block unaligned + scan),
+  VhdFixedDiskIsFlatMinusFooter, RejectsBrokenInputs (VHDX →
+  ERR_UNSUPPORTED, bad magic, bounds), SessionRoundTripCarriesTheImagePath.
+- Fuzz: fuzz/fuzz_image.cpp (memory source; read-shape spread + bounds
+  refusal) wired into the suite Makefile (target + run + corpus rules).
+- Docs: PARITY-DELTAS D-64 (edisk/dmg exclusions; VHDX + parent chains/
+  compressed grains/differencing remainders); modules/imaging.md (new
+  module row with the verdict table); matrix transport row; RESOLVED-
+  INDEX row; SUMMARY counts.
+- Verification: 525/525 cr_tests + 21/21 cr_ui_tests + cr_ui_abi_check
+  green on Release AND ASan lanes. The CLI compiles on the Windows lane
+  only (CR_BUILD_APP is Windows-only) — the W4/WX compile is the CI
+  lane's proof (no local Windows environment; recorded, not claimed).
+- The UI shim's flat-only cr_ui_open_image stays as-is this session
+  (S-008 writer coupling; the byte-source seam makes the migration
+  mechanical — recorded in the Resolution as the follow-up).
+
+Stage Summary:
+- S-030 FIXED. SEVERE tier: S-029 only remains (consent-gated apply
+  path — claimed by DFX10's queue per the lane coordination). Counts:
+  SEVERE 1 / MAJOR 39 / MINOR 55 / INFO 22 / 74 FIXED. Session tally:
+  S-009, S-030, M-053 (filed+fixed) + the S-032/S-009 parallel-landing
+  reconciliations.

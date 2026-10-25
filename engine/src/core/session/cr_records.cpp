@@ -415,6 +415,9 @@ u32 serialize_volume_info(const VolumeInfo& vi, std::vector<u8>& out) {
     out.insert(out.end(), vi.model, vi.model + 48);
     out.insert(out.end(), vi.serial, vi.serial + 32);
     put32(out, vi.boot_hash);
+    /* S-030 v3 tail: the image file path (empty for disk/volume targets;
+    * old readers stop before it - the record stays loadable) */
+    out.insert(out.end(), vi.image, vi.image + 256);
     return OK;
 }
 
@@ -432,13 +435,19 @@ u32 deserialize_volume_info(const u8* data, size_t len, VolumeInfo& vi) {
     vi.flags = c.g32();
     /* v2 identity tail: absent on v1 records - zeros mean "unverifiable",
      * never "verified" (the resume side skips comparison on zero hash).
-     * v1 prefix is 80 bytes (4+8+8+4+4+32+8+8+4); the tail adds 48+32+4. */
+     * v1 prefix is 80 bytes (4+8+8+4+4+32+8+8+4); the tail adds 48+32+4.
+     * S-030 v3 tail adds the 256-byte image path (zeros when absent). */
     if (!c.fail && len >= 80 + 84) {
         if (!c.bytes(reinterpret_cast<u8*>(vi.model), 48))
             return 0x50040001;
         if (!c.bytes(reinterpret_cast<u8*>(vi.serial), 32))
             return 0x50040001;
         vi.boot_hash = c.g32();
+        if (len >= 80 + 84 + 256) {
+            if (!c.bytes(reinterpret_cast<u8*>(vi.image), 256))
+                return 0x50040001;
+            vi.image[255] = 0; /* never trust a torn NUL */
+        }
     }
     return c.fail ? u32(0x50040001) : u32(OK);
 }

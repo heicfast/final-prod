@@ -1904,3 +1904,21 @@ same way. Pinned by `RawFixer.NtfsPrimaryDamaged4Kn`,
   carves here and is not dispatched by the og. I-009 family; validate_jpeg's
   grammar gates the false-positive surface. Do not tighten for parity. Pin:
   Carve.JpegFourthByteOutsideOgSet.
+
+- **D-64 — image-container scope (S-030, ACCEPTED).** The og's import
+  factory dispatches six backends: edisk, vhdx, vmdk, vhd + the flat
+  fallback (.img/.dmg/raw) (DRWUI FUN_1405b3410). The core's image layer
+  implements flat, VMDK (monolithicSparse + standalone descriptors with
+  FLAT/SPARSE/ZERO extents), and VHD (fixed + dynamic). Two deliberate
+  exclusions and two tracked remainders, honestly registered:
+  **edisk** (EaseUS Todo-Backup's proprietary container — undecodable
+  without product internals; ERR_UNSUPPORTED) and **dmg** (Apple's
+  container; the og treats it as a FLAT file only when uncompressed,
+  which our flat fallback already covers — the compressed
+  ADC/ZLIB/LZFSE variants are out of scope). Remainders (capability, not
+  divergence): **VHDX** (the og's CVHDXDisk; ERR_UNSUPPORTED until the
+  metadata-table format lands) and **VMDK parent chains /
+  compressed grains / VHD differencing** (v1 reads base images only).
+  Pins: `Image.VmdkMonolithicSparseReadsAndScans`,
+  `Image.VhdDynamicDiskReadsAndScans`, `Image.RejectsBrokenInputs`
+  (VHDX → ERR_UNSUPPORTED).

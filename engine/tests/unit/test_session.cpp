@@ -215,9 +215,10 @@ TEST(Crsf, VolumeInfoIdentityCardRoundTrip) {
     std::snprintf(vi.model, sizeof(vi.model), "ST5000DM000-1FK178");
     std::snprintf(vi.serial, sizeof(vi.serial), "W1234567");
     vi.boot_hash = 0xDEADBEEFu;
+    std::snprintf(vi.image, sizeof(vi.image), "/vm/disks/qemu.img"); /* S-030 v3 tail */
     std::vector<u8> blob;
     ASSERT_EQ(serialize_volume_info(vi, blob), OK);
-    EXPECT_EQ(blob.size(), 80u + 84u) << "v2 layout: 80-byte v1 prefix + identity tail";
+    EXPECT_EQ(blob.size(), 80u + 84u + 256u) << "v3 layout: v2 + the S-030 image tail";
 
     VolumeInfo out;
     ASSERT_EQ(deserialize_volume_info(blob.data(), blob.size(), out), OK);
@@ -225,6 +226,14 @@ TEST(Crsf, VolumeInfoIdentityCardRoundTrip) {
     EXPECT_STREQ(out.serial, "W1234567");
     EXPECT_EQ(out.boot_hash, 0xDEADBEEFu);
     EXPECT_EQ(out.slice_offset, 512u * 63);
+    EXPECT_STREQ(out.image, "/vm/disks/qemu.img") << "the image path round-trips";
+
+    /* v2 record (pre-S-030): no image tail - empty path, not garbage */
+    std::vector<u8> v2(blob.begin(), blob.begin() + 80 + 84);
+    VolumeInfo old2;
+    ASSERT_EQ(deserialize_volume_info(v2.data(), v2.size(), old2), OK);
+    EXPECT_STREQ(old2.model, "ST5000DM000-1FK178");
+    EXPECT_STREQ(old2.image, "") << "v2 session: no image identity";
 
     /* v1 record: the identity tail is absent - zeros, not garbage */
     std::vector<u8> v1(blob.begin(), blob.begin() + 80);
@@ -233,6 +242,7 @@ TEST(Crsf, VolumeInfoIdentityCardRoundTrip) {
     EXPECT_EQ(old.fs_kind, 3u);
     EXPECT_EQ(old.boot_hash, 0u) << "v1 session: unverifiable, never verified";
     EXPECT_STREQ(old.model, "") << "no fabricated identity";
+    EXPECT_STREQ(old.image, "") << "v1 session: no image identity";
 }
 
 /* BENCH-F1 (torn-checkpoint salvage): a writer killed mid-emit leaves the
