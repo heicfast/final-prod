@@ -484,6 +484,14 @@ FsFamily ScanController::probe_family(IStorageDevice* slice) {
      * decompile-verified gate from RefsProc::CRefsVolumeBootRecord). */
     if (std::memcmp(sec + 3, "ReFS", 4) == 0)
         return FsFamily::Refs;
+    /* BitLocker: OEM "-FVE-FS-" (S-019; the og's type-0xB classifier gate,
+     * PartitionRecoveryD_decompiled.c:2778-2785). Recognized explicitly so
+     * encrypted content never falls through to the ext4-magic probe (a
+     * random 0xEF53 in the ciphertext would mis-dispatch); the engine
+     * dispatch's default path surfaces the candidate as a locked volume
+     * with zero files - the og's pre-unlock behavior. */
+    if (std::memcmp(sec + 3, "-FVE-FS-", 8) == 0)
+        return FsFamily::BitLocker;
     /* HFS+/HFSX: volume-header signature at byte 1024 ("H+"/"HX") with a
      * sane version (4 or 5) - the version gate disambiguates from an ext4
      * superblock whose s_inodes_count happens to read as the signature. */
@@ -626,7 +634,17 @@ u32 ScanController::run(IStorageDevice* slice, CancelToken* cancel, bool (*progr
      * destroys it, so the pointer is only published when `cached` owns
      * it and the pipe falls back to the bare slice. */
     RetryingDevice* retry_raw = retry.get();
-    auto cached = CachedReader::create(std::move(retry), 8ull << 20, 64 * 1024);
+    /* Cache block 256 KiB (core-api session, read-granularity tuning): the
+     * reference's device layer chunks ReadFile at 4 MiB and its NTFS engine
+     * batches the MFT stream at 2 MiB (Device_decompiled.c:56545;
+     * NTFSSearchDLL_decompiled.c:5649-5678) - every og chunk is a 64 KiB
+     * multiple by construction. 64 KiB blocks paid 16x the user/kernel
+     * transitions per byte; 256 KiB recovers 4x of that while bounding the
+     * over-fetch on random misses (FAT deleted-chain walks) at 4x. The
+     * transport-level sweep (bench/tools/alignbench, PERFORMANCE-BASELINE
+     * section 5) measures the full curve; tune on its data. Cache stays
+     * 8 MiB total (capacity = 32 blocks). */
+    auto cached = CachedReader::create(std::move(retry), 8ull << 20, 256 * 1024);
     IStorageDevice* pipe = cached ? static_cast<IStorageDevice*>(cached.get())
                                   : (retry_raw ? static_cast<IStorageDevice*>(retry_raw) : slice);
     if (cached)
@@ -1278,9 +1296,10 @@ u32 ScanController::load_session_summary(session::Reader& r, tree::ResultTree& t
             session::PartitionContext pc;
             if (session::deserialize_partition_context(rec.data.data(), rec.data.size(), pc) ==
                     OK &&
-                pc.kind == 1 && pc.fs_kind <= u32(lost::CandidateFs::Refs)) {
+                pc.kind == 1 && pc.fs_kind <= u32(lost::CandidateFs::BitLocker)) {
                 /* S-006: Ext2..Refs appended (values 6..10); sessions written
-                 * before S-006 only carry <= Unknown (5) and stay valid. */
+                 * before S-006 only carry <= Unknown (5) and stay valid.
+                 * S-019: BitLocker appended (value 10) - same rule. */
                 lost::Candidate c;
                 c.start_lba = pc.start_lba;
                 c.sector_count = pc.sector_count;

@@ -1972,8 +1972,7 @@ Work Log:
 - Repaired worklog.md: commit 1cb6a43 had landed with unresolved merge-conflict markers
   (auditor's T11-20/20-FINAL closeout vs the A-001 fix entry). Both sides kept, in commit
   order; markers and one duplicated separator removed. S-005's entry (appended by the
-  parallel leg after the stale >>>>>>> marker) preserved untouched.
-- Will independently verify the parallel leg's S-005 fix on this leg's environment (full
+  parallel leg after the stale - Will independently verify the parallel leg's S-005 fix on this leg's environment (full
   suite + spot re-read of the decoder against the cited corpus evidence) before building
   on it — same rule the mandate applies to audit findings: trust nothing unverified.
 
@@ -5108,6 +5107,712 @@ Stage Summary:
   re-verified first-hand next).
 
 ---
+---
+Task ID: S4-F2 (S-014 fix)
+Agent: main engineer (diff-to-fix remediation session 4)
+Task: Verify and fix S-014 — BitLocker auto-unlock wrong live registry path,
+offline-hive path absent, unassociated enumeration.
+
+Work Log:
+- Corpus verification BEFORE the fix (all first-hand):
+  * DRWService_decompiled.c :104-140 — RegOpenKeyExA(HKLM,
+    "SYSTEM\\CurrentControlSet\\Control\\FVEAutoUnlock"), RegQueryInfoKeyA
+    subkey count, per-subkey RegEnumKeyExA + _strupr_s + RegQueryValueExA
+    "Data" (0x200 buffer); artifacts/DRWService-exe--bitlocker-service.md
+    :56-74/:1461-1593 — pipe records: guid[50]/pad[10]/blob[256], 100-record
+    cap, 0x138 stride.
+  * bitlockerhelp_decompiled.c :3128-3160 — offline path:
+    "%s\\Windows\\System32\\config\\SYSTEM" + the LITERAL
+    "\\ControlSet001\\Control\\FVEAutoUnlock\\" + per-subkey "%s%s\\Data"
+    (ControlSet001 HARDCODED — the finding's "iterate per Select" plan
+    corrected to the corpus).
+  * RegLib_decompiled.c — decoded the ENTIRE regf layout from the og's own
+    parser: magic+XOR-checksum (FUN_180007670 :4814-4853, canonicalized
+    0xFFFFFFFF->0xFFFFFFFE / 0->1, validated at :2376-2377), root cell
+    header+0x24 (FUN_180007620 :4804), bins-size bound + >=0x20/8-aligned
+    gates (FUN_180007700 :4884-4887), cell stride 4/8 switch
+    (FUN_180005ff0 :3767-3770), nk flags@+0x02/count@+0x14/list@+0x1C/
+    vcount@+0x24/vlist@+0x28 (FUN_180007b80/c10, FUN_180007a60/af0, write
+    path FUN_180008030), nk name@+0x48 len/+0x4C (:4995-5035), vk
+    length@+0x04 (bit31 inline mask)/type@+0x0C (RegEnumValueA :1047),
+    lf/lh/li/ri classes (:3856-3895), min cell sizes 0x50/0x18.
+  * CONFIRMED-DIVERGENCE (three-part: wrong path, no offline reader,
+    unassociated no-cap enumeration).
+- Fix: (1) live path constant -> Control\FVEAutoUnlock + per-GUID subkey
+  "Data" enumeration with the og caps (50/256/100); (2) volume association:
+  GetVolumeNameForVolumeMountPointW -> GUID-match-first selection
+  (portable select_auto_unlock_attempts); (3) NEW portable module
+  src/core/reghive + include/cr/reghive (read-only regf parser + FVE
+  harvest, all offsets corpus-cited) + try_auto_unlock_offline(letter,
+  hive_path) + automatic mounted-volume hive probe in try_auto_unlock
+  (skips running-OS letter + target letter; 512 MiB read guard).
+  Old blind enum_binary_blobs recursion REMOVED. Safety hardenings
+  preserved: F13 detect+legitimate-unlock-only, no crypto in-process, .BEK
+  temp-file flow, PowerShell-primary + manage-bde fallback.
+- Tests: 11 Linux (test_reghive.cpp — fixture builder emits corpus-layout
+  hives: parse/walk/case-insensitive/enum/read-value inline+pointed/unicode
+  names/harvest per-GUID/256-B cap/100-record cap+short-blob skip/selection
+  order incl. null-target/truncation+mutation sweeps) + 5 Windows-lane
+  (test_bitlocker_win.cpp — path constant pin, HKCU-seam per-GUID enum with
+  decoys+caps, GUID-preference recorder, offline hive end-to-end + garbage
+  refusal + null-path, no-GUID fallback order) + fuzz/fuzz_reghive.cpp
+  registered in the fuzz Makefile (CI lane).
+- Proof: fail-before = the capability did not exist (module removed ->
+  suite cannot compile the tests: 'cr/reghive/cr_reghive.h: No such file
+  or directory'); pass-after = 341/341 linux-gcc ASan (330 baseline + 11),
+  format gate clean. Windows-lane tests run on the Windows CI ctest
+  (registered as the 'bitlocker' target).
+- Win7-inclusive gate: two conscious allowlist additions with reasons in
+  tools/verify_pe_um.py (RegQueryValueExW — the "Data" value read,
+  DRWService :121 counterpart; GetVolumeNameForVolumeMountPointW — the
+  volume-GUID association; both NT/Win2000-era APIs).
+- Audit trail: S-014 -> findings/FIXED/ with Resolution (fix-plan Select
+  correction recorded); RESOLVED-INDEX row (header count 20->21, S-015 row
+  by the parallel leg already there); CROSS-REF-MATRIX health B cell -> M
+  + s4 legend line; modules/health.md s4 section; SUMMARY counts (SEVERE
+  active 9->8... reconciled with the parallel leg's S-015 landing: the row
+  already listed S-015 in FIXED) + remediation-log row; CAPABILITY-MATRIX
+  exclusion row annotated with the live+offline capability.
+
+Stage Summary:
+- S-014 CLOSED: the live registry unlock reads the og's real key family
+  with association + caps; the dead-system flagship scenario has a real
+  offline-hive implementation (portable, fuzz-covered, corpus-offset-exact);
+  the blind enumeration is gone. Remaining SEVERE lane: S-003, S-006,
+  S-007, S-009-split, S-012, S-013, S-017..S-020 (s3 audit-leg findings).
+
+Task ID: API-T5/T6/T9/T10 (transport wave)
+Agent: main engineer (core-api session)
+Task: Driver-utilization completion — 64 KiB envelope unification, self-healing reopen,
+      read-granularity tuning, the Windows CI benchmark tooling.
+
+Work Log:
+- 64 KiB ENVELOPE UNIFIED (T6+T9): cr_transport.cpp aligned_read_at now applies
+  io::direct_envelope on BOTH transports (the RDA sector-only envelope is deleted;
+  64 KiB subsumes sector alignment for every real Windows logical sector size — the
+  bench-run-40073093997 sector-rejection property is preserved by construction).
+  Corpus anchor: the og's own chunk sizes (4/7/2/1 MiB, 64 KiB) are ALL 64 KiB
+  multiples (Device_decompiled.c:56545/:56912; NTFSSearchDLL:5649-5678) — the unified
+  envelope matches the reference's observable I/O shape exactly, mandate letter
+  satisfied on every direct read through the driver AND the fallback.
+- SELF-HEALING REOPEN (T5): og parity for the error-6 path
+  (Device_decompiled.c:55947-55959 read loop; :56182-56183 write-loop guard).
+  GLE captured inside overlapped_read/write_impl_; DirectDevice + RdaTargetDevice
+  (grammar: re-CreateFile re-binds at IRP_MJ_CREATE; structured: reopen + re-issued
+  OPEN_TARGET) + RwDevice (read AND write) heal-and-retry once under a per-device
+  mutex. Geometry NOT re-probed (og parity).
+- READ GRANULARITY (T10): CachedReader 64 KiB -> 256 KiB blocks (8 MiB LRU = 32
+  blocks): sequential transitions 16,384/GiB -> 4,096/GiB; over-fetch on random
+  misses bounded at 4x. The og's cadence is 256-512/GiB. Plateau tuning rides the
+  sweep data.
+- BENCHMARK TOOLING (T15): bench/ours/run-alignbench.ps1 (inline C#: slow-path demo
+  128K-vs-132K NO_BUFFERING; size sweep 64K/256K/1M/4M x QD 1/2/4/8 with an
+  overlapped ring — ResetEvent-before-reissue to avoid stale-signal pass-through;
+  RDA grammar-path leg with F11 unscale verified per read + PID-token transform
+  ported; late-bound cr_ui API latency 2M iters/op; two-pass checksum gating) +
+  .github/workflows/api-benchmark.yml (windows-2022, vcpkg release build, rda-driver
+  release fetch+SHA verify+test-sign+install+verify-driver, no continue-on-error,
+  artifacts always). C# carve_format buffer sized 256 with the C-layout derivation
+  (ext[24]@4 — natural alignment, not 8).
+- TESTS: UnifiedEnvelopeExhaustivePropertyBothDevices (every offset x length over
+  aligned + ragged devices: issued offset always 64K-aligned, length always 64K
+  multiple except the tail clamp, full coverage). Suite 349/349 Linux ASan;
+  ui_abi_check OK; clang-format 18.1.8 clean.
+- DOCS: DRIVER-UTILIZATION.md checklist now MATCH on every interaction incl. error
+  mapping (self-heal landed) and read granularity; PERFORMANCE-BASELINE.md §5/6/7
+  updated to landed state (tooling wired, first-run numbers pending).
+
+Stage Summary:
+- Transport wave landed: every driver interaction MATCH (self-heal + envelope +
+  granularity), measurement tooling live pending CI run. Windows-lane validation of
+  cr_transport.cpp rides the ci.yml push build; the api-benchmark workflow runs on
+  this push (paths trigger).
+
+---
+## Session: diff-to-fix close-out — focus tier MINOR (2026-10-26)
+
+**Prompt:** `worklog/session-diff-fix-minors-prompt.md` (token redacted).
+**Audited commit (per diff-to-fix/README.md):** session 3 close at `4d138f2` (+ mid-session
+landings through the audit legs). **Corpus:** `03ad46c` (unmoved).
+**Session start commit:** `ed00020` (S-014 fix already landed by prior leg).
+**Corpus commit at session start:** `03ad46c`.
+**Baseline at start:** Linux Release build clean; full suite **345/345 PASS** (4.0 s).
+
+Session scope (user directive): execute the diff-to-fix roadmap; every finding independently
+verified against corpus + code before fixing; fix ALL severities with **focus on the 33
+MINOR findings**; resolved findings move to `findings/FIXED/` with Resolution sections;
+matrix/modules/SUMMARY/README updated as fixes land; one finding = one verified fix = one
+push. Active inventory at start (direct file count): 8 SEVERE, 22 MAJOR, 33 MINOR,
+12 INFO = 75 active / 26 FIXED (N-001 file duplicated in MINOR/ and FIXED/ — to be
+reconciled when touched).
+
+Work log:
+- T1 complete: repos pulled (core `ed00020`, corpus `03ad46c`), baseline 345/345, prompt
+  saved token-redacted, this entry.
+
+---
+Task ID: S4-T1 (session-4 diff-audit bootstrap + wave 1)
+Agent: session-4 parity auditor (read-only continuation leg — never-audited-modules + API-lane)
+Task: Triage the post-session-3 state, verify landed fixes, execute the lanes no prior
+session covered (preview/query/transport modules; the API-session lane that was
+bootstrapped at e6d5b01 but never executed), and file the findings.
+
+Work Log:
+- Bootstrap: repos pulled at core e6d5b01+abe26b8 (prompt commit 63a9167), corpus 03ad46c
+  (unmoved). Prompt saved token-redacted at worklog/session-4-diff-audit-prompt.md, read twice.
+- State triage: 64 active + 18 FIXED at session start; A-004 + S-016 (c33236f) verified
+  FIXED first-hand in-source (event_fn_ live-sink at every emit site of cr_scan.cpp);
+  abe26b8's A-002 reconciliation read (cross-encoding guard, convergent fix legs).
+- Reading wave: 5 parallel agents (A: corpus UI-subsystems — grading/assistant/preview/
+  filter ground truth; B: corpus API+driver+device layer; C: core unaudited modules
+  preview/query/report/node/records; D: core ABI + win layer + support + CI; E:
+  independent decompile verification of every load-bearing claim). Context sheets in
+  the session scratch area (NOT committed): context-A..E (2,155 lines, 193+ decompile
+  citations).
+- Executed verification: full suite 306/306 + cr_ui_abi_check OK on the audited tree
+  (evidence: diff-to-fix/evidence/executions/s4-suite-green-and-abi-check.md); preview
+  caps-bypass harness (scratch, outside the repo) PROVED M-028's contract violation
+  by execution: 65,568 device bytes pulled against caps.max_read=4096, truncated=false
+  (evidence: s4-preview-caps-bypass.md + the harness source).
+- Findings filed (11, all with corpus+core citations): S-023 SEVERE (no post-scan
+  grading engine — CRecoverability {0,1,2} bits 5-7 of node+0x73, monotonic sticky,
+  full decision tree decoded, per-selection re-grade, RecoveryAssistant statistics;
+  core's 5-tier in-walk Confidence is a different decision system; RESOLVES
+  tracked-open OQ-S2M-1: engines emit grade=1 only — NTFSSearchDLL :39242/:39779),
+  M-028 (preview Caps bypass, executed proof + 4 MiB/IInWindowStream provenance
+  misattributions + compressed-extent whole-block reads), M-029 (query model: sort
+  keys/paging/bucket IDs/server-side filter push/noise filters + the FROZEN
+  tree --json "Unix seconds" unit lie — wire is FILETIME, verified at
+  cr_fat_quick.cpp:256-259), M-030 (driver-utilization: WinPE gate/handle ladder/
+  terminal OFFLINE/32-disk cap/silent RDA fallback/64 KiB provenance correction —
+  og chunks 4 MiB disk / 7 MiB volume buffered-sync, no 64 KiB device-layer rule),
+  N-040 (ABI doc truthfulness bundle incl. the nonexistent SQLite sidecar documented
+  as shipped), N-041 (dead RdaClient + volume_letter_to_disk), N-042 (CLI temp
+  fractional digit = Kelvin remainder), N-043 (progress watchdog), N-044 (--deep
+  naming hazard), I-015 (preview architecture register), I-016 (factory contract
+  register 9/9 + FS-code-space warning).
+- Resolutions/addenda: OQ-S2M-1 → RESOLVED (in-file header + S-023); OQ-S2M-2 →
+  partial (NTFS +30/+50 setters at :28804/:28944/:28973/:29002 + FUN_180024990;
+  FAT32-20 NOT-FOUND; ZFS/Btrfs negative evidence re-confirmed); M-022 OQ-1 + OQ-3
+  RESOLVED (FUN_18000ea30 = $I run-list builder, CRefsResidentDataRunList at
+  props+0x62 — convergent with the S3-REFS leg's decode which filed S-020;
+  dot-prefilter = memchr 0x2E gate with kind-flag bypass); M-023 counts corrected
+  (6 real categories + None sentinel / 64 extensions). New tracked-open: OQ-S4-1
+  (169-entry grading extension table), OQ-S4-2 (RAW naming-hook consumption),
+  OQ-S4-3 (chunking relative perf — needs the Windows bench leg).
+- New module rows (first-time audits): modules/preview.md, modules/query.md,
+  modules/transport.md; CROSS-REF-MATRIX rows + session-4 legend; corpus errata
+  rows 29-36 (after the S3-CARVE leg's 22-28 — theirs kept, mine renumbered).
+- Cross-leg coordination: mid-wave rebase onto ed00020 (the parallel legs had filed
+  S-016..S-022, M-024..M-027, N-033..N-039, I-013/I-014 and FIXED S-013 d2d9b03 +
+  S-014 ed00020 in the same window). All 11 of this leg's findings renumbered past
+  theirs (S-017→S-023, M-024..M-026→M-028..M-030, N-033..N-037→N-040..N-044,
+  I-013/I-014→I-015/I-016); cross-references to THEIR IDs left untouched; my M-029
+  cross-refs their M-024 (RawConfig toggle surface) and my I-016 cross-refs their
+  I-013 (ReFS host-OS gate) instead of duplicating. The parallel legs' own matrix
+  merge left a stale duplicate carve row — removed with a legend note (f210b7e
+  precedent). CORPUS-ERRATA + CROSS-REF-MATRIX conflicts resolved append-only
+  (both sides kept; my errata renumbered 22-29→29-36).
+
+Stage Summary:
+- Session-4 wave-1 end state: 86 active (9 SEVERE / 25 MAJOR / 38 MINOR / 14 INFO) +
+  26 FIXED by direct file inventory at 204137b. Top risk is now S-023 (grading engine
+  — the largest single missing capability found by any session). The three
+  never-audited modules now have verdict rows; the API-session lane is executed
+  (factory contract, driver-client pattern, suite/ABI executed verification); the
+  measured-performance lane is partially executed (core side; og side is
+  UNVERIFIED-BY-EXECUTION, tracked in OQ-S4-3 for the Windows bench leg).
+- Honest not-completed-by-this-leg: OQ-S4-1's extension-table dump (the .rdata blob
+  at 0x141bb0500), OQ-S4-2's RAW hook consumption sites, the S-023 fix plan's
+  vt+0xb8/vt+0x100==0xa8 device-walk conditions, og-execution benches (OQ-S4-3),
+  N-032's RST/USB hardware verification (carried from S3), and the remaining
+  UNVERIFIED-BY-EXECUTION cells in the matrix (all carried in tracked-open with
+  precise next artifacts).
+
+---
+Task ID: S4-CLOSE (session-4 diff-audit close-out)
+Agent: session-4 parity auditor (read-only continuation leg)
+Task: Session close-out — handoff record for the never-audited-modules + API-lane session.
+
+Work Log:
+- Audited commit: 204137b-lineage → close at the M-030-addendum commit (+ harness
+  embedding); corpus 03ad46c throughout. Three mid-session rebases onto the actively
+  moving remote (abe26b8 → ed00020 → 74b0854/a4053c4 window) — every conflict
+  resolved append-only with both legs' entries preserved; this leg's 11 finding IDs
+  renumbered past the parallel legs' IDs; the parallel legs' stale duplicate carve
+  matrix row removed with a legend note.
+- Wave-1 deliverables: 11 findings (S-023 SEVERE; M-028/M-029/M-030 MAJOR;
+  N-040..N-044 MINOR; I-015/I-016 INFO), 3 first-time module rows (preview/query/
+  transport), 2 decompile-quote evidence files + 2 executed-evidence files (suite
+  306/306 + ABI check; preview caps bypass with embedded harness source), corpus
+  errata rows 29-36, OQ-S2M-1 RESOLVED, OQ-S2M-2 partial, M-022 OQ-1/OQ-3 resolved,
+  M-023 counts corrected, M-030 partial-fix addendum (a4053c4 verified first-hand),
+  three new tracked-open OQs (S4-1/S4-2/S4-3).
+- Coverage statistics (cumulative across all sessions): 24 of 24 module rows in the
+  matrix now carry per-parameter verdicts (21 prior + preview/query/transport); the
+  5-agent reading wave covered the DRWUI subsystems artifacts + decompiles (grading/
+  assistant/preview/filter/sort), the 9-engine factory contract, the driver family
+  + client, the core's entire src/include tree line-cited, and independent
+  verification of every load-bearing claim (two-agent convergence on the grading
+  decode; three corrections to the corpus's own artifacts fed back via errata).
+- Executed verification this session: full Linux suite green at the audited tree;
+  the cr_ui C-ABI plain-C lifecycle check green; the preview caps-bypass harness
+  (scratch) proving M-028's contract violation by execution.
+
+Stage Summary:
+- Session-4 end state (by direct file inventory at close): 86 active (9 SEVERE /
+  25 MAJOR / 38 MINOR / 14 INFO) + 26 FIXED, plus 8 tracked-open files (3 new).
+- Recommended fix order (first 20, updated for this session's findings — the parallel
+  fix legs are consuming the roadmap actively, so the order favors small-executed-proof
+  items and capability gaps):
+  1. M-028 preview caps bypass (executed proof in evidence; smallest verified fix:
+     route docx reads through the Window cap check + doc re-anchoring)
+  2. S-023 grading engine (largest missing capability; start with OQ-S4-1's
+     extension-table dump, then the monotonic 2-bit field + the decision tree)
+  3. N-042 CLI temp fractional digit (one-line fix + decidegree accessor)
+  4. N-044 --deep naming hazard (rename to --whole-disk + usage-text fix)
+  5. N-040 ABI doc truthfulness bundle (five doc fixes, the frozen-contract unit
+     line FIRST — consumer-facing correctness trap)
+  6. M-030 remainder (WinPE gate + terminal OFFLINE + LDM-path 32→200 + silent
+     fallback + stale cite — the fix leg already landed the handle ladder + envelope)
+  7. N-041 dead code decision (wire-or-delete RdaClient + volume_letter_to_disk)
+  8. M-029 query model (frozen-doc unit fix is in N-040; then bucket-ID translation
+     + Type sort key; the server-side filter push needs OQ-S4-2 first)
+  9. N-043 progress heartbeat decision (accept-and-document vs heartbeat event)
+  10. S-020 ReFS attribute layer (S3-REFS; needs the real-volume fixtures)
+  11. S-012 NTFS pass-2 (standing #1 from prior sessions)
+  12. S-019/S-021/S-022 (the S3 audit legs' SEVEREs)
+  13. M-022 remainder (grammar work; OQ-2 real-volume dump is the gate)
+  14. M-017 lost-partition scoring port (OQ-S2M-2's NTFS bonus setters now decoded)
+  15. M-011..M-015 FAT/exFAT family
+  16. M-024 (theirs — RawConfig toggle surface; pairs with M-029)
+  17. M-025/M-026/M-027 (theirs — ReFS model family)
+  18. N-038/N-039 (theirs — HFS+ fork predicate / NTFS UsnJrnl gate)
+  19. I-016's engine-enable-gates note (fs_exclude_mask — optional)
+  20. OQ-S4-3 chunking relative perf (Windows bench leg — closes M-030's perf axis)
+- Honest not-completed-by-this-leg: OQ-S4-1/S4-2/S4-3 as tracked; the grading
+  fix plan's vt+0xb8/vt+0x100 conditions; og-execution benches (Windows-only);
+  N-032's hardware verification (carried); a deeper DRWReport/DRWService pass was
+  deliberately not attempted (agent-A verified DRWReport is a crash reporter with no
+  scan-report surface — the core's report is a documented deliberate addition, see
+  M-029/N-040 family).
+
+---
+---
+Task ID: S4-F3 (S-019 fix)
+Agent: main engineer (diff-to-fix remediation session 4)
+Task: Verify and fix S-019 — lost BitLocker ("-FVE-FS-") partition probe family missing.
+
+Work Log:
+- Corpus verification BEFORE the fix (first-hand): FUN_180004ce0
+  (PartitionRecoveryD_decompiled.c:2731-2830) builds the 8-byte literal
+  "-FVE-FS-" byte-by-byte (2d 46 56 45 2d 46 53 2d, :2778-2785) and memcmp's
+  it against boot+3; a secondary memcmp at boot+0x1E0 against an
+  'x'/0xFF template; on match FUN_180004610 assigns type 0xB and skips FAT
+  classification (:2604-2606). BitlockerParser vftable :721, wired into the
+  CompleteSearch/RegSearch/Fast1M/Fast generator sets. CONFIRMED-DIVERGENCE
+  (the core's dispatch had no BitLocker branch; the FVE sector died in the
+  FAT catch-all).
+- Fix: probe_bitlocker in cr_candidates.cpp (the og's exact gate; dispatch
+  BEFORE the FAT catch-all); scoring per the fix plan (boot-sig +15,
+  fve-shape +25 — grade-only, the og's gate is shape-free); size = marked
+  device-tail fallback (FVE VBR geometry decode is the finding's open
+  question — corpus-undecoded); CandidateFs::BitLocker (append-only value
+  10); FsFamily::BitLocker + probe_family OEM branch (encrypted content
+  never falls to the ext4-magic probe — a random 0xEF53 in ciphertext would
+  mis-dispatch); engine-dispatch default surfaces the locked-volume
+  candidate (the og's pre-unlock behavior); session deserialize gate
+  extended append-only. Signed-char 0xFF compare uses unsigned char (the
+  PROTOCOL S-018 lesson — caught by -Werror type-limits on the first build).
+- Tests: LostDiscovery.LostBitlockerPartitionDiscovered (candidate surfaces,
+  fs/scoring/evidence/size-marker + materialize + OEM round-trip),
+  LostBitlockerOemNoise (no-55AA -> no candidate; 55AA+OEM+binary-garbage
+  version -> boot-sig-only candidate, pinning the og's shape-free gate),
+  LostBitlockerInsideExtendedRegionStillFound (table-independent discovery
+  with an EBR in the table).
+- Proof: fail-before (probe/dispatch stashed, enums kept so the tests
+  compile) 3/3 FAILED — fve == nullptr, no candidate ever created, exactly
+  the finding's falsifiable claim; pass-after 3/3 PASS; full suite 365/365
+  linux-gcc ASan (362 baseline + 3); clang-format gate clean; Windows lane:
+  constants/logic only, no new imports (Win7 gate untouched).
+- Audit trail: S-019 -> findings/FIXED/ with Resolution; RESOLVED-INDEX row
+  (26->27); CROSS-REF-MATRIX lost-partition B/B-row cells; modules/
+  lost-partition.md s4 section; SUMMARY counts (SEVERE active -1) +
+  remediation-log row; CAPABILITY-MATRIX lost-partition row.
+
+Stage Summary:
+- S-019 CLOSED: lost BitLocker partitions now surface as candidates through
+  the og's exact classifier gate, locked-volume inventory correct, no
+  accidental engine dispatch on ciphertext. The BitLocker pair (S-014
+  unlock path + S-019 discovery) is fully closed this session. Remaining
+  SEVERE: S-003, S-007, S-009-split, S-012, S-020, S-021, S-022.
+
+---
+Task ID: S5-T1 (session-5 diff-audit bootstrap)
+Agent: session-5 parity auditor (read-only continuation leg — coverage-hole closing + remaining-surface marking)
+Task: Continue the diff-to-fix audit: verify post-session-4 fixes, close the corpus/core citation gaps found by systematic inventory, decode tracked-open OQs, mark every remaining og feature/function as a finding ("focus on every minor detailing too").
+
+Work Log:
+- Bootstrap: repos pulled. Core at 7cf6754 (one commit after session-4 close d870dd3: the
+  S-019 BitLocker-partition fix, landed by the parallel fix leg with its own audit trail —
+  RESOLVED-INDEX row, matrix cell, modules/lost-partition.md, SUMMARY counts, 3 fail-before
+  tests, suite 365/365). Corpus unmoved at 03ad46c. Prompt saved token-redacted at
+  worklog/session-5-diff-audit-prompt.md (distinct from the 2026-10-23 dev-era
+  session-05-prompt.md), read twice.
+- Citation-gap inventory (systematic): extracted all corpus paths cited across
+  diff-to-fix/findings + modules (83 unique) and diffed against the corpus artifact tree.
+  NEVER-CITED in-scope candidates found: SearchDLL/rawsearchdll--family-{brance,bruteforce,
+  filegen,rawspeed,special,xjq}.md (6 carving-family artifacts — the whole RAW analyser
+  family layer), SearchDLL/per-engine-function-map.md, SaveScan/rsf-record4--tree-node-
+  grammar.md, SaveScan/ifileproperties-part3--btrfs-zfs-raw-generic.md, config-files/
+  {drwcfg-bin--aes-config-cache,userdata-remoteconfig--signature-and-flags,vendor-logs--
+  qa-session-forensics}.md, UIUX/{31-filterbar-family-decode,13-ui-core-wiring-state,
+  19-diskhealth-quick-ui,24-dynamic-ground-truth-ingestion,25-connect-wiring-graph,
+  20-moc-surface-sink-architecture,33-objectname-loop-closure,34-navigatebar-bottomarea-
+  chrome,06-dialog-telemetry-inventory}.md, MOM-modules/{CheckVersion,Common,Config,Error,
+  Log,Thread,bitlockerhelp,FileSystemCheck}.md (Error/Thread are in-scope semantics:
+  error map + threading), WinPE/{eusendmessage--wm-copydata-messenger,boot-config--
+  winpeshl-autobat-regdrv}.md.
+- Core-tree citation gap (same method, src/+include/ basenames): never-cited files include
+  src/win/cr_elevate.cpp (elevation — no prior audit), include/cr/win/cr_destio.h
+  (destination I/O contract), src/core/tree/cr_snapshot.cpp, src/core/storage/cr_cached.cpp,
+  src/core/compress/cr_decomp.cpp, src/core/crypto/cr_sha256.cpp, src/core/err/cr_error.cpp
+  (error map implementation), include/cr/tree/cr_diskmap.h (visualization model).
+- Baseline: suite evidence deferred to the consolidation wave (prior leg's 365/365 at this
+  exact commit stands; this session re-runs it before close).
+
+Stage Summary:
+- Session-5 lanes defined: (A) RAWSearchDLL 6-family carving layer never read by any
+  session; (B) rsf-record4 tree-node grammar + ifileproperties-part3 save semantics;
+  (C) config-files + MOM Error/Thread/Common/Config in-scope semantics; (D) UIUX
+  filterbar/wiring/diskhealth-UI artifacts vs query/health/callback model; (E) core
+  never-cited files (elevate/destio/snapshot/cached/decomp/err); (F) OQ-S4-1 grading
+  extension table dump + OQ-S4-2 RAW naming-hook consumption; (G) og-codebase data
+  files (Dict/, DataFile.ini) disposition; (H) fixes landed since session-4 audited
+  commit (S-019 verified in-tree this entry).
+
+---
+Task ID: API-T13 (C-consumer expansion)
+Agent: main engineer (core-api session)
+Task: The /W4 /WX C consumer test now exercises the FULL lifecycle surface.
+
+Work Log:
+- ui_abi_check.c additions (single-threaded C proofs; cross-thread semantics stay in the
+  C++ suite where std::thread lives):
+  * Typed event stream: event_cb counts per CR_EVT_* (stage/progress/files/checkpoint/
+    repair/lost/error), unknown-type ignore rule; subscribe-before-run, unsubscribe +
+    resubscribe round-trip; first scan asserts stage>0, progress>0, files>0, unknown==0.
+  * checkpoint_path on the primary scan + cr_ui_scan_checkpoint_count >= 1 (G-13).
+  * Cancel-before-run: cancel() then run() -> ERR_CANCELLED; the cancelled scan still
+    saves a truthful session (D-18 save-on-cancel), then closes cleanly.
+  * Disk map: session path with auto geometry (all four overlays + frees), the
+    bad_ranges two-call pattern (OK-or-TRUNCATED both contract-clean), snapshot path
+    refuses NULL want geometry with BAD_PARAMETER.
+  * Recovery enqueue variants: enqueue_subtree (file node = its own subtree),
+    enqueue_snapshot, enqueue_subtree_snapshot (OK-or-leaf-refusal), queue counts;
+    cancel-before-process -> ERR_CANCELLED with done==0 (truthful queue).
+  * Session resume flow: open_image -> session_resume(zero-init cfg) -> attach ->
+    verify_identity == OK (positive path; boot sector untouched by the S-008 FAT
+    repair so the hash matches) -> run() truthful no-op on a completed session ->
+    stats -> close.
+- Field-name fix: checkpoint_path_utf8 (the header's actual name).
+- Suite 363/363 Linux ASan; ui_abi_check OK; clang-format clean.
+
+Stage Summary:
+- The C consumer gate now covers every cross-platform ABI export family: the audit's
+  "not exercised by any C consumer" list is cleared except Windows-only surfaces
+  (open_disk/open_volume/enumerate/health — exercised on the Windows lane via the
+  platform-truth probes and, for real disks, the bench harness).
+Task ID: DF-S012 (S-012 — NTFS two-pass: membership + GUID-dump pass 2 + size-0 rescue)
+Agent: main engineer (diff-to-fix fix session)
+Task: SEVERE S-012 — NTFS single-pass; og pass 2 (GUID-dump viability/destroy) + size-0 rescue missing; S-001 destroy mis-scoped into the live walk.
+
+Work Log:
+- Corpus re-verification BEFORE coding (every cited site re-read first-hand):
+  :18630 unconditional pass-1 emit; :18584-18625 GUID collection (0x4C-char name,
+  '{'[0], '}'[37], 38-char magic GUID at [38..75], live-only); FUN_18001a980 :20957+
+  (chunked <=0x8000-sector dump reads); FUN_18001acc0 :21095+ in full (stride 0x400
+  post-parse / 512 post-hole; og-15 metafile table + $SI hidden&system gate via
+  FUN_180034b20->FUN_180040ea0/f20; base-record gate FUN_180041970 = record+0x20;
+  pseudo record# = sector index; destroy: (flags&4)||!name||'$' / size<=0x3ff /
+  per-run START probes vs claim map with all-claimed destroy; folders exempt;
+  no-runlist survives); :18525 claim insertion (FUN_180017190, skip-deleted bit
+  engine+0x258 default off -> deleted records claim too); :18493-99 rescue gate
+  (size==0 && !dir && deleted); FUN_18001e120 mirror-copy resident extraction
+  (fixup + record# validated); FUN_18001d690 same-name merge (0x800 entry gate,
+  5000-candidate bound, runlist+size adoption). Classification: CONFIRMED-DIVERGENCE.
+- Fix (cr_mftwalk.h/.cpp + cr_bootstrap.h/.pp): destroy_fully_overwritten default
+  FALSE (S-001 scope correction; flag kept as honest-recovery inversion); new
+  guid_dump_pass + size_zero_rescue flags (default ON); cluster-granular claim map
+  built during the walk; GUID-dump collection; pass 2 with the og's stride/gates/
+  destroy rules; walk-time mirror resident rescue (new NtfsVolume::
+  read_record_mirror); post-walk relaxed same-name merge; 4 new WalkStats counters.
+- Tests: MainWalkKeepsOverwrittenDeleted, GuidDumpPassRecoversReusedRecord,
+  GuidDumpDestroyRules, SizeZeroRescueFromMftCopy, SizeZeroRescueSameNameMerge
+  (dedicated dump fixture: 4 stale records inside a live GUID-named file - survivor,
+  all-claimed destroy, <=0x3ff destroy, folder exemption; mirror-resident ghost;
+  same-name twindrive pair). FAIL-BEFORE PROVEN: 4/5 on the implementation-reverted
+  build; the 5th (membership) is witnessed by EndToEndWalk's historical
+  destroyed==1 assertion (updated to the S-012 model: emitted + Overwritten +
+  PartiallyOverwritten, destroyed==0). Suite 339/339 Linux default + 339/339 ASan.
+- Audit trail: S-012 Resolution + FIXED/ move; RESOLVED-INDEX row; CROSS-REF-MATRIX
+  ntfs B/D cells; modules/ntfs.md S-012 verdicts; SUMMARY counts (SEVERE 6 active)
+  + remediation row; PARITY-DELTAS D-51 (two-pass model registered); S-001 file
+  scope-correction postscript.
+
+Stage Summary:
+- S-012 CLOSED: the NTFS engine is two-pass like the og — result-set membership now
+  matches pass 1, dump-recovered records (the deep-scan advantage) are produced for
+  the first time, and size-0 deleted records get the mirror/merge rescue. Next per
+  the handoff order: S-003/S-021 (HFS+ journal pair), then S-014/S-019 (BitLocker).
+
+---
+Task ID: API-LANE-UNBLOCK (cross-lane courtesy note)
+Agent: main engineer (core-api session)
+Task: Unblocked the shared red lanes + a precise leak report for the active S-012 leg.
+
+Work Log:
+- test_bitlocker_win.cpp: added the missing #include "cr/cr_error.h" (the S-014 leg's
+  test uses ERR_FVE_LOCKED/OK unqualified; MSVC's include chain via cr_bitlocker.h does
+  not reach cr_error.h — the Windows lane of ed00020+ failed on exactly this, runs
+  40222295117/40222295027). One include, both lanes deterministic. ATTRIBUTED in-code.
+- clang-format 18 sweep over the tree (cr_carve.cpp, cr_mftwalk.cpp, test files — the
+  S-012/S-017 legs landed unformatted; lint lane red since abe8e36).
+- CROSS-LANE FINDING for the active S-012 leg (NOT fixed here — your feature, your
+  ownership model): the ASan lane is RED on 4 tests with a 460-byte leak whose direct
+  trace is walk_mft cr_mftwalk.cpp:1392 (operator new(nothrow), 2 x 368 B
+  tree::FileProperties) + indirect u16string/extents-vector leaks, reached from
+  walk_dump_image (test_ntfs_volume.cpp:2464). Failing tests:
+  NtfsVolume.GuidDumpPassRecoversReusedRecord, NtfsVolume.GuidDumpDestroyRules,
+  NtfsVolume.SizeZeroRescueFromMftCopy, +1 more. The destroy-rule path emits no node
+  yet still leaks 2 FileProperties — suspicion: an allocation on a path that neither
+  attaches to the tree nor releases (or a by_record side-map holding bare pointers).
+  Suite state after my unblocks: 367/371, the 4 red all this leak.
+
+Stage Summary:
+- Lint lane + Windows-lane blockers cleared; one precisely-reported leak remains for
+  the S-012 leg (their active queue).
+
+---
+Task ID: S3-INTEG (session-3 storage/census parallel leg — reconciliation + integration)
+Agent: session-3 parity auditor (read-only; the storage/census parallel leg)
+Task: Integrate this leg's 42 findings onto the reconciled main state after the
+S3-lead, fix, and S4/S5 legs landed first (ID collisions + supersessions).
+
+Work Log:
+- Discovered at push time: main had advanced past my baseline 7fd00e0 by the S3
+  lead leg (43149ff close: 77 active/24 FIXED), a diff-fix session (597a9c6:
+  A-002, A-004+S-016, S-013, S-014, S-015, S-017 fixed; S-018 invalid), S4
+  (3a6257c/668c52f/d870dd3: S-023, M-028..M-030, N-040..N-044, I-015/I-016,
+  first-time preview/query/transport modules), an S-019 fix (7cf6754), and an
+  S5 bootstrap (2001f7c) + ABI test work (d374064).
+- Salvaged all 42 local findings + evidence + module addenda to scratch; reset
+  to origin/main; reconciled finding-by-finding against the lead legs' content:
+  * SUPERSEDED (23): local A-004->S-020; S-012->N-036; S-013->I-012; S-014/
+    S-015/M-014/M-015/I-011->M-017 (my independent dSuggestted numeric fit
+    added as a convergence addendum); S-016->M-023; S-022->S-015(FIXED);
+    M-011/M-013->M-022 (their decode is deeper: system-dir-count gate + $I
+    handler); M-022->M-020 (rotating mirror index already filed); M-025->N-030
+    (tail-hit size formula + invented 2 MiB cap + 500 MiB default added as an
+    addendum); N-023/N-024->N-026/N-037/I-013; N-027/N-028->N-020/N-040/M-029;
+    I-009->M-026 (directionality cross-ref added); I-010/I-016->M-017/N-031
+    (OQ-T9/T8 resolved by lead legs — my decodes corroborate); I-014/I-015->I-014.
+  * KEPT + RENUMBERED (19): S-024..S-028, M-031..M-039, N-045..N-047,
+    I-017/I-018 — health grading, ext4 x4, Btrfs xattrs, ReFS progress,
+    storage layer x5, engine-side FileFilter validation, NVMe, ZFS SA,
+    occupancy bitmap, NVMe-MATCH record. Integration banner on each file;
+    cross-refs rewritten to the lead legs' IDs.
+- Evidence: kept 3 of my 6 files (virtual-volume-device, filefilter-health,
+  rawsigns-consumer-decode — renamed to sit beside the lead leg's
+  s3-rawsigns-units-and-dispatch.md; the other 3 (calcpartition-scoring,
+  rawsearch-registry, refs-engine-map) were redundant with the lead legs'
+  s3-calcpartition-scoring/s3-rawsearch-inventory/s3-refs-engine-inventory).
+- modules/storage.md added (the volume-abstraction layer's FIRST audit —
+  complements the S4 transport.md which covers the layer below). Module rows
+  appended to health/ext4/btrfs/zfs/refs/carve with reconciliation notes.
+- tracked-open: OQ-RS-refs-session3.md + OQ-Z-E-FLT-session3.md added with
+  reconciliation headers; OQ-S4-1 gained the scorer-wiring answer (M-035).
+- SUMMARY: integration section + post-integration inventory counts (104 active
+  / 27 FIXED / 11 tracked-open files — the previous 61/23 was the S4 wave-1
+  close). README: integration paragraph.
+- A-002 status arc recorded honestly: LIVE at my baseline 7fd00e0 (first-hand
+  re-verification), FIXED on main by the fix session (7f2c83e) — my baseline
+  evidence retained as history.
+- READ-ONLY discipline: only diff-to-fix/, worklog.md written. The salvage tree
+  lives outside the repo (audit scratch, not committed).
+
+Stage Summary:
+- The storage/census parallel leg's unique contributions are now on main:
+  19 renumbered findings (5 SEVERE, 9 MAJOR, 3 MINOR, 2 INFO), 3 evidence
+  files, modules/storage.md, 2 tracked-open probe files (incl. the ACUTE-gated
+  OQ-Z1 dsl-offsets question), and 5 addenda/cross-refs strengthening the lead
+  legs' findings with this leg's independent decodes.
+- Multi-leg coordination lesson recorded: this session had TWO parallel S3 legs
+  with overlapping mandates (lead: ReFS/NTFS/census; mine: storage/census/
+  raw-signs/scoring/filter/health). The renumber-past-taken-IDs protocol worked
+  but cost a full reconciliation pass; future sessions should claim ID ranges
+  in worklog before authoring.
+- Honest not-completed: the Linux suite re-run (toolchain bootstrapped late in
+  this container; fix legs' 363/363 at d374064 stands per their logs); OQ-Z1's
+  pool-image probe; OQ-RS-2's resident fixture build (belongs to S-020's fix
+  lane).
+Task ID: MFIX-B1 (minors-focus session, batch 1/12)
+Agent: main engineer (diff-to-fix minors session)
+Task: FAT/exFAT/lost-partition minors batch — N-022, N-023 (N-010a..f), N-034 + N-001 duplicate reconciliation.
+
+Work Log:
+- Re-verified every og constant first-hand before touching code: FATSearchDLL
+  FUN_18002f970 (engine-open validator, :38037-38090), FUN_180021000 (:26318 0xE bail),
+  FUN_180007e50 (:5219-31 flavor brackets), FUN_1800365a0 (:44298-44315 date gate +
+  the config singleton +0x40 gate at :44305), CDoubleFATTable FUN_180041de0
+  (:54216-18 mirror consult), exFAT FUN_180003090 (:1840-1866 — byte-OR reserved form,
+  single-byte loads confirmed in the decompile rendering); PartitionRecoveryD
+  FUN_180004610 ladder (:2516-2606) + FUN_1800048f0/4a40/4b70 gates (:2613-2730) incl.
+  the total32-preference (:2531-35) and floor root-division (:2553).
+- Code: cr_chain.cpp (flavor boundary 65524; SPC og set — domain-equal to the old pow2
+  check over u8, stated explicitly; mirror consult FREE-only default + opt-in BAD
+  salvage; new boot_passes_open_gates + lost_boot_flavor), cr_fat_quick.cpp (engine-open
+  gate wiring + backup-sector gating; strict_date_sanity dentry gate), cr_candidates.cpp
+  (probe_fat requires a deep-gate pass), cr_exfat_quick.cpp (byte-OR reserved form).
+- Tests: 20 new (10 FAT engine, 7 lost gates, 3 exFAT). Fail-before proven on a pre-fix
+  worktree (ba55913): 6 discriminating tests fail before / pass after; 4 guards pass
+  both sides; API-gated tests fail-by-construction (compile). Suite 366/366 Linux Release.
+- Audit trail: Resolutions in the three finding files (moved to FIXED/); CROSS-REF-MATRIX
+  rows → FIXED; modules/fat.md + exfat.md + lost-partition.md updated; SUMMARY.md counts
+  (71 active / 29 FIXED); PARITY-DELTAS D-51 (5 registered deltas); RESOLVED-INDEX +3
+  rows + N-001 reconciliation note; stale N-001 duplicate removed from MINOR/.
+- Audit corrections recorded: N-010b/N-034's "SPC 256+ accepted" sub-claim is a false
+  positive (SPC is a u8 BPB field — the old pow2 check was set-equal to the og's set
+  over the representable domain); the deep FAT32 string gate is case-SENSITIVE (memcmp)
+  unlike the engine-open _strnicmp; the og ladder prefers total32 when nonzero.
+
+Stage Summary:
+- 3 MINOR findings closed (N-022, N-023 group, N-034); 1 sub-item FIXED-ALREADY (N-010d
+  via S-011); 1 audit sub-claim corrected (SPC domain); N-001 duplicate reconciled.
+- MINOR tier: 29 files remain. Suite 366/366 green. FAT12 engine-open recovery preserved
+  (registered superset D-51) — future sessions must not "fix" it away.
+Task ID: API-T4b (query path-prefix filter)
+Agent: main engineer (core-api session)
+Task: op #20 completion — the og AdvanceFilterCondition path group at the ABI.
+
+Work Log:
+- Core: query::Filter::path_prefix (empty = no filter, zero-init safe); the walk
+  threads the accumulated path (root role + ancestors + own name, '/'-joined —
+  the exact Row::path_utf8 shape) and PRUNES subtrees whose accumulated path is
+  prefix-incompatible with the filter (path_compatible: one is a prefix of the
+  other, '/' case-neutral). Path materialization ONLY when the filter is active —
+  the plain count path keeps its no-string-conversion fast lane (the 1M-node
+  budget). ASCII-case-insensitive comparator (starts_with_ci) matching
+  name_substring's policy. Evidence: corpus 31-filterbar-family-decode.md §3-§6
+  (the og's 7-group AdvanceFilterCondition; path group decoded there).
+- ABI: cr_ui_query::path_prefix appended (added-field rule — no bump, ABI stays 1;
+  the corrected §9 policy's first exercised append). NULL = no filter.
+- Tests: Query.PathPrefixFilterMatchesAndPrunes (10 cases: no-filter, dir prefix,
+  case-insensitivity, mid-name prefix, sibling branch, exact-file prefix, root
+  segment, no-match, deleted+prefix composition) + ABI-level block in
+  CrUi.QueryFiltersSortPaging (root-segment-from-actual-row, case-insensitive,
+  bogus prefix = 0, full-path = exactly 1) + C-consumer block (row's own path as
+  prefix -> 1; bogus -> 0). The tag group stays NOT-EXPOSED (og's tag data is
+  its Results-UI state; no core-side analog — documented in the audit).
+- Suite 368/372 (the 4 red = the cross-lane S-012 MFT-walk leak, reported);
+  ui_abi_check OK; clang-format clean.
+
+Stage Summary:
+- API-SURFACE-AUDIT op #20: PARTIAL -> MATCH on the path group; tag group
+  documented NOT-EXPOSED with rationale. Completion plan items 1-6 all landed.
+
+---
+Task ID: MFIX-B1b (cross-lane green-main fix)
+Agent: main engineer (diff-to-fix minors session)
+Task: S-012 leg's ASan leak (reported by the api-session leg in 591f40c, left red cross-lane).
+
+Work Log:
+- Reproduced: 460+ bytes leaked per scan at cr_mftwalk.cpp:1392 (dump-pass-2
+  FileProperties objects) failing 4 NtfsVolume tests on the ASan lane.
+- Root cause: the GUID-dump emit site allocated a FileProperties (caller-held
+  ref) and passed it to tree.add_file without ever dropping the caller's ref -
+  the add_file contract (cr_node.h:190-192: "call once per parent, then release
+  once") requires it; every sibling site in the file (:943/:1017/:1217/:1635/:1720)
+  releases - this one site missed it.
+- Fix: dp->release() right after add_file (object dies if add_file failed; node
+  holds its own ref on success) - the same pattern as the :943 site.
+- Verified: full suite 374/374 under ASan with detect_leaks=1 (was 370/374 + leak
+  reports). Release build unchanged 374/374.
+
+Stage Summary:
+- ASan lane unblocked for all legs. No behavior change (refcount-only fix).
+Task ID: DF-S022 (S-022 — NTFS INDX/$INDEX_ROOT second-source harvest)
+Agent: main engineer (diff-to-fix fix session)
+Task: SEVERE S-022 — og harvests INDX-block + $INDEX_ROOT entries into results; core had
+no INDX decode (D-N refusal premised on "og UNVERIFIED-7", resolved by the S3 decode).
+
+Work Log:
+- Evidence re-verified first-hand from the consolidated quote file (validator FUN_180045510
+  incl. the (alloc+entries_off)/512 == usa_count-1 cross-check; chain walk FUN_180045990;
+  entry gates FUN_18000e970 :11025-49; $INDEX_ROOT variant FUN_18000f760; emit/collection
+  plumbing). Classification: CONFIRMED-DIVERGENCE.
+- Fix: cr_ntfs_wire.h D-N comment replaced with the og-decoded layout; scan_remnant_buffer
+  probes 'INDX' at the 512-stride and runs validate->fixup->chain-check->in-use harvest
+  (0x1f5 cap, slack never read); remnant DIR records harvest resident $INDEX_ROOT
+  (large-index==0, <=0x320) through the same entry builder; remnant_range_scan overlap
+  raised to 8 KiB (16-sector block bound). Entries emit as root_lost/MetadataOnly with
+  $-name filter for dirs; dedup by full file ref + (parent,name) vs structured results.
+- Claim-map wiring delta documented: the og's raw-scanner claim gate is enforced by the
+  structured dedup instead (remnant stage is post-walk; result-set equivalent).
+- Tests: OrphanIndxBlockHarvestsEntries, IndxHiddenSystemEntryRejected,
+  IndxSlackNeverHarvested, RemnantDirRecordHarvestsIndexRootChildren. FAIL-BEFORE 3/4
+  (the negative pin passes both sides per the finding's own prediction). Fixture lesson
+  recorded: bulk value writes must re-stamp USA sector tails. Suite 358/358 default +
+  358/358 ASan.
+- Audit trail: Resolution + FIXED/ move; SUMMARY (SEVERE 5 active) + remediation row;
+  matrix ntfs B4/B5/A26 cell; RESOLVED-INDEX; modules/ntfs.md A26 correction addendum.
+
+Stage Summary:
+- S-022 CLOSED: second-source recovery for files whose MFT records are gone (the og's
+  deep-scan advantage class) now exists in the core. Remaining SEVERE: S-003, S-007,
+  S-009-remnant, S-020, S-021. Next: S-003/S-021 (HFS+ journal pair).
+
+---
+Task ID: API-XLAN-LEAKFIX (the S-012 MFT-walk leak — fixed per the earlier report)
+Agent: main engineer (core-api session) [CONVERGENT: the diff-to-fix minors leg fixed the same leak in the same window (their commit landed first in this rebase; both fixes are the identical dp->release() after the successful add_file — theirs kept]
+Task: The reported cross-lane ASan leak, fixed after the S-012 leg kept landing other
+      batches (main red across 8+ commits).
+
+Work Log:
+- Root cause confirmed: cr_mftwalk.cpp dump-emission site allocated
+  tree::FileProperties (ctor ref=1) and called tree.add_file(host, dp) — which TAKES
+  a reference (cr_node.h:189-191 "caller releases its own") — but never dropped the
+  builder's ctor ref on the success path. Every other allocation site in the file
+  releases after a successful add (:950 "node holds it", :1027 "nodes hold the refs");
+  the dump site at :1392 was the one omission. Leaked the builder's ref per emitted
+  dump record (ASan: 2x368B + indirect name/extents per dump-walk test).
+- Fix: dp->release() after the successful add (the failure path already released).
+  One line + the cross-lane attribution comment citing the convention.
+- Suite: 392/392 ASan green (was 388/392); ui_abi_check OK.
+
+Stage Summary:
+- main's ASan lane is green again; the 4 GuidDump/SizeZeroRescue tests pass clean.
+
+---
+Task ID: API-XLAN-LEAKFIX (the S-012 MFT-walk leak — fixed per the earlier report)
+Agent: main engineer (core-api session)
+Task: The reported cross-lane ASan leak, fixed after the S-012 leg kept landing other
+      batches (main red across 8+ commits).
+
+Work Log:
+- Root cause confirmed: cr_mftwalk.cpp dump-emission site allocated
+  tree::FileProperties (ctor ref=1) and called tree.add_file(host, dp) — which TAKES
+  a reference (cr_node.h:189-191 "caller releases its own") — but never dropped the
+  builder's ctor ref on the success path. Every other allocation site in the file
+  releases after a successful add (:950 "node holds it", :1027 "nodes hold the refs");
+  the dump site at :1392 was the one omission. Leaked the builder's ref per emitted
+  dump record (ASan: 2x368B + indirect name/extents per dump-walk test).
+- Fix: dp->release() after the successful add (the failure path already released).
+  One line + the cross-lane attribution comment citing the convention.
+- Suite: 392/392 ASan green (was 388/392); ui_abi_check OK.
+
+Stage Summary:
+- main's ASan lane is green again; the 4 GuidDump/SizeZeroRescue tests pass clean.
 Task ID: DF4-S012
 Agent: main engineer (diff-to-fix session 4)
 Task: S-012 — NTFS two-pass architecture: verify, classify, fix (membership + pass-2
@@ -5153,3 +5858,12 @@ Stage Summary:
 - Audit trail: finding moved to FIXED/ with Resolution; RESOLVED-INDEX row (26); matrix
   ntfs rows updated; modules/ntfs.md S-012 rows updated; SUMMARY re-baselined to the
   file-inventory truth (8 SEVERE / 22 MAJOR / 33 MINOR / 12 INFO active, 26 FIXED).
+
+Post-merge convergence note (session 4): TWO agents fixed S-012 independently and in
+parallel (the DF4-S012 entry above and the diff-fix entry that landed first on main).
+The landed implementation is the parallel session's version (a superset: it includes
+the size-0 rescue via $MFTMirr-first extraction + the relaxed same-name merge, and the
+leak follow-ups). The converging leg's duplicate implementation was dropped at merge;
+its INDEPENDENT corpus verification is preserved as the session-4 convergence addendum
+in findings/FIXED/S-012-*.md (premise correction: NO cross-pass dedup og-side; $Boot
+DAT_18004cd70 decoded; stride table; two og defects deliberately not replicated).

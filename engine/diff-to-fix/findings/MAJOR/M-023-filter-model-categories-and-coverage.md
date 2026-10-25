@@ -50,3 +50,25 @@ N-031 (the only_common runtime-config gate — the same runtime-config family), 
 ## Open questions
 
 Whether the product brief wants the og's runtime-editable filter (XML beside the binary) or accepts compile-time parity of CONTENT only — a product decision recorded here; the fix plan supports either.
+
+---
+
+## Session-4 addendum (2026-10-26, commit `63a9167`) — recount correction + model decode extension
+
+1. **Core category count corrected: 6 real categories, not 7.** The Category enum
+   (`include/cr/query/cr_query.h:32-40`) is None=0 (sentinel) + Image/Video/Audio/
+   Document/Archive/Other — the "7-cat" figure in this finding's original text
+   counted the sentinel. The extension map is 64 entries
+   (`src/core/query/cr_query.cpp:22-45`; this session's mechanical recount). The og
+   remains 8 categories / 1,489 elements / 1,481 distinct ("Other" = the IsMutex
+   fallback with zero extensions; 8 cross-listed duplicates) — the gap stands, now
+   with exact numbers on both sides: **8 vs 6 categories, 1,481 vs 64 extensions,
+   Email + Bookmarks missing.**
+2. **The filter/sort/paging model is now decoded beyond the category gap** — see the
+   companion finding **M-029** (renumbered from M-025 after the parallel S3/S4 legs filed their own M-024/M-025) (sort keys, paging semantics, Date/Size bucket IDs,
+   the 7-group AdvanceFilterCondition, two filter-bar modes, server-side filter push,
+   FilterFolder/TxtViewFiles noise filters, the 34 RawConfig carve toggles). This
+   finding remains the category/extension-coverage axis; M-029 carries the model axes.
+3. **Grading linkage**: the og's RecoveryAssistant precomputes per-category counts
+   (IDs 5/6/7/8/9/0xB) at scan completion (S-017) — the category model the fix ports
+   should be the single source for both the query filter and the assistant statistics.

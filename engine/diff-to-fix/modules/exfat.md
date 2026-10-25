@@ -159,3 +159,17 @@ Core (audited commit `67193b6`): `src/core/exfat/` (2 files, 678 LOC) +
   checksum incl. deleted sets — quoted in `../findings/FIXED/N-003-*.md`). The og-parity
   direction is validating, not skipping; M-013 carries the correct fix.
 - Cross-references: S-011 (tz, parallel leg — cross-confirmed) · M-013/M-014/N-023 (this leg).
+
+## Minors-fix session update (2026-10-26)
+
+**N-010d FIXED-ALREADY** — S-011's fix (D-49) removed the tz subtraction;
+the tz bytes stay parsed-but-unapplied, exactly the og's behavior. No further
+change.
+
+**N-010e FIXED** — the stream-entry reserved-field tests now use the og's
+byte-OR form (`FUN_180003090:1843-1846`, single-byte loads verified in the
+decompile): reserved1 strictly zero; reserved2 passes when either byte is 0;
+reserved3 when any of its four bytes is 0. Partially-nonzero reserved fields
+(BIOS/embedded formatter artifacts) no longer count the set as damaged.
+`ExfatEngine.StreamReservedPartiallyNonzeroPassesOgByteOr` (fail-before on
+the word-test form) + two guards.

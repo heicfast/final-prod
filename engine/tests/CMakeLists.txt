@@ -33,6 +33,7 @@ add_executable(cr_tests
     unit/test_telemetry.cpp
     unit/test_writer_dirs.cpp
     unit/test_report.cpp
+    unit/test_reghive.cpp
     unit/test_preview.cpp
     unit/test_snapshot.cpp
     unit/test_query.cpp
@@ -57,6 +58,13 @@ if(WIN32)
     target_include_directories(cr_destio_tests PRIVATE ${CMAKE_SOURCE_DIR}/tests)
     cr_deploy_vcpkg_binaries(cr_destio_tests)
     add_test(NAME destio COMMAND cr_destio_tests)
+
+    # S-014: BitLocker auto-unlock contracts (live-path seam, per-GUID
+    # enumeration with corpus caps, offline-hive harvest + selection)
+    add_executable(cr_bitlocker_tests unit/test_bitlocker_win.cpp)
+    target_link_libraries(cr_bitlocker_tests PRIVATE cr::win GTest::gtest_main)
+    cr_deploy_vcpkg_binaries(cr_bitlocker_tests)
+    add_test(NAME bitlocker COMMAND cr_bitlocker_tests)
 endif()
 
 # ---------------------------------------------------------------------------

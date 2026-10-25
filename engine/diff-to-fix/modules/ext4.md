@@ -157,3 +157,20 @@ deepens the rows above without changing verdicts:
   (`:3303`); 64-bit GDT; block-size ladder; journal escape restoration (core
   strictly better, og-compatible); BIGALLOC refusal stays a registered safety
   choice (og gate NOT-FOUND — unchanged).
+
+---
+
+## Session-3 parallel-leg function census (integration 2026-10-26; baseline `7fd00e0`')
+
+(Local IDs S-018/S-019/S-020/M-021/I-014 renumbered to S-025/S-026/S-027/M-037
+during reconciliation; the ext4 supersets register itself is the lead leg's I-014.)
+
+| ID | Severity | One-line |
+|---|---|---|
+| S-025 | SEVERE | Journal-salvaged entries flat vs og two-pass + "."".."-pair reparenting into the live tree |
+| S-026 | SEVERE | meta_bg group-descriptor resolution missing — files silently missing on meta_bg volumes |
+| S-027 | SEVERE | Backup-superblock lost-volume scan missing (og strides group boundaries, spawns sub-searchers at found-0x400) — complements the FIXED S-006 probe families |
+| M-037 | MAJOR | Dir-block parse resilience inverted: og skip-and-continue on invalid dirents / stop on inode-0; ours break-on-invalid / continue-past-inode-0 |
+
+Residual probes: OQ-E1 (orphan reachability semantics), OQ-E2 (meta_bg stride
+constant) — `tracked-open/OQ-Z-E-FLT-session3.md`.

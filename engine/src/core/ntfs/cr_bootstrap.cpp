@@ -413,5 +413,22 @@ u32 NtfsVolume::read_record(u64 record_no, std::vector<u8>& out) {
     return dev_->read_at(lcn * p_.cluster_bytes + rel, out.data(), u32(out.size()));
 }
 
+u32 NtfsVolume::read_record_mirror(u64 record_no, std::vector<u8>& out) {
+    /* S-012: mirror-first read for the size-0 rescue (the og's FUN_18001e120
+     * iterates the MFT-copy list and reads the record's copy there). The
+     * primary may hold the wiped/deleted state while the mirror still keeps
+     * the older bytes with resident $DATA intact. */
+    if (record_no >= max_record_no() || !mirr_valid_ || record_no >= mirr_record_capacity_)
+        return ERR_RANGE_OUT_OF_BOUNDS;
+    out.resize(p_.record_size);
+    const u64 vcn = record_no * p_.record_size / p_.cluster_bytes;
+    const u64 rel = record_no * p_.record_size % p_.cluster_bytes;
+    u64 mlcn = 0;
+    bool msparse = false;
+    if (!mirr_run_.vcn_to_lcn(vcn, &mlcn, &msparse) || msparse)
+        return ERR_RANGE_OUT_OF_BOUNDS;
+    return dev_->read_at(mlcn * p_.cluster_bytes + rel, out.data(), u32(out.size()));
+}
+
 } // namespace ntfs
 } // namespace cr

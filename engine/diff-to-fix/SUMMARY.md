@@ -1,12 +1,187 @@
-# SUMMARY.md — executive summary (session 3 reconciled; sessions 1+2 below)
+# SUMMARY.md — executive summary (session 4 reconciled on top of the session-3 continuation; earlier sessions below)
+
+## Minors-fix session delta (2026-10-26 — the "fix all tiers, focus the 33 minors" session)
+
+Session start `ed00020` (baseline 345/345 Linux Release; +1 test from the concurrent
+transport wave `a4053c4` → 346). Corpus `03ad46c` (unmoved). Mandate: verify every
+finding independently against the corpus before fixing; focus the MINOR tier.
+
+**Batch 1 — FAT/exFAT/lost-partition minors (this push):**
+- **N-022 FIXED** (mirror consult on primary FREE only by default; BAD-salvage opt-in;
+  fail-before proven on the pre-fix worktree).
+- **N-023 group FIXED** (N-010a flavor boundary 65524; N-010b engine-open gates;
+  N-010c date sanity behind `strict_date_sanity`; N-010e exFAT byte-OR reserved form;
+  N-010d FIXED-ALREADY via S-011; N-010f registered D-51). **SPC sub-claim corrected
+  as a false positive** (u8 field domain — audit correction, no code break).
+- **N-034 FIXED** (og deep-scan ladder `fat::lost_boot_flavor` + `probe_fat` rewiring;
+  engine-open layering pinned; SPC sub-claim correction shared with N-010b).
+- **N-001 duplicate reconciled** (stale copy in MINOR/ removed; FIXED/N-001 canonical).
+- PARITY-DELTAS **D-51** added (5 registered deltas: FAT12 engine-open exemption,
+  date-gate default OFF, mirror-BAD salvage opt-in, mid-chain FREE/BAD shape,
+  underflow guard).
+- Suite **366/366** Linux Release (346 + 20 new tests; 6 fail-before discriminators
+  proven against the pre-fix source in a worktree).
+
+**Counts after batch 1 (direct file inventory):** ACUTE 0 · SEVERE 8 · MAJOR 22 ·
+**MINOR 29** · INFO 12 = **71 active** / **29 FIXED** (FIXED/ holds 29 findings +
+RESOLVED-INDEX).
+
+
 
 **Audited commit:** session 1 `67193b6` → session 2 `5d6da5f`/`8574039`/`5f638a3` →
-**session 3: `2ce2e6b` + in-flight fixes through `34b3441`+rebase** (S-010 `3e34ed2`,
-M-009 `7fd00e0` verified landed mid-session). **Corpus:** `03ad46c` (unmoved).
-**Audit dates:** 2026-10-25 (sessions 1, 2 and 3 — three legs in session 2, one in 3).
-**Status:** session 2 waves 1–3 complete (parallel leg: 17 new findings + FIXED/ cleanup;
-this leg: 8 more landed fixes independently re-verified first-hand and CLOSED, + M-010
-filed). The decompile-vs-core deep pass continues below the session-1 module parameters.
+session 3 `2ce2e6b` + in-flight fixes through `34b3441`+rebase → session-3 continuation
+through `43149ff` (S3 lead) → fix legs through `ed00020` → **session 4 (this leg):
+`63a9167`-lineage rebased to `204137b` on `ed00020`. Corpus:** `03ad46c` (unmoved).
+**Audit dates:** 2026-10-25 (sessions 1-3) · 2026-10-26 (session-3 continuation legs +
+session 4).
+**Status:** session 4 = the never-audited-modules leg: preview, query, transport audited
+for the first time; the bootstrapped-but-never-executed API-session lane executed
+(factory contract, driver-client pattern, measured suite/ABI verification); grading
+engine decoded end-to-end. 11 new findings; OQ-S2M-1 resolved; M-022 OQ-1/OQ-3
+resolved; M-023 counts corrected; corpus errata rows 29-36 filed. Suite 306/306 +
+C-ABI check OK at this leg's audited tree (evidence: `evidence/executions/s4-suite-green-and-abi-check.md`).
+
+## Session-3 storage/census parallel-leg integration (2026-10-26)
+
+A second session-3 parallel leg (the *storage/census* leg — raw_signs consumer
+decode, OQ-T8 dispatch, lost-partition scoring, ReFS first-class,
+CPartitionVirtualVolumeDevice, FileFilter+health, ext4/HFS+/Btrfs/ZFS census)
+rebased onto the reconciled main state after the S3-lead/S4 legs landed. Its
+**42 locally-filed findings were reconciled against the lead legs' filings**:
+
+- **19 kept, renumbered** past the taken IDs (S-024..S-028, M-031..M-039,
+  N-045..N-047, I-017/I-018) — the genuinely-new surfaces: **health grading
+  (S-024)**, **ext4 journal reparenting / meta_bg / backup-SB scan /
+  dir-parse resilience (S-025..S-027, M-037)**, **Btrfs xattrs (S-028)**,
+  **ReFS per-file progress (M-031)**, **the storage/slice layer (M-032
+  tail-read semantics, M-033 BitLocker in-stack decrypt, M-034 NAS, N-045/N-046,
+  I-017 — first audit of that layer; new `modules/storage.md`, complementing
+  `modules/transport.md`)**, **engine-side FileFilter validation (M-035)**,
+  **NVMe field coverage (M-036)**, **ZFS SA registry (M-038)**, **cross-engine
+  occupancy bitmap (M-039)**, **NVMe route MATCH record (I-018)**.
+- **23 dropped as superseded** by the lead legs' filings (which landed first):
+  local A-004→S-020; S-012→N-036; S-013→I-012; S-014/S-015/M-014/M-015/I-011→
+  M-017 (independent numeric corroboration added as an addendum); S-016→M-023;
+  S-022→S-015 (FIXED); M-011/M-013→M-022; M-022→M-020; M-025→N-030 (tail-formula
+  + 2 MiB cap + 500 MiB default folded in as an addendum); N-023/N-024→N-026/
+  N-037/I-013; N-027/N-028→N-020/N-040/M-029; I-009→M-026 (cross-ref added);
+  I-010/I-016→M-017/N-031 (OQ-T9/T8 both resolved by the lead legs);
+  I-014/I-015→I-014.
+- **New evidence:** `s3-virtual-volume-device.md`, `s3-filefilter-health.md`,
+  `s3-rawsigns-consumer-decode.md` (the CommonRawAnalyser loader/matcher/tail
+  decode). New tracked-open files: OQ-RS (8 ReFS probes), OQ-Z-E-FLT (ZFS
+  dsl-offsets **ACUTE-gated probe**, meta_bg stride, orphan reachability,
+  FileFilter blast radius). OQ-S4-1 gains the scorer wiring answer.
+- **Convergence highlights:** both S3 legs independently decoded the
+  dSuggestted scorer (fits to 3e-5 vs 6 decimals on different log rounds) and
+  the dead raw_signs confidence field — strong corroboration for the fix lanes.
+- **Baseline note:** this leg's findings were authored against `7fd00e0` (the
+  pre-S4 tree); the integration verified each against the reconciled main state
+  (through `d374064`). A-002 was live at this leg's baseline and is FIXED on
+  main (`7f2c83e`) — this leg's re-verification at `7fd00e0` is retained as
+  historical evidence in its worklog entry.
+
+## Counts per severity (active — excludes FIXED/) — post-integration (file inventory)
+
+| Severity | Active | FIXED | Notes |
+|---|---|---|---|
+| ACUTE | 0 | A-001(p), A-002, A-003, A-004+S-016 | — |
+| SEVERE | 13 | S-001/2/4/5/6/8/10/11/13/14/15/17(+18 invalid) | +S-024..S-028 (this integration) |
+| MAJOR | 34 | M-001, M-006(in S-009), M-009 | +M-031..M-039 (this integration) |
+| MINOR | 41 | N-002/3/10/21 | +N-045..N-047 (this integration) |
+| INFORMATIONAL | 16 | — | +I-017/I-018 (this integration) |
+| tracked-open | 11 files | OQ-T1/2/5/7/8/9 + S2 OQs resolved | +OQ-RS, OQ-Z-E-FLT (this integration) |
+| **Total active** | **104** | **27** | by direct file inventory at `d374064`+this commit |
+
+(The previous section's "61 active / 23 FIXED" reflected the S4 wave-1 close
+before the S4 continuation and this integration; the inventory above is the
+authoritative post-integration count. **S-023's grading engine + this leg's
+S-024 health grading are natural fix-lane companions.**)
+
+## Session-4 delta (2026-10-26 — the never-audited-modules + API-lane session)
+
+Mandate: find what ALL prior sessions missed, remove/verify the fixed things, go
+deeper on the og-codebase vs core comparison, mark remaining surfaces as findings.
+State at session-4 wave-1 close (direct file inventory, `204137b`):
+
+- **First-time module audits (zero prior coverage — matrix had no rows):**
+  - **preview** → M-028 (MAJOR — Caps.max_read bypass on the zip/docx path with
+    EXECUTED proof: 65,568 device bytes pulled against a 4,096-byte cap,
+    `truncated=false`; plus the "4 MiB corpus preview window"/IInWindowStream
+    provenance misattributions — the og's preview cap is 1 MiB and IInWindowStream
+    is the 7-Zip LZ interface; compressed extents read whole psize) and I-015
+    (INFORMATIONAL — the og's preview is a UI-layer socket protocol: 602-byte header,
+    ≤1 MiB BMP, 10 s wait, 100 MB eligibility; the core's in-process reader is the
+    deliberate equivalent).
+  - **query** → M-029 (MAJOR — beyond M-023's category gap: sort keys (og 6 columns
+    incl. Type; core 5, no Type), paging (og virtualized, no page-size constant; core
+    offset/limit default 100 — parity-unclaimable, must be recorded deliberate),
+    Date/Size bucket IDs (0x100..0x105 / 0x1000..0x1006 incl. Custom + skipped IDs),
+    7-group AdvanceFilterCondition, two filter-bar modes, SERVER-SIDE filter push,
+    FilterFolder/TxtViewFiles noise filters, 34 RawConfig carve toggles; plus the
+    FROZEN `tree --json` contract's `modified` unit lie — docs say Unix seconds, wire
+    is FILETIME 100-ns-since-1601, verified in the FAT engine store path).
+  - **transport** → M-030 (MAJOR — driver-utilization pattern: no WinPE environment
+    gate, no ERROR_INVALID_HANDLE reopen ladder, no terminal IOCTL_VOLUME_OFFLINE in
+    the quiesce chain, 32-disk enumeration cap vs og's 200, silent RDA-open fallback
+    at the ABI level, and the 64 KiB envelope provenance correction — the og device
+    layer chunks at 4 MiB disk / 7 MiB volume buffered-synchronous, NO 64 KiB rule;
+    M-009/GAP-S6-13's corpus-grounding narrative corrected to Windows-heuristic) and
+    N-041 (dead RdaClient copy-session protocol + volume_letter_to_disk, zero callers).
+- **The bootstrapped-but-never-executed API-session lane, executed:** S-023 (SEVERE —
+  no post-scan grading engine: the og's CRecoverability "Recovery Chances" model —
+  grades {0,1,2} in bits 5-7 of node+0x73, monotonic sticky setter, decision tree
+  decoded rule-by-rule, per-selection re-grade, small-result heuristic — has NO core
+  counterpart; the core's 5-tier in-walk Confidence is a different decision system;
+  RecoveryAssistant statistics (8 counters + 6 category counts) absent; **resolves
+  tracked-open OQ-S2M-1**: engines emit grade=1 only, all verdicts are DRWUI-side),
+  I-016 (INFORMATIONAL — engine factory contract 9/9 verified: EUCreate pairs, ReFS
+  3-arg arity exception, Btrfs NULL-stub, RAW's GetRawUserInfoMap, the host vtable
+  interface incl. IAuxiliaryBitmap + cancel-poll; FS-code-space translation warning;
+  engine-enable gates note).
+- **MINOR findings:** N-040 (ABI doc truthfulness bundle: nonexistent SQLite
+  session-index sidecar documented as shipped, disk-map "2 free" state, event-thread
+  contract contradiction, unrepresentable ABI sub-versions, frozen-contract unit lie),
+  N-042 (CLI health temperature fractional digit is the Kelvin remainder —
+  mathematically wrong), N-043 (progress liveness watchdog: og advances coarse
+  progress every 5 s on silent engines; core freezes honestly), N-044 (CLI `--deep`
+  sets whole-disk discovery, not the deep stage — naming hazard vs the og's
+  "Deep Scan" toggle).
+- **Resolutions/addenda:** OQ-S2M-1 RESOLVED (→ S-023 evidence); OQ-S2M-2 partial
+  (NTFS +30/+50 bonus setters found at NTFSSearchDLL :28804/:28944/:28973/:29002 +
+  generic adder FUN_180024990; FAT32-20 setter NOT-FOUND; ZFS/Btrfs negative evidence
+  re-confirmed); M-022 OQ-1 (FUN_18000ea30 = $I recycle run-list builder decoded —
+  convergent with the S3-REFS leg's decode, which also filed S-020) + OQ-3 (ReFS
+  quick-search dot-prefilter = memchr(name,'.') gate, dot-less names skipped,
+  kind-flag bypass) RESOLVED; M-023 counts corrected (core = 6 real categories +
+  None sentinel / 64 extensions vs og 8 / 1,481 distinct). Three new tracked-open
+  OQs: S4-1 (169-entry grading extension table dump), S4-2 (RAW naming-hook
+  consumption sites), S4-3 (chunking relative perf — Windows bench leg needed).
+- **Verification hygiene:** A-004 + S-016 fixes verified first-hand in-source at the
+  session-4 tree (`event_fn_` live-sink at every emit site); suite 306/306 Linux +
+  `cr_ui_abi_check` OK executed (evidence file); parallel-leg fixes landing in the
+  same window were reconciled by rebase (S-013 `d2d9b03`, S-014 `ed00020` verified
+  present in-tree by the rebase read; their own legs' verification records stand).
+- **Cross-leg coordination:** this leg's IDs renumbered past the parallel S3/S4 legs'
+  S-016..S-022 / M-024..M-027 / N-033..N-039 / I-013/I-014 (my S-017→S-023,
+  M-024..M-026→M-028..M-030, N-033..N-037→N-040..N-044, I-013/I-014→I-015/I-016);
+  corpus errata rows 29-36 filed after the S3-CARVE leg's 22-28; the parallel legs'
+  matrix gained a stale duplicate carve row during their own merge — removed with a
+  note in the legend.
+- **Counts at session-4 wave-1 close (direct file inventory):** **86 active**
+  (9 SEVERE: S-003, S-007, S-009-partial, S-012, S-019..S-023 · 25 MAJOR: M-002,
+  M-005, M-007, M-008, M-010..M-030 · 38 MINOR: N-001..N-044 minus 5 in FIXED/ ·
+  14 INFO: I-001..I-016 minus I-004/I-005 in FIXED/) · **26 FIXED** (latest: S-013,
+  S-014, S-015, S-016, S-017-ftyp, S-011, S-006, N-021).
+
+**Top-risk update (post wave-1):** the roadmap's #1 is now **S-023** (grading engine
+absent — the og's headline feature surface has no counterpart; the largest single
+missing capability found by any session), then S-020 (ReFS attribute layer — S3-REFS),
+S-012 (NTFS pass-2), S-019/S-021/S-022 (the S3 audit legs' SEVEREs), M-028 (preview
+caps bypass — executed proof, smallest fix), M-029/M-030 (query/transport model
+gaps), then the M-011..M-015 family and M-017 port.
+
+
 
 ## Session-3 delta (2026-10-25 — the "go deeper, remove the fixed, mark the remainder" session)
 
@@ -131,15 +306,20 @@ collision with the parallel leg's I-006 ext4-nanoseconds, cleared).
 | Severity | Active | FIXED (in `findings/FIXED/`) | IDs (active) |
 |---|---|---|---|
 | ACUTE | **0** | A-001 (partial — ESP/MSR half stands fixed; LDM half false-positive), A-003, **A-002 (`7f2c83e` — real Microsoft/og GUIDs restored, session-3-verified; tests de-self-referenced)**, **A-004 + S-016 (`c33236f` — live-sink ErrorRange delivery + live snapshot error map)** | — |
-| SEVERE | 7 | S-001, S-002, S-004, S-005, S-008, **S-010 (3e34ed2)**, **S-011 (this fix session)**, **S-006 (this fix session — ext probes = og-parity accept gates; HFS+/Btrfs/ZFS/ReFS = documented supersets, D-50; FATX scoped remainder)** | S-003, S-007, S-009 (split pending N-020), S-012, S-013, S-014, **S-015 (S3: raw_signs KiB units)** |
+| SEVERE | 5 | S-001, S-002, S-004, S-005, S-006, S-008, S-010, **S-011 (tz parity; D-49 + host-independence correction)**, **S-013 (windowed-FAT accessor)**, **S-015 (raw-sign KiB units + per-format tails)**, **S-017 (1cc08c3)**, **S-014 (s4 — live+offline auto-unlock, cr/reghive module)**, **S-019 (7cf6754 — lost BitLocker FVE probe)**, S-018 (INVALID), **S-012 (diff-fix session — two-pass NTFS; D-51)**, **S-022 (diff-fix session — INDX + $INDEX_ROOT second-source harvest)** | S-003, S-007, S-009 (split pending N-020), **S-020, S-021 (S3 audit legs)** |
 | MAJOR | 18 | M-001, **M-009 (7fd00e0 — 64 KiB envelope on the repair read path, session-3-verified)** | M-002, M-005, M-007, M-008, M-010, M-011..M-021, **M-022 (S3: ReFS file-value grammar)**, **M-023 (S3: filter model)** |
 | MINOR | 26 | N-002, N-003, N-010-theirs, **N-021 (this fix session)** | N-001, N-004..N-009 (grouped), N-011..N-022, N-023..N-029 (S2-third-leg, grouped), **N-030..N-032 (S3)** |
 | INFORMATIONAL | 10 | — | I-001..I-011, **I-012 (S3: GAP-ADS resolved — parity, shared limitation)** |
 | tracked-open | 6 files | OQ-T1/T2/T5/T7/T8/T9 + all 9 S2-third-leg OQs RESOLVED across legs | OQ-T3*, OQ-T4*, OQ-T6 (bounded), OQ-S2A-1..4, OQ-S2C-3, OQ-S2M-1/2 (see files) |
-| **Total active findings** | **61** | **23** | |
+| **Total active findings** | **98** | **33** | |
 
-*(Counts by file inventory, fix-session state after A-004/S-016 (c33236f), S-011, S-006 and
-N-021 (this session): 0+7+18+26+10 = 61 active, 23 FIXED.)*
+*(Session-4 MERGE re-baseline (direct file inventory after integrating the parallel
+diff-fix/api/audit legs): 11 SEVERE + 34 MAJOR + 37 MINOR + 16 INFO = 98 active files,
+33 FIXED files, 11 tracked-open. This inventory supersedes every earlier count table in
+this file — including the wave-1 "86 active" and the mid-session "104 active" figures
+(both pre-merge snapshots). Session-4 S-012 was a CONVERGENT dual-agent fix — the landed
+implementation (5f1a212 + leak follow-ups) stands; the parallel verification is in the
+S-012 Resolution's convergence addendum.)*
 
 **Note on S-009/M-006:** the S-009 disk-map component was FIXED via GAP-S6-11
 (`56cce87` — `cr_diskmap.cpp/.h` verified in-tree by this leg); the M-006 fuzz-CI
@@ -150,6 +330,10 @@ split tracked in N-020 lands.
 FIXED) vs session-2 N-021 (FAT invalid-date) — renumbered to N-021. (2) this leg's
 ext4/Btrfs invalid-UTF-8 finding (briefly M-007 in a local commit) renumbered to
 **M-010** to avoid colliding with the parallel leg's M-007 (NTFS hard-link fan-out).
+
+## Remediation addition
+| 2026-10-26 (diff-fix) | S-012 | **FIXED** | Two-pass NTFS landed: destroy default off (pass-1 membership), GUID-dump pass 2 (claim map built during the walk, 0x400/512 stride, og-15 metafile gate, pseudo-# dedup, destroy on all-run-starts-claimed / <=0x3ff / $-name, folders never), size-0 rescue (mirror resident harvest + post-walk same-name merge, 0x800 skip). 5 tests (4 fail-before proven); suite 339/339 + ASan 339/339; D-51 |
+| 2026-10-26 (diff-fix) | S-022 | **FIXED** | INDX + $INDEX_ROOT second-source harvest in the remnant path (og validator/chain/entry gates, in-use only never slack, 8 KiB window overlap, D-N re-decided on resolved evidence). 4 tests (3 fail-before proven); suite 358/358 + ASan 358/358 |
 
 ## Counts per module (active findings)
 
@@ -281,6 +465,8 @@ ext4/Btrfs invalid-UTF-8 finding (briefly M-007 in a local commit) renumbered to
 
 | Date | Finding | Verdict | Evidence |
 |---|---|---|---|
+| 2026-10-25 (s4) | S-019 | **FIXED** | probe_bitlocker with the og's exact classifier gate (OEM memcmp -> type 0xB), dispatch before the FAT catch-all; boot-sig/fve-shape scoring (grade-only shape); FsFamily::BitLocker + probe_family branch; marked device-tail size fallback. 3 fail-before/pass-after tests; suite 365/365 ASan. `findings/FIXED/S-019-*.md` |
+| 2026-10-25 (s4) | S-014 | **FIXED** | Live path -> Control\FVEAutoUnlock (DRWService :104) + per-GUID Data blobs with og caps (50-char GUID / 256-B blob / 100 records); NEW portable cr/reghive regf parser (offsets decoded from the og's RegLib_decompiled.c) + offline hive path (bitlockerhelp flow, hardcoded ControlSet001 per the corpus) + mounted-volume probe; GUID-match-first selection. 11 Linux + 5 Windows tests + fuzz harness; suite 341/341 ASan. `findings/FIXED/S-014-*.md` |
 | 2026-10-25 | A-001 | **FIXED** | canonical GUIDs (`1cb6a43`); in `findings/FIXED/` |
 | 2026-10-25 (S3) | A-002 | **FIXED** | `7f2c83e` real Microsoft/og GUIDs restored; tests de-self-referenced + negative guards; session-3 independent og-binary re-extraction converges (4 binaries / 7 sites) |
 | 2026-10-25 (S3) | S-010 | **FIXED** | `3e34ed2`+`414f56c`+`34b3441` volume quiesce on the repair write path; 3 fail-before lock tests; SUMMARY stale-row reconciled this session |

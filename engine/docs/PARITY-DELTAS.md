@@ -1040,6 +1040,94 @@ files.
 
 ---
 
+### D-56 — NTFS pass-2 dump scan: og heap-overrun read + >512b claim-index ambiguity not replicated (S-012)
+
+- **WHAT OG DOES:** the pass-2 GUID-dump record loop scans a chunk with bound
+  `record_size × chunk_sectors` (FUN_18001acc0 :21125) while the read filled only
+  `chunk_sectors × sector_bytes` — for record_size 0x400 on 512b media the loop walks
+  2× past the filled buffer (uninitialized heap parsed as records). The claim-map
+  builder writes `min(run_clusters, ceil(size/cluster))` bits at `engine[0x2c] × lcn`
+  (FUN_180017190 :18323-410) while the viability probe indexes `engine[0x28] (=spc)
+  × lcn` (:21220-22) — consistent only at sector==cluster scale; on multi-sector
+  clusters the claim coverage and the probe disagree (under-destroys).
+- **WHAT WE DO:** `guid_dump_scan_file` (src/core/ntfs/cr_mftwalk.cpp) scans exactly
+  the bytes read (chunk = min(0x8000 sectors × sector_bytes, run remainder)) and the
+  claim map is a merged cluster-interval set probed at the run's start cluster —
+  internally consistent on every geometry; identical outcomes at 512b sectors.
+- **WHY:** correctness-fix (two og defects deliberately not replicated).
+- **RISK:** none on standard geometries; on 4Kn-cluster volumes the core destroys
+  dump records the og's under-claiming map would keep — the conservative side.
+- **VERDICT: ACCEPTED** (S-012 session-4 convergence addendum; corpus re-read
+  first-hand; pinned by NtfsVolume.GuidDumpDestroyRules).
+
+### D-57 — NTFS pass-2 membership: dual-source duplicates kept (og parity; finding premise corrected)
+
+- **WHAT OG DOES:** pass-2 dump records carry SYNTHETIC record numbers (chunk sector
+  base + offset/record_size, FUN_18001acc0 :21137-38) and the emit path
+  (LAB_18001afe6 :21264-21292) has no pass-1 registry lookup — a file present BOTH as
+  a deleted live-MFT record AND inside a GUID dump emits TWICE (first-hand verified;
+  corrects the S-012 finding's "dedup by record#" premise).
+- **WHAT WE DO:** the same — pseudo-number dedup applies WITHIN pass 2 only; no
+  cross-pass dedup; downstream merge handles duplicates like the og's consumer side.
+- **WHY:** parity (the og's second-source design intentionally surfaces both copies —
+  the dump copy may carry the older, recoverable runlist).
+- **RISK:** duplicate rows when a dump exists on-volume — exactly what og users see.
+- **VERDICT: ACCEPTED** (S-012 session-4 convergence addendum).
+
+## K. core-api session (API surface + driver utilization, 2026-10-26)
+
+Every deliberate divergence this session introduced or closed, with evidence.
+Items that are plain MATCHES (self-healing reopen, grammar/token open, F11
+compensation, synchronous completion, driver-absent fallback, push/pull) are
+NOT registered here — see docs/DRIVER-UTILIZATION.md's checklist.
+
+- **D-50 — the unified 64 KiB read envelope on the DRIVER path too
+  (supersedes D-48c's framing).** The og's driver (EPMNtDrv) has no
+  alignment rule and forwards raw lengths — its user mode DOES issue
+  single-sector (512 B) probe reads through the driver path
+  (NTFSSearchDLL_decompiled.c:991, :20706), while its bulk chunking (4/7/2/1
+  MiB) is 64 KiB-multiple by construction. Our transport now rounds EVERY
+  issued read (both transports, one `io::direct_envelope`) to 64
+  KiB-multiple lengths clamped at the device end — probe reads fetch 64 KiB
+  instead of 512 B. Rationale: the mandate's non-negotiable property on
+  every direct read through the driver; 64 KiB subsumes sector alignment
+  (preserving the bench-run-40073093997 sector-rejection fix); the og's
+  observable BULK I/O shape is matched exactly. Semantics unchanged
+  (byte-granular IStorageDevice contract kept via the bounce path).
+  Proven by `DirectAlign.UnifiedEnvelopeExhaustivePropertyBothDevices`.
+- **D-51 — engine cache blocks at 256 KiB (og batches 2-4 MiB).** The og's
+  NTFS engine reads the MFT stream in 4096-sector (2 MiB) batches and its
+  device layer chunks at 4 MiB; our engine pipe coalesces to 256 KiB
+  (8 MiB LRU). 4,096 transitions/GiB vs the og's 256-512 — same class,
+  4-8x coarser; chosen to bound random-miss over-fetch (FAT deleted-chain
+  walks) while cutting 64 KiB blocks' 16,384/GiB. The alignbench sweep
+  (PERFORMANCE-BASELINE §6) owns further tuning.
+- **D-52 — carve-format registry as a unified two-layer enumeration.** The
+  og exposes RAWSearchDLL registry views (EUGetAnalyserList/Map/Multimap +
+  GetRawUserInfoMap — raw-dual-registry seeds); ours exposes one POD
+  enumeration over BOTH layers (grammar validators then raw-sign formats)
+  with stable append-only ordering. Equivalent host capability, different
+  shape; the og's RawConfig.ini per-format toggles are host-side policy on
+  both (ABI-CONTRACT §7a).
+- **D-53 — the og's carved-file NAMER callback is not an ABI export
+  (API-SURFACE-AUDIT op #5, PARTIAL-by-design).** The og registers a
+  std::function namer/filter at RAW vt+0x48 at discovery time; our carve
+  synthesizes signature-derived names and exposes carve_format/confidence
+  per node, so a host re-derives or renames post-query. The extension point
+  itself is not exported (a C callback for tree-identity-affecting naming
+  would thread into session persistence — not worth the ABI surface for a
+  UI policy the reference uses for its own dedup display).
+- **D-54 — SQLite session sidecar REJECTED-BY-REFERENCE (closes GAP-S6-12
+  as a removal).** ABI-CONTRACT §8 previously documented a sidecar index
+  the reference does not have (the og's durable store IS the .rsf
+  container; corpus rsf-format--scan-session.md §2-§5) and that we never
+  implemented. The false contract claim was cut (A-ABI-2); queries answer
+  from the in-memory session tree exactly as shipped.
+- **D-55 — category taxonomy stays 6-category/~90-ext vs the og's
+  8-category/1,481-ext runtime XML (M-023, open, engine scope).** The API
+  surface exposes the core's truthful taxonomy; the completion is tracked
+  as M-023 (filter model), not silently over-claimed here.
+
 ## J. UNDOCUMENTED DIVERGENCE CANDIDATES
 
 Things our code/docs do differently with no (or stale/contradictory) rationale
@@ -1191,6 +1279,34 @@ spec-correct timestamps.
 `ExfatEngine.TimestampsZeroTzPassThrough` (tz = 0x00),
 `ExfatEngine.TimestampsMatchExplorerDisplay` (tz = 0x20).
 
+### D-51 — NTFS two-pass scan model (S-012, ACCEPTED as og parity)
+
+- **WHAT OG DOES:** pass 1 walks the live $MFT and emits EVERY record (deleted
+  included) with no viability destroy; a cluster claim map accumulates each
+  emitted record's extents (files $DATA, dirs $I30; live AND deleted). Pass 2
+  walks the $DATA of live `{*}{3808876b-c176-4e48-b7ae-04046e6cc752}`-named
+  MFT-dump files as record buffers (stride 0x400/512) and only THERE applies
+  destroy: `size <= 0x3ff`, all-run-STARTs claimed, `$`-prefix/system/unnamed;
+  folders are exempt. Deleted size-0 non-dir records take a rescue detour
+  ($MFTMirr resident harvest + same-name runlist adoption). Grading happens
+  downstream, never in the walk (OQ-S2M-1).
+- **WHAT WE DO (post-S-012):** exactly that architecture. `WalkerFlags::
+  destroy_fully_overwritten` now defaults FALSE (the S-001 in-walk destroy was
+  the mis-scope; TRUE remains as the opt-in honest-recovery inversion).
+  `guid_dump_pass` and `size_zero_rescue` default ON. The in-walk
+  `Confidence` grading is retained as the documented D15 superset (emitted
+  membership matches; grades are additive).
+- **NOTES:** claim map is cluster-granular (og: sector-granular bitmap; probe
+  outcomes identical for cluster-aligned run starts). Dump records dedup by
+  the pseudo record number (absolute sector index) within pass 2 and resolve
+  parents against pass-1 emissions (unresolved -> lost root). The og's in-walk
+  strict same-name merge is not replicated (its candidate map is empty at
+  rescue time by construction); the relaxed post-walk pass is the dominant
+  og path. Pinned by NtfsVolume.{MainWalkKeepsOverwrittenDeleted,
+  GuidDumpPassRecoversReusedRecord, GuidDumpDestroyRules,
+  SizeZeroRescueFromMftCopy, SizeZeroRescueSameNameMerge}.
+- **STATUS:** ACCEPTED (og parity; diff-to-fix S-012 FIXED).
+
 ### D-50 — Lost-partition superblock probes: ext parity + HFS+/Btrfs/ZFS/ReFS superset anchors (S-006)
 
 **Class:** parity (ext) + deliberate superset (HFS+/Btrfs/ZFS/ReFS) · **Finding:** diff-to-fix S-006 (SEVERE, FIXED) · **Date:** 2026-10-26
@@ -1234,3 +1350,84 @@ FUN_180004070/FUN_180004610 chain entered but unresolved). No invented gates.
 `Ext4BlockGroupCopyNotACandidateStart`, `HfsPlusVolumeHeaderAnchorsDeletedPartition`,
 `BtrfsSuperblockAnchorsDeletedPartition`, `ZfsLabelAnchorsDeletedPartition`,
 `RefsBootAnchorsDeletedPartition`, `SuperblockNoiseRejected`.
+
+### D-51 — FAT/exFAT engine-open + lost-scan gates: og parity with three registered core deltas (N-010b/N-010c/N-022/N-034)
+
+**Class:** parity + registered superset (engine semantics) · **Findings:** diff-to-fix N-010a..f (N-023 group), N-022, N-034 (MINOR, FIXED 2026-10-26) · **Date:** 2026-10-26
+
+The FAT batch aligns the core's boot/dentry gates with the og's two-layer
+architecture, verified first-hand this session:
+
+- **Engine open** (`fat::boot_passes_open_gates`, mirrors FATSearchDLL
+  `FUN_18002f970` + the quick-search 0xE bail at `FUN_180021000:26318`):
+  FS-name string ("FAT16   " +0x36 / "FAT32   " +0x52, `_strnicmp`
+  case-insensitive), numFATs ∈ {1,2}, bps == device sector size, FAT16
+  root_entries ≥ 224 + root×32 % bps == 0, spf ≠ 0. A failing volume
+  declines the engine (routes to other engines / raw carving) exactly like
+  the og.
+- **Lost scan** (`fat::lost_boot_flavor`, mirrors PartitionRecoveryD
+  `FUN_180004610` + gates `FUN_1800048f0/4a40/4b70`): 512-multiple bps,
+  og cluster-count arithmetic (total32-preferred, floor root sectors),
+  bracket-ordered gate walk with the FAT12 small-FAT probe (spf16 ∈ [1,200])
+  and the case-SENSITIVE "FAT32   " memcmp.
+- **Flavor boundary**: 65524 data clusters is FAT32 (og `FUN_180007e50`
+  brackets [0xFF5, 0xFFF4) / [0xFFF4, …)); the core's old `< 65525` read
+  the boundary volume as FAT16.
+- **exFAT stream reserved fields** (N-010e): the og's byte-OR form
+  (`FUN_180003090:1843-1846`, single-byte loads) — reserved2 passes when
+  either byte is 0, reserved3 when any byte is 0, reserved1 strictly 0.
+
+**Registered core deltas (preserved deliberately):**
+
+1. **FAT12 engine-open exemption.** The og's engine-open validator has NO
+   FAT12 branch — its quick engine declines every FAT12 volume (flavor 0xE);
+   only the deep scan generates FAT12 candidates. The core keeps structural
+   FAT12 recovery at engine open (the I-002-family superset): FAT12 volumes
+   pass the geometry gates (numFATs/bps) but no string gate (there is no og
+   string gate to mirror). Future sessions must NOT "fix" this by declining
+   FAT12 — that would delete a documented recovery surface.
+2. **Date-sanity gate default OFF (N-010c).** The og's dentry date-sanity
+   rejection (`FUN_1800365a0:44298-44315`) is config-gated (singleton
+   +0x40); its default runtime value is corpus-undecoded. The core exposes
+   `FatScanFlags::strict_date_sanity` (default OFF, preserving the
+   N-021-pinned zero-FileTime emission flow that the og's
+   `DosDateTimeToFileTime` zero-out at :32135 proves happens for
+   gate-passing dentries).
+3. **Mirror-BAD salvage opt-in (N-022).** Default path is og parity
+   (mirror consulted on primary FREE only — `CDoubleFATTable::GetNext`
+   `FUN_180041de0:54216-18`); `FatScanFlags::mirror_bad_salvage` keeps the
+   old torn-pair salvage as an explicit recovery mode, never the default.
+4. **Mid-chain FREE/BAD content shape (N-010f, registered no-chase).** The
+   og's directory walk continues at cluster+1 on mid-chain FREE only when
+   the range is in the claim/bitmap RB-trees (`FUN_18000f950:11075-11116`)
+   and aborts the whole directory read on canonical BAD
+   (`FUN_18000fb80:11231-11243`); the core keeps pre-BAD clusters and marks
+   the chain broken. Informational-grade difference on damaged volumes;
+   registered, not chased (the finding's own recommendation).
+5. **Underflow guard in the lost ladder.** The og computes the deep-scan
+   cluster count in wrapping uint arithmetic (an underflowing corrupt BPB
+   wraps to ~4 G and lands in the FAT32 bracket by accident); the core
+   rejects underflowing BPBs outright — same outcome for every sane input,
+   no wraparound path.
+
+**Correction to the audit (recorded):** N-010b/N-034's "we accept any pow2
+SPC incl. 256+" sub-claim is a false positive — SPC is a u8 BPB field, so
+the old any-pow2 check already accepted exactly {1,2,4,8,16,32,64,128} =
+the og's set over the representable domain. The explicit-set code and the
+`FatEngine.SpcDomainMatchesOgSet` domain-walk pin (all 256 values) keep the
+gate stated and pinned. N-010d (exFAT tz) was already fixed by S-011
+(D-49); N-023's resolution marks it FIXED-ALREADY.
+
+**Pin tests:** `FatEngine.FlavorBoundary65524IsFat32`,
+`FatEngine.BootStringGateDeclinesTornStringVolume`,
+`FatEngine.BootStringCaseInsensitiveAccepted`,
+`FatEngine.Fat16LowRootEntriesDeclined`,
+`FatEngine.Fat16RootEntriesNotSectorMultipleDeclined`,
+`FatEngine.NumFatsThreeDeclined`, `FatEngine.SpcDomainMatchesOgSet`,
+`FatEngine.DateSanityRejectedInStrictMode`,
+`FatEngine.BadPrimaryServedWithoutMirrorConsult`,
+`FatEngine.PrimaryFreeStillConsultsMirror`,
+`LostFatGates.*` (7 tests), `LostDiscovery.FatBootWithOgGatesBecomesCandidate`,
+`ExfatEngine.StreamReservedPartiallyNonzeroPassesOgByteOr`,
+`ExfatEngine.StreamReservedAllBytesNonzeroStillDamaged`,
+`ExfatEngine.StreamReserved1ByteStrictlyZero`.

@@ -236,7 +236,7 @@ by session 2's line-by-line decompile read. Three new findings + one minor:
 ## Session-2 update (2026-10-25, core `e93decf`) — decompile-exhaustive re-read
 
 **Verdict changes (decompile-verified; quotes in `../evidence/decompiled-quotes/ntfs-pass2-guid-dump.md`):**
-- **B1/B4/D15 → S-012 (SEVERE, new):** the og is two-pass — pass 1 emits every live-MFT
+- **B1/B4/D15 → S-012 FIXED (diff-fix session; two-pass landed):** the og is two-pass — pass 1 emits every live-MFT
   record (deleted included) **ungraded, never destroyed**; the viability/destroy/0x3ff machinery
   lives in a **GUID-dump pass 2** the core does not have. The S-001 destroy fix (landed, moved
   to resolved/) implemented a pass-2 rule in the core's only walk — mis-scoped; default flags
@@ -328,3 +328,13 @@ verified in their FIXED/ files with this leg's decompile quotes.
   `$`-name filtering / re-parenting by the dir map (:20104-20110) is undecoded;
   whether FUN_18000c890 (run coalescer) and FUN_18002a780 (B6 remnant scanner) are
   one sweep's two modes or two entries.
+
+
+## Diff-fix session addendum — S-022 (A26 corrected)
+
+A26's session-1 og-side premise ("no INDX walk in og either") is REFUTED (S-022 evidence:
+the og's orphaned-record sweep harvests INDX-block + $INDEX_ROOT entries). The core now
+implements the same harvest in the remnant path — in-use entries only, never slack, og
+gates exact (validator, chain parent-consistency, entry flag gates, 0x1f5 cap,
+$-name filter for directories). The wire family lives documented in `cr_ntfs_wire.h`
+(D-N ruling re-decided). See findings/FIXED/S-022-*.md.

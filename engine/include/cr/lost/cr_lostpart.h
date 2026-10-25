@@ -29,8 +29,11 @@ namespace lost {
  * Parser lost-scan family (parity); HfsPlus/Btrfs/Zfs/Refs are documented
  * supersets (the og's PartitionRecoveryD deep scan has no parsers for
  * these - see docs/PARITY-DELTAS.md D-50; the core's engines exist and
- * ReFS is first-class per the audit mandate). Values > 5 deserialize only
- * from sessions written after S-006; older sessions carry <= 5. */
+ * ReFS is first-class per the audit mandate). BitLocker (S-019) is the
+ * og's own lost-scan family (type 0xB classifier + BitlockerParser,
+ * PartitionRecoveryD_decompiled.c:2778-2785/:2604-2606). Values > 5
+ * deserialize only from sessions written after S-006; older sessions
+ * carry <= 5. */
 enum class CandidateFs : u8 {
     Ntfs = 0,
     Fat,
@@ -41,7 +44,8 @@ enum class CandidateFs : u8 {
     HfsPlus,
     Btrfs,
     Zfs,
-    Refs
+    Refs,
+    BitLocker
 };
 
 struct Evidence {

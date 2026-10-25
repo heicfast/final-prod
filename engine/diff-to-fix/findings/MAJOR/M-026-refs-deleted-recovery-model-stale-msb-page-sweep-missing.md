@@ -131,3 +131,15 @@ no sweep exists), vs the og's documented sweep behavior.
 - The og's read-error/used-space map (`FUN_1800089f0`, not fully decoded this session) —
   whether it feeds grading beyond the live-run marking seen at the call sites (UNVERIFIED;
   next artifact: FUN_1800089f0 body + DRWUI consumer).
+
+---
+
+## Session-3 parallel-leg cross-reference (2026-10-26)
+
+The *storage/census parallel leg*'s ReFS decode independently verified the
+opposite-direction fact this finding should be read with: our flag-4/ID2/orphan
+harvest + allocator grading (`cr_refs_engine.cpp:806-875`) has **no counterpart
+in the shipped SearchDLL** — the deleted-marker setter `FUN_180013320` :14528
+has zero callers. Directionality: this finding (M-026) = the og's stale-MSB-page
+sweep we LACK; the parallel leg's record = the deleted-row harvest we HAVE that
+the og's engine does not produce. Parity benches must net both directions.

@@ -13,6 +13,8 @@
  */
 #include <gtest/gtest.h>
 #include "cr/ntfs/cr_bootstrap.h"
+#include "cr/ntfs/cr_attributes.h"
+#include "cr/ntfs/cr_fixup.h"
 #include "cr/ntfs/cr_bitmap.h"
 #include "cr/ntfs/cr_mftwalk.h"
 #include "cr/compress/cr_decomp.h"
@@ -1308,19 +1310,18 @@ TEST(NtfsVolume, EndToEndWalk) {
 
     /* meta records skipped by '$' name; SYSTEM-attributed: none in fixture */
     EXPECT_EQ(stats.meta_skipped, 7u);          /* 0,1,2,3,4,6,7 ($ named) */
-    /* S-012: the destroy rule belongs to pass 2 - the main walk keeps every
-     * deleted record (og pass-1 unconditional emit :18630); 0 destroyed */
-    EXPECT_EQ(stats.destroyed_overwritten, 0u);
+    EXPECT_EQ(stats.destroyed_overwritten, 0u); /* S-012: pass 1 never destroys -
+                                                    the rule lives in the dump pass */
     EXPECT_EQ(stats.damaged, 0u);
     EXPECT_EQ(stats.orphans, 0u);
     EXPECT_EQ(stats.hardlinks, 1u);
     EXPECT_EQ(stats.ads, 1u);
-    EXPECT_GE(stats.emitted, 10u);
+    EXPECT_GE(stats.emitted, 10u); /* overwrit.dat now a member (S-012) */
 
     /* locate nodes by name */
     tree::FileNode *rootdot = nullptr, *folder1 = nullptr, *readme = nullptr, *deleted = nullptr,
                    *partial = nullptr, *hard16 = nullptr, *hard5 = nullptr, *dirdel = nullptr,
-                   *holes = nullptr, *adsnode = nullptr, *adschild = nullptr, *overwrit = nullptr;
+                   *holes = nullptr, *adsnode = nullptr, *adschild = nullptr, *over = nullptr;
     std::vector<tree::FileNode*> all;
     std::function<void(tree::FileNode*)> collect = [&](tree::FileNode* n) {
         for (tree::FileNode* c = n->first_child(); c; c = c->next_sibling()) {
@@ -1355,15 +1356,17 @@ TEST(NtfsVolume, EndToEndWalk) {
         else if (nm == "ads.txt:sec")
             adschild = n;
         else if (nm == "overwrit.dat")
-            overwrit = n;
+            over = n;
     }
     ASSERT_NE(rootdot, nullptr);
     ASSERT_NE(folder1, nullptr);
     ASSERT_NE(readme, nullptr);
     ASSERT_NE(deleted, nullptr);
-    ASSERT_NE(overwrit, nullptr) << "S-012: main walk must keep overwritten deleted records";
-    EXPECT_EQ(overwrit->deleted_state(), tree::DeletedState::PartiallyOverwritten);
-    EXPECT_EQ(overwrit->confidence(), tree::Confidence::Overwritten);
+    /* S-012: the og's pass 1 emits EVERY record - fully-overwritten deleted
+     * files included, ungraded and undestroyed (the destroy rule lives in
+     * the GUID-dump pass 2; destroy-in-walk is the opt-in honest mode) */
+    ASSERT_NE(over, nullptr);
+    EXPECT_EQ(over->deleted_state(), tree::DeletedState::PartiallyOverwritten);
     ASSERT_NE(dirdel, nullptr);
     ASSERT_NE(holes, nullptr);
     ASSERT_NE(partial, nullptr);
@@ -1396,6 +1399,9 @@ TEST(NtfsVolume, EndToEndWalk) {
     EXPECT_EQ(readme->deleted_state(), tree::DeletedState::Active);
     EXPECT_EQ(deleted->confidence(), tree::Confidence::Excellent);
     EXPECT_EQ(deleted->deleted_state(), tree::DeletedState::Deleted);
+    /* S-012: membership restored, grading kept (the in-walk Confidence is
+     * the documented D15 superset - the og grades downstream) */
+    EXPECT_EQ(over->confidence(), tree::Confidence::Overwritten);
     /* folders are NEVER destroyed (og `(flags & 0x10) == 0` gate) even when
      * the i30 probe finds every cluster re-used - they keep the graded node
      * (the folder bitmap grading itself is pre-existing core behavior) */
@@ -1417,6 +1423,7 @@ TEST(NtfsVolume, EndToEndWalk) {
     tree.refresh_stats();
     EXPECT_GE(root_active->stats().file_count, 0u);
 }
+
 
 TEST(NtfsVolume, RecycleBinMapping) {
     Image img;
@@ -2241,215 +2248,600 @@ TEST(NtfsVolume, UserFileNamedDollarNotHidden) {
                           "known-metafile filter";
 }
 
-/* ---- S-012: the two-pass architecture ---------------------------------- */
+/* ---- S-012: two-pass NTFS - GUID-dump walk + size-0 rescue --------------- */
 
 namespace {
 
-/* a live GUID-dump file name: two braced GUIDs, the second being the og's
- * fixed MFT-dump template (collector NTFSSearchDLL :18584-18625) */
-const char16_t* kDumpFileName =
-    u"{11111111-2222-3333-4444-555555555555}{3808876b-c176-4e48-b7ae-04046e6cc752}";
+/* Dump fixture (512B sectors/clusters, 1024B records, 256 clusters):
+ *   LCN 4..31    $MFT (28 clusters -> 14 records: 0..13)
+ *   LCN 40..63   $MFTMirr (24 clusters -> 12-record mirror capacity)
+ *   LCN 76..79   $Bitmap
+ *   record 10    the GUID-named MFT dump file (live, $DATA LCN 100..103)
+ *   LCN 100..107 the dump content = four stale MFT records:
+ *                  zombie1.dat  (deleted, runs 150..151 UNCLAIMED -> emitted)
+ *                  zombie2.dat  (deleted, runs 100..101 claimed by the dump
+ *                                file itself -> destroyed, all-run-starts)
+ *                  tiny.dat     (deleted, size 500 <= 0x3ff -> destroyed)
+ *                  zombiedir    (deleted FOLDER, $I30 100..101 claimed ->
+ *                                survives: folders never destroyed)
+ *   record 11    ghost0.dat (deleted, size 0, no $DATA in the primary);
+ *                its MIRROR copy at sector 62 keeps a resident $DATA -> the
+ *                walk-time mirror rescue recovers content+size
+ *   record 12    twindrive.dat (deleted, size 0, no mirror coverage) ->
+ *                post-walk same-name merge adopts record 13's extents+size
+ *   record 13    twindrive.dat (live, $DATA LCN 190, 600 bytes) */
+constexpr u64 D_MFT_LCN = 4;
+constexpr u64 D_MFT_CLUSTERS = 28; /* records 0..13 */
+constexpr u64 D_MIRR_LCN = 40;
+constexpr u64 D_MIRR_CLUSTERS = 24;
+constexpr u64 D_BITMAP_LCN = 76;
+constexpr u64 D_DUMP_LCN = 100;
 
-/* walk helper: returns every node in the tree (children of roots) */
-std::vector<tree::FileNode*> collect_all(tree::ResultTree& tree) {
+void build_dump_image(Image& img) {
+    /* boot sector */
+    {
+        RecBuilder b;
+        u8* bs = img.sec(0);
+        BootSector* boot = reinterpret_cast<BootSector*>(bs);
+        const char oem[8] = {'N', 'T', 'F', 'S', ' ', ' ', ' ', ' '};
+        std::memcpy(boot->oem, oem, 8);
+        boot->bytes_per_sector = SEC;
+        boot->sectors_per_cluster = 1;
+        boot->media_descriptor = 0xF8;
+        boot->total_sectors = NSECTORS;
+        boot->mft_lcn = D_MFT_LCN;
+        boot->mftmirr_lcn = D_MIRR_LCN;
+        boot->clusters_per_record = 2;
+        boot->clusters_per_index_block = 2;
+        boot->checksum = 0;
+        bs[510] = 0x55;
+        bs[511] = 0xAA;
+    }
+    /* record 0: $MFT */
+    {
+        RecBuilder r;
+        r.header(0, RECORD_IN_USE);
+        r.attr_file_name(5, u"$MFT", FILE_NAME_WIN32, 0x06, D_MFT_CLUSTERS * CLUSTER,
+                         D_MFT_CLUSTERS * CLUSTER);
+        r.attr_data_runlist(D_MFT_LCN, D_MFT_CLUSTERS, D_MFT_CLUSTERS * CLUSTER);
+        r.finish();
+        std::memcpy(img.sec(D_MFT_LCN), r.buf.data(), RECORD_SIZE);
+    }
+    /* record 1: $MFTMirr (24 clusters -> 12-record mirror capacity) */
+    {
+        RecBuilder r;
+        r.header(1, RECORD_IN_USE);
+        r.attr_file_name(5, u"$MFTMirr", FILE_NAME_WIN32, 0x06, D_MIRR_CLUSTERS * CLUSTER,
+                         D_MIRR_CLUSTERS * CLUSTER);
+        r.attr_data_runlist(D_MIRR_LCN, D_MIRR_CLUSTERS, D_MIRR_CLUSTERS * CLUSTER);
+        r.finish();
+        std::memcpy(img.sec(D_MFT_LCN + 2), r.buf.data(), RECORD_SIZE);
+        /* the mirror's own record-1 copy (bootstrap reads it for the mapping) */
+        std::memcpy(img.sec(D_MIRR_LCN + 2), r.buf.data(), RECORD_SIZE);
+        std::memcpy(img.sec(D_MIRR_LCN), img.sec(D_MFT_LCN), RECORD_SIZE); /* rec0 copy */
+    }
+    /* records 2,3,4,6,7: meta */
+    for (u64 rn : {2u, 3u, 4u, 6u, 7u}) {
+        RecBuilder r;
+        r.header(rn, RECORD_IN_USE);
+        const char16_t* nm = rn == 6 ? u"$Bitmap" : (rn == 2 ? u"$LogFile" : u"$Volume");
+        r.attr_file_name(5, nm, FILE_NAME_WIN32, 0x06, 4 * CLUSTER, 4 * CLUSTER);
+        if (rn == 6)
+            r.attr_data_runlist(D_BITMAP_LCN, 4, 4 * CLUSTER);
+        r.finish();
+        std::memcpy(img.sec(D_MFT_LCN + rn * 2), r.buf.data(), RECORD_SIZE);
+    }
+    /* record 5: root "." */
+    {
+        RecBuilder r;
+        r.header(5, RECORD_IN_USE | RECORD_IS_DIRECTORY);
+        r.attr_si(0);
+        r.attr_file_name(5, u".", FILE_NAME_POSIX, 0x00, 0, 0);
+        r.attr_index_root();
+        r.finish();
+        std::memcpy(img.sec(D_MFT_LCN + 10), r.buf.data(), RECORD_SIZE);
+    }
+    /* record 10: the GUID-named MFT dump file (live) */
+    {
+        RecBuilder r;
+        r.header(10, RECORD_IN_USE);
+        r.attr_si(0x20);
+        r.attr_file_name(5,
+                         u"{11111111-2222-3333-4444-555555555555}"
+                         u"{3808876b-c176-4e48-b7ae-04046e6cc752}",
+                         FILE_NAME_WIN32, 0x20, 4096, 4096);
+        r.attr_data_runlist(D_DUMP_LCN, 8, 4096);
+        r.finish();
+        std::memcpy(img.sec(D_MFT_LCN + 20), r.buf.data(), RECORD_SIZE);
+    }
+    /* the dump content: four stale records at LCN 100..103 */
+    {
+        RecBuilder r;
+        r.header(999, 0); /* record# irrelevant inside dumps (pseudo# used) */
+        r.attr_si(0x20);
+        r.attr_file_name(5, u"zombie1.dat", FILE_NAME_WIN32_AND_DOS, 0x20, 2048, 2048);
+        r.attr_data_runlist(150, 2, 2048); /* unclaimed run starts */
+        r.finish();
+        std::memcpy(img.sec(D_DUMP_LCN), r.buf.data(), RECORD_SIZE);
+    }
+    {
+        RecBuilder r;
+        r.header(998, 0);
+        r.attr_si(0x20);
+        r.attr_file_name(5, u"zombie2.dat", FILE_NAME_WIN32_AND_DOS, 0x20, 2048, 2048);
+        r.attr_data_runlist(D_DUMP_LCN, 2, 2048); /* starts INSIDE the dump file's
+                                                     claimed extent */
+        r.finish();
+        std::memcpy(img.sec(D_DUMP_LCN + 2), r.buf.data(), RECORD_SIZE);
+    }
+    {
+        RecBuilder r;
+        r.header(997, 0);
+        r.attr_si(0x20);
+        r.attr_file_name(5, u"tiny.dat", FILE_NAME_WIN32_AND_DOS, 0x20, 500, 500);
+        r.attr_data_runlist(160, 1, 500); /* size <= 0x3ff: destroyed */
+        r.finish();
+        std::memcpy(img.sec(D_DUMP_LCN + 4), r.buf.data(), RECORD_SIZE);
+    }
+    {
+        RecBuilder r;
+        r.header(996, RECORD_IS_DIRECTORY); /* deleted folder */
+        r.attr_si(0x30);
+        r.attr_file_name(5, u"zombiedir", FILE_NAME_WIN32_AND_DOS, 0x30, 2048, 2048);
+        r.attr_index_runlist(D_DUMP_LCN, 1); /* claimed $I30 - folders survive */
+        r.finish();
+        std::memcpy(img.sec(D_DUMP_LCN + 6), r.buf.data(), RECORD_SIZE);
+    }
+    /* record 11: ghost0.dat - deleted, size 0, NO $DATA in the primary */
+    {
+        RecBuilder r;
+        r.header(11, 0);
+        r.attr_si(0x20);
+        r.attr_file_name(5, u"ghost0.dat", FILE_NAME_WIN32_AND_DOS, 0x20, 0, 0);
+        r.finish();
+        std::memcpy(img.sec(D_MFT_LCN + 22), r.buf.data(), RECORD_SIZE);
+        /* the MIRROR copy of record 11 (sector 62) keeps the resident $DATA */
+        RecBuilder m;
+        m.header(11, 0);
+        m.attr_si(0x20);
+        m.attr_file_name(5, u"ghost0.dat", FILE_NAME_WIN32_AND_DOS, 0x20, 20, 20);
+        m.attr_data_resident(u"", 5); /* 20 bytes of 0xC0FFEE00.. payload */
+        m.finish();
+        std::memcpy(img.sec(D_MIRR_LCN + 22), m.buf.data(), RECORD_SIZE);
+    }
+    /* record 12: twindrive.dat - deleted, size 0, beyond mirror capacity */
+    {
+        RecBuilder r;
+        r.header(12, 0);
+        r.attr_si(0x20);
+        r.attr_file_name(5, u"twindrive.dat", FILE_NAME_WIN32_AND_DOS, 0x20, 0, 0);
+        r.finish();
+        std::memcpy(img.sec(D_MFT_LCN + 24), r.buf.data(), RECORD_SIZE);
+    }
+    /* record 13: twindrive.dat - live content the merge adopts */
+    {
+        RecBuilder r;
+        r.header(13, RECORD_IN_USE);
+        r.attr_si(0x20);
+        r.attr_file_name(5, u"twindrive.dat", FILE_NAME_WIN32_AND_DOS, 0x20, 600, 600);
+        r.attr_data_runlist(190, 1, 600);
+        r.finish();
+        std::memcpy(img.sec(D_MFT_LCN + 26), r.buf.data(), RECORD_SIZE);
+    }
+    /* $Bitmap: MFT 4..27, mirror 40..63, bitmap 76..79, dump 100..103, 190 */
+    {
+        std::vector<u8> bm(4 * CLUSTER, 0);
+        auto setbit = [&bm](u64 c) { bm[c / 8] |= u8(1u << (c % 8)); };
+        for (u64 c = D_MFT_LCN; c < D_MFT_LCN + D_MFT_CLUSTERS; ++c)
+            setbit(c);
+        for (u64 c = D_MIRR_LCN; c < D_MIRR_LCN + D_MIRR_CLUSTERS; ++c)
+            setbit(c);
+        for (u64 c = D_BITMAP_LCN; c < D_BITMAP_LCN + 4; ++c)
+            setbit(c);
+        for (u64 c = D_DUMP_LCN; c < D_DUMP_LCN + 8; ++c)
+            setbit(c);
+        setbit(190);
+        std::memcpy(img.sec(D_BITMAP_LCN), bm.data(), bm.size());
+    }
+}
+
+struct DumpWalkResult {
+    std::unique_ptr<NtfsVolume> vol;
+    std::unique_ptr<VolumeBitmap> bm;
+    tree::ResultTree tree;
+    tree::FullNode *ra = nullptr, *rd = nullptr, *rl = nullptr;
+    WalkStats stats;
     std::vector<tree::FileNode*> all;
+};
+
+void walk_dump_image(Image& img, DumpWalkResult& w) {
+    MemDevice dev(img.raw(), img.geom());
+    u32 err = 0;
+    w.vol = NtfsVolume::open(std::unique_ptr<IStorageDevice>(new MemDevice(dev)), &err);
+    ASSERT_NE(w.vol, nullptr) << "open err " << err_text(err);
+    ASSERT_EQ(VolumeBitmap::load(w.vol.get(), w.bm), OK);
+    w.ra = w.tree.add_root(u"Found");
+    w.rd = w.tree.add_root(u"Deleted");
+    w.rl = w.tree.add_root(u"Lost");
+    WalkerFlags wf;
+    ASSERT_EQ(OK, walk_mft(w.vol.get(), w.bm.get(), wf, nullptr, nullptr, nullptr, w.tree, w.ra,
+                           w.rd, w.rl, w.stats));
     std::function<void(tree::FileNode*)> collect = [&](tree::FileNode* n) {
         for (tree::FileNode* c = n->first_child(); c; c = c->next_sibling()) {
-            all.push_back(c);
+            w.all.push_back(c);
             collect(c);
         }
     };
-    for (auto* r : tree.roots())
+    for (auto* r : w.tree.roots())
         collect(r);
-    return all;
+}
+
+tree::FileNode* find_node(const std::vector<tree::FileNode*>& all, const char* name) {
+    for (tree::FileNode* n : all)
+        if (n->name_utf8() == name)
+            return n;
+    return nullptr;
 }
 
 } // namespace
 
-TEST(NtfsVolume, MainWalkKeepsOverwrittenDeletedDefaultFlags) {
-    /* S-012 membership parity: the og's pass 1 emits EVERY parsed record
-     * unconditionally (:18630) - viability grading and destroy live in the
-     * pass-2 dump parser. A fully-overwritten deleted live-MFT file MUST be
-     * in the result set under DEFAULT flags (the pre-S-012 default dropped
-     * it - membership core-subset-og). */
+TEST(NtfsVolume, MainWalkKeepsOverwrittenDeleted) {
+    /* S-012 step 1: og pass 1 emits EVERY live-MFT record - a fully-
+     * overwritten deleted file stays in the result set (graded, never
+     * destroyed in the walk). (EndToEndWalk pins the same rule on the base
+     * fixture; this is the named pin for the S-012 default flip.) */
     Image img;
     build_image(img);
     MemDevice dev(img.raw(), img.geom());
     u32 err = 0;
     auto vol = NtfsVolume::open(std::unique_ptr<IStorageDevice>(new MemDevice(dev)), &err);
-    ASSERT_NE(vol, nullptr) << "open err " << err_text(err);
+    ASSERT_NE(vol, nullptr);
     std::unique_ptr<VolumeBitmap> bm;
     ASSERT_EQ(VolumeBitmap::load(vol.get(), bm), OK);
-
     tree::ResultTree tree;
-    auto* ra = tree.add_root(u"Found");
-    auto* rd = tree.add_root(u"Deleted");
-    auto* rl = tree.add_root(u"Lost Files");
-    WalkerFlags wf; /* defaults: destroy_fully_overwritten == false */
+    auto* ra = tree.add_root(u"F");
+    auto* rd = tree.add_root(u"D");
+    auto* rl = tree.add_root(u"L");
+    WalkerFlags wf; /* defaults: S-012 og-parity profile */
     WalkStats stats;
-    ASSERT_EQ(OK,
-              walk_mft(vol.get(), bm.get(), wf, nullptr, nullptr, nullptr, tree, ra, rd, rl, stats));
+    ASSERT_EQ(
+        OK, walk_mft(vol.get(), bm.get(), wf, nullptr, nullptr, nullptr, tree, ra, rd, rl, stats));
     EXPECT_EQ(0u, stats.destroyed_overwritten);
     tree::FileNode* over = nullptr;
-    for (tree::FileNode* n : collect_all(tree))
-        if (n->name_utf8() == "overwrit.dat")
-            over = n;
-    ASSERT_NE(over, nullptr) << "default flags: og pass-1 membership keeps "
-                              "fully-overwritten deleted records";
-    EXPECT_EQ(over->deleted_state(), tree::DeletedState::PartiallyOverwritten);
+    std::function<void(tree::FileNode*)> find = [&](tree::FileNode* n) {
+        for (tree::FileNode* c = n->first_child(); c; c = c->next_sibling()) {
+            if (c->name_utf8() == "overwrit.dat")
+                over = c;
+            find(c);
+        }
+    };
+    for (auto* r : tree.roots())
+        find(r);
+    ASSERT_NE(over, nullptr) << "fully-overwritten deleted file must stay in the "
+                                "result set (og pass-1 membership)";
     EXPECT_EQ(over->confidence(), tree::Confidence::Overwritten);
-
-    /* the opt-in destroy mode still works (honest-recovery visibility flag) */
-    tree::ResultTree tree2;
-    auto* ra2 = tree2.add_root(u"Found");
-    auto* rd2 = tree2.add_root(u"Deleted");
-    auto* rl2 = tree2.add_root(u"Lost Files");
-    WalkerFlags wf2;
-    wf2.destroy_fully_overwritten = true;
-    WalkStats stats2;
-    ASSERT_EQ(OK, walk_mft(vol.get(), bm.get(), wf2, nullptr, nullptr, nullptr, tree2, ra2, rd2,
-                           rl2, stats2));
-    EXPECT_EQ(1u, stats2.destroyed_overwritten);
-    bool seen = false;
-    for (tree::FileNode* n : collect_all(tree2))
-        if (n->name_utf8() == "overwrit.dat")
-            seen = true;
-    EXPECT_FALSE(seen) << "opt-in destroy mode drops the record";
+    EXPECT_EQ(over->deleted_state(), tree::DeletedState::PartiallyOverwritten);
 }
 
-TEST(NtfsVolume, GuidDumpPassRecoversAndDestroysByOgRules) {
-    /* S-012 pass 2: a live GUID-template file's $DATA is parsed as stale
-     * MFT-record dumps (og FUN_18001a980 + FUN_18001acc0). Five dump
-     * records pin every destroy rule:
-     *   A  run-start UNCLAIMED (LCN 110) ................ kept + emitted
-     *   B  runs at 200 (claimed by live readme) + 110 ... intact<total, kept
-     *   C  size 512 <= 0x3ff ............................ destroyed
-     *   E  run-start CLAIMED (LCN 200) .................. destroyed
-     *   D  directory (0x10000000) with claimed index ..... kept (dir bypass)
-     * The dump region itself (LCN 100..109) is claimed by the GUID file's
-     * own live extents - dump records pointing into their own storage
-     * would be destroyed, og parity. */
+TEST(NtfsVolume, GuidDumpPassRecoversReusedRecord) {
+    /* S-012 step 2: a stale MFT record inside a `{GUID}{3808876b-...}`-
+     * named dump file is recovered - the record the live MFT lost. */
     Image img;
-    build_image(img);
-    /* the GUID dump file: live, record 8, $DATA at LCN 100, 10 clusters */
-    {
-        RecBuilder r;
-        r.header(8, RECORD_IN_USE);
-        r.attr_si(0x20);
-        r.attr_file_name(5, kDumpFileName, FILE_NAME_WIN32_AND_DOS, 0x20, 10 * CLUSTER,
-                         10 * CLUSTER);
-        r.attr_data_runlist(100, 10, 10 * CLUSTER);
-        r.finish();
-        std::memcpy(img.sec(MFT_LCN + 8 * 2), r.buf.data(), RECORD_SIZE);
-    }
-    /* dump record A: deleted, 2 KiB, run at LCN 110 (unclaimed) */
-    {
-        RecBuilder r;
-        r.header(90, 0);
-        r.attr_si(0x20);
-        r.attr_file_name(16, u"stale_a.dat", FILE_NAME_WIN32_AND_DOS, 0x20, 2048, 2048);
-        r.attr_data_runlist(110, 4, 2048);
-        r.finish();
-        std::memcpy(img.sec(100), r.buf.data(), RECORD_SIZE);
-    }
-    /* dump record B: deleted, 2 runs - LCN 200 (claimed by live readme.txt)
-     * + LCN 111 (free): intact < total -> kept */
-    {
-        RecBuilder r;
-        r.header(91, 0);
-        r.attr_si(0x20);
-        r.attr_file_name(16, u"stale_b.dat", FILE_NAME_WIN32_AND_DOS, 0x20, 2048, 2048);
-        /* two-run runlist: vcn0 @ 200 (1 cluster), vcn1 @ 111 (3 clusters) */
-        r.attr_data_runlist_vcn(200, 1, 0, 2048);
-        r.attr_data_runlist_vcn(111, 3, 1, 2048);
-        r.finish();
-        std::memcpy(img.sec(100 + 2), r.buf.data(), RECORD_SIZE);
-    }
-    /* dump record C: deleted, size 512 <= 0x3ff -> destroyed */
-    {
-        RecBuilder r;
-        r.header(92, 0);
-        r.attr_si(0x20);
-        r.attr_file_name(16, u"stale_c.dat", FILE_NAME_WIN32_AND_DOS, 0x20, 512, 512);
-        r.attr_data_runlist(112, 1, 512);
-        r.finish();
-        std::memcpy(img.sec(100 + 4), r.buf.data(), RECORD_SIZE);
-    }
-    /* dump record E: deleted, run-start at LCN 200 fully claimed -> destroyed */
-    {
-        RecBuilder r;
-        r.header(93, 0);
-        r.attr_si(0x20);
-        r.attr_file_name(16, u"stale_e.dat", FILE_NAME_WIN32_AND_DOS, 0x20, 2048, 2048);
-        r.attr_data_runlist(200, 1, 2048);
-        r.finish();
-        std::memcpy(img.sec(100 + 6), r.buf.data(), RECORD_SIZE);
-    }
-    /* dump record D: DIRECTORY ($FILE_NAME flags 0x10000000) with an index
-     * run at claimed LCN 200 - dirs bypass viability, always emitted */
-    {
-        RecBuilder r;
-        r.header(94, RECORD_IS_DIRECTORY);
-        r.attr_si(0);
-        r.attr_file_name(16, u"stale_dir", FILE_NAME_WIN32_AND_DOS, 0x10000000, 0, 0);
-        r.attr_index_root();
-        r.attr_index_runlist(200, 1);
-        r.finish();
-        std::memcpy(img.sec(100 + 8), r.buf.data(), RECORD_SIZE);
-    }
+    build_dump_image(img);
+    DumpWalkResult w;
+    ASSERT_NO_FATAL_FAILURE(walk_dump_image(img, w));
+    EXPECT_EQ(1u, w.stats.guid_dump_files);
+    EXPECT_GE(w.stats.guid_dump_records, 2u); /* zombie1.dat + zombiedir */
+    tree::FileNode* z1 = find_node(w.all, "zombie1.dat");
+    ASSERT_NE(z1, nullptr) << "dump-recovered record must be emitted";
+    EXPECT_EQ(z1->deleted_state(), tree::DeletedState::Deleted);
+    EXPECT_EQ(z1->props()->logical_size, 2048u);
+    ASSERT_EQ(z1->props()->extents.size(), 1u);
+    EXPECT_EQ(z1->props()->extents[0].offset, 150 * CLUSTER);
+    EXPECT_EQ(z1->props()->extents[0].length, 1024u);
+}
 
+TEST(NtfsVolume, GuidDumpDestroyRules) {
+    /* S-012: the og's dump-pass destroy rules - all run STARTs claimed by
+     * pass-1 extents -> destroyed; size <= 0x3ff -> destroyed; folders
+     * never destroyed; unclaimed starts survive. */
+    Image img;
+    build_dump_image(img);
+    DumpWalkResult w;
+    ASSERT_NO_FATAL_FAILURE(walk_dump_image(img, w));
+    EXPECT_EQ(2u, w.stats.guid_dump_destroyed); /* zombie2.dat + tiny.dat */
+    EXPECT_EQ(nullptr, find_node(w.all, "zombie2.dat"))
+        << "all-run-starts-claimed dump record must be destroyed";
+    EXPECT_EQ(nullptr, find_node(w.all, "tiny.dat"))
+        << "size <= 0x3ff dump record must be destroyed";
+    EXPECT_NE(nullptr, find_node(w.all, "zombiedir"))
+        << "folders are never destroyed by the dump pass";
+    EXPECT_NE(nullptr, find_node(w.all, "zombie1.dat"));
+}
+
+TEST(NtfsVolume, SizeZeroRescueFromMftCopy) {
+    /* S-012 step 3a: a deleted size-0 record whose $MFTMirr copy keeps the
+     * resident $DATA gets content + size recovered at walk time. */
+    Image img;
+    build_dump_image(img);
+    DumpWalkResult w;
+    ASSERT_NO_FATAL_FAILURE(walk_dump_image(img, w));
+    EXPECT_GE(w.stats.size_zero_rescued, 1u);
+    tree::FileNode* g = find_node(w.all, "ghost0.dat");
+    ASSERT_NE(g, nullptr);
+    EXPECT_EQ(g->props()->logical_size, 20u) << "mirror-resident content recovered";
+    ASSERT_GE(g->props()->resident_data.size(), 20u);
+    EXPECT_EQ(g->props()->resident_data[0], 0x00u);
+    EXPECT_EQ(g->props()->resident_data[1], 0xEEu);
+    EXPECT_EQ(g->props()->resident_data[2], 0xFFu);
+    EXPECT_EQ(g->props()->resident_data[3], 0xC0u);
+}
+
+TEST(NtfsVolume, SizeZeroRescueSameNameMerge) {
+    /* S-012 step 3b: a size-0 record beyond mirror coverage merges the
+     * same-name record's runlist + size (post-walk relaxed pass). */
+    Image img;
+    build_dump_image(img);
+    DumpWalkResult w;
+    ASSERT_NO_FATAL_FAILURE(walk_dump_image(img, w));
+    EXPECT_GE(w.stats.size_zero_rescued, 2u); /* mirror + merge */
+    /* two records share the name; the merged one carries the adopted size */
+    tree::FileNode* merged = nullptr;
+    for (tree::FileNode* n : w.all) {
+        if (n->name_utf8() == "twindrive.dat" && n->deleted_state() == tree::DeletedState::Deleted)
+            merged = n;
+    }
+    ASSERT_NE(merged, nullptr);
+    EXPECT_EQ(merged->props()->logical_size, 600u) << "size adopted from the same-name record";
+    ASSERT_EQ(merged->props()->extents.size(), 1u);
+    EXPECT_EQ(merged->props()->extents[0].offset, 190 * CLUSTER);
+}
+
+/* ---- S-022: directory-entry second source (INDX + $INDEX_ROOT) ----------- */
+
+namespace {
+
+/* one INDEX_ENTRY with an embedded $FILE_NAME key (test-side writer; the
+ * layout is the og-decoded one - see cr_ntfs_wire.h S-022 comment) */
+struct IndxTestEntry {
+    u64 ref = 0;
+    u64 parent = 0;
+    u64 alloc_sz = 0;
+    u64 real_sz = 0;
+    u32 dos_flags = 0x20; /* ARCHIVE by default (og gate needs it) */
+    const char16_t* name = u"";
+    bool last = false;
+};
+
+size_t write_indx_entry(std::vector<u8>& v, size_t at, const IndxTestEntry& e) {
+    const std::u16string n = e.name;
+    const u32 elen = 0x52u + u32(n.size()) * 2u;
+    const u32 padded = (elen + 7u) & ~7u;
+    RecBuilder::u64_from_bytes_le_wr(v, at + 0x00, e.ref);
+    RecBuilder::u16_from_bytes_le_wr(v, at + 0x08, u16(padded));
+    RecBuilder::u16_from_bytes_le_wr(v, at + 0x0A, u16(0x42 + n.size() * 2)); /* key len */
+    RecBuilder::u16_from_bytes_le_wr(v, at + 0x0C, u16(e.last ? 2 : 0));
+    RecBuilder::u64_from_bytes_le_wr(v, at + 0x10, e.parent);
+    RecBuilder::u64_from_bytes_le_wr(v, at + 0x18, 132000000000000000ULL); /* create */
+    RecBuilder::u64_from_bytes_le_wr(v, at + 0x20, 133000000000000000ULL); /* modify */
+    RecBuilder::u64_from_bytes_le_wr(v, at + 0x28, 134000000000000000ULL); /* change */
+    RecBuilder::u64_from_bytes_le_wr(v, at + 0x30, 135000000000000000ULL); /* access */
+    RecBuilder::u64_from_bytes_le_wr(v, at + 0x38, e.alloc_sz);
+    RecBuilder::u64_from_bytes_le_wr(v, at + 0x40, e.real_sz);
+    RecBuilder::u32_from_bytes_le_wr(v, at + 0x48, e.dos_flags);
+    RecBuilder::u32_from_bytes_le_wr(v, at + 0x4C, 0); /* reparse */
+    v[at + 0x50] = u8(n.size());
+    v[at + 0x51] = 0; /* namespace: win32 */
+    for (size_t i = 0; i < n.size(); ++i)
+        RecBuilder::u16_from_bytes_le_wr(v, at + 0x52 + i * 2, n[i]);
+    return at + padded;
+}
+
+/* a 4 KiB INDX block (8 sectors, usa_count 9) with the given in-use chain */
+std::vector<u8> build_indx_block(const std::vector<IndxTestEntry>& entries, u32 in_use_override = 0,
+                                 std::vector<IndxTestEntry>* slack = nullptr) {
+    std::vector<u8> blk(4096, 0);
+    std::memcpy(blk.data(), "INDX", 4);
+    RecBuilder::u16_from_bytes_le_wr(blk, 0x04, 0x28); /* usa offset */
+    RecBuilder::u16_from_bytes_le_wr(blk, 0x06, 9);    /* usa count: 8 sectors + 1 */
+    RecBuilder::u32_from_bytes_le_wr(blk, 0x18, 0x28); /* entries offset (rel. +0x18) */
+    RecBuilder::u32_from_bytes_le_wr(blk, 0x20, 4096 - 0x18); /* allocated (rel. +0x18) */
+    RecBuilder::u32_from_bytes_le_wr(blk, 0x24, 1);    /* leaf */
+    size_t at = 0x40;
+    for (const IndxTestEntry& e : entries)
+        at = write_indx_entry(blk, at, e);
+    const u32 in_use = in_use_override ? in_use_override : u32(at - 0x18);
+    RecBuilder::u32_from_bytes_le_wr(blk, 0x1C, in_use);
+    /* slack entries live after the in-use chain (never harvested) */
+    if (slack != nullptr)
+        for (const IndxTestEntry& e : *slack)
+            at = write_indx_entry(blk, at, e);
+    /* USA: slot0 = USN, slots 1..8 = sector-tail originals */
+    for (int i = 0; i < 9; ++i)
+        RecBuilder::u16_from_bytes_le_wr(blk, 0x28 + u32(i) * 2, 0xAAAA);
+    RecBuilder::u16_from_bytes_le_wr(blk, 0x28, 0x0BB8);
+    for (int s = 0; s < 8; ++s) {
+        blk[u64(s) * 512 + 510] = 0xB8;
+        blk[u64(s) * 512 + 511] = 0x0B;
+    }
+    return blk;
+}
+
+/* resident $INDEX_ROOT attribute carrying the given entries */
+void attr_index_root_entries(RecBuilder& r, const std::vector<IndxTestEntry>& es) {
+    std::vector<u8> val(0x400, 0);
+    RecBuilder::u32_from_bytes_le_wr(val, 0x00, 0x30); /* $I30 */
+    RecBuilder::u32_from_bytes_le_wr(val, 0x04, 1);    /* collation */
+    RecBuilder::u32_from_bytes_le_wr(val, 0x08, 512);  /* index block size */
+    val[0x0C] = 1;                      /* clusters per index block */
+    RecBuilder::u32_from_bytes_le_wr(val, 0x10, 0x10); /* entries offset (rel. to +0x10) */
+    RecBuilder::u32_from_bytes_le_wr(val, 0x18, 0x400 - 0x10); /* allocated */
+    RecBuilder::u32_from_bytes_le_wr(val, 0x1C, 0);    /* flags: not large-index */
+    size_t at = 0x20;
+    for (const IndxTestEntry& e : es)
+        at = write_indx_entry(val, at, e);
+    RecBuilder::u32_from_bytes_le_wr(val, 0x14, u32(at - 0x10)); /* in-use (rel. to +0x10) */
+    /* write as a resident attribute */
+    const u32 vlen = u32(at);
+    const u32 voff = 0x18;
+    const u32 alen = (voff + vlen + 7) / 8 * 8;
+    const u32 pos = r.attr_pos;
+    RecBuilder::u32_from_bytes_le_wr(r.buf, pos + 0, ATTR_TYPE_INDEX_ROOT);
+    RecBuilder::u32_from_bytes_le_wr(r.buf, pos + 4, alen);
+    r.buf[pos + 8] = 0; /* resident */
+    r.buf[pos + 9] = 0; /* unnamed */
+    RecBuilder::u16_from_bytes_le_wr(r.buf, pos + 10, u16(voff));
+    RecBuilder::u16_from_bytes_le_wr(r.buf, pos + 16, u16(vlen & 0xFFFF));
+    RecBuilder::u16_from_bytes_le_wr(r.buf, pos + 20, u16(voff));
+    std::memcpy(r.buf.data() + pos + voff, val.data(), vlen);
+    /* the bulk copy may span the USA sector tails - re-stamp them (the
+     * field-wise writers leave them intact; this one must restore them) */
+    for (u32 t = 0; t * SEC + SEC <= RECORD_SIZE; ++t) {
+        r.buf[u64(t) * SEC + SEC - 2] = 0xB8;
+        r.buf[u64(t) * SEC + SEC - 1] = 0x0B;
+    }
+    r.attr_pos += alen;
+}
+
+u32 scan_remnants_simple(IStorageDevice* dev, tree::ResultTree& tree, WalkStats& stats) {
+    auto* root_lost = tree.add_root(u"Lost Files");
+    return scan_mft_remnants(dev, SEC, CLUSTER, RECORD_SIZE, TOTAL_CLUSTERS, nullptr, nullptr,
+                             nullptr, tree, root_lost, stats);
+}
+
+} // namespace
+
+TEST(NtfsVolume, OrphanIndxBlockHarvestsEntries) {
+    /* S-022 feeder B: a directory's INDX block survives in raw space (its
+     * MFT record is gone) - the in-use entries surface as Lost nodes with
+     * name/size/times from the embedded $FILE_NAME keys. */
+    Image img;
+    {
+        const std::vector<IndxTestEntry> entries = {
+            {(1ull << 48) | 9001, (1ull << 48) | 55, 4096, 3000, 0x20, u"indx-a.dat", false},
+            {(1ull << 48) | 9002, (1ull << 48) | 55, 128, 100, 0x30, u"indx-dir", false},
+            {(1ull << 48) | 9003, (1ull << 48) | 55, 512, 512, 0x20, u"indx-b.dat", true},
+        };
+        auto blk = build_indx_block(entries);
+        std::memcpy(img.sec(20), blk.data(), blk.size());
+    }
     MemDevice dev(img.raw(), img.geom());
-    u32 err = 0;
-    auto vol = NtfsVolume::open(std::unique_ptr<IStorageDevice>(new MemDevice(dev)), &err);
-    ASSERT_NE(vol, nullptr) << "open err " << err_text(err);
-    std::unique_ptr<VolumeBitmap> bm;
-    ASSERT_EQ(VolumeBitmap::load(vol.get(), bm), OK);
-
     tree::ResultTree tree;
-    auto* ra = tree.add_root(u"Found");
-    auto* rd = tree.add_root(u"Deleted");
-    auto* rl = tree.add_root(u"Lost Files");
-    WalkerFlags wf;
     WalkStats stats;
-    ASSERT_EQ(OK,
-              walk_mft(vol.get(), bm.get(), wf, nullptr, nullptr, nullptr, tree, ra, rd, rl, stats));
-    EXPECT_EQ(1u, stats.guid_dump_files);
-    EXPECT_EQ(5u, stats.guid_dump_records);
-    EXPECT_EQ(2u, stats.guid_dump_destroyed) << "C (size<=0x3ff) + E (all run-starts claimed)";
-    EXPECT_EQ(3u, stats.guid_dump_emitted) << "A + B + D survive";
-
-    bool a = false, b = false, c = false, e = false, d = false;
-    for (tree::FileNode* n : collect_all(tree)) {
-        const std::string nm = n->name_utf8();
-        if (nm == "stale_a.dat")
-            a = true;
-        else if (nm == "stale_b.dat")
-            b = true;
-        else if (nm == "stale_c.dat")
-            c = true;
-        else if (nm == "stale_e.dat")
-            e = true;
-        else if (nm == "stale_dir")
-            d = true;
+    ASSERT_EQ(OK, scan_remnants_simple(&dev, tree, stats));
+    auto* root_lost = tree.roots()[0];
+    tree::FileNode *a = nullptr, *d = nullptr, *b = nullptr;
+    for (tree::FileNode* c = root_lost->first_child(); c; c = c->next_sibling()) {
+        if (c->name_utf8() == "indx-a.dat")
+            a = c;
+        else if (c->name_utf8() == "indx-dir")
+            d = c;
+        else if (c->name_utf8() == "indx-b.dat")
+            b = c;
     }
-    EXPECT_TRUE(a) << "unclaimed dump record must be recovered";
-    EXPECT_TRUE(b) << "partially-claimed run-STARTs must survive (intact < total)";
-    EXPECT_FALSE(c) << "size <= 0x3ff dump records are destroyed";
-    EXPECT_FALSE(e) << "fully-claimed run-STARTs are destroyed";
-    EXPECT_TRUE(d) << "directories bypass viability and always emit";
+    ASSERT_NE(a, nullptr);
+    ASSERT_NE(d, nullptr);
+    ASSERT_NE(b, nullptr);
+    EXPECT_EQ(a->props()->logical_size, 3000u);
+    EXPECT_EQ(a->props()->times.created, 132000000000000000ULL);
+    EXPECT_EQ(a->confidence(), tree::Confidence::MetadataOnly);
+    EXPECT_EQ(a->origin(), tree::Origin::Lost);
+    EXPECT_EQ(d->props()->attributes & 0x10, 0x10u); /* folder bit from flags */
+    EXPECT_EQ(b->props()->logical_size, 512u);
+    EXPECT_GE(stats.emitted, 3u);
+}
 
-    /* the GUID dump file itself never leaks into the results as a node the
-     * user could "recover" (it is live system content) - pass 1 emitted it
-     * as an ACTIVE file, which is og behavior too; only check the survivors'
-     * shape here: stale_a extents point at its unclaimed run */
-    for (tree::FileNode* n : collect_all(tree)) {
-        if (n->name_utf8() == "stale_a.dat") {
-            ASSERT_EQ(n->props()->extents.size(), 1u);
-            EXPECT_EQ(n->props()->extents[0].offset, 110 * CLUSTER);
-            EXPECT_EQ(n->props()->logical_size, 2048u);
-            EXPECT_EQ(n->deleted_state(), tree::DeletedState::Deleted);
-            return;
-        }
+TEST(NtfsVolume, IndxHiddenSystemEntryRejected) {
+    /* S-022: the og's entry gate rejects HIDDEN|SYSTEM both-set entries
+     * (FUN_18000e970 :11032) - metafile-class content never surfaces. */
+    Image img;
+    {
+        const std::vector<IndxTestEntry> entries = {
+            {(1ull << 48) | 9101, (1ull << 48) | 55, 4096, 3000, 0x26, u"secret.dat", false},
+            {(1ull << 48) | 9102, (1ull << 48) | 55, 512, 512, 0x20, u"plain.dat", true},
+        };
+        auto blk = build_indx_block(entries);
+        std::memcpy(img.sec(20), blk.data(), blk.size());
     }
-    FAIL() << "stale_a.dat not found";
+    MemDevice dev(img.raw(), img.geom());
+    tree::ResultTree tree;
+    WalkStats stats;
+    ASSERT_EQ(OK, scan_remnants_simple(&dev, tree, stats));
+    auto* root_lost = tree.roots()[0];
+    tree::FileNode* secret = nullptr;
+    for (tree::FileNode* c = root_lost->first_child(); c; c = c->next_sibling())
+        if (c->name_utf8() == "secret.dat")
+            secret = c;
+    EXPECT_EQ(nullptr, secret) << "HIDDEN|SYSTEM entries must be rejected";
+}
+
+TEST(NtfsVolume, IndxSlackNeverHarvested) {
+    /* S-022 parity edge: entries beyond the in-use end (deleted-entry
+     * remnants in INDX slack) are NEVER harvested - the og's walk is
+     * bounded by the in-use size and stops at the last-entry flag. */
+    Image img;
+    {
+        const std::vector<IndxTestEntry> entries = {
+            {(1ull << 48) | 9201, (1ull << 48) | 55, 512, 512, 0x20, u"live-entry.dat", true},
+        };
+        std::vector<IndxTestEntry> slack = {
+            {(1ull << 48) | 9202, (1ull << 48) | 55, 8000, 8000, 0x20, u"slack-ghost.dat",
+             false},
+        };
+        auto blk = build_indx_block(entries, 0, &slack);
+        std::memcpy(img.sec(20), blk.data(), blk.size());
+    }
+    MemDevice dev(img.raw(), img.geom());
+    tree::ResultTree tree;
+    WalkStats stats;
+    ASSERT_EQ(OK, scan_remnants_simple(&dev, tree, stats));
+    auto* root_lost = tree.roots()[0];
+    tree::FileNode *live = nullptr, *ghost = nullptr;
+    for (tree::FileNode* c = root_lost->first_child(); c; c = c->next_sibling()) {
+        if (c->name_utf8() == "live-entry.dat")
+            live = c;
+        else if (c->name_utf8() == "slack-ghost.dat")
+            ghost = c;
+    }
+    ASSERT_NE(live, nullptr);
+    EXPECT_EQ(nullptr, ghost) << "INDX slack entries must never be harvested";
+}
+
+TEST(NtfsVolume, RemnantDirRecordHarvestsIndexRootChildren) {
+    /* S-022 feeder A: a recovered directory record found in raw space with
+     * a resident $INDEX_ROOT (large-index==0, in-use <= 0x320) - its child
+     * entries surface as Lost/MetadataOnly nodes. */
+    Image img;
+    {
+        RecBuilder r;
+        r.header(40, RECORD_IN_USE | RECORD_IS_DIRECTORY);
+        r.attr_si(0x30);
+        r.attr_file_name(5, u"orphandir", FILE_NAME_WIN32, 0x30, 0, 0);
+        attr_index_root_entries(r, {
+            {(1ull << 48) | 9301, (1ull << 48) | 40, 2048, 1500, 0x20, u"rootchild-a.txt", false},
+            {(1ull << 48) | 9302, (1ull << 48) | 40, 256, 200, 0x20, u"rootchild-b.txt", true},
+        });
+        r.finish();
+        std::memcpy(img.sec(40), r.buf.data(), RECORD_SIZE);
+    }
+    MemDevice dev(img.raw(), img.geom());
+    tree::ResultTree tree;
+    WalkStats stats;
+    ASSERT_EQ(OK, scan_remnants_simple(&dev, tree, stats));
+    auto* root_lost = tree.roots()[0];
+    tree::FileNode *dir = nullptr, *ca = nullptr, *cb = nullptr;
+    for (tree::FileNode* c = root_lost->first_child(); c; c = c->next_sibling()) {
+        if (c->name_utf8() == "orphandir")
+            dir = c;
+        else if (c->name_utf8() == "rootchild-a.txt")
+            ca = c;
+        else if (c->name_utf8() == "rootchild-b.txt")
+            cb = c;
+    }
+    EXPECT_NE(dir, nullptr) << "the directory record itself still emits";
+    ASSERT_NE(ca, nullptr) << "$INDEX_ROOT children must be harvested";
+    ASSERT_NE(cb, nullptr);
+    EXPECT_EQ(ca->props()->logical_size, 1500u);
+    EXPECT_EQ(ca->confidence(), tree::Confidence::MetadataOnly);
+    EXPECT_EQ(cb->props()->logical_size, 200u);
 }

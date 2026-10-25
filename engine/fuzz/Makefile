@@ -33,7 +33,7 @@ TARGETS := $(BUILD)/fuzz_pure $(BUILD)/fuzz_engines $(BUILD)/fuzz_carve \
            $(BUILD)/fuzz_container $(BUILD)/fuzz_ntfs $(BUILD)/fuzz_fat \
            $(BUILD)/fuzz_exfat $(BUILD)/fuzz_ext4 $(BUILD)/fuzz_hfsplus \
            $(BUILD)/fuzz_btrfs $(BUILD)/fuzz_zfs $(BUILD)/fuzz_refs \
-           $(BUILD)/fuzz_preview
+           $(BUILD)/fuzz_preview $(BUILD)/fuzz_reghive
 
 all: $(TARGETS)
 
@@ -56,7 +56,7 @@ $(TARGETS): | dirs
 corpus:
 	mkdir -p corpus/pure corpus/engines corpus/carve corpus/container \
 	         corpus/ntfs corpus/fat corpus/exfat corpus/ext4 corpus/hfsplus \
-	         corpus/btrfs corpus/zfs corpus/refs corpus/preview
+	         corpus/btrfs corpus/zfs corpus/refs corpus/preview corpus/reghive
 
 # -timeout=25: a single input taking >25s fails fast instead of eating
 # the libFuzzer default 1200s alarm; -rss_limit_mb bounds heap.

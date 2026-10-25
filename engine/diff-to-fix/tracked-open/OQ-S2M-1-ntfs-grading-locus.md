@@ -1,7 +1,25 @@
 # OQ-S2M-1 — Where do the og's user-facing grades for NTFS deleted files come from? (D15 grading locus)
 
-**Status:** OPEN (session-2 residue) · **Module:** ntfs / drwui · **Parameters:** D15 (confidence grading model)
-**Audited commit:** `e93decf` · corpus `03ad46c`
+**Status:** RESOLVED (session 4, 2026-10-26) — see finding `findings/SEVERE/S-023-no-post-scan-grading-engine-crecoverability-unimplemented.md` + `evidence/decompiled-quotes/s4-crecoverability-grading-engine.md` · **Module:** ntfs / drwui · **Parameters:** D15 (confidence grading model)
+**Audited commit:** `e93decf` → resolved at `63a9167` · corpus `03ad46c`
+
+> **RESOLUTION (session-4 decompile pass, two-agent convergence):**
+> The locus is **DRWUI-side**. The engines emit grade=1 ONLY — the sole engine-side
+> grade writes are the node-ctor defaults `*(u8*)(node+0x73) = 0x20`
+> (`NTFSSearchDLL_decompiled.c:39242/39779`; zero grade/quality/confidence strings in
+> any of the 9 engine DLLs). Every user-facing 0/2 verdict is computed by the DRWUI
+> CRecoverability family: grade stored in **bits 5-7 of node+0x73**, monotonic-max
+> setter (grade 2 sticky), decision tree = size<1→0; category-0xC→2; FS ∉ {NTFS,ReFS,
+> Btrfs} → generic path with a 169-entry extension-table gate + overlap-tree twins;
+> NTFS device-walk (idx ∈ [0,9)→2; size<0x400→2 else 0); existing-file bit→2;
+> per-selection re-grade for grade-1 nodes. The "device.kind −2" is an extent-address
+> offset, not a grade adjustment. Full quotes: the S-023 evidence file.
+> **Consequence for the core:** the in-walk 5-tier Confidence is a *different model*
+> (as the OQ suspected), not a superset — S-023 filed (SEVERE: missing post-scan
+> grading stage + no re-grade API + no RecoveryAssistant statistics). The S-012 rework
+> should keep the core grade as a registered extra AND add the og model per S-023's
+> fix plan. The `+0x258/+0x259` ctor-default decode remains open (not probed this
+> session) — carried in S-012's own OQ list.
 
 ## The precise question
 

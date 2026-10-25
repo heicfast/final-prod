@@ -196,3 +196,16 @@ leg that landed first; registry decode evidence: `evidence/decompiled-quotes/s3-
   (AI/EPS), not dBase (no DBF analyser exists); E4 52 **5C** 7B is **OneNote**
   (OneAnalyser/FileONEAnalyser), not LZH (LZH = list-layer LZHAnalyser). Errata
   rows 22-28.
+
+---
+
+## Session-3 parallel-leg rows (integration 2026-10-26)
+
+| ID | Severity | One-line |
+|---|---|---|
+| M-039 | MAJOR | Cross-engine occupancy-bitmap feed missing (og fills one per-volume bitmap in EXT4/Btrfs/ZFS engines — Btrfs's is sparse-file-backed — feeding downstream phases; our diskmap is visualization-only) |
+| N-030 addendum | — | Tail-hit size formula (`sec*(cur-start) - tail_off + 50` vs our `lo+pos+512`) + the invented 2 MiB tail cap + 500 MiB default — this leg's decode folded into N-030 |
+
+Evidence: `evidence/decompiled-quotes/s3-rawsigns-consumer-decode.md` (the
+loader/matcher/CommonRawAnalyser decode, complementing the lead leg's
+`s3-rawsigns-units-and-dispatch.md`).

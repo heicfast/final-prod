@@ -46,11 +46,52 @@ struct FatParams {
     u64 total_bytes = 0;
 };
 
-/* Flavor discrimination (Microsoft whitepaper thresholds). */
+/* Flavor discrimination. Boundary constants are the og's FATSearchDLL
+ * FUN_180007e50 :5219-5231 brackets (N-010a, diff-to-fix): FAT12
+ * [0, 0xFF5), FAT16 [0xFF5, 0xFFF4) upper-exclusive, FAT32 [0xFFF4, ...)
+ * lower-inclusive - a 65524-data-cluster volume is FAT32 on the og and
+ * was FAT16 on the core's old `< 65525` boundary. */
 Flavor flavor_from_clusters(u32 cluster_count_data);
 
-/* Parse + validate a FAT boot sector. Accepts FAT12/16/32 layouts. */
+/* Parse + validate a FAT boot sector. Accepts FAT12/16/32 layouts.
+ * SPC is gated to the og's engine set {1,2,4,8,16,32,64,128} (FATSearchDLL
+ * FUN_18002f970 :38050-52 bitmask 0x800000008000808b + the 0x80 special
+ * case; PartitionRecoveryD FUN_1800048f0/4a40/4b70 use the same set in
+ * the deep-scan gates - N-010b/N-034). */
 u32 validate_boot(const u8* sector512, u64 device_bytes, FatParams& out);
+
+/* Engine-open gates (N-010b, diff-to-fix): the og's FATSearchDLL boot
+ * validator FUN_18002f970 + its quick-search consumer FUN_180021000
+ * (:26318 bails on flavor 0xE). Layered on top of validate_boot's
+ * structural parse:
+ *   - numFATs in {1,2}          (:38049 `(byte)(n-1) < 2`)
+ *   - bps == device sector size  (:38055 `*(ushort*)(boot+0xb) == dev+0xc`;
+ *     skipped when device_sector == 0 - unknown geometry)
+ *   - FAT16: "FAT16   " at +0x36 (_strnicmp), root_entries >= 224
+ *     (:38054 `0xdf < root`), root_entries*32 % bps == 0 (:38055),
+ *     spf16 != 0 (:38056)
+ *   - FAT32: "FAT32   " at +0x52 (_strnicmp), spf32 != 0 (:38062 block)
+ *   - FAT12: NO string/geometry gate - the og's validator has no FAT12
+ *     branch (its quick engine declines them); the core keeps FAT12
+ *     recovery as the documented I-002-family superset (PARITY-DELTAS).
+ * Returns OK or ERR_BAD_PARAMETER. */
+u32 boot_passes_open_gates(const u8* sector512, u16 device_sector, const FatParams& p);
+
+/* Lost-scan boot gates (N-034, diff-to-fix): the og PartitionRecoveryD
+ * deep-scan ladder FUN_180004610 :2516-2606 - bps must be a 512 multiple
+ * (:2547 `(bps & 0x1ff) == 0`), cluster count via the BPB, then the
+ * bracket-ordered gate walk (< 0xFF5: FAT12,FAT16,FAT32; < 0xFFF5:
+ * FAT16,FAT32,FAT12; < 0xFFFFFF0: FAT32,FAT16,FAT12):
+ *   - FAT12 gate FUN_1800048f0: numFATs != 0, a total-sector field
+ *     nonzero, SPC in {1..128 set}, spf16 in [1,200], 0x55AA
+ *   - FAT16 gate FUN_180004a40: numFATs != 0, total nonzero, SPC set,
+ *     spf16 != 0, 0x55AA (no string)
+ *   - FAT32 gate FUN_180004b70: memcmp "FAT32   " at +0x52 (CASE-
+ *     SENSITIVE per the decompile), numFATs != 0, total32 != 0, SPC set,
+ *     spf32 != 0, 0x55AA
+ * Returns the winning flavor, or a negative sentinel when no gate
+ * passes (candidate rejected). */
+int lost_boot_flavor(const u8* sector512);
 
 /* ---- allocation table ---- */
 class FatTable {
@@ -67,6 +108,15 @@ public:
     /* raw entry (canonicalized) for completeness checks */
     u32 raw(u32 cluster) const;
 
+    /* N-022 (diff-to-fix): default OFF = og parity. The og's
+     * CDoubleFATTable::GetNext (FUN_180041de0 :54216-18) consults the
+     * mirror ONLY when the primary's canonicalized entry is 0 (FREE);
+     * a primary BAD (0xFF7/0xFFF7/0x0FFFFFF7) is non-zero and is served
+     * directly - the chain truncates there. The core previously also
+     * consulted the mirror on primary-BAD; that torn-pair salvage is
+     * kept as an OPT-IN recovery mode (never the default scan path). */
+    void set_mirror_bad_salvage(bool on) { mirror_bad_salvage_ = on; }
+
     bool loaded() const { return !fat1_.empty(); }
     u32 max_cluster() const { return max_cluster_; }
 
@@ -77,10 +127,12 @@ private:
     std::vector<u8> fat1_;
     std::vector<u8> fat2_;
     bool mirror_ = false;
+    bool mirror_bad_salvage_ = false; /* N-022: opt-in, default og parity */
     u32 max_cluster_ = 0;
     Flavor flavor_ = Flavor::Fat32;
 
     u32 entry_at(const std::vector<u8>& f, u32 cluster) const;
+    u32 mirror_consult_(u32 primary) const;
 };
 
 /* ---- chain walker ---- */
@@ -156,10 +208,23 @@ struct FatScanStats {
     u64 lfn_recovered = 0;
     u64 chains_broken = 0;
     u64 cycles_cut = 0;
+    u64 date_rejected = 0; /* N-010c: dentries dropped by date sanity */
 };
 
 struct FatScanFlags {
     bool reconstruct_deleted_chains = true; /* complete mode */
+    /* N-010c (diff-to-fix): the og's dentry validator FUN_1800365a0
+     * :44298-44315 rejects a dentry when any of the three date fields
+     * (create +0x10 / write +0x18 / access +0x12) is nonzero with
+     * month > 12 or day == 0. The gate is config-gated in the og
+     * (singleton field +0x40, FUN_18002d1b0 :44305); whole-zero date
+     * fields PASS the gate and still reach the timestamp conversion
+     * (the N-021 zero-FileTime path). Default OFF preserves the
+     * N-021-pinned default flow; ON mirrors the og's strict mode. */
+    bool strict_date_sanity = false;
+    /* N-022: opt-in torn-pair salvage (mirror consult on primary BAD);
+     * default OFF = og parity. */
+    bool mirror_bad_salvage = false;
 };
 
 /* Quick + complete in one entry: flags toggle complete behaviors.

@@ -39,24 +39,32 @@ struct WalkerFlags {
     bool skip_system_files = true; /* corpus: dos_flags & 4 -> skip */
     bool emit_ads = true;          /* named $DATA -> child nodes */
     bool harvest_usnjrnl = true;   /* $Extend/$UsnJrnl:$J deleted-name harvest */
-    /* S-001 landed the og's destroy rule in the WRONG pass (S-012). The og's
-     * main MFT walk (pass 1, FUN_180017390) emits EVERY parsed record
-     * unconditionally - deleted included, no viability grading, no destroy
-     * (emit at :18630; the og's viability/destroy machinery lives in the
-     * pass-2 GUID-dump record parser FUN_18001acc0 :21208-21264). The core's
-     * in-walk grading stays (informational superset, D15 documented), but
-     * destroy-in-pass-1 removed records the og shows - membership must be
-     * pass-1-parity first. Default OFF = og membership. The flag keeps the
-     * opt-in destroy for honest-recovery scans that want it; pass 2 applies
-     * the og's real destroy rules regardless of this flag. */
+    /* S-012 (diff-to-fix): the og's NTFS scan is TWO-PASS. Pass 1 (live
+     * MFT walk) emits EVERY record - deleted included - with no viability
+     * destroy; the destroy machinery (all-run-starts-claimed vs the pass-1
+     * claim map, and the size <= 0x3ff dump rule) lives ONLY in pass 2, the
+     * GUID-dump walk over `{GUID}{3808876b-c176-4e48-b7ae-04046e6cc752}`-
+     * named MFT-dump files (NTFSSearchDLL FUN_18001a980/FUN_18001acc0).
+     * The S-001 fix landed the destroy rule in the LIVE walk - mis-scoped
+     * (S-012 supersedes S-001's scope premise; the rule itself was decoded
+     * correctly). Default now FALSE: the main walk restores og pass-1
+     * membership (fully-overwritten deleted files are emitted, graded
+     * Overwritten like the og's downstream surface would show them).
+     * TRUE = the S-001 honest-recovery inversion (keep the flag for scans
+     * that want the old destroy-in-walk behavior). */
     bool destroy_fully_overwritten = false;
-    /* S-012 pass 2: after the main walk, collect LIVE files named
-     * "{...}{3808876b-c176-4e48-b7ae-04046e6cc752}" (0x4C chars, collector
-     * NTFSSearchDLL :18584-18625) and parse their $DATA contents as stale
-     * MFT-record dumps (FUN_18001a980 chunk walk + FUN_18001acc0 record
-     * gates). The og's deep-scan second source for records whose live MFT
-     * slots were reused after deletion. */
+    /* S-012 pass 2: collect live `{*}{3808876b-...}`-named files during the
+     * walk and, after it, parse their $DATA as MFT-record dumps (record
+     * stride 0x400, hole stride 512, base-record + metafile gates, claim-map
+     * viability at each run START cluster, destroy on all-claimed or
+     * size <= 0x3ff, folders never destroyed, $-prefixed/system/unnamed
+     * destroyed). The og always runs this pass. */
     bool guid_dump_pass = true;
+    /* S-012 size-0 rescue: deleted non-dir size-0 records harvest resident
+     * $DATA from the $MFTMirr copy (fixup + record# validated) and merge a
+     * same-name record's runlist + size (compressed 0x800-flagged records
+     * skip the rescue; bounded candidate scan, og FUN_18001e6c0 chain). */
+    bool size_zero_rescue = true;
     /* viability gate boundary (NTFS-1): og is STRICT - `0x3ff < size`
      * (Dec 21208): files of exactly 0x3FF bytes take the fast-path with
      * no bitmap check; larger files get the $Bitmap grading. */
@@ -87,16 +95,18 @@ struct WalkStats {
     u64 recycle_remapped = 0;      /* $R records mapped to their original name */
     u64 compressed_blocks = 0;     /* GAP-P1-1: expanded NTFS compression blocks */
     u64 compressed_failed = 0;     /* files whose envelope failed (zero-filled) */
-    u64 destroyed_overwritten = 0; /* S-001: deleted files dropped by the og's
-                                     destroy rule (all probe clusters
-                                     re-allocated; never emitted). S-012: the
-                                     rule belongs to pass 2 - pass 1 keeps
-                                     every deleted record (og membership). */
-    u64 guid_dump_files = 0;       /* S-012: live GUID-template files collected */
-    u64 guid_dump_records = 0;     /* S-012: dump records parsed (post-gates) */
-    u64 guid_dump_destroyed = 0;   /* S-012: dump records destroyed (og rules:
-                                     size <= 0x3ff or all run-STARTs claimed) */
-    u64 guid_dump_emitted = 0;     /* S-012: dump records emitted into the tree */
+    u64 destroyed_overwritten = 0; /* S-001/S-012: deleted files dropped by
+                                    * the destroy rule. Fires in the LIVE walk
+                                    * only when WalkerFlags::
+                                    * destroy_fully_overwritten=true
+                                    * (honest-recovery mode; og pass 1 never
+                                    * destroys - S-012). */
+    u64 guid_dump_files = 0;       /* S-012 pass 2: collected GUID-named dumps */
+    u64 guid_dump_records = 0;     /* S-012 pass 2: records emitted from dumps */
+    u64 guid_dump_destroyed = 0;   /* S-012 pass 2: dump records destroyed
+                                    * (all-claimed / <=0x3ff / $-name / system) */
+    u64 size_zero_rescued = 0;     /* S-012: size-0 records rescued via mirror
+                                    * resident data or same-name merge */
 };
 
 /* Progress callback: (done, total) in walk units (records for the MFT

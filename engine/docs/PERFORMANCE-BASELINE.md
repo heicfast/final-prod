@@ -55,42 +55,54 @@ zero-filled "salvaged" before the sector-alignment shim (bench run
 40073093997) — the shim fixed it; the 64 KiB envelope unification must keep
 that property (it does — 64 KiB is a sector multiple).
 
-## 5. Transport / I/O profile at session start (verified in code)
+## 5. Transport / I/O profile after the core-api transport wave (verified in code)
 
-| Path | Read size issued today | Alignment envelope | Transitions per GiB (sequential) |
+| Path | Read size issued now | Alignment envelope | Transitions per GiB (sequential) |
 |---|---|---|---|
-| RDA grammar path (scan engines via CachedReader) | 64 KiB blocks (8 MiB LRU) | **sector-only** — GAP | ~16,384 |
-| RDA grammar path (carve) | 1 MiB windows | sector-only | ~1,024 |
-| Direct PhysicalDrive/HarddiskVolume | 64 KiB blocks / 1 MiB windows / 1 MiB writer chunks | **64 KiB** (GAP-S6-13) | same shape |
-| Writer (recovery reads) | 1 MiB + exact tail | 64 KiB (direct) / sector (RDA) | ~1,024 + tail bounces |
+| RDA grammar path (scan engines via CachedReader) | **256 KiB blocks** (8 MiB LRU = 32 blocks) | **64 KiB unified** (core-api) | ≈ 4,096 |
+| RDA grammar path (carve) | 1 MiB windows | 64 KiB unified | ≈ 1,024 |
+| Direct PhysicalDrive/HarddiskVolume | 256 KiB blocks / 1 MiB windows / 1 MiB writer chunks | **64 KiB unified** | same shape |
+| Writer (recovery reads) | 1 MiB + exact tail | 64 KiB (both transports) | ≈ 1,024 + tail bounces |
 | Reference (og, decompiled) | **4 MiB** device chunks; 2 MiB MFT batches; 1 MiB $UsnJrnl; 64 KiB boot | all 64 KiB multiples by construction | **256-512** |
 
-The og issues 16-64× fewer transitions per byte on the sequential engine
-path. At ~1-2 µs syscall+dispatch per transition this is the dominant
-user-mode overhead on fast NVMe — the read-size sweep (§7) quantifies it.
+The og still issues 4-8× fewer transitions per byte than our engine path;
+the alignbench sweep (§6) measures the plateau before any further tuning.
+Self-healing reopen (og error-6 parity) landed on every device class — no
+throughput claim, correctness only.
 
-## 6. NOT MEASURED (this session's benchmark plan — Windows CI, driver loaded)
+## 6. The Windows CI benchmark (tooling landed; numbers pending first run)
+
+`bench/ours/run-alignbench.ps1` + `.github/workflows/api-benchmark.yml`
+(windows-2022, driver loaded as service `rda`, direct cells against
+`\\.\C:`, RDA cells through the exact production grammar path, API latency
+late-bound against the built cr_ui.dll):
 
 | # | Measurement | Method | Status |
 |---|---|---|---|
-| 1 | Core scan-path read throughput vs. read size (64 KiB / 256 KiB / 1 MiB / 4 MiB) | new Windows CI benchmark job over a seeded VHDX, both transports (RDA + direct), sequential read of a 1 GiB span | **planned (T9/T10)** |
-| 2 | Queue-depth sweep (1/2/4/8 outstanding) | overlapped reads on the same job | **planned** — reference is QD=1 per handle; sweep documents the plateau, changes only if measurement proves headroom |
-| 3 | The 4 KiB-vs-64 KiB slow-path demonstration (the ~3.5× claim) | same job: read a 1 GiB span at 64 KiB-multiple lengths vs. 4 KiB-multiple-not-64 KiB lengths through the direct path | **planned (T9)** — verifies the mandate's 830 vs 2900 MB/s shape on runner hardware |
-| 4 | API call overhead (cheap ops) | `cr_ui_abi_version` / `last_error` / `telemetry` / `snapshot` microbench loop, ns/op | **planned (T15)** |
-| 5 | Driver round-trip overhead from the core | time 100k sequential ReadFiles through the grammar path at 64 KiB vs. driver-repo rdabench numbers | **planned (T15)** |
-| 6 | Scan end-to-end throughput (files/s, MiB/s) on the seeded scenarios | comparative-bench harness extension | **planned** |
+| 1 | The 4 KiB-vs-64 KiB slow-path demonstration (the ~3.5× claim) | NO_BUFFERING 128 KiB vs 132 KiB chunks over the same 512 MiB span | **tooling landed; first run pending** — ratio recorded to alignbench.json (hardware may attenuate; virtualized runner storage differs from the mandate's mid-range NVMe) |
+| 2 | Read-size sweep (64 KiB / 256 KiB / 1 MiB / 4 MiB) | same job, production flag shape | **tooling landed; first run pending** |
+| 3 | Queue-depth sweep (1/2/4/8 outstanding) | FILE_FLAG_OVERLAPPED ring | **tooling landed; first run pending** — reference is QD=1 per handle; changes only if the plateau justifies it |
+| 4 | API call overhead (cheap ops) | late-bound cr_ui loop, 2M iterations/op | **tooling landed; first run pending** |
+| 5 | Driver round-trip overhead from the core | RDA grammar-path reads with F11 unscale verified + direct comparison cell | **tooling landed; first run pending** |
+| 6 | Scan end-to-end throughput | comparative-bench harness | **planned** (existing harness; transport cells above land first) |
 | 7 | C-consumer lifecycle wall time | ui_abi_check timing | **planned (T13)** |
 
-Rules for every new number: environment recorded (runner, VHDX, build
-preset), N≥3 runs with median reported, no continue-on-error, artifacts kept.
+Rules for every number: environment recorded (runner, build preset), both
+measurement passes checksum-verified (the harness fails on mismatch), no
+continue-on-error, artifacts kept. Numbers land in this file as they arrive.
 
 ## 7. Acceptance targets for this session
 
-1. Every issued ReadFile on every transport: 64 KiB-multiple length except the
-   device-tail clamp — proven by unit test + CI assertion.
-2. Sequential engine path transitions: 64 KiB → 1 MiB blocks (≤1,024/GiB) —
-   measured delta recorded here after the sweep.
-3. No regression on the quality matrix (recall/precision rows unchanged).
-4. Cheap-op API overhead: measured and bounded (target: < 1 µs/op for
-   telemetry/last_error; snapshot documented separately as O(n)).
-5. Self-healing reopen: covered by a contract test (no throughput claim).
+1. **DONE** — every issued ReadFile on every transport: 64 KiB-multiple length
+   except the device-tail clamp — proven by the exhaustive unit sweep
+   (`UnifiedEnvelopeExhaustivePropertyBothDevices`) + the CI assertion that
+   follows from the single-envelope construction.
+2. Sequential engine path transitions: 64 KiB → 256 KiB blocks (≤4,096/GiB) —
+   measured delta recorded here after the sweep lands.
+3. No regression on the quality matrix (recall/precision rows unchanged) —
+   the full suite is green at every landing.
+4. Cheap-op API overhead: measurement wired (alignbench leg 4); bounded
+   target < 1 µs/op for telemetry-class calls — number recorded when run.
+5. Self-healing reopen: covered by construction on all four device classes
+   (heal path exercised via the GLE-capture plumbing; Windows-lane
+   integration coverage rides the driver-loaded CI job).

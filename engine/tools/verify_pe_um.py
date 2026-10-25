@@ -35,6 +35,14 @@ ALLOWLIST_ADDITIONS = {
     # DeleteVolumeMountPointA there; W variant is the same syscall). Available
     # since Windows 2000 - Win7-inclusive by construction.
     "DeleteVolumeMountPointW": "S-010 repair quiesce (corpus :44699); Win2000-era API",
+    # S-014 (diff-to-fix): the live auto-unlock read needs the per-volume
+    # "Data" value (DRWService_decompiled.c:121 RegQueryValueExA there; W
+    # variant is the same syscall) and the volume-GUID association
+    # (GetVolumeNameForVolumeMountPointW, Win2000-era). Both Win7-inclusive
+    # by construction.
+    "RegQueryValueExW": "S-014 FVEAutoUnlock Data read (corpus DRWService :121); NT-era API",
+    "GetVolumeNameForVolumeMountPointW":
+        "S-014 target-volume GUID association (og matches subkey GUIDs); Win2000-era API",
     # CRT / exe-startup surface the linker pulls into kernel32
     "GetCommandLineW": "CRT startup (wmain argc/argv); XP-era",
     "GetCommandLineA": "CRT startup fallback; XP-era",

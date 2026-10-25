@@ -103,3 +103,14 @@ Core (audited commit `67193b6`): `src/core/btrfs/cr_btrfs_engine.cpp` (799 LOC) 
   bytenr/fsid/chunk-tree-uuid identity gates; no crc32c immediates in the og DLL either).
 - **S-005 og-anchor for Btrfs: NOT-FOUND** (no conversion import in BtrfsSearchDLL) —
   tracked in OQ-S2M-2.
+
+---
+
+## Session-3 parallel-leg census row (integration 2026-10-26)
+
+| ID | Severity | One-line |
+|---|---|---|
+| S-028 | SEVERE | XATTR recovery missing: user.DOSATTRIB (Windows attribute semantics), user.* streams, btrfs.compression codec tag — no XATTR (type 0x18) handling anywhere in our engine |
+
+(The multi-stripe/mirror-index gap is the lead leg's M-020; the occupancy-bitmap
+cross-engine gap is M-039. This leg's local S-021 renumbered to S-028.)

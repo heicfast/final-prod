@@ -10,10 +10,13 @@ namespace cr {
 namespace fat {
 
 Flavor flavor_from_clusters(u32 cluster_count_data) {
-    /* Microsoft FAT whitepaper thresholds (data clusters, incl. reserved 2) */
+    /* og brackets (FATSearchDLL FUN_180007e50 :5219-5231, N-010a):
+     * FAT12 [0, 0xFF5), FAT16 [0xFF5, 0xFFF4), FAT32 [0xFFF4, ...) -
+     * 0xFFF4 = 65524 data clusters is FAT32 (the old `< 65525` boundary
+     * made it FAT16; one-cluster-window divergence on the boundary). */
     if (cluster_count_data < 4085)
         return Flavor::Fat12;
-    if (cluster_count_data < 65525)
+    if (cluster_count_data < 65524)
         return Flavor::Fat16;
     return Flavor::Fat32;
 }
@@ -106,12 +109,48 @@ u32 FatTable::load(IStorageDevice* dev, const FatParams& p) {
     return OK;
 }
 
+namespace {
+/* The og's SPC acceptance set (N-010b/N-034): engine-open validator
+ * FUN_18002f970 :38050-52 tests `spc-1` against the bitmask
+ * 0x800000008000808b (bits 0,1,3,7,15,31,63 -> spc 1,2,4,8,16,32,64)
+ * plus the separate `spc == 0x80` special case; the PartitionRecoveryD
+ * deep gates enumerate the same set {1,2,4,8,0x10,0x20,0x40,0x80}. */
+bool spc_in_og_set(u8 spc) {
+    switch (spc) {
+    case 1: case 2: case 4: case 8: case 16: case 32: case 64: case 128:
+        return true;
+    default:
+        return false;
+    }
+}
+
+/* case-insensitive 8-byte FS-name compare (the og's _strnicmp at
+ * FUN_18002f970 :38048/:38062). */
+bool fs_name_matches(const u8* at, const char* want) {
+    for (int i = 0; i < 8; ++i) {
+        u8 a = at[i];
+        if (a >= u8('A') && a <= u8('Z'))
+            a = u8(a - u8('A') + u8('a'));
+        if (a != u8(want[i]))
+            return false;
+    }
+    return true;
+}
+} // namespace
+
 u32 FatTable::next(u32 cluster) const {
     if (cluster < 2 || cluster > max_cluster_)
         return 0;
     u32 v = entry_at(fat1_, cluster);
-    /* choose-healthy mirror: if primary says BAD/FREE, consult FAT2 */
-    if (mirror_ && (v == 0 || v == CHAIN_BAD)) {
+    /* N-022: mirror consult on primary FREE only (og parity); the
+     * primary's BAD answer is served directly (chain truncates). */
+    if (mirror_ && v == 0) {
+        u32 alt = entry_at(fat2_, cluster);
+        if (alt != 0 && alt != CHAIN_BAD)
+            return alt;
+    }
+    if (mirror_ && v == CHAIN_BAD && mirror_bad_salvage_) {
+        /* opt-in torn-pair salvage (recovery mode, NOT the og default) */
         u32 alt = entry_at(fat2_, cluster);
         if (alt != 0 && alt != CHAIN_BAD)
             return alt;
@@ -139,7 +178,14 @@ u32 FatTable::raw(u32 cluster) const {
     if (cluster < 2 || cluster > max_cluster_)
         return 0;
     u32 v = entry_at(fat1_, cluster);
-    if (mirror_ && (v == 0 || v == CHAIN_BAD)) {
+    /* N-022: same consult policy as next() - primary FREE consults the
+     * mirror; primary BAD is served raw unless salvage is opted in. */
+    if (mirror_ && v == 0) {
+        u32 alt = entry_at(fat2_, cluster);
+        if (alt != 0 && alt != CHAIN_BAD)
+            return alt;
+    }
+    if (mirror_ && v == CHAIN_BAD && mirror_bad_salvage_) {
         u32 alt = entry_at(fat2_, cluster);
         if (alt != 0 && alt != CHAIN_BAD)
             return alt;
@@ -267,7 +313,13 @@ u32 validate_boot(const u8* sector512, u64 device_bytes, FatParams& out) {
         (p.bytes_per_sector & (p.bytes_per_sector - 1)) != 0)
         return ERR_BAD_PARAMETER;
     p.sectors_per_cluster = sector512[0x0D];
-    if (p.sectors_per_cluster == 0 || (p.sectors_per_cluster & (p.sectors_per_cluster - 1)) != 0)
+    /* N-010b/N-034 (diff-to-fix, corrected this session): SPC is a u8
+     * field, so the og's set {1,2,4,8,16,32,64,128} (engine-open bitmask
+     * 0x800000008000808b + the 0x80 special case; the deep gates
+     * enumerate the same set) is exactly the pow2 subset of the domain -
+     * the old any-pow2 check was behaviorally identical. The explicit
+     * set states the og gate and pins it against future loosening. */
+    if (!spc_in_og_set(p.sectors_per_cluster))
         return ERR_BAD_PARAMETER;
     p.cluster_bytes = u32(p.sectors_per_cluster) * p.bytes_per_sector;
     p.reserved_sectors = u16_from_bytes_le(sector512 + 0x0E);
@@ -316,6 +368,129 @@ u32 validate_boot(const u8* sector512, u64 device_bytes, FatParams& out) {
     }
     out = p;
     return OK;
+}
+
+u32 boot_passes_open_gates(const u8* sector512, u16 device_sector, const FatParams& p) {
+    /* N-010b (diff-to-fix): the og's engine-open boot validator
+     * (FATSearchDLL FUN_18002f970 :38037-38090, consumed by the quick
+     * search at FUN_180021000 :26318 which bails on flavor 0xE).
+     * Everything below is decoded verbatim from that function. */
+    if (sector512 == nullptr)
+        return ERR_BAD_PARAMETER;
+    /* numFATs in {1,2} (:38049 `(byte)(numFATs - 1) < 2`) */
+    if (p.fat_count != 1 && p.fat_count != 2)
+        return ERR_BAD_PARAMETER;
+    /* bps == device sector size (:38055) - skipped when the device
+     * geometry is unknown (0). */
+    if (device_sector != 0 && p.bytes_per_sector != device_sector)
+        return ERR_BAD_PARAMETER;
+    switch (p.flavor) {
+    case Flavor::Fat16:
+        /* "FAT16   " at +0x36, case-insensitive (:38048) */
+        if (!fs_name_matches(sector512 + 0x36, "fat16   "))
+            return ERR_BAD_PARAMETER;
+        /* root_entries >= 224 (:38054 `0xdf < root`) and
+         * root_entries*32 % bps == 0 (:38055) */
+        if (p.root_entries < 224)
+            return ERR_BAD_PARAMETER;
+        if ((u64(p.root_entries) * 32) % p.bytes_per_sector != 0)
+            return ERR_BAD_PARAMETER;
+        /* spf16 != 0 (:38056) */
+        if (u16_from_bytes_le(sector512 + 0x16) == 0)
+            return ERR_BAD_PARAMETER;
+        break;
+    case Flavor::Fat32:
+        /* "FAT32   " at +0x52, case-insensitive (:38062) */
+        if (!fs_name_matches(sector512 + 0x52, "fat32   "))
+            return ERR_BAD_PARAMETER;
+        /* spf32 != 0 (the :38062 block's `*(int*)(lVar2+0x24) == 0` reject) */
+        if (u32_from_bytes_le(sector512 + 0x24) == 0)
+            return ERR_BAD_PARAMETER;
+        break;
+    case Flavor::Fat12:
+        /* Deliberate core superset (I-002 family, PARITY-DELTAS): the
+         * og's validator has no FAT12 branch and declines such volumes
+         * at quick-engine open; the core keeps structural FAT12
+         * recovery. No string/geometry gate here. */
+        break;
+    }
+    return OK;
+}
+
+int lost_boot_flavor(const u8* sector512) {
+    /* N-034 (diff-to-fix): the og PartitionRecoveryD deep-scan ladder
+     * (FUN_180004610 :2516-2606 + gates FUN_1800048f0/4a40/4b70).
+     * Returns 1 = FAT12, 2 = FAT16, 3 = FAT32 (the og's candidate type
+     * codes), 0 = no gate passed. */
+    if (sector512 == nullptr)
+        return 0;
+    /* every deep gate requires the 0x55AA signature (checked in-gate on
+     * the og: :2634/:2711 etc.). No first-byte/jump check - the og's
+     * deep gates never look at the jump bytes, so a torn-jump volume
+     * with an intact BPB stays a candidate. */
+    if (sector512[0x1FE] != 0x55 || sector512[0x1FF] != 0xAA)
+        return 0;
+    const u16 bps = u16_from_bytes_le(sector512 + 0x0B);
+    const u8 spc = sector512[0x0D];
+    const u8 num_fats = sector512[0x10];
+    const u16 reserved = u16_from_bytes_le(sector512 + 0x0E);
+    const u16 total16 = u16_from_bytes_le(sector512 + 0x13);
+    const u32 total32 = u32_from_bytes_le(sector512 + 0x20);
+    const u16 spf16 = u16_from_bytes_le(sector512 + 0x16);
+    const u32 spf32 = u32_from_bytes_le(sector512 + 0x24);
+    const u16 root_entries = u16_from_bytes_le(sector512 + 0x11);
+
+    /* bps must be a 512 multiple (:2547 `(bps & 0x1ff) == 0`); bps==0 or
+     * spc==0 are the ladder's own 0xFF rejects (:2538-2540). spc must be
+     * in the gate set (every gate's enumeration). */
+    if (bps == 0 || (bps & 0x1FF) != 0 || !spc_in_og_set(spc))
+        return 0;
+    /* total: total32 wins when nonzero, else total16 (:2531-2535) */
+    const u32 total = total32 != 0 ? total32 : u32(total16);
+
+    /* cluster count exactly like the ladder's arithmetic (:2549-2556):
+     * (total - reserved - spf*numFATs - floor(root*32/bps)) / spc, where
+     * spf is spf16 when nonzero else spf32 (:2525-2530). The og computes
+     * this in wrapping uint arithmetic; an underflowing (corrupt) BPB is
+     * rejected here instead - same outcome for every sane input. */
+    const u64 spf = spf16 != 0 ? spf16 : spf32;
+    const u64 root_sectors = (u64(root_entries) * 32) / bps; /* floor, og form */
+    if (total <= u64(reserved) + spf * num_fats + root_sectors)
+        return 0;
+    const u32 clusters = u32((total - u64(reserved) - spf * num_fats - root_sectors) / spc);
+
+    /* the three gates, exactly as decoded (see header comment) */
+    const bool fat12_gate = num_fats != 0 && (total16 != 0 || total32 != 0) &&
+                            spf16 >= 1 && spf16 <= 200;
+    const bool fat16_gate = num_fats != 0 && (total16 != 0 || total32 != 0) && spf16 != 0;
+    const bool fat32_gate = std::memcmp(sector512 + 0x52, "FAT32   ", 8) == 0 &&
+                            num_fats != 0 && total32 != 0 && spf32 != 0;
+
+    const int order_small[3] = {1, 2, 3};  /* < 0xFF5:  12, 16, 32 */
+    const int order_mid[3] = {2, 3, 1};    /* < 0xFFF5: 16, 32, 12 */
+    const int order_large[3] = {3, 2, 1};  /* < 0xFFFFFF0: 32, 16, 12 */
+    const int* order = clusters < 0xFF5
+                           ? order_small
+                           : (clusters < 0xFFF5 ? order_mid : order_large);
+    if (clusters >= 0xFFFFFF0)
+        return 0;
+    for (int k = 0; k < 3; ++k) {
+        switch (order[k]) {
+        case 1:
+            if (fat12_gate)
+                return 1;
+            break;
+        case 2:
+            if (fat16_gate)
+                return 2;
+            break;
+        case 3:
+            if (fat32_gate)
+                return 3;
+            break;
+        }
+    }
+    return 0;
 }
 
 } // namespace fat

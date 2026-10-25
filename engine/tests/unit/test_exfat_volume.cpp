@@ -789,16 +789,16 @@ std::vector<u8> build_exfat_large_fat_image() {
      * (cluster 0x40001 -> FAT byte 0x100004) */
     const size_t FAT = size_t(FAT_OFF) * BPS;
     auto fe = [&](u32 c, u32 v) { put32v(img, FAT + size_t(c) * 4, v); };
-    fe(2, 0xFFFFFFFF);               /* root: single cluster */
+    fe(2, 0xFFFFFFFF); /* root: single cluster */
     fe(20, 21);
     fe(21, 22);
-    fe(22, 0xFFFFFFFF);             /* doc.txt 20-22 (window 0) */
-    for (u32 c = 50; c < 114; ++c)   /* allocation bitmap chain 50..113 */
+    fe(22, 0xFFFFFFFF);            /* doc.txt 20-22 (window 0) */
+    for (u32 c = 50; c < 114; ++c) /* allocation bitmap chain 50..113 */
         fe(c, c + 1);
     fe(113, 0xFFFFFFFF);
-    fe(0x40001, 0x40002);            /* far.dat - WINDOW 1 */
+    fe(0x40001, 0x40002); /* far.dat - WINDOW 1 */
     fe(0x40002, 0xFFFFFFFF);
-    fe(0x40005, 0x40006);            /* fardir - WINDOW 1, 2 clusters */
+    fe(0x40005, 0x40006); /* fardir - WINDOW 1, 2 clusters */
     fe(0x40006, 0xFFFFFFFF);
 
     /* allocation bitmap at cluster 50: bits for the used low clusters */
@@ -866,9 +866,14 @@ std::vector<u8> build_exfat_large_fat_image() {
      * 1-cluster truncation read only 0x40005 and never found it. */
     {
         const size_t FAR1 = clus_off(0x40005);
-        const std::u16string pad1 = u"padding-file-with-a-really-long-name-number-one-aaaaa";  /* 53 -> 4 names -> 6 entries */
-        const std::u16string pad2 = u"padding-file-with-a-really-long-name-number-two-bbbbb";  /* 53 -> 4 names -> 6 entries */
-        const std::u16string pad3 = u"padding-file-three-cccc";  /* 24 -> 2 names -> 4 entries (6+6+4 = 16 exact) */
+        const std::u16string pad1 =
+            u"padding-file-with-a-really-long-name-number-one-aaaaa"; /* 53 -> 4 names -> 6 entries
+                                                                       */
+        const std::u16string pad2 =
+            u"padding-file-with-a-really-long-name-number-two-bbbbb"; /* 53 -> 4 names -> 6 entries
+                                                                       */
+        const std::u16string pad3 =
+            u"padding-file-three-cccc"; /* 24 -> 2 names -> 4 entries (6+6+4 = 16 exact) */
         size_t at2 = 0;
         for (const auto& nm : {pad1, pad2, pad3}) {
             SetBuilder sb;
@@ -962,4 +967,96 @@ TEST(ExfatEngine, LargeFatDirectoryWalk) {
     ASSERT_NE(fardir_n, nullptr);
     ASSERT_EQ(fardir_n->props()->extents.size(), size_t(1));
     EXPECT_EQ(fardir_n->props()->extents.front().length, u64(1024)); /* was 512 pre-fix */
+}
+
+/* ---- N-010e (diff-to-fix session): og byte-OR reserved-field form ------ */
+
+TEST(ExfatEngine, StreamReservedPartiallyNonzeroPassesOgByteOr) {
+    /* N-010e: the og's stream-entry gate (FUN_180003090 :1843-1846) is
+     * BYTE-granular with an OR form - reserved2 passes when either byte
+     * is 0, reserved3 when any of its four bytes is 0 (single-byte loads
+     * in the decompile, not a u16/u32 word test). A partially-nonzero
+     * reserved field the old core word-test flagged as damaged is NOT
+     * damaged on the og. reserved1 (byte +2) stays strictly zero. */
+    auto img = build_exfat_image();
+    const size_t ROOT = 25 * 512;
+    const size_t AT = ROOT + 576;
+    {
+        SetBuilder sb;
+        sb.file_entry(0x20, 0);
+        sb.stream_entry(0x01, 11, 60, 512);
+        sb.name_entry(u"partres.dat");
+        std::memcpy(img.data() + AT, sb.entries.data(), sb.entries.size());
+        sb.finish_set(img, AT);
+        /* reserved2 (u16 @+6): high byte set, low byte zero -> og passes */
+        img[AT + 32 + 7] = 0x01;
+        /* reserved3 (u32 @+0x10): one nonzero byte, three zero -> og passes */
+        img[AT + 32 + 0x11] = 0x02;
+    }
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* ra = tree.add_root(u"Found");
+    ExfatScanFlags flags;
+    ExfatScanStats stats;
+    ASSERT_EQ(scan_exfat(&dev, flags, nullptr, nullptr, nullptr, tree, ra, nullptr, nullptr, stats),
+              OK);
+    EXPECT_EQ(stats.sets_damaged, 0u)
+        << "partially-nonzero reserved2/3 must pass the og byte-OR form";
+    auto all = collect_all(tree);
+    tree::FileNode* partres = nullptr;
+    for (auto* n : all)
+        if (n->name_utf8() == "partres.dat")
+            partres = n;
+    ASSERT_NE(partres, nullptr) << "the set must still be emitted undamaged";
+}
+
+TEST(ExfatEngine, StreamReservedAllBytesNonzeroStillDamaged) {
+    /* N-010e companion: reserved2 with BOTH bytes nonzero fails the og's
+     * byte-OR form (no zero byte in the field) - still damaged. */
+    auto img = build_exfat_image();
+    const size_t ROOT = 25 * 512;
+    const size_t AT = ROOT + 576;
+    {
+        SetBuilder sb;
+        sb.file_entry(0x20, 0);
+        sb.stream_entry(0x01, 11, 60, 512);
+        sb.name_entry(u"fullres.dat");
+        std::memcpy(img.data() + AT, sb.entries.data(), sb.entries.size());
+        sb.finish_set(img, AT);
+        img[AT + 32 + 6] = 0x01;
+        img[AT + 32 + 7] = 0x02;
+    }
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* ra = tree.add_root(u"Found");
+    ExfatScanFlags flags;
+    ExfatScanStats stats;
+    ASSERT_EQ(scan_exfat(&dev, flags, nullptr, nullptr, nullptr, tree, ra, nullptr, nullptr, stats),
+              OK);
+    EXPECT_GE(stats.sets_damaged, 1u) << "all-nonzero reserved2 must stay damaged";
+}
+
+TEST(ExfatEngine, StreamReserved1ByteStrictlyZero) {
+    /* N-010e: reserved1 (byte @+2) is a strict zero test on the og
+     * (param_1[2] == 0 with no OR escape) - any nonzero value damages. */
+    auto img = build_exfat_image();
+    const size_t ROOT = 25 * 512;
+    const size_t AT = ROOT + 576;
+    {
+        SetBuilder sb;
+        sb.file_entry(0x20, 0);
+        sb.stream_entry(0x01, 8, 60, 512);
+        sb.name_entry(u"res1.dat");
+        std::memcpy(img.data() + AT, sb.entries.data(), sb.entries.size());
+        sb.finish_set(img, AT);
+        img[AT + 32 + 2] = 0x01; /* reserved1 */
+    }
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* ra = tree.add_root(u"Found");
+    ExfatScanFlags flags;
+    ExfatScanStats stats;
+    ASSERT_EQ(scan_exfat(&dev, flags, nullptr, nullptr, nullptr, tree, ra, nullptr, nullptr, stats),
+              OK);
+    EXPECT_GE(stats.sets_damaged, 1u) << "reserved1 != 0 must damage (strict og test)";
 }

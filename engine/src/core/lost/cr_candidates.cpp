@@ -117,13 +117,26 @@ int probe_fat(IStorageDevice* disk, u64 boot_lba, Candidate& c) {
     fat::FatParams p;
     if (fat::validate_boot(sec, disk->size(), p) != OK)
         return -100;
-    int pts = 20; /* valid FAT BPB */
+    /* N-034 (diff-to-fix): the og's deep-scan ladder gates
+     * (PartitionRecoveryD FUN_180004610 + FUN_1800048f0/4a40/4b70):
+     * the flavor is picked by the bracket-ordered gate walk - FAT12
+     * (spf <= 200 probe), FAT16 (no string), FAT32 (case-sensitive
+     * "FAT32   " memcmp + total32 + spf32). A boot sector every og
+     * gate rejects is not a FAT candidate on the og's deep scan; the
+     * old core accepted any structurally-valid BPB (noise the og never
+     * surfaces). */
+    const int flavor = fat::lost_boot_flavor(sec);
+    if (flavor == 0)
+        return -100;
+    int pts = 20; /* valid FAT BPB (og gate passed) */
     c.sector_count = p.total_bytes / p.bytes_per_sector;
     /* FAT area probe: entries 2..4 readable and first data cluster sane */
     u8 fat_probe[16];
     if (disk->read_at(p.fat_start + 8, fat_probe, 16) == OK)
         pts += 10;
     c.evidence.push_back({"fat-bpb", 20});
+    c.evidence.push_back({flavor == 3 ? "fat32-gate" : (flavor == 2 ? "fat16-gate" : "fat12-gate"),
+                          5});
     if (pts > 20)
         c.evidence.push_back({"fat-probe", 10});
     return pts;
@@ -142,6 +155,68 @@ int probe_exfat(IStorageDevice* disk, u64 boot_lba, Candidate& c) {
         c.sector_count = u32(bs->volume_length);
     }
     c.evidence.push_back({"exfat-bpb", pts});
+    return pts;
+}
+
+/* --- S-019: BitLocker ("-FVE-FS-") lost-partition probe --------------------
+ *
+ * The og's boot-sector classifier pre-check FUN_180004ce0 builds the 8-byte
+ * literal "-FVE-FS-" byte-by-byte on the stack
+ * (PartitionRecoveryD_decompiled.c:2778-2785: 2d 46 56 45 2d 46 53 2d) and
+ * memcmp's it against the boot sector's OEM area (+3) - on match
+ * FUN_180004610 classifies the candidate as type 0xB and skips FAT
+ * classification entirely (:2604-2606). PartitionRecoveryD.mo carries the
+ * dedicated BitlockerParser deep-scan block parser (:721; wired into the
+ * CompleteSearch/RegSearch/Fast1M/Fast generator sets :6463/:6558/:8664/
+ * :8720). Pre-S-019 the FVE boot sector fell into the FAT catch-all and
+ * died in fat::validate_boot - the lost BitLocker partition was invisible.
+ *
+ * Scoring: boot-sig +15 (the OEM gate the caller matched + 55AA, the og's
+ * classifier); fve-shape +25 when the OEM-version region right after the
+ * 8-byte label carries printable version digits/dots (real BitLocker VBRs
+ * carry e.g. "-FVE-FS-2013.0.0" / "-FVE-FS-2.0.1.0" style OEM labels; the
+ * og's classifier needs only the 8 label bytes, so the shape check only
+ * grades confidence - it never rejects).
+ *
+ * Size: the FVE VBR volume-geometry decode is corpus-UNDECODEED (the
+ * finding's open question - BitLockerLib's BitlockerParser field reads);
+ * device-tail fallback with the GAP-S6-6 marker, same honest policy as
+ * probe_refs.
+ */
+int probe_bitlocker(IStorageDevice* disk, u64 lba, Candidate& c) {
+    u8 sec[512];
+    if (disk->read_at(lba * disk->geometry().logical_sector, sec, 512) != OK)
+        return -100;
+    if (std::memcmp(sec + 3, "-FVE-FS-", 8) != 0)
+        return -100; /* the og's exact gate: memcmp(OEM@+3, "-FVE-FS-", 8) */
+    int pts = 15;
+    c.evidence.push_back({"boot-sig", 15});
+    /* version-region shape: printable digits/dots in +0x0B..+0x13 (9 bytes,
+     * at least 3 version-ish chars) - grades confidence, never rejects */
+    int versionish = 0;
+    for (u32 i = 0x0B; i <= 0x13; ++i) {
+        /* unsigned char: the 0xFF padding compare (PROTOCOL signed-char
+         * rule - a signed char can never equal 0xFF) */
+        const unsigned char ch = sec[i];
+        if ((ch >= '0' && ch <= '9') || ch == '.')
+            ++versionish;
+        else if (ch == 0x00 || ch == 0xFF || (ch >= 'A' && ch <= 'Z') || ch == '-' ||
+                 (ch >= 'a' && ch <= 'z'))
+            continue; /* padding/label-ish: not version chars, not noise */
+        else {
+            versionish = -1; /* binary garbage: not a real FVE VBR shape */
+            break;
+        }
+    }
+    if (versionish >= 3) {
+        pts += 25;
+        c.evidence.push_back({"fve-shape", 25});
+    }
+    /* FVE volume geometry: corpus-undecoded - marked device-tail fallback
+     * (the finding's own open question; BitLockerLib decode pending) */
+    const u64 end = disk->geometry().sector_count;
+    c.sector_count = end > lba ? end - lba : 1;
+    c.size_from_device_end = true;
     return pts;
 }
 
@@ -453,6 +528,13 @@ u32 discover(IStorageDevice* disk, const std::vector<table::PartitionInfo>& know
                      * before. Detected via the page-signature window probe. */
                     c.fs = CandidateFs::Refs;
                     pts = probe_refs(disk, lba, c);
+                } else if (std::memcmp(oem, "-FVE-FS-", 8) == 0) {
+                    /* S-019: BitLocker VBR (the og's type-0xB classifier
+                     * gate, PartitionRecoveryD_decompiled.c:2778-2785) -
+                     * must run BEFORE the FAT catch-all or the FVE BPB-less
+                     * boot sector dies in fat::validate_boot. */
+                    c.fs = CandidateFs::BitLocker;
+                    pts = probe_bitlocker(disk, lba, c);
                 } else {
                     /* FAT family: validate via the BPB parser (the catch-all
                      * stays LAST - it is the noisiest family) */

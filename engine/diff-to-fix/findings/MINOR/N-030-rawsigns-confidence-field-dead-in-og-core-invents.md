@@ -57,3 +57,28 @@ S-015 (min/max units — same decode), N-031 (dispatch/stride deltas), OQ-T8 (RE
 ## Open questions
 
 What confidence/grade value the og's report emits for a raw-sign carved file (the result-emission side of `FUN_18000d670`) — decode target for a future session, or an og execution + report read.
+
+---
+
+## Session-3 parallel-leg addendum (2026-10-26) — tail-hit size formula + invented 2 MiB cap
+
+The *storage/census parallel leg* decoded the same layer independently (evidence:
+`evidence/decompiled-quotes/s3-rawsigns-consumer-decode.md`) and confirms the
+dead part[2] discovery. Two aspects NOT covered above, to fold into this
+finding's fix plan:
+
+1. **Tail-hit size formula diverges too.** The og sizes a tail-paired file as
+   `sector_size * (cur_sector - start_sector) - tail_sign->offset + 50`
+   (RAWSearchDLL `FUN_1800205b0` :25266-25267; literal 0x32 = 50). Our
+   `cr_carve.cpp:221` computes `len = lo + th.pos + 512` — no sign-offset
+   subtraction, flat +512 instead of +50. Sizes differ by
+   `(512 - 50 + tail_sign_offset)` bytes on every paired hit.
+2. **The 2 MiB tail-window cap is ours, not the og's.** `cr_carve.cpp:215`
+   bounds the tail scan at 2 MiB; the og scans incrementally (return-2
+   keep-scanning protocol) out to the format's max **KiB** bound (up to
+   200 MiB; default 500 MiB when max==0, `0x7d000` at :25187-25196). After
+   S-015's unit fix lands, this cap becomes the binding limit for large
+   formats and must be raised to the format bound.
+3. The consumer is the og's LIST-tier analyser `RawFormat_xjq::CommonRawAnalyser`
+   (format id 0xa8) — placement matches our post-grammar second pass (see
+   N-031's dispatch decode).

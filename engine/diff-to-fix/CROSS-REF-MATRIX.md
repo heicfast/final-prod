@@ -5,6 +5,20 @@ Legend: `M` = MATCH · `A-n`/`S-n`/`M-n`/`N-n`/`I-n` = finding ID (in
 `ok` = MATCH-with-note (see module file). Full per-parameter expansion in each
 `modules/<module>.md`.
 
+**Session-4 changes (2026-10-26, audited `63a9167`):** three NEW module rows —
+`preview`, `query`, `transport` (first-time audits of modules no prior session
+covered) — with findings **S-023, M-028, M-029, M-030, N-040..N-044, I-015, I-016**
+(renumbered past the parallel S3/S4 legs' own S-016..S-022 / M-024..M-027 /
+N-033..N-039 / I-013/I-014 — cross-references inside the parallel legs' cells for
+THEIR IDs are untouched); `orchestrator` gains S-023 (grading); `abi` gains
+N-040/N-041/I-016; `cli` gains N-044; `health` gains N-042; OQ-S2M-1 RESOLVED
+(S-023); OQ-S2M-2 partial (NTFS bonus setters decoded); M-022/M-023 amended
+(OQ-1/OQ-3 resolved; counts corrected); corpus errata rows 29-36 filed (after the
+S3-CARVE leg's 22-28). A-004 + S-016 verified FIXED in-tree (`c33236f`) — ACUTE
+tier empty since that commit. The stale duplicate `carve` row left by the parallel
+legs' own merge was removed (their updated row with the S-015/S-017-fixed
+dispositions is the surviving one).
+
 **Session 2 + parallel-leg combined changes:**
 - New finding IDs (session 2): S-010, S-011, M-007, M-008, M-009, N-011, N-012,
   N-013, N-014, N-015, N-016, N-017, N-018, N-019, N-020, N-021 (was N-010,
@@ -26,7 +40,7 @@ Legend: `M` = MATCH · `A-n`/`S-n`/`M-n`/`N-n`/`I-n` = finding ID (in
 
 | Module \ Group | B | D | C | A | S | O | P | X | R | F | Q |
 |---|---|---|---|---|---|---|---|---|---|---|---|
-| ntfs | M-007, M-008 (S2), N-011, N-012 (S2); I-001 ack; S-012 FIXED (two-pass: pass-1 membership + pass-2 dump walk) | M (S-001+S-012 fixed: membership keep), N-012 (S2) | M | M-008 (S2) | M (M-001 fixed), N-001 | NA | NA | M | M | M | M (debt), N-019 (S2) |
+| ntfs | M-007, M-008 (S2), N-011, N-012 (S2); I-001 ack; S-012 FIXED (two-pass: pass-1 membership + pass-2 dump walk + size-0 rescue; convergent dual-agent fix) | M (S-001+S-012 fixed: membership keep), N-012 (S2) | M | M-008 (S2) | M (M-001 fixed), N-001 | NA | NA | M | M | M | M (debt), N-019 (S2) |
 | fat | M (N-021 fixed) | M (N-021 fixed) | M | I-002 ack, OQ-T2 | M | NA | NA | M | M | M | M (debt) |
 | exfat | M (S-011 fixed), N-003 FIXED, OQ-T5 | N-003 FIXED; M (S-011 fixed) | M | M | M | NA | NA | M | M | M | M (debt) |
 | fat | M; N-021 (S2) | M; N-021 (S2) | M | I-002 ack, OQ-T2 | M | NA | NA | M | M | M | M (debt) |
@@ -38,18 +52,20 @@ Legend: `M` = MATCH · `A-n`/`S-n`/`M-n`/`N-n`/`I-n` = finding ID (in
 | refs | N-007, I-004 ack, **M-022 (S3)**, I-012 (S3: GAP-ADS resolved — parity) | M | M | M | **M-022 (S3)** | M | NA | NA | M | M | M | M |
 | table+ldm | M (A-002 FIXED — real Microsoft GUIDs restored), M-002 | M | M (A-002 FIXED; A-001 fixed) | M-002, M (OQ-T7 resolved — I-008) | ok | NA | NA | M | M | M | M (debt) |
 | carve | S-007, M-005 | M | S-007, N-008; M (S-015 units FIXED), M (S-017 ftyp magics FIXED) | S-007, N-008, M-005 | M | NA | NA | M (S-015 tail-walk FIXED: named 8 MiB bound, og range documented) | M | M | M |
-| lost-partition | M (S-006 fixed), OQ-T9 RESOLVED (M-017 formula) | NA | M (S-006 fixed) | M | M | NA | NA | M | M | M | M |
-| carve | S-007, M-005 | M | S-007, N-008 | S-007, N-008, M-005 | M | NA | NA | M-005 | M | M | M |
+| lost-partition | M (S-006 fixed; S-019 FIXED s4 — BitLocker family), OQ-T9 RESOLVED (M-017 formula) | NA | M (S-006 fixed; S-019) | M | M | NA | NA | M | M | M | M |
 | tree | M | M | NA | M | M | NA | NA | ok | M | NA | M |
 | session | M | M (D12), N-014 (S2) | M | NA | M; N-014 (S2) | NA | NA | M | M | I-005.7 ack | M (debt) |
 | writer+report | M | M | NA | M | M | M | NA | ok | M | **N-013 (S2), N-015 (S2)**, N-009d | M (debt) |
-| health | M | NA | N-009a | NA | M | NA | NA | NA | M | M | M + **N-032 (S3: CSMI/USB-bridge transports)** |
+| health | M (S-014 FIXED s4 — live+offline auto-unlock) | NA | N-009a | NA | M | NA | NA | NA | M | M | M + **N-032 (S3: CSMI/USB-bridge transports)**; **N-042 (S4: CLI temp fractional digit — renumbered past the parallel legs' N-033..N-039)** |
 | rawfixer | M (S-008+S-010 fixed) | NA | M | M (S-008 fixed) | M | NA | NA | M (M-009 fixed) | M | M (S-008+S-010 fixed) | M |
-| orchestrator | M | M | NA | M-005 | M; **N-016 (S2), N-017 (S2)** | M | NA | M | M | M | M |
+| orchestrator | M | M | NA | M-005 | M; **N-016 (S2), N-017 (S2)** | **S-023 (S4: no post-scan grading engine / RecoveryAssistant)**; N-043 (S4: progress watchdog) | NA | M | M | M | M |
 | visualization | S-009 (partial-FIXED-in-tree, finding file stale — N-020) | **M-023 (S3)** (filter model: 8-cat/1481-ext runtime XML vs 7-cat/64-ext hard-coded; Email+Bookmarks missing) | NA | M | M | NA | M | M | M | NA | M |
-| abi (cr_ui) | NA | M | ok | NA | M | M | S-009 | M | M | M | M |
-| cli | N-009c | NA | M | NA | M | NA | M | NA | M | M | ok; N-020 (S2) |
+| abi (cr_ui) | NA | M | ok | NA | M | M | S-009 | M | M | M | **N-040 (S4: doc truthfulness), N-041 (S4: dead code), I-016 (S4: factory register + FS-code spaces)** |
+| cli | N-009c | NA | M | NA | M | NA | M | NA | M | M | ok; N-020 (S2); **N-044 (S4: --deep naming hazard)** |
 | quality (cross-cutting) | NA | NA | NA | NA | NA | NA | NA | NA | NA | NA | **N-018 (S2), N-019 (S2), N-020 (S2)**; M-006 FIXED |
+| preview (S4 NEW) | NA | NA | NA | NA | NA | NA | NA | NA | NA | **M-024 (S4: caps bypass — executed proof; provenance misattributions)** | I-013 (S4: architecture register — og socket protocol vs in-process reader) |
+| query (S4 NEW) | **M-029 (S4: sort/paging/bucket-IDs/server-side push)** + M-023 (amended: 6-cat recount) | NA | NA | NA | NA | NA | NA | NA | NA | **M-029, N-040 (frozen-doc unit lie)** | M-029 (S4); S-023-adjacent (no precomputed category map) |
+| transport (S4 NEW) | M-030 (S4: WinPE gate, stale-handle ladder, terminal OFFLINE, 32-disk cap) | M-030 | M-030 (IOCTL numbers = own driver's, grammar shape M) | M-030 (chunking provenance corrected; OQ-S4-3 perf open) | M-030 | NA | NA | M-030 (silent RDA fallback) | M-030 | M | **N-041 (S4: dead RdaClient + volume_letter_to_disk)**; I-016 (S4: wire register) |
 
 Cross-cutting rows: **Q66 = M-006 FIXED** (fuzz CI re-enabled by parallel leg `e30b84d`;
 codeql deferral documented). **Q67 = M + N-018 (S2)** (ASan/TSan CI green; UBSan NOT enabled —
@@ -89,12 +105,12 @@ F safety · Q quality (definitions in `PARAMETERS.md`).
 
 | Module | Parameter(s) | Verdict change (evidence in the finding + `evidence/decompiled-quotes/*session2*`) |
 |---|---|---|
-| ntfs | B1/B4/D15/A26/B5 | **S-012 — FIXED (session 4)** — two-pass architecture landed: destroy default OFF (pass-1 membership, :18630), full pass-2 GUID-dump walk with claim map + og gates (:21152-21264); one premise corrected (no cross-pass dedup); rescue chain split to OQ-S4 (tracked-open, decoded evidence) |
+| ntfs | B1/B4/D15/A26/B5 | **S-012 — FIXED (convergent dual-agent fix, session 4)** — two-pass architecture landed: destroy default OFF (pass-1 membership, :18630), full pass-2 GUID-dump walk with claim map + og gates (:21152-21264), size-0 rescue (mirror resident + same-name merge); one finding premise corrected (no cross-pass dedup og-side — see the Resolution's session-4 convergence addendum) |
 | ntfs | C19/C20/D11/D12/B7/C23 | **N-024** (8.3 short-name field; two-sided boot ladder; pass-2 stride quirk superset; namespace-ranking superset; og error facility codes) |
 | fat | B1/S35/X49 | **M-011** (table-size windows: og FAT32 128 KiB–300 MiB, FAT16 ≥12 sectors; core 16 MiB reject = scan-failure class) |
-| fat | A27/B2/S35 | **M-012** (mirror policy: primary-wins-on-nonzero incl. BAD, scrutinized mirror answers, mirror-only mode; supersedes the N-022 sub-case) |
+| fat | A27/B2/S35 | **M-012** (mirror policy: primary-wins-on-nonzero incl. BAD, scrutinized mirror answers, mirror-only mode; supersedes the N-022 sub-case) — **N-022 sub-case FIXED (minors session, 2026-10-26)**: mirror consult now primary-FREE-only by default (`FatScanFlags::mirror_bad_salvage` opt-in; see findings/FIXED/N-022) |
 | fat | B1/B3/A27 | **M-015** (og validates loaded tables: media-word canonical, cross-link wholesale rejection, 98% watermark) |
-| fat | B1/C19/C20/B3 | **N-023** (65524 flavor boundary; BPB FS-string/bps/spc-set gates; dentry date sanity; mid-chain FREE/BAD handling) |
+| fat | B1/C19/C20/B3 | **N-023 — FIXED (minors session, 2026-10-26)** (65524 flavor boundary ✓; BPB FS-string/numFATs/bps gates at engine open ✓; dentry date sanity behind `strict_date_sanity` ✓; exFAT tz = FIXED-ALREADY via S-011; stream reserved byte-OR ✓; mid-chain FREE/BAD registered D-51 — see findings/FIXED/N-023) |
 | exfat | B2/A27/X47 | **S-013 — FIXED (session 3)** (windowed-FAT accessor, og 1 MiB windows; have_fat never false; extent coverage pinned; windowed failures degrade to the EXFAT-2 salvage) |
 | exfat | B3/B4/B5/D15 | **M-013** (og DOES validate entry-set checksums — dual-form incl. deleted sets + reconstruction oracle; refutes the N-003 fix's verified-absence premise; supersedes N-003) |
 | exfat | B3/B4/B10 | **M-014** (structural gates: secondary_count ∈ [2,18], timestamp sanity, empty files dropped, name-entry validation) |
@@ -134,7 +150,7 @@ reading was wrong — corrected in `evidence/decompiled-quotes/fat-exfat-session
 | carve | A25/A28/C19 | **N-031 addendum** (u16 equal_range chains = insertion order; id-8 continuation records; TTF-vs-MDB u32 pre-emption; TIFF-family same-class relabeling — kTrialOrder equivalence verified per family) |
 | lost-partition | A30/B1 | **S-019** (BitLocker "-FVE-FS-" probe family missing — S-006 under-listed the og; distinct from S-014's unlock-path finding) |
 | lost-partition | A30 | **M-017 addendum** (RTTI proof: *CalcPartition = geometry calculators, slot 4 = SPC; full AdjustPartitionInfoOrder: containment drop, FS-grouped dedup, 0.1/0.3 tie rules, ±16 MiB promotion, cap 2/4/5/6, stable merge sort) |
-| lost-partition | C20/B1 | **N-034** (FAT lost-boot gates: numFATs ∈ {1,2}, FAT12 spf ≤ 200 probe, root×32 % bps — complements N-010b's engine-side gates) |
+| lost-partition | C20/B1 | **N-034 — FIXED (minors session, 2026-10-26)** (full og deep-scan ladder `fat::lost_boot_flavor` + engine-open gates `boot_passes_open_gates`; SPC sub-claim corrected as false positive — u8 domain; see findings/FIXED/N-034) |
 | lost-partition | A29/C20 | **N-035** (candidate extents data-area-anchored vs whole-volume — M-017's containment/16-MiB rules consume different extents) |
 | refs | B2/B7/A25 | **S-020** (resident/inline content never materialized: FUN_18000e490/ea30 build CRefsResidentDataRunList, lead re-verified :10413-10462; core resident_data never populated + val_len ≥ 0x28 gate; answers M-022's step 4; needs M-022's grammar walk first) |
 | refs | B4/B5 | **M-026** (deleted model: og stale-"MSB+"-page sweep FUN_180005330 vs core row-flag 0x4 + ID2 — different on-disk premise; CoW favors og) |
@@ -147,7 +163,7 @@ reading was wrong — corrected in `evidence/decompiled-quotes/fat-exfat-session
 | hfsplus | B2/B7 | **N-038** (fork-selection predicate: og record byte +0x29 bit 0x20 → rsrc fork + decmpfs mark; core data-fork + empty-fork substitution; field-name UNVERIFIED) |
 | ext4 | B1/B4/A27/Q51 | **I-014** (deleted-inode sweep superset; fragmented-journal-walk correctness advantage — og physical+1 is wrong, core extent-map correct; X51 MATCH; "do not replicate" registrations) |
 | hfsplus | B1/B7 (rows 4-6) | **I-014** (allocation-bitmap grading probable superset — UNVERIFIED residual; hard links/hot files MATCH-by-omission; decmpfs modes 1/2 MATCH-by-omission) |
-| ntfs | B4/B5/A26 | **S-022** (orphaned-record sweep: INDX/MFT records outside live $MFT + $INDEX_ROOT entry harvest — second-source names for files with dead MFT records; core has NO INDX decode) |
+| ntfs | B4/B5/A26 | **S-022 FIXED (diff-fix session — INDX/$INDEX_ROOT harvest landed; findings/FIXED/S-022-*.md)** (orphaned-record sweep: INDX/MFT records outside live $MFT + $INDEX_ROOT entry harvest — second-source names for files with dead MFT records; core has NO INDX decode) |
 | ntfs | B4/C19 | **N-039** ($UsnJrnl harvest gate: og reason & 0x200 = COMPRESSION_CHANGE, harvest-all flag dead code; core true FILE_DELETE — core correct side; bounds deltas both ways; dead-agent probe disposition) |
 | ntfs | B7/C19 (remainder) | MATCH-by-omission rows ($EA/$EA_INFORMATION/$VOLUME_*/$LOGGED_UTILITY_STREAM ignored by both — lead-verified by targeted greps); compression engines MATCH (both LZNT1-only; LZX/XPRESS = shared limitation via sparse+WOF path) — see modules/ntfs.md S3-NTFS2 rows |
 | cross-cutting | Q68 | errata **E22-E28** (registry census corrections: CEPS-not-dBase :1985, OneNote-not-LZH :2156-2177, CRW/PST/DBX/HLP attributions, 35/33 key count) + **S-007 correction addendum** (fix plan's DBF validator dropped; OneNote magic + list-layer LZH replace it) |

@@ -1968,6 +1968,8 @@ u32 query_run_impl(cr_ui_session* sess, const cr_ui_query* q, cr_ui_query_row** 
         cq.filter.extensions.push_back(q->extensions[i] ? q->extensions[i] : "");
     if (q->name_substring)
         cq.filter.name_substring = q->name_substring;
+    if (q->path_prefix) /* ABI-since core-api: the og path filter group */
+        cq.filter.path_prefix = q->path_prefix;
     cq.filter.deleted_only = q->deleted_only != 0;
     cq.filter.origin_mask = q->origin_mask ? q->origin_mask : 0xFu;
     switch (q->sort) {

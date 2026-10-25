@@ -41,7 +41,7 @@
 
 | Capability | og | Ours | Status | Evidence / gap |
 |---|---|---|---|---|
-| Lost-partition discovery | CGenericRecoveryController insert | deep-stage whole-disk discover, candidate scoring, virtual volume materialization, parallel candidate scans | **DONE** | test_crc32_gpt.cpp lost cases; deleted_found merge F-B-11 |
+| Lost-partition discovery | CGenericRecoveryController insert | deep-stage whole-disk discover, candidate scoring, virtual volume materialization, parallel candidate scans; probe families NTFS/FAT/exFAT/GPT/ext/HFS+/Btrfs/ZFS/ReFS (S-006) + BitLocker "-FVE-FS-" (S-019, og type-0xB classifier gate; locked-volume surfacing) | **DONE** | test_lostpart.cpp incl. LostBitlocker* S-019 tests; deleted_found merge F-B-11 |
 | GPT two-step salvage | IsGPTDisk + backup (FUN_180006e20) | primary-entry salvage + device-derived backup LBA + protective-only entry | **DONE** | 3267d26 (W2-19); 3 new tests |
 | MBR/EBR chains | Partition.mo | EBR chain walk with cycle guards | **DONE** | test_crc32_gpt.cpp EBR cases |
 | Carving registry | raw_signs.json 139 ext | signature registry + load-time validator gate (F8), BE-TIFF/ORF wired | **DONE+** | W2 CARVE-3; test_carve.cpp |
@@ -59,7 +59,10 @@
 ## 3. Explicit exclusions (standing)
 
 Cloud/NAS/remote recovery; BitLocker decryption (detection + legitimate unlock
-only, F13); signing (OSSign disabled); `.rsf` import (G-11, tracked disposition).
+only, F13 — the legitimate unlock itself is live-registry + offline-hive capable
+since S-014: per-volume-GUID `Control\FVEAutoUnlock` keys + dead-system SYSTEM
+hives, og DRWService/bitlockerhelp paths); signing (OSSign disabled); `.rsf`
+import (G-11, tracked disposition).
 
 ## 4. Open gap register (code-verified)
 

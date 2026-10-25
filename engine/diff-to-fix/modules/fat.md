@@ -147,3 +147,29 @@ N-023c's date-sanity dentry gate; both quote different code paths), N-022 (mirro
 parallel leg — the consult-policy sub-case of this leg's fuller M-012), and the FIXED N-002
 (mask-24 family; this leg verified the behavior and corrected the citation — see the FIXED
 file's session-2 note).
+
+## Minors-fix session update (2026-10-26)
+
+**N-022 FIXED** — the mirror consult now follows the og default (consult on
+primary FREE only; primary BAD served directly, chain truncates). The torn-pair
+BAD salvage is preserved behind `FatScanFlags::mirror_bad_salvage` (opt-in,
+never the default) — D-51 delta 3. `FatEngine.BadPrimaryServedWithoutMirrorConsult`
+(default truncation fail-before-proven) + `FatEngine.PrimaryFreeStillConsultsMirror`.
+M-012's remaining surface (scrutinized mirror answers: shifted-copy/cross-link
+rejects; mirror-only mode) stays open.
+
+**N-023 (group) FIXED** —
+- N-010a: `flavor_from_clusters` boundary is the og's `FUN_180007e50` brackets
+  (65524 → FAT32).
+- N-010b: new `fat::boot_passes_open_gates` (engine open): FS-name string
+  (case-insensitive), numFATs {1,2}, bps == device sector, FAT16 root ≥ 224 +
+  root×32 % bps == 0, spf ≠ 0 — the og's `FUN_18002f970`, wired into `scan_fat`.
+  FAT12 exempt from the string gate (registered superset, D-51 delta 1).
+- N-010c: date-sanity dentry gate behind `FatScanFlags::strict_date_sanity`
+  (default OFF; the og's own gate is config-gated — D-51 delta 2). Whole-zero
+  dates still flow to the N-021 zero-FileTime conversion (og composes both).
+- N-010f: mid-chain FREE/BAD content-shape registered (D-51 delta 4, no chase).
+- SPC sub-claim corrected: false positive (u8 field domain — the old pow2 check
+  was set-equal to the og's); `FatEngine.SpcDomainMatchesOgSet` pins all 256
+  values.
+- exFAT half (N-010d/e) resolved in modules/exfat.md.

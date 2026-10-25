@@ -124,3 +124,30 @@ dumps in `evidence/executions/s3-calcpartition-vtables/`):
   MiB delta on large FAT32). Fix M-017 + N-035 together.
 - **I-010 row appended** (probe surface post-S-006 = deliberate superset, register
   + pin).
+
+
+## Session-4 remediation update
+
+**S-019 FIXED** (s4 session): the B1/B3 verdicts now `MATCH` for the BitLocker family —
+`probe_bitlocker` implements the og's exact classifier gate (memcmp OEM@+3 "-FVE-FS-",
+PartitionRecoveryD_decompiled.c:2778-2785, type 0xB at :2604-2606), dispatched BEFORE the
+FAT catch-all (the BPB-less FVE VBR died there pre-fix). boot-sig +15 / fve-shape +25
+(grade-only — the og's gate is shape-free, pinned by the noise test); size = marked
+device-tail fallback (FVE VBR geometry decode remains the finding's open question).
+Downstream: FsFamily::BitLocker + probe_family OEM branch (encrypted content never hits
+the ext4-magic probe); engine-dispatch default surfaces the candidate as a locked volume.
+3 fail-before/pass-after tests (`LostDiscovery.LostBitlocker*`); suite 365/365 ASan.
+See `findings/FIXED/S-019-*.md`.
+## Minors-fix session update (2026-10-26)
+
+**N-034 FIXED** — `fat::lost_boot_flavor` implements the og's PartitionRecoveryD
+deep-scan ladder (FUN_180004610 + gates FUN_1800048f0/4a40/4b70, all constants
+re-verified first-hand): 0x55AA, 512-multiple bps, og cluster-count arithmetic
+(total32 preferred, floor root sectors), bracket-ordered gate walk with the
+FAT12 spf16 ∈ [1,200] small-FAT probe and the case-SENSITIVE "FAT32   " memcmp.
+`probe_fat` now requires a gate pass — the old any-valid-BPB acceptance
+generated candidates the og's deep scan never surfaces (noise into M-017's
+scoring). The engine-open {1,2} numFATs gate declines deep-accepted triple-FAT
+candidates — the og's exact layering, pinned by
+`LostFatGates.NumFatsZeroRejectedThreeAcceptedByDeepGates`. The finding's SPC
+sub-claim was corrected (u8 domain false positive — see modules/fat.md).

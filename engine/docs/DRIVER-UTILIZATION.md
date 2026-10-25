@@ -76,21 +76,24 @@ issues an overlapped/asynchronous one" is satisfied trivially — the reference
 issues none. (The one pending path in the whole system, session GETNEXTBLOCK,
 is unused by recovery on both sides.)
 
-### 1.4 Error mapping — **PARTIAL** (one gap: self-healing reopen)
+### 1.4 Error mapping — **MATCH** (self-healing reopen landed)
 
 Reference (`Device.mo` class codes, decompiled): `0x57` invalid parameter;
 `5` device not open; `0x284` out-of-bounds sector range; `6` invalid handle →
-**self-healing reopen** (CloseHandle → re-CreateFile(0xC0000000, share 3) →
-retry seek, `Device_decompiled.c:55947-55959`); partial reads tolerated in a
-loop; no backoff. Driver statuses pass through as GetLastError.
+**self-healing reopen** (CloseHandle → re-CreateFile → retry seek,
+`Device_decompiled.c:55947-55959`); partial reads tolerated in a loop; no
+backoff. Driver statuses pass through as GetLastError.
 
-Core: read failures collapse to `ERR_READ_FAILED` (deterministic), opens to
-`ERR_OPEN_FAILED`, bounds to `ERR_RANGE_OUT_OF_BOUNDS`; the retry layer
-(3 attempts, bisect to sector granularity, Skip-mode zero-fill) sits above.
-**Missing: the error-6 self-healing reopen.** The core's retry cannot heal a
-dead handle (each attempt fails identically → bisect → skip; the og would
-recover). **Fix this session**: reopen-and-retry-once on
-`ERROR_INVALID_HANDLE` in the device read paths, preserving path + geometry.
+Core (core-api session): read failures collapse to `ERR_READ_FAILED`
+(deterministic), opens to `ERR_OPEN_FAILED`, bounds to
+`ERR_RANGE_OUT_OF_BOUNDS`; the retry layer (3 attempts, bisect to sector
+granularity, Skip-mode zero-fill) sits above. **The error-6 self-healing
+reopen is now implemented on every device class** (DirectDevice,
+RdaTargetDevice — grammar re-CreateFile re-binds at IRP_MJ_CREATE;
+structured devices re-issue OPEN_TARGET after reopen; RwDevice on both read
+and write paths, `Device_decompiled.c:56182-56183` write-loop guard parity):
+the failing GLE is captured inside the transport read/write helper, and one
+heal-and-retry rides a fresh handle under a per-device mutex.
 
 Granularity note: the driver can return a wide NTSTATUS set
 (rda_ioctl.c/rda_readwrite.c: INVALID_PARAMETER 87, BUFFER_TOO_SMALL 122,
@@ -123,7 +126,7 @@ Our driver: `IoCreateDeviceSecure` with `D:P(A;;GA;;;BA)(A;;GA;;;SY)`
 weakened path, no invented access). Registered hardening in
 `docs/PARITY-DELTAS.md` (D-F2/F3 lineage). **Not replicated by policy.**
 
-### 1.7 Read granularity and queue depth — **PARTIAL → fix this session**
+### 1.7 Read granularity and queue depth — **MATCHED to the og's class** (tuned this session)
 
 Reference (decompiled, first-hand by the corpus leg): device-layer chunks
 **4 MiB** per ReadFile (CWindowsStorageDevice, `Device_decompiled.c:56545`);
@@ -133,19 +136,16 @@ region 64 KiB. All sizes are 64 KiB multiples **by construction**.
 Concurrency: one outstanding IRP per handle per thread; parallelism from
 engine worker threads.
 
-Core today (verified): engine reads coalesce to **64 KiB cache blocks**
-(CachedReader, 8 MiB LRU); carve 1 MiB windows; writer 1 MiB chunks; preview
-≤4 MiB; probes 512 B. All bulk reads are 64 KiB multiples — but the
-sequential engine path issues **64 KiB ReadFiles where the og issues 2-4 MiB**:
-64× the transitions per byte. At ~1-2 µs per transition + syscall, that is
-measurable on fast NVMe. Also: the CachedReader mutex serializes all engine
-device I/O (cr_cached.cpp:31) — the og gets engine-worker parallelism; the
-core's structured stages are single-flight.
-
-**Plan (T9/T10)**: (a) unify the 64 KiB envelope on BOTH transports (below);
-(b) raise the sequential read block to 1 MiB (16× fewer transitions, still
-64 KiB-aligned — within the og's 2-4 MiB class); (c) benchmark read-size and
-queue-depth sweeps on Windows CI with the driver loaded; document the plateau.
+Core after this session (verified): engine reads coalesce to **256 KiB cache
+blocks** (CachedReader, 8 MiB LRU = 32 blocks — was 64 KiB); carve 1 MiB
+windows; writer 1 MiB chunks; preview ≤4 MiB; probes ride the unified 64 KiB
+envelope. Sequential transitions per GiB: 64 KiB blocks ≈ 16,384 →
+256 KiB blocks ≈ 4,096 (the og's device cadence is 256-512/GiB). The
+`alignbench` sweep (`bench/ours/run-alignbench.ps1`, workflow
+`api-benchmark.yml`) measures the size/QD plateau on Windows CI with the
+driver loaded; further tuning rides its data. CachedReader still serializes
+engine reads under its mutex (P2-5 contract) — the queue-depth sweep records
+what QD>1 would buy before any architectural change.
 
 ### 1.8 Push vs pull — **MATCH**
 
@@ -179,7 +179,7 @@ documented anywhere in the client). Core: same — FILE_ATTRIBUTE_NORMAL on
 every handle; the RDA path is the driver's MDL direct path; the direct path
 compensates with the 64 KiB envelope (below).
 
-## 2. The 64 KiB direct-read alignment (mandate §3, non-negotiable)
+## 2. The 64 KiB direct-read alignment (mandate §3, non-negotiable) — **UNIFIED, LANDED**
 
 Constraint: every direct read the core issues — **through the driver or
 through the direct fallback** — must have lengths rounded up to a 64 KiB
@@ -187,34 +187,27 @@ multiple, clamped at the device end. Reads whose length is a multiple of
 4 KiB but not 64 KiB take the documented ~3.5× slow path (~830 vs ~2900 MB/s
 on NVMe).
 
-Current state (verified first-hand):
-- Direct path (`\\.\PhysicalDriveN` / `\\.\HarddiskVolumeN`):
-  **64 KiB envelope** — `io::direct_envelope` rounds offset down / length up,
-  clamps at device end, zero-copy fast path when already aligned
-  (cr_transport.cpp:144-171; cr_directalign.h:33-73). 8 unit tests green.
-- RwDevice (repair): routed through the same envelope (M-009, verified
-  cr_transport.cpp:805-815).
-- **RDA path: sector-only envelope** (cr_transport.cpp:172-201) — the
-  documented rationale ("kernel IRP path — not subject to the user-mode slow
-  path") is technically true, but it leaves the mandate's property unproven
-  for the driver transport, and small probe/tail reads issue sector-granular
-  lengths.
+Landed state (core-api session, verified in code):
+- **BOTH paths use the one `io::direct_envelope`** (cr_transport.cpp
+  `aligned_read_at`): offset rounded down / length up to 64 KiB multiples,
+  clamped at the device end, zero-copy fast path when already aligned. The
+  pre-unification RDA sector-only envelope is gone; 64 KiB subsumes sector
+  alignment for every real Windows logical sector size (512/4096/65536), so
+  the bench-proven sector-rejection property (run 40073093997) is preserved.
+- Direct path, RwDevice (repair), RDA grammar path: one envelope, one code
+  path. The F11 ×512 count compensation is unaffected (it keys on the ISSUED
+  length).
+- The og satisfies the same property by construction (all chunk sizes are
+  64 KiB multiples — §1.7), so the unified envelope is ALSO an exact match
+  to the reference's observable I/O shape, not just a hardening.
 
-**Decision (this session)**: unify on the 64 KiB envelope for BOTH paths.
-Rationale: (a) the mandate requires the property on every direct read through
-the driver; (b) the reference's own chunk sizes (4/7/2/1 MiB, 64 KiB) are all
-64 KiB multiples — unifying matches the og's observable I/O shape exactly;
-(c) 64 KiB subsumes sector alignment for every real Windows logical sector
-size (512/4096/65536 — all divide 64 KiB), so the bench-proven
-sector-rejection bug (run 40073093997) stays fixed; (d) one envelope, one
-code path, one unit-testable property. Cost: probe reads (512 B) become 64 KiB
-reads — a handful per scan, negligible. The F11 ×512 count compensation is
-unaffected (it keys on the ISSUED length).
-
-Verification: a Windows-side transport unit test asserts every issued ReadFile
-length is a 64 KiB multiple except the device tail (the
-PERFORMANCE-PROFILE.md §3 plan item (b), never implemented — this session
-implements it), plus the CI benchmark sweep records the throughput shape.
+Verification: `test_directalign.cpp` (9 tests incl. the exhaustive
+`UnifiedEnvelopeExhaustivePropertyBothDevices` sweep — every (offset,length)
+combination over aligned and ragged devices: issued offset always 64
+KiB-aligned, issued length always a 64 KiB multiple except the tail clamp,
+request always fully covered) + the `alignbench` Windows CI job (the
+4-KiB-vs-64-KiB slow-path demonstration + the size/QD sweep, numbers recorded
+to artifacts).
 
 ## 3. Performance notes (measured numbers: see PERFORMANCE-BASELINE.md)
 
@@ -235,10 +228,11 @@ implements it), plus the CI benchmark sweep records the throughput shape.
 | Handshake | MATCH (none, like the og) |
 | Request shape (units, F11 scale) | MATCH — verified |
 | Completion model (synchronous) | MATCH — verified |
-| Error mapping | PARTIAL → self-healing reopen this session |
+| Error mapping incl. error-6 self-heal | **MATCH — landed this session** |
 | Session lifecycle | MATCH (no sessions in recovery, both sides) — reconciled §0 |
 | Access control (SDDL) | DELIBERATE DIVERGENCE — keep, documented |
-| Read granularity | PARTIAL → 64 KiB envelope unification + 1 MiB sequential blocks this session |
+| Read granularity | **MATCHED to og class** — 256 KiB blocks + unified envelope; sweep measures the plateau |
 | Push/pull events | MATCH — verified (pull on both sides) |
 | Driver-absent fallback | MATCH — verified |
 | Buffering per class | MATCH — verified |
+| 64 KiB envelope on EVERY direct read | **MATCH — unified on both transports, exhaustively unit-proven, CI-benched** |

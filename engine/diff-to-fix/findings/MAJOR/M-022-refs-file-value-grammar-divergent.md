@@ -88,3 +88,38 @@ inline files surface metadata-only. That recovery-correctness gap is filed as
 requires this finding's grammar work (the resident rows are only reachable once the
 dual-grammar/all-rows walk lands). The two findings share the real-volume fixture
 prerequisite noted below (no ReFS 1.x/2.x/3.x images exist in either tree).
+
+## Session-4 addendum (2026-10-26, commit `63a9167`) — OQ-1 and OQ-3 RESOLVED by decompile
+
+**OQ-1 RESOLVED — `FUN_18000ea30` decoded (the `$I` recycle handler body):**
+`ReFSSearchDLL_decompiled.c:10615-10850`, invoked iff the entry name starts with
+`"$I"` (caller `:8389-8419`; the sibling `FUN_18000e490` at `:8424` handles the
+`$R`-side special: name length 0x10 with flag 1). Semantics, verbatim-quoted in the
+session-4 evidence sheets: for a small (≤64 KiB) `$I` recycle entry whose resident
+record length matches its declared size, it computes the logical cluster (record
+length + two metadata offsets ctx+0x5c/ctx+0x60 + caller adjustment), translates it
+through the volume's block/extent map (mask+OR translation, red-black-tree walk at
+:lVar2+0xf8), and builds a **`CRefsResidentDataRunList`** (IDataRunList) of at most
+3 runs, attached to the file-properties node at **+0x62** — i.e. it materializes
+recoverable data runs for the recycle-bin metadata stream so the paired `$R` file can
+be recovered. Additional gates decoded: clusters 0-3 reserved → abort; cluster size
+must be ≤64 KiB; resident gate file ≤64 KiB; `[len][data]` record check at +0xC.
+**Fix plan step 4 is now fully specified** — the handler is a run-list builder (not a
+grading pass); port it as such. The `local_f8==1`/`FUN_18000e490` half (the `$R`-side
+pairing decision) remains the only undecoded piece.
+
+**OQ-3 RESOLVED — the dot-prefilter is a name gate, not a grammar variant:**
+`FUN_18000ba90` (`:8316-8336`): a `memchr(name, 0x2E, len)` scan — names containing a
+dot take the full emit path (RefsNodeHeader tree, the 0x178/0x108/0xf8 type dispatch,
+the `$I` handler, the emitters); **dot-less names are skipped entirely on the quick
+pass**; entries with the node-kind flag (local_e8 ≥ 1) bypass the dot requirement.
+Corroboration: length-0x28 names with first-u16 ≥ 0xB1 and Win8+ take another branch
+(`:8373`). Verdict: the quick-searcher emits dot-containing names only — the core's
+quick path has no equivalent gate (its quick search emits all names). Fold into fix
+plan step 3's port as a quick-path-only prefilter (kind-flag bypass included).
+
+OQ-2 (real-volume dump) remains the decisive open item; the session-4 decode does not
+substitute for it.
+
+*Convergence note (2026-10-26): the S3-REFS parallel leg and the session-4 leg decoded the same two handler bodies independently and agree (CRefsResidentDataRunList resident-content materialization; the session-4 decode adds the block-map cluster translation, the <4-run cap, the props+0x62 attach site, and the caller's '$I' name gate). OQ-1 is resolved by both; OQ-3 (dot-prefilter) is resolved by the session-4 leg alone. The S3-REFS leg's S-020 (resident-content gap) extends this finding's grammar work.*
+

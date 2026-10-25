@@ -1,6 +1,7 @@
 /* Lost-partition discovery tests (R3). */
 #include <gtest/gtest.h>
 #include "cr/lost/cr_lostpart.h"
+#include "cr/fat/cr_fat_engine.h"
 #include "cr/storage/cr_device.h"
 #include "cr/table/cr_table_parse.h"
 #include <cstring>
@@ -447,4 +448,276 @@ TEST(LostDiscovery, SuperblockNoiseRejected) {
     DiscoveryResult r;
     ASSERT_EQ(discover(&dev, {}, 1, nullptr, nullptr, nullptr, r), OK);
     EXPECT_TRUE(r.candidates.empty());
+}
+
+/* ---- S-019: BitLocker (FVE) lost-partition probe ------------------------ */
+
+namespace {
+
+void plant_fve_boot(std::vector<u8>& img, u64 lba, const char* version) {
+    /* BitLocker VBR shape: 3-byte jump, OEM "-FVE-FS-", printable version
+     * string ("2013.0.0." / "2.0.1.0" style), 0x55AA signature. Real FVE
+     * VBRs pad the unused region with 0xFF - mirrored here. */
+    u8* b = img.data() + lba * 512;
+    b[0] = 0xEB;
+    b[1] = 0x52;
+    b[2] = 0x90;
+    std::memcpy(b + 3, "-FVE-FS-", 8);
+    std::memset(b + 0x0B, 0xFF, 0x1F5 - 0x0B);
+    const size_t vlen = std::strlen(version);
+    std::memcpy(b + 0x0B, version, vlen < 16 ? vlen : 16);
+    b[510] = 0x55;
+    b[511] = 0xAA;
+}
+
+} // namespace
+
+TEST(LostDiscovery, LostBitlockerPartitionDiscovered) {
+    /* S-019 falsifiable claim: a deleted BitLocker-encrypted partition
+     * (FVE boot sector intact at the old partition start, outside the
+     * current table) yields a candidate in the og's deep scan (type 0xB,
+     * BitlockerParser) - and now in ours. Pre-S-019 the FVE sector died in
+     * the FAT catch-all (fat::validate_boot rejects the BPB-less VBR). */
+    std::vector<u8> img(u64(16384) * 512, 0);
+    plant_fve_boot(img, 6144, "2013.0.0.");
+    MemDevice dev(std::move(img));
+    DiscoveryResult r;
+    ASSERT_EQ(discover(&dev, {}, 1, nullptr, nullptr, nullptr, r), OK);
+    const Candidate* fve = nullptr;
+    for (const auto& c : r.candidates)
+        if (c.start_lba == 6144)
+            fve = &c;
+    ASSERT_NE(fve, nullptr) << "the lost BitLocker partition must surface";
+    EXPECT_EQ(fve->fs, CandidateFs::BitLocker);
+    EXPECT_GE(fve->score, 40);              /* 15 boot-sig + 25 fve-shape */
+    EXPECT_TRUE(fve->size_from_device_end); /* geometry corpus-undecoded: marked fallback */
+    EXPECT_GT(fve->sector_count, 0u);
+    /* evidence tags carry the og-gate + shape breakdown */
+    bool has_boot_sig = false, has_shape = false;
+    for (const auto& e : fve->evidence) {
+        if (std::strcmp(e.tag, "boot-sig") == 0)
+            has_boot_sig = true;
+        if (std::strcmp(e.tag, "fve-shape") == 0)
+            has_shape = true;
+    }
+    EXPECT_TRUE(has_boot_sig);
+    EXPECT_TRUE(has_shape);
+
+    /* the orchestrator's probe_family recognizes the same OEM and routes
+     * to the BitLocker family (never the ext4-magic accident) */
+    auto slice = materialize(&dev, *fve);
+    ASSERT_NE(slice, nullptr);
+    u8 oem[8] = {};
+    ASSERT_EQ(slice->read_at(3, oem, 8), OK);
+    EXPECT_EQ(0, std::memcmp(oem, "-FVE-FS-", 8));
+}
+
+TEST(LostDiscovery, LostBitlockerOemNoise) {
+    /* the OEM label alone is not enough: without the 0x55AA boot signature
+     * the classifier ladder never fires (the og's classifier runs inside
+     * the boot-sector family pass). Random OEM + 55AA but garbage version
+     * region still surfaces ONLY via the boot-sig points (the og's gate
+     * has no shape requirement) - graded, not rejected. */
+    std::vector<u8> img(u64(16384) * 512, 0);
+    /* noise 1: "-FVE-FS-" without 55AA -> no candidate at that LBA */
+    u8* n1 = img.data() + 8192 * 512;
+    std::memcpy(n1 + 3, "-FVE-FS-", 8);
+    /* noise 2: "-FVE-FS-" + 55AA but binary garbage version region ->
+     * candidate (og gate) with ONLY boot-sig evidence */
+    u8* n2 = img.data() + 9216 * 512;
+    std::memcpy(n2 + 3, "-FVE-FS-", 8);
+    n2[0x0B] = 0x01;
+    n2[0x0C] = 0xA2; /* binary bytes: not digits/dots */
+    n2[0x0D] = 0x7F;
+    n2[510] = 0x55;
+    n2[511] = 0xAA;
+    MemDevice dev(std::move(img));
+    DiscoveryResult r;
+    ASSERT_EQ(discover(&dev, {}, 1, nullptr, nullptr, nullptr, r), OK);
+    const Candidate* c8192 = nullptr;
+    const Candidate* c9216 = nullptr;
+    for (const auto& c : r.candidates) {
+        if (c.start_lba == 8192)
+            c8192 = &c;
+        if (c.start_lba == 9216)
+            c9216 = &c;
+    }
+    EXPECT_EQ(c8192, nullptr) << "no 55AA: the classifier must not fire";
+    ASSERT_NE(c9216, nullptr);
+    EXPECT_EQ(c9216->fs, CandidateFs::BitLocker);
+    EXPECT_EQ(c9216->score, 15); /* boot-sig only: the og's gate shape-free */
+}
+
+TEST(LostDiscovery, LostBitlockerInsideExtendedRegionStillFound) {
+    /* the deep scan is table-independent: an FVE boot sector that happens
+     * to sit inside the extended-partition region (EBR chain area) is
+     * still discovered - the og's CompleteSearch generator scans device
+     * extents, not table entries. */
+    std::vector<u8> img(u64(16384) * 512, 0);
+    /* live MBR: extended partition [2048, 4096) with an EBR at 2048 */
+    u8* mbr = img.data();
+    mbr[446 + 4] = 0x05;
+    put32v(img, 446 + 8, 2048);
+    put32v(img, 446 + 12, 2048);
+    mbr[510] = 0x55;
+    mbr[511] = 0xAA;
+    u8* ebr = img.data() + 2048 * 512;
+    ebr[510] = 0x55;
+    ebr[511] = 0xAA;
+    /* the FVE volume starts INSIDE the extended region (a deleted logical
+     * volume that was BitLocker-encrypted) */
+    plant_fve_boot(img, 6144, "2.0.1.0");
+    MemDevice dev(std::move(img));
+    std::vector<table::PartitionInfo> known;
+    table::DiskTable t;
+    ASSERT_EQ(table::parse_disk_table(&dev, t), OK);
+    for (const auto& p : t.partitions)
+        known.push_back(p);
+    DiscoveryResult r;
+    ASSERT_EQ(discover(&dev, known, 1, nullptr, nullptr, nullptr, r), OK);
+    const Candidate* fve = nullptr;
+    for (const auto& c : r.candidates)
+        if (c.start_lba == 6144)
+            fve = &c;
+    ASSERT_NE(fve, nullptr) << "table-independent discovery must reach the FVE sector";
+    EXPECT_EQ(fve->fs, CandidateFs::BitLocker);
+}
+
+/* ---- N-034 (diff-to-fix session): the og's deep-scan FAT ladder gates -- */
+
+namespace {
+
+/* Plant a FAT boot sector with the given geometry knobs. */
+void plant_fat_boot(std::vector<u8>& img, u64 lba, int spc, int num_fats, u16 root_entries,
+                    u32 total32, u16 spf16, u32 spf32, bool fat32_string) {
+    u8* b = img.data() + lba * 512;
+    b[0] = 0xEB;
+    b[1] = 0x3C;
+    b[2] = 0x90;
+    std::memcpy(b + 3, "MSDOS5.0", 8);
+    put16(img, lba * 512 + 0x0B, 512);
+    b[0x0D] = u8(spc);
+    put16(img, lba * 512 + 0x0E, 2);
+    b[0x10] = u8(num_fats);
+    put16(img, lba * 512 + 0x11, root_entries);
+    put16(img, lba * 512 + 0x13, 0); /* total16 unused */
+    b[0x15] = 0xF8;
+    put16(img, lba * 512 + 0x16, spf16);
+    put32v(img, lba * 512 + 0x20, total32);
+    put32v(img, lba * 512 + 0x24, spf32);
+    if (fat32_string)
+        std::memcpy(b + 0x52, "FAT32   ", 8);
+    b[510] = 0x55;
+    b[511] = 0xAA;
+}
+
+} // namespace
+
+TEST(LostFatGates, Spc256Rejected) {
+    /* N-034: SPC 256 is outside the og deep-gate set {1..128}; the old
+     * core's any-pow2 acceptance produced a candidate every og gate
+     * rejects. */
+    std::vector<u8> img(1024 * 512, 0);
+    plant_fat_boot(img, 16, 256, 2, 512, 900, 20, 0, false);
+    EXPECT_EQ(fat::lost_boot_flavor(img.data() + 16 * 512), 0);
+    /* in-set SPC 128 on the same shape passes (6 data clusters -> the
+     * small bracket's FAT12 gate) */
+    plant_fat_boot(img, 16, 128, 2, 512, 900, 20, 0, false);
+    EXPECT_EQ(fat::lost_boot_flavor(img.data() + 16 * 512), 1);
+}
+
+TEST(LostFatGates, NumFatsZeroRejectedThreeAcceptedByDeepGates) {
+    /* N-034: the og's DEEP gates only require numFATs != 0
+     * (FUN_1800048f0/4a40/4b70) - a triple-FAT boot IS a lost candidate
+     * on the og's deep scan (the {1,2} restriction lives at ENGINE OPEN,
+     * FUN_18002f970 :38049, where such a volume is declined). Zero
+     * FATs is rejected everywhere. */
+    std::vector<u8> img(1024 * 512, 0);
+    plant_fat_boot(img, 16, 1, 0, 512, 900, 20, 0, false);
+    EXPECT_EQ(fat::lost_boot_flavor(img.data() + 16 * 512), 0)
+        << "numFATs == 0 is rejected by every deep gate";
+    plant_fat_boot(img, 16, 1, 3, 512, 900, 20, 0, false);
+    EXPECT_EQ(fat::lost_boot_flavor(img.data() + 16 * 512), 1)
+        << "numFATs == 3 passes the deep gates (og: != 0 only)";
+    /* ...but the engine-open gates decline it (the og's layering) */
+    fat::FatParams p;
+    u8 boot[512];
+    std::memcpy(boot, img.data() + 16 * 512, 512);
+    ASSERT_EQ(fat::validate_boot(boot, 1024 * 512, p), OK);
+    EXPECT_NE(fat::boot_passes_open_gates(boot, 512, p), OK)
+        << "numFATs == 3 must decline at engine open (og {1,2} gate)";
+    plant_fat_boot(img, 16, 1, 2, 512, 900, 20, 0, false);
+    EXPECT_EQ(fat::lost_boot_flavor(img.data() + 16 * 512), 1);
+}
+
+TEST(LostFatGates, Fat32NameStringTornYieldsNoCandidate) {
+    /* N-034: the og's FAT32 deep gate requires the exact-case
+     * "FAT32   " memcmp at +0x52; a torn string kills the FAT32
+     * candidate. The FAT16 fallback gate (no string) can still claim it
+     * when the bracket order allows - here the FAT32-bracket volume
+     * with a torn string and spf16 == 0 falls through every gate. */
+    std::vector<u8> img(1024 * 512, 0);
+    /* 66000 total, spf32 512, no root -> ~65k clusters (FAT32 bracket) */
+    plant_fat_boot(img, 16, 1, 2, 0, 66000, 0, 512, false);
+    EXPECT_EQ(fat::lost_boot_flavor(img.data() + 16 * 512), 0)
+        << "torn FAT32 string + no spf16 must reject";
+    plant_fat_boot(img, 16, 1, 2, 0, 66000, 0, 512, true);
+    EXPECT_EQ(fat::lost_boot_flavor(img.data() + 16 * 512), 3)
+        << "intact FAT32 string yields the FAT32 candidate";
+}
+
+TEST(LostFatGates, Fat12SmallFatProbe) {
+    /* N-034: the FAT12 gate carries the og's small-FAT probe
+     * (FUN_1800048f0 :2630-2632): spf16 must be in [1,200]. A
+     * small-bracket boot with spf16 > 200 fails the FAT12 gate but is
+     * claimed by the FAT16 fallback gate (spf16 != 0, no cap) - the
+     * og ladder's bracket-order semantics. */
+    std::vector<u8> img(1024 * 512, 0);
+    plant_fat_boot(img, 16, 1, 2, 512, 900, 201, 0, false);
+    EXPECT_EQ(fat::lost_boot_flavor(img.data() + 16 * 512), 2)
+        << "spf16 = 201: FAT12 gate fails (cap 200), FAT16 fallback claims it";
+    plant_fat_boot(img, 16, 1, 2, 512, 900, 150, 0, false);
+    EXPECT_EQ(fat::lost_boot_flavor(img.data() + 16 * 512), 1)
+        << "spf16 = 150 passes the FAT12 small-FAT probe";
+    /* no gate passes: spf16 = 0 (FAT12/FAT16 fail), no FAT32 string,
+     * small bracket */
+    plant_fat_boot(img, 16, 1, 2, 512, 900, 0, 0, false);
+    EXPECT_EQ(fat::lost_boot_flavor(img.data() + 16 * 512), 0)
+        << "spf16 = 0 + no string: every deep gate rejects";
+}
+
+TEST(LostFatGates, Fat12ProbeSpfBoundIsExclusiveAt200) {
+    /* N-034 precision: the og test is `spf == 0 || spf > 200 -> fail`
+     * (:2630-2632), so 200 itself passes. */
+    std::vector<u8> img(1024 * 512, 0);
+    plant_fat_boot(img, 16, 1, 2, 512, 900, 200, 0, false);
+    EXPECT_EQ(fat::lost_boot_flavor(img.data() + 16 * 512), 1);
+}
+
+TEST(LostFatGates, Fat32GateStringIsCaseSensitive) {
+    /* N-034: the og's deep FAT32 gate uses memcmp (case-sensitive),
+     * unlike the engine-open _strnicmp - "fat32   " fails the deep
+     * gate. */
+    std::vector<u8> img(1024 * 512, 0);
+    plant_fat_boot(img, 16, 1, 2, 0, 66000, 0, 512, true);
+    std::memcpy(img.data() + 16 * 512 + 0x52, "fat32   ", 8);
+    EXPECT_EQ(fat::lost_boot_flavor(img.data() + 16 * 512), 0);
+}
+
+TEST(LostDiscovery, FatBootWithOgGatesBecomesCandidate) {
+    /* Integration: a FAT16 boot that passes the og deep gates surfaces
+     * as a Fat candidate through the full discovery pass. */
+    auto img = build_disk();
+    plant_fat_boot(img, 6000, 1, 2, 512, 900, 20, 0, false);
+    MemDevice dev(std::move(img));
+    table::DiskTable t;
+    ASSERT_EQ(table::parse_disk_table(&dev, t), OK);
+    DiscoveryResult r;
+    ASSERT_EQ(discover(&dev, t.partitions, 1, nullptr, nullptr, nullptr, r), OK);
+    const Candidate* fat_c = nullptr;
+    for (const auto& c : r.candidates)
+        if (c.start_lba == 6000)
+            fat_c = &c;
+    ASSERT_NE(fat_c, nullptr) << "valid FAT16 boot must surface as a candidate";
+    EXPECT_EQ(fat_c->fs, CandidateFs::Fat);
 }

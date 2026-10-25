@@ -33,11 +33,10 @@ constexpr u64 MAX_FILE_READ_FOR_HASH = 8ull << 20;
 /* specificity-first: same-magic families order their most specific
  * member first (DOCX>ZIP, CR2>DNG>TIFF, RAR5>RAR4, M4A>MP4/MOV) */
 constexpr u32 kTrialOrder[] = {
-    FMT_DOCX,   FMT_ZIP, FMT_CR2,     FMT_DNG,      FMT_TIFF,     FMT_MOV,   FMT_MP4,
-    FMT_HEIC,   FMT_JPG, FMT_PNG,     FMT_WEBP,     FMT_WAV,      FMT_PDF,   FMT_7Z,
-    FMT_SQLITE, FMT_AVI, FMT_MKV,     FMT_RAR5,     FMT_RAR4,     FMT_PST,   FMT_ORF,
-    FMT_RAF,    FMT_RW2, FMT_PSD,     FMT_MP3,      FMT_M4A,      FMT_ASF,   FMT_FLV,
-    FMT_CAB,    FMT_ISO, FMT_TIFF_BE, FMT_ORF_IIRS, FMT_ORF_MMOR, FMT_ZIP_CD,
+    FMT_DOCX, FMT_ZIP, FMT_CR2, FMT_DNG, FMT_TIFF, FMT_MOV, FMT_MP4, FMT_HEIC, FMT_JPG, FMT_PNG,
+    FMT_WEBP, FMT_WAV, FMT_PDF, FMT_7Z, FMT_SQLITE, FMT_AVI, FMT_MKV, FMT_RAR5, FMT_RAR4, FMT_PST,
+    FMT_ORF, FMT_RAF, FMT_RW2, FMT_PSD, FMT_MP3, FMT_M4A, FMT_ASF, FMT_FLV, FMT_CAB, FMT_ISO,
+    FMT_TIFF_BE, FMT_ORF_IIRS, FMT_ORF_MMOR, FMT_ZIP_CD,
     /* S-017: ftyp-destroyed MOV salvage (og MovAnalyzer list layer) -
      * LAST: the ftyp-keyed entries must claim the position first */
     FMT_MOV_NAKED};
@@ -227,29 +226,27 @@ u32 scan_one_window(ScanCtx& ctx, u64 base, const u8* win, u64 want, std::set<u6
                     fmt.max_size < ctx.total - start_abs ? fmt.max_size : ctx.total - start_abs;
                 if (hi > lo) {
                     const u64 window = hi - lo;
-                    const u64 scan_len = window < idx.tail_scan_limit() ? window
-                                                                        : idx.tail_scan_limit();
-                    std::vector<u8> tail_buf(size_t(kTailScanChunk) +
-                                            rawsigns::kMaxSignBytes);
+                    const u64 scan_len =
+                        window < idx.tail_scan_limit() ? window : idx.tail_scan_limit();
+                    std::vector<u8> tail_buf(size_t(kTailScanChunk) + rawsigns::kMaxSignBytes);
                     u64 scanned = 0;
                     rawsigns::SignIndex::TailHit th;
                     while (scanned < scan_len) {
-                        const u64 chunk_want =
-                            scan_len - scanned < kTailScanChunk ? scan_len - scanned
-                                                                : kTailScanChunk;
+                        const u64 chunk_want = scan_len - scanned < kTailScanChunk
+                                                   ? scan_len - scanned
+                                                   : kTailScanChunk;
                         /* overlap read: [lo+scanned, lo+scanned+chunk_want+signs)
                          * keeps any <=kMaxSignBytes tail sign contiguous.
                          * avail is window-relative: the device end is
                          * start_abs+hi, so at most hi-lo-scanned bytes
                          * remain (NOT hi-scanned - lo is the walk base). */
                         const u64 avail_max = hi - lo - scanned;
-                        const u64 read_len =
-                            avail_max < chunk_want + rawsigns::kMaxSignBytes
-                                ? avail_max
-                                : chunk_want + rawsigns::kMaxSignBytes;
+                        const u64 read_len = avail_max < chunk_want + rawsigns::kMaxSignBytes
+                                                 ? avail_max
+                                                 : chunk_want + rawsigns::kMaxSignBytes;
                         u8* buf = tail_buf.data();
-                        if (ctx.slice->read_at(start_abs + lo + scanned, buf,
-                                              u32(read_len)) == OK) {
+                        if (ctx.slice->read_at(start_abs + lo + scanned, buf, u32(read_len)) ==
+                            OK) {
                             if (idx.scan_tail_for_format(buf, read_len, best->fmt, th)) {
                                 len = lo + scanned + th.pos + 512;
                                 if (len > hi)

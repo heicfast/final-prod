@@ -65,3 +65,10 @@ Decompiled evidence (verbatim quotes cited); RTTI vtable extraction proving the 
 ## Open questions
 
 None for the trigger; the mirror-answer gating's exact cross-check intent is quoted and recorded in `tracked-open/` (OQ-T2 residual).
+
+## Resolution
+
+**Status:** FIXED (default = og parity; torn-pair salvage kept as explicit opt-in)
+**Fixed in commit:** this session's FAT batch commit (cr_chain.cpp `FatTable::next`/`raw` + `FatScanFlags::mirror_bad_salvage` + PARITY-DELTAS D-51 delta 3)
+**Verified by:** `FatEngine.BadPrimaryServedWithoutMirrorConsult` — the default-mode assertions (primary BAD truncates the chain, 1 cluster, broken flag) fail on the pre-fix source (the old code consulted the mirror and produced a 3-cluster unbroken chain; proven in the fail-before worktree run) and pass after; the opt-in salvage assertions (3 clusters through the mirror link) pass with the flag. Companion pin `FatEngine.PrimaryFreeStillConsultsMirror` (unchanged behavior). Suite 366/366.
+**Resolution notes:** The og's `CDDoubleFATTable::GetNext` (FUN_180041de0 :54216-18, quote re-read first-hand) serves any non-zero primary answer directly — BAD included — and consults the mirror only on primary 0. `next()` and `raw()` now do exactly that by default; the former BAD-consult is preserved behind `FatScanFlags::mirror_bad_salvage` (off by default) as the finding's recommended honest-recovery mode, registered in PARITY-DELTAS D-51. `reconstruct_contiguous_chain`'s free-state validation is unaffected (BAD was always non-zero for it).

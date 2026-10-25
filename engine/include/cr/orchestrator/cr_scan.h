@@ -43,7 +43,10 @@ enum class FsFamily : u8 {
     Hfsplus,
     Btrfs,
     Zfs,
-    Refs
+    Refs,
+    /* 10: S-019 - lost BitLocker (FVE) volumes; no walk engine (locked
+     * encrypted content), the candidate surfaces as a locked volume. */
+    BitLocker
 };
 
 struct StageWeights {
