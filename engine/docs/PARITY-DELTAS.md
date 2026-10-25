@@ -1963,3 +1963,18 @@ terminating the walk — a strict superset on real damaged volumes. The
 SKIP path (invalid entries) matches the og exactly (the 4-byte resync
 slide). Pinned by `Ext4Engine.CorruptRecLenSkipsEntryNotBlock` and the
 inode-0 superset pin `Ext4Engine.InodeZeroHoleContinues`.
+### D-65 — Hard-link emission: the opt-in per-parent fan-out (M-007, REGISTERED SUPERSET — off by default)
+
+The og emits ONE node per MFT record (FUN_180006db0 :5273; FUN_1800448b0
+fetches two $FILE_NAME entries and picks one by namespace ranking -
+FUN_180043330). The core's default now matches this exactly
+(`WalkerFlags::single_link_per_record = true`, M-007). The pre-M-007
+behavior - one node per distinct parent, each with its own link name -
+remains available as an EXPLICIT opt-out (`single_link_per_record =
+false`) for "show all hard-links" scans. It is a registered deliberate
+divergence when enabled: the result set is a strict superset of the og's
+(N-1 extra nodes per hard-linked record), per-file grading is duplicated
+across the fan-out nodes, and the hardlinks WalkStats counter is nonzero
+only in this mode (the og's scan has no such counter). Pinned by
+`NtfsVolume.HardLinkFanOutOptIn` (per-link names, per-parent nodes) and
+`NtfsVolume.HardLinkSingleLinkMatchesOg` (the parity default).

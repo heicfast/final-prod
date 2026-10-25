@@ -43,6 +43,35 @@ this push; S-009/S-030/M-002/M-051/M-037/N-073 by the parallel lanes).
 Top remaining risks: S-029 (the apply-path scope decision — the last
 SEVERE), then the M-tier by user impact (M-005 the carve gate next — same
 bitmap plumbing, one consumer).
+# SUMMARY.md — executive summary (session 11 DFX11 on top; earlier sessions below)
+
+## Session-11 delta (DFX11, this leg — S-009 verified + M-007 landed)
+
+Session arc: bootstrap 7c44bdc (baseline 534/534) -> the S-009 convergence
+(this leg implemented the full free-overlay stack independently; the
+parallel DFX8-legacy lane landed first at c55bd45/a3e5fd8 — first-landing
+wins, this leg's implementation dropped cleanly and the landing verified
+first-hand at 575/575 with two corpus arbitrations recorded in the worklog:
+the FAT free-map is og-faithful per searchdll-family :98 "volume bitmap
+from FS engine"; the bitmap-truth free rule is closer to the og than the
+finding's plan text) -> M-007.
+
+**M-007 FIXED (this push):** hard-link emission parity.
+`WalkerFlags::single_link_per_record` (default TRUE = the og's model: ONE
+node per record - the namespace-best $FILE_NAME from the FULL list,
+first-seen wins ties, under ITS parent; corpus FUN_180006db0 :5273 +
+FUN_1800448b0 :54124-54162 + FUN_180043330). FALSE = the registered
+opt-in fan-out (per-parent nodes, per-link names; PARITY-DELTAS D-65);
+the hardlinks stat counts only in fan-out mode. The fan-out path's
+per-parent name selection was REPAIRED in the same change (per-parent
+names from that parent's OWN entries - a pre-existing divergence-class
+bug no earlier fixture exposed: on mixed-rank multi-parent records every
+parent inherited the highest-rank sibling's name). 4 tests (2 new +
+EndToEndWalk/AdsAttachesToFirstLink rewritten for both modes); fail-before:
+walker-revert (3 nodes vs 1; the Win32/DOS links unfindable). Suite
+582/582. Counts after this push: SEVERE 2 (S-029, S-030) · MAJOR 36 ·
+MINOR 48 · INFO 22 (0 actionable) · tracked-open 16 · FIXED 83 files
+(82 findings + RESOLVED-INDEX).
 
 # SUMMARY.md — executive summary (diff-fix session 14 on top; earlier sessions below)
 

@@ -260,8 +260,12 @@ Also verified live (not dead): `NonresidentTail`, `ResidentAttributeHeader`,
 2. **OG NTFS-side $I/$R recycle parse** — bin-dir strings verified (Dec 37388–37408,
    incl. `$RECYCLE.BI0` deleted form); the $I format parse is attested FAT-side only (D-12).
 3. **OG namespace-preference order** — "namespace variants" mentioned; no ranking decoded.
-4. **OG hard-link emission model** — refcounted-props census only (our per-parent clone +
-   record_ref dedup is a design choice).
+4. **OG hard-link emission model** — DECODED + LANDED (M-007, session 11):
+   the og emits ONE node per record (FUN_180006db0 :5273 builds props once;
+   FUN_1800448b0 :54124-54162 fetches at most two $FILE_NAME entries and
+   picks ONE by namespace ranking, FUN_180043330). The core's default now
+   matches (WalkerFlags::single_link_per_record = true); the per-parent
+   fan-out is the registered opt-in superset (PARITY-DELTAS D-65).
 5. **OG props size source (+0x1b)** feeding the 0x3FF gate — FUN_1800069e0 not decoded;
    our $DATA-authoritative choice rests on runner evidence + F-A1-2.
 6. **OG runlist offset-field sign handling** — decompile mangled (`memcpy` len 0 artifact

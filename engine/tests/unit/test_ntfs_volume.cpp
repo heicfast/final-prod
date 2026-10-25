@@ -957,7 +957,10 @@ TEST(NtfsVolume, ResidentAdsCarriesContent) {
 
 TEST(NtfsVolume, AdsAttachesToFirstLink) {
     /* hard-linked file with an ADS: the stream must attach to the
-     * canonical (first-emitted) link, not the last */
+     * canonical (first-emitted) link, not the last. Two modes (M-007):
+     * parity default = ONE link emitted (the first-seen namespace winner
+     * "hl@root.txt"), the ADS attaches to it; the opt-in fan-out = both
+     * links emitted, ADS still under the FIRST (parent-5) link. */
     Image img;
     build_image(img); /* boot sector + records 5/16 for the link targets */
     {
@@ -975,43 +978,85 @@ TEST(NtfsVolume, AdsAttachesToFirstLink) {
     u32 err = 0;
     auto vol = NtfsVolume::open(std::unique_ptr<IStorageDevice>(new MemDevice(dev)), &err);
     ASSERT_NE(vol, nullptr) << err_text(err);
-    tree::ResultTree tree;
-    auto* ra = tree.add_root(u"a");
-    auto* rd = tree.add_root(u"d");
-    auto* rl = tree.add_root(u"l");
-    WalkerFlags wf;
-    WalkStats stats;
-    ASSERT_EQ(walk_mft(vol.get(), nullptr, wf, nullptr, nullptr, nullptr, tree, ra, rd, rl, stats),
-              OK);
-    tree::FileNode *at_root = nullptr, *at_folder = nullptr, *ads = nullptr;
-    std::function<void(tree::FileNode*)> find = [&](tree::FileNode* n) {
-        for (tree::FileNode* c = n->first_child(); c; c = c->next_sibling()) {
-            if (c->name_utf8() == "hl@root.txt")
-                at_root = c;
-            if (c->name_utf8() == "hl.txt")
-                at_folder = c;
-            if (c->name_utf8() == "hl@root.txt:stream" || c->name_utf8() == "hl.txt:stream")
-                ads = c;
-            find(c);
-        }
-    };
-    find(ra);
-    find(rd);
-    ASSERT_NE(at_root, nullptr);
-    ASSERT_NE(at_folder, nullptr);
-    ASSERT_NE(ads, nullptr);
-    /* the ADS node's parent IS the first link node (parent 5's link) */
-    EXPECT_EQ(ads->name_utf8(), "hl@root.txt:stream");
-    bool under_root_link = false;
-    for (tree::FileNode* c = at_root->first_child(); c; c = c->next_sibling())
-        if (c == ads)
-            under_root_link = true;
-    EXPECT_TRUE(under_root_link);
-    bool under_folder_link = false;
-    for (tree::FileNode* c = at_folder->first_child(); c; c = c->next_sibling())
-        if (c == ads)
-            under_folder_link = true;
-    EXPECT_FALSE(under_folder_link);
+
+    /* ---- parity mode (the default): one link, ADS under it ---- */
+    {
+        tree::ResultTree tree;
+        auto* ra = tree.add_root(u"a");
+        auto* rd = tree.add_root(u"d");
+        auto* rl = tree.add_root(u"l");
+        WalkerFlags wf;
+        WalkStats stats;
+        ASSERT_EQ(
+            walk_mft(vol.get(), nullptr, wf, nullptr, nullptr, nullptr, tree, ra, rd, rl, stats),
+            OK);
+        tree::FileNode *at_root = nullptr, *at_folder = nullptr, *ads = nullptr;
+        std::function<void(tree::FileNode*)> find = [&](tree::FileNode* n) {
+            for (tree::FileNode* c = n->first_child(); c; c = c->next_sibling()) {
+                if (c->name_utf8() == "hl@root.txt")
+                    at_root = c;
+                if (c->name_utf8() == "hl.txt")
+                    at_folder = c;
+                if (c->name_utf8() == "hl@root.txt:stream" || c->name_utf8() == "hl.txt:stream")
+                    ads = c;
+                find(c);
+            }
+        };
+        find(ra);
+        find(rd);
+        ASSERT_NE(at_root, nullptr);
+        EXPECT_EQ(at_folder, nullptr) << "parity mode: one node per record (M-007)";
+        ASSERT_NE(ads, nullptr);
+        EXPECT_EQ(ads->name_utf8(), "hl@root.txt:stream");
+        bool under_root_link = false;
+        for (tree::FileNode* c = at_root->first_child(); c; c = c->next_sibling())
+            if (c == ads)
+                under_root_link = true;
+        EXPECT_TRUE(under_root_link);
+    }
+
+    /* ---- opt-in fan-out: both links, ADS under the FIRST ---- */
+    {
+        tree::ResultTree tree;
+        auto* ra = tree.add_root(u"a");
+        auto* rd = tree.add_root(u"d");
+        auto* rl = tree.add_root(u"l");
+        WalkerFlags wf;
+        wf.single_link_per_record = false; /* the opt-in superset */
+        WalkStats stats;
+        ASSERT_EQ(
+            walk_mft(vol.get(), nullptr, wf, nullptr, nullptr, nullptr, tree, ra, rd, rl, stats),
+            OK);
+        tree::FileNode *at_root = nullptr, *at_folder = nullptr, *ads = nullptr;
+        std::function<void(tree::FileNode*)> find = [&](tree::FileNode* n) {
+            for (tree::FileNode* c = n->first_child(); c; c = c->next_sibling()) {
+                if (c->name_utf8() == "hl@root.txt")
+                    at_root = c;
+                if (c->name_utf8() == "hl.txt")
+                    at_folder = c;
+                if (c->name_utf8() == "hl@root.txt:stream" || c->name_utf8() == "hl.txt:stream")
+                    ads = c;
+                find(c);
+            }
+        };
+        find(ra);
+        find(rd);
+        ASSERT_NE(at_root, nullptr);
+        ASSERT_NE(at_folder, nullptr);
+        ASSERT_NE(ads, nullptr);
+        /* the ADS node's parent IS the first link node (parent 5's link) */
+        EXPECT_EQ(ads->name_utf8(), "hl@root.txt:stream");
+        bool under_root_link = false;
+        for (tree::FileNode* c = at_root->first_child(); c; c = c->next_sibling())
+            if (c == ads)
+                under_root_link = true;
+        EXPECT_TRUE(under_root_link);
+        bool under_folder_link = false;
+        for (tree::FileNode* c = at_folder->first_child(); c; c = c->next_sibling())
+            if (c == ads)
+                under_folder_link = true;
+        EXPECT_FALSE(under_folder_link);
+    }
 }
 
 TEST(NtfsVolume, UsnJrnlHarvest) {
@@ -1334,7 +1379,9 @@ TEST(NtfsVolume, EndToEndWalk) {
                                                     the rule lives in the dump pass */
     EXPECT_EQ(stats.damaged, 0u);
     EXPECT_EQ(stats.orphans, 0u);
-    EXPECT_EQ(stats.hardlinks, 1u);
+    /* M-007: parity mode default - no fan-out, no counter (the og's scan
+     * has no hardlink counter; the fan-out is the opt-in superset) */
+    EXPECT_EQ(stats.hardlinks, 0u);
     EXPECT_EQ(stats.ads, 1u);
     EXPECT_GE(stats.emitted, 10u); /* overwrit.dat now a member (S-012) */
 
@@ -1391,7 +1438,8 @@ TEST(NtfsVolume, EndToEndWalk) {
     ASSERT_NE(holes, nullptr);
     ASSERT_NE(partial, nullptr);
     ASSERT_NE(hard16, nullptr);
-    ASSERT_NE(hard5, nullptr);
+    /* M-007 parity default: the second link is dropped (see below) */
+    EXPECT_EQ(hard5, nullptr) << "the og emits one node per record (M-007)";
     ASSERT_NE(adsnode, nullptr);
     ASSERT_NE(adschild, nullptr);
 
@@ -1403,16 +1451,17 @@ TEST(NtfsVolume, EndToEndWalk) {
     EXPECT_EQ(deleted->parent(), folder1);
     EXPECT_EQ(partial->parent(), rootdot);
     EXPECT_EQ(hard16->parent(), folder1);
-    EXPECT_EQ(hard5->parent(), rootdot);
+    /* M-007: parity mode (default) emits ONE node per record - the
+     * namespace-best name (first-seen wins the WIN32/WIN32 tie here) under
+     * ITS parent; the second link is NOT emitted (the og drops it -
+     * FUN_1800448b0 fetches two, emits one). */
+    EXPECT_EQ(hard5, nullptr) << "parity mode drops the second link";
     EXPECT_EQ(adschild->parent(), adsnode);
 
-    /* hard links: per-link props (names preserved), shared identity */
-    EXPECT_EQ(hard16->props()->record_ref, hard5->props()->record_ref);
+    /* the emitted link carries the shared record identity + extents */
     EXPECT_EQ(hard16->props()->extents.size(), 1u);
     EXPECT_EQ(hard16->props()->extents[0].offset, 240 * CLUSTER);
-    EXPECT_EQ(hard5->props()->extents[0].offset, 240 * CLUSTER);
     EXPECT_STREQ(hard16->name_utf8().c_str(), "hard.txt");
-    EXPECT_STREQ(hard5->name_utf8().c_str(), "hard@root.txt");
 
     /* grading */
     EXPECT_EQ(readme->confidence(), tree::Confidence::Excellent);
@@ -1442,6 +1491,115 @@ TEST(NtfsVolume, EndToEndWalk) {
 
     tree.refresh_stats();
     EXPECT_GE(root_active->stats().file_count, 0u);
+}
+
+/* ------------------------------------------------------------------ */
+/* M-007: hard-link emission parity (one node per record; opt-in fan-out) */
+/* ------------------------------------------------------------------ */
+
+namespace {
+
+/* record 26: a 3-link file - POSIX under root(5), Win32 under folder1(16),
+ * DOS under dirdel(8). Namespace ranking: POSIX wins. */
+void add_three_link_record(Image& img) {
+    RecBuilder r;
+    r.header(26, RECORD_IN_USE);
+    r.attr_si(0x20);
+    r.attr_file_name(5, u"tri.posix", FILE_NAME_POSIX, 0x20, 512, 512);
+    r.attr_file_name(16, u"tri.txt", FILE_NAME_WIN32, 0x20, 512, 512);
+    r.attr_file_name(8, u"TRI.TXT", FILE_NAME_DOS, 0x20, 512, 512);
+    r.attr_data_runlist(211, 1, 512);
+    r.finish();
+    std::memcpy(img.sec(MFT_LCN + 52), r.buf.data(), RECORD_SIZE);
+}
+
+std::vector<tree::FileNode*> nodes_named(tree::ResultTree& t, const char* want) {
+    std::vector<tree::FileNode*> out;
+    std::function<void(tree::FileNode*)> collect = [&](tree::FileNode* n) {
+        for (tree::FileNode* c = n->first_child(); c; c = c->next_sibling()) {
+            if (c->name_utf8() == want)
+                out.push_back(c);
+            collect(c);
+        }
+    };
+    for (auto* r : t.roots())
+        collect(r);
+    return out;
+}
+
+} // namespace
+
+TEST(NtfsVolume, HardLinkSingleLinkMatchesOg) {
+    /* M-007 parity mode (the default): the og emits ONE node per record -
+     * the namespace-best $FILE_NAME under ITS parent. The 3-link record
+     * yields the POSIX node under root only; the Win32/DOS links are
+     * dropped exactly as the og drops them (FUN_1800448b0 fetches two,
+     * emits one). The hardlinks counter stays 0 (no fan-out happened). */
+    Image img;
+    build_image(img);
+    add_three_link_record(img);
+    MemDevice dev(img.raw(), img.geom());
+
+    u32 err = 0;
+    auto vol = NtfsVolume::open(std::unique_ptr<IStorageDevice>(new MemDevice(dev)), &err);
+    ASSERT_NE(vol, nullptr) << "open err " << err_text(err);
+    std::unique_ptr<VolumeBitmap> bm;
+    ASSERT_EQ(VolumeBitmap::load(vol.get(), bm), OK);
+
+    tree::ResultTree tree;
+    auto* root_active = tree.add_root(u"Found (NTFS)");
+    auto* root_deleted = tree.add_root(u"Deleted");
+    auto* root_lost = tree.add_root(u"Lost Files");
+    WalkerFlags wf; /* defaults: single_link_per_record = true */
+    WalkStats stats;
+    ASSERT_EQ(walk_mft(vol.get(), bm.get(), wf, nullptr, nullptr, nullptr, tree, root_active,
+                       root_deleted, root_lost, stats),
+              u32(OK));
+
+    /* ONE tri.* node: the POSIX name (rank 4 beats WIN32 2 and DOS 1) */
+    const auto posix = nodes_named(tree, "tri.posix");
+    ASSERT_EQ(posix.size(), 1u) << "parity mode must emit the POSIX link once";
+    EXPECT_EQ(posix[0]->parent()->name_utf8(), ".") << "under the namespace-best parent (root)";
+    EXPECT_EQ(nodes_named(tree, "tri.txt").size(), 0u) << "the Win32 link is dropped (og parity)";
+    EXPECT_EQ(nodes_named(tree, "TRI.TXT").size(), 0u) << "the DOS link is dropped (og parity)";
+    EXPECT_EQ(stats.hardlinks, 0u) << "no fan-out: the counter never increments in parity mode";
+    /* the existing 2-link record 21 also collapses to one node */
+    EXPECT_EQ(nodes_named(tree, "hard@root.txt").size(), 0u);
+    EXPECT_EQ(nodes_named(tree, "hard.txt").size(), 1u);
+}
+
+TEST(NtfsVolume, HardLinkFanOutOptIn) {
+    /* M-007 opt-in superset: single_link_per_record=false emits one node
+     * per distinct parent, each with ITS OWN link name - the pre-M-007
+     * behavior, now explicit. Regression guard for the flag's off path. */
+    Image img;
+    build_image(img);
+    add_three_link_record(img);
+    MemDevice dev(img.raw(), img.geom());
+
+    u32 err = 0;
+    auto vol = NtfsVolume::open(std::unique_ptr<IStorageDevice>(new MemDevice(dev)), &err);
+    ASSERT_NE(vol, nullptr) << "open err " << err_text(err);
+    std::unique_ptr<VolumeBitmap> bm;
+    ASSERT_EQ(VolumeBitmap::load(vol.get(), bm), OK);
+
+    tree::ResultTree tree;
+    auto* root_active = tree.add_root(u"Found (NTFS)");
+    auto* root_deleted = tree.add_root(u"Deleted");
+    auto* root_lost = tree.add_root(u"Lost Files");
+    WalkerFlags wf;
+    wf.single_link_per_record = false; /* the opt-in fan-out */
+    WalkStats stats;
+    ASSERT_EQ(walk_mft(vol.get(), bm.get(), wf, nullptr, nullptr, nullptr, tree, root_active,
+                       root_deleted, root_lost, stats),
+              u32(OK));
+
+    EXPECT_EQ(nodes_named(tree, "tri.posix").size(), 1u);
+    EXPECT_EQ(nodes_named(tree, "tri.txt").size(), 1u);
+    EXPECT_EQ(nodes_named(tree, "TRI.TXT").size(), 1u);
+    EXPECT_EQ(nodes_named(tree, "hard.txt").size(), 1u);
+    EXPECT_EQ(nodes_named(tree, "hard@root.txt").size(), 1u);
+    EXPECT_EQ(stats.hardlinks, 3u) << "record 26 adds 2 (3 links); record 21 adds 1 (2 links)";
 }
 
 TEST(NtfsVolume, RecycleBinMapping) {

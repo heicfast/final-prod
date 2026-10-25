@@ -9708,3 +9708,37 @@ Stage Summary:
   fail-open/truncation semantics are load-bearing), then S-029, then the
   MAJOR wave by user impact.
 >>>>>>> 774a093 (fix(M-054 NEW-FINDING): exFAT allocation bitmap bit i vs cluster i+2 — grading + the landed S-009 free-map producer shifted two clusters on every real volume)
+
+---
+Task ID: DFX11-M007 (session 11, finding 2)
+Agent: main engineer (diff-to-fix fix session 11 — DFX11)
+Task: M-007 — hard-link emission parity. Verified, classified
+CONFIRMED-DIVERGENCE, fixed, proven.
+
+Work Log:
+- Corpus re-verified first-hand: FUN_180006db0 :5273 (one props build per
+  record) + FUN_1800448b0 :54124-54162 (two-$FILE_NAME fetch, index 0/1
+  only) + FUN_180043330 (namespace ranking) - the finding's citations are
+  exact. Core re-verified at HEAD: the per-parent fan-out + the
+  names[0]-seeded per-parent name selection.
+- Fix: WalkerFlags::single_link_per_record (default TRUE = og parity: ONE
+  node per record, namespace-best name from the FULL list, first-seen
+  wins ties, under ITS parent). FALSE = the registered opt-in fan-out
+  (PARITY-DELTAS D-65); hardlinks counts only in fan-out mode. The
+  fan-out path's per-parent name selection REPAIRED (per-parent names
+  from that parent's OWN entries - a pre-existing divergence-class bug
+  the new 3-namespace fixture exposed: mixed-rank multi-parent records
+  gave every parent the highest-rank sibling's name).
+- Tests: 2 new (HardLinkSingleLinkMatchesOg - the finding's acceptance;
+  HardLinkFanOutOptIn - the opt-out regression guard) + EndToEndWalk and
+  AdsAttachesToFirstLink rewritten for both modes. Fail-before: walker
+  -revert (flag declared, engine not honoring: 3 nodes vs 1; the
+  Win32/DOS links unfindable). Suite 582/582.
+- Audit trail: Resolution + FIXED/ move; RESOLVED-INDEX (73); matrix ntfs
+  row; modules/ntfs.md (B7 verdict -> MATCH + session row); AUDIT-NTFS
+  5.4 (the UNVERIFIED entry -> DECODED+LANDED); PARITY-DELTAS D-65;
+  SUMMARY session delta (re-top'd over the session-14 layer).
+
+Stage Summary:
+- M-007 FIXED (session tally: 1). Next in my claimed batch: M-008 (NTFS
+  attrlist chase scope/depth).

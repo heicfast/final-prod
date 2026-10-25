@@ -851,7 +851,10 @@ u32 walk_mft(NtfsVolume* vol, VolumeBitmap* bitmap, const WalkerFlags& flags, Ca
             continue; /* the whole record: no node, no ADS, no props */
         }
 
-        /* distinct parents -> hard links (shared props object) */
+        /* distinct parents -> hard links (shared props object). M-007:
+         * the counter (and the fan-out below) is the opt-in superset mode
+         * only - the og emits ONE node per record (namespace-best name under
+         * its parent; FUN_180006db0 :5273 + FUN_1800448b0 :54124-54162). */
         std::vector<u64> parents;
         for (const FileNameInfo& n : names) {
             u64 p = n.parent_record;
@@ -864,7 +867,7 @@ u32 walk_mft(NtfsVolume* vol, VolumeBitmap* bitmap, const WalkerFlags& flags, Ca
             if (!dup)
                 parents.push_back(p);
         }
-        if (parents.size() > 1)
+        if (!flags.single_link_per_record && parents.size() > 1)
             stats.hardlinks += parents.size() - 1;
 
         tree::FileProperties* props = new (std::nothrow) tree::FileProperties();
@@ -952,22 +955,43 @@ u32 walk_mft(NtfsVolume* vol, VolumeBitmap* bitmap, const WalkerFlags& flags, Ca
             props->resident_data = std::move(unnamed_resident);
         }
 
-        /* emit one node per parent, each with ITS OWN link name (per-link
-         * $FILE_NAME); hard links duplicate props (rare) - dedup via
-         * record_ref downstream (writer + merge). */
+        /* emit: M-007 parity mode (default) = ONE node per record - the
+         * namespace-best $FILE_NAME from the FULL list (rank across all
+         * entries, first-seen wins ties - deterministic), under ITS OWN
+         * parent. Opt-out (single_link_per_record=false) = the per-parent
+         * fan-out: one node per distinct parent, each with ITS OWN link
+         * name (per-link $FILE_NAME); hard links duplicate props (rare) -
+         * dedup via record_ref downstream (writer + merge). */
         tree::FullNode* default_root = in_use ? root_active : root_deleted;
         tree::FileNode* first_link_node = nullptr; /* canonical link: ADS host */
-        for (u64 p : parents) {
-            /* this link's name: highest-namespace FILE_NAME with this parent */
-            const FileNameInfo* link_name = &names[0];
-            for (const FileNameInfo& n : names)
-                if (n.parent_record == p &&
-                    namespace_rank(n.namespace_type) >= namespace_rank(link_name->namespace_type))
-                    link_name = &n;
-            if (link_name->parent_record != p && !names.empty() && parents.size() == 1)
-                link_name = best; /* single link: keep best */
+        std::vector<u64> emit_parents;
+        if (flags.single_link_per_record) {
+            emit_parents.push_back(best->parent_record);
+        } else {
+            emit_parents = parents;
+        }
+        for (u64 p : emit_parents) {
+            /* this link's name: parity mode = the namespace-best name
+             * (best, period); fan-out mode = the highest-namespace
+             * $FILE_NAME WITH THIS PARENT (per-link names - initialized
+             * from this parent's own entries, never the global first
+             * name: a lower-ranked parent's links must still find THEIR
+             * name, not be blocked by a higher-ranked sibling's name). */
+            const FileNameInfo* link_name;
+            if (flags.single_link_per_record) {
+                link_name = best;
+            } else {
+                link_name = nullptr;
+                for (const FileNameInfo& n : names)
+                    if (n.parent_record == p &&
+                        (link_name == nullptr ||
+                         namespace_rank(n.namespace_type) >= namespace_rank(link_name->namespace_type)))
+                        link_name = &n;
+                if (link_name == nullptr)
+                    link_name = best; /* parents derive from names; unreachable */
+            }
             tree::FileProperties* link_props = props;
-            if (parents.size() > 1 || link_name != best) {
+            if ((!flags.single_link_per_record && parents.size() > 1) || link_name != best) {
                 link_props = props->clone();
                 if (link_props == nullptr) {
                     props->release();
