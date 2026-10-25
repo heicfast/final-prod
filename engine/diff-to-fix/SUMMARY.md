@@ -16,7 +16,7 @@ the exact decoded rules, plus `model_says_ssd` (the 0x1724 writer list
 `classify_family` (30+ vendor families — open question #2, decoded),
 the family-0x13 NVMe path, duplicate-attr-id Unknown, the 5/197/198
 all-FF guard asymmetry, and the failing-bit superset properly
-registered as D-62. Evidence:
+registered as D-63. Evidence:
 `evidence/decompiled-quotes/s6-health-grading-decode.md`. 12 new/rewritten
 Health tests (suite 464 on this tree: 460 pass + the 4 pre-existing
 Ext4Engine.Backup* reds owned by the parallel S-027 lane); fail-before by
@@ -25,19 +25,8 @@ Classifier residual: the exotic-vendor thunks stay generic 0/1 — a pure
 data gap, engine consumes all family codes; exact next decode sites
 listed in the evidence §5.
 
-# SUMMARY.md (session 7) — preserved below
+# SUMMARY.md — executive summary (session 7 on top of session 5b; earlier sessions below)
 
-## Closing-session delta — S-031 (2026-10-26)
-
-**S-031 FIXED (this push):** carved files flag Deleted (og FLAGS=0x0020
-constant, 12,147/12,147 corpus census — re-verified first-hand at
-ifileproperties-part3 :82). Both carve emit sites patched (grammar :207 +
-raw-sign :370, the merged-tree second site); `deleted_only` queries and
-`deleted_count` now include the carve population (the product's primary
-deleted-files view no longer drops the only recoverable content after
-metadata destruction). 3 tests, all fail-before proven
-(DeletedOnlyQueryIncludesCarvedFiles is the product-level discriminator);
-suite 491/491 Linux Release.
 ## Session-7 delta (2026-10-26 — the close-all-tiers fix session, low-severity-first order)
 
 Mandate (user-specified ordering): INFORMATIONAL → MINOR → MAJOR → SEVERE →
@@ -235,8 +224,20 @@ table classic / meta-group-0 for meta_bg, verified). Og boot-area rebase
 NOT adopted → **PARITY-DELTAS D-59**. 4 tests (3 fail-before); suite
 434/434 serial; ASan/UBSan fuzz smoke clean.
 
-**Counts after S-027 (direct file inventory):** ACUTE 0 · **SEVERE 8** ·
-MAJOR 34 · MINOR 37 · INFO 18 = **97 active** / **38 FIXED**.
+**S-025 FIXED (this push):** ext4 journal reparenting (the og's two-pass
+model + orphan parent map + iNode%I64d fallback — FUN_180003de0 :2773/:2778,
+FUN_1800043f0 :3077-3145, FUN_1800041e0 :2986-2991, all re-verified first-hand).
+One-structural-pass harvest + topological pre-pass with full inode truth +
+live anchors; claim checks via live_nodes (files too — latent duplicate gap
+closed); sweep skip-set for journal-emitted inodes. 3 tests, all fail-before;
+suite 465/465; ASan/UBSan fuzz smoke clean. The ext4 SEVERE family
+(S-025/S-026/S-027) is now fully closed by this session.
+
+**Counts after S-025 (direct file inventory):** ACUTE 0 · **SEVERE 7** ·
+MAJOR 36 · MINOR 31 · INFO 18 = **92 active** / **53 FIXED** (counts
+re-baselined against the parallel legs' concurrent landings: S-003/S-021
+HFS+ journal pair, S-020 ReFS attribute layer, M-022/M-023/M-026/M-027,
+the minors wave, INFO tier ACKNOWLEDGED).
 
 
 
@@ -1176,6 +1177,13 @@ legs in the same window (S-006, S-011, S-015, S-017, S-018-INVALID, N-021, plus 
 A-002/A-004/S-016/M-009 retirements earlier in the session), and the remaining
 unverifieds are all in tracked-open with precise next artifacts.
 
+<<<<<<< HEAD
+*(Session-4 continuation 4: **M-011 + M-012 + M-015 (MAJOR) FIXED** — the FAT
+factory trio (table windows / mirror scrutiny + mirror-only / whole-table
+validation + copy retry). Counts: 28 MAJOR active, 41 FIXED. Fail-before 2/2 +
+3/3 + 2/2; suite 463/463 Linux ASan after five fixture builders gained the
+canonical FAT16 media pair (real-volume shape).)*
+=======
 
 ---
 
@@ -1236,6 +1244,7 @@ S-007, S-009-partial, S-020, S-023..S-028) · MAJOR 22 · MINOR 33 · INFO 12 ·
 **total active 77** / **35 FIXED** (tracked-open: the existing OQ files, now
 including OQ-S012).
 
+<<<<<<< HEAD
 
 **Fix-session-4 addendum (M-010):** the invalid-UTF-8 name edge closed — ext4/Btrfs
 names now carry a REVERSIBLE encoding of their raw bytes (U+E000 + byte) instead
@@ -1248,7 +1257,7 @@ renumbered **A-006** (findings/ACUTE/A-006-rawfixer-4kn-stack-buffer-overflow.md
 the hfsplus one keeps A-005 (its identity is baked into the Resolution,
 RESOLVED-INDEX, errata E37 and the module docs). Same protocol as the two prior
 collisions (recorded above).
-
+=======
 - **S-025 FIXED** (ext4 journal reparenting): the og's two-pass model —
   pre-walk harvest (parent map from "."/".." pairs; "."-less blocks stay
   owner-less orphans per S-004), post-walk emit reparenting under live
@@ -1261,6 +1270,7 @@ collisions (recorded above).
 
 **Live counts (after S-025):** ACUTE 0 · SEVERE 5 · MAJOR 36 ·
 MINOR 31 · INFO 18 · tracked-open 12 = **90 active** / **56 files in FIXED/**.
+>>>>>>> 24d566f (fix(S-025): ext4 journal reparenting — the og's two-pass model; latent live-file duplicate found and fixed)
 
 - **S-028 FIXED** (btrfs xattrs): KEY_XATTR(24) dispatch — user.DOSATTRIB
   lands the Windows bits on the node (Samba hex text parsed); other user.*
@@ -1272,3 +1282,4 @@ MINOR 31 · INFO 18 · tracked-open 12 = **90 active** / **56 files in FIXED/**.
 
 **Live counts (after S-028):** ACUTE 0 · SEVERE 5 · MAJOR 42 ·
 MINOR 44 · INFO 20 · tracked-open 12 = **111 active** / **60 files in FIXED/**.
+>>>>>>> 0348532f6a7de11bdf94e47f188bbb4e579b0644

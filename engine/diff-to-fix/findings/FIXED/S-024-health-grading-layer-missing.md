@@ -118,7 +118,7 @@ analog and is corrected); life = 100 − percentage_used with > 10 Good /
 == 10 Caution / < 10 Bad (the analog graded 1-9% as Caution — corrected to
 Bad); the Parallels early-Good; media_errors dropped from grading (never
 read by the og's grader). (6) the failing_bit → disk-Bad force is retained
-as the one deliberate superset, now REGISTERED as PARITY-DELTAS D-62 (the
+as the one deliberate superset, now REGISTERED as PARITY-DELTAS D-63 (the
 first landing kept it unregistered). (7) 0xD1 verified consistent with the
 og's internal mirror (:14108-14118 → +0x1569 rows); win layer now extracts
 the model string from IDENTIFY words 27-46 and runs the pure classification

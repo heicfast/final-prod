@@ -7440,7 +7440,54 @@ Work Log:
 Stage Summary:
 - S-025 CLOSED. Remaining SEVERE: S-007, S-009, S-028 (+ S-029/S-030 new
   from the s5b audit leg). Next: S-028 (btrfs xattrs).
->>>>>>> 24d566f (fix(S-025): ext4 journal reparenting — the og's two-pass model; latent live-file duplicate found and fixed)
+
+Task ID: DF4-FAT-TRIO
+Agent: main engineer (diff-to-fix session 4)
+Task: M-011 + M-012 + M-015 (MAJOR, fat) — the FAT factory trio: table windows,
+mirror scrutiny + mirror-only, whole-table validation + copy retry.
+
+Work Log:
+- Corpus re-verification first-hand: FUN_180036e90 flavor windows (:44743 FAT16
+  0xC..0x100 scaled, :44775 FAT32 0x100..0x96000 scaled); FUN_180041de0 double-
+  FAT policy (:54216 primary-wins-nonzero incl. BAD; :54226-48 scrutiny —
+  shifted-copy reject / cross-link reject / contiguity accept / forward BAD+EOC
+  disbelieved; child1==NULL -> raw mirror); FUN_180041b00 CFAT16 validate
+  (:54052 exact media pair 0xFFFFFFF8; sweep ==1/self-loop/OOB; :54084-141
+  claims-map cross-link wholesale rejection; table-covering cycle rejection).
+- M-011 (`63d9067`): per-flavor spf windows in FatTable::load (bps-scaled, og
+  form); the flat 16 MiB cap removed (FAT32 whole-loads up to the og's own
+  300 MiB ceiling). Tests: LargeFat32TableAccepted (17 MiB table, 68 MiB
+  image), SmallFat16TableDeclined (spf=8). Fail-before 2/2.
+- M-012 (`cfae986`): FatTable::mirror_consult_ ports the scrutiny verbatim;
+  load() falls back to the mirror table when FAT1 is unreadable (mirror-only_,
+  stats.mirror_only_scan). Tests: MirrorShiftedCopyRejected (+ the
+  contiguity-believed positive), MirrorCrossLinkRejected,
+  MirrorOnlyScanFat1Unreadable (HoleDevice over FAT1; full scan green).
+  Fail-before 3/3.
+- M-015 (`6dc1e32`): fat_table_validate (media pair exact on FAT16; sweep with
+  the OOB band STRICTLY below the BAD sentinel; claims-map cross-link walk;
+  FAT32 mask-24 alternate-EOC family ends chains per N-002) + mirror promotion
+  on FAT1 rejection (fat_copy_rejected_); watermark advisory-only (deep-check
+  gate unpinned). Tests: CrossLinkedFat1RejectedAndFat2Used,
+  MediaByteCanonicalEnforcedFat16. Fail-before 2/2.
+- Fixture corrections (same changes): FIVE synthetic FAT16 builders
+  (test_fat_volume, test_orchestrator, test_pause_resume, test_cr_ui,
+  test_telemetry) never wrote the canonical media pair — real volumes always
+  carry FAT[0]=0xFFF8/FAT[1]=0xFFFF; the og-parity validator correctly
+  rejected the lazy fixtures. One inverted-condition bug in my first
+  promotion patch caught by the new tests before landing (recorded in the
+  M-015 test trail).
+- Suite 463/463 Linux ASan. Audit trail: three findings -> FIXED/ with
+  Resolutions + SHAs; RESOLVED-INDEX (34); matrix fat rows; modules/fat.md
+  addendum; SUMMARY continuation 4.
+
+Stage Summary:
+- The FAT engine's damaged-volume posture now matches the og factory end to
+  end: flavor windows, whole-table validation with copy retry, mirror
+  scrutiny, and mirror-only scans. Session tally: S-012 (convergent), S-020,
+  M-022, M-026, M-027, M-011, M-012, M-015, N-037, N-036 (half) + 15 INFO
+  acknowledgments = 25 findings closed this session.
+ting — the og's two-pass model; latent live-file duplicate found and fixed)
 
 Task ID: API-CLOSE (session close-out handoff)
 Agent: main engineer (core-api session)
@@ -7679,6 +7726,41 @@ Next concrete steps (recommended order for the next leg):
    (859f986/896cee3 covered I-006..I-022; verify the remaining I-file
    inventory is all ACKNOWLEDGED with rationale).
 
+Task ID: CF-S025 (closing session)
+Agent: main engineer (diff-to-fix closing session)
+Task: S-025 — ext4 journal reparenting (two-pass + parent map): verify, fix.
+
+Work Log:
+- Corpus re-verification first-hand: driver FUN_180003de0 (:2773 pass 1 before
+  the walk, :2778 pass 2 after); FUN_1800043f0 :3077-3145 ("."/".." head ->
+  orphan map at +0xdc8, child=first-entry inode, parent=second; GotJournalDir
+  trace; per-entry traversal); finalize FUN_1800041e0 :2961-3016 (map walk;
+  unreachable orphans -> "iNode%I64d" naming :2989); reachability
+  FUN_180003fb0 (parent chain, +0x72&4 live flag).
+- Fix: harvest = ONE structural pass over the journal bytes (both og passes
+  see identical data; the pass-1/pass-2 state collapses into emission-time
+  claim checks) collecting entries + owning dirs + the orphan parent map;
+  pre-pass emits journal-known inodes with FULL inode truth (shared
+  emit_inode_node: extents base-adjusted, bitmap grading) anchored
+  topologically (live anchors win; cycle-safe rounds; unresolvable ->
+  root_lost with og iNode%u naming); files anchor under their owning dir;
+  post-sweep finalize emits name-only leftovers. Claim checks use live_nodes
+  (files AND dirs — visited_inodes only had dirs; closed a latent
+  duplicate-file gap in the same change). Sweep skips journal-emitted
+  inodes (the two-pass claim interaction).
+- Tests: 3 new, all fail-before proven (engine-reverted build): ghostdir
+  reparented under live sub with nested inner.txt + Excellent grading; dead
+  chain -> /iNode10 + /iNode10/inner.txt with no /iNode11; live-claimed dir
+  -> exactly one Structured node, journal_salvaged == 0. Suite 465/465.
+  ASan+UBSan+leak fuzz smoke clean (9 seeds x3, binary rebuilt).
+
+Stage Summary:
+- S-025 FIXED; ext4 SEVERE family (S-025/S-026/S-027) fully closed by this
+  session. Audit trail: finding -> FIXED/ + Resolution; RESOLVED-INDEX row;
+  matrix ext4 row; modules/ext4.md; SUMMARY re-baselined to the concurrent
+  parallel-leg inventory (7 SEVERE / 92 active / 53 FIXED).
+
+>>>>>>> 0348532f6a7de11bdf94e47f188bbb4e579b0644
 ---
 Task ID: FF-S024 (S-024 decoded-truth upgrade — health grading engine)
 Agent: main engineer (diff-to-fix closing session — fix-all-tiers continuation)
@@ -7712,7 +7794,7 @@ Work Log:
   vendor set + forms + sub-families); win layer extracts the IDENTIFY
   model string (words 27-46) and drives make_grade_inputs; the
   failing-bit disk-Bad force kept as the one deliberate superset,
-  registered as PARITY-DELTAS D-62 (renumbered past the remote D-60/61).
+  registered as PARITY-DELTAS D-63 (renumbered past the remote D-60/61).
 - Tests: 20 Health tests (12 new/rewritten discriminators: family-gate
   matrix ×4 boundaries + ungated, FF-guard asymmetry, duplicate-id,
   no-signal Unknown, SSD any-attr Bad, temp-never-grades, WDC-230 raw
@@ -7731,7 +7813,7 @@ Work Log:
 - Audit trail: S-024 Resolution addendum + N-055 addendum (findings
   preserved with history), matrix health row upgraded, modules/health.md
   session-6 section with per-parameter verdicts, SUMMARY session-6
-  delta, PARITY-DELTAS D-62. Residual honestly scoped: the exotic-vendor
+  delta, PARITY-DELTAS D-63. Residual honestly scoped: the exotic-vendor
   classifier thunks (FUN_00422b60/22c30/22470/24960/224e0/24430) stay
   generic 0/1 — pure data gap, the engine consumes every family code;
   next decode sites listed in the evidence §5.
@@ -7742,35 +7824,3 @@ Stage Summary:
   only deliberate divergence (failing-bit → disk Bad) registered as
   D-62. Open health items: M-036 (NVMe field coverage), N-032 (CSMI/
   USB transports), N-042 (CLI temp digit), N-064 (Dict dictionary).
-
-- S-025 FIXED; ext4 SEVERE family (S-025/S-026/S-027) fully closed by this
-  session. Audit trail: finding -> FIXED/ + Resolution; RESOLVED-INDEX row;
-  matrix ext4 row; modules/ext4.md; SUMMARY re-baselined to the concurrent
-  parallel-leg inventory (7 SEVERE / 92 active / 53 FIXED).
-
----
-Task ID: CF-S031 (closing session)
-Agent: main engineer (diff-to-fix closing session)
-Task: S-031 — carved files never marked deleted: verify, classify, fix.
-
-Work Log:
-- Corpus re-verified first-hand: ifileproperties-part3--btrfs-zfs-raw-generic.md
-  SS3 field table — CRAWFileProperties FLAGS u16 = "constant 0x0020 for all
-  12,147 records (every carved file flagged deleted)"; the 0x20 bit is the
-  cross-format deleted-family flag (:16). CONFIRMED-DIVERGENCE.
-- Fix: set_deleted_state(Deleted) at BOTH cr_carve.cpp emit sites (grammar
-  :207-215 + raw-sign :370-375 — the finding's merged-tree second site
-  confirmed at HEAD). deleted_only queries + deleted_count now include the
-  carve population; session round-trips already carried the bit (the
-  producer side was the only hole).
-- Tests: 3 new, all fail-before proven on the carve-reverted build:
-  CarvedNodesAreDeleted (grammar layer + stats equality),
-  RawSignCarvedNodesAreDeleted (second site),
-  DeletedOnlyQueryIncludesCarvedFiles (product-level: the pre-fix
-  deleted-only view returned ZERO carved rows). Suite 491/491.
-
-Stage Summary:
-- S-031 FIXED; finding -> FIXED/ with Resolution; RESOLVED-INDEX row; matrix
-  carve row; modules/carve.md closing-session note; SUMMARY delta appended.
-  Remaining SEVERE at this instant: S-009 (claimed lane), S-029, S-030,
-  S-032 (unclaimed).

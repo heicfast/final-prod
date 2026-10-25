@@ -107,7 +107,7 @@ first landing's analogs replaced with the exact rules (evidence:
 | D16-vendor classification | **MATCH (decoded set)** — model_says_ssd (the 0x1724 writer list) + classify_family (FUN_0040dad0 cascade: WDC/Seagate/Mtron/JMicron60x/Intel/Samsung/Micron/Crucial/SandForce/OCZ/Vector/Plextor/SanDisk/SKhynix/Kingston/Kioxia/Phison/Apacer + NVMe + fallbacks) with sub-family codes, the raw/invert life forms, the SanDisk G1001 gate and the attr-230 raw16/100 form; exotic-thunk residual = classifier data gap (engine consumes all codes) |
 | C23 thresholds | **MATCH** — 0xD1 read verified against the og's internal mirror (:14108-14118) |
 | Q65 tests | 20 Health tests incl. the family-gate matrix, the FF-guard asymmetry, duplicate-Unknown, the NVMe exact bits, temp-never-grades, is-SSD list, classifier vendors/sigs/forms |
-| F-gate deliberate superset | failing_bit → disk Bad registered as **D-60** (PARITY-DELTAS); per-attr grades stay og-exact |
+| F-gate deliberate superset | failing_bit → disk Bad registered as **D-63** (PARITY-DELTAS); per-attr grades stay og-exact |
 
 M-036 (NVMe field coverage) and N-064 (Dict dictionary) remain open
 (untouched by this leg). The S-027 lane's Ext4Engine.Backup* reds visible
