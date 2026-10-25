@@ -53,6 +53,6 @@ None.
 ## Resolution
 
 **Status:** FIXED
-**Fixed in commit:** (this commit)
+**Fixed in commit:** `63d9067`
 **Verified by:** FatEngine.LargeFat32TableAccepted (fail-before FAILED: the 17 MiB table hit the flat 16 MiB cap -> ERR_BAD_PARAMETER, volume vanished; pass-after: scans, BIG.TXT recovered), FatEngine.SmallFat16TableDeclined (fail-before FAILED: spf=8 accepted as FAT16; pass-after: ERR_BAD_PARAMETER, the og's decline). Suite green (all 33 FAT tests + the rest).
 **Resolution notes:** FatTable::load now applies the og's per-flavor sectors-per-FAT windows (FUN_180036e90 re-read first-hand: FAT12 spf in [1, 0xC], FAT16 [0xC, 0x100], FAT32 [0x100, 0x96000], bounds divided by bps>>9 so they hold at 512b..4Kb sectors): at 512 B the FAT32 window is 128 KiB..300 MiB whole-loaded — matching the og factory that allocates the entire region (:3809-3814). The old flat 16 MiB cap (a core memory-posture guard, not an og behavior) refused every larger FAT32 with ERR_BAD_PARAMETER and scan_fat propagated it as a whole-volume failure; the FAT16 >= 12-sector lower bound was absent. Fix plan step 3 (alternate-region retry on load failure) landed with M-012's mirror-only mode (the factory-level complement); the windowed-accessor alternative for >300 MiB tables is unnecessary — the og's own window tops out at 0x96000 sectors and tables beyond it are declined by BOTH engines now.

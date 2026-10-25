@@ -6806,3 +6806,51 @@ Stage Summary:
 - INFORMATIONAL tier: 18/18 findings ACKNOWLEDGED (3 earlier + 15 this batch).
   Session tally so far: S-012 (convergent), S-020, M-022, M-026, M-027, N-037,
   N-036 (half), + 15 INFO acknowledgments.
+
+---
+Task ID: DF4-FAT-TRIO
+Agent: main engineer (diff-to-fix session 4)
+Task: M-011 + M-012 + M-015 (MAJOR, fat) — the FAT factory trio: table windows,
+mirror scrutiny + mirror-only, whole-table validation + copy retry.
+
+Work Log:
+- Corpus re-verification first-hand: FUN_180036e90 flavor windows (:44743 FAT16
+  0xC..0x100 scaled, :44775 FAT32 0x100..0x96000 scaled); FUN_180041de0 double-
+  FAT policy (:54216 primary-wins-nonzero incl. BAD; :54226-48 scrutiny —
+  shifted-copy reject / cross-link reject / contiguity accept / forward BAD+EOC
+  disbelieved; child1==NULL -> raw mirror); FUN_180041b00 CFAT16 validate
+  (:54052 exact media pair 0xFFFFFFF8; sweep ==1/self-loop/OOB; :54084-141
+  claims-map cross-link wholesale rejection; table-covering cycle rejection).
+- M-011 (`63d9067`): per-flavor spf windows in FatTable::load (bps-scaled, og
+  form); the flat 16 MiB cap removed (FAT32 whole-loads up to the og's own
+  300 MiB ceiling). Tests: LargeFat32TableAccepted (17 MiB table, 68 MiB
+  image), SmallFat16TableDeclined (spf=8). Fail-before 2/2.
+- M-012 (`cfae986`): FatTable::mirror_consult_ ports the scrutiny verbatim;
+  load() falls back to the mirror table when FAT1 is unreadable (mirror-only_,
+  stats.mirror_only_scan). Tests: MirrorShiftedCopyRejected (+ the
+  contiguity-believed positive), MirrorCrossLinkRejected,
+  MirrorOnlyScanFat1Unreadable (HoleDevice over FAT1; full scan green).
+  Fail-before 3/3.
+- M-015 (`6dc1e32`): fat_table_validate (media pair exact on FAT16; sweep with
+  the OOB band STRICTLY below the BAD sentinel; claims-map cross-link walk;
+  FAT32 mask-24 alternate-EOC family ends chains per N-002) + mirror promotion
+  on FAT1 rejection (fat_copy_rejected_); watermark advisory-only (deep-check
+  gate unpinned). Tests: CrossLinkedFat1RejectedAndFat2Used,
+  MediaByteCanonicalEnforcedFat16. Fail-before 2/2.
+- Fixture corrections (same changes): FIVE synthetic FAT16 builders
+  (test_fat_volume, test_orchestrator, test_pause_resume, test_cr_ui,
+  test_telemetry) never wrote the canonical media pair — real volumes always
+  carry FAT[0]=0xFFF8/FAT[1]=0xFFFF; the og-parity validator correctly
+  rejected the lazy fixtures. One inverted-condition bug in my first
+  promotion patch caught by the new tests before landing (recorded in the
+  M-015 test trail).
+- Suite 463/463 Linux ASan. Audit trail: three findings -> FIXED/ with
+  Resolutions + SHAs; RESOLVED-INDEX (34); matrix fat rows; modules/fat.md
+  addendum; SUMMARY continuation 4.
+
+Stage Summary:
+- The FAT engine's damaged-volume posture now matches the og factory end to
+  end: flavor windows, whole-table validation with copy retry, mirror
+  scrutiny, and mirror-only scans. Session tally: S-012 (convergent), S-020,
+  M-022, M-026, M-027, M-011, M-012, M-015, N-037, N-036 (half) + 15 INFO
+  acknowledgments = 25 findings closed this session.

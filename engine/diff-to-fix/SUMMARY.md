@@ -953,3 +953,9 @@ OQ-T8/OQ-T9/GAP-ADS resolved, 7 findings fixed or dispositioned by the parallel 
 legs in the same window (S-006, S-011, S-015, S-017, S-018-INVALID, N-021, plus the
 A-002/A-004/S-016/M-009 retirements earlier in the session), and the remaining
 unverifieds are all in tracked-open with precise next artifacts.
+
+*(Session-4 continuation 4: **M-011 + M-012 + M-015 (MAJOR) FIXED** — the FAT
+factory trio (table windows / mirror scrutiny + mirror-only / whole-table
+validation + copy retry). Counts: 28 MAJOR active, 41 FIXED. Fail-before 2/2 +
+3/3 + 2/2; suite 463/463 Linux ASan after five fixture builders gained the
+canonical FAT16 media pair (real-volume shape).)*

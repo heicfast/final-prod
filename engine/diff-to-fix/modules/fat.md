@@ -188,3 +188,21 @@ rejects; mirror-only mode) stays open.
 - **FAT copy-compare reporting** — folded into `M-041` (the check phase):
   the og reports FAT1/FAT2 disagreement (0x1005) as an audit error; the
   core's mirror arbitration (cr_chain.cpp:109-118) chooses silently.
+
+## Session-4 addendum (M-011 / M-012 / M-015 FIXED — the FAT factory trio)
+
+- **B1/S35/X49 → M-011 FIXED:** per-flavor sectors-per-FAT windows exactly per
+  the og's child-table validation (FUN_180036e90): FAT12 [1,12], FAT16 [12,256],
+  FAT32 [256,614400] sectors (bps-scaled) - the 300 MiB whole-load ceiling
+  matches the og factory's own allocation; the flat 16 MiB cap is gone.
+- **A27/B2/S35 → M-012 FIXED:** the og's mirror scrutiny ported verbatim
+  (FUN_180041de0 :54226-48): backward answers reject shifted copies and
+  cross-links, believe only contiguity; forward answers disbelieve mirror
+  BAD/EOC; mirror-only scans (child1==NULL) load the raw mirror instead of
+  failing the volume. N-022's primary-FREE consult remains the entry gate.
+- **B1/B3/A27 → M-015 FIXED:** whole-table validation (FUN_180041b00): exact
+  media pair on FAT16 (family-tolerant 12/32), entry sweep (==1/self-loop/OOB
+  in [n,BAD)), claims-map cross-link wholesale rejection, mirror promotion on
+  FAT1 rejection; the 98% watermark stays advisory (deep-check gate unpinned).
+- The FAT engine's damaged-volume posture now matches the og factory: windows,
+  validation, scrutiny, retry, mirror-only.
