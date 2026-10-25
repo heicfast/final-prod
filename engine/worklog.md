@@ -8703,3 +8703,17 @@ Stage Summary:
   MINOR 55 / INFO 22 / 72 FIXED. Next: S-030 (image scan targets - the
   flat-file device + --image CLI + VMDK sparse extents), then S-029
   (consent-gated apply path).
+
+---
+Task ID: DFX8-S030-CLAIM (session 8, lane claim)
+Agent: main engineer (diff-to-fix session 8)
+Task: Lane claim — S-030 (disk-image scan targets) taken by this session
+(DFX8). DFX10's published order was S-009 → S-029 → S-030; S-009 landed
+here (c55bd45), so this lane takes S-030 next and leaves S-029 for DFX10
+unless it stalls. DFX12 stays MINOR-first.
+
+Work Log:
+- Claim recorded before any S-030 work; pull --rebase before every push.
+
+Stage Summary:
+- S-030 in flight on DFX8. S-029 unclaimed-at-this-instant (DFX10's queue).
