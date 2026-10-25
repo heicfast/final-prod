@@ -13,9 +13,7 @@ import {
 } from 'lucide-react';
 import { useDevices, useRefreshDevices } from '@/queries/devices';
 import { useStartScan } from '@/queries/scan';
-import { formatBytes } from '@/lib/format';
 import { cn } from '@/lib/utils';
-import { Badge } from '@/components/ui/badge';
 import { EmptyState } from '@/components/ui/empty-state';
 import { Skeleton } from '@/components/ui/skeleton';
 import { toast } from 'sonner';
@@ -130,24 +128,20 @@ const RESCUE_DISK_SPECS: readonly RescueDiskSpec[] = [
 ];
 
 /**
- * Lost Partition Rescue — 3-step production flow:
- * - Step 1 ('landing'): 3 partition rescue scenarios + "Start" button + segmented disc illustration (landing-sidebar-lostpartition-page_04acc766.png)
- * - Step 2 ('select-disk'): "Choose a disk to start searching for lost partition(s)" with Disk 2, Disk 0, Disk 1 cards, segmented partition bars, BitLocker lock icons, "Go to Hardware Disk" link, and "Search for Lost Partition" CTA (Screenshot_2026-10-25_015251_c30d29c5.png)
- * - Step 3 ('scan-completed'): "Smart Partition Scan Completed", found partitions table with "Double click the partition to explore the content." banner, "Preview for disk 2" bar, and "Try Data Recovery" CTA (Screenshot_2026-10-25_015717_8af44478.png).
+ * Lost Partition Rescue — 2-step direct flow (no Start landing screen):
+ * - Step 1 ('select-disk'): "Choose a disk to start searching for lost partition(s)" with Disk 2, Disk 0, Disk 1 cards, segmented partition bars, BitLocker lock icons, "Go to Hardware Disk" link, and "Search for Lost Partition" CTA (Screenshot_2026-10-25_015251_c30d29c5.png)
+ * - Step 2 ('scan-completed'): "Smart Partition Scan Completed", found partitions table with "Double click the partition to explore the content." banner, "Preview for disk 2" bar, and "Try Data Recovery" CTA (Screenshot_2026-10-25_015717_8af44478.png).
  */
 export function LostPartitionPage(): React.JSX.Element {
-  const { t, i18n } = useTranslation();
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const devicesQuery = useDevices();
   const refresh = useRefreshDevices();
   const startScan = useStartScan();
 
-  const [step, setStep] = React.useState<'landing' | 'select-disk' | 'scan-completed'>(
-    'landing',
-  );
+  const [step, setStep] = React.useState<'select-disk' | 'scan-completed'>('select-disk');
   const [selectedSpecId, setSelectedSpecId] = React.useState<string>('disk-2');
   const [showInfoTip, setShowInfoTip] = React.useState(true);
-  const [showDiskPicker, setShowDiskPicker] = React.useState(false);
 
   const disks = (devicesQuery.data ?? []).filter(
     (d) => d.kind !== 'virtual' && d.canScanWholeDisk,
@@ -198,138 +192,7 @@ export function LostPartitionPage(): React.JSX.Element {
     );
   }
 
-  /* Step 2: Disk Selection (matching Screenshot_2026-10-25_015251_c30d29c5.png) */
-  if (step === 'select-disk') {
-    return (
-      <div className="flex h-full min-h-0 flex-col justify-between overflow-y-auto px-8 py-6">
-        <div>
-          {/* Header with inline refresh icon */}
-          <div className="flex items-center gap-2.5">
-            <h1 className="text-[20px] font-bold tracking-tight text-[#1E293B] dark:text-foreground">
-              {t('lostPartition.title')}
-            </h1>
-            <button
-              type="button"
-              onClick={() => void refresh.mutate()}
-              disabled={refresh.isPending}
-              aria-label={t('home.refreshDevices')}
-              title={t('home.refreshDevices')}
-              className="inline-flex size-7 items-center justify-center rounded-full text-[#1E293B] transition-colors hover:bg-[#E2E8F0]/70 hover:text-[#1677FF] dark:text-foreground dark:hover:bg-surface-hover"
-            >
-              <RefreshCcwIcon
-                className={cn('size-4', refresh.isPending && 'animate-spin')}
-                aria-hidden
-              />
-            </button>
-          </div>
-          <p className="mt-1 text-[13px] text-[#64748B] dark:text-foreground-secondary">
-            Choose a disk to start searching for lost partition(s)
-          </p>
-
-          {/* Disk Cards Stack (Disk 2, Disk 0, Disk 1) */}
-          <div
-            role="radiogroup"
-            aria-label={t('lostPartition.diskList')}
-            className="mt-5 space-y-3.5"
-          >
-            {RESCUE_DISK_SPECS.map((spec) => {
-              const isSelected = spec.id === selectedSpec.id;
-              return (
-                <div
-                  key={spec.id}
-                  role="radio"
-                  aria-checked={isSelected}
-                  tabIndex={0}
-                  onClick={() => setSelectedSpecId(spec.id)}
-                  onDoubleClick={() => {
-                    setSelectedSpecId(spec.id);
-                    setStep('scan-completed');
-                  }}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter' || e.key === ' ') {
-                      e.preventDefault();
-                      setSelectedSpecId(spec.id);
-                    }
-                  }}
-                  className={cn(
-                    'cursor-pointer rounded-[10px] border-2 px-4 py-3 transition-all outline-none focus-visible:ring-2 focus-visible:ring-ring',
-                    isSelected
-                      ? 'border-[#1677FF] bg-[#E8F1FF] dark:border-primary dark:bg-surface-selected'
-                      : 'border-transparent bg-[#F4F7FC] hover:border-[#BFDBFE] hover:bg-[#EDF4FF] dark:bg-surface-elevated dark:hover:border-primary/50',
-                  )}
-                >
-                  <div className="mb-2 flex items-center justify-between gap-2">
-                    <span className="text-[12.5px] font-medium text-[#475569] dark:text-foreground-secondary">
-                      {spec.headerTitle}
-                    </span>
-                    {spec.isUsb ? (
-                      <UsbIcon
-                        className="size-4 text-[#1677FF] dark:text-primary"
-                        strokeWidth={1.75}
-                        aria-hidden
-                      />
-                    ) : null}
-                  </div>
-
-                  {/* Partition Segment Bar(s) */}
-                  <div className="grid grid-cols-4 gap-1.5">
-                    {spec.segments.map((seg, idx) => (
-                      <div
-                        key={idx}
-                        className={cn(
-                          'rounded-[6px] border border-[#E2ECF9] bg-white px-3.5 py-2.5 dark:border-border dark:bg-surface',
-                          seg.colSpanClass ?? 'col-span-1',
-                        )}
-                      >
-                        <div className="flex items-center gap-1.5 text-[12.5px] font-bold text-[#1E293B] dark:text-foreground">
-                          <span className="truncate">{seg.label}</span>
-                          {seg.bitlocker ? (
-                            <span
-                              className="inline-flex size-4 shrink-0 items-center justify-center rounded-xs bg-[#E2E8F0] text-[#1677FF]"
-                              title="BitLocker"
-                            >
-                              <LockOpenIcon className="size-3" aria-hidden />
-                            </span>
-                          ) : null}
-                        </div>
-                        <div className="mt-0.5 text-[11.5px] text-[#64748B] tabular dark:text-foreground-secondary">
-                          {seg.size}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-
-        {/* Bottom Footer Bar: Left "Go to Hardware Disk" link + Right "Search for Lost Partition" CTA */}
-        <div className="mt-5 flex flex-wrap items-center justify-between gap-4 pt-2">
-          <div className="text-[13px] text-[#64748B] dark:text-foreground-secondary">
-            <span>Need to recover deleted or lost files? </span>
-            <button
-              type="button"
-              onClick={() => void navigate('/')}
-              className="font-medium text-[#1677FF] underline decoration-[#1677FF]/60 underline-offset-2 hover:text-[#0958D9] dark:text-primary"
-            >
-              Go to Hardware Disk
-            </button>
-          </div>
-
-          <button
-            type="button"
-            onClick={() => setStep('scan-completed')}
-            className="inline-flex h-10 min-w-[204px] items-center justify-center rounded-[8px] bg-[#1677FF] px-6 text-[13.5px] font-semibold text-white shadow-xs transition-all hover:bg-[#0958D9] active:scale-[var(--press-scale)] focus-visible:ring-2 focus-visible:ring-ring dark:bg-primary dark:text-primary-foreground dark:hover:bg-primary-hover"
-          >
-            Search for Lost Partition
-          </button>
-        </div>
-      </div>
-    );
-  }
-
-  /* Step 3: Smart Partition Scan Completed (matching Screenshot_2026-10-25_015717_8af44478.png) */
+  /* Step 2: Smart Partition Scan Completed (matching Screenshot_2026-10-25_015717_8af44478.png) */
   if (step === 'scan-completed') {
     return (
       <div className="flex h-full min-h-0 flex-col justify-between overflow-y-auto px-8 py-5">
@@ -491,176 +354,132 @@ export function LostPartitionPage(): React.JSX.Element {
     );
   }
 
-  /* Step 1: Landing Overview (matching landing-sidebar-lostpartition-page_04acc766.png) */
+  /* Step 1: Disk Selection (matching Screenshot_2026-10-25_015251_c30d29c5.png) */
   return (
-    <div className="h-full overflow-y-auto px-8 py-6">
-      <div className="mx-auto w-full max-w-5xl">
-        {/* Reference Header */}
-        <div>
+    <div className="flex h-full min-h-0 flex-col justify-between overflow-y-auto px-8 py-6">
+      <div>
+        {/* Header with inline refresh icon */}
+        <div className="flex items-center gap-2.5">
           <h1 className="text-[20px] font-bold tracking-tight text-[#1E293B] dark:text-foreground">
             {t('lostPartition.title')}
           </h1>
-          <p className="mt-1.5 text-[13px] text-[#64748B] dark:text-foreground-secondary">
-            {t('lostPartition.subtitle')}
-          </p>
+          <button
+            type="button"
+            onClick={() => void refresh.mutate()}
+            disabled={refresh.isPending}
+            aria-label={t('home.refreshDevices')}
+            title={t('home.refreshDevices')}
+            className="inline-flex size-7 items-center justify-center rounded-full text-[#1E293B] transition-colors hover:bg-[#E2E8F0]/70 hover:text-[#1677FF] dark:text-foreground dark:hover:bg-surface-hover"
+          >
+            <RefreshCcwIcon
+              className={cn('size-4', refresh.isPending && 'animate-spin')}
+              aria-hidden
+            />
+          </button>
         </div>
-
-        {/* Two-column reference split: 3 partition rows + Start CTA on left, disc illustration on right */}
-        <div className="mt-9 flex flex-col items-start justify-between gap-8 lg:flex-row lg:items-center">
-          <div className="max-w-lg space-y-6">
-            <PartitionScenarioRow
-              kind="missing"
-              title={t('lostPartition.scenarioMissing.title')}
-              body={t('lostPartition.scenarioMissing.body')}
-            />
-            <PartitionScenarioRow
-              kind="unopenable"
-              title={t('lostPartition.scenarioUnopenable.title')}
-              body={t('lostPartition.scenarioUnopenable.body')}
-            />
-            <PartitionScenarioRow
-              kind="bitlocker"
-              title={t('lostPartition.scenarioBitlocker.title')}
-              body={t('lostPartition.scenarioBitlocker.body')}
-              note={t('lostPartition.bitlockerNote')}
-            />
-
-            <div className="flex flex-wrap items-center gap-3 pt-3">
-              <button
-                type="button"
-                disabled={startScan.isPending}
-                onClick={() => setStep('select-disk')}
-                className="inline-flex h-10 w-[136px] items-center justify-center rounded-[6px] bg-[#1677FF] text-[14px] font-semibold text-white shadow-xs transition-all hover:bg-[#0958D9] active:scale-[var(--press-scale)] focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50 dark:bg-primary dark:text-primary-foreground dark:hover:bg-primary-hover"
-              >
-                {t('lostPartition.start')}
-              </button>
-              {disks.length > 1 ? (
-                <button
-                  type="button"
-                  onClick={() => setShowDiskPicker((v) => !v)}
-                  className="text-[12.5px] font-medium text-[#64748B] underline decoration-[#CBD5E1] underline-offset-4 hover:text-[#0958D9] dark:text-foreground-secondary dark:hover:text-primary"
-                >
-                  {t('lostPartition.diskList')} ({disks[0]?.label})
-                </button>
-              ) : null}
-            </div>
-          </div>
-
-          <div className="flex w-full justify-center lg:w-auto">
-            <LostPartitionIllustration />
-          </div>
-        </div>
-
-        {/* Optional quick disk list on Step 1 */}
-        {showDiskPicker && disks.length > 0 ? (
-          <div className="mt-8 border-t border-[#E2E8F0] pt-5 dark:border-border">
-            <h2 className="mb-3 text-[13px] font-semibold text-[#475569] dark:text-foreground-secondary">
-              {t('lostPartition.diskList')}
-            </h2>
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-              {disks.map((disk) => (
-                <button
-                  key={disk.id}
-                  type="button"
-                  onClick={() => beginDataRecovery(disk.id)}
-                  className="flex items-center gap-3.5 rounded-[10px] border border-[#E2E8F0] bg-[#F8FAFD] px-4 py-3 text-left transition-all hover:border-[#93C5FD] hover:bg-[#EFF5FF] dark:border-border dark:bg-surface-elevated"
-                >
-                  <div className="flex size-10 shrink-0 items-center justify-center rounded-md bg-[#EBF3FF] text-[#1677FF] dark:bg-surface-tint dark:text-primary">
-                    <UsbIcon className="size-5" strokeWidth={1.5} aria-hidden />
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-2">
-                      <span className="truncate text-[13.5px] font-semibold text-[#1E293B] dark:text-foreground">
-                        {disk.label}
-                      </span>
-                      {disk.volumes.some((v) => v.lostPartition) ? (
-                        <Badge variant="primary">{t('home.lostPartitionBadge')}</Badge>
-                      ) : null}
-                    </div>
-                    <div className="text-[12px] text-[#64748B] tabular dark:text-foreground-secondary">
-                      {disk.model} · {formatBytes(disk.capacity.totalBytes, i18n.language)}
-                    </div>
-                  </div>
-                </button>
-              ))}
-            </div>
-          </div>
-        ) : null}
-      </div>
-    </div>
-  );
-}
-
-function PartitionScenarioRow({
-  kind,
-  title,
-  body,
-  note,
-}: {
-  kind: 'missing' | 'unopenable' | 'bitlocker';
-  title: string;
-  body: string;
-  note?: string;
-}): React.JSX.Element {
-  return (
-    <div className="flex items-start gap-4">
-      <div
-        className="mt-0.5 flex size-10 shrink-0 items-center justify-center rounded-full bg-[#F1F5F9] dark:bg-surface-elevated"
-        aria-hidden
-      >
-        <svg viewBox="0 0 24 24" fill="none" className="size-5">
-          <circle cx="11" cy="11" r="7" stroke="#475569" strokeWidth="1.5" />
-          <circle cx="11" cy="11" r="2" fill="#475569" />
-          {kind === 'missing' ? (
-            <circle cx="17" cy="17" r="4.5" fill="#1677FF" />
-          ) : kind === 'unopenable' ? (
-            <path d="M16 14L20 20H12L16 14Z" fill="#1677FF" />
-          ) : (
-            <rect x="13.5" y="13.5" width="7" height="6" rx="1.2" fill="#1677FF" />
-          )}
-        </svg>
-      </div>
-      <div className="min-w-0">
-        <div className="text-[14px] font-bold text-[#1E293B] dark:text-foreground">{title}</div>
-        <p className="mt-0.5 text-[12.5px] leading-relaxed text-[#64748B] dark:text-foreground-secondary">
-          {body}
+        <p className="mt-1 text-[13px] text-[#64748B] dark:text-foreground-secondary">
+          {t('lostPartition.subtitle')}
         </p>
-        {note ? <span className="sr-only">{note}</span> : null}
+
+        {/* Disk Cards Stack (Disk 2, Disk 0, Disk 1) */}
+        <div
+          role="radiogroup"
+          aria-label={t('lostPartition.diskList')}
+          className="mt-5 space-y-3.5"
+        >
+          {RESCUE_DISK_SPECS.map((spec) => {
+            const isSelected = spec.id === selectedSpec.id;
+            return (
+              <div
+                key={spec.id}
+                role="radio"
+                aria-checked={isSelected}
+                tabIndex={0}
+                onClick={() => setSelectedSpecId(spec.id)}
+                onDoubleClick={() => {
+                  setSelectedSpecId(spec.id);
+                  setStep('scan-completed');
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    setSelectedSpecId(spec.id);
+                  }
+                }}
+                className={cn(
+                  'cursor-pointer rounded-[10px] border-2 px-4 py-3 transition-all outline-none focus-visible:ring-2 focus-visible:ring-ring',
+                  isSelected
+                    ? 'border-[#1677FF] bg-[#E8F1FF] dark:border-primary dark:bg-surface-selected'
+                    : 'border-transparent bg-[#F4F7FC] hover:border-[#BFDBFE] hover:bg-[#EDF4FF] dark:bg-surface-elevated dark:hover:border-primary/50',
+                )}
+              >
+                <div className="mb-2 flex items-center justify-between gap-2">
+                  <span className="text-[12.5px] font-medium text-[#475569] dark:text-foreground-secondary">
+                    {spec.headerTitle}
+                  </span>
+                  {spec.isUsb ? (
+                    <UsbIcon
+                      className="size-4 text-[#1677FF] dark:text-primary"
+                      strokeWidth={1.75}
+                      aria-hidden
+                    />
+                  ) : null}
+                </div>
+
+                {/* Partition Segment Bar(s) */}
+                <div className="grid grid-cols-4 gap-1.5">
+                  {spec.segments.map((seg, idx) => (
+                    <div
+                      key={idx}
+                      className={cn(
+                        'rounded-[6px] border border-[#E2ECF9] bg-white px-3.5 py-2.5 dark:border-border dark:bg-surface',
+                        seg.colSpanClass ?? 'col-span-1',
+                      )}
+                    >
+                      <div className="flex items-center gap-1.5 text-[12.5px] font-bold text-[#1E293B] dark:text-foreground">
+                        <span className="truncate">{seg.label}</span>
+                        {seg.bitlocker ? (
+                          <span
+                            className="inline-flex size-4 shrink-0 items-center justify-center rounded-xs bg-[#E2E8F0] text-[#1677FF]"
+                            title="BitLocker"
+                          >
+                            <LockOpenIcon className="size-3" aria-hidden />
+                          </span>
+                        ) : null}
+                      </div>
+                      <div className="mt-0.5 text-[11.5px] text-[#64748B] tabular dark:text-foreground-secondary">
+                        {seg.size}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Bottom Footer Bar: Left "Go to Hardware Disk" link + Right "Search for Lost Partition" CTA */}
+      <div className="mt-5 flex flex-wrap items-center justify-between gap-4 pt-2">
+        <div className="text-[13px] text-[#64748B] dark:text-foreground-secondary">
+          <span>Need to recover deleted or lost files? </span>
+          <button
+            type="button"
+            onClick={() => void navigate('/')}
+            className="font-medium text-[#1677FF] underline decoration-[#1677FF]/60 underline-offset-2 hover:text-[#0958D9] dark:text-primary"
+          >
+            Go to Hardware Disk
+          </button>
+        </div>
+
+        <button
+          type="button"
+          onClick={() => setStep('scan-completed')}
+          className="inline-flex h-10 min-w-[204px] items-center justify-center rounded-[8px] bg-[#1677FF] px-6 text-[13.5px] font-semibold text-white shadow-xs transition-all hover:bg-[#0958D9] active:scale-[var(--press-scale)] focus-visible:ring-2 focus-visible:ring-ring dark:bg-primary dark:text-primary-foreground dark:hover:bg-primary-hover"
+        >
+          Search for Lost Partition
+        </button>
       </div>
     </div>
-  );
-}
-
-function LostPartitionIllustration(): React.JSX.Element {
-  return (
-    <svg
-      viewBox="0 0 310 230"
-      fill="none"
-      className="h-[210px] w-[290px] select-none"
-      aria-hidden
-    >
-      <ellipse cx="155" cy="212" rx="125" ry="12" fill="#EBF2FF" />
-
-      {/* Segmented Disc Platter */}
-      <g transform="translate(36, 36)">
-        <circle cx="76" cy="76" r="68" fill="#DBEAFE" stroke="#93C5FD" strokeWidth="2" />
-        {/* Missing top-right wedge cutout */}
-        <path d="M76 76L76 8A68 68 0 0 1 144 76Z" fill="white" />
-        {/* Partition segment lines */}
-        <line x1="76" y1="76" x2="20" y2="36" stroke="white" strokeWidth="2.5" />
-        <line x1="76" y1="76" x2="36" y2="132" stroke="white" strokeWidth="2.5" />
-        <line x1="76" y1="76" x2="144" y2="76" stroke="white" strokeWidth="2.5" />
-        <circle cx="76" cy="76" r="22" fill="white" stroke="#93C5FD" strokeWidth="2" />
-        <circle cx="76" cy="76" r="8" fill="#BFDBFE" />
-      </g>
-
-      {/* Extracted Blue Partition Wedge */}
-      <path
-        d="M128 96L128 38A58 58 0 0 1 186 96Z"
-        fill="#3B82F6"
-        stroke="#1677FF"
-        strokeWidth="1.5"
-      />
-    </svg>
   );
 }

@@ -67,6 +67,7 @@ export const zhCN: TranslationSchema = {
   nav: {
     home: '首页',
     upOneLevel: '上一级',
+    settings: '设置',
     about: '关于',
     backToDevices: '重新选择设备',
   },
@@ -145,22 +146,8 @@ export const zhCN: TranslationSchema = {
   },
   lostPartition: {
     title: '丢失分区救援',
-    subtitle: '即时恢复丢失或损坏的分区',
-    scenarioMissing: {
-      title: '分区丢失',
-      body: '恢复在磁盘管理中显示为“未分配空间”或“RAW”的分区',
-    },
-    scenarioUnopenable: {
-      title: '分区无法打开',
-      body: '修复提示“拒绝访问”或“需要格式化”的分区',
-    },
-    scenarioBitlocker: {
-      title: 'BitLocker 分区丢失/损坏',
-      body: '修复丢失或损坏的 BitLocker 加密分区',
-    },
-    bitlockerNote: '加密卷需要提供 BitLocker 恢复密钥。',
+    subtitle: '选择磁盘以开始搜索丢失的分区',
     diskList: '选择要搜索的磁盘',
-    start: '开始',
   },
   scan: {
     filesFoundWithSize: '已找到文件：{{count}}（{{size}}）',
@@ -388,10 +375,6 @@ export const zhCN: TranslationSchema = {
   repair: {
     title: '修复损坏的视频、照片和文档',
     introBody: '添加损坏的文件即可轻松修复。',
-    featureVideo: '修复损坏或无法播放的视频',
-    featurePhoto: '修复受损或部分缺失的照片',
-    featureDoc: '修复损坏或无法打开的文档',
-    start: '开始',
     findings: '发现的问题',
     noFindings: '未发现可修复的问题。',
     fix: '修复 {{count}} 个问题',

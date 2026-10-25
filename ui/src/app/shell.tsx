@@ -3,15 +3,20 @@ import { NavLink, Outlet, useLocation, useNavigate } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import { getCurrentWindow } from '@tauri-apps/api/window';
 import {
+  HelpCircleIcon,
   KeyRoundIcon,
   LanguagesIcon,
   MenuIcon,
+  MoonIcon,
   PanelLeftCloseIcon,
   PanelLeftOpenIcon,
   RefreshCcwIcon,
+  SettingsIcon,
   ShoppingCartIcon,
+  SunIcon,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { useTheme } from './theme';
 import { useScanSessionStore } from '@/stores/scan-session-store';
 import { useUiStore } from '@/stores/ui-store';
 import { DevPanel, PerfOverlay } from '@/features/dev-panel/dev-panel';
@@ -23,6 +28,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/menus';
+import { AboutDialog } from '@/features/settings-about/about-dialog';
 import { ActivationDialog } from '@/features/settings-about/activation-dialog';
 import { setLocale, SUPPORTED_LOCALES } from '@/i18n';
 import { WindowControls } from '@/components/ui/window-controls';
@@ -93,9 +99,11 @@ const NAV_BACKUP = [
 
 export function WizardShell(): React.JSX.Element {
   const { t } = useTranslation();
+  const { resolved, setMode } = useTheme();
   const active = useScanSessionStore((s) => s.active);
   const navigate = useNavigate();
   const location = useLocation();
+  const [aboutOpen, setAboutOpen] = React.useState(false);
   const [activationOpen, setActivationOpen] = React.useState(false);
   const sidebarCollapsed = useUiStore((s) => s.sidebarCollapsed);
   const toggleSidebar = useUiStore((s) => s.toggleSidebar);
@@ -191,21 +199,28 @@ export function WizardShell(): React.JSX.Element {
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
-              <DropdownMenuItem onClick={() => setActivationOpen(true)}>
-                {t('activation.open')}
+              <DropdownMenuItem onClick={() => navigate('/settings')}>
+                <SettingsIcon className="size-3.5" aria-hidden />
+                <span>{t('nav.settings')}</span>
               </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => navigate('/health')}>
-                {t('sidebar.diskHealth')}
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => navigate('/backup')}>
-                {t('sidebar.chronoSnap')}
+              <DropdownMenuItem
+                onClick={() => setMode(resolved === 'dark' ? 'light' : 'dark')}
+              >
+                {resolved === 'dark' ? (
+                  <SunIcon className="size-3.5" aria-hidden />
+                ) : (
+                  <MoonIcon className="size-3.5" aria-hidden />
+                )}
+                <span>
+                  {t('settings.theme')}:{' '}
+                  {resolved === 'dark' ? t('settings.themeLight') : t('settings.themeDark')}
+                </span>
               </DropdownMenuItem>
               <DropdownMenuSeparator />
-              {SUPPORTED_LOCALES.map((loc) => (
-                <DropdownMenuItem key={loc} onClick={() => setLocale(loc)}>
-                  {loc === 'en' ? 'English' : '简体中文'}
-                </DropdownMenuItem>
-              ))}
+              <DropdownMenuItem onClick={() => setAboutOpen(true)}>
+                <HelpCircleIcon className="size-3.5" aria-hidden />
+                <span>{t('nav.about')}</span>
+              </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
 
@@ -338,6 +353,7 @@ export function WizardShell(): React.JSX.Element {
       </div>
 
       {import.meta.env.DEV ? <DevSurfaces /> : null}
+      <AboutDialog open={aboutOpen} onOpenChange={setAboutOpen} />
       <ActivationDialog open={activationOpen} onOpenChange={setActivationOpen} />
     </div>
   );

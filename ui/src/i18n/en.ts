@@ -66,6 +66,7 @@ export const en = {
   nav: {
     home: 'Home',
     upOneLevel: 'Up one level',
+    settings: 'Settings',
     about: 'About',
     backToDevices: 'Choose another device',
   },
@@ -147,22 +148,8 @@ export const en = {
   },
   lostPartition: {
     title: 'Lost Partition Rescue',
-    subtitle: 'Instantly recover missing or damaged partitions',
-    scenarioMissing: {
-      title: 'Partition Missing',
-      body: 'Recover partitions showing as "Unallocated Space" or "RAW" in Disk Management',
-    },
-    scenarioUnopenable: {
-      title: 'Partition Cannot Be Opened',
-      body: 'Fix partitions displaying "Access Denied" or "Format Required" prompts',
-    },
-    scenarioBitlocker: {
-      title: 'BitLocker Partition Missing/Damaged',
-      body: 'Repair lost or corrupted BitLocker partitions',
-    },
-    bitlockerNote: 'Encrypted volumes require the BitLocker recovery key.',
+    subtitle: 'Choose a disk to start searching for lost partition(s)',
     diskList: 'Choose a disk to search',
-    start: 'Start',
   },
   scan: {
     filesFoundWithSize: 'Files Found: {{count}} ({{size}})',
@@ -396,10 +383,6 @@ export const en = {
   repair: {
     title: 'Repair Corrupted Videos, Photos and Documents',
     introBody: 'Add corrupted files to easily repair them.',
-    featureVideo: 'Repair corrupted or unplayable videos',
-    featurePhoto: 'Repair damaged or partially missing photos',
-    featureDoc: 'Repair damaged or cannot be opened documents',
-    start: 'Start',
     findings: 'Findings',
     noFindings: 'No repairable problems were found.',
     fix: 'Repair {{count}} problem',

@@ -81,17 +81,13 @@ describe('reference UI surfaces and sidebar', () => {
     expect(await screen.findByText(/s\.m\.a\.r\.t\. attributes/i)).toBeVisible();
   });
 
-  it('renders File Repair 3-step flow: Landing -> Add Files Dropzone -> Queue & Repair All', () => {
+  it('renders File Repair directly on Add Files Dropzone -> Queue & Repair All', () => {
     wrap(<RepairPage />, '/repair');
     expect(
       screen.getByRole('heading', {
         name: /repair corrupted videos, photos and documents/i,
       }),
     ).toBeVisible();
-    expect(screen.getByText('Repair corrupted or unplayable videos')).toBeVisible();
-    expect(screen.getByText('Repair damaged or partially missing photos')).toBeVisible();
-    expect(screen.getByText('Repair damaged or cannot be opened documents')).toBeVisible();
-    fireEvent.click(screen.getByRole('button', { name: /^start$/i }));
     expect(
       screen.getByText(/click or drag files from your local disk to start the repair/i),
     ).toBeVisible();
@@ -100,15 +96,11 @@ describe('reference UI surfaces and sidebar', () => {
     expect(screen.getByRole('button', { name: /repair all/i })).toBeVisible();
   });
 
-  it('renders Lost Partition Rescue 3-step flow: Landing -> Disk Selection -> Smart Partition Scan Completed', async () => {
+  it('renders Lost Partition Rescue directly on Disk Selection -> Smart Partition Scan Completed', async () => {
     wrap(<LostPartitionPage />, '/lost-partition');
     expect(
       await screen.findByRole('heading', { name: /lost partition rescue/i }),
     ).toBeVisible();
-    expect(screen.getByText('Partition Missing')).toBeVisible();
-    expect(screen.getByText('Partition Cannot Be Opened')).toBeVisible();
-    expect(screen.getByText('BitLocker Partition Missing/Damaged')).toBeVisible();
-    fireEvent.click(screen.getByRole('button', { name: /^start$/i }));
     expect(
       screen.getByText(/choose a disk to start searching for lost partition\(s\)/i),
     ).toBeVisible();

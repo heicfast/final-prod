@@ -54,10 +54,9 @@ const SAMPLE_REPAIR_FILES: readonly Omit<QueuedRepairFile, 'id' | 'status'>[] = 
 ];
 
 /**
- * File Repair page — 3-step production flow:
- * - Step 1 ('landing'): 3 corrupted media repair rows + "Start" CTA + illustration (landing-sidebar-filerepair-page_cab83a7a.png)
- * - Step 2 ('dropzone'): Top-left "Home" button + centered dashed blue dropzone card with "Add Files" button and drag-file cursor illustration (Screenshot_2026-10-25_015231_dd97a3d9.png)
- * - Step 3 ('queue'): Top bar with "Home" + "Advanced Repair" buttons, queued file cards, and bottom sticky bar with Save path input, folder browse, +, trash, and "Repair All" primary CTA (Screenshot_2026-10-25_015424_7fbd446d.png).
+ * File Repair page — 2-step direct flow (no Start landing screen):
+ * - Step 1 ('dropzone'): Header + centered dashed blue dropzone card with "Add Files" button and drag-file cursor illustration (Screenshot_2026-10-25_015231_dd97a3d9.png)
+ * - Step 2 ('queue'): Top bar with "Home" + "Advanced Repair" buttons, queued file cards, and bottom sticky bar with Save path input, folder browse, +, trash, and "Repair All" primary CTA (Screenshot_2026-10-25_015424_7fbd446d.png).
  */
 export function RepairPage(): React.JSX.Element {
   const { t } = useTranslation();
@@ -74,7 +73,7 @@ export function RepairPage(): React.JSX.Element {
   const undoLog = useUndoLog(deviceId);
   const undo = useUndoRepairs(deviceId);
 
-  const [step, setStep] = React.useState<'landing' | 'dropzone' | 'queue'>('landing');
+  const [step, setStep] = React.useState<'dropzone' | 'queue'>('dropzone');
   const [advancedOpen, setAdvancedOpen] = React.useState(false);
   const [savePath, setSavePath] = React.useState(
     'C:\\Users\\umar0\\OneDrive\\Documents\\EaseUSRepair',
@@ -128,19 +127,14 @@ export function RepairPage(): React.JSX.Element {
   if (step === 'dropzone') {
     return (
       <div className="flex h-full min-h-0 flex-col overflow-y-auto px-8 py-6">
-        {/* Top-left Home Pill Button (Screenshot_2026-10-25_015231_dd97a3d9.png) */}
-        <div className="flex items-center justify-between">
-          <button
-            type="button"
-            onClick={() => setStep('landing')}
-            className="inline-flex h-8 items-center gap-1.5 rounded-[6px] bg-[#DCE7F9] px-3.5 text-[13px] font-medium text-[#1E293B] transition-colors hover:bg-[#C8DAF5] focus-visible:ring-2 focus-visible:ring-ring dark:bg-surface-elevated dark:text-foreground dark:hover:bg-surface-hover"
-          >
-            <HomeIcon
-              className="size-3.5 text-[#475569] dark:text-foreground-secondary"
-              aria-hidden
-            />
-            <span>{t('nav.home')}</span>
-          </button>
+        {/* Header */}
+        <div>
+          <h1 className="text-[20px] font-bold tracking-tight text-[#1E293B] dark:text-foreground">
+            {t('repair.title')}
+          </h1>
+          <p className="mt-1 text-[13px] text-[#64748B] dark:text-foreground-secondary">
+            {t('repair.introBody')}
+          </p>
         </div>
 
         {/* Centered Dashed Blue Dropzone Card (Screenshot_2026-10-25_015231_dd97a3d9.png) */}
@@ -232,22 +226,21 @@ export function RepairPage(): React.JSX.Element {
     );
   }
 
-  if (step === 'queue') {
-    return (
-      <div className="flex h-full min-h-0 flex-col justify-between overflow-hidden px-8 py-5">
-        {/* Top Bar: Left "Home" button + Right "Advanced Repair" button (Screenshot_2026-10-25_015424_7fbd446d.png) */}
-        <div className="flex shrink-0 items-center justify-between gap-4">
-          <button
-            type="button"
-            onClick={() => setStep('landing')}
-            className="inline-flex h-8 items-center gap-1.5 rounded-[6px] bg-[#DCE7F9] px-3.5 text-[13px] font-medium text-[#1E293B] transition-colors hover:bg-[#C8DAF5] focus-visible:ring-2 focus-visible:ring-ring dark:bg-surface-elevated dark:text-foreground dark:hover:bg-surface-hover"
-          >
-            <HomeIcon
-              className="size-3.5 text-[#475569] dark:text-foreground-secondary"
-              aria-hidden
-            />
-            <span>{t('nav.home')}</span>
-          </button>
+  return (
+    <div className="flex h-full min-h-0 flex-col justify-between overflow-hidden px-8 py-5">
+      {/* Top Bar: Left "Home" button + Right "Advanced Repair" button (Screenshot_2026-10-25_015424_7fbd446d.png) */}
+      <div className="flex shrink-0 items-center justify-between gap-4">
+        <button
+          type="button"
+          onClick={() => setStep('dropzone')}
+          className="inline-flex h-8 items-center gap-1.5 rounded-[6px] bg-[#DCE7F9] px-3.5 text-[13px] font-medium text-[#1E293B] transition-colors hover:bg-[#C8DAF5] focus-visible:ring-2 focus-visible:ring-ring dark:bg-surface-elevated dark:text-foreground dark:hover:bg-surface-hover"
+        >
+          <HomeIcon
+            className="size-3.5 text-[#475569] dark:text-foreground-secondary"
+            aria-hidden
+          />
+          <span>{t('nav.home')}</span>
+        </button>
 
           <button
             type="button"
@@ -378,46 +371,6 @@ export function RepairPage(): React.JSX.Element {
             </button>
           </div>
         </div>
-      </div>
-    );
-  }
-
-  return (
-    <div className="h-full overflow-y-auto px-8 py-6">
-      <div className="mx-auto w-full max-w-5xl">
-        {/* Reference Header */}
-        <div>
-          <h1 className="text-[20px] font-bold tracking-tight text-[#1E293B] dark:text-foreground">
-            {t('repair.title')}
-          </h1>
-          <p className="mt-1.5 text-[13px] text-[#64748B] dark:text-foreground-secondary">
-            {t('repair.introBody')}
-          </p>
-        </div>
-
-        {/* Two-column reference split: 3 repair feature rows + Start CTA on left, illustration on right */}
-        <div className="mt-10 flex flex-col items-start justify-between gap-8 lg:flex-row lg:items-center">
-          <div className="space-y-6">
-            <RepairFeatureRow kind="video" label={t('repair.featureVideo')} />
-            <RepairFeatureRow kind="photo" label={t('repair.featurePhoto')} />
-            <RepairFeatureRow kind="doc" label={t('repair.featureDoc')} />
-
-            <div className="pt-4">
-              <button
-                type="button"
-                onClick={() => setStep('dropzone')}
-                className="inline-flex h-10 w-[136px] items-center justify-center rounded-[6px] bg-[#1677FF] text-[14px] font-semibold text-white shadow-xs transition-all hover:bg-[#0958D9] active:scale-[var(--press-scale)] focus-visible:ring-2 focus-visible:ring-ring dark:bg-primary dark:text-primary-foreground dark:hover:bg-primary-hover"
-              >
-                {t('repair.start')}
-              </button>
-            </div>
-          </div>
-
-          <div className="flex w-full justify-center lg:w-auto">
-            <FileRepairIllustration />
-          </div>
-        </div>
-      </div>
     </div>
   );
 }
@@ -632,190 +585,5 @@ function VolumeRepairWorkbench({
         </>
       )}
     </div>
-  );
-}
-
-function RepairFeatureRow({
-  kind,
-  label,
-}: {
-  kind: 'video' | 'photo' | 'doc';
-  label: string;
-}): React.JSX.Element {
-  return (
-    <div className="flex items-center gap-4">
-      <div
-        className="flex size-10 shrink-0 items-center justify-center rounded-full bg-[#F1F5F9] dark:bg-surface-elevated"
-        aria-hidden
-      >
-        {kind === 'video' ? (
-          <svg viewBox="0 0 24 24" fill="none" className="size-5">
-            <rect
-              x="3"
-              y="4"
-              width="18"
-              height="16"
-              rx="2.5"
-              stroke="#475569"
-              strokeWidth="1.5"
-            />
-            <path d="M10 9L15 12L10 15V9Z" fill="#1677FF" />
-          </svg>
-        ) : kind === 'photo' ? (
-          <svg viewBox="0 0 24 24" fill="none" className="size-5">
-            <rect
-              x="3"
-              y="4"
-              width="18"
-              height="16"
-              rx="2.5"
-              stroke="#475569"
-              strokeWidth="1.5"
-            />
-            <circle cx="8.5" cy="9" r="1.5" fill="#1677FF" />
-            <path
-              d="M4 17L9 12.5L13 16L16.5 13L20 17"
-              stroke="#1677FF"
-              strokeWidth="1.5"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            />
-          </svg>
-        ) : (
-          <svg viewBox="0 0 24 24" fill="none" className="size-5">
-            <rect
-              x="4"
-              y="3"
-              width="16"
-              height="18"
-              rx="2.5"
-              stroke="#475569"
-              strokeWidth="1.5"
-            />
-            <line
-              x1="8"
-              y1="8"
-              x2="16"
-              y2="8"
-              stroke="#1677FF"
-              strokeWidth="1.5"
-              strokeLinecap="round"
-            />
-            <line
-              x1="8"
-              y1="12"
-              x2="16"
-              y2="12"
-              stroke="#1677FF"
-              strokeWidth="1.5"
-              strokeLinecap="round"
-            />
-            <line
-              x1="8"
-              y1="16"
-              x2="13"
-              y2="16"
-              stroke="#1677FF"
-              strokeWidth="1.5"
-              strokeLinecap="round"
-            />
-          </svg>
-        )}
-      </div>
-      <span className="text-[14px] font-bold text-[#1E293B] dark:text-foreground">{label}</span>
-    </div>
-  );
-}
-
-function FileRepairIllustration(): React.JSX.Element {
-  return (
-    <svg
-      viewBox="0 0 310 230"
-      fill="none"
-      className="h-[210px] w-[290px] select-none"
-      aria-hidden
-    >
-      <ellipse cx="155" cy="212" rx="125" ry="12" fill="#EBF2FF" />
-
-      {/* Back Folder */}
-      <path
-        d="M36 56C36 48.3 42.3 42 50 42H106L122 58H196C203.7 58 210 64.3 210 72V186C210 193.7 203.7 200 196 200H50C42.3 200 36 193.7 36 186V56Z"
-        fill="#BFDBFE"
-      />
-
-      {/* Media Cards inside Folder */}
-      <g transform="translate(52, 46)">
-        <rect
-          x="0"
-          y="18"
-          width="58"
-          height="44"
-          rx="6"
-          fill="white"
-          stroke="#93C5FD"
-          strokeWidth="1.4"
-        />
-        <path d="M24 34L36 40L24 46V34Z" fill="#60A5FA" />
-
-        <rect
-          x="44"
-          y="4"
-          width="64"
-          height="52"
-          rx="6"
-          fill="white"
-          stroke="#93C5FD"
-          strokeWidth="1.4"
-        />
-        <circle cx="62" cy="20" r="4" fill="#60A5FA" />
-        <path d="M52 44L68 30L80 40L90 32L100 44H52Z" fill="#93C5FD" />
-
-        <rect
-          x="86"
-          y="22"
-          width="56"
-          height="46"
-          rx="6"
-          fill="white"
-          stroke="#93C5FD"
-          strokeWidth="1.4"
-        />
-        <line
-          x1="98"
-          y1="36"
-          x2="130"
-          y2="36"
-          stroke="#60A5FA"
-          strokeWidth="2.5"
-          strokeLinecap="round"
-        />
-        <line
-          x1="98"
-          y1="45"
-          x2="122"
-          y2="45"
-          stroke="#93C5FD"
-          strokeWidth="2.5"
-          strokeLinecap="round"
-        />
-      </g>
-
-      {/* Front Folder Flap */}
-      <path
-        d="M36 96C36 88.3 42.3 82 50 82H196C203.7 82 210 88.3 210 96V186C210 193.7 203.7 200 196 200H50C42.3 200 36 193.7 36 186V96Z"
-        fill="#DBEAFE"
-      />
-      <rect x="52" y="168" width="38" height="7" rx="3.5" fill="#93C5FD" />
-
-      {/* Green Checkmark Badge on top-left of folder */}
-      <circle cx="38" cy="108" r="14" fill="#10B981" stroke="white" strokeWidth="2.5" />
-      <path
-        d="M32 108L36.5 112.5L44.5 104"
-        stroke="white"
-        strokeWidth="2.4"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </svg>
   );
 }
