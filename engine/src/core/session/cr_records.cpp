@@ -115,7 +115,9 @@ u32 serialize_tree(const tree::ResultTree& tree, std::vector<u8>& out) {
         /* v2 node flags (stored in the v1 reserved slot; old readers skip
          * the extra fields, old files read back with flags==0):
          *   bit0: extents carry {u32 codec, u64 psize} each
-         *   bit1: resident_data blob follows the extents */
+         *   bit1: resident_data blob follows the extents
+         *   bit2: short_name follows the name (N-011a, versioned
+         *         optional: u16 length + UTF-16 units) */
         u16 nflags = 0;
         if (pr) {
             for (const auto& e : pr->extents)
@@ -125,6 +127,8 @@ u32 serialize_tree(const tree::ResultTree& tree, std::vector<u8>& out) {
                 }
             if (!pr->resident_data.empty())
                 nflags |= 2;
+            if (!pr->short_name.empty())
+                nflags |= 4;
         }
         put32(out, parent_ids[i]);
         put16(out, nflags);
@@ -146,6 +150,12 @@ u32 serialize_tree(const tree::ResultTree& tree, std::vector<u8>& out) {
         put16(out, u16(nm.size()));
         for (u16 ch : nm)
             put16(out, ch);
+        if (nflags & 4) { /* N-011a: the 8.3 short name */
+            const std::u16string& sn = pr->short_name;
+            put16(out, u16(sn.size()));
+            for (u16 ch : sn)
+                put16(out, ch);
+        }
         const u32 ec = pr ? u32(pr->extents.size()) : 0;
         put32(out, ec);
         for (const auto& e : (pr ? pr->extents : std::vector<tree::FileProperties::Extent>{})) {
@@ -213,6 +223,12 @@ u32 deserialize_tree(const u8* data, size_t len, tree::ResultTree& tree) {
         props->name.resize(name_len);
         for (u16 k = 0; k < name_len; ++k)
             props->name[k] = c.g16();
+        if (nflags & 4) { /* N-011a: versioned optional short name */
+            const u16 sn_len = c.g16();
+            props->short_name.resize(sn_len);
+            for (u16 k = 0; k < sn_len; ++k)
+                props->short_name[k] = c.g16();
+        }
         const u32 ec = c.g32();
         props->extents.resize(ec);
         for (u32 k = 0; k < ec; ++k) {

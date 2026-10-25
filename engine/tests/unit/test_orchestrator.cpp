@@ -730,3 +730,37 @@ TEST(ScanEvents, SinkSwitchDeliversAllTypes) {
     /* the superseded config sink A received NOTHING */
     EXPECT_TRUE(a.seen.empty());
 }
+
+TEST(ScanEvents, SingleBoundaryAtTeardown) {
+    /* N-016 (diff-to-fix): the run()-exit stamp emitted
+     * emit_boundary_events_ TWICE back-to-back (a 56cce87 merge artifact)
+     * - FilesFound double-fired at teardown. The event stream must never
+     * carry two ADJACENT FilesFound events (a fresh boundary carries new
+     * counters between any two legitimate emits). */
+    struct SeqRecorder {
+        std::vector<event::Type> seq;
+        static void on_evt(const event::Event& e, void* user) {
+            static_cast<SeqRecorder*>(user)->seq.push_back(e.type);
+        }
+    };
+    FailingSectorDevice dev(build_fat16(), 30);
+    tree::ResultTree tree;
+    ScanConfig cfg;
+    cfg.run_quick = true;
+    cfg.run_deep = true;
+    cfg.run_carve = false;
+    cfg.whole_disk = false;
+    ScanController ctrl(tree, cfg);
+    SeqRecorder rec;
+    ASSERT_EQ(OK, ctrl.set_event_sink(&SeqRecorder::on_evt, &rec));
+    ScanStats stats;
+    ASSERT_EQ(OK, ctrl.run(&dev, nullptr, nullptr, nullptr, stats));
+    size_t files_found = 0;
+    for (size_t i = 0; i < rec.seq.size(); ++i)
+        if (rec.seq[i] == event::Type::FilesFound)
+            ++files_found;
+    /* quick + deep on this fixture: exactly one boundary emit per stage
+     * completion plus the run()-exit stamp = 3. The pre-fix double-fire
+     * at the stamp produced 4 (the N-016 merge artifact). */
+    EXPECT_EQ(files_found, 3u) << "one FilesFound per boundary - no teardown double-fire";
+}

@@ -19,6 +19,7 @@
 #include "cr/ntfs/cr_mftwalk.h"
 #include "cr/compress/cr_decomp.h"
 #include "cr/storage/cr_device.h"
+#include "cr/session/cr_records.h"
 #include <array>
 #include <cstring>
 #include <functional>
@@ -29,10 +30,13 @@ using namespace cr::ntfs;
 
 namespace {
 
-/* winioctl.h USN_REASON_FILE_CREATE - fixture-only value (the engine filters
- * on USN_REASON_FILE_DELETE alone; header no longer carries it, AUDIT-NTFS §4
- * row 5). */
-constexpr u32 USN_REASON_FILE_CREATE = 0x00000100;
+/* N-039 (diff-to-fix) comment correction: 0x100 is winioctl.h
+ * USN_REASON_HARD_LINK_CHANGE (FILE_CREATE is 0x00010000). The old
+ * "FILE_CREATE" label re-derived the dead probe's inverted premise -
+ * keep this a neutral fixture bit name. The engine filters on
+ * USN_REASON_FILE_DELETE alone (AUDIT-NTFS §4 row 5). */
+constexpr u32 kFixtureReasonBit = 0x00000100; /* hard-link-change bit:
+                                                 non-delete fixture material */
 
 constexpr u32 SEC = 512;
 constexpr u32 CLUSTER = SEC; /* spc = 1 */
@@ -591,7 +595,7 @@ void build_image(Image& img) {
         r.attr_file_name(16, u"deleted.dat", FILE_NAME_WIN32_AND_DOS, 0x20, 2048, 2048);
         r.attr_data_runlist(210, 4, 2048);
         r.finish();
-        std::memcpy(img.sec(MFT_LCN + 36), r.buf.data(), RECORD_SIZE);
+        std::memcpy(img.sec(MFT_LCN + 36), r.buf.data(), RECORD_SIZE); /* rec 18 */
     }
     /* record 19: overwrit.dat (DELETED, LCN 220..223 -> bitmap SET) */
     {
@@ -1073,8 +1077,8 @@ TEST(NtfsVolume, UsnJrnlHarvest) {
             return rlen;
         };
         u64 off = jbase;
-        off += usn(off, u"keptfile.txt", USN_REASON_FILE_CREATE);
-        off += usn(off, u"gonefile.txt", USN_REASON_FILE_CREATE | USN_REASON_FILE_DELETE);
+        off += usn(off, u"keptfile.txt", kFixtureReasonBit);
+        off += usn(off, u"gonefile.txt", kFixtureReasonBit | USN_REASON_FILE_DELETE);
     }
     MemDevice dev(img.raw(), img.geom());
     u32 err = 0;
@@ -1176,7 +1180,7 @@ TEST(NtfsVolume, UsnJrnlSparseV3Resync) {
             j64(u32(off + 16), 5 | (1ULL << 48));
             j64(u32(off + 24), 1);
             j64(u32(off + 32), 132000000000000000ULL);
-            j32(u32(off + 40), USN_REASON_FILE_CREATE | USN_REASON_FILE_DELETE);
+            j32(u32(off + 40), kFixtureReasonBit | USN_REASON_FILE_DELETE);
             j32(u32(off + 44), 0);
             j32(u32(off + 48), 0);
             j32(u32(off + 52), 0x20);
@@ -1983,11 +1987,14 @@ void patch_dbr_cpr(Image& img, i8 cpr) {
 
 } // namespace
 
-TEST(NtfsVolume, BootNonPow2RecordSizeClampsAndScans) {
-    /* cpr = 3 (non-pow2, non-divisible decoded 1536): the og falls back to
-     * 0x200 then clamps to max(0x400, rs) (FUN_18001acc0 :21134-21142) and
-     * still scans; the pre-fix code returned ERR_BAD_PARAMETER and lost
-     * the volume - and its remnant pass - entirely. */
+TEST(NtfsVolume, BootNoPow2RecordSizeAcceptedAtDecodedValue) {
+    /* N-011b (diff-to-fix; supersedes the M-001-era clamp semantics at
+     * VOLUME OPEN): the og's LoadNtfsVolume (:19292-19344) has NO pow2 /
+     * divisibility check and NO 0x400 clamp - cpr = 3 decodes to
+     * 3 x spc x bps = 1536 bytes and the volume OPENS at that stride
+     * (the M-001 0x200-fallback/0x400-clamp ladder belongs to the WALK
+     * function FUN_18001acc0, not to open). The old core rejected the
+     * non-pow2 record size outright. */
     Image img;
     build_image(img);
     patch_dbr_cpr(img, 3);
@@ -1995,43 +2002,40 @@ TEST(NtfsVolume, BootNonPow2RecordSizeClampsAndScans) {
     u32 err = 0;
     auto vol = NtfsVolume::open(std::unique_ptr<IStorageDevice>(new MemDevice(dev)), &err);
     ASSERT_NE(vol, nullptr) << "open err " << err_text(err);
-    EXPECT_EQ(vol->params().record_size, 0x400u); /* 0x200 fallback -> 0x400 clamp */
-    /* the whole volume still parses at the degraded-but-correct size
-     * (the true record size IS 1024 here - the ladder happens to recover
-     * the real geometry a raw 1536 stride could never read) */
-    tree::ResultTree tree;
-    auto* ra = tree.add_root(u"F");
-    auto* rd = tree.add_root(u"D");
-    auto* rl = tree.add_root(u"L");
-    WalkStats st;
-    EXPECT_EQ(OK, walk_mft(vol.get(), nullptr, WalkerFlags(), nullptr, nullptr, nullptr, tree, ra,
-                           rd, rl, st));
-    EXPECT_GE(st.emitted, 9u); /* the normal fixture yield - no records lost */
+    EXPECT_EQ(vol->params().record_size, 1536u); /* decoded value, unclamped */
 }
 
-TEST(NtfsVolume, BootZeroRecordSizeFallbackScans) {
-    /* cpr = 0 decodes to 0: og `if < 1 -> 0x200` fallback, volume opens */
+TEST(NtfsVolume, BootRecordSizeZeroRejected) {
+    /* N-011b: cpr == 0 or a 0-result decodes to a zero record size and
+     * the og REJECTS the volume ("It is not a NTFS volume!",
+     * LoadNtfsVolume :19322/:19331). The M-001-era fallback-to-0x400 at
+     * OPEN was mis-scoped (its evidence was the walk function). */
     Image img;
     build_image(img);
     patch_dbr_cpr(img, 0);
     MemDevice dev(img.raw(), img.geom());
     u32 err = 0;
     auto vol = NtfsVolume::open(std::unique_ptr<IStorageDevice>(new MemDevice(dev)), &err);
-    ASSERT_NE(vol, nullptr) << "open err " << err_text(err);
-    EXPECT_EQ(vol->params().record_size, 0x400u);
+    EXPECT_EQ(nullptr, vol) << "cpr == 0 must reject the volume (og parity)";
 }
 
-TEST(NtfsVolume, BootNegativeExponentOverflowFallsBack) {
-    /* cpr = -30: the P1-4 shift-UB guard decodes 0; the ladder turns that
-     * into the og's 0x200 default instead of a rejection */
+TEST(NtfsVolume, BootNegativeExponentOverflowRejected) {
+    /* N-011b: cpr = -30 decodes past the P1-4 shift-UB guard (exponent
+     * cap 20 -> 1 MiB, registered core hardening - the og would compute a
+     * 1-GiB record size); the 0-result rejects per the og's 0-result
+     * rule. Sub-sector 0-results (e.g. cpr = -1 at bps 512: 2 bytes)
+     * reject the same way. */
     Image img;
     build_image(img);
     patch_dbr_cpr(img, -30);
     MemDevice dev(img.raw(), img.geom());
     u32 err = 0;
     auto vol = NtfsVolume::open(std::unique_ptr<IStorageDevice>(new MemDevice(dev)), &err);
-    ASSERT_NE(vol, nullptr) << "open err " << err_text(err);
-    EXPECT_EQ(vol->params().record_size, 0x400u);
+    EXPECT_EQ(nullptr, vol) << "0-result record size must reject";
+    patch_dbr_cpr(img, -1); /* 2 bytes < 1 sector */
+    MemDevice dev2(img.raw(), img.geom());
+    vol = ntfs::NtfsVolume::open(std::unique_ptr<IStorageDevice>(new MemDevice(dev2)), &err);
+    EXPECT_EQ(nullptr, vol) << "sub-sector record size must reject";
 }
 
 TEST(NtfsVolume, BootUsableLargeRecordSizeKept) {
@@ -2844,4 +2848,558 @@ TEST(NtfsVolume, RemnantDirRecordHarvestsIndexRootChildren) {
     EXPECT_EQ(ca->props()->logical_size, 1500u);
     EXPECT_EQ(ca->confidence(), tree::Confidence::MetadataOnly);
     EXPECT_EQ(cb->props()->logical_size, 200u);
+}
+TEST(NtfsVolume, AdsDroppedInParityMode) {
+    /* N-011 (diff-to-fix, FIXED-ALREADY verification pin): the og's
+     * FUN_1800069e0 :5159-5160 skips named $DATA (ADS) entirely; the
+     * core's superset (emit_ads default ON) mirrors M-007's opt-in
+     * parity shape - with the flag OFF the record's ADS must produce
+     * ZERO child nodes while the primary stream is unaffected. */
+    Image img;
+    build_image(img);
+    MemDevice dev(img.raw(), img.geom());
+    u32 err = 0;
+    auto vol = NtfsVolume::open(std::unique_ptr<IStorageDevice>(new MemDevice(dev)), &err);
+    ASSERT_NE(vol, nullptr) << err_text(err);
+    tree::ResultTree tree;
+    auto* ra = tree.add_root(u"a");
+    auto* rd = tree.add_root(u"d");
+    auto* rl = tree.add_root(u"l");
+    WalkerFlags wf;
+    wf.emit_ads = false; /* og parity mode */
+    WalkStats stats;
+    ASSERT_EQ(walk_mft(vol.get(), nullptr, wf, nullptr, nullptr, nullptr, tree, ra, rd, rl, stats),
+              OK);
+    EXPECT_EQ(stats.ads, 0u) << "parity mode must drop every ADS node";
+    int colon_names = 0;
+    std::function<void(tree::FileNode*)> scan = [&](tree::FileNode* n) {
+        for (tree::FileNode* c = n->first_child(); c; c = c->next_sibling()) {
+            if (c->name_utf8().find(':') != std::string::npos)
+                ++colon_names;
+            scan(c);
+        }
+    };
+    scan(ra);
+    scan(rd);
+    scan(rl);
+    EXPECT_EQ(colon_names, 0) << "no ADS-shaped names may survive parity mode";
+    /* the host file itself is unaffected */
+    bool host_found = false;
+    std::function<void(tree::FileNode*)> find = [&](tree::FileNode* n) {
+        for (tree::FileNode* c = n->first_child(); c; c = c->next_sibling()) {
+            if (c->name_utf8() == "ads.txt")
+                host_found = true;
+            find(c);
+        }
+    };
+    find(ra);
+    find(rd);
+    EXPECT_TRUE(host_found) << "the primary stream's node must survive";
+}
+
+TEST(NtfsVolume, AdsEmittedByDefaultSuperset) {
+    /* N-011 companion pin: default flags keep the recovery superset
+     * (one child node per named $DATA, name = host:stream). */
+    Image img;
+    build_image(img);
+    MemDevice dev(img.raw(), img.geom());
+    u32 err = 0;
+    auto vol = NtfsVolume::open(std::unique_ptr<IStorageDevice>(new MemDevice(dev)), &err);
+    ASSERT_NE(vol, nullptr) << err_text(err);
+    tree::ResultTree tree;
+    auto* ra = tree.add_root(u"a");
+    auto* rd = tree.add_root(u"d");
+    auto* rl = tree.add_root(u"l");
+    WalkerFlags wf; /* defaults: emit_ads = true */
+    WalkStats stats;
+    ASSERT_EQ(walk_mft(vol.get(), nullptr, wf, nullptr, nullptr, nullptr, tree, ra, rd, rl, stats),
+              OK);
+    EXPECT_GE(stats.ads, 1u) << "default superset keeps ADS emission";
+}
+
+/* ---- N-012 / N-011a / N-039 (diff-to-fix minors session) ---------------- */
+
+TEST(NtfsVolume, AttributesFromSIWhenAvailable) {
+    /* N-012: the og serializes attributes from $STANDARD_INFORMATION's
+     * dos_flags (FUN_180044f60 on the $SI attribute, NTFSSearchDLL
+     * :5351-5368), NOT from $FILE_NAME. $SI says hidden (0x02), the
+     * $FILE_NAME says nothing -> the node must carry 0x02. */
+    Image img;
+    build_image(img);
+    {
+        RecBuilder r;
+        r.header(18, RECORD_IN_USE);
+        r.attr_si(0x02); /* $SI: hidden */
+        r.attr_file_name(5, u"sihidden.txt", FILE_NAME_WIN32_AND_DOS, 0x00, 512, 512);
+        r.attr_data_runlist(240, 1, 512);
+        r.finish();
+        std::memcpy(img.sec(MFT_LCN + 36), r.buf.data(), RECORD_SIZE); /* rec 18 */
+    }
+    MemDevice dev(img.raw(), img.geom());
+    u32 err = 0;
+    auto vol = NtfsVolume::open(std::unique_ptr<IStorageDevice>(new MemDevice(dev)), &err);
+    ASSERT_NE(vol, nullptr) << err_text(err);
+    tree::ResultTree tree;
+    auto* ra = tree.add_root(u"a");
+    auto* rd = tree.add_root(u"d");
+    auto* rl = tree.add_root(u"l");
+    WalkerFlags wf;
+    WalkStats stats;
+    ASSERT_EQ(walk_mft(vol.get(), nullptr, wf, nullptr, nullptr, nullptr, tree, ra, rd, rl, stats),
+              OK);
+    tree::FileNode* n = nullptr;
+    std::function<void(tree::FileNode*)> find = [&](tree::FileNode* p) {
+        for (tree::FileNode* c = p->first_child(); c; c = c->next_sibling()) {
+            if (c->name_utf8() == "sihidden.txt")
+                n = c;
+            find(c);
+        }
+    };
+    find(ra);
+    find(rd);
+    ASSERT_NE(n, nullptr);
+    EXPECT_EQ(n->props()->attributes & 0x02, 2u) << "$SI hidden bit must win over $FILE_NAME";
+}
+
+TEST(NtfsVolume, AttributesFallBackToFileNameWhenSIAbsent) {
+    /* N-012 companion: no $SI -> $FILE_NAME flags serve (mirrors the
+     * time-precedence rule one line above in the walk). */
+    Image img;
+    build_image(img);
+    {
+        RecBuilder r;
+        r.header(19, RECORD_IN_USE);
+        /* deliberately NO attr_si */
+        r.attr_file_name(5, u"nosi.txt", FILE_NAME_WIN32_AND_DOS, 0x02, 512, 512);
+        r.attr_data_runlist(241, 1, 512);
+        r.finish();
+        std::memcpy(img.sec(MFT_LCN + 38), r.buf.data(), RECORD_SIZE); /* rec 19 */
+    }
+    MemDevice dev(img.raw(), img.geom());
+    u32 err = 0;
+    auto vol = NtfsVolume::open(std::unique_ptr<IStorageDevice>(new MemDevice(dev)), &err);
+    ASSERT_NE(vol, nullptr) << err_text(err);
+    tree::ResultTree tree;
+    auto* ra = tree.add_root(u"a");
+    auto* rd = tree.add_root(u"d");
+    auto* rl = tree.add_root(u"l");
+    WalkerFlags wf;
+    WalkStats stats;
+    ASSERT_EQ(walk_mft(vol.get(), nullptr, wf, nullptr, nullptr, nullptr, tree, ra, rd, rl, stats),
+              OK);
+    tree::FileNode* n = nullptr;
+    std::function<void(tree::FileNode*)> find = [&](tree::FileNode* p) {
+        for (tree::FileNode* c = p->first_child(); c; c = c->next_sibling()) {
+            if (c->name_utf8() == "nosi.txt")
+                n = c;
+            find(c);
+        }
+    };
+    find(ra);
+    find(rd);
+    ASSERT_NE(n, nullptr);
+    EXPECT_EQ(n->props()->attributes & 0x02, 2u) << "$FILE_NAME fallback must serve";
+}
+
+TEST(NtfsVolume, AttributesPreserveOfflineBit) {
+    /* N-012: the og preserves the 0x400 OFFLINE bit (HSM-migrated files);
+     * the old & 0xFF mask dropped it. */
+    Image img;
+    build_image(img);
+    {
+        RecBuilder r;
+        r.header(20, RECORD_IN_USE);
+        r.attr_si(0x400 | 0x20); /* offline + archive */
+        r.attr_file_name(5, u"offline.dat", FILE_NAME_WIN32_AND_DOS, 0x20, 512, 512);
+        r.attr_data_runlist(242, 1, 512);
+        r.finish();
+        std::memcpy(img.sec(MFT_LCN + 40), r.buf.data(), RECORD_SIZE); /* rec 20 */
+    }
+    MemDevice dev(img.raw(), img.geom());
+    u32 err = 0;
+    auto vol = NtfsVolume::open(std::unique_ptr<IStorageDevice>(new MemDevice(dev)), &err);
+    ASSERT_NE(vol, nullptr) << err_text(err);
+    tree::ResultTree tree;
+    auto* ra = tree.add_root(u"a");
+    auto* rd = tree.add_root(u"d");
+    auto* rl = tree.add_root(u"l");
+    WalkerFlags wf;
+    WalkStats stats;
+    ASSERT_EQ(walk_mft(vol.get(), nullptr, wf, nullptr, nullptr, nullptr, tree, ra, rd, rl, stats),
+              OK);
+    tree::FileNode* n = nullptr;
+    std::function<void(tree::FileNode*)> find = [&](tree::FileNode* p) {
+        for (tree::FileNode* c = p->first_child(); c; c = c->next_sibling()) {
+            if (c->name_utf8() == "offline.dat")
+                n = c;
+            find(c);
+        }
+    };
+    find(ra);
+    find(rd);
+    ASSERT_NE(n, nullptr);
+    EXPECT_EQ(n->props()->attributes & 0x400, 0x400u) << "OFFLINE bit must survive the mask";
+}
+
+TEST(NtfsVolume, ShortNameFieldRoundtrips) {
+    /* N-011a: a distinct DOS-namespace $FILE_NAME becomes the props'
+     * short_name (the og's GetShortName* vtable field), and the field
+     * survives a session serialize/deserialize roundtrip (versioned
+     * optional nflags bit 2). */
+    Image img;
+    build_image(img);
+    {
+        RecBuilder r;
+        r.header(21, RECORD_IN_USE);
+        r.attr_si(0x20);
+        r.attr_file_name(5, u"longfilename.txt", FILE_NAME_WIN32, 0x20, 512, 512);
+        r.attr_file_name(5, u"LONGFI~1.TXT", FILE_NAME_DOS, 0x20, 512, 512);
+        r.attr_data_runlist(243, 1, 512);
+        r.finish();
+        std::memcpy(img.sec(MFT_LCN + 42), r.buf.data(), RECORD_SIZE); /* rec 21 */
+    }
+    MemDevice dev(img.raw(), img.geom());
+    u32 err = 0;
+    auto vol = NtfsVolume::open(std::unique_ptr<IStorageDevice>(new MemDevice(dev)), &err);
+    ASSERT_NE(vol, nullptr) << err_text(err);
+    tree::ResultTree tree;
+    auto* ra = tree.add_root(u"a");
+    auto* rd = tree.add_root(u"d");
+    auto* rl = tree.add_root(u"l");
+    WalkerFlags wf;
+    WalkStats stats;
+    ASSERT_EQ(walk_mft(vol.get(), nullptr, wf, nullptr, nullptr, nullptr, tree, ra, rd, rl, stats),
+              OK);
+    tree::FileNode* n = nullptr;
+    std::function<void(tree::FileNode*)> find = [&](tree::FileNode* p) {
+        for (tree::FileNode* c = p->first_child(); c; c = c->next_sibling()) {
+            if (c->name_utf8() == "longfilename.txt")
+                n = c;
+            find(c);
+        }
+    };
+    find(ra);
+    find(rd);
+    ASSERT_NE(n, nullptr);
+    ASSERT_NE(n->props(), nullptr);
+    EXPECT_EQ(n->name_utf8(), "longfilename.txt");
+    ASSERT_EQ(n->props()->short_name, u"LONGFI~1.TXT")
+        << "the DOS-namespace name must land in short_name";
+    /* session roundtrip: the field survives serialize + deserialize */
+    std::vector<u8> blob;
+    ASSERT_EQ(cr::session::serialize_tree(tree, blob), OK);
+    tree::ResultTree tree2;
+    ASSERT_EQ(cr::session::deserialize_tree(blob.data(), blob.size(), tree2), OK);
+    tree::FileNode* n2 = nullptr;
+    std::function<void(tree::FileNode*)> find2 = [&](tree::FileNode* p) {
+        for (tree::FileNode* c = p->first_child(); c; c = c->next_sibling()) {
+            if (c->props() && c->name_utf8() == "longfilename.txt")
+                n2 = c;
+            find2(c);
+        }
+    };
+    for (auto* root : tree2.roots())
+        find2(root);
+    ASSERT_NE(n2, nullptr) << "node lost in the session roundtrip";
+    ASSERT_NE(n2->props(), nullptr);
+    EXPECT_EQ(n2->props()->short_name, u"LONGFI~1.TXT")
+        << "short_name must survive the session roundtrip (nflags bit 2)";
+}
+
+
+/* Plant the $UsnJrnl:$J record (MFT slot 23) mapping LCN 160, 2 clusters -
+   the same shape the UsnJrnlHarvest fixture uses. */
+void plant_usnjrnl_record(Image& img) {
+    RecBuilder r;
+    r.header(23, RECORD_IN_USE);
+    r.attr_si(0x20);
+    r.attr_file_name(11, u"$UsnJrnl", FILE_NAME_WIN32_AND_DOS, 0x20, 2048, 2048);
+    {
+        u32 pos = r.attr_pos;
+        RunList rl;
+        rl.runs().push_back(DataRun{0, 2, 0, 160, false});
+        std::vector<u8> rle = rl.encode();
+        u32 rlen = u32(rle.size());
+        const u32 name_off = 0x40;
+        const u32 runs_off = name_off + 2 * 2;
+        u32 alen = (runs_off + rlen + 7) / 8 * 8;
+        r.u32wr(pos + 0, ATTR_TYPE_DATA);
+        r.u32wr(pos + 4, alen);
+        r.buf[pos + 8] = 1;
+        r.buf[pos + 9] = 2;
+        r.u16wr(pos + 10, u16(name_off));
+        r.u16wr(pos + 16, 0);
+        r.u64wr(pos + 24, 1);
+        r.u16wr(pos + 32, u16(runs_off));
+        r.u64wr(pos + 40, 2 * CLUSTER);
+        r.u64wr(pos + 48, 2 * CLUSTER);
+        r.u64wr(pos + 56, 2 * CLUSTER);
+        r.u16wr(pos + name_off, u'$');
+        r.u16wr(pos + name_off + 2, u'J');
+        std::memcpy(r.buf.data() + pos + runs_off, rle.data(), rlen);
+        r.attr_pos += alen;
+    }
+    r.finish();
+    std::memcpy(img.sec(MFT_LCN + 46), r.buf.data(), RECORD_SIZE);
+}
+
+TEST(NtfsVolume, UsnHarvestTrueDeleteReason0x80020000) {
+    /* N-039 pin: a true Windows delete record (CLOSE|FILE_DELETE =
+     * 0x80020000) IS harvested - the og's gate is the mis-decoded 0x200
+     * (COMPRESSION_CHANGE); do NOT copy it. */
+    Image img;
+    build_image(img);
+    plant_usnjrnl_record(img);
+    {
+        std::vector<u8>& imgv = img.raw();
+        const u64 jbase = 160 * SEC;
+        auto put_rec = [&](u64 at, const char16_t* name, u32 reason) {
+            const std::u16string n = name;
+            const u32 namelen = u32(n.size() * 2);
+            const u32 rlen = 64 + namelen;
+            auto j32 = [&](u32 a, u32 x) {
+                for (int i = 0; i < 4; i++)
+                    imgv[size_t(a) + i] = u8(x >> (8 * i));
+            };
+            auto j16 = [&](u32 a, u16 x) {
+                imgv[size_t(a)] = u8(x);
+                imgv[size_t(a) + 1] = u8(x >> 8);
+            };
+            auto j64 = [&](u32 a, u64 x) {
+                for (int i = 0; i < 8; i++)
+                    imgv[size_t(a) + i] = u8(x >> (8 * i));
+            };
+            j32(u32(at + 0), rlen);
+            j16(u32(at + 4), 2);
+            j16(u32(at + 6), 0);
+            j64(u32(at + 8), 4321);
+            j64(u32(at + 16), 5 | (1ULL << 48));
+            j64(u32(at + 24), 2);
+            j64(u32(at + 32), 132000000000000000ULL);
+            j32(u32(at + 40), reason);
+            j32(u32(at + 44), 0);
+            j32(u32(at + 48), 0);
+            j32(u32(at + 52), 0x20);
+            j32(u32(at + 56), namelen);
+            j32(u32(at + 60), 64);
+            for (size_t i = 0; i < n.size(); i++)
+                j16(u32(at + 64 + u32(i) * 2), u16(n[i]));
+            return rlen;
+        };
+        put_rec(jbase, u"realdelete.txt", 0x80020000u); /* CLOSE|FILE_DELETE */
+    }
+    MemDevice dev(img.raw(), img.geom());
+    u32 err = 0;
+    auto vol = NtfsVolume::open(std::unique_ptr<IStorageDevice>(new MemDevice(dev)), &err);
+    ASSERT_NE(vol, nullptr) << err_text(err);
+    tree::ResultTree tree;
+    auto* ra = tree.add_root(u"a");
+    auto* rd = tree.add_root(u"d");
+    auto* rl = tree.add_root(u"l");
+    WalkerFlags wf;
+    WalkStats stats;
+    ASSERT_EQ(walk_mft(vol.get(), nullptr, wf, nullptr, nullptr, nullptr, tree, ra, rd, rl, stats),
+              OK);
+    tree::FileNode* got = nullptr;
+    for (tree::FileNode* c = rl->first_child(); c; c = c->next_sibling())
+        if (c->name_utf8() == "realdelete.txt")
+            got = c;
+    EXPECT_NE(got, nullptr) << "0x80020000 (true delete) must harvest";
+}
+
+TEST(NtfsVolume, UsnHarvestRejectsCompressionChangeOnly) {
+    /* N-039 pin: 0x80000200 (CLOSE|COMPRESSION_CHANGE - NOT a deletion)
+    * must NOT harvest. The og's 0x200 gate fires here - an og defect. */
+    Image img;
+    build_image(img);
+    plant_usnjrnl_record(img);
+    {
+        std::vector<u8>& imgv = img.raw();
+        const u64 jbase = 160 * SEC;
+        auto put_rec = [&](u64 at, const char16_t* name, u32 reason) {
+            const std::u16string n = name;
+            const u32 namelen = u32(n.size() * 2);
+            const u32 rlen = 64 + namelen;
+            auto j32 = [&](u32 a, u32 x) {
+                for (int i = 0; i < 4; i++)
+                    imgv[size_t(a) + i] = u8(x >> (8 * i));
+            };
+            auto j16 = [&](u32 a, u16 x) {
+                imgv[size_t(a)] = u8(x);
+                imgv[size_t(a) + 1] = u8(x >> 8);
+            };
+            auto j64 = [&](u32 a, u64 x) {
+                for (int i = 0; i < 8; i++)
+                    imgv[size_t(a) + i] = u8(x >> (8 * i));
+            };
+            j32(u32(at + 0), rlen);
+            j16(u32(at + 4), 2);
+            j16(u32(at + 6), 0);
+            j64(u32(at + 8), 4322);
+            j64(u32(at + 16), 5 | (1ULL << 48));
+            j64(u32(at + 24), 2);
+            j64(u32(at + 32), 132000000000000000ULL);
+            j32(u32(at + 40), reason);
+            j32(u32(at + 44), 0);
+            j32(u32(at + 48), 0);
+            j32(u32(at + 52), 0x20);
+            j32(u32(at + 56), namelen);
+            j32(u32(at + 60), 64);
+            for (size_t i = 0; i < n.size(); i++)
+                j16(u32(at + 64 + u32(i) * 2), u16(n[i]));
+            return rlen;
+        };
+        put_rec(jbase, u"compresschg.txt", 0x80000200u); /* CLOSE|COMPRESSION_CHANGE */
+    }
+    MemDevice dev(img.raw(), img.geom());
+    u32 err = 0;
+    auto vol = NtfsVolume::open(std::unique_ptr<IStorageDevice>(new MemDevice(dev)), &err);
+    ASSERT_NE(vol, nullptr) << err_text(err);
+    tree::ResultTree tree;
+    auto* ra = tree.add_root(u"a");
+    auto* rd = tree.add_root(u"d");
+    auto* rl = tree.add_root(u"l");
+    WalkerFlags wf;
+    WalkStats stats;
+    ASSERT_EQ(walk_mft(vol.get(), nullptr, wf, nullptr, nullptr, nullptr, tree, ra, rd, rl, stats),
+              OK);
+    for (tree::FileNode* c = rl->first_child(); c; c = c->next_sibling())
+        EXPECT_NE(c->name_utf8(), "compresschg.txt")
+            << "compression-change-only records must not harvest";
+}
+
+TEST(NtfsVolume, UsnHarvestCapMinesTail) {
+    /* N-039 fix-plan item 3: $J is circular - the newest records live at
+     * the TAIL. A stream larger than the 64 MiB mining cap must mine the
+     * tail window (the old head-mining read exactly the stale half).
+     * Layout (r3 sized to EXACTLY the cap so the mined window aligns to
+     * r3's start; the benign records tile the window so the resync limit
+     * is never tripped):
+     *   r1: mapped 1 KiB @160 - the OLD delete (skipped head window)
+     *   r2: sparse 2 MiB hole (skipped)
+     *   r3: mapped 64 MiB - benign non-delete records tiled from the
+     *       start + the NEW delete (tailgone.txt) at the very end. */
+    Image img;
+    build_image(img);
+    const u64 kHoleClusters = 4096;                    /* 2 MiB sparse */
+    const u64 kR3Clusters = (64ull << 20) / CLUSTER;   /* exactly the cap */
+    const u64 kTailLcn = 160 + 2 + kHoleClusters;      /* r3 mapped here */
+    const u64 kTotalSectors = (kTailLcn + kR3Clusters) * (CLUSTER / SEC);
+    img.raw().resize(size_t(kTotalSectors * SEC), 0);
+    img.geom().sector_count = kTotalSectors;
+    img.geom().total_bytes = img.raw().size();
+    /* grow the DBR's total_sectors too - the $J runlist is bounds-checked
+     * against the declared volume size (parse_data_runs) */
+    for (int i = 0; i < 8; i++)
+        img.sec(0)[0x28 + size_t(i)] = u8(kTotalSectors >> (8 * i));
+    /* $UsnJrnl:$J with the three runs */
+    {
+        RecBuilder r;
+        r.header(23, RECORD_IN_USE);
+        r.attr_si(0x20);
+        r.attr_file_name(11, u"$UsnJrnl", FILE_NAME_WIN32_AND_DOS, 0x20, 2048, 2048);
+        {
+            u32 pos = r.attr_pos;
+            RunList rl;
+            rl.runs().push_back(DataRun{0, 2, 0, 160, false});
+            rl.runs().push_back(DataRun{2, kHoleClusters, 0, 0, true});
+            rl.runs().push_back(DataRun{2 + kHoleClusters, kR3Clusters, 0, kTailLcn, false});
+            std::vector<u8> rle = rl.encode();
+            u32 rlen = u32(rle.size());
+            const u32 name_off = 0x40;
+            const u32 runs_off = name_off + 2 * 2;
+            u32 alen = (runs_off + rlen + 7) / 8 * 8;
+            r.u32wr(pos + 0, ATTR_TYPE_DATA);
+            r.u32wr(pos + 4, alen);
+            r.buf[pos + 8] = 1;
+            r.buf[pos + 9] = 2;
+            r.u16wr(pos + 10, u16(name_off));
+            r.u16wr(pos + 16, 0);
+            r.u64wr(pos + 24, 1);
+            r.u16wr(pos + 32, u16(runs_off));
+            r.u64wr(pos + 40, (2 + kHoleClusters + kR3Clusters) * CLUSTER);
+            r.u64wr(pos + 48, (2 + kHoleClusters + kR3Clusters) * CLUSTER);
+            r.u64wr(pos + 56, (2 + kHoleClusters + kR3Clusters) * CLUSTER);
+            r.u16wr(pos + name_off, u'$');
+            r.u16wr(pos + name_off + 2, u'J');
+            std::memcpy(r.buf.data() + pos + runs_off, rle.data(), rlen);
+            r.attr_pos += alen;
+        }
+        r.finish();
+        std::memcpy(img.sec(MFT_LCN + 46), r.buf.data(), RECORD_SIZE);
+    }
+    /* journal content */
+    {
+        std::vector<u8>& imgv = img.raw();
+        auto put_rec = [&](u64 at, const char16_t* name, u32 reason) {
+            const std::u16string n = name;
+            const u32 namelen = u32(n.size() * 2);
+            const u32 rlen = 64 + namelen;
+            auto j32 = [&](u32 a, u32 x) {
+                for (int i = 0; i < 4; i++)
+                    imgv[size_t(a) + i] = u8(x >> (8 * i));
+            };
+            auto j16 = [&](u32 a, u16 x) {
+                imgv[size_t(a)] = u8(x);
+                imgv[size_t(a) + 1] = u8(x >> 8);
+            };
+            auto j64 = [&](u32 a, u64 x) {
+                for (int i = 0; i < 8; i++)
+                    imgv[size_t(a) + i] = u8(x >> (8 * i));
+            };
+            j32(u32(at + 0), rlen);
+            j16(u32(at + 4), 2);
+            j16(u32(at + 6), 0);
+            j64(u32(at + 8), 4242);
+            j64(u32(at + 16), 5 | (1ULL << 48));
+            j64(u32(at + 24), 1);
+            j64(u32(at + 32), 132000000000000000ULL);
+            j32(u32(at + 40), reason);
+            j32(u32(at + 44), 0);
+            j32(u32(at + 48), 0);
+            j32(u32(at + 52), 0x20);
+            j32(u32(at + 56), namelen);
+            j32(u32(at + 60), 64);
+            for (size_t i = 0; i < n.size(); i++)
+                j16(u32(at + 64 + u32(i) * 2), u16(n[i]));
+            return rlen;
+        };
+        /* r1: the OLD delete - inside the skipped head window */
+        put_rec(160 * SEC, u"gonefile.txt", kFixtureReasonBit | USN_REASON_FILE_DELETE);
+        /* r3: benign non-delete records tiled from r3's start (the mined
+         * window is exactly r3, so the tiling is phase-aligned), then the
+         * NEW delete at the very end of the stream. */
+        const u64 r3_bytes = kR3Clusters * CLUSTER;
+        const u64 r3_base = kTailLcn * CLUSTER;
+        const u64 benign_rlen = 88; /* 64 + 12 chars x 2 */
+        u64 off = r3_base;
+        while (off + benign_rlen <= r3_base + r3_bytes - 1024) {
+            put_rec(off, u"padrec000000", kFixtureReasonBit);
+            off += benign_rlen;
+        }
+        put_rec(r3_base + r3_bytes - 1024, u"tailgone.txt",
+                kFixtureReasonBit | USN_REASON_FILE_DELETE);
+    }
+    MemDevice dev(img.raw(), img.geom());
+    u32 err = 0;
+    auto vol = NtfsVolume::open(std::unique_ptr<IStorageDevice>(new MemDevice(dev)), &err);
+    ASSERT_NE(vol, nullptr) << err_text(err);
+    tree::ResultTree tree;
+    auto* ra = tree.add_root(u"a");
+    auto* rd = tree.add_root(u"d");
+    auto* rl = tree.add_root(u"l");
+    WalkerFlags wf;
+    WalkStats stats;
+    ASSERT_EQ(walk_mft(vol.get(), nullptr, wf, nullptr, nullptr, nullptr, tree, ra, rd, rl, stats),
+              OK);
+    tree::FileNode* tail_gone = nullptr;
+    tree::FileNode* head_gone = nullptr;
+    for (tree::FileNode* c = rl->first_child(); c; c = c->next_sibling()) {
+        if (c->name_utf8() == "tailgone.txt")
+            tail_gone = c;
+        if (c->name_utf8() == "gonefile.txt")
+            head_gone = c;
+    }
+    EXPECT_NE(tail_gone, nullptr) << "the TAIL delete must be mined (circular journal)";
+    EXPECT_EQ(head_gone, nullptr) << "the skipped head window must not be mined";
 }

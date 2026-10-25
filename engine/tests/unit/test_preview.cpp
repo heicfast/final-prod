@@ -177,7 +177,7 @@ TEST(Preview, CompressedExtentDecodes) {
         zs.next_in = plain.data();
         zs.avail_in = uInt(plain.size());
         zs.next_out = comp.data();
-        zs.avail_out = uLongf(comp.size());
+        zs.avail_out = uInt(comp.size());
         deflate(&zs, Z_FINISH);
         comp.resize(zs.total_out);
         deflateEnd(&zs);
@@ -571,7 +571,7 @@ TEST(PreviewMeta, DocxRawDeflateInflatesAndPlainZipStaysZip) {
         zs.next_in = reinterpret_cast<Bytef*>(const_cast<char*>(plain.data()));
         zs.avail_in = uInt(plain.size());
         zs.next_out = comp.data();
-        zs.avail_out = uLongf(comp.size());
+        zs.avail_out = uInt(comp.size());
         ASSERT_EQ(Z_STREAM_END, deflate(&zs, Z_FINISH));
         comp.resize(zs.total_out);
         deflateEnd(&zs);

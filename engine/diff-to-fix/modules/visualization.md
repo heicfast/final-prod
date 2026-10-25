@@ -30,7 +30,7 @@ Core (audited `67193b6`): `src/core/query/cr_query.cpp` + `src/core/preview/cr_p
 | ID | Severity | One-line |
 |---|---|---|
 | S-009 | SEVERE | No volume-bitmap/disk-map surface (ABI-CONTRACT §7 to-build) |
-| (project GAP) | MAJOR | Filter category granularity 7-cat/85-ext vs og 8/1489 |
+| M-023 (was the unnumbered GAP row) | MAJOR — **FIXED** (FIXED/M-023: generated 1,481-ext table, 8 categories; stale 85-ext figure superseded) | Filter category granularity 7-cat/85-ext vs og 8/1489 |
 
 ---
 

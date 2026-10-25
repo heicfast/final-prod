@@ -144,3 +144,10 @@ internal cancel check is per-stage rather than per-record).
   with a similar watcher pattern. Need Ghidra-side decompile of
   `CStopScanThread` to compare. Low priority: the practical worst
   case is one candidate's first poll, bounded.
+
+## Resolution
+
+**Status:** FIXED (option a — the carve watcher pattern, factored)
+**Fixed in commit:** this session's quick-wins batch (new `cr::CancelPoolWatcher` in cr_parallel.h/.cpp; wired at the orchestrator candidate fan-out; the carve site refactored onto the same class — behavior unchanged)
+**Verified by:** `Pool.CancelPoolWatcherDrainsQueueWithinOneTick` — 64×150 ms items over 4 workers, cancel at 50 ms: rc == ERR_CANCELLED, ≤ 6 items ever start (workers + slack), wall time well under the full 2.4 s queue; `Pool.CancelPoolWatcherNullTokenIsInert` (null token: no-op, joins cleanly). The tests cannot compile pre-fix (the class is new) — fail by construction. All existing carve + orchestrator + pause/resume tests stay green (397/397) — the carve refactor is behavior-identical.
+**Resolution notes:** Implemented the finding's option (a): the watcher mirrors cr_carve.cpp's pattern at the orchestrator's parallel candidate fan-out. The implementation is factored into `CancelPoolWatcher` so both fan-outs share ONE watcher (the finding's own framing: "the core's own carve-watcher pattern is the right model; the orchestrator candidate scan should match"). Option (b) (per-item poll inside parallel_for) was not taken: parallel_for has no token parameter and changing its signature would touch every caller; the watcher achieves the same drain semantics without an ABI/API change. OQ-S2-D-2 (the og's own cancel-latency bound) remains corpus-undecoded — the watcher matches the core's established carve standard.

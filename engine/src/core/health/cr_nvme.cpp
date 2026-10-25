@@ -28,7 +28,10 @@ u32 parse_nvme_health_page(const u8* page, u32 bytes, NvmeHealthInfo& out) {
     out.temperature_k = u16(page[1]) | (u16(page[2]) << 8);
     out.available_spare = page[3];
     out.available_spare_threshold = page[4];
-    out.percentage_used = u64(page[5]) | (u64(page[6]) << 8);
+    /* N-009a (diff-to-fix): NVMe Identify Controller/Health log defines
+     * percentage_used as a single u8 (values > 100 are impossible per
+     * spec; the old u16 read consumed the reserved byte at +6). */
+    out.percentage_used = page[5];
     out.data_units_read = le128(page + 32);
     out.data_units_written = le128(page + 48);
     out.power_cycles = le128(page + 112);

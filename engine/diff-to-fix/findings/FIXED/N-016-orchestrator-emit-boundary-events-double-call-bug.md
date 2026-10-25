@@ -112,3 +112,10 @@ in production), so the inflation is consistent and observable.
   duplicate, but worth confirming with `git blame cr_scan.cpp:577-578`
   to see if one of the lines was added by a different commit (and
   whether the commit message suggests a different intent).
+
+## Resolution
+
+**Status:** FIXED
+**Fixed in commit:** this session's quick-wins batch (one line removed from cr_scan.cpp's stamp lambda)
+**Verified by:** `ScanEvents.SingleBoundaryAtTeardown` — the quick+deep fixture produced 4 FilesFound events pre-fix (the teardown double-fire) and exactly 3 post-fix; fail-before/pass-after proven on the pre-batch source (worktree at `6b58b6f`). Suite 397/397.
+**Resolution notes:** Pure merge-artifact removal as the finding planned (git blame confirmed both lines came from 56cce87; the 8-space-indented duplicate removed). The adjacent-boundary shape is preserved — stage-end emits and the stamp remain distinct legitimate boundaries (the test's count pin documents the exact contract). OQ-S2C-5 resolved by the same evidence: both calls passed identical `tel_stage_` payloads — a pure duplicate, no distinct intent.

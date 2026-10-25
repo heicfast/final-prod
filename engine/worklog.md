@@ -6052,6 +6052,220 @@ in findings/FIXED/S-012-*.md (premise correction: NO cross-pass dedup og-side; $
 DAT_18004cd70 decoded; stride table; two og defects deliberately not replicated).
 
 ---
+## Session: diff-to-fix remediation — close all tiers (2026-10-26)
+
+**Prompt:** `worklog/session-diff-fix-prompt.md` (token redacted).
+**Audited commit (per diff-to-fix/README.md):** session 4 wave-1 `204137b` + all
+in-flight fix legs; the worklog's most recent handoff (DF4-S012-CONVERGE) closes at
+`bf7df39`. **Corpus:** `03ad46c` (unmoved).
+**Session start commit:** `bf7df39` (core main; suite 396/396 Linux Release green at
+baseline, 4.25 s — this session's own executed verification).
+**Active inventory at start (direct file count):** 0 ACUTE · 11 SEVERE (S-003, S-007,
+S-009, S-020, S-021, S-023, S-024, S-025, S-026, S-027, S-028) · 34 MAJOR (M-002,
+M-005, M-007, M-008, M-010..M-039) · 37 MINOR (N-004..N-047 groups) · 16 INFORMATIONAL
+· 11 tracked-open = 98 active + 33 FIXED (findings/FIXED/ holds 34 files incl.
+RESOLVED-INDEX.md).
+**Mandate:** verify → reproduce → classify → fix → test → document → push for every
+finding; INFO tier ACKNOWLEDGED; tracked-open resolved or pushed forward; matrix to
+MATCH; release tag if clean.
+
+Work log:
+- T1 complete: repos pulled (core `bf7df39`, corpus `03ad46c`), prompt saved
+  token-redacted, linux-release build configured + built, full suite **396/396 PASS**
+  (4.25 s) — the session's executed baseline.
+- LANE CLAIM (avoid cross-leg duplication, per the multi-leg coordination lesson): this
+  session claims S-023 first (grading engine), then S-024, S-025, S-026, S-027, S-028,
+  S-020, S-007, S-009-remainder — then the MAJOR wave in M-number order, then MINOR/
+  INFO/tracked-open. The df5 leg signaled "lane moves to S-003" (HFS+ journal pair
+  S-003/S-021) — left to them; if their lane stalls, this session takes it after its
+  claimed queue.
+
+---
+Task ID: MFIX-B2 (minors-focus session, batch 2/12)
+Agent: main engineer (diff-to-fix minors session)
+Task: NTFS minors batch — N-011, N-012, N-024 (N-011a..e), N-039.
+
+Work Log:
+- Corpus re-verification first-hand: NTFSSearchDLL :5153-5167 (sparse/compressed
+  internal flags), :5351-5368 ($SI serialized flags - per-bit RO/hidden/system/
+  archive + 0x400 OFFLINE), :5159-5160 (ADS skip, for N-011); NTFSLib
+  LoadNtfsVolume :19292-19344 (boot ladder: bps 512-multiple, signed spc shift
+  decode, cpr 0/0-result reject, index-block 0 reject, no clamp, no 0xAA55);
+  the N-039 gate quotes re-read via the evidence file.
+- Code: cr_bootstrap.cpp (volume-open ladder = og; pow2/0x400/0x200-fallback
+  removed at open; index-block gate added), cr_node.h + cr_mftwalk.cpp +
+  cr_records.cpp (short_name field, capture, nflags-bit-2 session persistence),
+  cr_mftwalk.cpp ($SI attribute source + 0x7FF mask at both emit sites; USN
+  tail-mining window), tests (M-001 trio rescoped to the corrected open
+  semantics; RawFixer fixture index-block byte).
+- Fail-before proven (worktree at e7deda8): BootRecordSizeZeroRejected,
+  BootNoPow2RecordSizeAcceptedAtDecodedValue, BootNegativeExponentOverflowRejected
+  (N-011b), AttributesFromSIWhenAvailable, AttributesPreserveOfflineBit (N-012)
+  - 5/5 fail before, pass after. Guards pass both sides; API-gated tests
+  (short_name, tail mining) fail-by-construction pre-fix.
+- Audit trail: 4 finding Resolutions (N-011 FIXED-ALREADY, N-012/N-024/N-039
+  FIXED) -> FIXED/; matrix rows; modules/ntfs.md; SUMMARY; PARITY-DELTAS D-52;
+  ABI-CONTRACT §4 og error-facility mapping (N-011e); RESOLVED-INDEX +4.
+- M-001's session-2 verification addendum called exactly this re-scope ("audit
+  the landed ladder against those exact bounds") - executed as specified.
+
+Stage Summary:
+- 4 MINOR findings closed (1 FIXED-ALREADY). Suite 384/384 Release + ASan-clean.
+- The M-001-era open-time fallback ladder was mis-scoped (walk-function
+  evidence); rescoped with test updates per the audit's own instruction.
+
+---
+Task ID: S7-BOOT (closing session, df5/s6 lineage continuation)
+Agent: main engineer (diff-to-fix closing session)
+Task: Bootstrap + lane claim per multi-leg coordination.
+
+Work Log:
+- Repos pulled (core `b65f1e6` at session start; concurrent merge with the
+  close-all-tiers leg's `16fea63` resolved here), corpus `03ad46c` (unmoved).
+- Baseline first-hand: linux-release configure+build clean, **396/396 PASS**.
+- LANE CLAIM (acknowledging the close-all-tiers leg's b8d91b5 claim of
+  S-023 -> S-024..S-028 -> S-020 -> S-007 -> S-009 -> MAJOR -> MINOR/INFO):
+  this session (the df5/s6-continuation lineage, per its S-012-close signal
+  "lane moves to S-003") takes **S-003 + S-021 (the HFS+ journal pair)** now,
+  then re-pulls and picks up the highest-severity unclaimed remainder.
+
+Stage Summary:
+- Session bootstrapped; lane S-003/S-021 claimed; baseline green first-hand.
+
+---
+Task ID: DF-CLOSE-T1 (continuation)
+Agent: main engineer (diff-to-fix close-all-tiers session, continuation leg)
+Task: T1 — pull both repos, record commits, verify baseline, reconcile inventory.
+
+Work Log:
+- Repos pulled: core `ff05314` (includes the s7 closing-session merge claiming
+  S-003/S-021 — no collision with this lane), corpus `03ad46c` (unmoved).
+- Prompt already saved token-redacted by this session's bootstrap (`3278a22`,
+  `worklog/session-diff-fix-prompt.md`, 0 token occurrences verified).
+- Baseline executed first-hand: linux-release built clean, full suite
+  **405/405 PASS** (one flake: Snapshot.ConcurrentEmitCaptureWalk under first
+  full -j load — pre-existing timing sensitivity per worklog line 4331, passes
+  3/3 on isolated + full-suite reruns; NOT a regression).
+- Direct file inventory at `ff05314` (authoritative method per project
+  convention): **SEVERE 11** (S-003 S-007 S-009 S-020 S-021 S-023..S-028) ·
+  **MAJOR 34** (M-002 M-005 M-007 M-008 M-010..M-039) · **MINOR 33** ·
+  **INFO 16** · tracked-open 11 = **94 active findings + 11 OQ** / **37 FIXED**
+  (findings/FIXED/ holds 38 files incl. RESOLVED-INDEX.md).
+- Lane (per this session's earlier claim at `b8d91b5`, still valid): S-023 →
+  S-024 → S-025 → S-026 → S-027 → S-028 → S-020 → S-007 → S-009-remainder →
+  MAJOR wave in M-number order → MINOR → INFO → tracked-open. S-003/S-021
+  remain the s7 leg's claim (their `ff05314` merge records it).
+
+Stage Summary:
+- Baseline green 405/405; inventory reconciled to file-count truth; lane active.
+Task ID: MFIX-B3 (minors-focus session, batch 3/12)
+Agent: main engineer (diff-to-fix minors session)
+Task: HFS+ minors batch — N-028 (N-015a/b/c), N-038, N-005.
+
+Work Log:
+- Corpus re-verification first-hand: FUN_1800057d0 :3714-3718 (sink filter:
+  dotfiles + 17-char "HFS+ Private Data" substring), FUN_180009940
+  :7663-7689 (fork-selection bit +0x29/0x20 with the rsrc+decmpfs-mark path;
+  'prdf' 0x66647270 LE-load = on-disk "prdf" at the FinderInfo fileType).
+- Code: parse owner_flags (+0x29) + finder_file_type (+0x30); sink filter at
+  the live walk AND the orphan sweep (og's single result callback is
+  source-global); 'prdf' folderization both sources; rsrc-marked fork
+  selection both sources (decmpfs completion engages for marked files);
+  block bound 64 KiB -> 16 MiB + scan-level product sanity (block x total <=
+  2x device); stats: sink_filtered / prf_folderized / rsrc_marked_files.
+- Fail-before proven (worktree at 3928f33): DotfileAndPrivateDataFiltered,
+  PrdfRecordFolderized, RecordBit29SelectsResourceFork, LargeBlockSizeAccepted
+  - 4/4 fail before (stats asserts stripped for the pre-fix compile), pass
+  after. Suite 392/392.
+- Audit trail: 3 finding Resolutions (N-028, N-038 -> FIXED/; N-005 resolved
+  inside its group file with N-004/N-006 explicitly left open); matrix;
+  modules/hfsplus.md; SUMMARY; PARITY-DELTAS D-53; RESOLVED-INDEX +3.
+
+Stage Summary:
+- 3 MINOR findings closed (one as part of a group file with the others left
+  open). Fixture notes: HFS+ leaf links are NODE indices (not block numbers);
+  extent lengths are block-granular; the freed-node sweep needed the same
+  gates as the live walk (both are record sources).
+
+Task ID: CT-M023 (M-023 fix + OQ-S4-1 resolve)
+Agent: main engineer (diff-to-fix close-all-tiers session)
+Task: Verify and fix M-023 (filter category model); resolve OQ-S4-1 (the S-023
+dependency chain: grading engine needs the category source + the extension table).
+
+Work Log:
+- Corpus verification BEFORE the fix (first-hand): FileFilter.xml parsed directly
+  (8 FileCategory nodes: Graphic 320 ext / Document 432 / Email 19 / Audio 281 /
+  Video 217 / Other 0 / Archive 219 / Bookmarks 1; 1,489 entries, 1,481 unique,
+  8 cross-listed: ari gz insp insv jar md uzip xz — first-writer-wins per the og's
+  document order; verified ari→Video, md→Document, gz/xz/jar→Archive against the
+  XML — my initial gz→Document test guess was WRONG and corrected per the
+  corpus-wins rule).
+- OQ-S4-1 resolved first-hand: the 169-entry grading table extracted from the corpus
+  DRWUI.exe binary (.data VA 0x141bb0500, 169 × 9-byte {8-char key, flag=0}, first
+  key "Raw") — full enumeration recorded in the OQ file's Resolution; feeds S-023.
+- Classification: CONFIRMED-DIVERGENCE (pst→Other pre-fix proven; Email/Bookmarks
+  absent from the enum pre-fix proven by compile).
+- Fix: Category enum +Email(7)/+Bookmarks(8) (append-only, ABI-safe); generated
+  table src/core/query/cr_filefilter_data.cpp (scripts/gen_filefilter.py in the
+  rawsigns pattern; 1,481 entries sorted for binary search; extern-qualified
+  definitions — const namespace-scope objects default to internal linkage);
+  category_for_extension + cat_of via lower_bound; filefilter_entry_count()
+  drift guard; Filter::category_mask default 0xFF→0x1FF + cr_ui's 0→all mapping
+  (Bookmarks bit 8); CMakeLists registration.
+- Tests: 5 new (EmailCategoryExists, BookmarksCategory, CameraRawClassified,
+  TableCountMatchesCorpusUniques, CrossListedFirstWriterWins). FAIL-BEFORE
+  PROVEN: behavioral probe on the pre-fix worktree FAILED 6/6 assertions
+  (cr3/x3f/srw/3fr/erf/pef → Other(6)); Email/Bookmarks fail-by-construction
+  (compile). PASS-AFTER: 6/6 (incl. existing CategoryMap).
+- Suite: 401/401 Linux Release (396 + 5) + 401/401 Linux ASan detect_leaks=1;
+  clang-format 18.1.8 clean (the CI-pinned version).
+- Audit trail: M-023 → FIXED/ with Resolution; RESOLVED-INDEX row + count 29→30;
+  CROSS-REF-MATRIX visualization+query rows; modules/query.md P16 verdict +
+  findings index; modules/visualization.md GAP row → M-023 FIXED;
+  SUMMARY close-all-tiers delta section; OQ-S4-1 → RESOLVED with the dump.
+
+Stage Summary:
+- M-023 CLOSED: 8-category / 1,481-extension filter parity (content axis);
+  the runtime-editable XML surface is the documented deliberate non-adoption.
+  OQ-S4-1 CLOSED: the grading extension table is in hand. S-023 (the grading
+  engine) is next — category source now exists, extension gate now known.
+
+---
+Task ID: CT-COORD2 (lane coordination marker)
+Agent: main engineer (diff-to-fix close-all-tiers session — the b8d91b5 claimant)
+
+The df-close leg's T1 (64eca23) adopted this session's lane claim via the ff05314
+merge. To prevent duplicate S-023 work: **this session STARTS S-023 NOW** (the
+grading engine; M-023 category source + the OQ-S4-1 169-entry table are landed
+in 3ff213c — both were S-023's dependencies). df-close leg: please take S-024
+(health grading) or S-025..S-027 (ext4 trio) next. The MFIX minors session stays
+on MINOR batches (their B3 landed N-028/N-038/N-005). Convergence protocol
+applies if we still collide (their landing stands; duplicate discarded).
+---
+Task ID: MFIX-B4 (minors-focus session, batch 4/12)
+Agent: main engineer (diff-to-fix minors session)
+Task: Quick-wins batch — N-016, N-017, N-009a, N-009b.
+
+Work Log:
+- N-016: removed the duplicate emit_boundary_events_ call (56cce87 merge
+  artifact, confirmed by blame); count pinned at exactly 3 for the quick+deep
+  fixture (was 4). Note: two adjacent FilesFound events from DIFFERENT call
+  sites are legitimate - the discriminator is the count, not adjacency.
+- N-017: new cr::CancelPoolWatcher (factored from the carve inline watcher);
+  wired at the orchestrator's parallel candidate fan-out AND the carve site
+  (refactor, behavior identical - all carve/orchestrator/pause tests green).
+  Unit tests: 64x150ms/4 workers, cancel@50ms -> ERR_CANCELLED, <=6 starts,
+  well under the 2.4s full queue.
+- N-009a: percentage_used u8 width (reserved byte at +6 no longer leaks).
+- N-009b: done_bytes excludes Error outcomes (progress honesty).
+- Fail-before proven (worktree at 6b58b6f): SingleBoundaryAtTeardown (4->3),
+  PercentageUsedIsU8Width, ProgressExcludesErrorItems - 3/3 fail before;
+  CancelPoolWatcher tests compile-gated. Suite 397/397.
+
+Stage Summary:
+- 2 MINOR findings closed (N-016, N-017 -> FIXED/); N-009 group 2/4 closed
+  (a+b; c+d remain open in the group file). D-54 registered.
+
 Task ID: DF4-S020-M022
 Agent: main engineer (diff-to-fix session 4)
 Task: S-020 (SEVERE) + M-022 (MAJOR) + N-037 (MINOR, folded) — the ReFS attribute

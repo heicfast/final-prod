@@ -5,44 +5,28 @@
 
 #include "cr/query/cr_query.h"
 #include <algorithm>
-#include <cctype>
+#include <cstring>
 
 namespace cr {
 namespace query {
 
-/* ---- extension -> category (core-side; mirrors the corpus families) ---- */
+/* ---- extension -> category ---- */
 
-namespace {
-
+/* Generated from the corpus FileFilter.xml by scripts/gen_filefilter.py
+ * (M-023): 8 categories, 1,481 unique extensions, first-writer-wins for
+ * the 8 cross-listed ones (ari/gz/insp/insv/jar/md/uzip/xz). The table
+ * itself lives in cr_filefilter_data.cpp (sorted by ext for binary
+ * search - the 64-entry linear scan would be 1,481 comparisons deep). */
+namespace filefilter_data {
 struct ExtCat {
-    const char* ext; /* lower, no dot */
+    const char* ext;
     Category cat;
 };
+extern const ExtCat kEntries[];
+extern const size_t kCount;
+} // namespace filefilter_data
 
-const ExtCat kMap[] = {
-    {"jpg", Category::Image},     {"jpeg", Category::Image},    {"png", Category::Image},
-    {"gif", Category::Image},     {"bmp", Category::Image},     {"tif", Category::Image},
-    {"tiff", Category::Image},    {"webp", Category::Image},    {"heic", Category::Image},
-    {"cr2", Category::Image},     {"nef", Category::Image},     {"arw", Category::Image},
-    {"dng", Category::Image},     {"orf", Category::Image},     {"raf", Category::Image},
-    {"rw2", Category::Image},     {"psd", Category::Image},     {"svg", Category::Image},
-    {"ico", Category::Image},     {"mp4", Category::Video},     {"mov", Category::Video},
-    {"avi", Category::Video},     {"mkv", Category::Video},     {"wmv", Category::Video},
-    {"flv", Category::Video},     {"m4v", Category::Video},     {"mpg", Category::Video},
-    {"mpeg", Category::Video},    {"webm", Category::Video},    {"3gp", Category::Video},
-    {"mp3", Category::Audio},     {"wav", Category::Audio},     {"flac", Category::Audio},
-    {"aac", Category::Audio},     {"m4a", Category::Audio},     {"ogg", Category::Audio},
-    {"wma", Category::Audio},     {"amr", Category::Audio},     {"mid", Category::Audio},
-    {"pdf", Category::Document},  {"doc", Category::Document},  {"docx", Category::Document},
-    {"xls", Category::Document},  {"xlsx", Category::Document}, {"ppt", Category::Document},
-    {"pptx", Category::Document}, {"txt", Category::Document},  {"rtf", Category::Document},
-    {"odt", Category::Document},  {"ods", Category::Document},  {"hwp", Category::Document},
-    {"csv", Category::Document},  {"log", Category::Document},  {"md", Category::Document},
-    {"zip", Category::Archive},   {"rar", Category::Archive},   {"7z", Category::Archive},
-    {"tar", Category::Archive},   {"gz", Category::Archive},    {"bz2", Category::Archive},
-    {"xz", Category::Archive},    {"cab", Category::Archive},   {"iso", Category::Archive},
-    {"msi", Category::Archive},
-};
+namespace {
 
 std::string lower_ascii(std::string s) {
     for (char& c : s)
@@ -63,9 +47,13 @@ Category cat_of(const std::string& name) {
     const std::string e = ext_of(name);
     if (e.empty())
         return Category::Other;
-    for (const auto& m : kMap)
-        if (e == m.ext)
-            return m.cat;
+    const filefilter_data::ExtCat* first = filefilter_data::kEntries;
+    const filefilter_data::ExtCat* last = first + filefilter_data::kCount;
+    const filefilter_data::ExtCat* it = std::lower_bound(
+        first, last, e.c_str(),
+        [](const filefilter_data::ExtCat& m, const char* key) { return strcmp(m.ext, key) < 0; });
+    if (it != last && strcmp(it->ext, e.c_str()) == 0)
+        return it->cat;
     return Category::Other;
 }
 
@@ -141,7 +129,7 @@ bool passes(const Filter& f, const tree::FileNode* n, const tree::FileProperties
         return false;
     if ((f.origin_mask & (1u << u32(n->origin()))) == 0)
         return false;
-    if (f.category_mask != 0xFF || !f.extensions.empty() || !f.name_substring.empty()) {
+    if (f.category_mask != 0x1FF || !f.extensions.empty() || !f.name_substring.empty()) {
         const std::string name = n->name_utf8();
         cat_out = cat_of(name);
         if ((f.category_mask & (1u << u32(cat_out))) == 0)
@@ -195,10 +183,20 @@ void walk(const tree::FileNode* n, const std::string& prefix, Ctx& c) {
 
 Category category_for_extension(const std::string& ext_utf8) {
     const std::string e = lower_ascii(ext_utf8);
-    for (const auto& m : kMap)
-        if (e == m.ext)
-            return m.cat;
+    if (e.empty())
+        return Category::Other;
+    const filefilter_data::ExtCat* first = filefilter_data::kEntries;
+    const filefilter_data::ExtCat* last = first + filefilter_data::kCount;
+    const filefilter_data::ExtCat* it = std::lower_bound(
+        first, last, e.c_str(),
+        [](const filefilter_data::ExtCat& m, const char* key) { return strcmp(m.ext, key) < 0; });
+    if (it != last && strcmp(it->ext, e.c_str()) == 0)
+        return it->cat;
     return Category::Other;
+}
+
+size_t filefilter_entry_count() {
+    return filefilter_data::kCount;
 }
 
 Result run(const tree::ResultTree& tree, const Query& q) {

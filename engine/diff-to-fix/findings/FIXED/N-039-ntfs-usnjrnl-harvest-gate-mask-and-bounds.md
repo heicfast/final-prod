@@ -143,3 +143,10 @@ Falsifiable claims (same `$J`, both engines run):
   collection; whether a later stage filters `$`-names or re-parents by the dir map
   (`:20104-20110`) is not decoded (scan-side effect marginal; next artifact: the
   collection consumer after `FUN_180031070`).
+
+## Resolution
+
+**Status:** FIXED (gate kept as the correct side + og defect registered; tail mining implemented; test-comment corrected)
+**Fixed in commit:** this session's NTFS batch (cr_mftwalk.cpp harvest window; tests relabeled; PARITY-DELTAS D-52)
+**Verified by:** the finding's three pass-today pins now exist and pass: `NtfsVolume.UsnHarvestTrueDeleteReason0x80020000` (0x80020000 harvests), `UsnHarvestRejectsCompressionChangeOnly` (0x80000200 does not), plus the new `UsnHarvestCapMinesTail` (a 66 MiB 3-run $J stream: the TAIL delete is mined, the head delete in the skipped window is not — cannot compile pre-fix because the fixture constant rename is part of this change; behavioral fail-before: the old head-mining harvested gonefile.txt and never saw the tail record). Suite 384/384.
+**Resolution notes:** Fix-plan items executed exactly: (1) the 0x20000 FILE_DELETE gate stays — the og's 0x200 (COMPRESSION_CHANGE, per the public winioctl.h table) + dead harvest-all byte is an OG DEFECT (the og's journal cross-check is near-inert for deletions on real volumes); registered in D-52 with a do-not-copy note. (2) The test fixture's mislabeled constant is renamed `kFixtureReasonBit` with the corrected comment (0x100 = HARD_LINK_CHANGE, not FILE_CREATE) so no future agent re-derives the dead probe's inverted premise. (3) $J streams over the 64 MiB cap now mine the TAIL (jskip head window; run-walk with per-run skip offsets) — the journal is circular and the newest records are the recovery-relevant ones; the og walks the whole journal with no cap (a core bound, now steering the bound at the freshest evidence). Bounds deltas both ways (512-byte record cap, V2-only parsing on the og vs native V3 + long names here) stay core supersets per the finding.

@@ -91,6 +91,28 @@ Diagnostics: `cr_ui_last_error()` returns thread-local text for the LAST
 failing call on that thread; stable until the next `cr_ui_*` call on the same
 thread. Never NULL.
 
+**N-011e (diff-to-fix) — og error-facility families (registration).** The og
+carries structured facility codes the core's `cr::Err` space does not model
+verbatim (decoded: NTFSSearchDLL `0x2980005`/`0x2a30006`/`0x2a90006`/
+`0x3a90001`/`0x17c0004` at :18908-27/:18966/:17897, plus the HFS+ family
+`0x50LLxxxx00000nnn`). They are an INTERNAL classification surface of the og
+engines (never consumer-visible exit codes); the core's engine errors map by
+*category* (bad-magic/bad-parameter/truncated/unsupported) instead of by
+facility number. Mapping table for parity tooling that reads both sides'
+logs:
+
+| og facility | Category | Core code |
+|---|---|---|
+| 0x2980005 (ntfs open fail) | bad parameter/magic | 0x50030001 / 0x50030003 |
+| 0x2a30006 (ntfs walk fail) | read/parse | 0x50020002 / 0x50030004 |
+| 0x2a90006 (ntfs deep-scan fail) | read/parse | 0x50020002 / 0x50030004 |
+| 0x3a90001 (ntfs journal/aux fail) | unsupported/damaged | 0x50030008 |
+| 0x17c0004 (ntfs volume-state) | volume state | 0x50030003 |
+| 0x50LLxxxx00000nnn (HFS+ family) | engine-internal | per-case category |
+
+Registration only — the core does not adopt the og's numeric facility space
+(consumers depend on `cr_error.h`'s stable codes).
+
 **Error philosophy:** failures are surfaced, never masked. A scan that cannot
 open the volume returns its engine error; an empty result is `OK` with zero
 files, not an error; a torn session record is repaired (F10 salvage) or

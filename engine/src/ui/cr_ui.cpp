@@ -1958,7 +1958,7 @@ u32 query_run_impl(cr_ui_session* sess, const cr_ui_query* q, cr_ui_query_row** 
         return ret_(ERR_BAD_PARAMETER, "bad argument: sess/q/rows/row_count/total_matched");
     auto* s = reinterpret_cast<CrSession*>(sess);
     query::Query cq;
-    cq.filter.category_mask = q->category_mask ? q->category_mask : 0xFFu;
+    cq.filter.category_mask = q->category_mask ? q->category_mask : 0x1FFu;
     cq.filter.size_min = q->size_min;
     cq.filter.size_max = q->size_max ? q->size_max : ~u64(0);
     cq.filter.modified_from = q->modified_from;

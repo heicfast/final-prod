@@ -147,3 +147,10 @@ Two parallel gaps:
   compressed/sparse); the writer doesn't need it (it always expands
   compressed data via GAP-P1-1). Low priority — only file if a
   downstream consumer surfaces a need.
+
+## Resolution
+
+**Status:** FIXED
+**Fixed in commit:** this session's NTFS batch (cr_mftwalk.cpp: build_props gains si_flags out-param; props->attributes source + mask; dump-pass site uses the record's own $SI flags)
+**Verified by:** fail-before/pass-after on the pre-batch source (worktree at `e7deda8`): `NtfsVolume.AttributesFromSIWhenAvailable` ($SI 0x02 hidden vs $FILE_NAME 0x00 → FAILS before, passes after) and `NtfsVolume.AttributesPreserveOfflineBit` ($SI 0x400 → dropped by the old & 0xFF mask before, preserved after). Guard: `AttributesFallBackToFileNameWhenSIAbsent` (passes both sides). Suite 384/384 Linux Release.
+**Resolution notes:** Serialized attributes now come from $STANDARD_INFORMATION's dos_flags when parsed — the og's source (FUN_180044f60 on the $SI attribute, NTFSSearchDLL :5351-5368, re-read first-hand this session: per-bit RO/hidden/system/archive gates + the 0x400 OFFLINE gate) — with the $FILE_NAME fallback the finding's fix plan endorsed (mirroring the times precedence rule). Mask widened from 0xFF to 0x7FF (OFFLINE preserved). The dump-pass emit site (:1418) applies the same rule with the dumped record's own $SI flags. The finding's Open question (a persistent internal compressed/sparse flag) stays not-needed per its own disposition ("only file if a downstream consumer surfaces a need" — none has; the writer expands via GAP-P1-1, the query layer does not filter on it).

@@ -157,3 +157,22 @@ attributes-tree remaining sites, names, hard links/hot files/allocation, leaf wa
   DOES wire mode 3). Needs one mode-3 fixture against the current core to decide
   MATCH vs core-superset; next artifact: a mode-3 decmpfs xattr fixture + the og's
   marked-node content path re-read at :7880+.
+
+## Minors-fix session update (2026-10-26)
+
+**N-028 group FIXED/REGISTERED** — the og's sink filter (dotfiles + "HFS+
+Private Data", FUN_1800057d0 :3714-18) applies at BOTH record sources (live
+walk + freed-node sweep — the og's result callback is source-global);
+'prdf' fileType folderization (:7687-89); the rsrc-child superset stays
+registered (D-53).
+
+**N-038 FIXED** — record ownerFlags (+0x29) bit 0x20 selects the resource
+fork as content + the decmpfs completion path (FUN_180009940 :7665/:7677-78),
+in both record sources; empty-data-fork substitution stays the fallback.
+
+**N-005 FIXED** — block-size upper bound 64 KiB → 16 MiB (og has none beyond
+the 512-multiple mask); NEW device-size product sanity at scan time; ≥512
+floor registered as hardening.
+
+**Tests:** +4 (3 fail-before discriminators + product-sanity case). Suite
+392/392.

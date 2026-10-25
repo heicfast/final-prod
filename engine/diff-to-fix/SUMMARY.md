@@ -1,5 +1,28 @@
 # SUMMARY.md — executive summary (session 4 reconciled on top of the session-3 continuation; earlier sessions below)
 
+## Close-all-tiers session delta (2026-10-26 — the "fix every finding" session)
+
+Session start `3278a22` (bootstrap on `bf7df39`; suite 396/396 baseline). Corpus
+`03ad46c` (unmoved). Mandate: verify every finding independently against the
+corpus before fixing; resolve ALL tiers; resolved findings move to `findings/FIXED/`
+with Resolution sections; matrix/modules/counts updated as fixes land.
+
+- **M-023 FIXED** (category model — the S-023 dependency): Category enum
+  +Email(7)/+Bookmarks(8); the 64-entry hand table replaced by the generated
+  1,481-entry table (scripts/gen_filefilter.py from the corpus FileFilter.xml;
+  first-writer-wins for the 8 cross-listed); binary-search lookup;
+  category_mask default 0xFF→0x1FF (Bookmarks bit). Fail-before: behavioral
+  probe (camera-RAW → Other pre-fix) + enum-by-construction (Email/Bookmarks
+  absent pre-fix). 5 tests; suite 401/401 Release + 401/401 ASan(leaks).
+- **OQ-S4-1 RESOLVED** (the 169-entry grading extension table at .rdata
+  0x141bb0500 — extracted first-hand from the corpus DRWUI.exe: 169 × 9-byte
+  entries {8-char NUL-padded key, flag byte 0}, first key "Raw"; the dump
+  feeds S-023's deep-validation gate).
+
+**Counts after M-023 (direct file inventory):** ACUTE 0 · SEVERE 11 · MAJOR 33 ·
+MINOR 37 · INFO 16 = **97 active** / **34 files in FIXED/** (33 findings +
+RESOLVED-INDEX).
+
 ## Minors-fix session delta (2026-10-26 — the "fix all tiers, focus the 33 minors" session)
 
 Session start `ed00020` (baseline 345/345 Linux Release; +1 test from the concurrent
@@ -25,6 +48,31 @@ finding independently against the corpus before fixing; focus the MINOR tier.
 **Counts after batch 1 (direct file inventory):** ACUTE 0 · SEVERE 8 · MAJOR 22 ·
 **MINOR 29** · INFO 12 = **71 active** / **29 FIXED** (FIXED/ holds 29 findings +
 RESOLVED-INDEX).
+
+**Batch 2 — NTFS minors (this push):**
+- **N-011 FIXED-ALREADY** (emit_ads flag landed with `367561d`; missing parity
+  pin + superset guard added this session).
+- **N-012 FIXED** ($SI attribute source + 0x7FF mask; 2 fail-before tests).
+- **N-024 group FIXED/REGISTERED** (short_name field + session persistence;
+  boot ladder = LoadNtfsVolume exactly — 5 fail-before/rescoped tests; stride
+  quirk + namespace ranking + error-facility mapping registered; D-52).
+- **N-039 FIXED** (0x20000 gate kept — the og's 0x200 mask registered as an og
+  defect; >64 MiB $J tail mining; fixture comment corrected; 4 tests).
+- Cross-lane green-main fix: the S-012 leg's ASan leak (caller-held
+  FileProperties ref never released at the GUID-dump emit) — suite now
+  384/384 under ASan detect_leaks=1 too.
+- Suite **384/384** Linux Release (+18 tests since session start).
+- NOTE: parallel audit legs landed concurrently (S-023..S-028, M-028..M-030+,
+  N-040..N-047, I-015..I-018 inventory; their own fixes). The minors-focus
+  session continues against the live inventory.
+
+**Batch 3 — HFS+ minors (this push):**
+- **N-028 group FIXED/REGISTERED** (sink filter both sources; 'prdf'
+  folderization; rsrc superset registered D-53).
+- **N-038 FIXED** (ownerFlags 0x20 → rsrc fork + decmpfs completion).
+- **N-005 FIXED** (block bound 16 MiB + product sanity; floor registered).
+- Suite **392/392** Linux Release (+8 tests; 3 fail-before discriminators
+  proven against the pre-batch source).
 
 
 

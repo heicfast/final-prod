@@ -27,8 +27,11 @@ are session 4's.
 
 - **P16 (filter model)** — finding **M-029** (bucket IDs, Custom buckets, 7-group
   advance condition, two-mode persistence, server-side push, noise filters, carve
-  toggles all absent) + **M-023** (category/extension coverage: 8 vs 6 categories,
-  1,481 vs 64 extensions, Email+Bookmarks missing — count corrected this session).
+  toggles all absent) + **M-023 FIXED** (findings/FIXED/M-023: Category enum
+  +Email(7)/+Bookmarks(8); the generated 1,481-entry table from the corpus
+  FileFilter.xml replaces the 64-entry hand table — scripts/gen_filefilter.py,
+  binary-search lookup, category_mask default 0x1FF; the runtime-editable XML
+  surface is the documented deliberate non-adoption).
 - **P17 (sort model)** — finding **M-029**: core sort set = Path/Name/Size/Modified/
   Confidence (stable) vs og's 6 columns; **Type column missing**; Confidence sort has
   no og counterpart.
@@ -55,6 +58,6 @@ are session 4's.
 | ID | Severity | One-line |
 |---|---|---|
 | M-029 | MAJOR | Query model beyond categories: sort keys, paging semantics, bucket IDs, server-side filter push, noise filters, carve toggles, frozen-doc unit lie |
-| M-023 | MAJOR (s1/s3, amended) | Category/extension coverage gap (counts corrected: 8 vs 6 cats, 1,481 vs 64 ext) |
+| M-023 | MAJOR (s1/s3, amended) — **FIXED** (FIXED/M-023) | Category/extension coverage gap (counts corrected: 8 vs 6 cats, 1,481 vs 64 ext) → generated 1,481-ext table + 2 new categories |
 | N-040 | MINOR (shared) | The frozen-contract `modified` unit falsehood is canonically fixed in M-029's plan |
 | S-023 | SEVERE (shared) | No precomputed category map / assistant statistics (query re-derives per row) |

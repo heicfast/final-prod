@@ -149,4 +149,31 @@ u32 parallel_for(ThreadPool& pool, u64 count, const std::function<u32(u64)>& fn)
     return first_err.load(std::memory_order_acquire);
 }
 
+CancelPoolWatcher::CancelPoolWatcher(ThreadPool& pool, const CancelToken* token) {
+    if (token == nullptr) {
+        submit_done_.store(true, std::memory_order_release);
+        return; /* no token: nothing to watch */
+    }
+    const CancelToken* t = token;
+    ThreadPool* p = &pool;
+    std::atomic<bool>* flag = &submit_done_;
+    thread_ = std::thread([p, t, flag]() {
+        while (!flag->load(std::memory_order_acquire)) {
+            if (t->cancelled()) {
+                p->abort();
+                return;
+            }
+            std::this_thread::sleep_for(std::chrono::milliseconds(50));
+        }
+    });
+}
+
+CancelPoolWatcher::~CancelPoolWatcher() { done(); }
+
+void CancelPoolWatcher::done() {
+    submit_done_.store(true, std::memory_order_release);
+    if (thread_.joinable())
+        thread_.join();
+}
+
 } // namespace cr

@@ -102,6 +102,30 @@ private:
  * thread boundary). */
 u32 parallel_for(ThreadPool& pool, u64 count, const std::function<u32(u64)>& fn);
 
+/* N-017 (diff-to-fix): the carve-style cancel watcher, factored to one
+ * place. A background thread polls the token every 50 ms and aborts the
+ * pool so QUEUED work never starts after a cancel - without it, a queued
+ * item runs to its own first poll point (an engine loop head; potentially
+ * seconds on a damaged volume). Running jobs always finish to their own
+ * poll point (abort empties the queue; it never preempts). Used by the
+ * carve window fan-out and the orchestrator's parallel candidate scan. */
+class CancelPoolWatcher {
+public:
+    CancelPoolWatcher(ThreadPool& pool, const CancelToken* token);
+    ~CancelPoolWatcher(); /* joins */
+
+    CancelPoolWatcher(const CancelPoolWatcher&) = delete;
+    CancelPoolWatcher& operator=(const CancelPoolWatcher&) = delete;
+
+    /* stop watching and join (call after parallel_for returns, or rely on
+     * the destructor) */
+    void done();
+
+private:
+    std::atomic<bool> submit_done_{false};
+    std::thread thread_;
+};
+
 } // namespace cr
 
 #endif // CR_PARALLEL_H_

@@ -445,3 +445,40 @@ TEST(WriterDirs, MetadataOnlyItemSkipsNotZeroFills) {
     const std::string doc = report::build_report(items, t);
     EXPECT_NE(doc.find("nothing_to_recover"), std::string::npos);
 }
+
+TEST(WriterDirs, ProgressExcludesErrorItems) {
+    /* N-009b (diff-to-fix): progress honesty - an item that ends in Error
+     * never counts toward done_bytes (the og's ExportThread counts
+     * WRITTEN bytes). The old unconditional add reached done == total on
+     * error-heavy runs - "100% done, N errors". */
+    std::vector<u8> img(2048, 0);
+    std::memcpy(img.data(), "A!", 2);
+    std::memcpy(img.data() + 512, "B!", 2);
+    std::memcpy(img.data() + 1024, "C!", 2);
+    tree::ResultTree tree;
+    auto* found = tree.add_root(u"Found");
+    (void)add_node(tree, found, "a.txt", 0, 2);
+    (void)add_node(tree, found, "b.txt", 512, 2); /* poisoned */
+    (void)add_node(tree, found, "c.txt", 1024, 2);
+    MemDevice dev(img);
+
+    TmpDir tmp;
+    FaultIo io(tmp.p, u"b.txt");
+    SafeWriter writer(io, &dev, WriterConfig{});
+    for (tree::FileNode* c = found->first_child(); c; c = c->next_sibling())
+        ASSERT_EQ(OK, writer.enqueue(c, u"out\\"));
+
+    auto progress = [](u64 done, u64 total, void* user) -> bool {
+        auto* ctx = static_cast<std::pair<u64, u64>*>(user);
+        ctx->first = std::max(ctx->first, done);
+        ctx->second = total;
+        return true;
+    };
+    std::pair<u64, u64> ctx{0, 0};
+    WriterStats stats;
+    ASSERT_EQ(OK, writer.process(nullptr, progress, &ctx, stats));
+    EXPECT_EQ(u64(1), stats.errors);
+    EXPECT_EQ(u64(2), stats.done);
+    EXPECT_EQ(ctx.first, 4u) << "done must reach only the two written items' bytes (2+2)";
+    EXPECT_EQ(ctx.second, 6u) << "total still counts every queued item";
+}

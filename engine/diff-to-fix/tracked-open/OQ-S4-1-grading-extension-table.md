@@ -36,3 +36,27 @@ consumed by the **lost-partition content-consistency scorer**
 `evidence/decompiled-quotes/s3-filefilter-health.md` §A2. The
 blast-radius probe (is the table engine-wide or exFAT-only?) is now recorded
 as OQ-FLT-1 in `tracked-open/OQ-Z-E-FLT-session3.md`.
+
+## Resolution
+
+**Status:** RESOLVED (close-all-tiers session, 2026-10-26)
+**Verified by:** first-hand extraction from the corpus binary
+`og-codebase/DRWUI.exe` (.data section, VA 0x141bb0500 → file offset
+0x1baef00; 169 × 9-byte entries: 8-char NUL-padded key + flag byte).
+**Resolution notes:** All 169 entries enumerated; every flag byte is 0 (the
+table is a pure membership gate). First key "Raw" (a pseudo-extension the
+og's own raw-sign format family), then 168 real extensions in category-
+grouped order: 3DS 3GP ADP ANI AI ASF WMA WMV AU AVI BMP CAB CDR CHM CLK
+CMX CPT CRW CSL CUR DBX DLL DOC DWG DXF EMF EPS EXE FH11 GIF GZ HLP HTML
+ICO JPG LZH MAX MID MDB MNY MOF MOV MP3 MP4 M4A M4V MPP OLE ONE PDF PNG
+PPT PUB PSD PSP PST QPW RAR RIFF RTF SHW SWF TAR TIF TTF VSD WAV WPD WPG
+WMF XLS ZIP DOCX XLSX PPTX ACCDB NEF NRW AAC AIFF APE OGG CR2 SR2 ARW RAW
+RW2 DNG RAF FLV SVG SIT SITX RM RMVB MKV DCR KDC 3FR ERF MEF MRW MDC PEF
+PTX SRW ORF X3F MPG PAGES KEY NUMBERS DMG EPUB FCPEVENT M2TS MUSE MTS CR3
+MXF HWP HWPX M2T HEIC HEIF WEBP M1V JP2 JPF JPM STL RVT MOBI XMIND MMAP
+VCF M4P WEBM POS EDDX WFP VPJ OSP HFP DRP HIK ODP ODS ODT 7Z GPX INSV
+INSP GPR CRM AEP FFF DPX MUSX XIB BRAW NEV R3D PIX MAT SLN VCPROJ COMMON.
+The extraction script (PE section walk + 9-byte entry scan) ran against
+corpus 03ad46c; the terminator is the 2000-entry loop bound at the lookup
+site (DRWUI_decompiled.c:605299-605301) with the table's zero entry.
+Folded into S-023's fix (the deep-validation gate's membership set).
