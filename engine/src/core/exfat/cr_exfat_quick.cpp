@@ -194,6 +194,10 @@ struct ScanCtx {
     Bitmap bitmap;
     bool have_fat = false;
     bool have_bitmap = false;
+    bool bitmap_reads_ok = true; /* S-009 hardening: a failed bitmap read
+                                  * leaves ZEROS (reads as "free" after the
+                                  * inversion) - a torn bitmap must feed
+                                  * NOTHING to the free map */
     ExfatScanFlags flags;
     tree::ResultTree* tree;
     tree::FullNode* root_active;
@@ -305,7 +309,9 @@ void walk_entries(ScanCtx& ctx, const std::vector<u8>& buf, bool deleted_context
                         u32 run = ctx.p.cluster_bytes;
                         if (filled + run > total)
                             run = u32(total - filled);
-                        ctx.dev->read_at(off, ctx.bitmap.data.data() + filled, run);
+                        if (ctx.dev->read_at(off, ctx.bitmap.data.data() + filled, run) != OK)
+                            ctx.bitmap_reads_ok = false; /* S-009: torn
+                             * bitmap never feeds the free map */
                         filled += run;
                         ++k;
                     }
@@ -592,21 +598,34 @@ u32 scan_exfat(IStorageDevice* slice, const ExfatScanFlags& flags, CancelToken* 
      * to free; clusters beyond the loaded bitmap (the 8 MiB loader cap)
      * stay NOT-free (unknown is not free). Cluster 0's byte = the heap
      * base minus the two virtual reserved clusters (linear like the
-     * engine's cluster_offset math). */
+     * engine's cluster_offset math).
+     * Hardening (S-009 follow-up): (a) clusters 0/1 are VIRTUAL - their
+     * bits in the allocation bitmap are spec-zero and their byte span
+     * [base, heap_base) is the boot/FAT region, not free space; the fill
+     * starts at cluster 2 (the first fill started at 0 and painted the
+     * two pre-heap sectors free on every exFAT volume). (b) a bitmap
+     * whose reads FAILED is refused whole - the zero fill reads as
+     * "everywhere allocated" -> inverted "everywhere free", a
+     * false-free map; honesty demands no map over a lie. */
     if (free_out != nullptr) {
         free_out->clear();
-        if (ctx.have_bitmap && p.cluster_count != 0 && p.cluster_bytes != 0) {
+        if (ctx.have_bitmap && ctx.bitmap_reads_ok && p.cluster_count != 0 &&
+            p.cluster_bytes != 0) {
             const u64 heap_base = u64(p.cluster_heap_offset) * p.bytes_per_sector;
             const u64 two_cb = u64(2) * p.cluster_bytes;
             free_out->base_byte = heap_base >= two_cb ? heap_base - two_cb : 0;
             free_out->cluster_bytes = p.cluster_bytes;
-            free_out->cluster_count = p.cluster_count;
-            free_out->bits.assign(size_t((u64(p.cluster_count) + 7) / 8), 0);
+            /* cluster numbers 0..cluster_count+1 (the two virtual + ALL
+             * data clusters 2..cluster_count+1 - the first landing copied
+             * p.cluster_count verbatim and the LAST TWO data clusters
+             * fell out of the map's coverage, never reading free) */
+            free_out->cluster_count = u64(p.cluster_count) + 2;
+            free_out->bits.assign(size_t((free_out->cluster_count + 7) / 8), 0);
             const size_t avail =
                 free_out->bits.size() < ctx.bitmap.data.size() ? free_out->bits.size()
                                                                : ctx.bitmap.data.size();
             const u64 covered = u64(avail) * 8;
-            for (u64 c = 0; c < covered && c < free_out->cluster_count; ++c) {
+            for (u64 c = 2; c < covered && c < free_out->cluster_count; ++c) {
                 if (!ctx.bitmap.test(u32(c)))
                     free_out->bits[size_t(c >> 3)] |= u8(1u << (c & 7));
             }

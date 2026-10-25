@@ -425,7 +425,13 @@ u32 scan_fat(IStorageDevice* slice, const FatScanFlags& flags, CancelToken* canc
      * = free cluster (the IBuildVolumeBitmap truth the og's engines
      * produce). Cluster 0's byte = the data-area base minus the two
      * virtual reserved clusters, so the map is linear in the cluster
-     * number exactly like the og's cluster->sector math. */
+     * number exactly like the og's cluster->sector math.
+     * Hardening (S-009 follow-up): clusters 0/1 are the FAT's VIRTUAL
+     * reserved clusters - raw() answers 0 for them (out of table), and
+     * their byte span [base, data_base) is the root-dir/FAT region, NOT
+     * free space. They are never marked free (the first fill loop
+     * started at c=0 and painted the last two pre-data sectors free on
+     * every FAT volume - a false claim the engine tests now pin). */
     if (free_out != nullptr) {
         free_out->clear();
         const u64 data_base = u64(p.first_data_sector) * p.bytes_per_sector;
@@ -434,7 +440,7 @@ u32 scan_fat(IStorageDevice* slice, const FatScanFlags& flags, CancelToken* canc
         free_out->cluster_bytes = p.cluster_bytes;
         free_out->cluster_count = table.max_cluster() + 1;
         free_out->bits.assign(size_t((free_out->cluster_count + 7) / 8), 0);
-        for (u64 c = 0; c < free_out->cluster_count; ++c) {
+        for (u64 c = 2; c < free_out->cluster_count; ++c) {
             if (table.raw(u32(c)) == 0)
                 free_out->bits[size_t(c >> 3)] |= u8(1u << (c & 7));
         }

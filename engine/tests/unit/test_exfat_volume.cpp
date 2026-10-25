@@ -447,6 +447,101 @@ TEST(ExfatEngine, TimestampsWestOffsetAlsoIgnored) {
     EXPECT_EQ(photo->props()->times.accessed, want);
 }
 
+TEST(ExfatEngine, FreeMapExcludesVirtualClustersAndMatchesBitmap) {
+    /* S-009 hardening: the exFAT allocation bitmap's bits 0/1 are the
+     * VIRTUAL reserved clusters (spec-zero). The first landing inverted
+     * them to FREE and the linear base math painted [heap_base - 2*cb,
+     * heap_base) - the boot-checksum/FAT tail sectors here - as free
+     * space. This test pins the exclusion + the fixture's free truth.
+     * Fixture bits set: 2,3 (root), 10,11 (photo), 20,21,22 (doc), 40
+     * (over.dat), 50 (bitmap), 70 (subdir), 80 (inner); cluster_count
+     * 100 -> data clusters 2..101; gone.dat's cluster 30 is free. */
+    auto img = build_exfat_image();
+    MemDevice dev(std::move(img));
+
+    tree::ResultTree tree;
+    auto* ra = tree.add_root(u"Found");
+    auto* rd = tree.add_root(u"Deleted");
+    auto* rl = tree.add_root(u"Lost");
+    ExfatScanFlags flags;
+    ExfatScanStats stats;
+    storage::FreeMap fm;
+    u32 rc = scan_exfat(&dev, flags, nullptr, nullptr, nullptr, tree, ra, rd, rl, stats, &fm);
+    ASSERT_EQ(rc, OK) << err_text(rc);
+
+    const u64 HEAP = 25 * 512;       /* cluster 2 = sector 25 */
+    const u64 VIRT = HEAP - 2 * 512; /* virtual clusters' byte span */
+    ASSERT_TRUE(fm.valid());
+    EXPECT_EQ(fm.base_byte, VIRT);
+    EXPECT_EQ(fm.cluster_bytes, 512u);
+
+    /* THE DEFECT PIN: the pre-heap region (boot checksum + FAT tail
+     * here) is NOT free - virtual clusters excluded */
+    EXPECT_FALSE(fm.range_free(VIRT, 1024))
+        << "virtual clusters 0/1 must never read free (boot/FAT region)";
+    EXPECT_FALSE(fm.is_free(0));
+    EXPECT_FALSE(fm.is_free(1));
+
+    auto cl_free = [&](u32 c) { return fm.range_free(HEAP + u64(c - 2) * 512, 512); };
+    for (u32 c : {4u, 9u, 12u, 19u, 23u, 30u, 39u, 41u, 49u, 51u, 69u, 71u, 79u, 81u, 101u})
+        EXPECT_TRUE(cl_free(c)) << "cluster " << c << " must be free";
+    for (u32 c : {2u, 3u, 10u, 11u, 20u, 21u, 22u, 40u, 50u, 70u, 80u})
+        EXPECT_FALSE(cl_free(c)) << "cluster " << c << " is bitmap-allocated";
+}
+
+namespace {
+/* S-009 hardening helper: fails every read touching one byte range (the
+ * allocation-bitmap cluster on the fixture) - a torn bitmap load. */
+class RangeFaultDevice final : public IStorageDevice {
+public:
+    RangeFaultDevice(std::vector<u8> b, u64 fault_off, u64 fault_len)
+        : data_(std::move(b)), f0_(fault_off), f1_(fault_off + fault_len) {
+        geom_.logical_sector = 512;
+        geom_.physical_sector = 512;
+        geom_.sector_count = data_.size() / 512;
+        geom_.total_bytes = data_.size();
+    }
+    u32 read_at(u64 off, void* buf, u32 len) override {
+        if (off > data_.size() || len > data_.size() - off)
+            return ERR_RANGE_OUT_OF_BOUNDS;
+        if (off < f1_ && off + len > f0_)
+            return ERR_READ_FAILED;
+        std::memcpy(buf, data_.data() + off, len);
+        return OK;
+    }
+    const Geometry& geometry() const override { return geom_; }
+
+private:
+    std::vector<u8> data_;
+    u64 f0_, f1_;
+    Geometry geom_;
+};
+} // namespace
+
+TEST(ExfatEngine, TornBitmapReadYieldsNoFreeMap) {
+    /* S-009 hardening: a FAILED allocation-bitmap read leaves zeros in
+     * the loader buffer; zeros read "not allocated" and the inversion
+     * would paint the whole covered range FREE - a false-free map over a
+     * lie. The honest answer is NO map (invalid) - the disk map then
+     * renders Unknown cells, never false-free ones. The fixture's
+     * bitmap lives at cluster 50 (sector 75). */
+    auto img = build_exfat_image();
+    const u64 bitmap_off = (25 * 512) + (50 - 2) * 512;
+    RangeFaultDevice dev(std::move(img), bitmap_off, 512);
+
+    tree::ResultTree tree;
+    auto* ra = tree.add_root(u"Found");
+    auto* rd = tree.add_root(u"Deleted");
+    auto* rl = tree.add_root(u"Lost");
+    ExfatScanFlags flags;
+    ExfatScanStats stats;
+    storage::FreeMap fm;
+    u32 rc = scan_exfat(&dev, flags, nullptr, nullptr, nullptr, tree, ra, rd, rl, stats, &fm);
+    ASSERT_EQ(rc, OK) << err_text(rc) << " (a torn bitmap is not a scan error)";
+    EXPECT_FALSE(fm.valid())
+        << "a torn bitmap read must yield NO free map - zeros are not truth";
+}
+
 TEST(ExfatEngine, EndToEnd) {
     auto img = build_exfat_image();
     MemDevice dev(std::move(img));

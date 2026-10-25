@@ -216,3 +216,40 @@ map's contract is cluster-granular — a span inside a free cluster reads
 free). Corrected against the landed contract, with the semantics documented
 in the test. The landed implementation's own coverage (reload + snapshot +
 precedence + uncovered-tail) plus this port closes the finding's test plan.
+
+## Hardening addendum (session 10 — the third independent leg's convergence)
+
+**Status:** FIXED (hardened; three convergence defects closed on the landed
+implementation)
+**Fixed in commit:** (this session's S-009 hardening commit)
+**Verified by:** `FatEngine.FreeMapExcludesVirtualClustersAndMatchesFAT`,
+`ExfatEngine.FreeMapExcludesVirtualClustersAndMatchesBitmap`,
+`ExfatEngine.TornBitmapReadYieldsNoFreeMap`, `DiskMap.FreeNeverMarksFoundContentCells`
+— all four fail on the pre-hardening tree by construction (the first landing
+asserts each defect's inverse). Full suite 577/577 Linux ASan.
+
+**Resolution notes:** The third concurrent S-009 leg (this lane) re-verified
+the landed `storage::FreeMap` implementation first-hand and closed four
+defects in it:
+1. **FAT virtual clusters**: the fill loop started at c=0; `raw()` answers 0
+   for the virtual reserved clusters 0/1 and the linear base math painted
+   `[data_base - 2*cluster_bytes, data_base)` — the root-directory tail on
+   FAT12/16 — as free on EVERY volume. Fill now starts at cluster 2.
+2. **exFAT virtual clusters**: same class — the allocation bitmap's spec-zero
+   bits 0/1 inverted to free over `[heap_base - 2*cb, heap_base)` (the
+   boot-checksum/FAT tail). Same fix.
+3. **exFAT map under-coverage**: `cluster_count` copied `p.cluster_count`
+   verbatim, so the last TWO data clusters (cluster_count, cluster_count+1)
+   fell outside the map and never read free. The map now covers cluster
+   numbers 0..cluster_count+1 (2 virtual + all data).
+4. **exFAT torn-read honesty**: a FAILED allocation-bitmap read left zeros in
+   the loader buffer; zeros read "not allocated" and the inversion painted
+   the whole covered range free — a false-free map over a lie. The loader now
+   tracks `read_at` failures and the map is refused whole (`invalid`) — the
+   disk map renders Unknown cells, never false-free ones.
+Plus the rule convergence: the landed free pass painted every still-unknown
+bitmap-free cell Free, including cells where DELETED/CARVED content was
+found. The finding's fix plan states "cells the bitmap marks free and no
+found-content covers" — `build_disk_map` now tracks the content mask
+internally (regardless of requested overlays) and found-content cells stay
+Unknown so consumers color them as content, never plain-free.

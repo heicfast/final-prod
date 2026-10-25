@@ -9260,3 +9260,49 @@ Work Log:
 Stage Summary:
 - M-005 in flight on DFX14. Other lanes' queues unaffected (no overlap
   with DFX9-T7's M-052/M-035/M-018/M-013/M-014 or DFX9-T2's MINOR trio).
+
+---
+Task ID: DFX10-S009-HARDENING (session 10 — the convergence leg)
+Agent: main engineer (diff-to-fix session 10)
+Task: S-009 concurrent-landing convergence: this lane's independent fix was
+rebase-absorbed into the parallel lane's landed storage::FreeMap
+implementation; verified THEIR implementation first-hand and closed four
+defects + one rule divergence in it.
+
+Work Log:
+- Convergence history: three independent S-009 implementations this window
+  (the landed storage::FreeMap/REC_ALLOC_MAP lane c55bd45; the second leg's
+  viz::FreeSpaceMap whose unique tests were ported at a3e5fd8; this lane's
+  range-based REC_FREE_MAP, skipped in the rebase per the oldest-landing
+  convention). This lane's surviving value = the defect set below.
+- Verified the landed implementation line-by-line against the finding and
+  the corpus. Found and fixed (each pinned by a fail-before test):
+  1. FAT virtual clusters: fill from c=0 painted [data_base-2cb, data_base)
+     (root-dir tail) free on every volume — raw() answers 0 for clusters
+     0/1. Fill starts at 2.
+  2. exFAT virtual clusters: spec-zero bitmap bits 0/1 inverted free over
+     the pre-heap boot/FAT tail. Same fix.
+  3. exFAT under-coverage: cluster_count copied p.cluster_count; the last
+     two data clusters fell outside the map. Now covers 0..count+1.
+  4. exFAT torn-read: failed bitmap reads left zeros -> inverted to
+     "everywhere free". bitmap_reads_ok gate refuses the map whole.
+  5. Rule convergence: found-content cells (deleted/carved files in free
+     space) painted Free; the finding's plan says "no found-content
+     covers". build_disk_map tracks the content mask internally and keeps
+     those cells Unknown.
+- Tests: FatEngine.FreeMapExcludesVirtualClustersAndMatchesFAT (exact
+  per-cluster truth incl. cluster 30's free run merge),
+  ExfatEngine.FreeMapExcludesVirtualClustersAndMatchesBitmap,
+  ExfatEngine.TornBitmapReadYieldsNoFreeMap (RangeFaultDevice helper),
+  DiskMap.FreeNeverMarksFoundContentCells (hostile all-free map).
+- Full suite 577/577 Linux ASan (562 baseline after the merge absorption
+  + 4 new + 11 from the parallel landings).
+- Audit trail: hardening addendum on the FIXED finding; worklog.
+
+Stage Summary:
+- S-009 is now triple-converged and defect-hardened: the free overlay is
+  honest across FAT/exFAT/NTFS (no false-free regions, no torn-map lies,
+  content cells never painted plain-free). SEVERE remaining: S-029 only
+  (S-030 landed by the parallel lane). Suite 577/577. Next: S-029 (apply
+  path), then the MAJOR tier (M-005 is claimed by DFX14; take the next
+  in impact order).
