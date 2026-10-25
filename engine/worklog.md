@@ -10697,3 +10697,70 @@ Stage Summary:
 - T14 CLOSED: no stranded resolutions remain in tracked-open/; the
   queue's next-session entry points are precise. DFX14 tally: 10
   finding-level resolutions + the INFO pass + T14 + 13 merge repairs.
+
+
+---
+Task ID: DFX14-HANDOFF (session 14 close-out)
+Agent: main engineer (diff-fix session 14)
+Task: Session handoff — what this leg proved, fixed, and repaired; the exact
+head; remaining findings with next steps.
+
+Work Log (session summary, pushes in order):
+- Bootstrap at 7c44bdc (suite 533/533); corpus 03ad46c unmoved all session.
+  15+ merge repairs absorbed ~40 parallel landings (the field ran DFX10
+  through DFX21+ concurrently).
+- CROSS-LANE REPAIRS: (1) the 5aaf044 "style(lint)" clobber — a
+  four-finding semantic rollback (S-009 snapshot capture, N-042
+  decidegrees, N-044 --whole-disk, M-012 mirror) disguised as formatting;
+  caught by the suite-after-every-pull gate, restored from the
+  verified-green state (c4e37d1); the clobbering lineage re-applied
+  their pass content-identically and recorded the lesson (61ee43e).
+  (2) my own 7dc57f2 committed a worklog marker block unresolved —
+  repaired immediately; lesson recorded: check the marker grep BEFORE
+  committing any merge. (3) the S-030 finding's parallel-merge marker
+  residue repaired with both landings preserved (5efba59). (4) the D-72
+  numbering collision renumbered per the errata convention (mine became
+  D-73). (5) the M-043 double-landing reconciled: the merged probe keeps
+  the og gates + USA bounds at the CORRECT $MFT LCN field 0x30 (kernel
+  layout — my 0x28 read was the error; their positive control caught
+  it); their backup fallback kept and re-registered as a deliberate
+  recovery SUPERSET (D-73) with the corpus decode proving the og has NO
+  scan-path fallback.
+- FINDING-LEVEL RESOLUTIONS (10): N-073 FIXED-ALREADY (3 engine-path
+  proof tests through the exact call chain it cited); the M-029
+  duplicate folded; the clobber repair restored 4 findings (S-009,
+  N-042, N-044, M-012); M-005 FIXED (the carve allocation-bitmap gate —
+  corpus-reverified first-hand, both dispatch layers gated, bench
+  1.88x/1.89x on 50% used, plan expected >= 1.5x); the I-006 nsec pin
+  (the INFO tier's missing guard, caught by the re-verification pass);
+  M-043 FIXED with the backup-fallback premise DISPROVEN and corrected
+  in the finding (the corpus wins over the audit text — no fallback code
+  was added for it; the concurrent landing's fallback re-registered).
+- TIER DUTIES: T13 CLOSED (INFO 22/22 re-verified on the current tree;
+  anchors survived the clobber window; one missing pin landed). T14
+  CLOSED (6 resolved OQs moved out of tracked-open with index rows; the
+  10 genuinely-open pushed forward — 2 with new corpus evidence, each
+  with the precise next step).
+- Field-wide during this window: SEVERE 3 -> 0 (S-009, S-030, S-029 all
+  landed by parallel lanes; S-029 last), FIXED 72 -> 118 files.
+
+Stage Summary (handoff at the next pull head):
+- Remaining: MAJOR 23 · MINOR 37 · INFO 22 (all acknowledged) ·
+  tracked-open 10 (every file carries a current addendum + next step).
+  Suite 647/647 linux-release on this leg's tree.
+- The biggest unclaimed items: M-040 (boot-chain repair — NOW UNBLOCKED:
+  S-029's landing settled the apply-path scope decision; the consent-gate
+  architecture it established is the pattern M-040 should follow),
+  M-041 (the check phase — CCheckFAT/CCheckNTFSVolume + 0x1001-0x100e),
+  M-034 (NAS device layer), M-039 (occupancy bitmap), M-025 (the carve
+  read-model rework — the I-009/D-59c byte-granularity pins guard it).
+- Active lane claims on record: DFX17 (MINOR queue), DFX18 (N-045 first),
+  DFX19 (M-016 first — landed; check their queue), DFX21 (M-044 first),
+  the DFX10 lineage (S-029 — landed; now free), DFX12 (MINOR waves).
+- Protocol lessons this session (all recorded in-place): never absorb a
+  "style" commit without diffing it; never commit a merge without the
+  marker grep; the suite-after-every-pull gate is what catches clobbers;
+  verify the finding's premise against the corpus BEFORE implementing
+  (M-043's half was false — correcting it was the fix); USA field
+  offsets and BPB field offsets come from the spec-exact wire struct,
+  not memory.
