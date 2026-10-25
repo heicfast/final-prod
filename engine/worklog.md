@@ -4177,7 +4177,6 @@ Stage Summary:
   records the A-001 false-positive history truthfully. Suite 303/303.
 
 ---
-<<<<<<< HEAD
 Task ID: S3-CLOSE (session-3 diff-audit close-out)
 Agent: session-3 parity auditor (read-only continuation leg)
 Task: Session close-out — handoff record for the "go deeper, remove the fixed, mark the remainder" session.
@@ -4230,7 +4229,8 @@ Stage Summary:
   (FUN_18000ea30), ReFS quick-search dot-prefilter verdict (M-022 OQ-3), og-execution
   benches for the raw-sign unit fix (S-015 acceptance), N-032's RST/USB hardware
   verification.
-=======
+
+---
 Task ID: DF3-T3 (A-004 + S-016)
 Task: ACUTE A-004 — ErrorRange delivered through the config sink (null-call crash /
 mis-delivery); DISCOVERED during the fail-before proof: S-016 — the ErrorRange event
@@ -4270,4 +4270,3 @@ Stage Summary:
 - A-004 FIXED + S-016 (new, discovered+fixed) CLOSED: the ErrorRange event stream is
   live for the first time, delivered to the right sink, pinned by two tests. ACUTE tier
   is now EMPTY (A-002, A-004 both closed this session). Suite 305/305.
->>>>>>> 49c89ea (fix: A-004 + S-016 - ErrorRange event: live-sink delivery + feed the snapshot error map before every boundary emit)
