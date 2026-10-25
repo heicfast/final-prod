@@ -5182,7 +5182,6 @@ Stage Summary:
   the blind enumeration is gone. Remaining SEVERE lane: S-003, S-006,
   S-007, S-009-split, S-012, S-013, S-017..S-020 (s3 audit-leg findings).
 
-<<<<<<< HEAD
 Task ID: API-T5/T6/T9/T10 (transport wave)
 Agent: main engineer (core-api session)
 Task: Driver-utilization completion — 64 KiB envelope unification, self-healing reopen,
