@@ -36,6 +36,7 @@ $ErrorActionPreference = 'Stop'
 if (-not ('AlignBench' -as [type])) {
     Add-Type -TypeDefinition @"
 using System;
+using System.IO;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Runtime.InteropServices;
