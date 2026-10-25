@@ -109,3 +109,14 @@ Core (audited commit `67193b6`): `src/core/exfat/` (2 files, 678 LOC) +
 | ID | Severity | One-line |
 |---|---|---|
 | S-011 | SEVERE | tz_offset applied (core) vs ignored (og); FileTime diverges by tz hours |
+
+## Session-2 deep pass (T4) — ChecksumDBR skip-set decoded
+
+- **F63/C19 ChecksumDBR** — `M` (MATCH, OQ-T5 resolved): the og's per-byte predicate is
+  `std::find` over a 4-int array extracted from RawFixer.dll RVA 0x180079a40:
+  **{106, 107, 112, -1}** — exactly the exFAT spec skip-set (VolumeFlags@106-107,
+  PercentInUse@112) plus a -1 terminator no loop index matches. Loop = sector_size x 11
+  bytes, spec rotation. The core's spec skip-set (`cr_exfat_dentry.cpp:26-36`) matches
+  exactly. Evidence: `evidence/decompiled-quotes/s2-exfat-checksumdbr.md`. Corpus erratum
+  confirmed: rawfixer-v2--method-inventory.md S4's "bytes 11..209 + 510" is wrong.
+- **OQ-T5 RESOLVED** (see `tracked-open/OQ-T2-T5-...md`).

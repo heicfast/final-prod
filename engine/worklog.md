@@ -3565,3 +3565,60 @@ Stage Summary:
 - A-002 FIXED in both instances (fix path + scan undo path) with a single
   parent-basis rule; the S-008 parallel implementation is preserved and now
   basis-correct for volume scans. No duplicate S-008 code landed.
+
+---
+Task ID: S2-T4+T6 (session-2 diff-audit: FAT/exFAT deep pass + ZFS vdev decode)
+Agent: session-2 parity auditor (read-only, LDM-deep-pass leg)
+Task: Resolve OQ-T2 (FAT mirror switch), OQ-T5 (exFAT ChecksumDBR skip-set), OQ-T6
+(ZFS nvlist anchor + multi-vdev), refine OQ-T9 (CalcPartition machinery); file divergences
+found on the way.
+
+Work Log:
+- OQ-T2 RESOLVED (first-hand): extracted CDoubleFATTable/IFATTable/CFAT12/16/32Table
+  vtables from FATSearchDLL.dll via MSVC RTTI (TypeDescriptor -> COL -> vftable; probe
+  scripts in evidence). Child slot1 = GetNext (canonicalized; BAD raw); CDouble slot2 =
+  merged read; slots 3/4 = primary-only/mirror-only thunks (disassembled directly - the
+  decompiler skipped them). The mirror consult trigger: primary GetNext == 0 (FREE) ONLY;
+  BAD is served from the primary without mirror consult (:54215-54219). Mirror answers
+  are GATED (dirty-EOC family >=0x0FFFFFF9 + three mirror self-consistency cross-checks)
+  not served raw. Load-time FAT-location fallback: invalid declared FAT -> internal
+  LBA-keyed map walk for an alternative FAT image (gated by volume flag 0x10, :3805-3949).
+  Whole-FAT in-memory caching at construction (single bulk read) + per-flavor
+  cluster-count sanity windows.
+- N-022 filed (MINOR): core consults mirror on primary FREE *or BAD* (cr_chain.cpp:104-110,
+  "choose-healthy" comment from the artifact doc's INFERRED semantics); og consults on
+  FREE only -> core recovers longer chains on torn FAT pairs (superset the og never
+  produces). Evidence: evidence/decompiled-quotes/s2-fat-double-fattable.md.
+- OQ-T5 RESOLVED (MATCH): ChecksumDBR predicate decoded - the exception-machinery
+  confound resolves to std::find (FUN_18003ab40 :41083-41092) over a 4-int array at
+  RawFixer.dll RVA 0x180079a40, extracted from the binary: {106, 107, 112, -1} = exactly
+  the exFAT spec skip-set (VolumeFlags@106-107, PercentInUse@112) + a -1 terminator no
+  loop index matches. Loop bound sector_size x 11, spec rotation. Core spec-skip-set
+  (cr_exfat_dentry.cpp:26-36) MATCHES. Corpus erratum confirmed (rawfixer-v2 S4's
+  "bytes 11..209 + 510" is wrong). Evidence:
+  evidence/decompiled-quotes/s2-exfat-checksumdbr.md.
+- OQ-T6 PARTIALLY RESOLVED (bounded): the og's fixed nvlist anchor quote-confirmed
+  (:21052: one 16 KiB read at 0x1C000, parse +4, limit 0x1BFFC); vdev_tree handling
+  decoded (:21089-21150): only the "id" key per child is extracted into an id-keyed
+  std::map (key constant DAT_180031570 = ASCII "id" extracted from the binary). Strings
+  scan of ZfsSearchDLL.dll: ZERO vdev-type strings (mirror/raidz/replacing/spare/cache/
+  log/disk/file) and ZERO geometry keys (ashift/asize/nparity/children) -> the og build
+  is vdev-TYPE-BLIND: no mirror copy selection, no RAID-Z parity math possible. The
+  core's unsupported_vdevs refusal is the honest superset. Refined residual: the read
+  path through the id map (mirror first-child semantics) - recorded in tracked-open.
+- OQ-T9 refined: CalcPartition machinery located (Fat32CalcPartition::vftable :5744,
+  score via vtable slot 4 with Fat32 direct-field fast path :5745-5747; ICalcPartition
+  dynamic casts :5592-5595/:5816-5818). Next decode target recorded in tracked-open.
+- Also during this wave: the parallel fix leg landed 9888ec9 (their own discovered
+  ACUTE - fix --part wrote at disk LBA 0; renumbered to A-003 to clear the collision
+  with this leg's A-002, with an explicit ID note - clean coordination).
+- Audit trail: OQ-T2/OQ-T5 resolutions + OQ-T6 bounded + OQ-T9 refinement written into
+  tracked-open; N-022 filed; fat/exfat/zfs module files updated; SUMMARY counts updated
+  (MINOR 17; tracked-open 12 with T2/T5/T7 resolved).
+
+Stage Summary:
+- OQ-T2 RESOLVED (per-entry zero-fallback mirror consult; N-022 divergence filed).
+- OQ-T5 RESOLVED (spec skip-set {106,107,112} - core MATCH).
+- OQ-T6 bounded decisively (og is vdev-type-blind; core's refusal is the honest
+  superset; mirror first-child residual recorded).
+- OQ-T9 machinery located for a future scoring decode.

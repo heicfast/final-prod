@@ -102,3 +102,23 @@ Core (audited commit `67193b6`, includes concurrent GAP-S6-1/S6-2 fix `9fc82b0`)
 | ID | Severity | One-line |
 |---|---|---|
 | N-010 | MINOR | Invalid-date yields non-zero FileTime in core (1970-01-01), zero in og (1601-01-01) |
+
+## Session-2 deep pass (T4) — CDoubleFATTable decoded
+
+- **A27 mirror consult** — **N-022**: the og consults FAT2 per-entry ONLY when the
+  primary's canonicalized GetNext(cluster) returns 0 (FREE); BAD values are served from
+  the primary with no mirror consult (`FATSearchDLL_decompiled.c :54215-54219`, vtable
+  layout RTTI-extracted — full decode in `evidence/decompiled-quotes/s2-fat-double-fattable.md`).
+  The core consults on FREE *or BAD* (`cr_chain.cpp:104-110`) — superset on torn FAT pairs.
+  When the og consults the mirror it GATES the answer (dirty-EOC family + three mirror
+  self-consistency cross-checks) rather than serving raw — quoted in the evidence file.
+- **Load-time FAT-location fallback** (observation, no finding): when the declared FAT
+  region yields an invalid CDoubleFATTable (both children null) and volume flag 0x10 is
+  set, the og walks an internal LBA-keyed structure map for an alternative FAT image and
+  rebuilds (`:3805-3949`). Worth a capability comparison against the core's quick-format
+  remnant path (cr_fat_quick) — tracked as an observation.
+- **Child GetNext canonicalization** — CFAT12/16 canonicalize EOC to 0xFFFFFFFF/0xFFFFFF8
+  and return BAD raw (`:53783-53808`); CFAT32 is raw (`:53955-53962`). Whole FAT cached
+  in memory at construction (single bulk read, `:44687-44781`) with per-flavor
+  cluster-count sanity windows.
+- **OQ-T2 RESOLVED** (see `tracked-open/OQ-T2-T5-...md`).

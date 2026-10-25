@@ -62,9 +62,9 @@ collision with the parallel leg's I-006 ext4-nanoseconds, cleared).
 | ACUTE | 1 | A-001, **A-003** (discovered by the continuation leg; `repair::rebase_plan` parent-basis fix — RENUMBERED from its local A-002 to clear the collision with this leg's A-002 GUID-regression finding, which landed on main first) | **A-002 (third-leg addendum — fix-induced regression)** |
 | SEVERE | 6 | S-001, S-002, S-004, S-005, S-008 | S-003, S-006, S-007, S-009 (partial), S-010, S-011 |
 | MAJOR | 6 | M-001 | M-002, M-005, M-007, M-008, M-009, M-010 |
-| MINOR | 16 | N-002, N-003, N-010 | N-001, N-004..N-009, N-011..N-020, N-021 |
+| MINOR | 17 | N-002, N-003, N-010 | N-001, N-004..N-009, N-011..N-021, **N-022 (third leg: FAT mirror consult on BAD)** |
 | INFORMATIONAL | 8 (7 ACKNOWLEDGED + 1 informational-record) | — | I-001..I-007, I-008 (dormant RAID-5 rotations — a MATCH record) |
-| tracked-open | 12 | OQ-T1, OQ-T7 (RESOLVED) | OQ-T2..T6, OQ-T8, OQ-T9, OQ-S2A-1..4, OQ-S2C-3 |
+| tracked-open | 12 | OQ-T1, OQ-T2 (RESOLVED), OQ-T5 (RESOLVED), OQ-T7 (RESOLVED) | OQ-T3*, OQ-T4*, OQ-T6 (bounded), OQ-T8, OQ-T9 (machinery located), OQ-S2A-1..4, OQ-S2C-3 |
 | **Total active findings** | **45** | **12** | |
 
 **Note on S-009/M-006:** the S-009 disk-map component was FIXED via GAP-S6-11
@@ -82,7 +82,7 @@ ext4/Btrfs invalid-UTF-8 finding (briefly M-007 in a local commit) renumbered to
 | Module | ACUTE | SEVERE | MAJOR | MINOR | INFO | OPEN | Complete |
 |---|---|---|---|---|---|---|---|
 | ntfs | – | – | 2 (M-007, M-008) | 3 (N-001, N-011, N-012) | 1 (I-001 ack) | OQ-S2A-1..4 | ✔ |
-| fat | – | – | – | 2 (N-004, N-021) | 1 (I-002 ack) | OQ-T2 | ✔ |
+| fat | – | – | – | 3 (N-004, N-021, N-022) | 1 (I-002 ack) | OQ-T2 **RESOLVED** | ✔ |
 | exfat | – | 1 (S-011) | – | – | – | OQ-T5 | ✔ |
 | ext4 | – | 1 (S-003 OPEN) | 1 (M-010) | 1 (N-004) | 2 (I-006, I-007) | – | ✔ |
 | hfsplus | – | 1 (S-003) | – | 1 (N-005) | 1 (I-007) | – | ✔ |

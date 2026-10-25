@@ -5,11 +5,33 @@
 
 ## OQ-T6 — ZFS open reference questions
 
-**Status:** UNVERIFIED · **Module:** zfs · **Parameters:** B1, A25, B8
-**Corpus artifacts to examine next:**
-`re-workspace/reversed/ghidra-searchdll/ZfsSearchDLL_decompiled.c` — the caller context of
-the fixed nvlist read at `:21044–21100` (`FUN_180018730` parse loop), the uberblock walk
-`:32321–32400`, and the DVA-resolution sites in CStreamBase.
+**Status:** PARTIALLY RESOLVED (session-2 decompile read — the anchor and the vdev-tree handling decoded; the capability question is decisively BOUNDED) · **Module:** zfs · **Parameters:** B1, A25, B8
+**Session-2 findings (2026-10-25, first-hand; quotes in `evidence/decompiled-quotes/s2-zfs-utf8-conversion.md` context and below):**
+1. **nvlist anchor CONFIRMED verbatim**: `ZfsSearchDLL_decompiled.c :21052` —
+   `FUN_180018220(param_1, &buf, 0x4000, 0x1c000)` — ONE fixed 16 KiB read at 0x1C000
+   (112 KiB), parse from +4, limit 0x1BFFC. The core's per-label reads (each of the 4
+   labels at label+16 KiB, `cr_zfs_engine.cpp:50,:1006-1009`) remain the spec-correct
+   superset; the og's single fixed anchor is now quote-confirmed.
+2. **vdev_tree handling decoded (:21089-21150)**: on the "vdev_tree" nvlist entry, the og
+   parses the nested nvlist and extracts **only the "id" key** from each child
+   (:21113-21123 byte-compares 'i','d'; :21139-21141 big-endian u64 read; :21144-21145
+   registers into an id-keyed std::map via FUN_180024110/FUN_1800241b0 — key constant
+   DAT_180031570 = ASCII "id" extracted from the binary).
+3. **Decisive negative (strings scan of ZfsSearchDLL.dll)**: the binary contains NO
+   vdev-type strings ("mirror", "raidz", "replacing", "spare", "cache", "log", "disk",
+   "file" — 0 hits) and NO geometry keys ("ashift", "asize", "nparity", "children" —
+   0 hits). **The og build is vdev-TYPE-BLIND**: no mirror copy-selection logic and no
+   RAID-Z parity math are even possible in it. RAID-Z pool data is unreadable by this
+   build by construction; mirrors can at best work by first-child accident.
+**Consequence for the core's D-09 (unsupported_vdevs) posture**: the og is NOT a
+multi-vdev-capable reference that the core lags behind — both are effectively
+single-logical-vdev readers; the core's explicit refusal + `unsupported_vdevs` stats is
+the honest superset of the og's type-blind behavior. The remaining refinement: the og's
+read path through the id-map (which physical reads serve a (vdev-id, offset) DVA for a
+MIRRORED top-level vdev — first child blindly?) — next decode target:
+FUN_180024110's map consumers in the DVA resolution path.
+
+**Original questions (for the record):**
 
 1. **nvlist anchor (HIGH-confidence mechanical difference, unresolved intent).** The og
    performs ONE fixed read: `device.read(0x1C000, 0x4000)`, parse from +4, limit 0x1BFFC

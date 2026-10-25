@@ -88,3 +88,20 @@ largest single-engine file) + `include/cr/zfs/` + `tests/unit/test_zfs_volume.cp
 
 (No new ZFS-specific findings in session 2. S-005 was the ZFS B10 finding;
 it is now FIXED and lives in `findings/FIXED/`.)
+
+## Session-2 deep pass (T6) — vdev handling decoded (bounded)
+
+- **B1/A25 nvlist anchor** — the og performs ONE fixed read: 16 KiB at 0x1C000
+  (parse from +4, limit 0x1BFFC) — `ZfsSearchDLL_decompiled.c :21052`, quote-confirmed.
+  The core's per-label reads remain the spec-correct superset.
+- **B8 vdev_tree** — the og extracts ONLY the "id" key per child vdev into an id-keyed
+  map (`:21089-21150`, key constant "id" extracted from the binary). NO vdev-type
+  strings ("mirror"/"raidz"/...) and NO geometry keys ("ashift"/"asize"/"nparity") exist
+  anywhere in ZfsSearchDLL.dll (strings scan: 0 hits). **The og build is
+  vdev-TYPE-BLIND**: no mirror copy selection, no RAID-Z parity math is possible in it.
+  The core's explicit unsupported_vdevs refusal is the honest superset of this.
+  OQ-T6 partially resolved — see `tracked-open/` for the refined residual (mirror
+  first-child semantics through the id map).
+- **B10 names** — the og converts at least one name path via
+  MultiByteToWideChar(CP_UTF8, flags=0) (`:24985-25014`, FUN_18001c630) — supports
+  M-010's parity verdict for the ZFS edge.

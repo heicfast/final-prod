@@ -10,6 +10,15 @@
 — the dispatch site that consults the two registries: builder `FUN_180004320`
 (corpus lines 2517–2918), find-or-create `FUN_18000ac20`, append `FUN_18000ac70`.
 
+**Session-2 refinement (2026-10-25):** the CalcPartition machinery is located —
+`FATSearchDLL_decompiled.c :5744` matches `Fat32CalcPartition::vftable` (RTTI-extracted);
+ICalcPartition subclasses expose the score via vtable slot 4 (`(*(code **)*plVar7)[4](plVar7)`
+at :5747) with a direct-field fast path for Fat32 (`iVar3 = (int)plVar7[3]`, :5745-5746).
+The `__RTDynamicCast` sites at :5592-5595/:5816-5818 confirm the ICalcPartition→
+Fat32CalcPartition dynamic-cast pattern. Next decode target: Fat32CalcPartition's slot-4
+method + the sibling ICalcPartition subclasses (per-FS CalcPartition classes in each
+SearchDLL) for the feature/weight table.
+
 **Precise question:** when a candidate offset's first bytes could match both a u16 key
 (e.g. 0x4D42 "BM") and a u32 key (e.g. 0x424Dxxxx), which registry is consulted first,
 and how are collisions resolved (the multimap export `EUGetAnalyserMultimap` exists
