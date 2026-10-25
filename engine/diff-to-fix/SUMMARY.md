@@ -36,6 +36,16 @@ contract docs updated in the same change), the CLI prints bytes like
 the og. 2 new tests + the moved 192-byte gate; suite 485/485 Linux
 Release. N-009a's pin re-verified in the same file.
 
+**Session-6 leg final counts (direct file inventory at 70ebced, after
+the parallel legs' concurrent landings):** FIXED/ 70 findings ·
+**SEVERE 4** (S-009, S-029, S-030, S-032) · MAJOR 39 · MINOR 55 ·
+INFO 22 (all ACKNOWLEDGED) · tracked-open 16. This leg closed S-024
+(decoded-truth upgrade) + M-036 + N-055; the parallel legs closed
+S-007/S-025/S-027/S-028/S-031/M-011/M-012/M-015/A-005/A-007 and more
+during the same window. Suite 526/526 at 26d842b. Top remaining risks:
+S-029 (apply-path scope decision pending), S-030 (mid-flight disk-image
+lane — re-verify landed state first), S-009 (unclaimed since session 1).
+
 # SUMMARY.md — executive summary (session 7 on top of session 5b; earlier sessions below)
 
 ## Session-7 delta (2026-10-26 — the close-all-tiers fix session, low-severity-first order)
