@@ -10243,4 +10243,29 @@ Work Log:
 Stage Summary:
 - Session unique resolutions: 10 + N-016a (partial group). MINOR 42
   remain (N-029 stays for its N-016b half). Next: N-062 (memory monitor),
-  N-056 (temp leak), N-063 (naming), or the grouped minors N-025/N-026.
+  N-056 (temp leak), N-063 (naming), or the grouped minors N-025/N-026.Task ID: DFX19-M016 (session 19, first MAJOR fix)
+Agent: main engineer (diff-to-fix fix session 19 — DFX19)
+Task: M-016 — LDM TOCBLOCK candidate set/order divergence.
+
+Work Log:
+- Corpus re-verified FIRST-HAND: LdmManager_decompiled.c FUN_180072ad0
+  :59573/:59584/:59593 — probe order {config+2, config+0, config+1},
+  first magic-bearing copy wins; the name-check tail (:59650-59656)
+  confirms the og hard-fails on bad bitmap names (does not fall through
+  to later copies). PRIVHEAD@0x12B config-start anchor confirmed :59748.
+- Classification: CONFIRMED-DIVERGENCE (all three sub-claims (a)(b)(c)).
+- Fix: cr_ldm.cpp toc_offs {1,2,2045,2046} -> {2,0,1,2045,2046} (og probe
+  order first; kernel tail-copy superset kept behind; forgiving per-copy
+  validation kept = registered recovery superset, comment in-source).
+- Tests: Ldm.TocblockAtConfigPlus0 (fail-before PROVEN: ERR_BAD_CHECKSUM
+  -> full parse), Ldm.TocblockPrefersPlus2OnConflict (fail-before PROVEN:
+  committed_seq 42 -> 99, the +2 VMDB anchor followed),
+  Ldm.TocblockTailCopies (superset pin).
+- Suite 594/594 (linux-gcc RelWithDebInfo + ASan).
+- Audit trail: Resolution added, finding moved to findings/FIXED/,
+  RESOLVED-INDEX row, matrix table+ldm B1/C20 -> FIXED (s19), modules/
+  ldm.md verdict updated, SUMMARY session-19 section added.
+
+Stage Summary:
+- M-016 FIXED (session tally: 1). Next: M-019 (ZFS multivdev fallback +
+  fletcher4 verify + next-DVA retry).

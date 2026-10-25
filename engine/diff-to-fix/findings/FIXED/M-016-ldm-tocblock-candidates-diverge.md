@@ -49,3 +49,32 @@ Decompile-verified (agents S2-D1/S2-G3, quote at `:59573-59608`); core list veri
 ## Open questions
 
 None.
+
+## Resolution
+
+**Status:** FIXED
+**Fixed in commit:** (this session's M-016 fix — see `git log` for "fix(M-016)")
+**Verified by:** `Ldm.TocblockAtConfigPlus0` (fail-before PROVEN: with the old
+`{1,2,2045,2046}` list the parse returns ERR_BAD_CHECKSUM — offset 0 never probed,
+every volume on the disk missed; pass-after: full parse, 2 layouts, bitmap1_start=17),
+`Ldm.TocblockPrefersPlus2OnConflict` (fail-before PROVEN: old order picks the +1 copy
+and follows its VMDB → committed_seq 42; pass-after: the +2 copy wins, VMDB anchored
+at config+18, committed_seq 99 — the og's preference pinned), `Ldm.TocblockTailCopies`
+(pin: the +2045 tail-copy superset still parses after the reorder). Full suite
+594/594 Linux RelWithDebInfo + ASan.
+**Resolution notes:** Corpus re-verified first-hand before the fix (LdmManager
+FUN_180072ad0 :59573/:59584/:59593 — probe order config+2 → config+0 → config+1,
+first magic-bearing copy wins; the name-check tail :59650-59656 confirms the og
+hard-fails on a bad "config"/"log" name rather than falling through). The core's
+candidate list is now `{2, 0, 1, 2045, 2046}` — the og's exact probe order first,
+with the kernel end-of-config tail copies (+2045/+2046, a recovery superset the og
+does not have) kept behind the og-parity positions, exactly the finding's
+recommended option. The og's stop-at-magic-and-hard-fail-on-bad-name semantics was
+NOT adopted: the core keeps its more forgiving per-copy full validation (a
+magic-bearing copy with a corrupt bitmap name is skipped, later copies still get
+their chance) — registered as a recovery superset in the code comment; the finding
+asked for candidate-set/order parity, not for inheriting the og's hard-fail. The
+conflict test is an end-to-end database-state proof: two valid VMDBs (committed_seq
+42 vs 99) anchored by the conflicting copies, and the parse follows the +2 copy's
+anchor — the torn-write divergence (c) is observable and now og-faithful. LDM stays
+first-class: detection completeness (a) was the user-impact half of this finding.

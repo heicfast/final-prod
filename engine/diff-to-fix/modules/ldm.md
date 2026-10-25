@@ -124,9 +124,12 @@ ldm-specific divergences surfaced.
   layout 0 = LEFT-SYMMETRIC (ctor zeroes the selector; SPEC copy never reaches it; no other
   writer); core's formula is identical (parity col, data col, member offset, degraded-XOR set).
   **No transformation needed.** Interleave both config-driven from the component VBLK.
-- **B1/C20 → M-016 (new):** TOCBLOCK candidates — og {config+2, config+0, config+1}
-  first-valid-wins vs core {+1, +2, +2045, +2046}: config+0 missed by core, tail copies are
-  a core superset, conflict preference +2 vs +1.
+- **B1/C20 → M-016 FIXED (s19):** TOCBLOCK candidates — the core's list is now
+  {config+2, config+0, config+1, +2045, +2046} (og probe order first, kernel
+  tail-copy superset behind). config+0-only disks parse (fail-before proven);
+  +1/+2 conflicts follow the +2 copy's VMDB anchor (committed_seq proof); the
+  og's hard-fail-on-bad-bitmap-name stays un-adopted (forgiving per-copy walk =
+  registered recovery superset). Resolution in findings/FIXED/M-016.
 - **N-025 filed:** config-size gate (og rejects ≥ 1 MiB; core clamps 4 MiB) and RAID-5
   zero-interleave default (og 64 KiB; core refuses chunk==0).
 - **M-002 note (superseded s10):** FIXED — TornLinkKeepsPriorVolumes/TornLinkStatusReported prove the walked-prefix survival and the status vocabulary. Prior note (
@@ -136,8 +139,8 @@ ldm-specific divergences surfaced.
 Cross-references to the parallel legs' LDM findings: A-002 (the 1cb6a43 LDM-GUID regression,
 executed proof, restore landed `23adad1`), A-003 (fix --part LBA-0 basis, FIXED), I-008
 (the og's rotation modes 1-3 are dormant dead code — consistent with this leg's
-hardwired-layout-0 finding; OQ-T7 RESOLVED-MATCH). This leg's active LDM items: M-016
-(TOCBLOCK candidates) + N-025 (config-size + zero-interleave geometry).
+hardwired-layout-0 finding; OQ-T7 RESOLVED-MATCH). This leg's active LDM items: N-025
+(config-size + zero-interleave geometry) — M-016 FIXED in s19.
 
 ---
 

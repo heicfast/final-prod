@@ -776,5 +776,94 @@ TEST(Ldm, GptPathFindsMetadata4Kn) {
     EXPECT_GE(info.stats.privheads_matched, u64(2));
 }
 
+/* ---------------------------------------------------------------- */
+/* M-016: TOCBLOCK candidate set/order (og: {config+2, config+0,     */
+/* config+1}, first valid wins — LdmManager FUN_180072ad0)           */
+/* ---------------------------------------------------------------- */
+
+namespace {
+
+constexpr u64 STRIPE_CFG_START = 65536 - 2048; /* StripeDisk's config LBA */
+
+void m016_write_tocblock(std::vector<u8>& d, u64 cfg_off, u64 bitmap1_start) {
+    u8* toc = d.data() + (STRIPE_CFG_START + cfg_off) * 512;
+    memset(toc, 0, 512);
+    memcpy(toc, "TOCBLOCK", 8);
+    memcpy(toc + 0x24, "config", 6);
+    p64be(toc + 0x2E, bitmap1_start); /* bitmap1 start -> VMDB anchor */
+    p64be(toc + 0x36, 1600);
+    memcpy(toc + 0x46, "log", 3);
+    p64be(toc + 0x50, 1617);
+    p64be(toc + 0x58, 400);
+}
+
+void m016_erase_tocblock(std::vector<u8>& d, u64 cfg_off) {
+    memset(d.data() + (STRIPE_CFG_START + cfg_off) * 512, 0, 512);
+}
+
+} // namespace
+
+TEST(Ldm, TocblockAtConfigPlus0) {
+    /* M-016(a): the og probes config+0 as its second TOCBLOCK candidate
+     * (FUN_180072ad0 :59584). A disk whose only valid TOCBLOCK sits at
+     * config+0 must parse; the old candidate list {1,2,2045,2046} never
+     * probed offset 0 and the database failed with ERR_BAD_CHECKSUM —
+     * every volume on such a disk was missed. */
+    StripeDisk sd;
+    auto d = sd.fx.take();
+    m016_erase_tocblock(d, 1);
+    m016_erase_tocblock(d, 2);
+    m016_write_tocblock(d, 0, 17);
+    MemDevice dev(std::move(d));
+    LdmInfo info;
+    const u32 rc0 = parse_ldm_database(&dev, info);
+    ASSERT_EQ(OK, rc0) << err_text(rc0);
+    EXPECT_TRUE(info.found);
+    EXPECT_EQ(u64(17), info.toc.bitmap1_start);
+    EXPECT_EQ(size_t(2), info.layouts.size());
+}
+
+TEST(Ldm, TocblockPrefersPlus2OnConflict) {
+    /* M-016(c): on two valid-but-conflicting copies at +1 and +2 the og
+     * follows the +2 copy (probed first). The +2 copy anchors the VMDB
+     * at config+18 (committed_seq 99); the +1 copy anchors at +17
+     * (committed_seq 42). The core's old order {1,2,...} picked +1 and
+     * followed the stale VMDB — different database state on torn-write
+     * disks. */
+    StripeDisk sd;
+    auto d = sd.fx.take();
+    /* VMDB@17 already written by the fixture (committed_seq 42) */
+    u8* vmdb18 = d.data() + (STRIPE_CFG_START + 18) * 512;
+    memcpy(vmdb18, d.data() + (STRIPE_CFG_START + 17) * 512, 512);
+    p64be(vmdb18 + 0x75, 99); /* distinct committed sequence */
+    m016_write_tocblock(d, 1, 17); /* stale copy first in the old order */
+    m016_write_tocblock(d, 2, 18); /* og-preferred copy */
+    MemDevice dev(std::move(d));
+    LdmInfo info;
+    const u32 rc1 = parse_ldm_database(&dev, info);
+    ASSERT_EQ(OK, rc1) << err_text(rc1);
+    EXPECT_TRUE(info.found);
+    EXPECT_EQ(u64(18), info.toc.bitmap1_start);
+    EXPECT_EQ(u64(99), info.vm.committed_seq);
+}
+
+TEST(Ldm, TocblockTailCopies) {
+    /* M-016(b) pin: the end-of-config tail copies (config+2045/+2046)
+     * are a core superset the og does not probe; a disk whose only
+     * TOCBLOCK sits at config+2045 must keep parsing after the candidate
+     * reorder (kernel ldm.c tail-copy semantics preserved). */
+    StripeDisk sd;
+    auto d = sd.fx.take();
+    m016_erase_tocblock(d, 1);
+    m016_erase_tocblock(d, 2);
+    m016_write_tocblock(d, 2045, 17);
+    MemDevice dev(std::move(d));
+    LdmInfo info;
+    const u32 rc2 = parse_ldm_database(&dev, info);
+    ASSERT_EQ(OK, rc2) << err_text(rc2);
+    EXPECT_TRUE(info.found);
+    EXPECT_EQ(size_t(2), info.layouts.size());
+}
+
 } // namespace table
 } // namespace cr

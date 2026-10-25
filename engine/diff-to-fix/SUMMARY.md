@@ -32,9 +32,27 @@ MAJOR 33 · MINOR 44 · INFO 22 · FIXED 95 · tracked-open 16. Active lane
 claims respected: DFX15 (MAJOR head), DFX9-T7 (M-052/M-035/M-018/
 M-013/M-014), DFX14 (M-005).
 
-# SUMMARY.md — executive summary (diff-fix session 15 on top; earlier sessions below)
+# SUMMARY.md — executive summary (diff-fix session 15 on top; earlier sessions below)# SUMMARY.md — executive summary (diff-fix session 19 on top; earlier sessions below)
 
-## Session-15 delta (2026-10-26 — DFX10: the S-009 third-implementation convergence + M-054)
+## Session-19 delta (2026-10-26 — DFX19: MAJOR-first lane, first landing M-016)
+
+Bootstrap `ff734d7` (union of the parallel lanes' claims: DFX18 on the MINOR
+tier, this leg on the unclaimed MAJOR batch); baseline suite **594/594**
+Linux RelWithDebInfo + ASan. Corpus `03ad46c` unmoved.
+
+**M-016 FIXED (first landing):** LDM TOCBLOCK candidate set/order — the
+core's list was `{+1,+2,+2045,+2046}` (config+0 never probed; +1 outranked
++2 on conflicts) while the og probes `{+2,+0,+1}` first-valid-wins
+(LdmManager FUN_180072ad0, re-verified first-hand incl. the hard-fail
+name-check tail). Now `{2,0,1,2045,2046}` — og probe order first, kernel
+tail-copy superset behind. Fail-before proven both claims: a config+0-only
+disk went ERR_BAD_CHECKSUM (all volumes missed) → full parse; a +1/+2
+conflict followed the stale +1 VMDB (committed_seq 42) → now the +2 anchor
+(99). The og's stop-at-magic hard-fail on corrupt bitmap names stays
+un-adopted (forgiving per-copy walk = registered recovery superset). 3
+tests; suite 594/594; findings/FIXED/M-016; matrix table+ldm B1/C20 MATCH.
+
+## Session-15 delta (2026-10-26 — DFX10: the S-009 third-implementation convergence + M-054) (2026-10-26 — DFX10: the S-009 third-implementation convergence + M-054)
 
 Session bootstrap `7c44bdc` (baseline 533/533 Release verified first-hand);
 mid-flight the remote advanced to `d487928` (the parallel lanes' S-009
