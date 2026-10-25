@@ -13,6 +13,7 @@
  */
 
 #include "cr/orchestrator/cr_scan.h"
+#include "cr/cr_bits.h"
 #include "cr/btrfs/cr_btrfs_engine.h"
 #include "cr/carve/cr_carve.h"
 #include "cr/cr_bits.h"
@@ -486,8 +487,9 @@ FsFamily ScanController::probe_family(IStorageDevice* slice) {
          * probe with per-record validation (FILE magic + USA count < 0x11
          * + USA offset in [0x2a, 0x2a+0xd7); FUN_180005180 :4038-4058).
          * The cheap form here: record 0's magic + USA bounds after a
-         * plausible-geometry check ($MFT LCN u64@0x28, spc u8@0x0D, bps
-         * u16@0x0B). A spoofed OEM on a non-NTFS sector no longer
+         * plausible-geometry check ($MFT LCN u64@0x30 per the spec-exact
+         * wire struct - kernel NTFS_BOOT_SECTOR layout: total_sectors
+         * occupies 0x28; spc u8@0x0D, bps u16@0x0B). A spoofed OEM on a non-NTFS sector no longer
          * dispatches the engine - the og's analyser bails the same way
          * (it never reaches result 4). Failure falls through to the
          * remaining family probes. NOTE (M-043 corrected half, corpus-
@@ -499,15 +501,18 @@ FsFamily ScanController::probe_family(IStorageDevice* slice) {
          * consent-gated rawfixer owns that path. */
         const u16 bps = u16_from_bytes_le(sec + 0x0B);
         const u8 spc = sec[0x0D];
-        const u64 mft_lcn = le64(sec + 0x28);
+        const u64 mft_lcn = le64(sec + 0x30); /* $MFT LCN (0x28 is total_sectors) */
         if (bps >= 512 && bps <= 0x1000 && (bps % 512) == 0 && spc != 0 &&
             (spc & (spc - 1)) == 0 && mft_lcn != 0) {
             const u64 at = mft_lcn * u64(spc) * bps;
             u8 rec[512]; /* the USA fields live in record 0's first sector */
             if (slice->read_at(at, rec, sizeof(rec)) == OK &&
                 std::memcmp(rec, "FILE", 4) == 0) {
-                const u16 usa_off = u16_from_bytes_le(rec + 0x06);
-                const u16 usa_cnt = u16_from_bytes_le(rec + 0x08);
+                /* spec offsets: USA offset u16@0x04, USA count u16@0x06 (the
+                 * og's bounds: count in [1,0x11), offset in [0x2a,0x201) —
+                 * FUN_180005180 :4038-4058) */
+                const u16 usa_off = u16_from_bytes_le(rec + 0x04);
+                const u16 usa_cnt = u16_from_bytes_le(rec + 0x06);
                 if (usa_cnt != 0 && usa_cnt < 0x11 && usa_off >= 0x2a && usa_off < 0x2a + 0xd7)
                     return FsFamily::Ntfs;
             }
@@ -539,10 +544,14 @@ FsFamily ScanController::probe_family(IStorageDevice* slice) {
                 return FsFamily::Hfsplus;
         }
     }
-    /* FAT: bytes-per-sector sane + 55AA */
+    /* FAT: bytes-per-sector sane + 55AA + numFATs != 0 (the og FAT
+     * analyser's gate - M-045's landed corpus set; an NTFS BPB has zeros
+     * at 0x10-0x27, so a spoofed-NTFS boot falling through after a failed
+     * content proof must NOT land here: the og's FAT analyser refuses it
+     * the same way and the family result is Unknown). */
     if (sec[510] == 0x55 && sec[511] == 0xAA) {
         const u16 bps = u16_from_bytes_le(sec + 0x0B);
-        if (bps >= 512 && bps <= 4096 && (bps & (bps - 1)) == 0)
+        if (sec[0x10] != 0 && bps >= 512 && bps <= 4096 && (bps & (bps - 1)) == 0)
             return FsFamily::Fat;
     }
     /* ext2/3/4: superblock magic at byte offset 1024+0x38 */

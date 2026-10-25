@@ -199,3 +199,35 @@ TEST(DiskMap, FreeNeverMarksFoundContentCells) {
         << "a deleted file's cell stays Unknown (found content), never plain-free";
     EXPECT_EQ(alloc[50], viz::kCellAllocFree) << "an empty cell inside the map is FREE";
 }
+
+TEST(DiskMap, OverlayBudgetGrowsCellSize) {
+    /* N-057: the 64 MiB overlay budget's pow-2 cell growth was untested.
+     * Exactly at budget: cell stays the cluster size; one cell past it:
+     * the cell doubles (memory budget honored - the alloc/cov vectors
+     * cap at the budget regardless of slice size). */
+    tree::ResultTree tree; /* empty tree: no extent claims */
+    viz::DiskMapInputs in;
+    in.slice_start = 0;
+    in.cluster_bytes = 512;
+    viz::DiskMapGeometry g;
+    std::vector<u8> cov;
+
+    /* exactly 64 MiB cells at 512 B: total/cell == kOverlayBudgetBytes ->
+     * NOT over budget -> cell stays 512 (choose_cell_bytes' loop is >) */
+    std::vector<std::pair<u64, u64>> bad;
+    in.slice_bytes = (64ull << 20) * 512;
+    ASSERT_EQ(viz::build_disk_map(in, tree, g, nullptr, &cov, nullptr, nullptr, bad, 0, nullptr),
+              OK);
+    EXPECT_EQ(g.cell_bytes, 512u) << "at-budget: no growth";
+    EXPECT_EQ(g.cell_count, (64ull << 20));
+    cov.shrink_to_fit();
+
+    /* one 512-byte sector MORE: total/cell == budget+1 -> cell doubles */
+    in.slice_bytes = (64ull << 20) * 512 + 512;
+    ASSERT_EQ(viz::build_disk_map(in, tree, g, nullptr, &cov, nullptr, nullptr, bad, 0, nullptr),
+              OK);
+    EXPECT_EQ(g.cell_bytes, 1024u) << "one cell past budget: the cell doubles";
+    EXPECT_EQ(g.cell_count, (64ull << 20) / 2 + 1);
+    /* the overlay vectors stay within the budget */
+    EXPECT_LE(cov.size(), size_t(64ull << 20));
+}

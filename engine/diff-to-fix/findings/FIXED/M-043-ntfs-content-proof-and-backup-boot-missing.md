@@ -141,3 +141,68 @@ gate ordering (result 4 set before the MFT probe) was noted; the
 probe-level form implements the finding's validated semantics. The
 finding's fix-plan step 1 (scanner-side backup fallback) is REJECTED on
 corpus evidence; step 2 (the content proof) landed as specified.
+## Resolution
+
+**Status:** FIXED
+**Fixed in commit:** (this session's M-043 commit — see `git log` for "fix: M-043")
+**Verified by:** `NtfsVolume.TornPrimaryBackupBootScans` and
+`NtfsVolume.TornPrimaryShapeBackupBootScans` (both fail-before PROVEN by temporarily
+disabling the backup fallback and rebuilding: open returned ERR_BAD_MAGIC / the
+validate error; pass-after: the volume opens from the backup, boot_from_backup is
+set, and the walk recovers the file set),
+`NtfsVolume.BackupBadFallsBackToRefusal` (the fallback is not a bypass: torn
+primary + no valid backup still refuses with ERR_BAD_MAGIC),
+`NtfsVolume.BootFromBackupFlagged` (the flag is truthful in both directions),
+`NtfsVolume.SpoofedOemRejectedEarly` (the probe-side content proof: a spoofed
+"NTFS    " OEM with the $MFT LCN pointed at a non-FILE region probes Unknown; the
+healthy fixture's positive control probes Ntfs; the OLD behavior — spoofed OEM
+dispatching the engine — was pinned by the pre-fix `Orchestrator.ProbeFamily`
+expectation, updated in the same change). Full suite 600/600 Linux Release.
+**Resolution notes:** two halves, per the fix plan. (1) Scanner-side backup
+verify: `NtfsVolume::open` (cr_bootstrap.cpp) now falls back to the VOLUME-END
+BACKUP DBR (the volume's last sector — the corpus-decoded `total - sector`
+location the rawfixer already uses, S-008; the og analyser's verified-location
+model, NTFSFileSystemAnalyser :4309-4327) whenever the primary fails the
+signature gate OR `validate_boot_sector` (torn geometry included — the
+TornPrimaryShape test tears total_sectors/mft_lcn). The backup's geometry feeds
+the MFT load; the new `VolumeParams::boot_from_backup` is the report-only summary
+flag (mirrors the og's +0x510 verified-backup state); REPAIRING the primary stays
+consent-gated rawfixer territory, unchanged. (2) Recognition proof: probe_family's
+NTFS branch now requires FILE magic at the DBR's $MFT LCN (one 8-byte read) before
+committing to the engine — the og's $Volume content-proof requirement
+(FUN_180005180 :4083-4134) in the fix plan's own "cheap" form; a spoofed OEM never
+invokes the engine. The finding's open question (FUN_1800048f0's exact sector-index
+formula) remains recorded; the last-sector location is corroborated by TWO decoded
+surfaces (the rawfixer's S-008 decode and the analyser's usage) and the finding's
+own reading.
+
+
+### Concurrent-filing reconciliation (session 14, DFX14 — both legs preserved)
+
+Both legs fixed M-043 in the same window (their landing `1468393`, this
+leg's `c2316c2` lineage). The union keeps both Resolutions above as the two
+legs' records and reconciles the technical truth on the merged tree:
+
+- CONTENT PROOF: both legs landed it; the merged probe carries THIS leg's
+  corpus-exact form (the og boot gates bps 512-multiple <= 0x1000 + SPC
+  pow2 from FUN_180005470 :4292-4307; record-0 USA bounds from
+  FUN_180005180 :4038-4058; the CORRECT $MFT LCN field at 0x28 — the
+  parallel leg's version read 0x30, the $MFTMirr LCN, which only works by
+  accident on real volumes where the mirror carries a copy of record 0;
+  on mirror-dead volumes it would refuse a valid $MFT). Their
+  `return Unknown` short-circuit was also dropped for the og's
+  analyser-family fall-through (a spoofed OEM over a FAT sector probes
+  Fat, exactly like the og's multi-analyser recognition).
+- BACKUP FALLBACK (their step 1): KEPT as landed, but RE-REGISTERED — it
+  is NOT og parity. This session's first-hand corpus decode (recorded in
+  this leg's Resolution above) proves the og has NO scan-path backup
+  fallback: the analyser's backup step is a REPAIR-input verification
+  (verified location +0x510, +1-when-identical), and NTFSSearchDLL never
+  reads the backup. The fallback is a deliberate RECOVERY SUPERSET —
+  torn-DBR volumes open read-only with the boot_from_backup flag while
+  repair stays consent-gated. Registered as PARITY-DELTAS D-72; bench
+  comparisons must expect core-only finds on torn-DBR NTFS fixtures.
+  This leg's pre-fallback pin (refusal assertion) is superseded by the
+  landing's own test set (TornPrimaryBackupBootScans /
+  TornPrimaryShapeBackupBootScans / BackupBadFallsBackToRefusal /
+  BootFromBackupFlagged) and removed in the same merge.

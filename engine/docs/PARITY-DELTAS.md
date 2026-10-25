@@ -1905,23 +1905,68 @@ same way. Pinned by `RawFixer.NtfsPrimaryDamaged4Kn`,
   grammar gates the false-positive surface. Do not tighten for parity. Pin:
   Carve.JpegFourthByteOutsideOgSet.
 
-- **D-64 — image-container scope (S-030, ACCEPTED).** The og's import
-  factory dispatches six backends: edisk, vhdx, vmdk, vhd + the flat
-  fallback (.img/.dmg/raw) (DRWUI FUN_1405b3410). The core's image layer
-  implements flat, VMDK (monolithicSparse + standalone descriptors with
-  FLAT/SPARSE/ZERO extents), and VHD (fixed + dynamic). Two deliberate
-  exclusions and two tracked remainders, honestly registered:
-  **edisk** (EaseUS Todo-Backup's proprietary container — undecodable
-  without product internals; ERR_UNSUPPORTED) and **dmg** (Apple's
-  container; the og treats it as a FLAT file only when uncompressed,
-  which our flat fallback already covers — the compressed
-  ADC/ZLIB/LZFSE variants are out of scope). Remainders (capability, not
-  divergence): **VHDX** (the og's CVHDXDisk; ERR_UNSUPPORTED until the
-  metadata-table format lands) and **VMDK parent chains /
-  compressed grains / VHD differencing** (v1 reads base images only).
-  Pins: `Image.VmdkMonolithicSparseReadsAndScans`,
-  `Image.VhdDynamicDiskReadsAndScans`, `Image.RejectsBrokenInputs`
-  (VHDX → ERR_UNSUPPORTED).
+- **D-64 — image-container scope (S-030, ACCEPTED; CONVERGED across two
+  parallel landings — b30354d's flat/VMDK/VHD core, then the convergence
+  upgrade adding VHDX + the differencing families + the qemu-fixture
+  compatibility proof layer).** The og's import factory dispatches
+  edisk/vhdx/vmdk/vhd + the flat fallback for everything else including
+  .dmg (DRWUI FUN_1405b3410 — note: the factory has NO dmg case; the og
+  opens .dmg as raw flat bytes, compressed or not, and the scan reads
+  what a raw read yields; parity is the same flat fallback, NOT Apple
+  container parsing). The core now implements flat raw, VMDK
+  (monolithicSparse + descriptor extents FLAT/SPARSE/ZERO + parent
+  chains via parentFileNameHint, depth-capped), VHD (fixed + dynamic +
+  differencing via W2ku/W2ru locators), and VHDX dynamic (header pair
+  CRC-32C + region table + metadata + chunk-ratio BAT) with a READ-ONLY
+  in-memory log replay overlay (qemu vhdx-log.c walk semantics — a
+  recovery tool never rewrites its input; qemu itself refuses read-only
+  opens with a valid log sequence). One exclusion and two remainders,
+  honestly registered: **edisk** (EaseUS Todo-Backup proprietary,
+  undecoded in the corpus; ERR_UNSUPPORTED); **compressed VMDK**
+  (streamOptimized/streamMonolithic + the ESX VMFS extent families;
+  refused precisely, never mis-read as flat); **VHDX differencing**
+  (parent-locator metadata + sector-bitmap blocks; refused precisely).
+  Pins: `Image.VmdkSparseExtentReads`,
+  `Image.VmdkDifferencingChainReadsParent`,
+  `Image.VmdkStreamOptimizedRefused`, `Image.VhdDynamicDisk`,
+  `Image.VhdDifferencingReadsParentOnClearBitmap`,
+  `Image.VhdxDynamicReads`, `Image.VhdxLogOverlayServesUnflushedWrites`,
+  `Image.VhdxDifferencingRefusedPrecisely`,
+  `Image.EdiskRefusedAsRegisteredExclusion`, and the qemu-img-10.0.13
+  compatibility fixtures (`Image.QemuVmdkCompat`, `Image.QemuVhdCompat`,
+  `Image.QemuVhdxCompat` over tests/data/images).
+
+## M. diff-to-fix session 10 (2026-10-26)
+
+- **D-65 — the lost-partition apply path (S-029, IMPLEMENTED).** The
+  og's apply is a consent-gated product flow (RecoveryModule
+  `CreateRecoveryPartitionObject` → PartitionRecovery FUN_1800566d0
+  "rebuild disk layout": DELETE_DRIVE_LAYOUT + raw sector-0 rewrite +
+  SET_DRIVE_LAYOUT, UPDATE_PROPERTIES with settle). The core implements
+  the SEMANTIC through the rawfixer seams: `apply::plan_apply` (read-only,
+  containment-refusing) + `apply::execute_apply` (consent callback →
+  revalidation → transactional sector-0 write → read-back verify →
+  rollback) + the shared CRUNDO01 undo, surfaced as `rrecov apply --disk
+  N --session F --candidate N [--apply]`. Deliberate v1 boundaries,
+  registered: (a) **MBR only** — GPT layouts are refused cleanly (the
+  og's GPT variant FUN_1800392f0 incl. GUID regen is v2 scope); (b) the
+  write lands through the raw sector-0 path (one of the og's two
+  equivalent legs) rather than the kernel IOCTL chain — same resulting
+  table, verifiable, undoable; the win layer adds the og's
+  IOCTL_DISK_UPDATE_PROPERTIES + 3×Sleep(1000) settle after the write;
+  (c) the entry is written **not-bootable** (the og's decoded flow
+  carries no boot-flag decision for the recovered entry; auto-activating
+  a boot flag would be a guess); (d) **boot-chain repair (M-040) is not
+  chained** — the og's apply composites BootIni_Init + Fixup.mo BCD
+  repair; the core's apply exposes the boundary truthfully through the
+  plan's `boot_repair_available` field and refuses to pretend.
+- **D-67 — the apply MBR type-byte map (convention, corpus-undecoded).**
+  The og's own family→type map for the recovered entry is not decoded in
+  the corpus for this path. The core uses the industry conventions:
+  NTFS/exFAT/ReFS/BitLocker→0x07, FAT→0x06, ext2/Btrfs→0x83,
+  HFS+→0xAF, ZFS→0xBF, unclassified→0x07 (generic data). Any future
+  corpus decode that differs supersedes this map (registered in the
+  S-029 Resolution when it happens).
 
 - **D-66 — raw-sign confidence consumption (N-030, ACCEPTED SUPERSET).**
   The og's raw_signs.json parser (FUN_18001e510, decompiled
@@ -1978,6 +2023,7 @@ across the fan-out nodes, and the hardlinks WalkStats counter is nonzero
 only in this mode (the og's scan has no such counter). Pinned by
 `NtfsVolume.HardLinkFanOutOptIn` (per-link names, per-parent nodes) and
 `NtfsVolume.HardLinkSingleLinkMatchesOg` (the parity default).
+`NtfsVolume.HardLinkSingleLinkMatchesOg` (the parity default).
 
 ### D-66 — Attrlist chase depth: the multi-hop BFS default (M-008, REGISTERED SUPERSET — the default)
 
@@ -2012,3 +2058,19 @@ Pinned by Slice.TailReadRefusalPinned + the updated Slice.BoundsEnforced.
 If a future engine needs the og contract, the documented next step is the
 opt-in clamped-read primitive from the finding's path (2) — added THEN,
 not as dead code now.
+
+
+(The original session-10 D-64 draft was folded into the converged entry above.)
+
+### D-72 — NTFS scan-path volume-end backup fallback (M-043, session 14)
+
+**Deliberate recovery SUPERSET — not og parity (corpus-proven).** The og
+has NO scan-path backup-boot fallback: the analyser's backup step
+(FUN_180005470 :4309-4327, decode read first-hand) is a memcmp storing the
+verified location at +0x510 as the REPAIR input, and NTFSSearchDLL carries
+zero backup reads. The og refuses torn-primary DBRs on the scan path. The
+core opens from the volume-end backup instead: read-only, flagged
+`VolumeParams::boot_from_backup`; repairing the primary stays
+consent-gated rawfixer territory (S-008). Bench comparisons must expect
+core-only finds on torn-DBR NTFS fixtures. Registered by DFX14 while
+reconciling the concurrent M-043 landing (1468393 + this leg).

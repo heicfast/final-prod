@@ -10,7 +10,14 @@
  *
  * Policy (shared with cr_ui's u8_to_u16 and the report escaper): never
  * locale-dependent; invalid input never throws away the rest of the string -
- * each bad lead byte becomes one U+FFFD and decoding resyncs one byte ahead.
+ * each ILL-FORMED MAXIMAL SUBPART becomes ONE U+FFFD (RFC 3629 §3.1's
+ * maximal-subpart formulation; MultiByteToWideChar(CP_UTF8, flags=0)
+ * semantics - the og's restore path, DRWUI :264664-694/:357529). A
+ * truncated or interrupted multi-byte sequence consumes its lead byte plus
+ * every continuation byte that extended it; a fully-read but invalid
+ * sequence (overlong / surrogate half / beyond U+10FFFF) consumes all of
+ * it; bytes that can never begin a well-formed sequence (C0/C1 per RFC
+ * 3629, lone continuations 80..BF, F8..FF) are single-byte subparts.
  * Overlong forms, UTF-16 surrogate halves and code points above U+10FFFF are
  * invalid per RFC 3629 and decode as U+FFFD.
  *
@@ -43,20 +50,25 @@ inline void append_codepoint(std::u16string& out, u32 cp) {
 }
 
 /* Strict UTF-8 -> UTF-16 decode. Accepts exactly the RFC 3629 well-formed
- * set; everything else yields U+FFFD (one per bad lead byte, advance one
- * byte and resync - a torn byte in the middle of a name must not destroy
- * the suffix). */
+ * set; every ill-formed maximal subpart yields ONE U+FFFD (N-029a:
+ * maximal-subpart resync, matching the og's restore path - Windows
+ * MultiByteToWideChar(CP_UTF8, flags=0) - instead of one FFFD per bad
+ * byte; a torn byte in the middle of a name still must not destroy the
+ * suffix). */
 inline std::u16string utf8_to_u16(std::string_view in) {
     std::u16string out;
     out.reserve(in.size());
     const u8* p = reinterpret_cast<const u8*>(in.data());
     const u8* end = p + in.size();
     while (p < end) {
-        u32 cp = 0xFFFDu;
+        u32 cp = 0;
         u32 extra = 0;
         if (*p < 0x80u) {
             cp = *p;
-        } else if ((*p & 0xE0u) == 0xC0u) {
+        } else if (*p >= 0xC2u && *p <= 0xDFu) {
+            /* C0/C1 excluded at classification (RFC 3629: no well-formed
+             * sequence begins with them) - they fall to the single-byte
+             * subpart branch below */
             cp = *p & 0x1Fu;
             extra = 1;
         } else if ((*p & 0xF0u) == 0xE0u) {
@@ -65,29 +77,37 @@ inline std::u16string utf8_to_u16(std::string_view in) {
         } else if ((*p & 0xF8u) == 0xF0u) {
             cp = *p & 0x07u;
             extra = 3;
+        } else {
+            /* C0/C1, lone continuations 80..BF, F8..FF: the maximal
+             * subpart is the offending byte alone */
+            append_codepoint(out, 0xFFFDu);
+            ++p;
+            continue;
         }
-        bool ok = true; /* ASCII (extra == 0, cp set) is valid by
-                          construction; lead bytes that matched no branch
-                          (lone 0x80..0xBF continuations, 0xF8+) keep the
-                          U+FFFD init + zero advance-below and are rejected
-                          only by the resync rule itself */
-        for (u32 i = 1; ok && i <= extra; ++i) {
+        u32 good = 0; /* continuation bytes that extended the subpart */
+        for (u32 i = 1; i <= extra; ++i) {
             if (p + i >= end || (p[i] & 0xC0u) != 0x80u)
-                ok = false;
-            else
-                cp = (cp << 6) | (p[i] & 0x3Fu);
+                break;
+            cp = (cp << 6) | (p[i] & 0x3Fu);
+            ++good;
         }
+        bool ok = good == extra;
         /* RFC 3629: reject overlong forms and surrogate halves */
-        if (ok &&
-            ((extra == 1 && cp < 0x80u) || (extra == 2 && cp < 0x800u) ||
-             (extra == 3 && cp < 0x10000u) || (cp >= 0xD800u && cp <= 0xDFFFu) || cp > 0x10FFFFu))
+        if (ok && ((extra == 1 && cp < 0x80u) || (extra == 2 && cp < 0x800u) ||
+                   (extra == 3 && cp < 0x10000u) || (cp >= 0xD800u && cp <= 0xDFFFu) ||
+                   cp > 0x10FFFFu))
             ok = false;
-        if (!ok) {
-            cp = 0xFFFDu;
-            extra = 0; /* resync one byte past the bad lead */
+        if (ok) {
+            append_codepoint(out, cp);
+            p += 1 + extra;
+        } else {
+            /* maximal-subpart resync (N-029a): ONE U+FFFD per maximal
+             * subpart. A truncated/interrupted sequence consumes the lead
+             * + the continuations that extended it; a fully-read but
+             * invalid sequence (overlong/surrogate/range) consumes all */
+            append_codepoint(out, 0xFFFDu);
+            p += 1 + (good == extra ? extra : good);
         }
-        append_codepoint(out, cp);
-        p += 1 + extra;
     }
     return out;
 }

@@ -12,6 +12,7 @@
 #define CR_TRANSPORT_H_
 
 #include "cr/storage/cr_device.h"
+#include "cr/storage/cr_image.h"
 #include "cr/storage/cr_slice.h"
 #include "cr/repair/cr_rawfixer.h"
 #include <memory>
@@ -32,6 +33,10 @@ std::unique_ptr<IStorageDevice> open_rda_partition(const wchar_t* service_name, 
                                                    u32* err);
 std::unique_ptr<IStorageDevice> open_rda_volume(const wchar_t* service_name, u32 volume, u32* err);
 
+/* S-030 disk images: the platform-owned ImageFileIo (CreateFileW-backed)
+ * used by rrecov --image; feeds cr::storage::open_image. */
+storage::ImageFileIo& image_file_io();
+
 /* Direct Win32 handles: \\.\PhysicalDriveN (whole disk, read-only share) and
  * \\.\HarddiskVolumeN (volume handle). */
 std::unique_ptr<IStorageDevice> open_physical_drive(u32 disk, u32* err);
@@ -51,6 +56,14 @@ std::unique_ptr<IStorageDevice> open_disk(u32 disk, bool prefer_rda, const wchar
 std::unique_ptr<cr::repair::IWriteDevice> open_disk_rw(u32 disk, bool prefer_rda,
                                                        const wchar_t* service, u32* err);
 
+/* S-029 (apply): IOCTL_DISK_UPDATE_PROPERTIES on \\.\PhysicalDriveN with
+ * the corpus settle pattern (3 x Sleep(1000) retries, PartitionRecovery
+ * PR:46873-46880) - after a table write the OS must re-read the layout or
+ * the new entry stays invisible to the volume manager. Returns OK when
+ * the refresh was accepted (or the settle exhausted - the table write
+ * itself already succeeded; the refresh is best-effort by contract, the
+ * caller reports it, never fails the apply on it). */
+u32 refresh_disk_properties(u32 disk);
 /* Full extent of the volume containing a drive letter: disk number, byte
  * offset on that disk, byte length (used for recovery-overlap refusal).
  * N-013: reports the FIRST extent only - kept for the source-disk lookup

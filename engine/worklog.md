@@ -9448,6 +9448,74 @@ Stage Summary:
   fix (unique) + my audit-trail convergence records. Session unique
   resolutions: 6 reconciliation moves + N-076. Next: N-056, N-063,
   N-069, N-029, N-030.
+---
+Task ID: DFX10-S029-CLAIM (session 10, lane claim)
+Agent: main engineer (diff-to-fix session 10)
+Task: Claim S-029 (the last open SEVERE): the lost-partition apply path.
+The published lane order for DFX10 is S-009 -> S-029 -> S-030; S-009
+(converged + hardened this session) and S-030 (parallel lane b30354d) are
+closed, so S-029 is this lane's active item per the DFX9-T2 coordination
+note ("S-029 stays with DFX10's queue - no collision from this lane").
+
+Scope per the finding's fix plan: consent-gated apply module
+(plan_apply / execute_apply / undo via the shared CRUNDO01 container),
+MBR-path v1 (GPT + boot-chain M-040 explicitly out of scope), the
+revalidation + transaction + rollback guarantees, the CLI surface with
+--apply consent + undo log, tests for every guarantee.
+
+---
+Task ID: DFX10-S029 (session 10, finding 2 — the SEVERE tier close-out)
+Agent: main engineer (diff-to-fix session 10)
+Task: S-029 — the lost-partition APPLY path (the og's two-step product
+flow: discover, then write the recovered entry into the user's MBR).
+Claimed per lane coordination; implemented v1 per the finding's fix plan.
+
+Work Log:
+- Re-verified the corpus citations first-hand (the finding's decompile
+  references were lead-verified at filing; re-read the rawfixer seams
+  S-008/S-010 established - IWriteDevice with lock_volume quiesce, the
+  CRUNDO01 undo container, the fix --apply consent posture).
+- New module cr/apply (cr_apply.h/.cpp): ApplyPlan (entry slot, type byte,
+  CHS pair at 255/63 with the cylinder-1023 clamp, the 0x55AA restore
+  planned only when absent, the sector-0 snapshot for revalidation,
+  boot_repair_available boundary field) + plan_apply (read-only,
+  containment refusals: overlap / LBA 0 / past-disk / GPT protective /
+  full table / zero size; first-zero-slot pick; family->type map D-66) +
+  execute_apply (A1 consent callback - denied OR absent = zero writes;
+  A2 stale-table revalidation before consent; quiesce first - busy volume
+  = clean refusal; A4 transaction with read-back verify + reverse-order
+  rollback). Undo = the shared repair::undo (CRUNDO01).
+- New error codes ERR_APPLY_CONSENT_DENIED / ERR_APPLY_STALE (+ texts).
+- CLI: rrecov apply --disk N --session F --candidate N [--apply] [--undo]
+  - dry-run default (prints the plan + candidate list from the session),
+  --apply is the consent, the undo log saves beside the session with the
+  fix --undo-apply restore hint. Usage text + dispatch updated.
+- Win layer: refresh_disk_properties (IOCTL_DISK_UPDATE_PROPERTIES +
+  3x Sleep(1000) settle, PR:46873-46880) called best-effort after apply.
+- cr_lostpart.h R3.2 comment superseded (materializer stays read-only BY
+  DESIGN; the write path is the separate consent-gated module).
+- PARITY-DELTAS D-65 (the apply-path v1 boundaries) + D-66 (the MBR
+  type-map convention, corpus-undecoded).
+- Tests (10, fail-before by absence): PlansEntryIntoFirstFreeSlot,
+  ExecuteWritesEntryVerifiesAndUndoes (byte-exact undo roundtrip),
+  RefusedWithoutConsent (denied + absent callbacks),
+  StaleTableRefusedBeforeConsent, QuiesceFailureIsACleanRefusal,
+  WriteFailureRollsBackEverything (mid-transaction rollback),
+  ContainmentRefusals (6 refusal classes), SignatureRestorePlannedWhenAbsent,
+  ChsClampsBeyondCylinder1023 (+ real-CHS math), FamilyTypeMap.
+- Full suite 590/590 Linux ASan (577 baseline + 10 apply + 3 parallel).
+- Audit trail: finding -> FIXED/ with Resolution (v1 scope + follow-ups
+  registered: GPT variant, M-040 chaining, cr_ui ABI surface);
+  RESOLVED-INDEX row; matrix lost-partition + mom-capabilities rows +
+  the scope-decision note; modules/lost-partition.md; SUMMARY session-10
+  delta (SEVERE tier CLOSED); PARITY-DELTAS D-65/D-66.
+
+Stage Summary:
+- THE SEVERE TIER IS CLOSED (S-009 converged+hardened, S-030 parallel,
+  S-029 this lane). Suite 590/590. The apply endgame is live: a
+  consent-gated, transactional, undoable MBR-entry write from a scanned
+  candidate, with the og's settle semantics. Next: the MAJOR tier in
+  impact order, respecting the active lane claims.
 
 ---
 ---
@@ -9910,6 +9978,8 @@ Stage Summary:
   M-029 fold + the clobber repair (4 findings) + M-005 = 7 finding-level
   resolutions. Next: pull, re-verify lane map, claim the next item.
 
+  resolutions. Next: pull, re-verify lane map, claim the next item.
+
 ---
 
 ---
@@ -9957,6 +10027,9 @@ Stage Summary:
   N-041; N-069 + the quartet convergent with parallel lanes). MINOR 42
   remain. Next: N-029a maximal-subpart, N-056, N-063, N-062.
 
+  remain. Next: N-029a maximal-subpart, N-056, N-063, N-062.
+
+---
 ---
 Task ID: DFX11-M008 (session 11, finding 3)
 Agent: main engineer (diff-to-fix fix session 11 — DFX11)
@@ -10130,6 +10203,207 @@ Stage Summary:
   missing pin landed. DFX14 tally: 9 finding-level resolutions
   (N-073, M-029 fold, clobber repair x4, M-005, I-006 pin) + this pass.
 
+  (N-073, M-029 fold, clobber repair x4, M-005, I-006 pin) + this pass.
+
+---
+Task ID: DFX12-T6 (text-policy batch — N-016a, the first half of the N-029 group)
+Agent: main engineer (diff-to-fix minors-first session 12)
+Task: Adopt the maximal-subpart replacement policy in text::utf8_to_u16
+(the og's restore-path semantics), with the group's second half
+(N-016b session raw-name persistence) left precisely scoped.
+
+Work Log:
+- Impact survey first: the engine tests that touch the decoder
+  (ext4/Btrfs/ZFS NonAscii, Btrfs Latin-1 lossless) pin no multi-byte
+  invalid runs - only test_text.cpp's policy tests carried the old
+  per-byte expectations; M-010's lossless mapping is a separate function
+  (untouched).
+- cr_text.h: utf8_to_u16 rewritten to the maximal-subpart policy (RFC
+  3629 §3.1 = MultiByteToWideChar(CP_UTF8, flags=0), the og's
+  restore-path conversion at DRWUI :264664-694/:357529). Truncated/
+  interrupted sequences consume lead + the continuations that extended
+  them (ONE FFFD); fully-read invalid sequences consume all (ONE FFFD);
+  C0/C1 excluded at lead classification per RFC 3629 (their
+  continuations surface as their own single-byte subparts).
+- Tests: Text.MaximalSubpartReplacement added (the finding's named
+  vectors: E6 96 x -> FFFD x; F0 80 80 80 y -> FFFD y; truncated tails;
+  continuation-only runs; mixed FFFD + valid CJK); the four policy tests
+  re-pinned to the maximal-subpart counts (E0 80 80 / F0 80 80 80 /
+  ED A0 80 / ED BF BF / F4 90 80 80 -> ONE FFFD each; E7 85 / F0 9F ->
+  ONE FFFD; C0 80 / C1 BF -> two, pinned unchanged).
+- Fail-before executed: stash-isolated pre-fix decoder, 4/5 RED; post-fix
+  suite 594/594 linux-release.
+- N-016b remains open (the og's .rsf keeps ORIGINAL on-disk bytes,
+  substitution at display; our .crsf stores the decoded name): the
+  versioned name_raw field + Session.RawNameRoundtrip +
+  Writer.InvalidUtf8NameRestoredFromRaw tests are the recorded next
+  step in N-029's Resolution; the group file stays in MINOR/ (partial
+  resolution - the N-009/N-036 convention).
+
+Stage Summary:
+- Session unique resolutions: 10 + N-016a (partial group). MINOR 42
+  remain (N-029 stays for its N-016b half). Next: N-062 (memory monitor),
+---
+  N-056 (temp leak), N-063 (naming), or the grouped minors N-025/N-026.Task ID: DFX19-M016 (session 19, first MAJOR fix)
+Agent: main engineer (diff-to-fix fix session 19 — DFX19)
+Task: M-016 — LDM TOCBLOCK candidate set/order divergence.
+
+Work Log:
+- Corpus re-verified FIRST-HAND: LdmManager_decompiled.c FUN_180072ad0
+  :59573/:59584/:59593 — probe order {config+2, config+0, config+1},
+  first magic-bearing copy wins; the name-check tail (:59650-59656)
+  confirms the og hard-fails on bad bitmap names (does not fall through
+  to later copies). PRIVHEAD@0x12B config-start anchor confirmed :59748.
+- Classification: CONFIRMED-DIVERGENCE (all three sub-claims (a)(b)(c)).
+- Fix: cr_ldm.cpp toc_offs {1,2,2045,2046} -> {2,0,1,2045,2046} (og probe
+  order first; kernel tail-copy superset kept behind; forgiving per-copy
+  validation kept = registered recovery superset, comment in-source).
+- Tests: Ldm.TocblockAtConfigPlus0 (fail-before PROVEN: ERR_BAD_CHECKSUM
+  -> full parse), Ldm.TocblockPrefersPlus2OnConflict (fail-before PROVEN:
+  committed_seq 42 -> 99, the +2 VMDB anchor followed),
+  Ldm.TocblockTailCopies (superset pin).
+- Suite 594/594 (linux-gcc RelWithDebInfo + ASan).
+- Audit trail: Resolution added, finding moved to findings/FIXED/,
+  RESOLVED-INDEX row, matrix table+ldm B1/C20 -> FIXED (s19), modules/
+  ldm.md verdict updated, SUMMARY session-19 section added.
+
+Stage Summary:
+- M-016 FIXED (session tally: 1). Next: M-019 (ZFS multivdev fallback +
+  fletcher4 verify + next-DVA retry).
+
+Task ID: DFX10-T3-S030
+Agent: DFX10 (diff-fix session 10)
+Task: S-030 — disk-image scan targets (SEVERE)
+
+Work Log:
+- Verified the finding against the corpus evidence first-hand (s5-image-fscheck-persistence.md §A:
+  extension factory DRWUI:948237-948409, flat fallback :948389-948393, LBA0 classify :275877-880,
+  libvmdk block device Dev:49106-49124/:48965-49100) and the core (rrecov.cpp --disk/--volume only,
+  zero image code). CONFIRMED-DIVERGENCE.
+- Empirical format pinning BEFORE coding: qemu-img 10.0.13 fixtures; dumped VMDK header (packed!
+  capacity@0xC), GD/GT/grains, VHD footer/dynamic-header/BAT/blocks (checksum rule verified against
+  qemu bytes), VHDX headers/region/metadata/BAT/log entry; fetched qemu vhdx.h/vhdx-log.c for the
+  log walk + BAT chunk-ratio + metadata GUIDs (public format, authoritative reference).
+- Implemented include/cr/storage/cr_image.h + src/core/storage/cr_image.cpp (pure core, ImageFileIo
+  seam), src/win/cr_image_win.cpp (Win32 IO), CLI scan/recover --image, identity-card v3 tail
+  (VolumeInfo/VolumeSessionInfo/ScanConfig.volume_image + resume warning), LBA0 classification.
+- Fixed in flight (found by the committed qemu compat fixtures — the reason they exist):
+  VHD checksum rule (32-bit ~S, not byte-sum-all), VHDX log-descriptor field order
+  (trailing@4/leading@8/file_off@0x10/seq@0x18), metadata-region GUID data3=4B9A,
+  VMDK createType quote-stripping, monolithic embedded-descriptor extent-skip, log overlay keyed
+  on FILE offsets (not virtual — diverge on non-flat layouts).
+- 20 tests (structure builders + qemu compat); suite 555/555 Linux Release (was 533).
+- Audit trail: finding Resolution + move to FIXED/, RESOLVED-INDEX row, modules/imaging.md,
+  matrix S-030 row marked, SUMMARY session-10 section, PARITY-DELTAS D-64a/b/c/d.
+
+Stage Summary:
+- S-030 FIXED with remainders registered precisely (compressed VMDK, VHDX differencing — both
+  refused with ERR_UNSUPPORTED, next steps in the Resolution). One new error code (ERR_IMAGE_CORRUPT).
+- The compat-fixture proof layer is now a repo pattern: real-tool-written files catch spec-memory
+  transpositions that self-built fixtures cannot.
+
+---
+Task ID: DFX10-T3-S030b (rebase union + baseline repair)
+Agent: DFX10 (diff-fix session 10)
+Task: Land the S-030 convergence on the rebased main (parallel lanes raced)
+
+Work Log:
+- Pull found the parallel session-8 lane had landed S-030's first cut (b30354d:
+  flat/VMDK/VHD via ImageByteSource/ImageFileOps, VHDX + differencing refused) AND
+  S-009's free-map (c55bd45) + the hardening (0ba21d8) + M-007/M-045/M-037/M-054/N-069/N-030.
+- Union resolution: session/scan wiring kept from the LANDED side (image[256] field
+  names + the S-009 free-map producer in cr_scan.cpp — taking my whole file would
+  have reverted S-009); my superset engine (cr_image.{h,cpp} with VHDX + log overlay,
+  VMDK parent chains, VHD differencing, .dmg flat-parity, qemu compat fixtures)
+  replaces the first cut's engine; their fuzz_image.cpp ported to the ImageFileIo seam
+  (fuzz files now resolve to fuzz-owned copies of the input — exercises the multi-file
+  path + the parent depth cap); their 0xEE protective-entry classify rule superseded
+  by my classify_lba0 (EFI PART primary — kept the stricter GPT detection; their
+  BootLayout wrapper retired with the seam).
+- BASELINE REPAIR (cross-lane race): ExfatEngine.FreeMapProducerMatchesSpecBitMapping
+  red on clean HEAD (622a997) — M-054's test pinned fm.cluster_count == 100 (the raw
+  spec heap count) while the S-009 hardening (0ba21d8, landed minutes earlier in a
+  parallel lane) had already changed the producer to cluster_count = p.cluster_count + 2
+  (FreeMap's slot-coverage semantics: 2 virtual + all data clusters; capping at 100
+  drops the last two data clusters from is_free coverage). Producer is correct; test
+  re-pinned to 102 with the semantics documented in-test. Suite 603/603.
+- PARITY-DELTAS D-64 converged (both lanes' entries folded into one truth);
+  imaging.md = first landing + convergence update; S-030 finding carries both
+  Resolutions (first landing + convergence upgrade); RESOLVED-INDEX row cites both.
+
+Stage Summary:
+- Main green again (603/603). S-030 final state: flat/VMDK(+chains)/VHD(+diff)/VHDX(+log
+  overlay) + qemu-fixture compat layer + fuzz harness. Remainders registered: compressed
+  VMDK, VHDX differencing.
+- Lesson recorded twice this session: parallel lanes racing on the same finding MUST
+  re-read main before push; the qemu-compat-fixture proof layer is what caught
+  spec-memory bugs the in-memory builders could not.
+Task ID: DFX11-M050 (session 11, findings 5+6)
+Agent: main engineer (diff-to-fix fix session 11 — DFX11)
+Task: M-050 (session node-model roundtrip gaps) + N-058 (load validation
+deltas) — landed as ONE loader change per M-050's own fix plan step 2.
+
+Work Log:
+- Corpus re-verified first-hand: rsf-record4--tree-node-grammar.md (the
+  per-node marker/name/parent validation rules) + rsf-format :315-322.
+  Core wire re-audited against the CURRENT tree (the finding was filed
+  at 7cf6754, BEFORE S-023/M-051/M-047 landed): grade+overlap,
+  provenance, root stats, short names are ALREADY carried — the schema
+  debt the finding predicted was paid by those landings. The remaining
+  real gaps: no round-trip TEST (added), and N-058's four loader
+  soft spots.
+- Fix (one loader change): (a) forward parents deferred + resolved
+  post-loop (new optional reparented_out surface); (b) marker outside
+  {0,1} fails the record; (c) c.fail alone fails the load; (d) name AND
+  role lengths bounds-checked BEFORE allocation. Deliberate
+  NOT-PERSISTED registered in the finding: hidden-root bit (no in-memory
+  concept), f_6c/f_68 + f_71 (undecoded — opaque u16 carriage would
+  invent structure); OQ-tracked until corpus decodes land.
+- Tests: 6 (GradeRoleAndProvenanceRoundTrip, OldFormatStillLoads,
+  ForwardParentDeferredAndCounted, BadMarkerFailsTheRecord,
+  TruncatedTailFailsAfterFullCount, HostileNameAndRoleLengthBombs) —
+  fail-before by construction (each asserts the opposite of a behavior
+  the finding itself verified first-hand in the pre-fix loader).
+  Suite 602/602.
+- Audit trail: Resolutions on both findings (cross-referenced); both
+  moved to FIXED/; RESOLVED-INDEX (77); matrix cells; modules/session.md
+  row; SUMMARY extension.
+
+Stage Summary:
+- Session tally: 5 fixes (M-007, M-008, M-032, M-050, N-058) + the
+  S-009 verification. Remaining claimed: M-029, M-049. Next: M-029.
+
+---
+  N-056 (temp leak), N-063 (naming), or the grouped minors N-025/N-026.
+
+---
+Task ID: DFX12-T7 (table-visualization batch — N-057)
+Agent: main engineer (diff-to-fix minors-first session 12)
+Task: Close N-057's three sub-items: the dead Ebr enum, the untested
+overlay-budget growth path, and the write-only accumulator.
+
+Work Log:
+- Verified the finding's claims first-hand: grep TableLayout::Ebr
+  assignment sites = 0 (dead); cr_diskmap's budget path had no test;
+  Overlays::total set once, never read.
+- Ebr decision: DELETE would renumber the u32 enum (ABI-adjacent - cr_ui
+  maps layout values), so SET executed as the finding recommends: the
+  MBR parse assigns Ebr after parse_ebr_chain when an extended container
+  is present; ebr_status keeps carrying chain integrity (torn chains
+  classify Ebr with honest status); plain 4-primary MBR stays Mbr.
+- ABI: cr_ui's layout mapping gains the APPENDED code 3 (0 none/1 MBR/
+  2 GPT frozen; cr_ui.h comment updated); CLI prints "EBR".
+- DiskMap.OverlayBudgetGrowsCellSize: at exactly 64 MiB cells the cell
+  stays 512 (the loop is >, not >= - pinned); one sector past doubles to
+  1024; overlay vectors cap at the budget. Write-only total deleted.
+- Fail-before executed (stash-isolated pre-fix parse): Mbr.PlainWithExtended
+  + Mbr.EbrLayoutAssignedAndPlainMbrStaysMbr both RED; post-fix suite
+  600/600 linux-release (the M-002 torn-chain tests untouched - ebr
+  classification composes with chain-status honesty).
+
+Stage Summary:
+- Session unique resolutions: 12. MINOR 41 remain. Next: the doc-batch
+  wave (N-074 doc drift, N-040 ABI truthfulness), then N-062/N-046.
 
 ---
 Task ID: DFX14-T6 (M-043 — completed)

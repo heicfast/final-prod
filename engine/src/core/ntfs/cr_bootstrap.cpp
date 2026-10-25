@@ -364,21 +364,52 @@ std::unique_ptr<NtfsVolume> NtfsVolume::open(std::unique_ptr<IStorageDevice> dev
             *err = ERR_READ_FAILED;
         return nullptr;
     }
-    if (!boot_signature_ok(reinterpret_cast<const u8*>(&bs))) {
-        if (err)
-            *err = ERR_BAD_MAGIC;
-        return nullptr;
-    }
 
     auto v = std::unique_ptr<NtfsVolume>(new NtfsVolume());
     v->dev_ = std::move(device);
 
-    u32 rc = validate_boot_sector(bs, v->dev_->geometry(), v->p_);
+    /* M-043 (diff-to-fix): a torn/damaged primary DBR no longer ends the
+     * scan — the og's analyser verifies the VOLUME-END BACKUP DBR in the
+     * recognition path (CNTFSVolumeAnalyser::Analyze, backup sector via
+     * FUN_1800048f0, the verified location stored at +0x510; corpus
+     * NTFSFileSystemAnalyser_decompiled.c :4309-4327) and proceeds from
+     * it, where the core's old scanner never read the backup at all (only
+     * the consent-gated rawfixer did — a torn primary with an intact
+     * backup required the user to know about --repair). Read-only
+     * fallback: the backup's geometry feeds the MFT load and
+     * boot_from_backup flags it; REPAIRING the primary stays consent-
+     * gated exactly as before. The backup location is the volume's LAST
+     * sector (rawfixer's corpus-decoded `total - sector`, S-008). */
+    bool from_backup = false;
+    u32 rc = OK;
+    if (!boot_signature_ok(reinterpret_cast<const u8*>(&bs)))
+        rc = ERR_BAD_MAGIC;
+    if (rc == OK)
+        rc = validate_boot_sector(bs, v->dev_->geometry(), v->p_);
     if (rc != OK) {
-        if (err)
-            *err = rc;
-        return nullptr;
+        BootSector backup{};
+        const u64 total = v->dev_->size();
+        const u64 sec = v->dev_->geometry().logical_sector != 0
+                            ? u64(v->dev_->geometry().logical_sector)
+                            : u64(512);
+        if (total >= 2 * sec &&
+            v->dev_->read_at(total - sec, &backup, sizeof(backup)) == OK &&
+            boot_signature_ok(reinterpret_cast<const u8*>(&backup))) {
+            VolumeParams bp{};
+            if (validate_boot_sector(backup, v->dev_->geometry(), bp) == OK) {
+                bs = backup;
+                v->p_ = bp;
+                from_backup = true;
+                rc = OK;
+            }
+        }
+        if (rc != OK) {
+            if (err)
+                *err = rc;
+            return nullptr;
+        }
     }
+    v->p_.boot_from_backup = from_backup;
     rc = v->load_mft_stream();
     if (rc != OK) {
         /* corpus: $MFTMirr cross-reference as repair/verification source when

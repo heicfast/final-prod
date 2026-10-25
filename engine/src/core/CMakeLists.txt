@@ -13,6 +13,7 @@ add_library(cr_core STATIC
     storage/cr_slice.cpp
     storage/cr_cached.cpp
     storage/cr_retry.cpp
+    storage/cr_image.cpp
     table/cr_crc32.cpp
     table/cr_table_parse.cpp
     table/cr_ldm.cpp
@@ -48,6 +49,7 @@ add_library(cr_core STATIC
     query/cr_query.cpp
     query/cr_filefilter_data.cpp
     repair/cr_rawfixer.cpp
+    apply/cr_apply.cpp
     reghive/cr_reghive.cpp
     refs/cr_refs_engine.cpp
     orchestrator/cr_scan.cpp

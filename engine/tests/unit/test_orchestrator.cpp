@@ -256,14 +256,18 @@ TEST(Orchestrator, NtfsProbeContentProof) {
         std::memcpy(b + 3, "NTFS    ", 8);
         put16_raw(b + 0x0B, 512); /* bps */
         b[0x0D] = 0x01;            /* spc 1 (pow2, nonzero) */
-        put16_raw(b + 0x28, u16(mft_lcn));
-        put16_raw(b + 0x2A, u16(mft_lcn >> 16));
+        /* $MFT LCN u64@0x30 (0x28 is total_sectors - the spec-exact wire
+         * struct / kernel NTFS_BOOT_SECTOR layout); 0x28 gets a plausible
+         * total so the two fields are never confused */
+        put16_raw(b + 0x28, u16(127)); /* total_sectors low half (127) */
+        put16_raw(b + 0x30, u16(mft_lcn));
+        put16_raw(b + 0x32, u16(mft_lcn >> 16));
         if (mft_lcn != 0) {
             u8* r = img.data() + mft_lcn * 512;
             if (file_magic)
                 std::memcpy(r, "FILE", 4);
-            put16_raw(r + 0x06, usa_off);
-            put16_raw(r + 0x08, usa_cnt);
+            put16_raw(r + 0x04, usa_off); /* spec: USA offset u16@0x04 */
+            put16_raw(r + 0x06, usa_cnt); /* spec: USA count u16@0x06 */
         }
         return img;
     };

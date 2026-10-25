@@ -1,6 +1,58 @@
-# SUMMARY.md — executive summary (diff-fix session 15 on top; earlier sessions below)
+# SUMMARY.md — executive summary (session 10's close-out on top; earlier sessions below)
 
-## Session-15 delta (2026-10-26 — DFX10: the S-009 third-implementation convergence + M-054)
+## Session-10 delta — the SEVERE tier close-out (2026-10-26)
+
+This lane (DFX10) executed the published order S-009 -> S-029 -> S-030
+against a hot remote (three independent S-009 implementations converged;
+S-030 landed from the DFX8 lane mid-session):
+
+**S-009 — converged + hardened:** this lane's independent fix rebase-
+absorbed into the landed storage::FreeMap implementation (c55bd45);
+first-hand verification of THEIR code found and closed four defects (FAT
++ exFAT virtual-cluster false-free over the root-dir/boot tail; exFAT
+2-cluster under-coverage; the torn-bitmap read painting zeros free) plus
+the found-content rule convergence (deleted/carved content cells stay
+Unknown — the finding's plan verbatim). 4 pin tests; suite 577/577.
+
+**S-030 — landed by the parallel lane (b30354d):** flat/VMDK/VHD image
+devices + --image CLI (re-verified green in this lane's baselines).
+
+**S-029 — CLOSED (this lane):** the lost-partition apply path, the
+recovery endgame. New consent-gated cr/apply module on the rawfixer
+seams: plan_apply (read-only, containment-refusing) + execute_apply
+(A1 consent callback — denied OR absent = ERR_APPLY_CONSENT_DENIED with
+zero writes; A2 stale-table revalidation; quiesce first; A4 transaction
+with read-back verify + rollback) + the shared CRUNDO01 undo. CLI
+`rrecov apply --disk N --session F --candidate N [--apply]`; win layer
+`refresh_disk_properties` (the og's UPDATE_PROPERTIES + settle). 10
+Apply.* tests; suite **590/590** Linux ASan. PARITY-DELTAS D-65/D-66.
+
+**The SEVERE tier is CLOSED** (0 open). Live inventory at this push:
+MAJOR 33 · MINOR 44 · INFO 22 · FIXED 95 · tracked-open 16. Active lane
+claims respected: DFX15 (MAJOR head), DFX9-T7 (M-052/M-035/M-018/
+M-013/M-014), DFX14 (M-005).
+
+# SUMMARY.md — executive summary (diff-fix session 15 on top; earlier sessions below)# SUMMARY.md — executive summary (diff-fix session 19 on top; earlier sessions below)
+
+## Session-19 delta (2026-10-26 — DFX19: MAJOR-first lane, first landing M-016)
+
+Bootstrap `ff734d7` (union of the parallel lanes' claims: DFX18 on the MINOR
+tier, this leg on the unclaimed MAJOR batch); baseline suite **594/594**
+Linux RelWithDebInfo + ASan. Corpus `03ad46c` unmoved.
+
+**M-016 FIXED (first landing):** LDM TOCBLOCK candidate set/order — the
+core's list was `{+1,+2,+2045,+2046}` (config+0 never probed; +1 outranked
++2 on conflicts) while the og probes `{+2,+0,+1}` first-valid-wins
+(LdmManager FUN_180072ad0, re-verified first-hand incl. the hard-fail
+name-check tail). Now `{2,0,1,2045,2046}` — og probe order first, kernel
+tail-copy superset behind. Fail-before proven both claims: a config+0-only
+disk went ERR_BAD_CHECKSUM (all volumes missed) → full parse; a +1/+2
+conflict followed the stale +1 VMDB (committed_seq 42) → now the +2 anchor
+(99). The og's stop-at-magic hard-fail on corrupt bitmap names stays
+un-adopted (forgiving per-copy walk = registered recovery superset). 3
+tests; suite 594/594; findings/FIXED/M-016; matrix table+ldm B1/C20 MATCH.
+
+## Session-15 delta (2026-10-26 — DFX10: the S-009 third-implementation convergence + M-054) (2026-10-26 — DFX10: the S-009 third-implementation convergence + M-054)
 
 Session bootstrap `7c44bdc` (baseline 533/533 Release verified first-hand);
 mid-flight the remote advanced to `d487928` (the parallel lanes' S-009
@@ -101,8 +153,22 @@ sector-unit under-zeroing defect noted, NOT adopted). No behavior change
 - the opt-in clamped read from the finding's path (2) is the documented
 next step WHEN an engine needs it. Suite 594/594 (Slice +1).
 
-# SUMMARY.md — executive summary (diff-fix session 14 on top; earlier sessions below)
+**M-050 + N-058 FIXED (this push — one loader change, per M-050's plan):**
+the carrier audit re-scoped post S-023/M-051/M-047: grade+overlap,
+provenance, root stats, short names ALREADY carried (the predicted schema
+debt was paid by those landings) — now PINNED by
+Session.GradeRoleAndProvenanceRoundTrip + OldFormatStillLoads; roles
+persist as strings (richer than the og's u32 pair). Deliberate
+NOT-PERSISTED, OQ-tracked: hidden-root bit, f_6c/f_68, f_71 (undecoded —
+carrying opaque u16s would invent structure). N-058's four loader
+hardenings in the same change: forward parents DEFERRED + resolved
+post-loop (reparented count surfaced via the new optional out-param);
+marker outside {0,1} fails the record; c.fail alone fails the load;
+name/role lengths bounds-checked BEFORE allocation. 6 tests; suite
+602/602. Counts: SEVERE 2 · MAJOR 32 · MINOR 46 · INFO 22 · FIXED 86
+files (85 findings + index).
 
+# SUMMARY.md — executive summary (diff-fix session 14 on top; earlier sessions below)
 ## Session-14 delta (2026-10-26 — DFX14: bootstrap, two merge repairs, the reconciliation wave)
 
 Session bootstrap `7c44bdc` (baseline **533/533** Linux Release, no flakes);
@@ -221,6 +287,50 @@ re-check — now accepting exactly the two registered spellings.
 `Carve.CabLowercaseMagic` (fail-before: lowercase cabinet never probed;
 pass-after: both cases carve, lowercase node carries FMT_CAB_LC). Suite
 568/568 ASan; lint clean. Post-fix counts: MINOR 48 · FIXED 80 findings.
+
+# SUMMARY.md — executive summary (diff-fix session 10 on top; earlier sessions below)
+
+## Session-10 delta (2026-10-26 — DFX10: the S-030 convergence push)
+
+Session start `5ff4db7` (post-T1 bootstrap on `8e79960`-lineage); corpus
+`03ad46c` unmoved. Baseline 533/533 Linux Release re-verified at start.
+CONVERGENCE NOTE: a parallel session-8 lane landed S-030's first cut
+(flat/VMDK/VHD, `b30354d`) mid-flight; this session had independently
+implemented the full surface — the union keeps the first landing's audit
+record and lands this lane's superset engine (VHDX + log overlay, the
+differencing families, .dmg flat-parity correction, the qemu-fixture
+compatibility proof layer, image_path widened 256→512). The finding file
+carries both Resolutions.
+
+**S-030 FIXED (converged):** the disk-image scan-target surface — the og's
+"Import a disk image" input class (extension factory DRWUI:948237-948409,
+flat fallback :948389-948393, LBA0 classify :275877-880; Device.mo's
+libvmdk block device :49106-49124 with extent files + parent chains
+:48965-49100). Pure-core `cr::storage::open_image` behind an injected
+`ImageFileIo` seam: flat raw (.img/.dmg/.raw — .dmg opened raw, exactly the
+og's fallback, NOT Apple-UDIF parsing), VMDK (monolithicSparse +
+descriptor extents FLAT/SPARSE/ZERO, grain directory/table translation,
+differencing via parentFileNameHint, depth cap), VHD (fixed + dynamic +
+differencing: footer/dynamic-header one's-complement checksums, BAT,
+512-byte sector bitmaps, W2ku/W2ru parent locators), VHDX dynamic (header
+pair CRC-32C + highest-sequence, region table, metadata, chunk-ratio BAT)
+with a READ-ONLY in-memory log replay overlay (qemu vhdx-log.c walk
+semantics; D-64d — a recovery tool never rewrites its input). CLI
+`scan --image` / `recover --image`, identity-card v3 tail `image_path` +
+resume warning, repair-on-image stays analysis-only. Registered
+non-adoptions D-64a/b/c: .edisk proprietary, compressed VMDK/VMFS, VHDX
+differencing — all refused with precise errors, never silent mis-reads.
+**Proof discipline worth recording:** every format constant was pinned
+empirically on qemu-img-10.0.13-written files before coding; the committed
+compat fixtures (tests/data/images) caught two transposition bugs
+(VHDX log-descriptor field order; metadata-region GUID data3) that
+in-memory builders — written from the same misread spec-memory — could
+never catch. 20 new tests; suite **555/555** Linux Release. New module
+row: modules/imaging.md.
+
+**Counts after S-030 (direct file inventory at this push):** SEVERE 2
+(S-009, S-029) · MAJOR 39 · MINOR 55 · INFO 22 = 118 active / 73 FIXED
+finding files + RESOLVED-INDEX.
 
 # SUMMARY.md — executive summary (diff-fix session 9 on top; earlier sessions below)
 
@@ -355,6 +465,32 @@ so the format-18 CI gate sees only the intended diff. Counts: MINOR 42
 · FIXED/ 96 files (95 findings + index). Session unique resolutions:
 10 (6 reconciliation + N-076 + N-030 + N-041; N-069/N-051..N-054
 convergent with the parallel lanes).
+
+**Text-policy batch (this wave):** N-016a (the N-029 group's first half)
+FIXED — text::utf8_to_u16 now follows the maximal-subpart policy (RFC 3629
+§3.1; MultiByteToWideChar(CP_UTF8, flags=0) semantics, the og's
+restore-path conversion): ONE U+FFFD per ill-formed maximal subpart
+instead of one per bad byte — a truncated/interrupted sequence consumes
+its lead + the continuations that extended it; a fully-read but invalid
+sequence (overlong/surrogate/range) consumes all of it; C0/C1 excluded at
+lead classification (RFC 3629). Text.MaximalSubpartReplacement (the
+finding's named vectors) + four re-pinned policy tests; fail-before
+executed on the stash-isolated pre-fix decoder (4 RED). N-016b (raw-bytes
+persistence in sessions — versioned name_raw field) remains open with the
+precise schema step recorded in N-029's Resolution. Suite 594/594
+linux-release.
+
+**Table-visualization batch FIXED (this wave):** N-057 — all three
+sub-items: (1) TableLayout::Ebr assigned on extended chains (the
+recommended SET; the ABI gains the APPENDED code 3 with 0/1/2 frozen,
+the CLI prints EBR, plain MBR pinned; serialized-value stability is why
+deletion was rejected); (2) the 64 MiB overlay-budget growth path tested
+at the exact boundary (at-budget does NOT grow — the loop's `>`
+semantics pinned); (3) the write-only `total` accumulator deleted.
+Fail-before executed (both table tests RED on the pre-fix parse). Suite
+600/600 linux-release. Counts: MINOR 41 · FIXED/ 97 files. Session
+unique resolutions: 12 (6 reconciliation + N-076 + N-030 + N-041 +
+N-016a + N-057).
 
 ## Session-8 delta (2026-10-26 — the closing-verification fix session, SEVERE lane first)
 

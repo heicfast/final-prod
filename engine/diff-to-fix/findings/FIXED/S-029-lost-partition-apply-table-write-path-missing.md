@@ -123,3 +123,35 @@ The og's exact undo semantics on apply failure (MM undo chain runs chkdsk +
 Bcd_RestoreBcdFile, MM:83206-83212 — decoded; whether PartitionRecovery.dll's
 apply path has its own sector-0 rollback beyond MainModule's op engine was
 not decoded this session).
+
+## Resolution (session 10, 2026-10-26)
+
+**Status:** FIXED (v1 scope per the finding's own fix plan: MBR path, consent-gated, transactional, undoable; GPT variant + boot-chain composite out of scope and refused cleanly)
+**Fixed in commit:** (this session's S-029 commit — see `git log` for "S-029")
+**Verified by:** the 10-test `Apply.*` suite: `PlansEntryIntoFirstFreeSlot`, `ExecuteWritesEntryVerifiesAndUndoes` (incl. the byte-exact undo roundtrip), `RefusedWithoutConsent` (denied AND absent callbacks → `ERR_APPLY_CONSENT_DENIED` with zero writes), `StaleTableRefusedBeforeConsent` (`ERR_APPLY_STALE`, consent never reached), `QuiesceFailureIsACleanRefusal` (`ERR_VOLUME_LOCK_FAILED`, zero writes), `WriteFailureRollsBackEverything` (mid-transaction failure → byte-exact rollback), `ContainmentRefusals` (overlap / LBA 0 / past-end / full-table / GPT / zero-size), `SignatureRestorePlannedWhenAbsent`, `ChsClampsBeyondCylinder1023` (clamp + real-CHS math), `FamilyTypeMap`. Full suite **590/590** Linux ASan at the fix tree (577 baseline + 10 apply + 3 parallel-lane tests). The Windows-only surfaces (the `rrecov apply` CLI command, `win::refresh_disk_properties` with the og's IOCTL_DISK_UPDATE_PROPERTIES + 3×Sleep(1000) settle) compile on the MSVC CI lane — the pure-core plan/execute/undo logic is fully proven on Linux; the win lane is compile-checked + CI-executed (recorded, not claimed as locally executed).
+
+**Resolution notes:** The fix implements the finding's fix plan steps 2-7 on the
+rawfixer seams. New module `cr/apply` (`plan_apply` / `execute_apply` / the shared
+`repair::undo`): the plan is READ-ONLY (slot pick = first zero entry; containment
+refusals for overlap/LBA-0/past-disk/GPT/full-table/zero-size; the CHS pair at the
+255/63 convention with the cylinder-1023 clamp; the 0x55AA restore planned only when
+absent — the og rewrites it, PR:46957-46962; the family→type map D-66); execution is
+A1-A4: quiesce via `IWriteDevice::lock_volume` (the S-010 sequence in the win
+transport — busy volume = clean refusal), the A2 stale-table revalidation (the plan's
+sector-0 snapshot vs the live disk — the og re-reads sector 0 raw, PR:46944), the A1
+consent callback (denied OR absent = `ERR_APPLY_CONSENT_DENIED`, zero writes), then
+the A4 transaction (snapshot → write → read-back verify → reverse-order rollback on
+any failure). The undo is the shared CRUNDO01 container — `rrecov fix --undo-apply`
+already replays it. CLI: `rrecov apply --disk N --session file.crsf --candidate N
+[--apply] [--undo file]` — dry-run default, `--apply` is the explicit consent (the
+`fix` posture), candidates come from the whole-disk scan's saved session (apply
+transcribes a scored candidate, never invents geometry), and the post-write
+`IOCTL_DISK_UPDATE_PROPERTIES` settle lands through the new
+`win::refresh_disk_properties` (best-effort, surfaced, never fails the apply).
+`cr_lostpart.h`'s R3.2 comment superseded (the materializer stays read-only BY
+DESIGN as the recovery path; the write path is the separate consent-gated module).
+PARITY-DELTAS D-65/D-66 register the v1 boundaries and the type-map convention.
+Out of scope, refused cleanly, tracked: the GPT variant (FUN_1800392f0 GUID regen),
+the boot-chain composite (M-040 — the plan's `boot_repair_available` field states
+the boundary), and the cr_ui ABI surface for apply (the CLI is the v1 consumer; the
+UI DLL surface follows when a UI consumer exists — registered as the follow-up).

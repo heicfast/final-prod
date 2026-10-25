@@ -59,6 +59,12 @@ enum Err : u32 {
     ERR_REPAIR_REFUSED = 0x50080001,
     ERR_REPAIR_UNDO_FAILED = 0x50080002,
     ERR_VOLUME_LOCK_FAILED = 0x50080003, /* S-010: volume busy, quiesce refused */
+    /* S-029 apply (consent-gated lost-partition table write) */
+    ERR_APPLY_CONSENT_DENIED = 0x50080004, /* A1: the consent callback refused */
+    ERR_APPLY_STALE = 0x50080005, /* A2: sector 0 changed since planning */
+
+    /* --- image containers (S-030: vmdk/vhd/vhdx scan targets) --- */
+    ERR_IMAGE_CORRUPT = 0x500A0001, /* structural nonsense inside the container */
 
     /* --- generic engine failure (task exceptions, defensive) --- */
     ERR_INTERNAL = 0x50090001,

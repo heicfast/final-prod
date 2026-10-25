@@ -76,3 +76,24 @@ executed fuzz this session (the fix leg's harness items below).
 The og's exact per-rule repair behavior for each malformed class is census-level in
 rsf-record4 — the fix leg should mirror "reject the node, keep the session" unless a deeper
 decode lands.
+
+## Resolution (session 11 — DFX11; landed as ONE loader change with M-050 per its fix plan step 2)
+
+**Status:** FIXED
+**Fixed in commit:** this session's fix commit (`fix: M-050+N-058` — same change)
+**Verified by:** Session.ForwardParentDeferredAndCounted (resolution + the
+count surface), Session.BadMarkerFailsTheRecord, Session.TruncatedTail-
+FailsAfterFullCount, Session.HostileNameAndRoleLengthBombs (name AND role
+bombs). Fail-before by construction (each test asserts the opposite of
+the pre-fix behavior this finding verified first-hand at 7cf6754).
+Suite 602/602.
+
+**Resolution notes:** all four deltas fixed exactly per this finding's
+plan: (1) forward parents deferred + resolved post-loop with the
+reparented count surfaced via the new optional out-param; (2) marker
+outside {0,1} fails the record (the CRC/F10/bomb-cap superset unchanged -
+registered before); (3) `c.fail` alone now fails the load (the
+created<size condition dropped - a degraded final node no longer loads
+as OK); (4) name length bounds-checked before allocation, plus the
+same-class full-node role length (the finding's class, same fix). See
+M-050's Resolution for the shared change.

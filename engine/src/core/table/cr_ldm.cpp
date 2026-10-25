@@ -1129,10 +1129,18 @@ u32 parse_ldm_database(IStorageDevice* device, LdmInfo& out) {
     if (!read_exact(device, ph.config_start * 512, cfg.data(), cfg.size()))
         return ERR_READ_FAILED;
 
-    /* TOCBLOCK: kernel copies at config+1/2/2045/2046 */
+    /* TOCBLOCK candidates. M-016: the og probes config+2 first, then
+     * config+0, then config+1 (LdmManager FUN_180072ad0 :59573/:59584/
+     * :59593), first valid copy wins — so a disk whose only TOCBLOCK
+     * sits at config+0 must parse, and a +2 copy outranks a conflicting
+     * +1 copy. The kernel's end-of-config tail copies (+2045/+2046) are
+     * a recovery superset the og does not have, kept behind the
+     * og-parity positions. The og stops at the magic-bearing copy and
+     * hard-fails if its bitmap names are wrong; the core keeps the more
+     * forgiving per-copy full validation (documented recovery superset). */
     LdmTocblock toc;
     bool have_toc = false;
-    const u64 toc_offs[4] = {1, 2, 2045, 2046};
+    const u64 toc_offs[5] = {2, 0, 1, 2045, 2046};
     for (u64 o : toc_offs) {
         if (o >= cfg_secs)
             continue;

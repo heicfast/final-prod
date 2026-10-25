@@ -182,13 +182,59 @@ TEST(Mbr, PlainWithExtended) {
     MemDevice dev(std::move(disk));
     DiskTable t;
     ASSERT_EQ(parse_disk_table(&dev, t), OK);
-    EXPECT_EQ(t.layout, TableLayout::Mbr);
+    /* N-057: the extended chain makes the EBR layout the table's
+     * classification (a first-class og model; ebr_status carries the
+     * chain's integrity separately) - the pre-fix enum value was dead */
+    EXPECT_EQ(t.layout, TableLayout::Ebr);
     ASSERT_EQ(t.partitions.size(), 3u);
     EXPECT_EQ(t.partitions[0].start_lba, 128u);
     EXPECT_EQ(t.partitions[1].start_lba, 2048u + 63u);
     EXPECT_EQ(t.partitions[1].fs, FsKind::Ntfs);
     EXPECT_EQ(t.partitions[2].start_lba, 3072u + 63u);
     EXPECT_EQ(t.partitions[2].fs, FsKind::Fat32);
+}
+
+TEST(Mbr, EbrLayoutAssignedAndPlainMbrStaysMbr) {
+    /* N-057: TableLayout::Ebr was a dead enum value (grep-verified at
+     * audit time: zero assignment sites). The extended chain now sets
+     * it; a 4-primary MBR with NO extended partition keeps Mbr. */
+    {
+        /* plain 4-primary MBR: no extended container -> stays Mbr */
+        std::vector<u8> disk(u64(512) * 512, 0);
+        disk[510] = 0x55;
+        disk[511] = 0xAA;
+        for (int i = 0; i < 4; ++i) {
+            disk[446 + i * 16 + 4] = 0x07;
+            put32(disk, 446 + i * 16 + 8, 32 + i * 64);
+            put32(disk, 446 + i * 16 + 12, 32);
+        }
+        MemDevice dev(std::move(disk));
+        DiskTable t;
+        ASSERT_EQ(parse_disk_table(&dev, t), OK);
+        EXPECT_EQ(t.layout, TableLayout::Mbr) << "no extended chain: stays Mbr";
+        ASSERT_EQ(t.partitions.size(), 4u);
+    }
+    {
+        /* single extended container with one EBR -> Ebr */
+        std::vector<u8> disk(u64(1024) * 512, 0);
+        disk[510] = 0x55;
+        disk[511] = 0xAA;
+        disk[446 + 4] = 0x05; /* extended container at LBA 64 */
+        put32(disk, 446 + 8, 64);
+        put32(disk, 446 + 12, 900);
+        u8* ebr = disk.data() + 64 * 512;
+        ebr[510] = 0x55;
+        ebr[511] = 0xAA;
+        ebr[446 + 4] = 0x07;
+        put32(disk, 64 * 512 + 446 + 8, 63);
+        put32(disk, 64 * 512 + 446 + 12, 500);
+        MemDevice dev(std::move(disk));
+        DiskTable t;
+        ASSERT_EQ(parse_disk_table(&dev, t), OK);
+        EXPECT_EQ(t.layout, TableLayout::Ebr) << "extended chain must classify as Ebr";
+        ASSERT_EQ(t.partitions.size(), 1u);
+        EXPECT_EQ(t.partitions[0].start_lba, 64u + 63u);
+    }
 }
 
 TEST(Mbr, EbrCycleGuard) {

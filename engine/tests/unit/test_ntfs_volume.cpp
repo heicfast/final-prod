@@ -13,6 +13,7 @@
  */
 #include <gtest/gtest.h>
 #include "cr/ntfs/cr_bootstrap.h"
+#include "cr/orchestrator/cr_scan.h"
 #include "cr/ntfs/cr_attributes.h"
 #include "cr/ntfs/cr_fixup.h"
 #include "cr/ntfs/cr_bitmap.h"
@@ -2266,30 +2267,17 @@ TEST(NtfsVolume, RemnantReachableUnderTornDbr) {
     ASSERT_NE(found, nullptr) << "remnant sweep never ran / remnant lost";
 }
 
-TEST(NtfsVolume, TornPrimaryBootWithIntactBackupStillRefusedUntilRepair) {
-    /* M-043 CORRECTED-TRUTH pin (corpus-proven this session): the og has
-     * NO scan-path backup-boot fallback. The analyser (FUN_180005470,
-     * decode read first-hand) memcmp-verifies the volume-end backup
-     * against the primary and stores the verified location at +0x510 as
-     * the REPAIR input - it bails before result 4 on a torn primary, and
-     * NTFSSearchDLL never reads the backup at all (zero hits in the
-     * decompile). The core's scan path matches: a torn primary DBR is
-     * refused (ERR_BAD_MAGIC) even with a byte-identical backup at the
-     * volume end; recovery routes through the consent-gated rawfixer
-     * (S-008), like the og routes through its repair. Guards against
-     * anyone adding a scan-path fallback on M-043's original premise. */
-    Image img;
-    build_image(img);
-    /* byte-identical backup at the volume end */
-    std::memcpy(img.sec(NSECTORS - 1), img.sec(0), SEC);
-    /* tear the primary's OEM ("NTFS    " @+3) - the validator's first gate */
-    std::memset(img.sec(0) + 3, 0, 8);
-    MemDevice dev(img.raw(), img.geom());
-    u32 err = 0;
-    auto vol = NtfsVolume::open(std::unique_ptr<IStorageDevice>(new MemDevice(dev)), &err);
-    EXPECT_EQ(nullptr, vol);
-    EXPECT_EQ(u32(ERR_BAD_MAGIC), err);
-}
+/* (Session 14 reconciliation note: this leg's pre-fallback pin
+ * TornPrimaryBootWithIntactBackupStillRefusedUntilRepair — asserting the
+ * scan path refuses torn primaries even with an intact volume-end backup
+ * — was superseded by the concurrent M-043 landing's read-only fallback
+ * (1468393) and removed in the union merge. The corpus truth it guarded
+ * (the og has NO scan-path backup fallback) is registered in the M-043
+ * finding's concurrent-filing reconciliation and PARITY-DELTAS D-72; the
+ * landing's own test set (TornPrimaryBackupBootScans /
+ * TornPrimaryShapeBackupBootScans / BackupBadFallsBackToRefusal /
+ * BootFromBackupFlagged / SpoofedOemRejectedEarly) pins the merged
+ * behavior.) */
 
 /* ---- N-001: mirror service derives from the runlist span ---------------- */
 
@@ -4029,4 +4017,127 @@ TEST(NtfsVolume, DeletedAttrlistChaseFollowsChildrenAtDepth1) {
         EXPECT_EQ(gone->props()->extents.size(), size_t(1));
         EXPECT_EQ(gone->props()->extents[0].offset, u64(140 * CLUSTER));
     }
+}
+
+/* ===================================================================== */
+/* M-043 (diff-to-fix): the scanner-side volume-end backup DBR fallback  */
+/* (the og analyser verifies the backup in the RECOGNITION path —        */
+/* CNTFSVolumeAnalyser::Analyze :4309-4327 — and scans from it; the old  */
+/* core never read the backup outside the consent-gated rawfixer) —      */
+/* plus the probe-side MFT content proof (the og's $Volume requirement,  */
+/* FUN_180005180).                                                       */
+/* ===================================================================== */
+
+TEST(NtfsVolume, TornPrimaryBackupBootScans) {
+    /* primary DBR signature destroyed, volume-end backup intact: the
+     * volume must OPEN from the backup and the walk must find the files.
+     * Fail-before: open returned ERR_BAD_MAGIC (the backup was never
+     * read on the scan path). */
+    Image img;
+    build_image(img);
+    /* the backup DBR: the volume's LAST sector (rawfixer's corpus-decoded
+     * `total - sector`, S-008; the og analyser's verified location) */
+    std::memcpy(img.sec(NSECTORS - 1), img.sec(0), SEC);
+    img.sec(0)[510] = 0x00; /* tear the primary signature */
+    img.sec(0)[511] = 0x00;
+
+    MemDevice dev(img.raw(), img.geom());
+    u32 err = 0;
+    auto vol = NtfsVolume::open(std::unique_ptr<IStorageDevice>(new MemDevice(dev)), &err);
+    ASSERT_NE(vol, nullptr) << "open err " << err_text(err);
+    EXPECT_TRUE(vol->params().boot_from_backup) << "the open must be flagged backup-sourced";
+    EXPECT_EQ(vol->params().record_size, RECORD_SIZE);
+
+    std::unique_ptr<VolumeBitmap> bm;
+    ASSERT_EQ(VolumeBitmap::load(vol.get(), bm), OK);
+    tree::ResultTree tree;
+    auto* root_active = tree.add_root(u"Found (NTFS)");
+    auto* root_deleted = tree.add_root(u"Deleted");
+    auto* root_lost = tree.add_root(u"Lost Files");
+    WalkerFlags wf;
+    WalkStats stats;
+    u32 rc = walk_mft(vol.get(), bm.get(), wf, nullptr, nullptr, nullptr, tree, root_active,
+                      root_deleted, root_lost, stats);
+    ASSERT_EQ(rc, OK) << err_text(rc);
+    /* the walk recovered the same file set as the healthy-volume case */
+    EXPECT_GE(stats.active + stats.deleted, 5u);
+}
+
+TEST(NtfsVolume, TornPrimaryShapeBackupBootScans) {
+    /* the M-043 fallback also covers a VALID-signature primary whose BPB
+     * shape fails validate_boot_sector (torn geometry fields): the backup
+     * carries the true geometry. Tear total_sectors so the sanity gate
+     * fails; the backup's intact BPB feeds the MFT load. */
+    Image img;
+    build_image(img);
+    std::memcpy(img.sec(NSECTORS - 1), img.sec(0), SEC);
+    u8* bs0 = img.sec(0);
+    bs0[0x28] = 3; /* total_sectors = 3: fails the sanity/P1-3 gates */
+    bs0[0x29] = 0;
+    bs0[0x30] = 0; /* mft_lcn = 0 >= total_clusters 3 -> reject too */
+
+    MemDevice dev(img.raw(), img.geom());
+    u32 err = 0;
+    auto vol = NtfsVolume::open(std::unique_ptr<IStorageDevice>(new MemDevice(dev)), &err);
+    ASSERT_NE(vol, nullptr) << "open err " << err_text(err);
+    EXPECT_TRUE(vol->params().boot_from_backup);
+    EXPECT_EQ(vol->params().total_clusters, TOTAL_CLUSTERS);
+}
+
+TEST(NtfsVolume, BackupBadFallsBackToRefusal) {
+    /* torn primary AND no valid backup: the open must still refuse (the
+     * fallback is a fallback, not a bypass). */
+    Image img;
+    build_image(img);
+    img.sec(0)[510] = 0x00;
+    img.sec(0)[511] = 0x00;
+    /* no backup written: the last sector is zeros */
+
+    MemDevice dev(img.raw(), img.geom());
+    u32 err = 0;
+    auto vol = NtfsVolume::open(std::unique_ptr<IStorageDevice>(new MemDevice(dev)), &err);
+    EXPECT_EQ(vol, nullptr);
+    EXPECT_EQ(err, u32(ERR_BAD_MAGIC));
+}
+
+TEST(NtfsVolume, BootFromBackupFlagged) {
+    /* the flag is truthful in BOTH directions: a healthy primary open
+     * reports false. */
+    Image img;
+    build_image(img);
+    MemDevice dev(img.raw(), img.geom());
+    u32 err = 0;
+    auto vol = NtfsVolume::open(std::unique_ptr<IStorageDevice>(new MemDevice(dev)), &err);
+    ASSERT_NE(vol, nullptr);
+    EXPECT_FALSE(vol->params().boot_from_backup);
+}
+
+TEST(NtfsVolume, SpoofedOemRejectedEarly) {
+    /* M-043 probe side: the og analyser requires $Volume content proof
+     * before declaring the volume recognized (FUN_180005180 :4083-4134;
+     * per-record FILE magic :4038-4058) — a crafted non-NTFS sector with
+     * a spoofed "NTFS    " OEM never invokes the engine. The core's cheap
+     * form: FILE magic at the DBR's $MFT LCN. Fail-before: probe_family
+     * returned Ntfs on OEM bytes alone. */
+    Image img;
+    build_image(img);
+    {
+        /* craft the spoof: valid NTFS-shaped BPB, mft_lcn pointed at a
+         * region with NO FILE magic (the $Bitmap area) */
+        u8* bs = img.sec(0);
+        BootSector* boot = reinterpret_cast<BootSector*>(bs);
+        boot->mft_lcn = BITMAP_LCN; /* 80: no FILE magic there */
+        /* keep the signature + OEM intact so only the content differs */
+    }
+    MemDevice dev(img.raw(), img.geom());
+    EXPECT_EQ(cr::orchestrator::ScanController::probe_family(&dev),
+              cr::orchestrator::FsFamily::Unknown)
+        << "spoofed OEM (no FILE magic at $MFT) must not dispatch the engine";
+
+    /* the positive control: the healthy fixture probes Ntfs */
+    Image img2;
+    build_image(img2);
+    MemDevice dev2(img2.raw(), img2.geom());
+    EXPECT_EQ(cr::orchestrator::ScanController::probe_family(&dev2),
+              cr::orchestrator::FsFamily::Ntfs);
 }
