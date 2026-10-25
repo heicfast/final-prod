@@ -7,7 +7,30 @@ Two independent unresolved reference behaviors, filed together for one Ghidra se
 
 ## OQ-T2 — FAT mirror switch
 
-**Status:** UNVERIFIED · **Module:** fat · **Parameters:** A27, S35
+**Status:** RESOLVED (session-2 decompile read, first-hand — trigger decoded; cross-check intent refined below) · **Module:** fat · **Parameters:** A27, S35
+**Resolution (2026-10-25, session 2):** the og consults FAT2 **per-entry, only when the
+primary's canonicalized GetNext(cluster) returns 0 (FREE)**. Non-zero primary results —
+**including BAD** — are served from the primary with no mirror consult
+(`FATSearchDLL_decompiled.c :54215-54219`, full quote in
+`evidence/decompiled-quotes/s2-fat-double-fattable.md`). This resolves the INFERRED
+"choose-healthy" semantics of the artifact docs: it is a per-entry zero-fallback, not a
+whole-copy validation or majority vote. Two consequences:
+1. **N-022 filed (MINOR):** the core consults the mirror on primary FREE *or BAD*
+   (`cr_chain.cpp:104-110`); the og consults only on FREE. On torn FAT pairs where the
+   primary marks a cluster BAD but the mirror retains the real chain link, the core
+   continues the chain (recovers a longer file) while the og truncates at the BAD
+   cluster — a result-set superset the og does not produce.
+2. When the mirror IS consulted, the og **gates** the mirror's answer (dirty-EOC family
+   accept-set and three mirror self-consistency cross-checks — verbatim in the evidence
+   file) instead of serving it raw; the core serves any non-zero/non-BAD mirror value.
+   The exact intent of the three cross-checks (deleted-chain reconstruction gating for
+   quick-format volumes) is recorded with quotes; next decode target if ever needed:
+   the CFatCompleteSearch chain-walk caller of IFATTable slot 2.
+Also decoded: the og has a **load-time FAT-location fallback** — when the declared FAT
+region yields an invalid CDoubleFATTable (both children null) and volume flag 0x10 is
+set, it walks an internal LBA-keyed structure map for an alternative FAT image and
+rebuilds the double table from there (:3805-3949, quoted) — recorded in
+`modules/fat.md` as an observation for the remnant path.
 **Corpus artifact to examine next:** `re-workspace/reversed/ghidra-searchdll/FATSearchDLL_decompiled.c`
 — `CDoubleFATTable` ctor `FUN_180041d00` and its `Next` override; the composition wrapper
 (fields +8/+0x10 child IFATTables).
@@ -31,7 +54,19 @@ pre-validated copy flag set at load time).
 
 ## OQ-T5 — exFAT boot checksum predicate
 
-**Status:** UNVERIFIED · **Module:** exfat (+ rawfixer) · **Parameters:** B1, C19, F63
+**Status:** RESOLVED (session-2 decompile read + binary extraction — MATCH) · **Module:** exfat (+ rawfixer) · **Parameters:** B1, C19, F63
+**Resolution (2026-10-25, session 2):** the per-byte predicate of `ExFATFixer::ChecksumDBR`
+(FUN_18000e7e0, `RawFixer_decompiled.c :9353-9381`) is `std::find` (FUN_18003ab40,
+:41083-41092) over a 4-int array at RVA 0x180079a40, extracted from the binary:
+**{106, 107, 112, −1}** — exactly the exFAT spec skip-set (VolumeFlags@106-107,
+PercentInUse@112) plus a −1 terminator no loop index can match. The loop bound is
+`sector_size × 0xB` (11 sectors) with the spec rotation. **The core's spec-skip-set
+implementation (`cr_exfat_dentry.cpp:26-36`) matches the og exactly — OQ-T5 → MATCH.**
+Full decode: `evidence/decompiled-quotes/s2-exfat-checksumdbr.md`. Corpus-erratum
+confirmation: `rawfixer-v2--method-inventory.md` §4's "bytes 11..209 + 510" coverage
+description is wrong (the coverage is 11 sectors with skip-set {106,107,112}) — feed back.
+
+**Original question (for the record):**
 **Corpus artifact to examine next:** `re-workspace/reversed/ghidra-partition/RawFixer_decompiled.c`
 — `ExFATFixer::ChecksumDBR` = `FUN_18000e7e0` (:9353–9381), the exception-machinery
 predicate path (`FUN_180023220`/`FUN_180001700`/`FUN_180023230`).
