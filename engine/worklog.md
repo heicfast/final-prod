@@ -6749,3 +6749,32 @@ Stage Summary:
 - The ReFS engine tier is COMPLETE for the audit's findings: attribute layer (S-020/
   M-022), deleted model (M-026), object identity + recycle (M-027). Remaining ReFS
   items: N-036's container-map population (real-volume probe) + the OQ-2 dump.
+
+Task ID: DFX7-T0
+Agent: main engineer (diff-to-fix session 7 — closing session, low-severity-first order)
+Task: Bootstrap + repair committed audit-trail corruption (conflict markers) before touching any finding.
+
+Work Log:
+- Pulled both repos. Core `main` at `c75f646` (linear); corpus `03ad46c` (unmoved).
+  Audited commit per diff-to-fix/README.md lineage: session 4 `204137b`; the fix
+  legs have advanced main since (S-026 `0c1f58e`, S-012 correction `d8efbd8`,
+  S-021+S-003 `c75f646`).
+- Saved session prompt (token redacted) to worklog/session-diff-fix-7-prompt.md.
+- Found committed merge-conflict markers in diff-to-fix/CROSS-REF-MATRIX.md:48-54
+  (`<<<<<<< HEAD` / `=======` / `>>>>>>> 08c66f8`), introduced by c75f646 — a bad
+  merge against a phantom ref `08c66f8` (same S-021+S-003 message; object does
+  not exist in history — the marker text was committed with the file).
+- Resolved: ext4 row takes the HEAD side (newest — includes S-026 FIXED/D-58);
+  hfsplus row takes the phantom-leg side (newest — S-002/S-003/S-021/N-005/
+  N-038 all FIXED, THIN closed). Dropped the stale "S-003 OPEN" misplacement
+  from the ext4 row: S-003 is the HFS+ journal finding (now FIXED s5) and never
+  belonged to ext4 — both conflicted sides carried the stale text from the
+  pre-merge matrix.
+- Direct file inventory at c75f646: SEVERE 7 · MAJOR 32 · MINOR 29 (28 in
+  MINOR/ + N-004..N-006 group) · INFO 16 active; 50 in findings/FIXED/;
+  12 tracked-open OQs.
+
+Stage Summary:
+- Audit trail readable again. Session order per user mandate: INFORMATIONAL →
+  MINOR → MAJOR → SEVERE → TRACKED-OPEN. No finding file deleted; fixes move
+  findings to findings/FIXED/ per session convention with RESOLVED-INDEX rows.
