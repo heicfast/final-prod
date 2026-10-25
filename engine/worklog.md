@@ -9100,3 +9100,24 @@ Stage Summary:
   SEVERE 1 / MAJOR 39 / MINOR 55 / INFO 22 / 74 FIXED. Session tally:
   S-009, S-030, M-053 (filed+fixed) + the S-032/S-009 parallel-landing
   reconciliations.
+
+Task ID: DFX10-T0 (diff-fix session 10 bootstrap)
+Agent: main engineer (diff-to-fix session 10)
+Task: Session bootstrap — pull both repos, record baseline commits, establish green build/test baseline, save prompt (token redacted).
+
+Work Log:
+- Pulled core_recovery at HEAD 8e79960 (the session-9 union repair head —
+  test_carve conflict markers + the S-031 x S-032 scan-timestamp contract
+  hole closed); corpus easeus-drw-research at 03ad46c (unmoved, matches
+  every prior session's pin).
+- Baseline build (linux-gcc preset, RelWithDebInfo + ASan): clean.
+- Full ctest: 533/533 green (31.7 s) — matches the session-9 handoff.
+- Open inventory at this tree: SEVERE 3 (S-009, S-029, S-030) · MAJOR 39 ·
+  MINOR 55 · INFO 22 (all previously acknowledged) · FIXED 73 files ·
+  tracked-open 16 files.
+- Prompt saved redacted to worklog/session-diff-fix-10-prompt.md.
+
+Stage Summary:
+- Baseline green; session order per mandate + user directive: SEVERE
+  (S-009 diskmap residual, S-029 apply path, S-030 image scan) -> MAJOR
+  tier in impact order -> MINOR batches. Target 20+ verified fixes.
