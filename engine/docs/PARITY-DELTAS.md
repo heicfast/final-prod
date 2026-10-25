@@ -1922,3 +1922,59 @@ same way. Pinned by `RawFixer.NtfsPrimaryDamaged4Kn`,
   Pins: `Image.VmdkMonolithicSparseReadsAndScans`,
   `Image.VhdDynamicDiskReadsAndScans`, `Image.RejectsBrokenInputs`
   (VHDX → ERR_UNSUPPORTED).
+
+- **D-66 — raw-sign confidence consumption (N-030, ACCEPTED SUPERSET).**
+  The og's raw_signs.json parser (FUN_18001e510, decompiled
+  :23522-23765) splits each sign string and consumes ONLY the offset
+  and hex body — the third field ("0,44564456,0.96" → 0.96) is DEAD
+  DATA in RAWSearchDLL; overlapping hits are resolved by sign-table
+  order and the probe's own logic. The core scales the field (0.96 →
+  960) and uses it for winner selection at shared positions plus the
+  (header+tail)/2 + 100 tail-pair blend — a deliberate ranking
+  superset over dead data. Do NOT "fix" to table-order in a parity
+  pass without first decoding the og's own emitted grade
+  (FUN_18000d670's result fill — tracked in N-030's Resolution).
+  Pinned by `CarveEngine.RawSignLayerHeaderOnlyAndSharedMagic` (the
+  best-confidence winner at the flp/fst shared position) and
+  `CarveEngine.RawSignTailPairWithinFormat` (the blend arithmetic).
+
+## S. diff-to-fix session 15 (MAJOR lane, 2026-10-26)
+
+### D-70 — FAT engine bps ceiling 32768 (M-045)
+
+The og's classifier accepts ANY 512-multiple bytes-per-sector with no
+upper bound (FUN_180004610 :2542, `(bps & 0x1ff) == 0` — the u16 field
+tops at 65535, so 33280..65280 are og-classifiable). The core's
+`validate_boot` adopts the 512-multiple rule (probe coherence with
+`lost_boot_flavor`) but bounds bps at **32768**: no real format writes
+past 32768 (512 through 32768 covers every FAT spec geometry and every
+known formatter), and the bound only cuts absurd-volume noise the og's
+own engine would fail on anyway. Documented deliberate bound; pinned by
+`FatEngine.FatBps32768CeilingAndNonMultipleRejected`.
+
+### D-71 — ext4 valid-entry advance by rec_len (M-037)
+
+The og's dir-block walk advances VALID entries by the padded-name size
+`(name_len+11)&~3` (FUN_180005820's emit path) and relies on zero-fill
+tails / inode-0 termination for slack regions. The core keeps advancing
+by `rec_len` (the structurally-validated field), which handles
+non-zeroed tail slack and merged deleted-entry regions without
+terminating the walk — a strict superset on real damaged volumes. The
+SKIP path (invalid entries) matches the og exactly (the 4-byte resync
+slide). Pinned by `Ext4Engine.CorruptRecLenSkipsEntryNotBlock` and the
+inode-0 superset pin `Ext4Engine.InodeZeroHoleContinues`.
+### D-65 — Hard-link emission: the opt-in per-parent fan-out (M-007, REGISTERED SUPERSET — off by default)
+
+The og emits ONE node per MFT record (FUN_180006db0 :5273; FUN_1800448b0
+fetches two $FILE_NAME entries and picks one by namespace ranking -
+FUN_180043330). The core's default now matches this exactly
+(`WalkerFlags::single_link_per_record = true`, M-007). The pre-M-007
+behavior - one node per distinct parent, each with its own link name -
+remains available as an EXPLICIT opt-out (`single_link_per_record =
+false`) for "show all hard-links" scans. It is a registered deliberate
+divergence when enabled: the result set is a strict superset of the og's
+(N-1 extra nodes per hard-linked record), per-file grading is duplicated
+across the fan-out nodes, and the hardlinks WalkStats counter is nonzero
+only in this mode (the og's scan has no such counter). Pinned by
+`NtfsVolume.HardLinkFanOutOptIn` (per-link names, per-parent nodes) and
+`NtfsVolume.HardLinkSingleLinkMatchesOg` (the parity default).

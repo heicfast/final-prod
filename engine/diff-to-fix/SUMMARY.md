@@ -1,3 +1,78 @@
+# SUMMARY.md — executive summary (diff-fix session 15 on top; earlier sessions below)
+
+## Session-15 delta (2026-10-26 — DFX10: the S-009 third-implementation convergence + M-054)
+
+Session bootstrap `7c44bdc` (baseline 533/533 Release verified first-hand);
+mid-flight the remote advanced to `d487928` (the parallel lanes' S-009
+free-overlay landing via `storage::FreeMap`, S-030 disk-image targets, M-002,
+M-051, M-037, N-073, N-042/N-044 fixes) — absorbed by rebase; the union rules
+applied (the landed implementation is the base). Corpus `03ad46c` unmoved.
+
+**S-009 (convergence record):** this session had built a THIRD independent
+implementation (`cr::AllocClusterMap` — used-bits, slice-relative,
+byte_origin, fail-open truncation, RLE persistence; 5-test suite +
+behavioral fail-before proofs) when the parallel lane's design landed first.
+The landed `storage::FreeMap` stands; the third design is preserved on
+branch `s009-allocmap-impl` (`fb2bb91`) for the record and dropped from the
+tree. S-009's own Resolution (the landed one) remains operative.
+
+**M-054 (NEW-FINDING, MAJOR, filed + FIXED this push):** discovered during
+the third-implementation's exFAT producer verification — the engine's
+allocation-bitmap `Bitmap::test` read bit `c` for cluster `c`, but the MS
+exFAT spec §7.1 pins bit `i` = cluster `i+2` (the first cluster has index 2).
+TWO consumers inherited the shift: deleted-viability grading (wrong
+confidence grades on every real volume) AND the just-landed S-009 free-map
+producer (free overlay painted cluster `c` per cluster `c+2`'s state). The
+core's own fixtures encoded the same shift, so the suite was
+self-consistently wrong. Fixed: `Bitmap::test` reads bit `c-2` (clusters 0/1
+reserved-never-heap); both fixtures write the spec-correct bit; grading
+expectations unchanged (the intended behavior); NEW pin test
+`ExfatEngine.FreeMapProducerMatchesSpecBitMapping` guards the producer seam.
+**Fail-before EXECUTED on the landed base**: fixtures corrected + engine
+body reverted → `ExfatEngine.EndToEnd` red (over.dat Excellent instead of
+Overwritten) AND the new producer pin red; fixed → green. Suite after:
+**574/574 Release + 574/574 ASan + 574/574 UBSan** (three lanes, executed).
+
+Also this push: a committed conflict-marker remnant repaired in worklog.md
+(the trailing `>>>>>>> 33c0722` at :9187 — the zero-markers standard).
+
+**Counts after this push (direct file inventory):** SEVERE **1** (S-029 —
+S-030 landed by the parallel lane) · MAJOR 34 · MINOR 48 · INFO 22 (all
+ACKNOWLEDGED) · FIXED/ family **87 files** (incl. RESOLVED-INDEX; +M-054
+this push; S-009/S-030/M-002/M-051/M-037/N-073 by the parallel lanes).
+Top remaining risks: S-029 (the apply-path scope decision — the last
+SEVERE), then the M-tier by user impact (M-005 the carve gate next — same
+bitmap plumbing, one consumer).
+# SUMMARY.md — executive summary (session 11 DFX11 on top; earlier sessions below)
+
+## Session-11 delta (DFX11, this leg — S-009 verified + M-007 landed)
+
+Session arc: bootstrap 7c44bdc (baseline 534/534) -> the S-009 convergence
+(this leg implemented the full free-overlay stack independently; the
+parallel DFX8-legacy lane landed first at c55bd45/a3e5fd8 — first-landing
+wins, this leg's implementation dropped cleanly and the landing verified
+first-hand at 575/575 with two corpus arbitrations recorded in the worklog:
+the FAT free-map is og-faithful per searchdll-family :98 "volume bitmap
+from FS engine"; the bitmap-truth free rule is closer to the og than the
+finding's plan text) -> M-007.
+
+**M-007 FIXED (this push):** hard-link emission parity.
+`WalkerFlags::single_link_per_record` (default TRUE = the og's model: ONE
+node per record - the namespace-best $FILE_NAME from the FULL list,
+first-seen wins ties, under ITS parent; corpus FUN_180006db0 :5273 +
+FUN_1800448b0 :54124-54162 + FUN_180043330). FALSE = the registered
+opt-in fan-out (per-parent nodes, per-link names; PARITY-DELTAS D-65);
+the hardlinks stat counts only in fan-out mode. The fan-out path's
+per-parent name selection was REPAIRED in the same change (per-parent
+names from that parent's OWN entries - a pre-existing divergence-class
+bug no earlier fixture exposed: on mixed-rank multi-parent records every
+parent inherited the highest-rank sibling's name). 4 tests (2 new +
+EndToEndWalk/AdsAttachesToFirstLink rewritten for both modes); fail-before:
+walker-revert (3 nodes vs 1; the Win32/DOS links unfindable). Suite
+582/582. Counts after this push: SEVERE 2 (S-029, S-030) · MAJOR 36 ·
+MINOR 48 · INFO 22 (0 actionable) · tracked-open 16 · FIXED 83 files
+(82 findings + RESOLVED-INDEX).
+
 # SUMMARY.md — executive summary (diff-fix session 14 on top; earlier sessions below)
 
 ## Session-14 delta (2026-10-26 — DFX14: bootstrap, two merge repairs, the reconciliation wave)
@@ -90,6 +165,17 @@ with open remainders) · INFO 22 (all ACKNOWLEDGED) · FIXED 76 finding
 files + RESOLVED-INDEX · tracked-open 16. Subsequent session-11 landings
 append their deltas below as they push.
 
+**Session-11 landing 1 — N-069 FIXED:** CAB lowercase-key parity. The og's
+registry carries duplicate keys for case-insensitive formats ("MSCF"/"mscf"
+— census :94, "deliberate registry bloat for correctness" :127); the core
+keyed uppercase only. `FMT_CAB_LC` appended (serialized ids stable) with a
+registry row sharing `validate_cab`; the fail-before run exposed a second
+site the fix plan missed — `validate_cab`'s internal uppercase-only magic
+re-check — now accepting exactly the two registered spellings.
+`Carve.CabLowercaseMagic` (fail-before: lowercase cabinet never probed;
+pass-after: both cases carve, lowercase node carries FMT_CAB_LC). Suite
+568/568 ASan; lint clean. Post-fix counts: MINOR 48 · FIXED 80 findings.
+
 # SUMMARY.md — executive summary (diff-fix session 9 on top; earlier sessions below)
 
 ## Session-9 delta (2026-10-26 — baseline repair + the SEVERE/MAJOR/MINOR fix waves)
@@ -152,9 +238,55 @@ commit):** SEVERE 3 (S-009, S-029, S-030) · MAJOR 39 (incl. the known
 duplicate M-029 pair) · MINOR 49 · INFO 22 (all ACKNOWLEDGED — 0
 actionable) · tracked-open 16 · **FIXED/ 79 files (78 findings +
 RESOLVED-INDEX)**. Session fix tally (resolutions this session): 6
-moved-with-evidence + the group-file restoration. Ongoing: MINOR-first
-fix waves targeting 20+ in-session resolutions; N-073 noted as a
-probable N-004 duplicate (session-6 filing) — verification queued.
+moved-with-evidence + the group-file restoration.
+
+**Carve-magic quartet FIXED — CONVERGENT LANDINGS (this wave):** two
+parallel legs independently implemented the same four findings from the
+same corpus citations (the parallel lane's `b2f48c6` landed first and is
+canonical: bounded-buffer MKV DocType webm/matroska walk + the 0x200
+element-bounds gate; FMT_HEIF registry row for the HEIF relabel;
+FMT_TIFF_EP claims the IIU key with FMT_RW2 as the registered salvage
+D-63a; RAF keyed on the FUJI 4CC with the variant path, JPEG prefix
+registered D-64a). This session's convergence contributions: the
+independent corpus decode of the artifact's second constant 0x67805318
+(the Segment element ID 0x18538067 read little-endian — recorded in the
+finding + module doc for future audits), a second fail-before proof set
+(8/10 of this leg's name-identical tests RED on the stash-isolated
+pre-fix engine), and the finding-file moves to FIXED/ with the union
+Resolutions. **NEW-FINDING N-076 (DFX12, unique to this session):**
+while building N-054's fixtures: the canonical RAF version gate
+rejected every real-world RAF — the version at +16 is a 4-byte ASCII
+string ("0100"/"0201") misread as binary (LE values ~8e8 above the
+0x2000 cap); BOTH quartet landings carried the defect; the row was dead
+for real files since introduction, zero fixture coverage. Fixed in the
+union follow-up: ASCII-digits OR small-binary acceptance;
+Carve.RafRealAsciiVersionAccepted (fail-before executed RED on the
+pre-fix engine). Suite **563/563** linux-release post-union.
+
+**Counts after the quartet (direct file inventory at this commit):**
+SEVERE 1 (S-029 — S-009 and S-030 landed by the parallel lanes in the
+same window) · MAJOR 36 · MINOR 45 · INFO 22 (all ACKNOWLEDGED) ·
+tracked-open 16 · **FIXED/ 89 files (88 findings + RESOLVED-INDEX)**. Session resolution tally so
+far: 6 reconciliation moves + the N-076 discovery-fix + the quartet
+convergence work. Ongoing: MINOR-first waves; N-073 remains a probable
+N-004 duplicate — verification queued.
+
+**Carve-minors batch FIXED (this wave):** N-069 (CAB lowercase mscf key —
+the og's duplicate-key policy for case-insensitive formats, census
+:94/:127 re-read first-hand: a second FMT_CAB_LC row claims the
+lowercase magic with the same validate_cab;
+Carve.CabLowercaseMagic, fail-before by construction — the byte-exact
+scan could never match a key no row claimed) and N-030 (raw-sign
+confidence semantics — resolved as the REGISTERED DELIBERATE SUPERSET
+its own fix plan calls option (b): the field is dead data in the og
+(FUN_18001e510 :23522-23765 never reads part[2]; erratum 19), the core's
+winner-selection + (hdr+tail)/2+100 blend are pinned by
+RawSignLayerHeaderOnlyAndSharedMagic / RawSignTailPairWithinFormat,
+PARITY-DELTAS D-66 carries the do-not-remove guidance, and option (a)
+stays gated on the undecoded FUN_18000d670 grade emission). Suite
+**577/577** linux-release. Counts: MINOR 43 · FIXED/ 91 files (90
+findings + index). Session unique resolutions: 9 (6 reconciliation +
+N-076 + N-069 + N-030).
 
 ## Session-8 delta (2026-10-26 — the closing-verification fix session, SEVERE lane first)
 

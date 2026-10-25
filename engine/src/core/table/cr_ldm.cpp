@@ -1003,22 +1003,30 @@ u32 find_privhead(IStorageDevice* dev, u64& ph_byte_off, bool& is_gpt) {
     if (!protective)
         return ERR_BAD_MAGIC;
 
+    /* M-046 (diff-to-fix): the GPT path's LBA->byte conversions use the
+     * DEVICE geometry, exactly like the main parser (cr_table_parse.cpp
+     * read_sectors: off = lba * g.logical_sector). The hardcoded 512 put
+     * the header read mid-sector-0 on 4Kn disks and made LDM-over-GPT
+     * undiscoverable. (The MBR path's 6*512 above is the kernel's fixed
+     * OFF_PRIV1 BYTE offset - correct for every sector size.) */
+    const u64 ls = dev->geometry().logical_sector != 0 ? u64(dev->geometry().logical_sector)
+                                                       : u64(512);
     GptHeader gh{};
-    if (dev->read_at(u64(1) * 512, &gh, sizeof(gh)) != OK)
+    if (dev->read_at(u64(1) * ls, &gh, sizeof(gh)) != OK)
         return ERR_READ_FAILED;
     if (std::memcmp(gh.signature, GPT_SIGNATURE, 8) != 0)
         return ERR_BAD_MAGIC;
     if (gh.entry_size != 128 || gh.entry_count == 0 || gh.entry_count > 1024)
         return ERR_UNSUPPORTED;
     std::vector<u8> entries(size_t(gh.entry_count) * 128);
-    if (dev->read_at(gh.entries_start_lba * 512, entries.data(), u32(entries.size())) != OK)
+    if (dev->read_at(gh.entries_start_lba * ls, entries.data(), u32(entries.size())) != OK)
         return ERR_READ_FAILED;
     for (u32 i = 0; i < gh.entry_count; i++) {
         const GptEntry* e = reinterpret_cast<const GptEntry*>(entries.data() + size_t(i) * 128);
         if (!gpt_entry_used(*e))
             continue;
         if (gpt_guid_equal(e->type_guid, GPT_TYPE_LDM_METADATA)) {
-            ph_byte_off = e->last_lba * 512; /* last block of the partition */
+            ph_byte_off = e->last_lba * ls; /* last block of the partition */
             is_gpt = true;
             return OK;
         }
@@ -1053,11 +1061,14 @@ u32 parse_ldm_database(IStorageDevice* device, LdmInfo& out) {
     bool have_primary = parse_privhead(phbuf.data(), ph);
     if (!have_primary) {
         /* try the classic end-of-disk positions before giving up: the
-         * database is the last 1 MiB on MBR dynamic disks */
-        const u64 last = g.sector_count;
-        const u64 cands[3] = {last - 2048 + 1856, last - 2048 + 2047, last - 1};
+         * database is the last 1 MiB on MBR dynamic disks. M-046: LDM's
+         * own coordinates are 512-byte LBAs (kernel sector semantics) -
+         * the end-of-disk bound is the DEVICE size in 512-LBA units, not
+         * g.sector_count (which counts 4096-byte sectors on 4Kn). */
+        const u64 last512 = device->size() / 512;
+        const u64 cands[3] = {last512 - 2048 + 1856, last512 - 2048 + 2047, last512 - 1};
         for (u64 c : cands) {
-            if (c == 0 || c >= g.sector_count)
+            if (c == 0 || c >= last512)
                 continue;
             if (!read_exact(device, c * 512, phbuf.data(), 512))
                 continue;
@@ -1071,11 +1082,15 @@ u32 parse_ldm_database(IStorageDevice* device, LdmInfo& out) {
     }
     out.stats.privheads_matched = 1;
 
-    /* cross-check the configured backups when the primary came from LBA 6 */
+    /* cross-check the configured backups when the primary came from LBA 6.
+     * M-046: the bound is byte-based (LDM 512-LBA units, not device
+     * sectors) - on 4Kn disks g.sector_count is 8x smaller than the
+     * 512-LBA space and the old gate skipped valid backups. */
     {
+        const u64 dev_bytes = device->size();
         const u64 backs[2] = {ph.config_start + 1856, ph.config_start + 2047};
         for (u64 b : backs) {
-            if (b == 0 || b + 1 > g.sector_count)
+            if (b == 0 || (b + 1) * 512 > dev_bytes)
                 continue;
             if (!read_exact(device, b * 512, phbuf.data(), 512))
                 continue;
@@ -1087,20 +1102,25 @@ u32 parse_ldm_database(IStorageDevice* device, LdmInfo& out) {
         }
     }
 
-    /* geometry gates (kernel ldm_validate_privheads) */
+    /* geometry gates (kernel ldm_validate_privheads). M-046: LDM
+     * coordinates are 512-byte LBAs (kernel sector semantics); the
+     * capacity bound is the device size expressed in the SAME units -
+     * g.sector_count counts device sectors (4096-byte on 4Kn) and made
+     * every 4Kn dynamic disk spuriously TRUNCATED/clamped. */
+    const u64 dev_512 = device->size() / 512;
     if (ph.logical_disk_start + ph.logical_disk_size > ph.config_start)
         return ERR_BAD_CHECKSUM; /* "disk and database overlap" */
-    if (ph.config_start + ph.config_size > g.sector_count) {
+    if (ph.config_start + ph.config_size > dev_512) {
         /* recovery divergence: clamp instead of aborting - the walk is
          * bounded by what actually exists on the device */
-        if (ph.config_start >= g.sector_count)
+        if (ph.config_start >= dev_512)
             return ERR_TRUNCATED;
     }
 
     /* read the config region (clamped) */
     u64 cfg_secs = ph.config_size;
-    if (ph.config_start + cfg_secs > g.sector_count)
-        cfg_secs = g.sector_count - ph.config_start;
+    if (ph.config_start + cfg_secs > dev_512)
+        cfg_secs = dev_512 - ph.config_start;
     if (cfg_secs == 0)
         return ERR_TRUNCATED;
     if (cfg_secs > 8192)

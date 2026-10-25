@@ -75,3 +75,17 @@ clarifies, update the constant set.
 **Fixed in commit:** this session's carve-magic-quartet batch
 **Verified by:** `Carve.MkvDocTypeWebmAccepted` (webm + matroska carve), `Carve.MkvDocTypeExoticRejected` (DocType "foob" - an EBML use the og rejects and the pre-fix core accepted), `Carve.MkvElementBoundsGate` (size vint 520: 2+520+4 = 526 > 0x200 -> rejected before any payload read). Fail-before: the tests do not exist on the pre-fix tree; the pre-fix validator accepted any structurally-valid EBML regardless of DocType. Suite 525/525.
 **Resolution notes:** implemented the og's FileMKVAnalyser semantics (analyser-granular-batch1 :43-66, first-hand re-read): the header element's total id_len+size_len+payload+4 must stay <= 0x200 (the element-bounds gate) - the payload is read once into a bounded <=0x200 buffer and walked locally with a new ebml_vint_local (same vint algorithm as ebml_vint, buffer-based); the DocType element (full EBML ID 0x4282 - decoded marker-stripped as 0x0282) decides: webm (the og's 0x6D626577 constant) or matroska accept, everything else rejects, no DocType rejects. The walk then continues as before. First application note: the second corpus constant 0x67805318 from the artifact is the analyser's TYPE-ID space, not a DocType value - the DocType discrimination is the string pair, per the artifact's own "reads the DocType element (webm vs matroska)".
+
+### DFX12 convergence addendum (session 12)
+
+Two parallel legs implemented this finding in the same window from the
+same corpus citations. This leg's independent decode adds: the artifact's
+second constant **0x67805318 is the Segment element ID 0x18538067 read
+little-endian** (bytes 18 53 80 67) — not a DocType string and not (per
+the canonical landing's note) an unspecified type-id constant. Real
+matroska files carry BOTH a "matroska" DocType and a Segment element, so
+both implementations' acceptances agree on real files; the decode is
+recorded for future audits of the constant's role. This leg's second
+fail-before proof set: 8/10 of its name-identical test set RED on a
+stash-isolated pre-fix engine (WebmAccepted / ExoticRejected /
+BoundsGate among them), executed before the remote landing was observed.

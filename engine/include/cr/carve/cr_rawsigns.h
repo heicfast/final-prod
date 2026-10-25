@@ -24,6 +24,23 @@
  *     forward-read at most kRawSignTailScanLimit (8 MiB) per candidate
  *     and fall back to header-only emission for tails beyond it
  *     (S-015 fix: named bound, og's true range documented here)
+ *   - N-030 (registered deliberate superset, PARITY-DELTAS): the
+ *     confidence field in raw_signs.json ("0,44564456,0.96") is DEAD
+ *     DATA in the og - its sign parser FUN_18001e510 splits the string,
+ *     consumes part[0] (offset) and part[1] (hex body) and NEVER reads
+ *     the third element (RAWSearchDLL_decompiled.c :23522-23765; the
+ *     rawsearch-carving deep-dive's "confidence combination ranks
+ *     overlapping candidates" claim is corrected by that decode -
+ *     corpus erratum 19). The og picks among overlapping sign hits by
+ *     sign-table ORDER and its own probe logic. Our core scales the
+ *     field (0.96 -> 960) and uses it for winner selection + the
+ *     tail-pair blend - a deliberate ranking superset over dead data.
+ *     Pinned by CarveEngine.RawSignLayerHeaderOnlyAndSharedMagic (the
+ *     best-confidence winner at the shared flp/fst position) and
+ *     CarveEngine.RawSignTailPairWithinFormat (the (hdr+tail)/2+100
+ *     blend). Do NOT "fix" these to table-order in a parity pass
+ *     without decoding the og's own emitted grade first
+ *     (FUN_18000d670's result fill - tracked in N-030's Resolution).
  *
  * Size units (S-015, decoded): the corpus raw_signs.json min/max fields
  * are KiB counts; the compiled table carries BYTES (converted once in

@@ -61,3 +61,16 @@ None.
 **Fixed in commit:** this session's carve-magic-quartet batch
 **Verified by:** `Carve.HeifSiblingBrandLabeledHeif` - a heic-brand ftyp carves as FMT_HEIC (label "HEIC"), a mif1-brand ftyp carves as the NEW FMT_HEIF row (ext .heif, registry label "HEIF") - the og's brand-slot rewrite (analyser-granular-batch1 :67-80, re-read first-hand). Fail-before: the test does not exist on the pre-fix tree; pre-fix every family brand took FMT_HEIC/"HEIC".
 **Resolution notes:** FMT_HEIF appended to the FormatId enum + registry table (append-only: serialized carve_format values and the ABI's format list stay stable - cr_ui_carve_format_info enumerates the registry, so the new row surfaces to consumers automatically). kTrialOrder places FMT_HEIF after FMT_HEIC: at an ftyp position, heic-proper validates on FMT_HEIC (which now shrinks to the heic brand only); the siblings (heix/mif1/msf1) fall through to FMT_HEIF. validate_heic/validate_heif carry the og's distinction in their notes.
+
+### DFX12 convergence addendum (session 12)
+
+The canonical landing (b2f48c6) relabels via a new FMT_HEIF registry row;
+this leg had implemented the alternative carrier (a per-file
+CarveResult::ext_override keeping ONE type-id for the family, per this
+finding's fix-plan note "Keep type-id/carve_format unchanged (single
+format family both sides)"). The first-landing registry-row approach is
+canonical; the rejected one-type-id design is preserved in git history
+(05307aa^ tree) should a future audit revisit the 0x7C single-family
+question. Both legs' tests are name-identical
+(Carve.HeifSiblingBrandLabeledHeif); this leg's fail-before run (RED on
+the stash-isolated pre-fix engine) is the second proof set.

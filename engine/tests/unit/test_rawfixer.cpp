@@ -1102,5 +1102,72 @@ TEST(RawFixer, AnalyzeAllBranches4KnAsan) {
         EXPECT_FALSE(plan.detected);
     }
 }
+
+/* ---- M-046: the DAMAGED-primary exFAT branch on 4Kn (512-of-4096) ---- */
+
+TEST(RawFixer, ExfatRestorePlanIsSectorSized4Kn) {
+    /* M-046: OEM intact (family detectable), boot shape broken -> the
+     * damaged-primary restore branch. The backup read and the restore
+     * plan must be bps-sized (4096): the old code read 512 of the 4096
+     * backup bytes and planned a 512-byte write. Fail-before: the plan's
+     * length was 512 and the checksum spanned 512 bytes of a 4 KiB
+     * sector. */
+    std::vector<u8> img(4096ull * 2048, 0);
+    build_exfat_boot_4k(img.data(), 2048);
+    put64(img.data() + 0x48, 0); /* break the shape: volume_length < 2048 */
+    build_exfat_boot_4k(img.data() + 12 * 4096, 2048); /* valid backup */
+    fill_exfat_checksums(img, 4096);
+
+    RamDevice4k dev(img);
+    RepairPlan plan;
+    ASSERT_EQ(OK, analyze(&dev, plan));
+    EXPECT_TRUE(plan.detected);
+    EXPECT_EQ("exfat", plan.fs_family);
+    ASSERT_GE(plan.actions.size(), 1u);
+    EXPECT_EQ(ActionKind::RestoreBootFromBackup, plan.actions[0].kind);
+    EXPECT_EQ(4096u, plan.actions[0].length) << "M-046: the restore plan is bps-sized";
+    ASSERT_EQ(4096u, plan.actions[0].after.size());
+    /* the checksum action: offset 11*bps, length bps (a geometry re-derive
+     * may also be planned for the zeroed volume_length — find by kind) */
+    bool has_checksum = false;
+    for (const auto& a : plan.actions) {
+        if (a.kind == ActionKind::RepairBootChecksum) {
+            has_checksum = true;
+            EXPECT_EQ(u64(11) * 4096, a.offset);
+            EXPECT_EQ(4096u, a.length);
+        }
+    }
+    EXPECT_TRUE(has_checksum) << "a restore must chain the checksum recompute";
+}
+
+TEST(RawFixer, ExfatBackupReadFull4Kn) {
+    /* M-046: the backup image is read FULLY (4096 bytes) — the old
+     * 512-byte read left the backup's tail unvalidated and truncated in
+     * the plan's after-image. A distinctive tail pattern beyond byte 512
+     * must round-trip through the plan AND the executed write. */
+    std::vector<u8> img(4096ull * 2048, 0);
+    build_exfat_boot_4k(img.data(), 2048);
+    put64(img.data() + 0x48, 0); /* break the primary's shape */
+    build_exfat_boot_4k(img.data() + 12 * 4096, 2048);
+    fill_exfat_checksums(img, 4096);
+    /* distinctive tail inside the backup sector, beyond the old 512 read */
+    for (int i = 0; i < 64; ++i)
+        img[12 * 4096 + 3000 + size_t(i)] = u8(0xC0 + (i & 15));
+
+    RamDevice4k dev(img);
+    RepairPlan plan;
+    ASSERT_EQ(OK, analyze(&dev, plan));
+    ASSERT_GE(plan.actions.size(), 1u);
+    EXPECT_EQ(ActionKind::RestoreBootFromBackup, plan.actions[0].kind);
+    ASSERT_EQ(4096u, plan.actions[0].after.size());
+    EXPECT_EQ(0, memcmp(plan.actions[0].after.data() + 3000, img.data() + 12 * 4096 + 3000, 64))
+        << "the backup image must carry the full 4096 bytes (tail included)";
+
+    RamWriteDevice wd(img);
+    UndoLog undo_log;
+    ASSERT_EQ(OK, execute(&wd, plan, undo_log));
+    EXPECT_EQ(0, memcmp(wd.d_.data() + 3000, img.data() + 12 * 4096 + 3000, 64))
+        << "the executed restore writes the full sector";
+}
 } // namespace repair
 } // namespace cr

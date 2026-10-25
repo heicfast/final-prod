@@ -42,7 +42,8 @@ struct Overlays {
 /* Mark one node's extents into the overlays. The extent basis must match
  * the map's absolute base (sessions are disk-absolute since F-1). */
 void mark_extents(const tree::FileProperties::Extent* exts, size_t ext_count, u64 logical,
-                  u8 origin, u8 deleted, u8 confidence, const Overlays& ov) {
+                  u8 origin, u8 deleted, u8 confidence, const Overlays& ov,
+                  std::vector<u8>& content_cells) {
     if (exts == nullptr || ext_count == 0)
         return;
     for (size_t i = 0; i < ext_count; ++i) {
@@ -52,6 +53,9 @@ void mark_extents(const tree::FileProperties::Extent* exts, size_t ext_count, u6
             continue; /* outside the mapped view */
         const u64 last_cell = (ext_end - ov.base - 1) / ov.cell_bytes;
         for (; cell <= last_cell && cell < ov.cells; ++cell) {
+            content_cells[size_t(cell)] = 1; /* S-009 hardening: the free
+                                             * pass consults this - found
+                                             * content never paints Free */
             if (ov.fnd && (*ov.fnd)[size_t(cell)] < 255)
                 ++(*ov.fnd)[size_t(cell)];
             if (ov.conf && confidence > (*ov.conf)[size_t(cell)])
@@ -108,12 +112,18 @@ u32 build_disk_map(const DiskMapInputs& in, const tree::Snapshot& snap, DiskMapG
         confidence->assign(size_t(geom.cell_count), 0);
 
     const u32 n = snap.node_count();
+    /* S-009 hardening: the found-content truth, tracked regardless of
+     * which overlays the caller requested (the finding's fix plan: cells
+     * the bitmap marks free AND no found-content covers become Free -
+     * deleted/carved files live in free space, and their cells must stay
+     * Unknown so the consumer colors them as content, never plain-free) */
+    std::vector<u8> content_cells(size_t(geom.cell_count), 0);
     for (u32 i = 0; i < n; ++i) {
         const tree::SnapNode& sn = snap.node(i);
         if (sn.full || sn.extents.empty())
             continue; /* roots/virtuals carry no content */
         mark_extents(sn.extents.data(), sn.extents.size(), sn.logical_size, sn.origin, sn.deleted,
-                     sn.confidence, ov);
+                     sn.confidence, ov, content_cells);
     }
 
     /* S-009 free overlay: the engine bitmap's truth fills the cells the
@@ -126,6 +136,11 @@ u32 build_disk_map(const DiskMapInputs& in, const tree::Snapshot& snap, DiskMapG
         for (u64 c = 0; c < geom.cell_count; ++c) {
             if ((*allocation)[size_t(c)] != kCellAllocUnknown)
                 continue;
+            if (content_cells[size_t(c)])
+                continue; /* S-009 hardening: found content (deleted or
+                           * carved files in free space) keeps the cell
+                           * Unknown - the finding's "no found-content
+                           * covers" rule, verbatim */
             const u64 b0 = in.slice_start + c * geom.cell_bytes;
             if (fm.range_free(b0, geom.cell_bytes))
                 (*allocation)[size_t(c)] = kCellAllocFree;

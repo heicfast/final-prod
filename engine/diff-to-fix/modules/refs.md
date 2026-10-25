@@ -172,7 +172,7 @@ Complements M-022/I-012 above (same session, parallel leg; full inventory:
 
 | ID | Severity | One-line |
 |---|---|---|
-| M-031 | MAJOR | Progress: one terminal tick vs og per-file binder `bool(u64, RefsFileProperties*&)` (RTTI-verified :617-19) |
+| M-031 | MAJOR | Progress — **FIXED (s10)**: intermediate per-16-file ticks with growing-estimate totals + terminal (n,n); monotonic; cancel preserves partials. findings/FIXED/M-031 |
 | OQ-RS-2..8 | OPEN | Container-map construction; ADS fold question; .mo deleted evidence; CRefsAppDataRunItem; system tables 0x500/0x701; volume-sig cross-check — `tracked-open/OQ-RS-refs-session3.md` |
 
 (This leg's ReFS decode corroborates S-020/M-022/M-026; its local A-004/S-012/

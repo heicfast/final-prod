@@ -77,6 +77,19 @@ struct WalkerFlags {
      * (Dec 21208): files of exactly 0x3FF bytes take the fast-path with
      * no bitmap check; larger files get the $Bitmap grading. */
     u64 viability_min_size = 0x3FF;
+    /* M-007 (diff-to-fix): the og emits ONE node per MFT record - its
+     * props builder runs once per record (FUN_180006db0 :5273) and fetches
+     * at most TWO $FILE_NAME entries (FUN_1800448b0 :54124-54162, index 0
+     * + index 1), picking ONE by namespace ranking (POSIX > Win32-and-DOS
+     * > Win32 > DOS, FUN_180043330). The core's old per-parent fan-out
+     * emitted N nodes per hard-linked record (a result-set superset, more
+     * useful, but every comparative inventory diverged by N-1 per record).
+     * Default TRUE = og parity: the namespace-best $FILE_NAME from the
+     * FULL list is emitted once, under ITS parent. FALSE = the opt-in
+     * superset (one node per distinct parent, per-link names) - the
+     * "show all hard-links" mode. The hardlinks stat counts only in
+     * fan-out mode (the og's scan has no such counter). */
+    bool single_link_per_record = true;
 };
 
 /* USN reasons (winioctl.h USN_REASON_*): the journal records we mine for

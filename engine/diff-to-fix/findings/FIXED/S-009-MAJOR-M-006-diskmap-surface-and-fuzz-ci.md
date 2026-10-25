@@ -216,3 +216,65 @@ map's contract is cluster-granular — a span inside a free cluster reads
 free). Corrected against the landed contract, with the semantics documented
 in the test. The landed implementation's own coverage (reload + snapshot +
 precedence + uncovered-tail) plus this port closes the finding's test plan.
+
+## Hardening addendum (session 10 — the third independent leg's convergence)
+
+**Status:** FIXED (hardened; three convergence defects closed on the landed
+implementation)
+**Fixed in commit:** (this session's S-009 hardening commit)
+**Verified by:** `FatEngine.FreeMapExcludesVirtualClustersAndMatchesFAT`,
+`ExfatEngine.FreeMapExcludesVirtualClustersAndMatchesBitmap`,
+`ExfatEngine.TornBitmapReadYieldsNoFreeMap`, `DiskMap.FreeNeverMarksFoundContentCells`
+— all four fail on the pre-hardening tree by construction (the first landing
+asserts each defect's inverse). Full suite 577/577 Linux ASan.
+
+**Resolution notes:** The third concurrent S-009 leg (this lane) re-verified
+the landed `storage::FreeMap` implementation first-hand and closed four
+defects in it:
+1. **FAT virtual clusters**: the fill loop started at c=0; `raw()` answers 0
+   for the virtual reserved clusters 0/1 and the linear base math painted
+   `[data_base - 2*cluster_bytes, data_base)` — the root-directory tail on
+   FAT12/16 — as free on EVERY volume. Fill now starts at cluster 2.
+2. **exFAT virtual clusters**: same class — the allocation bitmap's spec-zero
+   bits 0/1 inverted to free over `[heap_base - 2*cb, heap_base)` (the
+   boot-checksum/FAT tail). Same fix.
+3. **exFAT map under-coverage**: `cluster_count` copied `p.cluster_count`
+   verbatim, so the last TWO data clusters (cluster_count, cluster_count+1)
+   fell outside the map and never read free. The map now covers cluster
+   numbers 0..cluster_count+1 (2 virtual + all data).
+4. **exFAT torn-read honesty**: a FAILED allocation-bitmap read left zeros in
+   the loader buffer; zeros read "not allocated" and the inversion painted
+   the whole covered range free — a false-free map over a lie. The loader now
+   tracks `read_at` failures and the map is refused whole (`invalid`) — the
+   disk map renders Unknown cells, never false-free ones.
+Plus the rule convergence: the landed free pass painted every still-unknown
+bitmap-free cell Free, including cells where DELETED/CARVED content was
+found. The finding's fix plan states "cells the bitmap marks free and no
+found-content covers" — `build_disk_map` now tracks the content mask
+internally (regardless of requested overlays) and found-content cells stay
+Unknown so consumers color them as content, never plain-free.
+---
+
+## Session-10 convergence addendum (the third implementation + the M-054 correction)
+
+A third independent S-009 implementation was built in this session's first
+leg (`cr::AllocClusterMap` — used-bits, slice-relative + alloc_base anchor,
+byte_origin for the FAT/exFAT heap offset, covered/truncated with fail-open
+unknowns, free-run RLE persistence; preserved on branch `s009-allocmap-impl`
+commit `fb2bb91` for the record, with its own 5-test suite and behavioral
+fail-before proofs). Mid-flight, the remote landed the parallel lane's
+`storage::FreeMap` design (free-set bits, absolute base, virtual-cluster
+convention, downsampled persistence, snapshot capture) plus a second leg's
+proof port — the union rules apply: **the landed implementation is the base**
+(this session's third design is dropped cleanly, its unique assets folded
+where they still added value: the spec-verification that produced M-054).
+
+**The correction this session lands on top:** the landed base inherited the
+engine's pre-M-054 bit mapping (`Bitmap::test` read bit `c` for cluster `c`;
+the spec pins bit `i` = cluster `i+2`), so the landed exFAT free-map producer
+marked cluster `c` per cluster `c+2`'s state on real volumes. M-054 (filed +
+fixed this session, findings/FIXED/M-054) corrects the engine mapping — the
+landed producer's `!test(c)` inversion now inverts the right bit — and pins
+the seam with `ExfatEngine.FreeMapProducerMatchesSpecBitMapping` (fail-before
+executed on the landed base: both it and EndToEnd's grading swap red with the
+body reverted). S-009's own landed Resolution stands as the operative record.

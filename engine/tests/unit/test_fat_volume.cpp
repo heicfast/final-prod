@@ -195,6 +195,52 @@ std::vector<tree::FileNode*> collect_all(tree::ResultTree& t) {
 
 } // namespace
 
+TEST(FatEngine, FreeMapExcludesVirtualClustersAndMatchesFAT) {
+    /* S-009 hardening: the FAT free map must never claim the VIRTUAL
+     * reserved clusters 0/1. raw() answers 0 for them (out of table), so
+     * the first landing's fill loop (c from 0) set their bits FREE and
+     * the linear base math painted [data_base - 2*cb, data_base) - the
+     * LAST TWO ROOT-DIRECTORY SECTORS on this fixture - as free space.
+     * This test pins the exclusion + the exact free-run truth.
+     * Fixture chains: 10->11->12 (readme), 20->21 (del), 30 FREE (gone),
+     * 5 (subdir), 15 (inner); max_cluster 5001. Free runs: 2..4, 6..9,
+     * 13..14, 16..19, 22..5001 (30 is free - one run). */
+    auto img = build_fat16_image();
+    MemDevice dev(std::move(img));
+
+    tree::ResultTree tree;
+    auto* ra = tree.add_root(u"Found");
+    auto* rd = tree.add_root(u"Deleted");
+    auto* rl = tree.add_root(u"Lost");
+    FatScanFlags flags;
+    FatScanStats stats;
+    storage::FreeMap fm;
+    u32 rc = scan_fat(&dev, flags, nullptr, nullptr, nullptr, tree, ra, rd, rl, stats, &fm);
+    ASSERT_EQ(rc, OK) << err_text(rc);
+
+    const u64 DATA = 74 * 512;      /* cluster 2 = sector 74 */
+    const u64 VIRT = DATA - 2 * 512; /* the virtual clusters' byte span */
+    ASSERT_TRUE(fm.valid());
+    EXPECT_EQ(fm.base_byte, VIRT);
+    EXPECT_EQ(fm.cluster_bytes, 512u);
+    EXPECT_EQ(fm.cluster_count, 5002u); /* 0..5001 (0/1 virtual) */
+
+    /* THE DEFECT PIN: the pre-data region (root-dir tail here) is NOT
+     * free - the virtual clusters are excluded from the free set */
+    EXPECT_FALSE(fm.range_free(VIRT, 1024))
+        << "virtual clusters 0/1 must never read free (root-dir/FAT region)";
+    EXPECT_FALSE(fm.is_free(0));
+    EXPECT_FALSE(fm.is_free(1));
+
+    /* exact free-run truth, expressed as per-cluster checks */
+    auto cl_free = [&](u32 c) { return fm.range_free(DATA + u64(c - 2) * 512, 512); };
+    for (u32 c : {2u, 3u, 4u, 6u, 7u, 8u, 9u, 13u, 14u, 16u, 17u, 18u, 19u, 22u, 29u, 30u, 31u,
+                  100u, 5001u})
+        EXPECT_TRUE(cl_free(c)) << "cluster " << c << " must be free";
+    for (u32 c : {5u, 10u, 11u, 12u, 15u, 20u, 21u})
+        EXPECT_FALSE(cl_free(c)) << "cluster " << c << " is FAT-linked (not free)";
+}
+
 TEST(FatEngine, Fat16EndToEnd) {
     auto img = build_fat16_image();
     MemDevice dev(std::move(img));
@@ -1462,6 +1508,83 @@ TEST(FatEngine, SpcDomainMatchesOgSet) {
         else
             EXPECT_NE(rc, OK) << "SPC " << v << " must be rejected (og set)";
     }
+}
+
+/* ---- M-045 (diff-to-fix): the three validate_boot gates the og's        */
+/* classifier enforces and the core's engine gate lacked. (b) SPC and       */
+/* (c) the FAT32 label already landed via N-010b/N-034 (boot_passes_open_   */
+/* gates + lost_boot_flavor); these are the (a)/(d)/(e) residuals.          */
+
+TEST(FatEngine, FatBps1536Accepted) {
+    /* M-045(a): the og's classifier accepts ANY 512-multiple bps
+     * (FUN_180004610 :2542, (bps & 0x1ff) == 0) - 1536 is a rare-but-real
+     * geometry. Fail-before: the pow2-in-[512,4096] gate rejected it,
+     * making a lost_boot_flavor-accepted candidate invisible to
+     * probe_fat (validate_boot runs as its FIRST gate). */
+    auto img = build_fat16_image();
+    put16(img, 0x0B, 1536);
+    u8 boot[512];
+    std::memcpy(boot, img.data(), 512);
+    FatParams p;
+    const u32 rc = validate_boot(boot, u64(5074) * 1536, p);
+    ASSERT_EQ(rc, OK) << "any 512-multiple bps must classify (og parity)";
+    EXPECT_EQ(p.bytes_per_sector, 1536u);
+    /* the arithmetic is bps-generic: root sectors ceil(512*32/1536)=11 */
+    EXPECT_EQ(p.first_data_sector, u64(2) + 2 * 20 + 11);
+}
+
+TEST(FatEngine, FatBps32768CeilingAndNonMultipleRejected) {
+    /* M-045(a): the documented deliberate bound - 32768 is the last
+     * accepted size; 33280 (a 512-multiple above the ceiling) and 1000
+     * (not a multiple) are rejected. */
+    auto img = build_fat16_image();
+    u8 boot[512];
+    FatParams p;
+    put16(img, 0x0B, 32768);
+    std::memcpy(boot, img.data(), 512);
+    EXPECT_EQ(validate_boot(boot, u64(5074) * 32768, p), OK)
+        << "32768 is the documented ceiling (accepted)";
+    put16(img, 0x0B, 33280);
+    std::memcpy(boot, img.data(), 512);
+    EXPECT_NE(validate_boot(boot, u64(5074) * 33280, p), OK)
+        << "above the ceiling: rejected (documented deliberate bound)";
+    put16(img, 0x0B, 1000);
+    std::memcpy(boot, img.data(), 512);
+    EXPECT_NE(validate_boot(boot, u64(5074) * 1000, p), OK)
+        << "not a 512-multiple: rejected (og :2542 gate)";
+}
+
+TEST(FatEngine, FatZeroNumFatsRejected) {
+    /* M-045(d): numFATs == 0 is a hard reject - the og's every gate
+     * requires it nonzero (FUN_1800048f0/4a40/4b70 first checks); the
+     * old code let fat_area = 0 through (latent nonsense geometry).
+     * Fail-before: validate_boot returned OK. */
+    auto img = build_fat16_image();
+    img[0x10] = 0;
+    u8 boot[512];
+    std::memcpy(boot, img.data(), 512);
+    FatParams p;
+    EXPECT_NE(validate_boot(boot, u64(5074) * 512, p), OK)
+        << "numFATs == 0 must be rejected before any geometry is derived";
+}
+
+TEST(FatEngine, FatClusterCountOverflowRejected) {
+    /* M-045(e): cluster counts >= 0xFFFFFF0 are rejected outright - the
+     * og classifier's final band else-branch (FUN_180004610 :2595-2598);
+     * the spec's reserved max is 0x0FFFFFF6 so only overflow noise is
+     * cut. Fail-before: classified FAT32 and passed. */
+    auto img = build_fat16_image();
+    put16(img, 0x11, 0);          /* FAT32 shape: no root dir */
+    put16(img, 0x16, 0);          /* spf16 = 0 */
+    put32v(img, 0x24, 64);        /* spf32 */
+    put16(img, 0x13, 0);          /* use total32 */
+    put32v(img, 0x20, 130 + 0xFFFFFF0u); /* first_data 130 + cap clusters */
+    std::memcpy(img.data() + 0x52, "FAT32   ", 8);
+    u8 boot[512];
+    std::memcpy(boot, img.data(), 512);
+    FatParams p;
+    EXPECT_NE(validate_boot(boot, u64(0x100) * 512, p), OK)
+        << "cluster_count >= 0xFFFFFF0 must be rejected (og final-band gate)";
 }
 
 TEST(FatEngine, DateSanityRejectedInStrictMode) {

@@ -712,16 +712,19 @@ u32 analyze(IStorageDevice* slice, RepairPlan& plan) {
 
         /* Primary boot shape damaged beyond the OEM? Restore the boot
          * sector from the backup copy at sector 12 (corpus FixFromDBR +
-         * ChecksumDBR over primary 0 / backup 12). */
+         * ChecksumDBR over primary 0 / backup 12). M-046: the backup read
+         * and the restore plan are SECTOR-sized (bps, boot-declared) —
+         * the old 512-of-4096 read left a truncated backup image and the
+         * plan wrote one-eighth of a 4Kn boot sector. */
         if (!boot_shape_ok) {
-            u8 backup[512];
-            if (slice->read_at(12 * bps, backup, 512) == OK &&
-                exfat_boot_sane(backup, total, bps)) {
+            std::vector<u8> backup(bps, 0);
+            if (slice->read_at(12 * bps, backup.data(), bps) == OK &&
+                exfat_boot_sane(backup.data(), total, bps)) {
                 RepairAction a;
                 a.kind = ActionKind::RestoreBootFromBackup;
                 a.offset = 0;
-                a.length = 512;
-                a.after.assign(backup, backup + 512);
+                a.length = bps;
+                a.after = backup;
                 a.reason = "primary exFAT boot sector damaged; restore from backup sector 12";
                 plan.actions.push_back(std::move(a));
                 /* after a boot-sector restore the checksum must be

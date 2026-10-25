@@ -49,3 +49,10 @@ N-033 (analyser-registry ABI — the addendum this session notes the registry la
 ## Open questions
 
 None.
+
+## Resolution
+
+**Status:** FIXED
+**Fixed in commit:** (this session's N-069 commit)
+**Verified by:** `Carve.CabLowercaseMagic` — fail-before executed on the pre-fix tree (lowercase `mscf` CFHEADER at 12288 in a grammar-valid image: `lower_node == nullptr`, `carved != 2` — the file was never probed, exactly the finding's claim); pass-after with the dual-key row + the validator's two-spelling re-check (both cases carve; the lowercase node carries `carve_format == FMT_CAB_LC`). Full suite 568/568 green (linux-gcc, RelWithDebInfo + ASan); lint clean.
+**Resolution notes:** implemented the fix plan's option 1 (the og's duplicate-key policy): `FMT_CAB_LC` appended to the FormatId enum (serialized carve_format values stay stable, per the table's appended-id convention), a second registry row `{'m','s','c','f'}` sharing `validate_cab`, and the trial-order slot after FMT_CAB. **The fix plan missed one site and the fail-before run caught it:** `validate_cab` re-validates the magic internally (`memcmp(h, "MSCF", 4)`) — with the original validator, the lowercase key's hits died inside the validator even after the row anchored them. The re-check now accepts exactly the two registered spellings (`MSCF`/`mscf` — mixed case never anchors, no registry row keys it, matching the og's exact-dual-key policy, census :94 + :127). The registry F8 gate + self-probe pass unchanged (one row per FormatId, order = FormatId, table end). N-033's enumeration surface reports the row pair automatically (registry_size grew). No false-positive surface: the grammar gates (counts, cbCabinet bounds) apply to both spellings identically.

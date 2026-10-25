@@ -686,5 +686,95 @@ TEST(Ldm, GptDynamicDiskRealCanonicalGuidsParse) {
     EXPECT_EQ(size_t(2), info.layouts.size());
 }
 
+/* ===================================================================== */
+/* M-046 (diff-to-fix): the LDM GPT-path lookup must use the DEVICE      */
+/* geometry — on 4Kn the GPT header lives at byte 4096 (LBA 1), the      */
+/* entries at LBA 2, and the metadata partition's last block at          */
+/* last_lba*4096. The hardcoded *512 read the header mid-sector-0 and    */
+/* made LDM-over-GPT undiscoverable on every 4Kn disk.                   */
+/* ===================================================================== */
+
+namespace {
+
+class MemDevice4k : public IStorageDevice {
+public:
+    explicit MemDevice4k(std::vector<u8> d) : d_(std::move(d)) {
+        g_.logical_sector = 4096;
+        g_.physical_sector = 4096;
+        g_.total_bytes = d_.size();
+        g_.sector_count = d_.size() / 4096;
+    }
+    u32 read_at(u64 off, void* buf, u32 len) override {
+        if (off > d_.size() || len > d_.size() - off)
+            return ERR_RANGE_OUT_OF_BOUNDS;
+        memcpy(buf, d_.data() + off, len);
+        return OK;
+    }
+    const Geometry& geometry() const override { return g_; }
+
+private:
+    Geometry g_{};
+    std::vector<u8> d_;
+};
+
+/* The standard 512-byte GPT dynamic-disk fixture re-framed for 4Kn:
+ * same LDM database (LDM's own coordinates stay 512-byte LBAs — kernel
+ * sector semantics), GPT header at byte 4096, entries at byte 8192, and
+ * the metadata partition's primary PRIVHEAD at an 8-aligned 512-LBA so
+ * its byte position is exactly last_lba * 4096. */
+std::vector<u8> make_gpt_dynamic_disk_4kn(const u8* meta_guid, const u8* data_guid) {
+    StripeDisk sd;
+    const u64 total_secs = 65536; /* 32 MiB in 512-LBAs (the fixture's disk) */
+    const u64 cfg_start = total_secs - 2048;
+    const u64 ldm_meta_last = 65528; /* 8-aligned: 4Kn LBA 8191 exactly */
+    sd.fx.write_privhead(ldm_meta_last);
+    std::vector<u8> disk = sd.fx.take();
+    u8* mbr = disk.data();
+    mbr[0x1BE + 4] = 0xEE;
+    p32be(mbr + 0x1BE + 8, 1);
+    p32be(mbr + 0x1BE + 12, u32(total_secs - 1));
+    /* GPT header at 4Kn LBA 1 = byte 4096 */
+    u8* h = disk.data() + 4096;
+    std::memcpy(h, "EFI PART", 8);
+    put32le(h + 8, 0x00010000);
+    put32le(h + 12, 92);
+    put64le(h + 24, 1);   /* first usable (4Kn LBAs) */
+    put64le(h + 32, 8191);/* last usable */
+    put64le(h + 40, 2);   /* entries at 4Kn LBA 2 */
+    put64le(h + 48, 8190);
+    put64le(h + 72, 2);   /* 2 entries */
+    put32le(h + 80, 2);
+    put32le(h + 84, 128);
+    std::vector<u8> entries(2 * 128, 0);
+    std::memcpy(entries.data() + 0, meta_guid, 16);
+    put64le(entries.data() + 32, cfg_start / 8);  /* 512-LBA 63488 -> 4Kn 7936 */
+    put64le(entries.data() + 40, ldm_meta_last / 8); /* 65528 -> 4Kn 8191 */
+    std::memcpy(entries.data() + 128, data_guid, 16);
+    put64le(entries.data() + 128 + 32, 2048 / 8);
+    put64le(entries.data() + 128 + 40, 4096 / 8);
+    put32le(h + 88, crc32(entries.data(), entries.size()));
+    std::memcpy(disk.data() + 2 * 4096, entries.data(), entries.size());
+    put32le(h + 16, crc32(h, 92));
+    return disk;
+}
+
+} // namespace
+
+TEST(Ldm, GptPathFindsMetadata4Kn) {
+    /* Fail-before: the hardcoded *512 GPT-path lookup read the header at
+     * byte 512 (mid-sector-0 zeros) -> ERR_BAD_MAGIC; no dynamic-disk
+     * recovery on any 4Kn GPT disk while cr_table_parse succeeded. */
+    MemDevice4k dev(make_gpt_dynamic_disk_4kn(REAL_LDM_METADATA_GUID, REAL_LDM_DATA_GUID));
+    LdmInfo info;
+    const u32 rc = parse_ldm_database(&dev, info);
+    ASSERT_EQ(OK, rc) << err_text(rc);
+    EXPECT_TRUE(info.is_gpt);
+    EXPECT_TRUE(info.found);
+    EXPECT_EQ(size_t(2), info.layouts.size());
+    /* partition tail (8191*4096) + config+1856; config+2047 carries the
+     * stripe fixture's own bytes here */
+    EXPECT_GE(info.stats.privheads_matched, u64(2));
+}
+
 } // namespace table
 } // namespace cr

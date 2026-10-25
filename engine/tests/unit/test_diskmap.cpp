@@ -148,3 +148,54 @@ TEST(DiskMap, DownsamplePreservesRawTruth) {
         EXPECT_EQ(down.is_free(c), want) << "cluster " << c;
     }
 }
+
+/* S-009 hardening (the finding's rule, verbatim): "cells the bitmap
+ * marks free and NO FOUND-CONTENT covers -> kCellAllocFree". The first
+ * landing painted every still-unknown bitmap-free cell Free, including
+ * cells where DELETED or CARVED content was found - deleted files live
+ * in free space, and painting their cells plain-free hides the one
+ * thing a recovery UI must foreground. This test pins all three cell
+ * fates under a hostile all-free map:
+ *   - ACTIVE structured file cell -> USED (never downgraded)
+ *   - DELETED file's cell         -> UNKNOWN (content, not plain-free)
+ *   - empty free cell             -> FREE
+ */
+TEST(DiskMap, FreeNeverMarksFoundContentCells) {
+    tree::ResultTree tree;
+    auto* found = tree.add_root(u"Found");
+    auto* deleted = tree.add_root(u"Deleted");
+    auto add = [&](tree::FullNode* parent, const char16_t* name, u64 off, u64 len,
+                   tree::DeletedState st) {
+        auto* p = new tree::FileProperties();
+        p->name = name;
+        p->logical_size = len;
+        p->extents.push_back({off, len});
+        tree::FileNode* n = tree.add_file(parent, p);
+        p->release();
+        n->set_origin(tree::Origin::Structured);
+        n->set_deleted_state(st);
+        return n;
+    };
+    add(found, u"live.txt", 0, 4096, tree::DeletedState::Active);
+    add(deleted, u"gone.txt", 100 * 4096, 4096, tree::DeletedState::Deleted);
+
+    /* a hostile map: EVERYTHING claims free (the stale-bitmap case) */
+    FreeMap fm = all_free_map(0, 4096, 256); /* [0, 1 MiB) all-free */
+
+    viz::DiskMapInputs in;
+    in.slice_start = 0;
+    in.slice_bytes = 256 * 4096;
+    in.cluster_bytes = 4096;
+    in.free_map = &fm;
+    viz::DiskMapGeometry g;
+    std::vector<u8> alloc;
+    std::vector<std::pair<u64, u64>> bad;
+    ASSERT_EQ(viz::build_disk_map(in, tree, g, &alloc, nullptr, nullptr, nullptr, bad, 0, nullptr),
+              OK);
+    ASSERT_EQ(alloc.size(), 256u);
+    EXPECT_EQ(alloc[0], viz::kCellAllocUsed)
+        << "an active file's cell is USED even under a hostile all-free map";
+    EXPECT_EQ(alloc[100], viz::kCellAllocUnknown)
+        << "a deleted file's cell stays Unknown (found content), never plain-free";
+    EXPECT_EQ(alloc[50], viz::kCellAllocFree) << "an empty cell inside the map is FREE";
+}

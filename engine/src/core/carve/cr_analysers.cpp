@@ -967,7 +967,7 @@ CarveResult validate_mkv(IStorageDevice* s, u64 hit, u64 cap) {
      * and matroska, reject every other DocType (an exotic EBML use is
      * rejected by the og's analyser and now by ours). */
     {
-        u8 hdr[512]; /* <= 0x200 by the bounds gate above */
+        u8 hdr[512];                           /* <= 0x200 by the bounds gate above */
         const u64 hdr_len = 4 + u64(vlen) + v; /* id(4) + size vint + payload */
         if (hdr_len > sizeof(hdr) || !rd(s, hit, hdr, u32(hdr_len)))
             return r;
@@ -1328,8 +1328,18 @@ CarveResult validate_raf(IStorageDevice* s, u64 hit, u64 cap) {
     const bool canonical = std::memcmp(h, "FUJIFILMCCD-RAW ", 16) == 0;
     if (!canonical && std::memcmp(h, "FUJI", 4) != 0)
         return r; /* the registry guarantees FUJI; belt-and-braces */
+    /* N-076 (NEW-FINDING, DFX12 session-12 - discovered during N-054's
+     * fixture work): real-world RAF files carry the version at +16 as a
+     * 4-byte ASCII string ("0100"/"0201"; exiftool FujiFilm tags, the
+     * kladd/raw FormatVersion[4] header struct, freedesktop libopenraw)
+     * - read LE those are 0x3031..-style values far above the old
+     * binary cap, so this gate rejected every real RAF and the row was
+     * dead for real files since introduction (zero fixture coverage).
+     * Canonical acceptance: 4 ASCII digits OR a small binary value. */
     const u32 ver = rd32(s, hit + 16);
-    if (ver == 0 || ver > 0x2000)
+    const bool ascii_ver = h[16] >= '0' && h[16] <= '9' && h[17] >= '0' && h[17] <= '9' &&
+                           h[18] >= '0' && h[18] <= '9' && h[19] >= '0' && h[19] <= '9';
+    if (ver == 0 || (!ascii_ver && ver > 0x2000))
         return r;
     u64 max_end = 0;
     for (int i = 0; i < 4; ++i) { /* section offset/len pairs from +0x54 */
@@ -1627,7 +1637,12 @@ CarveResult validate_cab(IStorageDevice* s, u64 hit, u64 cap) {
     u8 h[36];
     if (!rd(s, hit, h, 36))
         return r;
-    if (std::memcmp(h, "MSCF", 4) != 0)
+    /* N-069: the og registers TWO magic keys for this case-insensitive
+     * format - "MSCF" and "mscf" (registry census :94, duplicate-key
+     * policy :127). The validator serves both rows, so it re-accepts
+     * exactly the two registered spellings (mixed case never anchors -
+     * no registry row keys it). */
+    if (std::memcmp(h, "MSCF", 4) != 0 && std::memcmp(h, "mscf", 4) != 0)
         return r;
     const u32 cbCab = rd32(s, hit + 8);
     const u16 cFolders = u16(h[26]) | (u16(h[27]) << 8);

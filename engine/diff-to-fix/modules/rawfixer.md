@@ -134,6 +134,6 @@ offsets). Finding + Resolution in `findings/FIXED/A-003-*.md` (renumbered from t
   (4096 on 4Kn) at cr_rawfixer.cpp:558/574/590/639. FIX-3 (F-A4-25) fixed the OFFSETS but
   not the buffers; `cr_transport.cpp:960` genuinely reports 4096; `test_rawfixer.cpp:24`
   pins 512 so CI is blind. Fix with M-046 in one review unit.
-- **M-046 (MAJOR, NEW):** the exFAT branches plan 512-byte restores/checksums on 4Kn
+- **M-046 (MAJOR): FIXED (s10)** — the damaged-primary branch reads/plans bps-sized (4096 on 4Kn); both 4Kn tests fail-before proven. ~~the exFAT branches plan 512-byte restores/checksums on 4Kn
   (`a.length = 512` at :644/:708, checksum span 512 at :649, backup read truncated at
   :703) — wrong-sector write plans on 4Kn exFAT.

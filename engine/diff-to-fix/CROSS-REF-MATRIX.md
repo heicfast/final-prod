@@ -69,6 +69,9 @@ dispositions is the surviving one).
 | Module \ Group | B | D | C | A | S | O | P | X | R | F | Q |
 |---|---|---|---|---|---|---|---|---|---|---|---|
 | ntfs | M-007, M-008 (S2); N-011 FIXED-ALREADY + N-012 FIXED (minors session 2026-10-26, D-52); I-001 ack; S-012 FIXED (two-pass: pass-1 membership + pass-2 dump walk + size-0 rescue; convergent dual-agent fix); **M-043 (S5b: content-proof recognition + scanner backup-boot)** | M (S-001+S-012 fixed: membership keep), N-012 (S2) | M | M-008 (S2) | M (M-001 fixed), N-001 | NA | NA | M | M | M | M (debt), N-019 (S2) |
+| fat | M; N-021 (S2); **M-045 FIXED (s10: validate_boot any-512-multiple bps + numFATs + cluster-cap; classifier already N-034 — findings/FIXED/M-045)** (S5b: boot-gate family — resolves S-006's FATX remainder) | M; N-021 (S2) | M | I-002 ack, OQ-T2 | M | NA | NA | M | M | M | M (debt) |
+| exfat | M (S-011 + S-013 fixed), N-003 FIXED, OQ-T5 | N-003 FIXED; M (S-011 fixed) | M | M | M | NA | NA | M (S-013 windowed-FAT FIXED) | M | M | **M-054 (S10 NEW-FINDING) FIXED — allocation-bitmap bit i vs cluster i+2 shift (grading + the S-009 producer wrong on real volumes; spec §7.1; producer pin test added)**; M (debt) |
+| ntfs | **M-007 FIXED (session 11: single_link_per_record parity default + the repaired per-parent fan-out, D-65)**, M-008 (S2); N-011 FIXED-ALREADY + N-012 FIXED (minors session 2026-10-26, D-52); I-001 ack; S-012 FIXED (two-pass: pass-1 membership + pass-2 dump walk + size-0 rescue; convergent dual-agent fix); **M-043 (S5b: content-proof recognition + scanner backup-boot)** | M (S-001+S-012 fixed: membership keep), N-012 (S2) | M | M-008 (S2) | M (M-001 fixed), N-001 | NA | NA | M | M | M | M (debt), N-019 (S2) |
 | fat | M; N-021 (S2); **M-045 (S5b: boot-gate family — bps/SPC/label/numFATs/cap/band-retry; resolves S-006's FATX remainder)** | M; N-021 (S2) | M | I-002 ack, OQ-T2 | M | NA | NA | M | M | M | M (debt) |
 | exfat | M (S-011 + S-013 fixed), N-003 FIXED, OQ-T5 | N-003 FIXED; M (S-011 fixed) | M | M | M | NA | NA | M (S-013 windowed-FAT FIXED) | M | M | M (debt) |
 | ext4 | S-004 FIXED, S-025 FIXED (two-pass reparenting, D-58/59 siblings), S-026 FIXED (meta_bg resolver, D-58), S-027 FIXED (backup-SB rescue, D-59); **M-010**, I-006 (S2), I-007 (S2) | ok; **M-010**, I-006 (S2), I-007 (S2) | M (S-026 fixed: meta-group desc blocks; S-027 fixed: backup-SB positions + s_block_group_nr) | S-004 FIXED, S-025 OPEN | N-004 | NA | NA | M | M | N-004 | M (debt) |
@@ -92,9 +95,9 @@ dispositions is the surviving one).
 | hfsplus | S-002 FIXED, S-003 FIXED, S-021 FIXED (s5 — journal harvest, the og's PRIMARY deleted surface), N-005 FIXED, N-038 FIXED; I-007 (S2) | M; I-007 (S2) | M | M | M | NA | NA | M | M | M | M (S-021 tests; THIN closed) |
 | btrfs | I-003 ack, M (S-005 fixed), N-006; **M-010**, I-007 (S2) | M; **M-010**, I-007 (S2) | M | M | M | NA | NA | M | M | M | M |
 | zfs | OQ-T6, M (S-005 fixed); I-007 (S2) | ok | OQ-T6 | M | M | NA | NA | M | M | M | M |
-| refs | N-007, I-004 ack, **M-022 FIXED (s4)**, I-012 (S3: GAP-ADS resolved — parity); **S-020 FIXED (s4: resident+all-rows+paged+granularity)** | M | M | **M-022 FIXED (s4: dual grammar + gen tag)** | M | NA | NA | M | M | M | M |
+| refs | N-007, I-004 ack, **M-022 FIXED (s4)**, I-012 (S3: GAP-ADS resolved — parity); **S-020 FIXED (s4: resident+all-rows+paged+granularity)** | M | M | **M-022 FIXED (s4: dual grammar + gen tag)** | M | NA | NA | M | **M-031 FIXED (s10: per-file progress ticks — findings/FIXED/M-031)** | M | M |
 | table+ldm | M (A-002 FIXED — real Microsoft GUIDs restored), **M-002 FIXED (s10: torn chain keeps walked prefix — findings/FIXED/M-002)** | M | M (A-002 FIXED; A-001 fixed), **M-046 (S5: LDM GPT-path 512-hardcodes)** | M (OQ-T7 resolved — I-008) | ok | NA | NA | M | M | M | M (debt) |
-| carve | S-007, ~~M-005~~ **FIXED** (FIXED/M-005, s14: the allocation-bitmap gate in both dispatch layers + telemetry; bench 1.88x on 50% used), **S-031 (S5: carved nodes never marked deleted)**, **S-032 (S5: archive inner-entry inventories)** | **S-031 (S5)**, **M-051 FIXED (s9)** (checksum/anchor/note/flag carriers; nflags-bit4 round-trip) | S-007, N-008, **N-051/N-052/N-053/N-054 (S5: MKV DocType / HEIC relabel / IIU binding / RAF-JPEG strictness)**; M (S-015 units FIXED), M (S-017 ftyp magics FIXED) | S-007, N-008, M-005, S-032 (S5: multi-part stitching) | S-007, N-008, M-005 | M | NA | NA | M (S-015 tail-walk FIXED: named 8 MiB bound, og range documented) | M | **N-063 (S5: default naming invented; og per-analyser names)**, **M-048 (S5: user-signature extensibility)** | M |
+| carve | S-007, ~~M-005~~ **FIXED** (FIXED/M-005, s14: the allocation-bitmap gate in both dispatch layers + telemetry; bench 1.88x on 50% used), **S-031 (S5: carved nodes never marked deleted)**, **S-032 (S5: archive inner-entry inventories)** | **S-031 (S5)**, **M-051 FIXED (s9)** (checksum/anchor/note/flag carriers; nflags-bit4 round-trip) | S-007, N-008, **N-051/N-052/N-053/N-054 S12 FIXED (convergent landings: the parallel session-11/7 lane's b2f48c6 canonical + this session's N-076 add-on)**; M (S-015 units FIXED), M (S-017 ftyp magics FIXED) | S-007, N-008, M-005, S-032 (S5: multi-part stitching) | S-007, N-008, M-005 | M | NA | NA | M (S-015 tail-walk FIXED: named 8 MiB bound, og range documented) | M | **N-063 (S5: default naming invented; og per-analyser names)**, **M-048 (S5: user-signature extensibility)** | M |
 
 | table+ldm | M (A-002 FIXED — real Microsoft GUIDs restored), M-002 | M | M (A-002 FIXED; A-001 fixed) | M-002, M (OQ-T7 resolved — I-008) | ok | NA | NA | M | M | M | M (debt) |
 | carve | S-007 **FIXED (primary set + full audio family)**, M-005 | M | S-007 **FIXED** (niche ~25-format tail precisely scoped in the finding), N-008; M (S-015 units FIXED), M (S-017 ftyp magics FIXED) | M-005 | M | NA | NA | M (S-015 tail-walk FIXED: named 8 MiB bound, og range documented) | M | M | M |
@@ -140,8 +143,10 @@ with pin tests, stay in INFORMATIONAL/).
 
 **Session-3 changes (this leg):** S-015 (rawsigns KiB units, SEVERE), M-022 (ReFS
 file-value grammar), M-023 (filter model — replaces the old GAP-cats note), N-030
-(rawsigns confidence dead in og), N-031 (carve dispatch/stride deltas; OQ-T8
-RESOLVED), N-032 (health transports), I-012 (GAP-ADS resolved — parity). Fixed
+(rawsigns confidence dead in og — **FIXED S12 as the registered D-66 superset,
+option (b) of its own fix plan; pins re-cited in the Resolution**), N-031 (carve
+dispatch/stride deltas; OQ-T8 RESOLVED), N-032 (health transports), I-012 (GAP-ADS
+resolved — parity). Fixed
 since the last matrix pass: S-010 (3e34ed2), M-009 (7fd00e0) — both first-hand
 verified in FIXED/. CPartitionVirtualVolumeDevice (og virtual-volume device
 layer) verified architecturally equivalent to the core IStorageDevice + slice
@@ -241,17 +246,18 @@ byte-pin→I-009, probe-row→I-010; dropped as dups: boot-geometry→N-013b, by
 | rawfixer | F60/Q67/Q65/A25 | **A-005 — ACUTE (S5)** (4Kn stack-buffer overflow: `u8 x[512]` buffers receive `sector`-byte reads at cr_rawfixer.cpp:558/574/590/639; transport reports 4096 on 4Kn; tests pin 512 — FIX-3 fixed offsets, not buffers) |
 | carve+session+query | B4/D11/D12/B1 | **S-031 (S5)** (carved files never marked deleted: og FLAGS=0x0020 constant on all 12,147 sampled records; core's deleted_only filter and deleted_count exclude the entire carve set) |
 | carve | B1/B2/D11/A27/A28 | **S-032 (S5)** (ZIP/RAR inner-entry inventories: og returns the complete inner file inventory + multi-part RAR stitching; core emits one flat node) |
-| ldm+rawfixer | C20/B2/A25/F60 | **M-046 (S5)** (4Kn wrong-offset/truncated-plan: LDM GPT path hardcodes `*512` at 3 sites vs the geometry-correct main parser; exFAT plans write 512 of 4096 bytes + wrong checksum span) |
+| ldm+rawfixer | C20/B2/A25/F60 | ~~M-046 (S5)~~ **FIXED (s10)** — GPT path geometry-correct ×3; exFAT plans bps-sized; LDM 512-LBA unit family fixed; 3 fail-before tests; findings/FIXED/M-046 |
 | session+tree | D12/D11/B8 | ~~**M-047 (S5)**~~ **M-047 FIXED (s9)** (FIXED/M-047: recursive refresh_stats + the persisted-image trust on load; partial loads recompute) |
 | carve | B1/A28/D16 | **M-048 (S5)** (EUUserData user-extensible signature DB — 111 extensions, `"offset,hex"` signs + MIME — has no core counterpart) |
 | err+abi | C23/D14/F35/Q46 | **M-049 (S5)** (error model: flat 28-code 8-hex enum with a false "reproduces the reference convention" header claim vs the og's 12-digit documented codes + error-object architecture) |
 | session+tree | D11/D12/B4 | **M-050 (S5)** (node-model round-trip gaps: ~15 og wrapper fields — hidden-root bit, grading bits 5-7, roles, fixup, sentinels — have no core carrier) |
 | carve+session | D11/D12/B9 | **M-051 (S5)** (RAW provenance unpersisted: timestamp string, analyser checksum w/ 0xFFFFFFFF invalid marker, note, tail anchor, boolean) |
-| carve | A28/B3/C19 | N-051 (S5) MKV DocType discrimination + element-bounds gate absent |
-| carve | B10/A28 | N-052 (S5) HEIC brand relabel to L"HEIF" absent |
-| carve | C19/B1/B10 | N-053 (S5) IIU magic: og binds TIFF/EP chain, core binds RW2 |
-| carve | C19/B1/B3 | N-054 (S5) RAF 4-byte-vs-16-byte strictness (miss) + JPEG 4-dword-vs-prefix (superset) |
+| carve | A28/B3/C19 | ~~N-051 (S5) MKV DocType discrimination + element-bounds gate absent~~ **FIXED (S12)** — FIXED via the parallel lane's b2f48c6 (canonical): bounded-buffer DocType walk (webm/matroska via 0x6D626577), 0x200 element-bounds gate; DFX12 convergence addendum: 0x67805318 = Segment ID 0x18538067 LE + independent fail-before run (8/10 RED pre-fix) |
+| carve | B10/A28 | ~~N-052 (S5) HEIC brand relabel to L"HEIF" absent~~ **FIXED (S12)** — FIXED via b2f48c6 (canonical): FMT_HEIF registry row (append-only) — heic-proper keeps HEIC, siblings heix/mif1/msf1 relabel HEIF; DFX12's alternative one-type-id carrier preserved in history |
+| carve | C19/B1/B10 | ~~N-053 (S5) IIU magic: og binds TIFF/EP chain, core binds RW2~~ **FIXED (S12)** — FIXED via b2f48c6 (canonical): FMT_TIFF_EP claims the IIU key with validate_tiff; FMT_RW2 = post-reject IIU-salvage (SUPERSET D-63a); label-by-grammar; convergent with DFX12's same resolution |
+| carve | C19/B1/B3 | ~~N-054 (S5) RAF 4-byte-vs-16-byte strictness (miss) + JPEG 4-dword-vs-prefix (superset)~~ **FIXED (S12)** — FIXED via b2f48c6 (canonical): RAF keyed on the FUJI 4CC, 16-byte string PRIMARY + variant path (conf 700); JPEG 3-byte prefix REGISTERED (D-64a, og's 4 dwords documented); + N-076 (DFX12): the ASCII-version gate fix their landing still lacked |
 | health | B1/D11/Q68 | N-055 (S5) SMART thresholds (0xD1) never read — modules/health.md "presentation-layer" disposition corrected |
+| carve | B1/A28 | N-076 (S12 NEW-FINDING, discovered during N-054 verification) — validate_raf's version gate rejected every real-world RAF (ASCII version "0100"/"0201" at +16 misread as binary, LE value ≫ 0x2000 cap); the FMT_RAF row was dead for real files since introduction (zero fixture coverage). **FIXED in the same change** — ASCII-digits OR small-binary acceptance; Carve.RafRealAsciiVersionAccepted fail-before executed |
 | writer | F62/Q65/A35 | N-056 (S5) WinDestIo .part-N temp leak on failed rename + UNC untested |
 | table+visualization | Q65/A54/Q69 | N-057 (S5) TableLayout::Ebr dead + diskmap overlay/budget test debt |
 | session | A35/D12/F35 | N-058 (S5) load validation deltas (forward parent re-parent, bad-marker light, short-count OK, name-length wrap) + CRC/resync superset register |
@@ -278,7 +284,7 @@ not-BAAD both sides; FAT quick-scan threading — already registered D-30x).
 | fat | B4/B5/D11/A29 | **M-052** (recycle-bin $I/$R pairing missing — og IRecycleBinNode2UI bridge; NTFS-side model exists in-repo) |
 | exfat | B1/A25/S35 | **N-067** (upcase-table validation skipped); B4/B5/D11 **M-052** (recycle mirror) |
 | carve | A25/D11/P42 | **S-032 (converged)** (archive inner-file inventories missing) |
-| carve | B1/C19 | **N-069** (CAB mscf case key); B1/A28 **N-068** (ZIP EOCD anchor + LFH sanity gates) |
+| carve | B1/C19 | **N-069 FIXED s11** (CAB mscf case key — FMT_CAB_LC dual row + two-spelling validator re-check; findings/FIXED/); B1/A28 **N-068** (ZIP EOCD anchor + LFH sanity gates) |
 | carve | A28/A29/D15/B3 | **N-070** (overlap scoring + two-generation fallback); **S-007 addendum** (bare-MPEG dispatch gap — 18+ u16 sync keys vs ID3-only; family roster with provenance) |
 | session | D11/D12/B4/B9 | **S-031 (converged)** (carved files: deleted flag + timestamp + validator payload dropped at emission; sessions round-trip the misstatement) |
 | session | D12/S36 | **N-066** (identity card: firmware/WWN/interface + 512-byte boot snapshot vs model/serial/CRC32) |

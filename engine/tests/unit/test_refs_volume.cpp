@@ -1235,6 +1235,117 @@ TEST(Refs, RecycleRoutedFlaggedAndDollarIRemap) {
     EXPECT_EQ(rr->deleted_state(), tree::DeletedState::Deleted);
 }
 
+/* ===================================================================== */
+/* M-031 (diff-to-fix): ReFS progress is PER-FILE (the og's quick-       */
+/* searcher registers a per-file progress binder, ReFSSearchDLL          */
+/* :617-619, RTTI-verified) — not one terminal tick.                     */
+/* ===================================================================== */
+
+namespace {
+
+struct ProgressRecorder {
+    std::vector<std::pair<u64, u64>> ticks;
+    static bool cb(u64 done, u64 total, void* user) {
+        auto* self = static_cast<ProgressRecorder*>(user);
+        self->ticks.emplace_back(done, total);
+        return true; /* never cancel from the progress thread */
+    }
+};
+
+std::u16string numbered_name(const char16_t* base, int i) {
+    std::u16string s(base);
+    s.push_back(char16_t(u'0' + (i / 10) % 10));
+    s.push_back(char16_t(u'0' + i % 10));
+    return s;
+}
+
+} // namespace
+
+TEST(Refs, ProgressMonotonicIntermediateTicks) {
+    /* 48 files in the root table: the walk must report intermediate
+     * progress every 16 emits (> 2 distinct permille values before the
+     * terminal 1000 tick). Fail-before: exactly ONE terminal tick. */
+    std::vector<u8> img = build_volume();
+    std::vector<Row> rows;
+    for (int i = 0; i < 48; ++i)
+        rows.push_back(file_row_key(numbered_name(u"file", i).c_str(),
+                                    build_file_node(0x01D0000000000000ull, 0x01D1000000000000ull,
+                                                    0, 4096, 4096, u64(300 + i), 1, true)));
+    rewrite_root_table(img, rows);
+    RamDevice dev(img);
+
+    tree::ResultTree tree;
+    auto* ra = tree.add_root(u"Found");
+    auto* rd = tree.add_root(u"Deleted");
+    auto* rl = tree.add_root(u"Lost");
+    RefsScanFlags flags;
+    RefsScanStats stats;
+    ProgressRecorder rec;
+    u32 rc = scan_refs(&dev, flags, nullptr, ProgressRecorder::cb, &rec, tree, ra, rd, rl,
+                       stats);
+    ASSERT_EQ(OK, rc) << err_text(rc);
+
+    /* intermediate ticks: (done, done+16) pairs; terminal: (n, n) */
+    std::vector<u64> permilles;
+    for (const auto& t : rec.ticks)
+        permilles.push_back(t.second ? t.first * 1000 / t.second : 1000);
+    /* monotonic */
+    for (size_t k = 1; k < permilles.size(); ++k)
+        EXPECT_LE(permilles[k - 1], permilles[k]) << "progress must be monotonic";
+    /* the terminal tick reaches 1000 */
+    ASSERT_FALSE(permilles.empty());
+    EXPECT_EQ(1000u, permilles.back());
+    /* more than 2 distinct intermediate values (the old engine: 1 tick) */
+    const size_t distinct_intermediate =
+        size_t(std::count_if(permilles.begin(), permilles.end() - 1,
+                             [](u64) { return true; }));
+    EXPECT_GE(rec.ticks.size(), 4u) << "48 files must produce >= 3 intermediate ticks + terminal";
+    EXPECT_GE(distinct_intermediate, 3u);
+}
+
+TEST(Refs, ProgressCancellationMidWalk) {
+    /* Cancel mid-walk (after the first progress tick): partial results
+     * survive in the tree. */
+    std::vector<u8> img = build_volume();
+    std::vector<Row> rows;
+    for (int i = 0; i < 48; ++i)
+        rows.push_back(file_row_key(numbered_name(u"file", i).c_str(),
+                                    build_file_node(0x01D0000000000000ull, 0x01D1000000000000ull,
+                                                    0, 4096, 4096, u64(300 + i), 1, true)));
+    rewrite_root_table(img, rows);
+    RamDevice dev(img);
+
+    struct LateCancel : CancelToken {
+        std::atomic<int> ticks{0};
+        bool cancelled() const override { return ticks.load() > 1; }
+    } token;
+
+    tree::ResultTree tree;
+    auto* ra = tree.add_root(u"Found");
+    auto* rd = tree.add_root(u"Deleted");
+    auto* rl = tree.add_root(u"Lost");
+    RefsScanFlags flags;
+    RefsScanStats stats;
+    auto cb = +[](u64, u64, void* user) -> bool {
+        auto* t = static_cast<LateCancel*>(user);
+        t->ticks.fetch_add(1);
+        return true;
+    };
+    scan_refs(&dev, flags, &token, cb, &token, tree, ra, rd, rl, stats);
+
+    /* partial results survived: fewer than 48 files, more than none */
+    size_t emitted = 0;
+    std::function<void(tree::FileNode*)> count = [&](tree::FileNode* n) {
+        for (tree::FileNode* c = n->first_child(); c; c = c->next_sibling()) {
+            ++emitted;
+            count(c);
+        }
+    };
+    count(ra);
+    EXPECT_GT(emitted, 0u) << "partial results must survive cancellation";
+    EXPECT_LT(emitted, 48u) << "the walk must have been cut short mid-table";
+}
+
 } // namespace
 } // namespace refs
 } // namespace cr
