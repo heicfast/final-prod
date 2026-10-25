@@ -6073,3 +6073,9 @@ Work log:
 - T1 complete: repos pulled (core `bf7df39`, corpus `03ad46c`), prompt saved
   token-redacted, linux-release build configured + built, full suite **396/396 PASS**
   (4.25 s) — the session's executed baseline.
+- LANE CLAIM (avoid cross-leg duplication, per the multi-leg coordination lesson): this
+  session claims S-023 first (grading engine), then S-024, S-025, S-026, S-027, S-028,
+  S-020, S-007, S-009-remainder — then the MAJOR wave in M-number order, then MINOR/
+  INFO/tracked-open. The df5 leg signaled "lane moves to S-003" (HFS+ journal pair
+  S-003/S-021) — left to them; if their lane stalls, this session takes it after its
+  claimed queue.
