@@ -83,3 +83,17 @@ not changed. Files: `src/core/btrfs/cr_btrfs_engine.cpp:299–303`.
 
 **Related findings:** M-001 (the NTFS instance of the same refuse-vs-attempt family).
 **Open questions:** none.
+
+## Resolution (N-004 portion)
+
+**Status:** FIXED
+**Fixed in commit:** this session's linuxfs-minors batch (RetryPolicy::backtrack in cr_device.h; shifted-window second-chance in cr_retry.cpp)
+**Verified by:** `Retry.BacktrackReadSalvagesPartialSector` (alignment-dependent transport fails only requests starting at a given offset; the shifted window succeeds and the bytes arrive — no bad range recorded), `Retry.BacktrackOffReproducesLegacyExhausted` (flag off = the exact pre-fix behavior: ERR_RETRY_EXHAUSTED + mapped range), `Retry.BacktrackStaysAlignedOn4Kn`. Fail-before: the tests do not exist on the pre-fix tree; the flag-off test IS the pre-fix behavioral pin. Suite 458/458 ASan.
+**Resolution notes:** the og's CEXT4CatchBufferDeviceProxy salvage (corpus ext4-engine--deep-dive.md §3, 0xE00 fresh buffer + 0x400 backtrack re-read) is now implemented at the core's designated bad-sector layering boundary: on a persistently failing range, ONE shifted-window second-chance re-read [off−back, off−back+win) before the range is bisected/given up. Deliberate improvements over the og: back = max(0x400, sector) — the og's hardcoded 0x400 is misaligned on 4Kn, ours stays aligned; the window end is sector-rounded; the fresh buffer is heap-allocated per catch (like the og's 0xE00 allocation) so no large stack frames on worker threads. Default ON (the og always catches); RetryPolicy::backtrack=false is the policy escape hatch. Media-bad ranges are unaffected (the shifted window contains the failing span and fails too) — existing Retry tests pass unchanged by construction.
+
+## Resolution (N-006 portion)
+
+**Status:** FIXED (registered as deliberate hardening + pinned)
+**Fixed in commit:** this session's linuxfs-minors batch (pin test only — the validation code is unchanged and correct as-is)
+**Verified by:** `Btrfs.NonPow2NodesizeRejectedRegistered` — 24 KiB nodesize (og-band-legal, 0x6000%0x1000==0, so the og's BtrfsSearchDLL :10302-10304 accepts it) is rejected by the core's pow2 gate; 32 KiB (pow2, in-band) accepted. Suite 458/458.
+**Resolution notes:** the finding's optional fix plan (accept non-pow2 within the og band + cap + PartialRisk) is NOT adopted: real mkfs.btrfs only writes pow2 nodesizes, so non-pow2 is corrupt-SB territory; a forged nodesize would size node-buffer allocations from an attacker-influenced field; and refusal routes the volume to other engines/carving — a strictly better outcome than the og's garbage attempt. Registered as PARITY-DELTAS D-61a (do not loosen). The finding's own test name `SB_NonPow2_Nodesize_Rejected_Registered` is honored.
