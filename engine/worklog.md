@@ -8534,6 +8534,7 @@ Stage Summary:
   recommended next-10.
 
 ---
+<<<<<<< HEAD
 Task ID: DFX7-T2 (MINOR tier, waves 3-4)
 Agent: main engineer (diff-to-fix session 7)
 Task: Continue the MINOR tier; repair cross-lane landing corruption as found.
@@ -8629,3 +8630,22 @@ Stage Summary:
   MINOR-first fix waves begin. Target: 20+ findings resolved this
   session with fail-before/pass-after proof for each. (Session ID DFX12
   chosen to disambiguate from the parallel DFX9/DFX10/DFX11 legs.)
+
+---
+Task ID: DFX10-T1
+Agent: DFX10 (diff-fix session 10)
+Task: Session bootstrap — pull both repos, record commits, save prompt, green baseline
+
+Work Log:
+- Cloned core_recovery (HEAD 8e79960 at pull; rebased onto 7444fd6 after parallel
+  DFX11/DFX12 pushes) and easeus-drw-research (03ad46c, unmoved corpus).
+- Saved session prompt (token redacted) to worklog/session-diff-fix-prompt.md.
+- Audited commit per README: session-5b lineage `7cf6754`-rebased-onto-`c75f646`;
+  session-9 started at `c231f2f`. Live inventory rebased: SEVERE 3 (S-009, S-029,
+  S-030) · MAJOR 39 · MINOR 55 (34 unresolved per DFX7) · INFO 22 · FIXED 72.
+- Linux Release build + full ctest: **533/533 green** (includes cr_ui_abi_check).
+
+Stage Summary:
+- Baseline green. DFX10 fix order: SEVERE (S-009 → S-029 → S-030) then MAJOR by
+  impact. Note: DFX12 runs MINOR-first waves in parallel — coordinate via worklog
+  before each push (pull --rebase every time).
