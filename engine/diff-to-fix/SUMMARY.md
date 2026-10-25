@@ -105,8 +105,8 @@ structure+consumption decode here, the extension-list dump there, both folded
 into S-023; OQ-S4-2 RESOLVED; corpus errata 37-40; suite 366/366 evidence at
 `7cf6754`) is recorded verbatim in the "Session-5 delta" section below — keep
 reading. **Counts after session-5 merge (direct file inventory at the merged tree):
-1 ACUTE (A-005) · 10 SEVERE · 43 MAJOR · 45 MINOR · 20 INFO = 119 active ·
-53 FIXED-family files (incl. RESOLVED-INDEX + the OQ-T1 record). The session-5
+1 ACUTE (A-005) · 10 SEVERE · 43 MAJOR · 44 MINOR · 20 INFO = 118 active ·
+54 FIXED-family files (N-055 fixed by the parallel S-024 leg) (incl. RESOLVED-INDEX + the OQ-T1 record). The session-5
 leg filed 25 findings (A-005; S-031/S-032; M-046..M-051; N-051..N-064;
 I-021/I-022). The parallel fix legs' own counts sections below are historical
 snapshots, superseded by this line.**

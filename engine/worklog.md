@@ -7160,3 +7160,43 @@ Stage Summary:
   rows, README/SUMMARY/worklog current. The citation-gap method is exhausted — every
   corpus artifact and core source file now has at least one citation somewhere in
   diff-to-fix/.
+
+---
+Task ID: S5-CLOSE (session-5 close-out handoff)
+Agent: session-5 parity auditor (read-only leg)
+
+Work Log:
+- The session-5 wave is LANDED at d7e05c9 after two renumber cycles (the parallel
+  closing-session filed S-029/S-030/M-040..M-045/N-048..N-050/I-019/I-020 in the same
+  ID window; my 25 findings' final IDs: A-005; S-031/S-032; M-046..M-051; N-051..N-064;
+  I-021/I-022).
+- Post-landing reconciliation: the parallel S-024 health-grading fix (74f9def)
+  implemented SMART 0xD1 thresholds + the 4-status model — my N-055 moved to FIXED/
+  with the cross-leg resolution note. The b28701f reconcile leg recorded "A-005 kept"
+  (the ACUTE stands). Their lane claims now include my S-031/S-032 in their queue
+  (the cca475c note's "S-029/S-030 queued" was pre-renumber-speak for them; the IDs
+  they hold are their own S-029/S-030).
+- Final counts at d7e05c9 + this close-out: 1 ACUTE / 10 SEVERE / 43 MAJOR / 44 MINOR /
+  20 INFO active = 118; 54 FIXED-family files.
+
+Stage Summary — the session-5 handoff record:
+- Coverage: the citation-gap method is exhausted. Every corpus artifact file and every
+  core src/include file now carries at least one citation across findings/modules/
+  evidence. The remaining UNVERIFIED surface is per-function decode depth (tracked-open
+  OQs), not artifact-level coverage.
+- The 25 findings, in fix-priority order: (1) A-005 ACUTE 4Kn rawfixer overflow +
+  M-046 (one review unit); (2) S-031 carved-deleted (one-line producer fix at BOTH
+  emit sites :173/:330); (3) S-032 archive inventories; (4) M-047+M-050+N-058 the
+  session-loader wave (stats, carriers, validation); (5) M-048 user signatures (pairs
+  with M-024); (6) M-049 error model; (7) M-051 RAW provenance; (8) N-051..N-054 carve
+  validator details; (9) N-056..N-064 the hygiene tail.
+- OQ state: S4-1 RESOLVED (convergent dual decode); S4-2 RESOLVED (1 residual); the
+  older OQs (T2/T5, T6/T7, S3-JPEG, S2M-2, S4-3, RS/Z-E-FLT, S003, S5-1) stand as
+  tracked.
+- Recommended next session: (a) execute A-005+M-046 (the ACUTE) — 4 buffers + 3 LDM
+  sites + plan literals + 4Kn fixtures; (b) S-031 at both emit sites; (c) consume the
+  S-023 FIXED landing's grading engine when wiring S-031 (carved nodes' grades —
+  the og grades them post-scan; coordinate with tree::Grade now that it exists);
+  (d) the session-loader wave M-047/M-050/N-058 (reserve the node-flag bits the
+  grading persistence already uses — bit 3 carries {grade|overlap} per the S-023
+  resolution; M-050's carriers must not collide with it).

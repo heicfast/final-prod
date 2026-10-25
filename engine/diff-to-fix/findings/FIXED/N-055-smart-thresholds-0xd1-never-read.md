@@ -69,3 +69,20 @@ command in the ATA path; NVMe threshold present.
 ## Open questions
 
 None.
+
+---
+
+## Resolution (session-5 close, 2026-10-26)
+
+**Status:** FIXED — by the parallel fix leg's S-024 health-grading fix (commit `74f9def`),
+not by this audit leg. The fix implements exactly this finding's fix plan: `src/win/cr_health.cpp:192-196`
+now issues SMART READ_THRESHOLDS (feature 0xD1) beside the 0xD0 read, parses the
+30×12 threshold table (threshold at entry+1), and the 4-status grading model
+(Unknown/Good/Caution/Bad) composes value-vs-vendor-threshold verdicts — closing both
+the data-layer gap and the disposition correction this finding filed (the "presentation-
+layer" hand-wave in modules/health.md is superseded). The NVMe side was already complete
+(available_spare_threshold). Cross-leg note: this finding's fix-plan steps 1-2 and the
+S-024 fix's threshold implementation are the same work; the S-024 leg landed it with the
+full grading model this finding did not cover (scope superset). The disposition-correction
+value of this finding stands: the audit record now correctly shows the threshold read as
+an engine-side capability, not presentation.
