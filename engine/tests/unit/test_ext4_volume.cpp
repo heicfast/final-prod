@@ -1022,8 +1022,6 @@ TEST(Ext4Engine, BadMagicWithoutBackupsStillRejected) {
     EXPECT_EQ(0u, st.backup_sb_block);
 }
 
-} // namespace ext4
-} // namespace cr
 
 /* ---- S-025: journal-salvaged reparenting (the og's two-pass model) ------ */
 
@@ -1171,5 +1169,8 @@ TEST(Ext4Engine, TwoPassJournalClaimInteraction) {
                                           "the live-claimed entries do not duplicate";
 }
 
+} // namespace
 } // namespace ext4
 } // namespace cr
+
+} // namespace

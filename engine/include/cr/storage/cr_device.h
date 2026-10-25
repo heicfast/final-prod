@@ -77,6 +77,15 @@ enum class RetryMode : u32 {
 struct RetryPolicy {
     u32 max_attempts = 3;
     RetryMode mode = RetryMode::Fail;
+    /* N-004 (og CatchBuffer parity): on a persistently failing range, one
+     * shifted-window second-chance re-read before the range is given up -
+     * the og's CEXT4CatchBufferDeviceProxy 1 KB-backtrack salvage, placed
+     * at this layering boundary (the core's designated bad-sector point).
+     * The backtrack step is max(0x400, logical_sector) so the shifted
+     * request stays sector-aligned on 4Kn devices (the og hardcodes
+     * 0x400; on 4Kn its shifted request would be misaligned - ours works).
+     * Default ON (the og always catches). */
+    bool backtrack = true;
 };
 
 /*

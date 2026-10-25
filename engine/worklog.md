@@ -7725,4 +7725,39 @@ Next concrete steps (recommended order for the next leg):
 5. The INFORMATIONAL sweep if not finished by the parallel legs
    (859f986/896cee3 covered I-006..I-022; verify the remaining I-file
    inventory is all ACKNOWLEDGED with rationale).
+
+Task ID: CF-S025 (closing session)
+Agent: main engineer (diff-to-fix closing session)
+Task: S-025 — ext4 journal reparenting (two-pass + parent map): verify, fix.
+
+Work Log:
+- Corpus re-verification first-hand: driver FUN_180003de0 (:2773 pass 1 before
+  the walk, :2778 pass 2 after); FUN_1800043f0 :3077-3145 ("."/".." head ->
+  orphan map at +0xdc8, child=first-entry inode, parent=second; GotJournalDir
+  trace; per-entry traversal); finalize FUN_1800041e0 :2961-3016 (map walk;
+  unreachable orphans -> "iNode%I64d" naming :2989); reachability
+  FUN_180003fb0 (parent chain, +0x72&4 live flag).
+- Fix: harvest = ONE structural pass over the journal bytes (both og passes
+  see identical data; the pass-1/pass-2 state collapses into emission-time
+  claim checks) collecting entries + owning dirs + the orphan parent map;
+  pre-pass emits journal-known inodes with FULL inode truth (shared
+  emit_inode_node: extents base-adjusted, bitmap grading) anchored
+  topologically (live anchors win; cycle-safe rounds; unresolvable ->
+  root_lost with og iNode%u naming); files anchor under their owning dir;
+  post-sweep finalize emits name-only leftovers. Claim checks use live_nodes
+  (files AND dirs — visited_inodes only had dirs; closed a latent
+  duplicate-file gap in the same change). Sweep skips journal-emitted
+  inodes (the two-pass claim interaction).
+- Tests: 3 new, all fail-before proven (engine-reverted build): ghostdir
+  reparented under live sub with nested inner.txt + Excellent grading; dead
+  chain -> /iNode10 + /iNode10/inner.txt with no /iNode11; live-claimed dir
+  -> exactly one Structured node, journal_salvaged == 0. Suite 465/465.
+  ASan+UBSan+leak fuzz smoke clean (9 seeds x3, binary rebuilt).
+
+Stage Summary:
+- S-025 FIXED; ext4 SEVERE family (S-025/S-026/S-027) fully closed by this
+  session. Audit trail: finding -> FIXED/ + Resolution; RESOLVED-INDEX row;
+  matrix ext4 row; modules/ext4.md; SUMMARY re-baselined to the concurrent
+  parallel-leg inventory (7 SEVERE / 92 active / 53 FIXED).
+
 >>>>>>> 0348532f6a7de11bdf94e47f188bbb4e579b0644
