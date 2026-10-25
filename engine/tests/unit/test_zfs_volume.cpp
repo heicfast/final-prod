@@ -804,7 +804,7 @@ static std::vector<cr::u8> zlib_deflate_raw(const cr::u8* data, size_t len, int 
     zs.next_in = const_cast<Bytef*>(data);
     zs.avail_in = uInt(len);
     zs.next_out = out.data();
-    zs.avail_out = uLongf(out.size());
+    zs.avail_out = uInt(out.size()); /* uInt: zlib's field width (MSVC C4244 guard) */
     deflate(&zs, Z_FINISH);
     out.resize(zs.total_out);
     deflateEnd(&zs);
