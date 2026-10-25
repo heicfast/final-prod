@@ -286,29 +286,43 @@ u32 NtfsVolume::load_mftmirr_stream() {
 
 u32 NtfsVolume::enum_mirr_attrs(const std::vector<u8>& buf) {
     /* walk attributes of the $MFTMirr record copy via the shared walker
-     * (row 21); take its $DATA runs as the mirror mapping */
+     * (row 21); take the FIRST unnamed $DATA runlist as the mirror mapping.
+     * N-001 (diff-to-fix) - og parity (NTFSLib InitMFTMirror,
+     * NTFSLib_decompiled.c :17369-17414, read first-hand): the FIRST
+     * unnamed $DATA decides - non-resident -> decode its runlist and STOP
+     * (the og breaks at :17393); resident -> hard abort with the logged
+     * "$MFTMirror::$DATA is resident!" string and the mirror is INVALID
+     * (init returns 0). The previous code accepted a LATER $DATA and even
+     * tried to decode resident content as a runlist - a corrupt mirror
+     * could fabricate a mapping the og refuses. */
     std::vector<AttrView> attrs;
     u32 rc = enum_attributes(buf.data(), u32(buf.size()), attrs);
     if (rc != OK)
         return rc;
     for (const AttrView& a : attrs) {
-        if (a.type != ATTR_TYPE_DATA)
-            continue;
-        if (a.nonresident) {
-            RunList rl;
-            if (RunList::decode(a.at + a.runlist_offset, a.record_length - a.runlist_offset,
-                                a.start_vcn, p_.total_clusters, rl) == OK) {
-                mirr_run_ = rl;
-                mirr_valid_ = true;
-            }
-        } else if (a.value_length > 0) {
-            RunList rl;
-            if (RunList::decode(a.at + a.value_offset, a.value_length, 0, p_.total_clusters, rl) ==
-                OK) {
-                mirr_run_ = rl;
-                mirr_valid_ = true;
-            }
+        if (a.type != ATTR_TYPE_DATA || a.name_length != 0)
+            continue; /* named streams are not the mirror's $DATA */
+        if (!a.nonresident)
+            return OK; /* resident: og abort - mirror stays invalid */
+        RunList rl;
+        if (RunList::decode(a.at + a.runlist_offset, a.record_length - a.runlist_offset,
+                            a.start_vcn, p_.total_clusters, rl) == OK) {
+            mirr_run_ = rl;
+            mirr_valid_ = true;
         }
+        break; /* first unnamed $DATA only (og :17393) */
+    }
+    /* the og serves mirror reads up to the runlist-derived span
+     * (InitMFTMirror writes this+0x70 = (last_run.offset + last_run.length)
+     * factors, and CNtfsMFT::ReadFileRecord gates on `record <= this+0x70`,
+     * :17460) - NOT a hardcoded 4. Record capacity = runlist span bytes /
+     * record size, sanity-capped against absurd corrupt runlists. */
+    mirr_record_capacity_ = 0;
+    if (mirr_valid_ && p_.record_size != 0) {
+        const u64 span = mirr_run_.total_clusters() * u64(p_.cluster_bytes);
+        mirr_record_capacity_ = span / p_.record_size;
+        if (mirr_record_capacity_ > 1024)
+            mirr_record_capacity_ = 1024; /* defensive cap (P1-family) */
     }
     return OK;
 }
@@ -384,7 +398,12 @@ u32 NtfsVolume::read_record(u64 record_no, std::vector<u8>& out) {
         }
     }
     if (!found || sparse) {
-        if (record_no < 4 && mirr_valid_) {
+        /* N-001: the mirror serves whatever its $DATA runlist actually
+         * spans (og ReadFileRecord gate `param_1 <= this+0x70`) - not a
+         * hardcoded first-4-records window. Modern Windows mirrors span
+         * exactly 4 records; NT 3.x/4.0 and some third-party formatters
+         * mirror more. */
+        if (record_no < mirr_record_capacity_ && mirr_valid_) {
             u64 mlcn = 0;
             bool msparse = false;
             if (mirr_run_.vcn_to_lcn(vcn, &mlcn, &msparse) && !msparse)

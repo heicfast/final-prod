@@ -2047,3 +2047,29 @@ Work Log:
 Stage Summary:
 - M-001 FIXED: torn-DBR NTFS volumes (the product's primary scenario) are now attempted with
   a degraded-but-usable record size + remnant pass instead of refused whole.
+
+---
+Task ID: 7 (N-001 fix)
+Agent: main engineer (diff-to-fix remediation session)
+Task: MINOR N-001 — $MFTMirr fallback hardcoded records 0..3 vs runlist span
+
+Work Log:
+- Verified first-hand: InitMFTMirror runlist decode + span computation (:17411-17413) and the
+  ReadFileRecord gate `record <= this+0x70` (:17460). CONFIRMED-DIVERGENCE.
+- Fix: enum_mirr_attrs computes mirr_record_capacity_ from the $DATA runlist span (records =
+  span_bytes/record_size, cap 1024); read_record gates on it. First unnamed $DATA decides;
+  resident -> mirror invalid (og "$MFTMirror::$DATA is resident!" abort parity, :17378-17382).
+  Finding corrected in passing: the old code didn't just "leave mirr_valid_ false" on resident
+  content — it tried to decode the CONTENT as a runlist (fabricated-mapping risk); true og
+  semantics implemented.
+- Tests: MirrorCoversRunlistSize (16-cluster/8-record mirror + primary hole; record 5 — past
+  the old <4 window, inside the span — MUST be served; fails ERR_RANGE pre-fix, proven against
+  the M-001-only build), MirrorResidentDataRejected. Fixture quirks materialized explicitly
+  (mirror slots overlap the MFT tail; record-2 slot was a build-order zero placeholder — the
+  Q65 "mirror read path" test gap was real).
+- Suite 289/289 (Linux ASan). Audit trail: N-001 Resolution, ntfs.md C20/S35 rows, matrix,
+  SUMMARY remediation log.
+
+Stage Summary:
+- N-001 FIXED: legacy >4-record mirrors serve their full span; corrupt resident mirrors can no
+  longer fabricate mappings; modern 4-record mirrors unchanged.

@@ -2078,3 +2078,116 @@ TEST(NtfsVolume, RemnantReachableUnderTornDbr) {
             found = c;
     ASSERT_NE(found, nullptr) << "remnant sweep never ran / remnant lost";
 }
+
+/* ---- N-001: mirror service derives from the runlist span ---------------- */
+
+namespace {
+
+void put64le_at(u8* p, u64 v) {
+    for (int i = 0; i < 8; ++i)
+        p[i] = u8(v >> (8 * i));
+}
+
+/* patch record 1 ($MFTMirr)'s $DATA runlist in the MFT to a new single run */
+void patch_mirror_runlist(Image& img, u64 lcn, u64 clusters) {
+    u8* rec = img.sec(MFT_LCN + 2); /* record 1 */
+    /* $MFTMirr's attrs: $FILE_NAME ("$MFTMirr", 8 chars) then $DATA - the
+     * fixture builder computes the same layout every time; re-encode the
+     * runlist at the $DATA attribute's runlist offset (attr+0x40) */
+    u32 name_alen = (0x18 + 66 + 2 * 8 + 7) / 8 * 8; /* "$MFTMirr" = 8 chars */
+    u8* attr = rec + 0x38 + name_alen; /* $FILE_NAME precedes $DATA */
+    RunList rl;
+    rl.runs().push_back(DataRun{0, clusters, 0, lcn, false});
+    std::vector<u8> rle = rl.encode();
+    /* alen is (0x40 + 4 + 7)/8*8 = 72 -> the runlist area is 8 bytes; NEVER
+     * wipe past it (the attribute terminator sits at +0x48) */
+    std::memset(attr + 0x40, 0, 8);
+    std::memcpy(attr + 0x40, rle.data(), rle.size());
+    put64le_at(attr + 0x18, clusters - 1);          /* last_vcn */
+    put64le_at(attr + 0x28, clusters * CLUSTER);    /* allocated */
+}
+
+/* patch record 0 ($MFT)'s $DATA runlist to [data 4, sparse 60]: records at
+ * VCN >= 4 (record_no >= 2) fall to the mirror path */
+void patch_mft_runlist_with_hole(Image& img) {
+    u8* rec = img.sec(MFT_LCN); /* record 0 */
+    /* $MFT's attrs per the fixture: $FILE_NAME "$MFT" (4 chars) precedes
+     * the $DATA runlist attribute */
+    u32 name_alen = (0x18 + 66 + 2 * 4 + 7) / 8 * 8; /* "$MFT" = 4 chars */
+    u8* attr = rec + 0x38 + name_alen;
+    RunList rl;
+    rl.runs().push_back(DataRun{0, 4, 0, 4, false});
+    rl.runs().push_back(DataRun{4, 60, 0, 0, true});
+    std::vector<u8> rle = rl.encode();
+    ASSERT_LE(rle.size(), 8u); /* the runlist area (alen 72 - 0x40) */
+    std::memset(attr + 0x40, 0, 8);
+    std::memcpy(attr + 0x40, rle.data(), rle.size());
+    put64le_at(attr + 0x18, 63);                     /* last_vcn */
+    put64le_at(attr + 0x28, 64 * CLUSTER);           /* allocated */
+}
+
+} // namespace
+
+TEST(NtfsVolume, MirrorCoversRunlistSize) {
+    /* N-001: an 8-record mirror runlist must serve record 2 through the
+     * fallback when the primary $MFT has a hole there; the pre-fix
+     * hardcoded `record_no < 4` refused mirrors > 4 records (og
+     * ReadFileRecord gates on the runlist-derived this+0x70, :17460). */
+    Image img;
+    build_image(img);
+    patch_mirror_runlist(img, MIRR_LCN, 16); /* 16 clusters = 8 records @1024 */
+    /* the mirror loader reads the MIRROR-REGION copy of record 1 (mirror
+     * vcn 2 = sector 70), not the MFT original - write the patched record
+     * there (the fixture's mirror slots overlap the MFT tail; slot 1 held
+     * MFT record 32, which this test never reads). The fixture also leaves
+     * record 2's mirror slot as a build-order zero placeholder - fill it
+     * with the real record so the served copy carries a 'FILE' header. */
+    std::memcpy(img.sec(MIRR_LCN + 2), img.sec(MFT_LCN + 2), RECORD_SIZE);
+    std::memcpy(img.sec(MIRR_LCN + 4), img.sec(MFT_LCN + 4), RECORD_SIZE);
+    /* record 5's mirror slot (5*1024 bytes in = sector 78, inside the
+     * 16-cluster mirror span but past the fixture's 4-record region):
+     * THE discriminating record - the pre-fix hardcoded `record_no < 4`
+     * gate refused it even though the runlist covers 8 records */
+    std::memcpy(img.sec(MIRR_LCN + 10), img.sec(MFT_LCN + 4), RECORD_SIZE);
+    patch_mft_runlist_with_hole(img);
+    MemDevice dev(img.raw(), img.geom());
+    u32 err = 0;
+    auto vol = NtfsVolume::open(std::unique_ptr<IStorageDevice>(new MemDevice(dev)), &err);
+    ASSERT_NE(vol, nullptr) << "open err " << err_text(err);
+
+    std::vector<u8> rec;
+    ASSERT_EQ(OK, vol->read_record(2, rec)) << "record 2 not served from the span-sized mirror";
+    ASSERT_GE(rec.size(), 4u);
+    EXPECT_EQ(0, std::memcmp(rec.data(), "FILE", 4)) << "mirror copy mismatch";
+    /* THE N-001 assertion: record 5 is past the old hardcoded 4-record
+     * window but inside the runlist-derived span - must be served (the
+     * pre-fix code returned ERR_RANGE_OUT_OF_BOUNDS here) */
+    ASSERT_EQ(OK, vol->read_record(5, rec)) << "runlist span ignored: record 5 refused";
+    EXPECT_EQ(0, std::memcmp(rec.data(), "FILE", 4)) << "record 5 mirror copy mismatch";
+    /* the capacity gate still bounds service: record 9 is past the 8-record
+     * span (and the primary hole) - refused, not fabricated */
+    EXPECT_EQ(ERR_RANGE_OUT_OF_BOUNDS, vol->read_record(9, rec));
+}
+
+TEST(NtfsVolume, MirrorResidentDataRejected) {
+    /* og parity of the abort path (InitMFTMirror "$MFTMirror::$DATA is
+     * resident!" :17378-17382): a resident $DATA on the mirror record
+     * means the mirror is INVALID - never decode resident content as a
+     * runlist. The volume still opens (mirror is best-effort). */
+    Image img;
+    build_image(img);
+    {
+        u8* rec = img.sec(MFT_LCN + 2); /* record 1 = $MFTMirr */
+        u32 name_alen = (0x18 + 66 + 2 * 8 + 7) / 8 * 8;
+        u8* attr = rec + 0x38 + name_alen; /* the $DATA attribute */
+        attr[8] = 0;                      /* nonresident flag -> resident */
+    }
+    patch_mft_runlist_with_hole(img); /* primary hole forces the fallback */
+    MemDevice dev(img.raw(), img.geom());
+    u32 err = 0;
+    auto vol = NtfsVolume::open(std::unique_ptr<IStorageDevice>(new MemDevice(dev)), &err);
+    ASSERT_NE(vol, nullptr) << "volume must open regardless of mirror state";
+    std::vector<u8> rec;
+    EXPECT_EQ(ERR_RANGE_OUT_OF_BOUNDS, vol->read_record(2, rec))
+        << "resident mirror $DATA must never serve a fabricated mapping";
+}
