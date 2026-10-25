@@ -7880,3 +7880,29 @@ Stage Summary:
   collision/D-19 → N-070 overlap scoring → S-032 payload → N-067 upcase → N-075 query
   exports → N-073 catch-buffer.
 >>>>>>> 4a3f5d4 (diff-audit-s6 recon: multi-leg ID reconciliation — 3 convergent findings harvested into the landed S-031/S-032/N-059; 14 unique renamed (M-052, N-065..N-075, I-023/I-024); post-resolution corrections for the same-window fix wave (S-007 MPEG-family landed, S-024 0xD1 landed) — append-only, cross-refs scoped to session-6 sections only)
+---
+Task ID: CF-S031 (closing session)
+Agent: main engineer (diff-to-fix closing session)
+Task: S-031 — carved files never marked deleted: verify, classify, fix.
+
+Work Log:
+- Corpus re-verified first-hand: ifileproperties-part3--btrfs-zfs-raw-generic.md
+  SS3 field table — CRAWFileProperties FLAGS u16 = "constant 0x0020 for all
+  12,147 records (every carved file flagged deleted)"; the 0x20 bit is the
+  cross-format deleted-family flag (:16). CONFIRMED-DIVERGENCE.
+- Fix: set_deleted_state(Deleted) at BOTH cr_carve.cpp emit sites (grammar
+  :207-215 + raw-sign :370-375 — the finding's merged-tree second site
+  confirmed at HEAD). deleted_only queries + deleted_count now include the
+  carve population; session round-trips already carried the bit (the
+  producer side was the only hole).
+- Tests: 3 new, all fail-before proven on the carve-reverted build:
+  CarvedNodesAreDeleted (grammar layer + stats equality),
+  RawSignCarvedNodesAreDeleted (second site),
+  DeletedOnlyQueryIncludesCarvedFiles (product-level: the pre-fix
+  deleted-only view returned ZERO carved rows). Suite 491/491.
+
+Stage Summary:
+- S-031 FIXED; finding -> FIXED/ with Resolution; RESOLVED-INDEX row; matrix
+  carve row; modules/carve.md closing-session note; SUMMARY delta appended.
+  Remaining SEVERE at this instant: S-009 (claimed lane), S-029, S-030,
+  S-032 (unclaimed).
