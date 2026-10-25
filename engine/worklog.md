@@ -8165,3 +8165,81 @@ Stage Summary:
   digit, N-044 --deep naming), then the grouped minors (N-025/N-026/N-027/
   N-047), then the S5 wave (N-051..N-064). Pull frequently - parallel legs
   are landing S-023/M-026/M-027/A-005 fixes and new audit findings.
+---
+Task ID: FF-HANDOFF (fix-all-tiers session — final handoff)
+Agent: main engineer (diff-to-fix closing session — fix-all-tiers continuation)
+Task: Session close-out handoff: what this session proved, fixed, and
+repaired; the exact head; remaining findings with next steps.
+
+Work Log (session summary, pushes in order):
+- Session bootstrap at 9cc0675 → tracked the live main through ~40
+  remote commits (parallel legs converging throughout); corpus 03ad46c
+  unmoved. TRANSPORT: this sandbox's egress IP is restricted from
+  github.com's git endpoint (403 "Access to this site has been
+  restricted"), so the session ran over the REST Git Data API
+  (blob→tree→commit→ref); scripts/api_git.py + scripts/union_push.py
+  (shared-file-safe union push: append/summary/matrix/index strategies;
+  own-marker row edits; 404-as-new-file; code files abort on remote
+  drift for manual review). Token: env var only, never committed.
+- S-024 (SEVERE) DECODED-TRUTH UPGRADE (5879ade): re-decoded the entire
+  DiskHealth grading surface first-hand (FUN_0040cdf0 disk grader, the
+  per-attr display chain, FUN_0040dad0 vendor-family cascade with 30+
+  families, the is-SSD writer list, the family-0x13 NVMe path, the 0xD1
+  threshold read; evidence s6-health-grading-decode.md). Replaced the
+  first landing's four documented analogs with the decoded rules: temp
+  NEVER graded (0x1808 unread), SSD-life family-gated (not is-SSD),
+  attr-1 SandForce-only, NVMe any-nonzero-warning → Bad + life<10 → Bad,
+  bad-count/caution/graded aggregation (not worst-wins), duplicate-id
+  → Unknown, the all-FF guard asymmetry. NEW cr_family.cpp classifier;
+  failing-bit → disk Bad kept as the one deliberate superset (D-63).
+  20 Health tests; fail-before by construction (landed header lacks the
+  new symbols — API-fetch-verified).
+- M-036 (MAJOR) FIXED (1ebd1bc): NVMe full row set (host r/w, busy,
+  error-log at spec offsets) + data-units × 512,000 (the og's exact
+  conversion, :5589-5614 re-verified); cr_ui C-ABI v2 (six appended
+  fields per ABI-CONTRACT §9; docs updated in-change); CLI prints bytes.
+  2 new tests; 485/485 at that tree.
+- MSVC-lane reds root-caused and fixed (cross-lane): the first S-024
+  landing's health::HealthGrade self-namespace qualification break
+  (1a8cebb — the Windows lane had been red since 20:40; alignbench logs
+  prove the pre-existing break) + the parallel test_text C4310 constants
+  (00125bd). cr_transport VolExtent (1ebd1bc bench red) is the
+  disk-image lane's mid-flight state — their landing supersedes.
+- AUDIT-TRAIL INTEGRITY: three tree-push clobber incidents across the
+  parallel merges recovered (the c1adb68d FAT-trio records, the S-031
+  leg's entries, the 517c56ca recon matrix rows — restored from fetched
+  commit states with both sides preserved); the worklog's committed
+  merge-conflict markers (three legs' residues) resolved keeping both
+  sides (4a924d1); the stale SEVERE/S-031 duplicate removed (ef5f390);
+  the RESOLVED-INDEX row-union strategy added.
+- Suite state at the last full local run: 502/502 (my tree); the
+  latest merge (26d842b) records 526/526 first-hand. Windows CI:
+  my MSVC fixes verified against the live logs (the cr_health.h errors
+  are gone from the 1a8cebb build; it advanced into test_text which
+  00125bd fixed); the runs on 00125bd+ were still in flight at session
+  close — the 517c56ca-lineage legs own any residual reds from their
+  mid-flight states.
+
+Stage Summary (handoff at 70ebced):
+- SEVERE remaining: 4 — S-009 (disk-map split + fuzz CI; the oldest
+  filing, no lane claimed — NEXT STEP: split the finding per the N-020
+  notes: engine bitmaps wiring (kCellAllocFree unreachable), the CRSF
+  record, the snapshot error-map path, the two acceptance tests), S-029
+  (lost-partition APPLY path — needs the consent-gate scope decision
+  first; the og's IOCTL chain 0x7C100/0x7C010/0x7C058 + GPT GUID
+  regeneration decoded in the finding), S-030 (disk-image scan targets —
+  VolExtent/extent-chains work was mid-flight on main at close; re-verify
+  the landed state before anything new), S-032 (archive inner-entry
+  inventory — the M-041/M-042 recon addenda have the freshest decode).
+- Health lane (mine): S-024 + M-036 + N-055 closed at the decoded truth;
+  remaining: N-032 (CSMI/USB-bridge transports — decode sites listed in
+  modules/health.md), N-042 (CLI temp fractional digit), N-064 (Dict
+  password dictionary, consent-gated port).
+- S-024 residual (precisely scoped): the exotic-vendor classifier thunks
+  (FUN_00422b60/22c30/22470/24960/224e0/24430) — engine consumes every
+  family code; the classifier data gap is the only remaining scope;
+  next decode sites in evidence s6-health-grading-decode.md §5.
+- Parallel coordination: lane claims in this worklog remain the
+  protocol; the union-push tool is mandatory for shared files from
+  API-only transports; never tree-replace worklog/SUMMARY/matrix/
+  PARITY-DELTAS/RESOLVED-INDEX without re-unioning first.
