@@ -4175,3 +4175,57 @@ Stage Summary:
 - A-002 FIXED: every real GPT dynamic disk parses end-to-end again (LDM discovery
   restored); fabricated values now carry a permanent negative guard; the audit trail
   records the A-001 false-positive history truthfully. Suite 303/303.
+
+---
+Task ID: S3-CLOSE (session-3 diff-audit close-out)
+Agent: session-3 parity auditor (read-only continuation leg)
+Task: Session close-out — handoff record for the "go deeper, remove the fixed, mark the remainder" session.
+
+Work Log:
+- Bootstrap at core 34b3441 / corpus 03ad46c; prompt saved redacted; state reconciled
+  against both session-2 legs + the parallel s2-third-leg (2ce2e6b) that landed mid-session.
+- RETIRED (each verified first-hand, each with a Resolution addendum):
+  * S-010 (3e34ed2+414f56c+34b3441 — repair-path volume quiesce; stale SUMMARY row fixed)
+  * M-009 (7fd00e0 — RwDevice read path through the 64 KiB envelope)
+  * A-002 (7f2c83e — real Microsoft/og LDM GPT GUIDs; my INDEPENDENT og-binary scan of
+    LdmManager.mo/Partition.mo/MainModule.dll/RecoveryModule.dll found 0434cfb3/714a69ad
+    at 7 sites, converging with the third leg's evidence, the fix leg's own verification,
+    and the 6-source external table; tests de-self-referenced with negative guards)
+- NEW FINDINGS (7): S-015 SEVERE (raw_signs.json min/max are KiB in the og — max<<10,
+  default 0x7d000 KiB — vs bytes in the core: 1024x recall-window loss on all 139
+  raw-sign formats), M-022 (ReFS file-value grammar: og type@key+0, dual layout
+  {0x178 old / >=0x29 modern} gated on system-dir-count >= 8, $I recycle handler,
+  all-rows iteration vs core 0x80@key+8 first-match-break), M-023 (filter model:
+  8-cat/1481-ext runtime XML vs 7-cat/64-ext hard-coded; Email+Bookmarks missing),
+  N-030 (raw_signs confidence field dead in the og — parser consumes offset+hex only),
+  N-031 (carve dispatch: u32->u16->linear->sign-DB order decoded + sector stride +
+  zero-sector skip + only_common gate), N-032 (health: CSMI/USB-bridge transports),
+  I-012 (GAP-ADS RESOLVED — the og does not recover ReFS ADS either; core MATCH).
+- OQ-T8 RESOLVED (FUN_18000cf60 decode; disassembly-proven call order; the parallel
+  leg's convergent evidence block had u16/sweep swapped — corrected via append-only
+  addendum with the 0x18000d1e4/0x18000d2da/0x18000d2f3 call-site proof).
+  OQ-T9 verified as resolved by the s2-third-leg (M-017, 187-row log verification).
+- Corpus errata 19-21 filed (dispatch-order inversion; dead confidence field; KiB units).
+- Architectural verification: CPartitionVirtualVolumeDevice = the core IStorageDevice +
+  slice adapters (equivalent; devirtualized fast paths cited).
+- Coverage added this session: RAWSearchDLL raw_signs loader/parser/index/scan-loop/
+  dispatch (first deep decode in any session), ReFSSearchDLL file pipeline (first),
+  FileFilter.xml (first), diskhealth companion transports (first), plus convergence
+  reads of the s2-third-leg's M-017/FAT/exFAT work.
+- Cross-leg coordination: 3 rebase/pull cycles against active parallel legs (fix leg +
+  s2-third-leg + diff-fix-s3 leg); IDs renumbered past their S-012..S-014/N-023..N-029.
+
+Stage Summary:
+- Session-3 end state: 65 active (1 ACUTE: A-004 / 9 SEVERE / 18 MAJOR / 27 MINOR /
+  10 INFO) + 19 FIXED. Recommended fix order update: 1) A-004 (only ACUTE),
+  2) S-015 (raw-sign KiB units — one-generator fix, largest recall delta),
+  3) S-011 (exFAT tz, one line), 4) S-003 (HFS+ journal — evidence decoded),
+  5) S-006/S-007 (probe families / carve formats), then M-013 (exFAT dual-form
+  checksums), M-022 (ReFS grammar — start with the real-volume key-layout dump),
+  M-023 (filter table generation), M-016 (LDM TOCBLOCK), M-017 (lost-partition
+  scoring port), N-030/N-031/N-032 (raw-signs semantics decisions + health transports).
+- Honest not-completed-by-this-leg: M-022's key-offset reconciliation (needs one real
+  ReFS volume dump — open question in the finding), the $I/$R handler body decode
+  (FUN_18000ea30), ReFS quick-search dot-prefilter verdict (M-022 OQ-3), og-execution
+  benches for the raw-sign unit fix (S-015 acceptance), N-032's RST/USB hardware
+  verification.
