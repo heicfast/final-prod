@@ -66,8 +66,8 @@ Core (audited commit `67193b6`): `src/core/hfsplus/cr_hfsplus_engine.cpp` (680 L
 
 | ID | Severity | One-line |
 |---|---|---|
-| S-002 | SEVERE | Attributes B-tree (decmpfs/named forks) not walked |
-| S-003 | SEVERE | Journal not replayed (recent-state loss on crashed volumes) |
+| S-002 | SEVERE | Attributes B-tree (decmpfs/named forks) not walked — **FIXED `c9e8860` (session-2 verified)** |
+| S-003 | SEVERE | Journal not replayed (recent-state loss on crashed volumes) — mechanics decoded (evidence addendum `b85c084`), fix deferred |
 | N-005 | MINOR | Block-size bounds stricter than og gate |
 
 ## Open notes (no corpus basis for a finding)

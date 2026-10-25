@@ -5,7 +5,7 @@
 **Parameters affected:** A27 (fragment handling), B4 (grading via chain-end semantics), D15
 **Corpus references:** decompiled `re-workspace/reversed/ghidra-searchdll/FATSearchDLL_decompiled.c` :8030–8048 (agent-B verified); `re-workspace/artifacts/SearchDLL/fat-engine--deep-dive.md` §3
 **Core references:** `src/core/fat/cr_chain.cpp:95–127` (`FatTable::next`), `:166–170` (`follow_chain` bogus-pointer branch) — audited commit `67193b6`
-**Status:** READ-ONLY FINDING — no fix applied
+**Status:** CLOSED — FIXED in `fb44073` (verified independently by the session-2 audit: FATSearchDLL :8030-8048 mask-24 family re-read first-hand — `(DAT & 0xfffffff) == 0xffffff8` plus the 0x7fffff8 sub-family exactly as the fix models; core cr_chain.cpp :73-80 applies the og tolerance on the RAW entry before canonical tests; test Fat32EocMask24AndAlternateFamiliesEndClean green in the 313/313 ASan suite; see Resolution)
 
 ## Summary
 

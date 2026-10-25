@@ -65,3 +65,15 @@ fix commit + verification.
 - The 7 ACKNOWLEDGED informational findings stay in
   `findings/INFORMATIONAL/` — they are deliberate supersets, not bugs.
   Their pin tests live alongside the engine tests.
+
+## S-002 — HFS+ Attributes B-tree / decmpfs not walked
+
+**Severity (when open):** SEVERE · **Fix commit:** `c9e8860`
+**Independently verified:** session-2 second close-out leg — FUN_180009c10 re-read
+first-hand (tree-8 key search, keyLength `(nameLen+7)*2`, recordType 0x10 gate with
+"unsupported attribute node format" skip, value u64@+8); core walk_attributes_tree +
+kZlib codec extents confirmed in-tree; DecmpfsInlineAndRsrcContentRecovered /
+DecmpfsDisabledLeavesEmptyShell green in the 313/313 ASan suite.
+**Resolution:** attributes B-tree leaf-chain walk; decmpfs modes 3/4 emit codec-tagged
+extents the writer inflates at recovery time; named attributes surface as
+`..namedfork/<name>` children (D-46 superset registered).

@@ -7,6 +7,8 @@
 `FatEngine.Fat16BadClusterStillCanonical` failed against the current main, exposing a
 divergence the audit's FAT wave did not flag.
 
+**Status:** CLOSED — FIXED in `cb8dafd` (verified independently by the session-2 audit: FUN_180041c80 re-read first-hand at FATSearchDLL :54124-54137 — FAT12 0xfff7 returns the widened 0xffffff7 (out-of-range → chain BROKEN); core cr_chain.cpp :123-125 tests v == CHAIN_BAD before the reserved-range branch; Fat16BadClusterStillCanonical green in the 313/313 ASan suite; see Resolution)
+
 **Corpus references:** decompiled `re-workspace/reversed/ghidra-searchdll/FATSearchDLL_decompiled.c`
 :54125 (agent-B verified, B-fat sheet): the og's FAT16 `Next` canonicalizes
 `0xFFF7 -> 0xFFFFFF7` and `>= 0xFFF8 -> 0xFFFFFF8` — a BAD entry therefore reads back

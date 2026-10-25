@@ -5,7 +5,7 @@
 **Parameters affected:** B4 (grading), D15 (confidence grading model), B3 (false-positive/strictness)
 **Corpus references:** decompiled `re-workspace/reversed/ghidra-searchdll/exFATSearchDLL_decompiled.c` — agent-B search for ROL15/ROL31 accumulator patterns returned **no dentry-checksum loop** (verified absence, B-exfat.md §3.4); structural validation quote :1846–1875
 **Core references:** `src/core/exfat/cr_exfat_quick.cpp:303–311` (live-set checksum), `:407` (PartialRisk downgrade), `include/cr/exfat/cr_exfat_engine.h:70` (`validate_entry_sets = true` default) — audited commit `67193b6`
-**Status:** READ-ONLY FINDING — no fix applied
+**Status:** CLOSED — FIXED in `fb44073` (verified independently by the session-2 audit: ExfatScanFlags::validate_entry_sets default now false at include/cr/exfat/cr_exfat_engine.h:78 — og parity by default, honest strictness one explicit flag away (D-47 registered); tests SetChecksumMismatchGradesExcellentInOgProfile (default) + SetChecksumMismatchMarksDamaged (honest-mode pin) green in the 313/313 ASan suite; see Resolution)
 
 ## Summary
 

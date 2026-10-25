@@ -5,7 +5,7 @@
 **Parameters affected:** B1 (detection correctness — result-set membership), B5 (orphan reconstruction)
 **Corpus references:** `re-workspace/artifacts/SearchDLL/ntfs-engine-algorithms-v2--deleted-viability.md` §1 (filter line `name[0]=='$' → Release+skip`, decompile :21194, agent-B verified); `re-workspace/artifacts/CORRECTIONS.md` row 2 (FUN_180041970 = base-record test)
 **Core references:** `src/core/ntfs/cr_mftwalk.cpp:249–262` (`is_metafile_name` + rationale comment), `:585–643` (filter, $UsnJrnl capture, $Recycle.Bin mapping) — audited commit `67193b6`
-**Status:** READ-ONLY FINDING — no fix applied
+**Status:** ACKNOWLEDGED in `f74a5dd` (verified independently by the session-2 audit: blanket `$`-skip at FUN_18001acc0 :21186 re-read first-hand; pin test UserFileNamedDollarNotHidden green in 313/313 ASan; PARITY-DELTAS D-12; future work must PRESERVE this divergence)
 
 ## Summary
 

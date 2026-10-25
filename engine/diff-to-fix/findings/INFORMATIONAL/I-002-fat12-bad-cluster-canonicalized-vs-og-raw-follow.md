@@ -5,7 +5,7 @@
 **Parameters affected:** A27 (fragment handling), B2 (recovery correctness — length only)
 **Corpus references:** `re-workspace/artifacts/CORRECTIONS.md` row 3; decompiled `re-workspace/reversed/ghidra-searchdll/FATSearchDLL_decompiled.c` FAT12 `Next` :53790–53807 (agent-B verified: `if v == 0xFFF → return 0xFFFFFFFF; if 0xFF7 < v → return 0xFFFFFF8; return v;` — 0xFF7 falls through RAW)
 **Core references:** `src/core/fat/cr_chain.cpp:30–53` (FAT12 branch), `:160–165` (`follow_chain` `n == CHAIN_BAD → broken`), `src/core/fat/cr_fat_quick.cpp:30` (0x10000 guard, og-parity) — audited commit `67193b6`
-**Status:** READ-ONLY FINDING — no fix applied
+**Status:** ACKNOWLEDGED in `f74a5dd` (verified independently by the session-2 audit: CORRECTIONS row 3 + the raw-follow semantics confirmed; pin test Fat16BadClusterStillCanonical green (and it discovered N-010, now fixed); PARITY-DELTAS D-39; future work must PRESERVE the FAT12 delta)
 
 ## Summary
 

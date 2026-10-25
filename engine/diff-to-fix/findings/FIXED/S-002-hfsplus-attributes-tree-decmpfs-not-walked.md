@@ -5,7 +5,7 @@
 **Parameters affected:** B2 (recovery correctness — content of compressed files), B7 (named-fork/alternate-stream handling), A26 (tree walk — missing tree)
 **Corpus references:** `re-workspace/artifacts/SearchDLL/hfsplus-engine--deep-dive.md` :12, :42 (`CHFSPlusAttribute` — the Attributes B-tree (named forks/compression decmpfs support)); `re-workspace/artifacts/SearchDLL/remaining-engines--ext4-hfs-refs-btrfs-zfs.md` (HFS+ section: embedded hfspluslib `attribute.cpp`); decompiled `re-workspace/reversed/ghidra-searchdll/HFSPlusSearchDLL_decompiled.c` (665 functions incl. the attribute-tree walker family)
 **Core references:** `src/core/hfsplus/cr_hfsplus_engine.cpp` — `CNID_ATTRIBUTES_FILE = 8` defined at :43 and **never used** (grep: single occurrence); no attribute-tree walk exists — audited commit `67193b6`
-**Status:** READ-ONLY FINDING — no fix applied
+**Status:** CLOSED — FIXED in `c9e8860` (verified independently by the session-2 audit: FUN_180009c10 re-read first-hand at :7690-7859 — tree-8 key search via FUN_18000c3a0(lVar3,8,…), keyLength `(nameLen+7)*2` at :7771, recordType 0x10 gate at :7825 with the "unsupported attribute node format" skip, value u64@+8 at :7841; core walk_attributes_tree :365 + decmpfs resolution :685-729 + kZlib codec extents confirmed in-tree; tests DecmpfsInlineAndRsrcContentRecovered/DecmpfsDisabledLeavesEmptyShell green in the 313/313 ASan suite; see Resolution)
 
 ## Summary
 

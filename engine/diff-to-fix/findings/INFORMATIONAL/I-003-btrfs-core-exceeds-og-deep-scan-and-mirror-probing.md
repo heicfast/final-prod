@@ -5,7 +5,7 @@
 **Parameters affected:** B1 (detection — mirror rule), A25 (algorithm surface), Q68 (docs should register both)
 **Corpus references:** decompiled `re-workspace/reversed/ghidra-searchdll/BtrfsSearchDLL_decompiled.c` — `EUCreateBtrfsComplateSearcher` **is a NULL stub** (:11–19, agent-B verified: `*param_1 = 0; return;`); mirror-scan abort rule `if (lVar5 == 0) break` when the primary candidate's magic fails (:10320–10324, agent-B verified)
 **Core references:** `src/core/btrfs/cr_btrfs_engine.cpp:352–369` (mirror-select loop — probes **all** offsets unconditionally, `continue` on failed read/magic, newest-generation wins), full deep engine at `src/core/btrfs/` (799 LOC, 7 test areas) — audited commit `67193b6`
-**Status:** READ-ONLY FINDING — no fix applied
+**Status:** ACKNOWLEDGED in `f74a5dd` (verified independently by the session-2 audit: NULL-stub + mirror-abort decompiles (:11-19/:10320-10324) re-read from the finding's evidence and hold; existing pin Btrfs.MirrorSelectionNewestGeneration green; PARITY-DELTAS D-48a; future work must PRESERVE both supersets)
 
 ## Summary
 

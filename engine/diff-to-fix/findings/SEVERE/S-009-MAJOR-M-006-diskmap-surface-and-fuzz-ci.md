@@ -21,7 +21,7 @@ baseline: `grep -rn "disk.map\|bitmap_query\|IBuildVolumeBitmap" src/ include/` 
 implementation hits; `src/core/ntfs/cr_bitmap.cpp` loads $Bitmap for internal viability
 grading only; ABI-CONTRACT §7 documents the model as unimplemented — audited commit
 `67193b6`
-**Status:** READ-ONLY FINDING — no fix applied
+**Status:** SPLIT — M-006 CLOSED (FIXED in `e30b84d`; verified independently by the session-2 audit: the fuzz lane in .github/workflows/ci.yml is re-enabled at :147-160 with build+run+crash-corpus upload, only the codeql lane stays deferred with the rationale documented; see M-006 Resolution). S-009 (disk-map surface) remains OPEN — READ-ONLY FINDING, no fix applied
 
 **Summary.** The og renders a sector-grid disk map (allocated/free/bad/coverage/confidence
 per region) in the scan UI — the AnalysisGridWidget — fed by the engines'

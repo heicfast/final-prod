@@ -5,7 +5,7 @@
 **Parameters affected:** B2 (recovery correctness — salvage yield), B6 (damaged-volume behavior), A25 (algorithm steps), B3 (both directions)
 **Corpus references:** `re-workspace/artifacts/CORRECTIONS.md` row 6; decompiled `re-workspace/reversed/ghidra-searchdll/EXT4SearchDLL_decompiled.c` :12195–12310 (agent-B verified: jsb gate `bswap(u32@0)==0xC03B3998`, blocktype ∈ {3,4} at :12212, then **every block of the journal range feeds the directory-block parser**, 1 MiB windows, cancel per block, "GotJournalDir/TraverseJournalDir" traces)
 **Core references:** `src/core/ext4/cr_ext4_engine.cpp:639–830` (journal salvage; pass 1 collects descriptor tags → `Txn::data_blocks`, pass 2 parses **only** those blocks), `:666–681` (the D-07 re-pin comment that claims og-parity while describing the narrower surface) — audited commit `67193b6`
-**Status:** READ-ONLY FINDING — no fix applied
+**Status:** CLOSED — FIXED in `51ac671` (verified independently by the session-2 audit: the jsb loop re-read first-hand at EXT4SearchDLL :12195-12310 — bswap(u32@0)==0xc03b3998 magic at :12205, blocktype {3,4} at :12211-12213, 1 MiB window count `(end+0xFFFFF)>>0x14` at :12219, `0x100000/blocksize` iterations with per-block cancel at :12238-12244; core jsb gate :756 + every-block parse :667 confirmed in-tree; tests JournalUnreferencedDirBlockSalvaged/JournalFirstBlockNotJsbNoSalvage green in the 313/313 ASan suite; see Resolution)
 
 ## Summary
 

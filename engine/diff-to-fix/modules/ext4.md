@@ -68,7 +68,7 @@ Core (audited commit `67193b6`): `src/core/ext4/cr_ext4_engine.cpp` (851 LOC) +
 
 | ID | Severity | One-line |
 |---|---|---|
-| S-004 | SEVERE | Journal salvage: descriptor-referenced only vs og every-block (+ jsb gate direction) |
+| S-004 | SEVERE | Journal salvage: descriptor-referenced only vs og every-block (+ jsb gate direction) — **FIXED `51ac671` (session-2 verified)** |
 | S-005 | SEVERE | Names byte-lifted → mojibake (cross-engine, filed here for ext4) — **FIXED (diff-to-fix session)** |
 | N-004 | MINOR | CatchBuffer backtrack lives in transport layer, not in-engine |
 

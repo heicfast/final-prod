@@ -5,7 +5,7 @@
 **Parameters affected:** B10 (filename/Unicode handling), D11 (node fields), D13 (report schema — name correctness)
 **Corpus references:** `re-workspace/artifacts/SaveScan/rsf-format--scan-session.md` :326 — "char name[name_len] (buffer at node+0x1D8; **UTF-8**, reader null-terminates)"; agent-E PE import census (`scratch/probes/`): EXT4SearchDLL imports **no** MultiByteToWideChar/WideCharToMultiByte (passthrough of on-disk UTF-8 bytes)
 **Core references:** `src/core/ext4/cr_ext4_engine.cpp:400–403` (`for i in name_len: u16 c = p[off+8+i]; de.name.push_back(c)`), `src/core/btrfs/cr_btrfs_engine.cpp:708–709` (`de.name.push_back(u16(di[DI_NAME + i]))`), `src/core/zfs/cr_zfs_engine.cpp:1291–1292` (`for (char ch : e.name) p->name.push_back(u16(u8(ch)))`) — audited commit `67193b6`
-**Status:** CLOSED — FIXED in `2f3237d` for valid UTF-8 (session-2 audit verified); residual invalid-UTF-8 edge divergence tracked as S-010 (invalid-name fidelity: og EXT4/Btrfs pass raw bytes to .rsf, core bakes U+FFFD; og ZFS converts via MultiByteToWideChar(CP_UTF8) in FUN_18001c630)
+**Status:** CLOSED — FIXED in `2f3237d` for valid UTF-8 (session-2 audit verified); residual invalid-UTF-8 edge divergence split out and filed as **M-010** (invalid-name fidelity: og EXT4/Btrfs pass raw bytes to .rsf, core bakes U+FFFD; og ZFS converts via MultiByteToWideChar(CP_UTF8, flags 0) in FUN_18001c630 — the ZFS edge is parity, verified first-hand this session)
 
 ## Summary
 
