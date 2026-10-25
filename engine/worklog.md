@@ -5836,3 +5836,61 @@ Work Log:
 Stage Summary:
 - main restored to green locally on every lane this container can run; CI will confirm
   (windows needs the runner). The remaining CI-red commits in history pre-date the fixes.
+
+---
+Task ID: DF-HANDOFF (diff-to-fix session handoff)
+Agent: main engineer (diff-to-fix fix session)
+Task: Session close-out — exact commits, remaining items with rationale, next steps.
+
+Session arc (this leg):
+- Bootstrap at core e6d5b01 (suite 305/305 baseline); re-baselined twice through
+  parallel-session merges (597a9c6 → d374064/831dd4c), final tree 379/379 default +
+  379/379 ASan detect_leaks=1.
+- S-011 (SEVERE, tz): convergent re-verification of the parallel-landed fix + TWO
+  additions: (a) the host-dependence analysis error CORRECTED in D-49 and the finding
+  (DosDateTimeToFileTime performs no TZ conversion - Wine conformance-pinned; the og's
+  store is byte-deterministic local-as-UTC, so the fix yields EXACT cross-host parity);
+  (b) the west-offset (negative two's-complement) pin the landed tests lacked.
+  Commit 4fe9bff.
+- S-012 (SEVERE, two-pass NTFS): full implementation - destroy_fully_overwritten
+  default flipped (S-001 scope correction), pass-1 claim map, GUID-dump pass 2 (og's
+  exact stride/gates/destroy rules incl. size<=0x3ff, all-run-starts-claimed, folders
+  exempt, pseudo-# dedup), size-0 rescue (mirror-first read_record_mirror + post-walk
+  same-name merge, 0x800 skip). 5 tests, 4 fail-before proven. D-51 registered.
+  Commit 5f1a212 (+ e7deda8 leak fix by the parallel leg - my emit missed the
+  caller-held release; their trace caught it).
+- S-022 (SEVERE, INDX second source): D-N scope ruling re-decided on the resolved
+  UNVERIFIED-7 evidence; INDX-block validator/chain/entry harvest + $INDEX_ROOT
+  feeder in the remnant path (in-use only, never slack; 8 KiB window overlap); A26
+  module premise corrected. 4 tests, 3 fail-before proven. Commit cdd340b.
+- CI green restore: clang-format-18 sweep (6 files, both legs' edits), MSVC C4244
+  cast in the N-010b gate call, LSan verification of the leak fix. Commit 488c2e7.
+- Process notes: local ASan must run with detect_leaks=1 (this session masked the
+  S-012 leak with =0 - the CI lane and the parallel leg caught it); shell cwd resets
+  between tool calls (absolute paths / git -C everywhere); bulk test-fixture value
+  writes must re-stamp USA sector tails.
+
+State at close (488c2e7):
+- Suite: 379/379 Linux default, 379/379 Linux ASan (leaks ON), 16/16 cr_ui_tests,
+  ABI check OK. CI: linux/linux-tsan/fuzz/lint green at 488c2e7 (windows pending
+  runner confirmation - the C4244 fix + bitlocker include fix are in).
+- SEVERE remaining (5): S-003 + S-021 (the HFS+ journal pair - mechanics decoded in
+  the findings + b85c084 evidence; the largest remaining correctness gap), S-007
+  (carve formats - use the WAVE-1-CORRECTED evidence: CEPS not dBase, OneNote not
+  LZH), S-009-remainder (typed-event disk-map + filter cats; split tracked in N-020),
+  S-020 (ReFS attribute layer - resident/inline + multi-stream).
+- MAJOR wave mostly open (M-002, M-005, M-007, M-008, M-010, M-011..M-027 - several
+  touched by parallel legs; re-read each finding against current main first).
+- MINOR/INFO/OQ waves open; N-020's S-009/M-006 file split still pending.
+
+Next concrete steps (recommended order for the next leg):
+1. S-012 step-2 polish (optional): the in-walk strict same-name merge is decoded but
+   unreplicated (relaxed post-walk pass is the dominant og path) - only if a corpus
+   fixture demands it.
+2. S-003/S-021 - HFS+ journal pair (differential salvage first; the decode is in the
+   findings; JournalInfoBlock gate magic 0x4A4E4C78 LE + endian marker).
+3. S-007 carve formats (corrected evidence first).
+4. S-020 ReFS attribute layer.
+5. S-009-remainder + N-020 split.
+6. MAJOR wave in M-number order (re-verify each against current main - parallel legs
+   are landing fixes continuously; pull before every finding).
