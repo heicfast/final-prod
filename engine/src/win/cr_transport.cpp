@@ -807,7 +807,11 @@ public:
             return ERR_OPEN_FAILED;
         if (off > size() || len > size() - off)
             return ERR_RANGE_OUT_OF_BOUNDS;
-        return overlapped_read(h_, off, buf, len, via_rda_);
+        /* M-009 (GAP-S6-13 mandate): route through the 64 KiB direct-I/O
+         * envelope exactly like the scan-path devices (DirectDevice,
+         * RdaTargetDevice) - the repair path must not be the one direct
+         * read surface that bypasses it. */
+        return aligned_read_at(h_, off, buf, len, geom_, via_rda_, size());
     }
 
     u32 write_at(u64 off, const void* buf, u32 len) override {

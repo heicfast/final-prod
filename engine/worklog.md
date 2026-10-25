@@ -3796,3 +3796,28 @@ Stage Summary:
 - Session-3 scope locked: reconcile fixed findings, then six deep passes (raw-signs
   decode, OQ-T8, OQ-T9, ReFS, CPartitionVirtualVolumeDevice, filter/health), then
   consolidation + push waves.
+
+Task ID: 9-a (M-009 fix — this leg)
+Agent: main engineer (diff-to-fix remediation, second parallel leg)
+Task: MAJOR M-009 — RwDevice read path bypasses the 64 KiB direct-I/O envelope
+
+Work Log:
+- Re-verified first-hand: RwDevice::read_at called overlapped_read directly while both
+  scan-path devices route through aligned_read_at; the GAP-S6-13 mandate
+  (cr_directalign.h) requires every direct read path to round up to 64 KiB multiples.
+  CONFIRMED-DIVERGENCE (perf-only, correctness unaffected).
+- Fix (one line + comment): RwDevice::read_at -> aligned_read_at(h_, off, buf, len,
+  geom_, via_rda_, size()) - identical routing to DirectDevice/RdaTargetDevice; the
+  previously-unused via_rda_ flag now carries the F11 unscale semantics on the RDA
+  branch. Byte-identical RMW semantics (covered by the existing transactional tests).
+- Verification: structural routing parity (the exact envelope call the scan devices
+  make), envelope unit tests (test_directalign.cpp), full suite 317/317 Linux ASan;
+  Windows CI compiles/runs the routed path (PE gate intact). Executed 4Kn before/after
+  numbers not producible here (no Windows/4Kn host) - recorded honestly in the
+  Resolution; the bench harness is the vehicle, per the finding's own reproduction note.
+- Audit trail: M-009 moved to findings/FIXED/ with Resolution; module file, matrix X
+  cell (M-009 fixed), SUMMARY remediation row.
+
+Stage Summary:
+- M-009 FIXED: every direct read path in the core now routes through the 64 KiB
+  envelope - the GAP-S6-13 mandate holds repo-wide.

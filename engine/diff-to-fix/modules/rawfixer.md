@@ -82,7 +82,7 @@ WIRING gap; session 2 covers the SAFETY + PERF gaps on the write path):
 | ID | Severity | One-line |
 |---|---|---|
 | S-010 | SEVERE | Repair-path volume lock missing (FSCTL_LOCK_VOLUME + FSCTL_DISMOUNT_VOLUME) — **FIXED** |
-| M-009 | MAJOR | RawFixer read path bypasses the 64 KiB direct-I/O envelope |
+| M-009 | MAJOR | RawFixer read path bypasses the 64 KiB direct-I/O envelope — **FIXED** |
 | OQ-S2C-3 | open question | Og's pre-scan RawFixer consent UX (auto vs prompted) |
 
 ### Continuation-leg addendum (A-003, offset-basis unification)

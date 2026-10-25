@@ -217,3 +217,28 @@ not. The scan-path devices do.
   irrelevant: RawFixer runs once before scan, not on the hot path —
   performance impact is minor. The MAJOR finding stands regardless:
   core's RawFixer bypasses its OWN 64 KiB envelope mandate.
+
+## Resolution
+
+**Status:** FIXED
+**Fixed in commit:** (this commit; see `git log` for the M-009 fix on main)
+**Verified by:** routing parity is structural: `RwDevice::read_at` now calls the exact
+`aligned_read_at(h_, off, buf, len, geom_, via_rda_, size())` envelope the two scan-path
+devices call (cr_transport.cpp DirectDevice :218 / RdaTargetDevice :268); the envelope
+itself is covered by `test_directalign.cpp` (io::direct_envelope unit vectors, GAP-S6-13)
+and the repair consumers by the full RawFixer suite (24 areas, 317/317 Linux ASan;
+Windows CI compiles and runs the routed path under MSVC /W4 /WX with the PE gate intact).
+Executed 4Kn before/after numbers are NOT producible in this environment (no
+Windows/4Kn-hardware host - the finding's own reproduction section records the same
+limitation; the ~3.5x slow-path ratio is the GAP-S6-13 mandate's documented measurement
+of exactly this envelope on equivalent hardware, and the same ratio applies to the repair
+path by construction). The bench harness remains the vehicle for the executed comparison.
+
+**Resolution notes:** CONFIRMED-DIVERGENCE (the bypass was explicit in the source; the
+GAP-S6-13 mandate text was re-read first-hand). One-line routing fix, no architectural
+change (the finding's fix plan step 2 verbatim): `RwDevice::read_at` routes through
+`aligned_read_at` with its probed geometry and the RDA scale flag - non-RDA reads round up
+to 64 KiB multiples clamped at the device end; the RDA branch keeps the sector-aligned
+F11 unscale semantics. The previously-unused-in-read `via_rda_` flag now carries real
+meaning. No behavior change beyond I/O sizing: the RMW loop's semantics (snapshot, write,
+read-back verify) are byte-identical, covered by the existing transactional tests.
