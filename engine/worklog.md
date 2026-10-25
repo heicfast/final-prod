@@ -10030,6 +10030,7 @@ Stage Summary:
   remain. Next: N-029a maximal-subpart, N-056, N-063, N-062.
 
 ---
+---
 Task ID: DFX11-M008 (session 11, finding 3)
 Agent: main engineer (diff-to-fix fix session 11 — DFX11)
 Task: M-008 — the attrlist chase depth model. Verified, classified
@@ -10201,3 +10202,45 @@ Stage Summary:
 - T13 CLOSED: INFO tier 22/22 re-verified on the current tree with one
   missing pin landed. DFX14 tally: 9 finding-level resolutions
   (N-073, M-029 fold, clobber repair x4, M-005, I-006 pin) + this pass.
+
+  (N-073, M-029 fold, clobber repair x4, M-005, I-006 pin) + this pass.
+
+---
+Task ID: DFX12-T6 (text-policy batch — N-016a, the first half of the N-029 group)
+Agent: main engineer (diff-to-fix minors-first session 12)
+Task: Adopt the maximal-subpart replacement policy in text::utf8_to_u16
+(the og's restore-path semantics), with the group's second half
+(N-016b session raw-name persistence) left precisely scoped.
+
+Work Log:
+- Impact survey first: the engine tests that touch the decoder
+  (ext4/Btrfs/ZFS NonAscii, Btrfs Latin-1 lossless) pin no multi-byte
+  invalid runs - only test_text.cpp's policy tests carried the old
+  per-byte expectations; M-010's lossless mapping is a separate function
+  (untouched).
+- cr_text.h: utf8_to_u16 rewritten to the maximal-subpart policy (RFC
+  3629 §3.1 = MultiByteToWideChar(CP_UTF8, flags=0), the og's
+  restore-path conversion at DRWUI :264664-694/:357529). Truncated/
+  interrupted sequences consume lead + the continuations that extended
+  them (ONE FFFD); fully-read invalid sequences consume all (ONE FFFD);
+  C0/C1 excluded at lead classification per RFC 3629 (their
+  continuations surface as their own single-byte subparts).
+- Tests: Text.MaximalSubpartReplacement added (the finding's named
+  vectors: E6 96 x -> FFFD x; F0 80 80 80 y -> FFFD y; truncated tails;
+  continuation-only runs; mixed FFFD + valid CJK); the four policy tests
+  re-pinned to the maximal-subpart counts (E0 80 80 / F0 80 80 80 /
+  ED A0 80 / ED BF BF / F4 90 80 80 -> ONE FFFD each; E7 85 / F0 9F ->
+  ONE FFFD; C0 80 / C1 BF -> two, pinned unchanged).
+- Fail-before executed: stash-isolated pre-fix decoder, 4/5 RED; post-fix
+  suite 594/594 linux-release.
+- N-016b remains open (the og's .rsf keeps ORIGINAL on-disk bytes,
+  substitution at display; our .crsf stores the decoded name): the
+  versioned name_raw field + Session.RawNameRoundtrip +
+  Writer.InvalidUtf8NameRestoredFromRaw tests are the recorded next
+  step in N-029's Resolution; the group file stays in MINOR/ (partial
+  resolution - the N-009/N-036 convention).
+
+Stage Summary:
+- Session unique resolutions: 10 + N-016a (partial group). MINOR 42
+  remain (N-029 stays for its N-016b half). Next: N-062 (memory monitor),
+  N-056 (temp leak), N-063 (naming), or the grouped minors N-025/N-026.
