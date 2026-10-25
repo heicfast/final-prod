@@ -81,10 +81,15 @@ dedup), GAP-S6-13 (64 KiB transport envelope).
 ## Session-2 update (2026-10-25, core `e93decf`)
 
 **Verdict changes (post-closeout commits 56cce87/e93decf were never session-1-audited):**
-- **A-004 (ACUTE, new):** `emit_boundary_events_` guards on the live sink but delivers
-  ErrorRange through `cfg_.event_fn` (`cr_scan.cpp:309` vs `:340`) — latent null-call crash
-  on the documented `set_event_sink` pattern; in-tree `cr_ui` shim masks it.
-- **N-014a filed:** duplicate boundary emission at scan teardown (`:577-578`).
+- **A-004 (ACUTE, new) — FIXED (session 3):** `emit_boundary_events_` guarded on the
+  live sink but delivered ErrorRange through `cfg_.event_fn` — null-call crash on the
+  documented `set_event_sink` pattern, mis-delivery when both sinks differ. FIXED:
+  live-sink delivery + two ScanEvents tests. **S-016 (SEVERE, session-3 discovery,
+  fixed in the same commit):** the snapshot error map was fed only after the boundary
+  emitters, so the ErrorRange stream never fired in any scan (A-004's crash was latent
+  behind it); `tel_counts_` now feeds the live pipe map before every emit.
+- **N-014a filed (open):** duplicate boundary emission at scan teardown — also tracked
+  by the parallel leg as N-016 (the `stamp()` :647-648 pair); one MINOR fix pending.
 - **M-018 filed:** og's default junk filter (FilterFolder.ini family, PushFolderFilter
   wiring) has no core counterpart and was never registered.
 - **M-017:** og candidate scoring lives in DRWUI (content-driven) — orchestration-level

@@ -255,6 +255,18 @@ void ScanController::tel_counts_(const ScanStats& stats, const CancelToken* canc
     tel_.snap.lost_partitions = stats.lost_partitions;
     tel_.snap.bytes_scanned = stats.bytes_scanned;
     tel_.snap.paused = cancel ? cancel->paused() : false;
+    /* S-016: feed the LIVE retry-pipe error map into the snapshot at every
+     * stage-boundary count refresh - this runs immediately BEFORE every
+     * emit_boundary_events_ call site (stamp + the three stage ends), and
+     * those emitters read tel_.snap.errors. Before this, the snapshot's
+     * error map was only merged in stamp()'s finalize block AFTER the
+     * boundary emits - so the ErrorRange event could never fire mid-run
+     * (count was always 0 at every emit point) and the documented error
+     * delta stream was dead. ReadErrorMap::add normalizes (absorbs
+     * touching/overlapping runs), so re-merging the same pipe state is
+     * idempotent; the count only grows when new failures are recorded. */
+    if (RetryingDevice* rd = tel_retry_.load(std::memory_order_acquire))
+        tel_.snap.errors.merge(rd->error_map_copy());
 }
 
 /* ---- typed event stream (GAP-S6-10; ABI-CONTRACT.md section 6) ----
@@ -337,7 +349,14 @@ void ScanController::emit_boundary_events_(u32 stage) const {
             }
             e.err_start_bytes = newest_start;
             e.err_len_bytes = newest_len;
-            cfg_.event_fn(e, cfg_.event_user);
+            /* A-004: deliver through the LIVE sink (set_event_sink's
+             * event_fn_/event_user_), like every other event type - the
+             * config copy is only the ctor seed and is never updated by
+             * set_event_sink. The previous cfg_.event_fn delivery was a
+             * null-call crash on the documented post-construction
+             * subscription pattern (ScanConfig{} + set_event_sink) and a
+             * silent mis-delivery when both sinks differ. */
+            event_fn_(e, event_user_);
         }
     }
 }

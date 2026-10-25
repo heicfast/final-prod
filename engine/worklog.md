@@ -4177,6 +4177,7 @@ Stage Summary:
   records the A-001 false-positive history truthfully. Suite 303/303.
 
 ---
+<<<<<<< HEAD
 Task ID: S3-CLOSE (session-3 diff-audit close-out)
 Agent: session-3 parity auditor (read-only continuation leg)
 Task: Session close-out — handoff record for the "go deeper, remove the fixed, mark the remainder" session.
@@ -4229,3 +4230,44 @@ Stage Summary:
   (FUN_18000ea30), ReFS quick-search dot-prefilter verdict (M-022 OQ-3), og-execution
   benches for the raw-sign unit fix (S-015 acceptance), N-032's RST/USB hardware
   verification.
+=======
+Task ID: DF3-T3 (A-004 + S-016)
+Task: ACUTE A-004 — ErrorRange delivered through the config sink (null-call crash /
+mis-delivery); DISCOVERED during the fail-before proof: S-016 — the ErrorRange event
+stream never fired at all (snapshot error map fed after the emitters). Both fixed in
+one commit (one delivery path, each defect is the prerequisite of the other's symptom).
+
+Work Log:
+- A-004 verified first-hand at 7f2c83e: guard on event_fn_ (cr_scan.cpp:310) vs delivery
+  cfg_.event_fn (:340); ctor seed :76-77/:90-91; set_event_sink :126-131; grep-audit of
+  all cfg_.event reads = ctor seeds + cr_ui shim's pre-construction config write are the
+  only legitimate ones; :340 the sole wrong-sink call.
+- Fail-before test authored (ScanEvents.ErrorRangeGoesToLiveSink): FAILED with ZERO
+  ErrorRange events, not the expected crash - the branch was unreachable.
+- Root-cause chain probed with a session-local harness (FAT16 + one deterministically
+  failing sector inside the FAT2 span, wholesale-read by FatTable::load cr_chain.cpp:100):
+  stats.errors carried exactly one range (off=15360 len=512, rc=0) yet no event fired.
+  Code walk: tel_.snap.errors merged ONLY inside stamp()'s finalize block (:656) which
+  runs AFTER the boundary emits (:647-648), and the stage-end emits (:722/:1085/:1139)
+  read the same never-fed snapshot -> count==0 at every emit -> delta gate never opened
+  -> ErrorRange dead since the event stream's introduction (56cce87). S-016 filed
+  (SEVERE; missing documented ABI-CONTRACT.md §6 error-delta stream; og surfaces the
+  same state mid-run via BadSectorTip FB-O03).
+- Fix: (1) tel_counts_ live-merges the retry pipe's error map into tel_.snap.errors
+  under the telemetry lock (same error_map_copy() merge telemetry() performs; common
+  ancestor of every boundary-emit call site; idempotent under ReadErrorMap
+  normalization). (2) emit_boundary_events_ delivers through event_fn_(e, event_user_).
+- Second test added (ScanEvents.SinkSwitchDeliversAllTypes): config sink A +
+  set_event_sink(B) - ALL types incl. ErrorRange at B only, A receives nothing.
+- Pass-after: 2/2 green; full suite 305/305 Linux ASan (303 + 2 net-new).
+- Audit trail in-commit: A-004 Resolution + FIXED/ move; S-016 filed with full evidence
+  (probe numbers, code cites) + FIXED/ move; RESOLVED-INDEX rows (count 15);
+  CROSS-REF-MATRIX orchestrator O38/P42/R56 row -> both FIXED; SUMMARY remediation row;
+  modules/orchestration.md bullets updated; N-016/N-014a noted as still-open MINORs.
+- Probe harness removed after use (diagnostic only; never committed).
+
+Stage Summary:
+- A-004 FIXED + S-016 (new, discovered+fixed) CLOSED: the ErrorRange event stream is
+  live for the first time, delivered to the right sink, pinned by two tests. ACUTE tier
+  is now EMPTY (A-002, A-004 both closed this session). Suite 305/305.
+>>>>>>> 49c89ea (fix: A-004 + S-016 - ErrorRange event: live-sink delivery + feed the snapshot error map before every boundary emit)

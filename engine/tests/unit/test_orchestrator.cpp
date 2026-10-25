@@ -618,3 +618,115 @@ TEST(Orchestrator, PreScanRepairWithoutHooksNeverWrites) {
 }
 
 } // namespace
+
+/* ---- A-004: ErrorRange must fire through the LIVE sink (set_event_sink),
+ * not the config copy (null-call crash / mis-delivery before the fix) ----- */
+
+namespace {
+
+/* device wrapper that fails every read touching [fail_lba, fail_lba+1).
+ * FatTable::load reads BOTH FAT copies wholesale (cr_chain.cpp:94/:100),
+ * so a failing sector inside the FAT2 span is deterministically read;
+ * the retry pipe isolates it to 512 bytes, zero-fills (Skip mode), and the
+ * boundary emitter fires an ErrorRange event for the recorded span. The
+ * healthy primary FAT keeps the walk itself green. */
+class FailingSectorDevice final : public IStorageDevice {
+public:
+    FailingSectorDevice(std::vector<u8> b, u64 fail_lba)
+        : data_(std::move(b)), fail_off_(fail_lba * 512) {
+        geom_.logical_sector = 512;
+        geom_.physical_sector = 512;
+        geom_.sector_count = data_.size() / 512;
+        geom_.total_bytes = data_.size();
+    }
+    u32 read_at(u64 off, void* buf, u32 len) override {
+        if (off > data_.size() || len > data_.size() - off)
+            return ERR_RANGE_OUT_OF_BOUNDS;
+        if (off < fail_off_ + 512 && off + len > fail_off_)
+            return ERR_READ_FAILED;
+        std::memcpy(buf, data_.data() + off, len);
+        return OK;
+    }
+    const Geometry& geometry() const override { return geom_; }
+
+private:
+    std::vector<u8> data_;
+    u64 fail_off_;
+    Geometry geom_;
+};
+
+/* event recorder: counts per type + last ErrorRange payload */
+struct EventRecorder {
+    std::vector<event::Type> seen;
+    u64 last_err_start = 0, last_err_len = 0;
+    u32 max_error_ranges = 0;
+    static void on_evt(const event::Event& e, void* user) {
+        auto* r = static_cast<EventRecorder*>(user);
+        r->seen.push_back(e.type);
+        if (e.type == event::Type::ErrorRange) {
+            r->last_err_start = e.err_start_bytes;
+            r->last_err_len = e.err_len_bytes;
+            r->max_error_ranges = std::max(r->max_error_ranges, e.error_ranges);
+        }
+    }
+    bool has(event::Type t) const {
+        return std::find(seen.begin(), seen.end(), t) != seen.end();
+    }
+};
+
+} // namespace
+
+TEST(ScanEvents, ErrorRangeGoesToLiveSink) {
+    /* the documented embedder pattern: ScanConfig carries NO event fn;
+     * subscription happens post-construction via set_event_sink (the
+     * GAP-S6-10 resume flow). Before the A-004 fix the guard passed on the
+     * live sink but ErrorRange was invoked through cfg_.event_fn (null) -
+     * a null function-pointer call mid-scan; with the fix the event
+     * arrives at the live sink and the scan completes. */
+    FailingSectorDevice dev(build_fat16(), 30); /* sector 30: FAT2 span, away from the used low-cluster entries */
+    tree::ResultTree tree;
+    ScanConfig cfg; /* event_fn null by default */
+    cfg.run_quick = true;
+    cfg.run_deep = true;
+    cfg.run_carve = false;
+    cfg.whole_disk = false;
+    ScanController ctrl(tree, cfg);
+    EventRecorder rec;
+    ASSERT_EQ(OK, ctrl.set_event_sink(&EventRecorder::on_evt, &rec));
+    ScanStats stats;
+    ASSERT_EQ(OK, ctrl.run(&dev, nullptr, nullptr, nullptr, stats));
+    /* the isolated failing sector produced at least one ErrorRange event,
+     * delivered to the live sink with the recorded span payload */
+    ASSERT_TRUE(rec.has(event::Type::ErrorRange));
+    EXPECT_EQ(30u * 512u, rec.last_err_start);
+    EXPECT_EQ(512u, rec.last_err_len);
+    EXPECT_GE(rec.max_error_ranges, 1u);
+}
+
+TEST(ScanEvents, SinkSwitchDeliversAllTypes) {
+    /* contract: after set_event_sink(B), EVERY event type - including
+     * ErrorRange - arrives at B only; the config sink A receives nothing.
+     * Before the A-004 fix ErrorRange mis-delivered to A. */
+    FailingSectorDevice dev(build_fat16(), 30); /* sector 30: FAT2 span, away from the used low-cluster entries */
+    tree::ResultTree tree;
+    ScanConfig cfg; /* A: the config seed */
+    cfg.run_quick = true;
+    cfg.run_deep = true;
+    cfg.run_carve = false;
+    cfg.whole_disk = false;
+    EventRecorder a, b;
+    cfg.event_fn = &EventRecorder::on_evt;
+    cfg.event_user = &a;
+    ScanController ctrl(tree, cfg);
+    ASSERT_EQ(OK, ctrl.set_event_sink(&EventRecorder::on_evt, &b));
+    ScanStats stats;
+    ASSERT_EQ(OK, ctrl.run(&dev, nullptr, nullptr, nullptr, stats));
+    /* every type the run produces went to the LIVE sink B */
+    EXPECT_TRUE(b.has(event::Type::ScanStage));
+    EXPECT_TRUE(b.has(event::Type::ScanProgress));
+    EXPECT_TRUE(b.has(event::Type::FilesFound));
+    ASSERT_TRUE(b.has(event::Type::ErrorRange));
+    EXPECT_EQ(30u * 512u, b.last_err_start);
+    /* the superseded config sink A received NOTHING */
+    EXPECT_TRUE(a.seen.empty());
+}
