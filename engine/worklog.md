@@ -8110,8 +8110,6 @@ Stage Summary:
 - Session open. Baseline c231f2f+ef5f390 + corpus 03ad46c recorded; suite 500/500 green.
 - Fix order: S-031 timestamp residual -> S-032 -> S-009 -> S-030 -> S-029 ->
   MAJOR tier (selection by impact/tractability) -> MINOR batches.
-<<<<<<< HEAD
-=======
 
 
 ---
@@ -8167,4 +8165,3 @@ Stage Summary:
   digit, N-044 --deep naming), then the grouped minors (N-025/N-026/N-027/
   N-047), then the S5 wave (N-051..N-064). Pull frequently - parallel legs
   are landing S-023/M-026/M-027/A-005 fixes and new audit findings.
->>>>>>> 7514368af6129afe0f575081b2b9388dcf44ed97
