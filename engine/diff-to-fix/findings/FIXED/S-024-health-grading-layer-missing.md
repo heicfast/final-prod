@@ -66,3 +66,62 @@ The disk-struct flag 0x1724 (selects temp 50-vs-60 and gates 5/197/198) writer s
 **Fixed in commit:** (this commit — see `git log` for "fix(S-024)")
 **Verified by:** 8 tests in `tests/unit/test_health_grade.cpp`: `Health.Attr197Raw3IsCaution` (the finding's falsifiable case), `Health.ValueBelowVendorThresholdIsBad`, `Health.SsdLifeTenPercentIsCaution` (all 10 vendor attrs × all 4 boundaries + the HDD gate), `Health.Attr1ReadErrorRateRule`, `Health.TemperatureClassCaution`, `Health.FailingBitIsHardBadAndWorstWins`, `Health.NvmeGradeMapping` (the full bit matrix + the life rule + unavailable), `Health.GradeNames`. Fail-before: by construction — `HealthGrade` did not exist pre-fix and `grade_smart`/`grade_nvme` have no prior counterpart (capability-absence; the S-014/S-023 precedent). The rules are PURE CORE (cr_grade.cpp) so Linux CI executes them — the win layer (compile-verified only, G-17) feeds them. Suite 460/460 Linux Release (452 + 8); clang-format 18.1.8 clean.
 **Resolution notes:** (1) `HealthGrade {Unknown, Good, Caution, Bad}` (the og's status list :37087-37100) + the pure rule set in `src/core/health/cr_grade.cpp`: attrs 5/197/198 `value < vendor_threshold → Bad; raw ≥ caution(1) → Caution` (FUN_00458350 :33540-33582); attr 1 `(value==0 && raw==0) || threshold ≤ value → Good else Bad` (:33527-33551); SSD-life attrs {169,173,177,187,202,209,230,231,232,233} `0→Bad, ≤10→Caution, else Good` (:6010-6016, :6076-6090) gated by is-SSD; temperature `≥50C HDD / ≥60C SSD → Caution` (the :37004-37019 defaults; the 0x1724 flag's is-SSD inference adopted as the documented analog — the flag's writer sites remain undecoded, matching the finding's own hypothesis); the old `failing` boolean retained as the hard-Bad `failing_bit` input. (2) 0xD1 READ_THRESHOLDS now issued after 0xD0 (both transports; the public ATA thresholds layout: 30×12 entries at +2, threshold at entry+1; failure is non-fatal — grading falls back to raw-count-only). 0xD8 (RETURN_STATUS) remains unissued: the flags bits carry the same truth and the og's own rule set never consumes a separate status query beyond the bits (documented deliberate non-adoption, matching the finding's "keep 0xD8 as the og does" being about issuing the family — our flags-bit equivalent is pinned by tests). (3) NVMe `grade_nvme`: the SSD-life rule over percentage_used (remaining ≤10 → Caution, exhausted → Bad — the decoded 10%/0% rule's NVMe analog) + critical_warning bits {0,2,3}→Bad / {1,4}→Caution (the NVMe spec meaning of the bits; the og's exact bit mapping is NOT in the decode — documented honest analog) + media_errors ≥ 1 → Caution (the pending-sectors analog). (4) Wiring: SmartAttribute carries `vendor_threshold` + per-attr `grade`; SmartReport carries the overall `grade` + `is_ssd`; `read_smart` fills them; the CLI `health` command prints the per-attr threshold/grade columns + the disk verdict + the NVMe verdict. Fix-plan step 5's "report schema" maps to the health surface (the og's per-attr export feeds tray/UI widgets, not the recovery report — our CLI health output is the analog; the recovery report has no health context by design). The interface-family enum (the finding's open question) is NOT decoded in the corpus; the is-SSD gate is the documented analog.
+
+## Resolution addendum (session-6 upgrade — the decode supersedes the analogs)
+
+**Status:** FIXED (upgraded in place — the first landing's analogs replaced
+with the decoded truths; the first Resolution is preserved above as history)
+**Fixed in commit:** (this commit — see `git log` for "fix(S-024): decoded-truth upgrade")
+**Verified by:** 20 tests in `tests/unit/test_health_grade.cpp` (12 new/rewritten
+discriminators; suite 464 total on this leg's tree — 460 pass + the 4 pre-existing
+Ext4Engine.Backup* reds owned by the parallel S-027 lane, unchanged by this fix);
+fail-before by construction: the landed header lacks `classify_family`/
+`make_grade_inputs`/the family inputs (API-fetched landed header checked:
+`classify_family in header = False`), so every new discriminator fails to even
+compile against the analog engine. Full decode evidence:
+`evidence/decompiled-quotes/s6-health-grading-decode.md`.
+**Resolution notes:** A first-hand re-decode of DiskHealth_decompiled.c
+(corpus 03ad46c) resolved BOTH open questions of the original finding and
+corrected four analogs of the first landing — the corpus wins over documented
+analog guesses: (1) **the 0x1724 flag's writer sites ARE decodable** — the
+is-SSD string list (:6300-6344: prefixes OCZ/SPCC/PATRIOT/PHOTOFAST/STT_FTM/
+"Super Talent", contains Solid/SSD/SiliconHardDisk) now implemented exactly
+(`model_says_ssd`, `cr_family.cpp`); note "KINGSTON SV300S37A" matches
+nothing and stays HDD-class for grading — og-faithful, pinned by test. (2)
+**the interface-family enum IS decodable** — FUN_0040dad0's cascade
+(:6300-7000) decoded: 30+ vendor families with names, model-string/attr-
+signature gates, and the sub-family codes; the family-gated SSD-life attr
+selection (attr 169/173/177/187/202/209/230/231/232/233 → per-family gates)
+replaces the is-SSD analog gate; the raw/invert/100-raw life forms
+(0x17e4/0x17e8), the SanDisk G1001 gate (0x17f4) and the WDC/SanDisk
+attr-230 raw16/100 form (0x17ec) implemented. Residual: the exotic-vendor
+thunk windows (FUN_00422b60/FUN_00422c30/FUN_00422470/FUN_00424960/
+FUN_004224e0/FUN_00424430) with overlapping decode boundaries stay generic
+0/1 in our classifier — engine consumes every family code exactly, so the
+residual is a pure classifier-data gap with the exact next decode sites
+listed in the evidence §5. (3) **the disk grade is FUN_0040cdf0's exact
+semantics** — bad-count/caution/graded-signal aggregation (worst-wins was
+the analog), the Unknown gates (0x16d8/0x16dc/0x16f8), duplicate-attr-id →
+Unknown, SSD any-attr-below-threshold vs HDD in-range-only (the decoded
+range table: 1-13/187-189/191-193/195-209/211-212/220-228/230-231/240/
+250/254), the 5/197/198 raw16 caution with the all-FF raw[0..3] guard
+(disk-side only — the per-attr display rule has no guard; the asymmetry is
+pinned), attr-1's SandForce-only rule (family 7), and the
+Parallels/NVMe family-0x13 path. (4) **temperature NEVER affects the og's
+grade** — 0x1808 (the 50/60 defaults) is never read by the grader and temp
+attrs display Good (:33596); the first landing's temp-Caution rule was a
+divergence (a 51°C HDD graded Caution where the og says Good/Unknown) and
+is REMOVED; temp stays a reported field (SmartReport.temperature_c) for
+display, like the og's tray. (5) **NVMe decoded** (:5795-5810): any nonzero
+critical_warning byte → Bad (the spec-bit split {0,2,3}/{1,4} was the
+analog and is corrected); life = 100 − percentage_used with > 10 Good /
+== 10 Caution / < 10 Bad (the analog graded 1-9% as Caution — corrected to
+Bad); the Parallels early-Good; media_errors dropped from grading (never
+read by the og's grader). (6) the failing_bit → disk-Bad force is retained
+as the one deliberate superset, now REGISTERED as PARITY-DELTAS D-62 (the
+first landing kept it unregistered). (7) 0xD1 verified consistent with the
+og's internal mirror (:14108-14118 → +0x1569 rows); win layer now extracts
+the model string from IDENTIFY words 27-46 and runs the pure classification
+on both platforms. All four "documented analog" statements in the first
+Resolution are superseded by this addendum with corpus citations.
+

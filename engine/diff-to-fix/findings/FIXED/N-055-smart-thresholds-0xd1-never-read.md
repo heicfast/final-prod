@@ -86,3 +86,15 @@ S-024 fix's threshold implementation are the same work; the S-024 leg landed it 
 full grading model this finding did not cover (scope superset). The disposition-correction
 value of this finding stands: the audit record now correctly shows the threshold read as
 an engine-side capability, not presentation.
+
+## Resolution addendum (session-6)
+
+The S-024 decoded-truth upgrade re-verified the 0xD1 path against the
+corpus: FUN_0041a160 (:14108-14118) issues READ_THRESHOLDS (0xB0/0xD1,
+count 0x0E, 512B) and FUN_00414230 mirrors thresholds to per-attr rows
+at +0x1569+idx*0xc — the public page layout our fix reads (threshold at
+entry+1) is value-equivalent. No code change to the threshold read; the
+grading rules that consume the thresholds are now the exact decoded set
+(see the S-024 Resolution addendum + evidence
+s6-health-grading-decode.md §8).
+

@@ -7,6 +7,7 @@ add_library(cr_core STATIC
     err/cr_error.cpp
     health/cr_nvme.cpp
     health/cr_grade.cpp
+    health/cr_family.cpp
     storage/cr_devmap.cpp
     storage/cr_slice.cpp
     storage/cr_cached.cpp

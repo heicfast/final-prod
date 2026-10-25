@@ -1865,14 +1865,14 @@ scope) stay bounded. The FAT backup-branch buffer is sector-sized the
 same way. Pinned by `RawFixer.NtfsPrimaryDamaged4Kn`,
 `RawFixer.ExfatViaBackup4Kn`, `RawFixer.AnalyzeAllBranches4KnAsan`
 (the fail-before is the ASan abort itself).
-### D-62 — linuxfs minors register (N-006; session-7 linuxfs-minors batch)
-
-- **D-62a — Btrfs non-pow2 nodesize rejection (N-006, ACCEPTED HARDENING).**
-  The og's band [0x86, 0x10000) has NO pow2 requirement
-  (BtrfsSearchDLL :10302-10304), so 24 KiB nodesize (0x6000 % 0x1000 == 0)
-  is og-legal. Real mkfs.btrfs only writes pow2 nodesizes - non-pow2 is
-  corrupt-SB territory, and a forged value would size node-buffer
-  allocations from an attacker-influenced field. The core's pow2 gate
-  stands; refusal routes the volume to other engines/carving (strictly
-  better than the og's garbage attempt). Pin:
-  `Btrfs.NonPow2NodesizeRejectedRegistered`. Do not loosen for parity.
+- **D-62 — health failing-bit disk-grade superset (S-024 upgrade, ACCEPTED).**
+  The og DiskHealth grader (FUN_0040cdf0) never reads the SMART flags
+  byte; a FAILED-NOW bit (flags bit 3) does not affect its verdicts.
+  Our engine keeps the per-attr display grades og-exact (no flags
+  consumption) but forces the DISK grade to Bad when any attribute's
+  flags report failure-now — the one deliberate divergence of the
+  health surface (a drive that self-reports "failing now" must not be
+  shown Good). Pinned by Health.FailingBitForcesDiskBadButAttrGradesFollowOg;
+  the Unknown path is untouched (the superset does not fire without
+  data). Registered in the S-024 Resolution addendum with the decode
+  evidence (evidence/decompiled-quotes/s6-health-grading-decode.md §6).

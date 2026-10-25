@@ -7440,54 +7440,7 @@ Work Log:
 Stage Summary:
 - S-025 CLOSED. Remaining SEVERE: S-007, S-009, S-028 (+ S-029/S-030 new
   from the s5b audit leg). Next: S-028 (btrfs xattrs).
-
-Task ID: DF4-FAT-TRIO
-Agent: main engineer (diff-to-fix session 4)
-Task: M-011 + M-012 + M-015 (MAJOR, fat) — the FAT factory trio: table windows,
-mirror scrutiny + mirror-only, whole-table validation + copy retry.
-
-Work Log:
-- Corpus re-verification first-hand: FUN_180036e90 flavor windows (:44743 FAT16
-  0xC..0x100 scaled, :44775 FAT32 0x100..0x96000 scaled); FUN_180041de0 double-
-  FAT policy (:54216 primary-wins-nonzero incl. BAD; :54226-48 scrutiny —
-  shifted-copy reject / cross-link reject / contiguity accept / forward BAD+EOC
-  disbelieved; child1==NULL -> raw mirror); FUN_180041b00 CFAT16 validate
-  (:54052 exact media pair 0xFFFFFFF8; sweep ==1/self-loop/OOB; :54084-141
-  claims-map cross-link wholesale rejection; table-covering cycle rejection).
-- M-011 (`63d9067`): per-flavor spf windows in FatTable::load (bps-scaled, og
-  form); the flat 16 MiB cap removed (FAT32 whole-loads up to the og's own
-  300 MiB ceiling). Tests: LargeFat32TableAccepted (17 MiB table, 68 MiB
-  image), SmallFat16TableDeclined (spf=8). Fail-before 2/2.
-- M-012 (`cfae986`): FatTable::mirror_consult_ ports the scrutiny verbatim;
-  load() falls back to the mirror table when FAT1 is unreadable (mirror-only_,
-  stats.mirror_only_scan). Tests: MirrorShiftedCopyRejected (+ the
-  contiguity-believed positive), MirrorCrossLinkRejected,
-  MirrorOnlyScanFat1Unreadable (HoleDevice over FAT1; full scan green).
-  Fail-before 3/3.
-- M-015 (`6dc1e32`): fat_table_validate (media pair exact on FAT16; sweep with
-  the OOB band STRICTLY below the BAD sentinel; claims-map cross-link walk;
-  FAT32 mask-24 alternate-EOC family ends chains per N-002) + mirror promotion
-  on FAT1 rejection (fat_copy_rejected_); watermark advisory-only (deep-check
-  gate unpinned). Tests: CrossLinkedFat1RejectedAndFat2Used,
-  MediaByteCanonicalEnforcedFat16. Fail-before 2/2.
-- Fixture corrections (same changes): FIVE synthetic FAT16 builders
-  (test_fat_volume, test_orchestrator, test_pause_resume, test_cr_ui,
-  test_telemetry) never wrote the canonical media pair — real volumes always
-  carry FAT[0]=0xFFF8/FAT[1]=0xFFFF; the og-parity validator correctly
-  rejected the lazy fixtures. One inverted-condition bug in my first
-  promotion patch caught by the new tests before landing (recorded in the
-  M-015 test trail).
-- Suite 463/463 Linux ASan. Audit trail: three findings -> FIXED/ with
-  Resolutions + SHAs; RESOLVED-INDEX (34); matrix fat rows; modules/fat.md
-  addendum; SUMMARY continuation 4.
-
-Stage Summary:
-- The FAT engine's damaged-volume posture now matches the og factory end to
-  end: flavor windows, whole-table validation with copy retry, mirror
-  scrutiny, and mirror-only scans. Session tally: S-012 (convergent), S-020,
-  M-022, M-026, M-027, M-011, M-012, M-015, N-037, N-036 (half) + 15 INFO
-  acknowledgments = 25 findings closed this session.
-ting — the og's two-pass model; latent live-file duplicate found and fixed)
+>>>>>>> 24d566f (fix(S-025): ext4 journal reparenting — the og's two-pass model; latent live-file duplicate found and fixed)
 
 Task ID: API-CLOSE (session close-out handoff)
 Agent: main engineer (core-api session)
@@ -7726,38 +7679,66 @@ Next concrete steps (recommended order for the next leg):
    (859f986/896cee3 covered I-006..I-022; verify the remaining I-file
    inventory is all ACKNOWLEDGED with rationale).
 
-Task ID: CF-S025 (closing session)
-Agent: main engineer (diff-to-fix closing session)
-Task: S-025 — ext4 journal reparenting (two-pass + parent map): verify, fix.
+---
+Task ID: FF-S024 (S-024 decoded-truth upgrade — health grading engine)
+Agent: main engineer (diff-to-fix closing session — fix-all-tiers continuation)
+Task: Re-verify the landed S-024 grading fix against the corpus; replace
+every documented analog with the decoded truth; prove with tests.
 
 Work Log:
-- Corpus re-verification first-hand: driver FUN_180003de0 (:2773 pass 1 before
-  the walk, :2778 pass 2 after); FUN_1800043f0 :3077-3145 ("."/".." head ->
-  orphan map at +0xdc8, child=first-entry inode, parent=second; GotJournalDir
-  trace; per-entry traversal); finalize FUN_1800041e0 :2961-3016 (map walk;
-  unreachable orphans -> "iNode%I64d" naming :2989); reachability
-  FUN_180003fb0 (parent chain, +0x72&4 live flag).
-- Fix: harvest = ONE structural pass over the journal bytes (both og passes
-  see identical data; the pass-1/pass-2 state collapses into emission-time
-  claim checks) collecting entries + owning dirs + the orphan parent map;
-  pre-pass emits journal-known inodes with FULL inode truth (shared
-  emit_inode_node: extents base-adjusted, bitmap grading) anchored
-  topologically (live anchors win; cycle-safe rounds; unresolvable ->
-  root_lost with og iNode%u naming); files anchor under their owning dir;
-  post-sweep finalize emits name-only leftovers. Claim checks use live_nodes
-  (files AND dirs — visited_inodes only had dirs; closed a latent
-  duplicate-file gap in the same change). Sweep skips journal-emitted
-  inodes (the two-pass claim interaction).
-- Tests: 3 new, all fail-before proven (engine-reverted build): ghostdir
-  reparented under live sub with nested inner.txt + Excellent grading; dead
-  chain -> /iNode10 + /iNode10/inner.txt with no /iNode11; live-claimed dir
-  -> exactly one Structured node, journal_salvaged == 0. Suite 465/465.
-  ASan+UBSan+leak fuzz smoke clean (9 seeds x3, binary rebuilt).
+- Corpus first-hand decode of the entire DiskHealth grading surface at
+  03ad46c: FUN_0040cdf0 (the disk grader, :5755-6130 — bad-count /
+  caution-flag / graded-signal aggregation, Unknown gates, duplicate-id
+  Unknown, SSD any-attr threshold rule vs the HDD in-range table, the
+  5/197/198 raw16 caution + all-FF guard, the family-gated SSD-life
+  paths, the WDC/SanDisk attr-230 path); the per-attr display chain
+  (:34148-34167 — 00458350/004584b0/004580f0/004582c0/00458010);
+  FUN_0040dad0 (the vendor-family cascade :6300-7000 — 30+ families
+  with names/string gates/sub-family codes); the is-SSD writer list
+  (:6300-6344 — open question #1 RESOLVED); the family enum (open
+  question #2 RESOLVED); the NVMe family-0x13 path + page conversion
+  (:5795-5810, :26985-27010); the 0xD1 threshold read (:14108-14118).
+  Evidence: diff-to-fix/evidence/decompiled-quotes/s6-health-grading-decode.md.
+- Corrections to the first landing (the corpus wins over analogs):
+  temperature NEVER graded (the temp-Caution rule was a divergence —
+  removed; temp attrs display Good, 0x1808 unread by the grader);
+  SSD-life gated by decoded FAMILIES not is-SSD; attr-1 rule is
+  SandForce-family-only; NVMe = any nonzero critical_warning byte →
+  Bad + life < 10 → Bad (not Caution); disk grade = the decoded
+  aggregation, not worst-wins; duplicate-attr-id → Unknown added;
+  media_errors dropped from NVMe grading (never read by the og).
+- Implementation: cr_grade.h/cpp rewritten to the exact rules;
+  NEW cr_family.cpp (model_says_ssd + classify_family with the decoded
+  vendor set + forms + sub-families); win layer extracts the IDENTIFY
+  model string (words 27-46) and drives make_grade_inputs; the
+  failing-bit disk-Bad force kept as the one deliberate superset,
+  registered as PARITY-DELTAS D-62 (renumbered past the remote D-60/61).
+- Tests: 20 Health tests (12 new/rewritten discriminators: family-gate
+  matrix ×4 boundaries + ungated, FF-guard asymmetry, duplicate-id,
+  no-signal Unknown, SSD any-attr Bad, temp-never-grades, WDC-230 raw
+  byte + SD /100 form, SandForce attr-1 gating, NVMe exact bits incl.
+  1-9% → Bad + Parallels, is-SSD list incl. the KINGSTON-SV300 negative,
+  classifier vendors/sigs/forms, defaults). Fail-before by construction:
+  the landed header lacks classify_family/make_grade_inputs (verified by
+  fetching the landed header from the API). Suite 483/483 Linux Release
+  on the synced tree (parallel legs' S-025/S-027/S-028/A-005 landings
+  included; the Ext4Engine.Backup* reds from their mid-flight state are
+  gone). clang-format pass clean on all touched files.
+- Merge coordination: pulled twice mid-flight (27dfa00 → 859f986 →
+  0348532), re-applied the audit-trail deltas surgically onto the moved
+  shared files (SUMMARY/matrix/findings/PARITY-DELTAS), renumbered
+  D-60 → D-62 after the remote took D-60/D-61.
+- Audit trail: S-024 Resolution addendum + N-055 addendum (findings
+  preserved with history), matrix health row upgraded, modules/health.md
+  session-6 section with per-parameter verdicts, SUMMARY session-6
+  delta, PARITY-DELTAS D-62. Residual honestly scoped: the exotic-vendor
+  classifier thunks (FUN_00422b60/22c30/22470/24960/224e0/24430) stay
+  generic 0/1 — pure data gap, the engine consumes every family code;
+  next decode sites listed in the evidence §5.
 
 Stage Summary:
-- S-025 FIXED; ext4 SEVERE family (S-025/S-026/S-027) fully closed by this
-  session. Audit trail: finding -> FIXED/ + Resolution; RESOLVED-INDEX row;
-  matrix ext4 row; modules/ext4.md; SUMMARY re-baselined to the concurrent
-  parallel-leg inventory (7 SEVERE / 92 active / 53 FIXED).
-
->>>>>>> 0348532f6a7de11bdf94e47f188bbb4e579b0644
+- S-024 stands FIXED at the decoded truth: the health surface now
+  grades exactly what the og DiskHealth grades, exactly how, with the
+  only deliberate divergence (failing-bit → disk Bad) registered as
+  D-62. Open health items: M-036 (NVMe field coverage), N-032 (CSMI/
+  USB transports), N-042 (CLI temp digit), N-064 (Dict dictionary).
