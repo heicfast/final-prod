@@ -5491,3 +5491,36 @@ Stage Summary:
   extension table dump + OQ-S4-2 RAW naming-hook consumption; (G) og-codebase data
   files (Dict/, DataFile.ini) disposition; (H) fixes landed since session-4 audited
   commit (S-019 verified in-tree this entry).
+
+---
+Task ID: API-T13 (C-consumer expansion)
+Agent: main engineer (core-api session)
+Task: The /W4 /WX C consumer test now exercises the FULL lifecycle surface.
+
+Work Log:
+- ui_abi_check.c additions (single-threaded C proofs; cross-thread semantics stay in the
+  C++ suite where std::thread lives):
+  * Typed event stream: event_cb counts per CR_EVT_* (stage/progress/files/checkpoint/
+    repair/lost/error), unknown-type ignore rule; subscribe-before-run, unsubscribe +
+    resubscribe round-trip; first scan asserts stage>0, progress>0, files>0, unknown==0.
+  * checkpoint_path on the primary scan + cr_ui_scan_checkpoint_count >= 1 (G-13).
+  * Cancel-before-run: cancel() then run() -> ERR_CANCELLED; the cancelled scan still
+    saves a truthful session (D-18 save-on-cancel), then closes cleanly.
+  * Disk map: session path with auto geometry (all four overlays + frees), the
+    bad_ranges two-call pattern (OK-or-TRUNCATED both contract-clean), snapshot path
+    refuses NULL want geometry with BAD_PARAMETER.
+  * Recovery enqueue variants: enqueue_subtree (file node = its own subtree),
+    enqueue_snapshot, enqueue_subtree_snapshot (OK-or-leaf-refusal), queue counts;
+    cancel-before-process -> ERR_CANCELLED with done==0 (truthful queue).
+  * Session resume flow: open_image -> session_resume(zero-init cfg) -> attach ->
+    verify_identity == OK (positive path; boot sector untouched by the S-008 FAT
+    repair so the hash matches) -> run() truthful no-op on a completed session ->
+    stats -> close.
+- Field-name fix: checkpoint_path_utf8 (the header's actual name).
+- Suite 363/363 Linux ASan; ui_abi_check OK; clang-format clean.
+
+Stage Summary:
+- The C consumer gate now covers every cross-platform ABI export family: the audit's
+  "not exercised by any C consumer" list is cleared except Windows-only surfaces
+  (open_disk/open_volume/enumerate/health — exercised on the Windows lane via the
+  platform-truth probes and, for real disks, the bench harness).

@@ -160,6 +160,42 @@ static void recovery_progress_cb(void* user, uint64_t done, uint64_t total) {
     ++*calls;
 }
 
+/* typed event stream (GAP-S6-10): counts per CR_EVT_*; unknown types ignored
+ * (forward-compat rule, ABI-CONTRACT section 6) */
+static unsigned g_evt_stage = 0, g_evt_progress = 0, g_evt_files = 0, g_evt_err = 0,
+                g_evt_checkpt = 0, g_evt_lost = 0, g_evt_repair = 0, g_evt_unknown = 0;
+static void event_cb(void* user, const cr_ui_event* evt) {
+    (void)user;
+    if (!evt)
+        return;
+    switch (evt->type) {
+    case 1u:
+        ++g_evt_stage;
+        break;
+    case 2u:
+        ++g_evt_progress;
+        break;
+    case 3u:
+        ++g_evt_files;
+        break;
+    case 4u:
+        ++g_evt_err;
+        break;
+    case 5u:
+        ++g_evt_checkpt;
+        break;
+    case 6u:
+        ++g_evt_lost;
+        break;
+    case 7u:
+        ++g_evt_repair;
+        break;
+    default:
+        ++g_evt_unknown;
+        break; /* must be ignored, not fatal */
+    }
+}
+
 /* S-008 pre-scan repair consent (records the plan it saw; consents) */
 static unsigned g_abi_consent_action_count = 0;
 static unsigned g_abi_consent_detected = 0;
@@ -220,6 +256,7 @@ int main(int argc, char** argv) {
     cr_ui_query_row* rows = NULL;
     uint64_t doc_node_id = 0;
     char transport[16];
+    char ckpt_path[512];
     uint32_t needed = 0, row_count = 0, qcount = 0, queue_n = 0, i;
     uint64_t total = 0;
     unsigned progress_calls = 0, recovery_calls = 0;
@@ -276,22 +313,64 @@ int main(int argc, char** argv) {
         CHECK(strlen(cr_ui_last_error()) > 0);
     }
 
-    /* ---- scan (full default pipeline) ---- */
+    /* ---- scan (full default pipeline: events + checkpoints) ---- */
     memset(&cfg, 0, sizeof(cfg)); /* zero-init must be the SAFE default */
     cfg.progress = progress_cb;
     cfg.progress_user = &progress_calls;
+    snprintf(ckpt_path, sizeof(ckpt_path), "%s.ckpt", img);
+    cfg.checkpoint_path_utf8 = ckpt_path;
     CHECK_EQ_U64(cr_ui_scan_create(&cfg, &scan), CR_UI_OK);
     CHECK_EQ_U64(cr_ui_scan_attach_device(scan, dev), CR_UI_OK);
+    /* typed event stream: subscribe BEFORE run (ABI-CONTRACT section 6);
+     * subscribing while running is refused */
+    CHECK_EQ_U64(cr_ui_scan_set_event_fn(scan, event_cb, NULL), CR_UI_OK);
     CHECK_EQ_U64(cr_ui_scan_run(scan), CR_UI_OK);
     CHECK(progress_calls > 0);
+    CHECK(g_evt_stage > 0);    /* stage transitions observed */
+    CHECK(g_evt_progress > 0); /* progress samples observed */
+    CHECK(g_evt_files > 0);    /* files-found counters observed */
+    CHECK_EQ_U64(g_evt_unknown, 0u);
+    /* unsubscribe + resubscribe round-trip (resubscribe after run: the
+     * controller is spent, but the call must not corrupt state) */
+    CHECK_EQ_U64(cr_ui_scan_set_event_fn(scan, NULL, NULL), CR_UI_OK);
+    CHECK_EQ_U64(cr_ui_scan_set_event_fn(scan, event_cb, NULL), CR_UI_OK);
     CHECK_EQ_U64(cr_ui_scan_get_stats(scan, &st), CR_UI_OK);
     CHECK(st.files_found >= 1);   /* DOC.TXT */
     CHECK(st.deleted_found >= 1); /* DELFILE.TXT */
     CHECK_EQ_U64(cr_ui_scan_telemetry(scan, &tel), CR_UI_OK);
     CHECK_EQ_U64(tel.overall_permille, 1000u);
     CHECK_EQ_U64(tel.running, 0u);
+    /* checkpoints were written at the stage boundary (G-13) */
+    {
+        uint64_t ckpt_n = 0;
+        CHECK_EQ_U64(cr_ui_scan_checkpoint_count(scan, &ckpt_n), CR_UI_OK);
+        CHECK(ckpt_n >= 1);
+    }
     /* double-run refusal (one-shot lifecycle, CLI parity) */
     CHECK(cr_ui_scan_run(scan) != CR_UI_OK);
+
+    /* ---- cancel-before-run contract (single-threaded C proof; the
+     * mid-run cross-thread cancel semantics are the C++ suite's
+     * CancelSaveAndResume / PauseBlocksAndResumes) ---- */
+    {
+        cr_ui_scan* sc = NULL;
+        cr_ui_scan_config c2;
+        memset(&c2, 0, sizeof(c2));
+        c2.stage_mask = 1;
+        CHECK_EQ_U64(cr_ui_scan_create(&c2, &sc), CR_UI_OK);
+        CHECK_EQ_U64(cr_ui_scan_attach_device(sc, dev), CR_UI_OK);
+        CHECK_EQ_U64(cr_ui_scan_cancel(sc), CR_UI_OK);
+        CHECK_EQ_U64(cr_ui_scan_run(sc), CR_UI_ERR_CANCELLED);
+        /* the cancelled scan still saves a truthful session (D-18) */
+        {
+            char cpath[512];
+            snprintf(cpath, sizeof(cpath), "%s.cancel.crsf", img);
+            CHECK_EQ_U64(cr_ui_scan_save_session(sc, cpath), CR_UI_OK);
+            remove(cpath);
+        }
+        cr_ui_scan_close(sc);
+        sc = NULL;
+    }
 
     /* ---- S-008 pre-scan repair (consent-gated, image device) ---- */
     {
@@ -472,6 +551,41 @@ int main(int argc, char** argv) {
         rows = NULL;
     }
 
+    /* ---- disk map (GAP-S6-11 data producer: session path, auto geometry) ---- */
+    {
+        cr_ui_disk_map_geometry want, got;
+        uint8_t *alloc = NULL, *cov = NULL, *found = NULL, *conf = NULL;
+        uint64_t bad[8] = {0};
+        uint32_t bad_n = 0;
+        memset(&want, 0, sizeof(want)); /* zero-init = auto */
+        CHECK_EQ_U64(cr_ui_disk_map(sess, NULL, &want, &got, &alloc, &cov, &found, &conf, bad,
+                                    (uint32_t)(sizeof(bad) / (2 * sizeof(uint64_t))), &bad_n),
+                     CR_UI_OK);
+        CHECK(got.cell_count > 0);
+        CHECK(alloc != NULL);
+        CHECK(cov != NULL);
+        cr_ui_disk_map_free(alloc);
+        cr_ui_disk_map_free(cov);
+        cr_ui_disk_map_free(found);
+        cr_ui_disk_map_free(conf);
+        /* the two-call bad_ranges pattern: NULL buffer -> needed count
+         * (zero bad ranges on this healthy fixture -> OK; cap 0 with a
+         * nonzero map -> TRUNCATED after filling - both are contract-clean) */
+        {
+            uint32_t need2 = 0;
+            const uint64_t rc_dm =
+                cr_ui_disk_map(sess, NULL, &want, &got, &alloc, NULL, NULL, NULL, NULL, 0, &need2);
+            CHECK(rc_dm == CR_UI_OK || rc_dm == CR_UI_ERR_TRUNCATED);
+            cr_ui_disk_map_free(alloc);
+            alloc = NULL;
+        }
+        /* snapshot path REQUIRES view geometry (ABI-CONTRACT section 7) */
+        CHECK(cr_ui_disk_map(NULL, snap, NULL, &got, &alloc, NULL, NULL, NULL, NULL, 0, &bad_n) ==
+              CR_UI_ERR_BAD_PARAMETER);
+        cr_ui_disk_map_free(alloc);
+        alloc = NULL;
+    }
+
     /* ---- preview (session + snapshot variants) ---- */
     CHECK_EQ_U64(cr_ui_preview_open_session(dev, sess, doc_node_id, &pv), CR_UI_OK);
     if (pv) {
@@ -542,6 +656,79 @@ int main(int argc, char** argv) {
         }
     }
 
+    /* ---- recovery: enqueue variants (subtree + snapshot) + the
+     * cancel-before-process contract (single-threaded C proof; the mid-run
+     * cross-thread cancel is the C++ suite's domain) ---- */
+    {
+        cr_ui_recovery* rec2 = NULL;
+        cr_ui_recovery_config rc2;
+        cr_ui_recovery_stats rs2;
+        char dest2[512];
+        memset(&rc2, 0, sizeof(rc2));
+        snprintf(dest2, sizeof(dest2), "%s.dest2", img);
+        CHECK_EQ_U64(cr_ui_recovery_create(dev, &rc2, &rec2), CR_UI_OK);
+        CHECK_EQ_U64(cr_ui_recovery_set_destination(rec2, dest2), CR_UI_OK);
+        /* subtree enqueue: a file node's subtree is itself; the root-family
+         * variant is exercised in the C++ suite (RecoverySubtreeAndRename) */
+        CHECK(doc_node_id != 0);
+        CHECK_EQ_U64(cr_ui_recovery_enqueue_subtree(rec2, sess, doc_node_id), CR_UI_OK);
+        {
+            uint32_t qn = 0;
+            CHECK_EQ_U64(cr_ui_recovery_queue_count(rec2, &qn), CR_UI_OK);
+            CHECK(qn >= 1);
+        }
+        /* snapshot-based enqueue variants compile + queue */
+        if (doc_idx >= 0) {
+            const uint64_t rc_es = cr_ui_recovery_enqueue_snapshot(rec2, snap, (uint32_t)doc_idx);
+            CHECK_EQ_U64(rc_es, CR_UI_OK);
+        }
+        if (doc_idx >= 0) {
+            const uint64_t rc_ess =
+                cr_ui_recovery_enqueue_subtree_snapshot(rec2, snap, (uint32_t)doc_idx);
+            /* a file node's subtree is itself: OK; leaf-refusal is also
+             * contract-clean (the C++ suite pins the exact semantics) */
+            CHECK(rc_ess == CR_UI_OK || rc_ess == CR_UI_ERR_BAD_PARAMETER);
+        }
+        /* cancel BEFORE process: process returns ERR_CANCELLED with zero
+         * committed work (the D-18 truthful-queue contract) */
+        CHECK_EQ_U64(cr_ui_recovery_cancel(rec2), CR_UI_OK);
+        CHECK_EQ_U64(cr_ui_recovery_process(rec2), CR_UI_ERR_CANCELLED);
+        CHECK_EQ_U64(cr_ui_recovery_get_stats(rec2, &rs2), CR_UI_OK);
+        CHECK_EQ_U64(rs2.done, 0u);
+        cr_ui_recovery_close(rec2);
+        rec2 = NULL;
+        {
+            char p[600];
+            snprintf(p, sizeof(p), "%s/DOC.TXT", dest2);
+            remove(p);
+            remove(dest2);
+        }
+    }
+
+    /* ---- session resume + identity verification (the resume flow) ---- */
+    {
+        cr_ui_scan* rscan = NULL;
+        cr_ui_device* rdev = NULL;
+        cr_ui_scan_config rcfg;
+        memset(&rcfg, 0, sizeof(rcfg)); /* the ORIGINAL config's zero-init */
+        CHECK_EQ_U64(cr_ui_open_image(img, 0, 0, &rdev), CR_UI_OK);
+        CHECK_EQ_U64(cr_ui_session_resume(sess, &rcfg, &rscan), CR_UI_OK);
+        CHECK(rscan != NULL);
+        CHECK_EQ_U64(cr_ui_scan_attach_device(rscan, rdev), CR_UI_OK);
+        /* the boot-hash identity check: same image -> OK (positive path;
+        the mismatch path is the C++ suite's domain) */
+        CHECK_EQ_U64(cr_ui_scan_verify_identity(rscan), CR_UI_OK);
+        /* resume of a fully-completed session: run is a truthful no-op */
+        CHECK_EQ_U64(cr_ui_scan_run(rscan), CR_UI_OK);
+        {
+            cr_ui_scan_stats rst;
+            CHECK_EQ_U64(cr_ui_scan_get_stats(rscan, &rst), CR_UI_OK);
+            CHECK(rst.files_found >= 1);
+        }
+        cr_ui_scan_close(rscan);
+        cr_ui_device_close(rdev);
+    }
+
     /* ---- platform-truth surfaces ---- */
 #ifndef _WIN32
     {
@@ -569,6 +756,7 @@ int main(int argc, char** argv) {
     cr_ui_device_close(dev);
     free(dfs);
     remove(crsf_path);
+    remove(ckpt_path);
     {
         char p[600];
         snprintf(p, sizeof(p), "%s/DOC.TXT", dest_dir);
