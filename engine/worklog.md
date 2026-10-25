@@ -7901,3 +7901,24 @@ Stage Summary:
   carve row; modules/carve.md closing-session note; SUMMARY delta appended.
   Remaining SEVERE at this instant: S-009 (claimed lane), S-029, S-030,
   S-032 (unclaimed).
+
+---
+Task ID: DFX8-T1 (diff-fix session 8 bootstrap)
+Agent: main engineer (diff-to-fix closing session 8)
+Task: Session bootstrap — pull both repos, record audited-vs-current commits,
+save the redacted session prompt, establish the working baseline.
+
+Work Log:
+- Pulled core_recovery at HEAD 4a924d1 (audit-trail conflict-marker repair
+  lineage); corpus easeus-drw-research at 03ad46c (unmoved, matches every
+  prior session's pin). Token in git credential store only, never committed.
+- Session prompt saved redacted to worklog/session-diff-fix-prompt.md.
+- Audit-trail state read: active findings by direct inventory — SEVERE 4
+  (S-009 residual, S-029, S-030, S-032), MAJOR 40, MINOR 55, INFO 22,
+  0 ACUTE; findings/FIXED/ holds 67 resolved files + RESOLVED-INDEX;
+  tracked-open/ holds 16 files (2 already RESOLVED by name).
+- Next: build + suite baseline on Linux (establish green before any fix),
+  then SEVERE tier one-by-one (S-009 → S-029 → S-030 → S-032), then MAJOR.
+
+Stage Summary:
+- Session open. Baseline commit 4a924d1 recorded; no code changes yet.
