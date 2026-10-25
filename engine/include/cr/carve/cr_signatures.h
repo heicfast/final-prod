@@ -14,6 +14,7 @@
 #include "../cr_types.h"
 #include "../storage/cr_device.h"
 #include <cstring>
+#include <string>
 #include <vector>
 
 namespace cr {
@@ -104,12 +105,25 @@ enum FormatId : u32 {
 
 constexpr u32 REGISTRY_VERSION = 1;
 
+/* S-032: one inner archive entry (ZIP LFH/CD record or RAR4 FILE block).
+ * The og's analysers return the complete inner file inventory - names,
+ * sizes, offsets - which the results tree presents as the archive's
+ * contents (rawsearchdll--zip-analyser-carving.md :29-38,
+ * analyser-granular-batch1 :36-41). */
+struct CarveEntry {
+    std::string name; /* inner file name (archive-native bytes, UTF-8 pass-through) */
+    u64 size = 0;     /* uncompressed size */
+    u64 data_offset = 0; /* slice-relative data start (0 = not localized) */
+    u64 data_len = 0;    /* compressed data length (0 = not localized) */
+};
+
 /* Validator outcome. */
 struct CarveResult {
     bool ok = false;
     u64 end = 0;           /* absolute end offset (slice-relative) */
     u16 confidence = 0;    /* 0..1000 */
     const char* note = ""; /* evidence note for the node registry */
+    std::vector<CarveEntry> entries; /* S-032: inner-entry inventory */
 };
 
 /*

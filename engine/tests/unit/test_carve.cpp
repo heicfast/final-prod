@@ -258,6 +258,11 @@ TEST(CarveEngine, GrammarValidationAndSpecificity) {
     tree::FileNode *jpg_node = nullptr, *docx_node = nullptr, *zip_node = nullptr;
     for (auto* n : all) {
         const u32 fmt = n->props()->carve_format;
+        /* S-032: zero-data inner entries are legitimately extent-less
+         * (metadata-only inventory children) - skip them in the offset
+         * classification below */
+        if (n->props()->extents.empty())
+            continue;
         if (n->props()->extents.front().offset == 512) {
             jpg++;
             jpg_node = n;
@@ -1775,9 +1780,16 @@ TEST(CarveEngine, CarvedNodesAreDeleted) {
     collect(root);
     EXPECT_GE(carved, 4) << "grammar layer emit not found";
 
-    /* stats: the deleted population now includes the carved set */
+    /* stats: the deleted population includes the carved ARCHIVE records
+     * (direct children - the og's census counts one CRAWFileProperties
+     * record per archive; inner entries are presentation children, not
+     * records - S-032) */
     tree.refresh_stats();
-    EXPECT_EQ(root->stats().deleted_count, size_t(carved));
+    size_t carved_direct = 0;
+    for (tree::FileNode* c = root->first_child(); c; c = c->next_sibling())
+        if (c->props() && c->origin() == tree::Origin::Carved)
+            ++carved_direct;
+    EXPECT_EQ(root->stats().deleted_count, carved_direct);
 }
 
 TEST(CarveEngine, RawSignCarvedNodesAreDeleted) {
@@ -1834,6 +1846,7 @@ TEST(CarveEngine, DeletedOnlyQueryIncludesCarvedFiles) {
 }
 
 /* ===================================================================== */
+<<<<<<< HEAD
 /* S-031 timestamp residual: every carved node carries the scan-time     */
 /* stamp (the og's CRAWFileProperties per-record timestamp string,      */
 /* FUN_140c41aa0 "%d-%d-%d %d-%d-%d" — ifileproperties-part3 :80).       */
@@ -1880,11 +1893,75 @@ TEST(CarveEngine, RawSignCarvedNodesCarryScanTimestamp) {
     /* the second emit site (raw-sign layer) stamps the same field */
     std::vector<u8> img(2 * 1024 * 1024, 0);
     std::memcpy(img.data() + 4096, "#!/bin/sh\n", 10);
+=======
+/* S-032: archive inner-entry inventory (og: complete inventory returned  */
+/* by the analysers — rawsearchdll--zip-analyser-carving.md :29-38;       */
+/* analyser-granular-batch1 :36-41 for the RAR4 272-byte name buffer).    */
+/* ===================================================================== */
+
+namespace {
+
+/* a minimal REAL-layout ZIP: one LFH (named entry + real data) + CD + EOCD */
+size_t plant_zip_with_data(std::vector<u8>& img, size_t at, const char* name,
+                            const std::vector<u8>& data) {
+    const size_t nlen = strlen(name);
+    std::memcpy(img.data() + at, "PK\x03\x04", 4);
+    put16(img, at + 4, 20);
+    put16(img, at + 6, 0);
+    put16(img, at + 8, 0); /* stored */
+    put16(img, at + 10, 0);
+    put16(img, at + 12, 0x5A46);
+    put32v(img, at + 14, 0);
+    put32v(img, at + 18, u32(data.size())); /* csize */
+    put32v(img, at + 22, u32(data.size())); /* usize */
+    put16(img, at + 26, u16(nlen));
+    put16(img, at + 28, 0);
+    std::memcpy(img.data() + at + 30, name, nlen);
+    std::memcpy(img.data() + at + 30 + nlen, data.data(), data.size());
+    const size_t data_at = at + 30 + nlen;
+    const size_t local_len = 30 + nlen + data.size();
+    const size_t cd_at = at + local_len;
+    std::memcpy(img.data() + cd_at, "PK\x01\x02", 4);
+    put16(img, cd_at + 4, 20);
+    put16(img, cd_at + 12, 0x5A46);
+    put32v(img, cd_at + 20, u32(data.size())); /* csize */
+    put32v(img, cd_at + 24, u32(data.size())); /* usize */
+    put16(img, cd_at + 28, u16(nlen));
+    put16(img, cd_at + 30, 0);
+    put16(img, cd_at + 32, 0);
+    put32v(img, cd_at + 42, 0); /* LFH offset = 0 (file-relative) */
+    std::memcpy(img.data() + cd_at + 46, name, nlen);
+    const size_t cd_len = 46 + nlen;
+    const size_t eocd_at = cd_at + cd_len;
+    std::memcpy(img.data() + eocd_at, "PK\x05\x06", 4);
+    put16(img, eocd_at + 4, 0);  /* this disk */
+    put16(img, eocd_at + 6, 0);  /* disk with CD start */
+    put16(img, eocd_at + 8, 1);  /* entries this disk */
+    put16(img, eocd_at + 10, 1); /* total entries */
+    put32v(img, eocd_at + 12, u32(cd_len));       /* CD size */
+    put32v(img, eocd_at + 16, u32(local_len));    /* CD offset (LFH-relative) */
+    put16(img, eocd_at + 20, 0); /* comment len */
+    return data_at;
+}
+
+} // namespace
+
+TEST(CarveEngine, ZipInnerEntryInventoryEmitted) {
+    /* the og's ZIP analyser returns the complete inner inventory (names,
+     * sizes, offsets) which the results tree presents as the archive's
+     * contents; the pre-fix core emitted one opaque node. The inventory
+     * child carries a PRECISE data extent inside the parent (superset:
+     * per-entry recovery) */
+    auto img = std::vector<u8>(2 * 1024 * 1024, 0);
+    const std::vector<u8> payload(40, 0xAB);
+    const size_t data_at = plant_zip_with_data(img, 4096, "letter.txt", payload);
+>>>>>>> ee78d15 (fix: S-032 - archive carve inner-entry inventories (ZIP CD + indexless LFH + RAR4 FILE blocks) + RAR4 HEAD_SIZE off-by-one corrected)
     MemDevice dev(std::move(img));
     tree::ResultTree tree;
     auto* root = tree.add_root(u"Lost Files");
     CarveFlags flags;
     CarveStats stats;
+<<<<<<< HEAD
     const u64 before = u64(std::time(nullptr));
     u32 rc =
         carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, stats);
@@ -1912,11 +1989,56 @@ TEST(CarveEngine, ScanTimestampSurvivesSessionRoundTrip) {
      * our equivalent carrier is record 4's times.modified — the stamped
      * value must round-trip through serialize/deserialize intact */
     auto img = build_carve_image();
+=======
+    ASSERT_EQ(carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr,
+                          stats),
+              OK);
+
+    tree::FileNode* zip_node = nullptr;
+    for (tree::FileNode* c = root->first_child(); c; c = c->next_sibling())
+        if (c->props() && c->props()->carve_format == FMT_ZIP &&
+            !c->props()->extents.empty() && c->props()->extents.front().offset == 4096)
+            zip_node = c;
+    ASSERT_NE(zip_node, nullptr) << "archive node not carved";
+    ASSERT_EQ(tree::Origin::Carved, zip_node->origin());
+
+    tree::FileNode* entry = zip_node->first_child();
+    ASSERT_NE(entry, nullptr) << "no inner-entry inventory emitted";
+    ASSERT_EQ(entry->props()->name, u"letter.txt");
+    EXPECT_EQ(40u, entry->props()->logical_size);
+    ASSERT_FALSE(entry->props()->extents.empty());
+    EXPECT_EQ(u64(data_at), entry->props()->extents.front().offset);
+    EXPECT_EQ(40u, entry->props()->extents.front().length);
+    EXPECT_EQ(tree::Origin::Carved, entry->origin());
+    EXPECT_EQ(tree::DeletedState::Deleted, entry->deleted_state());
+}
+
+TEST(CarveEngine, ZipIndexlessEntryInventory) {
+    /* CD destroyed: the LFH-chain walk (CARVE-2) still returns the
+     * inventory - names + data spans from each local header */
+    auto img = std::vector<u8>(2 * 1024 * 1024, 0);
+    size_t at = 4096;
+    for (const char* nm : {"first.bin", "second.bin"}) {
+        const size_t nlen = strlen(nm);
+        const size_t dlen = 100; /* indexless total must clear FMT_ZIP's
+                                     128-byte min_size floor */
+        std::memcpy(img.data() + at, "PK\x03\x04", 4);
+        put16(img, at + 4, 20);
+        put32v(img, at + 18, u32(dlen));
+        put32v(img, at + 22, u32(dlen));
+        put16(img, at + 26, u16(nlen));
+        put16(img, at + 28, 0);
+        std::memcpy(img.data() + at + 30, nm, nlen);
+        memset(img.data() + at + 30 + nlen, 0xCD, dlen);
+        at += 30 + nlen + dlen;
+    }
+>>>>>>> ee78d15 (fix: S-032 - archive carve inner-entry inventories (ZIP CD + indexless LFH + RAR4 FILE blocks) + RAR4 HEAD_SIZE off-by-one corrected)
     MemDevice dev(std::move(img));
     tree::ResultTree tree;
     auto* root = tree.add_root(u"Lost Files");
     CarveFlags flags;
     CarveStats stats;
+<<<<<<< HEAD
     u32 rc =
         carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, stats);
     ASSERT_EQ(rc, OK) << err_text(rc);
@@ -1953,4 +2075,96 @@ TEST(CarveEngine, ScanTimestampSurvivesSessionRoundTrip) {
     };
     scan2(loaded.roots().empty() ? nullptr : loaded.roots()[0]);
     EXPECT_TRUE(found) << "carved node not found after reload";
+=======
+    ASSERT_EQ(carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr,
+                          stats),
+              OK);
+
+    tree::FileNode* zip_node = nullptr;
+    for (tree::FileNode* c = root->first_child(); c; c = c->next_sibling())
+        if (c->props() && c->props()->carve_format == FMT_ZIP &&
+            !c->props()->extents.empty() && c->props()->extents.front().offset == 4096) {
+            zip_node = c;
+            break; /* the FIRST archive: the second LFH re-carves as its own
+                    * nested candidate (dedup keyed exact-start, the
+                    * indexless chain has no CD to claim it) */
+        }
+    ASSERT_NE(zip_node, nullptr) << "indexless archive not carved";
+    std::set<std::string> names;
+    for (tree::FileNode* e = zip_node->first_child(); e; e = e->next_sibling())
+        if (e->props())
+            names.insert(e->name_utf8());
+    EXPECT_EQ(2u, names.size());
+    EXPECT_TRUE(names.count("first.bin"));
+    EXPECT_TRUE(names.count("second.bin"));
+}
+
+TEST(CarveEngine, Rar4InnerEntryInventory) {
+    /* a REAL-layout RAR4 (MARK 7B + MAIN_HEAD size@+12 + FILE_HEAD with a
+     * name + END): the inventory child carries the entry name + size +
+     * data extent. Doubles as the positive real-layout fixture for the
+     * S-032 HEAD_SIZE off-by-one fix (the old validator read the size
+     * field at +11 and could not parse real archives' block chain). */
+    auto img = std::vector<u8>(2 * 1024 * 1024, 0);
+    size_t at = 4096;
+    const char* nm = "photo.bin";
+    const size_t nlen = strlen(nm);
+    const size_t dlen = 100;
+    /* marker (7) */
+    std::memcpy(img.data() + at, "Rar!\x1a\x07\x00", 7);
+    /* MAIN_HEAD: crc, type 0x73, flags 0, size 13 (+6 pad) */
+    put16(img, at + 7, 0);
+    img[at + 9] = 0x73;
+    put16(img, at + 10, 0);
+    put16(img, at + 12, 13); /* HEAD_SIZE - the corrected field position */
+    /* FILE_HEAD at at+20 */
+    const size_t fh = at + 20;
+    const size_t head_size = 32 + nlen; /* base7+pack4+unp4+host1+crc4+ftime4+ver1+method1+nsize2+attr4+name */
+    put16(img, fh + 0, 0);
+    img[fh + 2] = 0x74; /* FILE */
+    put16(img, fh + 3, 0x8000); /* LONG_BLOCK: PACK_SIZE follows */
+    put16(img, fh + 5, u16(head_size));
+    put32v(img, fh + 7, u32(dlen));    /* PACK_SIZE */
+    put32v(img, fh + 11, u32(dlen));   /* UNP_SIZE */
+    img[fh + 15] = 0;                  /* HOST_OS */
+    put32v(img, fh + 16, 0);           /* FILE_CRC */
+    put32v(img, fh + 20, 0x60000000);  /* FTIME */
+    img[fh + 24] = 29;                 /* UNP_VER */
+    img[fh + 25] = 0x30;               /* METHOD stored */
+    put16(img, fh + 26, u16(nlen));    /* NAME_SIZE */
+    put32v(img, fh + 28, 0x20);        /* ATTR archive */
+    std::memcpy(img.data() + fh + 32, nm, nlen);
+    memset(img.data() + fh + head_size, 0x5E, dlen);
+    /* END block */
+    const size_t end_at = fh + head_size + dlen;
+    put16(img, end_at + 0, 0);
+    img[end_at + 2] = 0x7B;
+    put16(img, end_at + 3, 0);
+    put16(img, end_at + 5, 7);
+
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"Lost Files");
+    CarveFlags flags;
+    CarveStats stats;
+    ASSERT_EQ(carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr,
+                          stats),
+              OK);
+
+    tree::FileNode* rar_node = nullptr;
+    for (tree::FileNode* c = root->first_child(); c; c = c->next_sibling())
+        if (c->props() && c->props()->carve_format == FMT_RAR4)
+            rar_node = c;
+    ASSERT_NE(rar_node, nullptr) << "real-layout RAR4 not carved (the off-by-one fix)";
+    EXPECT_EQ(u64(end_at + 7), rar_node->props()->extents.front().offset +
+                                   rar_node->props()->extents.front().length);
+
+    tree::FileNode* entry = rar_node->first_child();
+    ASSERT_NE(entry, nullptr) << "no RAR4 inner-entry inventory";
+    EXPECT_EQ(entry->props()->name, u"photo.bin");
+    EXPECT_EQ(100u, entry->props()->logical_size);
+    ASSERT_FALSE(entry->props()->extents.empty());
+    EXPECT_EQ(u64(fh + head_size), entry->props()->extents.front().offset);
+    EXPECT_EQ(100u, entry->props()->extents.front().length);
+>>>>>>> ee78d15 (fix: S-032 - archive carve inner-entry inventories (ZIP CD + indexless LFH + RAR4 FILE blocks) + RAR4 HEAD_SIZE off-by-one corrected)
 }

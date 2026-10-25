@@ -13,6 +13,7 @@
  */
 
 #include "cr/carve/cr_carve.h"
+#include "cr/cr_text.h" /* S-032: entry names UTF-8 -> u16 */
 #include "cr/carve/cr_rawsigns.h"
 #include "cr/cr_parallel.h"
 #include "cr/crypto/cr_sha256.h"
@@ -221,6 +222,37 @@ u32 scan_one_window(ScanCtx& ctx, u64 base, const u8* win, u64 want, std::set<u6
             n->set_deleted_state(tree::DeletedState::Deleted);
             n->set_confidence(cr.confidence >= 850 ? tree::Confidence::Excellent
                                                    : tree::Confidence::PartialRisk);
+            /* S-032: the archive's inner-entry inventory as child nodes —
+             * the og's analysers return the complete inventory (names,
+             * sizes, offsets) which the results tree presents as the
+             * archive's contents (rawsearchdll--zip-analyser-carving.md
+             * :29-38; analyser-granular-batch1 :36-41). Superset note: an
+             * entry whose data span was localized carries a precise
+             * extent INSIDE the parent's extent, so a consumer can recover
+             * one entry without the whole archive. */
+            for (const auto& e : cr.entries) {
+                auto* ep = new (std::nothrow) tree::FileProperties();
+                if (ep == nullptr) {
+                    ctx.aborted.store(true, std::memory_order_relaxed);
+                    return ERR_NO_MEMORY;
+                }
+                ep->name = text::utf8_to_u16(e.name);
+                ep->fs_kind = u32(FsKindCode::Raw);
+                ep->logical_size = e.size;
+                ep->carve_format = sig.id;
+                if (e.data_len != 0 && e.data_offset != 0)
+                    ep->extents.push_back({e.data_offset + ctx.ext_base, e.data_len});
+                tree::FileNode* en = ctx.tree->add_file(n, ep);
+                ep->release();
+                if (en == nullptr) {
+                    ctx.aborted.store(true, std::memory_order_relaxed);
+                    return ERR_NO_MEMORY;
+                }
+                en->set_origin(tree::Origin::Carved);
+                en->set_deleted_state(tree::DeletedState::Deleted);
+                en->set_confidence(e.data_len != 0 ? tree::Confidence::PartialRisk
+                                                   : tree::Confidence::MetadataOnly);
+            }
             ctx.validated.fetch_add(1, std::memory_order_relaxed);
             emitted_at.insert(cand_abs);
             break; /* this magic position resolved */

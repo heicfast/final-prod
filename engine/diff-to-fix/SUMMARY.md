@@ -36,7 +36,31 @@ contract docs updated in the same change), the CLI prints bytes like
 the og. 2 new tests + the moved 192-byte gate; suite 485/485 Linux
 Release. N-009a's pin re-verified in the same file.
 
+**Session-6 leg final counts (direct file inventory at 70ebced, after
+the parallel legs' concurrent landings):** FIXED/ 70 findings ·
+**SEVERE 4** (S-009, S-029, S-030, S-032) · MAJOR 39 · MINOR 55 ·
+INFO 22 (all ACKNOWLEDGED) · tracked-open 16. This leg closed S-024
+(decoded-truth upgrade) + M-036 + N-055; the parallel legs closed
+S-007/S-025/S-027/S-028/S-031/M-011/M-012/M-015/A-005/A-007 and more
+during the same window. Suite 526/526 at 26d842b. Top remaining risks:
+S-029 (apply-path scope decision pending), S-030 (mid-flight disk-image
+lane — re-verify landed state first), S-009 (unclaimed since session 1).
+
 # SUMMARY.md — executive summary (session 7 on top of session 5b; earlier sessions below)
+
+## Closing-session delta — S-032 (2026-10-26)
+
+**S-032 FIXED (this push):** archive inner-entry inventories (the og's
+analysers return the complete inventory; the results tree presents it —
+rawsearchdll--zip-analyser-carving.md :29-38/:64,
+analyser-granular-batch1 :36-41, all re-verified first-hand). ZIP CD walk +
+indexless LFH chain + RAR4 FILE blocks collect bounded entries; carved
+archive nodes gain Carved+Deleted children with precise in-parent extents
+(registered superset: per-entry recovery). DISCOVERED+FIXED in the same
+change: the RAR4 validator's HEAD_SIZE off-by-one (no positive real-layout
+fixture had ever existed — real archives now parse). Remainders tracked:
+RAR multi-part stitching; RAR5 entries (clean-room surface). 3 tests, all
+fail-before; suite 517/517; ASan/UBSan clean over the carve suite.
 
 ## Session-7 delta (2026-10-26 — the close-all-tiers fix session, low-severity-first order)
 
