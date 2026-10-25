@@ -6380,3 +6380,19 @@ Stage Summary:
   trail); finding moved to FIXED/ with Resolution; RESOLVED-INDEX row;
   matrix ext4 row + modules/ext4.md updated; SUMMARY re-baselined
   (10 SEVERE / 34 MAJOR / 37 MINOR / 18 INFO active, 36 FIXED).
+
+---
+Task ID: CF-LANE (closing session)
+Agent: main engineer (diff-to-fix closing session)
+
+LANE CLAIM UPDATE (post S-026 push, `0c1f58e`): S-026 landed by this session
+(the close-all-tiers leg had it queued behind S-023 — skipping theirs when
+they arrive; my finding file + D-58 + OQ-E2 resolution stand as the record).
+This session next claims the EXT4 family where its tooling/context lives:
+**S-027 (backup-SB lost-volume scan) → S-025 (journal reparenting)** — both
+companion surfaces to the S-026 resolver, with the mke2fs/e2fsprogs fixture
+machinery already built this session. S-028 (Btrfs xattr) after those if
+still open. S-003/S-021 stay with the s7/df5 leg; S-023 with the
+close-all-tiers leg. Reconciled inventory after the parallel sync:
+9 SEVERE active (S-003, S-007, S-009, S-021, S-023, S-024, S-025, S-027,
+S-028) — suite 430/430 verified first-hand post-rebase.
