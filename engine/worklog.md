@@ -5771,3 +5771,45 @@ Stage Summary:
 - S-022 CLOSED: second-source recovery for files whose MFT records are gone (the og's
   deep-scan advantage class) now exists in the core. Remaining SEVERE: S-003, S-007,
   S-009-remnant, S-020, S-021. Next: S-003/S-021 (HFS+ journal pair).
+
+---
+Task ID: API-XLAN-LEAKFIX (the S-012 MFT-walk leak — fixed per the earlier report)
+Agent: main engineer (core-api session) [CONVERGENT: the diff-to-fix minors leg fixed the same leak in the same window (their commit landed first in this rebase; both fixes are the identical dp->release() after the successful add_file — theirs kept]
+Task: The reported cross-lane ASan leak, fixed after the S-012 leg kept landing other
+      batches (main red across 8+ commits).
+
+Work Log:
+- Root cause confirmed: cr_mftwalk.cpp dump-emission site allocated
+  tree::FileProperties (ctor ref=1) and called tree.add_file(host, dp) — which TAKES
+  a reference (cr_node.h:189-191 "caller releases its own") — but never dropped the
+  builder's ctor ref on the success path. Every other allocation site in the file
+  releases after a successful add (:950 "node holds it", :1027 "nodes hold the refs");
+  the dump site at :1392 was the one omission. Leaked the builder's ref per emitted
+  dump record (ASan: 2x368B + indirect name/extents per dump-walk test).
+- Fix: dp->release() after the successful add (the failure path already released).
+  One line + the cross-lane attribution comment citing the convention.
+- Suite: 392/392 ASan green (was 388/392); ui_abi_check OK.
+
+Stage Summary:
+- main's ASan lane is green again; the 4 GuidDump/SizeZeroRescue tests pass clean.
+
+---
+Task ID: API-XLAN-LEAKFIX (the S-012 MFT-walk leak — fixed per the earlier report)
+Agent: main engineer (core-api session)
+Task: The reported cross-lane ASan leak, fixed after the S-012 leg kept landing other
+      batches (main red across 8+ commits).
+
+Work Log:
+- Root cause confirmed: cr_mftwalk.cpp dump-emission site allocated
+  tree::FileProperties (ctor ref=1) and called tree.add_file(host, dp) — which TAKES
+  a reference (cr_node.h:189-191 "caller releases its own") — but never dropped the
+  builder's ctor ref on the success path. Every other allocation site in the file
+  releases after a successful add (:950 "node holds it", :1027 "nodes hold the refs");
+  the dump site at :1392 was the one omission. Leaked the builder's ref per emitted
+  dump record (ASan: 2x368B + indirect name/extents per dump-walk test).
+- Fix: dp->release() after the successful add (the failure path already released).
+  One line + the cross-lane attribution comment citing the convention.
+- Suite: 392/392 ASan green (was 388/392); ui_abi_check OK.
+
+Stage Summary:
+- main's ASan lane is green again; the 4 GuidDump/SizeZeroRescue tests pass clean.
