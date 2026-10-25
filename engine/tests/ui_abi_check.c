@@ -333,6 +333,20 @@ int main(int argc, char** argv) {
      * subscribing while running is refused */
     CHECK_EQ_U64(cr_ui_scan_set_event_fn(scan, event_cb, NULL), CR_UI_OK);
     CHECK_EQ_U64(cr_ui_scan_run(scan), CR_UI_OK);
+    /* a failed scan is a failed PRECONDITION: every later section reads
+     * the scan's outputs (query rows, session, preview) - continuing
+     * turned the first missed CHECK into a NULL deref (the M-053 crash:
+     * query_run's rows stay NULL when the session holds no files). A
+     * real consumer stops here; so does the check. */
+    if (g_failed) {
+        printf("cr_ui_abi_check: scan failed: %s\n", cr_ui_last_error());
+        cr_ui_scan_close(scan);
+        cr_ui_device_close(dev);
+        remove(crsf_path);
+        remove(ckpt_path);
+        remove(img);
+        return 1;
+    }
     CHECK(progress_calls > 0);
     CHECK(g_evt_stage > 0);    /* stage transitions observed */
     CHECK(g_evt_progress > 0); /* progress samples observed */

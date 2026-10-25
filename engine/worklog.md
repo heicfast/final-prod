@@ -8384,3 +8384,61 @@ Stage Summary:
   the known Windows+Linux CI reds from this window are all addressed
   except the cr_transport VolExtent break owned by the mid-flight
   disk-image lane (their landing supersedes).
+
+
+
+---
+Task ID: DFX8-M053 (session 8, finding 1)
+Agent: main engineer (diff-to-fix closing session 8)
+Task: NEW-FINDING M-053 — the C-ABI consumer check dead since M-015. Filed + fixed.
+
+Work Log:
+- Discovered during the S-009 verification pass: cr_ui_abi_check crashed
+  (SEGV at :576) on the ASan lane; verified pre-existing by stashing the
+  S-009 work (fails identically at baseline).
+- Debugged with an unbuffered-stdout LD_PRELOAD: the true first failure is
+  cr_ui_scan_run == 0x50030001 (ERR_BAD_MAGIC); every later CHECK cascades.
+- Built a deterministic plain-C reproducer against libcr_ui: the C++
+  fixture's image (with FAT[0]=0xFFF8/FAT[1]=0xFFFF) scans green; the same
+  image with zeroed media words returns BAD_MAGIC on release AND ASan.
+  Byte-diff: exactly the two media-word pairs differ.
+- Root cause: M-015 (6dc1e32) taught FatTable::load the og's exact
+  u32@FAT[0]==0xFFFFFFF8 gate and updated the C++ fixtures, but missed
+  tests/ui_abi_check.c's fixture. The gate has crashed on every run since.
+- Fix (test-only, engine untouched): canonical media words in the C fixture
+  (both FAT copies) + a precondition bail-out after a failed scan (print
+  last_error, cleanup, exit 1 — no more cascade into rows[0] NULL deref).
+- Verification: cr_ui_abi_check exits 0, full lifecycle green, on BOTH the
+  release and ASan lanes. Fail-before recorded in the finding (exit 139 /
+  SEGV + the reproducer).
+- Audit trail: findings/FIXED/M-053 (filed + Resolution), RESOLVED-INDEX
+  row + header reconciliation (68 resolved), matrix Q66 note, SUMMARY
+  session-8 delta.
+
+Stage Summary:
+- The C ABI consumer gate is live again after being dead since M-015.
+  Counts: MAJOR active stays 40 (M-053 filed + fixed in-session); FIXED
+  family 61 -> 68 by live inventory reconciliation.
+
+---
+Task ID: DFX8-M053-REBASE (session 8, convergence record)
+Agent: main engineer (diff-to-fix closing session 8)
+Task: Rebase coordination — M-053 vs the parallel lanes' same-window landings.
+
+Work Log:
+- Mid-flight remote landings absorbed: S-032 (archive inventories, 1a25869),
+  N-018's UBSan lane (b1f9210 — its first run caught the SAME ui_abi_check
+  fixture defect and fixed the same 4 media-word lines), I-023/I-024
+  acknowledgements, INFO tier 22/22, S-031 verification legs.
+- Union resolution: their fixture comment block kept (oldest landing); this
+  leg's unique additions preserved — the M-053 finding file (the formal
+  audit-trail record; N-018's commit message documented the defect but no
+  finding was filed), the precondition bail-out after a failed scan
+  (hardening against future cascades), RESOLVED-INDEX row, matrix Q66 note,
+  SUMMARY session-8 delta (amended with the convergence + 71-count).
+- M-053 Resolution amended: fixture fix convergent with b1f9210; bail-out +
+  finding record are this leg's contribution.
+
+Stage Summary:
+- No semantic overlap remains: S-032 is FIXED by the parallel lane (dropped
+  from this session's SEVERE queue — S-009/S-029/S-030 remain).

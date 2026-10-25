@@ -1,5 +1,27 @@
 # SUMMARY.md — executive summary (session-6 fix leg + session 7 below; earlier sessions below)
 
+## Session-8 delta (2026-10-26 — the closing-verification fix session, S-009 first lane)
+
+Session start `4a924d1` (rebased bootstrap `3494606`); corpus `03ad46c`
+unmoved. Baseline before any change: Linux Release suite **500/500** +
+`cr_ui_tests` 21/21. Order per mandate: SEVERE → MAJOR → MINOR → INFO →
+TRACKED-OPEN; every finding independently re-verified before fixing.
+
+**NEW-FINDING M-053 (MAJOR, filed + FIXED):** discovered during the S-009
+verification pass — the C-ABI consumer check (`cr_ui_abi_check`, registered
+in ctest) has been DEAD since M-015 landed (`6dc1e32`): the M-015 fixture
+update missed `tests/ui_abi_check.c`, whose FAT16 image lacks the canonical
+media words, so every scan of it returns `ERR_BAD_MAGIC` and the check's
+non-halting CHECK macros cascade into a `rows[0]` NULL-deref crash
+(release: silent exit 139 with buffered output lost; ASan: the SEGV
+report). Root-caused with a deterministic plain-C reproducer (the sole
+differing bytes between the passing C++ fixture and the failing C fixture
+are the two media-word pairs). Fix: canonical media words in the fixture +
+a precondition bail-out after a failed scan (a real consumer checks the
+return code and stops). Engine untouched — M-015's exact-pair validator is
+correct og parity. `cr_ui_abi_check` green on release AND ASan (executed
+both lanes). Findings/FIXED/M-053 + RESOLVED-INDEX row + matrix Q66 note.
+
 ## Session-6 delta (2026-10-26 — the S-024 decoded-truth upgrade)
 
 Mandate: fix ALL tiers; this leg re-verified the landed S-024 grading

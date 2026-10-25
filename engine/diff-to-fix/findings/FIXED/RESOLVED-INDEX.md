@@ -9,6 +9,8 @@ active roadmap.
 
 ## Resolved findings (61 — every finding file in this directory has a row; live file inventory) — every finding file in this directory has a row; live file inventory)
 
+## Resolved findings (71 — live file inventory minus RESOLVED-INDEX.md, session-8 post-merge reconciliation; +M-053 this session, convergent with the parallel N-018 lane's fixture fix at `b1f9210`)
+
 ## Resolved findings (36 — see files; count maintained per move)
 
 ## Resolved findings (27 — sessions 1-4 combined: 12 from session-1/2 legs + A-002, A-004 (+S-016), M-009, S-006, S-011, S-013, S-015, S-017, S-018(INVALID), N-021, S-014, S-019; every file in this directory has a row)
@@ -18,6 +20,7 @@ active roadmap.
 
 | ID | Severity (orig) | Title | Fix commit | Resolution |
 |---|---|---|---|---|
+| M-053 | MAJOR (S8 — NEW-FINDING, filed + fixed in-session; **convergent with the parallel N-018 lane's fixture fix `b1f9210`** — this leg independently root-caused the same defect, adds the formal finding record + the precondition bail-out) | C-ABI consumer check broken since M-015: fixture lacks the FAT16 media words — every run died `ERR_BAD_MAGIC` + NULL deref (crash at the query section) | (this session's M-053 commit — file carries the evidence) | Fixture root-caused and fixed (canonical `FAT[0]=0xFFF8, FAT[1]=0xFFFF` both copies, matching the C++ fixtures M-015 itself updated; the same 4 lines landed in parallel via N-018's UBSan-lane first run) + precondition bail-out after a failed scan (no more cascade into `rows[0]` NULL deref). Engine untouched — M-015's exact-pair validator is correct og parity. `cr_ui_abi_check` green on release AND ASan (executed both lanes); fail-before exit 139/SEGV recorded in the finding. |
 | S-021 | SEVERE (S3) | HFS+ journal deleted-record harvester missing (the og's PRIMARY deleted surface) | (this session's fix commit — file carries the SHA) | `journal_harvest_pass`: full ring walk + differential + deleted-tier emission; 4 tests, fail-before 3/4; D-56; the tx-magic derivation stays OQ (silent-zero-harvest risk only). |
 | S-003 | SEVERE | HFS+ journal not replayed: post-crash recent state unrecoverable | (this session's fix commit — file carries the SHA) | Outcome parity via the S-021 substrate (recent state surfaces as deleted-tier, the og's kind-5); the "replay" mechanism premise corrected (scratch install, unchanged live walk); the :1690-1790 fallback salvage tracked in OQ-S003-journal-fallback-salvage.md. |
 

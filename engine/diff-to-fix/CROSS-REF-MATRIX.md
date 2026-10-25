@@ -107,7 +107,7 @@ dispositions is the surviving one).
 | visualization | S-009 (partial-FIXED-in-tree, finding file stale — N-020) | **M-023 (S3)** FIXED (findings/FIXED/M-023: generated 1,481-ext table + Email/Bookmarks cats; runtime-XML surface = deliberate non-adoption) | NA | M | M | NA | M | M | M | NA | M; **N-057 (S5: diskmap overlay test debt + dead enum)** |
 | abi (cr_ui) | NA | M | ok | NA | M | M | S-009 | M | M | M | **N-040 (S4: doc truthfulness), N-041 (S4: dead code), I-016 (S4: factory register + FS-code spaces)** |
 | cli | N-009c | NA | M | NA | M | NA | M | NA | M | M | ok; N-020 (S2); **N-044 (S4: --deep naming hazard)** |
-| quality (cross-cutting) | NA | NA | NA | NA | NA | NA | NA | NA | NA | NA | **N-018 (S2), N-019 (S2), N-020 (S2)**; M-006 FIXED |
+| quality (cross-cutting) | NA | NA | NA | NA | NA | NA | NA | NA | NA | NA | **N-018 (S2), N-019 (S2), N-020 (S2)**; M-006 FIXED; **M-053 (S8 NEW-FINDING) FIXED — the C-ABI consumer check itself was dead since M-015 (stale fixture → BAD_MAGIC + NULL-deref crash on every run, both lanes); fixture fixed + precondition bail-out, gate live again** |
 | preview (S4 NEW) | NA | NA | NA | NA | NA | NA | NA | NA | NA | **M-024 (S4: caps bypass — executed proof; provenance misattributions)** | I-013 (S4: architecture register — og socket protocol vs in-process reader) |
 | query (S4 NEW) | **M-029 (S4: sort/paging/bucket-IDs/server-side push)** + ~~M-023~~ FIXED (FIXED/M-023: category source now the generated table) | NA | NA | NA | NA | NA | NA | NA | NA | **M-029, N-040 (frozen-doc unit lie)** | M-029 (S4); S-023 grading rows now carry grades + sort key 6 |
 | transport (S4 NEW) | M-030 (S4: WinPE gate, stale-handle ladder, terminal OFFLINE, 32-disk cap) | M-030 | M-030 (IOCTL numbers = own driver's, grammar shape M) | M-030 (chunking provenance corrected; OQ-S4-3 perf open) | M-030 | NA | NA | M-030 (silent RDA fallback) | M-030 | M | **N-041 (S4: dead RdaClient + volume_letter_to_disk)**; I-016 (S4: wire register) |
@@ -118,7 +118,10 @@ differential harvest — PARITY-DELTAS D-56; the fallback residual tracked in
 OQ-S003-journal-fallback-salvage.md).
 
 Cross-cutting rows: **Q66 = M-006 FIXED** (fuzz CI re-enabled by parallel leg `e30b84d`;
-codeql deferral documented). **Q67 = M + N-018 (S2)** (ASan/TSan CI green; UBSan NOT enabled —
+codeql deferral documented) **+ M-053 (S8) FIXED** (the C-ABI consumer gate —
+registered in ctest — had crashed on every run since M-015's fixture update missed
+`tests/ui_abi_check.c`; root-caused with a deterministic plain-C reproducer, fixture
+fixed, gate green on release + ASan). **Q67 = M + N-018 (S2)** (ASan/TSan CI green; UBSan NOT enabled —
 session 2 found this gap). **Q68 = N-020 (S2)** (session 2 found 6 stale doc claims;
 previously marked M). **Q69 = M** (zero stub markers repo-wide, grep-verified). **Q70 = M**
 (Win7 posture + import allowlist verified by CI PE-gate). **X47/X48/X49/X50 = tracked-open**
