@@ -671,7 +671,12 @@ u32 ScanController::run(IStorageDevice* slice, CancelToken* cancel, bool (*progr
      * over-fetch on random misses (FAT deleted-chain walks) at 4x. The
      * transport-level sweep (bench/tools/alignbench, PERFORMANCE-BASELINE
      * section 5) measures the full curve; tune on its data. Cache stays
-     * 8 MiB total (capacity = 32 blocks). */
+     * 8 MiB total (capacity = 32 blocks). The 8-vs-4 MiB budget AND the
+     * reactive-LRU-vs-og-prefetch-thread algorithm are REGISTERED
+     * deliberate divergences (N-045, PARITY-DELTAS D-72; og cites:
+     * DRWUI_decompiled.c:919080-:919092 budget 0x400000/sector,
+     * :962250-:962597 prefetch engine) — pinned by
+     * Cached.ScanCacheBudgetIsTheRegisteredDivergence. */
     auto cached = CachedReader::create(std::move(retry), 8ull << 20, 256 * 1024);
     IStorageDevice* pipe = cached ? static_cast<IStorageDevice*>(cached.get())
                                   : (retry_raw ? static_cast<IStorageDevice*>(retry_raw) : slice);

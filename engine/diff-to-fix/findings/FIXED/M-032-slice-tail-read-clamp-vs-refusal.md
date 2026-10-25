@@ -81,7 +81,7 @@ path (2) — an opt-in read_at_clamped — would be dead code on arrival
 (the repo just swept dead code in N-041). The divergence is real and
 deliberate: ours is the safer contract (a refused read is honest; a
 zero-filled read can fabricate structure). Registered PARITY-DELTAS
-D-67. The og's own tail memset is in SECTOR units (count-n, :7258) —
+D-74. The og's own tail memset is in SECTOR units (count-n, :7258) —
 an under-zeroing defect NOT adopted. The open question (does any og
 engine deliberately read past the end relying on zero-fill?) is
 resolved for OUR side by the audit; the og-side probe (HFS+

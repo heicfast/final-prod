@@ -266,7 +266,7 @@ green as the default-mode regression guard. Fail-before: walker-revert
 **Resolution notes:** `WalkerFlags::single_hop_attrlist` (default FALSE =
 the multi-hop BFS superset, per this finding's own recommendation: the
 og's depth-1 is a limitation, not a choice; registered PARITY-DELTAS
-D-66). TRUE = og parity for benchmark comparisons: the chase caps at ONE
+D-73). TRUE = og parity for benchmark comparisons: the chase caps at ONE
 level (children of the base record only; nested lists never queue) —
 corpus FUN_180041df0 :52615-52687 (iterates the child list, no
 recursion), re-verified first-hand this session.

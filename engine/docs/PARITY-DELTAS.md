@@ -1938,7 +1938,7 @@ same way. Pinned by `RawFixer.NtfsPrimaryDamaged4Kn`,
 
 ## M. diff-to-fix session 10 (2026-10-26)
 
-- **D-65 — the lost-partition apply path (S-029, IMPLEMENTED).** The
+- **D-68 — the lost-partition apply path (S-029, IMPLEMENTED).** The
   og's apply is a consent-gated product flow (RecoveryModule
   `CreateRecoveryPartitionObject` → PartitionRecovery FUN_1800566d0
   "rebuild disk layout": DELETE_DRIVE_LAYOUT + raw sector-0 rewrite +
@@ -1960,7 +1960,7 @@ same way. Pinned by `RawFixer.NtfsPrimaryDamaged4Kn`,
   chained** — the og's apply composites BootIni_Init + Fixup.mo BCD
   repair; the core's apply exposes the boundary truthfully through the
   plan's `boot_repair_available` field and refuses to pretend.
-- **D-67 — the apply MBR type-byte map (convention, corpus-undecoded).**
+- **D-69 — the apply MBR type-byte map (convention, corpus-undecoded).**
   The og's own family→type map for the recovered entry is not decoded in
   the corpus for this path. The core uses the industry conventions:
   NTFS/exFAT/ReFS/BitLocker→0x07, FAT→0x06, ext2/Btrfs→0x83,
@@ -2023,9 +2023,8 @@ across the fan-out nodes, and the hardlinks WalkStats counter is nonzero
 only in this mode (the og's scan has no such counter). Pinned by
 `NtfsVolume.HardLinkFanOutOptIn` (per-link names, per-parent nodes) and
 `NtfsVolume.HardLinkSingleLinkMatchesOg` (the parity default).
-`NtfsVolume.HardLinkSingleLinkMatchesOg` (the parity default).
 
-### D-66 — Attrlist chase depth: the multi-hop BFS default (M-008, REGISTERED SUPERSET — the default)
+### D-73 — Attrlist chase depth: the multi-hop BFS default (M-008, REGISTERED SUPERSET — the default)
 
 The og's $ATTRIBUTE_LIST chase is depth-1 (FUN_180041df0 iterates the
 pass-1 child-record list, never recursing into child records' own lists).
@@ -2041,7 +2040,7 @@ notes assumed does NOT exist on either side. Pinned by
 `NtfsVolume.MultiHopAttrlistOgParityStopsAtDepth1` (parity) and
 `NestedAttrlistChase` (the default), plus the deleted-chain depth test.
 
-### D-67 — Slice tail-read refusal vs the og's clamp+zero-fill (M-032, ACCEPTED SAFETY DIVERGENCE)
+### D-74 — Slice tail-read refusal vs the og's clamp+zero-fill (M-032, ACCEPTED SAFETY DIVERGENCE)
 
 The og's virtual-volume layer (HFSPlusSearchDLL FUN_180009290 :7219-7264,
 DRWUI twin :1044939-1044979) CLAMPS a tail-crossing read: the in-bounds
@@ -2061,3 +2060,30 @@ not as dead code now.
 
 
 (The original session-10 D-64 draft was folded into the converged entry above.)
+
+### D-72 — scan cache: 8 MiB reactive LRU vs og 4 MiB prefetch read-ahead (N-045, REGISTERED DIVERGENCE — budget + algorithm)
+
+The og's `CStorageDeviceWithCache` sizes its cache at **4 MiB**
+(DRWUI_decompiled.c:919080-:919092 — cache block count =
+`0x400000 / bytes_per_sector`, fallback `0x2000` blocks; constructor
+:962250-:962292 with a 1000-entry cache count; one instance per
+physical disk, shared across all partition scans) and runs it as a
+**prefetch read-ahead engine** — a dedicated prefetch thread, a 10-run
+look-ahead window, 1000-sector default runs, CRITICAL_SECTION locking
+(:962250-:962597). The core's scan pipe builds an **8 MiB** reactive
+true-LRU (`CachedReader::create(..., 8ull << 20, 256 * 1024)` at
+cr_scan.cpp; 256 KiB block size separately registered as D-51) with no
+prefetch thread. Both divergences are deliberate: the 2x budget rides
+the 256 KiB block curve measured by the alignbench transport sweep
+(PERFORMANCE-BASELINE section 5), and the sequential latency-hiding the
+og obtains from its prefetch thread is provided one layer down by the
+transport's large 64 KiB-multiple reads. Aligning the budget to 4 MiB or
+introducing a prefetch thread is a benchmark-gated tuning decision
+(docs/benchmarking.md), not a parity fix. Placement parity confirmed:
+both caches sit below the slice layer and are shared across candidate
+scans. Pinned by `Cached.ScanCacheBudgetIsTheRegisteredDivergence`
+(doc-truth pin: source constant + this row + the cr_cached.h divergence
+block must stay in lockstep).
+
+>>>>>>> f6c2e36 (fix(N-045): scan-cache budget+algorithm registered as PARITY-DELTAS D-72 with doc-truth pin)
+

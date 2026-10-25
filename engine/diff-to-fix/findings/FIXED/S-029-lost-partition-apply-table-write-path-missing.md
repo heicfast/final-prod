@@ -135,7 +135,7 @@ rawfixer seams. New module `cr/apply` (`plan_apply` / `execute_apply` / the shar
 `repair::undo`): the plan is READ-ONLY (slot pick = first zero entry; containment
 refusals for overlap/LBA-0/past-disk/GPT/full-table/zero-size; the CHS pair at the
 255/63 convention with the cylinder-1023 clamp; the 0x55AA restore planned only when
-absent — the og rewrites it, PR:46957-46962; the family→type map D-66); execution is
+absent — the og rewrites it, PR:46957-46962; the family→type map D-69); execution is
 A1-A4: quiesce via `IWriteDevice::lock_volume` (the S-010 sequence in the win
 transport — busy volume = clean refusal), the A2 stale-table revalidation (the plan's
 sector-0 snapshot vs the live disk — the og re-reads sector 0 raw, PR:46944), the A1
@@ -150,7 +150,7 @@ transcribes a scored candidate, never invents geometry), and the post-write
 `win::refresh_disk_properties` (best-effort, surfaced, never fails the apply).
 `cr_lostpart.h`'s R3.2 comment superseded (the materializer stays read-only BY
 DESIGN as the recovery path; the write path is the separate consent-gated module).
-PARITY-DELTAS D-65/D-66 register the v1 boundaries and the type-map convention.
+PARITY-DELTAS D-68/D-69 register the v1 boundaries and the type-map convention.
 Out of scope, refused cleanly, tracked: the GPT variant (FUN_1800392f0 GUID regen),
 the boot-chain composite (M-040 — the plan's `boot_repair_available` field states
 the boundary), and the cr_ui ABI surface for apply (the CLI is the v1 consumer; the
