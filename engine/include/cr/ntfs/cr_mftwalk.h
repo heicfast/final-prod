@@ -90,6 +90,23 @@ struct WalkerFlags {
      * "show all hard-links" mode. The hardlinks stat counts only in
      * fan-out mode (the og's scan has no such counter). */
     bool single_link_per_record = true;
+    /* M-008 (diff-to-fix): the og's $ATTRIBUTE_LIST chase is DEPTH-1 -
+     * FUN_180041df0 (:52615-52687) iterates the pass-1 child-record list
+     * (built because FUN_180017390 :18461-18464 passes the engine's list
+     * builder, plVar9, non-NULL) and never recurses into child records'
+     * own $ATTRIBUTE_LIST. Under the S-012-corrected model this applies
+     * to EVERY pass-1 record - deleted included (FUN_180017390 is pass
+     * 1's per-record processor and emits unconditionally; the NULL
+     * param_6 at FUN_18001acc0 :21161 is the DUMP walk, which parses
+     * buffers, not MFT records - M-008's original "deleted records are
+     * never chased" premise was based on the pre-S-012 misreading and is
+     * corrected here). Default FALSE = the multi-hop BFS (depth 64, cycle
+     * guard) - the registered superset: full content for multi-hop
+     * fragmented files (the finding's own recommendation: the og's
+     * depth-1 is a limitation, not a choice). TRUE = og parity for
+     * benchmark comparisons: the chase stops after the first level
+     * (children of the base record only; grandchild lists never queue). */
+    bool single_hop_attrlist = false;
 };
 
 /* USN reasons (winioctl.h USN_REASON_*): the journal records we mine for

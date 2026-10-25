@@ -9920,3 +9920,44 @@ Stage Summary:
 - Session unique resolutions: 10 (6 reconciliation + N-076 + N-030 +
   N-041; N-069 + the quartet convergent with parallel lanes). MINOR 42
   remain. Next: N-029a maximal-subpart, N-056, N-063, N-062.
+
+---
+Task ID: DFX11-M008 (session 11, finding 3)
+Agent: main engineer (diff-to-fix fix session 11 — DFX11)
+Task: M-008 — the attrlist chase depth model. Verified, classified
+CONFIRMED-DIVERGENCE (depth) + FALSE-PREMISE (the deleted gate), fixed,
+proven.
+
+Work Log:
+- Corpus re-verified first-hand: FUN_180041df0 :52615-52687 (depth-1, no
+  recursion) + FUN_1800431d0 :18461-18464 inside FUN_180017390
+  (:18423-18562) — pass 1's per-record processor passes plVar9 non-NULL,
+  so the child-record list is built for EVERY record. THE FINDING'S
+  PREMISE CORRECTED: its "deleted-phase walk passes NULL param_6" claim
+  read FUN_18001acc0 (the GUID-DUMP pass 2, per S-012's decode) as a
+  deleted walk — the og chases DELETED records at depth 1 in pass 1.
+  The fix-plan's deleted-gate step was REJECTED (corpus wins); OQ-S2A-1
+  resolved by the same evidence; OQ-S2A-4 ($MFT bootstrap depth) stays
+  open.
+- Fix: WalkerFlags::single_hop_attrlist (default FALSE = the multi-hop
+  BFS superset, D-66 — the finding's own recommendation); TRUE = depth-1
+  parity (the chase stops after the first level; nested lists never
+  queue).
+- Tests: 2 new (MultiHopAttrlistOgParityStopsAtDepth1 — 1 extent/2048
+  bytes; DeletedAttrlistChaseFollowsChildrenAtDepth1 — the corrected
+  semantics on a deleted 3-record chain: default 8 clusters, parity 4 at
+  exactly LCN 140) + NestedAttrlistChase stays as the default guard.
+  Fail-before: walker-revert (2 vs 1 extents, 4096 vs 2048). Suite
+  593/593.
+- Cross-lane repair in the same push: the M-054 landing's +2 coverage
+  hardening (cluster_count = p.cluster_count + 2) missed the S-009 leg's
+  FreeMapProducerMatchesSpecBitMapping expectation — updated 100 -> 102
+  with the hardening's rationale comment.
+- Audit trail: Resolution + FIXED/ move (the premise correction recorded
+  in full); RESOLVED-INDEX (74); matrix M-008 cell; modules/ntfs.md row;
+  AUDIT-NTFS row 24 (MATCH at the flag; D-66 default); PARITY-DELTAS
+  D-66; SUMMARY extension.
+
+Stage Summary:
+- M-008 FIXED (session tally: 2). Next in my claimed batch: M-032 (slice
+  tail read clamp vs refusal).
