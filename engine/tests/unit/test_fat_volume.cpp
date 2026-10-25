@@ -946,6 +946,95 @@ tree::FileNode* find_node(tree::ResultTree& tree, const char* want) {
     return nullptr;
 }
 
+
+namespace {
+/* M-011: a large-FAT32 boot-sector writer (spf above the old 16 MiB cap).
+ * 34000 sectors/FAT = 17 MiB table; total sized so the data area holds
+ * 66000 clusters (FAT32 by the cluster bracket). */
+void build_large_fat32_boot(std::vector<u8>& img, u32 spf) {
+    u8* b = img.data();
+    put16(img, 0x0B, 512);
+    b[0x0D] = 1;
+    put16(img, 0x0E, 8);
+    b[0x10] = 2;
+    put16(img, 0x11, 0);
+    put16(img, 0x13, 0);
+    b[0x15] = 0xF8;
+    put16(img, 0x16, 0);
+    put32v(img, 0x20, 8 + 2 * spf + 66000);
+    put32v(img, 0x24, spf);
+    put32v(img, 0x2C, 2);
+    std::memcpy(b + 0x52, "FAT32   ", 8);
+    b[510] = 0x55;
+    b[511] = 0xAA;
+}
+} // namespace
+
+TEST(FatEngine, LargeFat32TableAccepted) {
+    /* M-011: the og's FAT32 window is spf in [256, 0x96000] sectors
+     * (FUN_180036e90 :44775) = 128 KiB..300 MiB whole-loaded. A 17 MiB FAT
+     * (34000 sectors) scanned in the og; the core's flat 16 MiB cap
+     * returned ERR_BAD_PARAMETER and the volume vanished. */
+    const u32 spf = 34000;
+    std::vector<u8> img(u64(8 + 2 * spf + 66000) * 512, 0);
+    build_large_fat32_boot(img, spf);
+    const size_t FAT1 = 8 * 512, FAT2 = (8 + spf) * 512;
+    auto link32 = [&](u32 c, u32 v) {
+        put32v(img, FAT1 + c * 4, v);
+        put32v(img, FAT2 + c * 4, v);
+    };
+    /* FAT[0]/FAT[1] media words (family-tolerant form) */
+    put32v(img, FAT1, 0x0FFFFF00 | 0xF8);
+    put32v(img, FAT1 + 4, 0x0FFFFFF8);
+    put32v(img, FAT2, 0x0FFFFF00 | 0xF8);
+    put32v(img, FAT2 + 4, 0x0FFFFFF8);
+    link32(2, 3);
+    link32(3, 0x0FFFFFFF);
+    link32(100, 0x0FFFFFFF);
+    const u64 data_start = (8 + 2ull * spf) * 512;
+    std::memcpy(img.data() + data_start + 8, "BIGFAT32DATA", 12);
+    /* root dir cluster 2: one dentry pointing at cluster 100 */
+    {
+        u8* d = img.data() + data_start + 0 * 512 + 0 * 32; /* cluster 2 byte 0 */
+        /* 8.3 name: "BIG     " + ext "TXT" (name d[0..7], ext d[8..10]) */
+        std::memcpy(d, "BIG     TXT", 11);
+        d[0x0B] = 0x20;   /* archive */
+        d[0x1A] = 100;    /* first cluster low */
+        d[0x1C] = 12;     /* size */
+    }
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* ra = tree.add_root(u"Found");
+    auto* rd = tree.add_root(u"Deleted");
+    FatScanFlags flags;
+    FatScanStats stats;
+    u32 rc = scan_fat(&dev, flags, nullptr, nullptr, nullptr, tree, ra, rd, nullptr, stats);
+    ASSERT_EQ(rc, OK) << "17 MiB FAT32 table must scan (og window up to 300 MiB)";
+    auto all = collect_all(tree);
+    bool big = false;
+    for (auto* n : all)
+        if (n->name_utf8() == "BIG.TXT")
+            big = true;
+    EXPECT_TRUE(big) << "the large-table volume's file recovered";
+}
+
+TEST(FatEngine, SmallFat16TableDeclined) {
+    /* M-011: the og's FAT16 window requires spf >= 12 sectors
+     * (FUN_180036e90 :44743: 0xC/(bps>>9) <= spf). An spf=8 "FAT16" is
+     * FAT12-window territory the og never scans as FAT16. */
+    auto img = build_fat16_image();
+    /* rewrite the BPB with spf=8, keeping the rest of the shape */
+    put16(img, 0x16, 8);
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* ra = tree.add_root(u"Found");
+    auto* rd = tree.add_root(u"Deleted");
+    FatScanFlags flags;
+    FatScanStats stats;
+    u32 rc = scan_fat(&dev, flags, nullptr, nullptr, nullptr, tree, ra, rd, nullptr, stats);
+    EXPECT_EQ(rc, ERR_BAD_PARAMETER) << "spf=8 FAT16 declined (og window)";
+}
+
 } // namespace
 
 TEST(FatEngine, InvalidDateYieldsZeroFileTime) {

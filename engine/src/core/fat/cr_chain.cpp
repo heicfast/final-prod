@@ -91,7 +91,40 @@ u32 FatTable::load(IStorageDevice* dev, const FatParams& p) {
     flavor_ = p.flavor;
     max_cluster_ = p.cluster_count + 1; /* clusters 2..cluster_count+1 */
     u64 table_bytes = u64(p.fat_sectors) * p.bytes_per_sector;
-    if (table_bytes == 0 || table_bytes > (16u << 20))
+    /* M-011 (diff-to-fix): per-flavor sectors-per-FAT windows, exactly the
+     * og's child-table validation (FUN_180036e90 :44715-44793, re-read
+     * first-hand): FAT12 spf in [1, 0xC], FAT16 spf in [0xC, 0x100], FAT32
+     * spf in [0x100, 0x96000] - the bounds divided by (bps>>9) so they are
+     * sector-count-invariant: at 512 B sectors FAT32 accepts 128 KiB..
+     * 300 MiB tables (whole-loaded, og factory shape :3809-3814). The old
+     * flat 16 MiB cap refused every larger FAT32 (17 MiB-FAT volumes =
+     * multi-TB-with-large-clusters class) with ERR_BAD_PARAMETER and the
+     * whole volume vanished from recovery; the FAT16 lower bound was
+     * missing entirely (spf < 12 = FAT12-window territory the og never
+     * scans as FAT16). */
+    const u64 spf_scale = p.bytes_per_sector / 512;
+    u64 spf_min = 1, spf_max = 0x96000;
+    switch (flavor_) {
+    case Flavor::Fat12:
+        spf_min = 1;
+        spf_max = 0xC;
+        break;
+    case Flavor::Fat16:
+        spf_min = 0xC;
+        spf_max = 0x100;
+        break;
+    case Flavor::Fat32:
+    default:
+        spf_min = 0x100;
+        spf_max = 0x96000;
+        break;
+    }
+    if (spf_scale != 0) {
+        spf_min = (spf_min + spf_scale - 1) / spf_scale; /* ceil: at least
+                                                          * one sector */
+        spf_max /= spf_scale;
+    }
+    if (p.fat_sectors < spf_min || p.fat_sectors > spf_max || table_bytes == 0)
         return ERR_BAD_PARAMETER;
     fat1_.resize(size_t(table_bytes));
     if (dev->read_at(p.fat_start, fat1_.data(), u32(table_bytes)) != OK) {
