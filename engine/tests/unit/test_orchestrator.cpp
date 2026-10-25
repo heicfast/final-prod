@@ -224,7 +224,13 @@ TEST(Orchestrator, ProbeFamily) {
     EXPECT_EQ(ScanController::probe_family(&dev), FsFamily::Fat);
     u8* b = dev.raw().data();
     std::memcpy(b + 3, "NTFS    ", 8);
-    EXPECT_EQ(ScanController::probe_family(&dev), FsFamily::Ntfs);
+    /* M-043: the fail-before leg of this test used to EXPECT Ntfs here -
+     * a spoofed OEM on a FAT volume dispatched the NTFS engine. The og's
+     * analyser requires a content proof (FILE magic + USA bounds at the
+     * $MFT LCN) before recognition; a FAT image's BPB 0x28 does not point
+     * at an MFT record, so the proof fails and the 55AA FAT signature
+     * underneath wins - exactly the og's multi-analyser outcome. */
+    EXPECT_EQ(ScanController::probe_family(&dev), FsFamily::Fat);
     std::memcpy(b + 3, "EXFAT   ", 8);
     EXPECT_EQ(ScanController::probe_family(&dev), FsFamily::Exfat);
     std::memset(b + 3, 'X', 8);
@@ -233,6 +239,65 @@ TEST(Orchestrator, ProbeFamily) {
     EXPECT_EQ(ScanController::probe_family(&dev), FsFamily::Fat);
     b[510] = 0x00;
     EXPECT_EQ(ScanController::probe_family(&dev), FsFamily::Unknown);
+}
+
+TEST(Orchestrator, NtfsProbeContentProof) {
+    /* M-043 fail-before/pass-after: the og's analyser recognizes NTFS by
+     * CONTENT, not OEM bytes (FUN_180005470's gates + FUN_180005180's
+     * per-record validation: FILE magic, USA count < 0x11, USA offset in
+     * [0x2a, 0x2a+0xd7) - corpus re-verified first-hand). */
+    auto put16_raw = [](u8* p, u16 v) {
+        p[0] = u8(v);
+        p[1] = u8(v >> 8);
+    };
+    auto mk = [&](u64 mft_lcn, bool file_magic, u16 usa_off, u16 usa_cnt) {
+        std::vector<u8> img(64 * 1024, 0);
+        u8* b = img.data();
+        std::memcpy(b + 3, "NTFS    ", 8);
+        put16_raw(b + 0x0B, 512); /* bps */
+        b[0x0D] = 0x01;            /* spc 1 (pow2, nonzero) */
+        put16_raw(b + 0x28, u16(mft_lcn));
+        put16_raw(b + 0x2A, u16(mft_lcn >> 16));
+        if (mft_lcn != 0) {
+            u8* r = img.data() + mft_lcn * 512;
+            if (file_magic)
+                std::memcpy(r, "FILE", 4);
+            put16_raw(r + 0x06, usa_off);
+            put16_raw(r + 0x08, usa_cnt);
+        }
+        return img;
+    };
+
+    /* 1. spoofed OEM, $MFT geometry pointing at zeros: not NTFS */
+    {
+        auto img = mk(16, false, 0x30, 3);
+        MemDevice dev(std::move(img));
+        EXPECT_EQ(ScanController::probe_family(&dev), FsFamily::Unknown);
+    }
+    /* 2. FILE magic but USA count out of the og's bound (>= 0x11) */
+    {
+        auto img = mk(16, true, 0x30, 0x20);
+        MemDevice dev(std::move(img));
+        EXPECT_EQ(ScanController::probe_family(&dev), FsFamily::Unknown);
+    }
+    /* 3. FILE magic but USA offset outside [0x2a, 0x201) */
+    {
+        auto img = mk(16, true, 0x10, 3);
+        MemDevice dev(std::move(img));
+        EXPECT_EQ(ScanController::probe_family(&dev), FsFamily::Unknown);
+    }
+    /* 4. real-shaped record 0: recognized */
+    {
+        auto img = mk(16, true, 0x30, 3);
+        MemDevice dev(std::move(img));
+        EXPECT_EQ(ScanController::probe_family(&dev), FsFamily::Ntfs);
+    }
+    /* 5. plausible BPB but $MFT LCN zero: never probes (geometry gate) */
+    {
+        auto img = mk(0, true, 0x30, 3);
+        MemDevice dev(std::move(img));
+        EXPECT_EQ(ScanController::probe_family(&dev), FsFamily::Unknown);
+    }
 }
 
 TEST(Orchestrator, StagedRunAndSessionRoundTrip) {

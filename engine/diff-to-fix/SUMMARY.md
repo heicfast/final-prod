@@ -153,9 +153,27 @@ Bench lesson recorded: all-0xFF fixtures are adversarial (FMT_MPGA_FF's
 {0xFF,0xFF} magic — parity with the og's FF sync family); representative
 mixed-content fill is the honest measurement. Suite 575/575.
 
+**M-043 FIXED, one sub-claim DISPROVEN (this push):** NTFS recognition
+content proof. Corpus re-verified FIRST — and it overturned the finding's
+first half: FUN_180005470 decoded in full shows the analyser gates on the
+PRIMARY boot and bails before result 4; its "backup-boot verification"
+(:4309-4327) is a memcmp storing the verified location at +0x510 as the
+REPAIR input — and NTFSSearchDLL carries ZERO backup reads. The og has NO
+scan-path backup fallback; the core's refuse-then-rawfixer shape was
+already parity on that half (no fallback code added — the finding's text
+is corrected, not "fixed" by breaking parity). The CONFIRMED half landed
+at the exact og boundary: probe_family's NTFS branch now applies the
+og boot gates (bps 512-multiple <= 0x1000; SPC pow2 — NFA :4292-4307) +
+record-0 proof (FILE magic; USA count [1,0x11); USA offset [0x2a,0x201) —
+FUN_180005180 :4038-4058), one 512-byte read at $MFT LCN. Executed
+fail-before: ProbeFamily's spoofed-OEM leg (a FAT volume with a spoofed
+"NTFS    " OEM used to dispatch the NTFS engine — the existing test
+ASSERTED the divergence). New: NtfsProbeContentProof (5 legs) +
+TornPrimaryBootWithIntactBackupStillRefusedUntilRepair pin. Suite 599/599.
+
 **Counts after this wave (direct file inventory):** SEVERE 2 (S-029, S-030) ·
-MAJOR 36 · MINOR 48 · INFO 22 (0 actionable) · tracked-open 16 · FIXED 83
-files (82 findings + RESOLVED-INDEX).
+MAJOR 35 · MINOR 48 · INFO 22 (0 actionable) · tracked-open 16 · FIXED 84
+files (83 findings + RESOLVED-INDEX).
 
 # SUMMARY.md — executive summary (diff-fix session 11 on top; earlier sessions below)
 

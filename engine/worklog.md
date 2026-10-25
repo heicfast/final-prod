@@ -10129,3 +10129,40 @@ Stage Summary:
 - T13 CLOSED: INFO tier 22/22 re-verified on the current tree with one
   missing pin landed. DFX14 tally: 9 finding-level resolutions
   (N-073, M-029 fold, clobber repair x4, M-005, I-006 pin) + this pass.
+
+
+---
+Task ID: DFX14-T6 (M-043 — completed)
+Agent: main engineer (diff-to-fix session 14)
+Task: M-043 (MAJOR, ntfs recognition): verify, classify, fix, prove.
+
+Work Log:
+- Corpus re-verification FIRST (ghidra-mo/
+  NTFSFileSystemAnalyser_decompiled.c :4259-4340 read in full):
+  DISPROVED the finding's first half. The analyser gates on the primary
+  boot and bails before result 4; the backup "verification" is a memcmp
+  storing the verified location (+0x510, +1-when-identical) as the REPAIR
+  input; NTFSSearchDLL has zero backup reads. The og NEVER scans from the
+  backup — the finding's "torn-DBR volumes: the og proceeds" premise is
+  false. The core's refuse-then-rawfixer shape was already parity.
+- The CONFIRMED half (no content proof before engine dispatch) fixed at
+  the og's boundary: probe_family NTFS branch = og boot gates (bps
+  512-multiple <= 0x1000; SPC pow2 nonzero) + record-0 proof (FILE magic,
+  USA count [1,0x11), USA offset [0x2a,0x201)), one 512-byte read at the
+  $MFT LCN; failure falls through to the other family probes.
+- Fail-before EXECUTED: Orchestrator.ProbeFamily's spoofed-OEM leg failed
+  on the fixed tree before its expectation was corrected — the existing
+  test had ASSERTED the divergence (a FAT volume with spoofed "NTFS    "
+  OEM dispatched the NTFS engine). New NtfsProbeContentProof (5 legs) +
+  TornPrimaryBootWithIntactBackupStillRefusedUntilRepair pin (torn
+  primary + byte-identical volume-end backup -> ERR_BAD_MAGIC; the scan
+  path never consults the backup). Suite 599/599.
+- No backup-fallback code added (corpus-disproven premise — correcting
+  the finding, not "fixing" by breaking parity). Audit trail: Resolution
+  + move to FIXED/; RESOLVED-INDEX; matrix ntfs row; modules/ntfs.md;
+  SUMMARY delta + counts (MAJOR 35, FIXED 84 files).
+
+Stage Summary:
+- DFX14 tally: 10 finding-level resolutions (N-073, M-029 fold, clobber
+  repair x4, M-005, I-006 pin, M-043) + the INFO verification pass.
+  Session 14 continues; next claim after the next pull.

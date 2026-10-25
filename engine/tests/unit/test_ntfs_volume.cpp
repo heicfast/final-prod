@@ -2266,6 +2266,31 @@ TEST(NtfsVolume, RemnantReachableUnderTornDbr) {
     ASSERT_NE(found, nullptr) << "remnant sweep never ran / remnant lost";
 }
 
+TEST(NtfsVolume, TornPrimaryBootWithIntactBackupStillRefusedUntilRepair) {
+    /* M-043 CORRECTED-TRUTH pin (corpus-proven this session): the og has
+     * NO scan-path backup-boot fallback. The analyser (FUN_180005470,
+     * decode read first-hand) memcmp-verifies the volume-end backup
+     * against the primary and stores the verified location at +0x510 as
+     * the REPAIR input - it bails before result 4 on a torn primary, and
+     * NTFSSearchDLL never reads the backup at all (zero hits in the
+     * decompile). The core's scan path matches: a torn primary DBR is
+     * refused (ERR_BAD_MAGIC) even with a byte-identical backup at the
+     * volume end; recovery routes through the consent-gated rawfixer
+     * (S-008), like the og routes through its repair. Guards against
+     * anyone adding a scan-path fallback on M-043's original premise. */
+    Image img;
+    build_image(img);
+    /* byte-identical backup at the volume end */
+    std::memcpy(img.sec(NSECTORS - 1), img.sec(0), SEC);
+    /* tear the primary's OEM ("NTFS    " @+3) - the validator's first gate */
+    std::memset(img.sec(0) + 3, 0, 8);
+    MemDevice dev(img.raw(), img.geom());
+    u32 err = 0;
+    auto vol = NtfsVolume::open(std::unique_ptr<IStorageDevice>(new MemDevice(dev)), &err);
+    EXPECT_EQ(nullptr, vol);
+    EXPECT_EQ(u32(ERR_BAD_MAGIC), err);
+}
+
 /* ---- N-001: mirror service derives from the runlist span ---------------- */
 
 namespace {

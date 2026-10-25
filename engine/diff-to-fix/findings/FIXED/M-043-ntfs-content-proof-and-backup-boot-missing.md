@@ -96,3 +96,48 @@ The exact sector-index formula in `FUN_1800048f0` (NFA:4309) was read as
 "volume-end backup" from its usage and the og's repair artifact; the
 function body itself was not decoded (one 20-line read pins it — noted for
 the fix leg).
+
+
+---
+
+## Resolution (session 14, DFX14)
+
+**Status:** FIXED — with one sub-claim DISPROVEN and corrected in this file
+(the finding's "backup-boot fallback missing" half was a false premise; the
+corpus wins)
+**Fixed in commit:** (this session's M-043 commit — `git log` "fix(M-043)")
+**Verified by:** fail-before/pass-after executed: `Orchestrator.ProbeFamily`'s
+spoofed-OEM leg FAILED on the fixed tree before its expectation was corrected
+(a spoofed "NTFS    " OEM on a FAT16 volume used to dispatch the NTFS engine;
+now the content proof rejects it and the 55AA FAT signature underneath wins —
+the og's multi-analyser outcome). New `Orchestrator.NtfsProbeContentProof`
+(5 legs: zeros-at-$MFT / USA count out of bound / USA offset out of range /
+real-shaped record recognized / LCN-zero geometry gate). New pin
+`NtfsVolume.TornPrimaryBootWithIntactBackupStillRefusedUntilRepair` (torn
+primary + byte-identical volume-end backup -> ERR_BAD_MAGIC; the scan path
+never consults the backup). Suite 599/599.
+**Resolution notes:** CORPUS RE-VERIFIED FIRST-HAND BEFORE ANY CHANGE —
+and it DISPROVED the finding's first half. FUN_180005470 decoded in full
+(this session, NTFSFileSystemAnalyser_decompiled.c :4259-4340): (a) the
+analyser gates on the PRIMARY boot (bps 512-multiple <= 0x1000; SPC pow2
+nonzero) and bails BEFORE result 4 on failure; (b) the "backup-boot
+verification" (:4309-4327) is a memcmp of the volume-end backup AGAINST
+the primary, storing the verified location at +0x510 (+1 when identical,
+bare index when not) — a REPAIR input, never a scan fallback; (c)
+NTFSSearchDLL_decompiled.c carries ZERO backup-boot reads (grep clean) —
+the og NEVER scans from the backup. So the finding's claim (1) — "the og
+recognizes and scans torn-DBR volumes via the backup" — is FALSE; the
+core's existing shape (engine refuses; the consent-gated rawfixer owns
+the backup, S-008) was already og-parity on that half. NO backup-fallback
+code was added (that would have been a divergence, not a fix). Claim (2)
+— the missing content proof — was CONFIRMED and FIXED at the recognition
+boundary exactly where the og puts it: probe_family's NTFS branch now
+applies the og's boot gates (bps 512-multiple <= 0x1000, SPC pow2 nonzero
+— NFA :4292-4307) plus the record-0 probe (FILE magic; USA count u16@0x08
+in [1, 0x11); USA offset u16@0x06 in [0x2a, 0x2a+0xd7) — FUN_180005180
+:4038-4058), one 512-byte read at the $MFT LCN; failure falls through to
+the remaining family probes (the og's analyser family). The analyser's
+gate ordering (result 4 set before the MFT probe) was noted; the
+probe-level form implements the finding's validated semantics. The
+finding's fix-plan step 1 (scanner-side backup fallback) is REJECTED on
+corpus evidence; step 2 (the content proof) landed as specified.

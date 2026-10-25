@@ -15,6 +15,7 @@
 #include "cr/orchestrator/cr_scan.h"
 #include "cr/btrfs/cr_btrfs_engine.h"
 #include "cr/carve/cr_carve.h"
+#include "cr/cr_bits.h"
 #include "cr/cr_parallel.h"
 #include "cr/exfat/cr_exfat_engine.h"
 #include "cr/ext4/cr_ext4_engine.h"
@@ -477,8 +478,42 @@ FsFamily ScanController::probe_family(IStorageDevice* slice) {
     u8 sec[512];
     if (slice->read_at(0, sec, 512) != OK)
         return FsFamily::Unknown;
-    if (std::memcmp(sec + 3, "NTFS    ", 8) == 0)
-        return FsFamily::Ntfs;
+    if (std::memcmp(sec + 3, "NTFS    ", 8) == 0) {
+        /* M-043 (the confirmed half): the og's analyser proves NTFS by
+         * content BEFORE the engine - the boot gates (bps 512-multiple
+         * <= 0x1000, SPC pow2 nonzero; FUN_180005470 :4292-4307, decode
+         * re-verified first-hand this session) then the first-records
+         * probe with per-record validation (FILE magic + USA count < 0x11
+         * + USA offset in [0x2a, 0x2a+0xd7); FUN_180005180 :4038-4058).
+         * The cheap form here: record 0's magic + USA bounds after a
+         * plausible-geometry check ($MFT LCN u64@0x28, spc u8@0x0D, bps
+         * u16@0x0B). A spoofed OEM on a non-NTFS sector no longer
+         * dispatches the engine - the og's analyser bails the same way
+         * (it never reaches result 4). Failure falls through to the
+         * remaining family probes. NOTE (M-043 corrected half, corpus-
+         * proven): the og has NO scan-path backup-boot fallback - the
+         * analyser only memcmp-verifies the volume-end backup against
+         * the primary and stores the verified location (+0x510) as the
+         * REPAIR input; neither it nor NTFSSearchDLL (zero backup reads
+         * in the decompile) ever scans from the backup. The core's
+         * consent-gated rawfixer owns that path. */
+        const u16 bps = u16_from_bytes_le(sec + 0x0B);
+        const u8 spc = sec[0x0D];
+        const u64 mft_lcn = le64(sec + 0x28);
+        if (bps >= 512 && bps <= 0x1000 && (bps % 512) == 0 && spc != 0 &&
+            (spc & (spc - 1)) == 0 && mft_lcn != 0) {
+            const u64 at = mft_lcn * u64(spc) * bps;
+            u8 rec[512]; /* the USA fields live in record 0's first sector */
+            if (slice->read_at(at, rec, sizeof(rec)) == OK &&
+                std::memcmp(rec, "FILE", 4) == 0) {
+                const u16 usa_off = u16_from_bytes_le(rec + 0x06);
+                const u16 usa_cnt = u16_from_bytes_le(rec + 0x08);
+                if (usa_cnt != 0 && usa_cnt < 0x11 && usa_off >= 0x2a && usa_off < 0x2a + 0xd7)
+                    return FsFamily::Ntfs;
+            }
+        }
+        /* content proof failed: not NTFS by proof - fall through */
+    }
     if (std::memcmp(sec + 3, "EXFAT   ", 8) == 0)
         return FsFamily::Exfat;
     /* ReFS: OEM "ReFS" + the DBR bytes-per-sector field (u32 @+0x20 == 512,
