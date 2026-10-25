@@ -10,6 +10,7 @@ add_executable(cr_tests
     unit/test_crc32_gpt.cpp
     unit/test_slice_devmap.cpp
     unit/test_cached.cpp
+    unit/test_directalign.cpp
     unit/test_retry.cpp
     unit/test_parallel.cpp
     unit/test_node_tree.cpp

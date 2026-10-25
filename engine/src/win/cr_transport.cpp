@@ -15,6 +15,7 @@
 #include "cr/win/cr_transport.h"
 #include "cr/win/cr_rda.h"
 #include "cr/table/cr_table_parse.h"
+#include "cr/storage/cr_directalign.h"
 #include <windows.h>
 #include <winioctl.h>
 #include <cstdio>
@@ -128,12 +129,46 @@ Geometry probe_geometry(HANDLE h, u64* out_size) {
  * Engines never see this (the cache layer reads whole sectors); the recovery
  * writer reads raw extents, so its tail chunk carries the exact file size.
  * The IStorageDevice contract is BYTE-granular - the transport must honor
- * it: an unaligned request is satisfied via an aligned bounce read.
+ * it.
+ *
+ * GAP-S6-13 (mandate section 4, non-negotiable): the DIRECT (non-RDA) path
+ * aligns to 64 KiB, not the sector size - direct reads whose length is a
+ * multiple of 4 KiB but not 64 KiB take the ~3.5x slow path in the Windows
+ * storage stack (~830 MB/s vs ~2900 MB/s on NVMe). Every issued direct
+ * read is rounded up to a 64 KiB multiple (envelope offset AND length),
+ * clamped at the device end; already-aligned requests pass through with no
+ * bounce copy. The RDA path is a kernel IRP path and keeps the sector
+ * envelope.
  * ------------------------------------------------------------------------ */
 u32 aligned_read_at(HANDLE h, u64 off, void* buf, u32 len, const Geometry& g, bool rda_scaled,
                     u64 dev_size) {
     if (len == 0)
         return OK;
+    if (!rda_scaled) {
+        /* GAP-S6-13: the direct-handle 64 KiB envelope */
+        const io::DirectEnvelope e = io::direct_envelope(off, len, dev_size);
+        if (!e.ok)
+            return ERR_RANGE_OUT_OF_BOUNDS;
+        if (e.direct)
+            return overlapped_read(h, off, buf, len, false); /* fast path: no copy */
+        /* bounded bounce: the writer chunks at 1 MiB; anything bigger means
+         * caller-side chunking broke - refuse loudly instead of allocating
+         * wildly */
+        if (e.issued_len > (1u << 20) + io::kDirectAlignBytes)
+            return ERR_BAD_PARAMETER;
+        /* per-thread bounce (raw-handle reads can arrive from multiple
+         * worker items concurrently) */
+        thread_local std::vector<u8> bounce;
+        bounce.resize(size_t(e.issued_len));
+        const u32 rc =
+            overlapped_read(h, e.issued_off, bounce.data(), u32(e.issued_len), false);
+        if (rc != OK)
+            return rc;
+        if (e.take != u64(len))
+            return ERR_READ_FAILED; /* envelope did not cover the request */
+        std::memcpy(buf, bounce.data() + size_t(e.skip), size_t(e.take));
+        return OK;
+    }
     const u32 sector =
         (g.logical_sector >= 512 && g.logical_sector <= 65536) ? g.logical_sector : 512u;
     if (off % sector == 0 && len % sector == 0)
