@@ -1715,3 +1715,14 @@ Work Log:
 - SETTLED POLARITY CONFLICT: read exFATSearchDLL_decompiled.c:1846-1875 directly — stream dentry valid iff first_cluster != 1 && < 0xFFFFFFF7 (goto TRUE-return path). Core's AUDIT-FAT reading is CORRECT; artifact fat-exfat-engine-algorithms-v2 §3 polarity is INVERTED (corpus erratum candidate #6). Agent B's sheet had propagated the artifact reading.
 - Findings: I-002 (FAT12 BAD, INFO), N-002 (EOC families, MINOR), N-003 (exFAT entry-set checksum, MINOR), OQ-T2+OQ-T5 tracked-open (mirror trigger; ChecksumDBR predicate).
 - Wrote modules/fat.md, modules/exfat.md, evidence quotes Q1-Q4.
+
+---
+Task ID: 7 (T7)
+Agent: main auditor
+Task: ext4 + HFS+ + Btrfs module audit
+
+Work Log:
+- Read B-ext4/B-hfsplus/B-btrfs vs D sheets; verified in code: ext4 SB+0x60 guard (core matches decompile; artifact wrong), journal salvage passes (descriptor-referenced only + no jsb gate), HFS+ CNID_ATTRIBUTES_FILE defined-but-unused, journal_info_block parsed-but-unused, rsrc forks present, blockSize bounds, Btrfs validate_superblock bounds + unconditional mirror loop, byte-lift loops in ext4/btrfs/zfs.
+- Empirical probe: EXT4SearchDLL imports NO MultiByteToWideChar (agent E PE dumps) + rsf-format :326 names are UTF-8 → og passes UTF-8 through; core byte-lifts → mojibake (S-005).
+- Findings: S-002 (HFS+ attributes/decmpfs missing), S-003 (HFS+ journal not replayed), S-004 (ext4 journal salvage surface + jsb gate), S-005 (names mojibake, 3 engines), N-004/N-005/N-006 (CatchBuffer layering, HFS+ blockSize bounds, btrfs nodesize bounds), I-003 (btrfs supersets: NULL-stub complete searcher + mirror-abort rule).
+- Wrote modules/ext4.md, modules/hfsplus.md, modules/btrfs.md. Corpus errata candidates #7 (ext4 guard field) registered.
