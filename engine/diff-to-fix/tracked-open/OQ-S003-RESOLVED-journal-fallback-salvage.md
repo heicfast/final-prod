@@ -94,3 +94,26 @@ wrapped image clobbering the on-disk header mid-walk cannot break the og's
 sharpens the residual scope above: the fallback fires when the SETUP read
 itself fails the gates — exactly the case where the core returns early and
 the og brute-scans.
+
+## Q2 (re-appended by the S-021 convergence session — lost in the rename
+race; the recognition-gate derivation question, distinct from the fallback)
+
+The harvest's recognition gates are mechanically decoded and triple-convergent
+(s5 pass, DF4 leg, final-sweep leg — all independently derived the same
+arithmetic), but two constants remain derivation-unknown, and a wrong value
+yields a silent ZERO-harvest (never wrong results):
+
+1. the transaction gate `u16@blocklist+0 == (size_a >> 4) - 1` (size_a = the
+   u32 at jnl_header+0x20);
+2. the cross-check `u64@jnl_header+0x18 == JournalInfoBlock.size` (+0x18 is
+   jnl.c `end` per the 44-byte journal_header layout).
+
+Additional decode from the same session (:13460-13560, first-hand): the JIB
+read offset is `volume.blockSize(+0x28) * journalInfoBlock(+0xC)` (the og
+volume object mirrors the VH fields); the 0xB4-byte wrapper copy is
+db70-swapped BEFORE the flags-bit-0 gate (error 0x5003100000501); the jnl
+header is read at the JIB's offset field (+0x24, post-swap). Next step:
+`diskutil enableJournal` (or `mkfs.hfsplus -J`) + one delete + raw dump;
+confirm (a) the u16 at blocklist+0, (b) the u32 at jhdr+0x20, (c) whether
+jhdr+0x18 == JIB.size on volumes the og actually harvests. No macOS tooling
+in any session so far — this needs the bench-harness environment.
