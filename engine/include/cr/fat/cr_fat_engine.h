@@ -75,7 +75,7 @@ u32 validate_boot(const u8* sector512, u64 device_bytes, FatParams& out);
  *     branch (its quick engine declines them); the core keeps FAT12
  *     recovery as the documented I-002-family superset (PARITY-DELTAS).
  * Returns OK or ERR_BAD_PARAMETER. */
-u32 boot_passes_open_gates(const u8* sector512, u16 device_sector, const FatParams& p);
+u32 boot_passes_open_gates(const u8* sector512, u32 device_sector, const FatParams& p);
 
 /* Lost-scan boot gates (N-034, diff-to-fix): the og PartitionRecoveryD
  * deep-scan ladder FUN_180004610 :2516-2606 - bps must be a 512 multiple

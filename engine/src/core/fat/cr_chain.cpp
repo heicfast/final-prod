@@ -377,7 +377,7 @@ u32 validate_boot(const u8* sector512, u64 device_bytes, FatParams& out) {
     return OK;
 }
 
-u32 boot_passes_open_gates(const u8* sector512, u16 device_sector, const FatParams& p) {
+u32 boot_passes_open_gates(const u8* sector512, u32 device_sector, const FatParams& p) {
     /* N-010b (diff-to-fix): the og's engine-open boot validator
      * (FATSearchDLL FUN_18002f970 :38037-38090, consumed by the quick
      * search at FUN_180021000 :26318 which bails on flavor 0xE).
