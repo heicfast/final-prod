@@ -8531,3 +8531,41 @@ Stage Summary:
   repair, contract fix. Next: the remaining SEVERE tier (S-009 diskmap
   residual, S-029 apply path, S-030 image scan) and the S6-close
   recommended next-10.
+
+---
+Task ID: DFX7-T2 (MINOR tier, waves 3-4)
+Agent: main engineer (diff-to-fix session 7)
+Task: Continue the MINOR tier; repair cross-lane landing corruption as found.
+
+Work Log:
+- N-018 FIXED: linux-ubsan preset + CI job (Q67's third prong). The lane's
+  first run caught 3 real defects, all fixed: (a) test_fat_volume LFN fixture
+  builders stored through unaligned u16 members (name1 at odd offset +1) -
+  byte-wise put_u16; (b) cr_lfn.cpp loaded the same arrays through u16* -
+  engine-side unaligned-load UB - byte-wise le16 loads; (c) ui_abi_check.c's
+  fixture missed the M-015 canonical media words (the parallel M-015 landing
+  updated only the C++ fixtures) - the C consumer had been silently SEGVing
+  on main (stdout block-buffering hid the FAIL prints; the crash lost them).
+  522/522 UBSan-clean + 522/522 ASan. NOTE: QueryPerf.MillionNodes... gained
+  a UBSan budget rung (2000ms; 113ms standalone; the 200ms contract stays on
+  the ASan/Release lanes).
+- N-042 FIXED: one decidegree source (NvmeHealthInfo::decidegrees_c(),
+  k*10-2731, 273.1K floor) for the CLI print and the ABI
+  temperature_c_x10; the pre-fix CLI fractional digit was the KELVIN
+  remainder (k%10) - up to ~0.55 C wrong. Test
+  Nvme.CliTempFractionIsCelsiusDecidegrees (309K -> 35.9 was "36.5").
+- Cross-lane repair (superseded mid-flight by the parallel leg's identical
+  8e79960): the S-032 landing had committed 3 conflict blocks in
+  test_carve.cpp (S-031 timestamp tests interleaved with S-032 inventory
+  tests); reconstructed deterministically; the S-032 inventory-children emit
+  missed the S-031 scan-time stamp (CarvedNodesCarryScanTimestamp walks
+  children and caught the zero stamps). My duplicate repair was SKIPPED in
+  the rebase (their landing is canonical); both attempts are in history.
+- Session tally so far: N-004/N-006/N-013/N-015/N-018/N-042 fixed by this
+  session; INFO 22/22 acknowledged (I-023/I-024 by the parallel leg).
+
+Stage Summary:
+- Inventory now: SEVERE 3 (parallel legs closed S-007/S-024/S-025/S-027/
+  S-028/S-031/S-032), MAJOR 39, MINOR 55 (34 unresolved), INFO 22 (acked),
+  FIXED 73, OQ 16. Next: N-044 (--deep naming), N-020 (doc drift), the
+  carve-magic quartet N-051..N-054, N-045 (cache budget), then the groups.
