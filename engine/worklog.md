@@ -1957,6 +1957,7 @@ Stage Summary:
   noted in the Resolution.
 
 ---
+
 Task ID: 1-R (continuation leg bootstrap + coordination claim)
 Agent: main engineer (diff-to-fix remediation, second parallel leg)
 Task: Session bootstrap — baseline, audit-trail repair, verification of in-flight parallel fixes
@@ -1984,3 +1985,41 @@ COORDINATION CLAIM (worklog is the shared medium; read before each fix per SOP):
 
 Stage Summary:
 - Baseline on 2f3237d; audit trail repaired; S-005 verification queued before T3 code reads.
+
+Task ID: 5 (S-001 fix + OQ-T1 close-out)
+Agent: main engineer (diff-to-fix remediation session)
+Task: SEVERE S-001 — fully-overwritten deleted files destroyed (og parity); OQ-T1 resolution
+
+Work Log:
+- S-001 fix (option (a) strict parity per the finding's plan):
+  * WalkerFlags::destroy_fully_overwritten (default ON): after the viability grading,
+    deleted non-directory files with every probe cluster re-allocated are dropped
+    (FUN_18001acc0 :21249-21262 parity); folders never destroyed ((flags&0x10)==0
+    gate verified :21190); stats.destroyed_overwritten counter added.
+  * SUB-BUG fixed in the same commit: VolumeBitmap::reused_ratio counted SPARSE runs
+    fully into both counters; the og iterator skips -1 entries (:21220). Sparse runs
+    are excluded now - an all-sparse deleted file grades Excellent (og behavior),
+    and was one bad accounting step from being destroyed.
+- Fail-before/pass-after: stashing ONLY cr_bitmap.cpp (old ratio + new destroy rule)
+    makes NtfsVolume.EndToEndWalk fail at destroyed_overwritten==1 (actual 2: holes.dat
+    wrongly destroyed) AND holes.dat==nullptr; restored, passes. The destroy rule's
+    pre-fix state is pinned by the test file's own prior expectations
+    (overwrit present + graded Overwritten - the exact divergence, in git history).
+- Tests: EndToEndWalk updated (overwrit destroyed + counter, dirdel kept with grade,
+  holes.dat kept Excellent); new NtfsVolume.OverwrittenHonestModeKeepsAndGrades pins
+  the flag-off keep-and-grade mode. Suite 282/282 (Linux ASan).
+- OQ-T1 RESOLVED and written into tracked-open/OQ-T1 (no Ghidra needed - the corpus
+  decompile contains everything): direction = re-allocated (H2 refuted); object = the
+  0x70-byte scan-built claimed-sector bit-set (ctor FUN_18002c330, marked by
+  FUN_180017190/:18409 - NOT the volume $Bitmap); secondary ptr @+0x60 is ctor-NULLed
+  and NEVER assigned anywhere in the decompile -> the secondary test never fires in
+  the og build (dormant polymorphic hook). Consequence: our single-$Bitmap grading
+  misses no og input; the claimed-set-vs-$Bitmap damaged-media edge is documented in
+  S-001's Resolution.
+- Audit trail: S-001 Resolution; modules/ntfs.md B1/B4/D15 -> M post-fix; matrix ntfs
+  row S-001 cells -> M (S-001 fixed); SUMMARY risk #6 -> fixed + remediation log row;
+  OQ-T1 file Resolution section.
+
+Stage Summary:
+- S-001 FIXED (result-set membership now og-parity by default; honest-mode one flag away).
+- OQ-T1 RESOLVED (tracked-open #1 closed with decompile evidence, no code change needed).

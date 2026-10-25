@@ -84,13 +84,17 @@ u32 VolumeBitmap::load(NtfsVolume* vol, std::unique_ptr<VolumeBitmap>& out) {
 }
 
 double VolumeBitmap::reused_ratio(const RunList& runs) const {
+    /* S-001 (diff-to-fix): the og's viability iterator skips run entries
+     * carrying the -1 "no cluster" marker (NTFSSearchDLL FUN_18001acc0
+     * :21220 `if (*plVar13 != -1)`) - sparse runs are excluded from BOTH
+     * counters. Counting sparse clusters as re-used inflated the ratio to
+     * 1.0 for sparse/compressed deleted files whose real clusters were
+     * still free (bogus Overwritten grading, and after the destroy rule
+     * would have dropped recoverable files). */
     u64 total = 0, reused = 0;
     for (const DataRun& r : runs.runs()) {
-        if (r.sparse) {
-            total += r.length;
-            reused += r.length;
+        if (r.sparse)
             continue;
-        }
         const u64 run_clusters = r.length;
         for (u64 i = 0; i < run_clusters && i < (64u << 20); ++i) {
             ++total;

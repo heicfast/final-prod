@@ -123,3 +123,47 @@ Overwritten / PartiallyOverwritten.
 ## Open questions
 
 None beyond OQ-T1 (tracked separately).
+
+## Resolution
+
+**Status:** FIXED
+**Fixed in commit:** (this commit — see `git log` for `fix: S-001`)
+**Verified by:** runtime fail-before/pass-after — with only the `cr_bitmap.cpp`
+sparse-run change stashed, `NtfsVolume.EndToEndWalk` fails at the
+`stats.destroyed_overwritten == 1` and `holes.dat != nullptr` assertions
+(the old ratio counted sparse runs as re-used, graded hole-only files
+Overwritten, and the destroy rule then dropped them); restored, it passes.
+The destroy rule's fail-before state is the PREVIOUS pinned expectation of
+the same test (`overwrit->confidence() == Overwritten` + node present —
+the exact keep-and-grade divergence this finding describes, still in git
+history at the audit baseline) plus the first-hand decompile read
+(FUN_18001acc0 :21249-21262: `0 < total && intact == total -> props
+Release()`, skipping the list insert at LAB_18001afe6). Updated/new tests:
+`NtfsVolume.EndToEndWalk` (overwrit.dat destroyed + counter + folder kept +
+hole-only file kept Excellent), `NtfsVolume.OverwrittenHonestModeKeepsAndGrades`
+(the flag-off mode pins the old keep-and-grade behavior). Suite 282/282
+(Linux ASan).
+**Resolution notes:** implemented option (a) strict parity per the fix plan:
+`WalkerFlags::destroy_fully_overwritten` (default ON = og destroy rule;
+OFF preserves the previous keep-and-grade visibility for honest-recovery
+scans — the reviewed-deviation mode is one flag away, not deleted). Folders
+are never destroyed (the og's `(flags & 0x10) == 0` gate — verified :21190);
+live files are unaffected (they never take the viability path); recycle-bin
+$R records are in-use records and cannot hit the rule. Two sub-bugs found
+during verification and fixed in the same commit: (1) `VolumeBitmap::
+reused_ratio` counted SPARSE runs fully into both counters, while the og's
+viability iterator skips `-1` entries (:21220) — sparse runs are excluded
+now (an all-sparse deleted file is Excellent, not Overwritten — and was
+about to be destroyable on bogus accounting); (2) a `stats.destroyed_
+overwritten` counter was added (telemetry parity). The viability map source
+difference (og: scan-built claimed-sector set, ctor FUN_18002c330, bits set
+by FUN_180017190 at :18409; core: volume $Bitmap) is equivalent on healthy
+volumes and only diverges on MFT-damaged media (og's claimed-set is smaller
+→ og keeps files the $Bitmap would mark re-used) — recorded in the OQ-T1
+tracked-open write-up, not a behavioral fix target this session. The
+secondary claim map (OQ-T1) is RESOLVED: same-direction (re-allocated) but
+ctor-NULLed and never assigned anywhere in NTFSSearchDLL — the secondary
+test never fires in the og build; our single-map grading is not missing
+any og input. Downstream: bench comparisons should re-run `permanent_delete`
+(the finding's own note) — the og-side inventory no longer needs the
+PartiallyOverwritten exclusion under default flags.

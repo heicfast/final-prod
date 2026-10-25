@@ -185,6 +185,52 @@ struct RecBuilder {
         attr_pos += alen;
     }
 
+    /* S-001 test surface: $DATA with one fully SPARSE run (all-hole file) */
+    void attr_data_runlist_sparse(u64 clusters, u64 real_size) {
+        u32 pos = attr_pos;
+        RunList rl;
+        rl.runs().push_back(DataRun{0, clusters, 0, 0, true});
+        std::vector<u8> rle = rl.encode();
+        u32 rlen = u32(rle.size());
+        u32 alen = (0x40 + rlen + 7) / 8 * 8;
+        u32_from_bytes_le_wr(buf, pos + 0, ATTR_TYPE_DATA);
+        u32_from_bytes_le_wr(buf, pos + 4, alen);
+        buf[pos + 8] = 1;
+        u16_from_bytes_le_wr(buf, pos + 10, 0x40);
+        u16_from_bytes_le_wr(buf, pos + 16, 0);
+        u64_from_bytes_le_wr(buf, pos + 24, clusters - 1);
+        u16_from_bytes_le_wr(buf, pos + 32, 0x40);
+        u32_from_bytes_le_wr(buf, pos + 36, 0);
+        u64_from_bytes_le_wr(buf, pos + 40, clusters * CLUSTER);
+        u64_from_bytes_le_wr(buf, pos + 48, real_size);
+        u64_from_bytes_le_wr(buf, pos + 56, real_size);
+        std::memcpy(buf.data() + pos + 0x40, rle.data(), rlen);
+        attr_pos += alen;
+    }
+
+    /* S-001 test surface: $INDEX_ALLOCATION ($I30) runlist for a directory */
+    void attr_index_runlist(u64 lcn, u64 clusters) {
+        u32 pos = attr_pos;
+        RunList rl;
+        rl.runs().push_back(DataRun{0, clusters, 0, lcn, false});
+        std::vector<u8> rle = rl.encode();
+        u32 rlen = u32(rle.size());
+        u32 alen = (0x40 + rlen + 7) / 8 * 8;
+        u32_from_bytes_le_wr(buf, pos + 0, ATTR_TYPE_INDEX_ALLOCATION);
+        u32_from_bytes_le_wr(buf, pos + 4, alen);
+        buf[pos + 8] = 1;
+        u16_from_bytes_le_wr(buf, pos + 10, 0x40);
+        u16_from_bytes_le_wr(buf, pos + 16, 0);
+        u64_from_bytes_le_wr(buf, pos + 24, clusters - 1);
+        u16_from_bytes_le_wr(buf, pos + 32, 0x40);
+        u32_from_bytes_le_wr(buf, pos + 36, 0);
+        u64_from_bytes_le_wr(buf, pos + 40, clusters * CLUSTER);
+        u64_from_bytes_le_wr(buf, pos + 48, clusters * CLUSTER);
+        u64_from_bytes_le_wr(buf, pos + 56, clusters * CLUSTER);
+        std::memcpy(buf.data() + pos + 0x40, rle.data(), rlen);
+        attr_pos += alen;
+    }
+
     void attr_data_runlist_compressed(u64 lcn, u64 clusters, u64 real_size, u16 cunit) {
         /* GAP-P1-1: nonresident $DATA with ATTR_FLAG_COMPRESSED (0x0001)
          * and compression_unit at +0x22 - the on-disk stream is the
@@ -554,6 +600,31 @@ void build_image(Image& img) {
         r.attr_data_runlist(220, 4, 2048);
         r.finish();
         std::memcpy(img.sec(MFT_LCN + 38), r.buf.data(), RECORD_SIZE);
+    }
+    /* record 8: dirdel (DELETED DIRECTORY, $I30 at LCN 220..223 - the
+     * same fully-reused cluster range as overwrit.dat: folders must NEVER
+     * take the destroy path (og gate `(flags & 0x10) == 0`). Record 8 is
+     * an unused slot inside the primary $DATA run.) */
+    {
+        RecBuilder r;
+        r.header(8, RECORD_IS_DIRECTORY); /* dir, NOT in use */
+        r.attr_si(0x30);
+        r.attr_file_name(16, u"dirdel", FILE_NAME_WIN32_AND_DOS, 0x30, 4096, 4096);
+        r.attr_index_runlist(220, 4);
+        r.finish();
+        std::memcpy(img.sec(MFT_LCN + 16), r.buf.data(), RECORD_SIZE);
+    }
+    /* record 9: holes.dat (DELETED, ALL-SPARSE runlist - a hole-only file;
+     * the og's viability iterator skips sparse entries so it can never
+     * grade Overwritten; a $Bitmap-inflated ratio must not destroy it) */
+    {
+        RecBuilder r;
+        r.header(9, 0);
+        r.attr_si(0x20);
+        r.attr_file_name(16, u"holes.dat", FILE_NAME_WIN32_AND_DOS, 0x20, 4096, 4096);
+        r.attr_data_runlist_sparse(4, 4096);
+        r.finish();
+        std::memcpy(img.sec(MFT_LCN + 18), r.buf.data(), RECORD_SIZE);
     }
     /* record 20: partial.dat (DELETED, LCN 230..233, 230,231 in-use) */
     {
@@ -1237,6 +1308,7 @@ TEST(NtfsVolume, EndToEndWalk) {
 
     /* meta records skipped by '$' name; SYSTEM-attributed: none in fixture */
     EXPECT_EQ(stats.meta_skipped, 7u); /* 0,1,2,3,4,6,7 ($ named) */
+    EXPECT_EQ(stats.destroyed_overwritten, 1u); /* overwrit.dat only */
     EXPECT_EQ(stats.damaged, 0u);
     EXPECT_EQ(stats.orphans, 0u);
     EXPECT_EQ(stats.hardlinks, 1u);
@@ -1245,8 +1317,8 @@ TEST(NtfsVolume, EndToEndWalk) {
 
     /* locate nodes by name */
     tree::FileNode *rootdot = nullptr, *folder1 = nullptr, *readme = nullptr, *deleted = nullptr,
-                   *overwrit = nullptr, *partial = nullptr, *hard16 = nullptr, *hard5 = nullptr,
-                   *adsnode = nullptr, *adschild = nullptr;
+                   *partial = nullptr, *hard16 = nullptr, *hard5 = nullptr, *dirdel = nullptr,
+                   *holes = nullptr, *adsnode = nullptr, *adschild = nullptr;
     std::vector<tree::FileNode*> all;
     std::function<void(tree::FileNode*)> collect = [&](tree::FileNode* n) {
         for (tree::FileNode* c = n->first_child(); c; c = c->next_sibling()) {
@@ -1266,8 +1338,10 @@ TEST(NtfsVolume, EndToEndWalk) {
             readme = n;
         else if (nm == "deleted.dat")
             deleted = n;
-        else if (nm == "overwrit.dat")
-            overwrit = n;
+        else if (nm == "dirdel")
+            dirdel = n;
+        else if (nm == "holes.dat")
+            holes = n;
         else if (nm == "partial.dat")
             partial = n;
         else if (nm == "hard.txt")
@@ -1283,7 +1357,11 @@ TEST(NtfsVolume, EndToEndWalk) {
     ASSERT_NE(folder1, nullptr);
     ASSERT_NE(readme, nullptr);
     ASSERT_NE(deleted, nullptr);
-    ASSERT_NE(overwrit, nullptr);
+    /* S-001: fully-overwritten deleted files are DESTROYED (og parity -
+     * FUN_18001acc0 LAB_18001b06f); they never reach the tree */
+    ASSERT_EQ(1u, stats.destroyed_overwritten);
+    ASSERT_NE(dirdel, nullptr);
+    ASSERT_NE(holes, nullptr);
     ASSERT_NE(partial, nullptr);
     ASSERT_NE(hard16, nullptr);
     ASSERT_NE(hard5, nullptr);
@@ -1314,8 +1392,14 @@ TEST(NtfsVolume, EndToEndWalk) {
     EXPECT_EQ(readme->deleted_state(), tree::DeletedState::Active);
     EXPECT_EQ(deleted->confidence(), tree::Confidence::Excellent);
     EXPECT_EQ(deleted->deleted_state(), tree::DeletedState::Deleted);
-    EXPECT_EQ(overwrit->confidence(), tree::Confidence::Overwritten);
-    EXPECT_EQ(overwrit->deleted_state(), tree::DeletedState::PartiallyOverwritten);
+    /* folders are NEVER destroyed (og `(flags & 0x10) == 0` gate) even when
+     * the i30 probe finds every cluster re-used - they keep the graded node
+     * (the folder bitmap grading itself is pre-existing core behavior) */
+    EXPECT_EQ(dirdel->confidence(), tree::Confidence::Overwritten);
+    EXPECT_NE(dirdel->deleted_state(), tree::DeletedState::Active);
+    EXPECT_EQ(holes->confidence(), tree::Confidence::Excellent); /* sparse runs never
+        count as re-used (og iterator skips -1 entries); a hole-only file
+        cannot be Overwritten */
     EXPECT_EQ(partial->confidence(), tree::Confidence::PartialRisk);
     EXPECT_EQ(partial->deleted_state(), tree::DeletedState::Deleted);
 
@@ -1831,4 +1915,49 @@ TEST(NtfsVolume, RemnantScanCompressedStreamStaysMetadataOnly) {
     EXPECT_TRUE(found->props()->extents.empty())
         << "compressed remnant streams must NOT carry raw compressed extents";
     EXPECT_EQ(found->confidence(), tree::Confidence::MetadataOnly);
+}
+
+/* ---- S-001: the og destroy rule --------------------------------------- */
+
+TEST(NtfsVolume, OverwrittenHonestModeKeepsAndGrades) {
+    /* WalkerFlags::destroy_fully_overwritten=false keeps the previous
+     * keep-and-grade visibility (Confidence::Overwritten +
+     * DeletedState::PartiallyOverwritten) for honest-recovery scans - the
+     * reviewed-diversion mode of the S-001 fix. */
+    Image img;
+    build_image(img);
+    MemDevice dev(img.raw(), img.geom());
+    u32 err = 0;
+    auto vol = NtfsVolume::open(std::unique_ptr<IStorageDevice>(new MemDevice(dev)), &err);
+    ASSERT_NE(vol, nullptr) << "open err " << err_text(err);
+    std::unique_ptr<VolumeBitmap> bm;
+    ASSERT_EQ(VolumeBitmap::load(vol.get(), bm), OK);
+
+    tree::ResultTree tree;
+    auto* ra = tree.add_root(u"Found (NTFS)");
+    auto* rd = tree.add_root(u"Deleted");
+    auto* rl = tree.add_root(u"Lost Files");
+    WalkerFlags wf;
+    wf.destroy_fully_overwritten = false;
+    WalkStats stats;
+    ASSERT_EQ(OK, walk_mft(vol.get(), bm.get(), wf, nullptr, nullptr, nullptr, tree, ra, rd,
+                           rl, stats));
+    EXPECT_EQ(0u, stats.destroyed_overwritten);
+
+    std::vector<tree::FileNode*> all;
+    std::function<void(tree::FileNode*)> collect = [&](tree::FileNode* n) {
+        for (tree::FileNode* c = n->first_child(); c; c = c->next_sibling()) {
+            all.push_back(c);
+            collect(c);
+        }
+    };
+    for (auto* r : tree.roots())
+        collect(r);
+    tree::FileNode* over = nullptr;
+    for (tree::FileNode* n : all)
+        if (n->name_utf8() == "overwrit.dat")
+            over = n;
+    ASSERT_NE(over, nullptr) << "honest mode must keep the graded node";
+    EXPECT_EQ(over->confidence(), tree::Confidence::Overwritten);
+    EXPECT_EQ(over->deleted_state(), tree::DeletedState::PartiallyOverwritten);
 }

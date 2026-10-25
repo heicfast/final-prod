@@ -57,3 +57,53 @@ Candidate hypotheses to disambiguate (from corpus context, all unproven):
 ## Core-side reference (audited commit 67193b6)
 
 - `src/core/ntfs/cr_bitmap.cpp:14–84` (load), `:86–102` (reused_ratio — single source).
+
+---
+
+## Resolution (diff-to-fix remediation session — resolved without new Ghidra)
+
+**Status:** RESOLVED (decompile-first read; the full corpus decompile already
+contained every function the suggested probe targeted)
+**Resolved by:** direct reads of `NTFSSearchDLL_decompiled.c` at the exact
+sites the OQ lists — no RE tooling was needed; evidence lines below.
+**Resolution notes — all three hypotheses settled:**
+
+1. **Direction (H2 refuted):** the secondary test composes with the primary
+   bit test via `||` into the SAME `iVar20` (intact/re-allocated) counter
+   (`:21224-21228`: `bVar5 = FUN_18002c2e0(plVar17, lVar18); if (hit ||
+   (plVar13 = plVar17[0xc], plVar13 != 0 && (cVar6 = (*plVar13->vt[4])(
+   plVar13, lVar18), cVar6 != 0))) iVar20++;`). A secondary hit swings the
+   accounting toward **re-allocated** — exactly like a primary hit. The
+   "still-free overlay" hypothesis (H2) is wrong.
+
+2. **Object identity (H1/H3 both wrong):** the "bitmap" handed to the
+   viability loop is a **0x70-byte scan-built claimed-sector bit-set** —
+   NOT the volume $Bitmap read from disk. Constructor `FUN_18002c330`
+   (found by tracing the on-demand allocation at `:18529-18535`:
+   `operator new(0x70)` when controller+0x250, context+0x40 and +0x48 are
+   all null): buffer@+0x00, byte-size@+0x08, bit-limit@+0x10,
+   sectors-per-cluster@+0x18, backing-file handle/mapping@+0x20/+0x28,
+   wstring path@+0x30 (ctor-inits from a global constant), base-offset@+0x50,
+   mapped-flag@+0x58, **secondary-ptr@+0x60**, memory budget 0x5f400000@+0x68.
+   Bits are SET during the scan by marking already-processed files' run
+   sectors (range-setter `FUN_18002c1e0`, called from `FUN_180017190` at
+   `:18409`, mark call at `:18554`), i.e. "claimed by a file the engine has
+   already emitted". The og's destroy test therefore answers "are this
+   deleted file's sectors now claimed by live content the walk saw" —
+   equivalent to $Bitmap re-allocation on healthy volumes, smaller on
+   damaged MFTs (fewer live files seen ⇒ fewer claims ⇒ og keeps more).
+
+3. **The secondary map is DORMANT in the og build:** `FUN_18002c330`
+   initializes the +0x60 pointer to NULL (`param_1[0xc] = 0`, `:35675`) and
+   **no code path anywhere in the decompile assigns it a non-null value**
+   (the only writes to the slot are the ctor zero and other classes' `+0x60`s;
+   exhaustively grepped). The vtable+0x20 call is interface polymorphism the
+   shipped engine never instantiates — the `||` short-circuits at the null
+   check `:21225`. The INFERRED "claim/special-set" reading in the artifact
+   and this OQ was right about the direction but wrong about it mattering.
+
+**Consequence for the core:** our single-$Bitmap `reused_ratio` is not
+missing any og input (the og's secondary contributes nothing in this build).
+The map-SOURCE difference (scan-claimed-set vs $Bitmap) is a damaged-media
+edge documented in S-001's Resolution — not a grading divergence on healthy
+volumes. OQ-T1 is closed; no code change was required by its answer.

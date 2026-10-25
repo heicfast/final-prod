@@ -39,6 +39,19 @@ struct WalkerFlags {
     bool skip_system_files = true; /* corpus: dos_flags & 4 -> skip */
     bool emit_ads = true;          /* named $DATA -> child nodes */
     bool harvest_usnjrnl = true;   /* $Extend/$UsnJrnl:$J deleted-name harvest */
+    /* S-001 (diff-to-fix): the og DESTROYS deleted non-directory files whose
+     * every probe cluster reads re-allocated in the allocation map - the
+     * viability loop's `0 < total && intact == total -> props.Release()`
+     * (NTFSSearchDLL FUN_18001acc0 :21249-21262, LAB_18001b06f skips the
+     * list insert at LAB_18001afe6); folders never take the viability
+     * walk (the `(flags & 0x10) == 0` gate) and are never destroyed.
+     * Default ON = og parity (such files yield all-zero content; the og
+     * result set never contains them). OFF keeps the previous
+     * keep-and-grade behavior (Confidence::Overwritten +
+     * DeletedState::PartiallyOverwritten) for honest-recovery scans that
+     * want the visibility - a reviewed divergence either way (S-001
+     * Resolution). */
+    bool destroy_fully_overwritten = true;
     /* viability gate boundary (NTFS-1): og is STRICT - `0x3ff < size`
      * (Dec 21208): files of exactly 0x3FF bytes take the fast-path with
      * no bitmap check; larger files get the $Bitmap grading. */
@@ -69,6 +82,9 @@ struct WalkStats {
     u64 recycle_remapped = 0;  /* $R records mapped to their original name */
     u64 compressed_blocks = 0; /* GAP-P1-1: expanded NTFS compression blocks */
     u64 compressed_failed = 0; /* files whose envelope failed (zero-filled) */
+    u64 destroyed_overwritten = 0; /* S-001: deleted files dropped by the og's
+                                     destroy rule (all probe clusters
+                                     re-allocated; never emitted) */
 };
 
 /* Progress callback: (done, total) in walk units (records for the MFT

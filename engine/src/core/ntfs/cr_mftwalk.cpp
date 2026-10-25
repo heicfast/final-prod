@@ -690,6 +690,23 @@ u32 walk_mft(NtfsVolume* vol, VolumeBitmap* bitmap, const WalkerFlags& flags, Ca
             conf = tree::Confidence::Excellent; /* live file: extents owned by it */
         }
 
+        /* S-001 (diff-to-fix): the og destroy rule. After the viability
+         * grading, a DELETED non-directory file whose every probe cluster
+         * reads re-allocated is released WITHOUT reaching the result list
+         * (FUN_18001acc0 :21249-21262: `0 < total && intact == total ->
+         * goto LAB_18001b06f` calls props Release and skips the
+         * list-insert at LAB_18001afe6). Folders never take the viability
+         * walk og-side (`(flags & 0x10) == 0` gate) and are never
+         * destroyed; live files own their clusters. Recovering such a
+         * file yields zeros - the og never offers it, so neither do we
+         * (default; the flag keeps the old keep-and-grade visibility for
+         * honest-recovery scans). */
+        if (flags.destroy_fully_overwritten && !in_use && !is_dir &&
+            conf == tree::Confidence::Overwritten) {
+            ++stats.destroyed_overwritten;
+            continue; /* the whole record: no node, no ADS, no props */
+        }
+
         /* distinct parents -> hard links (shared props object) */
         std::vector<u64> parents;
         for (const FileNameInfo& n : names) {

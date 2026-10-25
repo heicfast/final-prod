@@ -7,7 +7,7 @@ Legend: `M` = MATCH · `A-n`/`S-n`/`M-n`/`N-n`/`I-n` = finding ID (in
 
 | Module \ Group | B | D | C | A | S | O | P | X | R | F | Q |
 |---|---|---|---|---|---|---|---|---|---|---|---|
-| ntfs | S-001, M-001, I-001 | S-001 | M | M | M-001, N-001 | NA | NA | M | M | M | M (debt) |
+| ntfs | M (S-001 fixed), M-001, I-001 | M (S-001 fixed) | M | M | M-001, N-001 | NA | NA | M | M | M | M (debt) |
 | fat | M | M | M | I-002, OQ-T2 | M | NA | NA | M | M | M | M (debt) |
 | exfat | N-003, OQ-T5 | N-003 | M | M | M | NA | NA | M | M | M | M (debt) |
 | ext4 | S-004, M (S-005 fixed) | ok | M (erratum) | S-004 | N-004 | NA | NA | M | M | N-004 | M (debt) |

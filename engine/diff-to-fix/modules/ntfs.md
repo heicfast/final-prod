@@ -13,8 +13,10 @@ Core (audited commit `67193b6`): `src/core/ntfs/` (6 files, 2,311 LOC) +
 
 - **B1 detection correctness** — `M` on magics/DBR gates (FILE 0x454C4946,
   OEM "NTFS    ", 0x55AA, mft/mftmirr LCN bounds); **M-001** (record-size
-  reject vs clamp); result-set membership: **S-001** (overwritten deleted
-  emitted vs destroyed), **I-001** (known-metafile list vs blanket `$`-skip).
+  reject vs clamp — pending fix); result-set membership: `M` post-S-001-fix
+  (overwritten deleted destroyed, og parity; sparse runs excluded from the
+  reuse ratio), **I-001** (known-metafile list vs blanket `$`-skip —
+  deliberate, pending acknowledgement).
 - **B2 recovery correctness** — `M` runlist codec (nibble semantics verified
   against decompile Q5; core documents the corpus prose misread), fixup
   (two-tail tolerance replicated from og loop bound `local_18 < 2`),
@@ -22,10 +24,15 @@ Core (audited commit `67193b6`): `src/core/ntfs/` (6 files, 2,311 LOC) +
   zero-fill on inconsistency — never wrong bytes), resident content capture.
 - **B3 false-positive rate** — `M` (viability-graded emission; no unguarded
   inference in this engine; inferred-chain honesty caps live in FAT module).
-- **B4 deleted-file classification** — **S-001** (destroy-vs-grade);
-  strict `0x3ff < size` gate confirmed both sides (core
-  `viability_min_size=0x3FF`, `cr_mftwalk.h:45`, strict `>` at
-  `cr_mftwalk.cpp:668`); secondary claim map **OQ-T1 (tracked-open)**.
+- **B4 deleted-file classification** — `M` post-S-001-fix (destroy rule in:
+  fully-overwritten deleted files dropped at walk time, og parity
+  FUN_18001acc0 :21249-21262; `WalkerFlags::destroy_fully_overwritten`
+  default ON, honest-mode OFF pins the old keep-and-grade; folders never
+  destroyed; `stats.destroyed_overwritten` telemetry). Strict `0x3ff < size`
+  gate confirmed both sides (core `viability_min_size=0x3FF`,
+  `cr_mftwalk.h:45`, strict `>` at `cr_mftwalk.cpp:668`). Secondary claim
+  map **OQ-T1 RESOLVED**: same-direction (re-allocated counter), ctor-NULLed
+  at bitmap+0x60, never assigned in the entire decompile — dormant.
 - **B5 orphan reconstruction** — `M` phase-B reparenting to root_lost for
   unresolved parents (both deleted and active orphans), og equivalent
   documented as "lost tree reparenting" (internals §Record processing).
@@ -53,8 +60,9 @@ Core (audited commit `67193b6`): `src/core/ntfs/` (6 files, 2,311 LOC) +
 
 - **D11 node fields** — `M` props field map mirrors corpus serializer table
   `{flags, name, size, times, attributes, runlist}` (cr_node.h comment).
-- **D15 confidence grading** — **S-001** (Overwritten tier has no og
-  counterpart; og drops the node).
+- **D15 confidence grading** — `M` post-S-001-fix (the og-parity default
+  drops the fully-Overwritten tier at walk time; the tier remains reachable
+  in honest mode via the walker flag).
 
 ## Constants and formats
 
@@ -122,11 +130,11 @@ Core (audited commit `67193b6`): `src/core/ntfs/` (6 files, 2,311 LOC) +
 
 | ID | Severity | One-line |
 |---|---|---|
-| S-001 | SEVERE | Fully-overwritten deleted files emitted (graded) vs og destroy |
+| S-001 | SEVERE | Fully-overwritten deleted files emitted (graded) vs og destroy — **FIXED (diff-to-fix session; incl. sparse-run ratio sub-fix)** |
 | M-001 | MAJOR | Bootstrap rejects record sizes og clamps (torn-DBR availability) |
 | N-001 | MINOR | $MFTMirr fallback hardcoded records 0..3 vs runlist span |
 | I-001 | INFO | Known-20 metafile filter vs blanket `$`-skip (deliberate, documented) |
-| OQ-T1 | tracked-open | Secondary claim map semantics undecoded |
+| OQ-T1 | tracked-open | Secondary claim map semantics undecoded — **RESOLVED (decompile read, this session)** |
 
 ## Post-baseline note (recorded for truthfulness)
 
