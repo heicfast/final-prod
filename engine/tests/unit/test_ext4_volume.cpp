@@ -526,6 +526,135 @@ TEST(Ext4Engine, JournalFirstBlockNotJsbNoSalvage) {
             ADD_FAILURE() << "no journal node may surface without a jsb";
 }
 
+/* ===================================================================== */
+/* M-037 (diff-to-fix): the og's dir-block damage model — decoded from   */
+/* EXT4SearchDLL FUN_180005820 (:4146-4168): invalid entries SKIP by a   */
+/* 4-byte resync slide (entries after a corruption survive); type must   */
+/* be 1..7; rec_len >= (name_len+11)&~3; inode# <= inodes_count. The     */
+/* core's deliberate superset: walking PAST inode-0 holes (og stops).    */
+/* ===================================================================== */
+
+TEST(Ext4Engine, CorruptRecLenSkipsEntryNotBlock) {
+    /* "hello.txt" sits at root-block offset 24; corrupting its rec_len
+     * must cost ONLY that entry — "sub" (at 44) and its nested file must
+     * survive the 4-byte resync slide. Fail-before: the old break dropped
+     * every entry after the corruption. */
+    auto img = build_volume();
+    u8* root = img.block(B_ROOTDIR);
+    put16(root + 24 + 4, 0x00FF); /* misaligned rec_len on hello.txt */
+    MemDevice dev(img.raw());
+
+    tree::ResultTree tree;
+    auto* ra = tree.add_root(u"Found");
+    auto* rd = tree.add_root(u"Deleted");
+    auto* rl = tree.add_root(u"Lost Files");
+    Ext4ScanFlags fl;
+    Ext4ScanStats st;
+    u32 rc = scan_ext4(&dev, fl, nullptr, nullptr, nullptr, tree, ra, rd, rl, st);
+    ASSERT_EQ(OK, rc) << err_text(rc);
+
+    std::set<std::string> found;
+    std::function<void(tree::FileNode*, const std::string&)> collect =
+        [&](tree::FileNode* n, const std::string& p) {
+            for (tree::FileNode* c = n->first_child(); c; c = c->next_sibling()) {
+                if (!c->props())
+                    continue;
+                const std::string nm = c->name_utf8();
+                const std::string full = p.empty() ? nm : (p == "/" ? "/" + nm : p + "/" + nm);
+                found.insert(full);
+                collect(c, full);
+            }
+        };
+    collect(ra, "");
+    EXPECT_FALSE(found.count("/hello.txt")) << "the corrupt entry itself is lost";
+    EXPECT_TRUE(found.count("/sub")) << "entries after the corruption must survive";
+    EXPECT_TRUE(found.count("/sub/nested.bin"));
+}
+
+TEST(Ext4Engine, InodeZeroHoleContinues) {
+    /* Deliberate superset PIN (M-037): the og's walk STOPS at an inode-0
+     * hole (FUN_180005820 :4155); the core continues past it, recovering
+     * the live entries that follow. Rebuild the root dir with a hole
+     * between ".." and the live files. */
+    auto img = build_volume();
+    u8* root = img.block(B_ROOTDIR);
+    memset(root, 0, BS);
+    u32 cur = 0;
+    add_dirent(root, cur, INO_ROOT, ".", 2);
+    add_dirent(root, cur, INO_ROOT, "..", 2);
+    add_dirent(root, cur, 0, "hole-entry", 1); /* the og stops here */
+    add_dirent(root, cur, INO_HELLO, "hello.txt", 1);
+    add_dirent(root, cur, INO_DIR, "sub", 2);
+    MemDevice dev(img.raw());
+
+    tree::ResultTree tree;
+    auto* ra = tree.add_root(u"Found");
+    auto* rd = tree.add_root(u"Deleted");
+    auto* rl = tree.add_root(u"Lost Files");
+    Ext4ScanFlags fl;
+    Ext4ScanStats st;
+    u32 rc = scan_ext4(&dev, fl, nullptr, nullptr, nullptr, tree, ra, rd, rl, st);
+    ASSERT_EQ(OK, rc) << err_text(rc);
+
+    std::set<std::string> found;
+    std::function<void(tree::FileNode*, const std::string&)> collect =
+        [&](tree::FileNode* n, const std::string& p) {
+            for (tree::FileNode* c = n->first_child(); c; c = c->next_sibling()) {
+                if (!c->props())
+                    continue;
+                const std::string nm = c->name_utf8();
+                const std::string full = p.empty() ? nm : (p == "/" ? "/" + nm : p + "/" + nm);
+                found.insert(full);
+                collect(c, full);
+            }
+        };
+    collect(ra, "");
+    EXPECT_TRUE(found.count("/hello.txt")) << "past-hole live entries survive (our superset)";
+    EXPECT_TRUE(found.count("/sub"));
+    EXPECT_TRUE(found.count("/sub/nested.bin"));
+}
+
+TEST(Ext4Engine, FileTypeGateSkipsInvalid) {
+    /* The og's type gate (1..7) skips entries whose type byte is invalid
+     * without dropping the rest of the block. Fail-before: no type gate
+     * existed, so a type-8 entry was emitted as a file. */
+    auto img = build_volume();
+    u8* root = img.block(B_ROOTDIR);
+    memset(root, 0, BS);
+    u32 cur = 0;
+    add_dirent(root, cur, INO_ROOT, ".", 2);
+    add_dirent(root, cur, INO_ROOT, "..", 2);
+    add_dirent(root, cur, INO_HELLO, "badtype8.txt", 8); /* EXT4_FT max is 7 */
+    add_dirent(root, cur, INO_DIR, "sub", 2);
+    MemDevice dev(img.raw());
+
+    tree::ResultTree tree;
+    auto* ra = tree.add_root(u"Found");
+    auto* rd = tree.add_root(u"Deleted");
+    auto* rl = tree.add_root(u"Lost Files");
+    Ext4ScanFlags fl;
+    Ext4ScanStats st;
+    u32 rc = scan_ext4(&dev, fl, nullptr, nullptr, nullptr, tree, ra, rd, rl, st);
+    ASSERT_EQ(OK, rc) << err_text(rc);
+
+    std::set<std::string> found;
+    std::function<void(tree::FileNode*, const std::string&)> collect =
+        [&](tree::FileNode* n, const std::string& p) {
+            for (tree::FileNode* c = n->first_child(); c; c = c->next_sibling()) {
+                if (!c->props())
+                    continue;
+                const std::string nm = c->name_utf8();
+                const std::string full = p.empty() ? nm : (p == "/" ? "/" + nm : p + "/" + nm);
+                found.insert(full);
+                collect(c, full);
+            }
+        };
+    collect(ra, "");
+    EXPECT_FALSE(found.count("/badtype8.txt")) << "type-8 entries are skipped (og gate 1..7)";
+    EXPECT_TRUE(found.count("/sub")) << "the block survives the skipped entry";
+    EXPECT_TRUE(found.count("/sub/nested.bin"));
+}
+
 /* ---- S-005: on-disk UTF-8 names decode, never byte-lift ---------------- */
 
 TEST(Ext4Engine, NonAsciiNamesDecodedNotByteLifted) {
