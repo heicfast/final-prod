@@ -104,6 +104,47 @@ u32 PreviewReader::read_at(u64 logical_offset, void* buf, u32 len) {
     return len; /* short only via the EOF clamp above */
 }
 
+/* M-028: the pre-read cost of read_at(off, len) — mirrors read_at's
+ * arithmetic exactly (the same clamps, the same extent-overlap test,
+ * the same psize fallback) so a Caps consumer can gate its budget
+ * BEFORE any device byte moves. Plain extents cost their overlapped
+ * window; compressed extents cost the whole packed block (the decode
+ * needs it all); resident/sparse/malformed spans cost nothing. */
+u64 PreviewReader::read_cost(u64 logical_offset, u32 len) const {
+    if (props_ == nullptr || logical_offset >= size_ || len == 0)
+        return 0;
+    if (len > kMaxRead)
+        len = kMaxRead;
+    if (u64(len) > size_ - logical_offset)
+        len = u32(size_ - logical_offset);
+    u64 cost = 0;
+    const u64 res = props_->resident_data.size();
+    /* only the part of the request BEYOND the resident prefix can touch
+     * extents (read_at serves the prefix from memory) */
+    const u64 lo = logical_offset > res ? logical_offset : res;
+    const u64 hi = logical_offset + len; /* request end, EOF-clamped above */
+    u64 ext_base = res;
+    for (const auto& e : props_->extents) {
+        const u64 ext_end = ext_base + e.length;
+        const u64 ov_lo = lo > ext_base ? lo : ext_base;
+        const u64 ov_hi = hi < ext_end ? hi : ext_end;
+        if (ov_hi > ov_lo) {
+            if (e.codec != 0) {
+                const u64 psize = e.psize ? e.psize : e.length;
+                if (psize == 0 || e.length == 0 || psize > kMaxDecode || e.length > kMaxDecode) {
+                    /* malformed caps: read_at refuses without a device access */
+                } else {
+                    cost += psize; /* the whole packed block comes off the device */
+                }
+            } else {
+                cost += ov_hi - ov_lo; /* the overlapped window, exactly */
+            }
+        }
+        ext_base = ext_end;
+    }
+    return cost;
+}
+
 /* ---- bounded metadata extractors (G-10) ----
  *
  * All parsers obey Caps: they pull at most max_read bytes through the
@@ -130,7 +171,11 @@ struct Window {
     /* fetch at least `want` bytes at [off, off+want) - LENIENT: returns
      * whatever is available (last_got bytes, possibly fewer than `want`
      * at EOF). Returned pointer is valid only until the NEXT fetch.
-     * nullptr only when zero bytes are available / caps exceeded. */
+     * nullptr only when zero bytes are available / caps exceeded.
+     * M-028: the budget gate is COST-based (read_cost), so a fetch whose
+     * underlying extent is compressed is charged the whole packed block
+     * BEFORE the device is touched - the pre-fix byte-count gate let a
+     * 4 KiB window over a 64 KiB block pull 64 KiB silently. */
     const u8* fetch_any(u64 off, u32 want) {
         if (work++ > caps.max_work) {
             truncated = true;
@@ -149,7 +194,8 @@ struct Window {
         u32 n = w;
         if (u64(n) > remaining)
             n = u32(remaining);
-        if (pulled + n > caps.max_read) {
+        const u64 cost = pr->read_cost(off, n);
+        if (pulled + cost > caps.max_read) {
             truncated = true;
             return nullptr;
         }
@@ -160,7 +206,33 @@ struct Window {
         buf.resize(got);
         base = off;
         last_got = got;
+        pulled += cost; /* device truth (compressed windows cost psize) */
         return buf.data();
+    }
+
+    /* M-028: cap-enforcing direct read for the parsers that need a
+     * contiguous buffer outside the reusable window (the docx/zip tail,
+     * central-directory, LFH and deflate windows). Refuses (0) when the
+     * request's DEVICE cost would exceed the remaining budget - the
+     * caller degrades honestly (truncated is set here). On success the
+     * cost is accounted, so `pulled` always mirrors device bytes. */
+    u32 checked_read(u64 off, void* dst, u32 len) {
+        if (len == 0)
+            return 0;
+        if (off >= pr->size())
+            return 0;
+        if (u64(len) > pr->size() - off)
+            len = u32(pr->size() - off);
+        const u64 cost = pr->read_cost(off, len);
+        if (pulled + cost > caps.max_read) {
+            truncated = true;
+            return 0;
+        }
+        const u32 got = pr->read_at(off, dst, len);
+        if (got == 0)
+            return 0;
+        pulled += cost;
+        return got;
     }
 
     /* STRICT fetch: the full `want` bytes or nothing. Truncated files
@@ -580,11 +652,12 @@ void docx_sniff(Window& w, Metadata& m) {
     const u64 tail_off = sz > 65536 ? sz - 65536 : 0;
     const u32 tail_len = u32(sz - tail_off);
     std::vector<u8> tail(tail_len, 0);
-    const u32 got = w.pr->read_at(tail_off, tail.data(), tail_len);
+    const u32 got = w.checked_read(tail_off, tail.data(), tail_len);
     if (got == 0)
-        return;
+        return; /* M-028: over-budget tail refused - honest archive/zip
+                 * degrade with truncated set (pre-fix: up to 64 KiB
+                 * pulled straight through the reader, past the cap) */
     tail.resize(got);
-    w.pulled += got;
     u32 eocd = 0;
     bool have_eocd = false;
     if (tail.size() >= 22) {
@@ -607,10 +680,13 @@ void docx_sniff(Window& w, Metadata& m) {
     const u32 cd_off = le32(tail.data() + eocd + 16);
     if (u64(cd_off) + cd_size > sz)
         return;
-    /* bounded CD read */
+    /* bounded CD read (M-028: through the cap gate) */
     const u32 cd_len = cd_size > 65536 ? 65536 : cd_size;
     std::vector<u8> cd(cd_len, 0);
-    w.pulled += w.pr->read_at(cd_off, cd.data(), cd_len);
+    const u32 cd_got = w.checked_read(cd_off, cd.data(), cd_len);
+    if (cd_got == 0)
+        return; /* budget exhausted: honest zip label + truncated */
+    cd.resize(cd_got);
     /* find word/document.xml entry (local header offset) */
     static const char want[] = "word/document.xml";
     const size_t want_len = sizeof(want) - 1;
@@ -636,18 +712,16 @@ void docx_sniff(Window& w, Metadata& m) {
         return; /* xlsx/pptx/plain zip: no docx upgrade (label stays) */
     /* local file header: name len + extra len, then the deflate stream */
     std::vector<u8> lfh(30, 0);
-    if (w.pr->read_at(lho, lfh.data(), 30) != 30 || lfh[0] != 'P' || lfh[1] != 'K')
+    if (w.checked_read(lho, lfh.data(), 30) != 30 || lfh[0] != 'P' || lfh[1] != 'K')
         return;
-    w.pulled += 30;
     const u32 nlen = le16(lfh.data() + 26);
     const u32 elen = le16(lfh.data() + 28);
     const u64 data_off = lho + 30 + nlen + elen;
-    /* bounded inflate */
+    /* bounded inflate (M-028: through the cap gate) */
     std::vector<u8> comp(2048, 0);
-    const u32 cr = w.pr->read_at(data_off, comp.data(), 2048);
+    const u32 cr = w.checked_read(data_off, comp.data(), 2048);
     if (cr == 0)
         return;
-    w.pulled += cr;
     comp.resize(cr);
     std::vector<u8> out(4096, 0);
     ZStreamGuard zg;
@@ -682,6 +756,9 @@ Metadata extract_metadata(PreviewReader& pr, const Caps& caps) {
     Window w;
     w.pr = &pr;
     w.caps = caps;
+    /* M-028: per-call device-byte baseline (the closing belt compares
+     * the delta against caps.max_read) */
+    const u64 dev_bytes_at_entry = pr.device_bytes();
 
     /* one head fetch; scalarize every magic BEFORE further fetches (the
      * Window buffer is reused - pointers do not survive a re-fetch).
@@ -690,8 +767,16 @@ Metadata extract_metadata(PreviewReader& pr, const Caps& caps) {
      * fetch(0,32) of the pre-fix code over-read p[N] past EOF-clamped
      * windows on every truncated file - CI-fuzzer caught). */
     const u8* head = w.fetch_any(0, 32);
-    if (!head)
-        return m; /* zero-length or unreadable: unsupported, empty */
+    if (!head) {
+        /* zero-length, unreadable, or over-budget head (M-028: an
+         * over-budget head must still report truncated truthfully -
+         * the pre-fix early return dropped the flag on exactly the
+         * path a compressed-extent head busts its budget on) */
+        m.truncated = w.truncated;
+        if (pr.device_bytes() - dev_bytes_at_entry > caps.max_read)
+            m.truncated = true;
+        return m;
+    }
     const size_t hs = w.last_got;
     const u64 sz = pr.size();
     /* scalarize only bytes the window provably holds (a 1-byte file must
@@ -765,6 +850,13 @@ Metadata extract_metadata(PreviewReader& pr, const Caps& caps) {
             m.kind = "unsupported";
     }
     m.truncated = w.truncated;
+    /* M-028 belt: if ANY path still moved more device bytes than the
+     * cap allows, the flag tells the truth (per-call delta, so a reused
+     * reader's earlier reads do not false-positive). With the cost-gated
+     * fetch_any/checked_read this never fires today - it exists so a
+     * future parser cannot reintroduce the bypass silently. */
+    if (pr.device_bytes() - dev_bytes_at_entry > caps.max_read)
+        m.truncated = true;
     return m;
 }
 
