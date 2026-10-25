@@ -5250,3 +5250,82 @@ reconciled when touched).
 Work log:
 - T1 complete: repos pulled (core `ed00020`, corpus `03ad46c`), baseline 345/345, prompt
   saved token-redacted, this entry.
+
+---
+Task ID: S4-T1 (session-4 diff-audit bootstrap + wave 1)
+Agent: session-4 parity auditor (read-only continuation leg — never-audited-modules + API-lane)
+Task: Triage the post-session-3 state, verify landed fixes, execute the lanes no prior
+session covered (preview/query/transport modules; the API-session lane that was
+bootstrapped at e6d5b01 but never executed), and file the findings.
+
+Work Log:
+- Bootstrap: repos pulled at core e6d5b01+abe26b8 (prompt commit 63a9167), corpus 03ad46c
+  (unmoved). Prompt saved token-redacted at worklog/session-4-diff-audit-prompt.md, read twice.
+- State triage: 64 active + 18 FIXED at session start; A-004 + S-016 (c33236f) verified
+  FIXED first-hand in-source (event_fn_ live-sink at every emit site of cr_scan.cpp);
+  abe26b8's A-002 reconciliation read (cross-encoding guard, convergent fix legs).
+- Reading wave: 5 parallel agents (A: corpus UI-subsystems — grading/assistant/preview/
+  filter ground truth; B: corpus API+driver+device layer; C: core unaudited modules
+  preview/query/report/node/records; D: core ABI + win layer + support + CI; E:
+  independent decompile verification of every load-bearing claim). Context sheets in
+  the session scratch area (NOT committed): context-A..E (2,155 lines, 193+ decompile
+  citations).
+- Executed verification: full suite 306/306 + cr_ui_abi_check OK on the audited tree
+  (evidence: diff-to-fix/evidence/executions/s4-suite-green-and-abi-check.md); preview
+  caps-bypass harness (scratch, outside the repo) PROVED M-028's contract violation
+  by execution: 65,568 device bytes pulled against caps.max_read=4096, truncated=false
+  (evidence: s4-preview-caps-bypass.md + the harness source).
+- Findings filed (11, all with corpus+core citations): S-023 SEVERE (no post-scan
+  grading engine — CRecoverability {0,1,2} bits 5-7 of node+0x73, monotonic sticky,
+  full decision tree decoded, per-selection re-grade, RecoveryAssistant statistics;
+  core's 5-tier in-walk Confidence is a different decision system; RESOLVES
+  tracked-open OQ-S2M-1: engines emit grade=1 only — NTFSSearchDLL :39242/:39779),
+  M-028 (preview Caps bypass, executed proof + 4 MiB/IInWindowStream provenance
+  misattributions + compressed-extent whole-block reads), M-029 (query model: sort
+  keys/paging/bucket IDs/server-side filter push/noise filters + the FROZEN
+  tree --json "Unix seconds" unit lie — wire is FILETIME, verified at
+  cr_fat_quick.cpp:256-259), M-030 (driver-utilization: WinPE gate/handle ladder/
+  terminal OFFLINE/32-disk cap/silent RDA fallback/64 KiB provenance correction —
+  og chunks 4 MiB disk / 7 MiB volume buffered-sync, no 64 KiB device-layer rule),
+  N-040 (ABI doc truthfulness bundle incl. the nonexistent SQLite sidecar documented
+  as shipped), N-041 (dead RdaClient + volume_letter_to_disk), N-042 (CLI temp
+  fractional digit = Kelvin remainder), N-043 (progress watchdog), N-044 (--deep
+  naming hazard), I-015 (preview architecture register), I-016 (factory contract
+  register 9/9 + FS-code-space warning).
+- Resolutions/addenda: OQ-S2M-1 → RESOLVED (in-file header + S-023); OQ-S2M-2 →
+  partial (NTFS +30/+50 setters at :28804/:28944/:28973/:29002 + FUN_180024990;
+  FAT32-20 NOT-FOUND; ZFS/Btrfs negative evidence re-confirmed); M-022 OQ-1 + OQ-3
+  RESOLVED (FUN_18000ea30 = $I run-list builder, CRefsResidentDataRunList at
+  props+0x62 — convergent with the S3-REFS leg's decode which filed S-020;
+  dot-prefilter = memchr 0x2E gate with kind-flag bypass); M-023 counts corrected
+  (6 real categories + None sentinel / 64 extensions). New tracked-open: OQ-S4-1
+  (169-entry grading extension table), OQ-S4-2 (RAW naming-hook consumption),
+  OQ-S4-3 (chunking relative perf — needs the Windows bench leg).
+- New module rows (first-time audits): modules/preview.md, modules/query.md,
+  modules/transport.md; CROSS-REF-MATRIX rows + session-4 legend; corpus errata
+  rows 29-36 (after the S3-CARVE leg's 22-28 — theirs kept, mine renumbered).
+- Cross-leg coordination: mid-wave rebase onto ed00020 (the parallel legs had filed
+  S-016..S-022, M-024..M-027, N-033..N-039, I-013/I-014 and FIXED S-013 d2d9b03 +
+  S-014 ed00020 in the same window). All 11 of this leg's findings renumbered past
+  theirs (S-017→S-023, M-024..M-026→M-028..M-030, N-033..N-037→N-040..N-044,
+  I-013/I-014→I-015/I-016); cross-references to THEIR IDs left untouched; my M-029
+  cross-refs their M-024 (RawConfig toggle surface) and my I-016 cross-refs their
+  I-013 (ReFS host-OS gate) instead of duplicating. The parallel legs' own matrix
+  merge left a stale duplicate carve row — removed with a legend note (f210b7e
+  precedent). CORPUS-ERRATA + CROSS-REF-MATRIX conflicts resolved append-only
+  (both sides kept; my errata renumbered 22-29→29-36).
+
+Stage Summary:
+- Session-4 wave-1 end state: 86 active (9 SEVERE / 25 MAJOR / 38 MINOR / 14 INFO) +
+  26 FIXED by direct file inventory at 204137b. Top risk is now S-023 (grading engine
+  — the largest single missing capability found by any session). The three
+  never-audited modules now have verdict rows; the API-session lane is executed
+  (factory contract, driver-client pattern, suite/ABI executed verification); the
+  measured-performance lane is partially executed (core side; og side is
+  UNVERIFIED-BY-EXECUTION, tracked in OQ-S4-3 for the Windows bench leg).
+- Honest not-completed-by-this-leg: OQ-S4-1's extension-table dump (the .rdata blob
+  at 0x141bb0500), OQ-S4-2's RAW hook consumption sites, the S-023 fix plan's
+  vt+0xb8/vt+0x100==0xa8 device-walk conditions, og-execution benches (OQ-S4-3),
+  N-032's RST/USB hardware verification (carried from S3), and the remaining
+  UNVERIFIED-BY-EXECUTION cells in the matrix (all carried in tracked-open with
+  precise next artifacts).

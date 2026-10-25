@@ -1,12 +1,102 @@
-# SUMMARY.md — executive summary (session 3 reconciled; sessions 1+2 below)
+# SUMMARY.md — executive summary (session 4 reconciled on top of the session-3 continuation; earlier sessions below)
 
 **Audited commit:** session 1 `67193b6` → session 2 `5d6da5f`/`8574039`/`5f638a3` →
-**session 3: `2ce2e6b` + in-flight fixes through `34b3441`+rebase** (S-010 `3e34ed2`,
-M-009 `7fd00e0` verified landed mid-session). **Corpus:** `03ad46c` (unmoved).
-**Audit dates:** 2026-10-25 (sessions 1, 2 and 3 — three legs in session 2, one in 3).
-**Status:** session 2 waves 1–3 complete (parallel leg: 17 new findings + FIXED/ cleanup;
-this leg: 8 more landed fixes independently re-verified first-hand and CLOSED, + M-010
-filed). The decompile-vs-core deep pass continues below the session-1 module parameters.
+session 3 `2ce2e6b` + in-flight fixes through `34b3441`+rebase → session-3 continuation
+through `43149ff` (S3 lead) → fix legs through `ed00020` → **session 4 (this leg):
+`63a9167`-lineage rebased to `204137b` on `ed00020`. Corpus:** `03ad46c` (unmoved).
+**Audit dates:** 2026-10-25 (sessions 1-3) · 2026-10-26 (session-3 continuation legs +
+session 4).
+**Status:** session 4 = the never-audited-modules leg: preview, query, transport audited
+for the first time; the bootstrapped-but-never-executed API-session lane executed
+(factory contract, driver-client pattern, measured suite/ABI verification); grading
+engine decoded end-to-end. 11 new findings; OQ-S2M-1 resolved; M-022 OQ-1/OQ-3
+resolved; M-023 counts corrected; corpus errata rows 29-36 filed. Suite 306/306 +
+C-ABI check OK at this leg's audited tree (evidence: `evidence/executions/s4-suite-green-and-abi-check.md`).
+
+## Session-4 delta (2026-10-26 — the never-audited-modules + API-lane session)
+
+Mandate: find what ALL prior sessions missed, remove/verify the fixed things, go
+deeper on the og-codebase vs core comparison, mark remaining surfaces as findings.
+State at session-4 wave-1 close (direct file inventory, `204137b`):
+
+- **First-time module audits (zero prior coverage — matrix had no rows):**
+  - **preview** → M-028 (MAJOR — Caps.max_read bypass on the zip/docx path with
+    EXECUTED proof: 65,568 device bytes pulled against a 4,096-byte cap,
+    `truncated=false`; plus the "4 MiB corpus preview window"/IInWindowStream
+    provenance misattributions — the og's preview cap is 1 MiB and IInWindowStream
+    is the 7-Zip LZ interface; compressed extents read whole psize) and I-015
+    (INFORMATIONAL — the og's preview is a UI-layer socket protocol: 602-byte header,
+    ≤1 MiB BMP, 10 s wait, 100 MB eligibility; the core's in-process reader is the
+    deliberate equivalent).
+  - **query** → M-029 (MAJOR — beyond M-023's category gap: sort keys (og 6 columns
+    incl. Type; core 5, no Type), paging (og virtualized, no page-size constant; core
+    offset/limit default 100 — parity-unclaimable, must be recorded deliberate),
+    Date/Size bucket IDs (0x100..0x105 / 0x1000..0x1006 incl. Custom + skipped IDs),
+    7-group AdvanceFilterCondition, two filter-bar modes, SERVER-SIDE filter push,
+    FilterFolder/TxtViewFiles noise filters, 34 RawConfig carve toggles; plus the
+    FROZEN `tree --json` contract's `modified` unit lie — docs say Unix seconds, wire
+    is FILETIME 100-ns-since-1601, verified in the FAT engine store path).
+  - **transport** → M-030 (MAJOR — driver-utilization pattern: no WinPE environment
+    gate, no ERROR_INVALID_HANDLE reopen ladder, no terminal IOCTL_VOLUME_OFFLINE in
+    the quiesce chain, 32-disk enumeration cap vs og's 200, silent RDA-open fallback
+    at the ABI level, and the 64 KiB envelope provenance correction — the og device
+    layer chunks at 4 MiB disk / 7 MiB volume buffered-synchronous, NO 64 KiB rule;
+    M-009/GAP-S6-13's corpus-grounding narrative corrected to Windows-heuristic) and
+    N-041 (dead RdaClient copy-session protocol + volume_letter_to_disk, zero callers).
+- **The bootstrapped-but-never-executed API-session lane, executed:** S-023 (SEVERE —
+  no post-scan grading engine: the og's CRecoverability "Recovery Chances" model —
+  grades {0,1,2} in bits 5-7 of node+0x73, monotonic sticky setter, decision tree
+  decoded rule-by-rule, per-selection re-grade, small-result heuristic — has NO core
+  counterpart; the core's 5-tier in-walk Confidence is a different decision system;
+  RecoveryAssistant statistics (8 counters + 6 category counts) absent; **resolves
+  tracked-open OQ-S2M-1**: engines emit grade=1 only, all verdicts are DRWUI-side),
+  I-016 (INFORMATIONAL — engine factory contract 9/9 verified: EUCreate pairs, ReFS
+  3-arg arity exception, Btrfs NULL-stub, RAW's GetRawUserInfoMap, the host vtable
+  interface incl. IAuxiliaryBitmap + cancel-poll; FS-code-space translation warning;
+  engine-enable gates note).
+- **MINOR findings:** N-040 (ABI doc truthfulness bundle: nonexistent SQLite
+  session-index sidecar documented as shipped, disk-map "2 free" state, event-thread
+  contract contradiction, unrepresentable ABI sub-versions, frozen-contract unit lie),
+  N-042 (CLI health temperature fractional digit is the Kelvin remainder —
+  mathematically wrong), N-043 (progress liveness watchdog: og advances coarse
+  progress every 5 s on silent engines; core freezes honestly), N-044 (CLI `--deep`
+  sets whole-disk discovery, not the deep stage — naming hazard vs the og's
+  "Deep Scan" toggle).
+- **Resolutions/addenda:** OQ-S2M-1 RESOLVED (→ S-023 evidence); OQ-S2M-2 partial
+  (NTFS +30/+50 bonus setters found at NTFSSearchDLL :28804/:28944/:28973/:29002 +
+  generic adder FUN_180024990; FAT32-20 setter NOT-FOUND; ZFS/Btrfs negative evidence
+  re-confirmed); M-022 OQ-1 (FUN_18000ea30 = $I recycle run-list builder decoded —
+  convergent with the S3-REFS leg's decode, which also filed S-020) + OQ-3 (ReFS
+  quick-search dot-prefilter = memchr(name,'.') gate, dot-less names skipped,
+  kind-flag bypass) RESOLVED; M-023 counts corrected (core = 6 real categories +
+  None sentinel / 64 extensions vs og 8 / 1,481 distinct). Three new tracked-open
+  OQs: S4-1 (169-entry grading extension table dump), S4-2 (RAW naming-hook
+  consumption sites), S4-3 (chunking relative perf — Windows bench leg needed).
+- **Verification hygiene:** A-004 + S-016 fixes verified first-hand in-source at the
+  session-4 tree (`event_fn_` live-sink at every emit site); suite 306/306 Linux +
+  `cr_ui_abi_check` OK executed (evidence file); parallel-leg fixes landing in the
+  same window were reconciled by rebase (S-013 `d2d9b03`, S-014 `ed00020` verified
+  present in-tree by the rebase read; their own legs' verification records stand).
+- **Cross-leg coordination:** this leg's IDs renumbered past the parallel S3/S4 legs'
+  S-016..S-022 / M-024..M-027 / N-033..N-039 / I-013/I-014 (my S-017→S-023,
+  M-024..M-026→M-028..M-030, N-033..N-037→N-040..N-044, I-013/I-014→I-015/I-016);
+  corpus errata rows 29-36 filed after the S3-CARVE leg's 22-28; the parallel legs'
+  matrix gained a stale duplicate carve row during their own merge — removed with a
+  note in the legend.
+- **Counts at session-4 wave-1 close (direct file inventory):** **86 active**
+  (9 SEVERE: S-003, S-007, S-009-partial, S-012, S-019..S-023 · 25 MAJOR: M-002,
+  M-005, M-007, M-008, M-010..M-030 · 38 MINOR: N-001..N-044 minus 5 in FIXED/ ·
+  14 INFO: I-001..I-016 minus I-004/I-005 in FIXED/) · **26 FIXED** (latest: S-013,
+  S-014, S-015, S-016, S-017-ftyp, S-011, S-006, N-021).
+
+**Top-risk update (post wave-1):** the roadmap's #1 is now **S-023** (grading engine
+absent — the og's headline feature surface has no counterpart; the largest single
+missing capability found by any session), then S-020 (ReFS attribute layer — S3-REFS),
+S-012 (NTFS pass-2), S-019/S-021/S-022 (the S3 audit legs' SEVEREs), M-028 (preview
+caps bypass — executed proof, smallest fix), M-029/M-030 (query/transport model
+gaps), then the M-011..M-015 family and M-017 port.
+
+
 
 ## Session-3 delta (2026-10-25 — the "go deeper, remove the fixed, mark the remainder" session)
 
