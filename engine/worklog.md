@@ -7356,3 +7356,221 @@ Stage Summary:
   S-012 (converged), A-005, S-021 (converged), M-010. Remaining SEVERE/MAJOR
   lanes are claimed by the parallel sessions; next unclaimed MAJORs when a
   lane frees: M-002, M-007/M-008 (opt-in flags), M-011, M-013/M-014.
+
+---
+Task ID: DF4-WRAP (diff-fix session 4 — close-out)
+Agent: main engineer (diff-to-fix fix session)
+
+Session arc (all landed on main, suite 478/478 ASan at the tip):
+- S-012 (SEVERE): independently verified + implemented (fail-before proven);
+  converged with the parallel legs' superset landing; hostile-input smoke
+  (400 iterations ASan/UBSan) + the claim-gate evidence addendum (§7: the
+  "$Boot" constant, the +0x380/+0x381 engine-flag ambiguity, the
+  dump-position key decode) committed as the unique contributions.
+- A-005 (ACUTE, NEW — discovered verifying S-021): the HFS+ B-tree
+  record-span convention was inverted vs TN1150/the og's journal validator —
+  on real volumes only record 0 per node was emitted. Fixed (for_each_record
+  spans + the shared fixture builder + the LeafNodeLayout guard); errata E37
+  corrects the session-1 artifact note that propagated the inversion.
+- S-021 (SEVERE): the journal deleted-record harvest (the og's PRIMARY
+  deleted HFS+ surface) — fresh first-hand decode with three corrections to
+  the audit's field map (evidence §3a); implemented; RECONCILED with the
+  parallel s5 landing into one superset implementation (their pass structure
+  + my JIB-offset correction +0x24/+0x2C per the og's swap function, the
+  full node-image validator, the sweep dedup, the off-switch test).
+- M-010 (MAJOR): the lossless invalid-UTF-8 name mapping (U+E000 + byte,
+  bijective, with the inverse) for ext4/Btrfs; ZFS keeps U+FFFD (the og's
+  engine asymmetry pinned). Text + engine tests; the pre-fix U+FFFD
+  assertions are the fail-before witness.
+- ID-collision housekeeping: the parallel leg's rawfixer 4Kn finding
+  renumbered A-005 -> A-006 (mine keeps A-005; recorded in SUMMARY).
+
+Handoff: the remaining SEVERE/MAJOR lanes were all claimed by the active
+parallel sessions at close (S-007 landed 587a98a; S-024+S-009 by the ff
+session; S-025/S-027/S-028 landed by CF-LANE; A-006 rawfixer + S-029/S-030
+queued). The next session should: (1) re-inventory findings/ against
+SUMMARY's counts (the parallel legs move fast); (2) take the first unclaimed
+SEVERE, then MAJOR M-002/M-007/M-008/M-011/M-013/M-014 (the roadmap's
+original order); (3) keep pulling before every push — this session rebased
+six times.
+
+---
+Task ID: CT-S025 (S-025 fix — ext4 journal reparenting)
+Agent: main engineer (diff-to-fix close-all-tiers session)
+Task: SEVERE S-025 — the og's two-pass journal model + orphan reparenting
+(our salvage emitted everything flat under Lost Files).
+
+Work Log:
+- Corpus verification: the finding's cites re-read (FUN_180003de0 :2722-2802
+  pass structure; :3077-3119 parent map; :2807-2871 reachability; :2986-2991
+  the iNode naming — CORRECTED against the og's own trace decode: that
+  naming belongs to the inode SWEEP, not journal children). Classification:
+  CONFIRMED-DIVERGENCE.
+- Fix: pass 1 (pre-walk harvest — NEW): every journal dir block with "."
+  links {owner -> parent + entries} into the parent map; "."-less blocks
+  keep their entries as owner-less orphans (S-004's core surface
+  unchanged). The jsb gate + jsb-declared range + descriptor-tagged
+  ESCAPE restore all preserved (the first draft had a zero-byte restore
+  heuristic — caught and fixed before commit; a genuine zero block would
+  have been corrupted). Pass 2 (post-walk emit): live-claimed children
+  skipped (the reachability rule — OQ-E1 resolved structurally); others
+  attach under the owning dir's node — live via find_by_record, salvaged
+  via the fixpoint map; unresolvable chains flat with real names. Root
+  props now carry record_ref=2 (the record index answers the root chain).
+- LATENT BUG FOUND + FIXED (a NEW divergence the audit missed): the walk's
+  visited_inodes tracked only DIRECTORIES — journal entries pointing at
+  LIVE FILES re-emitted duplicates. The claim-interaction test exposed it;
+  fixed (files-only insert at the child emit; inserting dirs there would
+  no-op walk_dir's cycle guard and SKIP SUBTREES — first attempt caught by
+  EndToEndWalk going red). No new finding file needed: it is inseparable
+  from S-025's surface (the flat path could not express the duplicate) —
+  fixed and pinned in the same change, announced here per the no-silent-
+  fixes rule.
+- Tests: 3 (reparented chain; unresolvable flat + real name; claim
+  interaction). Fail-before: by construction for the reparenting (the old
+  flat emit, grep-verified); the claim test doubles as the latent-bug
+  fail-before (nested.bin duplicated pre-fix). 19 pre-existing ext4 tests
+  stay green.
+- Suite: 473/473 Linux Release (470 + 3) + 473/473 ASan detect_leaks=1;
+  clang-format 18.1.8 clean.
+- Audit trail: S-025 -> FIXED/ (Resolution with the iNode-naming
+  correction); RESOLVED-INDEX row (56 files); matrix ext4 row;
+  modules/ext4.md verdict; SUMMARY live counts (90 active).
+
+Stage Summary:
+- S-025 CLOSED. Remaining SEVERE: S-007, S-009, S-028 (+ S-029/S-030 new
+  from the s5b audit leg). Next: S-028 (btrfs xattrs).
+>>>>>>> 24d566f (fix(S-025): ext4 journal reparenting — the og's two-pass model; latent live-file duplicate found and fixed)
+
+Task ID: API-CLOSE (session close-out handoff)
+Agent: main engineer (core-api session)
+Task: Final handoff — the core-api session's complete record.
+
+Work Log (session wave 4: benchmarks + cross-lane repairs):
+- The alignbench harness reached GREEN (run 40228880804) after three tool-level fixes:
+  C# using System.IO (CS0246), the vcpkg PATH for cr_ui.dll's runtime deps
+  (LoadLibraryW module-not-found), and two-pass checksums converted from a gate to
+  recorded telemetry (live OS volumes mutate legitimately; per-read length checks —
+  incl. the F11 len*512 contract — are the hard gates). Iterations documented per run.
+- FIRST MEASURED NUMBERS recorded in PERFORMANCE-BASELINE §6: slow-path demo 240.0 vs
+  233.6 MiB/s (ratio 1.03x — the documented ~3.5x does NOT manifest on virtualized
+  runner storage; the envelope stays mandated by construction); size x QD sweep
+  plateau ~240 MiB/s from 256 KiB up at every QD (validates the og-matched sync QD1
+  model AND the 256 KiB cache blocks on this storage class); the RDA grammar path
+  201.9/169.3/160.5 MiB/s @64K/256K/1M with F11 verified on all 10,752 reads and the
+  DRIVER path beating direct at the same chunk (169.3 vs 151.5 @256K); cr_ui cheap-op
+  latency 10.7-12.6 ns/op (the <1us target beaten ~100x), carve_format_info 166.3 ns.
+- Cross-lane repairs this wave (the parallel diff-to-fix legs were landing faster than
+  CI could go green): bitlocker-test cr_error.h include; three C4244 classes
+  (device_sector u16->u32 — also a real 64K-sector wrap bug; wchar_t narrowing;
+  dump-walk stride u32 casts); the S-012 dump-emission ref leak (dp->release after
+  add_file — convergent with their own fix); clang-format sweeps; and the REPAIR of
+  my own 92139f8 conflict-resolution mistake (the checkout-HEAD fallback reverted
+  477 lines of their S-027/S-003 engine code — restored from 146e62a, 470/470 green).
+
+SESSION DELIVERABLES (all landed, all pushed):
+1. docs/API-SURFACE-AUDIT.md — 37 reference operations audited from the corpus; post-
+   session state: 26 MATCH / 4 MATCH+ / 1 MATCH-6-of-7-groups / 1 PARTIAL-by-design /
+   1 WRONG (M-023, engine scope) / 8 N/A-by-layer; 6 ABI-infrastructure findings
+   (A-ABI-1..5 fixed; A-ABI-6 codeql-policy flagged for the owner).
+2. docs/DRIVER-UTILIZATION.md — every interaction MATCH incl. the session-engine
+   reconciliation (corpus-proven: the og's recovery path is sessionless EPMNtDrv +
+   synchronous 4 MiB-chunked ReadFile; EUDCPEPM sessions are WinPE-copy-only with zero
+   DRW openers), the error-6 self-heal, the unified 64 KiB envelope, 256 KiB blocks.
+3. docs/PERFORMANCE-BASELINE.md — driver microbench + the first measured CI numbers
+   above + the 7-entry measurement program (all tooling live).
+4. API ops: carve-format enumeration (#7/#8), path_prefix (#20 path group), the
+   versioning-policy correction, the SQLite-claim cut (GAP-S6-12
+   REJECTED-BY-REFERENCE), ABI-CONTRACT §7a + drift fixes.
+5. The C ABI shim: 65 exports, ABI 1 (append-only policy operative and exercised),
+   the C consumer at FULL cross-platform lifecycle coverage.
+6. Driver utilization per interaction — see 2; measured 64 KiB-aligned direct I/O on
+   Windows CI with the driver loaded (alignbench, green run 40228880804).
+7. Contract tests for every new/changed op; the driver-loaded integration runs on
+   every transport-touching push (api-benchmark.yml).
+8. CI: linux/ASan/TSan/fuzz green locally at 470/470; the windows lane cycled red
+   with the parallel legs' in-flight warnings all day — five cross-lane fixes landed
+   (each attributed); the newest runs (9d2a38e+) were in flight at close.
+9. docs/PARITY-DELTAS.md section K: D-50..D-55 registered with evidence.
+10. Release tag: DEFERRED WITH RATIONALE — the mandate's "full green CI" precondition
+    cannot be honestly certified while four parallel legs land commits continuously
+    (every tag point today contains some other leg's in-flight red); the tag should
+    be cut by the LAST active session when the lanes settle. All release content
+    (audit, baseline, deltas) is on main and citable.
+11. This handoff.
+12. All changes committed and pushed with evidence-citing messages throughout.
+
+REMAINING TRACKED ITEMS (with rationale):
+- A-ABI-6: codeql lane `if: false` vs RELEASE-NOTES' "CodeQL clean" claim — owner
+  policy decision (re-enable or re-word).
+- M-023 (8-cat/1481-ext taxonomy): engine scope, tracked in diff-to-fix.
+- The alignbench API-latency numbers should be re-taken on the weekly cron across
+  runner generations; the slow-path demo needs real NVMe hardware to reproduce the
+  documented ~3.5x (virtualized storage attenuates it — recorded honestly).
+- Queue depth: the sweep shows no headroom at QD>1 on runner storage — the
+  og-matched synchronous QD1 model stands; revisit only with fast-NVMe data.
+- Windows-only ABI surfaces (open_disk/open_volume/enumerate/health) ride the bench
+  harness for real-disk coverage; a dedicated Windows C-consumer lane for them is a
+  small follow-up if wanted.
+
+Stage Summary:
+- The core's API surface and kernel-driver utilization are production-complete,
+  exact-to-reference where the corpus defines the reference, divergent only where
+  registered with evidence (PARITY-DELTAS K), and measured (PERFORMANCE-BASELINE).
+
+---
+Task ID: CT-S028 (S-028 fix — btrfs xattrs)
+Agent: main engineer (diff-to-fix close-all-tiers session)
+Task: SEVERE S-028 — Btrfs xattr recovery (user.DOSATTRIB / user.* streams /
+the compression property tag).
+
+Work Log:
+- Corpus re-verification BEFORE coding (first-hand): the DOSATTRIB match
+  re-read (BtrfsSearchDLL :3424-3441 — name_len 0xE, the 14 name bytes
+  compared as split LE reads, data_len copied out); the compression map
+  re-read (:3517-3543 — "zlib"->1, "zlo"->2 [the vendor misspelling],
+  "zstd"->3, else 0); the user.* predicate re-read (:3544-3602 — name_len>5
+  + "user" + '.'); the record shape confirmed shared with dir_item
+  (data_len@+0x19, name_len@+0x1b, name@+0x1e).
+- Classification: CONFIRMED-DIVERGENCE (no KEY_XATTR case — grep-verified).
+- Fix: KEY_XATTR(24) branch in the phase-1 item walk: DOSATTRIB -> Windows
+  bits on FileProperties::attributes (Samba "0x20" text via strtoul base-0,
+  OR'd with the dir bit); btrfs.compression -> per-inode tag counted in
+  stats.compression_property_files (metadata alongside the per-extent
+  truth per I-014 B4 — deliberately NOT written onto extents); other
+  user.* xattrs -> ..xattr/<name> child nodes with resident values (the
+  N-011 ADS-children shape, mirroring S-002's ..namedfork precedent),
+  counted in stats.xattr_records.
+- Tests: 3 (the finding's full list). FAIL-BEFORE by construction (no
+  XATTR dispatch pre-fix). 9 pre-existing btrfs tests stay green.
+- Suite: 484/484 Linux Release (481 + 3); clang-format 18.1.8 clean.
+- Audit trail: S-028 -> FIXED/ with Resolution; RESOLVED-INDEX row (60
+  files); matrix btrfs row; modules/btrfs.md verdict; SUMMARY live counts
+  (111 active — the parallel audit legs keep filing new findings; the fix
+  legs keep closing them).
+
+Stage Summary:
+- S-028 CLOSED. Remaining SEVERE: S-009, S-029, S-030, S-031, S-032 (the
+  s5b/s7 audit legs' new filings + the disk-map remainder). Next: S-031
+  (carved files never marked deleted) — small + user-visible.
+>>>>>>> 7fdd51a (fix(S-028): btrfs xattr recovery — user.DOSATTRIB attribute bits, user.* stream records, the compression-property tag)
+
+---
+Task ID: S7-MERGE2
+Agent: main engineer (closing session, df5 lineage)
+Task: Converge with the 5b0bc7b arc (S-025 ext4 reparenting, S-028 btrfs xattrs, the api-close handoff) + the A-006 ID-collision resolution.
+
+Work Log:
+- Remote renamed the rawfixer-4Kn finding to A-006 (landing before this
+  lineage's local A-006 rename of the extents-overflow finding) — bumped
+  ours to A-007 (twice-renumbered A-005→A-006→A-007; commit bddf4df pinned
+  in the finding + RESOLVED-INDEX).
+- Matrix conflict resolved: the S-028 btrfs row folded in; their stale
+  duplicate rows dropped; the A-007 detail row kept.
+- Suite 479/479 Linux Release first-hand on the merged tree.
+
+Stage Summary:
+- Merge green; A-007 is this lineage's ACUTE (fixed at bddf4df). Next: the
+  remaining S-003/S-021 verification corrections (JIB magic check removal,
+  VH journaled-bit gate, strict validator, attributes branch, fallback
+  salvage, in_fork overflow).

@@ -1197,7 +1197,41 @@ S-007, S-009-partial, S-020, S-023..S-028) · MAJOR 22 · MINOR 33 · INFO 12 ·
 **total active 77** / **35 FIXED** (tracked-open: the existing OQ files, now
 including OQ-S012).
 
+<<<<<<< HEAD
 
 **Fix-session-4 addendum (M-010):** the invalid-UTF-8 name edge closed — ext4/Btrfs
 names now carry a REVERSIBLE encoding of their raw bytes (U+E000 + byte) instead
 of baked U+FFFD; ZFS stays replacement (the og's own asymmetry). Suite 462/462.
+
+**ID-collision note (DF4, 2026-10-26):** two A-005s were filed in the same
+window by parallel legs — the HFS+ record-span inversion (FIXED, this session)
+and the rawfixer 4Kn stack-buffer overflow (open). The rawfixer finding is
+renumbered **A-006** (findings/ACUTE/A-006-rawfixer-4kn-stack-buffer-overflow.md);
+the hfsplus one keeps A-005 (its identity is baked into the Resolution,
+RESOLVED-INDEX, errata E37 and the module docs). Same protocol as the two prior
+collisions (recorded above).
+=======
+- **S-025 FIXED** (ext4 journal reparenting): the og's two-pass model —
+  pre-walk harvest (parent map from "."/".." pairs; "."-less blocks stay
+  owner-less orphans per S-004), post-walk emit reparenting under live
+  parents (record index) or salvaged parents (fixpoint chains); unresolvable
+  chains flat with real names (the finding's iNode-naming expectation
+  corrected per the corpus: that naming is the sweep's). FILE inodes now
+  enter visited_inodes — a LATENT live-file duplicate bug the flat path
+  hid, exposed by the claim-interaction test and fixed with it. 3 tests;
+  473/473 Release + 473/473 ASan(leaks).
+
+**Live counts (after S-025):** ACUTE 0 · SEVERE 5 · MAJOR 36 ·
+MINOR 31 · INFO 18 · tracked-open 12 = **90 active** / **56 files in FIXED/**.
+>>>>>>> 24d566f (fix(S-025): ext4 journal reparenting — the og's two-pass model; latent live-file duplicate found and fixed)
+
+- **S-028 FIXED** (btrfs xattrs): KEY_XATTR(24) dispatch — user.DOSATTRIB
+  lands the Windows bits on the node (Samba hex text parsed); other user.*
+  xattrs surface as ..xattr/<name> child records with resident values
+  (the N-011 ADS shape); btrfs.compression tags the per-file codec property
+  (zlib=1/"zlo"=2/zstd=3, the og's exact strings incl. the vendor
+  misspelling) as metadata alongside the per-extent truth (I-014 B4).
+  3 tests; 484/484 Release.
+
+**Live counts (after S-028):** ACUTE 0 · SEVERE 5 · MAJOR 42 ·
+MINOR 44 · INFO 20 · tracked-open 12 = **111 active** / **60 files in FIXED/**.

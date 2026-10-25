@@ -757,7 +757,6 @@ TEST(Btrfs, InlineAndCompressedExtents) {
     EXPECT_GE(stats.compressed_extents, 1u);
 }
 
-
 namespace cr {
 namespace btrfs {
 
@@ -879,5 +878,237 @@ TEST(Btrfs, Latin1NameRoundTripsRawBytes) {
 }
 
 } // namespace
+} // namespace btrfs
+} // namespace cr
+
+/* ---- S-028: xattr recovery (user.DOSATTRIB / user.* records / the
+ * btrfs.compression property tag) ---------------------------------------- */
+
+namespace cr {
+namespace btrfs {
+namespace {
+
+std::vector<u8> make_xattr_item(const char* name, const char* value) {
+    /* XATTR items share the dir_item record shape (kernel shares the
+     * struct; og BtrfsSearchDLL :3424-3441 parses it identically) */
+    const u32 nlen = u32(strlen(name));
+    const u32 vlen = u32(strlen(value));
+    std::vector<u8> r(30 + nlen + vlen, 0);
+    put64(r.data() + 0, 0); /* location: unused for xattrs */
+    put64(r.data() + 17, 1);
+    put16(r.data() + 25, u16(vlen)); /* data_len */
+    put16(r.data() + 27, u16(nlen)); /* name_len */
+    r[29] = 0;
+    memcpy(r.data() + 30, name, nlen);
+    memcpy(r.data() + 30 + nlen, value, vlen);
+    return r;
+}
+
+} // namespace
+
+TEST(Btrfs, XattrDosAttribApplied) {
+    /* a Samba-shared volume stores the Windows attribute set in
+     * user.DOSATTRIB ("0x20" = archive); the og surfaces the bit */
+    auto d = build_volume();
+    /* patch: rebuild the leaf with an added XATTR item for inode 257 */
+    {
+        const u64 MTIME = 1600000000;
+        NodeBuilder nb;
+        Key ki;
+        ki.type = 1; /* INODE_ITEM */
+        ki.objectid = 256;
+        nb.add(ki, make_inode(0x4000, NODESIZE, 2, MTIME));
+        ki.objectid = 257;
+        nb.add(ki, make_inode(0x8000, 14, 1, MTIME));
+        ki.objectid = 258;
+        nb.add(ki, make_inode(0x4000, NODESIZE, 2, MTIME));
+        ki.objectid = 259;
+        nb.add(ki, make_inode(0x8000, 22, 1, MTIME));
+        Key ke;
+        ke.type = 108; /* EXTENT_DATA */
+        ke.objectid = 257;
+        ke.offset = 0;
+        nb.add(ke, make_extent_data(L_DATA, 4096));
+        ke.objectid = 259;
+        nb.add(ke, make_extent_data(L_DATA + 4096, 4096));
+        Key kx;
+        kx.type = 24; /* XATTR (the og's 0x18) */
+        kx.objectid = 257;
+        kx.offset = 0;
+        nb.add(kx, make_xattr_item("user.DOSATTRIB", "0x20"));
+        kx.objectid = 259;
+        nb.add(kx, make_xattr_item("user.DOSATTRIB", "0x2")); /* hidden + ... */
+        Key kd;
+        kd.type = 84; /* DIR_ITEM */
+        kd.objectid = 256;
+        kd.offset = 0x11110001;
+        nb.add(kd, make_dir_item(257, "hello.txt", 1));
+        kd.offset = 0x22220002;
+        nb.add(kd, make_dir_item(258, "sub", 2));
+        kd.objectid = 258;
+        kd.offset = 0x33330003;
+        nb.add(kd, make_dir_item(259, "nested.bin", 1));
+        auto nd = nb.finish(L_FS_TREE, 0);
+        memcpy(d.data() + L_FS_TREE, nd.data(), NODESIZE);
+    }
+    MemDevice dev(std::move(d));
+    tree::ResultTree tree;
+    auto* ra = tree.add_root(u"Found");
+    BtrfsScanStats st;
+    ASSERT_EQ(OK, scan_btrfs(&dev, nullptr, nullptr, nullptr, tree, ra, nullptr, nullptr, st));
+    tree::FileNode* hello = nullptr;
+    std::function<void(tree::FileNode*)> find = [&](tree::FileNode* n) {
+        for (tree::FileNode* c = n->first_child(); c; c = c->next_sibling()) {
+            if (c->props() && c->name_utf8() == "hello.txt")
+                hello = c;
+            find(c);
+        }
+    };
+    find(ra);
+    ASSERT_NE(hello, nullptr);
+    EXPECT_EQ(0x20u, hello->props()->attributes) << "the archive bit lands";
+    EXPECT_EQ(0u, st.xattr_records) << "DOSATTRIB is applied, not a record";
+}
+
+TEST(Btrfs, UserXattrRecordsEmitted) {
+    /* other user.* xattrs become per-file attribute records (the og's
+     * per-file list; our shape: the N-011 ADS-children pattern) */
+    auto d = build_volume();
+    {
+        const u64 MTIME = 1600000000;
+        NodeBuilder nb;
+        Key ki;
+        ki.type = 1;
+        ki.objectid = 256;
+        nb.add(ki, make_inode(0x4000, NODESIZE, 2, MTIME));
+        ki.objectid = 257;
+        nb.add(ki, make_inode(0x8000, 14, 1, MTIME));
+        ki.objectid = 258;
+        nb.add(ki, make_inode(0x4000, NODESIZE, 2, MTIME));
+        ki.objectid = 259;
+        nb.add(ki, make_inode(0x8000, 22, 1, MTIME));
+        Key ke;
+        ke.type = 108;
+        ke.objectid = 257;
+        ke.offset = 0;
+        nb.add(ke, make_extent_data(L_DATA, 4096));
+        ke.objectid = 259;
+        nb.add(ke, make_extent_data(L_DATA + 4096, 4096));
+        Key kx;
+        kx.type = 24;
+        kx.objectid = 257;
+        kx.offset = 0;
+        nb.add(kx, make_xattr_item("user.custom_tag", "val"));
+        kx.offset = 1;
+        nb.add(kx, make_xattr_item("user.mtime", "1234567890"));
+        Key kd;
+        kd.type = 84;
+        kd.objectid = 256;
+        kd.offset = 0x11110001;
+        nb.add(kd, make_dir_item(257, "hello.txt", 1));
+        kd.offset = 0x22220002;
+        nb.add(kd, make_dir_item(258, "sub", 2));
+        kd.objectid = 258;
+        kd.offset = 0x33330003;
+        nb.add(kd, make_dir_item(259, "nested.bin", 1));
+        auto nd = nb.finish(L_FS_TREE, 0);
+        memcpy(d.data() + L_FS_TREE, nd.data(), NODESIZE);
+    }
+    MemDevice dev(std::move(d));
+    tree::ResultTree tree;
+    auto* ra = tree.add_root(u"Found");
+    BtrfsScanStats st;
+    ASSERT_EQ(OK, scan_btrfs(&dev, nullptr, nullptr, nullptr, tree, ra, nullptr, nullptr, st));
+    tree::FileNode* hello = nullptr;
+    std::function<void(tree::FileNode*)> find = [&](tree::FileNode* n) {
+        for (tree::FileNode* c = n->first_child(); c; c = c->next_sibling()) {
+            if (c->props() && c->name_utf8() == "hello.txt")
+                hello = c;
+            find(c);
+        }
+    };
+    find(ra);
+    ASSERT_NE(hello, nullptr);
+    /* two ..xattr children carrying the values as resident content */
+    std::set<std::string> xn;
+    for (tree::FileNode* c = hello->first_child(); c; c = c->next_sibling())
+        if (c->props())
+            xn.insert(c->name_utf8());
+    EXPECT_TRUE(xn.count("..xattr/user.custom_tag"));
+    EXPECT_TRUE(xn.count("..xattr/user.mtime"));
+    EXPECT_EQ(2u, st.xattr_records);
+    for (tree::FileNode* c = hello->first_child(); c; c = c->next_sibling()) {
+        if (c->props() && c->name_utf8() == "..xattr/user.custom_tag") {
+            ASSERT_EQ(size_t(3), c->props()->resident_data.size());
+            EXPECT_EQ(0, memcmp(c->props()->resident_data.data(), "val", 3));
+        }
+    }
+}
+
+TEST(Btrfs, CompressionPropertyTagged) {
+    /* btrfs.compression: {"zlib"->1, "zlo"->2, "zstd"->3}; the property is
+     * metadata ALONGSIDE the per-extent truth (I-014 B4: the og's
+     * property source and our extent source differ - ours stays truth) */
+    auto d = build_volume();
+    {
+        const u64 MTIME = 1600000000;
+        NodeBuilder nb;
+        Key ki;
+        ki.type = 1;
+        ki.objectid = 256;
+        nb.add(ki, make_inode(0x4000, NODESIZE, 2, MTIME));
+        ki.objectid = 257;
+        nb.add(ki, make_inode(0x8000, 14, 1, MTIME));
+        ki.objectid = 258;
+        nb.add(ki, make_inode(0x4000, NODESIZE, 2, MTIME));
+        ki.objectid = 259;
+        nb.add(ki, make_inode(0x8000, 22, 1, MTIME));
+        Key ke;
+        ke.type = 108;
+        ke.objectid = 257;
+        ke.offset = 0;
+        nb.add(ke, make_extent_data(L_DATA, 4096));
+        ke.objectid = 259;
+        nb.add(ke, make_extent_data(L_DATA + 4096, 4096));
+        Key kx;
+        kx.type = 24;
+        kx.objectid = 257; /* the property rides an XATTR item */
+        kx.offset = 0;
+        nb.add(kx, make_xattr_item("btrfs.compression", "zstd"));
+        Key kd;
+        kd.type = 84;
+        kd.objectid = 256;
+        kd.offset = 0x11110001;
+        nb.add(kd, make_dir_item(257, "hello.txt", 1));
+        kd.offset = 0x22220002;
+        nb.add(kd, make_dir_item(258, "sub", 2));
+        kd.objectid = 258;
+        kd.offset = 0x33330003;
+        nb.add(kd, make_dir_item(259, "nested.bin", 1));
+        auto nd = nb.finish(L_FS_TREE, 0);
+        memcpy(d.data() + L_FS_TREE, nd.data(), NODESIZE);
+    }
+    MemDevice dev(std::move(d));
+    tree::ResultTree tree;
+    auto* ra = tree.add_root(u"Found");
+    BtrfsScanStats st;
+    ASSERT_EQ(OK, scan_btrfs(&dev, nullptr, nullptr, nullptr, tree, ra, nullptr, nullptr, st));
+    EXPECT_EQ(1u, st.compression_property_files) << "the zstd property tag counted";
+    /* the per-extent truth: the fixture's extent is UNcompressed - the
+     * property is metadata, the extent codec stays 0 (raw) */
+    tree::FileNode* hello = nullptr;
+    std::function<void(tree::FileNode*)> find = [&](tree::FileNode* n) {
+        for (tree::FileNode* c = n->first_child(); c; c = c->next_sibling()) {
+            if (c->props() && c->name_utf8() == "hello.txt")
+                hello = c;
+            find(c);
+        }
+    };
+    find(ra);
+    ASSERT_NE(hello, nullptr);
+    ASSERT_FALSE(hello->props()->extents.empty());
+    EXPECT_EQ(0u, hello->props()->extents[0].codec);
+}
+
 } // namespace btrfs
 } // namespace cr
