@@ -8110,3 +8110,61 @@ Stage Summary:
 - Session open. Baseline c231f2f+ef5f390 + corpus 03ad46c recorded; suite 500/500 green.
 - Fix order: S-031 timestamp residual -> S-032 -> S-009 -> S-030 -> S-029 ->
   MAJOR tier (selection by impact/tractability) -> MINOR batches.
+<<<<<<< HEAD
+=======
+
+
+---
+Task ID: DFX7-T2 (MINOR tier, waves 1-2)
+Agent: main engineer (diff-to-fix session 7)
+Task: Work the MINOR tier in module batches, low-severity-first order per the
+user mandate; every finding verified against corpus + code before fixing.
+
+Work Log:
+- N-004/N-006 (linuxfs group, with N-005 already FIXED by a prior session):
+  * N-004 FIXED - the og's CEXT4CatchBufferDeviceProxy salvage (corpus
+    ext4-engine--deep-dive.md §3; 0xE00 fresh buffer, 0x400 backtrack
+    re-read) implemented at the retry layer: RetryPolicy::backtrack (default
+    ON) - one shifted-window second-chance before a failing range is
+    bisected/marked bad. back = max(0x400, sector) keeps the shifted request
+    aligned on 4Kn (the og's hardcoded 0x400 is misaligned there); heap
+    buffer per catch (like the og's allocation). 3 tests incl. the
+    flag-off legacy pin. Suite 458->476.
+  * N-006 registered as deliberate hardening D-62a + pin test
+    Btrfs.NonPow2NodesizeRejectedRegistered (24 KiB nodesize is og-band-legal
+    but corrupt-SB territory; refusal routes to carving - strictly better).
+- N-013 FIXED (with one sub-claim REFUTED with evidence):
+  * win::destination_volume_letter() - GetFinalPathNameByHandleW reparse
+    resolution + GetVolumePathNameW; network paths never armed (the og's
+    PathIsNetworkPathW branch). Replaces the ':' gate in cr_ui + CLI;
+    disk_known gate dropped (redundant); transport!='image' kept (platform
+    truth). Shlwapi linked.
+  * win::volume_extents() (ALL extents, 8-slot buffer, ERROR_MORE_DATA
+    tolerated) + SafeWriter::set_destination_spans() - spanned/RAID
+    destinations refuse overlap on their second+ extents.
+  * REFUTED: ImageSourceToSameDiskRefused premise (the image file is
+    FS-protected; the og's same-volume detection guards LIVE sources; the
+    og UI copy is a recommendation - corpus architecture/04 §7 step 1);
+    pinned by CrUi.ImageSourceDestinationNearImageAccepted.
+  * Tests: Report.MultiExtentSpannedVolumeRefused + DestArming.* x4
+    (Windows lane) + the refutation pin.
+- N-015 FIXED (ERR_DEST_FULL 0x50050004 end to end):
+  * DestIo::free_bytes virtual (default 0 = unknown); WinDestIo maps
+    GetDiskFreeSpaceExW available-to-caller; pre-check refuses upfront when
+    known + < queued bytes (all items Pending, rc at 0%).
+  * WinDestIo write/create_temp map ERROR_DISK_FULL/ERROR_HANDLE_DISK_FULL
+    to ERR_DEST_FULL; process() aborts ERR_CANCELLED-style (failing item
+    Error, tail never attempted); WriterStats::dest_full; CLI still emits
+    the report on DEST_FULL.
+  * Tests: DestFullFastFailStopsAttempting (fail-before documented
+    in-test), DestFullPreCheckRefusesUpfront. Suite 502/502.
+- INFO tier complete earlier this session: 20/20 ACKNOWLEDGED (D-59/D-60
+  registers); I-009 pin CarveEngine.CarvesMidSectorStart landed.
+
+Stage Summary:
+- MINOR tier: 4 closed (N-004, N-006, N-013, N-015) + N-005 (prior). ~40
+  remain. Next: quick wins (N-018 UBSan CI, N-020 doc drift, N-042 temp
+  digit, N-044 --deep naming), then the grouped minors (N-025/N-026/N-027/
+  N-047), then the S5 wave (N-051..N-064). Pull frequently - parallel legs
+  are landing S-023/M-026/M-027/A-005 fixes and new audit findings.
+>>>>>>> 7514368af6129afe0f575081b2b9388dcf44ed97

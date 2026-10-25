@@ -5,7 +5,10 @@
 #include "cr/carve/cr_rawsigns.h"
 #include "cr/storage/cr_device.h"
 #include "cr/storage/cr_slice.h"
+#include "cr/session/cr_records.h"
 #include <cstring>
+#include <ctime>
+#include <functional>
 #include <vector>
 
 using namespace cr;
@@ -1828,4 +1831,126 @@ TEST(CarveEngine, DeletedOnlyQueryIncludesCarvedFiles) {
         if (r.node && r.node->origin() == tree::Origin::Carved)
             saw_carved = true;
     EXPECT_TRUE(saw_carved) << "no carved row in the deleted_only result";
+}
+
+/* ===================================================================== */
+/* S-031 timestamp residual: every carved node carries the scan-time     */
+/* stamp (the og's CRAWFileProperties per-record timestamp string,      */
+/* FUN_140c41aa0 "%d-%d-%d %d-%d-%d" — ifileproperties-part3 :80).       */
+/* ===================================================================== */
+
+TEST(CarveEngine, CarvedNodesCarryScanTimestamp) {
+    /* both emit sites stamp times.modified with the run's wall clock:
+     * captured once per carve_slice so one scan's population agrees */
+    auto img = build_carve_image();
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"Lost Files");
+    CarveFlags flags;
+    CarveStats stats;
+    const u64 before = u64(std::time(nullptr));
+    u32 rc =
+        carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, stats);
+    const u64 after = u64(std::time(nullptr));
+    ASSERT_EQ(rc, OK) << err_text(rc);
+    ASSERT_GE(stats.validated, 1u);
+
+    int carved = 0;
+    std::function<void(tree::FileNode*)> collect = [&](tree::FileNode* n) {
+        for (tree::FileNode* c = n->first_child(); c; c = c->next_sibling()) {
+            if (c->props() && c->origin() == tree::Origin::Carved) {
+                ++carved;
+                const u64 t = c->props()->times.modified;
+                EXPECT_NE(t, 0u) << "grammar-layer carved node has no scan timestamp";
+                if (t != 0) {
+                    /* 100ns since 1601 -> unix seconds */
+                    const u64 unix_t = (t / 10000000ull) - 11644473600ull;
+                    EXPECT_GE(unix_t, before) << "scan timestamp before run start";
+                    EXPECT_LE(unix_t, after) << "scan timestamp after run end";
+                }
+            }
+            collect(c);
+        }
+    };
+    collect(root);
+    EXPECT_GE(carved, 4) << "grammar layer emit not found";
+}
+
+TEST(CarveEngine, RawSignCarvedNodesCarryScanTimestamp) {
+    /* the second emit site (raw-sign layer) stamps the same field */
+    std::vector<u8> img(2 * 1024 * 1024, 0);
+    std::memcpy(img.data() + 4096, "#!/bin/sh\n", 10);
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"Lost Files");
+    CarveFlags flags;
+    CarveStats stats;
+    const u64 before = u64(std::time(nullptr));
+    u32 rc =
+        carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, stats);
+    const u64 after = u64(std::time(nullptr));
+    ASSERT_EQ(rc, OK) << err_text(rc);
+
+    int carved = 0;
+    for (tree::FileNode* c = root->first_child(); c; c = c->next_sibling()) {
+        if (c->props() && c->origin() == tree::Origin::Carved) {
+            ++carved;
+            const u64 t = c->props()->times.modified;
+            EXPECT_NE(t, 0u) << "raw-sign carved node has no scan timestamp";
+            if (t != 0) {
+                const u64 unix_t = (t / 10000000ull) - 11644473600ull;
+                EXPECT_GE(unix_t, before);
+                EXPECT_LE(unix_t, after);
+            }
+        }
+    }
+    EXPECT_GE(carved, 1) << "raw-sign layer emit not found";
+}
+
+TEST(CarveEngine, ScanTimestampSurvivesSessionRoundTrip) {
+    /* the og PERSISTS the per-record timestamp (the CRAW string field);
+     * our equivalent carrier is record 4's times.modified — the stamped
+     * value must round-trip through serialize/deserialize intact */
+    auto img = build_carve_image();
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"Lost Files");
+    CarveFlags flags;
+    CarveStats stats;
+    u32 rc =
+        carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, stats);
+    ASSERT_EQ(rc, OK) << err_text(rc);
+
+    u64 stamped = 0;
+    int carved = 0;
+    std::function<void(tree::FileNode*)> collect = [&](tree::FileNode* n) {
+        for (tree::FileNode* c = n->first_child(); c; c = c->next_sibling()) {
+            if (c->props() && c->origin() == tree::Origin::Carved) {
+                ++carved;
+                stamped = c->props()->times.modified;
+            }
+            collect(c);
+        }
+    };
+    collect(root);
+    ASSERT_GE(carved, 1);
+    ASSERT_NE(stamped, 0u) << "nothing stamped to round-trip";
+
+    std::vector<u8> blob;
+    ASSERT_EQ(session::serialize_tree(tree, blob), OK);
+    tree::ResultTree loaded;
+    ASSERT_EQ(session::deserialize_tree(blob.data(), blob.size(), loaded), OK);
+    bool found = false;
+    std::function<void(tree::FileNode*)> scan2 = [&](tree::FileNode* n) {
+        for (tree::FileNode* c = n->first_child(); c; c = c->next_sibling()) {
+            if (c->props() && c->origin() == tree::Origin::Carved) {
+                found = true;
+                EXPECT_EQ(c->props()->times.modified, stamped)
+                    << "scan timestamp lost in session round-trip";
+            }
+            scan2(c);
+        }
+    };
+    scan2(loaded.roots().empty() ? nullptr : loaded.roots()[0]);
+    EXPECT_TRUE(found) << "carved node not found after reload";
 }

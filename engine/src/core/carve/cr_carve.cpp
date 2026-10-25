@@ -19,6 +19,7 @@
 #include <atomic>
 #include <chrono>
 #include <cstring>
+#include <ctime>
 #include <set>
 
 namespace cr {
@@ -79,6 +80,12 @@ struct ScanCtx {
     std::vector<std::pair<u64, u64>> overlap_covered;
     std::atomic<u32> file_index{0};
     std::atomic<bool> aborted{false};
+    /* S-031 residual: the wall-clock scan time stamped onto every carved
+     * node's times.modified (the og persists a per-carved-file timestamp
+     * string written by FUN_140c41aa0 via "%d-%d-%d %d-%d-%d" from the
+     * scan-time FILETIME — ifileproperties-part3 :80; captured ONCE per
+     * carve_slice run so all nodes of one scan agree). */
+    u64 scan_time = 0;
     /* GAP-S6-8: the disk-absolute basis for extents + dedup queries.
      * Carve positions are slice-relative (reads, bounds, emitted_at stay
      * relative); the TREE keys must be disk-absolute so the resumed carve
@@ -177,6 +184,7 @@ u32 scan_one_window(ScanCtx& ctx, u64 base, const u8* win, u64 want, std::set<u6
             props->logical_size = file_len;
             props->carve_format = sig.id;
             props->carve_confidence = u16((sig.base_confidence + cr.confidence) / 2);
+            props->times.modified = ctx.scan_time; /* S-031: the scan-time stamp */
             if (props->carve_confidence > 1000)
                 props->carve_confidence = 1000;
             /* GAP-S6-8: disk-absolute extent + the idempotency guard so the
@@ -345,6 +353,7 @@ u32 scan_one_window(ScanCtx& ctx, u64 base, const u8* win, u64 want, std::set<u6
             props->logical_size = len;
             props->carve_format = 0xFFFF0000u + best->fmt; /* raw-sign tag */
             props->carve_confidence = conf;
+            props->times.modified = ctx.scan_time; /* S-031: the scan-time stamp */
             /* GAP-S6-8: disk-absolute extent + the idempotency guard (see
              * the grammar layer above) */
             props->extents.push_back({start_abs + ctx.ext_base, len});
@@ -439,6 +448,9 @@ u32 carve_slice(IStorageDevice* slice, const CarveFlags& flags, CancelToken* can
     ctx.namer = namer;
     ctx.total = slice->size();
     ctx.ext_base = slice->absolute_base(); /* GAP-S6-8: disk-absolute basis */
+    /* S-031 residual: stamp the scan time once per run — every carved
+     * record carries it (the og's per-record formatted timestamp). */
+    ctx.scan_time = unix_to_filetime(i64(std::time(nullptr)));
 
     const u64 window_count = (ctx.total + WINDOW - 1) / WINDOW;
     const bool multi = flags.threads > 1 && window_count > 1 && ctx.total > 0;

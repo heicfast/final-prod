@@ -126,14 +126,13 @@ layer (:173-182) and the raw-sign layer (:330-338) emit Active carved nodes. The
 plan's step 1 must patch BOTH sites (or centralize the emit). Audited-`7cf6754` line
 cites above remain historically accurate; the merged-tree anchors are :173/:330.
 
-<<<<<<< HEAD:diff-to-fix/findings/FIXED/S-031-carved-files-never-marked-deleted.md
 ## Resolution
 
 **Status:** FIXED
 **Fixed in commit:** (this session's fix commit — `git log` "fix: S-031")
 **Verified by:** `CarveEngine.CarvedNodesAreDeleted` (grammar layer: every carved node `deleted_state() == Deleted`; `deleted_count` equals the carved population), `CarveEngine.RawSignCarvedNodesAreDeleted` (the second emit site — the raw-sign header-only layer), `CarveEngine.DeletedOnlyQueryIncludesCarvedFiles` (THE product-level discriminator: `filter.deleted_only` query over a carved fixture returns the carved rows) — all 3 fail-before proven on the carve-reverted build (0 carved rows in the deleted view, Active states, count 0); full suite **491/491** Linux Release (488 + 3 net-new).
 **Resolution notes:** Corpus re-verified first-hand: `ifileproperties-part3--btrfs-zfs-raw-generic.md` §3 field table — CRAWFileProperties FLAGS u16@serialized is "constant 0x0020 for all 12,147 records (every carved file flagged deleted)", the same 0x20 deleted-family bit documented at :16 ("FLAGS (0x10 children / 0x20 deleted family)"). The fix adds `set_deleted_state(Deleted)` at BOTH emit sites of `cr_carve.cpp` (the grammar layer :207-215 and the raw-sign layer :370-375, per the merged-tree re-verification addendum — the finding's second site confirmed at HEAD), alongside the existing `set_origin(Carved)`. Fix-plan consequences verified: (a) `deleted_only` queries now include the carve set (the discriminator test); (b) `refresh_stats().deleted_count` includes carved nodes (asserted equal to the carved population); (c) the session writer already serializes `deleted_` (cr_records), so round-trips preserve the flag — the producer-side hole was the only missing piece; (d) no double-count: carved nodes are direct children of the carve root, counted once. The carve root's presentation name and grouping are unchanged (the og groups carved files by the same deleted-family bit). No new PARITY-DELTA (this is a pure MATCH move toward the og's constant-0x20 semantics).
-=======
+
 ---
 
 ## Session-6 convergence addendum (2026-10-26 — independent corroboration + the session-round-trip mechanics)
@@ -165,4 +164,12 @@ Both emit sites this finding re-verified (grammar :173-182 + raw-sign :330-338)
 were re-read by this session at `022c81d`-lineage: unchanged — `set_deleted_state`
 still absent from both. The finding's fix plan (both sites or centralized emit)
 stands.
->>>>>>> 4a3f5d4 (diff-audit-s6 recon: multi-leg ID reconciliation — 3 convergent findings harvested into the landed S-031/S-032/N-059; 14 unique renamed (M-052, N-065..N-075, I-023/I-024); post-resolution corrections for the same-window fix wave (S-007 MPEG-family landed, S-024 0xD1 landed) — append-only, cross-refs scoped to session-6 sections only):diff-to-fix/findings/SEVERE/S-031-carved-files-never-marked-deleted.md
+
+---
+
+## Resolution — timestamp residual (session 9, 2026-10-26)
+
+**Status:** FIXED (the scan-timestamp half — the last open item of this finding)
+**Fixed in commit:** (this session's commit — `git log` "fix(S-031 residual)")
+**Verified by:** `CarveEngine.CarvedNodesCarryScanTimestamp` (grammar layer: every carved node's `times.modified` is a nonzero wall-clock value inside the [before, after] window of the run), `CarveEngine.RawSignCarvedNodesCarryScanTimestamp` (the second emit site), `CarveEngine.ScanTimestampSurvivesSessionRoundTrip` (serialize → deserialize → the stamp is bit-identical). Fail-before proven 3/3 by reverting the two stamp lines (all timestamps zero, the round-trip assertion aborts on `stamped == 0`).
+**Resolution notes:** Corpus re-verified first-hand: `ifileproperties-part3--btrfs-zfs-raw-generic.md` §3 CRAWFileProperties row 2 — "formatted timestamp string, written by `FUN_140c41aa0` via `"%d-%d-%d %d-%d-%d"` (wYear, wMonth, ... from a FILETIME arg → SYSTEMTIME)"; the session-6 convergence addendum's item 2 pinned the shape (persist the FILETIME-equivalent, the formatted-string rendering is the display layer's job). Fix: `carve_slice` captures the wall clock ONCE at entry (`std::time(nullptr)` → `unix_to_filetime`, the shared fold in cr_types.h) into `ScanCtx::scan_time`; BOTH emit sites stamp `props->times.modified` (grammar layer + raw-sign layer). The core's persistence carrier is record 4's existing `times.modified` field (cr_records.cpp:141) — no session-format change; the round-trip test pins it. One scan's population shares one stamp (the og formats one scan-time FILETIME per run context). The committed conflict markers left in this file by the 4a3f5d4 rename race are repaired in the same commit (both sides preserved, append-only).
