@@ -10025,3 +10025,34 @@ Work Log:
 
 Stage Summary:
 - Claim posted; execution begins with M-016.
+
+Task ID: DFX16-T1 (session 16 bootstrap)
+Agent: core-parity-fix-agent (main)
+Task: Pull both repos, record baseline, archive prompt, verify green
+
+Work Log:
+- Fresh clone of both in-scope repos. Core main HEAD: 53629a3
+  ("worklog(DFX15): M-002/M-037/M-031/M-046 landed"). Corpus HEAD:
+  03ad46c (unmoved — matches the audit's ground truth commit exactly).
+- Session prompt archived token-redacted at
+  worklog/session-diff-fix-16-prompt.md.
+- Baseline build + suite on linux-gcc (RelWithDebInfo + ASan):
+  584/584 green, 27.3s wall. Suite grew from the DFX15 close (578) —
+  four M-046-adjacent tests landed with the last wave.
+- Open inventory at bootstrap (direct file count of diff-to-fix/):
+  SEVERE 1 (S-029) · MAJOR 32 · MINOR 43 · INFO 22 · FIXED/ 94 files
+  (incl. RESOLVED-INDEX) · tracked-open 16.
+- Stale lane claims from dead sessions noted (DFX11: M-007/M-008/M-032/
+  M-050/M-029/M-049; DFX14: M-005; DFX10: S-029)
+- (Post-rebase note: parallel DFX17 lane landed M-045, M-007, M-054
+  (NEW-FINDING) + PARITY-DELTAS D-70/D-71 in the same window — dropped
+  from this session's queue; queue re-heads to S-029, M-043, M-005,
+  M-008, then remaining MAJORs by impact.) — none landed before
+  those sessions ended; this session takes them over with fresh
+  verification. Every fix re-verified against corpus 03ad46c first-hand.
+
+Stage Summary:
+- Baseline honest and green (53629a3, 584/584). Lane plan for this
+  session: S-029 → MAJOR wave (DFX15 handoff order M-045, M-043, M-005,
+  M-007, M-008, then the remaining MAJORs by user impact), then MINOR
+  batches as capacity allows. One finding, one verified fix, one push.
