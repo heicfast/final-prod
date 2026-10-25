@@ -4706,3 +4706,56 @@ Stage Summary:
 - Gates pushed before any code change (mandate §1). Next: T4+ implementation wave (carve-format
   enumeration, versioning policy fix, SQLite claim cut, 64 KiB unification, self-healing reopen,
   1 MiB sequential blocks, C-consumer expansion, Windows CI benchmarks).
+Task ID: 4-S-006 (SEVERE fix — third item of the fix session)
+Agent: main engineer (diff-to-fix remediation, session 4)
+Task: SEVERE S-006 — lost-partition probes cover only NTFS/FAT/exFAT/GPT; the og's deep scan also finds Linux/FATX partitions
+
+Work Log:
+- Lane discipline: the parallel s4 leg declared S-013/S-015/S-014/S-012 (their worklog
+  at 8034de5); this leg took S-006 (lost-partition module, no collision) and pulled
+  before starting.
+- Corpus verification BEFORE coding (first-hand): decoded the parser-tree wiring in
+  PartitionRecoveryD_decompiled.c - CBlockParseWin32 ctor (FUN_180001c50) wires
+  CFatxBlockParser + CNTFSBlockParser + CExFatBlockParser + BitlockerParser;
+  CBlockParserLinux ctor (FUN_180001b40) wires CExtXBlockParser ONLY. FINDING
+  CORRECTED (corpus wins): the og has NO lost-scan parsers for HFS+/Btrfs/ZFS/ReFS -
+  the finding's impact claim that a deleted Mac/ReFS partition yields og candidates
+  was a false positive; only the ext family is og coverage. CExtX accept criteria
+  decoded in full: FUN_180002880 (magic 0xEF53@SB+0x38; nonzero inodes/blocks/bpg/ipg;
+  first_ino>=3; group cross-check (blocks-fdb-1)/bpg+1 == (inodes-1)/ipg+1;
+  first_data_block == (block_size==1024)) + FUN_180002b90 (block_group_nr==0 -
+  partition-start anchor). FATX chain (FUN_180006250 -> 180004070/180004610) entered
+  but not resolvable at reasonable depth - tracked as scoped remainder, no invented
+  gates.
+- Fix (cr_candidates.cpp): probe_ext (engine validate_superblock + the og's lost-scan
+  gates + GDT liveness probe + SB-derived size); probe_hfsplus (VH@+1024, engine
+  validator, total_blocks size); probe_btrfs (SB@+64KiB, engine validator,
+  flagged-fallback size); probe_zfs (label-0 uberblock ring head @+128KiB, LE magic
+  0x00BAB10C, txg liveness, flagged-fallback size); probe_refs (DBR OEM "ReFS"
+  rescued from the FAT catch-all; detect_refs over a bounded 8-MiB window;
+  flagged-fallback size). Dispatch: 55AA families first (ReFS inserted before the
+  FAT catch-all which stays LAST), then ext/HFS+ (stride-1, in-window anchors),
+  then btrfs/zfs (1-MiB grid alignment - out-of-window reads cost-bounded, D-50).
+  CandidateFs appended Ext2..Refs (6..10); orchestrator resume bound extended
+  (old sessions with values <= 5 stay valid).
+- Tests: 7 new in test_lostpart.cpp (plant helpers per family, spec-exact fields:
+  ext SB with consistent group formulas + GDT; HFS+ BE VH; btrfs SB with pow2
+  sizes; ZFS uberblock with txg; ReFS DBR + MSB page). Fail-before proven by
+  stashing only cr_candidates.cpp: 5 discovery tests FAIL (no candidates), the 2
+  negative guards (block-group copy, noise) pass both sides by design. With the
+  fix: suite 332/332 Linux ASan (325 + 7), two rebuilds, clang-format 18.1.8 clean.
+- First attempt at fail-before used a stash that broke compilation (tests reference
+  the new enum) - the old binary ran; redone with the enum/ABI changes unstashed
+  so the pre-fix build compiled. Lesson recorded.
+- Audit trail: S-006 Resolution (with the og-coverage correction + FATX/M-017
+  scoping) + move to FIXED/; RESOLVED-INDEX row; SUMMARY (SEVERE 7 active /
+  62 total, remediation log, top-risk retirement); CROSS-REF-MATRIX lost-partition
+  row; modules/lost-partition.md; docs/PARITY-DELTAS.md D-50 (superset + alignment
+  gate + fallback-size rationale + FATX remainder).
+
+Stage Summary:
+- S-006 FIXED: deleted ext4 partitions now surface as structured lost-partition
+  candidates with the og's exact accept semantics; HFS+/Btrfs/ZFS/ReFS follow as
+  documented supersets; ReFS DBRs are no longer dropped as FAT noise. Remaining in
+  this leg's lane: S-003 (HFS+ journal replay) or S-007 (carve formats) - pull first
+  to re-check the parallel legs.

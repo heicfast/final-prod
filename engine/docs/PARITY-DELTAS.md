@@ -1181,3 +1181,47 @@ spec-correct timestamps.
 **Pin tests:** `ExfatEngine.TimestampsMatchOgLocalAsUtc` (tz = 0x88),
 `ExfatEngine.TimestampsZeroTzPassThrough` (tz = 0x00),
 `ExfatEngine.TimestampsMatchExplorerDisplay` (tz = 0x20).
+
+### D-50 — Lost-partition superblock probes: ext parity + HFS+/Btrfs/ZFS/ReFS superset anchors (S-006)
+
+**Class:** parity (ext) + deliberate superset (HFS+/Btrfs/ZFS/ReFS) · **Finding:** diff-to-fix S-006 (SEVERE, FIXED) · **Date:** 2026-10-26
+
+The og's PartitionRecoveryD deep scan wires exactly two parser families beyond
+the Win32 set (ctor decodes: CBlockParseWin32 = {CFatxBlockParser,
+CNTFSBlockParser, CExFatBlockParser, BitlockerParser}; CBlockParserLinux =
+{CExtXBlockParser}). It has NO lost-scan parsers for HFS+, Btrfs, ZFS or ReFS.
+
+**Core decision (S-006 fix):**
+- **ext2/3/4 = parity.** `probe_ext` reproduces the og's decoded accept gates
+  (magic 0xEF53 @SB+0x38, nonzero inode/block/group fields, s_first_ino>=3,
+  the two-formula group-count cross-check, the first_data_block geometry rule,
+  and s_block_group_nr==0 — only block-group-0 superblocks anchor a partition
+  start, so the per-block-group SB copies do not flood candidates), plus a
+  group-descriptor liveness probe. Size is SB-derived (real extent).
+- **HFS+/Btrfs/ZFS/ReFS = documented superset.** The core's engines exist for
+  all four and the materialize->probe_family->engine dispatch predates this
+  change; the discovery anchors reuse the engines' own validators
+  (hfsplus::validate_volume_header, btrfs::validate_superblock, the ZFS
+  label-0 uberblock anchor, refs::detect_refs on a bounded 8 MiB window).
+  ReFS is first-class per the audit mandate. This is the same superset family
+  as the acknowledged I-003 (Btrfs deep scan).
+- **Cost-bounding gate:** the two out-of-window anchors (Btrfs +64 KiB, ZFS
+  +128 KiB) run only at 1 MiB grid alignment (the standard partition-start
+  alignment; ~2 bounded reads per MiB). A lost Linux/Mac volume whose start
+  is NOT 1 MiB-aligned is missed by these two superset probes (ext/HFS+ are
+  stride-1 in-window and unconditioned). The alignment was chosen over
+  stride-1 out-of-window reads to keep discovery throughput uncompromised;
+  the og's own deep-scan grid constants remain corpus-undecoded (S-006
+  remainder notes).
+- **ZFS/Btrfs/ReFS candidate sizes** carry the flagged `size_from_device_end`
+  fallback (label/MSB geometry is engine-side); the GAP-S6-6 dedup rule keeps
+  fallback-sized candidates from claiming containment over peers.
+
+**Scoped remainder:** the og's CFatxBlockParser (Xbox FATX) is not implemented
+— its accept criteria are not corpus-decoded (FUN_180006250 ->
+FUN_180004070/FUN_180004610 chain entered but unresolved). No invented gates.
+
+**Pin tests:** `LostDiscovery.Ext4SuperblockAnchorsDeletedPartition`,
+`Ext4BlockGroupCopyNotACandidateStart`, `HfsPlusVolumeHeaderAnchorsDeletedPartition`,
+`BtrfsSuperblockAnchorsDeletedPartition`, `ZfsLabelAnchorsDeletedPartition`,
+`RefsBootAnchorsDeletedPartition`, `SuperblockNoiseRejected`.

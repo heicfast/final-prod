@@ -1278,7 +1278,9 @@ u32 ScanController::load_session_summary(session::Reader& r, tree::ResultTree& t
             session::PartitionContext pc;
             if (session::deserialize_partition_context(rec.data.data(), rec.data.size(), pc) ==
                     OK &&
-                pc.kind == 1 && pc.fs_kind <= u32(lost::CandidateFs::Unknown)) {
+                pc.kind == 1 && pc.fs_kind <= u32(lost::CandidateFs::Refs)) {
+                /* S-006: Ext2..Refs appended (values 6..10); sessions written
+                 * before S-006 only carry <= Unknown (5) and stay valid. */
                 lost::Candidate c;
                 c.start_lba = pc.start_lba;
                 c.sector_count = pc.sector_count;

@@ -24,8 +24,25 @@ namespace lost {
 
 /* value 4 is RESERVED: it was the never-constructed MbrTable name (W4,
  * AUDIT-PIPELINE register row 6); the numeric positions are session-
- * serialized (PartitionContext fs_kind) and must not renumber. */
-enum class CandidateFs : u8 { Ntfs = 0, Fat, Exfat, GptTable, Unknown = 5 };
+ * serialized (PartitionContext fs_kind) and must not renumber.
+ * S-006 appended Ext2..Refs (values 6..10): Ext2 = the og's CExtXBlock-
+ * Parser lost-scan family (parity); HfsPlus/Btrfs/Zfs/Refs are documented
+ * supersets (the og's PartitionRecoveryD deep scan has no parsers for
+ * these - see docs/PARITY-DELTAS.md D-50; the core's engines exist and
+ * ReFS is first-class per the audit mandate). Values > 5 deserialize only
+ * from sessions written after S-006; older sessions carry <= 5. */
+enum class CandidateFs : u8 {
+    Ntfs = 0,
+    Fat,
+    Exfat,
+    GptTable,
+    Unknown = 5,
+    Ext2,
+    HfsPlus,
+    Btrfs,
+    Zfs,
+    Refs
+};
 
 struct Evidence {
     const char* tag; /* "boot-sig", "bpb-valid", "mft-probe", ... */

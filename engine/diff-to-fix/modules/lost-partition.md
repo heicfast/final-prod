@@ -13,7 +13,9 @@ Core (audited commit `67193b6` + concurrent `03ddcd2` GAP-S6-6 fix in tree):
 
 - **B1 detection** — `M` on the four implemented families (boot-sig 0x55AA + OEM
   dispatch, evidence-point probes with $MFT liveness for NTFS, FAT-area probe, exFAT
-  geometry, GPT header shape); **S-006** (no ext/HFS+/Btrfs/ZFS/ReFS probes — og has
+  geometry, GPT header shape); ~~**S-006**~~ **FIXED (fix session): ext probes =
+  the og's decoded CExtX accept gates (parity); HFS+/Btrfs/ZFS/ReFS anchors =
+  documented superset (D-50; the og has
   CBlockParserLinux/CExtXBlockParser/CFatxBlockParser).
 - **B3** — `M`-note: FAT catch-all relies on BPB strictness (noisy by design, og's
   CalcPartition likewise heuristics-driven; scoring internals undecoded — OQ-T9).
@@ -52,7 +54,7 @@ Core (audited commit `67193b6` + concurrent `03ddcd2` GAP-S6-6 fix in tree):
 
 | ID | Severity | One-line |
 |---|---|---|
-| S-006 | SEVERE | No ext4/HFS+/Btrfs/ZFS/ReFS lost-partition probes (og has Linux/FATX parsers) |
+| S-006 | SEVERE | No ext4/HFS+/Btrfs/ZFS/ReFS lost-partition probes — **FIXED** (ext parity + superset anchors; FATX scoped remainder; M-017 scoring = own finding) |
 | OQ-T9 | tracked-open | CalcPartition scoring internals undecoded |
 
 ## Post-baseline note

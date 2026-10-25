@@ -236,3 +236,215 @@ TEST(LostDiscovery, DamagedBpbFallbackMustNotSwallowPeer) {
     EXPECT_EQ(ntfs, 2u) << "the fallback-sized A must not dedup away B";
     EXPECT_EQ(b_found, 1u) << "B (healthy probe, inside A's fallback envelope) must surface";
 }
+
+/* ---- S-006: superblock/volume-header probe families --------------------- */
+
+void plant_ext4_sb(std::vector<u8>& img, u64 lba, u32 blocks, u32 bpg, u32 ipg, u32 inodes,
+                   u16 block_group_nr, u32 inode_table_block) {
+    /* ext2/3/4 superblock at lba+1024 (block size 4096: first_data_block=0,
+     * log_bs=2; GDT at partition block 1 = byte 4096) */
+    const u64 sb = lba * 512 + 1024;
+    put32v(img, sb + 0x00, inodes);        /* s_inodes_count */
+    put32v(img, sb + 0x04, blocks);        /* s_blocks_count (lo) */
+    put32v(img, sb + 0x14, 0);             /* s_first_data_block (bs=4096) */
+    put32v(img, sb + 0x18, 2);             /* s_log_block_size = 2 -> 4096 */
+    put32v(img, sb + 0x20, bpg);           /* s_blocks_per_group */
+    put32v(img, sb + 0x28, ipg);           /* s_inodes_per_group */
+    put16(img, sb + 0x38, 0xEF53);         /* s_magic */
+    put32v(img, sb + 0x4C, 1);             /* s_rev_level = dynamic */
+    put32v(img, sb + 0x54, 11);            /* s_first_ino (>= 3 gate) */
+    put16(img, sb + 0x5A, block_group_nr); /* s_block_group_nr */
+    put16(img, sb + 0x58, 256);            /* s_inode_size */
+    /* group descriptor table: block 1 (byte 4096 of the partition);
+     * bg_block_bitmap_lo@0, bg_inode_bitmap_lo@4, bg_inode_table_lo@8 */
+    const u64 gdt = lba * 512 + 4096;
+    put32v(img, gdt + 0, 4); /* block bitmap block 4 */
+    put32v(img, gdt + 4, 8); /* inode bitmap block 8 */
+    put32v(img, gdt + 8, inode_table_block);
+}
+
+void plant_hfsplus_vh(std::vector<u8>& img, u64 lba, u32 block_size, u32 total_blocks) {
+    /* HFS+ volume header at lba+1024, big-endian fields */
+    const u64 vh = lba * 512 + 1024;
+    img[vh + 0] = 0x48;
+    img[vh + 1] = 0x2B; /* "H+" */
+    img[vh + 2] = 0;
+    img[vh + 3] = 4; /* version 4 */
+    /* block_size (BE u32) @0x28, total_blocks (BE u32) @0x2C; forks at
+     * 0x70/0xC0 stay zeroed (total_blocks 0 <= total) */
+    img[vh + 0x28] = u8(block_size >> 24);
+    img[vh + 0x29] = u8(block_size >> 16);
+    img[vh + 0x2A] = u8(block_size >> 8);
+    img[vh + 0x2B] = u8(block_size);
+    img[vh + 0x2C] = u8(total_blocks >> 24);
+    img[vh + 0x2D] = u8(total_blocks >> 16);
+    img[vh + 0x2E] = u8(total_blocks >> 8);
+    img[vh + 0x2F] = u8(total_blocks);
+}
+
+void plant_btrfs_sb(std::vector<u8>& img, u64 lba, u32 sectorsize, u32 nodesize) {
+    /* Btrfs primary superblock at partition+64 KiB */
+    const u64 sb = lba * 512 + 0x10000;
+    std::memcpy(img.data() + sb + 0x40, "_BHRfS_M", 8); /* magic */
+    put32v(img, sb + 0x90, sectorsize);
+    put32v(img, sb + 0x94, nodesize);
+    put32v(img, sb + 0xA0, 0); /* sys_array_size 0: valid anchor */
+}
+
+void plant_zfs_label(std::vector<u8>& img, u64 lba, u64 txg, u64 spa_version) {
+    /* ZFS vdev label-0 uberblock ring head at partition+128 KiB */
+    const u64 ub = lba * 512 + 0x20000;
+    put32v(img, ub + 0, 0x00BAB10C); /* magic (LE u64 low word) */
+    put32v(img, ub + 4, 0);
+    put64(img, ub + 8, spa_version);
+    put64(img, ub + 16, txg);
+}
+
+void plant_refs_boot(std::vector<u8>& img, u64 lba, bool checkpointed) {
+    /* ReFS DBR (OEM "ReFS" + 55AA) + one metadata session page in the
+     * first MiB, at a 512-aligned offset */
+    u8* b = img.data() + lba * 512;
+    b[0] = 0xEB;
+    b[1] = 0x52;
+    b[2] = 0x90;
+    std::memcpy(b + 3, "ReFS", 4);
+    b[510] = 0x55;
+    b[511] = 0xAA;
+    const char* page = checkpointed ? "CHKPSUPBMSB+ReFSFSRS" : "SUPBMSB+ReFSFSRS";
+    std::memcpy(img.data() + lba * 512 + 0x1000, page, checkpointed ? size_t(20) : size_t(16));
+}
+
+TEST(LostDiscovery, Ext4SuperblockAnchorsDeletedPartition) {
+    /* S-006 falsifiable claim: a deleted ext4 partition (superblock
+     * remnant intact, no partition-table entry) surfaces as a candidate in
+     * the og's deep scan (CExtXBlockParser) - and now in ours. */
+    std::vector<u8> img(u64(32768) * 512, 0);
+    /* 2048 4-KiB blocks, one block group (bpg 2048; the engine validator
+     * requires blocks/bpg >= 1), inodes 2048 / ipg 2048 (group formulas
+     * agree), first_ino 11, block_group_nr 0 */
+    plant_ext4_sb(img, 6144, 2048 /* blocks */, 2048 /* bpg */, 2048 /* ipg */, 2048 /* inodes */,
+                  0 /* block_group_nr */, 100);
+    MemDevice dev(std::move(img));
+    DiscoveryResult r;
+    ASSERT_EQ(discover(&dev, {}, 1, nullptr, nullptr, nullptr, r), OK);
+    const Candidate* ext_c = nullptr;
+    for (const auto& c : r.candidates)
+        if (c.start_lba == 6144)
+            ext_c = &c;
+    ASSERT_NE(ext_c, nullptr);
+    EXPECT_EQ(ext_c->fs, CandidateFs::Ext2);
+    EXPECT_GE(ext_c->score, 70); /* 15 magic + 25 validation + 30 GDT probe */
+    EXPECT_EQ(ext_c->sector_count, 2048u * 4096u / 512u); /* SB-derived size */
+    EXPECT_FALSE(ext_c->size_from_device_end);
+    /* materialize + the orchestrator's probe_family sees the same ext4 */
+    auto slice = materialize(&dev, *ext_c);
+    ASSERT_NE(slice, nullptr);
+    u8 m[2] = {};
+    EXPECT_EQ(slice->read_at(1024 + 0x38, m, 2), OK);
+    EXPECT_EQ(m[0], 0x53);
+    EXPECT_EQ(m[1], 0xEF);
+}
+
+TEST(LostDiscovery, Ext4BlockGroupCopyNotACandidateStart) {
+    /* the og's CExtXBlockParser gate: only block-group-0 superblocks anchor
+     * a partition start (s_block_group_nr == 0). A later SB copy (every
+     * ext4 carries them at block-group boundaries) must NOT surface. */
+    std::vector<u8> img(u64(16384) * 512, 0);
+    /* a copy with block_group_nr = 5 and its own (self-consistent) geometry */
+    plant_ext4_sb(img, 6144, 8192, 32768, 2048, 4096, 5, 900);
+    MemDevice dev(std::move(img));
+    DiscoveryResult r;
+    ASSERT_EQ(discover(&dev, {}, 1, nullptr, nullptr, nullptr, r), OK);
+    for (const auto& c : r.candidates)
+        EXPECT_NE(c.start_lba, 6144u) << "block-group copy must not anchor a candidate";
+}
+
+TEST(LostDiscovery, HfsPlusVolumeHeaderAnchorsDeletedPartition) {
+    std::vector<u8> img(u64(16384) * 512, 0);
+    plant_hfsplus_vh(img, 6144, 4096, 1024); /* 1024 4-KiB blocks = 4 MiB */
+    MemDevice dev(std::move(img));
+    DiscoveryResult r;
+    ASSERT_EQ(discover(&dev, {}, 1, nullptr, nullptr, nullptr, r), OK);
+    const Candidate* h = nullptr;
+    for (const auto& c : r.candidates)
+        if (c.start_lba == 6144)
+            h = &c;
+    ASSERT_NE(h, nullptr);
+    EXPECT_EQ(h->fs, CandidateFs::HfsPlus);
+    EXPECT_GE(h->score, 40); /* 35 vh + 5 geometry */
+    EXPECT_EQ(h->sector_count, 1024u * 4096u / 512u);
+}
+
+TEST(LostDiscovery, BtrfsSuperblockAnchorsDeletedPartition) {
+    std::vector<u8> img(u64(16384) * 512, 0);
+    plant_btrfs_sb(img, 6144, 4096, 4096);
+    MemDevice dev(std::move(img));
+    DiscoveryResult r;
+    ASSERT_EQ(discover(&dev, {}, 1, nullptr, nullptr, nullptr, r), OK);
+    const Candidate* b = nullptr;
+    for (const auto& c : r.candidates)
+        if (c.start_lba == 6144)
+            b = &c;
+    ASSERT_NE(b, nullptr);
+    EXPECT_EQ(b->fs, CandidateFs::Btrfs);
+    EXPECT_GE(b->score, 35);
+}
+
+TEST(LostDiscovery, ZfsLabelAnchorsDeletedPartition) {
+    std::vector<u8> img(u64(16384) * 512, 0);
+    plant_zfs_label(img, 6144, 5 /* txg */, 5000 /* spa_version */);
+    MemDevice dev(std::move(img));
+    DiscoveryResult r;
+    ASSERT_EQ(discover(&dev, {}, 1, nullptr, nullptr, nullptr, r), OK);
+    const Candidate* z = nullptr;
+    for (const auto& c : r.candidates)
+        if (c.start_lba == 6144)
+            z = &c;
+    ASSERT_NE(z, nullptr);
+    EXPECT_EQ(z->fs, CandidateFs::Zfs);
+    EXPECT_GE(z->score, 35);              /* 25 magic + 10 txg liveness */
+    EXPECT_TRUE(z->size_from_device_end); /* flagged fallback (honest) */
+}
+
+TEST(LostDiscovery, RefsBootAnchorsDeletedPartition) {
+    /* the ReFS DBR (OEM "ReFS" + 55AA) used to fall into the FAT catch-all
+     * and get dropped as noise; the page-signature window probe now takes
+     * it before the catch-all. */
+    std::vector<u8> img(u64(16384) * 512, 0);
+    plant_refs_boot(img, 6144, true /* checkpointed */);
+    MemDevice dev(std::move(img));
+    DiscoveryResult r;
+    ASSERT_EQ(discover(&dev, {}, 1, nullptr, nullptr, nullptr, r), OK);
+    const Candidate* rf = nullptr;
+    for (const auto& c : r.candidates)
+        if (c.start_lba == 6144)
+            rf = &c;
+    ASSERT_NE(rf, nullptr);
+    EXPECT_EQ(rf->fs, CandidateFs::Refs);
+    EXPECT_GE(rf->score, 40);              /* 35 pages + 5 checkpointed */
+    EXPECT_TRUE(rf->size_from_device_end); /* flagged fallback (honest) */
+}
+
+TEST(LostDiscovery, SuperblockNoiseRejected) {
+    /* wrong magics / incoherent geometry surface no candidates */
+    std::vector<u8> img(u64(16384) * 512, 0);
+    /* 0xEF53 at a place with no coherent superblock around it */
+    put16(img, 8192 * 512 + 1024 + 0x38, 0xEF53);
+    /* "H+" signature with garbage geometry (block_size 0) */
+    img[9216 * 512 + 1024 + 0] = 0x48;
+    img[9216 * 512 + 1024 + 1] = 0x2B;
+    /* btrfs magic with invalid nodesize (not pow2) */
+    std::memcpy(img.data() + 10240 * 512 + 0x10040, "_BHRfS_M", 8);
+    put32v(img, 10240 * 512 + 0x10090, 4096);
+    put32v(img, 10240 * 512 + 0x10094, 3000);
+    /* ZFS magic without a txg is still a (weak) candidate - but magic-less
+     * ZFS geometry must not surface; test the ext group-formula mismatch:
+     * a "superblock" whose block-derived and inode-derived group counts
+     * disagree (the og's FUN_180002880 cross-check) */
+    plant_ext4_sb(img, 11264, 4096, 32768, 2048, 2048, 0, 100);
+    put32v(img, 11264 * 512 + 1024 + 0x28, 1024); /* ipg now mismatches: gb=1 gi=2 */
+    MemDevice dev(std::move(img));
+    DiscoveryResult r;
+    ASSERT_EQ(discover(&dev, {}, 1, nullptr, nullptr, nullptr, r), OK);
+    EXPECT_TRUE(r.candidates.empty());
+}
