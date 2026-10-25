@@ -57,3 +57,21 @@ Whether the og's upcase validation affects scan RESULTS (reject vs. grade) is no
 **Fixed in commit:** (this session's N-067 commit)
 **Verified by:** `ExfatEngine.UpcaseTableChecksumValidated` (clean fixture: validated >= 1, mismatches == 0; corrupt stamp: validated == 0, mismatches == 1, scan OK, files still found — grade-not-reject pinned) + `ExfatEngine.UpcaseLengthSanity` (zero length flags; absurd 4 GiB length flags WITHOUT any stream access — no hang, no over-read, scan OK). Fail-before executed: both tests RED on the tree with the stats surface but the validation unwired (upcase_validated == 0, no flag). Full suite 597/597 linux-gcc ASan; exFAT/diskmap subset 42/42 linux-ubsan clean; lint clean.
 **Resolution notes:** implemented per the fix plan with the og's own shape evidence folded in: at the in-use upcase dentry (TYPE 0x02 / on-disk 0x82 — see the S-033 INVALID record for the constant verification that preceded this fix) the engine now (a) applies the og's dentry shape gates (reserved1@+1..+3 + reserved2@+8..+0x13 zero-checked, TableChecksum@+4 free — the og's case -0x7e walk validation, decompile :24440-24452), (b) requires first_cluster >= 2, (c) applies the length sanity bar (zero or > 1 MiB or > device size → flagged without stream access; the cap is OUR honest bound — real tables are 5836/14942 bytes — the og's own gate only requires the length to fit the volume), (d) reads the table stream chain-follow with the contiguous fallback (the bitmap branch's contract), bounded 64 KiB incremental `checksum32` chunks (the shared ROL31+add — same algorithm as the boot region and entry sets), and (e) compares against TableChecksum. Verdict surfaces in `ExfatScanStats.upcase_validated` / `.upcase_mismatches` — a soft integrity signal: the scan NEVER stops on a corrupt table (the og's corrupt-volume posture, EXFAT-2 salvage; the finding's open question on the og's exact failure path is preserved — the grade-not-reject default stands). The fixture now carries a REAL 64-entry upcase table at cluster 60 (a-z folded, checksum32-stamped, FAT-EOC + bitmap-marked, the hardening/producer tests' cluster lists updated); the deleted-upcase case is naturally excluded (in-use gate, mirroring the bitmap branch). One test-expectation correction during the pass: a corrupt table must NOT count in `upcase_validated` (only clean tables validate).
+
+## Resolution addendum (session-10 convergence — the empirical algorithm pin)
+
+A second lane independently implemented this fix in parallel with a
+DIFFERENT checksum interpretation: the MS spec's seeded CRC-32 (seed =
+table length). Both lanes raced to push; the union kept this landing's
+ROL31+add checksum32. The dispute was settled EMPIRICALLY, not by
+spec-memory: `mkfs.exfat` (exfatprogs 1.2.9) was run on a fresh image and
+the real upcase dentry decoded — TableChecksum 0xE619D30D over the
+5836-byte spec table equals ROL31+add with init 0 (the boot-checksum
+family), NOT the seeded CRC (0x673C42A0) and NOT length-seeded ROL31
+(0x52D9D30F). exfatprogs images interoperate with Windows, so this is the
+algorithm real volume writers use. The wrong interpretation was reverted
+with its helper (crc32_seeded); the real table is committed as
+tests/data/exfat/upcase-table-mkfs-exfat-1.2.9.bin and pinned by
+`ExfatEngine.UpcaseAlgorithmMatchesRealMkfsExfat` — the S-030 lesson
+applied: real-tool fixtures catch spec-memory bugs self-built fixtures
+cannot.

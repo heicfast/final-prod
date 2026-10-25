@@ -55,7 +55,10 @@ target_link_libraries(cr_tests PRIVATE cr::core GTest::gtest_main)
 add_custom_command(TARGET cr_tests POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy_directory
             ${CMAKE_CURRENT_SOURCE_DIR}/data/images
-            $<TARGET_FILE_DIR:cr_tests>/data/images)
+            $<TARGET_FILE_DIR:cr_tests>/data/images
+    COMMAND ${CMAKE_COMMAND} -E copy_directory
+            ${CMAKE_CURRENT_SOURCE_DIR}/data/exfat
+            $<TARGET_FILE_DIR:cr_tests>/data/exfat)
 
 # N-045 doc-truth pin lane: the register-vs-source consistency tests
 # (e.g. Cached.ScanCacheBudgetIsTheRegisteredDivergence) read repo files
