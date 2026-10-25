@@ -48,10 +48,10 @@ constexpr u16 OG_ROW_FLAG_B = 0xf8;
 constexpr u16 OG_ROW_RECYCLE_I = 100;
 
 /* ---- data-run flags (thesis table 4.38 + og FUN_18000c790 :8880-8895) ---- */
-constexpr u16 RUN_HAS_DATA = 0x0010;   /* core/thesis grammar */
-constexpr u16 RUN_HAS_BLOCK = 0x0040;  /* og: entry carries a block reference */
-constexpr u16 RUN_PHYSICAL = 0x0020;   /* og: physical LCN, no container translate */
-constexpr u16 RUN_REF_SIZE_OK = 0x18;  /* og: ref-size u16@+0xa must equal 0x18 */
+constexpr u16 RUN_HAS_DATA = 0x0010;  /* core/thesis grammar */
+constexpr u16 RUN_HAS_BLOCK = 0x0040; /* og: entry carries a block reference */
+constexpr u16 RUN_PHYSICAL = 0x0020;  /* og: physical LCN, no container translate */
+constexpr u16 RUN_REF_SIZE_OK = 0x18; /* og: ref-size u16@+0xa must equal 0x18 */
 
 /* ---- index-entry flags ---- */
 constexpr u16 ENTRY_DELETED = 0x4;
@@ -343,12 +343,12 @@ struct AttrWalkCtx {
     Engine& e;
     std::vector<tree::FileProperties::Extent>& extents; /* byte-space, merged */
     u64 cluster_bytes = 0;
-    u32 spc = 0;              /* sectors per cluster */
+    u32 spc = 0; /* sectors per cluster */
     u64 volume_clusters = 0;
     u64 volume_bytes = 0;
     RefsScanStats* stats = nullptr;
-    u64 run_clusters = 0;     /* total clusters across merged runs */
-    u32 hops = 0;             /* indirect-chase bound */
+    u64 run_clusters = 0; /* total clusters across merged runs */
+    u32 hops = 0;         /* indirect-chase bound */
 };
 
 /* append a cluster-space run, coalescing when adjacent (og c790/e020) */
@@ -476,8 +476,7 @@ static bool attr_materialize_resident(AttrWalkCtx& c, const EntryView& ae, u16 o
  * sectors-per-cluster; mismatch discards the whole runlist (the og reads
  * the props' allocated size at +0 - the alloc-vs-run-count consistency
  * invariant; logical size only when no allocation is recorded). */
-static bool attr_runs_granularity_ok(const AttrWalkCtx& c, u64 allocated_size,
-                                     u64 logical_size) {
+static bool attr_runs_granularity_ok(const AttrWalkCtx& c, u64 allocated_size, u64 logical_size) {
     if (c.run_clusters == 0 || c.spc == 0)
         return true; /* no non-resident runs: nothing to validate */
     u64 bytes = allocated_size != 0 ? allocated_size : logical_size;
@@ -998,11 +997,17 @@ u32 scan_refs(IStorageDevice* slice, const RefsScanFlags& flags, CancelToken* ca
              * 5..10: 7, 11..12: 8, 13+: 9; modern grammar iff gen >= 8. */
             u32 gen = 0;
             if (e.boot.major == 3)
-                gen = e.boot.minor < 5 ? 3 : (e.boot.minor < 0xb ? 7 : (e.boot.minor < 0xd ? 8 : 9));
-            AttrWalkCtx ctx{e,       props->extents, e.boot.cluster_bytes,
-                            e.boot.sectors_per_cluster, e.boot.volume_clusters,
-                            e.boot.volume_bytes,        &stats,
-                            0,          0};
+                gen =
+                    e.boot.minor < 5 ? 3 : (e.boot.minor < 0xb ? 7 : (e.boot.minor < 0xd ? 8 : 9));
+            AttrWalkCtx ctx{e,
+                            props->extents,
+                            e.boot.cluster_bytes,
+                            e.boot.sectors_per_cluster,
+                            e.boot.volume_clusters,
+                            e.boot.volume_bytes,
+                            &stats,
+                            0,
+                            0};
             const u64 msb_base = 0; /* single-container volumes: pages are
                                      * volume-absolute (no MSB rebase; the
                                      * og's +0x70 chain is context-form) */
@@ -1044,9 +1049,8 @@ u32 scan_refs(IStorageDevice* slice, const RefsScanFlags& flags, CancelToken* ca
                 } else if (ae.key_len == 0x10) {
                     /* recycle $I (type 100 + "$I" name) or the subtype-1
                      * resident content descriptor (FUN_18000ea30/e490) */
-                    const bool is_dollar_i =
-                        og_type == OG_ROW_RECYCLE_I && name16.size() > 2 &&
-                        name16[0] == u'$' && name16[1] == u'I';
+                    const bool is_dollar_i = og_type == OG_ROW_RECYCLE_I && name16.size() > 2 &&
+                                             name16[0] == u'$' && name16[1] == u'I';
                     const bool is_resident_desc = le16(ae.key + 2) == 1;
                     if ((is_dollar_i || is_resident_desc) &&
                         attr_materialize_resident(ctx, ae, og_type, gi.size, msb_base)) {
@@ -1091,8 +1095,8 @@ u32 scan_refs(IStorageDevice* slice, const RefsScanFlags& flags, CancelToken* ca
             if (name16.size() >= 3 && name16[0] == u'$' && name16[1] == u'I' &&
                 props->extents.size() == 1 && props->extents[0].length <= 0x10000) {
                 std::vector<u8> ibuf(size_t(props->extents[0].length), 0);
-                if (e.slice->read_at(props->extents[0].offset, ibuf.data(),
-                                     u32(ibuf.size())) == OK &&
+                if (e.slice->read_at(props->extents[0].offset, ibuf.data(), u32(ibuf.size())) ==
+                        OK &&
                     ibuf.size() >= 28) {
                     const u32 ver = le32(ibuf.data());
                     if (ver == 1 || ver == 2) {
@@ -1102,8 +1106,8 @@ u32 scan_refs(IStorageDevice* slice, const RefsScanFlags& flags, CancelToken* ca
                         const u32 plen = le32(ibuf.data() + 24);
                         if (plen >= 1 && plen <= 1024 && 28 + u64(plen) * 2 <= ibuf.size()) {
                             for (u32 i = 0; i < plen; ++i) {
-                                const u16 ch = u16(ibuf[28 + i * 2]) |
-                                               (u16(ibuf[28 + i * 2 + 1]) << 8);
+                                const u16 ch =
+                                    u16(ibuf[28 + i * 2]) | (u16(ibuf[28 + i * 2 + 1]) << 8);
                                 if (ch == 0)
                                     break;
                                 di.orig_name.push_back(ch);
@@ -1359,10 +1363,9 @@ u32 scan_refs(IStorageDevice* slice, const RefsScanFlags& flags, CancelToken* ca
      * handler resolves them through its own machinery); the orphan-table
      * walk covers unreachable live tables. */
     if (flags.stale_sweep) {
-        const u64 area_clusters =
-            eng.boot.container_bytes != 0
-                ? eng.boot.container_bytes / eng.boot.cluster_bytes
-                : eng.boot.volume_clusters;
+        const u64 area_clusters = eng.boot.container_bytes != 0
+                                      ? eng.boot.container_bytes / eng.boot.cluster_bytes
+                                      : eng.boot.volume_clusters;
         u64 bound = eng.boot.volume_clusters;
         if (area_clusters != 0 && area_clusters < bound)
             bound = area_clusters;

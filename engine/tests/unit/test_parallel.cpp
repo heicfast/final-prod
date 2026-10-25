@@ -286,9 +286,7 @@ TEST(Pool, CancelPoolWatcherDrainsQueueWithinOneTick) {
     });
     struct FlagToken : public CancelToken {
         std::atomic<bool>* f_ = nullptr;
-        bool cancelled() const override {
-            return f_->load(std::memory_order_acquire);
-        }
+        bool cancelled() const override { return f_->load(std::memory_order_acquire); }
     } token;
     token.f_ = &fire;
     {
@@ -301,9 +299,9 @@ TEST(Pool, CancelPoolWatcherDrainsQueueWithinOneTick) {
             return OK;
         });
         watcher.done();
-        const auto elapsed =
-            std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - t0)
-                .count();
+        const auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(
+                                 std::chrono::steady_clock::now() - t0)
+                                 .count();
         EXPECT_EQ(u32(ERR_CANCELLED), rc) << "the aborted pool must report cancellation";
         EXPECT_LE(started.load(), 6u) << "queued items must not start after the cancel tick";
         EXPECT_LT(elapsed, 1500) << "the scan must not run the full 2.4 s queue";
@@ -317,9 +315,9 @@ TEST(Pool, CancelPoolWatcherNullTokenIsInert) {
     CancelPoolWatcher watcher(pool, nullptr);
     std::atomic<u64> ran{0};
     EXPECT_EQ(u32(OK), parallel_for(pool, 16, [&](u64) -> u32 {
-        ran.fetch_add(1, std::memory_order_relaxed);
-        return OK;
-    }));
+                  ran.fetch_add(1, std::memory_order_relaxed);
+                  return OK;
+              }));
     watcher.done();
     EXPECT_EQ(ran.load(), 16u);
 }

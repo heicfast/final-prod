@@ -584,7 +584,6 @@ TEST(Ext4Engine, NonAsciiNamesDecodedNotByteLifted) {
     }
 }
 
-
 /* ===================================================================== */
 /* S-026: meta_bg group-descriptor resolution.                           */
 /*                                                                       */
@@ -623,8 +622,8 @@ constexpr u32 MBG_INO_FAR = 16 * MBG_IPG + 1; /* first inode of group 16 */
 
 /* write an inode into the table of ITS OWN group (tables at different
  * blocks per group) */
-void mbg_write_inode(Img& img, u32 ino, u16 mode, u64 size, u64 extent_block,
-                     u32 extent_blocks, u16 links, u32 dtime, u64 itable_block) {
+void mbg_write_inode(Img& img, u32 ino, u16 mode, u64 size, u64 extent_block, u32 extent_blocks,
+                     u16 links, u32 dtime, u64 itable_block) {
     u8* p = img.block(itable_block) + size_t((ino - 1) % MBG_IPG) * INO_SZ;
     memset(p, 0, INO_SZ);
     put16(p + 0x00, mode);
@@ -658,11 +657,11 @@ void mbg_write_sb(Img& img, u32 first_meta_bg) {
     put32(sb + 0x20, MBG_BPG);              /* s_blocks_per_group */
     put32(sb + 0x28, MBG_IPG);              /* s_inodes_per_group */
     put16(sb + 0x38, 0xEF53);
-    put32(sb + 0x4C, 1);                    /* rev level 1 */
+    put32(sb + 0x4C, 1); /* rev level 1 */
     put16(sb + 0x58, INO_SZ);
-    put32(sb + 0x60, 0x0092);               /* filetype | meta_bg | 64bit */
-    put16(sb + 0xFE, 64);                   /* s_desc_size */
-    put32(sb + 0x230, first_meta_bg);       /* s_first_meta_bg */
+    put32(sb + 0x60, 0x0092);         /* filetype | meta_bg | 64bit */
+    put16(sb + 0xFE, 64);             /* s_desc_size */
+    put32(sb + 0x230, first_meta_bg); /* s_first_meta_bg */
     put32(sb + 0xE0, 8);
 }
 
@@ -701,8 +700,7 @@ Img build_metabg_volume(u32 first_meta_bg) {
     mbg_write_inode(img, INO_HELLO, 0x8000, 14, MBG_HELLO_DATA, 1, 1, 0, 3);
     mbg_write_inode(img, 8, 0x8000, 0, 0, 0, 1, 0, 3); /* journal: empty */
     /* group 16 table: the far inode lives BEYOND the front GDT reach */
-    mbg_write_inode(img, MBG_INO_FAR, 0x8000, 33, MBG_FAR_DATA, 1, 1, 0,
-                    MBG_G16_ITABLE);
+    mbg_write_inode(img, MBG_INO_FAR, 0x8000, 33, MBG_FAR_DATA, 1, 1, 0, MBG_G16_ITABLE);
 
     /* root dir: ".", "..", hello.txt, far.bin */
     u8* root = img.block(MBG_ROOTDIR);
@@ -721,8 +719,7 @@ Img build_metabg_volume(u32 first_meta_bg) {
 /* device that counts reads at a given byte range (cache-reuse probe) */
 class CountingDevice final : public MemDevice {
 public:
-    CountingDevice(std::vector<u8> d, u64 watch_off)
-        : MemDevice(std::move(d)), watch_(watch_off) {}
+    CountingDevice(std::vector<u8> d, u64 watch_off) : MemDevice(std::move(d)), watch_(watch_off) {}
     u32 read_at(u64 off, void* buf, u32 len) override {
         if (off == watch_)
             ++hits_;
@@ -777,8 +774,7 @@ TEST(Ext4Engine, MetaBgDeletedSweepReachesDistributedGroups) {
      * 16 with dtime set must be emitted under Deleted (pre-fix: silently
      * missing for the same front-GDT reason) */
     auto img = build_metabg_volume(0);
-    mbg_write_inode(img, MBG_INO_FAR + 1, 0x8000, 64, MBG_FAR_DATA + 1, 1, 0, 4242,
-                    MBG_G16_ITABLE);
+    mbg_write_inode(img, MBG_INO_FAR + 1, 0x8000, 64, MBG_FAR_DATA + 1, 1, 0, 4242, MBG_G16_ITABLE);
     MemDevice dev(img.raw());
     tree::ResultTree tree;
     auto* ra = tree.add_root(u"Found");
@@ -802,8 +798,7 @@ TEST(Ext4Engine, MetaBgDescriptorBlockReadOnce) {
      * :3664-3703; the perf-guard twin of that behavior) */
     auto img = build_metabg_volume(0);
     /* a second dirent in group 16 forces multiple inode reads there */
-    mbg_write_inode(img, MBG_INO_FAR + 1, 0x8000, 8, MBG_FAR_DATA + 1, 1, 1, 0,
-                    MBG_G16_ITABLE);
+    mbg_write_inode(img, MBG_INO_FAR + 1, 0x8000, 8, MBG_FAR_DATA + 1, 1, 1, 0, MBG_G16_ITABLE);
     u8* root = img.block(MBG_ROOTDIR);
     u32 cur = 76;
     add_dirent(root, cur, MBG_INO_FAR + 1, "far2.bin", 1);
@@ -850,7 +845,6 @@ TEST(Ext4Engine, MetaBgSuperblockFieldsParsed) {
     EXPECT_EQ(2u, sb.first_meta_bg);
 }
 
-
 /* ===================================================================== */
 /* S-027: backup-superblock rescue (the og's engine-side lost-volume     */
 /* walk: FUN_180001b00 + sub-searcher spawn, corpus artifact §2).        */
@@ -875,44 +869,43 @@ Img build_backup_volume(bool kill_primary_gdt) {
     Img img(BKB_BLOCKS);
     /* primary superblock (block 1) - will be zeroed after copying */
     u8* sb = img.block(1);
-    put32(sb + 0x00, 2 * BKB_IPG);        /* s_inodes_count */
-    put32(sb + 0x04, u32(BKB_BLOCKS));    /* s_blocks_count_lo */
-    put32(sb + 0x14, 1);                  /* s_first_data_block */
-    put32(sb + 0x18, 0);                  /* log_block_size 0 (1024) */
-    put32(sb + 0x20, BKB_BPG);            /* s_blocks_per_group */
-    put32(sb + 0x28, BKB_IPG);            /* s_inodes_per_group */
+    put32(sb + 0x00, 2 * BKB_IPG);     /* s_inodes_count */
+    put32(sb + 0x04, u32(BKB_BLOCKS)); /* s_blocks_count_lo */
+    put32(sb + 0x14, 1);               /* s_first_data_block */
+    put32(sb + 0x18, 0);               /* log_block_size 0 (1024) */
+    put32(sb + 0x20, BKB_BPG);         /* s_blocks_per_group */
+    put32(sb + 0x28, BKB_IPG);         /* s_inodes_per_group */
     put16(sb + 0x38, 0xEF53);
-    put32(sb + 0x4C, 1);                  /* rev level 1 */
+    put32(sb + 0x4C, 1); /* rev level 1 */
     put16(sb + 0x58, INO_SZ);
-    put32(sb + 0x60, 0x0002);             /* FILETYPE */
+    put32(sb + 0x60, 0x0002); /* FILETYPE */
     put32(sb + 0xE0, 8);
     /* backup superblock at block 8193: same fields + s_block_group_nr = 1
      * (the real mkfs backup shape - verified: primary 0, group-1 copy 1) */
     u8* bsb = img.block(BKB_BACKUP_SB);
     memcpy(bsb, sb, 1024);
-    put16(bsb + 0x5A, 1);                 /* s_block_group_nr */
+    put16(bsb + 0x5A, 1); /* s_block_group_nr */
 
     /* primary GDT at block 2: group 0 + group 1 descriptors */
     u8* g = img.block(2);
     memset(g, 0, BS);
-    put32(g + 0x00, 5);                   /* group 0 block bitmap */
+    put32(g + 0x00, 5); /* group 0 block bitmap */
     put32(g + 0x04, 0);
-    put32(g + 0x08, 3);                   /* group 0 inode table */
+    put32(g + 0x08, 3); /* group 0 inode table */
     put32(g + 32 + 0x00, u32(BKB_G1_BITMAP));
     put32(g + 32 + 0x08, u32(BKB_G1_ITABLE));
     /* backup GDT at block 8194: the full table copy (e2fsprogs layout) */
     memcpy(img.block(BKB_BACKUP_GDT), g, 64);
 
     if (kill_primary_gdt)
-        memset(img.block(2), 0, BS);      /* front GDT dead */
+        memset(img.block(2), 0, BS); /* front GDT dead */
 
     /* group 0 inodes at blocks 3..4 */
     mbg_write_inode(img, INO_ROOT, 0x4000, BS, 6, 1, 2, 0, 3);
     mbg_write_inode(img, INO_HELLO, 0x8000, 14, 7, 1, 1, 0, 3);
     mbg_write_inode(img, 8, 0x8000, 0, 0, 0, 1, 0, 3); /* journal: empty */
     /* group 1 inode table at blocks 8195..8196: the far inode */
-    mbg_write_inode(img, BKB_INO_FAR, 0x8000, 33, BKB_FAR_DATA, 1, 1, 0,
-                    BKB_G1_ITABLE);
+    mbg_write_inode(img, BKB_INO_FAR, 0x8000, 33, BKB_FAR_DATA, 1, 1, 0, BKB_G1_ITABLE);
 
     /* root dir: ".", "..", hello.txt, far.bin */
     u8* root = img.block(6);

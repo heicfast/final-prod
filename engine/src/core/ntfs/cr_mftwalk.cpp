@@ -526,7 +526,7 @@ u32 walk_mft(NtfsVolume* vol, VolumeBitmap* bitmap, const WalkerFlags& flags, Ca
         u64 data_real_size = 0;       /* primary unnamed $DATA: authoritative size */
         bool data_compressed = false; /* GAP-P1-1: compressed $DATA envelope */
         u16 data_cunit = 0;
-        u32 si_flags = 0; /* N-012: $STANDARD_INFORMATION dos_flags */
+        u32 si_flags = 0;             /* N-012: $STANDARD_INFORMATION dos_flags */
         bool recycle_pending = false; /* this record is a $Recycle.Bin $R */
         std::u16string recycle_rnd;   /* its pairing token (extension-stripped) */
         tree::FileTimes si_times{};
@@ -895,9 +895,8 @@ u32 walk_mft(NtfsVolume* vol, VolumeBitmap* bitmap, const WalkerFlags& flags, Ca
          * $SI absent -> $FILE_NAME fallback (mirrors the time-precedence
          * rule one line above). Mask widened to 0x7FF to preserve the
          * OFFLINE bit (HSM-migrated files) and the 0x100-0x200 family. */
-        props->attributes =
-            (has_si ? u16(si_flags & 0x7FF) : u16(best->dos_flags & 0x7FF)) |
-            (is_dir ? u16(0x10) : 0);
+        props->attributes = (has_si ? u16(si_flags & 0x7FF) : u16(best->dos_flags & 0x7FF)) |
+                            (is_dir ? u16(0x10) : 0);
         /* $R<rand> recycle remap: the ORIGINAL name/size/time from the $I
          * sibling (the $R record itself stays in-use inside the bin - it
          * was deleted from the user's location, so the node is Deleted) */
@@ -1365,7 +1364,7 @@ u32 walk_mft(NtfsVolume* vol, VolumeBitmap* bitmap, const WalkerFlags& flags, Ca
                             std::u16string gname;
                             u64 gsi_flags = 0;
                             bool have_name = false, have_si = false;
-                            if (enum_attributes(drec.data(), stride, gattrs) == OK) {
+                            if (enum_attributes(drec.data(), u32(stride), gattrs) == OK) {
                                 for (const AttrView& a : gattrs) {
                                     if (!have_name && a.type == ATTR_TYPE_FILE_NAME) {
                                         FileNameInfo fi{};
@@ -1414,7 +1413,7 @@ u32 walk_mft(NtfsVolume* vol, VolumeBitmap* bitmap, const WalkerFlags& flags, Ca
                         tree::FileTimes si_times2{};
                         tree::FileProperties* scratch2 = nullptr;
                         std::vector<u8> resident2;
-                        if (enum_attributes(drec.data(), stride, attrs) != OK ||
+                        if (enum_attributes(drec.data(), u32(stride), attrs) != OK ||
                             build_props(vol, attrs, pseudo, rh.flags, scratch2, attrlist, names,
                                         data_runs2, has_data2, i30_runs2, has_i30_2, si_times2,
                                         has_si2, gsi_flags2, resident2, data_real2, data_comp2,
@@ -1475,9 +1474,9 @@ u32 walk_mft(NtfsVolume* vol, VolumeBitmap* bitmap, const WalkerFlags& flags, Ca
                         dp->times = has_si2 ? si_times2 : best2->times;
                         /* N-012: same $SI-precedence rule as the main walk
                          * (the dumped record's own $SI flags when parsed) */
-                        dp->attributes = (has_si2 ? u16(gsi_flags2 & 0x7FF)
-                                                  : u16(best2->dos_flags & 0x7FF)) |
-                                         (is_dir2 ? u16(0x10) : 0);
+                        dp->attributes =
+                            (has_si2 ? u16(gsi_flags2 & 0x7FF) : u16(best2->dos_flags & 0x7FF)) |
+                            (is_dir2 ? u16(0x10) : 0);
                         dp->flags = u16(is_dir2 ? PFLAG_IS_DIR : 0);
                         if (has_data2 && !data_runs2.empty()) {
                             std::vector<RunList::Extent> ex;
