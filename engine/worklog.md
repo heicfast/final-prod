@@ -9444,3 +9444,17 @@ Stage Summary:
   fix (unique) + my audit-trail convergence records. Session unique
   resolutions: 6 reconciliation moves + N-076. Next: N-056, N-063,
   N-069, N-029, N-030.
+---
+Task ID: DFX10-S029-CLAIM (session 10, lane claim)
+Agent: main engineer (diff-to-fix session 10)
+Task: Claim S-029 (the last open SEVERE): the lost-partition apply path.
+The published lane order for DFX10 is S-009 -> S-029 -> S-030; S-009
+(converged + hardened this session) and S-030 (parallel lane b30354d) are
+closed, so S-029 is this lane's active item per the DFX9-T2 coordination
+note ("S-029 stays with DFX10's queue - no collision from this lane").
+
+Scope per the finding's fix plan: consent-gated apply module
+(plan_apply / execute_apply / undo via the shared CRUNDO01 container),
+MBR-path v1 (GPT + boot-chain M-040 explicitly out of scope), the
+revalidation + transaction + rollback guarantees, the CLI surface with
+--apply consent + undo log, tests for every guarantee.
