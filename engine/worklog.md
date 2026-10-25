@@ -5975,6 +5975,26 @@ Stage Summary:
   my session's corpus reading and the landed code agree on every gate.
 - Remaining SEVERE (handoff): S-003, S-007, S-009, S-020, S-021 + the new
   S-023..S-028 audit wave. Next: S-003.
+## Session: diff-audit deep continuation — missed surfaces + fix verification (2026-10-26)
+
+**Prompt:** `worklog/session-6-deep-audit-prompt.md` (token redacted).
+**Session start commit (core):** `bf7df39` (pulled fresh; the S-012 hostile-smoke verify leg
+landed mid-bootstrap — audited at it). **Corpus:** `03ad46c` (unmoved since session 1).
+**Mandate:** continuous-session deep continuation — find what earlier sessions missed,
+verify/update the fixed things, go deeper on og-vs-core, mark remaining
+features/implementations/functions as findings, focus on minor detail.
+
+State at start (direct file inventory): 0 ACUTE · 11 SEVERE · 34 MAJOR · 37 MINOR ·
+16 INFO active / 34 FIXED; 11 tracked-open OQ files; 23 module rows. NOTE: the
+`164fd78` handoff message claims "remaining SEVERE 5" but that was lane-scoped
+(the diff-fix lane's own ledger) — the storage/census leg's S-023..S-028 were
+filed at 85cc08c AFTER that lane's ledger was cut and have no fix commits; the
+authoritative inventory is the direct file count above (11 SEVERE active).
+
+Work log:
+- T1 complete: repos pulled (core `bf7df39`, corpus `03ad46c`), prompt saved
+  token-redacted, state reconciled, this entry.
+
 
 Task ID: DF4-S012
 Agent: main engineer (diff-to-fix session 4)
