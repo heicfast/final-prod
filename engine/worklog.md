@@ -8756,3 +8756,36 @@ Stage Summary:
 - Six findings formally closed in the audit trail (no code change — code
   was already og-parity from prior sessions; this wave is the bookkeeping
   the prior legs left behind). Session resolution tally: 6.
+
+Task ID: DFX13-T1 (session bootstrap — MINOR-first close-out wave; ID renamed from DFX11 at rebase time — parallel DFX10/DFX11/DFX12 lanes are live, this leg takes DFX13)
+Agent: main engineer (diff-to-fix session 11)
+Task: Bootstrap the remediation session; baseline; begin the MINOR tier
+per the session mandate (minor findings first, 20+ fixes targeted).
+
+Work Log:
+- Pulled core_recovery at HEAD `a5bbcfa` (the DFX7-T2 inventory head; S-032
+  archive-inventory + N-018 UBSan + N-042 NVMe-temp legs already landed by
+  the parallel sessions); corpus easeus-drw-research at `03ad46c` (unmoved,
+  matches every prior session's pin). Token in the git credential store
+  only, never committed; prompt saved redacted to
+  worklog/session-diff-fix-13-prompt.md.
+- Build baseline (linux-gcc preset, RelWithDebInfo + ASan): build clean;
+  FULL ctest 534/534 green (31.1 s). Baseline is green; finding work may
+  proceed.
+- Audited-commit context re-read: diff-to-fix/README, SUMMARY heads,
+  RESOLVED-INDEX, CROSS-REF-MATRIX session headers, severity scale. Direct
+  file inventory at `a5bbcfa`: SEVERE 3 · MAJOR 39 · MINOR 55 (48 without a
+  Resolution section; 7 resolved-but-not-moved) · INFO 22 (all ACKNOWLEDGED
+  per the parallel INFO-tier leg) · FIXED 73 · tracked-open 16.
+- Session plan: (1) audit-trail hygiene — move the 7 resolved MINOR files
+  to findings/FIXED/ with RESOLVED-INDEX rows and count updates; (2) fix
+  unresolved MINORs one-by-one in impact order (correctness before
+  cosmetics), each with fail-before/pass-after proof; (3) keep matrix,
+  modules, SUMMARY, counts current with every push.
+
+Stage Summary:
+- Baseline 534/534 green at `a5bbcfa`; inventory recorded; MINOR tier work
+  begins. Next: hygiene move of N-004/N-006, N-009, N-013, N-015, N-018,
+  N-036, N-042, then N-044, N-020, N-074 (doc-drift trios), the carve-magic
+  quartet N-051..N-054, N-045, N-067, N-068, N-069, and the remaining groups.
+
