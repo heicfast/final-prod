@@ -8999,3 +8999,31 @@ Stage Summary:
   surface recorded (s6-health-grading-decode.md), and the handoff
   (FF-HANDOFF) + final counts (SUMMARY) pushed. The audit trail tells
   the truth at close.
+Task ID: DFX9-T6 (M-051)
+Agent: main engineer (diff-to-fix closing session 9)
+Task: M-051 — RAW carve provenance fields.
+
+Work Log:
+- Corpus re-verified: ifileproperties-part3 :77-90 (checksum +0x56 w/
+  0xFFFFFFFF marker + 12,030/12,147 census; note +0x5A usually empty;
+  anchors +0x8C/+0x94; boolean +0xF4). CONFIRMED.
+- Fix: FileProperties + {carve_checksum=0xFFFFFFFF default,
+  carve_note, carve_anchor_b, carve_flag}; clone() copies; both emit
+  sites compute CRC32(first 512 bytes) via table::crc32; raw-sign
+  tail-paired rows set anchor B at the EXACT tail-sign position
+  (stride base + sign->offset); note stays empty (no analyser emits
+  notes — inventing one would be hallucination); flag stays false
+  (og semantics undecoded, OQ-S6-3 tracks the consumer). Session
+  record 4 nflags bit4 block (checksum + note + anchor + flag),
+  append-only after the hash.
+- Tests: 2 new — ProvenanceChecksumAndAnchorsPersist (record rows
+  verified by RECOMPUTING the CRC32 from the extent at test time;
+  inner-entry children keep the honest invalid marker; round-trip
+  population preserved) + TailAnchorCarriedOnTailPairedHits (the S-015
+  sqlite fixture pins the exact anchor). 2/2 fail-before. 530/530.
+- Mid-arc incident: git checkout restored cr_carve.cpp from the index
+  during the fail-before proof (uncommitted state) — the carve changes
+  were reapplied from the patch script; no loss.
+
+Stage Summary:
+- M-051 FIXED (530/530). Counts: 112 active / 74 FIXED.

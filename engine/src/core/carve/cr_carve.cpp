@@ -17,6 +17,7 @@
 #include "cr/carve/cr_rawsigns.h"
 #include "cr/cr_parallel.h"
 #include "cr/crypto/cr_sha256.h"
+#include "cr/table/cr_table_wire.h" /* M-051: crc32 for the analyser checksum */
 #include <atomic>
 #include <chrono>
 #include <cstring>
@@ -186,6 +187,16 @@ u32 scan_one_window(ScanCtx& ctx, u64 base, const u8* win, u64 want, std::set<u6
             props->carve_format = sig.id;
             props->carve_confidence = u16((sig.base_confidence + cr.confidence) / 2);
             props->times.modified = ctx.scan_time; /* S-031: the scan-time stamp */
+            /* M-051: the analyser checksum — CRC32 over the carved
+             * extent's first 512 bytes (the re-verification value the
+             * og's RAW record carries at +0x56; 0xFFFFFFFF = unreadable
+             * header, the og's invalid marker). */
+            {
+                u8 hdr[512];
+                const u32 hb = u32(file_len < sizeof(hdr) ? file_len : sizeof(hdr));
+                if (hb != 0 && ctx.slice->read_at(cand_abs, hdr, hb) == OK)
+                    props->carve_checksum = table::crc32(hdr, hb);
+            }
             if (props->carve_confidence > 1000)
                 props->carve_confidence = 1000;
             /* GAP-S6-8: disk-absolute extent + the idempotency guard so the
@@ -289,6 +300,7 @@ u32 scan_one_window(ScanCtx& ctx, u64 base, const u8* win, u64 want, std::set<u6
             u64 len = fmt.max_size;
             u16 conf = best->conf;
             bool tail_paired = false;
+            u64 tail_off = 0; /* M-051: the tail anchor (0 = header-only) */
             /* tail pairing: bounded forward walk inside [start+min, start+max).
              * The og searches the FULL KiB-scaled window incrementally
              * (FUN_1800205b0 keeps returning 2 "need more data" while the
@@ -329,6 +341,10 @@ u32 scan_one_window(ScanCtx& ctx, u64 base, const u8* win, u64 want, std::set<u6
                             OK) {
                             if (idx.scan_tail_for_format(buf, read_len, best->fmt, th)) {
                                 len = lo + scanned + th.pos + 512;
+                                /* M-051: anchor B = the tail sign's exact position
+                                 * (stride base + the sign's intra-stride offset) */
+                                tail_off = start_abs + lo + scanned + th.pos +
+                                           u64(th.sign->offset);
                                 if (len > hi)
                                     len = hi;
                                 conf = u16((u32(best->conf) + u32(th.sign->conf)) / 2 + 100);
@@ -392,6 +408,17 @@ u32 scan_one_window(ScanCtx& ctx, u64 base, const u8* win, u64 want, std::set<u6
             props->carve_format = 0xFFFF0000u + best->fmt; /* raw-sign tag */
             props->carve_confidence = conf;
             props->times.modified = ctx.scan_time; /* S-031: the scan-time stamp */
+            /* M-051: the analyser checksum (+0x56; CRC32 of the extent's
+             * first 512 bytes, 0xFFFFFFFF = unreadable) and the tail
+             * anchor B (+0x94 — the tail-paired offset, 0 when
+             * header-only, the og's 261/12,147 census). */
+            {
+                u8 hdr[512];
+                const u32 hb = u32(len < sizeof(hdr) ? len : sizeof(hdr));
+                if (hb != 0 && ctx.slice->read_at(start_abs, hdr, hb) == OK)
+                    props->carve_checksum = table::crc32(hdr, hb);
+            }
+            props->carve_anchor_b = tail_off;
             /* GAP-S6-8: disk-absolute extent + the idempotency guard (see
              * the grammar layer above) */
             props->extents.push_back({start_abs + ctx.ext_base, len});

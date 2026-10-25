@@ -61,6 +61,10 @@ FileProperties* FileProperties::clone() const {
     p->extents = extents;
     p->carve_format = carve_format;
     p->carve_confidence = carve_confidence;
+    p->carve_checksum = carve_checksum; /* M-051: RAW provenance */
+    p->carve_note = carve_note;
+    p->carve_anchor_b = carve_anchor_b;
+    p->carve_flag = carve_flag;
     std::memcpy(p->sha128, sha128, sizeof(sha128));
     p->hash_valid = hash_valid;
     return p;

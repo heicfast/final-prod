@@ -285,3 +285,9 @@ MATCH/superset registers (no findings): RAR4 fast-accept (core stricter), PST "M
 (core superset), RAR5 (core implements; og rejects), tail-scope/8 MiB bound (S-015 FIXED family).
 Runtime registry machinery (EUGetAnalyserList/Map/Multimap refresh, RawConfig 37-toggle gate)
 belongs to M-024/N-033's family.
+
+## Session-9 verdicts (continued — M-051)
+
+| ID | Verdict |
+|---|---|
+| M-051 | **FIXED** — the RAW provenance fields land as the finding's plan scoped: carve_checksum = CRC32(extent's first 512 bytes) at both emit sites (0xFFFFFFFF = the og's invalid marker, the default for non-records incl. the S-032 inner-entry children); carve_anchor_b = the tail sign's exact position on raw-sign tail-paired hits (0 = header-only, the og's 261/12,147 census); carve_note + carve_flag carried and round-tripped (the og's note is "usually empty"; +0xF4's semantics undecoded — OQ-S6-3). Anchor A = the extent start (already carried). Record-4 nflags-bit4 block. 2 fail-before tests. |

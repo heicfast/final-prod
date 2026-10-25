@@ -101,6 +101,17 @@ public:
     /* carving provenance (Origin::Carved nodes) */
     u32 carve_format = 0;     /* signature registry format id */
     u32 carve_confidence = 0; /* 0..1000 */
+    /* M-051: RAW provenance (Origin::Carved nodes) — the og's
+     * CRAWFileProperties fields (ifileproperties-part3 :77-90): the
+     * analyser checksum (0xFFFFFFFF = the invalid/unknown marker; the
+     * og's census: 12,030/12,147 nonzero), the note-family string
+     * (usually empty), the tail anchor B (0 = none; the header anchor A
+     * IS the extent start), and the boolean flag (the og's semantics
+     * undecoded — OQ-S6-3; carried and round-tripped, never invented). */
+    u32 carve_checksum = 0xFFFFFFFFu;
+    std::u16string carve_note;
+    u64 carve_anchor_b = 0;
+    bool carve_flag = false;
     /* content hash when computed (carve dedup + writer verification) */
     u8 sha128[16] = {0}; /* truncated sha-256 digest, 128-bit id */
     bool hash_valid = false;

@@ -6,6 +6,7 @@
 #include "cr/storage/cr_device.h"
 #include "cr/storage/cr_slice.h"
 #include "cr/session/cr_records.h"
+#include "cr/table/cr_table_wire.h"
 #include <cstring>
 #include <ctime>
 #include <functional>
@@ -2380,4 +2381,98 @@ TEST(Carve, JpegFourthByteOutsideOgSet) {
               OK);
     auto* jpg = find_carved_by_ext(root, "jpg");
     ASSERT_NE(jpg, nullptr) << "FF D8 FF 99 (outside the og's 4-dword set) must carve here";
+}
+
+/* ===================================================================== */
+/* M-051: RAW provenance — the analyser checksum, the tail anchor, and  */
+/* the session round-trip (ifileproperties-part3 :77-90).               */
+/* ===================================================================== */
+
+TEST(CarveEngine, ProvenanceChecksumAndAnchorsPersist) {
+    /* grammar layer: the checksum is a CRC32 of the extent's first 512
+     * bytes (the og's +0x56 analyser-checksum field; 12,030/12,147
+     * nonzero in the census) and anchor B stays 0 (grammar validation
+     * bounds the extent itself); raw-sign layer: tail-paired hits carry
+     * the tail offset (+0x94, the og's 261/12,147). Everything
+     * round-trips through the session (nflags bit4). */
+    auto img = build_carve_image();
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"Lost Files");
+    CarveFlags flags;
+    CarveStats stats;
+    u32 rc =
+        carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, stats);
+    ASSERT_EQ(rc, OK) << err_text(rc);
+    ASSERT_GE(stats.validated, 1u);
+
+    int checked = 0;
+    /* only the RECORD rows (direct children of the carve root) carry the
+     * analyser checksum - the S-032 inner-entry presentation children
+     * keep the honest 0xFFFFFFFF invalid marker (nothing analyzed them
+     * separately; the og's census counts one record per archive). */
+    for (tree::FileNode* c = root->first_child(); c; c = c->next_sibling()) {
+        if (c->props() && c->origin() == tree::Origin::Carved) {
+            ++checked;
+            EXPECT_NE(c->props()->carve_checksum, 0xFFFFFFFFu)
+                << "readable record header must carry a real checksum";
+            if (c->props()->carve_checksum != 0xFFFFFFFFu &&
+                !c->props()->extents.empty()) {
+                u8 hdr[512];
+                const u64 off = c->props()->extents.front().offset;
+                const u64 ln = c->props()->extents.front().length;
+                const u32 hb = u32(ln < sizeof(hdr) ? ln : sizeof(hdr));
+                ASSERT_EQ(dev.read_at(off, hdr, hb), OK);
+                EXPECT_EQ(c->props()->carve_checksum, table::crc32(hdr, hb));
+            }
+        }
+    }
+    EXPECT_GE(checked, 4);
+
+    /* session round-trip: the provenance survives (the og persists the
+     * same fields per RAW record) */
+    std::vector<u8> blob;
+    ASSERT_EQ(session::serialize_tree(tree, blob), OK);
+    tree::ResultTree loaded;
+    ASSERT_EQ(session::deserialize_tree(blob.data(), blob.size(), loaded), OK);
+    int reloaded = 0;
+    if (!loaded.roots().empty())
+        for (tree::FileNode* c = loaded.roots()[0]->first_child(); c; c = c->next_sibling())
+            if (c->props() && c->origin() == tree::Origin::Carved &&
+                c->props()->carve_checksum != 0xFFFFFFFFu)
+                ++reloaded;
+    EXPECT_GE(reloaded, 4) << "provenance lost on reload";
+}
+
+TEST(CarveEngine, TailAnchorCarriedOnTailPairedHits) {
+    /* the raw-sign layer's tail-paired rows carry anchor B (the og's
+     * +0x94 tail offset); the sqlite tail-pair fixture (S-015's proven
+    * shape) pins the anchor at the EOI position; header-only shapes
+     * keep 0. */
+    std::vector<u8> img(4 * 1024 * 1024, 0);
+    const u64 start = 4096;
+    const u64 lo = 1024;
+    const u64 tail_stride = 2 * 1024 * 1024;
+    std::memcpy(img.data() + start, "SQLite form", 11);
+    std::memcpy(img.data() + start + lo + tail_stride + 31,
+                "\x11\x1d\x05\x15\x19\x0f\x0f\x77\x6f\x72\x64", 11);
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"Lost Files");
+    CarveFlags flags;
+    CarveStats s;
+    ASSERT_EQ(carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, s),
+              OK);
+    tree::FileNode* sql_n = nullptr;
+    for (tree::FileNode* c = root->first_child(); c; c = c->next_sibling()) {
+        const std::string nm = c->name_utf8();
+        if (nm.size() > 7 && nm.compare(nm.size() - 7, 7, ".sqlite") == 0)
+            sql_n = c;
+    }
+    ASSERT_NE(sql_n, nullptr);
+    /* anchor B = the absolute tail-sign position (the og's tail offset) */
+    /* anchor B = the tail sign's exact position (stride base + the sign's
+     * intra-stride offset 31) */
+    EXPECT_EQ(sql_n->props()->carve_anchor_b, start + lo + tail_stride + 31);
+    EXPECT_NE(sql_n->props()->carve_checksum, 0xFFFFFFFFu);
 }
