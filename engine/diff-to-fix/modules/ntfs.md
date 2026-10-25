@@ -88,7 +88,8 @@ Core (audited commit `67193b6`): `src/core/ntfs/` (6 files, 2,311 LOC) +
 
 - **S32 cancellation** — `M` per-record cancel checkpoint; og per-record
   vt[0x10]; both keep already-emitted partials.
-- **S35 error recovery** — **M-001** (clamp-vs-reject), `M` fixup-fail →
+- **S35 error recovery** — `M` post-M-001-fix (clamp-vs-reject ladder in;
+  torn-DBR volumes open and remnant-scan), `M` fixup-fail →
   skip-record (both), $MFTMirr fallback (**N-001** span), skip-forward on
   unreadable remnant blocks.
 
@@ -131,7 +132,7 @@ Core (audited commit `67193b6`): `src/core/ntfs/` (6 files, 2,311 LOC) +
 | ID | Severity | One-line |
 |---|---|---|
 | S-001 | SEVERE | Fully-overwritten deleted files emitted (graded) vs og destroy — **FIXED (diff-to-fix session; incl. sparse-run ratio sub-fix)** |
-| M-001 | MAJOR | Bootstrap rejects record sizes og clamps (torn-DBR availability) |
+| M-001 | MAJOR | Bootstrap rejects record sizes og clamps (torn-DBR availability) — **FIXED (diff-to-fix session)** |
 | N-001 | MINOR | $MFTMirr fallback hardcoded records 0..3 vs runlist span |
 | I-001 | INFO | Known-20 metafile filter vs blanket `$`-skip (deliberate, documented) |
 | OQ-T1 | tracked-open | Secondary claim map semantics undecoded — **RESOLVED (decompile read, this session)** |

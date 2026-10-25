@@ -1961,3 +1961,120 @@ TEST(NtfsVolume, OverwrittenHonestModeKeepsAndGrades) {
     EXPECT_EQ(over->confidence(), tree::Confidence::Overwritten);
     EXPECT_EQ(over->deleted_state(), tree::DeletedState::PartiallyOverwritten);
 }
+
+/* ---- M-001: record-size degradation ladder (og never rejects) ---------- */
+
+namespace {
+
+/* patch the DBR clusters-per-record byte (signed i8 at +0x40) */
+void patch_dbr_cpr(Image& img, i8 cpr) {
+    img.sec(0)[0x40] = u8(cpr);
+}
+
+} // namespace
+
+TEST(NtfsVolume, BootNonPow2RecordSizeClampsAndScans) {
+    /* cpr = 3 (non-pow2, non-divisible decoded 1536): the og falls back to
+     * 0x200 then clamps to max(0x400, rs) (FUN_18001acc0 :21134-21142) and
+     * still scans; the pre-fix code returned ERR_BAD_PARAMETER and lost
+     * the volume - and its remnant pass - entirely. */
+    Image img;
+    build_image(img);
+    patch_dbr_cpr(img, 3);
+    MemDevice dev(img.raw(), img.geom());
+    u32 err = 0;
+    auto vol = NtfsVolume::open(std::unique_ptr<IStorageDevice>(new MemDevice(dev)), &err);
+    ASSERT_NE(vol, nullptr) << "open err " << err_text(err);
+    EXPECT_EQ(vol->params().record_size, 0x400u); /* 0x200 fallback -> 0x400 clamp */
+    /* the whole volume still parses at the degraded-but-correct size
+     * (the true record size IS 1024 here - the ladder happens to recover
+     * the real geometry a raw 1536 stride could never read) */
+    tree::ResultTree tree;
+    auto* ra = tree.add_root(u"F");
+    auto* rd = tree.add_root(u"D");
+    auto* rl = tree.add_root(u"L");
+    WalkStats st;
+    EXPECT_EQ(OK, walk_mft(vol.get(), nullptr, WalkerFlags(), nullptr, nullptr, nullptr, tree,
+                           ra, rd, rl, st));
+    EXPECT_GE(st.emitted, 9u); /* the normal fixture yield - no records lost */
+}
+
+TEST(NtfsVolume, BootZeroRecordSizeFallbackScans) {
+    /* cpr = 0 decodes to 0: og `if < 1 -> 0x200` fallback, volume opens */
+    Image img;
+    build_image(img);
+    patch_dbr_cpr(img, 0);
+    MemDevice dev(img.raw(), img.geom());
+    u32 err = 0;
+    auto vol = NtfsVolume::open(std::unique_ptr<IStorageDevice>(new MemDevice(dev)), &err);
+    ASSERT_NE(vol, nullptr) << "open err " << err_text(err);
+    EXPECT_EQ(vol->params().record_size, 0x400u);
+}
+
+TEST(NtfsVolume, BootNegativeExponentOverflowFallsBack) {
+    /* cpr = -30: the P1-4 shift-UB guard decodes 0; the ladder turns that
+     * into the og's 0x200 default instead of a rejection */
+    Image img;
+    build_image(img);
+    patch_dbr_cpr(img, -30);
+    MemDevice dev(img.raw(), img.geom());
+    u32 err = 0;
+    auto vol = NtfsVolume::open(std::unique_ptr<IStorageDevice>(new MemDevice(dev)), &err);
+    ASSERT_NE(vol, nullptr) << "open err " << err_text(err);
+    EXPECT_EQ(vol->params().record_size, 0x400u);
+}
+
+TEST(NtfsVolume, BootUsableLargeRecordSizeKept) {
+    /* cpr = -12 -> 4096: pow2 and sector-divisible - the og keeps the raw
+     * value (buf = max(0x400, rs)); the ladder must not squash it */
+    Image img;
+    build_image(img);
+    patch_dbr_cpr(img, -12);
+    MemDevice dev(img.raw(), img.geom());
+    u32 err = 0;
+    auto vol = NtfsVolume::open(std::unique_ptr<IStorageDevice>(new MemDevice(dev)), &err);
+    ASSERT_NE(vol, nullptr) << "open err " << err_text(err);
+    EXPECT_EQ(vol->params().record_size, 4096u);
+}
+
+TEST(NtfsVolume, RemnantReachableUnderTornDbr) {
+    /* M-001's availability claim end-to-end: a torn-cpr DBR (the remnant
+     * scan's own trigger scenario) must open the volume AND the remnant
+     * sweep must run - the pre-fix ERR_BAD_PARAMETER made both unreachable.
+     * Plant a shifted-header remnant the way ShiftedHeaderSalvage does. */
+    Image img;
+    build_image(img);
+    patch_dbr_cpr(img, 3); /* torn clusters_per_record */
+    {
+        RecBuilder r;
+        r.header(999, 0);
+        r.attr_si(0x20);
+        r.attr_file_name(16, u"tornrem.txt", FILE_NAME_WIN32_AND_DOS, 0x20, 100, 100);
+        r.finish();
+        std::vector<u8> window(0x58 + RECORD_SIZE, 0);
+        std::memcpy(window.data(), "FILE", 4);
+        window[0x14] = 0x00;
+        window[0x15] = 0xFF; /* broken head: attribute_offset out of range */
+        std::memcpy(window.data() + 0x58, r.buf.data(), RECORD_SIZE);
+        std::memcpy(img.sec(150), window.data(), window.size()); /* free space
+            (the fixture image is 256 sectors; 150 sits between the bitmap
+            region and the data zone at LCN 200) */
+    }
+    MemDevice dev(img.raw(), img.geom());
+    u32 err = 0;
+    auto vol = NtfsVolume::open(std::unique_ptr<IStorageDevice>(new MemDevice(dev)), &err);
+    ASSERT_NE(vol, nullptr) << "torn-DBR volume refused: " << err_text(err);
+
+    tree::ResultTree tree;
+    auto* root_lost = tree.add_root(u"Lost Files");
+    WalkStats stats;
+    u32 rc = scan_mft_remnants(&dev, vol->params().sector_bytes, vol->params().cluster_bytes,
+                               vol->params().record_size, vol->params().total_clusters, nullptr,
+                               nullptr, nullptr, tree, root_lost, stats);
+    ASSERT_EQ(rc, OK);
+    tree::FileNode* found = nullptr;
+    for (tree::FileNode* c = root_lost->first_child(); c; c = c->next_sibling())
+        if (c->name_utf8() == "tornrem.txt")
+            found = c;
+    ASSERT_NE(found, nullptr) << "remnant sweep never ran / remnant lost";
+}

@@ -2023,3 +2023,27 @@ Work Log:
 Stage Summary:
 - S-001 FIXED (result-set membership now og-parity by default; honest-mode one flag away).
 - OQ-T1 RESOLVED (tracked-open #1 closed with decompile evidence, no code change needed).
+
+---
+Task ID: 6 (M-001 fix)
+Agent: main engineer (diff-to-fix remediation session)
+Task: MAJOR M-001 — NTFS bootstrap rejects record sizes the og clamps
+
+Work Log:
+- Verified first-hand (FUN_18001acc0 :21134-21142): `if < 1 -> 0x200`, `buf = max(0x400, rs)`,
+  NO pow2/divisibility/rejection path. CONFIRMED-DIVERGENCE.
+- Fix: degradation ladder in validate_boot_sector — unusable encodings (0/non-pow2/non-divisible/
+  neg-exponent overflow) -> og 0x200 fallback; usable values kept; 0x400 min clamp both paths.
+  No strict flag: both callers (NtfsVolume::open, lost::probe_ntfs) benefit; the classifier
+  now scores torn-DBR candidates instead of forfeiting bpb-valid(25)+mft-probe(30) points.
+- Tests (fail-before reproduced by stashing the fix — all 5 fail on ERR_BAD_PARAMETER):
+  BootNonPow2RecordSizeClampsAndScans (degraded size happens to equal the true geometry here —
+  the walk still yields its normal 9+ nodes), BootZeroRecordSizeFallbackScans,
+  BootNegativeExponentOverflowFallsBack, BootUsableLargeRecordSizeKept (4096 kept raw — the
+  og keeps any >=1 usable value), RemnantReachableUnderTornDBR (end-to-end availability:
+  torn DBR -> open -> remnant sweep -> shifted-header remnant emitted).
+- Suite 287/287 at this commit (N-001's two tests staged separately for the next commit).
+
+Stage Summary:
+- M-001 FIXED: torn-DBR NTFS volumes (the product's primary scenario) are now attempted with
+  a degraded-but-usable record size + remnant pass instead of refused whole.

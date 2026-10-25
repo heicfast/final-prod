@@ -75,6 +75,9 @@ private:
     RunList mirr_run_;
     std::vector<DataRun> mft_extents_;
     bool mirr_valid_ = false;
+    /* N-001: mirror service capacity in records, derived from the mirror's
+     * own $DATA runlist span (og InitMFTMirror this+0x70; 0 when invalid) */
+    u64 mirr_record_capacity_ = 0;
 };
 
 /* DBR validation: returns OK + fills params, or ERR_* on hard invalidity.

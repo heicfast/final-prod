@@ -106,3 +106,31 @@ scan (with clamped record size, including its remnant pass) and our core perform
 ## Open questions
 
 None.
+
+## Resolution
+
+**Status:** FIXED
+**Fixed in commit:** (this commit — see `git log` for `fix: M-001`)
+**Verified by:** fail-before/pass-after — with the fix stashed, all five new
+tests fail (`NtfsVolume.BootNonPow2RecordSizeClampsAndScans`,
+`BootZeroRecordSizeFallbackScans`, `BootNegativeExponentOverflowFallsBack`,
+`BootUsableLargeRecordSizeKept`, `RemnantReachableUnderTornDBR` — open()
+returns ERR_BAD_PARAMETER pre-fix); restored, all pass. Suite green.
+**Resolution notes:** implemented the degradation ladder per the fix plan:
+unusable encodings (0, non-pow2, non-sector-divisible, negative-exponent
+overflow) fall back to the og's 0x200 default; usable values pass through;
+the existing 0x400 minimum-capacity clamp applies to both paths. No
+strict-mode flag was added: the finding's suggested flag had exactly two
+callers (NtfsVolume::open and lost::probe_ntfs) and BOTH benefit from the
+ladder — the classifier's $MFT probe now scores torn-DBR candidates
+instead of silently forfeiting 55 evidence points, which is also the og's
+lost-partition posture (its classifier does not gate on record size; the
+RawFixer CheckMFT decoder is a separate signed-cpr surface, untouched).
+The Boot tests confirm the ladder happens to RECOVER the true geometry on
+torn fields (cpr=3 on this 1024-byte-record fixture degrades to
+0x200→0x400 = the real record size, so the full walk still yields its
+normal 9+ nodes — a raw 1536-byte stride, the og's behavior, would read
+nothing); this is a recovery-availability superset over the og on that
+edge, registered in the same spirit as the I-001 superset. The
+RemnantReachable test proves the end-to-end availability claim (torn DBR →
+volume opens → remnant sweep runs → shifted-header remnant surfaces).

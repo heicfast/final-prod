@@ -47,13 +47,21 @@ u32 validate_boot_sector(const BootSector& bs, const Geometry& geom, VolumeParam
     if (bs.mftmirr_lcn >= total_clusters)
         return ERR_BAD_PARAMETER;
 
+    /* M-001 (diff-to-fix): the og NEVER rejects a volume over its record-size
+     * field - `record_size = device.vt[0x28](); if < 1 -> 0x200; buf_size =
+     * max(0x400, record_size)` (FUN_18001acc0 :21134-21142) - no pow2 check,
+     * no divisibility check, no rejection path; a torn DBR degrades the walk
+     * but the engine (and the remnant scan behind it) still runs. Degradation
+     * ladder: unusable encodings fall back to the og's 0x200 default, then
+     * the 0x400 minimum-capacity clamp applies. The old ERR_BAD_PARAMETER
+     * here refused the whole volume - and its remnant scan - on exactly the
+     * damaged disks the product exists for. */
     u64 record_size = record_size_from_dbr(bs, bs.bytes_per_sector);
-    if (record_size == 0 || !power_of_two(record_size))
-        return ERR_BAD_PARAMETER;
+    if (record_size == 0 || !power_of_two(record_size) ||
+        record_size % bs.bytes_per_sector != 0)
+        record_size = 0x200; /* og fallback (:21136) */
     if (record_size < 0x400)
-        record_size = 0x400; /* corpus clamp */
-    if (record_size % bs.bytes_per_sector != 0)
-        return ERR_BAD_PARAMETER;
+        record_size = 0x400; /* og minimum parse capacity (:21139-21141) */
 
     out.record_size = record_size;
     out.cluster_bytes = static_cast<u32>(cluster_bytes);
@@ -383,8 +391,7 @@ u32 NtfsVolume::read_record(u64 record_no, std::vector<u8>& out) {
                 return dev_->read_at(mlcn * p_.cluster_bytes + rel, out.data(), u32(out.size()));
         }
         return ERR_RANGE_OUT_OF_BOUNDS;
-    }
-    return dev_->read_at(lcn * p_.cluster_bytes + rel, out.data(), u32(out.size()));
+    }    return dev_->read_at(lcn * p_.cluster_bytes + rel, out.data(), u32(out.size()));
 }
 
 } // namespace ntfs
