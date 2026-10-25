@@ -101,14 +101,14 @@ static int build_fat16(const char* path) {
     img[510] = 0x55;
     img[511] = 0xAA;
 
-    /* M-015 canonical media words (real-volume shape) - the parallel
-     * M-015 fix updated the C++ fixtures but missed this C consumer
-     * fixture; the whole-table validation rejected FAT[0]=0 and the
-     * scan failed ERR_BAD_MAGIC (recovered by the DFX7 session) */
-    put16(img, FAT1_OFF + 0u * 2u, 0xFFF8);
-    put16(img, FAT1_OFF + 1u * 2u, 0xFFFF);
-    put16(img, FAT2_OFF + 0u * 2u, 0xFFF8);
-    put16(img, FAT2_OFF + 1u * 2u, 0xFFFF);
+    /* FAT[0]/FAT[1]: the canonical FAT16 media pair (0xF8 media byte |
+     * 0xFFFF end flag) - real volumes always carry it; the og-parity
+     * table validator (M-015) rejects the lazy form, exactly as the five
+     * C++ fixture builders were corrected by the FAT-trio landing */
+    put16(img, FAT1_OFF, 0xFFF8);
+    put16(img, FAT1_OFF + 2u, 0xFFFF);
+    put16(img, FAT2_OFF, 0xFFF8);
+    put16(img, FAT2_OFF + 2u, 0xFFFF);
     put16(img, FAT1_OFF + 5u * 2u, 0xFFFF);
     put16(img, FAT2_OFF + 5u * 2u, 0xFFFF); /* root dir */
     put16(img, FAT1_OFF + 10u * 2u, 11);
@@ -581,6 +581,12 @@ int main(int argc, char** argv) {
         CHECK_EQ_U64(cr_ui_query_run(sess, &q, &rows, &row_count, &total), CR_UI_OK);
         CHECK_EQ_U64(total, 1u);
         CHECK_EQ_U64(row_count, 1u);
+        CHECK(rows != NULL);
+        if (rows == NULL || row_count == 0) {
+            printf("FAIL %s:%d: name-filter query returned no rows\n", __FILE__, __LINE__);
+            g_failed = 1;
+            return 1; /* do not deref: a NULL-rows regression must FAIL loudly */
+        }
         CHECK(strcmp(rows[0].name, "DOC.TXT") == 0);
         /* path_prefix (ABI-since core-api, og path filter group): the row's
          * own full path as the prefix selects exactly that row; a bogus
