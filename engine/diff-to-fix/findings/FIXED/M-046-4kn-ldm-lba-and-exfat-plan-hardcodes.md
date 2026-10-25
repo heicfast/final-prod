@@ -103,3 +103,34 @@ Neither is caught by CI because the rawfixer/LDM fixtures pin 512-byte geometry
 ## Open questions
 
 None.
+
+## Resolution
+
+**Status:** FIXED
+**Fixed in commit:** (this session's M-046 commit — see `git log` for "fix: M-046")
+**Verified by:** `Ldm.GptPathFindsMetadata4Kn` (fail-before PROVEN: with the old
+hardcoded `*512` the GPT header read lands mid-sector-0 → ERR_BAD_MAGIC, no
+dynamic-disk recovery on any 4Kn GPT disk; pass-after: full end-to-end parse —
+is_gpt, 2 layouts, privheads matched), `RawFixer.ExfatRestorePlanIsSectorSized4Kn`
+and `RawFixer.ExfatBackupReadFull4Kn` (both fail-before PROVEN by temporarily
+reverting the branch to the 512-byte read/plan: restore length 512 vs 4096, tail
+truncated; pass-after: bps-sized plan + full 4096-byte backup image round-trips
+through the plan AND the executed write). Full suite 578/578 Linux Release.
+**Resolution notes:** three coupled sites. (1) `find_privhead`'s GPT path
+(cr_ldm.cpp) now multiplies LBAs by the DEVICE geometry (zero-guarded, exactly like
+cr_table_parse.cpp's read_sectors) at all three sites — header LBA 1, entries
+array, metadata-partition last block. The MBR path's `6*512` stays: it is the
+kernel's fixed OFF_PRIV1 BYTE offset, correct for every sector size (documented in
+the code comment). (2) The rawfixer damaged-primary exFAT branch reads and plans
+`bps` (boot-declared) — the destroyed-primary branch was already sector-sized by
+A-005; this closes the finding's second half. (3) DISCOVERED during verification
+and fixed in the same change (same defect family — device-geometry vs LDM's
+512-LBA unit confusion): parse_ldm_database's end-of-disk fallback candidates,
+backup cross-check bound, and the kernel capacity gate used `g.sector_count`
+(device sectors — 4096-byte on 4Kn) against LDM's 512-byte-LBA coordinates, which
+spuriously ERR_TRUNCATED-clamped every 4Kn dynamic disk even after the GPT-path
+fix; all three now use the device size in 512-LBA units (`device->size()/512`,
+kernel ldm_validate_privheads semantics). The finding's acceptance test
+("4Kn GPT disk + LDM metadata entry → path resolves") requires exactly this —
+without it the full parse fails past the privhead. Fix-the-cause honored: the unit
+mismatch is the source of the wrongness, not just the GPT-path bytes.
