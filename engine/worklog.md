@@ -8165,7 +8165,6 @@ Stage Summary:
   digit, N-044 --deep naming), then the grouped minors (N-025/N-026/N-027/
   N-047), then the S5 wave (N-051..N-064). Pull frequently - parallel legs
   are landing S-023/M-026/M-027/A-005 fixes and new audit findings.
-<<<<<<< HEAD
 
 ---
 Task ID: S7-INFO-TIER
@@ -8194,7 +8193,6 @@ Stage Summary:
   SEVERE 4 / MAJOR 39 / MINOR 55 + 16 tracked-open — all with active lane
   owners per the latest handoffs (S-009 lane, the S-031->S-032->S-030->S-029
   order, DFX7-T2 on MINOR, DFX8 bootstrapped).
-=======
 ---
 Task ID: FF-HANDOFF (fix-all-tiers session — final handoff)
 Agent: main engineer (diff-to-fix closing session — fix-all-tiers continuation)
@@ -8308,5 +8306,3 @@ Stage Summary:
   SUMMARY delta. This session's tally: S-025 (convergent verification +
   addendum), S-026, S-027, S-031, S-032 — plus D-58/D-59, OQ-E2, the RAR4
   off-by-one discovery, and the S-031/S-032 test-suite guards.
->>>>>>> ee78d15 (fix: S-032 - archive carve inner-entry inventories (ZIP CD + indexless LFH + RAR4 FILE blocks) + RAR4 HEAD_SIZE off-by-one corrected)
->>>>>>> 1a25869c7ecf1ec729803566b146c8adb7f2055f
