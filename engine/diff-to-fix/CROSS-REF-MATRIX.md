@@ -140,8 +140,10 @@ with pin tests, stay in INFORMATIONAL/).
 
 **Session-3 changes (this leg):** S-015 (rawsigns KiB units, SEVERE), M-022 (ReFS
 file-value grammar), M-023 (filter model — replaces the old GAP-cats note), N-030
-(rawsigns confidence dead in og), N-031 (carve dispatch/stride deltas; OQ-T8
-RESOLVED), N-032 (health transports), I-012 (GAP-ADS resolved — parity). Fixed
+(rawsigns confidence dead in og — **FIXED S12 as the registered D-66 superset,
+option (b) of its own fix plan; pins re-cited in the Resolution**), N-031 (carve
+dispatch/stride deltas; OQ-T8 RESOLVED), N-032 (health transports), I-012 (GAP-ADS
+resolved — parity). Fixed
 since the last matrix pass: S-010 (3e34ed2), M-009 (7fd00e0) — both first-hand
 verified in FIXED/. CPartitionVirtualVolumeDevice (og virtual-volume device
 layer) verified architecturally equivalent to the core IStorageDevice + slice

@@ -1922,3 +1922,18 @@ same way. Pinned by `RawFixer.NtfsPrimaryDamaged4Kn`,
   Pins: `Image.VmdkMonolithicSparseReadsAndScans`,
   `Image.VhdDynamicDiskReadsAndScans`, `Image.RejectsBrokenInputs`
   (VHDX → ERR_UNSUPPORTED).
+
+- **D-66 — raw-sign confidence consumption (N-030, ACCEPTED SUPERSET).**
+  The og's raw_signs.json parser (FUN_18001e510, decompiled
+  :23522-23765) splits each sign string and consumes ONLY the offset
+  and hex body — the third field ("0,44564456,0.96" → 0.96) is DEAD
+  DATA in RAWSearchDLL; overlapping hits are resolved by sign-table
+  order and the probe's own logic. The core scales the field (0.96 →
+  960) and uses it for winner selection at shared positions plus the
+  (header+tail)/2 + 100 tail-pair blend — a deliberate ranking
+  superset over dead data. Do NOT "fix" to table-order in a parity
+  pass without first decoding the og's own emitted grade
+  (FUN_18000d670's result fill — tracked in N-030's Resolution).
+  Pinned by `CarveEngine.RawSignLayerHeaderOnlyAndSharedMagic` (the
+  best-confidence winner at the flp/fst shared position) and
+  `CarveEngine.RawSignTailPairWithinFormat` (the blend arithmetic).

@@ -340,3 +340,16 @@ magic re-check accepts exactly the two registered spellings (census :94,
 policy :127; mixed case never anchors — no row keys it).
 `Carve.CabLowercaseMagic` proves both cases carve; the lowercase node
 carries the distinct format id. B1/C19 verdict for this row: MATCH.
+## Session-12 carve-minors batch (N-030 — N-069 landed by the parallel s11 lane, canonical b8b0318)
+
+- **N-030 (D15/B3/D13) FIXED as the registered deliberate superset:**
+  the raw_signs.json confidence field is DEAD DATA in the og (parser
+  FUN_18001e510 consumes offset + hex body, never part[2] — decompiled
+  :23522-23765; the deep-dive's ranking claim corrected, erratum 19).
+  Option (b) of the finding's own fix plan: cr_rawsigns.h's divergence
+  block now carries the dead-data citation + do-not-remove guidance;
+  PARITY-DELTAS D-66; winner selection and the tail-pair blend pinned
+  by the existing RawSignLayerHeaderOnlyAndSharedMagic /
+  RawSignTailPairWithinFormat tests. Option (a) (table-order parity)
+  stays gated on decoding the og's own emitted grade — FUN_18000d670's
+  result fill — recorded as the revisit precondition.

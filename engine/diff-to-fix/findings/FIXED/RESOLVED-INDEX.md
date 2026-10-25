@@ -41,6 +41,13 @@ active roadmap.
 | N-054 | MINOR (S5) | RAF 16-byte magic misses variants; JPEG 3-byte prefix superset | `b2f48c6` (parallel lane, canonical) + DFX12 convergence record | Their FMT_RAF keyed on the 4-byte FUJI (census :55); 16-byte string stays PRIMARY in validate_raf; variant path (nonzero version + section table) at confidence 700. FMT_JPG 3-byte prefix kept as REGISTERED SUPERSET (D-64a; the og's 4 exact dwords documented beside the row). Both legs' RafVariantHeaderAccepted/JpegFourthByteOutsideOgSet name-identical. |
 | N-076 | MINOR (S12 — NEW-FINDING, DFX12; discovered during N-054 verification; NOT in the parallel quartet landing) | validate_raf version gate rejected every real-world RAF (ASCII version at +16 misread as binary; both quartet landings carried the defect) | DFX12 union follow-up (this commit) | ASCII-digit OR small-binary version acceptance; the row was dead for real files since introduction (zero fixture coverage). Carve.RafRealAsciiVersionAccepted fail-before executed on the stash-isolated pre-fix engine (RED); post-union suite 563/563. |
 
+## Resolved findings (86 — carve-minors batch: +N-069, +N-030; live file inventory)
+
+| ID | Severity (orig) | Title | Fix commit | Resolution |
+|---|---|---|---|---|
+| N-069 | MINOR (S6) | CAB lowercase mscf registry key missing (og registers both cases) | DFX12 carve-minors batch (this commit) | FMT_CAB_LC row (appended id) keyed on {'m','s','c','f'} with the same validate_cab (the og's duplicate-key policy, census :94/:127); validate_cab accepts either case like FileCABAnalyser; Carve.CabLowercaseMagic (fail-before by construction: byte-exact scan + 0 lowercase rows pre-fix). |
+| N-030 | MINOR (S5) | raw_signs confidence field dead in og; core invents semantics | DFX12 carve-minors batch (this commit) | Registered deliberate superset (fix-plan option (b)): cr_rawsigns.h divergence block states the field is DEAD DATA in the og (FUN_18001e510 :23522-23765 never reads part[2]; erratum 19); PARITY-DELTAS D-66 with do-not-remove guidance; winner selection + the tail blend pinned by the existing RawSignLayerHeaderOnlyAndSharedMagic / RawSignTailPairWithinFormat tests. Option (a) gated on the undecoded FUN_18000d670 grade emission — recorded as the revisit precondition. |
+
 ## Resolved findings (37 — sessions 1-4 combined + the parallel fix legs' batches + M-023 (close-all-tiers session); every file in this directory has a row)
 ## Resolved findings (38 — sessions 1-4 combined: 12 from session-1/2 legs + A-002, A-004 (+S-016), M-009, S-006, S-011, S-013, S-015, S-017, S-018(INVALID), N-021, S-014; every file in this directory has a row)
 ## Resolved findings (31 — sessions 1-4 combined: every file in this directory has a row; +A-005, +S-021 this commit)

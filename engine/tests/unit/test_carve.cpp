@@ -2601,3 +2601,4 @@ TEST(CarveEngine, TailAnchorCarriedOnTailPairedHits) {
     EXPECT_EQ(sql_n->props()->carve_anchor_b, start + lo + tail_stride + 31);
     EXPECT_NE(sql_n->props()->carve_checksum, 0xFFFFFFFFu);
 }
+

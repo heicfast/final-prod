@@ -179,6 +179,23 @@ far: 6 reconciliation moves + the N-076 discovery-fix + the quartet
 convergence work. Ongoing: MINOR-first waves; N-073 remains a probable
 N-004 duplicate — verification queued.
 
+**Carve-minors batch FIXED (this wave):** N-069 (CAB lowercase mscf key —
+the og's duplicate-key policy for case-insensitive formats, census
+:94/:127 re-read first-hand: a second FMT_CAB_LC row claims the
+lowercase magic with the same validate_cab;
+Carve.CabLowercaseMagic, fail-before by construction — the byte-exact
+scan could never match a key no row claimed) and N-030 (raw-sign
+confidence semantics — resolved as the REGISTERED DELIBERATE SUPERSET
+its own fix plan calls option (b): the field is dead data in the og
+(FUN_18001e510 :23522-23765 never reads part[2]; erratum 19), the core's
+winner-selection + (hdr+tail)/2+100 blend are pinned by
+RawSignLayerHeaderOnlyAndSharedMagic / RawSignTailPairWithinFormat,
+PARITY-DELTAS D-66 carries the do-not-remove guidance, and option (a)
+stays gated on the undecoded FUN_18000d670 grade emission). Suite
+**577/577** linux-release. Counts: MINOR 43 · FIXED/ 91 files (90
+findings + index). Session unique resolutions: 9 (6 reconciliation +
+N-076 + N-069 + N-030).
+
 ## Session-8 delta (2026-10-26 — the closing-verification fix session, SEVERE lane first)
 
 Session start `4a924d1` (rebased bootstrap `3494606`); corpus `03ad46c`

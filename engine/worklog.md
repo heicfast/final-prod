@@ -9451,6 +9451,7 @@ Stage Summary:
   N-069, N-029, N-030.
 
 ---
+---
 Task ID: DFX11-S009V (session 11, S-009 verification + convergence record)
 Agent: main engineer (diff-to-fix fix session 11 — DFX11)
 Task: S-009 was fixed CONVERGENTLY by this leg and the parallel DFX8/DFX9
@@ -9562,6 +9563,7 @@ Stage Summary:
   N-063/N-065.
 
 ---
+---
 Task ID: DFX15-F2..F5 (session 15, MAJOR lane)
 Agent: core-parity-fix-agent (main)
 Task: M-002, M-037, M-031, M-046 — four MAJOR findings verified + fixed
@@ -9593,3 +9595,68 @@ Stage Summary:
   RESOLVED-INDEX, matrix, module docs).
 - Next: M-045 (FAT boot gates) → M-043 (NTFS backup boot) → M-005 (carve
   bitmap gating) → M-007/M-008 (NTFS).
+
+---
+Task ID: DFX12-T4 (carve-minors batch — N-069 + N-030)
+Agent: main engineer (diff-to-fix minors-first session 12)
+Task: Close two carve MINOR findings with corpus-first verification.
+
+Work Log:
+- N-069: corpus verified first-hand (census :94 "MSCF / mscf | 0x4643534d,
+  0x6663736d ... both cases"; :127 the duplicate-key policy). Fix:
+  FMT_CAB_LC row appended (serialized ids stable) keyed on the
+  lowercase bytes with the same validate_cab; the validator's
+  belt-and-braces magic check now accepts either case (like the og's
+  FileCABAnalyser on whichever key dispatched); kTrialOrder adjacency;
+  ABI enumeration surfaces both rows. Carve.CabLowercaseMagic; fail-
+  before by construction (byte-exact memcmp scan, zero lowercase rows
+  pre-fix - the enum id exists only on the fixed tree).
+- N-030: corpus re-verified (FUN_18001e510 decode: part[0]=offset,
+  part[1]=hex, part[2] NEVER read; the deep-dive ranking claim
+  corrected by erratum 19). The fix plan's option (a) (remove the
+  confidence semantics) is gated on the undecoded FUN_18000d670 grade
+  emission - adopting it blind would replace a working ranking with an
+  unknown. Option (b) executed as the plan writes it: cr_rawsigns.h
+  divergence block carries the dead-data citation + do-not-remove
+  guidance; PARITY-DELTAS D-66; the two consumed semantics (winner
+  selection at shared positions, the (hdr+tail)/2+100 blend) pinned by
+  the existing RawSignLayerHeaderOnlyAndSharedMagic /
+  RawSignTailPairWithinFormat tests, re-cited as load-bearing.
+- Suite 577/577 linux-release (full ctest). Audit trail: two
+  Resolutions + FIXED/ moves, RESOLVED-INDEX rows, matrix cell
+  updates (N-069 detail row + the session-3 N-030 note), SUMMARY
+  carve-minors paragraph, carve module doc batch section.
+- ASan lane for the quartet-union tree completed clean earlier
+  (/tmp/asan_ctest.log); the batch's ASan re-run queued with the next
+  push's full sweep.
+
+Stage Summary:
+- Session unique resolutions: 9 (6 reconciliation moves + N-076 + N-069
+  + N-030). MINOR 43 remain. Next: N-073 duplicate verification (quick),
+  N-029a maximal-subpart, N-056 temp leak, N-063 naming.
+
+---
+Task ID: DFX12-T4-CONV (N-069 collision resolution)
+Agent: main engineer (diff-to-fix minors-first session 12)
+Task: Rebase union for the N-069 same-window collision (the parallel s11
+lane's b8b0318 landed first — canonical) — N-030 stands as this
+session's unique resolution.
+
+Work Log:
+- Their N-069 implementation taken as canonical (FMT_CAB_LC dual row +
+  two-spelling validator re-check + the dual-case
+  Carve.CabLowercaseMagic with the cab_header helper — richer than this
+  leg's simpler single-case fixture; my duplicate test removed, both
+  landings preserved in git history).
+- My N-030 resolution stands untouched (their commit did not touch it):
+  cr_rawsigns.h divergence block + PARITY-DELTAS D-66 + the two
+  re-cited pins (RawSignLayerHeaderOnlyAndSharedMagic /
+  RawSignTailPairWithinFormat) + the Resolution with the option-(a)
+  gate documented (FUN_18000d670 undecoded).
+- Matrix: their N-069 FIXED row; the session-3 N-030 note kept from my
+  side. carve.md: their N-069 verdict + my N-030 batch section (header
+  re-annotated to record the canonical landing).
+
+Stage Summary:
+- Session unique resolutions: 8 (6 reconciliation + N-076 + N-030).
+  N-069 credited to the parallel lane (convergent). MINOR 43 remain.
