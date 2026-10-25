@@ -7980,3 +7980,42 @@ Stage Summary:
   UIUX/07/08/09/11 pass (deliberately deferred — the in-scope contracts those four
   hold are covered by the landed findings N-043/D-18/M-029/M-030 family; the
   remaining content is UI-layer).
+---
+Task ID: FF-M036 (NVMe health field coverage + units)
+Agent: main engineer (diff-to-fix closing session — fix-all-tiers continuation)
+Task: M-036 (MAJOR, health) — the four dropped NVMe health-log fields and
+the data-unit -> byte conversion, verified against the corpus and fixed.
+
+Work Log:
+- Corpus re-verification first-hand: DiskHealth_decompiled.c :5589-5614 —
+  the og converts data units to bytes with the 5-byte LE chain x 0x7d000
+  (512,000) and a full 64-bit __allmul, twice (read + written); the NVMe
+  route itself already a byte-parity MATCH (I-018). The finding's cites
+  are exact; N-009a (percentage_used u8) already landed — pin re-verified.
+- Fix (pure core first): NvmeHealthInfo gains host_reads (+64),
+  host_writes (+80), controller_busy_time (+96), num_error_log_entries
+  (+176) via the existing le128 (the og's 5-byte read is value-equivalent
+  for realistic counts); data_bytes_read/written = units x 512,000; the
+  parse gate moves 176 -> 192 (the page's last field ends there).
+- Report surface: cr_ui_smart_report appends the six fields at the
+  struct tail with CR_UI_ABI_VERSION 1 -> 2 (ABI-CONTRACT §9 — appended
+  fields bump; every pre-v2 field/offset unchanged); cr_ui.cpp fills
+  them; the CLI health output prints bytes like the og plus the four
+  surfaced fields; ABI-CONTRACT.md, ground-truth-contracts.md and
+  API-SURFACE-AUDIT.md updated in the same change; the C consumer test
+  (ui_abi_check.c) compiles against the bumped macro unchanged; the
+  existing ABI-version pin tests recompile green.
+- Tests: NvmeHealth.FullFieldSurface (distinct fixture values per field —
+  a wrong offset cannot pass), DataUnitsConvertedToBytes (incl. a
+  1e9-unit large count), ShortBufferRejected moved to the 192-byte
+  boundary. Fail-before: the new tests do not compile against the
+  pre-fix header (capability-absence). Suite 485/485 Linux Release.
+- Audit trail: Resolution + move to findings/FIXED/; matrix health row
+  (M-036 FIXED, ABI v2 noted); modules/health.md M-036 verdicts;
+  SUMMARY session-6 delta extended.
+
+Stage Summary:
+- The NVMe health surface now matches the og's row set field-for-field
+  with the same unit conversion; ABI v2 is additive-only. Remaining
+  health items: N-032 (CSMI/USB transports), N-042 (CLI temp digit),
+  N-064 (Dict dictionary).
