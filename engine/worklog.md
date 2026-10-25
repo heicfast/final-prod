@@ -4392,3 +4392,41 @@ Stage Summary:
   S-009-remainder, S-011, S-012, S-013, S-014, S-015), MAJOR 18 (M-002, M-005, M-007,
   M-008, M-010, M-011..M-023), MINOR 27, INFO 10, tracked-open 6 files. Reading wave
   (T2) next: full diff-to-fix/ then core tree.
+
+---
+Task ID: S4-T1B (main engineer, diff-to-fix remediation session 4 — reconciliation)
+Task: Reconcile with the parallel session-4 legs that landed while this session bootstrapped.
+
+Work Log:
+- This session independently developed the A-002 fix (constant restore + de-self-
+  referenced tests + negative guard) from a fresh clone at 805eebd, with own PE
+  extraction (LdmManager.mo DAT_1800c4960 / Partition.mo DAT_180036630/0x36640 =
+  real Microsoft GUIDs; 18 real-byte hits / 0 fabricated hits corpus-wide —
+  scripts/s4_verify_ldm_guids.py). On push, origin/main had moved: the parallel
+  session-4 fix leg landed A-002 first (7f2c83e) plus the reconciliation commit
+  abe26b8 (cross-encoding guard GptDynamicDiskRealCanonicalGuidsParse), A-004+S-016
+  (c33236f), M-009 (7fd00e0), and the s3 audit legs' new findings.
+- Local duplicate fix DISCARDED (reset to origin/main) — the landed fix is
+  byte-identical in substance and broader in guards. No duplicate commits pushed.
+- First-hand verification of the landed state at abe26b8:
+  * A-002: constants re-extracted and MATCH Microsoft/og (own script, four
+    sources); the five guard tests present in tests/unit/test_ldm.cpp +
+    test_crc32_gpt.cpp (FabricatedGuidsRejected, RealCanonicalGuidsParse,
+    winioctl-text rows); finding in FIXED/ with Resolution.
+  * A-004: live code src/core/orchestrator/cr_scan.cpp:359 delivers ErrorRange
+    through event_fn_ (live sink); the cfg_.event_fn reads are only the ctor
+    seeds (:76/:90) + setter (:130); S-016 (snapshot error-map feed) fixed in
+    the same commit; finding in FIXED/ with Resolution.
+- Baseline re-established on abe26b8: linux-gcc preset (RelWithDebInfo + ASan),
+  full suite 322/322 PASSED.
+- Active inventory at abe26b8: 0 ACUTE; 9 SEVERE (S-003, S-006, S-007, S-009
+  remainder, S-011..S-015); 17 MAJOR (M-002, M-005, M-007, M-008, M-010..M-023);
+  26 MINOR files (N-001 dup-in-MINOR noted — reconciliation candidate); 11 INFO;
+  5 tracked-open files. N-001 exists in BOTH MINOR/ and FIXED/ — to reconcile
+  when touched.
+
+Stage Summary:
+- Session 4 (this leg) reconciled onto the parallel legs' landings; no duplicate
+  A-002 commits pushed; verified their A-002/A-004 fixes first-hand. Lane resumes
+  at the SEVERE wave starting S-011 (exFAT tz), then S-013/S-015/S-014/S-012,
+  pulling before each finding to avoid collisions.
