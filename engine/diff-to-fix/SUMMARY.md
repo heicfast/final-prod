@@ -107,6 +107,21 @@ Bootstrap `ff734d7` (union of the parallel lanes' claims: DFX18 on the MINOR
 tier, this leg on the unclaimed MAJOR batch); baseline suite **594/594**
 Linux RelWithDebInfo + ASan. Corpus `03ad46c` unmoved.
 
+**M-019 FIXED (second landing):** ZFS multi-vdev + integrity — read_raw
+drops the `vdev != 0` refusal (the og's registry first-entry fallback,
+FUN_1800168b0 :19544-56 — foreign reads now served and counted);
+read_block gains the og's exact fletcher4 gate (`(zc==7)||(zc==0)`,
+interleaved 4-accumulator port) over the RAW bytes with the 32-byte
+stored compare and next-DVA retry on mismatch and read failure; the L0
+extent walk plans foreign-vdev blocks at the fallback position instead
+of skipping them. Fixtures upgraded to checksum-carrying pools (type-7
+fletcher4 stamped in dependency order; the fixture uses an independent
+textbook encoding so engine and fixture cross-check). Fail-before
+proven both claims: the torn-DVA0 decoy zap entered results as valid
+(now dropped + DVA1 retry recovers the real entries); the foreign-vdev
+file was left extentless (now planned at the fallback position). Suite
+614/614. findings/FIXED/M-019; matrix zfs B1/B2/A25/D15 MATCH.
+
 **M-016 FIXED (first landing):** LDM TOCBLOCK candidate set/order — the
 core's list was `{+1,+2,+2045,+2046}` (config+0 never probed; +1 outranked
 +2 on conflicts) while the og probes `{+2,+0,+1}` first-valid-wins
