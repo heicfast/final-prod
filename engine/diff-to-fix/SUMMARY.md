@@ -314,6 +314,23 @@ row: modules/imaging.md.
 (S-009, S-029) · MAJOR 39 · MINOR 55 · INFO 22 = 118 active / 73 FIXED
 finding files + RESOLVED-INDEX.
 
+**Session-11 landing 2 — S-033 (NEW-FINDING) INVALID + N-067 FIXED:** during
+the N-067 verification pass this leg filed S-033 (exFAT type-constants
+"shifted") and REFUTED IT THE SAME SESSION with the og's own decompile walk
+(:24380-24460): case 0x81 = the bitmap-shape validation (flags@+1 free,
+reserved@+2..+0x13 zero, cluster@+0x14/length@+0x18); case 0x82 = the
+upcase-shape validation (reserved1@+1..+3, checksum@+4 free, reserved2
+@+8..+0x13). Bitmap=0x81/upcase=0x82/label=0x83 — the core's constants
+were RIGHT all along; the local branch was reverted pre-push; corpus erratum
+E43 filed (the v2 artifact's garbled §3 row labels). N-067 then landed on
+the verified constants: the upcase volume-integrity check (og shape gates +
+chain-read checksum32 vs TableChecksum, soft `ExfatScanStats` signal,
+grade-not-reject) with a real 64-entry fixture table at cluster 60.
+`UpcaseTableChecksumValidated` + `UpcaseLengthSanity` (fail-before: the
+assertions were RED with the validation unwired). Suite 597/597 ASan;
+42/42 UBSan on the touched paths; lint clean. Counts: MINOR 47 · SEVERE 1
+(S-029) · FIXED 82 (incl. S-033 INVALID record).
+
 # SUMMARY.md — executive summary (diff-fix session 9 on top; earlier sessions below)
 
 ## Session-9 delta (2026-10-26 — baseline repair + the SEVERE/MAJOR/MINOR fix waves)

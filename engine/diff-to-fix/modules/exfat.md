@@ -188,3 +188,16 @@ the word-test form) + two guards.
 | ID | Severity | One-line |
 |---|---|---|
 | M-054 | MAJOR — **FIXED** (findings/FIXED/M-054) | Allocation bitmap read at bit `c` for cluster `c` (MS exFAT spec §7.1: bit `i` = cluster `i+2`) — deleted-viability grading AND the landed S-009 free-map producer consulted the wrong clusters on every real volume; both fixtures encoded the same shift (suite self-consistently wrong). `Bitmap::test` reads bit `c-2`; fixtures write the spec-correct bit; `ExfatEngine.FreeMapProducerMatchesSpecBitMapping` pins the producer seam. Fail-before EXECUTED on the landed base (EndToEnd + producer pin both red with the body reverted). |
+
+**N-067 (MINOR, S5) — FIXED (s11):** the volume-integrity upcase check now
+exists — the in-use 0x82 dentry passes the og's shape gates (reserved1/2
+zero-checked, checksum field free, cluster >= 2; decompile :24440-24452),
+then the table stream is chain-read in bounded 64 KiB chunks through the
+shared checksum32 and compared against TableChecksum. Verdict surfaces in
+`ExfatScanStats.upcase_validated` / `.upcase_mismatches` — a soft signal:
+the scan never stops on a corrupt table (EXFAT-2 posture). B1/A25/S35
+verdicts for this row: MATCH (grade-not-reject is the recorded honest
+default; the og's exact failure path stays an open question inside the
+finding). The fixture carries a real 64-entry table at cluster 60.
+Preceded by the S-033 INVALID record (the constants were verified right
+BEFORE this fix — bitmap=0x81/upcase=0x82/label=0x83 stands).

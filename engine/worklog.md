@@ -10404,3 +10404,54 @@ Work Log:
 Stage Summary:
 - Session unique resolutions: 12. MINOR 41 remain. Next: the doc-batch
   wave (N-074 doc drift, N-040 ABI truthfulness), then N-062/N-046.
+
+---
+Task ID: DFX16-N067+S033 (the upcase integrity pass + the false positive it flushed out)
+Agent: main engineer (diff-to-fix session 11 — DFX16)
+Task: Verify and fix N-067 (exFAT upcase-table validation skipped).
+
+Work Log:
+- N-067 verification demanded settling the exFAT root-dentry type map
+  first. Filed NEW-FINDING S-033 claiming bitmap=0x83/upcase=0x81/label=0x82
+  (spec-recall + the corpus v2 artifact's garbled §3 row labels); built the
+  constants swap + fixture rewrite; captured a fail-before (FreeMap + EndToEo
+  grading RED on the rewritten fixture).
+- REFUTED MY OWN FINDING before push via the og's directory-walk switch
+  (exFATSearchDLL :24380-24460): case 0x81 validates the BITMAP shape
+  (flags@+1 free, reserved@+2..+0x13 zero-checked, cluster@+0x14,
+  length@+0x18); case 0x82 validates the UPCASE shape (reserved1@+1..+3,
+  TableChecksum@+4 free, reserved2@+8..+0x13, cluster@+0x14, length@+0x18).
+  The shipped og working on real volumes proves bitmap=0x81/upcase=0x82/
+  label=0x83 = the core's ORIGINAL constants. The claimed UPCASE layout had
+  been a 36-byte mis-derivation. Local branch reverted byte-exact; S-033
+  marked INVALID with the full evidence chain and moved to FIXED/ (S-018
+  precedent); corpus erratum E43 filed (CORPUS-ERRATA.md); RESOLVED-INDEX
+  row. Pushed as its own audit-trail commit - the false positive is part
+  of the record, not something to hide.
+- N-067 fixed on the verified constants: UpcaseEntry reintroduced (og
+  shape), the in-use upcase branch applies the og's dentry gates
+  (reserved1/2 zero-checked, checksum free, fc>=2), a length sanity bar
+  (zero/>1 MiB/>device flagged without stream access), and a chain-read
+  (contiguous fallback, 64 KiB bounded incremental checksum32 chunks)
+  compared against TableChecksum. Soft signal in ExfatScanStats
+  (upcase_validated / upcase_mismatches); grade-not-reject (EXFAT-2
+  posture; the og's exact failure path stays an honest open question).
+  Fixture: real 64-entry upcase table at cluster 60 (checksum-stamped,
+  FAT-EOC + bitmap-marked; the S-009-hardening + M-054-producer cluster
+  lists updated for the now-allocated cluster 60).
+- Tests: UpcaseTableChecksumValidated (clean: validated>=1/mismatch 0;
+  corrupt stamp: validated 0/mismatch 1, scan OK, files found) +
+  UpcaseLengthSanity (zero + absurd-4-GiB lengths flag; no hang, no
+  over-read). Fail-before executed with the validation unwired (both RED).
+  One expectation corrected in-pass: a corrupt table must not count as
+  validated.
+- Full suite 597/597 linux-gcc ASan; 42/42 UBSan on Exfat/DiskMap/FreeMap;
+  lint clean on all five touched files. Audit trail: Resolutions (S-033
+  INVALID + N-067 FIXED), FIXED/ moves, index rows, matrix cells
+  (exfat B1/A25/S35), modules/exfat.md, SUMMARY landing-2, E43.
+
+Stage Summary:
+- Session fix tally: N-069 FIXED, S-033 filed-and-refuted (INVALID — the
+  discipline worked as designed: the corpus/decompile won over confident
+  recall), N-067 FIXED. Next: N-068 (ZIP EOCD anchor + LFH sanity gates),
+  then the carve naming/policy minors not claimed by parallel lanes.
