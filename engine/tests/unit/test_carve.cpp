@@ -2476,3 +2476,92 @@ TEST(CarveEngine, TailAnchorCarriedOnTailPairedHits) {
     EXPECT_EQ(sql_n->props()->carve_anchor_b, start + lo + tail_stride + 31);
     EXPECT_NE(sql_n->props()->carve_checksum, 0xFFFFFFFFu);
 }
+
+/* ---------------------------------------------------------------------------
+ * M-005: allocation-bitmap carve gating (the og's block-scan cluster gate,
+ * RAWSearchDLL FUN_18000c820 :9446-9460 + FUN_180058df0 :67842-67856,
+ * corpus-verified first-hand). The core's FreeMap is the inverted polarity
+ * of the og's USED bitmap: bit set = free, clear = used. */
+TEST(CarveEngine, BitmapSkipsUsedClusters) {
+    /* Two PNGs: one inside a used cluster (suppressed wholesale), one
+     * inside a free cluster (carved). Fail-before: pre-M-005 the carve
+     * had no gate input at all - both surfaced. */
+    std::vector<u8> img(64 * 1024, 0xAA);
+    const size_t used_png_at = 8192 + 137;  /* inside cluster 2 */
+    const size_t free_png_at = 40960 + 137; /* inside cluster 10 */
+    plant_png(img, used_png_at);
+    plant_png(img, free_png_at);
+    MemDevice dev(std::move(img));
+
+    storage::FreeMap fm;
+    fm.base_byte = 0;
+    fm.cluster_bytes = 4096;
+    fm.cluster_count = 64 * 1024 / 4096; /* 16 */
+    fm.bits.assign(fm.cluster_count / 8, 0xFF);
+    for (u64 k = 2; k <= 3; ++k) /* clusters 2..3 = the used span */
+        fm.bits[size_t(k / 8)] &= u8(~(1u << (k % 8)));
+
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"Lost Files");
+    CarveFlags flags;
+    flags.free_map = &fm;
+    CarveStats stats;
+    u32 rc =
+        carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, stats);
+    ASSERT_EQ(rc, OK) << err_text(rc);
+
+    std::vector<tree::FileNode*> all;
+    std::function<void(tree::FileNode*)> collect = [&](tree::FileNode* n) {
+        for (tree::FileNode* c = n->first_child(); c; c = c->next_sibling()) {
+            all.push_back(c);
+            collect(c);
+        }
+    };
+    collect(root);
+    ASSERT_EQ(all.size(), 1u) << "the used-cluster PNG must be suppressed";
+    EXPECT_EQ(all[0]->props()->extents.front().offset, free_png_at);
+    EXPECT_EQ(all[0]->props()->carve_format, FMT_PNG);
+    /* telemetry: both used clusters skipped = 8 KiB never offered */
+    EXPECT_EQ(stats.bitmap_skipped_clusters, 2u);
+    EXPECT_EQ(stats.bitmap_skipped_bytes, 8192u);
+}
+
+TEST(CarveEngine, NoBitmapCarvesEverything) {
+    /* The control leg + the og's raw-disk rule: no map (and an INVALID
+     * map) -> carve everything. Fail-before: N/A (this is the unchanged
+     * baseline behavior the fix must preserve). */
+    std::vector<u8> img(64 * 1024, 0xAA);
+    const size_t a = 8192 + 137;
+    const size_t b = 40960 + 137;
+    plant_png(img, a);
+    plant_png(img, b);
+    MemDevice dev(std::move(img));
+
+    auto run = [&](const storage::FreeMap* fm, size_t expect, CarveStats& st) {
+        tree::ResultTree tree;
+        auto* root = tree.add_root(u"Lost Files");
+        CarveFlags flags;
+        flags.free_map = fm;
+        st = CarveStats{};
+        u32 rc =
+            carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, st);
+        ASSERT_EQ(rc, OK) << err_text(rc);
+        std::vector<tree::FileNode*> all;
+        std::function<void(tree::FileNode*)> collect = [&](tree::FileNode* n) {
+            for (tree::FileNode* c = n->first_child(); c; c = c->next_sibling()) {
+                all.push_back(c);
+                collect(c);
+            }
+        };
+        collect(root);
+        EXPECT_EQ(all.size(), expect);
+    };
+
+    CarveStats st;
+    run(nullptr, 2, st); /* no map: both PNGs surface */
+    EXPECT_EQ(st.bitmap_skipped_bytes, 0u);
+
+    storage::FreeMap invalid; /* zeroed: cluster_bytes 0 -> not valid */
+    run(&invalid, 2, st); /* invalid map must not gate either */
+    EXPECT_EQ(st.bitmap_skipped_bytes, 0u);
+}

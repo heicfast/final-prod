@@ -73,6 +73,9 @@ struct ScanCtx {
     std::atomic<u64> sign_hits{0};
     std::atomic<u64> sign_validated{0};
     std::atomic<u64> windows_skipped{0}; /* unreadable after retry (FB-C01) */
+    /* M-005: used-cluster skips at the grammar layer (the og's block-scan
+     * cluster gate; counted here, surfaced as bitmap_skipped_clusters) */
+    std::atomic<u64> bitmap_skipped_clusters{0};
     /* S-007: [start, end) ranges of emitted suppress_overlap streams (the
      * repeating-sync audio family); guarded by the emission path's own
      * serialization (single-threaded path: one worker; parallel: the
@@ -95,6 +98,50 @@ struct ScanCtx {
      * instead of re-emitting them as extra entries. Base 0 on synthetic /
      * whole-disk devices: behavior identical to the old code. */
     u64 ext_base = 0;
+
+    /* ---- M-005: the allocation-bitmap gate (corpus-verified first-hand
+     * this session, ghidra-searchdll/RAWSearchDLL_decompiled.c :9440-9466
+     * + FUN_180058df0 :67842-67856). The og's block-scan: with a bitmap
+     * object present, a candidate position whose cluster bit is SET
+     * (used) is suppressed from dispatch; if the position is
+     * cluster-aligned the scan jumps the whole cluster (local_1e0 +=
+     * spc-1); OOB (bit-count bound [2]) or no bitmap -> dispatch proceeds
+     * (raw disks keep whole-device carving). The og's bitmap is the USED
+     * map; the core's FreeMap is inverted (bit set = free) - the gate
+     * inverts: clear = used. ---- */
+    const storage::FreeMap* free_map = nullptr;
+
+    /* Position suppressed by the gate? (slice-relative pos) */
+    bool gate_used(u64 pos) const {
+        if (!free_map || !free_map->valid() || pos < free_map->base_byte)
+            return false; /* no map / before coverage: never gate (the og:
+                             FUN_180058df0 returns 0 on OOB -> dispatch) */
+        const u64 k = (pos - free_map->base_byte) / free_map->cluster_bytes;
+        return !free_map->is_free(k); /* clear = used */
+    }
+
+    /* Slice-relative start of the NEXT cluster after pos (only called
+     * when pos is cluster-aligned and used). */
+    u64 gate_next_cluster(u64 pos) const {
+        const u64 k = (pos - free_map->base_byte) / free_map->cluster_bytes;
+        return free_map->base_byte + (k + 1) * u64(free_map->cluster_bytes);
+    }
+
+    /* Shared skip action for both dispatch layers: returns the jump
+     * target in SLICE coords when the position is used AND cluster-aligned
+     * (0 otherwise - the caller suppresses the single position only).
+     * Cluster counting happens ONLY at the grammar layer (count=true);
+     * the raw-sign layer rides the same gate without double-counting. */
+    u64 gate_check_and_skip(u64 pos, bool count) {
+        if (!gate_used(pos))
+            return 0; /* not suppressed */
+        if ((pos - free_map->base_byte) % free_map->cluster_bytes == 0) {
+            if (count)
+                bitmap_skipped_clusters.fetch_add(1, std::memory_order_relaxed);
+            return gate_next_cluster(pos);
+        }
+        return 0; /* used but mid-cluster: suppress just this position */
+    }
 };
 
 /* Scan ONE window [base, base+want) fully (magic dispatch, validation,
@@ -103,6 +150,19 @@ u32 scan_one_window(ScanCtx& ctx, u64 base, const u8* win, u64 want, std::set<u6
     for (u64 off = 0; off + 12 <= want; ++off) {
         if (ctx.aborted.load(std::memory_order_relaxed))
             return ERR_CANCELLED;
+        /* M-005: the used-cluster gate, grammar layer (the per-byte
+         * dispatch - the dominant cost). Used -> suppress; aligned used
+         * -> jump the whole cluster (the og's local_1e0 += spc-1). */
+        if (ctx.free_map) {
+            if (const u64 jump = ctx.gate_check_and_skip(base + off, true); jump != 0) {
+                const u64 rel = jump - base; /* window coords */
+                if (rel > off)
+                    off = rel - 1; /* the loop's ++off lands at the next cluster */
+                continue;
+            } else if (ctx.gate_used(base + off)) {
+                continue; /* used mid-cluster: this position only */
+            }
+        }
         const u8 c = win[off];
         /* first-byte dispatch: only formats whose magic starts with c.
          * The match itself (magic compare + window-head clip + candidate
@@ -286,6 +346,20 @@ u32 scan_one_window(ScanCtx& ctx, u64 base, const u8* win, u64 want, std::set<u6
             if (ctx.aborted.load(std::memory_order_relaxed))
                 return ERR_CANCELLED;
             const u64 start_abs = base + off;
+            /* M-005: the same gate on the raw-sign layer's 512-stride
+             * probes (the og's single block-scan loop gates all dispatch;
+             * skip counting stays with the grammar layer - no double
+             * count). */
+            if (ctx.free_map) {
+                if (const u64 jump = ctx.gate_check_and_skip(start_abs, false); jump != 0) {
+                    const u64 rel = jump - base;
+                    if (rel > off)
+                        off = rel - 512; /* the loop's += 512 lands at the next cluster */
+                    continue;
+                } else if (ctx.gate_used(start_abs)) {
+                    continue; /* used mid-cluster: this probe only */
+                }
+            }
             if (emitted_at.count(start_abs))
                 continue; /* a grammar-validated file starts here */
             idx.probe_header(win + off, want - off, matches);
@@ -513,6 +587,9 @@ u32 carve_slice(IStorageDevice* slice, const CarveFlags& flags, CancelToken* can
     ctx.namer = namer;
     ctx.total = slice->size();
     ctx.ext_base = slice->absolute_base(); /* GAP-S6-8: disk-absolute basis */
+    /* M-005: the allocation-bitmap gate (nullable; slice-relative basis -
+     * the orchestrator rebases stats.free_map before the call) */
+    ctx.free_map = flags.free_map;
     /* S-031 residual: stamp the scan time once per run — every carved
      * record carries it (the og's per-record formatted timestamp). */
     ctx.scan_time = unix_to_filetime(i64(std::time(nullptr)));
@@ -589,6 +666,12 @@ u32 carve_slice(IStorageDevice* slice, const CarveFlags& flags, CancelToken* can
     stats.sign_hits += ctx.sign_hits.load();
     stats.sign_validated += ctx.sign_validated.load();
     stats.windows_skipped += ctx.windows_skipped.load();
+    /* M-005: gate telemetry */
+    stats.bitmap_skipped_clusters += ctx.bitmap_skipped_clusters.load();
+    stats.bitmap_skipped_bytes =
+        (flags.free_map && flags.free_map->valid())
+            ? stats.bitmap_skipped_clusters * u64(flags.free_map->cluster_bytes)
+            : 0;
     return OK;
 }
 
