@@ -1818,8 +1818,9 @@ u32 disk_map_impl(cr_ui_session* sess, cr_ui_snapshot* snap, const cr_ui_disk_ma
         /* S-009: the captured session truth feeds the snapshot path too
          * (errors + free map from the snapshot's owning session); the
          * view comes from `want` bounded by the captured slice. */
-        if (w->have_view && (want->start_byte < w->slice_start ||
-                             want->start_byte + want->total_bytes > w->slice_start + w->slice_bytes))
+        if (w->have_view &&
+            (want->start_byte < w->slice_start ||
+             want->start_byte + want->total_bytes > w->slice_start + w->slice_bytes))
             return ret_(ERR_RANGE_OUT_OF_BOUNDS, "want view is outside the session slice");
         errors = w->errors;
         in.errors = w->errors.ranges().empty() ? nullptr : &errors;
@@ -1827,7 +1828,7 @@ u32 disk_map_impl(cr_ui_session* sess, cr_ui_snapshot* snap, const cr_ui_disk_ma
         in.slice_start = want->start_byte;
         in.slice_bytes = want->total_bytes;
         in.cluster_bytes = w->free_map.valid() ? w->free_map.cluster_bytes : want->cluster_bytes;
-        in.carve_completed = false;             /* mid-scan value view: extent coverage */
+        in.carve_completed = false; /* mid-scan value view: extent coverage */
     }
 
     std::vector<u8> a, cv, f, cf;
@@ -2832,8 +2833,7 @@ u32 health_read_impl(uint32_t disk, cr_ui_smart_report* rep, cr_ui_smart_attr* a
     if (nv_rc == OK && nv.available) {
         rep->nvme_available = 1;
         rep->critical_warning = nv.critical_warning;
-        rep->temperature_c_x10 =
-            nv.decidegrees_c(); /* N-042: one source with the CLI print */
+        rep->temperature_c_x10 = nv.decidegrees_c(); /* N-042: one source with the CLI print */
         rep->available_spare = nv.available_spare;
         rep->available_spare_threshold = nv.available_spare_threshold;
         rep->percentage_used = nv.percentage_used;

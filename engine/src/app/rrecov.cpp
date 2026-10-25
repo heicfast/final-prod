@@ -1203,8 +1203,8 @@ int cmd_health(int argc, wchar_t** argv, int& i) {
          * to ~0.55 C; now identical to the ABI spelling to the digit. */
         const u32 dec_c = nv.decidegrees_c();
         wprintf(L"NVMe health: temp=%u.%uC spare=%u%%/threshold=%u%% used=%llu%% - %hs\n",
-                dec_c / 10, dec_c % 10, nv.available_spare,
-                nv.available_spare_threshold, static_cast<unsigned long long>(nv.percentage_used),
+                dec_c / 10, dec_c % 10, nv.available_spare, nv.available_spare_threshold,
+                static_cast<unsigned long long>(nv.percentage_used),
                 cr::health::health_grade_name(cr::health::grade_nvme(nv)));
         wprintf(L"  read=%llu bytes written=%llu bytes (M-036: units x 512,000)\n",
                 static_cast<unsigned long long>(nv.data_bytes_read),
@@ -1657,7 +1657,8 @@ int wmain(int argc, wchar_t** argv) {
             L"usage:\n"
             L"  rrecov list\n"
             L"  rrecov scan --disk N | --volume C: [--whole-disk] [--quick-only] [--no-carve]\n"
-            L"             (deep stage always on; --quick-only disables it; --whole-disk = lost-partition discovery)\n"
+            L"             (deep stage always on; --quick-only disables it; --whole-disk = "
+            L"lost-partition discovery)\n"
             L"             [--threads N] [--out file.crsf] [--resume file.crsf] [--log file]\n"
             L"             [--json] [--csv] [--filter s] [--deleted-only]\n"
             L"             [--repair] [--repair-apply] [--repair-undo file]\n"
