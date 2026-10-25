@@ -207,6 +207,11 @@ public:
         u64 deleted_count = 0;
     };
     const Stats& stats() const { return stats_; }
+    /* M-047: the persisted-image restore path (the og's trust model - the
+     * reader stores the saved accumulator verbatim, rsf-format :318-320).
+     * Callers otherwise never set stats by hand; refresh_stats
+     * recomputes them recursively on demand. */
+    void set_stats(const Stats& s) { stats_ = s; }
     std::u16string role; /* "Lost Files", volume label, "Other deleted files" */
 
 private:

@@ -267,12 +267,18 @@ u32 deserialize_tree(const u8* data, size_t len, tree::ResultTree& tree) {
             std::u16string role(role_len, 0);
             for (u16 k = 0; k < role_len; ++k)
                 role[k] = c.g16();
-            (void)c.g64();
-            (void)c.g64();
-            (void)c.g64();
-            (void)c.g64(); /* stats */
+            /* M-047: the persisted recursive accumulator is STORED, not
+             * discarded (the og's reader "stores the 40-byte image
+             * directly at +0x98", rsf-format :318-320) - reloaded roots
+             * carry their pre-save totals by construction. */
+            tree::FullNode::Stats st{};
+            st.file_count = c.g64();
+            st.dir_count = c.g64();
+            st.total_logical = c.g64();
+            st.deleted_count = c.g64();
             tree::FullNode* full = tree.add_root(role);
             if (full) {
+                full->set_stats(st);
                 full->set_props(props);
                 n = full;
             }
@@ -306,8 +312,16 @@ u32 deserialize_tree(const u8* data, size_t len, tree::ResultTree& tree) {
         if (c.fail)
             break;
     }
-    tree.refresh_stats();
-    return c.fail && count > 0 && created.size() < count ? u32(0x50040001) : u32(OK);
+    /* M-047: intact loads TRUST the persisted root stats (the og's model
+     * - the image is the pre-save recursive truth). Only a PARTIAL load
+     * (some nodes missing) recomputes: the stale image would overcount a
+     * tree that lost nodes to corruption. The recompute is recursive -
+     * the same accumulator semantics the writer used. */
+    if (c.fail && count > 0 && created.size() < count) {
+        tree.refresh_stats();
+        return u32(0x50040001);
+    }
+    return u32(OK);
 }
 
 u32 serialize_error_map(const ReadErrorMap& map, std::vector<u8>& out) {

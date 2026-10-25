@@ -101,3 +101,12 @@ exist for.
 None. (The og's 40-byte blob vs the core's 4×u64=32 bytes is a wire-format difference, not a
 semantic one — the core may keep its own byte format per the session-format parameter as long
 as the FIELDS are equivalent; they are, once read.)
+
+---
+
+## Resolution
+
+**Status:** FIXED
+**Fixed in commit:** (this session's commit — `git log` "fix(M-047)")
+**Verified by:** `SessionTree.RefreshStatsIsRecursive` (nested fixture: root totals include files two levels deep — pre-fix 1 file/100 bytes, post-fix 4 files/133 bytes + 2 dirs), `SessionTree.ReloadedRootStatsAreRecursive` (save → load → root totals equal the pre-save recursive totals — the persisted image is stored, not discarded), `SessionTree.StatsDeletedCountRecursive` (a deleted file nested two levels counts at the root — pre-fix 0). Fail-before proven 3/3 on the reverted build (direct-only refresh + discarding reader).
+**Resolution notes:** Corpus re-verified first-hand: rsf-format--scan-session.md :285 (the vtable +0x58 recursive accumulator maintaining +0x9C/+0xA8/+0xB4/+0xBC) and :318-320 ("the reader stores the 40-byte image directly at +0x98" — full trust in the persisted recursive totals). Fix per the plan's preferred model: (1) `refresh_stats` is now RECURSIVE — iterative depth-first accumulation over each FullNode's subtree (no recursion-depth risk; intermediate file-node children count too: S-032's inner-entry nodes are real tree rows in the og's tree as well, and the og's accumulator counts them); (2) the reader STORES the four persisted u64s into the root via the new `FullNode::set_stats` (the trust model — intact loads keep pre-save totals by construction); (3) the load-time `refresh_stats()` call is now taken ONLY on partial loads (corruption salvage — the stale image would overcount a tree that lost nodes; the recompute is the same recursive semantics). One dependent test updated: `CarvedNodesAreDeleted` — the S-032-era update pinned `deleted_count` to DIRECT carved children; the recursive accumulator counts the inner-entry population as well (og-parity: the DRWUI tree expands ZIPs to their inner file list and the accumulator walks it), so the assertion now compares against the whole carved subtree population. The `CarveEngine.CarvedNodesAreDeleted` semantic is strengthened, not weakened: every Carved-origin node in the subtree is Deleted and counted.

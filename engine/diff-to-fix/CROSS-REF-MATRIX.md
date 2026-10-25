@@ -242,7 +242,7 @@ byte-pin→I-009, probe-row→I-010; dropped as dups: boot-geometry→N-013b, by
 | carve+session+query | B4/D11/D12/B1 | **S-031 (S5)** (carved files never marked deleted: og FLAGS=0x0020 constant on all 12,147 sampled records; core's deleted_only filter and deleted_count exclude the entire carve set) |
 | carve | B1/B2/D11/A27/A28 | **S-032 (S5)** (ZIP/RAR inner-entry inventories: og returns the complete inner file inventory + multi-part RAR stitching; core emits one flat node) |
 | ldm+rawfixer | C20/B2/A25/F60 | **M-046 (S5)** (4Kn wrong-offset/truncated-plan: LDM GPT path hardcodes `*512` at 3 sites vs the geometry-correct main parser; exFAT plans write 512 of 4096 bytes + wrong checksum span) |
-| session+tree | D12/D11/B8 | **M-047 (S5)** (stats round-trip asymmetry: writer persists 4×u64, reader discards them; refresh is direct-children-only vs the og's persisted-and-trusted recursive accumulator) |
+| session+tree | D12/D11/B8 | ~~**M-047 (S5)**~~ **M-047 FIXED (s9)** (FIXED/M-047: recursive refresh_stats + the persisted-image trust on load; partial loads recompute) |
 | carve | B1/A28/D16 | **M-048 (S5)** (EUUserData user-extensible signature DB — 111 extensions, `"offset,hex"` signs + MIME — has no core counterpart) |
 | err+abi | C23/D14/F35/Q46 | **M-049 (S5)** (error model: flat 28-code 8-hex enum with a false "reproduces the reference convention" header claim vs the og's 12-digit documented codes + error-object architecture) |
 | session+tree | D11/D12/B4 | **M-050 (S5)** (node-model round-trip gaps: ~15 og wrapper fields — hidden-root bit, grading bits 5-7, roles, fixup, sentinels — have no core carrier) |

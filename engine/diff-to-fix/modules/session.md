@@ -140,3 +140,9 @@ First citations this session: `rsf-record4--tree-node-grammar.md` + `ifileproper
 MATCH register (verified equivalent): chunked-zlib framing, marker-byte nodes, name/size/times/
 attrs/flags, all four extent encodings, RAW name/format-id/anchor-A. EXTRA-IN-CORE: CRC32+
 skip-forward container, Confidence grading, allocated_size, changed-time, stage-mask counters.
+
+## Session-9 verdict (2026-10-26 — M-047)
+
+| ID | Verdict |
+|---|---|
+| M-047 | **FIXED** — refresh_stats is recursive (the og's +0x58 accumulator semantics; iterative DFS, no depth risk; S-032 inner-entry rows count as tree rows); the reader stores the persisted 4×u64 root stats (the "reader stores the image directly" trust model, rsf-format :318-320); the load-time recompute runs only on partial loads (corruption salvage). 3 fail-before tests. |

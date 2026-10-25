@@ -1780,16 +1780,15 @@ TEST(CarveEngine, CarvedNodesAreDeleted) {
     collect(root);
     EXPECT_GE(carved, 4) << "grammar layer emit not found";
 
-    /* stats: the deleted population includes the carved ARCHIVE records
-     * (direct children - the og's census counts one CRAWFileProperties
-     * record per archive; inner entries are presentation children, not
-     * records - S-032) */
+    /* stats (M-047 recursive accumulator): the deleted population
+     * includes every deleted node in the SUBTREE - the carved archive
+     * records AND their inner-entry inventory children (the og's tree
+     * expands ZIPs to their inner file list, and its recursive stats
+     * accumulator counts them - rsf-format :285). Every Carved-origin
+     * node is Deleted, so the recursive deleted_count equals the whole
+     * carved population collected above. */
     tree.refresh_stats();
-    size_t carved_direct = 0;
-    for (tree::FileNode* c = root->first_child(); c; c = c->next_sibling())
-        if (c->props() && c->origin() == tree::Origin::Carved)
-            ++carved_direct;
-    EXPECT_EQ(root->stats().deleted_count, carved_direct);
+    EXPECT_EQ(root->stats().deleted_count, size_t(carved));
 }
 
 TEST(CarveEngine, RawSignCarvedNodesAreDeleted) {

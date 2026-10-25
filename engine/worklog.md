@@ -8912,3 +8912,29 @@ Stage Summary:
 - The clobber is repaired; S-009/N-042/N-044/M-012 landings stand again.
   Watch for the clobbering lineage pushing the rollback forward - if it
   reappears, re-apply this repair and flag the lineage in this worklog.
+---
+Task ID: DFX9-T5 (M-047)
+Agent: main engineer (diff-to-fix closing session 9)
+Task: M-047 — session stats round-trip asymmetry.
+
+Work Log:
+- Corpus re-verified: rsf-format :285 (+0x58 recursive accumulator) +
+  :318-320 (the reader stores the 40-byte image — full trust). CONFIRMED.
+- Fix: refresh_stats recursive (iterative DFS per FullNode subtree);
+  reader stores the persisted 4xu64 via FullNode::set_stats; load-time
+  refresh only on partial loads. One dependent test updated
+  (CarvedNodesAreDeleted: the S-032-era direct-count pin now compares the
+  whole carved subtree population — inner entries are tree rows the og's
+  accumulator counts too).
+- Tests: 3 new (RefreshStatsIsRecursive, ReloadedRootStatsAreRecursive,
+  StatsDeletedCountRecursive) — 3/3 fail-before on the reverted build.
+  Suites: 520/520 core + 21/21 UI + C consumer OK.
+- S-009 verification: the parallel DFX8 lane's landing (c55bd45, storage::
+  FreeMap design with the exFAT allocation-bitmap dentry + REC_ALLOC_MAP)
+  verified green on this tree before starting M-047 (their design supersedes
+  my convergent ClusterBitmap one; my rebase conflicts dropped cleanly).
+
+Stage Summary:
+- M-047 FIXED (520/520 + 21/21 + C OK). Counts: 113 active / 73 FIXED.
+- Next MAJOR targets: M-051 (raw carve provenance), M-035 (engine-side
+  filefilter validation), M-018 (FilterFolder), M-013/M-014 (exFAT).

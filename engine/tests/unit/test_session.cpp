@@ -283,3 +283,116 @@ TEST(Crsf, TornCheckpointSalvagesPrefix) {
      * reports format-error honestly */
     EXPECT_EQ(r.read_record(3, rec), 0x50040001u);
 }
+
+/* ===================================================================== */
+/* M-047: root stats round-trip — the persisted recursive accumulator is  */
+/* stored on load (the og trusts the image, rsf-format :318-320), and   */
+/* refresh_stats accumulates RECURSIVELY (the og's +0x58 accumulator).  */
+/* ===================================================================== */
+
+#include "cr/tree/cr_node.h"
+
+namespace {
+
+void build_nested_tree(tree::ResultTree& t, tree::FullNode*& root_out) {
+    tree::FullNode* r = t.add_root(u"Found Files");
+    root_out = r;
+    /* direct file under the root */
+    {
+        auto* p = new tree::FileProperties();
+        p->name = u"direct.txt";
+        p->logical_size = 100;
+        p->attributes = 0x20;
+        auto* n = t.add_file(r, p);
+        n->set_origin(tree::Origin::Structured);
+        p->release();
+    }
+    /* nested: dir/ dir2/ three files two levels deep */
+    {
+        auto* d = new tree::FileProperties();
+        d->name = u"docs";
+        d->attributes = 0x10; /* ATTR_DIRECTORY */
+        auto* dn = t.add_file(r, d);
+        dn->set_origin(tree::Origin::Structured);
+        d->release();
+        {
+            auto* d2 = new tree::FileProperties();
+            d2->name = u"inner";
+            d2->attributes = 0x10;
+            auto* d2n = t.add_file(dn, d2);
+            d2n->set_origin(tree::Origin::Structured);
+            d2->release();
+            for (int i = 0; i < 3; ++i) {
+                auto* p = new tree::FileProperties();
+                char nm[32];
+                snprintf(nm, sizeof(nm), "file%d.bin", i);
+                std::u16string u;
+                for (const char* q = nm; *q; ++q)
+                    u.push_back(u16(u8(*q)));
+                p->name = u;
+                p->logical_size = 10 + u64(i);
+                p->attributes = 0x20;
+                auto* n = t.add_file(d2n, p);
+                n->set_origin(tree::Origin::Structured);
+                if (i == 1)
+                    n->set_deleted_state(tree::DeletedState::Deleted);
+                p->release();
+            }
+        }
+    }
+}
+
+} // namespace
+
+TEST(SessionTree, RefreshStatsIsRecursive) {
+    /* M-047: the accumulator counts the WHOLE subtree — nested files
+     * contribute to the root totals (the og's +0x58 recursive walk), not
+     * just direct children. Pre-fix: root showed 1 file/100 bytes. */
+    tree::ResultTree t;
+    tree::FullNode* r = nullptr;
+    build_nested_tree(t, r);
+    t.refresh_stats();
+    EXPECT_EQ(r->stats().file_count, 4u); /* direct.txt + 3 nested */
+    EXPECT_EQ(r->stats().dir_count, 2u);
+    EXPECT_EQ(r->stats().total_logical, 100u + 10u + 11u + 12u);
+    EXPECT_EQ(r->stats().deleted_count, 1u); /* file1.bin nested 2 levels deep */
+}
+
+TEST(SessionTree, ReloadedRootStatsAreRecursive) {
+    /* M-047's discriminator: save -> load -> root totals equal the
+     * pre-save recursive totals (the persisted image is STORED on load —
+     * the og's trust model; pre-fix the reader discarded it and the
+     * direct-only refresh re-derived 1 file/100 bytes). */
+    tree::ResultTree t;
+    tree::FullNode* r = nullptr;
+    build_nested_tree(t, r);
+    t.refresh_stats();
+    const u64 files = r->stats().file_count;
+    const u64 dirs = r->stats().dir_count;
+    const u64 logical = r->stats().total_logical;
+    const u64 deleted = r->stats().deleted_count;
+    ASSERT_EQ(files, 4u);
+
+    std::vector<u8> blob;
+    ASSERT_EQ(serialize_tree(t, blob), OK);
+    tree::ResultTree loaded;
+    ASSERT_EQ(deserialize_tree(blob.data(), blob.size(), loaded), OK);
+    ASSERT_FALSE(loaded.roots().empty());
+    const tree::FullNode* lr =
+        static_cast<const tree::FullNode*>(loaded.roots()[0]);
+    /* the persisted image wins on load: same totals by construction */
+    EXPECT_EQ(lr->stats().file_count, files);
+    EXPECT_EQ(lr->stats().dir_count, dirs);
+    EXPECT_EQ(lr->stats().total_logical, logical);
+    EXPECT_EQ(lr->stats().deleted_count, deleted);
+}
+
+TEST(SessionTree, StatsDeletedCountRecursive) {
+    /* deleted files nested two levels count at the root — the direct-only
+     * refresh never saw them (pre-fix: deleted_count 0 at the root) */
+    tree::ResultTree t;
+    tree::FullNode* r = nullptr;
+    build_nested_tree(t, r);
+    t.refresh_stats();
+    EXPECT_EQ(r->stats().deleted_count, 1u);
+}

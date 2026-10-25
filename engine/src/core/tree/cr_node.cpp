@@ -269,23 +269,40 @@ u64 ResultTree::total_logical() const {
 
 void ResultTree::refresh_stats() {
     std::lock_guard<std::mutex> lock(mutex_);
-    /* friend of FileNode: protected links readable on every node */
+    /* M-047: RECURSIVE accumulation - the og's stats accumulator
+     * (rsf-format :285: vtable +0x58 = the recursive walk maintaining
+     * +0x9C/+0xA8/+0xB4/+0xBC) counts the whole subtree, not direct
+     * children: a root whose files live in nested directories reports
+     * them. The old direct-only loop under-reported every nested tree
+     * (and the session reader discarded the persisted image, so reloaded
+     * roots showed 0 until a refresh - then the under-count). */
     for (auto* n : nodes_) {
         if (!n->full_)
             continue;
         FullNode* root = static_cast<FullNode*>(n);
         root->stats_ = FullNode::Stats{};
-        for (FileNode* c = root->first_child_; c != nullptr; c = c->next_sibling_) {
-            if (!c->props())
-                continue;
-            if (c->props()->attributes & 0x10 /* ATTR_DIRECTORY */)
-                ++root->stats_.dir_count;
-            else {
-                ++root->stats_.file_count;
-                root->stats_.total_logical += c->props()->logical_size;
+        /* iterative depth-first stack (subtrees can be deep - no recursion
+         * depth risk); children of file nodes count too (S-032's inner
+         * entry nodes live under carved archive FileNodes and are real
+         * result rows in the og's tree as well). */
+        std::vector<FileNode*> stack;
+        for (FileNode* c = root->first_child_; c != nullptr; c = c->next_sibling_)
+            stack.push_back(c);
+        while (!stack.empty()) {
+            FileNode* cur = stack.back();
+            stack.pop_back();
+            if (cur->props()) {
+                if (cur->props()->attributes & 0x10 /* ATTR_DIRECTORY */)
+                    ++root->stats_.dir_count;
+                else {
+                    ++root->stats_.file_count;
+                    root->stats_.total_logical += cur->props()->logical_size;
+                }
+                if (cur->deleted_state() != DeletedState::Active)
+                    ++root->stats_.deleted_count;
             }
-            if (c->deleted_state() != DeletedState::Active)
-                ++root->stats_.deleted_count;
+            for (FileNode* c2 = cur->first_child_; c2 != nullptr; c2 = c2->next_sibling_)
+                stack.push_back(c2);
         }
     }
 }
