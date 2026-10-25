@@ -647,18 +647,12 @@ TEST(ExfatEngine, FreeMapProducerMatchesSpecBitMapping) {
     EXPECT_EQ(fm.cluster_bytes, 512u);
     /* the 0ba21d8 hardening: cluster numbers 0..cluster_count+1 (the two
      * virtual + ALL data clusters - the first landing dropped the last
-     * two data clusters out of coverage) */
+     * two data clusters out of coverage); FreeMap::cluster_count is the
+     * SLOT-COVERAGE count (cr_freemap.h - is_free bounds cluster <
+     * cluster_count), so the map covers 2 virtual + 100 data slots = 102.
+     * The M-054 pin initially raced the hardening (expected the raw spec
+     * field 100); re-pinned by both lanes convergently. */
     EXPECT_EQ(fm.cluster_count, 102u);
-
-    /* FreeMap::cluster_count = SLOTS COVERED (cr_freemap.h: "clusters
-     * covered by the map"; is_free bounds cluster < cluster_count): the
-     * 2 virtual pre-heap slots + ALL 100 data clusters (slots 2..101) =
-     * 102. The raw spec field is 100 (heap clusters); capping the map at
-     * 100 slots would drop the last two DATA clusters from is_free
-     * coverage - the S-009 hardening's +2 (0ba21d8) landed minutes before
-     * this test was pushed and the two raced; this pin encodes the
-     * coverage semantics the engine ships. */
-    EXPECT_EQ(fm.cluster_count, 100u + 2u);
     /* heap base = sector 25; the map's virtual cluster 0 sits 2 clusters
      * below it (the landed base's linear-cluster convention) */
     EXPECT_EQ(fm.base_byte, u64(25 - 2) * 512);
