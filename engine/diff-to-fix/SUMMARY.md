@@ -197,8 +197,20 @@ table classic / meta-group-0 for meta_bg, verified). Og boot-area rebase
 NOT adopted → **PARITY-DELTAS D-59**. 4 tests (3 fail-before); suite
 434/434 serial; ASan/UBSan fuzz smoke clean.
 
-**Counts after S-027 (direct file inventory):** ACUTE 0 · **SEVERE 8** ·
-MAJOR 34 · MINOR 37 · INFO 18 = **97 active** / **38 FIXED**.
+**S-025 FIXED (this push):** ext4 journal reparenting (the og's two-pass
+model + orphan parent map + iNode%I64d fallback — FUN_180003de0 :2773/:2778,
+FUN_1800043f0 :3077-3145, FUN_1800041e0 :2986-2991, all re-verified first-hand).
+One-structural-pass harvest + topological pre-pass with full inode truth +
+live anchors; claim checks via live_nodes (files too — latent duplicate gap
+closed); sweep skip-set for journal-emitted inodes. 3 tests, all fail-before;
+suite 465/465; ASan/UBSan fuzz smoke clean. The ext4 SEVERE family
+(S-025/S-026/S-027) is now fully closed by this session.
+
+**Counts after S-025 (direct file inventory):** ACUTE 0 · **SEVERE 7** ·
+MAJOR 36 · MINOR 31 · INFO 18 = **92 active** / **53 FIXED** (counts
+re-baselined against the parallel legs' concurrent landings: S-003/S-021
+HFS+ journal pair, S-020 ReFS attribute layer, M-022/M-023/M-026/M-027,
+the minors wave, INFO tier ACKNOWLEDGED).
 
 
 
