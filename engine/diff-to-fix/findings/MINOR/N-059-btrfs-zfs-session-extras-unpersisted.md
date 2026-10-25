@@ -64,3 +64,22 @@ verified.
 
 The precise semantics of ZFS secondary flags (+0x5A) is census-level; carry opaque and
 document UNDECODED.
+
+---
+
+## Session-6 convergence addendum (2026-10-26 — the HFS+ half + the cross-engine ID space)
+
+This session independently filed the per-FS secondary-payload gap (local N-050,
+dropped in the ID reconciliation — the type-registry-ID half converged with
+M-051, the Btrfs/ZFS half with THIS finding) and adds:
+
+1. **HFS+ mode/type fields are part of the same gap** (ifileproperties-part2 —
+   the HFS+ record carries mode + filetype; the core's HFS+ engine reads both
+   during the walk and drops them at emission, same shape as the Btrfs/ZFS
+   losses this finding documents). Recommend folding HFS+ into this finding's
+   fix-plan step (the per-FS payload slot).
+2. **The cross-engine ID-space fact** for the fix's field design: the RAW
+   type-registry ID (+0xF8) shares the og's single ID space with NTFS (+0x60)
+   and the other engines (part3:88) — one shared `type_id` field across
+   engines, not a per-FS enumeration. (M-051 owns the RAW-side citation; this
+   note is the cross-engine constraint on the fix.)

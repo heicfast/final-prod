@@ -1,7 +1,7 @@
 # Evidence — session 6: writer collision naming + mkdir acceptance gates (DRWUI decompile, first-hand)
 
 **Session:** 6 deep-continuation (2026-10-26) · **Audited core commit:** `022c81d`-lineage · **Corpus:** `03ad46c`
-**Cited by:** N-048 (and the D-19 refutation in N-058). Quotes verbatim from `re-workspace/reversed/ghidra-drwui/DRWUI_decompiled.c`.
+**Cited by:** N-065 (and the D-19 refutation in N-058). Quotes verbatim from `re-workspace/reversed/ghidra-drwui/DRWUI_decompiled.c`.
 
 ## 1. Collision-naming loop — `%s_%d` forms, 10,000-attempt cap
 
@@ -62,4 +62,4 @@ Reading: the directory creation result is accepted only on `0` (success) or `0xB
 
 ## 4. D-19 refutation
 
-`docs/PARITY-DELTAS.md:424-428` currently states collision handling is "not evidenced as rename-policy (corpus architecture/04-recovery-workflow.md §7.5; no collision policy in any artifact — AUDIT-UI §5.7 calls it 'unevidenced in og')". The quotes above evidence the og's exact collision policy — D-19's premise is refuted; the fix (N-048 sub-item 3) updates the delta text. Our atomic temp+rename + SHA-256 verify (D-19's other halves) remain deliberate supersets, unaffected.
+`docs/PARITY-DELTAS.md:424-428` currently states collision handling is "not evidenced as rename-policy (corpus architecture/04-recovery-workflow.md §7.5; no collision policy in any artifact — AUDIT-UI §5.7 calls it 'unevidenced in og')". The quotes above evidence the og's exact collision policy — D-19's premise is refuted; the fix (N-065 sub-item 3) updates the delta text. Our atomic temp+rename + SHA-256 verify (D-19's other halves) remain deliberate supersets, unaffected.

@@ -54,7 +54,7 @@ Core side: `src/win/cr_enumerate.cpp:15-60` — `\\.\PhysicalDrive%u` CreateFile
 > - **Health states**: "Good" / "Caution!" / "Normal" / …
 > - **S.M.A.R.T. table**: ID / Attribute / Current / Worst→(ST) / Threshold / RawValue / Status / "Temprature" [sic] — the classic SMART attribute grid
 
-Core side: `src/win/cr_health.cpp:167-187` — the issued command ladder is IDENTIFY (0xEC) + SMART READ DATA (0xB0 feature 0xD0) (+ legacy fallback); 0xD1/0xD8 never issued (contradicting `include/cr/win/cr_health.h:8`'s DELTA comment — N-058 sub-item 5).
+Core side: `src/win/cr_health.cpp:167-187` — the issued command ladder is IDENTIFY (0xEC) + SMART READ DATA (0xB0 feature 0xD0) (+ legacy fallback); 0xD1/0xD8 never issued (contradicting `include/cr/win/cr_health.h:8`'s DELTA comment — N-074 sub-item 5).
 
 ## 7. MATCH register (verified equivalents, no findings)
 

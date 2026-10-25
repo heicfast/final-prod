@@ -1,4 +1,4 @@
-# MAJOR M-040 — FAT/exFAT recycle-bin $I/$R pairing missing (engine capability NTFS has)
+# MAJOR M-052 — FAT/exFAT recycle-bin $I/$R pairing missing (engine capability NTFS has)
 
 **Severity:** MAJOR
 **Module:** fat, exfat (vs ntfs)

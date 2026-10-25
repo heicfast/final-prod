@@ -1,7 +1,7 @@
 # Evidence — session 6: session-format record-4 grammar + IFileProperties payloads (first consumption of the never-cited SaveScan artifacts)
 
 **Session:** 6 deep-continuation (2026-10-26) · **Audited core commit:** `022c81d`-lineage · **Corpus:** `03ad46c`
-**Cited by:** M-041, N-049, N-050, OQ-S6-3. Quotes verbatim from the SaveScan artifacts at `03ad46c`.
+**Cited by:** S-031 (convergence addendum) + M-051 (parallel leg, same census table), N-066, N-059 (convergence addendum), OQ-S6-3. Quotes verbatim from the SaveScan artifacts at `03ad46c`.
 
 ## 1. The carved/RAW IFileProperties payload (12,147-record QA census)
 

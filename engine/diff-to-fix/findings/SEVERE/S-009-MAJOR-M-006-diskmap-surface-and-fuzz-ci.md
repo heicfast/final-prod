@@ -151,4 +151,4 @@ Items 1 and M-005 share one plumbing fix (BitmapProvider) — implement together
 4. Tests: `DiskMap.NtfsFreeCellsFromBitmap` (a FAT-formatted NTFS fixture… no — an NTFS fixture with known-free clusters asserts kCellAllocFree there), `DiskMap.FreeCellsSurviveSessionReload`, `DiskMap.FreeNeverOverridesUsed`.
 5. Acceptance: the four-overlay C-consumer call can report free cells for a structured NTFS scan (today it reports Unknown outside active extents).
 
-**Related:** N-058 (the GAP-S6-11 row that must close-with-residual), the visualization module row (matrix update this session).
+**Related:** N-074 (the GAP-S6-11 row that must close-with-residual), the visualization module row (matrix update this session).

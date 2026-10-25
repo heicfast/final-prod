@@ -1,4 +1,4 @@
-# MINOR N-058 — Doc-drift group #2: five stale/incorrect claims (CAPABILITY-MATRIX LZNT1, CORE-GAP-LIST diskmap row, PARITY-DELTAS D-43 block size, D-19 collision "unevidenced", cr_health.h SMART command list)
+# MINOR N-074 — Doc-drift group #2: five stale/incorrect claims (CAPABILITY-MATRIX LZNT1, CORE-GAP-LIST diskmap row, PARITY-DELTAS D-43 block size, D-19 collision "unevidenced", cr_health.h SMART command list)
 
 **Severity:** MINOR
 **Module:** quality (cross-cutting documentation truth)
@@ -13,11 +13,11 @@ Five documentation-truth defects, each verified against the tree this session: a
 
 ## What the reference does / What our core does
 
-1. **CAPABILITY-MATRIX.md:22** — says NTFS LZNT1 decompression is "not implemented"; the decompressor ships (`src/core/compress/cr_decomp.cpp`, the LZNT1 ladder 0x3f/0x800/0x8000 at the documented corpus anchor NTFSSearchDLL:2916 — independently re-verified this session by the core-uncited-files read) and the MFT walk inflates compressed $DATA through it.
+1. **CAPABILITY-MATRIX.md:22** — the row says "codecs NOT implemented … **MISSING (GAP-P1-1)**" for "NTFS compressed $DATA (LZNT1/XPRESS/LZX)"; the LZNT1 half is stale: the decompressor ships (`src/core/compress/cr_decomp.cpp`, the LZNT1 ladder at the corpus anchor NTFSSearchDLL:2916 — re-verified this session) and the MFT walk inflates compressed $DATA through it (`cr_mftwalk.cpp:7,927-935` — `expand_compressed_data` → codec-tagged extents; the writer inflates). The precise fix: split the row — LZNT1 implemented; XPRESS/LZX a SHARED limitation with the og (both sides LZNT1-only, per the MATCH-by-omission rows).
 2. **CORE-GAP-LIST.md:135** — GAP-S6-11 (visualization data model) marked MISSING; `include/cr/tree/cr_diskmap.h` + `src/core/tree/cr_diskmap.cpp` + the `cr_ui_disk_map` ABI export landed (the C consumer exercises it, tests/ui_abi_check.c:578-612). The row should be CLOSED-with-residual (the free overlay — S-009's addendum).
 3. **PARITY-DELTAS D-43** — describes 64 KiB cache blocks; the live call site is `CachedReader(8 MiB, 256 KiB)` at `src/core/orchestrator/cr_scan.cpp:647` since a4053c4 (D-51 already registers the 256 KiB reality; D-43's text was left behind).
-4. **PARITY-DELTAS D-19** — "collision handling not evidenced as rename-policy … no collision policy in any artifact"; DRWUI_decompiled.c:357116-357131 evidences the exact policy (`%s_%d` forms, 10,000-attempt cap) — see N-048 for the full decode.
-5. **cr_health.h:8** — the DELTA comment lists "0xD1 READ_THRESHOLDS / 0xD8 RETURN_STATUS" in the issued command set; `cr_health.cpp` issues only IDENTIFY (0xEC) and SMART READ DATA (0xB0 feature 0xD0) (verified by grep + read of the ladder at :167-187). The comment over-claims; S-024's fix plan (health grading) will genuinely add threshold reads — until then the comment must tell the truth.
+4. **PARITY-DELTAS D-19** — "collision handling not evidenced as rename-policy … no collision policy in any artifact"; DRWUI_decompiled.c:357116-357131 evidences the exact policy (`%s_%d` forms, 10,000-attempt cap) — see N-065 for the full decode.
+5. **cr_health.h:8-9** — the DELTA comment lists "0xD1 READ_THRESHOLDS / 0xD8 RETURN_STATUS" in the issued command set. **Refined at the merged tree (post-S-024-fix):** 0xD1 is NOW genuinely issued (`cr_health.cpp:192-200`, landed with the S-024 fix `74f9def`) — that half is resolved; **0xD8 RETURN_STATUS remains claimed-but-unissued** (grep of cr_health.cpp: 0 hits). The residual fix: drop 0xD8 from the header list or issue it.
 
 ## Gap
 
@@ -36,7 +36,7 @@ All five verified first-hand this session: code reads + greps at the audited com
 1. CAPABILITY-MATRIX.md:22 — flip the LZNT1 row to implemented (cite cr_decomp.cpp + the MFT-walk inflation site).
 2. CORE-GAP-LIST.md:135 — close GAP-S6-11 with the residual pointer (S-009 addendum: free overlay unproducible).
 3. PARITY-DELTAS D-43 — re-word to the 256 KiB block reality (or collapse into D-51 which already registers it).
-4. PARITY-DELTAS D-19 — rewrite per N-048 (evidenced `%s_%d`/cap-10000 policy + the SHCreateDirectoryExW 0/0xB7 gate; keep our atomic-write/verify supersets).
+4. PARITY-DELTAS D-19 — rewrite per N-065 (evidenced `%s_%d`/cap-10000 policy + the SHCreateDirectoryExW 0/0xB7 gate; keep our atomic-write/verify supersets).
 5. cr_health.h:8 — correct the command list to what ships (0xEC, 0xB0/D0 + legacy fallback), and note threshold reads arrive with S-024's fix.
 6. Tests: none for prose docs; for the header, add a comment-truth pin is overkill — the N-040-family doc-lint (if adopted) covers it.
 7. Acceptance: five greps return the corrected texts.
@@ -47,7 +47,7 @@ All five verified first-hand this session: code reads + greps at the audited com
 
 ## Related findings
 
-N-020 (documentation-drift group #1 — this is group #2, same family); N-040 (ABI doc truthfulness — the header sub-item belongs to that family); N-048 (the D-19 evidence); S-009 addendum (the GAP-S6-11 residual); S-024 (the thresholds that will make the health header true).
+N-020 (documentation-drift group #1 — this is group #2, same family); N-040 (ABI doc truthfulness — the header sub-item belongs to that family); N-065 (the D-19 evidence); S-009 addendum (the GAP-S6-11 residual); S-024 (the thresholds that will make the health header true).
 
 ## Open questions
 

@@ -1,4 +1,4 @@
-# INFORMATIONAL I-019 — DRWCfg.bin persistent config channel (AES config cache, remembered scan mode) is out of the engine's scope; registered deliberately
+# INFORMATIONAL I-023 — DRWCfg.bin persistent config channel (AES config cache, remembered scan mode) is out of the engine's scope; registered deliberately
 
 **Severity:** INFORMATIONAL
 **Module:** orchestration (config), cli
@@ -37,7 +37,7 @@ None.
 
 ## Related findings
 
-M-024 (runtime format-filter surface — the SCAN-AFFECTING config subset, which IS in scope and remains an active finding); I-010 (scope exclusions register — this joins that ledger); N-058 (doc-truth family — if CAPABILITY-MATRIX ever claims parity here, that would be a drift item).
+M-024 (runtime format-filter surface — the SCAN-AFFECTING config subset, which IS in scope and remains an active finding); I-010 (scope exclusions register — this joins that ledger); N-074 (doc-truth family — if CAPABILITY-MATRIX ever claims parity here, that would be a drift item).
 
 ## Open questions
 

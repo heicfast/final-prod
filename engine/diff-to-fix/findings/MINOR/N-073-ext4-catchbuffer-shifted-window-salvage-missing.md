@@ -1,4 +1,4 @@
-# MINOR N-057 — ext4 bad-sector salvage: og re-reads a 1 KiB-backtrack shifted window (CatchBuffer proxy); core zero-fills the failed extent
+# MINOR N-073 — ext4 bad-sector salvage: og re-reads a 1 KiB-backtrack shifted window (CatchBuffer proxy); core zero-fills the failed extent
 
 **Severity:** MINOR
 **Module:** ext4

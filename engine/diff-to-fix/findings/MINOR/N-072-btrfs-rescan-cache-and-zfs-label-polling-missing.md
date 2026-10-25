@@ -1,4 +1,4 @@
-# MINOR N-056 — Btrfs re-scan metadata cache (BtrfsCache.txt) not persisted; ZFS delay-execution import polling absent
+# MINOR N-072 — Btrfs re-scan metadata cache (BtrfsCache.txt) not persisted; ZFS delay-execution import polling absent
 
 **Severity:** MINOR
 **Module:** btrfs, zfs

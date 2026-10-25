@@ -1,4 +1,4 @@
-# MINOR N-055 — Device enumeration breadth: og spans WMI+SetupAPI+VDS+StorageSpaces+FunctionDiscovery; core is a PhysicalDrive CreateFileW loop
+# MINOR N-071 — Device enumeration breadth: og spans WMI+SetupAPI+VDS+StorageSpaces+FunctionDiscovery; core is a PhysicalDrive CreateFileW loop
 
 **Severity:** MINOR
 **Module:** storage (win enumeration layer)

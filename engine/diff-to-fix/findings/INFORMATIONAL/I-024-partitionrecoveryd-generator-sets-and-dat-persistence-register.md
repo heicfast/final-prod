@@ -1,4 +1,4 @@
-# INFORMATIONAL I-020 — PartitionRecoveryD MOM module: two-generator-set lost-partition architecture + lostpart.dat/partinfo.dat persistence — capability register, semantics tracked open
+# INFORMATIONAL I-024 — PartitionRecoveryD MOM module: two-generator-set lost-partition architecture + lostpart.dat/partinfo.dat persistence — capability register, semantics tracked open
 
 **Severity:** INFORMATIONAL (tracked-open semantics; the capability divergence itself is MAJOR-shaped but undecoded — see OQ-S6-1)
 **Module:** lost-partition, orchestration

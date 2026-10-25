@@ -338,6 +338,18 @@ verification of every load-bearing citation before filing (three stale agent cla
 by verification: FAT alt-EOC [N-002 fix live], NTFS BAAD [MATCH both sides], FAT quick-scan
 threading [registered D-30x]).
 
+**Multi-leg ID reconciliation (the parallel audit legs landed S-029..S-032, M-040..M-051,
+N-048..N-064, I-019..I-022 in the same window):** this session's local M-041/M-042/N-050
+CONVERGED with the landed S-031/S-032/M-051+N-059 (same census artifacts, independently
+decoded) — dropped with harvest-addenda on the landed findings; the 14 unique findings
+RENAMED past the taken IDs (M-052, N-065..N-075, I-023/I-024). The parallel fix legs also
+landed fixes this window (S-007 primary set incl. the MPEG sync family, S-020/S-023/S-024,
+S-025..S-028, M-010, M-022..M-027, N-005/N-011/N-012/N-024/N-028/N-038/N-039 …) — this
+session re-verified the overlaps first-hand and posted post-resolution corrections where
+its addenda were authored pre-fix (S-007: bare-MPEG FIXED — registry now carries
+FMT_MPGA_E2..FF + ADTS with validate_mp3_raw; S-024: 0xD1 now issued at cr_health.cpp:192-200,
+only the 0xD8 claim remains stale).
+
 **First-time-cited corpus artifacts (23):** the 6 rawsearchdll carving-family artifacts +
 analyser-registry census + dual-registry u16 decode + zip-analyser carving; rsf-record4
 grammar + ifileproperties-part3; per-engine-function-map; MOM Error/Thread/Common/Config/
@@ -346,51 +358,55 @@ drwcfg/userdata-remoteconfig/vendor-logs; UIUX 13/19/20/24/25. **First-time-cite
 (8):** cr_elevate, cr_destio, cr_snapshot, cr_cached, cr_decomp, cr_sha256, cr_error,
 cr_diskmap (header).
 
-**New findings (17):**
-- **MAJOR (3):** M-040 (FAT/exFAT recycle-bin $I/$R pairing missing — NTFS has it),
-  M-041 (carved files emitted without deleted-state/timestamps/validator payload —
-  sessions round-trip the misstatement), M-042 (archive inner-file inventories missing).
-- **MINOR (12):** N-048 (writer collision format `name_N`/cap 10000 + mkdir 0/0xB7 gates —
-  refutes D-19's "unevidenced"), N-049 (identity card weaker: no firmware/WWN/interface,
-  CRC32 vs 512-byte snapshot), N-050 (node fields: type-registry ID + per-FS secondary
-  payloads), N-051 (exFAT upcase validation skipped), N-052 (ZIP EOCD anchor + LFH gates),
-  N-053 (CAB mscf case key), N-054 (overlap scoring + two-generation fallback), N-055
-  (enumeration breadth), N-056 (Btrfs re-scan cache + ZFS label polling), N-057 (ext4
-  catch-buffer shifted-window salvage), N-058 (doc-drift group #2 — five stale claims
-  incl. the refuted D-19), N-059 (event-bus query-signals + pull-progress + typed
-  IUIProgressInfo).
-- **INFO (2):** I-019 (DRWCfg persistent-config scope register), I-020 (PartitionRecoveryD
+**This session's surviving new findings (14 unique + 3 convergent harvests):**
+- **MAJOR (1):** M-052 (FAT/exFAT recycle-bin $I/$R pairing missing — og IRecycleBinNode2UI;
+  core grep 0; the NTFS-side model exists in-repo to generalize).
+- **MINOR (11):** N-065 (writer collision `name_N`/cap 10000 + mkdir 0/0xB7 gates — refutes
+  D-19's "unevidenced" with decompile evidence), N-066 (identity card weaker: firmware/WWN/
+  interface + 512-byte boot snapshot vs CRC32), N-067 (exFAT upcase validation skipped),
+  N-068 (ZIP EOCD anchor + LFH sanity gates — re-verified absent post-S-007-fix), N-069
+  (CAB mscf case key — re-verified absent), N-070 (overlap scoring + two-generation
+  fallback), N-071 (enumeration breadth), N-072 (Btrfs re-scan cache + ZFS label polling),
+  N-073 (ext4 catch-buffer shifted-window salvage), N-074 (doc-drift group #2 — five stale
+  claims incl. the refuted D-19 and the 0xD8 residual), N-075 (event-bus query-signals +
+  pull-progress + typed IUIProgressInfo).
+- **INFO (2):** I-023 (DRWCfg persistent-config scope register), I-024 (PartitionRecoveryD
   generator-sets + .dat persistence register).
+- **Convergent harvests (addenda on landed findings):** S-031 (session round-trip mechanics
+  + timestamp shape + adjacent-fields pointer), S-032 (results-tree consumer cite + size-
+  from-sum + hostile-cap + nested OQ), N-059 (HFS+ mode/type half + cross-engine ID space).
 
-**Addenda to active findings (9):** S-007 (the family layer — bare-MPEG dispatch gap is the
-headline: 18+ u16 sync keys vs ID3-only; roster with per-family provenance), S-009 (stale
-premise corrected + the free-overlay residual with a concrete fix plan), S-024 (cr_health.h
-doc-truth sub-item), M-017 (CalcPartition class evidence), M-030 (WinPE driver-selection:
-eprdtdrv absent from PE, ebrntdrv/epmdkdrv via NtLoadDriver), M-029 + N-033 (partial fixes
-verified in-tree — path_prefix landed; carve-format ABI registry landed), N-045 (cache
-algorithm divergence + cite refresh). **New tracked-open (3):** OQ-S6-1 (PartitionRecoveryD
-generator-set semantics), OQ-S6-2 (Btrfs RC4 target), OQ-S6-3 (CRAW +0xF4/anchor-B).
+**Addenda to active findings (9):** S-007 (family layer — roster with per-family provenance
++ post-resolution correction), S-009 (stale premise corrected + free-overlay residual with
+concrete fix plan), S-024 (doc-truth sub-item + post-resolution correction), M-017
+(CalcPartition class evidence), M-030 (WinPE driver selection: eprdtdrv absent from PE,
+ebrntdrv/epmdkdrv via NtLoadDriver, win7older==ebrntdrv MD5), M-029 + N-033 (partial fixes
+verified in-tree), N-045 (cache algorithm divergence + cite refresh). **New tracked-open
+(3):** OQ-S6-1 (PartitionRecoveryD generator-set semantics), OQ-S6-2 (Btrfs RC4 target),
+OQ-S6-3 (CRAW +0xF4/anchor-B/checksum).
 
-**Counts after session 6 (direct file inventory):** ACUTE 0 · SEVERE 11 · MAJOR 37 ·
-MINOR 49 · INFO 18 = **115 active** / 34 FIXED; 14 tracked-open files. (11+3 MAJOR, 37+12
-MINOR, 16+2 INFO over the session-5 state.)
-
-**Top new risks:** M-040 (consumer-visible feature gap with an in-repo reference
-implementation to generalize — smallest capability win), M-041 (every carved file
-misreported after session reload — report/query/grading downstream), S-007's bare-MPEG
-sub-item (tagless MP3 recall = complete gap, not a probability).
+**Counts after the session-6 reconciliation (direct file inventory at the merged tree):**
+ACUTE 1 (A-006, parallel leg) · SEVERE 5 (S-009 residual, S-029, S-030, S-031, S-032) ·
+MAJOR 43 · MINOR 55 · INFO 22 = **126 active** / 61 FIXED; 16 tracked-open files. (The
+parallel legs' fix wave moved 27 findings to FIXED in the same window — S-007, S-020..S-028,
+M-010, M-022..M-027, N-005, N-011, N-012, N-024, N-028, N-038, N-039 among them — while
+their audit legs filed A-006, S-029..S-032, M-043..M-051, N-048..N-064, I-021/I-022 and
+landed the fix for A-005 as well; this session's addenda re-verified the overlapping
+fixes first-hand where its citations touched them.)
 
 **Recommended first-10 from this session's crop (for the fix legs):**
-1. M-041 (carve emission: deleted+timestamp — small, high-leverage, unblocks grading work)
-2. M-040 (recycle pairing — generalize the NTFS model; 3 fail-before tests specified)
-3. S-007's bare-MPEG dispatch (the MP3 frame-sync scanner — the family census is the spec)
-4. N-052 (ZIP EOCD anchor + LFH gates — two small validators)
-5. N-048 (writer collision/mkdir alignment + D-19 rewrite — decompile-evidenced)
-6. N-058 (five doc fixes — an hour of work, consumer trust)
-7. N-054 (overlap scoring — collect-then-max instead of break)
-8. M-042 (archive inventories — CarveResult extension; ABI append later)
-9. N-051 (exFAT upcase validation — grade-not-reject)
-10. N-059 (busy/stopping query exports or the deliberate-difference registration)
+1. M-052 (recycle pairing — generalize the NTFS model; 3 fail-before tests specified)
+2. S-031's two-site emission fix (this session's round-trip mechanics make the reload
+   consequence precise — S-031 is the landed canonical finding)
+3. N-074 (five doc fixes + the 0xD8 residual — an hour of work, consumer trust)
+4. N-068 (ZIP EOCD anchor + LFH gates — two small validators; re-verified absent)
+5. N-065 (writer collision/mkdir alignment + D-19 rewrite — decompile-evidenced)
+6. N-070 (overlap scoring — collect-then-max instead of break)
+7. S-032's inventory payload (CarveResult extension; this session's hostile-cap +
+   size-from-sum additions fold into its fix plan)
+8. N-067 (exFAT upcase validation — grade-not-reject)
+9. N-075 (busy/stopping query exports or the deliberate-difference registration)
+10. N-073 (ext4 catch-buffer backtrack — fault-injection test specified)
 
 ---
 
@@ -1246,13 +1262,11 @@ legs in the same window (S-006, S-011, S-015, S-017, S-018-INVALID, N-021, plus 
 A-002/A-004/S-016/M-009 retirements earlier in the session), and the remaining
 unverifieds are all in tracked-open with precise next artifacts.
 
-<<<<<<< HEAD
 *(Session-4 continuation 4: **M-011 + M-012 + M-015 (MAJOR) FIXED** — the FAT
 factory trio (table windows / mirror scrutiny + mirror-only / whole-table
 validation + copy retry). Counts: 28 MAJOR active, 41 FIXED. Fail-before 2/2 +
 3/3 + 2/2; suite 463/463 Linux ASan after five fixture builders gained the
 canonical FAT16 media pair (real-volume shape).)*
-=======
 
 ---
 
@@ -1348,4 +1362,3 @@ MINOR 31 · INFO 18 · tracked-open 12 = **90 active** / **56 files in FIXED/**.
 
 **Live counts (after S-028):** ACUTE 0 · SEVERE 5 · MAJOR 42 ·
 MINOR 44 · INFO 20 · tracked-open 12 = **111 active** / **60 files in FIXED/**.
->>>>>>> 0348532f6a7de11bdf94e47f188bbb4e579b0644

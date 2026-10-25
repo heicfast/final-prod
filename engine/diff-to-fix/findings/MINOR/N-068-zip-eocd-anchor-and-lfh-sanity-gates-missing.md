@@ -1,4 +1,4 @@
-# MINOR N-052 — ZIP carve anchors: EOCD (PK\x05\x06) anchor missing; LFH sanity gates (version_needed ≤ 10, extra ∈ [1,0x102]) missing
+# MINOR N-068 — ZIP carve anchors: EOCD (PK\x05\x06) anchor missing; LFH sanity gates (version_needed ≤ 10, extra ∈ [1,0x102]) missing
 
 **Severity:** MINOR
 **Module:** carve
@@ -46,7 +46,7 @@ Corpus-derived (artifact first-cited this session; the entry-point table quoted 
 
 ## Related findings
 
-S-007 (carve missing common formats — same analyser family; this finding is the zip-internal refinement); N-008 (FIXED — zip padding/target policy; the sector-wise padding nuance from the same artifact is registered there); M-042 (archive inventories — same analyser decode).
+S-007 (carve missing common formats — same analyser family; this finding is the zip-internal refinement); N-008 (FIXED — zip padding/target policy; the sector-wise padding nuance from the same artifact is registered there); S-032 (archive inventories — same analyser decode).
 
 ## Open questions
 

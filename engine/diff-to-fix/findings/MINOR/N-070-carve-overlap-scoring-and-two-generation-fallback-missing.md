@@ -1,4 +1,4 @@
-# MINOR N-054 — Carve overlap resolution: og ranks candidates by accumulated header+tail confidence; core uses trial-order first-wins. Two-generation validator fallback also missing
+# MINOR N-070 — Carve overlap resolution: og ranks candidates by accumulated header+tail confidence; core uses trial-order first-wins. Two-generation validator fallback also missing
 
 **Severity:** MINOR
 **Module:** carve
@@ -46,7 +46,7 @@ Corpus-derived (both artifacts first-cited this session; quotes above). Core sid
 
 ## Related findings
 
-N-030 (raw_signs confidence field — the og's confidence semantics this finding builds on); S-007 addendum (this session — the family-layer roster); M-042 (same analyser family).
+N-030 (raw_signs confidence field — the og's confidence semantics this finding builds on); S-007 addendum (this session — the family-layer roster); S-032 (same analyser family).
 
 ## Open questions
 

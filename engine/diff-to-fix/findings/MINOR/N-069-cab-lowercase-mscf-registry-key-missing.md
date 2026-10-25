@@ -1,4 +1,4 @@
-# MINOR N-053 — CAB carve: lowercase `mscf` registry key missing (og registers both cases)
+# MINOR N-069 — CAB carve: lowercase `mscf` registry key missing (og registers both cases)
 
 **Severity:** MINOR
 **Module:** carve

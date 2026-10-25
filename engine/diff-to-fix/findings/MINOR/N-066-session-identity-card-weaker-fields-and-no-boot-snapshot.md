@@ -1,4 +1,4 @@
-# MINOR N-049 — Session identity card weaker than og record-3: no firmware/WWN/interface fields, CRC32 boot hash instead of the 512-byte snapshot
+# MINOR N-066 — Session identity card weaker than og record-3: no firmware/WWN/interface fields, CRC32 boot hash instead of the 512-byte snapshot
 
 **Severity:** MINOR
 **Module:** session
@@ -46,7 +46,7 @@ Corpus-derived (record-3 artifact first-cited this session — quotes above with
 
 ## Related findings
 
-M-041 (session-format field family — the record-4/node side of the same ledger); N-014 (checkpoint atomicity — same module); I-012 lineage (rsf artifacts previously uncited; this session first-cites them).
+S-031 (session-format field family — the record-4/node side of the same ledger); N-014 (checkpoint atomicity — same module); I-012 lineage (rsf artifacts previously uncited; this session first-cites them).
 
 ## Open questions
 

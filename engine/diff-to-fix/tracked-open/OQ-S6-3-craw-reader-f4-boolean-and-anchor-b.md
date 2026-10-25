@@ -2,7 +2,7 @@
 
 **Filed by:** session-6 deep-continuation audit (agent B session-format read)
 **Status:** OPEN — needs the CRAW reader decompile (`FUN_140c40d80` cited by the corpus artifact)
-**Blocking:** weakens/strengthens the tail-anchor sub-item of M-041 and the RAW payload field set of N-050
+**Blocking:** weakens/strengthens the tail-anchor sub-item of S-031 and the RAW payload field set of N-050
 
 ## The precise questions
 
@@ -21,4 +21,4 @@ The reader-side semantics require the decompile walk; the artifact documents the
 
 ## Related findings
 
-M-041 (carve emission — the validation-payload/tail-anchor items), N-050 (node-field gaps — the RAW payload field set).
+S-031 (carve emission — the validation-payload/tail-anchor items), M-051+N-075 (node-field gaps — the RAW payload field set).

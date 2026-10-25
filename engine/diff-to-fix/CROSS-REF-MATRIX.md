@@ -272,27 +272,27 @@ not-BAAD both sides; FAT quick-scan threading — already registered D-30x).
 
 | Module | Parameter(s) | Verdict change (evidence in the finding + `evidence/decompiled-quotes/s6-*`) |
 |---|---|---|
-| fat | B4/B5/D11/A29 | **M-040** (recycle-bin $I/$R pairing missing — og IRecycleBinNode2UI bridge; NTFS-side model exists in-repo) |
-| exfat | B1/A25/S35 | **N-051** (upcase-table validation skipped); B4/B5/D11 **M-040** (recycle mirror) |
-| carve | A25/D11/P42 | **M-042** (archive inner-file inventories missing) |
-| carve | B1/C19 | **N-053** (CAB mscf case key); B1/A28 **N-052** (ZIP EOCD anchor + LFH sanity gates) |
-| carve | A28/A29/D15/B3 | **N-054** (overlap scoring + two-generation fallback); **S-007 addendum** (bare-MPEG dispatch gap — 18+ u16 sync keys vs ID3-only; family roster with provenance) |
-| session | D11/D12/B4/B9 | **M-041** (carved files: deleted flag + timestamp + validator payload dropped at emission; sessions round-trip the misstatement) |
-| session | D12/S36 | **N-049** (identity card: firmware/WWN/interface + 512-byte boot snapshot vs model/serial/CRC32) |
-| session/tree | D11/D12/P42 | **N-050** (type-registry ID + per-FS secondary payload slots missing) |
-| writer | A27/S35/P46 | **N-048** (collision `name_N`/cap 10000 vs ` (N)`/cap 64/`_dup`; mkdir 0/0xB7-only; **D-19 premise refuted** with decompile evidence) |
+| fat | B4/B5/D11/A29 | **M-052** (recycle-bin $I/$R pairing missing — og IRecycleBinNode2UI bridge; NTFS-side model exists in-repo) |
+| exfat | B1/A25/S35 | **N-067** (upcase-table validation skipped); B4/B5/D11 **M-052** (recycle mirror) |
+| carve | A25/D11/P42 | **S-032 (converged)** (archive inner-file inventories missing) |
+| carve | B1/C19 | **N-069** (CAB mscf case key); B1/A28 **N-068** (ZIP EOCD anchor + LFH sanity gates) |
+| carve | A28/A29/D15/B3 | **N-070** (overlap scoring + two-generation fallback); **S-007 addendum** (bare-MPEG dispatch gap — 18+ u16 sync keys vs ID3-only; family roster with provenance) |
+| session | D11/D12/B4/B9 | **S-031 (converged)** (carved files: deleted flag + timestamp + validator payload dropped at emission; sessions round-trip the misstatement) |
+| session | D12/S36 | **N-066** (identity card: firmware/WWN/interface + 512-byte boot snapshot vs model/serial/CRC32) |
+| session/tree | D11/D12/P42 | **M-051+N-059 (converged)** (type-registry ID + per-FS secondary payload slots missing) |
+| writer | A27/S35/P46 | **N-065** (collision `name_N`/cap 10000 vs ` (N)`/cap 64/`_dup`; mkdir 0/0xB7-only; **D-19 premise refuted** with decompile evidence) |
 | health | P46/P68 | **S-024 addendum** (cr_health.h claims 0xD1/0xD8 never issued — doc-truth sub-item; capability gap stays S-024) |
-| storage | B8/P42/A54 | **N-055** (enumeration breadth: 5-stack fan-in vs PhysicalDrive loop) |
+| storage | B8/P42/A54 | **N-071** (enumeration breadth: 5-stack fan-in vs PhysicalDrive loop) |
 | storage | P47/P48 | **N-045 addendum** (cache ALGORITHM: og prefetch read-ahead vs core reactive LRU; cite refreshed to :647/256 KiB) |
-| ext4 | A27/S35/B2 | **N-057** (CatchBuffer 1 KiB-backtrack shifted-window salvage vs zero-fill) |
-| btrfs | P47/P48/S36 | **N-056** (BtrfsCache.txt re-scan cache); **OQ-S6-2** (RC4 PRGA target) |
-| zfs | A25/S35 | **N-056** (label import polling); INFO-register (lzjb/zle/gzip decode — no divergence claimable, evidence ledger only) |
-| lost-partition | A30/A37/D12 | **I-020** (PartitionRecoveryD generator-sets + .dat persistence register) + **OQ-S6-1** (decode request); **M-017 addendum** (CalcPartition class evidence) |
-| orchestrator | A38/A41/P42/A44 | **N-059** (event-bus query-signals + pull-progress convention + typed IUIProgressInfo); **I-019** (DRWCfg scope register) |
+| ext4 | A27/S35/B2 | **N-073** (CatchBuffer 1 KiB-backtrack shifted-window salvage vs zero-fill) |
+| btrfs | P47/P48/S36 | **N-072** (BtrfsCache.txt re-scan cache); **OQ-S6-2** (RC4 PRGA target) |
+| zfs | A25/S35 | **N-072** (label import polling); INFO-register (lzjb/zle/gzip decode — no divergence claimable, evidence ledger only) |
+| lost-partition | A30/A37/D12 | **I-024** (PartitionRecoveryD generator-sets + .dat persistence register) + **OQ-S6-1** (decode request); **M-017 addendum** (CalcPartition class evidence) |
+| orchestrator | A38/A41/P42/A44 | **N-075** (event-bus query-signals + pull-progress convention + typed IUIProgressInfo); **I-023** (DRWCfg scope register) |
 | visualization | P42/D-model | **S-009 addendum** (stale premise corrected — surface landed; residual: kCellAllocFree dead, VolumeBitmap discarded) |
 | query | P42 (sort Type) | **M-029 addendum** (path_prefix landed and verified in-tree — path-group sub-item CLOSED; Type key/bucket IDs/paging/server-push remain) |
 | abi (cr_ui) | P42 | **N-033 addendum** (carve-format registry landed — ABI sub-item CLOSED; CLI listing sub-item remains) |
-| quality (cross-cutting) | P46/P68 | **N-058** (doc-drift group #2: CAPABILITY-MATRIX LZNT1, CGL:135 diskmap, D-43 block size, D-19 collision, cr_health.h SMART list) |
+| quality (cross-cutting) | P46/P68 | **N-074** (doc-drift group #2: CAPABILITY-MATRIX LZNT1, CGL:135 diskmap, D-43 block size, D-19 collision, cr_health.h SMART list) |
 
 New tracked-open: **OQ-S6-1** (PartitionRecoveryD generator-set semantics), **OQ-S6-2**
 (Btrfs RC4 target), **OQ-S6-3** (CRAW +0xF4/anchor-B/checksum consumption) — 14 tracked-open

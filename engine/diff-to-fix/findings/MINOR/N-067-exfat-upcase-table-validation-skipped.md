@@ -1,4 +1,4 @@
-# MINOR N-051 — exFAT upcase-table validation skipped (TYPE_UPCASE bypassed entirely)
+# MINOR N-067 — exFAT upcase-table validation skipped (TYPE_UPCASE bypassed entirely)
 
 **Severity:** MINOR
 **Module:** exfat

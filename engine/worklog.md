@@ -7603,6 +7603,7 @@ Stage Summary:
 >>>>>>> 7fdd51a (fix(S-028): btrfs xattr recovery — user.DOSATTRIB attribute bits, user.* stream records, the compression-property tag)
 
 ---
+<<<<<<< HEAD
 Task ID: S7-MERGE2
 Agent: main engineer (closing session, df5 lineage)
 Task: Converge with the 5b0bc7b arc (S-025 ext4 reparenting, S-028 btrfs xattrs, the api-close handoff) + the A-006 ID-collision resolution.
@@ -7824,3 +7825,58 @@ Stage Summary:
   only deliberate divergence (failing-bit → disk Bad) registered as
   D-62. Open health items: M-036 (NVMe field coverage), N-032 (CSMI/
   USB transports), N-042 (CLI temp digit), N-064 (Dict dictionary).
+=======
+Task ID: S6-WAVE1+RECON (session-6 deep continuation, wave 1 + the multi-leg ID reconciliation)
+Agent: session-6 parity auditor (read-only continuation — never-cited surfaces + fix verification)
+Task: Execute the session-5 citation-gap lanes (A-H, defined 2001f7c, never run), verify/update
+landed fixes, file the findings; reconcile against the parallel legs' same-window landings.
+
+Work Log:
+- Bootstrap: core pulled at bf7df39 (S-012 hostile-smoke verify leg) → 022c81d (worklog only);
+  corpus 03ad46c (unmoved). State truth reconciled: the "remaining SEVERE 5" handoff claim was
+  lane-scoped; 11 SEVERE active at session start.
+- Fix-verification wave (the "update the fixed things" mandate): M-029 path_prefix (7840176) and
+  N-033 carve-format ABI registry (1f08c20) verified in-tree — addenda appended (path-group
+  sub-item CLOSED; CLI sub-item open); N-045 cite drift noted (cr_scan.cpp:610→647, 64→256 KiB).
+- Citation-gap analysis re-run: 237 never-cited corpus artifacts; the in-scope set identified
+  (6 carve families, census/dual-registry/zip, rsf-record4 + ifileproperties-part3,
+  per-engine-function-map, MOM 5 + mom-arch, WinPE 2, config 3, UIUX 13/19/20/24/25) + 8
+  never-cited core files (elevate/destio/snapshot/cached/decomp/sha256/error/diskmap).
+- 5 parallel read agents (A carve-families, B session-format, C function-map, D core-uncited,
+  E MOM/WinPE/config/UIUX) → context sheets (scratch, not committed); every load-bearing
+  citation then verified FIRST-HAND before filing — three stale agent claims filtered
+  (FAT alt-EOC: N-002 fix live at cr_chain.cpp:71-82; NTFS BAAD: MATCH not-BAAD both sides
+  cr_mftwalk.h:6; FAT quick-scan threading: registered PARITY-DELTAS:402).
+- 17 findings filed + 9 addenda + 3 tracked OQs (wave-1 commit 9e13b18 pre-rebase).
+- MID-WAVE LANDING: the parallel legs pushed 50+ commits (fix wave: S-007 primary set incl.
+  MPEG sync family, S-020/S-023/S-024/S-025..S-028, M-010/M-022..M-027, N-005/N-011/N-012/
+  N-024/N-028/N-038/N-039, A-005; audit wave: A-006, S-029..S-032, M-040..M-051, N-048..N-064,
+  I-019..I-022). Rebase conflicts resolved append-only (15 files).
+- ID reconciliation: my M-041/M-042/N-050 CONVERGED with their S-031/S-032/M-051+N-059 (same
+  census artifacts independently decoded) — dropped with harvest-addenda on the landed
+  findings (round-trip mechanics + timestamp shape on S-031; results-tree consumer cite +
+  size-from-sum + hostile-cap + nested OQ on S-032; HFS+ mode/type + cross-engine ID space
+  on N-059); 14 unique findings renamed past the taken IDs: M-052, N-065..N-075, I-023/I-024;
+  all cross-references rewritten (scoped to my sections; their files untouched).
+- Post-resolution corrections (my addenda authored pre-fix, honestly corrected): S-007's
+  bare-MPEG headline is FIXED (FMT_MPGA_E2..FF + ADTS + validate_mp3_raw verified at
+  cr_registry.cpp:365-500) — the live sub-items narrow to the ~25 niche remainder + N-068
+  (ZIP EOCD/LFH gates re-verified absent) + N-069 (mscf re-verified absent) + N-070 + S-032;
+  S-024's 0xD1 now genuinely issued (cr_health.cpp:192-200) — only the 0xD8 header claim
+  remains stale (N-074 sub-item 5 refined); N-074 sub-item 1 refined (CAPABILITY-MATRIX
+  conflates implemented-LZNT1 with the XPRESS/LZX shared limitation; cr_mftwalk.cpp:7,927-935
+  wiring cited).
+- Matrix reconciliation note + session-6 table; 13 module-row updates; SUMMARY session-6
+  delta rewritten post-reconciliation with the authoritative count.
+
+Stage Summary:
+- Session-6 wave-1 + reconciliation end state: 126 active (1 ACUTE [A-006, parallel leg] ·
+  5 SEVERE [S-009 residual, S-029, S-030, S-031, S-032] · 43 MAJOR · 55 MINOR · 22 INFO) /
+  61 FIXED / 16 tracked-open. This session's surviving crop: M-052, N-065..N-075, I-023/I-024
+  + the three harvest-addenda + nine verification addenda. 23 corpus artifacts + 8 core files
+  first-cited. All pushed.
+- Recommended next (fix lanes): M-052 recycle pairing (in-repo NTFS model to generalize) →
+  S-031 two-site emission fix → N-074 doc batch → N-068 ZIP validators → N-065 writer
+  collision/D-19 → N-070 overlap scoring → S-032 payload → N-067 upcase → N-075 query
+  exports → N-073 catch-buffer.
+>>>>>>> 4a3f5d4 (diff-audit-s6 recon: multi-leg ID reconciliation — 3 convergent findings harvested into the landed S-031/S-032/N-059; 14 unique renamed (M-052, N-065..N-075, I-023/I-024); post-resolution corrections for the same-window fix wave (S-007 MPEG-family landed, S-024 0xD1 landed) — append-only, cross-refs scoped to session-6 sections only)

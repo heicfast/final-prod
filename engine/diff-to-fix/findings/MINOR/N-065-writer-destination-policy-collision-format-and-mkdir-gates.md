@@ -1,4 +1,4 @@
-# MINOR N-048 — Writer destination-policy minors: collision name format/cap + mkdir acceptance gates (refutes D-19's "unevidenced in og")
+# MINOR N-065 — Writer destination-policy minors: collision name format/cap + mkdir acceptance gates (refutes D-19's "unevidenced in og")
 
 **Severity:** MINOR
 **Module:** writer

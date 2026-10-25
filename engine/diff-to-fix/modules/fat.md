@@ -210,7 +210,7 @@ rejects; mirror-only mode) stays open.
 | ID | Severity | One-line |
 |---|---|---|
 | M-040 | MAJOR | FAT recycle-bin `$I/$R` pairing missing (og: IRecycleBinNode2UI bridge, fat-exfat-engine-internals.md:21,37-40; core grep 0 hits; NTFS has the full model at cr_mftwalk.cpp:162-250) |
-| N-048 (writer side) | — | (writer module row) — collision/mkdir destination policy |
+| N-065 (writer side) | — | (writer module row) — collision/mkdir destination policy |
 | MATCH-note | — | FAT alternate-EOC families: N-002's fix VERIFIED live this session (cr_chain.cpp:71-82,166-174 handles 0x0FFFFFF0..F7) — a stale divergence claim from the session's agent read was caught by verification and filed nowhere |
 
 Function-map additions (per-engine-function-map.md, first-cited): `CFATQuickSearchWorker`

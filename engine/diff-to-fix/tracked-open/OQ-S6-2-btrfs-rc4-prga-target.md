@@ -6,7 +6,7 @@
 
 ## The precise questions
 
-1. **What content does the RC4 PRGA in BtrfsSearchDLL decrypt?** The capa-verified evidence says "RC4 PRGA (encrypted-dataset support)" (remaining-engines--ext4-hfs-refs-btrfs-zfs.md:68-69). Btrfs itself has no in-band encryption in the mainline on-disk format — so what is the target? Hypotheses: (a) a vendor-specific obfuscated metadata blob; (b) the engine's own BtrfsCache.txt obfuscation (see N-056 — the cache file could be RC4-obfuscated, which would explain a PRGA in a caching engine); (c) btrfs-progs-adjacent encrypted-subvolume extensions.
+1. **What content does the RC4 PRGA in BtrfsSearchDLL decrypt?** The capa-verified evidence says "RC4 PRGA (encrypted-dataset support)" (remaining-engines--ext4-hfs-refs-btrfs-zfs.md:68-69). Btrfs itself has no in-band encryption in the mainline on-disk format — so what is the target? Hypotheses: (a) a vendor-specific obfuscated metadata blob; (b) the engine's own BtrfsCache.txt obfuscation (see N-072 — the cache file could be RC4-obfuscated, which would explain a PRGA in a caching engine); (c) btrfs-progs-adjacent encrypted-subvolume extensions.
 2. **Where does the key come from** (hardcoded, volume-derived, or file-adjacent)?
 3. **Does the og recover content the core cannot** because of this path? (The core has no RC4 anywhere — grep-verified.)
 
@@ -21,4 +21,4 @@ The artifact lists the capa finding without the call graph; the PRGA's role (cac
 
 ## Related findings
 
-N-056 (BtrfsCache.txt — hypothesis (b) makes this OQ a dependency of that finding's cache design); S-028 (Btrfs xattr recovery — the active SEVERE in the same engine).
+N-072 (BtrfsCache.txt — hypothesis (b) makes this OQ a dependency of that finding's cache design); S-028 (Btrfs xattr recovery — the active SEVERE in the same engine).

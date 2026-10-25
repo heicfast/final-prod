@@ -183,10 +183,26 @@ The six carving-family artifacts (`rawsearchdll--family-{brance,bruteforce,fileg
 
 - **Bare MPEG audio is unreachable in the core**: the og's dual registry dispatches 18+ MPEG frame-sync u16 keys (`raw-dual-registry--u16-magic-keys.md:38-41` — 0xFFF2..0xFFFF ×12, 0xFFE2..0xFFE7 ×6, 0xFFF1 ADTS, 0xF9FF) into the BruteForce `CMP3` frame-sync scanner; the core's MP3 anchor is `ID3`-only (`cr_registry.cpp:197`) AND `validate_mp3` itself rejects non-ID3 headers (`cr_analysers.cpp:1247-1248`) — bare-stream MP3s (no ID3 tag — a large fraction of real-world files) are a complete recall gap. This is the single highest-value addition to this finding's roster.
 - **The ~45-format family census** (BruteForce/RawSpeed/Brance/FileGen/Special/xjq rosters, `rawsearchdll--analyser-registry-census.md:45-117`) — GIF, BMP, SWF, TTF, WMF/EMF, WPD, OLE, MDB, TAR, GZ, LZH, HTML/SVG, RM, MPG, MXF, OGG, ADTS, APE, DWG/DXF, EPS, ICO, CHM, HLP, AU/AIF, VCF, GPX, MOBI, JP2, CRW, X3F, DMG, ONE, dBase, … — extends the roster this finding already registered, now with per-family provenance instead of aggregate claims.
-- **Case-variant keys**: og registers `MSCF` AND `mscf` (census:94,127) → split to **N-053** (own finding, single-format scope).
-- **ZIP anchor set + LFH sanity gates**: EOCD-first zips + version_needed/extra gates → split to **N-052**.
-- **Overlap scoring + two-generation fallback chain** (census:43, searchdll-family--architecture:73) → split to **N-054**.
-- **Archive inner-file inventories** (zip-carve:38,64) → split to **M-042** (MAJOR — capability, not just coverage).
+- **Case-variant keys**: og registers `MSCF` AND `mscf` (census:94,127) → split to **N-069** (own finding, single-format scope).
+- **ZIP anchor set + LFH sanity gates**: EOCD-first zips + version_needed/extra gates → split to **N-068**.
+- **Overlap scoring + two-generation fallback chain** (census:43, searchdll-family--architecture:73) → split to **N-070**.
+- **Archive inner-file inventories** (zip-carve:38,64) → split to **S-032** (MAJOR — capability, not just coverage).
 - Refinements that are MATCH/superset, no finding: RAR4 fast-accept on signature alone (core stricter — full block walk); PST "MS"-magic + AMap gates (core superset); RAR5 fully implemented in core vs og-rejects (core superset); raw_signs tail-scope per-format + 8 MiB bound (already FIXED via S-015 with og range documented).
 
 The core-side grep for every census format against `cr_registry.cpp` + `cr_rawsigns_data.cpp` is in the evidence file. This finding remains SEVERE and active; the addendum's new sub-items carry their own finding files so the fix legs can take them independently.
+
+### Post-resolution correction (session 6, after the fix landed)
+
+This addendum was authored against the pre-fix tree in the same window the parallel
+fix leg landed `587a98a` ("S-007 primary set"). Re-verified at the merged tree
+(`5b0bc7b`-lineage): **the bare-MPEG headline sub-item is FIXED** — the registry now
+carries the full headerless MPEG-audio sync family (FMT_MPGA_E2..E7 / F2..FF rows +
+ADTS, each sharing the 10-frame BruteForce walker `validate_mp3_raw`,
+`cr_registry.cpp:365-500`). The addendum's REMAINING live sub-items after the fix:
+the **~25 niche og-only formats** (the Resolution's own precisely-scoped remainder —
+the family census is the work list), **N-069** (CAB `mscf` case key — re-verified
+absent at the merged tree), **N-068** (ZIP EOCD anchor + LFH sanity gates — re-verified
+absent), **N-070** (overlap scoring + two-generation fallback — mechanism-level, not
+format coverage), and **S-032** (archive inventories). The addendum's roster value
+stands: it converts the aggregate claim into per-family provenance for the remainder
+work.

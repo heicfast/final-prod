@@ -1,4 +1,4 @@
-# MINOR N-059 — Event-bus contract shape: og query-signals (bidirectional, reference-out) + pull-polled progress + typed IUIProgressInfo vs core one-way push
+# MINOR N-075 — Event-bus contract shape: og query-signals (bidirectional, reference-out) + pull-polled progress + typed IUIProgressInfo vs core one-way push
 
 **Severity:** MINOR
 **Module:** orchestration (callback model), abi

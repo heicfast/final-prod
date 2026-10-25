@@ -23,4 +23,4 @@ The artifacts present class inventories and strings only; the generator-set divi
 
 ## Related findings
 
-I-020 (the register), M-017 (the core's single-pass scorer), S-006-FIXED / S-019-FIXED (the probe families the generator sets would drive).
+I-024 (the register), M-017 (the core's single-pass scorer), S-006-FIXED / S-019-FIXED (the probe families the generator sets would drive).

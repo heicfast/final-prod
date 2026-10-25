@@ -1,7 +1,7 @@
 # Evidence — session 6: the RAWSearchDLL family layer (never-cited artifacts, first consumption)
 
 **Session:** 6 deep-continuation (2026-10-26) · **Audited core commit:** `022c81d`-lineage · **Corpus:** `03ad46c`
-**Scope:** the six carving-family artifacts + the analyser-registry census + the dual-registry u16 decode + the zip-analyser carving decode — cited by S-007 (addendum), N-052, N-053, N-054, M-042. All quotes verbatim from the corpus at `03ad46c`.
+**Scope:** the six carving-family artifacts + the analyser-registry census + the dual-registry u16 decode + the zip-analyser carving decode — cited by S-007 (addendum), N-068, N-069, N-070, S-032 (post-renumber; the convergence addenda on S-031/S-032 carry the harvest). All quotes verbatim from the corpus at `03ad46c`.
 
 ## 1. The two-generation fallback chain
 
