@@ -503,3 +503,21 @@ flagship scenario, ranking with S-012 (NTFS two-pass membership) and S-020 (ReFS
 resident content) in the recommended fix order (see the fix session's lane note:
 S-012's flag flip first, then the S-021/S-022 substrates, then the S-017/S-018 carve
 pair with M-025's state machine).
+
+**Wave-2 post-rebase correction (S3 lead, 2026-10-26):** while wave 2 was in
+flight, the parallel fix legs landed `1cc08c3` (**S-017 FIXED** — BMFF entries
+re-keyed on the ftyp box TYPE, match_signature extracted, F8 structural self-probe
+rejects the all-zero-magic class, FMT_MOV_NAKED salvage, 6 fail-before/pass-after
+tests, suite 320/320) and `2adfa29` (**S-018 INVALID** — the JPEG EOI premise was a
+grep artifact: Ghidra renders 0xD9 as the signed char `-0x27`, and the modern
+analyser's FF D9 sites at :39705/:39719/:39750/:39968/:39989 gate its accept/size
+path; the S3 lead independently re-verified the five sites first-hand this session
+— the refutation is correct; the legacy-body residual + fallback/continuation
+questions are tracked in `tracked-open/OQ-S3-jpeg-fallback-and-continuation.md`;
+no code change, correctly). Also landed: S-006 fixed (`abe8e36`), N-021 fixed
+(`6fc8c0e`), S-015 fixed (`021e2e6`), and the api-session leg's ABI wave
+(`a3fdab4` gate docs + `1f08c20` carve-format registry ops #7-#8 — which addresses
+M-024/N-033's ABI surface; verify at the next fix-verification pass).
+**Re-baselined counts:** ACUTE 0 · SEVERE **13** (S-003, S-007, S-009-partial,
+S-011..S-014, S-019..S-022) · MAJOR 22 · MINOR 34 · INFO 12 · **total active 81**
+(22 in FIXED/ — S-017, S-018(invalid), S-006, S-015, N-021 joined the fixed set).

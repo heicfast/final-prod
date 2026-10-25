@@ -4841,3 +4841,32 @@ Stage Summary:
   grading, allocation-grading visibility, og's journal transaction-magic derivation
   (S-021 open question), S-022's orphan-collection $-name filtering. IDs returned
   to the pool unused: M-028/M-029, N-040..N-042, I-015.
+---
+Task ID: S3-W2b (wave-2 post-rebase corrections — S-017/S-018 dispositions)
+Agent: session-3 continuation auditor (read-only, S3 lead)
+Task: Absorb the parallel legs' landings that hit MY wave-1/2 findings mid-flight.
+
+Work Log:
+- S-017 FIXED by the fix leg (1cc08c3): BMFF entries re-keyed on the "ftyp" box TYPE
+  (header_offset 4; the box SIZE is data), match_signature extracted + shared with a
+  new F8 self-probe that structurally rejects the all-zero-first-four-bytes magic
+  class, FMT_MOV_NAKED conservative salvage (raw-sign confidence 620), 6
+  fail-before/pass-after tests, suite 320/320. Verified via the FIXED/ Resolution
+  read; matrix cell updated.
+- S-018 INVALID by the refuting leg (2adfa29) — and the S3 lead INDEPENDENTLY
+  RE-VERIFIED the refutation first-hand this session: grep for -0x27/0xffffffd9 in
+  RAWSearchDLL_decompiled.c finds the FF D9 pairs (-1 + -0x27 signed-char rendering)
+  at :39705/:39719/:39750/:39968/:39989 inside FUN_180033a90's body — the modern
+  JPEG analyser IS EOI-gated. My agent's "no 0xD9 anywhere" was a literal-text grep
+  artifact (Ghidra signed-char rendering). Finding preserved per the audit-trail
+  contract; legacy-body + fallback/continuation residuals tracked in
+  tracked-open/OQ-S3-jpeg-fallback-and-continuation.md. No code change (correct —
+  loosening validate_jpeg on a refuted premise would be a premise-driven
+  regression). Matrix cell updated; lesson recorded: signed-char rendering must be
+  part of every constant-search SOP (add to the PROTOCOL's probe guidance).
+- Also absorbed: S-006 fixed (abe8e36), N-021 fixed (6fc8c0e), S-015 fixed
+  (021e2e6), api-session ABI wave (a3fdab4 + 1f08c20 carve-format registry ops
+  #7-#8 — addresses M-024/N-033's ABI surface; verification belongs to the next
+  fix-verification pass).
+- SUMMARY re-baselined: 0 ACUTE / 13 SEVERE / 22 MAJOR / 34 MINOR / 12 INFO = 81
+  active / 22 FIXED.
