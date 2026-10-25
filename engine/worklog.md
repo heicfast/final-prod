@@ -7200,3 +7200,38 @@ Stage Summary — the session-5 handoff record:
   (d) the session-loader wave M-047/M-050/N-058 (reserve the node-flag bits the
   grading persistence already uses — bit 3 carries {grade|overlap} per the S-023
   resolution; M-050's carriers must not collide with it).
+
+Task ID: DFX7-T1
+Agent: main engineer (diff-to-fix session 7)
+Task: Close the INFORMATIONAL tier — verify all 18 findings' deliberate-difference
+rationales against corpus + running code; ACKNOWLEDGE with evidence; land the
+registrations and pin tests their fix plans demand.
+
+Work Log:
+- Read all 18 INFO findings in full; for each, re-read the cited corpus artifact
+  (decompile) and the core code paths first-hand. No rationale was found wrong;
+  no finding required a code change (correct outcome for the tier).
+- Verified highlights: ext4 og second-only timestamps (EXT4SearchDLL:5494-5515,
+  msec=0 hardcoded; :6255-6258 zero slots) vs core decode_extra/unix_to_filetime_ns
+  (I-006/I-007); LdmManager +0x2a8 exactly one ctor write =0 with four branch
+  reads — core implements the enabled left-symmetric mode algebraically identically
+  (I-008); RAWSearchDLL :9496 whole-sector stepping vs core scan_one_window
+  byte-step (I-009); ReFS no-ADS on both sides (I-012, current emit_file post-S-020
+  still one record/one runlist per file row); ReFS host gate og-only (I-013, the
+  core's only "GetVersion" is the RDA IOCTL); EPM tool-ops zero code in core
+  (I-019, grep-verified); NVMe route byte-parity re-confirmed (I-018).
+- Appended Resolution sections (ACKNOWLEDGED, first-hand citations) to
+  I-006..I-020 (15 files; I-001/I-002/I-003 carried prior acks).
+- Landed the actions the findings demanded:
+  * I-009 addendum pin test CarveEngine.CarvesMidSectorStart (PNG at sector+137;
+    asserts offset/format/65-byte grammar end). Suite 440/440 Linux ASan green.
+  * PARITY-DELTAS D-59a..D-59k — the registration rows for I-006..I-019.
+  * modules/visualization.md stale D16 figure updated (I-011's leftover; the
+    M-023 FIXED state supersedes the 7-cat/85-ext vs 8/1489 gap figure).
+- Updated diff-to-fix/SUMMARY.md with the session-7 delta + INFO-tier counts.
+
+Stage Summary:
+- INFO tier: 18/18 ACKNOWLEDGED, zero actionable. Registered supersets are now
+  all in PARITY-DELTAS (D-48 family + D-59a..k). Next: MINOR tier (31 files,
+  29 active findings + N-004..N-006 group), then MAJOR (38), SEVERE (9),
+  TRACKED-OPEN (13).

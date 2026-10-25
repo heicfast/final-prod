@@ -34,3 +34,17 @@ None.
 **Status:** ACKNOWLEDGED
 **Verified by:** cr_slice.cpp eager validation (null/zero/alignment/overflow) re-read this session; byte units + per-call error codes + persistent ReadErrorMap confirmed; the og's sector-units/sticky-error/null-guard model cited in evidence/s3-virtual-volume-device.md.
 **Resolution notes:** Deliberate storage-layer supersets, preserved: byte anchoring (F1), eager ctor validation, per-call HRESULT-styled errors, the clean-room ReadErrorMap. The og's sticky last-error and null-buffer -2 semantics are NOT ported (weaker contract). Future work must keep the eager validation.
+
+**Status:** ACKNOWLEDGED (deliberate supersets ledger — preserved)
+**Verified by:** this session: `cr_slice.cpp:15-41` eager validation
+(null / zero-length / alignment / overflow) re-read directly; per-call
+error codes (`cr_error.h`) and the persistent ReadErrorMap
+(`cr_devmap.cpp`) confirmed; no sticky-error channel, no null-buffer
+guard (the og's −2 stick-error model is the thing we do NOT adopt).
+**Resolution notes:** no code change. The optional one-line null-buffer
+guard is deliberately NOT added — per-call validation at the ctor
+boundary already rejects null parents, and adding a second guard at read
+time would duplicate the contract (the og needed it because its ctor
+validates nothing). The one behavioral divergence (tail-read
+clamp-vs-refusal) remains M-032 (MAJOR tier). Registered as PARITY-DELTAS
+**D-59j**.

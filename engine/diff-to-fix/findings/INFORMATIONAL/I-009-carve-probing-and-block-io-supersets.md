@@ -22,3 +22,17 @@ silently regress the superset by adopting sector-aligned dispatch.
 **Status:** ACKNOWLEDGED
 **Verified by:** first-hand code re-read (cr_carve.cpp: 1 MiB WINDOW + 4 KiB OVERLAP constants; byte-stepped probing) and the og cites re-checked (sector-aligned probe at :9496; 4 MiB/8 MiB block shapes at :9269-96).
 **Resolution notes:** Deliberate supersets, preserved: byte-step probing (finds mid-sector headers the og cannot see - bench core-only finds are expected) and the different-but-contract-equivalent block shape. The registered bench-filter note is the operative part: core-only finds on non-aligned starts are NOT parity regressions.
+
+**Status:** ACKNOWLEDGED (deliberate superset — pinned this session)
+**Verified by:** first-hand re-verification this session: corpus
+`RAWSearchDLL_decompiled.c:9496` — candidate = `buffer + half +
+sector_size × sector_index` (whole-sector stepping, re-read directly);
+core `src/core/carve/cr_carve.cpp` `scan_one_window` — `for (u64 off = 0;
+off + 12 <= want; ++off)` byte-stepped (re-read directly).
+**Resolution notes:** rationale correct; the session-3 addendum's action
+item is now DONE: pin test
+`CarveEngine.CarvesMidSectorStart` added (a valid PNG planted at
+sector+137 — invisible to any sector-aligned prober — must surface; asserts
+exact offset, FMT_PNG, and the 65-byte grammar end). Suite 440/440 ASan
+green. Registered as PARITY-DELTAS **D-59c**. The M-025 read-model rework
+must not adopt sector stepping.

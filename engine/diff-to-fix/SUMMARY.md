@@ -1,4 +1,30 @@
-# SUMMARY.md — executive summary (session 5b on top of the closing sessions; earlier sessions below)
+# SUMMARY.md — executive summary (session 7 on top of session 5b; earlier sessions below)
+
+## Session-7 delta (2026-10-26 — the close-all-tiers fix session, low-severity-first order)
+
+Mandate (user-specified ordering): INFORMATIONAL → MINOR → MAJOR → SEVERE →
+TRACKED-OPEN, with every finding independently re-verified against corpus
+`03ad46c` and the running code before any change; fixes proven with tests;
+audit trail exact. Session start `c75f646` + phantom-08c66f8 repair
+(`4702ec8`); corpus `03ad46c` unmoved.
+
+**INFO tier CLOSED (this push):** all 18 INFORMATIONAL findings now carry
+Resolution sections — I-001/I-002/I-003 were already acknowledged (prior
+sessions); the remaining 15 (I-006..I-020) were verified this session and
+ACKNOWLEDGED with first-hand citations (no rationale was found wrong; no
+code change was required by any). Actions landed with the batch:
+the I-009 session-3 addendum's pin test
+`CarveEngine.CarvesMidSectorStart` (PNG at sector+137 — the byte-granularity
+superset over the og's whole-sector stepping; guards the M-025 rework);
+PARITY-DELTAS **D-59a..D-59k** (the registration rows the findings' fix
+plans demanded); modules/visualization.md's stale D16 gap figure updated
+(I-011's leftover action — M-023 FIXED superseded it). Suite **440/440**
+Linux ASan green. Committed conflict markers in CROSS-REF-MATRIX.md
+(phantom `08c66f8` leg, introduced by `c75f646`) resolved as DFX7-T0.
+
+**Counts after the INFO batch (direct file inventory at the push head):**
+ACUTE 0 · SEVERE 9 · MAJOR 38 · MINOR 31 · INFO 18 (all ACKNOWLEDGED —
+0 actionable) = 96 active / 49 FIXED; INFO tier now zero-open.
 
 ## Session-5b delta (2026-10-26 — the never-dispositioned MOM/product-capabilities leg)
 

@@ -1685,3 +1685,64 @@ HFSPlusSearchDLL CHFSPlusJournal (`hfsplusjournal.cpp` trace strings)
 `HfsPlus.JournalWrapHandled`, `HfsPlus.NonLeafImagesSkipped`,
 `HfsPlus.JournalHarvestDisabledByFlag`, `HfsPlus.LeafNodeLayoutMatchesOnDiskFormat`
 (the A-005 convention guard).
+
+### D-59 — Audit-acknowledged supersets and registers, session-7 INFO tier (I-006..I-020 batch)
+
+Rows registered here had no prior PARITY-DELTAS entry; every rationale was
+re-verified against corpus `03ad46c` and the running core this session
+before acknowledgment. Future work must PRESERVE every row in this entry
+unless the row itself is first re-audited against the corpus.
+
+- **D-59a — ext4 nanosecond timestamps (I-006, ACCEPTED).** Og
+  EXT4SearchDLL is second-only (`_gmtime32_s` + `wMilliseconds = 0` at
+  :5494-5515; 3rd/4th FILETIME slots zeroed at :6255-6258). Core preserves
+  nsec at 100ns (`decode_extra` + `unix_to_filetime_ns`). Bench comparisons
+  diverge mechanically on sub-second units — expected, not a regression.
+- **D-59b — 4-of-4 timestamps on ext4/HFS+/Btrfs (I-007, ACCEPTED).** Og
+  reads 2/4 (ext4), 3/4 (HFS+ — no access_date), 3/4 (Btrfs — otime never
+  converted; `+0x94` zeroed only). Core reads all four on every engine,
+  including both HFS+ record sources (catalog walk + S-021 journal
+  emission).
+- **D-59c — carve byte-granular probing (I-009, ACCEPTED + pinned).** Og
+  steps whole sectors (RAWSearchDLL :9496); core byte-steps
+  (scan_one_window). A header starting mid-sector is invisible to the og.
+  Pin: `CarveEngine.CarvesMidSectorStart` (PNG at sector+137 must carve).
+  The M-025 read-model rework must not adopt sector stepping.
+- **D-59d — LDM RAID-5 dormant rotations (I-008, ACCEPTED).** Og's
+  selector (+0x2a8) is constructor-hard-zeroed; only left-symmetric is
+  constructible. Core implements exactly the enabled mode (algebraic
+  identity verified). Do NOT implement the dead rotations 1/2/3.
+- **D-59e — scope/superset registers (I-010, ACCEPTED).** ZFS label-field
+  superset (name/ashift/asize/offset/guid vs og vdev_tree/id only); ext4
+  BIGALLOC refusal (safety choice, og has no gate); ReFS one-record shape
+  confirmed post-S-020 (no ADS children — matches og's structural no-ADS).
+- **D-59f — ReFS host gate (I-013, ACCEPTED).** Og refuses hosts < Win8
+  (GetVersion, FUN_1800010d0); core is host-agnostic (the only
+  "GetVersion" in the tree is the RDA-driver IOCTL). Non-Windows bench
+  lanes are not og-divergent by this row.
+- **D-59g — ext4/HFS+ superset registers (I-014, ACCEPTED).** ext4
+  deleted-inode dtime sweep default-on (no og counterpart); fragmented
+  journal walked via the extent map (the og's physical+1 walk is an og
+  defect — do not replicate); HFS+ bitmap-grading rows consumed by the
+  S-021 landing (D-56).
+- **D-59h — preview architecture (I-015, ACCEPTED).** Og = UI-layer
+  socket/thumbnail protocol (602-byte header, 1 MiB BMP, 10 s wait, ports
+  20171/20172, 100 MB cap, 15 s free-tier video); core = in-process
+  bounded reader (4 MiB read / 256 MiB decode). Different layers; parity
+  tests must not byte-compare payloads across them.
+- **D-59i — engine factory contract (I-016, ACCEPTED).** Og = per-DLL
+  searcher factories + vtable host binding + per-FS enable gates; core =
+  flat C ABI + in-process FsFamily switch. FS-code spaces are DIFFERENT
+  (og {3,9,0xB,0xD,6} vs core {1,4,7,8}) — every parity table translates,
+  never equates.
+- **D-59j — slice-layer supersets (I-017, ACCEPTED).** Byte units with
+  enforced alignment; eager ctor validation; rich per-call errors +
+  persistent ReadErrorMap; NO sticky error, NO null-buffer guard (the
+  og's ctor validates nothing — that is why it needs them; our ctor
+  boundary already rejects). The one behavioral divergence (tail reads)
+  is M-032, not this row.
+- **D-59k — EPM tool operations excluded (I-019, ACCEPTED).** EditLdm2*
+  write-side, Ntfs2FAT conversion, partition merge/resize deals, FatFormat,
+  IMAPI2 burn — tool ops, not recovery; zero code in the core (grep-
+  verified). S-029 (apply path) is deliberately NOT covered by this
+  exclusion.

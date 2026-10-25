@@ -56,3 +56,16 @@ None.
 **Status:** ACKNOWLEDGED
 **Verified by:** the S-020/M-022 landing re-proved the premise from the decompile this session (one properties block, one runlist slot props+0x62, one emission per file row; the .rsf RefsFileProperties type-6 layout carries exactly ONE DataRunList).
 **Resolution notes:** Shared limitation, at parity: ReFS named streams (ADS) are not recovered by EITHER side - the og has no stream machinery and the .rsf contract has no stream field. The project's GAP-ADS row for ReFS is resolved AS a parity row (not a gap). N-011 (NTFS ADS-as-children) is the NTFS-side analogue and stays its own finding.
+
+**Status:** ACKNOWLEDGED (shared limitation — parity confirmed, not a gap)
+**Verified by:** re-verification this session on the CURRENT tree (post
+S-020/M-022 fixes): `cr_refs_engine.cpp` `emit_file` builds one
+`FileNode` + one `FileProperties` + one extents list per file row; the
+S-020 attribute walk appends into the single runlist — no named-stream
+children anywhere (grep "stream": zero hits). Corpus side: no
+stream/named-stream class in the ReFSSearchDLL RTTI census; .rsf type-6
+layout carries one DataRunList. GAP-ADS stands as "shared limitation,
+superset opportunity — not a parity debt".
+**Resolution notes:** no code change. If a future superset emits named
+ReFS streams as children (mirroring NTFS ADS, N-011), the pin test named
+in the finding must land with it.

@@ -311,6 +311,42 @@ TEST(CarveEngine, GrammarValidationAndSpecificity) {
               size_t(30u + 19u + 46u + 19u + 22u)); /* 136: own EOCD */
 }
 
+TEST(CarveEngine, CarvesMidSectorStart) {
+    /* I-009 pin (PARITY-DELTAS D-59c): byte-granular probing is a
+     * deliberate detection superset over the og's sector-aligned dispatch
+     * (RAWSearchDLL :9496 advances in whole sectors; a header starting
+     * mid-sector is invisible to the og). A valid PNG planted at
+     * sector+137 must surface here so the M-025 read-model rework can
+     * never silently regress the superset by adopting sector stepping. */
+    std::vector<u8> img(64 * 1024, 0xAA);
+    const size_t at = 512 + 137; /* sector 1, byte 137 */
+    plant_png(img, at);
+    MemDevice dev(std::move(img));
+
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"Lost Files");
+    CarveFlags flags;
+    CarveStats stats;
+    u32 rc =
+        carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, stats);
+    ASSERT_EQ(rc, OK) << err_text(rc);
+
+    std::vector<tree::FileNode*> all;
+    std::function<void(tree::FileNode*)> collect = [&](tree::FileNode* n) {
+        for (tree::FileNode* c = n->first_child(); c; c = n->next_sibling()) {
+            all.push_back(c);
+            collect(c);
+        }
+    };
+    collect(root);
+    ASSERT_EQ(all.size(), 1u) << "exactly one carve on this fixture";
+    EXPECT_EQ(all[0]->props()->extents.front().offset, at)
+        << "mid-sector start (sector+137) must be carved - the byte-granularity "
+           "superset (I-009 / D-59c) regressed";
+    EXPECT_EQ(all[0]->props()->carve_format, FMT_PNG);
+    EXPECT_EQ(all[0]->props()->logical_size, size_t(65));
+}
+
 TEST(CarveEngine, SecondPassFullyDeduped) {
     auto img = build_carve_image();
     MemDevice dev(std::move(img));

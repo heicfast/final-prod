@@ -34,3 +34,16 @@
 **Status:** ACKNOWLEDGED
 **Verified by:** the cited doc lines re-checked this session (CAPABILITY-MATRIX scope rows, PARITY-CORE-REC:164 repair-chain exclusion, PARITY-DELTAS D-26 family).
 **Resolution notes:** Scope-exclusion registrations confirmed: cloud/NAS/repair-chain/WinPE-builder/installer/licensing/i18n/crash-reporter/runtime-families stay excluded with documented rationale; the engine supersets stay registered in PARITY-DELTAS. M-021 (carve-side video-repair HOOK) remains in scope as the finding itself notes - it is a pipeline hook, not the repair chain.
+
+**Status:** ACKNOWLEDGED (registration group — all rows verified or re-registered)
+**Verified by:** spot-checks this session: ZFS label fields — core reads
+name/ashift/asize/offset/guid (`cr_zfs_engine.cpp:1014-1040`) vs og
+vdev_tree/id only; ext4 BIGALLOC refusal stands (`cr_ext4_engine.cpp:45,
+:513`); ReFS single-record shape — current `emit_file` (post-S-020) still
+emits ONE FileNode per file row with ONE extents list (no stream/ADS
+children; grep "stream" = zero hits in the refs engine), matching the
+og's structural no-ADS shape (I-012). Scope-exclusion rows re-confirmed
+(D-26 family).
+**Resolution notes:** no code change. Registered as PARITY-DELTAS
+**D-59e**. The S-006-fix probe superset row (session-3 addition) is
+already registered via D-50.

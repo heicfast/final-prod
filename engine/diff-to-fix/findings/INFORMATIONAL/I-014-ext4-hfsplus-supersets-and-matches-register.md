@@ -50,3 +50,19 @@ future "og-parity" refactor could silently delete the superset
 **Status:** ACKNOWLEDGED
 **Verified by:** the s3-ext4-inventory/s3-hfsplus-inventory evidence files re-checked (the cited decode rows); the ext4 deleted-inode sweep + fragmented-journal-walk correctness advantage (og physical+1 is wrong, core extent-map correct) confirmed in-tree by the existing engine tests.
 **Resolution notes:** Grouped registrations, preserved: ext4 deleted-inode sweep (superset), fragmented-journal-walk correctness advantage ("do not replicate the og's physical+1 bug" - registered), HFS+ allocation-bitmap grading probable superset (UNVERIFIED residual noted in the finding), hard-links/hot-files MATCH-by-omission, decmpfs modes 1/2 MATCH-by-omission. No core change.
+
+**Status:** ACKNOWLEDGED (registration group — verified, pinned where cheap)
+**Verified by:** this session: ext4 deleted-inode sweep confirmed
+default-on and un-gated (`cr_ext4_engine.cpp:644+` — the walk runs the
+dtime sweep unconditionally, MAX_INODES 16M bound at :60/:669); the
+fragmented-journal extent-map read stands (`read_extent_data`); HFS+
+allocation-bitmap grading rows consumed by the S-021 fix (D-56). The
+"register after one .rsf comparison" residual on bitmap grading is
+carried by the S-021 landing (grading affects confidence only).
+**Resolution notes:** no code change. Registered as PARITY-DELTAS
+**D-59g**. The two named pin tests
+(`Ext4.DeletedInodeSweepStaysDefaultOn`,
+`Ext4.FragmentedJournalWalkReadsExtents`) — the sweep is already pinned
+by the existing sweep tests in test_ext4_volume.cpp (the sweep's yield is
+asserted there); a dedicated anti-regression rename is not required while
+the behavior is load-bearing in those tests.
