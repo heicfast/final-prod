@@ -9133,3 +9133,23 @@ Stage Summary:
   SEVERE tier: S-029 + S-030 remain. Session tally: M-053, union repair,
   S-009 (verification + hardening port). Next: S-030 (image scan targets),
   then S-029 (apply path), then the MAJOR/MINOR waves.>>>>>>> 33c0722 (test(S-009 hardening): port the second leg's unique free-overlay proof set onto the landed implementation)
+---
+Task ID: DFX9-T2 (lane claim — unclaimed MINOR high-value trio + module batches)
+Agent: main engineer (diff-to-fix session 9, the M-053/union-repair/S-009-hardening leg)
+Task: Claim the unclaimed MINOR findings per multi-leg coordination: N-065
+(writer destination-policy collision/mkdir gates), N-070 (carve overlap
+scoring + two-generation fallback), N-075 (busy/stopping query exports),
+then the writer/carve/query module minors in batches. S-029 stays with
+DFX10's queue (their published order S-009->S-029->S-030; S-009/S-030
+landed from other lanes, so S-029 is their active item — no collision from
+this lane).
+
+Work Log:
+- Lane deconfliction read from the worklog: DFX15 = MAJOR (M-002 landed,
+  M-037/M-031/M-046/M-045/M-013/M-052/M-043/M-018/M-005/M-014 queue);
+  DFX9-T7 = MAJOR tail (M-052 first); DFX13 = N-045/N-067/N-068/N-069 +
+  doc trios; DFX14 = N-073/N-004 duplicate probe. N-065/N-070/N-075
+  unclaimed at this instant.
+
+Stage Summary:
+- Lane claimed; execution begins with N-065.
