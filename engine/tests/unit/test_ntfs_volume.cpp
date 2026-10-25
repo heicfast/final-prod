@@ -3836,3 +3836,172 @@ TEST(NtfsVolume, DiskMapFreeCellsFromRealBitmap) {
             ++free_cells;
     EXPECT_GT(free_cells, alloc.size() / 2);
 }
+
+/* ------------------------------------------------------------------ */
+/* M-008: the attrlist chase depth model (default multi-hop; depth-1    */
+/* opt-in parity; the deleted-gate premise corrected against S-012)     */
+/* ------------------------------------------------------------------ */
+
+namespace {
+
+/* a deleted 3-record chain: attrlist -> child (fragment 1 + nested
+ * attrlist) -> grandchild (fragment 2). Header flag 0 = not in use. */
+void add_deleted_chain(Image& img) {
+    {
+        RecBuilder r;
+        r.header(27, 0); /* NOT in use: the deleted base record */
+        r.attr_si(0x20);
+        r.attr_file_name(5, u"gonefrag.txt", FILE_NAME_WIN32_AND_DOS, 0x20, 4096, 4096);
+        r.attr_attrlist_resident({{ATTR_TYPE_DATA, 0, 12 | (1ULL << 48)}});
+        r.finish();
+        std::memcpy(img.sec(MFT_LCN + 54), r.buf.data(), RECORD_SIZE);
+    }
+    {
+        RecBuilder r;
+        r.header(12, 0); /* deleted child: fragment 1 + nested list -> 13 */
+        r.attr_data_runlist_vcn(140, 4, 0, 4096);
+        r.attr_attrlist_resident({{ATTR_TYPE_DATA, 4, 13 | (1ULL << 48)}});
+        r.finish();
+        std::memcpy(img.sec(MFT_LCN + 24), r.buf.data(), RECORD_SIZE);
+    }
+    {
+        RecBuilder r;
+        r.header(13, 0); /* deleted grandchild: fragment 2 */
+        r.attr_data_runlist_vcn(150, 4, 4, 4096);
+        r.finish();
+        std::memcpy(img.sec(MFT_LCN + 26), r.buf.data(), RECORD_SIZE);
+    }
+}
+
+tree::FileNode* node_named(tree::ResultTree& t, const char* want) {
+    tree::FileNode* out = nullptr;
+    std::function<void(tree::FileNode*)> find = [&](tree::FileNode* n) {
+        for (tree::FileNode* c = n->first_child(); c; c = c->next_sibling()) {
+            if (c->name_utf8() == want)
+                out = c;
+            find(c);
+        }
+    };
+    for (auto* r : t.roots())
+        find(r);
+    return out;
+}
+
+u64 extent_bytes(const tree::FileNode* n) {
+    u64 total = 0;
+    if (n && n->props())
+        for (const auto& e : n->props()->extents)
+            total += e.length;
+    return total;
+}
+
+} // namespace
+
+TEST(NtfsVolume, MultiHopAttrlistOgParityStopsAtDepth1) {
+    /* M-008 parity mode: single_hop_attrlist=true caps the chase at the
+     * first level, exactly as the og's FUN_180041df0 does (no recursion
+     * into child records' own lists). bigfrag.txt keeps record 24's
+     * fragment and loses record 25's grandchild fragment. */
+    Image img;
+    build_image(img);
+    /* the NestedAttrlistChase fixture chain: 23 -> 24 -> 25 */
+    {
+        RecBuilder r;
+        r.header(23, RECORD_IN_USE);
+        r.attr_si(0x20);
+        r.attr_file_name(5, u"bigfrag.txt", FILE_NAME_WIN32_AND_DOS, 0x20, 4096, 4096);
+        r.attr_attrlist_resident({{ATTR_TYPE_DATA, 0, 24 | (1ULL << 48)}});
+        r.finish();
+        std::memcpy(img.sec(MFT_LCN + 46), r.buf.data(), RECORD_SIZE);
+    }
+    {
+        RecBuilder r;
+        r.header(24, RECORD_IN_USE);
+        r.attr_data_runlist_vcn(120, 4, 0, 4096);
+        r.attr_attrlist_resident({{ATTR_TYPE_DATA, 4, 25 | (1ULL << 48)}});
+        r.finish();
+        std::memcpy(img.sec(MFT_LCN + 48), r.buf.data(), RECORD_SIZE);
+    }
+    {
+        RecBuilder r;
+        r.header(25, RECORD_IN_USE);
+        r.attr_data_runlist_vcn(130, 4, 4, 4096);
+        r.finish();
+        std::memcpy(img.sec(MFT_LCN + 50), r.buf.data(), RECORD_SIZE);
+    }
+    MemDevice dev(img.raw(), img.geom());
+    u32 err = 0;
+    auto vol = NtfsVolume::open(std::unique_ptr<IStorageDevice>(new MemDevice(dev)), &err);
+    ASSERT_NE(vol, nullptr) << err_text(err);
+    tree::ResultTree tree;
+    auto* ra = tree.add_root(u"a");
+    auto* rd = tree.add_root(u"d");
+    auto* rl = tree.add_root(u"l");
+    WalkerFlags wf;
+    wf.single_hop_attrlist = true; /* depth-1 parity */
+    WalkStats stats;
+    ASSERT_EQ(walk_mft(vol.get(), nullptr, wf, nullptr, nullptr, nullptr, tree, ra, rd, rl, stats),
+              OK);
+    tree::FileNode* big = node_named(tree, "bigfrag.txt");
+    ASSERT_NE(big, nullptr);
+    /* record 24's fragment only; record 25's fragment never merged */
+    ASSERT_NE(big->props(), nullptr);
+    EXPECT_EQ(big->props()->extents.size(), size_t(1));
+    EXPECT_EQ(extent_bytes(big), u64(4 * CLUSTER));
+    EXPECT_EQ(big->props()->extents[0].offset, u64(120 * CLUSTER));
+}
+
+TEST(NtfsVolume, DeletedAttrlistChaseFollowsChildrenAtDepth1) {
+    /* M-008 premise CORRECTION, pinned: the og's pass 1 (FUN_180017390 -
+     * the per-record processor that emits unconditionally, S-012's decode)
+     * builds the child-record list for EVERY record, deleted included -
+     * the old "deleted records are never chased" claim came from reading
+     * FUN_18001acc0 (the DUMP walk) as a deleted-phase walk. Both modes
+     * chase deleted records; only the DEPTH differs. */
+    Image img;
+    build_image(img);
+    add_deleted_chain(img);
+    MemDevice dev(img.raw(), img.geom());
+    u32 err = 0;
+    auto vol = NtfsVolume::open(std::unique_ptr<IStorageDevice>(new MemDevice(dev)), &err);
+    ASSERT_NE(vol, nullptr) << err_text(err);
+
+    /* default (multi-hop): full content - both fragments */
+    {
+        tree::ResultTree tree;
+        auto* ra = tree.add_root(u"a");
+        auto* rd = tree.add_root(u"d");
+        auto* rl = tree.add_root(u"l");
+        WalkerFlags wf;
+        WalkStats stats;
+        ASSERT_EQ(
+            walk_mft(vol.get(), nullptr, wf, nullptr, nullptr, nullptr, tree, ra, rd, rl, stats),
+            OK);
+        tree::FileNode* gone = node_named(tree, "gonefrag.txt");
+        ASSERT_NE(gone, nullptr);
+        EXPECT_EQ(gone->deleted_state(), tree::DeletedState::Deleted);
+        EXPECT_EQ(extent_bytes(gone), u64(8 * CLUSTER)) << "the default chase recovers the chain";
+        EXPECT_EQ(gone->props()->extents.size(), size_t(2));
+    }
+    /* parity (depth-1): the deleted record still chases its CHILDREN (the
+     * corrected og model) - fragment 1 only, the grandchild lost */
+    {
+        tree::ResultTree tree;
+        auto* ra = tree.add_root(u"a");
+        auto* rd = tree.add_root(u"d");
+        auto* rl = tree.add_root(u"l");
+        WalkerFlags wf;
+        wf.single_hop_attrlist = true;
+        WalkStats stats;
+        ASSERT_EQ(
+            walk_mft(vol.get(), nullptr, wf, nullptr, nullptr, nullptr, tree, ra, rd, rl, stats),
+            OK);
+        tree::FileNode* gone = node_named(tree, "gonefrag.txt");
+        ASSERT_NE(gone, nullptr);
+        EXPECT_EQ(gone->deleted_state(), tree::DeletedState::Deleted);
+        EXPECT_EQ(extent_bytes(gone), u64(4 * CLUSTER))
+            << "depth-1 parity: children chased, grandchildren lost";
+        EXPECT_EQ(gone->props()->extents.size(), size_t(1));
+        EXPECT_EQ(gone->props()->extents[0].offset, u64(140 * CLUSTER));
+    }
+}

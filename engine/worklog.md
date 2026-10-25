@@ -9841,6 +9841,42 @@ Stage Summary:
   (Post-rebase note: N-030 landed by the parallel DFX15 lane at 11afbfa
   while this bootstrap pushed — dropped from this queue; queue head is
   N-067, then N-068, N-063, N-065, N-056, N-029.)
+---
+Task ID: DFX20-BOOT (session 20 bootstrap)
+Agent: main engineer (diff-to-fix fix session 20 — DFX20)
+Task: Session bootstrap per the standing SOP: pull, baseline, inventory,
+post the lane claim before any finding work.
+
+Work Log:
+- Pulled origin/main: HEAD `5d63124` (0 behind, 0 ahead); corpus
+  `03ad46c` unmoved. Prompt archived token-redacted at
+  worklog/session-diff-fix-20-prompt.md.
+- Baseline build + suite on linux-gcc (RelWithDebInfo + ASan):
+  **584/584 green** (ctest, 36.8s). The tree is clean at bootstrap.
+- Inventory at HEAD: SEVERE 1 (S-029, DFX10's claim) · MAJOR 32 ·
+  MINOR 43 · INFO 22 · FIXED 94 · OQ 16.
+- Lane claim (checked against the worklog claim map — DFX15:
+  M-045/M-013/M-052/M-043/M-018/M-014 next-queue; DFX14: M-005; DFX11:
+  M-007/M-008/M-032/M-050/M-029/M-049; DFX9-T7: M-035/M-018/M-013/M-014;
+  DFX9-T2: N-065/N-070/N-075; DFX13/DFX16: N-045/N-067/N-068, then
+  N-063/N-065). This leg DFX20 claims (ID history: DFX17/DFX18 both squatted by parallel legs in the same window — third re-stamp wins; M-016 ceded to DFX19 whose claim posted first) (ID disambiguation: the parallel MINOR-first leg posted as DFX17 first — both claims stand, disjoint tiers) the UNCLAIMED MAJOR tier, largest
+  user impact first, one-finding-one-commit-one-push:
+  M-033 (BitLocker in-stack decrypt) → M-042 (session resume lost
+  revalidation) → M-017 (lost partition scoring) → M-016 (LDM TOCBlock)
+  → M-019 (ZFS multivdev) → M-020 (btrfs profile) → M-038 (ZFS SA
+  layout) → M-021 (carve video repair) → M-025 (carve read model)
+  → M-028 (preview caps) → M-030 (driver utilization) → M-034 (NAS)
+  → M-039 (occupancy bitmap) → M-040 (boot chain) → M-041 (damage
+  audit) → M-044 (UDF) → M-048 (signature db) → M-024 (runtime filter).
+  Findings already claimed by live lanes are left to those lanes; if a
+  claim proves stale (no landing by next pull), the finding re-enters
+  this leg's queue after verification. SEVERE S-029 stays with DFX10
+  unless that lane is confirmed dead — it is re-checked at every pull.
+
+Stage Summary:
+- Bootstrap complete: 584/584 green at `5d63124`, inventory recorded,
+  lane claim posted. Execution begins with M-033.
+---
 
 ---
 Task ID: DFX18-CLAIM (session 18 lane claim — MINOR-first, disjoint from DFX17)
@@ -9876,7 +9912,7 @@ Work Log:
   commit past 5d63124). Corpus `easeus-drw-research` @ `03ad46c` (unmoved).
 - Full suite at `11afbfa`: **584/584 green** (linux-gcc RelWithDebInfo +
   ASan, cmake 4.4.4 via pip --user, g++ 14.2).
-- Prompt saved to `worklog/session-diff-fix-19-prompt.md` (token redacted).
+- Prompt saved to `worklog/session-diff-fix-20-prompt.md` (token redacted).
 - Inventory at baseline: SEVERE 1 (S-029, DFX10's claim) · MAJOR 32 active ·
   MINOR 43 active · INFO 22 · FIXED 94 · tracked-open 13 non-resolved.
 - Lane claim (avoiding DFX15's announced queue M-045→M-043→M-005→M-007/
@@ -9990,3 +10026,178 @@ Stage Summary:
 - Session unique resolutions: 10 (6 reconciliation + N-076 + N-030 +
   N-041; N-069 + the quartet convergent with parallel lanes). MINOR 42
   remain. Next: N-029a maximal-subpart, N-056, N-063, N-062.
+
+  remain. Next: N-029a maximal-subpart, N-056, N-063, N-062.
+
+---
+Task ID: DFX11-M008 (session 11, finding 3)
+Agent: main engineer (diff-to-fix fix session 11 — DFX11)
+Task: M-008 — the attrlist chase depth model. Verified, classified
+CONFIRMED-DIVERGENCE (depth) + FALSE-PREMISE (the deleted gate), fixed,
+proven.
+
+Work Log:
+- Corpus re-verified first-hand: FUN_180041df0 :52615-52687 (depth-1, no
+  recursion) + FUN_1800431d0 :18461-18464 inside FUN_180017390
+  (:18423-18562) — pass 1's per-record processor passes plVar9 non-NULL,
+  so the child-record list is built for EVERY record. THE FINDING'S
+  PREMISE CORRECTED: its "deleted-phase walk passes NULL param_6" claim
+  read FUN_18001acc0 (the GUID-DUMP pass 2, per S-012's decode) as a
+  deleted walk — the og chases DELETED records at depth 1 in pass 1.
+  The fix-plan's deleted-gate step was REJECTED (corpus wins); OQ-S2A-1
+  resolved by the same evidence; OQ-S2A-4 ($MFT bootstrap depth) stays
+  open.
+- Fix: WalkerFlags::single_hop_attrlist (default FALSE = the multi-hop
+  BFS superset, D-66 — the finding's own recommendation); TRUE = depth-1
+  parity (the chase stops after the first level; nested lists never
+  queue).
+- Tests: 2 new (MultiHopAttrlistOgParityStopsAtDepth1 — 1 extent/2048
+  bytes; DeletedAttrlistChaseFollowsChildrenAtDepth1 — the corrected
+  semantics on a deleted 3-record chain: default 8 clusters, parity 4 at
+  exactly LCN 140) + NestedAttrlistChase stays as the default guard.
+  Fail-before: walker-revert (2 vs 1 extents, 4096 vs 2048). Suite
+  593/593.
+- Cross-lane repair in the same push: the M-054 landing's +2 coverage
+  hardening (cluster_count = p.cluster_count + 2) missed the S-009 leg's
+  FreeMapProducerMatchesSpecBitMapping expectation — updated 100 -> 102
+  with the hardening's rationale comment.
+- Audit trail: Resolution + FIXED/ move (the premise correction recorded
+  in full); RESOLVED-INDEX (74); matrix M-008 cell; modules/ntfs.md row;
+  AUDIT-NTFS row 24 (MATCH at the flag; D-66 default); PARITY-DELTAS
+  D-66; SUMMARY extension.
+
+Stage Summary:
+- M-008 FIXED (session tally: 2). Next in my claimed batch: M-032 (slice
+  tail read clamp vs refusal).
+---
+Task ID: DFX21-CLAIM (session 21, lane claim — the tail half of the unclaimed MAJOR tier; queue split against the DFX19 head-half and the parallel DFX20/DFX18 M-033 lane)
+Agent: main engineer (diff-to-fix session 21 — DFX21; renamed DFX17->DFX19->DFX20->DFX21 after three parallel ID collisions in the same window, each resolved per the first-landing-wins protocol)
+Task: Lane claim, posted after the DFX19 head-half claim (ff734d7) and
+the parallel DFX20 (ex-DFX18) M-033-in-flight landing (1fb5bdf lineage)
+— queue SPLIT to avoid duplicate work, per the first-landing-wins
+protocol. DFX19 keeps its posted head half (M-016, M-019, M-038, M-017,
+M-020); the DFX20/DFX18 lane owns M-033 (in flight, ceded by this leg).
+This leg (DFX21) takes the TAIL half — the
+recognition/preview/carve/session/orchestrator/check modules — in this
+execution order (user directive: MAJOR first, 20+ fixes):
+M-044 (UDF recognition) -> M-028 (preview caps bypass) -> M-021 (carve
+post-processor hook) -> M-024 (runtime format filter) -> M-042
+(session-resume revalidation) -> M-039 (occupancy bitmap feed) -> M-048
+(user signature DB) -> M-025 (carve read model, benched) -> M-041 (check
+phase) -> M-040 (boot-chain disposition) -> M-034 (NAS disposition) ->
+M-030 (driver utilization — Windows-only, feasibility-gated). MINOR/
+INFO/tracked-open after the MAJOR queue. One finding, one verified fix,
+one push. If DFX19 reaches into this half anyway, first-landing wins and
+this leg skips to the next item.
+
+Work Log:
+- Bootstrap: cloned both repos at corpus 03ad46c (unmoved), core main
+  11afbfa. Baseline built + full suite 584/584 green (linux-release).
+- Prompt saved token-redacted to worklog/session-diff-fix-20-prompt.md.
+
+Stage Summary:
+- Claim posted; execution begins with M-016.
+
+Task ID: DFX16-T1 (session 16 bootstrap)
+Agent: core-parity-fix-agent (main)
+Task: Pull both repos, record baseline, archive prompt, verify green
+
+Work Log:
+- Fresh clone of both in-scope repos. Core main HEAD: 53629a3
+  ("worklog(DFX15): M-002/M-037/M-031/M-046 landed"). Corpus HEAD:
+  03ad46c (unmoved — matches the audit's ground truth commit exactly).
+- Session prompt archived token-redacted at
+  worklog/session-diff-fix-16-prompt.md.
+- Baseline build + suite on linux-gcc (RelWithDebInfo + ASan):
+  584/584 green, 27.3s wall. Suite grew from the DFX15 close (578) —
+  four M-046-adjacent tests landed with the last wave.
+- Open inventory at bootstrap (direct file count of diff-to-fix/):
+  SEVERE 1 (S-029) · MAJOR 32 · MINOR 43 · INFO 22 · FIXED/ 94 files
+  (incl. RESOLVED-INDEX) · tracked-open 16.
+- Stale lane claims from dead sessions noted (DFX11: M-007/M-008/M-032/
+  M-050/M-029/M-049; DFX14: M-005; DFX10: S-029)
+- (Post-rebase note: parallel DFX17 lane landed M-045, M-007, M-054
+  (NEW-FINDING) + PARITY-DELTAS D-70/D-71 in the same window — dropped
+  from this session's queue; queue re-heads to S-029, M-043, M-005,
+  M-008, then remaining MAJORs by impact.) — none landed before
+  those sessions ended; this session takes them over with fresh
+  verification. Every fix re-verified against corpus 03ad46c first-hand.
+
+Stage Summary:
+- Baseline honest and green (53629a3, 584/584). Lane plan for this
+  session: S-029 → MAJOR wave (DFX15 handoff order M-045, M-043, M-005,
+  M-007, M-008, then the remaining MAJORs by user impact), then MINOR
+  batches as capacity allows. One finding, one verified fix, one push.
+
+---
+Task ID: DFX11-M032 (session 11, finding 4)
+Agent: main engineer (diff-to-fix fix session 11 — DFX11)
+Task: M-032 — slice tail-read semantics. Verified, ran the fix plan's
+decision gate, resolved by path 1.
+
+Work Log:
+- Corpus re-verified first-hand: HFSPlusSearchDLL FUN_180009290
+  :7219-7264 (clamp + zero-fill + succeed; the DRWUI twin identical);
+  the og's tail memset is in SECTOR units (:7258) — an under-zeroing
+  defect. Core re-verified: PartitionSlice strict refusal
+  (cr_slice.cpp:43-50) + the existing BoundsEnforced pin.
+- Decision gate (the finding's own step 1): audited the engines' read
+  patterns for end-crossing. HFS+ journal_ring_read bounds every take
+  within [jbase, jbase+jsize) — never crosses; all other engine reads
+  are explicitly bounded; a refusal degrades through the damage
+  counters. NO engine relies on the og's clamp+zero-fill contract.
+- Resolution per path (1): the safer refusal stays; D-67 registered;
+  Slice.TailReadRefusalPinned added (the finding's falsifiable claim
+  pinned: the crossing read that would return zeros under the og
+  semantics refuses here AND never touches the buffer) +
+  Slice.BoundsEnforced updated with the full og-contract citation.
+  Path (2)'s opt-in clamped read would be dead code today (the N-041
+  sweep precedent) - documented as the next step WHEN needed.
+- Audit trail: Resolution + FIXED/ move; RESOLVED-INDEX (75); matrix
+  storage cell; modules/storage.md row; PARITY-DELTAS D-67; SUMMARY
+  extension.
+
+Stage Summary:
+- M-032 FIXED (session tally: 3). Next in my claimed batch: M-050
+  (session node-model roundtrip gaps).
+
+
+---
+Task ID: DFX14-T5 (INFORMATIONAL tier — the re-verification pass)
+Agent: main engineer (diff-to-fix session 14)
+Task: T13 duty: read all 22 INFO findings, verify each deliberate-difference
+rationale against the corpus citations and the CURRENT code, confirm the
+ACKNOWLEDGED standings; add any missing pins.
+
+Work Log:
+- Read all 22 files (6 deep-read: I-001/I-002/I-003/I-006/I-007/I-009; 16 via
+  structured status/resolution dump); every file carries (at least one, most
+  two) ACKNOWLEDGED Resolution(s) with first-hand corpus verification from
+  prior sessions - the tier was closed with real verification, not stamps.
+- Drift-guard spot-checks on CURRENT main (the 300+ landings since could have
+  silently flipped an acknowledged delta):
+  * pin tests present: UserFileNamedDollarNotHidden (test_ntfs_volume),
+    Fat16BadClusterStillCanonical (test_fat_volume),
+    MirrorSelectionNewestGeneration (test_btrfs_volume),
+    CarvesMidSectorStart (test_carve).
+  * code anchors intact: I-002 (cr_chain.cpp:47 FAT12 0xFF7->CHAIN_BAD —
+    survived the 5aaf044 clobber repair correctly), I-009 (byte-stepped
+    dispatch loop), I-015 (kMaxRead 4 MiB / kMaxDecode 256 MiB),
+    I-017 (cr_slice.cpp:15-41 eager null/zero/alignment/overflow validation
+    — direct read; only the grep phrase differed).
+- GAP CAUGHT AND FIXED: I-006's own "Tests to add" (a pin guarding the
+  nsec superset) was never landed by the prior INFO wave — its Resolution
+  verified the code but skipped the test. Added this session:
+  Ext4Engine.NanosecondsPreservedFromExtraField (s_inode_size 152 fixture,
+  i_mtime_extra 0x5DC00000 -> nsec 393,216,000 preserved at 100ns; the
+  second-only value is the og's forced wMilliseconds=0). Two test-constant
+  arithmetic slips on my side were corrected against the engine's
+  (correct) output - the third EXPECT is exact. Landed 2fad125, suite
+  594/594.
+- No rationale was found wrong; no code change required by any INFO
+  finding. All 22 divergences remain intentional and preserved.
+
+Stage Summary:
+- T13 CLOSED: INFO tier 22/22 re-verified on the current tree with one
+  missing pin landed. DFX14 tally: 9 finding-level resolutions
+  (N-073, M-029 fold, clobber repair x4, M-005, I-006 pin) + this pass.

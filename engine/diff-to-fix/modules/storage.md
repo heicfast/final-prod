@@ -75,3 +75,17 @@ MATCH/verified registers from the never-cited-files read: cr_elevate's probe is 
 twin of DRWUI's elevation check (elevation ACTION is host-side — deliberate, no finding);
 cr_decomp's NTFS LZNT1 parity re-verified (N-058 fixes the stale CAPABILITY-MATRIX claim);
 cr_sha256 is a deliberate core addition (carve ids + writer verify — D-19 side registered).
+
+---
+
+## Session-11 fix row (2026-10-26, DFX11 — M-032 closed by decision)
+
+**M-032 FIXED** (the fix plan's own decision path 1 — no behavior change
+wanted): the slice tail-read refusal stays; the divergence from the og's
+clamp+zero-fill virtual-volume contract (FUN_180009290 :7219-7264) is
+registered D-67 and pinned (Slice.TailReadRefusalPinned + the updated
+BoundsEnforced). Engine audit: no reliance on the og contract (the HFS+
+journal ring reads are bounded within the ring; everything else is
+explicitly bounded; refusals degrade via the damage counters). The
+opt-in clamped-read primitive (path 2) is the documented next step WHEN
+an engine needs it. I-017's register is unchanged; M-033 untouched.

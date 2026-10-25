@@ -1494,6 +1494,82 @@ TEST(Ext4Engine, ZeroFillOnlyWhenBacktrackAlsoFails) {
     EXPECT_EQ(u64(512), dev->error_map().ranges()[0].length);
 }
 
+TEST(Ext4Engine, NanosecondsPreservedFromExtraField) {
+    /* I-006 pin (added by session 14's INFO re-verification pass — the
+     * finding's own "Tests to add" was never landed). The deliberate
+     * superset: the core preserves i_*_extra nanoseconds (kernel
+     * ext4_decode_extra_time: nsec = extra>>2) where the og forces
+     * wMilliseconds = 0 (EXT4SearchDLL :5494-5515/:6262-6282 — sec-only
+     * reads). Guards against anyone "fixing" parity by rounding ext4
+     * precision DOWN to the og. Fixture: s_inode_size = 152 (>= 0x98
+     * opens the extra-field gate), inodes packed at 152 - root and
+     * hello rewritten at the new spacing. */
+    auto img = build_volume();
+    put16(img.block(1) + 0x58, 152); /* s_inode_size (8-aligned, in range) */
+    u8* table = img.block(B_INODE_TABLE);
+    memset(table, 0, BS);
+    /* root (ino 2) at +152: dir, size 1 KiB, one extent -> B_ROOTDIR */
+    u8* r2 = table + 152;
+    put16(r2 + 0x00, 0x4000);
+    put32(r2 + 0x04, BS);
+    put32(r2 + 0x08, 1000);
+    put32(r2 + 0x0C, 2000);
+    put32(r2 + 0x10, 3000);
+    put16(r2 + 0x1A, 2);
+    put32(r2 + 0x20, 0x80000);
+    u8* ib2 = r2 + 0x28;
+    put16(ib2 + 0, 0xF30A);
+    put16(ib2 + 2, 1);
+    put16(ib2 + 4, 4);
+    put32(ib2 + 12, 0);
+    put16(ib2 + 16, 1);
+    put32(ib2 + 20, u32(B_ROOTDIR));
+    /* hello (ino 3) at +304: file, size 14, one extent -> B_HELLO_DATA;
+     * i_mtime = 3000, i_mtime_extra = 0x5DC00000 -> nsec 393,216,000 */
+    u8* r3 = table + 304;
+    put16(r3 + 0x00, 0x8000);
+    put32(r3 + 0x04, 14);
+    put32(r3 + 0x08, 1000);
+    put32(r3 + 0x0C, 2000);
+    put32(r3 + 0x10, 3000);
+    put16(r3 + 0x1A, 1);
+    put32(r3 + 0x20, 0x80000);
+    u8* ib3 = r3 + 0x28;
+    put16(ib3 + 0, 0xF30A);
+    put16(ib3 + 2, 1);
+    put16(ib3 + 4, 4);
+    put32(ib3 + 12, 0);
+    put16(ib3 + 16, 1);
+    put32(ib3 + 20, u32(B_HELLO_DATA));
+    put16(r3 + 0x80, 0x2C);         /* i_extra_isize (covers to 0x90) */
+    put32(r3 + 0x88, 0x5DC00000u);  /* i_mtime_extra: nsec = 0x17700000 */
+
+    MemDevice dev(img.raw());
+    tree::ResultTree tree;
+    auto* ra = tree.add_root(u"Found");
+    Ext4ScanFlags fl;
+    Ext4ScanStats st;
+    u32 rc = scan_ext4(&dev, fl, nullptr, nullptr, nullptr, tree, ra, nullptr, nullptr, st);
+    ASSERT_EQ(OK, rc) << err_text(rc);
+
+    tree::FileNode* hello = nullptr;
+    std::function<void(tree::FileNode*)> find = [&](tree::FileNode* n) {
+        for (tree::FileNode* c = n->first_child(); c; c = c->next_sibling()) {
+            if (c->props() && c->name_utf8() == "hello.txt")
+                hello = c;
+            find(c);
+        }
+    };
+    find(ra);
+    ASSERT_NE(nullptr, hello) << "hello.txt must surface";
+    /* base = (3000 + 11644473600) * 10^7 = 116444766000000000; plus nsec
+     * 393,216,000 / 100 = 3,932,160 (100ns units). Second-only (the og's
+     * precision) would be exactly the base - the nsec delta is the
+     * guarded superset. */
+    EXPECT_EQ(u64(116444766000000000ULL + 3932160ULL), hello->props()->times.modified)
+        << "i_mtime_extra nanoseconds must survive into the 100ns FILETIME";
+}
+
 } // namespace
 } // namespace ext4
 } // namespace cr

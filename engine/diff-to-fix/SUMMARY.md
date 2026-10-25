@@ -107,6 +107,34 @@ walker-revert (3 nodes vs 1; the Win32/DOS links unfindable). Suite
 MINOR 48 · INFO 22 (0 actionable) · tracked-open 16 · FIXED 83 files
 (82 findings + RESOLVED-INDEX).
 
+**M-008 FIXED (this push — premise corrected against the corpus):**
+`WalkerFlags::single_hop_attrlist` (default FALSE = the multi-hop BFS
+superset, D-66, per the finding's own recommendation); TRUE = og parity
+(depth-1; corpus FUN_180041df0 :52615-52687). The finding's "deleted
+records never chased" premise was STALE — it read FUN_18001acc0 (the
+GUID-DUMP pass 2, S-012's decode) as a deleted-phase walk; pass 1
+(FUN_180017390 :18423+) emits every record AND builds the child list
+(:18461-18464, plVar9 non-NULL), so the og chases deleted records at
+depth 1 too — the fix-plan's deleted-gate step was REJECTED (corpus
+wins) and OQ-S2A-1 resolved by the same evidence. 3 tests (2 new +
+NestedAttrlistChase as the default guard); fail-before: walker-revert
+(2 vs 1 extents). Cross-lane repair in the same push: the M-054
+landing's +2 coverage hardening missed the S-009 leg's
+FreeMapProducerMatchesSpecBitMapping expectation (100 -> 102). Suite
+593/593. Counts after this push: SEVERE 2 · MAJOR 34 · MINOR 48 ·
+INFO 22 · FIXED 84 files (83 findings + index).
+
+**M-032 FIXED (this push — the fix plan's own decision path 1):** slice
+tail-read semantics. The decision gate executed first: the engine audit
+found no reliance on the og's clamp+zero-fill contract (HFS+ journal ring
+reads bounded within the ring; all other reads explicitly bounded;
+refusals degrade via damage counters). The safer refusal stays; the
+divergence registered D-67; pinned by Slice.TailReadRefusalPinned + the
+updated BoundsEnforcement (corpus FUN_180009290 :7219-7264; the og's
+sector-unit under-zeroing defect noted, NOT adopted). No behavior change
+- the opt-in clamped read from the finding's path (2) is the documented
+next step WHEN an engine needs it. Suite 594/594 (Slice +1).
+
 # SUMMARY.md — executive summary (diff-fix session 14 on top; earlier sessions below)
 ## Session-14 delta (2026-10-26 — DFX14: bootstrap, two merge repairs, the reconciliation wave)
 

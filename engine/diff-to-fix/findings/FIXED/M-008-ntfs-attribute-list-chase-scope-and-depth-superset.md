@@ -248,3 +248,50 @@ comparisons.
   reads each child's `$DATA` runs, but doesn't appear to recursively
   chase. The core's bootstrap uses depth 64. Needs RE of
   `FUN_18001a540`'s full iteration structure.
+
+## Resolution (session 11 — DFX11, the depth-model landing + premise correction)
+
+**Status:** FIXED (with the finding's premise CORRECTED against the corpus —
+the deleted-gate step was NOT implemented; see below)
+**Fixed in commit:** this session's fix commit (`fix: M-008` — see git log)
+**Verified by:** `NtfsVolume.MultiHopAttrlistOgParityStopsAtDepth1` (parity:
+1 extent, 2048 bytes — record 24's fragment only, record 25's grandchild
+fragment dropped), `NtfsVolume.DeletedAttrlistChaseFollowsChildrenAtDepth1`
+(both modes on a deleted 3-record chain: default 8 clusters / parity 4
+clusters at exactly LCN 140), the pre-existing `NestedAttrlistChase` stays
+green as the default-mode regression guard. Fail-before: walker-revert
+(the depth gate reverted) — both parity tests fail (extents 2 vs 1,
+4096 vs 2048 bytes). Suite 593/593 Linux Release.
+
+**Resolution notes:** `WalkerFlags::single_hop_attrlist` (default FALSE =
+the multi-hop BFS superset, per this finding's own recommendation: the
+og's depth-1 is a limitation, not a choice; registered PARITY-DELTAS
+D-66). TRUE = og parity for benchmark comparisons: the chase caps at ONE
+level (children of the base record only; nested lists never queue) —
+corpus FUN_180041df0 :52615-52687 (iterates the child list, no
+recursion), re-verified first-hand this session.
+
+**THE PREMISE CORRECTION (corpus wins):** this finding's gap #1 — "the
+og's deleted-phase walk passes NULL param_6, so deleted records never
+get the chase" — is STALE. It read FUN_18001acc0 (:21095+) as a
+"deleted-phase walk"; the S-012 decode (landed after this finding was
+filed) proved FUN_18001acc0 is the GUID-DUMP pass 2, which parses DUMP
+BUFFERS, not MFT records — its NULL param_6 means the dump walk builds
+no child list, which is correct for a buffer parser. The pass-1
+per-record processor is FUN_180017390 (:18423-18562), which S-012
+decoded as emitting EVERY record unconditionally — and its
+FUN_1800431d0 call at :18461-18464 passes the engine's list builder
+(plVar9, non-NULL), so pass 1 builds the child-record list for EVERY
+record, deleted included. Verified first-hand in the corpus this
+session (the :18461 plVar9 = FUN_180042ef0(...) acquire + the :18464
+call). Consequence: the og chases deleted records at depth 1 too; the
+fix-plan step "when the flag is ON, skip the chase entirely for deleted
+records" was REJECTED — implementing it would have diverged from the
+og, not matched it. The corrected parity semantics (depth-1 for ALL
+records, deleted included) are pinned by the deleted-chain test. The
+cycle guard stays (a hardening the og lacks; a hostile ring would loop
+the og forever). OQ-S2A-1 is thereby RESOLVED (FUN_180017390 processes
+deleted records with the chase enabled — the finding's own open
+question, answered by the same evidence). OQ-S2A-4 ($MFT's own
+bootstrap depth) remains open — the bootstrap's chase is a separate
+surface (audit row 6a) untouched by this fix.
