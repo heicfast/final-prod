@@ -127,3 +127,16 @@ Core (audited commit `67193b6`): `src/core/ntfs/` (6 files, 2,311 LOC) +
 | N-001 | MINOR | $MFTMirr fallback hardcoded records 0..3 vs runlist span |
 | I-001 | INFO | Known-20 metafile filter vs blanket `$`-skip (deliberate, documented) |
 | OQ-T1 | tracked-open | Secondary claim map semantics undecoded |
+
+## Post-baseline note (recorded for truthfulness)
+
+Audited baseline was `67193b6`. Concurrent session commit `7797bd6` ("GAP-S6-3 +
+GAP-S6-4") landed after the NTFS wave completed and changes this module:
+the remnant path now parses $DATA runlists (`cr_mftwalk.cpp` remnant reader,
++82 lines with tests). At the audited baseline the remnant path emitted
+$FILE_NAME-derived nodes without $DATA extents — the audit's context sheets
+had this registered as open GAP-S6-4 (root-causes.json). The B6 verdict above
+describes `67193b6`; the fix direction closes the gap. **Re-audit of the
+remnant $DATA path against the corpus remnant artifacts is queued for the next
+full audit pass** (the corpus's remnant scan documentation is thin —
+FUN_18002a780 shifted-salve is the primary decoded reference).
