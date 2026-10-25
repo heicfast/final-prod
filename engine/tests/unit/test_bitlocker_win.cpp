@@ -12,6 +12,13 @@
  */
 
 #include <gtest/gtest.h>
+#include "cr/cr_error.h" /* Windows-lane unblock (core-api session): the S-014
+                          * leg's test uses ERR_FVE_LOCKED/OK unqualified; on the
+                          * Linux lane cr_bitlocker.h's include chain reaches
+                          * cr_error.h transitively, on MSVC it does not - the
+                          * Windows build of ed00020 failed on exactly this
+                          * (run 40222295117). One explicit include, both lanes
+                          * deterministic. */
 #include "cr/win/cr_bitlocker.h"
 #include "cr/reghive/cr_reghive.h"
 #include <windows.h>

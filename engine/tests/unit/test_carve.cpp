@@ -725,11 +725,11 @@ TEST(RawSigns, UnitsAreKib) {
     ASSERT_NE(vob, nullptr);
     ASSERT_NE(flac, nullptr);
     ASSERT_NE(sample, nullptr);
-    EXPECT_EQ(vob->min_size, u64(10240) * 1024);   /* 10 MiB */
-    EXPECT_EQ(vob->max_size, u64(204800) * 1024);  /* 200 MiB */
-    EXPECT_EQ(flac->min_size, u64(1024) * 1024);   /* 1 MiB */
-    EXPECT_EQ(flac->max_size, u64(51200) * 1024);  /* 50 MiB */
-    EXPECT_EQ(sample->min_size, u64(1024));        /* 1 KiB */
+    EXPECT_EQ(vob->min_size, u64(10240) * 1024);  /* 10 MiB */
+    EXPECT_EQ(vob->max_size, u64(204800) * 1024); /* 200 MiB */
+    EXPECT_EQ(flac->min_size, u64(1024) * 1024);  /* 1 MiB */
+    EXPECT_EQ(flac->max_size, u64(51200) * 1024); /* 50 MiB */
+    EXPECT_EQ(sample->min_size, u64(1024));       /* 1 KiB */
     EXPECT_EQ(sample->max_size, u64(51200) * 1024);
 }
 
@@ -750,8 +750,8 @@ TEST(CarveEngine, RawSignLayerHeaderOnlyAndSharedMagic) {
     /* flp's own header (10 bytes) so flp's tail really is in-format range;
      * fst's shorter signs still win the best-confidence pick */
     std::memcpy(img.data() + start, "\x46\x4c\x68\x64\x06\x00\x00\x00\x00\x00", 10);
-    std::memcpy(img.data() + start + 1024 * 1024 + 2 * 1024 * 1024 + 17,
-                "\x5c\x44\x00\x00\x00\x00", 6); /* flp tail sign, off 17 (decimal) */
+    std::memcpy(img.data() + start + 1024 * 1024 + 2 * 1024 * 1024 + 17, "\x5c\x44\x00\x00\x00\x00",
+                6); /* flp tail sign, off 17 (decimal) */
     MemDevice dev(std::move(img));
     tree::ResultTree tree;
     auto* root = tree.add_root(u"Lost Files");
@@ -795,8 +795,8 @@ TEST(CarveEngine, RawSignTailPairWithinFormat) {
      * chunked 8 MiB walk. */
     std::vector<u8> img(4 * 1024 * 1024, 0);
     const u64 start = 4096;
-    const u64 lo = 1024;                    /* sqlite min, KiB-scaled */
-    const u64 tail_stride = 2 * 1024 * 1024; /* 512-aligned stride past lo */
+    const u64 lo = 1024;                                /* sqlite min, KiB-scaled */
+    const u64 tail_stride = 2 * 1024 * 1024;            /* 512-aligned stride past lo */
     std::memcpy(img.data() + start, "SQLite form", 11); /* sqlite header sign */
     std::memcpy(img.data() + start + lo + tail_stride + 31,
                 "\x11\x1d\x05\x15\x19\x0f\x0f\x77\x6f\x72\x64", 11); /* sqlite tail */
@@ -826,7 +826,7 @@ TEST(RawSigns, CarvesFiveMiBVob) {
      * floor (min<<10 acceptance) - a smaller region is rejected on BOTH
      * sides (pinned separately by the og's tail-acceptance gate). */
     std::vector<u8> img(12 * 1024 * 1024, 0);
-    const u64 start = 6144; /* 512-aligned stride */
+    const u64 start = 6144;                                      /* 512-aligned stride */
     std::memcpy(img.data() + start + 10, "\x01\x89\xc3\xf8", 4); /* vob hdr sign */
     MemDevice dev(std::move(img));
     tree::ResultTree tree;
@@ -877,13 +877,12 @@ TEST(RawSigns, TailPairWindowScaled) {
      * pattern at a 512-aligned stride + the sign's own 0x28 offset. */
     std::vector<u8> img(4 * 1024 * 1024, 0);
     const u64 start = 4096;
-    const u64 lo = 1024; /* apk min, KiB-scaled */
-    const u64 tail_stride = 2 * 1024 * 1024; /* 512-aligned */
-    std::memcpy(img.data() + start, "PK\x03\x04", 4);              /* apk header */
+    const u64 lo = 1024;                              /* apk min, KiB-scaled */
+    const u64 tail_stride = 2 * 1024 * 1024;          /* 512-aligned */
+    std::memcpy(img.data() + start, "PK\x03\x04", 4); /* apk header */
     /* apk tail sign: offset 28 DECIMAL (corpus offsets are decimal),
      * bytes 50 4b 05 06 00 00 00 00 */
-    std::memcpy(img.data() + start + lo + tail_stride + 28,
-                "\x50\x4b\x05\x06\x00\x00\x00\x00", 8);
+    std::memcpy(img.data() + start + lo + tail_stride + 28, "\x50\x4b\x05\x06\x00\x00\x00\x00", 8);
     MemDevice dev(std::move(img));
     tree::ResultTree tree;
     auto* root = tree.add_root(u"Lost Files");
@@ -1244,10 +1243,10 @@ std::vector<u8> bmff_head(const char* brand) {
         v.push_back(u8(ch));
     for (int i = 0; i < 4; ++i)
         v.push_back(u8(brand[i])); /* major brand */
-    be32(0x00000200); /* minor version */
+    be32(0x00000200);              /* minor version */
     for (int i = 0; i < 4; ++i)
         v.push_back(u8(brand[i])); /* compatible brands (1) */
-    be32(8 + mdat_payload); /* mdat box */
+    be32(8 + mdat_payload);        /* mdat box */
     for (char ch : std::string("mdat"))
         v.push_back(u8(ch));
     v.resize(v.size() + mdat_payload, 0x5A);

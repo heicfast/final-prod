@@ -789,16 +789,16 @@ std::vector<u8> build_exfat_large_fat_image() {
      * (cluster 0x40001 -> FAT byte 0x100004) */
     const size_t FAT = size_t(FAT_OFF) * BPS;
     auto fe = [&](u32 c, u32 v) { put32v(img, FAT + size_t(c) * 4, v); };
-    fe(2, 0xFFFFFFFF);               /* root: single cluster */
+    fe(2, 0xFFFFFFFF); /* root: single cluster */
     fe(20, 21);
     fe(21, 22);
-    fe(22, 0xFFFFFFFF);             /* doc.txt 20-22 (window 0) */
-    for (u32 c = 50; c < 114; ++c)   /* allocation bitmap chain 50..113 */
+    fe(22, 0xFFFFFFFF);            /* doc.txt 20-22 (window 0) */
+    for (u32 c = 50; c < 114; ++c) /* allocation bitmap chain 50..113 */
         fe(c, c + 1);
     fe(113, 0xFFFFFFFF);
-    fe(0x40001, 0x40002);            /* far.dat - WINDOW 1 */
+    fe(0x40001, 0x40002); /* far.dat - WINDOW 1 */
     fe(0x40002, 0xFFFFFFFF);
-    fe(0x40005, 0x40006);            /* fardir - WINDOW 1, 2 clusters */
+    fe(0x40005, 0x40006); /* fardir - WINDOW 1, 2 clusters */
     fe(0x40006, 0xFFFFFFFF);
 
     /* allocation bitmap at cluster 50: bits for the used low clusters */
@@ -866,9 +866,14 @@ std::vector<u8> build_exfat_large_fat_image() {
      * 1-cluster truncation read only 0x40005 and never found it. */
     {
         const size_t FAR1 = clus_off(0x40005);
-        const std::u16string pad1 = u"padding-file-with-a-really-long-name-number-one-aaaaa";  /* 53 -> 4 names -> 6 entries */
-        const std::u16string pad2 = u"padding-file-with-a-really-long-name-number-two-bbbbb";  /* 53 -> 4 names -> 6 entries */
-        const std::u16string pad3 = u"padding-file-three-cccc";  /* 24 -> 2 names -> 4 entries (6+6+4 = 16 exact) */
+        const std::u16string pad1 =
+            u"padding-file-with-a-really-long-name-number-one-aaaaa"; /* 53 -> 4 names -> 6 entries
+                                                                       */
+        const std::u16string pad2 =
+            u"padding-file-with-a-really-long-name-number-two-bbbbb"; /* 53 -> 4 names -> 6 entries
+                                                                       */
+        const std::u16string pad3 =
+            u"padding-file-three-cccc"; /* 24 -> 2 names -> 4 entries (6+6+4 = 16 exact) */
         size_t at2 = 0;
         for (const auto& nm : {pad1, pad2, pad3}) {
             SetBuilder sb;

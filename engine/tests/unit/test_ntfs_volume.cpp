@@ -2501,8 +2501,8 @@ TEST(NtfsVolume, MainWalkKeepsOverwrittenDeleted) {
     auto* rl = tree.add_root(u"L");
     WalkerFlags wf; /* defaults: S-012 og-parity profile */
     WalkStats stats;
-    ASSERT_EQ(OK, walk_mft(vol.get(), bm.get(), wf, nullptr, nullptr, nullptr, tree, ra, rd, rl,
-                           stats));
+    ASSERT_EQ(
+        OK, walk_mft(vol.get(), bm.get(), wf, nullptr, nullptr, nullptr, tree, ra, rd, rl, stats));
     EXPECT_EQ(0u, stats.destroyed_overwritten);
     tree::FileNode* over = nullptr;
     std::function<void(tree::FileNode*)> find = [&](tree::FileNode* n) {
@@ -2515,7 +2515,7 @@ TEST(NtfsVolume, MainWalkKeepsOverwrittenDeleted) {
     for (auto* r : tree.roots())
         find(r);
     ASSERT_NE(over, nullptr) << "fully-overwritten deleted file must stay in the "
-                              "result set (og pass-1 membership)";
+                                "result set (og pass-1 membership)";
     EXPECT_EQ(over->confidence(), tree::Confidence::Overwritten);
     EXPECT_EQ(over->deleted_state(), tree::DeletedState::PartiallyOverwritten);
 }

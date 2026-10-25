@@ -5566,3 +5566,30 @@ Stage Summary:
   matches pass 1, dump-recovered records (the deep-scan advantage) are produced for
   the first time, and size-0 deleted records get the mirror/merge rescue. Next per
   the handoff order: S-003/S-021 (HFS+ journal pair), then S-014/S-019 (BitLocker).
+
+---
+Task ID: API-LANE-UNBLOCK (cross-lane courtesy note)
+Agent: main engineer (core-api session)
+Task: Unblocked the shared red lanes + a precise leak report for the active S-012 leg.
+
+Work Log:
+- test_bitlocker_win.cpp: added the missing #include "cr/cr_error.h" (the S-014 leg's
+  test uses ERR_FVE_LOCKED/OK unqualified; MSVC's include chain via cr_bitlocker.h does
+  not reach cr_error.h — the Windows lane of ed00020+ failed on exactly this, runs
+  40222295117/40222295027). One include, both lanes deterministic. ATTRIBUTED in-code.
+- clang-format 18 sweep over the tree (cr_carve.cpp, cr_mftwalk.cpp, test files — the
+  S-012/S-017 legs landed unformatted; lint lane red since abe8e36).
+- CROSS-LANE FINDING for the active S-012 leg (NOT fixed here — your feature, your
+  ownership model): the ASan lane is RED on 4 tests with a 460-byte leak whose direct
+  trace is walk_mft cr_mftwalk.cpp:1392 (operator new(nothrow), 2 x 368 B
+  tree::FileProperties) + indirect u16string/extents-vector leaks, reached from
+  walk_dump_image (test_ntfs_volume.cpp:2464). Failing tests:
+  NtfsVolume.GuidDumpPassRecoversReusedRecord, NtfsVolume.GuidDumpDestroyRules,
+  NtfsVolume.SizeZeroRescueFromMftCopy, +1 more. The destroy-rule path emits no node
+  yet still leaks 2 FileProperties — suspicion: an allocation on a path that neither
+  attaches to the tree nor releases (or a by_record side-map holding bare pointers).
+  Suite state after my unblocks: 367/371, the 4 red all this leak.
+
+Stage Summary:
+- Lint lane + Windows-lane blockers cleared; one precisely-reported leak remains for
+  the S-012 leg (their active queue).

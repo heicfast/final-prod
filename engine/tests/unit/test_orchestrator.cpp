@@ -669,9 +669,7 @@ struct EventRecorder {
             r->max_error_ranges = std::max(r->max_error_ranges, e.error_ranges);
         }
     }
-    bool has(event::Type t) const {
-        return std::find(seen.begin(), seen.end(), t) != seen.end();
-    }
+    bool has(event::Type t) const { return std::find(seen.begin(), seen.end(), t) != seen.end(); }
 };
 
 } // namespace
@@ -683,7 +681,8 @@ TEST(ScanEvents, ErrorRangeGoesToLiveSink) {
      * live sink but ErrorRange was invoked through cfg_.event_fn (null) -
      * a null function-pointer call mid-scan; with the fix the event
      * arrives at the live sink and the scan completes. */
-    FailingSectorDevice dev(build_fat16(), 30); /* sector 30: FAT2 span, away from the used low-cluster entries */
+    FailingSectorDevice dev(build_fat16(),
+                            30); /* sector 30: FAT2 span, away from the used low-cluster entries */
     tree::ResultTree tree;
     ScanConfig cfg; /* event_fn null by default */
     cfg.run_quick = true;
@@ -707,7 +706,8 @@ TEST(ScanEvents, SinkSwitchDeliversAllTypes) {
     /* contract: after set_event_sink(B), EVERY event type - including
      * ErrorRange - arrives at B only; the config sink A receives nothing.
      * Before the A-004 fix ErrorRange mis-delivered to A. */
-    FailingSectorDevice dev(build_fat16(), 30); /* sector 30: FAT2 span, away from the used low-cluster entries */
+    FailingSectorDevice dev(build_fat16(),
+                            30); /* sector 30: FAT2 span, away from the used low-cluster entries */
     tree::ResultTree tree;
     ScanConfig cfg; /* A: the config seed */
     cfg.run_quick = true;

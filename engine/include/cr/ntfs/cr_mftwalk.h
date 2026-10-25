@@ -96,17 +96,17 @@ struct WalkStats {
     u64 compressed_blocks = 0;     /* GAP-P1-1: expanded NTFS compression blocks */
     u64 compressed_failed = 0;     /* files whose envelope failed (zero-filled) */
     u64 destroyed_overwritten = 0; /* S-001/S-012: deleted files dropped by
-                                     * the destroy rule. Fires in the LIVE walk
-                                     * only when WalkerFlags::
-                                     * destroy_fully_overwritten=true
-                                     * (honest-recovery mode; og pass 1 never
-                                     * destroys - S-012). */
-    u64 guid_dump_files = 0;      /* S-012 pass 2: collected GUID-named dumps */
-    u64 guid_dump_records = 0;    /* S-012 pass 2: records emitted from dumps */
-    u64 guid_dump_destroyed = 0;  /* S-012 pass 2: dump records destroyed
-                                   * (all-claimed / <=0x3ff / $-name / system) */
-    u64 size_zero_rescued = 0;    /* S-012: size-0 records rescued via mirror
-                                   * resident data or same-name merge */
+                                    * the destroy rule. Fires in the LIVE walk
+                                    * only when WalkerFlags::
+                                    * destroy_fully_overwritten=true
+                                    * (honest-recovery mode; og pass 1 never
+                                    * destroys - S-012). */
+    u64 guid_dump_files = 0;       /* S-012 pass 2: collected GUID-named dumps */
+    u64 guid_dump_records = 0;     /* S-012 pass 2: records emitted from dumps */
+    u64 guid_dump_destroyed = 0;   /* S-012 pass 2: dump records destroyed
+                                    * (all-claimed / <=0x3ff / $-name / system) */
+    u64 size_zero_rescued = 0;     /* S-012: size-0 records rescued via mirror
+                                    * resident data or same-name merge */
 };
 
 /* Progress callback: (done, total) in walk units (records for the MFT

@@ -280,16 +280,15 @@ static bool is_guid_dump_name(const std::u16string& n) {
  * the $STANDARD_INFORMATION dos_flags carrying BOTH hidden (0x02) and
  * system (0x04). (Pass 1 keeps the core's wider 20-entry table - I-001.) */
 static bool og_pass2_metafile_gate(const std::u16string& name, u64 si_flags) {
-    static const std::u16string kOg15[] = {
-        u"$MFT",     u"$MFTMirr", u"$LogFile", u"$Volume", u"$AttrDef",
-        u"$Bitmap",  u"$Boot",    u"$BadClus", u"$Secure", u"$UpCase",
-        u"$Extend",  u"$Quota",   u"$ObjId",   u"$Reparse", u"$RmMetadata"};
+    static const std::u16string kOg15[] = {u"$MFT",     u"$MFTMirr", u"$LogFile",   u"$Volume",
+                                           u"$AttrDef", u"$Bitmap",  u"$Boot",      u"$BadClus",
+                                           u"$Secure",  u"$UpCase",  u"$Extend",    u"$Quota",
+                                           u"$ObjId",   u"$Reparse", u"$RmMetadata"};
     for (const std::u16string& m : kOg15)
         if (name == m)
             return (si_flags & 0x06) == 0x06;
     return false;
 }
-
 
 /* NTFS compression-block envelope expansion (GAP-P1-1).
  *
@@ -1405,9 +1404,8 @@ u32 walk_mft(NtfsVolume* vol, VolumeBitmap* bitmap, const WalkerFlags& flags, Ca
                             std::vector<RunList::Extent> ex;
                             data_runs2.extents(ex);
                             for (const auto& e : ex)
-                                dp->extents.push_back(
-                                    {e.lcn * vol->params().cluster_bytes,
-                                     e.clusters * vol->params().cluster_bytes});
+                                dp->extents.push_back({e.lcn * vol->params().cluster_bytes,
+                                                       e.clusters * vol->params().cluster_bytes});
                         } else if (!resident2.empty() && !is_dir2) {
                             dp->resident_data = std::move(resident2);
                         }

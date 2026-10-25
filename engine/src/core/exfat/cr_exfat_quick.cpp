@@ -30,11 +30,11 @@ struct ExfatFat {
      * Single-thread contract: the exFAT quick pass walks one volume on
      * one thread (the shared scan worker model). */
     IStorageDevice* win_dev = nullptr;
-    u64 win_base = 0;         /* FAT byte offset on the device */
-    u64 total_bytes = 0;      /* whole FAT size in bytes */
+    u64 win_base = 0;               /* FAT byte offset on the device */
+    u64 total_bytes = 0;            /* whole FAT size in bytes */
     mutable std::vector<u8> win;    /* 1 MiB window cache (og: 0x100000) */
     mutable u64 win_first_byte = 0; /* FAT-relative start of the loaded window */
-    mutable u32 refills = 0; /* drained into stats at scan end */
+    mutable u32 refills = 0;        /* drained into stats at scan end */
 
     bool windowed() const { return win_dev != nullptr; }
     bool load_window(u64 widx) const {
