@@ -353,3 +353,13 @@ carries the distinct format id. B1/C19 verdict for this row: MATCH.
   RawSignTailPairWithinFormat tests. Option (a) (table-order parity)
   stays gated on decoding the og's own emitted grade — FUN_18000d670's
   result fill — recorded as the revisit precondition.
+
+**N-068 (MINOR, S5) — FIXED (s11; EOCD half FIXED-ALREADY):** the LFH
+anchor now carries the og's two candidate gates (decompile :18385-18388
+byte-exact: u16@+8 <= 10 and the [1, 0x103] window at +0x1a — the
+artifact's labels are off; E44), applied in zip_common so FMT_ZIP and
+FMT_DOCX share them. The EOCD-anchor recall claim is covered by the
+existing FMT_ZIP_CD + EOCD reconciliation (head-destroyed zip
+reproduction passes pre-fix); a registry EOCD row would double-emit or be
+dead code — the analysis is recorded in the finding's Resolution.
+B1/A28 verdicts: MATCH.

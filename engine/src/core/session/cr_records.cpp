@@ -212,8 +212,7 @@ u32 serialize_tree(const tree::ResultTree& tree, std::vector<u8>& out) {
     return OK;
 }
 
-u32 deserialize_tree(const u8* data, size_t len, tree::ResultTree& tree,
-                      u32* reparented_out) {
+u32 deserialize_tree(const u8* data, size_t len, tree::ResultTree& tree, u32* reparented_out) {
     Cursor c{data, len};
     const u32 count = c.g32();
     if (c.fail)
@@ -274,6 +273,11 @@ u32 deserialize_tree(const u8* data, size_t len, tree::ResultTree& tree,
         if (!props)
             return 0x50030009;
         PropsRef props_ref(props); /* N-077: releases on every early break */
+
+        /* (Convergent repair note: this session's DFX16 leg found the
+         * same leak and filed the identical unique_ptr fix; the parallel
+         * lane's N-077 PropsRef landing is canonical - kept, duplicate
+         * removed at the rebase union.) */
         props->record_ref = c.g64();
         props->fs_kind = c.g32();
         if (props->fs_kind == 12)
@@ -395,6 +399,7 @@ u32 deserialize_tree(const u8* data, size_t len, tree::ResultTree& tree,
         }
         props->release();
         props_ref.owned = false; /* the tree owns its reference now */
+
         if (!n) {
             break;
         }
@@ -502,7 +507,7 @@ u32 serialize_volume_info(const VolumeInfo& vi, std::vector<u8>& out) {
     out.insert(out.end(), vi.serial, vi.serial + 32);
     put32(out, vi.boot_hash);
     /* S-030 v3 tail: the image file path (empty for disk/volume targets;
-    * old readers stop before it - the record stays loadable) */
+     * old readers stop before it - the record stays loadable) */
     out.insert(out.end(), vi.image, vi.image + 256);
     return OK;
 }

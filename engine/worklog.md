@@ -10866,3 +10866,53 @@ Stage Summary:
 - Session tally: M-055 + N-077 fixed; N-020 reconciled (3 resolutions).
 - MINOR live count: 36. Next: N-070 (carve overlap scoring), N-074 (doc
   drift group 2), N-040 (ABI/doc truthfulness).
+
+Task ID: DFX16-N068+leak (ZIP LFH gates + the union-tree session leak)
+Agent: main engineer (diff-to-fix session 11 — DFX16)
+Task: Verify and fix N-068 (ZIP EOCD anchor + LFH sanity gates); repair
+the union-tree ASan red found during the full-suite gate.
+
+Work Log:
+- N-068 verified against the artifact AND the decompile first-hand
+  (RAWSearchDLL :18383-18388): the og's LFH candidate gates are
+  byte-exact `u16@+8 > 10 -> reject` and `0x102 < (u16@+0x1a - 1) ->
+  reject` (accept window [1, 0x103]). Two artifact transcription hazards
+  recorded (erratum E44): the "+8 version_needed" label (+8 is the
+  method field in the spec layout; gating +4 would reject every modern
+  zip) and the off-by-one [1,0x102] range text.
+- Claim 1 (EOCD anchor) reproduced FIRST: ZipTruncatedHeadRecovered PASSES
+  on the pre-fix tree — the FMT_ZIP_CD anchor + EOCD reconciliation
+  already recover the head-destroyed zip (the finding's own "carved via
+  CD" expectation). Marked FIXED-ALREADY with the full architectural
+  analysis in the Resolution: a registry-level FMT_ZIP_EOCD row would
+  double-emit intact zips or decline on every path (dead code); the og's
+  three-way dispatch is analyser-internal per the corpus's own note.
+- Claim 2 (LFH gates) implemented in zip_common (covers FMT_ZIP +
+  FMT_DOCX): fail-before ZipLfhSanityGates RED (the u16@+8=11 candidate
+  walked and carved), pass-after (both gate fixtures rejected; the
+  method-10 boundary pin still carves). Erratum E44 filed.
+- UNION-TREE REPAIR: the full-suite gate found main RED under ASan —
+  Session.TruncatedTailFailsAfterFullCount + HostileNameAndRoleLengthBombs
+  exit nonzero (LeakSanitizer at exit, 2 x 528 B in
+  session::deserialize_tree). Root cause: the parallel lane's N-058
+  hardening added five early-exit breaks between the props allocation and
+  the handoff in cr_records.cpp - every one leaked the caller ref.
+  Fixed with a scoped unique_ptr owner (drops the ref on every exit; the
+  success path releases into the tree's own refs exactly as before).
+  Post-fix: full suite 640/640 ASan green (the count includes the
+  parallel lanes' new tests pulled this window); carve+session UBSan
+  subset clean. CONVERGENCE NOTE (rebase union): the parallel lane found
+  the same leak in the same window and FILED it as N-077 (NEW-FINDING,
+  their `PropsRef` RAII landing `98b7d13`); the union initially
+  double-applied both fixes (over-release hazard) - reconciled to their
+  canonical PropsRef, my duplicate unique_ptr removed, suite 659/659
+  green on the reconciled tree. The leak is formally N-077's; this leg's
+  in-code comment records the convergent discovery.
+
+Stage Summary:
+- Session fix tally: N-069, N-067, N-068 (gates FIXED + EOCD half
+  FIXED-ALREADY), S-033 (filed + refuted INVALID), the N-058-landing
+  leak repaired (main green again). Audit trail: Resolutions, FIXED/
+  moves, index rows, matrix cells, modules/carve verdict, E44 erratum.
+  Next: N-045 (cache budget), N-029 (UTF-8 residuals), then the doc
+  group N-074.
