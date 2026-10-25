@@ -7,7 +7,7 @@ against the original finding. They are NOT counted in the active
 severity totals in `diff-to-fix/SUMMARY.md` and are NOT part of the
 active roadmap.
 
-## Resolved findings (12 — fixed between session 1 close and session 2 rebase)
+## Resolved findings (13 — 12 from session 1 close/session-2 legs + A-002 fixed in session 3)
 
 | ID | Severity (orig) | Title | Fix commit | Resolution |
 |---|---|---|---|---|
@@ -23,6 +23,7 @@ active roadmap.
 | N-003 | MINOR | exFAT entry-set checksum enforced beyond og | `fb44073` | exFAT entry-set checksum default switched to og-parity (lenient on damaged sets — keep them, don't drop). Fail-before/pass-after test. |
 | N-010 (parallel-leg-theirs) | MINOR | FatTable::next swallows the BAD sentinel into the reserved-range EOC branch | `cb8dafd` | `v == CHAIN_BAD` test moved before the reserved-range branch in `next()`. BAD-terminated chains now grade broken on both sides (was: clean end). Grading-only divergence (recovered bytes identical). Discovered during I-002's pin-test addition. Suite 313/313. |
 | OQ-T1 | tracked-open | NTFS secondary claim map semantics | (none — decompile read) | RESOLVED by decompile read: secondary map is ctor-NULLed, never assigned anywhere in NTFSSearchDLL — dormant polymorphic hook; same-direction (re-allocated). No code change needed. |
+| **A-002** | ACUTE (session 2) | A-001 fix corrupted both LDM GPT GUIDs — real GPT dynamic disks failed LDM discovery | (this commit; `git log` "fix: A-002") | Real Microsoft PARTITION_LDM_METADATA_GUID {5808c8aa-7e8f-42e0-85d2-e1e90434cfb3} + PARTITION_LDM_DATA_GUID {af9b60a0-1431-4f62-bc68-3311714a69ad} restored in `cr_table_wire.h` (winioctl.h + first-hand PE extraction from LdmManager.mo DAT_1800c4960 / Partition.mo DAT_180036630/0x36640; 1,470-file corpus scan: fabricated values in zero og binaries). Regression tests de-self-referenced to hard-coded real bytes; `Gpt.LdmGuidConstantsMatchMicrosoftWinioctlText` + `Ldm.GptDynamicDiskFabricatedGuidsRejected` guards added. Fail-before 5/5 → pass-after 5/5; suite 303/303 Linux ASan. Harness + probe log + parity doc corrected in same commit. |
 
 ## Acknowledged informational findings (NOT moved — deliberate supersets with pin tests)
 

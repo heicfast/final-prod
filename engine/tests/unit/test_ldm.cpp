@@ -522,94 +522,35 @@ void put64le(u8* p, u64 v) {
 }
 } // namespace
 
-/* ---- A-001: GPT dynamic disk with canonical type GUIDs ------------------ */
+namespace {
 
-TEST(Ldm, GptDynamicDiskCanonicalGuidsParse) {
-    /* Before the A-001 fix, GPT_TYPE_LDM_METADATA did not match the
-     * canonical PARTITION_LDM_METADATA_GUID bytes, so every GPT dynamic
-     * disk died in find_privhead with ERR_BAD_MAGIC - zero dynamic-volume
-     * recovery. This fixture reproduces the audit's executed probe as a
-     * permanent test: a real mixed-endian GPT layout (protective MBR,
-     * primary + backup headers with CRCs, canonical LDM metadata/data
-     * entries) wrapping the standard StripeDisk database. PRIVHEAD sits
-     * in the LAST block of the LDM metadata partition (libldm
-     * _read_privhead_gpt), which ends just before the backup-GPT area. */
+/* A-002 de-self-reference: the REAL Microsoft PARTITION_LDM_METADATA_GUID /
+ * PARTITION_LDM_DATA_GUID, hard-coded as mixed-endian disk bytes exactly as
+ * dmio writes them into GPT entries on real Windows dynamic disks (winioctl.h
+ * / Microsoft Learn PARTITION_INFORMATION_GPT; same bytes the og binaries
+ * compare against - LdmManager.mo DAT_1800c4960, Partition.mo
+ * DAT_180036630/DAT_180036640). The fixtures below write THESE literals,
+ * never the constants under test, so a corrupted constant fails the test
+ * instead of quietly validating itself. */
+constexpr u8 REAL_LDM_METADATA_GUID[16] = {0xAA, 0xC8, 0x08, 0x58, 0x8F, 0x7E, 0xE0, 0x42,
+                                          0x85, 0xD2, 0xE1, 0xE9, 0x04, 0x34, 0xCF, 0xB3};
+constexpr u8 REAL_LDM_DATA_GUID[16] = {0xA0, 0x60, 0x9B, 0xAF, 0x31, 0x14, 0x62, 0x4F,
+                                       0xBC, 0x68, 0x33, 0x11, 0x71, 0x4A, 0x69, 0xAD};
+
+/* A-002 negative fixture: the fabricated 1cb6a43 values that exist in no
+ * og binary, no Microsoft source, and no real disk - must be rejected. */
+constexpr u8 FABRICATED_LDM_METADATA_GUID[16] = {0xAA, 0xC8, 0x08, 0x58, 0x9F, 0x8E, 0x87, 0x4C,
+                                                 0xAE, 0xA2, 0xAF, 0x0A, 0xA3, 0xC4, 0x16, 0x87};
+
+/* shared builder for the GPT-dynamic-disk fixtures (protective MBR +
+ * primary/backup GPT with CRCs + two entries + PRIVHEAD at the metadata
+ * partition's last block, the og FUN_1800724f0 position). */
+std::vector<u8> make_gpt_dynamic_disk(const u8* meta_guid, const u8* data_guid) {
     StripeDisk sd;
     const u64 total_secs = 65536; /* matches the fixture's 32 MiB disk */
     const u64 cfg_start = total_secs - 2048;
-    const u64 ldm_meta_last = 65532;     /* metadata partition [cfg_start, 65532] */
-    sd.fx.write_privhead(ldm_meta_last); /* PRIVHEAD at the partition's last block */
-    std::vector<u8> disk = sd.fx.take();
-
-    /* protective MBR over the 0x42 entry the fixture wrote */
-    u8* mbr = disk.data();
-    mbr[0x1BE + 4] = 0xEE;
-    p32be(mbr + 0x1BE + 8, 1);
-    p32be(mbr + 0x1BE + 12, u32(total_secs - 1));
-
-    /* primary GPT header (LBA1) */
-    u8* h = disk.data() + 512;
-    std::memcpy(h, "EFI PART", 8);
-    put32le(h + 8, 0x00010000); /* revision */
-    put32le(h + 12, 92);        /* header size */
-    put64le(h + 24, 1);         /* current LBA */
-    put64le(h + 32, 65535);     /* backup LBA */
-    put64le(h + 40, 2);         /* first usable */
-    put64le(h + 48, 65531);     /* last usable */
-    put64le(h + 72, 2);         /* entries at LBA2 */
-    put32le(h + 80, 2);         /* 2 entries */
-    put32le(h + 84, 128);       /* entry size */
-
-    /* entries: LDM metadata [cfg_start, 65532]; LDM data [2048, 4096] */
-    std::vector<u8> entries(2 * 128, 0);
-    std::memcpy(entries.data() + 0, GPT_TYPE_LDM_METADATA, 16);
-    put64le(entries.data() + 32, cfg_start);
-    put64le(entries.data() + 40, ldm_meta_last);
-    std::memcpy(entries.data() + 128, GPT_TYPE_LDM_DATA, 16);
-    put64le(entries.data() + 128 + 32, 2048);
-    put64le(entries.data() + 128 + 40, 4096);
-    put32le(h + 88, crc32(entries.data(), entries.size()));
-    std::memcpy(disk.data() + 2 * 512, entries.data(), entries.size());
-    put32le(h + 16, crc32(h, 92));
-
-    /* backup GPT: entries at LBA 65534, header at LBA 65535 */
-    std::memcpy(disk.data() + 65534 * 512, entries.data(), entries.size());
-    u8* bh = disk.data() + 65535 * 512;
-    std::memcpy(bh, h, 512);
-    put32le(bh + 16, 0);
-    put64le(bh + 24, 65535);
-    put64le(bh + 32, 1);
-    put64le(bh + 72, 65534);
-    put32le(bh + 16, crc32(bh, 92));
-
-    MemDevice dev(std::move(disk));
-    LdmInfo info;
-    /* THE A-001 assertion: the LDM database on a GPT dynamic disk is
-     * discoverable through the canonical metadata GUID (was
-     * ERR_BAD_MAGIC before the fix). */
-    ASSERT_EQ(OK, parse_ldm_database(&dev, info));
-    EXPECT_TRUE(info.is_gpt);
-    EXPECT_EQ(size_t(2), info.layouts.size());       /* the same graph the MBR
-                                                        fixture yields */
-    EXPECT_EQ(u64(2), info.stats.privheads_matched); /* partition tail
-                                                        (65532) + config+1856
-                                                        (65344); the
-                                                        config+2047 slot
-                                                        (65535) carries the
-                                                        backup GPT header in
-                                                        this geometry, so no
-                                                        third PRIVHEAD */
-}
-
-TEST(Ldm, GptDynamicDiskTableClassifiesLdmEntries) {
-    /* the table layer sees the same GPT: LDM data classifies Ldm, the
-     * metadata partition classifies Reserved (A-001 classification) */
-    LdmInfo info; /* unused; keeping the parse surface honest */
-    (void)info;
-    StripeDisk sd;
-    const u64 total_secs = 65536;
-    const u64 cfg_start = total_secs - 2048;
-    sd.fx.write_privhead(65532);
+    const u64 ldm_meta_last = 65532; /* metadata partition [cfg_start, 65532] */
+    sd.fx.write_privhead(ldm_meta_last);
     std::vector<u8> disk = sd.fx.take();
     u8* mbr = disk.data();
     mbr[0x1BE + 4] = 0xEE;
@@ -627,10 +568,10 @@ TEST(Ldm, GptDynamicDiskTableClassifiesLdmEntries) {
     put32le(h + 80, 2);
     put32le(h + 84, 128);
     std::vector<u8> entries(2 * 128, 0);
-    std::memcpy(entries.data() + 0, GPT_TYPE_LDM_METADATA, 16);
+    std::memcpy(entries.data() + 0, meta_guid, 16);
     put64le(entries.data() + 32, cfg_start);
-    put64le(entries.data() + 40, 65532);
-    std::memcpy(entries.data() + 128, GPT_TYPE_LDM_DATA, 16);
+    put64le(entries.data() + 40, ldm_meta_last);
+    std::memcpy(entries.data() + 128, data_guid, 16);
     put64le(entries.data() + 128 + 32, 2048);
     put64le(entries.data() + 128 + 40, 4096);
     put32le(h + 88, crc32(entries.data(), entries.size()));
@@ -644,8 +585,51 @@ TEST(Ldm, GptDynamicDiskTableClassifiesLdmEntries) {
     put64le(bh + 32, 1);
     put64le(bh + 72, 65534);
     put32le(bh + 16, crc32(bh, 92));
+    return disk;
+}
 
-    MemDevice dev(std::move(disk));
+} // namespace
+
+/* ---- A-001/A-002: GPT dynamic disk with canonical type GUIDs ----------- */
+
+TEST(Ldm, GptDynamicDiskCanonicalGuidsParse) {
+    /* A-002: this fixture writes the REAL Microsoft GUID bytes (hard-coded
+     * literals above), NOT the constants under test - the previous version
+     * was self-referential (constants copied into the fixture), which
+     * validated any constant value including the fabricated 1cb6a43 bytes.
+     * With the real GUIDs in the entries, a GPT dynamic disk parses
+     * end-to-end only while cr_table_wire.h carries Microsoft's actual
+     * PARTITION_LDM_METADATA_GUID (the og gate: LdmManager FUN_1800724f0
+     * memcmp vs DAT_1800c4960, PRIVHEAD at the entry's last LBA). */
+    MemDevice dev(make_gpt_dynamic_disk(REAL_LDM_METADATA_GUID, REAL_LDM_DATA_GUID));
+    LdmInfo info;
+    ASSERT_EQ(OK, parse_ldm_database(&dev, info));
+    EXPECT_TRUE(info.is_gpt);
+    EXPECT_EQ(size_t(2), info.layouts.size());
+    EXPECT_EQ(u64(2), info.stats.privheads_matched); /* partition tail (65532)
+                                                        + config+1856 (65344);
+                                                        config+2047 carries the
+                                                        backup GPT header here */
+}
+
+TEST(Ldm, GptDynamicDiskFabricatedGuidsRejected) {
+    /* A-002 negative guard: the fabricated 1cb6a43 GUIDs (5808c8aa-8e9f-… /
+     * af9b60a0-384e-… family) appear in no og binary, no Microsoft source,
+     * and no real disk; a disk carrying them must NOT be treated as a GPT
+     * dynamic disk. Before the A-002 restore this fixture parsed end-to-end
+     * - the exact wrongness the fabricated constants embodied. */
+    MemDevice dev(make_gpt_dynamic_disk(FABRICATED_LDM_METADATA_GUID, REAL_LDM_DATA_GUID));
+    LdmInfo info;
+    EXPECT_EQ(ERR_BAD_MAGIC, parse_ldm_database(&dev, info));
+}
+
+TEST(Ldm, GptDynamicDiskTableClassifiesLdmEntries) {
+    /* the table layer sees the same GPT: LDM data classifies Ldm, the
+     * metadata partition classifies Reserved (A-001 classification).
+     * A-002: built from the shared REAL-GUID fixture - classification is
+     * proven against the Microsoft GUIDs a real disk carries, not against
+     * whatever the constants currently hold. */
+    MemDevice dev(make_gpt_dynamic_disk(REAL_LDM_METADATA_GUID, REAL_LDM_DATA_GUID));
     DiskTable t;
     ASSERT_EQ(parse_disk_table(&dev, t), OK);
     EXPECT_EQ(t.layout, TableLayout::Gpt);

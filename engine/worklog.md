@@ -4135,3 +4135,43 @@ Stage Summary:
   (including one finding correction), and green CI on Linux + Windows at every landing.
 - main is green at 7fd00e0; the s3 leg has already bootstrapped on top of it. The corpus
   (03ad46c) was never modified. No token material ever entered either repository.
+---
+Task ID: DF3-T2 (A-002)
+Task: ACUTE A-002 — restore the real Microsoft LDM GPT type-GUIDs corrupted by the A-001 fix; de-self-reference the regression tests; correct the audit trail.
+
+Work Log:
+- Re-verified first-hand before touching code (independent of the audit's evidence):
+  own PE-section walker (scripts/verify_ldm_guids.py in session workspace) extracted
+  LdmManager.mo DAT_1800c4960 + Partition.mo DAT_180036630 = 5808c8aa-7e8f-42e0-85d2-e1e90434cfb3,
+  Partition.mo DAT_180036640 = af9b60a0-1431-4f62-bc68-3311714a69ad; 1,470-file corpus
+  scan: real bytes in 8 og binaries (9+9 occurrences), fabricated 8e9f/384e values in ZERO
+  files; corpus gate re-read (LdmManager_decompiled.c FUN_1800724f0: memcmp vs the real
+  metadata GUID, PRIVHEAD at entry+0x28). CONFIRMED-DIVERGENCE; the finding's claim
+  verified exactly.
+- Fail-before proof (tests edited FIRST, constants still fabricated): 5/5 FAILED -
+  Gpt.CanonicalTypeGuidConstantsMatchRealDiskBytes (strings corrected to real winioctl.h
+  forms), Gpt.LdmGuidConstantsMatchMicrosoftWinioctlText (new bytes->text guard),
+  Ldm.GptDynamicDiskCanonicalGuidsParse (fixture de-self-referenced to hard-coded real
+  bytes -> ERR_BAD_MAGIC on the real-GUID disk), Ldm.GptDynamicDiskFabricatedGuidsRejected
+  (new negative guard: fabricated-GUID disk WRONGLY parsed end-to-end),
+  Ldm.GptDynamicDiskTableClassifiesLdmEntries (de-self-referenced; LDM entries classified
+  Other).
+- Fix: cr_table_wire.h GPT_TYPE_LDM_METADATA/GPT_TYPE_LDM_DATA restored to the real
+  Microsoft bytes; provenance comment rewritten to the true two-source chain (winioctl.h/
+  Microsoft Learn + og-binary offsets + kernel efi.h agreement) with the A-002 history note.
+- Pass-after proof: same 5 tests 5/5 PASSED; full suite 303/303 Linux ASan green
+  (301 baseline + 2 net-new tests).
+- Audit trail, same commit: A-002 Resolution appended + moved to findings/FIXED/;
+  RESOLVED-INDEX A-002 row + count 13; CROSS-REF-MATRIX table+ldm row cells -> M (A-002
+  FIXED); modules/ldm.md B1/B8/C19 bullets + findings-table row updated to post-fix truth;
+  SUMMARY combined counts (2->1 ACUTE) + remediation-log row + recommended order re-led
+  by A-004; gpt-guid-probe-harness.cpp LDM rows rewritten to real bytes + correction note;
+  gpt-guid-probe.md annotated (session-1 VERDICT was a fixture artifact);
+  docs/parity/PARITY-CORE-REC.md "GPT - LDM GUIDs" row rewritten.
+- Safety hardenings: none near this fix; both consumption sites byte-identical (only
+  constant values changed). Win7-inclusive gate unaffected (data constants, no imports).
+
+Stage Summary:
+- A-002 FIXED: every real GPT dynamic disk parses end-to-end again (LDM discovery
+  restored); fabricated values now carry a permanent negative guard; the audit trail
+  records the A-001 false-positive history truthfully. Suite 303/303.

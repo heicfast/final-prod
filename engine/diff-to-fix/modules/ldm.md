@@ -19,11 +19,13 @@ LDM discovery on the current tree (executed proof).
 
 ## Behavioral
 
-- **B1 detection** — **A-002 (session 2, ACUTE)**: the A-001 fix `1cb6a43` corrupted
-  both LDM GUIDs with fabricated values — on the current tree every **real** GPT
-  dynamic disk fails `find_privhead` (ERR_BAD_MAGIC); pre-fix values were the real
-  Microsoft GUIDs (byte-for-byte what the og's LdmManager.mo DAT_1800c4960 and
-  Partition.mo DAT_180036630/0x36640 carry — extracted this session). ESP/MSR/
+- **B1 detection** — **A-002 (session 2, ACUTE) — FIXED (session 3)**: the A-001 fix `1cb6a43` corrupted
+  both LDM GUIDs with fabricated values — every **real** GPT dynamic disk failed
+  `find_privhead` (ERR_BAD_MAGIC) until this session restored the real Microsoft
+  GUIDs (byte-for-byte what the og's LdmManager.mo DAT_1800c4960 and
+  Partition.mo DAT_180036630/0x36640 carry — extracted and re-verified
+  independently by the fix session's own PE walker; fail-before/pass-after
+  proof in the finding's Resolution). ESP/MSR/
   BIOS-boot/Linux half remains fixed correctly. `M` on MBR parsing (0x42 dynamic
   detection at fixed 6×512 metadata offset — matches the og's default candidate
   sector 6), GPT header/entry CRC validation, backup-GPT salvage at device end,
@@ -42,16 +44,19 @@ LDM discovery on the current tree (executed proof).
 - **B3** — `M` unknown VBLK types counted (not silent).
 - **B8 multi-volume/cross-partition** — `M` spanned/mirrored/stripped/RAID-5 layouts
   resolved; unresolved kept as Broken (no silent drops); cross-disk member registry in
-  CLI. **A-002 blocks the GPT side of this entirely on the current tree** (the A-001
-  fix's corrupted GUIDs — see B1).
+  CLI. **A-002 FIXED (session 3): the GPT side is unblocked** — real-GUID dynamic
+  disks parse end-to-end again (Ldm.GptDynamicDiskCanonicalGuidsParse with
+  hard-coded Microsoft bytes; fabricated values rejected — see B1/C19).
 - **B6 damaged-volume** — **M-002** (EBR torn-chain discards walked volumes);
   `M` on two-step GPT salvage + backup-at-end.
 
 ## Constants and formats
 
-- **C19** — **A-002** (both LDM constants corrupted by the A-001 fix; the regression
-  guard `Gpt.CanonicalTypeGuidConstantsMatchRealDiskBytes` is self-referential and
-  pins the fabricated bytes — restore the real Microsoft GUIDs per A-002's fix plan);
+- **C19** — **A-002 — FIXED (session 3)**: both LDM constants restored to the real
+  Microsoft values; the regression tests de-self-referenced (fixtures carry
+  hard-coded Microsoft bytes, never the constants under test) and hardened with
+  `Gpt.LdmGuidConstantsMatchMicrosoftWinioctlText` (bytes→text) +
+  `Ldm.GptDynamicDiskFabricatedGuidsRejected` (negative guard).
   `M` on MBR/EBR/GPT signatures, PRIVHEAD/
   TOCBLOCK/VMDB magics, VBLK types 0x32/0x33/0x34/0x44/0x35/0x45/0x51.
 - **C20** — `M` (header/entry layouts, end-of-disk PRIVHEAD fallbacks
@@ -92,7 +97,7 @@ LDM discovery on the current tree (executed proof).
 | ID | Severity | One-line |
 |---|---|---|
 | A-001 | ACUTE | Six wrong GPT type GUIDs — GPT dynamic disks get zero LDM recovery (executed proof) — **4 of 6 constants FIXED (diff-to-fix session); LDM half was a FALSE POSITIVE, REOPENED, superseded by A-002** |
-| A-002 | ACUTE (session 2) | The A-001 fix corrupted both LDM GUIDs with fabricated values — real GPT dynamic disks fail LDM discovery on the current tree (executed proof + og binary extraction + Microsoft Learn) |
+| A-002 | ACUTE (session 2) — **FIXED (session 3)** | The A-001 fix corrupted both LDM GUIDs with fabricated values — real GPT dynamic disks failed LDM discovery (executed proof + og binary extraction + Microsoft Learn). FIXED: constants restored to the real Microsoft GUIDs, tests de-self-referenced + negative guard added; full Resolution in the finding file |
 | M-002 | MAJOR | Torn EBR chain discards already-walked logical volumes |
 | I-008 | INFO (session 2) | og Raid5VolumeStorage carries 4 selectable rotations, only left-symmetric enabled (ctor-hard-zeroed); core implements the enabled mode exactly |
 | OQ-T7 | tracked-open | **RESOLVED (session 2)** — RAID-5 rotation = left-symmetric both sides, MATCH |

@@ -3,6 +3,7 @@
 #include "cr/table/cr_table_parse.h"
 #include "cr/storage/cr_slice.h"
 #include <cstring>
+#include <cstdio>
 #include <cstdlib>
 #include <string>
 #include <vector>
@@ -382,14 +383,54 @@ TEST(Gpt, CanonicalTypeGuidConstantsMatchRealDiskBytes) {
     expect_guid(GPT_TYPE_MICROSOFT_RESERVED, "e3c9e316-0b5c-4db8-817d-f92df00215ae", "MSR");
     expect_guid(GPT_TYPE_BASIC_DATA, "ebd0a0a2-b9e5-4433-87c0-68b6b72699c7", "basic data");
     expect_guid(GPT_TYPE_LINUX_FS, "0fc63daf-8483-4772-8e79-3d69d8477de4", "Linux fs");
-    expect_guid(GPT_TYPE_LDM_METADATA, "5808c8aa-8e9f-4c87-aea2-af0aa3c41687", "LDM metadata");
-    expect_guid(GPT_TYPE_LDM_DATA, "af9b60a0-384e-4f7d-8fa5-b1c3d6a9e2b0", "LDM data");
+    /* A-002: the canonical text forms are the REAL Microsoft winioctl.h
+     * values (PARTITION_LDM_METADATA_GUID / PARTITION_LDM_DATA_GUID,
+     * Microsoft Learn PARTITION_INFORMATION_GPT; og binaries carry the
+     * same bytes: LdmManager.mo DAT_1800c4960, Partition.mo
+     * DAT_180036630/DAT_180036640). The 1cb6a43 values (8e9f/384e rows)
+     * were fabricated - present in no og binary and no authoritative
+     * source; they regressed every real GPT dynamic disk to
+     * ERR_BAD_MAGIC (diff-to-fix A-002). */
+    expect_guid(GPT_TYPE_LDM_METADATA, "5808c8aa-7e8f-42e0-85d2-e1e90434cfb3", "LDM metadata");
+    expect_guid(GPT_TYPE_LDM_DATA, "af9b60a0-1431-4f62-bc68-3311714a69ad", "LDM data");
     /* sanity of the derivation itself: the BIOS-boot GUID's disk bytes are
      * the ASCII string "Hah!IdontNeedEFI" (the canonical curiosity that
      * makes byte-order bugs visible) */
     const u8 hahi[16] = {'H', 'a', 'h', '!', 'I', 'd', 'o', 'n',
                          't', 'N', 'e', 'e', 'd', 'E', 'F', 'I'};
     EXPECT_EQ(0, std::memcmp(GPT_TYPE_BIOS_BOOT, hahi, 16));
+}
+
+namespace {
+
+/* A-002 guard: format the mixed-endian constants back to GUID TEXT and
+ * compare against the winioctl.h string literals. Text comparison makes
+ * a regressed constant self-evident in the failure message (the printed
+ * text is directly diffable against Microsoft Learn / winioctl.h) and
+ * catches transposed-hex edits that a byte-array eyeball diff misses. */
+std::string guid_text(const u8* disk_bytes) {
+    char buf[40];
+    std::snprintf(buf, sizeof(buf), "%08x-%04x-%04x-%02x%02x-%02x%02x%02x%02x%02x%02x",
+                  u32(disk_bytes[0]) | (u32(disk_bytes[1]) << 8) |
+                      (u32(disk_bytes[2]) << 16) | (u32(disk_bytes[3]) << 24),
+                  u16(disk_bytes[4]) | (u16(disk_bytes[5]) << 8),
+                  u16(disk_bytes[6]) | (u16(disk_bytes[7]) << 8),
+                  disk_bytes[8], disk_bytes[9], disk_bytes[10], disk_bytes[11],
+                  disk_bytes[12], disk_bytes[13], disk_bytes[14], disk_bytes[15]);
+    return std::string(buf);
+}
+
+} // namespace
+
+TEST(Gpt, LdmGuidConstantsMatchMicrosoftWinioctlText) {
+    /* A-002: the two LDM constants must be exactly Microsoft's documented
+     * PARTITION_LDM_METADATA_GUID / PARTITION_LDM_DATA_GUID (winioctl.h,
+     * PARTITION_INFORMATION_GPT on Microsoft Learn), which is also what
+     * the og binaries compare against (LdmManager.mo DAT_1800c4960;
+     * Partition.mo DAT_180036630/DAT_180036640) and what dmio writes on
+     * every real GPT dynamic disk. */
+    EXPECT_EQ(guid_text(GPT_TYPE_LDM_METADATA), "5808c8aa-7e8f-42e0-85d2-e1e90434cfb3");
+    EXPECT_EQ(guid_text(GPT_TYPE_LDM_DATA), "af9b60a0-1431-4f62-bc68-3311714a69ad");
 }
 
 TEST(Gpt, EspMsrLinuxBiosbootLdmClassification) {

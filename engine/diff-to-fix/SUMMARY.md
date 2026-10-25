@@ -221,6 +221,7 @@ ext4/Btrfs invalid-UTF-8 finding (briefly M-007 in a local commit) renumbered to
 | 2026-10-25 | S-004 | **FIXED** | ext4 journal every-block salvage + jsb gate (`51ac671`); independently re-verified this leg; in `findings/FIXED/` |
 | 2026-10-25 | S-005 | **FIXED** | shared UTF-8 decoder (`2f3237d`); residual edge split to M-010; in `findings/FIXED/` |
 | 2026-10-25 | M-009 | **FIXED** | RwDevice::read_at routed through the GAP-S6-13 64 KiB envelope (same aligned_read_at the scan devices use); structural routing parity + envelope unit tests; 4Kn executed numbers deferred to the bench harness (no Windows/4Kn host here - same limitation the finding records) |
+| 2026-10-26 | **A-002** | **FIXED** | Real Microsoft LDM GUIDs restored in `cr_table_wire.h` (PARTITION_LDM_METADATA_GUID {5808c8aa-7e8f-42e0-85d2-e1e90434cfb3} / PARTITION_LDM_DATA_GUID {af9b60a0-1431-4f62-bc68-3311714a69ad}); regression tests de-self-referenced to hard-coded real bytes; negative guard (fabricated values → ERR_BAD_MAGIC) + bytes→text guard added; harness + probe log + parity doc corrected; suite 303/303 Linux ASan |
 | 2026-10-25 | S-010 | **FIXED** | volume quiesce on the repair write path (IWriteDevice lock contract, execute() lock-before-write + zero-write refusal, Windows RwDevice runs the corpus RecoveryModule LOCK/DeleteMountPoint/Flush/settle/verify/DISMOUNT sequence); finding's destination-lock bullet corrected (corpus: destination open is writability+detection only); 3 fail-before tests, suite 316/316 |
 | 2026-10-25 | S-008 | **FIXED** | RawFixer pre-scan wiring + CheckMFT/CheckFatTable/FixByScanSector (`e0175b3`); independently re-verified this leg; in `findings/FIXED/` |
 | 2026-10-25 | S-009 (disk-map half) | **FIXED** | GAP-S6-11 disk-map data producer (`56cce87`); split of the combined file tracked in N-020 |
@@ -309,13 +310,14 @@ differential-salvage evidence vs the overlay model — both readings recorded, c
 side quotes favor salvage) · S-004 residue (journal **inode-image salvage**, magic 0xf30a —
 not covered by `51ac671`).
 
-**Counts (all three legs combined, active):** 2 ACUTE (A-002, A-004) · 9 SEVERE (S-003,
-S-006, S-007, S-009-remainder, S-011, S-012, S-013, S-014 + S-010 per leg-3's table) ·
-17 MAJOR (M-002, M-005, M-007..M-021) · 24 MINOR files · 11 INFO · 2 new tracked-open
-files. FIXED/: 12 findings + all OQ-T1..T9 resolutions. **Recommended order unchanged at
-the top: A-002 (restore the real Microsoft LDM constants — still missing at `34b3441`),
-then A-004 + S-012 step 1 (both one-liners restoring crash-safety and og result-set
-membership), then S-013/S-014, then the leg-3 majors in M-011..M-021 order.**
+**Counts (all three legs combined, active — post session-3 A-002 fix):** 1 ACUTE
+(A-004) · 9 SEVERE (S-003, S-006, S-007, S-009-remainder, S-011, S-012, S-013,
+S-014 + S-010 per leg-3's table) · 17 MAJOR (M-002, M-005, M-007..M-021) · 24 MINOR
+files · 11 INFO · 2 new tracked-open files. FIXED/: 13 findings (A-002 added — real
+Microsoft LDM GUIDs restored; tests de-self-referenced; negative guard added) + all
+OQ-T1..T9 resolutions. **Recommended order now: A-004 (one-line event-sink fix
+restoring crash-safety), then S-012 step 1 (one flag flip restoring og deleted-file
+membership), then S-011/S-013/S-014, then the leg-3 majors in M-011..M-021 order.**
 
 Read-only compliance held throughout: only `diff-to-fix/` + `worklog.md` written; the
 282/282 run was out-of-tree (Release); no source, test, build, workflow, or doc file of

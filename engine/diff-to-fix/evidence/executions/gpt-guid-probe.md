@@ -45,3 +45,22 @@ PRIVHEAD then fails `parse_privhead` (the harness comment "PRIVHEAD magic
 optional" is inaccurate — a valid PRIVHEAD is required by `parse_ldm_database`);
 the permanent unit test `Ldm.GptDynamicDiskCanonicalGuidsParse` (real PRIVHEAD,
 canonical-GUID GPT) proves the end-to-end fix: `parse_ldm_database == OK`.
+
+> **A-002 CORRECTION (diff-fix session 3, 2026-10-26).** Both blocks above are
+> now known to be artifacts of the fabricated 1cb6a43 "canonical" LDM values:
+>
+> 1. The og-binary scan searched for the **fabricated** needle bytes, so "LDM_META /
+>    LDM_DATA not present" describes values that exist in no og binary and no real
+>    disk. Re-extraction with the REAL Microsoft constants (session-2 A-002 probes +
+>    session-3 first-hand re-run): `LdmManager.mo` DAT_1800c4960 and `Partition.mo`
+>    DAT_180036630 both carry `5808c8aa-7e8f-42e0-85d2-e1e90434cfb3` (metadata);
+>    `Partition.mo` DAT_180036640 carries `af9b60a0-1431-4f62-bc68-3311714a69ad`
+>    (data); 8 further corpus binaries carry the same bytes (9+9 file hits across
+>    1,470 scanned files; fabricated values: 0 hits).
+> 2. The core-probe VERDICT "LDM discovery FAILS" ran a harness whose GPT entries
+>    encoded the same fabricated values (see the A-002 correction note in
+>    `gpt-guid-probe-harness.cpp`); the audited `67193b6` core — which carried the
+>    REAL constants — correctly rejected the bogus fixture. The fixture was wrong,
+>    not the code. The A-001 remediation `1cb6a43` then "fixed" the core to match
+>    the bogus fixture, regressing every real GPT dynamic disk (A-002, FIXED this
+>    session: constants restored, harness + this log annotated).

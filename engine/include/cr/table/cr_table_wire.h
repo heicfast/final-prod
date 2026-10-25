@@ -57,22 +57,26 @@ constexpr char GPT_SIGNATURE[8] = {'E', 'F', 'I', ' ', 'P', 'A', 'R', 'T'};
 constexpr u32 GPT_REVISION_V1 = 0x00010000;
 /* GPT type GUIDs in MIXED-ENDIAN DISK-BYTE order (EFI GUID layout:
  * Data1/Data2/Data3 little-endian, Data4 raw) - the byte order real
- * GPT entries carry on disk, verified two ways by the A-001 audit fix:
- * 1. Microsoft-documented text forms (winioctl.h PARTITION_*_GUID):
- *    EFI System  {c12a7328-f81f-11d2-ba4b-00a0c93ec93b}
- *    MSR         {e3c9e316-0b5c-4db8-817d-f92df00215ae}
+ * GPT entries carry on disk. Two-source provenance per constant:
+ *    Microsoft winioctl.h text form (PARTITION_INFORMATION_GPT on
+ *    Microsoft Learn) and the og binaries' own compare constants:
+ *    EFI System  {c12a7328-f81f-11d2-ba4b-00a0c93ec93b}  (Partition.mo)
+ *    MSR         {e3c9e316-0b5c-4db8-817d-f92df00215ae}  (Partition.mo)
  *    BIOS boot   {21686148-6449-6e6f-744e-656564454649} = "Hah!IdontNeedEFI"
- *    Linux FS    {0fc63daf-8483-4772-8e79-3d69d8477de4}
- *    LDM meta    {5808c8aa-8e9f-4c87-aea2-af0aa3c41687} (PARTITION_LDM_METADATA_GUID)
- *    LDM data    {af9b60a0-384e-4f7d-8fa5-b1c3d6a9e2b0} (PARTITION_LDM_DATA_GUID)
- * 2. A binary scan of the 556 corpus og binaries: ESP, MSR and basic-data
- *    appear byte-for-byte in this disk order in Partition.mo,
- *    LdmManager.mo, MainModule/RecoveryModule/UILogic/ToolsModule,
- *    CloneModule and DeviceManager (diff-to-fix A-001 evidence,
- *    diff-to-fix/evidence/executions/gpt-guid-probe.md + this session's
- *    reproduction scan). The previous session-5 comment claimed a
- *    three-source verification that had not happened - five of the six
- *    values below did not survive it; this comment replaces that claim.
+ *    Linux FS    {0fc63daf-8483-4772-8e79-3d69d8477de4}  (kernel efi.h agreement)
+ *    LDM meta    {5808c8aa-7e8f-42e0-85d2-e1e90434cfb3}  (LdmManager.mo
+ *                 DAT_1800c4960 = Partition.mo DAT_180036630; the GPT-LDM
+ *                 gate memcmp target in FUN_1800724f0)
+ *    LDM data    {af9b60a0-1431-4f62-bc68-3311714a69ad}  (Partition.mo
+ *                 DAT_180036640)
+ * A-002 provenance note: the 1cb6a43 values for LDM meta/data
+ * ({5808c8aa-8e9f-4c87-...} / {af9b60a0-384e-4f7d-...}) were fabricated -
+ * present in no og binary (1,470-file corpus scan), no authoritative
+ * source, and no real disk - and regressed every real GPT dynamic disk
+ * to ERR_BAD_MAGIC. The values below are Microsoft's actual
+ * PARTITION_LDM_METADATA_GUID / PARTITION_LDM_DATA_GUID (winioctl.h;
+ * Linux kernel efi.h and Wikipedia's GPT table agree), re-verified by
+ * PE-section extraction from the og binaries.
  */
 constexpr u8 GPT_TYPE_EFI_SYSTEM[16] = {0x28, 0x73, 0x2A, 0xC1, 0x1F, 0xF8, 0xD2, 0x11,
                                         0xBA, 0x4B, 0x00, 0xA0, 0xC9, 0x3E, 0xC9, 0x3B};
@@ -84,10 +88,10 @@ constexpr u8 GPT_TYPE_BASIC_DATA[16] = {0xA2, 0xA0, 0xD0, 0xEB, 0xE5, 0xB9, 0x33
                                         0x87, 0xC0, 0x68, 0xB6, 0xB7, 0x26, 0x99, 0xC7};
 constexpr u8 GPT_TYPE_LINUX_FS[16] = {0xAF, 0x3D, 0xC6, 0x0F, 0x83, 0x84, 0x72, 0x47,
                                       0x8E, 0x79, 0x3D, 0x69, 0xD8, 0x47, 0x7D, 0xE4};
-constexpr u8 GPT_TYPE_LDM_METADATA[16] = {0xAA, 0xC8, 0x08, 0x58, 0x9F, 0x8E, 0x87, 0x4C,
-                                          0xAE, 0xA2, 0xAF, 0x0A, 0xA3, 0xC4, 0x16, 0x87};
-constexpr u8 GPT_TYPE_LDM_DATA[16] = {0xA0, 0x60, 0x9B, 0xAF, 0x4E, 0x38, 0x7D, 0x4F,
-                                      0x8F, 0xA5, 0xB1, 0xC3, 0xD6, 0xA9, 0xE2, 0xB0};
+constexpr u8 GPT_TYPE_LDM_METADATA[16] = {0xAA, 0xC8, 0x08, 0x58, 0x8F, 0x7E, 0xE0, 0x42,
+                                        0x85, 0xD2, 0xE1, 0xE9, 0x04, 0x34, 0xCF, 0xB3};
+constexpr u8 GPT_TYPE_LDM_DATA[16] = {0xA0, 0x60, 0x9B, 0xAF, 0x31, 0x14, 0x62, 0x4F,
+                                    0xBC, 0x68, 0x33, 0x11, 0x71, 0x4A, 0x69, 0xAD};
 
 struct GptHeader {
     char signature[8]; /* "EFI PART" */

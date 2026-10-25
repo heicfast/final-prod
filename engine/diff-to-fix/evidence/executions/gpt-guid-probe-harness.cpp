@@ -84,11 +84,17 @@ int main() {
         put_u64(e + 48, 0); put_u64(e + 56, 0);
         e[48] = 0; // attrs
     };
-    // canonical mixed-endian disk forms:
-    // LDM metadata 5808c8aa-8e9f-4c87-aea2-af0aa3c41687 -> aa c8 08 58 9f 8e 87 4c ae a2 af 0a a3 c4 16 87
-    set_entry(0, "aac808589f8e874caea2af0aa3c41687", 2048, 3071);
-    // LDM data af9b60a0-384e-4f7d-8fa5-b1c3d6a9e2b0 -> a0 60 9b af 4e 38 7d 4f 8f a5 b1 c3 d6 a9 e2 b0
-    set_entry(1, "a0609baf4e387d4f8fa5b1c3d6a9e2b0", 3072, SECTORS - 34);
+    // A-002 CORRECTION (diff-fix session 3): the two LDM rows below were
+    // rewritten from the fabricated 1cb6a43 values to the REAL Microsoft
+    // PARTITION_LDM_METADATA_GUID / PARTITION_LDM_DATA_GUID disk forms.
+    // The session-1 harness encoded the fabricated bytes, so the pre-fix
+    // core (which carried the REAL constants) correctly rejected this
+    // fixture and the run was mis-recorded as "LDM discovery FAILS" — the
+    // fixture was wrong, not the code. See A-002 + its Resolution.
+    // LDM metadata 5808c8aa-7e8f-42e0-85d2-e1e90434cfb3 -> aa c8 08 58 8f 7e e0 42 85 d2 e1 e9 04 34 cf b3
+    set_entry(0, "aac808588f7ee04285d2e1e90434cfb3", 2048, 3071);
+    // LDM data af9b60a0-1431-4f62-bc68-3311714a69ad -> a0 60 9b af 31 14 62 4f bc 68 33 11 71 4a 69 ad
+    set_entry(1, "a0609baf3114624fbc683311714a69ad", 3072, SECTORS - 34);
     // ESP (for classification cross-check) c12a7328-f81f-11d2-ba4b-00a0c93ec93b
     set_entry(2, "c12a7328f81f11d2ba4b00a0c93ec93b", 4096, 8191);
     // MSR e3c9e316-0b5c-4db8-817d-f92df00215ae -> 16 e3 c9 e3 5c 0b db 48 17 df 92 df 00 21 5a e... careful
