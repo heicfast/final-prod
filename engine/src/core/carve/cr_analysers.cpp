@@ -628,11 +628,27 @@ static CarveResult zip_common(IStorageDevice* s, u64 hit, u64 cap, bool office) 
             const u16 elen = u16(lfh[28]) | (u16(lfh[29]) << 8);
             const u32 csize =
                 u32(lfh[18]) | (u32(lfh[19]) << 8) | (u32(lfh[20]) << 16) | (u32(lfh[21]) << 24);
+            const u32 usize =
+                u32(lfh[22]) | (u32(lfh[23]) << 8) | (u32(lfh[24]) << 16) | (u32(lfh[25]) << 24);
             if (csize == 0xFFFFFFFFu)
                 break; /* ZIP64: no deterministic chain without the CD */
             const u64 next = pos + 30 + nlen + elen + csize;
             if (next > limit || next <= pos)
                 break;
+            /* S-032: the LFH chain carries the inner inventory (name +
+             * sizes + the data span) - the og's indexless walk reads the
+             * same fields for its entry list */
+            if (nlen > 0 && nlen <= 512 && ir.entries.size() < 4096) {
+                CarveEntry e;
+                std::string nm(size_t(nlen), '\0');
+                if (rd(s, pos + 30, &nm[0], nlen)) {
+                    e.name = std::move(nm);
+                    e.size = usize;
+                    e.data_offset = pos + 30 + nlen + elen;
+                    e.data_len = csize;
+                    ir.entries.push_back(std::move(e));
+                }
+            }
             pos = next;
             last_end = next;
             ++n;
@@ -676,6 +692,55 @@ static CarveResult zip_common(IStorageDevice* s, u64 hit, u64 cap, bool office) 
         u8 cdm[4];
         if (!rd(s, hit + cd_offset, cdm, 4) || std::memcmp(cdm, "PK\x01\x02", 4) != 0)
             return indexless();
+    }
+    /* S-032: walk the central directory for the inner-entry inventory
+     * (the og's per-entry parser FUN_180045690 + the name-merge
+     * FUN_180007060: "the analyser returns the complete inner file
+     * inventory"). Each CD record: nameLen u16@+28, extraLen@+30,
+     * commentLen@+32, csize u32@+20, usize u32@+24, LFH offset u32@+42,
+     * name bytes at +46. Bounded: entries <= the EOCD count, name bytes
+     * sane, whole CD capped at 4 MiB. */
+    {
+        u64 cpos = hit + cd_offset;
+        const u64 cd_end = hit + cd_offset + (cd_size < (4u << 20) ? cd_size : (4u << 20));
+        u32 collected = 0;
+        while (cpos + 46 <= cd_end && collected < entries && collected < 4096) {
+            u8 cd[46];
+            if (!rd(s, cpos, cd, 46) || std::memcmp(cd, "PK\x01\x02", 4) != 0)
+                break;
+            const u16 nlen = u16(cd[28]) | (u16(cd[29]) << 8);
+            const u16 xlen = u16(cd[30]) | (u16(cd[31]) << 8);
+            const u16 clen = u16(cd[32]) | (u16(cd[33]) << 8);
+            const u32 csize = u32_from_bytes_le(cd + 20);
+            const u32 usize = u32_from_bytes_le(cd + 24);
+            const u32 lfh_off = u32_from_bytes_le(cd + 42);
+            if (nlen > 0 && nlen <= 512) {
+                CarveEntry e;
+                std::string nm(size_t(nlen), '\0');
+                if (rd(s, cpos + 46, &nm[0], nlen)) {
+                    e.name = std::move(nm);
+                    e.size = usize;
+                    if (csize != 0xFFFFFFFFu && lfh_off != 0xFFFFFFFFu) {
+                        /* localize the data span through the LFH's own
+                         * name/extra lengths (the CD's copy can differ) */
+                        u8 lfh[30];
+                        if (rd(s, hit + lfh_off, lfh, 30) &&
+                            std::memcmp(lfh, "PK\x03\x04", 4) == 0) {
+                            const u16 ln = u16(lfh[26]) | (u16(lfh[27]) << 8);
+                            const u16 lx = u16(lfh[28]) | (u16(lfh[29]) << 8);
+                            e.data_offset = hit + lfh_off + 30 + ln + lx;
+                            e.data_len = csize;
+                        }
+                    }
+                    r.entries.push_back(std::move(e));
+                }
+            }
+            const u64 adv = u64(46) + nlen + xlen + clen;
+            if (adv == 0 || cpos + adv >= cd_end + 1)
+                break;
+            cpos += adv;
+            ++collected;
+        }
     }
     u64 end = eocd_pos + 22 + comment;
     /* CARVE-2: og zero-padding end extension - trailing all-zero 16-byte
@@ -887,9 +952,15 @@ CarveResult validate_mkv(IStorageDevice* s, u64 hit, u64 cap) {
 /* ---- RAR4: marker + archive header + block walk to END ---- */
 CarveResult validate_rar4(IStorageDevice* s, u64 hit, u64 cap) {
     CarveResult r;
-    /* "Rar!\x1A\x07\x00" (7 bytes) then MAIN_HEAD: crc u16, type 0x73,
-     * flags u16, size u16 (+optional 4-byte add) */
-    u16 hsize = rd16(s, hit + 11);
+    /* "Rar!\x1A\x07\x00" (7 bytes) then MAIN_HEAD: HEAD_CRC u16@+7,
+     * HEAD_TYPE u8@+9 (0x73), HEAD_FLAGS u16@+10, HEAD_SIZE u16@+12
+     * (+optional HIGH_POS_SIZE u32 when flags&0x100). S-032 CORRECTED:
+     * the old code read HEAD_SIZE at +11 (flags-high | size-low as LE) -
+     * off by one against the real RAR4 archive layout; it slipped through
+     * because no positive real-layout fixture existed (only the RAR5
+     * rejection test). Real MAIN_HEADs (HEAD_SIZE=13, flags=0) now parse
+     * correctly. */
+    u16 hsize = rd16(s, hit + 12);
     if (hsize < 13 || hsize > 4096)
         return r;
     u64 pos = hit + 7 + hsize;
@@ -911,6 +982,40 @@ CarveResult validate_rar4(IStorageDevice* s, u64 hit, u64 cap) {
             r.confidence = 820;
             r.note = "block-walk+END";
             return r;
+        }
+        if (type == 0x74 && r.entries.size() < 4096) {
+            /* S-032: FILE block - the og's walker FUN_180012d00 extracts
+             * entry names with a 272-byte buffer. Classic FILE_HEAD after
+             * the 7-byte base: [PACK_SIZE u32 if flags&0x8000] UNP_SIZE
+             * u32, HOST_OS u8, FILE_CRC u32, FTIME u32, UNP_VER u8,
+             * METHOD u8, NAME_SIZE u16, ATTR u32, [HIGH sizes 2xu32 if
+             * flags&0x100], NAME bytes, [SALT if 0x4000, EXTTIME if
+             * 0x200 - both inside HEAD_SIZE]. Data follows the block. */
+            u64 off = 7;
+            u32 pack = 0;
+            if (flags & 0x8000) {
+                pack = rd32(s, pos + off);
+                off += 4;
+            }
+            const u32 unp = rd32(s, pos + off);
+            off += 4 + 1 + 4 + 4 + 1 + 1; /* host_os, file_crc, ftime, unp_ver, method */
+            const u16 name_size = rd16(s, pos + off);
+            off += 2 + 4; /* name_size, attr */
+            if (flags & 0x100)
+                off += 8; /* high pack + high unp */
+            if (name_size > 0 && name_size <= 272 && pos + off + name_size <= hit + cap) {
+                CarveEntry e;
+                std::string nm(size_t(name_size), '\0');
+                if (rd(s, pos + off, &nm[0], name_size)) {
+                    e.name = std::move(nm);
+                    e.size = unp;
+                    /* the data follows the whole block header (HEAD_SIZE
+                     * covers name/salt/exttime); extent = [pos+size, pack) */
+                    if (pack != 0 && pos + size <= hit + cap)
+                        e.data_offset = pos + size, e.data_len = pack;
+                    r.entries.push_back(std::move(e));
+                }
+            }
         }
         u64 adv = size;
         if (flags & 0x8000)

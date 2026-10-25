@@ -8243,3 +8243,39 @@ Stage Summary (handoff at 70ebced):
   protocol; the union-push tool is mandatory for shared files from
   API-only transports; never tree-replace worklog/SUMMARY/matrix/
   PARITY-DELTAS/RESOLVED-INDEX without re-unioning first.
+
+
+
+---
+Task ID: CF-S032 (closing session)
+Agent: main engineer (diff-to-fix closing session)
+Task: S-032 — archive carve inner-entry inventory: verify, classify, fix.
+
+Work Log:
+- Corpus re-verified first-hand + the s6 recon addendum's demand-side cite
+  (zip-analyser-carving :64: the entry list feeds the results-tree builder).
+- Fix: CarveResult.entries (bounded: 4096 entries, 512B names, RAR 272B per
+  the og's FUN_180012d00 buffer); zip_common collects on BOTH paths (CD
+  record walk with per-entry LFH-localized data spans + the indexless
+  chain); validate_rar4 collects FILE-block names per the classic layout;
+  cr_carve emits Carved+Deleted children (PartialRisk w/ extent,
+  MetadataOnly without). Registered superset: per-entry extents inside the
+  parent (single-entry recovery).
+- DISCOVERED DIVERGENCE fixed in the same change: validate_rar4 read
+  MAIN_HEAD HEAD_SIZE at hit+11 — off by one vs the real RAR4 layout; no
+  positive real-layout fixture existed. Corrected to +12 (technote
+  position); Rar4InnerEntryInventory is the first positive fixture.
+- Tests: 3 new, all fail-before proven (stash-reverted build): ZIP CD
+  inventory (letter.txt + extent), indexless (both names), RAR4 real layout
+  (end-exact + photo.bin child). Suite 517/517; ASan+UBSan clean over all
+  23 CarveEngine tests (binary rebuilt).
+- Remainders tracked in the Resolution: RAR multi-part stitching (volume-
+  name part matching — separate surface), RAR5 entries (clean-room, no og
+  parity requirement).
+
+Stage Summary:
+- S-032 FIXED; finding -> FIXED/ with Resolution; RESOLVED-INDEX row;
+  SUMMARY delta. This session's tally: S-025 (convergent verification +
+  addendum), S-026, S-027, S-031, S-032 — plus D-58/D-59, OQ-E2, the RAR4
+  off-by-one discovery, and the S-031/S-032 test-suite guards.
+>>>>>>> ee78d15 (fix: S-032 - archive carve inner-entry inventories (ZIP CD + indexless LFH + RAR4 FILE blocks) + RAR4 HEAD_SIZE off-by-one corrected)

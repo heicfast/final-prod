@@ -48,6 +48,20 @@ lane — re-verify landed state first), S-009 (unclaimed since session 1).
 
 # SUMMARY.md — executive summary (session 7 on top of session 5b; earlier sessions below)
 
+## Closing-session delta — S-032 (2026-10-26)
+
+**S-032 FIXED (this push):** archive inner-entry inventories (the og's
+analysers return the complete inventory; the results tree presents it —
+rawsearchdll--zip-analyser-carving.md :29-38/:64,
+analyser-granular-batch1 :36-41, all re-verified first-hand). ZIP CD walk +
+indexless LFH chain + RAR4 FILE blocks collect bounded entries; carved
+archive nodes gain Carved+Deleted children with precise in-parent extents
+(registered superset: per-entry recovery). DISCOVERED+FIXED in the same
+change: the RAR4 validator's HEAD_SIZE off-by-one (no positive real-layout
+fixture had ever existed — real archives now parse). Remainders tracked:
+RAR multi-part stitching; RAR5 entries (clean-room surface). 3 tests, all
+fail-before; suite 517/517; ASan/UBSan clean over the carve suite.
+
 ## Session-7 delta (2026-10-26 — the close-all-tiers fix session, low-severity-first order)
 
 Mandate (user-specified ordering): INFORMATIONAL → MINOR → MAJOR → SEVERE →
