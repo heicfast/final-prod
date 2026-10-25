@@ -26,6 +26,7 @@
 
 #include "../cr_types.h"
 #include "../health/cr_nvme.h"
+#include "../health/cr_grade.h"
 #include <string>
 #include <vector>
 
@@ -38,9 +39,11 @@ struct SmartAttribute {
     u8 id = 0;
     u16 value = 0; /* current normalized */
     u16 worst = 0;
-    u8 raw[6] = {0}; /* vendor raw */
+    u8 raw[6] = {0};          /* vendor raw */
+    u16 vendor_threshold = 0; /* 0xD1 READ_THRESHOLDS (0 = unavailable) */
     bool failing = false;
     std::string name;
+    health::HealthGrade grade = health::HealthGrade::Unknown; /* S-024 */
 };
 
 struct SmartReport {
@@ -51,6 +54,9 @@ struct SmartReport {
     std::vector<SmartAttribute> attributes;
     /* derived verdicts */
     bool failing_now = false;
+    health::HealthGrade grade = health::HealthGrade::Unknown; /* S-024:
+        the og DiskHealth 4-status verdict, worst of the attr grades */
+    bool is_ssd = false;         /* the SSD-wear gate's input (seek-penalty) */
     u64 reallocated_sectors = 0; /* attr 5 raw */
     u64 pending_sectors = 0;     /* attr 197 raw */
     u64 uncorrectable = 0;       /* attr 198 raw */

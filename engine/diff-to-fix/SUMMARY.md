@@ -170,6 +170,22 @@ with Resolution sections; matrix/modules/counts updated as fixes land.
 MINOR 37 · INFO 16 = **96 active** / **35 files in FIXED/** (34 findings +
 RESOLVED-INDEX).
 
+(Reconciled post-rebase: the parallel legs landed S-003/S-021/S-026, M-022,
+N-037..N-040 and more while this session worked — the live counts below are
+the file inventory at this commit.)
+
+- **S-024 FIXED** (health grading): HealthGrade (Unknown/Good/Caution/Bad)
+  + the pure-core rule set (cr_grade.cpp): 5/197/198 value<thr->Bad /
+  raw>=1->Caution; attr-1 read-error rule; the SSD-life 10-attr vendor set
+  (is-SSD gated; 0->Bad, <=10->Caution); temp 50/60 by class; NVMe
+  critical-warning bit matrix + the life rule. 0xD1 READ_THRESHOLDS issued
+  (vendor thresholds). CLI health prints per-attr threshold/grade + the
+  disk verdict. 8 tests; suite 460/460 Release. AUDIT-PIPELINE's "failing
+  derivation: UNVERIFIED" row -> SUPERSEDED (the 4-status model).
+
+**Live counts (direct file inventory after S-024):** ACUTE 0 · SEVERE 7 ·
+MAJOR 38 · MINOR 31 · INFO 18 · tracked-open 12 = **94 active** / **51 files in FIXED/**.
+
 ## S-012 verification-and-correction delta (2026-10-26 — diff-fix session 4, the reconciliation leg)
 
 Bootstrap `597a9c6` (350/350 baseline re-run in-container); corpus `03ad46c`

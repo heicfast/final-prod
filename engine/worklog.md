@@ -6970,3 +6970,41 @@ Stage Summary:
   matrix ext4 row; modules/ext4.md; SUMMARY (8 SEVERE / 97 active / 38
   FIXED); PARITY-DELTAS D-59. Ext4 family remaining: S-025 (journal
   reparenting).
+
+Task ID: CT-S024 (S-024 fix — health grading)
+Agent: main engineer (diff-to-fix close-all-tiers session)
+Task: SEVERE S-024 — the 4-status health grading layer (og DiskHealth model)
+vs the core's single failing bit.
+
+Work Log:
+- Corpus verification BEFORE coding: s3-filefilter-health.md Part B re-read
+  (all rules with line cites); first-hand re-verification of the S-024
+  falsifiable case against the current main (attr 197 raw=3 value=100 →
+  failing=false — confirmed: only the flags-bit boolean exists).
+- Classification: CONFIRMED-DIVERGENCE.
+- Fix: (1) HealthGrade {Unknown, Good, Caution, Bad} + the PURE-CORE rule
+  set in src/core/health/cr_grade.cpp (Linux CI executes it; the win layer
+  is compile-only G-17): 5/197/198 value<vendor_threshold→Bad /
+  raw≥caution(1)→Caution; attr-1 rule; SSD-life {169,173,177,187,202,209,
+  230,231,232,233} is-SSD-gated 0→Bad/≤10→Caution; temp 50/60 by class;
+  NVMe critical-warning bit matrix {0,2,3}→Bad / {1,4}→Caution + the life
+  rule + media-errors Caution. (2) 0xD1 READ_THRESHOLDS issued after 0xD0
+  (both transports; the public ATA thresholds layout: 30×12 at +2,
+  threshold at entry+1; non-fatal fallback). (3) SmartAttribute carries
+  vendor_threshold + per-attr grade; SmartReport the overall grade + is_ssd;
+  CLI health prints threshold/grade columns + the disk + NVMe verdicts.
+  (4) 0xD8 documented deliberate non-adoption (flags bits carry the truth).
+- Tests: 8 (the finding's full list + boundaries + the HDD gate + the
+  NVMe bit matrix). FAIL-BEFORE by construction (no HealthGrade pre-fix).
+- Suite: 460/460 Linux Release (452 + 8); clang-format 18.1.8 clean.
+- Audit trail: S-024 → FIXED/ with Resolution; RESOLVED-INDEX row (51
+  files); CROSS-REF-MATRIX health row; modules/health.md S-024 verdicts;
+  SUMMARY live counts (7 SEVERE active); AUDIT-PIPELINE failing-derivation
+  row → SUPERSEDED + the D1/D8 row closed for D1; CAPABILITY-MATRIX health
+  row.
+
+Stage Summary:
+- S-024 CLOSED: health verdicts match the og's 4-status model with vendor
+  thresholds. Remaining SEVERE: S-007, S-009, S-025, S-027, S-028 (+ the
+  s5b audit leg's new S-029/S-030). Next: S-025 (ext4 journal reparenting).
+>>>>>>> 0a90f0f (fix(S-024): health grading — the 4-status DiskHealth model (Unknown/Good/Caution/Bad), vendor thresholds via 0xD1, pure-core rules)

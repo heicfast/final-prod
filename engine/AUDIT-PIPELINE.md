@@ -211,9 +211,10 @@ Findings:
 | ATA transport | `IOCTL_ATA_PASS_THROUGH` (ATA_PASS_THROUGH_EX, header shape used verbatim) with 0xEC IDENTIFY → 0xB0/0xD0 READ_DATA | corpus DiskHealth = SAT `IOCTL_SCSI_PASS_THROUGH` 0x4D004 (18 sites) + CDB builder 0xB0/0x4F/0xC2 | DELTA — **undocumented in header** (HEALTH-2) |
 | Legacy fallback | `SMART_RCV_DRIVE_DATA 0x7C088` (cr_health.cpp:55-85) | DiskHealth:9010/13438/14176 | MATCH |
 | Attribute table | 512B, 30×12B at +2, id/flags/value/worst/raw6; derived 5/9/10/190/194/197/198/231/233 | ATA-ATAPI-7 shape; og table | MATCH |
-| failing derivation | flags bit3 ‖ (pre-failure && value==0) | not decoded | UNVERIFIED (tracked) |
+| failing derivation | flags bit3 ‖ (pre-failure && value==0) | not decoded (advisory only) | SUPERSEDED by the S-024 4-status grading (HealthGrade; the boolean is retained as the failing_bit input) |
 | NVMe page 2 | pure `cr::health::parse_nvme_health_page`, offsets 32/48/**112/128/144/160** (cr_nvme.cpp:32-37) via STORAGE_QUERY_PROPERTY | corpus silent on og mapping | **F-A4-17 CLOSED (a1ff58e) — verified + 3 unit tests (test_nvme_health.cpp)** |
-| D1/D8 | never issued | corpus confirms 0xD1/0xD8 commands (DiskHealth:14112/:4423) | MISSING (HEALTH-3) |
+| 4-status grading | `cr::health::grade_smart`/`grade_nvme` (cr_grade.cpp, pure core): Unknown/Good/Caution/Bad; 5/197/198 value<thr→Bad / raw≥1→Caution; attr-1 rule; SSD-life 10-attr vendor set (is-SSD gated) ≤10→Caution/0→Bad; temp 50/60 by class; NVMe critical-warning bits | DiskHealth FUN_00458350 :33540-33582, :37004-37019, :6010-6090, :14108-14118 | **S-024 CLOSED** — 8 unit tests (test_health_grade.cpp) |
+| D1/D8 | 0xD1 READ_THRESHOLDS issued after 0xD0 (vendor thresholds feed the Bad rule, S-024); 0xD8 RETURN_STATUS still not issued (the og's redundant re-check — our flags bits carry the same truth) | corpus confirms 0xD1/0xD8 commands (DiskHealth:14112/:4423) | **D1 CLOSED (S-024)**; D8 deliberate non-adoption (documented) |
 | Multi-transport | ATA → legacy → give up | CSMI/NVMeRealtek/USB bridge table (CrystalDiskInfo-lineage, companion §2) | MISSING (HEALTH-4) |
 | TRIM | fsutil query, **last line wins** (cr_health.cpp:290-297) | og: query + set toggle; takes FIRST "= " match (DRWUI:178742-178749) | DELTA documented (no-set) + parse nit (HEALTH-6) |
 | SSD detection | `StorageDeviceSeekPenaltyProperty` (cr_health.cpp:302-319) | og DRWUI: WMI MSFT_PhysicalDisk MediaType==4 (DRWUI:178880-178887) | MISMATCH doc-vs-code (HEALTH-5) |

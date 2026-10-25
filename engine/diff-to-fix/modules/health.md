@@ -79,6 +79,6 @@ during reconciliation.)
 
 | ID | Severity | One-line |
 |---|---|---|
-| S-024 | SEVERE | No grading layer: og Unknown/Good/Caution/Bad with vendor thresholds (SMART 0xD1) + SSD-wear vendor mapping + caution rules (5/197/198 raw>=1, SSD life <=10%, temp 50/60); ours a single failing bit |
+| S-024 | SEVERE — **FIXED** (FIXED/S-024) | No grading layer: og Unknown/Good/Caution/Bad with vendor thresholds (SMART 0xD1) + SSD-wear vendor mapping + caution rules (5/197/198 raw>=1, SSD life <=10%, temp 50/60); ours a single failing bit |
 | M-036 | MAJOR | NVMe: host r/w + controller-busy + error-log fields dropped; data units unconverted (og x512,000); folds the N-009a percentage_used width fix |
 | I-018 | INFO | NVMe transport route verified byte-parity MATCH (IOCTL 0x2D1400 + {proto 3, type 2, page 2, 512B}) — upgrades AUDIT-PIPELINE's "corpus silent" row |
