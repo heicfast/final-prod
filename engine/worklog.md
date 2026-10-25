@@ -2321,3 +2321,1026 @@ Work Log:
 Stage Summary:
 - CI red root causes fixed (missing include + format debt); push to follow; Windows CI
   to be verified green before proceeding to the next finding in this leg's lane.
+Task ID: S2-D
+Agent: parallel auditor D (session 2)
+Task: STATIC analysis — performance parameters (X47-X53), quality (Q65-Q70), API (P42-P46), CLI completeness; no og-execution.
+
+Work Log:
+- Read full content of 13 core source files (cr_cached.{cpp,h}, cr_slice.cpp, cr_devmap.cpp,
+  cr_retry.cpp, cr_directalign.h, cr_transport.cpp [888 LOC], cr_parallel.{cpp,h}, cr_ui.{cpp,h}
+  [~3100 LOC combined], rrecov.cpp [1499 LOC], cr_scan.cpp [1270 LOC]); plus cr_safewriter.cpp
+  [586 LOC], cr_query.cpp [309 LOC], cr_carve.cpp [457 LOC], cr_device.h [203 LOC] for cross-checks.
+- Read corpus: 05-scan-engine-architecture.md, ntfs-engine-internals.md (64 KiB MFT batch +
+  GlobalMemoryStatus adaptive sizing claim), DRWUI-exe--thread-architecture.md (45-thread census),
+  rawsearch-carving--deep-dive.md, NTFSSearchDLL.dll/strings_ascii.txt (GlobalMemoryStatusEx,
+  SetFilePointerEx verified; no ReadFileScatter/ReadFileEx in imports), RAWSearchDLL.dll/strings_ascii.txt
+  (GlobalMemoryStatusEx + HeapAlloc verified).
+- Verified the existing audit findings against current HEAD 5d6da5f: A-001 fix in tree; S-001 fix
+  in tree; S-005 fix in tree; M-001 fix in tree (just-landed this session); GAP-S6-11 disk-map ABI
+  surface in tree (cr_ui_disk_map, cr_ui_disk_map_free at cr_ui.h:492-500 + impl cr_ui.cpp:1461+).
+  Audit baseline 67193b6 → current HEAD 5d6da5f = 6 commits (1 of which is the worklog repair).
+- Static-only findings (NEW divergence candidates the prior audit did not file):
+  * X51 RAWFIXER BYPASS: cr_transport.cpp:748 — RwDevice::read_at calls overlapped_read DIRECTLY,
+    bypassing aligned_read_at (the GAP-S6-13 64 KiB envelope). DirectDevice (line 218) and
+    RdaTargetDevice (line 268) both go through aligned_read_at; RwDevice (RawFixer's read path)
+    does NOT. Recovery writer's source (DirectDevice/PartitionSlice) IS covered. So the gap is
+    specifically the repair path. SEVERITY candidate: MAJOR (perf regression only — slow path
+    on NVMe for non-aligned reads; correctness OK because overlapped_read just calls ReadFile
+    which honors sector alignment).
+  * X53 INCONSISTENT CANCEL WATCHER: cr_carve.cpp:418-429 has a 50 ms cancel watcher thread
+    that calls pool.abort() to drain queued windows. cr_scan.cpp's parallel candidate scan
+    (lines 952-1003) does NOT have an equivalent watcher — workers poll the external cancel
+    token inside scan_candidate (engine loop heads). Result: a queued candidate that hasn't
+    started yet won't bail until its FIRST engine loop head — could be many records in if
+    the engine is slow to reach its first poll. SEVERITY candidate: MINOR (worst-case latency
+    is one candidate's first poll, bounded by ~1 record of work).
+  * X49/X51 PERF-DOC DRIFT: docs/PERFORMANCE-PROFILE.md:52 says "CachedDevice 64 KiB block
+    batching (1 MiB cache)" — the orchestrator actually creates CachedReader with 8 MiB at
+    cr_scan.cpp:540. AUDIT-ARCH.md:37 cites 8 MiB correctly. Q68 finding.
+  * Q65 missing tests: no test for hard-link destroy (S-001 fix added destroy_fully_overwritten
+    but no hard-link-specific test), ADS emission accounting, sparse file accounting (sub-bug
+    noted in S-001 fix worklog but no isolated regression test), FAT cross-linked chain,
+    exFAT multi-fork, ext4 extent tree depth > 2, HFS+ resource fork recovery, Btrfs subvolume
+    rooting, ZFS snapshot, ReFS integrity stream, LDM RAID-0 stripe alignment, LDM RAID-1
+    mirror read, lost-partition overlap scoring (audit row 31a mentions the penalties but no
+    test exercises them). Q65 partial-coverage finding.
+  * Q66 FUZZ GAPS: fuzz/ has 13 harnesses (ntfs, fat, exfat, ext4, hfsplus, btrfs, zfs, refs,
+    carve, preview, container, engines, pure). MISSING dedicated harnesses: ldm (only via
+    fuzz_engines selector), table_parse (only via fuzz_engines/pure), rawfixer (via fuzz_pure
+    + fuzz_engines but no dedicated), session (covered by fuzz_container), safewriter (NO
+    coverage — DestIo + queue + collision logic), destio (NO coverage), bitlocker (NO coverage).
+    Plus: fuzz CI is `if: false` (M-006 from prior audit; still in tree).
+  * Q67 UBSan ABSENT: ASan is enabled on cr_core/cr_ui/cr_tests/fuzz (linux-gcc preset) and
+    TSan runs on the linux-tsan CI lane. UBSan is NOT enabled anywhere — no -fsanitize=undefined
+    in any CMake file. No sanitizer suppression files exist (good). Q67 = ASan clean / TSan
+    clean / UBSan UNVERIFIED.
+  * Q68 doc-drift:
+    - AUDIT-PIPELINE.md:179-185 — WRITER-1 listed as "OPEN" but the code at cr_safewriter.cpp:455-465
+      has the fix (only ERR_CANCELLED aborts; per-item errors collected). The doc describes the
+      pre-fix behavior.
+    - diff-to-fix/modules/cli.md:14 — claims "verify, query" commands exist; the actual CLI
+      (rrecov.cpp:1459-1499) has only 7 commands: list, scan, tree, recover, health, fix, bench.
+      No `verify` command, no `query` command. SESS-2 verify-identity is API-only
+      (cr_ui_scan_verify_identity); query is API-only (cr_ui_query_run). The CLI's tree --json
+      uses query::run internally but doesn't expose query predicates to the user.
+    - diff-to-fix/modules/cli.md:12-13 — exit codes documented as "0 success / 1 usage / 2 scan
+      error / 3 recover error" but rrecov.cpp:17-19 documents: scan 0/1/3 (3=cancelled), recover
+      0/2 (2=partial), health 0/3 (3=no-source), list 0/1. cli.md conflates "scan error" and
+      "recover error" with the wrong codes.
+    - docs/PERFORMANCE-PROFILE.md:1 — "baseline measurements at HEAD 064fcf4 (session 6)" — current
+      HEAD is 5d6da5f; baseline is stale (acceptable as a historical reference but should note
+      "see diff-to-fix for current status").
+    - docs/PERFORMANCE-PROFILE.md:50 — "BELOW the 64 KiB contract (GAP-S6-13)" — GAP-S6-13
+      LANDED (commit 7777e1c, in tree). The "below" claim is stale; the envelope is in.
+    - diff-to-fix/findings/SEVERE/S-009-MAJOR-M-006-diskmap-surface-and-fuzz-ci.md — S-009
+      "Disk-map visualization surface absent" — disk-map surface LANDED via GAP-S6-11 (commit
+      56cce87). cr_ui.h:492-500 + cr_ui.cpp:1461+ implement cr_ui_disk_map. The finding's
+      Status field still says "READ-ONLY FINDING — no fix applied" — stale.
+  * Q70 Win7 posture — verified: .github/workflows/ci.yml:114-135 runs
+    stamp_osversion_um.py + verify_pe_um.py with allowlist tools/ref_imports_um.json on
+    rrecov.exe, cr_tests.exe, cr_ui.dll. tools/test_verify_pe_um.py self-tests the gate on
+    Linux. MATCH.
+  * P42-P46 cr_ui ABI surface — verified MATCH-with-additions:
+    - P42 surface shape: cr_ui.h exposes 57 C11 exports covering scan lifecycle, sessions,
+      snapshots, query, preview, recovery, health, disk map, event stream. The og's analyser-
+      list/map exports (EUGetAnalyserList/Map/Multimap + GetRawUserInfoMap) have NO core
+      counterpart — the carve registry is queryable internally but not via ABI (minor; not
+      blocking for a UI).
+    - P43 ownership: opaque handles (cr_ui_device, cr_ui_scan, cr_ui_session, cr_ui_snapshot,
+      cr_ui_preview, cr_ui_recovery) with close-every-handle semantics; borrowed devices must
+      outlive scans/previews (documented in cr_ui.h:175-177). Mixed raw-pointer/smart-pointer
+      internally — handle types are typedef'd structs; the shim uses unique_ptr internally.
+      Match.
+    - P44 async: PausableToken (cr_device.h:133-199) with pause/resume/cancel from any thread,
+      checkpoint() blocks engines while paused. Backpressure is implicit (single-flight progress
+      bridge in cr_ui.cpp:590-638). The og's event-bus + scan-abort-event split is documented
+      as an implementation difference with equivalent guarantees. Match.
+    - P45 ABI version: CR_UI_ABI_VERSION = 1u (cr_ui.h:69). ABI-CONTRACT.md §9 documents the
+      stability policy: appended fields don't bump the version, only removal/rename/field-change
+      does. The two appended fields (cr_ui_event.reserved[2], cr_ui_recovery_stats.nothing_to_recover)
+      carry "ABI-since 1.1" inline markers — consistent with the policy. Match.
+    - P46 documentation: docs/ABI-CONTRACT.md (291 LOC) is normative; tests/ui_abi_check.c
+      (C consumer test, MSVC /W4 /WX) is the executable form. Match.
+  * CLI completeness vs audit-prompt list:
+    - PRESENT: --json, --filter, --report, --no-carve, --deep (sets whole_disk; semantically
+      odd — deep stage is on by default, --deep enables lost-partition discovery, not the deep
+      stage itself), --quick-only (not --quick), --out (not --output), --resume (not --session),
+      fix command (not --repair flag).
+    - MISSING: --help (implicit only via empty argv), --version, --quick, --no-bitlocker,
+      --raw-fixer/--no-raw-fixer (uses `fix` command instead), --verify (API only), --query
+      (API only), --output (alias for --out/--to/--in), --session (alias for --resume).
+    - The documented CLI contract per PARITY-ORCH.md:49 and PARITY-UI.md:53 lists exactly the
+      flags rrecov.cpp implements; the audit-prompt's expanded list was a supposition. CLI is
+      MATCH with its own documented contract (C24 exit codes match rrecov.cpp's docstring, NOT
+      cli.md's incorrect summary).
+  * MATCH items re-verified (one-liner each):
+    - X47 throughput: 64 KiB-aligned direct reads + 64 KiB cache block verified — cr_transport.cpp:148-170
+      (aligned_read_at rda_scaled=false path uses io::direct_envelope), cr_scan.cpp:540 (CachedReader
+      8 MiB / 64 KiB block).
+    - X48 latency streaming: cr_ui_event typed stream + cr_ui_scan_telemetry + cr_ui_scan_snapshot
+      all callable MID-RUN (cr_ui.h:312-334) — partial=1 stamped; events fire from worker threads
+      at stage boundaries + coalesced progress. Match.
+    - X49 memory: bounded CachedReader (capacity_ block count), bounded ThreadPool (≤64),
+      bounded writer read_chunk (1 MiB default), carve window (1 MiB + 4 KiB overlap) — no
+      unbounded growth identified. Per-stage/per-engine cap: no explicit per-engine budget
+      (engines allocate freely within their scan; the tree is the dominant sink). No explicit
+      og parity claim to verify against.
+    - X50 CPU: zero SetThreadPriority anywhere in src/include (grep clean). ThreadPool
+      auto_workers = hw-1 clamped 1..8 (cr_parallel.cpp:13-20). Resolve_threads in orchestrator
+      also clamps 1..64 (cr_scan.cpp:43-53). The og's priority-7 workers and engine-side worker
+      threads (FAT CFATQuickSearchWorker) have no direct core counterpart — core extends the
+      host-fans-out model with first-class pool only (cr_parallel.h:7-15 documents this honestly).
+      Match.
+    - X52 carve dedup: extent-set-based via find_by_extent(cand_abs + ext_base, len_class)
+      (cr_carve.cpp:128,130,249,251). len_class = coarse bucket (<1MiB: len/65536; >=1MiB:
+      pow2 ceiling + 64). Writer collision: claimed_names_ set + io_.exists() + rename policy
+      (cr_safewriter.cpp:47-79). Query Path sort: O(N*D) for path materialization (acceptable
+      for D ≤ ~20). No O(N²) identified.
+    - X53 cancel watcher: 50 ms watcher EXISTS in carve parallel path (cr_carve.cpp:418-429).
+      Writer checks cancel per-chunk in recover_item_impl_ (cr_safewriter.cpp:277) — ~2 ms
+      responsive at 1 MiB chunks. Per-stage-boundary checkpoints in orchestrator (cr_scan.cpp:607,
+      615, 628 — three per scan). No per-record checkpoint (engine progress callbacks fire per
+      record; checkpoints are stage-boundary only — matches the og's auto-save-at-stage-boundary
+      model).
+    - Q69 stub/TODO/FIXME: grep over src/include for TODO|FIXME|XXX|HACK|future work|not implemented|stub
+      returns ZERO real matches (the four hits are coincidental: "U+XXXX" hex pattern, "kInfoFlagXxx"
+      constants, "0x5002xxxx" error codes, "RtlNtStatusToDosError" comment). Clean.
+
+Stage Summary:
+- STATIC audit complete: 5 new divergence candidates identified (X51 RawFixer bypass, X53 carve
+  vs orchestrator cancel-watcher inconsistency, Q65 missing per-parameter tests, Q66 fuzz gaps
+  + UBSan absence, Q68 doc-drift across 5 spots), plus CLI completeness mapped. All cited with
+  file:line evidence; no source modified; no og-execution required.
+- The most actionable NEW finding is X51 RawFixer bypass (1 line fix: route RwDevice::read_at
+  through aligned_read_at with rda_scaled=via_rda_). All other items are either documentation
+  drift (Q68) or known gaps (Q65 test debt, Q66 UBSan, M-006 fuzz CI).
+- Returned as a structured context sheet (this worklog entry is the long-form evidence; the
+  final message to the main agent is the structured markdown report).
+
+---
+Task ID: S2-C
+Agent: parallel auditor (session 2, parallel agent C)
+Task: Safety + writer + session semantics line-by-line verification (F60-F64, writer
+behavior beyond N-009b/d, session resume beyond D12, R54-R58 architecture parameters)
+
+Work Log:
+- Read completely (audited commit 5d6da5f):
+  * src/core/recovery/cr_safewriter.cpp (586 LOC) + header
+  * src/core/recovery/cr_report.cpp
+  * src/core/session/cr_crsf.cpp (332 LOC) + header
+  * src/core/session/cr_records.cpp (389 LOC) + header
+  * src/win/cr_bitlocker.cpp + header
+  * src/win/cr_destio.cpp + header
+  * src/core/repair/cr_rawfixer.cpp + header
+  * src/core/orchestrator/cr_scan.cpp (1,270 LOC) — full read
+- Read corpus references:
+  * architecture/04-recovery-workflow.md (writer + dest validation)
+  * architecture/06-repair-chain.md (RawFixer chain)
+  * SaveScan/rsf-format--scan-session.md (full rsf spec)
+  * ghidra-partition/RawFixer_decompiled.c (CRawFixer::Start @73997, CheckPartition @74068,
+    CCallBackOperate use, FixByScanSector strings)
+  * ghidra-partition/BitLockerLib_decompiled.c (PSUnlockBitLocker @27557,
+    UnlockVolumeAndRefresh @28607, AesDecryptSectors @25269)
+  * ghidra-partition/RecoveryModule_decompiled.c (SetFileSecurityW @74671/78016/79886,
+    GetFileSecurityW @74665/78076-82, SetFileAttributesW @79677, GetDiskFreeSpaceExA @47033,
+    FSCTL_LOCK_VOLUME @44686, FSCTL_DISMOUNT_VOLUME @44713, FSCTL_IS_VOLUME_MOUNTED @44708)
+  * PartitionRecovery/bitlockerhelp.mo strings (UnlockWithPassphrase/Numerical/External,
+    GetKeyProtectors, FVEAutoUnlock registry path, ExecuteUnlock)
+- Cross-checked prior audit outputs: N-009d (ACL), S-008 (rawfixer wiring), BENCH-F1
+  (torn-tail salvage), F10 (CRC + chunk fallback), F-1 (extent basis), SESS-2 (identity
+  card v2 tail), GAP-S6-10 (typed events).
+
+Findings (this session):
+1. CORROBORATES N-009d (F64 ACL/SDDL): first-hand decompile evidence — og uses
+   Security_Proc::CFileSecurityInfo with GetFileSecurityW(OWNER|GROUP|DACL|SACL=1|2|4|8)
+   then SetFileSecurityW(per-component). Core has zero ACL handling in cr_destio.cpp /
+   cr_safewriter.cpp. Core also drops timestamps (no SetFileTime) and attributes (no
+   SetFileAttributesW) — the FileProperties struct carries them but the writer never
+   applies. Severity: MINOR (defensible per the N-009d rationale, but the timestamp/
+   attribute drop is a NEW sub-divergence not previously noted).
+2. NEW: Writer disk-full handling (F60-adjacent): core does NOT pre-check destination
+   free space (no GetDiskFreeSpaceEx call in src/win/cr_destio.cpp or src/core/recovery).
+   Og calls GetDiskFreeSpaceExA (RecoveryModule @47033) before writing. On ENOSPC, core
+   returns ERR_WRITE_FAILED per-item and continues (every remaining item fails
+   pointlessly). Severity: MINOR (waste, not data loss — temp files are deleted on
+   close).
+3. NEW: Stage checkpoint NOT atomic (S34/D12). cr_ui.cpp:1131 opens ck_path with
+   fopen("wb") which TRUNCATES the existing file, then writes the new checkpoint.
+   A crash mid-write leaves the file torn AND destroys the previous good checkpoint
+   (the og's auto-save uses timestamped file names, so older checkpoints survive).
+   Mitigated by F10 torn-tail salvage in the CRSF reader (cr_crsf.cpp:240-276).
+   Severity: MINOR (mitigation in place; the og also lacks true atomicity but
+   preserves history via new files).
+4. NEW: Volume-lock divergence on REPAIR path (F63-adjacent / R58). Og's repair
+   path does FSCTL_LOCK_VOLUME + DeleteVolumeMountPointA + FSCTL_DISMOUNT_VOLUME +
+   FlushFileBuffers + Sleep(2000) before raw writes (RecoveryModule @44686-44720,
+   PartitionRecovery @44686). Core's RwDevice (cr_transport.cpp:822) opens with
+   GENERIC_READ|GENERIC_WRITE + FILE_SHARE_READ|FILE_SHARE_WRITE — NO lock/dismount.
+   Concurrent processes can race with repair writes. Severity: MAJOR (transactional
+   undo log mitigates the worst case but the lock is a real safety gate).
+   Note: the SCAN path is MATCH — both og and core use non-exclusive reads
+   (FILE_SHARE_READ|WRITE|DELETE) for the scan volume open.
+5. NEW: F62 destination overlap check is OPTIONAL (have_dest_ gate). cr_safewriter.cpp:
+   enqueue_common() only refuses on overlap if set_destination() was called (have_dest_
+   true). cr_ui.cpp:2057-2063 conditions set_destination on (drive-letter path) AND
+   (source disk_known) AND (transport != "image"). Image-file sources and UNC paths get
+   NO overlap check. Og opens \\.\X: unconditionally for destination validation —
+   catches every drive-letter dest. Severity: MINOR (image-source gap is documented
+   platform truth; UNC gap is real but niche).
+6. NEW: F62 only checks the FIRST disk extent. cr_transport.cpp:701-712 returns
+   ext->Extents[0] only — spanned/RAID volumes with multiple disk extents are
+   under-checked (the second+ extents are silently ignored). Severity: MINOR.
+7. NEW: emit_boundary_events_ double-call bug. cr_scan.cpp:577-578 has the same
+   call twice (4-space indent then 8-space indent — merge artifact). Causes
+   double-emission of FilesFound + ErrorRange boundary events on every stamp()
+   exit. Severity: MINOR (cosmetic, but inflates event counts in the UI).
+8. CORROBORATES S-008 (F63 RawFixer consent): core's cr_rawfixer.cpp execute() has
+   NO built-in consent gate — consent is implicit (caller invokes execute()). This
+   matches the og's pattern (CRawFixer::Start takes a progress callback, not a
+   consent callback). The S-008 finding (not wired pre-scan) covers the bigger gap.
+
+MATCH items re-verified:
+- F60 source bad-sector: RetryPolicy max_attempts=3, RetryMode::Skip + bisection +
+  zero-fill + error_map (cr_scan.cpp:525-529). Og uses EPMNtDrv with retry/bisect.
+  Dest writes have NO retry (asymmetric by design — dest bad sectors don't improve
+  on retry). MATCH.
+- F61 BitLocker: core uses PowerShell Unlock-BitLocker + manage-bde fallback +
+  registry FVEAutoUnlock BEK extraction (cr_bitlocker.cpp:119-237). Og uses
+  PSUnlockBitLocker + UnlockVolumeAndRefresh (manage-bde) + bitlockerhelp.mo
+  UnlockWithPassphrase/Numerical/External. NO in-process XTS-AES decrypt path
+  in core (the og's AesDecryptSectors @25269 is for content reads AFTER Windows
+  unlock, which the core does via the file API on the unlocked volume). MATCH
+  (recovery-relevant subset; the og has additional management APIs not needed for
+  recovery).
+- F63 RawFixer consent: MATCH (both rely on UI layer; engine has no consent flag).
+- F64 ACL: divergence (N-009d, already filed).
+- Writer atomic write: temp + FlushFileBuffers + MoveFileExW(REPLACE_EXISTING) in
+  same dir (cr_destio.cpp:44-58) — same-volume rename = atomic. Og uses normal
+  file APIs (corpus 04 §7.5). MATCH.
+- Writer partial-overwrite: 3 policies (Rename default / Skip / Overwrite) in
+  cr_safewriter.h:61 + recover_item_impl_:232. Og's behavior is Rename (numeric
+  suffix) — corpus pattern. MATCH.
+- Session resume from partial .crsf: torn-tail salvage in cr_crsf.cpp:240-276
+  (magic skip-forward by CRSF_UNIT, unfinalized-tail stop, count clamp). MATCH
+  (BENCH-F1 verified).
+- Session CRC: per-record CRC32 (cr_crsf.cpp:166, 323-327). Og has NO explicit
+  CRC (relies on zlib's Adler-32 + magic matching). Core is HARDENING superset
+  (F10, already filed).
+- Session identity verification: boot_sector CRC32 stored in VolumeInfo (cr_records
+  :310, :334) + compared by UI (cr_ui.cpp:1319) and CLI (rrecov.cpp:598). Og
+  stores full 512-byte boot sector (rsf-format §5.3 +0x518) — stronger identity
+  but more space. MATCH (with caveats: CLI warns-only, UI verify is opt-in API).
+- Cancel propagation: per-chunk in writer (1 MiB default, cr_safewriter.cpp:277)
+  + per-item in process() (progress callback) + per-stage-boundary in orchestrator.
+  Bounded by chunk time ~10-50ms. MATCH (likely better than og's per-record).
+- Concurrent access (scan): both use non-exclusive FILE_SHARE_READ|WRITE|DELETE
+  (cr_transport.cpp:696 and RecoveryModule scan path). MATCH.
+- R54 module boundaries: core/win boundary clean (no core header includes win/).
+  App/core boundary clean. MATCH.
+- R55 dependency direction: NO engine includes orchestrator/query/preview/session/
+  ui/win headers. The repair→engine and lost→engine includes (rawfixer uses
+  exfat/fat validators; lost-partition uses ntfs/fat/exfat probers) are deliberate
+  sharing patterns matching the og. MATCH.
+- R56 interface shapes: IStorageDevice / DestIo / IWriteDevice abstractions with
+  platform implementations. Matches og's IObject/GetInterfaceEx pattern. MATCH.
+- R57 wiring: ScanController owns scan lifecycle; SafeWriter constructed by app
+  with injected DestIo + IStorageDevice. Callbacks flow engine→bridge→orchestrator→UI.
+  MATCH.
+- R58 layering: no engine bypasses the storage layer (all device access via
+  IStorageDevice). Cross-engine includes are documented sharing, not bypass.
+  MATCH.
+
+Open questions:
+- OQ-S2C-1: og's exact cancel granularity in the recovery ExportThread is not
+  specified in the corpus (only that cancel checks happen "PID/TID trace → cancel
+  checks"). Core's per-chunk is likely finer; would need a targeted decompile of
+  the og's ExportThread loop to confirm.
+- OQ-S2C-2: og's ACL-preservation scope (DACL only vs OWNER+GROUP+DACL+SACL).
+  The decompile shows GetFileSecurityW with all 4 SECURITY_INFORMATION values
+  (1|2|4|8) — suggesting full preservation. The core preserves none.
+- OQ-S2C-3: og's pre-scan RawFixer consent UX (auto vs prompted) — already
+  noted in S-008's open questions.
+
+Corpus errata candidates:
+- 04-recovery-workflow.md §7.5: claims writes go via "normal file APIs" — accurate
+  but understates that the og ALSO preserves ACLs via SetFileSecurityW (not just
+  data). Should cross-link to the Security_Proc::CFileSecurityInfo evidence.
+- rsf-format--scan-session.md §5.3: claims record 3 carries "512-byte boot sector
+  snapshot" — confirmed in decompile. Should note that the core's VolumeInfo
+  stores only a CRC32 of the boot sector (32-bit collision risk vs the og's
+  byte-exact comparison).
+- 04-recovery-workflow.md §10: mentions "Locked volumes: EUDCPEPM/EUEDKEPM hook
+  drivers + volume lock via PartitionRecovery pending-op engine" — this is the
+  repair-path lock (FSCTL_LOCK_VOLUME + FSCTL_DISMOUNT_VOLUME) the core lacks.
+
+Stage Summary:
+- 5 new findings identified (1 MAJOR repair-path volume lock, 4 MINOR: writer
+  disk-full pre-check, checkpoint atomicity, F62 optional+first-extent-only,
+  emit_boundary_events_ double-call). N-009d ACL finding corroborated with
+  first-hand decompile evidence (also surfaces timestamp/attribute drop as a
+  sub-divergence). All R54-R58 architecture parameters MATCH. S-008 (rawfixer
+  not wired pre-scan) corroborated for F63. Read-only mandate held.
+
+---
+Task ID: S2-B
+Agent: parallel auditor B (session 2)
+Task: Audit B9 (timestamps/timezones) + B10 (Unicode/path) for engines session 1
+didn't deeply cover (FAT, exFAT, ext4, HFS+, Btrfs, ZFS, ReFS, NTFS-reread);
+cross-cutting case-folding/path-separator at query+CLI layer.
+
+Work Log:
+- Read core files in full: cr_types.h (FileTimes struct, unix_to_filetime_ns
+  helper with 100ns granularity fold), cr_node.h (FileProperties.times fields),
+  cr_fat_wire.h (FAT DirEntry wire struct, fat_datetime_to_unix_seconds decoder),
+  cr_exfat_wire.h (exFAT FileEntry with create_tz/modify_tz/access_tz at +0x16/17/18),
+  cr_text.h (S-005 shared UTF-8 decoder), cr_fat_quick.cpp (FAT emit_entry time math),
+  cr_lfn.cpp (fat_date_to_unix — ignores tenths via (void)tenths), cr_exfat_quick.cpp
+  (exfat_time_to_unix100: applies 7-bit two's-complement quarter-hour tz_offset,
+  subtracts tz_secs from base_secs to convert local-time-on-disk → UTC), cr_ext4_engine.cpp
+  (decode_extra for i_*_extra fields, unix_to_filetime_ns preserves nsec), cr_hfsplus_engine.cpp
+  (mac_to_filetime: (mac_sec + 9561628800)*10^7, matches og), cr_btrfs_engine.cpp
+  (reads 4 timespecs at 0x70/0x7C/0x88/0x94), cr_zfs_engine.cpp (reads only the seconds
+  u64 of each 16-byte SA timestamp — drops nsec), cr_refs_engine.cpp (raw le64 from
+  ReFS GeneralInfo), cr_mftwalk.cpp (props->times = has_si ? si_times : best->times;
+  SI-preferred-else-FILE_NAME precedence), cr_attributes.cpp (parse_standard_information
+  + parse_file_name both read all 4 raw u64 100ns-1601), cr_records.cpp (session wire
+  put64/g64 raw u64 — no TZ conversion at wire layer), cr_query.cpp (lower_ascii +
+  contains_ci + std::string::compare — ASCII-only case folding; "/" path separator),
+  cr_report.cpp (no timestamps emitted).
+- Read corpus: fat-exfat-engine-algorithms-v2.md (no per-engine tz/tenths decode detail),
+  fat-exfat-engine-internals.md (class model), exfat-engine--deep-dive.md (no tz detail),
+  ext4-hfs-engine-algorithms-v2.md (SB+VH validation only), refs-btrfs-zfs-engine-algorithms-v2.md
+  (Btrfs generation select + ZFS uberblock walk — no timestamp decode detail),
+  ntfs-engine-internals.md (SI/FILE_NAME parsers, no precedence decode).
+- Direct decompile reads (first-hand evidence):
+  * FATSearchDLL_decompiled.c:32135-32154 — 3× DosDateTimeToFileTime (create@+0x10/+0xe,
+    modify@+0x18/+0x16, access@+0x12 with time=0); on failure: stored slot = 0.
+    NO creation_tenths read; NO LocalFileTimeToFileTime / FileTimeToLocalFileTime /
+    GetTimeZoneInformation import.
+  * exFATSearchDLL_decompiled.c:5215-5235 + 45174-45194 — 3× DosDateTimeToFileTime
+    per file; create_tz/modify_tz/access_tz bytes NEVER read; NO tz conversion APIs
+    imported. CONFIRMED: og ignores exFAT tz_offset.
+  * EXT4SearchDLL_decompiled.c:5494-5515 + 6262-6282 — _gmtime32_s + SystemTimeToFileTime
+    (wMilliseconds = 0) → SECOND precision only; reads param_2+0x0C (ctime) and param_2+0x10
+    (mtime); props+0x4b and props+0x55 (3rd/4th FILETIME slots) initialized to 0 and
+    NEVER assigned (atime and crtime dropped). SystemTimeToFileTime + GetLocalTime imported;
+    NO FileTimeToSystemTime / FileTimeToLocalFileTime / GetTimeZoneInformation imported at
+    the engine level.
+  * HFSPlusSearchDLL_decompiled.c:8012,8027,8042 — 3 conversions:
+    ((mac_sec + 0x239eae080) * 10000000) at param_1+0xc0/+0xc4/+0xc8 (create, content_mod,
+    attr_mod). NO conversion for access_date (4th HFS+ catalog date). Matches core's
+    mac_to_filetime() fold exactly; core additionally reads access_date (superset).
+  * BtrfsSearchDLL_decompiled.c:4430-4446 — 3 conversions:
+    (sec + 0x2b6109100)*10000000 + nsec/100 at inode+0x70/0x78 (atime), +0x7c/0x84 (ctime),
+    +0x88/0x90 (mtime). NO conversion at +0x94/+0x9c (otime) — creation time dropped by og.
+    Core reads all 4 (superset).
+  * ZfsSearchDLL_decompiled.c:24441,24563,24685,24807 — SA attribute lookups for ZPL_ATIME/
+    MTIME/CTIME/CRTIME by name; FUN_180010ef0 reads min(local_28, 8) bytes of the SA attr
+    → drops the second u64 (nanoseconds) — core does the same (le64 of first 8 bytes only).
+    MATCH — both drop nsec for ZFS.
+  * ReFSSearchDLL_decompiled.c — no time-conversion APIs imported (only GetSystemTimeAsFileTime
+    + WideCharToMultiByte). Engine reads raw le64 timestamps from ReFS GeneralInfo at
+    +0x00..0x18 (matches core). MATCH.
+  * NTFSSearchDLL_decompiled.c — no DosDateTimeToFileTime / FileTimeToLocalFileTime /
+    FileTimeToSystemTime / GetTimeZoneInformation imported. NTFS engine reads raw 100ns-1601
+    from $STANDARD_INFORMATION and $FILE_NAME, stores directly. MATCH with core.
+- DRWUI.exe + DRWReport.exe + RAWSearchDLL.dll DO import FileTimeToSystemTime +
+  FileTimeToLocalFileTime + GetTimeZoneInformation — but those are at the UI/report/raw-
+  carve-display layer, NOT the engine layer. The og's RAWSearchDLL writes a formatted
+  timestamp STRING (via "%d-%d-%d %d-%d-%d" sprintf after FileTimeToLocalFileTime +
+  FileTimeToSystemTime) alongside the raw u64 in CRAWFileProperties (record-3 type 3,
+  rsf-format--scan-session.md:400). The core's RAW carve doesn't generate this string
+  (just stores u64). Core is leaner — not a parity break (no info lost).
+- DRWUI.exe + DRWReport.exe import LCMapStringW / CompareStringW (Unicode-aware case
+  folding) — used for sort/filter at UI/report layer. The SearchDLL engines do NOT
+  import these. The core's cr_query.cpp uses ASCII-only contains_ci / lower_ascii /
+  std::string::compare — divergence already noted as N-009c.
+
+Findings (this session):
+- NEW: exFAT tz_offset application — core applies the spec-correct 7-bit two's-complement
+  quarter-hour tz_offset (subtract tz_secs from base_secs to convert local-time-on-disk
+  → UTC), the og uses DosDateTimeToFileTime and IGNORES the tz_offset bytes (treating
+  local time as UTC, matching FAT convention). SEVERE: byte-different session records
+  (FileTime differs by tz_offset hours, typically ±8 for non-UTC users); the displayed
+  time diverges from Explorer/dir which also use local-as-UTC. Core is "spec correct"
+  but produces different user-visible timestamps than the og. Findings ID candidate:
+  S2-B-001.
+- NEW: FAT invalid-date divergence — core returns 116444736000000000 (= 1970-01-01
+  00:00:00 UTC, the Unix-epoch FileTime) when fat_datetime_to_unix_seconds returns 0
+  (month<1 or day<1 or month>12 or day>31). Og returns 0 (= 1601-01-01 00:00:00 UTC,
+  zero FILETIME) for the same case via the `if (BVar5 == 0) stored_slot = 0` guard.
+  exFAT engine in core returns 0 correctly (early `if (date == 0) return 0`); only
+  FAT engine has this divergence. MINOR — observable only for zero/invalid FAT dates
+  (rare; corrupt dentries). Findings ID candidate: N-010.
+- NEW: ext4 nanoseconds superset — core uses unix_to_filetime_ns(sec, nsec) preserving
+  nanoseconds at 100ns granularity; og uses _gmtime32_s + SystemTimeToFileTime (with
+  wMilliseconds=0) → second-only precision. Core superset; .rsf byte stream differs
+  (low bits). INFO. Findings ID candidate: I-006.
+- NEW: ext4 timestamp completeness — core reads all 4 (atime/mtime/ctime/crtime) via
+  the i_extra_isize-gated decode_extra path; og only reads ctime+mtime (param_2+0x0C
+  and param_2+0x10), leaves atime + crtime slots at 0. Core superset; .rsf byte stream
+  differs (created and accessed populated vs 0). INFO/MINOR — recovery products often
+  use access time for filter/sort ("files accessed after date X"); og-side users get
+  empty access times on ext4. Findings ID candidate: I-007 (grouped with HFS+/Btrfs
+  superset notes below).
+- NEW: HFS+ access_date superset — core reads all 4 HFS+ catalog dates (create_date,
+  mod_date, attr_mod_date → changed, access_date); og reads only 3 (drops access_date).
+  Core superset; .rsf differs. INFO. (Same findings group as ext4 above.)
+- NEW: Btrfs otime superset — core reads all 4 Btrfs inode timespecs (atime, ctime,
+  mtime, otime → crtime); og reads only 3 (drops otime, the creation time). Core
+  superset; .rsf differs (created slot populated vs 0). INFO. (Same findings group.)
+- NEW (sub-bug of S2-B-001): exFAT create_10ms / modify_10ms — both og and core ignore
+  these bytes (core's exfat_time_to_unix100 doesn't take them as args; og's DosDateTime
+  doesn't accept tenths). MATCH (no divergence, but documents the contract).
+- Re-verified: NTFS B9 = MATCH (raw 100ns-1601; SI-preferred-else-FILE_NAME precedence
+  in core code at cr_mftwalk.cpp:734; og's NTFS engine imports NO time-conversion APIs
+  so reads/stores raw). Og precedence between SI/FILE_NAME times still not explicitly
+  decoded in corpus — note only, no contradiction observable.
+- Re-verified: FAT B9 = MATCH for the 10ms/tenths drop (both ignore), MATCH for valid
+  date/time math (both produce same FileTime), DIVERGENCE for invalid date (above).
+- Re-verified: HFS+ B9 Mac-epoch conversion MATCHES og exactly (same constants, same
+  math); only divergence is the access_date superset.
+- Re-verified: Btrfs B9 timestamp math MATCHES og exactly ((sec+EPOCH_DELTA)*10^7 +
+  nsec/100); only divergence is the otime superset.
+- Re-verified: ZFS B9 = MATCH (both drop nsec, reading only the seconds u64 of the
+  16-byte SA timestamp attribute). Prior audit's "M-note" was correct.
+- Re-verified: ReFS B9 = MATCH (raw 100ns-1601 stored, no TZ conversion).
+- Re-verified: Unicode normalization (NFC/NFD) — NEITHER og engines NOR core do any
+  normalization at engine level (no NormalizeString / FoldString imports in any
+  SearchDLL). HFS+ NFD names pass through byte-identical. MATCH.
+- Re-verified: path separator — core CLI uses "/" (cr_query.cpp:232/274/285);
+  og has no CLI (GUI uses "\\"). .rsf stores tree structure (parent IDs), not path
+  strings — no wire-level divergence. NA / INFO at the engine layer (only CLI output
+  presentation differs).
+- Re-verified: N-009c (CLI --filter ASCII mangling) — confirmed at cr_query.cpp
+  contains_ci / lower_ascii (lines 47-52, 72-93): ASCII-only case folding. Og's UI
+  uses CompareStringW (Unicode-aware). DIVERGENCE for non-ASCII filename search;
+  already filed.
+
+Open questions (no new OQ files; below is for the main agent's triage):
+- OQ-S2-B-1: Does the og's $STANDARD_INFORMATION vs $FILE_NAME time precedence match
+  the core's "SI-preferred-else-FILE_NAME" rule? Session 1 noted this; the NTFS decompile
+  doesn't show an obvious attribute dispatch. Probably the og uses a virtual attribute
+  lookup that prefers SI by default (NTFS spec behavior) — but unconfirmed. No
+  observable contradiction in corpus; note only.
+
+Corpus errata candidates:
+- fat-exfat-engine-algorithms-v2.md §6 confidence row claims "100% [CODE] for the FAT16
+  Next translation table" but does NOT cover the timestamp decode (DosDateTimeToFileTime
+  call sites, tenths discard, tz_offset handling). The artifact is silent on timestamp
+  handling — not strictly wrong, but the breadth claim could mislead. Suggest a note
+  that timestamp decode is out of scope.
+- ext4-hfs-engine-algorithms-v2.md §3 (HFS+ catalog leaf walker) doesn't cover the
+  timestamp conversion math (the (mac_sec + 9561628800) * 10000000 fold). Not wrong,
+  just incomplete. Same suggestion.
+- refs-btrfs-zfs-engine-algorithms-v2.md §2 (Btrfs superblock selection) doesn't cover
+  the inode timestamp decode (only superblock generation). Not wrong; same suggestion.
+
+Stage Summary:
+- 6 NEW divergence candidates identified (1 SEVERE: exFAT tz_offset; 1 MINOR: FAT
+  invalid-date; 4 INFO: ext4 nsec + ext4 access/crtime + HFS+ access_date + Btrfs
+  otime supersets — the 4 supersets group as one finding I-006/I-007).
+- 5 re-verified MATCH items (NTFS, FAT valid-date, HFS+ math, Btrfs math, ZFS, ReFS,
+  Unicode normalization, .rsf wire raw u64).
+- N-009c (CLI case folding) re-confirmed.
+- Read-only mandate held: zero commits from this session touch source.
+
+---
+Task ID: S2-A
+Agent: parallel auditor A (session 2)
+Task: Line-by-line audit of NTFS engine hard-link / ADS / sparse / reparse / $ATTRIBUTE_LIST behavior — verify session-1 B7 "MATCH" verdict against decompile.
+
+Work Log:
+- Read all assigned core files line-by-line:
+  src/core/ntfs/cr_mftwalk.cpp (1,431 LOC), cr_attributes.cpp (194), cr_runlist.cpp
+  (201), cr_bitmap.cpp (109); include/cr/ntfs/cr_mftwalk.h, cr_attributes.h,
+  cr_ntfs_wire.h, cr_runlist.h; tests/unit/test_ntfs_volume.cpp (2,080).
+- Read corpus artifacts: ntfs-engine--deep-dive.md (191), ntfs-engine-internals.md
+  (90), ntfs-engine-algorithms-v2--deleted-viability.md (144); strings_ascii.txt
+  for NTFSSearchDLL.dll + NTFSLib.mo + NTFSUtil.mo + NTFSFileSystemAnalyser.mo;
+  the full decompile NTFSSearchDLL_decompiled.c (62,394 LOC) for first-hand
+  verification at FUN_180006db0 (build_file_properties), FUN_1800069e0 ($DATA
+  iteration), FUN_18001acc0 (deleted-record batch loop / destroy rule),
+  FUN_180041970 (base_record gate — NOT in_use), FUN_1800448b0 (pick best
+  $FILE_NAME), FUN_1800430b0 (find attribute), FUN_180041df0 ($ATTRIBUTE_LIST
+  chase fallback), FUN_180042a80 (build child-record list from $ATTRIBUTE_LIST),
+  FUN_180017390 (in-use phase walk), FUN_180017190 (cluster-claim setter).
+
+Findings (new divergences session 1 missed):
+
+1. S2-A-1 (MAJOR): Hard-link fan-out divergence.
+   - OG (FUN_180006db0:5273 → FUN_1800448b0:54124-54162) calls FUN_1800448b0
+     ONCE per record; that function fetches at most TWO $FILE_NAME attributes
+     (index 0 and index 1 via FUN_1800430b0) and picks ONE by namespace ranking.
+     The og emits ONE node per record (one name, one parent_ref).
+   - CORE (cr_mftwalk.cpp:711-724 collects distinct parents; :796-841 emits one
+     node per distinct parent, cloning props for each parent beyond the first).
+     For a record with N distinct parents the core emits N nodes.
+   - Test fixture EndToEndWalk (test_ntfs_volume.cpp:1314 stats.hardlinks==1,
+     record 21 with 2 $FILE_NAME entries for parents 5 and 16) — the og would
+     emit 1 node, the core emits 2.
+   - Session-1 verdict "M one node per distinct parent with shared refcounted
+     props (mirrors og LOCK/unlock AddRef/Release sharing)" is WRONG. The og
+     emits one node per record. The corpus's "reference-counted property
+     objects" / "LOCK()/UNLOCK() interlocked AddRef/Release at 21170-21205"
+     (deep-dive §3 line 85-86) mis-attributes the viability+destroy block as
+     hard-link refcounting; those lines are the destroy-rule accounting, not
+     shared-props AddRef/Release.
+
+2. S2-A-2 (MINOR): ADS divergence — og IGNORES named $DATA streams.
+   - OG (FUN_1800069e0:5159-5160) calls FUN_180045440 to test if a $DATA
+     attribute is NAMED (name_length > 0); if so, the unnamed-$DATA processing
+     block is SKIPPED (the `if (bVar2 == 0)` gate). Named $DATA (ADS) is
+     silently dropped; the props runlist (param_2+0x37) only carries unnamed
+     $DATA fragments.
+   - CORE (cr_mftwalk.cpp:854-899) emits ADS as child nodes with resident
+     content capture (resident_span) or nonresident extents.
+   - Test fixture ResidentAdsCarriesContent (test_ntfs_volume.cpp:894-933)
+     expects stats.ads == 1u and resident payload; EndToEndWalk (:1315) the
+     same. The og would emit 0 ADS nodes for the same fixture.
+   - Session-1's note "Og-side result shape for ADS not fully decoded in
+     corpus — no contradiction found" was incomplete: there IS a divergence
+     (og skips ADS; core emits ADS as child nodes). Core is a SUPERSET.
+
+3. S2-A-3 (MAJOR): $ATTRIBUTE_LIST chase scope + depth divergence.
+   - OG chases $ATTRIBUTE_LIST via FUN_180041df0 (the fallback in
+     FUN_1800430b0 when in-record find via FUN_180042020/FUN_180041850
+     returns 0). This fallback requires the child-record list at
+     parse_ctx+0x20, which is built by FUN_1800425d0 only when
+     FUN_1800431d0's param_6 is non-NULL.
+   - FUN_180017390 (in-use phase walk, decompile:18462) passes plVar9
+     (non-NULL) to FUN_1800431d0 → child-record list IS built →
+     $ATTRIBUTE_LIST chase WORKS for in-use records.
+   - FUN_18001acc0 (deleted phase walk, decompile:21161-21162) passes NULL
+     to FUN_1800431d0 → child-record list is EMPTY → $ATTRIBUTE_LIST chase
+     does NOT work for deleted records.
+   - The og's chase is also DEPTH-1 only: FUN_180041df0 iterates the base
+     record's direct children but does NOT recursively chase $ATTRIBUTE_LIST
+     in child records (no multi-hop). If a child record itself has
+     $ATTRIBUTE_LIST pointing to grandchildren, the og misses them.
+   - CORE (cr_mftwalk.cpp:475-572) chases $ATTRIBUTE_LIST for ALL records
+     (in-use AND deleted) via a multi-hop BFS (depth 64, cycle guard,
+     nested $ATTRIBUTE_LIST in child records queued for the next level —
+     cr_mftwalk.cpp:557-566).
+   - Test NestedAttrlistChase (test_ntfs_volume.cpp:830-892) exercises
+     multi-hop chase for a regular file (record 23 → 24 → 25); the og
+     would only see record 23's in-record fragments (and record 24's if
+     processed via FUN_180017390, but NOT record 25's grandchild fragment).
+   - The CORE is a SUPERSET: correctly merges multi-hop fragments for
+     both in-use and deleted records. Recovery correctness improvement
+     over the og (the og silently truncates deleted fragmented files).
+
+4. S2-A-4 (MATCH): Sparse file extent accounting post-S-001 sub-fix.
+   - OG (FUN_18001acc0:21220 `if (*plVar13 != -1)`) skips sparse runs
+     (LCN == -1) in the viability iterator; both total and intact
+     counters exclude sparse entries.
+   - CORE (cr_bitmap.cpp:96-97 `if (r.sparse) continue;`) excludes sparse
+     runs from both `total` and `reused` in reused_ratio. MATCH.
+   - The destroy rule's "every probe cluster re-allocated" predicate:
+     OG `0 < iVar21 && iVar20 == iVar21` (where both skip sparse);
+     CORE `ratio >= 1.0` (where ratio excludes sparse). Equivalent.
+   - The candidate-4 concern (sparse-but-allocated file falsely
+     destroyed) is NOT a divergence: both sides correctly exclude
+     sparse runs, so a sparse-but-allocated file (real clusters free)
+     grades Excellent (not Overwritten) and is NOT destroyed.
+
+5. S2-A-5 (MATCH): Reparse points.
+   - OG: NTFSSearchDLL has NO $REPARSE_POINT (type 0xC0) parsing in
+     FUN_180006db0 (build_file_properties only handles 0x10 SI, 0x30
+     FILE_NAME, 0x80 DATA). The corpus strings.txt has
+     `$RmMetadata$Reparse$Repair` which is a $-skip filter target, not
+     an attribute parser.
+   - CORE (cr_mftwalk.cpp build_props switch :78-153) doesn't handle
+     0xC0 either. The reparse field is parsed from $FILE_NAME+60
+     (cr_attributes.cpp:149 f.reparse) but not propagated to props.
+   - MATCH: both ignore $REPARSE_POINT. The corpus's "reparse handling"
+     for the Complete scan (internals §Quick vs Complete) is vague and
+     likely refers to walking the $Extend/$RmMetadata directory (not
+     parsing the attribute).
+
+6. S2-A-6 (MATCH): $OBJECT_ID attribute.
+   - OG: no $OBJECT_ID (0x40) parsing in FUN_180006db0.
+   - CORE: no 0x40 handling in build_props. The wire header
+     (cr_ntfs_wire.h:91) defines ATTR_TYPE_OBJECT_ID = 0x40 but the
+     build_props switch doesn't dispatch on it.
+   - MATCH: both ignore $OBJECT_ID.
+   - Corpus errata: deep-dive §6 line 121 claims "0x40 / 0x80 —
+     $OBJECT_ID / $DATA (checks at 51006/54487)" but line 51006 is a
+     boot-sector sectors-per-cluster power-of-two check (FUN_18003f480),
+     NOT $OBJECT_ID attribute parsing.
+
+7. S2-A-7 (MATCH): $VOLUME_NAME / $VOLUME_INFORMATION.
+   - OG: NTFSSearchDLL doesn't parse $VOLUME_INFORMATION (0x70) or
+     $VOLUME_NAME (0x60). Volume label comes from elsewhere (NTFSLib's
+     GetVolumeInformationA wraps the Windows API per NTFSLib.mo:648).
+   - CORE: no 0x60/0x70 handling in build_props. Volume serial comes
+     from the boot sector (BootSector.volume_serial at +0x48).
+   - MATCH: both ignore $VOLUME_INFORMATION at the engine level.
+   - The candidate-7 question (surface volume label from $VOLUME_INFO
+     when boot label is empty) is N/A — neither side parses the
+     attribute. Boot sector has no label field; volume label is an
+     orchestrator/UI concern, not the engine's.
+
+8. S2-A-8 (MATCH with minor note): $SI vs $FILE_NAME time precedence.
+   - OG (FUN_180006db0:5338-5341 sets local_84/7c/74 from $FILE_NAME;
+     :5347-5350 if $SI exists and is valid, OVERRIDES with $SI times
+     via FUN_180045090/5040/4ff0). $SI times win when present.
+   - CORE (cr_mftwalk.cpp:734 `props->times = has_si ? si_times :
+     best->times;`). MATCH.
+   - Minor note: the OG's props serializer field map (deep-dive §6)
+     has THREE u64 time fields (+0x25 created, +0x2d modified, +0x35
+     changed) — NO accessed time. The CORE's FileTimes stores FOUR
+     (created, modified, changed, accessed — cr_attributes.cpp:142-145
+     for $FILE_NAME, :172-175 for $SI). The CORE stores one extra time
+     (accessed); informational only, no recovery impact.
+
+9. S2-A-9 (MATCH): $FILE_NAME with parent ref to deleted dir.
+   - OG (internals §Record processing: "names recovered from $FILE_NAME
+     even when parent dirs are gone (reparenting into 'lost' tree)").
+   - CORE (cr_mftwalk.cpp:908-935 phase-B parent resolution): for each
+     emitted node, look up parent_record in by_record; if found and
+     != self, reparent under it; if not found, reparent to root_lost.
+   - MATCH: both reparent orphans (parent_record unresolved) to the
+     lost tree. A deleted file whose parent dir was ALSO deleted
+     (but still in the MFT) reparents under the deleted dir node
+     (which is in by_record). A deleted file whose parent dir's MFT
+     record was REUSED reparents to root_lost.
+
+10. S2-A-10 (MINOR divergence): Compressed/sparse flag propagation.
+    - OG (FUN_1800069e0:5163 sets props+0x12 |= 0x800 for sparse $DATA;
+      :5167 sets props+0x12 |= 0x40 for compressed $DATA; :5153-5154
+      converts sparse+compressed to compressed-only at the props level).
+      These are INTERNAL flags at +0x12 (not in the serializer field map).
+      The SERIALIZED flags (props+0x23, local_86) come from $SI's
+      dos_flags (OR'd with $FILE_NAME's directory bit 0x10) — bits
+      1/2/4/0x20/0x400 only; compressed 0x800 NOT propagated from $SI.
+    - CORE (cr_mftwalk.cpp:129-134) sets internal data_compressed_out /
+      data_cunit_out (build-time locals, not stored in props).
+      props->attributes (cr_mftwalk.cpp:735) = $FILE_NAME's dos_flags &
+      0xFF | (is_dir ? 0x10 : 0) — uses $FILE_NAME (not $SI) and
+      doesn't propagate 0x400 (OFFLINE) or compressed bits.
+    - DIVERGENCE (minor): OG's serialized flags source = $SI; CORE's =
+      $FILE_NAME. OG's internal +0x12 has compressed/sparse; CORE has
+      no equivalent persistent internal flag (data_compressed_out is
+      discarded after expand_compressed_data). No recovery impact
+      (the CORE always expands compressed data via GAP-P1-1; downstream
+      code doesn't need the flag). Cosmetic difference in attributes
+      shown to UI.
+
+Corpus errata candidates (prose claims contradicting the decompile):
+
+E1. ntfs-engine--deep-dive.md §3 line 77-82: claims
+    `(props->flags & 0x10) == 0` is the "DELETED-FILE BRANCH" and that
+    "NTFS in-use flag (0x1 in FILE record flags byte maps to props bit
+    4)". WRONG: bit 0x10 of props+0x23 is the DIRECTORY bit (set at
+    FUN_180006db0:5329 when FUN_180043700 returns non-zero). The actual
+    in-use flag is at record header +0x16 (flags 0x0001), read by
+    FUN_180043060. The check `(uVar7 & 0x10) == 0` is "NOT a directory",
+    not "deleted".
+
+E2. ntfs-engine-algorithms-v2--deleted-viability.md §1 line 25-26:
+    claims `if record_in_use(rec): // FUN_180041970: parsed+0x20 != 0
+    continue // ONLY NOT-IN-USE (deleted) records pass`. WRONG:
+    FUN_180041970 (decompile:52411-52415) is `return *(longlong
+    *)(param_1 + 0x20) != 0;` — checks the BASE_RECORD field (offset
+    0x20 in record header), NOT the in-use bit. The correct
+    interpretation: EXTENSION records (base_record != 0) are skipped;
+    BOTH in-use and deleted non-extension records pass. FUN_18001acc0
+    processes both, and the destroy rule fires for both (in-use records
+    destroyed as dedup because their clusters were claimed by the
+    in-use phase walk FUN_180017390).
+
+E3. ntfs-engine-algorithms-v2--deleted-viability.md §1 line 44:
+    claims `if size >= 0x3FF` (viability gate). WRONG: the decompile
+    (FUN_18001acc0:21208) shows `if (0x3ff < lVar18)` — strict
+    GREATER THAN. The CORE's strict `>` (cr_mftwalk.cpp:668,
+    cr_mftwalk.h:58 viability_min_size=0x3FF) matches the decompile;
+    the corpus's `>=` is wrong.
+
+E4. ntfs-engine--deep-dive.md §6 line 121: claims "0x40 / 0x80 —
+    $OBJECT_ID / $DATA (checks at 51006/54487)". Line 51006 is in
+    FUN_18003f480 (boot-sector sectors-per-cluster power-of-two
+    validation: `sVar2 == 0x40` is one of the pow2 checks). NOT
+    $OBJECT_ID attribute parsing. The og doesn't parse $OBJECT_ID.
+
+E5. ntfs-engine--deep-dive.md §3 line 85-86: claims "reference-counted
+    property objects (`_Ref_count_base` RTTI; `LOCK()/UNLOCK()`
+    interlocked AddRef/Release at 21170-21205 — the engine is
+    thread-safe for the UI's async workers)". WRONG: lines 21170-21205
+    are the viability+destroy block (system-flag check :21186,
+    directory gate :21190, runlist iteration :21217-21248, destroy rule
+    :21249-21262). The "LOCK()/UNLOCK() interlocked AddRef/Release"
+    interpretation is a misread; those lines are viability logic, not
+    refcount management. (The og DOES use shared_ptr-style refcounting
+    via CNTFSFileProperties, but the cited lines are not where it
+    happens.)
+
+E6. ntfs-engine-algorithms-v2--deleted-viability.md §1 lines 60-66
+    (the semantic interpretation paragraph): claims "bitmap = controller
+    .field_+0x40 or +0x48 # $Bitmap objects" and "when NTFS deletes a
+    file it frees the file's $Bitmap bits. A deleted MFT record whose
+    data-run clusters still read as allocated in the live $Bitmap..."
+    WRONG per OQ-T1 resolution (already documented): the bitmap is a
+    scan-built claimed-sector bit-set (ctor FUN_18002c330, marked by
+    FUN_180017190 at :18409), NOT the volume $Bitmap.
+
+Open questions (need deeper RE work):
+
+OQ-S2A-1: Og's regular-file $ATTRIBUTE_LIST handling for DELETED records.
+   The decompile shows FUN_180017390 (in-use phase) builds the
+   child-record list and passes it to FUN_1800431d0, enabling the
+   FUN_180041df0 fallback. FUN_18001acc0 (deleted phase) passes NULL,
+   disabling the fallback. The question: does FUN_180017390 process
+   DELETED records too (building their child-record list, even though
+   it won't claim clusters via FUN_180017190 due to the :18345-18352
+   deleted-bit bail)? If yes, deleted records' $ATTRIBUTE_LIST IS
+   chased in Walk 1 (but the props might not be emitted if Walk 1
+   only emits in-use records). If no, deleted records never get
+   $ATTRIBUTE_LIST chase. Needs caller-context tracing to resolve.
+
+OQ-S2A-2: Og's hard-link handling downstream. The decompile shows
+   FUN_180006db0 picks ONE $FILE_NAME per record. But the corpus
+   mentions "reference-counted property objects" and NTFSLib.mo has
+   CNtfsMultiFileRecord class. Does a downstream component (DRWUI
+   tree builder, or NTFSLib's MultiFileRecord) fan out hard-links
+   from a single record? Needs RE of the consumer side.
+
+OQ-S2A-3: Og's ADS handling downstream. The decompile shows
+   FUN_1800069e0 skips named $DATA. But the corpus mentions
+   CResidentNTFSDataRunList and NTFSLib.mo has CNtfsStreamInfo
+   (in NTFSUtil.mo). Does a downstream component (NTFSUtil's
+   Ntfs2FAT converter, or the writer) handle ADS separately?
+   Needs RE of NTFSLib/NTFSUtil.
+
+OQ-S2A-4: Og's $ATTRIBUTE_LIST depth bound. The og's chase
+   (FUN_180041df0) iterates the child-record list built by
+   FUN_1800425d0 from the base record's $ATTRIBUTE_LIST entries.
+   It does NOT recursively chase child records' own $ATTRIBUTE_LIST
+   (depth-1 only). The CORE uses depth 64 (multi-hop BFS). What's
+   the og's effective depth bound for the $MFT case (FUN_18001a540
+   → FUN_180042a80)? Needs RE of FUN_18001a540's iteration structure.
+
+Stage Summary:
+- Session-1 B7 "MATCH" verdict for hard-link/ADS/sparse/refuted: 3 new
+  divergences found (S2-A-1 hard-link fan-out MAJOR, S2-A-2 ADS MINOR,
+  S2-A-3 $ATTRIBUTE_LIST scope+depth MAJOR), 1 minor divergence
+  (S2-A-10 compressed/sparse flag propagation), 6 confirmed MATCHes
+  (S2-A-4 sparse accounting, S2-A-5 reparse, S2-A-6 $OBJECT_ID, S2-A-7
+  $VOLUME_INFORMATION, S2-A-8 time precedence, S2-A-9 deleted-parent
+  reparenting).
+- 6 corpus errata candidates identified (E1-E6) — prose claims in the
+  corpus that contradict the first-hand decompile read.
+- 4 open questions registered (OQ-S2A-1..4) for deeper RE work.
+- Read-only mandate held throughout. No source files modified.
+
+---
+Task ID: S2-1 (session 2 bootstrap + parallel agent dispatch + finding consolidation)
+Agent: main auditor (session 2)
+Task: Session 2 — find what session 1 missed; continue the audit; remove the fixed things
+
+Work Log:
+- Pulled both repos fresh: core 5d6da5f (HEAD includes A-001/S-001/S-005/M-001 fixes + GAP-S6-11
+  disk-map), corpus 03ad46c (unmoved). Audited commit for new findings: 5d6da5f.
+- Read worklog.md to map session 1's coverage: 19 modules, 31 findings (1 ACUTE, 9 SEVERE, 4 MAJOR,
+  12 MINOR, 5 INFO), 9 tracked-open. Concurrent remediation leg fixed 4 findings + resolved 1 OQ:
+  A-001 (1cb6a43), M-001 (5d6da5f), S-001 (e93decf), S-005 (2f3237d), OQ-T1 (decompile read).
+- Saved session-2 prompt (redacted) at worklog/session-2-diff-audit-prompt.md. Read twice.
+- Wave 1 (this entry, T2): moved the 5 resolved findings (A-001, S-001, S-005, M-001, OQ-T1) from
+  their active severity dirs into diff-to-fix/findings/FIXED/ via `git mv` (preserves git history).
+  Authored diff-to-fix/findings/FIXED/RESOLVED-INDEX.md cataloging each resolved finding's title,
+  fix commit, and resolution summary. Empty ACUTE/ dir removed from working tree.
+- Wave 2 (this entry, T3-T6): dispatched 4 parallel agents (S2-A through S2-D) covering parameter
+  families session 1 did NOT deeply audit:
+  * S2-A: NTFS hard-link/ADS/sparse/reparse/$ATTRIBUTE_LIST — B7 line-by-line vs decompile.
+  * S2-B: B9 (timestamps/timezone) + B10 (Unicode) across all engines session 1 only superficially
+    covered (FAT, exFAT, ext4, HFS+, Btrfs, ZFS, ReFS).
+  * S2-C: F60-F64 (safety), writer behavior beyond N-009b/d, session resume beyond D12, R54-R58
+    (architecture). Used the ghidra-partition/*.c decompiled files session 1 did NOT use
+    (session 1 used .mo files only).
+  * S2-D: X47-X53 (perf static analysis), Q65-Q70 (quality per-module), P42-P46 (API), CLI
+    completeness — all the parameters session 1 marked "MATCH" or "tracked-open" without deep
+    verification.
+- All 4 agents returned structured context sheets. Consolidated 17 new divergence candidates +
+  18 corpus errata candidates. Of the 17 candidates: 2 SEVERE (S-010 repair-path volume lock,
+  S-011 exFAT tz_offset), 3 MAJOR (M-007 hard-link fan-out, M-008 $ATTRIBUTE_LIST scope+depth,
+  M-009 RawFixer bypasses 64 KiB envelope), 11 MINOR (N-010..N-020), 2 INFORMATIONAL (I-006
+  ext4 nsec superset, I-007 ext4/HFS+/Btrfs extra-timestamps superset).
+- Wave 2 (this entry): wrote all 17 new finding files in the mandated template with cited evidence
+  (file:line on both sides, fix plan, tests to add, related findings, open questions). Findings
+  live in diff-to-fix/findings/{SEVERE,MAJOR,MINOR,INFORMATIONAL}/.
+- Top new divergences found:
+  * S-010 (SEVERE, safety): RawFixer write device opens with FILE_SHARE_READ|WRITE and NO
+    FSCTL_LOCK_VOLUME/FSCTL_DISMOUNT_VOLUME — concurrent processes can race with repair writes.
+    The og's RecoveryModule.dll does the full lock+unmount+flush+sleep-2s-settle+verify sequence.
+    Compounds S-008's wiring gap with a safety gap on the write path.
+  * S-011 (SEVERE, parity): exFAT tz_offset — core applies (spec-correct UTC), og ignores
+    (local-as-UTC via DosDateTimeToFileTime). Every non-UTC exFAT file's .rsf diverges by
+    tz_offset hours.
+  * M-007 (MAJOR, superset): NTFS hard-link fan-out — og emits 1 node per record (namespace-best
+    name under namespace-best parent), core emits N nodes (one per distinct parent). Core is more
+    useful but parity benchmarks diverge.
+  * M-008 (MAJOR, superset): NTFS $ATTRIBUTE_LIST chase — og is depth-1 in-use-only (deleted
+    records' extension fragments silently dropped), core is multi-hop BFS depth 64 all-records.
+    Deleted fragmented files recover full content in core, truncated in og.
+  * M-009 (MAJOR, perf): RawFixer RwDevice::read_at bypasses the 64 KiB direct-I/O envelope
+    (GAP-S6-13 mandate). The scan-path devices comply; only the repair-path device skips. ~3.5×
+    slow path on 4Kn NVMe (the documented GAP-S6-13 ratio).
+
+Stage Summary:
+- Session 2 wave 1+2 complete: 5 resolved findings moved to FIXED/ (with RESOLVED-INDEX.md),
+  17 new findings authored (2 SEVERE, 3 MAJOR, 11 MINOR, 2 INFO). Active counts: 0 ACUTE,
+  9 SEVERE, 4 MAJOR, 18 MINOR, 7 INFO (was 1/9/4/12/5 = 31 active; now 0/9/4/18/7 = 38 active
+  after subtracting the 5 fixed and adding the 17 new — net +12 active findings over session 1).
+- Read-only mandate held: zero source files modified. Only diff-to-fix/ and worklog.md touched.
+- All commits will land in this wave's push. Next wave (T7): update SUMMARY, CROSS-REF-MATRIX,
+  module files, README; author CORPUS-ERRATA.md; final push with worklog closeout.
+
+---
+Task ID: S2-A (parallel agent A, dispatched in S2-1)
+Agent: parallel agent A (general-purpose)
+Task: Audit NTFS hard-link/ADS/sparse/reparse/$ATTRIBUTE_LIST — B7 line-by-line vs decompile
+
+Work Log:
+- Read NTFSSearchDLL_decompiled.c (62,394 LOC, 1,931 functions) line-by-line for the hard-link,
+  ADS, sparse, reparse, and $ATTRIBUTE_LIST paths. Cross-checked session-1's B7 "MATCH" verdict.
+- REFUTED session-1's B7 "MATCH" on three counts:
+  * S2-A-1 (MAJOR): hard-link fan-out — og emits ONE node per record (FUN_180006db0 calls
+    FUN_1800448b0 once at :5273; FUN_1800448b0 fetches at most TWO $FILE_NAME via
+    FUN_1800430b0 indices 0 and 1, picks ONE by namespace ranking). Core emits N nodes per
+    record (one per distinct parent). Test EndToEndWalk stats.hardlinks == 1u on record 21
+    proves the divergence.
+  * S2-A-2 (MINOR): ADS — og silently drops named $DATA at FUN_1800069e0:5159-5160 (the
+    is_named($DATA) check); core emits ADS as child nodes via cr_mftwalk.cpp:854-899.
+  * S2-A-3 (MAJOR): $ATTRIBUTE_LIST chase — og is depth-1 in-use-only (FUN_180041df0 at
+    :52615-52687 has no recursion; FUN_18001acc0 deleted-phase at :21161-21162 passes NULL
+    param_6, disabling the chase). Core is multi-hop BFS depth 64 all-records (cr_mftwalk.cpp:475-572).
+- Confirmed 6 MATCH items (sparse accounting post-S-001 sub-fix, reparse points, $OBJECT_ID,
+  $VOLUME_INFORMATION, $SI vs $FILE_NAME time precedence, deleted-parent reparenting).
+- Surfaced 6 corpus errata candidates (the LOCK/unlock viability+destroy block misread in
+  ntfs-engine--deep-dive.md §3; the in-use-flag misread in
+  ntfs-engine-algorithms-v2--deleted-viability.md §1 lines 25-26; the >= vs > viability gate
+  in §1 line 44; the misleading 0x40 cite in §6 line 121; the dormant secondary claim map
+  in §1 lines 60-66, already documented in OQ-T1's resolution).
+- Open questions: OQ-S2A-1 (FUN_180017390 in-use-phase record selection), OQ-S2A-2 (downstream
+  UI/writer hard-link fan-out), OQ-S2A-3 (NTFSUtil.mo ADS handling), OQ-S2A-4 ($MFT $ATTRIBUTE_LIST
+  depth bound).
+
+Stage Summary:
+- Session-1 B7 "MATCH" verdict REFUTED. 3 new divergences (S2-A-1 → M-007, S2-A-2 → N-011,
+  S2-A-3 → M-008) + 1 minor (S2-A-10 → N-012). 6 corpus errata candidates. Read-only mandate held.
+
+---
+Task ID: S2-B (parallel agent B, dispatched in S2-1)
+Agent: parallel agent B (general-purpose)
+Task: Audit B9 (timestamps) + B10 (Unicode) across all engines session 1 only superficially covered
+
+Work Log:
+- First-hand read of all 8 engine .cpp files + wire structs + cr_types.h + cr_text.h + cr_records.cpp
+  + cr_query.cpp + cr_report.cpp. Cross-checked first-hand reads of the og decompiles for each
+  engine (FATSearchDLL, exFATSearchDLL, EXT4SearchDLL, HFSPlusSearchDLL, BtrfsSearchDLL,
+  ZfsSearchDLL, ReFSSearchDLL, NTFSSearchDLL) plus rabin2_imports.txt for every SearchDLL.
+- Found 6 new divergences:
+  * S2-B-001 (SEVERE → S-011): exFAT tz_offset — core applies (spec-correct UTC), og ignores
+    (local-as-UTC). Every non-UTC exFAT file's .rsf diverges by tz_offset hours.
+  * N-010 (MINOR): FAT invalid-date yields non-zero FileTime in core (1970-01-01), zero in og
+    (1601-01-01). The exFAT engine in the same codebase handles this correctly (early-exit on
+    date == 0). Only the FAT engine has the bug.
+  * I-006 (INFORMATIONAL): ext4 nanoseconds superset — core preserves via unix_to_filetime_ns,
+    og drops via _gmtime32_s + wMilliseconds=0.
+  * I-007 (INFORMATIONAL, 3 sub-items): core reads more timestamps than og for ext4 (4 vs 2),
+    HFS+ (4 vs 3), Btrfs (4 vs 3). Core superset.
+- Confirmed 13 MATCH items (NTFS raw 100ns + SI-vs-FILE_NAME precedence note; FAT valid-date +
+  tenths; exFAT 10ms; HFS+ Mac-epoch fold math; Btrfs timestamp math for the 3 og-read fields;
+  ZFS seconds-only read; ReFS raw 100ns-1601; .rsf wire stores raw u64; Unicode normalization
+  NONE on either side at engine layer; path separator NA at engine layer; N-009c re-confirmed).
+- Surfaced 4 corpus errata candidates (timestamp-decode out-of-scope notes in 3 algorithm docs;
+  NTFS precedence gap in internals doc).
+- Open questions: OQ-S2-B-1 (NTFS SI-vs-FILE_NAME precedence undecoded — carried forward),
+  OQ-S2-B-2 (FAT date=0 sentinel semantics — resolved in N-010 fix plan).
+
+Stage Summary:
+- 4 new findings authored (S-011, N-010, I-006, I-007). 13 MATCH items re-verified. 4 corpus
+  errata candidates. Read-only mandate held.
+
+---
+Task ID: S2-C (parallel agent C, dispatched in S2-1)
+Agent: parallel agent C (general-purpose)
+Task: Audit F60-F64 (safety), writer behavior beyond N-009b/d, session resume beyond D12, R54-R58
+
+Work Log:
+- First-hand read of cr_safewriter.cpp (586 LOC), cr_report.cpp, cr_crsf.cpp (332 LOC),
+  cr_records.cpp (389 LOC), cr_bitlocker.cpp, cr_destio.cpp, cr_rawfixer.cpp, cr_scan.cpp (1,270 LOC).
+- Used the ghidra-partition/*.c decompiled files (session 1 used .mo files only) —
+  RecoveryModule_decompiled.c, PartitionRecovery_decompiled.c, RawFixer_decompiled.c. These
+  contained the canonical repair-path lock sequence (FSCTL_LOCK_VOLUME +
+  FSCTL_DISMOUNT_VOLUME + FlushFileBuffers + Sleep(2000) + FSCTL_IS_VOLUME_MOUNTED).
+- Found 6 new findings:
+  * S2-C-1 (MAJOR → upgraded to SEVERE → S-010): REPAIR-path volume lock missing — og does
+    FSCTL_LOCK_VOLUME + FSCTL_DISMOUNT_VOLUME + FlushFileBuffers + Sleep(2000) +
+    FSCTL_IS_VOLUME_MOUNTED at RecoveryModule_decompiled.c:44686-44720. Core's RwDevice
+    (cr_transport.cpp:822) opens with FILE_SHARE_READ|WRITE and NO lock. Concurrent processes
+    can race with repair writes. Upgraded from MAJOR to SEVERE because it's a safety
+    regression that can corrupt volumes.
+  * S2-C-2 (MINOR → N-013): Destination overlap check is OPTIONAL (gated on drive-letter-only)
+    and first-extent-only (the VOLUME_DISK_EXTENTS ext[8] buffer has room for 8 extents but
+    only the first is read out at cr_transport.cpp:701-712). Image-source and multi-extent
+    destinations miss the check.
+  * S2-C-3 (MINOR → N-014): Stage checkpoint NOT atomic — _wfopen_s(&f, w.c_str(), L"wb")
+    TRUNCATES the existing file on open at cr_ui.cpp:1131 + cr_ui.cpp:254-260. Previous
+    checkpoint destroyed on crash. Torn-tail salvage (cr_crsf.cpp:240-276) mitigates the
+    worst case but doesn't preserve history. Og's pattern writes each auto-save to a FRESH
+    timestamped file.
+  * S2-C-4 (MINOR → N-015): Writer does NOT pre-check destination free space — no
+    GetDiskFreeSpaceEx call; ERROR_DISK_FULL returns generic ERR_WRITE_FAILED; the queue
+    loops over the ENTIRE queue pointlessly attempting create_temp + write + delete for
+    each remaining item. Og does GetDiskFreeSpaceExA at RecoveryModule_decompiled.c:47033.
+  * S2-C-5 (MINOR → N-016): emit_boundary_events_ double-call bug at cr_scan.cpp:577-578
+    (clear merge artifact — same call appears twice, once with 4-space indent, once with
+    8-space indent). The other 3 call sites (:652, :1016, :1070) each call it once.
+  * S2-C-6 (refined N-009d): Writer does NOT preserve timestamps or attributes — confirmed
+    og ALSO resets attributes to FILE_ATTRIBUTE_NORMAL (:79677) and does NOT call SetFileTime
+    (grep empty). Both og and core drop timestamps/attributes. The ACL drop IS the divergence
+    (N-009d, already filed). Narrowed to: N-009d is the complete divergence; no additional
+    timestamp/attribute gap.
+- Confirmed 17 MATCH items (F60 source bad-sector, F61 BitLocker detect+legitimate-unlock-only,
+  F63 RawFixer consent engine-level, writer atomic write via temp+rename, writer partial-overwrite
+  policy, session resume from partial .crsf (torn-tail salvage), session CRC (per-record CRC32
+  superset, og has none), session identity verification (boot_hash + model + serial vs og's full
+  512-byte boot sector), cancel propagation latency (per-chunk in writer), concurrent access
+  (non-exclusive scan opens both sides), R54 module boundaries, R55 dependency direction, R56
+  interface shapes, R57 wiring, R58 layering no bypass).
+- Surfaced 4 corpus errata candidates (04-recovery-workflow.md §7.5 ACL-preservation understated,
+  rsf-format §5.3 boot-sector snapshot vs core's CRC32 (32-bit collision risk), 04-recovery-workflow.md
+  §10 "locked volumes" should flag the repair-path-specific gap, rsf-format §2.1 record-header
+  should note the core's CRSF per-record CRC32 hardening).
+- Open questions: OQ-S2C-1 (og ExportThread cancel granularity), OQ-S2C-2 (og ACL-preservation
+  scope — applies 4 components or just DACL?), OQ-S2C-3 (og pre-scan RawFixer consent UX),
+  OQ-S2C-4 (image-source F62 gap exploitability), OQ-S2C-5 (emit_boundary_events double-call
+  intent — git blame needed).
+
+Stage Summary:
+- 5 new findings authored (S-010, N-013, N-014, N-015, N-016) + N-009d narrowed (no additional
+  gap). 17 MATCH items re-verified. 5 open questions. 4 corpus errata candidates. Read-only
+  mandate held.
+
+---
+Task ID: S2-D (parallel agent D, dispatched in S2-1)
+Agent: parallel agent D (general-purpose)
+Task: Audit X47-X53 (perf), Q65-Q70 (quality), P42-P46 (API), CLI completeness
+
+Work Log:
+- First-hand read of cr_cached.cpp, cr_slice.cpp, cr_devmap.cpp, cr_retry.cpp, cr_directalign.h,
+  cr_transport.cpp (Windows), cr_parallel.cpp, cr_ui.cpp, cr_ui.h, rrecov.cpp (1,498 LOC),
+  cr_scan.cpp (1,270 LOC — focus on threading/parallelism).
+- Static analysis of I/O patterns (no og-execution; the documented X47-X53 og-execution gap
+  applies to all performance verifications).
+- Found 6 new divergences + 1 expansion of M-006:
+  * D1 (MAJOR → M-009): X51 — RawFixer RwDevice::read_at bypasses the 64 KiB direct-I/O
+    envelope. cr_transport.cpp:743-749 calls overlapped_read directly; DirectDevice and
+    RdaTargetDevice route through aligned_read_at. The 64 KiB envelope lives in
+    aligned_read_at:148-170; RwDevice skips it. ~3.5× slow path on 4Kn NVMe (the
+    documented GAP-S6-13 ratio).
+  * D2 (MINOR → N-017): X53 — cancel watcher coverage inconsistent. Carve has 50 ms watcher
+    (cr_carve.cpp:418-429); orchestrator parallel candidate scan does not (cr_scan.cpp:952-1003
+    uses parallel_for with no watcher; cr_parallel.cpp:104-150 does not poll cancel between
+    item dispatches).
+  * D3 (MINOR → N-018): Q67 — UBSan is not enabled anywhere. Only ASan (linux-gcc lane) +
+    TSan (linux-tsan lane). Grep across CMakeLists.txt for fsanitize=undefined returns empty.
+    Q67's three-pronged definition (ASan/UBSan/TSan) is partially met.
+  * D4 (MINOR → N-019): Q65 — missing per-parameter regression tests. 0 of 13 audit-prompt
+    scenarios has an isolated test (hard-link destroy, ADS emission, sparse accounting, FAT
+    cross-linked chain, ext4 extent tree depth > 2, HFS+ resource fork, Btrfs subvolume rooting,
+    ZFS snapshot, ReFS integrity stream, LDM RAID-0/1, lost-partition overlap scoring).
+  * D5 (MINOR → N-020): Q68 — documentation drift across 5 spots (AUDIT-PIPELINE.md WRITER-1
+    marked OPEN but FIXED in tree; cli.md commands list includes verify/query that don't exist
+    as CLI commands; cli.md exit codes conflate commands; PERFORMANCE-PROFILE.md "BELOW the
+    64 KiB contract" stale post-GAP-S6-13; PERFORMANCE-PROFILE.md "1 MiB cache" should be 8 MiB
+    at orchestrator call site; S-009 finding file stale post-GAP-S6-11).
+  * D6 (expands M-006): Q66 — fuzz harness gaps. 13 harnesses exist (fuzz_{ntfs,fat,exfat,
+    ext4,hfsplus,btrfs,zfs,refs,carve,preview,container,engines,pure}.cpp). Missing dedicated
+    harnesses for: SafeWriter, DestIo, BitLocker, ldm, table_parse, rawfixer. Some covered
+    indirectly via fuzz_engines.cpp + fuzz_pure.cpp + fuzz_container.cpp. CI fuzz job still
+    `if: false` (M-006, still in tree).
+- Confirmed 14 MATCH items (X47 throughput 64 KiB-aligned direct reads + 8 MiB LRU + cache block;
+  X48 latency streaming results; X49 memory bounded cache + bounded writer chunk; X50 CPU no
+  engine-side thread priority + parallelization where og does; X52 scalability query Path sort
+  O(N*D) acceptable + carve dedup extent-set-based + writer collision policy; X53 cancel watcher
+  50 ms in carve + per-record checkpoints + writer cancel per-chunk; Q67 ASan clean + no
+  suppressions; Q69 zero stub markers grep-verified; Q70 Win7 posture + import allowlist; P42
+  cr_ui public surface 57 C11 exports; P43 ownership/lifetimes; P44 async PausableToken; P45 ABI
+  versioning CR_UI_ABI_VERSION=1; P46 documentation ABI-CONTRACT.md normative; CLI completeness
+  vs documented contract).
+- Surfaced 4 corpus errata candidates (ntfs-engine-internals.md:71 "batch sizes adapt to RAM"
+  assertion needs decompile citation; ntfs-engine-internals.md:73 condition-variables claim
+  may apply to a different binary (NTFSSearchDLL strings show CRITICAL_SECTION + events, not
+  InitializeConditionVariable); DRWUI-exe--thread-architecture.md:56 "work-stealing" claim
+  needs decompile citation; 05-scan-engine-architecture.md:122 "512B sectors" too narrow for
+  RDA driver's configurable sector size).
+- Open questions: 5 carried forward (X47 og's GlobalMemoryStatus adaptive sizing ladder; X50
+  ReadFileScatter usage; X51 og's RawFixer read alignment; D2 og's cancel-latency bound;
+  Q65 audit-trail check interpretation).
+
+Stage Summary:
+- 5 new findings authored (M-009, N-017, N-018, N-019, N-020) + M-006 expansion (D6 catalogues
+  fuzz harness gaps). 14 MATCH items re-verified. 4 corpus errata candidates. 5 open questions.
+  Read-only mandate held.
