@@ -44,6 +44,7 @@ add_library(cr_core STATIC
     preview/cr_preview.cpp
     query/cr_query.cpp
     repair/cr_rawfixer.cpp
+    reghive/cr_reghive.cpp
     refs/cr_refs_engine.cpp
     orchestrator/cr_scan.cpp
     tree/cr_node.cpp

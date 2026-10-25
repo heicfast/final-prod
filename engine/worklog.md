@@ -5106,3 +5106,78 @@ Stage Summary:
   Next: continue the SEVERE wave on the re-baselined inventory (S-003/S-007/S-012/
   S-014 remain; S-006/S-013/S-015/S-017 landed by the parallel session, to be
   re-verified first-hand next).
+
+---
+---
+Task ID: S4-F2 (S-014 fix)
+Agent: main engineer (diff-to-fix remediation session 4)
+Task: Verify and fix S-014 — BitLocker auto-unlock wrong live registry path,
+offline-hive path absent, unassociated enumeration.
+
+Work Log:
+- Corpus verification BEFORE the fix (all first-hand):
+  * DRWService_decompiled.c :104-140 — RegOpenKeyExA(HKLM,
+    "SYSTEM\\CurrentControlSet\\Control\\FVEAutoUnlock"), RegQueryInfoKeyA
+    subkey count, per-subkey RegEnumKeyExA + _strupr_s + RegQueryValueExA
+    "Data" (0x200 buffer); artifacts/DRWService-exe--bitlocker-service.md
+    :56-74/:1461-1593 — pipe records: guid[50]/pad[10]/blob[256], 100-record
+    cap, 0x138 stride.
+  * bitlockerhelp_decompiled.c :3128-3160 — offline path:
+    "%s\\Windows\\System32\\config\\SYSTEM" + the LITERAL
+    "\\ControlSet001\\Control\\FVEAutoUnlock\\" + per-subkey "%s%s\\Data"
+    (ControlSet001 HARDCODED — the finding's "iterate per Select" plan
+    corrected to the corpus).
+  * RegLib_decompiled.c — decoded the ENTIRE regf layout from the og's own
+    parser: magic+XOR-checksum (FUN_180007670 :4814-4853, canonicalized
+    0xFFFFFFFF->0xFFFFFFFE / 0->1, validated at :2376-2377), root cell
+    header+0x24 (FUN_180007620 :4804), bins-size bound + >=0x20/8-aligned
+    gates (FUN_180007700 :4884-4887), cell stride 4/8 switch
+    (FUN_180005ff0 :3767-3770), nk flags@+0x02/count@+0x14/list@+0x1C/
+    vcount@+0x24/vlist@+0x28 (FUN_180007b80/c10, FUN_180007a60/af0, write
+    path FUN_180008030), nk name@+0x48 len/+0x4C (:4995-5035), vk
+    length@+0x04 (bit31 inline mask)/type@+0x0C (RegEnumValueA :1047),
+    lf/lh/li/ri classes (:3856-3895), min cell sizes 0x50/0x18.
+  * CONFIRMED-DIVERGENCE (three-part: wrong path, no offline reader,
+    unassociated no-cap enumeration).
+- Fix: (1) live path constant -> Control\FVEAutoUnlock + per-GUID subkey
+  "Data" enumeration with the og caps (50/256/100); (2) volume association:
+  GetVolumeNameForVolumeMountPointW -> GUID-match-first selection
+  (portable select_auto_unlock_attempts); (3) NEW portable module
+  src/core/reghive + include/cr/reghive (read-only regf parser + FVE
+  harvest, all offsets corpus-cited) + try_auto_unlock_offline(letter,
+  hive_path) + automatic mounted-volume hive probe in try_auto_unlock
+  (skips running-OS letter + target letter; 512 MiB read guard).
+  Old blind enum_binary_blobs recursion REMOVED. Safety hardenings
+  preserved: F13 detect+legitimate-unlock-only, no crypto in-process, .BEK
+  temp-file flow, PowerShell-primary + manage-bde fallback.
+- Tests: 11 Linux (test_reghive.cpp — fixture builder emits corpus-layout
+  hives: parse/walk/case-insensitive/enum/read-value inline+pointed/unicode
+  names/harvest per-GUID/256-B cap/100-record cap+short-blob skip/selection
+  order incl. null-target/truncation+mutation sweeps) + 5 Windows-lane
+  (test_bitlocker_win.cpp — path constant pin, HKCU-seam per-GUID enum with
+  decoys+caps, GUID-preference recorder, offline hive end-to-end + garbage
+  refusal + null-path, no-GUID fallback order) + fuzz/fuzz_reghive.cpp
+  registered in the fuzz Makefile (CI lane).
+- Proof: fail-before = the capability did not exist (module removed ->
+  suite cannot compile the tests: 'cr/reghive/cr_reghive.h: No such file
+  or directory'); pass-after = 341/341 linux-gcc ASan (330 baseline + 11),
+  format gate clean. Windows-lane tests run on the Windows CI ctest
+  (registered as the 'bitlocker' target).
+- Win7-inclusive gate: two conscious allowlist additions with reasons in
+  tools/verify_pe_um.py (RegQueryValueExW — the "Data" value read,
+  DRWService :121 counterpart; GetVolumeNameForVolumeMountPointW — the
+  volume-GUID association; both NT/Win2000-era APIs).
+- Audit trail: S-014 -> findings/FIXED/ with Resolution (fix-plan Select
+  correction recorded); RESOLVED-INDEX row (header count 20->21, S-015 row
+  by the parallel leg already there); CROSS-REF-MATRIX health B cell -> M
+  + s4 legend line; modules/health.md s4 section; SUMMARY counts (SEVERE
+  active 9->8... reconciled with the parallel leg's S-015 landing: the row
+  already listed S-015 in FIXED) + remediation-log row; CAPABILITY-MATRIX
+  exclusion row annotated with the live+offline capability.
+
+Stage Summary:
+- S-014 CLOSED: the live registry unlock reads the og's real key family
+  with association + caps; the dead-system flagship scenario has a real
+  offline-hive implementation (portable, fuzz-covered, corpus-offset-exact);
+  the blind enumeration is gone. Remaining SEVERE lane: S-003, S-006,
+  S-007, S-009-split, S-012, S-013, S-017..S-020 (s3 audit-leg findings).

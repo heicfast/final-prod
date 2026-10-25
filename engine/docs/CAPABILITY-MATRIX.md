@@ -59,7 +59,10 @@
 ## 3. Explicit exclusions (standing)
 
 Cloud/NAS/remote recovery; BitLocker decryption (detection + legitimate unlock
-only, F13); signing (OSSign disabled); `.rsf` import (G-11, tracked disposition).
+only, F13 — the legitimate unlock itself is live-registry + offline-hive capable
+since S-014: per-volume-GUID `Control\FVEAutoUnlock` keys + dead-system SYSTEM
+hives, og DRWService/bitlockerhelp paths); signing (OSSign disabled); `.rsf`
+import (G-11, tracked disposition).
 
 ## 4. Open gap register (code-verified)
 

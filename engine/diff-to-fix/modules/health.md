@@ -50,3 +50,20 @@ per session 1's verdicts.
   direct PhysicalDrive fallback), PID token, 200-disk cap, IOCTL table; DiskHealth semantics
   covered by the retry-layer error-map model.
 - N-009a unchanged.
+
+## Session-4 remediation update
+
+**S-014 FIXED** (s4 session): the F61 verdict above is now `MATCH` on both halves —
+(1) the live auto-unlock path is `SYSTEM\CurrentControlSet\Control\FVEAutoUnlock`
+(DRWService_decompiled.c:104) with per-volume-GUID subkeys' `Data` REG_BINARY blobs,
+the og's caps applied (50-char GUID / 256-byte blob / 100 records) and the target
+volume's GUID matched first (`GetVolumeNameForVolumeMountPointW` association);
+(2) the offline (dead-system) path exists: a new portable read-only regf parser
+(`cr/reghive`, every structural offset decoded from the og's own
+`RegLib_decompiled.c`) reads `<X>:\Windows\System32\config\SYSTEM` — the og's
+bitlockerhelp flow (:3128-3160, hardcoded `\ControlSet001\Control\FVEAutoUnlock`) —
+both through an explicit `try_auto_unlock_offline(letter, hive_path)` and an
+automatic probe of every other mounted volume inside `try_auto_unlock`. The blind
+all-binary-values enumeration is gone. 11 Linux tests + 5 Windows-lane tests +
+`fuzz/fuzz_reghive.cpp`; Win7 gate additions documented (RegQueryValueExW,
+GetVolumeNameForVolumeMountPointW). See `findings/FIXED/S-014-*.md`.
