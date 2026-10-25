@@ -5182,6 +5182,7 @@ Stage Summary:
   the blind enumeration is gone. Remaining SEVERE lane: S-003, S-006,
   S-007, S-009-split, S-012, S-013, S-017..S-020 (s3 audit-leg findings).
 
+<<<<<<< HEAD
 Task ID: API-T5/T6/T9/T10 (transport wave)
 Agent: main engineer (core-api session)
 Task: Driver-utilization completion — 64 KiB envelope unification, self-healing reopen,
@@ -5228,3 +5229,25 @@ Stage Summary:
   granularity), measurement tooling live pending CI run. Windows-lane validation of
   cr_transport.cpp rides the ci.yml push build; the api-benchmark workflow runs on
   this push (paths trigger).
+
+---
+## Session: diff-to-fix close-out — focus tier MINOR (2026-10-26)
+
+**Prompt:** `worklog/session-diff-fix-minors-prompt.md` (token redacted).
+**Audited commit (per diff-to-fix/README.md):** session 3 close at `4d138f2` (+ mid-session
+landings through the audit legs). **Corpus:** `03ad46c` (unmoved).
+**Session start commit:** `ed00020` (S-014 fix already landed by prior leg).
+**Corpus commit at session start:** `03ad46c`.
+**Baseline at start:** Linux Release build clean; full suite **345/345 PASS** (4.0 s).
+
+Session scope (user directive): execute the diff-to-fix roadmap; every finding independently
+verified against corpus + code before fixing; fix ALL severities with **focus on the 33
+MINOR findings**; resolved findings move to `findings/FIXED/` with Resolution sections;
+matrix/modules/SUMMARY/README updated as fixes land; one finding = one verified fix = one
+push. Active inventory at start (direct file count): 8 SEVERE, 22 MAJOR, 33 MINOR,
+12 INFO = 75 active / 26 FIXED (N-001 file duplicated in MINOR/ and FIXED/ — to be
+reconciled when touched).
+
+Work log:
+- T1 complete: repos pulled (core `ed00020`, corpus `03ad46c`), baseline 345/345, prompt
+  saved token-redacted, this entry.
