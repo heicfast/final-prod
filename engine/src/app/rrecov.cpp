@@ -1492,9 +1492,8 @@ int cmd_fix(int argc, wchar_t** argv, int& i) {
         const auto& p = t.partitions[size_t(part) - 1];
         u32 prc = 0;
         part_base = p.start_lba * view->geometry().logical_sector;
-        part_slice =
-            cr::PartitionSlice::create(view.get(), part_base,
-                                       u64(p.sector_count) * view->geometry().logical_sector, &prc);
+        part_slice = cr::PartitionSlice::create(
+            view.get(), part_base, u64(p.sector_count) * view->geometry().logical_sector, &prc);
         if (!part_slice) {
             wprintf(L"cannot slice partition %d (rc=%08x)\n", part, prc);
             return 2;

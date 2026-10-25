@@ -281,3 +281,12 @@ ONLY - recovery writes then go through NORMAL file APIs (CreateDirectoryW, file 
 dismounting it would break every recovery. The og does not lock the destination, and neither
 do we. The destination's writability + same-volume (overlap) checks are the separate,
 already-implemented F62 hardening.
+
+**Post-landing integration note (A-002):** the A-002 fix (parent-basis writers +
+`repair::rebase_plan` in the orchestrator, landed after this fix was authored) removed the
+two volume-slice write adapters this Resolution mentioned (CLI `VolumeWriteSlice`, cr_ui
+`UiVolumeWriteSlice`) in favor of returning the UNMAPPED parent RW writer directly. The
+S-010 semantics are unchanged and improved: the parent writer IS the `RwDevice` that owns
+`lock_volume()`, so the orchestrator's `execute()` call now goes straight to the transport's
+corpus lock sequence with no forwarding layer. All S-010 tests remain green post-integration
+(full suite verified).

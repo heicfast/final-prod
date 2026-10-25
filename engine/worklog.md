@@ -3719,3 +3719,23 @@ Stage Summary:
   refuses instead of racing a busy volume, and the destination-volume bullet was corrected
   against the corpus. Next in this leg's lane: M-009 (same file - RwDevice read path
   bypasses the 64 KiB envelope).
+---
+Task ID: 5-b-addendum (S-010 x A-002 integration)
+Agent: main engineer (diff-to-fix remediation, second parallel leg)
+Task: Rebase S-010 onto the parallel leg's A-002 parent-basis writer redesign
+
+Work Log:
+- The parallel audit/fix legs landed A-002 (ACUTE: slice-mapped undo logs carried
+  slice-relative offsets - wrong restore basis for fix --undo-apply) and redesigned the
+  repair write path: hooks return the UNMAPPED parent RW writer; the orchestrator calls
+  repair::rebase_plan(plan, slice->absolute_base()) before execute. The two volume-slice
+  adapters from my S-008/S-010 work were removed by that design.
+- Rebased S-010 onto it: the S-010 semantics are unchanged and simpler now - the parent
+  writer IS the RwDevice with lock_volume(), so execute()'s lock-before-write contract
+  reaches the corpus LOCK/DISMOUNT sequence directly (no forwarding layer). The A-002 test
+  (RebasedPartitionPlanWritesAtDiskBasisNeverLba0) and the three S-010 lock tests coexist.
+- Resolution + worklog annotated; full local sweep re-verified below.
+
+Stage Summary:
+- S-010 and A-002 integrated cleanly; the repair write path now carries BOTH the
+  disk-absolute offset truth (A-002) and the volume quiesce (S-010).
