@@ -1717,6 +1717,7 @@ Work Log:
 - Wrote modules/fat.md, modules/exfat.md, evidence quotes Q1-Q4.
 
 ---
+
 Task ID: 7 (T7)
 Agent: main auditor
 Task: ext4 + HFS+ + Btrfs module audit
@@ -1726,3 +1727,34 @@ Work Log:
 - Empirical probe: EXT4SearchDLL imports NO MultiByteToWideChar (agent E PE dumps) + rsf-format :326 names are UTF-8 → og passes UTF-8 through; core byte-lifts → mojibake (S-005).
 - Findings: S-002 (HFS+ attributes/decmpfs missing), S-003 (HFS+ journal not replayed), S-004 (ext4 journal salvage surface + jsb gate), S-005 (names mojibake, 3 engines), N-004/N-005/N-006 (CatchBuffer layering, HFS+ blockSize bounds, btrfs nodesize bounds), I-003 (btrfs supersets: NULL-stub complete searcher + mirror-abort rule).
 - Wrote modules/ext4.md, modules/hfsplus.md, modules/btrfs.md. Corpus errata candidates #7 (ext4 guard field) registered.
+
+Task ID: 1 (T1)
+Agent: main engineer (diff-to-fix remediation session)
+Task: Pull both repos; record audited commit vs current commit; save redacted prompt; worklog entry
+
+Work Log:
+- Cloned both repos fresh. Corpus (read-only ground truth) at `03ad46c` — identical to the commit
+  the audit cites (corpus has NOT moved since audit).
+- Core `main` at session start: `9b7212d`. Audit baseline: `67193b6` (README-stated). Delta since
+  baseline: `7797bd6` (fix: GAP-S6-3 + GAP-S6-4 — ReFS real-volume detection + NTFS remnant
+  $DATA reconstruction, landed mid-audit) + three audit-trail commits (`90e9aba`, `2be324d`,
+  `9b7212d`) that only touch diff-to-fix/. Consequence: finding line numbers cite `67193b6`;
+  every finding re-verified against current HEAD before any change (ntfs.md already carries the
+  post-baseline note for 7797bd6's remnant $DATA reader).
+- Saved this session's prompt (token redacted) to `worklog/session-diff-fix-prompt.md`.
+- Read `diff-to-fix/` in full: README, SUMMARY, SEVERITY-SCALE, PARAMETERS, CROSS-REF-MATRIX,
+  all 8 findings (S-001 SEVERE; M-001 MAJOR; N-001/N-002/N-003 MINOR; I-001/I-002 INFO),
+  both tracked-open files (OQ-T1, OQ-T2, OQ-T5), all 3 module docs, both evidence quote files.
+- Audit state noted: audit waves completed = ntfs, fat, exfat only; 17 further module rows in
+  CROSS-REF-MATRIX still pending (·). SUMMARY.md counts are stale (all "waves pending") — to be
+  truthfully updated at close, not silently filled.
+- Scope note: no ACUTE findings exist yet (0 audited waves in the severity folder). OQ items cite
+  decompiled corpus files that are already present in `re-workspace/reversed/` — OQ-T1/T2/T5 may
+  be resolvable this session by direct decompile reading, without new Ghidra work.
+
+Stage Summary:
+- Baseline `67193b6` vs session HEAD `9b7212d` recorded. Corpus unmoved at `03ad46c`.
+- Session roadmap: verify+classify each of 8 findings and 3 OQs, fix confirmed ones with
+  fail-before/pass-after tests, resolve or precisely advance the OQs, update matrix/SUMMARY/
+  module docs/worklog, leave main green.
+
