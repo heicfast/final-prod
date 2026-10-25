@@ -54,3 +54,17 @@ Each item resolves with a single quoted site (grep-sized probes, ≤ 30 min each
 OQ-T9's full feature/weight table advances by item 1; the remaining decode work is
 now concentrated in: per-site trigger conditions (NTFS), the FAT32-20 source, the
 DRWUI render paths (ZFS name, Btrfs conversion).
+
+---
+
+## Session-14 addendum (DFX14 — pushed forward; probe 1 run, NEGATIVE)
+
+Probe 1 (the per-FS bonus setter +0x68) was run this session as specified:
+grep over NTFSSearchDLL/FATSearchDLL/exFATSearchDLL decompiles for direct
+stores of 0x3c/0x1e/0x14 into candidate-info +0x68 — zero hits. The store
+must go through a register/local (or the candidate-info serializer's own
+layout); the next concrete step is refined: decode the SearchDLLs'
+candidate-info serializer entry points (engine-matrix--factory-contract.md
+lists the factory surface) and read the +0x68 fill from the serializer,
+not from a grep. Probes 2-3 (ZFS pool display name; Btrfs name-conversion
+anchor) remain as filed.

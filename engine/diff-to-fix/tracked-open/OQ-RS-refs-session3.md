@@ -64,3 +64,9 @@ Ours validates page signatures + volume signature on every page
 (engine :111-119); confirm whether the og cross-checks the volume GUID on
 non-superblock pages (search FUN_18000fc80 consumers). If not, ours is a
 superset (record as INFO).
+
+---
+
+## Session-14 addendum (DFX14 — pushed forward, unchanged)
+
+The ReFS residual set stands as filed; no new evidence this session.

@@ -41,3 +41,11 @@ salvage at lower confidence) becomes valid AGAIN with corrected citations.
 **Next concrete step:** decode FUN_18004bbd0's accept path (the JFIF branch is the
 most common real-world case) and post the verdict + quotes to
 `evidence/decompiled-quotes/`; re-file or close accordingly.
+
+---
+
+## Session-14 addendum (DFX14 — pushed forward, unchanged)
+
+Not resolvable this session (needs the JPEG analyser's fallback/continuation
+path decompile — the corpus artifact set for it is already cited in the
+file). The standing question and next artifact are precise; no new evidence.
