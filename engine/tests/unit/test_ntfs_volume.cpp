@@ -2221,7 +2221,8 @@ TEST(NtfsVolume, UserFileNamedDollarNotHidden) {
     auto* rl = tree.add_root(u"L");
     WalkerFlags wf;
     WalkStats st;
-    ASSERT_EQ(OK, walk_mft(vol.get(), bm.get(), wf, nullptr, nullptr, nullptr, tree, ra, rd, rl, st));
+    ASSERT_EQ(OK,
+              walk_mft(vol.get(), bm.get(), wf, nullptr, nullptr, nullptr, tree, ra, rd, rl, st));
     bool found = false;
     std::function<void(tree::FileNode*)> find = [&](tree::FileNode* n) {
         for (tree::FileNode* c = n->first_child(); c; c = c->next_sibling()) {
