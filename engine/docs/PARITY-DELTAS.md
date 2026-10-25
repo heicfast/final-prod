@@ -970,6 +970,29 @@ Split verdict — three sub-claims:
 
 ---
 
+### D-46 — HFS+ attributes surfaced as named-fork children (S-002 superset)
+
+- **WHAT OG DOES:** the og reads the Attributes B-tree (CNID 8) for
+  `com.apple.decmpfs` lookups (HFSPlusSearchDLL FUN_180009c10, string at
+  0x18001f480, B-tree-8 key search, first-hand verified this session); whether
+  it surfaces NON-decmpfs named attributes as recoverable nodes is not decoded
+  (the audit's S-002 open question: "superset is acceptable if registered").
+- **WHAT WE DO:** beyond the decmpfs parity implementation (both storage
+  forms, codec-extent emission), every inline attribute with a non-empty
+  value surfaces as a child node `..namedfork/<name>` carrying its raw value
+  bytes as a plain extent (the `..namedfork/rsrc` convention extended).
+  Gated by `HfsScanFlags::named_forks` (default on).
+- **WHY:** named-fork content is user data on the volume; a recovery product
+  that silently drops it loses recoverable bytes. The convention matches the
+  resource-fork surface the core already ships.
+- **RISK:** none claimed beyond the og: result sets gain nodes the og may not
+  list; comparative benches must account for the superset (tag
+  named-fork-originated nodes).
+- **VERDICT: EXCEEDS (recovery-positive superset), registered per S-002's own
+  instruction.**
+
+---
+
 ## J. UNDOCUMENTED DIVERGENCE CANDIDATES
 
 Things our code/docs do differently with no (or stale/contradictory) rationale

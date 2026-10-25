@@ -98,6 +98,22 @@ bool zle_decompress(const u8* src, size_t s_len, u8* dst, size_t d_len) {
     return d == d_end;
 }
 
+bool zlib_decompress(const u8* src, size_t psize, u8* dst, size_t lsize) {
+    /* RFC 1950 zlib stream (Apple HFS+ decmpfs payloads): +15 accepts the
+     * zlib wrapper; trailing input after the stream is ignored */
+    z_stream zs = {};
+    if (inflateInit2(&zs, 15) != Z_OK)
+        return false;
+    zs.next_in = const_cast<Bytef*>(src);
+    zs.avail_in = uInt(psize);
+    zs.next_out = dst;
+    zs.avail_out = uInt(lsize);
+    const int rc = inflate(&zs, Z_FINISH);
+    const bool ok = rc == Z_STREAM_END && zs.total_out == lsize;
+    inflateEnd(&zs);
+    return ok;
+}
+
 bool gzip_decompress(const u8* src, size_t psize, u8* dst, size_t lsize) {
     z_stream zs = {};
     if (inflateInit2(&zs, -15) != Z_OK) /* raw deflate */
@@ -207,6 +223,7 @@ bool codec_available(u32 codec) {
     case kZle:
     case kGzip:
     case kLznt1:
+    case kZlib:
         return true;
     case kLz4:
 #if defined(CR_HAVE_LZ4)
@@ -243,6 +260,8 @@ bool decompress_block(u32 codec, const u8* src, size_t psize, u8* dst, size_t ls
         return zle_decompress(src, psize, dst, lsize);
     case kGzip:
         return gzip_decompress(src, psize, dst, lsize);
+    case kZlib:
+        return zlib_decompress(src, psize, dst, lsize);
     case kLznt1:
         return lznt1_payload_decode(src, psize, dst, lsize);
     case kLz4:

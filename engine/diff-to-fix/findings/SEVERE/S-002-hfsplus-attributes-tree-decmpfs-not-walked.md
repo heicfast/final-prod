@@ -86,3 +86,43 @@ decompressed content and our core's output contains a 0-byte file.
 
 Whether the og surfaces non-decmpfs extended attributes as nodes or ignores them is not
 decoded; the fix plan surfaces them (superset is acceptable if registered).
+
+## Resolution
+
+**Status:** FIXED
+**Fixed in commit:** (this commit — see `git log` for `fix: S-002`)
+**Verified by:** runtime fail-before/pass-after — with only the engine .cpp
+reverted (header kept so the tests compile), `HfsPlus.DecmpfsInlineAndRsrc-
+ContentRecovered` fails at every assertion line (decmpfs_files, named_forks,
+attr_unsupported, attr_records all 0/absent); restored, it passes end-to-end:
+mode-3 and mode-4 extents decode to the EXACT original content through the
+writer's own `compress::decompress_block` path (the recovery-time contract,
+not an in-test shortcut), the named-fork child carries the raw value bytes,
+and `HfsPlus.DecmpfsDisabledLeavesEmptyShell` pins the flag-off mode. Suite
+291/291 (Linux ASan); the existing fuzz harness (fuzz_hfsplus.cpp) drives
+scan_hfsplus, so the new attribute parser is inside the structure-aware
+fuzz surface.
+**Resolution notes:** first-hand decompile verification replaced the thin
+audit trail: the og looks up "com.apple.decmpfs" in the attributes B-tree
+via a key whose keyLength COUNTS ITSELF (=(nameLen+7)*2, FUN_180009c10
+:7771), gates on attribute recordType == 0x10 (inline data, :7825 — the
+"unsupported attribute node format" log branch confirms non-0x10 records
+are skipped, which the core now replicates with a stats counter), reads
+size@+12 with the payload at +16 (:7826-7829), and extracts the value's u64
+at +8 in one native load (:7841 — the value fields are little-endian x86
+structs, unlike the big-endian HFS+ structures around them). Implementation:
+the attributes B-tree leaf chain is walked once per scan collecting
+{cnid, name, on-disk value position, decmpfs facts}; decmpfs files emit a
+CODEC-TAGGED EXTENT (new compress::kZlib, RFC-1950) instead of a memory
+blob — mode 3 points into the attributes-B-tree node where the zlib stream
+lives, mode 4 points into the resource fork at the recorded offset — so
+the recovery writer inflates at write time through the exact contract it
+already uses for ZFS/Btrfs/NTFS compressed extents (no memory-resident
+blob, no session bloat, any file size below the writer's 256 MiB guard —
+that guard is pre-existing P1-family discipline, noted). Named attributes
+surface as `..namedfork/<name>` children (D-46 superset registered in
+docs/PARITY-DELTAS.md per the finding's own instruction). The mode-4
+on-disk semantics implemented: value = {magic LE, mode=4, uncompressed
+size u32 LE, resource-fork offset u32 LE}; the mode-3 zlib stream starts
+at value+12. HfsScanFlags::resolve_decmpfs/named_forks (default on) gate
+both surfaces.

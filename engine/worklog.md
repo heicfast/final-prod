@@ -2075,6 +2075,7 @@ Stage Summary:
   longer fabricate mappings; modern 4-record mirrors unchanged.
 
 ---
+
 Task ID: 1-C (continuation leg 3 bootstrap)
 Agent: main engineer (diff-to-fix remediation session, continuation)
 Task: Session bootstrap — baseline record, environment bring-up, green-light verification
@@ -2100,3 +2101,40 @@ Work Log:
 Stage Summary:
 - Baseline green at 2545b83 (275+13+ABI). Scope confirmed: 7 SEVERE, 3 MAJOR, 8 MINOR
   files, 5 INFO, 8 tracked-open remain. Starting with SEVERE tier per mandate order.
+
+Task ID: 8 (S-002 fix)
+Agent: main engineer (diff-to-fix remediation session)
+Task: SEVERE S-002 — HFS+ Attributes B-tree not walked; decmpfs/named-fork content unrecoverable
+
+Work Log:
+- First-hand decompile verification (the audit's corpus cites were artifact-level):
+  HFSPlusSearchDLL FUN_180009c10 — "com.apple.decmpfs" (string VA 0x18001f480) looked up in
+  the ATTRIBUTES B-tree (cnid 8) with keyLength counting itself ((n+7)*2, :7771), fileId@+4,
+  nameLen u16@0xC, name UTF16 units@0xE; record gate recordType==0x10 (:7825) with the
+  unsupported-format log branch confirming non-0x10 records are SKIPPED; size@+12, payload@+16
+  (:7826-29); the value's u64@+8 extracted in one native LE load (:7841). Binary scan: the
+  string exists in og HFSPlusSearchDLL.dll. CONFIRMED-DIVERGENCE.
+- Implementation: attributes B-tree leaf-chain walk (single pass, bounded) collecting
+  {cnid, name, on-disk value offset, decmpfs facts}; decmpfs files (empty data fork + mode 3/4)
+  emit COMPRESS-CODEC EXTENTS (new kZlib = RFC1950 in cr_decomp + writer case): mode 3 ->
+  the zlib stream inside the attributes node; mode 4 -> the resource fork at the recorded
+  offset. The recovery writer inflates through its existing compressed-extent contract -
+  no memory-resident blob, no session bloat, sizes bounded only by the writer's pre-existing
+  256 MiB guard. Named attributes -> ..namedfork/<name> child nodes with raw-byte extents.
+  Flags resolve_decmpfs/named_forks (default on); stats attr_records/attr_unsupported/
+  decmpfs_files/named_forks.
+- Tests: DecmpfsInlineAndRsrcContentRecovered (mode 3 + mode 4 + named fork + unsupported
+  record skip; decodes BOTH files through the writer's own decompress_block contract with
+  exact-content memcmp; extent offset/psize/length asserted against the fixture bytes) +
+  DecmpfsDisabledLeavesEmptyShell (flag-off pins the pre-S-002 shape). Runtime fail-before:
+  engine .cpp reverted alone -> every decmpfs assertion fails; restored -> green. Suite
+  291/291 (Linux ASan); fuzz_hfsplus drives scan_hfsplus so the new parser is fuzz-covered.
+- Docs: PARITY-DELTAS D-46 (named-fork superset, registered per the finding's instruction);
+  finding Resolution; modules/hfsplus.md B7 rows; matrix hfsplus B cell; SUMMARY risk #3
+  + remediation log.
+
+Stage Summary:
+- S-002 FIXED: macOS-compressed files (decmpfs modes 3 and 4) recover their true content
+  through the writer's codec-extent path; named-fork/extended-attribute content surfaces
+  as recoverable children; the constant that was "defined and never used" is now a full
+  subsystem, og-parity in membership and mechanism.

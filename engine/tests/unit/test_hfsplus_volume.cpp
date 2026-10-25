@@ -4,6 +4,8 @@
  */
 
 #include "cr/hfsplus/cr_hfsplus_engine.h"
+#include <zlib.h>
+#include "cr/compress/cr_decomp.h"
 #include <gtest/gtest.h>
 #include <cstring>
 #include <set>
@@ -295,6 +297,249 @@ TEST(HfsPlus, EndToEndWalk) {
                 ASSERT_EQ(1u, cc->props()->extents.size());
                 EXPECT_EQ(u64(B_FILE_DATA * BS), cc->props()->extents[0].offset);
             }
+}
+
+/* ---- S-002: attributes B-tree + decmpfs -------------------------------- */
+
+/* one attributes-B-tree leaf record: key + inline data wrapper */
+std::vector<u8> make_attr_record(u32 cnid, const std::u16string& name, u32 record_type,
+                                const std::vector<u8>& value) {
+    const u32 n = u32(name.size());
+    const u32 key_len = 14 + 2 * n; /* keyLength COUNTS itself (og :7771) */
+    std::vector<u8> rec;
+    rec.resize(key_len, 0);
+    be16(rec.data(), u16(key_len)); /* includes itself */
+    be32(rec.data() + 2, 0);       /* pad */
+    be32(rec.data() + 4, cnid);    /* fileId (og: +4) */
+    be32(rec.data() + 8, 0);       /* startBlock */
+    be16(rec.data() + 12, u16(n)); /* nameLen in UTF-16 chars (og: +0xC) */
+    for (u32 i = 0; i < n; ++i)
+        be16(rec.data() + 14 + u32(i) * 2, name[i]);
+    /* data: [recordType BE][r1][r2][length BE][value] (og gate 0x10) */
+    const u32 data_len = 16 + u32(value.size());
+    rec.resize(key_len + data_len, 0);
+    be32(rec.data() + key_len, record_type);
+    be32(rec.data() + key_len + 12, u32(value.size()));
+    if (!value.empty())
+        memcpy(rec.data() + key_len + 16, value.data(), value.size());
+    return rec;
+}
+
+void put32le(u8* p, u32 v) {
+    p[0] = u8(v);
+    p[1] = u8(v >> 8);
+    p[2] = u8(v >> 16);
+    p[3] = u8(v >> 24);
+}
+
+std::vector<u8> zlib_compress(const std::string& plain) {
+    uLongf bound = compressBound(uLong(plain.size()));
+    std::vector<u8> out(bound + 16, 0);
+    uLongf out_len = bound;
+    EXPECT_EQ(Z_OK, compress2(out.data(), &out_len, reinterpret_cast<const Bytef*>(plain.data()),
+                              uLong(plain.size()), 6));
+    out.resize(out_len);
+    return out;
+}
+
+constexpr u32 B_ATTR_HDR = 16;
+constexpr u32 B_ATTR_LEAF = 17;
+constexpr u32 B_MODE4_RSRC = 20;
+constexpr u32 ATTRS_TOTAL_BLOCKS = 32;
+
+/* decmpfs value (LITTLE-endian x86 structs, og FUN_180009c10 :7841 native load) */
+std::vector<u8> decmpfs_value(u32 mode, u32 size, u32 rsrc_off) {
+    std::vector<u8> v;
+    v.resize(mode == 3 ? 12 : 16, 0);
+    put32le(v.data(), 0x66706D63); /* 'cmpf' LE */
+    put32le(v.data() + 4, mode);
+    put32le(v.data() + 8, size);
+    if (mode == 4)
+        put32le(v.data() + 12, rsrc_off);
+    return v;
+}
+
+TEST(HfsPlus, DecmpfsInlineAndRsrcContentRecovered) {
+    auto img = build_volume();
+    img.resize(ATTRS_TOTAL_BLOCKS * BS, 0);
+    u8* vh = img.data() + 1024;
+    be32(vh + 0x2C, ATTRS_TOTAL_BLOCKS);
+    write_fork(vh + 0x160, 2 * NODE_SIZE, B_ATTR_HDR, 2);
+
+    const std::string content25 = "inline compressed pages content - decmpfs mode 3 payload";
+    const std::string content26 = "resource-fork compressed payload - decmpfs mode 4";
+    const std::vector<u8> z25 = zlib_compress(content25);
+    const std::vector<u8> z26 = zlib_compress(content26);
+
+    /* catalog leaf 1 rebuilt with two empty-data-fork files */
+    auto root_rec = make_record(1, u"Macintosh HD", 1, 2, 0, 0, 0, 0, 0, 0);
+    auto file_rec = make_record(2, u"readme.txt", 2, 20, 26, B_FILE_DATA, 1, 0, 0, 0);
+    auto dir_rec = make_record(2, u"Documents", 1, 21, 0, 0, 0, 0, 0, 0);
+    auto nested_rec = make_record(21, u"notes.rtf", 2, 22, 44, B_RSRC_DATA, 1, 8, B_GONE_DATA, 1);
+    auto inline_rec = make_record(2, u"inline.pages", 2, 25, 0, 0, 0, 0, 0, 0);
+    auto rsrc_rec = make_record(2, u"rsrc.pages", 2, 26, 0, 0, 0, 64 + z26.size(),
+                                B_MODE4_RSRC, 1);
+    auto leaf1 = make_leaf_node({root_rec, file_rec, dir_rec, nested_rec, inline_rec, rsrc_rec},
+                                0);
+    memcpy(img.data() + u64(B_CAT_LEAF1) * BS, leaf1.data(), NODE_SIZE);
+    /* header leafRecords count is informational; nothing gates on it */
+
+    /* attributes tree: header + one leaf */
+    {
+        u8* hdr = img.data() + u64(B_ATTR_HDR) * BS;
+        be32(hdr + 0, B_ATTR_LEAF);
+        hdr[8] = 1; /* kBTHeaderNode */
+        hdr[9] = 0;
+        be16(hdr + 10, 3);
+        be32(hdr + 14 + 0x0A, 1); /* firstLeaf */
+        be32(hdr + 14 + 0x0E, 1); /* lastLeaf */
+        be16(hdr + 14 + 0x12, NODE_SIZE);
+    }
+    std::vector<u8> value25 = decmpfs_value(3, u32(content25.size()), 0);
+    value25.insert(value25.end(), z25.begin(), z25.end());
+    const std::vector<u8> tag_value = {'t', 'a', 'g', '-', 'v', 'a', 'l', 'u', 'e'};
+    std::vector<u8> value26 = decmpfs_value(4, u32(content26.size()), 64);
+    auto a25 = make_attr_record(25, u"com.apple.decmpfs", 0x10, value25);
+    auto atag = make_attr_record(22, u"com.apple.custom:tag", 0x10, tag_value);
+    auto a26 = make_attr_record(26, u"com.apple.decmpfs", 0x10, value26);
+    auto abad = make_attr_record(20, u"com.apple.bad", 0x20, {1, 2, 3});
+    auto aleaf = make_leaf_node({a25, atag, a26, abad}, 0);
+    memcpy(img.data() + u64(B_ATTR_LEAF) * BS, aleaf.data(), NODE_SIZE);
+
+    /* mode-4 resource fork payload: 64 bytes junk, zlib stream at +64 */
+    memset(img.data() + u64(B_MODE4_RSRC) * BS, 0xAB, 64);
+    memcpy(img.data() + u64(B_MODE4_RSRC) * BS + 64, z26.data(), z26.size());
+
+    /* locate the value payloads inside the assembled leaf for the
+     * expected-extent math (the record offset array packs downward) */
+    auto find_in_leaf = [&](const std::vector<u8>& needle) -> u64 {
+        const u8* b = aleaf.data();
+        const u8* f = std::search(b, b + aleaf.size(), needle.begin(), needle.end());
+        EXPECT_NE(f, b + aleaf.size());
+        return u64(f - b);
+    };
+    const u64 v25_in_leaf = find_in_leaf(value25);
+    const u64 tag_in_leaf = find_in_leaf(tag_value);
+
+    MemDevice dev(img);
+    tree::ResultTree tree;
+    auto* ra = tree.add_root(u"Found");
+    auto* rd = tree.add_root(u"Deleted");
+    auto* rl = tree.add_root(u"Lost Files");
+    HfsScanFlags fl;
+    HfsScanStats st;
+    u32 rc = scan_hfsplus(&dev, fl, nullptr, nullptr, nullptr, tree, ra, rd, rl, st);
+    ASSERT_EQ(OK, rc) << err_text(rc);
+    EXPECT_EQ(2u, st.decmpfs_files);
+    EXPECT_EQ(1u, st.named_forks);
+    EXPECT_EQ(1u, st.attr_unsupported);
+    EXPECT_EQ(3u, st.attr_records); /* collected attrs (the unsupported
+                                       record is skipped, og parity) */
+
+    tree::FileNode *inl = nullptr, *rsrc = nullptr, *tagf = nullptr;
+    std::function<void(tree::FileNode*)> find = [&](tree::FileNode* n) {
+        for (tree::FileNode* c = n->first_child(); c; c = c->next_sibling()) {
+            const std::string nm = c->name_utf8();
+            if (nm == "inline.pages")
+                inl = c;
+            else if (nm == "rsrc.pages")
+                rsrc = c;
+            else if (nm == "..namedfork/com.apple.custom:tag")
+                tagf = c;
+            find(c);
+        }
+    };
+    find(ra);
+
+    /* mode 3: codec extent pointing into the attributes-B-tree node */
+    ASSERT_NE(inl, nullptr) << "compressed file missing from results";
+    ASSERT_NE(nullptr, inl->props());
+    EXPECT_EQ(u64(content25.size()), inl->props()->logical_size);
+    ASSERT_EQ(1u, inl->props()->extents.size());
+    {
+        const auto& e = inl->props()->extents[0];
+        EXPECT_EQ(u32(compress::kZlib), e.codec);
+        EXPECT_EQ(u64(B_ATTR_LEAF) * BS + v25_in_leaf + 12, e.offset);
+        EXPECT_EQ(u64(content25.size()), e.length);
+        EXPECT_EQ(u64(value25.size()) - 12, e.psize);
+        /* the WRITER contract end-to-end: read the extent bytes from the
+         * image and inflate - the recovered content must be exact */
+        std::vector<u8> packed(size_t(e.psize), 0), plain(size_t(e.length), 0);
+        memcpy(packed.data(), img.data() + e.offset, size_t(e.psize));
+        ASSERT_TRUE(compress::decompress_block(e.codec, packed.data(), packed.size(),
+                                               plain.data(), plain.size()));
+        EXPECT_EQ(0, memcmp(plain.data(), content25.data(), content25.size()));
+    }
+
+    /* mode 4: codec extent into the resource fork at the recorded offset */
+    ASSERT_NE(rsrc, nullptr);
+    ASSERT_EQ(1u, rsrc->props()->extents.size());
+    {
+        const auto& e = rsrc->props()->extents[0];
+        EXPECT_EQ(u32(compress::kZlib), e.codec);
+        EXPECT_EQ(u64(B_MODE4_RSRC) * BS + 64, e.offset);
+        EXPECT_EQ(u64(content26.size()), e.length);
+        std::vector<u8> packed(size_t(e.psize), 0), plain(size_t(e.length), 0);
+        memcpy(packed.data(), img.data() + e.offset, size_t(e.psize));
+        ASSERT_TRUE(compress::decompress_block(e.codec, packed.data(), packed.size(),
+                                               plain.data(), plain.size()));
+        EXPECT_EQ(0, memcmp(plain.data(), content26.data(), content26.size()));
+    }
+
+    /* named attribute -> ..namedfork/<name> child with the raw value */
+    ASSERT_NE(tagf, nullptr);
+    ASSERT_EQ(1u, tagf->props()->extents.size());
+    EXPECT_EQ(u64(tag_value.size()), tagf->props()->logical_size);
+    EXPECT_EQ(u64(B_ATTR_LEAF) * BS + tag_in_leaf, tagf->props()->extents[0].offset);
+    EXPECT_EQ(0, memcmp(img.data() + tagf->props()->extents[0].offset, tag_value.data(),
+                        tag_value.size()));
+}
+
+TEST(HfsPlus, DecmpfsDisabledLeavesEmptyShell) {
+    /* the flag-off mode keeps the pre-S-002 shape: no attribute walk
+     * effects, empty data fork stays an empty node */
+    auto img = build_volume();
+    img.resize(ATTRS_TOTAL_BLOCKS * BS, 0);
+    u8* vh = img.data() + 1024;
+    be32(vh + 0x2C, ATTRS_TOTAL_BLOCKS);
+    write_fork(vh + 0x160, 2 * NODE_SIZE, B_ATTR_HDR, 2);
+    const std::string content = "compressed";
+    std::vector<u8> value = decmpfs_value(3, u32(content.size()), 0);
+    const std::vector<u8> z = zlib_compress(content);
+    value.insert(value.end(), z.begin(), z.end());
+    {
+        u8* hdr = img.data() + u64(B_ATTR_HDR) * BS;
+        hdr[8] = 1;
+        be16(hdr + 14 + 0x12, NODE_SIZE);
+        be32(hdr + 14 + 0x0A, 1);
+        be32(hdr + 14 + 0x0E, 1);
+        auto rec = make_attr_record(20, u"com.apple.decmpfs", 0x10, value);
+        auto leaf = make_leaf_node({rec}, 0);
+        memcpy(img.data() + u64(B_ATTR_LEAF) * BS, leaf.data(), NODE_SIZE);
+    }
+    auto file_rec2 = make_record(2, u"readme.txt", 2, 20, 0, 0, 0, 0, 0, 0);
+    auto root_rec2 = make_record(1, u"Macintosh HD", 1, 2, 0, 0, 0, 0, 0, 0);
+    auto leaf1 = make_leaf_node({root_rec2, file_rec2}, 0);
+    memcpy(img.data() + u64(B_CAT_LEAF1) * BS, leaf1.data(), NODE_SIZE);
+
+    MemDevice dev(img);
+    tree::ResultTree tree;
+    auto* ra = tree.add_root(u"Found");
+    HfsScanFlags fl;
+    fl.resolve_decmpfs = false;
+    fl.named_forks = false;
+    HfsScanStats st;
+    ASSERT_EQ(OK, scan_hfsplus(&dev, fl, nullptr, nullptr, nullptr, tree, ra, nullptr, nullptr,
+                               st));
+    EXPECT_EQ(0u, st.decmpfs_files);
+    tree::FileNode* f = nullptr;
+    for (tree::FileNode* c = ra->first_child(); c; c = c->next_sibling())
+        for (tree::FileNode* x = c->first_child(); x; x = x->next_sibling())
+            if (x->name_utf8() == "readme.txt")
+                f = x;
+    ASSERT_NE(f, nullptr);
+    EXPECT_EQ(0u, f->props()->extents.size());
+    EXPECT_EQ(0u, f->props()->logical_size);
 }
 
 TEST(HfsPlus, MacTimeConversion) {

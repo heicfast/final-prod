@@ -37,12 +37,20 @@ struct HfsScanStats {
     u64 orphans = 0;          /* stale records in freed catalog nodes */
     u64 overflow_extents = 0; /* extents resolved from the overflow tree */
     u64 bad_nodes = 0;
+    /* S-002 (diff-to-fix) */
+    u64 attr_records = 0;     /* inline attribute records collected */
+    u64 attr_unsupported = 0; /* non-0x10 record types skipped (og-parity) */
+    u64 decmpfs_files = 0;    /* files whose content resolved from decmpfs */
+    u64 named_forks = 0;      /* attribute children emitted */
 };
 
 struct HfsScanFlags {
     bool keep_deleted = true;
     bool scan_freed_nodes = true; /* orphan sweep in free catalog nodes */
     bool resource_forks = true;   /* emit ..namedfork/rsrc children */
+    bool resolve_decmpfs = true;  /* S-002: com.apple.decmpfs content via
+                                   * codec extents (both storage forms) */
+    bool named_forks = true;      /* S-002: attributes as ..namedfork/<name> */
 };
 
 /* Volume header (BE fields decoded). */

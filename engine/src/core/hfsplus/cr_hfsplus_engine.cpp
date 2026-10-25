@@ -7,6 +7,7 @@
 
 #include "cr/hfsplus/cr_hfsplus_engine.h"
 #include "cr/cr_bits.h" /* shared byte readers (W4 dedup, DC-12) */
+#include "cr/compress/cr_decomp.h" /* S-002: kZlib for decmpfs extents */
 #include <cstring>
 #include <functional>
 #include <map>
@@ -30,6 +31,7 @@ constexpr u32 VH_NEXT_CATALOG_ID = 0x40;
 constexpr u32 VH_ALLOCATION_FORK = 0x70; /* ForkData, 80 bytes */
 constexpr u32 VH_EXTENTS_FORK = 0xC0;
 constexpr u32 VH_CATALOG_FORK = 0x110;
+constexpr u32 VH_ATTRIBUTES_FORK = 0x160; /* S-002: attributes B-tree fork */
 
 constexpr u16 SIG_HFSPLUS = 0x482B; /* "H+" */
 constexpr u16 SIG_HFSX = 0x4858;    /* "HX" */
@@ -123,6 +125,7 @@ struct Volume {
     ForkData allocation_fork;
     ForkData extents_fork;
     ForkData catalog_fork;
+    ForkData attributes_fork; /* S-002: may be empty (pre-10.4 volumes) */
 
     /* per-tree geometry (set from each tree's header node) */
     u32 catalog_node_size = 0;
@@ -319,6 +322,173 @@ bool for_each_record(u32 node_size, const std::vector<u8>& node, i16 want_kind,
     return true;
 }
 
+/* ---- S-002: attributes B-tree (CNID 8) ----------------------------------
+ *
+ * Attribute key layout (og-verified, HFSPlusSearchDLL FUN_180009c10
+ * :7771-7791: keyLength = (nameLen+7)*2, fileId@+4, nameLen u16@+0xC,
+ * name UTF16BE units@+0xE - the keyLength COUNTS ITSELF for attribute
+ * keys, unlike the catalog convention):
+ *   [keyLength u16][pad u16][fileId u32][startBlock u32]
+ *   [nameLen u16][UTF16BE name[nameLen]]
+ * Record data (TN1150/kernel hfsplus_attr_inline_data; the og gates on
+ * recordType == 0x10 - FUN_180009c10 :7825 - and reads size@+12 with the
+ * payload at +16, exactly this layout):
+ *   [recordType u32 BE = 0x10 inline][reserved x2][length u32 BE][bytes[]]
+ *
+ * com.apple.decmpfs value (opaque xattr payload, LITTLE-endian x86
+ * structs - the og reads the u64 at value+8 in one native load,
+ * FUN_180009c10 :7841):
+ *   [magic u32 LE = 0x66706D63 'cmpf'][mode u32 LE = 3|4]
+ *   [uncompressedSize u32 LE][mode 3: zlib stream@+12 .. value end |
+ *    mode 4: resourceForkOffset u32 LE @+12]
+ */
+
+constexpr u32 ATTR_KEY_FILE_ID = 0x04;
+constexpr u32 ATTR_KEY_NAME_LEN = 0x0C;
+constexpr u32 ATTR_KEY_NAME = 0x0E;
+constexpr u32 ATTR_DATA_HEADER = 16;   /* recordType+r1+r2+length */
+constexpr u32 ATTR_INLINE_DATA = 0x10; /* og gate value (:7825) */
+constexpr u32 DECMPFS_MAGIC_LE = 0x66706D63;
+
+struct AttrEntry {
+    std::u16string name;   /* UTF-16 (decoded from the BE key) */
+    u64 value_off = 0;     /* absolute slice offset of the value bytes */
+    u32 value_len = 0;     /* value byte length (from the record header) */
+    bool decmpfs = false;
+    u32 decmpfs_mode = 0;
+    u32 uncompressed_size = 0;
+    u32 rsrc_offset = 0;   /* mode 4: offset into the resource fork */
+};
+
+/* Walk the attributes B-tree leaf chain once, collecting every inline
+ * attribute with its on-disk value position and decmpfs facts. */
+bool walk_attributes_tree(Volume& v, CancelToken* cancel,
+                          std::map<u32, std::vector<AttrEntry>>& out, u64& unsupported) {
+    if (v.attributes_fork.extents[0].block_count == 0)
+        return true; /* no attributes file on this volume: nothing to do */
+    std::vector<u8> node;
+    if (!read_node0_bootstrap(v, v.attributes_fork, node))
+        return false;
+    const u32 node_size = be16(node.data() + 14 + BTH_NODE_SIZE);
+    if (node_size < 512 || node_size > 65536 || (node_size & (node_size - 1)) != 0)
+        return false;
+    const u32 first_leaf = be32(node.data() + 14 + BTH_FIRST_LEAF);
+    const u32 last_leaf = be32(node.data() + 14 + BTH_LAST_LEAF);
+
+    u32 cur = first_leaf;
+    u64 guard = 0;
+    while (cur != 0 && guard++ < MAX_TREE_NODES) {
+        if (cancel && cancel->checkpoint())
+            return false;
+        /* absolute disk offset of this node (extent-mapped like every
+         * other tree read - read_tree_node recomputes it; recompute here
+         * for the value-offset math) */
+        const u64 logical = u64(cur) * node_size;
+        u64 node_abs = 0;
+        bool have_abs = false;
+        {
+            u64 cursor = 0;
+            std::vector<ForkData::Extent> ext(v.attributes_fork.extents,
+                                              v.attributes_fork.extents + 8);
+            auto it = v.overflow.find(CNID_ATTRIBUTES_FILE);
+            if (it != v.overflow.end()) {
+                auto fit = it->second.find(0);
+                if (fit != it->second.end())
+                    for (const auto& e : fit->second)
+                        ext.push_back(e);
+            }
+            for (const auto& e : ext) {
+                const u64 extent_bytes = u64(e.block_count) * v.vh.block_size;
+                if (extent_bytes == 0)
+                    continue;
+                if (logical >= cursor && logical + node_size <= cursor + extent_bytes) {
+                    node_abs = u64(e.start_block) * v.vh.block_size + (logical - cursor);
+                    have_abs = true;
+                    break;
+                }
+                cursor += extent_bytes;
+            }
+        }
+        std::vector<u8> leaf;
+        if (!have_abs || !read_tree_node(v, v.attributes_fork, CNID_ATTRIBUTES_FILE, node_size,
+                                         cur, leaf))
+            break;
+        for_each_record(node_size, leaf, NH_KIND_LEAF, [&](const u8* rec, u32 len) {
+            if (len < 16)
+                return true;
+            const u32 key_len = be16(rec);
+            if (key_len < 16 || u64(key_len) + ATTR_DATA_HEADER > len)
+                return true; /* truncated/bogus key */
+            const u32 file_id = be32(rec + ATTR_KEY_FILE_ID);
+            const u32 name_len = be16(rec + ATTR_KEY_NAME_LEN);
+            if (key_len < 14 + 2 * u64(name_len) || name_len > MAX_RECORD_NAME)
+                return true;
+            AttrEntry a;
+            for (u32 i = 0; i < name_len; ++i)
+                a.name.push_back(be16(rec + ATTR_KEY_NAME + u32(i) * 2));
+            const u8* data = rec + key_len; /* keyLength counts itself */
+            if (u64(key_len) + ATTR_DATA_HEADER > len)
+                return true;
+            const u32 record_type = be32(data);
+            if (record_type != ATTR_INLINE_DATA) {
+                ++unsupported; /* og parity: "unsupported attribute node
+                                  format" is logged and the record skipped */
+                return true;
+            }
+            a.value_len = be32(data + 12);
+            if (a.value_len == 0 || u64(key_len) + ATTR_DATA_HEADER + a.value_len > len)
+                return true; /* value must live inside the record */
+            a.value_off = node_abs + u64(rec - leaf.data()) + key_len + ATTR_DATA_HEADER;
+            /* decmpfs facts (value fields are LITTLE-endian) */
+            if (a.value_len >= 12 && a.name == u"com.apple.decmpfs" &&
+                le32(data + ATTR_DATA_HEADER) == DECMPFS_MAGIC_LE) {
+                a.decmpfs = true;
+                a.decmpfs_mode = le32(data + ATTR_DATA_HEADER + 4);
+                a.uncompressed_size = le32(data + ATTR_DATA_HEADER + 8);
+                if (a.decmpfs_mode == 4 && a.value_len >= 16)
+                    a.rsrc_offset = le32(data + ATTR_DATA_HEADER + 12);
+            }
+            if (out.size() < (1u << 20))
+                out[file_id].push_back(a);
+            return true;
+        });
+        if (cur == last_leaf)
+            break;
+        const u32 next = be32(leaf.data() + NH_FORWARD);
+        if (next == cur)
+            break;
+        cur = next;
+    }
+    return true;
+}
+
+/* Map a logical offset inside a file fork to its absolute slice offset. */
+u64 fork_offset_to_absolute(Volume& v, u32 cnid, u8 fork_type, const ForkData& fork,
+                           u64 logical, bool& ok) {
+    ok = false;
+    std::vector<ForkData::Extent> all(fork.extents, fork.extents + 8);
+    auto it = v.overflow.find(cnid);
+    if (it != v.overflow.end()) {
+        auto fit = it->second.find(fork_type);
+        if (fit != it->second.end())
+            for (const auto& e : fit->second)
+                all.push_back(e);
+    }
+    u64 cursor = 0;
+    for (const auto& e : all) {
+        const u64 extent_bytes = u64(e.block_count) * v.vh.block_size;
+        if (extent_bytes == 0)
+            continue;
+        if (logical < cursor + extent_bytes) {
+            ok = true;
+            return u64(e.start_block) * v.vh.block_size + (logical - cursor);
+        }
+        cursor += extent_bytes;
+    }
+    return 0;
+}
+
+
 } // namespace
 
 u64 mac_to_filetime(u32 mac_sec) {
@@ -375,6 +545,7 @@ u32 scan_hfsplus(IStorageDevice* slice, const HfsScanFlags& flags, CancelToken* 
     v.allocation_fork = parse_fork(vh_raw + VH_ALLOCATION_FORK);
     v.extents_fork = parse_fork(vh_raw + VH_EXTENTS_FORK);
     v.catalog_fork = parse_fork(vh_raw + VH_CATALOG_FORK);
+    v.attributes_fork = parse_fork(vh_raw + VH_ATTRIBUTES_FORK);
 
     /* 1. extents-overflow B-tree: preload all leaf records into the map
      * (fragmented-fork resolution; typically tiny). */
@@ -422,6 +593,20 @@ u32 scan_hfsplus(IStorageDevice* slice, const HfsScanFlags& flags, CancelToken* 
                     return ERR_CANCELLED;
             }
         }
+    }
+
+    /* 1.5 S-002: attributes B-tree (CNID 8) - preload every inline
+     * attribute with its on-disk value position and decmpfs facts, so
+     * compressed files resolve at emission and named forks surface as
+     * children (the og reads this tree for com.apple.decmpfs lookups -
+     * FUN_180009c10, first-hand verified). */
+    std::map<u32, std::vector<AttrEntry>> attributes;
+    {
+        u64 unsupported = 0;
+        walk_attributes_tree(v, cancel, attributes, unsupported);
+        stats.attr_unsupported = unsupported;
+        for (const auto& kv : attributes)
+            stats.attr_records += kv.second.size();
     }
 
     /* 2. catalog B-tree geometry (node 0 = header node, bootstrapped). */
@@ -498,6 +683,55 @@ u32 scan_hfsplus(IStorageDevice* slice, const HfsScanFlags& flags, CancelToken* 
         props->record_ref = r.cnid;
         for (const auto& ex : resolve_file_extents(v, r.cnid, 0, r.data_fork, v.total_bytes()))
             props->extents.push_back({ex.first, ex.second});
+        /* S-002: decmpfs-compressed files - the data fork is empty and the
+         * content lives in com.apple.decmpfs (mode 3: zlib stream inside
+         * the attribute record; mode 4: zlib stream at an offset inside
+         * the resource fork). Emit a codec-tagged extent (kZlib) so the
+         * recovery writer inflates at write time - the core's existing
+         * compressed-extent contract (cr_safewriter decode path), no
+         * memory-resident blob and no size cap below the writer's own
+         * 256 MiB guard. */
+        if (flags.resolve_decmpfs && !is_dir && r.data_fork.logical_size == 0) {
+            auto ait = attributes.find(r.cnid);
+            if (ait != attributes.end()) {
+                const AttrEntry* dec = nullptr;
+                for (const auto& a : ait->second)
+                    if (a.decmpfs && (a.decmpfs_mode == 3 || a.decmpfs_mode == 4) &&
+                        a.uncompressed_size != 0) {
+                        dec = &a;
+                        break;
+                    }
+                if (dec != nullptr) {
+                    bool ext_ok = false;
+                    u64 abs = 0;
+                    u64 psize = 0;
+                    if (dec->decmpfs_mode == 3) {
+                        if (dec->value_len > 12) {
+                            abs = dec->value_off + 12;
+                            psize = dec->value_len - 12;
+                            ext_ok = true;
+                        }
+                    } else { /* mode 4: resource-fork payload at rsrc_offset */
+                        if (r.rsrc_fork.logical_size > dec->rsrc_offset) {
+                            bool map_ok = false;
+                            abs = fork_offset_to_absolute(v, r.cnid, 0xFF, r.rsrc_fork,
+                                                          dec->rsrc_offset, map_ok);
+                            if (map_ok) {
+                                psize = r.rsrc_fork.logical_size - dec->rsrc_offset;
+                                ext_ok = true;
+                            }
+                        }
+                    }
+                    if (ext_ok) {
+                        props->extents.clear();
+                        props->extents.push_back({abs, u64(dec->uncompressed_size),
+                                                  u32(compress::kZlib), psize});
+                        props->logical_size = dec->uncompressed_size;
+                        ++stats.decmpfs_files;
+                    }
+                }
+            }
+        }
         nodes[i] = tree.add_file(root_active, props); /* re-parented below */
         props->release();
         if (!nodes[i])
@@ -554,6 +788,39 @@ u32 scan_hfsplus(IStorageDevice* slice, const HfsScanFlags& flags, CancelToken* 
             props->release();
             if (!n)
                 break;
+        }
+    }
+
+    /* 5.5 S-002: named attributes surface as child nodes with their raw
+     * value content (the ..namedfork/<name> convention the resource-fork
+     * pass established; the og's attribute tree exists for exactly this
+     * named-fork surface). Values live inline in the attributes B-tree
+     * record - a plain byte extent, no codec. */
+    if (flags.named_forks) {
+        for (size_t i = 0; i < records.size(); ++i) {
+            if (!nodes[i] || records[i].rec_type != REC_FILE)
+                continue;
+            auto ait = attributes.find(records[i].cnid);
+            if (ait == attributes.end())
+                continue;
+            for (const auto& a : ait->second) {
+                if (a.decmpfs || a.value_len == 0)
+                    continue; /* decmpfs is the file's content, not a fork */
+                auto* props = new (std::nothrow) tree::FileProperties();
+                if (!props)
+                    break;
+                props->name = u"..namedfork/";
+                props->name += a.name;
+                props->fs_kind = u32(FsKindCode::Hfsplus);
+                props->logical_size = a.value_len;
+                props->record_ref = records[i].cnid;
+                props->extents.push_back({a.value_off, u64(a.value_len)});
+                tree::FileNode* n = tree.add_file(nodes[i], props);
+                props->release();
+                if (!n)
+                    break;
+                ++stats.named_forks;
+            }
         }
     }
 

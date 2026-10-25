@@ -137,6 +137,7 @@ multi-vdev + nvlist anchor), OQ-T8 (carve dispatch order), OQ-T9 (CalcPartition 
 | Date | Finding | Verdict | Evidence |
 |---|---|---|---|
 | 2026-10-25 | A-001 | **FIXED** | canonical GUIDs + 4 regression tests; pre-fix probe reproduced ERR_BAD_MAGIC, post-fix suite 263/263; byte-order table corrected (finding + evidence file) |
+| 2026-10-25 | S-002 | **FIXED** | attributes B-tree + decmpfs mode 3/4 (kZlib codec extents, writer-contract decode proof) + named forks (D-46); runtime fail-before/pass-after |
 | 2026-10-25 | N-001 | **FIXED** | mirror span from runlist (og this+0x70); discriminating record-5 test fails pre-fix; resident-$DATA abort parity |
 | 2026-10-25 | M-001 | **FIXED** | record-size degradation ladder; 5 fail-before/pass-after tests incl. end-to-end torn-DBR remnant reachability |
 | 2026-10-25 | S-001 | **FIXED** | destroy rule + sparse-run ratio sub-fix + counter; runtime fail-before/pass-after on EndToEndWalk; honest-mode pin test |

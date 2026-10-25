@@ -31,6 +31,9 @@ enum Codec : u32 {
     kZstd = 5,  /* zstd frame (incl. ZFS skippable-frame prefix) */
     kLznt1 = 6, /* NTFS native compression (MS-XCA LZNT1 tagged-group
                  * payload; RtlDecompressBuffer LZNT1 semantics) */
+    kZlib = 7, /* RFC 1950 zlib stream (Apple HFS+ decmpfs mode-3/mode-4
+                * payload - the macOS formatter writes zlib streams via
+                * compress2, so the 2-byte zlib header is present) */
 };
 
 /* Decompress psize bytes at src into exactly lsize bytes at dst.

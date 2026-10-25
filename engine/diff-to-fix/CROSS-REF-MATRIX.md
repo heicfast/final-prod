@@ -11,7 +11,7 @@ Legend: `M` = MATCH · `A-n`/`S-n`/`M-n`/`N-n`/`I-n` = finding ID (in
 | fat | M | M | M | I-002, OQ-T2 | M | NA | NA | M | M | M | M (debt) |
 | exfat | N-003, OQ-T5 | N-003 | M | M | M | NA | NA | M | M | M | M (debt) |
 | ext4 | S-004, M (S-005 fixed) | ok | M (erratum) | S-004 | N-004 | NA | NA | M | M | N-004 | M (debt) |
-| hfsplus | S-002, S-003, N-005 | M | M | M | M | NA | NA | M | M | M | THIN |
+| hfsplus | M (S-002 fixed), S-003, N-005 | M | M | M | M | NA | NA | M | M | M | THIN |
 | btrfs | I-003, M (S-005 fixed), N-006 | M | M | M | M | NA | NA | M | M | M | M |
 | zfs | OQ-T6, M (S-005 fixed) | ok | OQ-T6 | M | M | NA | NA | M | M | M | M |
 | refs | N-007, I-004, GAP-ADS | M | M | M | M | NA | NA | M | M | M | M |
