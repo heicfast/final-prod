@@ -40,6 +40,7 @@
 #include "cr/win/cr_health.h"
 #include "cr/win/cr_transport.h"
 #include <windows.h>
+#include <share.h> /* _SH_DENYNO (S-008: shared image opens) */
 #else
 #include <sys/stat.h>
 #include <sys/types.h>
@@ -328,11 +329,24 @@ public:
     static std::unique_ptr<ImageFileDevice> open(const char* u8path, u64 offset, u64 bytes,
                                                  u32* err) {
         *err = OK;
-        FILE* f = open_file(u8path, false);
+#ifdef _WIN32
+        /* S-008: _SH_DENYNO, NOT _wfopen_s - the CRT _s variants open
+         * exclusive (MS docs: "If you need to share the file, use _fsopen
+         * or _wfsopen ... _SH_DENYNO"). The pre-scan repair writer reopens
+         * the SAME image read-write while this read view is live. */
+        const std::wstring w = u8_to_ws(u8path);
+        FILE* f = _wfsopen(w.c_str(), L"rb", _SH_DENYNO);
         if (!f) {
             *err = ERR_OPEN_FAILED;
             return nullptr;
         }
+#else
+        FILE* f = std::fopen(u8path, "rb");
+        if (!f) {
+            *err = ERR_OPEN_FAILED;
+            return nullptr;
+        }
+#endif
         const u64 fsize = file_size_of(f);
         if (bytes == 0)
             bytes = fsize > offset ? fsize - offset : 0;
@@ -385,9 +399,11 @@ public:
                                                   u32* err) {
         *err = OK;
 #ifdef _WIN32
+        /* S-008: shared open (_SH_DENYNO) - the read view holds the same
+         * file; _wfopen_s would open exclusive and fail here. */
         const std::wstring w = u8_to_ws(u8path);
-        FILE* f = nullptr;
-        if (_wfopen_s(&f, w.c_str(), L"r+b") != 0 || !f) {
+        FILE* f = _wfsopen(w.c_str(), L"r+b", _SH_DENYNO);
+        if (!f) {
             *err = ERR_OPEN_FAILED;
             return nullptr;
         }

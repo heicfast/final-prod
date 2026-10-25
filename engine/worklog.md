@@ -3418,3 +3418,28 @@ Stage Summary:
   19. N-019 (12 missing per-parameter regression tests)
   20. N-020 (6 stale doc claims — including the S-009 finding file that should
       move to FIXED/ per GAP-S6-11 having landed)
+
+
+---
+Task ID: 18-b (Windows red root cause — CRT sharing; this leg)
+Agent: main engineer (diff-to-fix remediation, second parallel leg)
+Task: S-008 Windows test failures — image repair writer open denied
+
+Work Log:
+- Windows CI failed only the two new image-repair tests (C++ + the C ABI check):
+  st.repair_applied == 0 / denied == 1 with consent granted and a valid plan - the
+  writer-open failed. Root cause (MS docs, fopen_s/_wfopen_s remarks): the CRT _s
+  variants open EXCLUSIVE ("If you need to share the file, use _fsopen or _wfsopen
+  ... _SH_DENYNO"). ImageFileDevice opened the image via _wfopen_s("rb") - exclusive -
+  so (a) ImageWriteDevice's _wfopen_s("r+b") was denied, and (b) even the ABI check's
+  own fixture-patch fopen("r+b") failed while the first scan's read handle was live
+  (line-283 FAIL cascading into every later check).
+- Fix: both image opens in the shim now use _wfsopen(..., _SH_DENYNO) on Windows
+  (read view "rb", write view "r+b") - explicitly shared, per the documented path;
+  POSIX keeps plain fopen (no sharing semantics). This is also the correct posture for
+  any future consumer that opens the image concurrently.
+- Local: suite 313/313, ABI check OK, clang-format gate clean; Windows CI to verify.
+
+Stage Summary:
+- Windows red root cause fixed at the source (CRT exclusive opens -> _SH_DENYNO);
+  the S-008 image-repair lifecycle should now run identically on both platforms.
