@@ -48,6 +48,35 @@ with Resolution sections; matrix/modules/counts updated as fixes land.
 MINOR 37 · INFO 16 = **97 active** / **34 files in FIXED/** (33 findings +
 RESOLVED-INDEX).
 
+## S-012 verification-and-correction delta (2026-10-26 — diff-fix session 4, the reconciliation leg)
+
+Bootstrap `597a9c6` (350/350 baseline re-run in-container); corpus `03ad46c`
+(unmoved). This leg independently implemented S-012 steps 1+2 in parallel
+with the landed `5f1a212` leg (local commit discarded during the
+pull-frequently reconciliation — the landed leg's size-0 rescue made it the
+more complete substrate), then **re-verified the landed implementation
+line-by-line against the corpus** and corrected three divergences, each
+corpus-proven and fail-before/pinned:
+
+- **Dump-walk stride** — the og strides the RECORD SIZE on every path
+  (uVar8 after holes LAB_18001b0cb :21293 and after emit :21151; uVar16 =
+  max(0x400, rs) only after props-fail/skip/destroy, coinciding through the
+  boot clamp). The landed code's one-sector hole stride examined positions
+  the og never visits; its max(sector, 0x400) parse bound truncated 2/4 KiB
+  records. Pinned by `GuidDumpStrideIsRecordAligned` +
+  `GuidDumpLargeRecordParsedFully` (both fail on the landed tree).
+- **Pseudo record#** — corrected to the og's exact `lVar18 =
+  local_c0/record_size + chunk byte base` arithmetic (:21150-51).
+- **N-040 (new, FIXED)** — the pass-1 attribute filter: the og's gate is
+  (og-15 name table) AND ($SI SYSTEM+HIDDEN) — FUN_180040f20's 15-entry
+  table decoded first-hand — with NO $FILE_NAME-flags system filter; the
+  old `dos_flags & 4` gate dropped pagefile.sys-class user files the og
+  keeps. Gate + flag + counter removed; pinned by
+  `MainWalkKeepsSystemFlaggedUserFile`. In `findings/FIXED/`.
+- D-51 corrected in place; the D-50/D-51 numbering collision (section-K
+  bullets vs headings, plus a duplicated D-51 FAT heading) registered as
+  errata with the FAT entry renumbered D-56. Suite 399/399 Linux ASan;
+  hostile ASan smoke 300 mutated fixtures (297 exercising pass 2, clean).
 ## Minors-fix session delta (2026-10-26 — the "fix all tiers, focus the 33 minors" session)
 
 Session start `ed00020` (baseline 345/345 Linux Release; +1 test from the concurrent

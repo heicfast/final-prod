@@ -1329,13 +1329,27 @@ spec-correct timestamps.
   membership matches; grades are additive).
 - **NOTES:** claim map is cluster-granular (og: sector-granular bitmap; probe
   outcomes identical for cluster-aligned run starts). Dump records dedup by
-  the pseudo record number (absolute sector index) within pass 2 and resolve
-  parents against pass-1 emissions (unresolved -> lost root). The og's in-walk
-  strict same-name merge is not replicated (its candidate map is empty at
-  rescue time by construction); the relaxed post-walk pass is the dominant
-  og path. Pinned by NtfsVolume.{MainWalkKeepsOverwrittenDeleted,
-  GuidDumpPassRecoversReusedRecord, GuidDumpDestroyRules,
-  SizeZeroRescueFromMftCopy, SizeZeroRescueSameNameMerge}.
+  the pseudo record number (the og's exact lVar18 arithmetic:
+  in-chunk-offset/record_size + chunk byte base, :21150-51) within pass 2
+  and resolve parents against pass-1 emissions (unresolved -> lost root).
+  The og's in-walk strict same-name merge is not replicated (its candidate
+  map is empty at rescue time by construction); the relaxed post-walk pass
+  is the dominant og path.
+- **CORRECTION (diff-fix session 4, verified line-by-line):** the dump-walk
+  STRIDE is the record size on every path — uVar8 after holes
+  (LAB_18001b0cb :21293) and after a successful emit (:21151); uVar16 =
+  max(0x400, rs) only after props-fail/skip/destroy (:21169/:21259),
+  which coincides with the record size through the boot clamp. The first
+  landing advanced holes by one sector (examining positions the og never
+  visits) and bounded parse at max(sector, 0x400) (truncating 2/4 KiB
+  records). Also N-040 (fixed the same commit): the pass-1 attribute
+  filter is the og's (og-15 name table) AND ($SI SYSTEM+HIDDEN) gate -
+  FUN_180040f20's table + FUN_180040ea0's $SI dword check - with NO
+  $FILE_NAME-flags system filter anywhere in pass 1; the old
+  `dos_flags & 4` gate is removed (the known-name list subsumes the og-15
+  table; real metafiles always carry $SI SYSTEM|HIDDEN). Pinned by
+  NtfsVolume.{GuidDumpStrideIsRecordAligned, GuidDumpLargeRecordParsedFully,
+  MainWalkKeepsSystemFlaggedUserFile} on top of the original five pins.
 - **STATUS:** ACCEPTED (og parity; diff-to-fix S-012 FIXED).
 
 ### D-50 — Lost-partition superblock probes: ext parity + HFS+/Btrfs/ZFS/ReFS superset anchors (S-006)
@@ -1382,9 +1396,9 @@ FUN_180004070/FUN_180004610 chain entered but unresolved). No invented gates.
 `BtrfsSuperblockAnchorsDeletedPartition`, `ZfsLabelAnchorsDeletedPartition`,
 `RefsBootAnchorsDeletedPartition`, `SuperblockNoiseRejected`.
 
-### D-51 — FAT/exFAT engine-open + lost-scan gates: og parity with three registered core deltas (N-010b/N-010c/N-022/N-034)
+### D-56 — FAT/exFAT engine-open + lost-scan gates: og parity with three registered core deltas (N-010b/N-010c/N-022/N-034)
 
-**Class:** parity + registered superset (engine semantics) · **Findings:** diff-to-fix N-010a..f (N-023 group), N-022, N-034 (MINOR, FIXED 2026-10-26) · **Date:** 2026-10-26
+**Class:** parity + registered superset (engine semantics) · **Findings:** diff-to-fix N-010a..f (N-023 group), N-022, N-034 (MINOR, FIXED 2026-10-26; renumbered D-51 -> D-56 to clear the numbering collision with the NTFS two-pass entry and the section-K bullet family) · **Date:** 2026-10-26
 
 The FAT batch aligns the core's boot/dentry gates with the og's two-layer
 architecture, verified first-hand this session:

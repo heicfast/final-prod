@@ -369,3 +369,24 @@ records last); the fixture's mislabeled 0x100 constant renamed
 **Tests:** +11 (2 fail-before discriminators for N-012, 3 for N-011b via the
 rescoped M-001 trio + 2 new, ADS pins ×2, USN pins ×3 + tail-mining).
 Suite 384/384.
+
+
+## Session-4 verification-and-correction update (2026-10-26, diff-fix session 4)
+
+**S-012 addendum (finding in FIXED/):** the landed two-pass implementation
+was re-verified line-by-line against the corpus; three corrections landed:
+- **B6/B8 (dump-walk stride):** the og strides the RECORD SIZE on every
+  path (uVar8 after holes LAB_18001b0cb and after emit :21151; uVar16 =
+  max(0x400, rs) only after props-fail/skip/destroy — coinciding through
+  the boot clamp). The one-sector hole stride and the max(sector, 0x400)
+  parse bound are corrected; 2/4 KiB-record volumes parse fully again.
+  Pinned by GuidDumpStrideIsRecordAligned + GuidDumpLargeRecordParsedFully.
+- **B1 (pass-1 filter, N-040 FIXED):** the og's gate is (og-15 name table)
+  AND ($SI SYSTEM+HIDDEN) — FUN_180040f20's table decoded first-hand. No
+  $FILE_NAME-flags system filter exists in pass 1; the core's old
+  `dos_flags & 4` gate (which dropped pagefile.sys-class user files) is
+  removed along with the flag and counter. Pinned by
+  MainWalkKeepsSystemFlaggedUserFile.
+- **Pseudo record#** corrected to the og's lVar18 arithmetic.
+- D-51 corrected in place; D-50/D-51 numbering collisions registered as
+  errata (the FAT entry renumbered D-56).

@@ -6396,3 +6396,65 @@ still open. S-003/S-021 stay with the s7/df5 leg; S-023 with the
 close-all-tiers leg. Reconciled inventory after the parallel sync:
 9 SEVERE active (S-003, S-007, S-009, S-021, S-023, S-024, S-025, S-027,
 S-028) — suite 430/430 verified first-hand post-rebase.
+
+Task ID: DF4-T2 (S-012 verification-and-correction)
+Task: Reconcile this leg's parallel S-012 work with the landed 5f1a212 leg;
+re-verify the landed implementation line-by-line against the corpus; correct
+the divergences found; file N-040.
+
+Work Log:
+- Pull-frequently reconciliation: the parallel legs landed S-012 (5f1a212,
+  incl. the size-0 rescue chain this leg had left as a remainder), S-022
+  (cdd340b), S-019 (7cf6754), the minors batch (N-022/N-023/N-034), the
+  api-session wave (7840176/d374064/831dd4c), and the storage/census audit
+  leg (85cc08c, +19 new findings S-024..S-028/M-031..M-039/N-045..N-047/
+  I-017/I-018). This leg's own S-012 steps-1+2 commit (7c06568) was
+  discarded - the landed implementation is the more complete substrate -
+  and the surviving delta is the verification below.
+- Corpus re-verification of the LANDED code, line-by-line:
+  (a) STRIDE: FUN_18001acc0's local_c0 advance decoded from the raw text -
+  uVar19 = uVar8 (record size) on the hole path (LAB_18001b0cb :21293) and
+  the emit path (:21151 assignment survives to the loop tail); uVar19 =
+  uVar16 (max(0x400, rs)) only on the props-fail path (LAB_18001b0b8
+  :21169) and the destroy path (LAB_18001b06f :21259). The landed code's
+  "0x400 after parse, 512 after hole" comment+implementation was WRONG on
+  both counts (and max(sector, 0x400) truncated 2/4 KiB records).
+  (b) PSEUDO record#: lVar18 = local_c0/uVar8 + param_4 (:21150-51) -
+  in-chunk offset divided by the RECORD SIZE plus the chunk byte base; the
+  landed code divided by sector size.
+  (c) PASS-1 FILTER: FUN_180040f20 (:51993) decoded first-hand - it matches
+  the $FILE_NAME name against a 15-entry metafile table (PTR_u__MFT_ at
+  :52009) and returns the per-entry value; FUN_180040ea0 (:51960) then
+  requires that AND the $SI attributes dword carrying SYSTEM+HIDDEN. The
+  landed code kept the corpus-less `$FILE_NAME dos_flags & 4` gate ->
+  filed N-040 and fixed.
+- Fix: stride = record size on every path (with the uVar16 coincidence
+  note for the sub-0x400 raw-size edge, registered with M-001's ladder);
+  parse/fixup/enum bound = record size; pseudo = chunk byte base +
+  in-chunk-offset/record_size; the $FN system filter + skip_system_files
+  flag + system_skipped counter removed (og-15 subsumed by the known-name
+  list; real metafiles always carry $SI SYSTEM|HIDDEN).
+- Tests: GuidDumpStrideIsRecordAligned (a 512-shifted dump record is never
+  examined; control: the aligned one is found), GuidDumpLargeRecordParsedFully
+  (2 KiB-record volume - the RecBuilder is now record-size-parametrized
+  with the USA-tail re-assertion in finish(); the fixture pushes attrs past
+  the old 1024 parse bound), MainWalkKeepsSystemFlaggedUserFile
+  (pagefile.sys-class $FN-SYSTEM user file surfaces). Fail-before PROVEN
+  3/3 (git-stash of the src/header changes only; tests kept). Suite
+  399/399 Linux ASan.
+- Hostile smoke: scripts/hostile_smoke_s012.cpp ported to the landed stats
+  shape - 300 mutated fixtures, 297 exercising the dump pass, ASan-clean.
+- Audit trail: S-012 Resolution addendum (findings/FIXED/); N-040 filed
+  (findings/FIXED/); PARITY-DELTAS D-51 corrected in place + the D-50/D-51
+  numbering collisions registered as errata (duplicate FAT D-51 heading
+  renumbered D-56; section-K bullets disambiguated); CROSS-REF-MATRIX row;
+  modules/ntfs.md session note; CAPABILITY-MATRIX note; SUMMARY session
+  delta. Also removed a stray untracked SEVERE/S-012 stub left by the
+  reconciliation (its content - this leg's addendum - merged into the
+  canonical FIXED/ finding).
+
+Stage Summary:
+- S-012 now carries a corpus-exact dump-walk stride, the og's pseudo
+  record# arithmetic, and an og-faithful pass-1 filter; N-040 closed.
+  The reconciliation honored the landed leg's more complete substrate
+  while landing this leg's verification delta. Suite 399/399.

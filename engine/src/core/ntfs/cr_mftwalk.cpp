@@ -713,10 +713,22 @@ u32 walk_mft(NtfsVolume* vol, VolumeBitmap* bitmap, const WalkerFlags& flags, Ca
                 recycle_rnd = tok;
             }
         }
-        if (flags.skip_system_files && (best->dos_flags & 0x04)) {
-            ++stats.system_skipped;
-            continue;
-        }
+        /* N-040 (diff-to-fix, verified first-hand): the og's pass-1
+         * attribute gate is FUN_180034b20 -> FUN_180040ea0 =
+         * (name in the og-15 metafile table via FUN_180040f20) AND
+         * ($STANDARD_INFORMATION attributes carry BOTH SYSTEM 0x4 AND
+         * HIDDEN 0x2). There is NO $FILE_NAME-flags system filter anywhere
+         * in the og's pass 1 - the old `dos_flags & 4` gate (header gloss
+         * "corpus: dos_flags & 4 -> skip") skipped a different set:
+         * $FN-SYSTEM user files (pagefile.sys, hiberfil.sys, bootmgr,
+         * desktop.ini-class) that the og KEEPS, while missing the og's
+         * SI-condition entirely. The og-15 name table is subsumed by the
+         * known-name list above (I-001 documented superset), and real
+         * metafiles always carry $SI SYSTEM|HIDDEN - so the name list
+         * alone reproduces the og's gate on every real volume, with the
+         * clean-SI/torn-SI edge staying inside I-001's registered
+         * divergence. The gate is removed; `skip_system_files` and the
+         * `system_skipped` counter went with it (dead surface). */
 
         const bool in_use = (rh.flags & RECORD_IN_USE) != 0;
         const bool is_dir = (rh.flags & RECORD_IS_DIRECTORY) != 0;
@@ -1272,20 +1284,39 @@ u32 walk_mft(NtfsVolume* vol, VolumeBitmap* bitmap, const WalkerFlags& flags, Ca
      *
      * Og FUN_18001a980/FUN_18001acc0: each collected dump file's $DATA is
      * read in <= 0x8000-sector chunks and parsed as MFT-record buffers.
-     * Stride: 0x400 (max(sector, 0x400)) after any successful parse - the
-     * record was consumed; 512 after a hole (magic/fixup/metafile/base
-     * record failure). Gates: 'FILE' magic, fixup over the record stride,
-     * og-15-table + hidden+system metafile gate, base-record != 0 ->
-     * hole. Survivors of the parse then face the destroy rules:
+     * STRIDE (corpus-exact, re-verified line-by-line this session):
+     * FUN_18001acc0 advances local_c0 by uVar19, which carries THREE
+     * distinct values depending on the path taken:
+     *   - uVar8  (the raw record size, vt[0x28] with the 0x200 fallback)
+     *     after a HOLE (magic/fixup/metafile/base-record failure,
+     *     LAB_18001b0cb :21293) AND after a successful emit (assigned at
+     *     :21151, never overwritten on the emit path);
+     *   - uVar16 (max(0x400, record size)) after a props-build failure
+     *     (LAB_18001b0b8 :21169), the (flags&4)/no-name/'$' skip, and the
+     *     destroy paths (LAB_18001b06f :21259).
+     * The two values coincide whenever the record size is >= 0x400 (the
+     * core's boot clamp guarantees exactly that), so a single record-size
+     * stride is corpus-exact here; the og's sub-0x400 divergence (uVar16
+     * 0x400 vs uVar8 512) is unreachable through the clamped params and
+     * stays registered with the M-001 ladder. The pre-correction code
+     * advanced holes by one SECTOR (512) - examining positions the og
+     * never visits - and used max(sector, 0x400) as the parse bound, which
+     * truncates 2 KiB/4 KiB MFT records.
+     * Gates: 'FILE' magic, fixup over the record size, og-15-table +
+     * hidden+system metafile gate, base-record != 0 -> hole. Survivors of
+     * the parse then face the destroy rules:
      *   - (dos_flags & 4) || no name || name[0] == '$'  -> destroyed
      *   - folders bypass everything else (never destroyed)
      *   - size <= 0x3ff                                   -> destroyed
      *   - else per-RUN viability: every non-sparse run's START cluster
      *     probed against the pass-1 claim map; all claimed -> destroyed
-     * Dedup: by the pseudo record number (absolute sector index of the
-     * record inside the dump), og FUN_18001acc0's record-# input. */
+     * Dedup: by the pseudo record number - the og's exact arithmetic
+     * (lVar18 = local_c0/record_size + chunk byte base, :21150-51; the
+     * record number is position-derived and synthetic, exactly like the
+     * og's). */
     if (flags.guid_dump_pass && !guid_dumps.empty()) {
-        const u32 stride = sector_bytes > 0x400 ? sector_bytes : 0x400;
+        const u64 rs = vol->params().record_size;
+        const u64 stride = rs; /* == max(0x400, rs) through the boot clamp */
         const u64 chunk_bytes = u64(0x8000) * sector_bytes;
         std::set<u64> seen;
         std::vector<u8> buf;
@@ -1305,18 +1336,18 @@ u32 walk_mft(NtfsVolume* vol, VolumeBitmap* bitmap, const WalkerFlags& flags, Ca
                      * partial record zero slack to fail against, same shape */
                     buf.assign(size_t(take) + stride, 0);
                     if (vol->read_at(run_base + off, buf.data(), u32(take)) != OK)
-                        break; /* read failure ends this run's dump */
-                    const u64 chunk_start_sector = (run_base + off) / sector_bytes;
+                        break;                             /* read failure ends this run's dump */
+                    const u64 chunk_base = run_base + off; /* og param_4 (bytes) */
                     u64 p = 0;
                     while (p + 4 <= take) {
                         if (std::memcmp(buf.data() + p, "FILE", 4) != 0) {
-                            p += sector_bytes; /* hole */
+                            p += rs; /* hole (og uVar8, LAB_18001b0cb) */
                             continue;
                         }
-                        /* candidate: copy the record stride, validate */
+                        /* candidate: copy the record, validate */
                         const u64 avail = buf.size() - p;
                         if (avail < stride) {
-                            p += sector_bytes;
+                            p += rs; /* hole */
                             continue;
                         }
                         std::memcpy(drec.data(), buf.data() + p, stride);
@@ -1325,7 +1356,7 @@ u32 walk_mft(NtfsVolume* vol, VolumeBitmap* bitmap, const WalkerFlags& flags, Ca
                         if (rh.magic != RECORD_MAGIC_FILE ||
                             fixup_apply(drec.data(), stride, rh.update_sequence_offset,
                                         rh.update_sequence_size, sector_bytes) != OK) {
-                            p += sector_bytes; /* hole (failed fixup) */
+                            p += rs; /* hole (failed fixup; og uVar8) */
                             continue;
                         }
                         /* og-15 metafile gate on the FIRST $FILE_NAME + $SI */
@@ -1355,17 +1386,17 @@ u32 walk_mft(NtfsVolume* vol, VolumeBitmap* bitmap, const WalkerFlags& flags, Ca
                                 }
                             }
                             if (have_name && have_si && og_pass2_metafile_gate(gname, gsi_flags)) {
-                                p += sector_bytes; /* hole (metafile) */
+                                p += rs; /* hole (metafile; og uVar8) */
                                 continue;
                             }
                         }
                         if (rh.base_record != 0) {
-                            p += sector_bytes; /* extension record: hole */
+                            p += rs; /* extension record: hole (og uVar8) */
                             continue;
                         }
-                        /* pseudo record# = absolute sector index (og
-                         * local_c0/sector_size + chunk start) */
-                        const u64 pseudo = p / sector_bytes + chunk_start_sector;
+                        /* pseudo record# = og lVar18 = in-chunk-offset/
+                         * record_size + chunk byte base (:21150-51) */
+                        const u64 pseudo = chunk_base + p / rs;
                         if (!seen.insert(pseudo).second) {
                             p += stride; /* already recovered from a dump */
                             continue;
@@ -1478,7 +1509,8 @@ u32 walk_mft(NtfsVolume* vol, VolumeBitmap* bitmap, const WalkerFlags& flags, Ca
                         emitted.push_back({dn, best2->parent_record, true});
                         ++stats.guid_dump_records;
                         ++stats.emitted;
-                        p += stride;
+                        p += rs; /* og uVar8: the emit path keeps the record
+                                  * stride assigned at :21151 */
                     }
                     off += take;
                 }

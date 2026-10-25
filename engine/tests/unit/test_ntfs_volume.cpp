@@ -87,32 +87,38 @@ private:
 struct RecBuilder {
     std::vector<u8> buf;
     u32 attr_pos = 0;
+    u64 rs_ = RECORD_SIZE; /* record size (S-012 stride pin: parametrizable) */
 
-    RecBuilder() { buf.assign(RECORD_SIZE, 0); }
+    explicit RecBuilder(u64 rs = RECORD_SIZE) : buf(size_t(rs), 0), rs_(rs) {}
 
     void header(u64 record_no, u16 flags) {
+        const u64 nsec = rs_ / SEC; /* USA: one slot per sector + the USN */
         auto* rh = reinterpret_cast<RecordHeader*>(buf.data());
         rh->magic = RECORD_MAGIC_FILE;
         rh->update_sequence_offset = 0x30;
-        rh->update_sequence_size = 3; /* 2 sectors + 1 */
+        rh->update_sequence_size = u16(nsec + 1);
         rh->sequence = 1;
         rh->link_count = 1;
-        rh->attribute_offset = 0x38;
+        /* the USA grows with the sector count (nsec+1 u16 slots); the first
+         * attribute must start past it, 8-aligned (0x38 for 1 KiB records,
+         * 0x40 for 2 KiB) */
+        const u32 aoff = u32((0x30 + (nsec + 1) * 2 + 7) / 8 * 8);
+        rh->attribute_offset = u16(aoff);
         rh->flags = flags;
-        rh->bytes_in_use = u32(RECORD_SIZE);
-        rh->bytes_allocated = u32(RECORD_SIZE);
+        rh->bytes_in_use = u32(rs_);
+        rh->bytes_allocated = u32(rs_);
         rh->base_record = 0;
         rh->record_number = u32(record_no);
-        attr_pos = 0x38;
-        /* USA: slot0 = USN 0x0BB8; slots 1,2 = originals */
-        u16 slots[3] = {0x0BB8, 0xAAAA, 0xBBBB};
-        for (int i = 0; i < 3; ++i) {
-            buf[0x30 + i * 2] = u8(slots[i]);
-            buf[0x30 + i * 2 + 1] = u8(slots[i] >> 8);
+        attr_pos = aoff;
+        /* USA: slot0 = USN 0x0BB8; slots 1..n = originals */
+        for (u64 i = 0; i <= nsec; ++i) {
+            const u16 v = i == 0 ? 0x0BB8 : u16(0xAAAA + i);
+            buf[size_t(0x30 + i * 2)] = u8(v);
+            buf[size_t(0x30 + i * 2 + 1)] = u8(v >> 8);
         }
         /* tails hold the USN (torn state) */
-        for (int i = 0; i < 2; ++i) {
-            u8* t = buf.data() + u64(i) * SEC + SEC - 2;
+        for (u64 i = 0; i < nsec; ++i) {
+            u8* t = buf.data() + i * SEC + SEC - 2;
             t[0] = 0xB8;
             t[1] = 0x0B;
         }
@@ -472,6 +478,15 @@ struct RecBuilder {
         attr_pos += 8;
         auto* rh = reinterpret_cast<RecordHeader*>(buf.data());
         rh->bytes_in_use = attr_pos;
+        /* re-assert the USA tails: long resident payloads can cross sector
+         * boundaries and clobber them (the on-disk state always carries the
+         * USN at every sector tail) */
+        const u64 nsec = rs_ / SEC;
+        for (u64 i = 0; i < nsec; ++i) {
+            u8* t = buf.data() + i * SEC + SEC - 2;
+            t[0] = 0xB8;
+            t[1] = 0x0B;
+        }
     }
 
     static void u32_from_bytes_le_wr_content(std::array<u8, 26>& v, size_t at, u32 x) {
@@ -1306,7 +1321,6 @@ TEST(NtfsVolume, EndToEndWalk) {
     auto* root_deleted = tree.add_root(u"Deleted");
     auto* root_lost = tree.add_root(u"Lost Files");
     WalkerFlags wf;
-    wf.skip_system_files = true;
     WalkStats stats;
     u32 rc = walk_mft(vol.get(), bm.get(), wf, nullptr, nullptr, nullptr, tree, root_active,
                       root_deleted, root_lost, stats);
@@ -1588,7 +1602,6 @@ TEST(NtfsVolume, ViabilityProbeUsesDataSize) {
     auto* root_deleted = tree.add_root(u"Deleted");
     auto* root_lost = tree.add_root(u"Lost Files");
     WalkerFlags wf;
-    wf.skip_system_files = true;
     WalkStats stats;
     u32 rc = walk_mft(vol.get(), bm.get(), wf, nullptr, nullptr, nullptr, tree, root_active,
                       root_deleted, root_lost, stats);
@@ -2598,6 +2611,196 @@ TEST(NtfsVolume, SizeZeroRescueSameNameMerge) {
     EXPECT_EQ(merged->props()->logical_size, 600u) << "size adopted from the same-name record";
     ASSERT_EQ(merged->props()->extents.size(), 1u);
     EXPECT_EQ(merged->props()->extents[0].offset, 190 * CLUSTER);
+}
+
+TEST(NtfsVolume, GuidDumpStrideIsRecordAligned) {
+    /* S-012 stride correction: the og's dump walk advances local_c0 by the
+     * RECORD SIZE on every path (uVar8 at :21151 and LAB_18001b0cb :21293;
+     * uVar16 = max(0x400, rs) only after props-fail/skip/destroy - equal to
+     * rs through the boot clamp). It NEVER strides by one sector: a stale
+     * record at a 512-shifted (non-record-aligned) dump offset is never
+     * examined. The pre-correction code advanced holes by 512 and found
+     * such records - a superset the og does not produce. */
+    std::vector<u8> rec;
+    {
+        Image base;
+        build_dump_image(base);
+        rec.assign(base.sec(D_DUMP_LCN), base.sec(D_DUMP_LCN) + RECORD_SIZE); /* zombie1.dat */
+    }
+    for (int shifted = 0; shifted <= 1; ++shifted) {
+        Image img;
+        build_dump_image(img);
+        /* wipe the whole dump, then place ONE stale record at either offset
+         * 0 (record-aligned) or offset 512 (sector-shifted) */
+        std::memset(img.sec(D_DUMP_LCN), 0, 8 * CLUSTER);
+        std::memcpy(img.sec(D_DUMP_LCN + (shifted ? 1 : 0)), rec.data(), RECORD_SIZE);
+        DumpWalkResult w;
+        ASSERT_NO_FATAL_FAILURE(walk_dump_image(img, w)) << "shifted=" << shifted;
+        tree::FileNode* z1 = find_node(w.all, "zombie1.dat");
+        if (shifted) {
+            EXPECT_EQ(nullptr, z1)
+                << "a 512-shifted dump record is never examined (og record-size stride)";
+            EXPECT_EQ(0u, w.stats.guid_dump_records);
+        } else {
+            ASSERT_NE(z1, nullptr) << "control: the record-aligned dump record is found";
+            EXPECT_GE(w.stats.guid_dump_records, 1u);
+        }
+    }
+}
+
+TEST(NtfsVolume, GuidDumpLargeRecordParsedFully) {
+    /* S-012 stride correction: on a 2 KiB-record volume (cpr=4) the dump
+     * pass must parse the FULL record - the pre-correction code bounded
+     * fixup/enum at max(sector, 0x400) = 1024 and lost every record whose
+     * attribute layout crossed that boundary. */
+    Image img;
+    {
+        RecBuilder b;
+        u8* bs = img.sec(0);
+        BootSector* boot = reinterpret_cast<BootSector*>(bs);
+        const char oem[8] = {'N', 'T', 'F', 'S', ' ', ' ', ' ', ' '};
+        std::memcpy(boot->oem, oem, 8);
+        boot->bytes_per_sector = SEC;
+        boot->sectors_per_cluster = 1;
+        boot->media_descriptor = 0xF8;
+        boot->total_sectors = NSECTORS;
+        boot->mft_lcn = 4;
+        boot->mftmirr_lcn = 60;
+        boot->clusters_per_record = 4; /* 2048-byte records */
+        boot->clusters_per_index_block = 2;
+        boot->checksum = 0;
+        bs[510] = 0x55;
+        bs[511] = 0xAA;
+    }
+    constexpr u64 RS2K = 2048;
+    /* record 0: $MFT - 48 clusters = 12 records of 2 KiB */
+    {
+        RecBuilder r(RS2K);
+        r.header(0, RECORD_IN_USE);
+        r.attr_file_name(5, u"$MFT", FILE_NAME_WIN32, 0x06, 48 * CLUSTER, 48 * CLUSTER);
+        r.attr_data_runlist(4, 48, 48 * CLUSTER);
+        r.finish();
+        std::memcpy(img.sec(4), r.buf.data(), RS2K);
+    }
+    /* record 1: $MFTMirr */
+    {
+        RecBuilder r(RS2K);
+        r.header(1, RECORD_IN_USE);
+        r.attr_file_name(5, u"$MFTMirr", FILE_NAME_WIN32, 0x06, 8 * CLUSTER, 8 * CLUSTER);
+        r.attr_data_runlist(60, 8, 8 * CLUSTER);
+        r.finish();
+        std::memcpy(img.sec(4 + 4), r.buf.data(), RS2K);
+        std::memcpy(img.sec(60), img.sec(4), RS2K);         /* rec0 copy */
+        std::memcpy(img.sec(60 + 4), img.sec(4 + 4), RS2K); /* rec1 copy */
+    }
+    /* record 5: root "." */
+    {
+        RecBuilder r(RS2K);
+        r.header(5, RECORD_IN_USE | RECORD_IS_DIRECTORY);
+        r.attr_si(0);
+        r.attr_file_name(5, u".", FILE_NAME_POSIX, 0x00, 0, 0);
+        r.attr_index_root();
+        r.finish();
+        std::memcpy(img.sec(4 + 4 * 5), r.buf.data(), RS2K);
+    }
+    /* record 8: the live GUID-named dump file, $DATA = LCN 200, 8 clusters
+     * (4096 bytes = two 2 KiB record slots) */
+    {
+        RecBuilder r(RS2K);
+        r.header(8, RECORD_IN_USE);
+        r.attr_si(0x20);
+        r.attr_file_name(5,
+                         u"{8c8d1e50-9f2e-4a1b-8e6f-3c2d5a4b7e90}"
+                         u"{3808876b-c176-4e48-b7ae-04046e6cc752}",
+                         FILE_NAME_WIN32_AND_DOS, 0x20, 4096, 4096);
+        r.attr_data_runlist(200, 8, 4096);
+        r.finish();
+        std::memcpy(img.sec(4 + 4 * 8), r.buf.data(), RS2K);
+    }
+    /* the dump content: one 2 KiB stale record at offset 0 with a resident
+     * $DATA large enough that the attribute walk crosses the 1024 boundary
+     * (terminator lands past 1 KiB - the pre-fix parse bound) */
+    {
+        RecBuilder r(RS2K);
+        r.header(17, 0);
+        r.attr_si(0x20);
+        r.attr_file_name(5, u"bigrec.dat", FILE_NAME_WIN32_AND_DOS, 0x20, 1100, 1100);
+        r.attr_data_resident(u"", 275); /* 1100 bytes of resident payload */
+        r.finish();
+        ASSERT_GT(r.attr_pos, 1024u) << "fixture: attributes must cross the 1 KiB boundary";
+        std::memcpy(img.sec(200), r.buf.data(), RS2K);
+    }
+    MemDevice dev(img.raw(), img.geom());
+    u32 err = 0;
+    auto vol = NtfsVolume::open(std::unique_ptr<IStorageDevice>(new MemDevice(dev)), &err);
+    ASSERT_NE(vol, nullptr) << "open err " << err_text(err);
+    EXPECT_EQ(2048u, vol->params().record_size);
+    tree::ResultTree tree;
+    auto* ra = tree.add_root(u"F");
+    auto* rd = tree.add_root(u"D");
+    auto* rl = tree.add_root(u"L");
+    WalkerFlags wf;
+    WalkStats stats;
+    ASSERT_EQ(OK,
+              walk_mft(vol.get(), nullptr, wf, nullptr, nullptr, nullptr, tree, ra, rd, rl, stats));
+    tree::FileNode* big = nullptr;
+    std::function<void(tree::FileNode*)> find = [&](tree::FileNode* n) {
+        for (tree::FileNode* c = n->first_child(); c; c = c->next_sibling()) {
+            if (c->name_utf8() == "bigrec.dat")
+                big = c;
+            find(c);
+        }
+    };
+    for (auto* r : tree.roots())
+        find(r);
+    ASSERT_NE(big, nullptr) << "a 2 KiB-record dump record must parse at the full record size";
+    EXPECT_EQ(big->props()->logical_size, 1100u);
+    EXPECT_FALSE(big->props()->resident_data.empty());
+}
+
+TEST(NtfsVolume, MainWalkKeepsSystemFlaggedUserFile) {
+    /* N-040: the og's pass-1 attribute gate is (og-15 metafile name) AND
+     * ($SI SYSTEM+HIDDEN) - FUN_180034b20 -> FUN_180040f20/FUN_180040ea0.
+     * There is NO $FILE_NAME-flags system filter: a user file carrying
+     * $FILE_NAME SYSTEM|HIDDEN flags (pagefile.sys-class) is KEPT. The old
+     * `dos_flags & 4` gate dropped exactly those files. */
+    Image img;
+    build_image(img);
+    {
+        RecBuilder r;
+        r.header(10, RECORD_IN_USE);
+        r.attr_si(0x20); /* $SI: ARCHIVE only - not the og's SYSTEM+HIDDEN gate */
+        r.attr_file_name(5, u"pagefile.sys", FILE_NAME_WIN32_AND_DOS, 0x06, 1024, 1024);
+        r.attr_data_runlist(150, 2, 1024);
+        r.finish();
+        std::memcpy(img.sec(MFT_LCN + 20), r.buf.data(), RECORD_SIZE);
+    }
+    MemDevice dev(img.raw(), img.geom());
+    u32 err = 0;
+    auto vol = NtfsVolume::open(std::unique_ptr<IStorageDevice>(new MemDevice(dev)), &err);
+    ASSERT_NE(vol, nullptr) << "open err " << err_text(err);
+    std::unique_ptr<VolumeBitmap> bm;
+    ASSERT_EQ(VolumeBitmap::load(vol.get(), bm), OK);
+    tree::ResultTree tree;
+    auto* ra = tree.add_root(u"F");
+    auto* rd = tree.add_root(u"D");
+    auto* rl = tree.add_root(u"L");
+    WalkerFlags wf;
+    WalkStats stats;
+    ASSERT_EQ(
+        OK, walk_mft(vol.get(), bm.get(), wf, nullptr, nullptr, nullptr, tree, ra, rd, rl, stats));
+    tree::FileNode* pf = nullptr;
+    std::function<void(tree::FileNode*)> find = [&](tree::FileNode* n) {
+        for (tree::FileNode* c = n->first_child(); c; c = c->next_sibling()) {
+            if (c->name_utf8() == "pagefile.sys")
+                pf = c;
+            find(c);
+        }
+    };
+    for (auto* r : tree.roots())
+        find(r);
+    ASSERT_NE(pf, nullptr) << "$FN-SYSTEM user files surface (og has no such filter)";
+    EXPECT_EQ(pf->deleted_state(), tree::DeletedState::Active);
 }
 
 /* ---- S-022: directory-entry second source (INDX + $INDEX_ROOT) ----------- */
