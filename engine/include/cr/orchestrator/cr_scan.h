@@ -39,21 +39,31 @@ enum class FsFamily : u8 {
     Ext4,
     /* 5 reserved (was CarvedOnly - never produced by probe_family nor
      * matched by the dispatch; the name is removed, the value is NOT
-     * renumbered because serialized fs_kind depends on it - FB-L03). */
+     * renumbered because serialized fs_kind depends on it - FB-L03).
+     * N-076: the anchor was MISSING since the Hfsplus landing - the
+     * auto-numbering had silently consumed value 5 (Hfsplus=5,
+     * BitLocker=9), contradicting every downstream contract that quotes
+     * the documented values (cr_ui's fs_hint cases 6..9, S-019's
+     * "BitLocker appended (value 10)", this very comment). The explicit
+     * anchor below restores the documented numbering; sessions written
+     * by the intermediate builds (fs_kind 5..9 for Hfsplus..BitLocker)
+     * predate any release and reload with an Unknown family at worst -
+     * never a wrong-family read (see the N-076 finding for the matrix). */
+    Reserved5 = 5, /* FB-L03 / N-076: held, never produced */
     /* Values 6..9 appended after v0.1.0: the serialized fs_kind numbers
      * 0..5 keep their meaning, so old sessions stay readable. */
-    Hfsplus,
-    Btrfs,
-    Zfs,
-    Refs,
+    Hfsplus = 6,
+    Btrfs = 7,
+    Zfs = 8,
+    Refs = 9,
     /* 10: S-019 - lost BitLocker (FVE) volumes; no walk engine (locked
      * encrypted content), the candidate surfaces as a locked volume. */
-    BitLocker,
-    /* 11: M-044 - UDF (the og's CFatVolumeAnalyser result 0xc). No
-     * structured engine exists on either side (no UDF SearchDLL in the
-     * og's 9-engine set): recognition + classification only, content
-     * recovery rides the carve stage, exactly the og's RAW disposition. */
-    Udf
+    BitLocker = 10,
+    /* 11: M-044 - UDF (the og's analyser result 0xc, "(UDF)" in DRWUI's
+     * label map). Recognition + classification only: the og has NO UDF
+     * structured engine (the 9-engine SearchDLL set), UDF content
+     * recovers through the RAW/carve family exactly like the og. */
+    Udf = 11
 };
 
 struct StageWeights {

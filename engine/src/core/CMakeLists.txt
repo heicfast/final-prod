@@ -35,6 +35,8 @@ add_library(cr_core STATIC
     zfs/cr_zfs_engine.cpp
     lost/cr_candidates.cpp
     crypto/cr_sha256.cpp
+    crypto/cr_aes.cpp
+    storage/cr_decrypt_device.cpp
     compress/cr_decomp.cpp
     carve/cr_registry.cpp
     carve/cr_analysers.cpp

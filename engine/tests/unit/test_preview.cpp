@@ -700,6 +700,230 @@ TEST(PreviewMeta, DocxRawDeflateInflatesAndPlainZipStaysZip) {
     EXPECT_EQ("zip", m2.format);
 }
 
+/* ---- M-028: the Caps.max_read contract on the docx/zip path + the
+ * compressed-extent disclosure (the audit's executed bypass scenario:
+ * evidence/executions/s4-preview-caps-bypass.md — 220,158-byte zip on
+ * one extent, max_read = 4096, pre-fix pulled 65,568 device bytes with
+ * truncated == false). ---- */
+
+/* The audit's crafted zip: LFH + "word/document.xml" + a large
+ * stored-deflate payload + CD + EOCD — total 220,158 bytes, so the EOCD
+ * is only reachable through the 64 KiB tail window. */
+static std::vector<u8> build_audit_zip() {
+    const std::string name = "word/document.xml";
+    const std::string plain(220'000, 'x'); /* incompressible body */
+    std::vector<u8> comp;
+    {
+        uLongf cl = compressBound(static_cast<uLong>(plain.size()));
+        comp.resize(cl);
+        z_stream zs{};
+        if (deflateInit2(&zs, 0 /* level 0 = stored blocks */, Z_DEFLATED, -15, 8,
+                         Z_DEFAULT_STRATEGY) != Z_OK)
+            return {};
+        zs.next_in = reinterpret_cast<Bytef*>(const_cast<char*>(plain.data()));
+        zs.avail_in = uInt(plain.size());
+        zs.next_out = comp.data();
+        zs.avail_out = uInt(comp.size());
+        if (deflate(&zs, Z_FINISH) != Z_STREAM_END) {
+            deflateEnd(&zs);
+            return {};
+        }
+        comp.resize(zs.total_out);
+        deflateEnd(&zs);
+    }
+    std::vector<u8> zip;
+    const auto put16 = [&zip](u16 v) {
+        zip.push_back(u8(v));
+        zip.push_back(u8(v >> 8));
+    };
+    const auto put32 = [&zip](u32 v) {
+        zip.push_back(u8(v));
+        zip.push_back(u8(v >> 8));
+        zip.push_back(u8(v >> 16));
+        zip.push_back(u8(v >> 24));
+    };
+    const size_t lfh_at = 0;
+    zip.insert(zip.end(), {'P', 'K', 3, 4});
+    put16(20);
+    put16(0);
+    put16(8);
+    put16(0);
+    put16(0);
+    put32(0);
+    put32(u32(comp.size()));
+    put32(u32(plain.size()));
+    put16(u16(name.size()));
+    put16(0);
+    zip.insert(zip.end(), name.begin(), name.end());
+    zip.insert(zip.end(), comp.begin(), comp.end());
+    const size_t cd_at = zip.size();
+    const size_t cd_len = 46 + name.size();
+    zip.insert(zip.end(), {'P', 'K', 1, 2});
+    put16(20);
+    put16(20);
+    put16(0);
+    put16(8);
+    put16(0);
+    put16(0);
+    put32(0);
+    put32(u32(comp.size()));
+    put32(u32(plain.size()));
+    put16(u16(name.size()));
+    put16(0);
+    put16(0);
+    put16(0);
+    put16(0);
+    put32(0);
+    put32(u32(lfh_at));
+    zip.insert(zip.end(), name.begin(), name.end());
+    zip.insert(zip.end(), {'P', 'K', 5, 6});
+    put16(0);
+    put16(0);
+    put16(1);
+    put16(1);
+    put32(u32(cd_len));
+    put32(u32(cd_at));
+    put16(0);
+    return zip;
+}
+
+TEST(PreviewMeta, DocxCapsMaxReadHonored) {
+    auto zip = build_audit_zip();
+    /* the audit's 220,158-byte geometry (zlib stored-block framing
+     * shifts a few bytes across versions); what matters: the EOCD is
+     * reachable ONLY through the 64 KiB tail window */
+    ASSERT_GT(zip.size(), 200'000u);
+    MemDevice dev(std::move(zip));
+    const u64 zlen = dev.geometry().total_bytes;
+    tree::FileProperties* pr = props_with("d.docx", zlen, 0,
+                                          {tree::FileProperties::Extent{0, zlen, 0, 0}});
+    PropsGuard g(pr);
+    PreviewReader r(&dev, pr);
+    Caps caps;
+    caps.max_read = 4096;
+    const Metadata m = extract_metadata(r, caps);
+    /* the documented invariant ("Untrusted input never makes the
+     * extractor read more than the caps allow"): either the pulls
+     * stayed within the budget or the truncated flag tells the truth */
+    EXPECT_TRUE(r.device_bytes() <= caps.max_read || m.truncated)
+        << "device_bytes=" << r.device_bytes() << " truncated=" << m.truncated;
+    /* the strong form: the tail fetch that would blow the budget is
+     * refused outright, so the device never sees the over-read */
+    EXPECT_LE(r.device_bytes(), caps.max_read);
+}
+
+TEST(PreviewMeta, DocxTailBeyondBudgetDegradesToZip) {
+    /* the same geometry with an honest degrade: the EOCD is unreachable
+     * under the budget -> the archive/zip label stands (never a docx
+     * claim built on over-budget reads) and truncated is set */
+    auto zip = build_audit_zip();
+    MemDevice dev(std::move(zip));
+    const u64 zlen = dev.geometry().total_bytes;
+    tree::FileProperties* pr = props_with("d.docx", zlen, 0,
+                                          {tree::FileProperties::Extent{0, zlen, 0, 0}});
+    PropsGuard g(pr);
+    PreviewReader r(&dev, pr);
+    Caps caps;
+    caps.max_read = 4096;
+    const Metadata m = extract_metadata(r, caps);
+    EXPECT_EQ("archive", m.kind);
+    EXPECT_EQ("zip", m.format);
+    EXPECT_TRUE(m.truncated);
+}
+
+TEST(PreviewMeta, CompressedExtentReportsTruncatedUnderBudget) {
+    /* a compressed extent whose packed block (psize) alone exceeds the
+     * budget: the whole-block read is refused BEFORE any device byte is
+     * issued (pre-fix: the full psize was pulled silently) */
+    if (!compress::codec_available(compress::kGzip))
+        GTEST_SKIP() << "gzip codec unavailable";
+    const std::string plain(96 * 1024, 'q'); /* -> ~96 KiB stored-deflate block */
+    uLongf cl = compressBound(static_cast<uLong>(plain.size()));
+    std::vector<u8> comp(cl);
+    {
+        z_stream zs{};
+        ASSERT_EQ(Z_OK, deflateInit2(&zs, 0, Z_DEFLATED, -15, 8, Z_DEFAULT_STRATEGY));
+        zs.next_in = reinterpret_cast<Bytef*>(const_cast<char*>(plain.data()));
+        zs.avail_in = uInt(plain.size());
+        zs.next_out = comp.data();
+        zs.avail_out = uInt(comp.size());
+        ASSERT_EQ(Z_STREAM_END, deflate(&zs, Z_FINISH));
+        comp.resize(zs.total_out);
+        deflateEnd(&zs);
+    }
+    ASSERT_GT(comp.size(), 4096u); /* the block alone busts the budget */
+    MemDevice dev(comp);
+    tree::FileProperties* pr = props_with("c.bin", plain.size(), 0,
+                                          {tree::FileProperties::Extent{
+                                              0, plain.size(), compress::kGzip, comp.size()}});
+    PropsGuard g(pr);
+    PreviewReader r(&dev, pr);
+    Caps caps;
+    caps.max_read = 4096;
+    const Metadata m = extract_metadata(r, caps);
+    EXPECT_TRUE(m.truncated);
+    EXPECT_LE(r.device_bytes(), caps.max_read);
+}
+
+TEST(PreviewMeta, CompressedExtentWholeBlockReadDisclosed) {
+    /* with a sufficient budget the whole packed block IS read (that is
+     * the documented compressed-extent cost: psize device bytes for any
+     * window into it) and extraction is not truncated */
+    if (!compress::codec_available(compress::kGzip))
+        GTEST_SKIP() << "gzip codec unavailable";
+    const std::string plain(8192, 'w');
+    uLongf cl = compressBound(static_cast<uLong>(plain.size()));
+    std::vector<u8> comp(cl);
+    {
+        z_stream zs{};
+        ASSERT_EQ(Z_OK, deflateInit2(&zs, 6, Z_DEFLATED, -15, 8, Z_DEFAULT_STRATEGY));
+        zs.next_in = reinterpret_cast<Bytef*>(const_cast<char*>(plain.data()));
+        zs.avail_in = uInt(plain.size());
+        zs.next_out = comp.data();
+        zs.avail_out = uInt(comp.size());
+        ASSERT_EQ(Z_STREAM_END, deflate(&zs, Z_FINISH));
+        comp.resize(zs.total_out);
+        deflateEnd(&zs);
+    }
+    MemDevice dev(comp);
+    tree::FileProperties* pr = props_with("c.bin", plain.size(), 0,
+                                          {tree::FileProperties::Extent{
+                                              0, plain.size(), compress::kGzip, comp.size()}});
+    PropsGuard g(pr);
+    PreviewReader r(&dev, pr);
+    Caps caps;
+    caps.max_read = 1u << 20;
+    const Metadata m = extract_metadata(r, caps);
+    /* the whole-block cost, disclosed: EVERY logical read over the
+     * compressed extent costs exactly psize device bytes (the reader
+     * has no block cache - the head fetch and the text-sniff fetch each
+     * re-read the packed block); the total is an exact multiple */
+    EXPECT_GE(r.device_bytes(), comp.size());
+    EXPECT_EQ(0u, r.device_bytes() % comp.size());
+    EXPECT_FALSE(m.truncated);
+}
+
+TEST(PreviewMeta, MetadataTruncatedFlagTruthfulAllPaths) {
+    /* the belt: on every path, an over-budget extraction MUST carry
+     * truncated == true — re-run the audit geometry and a mid-size zip
+     * under two budgets each and assert the invariant both ways */
+    auto zip = build_audit_zip();
+    for (const u32 budget : {4096u, 8192u, 70000u, 1u << 20}) {
+        MemDevice dev(zip);
+        const u64 zlen = dev.geometry().total_bytes;
+        tree::FileProperties* pr = props_with("d.docx", zlen, 0,
+                                              {tree::FileProperties::Extent{0, zlen, 0, 0}});
+        PropsGuard g(pr);
+        PreviewReader r(&dev, pr);
+        Caps caps;
+        caps.max_read = budget;
+        const Metadata m = extract_metadata(r, caps);
+        EXPECT_TRUE(r.device_bytes() <= caps.max_read || m.truncated)
+            << "budget=" << budget << " device_bytes=" << r.device_bytes()
+            << " truncated=" << m.truncated;
+    }
+}
+
 TEST(Preview, MalformedCapsExtentKeepsAlignment) {
     /* extent 1 carries a compressed codec with malformed caps (psize 0),
      * extent 2 is plain: the pre-fix code did not advance `done` past the

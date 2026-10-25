@@ -106,5 +106,19 @@ extern "C" int LLVMFuzzerTestOneInput(const u8* data, size_t size) {
         __builtin_trap(); /* bound violated */
     /* extractor over the same hostile node */
     (void)extract_metadata(reader);
+    /* M-028: hostile TIGHT budgets - the Caps contract must hold for any
+     * budget the consumer configures: either the extraction stayed
+     * inside it or truncated tells the truth. The budget is input-derived
+     * (0..64 KiB) so the campaign explores every boundary around the
+     * 64 KiB docx tail/CD windows and compressed-block sizes. */
+    {
+        Caps tight;
+        tight.max_read = 1 + u32(data[0] | (u32(data[1]) << 8)); /* 1..65536 */
+        tight.max_work = 4096;
+        const u64 b0 = reader.device_bytes();
+        const Metadata m = extract_metadata(reader, tight);
+        if (reader.device_bytes() - b0 > tight.max_read && !m.truncated)
+            __builtin_trap(); /* caps bypassed silently */
+    }
     return 0;
 }

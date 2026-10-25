@@ -29,17 +29,24 @@ audited this module (zero matrix row, zero findings) — session 4 is the first 
 - **P15-adjacent (grade re-run on preview)** — finding **S-023**: the og re-grades
   grade-1 nodes at preview/selection time; the core has no re-grade hook.
 - **P28-adjacent (parser grammar)** — `M`-with-defect: parsers are bounded and honest
-  (strict fetch, short-window guards) EXCEPT the docx path — finding **M-028**.
-- **P46 (contract documentation)** — finding **M-028**: the header's corpus anchors are
-  misattributed (the "4 MiB corpus preview window" is the og DEVICE read window
-  `Device_decompiled.c:56545`; the og's preview cap is 1 MiB; IInWindowStream is
-  7-Zip's), and the "All parsers obey Caps" claim is falsified by execution.
-- **P47/P49 (throughput/memory on untrusted input)** — finding **M-028** (executed:
-  65,568 device bytes pulled against a 4,096-byte cap, `truncated=false`; compressed
-  extents read whole `psize` ≤256 MiB per request).
-- **P65 (test coverage)** — finding **M-028**: the caps-bypass class is unpinned; TIFF/
-  WEBP dims, moov-at-end, kMaxRead/kMaxDecode, Caps truncation partially pinned by the
-  existing 14 tests.
+  (strict fetch, short-window guards) — the docx-path exception is CLOSED: **M-028
+  FIXED (s21)** (all four docx reads through the cap-gating `checked_read`).
+- **P46 (contract documentation)** — **M-028 FIXED (s21)**: the header now carries the
+  true anchors (og preview payload cap = 1 MiB at the UI socket layer, I-015;
+  IInWindowStream = the 7-Zip/LZMA input interface, vftable :800729-800735; the
+  core's 4 MiB kMaxRead = deliberate documented superset) and the compressed-extent
+  whole-block cost disclosure.
+- **P47/P49 (throughput/memory on untrusted input)** — **M-028 FIXED (s21)**: the
+  executed bypass (65,568 device bytes against a 4,096-byte cap, `truncated=false`)
+  is closed by cost-gated budgets — `PreviewReader::read_cost` prices every fetch
+  BEFORE the device is touched (compressed windows cost the whole psize block);
+  a 4 KiB budget now yields `device_bytes ≤ 4096, truncated=true, archive/zip`.
+- **P65 (test coverage)** — **M-028 FIXED (s21)**: the caps-bypass class is pinned
+  (DocxCapsMaxReadHonored / DocxTailBeyondBudgetDegradesToZip /
+  CompressedExtentReportsTruncatedUnderBudget /
+  CompressedExtentWholeBlockReadDisclosed / MetadataTruncatedFlagTruthfulAllPaths,
+  all fail-before against the executed scenario) + the fuzz harness gained the
+  input-derived tight-budget trap; the prior 14 tests unchanged and green.
 - **P54/P56 (module boundaries)** — `M`-equivalent (deliberate): in-process reader vs
   the og's socket protocol — register **I-015**.
 - **P69 (dead code)** — `M`: no stubs; all parsers live.
@@ -48,7 +55,7 @@ audited this module (zero matrix row, zero findings) — session 4 is the first 
 
 | ID | Severity | One-line |
 |---|---|---|
-| M-028 | MAJOR | Caps.max_read bypass on the zip/docx path (executed proof) + 4 MiB/IInWindowStream provenance misattributions + compressed-extent whole-block reads |
+| M-028 | MAJOR | Caps.max_read bypass on the zip/docx path (executed proof) + 4 MiB/IInWindowStream provenance misattributions + compressed-extent whole-block reads — **FIXED (s21)** |
 | I-015 | INFORMATIONAL | Preview architecture register: og socket protocol (1 MiB BMP cap, 602-byte header, 10 s wait, 100 MB eligibility) vs core in-process reader — deliberate |
 
 ## Not-audit-note

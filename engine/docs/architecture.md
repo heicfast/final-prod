@@ -33,7 +33,10 @@ platform transports (cr::win)               [Windows]
    RDA driver client (\\.\RDA\<token>\<d>\<p> | Volume\<n>) - PID-token handshake
    direct handles (\\.\PhysicalDriveN / HarddiskVolumeN) - reference duality
    enumeration (geometry 4Kn/512e, GPT/MBR via pure core)
-   BitLocker detect + legitimate unlock ONLY (fix F13)
+   BitLocker detect + legitimate unlock (fix F13) + in-stack XTS-AES
+   decrypt for user-key opt-in (M-033: DecryptingDevice wraps the volume
+   slice, per-sector LE-index tweaks; FVEK input surface; locked-without-
+   key refusal stands; password/BEK derivation = OQ-S20-1)
    Win32 DestIo (temp + atomic rename)
 ```
 

@@ -15,6 +15,8 @@
 #include <atomic>
 #include <cstdio>
 #include <filesystem>
+#include <fstream>
+#include <sstream>
 #include <string>
 
 #if defined(_WIN32)
@@ -41,6 +43,23 @@ inline std::string tmp_path(const char* prefix, const char* suffix) {
  * suite exits). One test binary writes it exactly once. */
 inline std::string tmp_file(const char* name) {
     return (std::filesystem::temp_directory_path() / name).string();
+}
+
+/* Whole-file read for the register-vs-source doc-truth pins (N-040 /
+ * N-045 lane): reads a repo file relative to CR_SOURCE_DIR (stamped by
+ * tests/CMakeLists.txt). ADD_FAILURE + empty string when the tree runs
+ * out-of-source without the define. */
+inline std::string read_repo_file(const char* relpath) {
+    const std::string path = std::string(CR_SOURCE_DIR) + "/" + relpath;
+    std::ifstream in(path, std::ios::binary);
+    if (!in) {
+        ADD_FAILURE() << "cannot open " << path
+                      << " (out-of-source run without CR_SOURCE_DIR?)";
+        return {};
+    }
+    std::ostringstream ss;
+    ss << in.rdbuf();
+    return ss.str();
 }
 
 } // namespace cr_test

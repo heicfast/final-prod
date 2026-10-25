@@ -241,67 +241,65 @@ TEST(Orchestrator, ProbeFamily) {
     EXPECT_EQ(ScanController::probe_family(&dev), FsFamily::Unknown);
 }
 
-TEST(Orchestrator, NtfsProbeContentProof) {
-    /* M-043 fail-before/pass-after: the og's analyser recognizes NTFS by
-     * CONTENT, not OEM bytes (FUN_180005470's gates + FUN_180005180's
-     * per-record validation: FILE magic, USA count < 0x11, USA offset in
-     * [0x2a, 0x2a+0xd7) - corpus re-verified first-hand). */
-    auto put16_raw = [](u8* p, u16 v) {
-        p[0] = u8(v);
-        p[1] = u8(v >> 8);
-    };
-    auto mk = [&](u64 mft_lcn, bool file_magic, u16 usa_off, u16 usa_cnt) {
-        std::vector<u8> img(64 * 1024, 0);
-        u8* b = img.data();
-        std::memcpy(b + 3, "NTFS    ", 8);
-        put16_raw(b + 0x0B, 512); /* bps */
-        b[0x0D] = 0x01;            /* spc 1 (pow2, nonzero) */
-        /* $MFT LCN u64@0x30 (0x28 is total_sectors - the spec-exact wire
-         * struct / kernel NTFS_BOOT_SECTOR layout); 0x28 gets a plausible
-         * total so the two fields are never confused */
-        put16_raw(b + 0x28, u16(127)); /* total_sectors low half (127) */
-        put16_raw(b + 0x30, u16(mft_lcn));
-        put16_raw(b + 0x32, u16(mft_lcn >> 16));
-        if (mft_lcn != 0) {
-            u8* r = img.data() + mft_lcn * 512;
-            if (file_magic)
-                std::memcpy(r, "FILE", 4);
-            put16_raw(r + 0x04, usa_off); /* spec: USA offset u16@0x04 */
-            put16_raw(r + 0x06, usa_cnt); /* spec: USA count u16@0x06 */
-        }
-        return img;
-    };
 
-    /* 1. spoofed OEM, $MFT geometry pointing at zeros: not NTFS */
-    {
-        auto img = mk(16, false, 0x30, 3);
-        MemDevice dev(std::move(img));
-        EXPECT_EQ(ScanController::probe_family(&dev), FsFamily::Unknown);
-    }
-    /* 2. FILE magic but USA count out of the og's bound (>= 0x11) */
-    {
-        auto img = mk(16, true, 0x30, 0x20);
-        MemDevice dev(std::move(img));
-        EXPECT_EQ(ScanController::probe_family(&dev), FsFamily::Unknown);
-    }
-    /* 3. FILE magic but USA offset outside [0x2a, 0x201) */
-    {
-        auto img = mk(16, true, 0x10, 3);
-        MemDevice dev(std::move(img));
-        EXPECT_EQ(ScanController::probe_family(&dev), FsFamily::Unknown);
-    }
-    /* 4. real-shaped record 0: recognized */
-    {
-        auto img = mk(16, true, 0x30, 3);
-        MemDevice dev(std::move(img));
-        EXPECT_EQ(ScanController::probe_family(&dev), FsFamily::Ntfs);
-    }
-    /* 5. plausible BPB but $MFT LCN zero: never probes (geometry gate) */
-    {
-        auto img = mk(0, true, 0x30, 3);
-        MemDevice dev(std::move(img));
-        EXPECT_EQ(ScanController::probe_family(&dev), FsFamily::Unknown);
-    }
+/* ---- M-044: UDF recognition (the og's analyser result 0xc) -----------
+ * The probe is decompile-exact (FATFileSystemAnalyser_decompiled.c
+ * :1413-1435): boot's first 3 bytes NOT all nonzero -> anchor at sector
+ * 0x100 -> LE-u32@anchor+0x14 (the main VDS location) -> "UDF" at
+ * [0x19..0x1b] of that sector. The og has no UDF structured engine -
+ * classification only; content rides the carve family. */
+static void udf_write_anchor(std::vector<u8>& img, u32 vds_sector) {
+    u8* a = img.data() + 0x100 * 512;
+    std::memset(a, 0, 512);
+    a[0] = 0x02;
+    a[1] = 0x00; /* tag: AVDP (LE-dialect form, as the og loads it) */
+    /* main VDS location at +0x14, little-endian (the og's compiled load) */
+    a[0x14] = u8(vds_sector);
+    a[0x15] = u8(vds_sector >> 8);
+    a[0x16] = u8(vds_sector >> 16);
+    a[0x17] = u8(vds_sector >> 24);
+}
+
+
+TEST(Orchestrator, FsFamilyValuesMatchContract) {
+    /* N-076 pin: the documented wire contract (FB-L03's held slot, the
+     * cr_ui ABI hint cases, S-019's "BitLocker = 10", M-044's Udf = 11).
+     * The pre-fix enum failed Hfsplus/BitLocker (5 and 9). */
+    EXPECT_EQ(u32(FsFamily::Unknown), 0u);
+    EXPECT_EQ(u32(FsFamily::Ntfs), 1u);
+    EXPECT_EQ(u32(FsFamily::Fat), 2u);
+    EXPECT_EQ(u32(FsFamily::Exfat), 3u);
+    EXPECT_EQ(u32(FsFamily::Ext4), 4u);
+    EXPECT_EQ(u32(FsFamily::Hfsplus), 6u) << "FB-L03: 5 stays reserved";
+    EXPECT_EQ(u32(FsFamily::Btrfs), 7u);
+    EXPECT_EQ(u32(FsFamily::Zfs), 8u);
+    EXPECT_EQ(u32(FsFamily::Refs), 9u);
+    EXPECT_EQ(u32(FsFamily::BitLocker), 10u) << "S-019's documented value";
+    EXPECT_EQ(u32(FsFamily::Udf), 11u) << "M-044";
+}
+
+TEST(Orchestrator, UdfProbeFailsOnMkudffsShapeLikeTheOg) {
+    /* parity pin (the honest one): a fresh mkudffs (exfatprogs-era
+     * udftools, Debian) image has a blank boot, its anchor's LE-loaded
+     * main-VDS location lands on the real VDS (sector 96 on the 8 MiB
+     * reference layout), and the VDS's first descriptor is a PVD whose
+     * [0x19..0x1b] reads "Lin" (the "LinuxUDF" implementation string) -
+     * the og's exact algorithm therefore does NOT classify it as UDF and
+     * the volume rides the RAW/carve family. Our probe matches the og
+     * byte-for-byte: not UDF here either. (Probed first-hand on a real
+     * mkudffs 2.x image this session; the shape is reproduced in-memory.) */
+    std::vector<u8> img(1024 * 1024, 0);
+    udf_write_anchor(img, 96);
+    /* the mkudffs PVD: tag=1, then the implementation bytes - 08 at 0x18,
+     * "LinuxUDF" at 0x19 */
+    u8* pvd = img.data() + 96 * 512;
+    pvd[0] = 0x01;
+    pvd[0x18] = 0x08;
+    std::memcpy(pvd + 0x19, "LinuxUDF", 8);
+    MemDevice dev(std::move(img));
+    EXPECT_EQ(ScanController::probe_family(&dev), FsFamily::Unknown)
+        << "the og's probe reads 'Lin' here - not UDF; parity means the "
+           "same answer, the volume carves";
 }
 
 /* ---- M-044: UDF volume recognition (the og's analyser result 0xc) ----

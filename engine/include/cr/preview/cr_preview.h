@@ -6,12 +6,23 @@
  * list (resident data first, then disk extents, sparse gaps zero-filled -
  * the writer's semantics, so previews match recovered bytes).
  *
- * Bounded by construction (aligned with the RE corpus preview contract
- * IInWindowStream: range reads under explicit caps):
+ * Bounded by construction (the core's own engineering contract: range
+ * reads under explicit caps - M-028 corrected the provenance: the og
+ * has NO in-engine preview reader; its preview payload cap is 1 MiB at
+ * the UI socket layer (I-015, DRWUI_decompiled.c :654557/:654601), and
+ * IInWindowStream is the 7-Zip/LZMA SDK's LZ input interface
+ * (vftable :800729-800735), not a preview contract. The core's 4 MiB
+ * kMaxRead is a deliberate superset - different layers, kept and
+ * documented):
  *   - read_at never materializes the file: exactly `len` bytes are
  *     assembled per call, `len` capped at kMaxRead (4 MiB);
  *   - logical_size bounds every access (EOF short reads);
  *   - compressed extents decode once per call with the 256 MiB guard;
+ *     NOTE (M-028 disclosure): any window into a compressed extent
+ *     reads and decodes the WHOLE packed block - a preview request over
+ *     a compressed extent costs psize device bytes regardless of the
+ *     requested length (compressed-extent previews need
+ *     caps.max_read >= psize to avoid the truncated disclosure);
  *   - device read failures zero-fill AND are reported in
  *     unreadable_spans() - never silently swallowed;
  *   - stateless per call: safe for concurrent readers over one device
@@ -19,7 +30,11 @@
  *
  * extract_metadata() adds size/time caps on top (bounded reads + work-unit
  * counters, no recursion); all parsers are fuzz targets. Untrusted input
- * never makes the extractor read more than the caps allow.
+ * never makes the extractor read more than the caps allow: every fetch is
+ * cost-gated through PreviewReader::read_cost BEFORE the device is touched
+ * (M-028 - the docx/zip path's direct reader reads and the compressed-extent
+ * whole-block cost are both inside the budget now), and a post-extraction
+ * belt marks truncated=true if any path still exceeded it.
  *
  * Licensed under the MIT license. See LICENSE.
  */
@@ -38,7 +53,9 @@ namespace preview {
 
 class PreviewReader {
 public:
-    /* Hard cap per read_at call (mirrors the corpus 4 MiB preview window). */
+    /* Hard cap per read_at call (the core's own engineering choice; the
+     * og's preview payload cap is 1 MiB at the UI socket layer - I-015 -
+     * a different layer; kept as a documented deliberate superset, M-028). */
     static constexpr u32 kMaxRead = 4u << 20;
     /* Compressed-extent decode guard (writer parity). */
     static constexpr u64 kMaxDecode = 256ull << 20;
@@ -65,6 +82,17 @@ public:
      * make the reader read more than requested). */
     u64 device_reads() const { return device_reads_; }
     u64 device_bytes() const { return device_bytes_; }
+
+    /* M-028: the device-byte cost of a read_at(logical_offset, len)
+     * BEFORE issuing it. Plain extents cost their overlapped length;
+     * COMPRESSED extents cost the whole packed block (psize — any window
+     * into a compressed extent decodes the block, so previewing one byte
+     * of a 64 KiB block costs 64 KiB of device reads); resident data and
+     * sparse gaps cost nothing; malformed compressed caps cost nothing
+     * (the read path refuses them without a device access). Mirrors
+     * read_at's extent arithmetic exactly — the Caps consumer consults
+     * this to enforce its budget BEFORE the bytes move. */
+    u64 read_cost(u64 logical_offset, u32 len) const;
 
 private:
     IStorageDevice* source_;

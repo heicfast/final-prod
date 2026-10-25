@@ -19,7 +19,7 @@ orchestrator pipe `src/core/orchestrator/cr_scan.cpp:595-614`.
 | Bounds enforcement (tail reads) | S35 | **DIVERGENCE-MAJOR** — M-016: og clamps+zero-fills+ succeeds; ours refuses (ours safer; og engines written against the zero-fill contract; og's tail memset has a sector-unit length defect) |
 | Ctor validation | Q43 | **DIVERGENCE-INFO** — I-012: ours eager, og deferred |
 | Construction points (lost candidates / volume gate / repair-analyze) | A57 | **M** (superset on repair-analyze) |
-| BitLocker placement | S61 | **DIVERGENCE-MAJOR** — M-017: og in-stack XTS-AES decrypt; ours pre-unlock gate (no decrypting device) |
+| BitLocker placement | S61 | **FIXED (DFX20 / M-033, this session)** — the in-stack XTS-AES decrypting device now exists: `DecryptingDevice : IStorageDevice` (cr_decrypt_device.h) wraps the volume slice with per-sector LE-index tweaks (the og's layer order, corpus arch doc §8); AES-128/256+XTS clean-room in cr_aes.cpp pinned byte-exact against pycryptodome AND OpenSSL EVP (the og's own cipher interface) + FIPS-197 KATs. Key surface = the og's GetFullVolumeEncryptionKey output shape (FVEK hex via `--bitlocker-fvek` / `cr_ui_open_volume_with_key`); locked-WITHOUT-key refusal preserved (S61 legitimate-unlock-only). The recovery-password/BEK→VMK→FVEK unwrap chain is out-of-corpus (ParserBitLocker datum parse behind opaque C++ graphs) — tracked-open OQ-S20-1. 13 tests in test_bitlocker_xts.cpp; suite 608/608. |
 | Write handling | A59 | **M** — no write path on either side's device interface |
 | Error model | S35 | **M+INFO** — I-012: per-call codes + ReadErrorMap superset; no sticky error |
 | Units/granularity | C20 | **DIVERGENCE-INFO** — I-012: bytes+alignment (superset of og sectors) |
@@ -34,7 +34,7 @@ orchestrator pipe `src/core/orchestrator/cr_scan.cpp:595-614`.
 | ID | Severity | One-line |
 |---|---|---|
 | M-016 | MAJOR | Tail-read semantics: og clamp+zero-fill vs our strict refusal |
-| M-017 | MAJOR | BitLocker: og in-stack decrypt vs our pre-unlock gate |
+| M-017 (= global M-033) | MAJOR | BitLocker: og in-stack decrypt vs our pre-unlock gate — **FIXED (DFX20, findings/FIXED/M-033)** |
 | M-018 | MAJOR | No NAS/remote device layer (CRemoteDevice/EuMrx) |
 | N-025 | MINOR | Cache budget 8 vs 4 MiB |
 | N-026 (=N-046) | MINOR — **FIXED (session 18, DFX18)** | No geometry refresh path — `PartitionSlice::refresh_geometry()` (og FUN_140643870 RefreshSectorSize-from-parent, DRWUI_decompiled.c:1044889-1044895) with revalidation hardening (misaligned/shrunken/zero-sector media changes refused, snapshot untouched); Slice.GeometryRefreshAfterMediaChange + GeometryRefreshRefusesInvalidatingChange |
@@ -68,7 +68,7 @@ storage devices audited here). Findings: M-032/M-033/M-034/N-045/N-046/I-017
 
 | ID | Severity | One-line |
 |---|---|---|
-| N-045 addendum → **FIXED (session 18, DFX18)** | — | Algorithm divergence added: og CStorageDeviceWithCache is a prefetch read-ahead engine (prefetch thread, 10-run window, 1000-sector runs) vs core reactive true-LRU; cite refreshed to cr_scan.cpp:647 / 256 KiB blocks. **Resolution:** budget + algorithm REGISTERED as PARITY-DELTAS D-72 (corpus cites re-verified first-hand: DRWUI_decompiled.c:919080-:919092 `0x400000/sector` + fallback 0x2000; ctor :962250-:962597); divergence block in cr_cached.h; benchmarking.md §4 intent note; doc-truth pin `Cached.ScanCacheBudgetIsTheRegisteredDivergence` (fail-before RED on the pre-fix tree, suite 592/592 after). Finding file in FIXED/. |
+| N-045 addendum → **FIXED (session 18, DFX18)** | — | Algorithm divergence added: og CStorageDeviceWithCache is a prefetch read-ahead engine (prefetch thread, 10-run window, 1000-sector runs) vs core reactive true-LRU; cite refreshed to cr_scan.cpp:647 / 256 KiB blocks. **Resolution:** budget + algorithm REGISTERED as PARITY-DELTAS D-75 (corpus cites re-verified first-hand: DRWUI_decompiled.c:919080-:919092 `0x400000/sector` + fallback 0x2000; ctor :962250-:962597); divergence block in cr_cached.h; benchmarking.md §4 intent note; doc-truth pin `Cached.ScanCacheBudgetIsTheRegisteredDivergence` (fail-before RED on the pre-fix tree, suite 592/592 after). Finding file in FIXED/. |
 | N-055 | MINOR | Enumeration breadth: og spans WMI+SetupAPI+VDS+StorageSpaces+FunctionDiscovery; core is the PhysicalDrive CreateFileW loop (cr_enumerate.cpp:15-60) |
 
 MATCH/verified registers from the never-cited-files read: cr_elevate's probe is a byte-shape

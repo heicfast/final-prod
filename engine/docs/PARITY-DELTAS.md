@@ -2040,6 +2040,24 @@ notes assumed does NOT exist on either side. Pinned by
 `NtfsVolume.MultiHopAttrlistOgParityStopsAtDepth1` (parity) and
 `NestedAttrlistChase` (the default), plus the deleted-chain depth test.
 
+## T. diff-to-fix session 20 (DFX20 MAJOR lane, 2026-10-26)
+
+**D-75 — BitLocker in-stack decrypt: FVEK-input key surface (M-033's
+documented scope).** The og acquires FVE keys through its full protector
+chain (user password/recovery-key/BEK → stretch → VMK → FVEK, inside
+BitLockerLib) and the DRWService auto-unlock pipe; the corpus pins that
+chain's existence and API symbols but NOT its byte interop (the FVE
+metadata datum parse sits behind opaque C++ object graphs in
+ParserBitLocker — verified first-hand; see tracked-open OQ-S20-1). The
+core's landed surface therefore takes the FVEK directly — the
+`BitLockerManager::GetFullVolumeEncryptionKey` output bytes (64/128 hex
+chars) — via `--bitlocker-fvek` (CLI) and `cr_ui_open_volume_with_key`
+(ABI). Everything else matches the og layer-for-layer: AES-XTS
+(pinned byte-exact against OpenSSL EVP, the og's own cipher interface),
+per-sector LE-index tweaks, decrypt below the engines, locked-without-key
+refusal preserved. Deliberate, documented, and temporary in intent: the
+derivation interop is the tracked next step. Do NOT remove the refusal
+path or the weak-key rejection when extending the key surface.
 ### D-74 — Slice tail-read refusal vs the og's clamp+zero-fill (M-032, ACCEPTED SAFETY DIVERGENCE)
 
 The og's virtual-volume layer (HFSPlusSearchDLL FUN_180009290 :7219-7264,
@@ -2085,7 +2103,6 @@ scans. Pinned by `Cached.ScanCacheBudgetIsTheRegisteredDivergence`
 (doc-truth pin: source constant + this row + the cr_cached.h divergence
 block must stay in lockstep).
 
->>>>>>> f6c2e36 (fix(N-045): scan-cache budget+algorithm registered as PARITY-DELTAS D-72 with doc-truth pin)
 
 ### D-73 — NTFS scan-path volume-end backup fallback (M-043, session 14; renumbered from a D-72 collision with the scan-cache register — the errata convention)
 

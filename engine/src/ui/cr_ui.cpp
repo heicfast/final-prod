@@ -41,6 +41,7 @@
 #include "cr/win/cr_enumerate.h"
 #include "cr/win/cr_health.h"
 #include "cr/win/cr_transport.h"
+#include "cr/storage/cr_decrypt_device.h" /* M-033: in-stack XTS wrapper */
 #include <windows.h>
 #include <share.h> /* _SH_DENYNO (S-008: shared image opens) */
 #else
@@ -313,6 +314,8 @@ u64 f_size_cb(void* user) {
 struct CrDevice {
     std::unique_ptr<IStorageDevice> dev;  /* the view handed to the core */
     std::unique_ptr<IStorageDevice> hold; /* parent disk (slices borrow it) */
+    std::unique_ptr<IStorageDevice> slice_hold; /* M-033: the slice under a
+                                                   decrypting device */
     u32 disk = 0;
     bool disk_known = false;
     u64 volume_len = 0; /* nonzero = a volume slice (not whole-disk) */
@@ -321,6 +324,9 @@ struct CrDevice {
      * shim can reopen the SAME bytes read-write for the consented repair. */
     std::string image_path;
     u64 image_offset = 0;
+    /* M-033: in-stack XTS decrypt is active on this view (locked volume
+     * scanned with a user-supplied FVEK). */
+    bool xts_layer = false;
 };
 
 /* read-only, sector-granular file-backed device (the portable source for
@@ -974,6 +980,82 @@ u32 open_volume_impl(char letter, cr_ui_device** out) {
     return ret_ok();
 }
 
+/* M-033: locked-volume open with a user-supplied FVEK - the in-stack
+ * XTS-AES decrypt path (the og's layer: FVE keys -> XTS decrypt below
+ * the engines; corpus architecture doc section 8 + the BitLockerLib
+ * artifact). utf8_hex_fvek: 64 hex chars (AES-128-XTS) or 128 (256).
+ * Without a key the locked-volume refusal (ERR_FVE_LOCKED) stands -
+ * this export is the opt-in the og's in-product key entry is. */
+u32 open_volume_with_key_impl(char letter, const char* utf8_hex_fvek, cr_ui_device** out) {
+    if (!out || !letter || !utf8_hex_fvek || !utf8_hex_fvek[0])
+        return ret_(ERR_BAD_PARAMETER, "bad argument: letter/key/out");
+    /* decode the hex key (strict) */
+    const size_t n = strlen(utf8_hex_fvek);
+    if (n != 64 && n != 128)
+        return ret_(ERR_BAD_PARAMETER,
+                    "FVEK must be 64 hex chars (AES-128-XTS) or 128 (AES-256-XTS)");
+    std::vector<u8> fvek(n / 2);
+    for (size_t k = 0; k < n; k += 2) {
+        int b = 0;
+        for (int j = 0; j < 2; j++) {
+            const int c = utf8_hex_fvek[k + j];
+            int v;
+            if (c >= '0' && c <= '9')
+                v = c - '0';
+            else if (c >= 'a' && c <= 'f')
+                v = c - 'a' + 10;
+            else if (c >= 'A' && c <= 'F')
+                v = c - 'A' + 10;
+            else
+                return ret_(ERR_BAD_PARAMETER, "FVEK: non-hex character at %zu", k);
+            b = (b << 4) | v;
+        }
+        fvek[k / 2] = u8(b);
+    }
+    const win::bitlocker::Status bst = win::bitlocker::status(wchar_t(letter));
+    if (bst == win::bitlocker::Status::Clear)
+        return ret_(ERR_BAD_PARAMETER, "%c: volume is not BitLocker-encrypted", letter);
+    if (bst == win::bitlocker::Status::Locked &&
+        win::bitlocker::try_auto_unlock(wchar_t(letter)) == OK) {
+        /* auto-unlock succeeded: the OS decrypts - the plain path */
+        return open_volume_impl(letter, out);
+    }
+    /* Locked or Unknown (locked volumes deny boot reads) with a user key:
+     * scan the raw extent through the in-stack decrypt device. */
+    u32 disk = 0;
+    u64 start = 0, len = 0;
+    if (!win::volume_extent(wchar_t(letter), &disk, &start, &len))
+        return ret_(ERR_OPEN_FAILED, "cannot map %c: to a disk extent", letter);
+    u32 err = 0, gle = 0;
+    std::unique_ptr<IStorageDevice> whole;
+    const char* transport = "direct";
+    if (win::rda_available(L"RDA", &gle)) {
+        if ((whole = win::open_rda_partition(L"RDA", disk, 0, &err)))
+            transport = "rda";
+    }
+    if (!whole && !(whole = win::open_physical_drive(disk, &err)))
+        return ret_(err ? err : u32(ERR_OPEN_FAILED), "cannot open disk %u for volume %c:", disk,
+                    letter);
+    auto slice = PartitionSlice::create(whole.get(), start, len, nullptr);
+    if (!slice)
+        return ret_(ERR_OPEN_FAILED, "slice creation failed for %c: (@%llu +%llu)", letter,
+                    static_cast<unsigned long long>(start), static_cast<unsigned long long>(len));
+    auto dec = DecryptingDevice::create(slice.get(), fvek.data(), fvek.size());
+    if (!dec)
+        return ret_(ERR_BAD_PARAMETER, "FVEK rejected (XTS-weak or malformed key material)");
+    auto* d = new CrDevice();
+    d->hold = std::move(whole);
+    d->slice_hold = std::move(slice);
+    d->dev = std::move(dec);
+    d->disk = disk;
+    d->disk_known = true;
+    d->volume_len = len;
+    d->transport = transport;
+    d->xts_layer = true;
+    *out = reinterpret_cast<cr_ui_device*>(d);
+    return ret_ok();
+}
+
 #else /* !_WIN32 */
 
 u32 open_disk_impl(uint32_t disk, cr_ui_device** out) {
@@ -986,6 +1068,14 @@ u32 open_volume_impl(char letter, cr_ui_device** out) {
     (void)letter;
     (void)out;
     return ret_(ERR_UNSUPPORTED, "cr_ui_open_volume requires the Windows platform layer");
+}
+
+u32 open_volume_with_key_impl(char letter, const char* utf8_hex_fvek, cr_ui_device** out) {
+    (void)letter;
+    (void)utf8_hex_fvek;
+    (void)out;
+    return ret_(ERR_UNSUPPORTED,
+                "cr_ui_open_volume_with_key requires the Windows platform layer");
 }
 
 #endif
@@ -1029,6 +1119,11 @@ extern "C" CR_UI_API uint32_t cr_ui_open_disk(uint32_t disk, cr_ui_device** out)
 }
 extern "C" CR_UI_API uint32_t cr_ui_open_volume(char letter, cr_ui_device** out) {
     return guarded(open_volume_impl, letter, out);
+}
+extern "C" CR_UI_API uint32_t cr_ui_open_volume_with_key(char letter,
+                                                        const char* utf8_hex_fvek,
+                                                        cr_ui_device** out) {
+    return guarded(open_volume_with_key_impl, letter, utf8_hex_fvek, out);
 }
 extern "C" CR_UI_API void cr_ui_device_close(cr_ui_device* dev) {
     if (!dev)
