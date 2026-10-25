@@ -1191,6 +1191,34 @@ spec-correct timestamps.
 `ExfatEngine.TimestampsZeroTzPassThrough` (tz = 0x00),
 `ExfatEngine.TimestampsMatchExplorerDisplay` (tz = 0x20).
 
+### D-51 — NTFS two-pass scan model (S-012, ACCEPTED as og parity)
+
+- **WHAT OG DOES:** pass 1 walks the live $MFT and emits EVERY record (deleted
+  included) with no viability destroy; a cluster claim map accumulates each
+  emitted record's extents (files $DATA, dirs $I30; live AND deleted). Pass 2
+  walks the $DATA of live `{*}{3808876b-c176-4e48-b7ae-04046e6cc752}`-named
+  MFT-dump files as record buffers (stride 0x400/512) and only THERE applies
+  destroy: `size <= 0x3ff`, all-run-STARTs claimed, `$`-prefix/system/unnamed;
+  folders are exempt. Deleted size-0 non-dir records take a rescue detour
+  ($MFTMirr resident harvest + same-name runlist adoption). Grading happens
+  downstream, never in the walk (OQ-S2M-1).
+- **WHAT WE DO (post-S-012):** exactly that architecture. `WalkerFlags::
+  destroy_fully_overwritten` now defaults FALSE (the S-001 in-walk destroy was
+  the mis-scope; TRUE remains as the opt-in honest-recovery inversion).
+  `guid_dump_pass` and `size_zero_rescue` default ON. The in-walk
+  `Confidence` grading is retained as the documented D15 superset (emitted
+  membership matches; grades are additive).
+- **NOTES:** claim map is cluster-granular (og: sector-granular bitmap; probe
+  outcomes identical for cluster-aligned run starts). Dump records dedup by
+  the pseudo record number (absolute sector index) within pass 2 and resolve
+  parents against pass-1 emissions (unresolved -> lost root). The og's in-walk
+  strict same-name merge is not replicated (its candidate map is empty at
+  rescue time by construction); the relaxed post-walk pass is the dominant
+  og path. Pinned by NtfsVolume.{MainWalkKeepsOverwrittenDeleted,
+  GuidDumpPassRecoversReusedRecord, GuidDumpDestroyRules,
+  SizeZeroRescueFromMftCopy, SizeZeroRescueSameNameMerge}.
+- **STATUS:** ACCEPTED (og parity; diff-to-fix S-012 FIXED).
+
 ### D-50 — Lost-partition superblock probes: ext parity + HFS+/Btrfs/ZFS/ReFS superset anchors (S-006)
 
 **Class:** parity (ext) + deliberate superset (HFS+/Btrfs/ZFS/ReFS) · **Finding:** diff-to-fix S-006 (SEVERE, FIXED) · **Date:** 2026-10-26

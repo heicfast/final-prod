@@ -46,6 +46,12 @@ public:
      * for records 0..3 lives INSIDE read_record (corpus bootstrap path). */
     u32 read_record(u64 record_no, std::vector<u8>& out);
 
+    /* S-012 size-0 rescue: read one MFT record STRICTLY from the $MFTMirr
+     * copy (mirror-first; read_record prefers the primary). Returns
+     * ERR_RANGE_OUT_OF_BOUNDS when the mirror does not cover the record.
+     * The og rescue chain reads MFT copies this way (FUN_18001e120). */
+    u32 read_record_mirror(u64 record_no, std::vector<u8>& out);
+
     const VolumeParams& params() const { return p_; }
     u64 max_record_no() const {
         if (p_.record_size == 0)

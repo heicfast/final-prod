@@ -236,7 +236,7 @@ by session 2's line-by-line decompile read. Three new findings + one minor:
 ## Session-2 update (2026-10-25, core `e93decf`) — decompile-exhaustive re-read
 
 **Verdict changes (decompile-verified; quotes in `../evidence/decompiled-quotes/ntfs-pass2-guid-dump.md`):**
-- **B1/B4/D15 → S-012 (SEVERE, new):** the og is two-pass — pass 1 emits every live-MFT
+- **B1/B4/D15 → S-012 FIXED (diff-fix session; two-pass landed):** the og is two-pass — pass 1 emits every live-MFT
   record (deleted included) **ungraded, never destroyed**; the viability/destroy/0x3ff machinery
   lives in a **GUID-dump pass 2** the core does not have. The S-001 destroy fix (landed, moved
   to resolved/) implemented a pass-2 rule in the core's only walk — mis-scoped; default flags

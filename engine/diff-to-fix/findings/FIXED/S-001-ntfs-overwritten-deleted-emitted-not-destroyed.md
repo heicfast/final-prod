@@ -196,3 +196,13 @@ This file stays in FIXED/ (the remediation implemented the finding's plan exactl
 sparse-run sub-fix verified correct); S-012 carries the corrected model and the rework plan.
 The corpus docs that fed the original mis-scoping are recorded in I-011 (both NTFS artifacts
 describe pass 2 only).
+
+
+### S-012 scope correction (diff-fix session)
+
+The destroy rule decoded here was correct but landed in the wrong pass: the og applies
+it ONLY in the GUID-dump pass 2, never in the live walk (S-012, superseding this
+finding's scope premise). The diff-fix session restored pass-1 membership (default
+flip) and landed the full two-pass model — see FIXED/S-012-*.md and D-51. The
+`destroy_fully_overwritten=true` mode this fix shipped remains available as the
+opt-in honest-recovery inversion.

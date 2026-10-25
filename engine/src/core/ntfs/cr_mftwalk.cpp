@@ -262,6 +262,35 @@ static bool is_metafile_name(const std::u16string& n) {
 
 constexpr u64 REMNANT_BLOCK = 4ull << 20;
 
+/* ---- S-012 pass 2 helpers ----
+ *
+ * Og dump-file name shape (collection site :18584-18625): a 0x4C-char name,
+ * '{' at [0], '}' at [37], and the fixed 38-char magic GUID at [38..75] -
+ * i.e. "{<dump-id-guid>}{3808876b-c176-4e48-b7ae-04046e6cc752}" (the
+ * memcmp at :18607-09 compares the last 0x26 bytes against the template
+ * with its NUL, and the separate pcVar13[-1]=='}' check pins [37]). */
+static bool is_guid_dump_name(const std::u16string& n) {
+    static const std::u16string kMagic = u"{3808876b-c176-4e48-b7ae-04046e6cc752}";
+    return n.size() == 0x4C && n[0] == u'{' && n[37] == u'}' && n[38] == u'{' && n[75] == u'}' &&
+           n.compare(38, 38, kMagic) == 0;
+}
+
+/* Og pass-2 metafile gate (FUN_180034b20 -> FUN_180040ea0/FUN_180040f20):
+ * FIRST $FILE_NAME's name matched against the classic 15-entry table AND
+ * the $STANDARD_INFORMATION dos_flags carrying BOTH hidden (0x02) and
+ * system (0x04). (Pass 1 keeps the core's wider 20-entry table - I-001.) */
+static bool og_pass2_metafile_gate(const std::u16string& name, u64 si_flags) {
+    static const std::u16string kOg15[] = {
+        u"$MFT",     u"$MFTMirr", u"$LogFile", u"$Volume", u"$AttrDef",
+        u"$Bitmap",  u"$Boot",    u"$BadClus", u"$Secure", u"$UpCase",
+        u"$Extend",  u"$Quota",   u"$ObjId",   u"$Reparse", u"$RmMetadata"};
+    for (const std::u16string& m : kOg15)
+        if (name == m)
+            return (si_flags & 0x06) == 0x06;
+    return false;
+}
+
+
 /* NTFS compression-block envelope expansion (GAP-P1-1).
  *
  * A compressed nonresident $DATA stores per-COMPRESSION-UNIT streams:
@@ -386,11 +415,49 @@ u32 walk_mft(NtfsVolume* vol, VolumeBitmap* bitmap, const WalkerFlags& flags, Ca
              WalkStats& stats) {
     if (vol == nullptr || root_active == nullptr || root_deleted == nullptr || root_lost == nullptr)
         return ERR_BAD_PARAMETER;
-
     const u32 sector_bytes = vol->params().sector_bytes;
     const u64 max_record = vol->max_record_no();
     std::vector<EmittedNode> emitted;
     emitted.reserve(4096);
+
+    /* ---- S-012 pass-2 state (built during the walk) ----
+     *
+     * Claim map: cluster bitmap over every record's extents as the walk
+     * emits it (files claim $DATA runs, dirs claim $I30 runs - the og's
+     * FUN_180017190 insertions at :18525, live AND deleted records alike:
+     * the skip-deleted config bit engine+0x258 defaults off). The dump pass
+     * probes each run's START cluster against this map - NOT against the
+     * volume $Bitmap (the og's viability input is pass-1 claim state). */
+    std::vector<u8> claim_map;
+    const u64 total_clusters = vol->params().total_clusters;
+    if (flags.guid_dump_pass && total_clusters > 0)
+        claim_map.assign(size_t((total_clusters + 7) / 8), 0);
+    auto claim_runlist = [&claim_map](const RunList& rl) {
+        if (claim_map.empty())
+            return;
+        for (const DataRun& dr : rl.runs()) {
+            if (dr.sparse || dr.length == 0)
+                continue;
+            for (u64 c = dr.lcn; c < dr.lcn + dr.length && (c >> 3) < claim_map.size(); ++c)
+                claim_map[size_t(c >> 3)] |= u8(1u << (c & 7));
+        }
+    };
+    auto claim_test = [&claim_map](u64 cluster) -> bool {
+        if (claim_map.empty() || (cluster >> 3) >= claim_map.size())
+            return false;
+        return (claim_map[size_t(cluster >> 3)] & (1u << (cluster & 7))) != 0;
+    };
+    /* live `{GUID}{3808876b-c176-4e48-b7ae-04046e6cc752}`-named dump files
+     * (og collection :18584-18625: live only, name length 0x4C, '{' head,
+     * '}' at [37], the 38-char magic GUID at [38..75]). */
+    std::vector<RunList> guid_dumps;
+    /* S-012 size-0 rescue: records that took the rescue path but found no
+     * mirror content - the post-walk same-name merge retries them. */
+    struct PendingRescue {
+        u64 record_no;
+        std::u16string name;
+    };
+    std::vector<PendingRescue> pending_rescue;
 
     /* $Extend/$UsnJrnl:$J capture (harvest input) */
     RunList usn_runs;
@@ -648,6 +715,66 @@ u32 walk_mft(NtfsVolume* vol, VolumeBitmap* bitmap, const WalkerFlags& flags, Ca
 
         const bool in_use = (rh.flags & RECORD_IN_USE) != 0;
         const bool is_dir = (rh.flags & RECORD_IS_DIRECTORY) != 0;
+
+        /* ---- S-012 pass-2 state accumulation (og :18525/:18584-18625) ----
+         *
+         * Every record reaching emission claims its extents into the
+         * pass-1 claim map (live AND deleted; the og's skip-deleted config
+         * bit defaults off). Live files whose name is the two-GUID dump
+         * pattern are collected for the post-walk dump pass. */
+        if (flags.guid_dump_pass) {
+            claim_runlist(is_dir ? i30_runs : data_runs);
+            if (in_use && is_guid_dump_name(best->name)) {
+                guid_dumps.push_back(is_dir ? i30_runs : data_runs);
+                ++stats.guid_dump_files;
+            }
+        }
+
+        /* ---- S-012 size-0 rescue gate (og :18493-18499) ----
+         *
+         * Deleted non-directory size-0 records take the rescue detour:
+         * harvest resident $DATA from the $MFTMirr copy (fixup + record#
+         * validated, og FUN_18001e120/FUN_18001dd80). Compressed
+         * (0x800-flagged) records skip the rescue chain entirely (og
+         * FUN_18001d690 entry gate). Records the mirror cannot serve stay
+         * pending for the post-walk same-name merge. */
+        if (flags.size_zero_rescue && !in_use && !is_dir && data_runs.empty() &&
+            (data_real_size ? data_real_size : best->real_size) == 0 &&
+            (best->dos_flags & 0x800) == 0) {
+            std::vector<u8> mrec;
+            if (vol->read_record_mirror(record_no, mrec) == OK && mrec.size() >= 0x38) {
+                RecordHeader mrh;
+                std::memcpy(&mrh, mrec.data(), sizeof(mrh));
+                if (mrh.magic == RECORD_MAGIC_FILE && mrh.base_record == 0 &&
+                    u64(mrh.record_number) == record_no &&
+                    fixup_apply(mrec.data(), u32(mrec.size()), mrh.update_sequence_offset,
+                                mrh.update_sequence_size, sector_bytes) == OK) {
+                    std::vector<AttrView> mattrs;
+                    if (enum_attributes(mrec.data(), u32(mrec.size()), mattrs) == OK) {
+                        for (const AttrView& a : mattrs) {
+                            if (a.type != ATTR_TYPE_DATA || a.name_length != 0 || a.nonresident)
+                                continue;
+                            const u8* d = nullptr;
+                            u32 dlen = 0;
+                            if (resident_span(a, d, dlen) == OK && dlen > 0) {
+                                /* mirror keeps the older bytes with the
+                                 * resident stream intact - adopt them
+                                 * (has_data: the emission path's resident
+                                 * branch must run even when the primary
+                                 * record carried no $DATA at all) */
+                                unnamed_resident.assign(d, d + dlen);
+                                data_real_size = dlen;
+                                has_data = true;
+                                ++stats.size_zero_rescued;
+                                break;
+                            }
+                        }
+                    }
+                }
+            }
+            if (data_real_size == 0)
+                pending_rescue.push_back({record_no, best->name});
+        }
 
         /* viability grading (fix F5 + corpus gate) */
         tree::Confidence conf = tree::Confidence::Unknown;
@@ -1096,6 +1223,260 @@ u32 walk_mft(NtfsVolume* vol, VolumeBitmap* bitmap, const WalkerFlags& flags, Ca
                 ++stats.usn_names;
             }
             jp2->release();
+        }
+    }
+
+    /* ---- phase D: S-012 pass 2 - the GUID-dump walk ----
+     *
+     * Og FUN_18001a980/FUN_18001acc0: each collected dump file's $DATA is
+     * read in <= 0x8000-sector chunks and parsed as MFT-record buffers.
+     * Stride: 0x400 (max(sector, 0x400)) after any successful parse - the
+     * record was consumed; 512 after a hole (magic/fixup/metafile/base
+     * record failure). Gates: 'FILE' magic, fixup over the record stride,
+     * og-15-table + hidden+system metafile gate, base-record != 0 ->
+     * hole. Survivors of the parse then face the destroy rules:
+     *   - (dos_flags & 4) || no name || name[0] == '$'  -> destroyed
+     *   - folders bypass everything else (never destroyed)
+     *   - size <= 0x3ff                                   -> destroyed
+     *   - else per-RUN viability: every non-sparse run's START cluster
+     *     probed against the pass-1 claim map; all claimed -> destroyed
+     * Dedup: by the pseudo record number (absolute sector index of the
+     * record inside the dump), og FUN_18001acc0's record-# input. */
+    if (flags.guid_dump_pass && !guid_dumps.empty()) {
+        const u32 stride = sector_bytes > 0x400 ? sector_bytes : 0x400;
+        const u64 chunk_bytes = u64(0x8000) * sector_bytes;
+        std::set<u64> seen;
+        std::vector<u8> buf;
+        std::vector<u8> drec(stride); /* fixup scratch */
+        for (const RunList& rl : guid_dumps) {
+            for (const DataRun& dr : rl.runs()) {
+                if (dr.sparse || dr.length == 0)
+                    continue;
+                const u64 run_base = dr.lcn * vol->params().cluster_bytes;
+                const u64 run_total = dr.length * vol->params().cluster_bytes;
+                u64 off = 0;
+                while (off < run_total) {
+                    if (cancel && cancel->checkpoint())
+                        return ERR_CANCELLED;
+                    const u64 take = run_total - off < chunk_bytes ? run_total - off : chunk_bytes;
+                    /* + stride slack: the og's 32 MiB buffer gives the last
+                     * partial record zero slack to fail against, same shape */
+                    buf.assign(size_t(take) + stride, 0);
+                    if (vol->read_at(run_base + off, buf.data(), u32(take)) != OK)
+                        break; /* read failure ends this run's dump */
+                    const u64 chunk_start_sector = (run_base + off) / sector_bytes;
+                    u64 p = 0;
+                    while (p + 4 <= take) {
+                        if (std::memcmp(buf.data() + p, "FILE", 4) != 0) {
+                            p += sector_bytes; /* hole */
+                            continue;
+                        }
+                        /* candidate: copy the record stride, validate */
+                        const u64 avail = buf.size() - p;
+                        if (avail < stride) {
+                            p += sector_bytes;
+                            continue;
+                        }
+                        std::memcpy(drec.data(), buf.data() + p, stride);
+                        RecordHeader rh;
+                        std::memcpy(&rh, drec.data(), sizeof(rh));
+                        if (rh.magic != RECORD_MAGIC_FILE ||
+                            fixup_apply(drec.data(), stride, rh.update_sequence_offset,
+                                        rh.update_sequence_size, sector_bytes) != OK) {
+                            p += sector_bytes; /* hole (failed fixup) */
+                            continue;
+                        }
+                        /* og-15 metafile gate on the FIRST $FILE_NAME + $SI */
+                        {
+                            std::vector<AttrView> gattrs;
+                            std::u16string gname;
+                            u64 gsi_flags = 0;
+                            bool have_name = false, have_si = false;
+                            if (enum_attributes(drec.data(), stride, gattrs) == OK) {
+                                for (const AttrView& a : gattrs) {
+                                    if (!have_name && a.type == ATTR_TYPE_FILE_NAME) {
+                                        FileNameInfo fi{};
+                                        if (parse_file_name(a, fi) == OK && !fi.name.empty()) {
+                                            gname = fi.name;
+                                            have_name = true;
+                                        }
+                                    } else if (!have_si &&
+                                               a.type == ATTR_TYPE_STANDARD_INFORMATION) {
+                                        StandardInfo gsi;
+                                        if (parse_standard_information(a, gsi) == OK) {
+                                            gsi_flags = gsi.dos_flags;
+                                            have_si = true;
+                                        }
+                                    }
+                                    if (have_name && have_si)
+                                        break;
+                                }
+                            }
+                            if (have_name && have_si && og_pass2_metafile_gate(gname, gsi_flags)) {
+                                p += sector_bytes; /* hole (metafile) */
+                                continue;
+                            }
+                        }
+                        if (rh.base_record != 0) {
+                            p += sector_bytes; /* extension record: hole */
+                            continue;
+                        }
+                        /* pseudo record# = absolute sector index (og
+                         * local_c0/sector_size + chunk start) */
+                        const u64 pseudo = p / sector_bytes + chunk_start_sector;
+                        if (!seen.insert(pseudo).second) {
+                            p += stride; /* already recovered from a dump */
+                            continue;
+                        }
+                        /* full props build from the fixed-up record */
+                        std::vector<AttrView> attrs;
+                        std::vector<AttrListEntry> attrlist;
+                        std::vector<FileNameInfo> names;
+                        RunList data_runs2, i30_runs2;
+                        bool has_data2 = false, has_i30_2 = false, has_si2 = false;
+                        u64 data_real2 = 0;
+                        bool data_comp2 = false;
+                        u16 data_cunit2 = 0;
+                        tree::FileTimes si_times2{};
+                        tree::FileProperties* scratch2 = nullptr;
+                        std::vector<u8> resident2;
+                        if (enum_attributes(drec.data(), stride, attrs) != OK ||
+                            build_props(vol, attrs, pseudo, rh.flags, scratch2, attrlist, names,
+                                        data_runs2, has_data2, i30_runs2, has_i30_2, si_times2,
+                                        has_si2, resident2, data_real2, data_comp2,
+                                        data_cunit2) != OK ||
+                            names.empty()) {
+                            p += stride;
+                            continue;
+                        }
+                        const FileNameInfo* best2 = &names[0];
+                        for (const FileNameInfo& n : names)
+                            if (namespace_rank(n.namespace_type) >=
+                                namespace_rank(best2->namespace_type))
+                                best2 = &n;
+                        const bool is_dir2 = (rh.flags & RECORD_IS_DIRECTORY) != 0;
+                        const u64 size2 = data_real2 ? data_real2 : best2->real_size;
+                        /* destroy: system-flagged, unnamed, or $-prefixed */
+                        if ((best2->dos_flags & 0x04) != 0 || best2->name.empty() ||
+                            best2->name[0] == u'$') {
+                            ++stats.guid_dump_destroyed;
+                            p += stride;
+                            continue;
+                        }
+                        bool destroyed = false;
+                        tree::Confidence conf2 = tree::Confidence::PartialRisk;
+                        if (!is_dir2) {
+                            if (size2 <= 0x3ff) {
+                                /* og dump-pass rule: tiny records are noise */
+                                destroyed = true;
+                            } else if (has_data2 && !data_runs2.empty()) {
+                                u64 total = 0, intact = 0;
+                                for (const DataRun& dr2 : data_runs2.runs()) {
+                                    if (dr2.sparse || dr2.length == 0)
+                                        continue;
+                                    ++total;
+                                    if (claim_test(dr2.lcn))
+                                        ++intact;
+                                }
+                                if (total > 0 && intact == total)
+                                    destroyed = true; /* every run START claimed */
+                            }
+                            /* no runlist object (resident/empty): survives
+                             * (og puVar12 == 0 -> straight to the emit) */
+                        }
+                        if (destroyed) {
+                            ++stats.guid_dump_destroyed;
+                            p += stride;
+                            continue;
+                        }
+                        /* emit the dump-recovered node */
+                        tree::FileProperties* dp = new (std::nothrow) tree::FileProperties();
+                        if (dp == nullptr)
+                            return ERR_NO_MEMORY;
+                        dp->record_ref = pseudo | (u64(rh.sequence) << 48);
+                        dp->fs_kind = u32(FsKindCode::Ntfs);
+                        dp->name = best2->name;
+                        dp->logical_size = size2;
+                        dp->allocated_size = best2->allocated_size;
+                        dp->times = has_si2 ? si_times2 : best2->times;
+                        dp->attributes = u16(best2->dos_flags & 0xFF) | (is_dir2 ? 0x10 : 0);
+                        dp->flags = u16(is_dir2 ? PFLAG_IS_DIR : 0);
+                        if (has_data2 && !data_runs2.empty()) {
+                            std::vector<RunList::Extent> ex;
+                            data_runs2.extents(ex);
+                            for (const auto& e : ex)
+                                dp->extents.push_back(
+                                    {e.lcn * vol->params().cluster_bytes,
+                                     e.clusters * vol->params().cluster_bytes});
+                        } else if (!resident2.empty() && !is_dir2) {
+                            dp->resident_data = std::move(resident2);
+                        }
+                        /* parent: resolve against pass-1 records; unresolved
+                         * -> lost root (dump records are deleted evidence) */
+                        tree::FileNode* host = root_lost;
+                        auto pit = by_record.find(best2->parent_record);
+                        if (pit != by_record.end() && pit->second != nullptr)
+                            host = pit->second;
+                        tree::FileNode* dn = tree.add_file(host, dp);
+                        if (dn == nullptr) {
+                            dp->release();
+                            return ERR_NO_MEMORY;
+                        }
+                        dn->set_deleted_state(tree::DeletedState::Deleted);
+                        dn->set_confidence(is_dir2 ? tree::Confidence::Unknown : conf2);
+                        dn->set_origin(tree::Origin::Structured);
+                        emitted.push_back({dn, best2->parent_record, true});
+                        ++stats.guid_dump_records;
+                        ++stats.emitted;
+                        p += stride;
+                    }
+                    off += take;
+                }
+            }
+        }
+    }
+
+    /* ---- phase E: S-012 size-0 rescue, post-walk same-name merge ----
+     *
+     * Og outer-driver relaxed pass (FUN_18001d690 with param_4=1, called
+     * after the dump walk over the complete record map): for each still-
+     * size-0 rescued record, find a same-name record at a HIGHER record
+     * number with non-zero size and adopt its runlist + size (compressed
+     * candidates excluded; scan bounded at 5000 - the og's counter gate). */
+    if (flags.size_zero_rescue && !pending_rescue.empty()) {
+        for (const PendingRescue& pr : pending_rescue) {
+            auto nit = by_record.find(pr.record_no);
+            if (nit == by_record.end() || nit->second == nullptr)
+                continue;
+            tree::FileProperties* props = nit->second->props();
+            if (props == nullptr || props->logical_size != 0)
+                continue; /* mirror rescue already served it */
+            /* candidates: emitted nodes from our record# onward */
+            u64 examined = 0;
+            for (const EmittedNode& e : emitted) {
+                if (e.node == nullptr || e.node->props() == nullptr)
+                    continue;
+                const u64 ern = mft_reference_record(e.node->props()->record_ref);
+                if (ern < pr.record_no)
+                    continue;
+                if (++examined > 5000)
+                    break; /* og bound */
+                tree::FileProperties* cp = e.node->props();
+                if (cp == props || cp->name != pr.name || cp->logical_size == 0)
+                    continue;
+                if (cp->extents.empty() && cp->resident_data.empty())
+                    continue; /* candidate needs a runlist/content to adopt */
+                if (!cp->extents.empty()) {
+                    props->extents = cp->extents;
+                } else if (!cp->resident_data.empty()) {
+                    props->resident_data = cp->resident_data;
+                } else {
+                    continue; /* nothing to adopt */
+                }
+                props->logical_size = cp->logical_size;
+                ++stats.size_zero_rescued;
+                break;
+            }
         }
     }
 

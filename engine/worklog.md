@@ -5524,3 +5524,45 @@ Stage Summary:
   "not exercised by any C consumer" list is cleared except Windows-only surfaces
   (open_disk/open_volume/enumerate/health — exercised on the Windows lane via the
   platform-truth probes and, for real disks, the bench harness).
+Task ID: DF-S012 (S-012 — NTFS two-pass: membership + GUID-dump pass 2 + size-0 rescue)
+Agent: main engineer (diff-to-fix fix session)
+Task: SEVERE S-012 — NTFS single-pass; og pass 2 (GUID-dump viability/destroy) + size-0 rescue missing; S-001 destroy mis-scoped into the live walk.
+
+Work Log:
+- Corpus re-verification BEFORE coding (every cited site re-read first-hand):
+  :18630 unconditional pass-1 emit; :18584-18625 GUID collection (0x4C-char name,
+  '{'[0], '}'[37], 38-char magic GUID at [38..75], live-only); FUN_18001a980 :20957+
+  (chunked <=0x8000-sector dump reads); FUN_18001acc0 :21095+ in full (stride 0x400
+  post-parse / 512 post-hole; og-15 metafile table + $SI hidden&system gate via
+  FUN_180034b20->FUN_180040ea0/f20; base-record gate FUN_180041970 = record+0x20;
+  pseudo record# = sector index; destroy: (flags&4)||!name||'$' / size<=0x3ff /
+  per-run START probes vs claim map with all-claimed destroy; folders exempt;
+  no-runlist survives); :18525 claim insertion (FUN_180017190, skip-deleted bit
+  engine+0x258 default off -> deleted records claim too); :18493-99 rescue gate
+  (size==0 && !dir && deleted); FUN_18001e120 mirror-copy resident extraction
+  (fixup + record# validated); FUN_18001d690 same-name merge (0x800 entry gate,
+  5000-candidate bound, runlist+size adoption). Classification: CONFIRMED-DIVERGENCE.
+- Fix (cr_mftwalk.h/.cpp + cr_bootstrap.h/.pp): destroy_fully_overwritten default
+  FALSE (S-001 scope correction; flag kept as honest-recovery inversion); new
+  guid_dump_pass + size_zero_rescue flags (default ON); cluster-granular claim map
+  built during the walk; GUID-dump collection; pass 2 with the og's stride/gates/
+  destroy rules; walk-time mirror resident rescue (new NtfsVolume::
+  read_record_mirror); post-walk relaxed same-name merge; 4 new WalkStats counters.
+- Tests: MainWalkKeepsOverwrittenDeleted, GuidDumpPassRecoversReusedRecord,
+  GuidDumpDestroyRules, SizeZeroRescueFromMftCopy, SizeZeroRescueSameNameMerge
+  (dedicated dump fixture: 4 stale records inside a live GUID-named file - survivor,
+  all-claimed destroy, <=0x3ff destroy, folder exemption; mirror-resident ghost;
+  same-name twindrive pair). FAIL-BEFORE PROVEN: 4/5 on the implementation-reverted
+  build; the 5th (membership) is witnessed by EndToEndWalk's historical
+  destroyed==1 assertion (updated to the S-012 model: emitted + Overwritten +
+  PartiallyOverwritten, destroyed==0). Suite 339/339 Linux default + 339/339 ASan.
+- Audit trail: S-012 Resolution + FIXED/ move; RESOLVED-INDEX row; CROSS-REF-MATRIX
+  ntfs B/D cells; modules/ntfs.md S-012 verdicts; SUMMARY counts (SEVERE 6 active)
+  + remediation row; PARITY-DELTAS D-51 (two-pass model registered); S-001 file
+  scope-correction postscript.
+
+Stage Summary:
+- S-012 CLOSED: the NTFS engine is two-pass like the og — result-set membership now
+  matches pass 1, dump-recovered records (the deep-scan advantage) are produced for
+  the first time, and size-0 deleted records get the mirror/merge rescue. Next per
+  the handoff order: S-003/S-021 (HFS+ journal pair), then S-014/S-019 (BitLocker).
