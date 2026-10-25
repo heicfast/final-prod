@@ -111,3 +111,10 @@ is exposed even though CI is green.
 
 None. (Whether `execute()`'s write path would also reject the 512-byte plan on 4Kn is
 M-046's subject, not this finding's.)
+
+## Resolution
+
+**Status:** FIXED
+**Fixed in commit:** (this commit — see git log)
+**Verified by:** fail-before = the ASan abort itself: on the implementation-reverted build (git-stash proof), `RawFixer.NtfsPrimaryDamaged4Kn` / `RawFixer.ExfatViaBackup4Kn` / `RawFixer.AnalyzeAllBranches4KnAsan` all die with `AddressSanitizer: stack-buffer-overflow ... in memcpy` — the exact 3,584-byte stack write the finding predicts; post-fix all three pass and the full suite is 477/477 Linux ASan.
+**Resolution notes:** The four analyze() boot-sector buffers (`primary`/`bak`/`backup` x2) are heap vectors sized by the device sector (the geometry guard accepts up to 64 KiB sectors — a fixed 4096 stack would just move the overflow class); every pointer consumer re-keyed to `.data()`. Beyond the overflows, the fix-plan step-2 items landed with it: the exFAT via-backup restore plan is sector-sized (`a.length = sector`, `a.after` = the full sector, `plan_exfat_checksum_after(..., sector, backup, sector)`), `plan_exfat_checksum_after` gained a `restore_len` parameter and mirrors the FULL restored sector into the checksum region (the old fixed-512 mirror checksummed a half-stale region whenever bps > 512 — bounded so the deep-scan 512-byte captures that belong to M-046 stay safe), and the in-branch post-restore mirror at the `!checksum_ok` site copies the restore's actual length. The FAT backup-branch buffer (`:821`-class site) is sector-sized the same way. Registered as D-61. M-046 retains its scope: the LDM 512-LBA defects and the `12 * bps`/512-length backup branch at `:702-709` plus the deep-scan 512-byte captures — the overlap at the via-backup branch is noted in both findings. The geometry de-pinning (fix-plan step 4: parametrize the rawfixer tests over {512, 4096}) is realized as the dedicated 4Kn test set; a full parametrization sweep of every legacy test is left to the M-046/follow-up wave (the existing 512-byte tests all still pass unchanged).

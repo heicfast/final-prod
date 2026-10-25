@@ -43,7 +43,7 @@ struct SmartAttribute {
     u16 vendor_threshold = 0; /* 0xD1 READ_THRESHOLDS (0 = unavailable) */
     bool failing = false;
     std::string name;
-    health::HealthGrade grade = health::HealthGrade::Unknown; /* S-024 */
+    cr::health::HealthGrade grade = cr::health::HealthGrade::Unknown; /* S-024 */
 };
 
 struct SmartReport {
@@ -54,7 +54,7 @@ struct SmartReport {
     std::vector<SmartAttribute> attributes;
     /* derived verdicts */
     bool failing_now = false;
-    health::HealthGrade grade = health::HealthGrade::Unknown; /* S-024:
+    cr::health::HealthGrade grade = cr::health::HealthGrade::Unknown; /* S-024:
         the og DiskHealth 4-status verdict, worst of the attr grades */
     bool is_ssd = false;         /* the SSD-wear gate's input (seek-penalty) */
     u64 reallocated_sectors = 0; /* attr 5 raw */

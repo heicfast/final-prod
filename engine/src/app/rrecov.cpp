@@ -969,29 +969,41 @@ int cmd_recover(int argc, wchar_t** argv, int& i) {
     if (!open_disk_view(disk, src))
         return 1;
 
-    /* destination validation + overlap refusal (F12): the destination
-     * volume extent must not intersect the source disk */
-    if (to_dir.size() >= 2 && to_dir[1] == L':') {
-        u32 ddisk = 0;
-        u64 dstart = 0, dlen = 0;
-        if (win::volume_extent(to_dir[0], &ddisk, &dstart, &dlen)) {
-            if (ddisk == disk)
-                wprintf(L"[F12] WARNING: destination is on the SOURCE disk %u\n", ddisk);
-            else
-                wprintf(L"[dest] disk %u @%llu +%llu\n", ddisk,
-                        static_cast<unsigned long long>(dstart),
-                        static_cast<unsigned long long>(dlen));
-        }
-    }
-
     win::WinDestIo io;
     recovery::WriterConfig wcfg;
     recovery::SafeWriter writer(io, src.device.get(), wcfg);
-    if (to_dir.size() >= 2 && to_dir[1] == L':') {
-        u64 dstart = 0, dlen = 0;
-        u32 ddisk = 0;
-        if (win::volume_extent(to_dir[0], &ddisk, &dstart, &dlen))
-            writer.set_destination(dstart, dlen);
+
+    /* destination validation + overlap refusal (F12 + N-013): any path
+     * that resolves to a volume is evaluated (the og opens \\.\X: for
+     * every local destination - the pre-N-013 drive-letter gate missed
+     * UNC/relative/junction destinations; junctions resolve to the
+     * TARGET's volume). Arming uses ALL extents (spanned destinations
+     * have more than one - first-extent-only missed overlap there). */
+    {
+        wchar_t dletter = 0;
+        if (win::destination_volume_letter(to_dir, &dletter)) {
+            std::vector<win::VolExtent> ve;
+            if (win::volume_extents(dletter, &ve)) {
+                bool on_source = false;
+                for (const auto& v : ve)
+                    if (v.disk == disk) {
+                        on_source = true;
+                        break;
+                    }
+                if (on_source)
+                    wprintf(L"[F12] WARNING: destination is on the SOURCE disk %u\n", disk);
+                else
+                    wprintf(L"[dest] %c: disk %u @%llu +%llu (%zu extent(s))\n", dletter,
+                            ve.front().disk,
+                            static_cast<unsigned long long>(ve.front().start),
+                            static_cast<unsigned long long>(ve.front().len), ve.size());
+                std::vector<std::pair<u64, u64>> spans;
+                spans.reserve(ve.size());
+                for (const auto& v : ve)
+                    spans.push_back({v.start, v.len});
+                writer.set_destination_spans(spans);
+            }
+        }
     }
 
     /* normalize the destination dir (trailing backslash) */
@@ -1149,7 +1161,7 @@ int cmd_health(int argc, wchar_t** argv, int& i) {
             u64 raw = u64(a.raw[0]) | (u64(a.raw[1]) << 8) | (u64(a.raw[2]) << 16);
             wprintf(L"  %-4u %-6u %-6u %-6u %-12llu %-9hs %hs\n", a.id, a.value, a.worst,
                     a.vendor_threshold, static_cast<unsigned long long>(raw),
-                    health::health_grade_name(a.grade), a.name.c_str());
+                    cr::health::health_grade_name(a.grade), a.name.c_str());
         }
         wprintf(L"  reallocated=%llu pending=%llu uncorrectable=%llu hours=%llu temp=%lluC\n",
                 static_cast<unsigned long long>(sm.reallocated_sectors),
@@ -1158,11 +1170,11 @@ int cmd_health(int argc, wchar_t** argv, int& i) {
                 static_cast<unsigned long long>(sm.power_on_hours),
                 static_cast<unsigned long long>(sm.temperature_c));
         /* S-024: the og DiskHealth 4-status verdict */
-        wprintf(L"  health: %hs (%hs)\n", health::health_grade_name(sm.grade),
+        wprintf(L"  health: %hs (%hs)\n", cr::health::health_grade_name(sm.grade),
                 sm.is_ssd ? "SSD" : "HDD/unknown");
-        if (sm.grade == health::HealthGrade::Bad)
+        if (sm.grade == cr::health::HealthGrade::Bad)
             wprintf(L"  WARNING: BAD - back up data immediately\n");
-        else if (sm.grade == health::HealthGrade::Caution)
+        else if (sm.grade == cr::health::HealthGrade::Caution)
             wprintf(L"  WARNING: Caution - recover data FIRST, image before any scan\n");
         if (sm.failing_now)
             wprintf(L"  WARNING: failing attribute present\n");
@@ -1180,7 +1192,7 @@ int cmd_health(int argc, wchar_t** argv, int& i) {
         wprintf(L"NVMe health: temp=%u.%uC spare=%u%%/threshold=%u%% used=%llu%% - %hs\n",
                 u32(nv.temperature_k) - 273, (u32(nv.temperature_k) % 10), nv.available_spare,
                 nv.available_spare_threshold, static_cast<unsigned long long>(nv.percentage_used),
-                health::health_grade_name(health::grade_nvme(nv)));
+                cr::health::health_grade_name(cr::health::grade_nvme(nv)));
         wprintf(L"  read=%llu units written=%llu units power-on=%lluh unsafe-shutdowns=%llu "
                 L"media-errors=%llu\n",
                 static_cast<unsigned long long>(nv.data_units_read),

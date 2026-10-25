@@ -359,6 +359,25 @@ TEST(Btrfs, SuperblockValidation) {
     EXPECT_FALSE(validate_superblock(sb, out));
 }
 
+TEST(Btrfs, NonPow2NodesizeRejectedRegistered) {
+    /* N-006 pin: 24 KiB nodesize is INSIDE the og's band [0x86, 0x10000)
+     * and 0x6000 % 0x1000 == 0, so the og accepts it (no pow2 requirement,
+     * BtrfsSearchDLL :10302-10304) - real mkfs.btrfs only ever writes
+     * pow2 nodesizes, so this is corrupt-SB territory. The core's pow2
+     * rejection is the REGISTERED deliberate hardening (D-61): a forged
+     * non-pow2 nodesize would size node-buffer allocations from an
+     * attacker-influenced field. Refusal routes the volume to other
+     * engines/carving - a strictly better outcome than the og's
+     * garbage attempt. Do not "fix" parity by loosening this. */
+    std::vector<u8> img = build_volume();
+    u8* sb = img.data() + 0x10000;
+    put32(sb + 0x94, 0x6000); /* 24 KiB: og-band-legal, 0x6000%0x1000==0 */
+    SuperBlock out{};
+    EXPECT_FALSE(validate_superblock(sb, out));
+    put32(sb + 0x94, 0x8000); /* 32 KiB: pow2, in-band - accepted */
+    EXPECT_TRUE(validate_superblock(sb, out));
+}
+
 TEST(Btrfs, EndToEndWalk) {
     auto img = build_volume();
     MemDevice dev(img);

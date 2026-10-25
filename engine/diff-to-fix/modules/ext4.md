@@ -167,7 +167,7 @@ during reconciliation; the ext4 supersets register itself is the lead leg's I-01
 
 | ID | Severity | One-line |
 |---|---|---|
-| S-025 | SEVERE | Journal-salvaged entries flat vs og two-pass + "."".."-pair reparenting into the live tree |
+| S-025 | SEVERE | Journal-salvaged entries flat vs og two-pass + reparenting — **FIXED (closing session): orphan map from "."".." heads, topological pre-pass with full inode truth + live anchors, iNode%u fallback for unresolvable chains, claim checks via live_nodes, sweep skip-set; 3 tests all fail-before; suite 465/465** |
 | S-026 | SEVERE | meta_bg group-descriptor resolution missing — files silently missing on meta_bg volumes — **FIXED (closing session): kernel/e2fsprogs-correct resolver, empirically verified on real mke2fs meta_bg images; og stride/offset defects not adopted (D-58); 5 tests, 4 fail-before; suite 401/401** |
 | S-027 | SEVERE | Backup-superblock lost-volume scan missing — **FIXED (closing session): engine-side rescue in scan_ext4 — 1 MiB-grid canonical-position probe, exact s_block_group_nr rebasing, GDT front-to-backup ladder; og rebase defect NOT adopted (D-59); 4 tests, 3 fail-before; suite 434/434** |
 | M-037 | MAJOR | Dir-block parse resilience inverted: og skip-and-continue on invalid dirents / stop on inode-0; ours break-on-invalid / continue-past-inode-0 |
@@ -176,3 +176,12 @@ Residual probes: OQ-E1 (orphan reachability semantics), OQ-E2 (meta_bg stride
 constant — **RESOLVED by the S-026 fix**: the true stride is block_size/desc_size,
 empirically verified; the og's s_desc_size seed is the defect, D-58) —
 `tracked-open/OQ-Z-E-FLT-session3.md`.
+constant) — `tracked-open/OQ-Z-E-FLT-session3.md`.
+
+---
+
+## Session-6 rows (deep continuation, 2026-10-26)
+
+| ID | Severity | One-line |
+|---|---|---|
+| N-057 | MINOR | CatchBuffer bad-sector salvage: og re-reads a 1 KiB-backtrack shifted window on failure (ext4-engine--deep-dive.md:25-33); core zero-fills the extent after transport retries |

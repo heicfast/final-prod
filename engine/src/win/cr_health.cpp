@@ -255,23 +255,36 @@ u32 read_smart(void* disk_handle, SmartReport& out) {
     }
 
     /* S-024: the 4-status grading pass (pure-core rules; the og DiskHealth
-     * model). is_ssd feeds the SSD-wear gate + the temperature class. */
-    out.is_ssd = looks_like_ssd(h);
+     * model). The drive model string comes from IDENTIFY words 27-46
+     * (byte-swapped pairs); the og's is-SSD flag (0x1724) and vendor
+     * family (0x181c) are both derived from it (DiskHealth_decompiled.c
+     * :6300-6344, FUN_0040dad0) - see health/cr_family.cpp. */
+    std::string model;
+    for (u32 w = 27; w <= 46; ++w) {
+        const char c1 = char(identify[w * 2 + 1]);
+        const char c2 = char(identify[w * 2]);
+        if (c1 != ' ')
+            model.push_back(c1);
+        if (c2 != ' ')
+            model.push_back(c2);
+    }
+    out.is_ssd = cr::health::model_says_ssd(model) || looks_like_ssd(h);
     {
-        health::SmartGradeInputs gi;
-        gi.is_ssd = out.is_ssd;
+        std::vector<cr::health::SmartAttrInput> ais;
+        ais.reserve(out.attributes.size());
         for (const SmartAttribute& a : out.attributes) {
-            health::SmartAttrInput ai;
+            cr::health::SmartAttrInput ai;
             ai.id = a.id;
             ai.value = a.value;
             ai.worst = a.worst;
             std::memcpy(ai.raw, a.raw, 6);
             ai.vendor_threshold = a.vendor_threshold;
             ai.failing_bit = a.failing;
-            gi.attrs.push_back(ai);
+            ais.push_back(ai);
         }
-        std::vector<health::HealthGrade> grades;
-        out.grade = health::grade_smart(gi, grades);
+        const cr::health::SmartGradeInputs gi = cr::health::make_grade_inputs(model, ais);
+        std::vector<cr::health::HealthGrade> grades;
+        out.grade = cr::health::grade_smart(gi, grades);
         for (size_t k = 0; k < grades.size() && k < out.attributes.size(); ++k)
             out.attributes[k].grade = grades[k];
     }
@@ -283,9 +296,9 @@ u32 read_nvme_health(void* disk_handle, NvmeHealth& out) {
     if (h == nullptr || h == INVALID_HANDLE_VALUE)
         return ERR_BAD_PARAMETER;
 
-        /* NVMe health log (log page 2) through the protocol-specific storage
-         * query (Windows 10 storage stack; the corpus DiskHealth uses the
-         * same route through its NVMe transport). */
+    /* NVMe health log (log page 2) through the protocol-specific storage
+     * query (Windows 10 storage stack; the corpus DiskHealth uses the
+     * same route through its NVMe transport). */
 #pragma pack(push, 1)
     struct {
         STORAGE_PROPERTY_QUERY header; /* PropertyId + QueryType only used */

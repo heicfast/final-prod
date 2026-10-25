@@ -2407,15 +2407,34 @@ u32 recovery_set_destination_impl(cr_ui_recovery* rec, const char* utf8_path) {
     r->dest_root = root;
     r->have_dest = true;
 #ifdef _WIN32
-    /* [F12] arming: the destination volume's disk extent feeds the
-     * writer's overlap refusal (image-file sources have file-internal
-     * extents and cannot be evaluated - documented platform truth) */
-    if (utf8_path[0] && utf8_path[1] == ':' && r->dev->disk_known &&
-        std::strcmp(r->dev->transport, "image") != 0) {
-        u32 ddisk = 0;
-        u64 dstart = 0, dlen = 0;
-        if (win::volume_extent(wchar_t(utf8_path[0]), &ddisk, &dstart, &dlen))
-            r->writer->set_destination(dstart, dlen);
+    /* [F12]+N-013 arming: the destination volume's FULL disk placement
+     * feeds the writer's overlap refusal. Any path that resolves to a
+     * volume is armed (the og opens \\.\X: for every local destination -
+     * the pre-N-013 drive-letter gate missed UNC/relative/junction
+     * destinations). Junctions resolve to the TARGET's volume.
+     *
+     * Image-file sources are NEVER writer-armed (platform truth, kept):
+     * their node extents are image-internal, so comparing them against
+     * physical destination spans would be false-positive refusals. The
+     * finding's ImageSourceToSameDiskRefused sub-claim is REFUTED: the
+     * image file is filesystem-protected (writing destination files never
+     * touches the image's allocated extents; source reads go through the
+     * file handle, not raw \.\X:) - the og's same-volume detection guards
+     * LIVE volume sources (which the extent-overlap refusal covers), and
+     * the og's UI copy is a recommendation, not a block ("We highly
+     * recommend saving the found data to a different drive"). */
+    if (std::strcmp(r->dev->transport, "image") != 0) {
+        wchar_t dletter = 0;
+        if (win::destination_volume_letter(u8_to_ws(utf8_path), &dletter)) {
+            std::vector<win::VolExtent> ve;
+            if (win::volume_extents(dletter, &ve)) {
+                std::vector<std::pair<u64, u64>> spans;
+                spans.reserve(ve.size());
+                for (const auto& v : ve)
+                    spans.push_back({v.start, v.len});
+                r->writer->set_destination_spans(spans);
+            }
+        }
     }
 #endif
     return ret_ok();

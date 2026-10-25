@@ -173,3 +173,12 @@ reserved3 when any of its four bytes is 0. Partially-nonzero reserved fields
 (BIOS/embedded formatter artifacts) no longer count the set as damaged.
 `ExfatEngine.StreamReservedPartiallyNonzeroPassesOgByteOr` (fail-before on
 the word-test form) + two guards.
+
+---
+
+## Session-6 rows (deep continuation, 2026-10-26)
+
+| ID | Severity | One-line |
+|---|---|---|
+| M-040 | MAJOR | exFAT recycle-bin handling mirrored from FAT in the og (fat-exfat-engine-internals.md:71) — same missing pairing as the FAT side |
+| N-051 | MINOR | Upcase-table validation skipped entirely (TYPE_UPCASE bare-continue at cr_exfat_quick.cpp:319-321; og validates via CExFatVolumeAnalyer, :63-64) |

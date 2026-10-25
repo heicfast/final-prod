@@ -209,3 +209,25 @@ OQ-S4-2 is RESOLVED this session (tracked-open updated; full decode at
   remote-config-driven), and (b) optionally a name-override callback on the
   scan API for UI hosts. No per-file rename or filter gating is required
   for parity.
+## Addendum (session 6 — partial fix verified in-tree, 2026-10-26)
+
+**Verified at core commit `022c81d`-lineage (landing commit `7840176`).** The og
+AdvanceFilterCondition **path group** — one of the 7-group gaps this finding
+registered — is now implemented:
+
+- `include/cr/query/cr_query.h:63` — `Filter::path_prefix` (full-path prefix,
+  ASCII-case-insensitive, prunes prefix-incompatible subtrees; path materialization
+  only when the filter is active, preserving the count-path fast lane).
+- `src/core/query/cr_query.cpp:167,180,189,213` — prefix match + subtree pruning +
+  fast-lane gating.
+- ABI append `include/cr/cr_ui.h:500` (`cr_ui_query::path_prefix`, added-export
+  rule, ABI stays 1 — first exercised append under the corrected §9 policy).
+- Corpus anchor unchanged: `31-filterbar-family-decode.md §3-§6` (the 7-group
+  struct; tag data stays NOT-EXPOSED as Results-UI state).
+
+**Still open from this finding's registry:** the Type sort key (core
+`SortKey {None,Name,Size,Modified,Confidence,Path}` = 5 keys vs og 6 incl. Type —
+re-verified at `include/cr/query/cr_query.h:68` this session), Date/Size bucket-ID
+translation (0x100..0x105 / 0x1000..0x1006), paging semantics parity claim, and
+the server-side filter push (gated on OQ-S4-2). Severity stays MAJOR; the finding
+remains active with the path-group sub-item CLOSED.

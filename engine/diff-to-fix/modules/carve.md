@@ -268,3 +268,20 @@ ASan smoke clean. **Remainder (precisely scoped in the finding):** the
 ~25 niche og-only formats (CHM/AU/MIDI/APE/EPS-AI/DXF/DMG/... — the
 session-2/3-corrected table in the finding file is the implementation
 list) + the bench seed-matrix extension (Windows runner).
+## Session-6 rows (deep continuation, 2026-10-26 — the never-read family layer)
+
+The six `rawsearchdll--family-*.md` artifacts + the registry census/dual-registry decode were
+first-cited this session (evidence: `evidence/decompiled-quotes/s6-carve-family-layer.md`).
+
+| ID | Severity | One-line |
+|---|---|---|
+| M-042 | MAJOR | Archive inner-file inventories: og analysers return the complete ZIP/RAR entry list; core CarveResult is {end,size} only (cr_signatures.h:75-80) |
+| N-052 | MINOR | ZIP: EOCD (PK\x05\x06) anchor missing (truncated/EOCD-first zips) + LFH sanity gates (version_needed ≤10, extra ∈[1,0x102]) missing |
+| N-053 | MINOR | CAB lowercase `mscf` registry key missing (og registers both cases — deliberate duplicate-key policy) |
+| N-054 | MINOR | Overlap resolution: og ranks by accumulated header+tail confidence + two-generation validator fallback; core trial-order first-wins, one validator per format |
+| S-007 addendum | SEVERE | Roster sharpened: bare-MPEG dispatch (18+ u16 sync keys vs ID3-only — complete recall gap for tagless MP3), the ~45-format family census, family provenance per format |
+
+MATCH/superset registers (no findings): RAR4 fast-accept (core stricter), PST "MS"+AMap gates
+(core superset), RAR5 (core implements; og rejects), tail-scope/8 MiB bound (S-015 FIXED family).
+Runtime registry machinery (EUGetAnalyserList/Map/Multimap refresh, RawConfig 37-toggle gate)
+belongs to M-024/N-033's family.

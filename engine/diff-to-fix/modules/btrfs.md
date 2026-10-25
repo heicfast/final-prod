@@ -114,3 +114,12 @@ Core (audited commit `67193b6`): `src/core/btrfs/cr_btrfs_engine.cpp` (799 LOC) 
 
 (The multi-stripe/mirror-index gap is the lead leg's M-020; the occupancy-bitmap
 cross-engine gap is M-039. This leg's local S-021 renumbered to S-028.)
+
+---
+
+## Session-6 rows (deep continuation, 2026-10-26)
+
+| ID | Severity | One-line |
+|---|---|---|
+| N-056 | MINOR | Re-scan metadata cache (og persists BtrfsCache.txt subvolume/chunk-tree cache; core cold every scan) + ZFS-side polling in the same file |
+| OQ-S6-2 | tracked | The RC4 PRGA target (encrypted-dataset support claim — capa-verified primitive, undecoded role; possibly the cache obfuscation itself) |

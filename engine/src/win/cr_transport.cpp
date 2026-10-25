@@ -19,6 +19,7 @@
 #include "cr/storage/cr_directalign.h"
 #include <windows.h>
 #include <winioctl.h>
+#include <shlwapi.h>
 #include <cstdio>
 #include <cstring>
 #include <mutex>
@@ -1121,3 +1122,74 @@ bool volume_letter_to_disk(wchar_t letter, u32* disk, u32* part) {
 
 } // namespace win
 } // namespace cr
+
+/* ---------------------------------------------------------------------------
+ * N-013: destination-side overlap arming, full-extent edition.
+ * ------------------------------------------------------------------------- */
+bool volume_extents(wchar_t letter, std::vector<VolExtent>* out) {
+    if (!out)
+        return false;
+    out->clear();
+    wchar_t vol[8];
+    _snwprintf_s(vol, 8, _TRUNCATE, L"\\\\.\\%c:", letter);
+    HANDLE h =
+        CreateFileW(vol, 0, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
+                    nullptr, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr);
+    if (h == INVALID_HANDLE_VALUE)
+        return false;
+    VOLUME_DISK_EXTENTS ext[8] = {};
+    DWORD br = 0;
+    BOOL io = DeviceIoControl(h, IOCTL_VOLUME_GET_VOLUME_DISK_EXTENTS, nullptr, 0, ext,
+                              sizeof(ext), &br, nullptr);
+    CloseHandle(h);
+    /* ERROR_MORE_DATA: the volume has more than 8 extents - the first 8
+     * are filled and used (documented cap). */
+    if (!io && GetLastError() != ERROR_MORE_DATA)
+        return false;
+    for (DWORD i = 0; i < ext->NumberOfDiskExtents && i < 8; ++i) {
+        VolExtent ve{};
+        ve.disk = u32(ext->Extents[i].DiskNumber);
+        ve.start = u64(ext->Extents[i].StartingOffset.QuadPart);
+        ve.len = u64(ext->Extents[i].ExtentLength.QuadPart);
+        out->push_back(ve);
+    }
+    return !out->empty();
+}
+
+bool destination_volume_letter(const std::wstring& path, wchar_t* letter) {
+    if (!letter || path.empty())
+        return false;
+    /* The og's PathIsNetworkPathW branch: network destinations are never
+     * opened raw, never armed (cannot be evaluated). */
+    if (PathIsNetworkPathW(path.c_str()))
+        return false;
+    /* Resolve reparse points (junctions/mount points) to the FINAL path:
+     * a junction into another volume must yield the TARGET's volume, not
+     * the junction's host volume. */
+    std::wstring final_path = path;
+    HANDLE h = CreateFileW(path.c_str(), 0,
+                           FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
+                           nullptr, OPEN_EXISTING,
+                           FILE_FLAG_BACKUP_SEMANTICS, nullptr);
+    if (h != INVALID_HANDLE_VALUE) {
+        wchar_t buf[1024];
+        const DWORD n = GetFinalPathNameByHandleW(h, buf, 1024, VOLUME_NAME_DOS);
+        if (n > 0 && n < 1024) {
+            final_path = buf;
+            /* strip the \\?\ prefix if present (GetVolumePathNameW wants a
+             * plain drive path) */
+            if (final_path.rfind(L"\\\\?\\", 0) == 0)
+                final_path.erase(0, 4);
+        }
+        CloseHandle(h);
+    }
+    /* Fall back (destination folder may not exist yet): GetVolumePathNameW
+     * on the path itself, no reparse resolution possible. */
+    wchar_t root[MAX_PATH] = {};
+    if (!GetVolumePathNameW(final_path.c_str(), root, MAX_PATH) || root[0] == L'\0')
+        return false;
+    if (root[0] == L'\\') /* mapped network root slipped past the probe */
+        return false;
+    *letter = root[0];
+    return true;
+}

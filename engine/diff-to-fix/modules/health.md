@@ -94,3 +94,29 @@ during reconciliation.)
 - **N-064 (MINOR, NEW):** the og's Dict password dictionary (228 entries; manage-bde
   -Password consent-gated attempts) has no core counterpart — capability register, any
   port must keep the consent gate (parameter F61).
+## Session-6 fix leg (2026-10-26 — the S-024 decoded-truth upgrade)
+
+S-024's engine re-decoded first-hand from DiskHealth_decompiled.c and the
+first landing's analogs replaced with the exact rules (evidence:
+`evidence/decompiled-quotes/s6-health-grading-decode.md`):
+
+| Parameter | Verdict |
+|---|---|
+| B15 grading model | **MATCH** — FUN_0040cdf0 exact: 4 statuses; Unknown gates (data present / ATA side / read error); duplicate-attr-id → Unknown; SSD any-attr-below-threshold vs HDD in-range table (1-13/187-189/191-193/195-209/211-212/220-228/230-231/240/250/254); 5/197/198 raw16 caution with the all-FF raw[0..3] guard (disk-side only); bad-count > caution-flag > graded-signal > Unknown aggregation; family-0x13 NVMe path (critical_warning byte ≠ 0 → Bad; life > 10 Good / == 10 Caution / < 10 Bad; Parallels early-Good); temp NEVER graded (0x1808 unread by the grader — the first landing's temp-Caution rule removed) |
+| D16-vendor classification | **MATCH (decoded set)** — model_says_ssd (the 0x1724 writer list) + classify_family (FUN_0040dad0 cascade: WDC/Seagate/Mtron/JMicron60x/Intel/Samsung/Micron/Crucial/SandForce/OCZ/Vector/Plextor/SanDisk/SKhynix/Kingston/Kioxia/Phison/Apacer + NVMe + fallbacks) with sub-family codes, the raw/invert life forms, the SanDisk G1001 gate and the attr-230 raw16/100 form; exotic-thunk residual = classifier data gap (engine consumes all codes) |
+| C23 thresholds | **MATCH** — 0xD1 read verified against the og's internal mirror (:14108-14118) |
+| Q65 tests | 20 Health tests incl. the family-gate matrix, the FF-guard asymmetry, duplicate-Unknown, the NVMe exact bits, temp-never-grades, is-SSD list, classifier vendors/sigs/forms |
+| F-gate deliberate superset | failing_bit → disk Bad registered as **D-63** (PARITY-DELTAS); per-attr grades stay og-exact |
+
+M-036 (NVMe field coverage) and N-064 (Dict dictionary) remain open
+(untouched by this leg). The S-027 lane's Ext4Engine.Backup* reds visible
+on main mid-session are that lane's in-flight state, not health.
+
+---
+
+## Session-6 rows (deep continuation, 2026-10-26)
+
+| ID | Severity | One-line |
+|---|---|---|
+| S-024 addendum | — | Doc-truth sub-item: cr_health.h:8 claims 0xD1 READ_THRESHOLDS/0xD8 RETURN_STATUS in the issued set; cr_health.cpp issues only 0xEC + 0xB0/D0 (grep-verified). The Threshold/Status/tri-state capability gap itself remains S-024's scope (UIUX/19:26-27 first-cited this session) |
+| N-058 §5 | MINOR | The header-comment fix rides the doc-truth group |

@@ -1,6 +1,7 @@
 /* Carving engine tests: grammar validation, specificity, dedup, hashing. */
 #include <gtest/gtest.h>
 #include "cr/carve/cr_carve.h"
+#include "cr/query/cr_query.h"
 #include "cr/carve/cr_rawsigns.h"
 #include "cr/storage/cr_device.h"
 #include "cr/storage/cr_slice.h"
@@ -1736,4 +1737,95 @@ TEST(Carve, S007TruncatedSalvageSemantics) {
     EXPECT_LT(gif->props()->logical_size, gif_len) << "extent stops before the broken trailer";
     ASSERT_NE(rtf, nullptr) << "unclosed-group RTF salvages to the slab end";
     EXPECT_EQ(rtf->props()->logical_size, size_t(64 * 1024 - rtf_at));
+}
+
+/* ===================================================================== */
+/* S-031: every carved record is deleted-family state (og CRAWFileProperties */
+/* FLAGS = constant 0x0020, 12,147/12,147 records — ifileproperties-part3 :82). */
+/* Both emit sites (grammar + raw-sign) must flag Deleted so the deleted_only */
+/* view and deleted_count include the carve population.                       */
+/* ===================================================================== */
+
+TEST(CarveEngine, CarvedNodesAreDeleted) {
+    auto img = build_carve_image();
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"Lost Files");
+    CarveFlags flags;
+    CarveStats stats;
+    u32 rc =
+        carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, stats);
+    ASSERT_EQ(rc, OK) << err_text(rc);
+    ASSERT_GE(stats.validated, 1u);
+
+    int carved = 0;
+    std::function<void(tree::FileNode*)> collect = [&](tree::FileNode* n) {
+        for (tree::FileNode* c = n->first_child(); c; c = c->next_sibling()) {
+            if (c->props() && c->origin() == tree::Origin::Carved) {
+                ++carved;
+                EXPECT_EQ(tree::DeletedState::Deleted, c->deleted_state())
+                    << "carved node not flagged deleted";
+            }
+            collect(c);
+        }
+    };
+    collect(root);
+    EXPECT_GE(carved, 4) << "grammar layer emit not found";
+
+    /* stats: the deleted population now includes the carved set */
+    tree.refresh_stats();
+    EXPECT_EQ(root->stats().deleted_count, size_t(carved));
+}
+
+TEST(CarveEngine, RawSignCarvedNodesAreDeleted) {
+    /* the raw-sign layer (the second emit site) flags Deleted too: a lone
+     * "sample" header sign (#!/bin/sh) carves header-only (S-015's shape) */
+    std::vector<u8> img(2 * 1024 * 1024, 0);
+    std::memcpy(img.data() + 4096, "#!/bin/sh\n", 10);
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"Lost Files");
+    CarveFlags flags;
+    CarveStats stats;
+    u32 rc =
+        carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, stats);
+    ASSERT_EQ(rc, OK) << err_text(rc);
+
+    int carved = 0;
+    for (tree::FileNode* c = root->first_child(); c; c = c->next_sibling()) {
+        if (c->props() && c->origin() == tree::Origin::Carved) {
+            ++carved;
+            EXPECT_EQ(tree::DeletedState::Deleted, c->deleted_state())
+                << "raw-sign carved node not flagged deleted";
+        }
+    }
+    EXPECT_GE(carved, 1) << "raw-sign layer emit not found";
+}
+
+TEST(CarveEngine, DeletedOnlyQueryIncludesCarvedFiles) {
+    /* THE product-level discriminator: the deleted_only filter is the
+     * recovery product's primary "show me deleted files" view - carved
+     * files (the only recoverable content after metadata destruction)
+     * must appear there. Pre-fix: zero carved rows returned. */
+    auto img = build_carve_image();
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"Lost Files");
+    CarveFlags flags;
+    CarveStats stats;
+    u32 rc =
+        carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, stats);
+    ASSERT_EQ(rc, OK) << err_text(rc);
+    tree.refresh_stats();
+
+    query::Query q;
+    q.filter.deleted_only = true;
+    auto res = query::run(tree, q);
+    EXPECT_GE(res.rows.size(), 4u) << "deleted_only query dropped the carve set";
+    EXPECT_GE(res.total_matched, 4u);
+    bool saw_carved = false;
+    for (const auto& r : res.rows)
+        if (r.node && r.node->origin() == tree::Origin::Carved)
+            saw_carved = true;
+    EXPECT_TRUE(saw_carved) << "no carved row in the deleted_only result";
 }

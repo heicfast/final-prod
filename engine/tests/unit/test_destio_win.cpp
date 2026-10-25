@@ -11,6 +11,7 @@
 
 #include <gtest/gtest.h>
 #include "cr/win/cr_destio.h"
+#include "cr/win/cr_transport.h" /* N-013 arming contracts */
 #include "test_tmpdir.hpp"
 
 #include <cstdio>
@@ -101,3 +102,69 @@ TEST(WinDestIo, UnclosedTempIsRemovedNotCommitted) {
 }
 
 } // namespace
+
+/* ---------------------------------------------------------------------------
+ * N-013: destination-side overlap arming contracts (full-extent edition).
+ * ------------------------------------------------------------------------- */
+TEST(DestArming, VolumeLetterResolvesAnyLocalPath) {
+    /* the CWD's volume: a RELATIVE path (no drive letter) resolves - the
+     * pre-N-013 drive-letter gate missed these. */
+    wchar_t rel = 0, abs = 0, cwd_vol = 0;
+    EXPECT_TRUE(win::destination_volume_letter(L".", &rel));
+    wchar_t cwd[MAX_PATH] = {};
+    GetCurrentDirectoryW(MAX_PATH, cwd);
+    wchar_t root[MAX_PATH] = {};
+    ASSERT_TRUE(GetVolumePathNameW(cwd, root, MAX_PATH));
+    cwd_vol = root[0];
+    EXPECT_EQ(rel, cwd_vol);
+    /* a plain absolute path on the same volume */
+    std::wstring abs_path = std::wstring(root) + L"some\\deeper\\path";
+    EXPECT_TRUE(win::destination_volume_letter(abs_path, &abs));
+    EXPECT_EQ(abs, cwd_vol);
+}
+
+TEST(DestArming, NetworkPathNeverResolves) {
+    /* the og's PathIsNetworkPathW branch: network destinations are never
+     * opened raw, never armed. */
+    wchar_t letter = 0;
+    EXPECT_FALSE(win::destination_volume_letter(L"\\\\nonexistent-server\\share\\out", &letter));
+}
+
+TEST(DestArming, VolumeExtentsCarryAllSpans) {
+    /* the current volume must report at least one extent; extent[0] must
+     * agree with the legacy first-extent API (the source-disk lookup
+     * call sites keep that one). */
+    wchar_t letter = 0;
+    ASSERT_TRUE(win::destination_volume_letter(L".", &letter));
+    std::vector<win::VolExtent> ve;
+    ASSERT_TRUE(win::volume_extents(letter, &ve));
+    ASSERT_GE(ve.size(), 1u);
+    u32 disk = 0;
+    u64 start = 0, len = 0;
+    ASSERT_TRUE(win::volume_extent(letter, &disk, &start, &len));
+    EXPECT_EQ(ve[0].disk, disk);
+    EXPECT_EQ(ve[0].start, start);
+    EXPECT_EQ(ve[0].len, len);
+}
+
+TEST(DestArming, JunctionResolvesToTargetVolume) {
+    /* a junction into another tree resolves to the TARGET's volume - the
+     * og compares the resolved placement, never the junction's host. */
+    const std::string root = cr_test::tmp_path("djunc", ".e");
+    std::wstring junc = u16_from(root + "\\to_windows");
+    wchar_t before = 0;
+    if (!win::destination_volume_letter(junc, &before)) {
+        /* root dir may not exist yet */
+        WinDestIo io;
+        ASSERT_EQ(io.mkdir(u16_from(root)), OK);
+    }
+    const int rc = _wsystem((L"cmd /c mklink /J \"" + junc + L"\" C:\\Windows").c_str());
+    if (rc != 0) {
+        GTEST_SKIP() << "mklink /J unavailable on this host (rc=" << rc << ")";
+    }
+    wchar_t jletter = 0, tletter = 0;
+    ASSERT_TRUE(win::destination_volume_letter(junc, &jletter));
+    ASSERT_TRUE(win::destination_volume_letter(L"C:\\Windows", &tletter));
+    EXPECT_EQ(jletter, tletter); /* the TARGET's volume, not the host's */
+    DeleteFileW(junc.c_str()); /* junctions delete like files */
+}

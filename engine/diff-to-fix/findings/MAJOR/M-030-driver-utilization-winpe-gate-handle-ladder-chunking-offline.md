@@ -219,3 +219,9 @@ was being filed. First-hand verification against the claims above:
 open items: WinPE gate, terminal OFFLINE, the LDM-path 32-disk cap, silent fallback +
 stale cite). The fix plan above remains valid for those items; items (b)/(c) can be
 struck from the fix plan. OQ-S4-3 (relative perf measurement) is unaffected.
+
+---
+
+## Addendum (session 6 — WinPE driver-selection detail: eprdtdrv is ABSENT from PE; raw access rides ebrntdrv/epmdkdrv demand-loaded via NtLoadDriver, 2026-10-26)
+
+The boot-config artifact (first-cited this session) sharpens this finding's WinPE-gate item with the driver-selection facts: in the WinPE payload, **eprdtdrv is not present** — PE raw disk access uses **ebrntdrv / epmdkdrv**, demand-loaded via **NtLoadDriver at first open** (WinPE/boot-config--winpeshl-autobat-regdrv.md:111-121; the regdrv.reg UpperFilter wiring and winpeshl autobat chain). Consequence for the core's WinPE gate design (this finding's fix plan step on the gate): the gate cannot simply branch on "driver present vs direct" — it must pick the SERVICE NAME (eprdtdrv on full Windows, ebrntdrv/epmdkdrv on PE) before deciding the transport route, or probe the PE pair first. The trio byte-diff (epmntdrv-trio--byte-diff-verification.md, first-cited this session) additionally proves ebrntdrv == eprdtdrv_win7older (identical MD5), i.e. the PE lane runs the OLDER driver build — capability differences (the completion-engine IOCTL set) should be checked against the win7older build when the gate lands.

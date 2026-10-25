@@ -417,6 +417,9 @@ u32 scan_fat(IStorageDevice* slice, const FatScanFlags& flags, CancelToken* canc
     rc = table.load(slice, p);
     if (rc != OK)
         return rc;
+    /* M-012: mirror-only scans surface in the stats (og child1==NULL) */
+    if (table.mirror_only())
+        ++stats.mirror_only_scan;
 
     EmitCtx ctx;
     ctx.dev = slice;

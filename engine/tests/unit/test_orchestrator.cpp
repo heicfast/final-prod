@@ -70,6 +70,12 @@ std::vector<u8> build_fat16() {
     b[511] = 0xAA;
 
     const size_t FAT1 = 2 * 512, FAT2 = 22 * 512, ROOT = 42 * 512, DATA = 74 * 512;
+    /* M-015: canonical media words (real-volume shape; the whole-table
+     * validator requires u32@FAT[0] == 0xFFFFFFF8 on FAT16) */
+    put16(img, FAT1 + 0 * 2, 0xFFF8);
+    put16(img, FAT1 + 1 * 2, 0xFFFF);
+    put16(img, FAT2 + 0 * 2, 0xFFF8);
+    put16(img, FAT2 + 1 * 2, 0xFFFF);
     put16(img, FAT1 + 5 * 2, 0xFFFF);
     put16(img, FAT2 + 5 * 2, 0xFFFF); /* root dir */
     put16(img, FAT1 + 10 * 2, 11);

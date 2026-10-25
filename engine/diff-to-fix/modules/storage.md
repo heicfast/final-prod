@@ -61,3 +61,17 @@ filed during the multi-leg reconciliation. It complements — and does not overl
 EPRDTDRV grammar, WinPE gate, chunking, handle ladder — the layer BELOW the
 storage devices audited here). Findings: M-032/M-033/M-034/N-045/N-046/I-017
 (renumbered from this leg's local M-016/M-017/M-018/N-025/N-026/I-012).
+
+---
+
+## Session-6 rows (deep continuation, 2026-10-26 — cr_cached.cpp / cr_enumerate.cpp first-cited)
+
+| ID | Severity | One-line |
+|---|---|---|
+| N-045 addendum | — | Algorithm divergence added: og CStorageDeviceWithCache is a prefetch read-ahead engine (prefetch thread, 10-run window, 1000-sector runs) vs core reactive true-LRU; cite refreshed to cr_scan.cpp:647 / 256 KiB blocks |
+| N-055 | MINOR | Enumeration breadth: og spans WMI+SetupAPI+VDS+StorageSpaces+FunctionDiscovery; core is the PhysicalDrive CreateFileW loop (cr_enumerate.cpp:15-60) |
+
+MATCH/verified registers from the never-cited-files read: cr_elevate's probe is a byte-shape
+twin of DRWUI's elevation check (elevation ACTION is host-side — deliberate, no finding);
+cr_decomp's NTFS LZNT1 parity re-verified (N-058 fixes the stale CAPABILITY-MATRIX claim);
+cr_sha256 is a deliberate core addition (carve ids + writer verify — D-19 side registered).

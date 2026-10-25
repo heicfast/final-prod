@@ -1,3 +1,30 @@
+# SUMMARY.md — executive summary (session-6 fix leg + session 7 below; earlier sessions below)
+
+## Session-6 delta (2026-10-26 — the S-024 decoded-truth upgrade)
+
+Mandate: fix ALL tiers; this leg re-verified the landed S-024 grading
+fix against the corpus and found the first landing's four documented
+analog guesses superseded by decodeable truths. The corpus wins: the
+analog temperature-Caution rule (a divergence — the og grader has NO
+temperature branch, 0x1808 is never read), the is-SSD analog gate for
+SSD-life (the og gates by decoded vendor families, FUN_0040dad0), the
+NVMe spec-bit split for critical_warning (the og grades ANY nonzero
+byte Bad) and worst-wins aggregation (the og is
+bad-count/caution/graded-signal in FUN_0040cdf0) — all replaced with
+the exact decoded rules, plus `model_says_ssd` (the 0x1724 writer list
+:6300-6344 — the finding's open question #1, now decoded),
+`classify_family` (30+ vendor families — open question #2, decoded),
+the family-0x13 NVMe path, duplicate-attr-id Unknown, the 5/197/198
+all-FF guard asymmetry, and the failing-bit superset properly
+registered as D-63. Evidence:
+`evidence/decompiled-quotes/s6-health-grading-decode.md`. 12 new/rewritten
+Health tests (suite 464 on this tree: 460 pass + the 4 pre-existing
+Ext4Engine.Backup* reds owned by the parallel S-027 lane); fail-before by
+construction (the landed header lacks classify_family/make_grade_inputs).
+Classifier residual: the exotic-vendor thunks stay generic 0/1 — a pure
+data gap, engine consumes all family codes; exact next decode sites
+listed in the evidence §5.
+
 # SUMMARY.md — executive summary (session 7 on top of session 5b; earlier sessions below)
 
 ## Session-7 delta (2026-10-26 — the close-all-tiers fix session, low-severity-first order)
@@ -201,8 +228,20 @@ table classic / meta-group-0 for meta_bg, verified). Og boot-area rebase
 NOT adopted → **PARITY-DELTAS D-59**. 4 tests (3 fail-before); suite
 434/434 serial; ASan/UBSan fuzz smoke clean.
 
-**Counts after S-027 (direct file inventory):** ACUTE 0 · **SEVERE 8** ·
-MAJOR 34 · MINOR 37 · INFO 18 = **97 active** / **38 FIXED**.
+**S-025 FIXED (this push):** ext4 journal reparenting (the og's two-pass
+model + orphan parent map + iNode%I64d fallback — FUN_180003de0 :2773/:2778,
+FUN_1800043f0 :3077-3145, FUN_1800041e0 :2986-2991, all re-verified first-hand).
+One-structural-pass harvest + topological pre-pass with full inode truth +
+live anchors; claim checks via live_nodes (files too — latent duplicate gap
+closed); sweep skip-set for journal-emitted inodes. 3 tests, all fail-before;
+suite 465/465; ASan/UBSan fuzz smoke clean. The ext4 SEVERE family
+(S-025/S-026/S-027) is now fully closed by this session.
+
+**Counts after S-025 (direct file inventory):** ACUTE 0 · **SEVERE 7** ·
+MAJOR 36 · MINOR 31 · INFO 18 = **92 active** / **53 FIXED** (counts
+re-baselined against the parallel legs' concurrent landings: S-003/S-021
+HFS+ journal pair, S-020 ReFS attribute layer, M-022/M-023/M-026/M-027,
+the minors wave, INFO tier ACKNOWLEDGED).
 
 
 
@@ -292,6 +331,93 @@ corpus-proven and fail-before/pinned:
   bullets vs headings, plus a duplicated D-51 FAT heading) registered as
   errata with the FAT entry renumbered D-56. Suite 399/399 Linux ASan;
   hostile ASan smoke 300 mutated fixtures (297 exercising pass 2, clean).
+## Session-6 delta (2026-10-26 — the deep-continuation audit: never-cited surfaces + fix verification)
+
+Session start `022c81d`-lineage (landing `bf7df39` mid-bootstrap); corpus `03ad46c` (unmoved).
+Mandate (user directive): find what earlier sessions missed, verify/update the fixed things,
+go deeper on og-vs-core, mark ALL remaining features/implementations/functions as findings,
+focus on minor detail. The session-5 citation-gap lanes (defined at `2001f7c`, never executed)
+were this session's scope — executed end-to-end via 5 parallel read agents + first-hand
+verification of every load-bearing citation before filing (three stale agent claims filtered
+by verification: FAT alt-EOC [N-002 fix live], NTFS BAAD [MATCH both sides], FAT quick-scan
+threading [registered D-30x]).
+
+**Multi-leg ID reconciliation (the parallel audit legs landed S-029..S-032, M-040..M-051,
+N-048..N-064, I-019..I-022 in the same window):** this session's local M-041/M-042/N-050
+CONVERGED with the landed S-031/S-032/M-051+N-059 (same census artifacts, independently
+decoded) — dropped with harvest-addenda on the landed findings; the 14 unique findings
+RENAMED past the taken IDs (M-052, N-065..N-075, I-023/I-024). The parallel fix legs also
+landed fixes this window (S-007 primary set incl. the MPEG sync family, S-020/S-023/S-024,
+S-025..S-028, M-010, M-022..M-027, N-005/N-011/N-012/N-024/N-028/N-038/N-039 …) — this
+session re-verified the overlaps first-hand and posted post-resolution corrections where
+its addenda were authored pre-fix (S-007: bare-MPEG FIXED — registry now carries
+FMT_MPGA_E2..FF + ADTS with validate_mp3_raw; S-024: 0xD1 now issued at cr_health.cpp:192-200,
+only the 0xD8 claim remains stale).
+
+**First-time-cited corpus artifacts (23):** the 6 rawsearchdll carving-family artifacts +
+analyser-registry census + dual-registry u16 decode + zip-analyser carving; rsf-record4
+grammar + ifileproperties-part3; per-engine-function-map; MOM Error/Thread/Common/Config/
+PartitionRecoveryD + mom-module-system; WinPE boot-config + eusendmessage; config-files
+drwcfg/userdata-remoteconfig/vendor-logs; UIUX 13/19/20/24/25. **First-time-cited core files
+(8):** cr_elevate, cr_destio, cr_snapshot, cr_cached, cr_decomp, cr_sha256, cr_error,
+cr_diskmap (header).
+
+**This session's surviving new findings (14 unique + 3 convergent harvests):**
+- **MAJOR (1):** M-052 (FAT/exFAT recycle-bin $I/$R pairing missing — og IRecycleBinNode2UI;
+  core grep 0; the NTFS-side model exists in-repo to generalize).
+- **MINOR (11):** N-065 (writer collision `name_N`/cap 10000 + mkdir 0/0xB7 gates — refutes
+  D-19's "unevidenced" with decompile evidence), N-066 (identity card weaker: firmware/WWN/
+  interface + 512-byte boot snapshot vs CRC32), N-067 (exFAT upcase validation skipped),
+  N-068 (ZIP EOCD anchor + LFH sanity gates — re-verified absent post-S-007-fix), N-069
+  (CAB mscf case key — re-verified absent), N-070 (overlap scoring + two-generation
+  fallback), N-071 (enumeration breadth), N-072 (Btrfs re-scan cache + ZFS label polling),
+  N-073 (ext4 catch-buffer shifted-window salvage), N-074 (doc-drift group #2 — five stale
+  claims incl. the refuted D-19 and the 0xD8 residual), N-075 (event-bus query-signals +
+  pull-progress + typed IUIProgressInfo).
+- **INFO (2):** I-023 (DRWCfg persistent-config scope register), I-024 (PartitionRecoveryD
+  generator-sets + .dat persistence register).
+- **Convergent harvests (addenda on landed findings):** S-031 (session round-trip mechanics
+  + timestamp shape + adjacent-fields pointer), S-032 (results-tree consumer cite + size-
+  from-sum + hostile-cap + nested OQ), N-059 (HFS+ mode/type half + cross-engine ID space).
+
+**Addenda to active findings (9):** S-007 (family layer — roster with per-family provenance
++ post-resolution correction), S-009 (stale premise corrected + free-overlay residual with
+concrete fix plan), S-024 (doc-truth sub-item + post-resolution correction), M-017
+(CalcPartition class evidence), M-030 (WinPE driver selection: eprdtdrv absent from PE,
+ebrntdrv/epmdkdrv via NtLoadDriver, win7older==ebrntdrv MD5), M-029 + N-033 (partial fixes
+verified in-tree), N-045 (cache algorithm divergence + cite refresh). **New tracked-open
+(3):** OQ-S6-1 (PartitionRecoveryD generator-set semantics), OQ-S6-2 (Btrfs RC4 target),
+OQ-S6-3 (CRAW +0xF4/anchor-B/checksum).
+
+**Counts after the session-6 reconciliation (direct file inventory, refreshed through the
+last mid-session landings):** ACUTE 0 (A-005/A-006 both fixed in-window) · SEVERE 5
+(S-009 residual, S-029, S-030, S-031, S-032 — S-031's deleted-flag half fixed and
+verified mid-session; the timestamp residual stays open) · MAJOR 40 · MINOR 55 · INFO 22
+= **122 active / 68 FIXED**; 16 tracked-open files. (The parallel legs' fix wave moved
+34 findings to FIXED in the same window — S-007, S-020..S-028, S-031, M-010, M-022..M-027,
+N-005, N-011, N-012, N-024, N-028, N-038, N-039, A-005, A-006 among them — while their
+audit legs filed A-006, S-029..S-032, M-043..M-051, N-048..N-064, I-021/I-022; this
+session's addenda re-verified the overlapping fixes first-hand where its citations
+touched them.)
+
+**Recommended first-10 from this session's crop (for the fix legs):**
+1. M-052 (recycle pairing — generalize the NTFS model; 3 fail-before tests specified)
+2. S-031's two-site emission fix (this session's round-trip mechanics make the reload
+   consequence precise — S-031 is the landed canonical finding)
+3. N-074 (five doc fixes + the 0xD8 residual — an hour of work, consumer trust)
+4. N-068 (ZIP EOCD anchor + LFH gates — two small validators; re-verified absent)
+5. N-065 (writer collision/mkdir alignment + D-19 rewrite — decompile-evidenced)
+6. N-070 (overlap scoring — collect-then-max instead of break)
+7. S-032's inventory payload (CarveResult extension; this session's hostile-cap +
+   size-from-sum additions fold into its fix plan)
+8. N-067 (exFAT upcase validation — grade-not-reject)
+9. N-075 (busy/stopping query exports or the deliberate-difference registration)
+10. N-073 (ext4 catch-buffer backtrack — fault-injection test specified)
+
+---
+
+
+
 ## Minors-fix session delta (2026-10-26 — the "fix all tiers, focus the 33 minors" session)
 
 Session start `ed00020` (baseline 345/345 Linux Release; +1 test from the concurrent
@@ -882,6 +1008,7 @@ ext4/Btrfs invalid-UTF-8 finding (briefly M-007 in a local commit) renumbered to
 |---|---|---|---|
 | 2026-10-26 (s5) | S-021 + S-003 | **FIXED** | HFS+ journal differential harvest (the og's PRIMARY deleted surface): JournalInfoBlock→jnl_header gates (LE)→ring walk with split reads→leaf images→fork classification→live differential→deleted-tier emission with bitmap grading + N-028a sink filter + extents fallbacks. S-003's "replay" premise corrected (scratch install + unchanged live walk); the fallback salvage tracked (OQ-S003). 4 tests (fail-before 3/4 on the stashed engine); 423/423 ASan; PARITY-DELTAS D-56 |
 
+| 2026-10-26 (S4) | A-005 | **FIXED** (ACUTE) | sector-sized buffers + sector-correct plans; fail-before = the ASan stack-buffer-overflow itself (git-stash proof); 3 4Kn tests; suite 477/477 ASan; D-61 |
 | 2026-10-26 (S4) | S-007 (primary) | **FIXED** (niche ~25-format tail scoped in the finding) | 27 registry entries + 9 validators, corpus-exact keys; suppress_overlap + 10-frame gate registered in D-57; fail-before 3/3; suite 436/436 ASan; hostile smoke clean || 2026-10-25 (s4) | S-019 | **FIXED** | probe_bitlocker with the og's exact classifier gate (OEM memcmp -> type 0xB), dispatch before the FAT catch-all; boot-sig/fve-shape scoring (grade-only shape); FsFamily::BitLocker + probe_family branch; marked device-tail size fallback. 3 fail-before/pass-after tests; suite 365/365 ASan. `findings/FIXED/S-019-*.md` |
 | 2026-10-25 (s4) | S-014 | **FIXED** | Live path -> Control\FVEAutoUnlock (DRWService :104) + per-GUID Data blobs with og caps (50-char GUID / 256-B blob / 100 records); NEW portable cr/reghive regf parser (offsets decoded from the og's RegLib_decompiled.c) + offline hive path (bitlockerhelp flow, hardcoded ControlSet001 per the corpus) + mounted-volume probe; GUID-match-first selection. 11 Linux + 5 Windows tests + fuzz harness; suite 341/341 ASan. `findings/FIXED/S-014-*.md` |
 | 2026-10-25 | A-001 | **FIXED** | canonical GUIDs (`1cb6a43`); in `findings/FIXED/` |
@@ -1141,6 +1268,11 @@ legs in the same window (S-006, S-011, S-015, S-017, S-018-INVALID, N-021, plus 
 A-002/A-004/S-016/M-009 retirements earlier in the session), and the remaining
 unverifieds are all in tracked-open with precise next artifacts.
 
+*(Session-4 continuation 4: **M-011 + M-012 + M-015 (MAJOR) FIXED** — the FAT
+factory trio (table windows / mirror scrutiny + mirror-only / whole-table
+validation + copy retry). Counts: 28 MAJOR active, 41 FIXED. Fail-before 2/2 +
+3/3 + 2/2; suite 463/463 Linux ASan after five fixture builders gained the
+canonical FAT16 media pair (real-volume shape).)*
 
 ---
 
@@ -1201,7 +1333,6 @@ S-007, S-009-partial, S-020, S-023..S-028) · MAJOR 22 · MINOR 33 · INFO 12 ·
 **total active 77** / **35 FIXED** (tracked-open: the existing OQ files, now
 including OQ-S012).
 
-<<<<<<< HEAD
 
 **Fix-session-4 addendum (M-010):** the invalid-UTF-8 name edge closed — ext4/Btrfs
 names now carry a REVERSIBLE encoding of their raw bytes (U+E000 + byte) instead
@@ -1214,7 +1345,6 @@ renumbered **A-006** (findings/ACUTE/A-006-rawfixer-4kn-stack-buffer-overflow.md
 the hfsplus one keeps A-005 (its identity is baked into the Resolution,
 RESOLVED-INDEX, errata E37 and the module docs). Same protocol as the two prior
 collisions (recorded above).
-=======
 - **S-025 FIXED** (ext4 journal reparenting): the og's two-pass model —
   pre-walk harvest (parent map from "."/".." pairs; "."-less blocks stay
   owner-less orphans per S-004), post-walk emit reparenting under live
@@ -1227,7 +1357,6 @@ collisions (recorded above).
 
 **Live counts (after S-025):** ACUTE 0 · SEVERE 5 · MAJOR 36 ·
 MINOR 31 · INFO 18 · tracked-open 12 = **90 active** / **56 files in FIXED/**.
->>>>>>> 24d566f (fix(S-025): ext4 journal reparenting — the og's two-pass model; latent live-file duplicate found and fixed)
 
 - **S-028 FIXED** (btrfs xattrs): KEY_XATTR(24) dispatch — user.DOSATTRIB
   lands the Windows bits on the node (Samba hex text parsed); other user.*

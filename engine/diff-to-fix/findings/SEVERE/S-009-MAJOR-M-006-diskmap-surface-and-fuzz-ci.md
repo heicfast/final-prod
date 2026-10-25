@@ -135,3 +135,20 @@ deliberately deferred with its own documented comment. The M-006 half of this fi
 5. Doc drift: ABI-CONTRACT §7 "state 2 free" vs the ABI enum (`cr_ui.h:474-75`) and §"3 bad
    (marked by the FS)" applied to retry-layer ranges.
 Items 1 and M-005 share one plumbing fix (BitmapProvider) — implement together.
+
+---
+
+## Addendum (session 6 — the surface LANDED; the finding's premise is stale, and the residual is the FREE overlay, 2026-10-26)
+
+**Correction first (doc truth):** this finding's "no disk-map/bitmap query surface exists" premise stopped being true when the diskmap landed — `include/cr/tree/cr_diskmap.h` + `src/core/tree/cr_diskmap.cpp` + the `cr_ui_disk_map` ABI export (exercised end-to-end by the C consumer at tests/ui_abi_check.c:578-612, incl. the two-call bad_ranges pattern and the snapshot-requires-geometry contract). The CROSS-REF-MATRIX already noted "partial-FIXED-in-tree, finding file stale (N-020)"; this addendum makes the finding file itself truthful. The fuzz-CI half (M-006) was fixed long ago (e30b84d).
+
+**The residual (the actual remaining divergence):** the og's `IBuildVolumeBitmap` shared interface produces **free/used truth** from the filesystem bitmap ("which clusters are free/used" — searchdll-family--architecture.md §2, cited in this finding's header and in cr_diskmap.h's own lineage comment). The core's diskmap can produce only USED (active structured extents) + UNKNOWN: `kCellAllocFree` is defined (`cr_diskmap.h:62`) but **never assigned anywhere in src/** (grep: 0 assignment sites), because the engine-side allocation bitmaps are loaded-and-discarded inside the engines — e.g. the NTFS `VolumeBitmap` at `src/core/orchestrator/cr_scan.cpp:813-814` is loaded, passed to `walk_mft`, and destroyed without ever feeding the viz layer. The core's own header admits it: "the engine bitmap is not persisted (registered follow-up)" (cr_diskmap.h:21-23) — but no finding tracked that follow-up until now.
+
+**Fix plan for the residual (step 2 of the original plan, now concrete):**
+1. Have each engine's open path retain its allocation bitmap (NTFS `$Bitmap` via the existing `VolumeBitmap`; FAT/exFAT already parse their allocation bitmaps; ReFS via its allocator) OR have the orchestrator snapshot the bitmap into the ScanResult after the structured pass.
+2. Feed `build_disk_map`: cells the bitmap marks free and no found-content covers → `kCellAllocFree`; the current USED-from-extents rule stays (it is the stricter claim).
+3. Persistence: one bit-packed free map in the session (bounded by the 64 MiB overlay budget's cell granularity — the diskmap's own cell sizing already handles the scale).
+4. Tests: `DiskMap.NtfsFreeCellsFromBitmap` (a FAT-formatted NTFS fixture… no — an NTFS fixture with known-free clusters asserts kCellAllocFree there), `DiskMap.FreeCellsSurviveSessionReload`, `DiskMap.FreeNeverOverridesUsed`.
+5. Acceptance: the four-overlay C-consumer call can report free cells for a structured NTFS scan (today it reports Unknown outside active extents).
+
+**Related:** N-074 (the GAP-S6-11 row that must close-with-residual), the visualization module row (matrix update this session).

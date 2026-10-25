@@ -171,3 +171,9 @@ New rows on this module's surface (full detail in
   points → `M-045` (the gate deltas now carry the surface).
 - **lostpart.dat/partinfo.dat persistence semantics** — `M-042` (the
   session-module's resume re-validation row) + `N-049` (record richness).
+## Session-6 rows (deep continuation, 2026-10-26)
+
+| ID | Severity | One-line |
+|---|---|---|
+| I-020 | INFO | PartitionRecoveryD MOM module: two-generator-set architecture (CGeneratorSetCompleteSearch ×2 / CGeneratorSetRegSearch ×2) + lostpart.dat/partinfo.dat persistence — capability register; semantics tracked in OQ-S6-1 |
+| M-017 addendum | — | CalcPartition scorer-class evidence (Fat32CalcPartition ×39 / ExFatCalcPartition ×54 RTTI refs) appended; decode order for the fix leg: OQ-S6-1 first |

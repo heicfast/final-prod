@@ -115,3 +115,28 @@ The og's exact presentation of the inventory in the results tree (expandable chi
 preview pane) is UI-layer; the engine contract (analyser returns the inventory) is what this
 finding pins. The corpus's UIUX artifacts (09-results-phase) describe presentation only at
 the window level — no contradiction found.
+
+---
+
+## Session-6 convergence addendum (2026-10-26 — independent corroboration + three deltas)
+
+This session independently filed the same divergence (local M-042, dropped in the
+ID reconciliation) from the same artifact, and adds:
+
+1. **The results-tree consumer citation** (the demand side):
+   `rawsearchdll--zip-analyser-carving.md:64` — "Entry list = merged into result
+   via FUN_1800173f0 — consumed by the results-tree builder (**ZIP files expand
+   to their inner file list in the DRWUI tree**)". The inventory is not merely
+   returned; the og's tree BUILDS with it.
+2. **The size-from-sum rule**: the per-entry parser accumulates exact total size
+   into `local_f0` — "the final carve size is computed from the SUM of parsed
+   entries, not guessed" (zip-carve:37) — a sharper size bound than tail-walk
+   heuristics for structurally-truncated archives; worth folding into this
+   finding's fix (the inventory walk already computes it).
+3. **Two fix-plan additions:** a hostile-entry cap (10k entries, the S-015
+   lesson — hostile archives must not OOM the payload), and the
+   nested-inventory open question (ZIP-in-ZIP depth: corpus-evidenced depth 1
+   only — implement depth 1, track deeper as UNVERIFIED).
+
+Core-side re-read at `022c81d`-lineage: `CarveResult` remains {end,size} —
+unchanged; this finding stands as filed.

@@ -250,6 +250,41 @@ TEST(Report, WriterOutcomesAndHashHonesty) {
     EXPECT_EQ(u64(1), t.dirs);
 }
 
+TEST(Report, MultiExtentSpannedVolumeRefused) {
+    /* N-013: a spanned/RAID destination has MORE THAN ONE disk extent.
+     * First-extent-only arming (the pre-N-013 behavior) misses overlap
+     * on the second+ spans; every span must be checked. The finding's
+     * named test: Writer.MultiExtentSpannedVolumeRefused.
+     * span[0] = (0,100); span[1] = (1<<20, 512) - catches spanned.bin at
+     * (1<<20)+256; the other two nodes sit between the spans. */
+    std::vector<u8> img(16 * 512, 0);
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* found = tree.add_root(u"Found");
+    auto* between_a = add_node(tree, found, "between-a.bin", 2048, 100);
+    auto* spanned = add_node(tree, found, "spanned.bin", (1 << 20) + 256, 100);
+    auto* between_b = add_node(tree, found, "between-b.bin", 4096, 100);
+    tree.refresh_stats();
+
+    ReportIo io;
+    WriterConfig cfg;
+    SafeWriter writer(io, &dev, cfg);
+    writer.set_destination_spans({{0, 100}, {1 << 20, 512}});
+    ASSERT_EQ(OK, writer.enqueue(between_a, u"out\\"));       /* between spans */
+    ASSERT_EQ(ERR_DEST_OVERLAP, writer.enqueue(spanned, u"out\\")); /* span[1] catches */
+    ASSERT_EQ(OK, writer.enqueue(between_b, u"out\\"));       /* between spans */
+
+    /* single-span arming stays equivalent to the legacy setter: with only
+     * span[1] armed, spanned.bin is still caught (the sole span), the
+     * between nodes pass - and a node on the DISARMED first span
+     * (0,100) would pass (first-extent-only semantics preserved). */
+    SafeWriter legacy(io, &dev, cfg);
+    legacy.set_destination(1 << 20, 512);
+    ASSERT_EQ(OK, legacy.enqueue(between_a, u"out\\"));
+    ASSERT_EQ(ERR_DEST_OVERLAP, legacy.enqueue(spanned, u"out\\"));
+    ASSERT_EQ(OK, legacy.enqueue(between_b, u"out\\"));
+}
+
 TEST(Report, SalvagedOutcomeMarksZeroFilledCommits) {
     /* FB-R02 (W2-18): a committed item whose device read failed mid-stream
      * is ZERO-FILLED (Skip policy) and must surface as outcome "salvaged"

@@ -22,8 +22,14 @@ SafeWriter::SafeWriter(DestIo& io, IStorageDevice* source, WriterConfig cfg)
     : io_(io), source_(source), cfg_(std::move(cfg)) {}
 
 void SafeWriter::set_destination(u64 dest_disk_start, u64 dest_disk_bytes) {
-    dest_start_ = dest_disk_start;
-    dest_bytes_ = dest_disk_bytes;
+    set_destination_spans({{dest_disk_start, dest_disk_bytes}});
+}
+
+void SafeWriter::set_destination_spans(const std::vector<std::pair<u64, u64>>& spans) {
+    /* N-013: the destination volume's FULL disk placement (all extents of
+     * a spanned/RAID volume), replacing the pre-N-013 first-extent-only
+     * arming. */
+    dest_spans_.assign(spans.begin(), spans.end());
     have_dest_ = true;
 }
 
@@ -111,18 +117,20 @@ u32 SafeWriter::enqueue_common(const tree::FileProperties* pr, tree::FileNode* n
      * are ABSOLUTE device offsets; the destination extent is the
      * destination volume's disk placement. Directory nodes carry no
      * extents - never refused (G-08). */
-    if (!is_dir && have_dest_ && dest_bytes_ > 0) {
+    if (!is_dir && have_dest_ && !dest_spans_.empty()) {
         for (const auto& e : pr->extents) {
-            if (intersects(e.offset, e.length, dest_start_, dest_bytes_)) {
-                QueueItem refused;
-                refused.node = node;
-                refused.value_props = value_props;
-                refused.dest_dir = dest_dir;
-                refused.item_id = next_id_++;
-                refused.state = ItemState::Refused;
-                refused.error = ERR_DEST_OVERLAP;
-                queue_.push_back(refused);
-                return ERR_DEST_OVERLAP;
+            for (const auto& span : dest_spans_) { /* N-013: every span */
+                if (intersects(e.offset, e.length, span.first, span.second)) {
+                    QueueItem refused;
+                    refused.node = node;
+                    refused.value_props = value_props;
+                    refused.dest_dir = dest_dir;
+                    refused.item_id = next_id_++;
+                    refused.state = ItemState::Refused;
+                    refused.error = ERR_DEST_OVERLAP;
+                    queue_.push_back(refused);
+                    return ERR_DEST_OVERLAP;
+                }
             }
         }
     }

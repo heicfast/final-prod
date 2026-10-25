@@ -940,14 +940,11 @@ void le64j(u8* p, u64 v) {
 void write_journal_info(std::vector<u8>& d, u32 jinfo_block, u64 jbase, u64 jsize, u64 jstart,
                         u32 size_a, u32 size_b) {
     u8* ji = d.data() + u64(jinfo_block) * BS;
-    /* TN1150-verbatim JournalInfoBlock: flags u32@0 (bit 0
-     * kJIJournalInFSMask), device_signature[8]@+4..+0x23 (reserved -
-     * zeros on internal journals; NO magic field), offset u64@+0x24,
-     * size u64@+0x2C (the og's FUN_18000db70 swaps exactly these) */
     be32(ji + 0, 1);          /* flags: bit 0 set (the og's gate) */
-    /* +4..+0x23: device_signature[8] = zeros (memset'd volume) */
-    be64(ji + 0x24, jbase);   /* journal byte offset */
-    be64(ji + 0x2C, jsize);   /* journal size */
+    /* +4..+0x23: device_signature[8] = zeros (TN1150; NO magic field) */
+    be64(ji + 0x24, jbase);   /* journal byte offset (the og's decode -
+                               * FUN_18000db70 swaps [0x24..0x2B]) */
+    be64(ji + 0x2C, jsize);   /* journal size ([0x2C..0x33]) */
     u8* jh = d.data() + jbase;
     le32j(jh + 0, 0x4A4E4C78); /* JNLx (jnl.c, LE) */
     le32j(jh + 4, 0x12345678); /* endian marker */
@@ -993,8 +990,8 @@ std::vector<u8> make_index_node() {
 static std::vector<u8> build_volume_journal() {
     auto d = build_volume();
     d.resize(16 * BS, 0);                  /* already 16 blocks */
-    be32(d.data() + 1024 + 0x04, 0x2000);  /* VH attributes: kHFSVolumeJournaledBit */
-    be32(d.data() + 1024 + 0x0C, B_JINFO); /* VH journalInfoBlock */
+be32(d.data() + 1024 + 0x04, 0x2000); /* kHFSVolumeJournaledBit */
+        be32(d.data() + 1024 + 0x0C, B_JINFO); /* VH journalInfoBlock */
 
     const u64 jbase = u64(10) * BS;
     const u64 jsize = u64(4) * BS;
@@ -1135,8 +1132,8 @@ TEST(HfsPlus, JournalWrapHandled) {
      * wrapped tail; the jnl header's 44 bytes overlap only the node's
      * free space). */
     auto d = build_volume();
-    be32(d.data() + 1024 + 0x04, 0x2000); /* kHFSVolumeJournaledBit */
-    be32(d.data() + 1024 + 0x0C, B_JINFO);
+be32(d.data() + 1024 + 0x04, 0x2000); /* kHFSVolumeJournaledBit */
+        be32(d.data() + 1024 + 0x0C, B_JINFO);
 
     const u64 jbase = u64(10) * BS;
     const u64 jsize = u64(3) * BS;
@@ -1193,11 +1190,110 @@ TEST(HfsPlus, JournalHarvestDisabledByFlag) {
     EXPECT_EQ(0u, st.journal_emitted);
 }
 
+TEST(HfsPlus, JournalSameKeyDifferentFileIdBothKept) {
+    /* The og's harvest map is ordered by {key, fileID} (the dedup compare
+     * at :13974+ matches BOTH): two journal records under the same
+     * (parent, name) with different fileIDs are two distinct deleted
+     * incarnations - BOTH emit. (The audit's "cnid != parentCNID" reading
+     * mis-parsed the compare operand: `puVar25 + 4` is ushort* arithmetic
+     * = DATA+8 = fileID, so the rule is fileID-vs-fileID, and there is no
+     * parent-skip. S-021 convergence correction.) */
+    auto img = build_volume_journal();
+    auto dup_a = make_record(2, u"dup.txt", 2, 41, 100, B_JDATA, 1, 0, 0, 0);
+    auto dup_b = make_record(2, u"dup.txt", 2, 42, 200, B_JDATA, 1, 0, 0, 0);
+    auto leaf = make_leaf_node({dup_a, dup_b}, 0);
+    memcpy(img.data() + u64(10) * BS + u64(2) * BS, leaf.data(), NODE_SIZE);
+
+    MemDevice dev(img);
+    tree::ResultTree tree;
+    auto* ra = tree.add_root(u"Found");
+    auto* rd = tree.add_root(u"Deleted");
+    auto* rl = tree.add_root(u"Lost Files");
+    HfsScanFlags fl;
+    HfsScanStats st;
+    u32 rc = scan_hfsplus(&dev, fl, nullptr, nullptr, nullptr, tree, ra, rd, rl, st);
+    ASSERT_EQ(OK, rc) << err_text(rc);
+    EXPECT_EQ(2u, st.journal_records) << "both {key, fileID} entries survive the map";
+    EXPECT_EQ(2u, st.journal_emitted);
+    int dup_count = 0;
+    u64 sizes = 0;
+    for (tree::FileNode* c = rd->first_child(); c; c = c->next_sibling()) {
+        if (c->props() && c->name_utf8() == "dup.txt") {
+            ++dup_count;
+            sizes += c->props()->logical_size;
+        }
+    }
+    EXPECT_EQ(2, dup_count) << "same key, different fileID: both incarnations emit";
+    EXPECT_EQ(u64(300), sizes) << "the two incarnations carry their own sizes (100 + 200)";
+}
+
+TEST(HfsPlus, JournalAttrDecmpfsFallbackFeedsEmptyForkFile) {
+    /* The attributes branch (og :14085-14145, not-found-only differential)
+    * feeds the decmpfs fallback for harvested files (FUN_180009f40): a
+     * deleted file whose com.apple.decmpfs attribute survives only in the
+     * journal resolves its content from the journal image (mode 3: the
+     * zlib stream lives inside the attribute value, inside the image). */
+    auto img = build_volume_journal();
+    img.resize(17 * BS, 0); /* block 15 = the attributes-fork header node */
+
+    /* harvested catalog record: ghost.pages, EMPTY data fork */
+    auto ghost = make_record(2, u"ghost.pages", 2, 45, 0, 0, 0, 0, 0, 0);
+    auto leaf = make_leaf_node({ghost}, 0);
+    memcpy(img.data() + u64(10) * BS + u64(2) * BS, leaf.data(), NODE_SIZE);
+
+    /* live attributes tree: a header-only node at block 15 (no records -
+     * the journal attribute survives the not-found-only differential) */
+    u8* vh = img.data() + 1024;
+    write_fork(vh + 0x160, 1 * BS, 15, 1);
+    u8* ahdr = img.data() + u64(15) * BS;
+    ahdr[8] = 1; /* kind = header */
+    ahdr[9] = 0;
+    be16(ahdr + 10, 3);
+    be16(ahdr + 14 + 0x12, NODE_SIZE);
+    be32(ahdr + 14 + 0x0A, 0); /* firstLeaf = 0 */
+    be32(ahdr + 14 + 0x0E, 0); /* lastLeaf = 0 */
+
+    /* entry[1] becomes an attributes-branch image: a leaf carrying the
+     * com.apple.decmpfs record for cnid 45 (mode 3, zlib payload) */
+    const std::string plain = "journal-only decmpfs payload for ghost.pages";
+    const std::vector<u8> zbuf = zlib_compress(plain);
+    std::vector<u8> value = decmpfs_value(3, u32(plain.size()), 0);
+    value.insert(value.end(), zbuf.begin(), zbuf.end());
+    auto attr_rec = make_attr_record(45, u"com.apple.decmpfs", 0x10, value);
+    auto attr_leaf = make_leaf_node({attr_rec}, 0);
+    memcpy(img.data() + u64(10) * BS + u64(3) * BS, attr_leaf.data(), NODE_SIZE);
+    write_tx_entry(img, u64(10) * BS, BS, 1, 15 /*attributes fork*/, NODE_SIZE);
+
+    MemDevice dev(img);
+    tree::ResultTree tree;
+    auto* ra = tree.add_root(u"Found");
+    auto* rd = tree.add_root(u"Deleted");
+    auto* rl = tree.add_root(u"Lost Files");
+    HfsScanFlags fl;
+    HfsScanStats st;
+    u32 rc = scan_hfsplus(&dev, fl, nullptr, nullptr, nullptr, tree, ra, rd, rl, st);
+    ASSERT_EQ(OK, rc) << err_text(rc);
+    EXPECT_EQ(1u, st.journal_attr_records) << "the journal attribute record is kept";
+
+    tree::FileNode* node = nullptr;
+    for (tree::FileNode* c = rd->first_child(); c; c = c->next_sibling())
+        if (c->props() && c->name_utf8() == "ghost.pages")
+            node = c;
+    ASSERT_NE(node, nullptr);
+    EXPECT_EQ(u64(plain.size()), node->props()->logical_size)
+        << "the decmpfs uncompressed size wins over the empty fork";
+    ASSERT_EQ(1u, node->props()->extents.size());
+    EXPECT_NE(0u, node->props()->extents[0].codec)
+        << "the content extent is codec-tagged (kZlib)";
+    EXPECT_EQ(u64(zbuf.size()), node->props()->extents[0].psize)
+        << "the on-disk payload size is the zlib stream inside the attribute value";
+    EXPECT_EQ(1u, st.decmpfs_files);
+}
 
 /* ------------------------------------------------------------------ */
-/* S-003/S-021 verification-pass tests (closing session): the og's     */
-/* entry gates, the asm-exact validator strictness, the attributes    */
-/* branch, and the header-invalid fallback salvage ladder.            */
+/* S-003/S-021 verification-pass tests (closing session, df5 lineage): */
+/* the og's entry gates, the asm-exact validator strictness, and the   */
+/* header-invalid fallback salvage ladder.                             */
 /* ------------------------------------------------------------------ */
 
 TEST(HfsPlus, JournalRequiresVolumeJournaledBit) {
@@ -1244,12 +1340,10 @@ TEST(HfsPlus, JournalInfoBlockHasNoMagicField) {
 
 TEST(HfsPlus, JournalNodeImageRejectsInconsistentOffsetTable) {
     /* asm-exact FUN_180010720: a mid-chain offset-table violation REJECTS
-     * the image (0x18001080c/:812 jump past the success flag) - the og
-     * never harvests from a corrupt-tail node. The lenient break accepted
-     * record 0 of such nodes. */
+     * the image (0x18001080c/:812 jump past the success flag at :825) -
+     * the og never harvests from a corrupt-tail node. The lenient break
+     * accepted record 0 of such nodes. */
     auto img = build_volume_journal();
-    /* rebuild the leaf image with 2 records but a collapsed free-space
-     * offset (slot 3 <= record 1's offset - a mid-chain violation) */
     auto jd = make_record(2, u"journaldeleted.dat", 2, 40, 512, B_JDATA, 1, 0, 0, 0);
     auto stale = make_record(2, u"readme.txt", 2, 20, 26, B_FILE_DATA, 1, 0, 0, 0);
     auto leaf = make_leaf_node({jd, stale}, 0);
@@ -1270,74 +1364,13 @@ TEST(HfsPlus, JournalNodeImageRejectsInconsistentOffsetTable) {
         << "a corrupt-tail node must be rejected whole (asm-strict)";
 }
 
-TEST(HfsPlus, JournalAttributeDecmpfsSizeFallback) {
-    /* og :14096 - attribute records the live tree lacks feed the decmpfs
-     * SIZE fallback (FUN_180009c10 :7840-42 consumes size only, payload
-     * freed). A journal-harvested compressed file with an empty data fork
-     * gets its logical size from the harvested attribute. */
-    auto img = build_volume_journal();
-    /* attributes fork at block 14 (classification target) */
-    write_fork(img.data() + 1024 + 0x160, NODE_SIZE, 14, 1);
-    /* rebuild the transaction: entry[0] = a catalog leaf carrying an
-     * empty-fork file (compressed); entry[1] = an attributes leaf with
-     * its decmpfs record */
-    auto comp = make_record(2, u"compressed.dat", 2, 41, 0, 0, 0, 0, 0, 0);
-    auto cat_leaf = make_leaf_node({comp}, 0);
-    memcpy(img.data() + u64(10) * BS + u64(2) * BS, cat_leaf.data(), NODE_SIZE);
-    write_tx_entry(img, u64(10) * BS, BS, 0, B_CAT_LEAF2, NODE_SIZE);
-
-    const std::u16string dname = u"com.apple.decmpfs";
-    std::vector<u8> arec;
-    const u32 name_units = u32(dname.size());
-    const u32 akey_len = 14 + name_units * 2; /* counts itself */
-    arec.resize(akey_len + 16 + 16, 0); /* attr header = 16 (type+2x reserved+length) */
-    be16(arec.data(), u16(akey_len));
-    be32(arec.data() + 4, 41); /* fileId = compressed.dat's cnid */
-    be16(arec.data() + 0x0C, u16(name_units));
-    for (u32 i = 0; i < name_units; ++i)
-        be16(arec.data() + 0x0E + u32(i) * 2, dname[i]);
-    const u32 adata = akey_len;
-    be32(arec.data() + adata, 0x10);       /* recordType: inline */
-    be32(arec.data() + adata + 12, 16);    /* value length */
-    const u32 payload = adata + 16;        /* the value bytes */
-    arec[payload + 0] = 0x63;              /* 'c' */
-    arec[payload + 1] = 0x6D;              /* 'm' */
-    arec[payload + 2] = 0x70;              /* 'p' */
-    arec[payload + 3] = 0x66;              /* 'f' (LE magic 0x66706D63) */
-    le32j(arec.data() + payload + 4, 3);     /* mode 3 */
-    le32j(arec.data() + payload + 8, 12345); /* uncompressed size */
-    auto attr_leaf = make_leaf_node({arec}, 0);
-    memcpy(img.data() + u64(10) * BS + u64(3) * BS, attr_leaf.data(), NODE_SIZE);
-    write_tx_entry(img, u64(10) * BS, BS, 1, 14 /*attributes fork*/, NODE_SIZE);
-
-    MemDevice dev(img);
-    tree::ResultTree tree;
-    auto* ra = tree.add_root(u"Found");
-    auto* rd = tree.add_root(u"Deleted");
-    auto* rl = tree.add_root(u"Lost Files");
-    HfsScanFlags fl;
-    HfsScanStats st;
-    u32 rc = scan_hfsplus(&dev, fl, nullptr, nullptr, nullptr, tree, ra, rd, rl, st);
-    ASSERT_EQ(OK, rc) << err_text(rc);
-    EXPECT_EQ(1u, st.journal_attrs) << "the attributes branch must harvest";
-    tree::FileNode* comp_node = nullptr;
-    for (tree::FileNode* c = rd->first_child(); c; c = c->next_sibling())
-        if (c->props() && c->name_utf8() == "compressed.dat")
-            comp_node = c;
-    ASSERT_NE(comp_node, nullptr);
-    EXPECT_EQ(u64(12345), comp_node->props()->logical_size)
-        << "the journal decmpfs size fallback must apply (og size-only)";
-    EXPECT_TRUE(comp_node->props()->extents.empty())
-        << "no content extents for a size-only fallback";
-}
-
 TEST(HfsPlus, JournalFallbackSalvageWhenHeaderInvalid) {
     /* the og's volume-open salvage ladder (:1715-1760 + FUN_180003ea0):
      * jnl_header magic corrupt but the block at jbase is node-shaped ->
      * the size ladder salvages the first validator-passing node and its
      * records reach the deleted tier through the same differential. */
     auto img = build_volume_journal();
-    img.resize(24 * BS, 0); /* 32 KiB scan window must fit at jbase */
+    img.resize(24 * BS, 0); /* the 32 KiB scan window must fit at jbase */
     le32j(img.data() + u64(10) * BS + 0, 0xDEADBEEF); /* corrupt jnl magic */
 
     /* a valid catalog leaf AT the journal start (node-shaped trigger:
@@ -1387,6 +1420,7 @@ TEST(HfsPlus, JournalFallbackRequiresNodeShapedStart) {
     EXPECT_EQ(0u, st.journal_salvage);
     EXPECT_EQ(0u, st.journal_emitted);
 }
+
 } // namespace
 } // namespace hfsplus
 } // namespace cr

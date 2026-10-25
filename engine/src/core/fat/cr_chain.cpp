@@ -91,11 +91,58 @@ u32 FatTable::load(IStorageDevice* dev, const FatParams& p) {
     flavor_ = p.flavor;
     max_cluster_ = p.cluster_count + 1; /* clusters 2..cluster_count+1 */
     u64 table_bytes = u64(p.fat_sectors) * p.bytes_per_sector;
-    if (table_bytes == 0 || table_bytes > (16u << 20))
+    /* M-011 (diff-to-fix): per-flavor sectors-per-FAT windows, exactly the
+     * og's child-table validation (FUN_180036e90 :44715-44793, re-read
+     * first-hand): FAT12 spf in [1, 0xC], FAT16 spf in [0xC, 0x100], FAT32
+     * spf in [0x100, 0x96000] - the bounds divided by (bps>>9) so they are
+     * sector-count-invariant: at 512 B sectors FAT32 accepts 128 KiB..
+     * 300 MiB tables (whole-loaded, og factory shape :3809-3814). The old
+     * flat 16 MiB cap refused every larger FAT32 (17 MiB-FAT volumes =
+     * multi-TB-with-large-clusters class) with ERR_BAD_PARAMETER and the
+     * whole volume vanished from recovery; the FAT16 lower bound was
+     * missing entirely (spf < 12 = FAT12-window territory the og never
+     * scans as FAT16). */
+    const u64 spf_scale = p.bytes_per_sector / 512;
+    u64 spf_min = 1, spf_max = 0x96000;
+    switch (flavor_) {
+    case Flavor::Fat12:
+        spf_min = 1;
+        spf_max = 0xC;
+        break;
+    case Flavor::Fat16:
+        spf_min = 0xC;
+        spf_max = 0x100;
+        break;
+    case Flavor::Fat32:
+    default:
+        spf_min = 0x100;
+        spf_max = 0x96000;
+        break;
+    }
+    if (spf_scale != 0) {
+        spf_min = (spf_min + spf_scale - 1) / spf_scale; /* ceil: at least
+                                                          * one sector */
+        spf_max /= spf_scale;
+    }
+    if (p.fat_sectors < spf_min || p.fat_sectors > spf_max || table_bytes == 0)
         return ERR_BAD_PARAMETER;
     fat1_.resize(size_t(table_bytes));
     if (dev->read_at(p.fat_start, fat1_.data(), u32(table_bytes)) != OK) {
+        /* M-012 (diff-to-fix): mirror-only mode. The og's factory keeps a
+         * NULL child1 when FAT1 cannot be read and CDoubleFATTable::Next
+         * then serves the MIRROR's answer RAW (:54216 `child1 && ...` falls
+         * through; :54250 `return uVar2` with no scrutiny) - the volume
+         * still scans. The core used to fail the whole scan with
+         * ERR_READ_FAILED. */
         fat1_.clear();
+        if (p.fat_count >= 2 && p.fat2_start != 0) {
+            fat1_.resize(size_t(table_bytes));
+            if (dev->read_at(p.fat2_start, fat1_.data(), u32(table_bytes)) == OK) {
+                mirror_only_ = true;
+                return OK; /* no second mirror to consult */
+            }
+            fat1_.clear();
+        }
         return ERR_READ_FAILED;
     }
     if (p.fat_count >= 2 && p.fat2_start != 0) {
@@ -106,7 +153,155 @@ u32 FatTable::load(IStorageDevice* dev, const FatParams& p) {
             mirror_ = true;
         }
     }
+    /* M-015 (diff-to-fix): whole-table validation + copy retry. The og
+     * validates each loaded copy (CFAT16 FUN_180041b00 :54052-141: media
+     * word pair exact, entry sweep, claims-map cross-link walk; CFAT32
+     * family-tolerant + the 98% watermark under the deep-check flag) and
+     * the factory retries alternate FAT regions on rejection
+     * (:3817-3950). The core loaded whichever copy it read, unvalidated -
+     * a corrupt FAT1 silently produced wrong chains where the og scanned
+     * a clean copy. */
+    if (!fat_validate_(p)) {
+        if (!fat2_.empty() && fat2_validate_(p)) {
+            /* the mirror is clean: promote it to the primary (og child1
+             * = the alternate copy) and keep consulting it as mirror */
+            fat1_ = fat2_;
+            fat_copy_rejected_ = true;
+            return OK;
+        }
+        fat1_.clear();
+        fat2_.clear();
+        mirror_ = false;
+        return ERR_BAD_MAGIC;
+    }
     return OK;
+}
+
+namespace {
+/* M-015: the og's whole-table validation, ported from FUN_180041b00
+ * (:54052-54141, re-read first-hand). Flavor-shared sweep + claims walk;
+ * the FAT16 media-word check is exact (u32@FAT[0] == 0xFFFFFFF8), FAT12/
+ * FAT32 are family-tolerant (the og's CFAT32 :53853-53919; CFAT12 is not
+ * separately cited - family-tolerant, documented). The 98% watermark is
+ * advisory-only here: its deep-check gate default is unpinned (finding's
+ * open question), so it is computed into a stat, never a reject. */
+bool fat_table_validate(const std::vector<u8>& f, Flavor flavor, u32 entry_count,
+                        u32& used_out) {
+    used_out = 0;
+    if (f.empty())
+        return false;
+    const u32 n = entry_count;
+    if (n < 3)
+        return false;
+    /* media words: FAT16 exact 0xFFFFFFF8 (the pair FAT[0..1]); other
+     * flavors tolerate the family forms */
+    if (flavor == Flavor::Fat16) {
+        if (f.size() < 4)
+            return false;
+        const u32 media = u32_from_bytes_le(f.data());
+        if (media != 0xFFFFFFF8u)
+            return false;
+    } else if (f.size() < 8) {
+        return false;
+    }
+    /* entry sweep: OOB pointers (>= n, below the EOC family), == 1,
+     * self-loops invalidate the WHOLE table */
+    const auto raw_entry = [&](u32 c) -> u32 {
+        switch (flavor) {
+        case Flavor::Fat12: {
+            const size_t off = size_t(c) + size_t(c) / 2;
+            if (off + 2 > f.size())
+                return 0xFFFF;
+            u32 v = u16_from_bytes_le(f.data() + off);
+            if (c & 1)
+                v >>= 4;
+            else
+                v &= 0xFFF;
+            return v;
+        }
+        case Flavor::Fat16: {
+            const size_t off = size_t(c) * 2;
+            if (off + 2 > f.size())
+                return 0xFFFF;
+            return u16_from_bytes_le(f.data() + off);
+        }
+        case Flavor::Fat32:
+        default: {
+            const size_t off = size_t(c) * 4;
+            if (off + 4 > f.size())
+                return 0xFFFFFFFFu;
+            return u32_from_bytes_le(f.data() + off) & 0x0FFFFFFF;
+        }
+        }
+    };
+    const u32 eoc_family_min = flavor == Flavor::Fat12     ? 0xFF8
+                               : flavor == Flavor::Fat16   ? 0xFFF8
+                                                            : 0x0FFFFFF8;
+    /* the og's OOB band is [n, BAD) - STRICTLY below the BAD sentinel
+     * (0xFFF7 itself passes the sweep; a BAD cluster is a legal value).
+     * FAT32 additionally carries the mask-24 alternate EOC family
+     * (N-002: (raw & 0x07FFFFF8) == 0x07FFFFF8 -> EOC, e.g. dirty-high
+     * forms 0x27FFFFF8); those values end chains, they are not links. */
+    const u32 bad_sentinel = flavor == Flavor::Fat12     ? 0xFF7
+                             : flavor == Flavor::Fat16   ? 0xFFF7
+                                                          : 0x0FFFFFF7;
+    const u32 alt_eoc_min = flavor == Flavor::Fat32 ? 0x07FFFFF8 : bad_sentinel;
+    const auto is_link = [&](u32 v) {
+        return v >= 2 && v < bad_sentinel && v < n && v < alt_eoc_min;
+    };
+    u32 used = 0;
+    for (u32 i = 2; i < n; ++i) {
+        const u32 v = raw_entry(i);
+        if (v == 1 || v == i)
+            return false; /* ==1 / self-loop */
+        if (v >= n && v < bad_sentinel && v < alt_eoc_min)
+            return false; /* OOB pointer below the BAD sentinel */
+        if (is_link(v))
+            ++used; /* a live link (watermark advisory) */
+    }
+    used_out = used;
+    /* claims-map cross-link walk: every unclaimed entry roots a chain;
+     * a cluster claimed by two different roots is a cross-link; a walk
+     * visiting n-2 entries is a cycle covering the table - both reject
+     * the whole table (og :54084-54114). Bounded to the same n budget. */
+    std::vector<u32> claims(size_t(n), 0);
+    for (u32 i = 2; i < n; ++i) {
+        if (claims[i] != 0)
+            continue;
+        u32 c = i;
+        for (u32 steps = 0; steps < n; ++steps) {
+            const u32 v = raw_entry(c);
+            if (v < 2 || v >= eoc_family_min || v >= n || v >= alt_eoc_min)
+                break; /* free / EOC family (incl. mask-24) / BAD: ends */
+            if (claims[v] == 0) {
+                claims[v] = i;
+            } else if (claims[v] != i) {
+                return false; /* cross-link: another chain's cluster */
+            }
+            c = v;
+        }
+        /* (a chain visiting every entry = a covering cycle also rejects;
+         * the per-root walks above terminate before that on real tables,
+         * and the O(n) total budget bounds the pathological case) */
+    }
+    return true;
+}
+} // namespace
+
+bool FatTable::fat_validate_(const FatParams& p) {
+    const u32 entry_count = max_cluster_ + 1 < 0xFFFFFF0u ? max_cluster_ + 1 : 0xFFFFFF0u;
+    u32 used = 0;
+    const bool ok = fat_table_validate(fat1_, flavor_, entry_count, used);
+    (void)p;
+    return ok;
+}
+
+bool FatTable::fat2_validate_(const FatParams& p) {
+    const u32 entry_count = max_cluster_ + 1 < 0xFFFFFF0u ? max_cluster_ + 1 : 0xFFFFFF0u;
+    u32 used = 0;
+    const bool ok = fat_table_validate(fat2_, flavor_, entry_count, used);
+    (void)p;
+    return ok;
 }
 
 namespace {
@@ -145,17 +340,47 @@ bool fs_name_matches(const u8* at, const char* want) {
 }
 } // namespace
 
+u32 FatTable::mirror_consult_(u32 cluster) const {
+    /* M-012 (diff-to-fix): the og's mirror scrutiny, FUN_180041de0
+     * :54226-54248 re-read first-hand. Consulted ONLY when the primary
+     * answered FREE (N-022); the mirror's answer is then SCRUTINIZED:
+     *   backward (alt < cluster): reject a shifted copy (mirror(c+1) ==
+     *     alt+1), reject a cross-link (mirror(alt-1) == alt), accept only
+     *     contiguity (mirror(alt) == alt+1); else 0.
+     *   forward: accept unless the mirror claims BAD/EOC (a mirror is not
+     *     believed when the primary said FREE).
+     * The old code accepted ANY non-zero non-BAD mirror answer - torn
+     * FAT1/FAT2 pairs (shifted copies) produced bogus chains. */
+    const u32 alt = entry_at(fat2_, cluster);
+    if (alt == 0)
+        return 0;
+    if (alt < cluster) {
+        /* backward link: shifted copy / cross-link / contiguity */
+        const u32 next_c1 = entry_at(fat2_, cluster + 1);
+        if (next_c1 == alt + 1)
+            return 0; /* shifted copy of the primary's layout */
+        const u32 at_alt = entry_at(fat2_, alt);
+        const u32 before_alt = alt >= 1 ? entry_at(fat2_, alt - 1) : 0;
+        if (alt != 0 && before_alt == alt)
+            return 0; /* cross-link: alt is already claimed */
+        if (alt != 0 && at_alt == alt + 1)
+            return alt; /* contiguity-consistent: believe */
+        return 0;
+    }
+    /* forward: mirror BAD/EOC not believed after a primary FREE */
+    if (alt == CHAIN_BAD || alt >= CHAIN_EOC_MIN)
+        return 0;
+    return alt;
+}
+
 u32 FatTable::next(u32 cluster) const {
     if (cluster < 2 || cluster > max_cluster_)
         return 0;
     u32 v = entry_at(fat1_, cluster);
     /* N-022: mirror consult on primary FREE only (og parity); the
      * primary's BAD answer is served directly (chain truncates). */
-    if (mirror_ && v == 0) {
-        u32 alt = entry_at(fat2_, cluster);
-        if (alt != 0 && alt != CHAIN_BAD)
-            return alt;
-    }
+    if (mirror_ && v == 0)
+        return mirror_consult_(cluster);
     if (mirror_ && v == CHAIN_BAD && mirror_bad_salvage_) {
         /* opt-in torn-pair salvage (recovery mode, NOT the og default) */
         u32 alt = entry_at(fat2_, cluster);
@@ -185,13 +410,9 @@ u32 FatTable::raw(u32 cluster) const {
     if (cluster < 2 || cluster > max_cluster_)
         return 0;
     u32 v = entry_at(fat1_, cluster);
-    /* N-022: same consult policy as next() - primary FREE consults the
-     * mirror; primary BAD is served raw unless salvage is opted in. */
-    if (mirror_ && v == 0) {
-        u32 alt = entry_at(fat2_, cluster);
-        if (alt != 0 && alt != CHAIN_BAD)
-            return alt;
-    }
+    /* N-022 + M-012: same consult+scrutiny policy as next(). */
+    if (mirror_ && v == 0)
+        return mirror_consult_(cluster);
     if (mirror_ && v == CHAIN_BAD && mirror_bad_salvage_) {
         u32 alt = entry_at(fat2_, cluster);
         if (alt != 0 && alt != CHAIN_BAD)

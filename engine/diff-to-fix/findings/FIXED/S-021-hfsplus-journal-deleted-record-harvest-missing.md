@@ -203,4 +203,37 @@ is replicated deliberately for parity and noted in-code. Fail-before: 6 tests
 red on the pre-correction tree (the three pre-existing journal tests +
 JournalInfoBlockHasNoMagicField + JournalAttributeDecmpfsSizeFallback +
 JournalFallbackSalvageWhenHeaderInvalid). Pass-after: 11/11 journal tests,
-suite 491/491 Linux Release.
+suite 491/491 Linux Release.## Convergence addendum 2 (final-sweep session, 2026-10-26)
+
+A third independent decode (from-scratch this session, corpus 03ad46c first-hand)
+landed two corrections the converged implementation still carried, now fixed forward:
+
+1. **The "cnid == parentCNID skip" rule does not exist.** The audit's reading
+   of `:13961-62` mis-parsed the operand: `puVar25` is the record DATA pointer
+   (FUN_18000f2d0 = the record reader — its 0x58/0xF8 copy sizes prove it
+   returns bodies, not keys), and `*(int*)(puVar25 + 4)` is ushort* arithmetic
+   = DATA+8 bytes = the canonical fileID. Both comparison operands are the
+   fileID; the rule is the og's harvest-map dedup {key, fileID} — same key +
+   same fileID replaces (newest image wins), same key under a DIFFERENT
+   fileID keeps BOTH entries (the map's comparator covers both fields).
+   Corrected in journal_harvest_pass (the kept map is now keyed
+   {parent, name, cnid}); pinned by JournalSameKeyDifferentFileIdBothKept
+   (fail-before: the pre-correction newest-wins map emitted one).
+2. **The attributes branch is consumed og-side.** The converged pass counted
+   attributes-branch leaf images but dropped their records; the og harvests
+   them into volume+0x78's map (:14085-14145, not-found-only differential)
+   and consumes them as the decmpfs fallback for harvested files
+   (FUN_180009f40 :7937-82). Wired: journal attribute records with absolute
+   image-relative value offsets; harvested files with empty data forks
+   resolve mode-3 (zlib inside the attribute value) and mode-4
+   (resource-fork offset) content through the same codec-extent contract as
+   the live path. Pinned by JournalAttrDecmpfsFallbackFeedsEmptyForkFile
+   (fail-before: journal_attr_records was never counted).
+   Also fixed en route: a merge-mangled decmpfs layout comment in the
+   S-002 header block, and two leaked `>>>>>>>` conflict markers in
+   worklog.md.
+
+Suite 466/466 Linux Release + 466/466 Linux ASan (leaks ON) with both
+corrections. The transaction-gate/size-cross-check constant-derivation
+question and the fallback-salvage decode are consolidated in
+tracked-open/OQ-S003-journal-fallback-salvage.md (Q2 appended).

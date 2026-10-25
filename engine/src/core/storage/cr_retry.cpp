@@ -5,6 +5,7 @@
 
 #include "cr/storage/cr_retry.h"
 #include <cstring>
+#include <vector>
 
 namespace cr {
 
@@ -70,6 +71,31 @@ u32 RetryingDevice::read_isolated(u64 offset, u8* buffer, u32 length, u32 depth_
         return rc;
 
     const u32 sector = inner_->geometry().logical_sector ? inner_->geometry().logical_sector : 512;
+    /* N-004: the og's CatchBuffer salvage - one shifted-window second
+     * chance before the span is bisected/marked bad. The og (ext4 engine,
+     * CEXT4CatchBufferDeviceProxy, corpus ext4-engine--deep-dive.md §3)
+     * re-reads [off-0x400, off+len) into a fresh buffer when the primary
+     * window fails; that catches alignment-dependent transport failures
+     * the plain retry (same window) cannot. Step = max(0x400, sector):
+     * og-exact at 512n, still aligned at 4Kn (deliberate improvement - the
+     * og's hardcoded 0x400 is misaligned on 4Kn). */
+    if (policy_.backtrack) {
+        const u64 back = sector > 0x400 ? sector : 0x400;
+        /* Window must stay sector-aligned at BOTH ends and inside the
+         * device; length rounded up to a whole sector so the shifted
+         * request cannot end mid-sector (the tail beyond `length` is
+         * dropped, the overlap [offset, offset+length) is what we keep). */
+        const u32 win_len = u32(back + u64(length + sector - 1) / sector * sector);
+        if (offset >= back && offset - back + win_len <= size()) {
+            /* fresh buffer per catch, like the og's 0xE00 CatchBuffer
+             * allocation (heap: no 12 KiB+ stack risk on worker threads) */
+            std::vector<u8> win(win_len);
+            if (inner_->read_at(offset - back, win.data(), win_len) == OK) {
+                memcpy(buffer, win.data() + back, length);
+                return OK; /* salvaged - range never recorded bad */
+            }
+        }
+    }
     /* Bisect while a half would still be at least one full sector. */
     if (depth_budget == 0 || length <= sector || length / 2 < sector) {
         /* Cannot or must not bisect further: this range is bad. */

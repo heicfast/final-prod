@@ -101,3 +101,8 @@ Core (audited `67193b6` + concurrent GAP-S6-7 in tree): `src/core/recovery/` (77
   requires a live handle — cr_destio.cpp:44-71). UNC path construction untested. (An
   earlier scratch note claiming the ERROR_IO_PENDING branch is unreachable was withdrawn
   this session — overlapped handles make it reachable.)
+## Session-6 rows (deep continuation, 2026-10-26)
+
+| ID | Severity | One-line |
+|---|---|---|
+| N-048 | MINOR | Collision naming: og `name_N.ext` (`%s_%d` forms) cap 10,000 (DRWUI:357116-357131) vs core `name (N).ext` cap 64 + `_dup` fallback; mkdir: og accepts SHCreateDirectoryExW only on 0/0xB7 (DRWUI:870436-438) vs core exist-as-dir-beats-any-error — and D-19's "collision unevidenced in og" premise refuted (evidence: s6-writer-collision-and-mkdir.md) |

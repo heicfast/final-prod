@@ -20,6 +20,34 @@ on a file, then compare both engines' dataset walks) + decode the og's
 dsl_dir/dsl_dataset field reads in ZfsSearchDLL_decompiled.c around the MOS
 walk (:19934/:19983 region).
 
+**Session-6 refinement (2026-10-26) — the OQ's kernel-reference text is
+mis-transcribed; the ACUTE-gate assessment changes:**
+
+The core's constants were re-verified against the OpenZFS headers as cited in
+the core's own comment (`cr_zfs_engine.cpp:231-237`): `dsl_dir_phys_s =
+{creation_time@0, head_dataset_obj@8, origin_obj@16, child_dir_zapobj@24,
+...}` and `dsl_dataset_phys` with `ds_bp@128` (after dir_obj/prev_snap_obj/
+prev_snap_txg/next_snap_obj/snapnames_zapobj/num_children/creation_txg/
+creation_time/deadlist_obj/used/compressed/uncompressed/unique/fsid_guid/
+guid/flags — 16 u64s = 0x80 — then the 128-byte blkptr). The OQ's own text
+claimed kernel `{origin@24, child_dir_zapobj@32}` and `{ds_bp@32}` — those do
+NOT match the OpenZFS layouts (32 is `ds_snapnames_zapobj`, and dsl_dir's
+child zap sits at 24). Consequence: **the core is kernel-correct on all three
+constants**; the ACUTE risk would require the OG to deviate from OpenZFS AND
+us to have copied that deviation — we did not (we are header-correct). The
+remaining question is therefore og-quirk DOCUMENTATION, not our correctness:
+if the og uses different offsets, it misreads pools the kernel mounts fine
+(an og bug to register as informational), not the reverse.
+
+The og-side decode entry point (next session): the MOS walk resolves
+"root_dataset" at ZfsSearchDLL_decompiled.c:19934/:19983; the objset-open
+plumbing follows via `FUN_180017690` (:20012) into the refcounted objset
+wrapper; the dsl_dir/dsl_dataset bonus reads sit in the dnode-bonus accessors
+beyond that call — the chain has no ZAP-magic anchors (grep 0x2F52AB2AB /
+0x2AB1EAF: absent — the constants are computed or reassociated), so the walk
+is function-by-function. The real-pool probe remains the faster conclusive
+path.
+
 ## OQ-Z2 — `ZfsDecider::addBlock` from_txg/birth_txg gate (:2162-2170)
 
 Determine whether the og implements snapshot/clone block attribution

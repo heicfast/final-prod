@@ -80,6 +80,11 @@ std::vector<unsigned char> build_fat16() {
     img[510] = 0x55;
     img[511] = 0xAA;
 
+    /* M-015: canonical media words (real-volume shape) */
+    put16(img, kFAT1 + 0 * 2, 0xFFF8);
+    put16(img, kFAT1 + 1 * 2, 0xFFFF);
+    put16(img, kFAT2 + 0 * 2, 0xFFF8);
+    put16(img, kFAT2 + 1 * 2, 0xFFFF);
     put16(img, kFAT1 + 5 * 2, 0xFFFF);
     put16(img, kFAT2 + 5 * 2, 0xFFFF); /* root dir */
     put16(img, kFAT1 + 10 * 2, 11);
@@ -1193,4 +1198,25 @@ TEST(CrUi, PreScanRepairDeniedLeavesFileUntouched) {
     }
     EXPECT_EQ(cr_ui_scan_repair_save_undo(u.scan, (img + ".u").c_str()),
               0x50030003u /* nothing applied */);
+}
+
+TEST(CrUi, ImageSourceDestinationNearImageAccepted) {
+    /* N-013 sub-claim refutation pin: the finding expected
+     * ImageSourceToSameDiskRefused; REFUTED first-hand - the image file is
+     * filesystem-protected (destination writes never touch its allocated
+     * extents; source reads go through the file handle, never raw \\.\X:),
+     * and the og's same-volume detection guards LIVE volume sources with
+     * a UI *recommendation* ("We highly recommend saving the found data to
+     * a different drive" - corpus architecture/04 §7 step 1). Recovering
+     * from an image to a folder on the SAME volume (the standard flow)
+     * must be accepted; over-refusal would break every nearby-destination
+     * recovery. */
+    Ui u;
+    std::string img, crsf;
+    ASSERT_TRUE(scan_to_session("imgsrc", u, img, crsf));
+    cr_ui_recovery_config rcfg{};
+    ASSERT_EQ(cr_ui_recovery_create(u.dev, &rcfg, &u.rec), CR_UI_OK);
+    /* same tmp area as the image -> same volume by construction */
+    const std::string dest = cr_test::tmp_path("cr_ui", ".dest-near");
+    EXPECT_EQ(cr_ui_recovery_set_destination(u.rec, dest.c_str()), CR_UI_OK);
 }

@@ -65,3 +65,10 @@ Decompile-verified with full quotes (agent S2-B; `evidence/decompiled-quotes/fat
 ## Open questions
 
 None.
+
+## Resolution
+
+**Status:** FIXED
+**Fixed in commit:** `cfae986`
+**Verified by:** FatEngine.MirrorShiftedCopyRejected (fail-before FAILED: the shifted-copy answer was followed; pass-after: rejected, and the contiguity-consistent backward answer IS believed in the same test), FatEngine.MirrorCrossLinkRejected (fail-before FAILED; pass-after: rejected), FatEngine.MirrorOnlyScanFat1Unreadable (fail-before FAILED: ERR_READ_FAILED killed the whole scan; pass-after: loads from the mirror, chains resolve, the full scan succeeds with stats.mirror_only_scan == 1). Sub-case (a) (primary BAD not re-linked) was already landed by the N-022 fix (mirror consult on primary FREE only) and is pinned by its own tests.
+**Resolution notes:** FatTable::mirror_consult_ implements the og's scrutiny verbatim (FUN_180041de0 :54226-48 re-read first-hand): consulted only when the primary answered FREE; backward answers (alt < cluster) reject shifted copies (mirror(c+1) == alt+1) and cross-links (mirror(alt-1) == alt), believing only contiguity (mirror(alt) == alt+1); forward answers reject mirror BAD/EOC claims (a mirror is not believed when the primary said FREE); the previous accept-any-non-zero-non-BAD policy followed torn FAT1/FAT2 pairs into bogus chains. Mirror-only mode: when FAT1 cannot be read, the table is constructed from the mirror at reserved+spf with no second-mirror consult (the og's child1==NULL shape, raw mirror answers) and the scan proceeds; stats.mirror_only_scan records it. The og's raw-mirror answers skip scrutiny by construction (no primary exists to disagree) - the core's mirror-only table serves entry_at directly, same shape.

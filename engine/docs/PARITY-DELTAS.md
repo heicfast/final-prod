@@ -1844,3 +1844,47 @@ FUN_18001c630 :24995+ (CP_UTF8, flags 0 — replacement).
 `Text.LosslessRoundTripRecoversRawBytes`, `Btrfs.Latin1NameRoundTripsRawBytes`,
 the updated `Ext4Engine`/`Btrfs` `NonAsciiNamesDecodedNotByteLifted` (lossless
 assertions).
+
+### D-61 — RawFixer 4Kn sector-parametric buffers + sector-correct restore plans (A-005)
+
+**Class:** parity/correctness fix (no deliberate divergence) · **Finding:** diff-to-fix A-005 (ACUTE, FIXED) · **Date:** 2026-10-26
+
+The og's repair chain is sector-parametric end to end (corpus
+`rawfixer-v2--method-inventory.md`; the FIX-3 wave already made the READ
+LENGTHS device-sector-sized). The pre-A-005 core kept four 512-byte stack
+buffers receiving `sector`-byte reads — a 3,584-byte stack overflow per
+read on 4Kn hardware (ASan-proven: the pre-fix tree dies with
+`stack-buffer-overflow` in memcpy on the first 4Kn analyze). Fix: the
+four analyze() boot-sector buffers are heap vectors sized by the device
+sector; the exFAT via-backup restore plan is sector-sized (the old
+512-of-4096 restore left the rest of the boot sector garbage);
+`plan_exfat_checksum_after` mirrors the FULL restored sector (the old
+fixed-512 mirror checksummed a half-stale region), with the restore
+length threaded through so the deep-scan 512-byte captures (M-046's
+scope) stay bounded. The FAT backup-branch buffer is sector-sized the
+same way. Pinned by `RawFixer.NtfsPrimaryDamaged4Kn`,
+`RawFixer.ExfatViaBackup4Kn`, `RawFixer.AnalyzeAllBranches4KnAsan`
+(the fail-before is the ASan abort itself).
+### D-62 — linuxfs minors register (N-006; session-7 linuxfs-minors batch)
+
+- **D-62a — Btrfs non-pow2 nodesize rejection (N-006, ACCEPTED HARDENING).**
+  The og's band [0x86, 0x10000) has NO pow2 requirement
+  (BtrfsSearchDLL :10302-10304), so 24 KiB nodesize (0x6000 % 0x1000 == 0)
+  is og-legal. Real mkfs.btrfs only writes pow2 nodesizes - non-pow2 is
+  corrupt-SB territory, and a forged value would size node-buffer
+  allocations from an attacker-influenced field. The core's pow2 gate
+  stands; refusal routes the volume to other engines/carving (strictly
+  better than the og's garbage attempt). Pin:
+  `Btrfs.NonPow2NodesizeRejectedRegistered`. Do not loosen for parity.
+
+- **D-63 — health failing-bit disk-grade superset (S-024 upgrade, ACCEPTED).**
+  The og DiskHealth grader (FUN_0040cdf0) never reads the SMART flags
+  byte; a FAILED-NOW bit (flags bit 3) does not affect its verdicts.
+  Our engine keeps the per-attr display grades og-exact (no flags
+  consumption) but forces the DISK grade to Bad when any attribute's
+  flags report failure-now — the one deliberate divergence of the
+  health surface (a drive that self-reports "failing now" must not be
+  shown Good). Pinned by Health.FailingBitForcesDiskBadButAttrGradesFollowOg;
+  the Unknown path is untouched (the superset does not fire without
+  data). Registered in the S-024 Resolution addendum with the decode
+  evidence (evidence/decompiled-quotes/s6-health-grading-decode.md §6).
