@@ -165,7 +165,7 @@ New rows on this module's surface (full detail in
   0x7C100/0x7C010/0x7C058 + GPT GUID regen); the core implemented the
   scope decision as a consent-gated apply module (cr/apply:
   plan/execute/undo on the rawfixer seams, A1-A4 safety standard, MBR v1,
-  GPT + boot-chain refused cleanly, PARITY-DELTAS D-65/D-66) surfaced as
+  GPT + boot-chain refused cleanly, PARITY-DELTAS D-68/D-69) surfaced as
   `rrecov apply --disk N --session F --candidate N [--apply]`. 10 tests;
   suite 590/590. The materializer stays read-only BY DESIGN (the
   content-recovery path never needed writes).

@@ -41,7 +41,7 @@ TEST(Slice, BoundsEnforced) {
     u8 buf[512];
     EXPECT_EQ(slice->read_at(0, buf, 512), OK);
     EXPECT_EQ(buf[0], u8((10 * 512) & 0xFF));
-    /* read crossing the end - refused. M-032/D-67: the og's virtual
+    /* read crossing the end - refused. M-032/D-74: the og's virtual
      * volume CLAMPS + zero-fills tail-crossing reads (HFSPlusSearchDLL
      * FUN_180009290 :7219-7264: in-bounds prefix + memset tail, call
      * succeeds); ours refuses the whole read - the registered deliberate
@@ -65,7 +65,7 @@ TEST(Slice, BoundsEnforced) {
  * engine issues crossing reads relying on zero-fill (journal_ring_read
  * bounds every take within the ring; all other reads are explicitly
  * bounded; refusals degrade through the damage counters). Registered as
- * PARITY-DELTAS D-67 - the safer contract stays. */
+ * PARITY-DELTAS D-74 - the safer contract stays. */
 TEST(Slice, TailReadRefusalPinned) {
     auto dev = std::make_unique<MemDevice>(u64(100) * 512);
     u32 err = 0;

@@ -10499,3 +10499,40 @@ Stage Summary:
   recall), N-067 FIXED. Next: N-068 (ZIP EOCD anchor + LFH sanity gates),
   then the carve naming/policy minors not claimed by parallel lanes.
 
+---
+Task ID: DFX18-T1 (session 18, first fix — N-045)
+Agent: main engineer (diff-to-fix fix session 18 — DFX18)
+Task: N-045 scan-cache budget 8-vs-4 MiB + algorithm divergence — verify
+against the corpus, resolve per the finding's own fix plan (register the
+deliberate divergence), pin with a doc-truth test.
+
+Work Log:
+- Corpus re-verified first-hand: DRWUI_decompiled.c:919080-:919092 —
+  cache count = 0x400000 / bytes_per_sector (4 MiB), fallback 0x2000
+  blocks; ctor :962250-:962292 (1000-entry cache, one per physical
+  disk); the session-6 addendum's prefetch-engine read (:962250-:962597:
+  prefetch thread, 10-run window, 1000-sector runs, CRITICAL_SECTION)
+  re-read too. Both cites CONFIRMED.
+- Core re-verified live: cr_scan.cpp construction site `8ull << 20,
+  256 * 1024` (the addendum's refreshed cite is accurate).
+- Resolution = the finding's fix plan (document deliberate, no code
+  change): PARITY-DELTAS D-72 (budget + algorithm, both cites, the
+  benchmark-gated change policy), divergence block in cr_cached.h,
+  construction-site D-72 cite in cr_scan.cpp, docs/benchmarking.md §4
+  intent note.
+- Doc-truth pin: Cached.ScanCacheBudgetIsTheRegisteredDivergence —
+  new CR_SOURCE_DIR define (tests/CMakeLists.txt) lets the test read
+  the source constant + the D-72 row + the header block at runtime and
+  assert lockstep. Fail-before EXECUTED: stash-isolated pre-fix tree →
+  RED (no D-72 row, no header block); pass-after green.
+- Suite 592/592 linux-release (584 at the pre-rebase clone + parallel
+  M-007/M-054/M-045/M-046/M-037/M-031/N-030 landings + this test).
+- Audit trail: Resolution + move to FIXED/, RESOLVED-INDEX row (new 96
+  header), matrix storage P47/P48 cell → MATCH(registered),
+  modules/storage.md session-6 row verdict, SUMMARY session-18 section
+  (moved to top — the parallel sessions had stacked newer sections).
+
+Stage Summary:
+- N-045 FIXED (tally 1/20+). MINOR 40 remain. Next: N-046 (geometry
+  refresh), then N-041, N-057.
+

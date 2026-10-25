@@ -29,6 +29,42 @@ S-030 `cr_image_win.cpp`) is the finding's proof. Suite **629/629**.
 The N-056 queue proceeds on top of this (same file, its fix plan was
 unexecutable while the layer didn't parse).
 
+## Session-18 delta (absorbed by the DFX22 merge — parallel lane, verbatim) (2026-10-26 — DFX18: the minors-first wave, lane-disjoint from DFX17)
+
+Session bootstrap at `eeeccbd` lineage (prompt push `e21de3e`, lane claim
+`e61c2ff`); corpus `03ad46c` unmoved. Baseline before any change:
+linux-release suite **592/592** green at the claim tree (the 584-at-clone
+baseline absorbed the parallel landings M-007/M-054/M-045/M-046/M-037/
+M-031/N-030 after the rebase). Mandate: minor findings first, 20+ fixes,
+fixed findings moved to findings/FIXED/, all docs/counts current. Lane
+claim posted in the worklog BEFORE any finding work: the DISJOINT
+remainder of the MINOR tier (DFX17 owns N-067/N-068/N-063/N-065/N-056/
+N-029 + group files).
+
+**N-045 FIXED (registered deliberate divergence — the finding's own fix
+plan):** the 8 MiB / 256 KiB reactive-LRU scan cache vs the og's 4 MiB
+prefetch read-ahead `CStorageDeviceWithCache` (DRWUI_decompiled.c
+:919080-:919092 `0x400000/bytes_per_sector` + 0x2000-block fallback;
+ctor :962250-:962597 — re-verified first-hand this session, both the
+budget cite and the session-6 prefetch-engine addendum). Registered as
+PARITY-DELTAS **D-72** (budget + algorithm, benchmark-gated change
+policy); divergence block in `include/cr/storage/cr_cached.h`;
+construction-site cite in cr_scan.cpp; docs/benchmarking.md §4 intent
+note. Doc-truth pin `Cached.ScanCacheBudgetIsTheRegisteredDivergence`
+via the new `CR_SOURCE_DIR` test define (tests/CMakeLists.txt): reads
+the source constant, the D-72 row, and the header block at runtime —
+fail-before executed RED on the stash-isolated pre-fix tree, pass-after
+green; suite 592/592. Finding → FIXED/; RESOLVED-INDEX row; matrix
+storage P47/P48 cell → MATCH(registered); storage.md verdict updated.
+
+**Counts after this landing (direct file inventory at the N-045 push,
+pre-rebase tree):** SEVERE 1 (S-029) · MAJOR 32 · MINOR 40 · INFO 22
+(0 actionable) · tracked-open 16 · FIXED 96 files (95 findings +
+RESOLVED-INDEX). (Post-rebase note: the parallel session-10 close-out
+below landed S-029 + M-043 + M-016 + N-016a in the same window — the
+live inventory at this commit is lower; see the session-10 section.)
+
+
 ## Session-10 delta — the SEVERE tier close-out (2026-10-26)
 
 This lane (DFX10) executed the published order S-009 -> S-029 -> S-030
@@ -54,14 +90,16 @@ zero writes; A2 stale-table revalidation; quiesce first; A4 transaction
 with read-back verify + rollback) + the shared CRUNDO01 undo. CLI
 `rrecov apply --disk N --session F --candidate N [--apply]`; win layer
 `refresh_disk_properties` (the og's UPDATE_PROPERTIES + settle). 10
-Apply.* tests; suite **590/590** Linux ASan. PARITY-DELTAS D-65/D-66.
+Apply.* tests; suite **590/590** Linux ASan. PARITY-DELTAS D-68/D-69.
 
 **The SEVERE tier is CLOSED** (0 open). Live inventory at this push:
 MAJOR 33 · MINOR 44 · INFO 22 · FIXED 95 · tracked-open 16. Active lane
 claims respected: DFX15 (MAJOR head), DFX9-T7 (M-052/M-035/M-018/
 M-013/M-014), DFX14 (M-005).
 
-# SUMMARY.md — executive summary (diff-fix session 15 on top; earlier sessions below)# SUMMARY.md — executive summary (diff-fix session 19 on top; earlier sessions below)
+# SUMMARY.md — executive summary (diff-fix session 19 on top; earlier sessions below)
+
+# SUMMARY.md — executive summary (diff-fix session 15 on top; earlier sessions below)
 
 ## Session-19 delta (2026-10-26 — DFX19: MAJOR-first lane, first landing M-016)
 
@@ -156,7 +194,7 @@ MINOR 48 · INFO 22 (0 actionable) · tracked-open 16 · FIXED 83 files
 
 **M-008 FIXED (this push — premise corrected against the corpus):**
 `WalkerFlags::single_hop_attrlist` (default FALSE = the multi-hop BFS
-superset, D-66, per the finding's own recommendation); TRUE = og parity
+superset, D-73, per the finding's own recommendation); TRUE = og parity
 (depth-1; corpus FUN_180041df0 :52615-52687). The finding's "deleted
 records never chased" premise was STALE — it read FUN_18001acc0 (the
 GUID-DUMP pass 2, S-012's decode) as a deleted-phase walk; pass 1
@@ -176,7 +214,7 @@ tail-read semantics. The decision gate executed first: the engine audit
 found no reliance on the og's clamp+zero-fill contract (HFS+ journal ring
 reads bounded within the ring; all other reads explicitly bounded;
 refusals degrade via damage counters). The safer refusal stays; the
-divergence registered D-67; pinned by Slice.TailReadRefusalPinned + the
+divergence registered D-74; pinned by Slice.TailReadRefusalPinned + the
 updated BoundsEnforcement (corpus FUN_180009290 :7219-7264; the og's
 sector-unit under-zeroing defect noted, NOT adopted). No behavior change
 - the opt-in clamped read from the finding's path (2) is the documented

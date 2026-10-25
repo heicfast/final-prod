@@ -57,6 +57,12 @@ add_custom_command(TARGET cr_tests POST_BUILD
             ${CMAKE_CURRENT_SOURCE_DIR}/data/images
             $<TARGET_FILE_DIR:cr_tests>/data/images)
 
+# N-045 doc-truth pin lane: the register-vs-source consistency tests
+# (e.g. Cached.ScanCacheBudgetIsTheRegisteredDivergence) read repo files
+# at runtime - hand them the source root (works on MSVC and gcc lanes).
+target_compile_definitions(cr_tests PRIVATE
+    CR_SOURCE_DIR="${CMAKE_SOURCE_DIR}")
+
 # vcpkg DLL deployment backstop (no-op on Linux): applocal import-name
 # resolution skipped the lz4 debug DLL on windows CI (0xc0000135)
 cr_deploy_vcpkg_binaries(cr_tests)
