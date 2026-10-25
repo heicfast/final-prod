@@ -9772,3 +9772,38 @@ Stage Summary:
   (Post-rebase note: N-030 landed by the parallel DFX15 lane at 11afbfa
   while this bootstrap pushed — dropped from this queue; queue head is
   N-067, then N-068, N-063, N-065, N-056, N-029.)
+---
+Task ID: DFX18-BOOT (session 18 bootstrap)
+Agent: main engineer (diff-to-fix fix session 18 — DFX18)
+Task: Session bootstrap per the standing SOP: pull, baseline, inventory,
+post the lane claim before any finding work.
+
+Work Log:
+- Pulled origin/main: HEAD `5d63124` (0 behind, 0 ahead); corpus
+  `03ad46c` unmoved. Prompt archived token-redacted at
+  worklog/session-diff-fix-18-prompt.md.
+- Baseline build + suite on linux-gcc (RelWithDebInfo + ASan):
+  **584/584 green** (ctest, 36.8s). The tree is clean at bootstrap.
+- Inventory at HEAD: SEVERE 1 (S-029, DFX10's claim) · MAJOR 32 ·
+  MINOR 43 · INFO 22 · FIXED 94 · OQ 16.
+- Lane claim (checked against the worklog claim map — DFX15:
+  M-045/M-013/M-052/M-043/M-018/M-014 next-queue; DFX14: M-005; DFX11:
+  M-007/M-008/M-032/M-050/M-029/M-049; DFX9-T7: M-035/M-018/M-013/M-014;
+  DFX9-T2: N-065/N-070/N-075; DFX13/DFX16: N-045/N-067/N-068, then
+  N-063/N-065). This leg DFX18 claims (ID disambiguation: the parallel MINOR-first leg posted as DFX17 first — both claims stand, disjoint tiers) the UNCLAIMED MAJOR tier, largest
+  user impact first, one-finding-one-commit-one-push:
+  M-033 (BitLocker in-stack decrypt) → M-042 (session resume lost
+  revalidation) → M-017 (lost partition scoring) → M-016 (LDM TOCBlock)
+  → M-019 (ZFS multivdev) → M-020 (btrfs profile) → M-038 (ZFS SA
+  layout) → M-021 (carve video repair) → M-025 (carve read model)
+  → M-028 (preview caps) → M-030 (driver utilization) → M-034 (NAS)
+  → M-039 (occupancy bitmap) → M-040 (boot chain) → M-041 (damage
+  audit) → M-044 (UDF) → M-048 (signature db) → M-024 (runtime filter).
+  Findings already claimed by live lanes are left to those lanes; if a
+  claim proves stale (no landing by next pull), the finding re-enters
+  this leg's queue after verification. SEVERE S-029 stays with DFX10
+  unless that lane is confirmed dead — it is re-checked at every pull.
+
+Stage Summary:
+- Bootstrap complete: 584/584 green at `5d63124`, inventory recorded,
+  lane claim posted. Execution begins with M-033.
