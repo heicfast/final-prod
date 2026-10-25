@@ -232,3 +232,21 @@ floor registered as hardening.
 - **B OQ-3 resolved:** the og's cnid-sweep mechanics question — the deleted surface
   is the journal harvest (now implemented) + the core's freed-node sweep superset
   (I-014, deduped against the harvest).
+
+
+## Closing-session verification pass (2026-10-26, df5 lineage)
+
+The journal rows move to MATCH with the corrections (full decode record in
+`../evidence/executions/s003-s021-verification-corrections.md`):
+
+| Parameter | Verdict | Note |
+|---|---|---|
+| JournalInfoBlock layout | **MATCH** | TN1150-verbatim (flags@0 + device_signature[8]@+4..0x23 + offset@+0x24 + size@+0x2C; NO magic field — the og's FUN_18000db70 swap scope, asm-verified; the landed code's 'jnlx'@+4 gate was a real-volume zero-harvest, corrected) |
+| Journal entry gates | **MATCH** | kHFSVolumeJournaledBit (og :13456) + kJIJournalInFSMask (og :13513) |
+| jnl_header gates | **MATCH** | magic/endian/size-cross-check (LE jnl.c layout; start@+8/end@+0x10 with the walk from end) |
+| Ring walk + tx marker | **MATCH** | probe/advance/entry mechanics og-exact; the (blhdr_size>>4)-1 marker DERIVED = block_list_header.max_blocks = (blhdr_size-16)/16 (S-021's open question closed) |
+| Node-image validator | **MATCH** | asm-exact strict (mid-chain offset-table violation rejects; record-0 offset == 14; kind/height gates) |
+| Attributes branch | **MATCH** | og :14096 differential + decmpfs SIZE-only fallback (payload freed og-side, FUN_180009c10 :7840-42) |
+| Header-invalid fallback | **MATCH** | the salvage ladder (:1715-1760 + FUN_180003ea0 = scratch-node harvest, never a live-tree install); OQ-S003 RESOLVED |
+| Extents-overflow record decode | **MATCH** | A-007: 12-byte key + 64-byte descriptors at key+12 (was off-by-two — silent fragmented-tail loss) |
+| tx entry loop | **MATCH (og quirk)** | the og's count-1 loop replicated for parity (TN1150's replay is inclusive — the og defect registered in-code) |

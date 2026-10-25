@@ -940,11 +940,14 @@ void le64j(u8* p, u64 v) {
 void write_journal_info(std::vector<u8>& d, u32 jinfo_block, u64 jbase, u64 jsize, u64 jstart,
                         u32 size_a, u32 size_b) {
     u8* ji = d.data() + u64(jinfo_block) * BS;
+    /* TN1150-verbatim JournalInfoBlock: flags u32@0 (bit 0
+     * kJIJournalInFSMask), device_signature[8]@+4..+0x23 (reserved -
+     * zeros on internal journals; NO magic field), offset u64@+0x24,
+     * size u64@+0x2C (the og's FUN_18000db70 swaps exactly these) */
     be32(ji + 0, 1);          /* flags: bit 0 set (the og's gate) */
-    be32(ji + 4, 0x6A6E6C78); /* 'jnlx' */
-    be64(ji + 0x24, jbase);   /* journal byte offset (the og's decode -
-                               * FUN_18000db70 swaps [0x24..0x2B]) */
-    be64(ji + 0x2C, jsize);   /* journal size ([0x2C..0x33]) */
+    /* +4..+0x23: device_signature[8] = zeros (memset'd volume) */
+    be64(ji + 0x24, jbase);   /* journal byte offset */
+    be64(ji + 0x2C, jsize);   /* journal size */
     u8* jh = d.data() + jbase;
     le32j(jh + 0, 0x4A4E4C78); /* JNLx (jnl.c, LE) */
     le32j(jh + 4, 0x12345678); /* endian marker */
@@ -990,6 +993,7 @@ std::vector<u8> make_index_node() {
 static std::vector<u8> build_volume_journal() {
     auto d = build_volume();
     d.resize(16 * BS, 0);                  /* already 16 blocks */
+    be32(d.data() + 1024 + 0x04, 0x2000);  /* VH attributes: kHFSVolumeJournaledBit */
     be32(d.data() + 1024 + 0x0C, B_JINFO); /* VH journalInfoBlock */
 
     const u64 jbase = u64(10) * BS;
@@ -1097,8 +1101,8 @@ TEST(HfsPlus, JournalBadHeaderGates) {
      * degrade to a no-harvest (never a scan failure) */
     for (int mode = 0; mode < 3; ++mode) {
         auto img = build_volume_journal();
-        if (mode == 0)
-            be32(img.data() + u64(B_JINFO) * BS + 4, 0xDEADBEEF); /* info magic */
+                if (mode == 0)
+            be32(img.data() + u64(B_JINFO) * BS + 0, 0); /* flags: bit 0 clear (the og's :13513 gate) */
         else if (mode == 1)
             le32j(img.data() + u64(10) * BS + 0, 0xDEADBEEF); /* jnl magic */
         else
@@ -1131,6 +1135,7 @@ TEST(HfsPlus, JournalWrapHandled) {
      * wrapped tail; the jnl header's 44 bytes overlap only the node's
      * free space). */
     auto d = build_volume();
+    be32(d.data() + 1024 + 0x04, 0x2000); /* kHFSVolumeJournaledBit */
     be32(d.data() + 1024 + 0x0C, B_JINFO);
 
     const u64 jbase = u64(10) * BS;
@@ -1188,6 +1193,200 @@ TEST(HfsPlus, JournalHarvestDisabledByFlag) {
     EXPECT_EQ(0u, st.journal_emitted);
 }
 
+
+/* ------------------------------------------------------------------ */
+/* S-003/S-021 verification-pass tests (closing session): the og's     */
+/* entry gates, the asm-exact validator strictness, the attributes    */
+/* branch, and the header-invalid fallback salvage ladder.            */
+/* ------------------------------------------------------------------ */
+
+TEST(HfsPlus, JournalRequiresVolumeJournaledBit) {
+    /* og :13456 - kHFSVolumeJournaledBit (0x2000) gates the whole journal
+     * path; a stale nonzero journalInfoBlock without the bit must not
+     * read the journal at all (TN1150: the field is only valid with the
+     * bit set). */
+    auto img = build_volume_journal();
+    be32(img.data() + 1024 + 0x04, 0); /* clear the journaled bit */
+    MemDevice dev(img);
+    tree::ResultTree tree;
+    auto* ra = tree.add_root(u"Found");
+    auto* rd = tree.add_root(u"Deleted");
+    auto* rl = tree.add_root(u"Lost Files");
+    HfsScanFlags fl;
+    HfsScanStats st;
+    u32 rc = scan_hfsplus(&dev, fl, nullptr, nullptr, nullptr, tree, ra, rd, rl, st);
+    ASSERT_EQ(OK, rc) << err_text(rc);
+    EXPECT_EQ(0u, st.journal_tx) << "the journaled bit must gate the harvest";
+    EXPECT_EQ(0u, st.journal_emitted);
+}
+
+TEST(HfsPlus, JournalInfoBlockHasNoMagicField) {
+    /* TN1150-verbatim: device_signature[8] occupies +4..+0x23 (zeros on
+     * internal journals) - the harvest must run WITHOUT any magic there.
+     * The pre-correction code required 'jnlx'@+4 and silently harvested
+     * nothing on every real journaled volume. */
+    auto img = build_volume_journal();
+    /* poison the whole device_signature region: real volumes carry zeros,
+     * but ANY value must be ignored - the og swaps only [0..3]/+0x24/+0x2C */
+    memset(img.data() + u64(B_JINFO) * BS + 4, 0xAB, 0x20);
+    MemDevice dev(img);
+    tree::ResultTree tree;
+    auto* ra = tree.add_root(u"Found");
+    auto* rd = tree.add_root(u"Deleted");
+    auto* rl = tree.add_root(u"Lost Files");
+    HfsScanFlags fl;
+    HfsScanStats st;
+    u32 rc = scan_hfsplus(&dev, fl, nullptr, nullptr, nullptr, tree, ra, rd, rl, st);
+    ASSERT_EQ(OK, rc) << err_text(rc);
+    EXPECT_EQ(1u, st.journal_tx) << "device_signature bytes must be ignored";
+    EXPECT_EQ(1u, st.journal_emitted);
+}
+
+TEST(HfsPlus, JournalNodeImageRejectsInconsistentOffsetTable) {
+    /* asm-exact FUN_180010720: a mid-chain offset-table violation REJECTS
+     * the image (0x18001080c/:812 jump past the success flag) - the og
+     * never harvests from a corrupt-tail node. The lenient break accepted
+     * record 0 of such nodes. */
+    auto img = build_volume_journal();
+    /* rebuild the leaf image with 2 records but a collapsed free-space
+     * offset (slot 3 <= record 1's offset - a mid-chain violation) */
+    auto jd = make_record(2, u"journaldeleted.dat", 2, 40, 512, B_JDATA, 1, 0, 0, 0);
+    auto stale = make_record(2, u"readme.txt", 2, 20, 26, B_FILE_DATA, 1, 0, 0, 0);
+    auto leaf = make_leaf_node({jd, stale}, 0);
+    /* the offset array tail: [slot1]=14, [slot2]=rec1_off, [slot3]=free;
+     * collapse slot3 to 14 (a violation: 14 <= rec1_off) */
+    be16(leaf.data() + NODE_SIZE - 6, 14);
+    memcpy(img.data() + u64(10) * BS + u64(2) * BS, leaf.data(), NODE_SIZE);
+    MemDevice dev(img);
+    tree::ResultTree tree;
+    auto* ra = tree.add_root(u"Found");
+    auto* rd = tree.add_root(u"Deleted");
+    auto* rl = tree.add_root(u"Lost Files");
+    HfsScanFlags fl;
+    HfsScanStats st;
+    u32 rc = scan_hfsplus(&dev, fl, nullptr, nullptr, nullptr, tree, ra, rd, rl, st);
+    ASSERT_EQ(OK, rc) << err_text(rc);
+    EXPECT_EQ(0u, st.journal_emitted)
+        << "a corrupt-tail node must be rejected whole (asm-strict)";
+}
+
+TEST(HfsPlus, JournalAttributeDecmpfsSizeFallback) {
+    /* og :14096 - attribute records the live tree lacks feed the decmpfs
+     * SIZE fallback (FUN_180009c10 :7840-42 consumes size only, payload
+     * freed). A journal-harvested compressed file with an empty data fork
+     * gets its logical size from the harvested attribute. */
+    auto img = build_volume_journal();
+    /* attributes fork at block 14 (classification target) */
+    write_fork(img.data() + 1024 + 0x160, NODE_SIZE, 14, 1);
+    /* rebuild the transaction: entry[0] = a catalog leaf carrying an
+     * empty-fork file (compressed); entry[1] = an attributes leaf with
+     * its decmpfs record */
+    auto comp = make_record(2, u"compressed.dat", 2, 41, 0, 0, 0, 0, 0, 0);
+    auto cat_leaf = make_leaf_node({comp}, 0);
+    memcpy(img.data() + u64(10) * BS + u64(2) * BS, cat_leaf.data(), NODE_SIZE);
+    write_tx_entry(img, u64(10) * BS, BS, 0, B_CAT_LEAF2, NODE_SIZE);
+
+    const std::u16string dname = u"com.apple.decmpfs";
+    std::vector<u8> arec;
+    const u32 name_units = u32(dname.size());
+    const u32 akey_len = 14 + name_units * 2; /* counts itself */
+    arec.resize(akey_len + 16 + 16, 0); /* attr header = 16 (type+2x reserved+length) */
+    be16(arec.data(), u16(akey_len));
+    be32(arec.data() + 4, 41); /* fileId = compressed.dat's cnid */
+    be16(arec.data() + 0x0C, u16(name_units));
+    for (u32 i = 0; i < name_units; ++i)
+        be16(arec.data() + 0x0E + u32(i) * 2, dname[i]);
+    const u32 adata = akey_len;
+    be32(arec.data() + adata, 0x10);       /* recordType: inline */
+    be32(arec.data() + adata + 12, 16);    /* value length */
+    const u32 payload = adata + 16;        /* the value bytes */
+    arec[payload + 0] = 0x63;              /* 'c' */
+    arec[payload + 1] = 0x6D;              /* 'm' */
+    arec[payload + 2] = 0x70;              /* 'p' */
+    arec[payload + 3] = 0x66;              /* 'f' (LE magic 0x66706D63) */
+    le32j(arec.data() + payload + 4, 3);     /* mode 3 */
+    le32j(arec.data() + payload + 8, 12345); /* uncompressed size */
+    auto attr_leaf = make_leaf_node({arec}, 0);
+    memcpy(img.data() + u64(10) * BS + u64(3) * BS, attr_leaf.data(), NODE_SIZE);
+    write_tx_entry(img, u64(10) * BS, BS, 1, 14 /*attributes fork*/, NODE_SIZE);
+
+    MemDevice dev(img);
+    tree::ResultTree tree;
+    auto* ra = tree.add_root(u"Found");
+    auto* rd = tree.add_root(u"Deleted");
+    auto* rl = tree.add_root(u"Lost Files");
+    HfsScanFlags fl;
+    HfsScanStats st;
+    u32 rc = scan_hfsplus(&dev, fl, nullptr, nullptr, nullptr, tree, ra, rd, rl, st);
+    ASSERT_EQ(OK, rc) << err_text(rc);
+    EXPECT_EQ(1u, st.journal_attrs) << "the attributes branch must harvest";
+    tree::FileNode* comp_node = nullptr;
+    for (tree::FileNode* c = rd->first_child(); c; c = c->next_sibling())
+        if (c->props() && c->name_utf8() == "compressed.dat")
+            comp_node = c;
+    ASSERT_NE(comp_node, nullptr);
+    EXPECT_EQ(u64(12345), comp_node->props()->logical_size)
+        << "the journal decmpfs size fallback must apply (og size-only)";
+    EXPECT_TRUE(comp_node->props()->extents.empty())
+        << "no content extents for a size-only fallback";
+}
+
+TEST(HfsPlus, JournalFallbackSalvageWhenHeaderInvalid) {
+    /* the og's volume-open salvage ladder (:1715-1760 + FUN_180003ea0):
+     * jnl_header magic corrupt but the block at jbase is node-shaped ->
+     * the size ladder salvages the first validator-passing node and its
+     * records reach the deleted tier through the same differential. */
+    auto img = build_volume_journal();
+    img.resize(24 * BS, 0); /* 32 KiB scan window must fit at jbase */
+    le32j(img.data() + u64(10) * BS + 0, 0xDEADBEEF); /* corrupt jnl magic */
+
+    /* a valid catalog leaf AT the journal start (node-shaped trigger:
+     * reserved==0, kind leaf, height 1) */
+    auto salv = make_record(2, u"salvaged.dat", 2, 42, 512, 14, 1, 0, 0, 0);
+    auto leaf = make_leaf_node({salv}, 0);
+    memcpy(img.data() + u64(10) * BS, leaf.data(), NODE_SIZE);
+
+    MemDevice dev(img);
+    tree::ResultTree tree;
+    auto* ra = tree.add_root(u"Found");
+    auto* rd = tree.add_root(u"Deleted");
+    auto* rl = tree.add_root(u"Lost Files");
+    HfsScanFlags fl;
+    HfsScanStats st;
+    u32 rc = scan_hfsplus(&dev, fl, nullptr, nullptr, nullptr, tree, ra, rd, rl, st);
+    ASSERT_EQ(OK, rc) << err_text(rc);
+    EXPECT_EQ(1u, st.journal_salvage) << "the ladder must salvage the node";
+    EXPECT_EQ(0u, st.journal_tx) << "no ring walk - the header is invalid";
+    tree::FileNode* salvaged = nullptr;
+    for (tree::FileNode* c = rd->first_child(); c; c = c->next_sibling())
+        if (c->props() && c->name_utf8() == "salvaged.dat")
+            salvaged = c;
+    ASSERT_NE(salvaged, nullptr) << "the salvaged record must surface";
+    EXPECT_EQ(u64(512), salvaged->props()->logical_size);
+    ASSERT_EQ(1u, salvaged->props()->extents.size());
+    EXPECT_EQ(u64(14) * BS, salvaged->props()->extents[0].offset);
+}
+
+TEST(HfsPlus, JournalFallbackRequiresNodeShapedStart) {
+    /* corrupt header + a NON node-shaped block at jbase -> no salvage
+     * (the og's trigger demands the BTNodeDescriptor shape). */
+    auto img = build_volume_journal();
+    img.resize(24 * BS, 0);
+    le32j(img.data() + u64(10) * BS + 0, 0xDEADBEEF);
+    memset(img.data() + u64(10) * BS, 0xE7, 0x8000); /* garbage, not node-shaped */
+
+    MemDevice dev(img);
+    tree::ResultTree tree;
+    auto* ra = tree.add_root(u"Found");
+    auto* rd = tree.add_root(u"Deleted");
+    auto* rl = tree.add_root(u"Lost Files");
+    HfsScanFlags fl;
+    HfsScanStats st;
+    u32 rc = scan_hfsplus(&dev, fl, nullptr, nullptr, nullptr, tree, ra, rd, rl, st);
+    ASSERT_EQ(OK, rc) << err_text(rc);
+    EXPECT_EQ(0u, st.journal_salvage);
+    EXPECT_EQ(0u, st.journal_emitted);
+}
 } // namespace
 } // namespace hfsplus
 } // namespace cr

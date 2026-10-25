@@ -41,6 +41,8 @@ struct HfsScanStats {
     u64 journal_tx = 0;      /* transaction block-lists walked */
     u64 journal_images = 0;  /* node images read from the ring */
     u64 journal_leaves = 0;  /* leaf-kind images classified */
+    u64 journal_attrs = 0;   /* decmpfs size-fallback attrs harvested */
+    u64 journal_salvage = 0; /* header-invalid fallback nodes salvaged */
     u64 journal_records = 0; /* records kept after the live differential */
     u64 journal_emitted = 0; /* harvested records emitted as deleted */
     /* S-002 (diff-to-fix) */

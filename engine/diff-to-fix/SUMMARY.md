@@ -31,17 +31,16 @@ ACUTE 0 · SEVERE 9 · MAJOR 38 · MINOR 31 · INFO 18 (all ACKNOWLEDGED —
 The S-003/S-021 lane (claimed at ff05314) was landed by the parallel close-all-tiers
 leg at c75f646; this lineage executed the independent verification pass it had
 already completed the corpus decode for (CHFSPlusJournal ctor/walker/validator
-asm-exact + TN1150 journal-section fetch). Verification outcome: the walk mechanics
-are og-exact, but the landed fix carried a **false-parity JIB layout** (magic@+4,
-offset@+8, size@+0x10 — TN1150's JournalInfoBlock has NO magic; device_signature[8]
-occupies +4..+0x23, offset@+0x24, size@+0x2C per the FUN_18000db70 disassembly +
-TN1150 verbatim) — a silent zero-harvest on every real journaled volume (the test
-fixture encoded the same wrong layout, so 429 tests stayed green). Corrections
-landed this session: JIB layout, the two missing og entry gates (VH
-kHFSVolumeJournaledBit 0x2000; JIB kJIJournalInFSMask bit 0), the og-exact node
-validator (first-offset==14 + monotone bounded offset table, asm-decoded), the
-missing attributes branch (decmpfs-size fallback), the fallback salvage
-(OQ-S003 resolved), and the in_fork u32 overflow.
+asm-exact + TN1150 journal-section fetch verbatim). **Corrections landed:** the
+false-parity JIB layout (a 'jnlx'@+4 magic TN1150 does not have — device_signature[8]
+lives there; a silent zero-harvest on every real journaled volume, fixtures encoded
+the same fiction), the two missing og entry gates (VH kHFSVolumeJournaledBit,
+JIB kJIJournalInFSMask), the asm-strict node validator (mid-chain offset-table
+violations REJECT), the missing attributes branch (decmpfs size-only fallback), the
+header-invalid fallback salvage ladder (OQ-S003 RESOLVED — FUN_180003ea0 decoded:
+scratch-node harvest, never a live-tree install), and the in_fork u64 overflow.
+The max_blocks probe-marker derivation is RESOLVED ((blhdr_size-16)/16). Fail-before:
+6 tests red on the pre-correction tree; pass-after 491/491.
 
 **NEW-FINDING A-005 (ACUTE) filed during the same verification:** the
 extents-overflow record parser read its 8 descriptors from key+10 — the
@@ -51,10 +50,15 @@ garbage descriptor). Zero prior test coverage (every fixture's overflow fork was
 empty). FIXED this session with the first populated overflow fixture; fail-before
 executed (1/2 extents) — `evidence/executions/a005-extents-off-by-two.md`.
 
-**Counts after the closing-session verification pass:** ACUTE **0** (A-005 filed
-AND fixed in-session) · SEVERE 9 (unchanged this pass) · MAJOR 38 · MINOR 31 ·
-INFO 18 = 96 active / **50 FIXED** (+A-005; S-003/S-021 stay FIXED with
-verification addenda recording the corrections).
+**Counts after the closing-session verification pass (direct file inventory at
+the correction commit):** ACUTE **1** (A-006 rawfixer 4Kn — the diff-fix s4 leg's
+claimed lane; A-007 extents-overflow was filed AND fixed in-session, moved to
+FIXED/) · SEVERE 5 (S-009-remainder, S-029, S-030, S-031, S-032 — the parallel
+legs closed S-007/S-023/S-024/S-025/S-027/S-028 in the same window) · MAJOR 42 ·
+MINOR 44 · INFO 20 = **112 active** / **63 FIXED-family files** (62 findings +
+RESOLVED-INDEX, incl. OQ-S003 resolved this pass; A-007 among them). The parallel
+legs' own SUMMARY sections below carry their in-flight counts; this paragraph is
+the closing-session's file-inventory truth at its correction commit.
 
 ## Session-5b delta (2026-10-26 — the never-dispositioned MOM/product-capabilities leg)
 

@@ -161,3 +161,46 @@ once); the `journal_harvest=false` off-switch pinned by test. The residual
 open question (the `(blhdr_size >> 4) - 1` constant's derivation, and the final
 JIB-offset confirmation) remains the real-volume bench harness's vehicle — no
 mkfs.hfsplus -J in either container.
+
+---
+
+## Verification addendum (closing session, df5 lineage — corrections to the landed fix)
+
+The parallel legs' fix (c75f646 arc) was independently verified against this
+session's complete first-hand corpus decode (CHFSPlusJournal ctor/walker
+disassembly + the TN1150 journal section fetched verbatim from
+developer.apple.com) — the full decode record lives in
+`evidence/executions/s003-s021-verification-corrections.md`. The walk mechanics
+were confirmed og-exact (ring walk from jhdr+0x10, the max_blocks probe marker,
+the count-1 entry loop, the fork classification order, the differential, the
+wrap-aware split reads). Four divergences in the LANDED code were corrected:
+
+1. **JournalInfoBlock layout (CRITICAL — silent zero-harvest on every real
+   journaled volume):** the landed code required a 'jnlx' magic at JIB+4.
+   TN1150 verbatim: `struct JournalInfoBlock { flags; device_signature[8];
+   offset; size; reserved[32]; }` — device_signature[8] occupies +4..+0x23
+   (reserved, zeros on internal journals); there is NO magic field. The og's
+   FUN_18000db70 swaps exactly [0..3]/[0x24..0x2B]/[0x2C..0x33] and the ctor
+   never compares +4 (the 0x4A4E4C78/0x12345678 magic gates the 44-byte
+   journal HEADER at jbase — a different structure). Both parse gates and
+   fixtures corrected; the no-magic discriminator poisons the whole
+   device_signature region to prove the bytes are ignored.
+2. **Missing og entry gates:** kHFSVolumeJournaledBit (VH attributes & 0x2000,
+   og :13456) and kJIJournalInFSMask (JIB flags bit 0, og :13513) — both added.
+3. **Validator strictness:** a mid-chain offset-table violation REJECTS the
+   image (asm-exact: 0x18001080c/:812 jump to 0x18001082a, past the
+   `mov edi,1` success flag at :825) — the landed `break` was lenient.
+   Also: the og's marker constant (size_a>>4)-1 is now DERIVED (block_list_
+   header.max_blocks = (blhdr_size-16)/16 per TN1150 + jnl.c) — the open
+   question is closed.
+4. **Missing surfaces:** the attributes branch (og :14096 — decmpfs
+   size-only fallback, FUN_180009c10 :7840-42 frees the payload) and the
+   header-invalid fallback salvage ladder (:1715-1760 + FUN_180003ea0, OQ-S003
+   RESOLVED) — both implemented. Plus the in_fork u32-overflow fix.
+
+The og's count-1 entry loop (vs TN1150's inclusive binfo[1..num_blocks] replay)
+is replicated deliberately for parity and noted in-code. Fail-before: 6 tests
+red on the pre-correction tree (the three pre-existing journal tests +
+JournalInfoBlockHasNoMagicField + JournalAttributeDecmpfsSizeFallback +
+JournalFallbackSalvageWhenHeaderInvalid). Pass-after: 11/11 journal tests,
+suite 491/491 Linux Release.

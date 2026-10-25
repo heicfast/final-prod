@@ -184,3 +184,46 @@ implement the differential first and pin `FUN_180003ea0` before any overlay work
 **Fixed in commit:** (this commit — "fix: S-021 + S-003 - HFS+ journal deleted-record harvest")
 **Verified by:** the S-021 test set (HfsPlus.JournalHarvestEmitsDeletedRecords etc. — the journal-carried recent state now surfaces); fail-before/pass-after in `evidence/executions/s021-failbefore-journal.md`; suite 423/423 ASan; corpus re-verification cited in the S-021 Resolution.
 **Resolution notes:** The finding's headline claim ("post-crash recent state unrecoverable: files created/renamed/moved in the moments before the crash exist only in the journal — the og surfaces them, our core shows only the checkpointed catalog") is CONFIRMED and now FIXED: with the S-021 harvest landed, a file whose only catalog record lives in a journal transaction image surfaces in the core's deleted tier exactly as the og's kind-5 emission serves it. The MECHANISM premise is corrected in the audit trail: the og does NOT overlay journal images onto the live catalog ("replay") — three converging first-hand reads settle it: (1) images install into a SCRATCH record (FUN_180010110 writes a stack-local `local_f8` — never the volume trees); (2) the emit driver walks the live catalog UNCHANGED after the harvest (:10122); (3) the "replay driver" the first addendum decoded at :13660-13800 is GetDeleteRecord's own ring walk (inside :13637-14252). The differential-salvage model (session-2 leg) is the correct reading — this session's implementation follows it. The finding's original fix-plan magic `0x6a6e6c78` was already corrected to 0x4A4E4C78 by the addendum (corpus-wins). Remaining scope, precisely tracked: the journal-header-invalid fallback salvage (:1690-1790, FUN_180003ea0 consumer undecoded) → `tracked-open/OQ-S003-journal-fallback-salvage.md`.
+
+---
+
+## Verification addendum (closing session, df5 lineage — corrections to the landed fix)
+
+The parallel legs' fix (c75f646 arc) was independently verified against this
+session's complete first-hand corpus decode (CHFSPlusJournal ctor/walker
+disassembly + the TN1150 journal section fetched verbatim from
+developer.apple.com) — the full decode record lives in
+`evidence/executions/s003-s021-verification-corrections.md`. The walk mechanics
+were confirmed og-exact (ring walk from jhdr+0x10, the max_blocks probe marker,
+the count-1 entry loop, the fork classification order, the differential, the
+wrap-aware split reads). Four divergences in the LANDED code were corrected:
+
+1. **JournalInfoBlock layout (CRITICAL — silent zero-harvest on every real
+   journaled volume):** the landed code required a 'jnlx' magic at JIB+4.
+   TN1150 verbatim: `struct JournalInfoBlock { flags; device_signature[8];
+   offset; size; reserved[32]; }` — device_signature[8] occupies +4..+0x23
+   (reserved, zeros on internal journals); there is NO magic field. The og's
+   FUN_18000db70 swaps exactly [0..3]/[0x24..0x2B]/[0x2C..0x33] and the ctor
+   never compares +4 (the 0x4A4E4C78/0x12345678 magic gates the 44-byte
+   journal HEADER at jbase — a different structure). Both parse gates and
+   fixtures corrected; the no-magic discriminator poisons the whole
+   device_signature region to prove the bytes are ignored.
+2. **Missing og entry gates:** kHFSVolumeJournaledBit (VH attributes & 0x2000,
+   og :13456) and kJIJournalInFSMask (JIB flags bit 0, og :13513) — both added.
+3. **Validator strictness:** a mid-chain offset-table violation REJECTS the
+   image (asm-exact: 0x18001080c/:812 jump to 0x18001082a, past the
+   `mov edi,1` success flag at :825) — the landed `break` was lenient.
+   Also: the og's marker constant (size_a>>4)-1 is now DERIVED (block_list_
+   header.max_blocks = (blhdr_size-16)/16 per TN1150 + jnl.c) — the open
+   question is closed.
+4. **Missing surfaces:** the attributes branch (og :14096 — decmpfs
+   size-only fallback, FUN_180009c10 :7840-42 frees the payload) and the
+   header-invalid fallback salvage ladder (:1715-1760 + FUN_180003ea0, OQ-S003
+   RESOLVED) — both implemented. Plus the in_fork u32-overflow fix.
+
+The og's count-1 entry loop (vs TN1150's inclusive binfo[1..num_blocks] replay)
+is replicated deliberately for parity and noted in-code. Fail-before: 6 tests
+red on the pre-correction tree (the three pre-existing journal tests +
+JournalInfoBlockHasNoMagicField + JournalAttributeDecmpfsSizeFallback +
+JournalFallbackSalvageWhenHeaderInvalid). Pass-after: 11/11 journal tests,
+suite 491/491 Linux Release.

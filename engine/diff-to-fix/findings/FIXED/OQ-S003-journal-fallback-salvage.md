@@ -41,3 +41,36 @@ The primary surfaces (S-021's differential harvest + S-003's outcome
 parity) consumed the session's HFS+ budget; the fallback's CONSUMER is
 undecoded and implementing it blind risks serving wrong node images - the
 no-hallucination rule applies.
+
+---
+
+## Resolution
+
+**Status:** RESOLVED (closing session, df5 lineage) — FUN_180003ea0 decoded
+first-hand AND the salvage implemented.
+
+**Decoded (HFSPlusSearchDLL @0x180003ea0, :2344-2560):** the installer loads the
+candidate image via FUN_180010110 (the scratch node-object loader - the same
+FUN_180010110 the ring walk uses; own-flag 0) and dispatches on the node kind:
+- kind == 1 (header node): remembered as a tree-root location hint
+  (ctx+0xf0 = the offset; the volume-open cache) - no records harvested;
+- kind == -1 (leaf): records harvested by SHAPE classification
+  (TestNodeBelongToFile = FUN_1800102d0 :12903-13100 - catalog folder
+  0x58/type 1, file 0xF8/type 2, thread (nameLen+5)*2/type 3|4) into
+  per-tree harvest maps with replace-on-same-key merges (the extents-key
+  comparator {forkType, fileID, startBlock} at :2442-2476; attributes at
+  :2494-2560). It NEVER installs into the live tree readers - the fallback
+  feeds the SAME harvest maps the GetDeleteRecord consumption walks.
+
+**Implemented:** `journal_fallback_salvage` in cr_hfsplus_engine.cpp - the
+node-shaped trigger (BTNodeDescriptor reserved==0, kind leaf/header + height
+gates), the 32 KiB window at jbase (short reads zero-filled - deterministic
+where the og scans device garbage), the size ladder 1x/2x/4x.. x blockSize
+(<= 0x8000), the first validator-passing node, shape-classified records into
+the same kept/extents/attributes maps, header nodes counted but not harvested
+(the og's tree-root hint has no consumer in the core's architecture).
+
+**Verified by:** HfsPlus.JournalFallbackSalvageWhenHeaderInvalid (fail-before:
+no salvage existed - part of the 6-test fail-before run in
+evidence/executions/s003-s021-verification-corrections.md) +
+HfsPlus.JournalFallbackRequiresNodeShapedStart (the trigger gate). Suite 491/491.

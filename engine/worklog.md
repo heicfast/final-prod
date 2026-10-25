@@ -7574,3 +7574,46 @@ Stage Summary:
   remaining S-003/S-021 verification corrections (JIB magic check removal,
   VH journaled-bit gate, strict validator, attributes branch, fallback
   salvage, in_fork overflow).
+
+---
+Task ID: S7-S003S021-VERIFY
+Agent: main engineer (closing session, df5 lineage)
+Task: The S-003/S-021 verification pass — the complete corpus decode executed
+before the parallel leg's landing; corrections to their landed fix.
+
+Work Log:
+- Completed first-hand decode of the whole journal subsystem before pulling
+  their landing: CHFSPlusJournal ctor (FUN_180010e10), the JIB swap
+  (FUN_18000db70 disassembled byte-exact), the ring reader (FUN_180011220),
+  GetDeleteRecord (FUN_180011300 :13637-14252), the node validator
+  (FUN_180010720 raw asm @0x180010720-0x180010843 — STRICT mid-chain
+  rejection settled), the node loader (FUN_180010110), the consumption
+  (FUN_18000c8f0 :10017-10127 — grade-5 emit BEFORE the unchanged live walk),
+  the fallback installer (FUN_180003ea0 :2344-2560 — scratch-node harvest,
+  never a live-tree install) + TestNodeBelongToFile shape gates
+  (FUN_1800102d0 :12903-13100); TN1150's journal section fetched VERBATIM
+  (JournalInfoBlock / journal_header / block_list_header / block_info / the
+  replay algorithm / the checksum routine) — every og field confirmed.
+- Verification outcome vs their landed c75f646 arc: walk mechanics og-exact;
+  four divergences corrected: (1) CRITICAL false-parity JIB magic@+4
+  (TN1150 has device_signature[8] there — silent zero-harvest on every real
+  journaled volume; fixtures encoded the fiction); (2) missing og entry gates
+  (VH journaled bit + JIB in-FS flag); (3) lenient validator (asm proves
+  strict); (4) missing attributes branch + fallback salvage. Plus in_fork
+  u64 arithmetic and the max_blocks marker derivation (open question closed).
+- Fail-before executed in a pre-correction worktree: 6 tests red (the three
+  pre-existing journal tests on the de-magicked fixtures — the real-volume
+  failure mode — plus the no-magic/attributes/fallback discriminators);
+  pass-after 11/11 journal + suite 491/491. Evidence:
+  evidence/executions/s003-s021-verification-corrections.md.
+- Audit trail: S-003 + S-021 verification addenda; OQ-S003 RESOLVED (decode
+  + implementation) and moved to FIXED/; matrix hfsplus rows; modules/
+  hfsplus.md verdict table; SUMMARY counts reconciled to the direct file
+  inventory (112 active / 63 FIXED-family at this commit).
+
+Stage Summary:
+- S-003/S-021 now carry a third independent verification (audit + fix leg +
+  this decode-first pass); the journal subsystem is corpus-exact on every
+  gate this lineage decoded, with the og's count-1 quirk replicated and
+  registered. Lane continues: pull, then the highest-severity unclaimed
+  remainder.

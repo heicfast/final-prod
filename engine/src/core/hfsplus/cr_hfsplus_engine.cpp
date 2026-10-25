@@ -602,17 +602,21 @@ bool validate_volume_header(const u8 vh[512], VolumeHeader& out) {
  * original framing; the images install into a scratch record, FUN_180010110,
  * never the volume trees).
  *
- * On-disk chain (Apple jnl.c layout, LE structures inside the journal):
- *   VH+0x0C journalInfoBlock -> JournalInfoBlock (TN1150, BE fields:
- *   flags u32@0 [bit 0 = the og's gate], magic 0x6A6E6C78 u32@4, journal
- *   byte offset u64@+0x24, size u64@+0x2C [the og's FUN_18000db70 swaps
- *   exactly the three BE fields it reads: [0..3], [0x24..0x2B],
- *   [0x2C..0x33]; the ring reader's raw longlong arithmetic reads the
- *   base at +0x24 - the DF4-S021 convergence correction, og-decode over
- *   the earlier +8/+16 rendering]) -> jnl_header at the journal start (LITTLE-endian:
- *   magic 0x4A4E4C78 u32@0, endian 0x12345678 u32@4, end u64@8,
- *   start u64@0x10, size u64@0x18 cross-checked against the info block,
- *   :13542-13554, size_a u32@0x20, size_b u32@0x28).
+ * On-disk chain (TN1150 journal section, fetched verbatim this session +
+ *   the og's disassembly - both agree on every field):
+ *   VH+0x0C journalInfoBlock -> JournalInfoBlock (TN1150, BE: flags u32@0
+ *   [bit 0 kJIJournalInFSMask - the og's :13513 gate], device_signature[8]
+ *   u32@+4..+0x23 [reserved - zero on internal journals; THERE IS NO MAGIC
+ *   FIELD - the og's FUN_18000db70 swaps exactly [0..3], [0x24..0x2B],
+ *   [0x2C..0x33] and the ctor never compares anything at +4; the 'jnlx'
+ *   magic gates the 44-byte journal HEADER below, a different structure],
+ *   offset u64@+0x24, size u64@+0x2C) -> jnl_header at jbase (LITTLE-endian
+ *   jnl.c: magic 0x4A4E4C78 u32@0, endian 0x12345678 u32@4, start u64@+0x08
+ *   [oldest transaction], end u64@+0x10 [newest - the walk origin, the og's
+ *   "Journal Start Offset" trace :13705], size u64@+0x18 cross-checked
+ *   against the info size, blhdr_size u32@+0x20, checksum u32@+0x24,
+ *   jhdr_size u32@+0x28 [the sector size - TN1150's replay rule: target
+ *   byte offset = bnum * jhdr_size]).
  *
  * Ring walk (FUN_180011300 mechanics):
  *   - probe-read size_b bytes at the ring offset (wrap-aware reads,
@@ -620,22 +624,38 @@ bool validate_volume_header(const u8 vh[512], VolumeHeader& out) {
  *   - a block whose FIRST U16 == (size_a >> 4) - 1 is a transaction
  *     block-list: re-read size_a bytes; entry count = u16@+2; entries at
  *     +0x20 with 16-byte stride; the og loop processes count-1 entries
- *     (:13751-14188). DERIVATION OF THE MAGIC CONSTANT IS UNVERIFIED
- *     (corpus OQ - a wrong constant yields a silent zero-harvest, never
- *     wrong results; the test fixtures encode the same formula);
+ *     (:13751-14188). THE MARKER DERIVATION IS RESOLVED (closing session):
+ *     the value is block_list_header.max_blocks (TN1150: reserved on disk,
+ *     but jnl.c writes the binfo capacity = (blhdr_size - 16) / 16, which
+ *     equals (blhdr_size >> 4) - 1 for every 16-multiple blhdr_size - the
+ *     og compares the raw LE u16 against exactly that; S-021's open
+ *     question is closed);
  *   - entry: {u64 target_block LE@+0, u32 image_size LE@+8}; the image is
  *     read at the ring cursor (advance by image_size, wrap % size);
- *   - node gate (FUN_180010720): size is a 512 multiple, kind byte @+8 in
- *     {-1..2}, leaf height == 1 / index height == 0, record-offset array
- *     monotonic (the last check is subsumed by for_each_record's bounds);
+ *   - node gate (FUN_180010720, asm-exact @0x180010720 this session): size
+ *     is a 512 multiple, kind byte @+8 in {-1..2} (header=>height 0,
+ *     leaf=>height 1), record 0's offset (BE u16 at node end-2) == 14,
+ *     and the offset chain (slots 2..numRecords+1) strictly ASCENDS with
+ *     every value at or below its own slot address - a mid-chain violation
+ *     REJECTS (the asm jumps past the success flag: 0x18001080c/:812 ->
+ *     0x18001082a skips `mov edi,1` at :825 - strict, not lenient);
  *   - leaf images only; the target address (size_b * entry.target_block)
  *     is classified by fork ranges in og order catalog -> extents ->
  *     attributes -> allocation -> startup (:13809-17);
- *   - catalog branch: records with cnid == key.parentCNID are skipped;
- *     the differential keeps a record only if the live catalog does not
- *     hold the same (parent, name) key or the live record's fileID
- *     differs (:13939-14130). Extents branch: overflow-format records
- *     feed a {cnid -> extents} fallback map.
+ *   - catalog branch: the differential keeps a record only if the live
+ *     catalog does not hold the same (parent, name) key or the live
+ *     record's fileID differs (:13939-14130). Extents branch:
+ *     overflow-format records feed a {cnid -> extents} fallback map.
+ *     Attributes branch: records the live attributes tree lacks
+ *     (:14096) feed a decmpfs SIZE fallback (the og consumes size only -
+ *     FUN_180009c10 :7840-42 frees the payload; FUN_180009f40 :7937-82).
+ *   - when the jnl_header gates FAIL but the block at jbase is itself
+ *     node-shaped (BTNodeDescriptor with reserved==0, kind leaf/header
+ *     + height gates), the og scans 32 KiB at jbase for the first
+ *     validator-passing node on the size ladder 1x,2x,4x.. x blockSize
+ *     (<= 0x8000) and salvages its records, shape-classified
+ *     (TestNodeBelongToFile :12903-13100 + installer FUN_180003ea0) -
+ *     a damaged journal header must not hide the node images after it.
  *
  * Safety hardening over the og: the ring walk is bounded by the journal
  * size (a corrupt ring can cycle without ever re-hitting jhdr.start - the
@@ -674,9 +694,14 @@ static bool journal_ring_read(IStorageDevice* dev, u64 base, u64 jsize, u64& off
     return true;
 }
 
-/* B-tree node image gate (og FUN_180010720 subset: 512-multiple size,
- * kind in {-1..2}, leaf height 1 / index height 0 - the record-offset
- * monotonicity is enforced by for_each_record's bounds checks). */
+/* B-tree node image gate - the og's FUN_180010720, asm-exact (raw
+ * disassembly @0x180010720-0x180010843 this session; every earlier decode
+ * converged on the gates, the strictness settled here): 512-multiple size,
+ * kind in {-1..2} (header=>height 0, leaf=>height 1), the nonzero-header
+ * guard, record 0's offset == 14, and the offset chain (slots 2..n+1)
+ * strictly ascending with every value <= its own slot address. A
+ * mid-chain violation REJECTS the image (0x18001080c/:812 jump past the
+ * `mov edi,1` success flag at :825). */
 static bool journal_node_image_ok(const u8* img, u32 size) {
     if (size < 0x200 || (size & 0x1ff) != 0 || size > (16u << 20))
         return false;
@@ -687,13 +712,13 @@ static bool journal_node_image_ok(const u8* img, u32 size) {
     if (kind == -1 && height != 1)
         return false; /* kBTLeafNode */
     if (kind == 1 && height != 0)
-        return false; /* kBTIndexNode (og gate) */
+        return false; /* kBTHeaderNode (og gate) */
     /* the og's full validator (FUN_180010720 :13094-13108, converged from
      * the DF4 A-005 decode): the zero/record header must be nonzero, the
      * free-space sentinel (BE-u16 at node end-2) == 14 (TN1150: record 0
      * always at 14 - the record-span convention A-005 fixed), and the
-     * offset chain ASCENDS toward deeper slots (a mid-chain violation
-     * stops the walk but does not reject - the og is lenient there). */
+     * offset chain ASCENDS toward deeper slots (asm-exact: a mid-chain
+     * violation REJECTS - 0x18001080c/:812 skip the success flag). */
     if (be32(img + 8) == 0)
         return false; /* zero/garbage region */
     const u32 n = be16(img + 0xA);
@@ -706,7 +731,7 @@ static bool journal_node_image_ok(const u8* img, u32 size) {
         const u64 slot = u64(size) - u64(i) * 2;
         const u32 off = be16(img + slot);
         if (slot < off || off <= prev)
-            break; /* the og stops the walk, does not reject */
+            return false; /* asm-strict: the og rejects, not just stops */
         prev = off;
     }
     return true;
@@ -718,162 +743,359 @@ struct HarvestedRec {
     std::vector<ForkData::Extent> ext_fallback; /* extents-branch images */
 };
 
+/* The og's volume-open salvage ladder (:1715-1760 + installer
+ * FUN_180003ea0): when the jnl_header at jbase is invalid but the block
+ * there is itself node-shaped (BTNodeDescriptor with reserved == 0 and
+ * kind leaf/header + the height gates), scan 32 KiB at jbase for the
+ * first size on the ladder 1x,2x,4x... x blockSize (<= 0x8000) whose
+ * image passes the node gate, then salvage that node's records,
+ * shape-classified per TestNodeBelongToFile (:12903-13100: catalog
+ * folder 0x58/type 1, file 0xF8/type 2; extents keyLength 10; attribute
+ * keys) into the same harvest maps. Recovery-grade: a damaged journal
+ * header must not hide the node images that follow it. */
+static void journal_fallback_salvage(Volume& v, u64 jbase,
+                                      std::map<std::pair<u32, std::u16string>, CatalogRecord>& kept,
+                                      std::map<u32, std::vector<ForkData::Extent>>& ext_out,
+                                      std::map<u32, u32>& attr_size_out, HfsScanStats& stats) {
+    /* the node-shaped trigger on the first block at jbase */
+    u8 trig[16] = {0};
+    if (v.dev->read_at(jbase, trig, sizeof(trig)) != OK)
+        return;
+    const int kind = int(i8(trig[8]));
+    if (be16(trig + 12) != 0) /* BTNodeDescriptor.reserved must be zero */
+        return;
+    if (kind == -1) {
+        if (trig[9] != 1) /* leaf height 1 */
+            return;
+    } else if (kind == 1) {
+        if (trig[9] != 0) /* header height 0 */
+            return;
+    } else {
+        return; /* the og's trigger accepts leaf/header shapes only */
+    }
+    /* 32 KiB scan window at jbase, short reads zero-filled (deterministic;
+     * the og scans whatever its device returned) */
+    std::vector<u8> win(size_t(0x8000), 0);
+    const u64 dev_size = v.dev->size();
+    const u64 avail = dev_size > jbase ? dev_size - jbase : 0;
+    const u64 want = std::min<u64>(0x8000, avail);
+    if (want == 0 || v.dev->read_at(jbase, win.data(), u32(want)) != OK)
+        return;
+    for (u64 sz = u64(v.vh.block_size); sz <= 0x8000; sz <<= 1) {
+        if (!journal_node_image_ok(win.data(), u32(sz)))
+            continue;
+        ++stats.journal_salvage;
+        if (kind == 1)
+            return; /* a header node carries no user records (the og
+                     * remembers it as a tree-root hint) */
+        /* shape-classify by the FIRST record (TestNodeBelongToFile), then
+         * run the matching parser over the whole node */
+        const u32 nrec = be16(win.data() + 10);
+        u32 first_len = 0;
+        const u8* first = nullptr;
+        {
+            const u32 o0 = be16(win.data() + u32(sz) - 2);      /* record 0 at 14 */
+            const u32 o1 = be16(win.data() + u32(sz) - 4);      /* record 1 / free */
+            if (o0 >= 14 && o1 > o0 && o1 <= u32(sz)) {
+                first = win.data() + o0;
+                first_len = o1 - o0;
+            }
+        }
+        (void)nrec;
+        if (first != nullptr && first_len >= 12) {
+            const u32 klen = be16(first); /* key data length (catalog/
+                                          * extents convention: excludes self) */
+            const u32 ktotal = 2 + klen + (klen & 1);
+            const u32 body = first_len > ktotal ? first_len - ktotal : 0;
+            const i16 rtype = i16(be16(first + ktotal));
+            const bool cat_shape = (body == 0x58 && rtype == 1) || /* folder */
+                                   (body == 0xF8 && rtype == 2);  /* file */
+            const bool ext_shape = (klen == 10 && first_len >= 12 + 64);
+            const bool attr_shape = !cat_shape && !ext_shape && klen >= 14 &&
+                                    (klen & 1) == 0 && first_len > ktotal + 15 &&
+                                    be32(first + ktotal) == ATTR_INLINE_DATA;
+            if (cat_shape) {
+                for_each_record(u32(sz), win, NH_KIND_LEAF, [&](const u8* rec, u32 len) {
+                    CatalogRecord cr;
+                    if (!parse_catalog_record(rec, len, cr))
+                        return true;
+                    kept[{cr.parent_cnid, cr.name}] = cr;
+                    return true;
+                });
+            } else if (ext_shape) {
+                for_each_record(u32(sz), win, NH_KIND_LEAF, [&](const u8* rec, u32 len) {
+                    if (len < 12 + 64)
+                        return true;
+                    const u32 file_id = be32(rec + 4);
+                    for (int i = 0; i < 8; ++i) {
+                        ForkData::Extent ex;
+                        ex.start_block = be32(rec + 12 + u32(i) * 8);
+                        ex.block_count = be32(rec + 12 + u32(i) * 8 + 4);
+                        if (ex.block_count)
+                            ext_out[file_id].push_back(ex);
+                    }
+                    return true;
+                });
+            } else if (attr_shape) {
+                for_each_record(u32(sz), win, NH_KIND_LEAF, [&](const u8* rec, u32 len) {
+                    if (len < 16)
+                        return true;
+                    const u32 key_len = be16(rec);
+                    if (key_len < 14 || u64(key_len) + ATTR_DATA_HEADER > len)
+                        return true;
+                    const u32 file_id = be32(rec + ATTR_KEY_FILE_ID);
+                    const u32 name_len = be16(rec + ATTR_KEY_NAME_LEN);
+                    if (key_len < 14 + 2 * u64(name_len) || name_len > MAX_RECORD_NAME)
+                        return true;
+                    std::u16string name;
+                    for (u32 i = 0; i < name_len; ++i)
+                        name.push_back(be16(rec + ATTR_KEY_NAME + u32(i) * 2));
+                    if (name != u"com.apple.decmpfs")
+                        return true;
+                    const u8* data = rec + key_len; /* keyLength counts itself */
+                    if (be32(data) != ATTR_INLINE_DATA)
+                        return true;
+                    const u32 value_len = be32(data + 12);
+                    if (value_len < 12 ||
+                        u64(key_len) + ATTR_DATA_HEADER + value_len > len)
+                        return true;
+                    if (le32j(data + ATTR_DATA_HEADER) == DECMPFS_MAGIC_LE)
+                        attr_size_out[file_id] = le32j(data + ATTR_DATA_HEADER + 8);
+                    return true;
+                });
+            }
+        }
+        return; /* the og salvages the FIRST valid node only */
+    }
+}
+
 /* The harvest pass. Returns OK on completion (a damaged journal degrades
  * to a no-harvest, never a scan failure - the og treats it as evidence,
  * not an error). */
 static void journal_harvest_pass(Volume& v, CancelToken* cancel,
                                  const std::map<std::pair<u32, std::u16string>, u32>& live_by_key,
+                                 const std::map<u32, std::vector<AttrEntry>>& live_attrs,
                                  tree::ResultTree& tree, tree::FullNode* root_deleted,
                                  HfsScanStats& stats, bool emit,
                                  std::map<u32, std::vector<ForkData::Extent>>& ext_out,
                                  std::set<u32>& emitted_cnids) {
-    if (v.vh.journal_info_block == 0)
+    /* og entry gate :13456 - kHFSVolumeJournaledBit (0x2000) in the VH
+     * attributes must be set (TN1150: the journalInfoBlock field is only
+     * valid when it is); plus a non-zero info block number. */
+    if ((v.vh.attributes & 0x2000u) == 0 || v.vh.journal_info_block == 0)
         return;
     const u64 bs = v.vh.block_size;
     const u64 info_off = u64(v.vh.journal_info_block) * bs;
     u8 info[512];
     if (bs < 512 || v.dev->read_at(info_off, info, 512) != OK)
         return;
-    /* JournalInfoBlock: BE fields. The 'jnlx' magic at +4 is a real-format
-     * gate (xnu hfs_format.h); the og's own flags gate (bit 0 of the
-     * first u32, FUN_180010e10) and the base/size offsets +0x24/+0x2C
-     * follow the og's decode (FUN_18000db70 swaps exactly [0..3],
-     * [0x24..0x2B], [0x2C..0x33] - the fields it reads; the ring reader's
-     * raw longlong arithmetic reads *(u64*)(jinfo+0x24) as the journal
-     * base). Converged from the DF4-S021 decode; a real-volume bench
-     * remains the final vehicle (OQ stands). */
-    if (be32(info + 4) != 0x6A6E6C78) /* 'jnlx' */
-        return;
+    /* JournalInfoBlock (TN1150 verbatim, fetched this session): BE fields
+     * flags u32@0 [bit 0 kJIJournalInFSMask - the og's :13513 gate],
+     * device_signature[8]@+4..+0x23 [reserved, zero on internal journals
+     * - NO magic field; the og's FUN_18000db70 swaps exactly [0..3],
+     * [0x24..0x2B], [0x2C..0x33] and its ctor never compares +4],
+     * offset u64@+0x24, size u64@+0x2C. The earlier 'jnlx'@+4 gate was a
+     * false-parity block: real internal journals carry zeros there, so
+     * the harvest never ran on real volumes (fixtures encoded the same
+     * fiction - both corrected here). */
     if ((be32(info + 0) & 1u) == 0) /* the og's flags gate */
         return;
     const u64 jbase = be64(info + 0x24);
     const u64 jsize = be64(info + 0x2C);
     if (jsize == 0 || jsize > (512u << 20)) /* hard cap: 512 MiB */
         return;
+    /* SHARED harvest outputs - both the ring walk and the header-invalid
+     * fallback salvage feed them; the differential + emission below runs
+     * for either source (the og's volume-open salvage merges into the same
+     * harvest maps its scan consumes). */
+    std::map<std::pair<u32, std::u16string>, CatalogRecord> kept; /* newest wins */
+    std::map<u32, u32> attr_size; /* cnid -> decmpfs uncompressed size */
+
     /* jnl_header: 44 bytes, LITTLE-endian (jnl.c) */
     u8 jh[44];
-    if (v.dev->read_at(jbase, jh, 44) != OK)
-        return;
-    if (le32j(jh + 0) != 0x4A4E4C78 || le32j(jh + 4) != 0x12345678)
-        return;
-    if (le64j(jh + 0x18) != jsize) /* og cross-check vs the info size */
-        return;
-    const u64 jstart = le64j(jh + 0x10);
-    const u32 size_a = le32j(jh + 0x20); /* transaction block-list size */
-    const u32 size_b = le32j(jh + 0x28); /* walk/classification block size */
-    if (size_a == 0 || size_b == 0 || size_a > (16u << 20) || size_b > (16u << 20))
-        return;
-    if (jstart >= jsize)
-        return;
+    if (v.dev->read_at(jbase, jh, 44) == OK &&
+        le32j(jh + 0) == 0x4A4E4C78 && le32j(jh + 4) == 0x12345678 &&
+        le64j(jh + 0x18) == jsize) { /* og cross-check vs the info size */
+        const u64 jstart = le64j(jh + 0x10);
+        const u32 size_a = le32j(jh + 0x20); /* transaction block-list size */
+        const u32 size_b = le32j(jh + 0x28); /* walk/classification block size */
+        if (size_a != 0 && size_b != 0 && size_a <= (16u << 20) &&
+            size_b <= (16u << 20) && jstart < jsize) {
+            std::vector<u8> block(std::max<size_t>(size_a, size_b));
+            std::vector<u8> image;
+            u64 off = jstart;
+            u64 advanced = 0;
+            /* fork classification helper: is byte address inside a fork's
+             * extents? (u64 arithmetic throughout - a u32 start+count sum
+             * wraps on huge volumes and misclassifies) */
+            auto in_fork = [&](const ForkData& fork, u32 tree_cnid, u64 addr) -> bool {
+                std::vector<ForkData::Extent> ext(fork.extents, fork.extents + 8);
+                auto it = v.overflow.find(tree_cnid);
+                if (it != v.overflow.end()) {
+                    auto fit = it->second.find(0);
+                    if (fit != it->second.end())
+                        for (const auto& e : fit->second)
+                            ext.push_back(e);
+                }
+                for (const auto& e : ext)
+                    if (e.block_count != 0 && addr >= u64(e.start_block) * bs &&
+                        addr < (u64(e.start_block) + u64(e.block_count)) * bs)
+                        return true;
+                return false;
+            };
 
-    std::vector<u8> block(std::max<size_t>(size_a, size_b));
-    std::vector<u8> image;
-    std::map<std::pair<u32, std::u16string>, CatalogRecord> kept; /* newest wins */
-    u64 off = jstart;
-    u64 advanced = 0;
-    /* fork classification helper: is byte address inside a fork's extents? */
-    auto in_fork = [&](const ForkData& fork, u32 tree_cnid, u64 addr) -> bool {
-        std::vector<ForkData::Extent> ext(fork.extents, fork.extents + 8);
-        auto it = v.overflow.find(tree_cnid);
-        if (it != v.overflow.end()) {
-            auto fit = it->second.find(0);
-            if (fit != it->second.end())
-                for (const auto& e : fit->second)
-                    ext.push_back(e);
-        }
-        for (const auto& e : ext)
-            if (e.block_count != 0 && addr >= u64(e.start_block) * bs &&
-                addr < u64(e.start_block + e.block_count) * bs)
-                return true;
-        return false;
-    };
-
-    while (advanced <= jsize) { /* one full ring of advances at most */
-        if (cancel && cancel->checkpoint())
-            return;
-        if (!journal_ring_read(v.dev, jbase, jsize, off, block.data(), size_b))
-            return;
-        const u16 first = u16(block[0]) | (u16(block[1]) << 8);
-        if (first == u16((size_a >> 4) - 1)) {
-            /* transaction block-list: re-read the full size_a bytes */
-            u64 tx_off = off < size_b ? off + jsize - size_b : off - size_b;
-            if (!journal_ring_read(v.dev, jbase, jsize, tx_off, block.data(), size_a))
-                return;
-            off = tx_off;
-            advanced += size_a;
-            ++stats.journal_tx;
-            const u32 count = u16(block[2]) | (u16(block[3]) << 8);
-            /* og loop: entries [0 .. count-2] (local_108 = 1 .. count-1) */
-            const u32 entries = count > 0 ? count - 1 : 0;
-            const u8* ep = block.data() + 0x20;
-            for (u32 ei = 0; ei < entries && 0x20 + u64(ei + 1) * 16 <= size_a; ++ei) {
+            while (advanced <= jsize) { /* one full ring of advances at most */
                 if (cancel && cancel->checkpoint())
                     return;
-                const u8* e = ep + u64(ei) * 16;
-                const u64 target_block = le64j(e + 0);
-                const u32 image_size = le32j(e + 8);
-                if (image_size == 0 || image_size > (16u << 20))
-                    continue;
-                image.assign(image_size, 0);
-                if (!journal_ring_read(v.dev, jbase, jsize, off, image.data(), image_size))
-                    continue; /* damaged image: skip, keep walking */
-                advanced += image_size;
-                ++stats.journal_images;
-                if (!journal_node_image_ok(image.data(), image_size))
-                    continue;
-                if (int(i8(image[8])) != -1) /* leaves only (og :13799) */
-                    continue;
-                ++stats.journal_leaves;
-                /* classify the target by fork ranges, og order */
-                const u64 addr = u64(size_b) * target_block;
-                int which = 0; /* 1 catalog, 2 extents, 3 attributes, 4 allocation */
-                if (in_fork(v.catalog_fork, CNID_CATALOG_FILE, addr))
-                    which = 1;
-                else if (in_fork(v.extents_fork, CNID_EXTENTS_FILE, addr))
-                    which = 2;
-                else if (v.attributes_fork.extents[0].block_count != 0 &&
-                         in_fork(v.attributes_fork, CNID_ATTRIBUTES_FILE, addr))
-                    which = 3;
-                else if (in_fork(v.allocation_fork, 6, addr))
-                    which = 4;
-                if (which == 1) {
-                    for_each_record(image_size, image, NH_KIND_LEAF, [&](const u8* rec, u32 len) {
-                        CatalogRecord cr;
-                        if (!parse_catalog_record(rec, len, cr))
-                            return true;
-                        if (cr.cnid == cr.parent_cnid)
-                            return true; /* og :13961-62 rule */
-                        kept[{cr.parent_cnid, cr.name}] = cr;
-                        return true;
-                    });
-                } else if (which == 2) {
-                    for_each_record(image_size, image, NH_KIND_LEAF, [&](const u8* rec, u32 len) {
-                        /* overflow record format (same as the
-                         * live overflow walk; A-006: 12-byte key +
-                         * 64-byte descriptor block at key+12) */
-                        if (len < 12 + 64)
-                            return true;
-                        const u32 file_id = be32(rec + 4);
-                        for (int i = 0; i < 8; ++i) {
-                            ForkData::Extent ex;
-                            ex.start_block = be32(rec + 12 + u32(i) * 8);
-                            ex.block_count = be32(rec + 12 + u32(i) * 8 + 4);
-                            if (ex.block_count)
-                                ext_out[file_id].push_back(ex);
+                if (!journal_ring_read(v.dev, jbase, jsize, off, block.data(), size_b))
+                    break; /* unreadable ring: keep what we have */
+                const u16 first = u16(block[0]) | (u16(block[1]) << 8);
+                if (first == u16((size_a >> 4) - 1)) {
+                    /* transaction block-list: re-read the full size_a bytes */
+                    u64 tx_off = off < size_b ? off + jsize - size_b : off - size_b;
+                    if (!journal_ring_read(v.dev, jbase, jsize, tx_off, block.data(), size_a))
+                        break;
+                    off = tx_off;
+                    advanced += size_a;
+                    ++stats.journal_tx;
+                    const u32 count = u16(block[2]) | (u16(block[3]) << 8);
+                    /* og loop: entries [0 .. count-2] (local_108 = 1 .. count-1);
+                     * the og's own off-by-one vs TN1150's binfo[1..num_blocks]
+                     * inclusive replay - replicated for parity (one image per
+                     * block-list skipped; registered in S-021's resolution) */
+                    const u32 entries = count > 0 ? count - 1 : 0;
+                    const u8* ep = block.data() + 0x20;
+                    for (u32 ei = 0; ei < entries && 0x20 + u64(ei + 1) * 16 <= size_a;
+                         ++ei) {
+                        if (cancel && cancel->checkpoint())
+                            return;
+                        const u8* e = ep + u64(ei) * 16;
+                        const u64 target_block = le64j(e + 0);
+                        const u32 image_size = le32j(e + 8);
+                        if (image_size == 0 || image_size > (16u << 20))
+                            continue;
+                        image.assign(image_size, 0);
+                        if (!journal_ring_read(v.dev, jbase, jsize, off, image.data(),
+                                               image_size))
+                            continue; /* damaged image: skip, keep walking */
+                        advanced += image_size;
+                        ++stats.journal_images;
+                        if (!journal_node_image_ok(image.data(), image_size))
+                            continue;
+                        if (int(i8(image[8])) != -1) /* leaves only (og :13799) */
+                            continue;
+                        ++stats.journal_leaves;
+                        /* classify the target by fork ranges, og order */
+                        const u64 addr = u64(size_b) * target_block;
+                        int which = 0; /* 1 catalog, 2 extents, 3 attributes, 4 allocation */
+                        if (in_fork(v.catalog_fork, CNID_CATALOG_FILE, addr))
+                            which = 1;
+                        else if (in_fork(v.extents_fork, CNID_EXTENTS_FILE, addr))
+                            which = 2;
+                        else if (v.attributes_fork.extents[0].block_count != 0 &&
+                                 in_fork(v.attributes_fork, CNID_ATTRIBUTES_FILE, addr))
+                            which = 3;
+                        else if (in_fork(v.allocation_fork, 6, addr))
+                            which = 4;
+                        if (which == 1) {
+                            for_each_record(image_size, image, NH_KIND_LEAF,
+                                            [&](const u8* rec, u32 len) {
+                                                CatalogRecord cr;
+                                                if (!parse_catalog_record(rec, len, cr))
+                                                    return true;
+                                                kept[{cr.parent_cnid, cr.name}] = cr;
+                                                return true;
+                                            });
+                        } else if (which == 2) {
+                            for_each_record(image_size, image, NH_KIND_LEAF,
+                                            [&](const u8* rec, u32 len) {
+                                                /* overflow record format (same as
+                                                 * the live overflow walk; A-007:
+                                                 * 12-byte key + 64-byte descriptor
+                                                 * block at key+12) */
+                                                if (len < 12 + 64)
+                                                    return true;
+                                                const u32 file_id = be32(rec + 4);
+                                                for (int i = 0; i < 8; ++i) {
+                                                    ForkData::Extent ex;
+                                                    ex.start_block =
+                                                        be32(rec + 12 + u32(i) * 8);
+                                                    ex.block_count =
+                                                        be32(rec + 12 + u32(i) * 8 + 4);
+                                                    if (ex.block_count)
+                                                        ext_out[file_id].push_back(ex);
+                                                }
+                                                return true;
+                                            });
+                        } else if (which == 3) {
+                            /* og :14096 - attribute records the LIVE tree
+                             * lacks feed the decmpfs SIZE fallback (the og
+                             * consumes size only, FUN_180009c10 :7840-42
+                             * frees the payload). Differential: skip when
+                             * the live attributes map holds (cnid, name). */
+                            for_each_record(image_size, image, NH_KIND_LEAF,
+                                            [&](const u8* rec, u32 len) {
+                                                if (len < 16)
+                                                    return true;
+                                                const u32 key_len = be16(rec);
+                                                if (key_len < 14 ||
+                                                    u64(key_len) + ATTR_DATA_HEADER > len)
+                                                    return true;
+                                                const u32 file_id =
+                                                    be32(rec + ATTR_KEY_FILE_ID);
+                                                const u32 name_len =
+                                                    be16(rec + ATTR_KEY_NAME_LEN);
+                                                if (key_len < 14 + 2 * u64(name_len) ||
+                                                    name_len > MAX_RECORD_NAME)
+                                                    return true;
+                                                std::u16string name;
+                                                for (u32 i = 0; i < name_len; ++i)
+                                                    name.push_back(
+                                                        be16(rec + ATTR_KEY_NAME +
+                                                             u32(i) * 2));
+                                                auto lait = live_attrs.find(file_id);
+                                                if (lait != live_attrs.end())
+                                                    for (const auto& a : lait->second)
+                                                        if (a.name == name)
+                                                            return true; /* live */
+                                                if (name != u"com.apple.decmpfs")
+                                                    return true;
+                                                const u8* data = rec + key_len;
+                                                if (be32(data) != ATTR_INLINE_DATA)
+                                                    return true;
+                                                const u32 value_len = be32(data + 12);
+                                                if (value_len < 12 ||
+                                                    u64(key_len) + ATTR_DATA_HEADER +
+                                                            value_len >
+                                                        len)
+                                                    return true;
+                                                if (le32j(data + ATTR_DATA_HEADER) ==
+                                                    DECMPFS_MAGIC_LE) {
+                                                    attr_size[file_id] =
+                                                        le32j(data + ATTR_DATA_HEADER +
+                                                              8);
+                                                    ++stats.journal_attrs;
+                                                }
+                                                return true;
+                                            });
                         }
-                        return true;
-                    });
+                        /* the allocation/startup branches carry no user
+                         * records (bitmap nodes / the startup fork) - the
+                         * og probes them for classification only. */
+                    }
+                } else {
+                    /* the probe read already advanced `off` by size_b */
+                    advanced += size_b;
                 }
-                /* attributes/allocation branches feed og-side maps the core's
-                 * harvested-file emission does not consume (decmpfs for
-                 * harvested records is the N-038 lane); counted as leaves. */
+                if (off == jstart)
+                    break; /* wrapped back to the start: walk complete (og gate) */
             }
-        } else {
-            /* the probe read already advanced `off` by size_b */
-            advanced += size_b;
         }
-        if (off == jstart)
-            break; /* wrapped back to the start: walk complete (og gate) */
+    } else {
+        /* the jnl_header gates failed - the og's volume-open salvage ladder
+         * (:1715-1760): if the block at jbase is node-shaped, salvage the
+         * first validator-passing node image on the size ladder. */
+        journal_fallback_salvage(v, jbase, kept, ext_out, attr_size, stats);
     }
 
     /* differential + emission */
@@ -937,8 +1159,11 @@ static void journal_harvest_pass(Volume& v, CancelToken* cancel,
         props->record_ref = cr.cnid;
         for (const auto& ex : resolve_file_extents(v, cr.cnid, 0, cr.data_fork, v.total_bytes()))
             props->extents.push_back({ex.first, ex.second});
-        /* og fallback: extents-branch images supply the data runs when the
-         * record's own fork is empty (FUN_180009f40 :7937-82) */
+        /* og fallback (FUN_180009f40 :7937-82): extents-branch images supply
+         * the data runs when the record's own fork is empty; when BOTH are
+         * empty and a journal-harvested decmpfs attribute exists (and the
+         * live attributes tree lacks one), its uncompressed size becomes
+         * the file's logical size - the og's size-only consumption. */
         if (props->extents.empty() && !is_dir) {
             auto eit = ext_out.find(cr.cnid);
             if (eit != ext_out.end()) {
@@ -949,6 +1174,19 @@ static void journal_harvest_pass(Volume& v, CancelToken* cancel,
                         l = v.total_bytes() > o ? v.total_bytes() - o : 0;
                     if (l)
                         props->extents.push_back({o, l});
+                }
+            }
+            if (props->extents.empty() && props->logical_size == 0) {
+                bool live_decmpfs = false;
+                auto lait = live_attrs.find(cr.cnid);
+                if (lait != live_attrs.end())
+                    for (const auto& a : lait->second)
+                        if (a.decmpfs)
+                            live_decmpfs = true;
+                if (!live_decmpfs) {
+                    auto jit = attr_size.find(cr.cnid);
+                    if (jit != attr_size.end() && jit->second != 0)
+                        props->logical_size = jit->second;
                 }
             }
         }
@@ -1335,7 +1573,8 @@ u32 scan_hfsplus(IStorageDevice* slice, const HfsScanFlags& flags, CancelToken* 
         for (const auto& r : records)
             live_by_key[{r.parent_cnid, r.name}] = r.cnid;
         std::map<u32, std::vector<ForkData::Extent>> harvest_ext;
-        journal_harvest_pass(v, cancel, live_by_key, tree, root_deleted, stats, true, harvest_ext,
+        journal_harvest_pass(v, cancel, live_by_key, attributes, tree, root_deleted,
+                               stats, true, harvest_ext,
                              journal_harvested);
     }
 
