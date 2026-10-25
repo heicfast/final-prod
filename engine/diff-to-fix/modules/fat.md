@@ -188,7 +188,6 @@ rejects; mirror-only mode) stays open.
 - **FAT copy-compare reporting** — folded into `M-041` (the check phase):
   the og reports FAT1/FAT2 disagreement (0x1005) as an audit error; the
   core's mirror arbitration (cr_chain.cpp:109-118) chooses silently.
-
 ## Session-4 addendum (M-011 / M-012 / M-015 FIXED — the FAT factory trio)
 
 - **B1/S35/X49 → M-011 FIXED:** per-flavor sectors-per-FAT windows exactly per
@@ -206,3 +205,15 @@ rejects; mirror-only mode) stays open.
   FAT1 rejection; the 98% watermark stays advisory (deep-check gate unpinned).
 - The FAT engine's damaged-volume posture now matches the og factory: windows,
   validation, scrutiny, retry, mirror-only.
+## Session-6 rows (deep continuation, 2026-10-26)
+
+| ID | Severity | One-line |
+|---|---|---|
+| M-040 | MAJOR | FAT recycle-bin `$I/$R` pairing missing (og: IRecycleBinNode2UI bridge, fat-exfat-engine-internals.md:21,37-40; core grep 0 hits; NTFS has the full model at cr_mftwalk.cpp:162-250) |
+| N-048 (writer side) | — | (writer module row) — collision/mkdir destination policy |
+| MATCH-note | — | FAT alternate-EOC families: N-002's fix VERIFIED live this session (cr_chain.cpp:71-82,166-174 handles 0x0FFFFFF0..F7) — a stale divergence claim from the session's agent read was caught by verification and filed nowhere |
+
+Function-map additions (per-engine-function-map.md, first-cited): `CFATQuickSearchWorker`
+threaded quick scan is REGISTERED (PARITY-DELTAS D-30x — not a new finding); `Fat32CalcPartition`
+scorer-class evidence appended to M-017. The `FATFilterName` ini runtime-filter surface belongs
+to M-024's family (no separate finding).

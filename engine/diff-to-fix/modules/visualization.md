@@ -67,3 +67,8 @@ predates that fix landing and is superseded. Only the S-009 disk-map remainder s
   either tag the extended-chain parse or delete it), and the diskmap's bad-sector overlay
   + 64 MiB budget-growth paths are untested (cr_diskmap.cpp:129-157; write-only `total`
   accumulator at :39). Fold the diskmap fuzz into S-009's harness ask when it lands.
+## Session-6 rows (deep continuation, 2026-10-26)
+
+| ID | Severity | One-line |
+|---|---|---|
+| S-009 addendum | — | Stale premise corrected (the diskmap surface landed — C consumer exercises it); the RESIDUAL: kCellAllocFree never assigned (grep 0 sites), NTFS VolumeBitmap loaded-and-discarded at cr_scan.cpp:813-814 — the free overlay is unproducible until the engine bitmaps feed the viz layer. Concrete fix plan appended to the finding |

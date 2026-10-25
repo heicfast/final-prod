@@ -176,3 +176,12 @@ Residual probes: OQ-E1 (orphan reachability semantics), OQ-E2 (meta_bg stride
 constant — **RESOLVED by the S-026 fix**: the true stride is block_size/desc_size,
 empirically verified; the og's s_desc_size seed is the defect, D-58) —
 `tracked-open/OQ-Z-E-FLT-session3.md`.
+constant) — `tracked-open/OQ-Z-E-FLT-session3.md`.
+
+---
+
+## Session-6 rows (deep continuation, 2026-10-26)
+
+| ID | Severity | One-line |
+|---|---|---|
+| N-057 | MINOR | CatchBuffer bad-sector salvage: og re-reads a 1 KiB-backtrack shifted window on failure (ext4-engine--deep-dive.md:25-33); core zero-fills the extent after transport retries |

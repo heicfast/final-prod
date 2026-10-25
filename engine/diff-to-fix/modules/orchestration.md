@@ -138,3 +138,11 @@ dedup), GAP-S6-13 (64 KiB transport envelope).
   with the `""` and dead-`Raw` quirks).
 - **N-043 addendum:** the og's live "%1 file chunks scanned" milestone cadence cited
   (UIUX 06); fix decision unchanged.
+---
+
+## Session-6 rows (deep continuation, 2026-10-26)
+
+| ID | Severity | One-line |
+|---|---|---|
+| N-059 | MINOR | Event-bus shape: og query-signals (sigIsBusy(bool&) ×14, sigIsStopping ×8 — reference-out-param queries) + pull-polled progress convention + typed IUIProgressInfo vs core one-way push + telemetry pull. Cheapest close: two query exports or a deliberate-difference registration |
+| I-019 | INFO | DRWCfg.bin persistent config channel — scope register (host-owned settings; the scan-affecting subset is M-024's family) |

@@ -110,3 +110,9 @@ files, :7230 = +50 boot-SPC validated, :7220 = -10 read failure, :28973 = +30)
 and the display cap (top 2; 5 when >= 2 adjusted candidates, DRWUI :845676-701).
 Both legs rate the table-match polarity inversion (og +500 vs core -10/-20 at
 `cr_candidates.cpp:289-303`) the sharpest actionable slice of this finding.
+
+---
+
+## Addendum (session 6 — the CalcPartition scorer classes decoded in the function-map artifact, 2026-10-26)
+
+The per-engine-function-map artifact (first-cited this session) evidences the scorer-side classes this finding's model diverges from: **`Fat32CalcPartition` ×39 references** (fat-engine--deep-dive.md:20-22 — "the FAT32-specific geometry/capacity calculator used during validation"; the function map's RTTI census at per-engine-function-map.md:13) and **`ExFatCalcPartition` ×54** (per-engine-function-map.md:14) — plus `ICalcPartition` in the FAT engine's class inventory (fat-exfat-engine-internals.md:22, "geometry calculation"). The SPC-re-derivation interpretation (the scorers re-derive expected sectors-per-cluster geometry and rank candidates by the overlap) now has named-class evidence; the parallel session-3 legs' dSuggestted decode (recorded in this finding's body) remains the quantitative model. No change to the finding's substance or fix plan — this addendum adds the class-level citations the fix leg will need when porting the scorer family. Related new context: PartitionRecoveryD's two-generator-set architecture (I-020/OQ-S6-1) is the module that DRIVES these scorers on the og side — the decode order for the fix leg is OQ-S6-1 first (which generator set hosts the CalcPartition calls), then this finding's port.

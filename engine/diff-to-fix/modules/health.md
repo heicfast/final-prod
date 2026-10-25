@@ -94,7 +94,6 @@ during reconciliation.)
 - **N-064 (MINOR, NEW):** the og's Dict password dictionary (228 entries; manage-bde
   -Password consent-gated attempts) has no core counterpart — capability register, any
   port must keep the consent gate (parameter F61).
-
 ## Session-6 fix leg (2026-10-26 — the S-024 decoded-truth upgrade)
 
 S-024's engine re-decoded first-hand from DiskHealth_decompiled.c and the
@@ -113,3 +112,11 @@ M-036 (NVMe field coverage) and N-064 (Dict dictionary) remain open
 (untouched by this leg). The S-027 lane's Ext4Engine.Backup* reds visible
 on main mid-session are that lane's in-flight state, not health.
 
+---
+
+## Session-6 rows (deep continuation, 2026-10-26)
+
+| ID | Severity | One-line |
+|---|---|---|
+| S-024 addendum | — | Doc-truth sub-item: cr_health.h:8 claims 0xD1 READ_THRESHOLDS/0xD8 RETURN_STATUS in the issued set; cr_health.cpp issues only 0xEC + 0xB0/D0 (grep-verified). The Threshold/Status/tri-state capability gap itself remains S-024's scope (UIUX/19:26-27 first-cited this session) |
+| N-058 §5 | MINOR | The header-comment fix rides the doc-truth group |

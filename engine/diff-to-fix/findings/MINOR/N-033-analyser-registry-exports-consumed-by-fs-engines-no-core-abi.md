@@ -80,3 +80,30 @@ Whether the FAT engine's cloned registry is consulted during ITS OWN scanning
 (beyond capability enumeration) is undecoded — the clone call sites feed members
 that this session did not trace into the FAT scan path. Next artifact:
 `FATSearchDLL_decompiled.c` readers of members +0xb8/+0xd0/+0xe0.
+
+---
+
+## Addendum (session 6 — partial fix verified in-tree, 2026-10-26)
+
+**Verified at core commit `022c81d`-lineage (landing commit `1f08c20`, plus the
+`74b0854` test-boundary correction).** The core now exposes the carve-capability
+registry at the ABI level — the main capability gap this finding registered:
+
+- `src/ui/cr_ui.cpp:2074-2117` — `cr_ui_carve_format_count()` +
+  `cr_ui_carve_format_info()` (added-export rule, ABI stays 1): read-only
+  enumeration of BOTH carve layers in the og-registry-equivalent order —
+  grammar-validator registry (FormatId order) then raw-sign prefilter table
+  (kFormats order), stable append-only, per-row ext[24]/min/max/base_confidence/magic.
+- The og-equivalent surface cited in this finding (EUGetAnalyserList/Map/Multimap +
+  GetRawUserInfoMap) now has a first-class core counterpart; a host can build the
+  same format-config UI from it.
+- Suite evidence: 363/363 ASan at landing; the ABI-level enumeration test
+  (CarveFormatRegistryEnumeration) moved to cr_ui_tests after the LNK2019
+  DLL-boundary correction (`74b0854`).
+
+**Still open from this finding's fix plan:** step 2 (CLI surface
+`rrecov --list-carve-formats`) — re-verified ABSENT this session (grep over
+`src/app/rrecov.cpp`: no carve-format listing), and the per-scan registry-refresh
+semantics (the og FS engines re-clone the RAWSearchDLL registry per scan) remain
+a doc-level divergence. Severity stays MINOR; ABI sub-item CLOSED, CLI sub-item
+open.

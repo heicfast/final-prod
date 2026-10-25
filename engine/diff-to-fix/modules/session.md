@@ -126,3 +126,17 @@ Core (audited `67193b6`): `src/core/session/` (721 LOC) + `include/cr/session/` 
 - **N-061 (MINOR, partial):** no session auto-naming (`auto_<label><M><D><H><m><s>`).
 - S-031 cross-module: carved nodes round-trip Active (the deleted flag's producer-side
   gap is carve's; the carrier exists).
+## Session-6 rows (deep continuation, 2026-10-26 — the never-cited SaveScan artifacts consumed)
+
+First citations this session: `rsf-record4--tree-node-grammar.md` + `ifileproperties-part3--btrfs-zfs-raw-generic.md` (evidence: `evidence/decompiled-quotes/s6-session-format-record4-and-ifileproperties.md`).
+
+| ID | Severity | One-line |
+|---|---|---|
+| M-041 | MAJOR | Carved files: og flags every one deleted (FLAGS 0x20 constant, 12,147/12,147) + scan timestamp + validator payload; core emission sets none — sessions round-trip the misstatement (Active + zero dates) |
+| N-049 | MINOR | Identity card: og record-3 has firmware/WWN/interface + full 512-byte boot snapshot (re-materialization); core has model/serial/CRC32 only |
+| N-050 | MINOR | Node fields: no type-registry ID slot, no per-FS secondary payload slots (Btrfs gen/transid, ZFS flags, HFS+ mode/type — parsed then dropped) |
+| OQ-S6-3 | tracked | CRAW reader +0xF4 boolean semantics; anchor-B consumption; checksum validation on load |
+
+MATCH register (verified equivalent): chunked-zlib framing, marker-byte nodes, name/size/times/
+attrs/flags, all four extent encodings, RAW name/format-id/anchor-A. EXTRA-IN-CORE: CRC32+
+skip-forward container, Confidence grading, allocated_size, changed-time, stage-mask counters.

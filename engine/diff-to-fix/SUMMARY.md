@@ -327,6 +327,75 @@ corpus-proven and fail-before/pinned:
   bullets vs headings, plus a duplicated D-51 FAT heading) registered as
   errata with the FAT entry renumbered D-56. Suite 399/399 Linux ASan;
   hostile ASan smoke 300 mutated fixtures (297 exercising pass 2, clean).
+## Session-6 delta (2026-10-26 — the deep-continuation audit: never-cited surfaces + fix verification)
+
+Session start `022c81d`-lineage (landing `bf7df39` mid-bootstrap); corpus `03ad46c` (unmoved).
+Mandate (user directive): find what earlier sessions missed, verify/update the fixed things,
+go deeper on og-vs-core, mark ALL remaining features/implementations/functions as findings,
+focus on minor detail. The session-5 citation-gap lanes (defined at `2001f7c`, never executed)
+were this session's scope — executed end-to-end via 5 parallel read agents + first-hand
+verification of every load-bearing citation before filing (three stale agent claims filtered
+by verification: FAT alt-EOC [N-002 fix live], NTFS BAAD [MATCH both sides], FAT quick-scan
+threading [registered D-30x]).
+
+**First-time-cited corpus artifacts (23):** the 6 rawsearchdll carving-family artifacts +
+analyser-registry census + dual-registry u16 decode + zip-analyser carving; rsf-record4
+grammar + ifileproperties-part3; per-engine-function-map; MOM Error/Thread/Common/Config/
+PartitionRecoveryD + mom-module-system; WinPE boot-config + eusendmessage; config-files
+drwcfg/userdata-remoteconfig/vendor-logs; UIUX 13/19/20/24/25. **First-time-cited core files
+(8):** cr_elevate, cr_destio, cr_snapshot, cr_cached, cr_decomp, cr_sha256, cr_error,
+cr_diskmap (header).
+
+**New findings (17):**
+- **MAJOR (3):** M-040 (FAT/exFAT recycle-bin $I/$R pairing missing — NTFS has it),
+  M-041 (carved files emitted without deleted-state/timestamps/validator payload —
+  sessions round-trip the misstatement), M-042 (archive inner-file inventories missing).
+- **MINOR (12):** N-048 (writer collision format `name_N`/cap 10000 + mkdir 0/0xB7 gates —
+  refutes D-19's "unevidenced"), N-049 (identity card weaker: no firmware/WWN/interface,
+  CRC32 vs 512-byte snapshot), N-050 (node fields: type-registry ID + per-FS secondary
+  payloads), N-051 (exFAT upcase validation skipped), N-052 (ZIP EOCD anchor + LFH gates),
+  N-053 (CAB mscf case key), N-054 (overlap scoring + two-generation fallback), N-055
+  (enumeration breadth), N-056 (Btrfs re-scan cache + ZFS label polling), N-057 (ext4
+  catch-buffer shifted-window salvage), N-058 (doc-drift group #2 — five stale claims
+  incl. the refuted D-19), N-059 (event-bus query-signals + pull-progress + typed
+  IUIProgressInfo).
+- **INFO (2):** I-019 (DRWCfg persistent-config scope register), I-020 (PartitionRecoveryD
+  generator-sets + .dat persistence register).
+
+**Addenda to active findings (9):** S-007 (the family layer — bare-MPEG dispatch gap is the
+headline: 18+ u16 sync keys vs ID3-only; roster with per-family provenance), S-009 (stale
+premise corrected + the free-overlay residual with a concrete fix plan), S-024 (cr_health.h
+doc-truth sub-item), M-017 (CalcPartition class evidence), M-030 (WinPE driver-selection:
+eprdtdrv absent from PE, ebrntdrv/epmdkdrv via NtLoadDriver), M-029 + N-033 (partial fixes
+verified in-tree — path_prefix landed; carve-format ABI registry landed), N-045 (cache
+algorithm divergence + cite refresh). **New tracked-open (3):** OQ-S6-1 (PartitionRecoveryD
+generator-set semantics), OQ-S6-2 (Btrfs RC4 target), OQ-S6-3 (CRAW +0xF4/anchor-B).
+
+**Counts after session 6 (direct file inventory):** ACUTE 0 · SEVERE 11 · MAJOR 37 ·
+MINOR 49 · INFO 18 = **115 active** / 34 FIXED; 14 tracked-open files. (11+3 MAJOR, 37+12
+MINOR, 16+2 INFO over the session-5 state.)
+
+**Top new risks:** M-040 (consumer-visible feature gap with an in-repo reference
+implementation to generalize — smallest capability win), M-041 (every carved file
+misreported after session reload — report/query/grading downstream), S-007's bare-MPEG
+sub-item (tagless MP3 recall = complete gap, not a probability).
+
+**Recommended first-10 from this session's crop (for the fix legs):**
+1. M-041 (carve emission: deleted+timestamp — small, high-leverage, unblocks grading work)
+2. M-040 (recycle pairing — generalize the NTFS model; 3 fail-before tests specified)
+3. S-007's bare-MPEG dispatch (the MP3 frame-sync scanner — the family census is the spec)
+4. N-052 (ZIP EOCD anchor + LFH gates — two small validators)
+5. N-048 (writer collision/mkdir alignment + D-19 rewrite — decompile-evidenced)
+6. N-058 (five doc fixes — an hour of work, consumer trust)
+7. N-054 (overlap scoring — collect-then-max instead of break)
+8. M-042 (archive inventories — CarveResult extension; ABI append later)
+9. N-051 (exFAT upcase validation — grade-not-reject)
+10. N-059 (busy/stopping query exports or the deliberate-difference registration)
+
+---
+
+
+
 ## Minors-fix session delta (2026-10-26 — the "fix all tiers, focus the 33 minors" session)
 
 Session start `ed00020` (baseline 345/345 Linux Release; +1 test from the concurrent
@@ -1244,7 +1313,6 @@ S-007, S-009-partial, S-020, S-023..S-028) · MAJOR 22 · MINOR 33 · INFO 12 ·
 **total active 77** / **35 FIXED** (tracked-open: the existing OQ files, now
 including OQ-S012).
 
-<<<<<<< HEAD
 
 **Fix-session-4 addendum (M-010):** the invalid-UTF-8 name edge closed — ext4/Btrfs
 names now carry a REVERSIBLE encoding of their raw bytes (U+E000 + byte) instead
@@ -1257,7 +1325,6 @@ renumbered **A-006** (findings/ACUTE/A-006-rawfixer-4kn-stack-buffer-overflow.md
 the hfsplus one keeps A-005 (its identity is baked into the Resolution,
 RESOLVED-INDEX, errata E37 and the module docs). Same protocol as the two prior
 collisions (recorded above).
-=======
 - **S-025 FIXED** (ext4 journal reparenting): the og's two-pass model —
   pre-walk harvest (parent map from "."/".." pairs; "."-less blocks stay
   owner-less orphans per S-004), post-walk emit reparenting under live
@@ -1270,7 +1337,6 @@ collisions (recorded above).
 
 **Live counts (after S-025):** ACUTE 0 · SEVERE 5 · MAJOR 36 ·
 MINOR 31 · INFO 18 · tracked-open 12 = **90 active** / **56 files in FIXED/**.
->>>>>>> 24d566f (fix(S-025): ext4 journal reparenting — the og's two-pass model; latent live-file duplicate found and fixed)
 
 - **S-028 FIXED** (btrfs xattrs): KEY_XATTR(24) dispatch — user.DOSATTRIB
   lands the Windows bits on the node (Samba hex text parsed); other user.*

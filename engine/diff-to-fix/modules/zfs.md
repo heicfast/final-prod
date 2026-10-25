@@ -142,3 +142,12 @@ vs recovery-yield). Label superset rows unchanged (I-010).
 
 Probes: `tracked-open/OQ-Z-E-FLT-session3.md`. (Lead leg's M-019 covers the
 multivdev-fallback/checksum side.)
+
+---
+
+## Session-6 rows (deep continuation, 2026-10-26)
+
+| ID | Severity | One-line |
+|---|---|---|
+| N-056 | MINOR | Delay-execution label/uberblock import polling missing (og retries with backoff during long walks; core probes once — torn pools fail immediately) |
+| INFO-register | — | Core decompresses lzjb/zle/gzip/lz4/zstd (cr_zfs_engine.cpp:19-21); the og models per-object compression (std::map<int64,zio_compress>, remaining-engines:80). No divergence claimable in either direction (both read compressed pools); recorded for the decode-evidence ledger |

@@ -60,3 +60,14 @@ inner-entry inventories), M-046..M-051, N-051..N-064, I-021/I-022; **OQ-S4-1 RES
 RESOLVED-with-residual; corpus errata 37-40. Navigation: CROSS-REF-MATRIX session-5
 header + detail rows; per-module Session-5 sections in carve/session/rawfixer/health/
 ldm/orchestration/writer/visualization/transport/query.
+**Session 6 (2026-10-26, deep continuation)** executed the session-5 citation-gap
+lanes (defined at `2001f7c`, never run): 23 never-cited corpus artifacts + 8
+never-cited core files first-cited; 17 new findings (M-040..M-042, N-048..N-059,
+I-019/I-020) + 9 addenda (S-007 family layer / bare-MPEG gap, S-009 free-overlay
+residual, S-024 doc-truth, M-017/M-030/M-029/N-033/N-045) + 3 new tracked-open
+OQs (S6-1 generator-set semantics, S6-2 Btrfs RC4 target, S6-3 CRAW reader).
+Session-6 audited tree: **`022c81d`-lineage (landing `bf7df39`)**; corpus `03ad46c`
+(unmoved). Verification discipline this session: every load-bearing citation
+checked first-hand before filing (three stale agent claims filtered). Post-session
+count: **115 active / 34 FIXED** (0 ACUTE · 11 SEVERE · 37 MAJOR · 49 MINOR ·
+18 INFO), 14 tracked-open.
