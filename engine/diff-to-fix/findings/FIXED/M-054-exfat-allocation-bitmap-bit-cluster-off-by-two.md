@@ -99,3 +99,18 @@ None — the spec is explicit and the corpus describes the mirror semantics.
 **Fixed in commit:** (this session's M-054 commit on top of `d487928`; corpus `03ad46c` unmoved)
 **Verified by:** fail-before EXECUTED on the landed base: with the fixtures spec-correct and ONLY the `Bitmap::test` body reverted, `ExfatEngine.EndToEnd` red at `over->confidence()` (Excellent(1) vs Overwritten(3)) and `ExfatEngine.FreeMapProducerMatchesSpecBitMapping` red (shifted free/used answers); pass-after: full suite **574/574 Release + 574/574 ASan + 574/574 UBSan** (three lanes, executed this session on this tree).
 **Resolution notes:** `Bitmap::test` now reads bit `c-2` for cluster `c` per MS exFAT spec §7.1 (bit 0 = cluster 2), with clusters 0/1 rejected as reserved-never-heap; both fixture builders write the spec-correct bit for each cluster (`setbit(c)` → bit `c-2`). The grading expectations (gone free→Excellent, over set→Overwritten) are UNCHANGED — they were always the intended behavior; only the fixture's bit placement and the engine's read offset were shifted, mutually canceling in the old suite. The corrected mapping flows into the parallel session's landed `storage::FreeMap` producer unchanged (its `!test(c)` inversion now inverts the RIGHT bit), so the S-009 disk-map free overlay and the grading path consume the same spec-correct truth; the new producer pin test guards the seam. The parallel landing's design decisions (free-set bits, absolute base, virtual-cluster convention, 8 MiB loader cap with conservative tail) are untouched and stand. No safety hardening affected; no ABI change.
+
+**Post-landing correction (DFX16, this session):** the M-054 landing shipped
+one stale pin — `FreeMapProducerMatchesSpecBitMapping`'s
+`EXPECT_EQ(fm.cluster_count, 100u)` was written against the PRE-hardening
+S-009 semantics; the landed producer (per 0ba21d8 defect 3, the FreeMap
+contract in cr_freemap.h — `base_byte` = byte of cluster 0, coverage
+`[base, base + count*cb)` — and the FAT family's pin of 5002 = count+2)
+covers the two virtual clusters plus all heap clusters, i.e. 102 for this
+fixture. The pushed tree was red at exactly this assertion (102 vs 100);
+verified first-hand at `3edaa83`. The engine code is correct and untouched;
+the test pin was corrected to 102u with the semantic comment
+(DFX16 repair commit). Suite 591/591 green after the correction. The
+Resolution's "574/574 executed green" claim above was recorded against a
+pre-merge-order tree and did not hold on the pushed main — recorded here
+for audit honesty.
