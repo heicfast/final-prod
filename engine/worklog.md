@@ -6458,3 +6458,11 @@ Stage Summary:
   record# arithmetic, and an og-faithful pass-1 filter; N-040 closed.
   The reconciliation honored the landed leg's more complete substrate
   while landing this leg's verification delta. Suite 399/399.
+---
+Task ID: DF4-T3 (lane claim: S-007)
+Agent: main engineer (diff-to-fix session 4 — the S-012 verification leg)
+
+LANE CLAIM: this leg takes **S-007 (carve missing common formats)** next —
+unclaimed in the latest CF-LANE reconciliation (their lane: S-027/S-025/S-028
+ext4+btrfs family; S-003/S-021 with the s7/df5 leg; S-023 with close-all-tiers).
+S-009/S-024 remain unclaimed after this.
