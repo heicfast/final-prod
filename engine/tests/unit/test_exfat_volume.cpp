@@ -60,6 +60,7 @@ void put64(std::vector<u8>& v, size_t at, u64 x) {
 
 struct SetBuilder {
     std::vector<u8> entries;
+    size_t name_entry_first_ = 0; /* S-013: first name-entry offset (multi-chunk flip) */
 
     void file_entry(u16 attribute, u32 ts, u8 tz = 0) {
         u8* e = add();
@@ -98,17 +99,31 @@ struct SetBuilder {
     }
     void name_entry(const char16_t* nm) {
         std::u16string n = nm;
-        u8* e = add();
-        e[0] = 0xC1;
-        for (size_t i = 0; i < 15; ++i)
-            put16(entries, cur_off() + 2 + i * 2, i < n.size() ? n[i] : 0);
+        /* S-013 fixture: names longer than 15 chars span ceil(len/15)
+         * name entries (spec 7.6.3 chunked UTF-16), 15 chars each */
+        const size_t chunks = (n.size() + 14) / 15;
+        name_entry_first_ = entries.size();
+        for (size_t c = 0; c < chunks; ++c) {
+            u8* e = add();
+            e[0] = 0xC1;
+            for (size_t i = 0; i < 15; ++i) {
+                const size_t idx = c * 15 + i;
+                put16(entries, cur_off() + 2 + i * 2, idx < n.size() ? n[idx] : 0);
+            }
+        }
     }
     void name_entry_deleted(const char16_t* nm) {
         name_entry(nm);
-        entries[cur_off()] = 0x41;
+        /* flip EVERY name entry of this name (multi-chunk sets) */
+        for (size_t o = name_entry_first_; o < entries.size(); o += 32)
+            entries[o] = 0x41;
     }
     /* fill SetCheckSum over the built set (excluding the +2 field) */
     void finish_set(std::vector<u8>& root, size_t set_at) {
+        /* normalize the secondary-count byte to the real entry count
+         * (S-013: multi-name sets change the count; single-name callers
+         * are unaffected: 2 == 3 entries - 1) */
+        entries[1] = u8(entries.size() / 32 - 1);
         /* compute over the set bytes, skipping the +2 checksum field */
         u16 sum = 0;
         for (size_t b = 0; b < entries.size() * 32; ++b) {
@@ -692,4 +707,244 @@ TEST(ExfatEngine, BootGatesMatchOg) {
         put32v(img, 92, 2100); /* (2099)<<0 + 25 = 2124 > 2048 */
         reject(std::move(img));
     }
+}
+
+/* ---- S-013: FATs over 32 MiB run windowed; chains never truncate ------ */
+
+namespace {
+
+/* Large-FAT fixture: 512 B sectors/clusters, FAT = 65537 sectors =
+ * 33,563,264 bytes (> 32 MiB - the S-013 trigger). Heap at sector 65561;
+ * cluster_count 0x40010 so a second-window cluster (0x40001+) is a
+ * legal FAT entry (FAT byte 0x100000+ = window 1 - the refill path).
+ * ~160 MiB device (boot validator requires volume_length <= device). */
+std::vector<u8> build_exfat_large_fat_image() {
+    const u32 BPS = 512, SPC = 0; /* 512 B clusters */
+    const u32 FAT_OFF = 24, FAT_LEN = 65537;
+    const u32 HEAP = FAT_OFF + FAT_LEN; /* 65561 */
+    const u32 CCOUNT = 0x40010;
+    const u64 VLEN = 328000;
+    std::vector<u8> img(VLEN * BPS, 0);
+    const size_t heap_bytes = size_t(HEAP) * BPS;
+    auto clus_off = [&](u32 c) -> size_t { return heap_bytes + size_t(c - 2) * BPS; };
+
+    /* boot: main + backup + extended + checksum (same recipe as the
+     * small fixture, with the large geometry) */
+    u8* b = img.data();
+    b[0] = 0xEB;
+    b[1] = 0x76;
+    b[2] = 0x90;
+    std::memcpy(b + 3, "EXFAT   ", 8);
+    put64(img, 72, VLEN);
+    put32v(img, 80, FAT_OFF);
+    put32v(img, 84, FAT_LEN);
+    put32v(img, 88, HEAP);
+    put32v(img, 92, CCOUNT);
+    put32v(img, 96, 2); /* root cluster */
+    put32v(img, 100, 0x12345678);
+    put16(img, 104, 0x0100);
+    put16(img, 106, 0);
+    b[108] = 9;
+    b[109] = SPC;
+    b[110] = 1;
+    b[111] = 0x80;
+    b[112] = 0xFF;
+    b[510] = 0x55;
+    b[511] = 0xAA;
+    std::memcpy(img.data() + 12 * BPS, b, BPS);
+    for (u32 s = 1; s <= 8; ++s) {
+        img[s * BPS + 510] = 0x55;
+        img[s * BPS + 511] = 0xAA;
+        img[(12 + s) * BPS + 510] = 0x55;
+        img[(12 + s) * BPS + 511] = 0xAA;
+    }
+    u32 chk = 0;
+    for (u32 s = 0; s <= 10; ++s)
+        for (u32 i = 0; i < BPS; ++i) {
+            if (s == 0 && ((i >= 106 && i < 108) || i == 112))
+                continue;
+            chk = ((chk & 1) ? 0x80000000u : 0u) + (chk >> 1) + img[s * BPS + i];
+        }
+    for (u32 k = 0; k < 128; ++k) {
+        put32v(img, 11 * BPS + k * 4, chk);
+        put32v(img, 23 * BPS + k * 4, chk);
+    }
+
+    /* FAT region: window-0 entries (bytes < 1 MiB) + window-1 entries
+     * (cluster 0x40001 -> FAT byte 0x100004) */
+    const size_t FAT = size_t(FAT_OFF) * BPS;
+    auto fe = [&](u32 c, u32 v) { put32v(img, FAT + size_t(c) * 4, v); };
+    fe(2, 0xFFFFFFFF);               /* root: single cluster */
+    fe(20, 21);
+    fe(21, 22);
+    fe(22, 0xFFFFFFFF);             /* doc.txt 20-22 (window 0) */
+    for (u32 c = 50; c < 114; ++c)   /* allocation bitmap chain 50..113 */
+        fe(c, c + 1);
+    fe(113, 0xFFFFFFFF);
+    fe(0x40001, 0x40002);            /* far.dat - WINDOW 1 */
+    fe(0x40002, 0xFFFFFFFF);
+    fe(0x40005, 0x40006);            /* fardir - WINDOW 1, 2 clusters */
+    fe(0x40006, 0xFFFFFFFF);
+
+    /* allocation bitmap at cluster 50: bits for the used low clusters */
+    {
+        const size_t BM = clus_off(50);
+        auto setbit = [&](u32 c) { img[BM + c / 8] |= u8(1u << (c % 8)); };
+        setbit(2);
+        setbit(20);
+        setbit(21);
+        setbit(22);
+        for (u32 c = 50; c < 114; ++c)
+            setbit(c);
+        /* far clusters (0x40001/2/5/6) left FREE in the bitmap: chain
+         * length is what the tests assert; grading is not */
+    }
+
+    /* root directory at cluster 2 */
+    const u32 TS = (0x5A46u << 16) | 0x6000u;
+    const size_t ROOT = clus_off(2);
+    size_t at = 0;
+    {
+        u8* e = img.data() + ROOT;
+        std::memset(e, 0, 32);
+        e[0] = 0x81; /* allocation bitmap */
+        put32v(img, ROOT + 20, 50);
+        put64(img, ROOT + 24, 32786); /* (0x40010+7)/8 */
+        at += 32;
+    }
+    {
+        SetBuilder sb;
+        size_t set_at = ROOT + at;
+        sb.file_entry(0x20, TS);
+        sb.stream_entry(0x01, 7, 20, 1536); /* FAT chain, window 0 */
+        sb.name_entry(u"doc.txt");
+        std::memcpy(img.data() + set_at, sb.entries.data(), sb.entries.size());
+        sb.finish_set(img, set_at);
+        at += sb.entries.size();
+    }
+    {
+        SetBuilder sb;
+        size_t set_at = ROOT + at;
+        sb.file_entry(0x20, TS);
+        sb.stream_entry(0x01, 7, 0x40001, 1024); /* FAT chain, WINDOW 1 */
+        sb.name_entry(u"far.dat");
+        std::memcpy(img.data() + set_at, sb.entries.data(), sb.entries.size());
+        sb.finish_set(img, set_at);
+        at += sb.entries.size();
+    }
+    {
+        SetBuilder sb;
+        size_t set_at = ROOT + at;
+        sb.file_entry(0x10, TS);
+        sb.stream_entry(0x01, 6, 0x40005, 1024); /* dir FAT chain, WINDOW 1 */
+        sb.name_entry(u"fardir");
+        std::memcpy(img.data() + set_at, sb.entries.data(), sb.entries.size());
+        sb.finish_set(img, set_at);
+        at += sb.entries.size();
+    }
+
+    /* fardir content: cluster 1 (0x40005) is filled with EXACTLY 16
+     * valid entries (3 padding sets of 5+5+6 entries - names sized so
+     * the sets tile the 512-byte cluster with no zero gap, because the
+     * entry walk terminates at the first zero entry); inner.txt's set
+     * lands in fardir's SECOND cluster (0x40006) - pre-S-013 the
+     * 1-cluster truncation read only 0x40005 and never found it. */
+    {
+        const size_t FAR1 = clus_off(0x40005);
+        const std::u16string pad1 = u"padding-file-with-a-really-long-name-number-one-aaaaa";  /* 53 -> 4 names -> 6 entries */
+        const std::u16string pad2 = u"padding-file-with-a-really-long-name-number-two-bbbbb";  /* 53 -> 4 names -> 6 entries */
+        const std::u16string pad3 = u"padding-file-three-cccc";  /* 24 -> 2 names -> 4 entries (6+6+4 = 16 exact) */
+        size_t at2 = 0;
+        for (const auto& nm : {pad1, pad2, pad3}) {
+            SetBuilder sb;
+            size_t set_at = FAR1 + at2;
+            sb.file_entry(0x20, TS);
+            sb.stream_entry(0x03, u8(nm.size()), 90, 512); /* NoFatChain; true name len */
+            sb.name_entry(nm.c_str());
+            std::memcpy(img.data() + set_at, sb.entries.data(), sb.entries.size());
+            sb.finish_set(img, set_at);
+            at2 += sb.entries.size();
+        }
+        EXPECT_EQ(at2, size_t(16 * 32))
+            << "padding sets must tile the cluster exactly (got " << at2 << " bytes)";
+        const size_t FAR2 = clus_off(0x40006);
+        SetBuilder sb;
+        sb.file_entry(0x20, TS);
+        sb.stream_entry(0x03, 9, 80, 256); /* NoFatChain, data never read */
+        sb.name_entry(u"inner.txt");
+        std::memcpy(img.data() + FAR2, sb.entries.data(), sb.entries.size());
+        sb.finish_set(img, FAR2);
+    }
+    return img;
+}
+
+} // namespace
+
+TEST(ExfatEngine, LargeFatFullChains) {
+    /* S-013: a >32 MiB FAT (33,563,264 B) used to silently set have_fat
+     * false and truncate EVERY FAT-chained file to one cluster. Now the
+     * whole-FAT fast path falls back to the og's windowed accessor
+     * (FUN_180021c60: 1 MiB windows, no size cap): doc.txt (window-0
+     * chain) and far.dat (window-1 chain - a refill) both recover full
+     * length. */
+    auto img = build_exfat_large_fat_image();
+    MemDevice dev(std::move(img));
+    tree::ResultTree t;
+    auto* ra = t.add_root(u"Found");
+    auto* rd = t.add_root(u"Deleted");
+    auto* rl = t.add_root(u"Lost Files");
+    ExfatScanFlags fl;
+    ExfatScanStats st;
+    ASSERT_EQ(scan_exfat(&dev, fl, nullptr, nullptr, nullptr, t, ra, rd, rl, st), OK);
+    tree::FileNode* doc = nullptr;
+    tree::FileNode* far_n = nullptr;
+    for (tree::FileNode* n : collect_all(t)) {
+        const std::string nm = n->name_utf8();
+        if (nm == "doc.txt")
+            doc = n;
+        if (nm == "far.dat")
+            far_n = n;
+    }
+    ASSERT_NE(doc, nullptr) << "window-0 FAT-chained file missing";
+    ASSERT_NE(far_n, nullptr) << "window-1 FAT-chained file missing";
+    /* logical_size mirrors the stream entry on BOTH sides of the fix; the
+     * S-013 truncation is in EXTENT COVERAGE - pre-fix the chain was a
+     * single 512-byte cluster, so recovery of the tail was silently
+     * impossible. Assert the extents cover the full chain. */
+    EXPECT_EQ(doc->props()->logical_size, u64(1536));
+    EXPECT_EQ(far_n->props()->logical_size, u64(1024));
+    ASSERT_EQ(doc->props()->extents.size(), size_t(1));
+    ASSERT_EQ(far_n->props()->extents.size(), size_t(1));
+    EXPECT_EQ(doc->props()->extents.front().length, u64(1536));   /* was 512 pre-fix */
+    EXPECT_EQ(far_n->props()->extents.front().length, u64(1024)); /* was 512 pre-fix */
+    EXPECT_GE(st.fat_window_refills, 1u); /* the far chain crossed windows */
+}
+
+TEST(ExfatEngine, LargeFatDirectoryWalk) {
+    /* S-013 directory half: a directory whose FAT chain lives in window 1
+     * walks BOTH clusters - inner.txt sits in fardir's SECOND cluster, so
+     * the pre-fix one-cluster truncation never found it. */
+    auto img = build_exfat_large_fat_image();
+    MemDevice dev(std::move(img));
+    tree::ResultTree t;
+    auto* ra = t.add_root(u"Found");
+    auto* rd = t.add_root(u"Deleted");
+    auto* rl = t.add_root(u"Lost Files");
+    ExfatScanFlags fl;
+    ExfatScanStats st;
+    ASSERT_EQ(scan_exfat(&dev, fl, nullptr, nullptr, nullptr, t, ra, rd, rl, st), OK);
+    tree::FileNode* inner = nullptr;
+    for (tree::FileNode* n : collect_all(t))
+        if (n->name_utf8() == "inner.txt")
+            inner = n;
+    ASSERT_NE(inner, nullptr) << "fardir's second cluster was never walked";
+    EXPECT_EQ(inner->props()->logical_size, u64(256));
+    /* the fardir node itself: pre-fix its chain was 1 cluster */
+    tree::FileNode* fardir_n = nullptr;
+    for (tree::FileNode* n : collect_all(t))
+        if (n->name_utf8() == "fardir")
+            fardir_n = n;
+    ASSERT_NE(fardir_n, nullptr);
+    ASSERT_EQ(fardir_n->props()->extents.size(), size_t(1));
+    EXPECT_EQ(fardir_n->props()->extents.front().length, u64(1024)); /* was 512 pre-fix */
 }

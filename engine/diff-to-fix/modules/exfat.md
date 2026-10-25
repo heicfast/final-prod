@@ -127,7 +127,15 @@ Core (audited commit `67193b6`): `src/core/exfat/` (2 files, 678 LOC) +
 ## Session-2 update (2026-10-25, core `e93decf`)
 
 **Verdict changes (quotes in `../evidence/decompiled-quotes/fat-exfat-session2.md`):**
-- **B2 → S-013 (SEVERE, new):** FAT > 32 MiB silently dropped → every FAT-chained
+- **B2 → S-013 (SEVERE) — FIXED (session 3):** FAT > 32 MiB used to be silently
+  dropped → every FAT-chained file/dir truncated to ONE cluster. Fixed with the
+  og's windowed accessor (FUN_180021c60 parity: 1 MiB cached windows, no size
+  cap) as the ONLY fallback — have_fat is never false while fat_length != 0;
+  extent coverage (not logical_size — it mirrors the stream entry) is pinned by
+  ExfatEngine.LargeFatFullChains/LargeFatDirectoryWalk; per-window read failures
+  degrade to the EXFAT-2 assumed-contiguous salvage; fat_window_refills telemetry
+  added. The original B2 bullet for the finding read: FAT > 32 MiB silently
+  dropped → every FAT-chained
   file/directory truncated to ONE cluster. og = 1 MiB windowed reads, no cap.
 - **B3/B4/B5 → M-013 (new):** og validates entry-set checksums DUAL-FORM (raw + InUse-restored)
   including deleted sets and uses them as a torn-set reconstruction oracle; core = live-only

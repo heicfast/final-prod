@@ -4947,3 +4947,42 @@ Stage Summary:
   renumbered onto main's, convergent decodes merged as addenda, one cross-leg
   factual error corrected with first-hand evidence, one of my own findings
   refuted-and-absorbed with an SOP lesson recorded in the PROTOCOL.
+Task ID: DF3-T7 (S-013)
+Task: SEVERE S-013 — exFAT FAT > 32 MiB silently dropped; every FAT-chained file and
+directory truncated to ONE cluster (silent content loss on the large-volume class).
+
+Work Log:
+- Verified first-hand: cr_exfat_quick.cpp 32 MiB whole-load gate; the corpus accessor
+  FUN_180021c60 :28039-28213 (operator_new(0x100000), entry read
+  `win + (cluster & 0x3ffff) * 4`, no size cap anywhere in the exFAT engine; boot
+  validator checks structure, not FAT size). CONFIRMED-DIVERGENCE.
+- Fix: ExfatFat windowed mode (og parity: 1 MiB aligned windows over the FAT,
+  refill on demand, mutable cache under const entry()/next()); whole-FAT fast path
+  kept for small volumes; EVERY other case (FAT > 32 MiB, FAT past device end, failed
+  whole read) falls back to windowed — have_fat NEVER false while fat_length != 0.
+  Per-window read failures degrade entries to FREE -> the existing EXFAT-2
+  assumed-contiguous salvage (bounded degradation, never silent loss).
+  fat_window_refills stat added + drained at scan end. Directory chains share the
+  accessor through read_dir_chain (structural step 3 already satisfied; test pins it).
+- Fail-before discipline (two rounds, honestly recorded): the first attempt used
+  logical_size assertions and PASSED pre-fix — because logical_size mirrors the
+  STREAM entry on both sides; the truncation lives in EXTENT COVERAGE. Assertions
+  re-based onto extent length + second-cluster dir content. Also learned: the entry
+  walk terminates at the first zero entry, so the multi-cluster dir fixture tiles
+  its first cluster with EXACTLY 16 valid entries (SetBuilder extended additively
+  for spec-7.6.3 multi-chunk name entries; single-name callers byte-identical).
+  Final fail-before: 2/2 FAILED (doc extent 512 vs 1536; far.dat 512 vs 1024;
+  inner.txt in fardir's second cluster never found; fardir coverage 512).
+- Pass-after: 2/2 PASS (full extents, both clusters walked, refill counter >= 1);
+  full suite 322/322 Linux ASan.
+- Fuzz: no local clang/libFuzzer in this container (CI lane runs the real target);
+  ran a 65-iteration hostile ASan smoke (mutated boot geometry/FAT window-1 bytes/
+  random pokes/truncations) through the EXISTING fuzz_exfat harness entry — clean.
+- Audit trail in-commit: S-013 Resolution + FIXED/ move; RESOLVED-INDEX row
+  (count 23); SUMMARY remediation row; CROSS-REF-MATRIX exfat B/X cells;
+  modules/exfat.md B2 bullet updated to post-fix truth.
+
+Stage Summary:
+- S-013 FIXED: the exFAT engine recovers full chains on >32 MiB-FAT volumes (the
+  modern large-volume default class) for the first time; degradation on unreadable
+  windows is bounded and graded. Suite 322/322.

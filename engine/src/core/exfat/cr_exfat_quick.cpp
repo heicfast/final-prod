@@ -19,9 +19,48 @@ constexpr u32 EXFAT_BAD = 0xFFFFFFF7;
 constexpr u32 EXFAT_FREE = 0;
 
 struct ExfatFat {
-    std::vector<u8> data;
+    std::vector<u8> data; /* whole-FAT fast path (<= 32 MiB volumes) */
     u32 byte_len = 0;
+    /* S-013: windowed mode (og FUN_180021c60 :28039-28213 - 1 MiB cached
+     * windows, `win + (cluster & 0x3ffff) * 4`, NO total-size cap). The
+     * whole-FAT load only stays on small volumes; every big FAT runs
+     * windowed so have_fat is never false and chains never truncate to
+     * one cluster. Window state is mutable because entry()/next() are
+     * const like the whole-load path - the cache refill is transparent.
+     * Single-thread contract: the exFAT quick pass walks one volume on
+     * one thread (the shared scan worker model). */
+    IStorageDevice* win_dev = nullptr;
+    u64 win_base = 0;         /* FAT byte offset on the device */
+    u64 total_bytes = 0;      /* whole FAT size in bytes */
+    mutable std::vector<u8> win;    /* 1 MiB window cache (og: 0x100000) */
+    mutable u64 win_first_byte = 0; /* FAT-relative start of the loaded window */
+    mutable u32 refills = 0; /* drained into stats at scan end */
+
+    bool windowed() const { return win_dev != nullptr; }
+    bool load_window(u64 widx) const {
+        if (win.empty())
+            win.resize(1u << 20);
+        u64 len = 1u << 20;
+        if (widx + len > total_bytes)
+            len = total_bytes - widx;
+        if (win_dev->read_at(win_base + widx, win.data(), u32(len)) != OK)
+            return false;
+        win_first_byte = widx;
+        ++refills;
+        return true;
+    }
     u32 entry(u32 c) const {
+        if (windowed()) {
+            const u64 off = u64(c) * 4;
+            if (off + 4 > total_bytes)
+                return EXFAT_FREE;
+            const u64 widx = off & ~u64((1u << 20) - 1); /* 1 MiB-aligned window */
+            if (win.empty() || widx != win_first_byte) {
+                if (!load_window(widx))
+                    return EXFAT_FREE;
+            }
+            return u32_from_bytes_le(win.data() + size_t(off - win_first_byte));
+        }
         if (u64(c) * 4 + 4 > byte_len)
             return EXFAT_FREE;
         return u32_from_bytes_le(data.data() + c * 4);
@@ -500,17 +539,37 @@ u32 scan_exfat(IStorageDevice* slice, const ExfatScanFlags& flags, CancelToken* 
     ctx.root_lost = root_lost;
     ctx.stats = &stats;
 
-    /* FAT load (if the volume has one) */
+    /* FAT load (if the volume has one). S-013: the whole-FAT fast path
+     * covers small volumes; EVERY other case (FAT over 32 MiB, FAT
+     * extending past the device end, or a failed whole read) falls back
+     * to the og's windowed accessor (FUN_180021c60: 1 MiB cached
+     * windows, no total-size cap) - have_fat is NEVER false while
+     * fat_length != 0, so FAT-chained files never truncate to a single
+     * cluster on large volumes (the pre-S-013 silent one-cluster
+     * truncation for every file on >32 MiB-FAT exFAT volumes). */
     if (p.fat_length != 0) {
+        const u64 fat_base = u64(p.fat_offset) * p.bytes_per_sector;
         u64 fat_bytes = u64(p.fat_length) * p.bytes_per_sector;
-        if (fat_bytes <= (32u << 20) &&
-            u64(p.fat_offset) * p.bytes_per_sector + fat_bytes <= slice->size()) {
+        bool whole = false;
+        if (fat_bytes <= (32u << 20) && fat_base + fat_bytes <= slice->size()) {
             ctx.fat.data.resize(size_t(fat_bytes));
-            if (slice->read_at(u64(p.fat_offset) * p.bytes_per_sector, ctx.fat.data.data(),
-                               u32(fat_bytes)) == OK) {
+            if (slice->read_at(fat_base, ctx.fat.data.data(), u32(fat_bytes)) == OK) {
                 ctx.fat.byte_len = u32(fat_bytes);
                 ctx.have_fat = true;
+                whole = true;
+            } else {
+                ctx.fat.data.clear();
+                ctx.fat.data.shrink_to_fit();
             }
+        }
+        if (!whole && fat_base < slice->size()) {
+            /* windowed mode: per-window bounds/read failures degrade the
+             * affected entries to FREE (the EXFAT-2 assumed-contiguous
+             * salvage applies downstream), never to a 1-cluster stub */
+            ctx.fat.win_dev = slice;
+            ctx.fat.win_base = fat_base;
+            ctx.fat.total_bytes = fat_bytes;
+            ctx.have_fat = true;
         }
     }
 
@@ -520,6 +579,7 @@ u32 scan_exfat(IStorageDevice* slice, const ExfatScanFlags& flags, CancelToken* 
     if (ctx.cancel && ctx.cancel->checkpoint())
         return ERR_CANCELLED;
 
+    stats.fat_window_refills = ctx.fat.refills; /* S-013 windowed-FAT telemetry */
     if (progress)
         (void)progress(1, 1, progress_user);
     return OK;

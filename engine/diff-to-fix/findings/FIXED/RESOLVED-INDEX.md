@@ -9,6 +9,7 @@ active roadmap.
 
 ## Resolved findings (24 - see files; count maintained per move)
 ## Resolved findings (21 - see files; count maintained per move)
+## Resolved findings (23 — 12 from session 1 close/session-2 legs + A-002, A-004 (+ S-016), M-009, S-011, S-013, S-015, S-017 + S-018 (INVALID, premise refuted); every file in this directory has a row)
 
 | ID | Severity (orig) | Title | Fix commit | Resolution |
 |---|---|---|---|---|
@@ -40,7 +41,7 @@ active roadmap.
 | **S-015** | SEVERE (session 3) | raw_signs min/max are KiB in the og, bytes in the core — every raw-sign window 1024x too small, floor 1024x too low | (this commit; `git log` "fix: S-015") | KiB→bytes conversion at ONE point (gen_rawsigns.py, zero-max asserted away); table regenerated; tail walk rebuilt as a chunked forward scan bounded by named `kRawSignTailScanLimit` (8 MiB, og's true range documented); DISCOVERED sub-fix in-commit: per-format tail scoping (og pairs within the candidate's format record; cross-format pairing fabricated close positions). 6 fail-before/pass-after tests; suite 310/310 ASan |
 | **S-017** | SEVERE (session 3) | ftyp-family signatures structurally unreachable (zero size-bytes baked into the magic) — MP4/MOV/M4A/HEIC could never be grammar-carved | (this commit; `git log` "fix: S-017") | Re-keyed on "ftyp" with header_offset 4 (box size is data); match primitive extracted + shared with a NEW F8 self-probe (structural rule: no four-zero-byte magic prefixes; candidate-shift assertion); conservative naked-moov salvage entry (FMT_MOV_NAKED) mirroring the og's list-layer MovAnalyzer, tried last. 6 fail-before/pass-after tests (5 real-head carves + the probe); suite 320/320 ASan |
 | **S-018** | SEVERE (session 3) — **INVALID (premise refuted first-hand)** | JPEG EOI policy: "og never checks FFD9" was built on a grep that missed Ghidra's signed-char rendering (-0x27 == 0xD9; 5 sites in the modern analyser; accept path EOI-gated at :39760) | (this commit; audit-trail correction only) | NO code change — the primary analyser is EOI-gated like our validator; the residual (legacy-fallback sub-analysers FUN_18004bbd0/b3b0/c1e0 + the streamed continuation outcome) is tracked in tracked-open/OQ-S3-JPEG-fallback-and-continuation-accept.md with the exact decode list |## Acknowledged informational findings (NOT moved — deliberate supersets with pin tests)
-
+| **S-013** | SEVERE (session 3) | exFAT FAT > 32 MiB silently dropped — every FAT-chained file/dir truncated to ONE cluster | (this commit; `git log` "fix: S-013") | Windowed FAT accessor (og FUN_180021c60 parity: 1 MiB cached windows, no size cap) as the ONLY fallback — have_fat never false; whole-FAT fast path kept for small volumes; per-window failures degrade to the EXFAT-2 salvage. fat_window_refills stat. Fail-before 2/2 (extent length 512 vs 1536; second-cluster dir content missing); suite 322/322 ASan; 65-iteration hostile smoke through the existing fuzz entry |
 These 7 findings (I-001 through I-007) are NOT bugs — they're deliberate
 superset behaviors the parallel leg verified and pinned with regression
 tests. They stay in `findings/INFORMATIONAL/` (not moved to FIXED/)

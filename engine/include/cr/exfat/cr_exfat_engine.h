@@ -64,6 +64,7 @@ struct ExfatScanStats {
     u64 no_fat_chains = 0;
     u64 chains_broken = 0;
     u64 assumed_contiguous = 0; /* EXFAT-2: FREE-entry continuation salvage */
+    u64 fat_window_refills = 0; /* S-013: windowed-FAT cache refills (big-FAT volumes) */
 };
 
 struct ExfatScanFlags {
