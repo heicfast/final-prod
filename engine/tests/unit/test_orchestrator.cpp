@@ -770,3 +770,21 @@ TEST(ScanEvents, SingleBoundaryAtTeardown) {
      * at the stamp produced 4 (the N-016 merge artifact). */
     EXPECT_EQ(files_found, 3u) << "one FilesFound per boundary - no teardown double-fire";
 }
+
+TEST(ScanConfig, DeepStageDefaultsOnAndWholeDiskOff) {
+    /* N-044: the og's "Deep Scan" toggle means the complete-searcher pass;
+     * the core's deep stage is DEFAULT-ON (ScanConfig.run_deep), the flag
+     * named --deep in the CLI actually toggled whole-disk lost-partition
+     * discovery - a naming hazard. The CLI flag is now --whole-disk
+     * (with --deep as a deprecated alias). These config defaults pin the
+     * semantics the usage text states: deep stage always on until
+     * --quick-only; whole_disk opt-in. */
+    orchestrator::ScanConfig cfg{};
+    EXPECT_TRUE(cfg.run_deep) << "the deep engine stage is default-on";
+    EXPECT_FALSE(cfg.whole_disk) << "lost-partition discovery is opt-in";
+    EXPECT_TRUE(cfg.run_quick);
+    /* the deprecated alias maps ONLY to whole_disk - never the stages */
+    cfg.whole_disk = true; /* what --deep/--whole-disk sets */
+    EXPECT_TRUE(cfg.run_deep) << "the alias never touches the deep stage";
+    EXPECT_TRUE(cfg.run_carve) << "the alias never touches the carve stage";
+}

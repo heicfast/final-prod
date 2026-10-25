@@ -75,3 +75,10 @@ decompile + UIUX captures (cited). Not an execution-dependent claim.
 ## Open questions
 
 None.
+
+## Resolution
+
+**Status:** FIXED
+**Fixed in commit:** this session's cli-minors batch
+**Verified by:** `ScanConfig.DeepStageDefaultsOnAndWholeDiskOff` (config asserts: run_deep default-on and untouched by the alias; whole_disk opt-in - exactly the semantics the usage text now states). The rrecov flag mapping + usage text are Windows-lane surfaces (MSVC compile + the import gate; no automated flag-contract harness exists for the app layer - recorded honestly here).
+**Resolution notes:** per the fix plan's cheapest option: the flag is now `--whole-disk` (the honest name - it enables lost-partition discovery); `--deep` kept one release as a deprecated alias that prints a note stating what it actually does and that the deep stage is always on (--quick-only disables it). Usage text names all three knobs accurately (deep stage always on / --quick-only disables / --whole-disk = lost-partition discovery); the header comment, the volume-target note, and the bench script comment updated. No flag name collides with an og term carrying different semantics anymore.
