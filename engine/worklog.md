@@ -10800,3 +10800,44 @@ Stage Summary (handoff at the next pull head):
   (M-043's half was false — correcting it was the fix); USA field
   offsets and BPB field offsets come from the spec-exact wire struct,
   not memory.
+
+---
+
+---
+Task ID: DFX18-T2 (session 18, second fix — N-046)
+Agent: main engineer (diff-to-fix fix session 18 — DFX18)
+Task: N-046 slice geometry refresh — implement the og's
+RefreshSectorSize-from-parent surface with revalidation hardening.
+
+Work Log:
+- Corpus re-verified first-hand: FUN_140643870
+  (DRWUI_decompiled.c:1044889-1044895) — parent vcall at vtable+0x28,
+  store at +0x38, return 1 unconditionally; the surrounding
+  :104497-1044979 block is the M-032 tail-clamp family (consistent
+  with the landed M-032 decode).
+- Fix: PartitionSlice::refresh_geometry() (cr_slice.h declaration with
+  the full corpus cite + exclusion rationale; cr_slice.cpp
+  implementation) — re-read parent geometry, revalidate (zero sector /
+  start alignment / slice-fits-parent), recompute derived fields
+  (total_bytes = slice length; sector_count re-floors). Refusal leaves
+  the snapshot untouched (registered hardening over the og's blind
+  store — documented in the header).
+- Orchestrator auto-refresh branch EXCLUDED per the fix plan's
+  "or document the exclusion" alternative: the corpus exposes the
+  method but no scan-path caller; an invented trigger would be
+  hallucinated parity. Exclusion documented in the header comment.
+- Tests: Slice.GeometryRefreshAfterMediaChange (stale-snapshot premise
+  asserted first, then the 512→4096 swap picked up; reads unaffected —
+  the bound was always in bytes) + Slice.GeometryRefreshRefuses-
+  InvalidatingChange (misaligning 8192 / shrunken parent / zero sector
+  all refused with the snapshot intact; first run caught my own test
+  math — 10*4096 is 8192-aligned, corrected to 9*4096). Fail-before by
+  construction: the API did not exist pre-fix.
+- Audit trail: Resolution + FIXED/ move, RESOLVED-INDEX row (97
+  header), matrix storage S35/Q43 row, storage.md N-026→N-046 verdict,
+  SUMMARY session-18 counts refresh (live inventory: SEVERE 0 · MAJOR
+  24 · MINOR 35 · FIXED 112).
+
+Stage Summary:
+- N-046 FIXED (session tally: 2 — N-045, N-046). Next: N-040 (ABI doc
+  truthfulness), then N-020/N-074 (doc-drift pairs).

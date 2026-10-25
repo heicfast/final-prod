@@ -57,12 +57,24 @@ fail-before executed RED on the stash-isolated pre-fix tree, pass-after
 green; suite 592/592. Finding → FIXED/; RESOLVED-INDEX row; matrix
 storage P47/P48 cell → MATCH(registered); storage.md verdict updated.
 
-**Counts after this landing (direct file inventory at the N-045 push,
-pre-rebase tree):** SEVERE 1 (S-029) · MAJOR 32 · MINOR 40 · INFO 22
-(0 actionable) · tracked-open 16 · FIXED 96 files (95 findings +
-RESOLVED-INDEX). (Post-rebase note: the parallel session-10 close-out
-below landed S-029 + M-043 + M-016 + N-016a in the same window — the
-live inventory at this commit is lower; see the session-10 section.)
+**N-046 FIXED:** `PartitionSlice::refresh_geometry()` — the og's
+RefreshSectorSize-from-parent surface (FUN_140643870,
+DRWUI_decompiled.c:1044889-1044895, re-verified first-hand: parent
+vcall +0x28, store at +0x38, returns 1 unconditionally) with
+revalidation hardening over the og's blind store (misaligned /
+shrunken / zero-sector media changes refused, snapshot untouched);
+orchestrator auto-refresh excluded and documented in the header (the
+corpus exposes no scan-path caller — an invented trigger would be
+hallucinated parity). Slice.GeometryRefreshAfterMediaChange +
+Slice.GeometryRefreshRefusesInvalidatingChange; fail-before by
+construction (the API did not exist). Finding → FIXED/.
+
+**Counts after this landing (direct file inventory at the N-046 push):**
+SEVERE 0 · MAJOR 24 · MINOR 35 · INFO 22 (0 actionable) · tracked-open
+16 · FIXED 112 files (111 findings + RESOLVED-INDEX). (The hot parallel
+window absorbed S-029/S-030/M-008/M-016/M-032/M-043/M-050/N-041/N-057/
+N-058/N-067/N-016a + the S-033 INVALID filing; counts are the live
+inventory at this commit.)
 
 
 ## Session-10 delta — the SEVERE tier close-out (2026-10-26)

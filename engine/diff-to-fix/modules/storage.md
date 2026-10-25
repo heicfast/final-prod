@@ -37,7 +37,7 @@ orchestrator pipe `src/core/orchestrator/cr_scan.cpp:595-614`.
 | M-017 | MAJOR | BitLocker: og in-stack decrypt vs our pre-unlock gate |
 | M-018 | MAJOR | No NAS/remote device layer (CRemoteDevice/EuMrx) |
 | N-025 | MINOR | Cache budget 8 vs 4 MiB |
-| N-026 | MINOR | No geometry refresh path |
+| N-026 (=N-046) | MINOR — **FIXED (session 18, DFX18)** | No geometry refresh path — `PartitionSlice::refresh_geometry()` (og FUN_140643870 RefreshSectorSize-from-parent, DRWUI_decompiled.c:1044889-1044895) with revalidation hardening (misaligned/shrunken/zero-sector media changes refused, snapshot untouched); Slice.GeometryRefreshAfterMediaChange + GeometryRefreshRefusesInvalidatingChange |
 | I-012 | INFO | Deliberate supersets ledger (units, eager validation, error map) |
 
 ## Notes
