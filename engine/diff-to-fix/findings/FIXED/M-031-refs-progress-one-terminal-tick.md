@@ -55,3 +55,27 @@ M-022 (parallel leg) (same walk), N-016 (orchestrator emit-boundary — adjacent
 ## Open questions
 
 None.
+
+## Resolution
+
+**Status:** FIXED
+**Fixed in commit:** (this session's M-031 commit — see `git log` for "fix: M-031")
+**Verified by:** `Refs.ProgressMonotonicIntermediateTicks` and
+`Refs.ProgressCancellationMidWalk` (both fail-before — proven this session by
+temporarily reverting to the single-terminal-tick model and rebuilding: 2/2 FAILED;
+fix restored → green). Full suite 575/575 Linux Release.
+**Resolution notes:** the Walker now carries the scan's progress callback; `emit_file`
+reports intermediate progress every 16th emitted file with a growing-estimate total
+`(done, done + 16)` — the FAT engine's dentry pattern (the og's binder is per-file
+with the file in hand, `bool(u64, RefsFileProperties*&)` at ReFSSearchDLL :617-619;
+our progress ABI is (done, total), so the counter-with-estimate is the faithful
+mapping; the orchestrator's `tel_publish_` derives permille and clamps monotonic).
+The terminal tick reports `(emitted, emitted)` — 1000 permille — replacing the old
+`progress(1, 1)`. Monotonicity verified by test across all ticks. The per-file EVENT
+surface (the og's binder carrying the file itself) is not in the core's engine
+progress ABI; the typed event stream (GAP-S6-10) is the registered carrier for
+per-file events — the finding's fix-plan step 2 alternative ("document the per-stage
+granularity as the contract") is superseded by the real intermediate ticks + the
+existing event stream. Cancellation: the walk callbacks already poll
+`eng.cancelled()` per row, so a mid-walk cancel preserves partial results — pinned
+by `Refs.ProgressCancellationMidWalk`.

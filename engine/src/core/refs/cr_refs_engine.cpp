@@ -883,6 +883,18 @@ u32 scan_refs(IStorageDevice* slice, const RefsScanFlags& flags, CancelToken* ca
         RefsScanStats& stats;
         std::map<u64, TableInfo>& tables;
         std::set<u64>& child_tables;
+        /* M-031 (diff-to-fix): per-file progress — the og's quick-searcher
+         * registers a per-file progress binder bool(u64, RefsFileProperties*&)
+         * (ReFSSearchDLL :617-619, RTTI-verified); the engine reports
+         * progress per file with the file in hand. Our progress ABI is
+         * (done, total): every kProgressEvery emitted files we report
+         * (done, done + kProgressEvery) — a growing-estimate total, exactly
+         * the FAT engine's dentry pattern; the orchestrator clamps the
+         * permille monotonic. The terminal tick reports (emitted, emitted)
+         * = 1000 permille. */
+        WalkProgressLike progress = nullptr;
+        void* progress_user = nullptr;
+        u64 emitted = 0;
         /* M-027: object-identity keep-one. The og keys its map on the
          * record's node id (props+0x3a, FUN_18000d970 :9905-34); the core's
          * synthetic row model has no object-id field, so identity is the
@@ -963,6 +975,12 @@ u32 scan_refs(IStorageDevice* slice, const RefsScanFlags& flags, CancelToken* ca
          * file-table root node (general info + attribute rows). */
         void emit_file(tree::FileNode* parent, const EntryView& ev, u64 dir_id, bool deleted,
                        bool from_sweep = false) {
+            /* M-031: the og's per-file progress (binder at :617-619); our
+             * ABI carries (done, total-in-estimate) — throttled to every
+             * 16th emit so a big table does not flood the bridge. */
+            ++emitted;
+            if (progress && (emitted & 0xF) == 0)
+                (void)progress(emitted, emitted + 0x10, progress_user);
             const std::u16string name16 = name_from_key(ev.key, ev.key_len);
             if (name16.empty() || ev.val_len < 0x28)
                 return;
@@ -1329,6 +1347,8 @@ u32 scan_refs(IStorageDevice* slice, const RefsScanFlags& flags, CancelToken* ca
     };
 
     Walker w{eng, tree, root_deleted, flags, alloc, stats, tables, child_tables};
+    w.progress = progress;
+    w.progress_user = progress_user;
     u64 root_id = ROOT_DIR_TABLE;
     if (tables.find(root_id) == tables.end()) {
         /* fallback: a directory table that is nobody's child */
@@ -1430,7 +1450,7 @@ u32 scan_refs(IStorageDevice* slice, const RefsScanFlags& flags, CancelToken* ca
     }
 
     if (progress)
-        (void)progress(1, 1, progress_user);
+        (void)progress(w.emitted, w.emitted, progress_user); /* terminal: 1000 permille */
     return OK;
 }
 
