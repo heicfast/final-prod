@@ -96,3 +96,38 @@ The exact sector-index formula in `FUN_1800048f0` (NFA:4309) was read as
 "volume-end backup" from its usage and the og's repair artifact; the
 function body itself was not decoded (one 20-line read pins it — noted for
 the fix leg).
+
+## Resolution
+
+**Status:** FIXED
+**Fixed in commit:** (this session's M-043 commit — see `git log` for "fix: M-043")
+**Verified by:** `NtfsVolume.TornPrimaryBackupBootScans` and
+`NtfsVolume.TornPrimaryShapeBackupBootScans` (both fail-before PROVEN by temporarily
+disabling the backup fallback and rebuilding: open returned ERR_BAD_MAGIC / the
+validate error; pass-after: the volume opens from the backup, boot_from_backup is
+set, and the walk recovers the file set),
+`NtfsVolume.BackupBadFallsBackToRefusal` (the fallback is not a bypass: torn
+primary + no valid backup still refuses with ERR_BAD_MAGIC),
+`NtfsVolume.BootFromBackupFlagged` (the flag is truthful in both directions),
+`NtfsVolume.SpoofedOemRejectedEarly` (the probe-side content proof: a spoofed
+"NTFS    " OEM with the $MFT LCN pointed at a non-FILE region probes Unknown; the
+healthy fixture's positive control probes Ntfs; the OLD behavior — spoofed OEM
+dispatching the engine — was pinned by the pre-fix `Orchestrator.ProbeFamily`
+expectation, updated in the same change). Full suite 600/600 Linux Release.
+**Resolution notes:** two halves, per the fix plan. (1) Scanner-side backup
+verify: `NtfsVolume::open` (cr_bootstrap.cpp) now falls back to the VOLUME-END
+BACKUP DBR (the volume's last sector — the corpus-decoded `total - sector`
+location the rawfixer already uses, S-008; the og analyser's verified-location
+model, NTFSFileSystemAnalyser :4309-4327) whenever the primary fails the
+signature gate OR `validate_boot_sector` (torn geometry included — the
+TornPrimaryShape test tears total_sectors/mft_lcn). The backup's geometry feeds
+the MFT load; the new `VolumeParams::boot_from_backup` is the report-only summary
+flag (mirrors the og's +0x510 verified-backup state); REPAIRING the primary stays
+consent-gated rawfixer territory, unchanged. (2) Recognition proof: probe_family's
+NTFS branch now requires FILE magic at the DBR's $MFT LCN (one 8-byte read) before
+committing to the engine — the og's $Volume content-proof requirement
+(FUN_180005180 :4083-4134) in the fix plan's own "cheap" form; a spoofed OEM never
+invokes the engine. The finding's open question (FUN_1800048f0's exact sector-index
+formula) remains recorded; the last-sector location is corroborated by TWO decoded
+surfaces (the rawfixer's S-008 decode and the analyser's usage) and the finding's
+own reading.

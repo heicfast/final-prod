@@ -397,7 +397,7 @@ was re-verified line-by-line against the corpus; three corrections landed:
 
 ## Session-5 addendum (2026-10-26, audited `7cf6754`)
 
-- **Content-proof recognition + scanner backup-boot** — `M-043` (MAJOR):
+- **Content-proof recognition + scanner backup-boot — `M-043` FIXED (s10):** open() falls back to the volume-end backup DBR (boot_from_backup flag; repair stays consent-gated); probe_family requires FILE magic at $MFT LCN. TornPrimaryBackupBootScans/TornPrimaryShapeBackupBootScans/BackupBadFallsBackToRefusal/BootFromBackupFlagged/SpoofedOemRejectedEarly; suite 600/600. findings/FIXED/M-043. ~~original text:
   the og's NTFSFileSystemAnalyser verifies the volume-end backup boot
   sector and requires the $Volume MFT signature before recognition; the
   core's probe_family is boot-bytes-only and NO scanner path reads the

@@ -224,7 +224,11 @@ TEST(Orchestrator, ProbeFamily) {
     EXPECT_EQ(ScanController::probe_family(&dev), FsFamily::Fat);
     u8* b = dev.raw().data();
     std::memcpy(b + 3, "NTFS    ", 8);
-    EXPECT_EQ(ScanController::probe_family(&dev), FsFamily::Ntfs);
+    /* M-043: a spoofed "NTFS    " OEM over a FAT BPB no longer dispatches
+     * the NTFS engine — the probe requires FILE magic at the DBR's $MFT
+     * LCN before committing (the og analyser's $Volume content proof;
+     * NtfsVolume.SpoofedOemRejectedEarly pins the full behavior). */
+    EXPECT_EQ(ScanController::probe_family(&dev), FsFamily::Unknown);
     std::memcpy(b + 3, "EXFAT   ", 8);
     EXPECT_EQ(ScanController::probe_family(&dev), FsFamily::Exfat);
     std::memset(b + 3, 'X', 8);

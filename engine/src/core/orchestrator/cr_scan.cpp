@@ -13,6 +13,7 @@
  */
 
 #include "cr/orchestrator/cr_scan.h"
+#include "cr/cr_bits.h"
 #include "cr/btrfs/cr_btrfs_engine.h"
 #include "cr/carve/cr_carve.h"
 #include "cr/cr_parallel.h"
@@ -477,8 +478,34 @@ FsFamily ScanController::probe_family(IStorageDevice* slice) {
     u8 sec[512];
     if (slice->read_at(0, sec, 512) != OK)
         return FsFamily::Unknown;
-    if (std::memcmp(sec + 3, "NTFS    ", 8) == 0)
-        return FsFamily::Ntfs;
+    if (std::memcmp(sec + 3, "NTFS    ", 8) == 0) {
+        /* M-043 (diff-to-fix): content proof before engine commitment —
+         * the og's analyser reads the first 10 MFT records and requires
+         * the $Volume signature before declaring the volume recognized
+         * (FUN_180005180 :4083-4134; per-record FILE magic + USA bounds
+         * :4038-4058); a spoofed "NTFS    " OEM never invokes the engine
+         * there. The core's cheap form: 2 records' worth of FILE magic at
+         * the DBR's $MFT LCN (a single cluster read; 2 records kill the
+         * spoofed-OEM dispatch class — repair-grade 10-record proof is the
+         * rawfixer's surface). Fails only on genuinely-NTFS-shaped boots
+         * whose $MFT area is ALSO dead — those die in the walk anyway. */
+        const u16 nbps = u16_from_bytes_le(sec + 0x0B);
+        const i8 spc_raw = static_cast<i8>(sec[0x0D]);
+        if (nbps >= 512 && (nbps & 0x1FF) == 0 && spc_raw != 0) {
+            const u64 spc = spc_raw > 0 ? u64(spc_raw) : (1ULL << (u64(-spc_raw) & 31));
+            const u64 cluster_bytes = spc * nbps;
+            const u64 mft_lcn = le64(sec + 0x30);
+            u8 mft[8] = {};
+            if (cluster_bytes != 0 &&
+                slice->read_at(mft_lcn * cluster_bytes, mft, 8) == OK &&
+                std::memcmp(mft, "FILE", 4) == 0)
+                return FsFamily::Ntfs;
+            /* no FILE magic at $MFT: OEM is spoofed or the $MFT area is
+             * dead — not a dispatchable NTFS volume (the og analyser
+             * returns not-recognized BEFORE the engine) */
+        }
+        return FsFamily::Unknown;
+    }
     if (std::memcmp(sec + 3, "EXFAT   ", 8) == 0)
         return FsFamily::Exfat;
     /* ReFS: OEM "ReFS" + the DBR bytes-per-sector field (u32 @+0x20 == 512,
