@@ -2073,3 +2073,30 @@ Work Log:
 Stage Summary:
 - N-001 FIXED: legacy >4-record mirrors serve their full span; corrupt resident mirrors can no
   longer fabricate mappings; modern 4-record mirrors unchanged.
+
+---
+Task ID: 1-C (continuation leg 3 bootstrap)
+Agent: main engineer (diff-to-fix remediation session, continuation)
+Task: Session bootstrap — baseline record, environment bring-up, green-light verification
+
+Work Log:
+- Pulled both repos fresh: core HEAD 2545b83 (audited commit 67193b6; 22 commits between,
+  including prior legs' A-001/S-005/S-001/M-001/N-001 fixes and OQ-T1 resolution),
+  corpus 03ad46c (unmoved since audit).
+- Token hygiene verified: real token string appears nowhere in either repo (worktree grep
+  + git log -S both empty). Session prompt already saved token-redacted at
+  worklog/session-diff-fix-prompt.md; re-read twice before starting.
+- Environment: cmake 4.4.4 + ninja installed to ~/.venv (environment had none).
+  Configured + built linux-gcc preset (RelWithDebInfo + ASan) clean.
+- Baseline verification: cr_tests 275/275 PASS, cr_ui_tests 13/13 PASS,
+  cr_ui_abi_check OK. main is green at 2545b83.
+- Prior-session state reconciled against git log + SUMMARY.md remediation log:
+  FIXED: A-001, S-001, S-005, M-001, N-001. RESOLVED: OQ-T1.
+  The 448a57c coordination claim (S-008 -> S-006 -> S-007 lane) was NEVER executed —
+  no commits exist for those findings. This leg picks them up.
+- REMAINING SCOPE for this session: S-002, S-003, S-004, S-006, S-007, S-008, S-009;
+  M-002, M-005, M-006; N-002..N-009; I-001..I-005; OQ-T2..OQ-T9.
+
+Stage Summary:
+- Baseline green at 2545b83 (275+13+ABI). Scope confirmed: 7 SEVERE, 3 MAJOR, 8 MINOR
+  files, 5 INFO, 8 tracked-open remain. Starting with SEVERE tier per mandate order.
