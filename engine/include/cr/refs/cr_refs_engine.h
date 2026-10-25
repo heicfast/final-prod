@@ -74,11 +74,20 @@ struct RefsScanStats {
     u64 paged_chases = 0;     /* indirect/paged run-table pages followed */
     u64 granularity_discards = 0; /* runlists discarded by the og granularity
                                    * gate (garbage-run false-positive guard) */
+    /* M-026/M-027 (stale-page sweep + object identity) */
+    u64 stale_pages = 0;      /* stale MSB+ pages harvested (not live-reachable) */
+    u64 identity_dedups = 0;  /* duplicate object rows collapsed (keep-one) */
+    u64 recycle_routed = 0;   /* "$R…"/"S-…"/SVI rows routed to the recycle flush */
+    u64 dollar_i_pairs = 0;   /* $R nodes remapped from their $I evidence */
 };
 
 struct RefsScanFlags {
     bool harvest_deleted = true;   /* deleted-flagged rows + ID2 evidence */
     bool allocator_grading = true; /* medium-allocator bitmap viability */
+    bool stale_sweep = true;       /* M-026: the og's stale-MSB-page sweep
+                                    * (FUN_180005330 - runs unconditionally
+                                    * og-side; the flag keeps an opt-out for
+                                    * bounded product policies) */
 };
 
 /* Boot-sector validation + geometry decode. */
@@ -91,6 +100,7 @@ struct RefsBoot {
     u64 volume_clusters = 0;
     u64 volume_bytes = 0;
     u64 serial = 0;
+    u64 container_bytes = 0; /* DBR +0x40: bounds the MSB/OID area (M-026) */
 };
 bool validate_boot(const u8 sector[512], RefsBoot& out);
 

@@ -374,6 +374,13 @@ the ReFS attribute-layer landing — the counts move to 10 SEVERE + 33 MAJOR + 3
 + 16 INFO = 95 active, 36 FIXED (N-036 half-fixed stays active with its container-map
 residual). Fail-before 6/6, suite 402/402 Linux ASan.)*
 
+*(Session-4 continuation 2: **M-026 + M-027 (MAJOR) FIXED** — the ReFS deleted model
+(stale-MSB-page sweep) + object identity/recycle routing. Counts: 31 MAJOR active,
+38 FIXED. Fail-before 3/4 (the 4th a regression guard), suite 429/429 Linux ASan.
+The whole ReFS engine tier is now landed: attribute layer + deleted model + identity
++ recycle; remaining ReFS items are N-036's container map and the OQ-2 real-volume
+dump.)*
+
 **Note on S-009/M-006:** the S-009 disk-map component was FIXED via GAP-S6-11
 (`56cce87` — `cr_diskmap.cpp/.h` verified in-tree by this leg); the M-006 fuzz-CI
 component was FIXED (`e30b84d`). The combined finding file stays in `SEVERE/` until the

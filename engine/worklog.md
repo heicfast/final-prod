@@ -6317,3 +6317,50 @@ Stage Summary:
   discards cluster-inconsistent garbage runlists. ReFS attribute-layer parity is
   test-pinned; the remaining ReFS open items are the container map (N-036), the
   deleted-model pair (M-026/M-027), and the OQ-2 real-volume dump.
+
+---
+Task ID: DF4-M026-M027
+Agent: main engineer (diff-to-fix session 4)
+Task: M-026 + M-027 (MAJOR, ReFS) — the deleted model (stale-MSB-page sweep) and
+object identity/recycle routing. Follows the DF4-S020-M022 attribute-layer landing.
+
+Work Log:
+- Independent re-verification (corpus first-hand): FUN_18000d970 identity-map lookup
+  (:9905-34 keyed on props+0x3a node id, gate props+0x2c bit0) + the keep-one
+  tie-break chain (:9929-66) + loser destroy (:10021-27); the recycle routing gates
+  re-read verbatim (:9817-61: "$R" prefix / "S-" prefix / "System Volume
+  Information" memcmp 0x19) -> the dedicated collection at ctx+0x40, NOT through
+  the identity map; flush-after-main (:10881-911). FUN_180005330 sweep re-read
+  (MSB+ sig :2904, cache-skip :2910-31, force-deleted record+0x59 := 1 :2939,
+  same-live dispatch :2942-65, unconditional call FUN_180003f40:2015, area bound
+  ctx+0x148 = container/cluster from FUN_180012390:13560).
+- Fix (cr_refs_engine.cpp/.h): RefsBoot.container_bytes (DBR +0x40); Engine.live_pages
+  (unbounded — the bounded 256-entry cache would evict on large volumes and
+  re-harvest live pages); scan_refs phase 8b = the stale sweep (0x80-cluster windows,
+  MSB+ sig + volume sig + live-exclusion, force-deleted ROW_FILE dispatch through
+  the full attribute walk, cancel gate between windows, stale_sweep flag default on);
+  Walker identity map (placement signature {first extent, total bytes, size,
+  created, modified} — the finding's proposed simplification; the og's node-id
+  keying verified but not carried by the core's row model), first-wins +
+  live-over-deleted promotion (reparent + un-delete), recycle staging
+  ("$R*"/"S-*"/SVI) flushed AFTER main results, $I evidence read (the S-020 resident
+  materialization's extent bytes parsed as the shell-family $I layout) + $R remap
+  (original name/size/time + Deleted — the core-family convention the NTFS engine
+  already models).
+- Fixture correction in the same change: NextChainFindsNewerTable had TWO LIVE FILES
+  SHARING ONE CLUSTER (physically impossible; adversarial to identity dedup by
+  construction) — newer.txt moved to its own cluster; the fixture's purpose (chain
+  selection) is unchanged.
+- Fail-before discipline: 3/4 FAILED on the sweep/identity-less engine
+  (StaleMsbPage / HardLinkCollapse / RecycleRemap); StaleSweepSkipsLivePages is a
+  regression GUARD (trivially green pre-fix — it pins the live-page exclusion the
+  sweep adds). Suite 429/429 Linux ASan (402 + 4 net-new).
+- Audit trail: both findings -> FIXED/ with Resolutions (the bounded simplification
+  — stale dir-links not dispatched — and the keying simplification documented);
+  RESOLVED-INDEX (31); matrix refs rows; modules/refs.md addendum 2; SUMMARY
+  continuation 2.
+
+Stage Summary:
+- The ReFS engine tier is COMPLETE for the audit's findings: attribute layer (S-020/
+  M-022), deleted model (M-026), object identity + recycle (M-027). Remaining ReFS
+  items: N-036's container-map population (real-volume probe) + the OQ-2 dump.

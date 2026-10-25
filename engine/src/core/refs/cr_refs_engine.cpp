@@ -77,6 +77,9 @@ struct Engine {
 
     /* page cache keyed by first LCN (bounded) */
     std::map<u64, std::vector<u8>> cache;
+    /* M-026: EVERY first-LCN read during the live walk (unbounded, unlike
+     * the bounded cache) - the stale-page sweep's live-reachability set */
+    std::set<u64> live_pages;
 
     /* cluster translation: container-tagged VCNs carry container+1 in the
      * top nibble; without a container table the tag is masked (typical
@@ -135,6 +138,7 @@ struct Engine {
         if (cache.size() > 256)
             cache.clear();
         cache.emplace(first, pb);
+        live_pages.insert(first); /* M-026 */
         out = std::move(pb);
         return true;
     }
@@ -563,6 +567,7 @@ bool validate_boot(const u8 sector[512], RefsBoot& out) {
     out.major = sector[0x28];
     out.minor = sector[0x29];
     out.serial = le64(sector + 0x38);
+    out.container_bytes = le64(sector + 0x40); /* M-026: MSB/OID area bound */
     return out.major >= 1 && out.major <= 3;
 }
 
@@ -879,6 +884,72 @@ u32 scan_refs(IStorageDevice* slice, const RefsScanFlags& flags, CancelToken* ca
         RefsScanStats& stats;
         std::map<u64, TableInfo>& tables;
         std::set<u64>& child_tables;
+        /* M-027: object-identity keep-one. The og keys its map on the
+         * record's node id (props+0x3a, FUN_18000d970 :9905-34); the core's
+         * synthetic row model has no object-id field, so identity is the
+         * CONTENT-PLACEMENT signature {first extent offset, total extent
+         * bytes, logical size} - two rows of one hard-linked object share
+         * placement exactly; different objects never share live placement.
+         * Documented simplification (the finding's own proposed rule:
+         * first-wins with live-over-deleted preference). */
+        struct PlacementSig {
+            u64 first_offset = 0;
+            u64 total_bytes = 0;
+            u64 logical = 0;
+            u64 created = 0, modified = 0; /* same-object rows share times */
+            bool operator<(const PlacementSig& o) const {
+                if (first_offset != o.first_offset)
+                    return first_offset < o.first_offset;
+                if (total_bytes != o.total_bytes)
+                    return total_bytes < o.total_bytes;
+                if (logical != o.logical)
+                    return logical < o.logical;
+                if (created != o.created)
+                    return created < o.created;
+                return modified < o.modified;
+            }
+        };
+        std::map<PlacementSig, tree::FileNode*> identity;
+        /* M-027: recycle-shaped rows stage here and flush AFTER the main
+         * results (og routing :9817-61: "$R*" / "S-*" / "System Volume
+         * Information" -> the dedicated collection, flushed at
+         * FUN_18000ef20:10881-911; NOT through the identity map) */
+        struct StagedRow {
+            tree::FileNode* parent;
+            tree::FileProperties* props; /* caller-held ref */
+        };
+        std::vector<StagedRow> recycle_pending;
+        /* M-027 step 3: "$I" resident evidence {token -> info} for the $R
+         * remap (the $I layout mirrors the shell family's: version u32@0,
+         * size u64@8, time u64@16, pathlen u32@24, path UTF-16@28) */
+        struct DollarI {
+            u64 size = 0;
+            u64 time = 0;
+            std::u16string orig_name;
+        };
+        std::map<std::u16string, DollarI> dollar_i;
+
+        static bool is_recycle_name(const std::u16string& n) {
+            if (n.size() >= 2 && n[0] == u'$' && n[1] == u'R')
+                return true;
+            if (n.size() >= 2 && n[0] == u'S' && n[1] == u'-')
+                return true;
+            return n == u"System Volume Information";
+        }
+        static std::u16string recycle_token(const std::u16string& n) {
+            /* "$R<token>[.ext]" / "$I<token>[.ext]": the pairing token is
+             * the chars after the marker, cut at the first '.' (the shell
+             * convention the NTFS engine already models) */
+            if (n.size() < 3 || (n[0] != u'$' && n[1] != u'R' && n[1] != u'I'))
+                return {};
+            std::u16string tok;
+            for (size_t i = 2; i < n.size(); ++i) {
+                if (n[i] == u'.')
+                    break;
+                tok.push_back(n[i]);
+            }
+            return tok;
+        }
 
         std::u16string name_from_key(const u8* key, u16 key_len) const {
             std::u16string out;
@@ -891,7 +962,8 @@ u32 scan_refs(IStorageDevice* slice, const RefsScanFlags& flags, CancelToken* ca
 
         /* File row: key = {u32 0x00010030, UTF-16 name}; value = embedded
          * file-table root node (general info + attribute rows). */
-        void emit_file(tree::FileNode* parent, const EntryView& ev, u64 dir_id, bool deleted) {
+        void emit_file(tree::FileNode* parent, const EntryView& ev, u64 dir_id, bool deleted,
+                       bool from_sweep = false) {
             const std::u16string name16 = name_from_key(ev.key, ev.key_len);
             if (name16.empty() || ev.val_len < 0x28)
                 return;
@@ -936,6 +1008,8 @@ u32 scan_refs(IStorageDevice* slice, const RefsScanFlags& flags, CancelToken* ca
                                      * og's +0x70 chain is context-form) */
             u32 og_prop_flags = 0;
             bool have_grammar_row = false;
+            PlacementSig pending_sig{};
+            bool pending_has_sig = false;
             for (u32 i = 0; i < nv.ki_count; ++i) {
                 EntryView ae = entry_at(nv, i);
                 if (!ae.ok)
@@ -1011,10 +1085,87 @@ u32 scan_refs(IStorageDevice* slice, const RefsScanFlags& flags, CancelToken* ca
                                   * surfaces (grading consumers); not yet
                                   * consumed by the core's grading model */
 
+            /* M-027: "$I" rows - read the resident evidence for the later
+             * $R remap (the content bytes live at the materialized extent;
+             * the walker has the slice) */
+            if (name16.size() >= 3 && name16[0] == u'$' && name16[1] == u'I' &&
+                props->extents.size() == 1 && props->extents[0].length <= 0x10000) {
+                std::vector<u8> ibuf(size_t(props->extents[0].length), 0);
+                if (e.slice->read_at(props->extents[0].offset, ibuf.data(),
+                                     u32(ibuf.size())) == OK &&
+                    ibuf.size() >= 28) {
+                    const u32 ver = le32(ibuf.data());
+                    if (ver == 1 || ver == 2) {
+                        DollarI di;
+                        di.size = le64(ibuf.data() + 8);
+                        di.time = le64(ibuf.data() + 16);
+                        const u32 plen = le32(ibuf.data() + 24);
+                        if (plen >= 1 && plen <= 1024 && 28 + u64(plen) * 2 <= ibuf.size()) {
+                            for (u32 i = 0; i < plen; ++i) {
+                                const u16 ch = u16(ibuf[28 + i * 2]) |
+                                               (u16(ibuf[28 + i * 2 + 1]) << 8);
+                                if (ch == 0)
+                                    break;
+                                di.orig_name.push_back(ch);
+                            }
+                            const size_t slash = di.orig_name.rfind(u'\\');
+                            if (slash != std::u16string::npos)
+                                di.orig_name = di.orig_name.substr(slash + 1);
+                            if (!di.orig_name.empty())
+                                dollar_i[recycle_token(name16)] = di;
+                        }
+                    }
+                }
+            }
+
+            /* M-027: recycle-shaped rows stage for the post-main flush (og
+             * :9817-61 routing: NOT through the identity map) */
+            if (is_recycle_name(name16)) {
+                ++stats.recycle_routed;
+                recycle_pending.push_back({parent, props}); /* keep the ref */
+                if (deleted)
+                    ++stats.deleted_rows;
+                else
+                    ++stats.files;
+                return;
+            }
+
+            /* M-027: object-identity keep-one (the og's identity map +
+             * FUN_18000ac40 compare; our placement-signature keying) */
+            if (!props->extents.empty()) {
+                PlacementSig sig;
+                sig.first_offset = props->extents[0].offset;
+                for (const auto& ex : props->extents)
+                    sig.total_bytes += ex.length;
+                sig.logical = props->logical_size;
+                sig.created = props->times.created;
+                sig.modified = props->times.modified;
+                auto it = identity.find(sig);
+                if (it != identity.end() && it->second != nullptr) {
+                    /* live-over-deleted promotion: a live row for an object
+                     * whose earlier row was deleted reclaims the node (the
+                     * og's keep-one resolves to the live copy) */
+                    if (!deleted && it->second->deleted_state() != tree::DeletedState::Active) {
+                        tree.reparent(it->second, parent);
+                        it->second->set_deleted_state(tree::DeletedState::Active);
+                        it->second->set_confidence(tree::Confidence::Excellent);
+                    } else {
+                        ++stats.identity_dedups;
+                        props->release();
+                        return; /* the loser is destroyed (og :10021-27) */
+                    }
+                }
+                pending_sig = sig;
+                pending_has_sig = true;
+                (void)from_sweep; /* sweep rows participate in the same map */
+            }
+
             tree::FileNode* node = tree.add_file(parent, props);
             props->release(); /* tree holds the reference */
             if (node == nullptr)
                 return; /* arena OOM (P2-1) */
+            if (pending_has_sig)
+                identity[pending_sig] = node; /* first row of this object */
             if (deleted) {
                 node->set_deleted_state(tree::DeletedState::Deleted);
                 bool reused_any = false;
@@ -1031,6 +1182,43 @@ u32 scan_refs(IStorageDevice* slice, const RefsScanFlags& flags, CancelToken* ca
                 ++stats.deleted_rows;
             } else {
                 ++stats.files;
+            }
+        }
+
+        /* M-027: recycle flush - the staged "$R…" / "S-…" / SVI rows emit
+         * AFTER the main results (og ordering), then the $I evidence
+         * remaps its $R siblings (the core-family recycle convention the
+         * NTFS engine already models; the og's SearchDLL leaves the
+         * rename to its UI layer - the evidence READ is the parity part).
+         * Nodes are arena-stable: mutating props through a node's props()
+         * is safe post-walk (the tree's hash indexes key on
+         * record_ref/extent, never name). */
+        void flush_recycle() {
+            std::vector<tree::FileNode*> added;
+            for (const StagedRow& st : recycle_pending) {
+                tree::FileNode* n = tree.add_file(st.parent, st.props);
+                st.props->release(); /* node holds the ref */
+                if (n != nullptr)
+                    added.push_back(n);
+            }
+            recycle_pending.clear();
+            for (tree::FileNode* n : added) {
+                tree::FileProperties* p = n->props();
+                if (p == nullptr)
+                    continue;
+                const std::u16string& nm = p->name;
+                if (nm.size() < 3 || nm[0] != u'$' || nm[1] != u'R')
+                    continue;
+                auto it = dollar_i.find(recycle_token(nm));
+                if (it == dollar_i.end())
+                    continue;
+                /* recycle content: deleted from the user's location */
+                p->name = it->second.orig_name;
+                if (it->second.size != 0)
+                    p->logical_size = it->second.size;
+                p->times.modified = it->second.time;
+                n->set_deleted_state(tree::DeletedState::Deleted);
+                ++stats.dollar_i_pairs;
             }
         }
 
@@ -1150,6 +1338,73 @@ u32 scan_refs(IStorageDevice* slice, const RefsScanFlags& flags, CancelToken* ca
     if (tables.find(root_id) == tables.end())
         return ERR_BAD_MAGIC;
     w.walk_dir(root_id, root_active, 0);
+
+    /* ---- 8b. M-026: the stale-MSB-page sweep (og FUN_180005330, called
+     * unconditionally after the live walks by FUN_180003f40:2015) ----
+     *
+     * ReFS is copy-on-write: deleted objects' metadata persists as stale
+     * MSB page versions the live chain no longer references. The og scans
+     * the object-ID area in 0x80-cluster windows for "MSB+" pages that are
+     * NOT in the live page cache (:2904 sig, :2910-31 cache-skip), parses
+     * their records, force-marks every record deleted (record+0x59 := 1,
+     * :2939) and runs the SAME live dispatch (:2942-65) - stale pages yield
+     * deleted-file results with full names/timestamps/runs. The area bound:
+     * the og reads the device's OID allocated ranges (container size /
+     * cluster, FUN_180012390:13560 -> ctx+0x148); our engine bounds the
+     * sweep by min(volume, DBR container/cluster) - the same region on
+     * standard layouts. Live pages are excluded by the unbounded
+     * live_pages set (the bounded cache would evict on large volumes).
+     * Bounded simplification: only ROW_FILE rows are dispatched - stale
+     * dir-links reference tables outside the live table map (the og's
+     * handler resolves them through its own machinery); the orphan-table
+     * walk covers unreachable live tables. */
+    if (flags.stale_sweep) {
+        const u64 area_clusters =
+            eng.boot.container_bytes != 0
+                ? eng.boot.container_bytes / eng.boot.cluster_bytes
+                : eng.boot.volume_clusters;
+        u64 bound = eng.boot.volume_clusters;
+        if (area_clusters != 0 && area_clusters < bound)
+            bound = area_clusters;
+        const u64 window = 0x80; /* og chunking */
+        std::vector<u8> page(eng.page_bytes, 0);
+        for (u64 base = 0; base < bound; base += window) {
+            if (eng.cancel_gate())
+                break; /* S32 parity: cancel between windows, partials kept */
+            for (u64 c = base; c < base + window && c < bound; c += eng.page_clusters) {
+                const u64 off = c * eng.boot.cluster_bytes;
+                if (off + eng.page_bytes > eng.boot.volume_bytes)
+                    break;
+                if (eng.slice->read_at(off, page.data(), eng.page_bytes) != OK)
+                    break;
+                if (le32(page.data()) != SIG_MSB)
+                    continue;
+                if (le32(page.data() + 0x0C) != eng.volume_sig)
+                    continue; /* signature-validated pages only */
+                if (eng.live_pages.count(c) != 0)
+                    continue; /* reachable from the live chain: not stale */
+                const NodeView nv = parse_node(page.data() + 0x50, page.size() - 0x50);
+                if (!nv.ok)
+                    continue;
+                ++stats.stale_pages;
+                for (u32 i = 0; i < nv.ki_count; ++i) {
+                    EntryView ent = entry_at(nv, i);
+                    if (!ent.ok || ent.key_len < 4 || le32(ent.key) != ROW_FILE)
+                        continue;
+                    ent.page_buf = page.data();
+                    ent.page_byte_base = off;
+                    ent.page_len = u32(page.size());
+                    /* force-deleted (og :2939) - and the identity map lets
+                     * live rows win over stale copies of the same object */
+                    w.emit_file(root_deleted, ent, 0, true, /*from_sweep=*/true);
+                }
+            }
+        }
+    }
+
+    /* ---- 8c. M-027: the recycle flush + $I remap (og FUN_18000ef20:
+     * the dedicated collection emits AFTER the main map :10881-911) ---- */
+    w.flush_recycle();
 
     /* ---- 9. orphan tables -> lost tree ---- */
     if (root_lost != nullptr) {

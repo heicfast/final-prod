@@ -573,14 +573,22 @@ TEST(Refs, NextChainFindsNewerTable) {
             put32(key.data(), 0x10);
             rows.push_back({key, build_node({}, std::vector<u8>(0x40, 0)), 0});
         }
-        for (const char16_t* nm16 : {u"hello.txt", u"newer.txt"}) {
+        /* M-027 note: the two files carry DISTINCT placements (cluster 250
+         * and 270) - two live objects cannot share clusters, and the
+         * object-identity keep-one would (correctly) collapse them if they
+         * did; this fixture pins chain selection, not placement sharing. */
+        const struct {
+            const char16_t* name;
+            u64 lcn;
+        } files[] = {{u"hello.txt", 250}, {u"newer.txt", 270}};
+        for (const auto& f : files) {
             std::vector<u8> key;
             key.resize(4);
             put32(key.data(), 0x00010030);
-            std::vector<u8> nm = u16name(nm16);
+            std::vector<u8> nm = u16name(f.name);
             key.insert(key.end(), nm.begin(), nm.end());
             rows.push_back(
-                {key, build_file_node(T_CREATE, T_MODIFY, 0, 4096, 4096, 250, 1, true), 0});
+                {key, build_file_node(T_CREATE, T_MODIFY, 0, 4096, 4096, f.lcn, 1, true), 0});
         }
         write_page(img, 240, 0x2B42534D, 0x600, build_node(rows));
     }
@@ -764,8 +772,6 @@ TEST(Refs, VbrMinor14BodyMinorOldListStillOldLayout) {
 
 /* ---- S-020 / M-022: the og attribute layer ------------------------------ */
 
-namespace cr {
-namespace refs {
 namespace {
 
 /* run-row value (thesis grammar): lcn@0, flags 0x10 @8, clusters@0x14 */
@@ -1064,8 +1070,173 @@ TEST(Refs, RunlistGranularityMismatchDiscarded) {
 }
 
 } // namespace
-} // namespace refs
-} // namespace cr
+TEST(Refs, StaleMsbPageDeletedFileRecovered) {
+    /* M-026: a file that exists ONLY in a stale MSB+ page (an older
+     * metadata-page version the live chain no longer references - the
+     * normal ReFS copy-on-write outcome after deletion) is harvested by
+     * the sweep as a deleted result with name/runs (og FUN_180005330). */
+    std::vector<u8> img = build_volume();
+    {
+        /* a stale root-table-shaped page at cluster 300 (not in any live
+         * table): one file row "ghost.dat" with a run at 310 */
+        std::vector<Row> rows;
+        std::vector<Row> frows;
+        frows.push_back(data_attr_row({{310, 1}}));
+        rows.push_back(file_row_key(u"ghost.dat", build_node(frows, gi_block(4096, 4096))));
+        write_page(img, 300, 0x2B42534D, 0x600, build_node(rows));
+        memset(img.data() + 310 * CLUSTER, 'H', CLUSTER);
+    }
+    RamDevice dev(img);
+    tree::ResultTree tree;
+    auto* ra = tree.add_root(u"Found");
+    auto* rd = tree.add_root(u"Deleted");
+    auto* rl = tree.add_root(u"Lost");
+    RefsScanFlags flags;
+    RefsScanStats stats;
+    ASSERT_EQ(OK, scan_refs(&dev, flags, nullptr, nullptr, nullptr, tree, ra, rd, rl, stats));
+    EXPECT_GE(stats.stale_pages, 1u) << "the stale page was swept";
+    std::vector<tree::FileNode*> del;
+    collect(rd, del);
+    const tree::FileNode* ghost = nullptr;
+    for (auto* n : del)
+        if (n->name_utf8() == "ghost.dat")
+            ghost = n;
+    ASSERT_NE(ghost, nullptr) << "stale-only file recovered as deleted";
+    EXPECT_EQ(ghost->deleted_state(), tree::DeletedState::Deleted);
+    ASSERT_EQ(ghost->props()->extents.size(), 1u);
+    EXPECT_EQ(ghost->props()->extents[0].offset, 310 * CLUSTER);
+}
+
+TEST(Refs, StaleSweepSkipsLivePages) {
+    /* M-026: pages reachable from the live chain are NOT re-harvested as
+     * stale (the og's cache-skip :2910-31) - the live root table at 160
+     * emits hello.txt exactly once, live. */
+    std::vector<u8> img = build_volume();
+    RamDevice dev(img);
+    tree::ResultTree tree;
+    auto* ra = tree.add_root(u"Found");
+    auto* rd = tree.add_root(u"Deleted");
+    auto* rl = tree.add_root(u"Lost");
+    RefsScanFlags flags;
+    RefsScanStats stats;
+    ASSERT_EQ(OK, scan_refs(&dev, flags, nullptr, nullptr, nullptr, tree, ra, rd, rl, stats));
+    /* every MSB+ page of the live chain (120, 140, 160, 180, 90) is
+     * live-reachable: none may appear as stale */
+    EXPECT_EQ(stats.stale_pages, 0u);
+    std::vector<tree::FileNode*> all;
+    for (auto* r : tree.roots())
+        collect(r, all);
+    u32 hello_count = 0;
+    for (auto* n : all)
+        if (n->name_utf8() == "hello.txt")
+            ++hello_count;
+    EXPECT_EQ(hello_count, 1u) << "live file emitted exactly once";
+}
+
+TEST(Refs, HardLinkRowsCollapseToOneResult) {
+    /* M-027: two ROW_FILE rows for one object (hard link / duplicate name
+     * row) keep-one - the og's identity map resolves to a single result. */
+    std::vector<u8> img = build_volume();
+    {
+        std::vector<Row> rows;
+        /* same object: identical placement, size and times; two names */
+        const std::vector<u8> node =
+            build_node({data_attr_row({{270, 2}})}, gi_block(8192, 8192));
+        rows.push_back(file_row_key(u"link_a.dat", node));
+        rows.push_back(file_row_key(u"link_b.dat", node));
+        rewrite_root_table(img, rows);
+        memset(img.data() + 270 * CLUSTER, 'L', 2 * CLUSTER);
+    }
+    RamDevice dev(img);
+    tree::ResultTree tree;
+    auto* ra = tree.add_root(u"Found");
+    auto* rd = tree.add_root(u"Deleted");
+    auto* rl = tree.add_root(u"Lost");
+    RefsScanFlags flags;
+    RefsScanStats stats;
+    ASSERT_EQ(OK, scan_refs(&dev, flags, nullptr, nullptr, nullptr, tree, ra, rd, rl, stats));
+    EXPECT_EQ(stats.identity_dedups, 1u) << "the second row collapsed (keep-one)";
+    std::vector<tree::FileNode*> act;
+    collect(ra, act);
+    u32 links = 0;
+    for (auto* n : act)
+        if (n->name_utf8() == "link_a.dat" || n->name_utf8() == "link_b.dat")
+            ++links;
+    EXPECT_EQ(links, 1u) << "exactly one result for the linked object";
+}
+
+TEST(Refs, RecycleRoutedFlaggedAndDollarIRemap) {
+    /* M-027: "$R…" rows route to the post-main recycle flush and the $I
+     * evidence remaps the $R node to its ORIGINAL name/size/time (the
+     * core-family recycle convention; the og reads the same evidence). */
+    std::vector<u8> img = build_volume();
+    u8* page = nullptr;
+    {
+        std::vector<Row> rows;
+        /* $R content row: run at 270, bin name "$R7F3K2L.txt" */
+        std::vector<Row> rrows;
+        rrows.push_back(data_attr_row({{270, 1}}));
+        rows.push_back(file_row_key(u"$R7F3K2L.txt", build_node(rrows, gi_block(4096, 4096))));
+        /* $I metadata row: RESIDENT descriptor whose content (the $I
+         * record: version, ORIGINAL size, deletion time, ORIGINAL path)
+         * lives later in the page; patched after layout like the S-020
+         * resident tests */
+        std::vector<u8> ikey(0x10, 0);
+        put16(ikey.data() + 0x00, 0x10);
+        put16(ikey.data() + 0x02, 1);
+        std::vector<u8> ival(0x10, 0);
+        put32(ival.data() + 0x00, 0xC0FFEE33);
+        std::vector<Row> irows;
+        irows.push_back({ikey, ival});
+        rows.push_back(file_row_key(u"$I7F3K2L.txt",
+                                    build_node(irows, gi_block(88, 0))));
+        rewrite_root_table(img, rows);
+    }
+    {
+        const size_t val_off = find_in_page(img, 160, 0xC0FFEE33);
+        ASSERT_NE(val_off, SIZE_MAX);
+        page = img.data() + 160 * CLUSTER;
+        put32(page + val_off + 8, u32(0x3F00 - val_off));
+        put32(page + val_off + 0xC, 0);
+        /* the $I record at page+0x3F00: v2, orig size 5000, time, pathlen,
+         * UTF-16 path "C:\\Users\\me\\report.docx" (basename used) */
+        u8* rec = page + 0x3F00;
+        memset(rec, 0, 128);
+        put32(rec + 0, 2);
+        put64(rec + 8, 5000);
+        put64(rec + 16, 0x01D2000000000000ull);
+        std::vector<u8> path = u16name(u"C:\\Users\\me\\report.docx");
+        put32(rec + 24, u32(path.size() / 2));
+        memcpy(rec + 28, path.data(), path.size());
+    }
+    memset(img.data() + 270 * CLUSTER, 'W', CLUSTER);
+    RamDevice dev(img);
+    tree::ResultTree tree;
+    auto* ra = tree.add_root(u"Found");
+    auto* rd = tree.add_root(u"Deleted");
+    auto* rl = tree.add_root(u"Lost");
+    RefsScanFlags flags;
+    RefsScanStats stats;
+    ASSERT_EQ(OK, scan_refs(&dev, flags, nullptr, nullptr, nullptr, tree, ra, rd, rl, stats));
+    EXPECT_GE(stats.recycle_routed, 1u) << "$R routed to the recycle flush";
+    std::vector<tree::FileNode*> all;
+    for (auto* r : tree.roots())
+        collect(r, all);
+    const tree::FileNode* rr = nullptr;
+    bool saw_dollar_i = false;
+    for (auto* n : all) {
+        if (n->name_utf8().rfind("$I7F3K2L", 0) == 0)
+            saw_dollar_i = true; /* the $I row itself stays a result */
+        if (n->name_utf8() == "report.docx")
+            rr = n; /* the $R row AFTER the $I remap */
+    }
+    EXPECT_TRUE(saw_dollar_i) << "$I metadata row emitted (main map)";
+    ASSERT_NE(rr, nullptr) << "$R remapped to its ORIGINAL name via $I evidence";
+    EXPECT_EQ(rr->props()->logical_size, 5000u);
+    EXPECT_EQ(rr->props()->times.modified, 0x01D2000000000000ull);
+    EXPECT_EQ(rr->deleted_state(), tree::DeletedState::Deleted);
+}
+
 
 } // namespace
 } // namespace refs

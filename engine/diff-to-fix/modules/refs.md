@@ -200,3 +200,17 @@ see the reconciliation note in `tracked-open/OQ-RS-refs-session3.md`.)
 - **Open (unchanged):** OQ-2 real-volume key-layout dump; N-036 container map;
   M-026/M-027 deleted-model/object-identity; I-013 host-OS gate superset.
 
+## Session-4 addendum 2 (M-026 / M-027 FIXED)
+
+- **B4/B5 → M-026 FIXED:** the stale-MSB-page sweep (og FUN_180005330) landed as
+  scan_refs phase 8b — the deleted-file model is now BOTH the og's stale-page sweep
+  AND the core's row-flag/ID2 superset. Live-page exclusion via the unbounded
+  live_pages set; force-deleted ROW_FILE dispatch reuses the full attribute walk.
+  Bounded simplification: stale dir-link rows do not dispatch (documented in the
+  Resolution).
+- **B7/A29 → M-027 FIXED:** object-identity keep-one (placement signature — the
+  og's node-id keying is not carried by the core's row model; the finding's
+  proposed rule), live-over-deleted promotion, "$R*"/"S-*"/SVI recycle routing to
+  the post-main flush, $I evidence read + $R remap (family convention).
+- **Open:** N-036 container map; OQ-2 real-volume dump; the og keep-one tie-break
+  fields remain shape-decoded (documented simplification).
