@@ -183,3 +183,39 @@ probe has no counterpart (rg-verified).
 3. `FUN_1800577e0`'s return polarity is decompiler-unrecovered (typed void) — the
    caller branch direction was read from context; a 10-minute Ghidra re-check during
    the fix leg should pin it before the gate is implemented.
+
+---
+
+## Session-4 addendum (2026-10-26, verified at `668c52f`/`a4053c4`) — PARTIAL FIX landed by the parallel core-api fix leg
+
+The parallel fix leg's `a4053c4` (transport completion wave) landed while this finding
+was being filed. First-hand verification against the claims above:
+
+- **(b) stale-handle ladder — FIXED**: `reopen_handle()` + GLE-captured
+  ERROR_INVALID_HANDLE heal-and-retry now in `src/win/cr_transport.cpp:202-260`
+  (read loop :253-255; one heal per failing call; original open parameters kept — the
+  og's clone-reopen parity, Device_decompiled.c:55947-55959 cited in their comment).
+- **(c) chunking provenance — RESOLVED (doc-level)**: the envelope is now UNIFIED on
+  both transports (RDA + direct) through `io::direct_envelope`; the fix leg's
+  re-anchoring is honest and verifiable: the og's chunk sizes (4 MiB device
+  `Device_decompiled.c:56545`, 7 MiB volume `:56912`, 2 MiB MFT batches
+  NTFSSearchDLL:5649-5678, 1 MiB UsnJrnl, 64 KiB boot) are ALL 64 KiB multiples — so
+  the core's 64 KiB envelope is I/O-shape-compatible with every documented og chunk
+  size (compatibility anchor, not identity claim). M-030's provenance demand
+  ("Windows heuristic, not og-behavior") is satisfied by this framing; the
+  CORPUS-ERRATA row 34 (no 64 KiB device-layer rule) stands as written.
+- **(d) disk-number bound — PARTIALLY FIXED**: `enumerate_disks(200, ...)` at
+  `cr_ui.cpp:1044` and `:1232` — but the LDM cross-disk resolver still calls
+  `enumerate_disks(32, ...)` at `cr_ui.cpp:1248` (inconsistent: LDM resolution is
+  exactly the multi-disk path where >32 disks matters most).
+- **Still open**: (a) WinPE environment gate — no GetSystemDirectory/X: probe anywhere
+  in src/win (re-verified at `668c52f`); (e) terminal IOCTL_VOLUME_OFFLINE — zero
+  hits repo-wide (re-verified); (f) silent RDA-open fallback at the ABI level — no
+  transport-error surfacing found in cr_ui.h/cr_ui.cpp (re-verified); the stale
+  RecoveryModule cite (:44686-44720 vs actual :60380-60450) — not yet re-checked by
+  the fix leg.
+
+**Disposition:** keep this finding OPEN (SEVERE→MAJOR scope now reduced to the four
+open items: WinPE gate, terminal OFFLINE, the LDM-path 32-disk cap, silent fallback +
+stale cite). The fix plan above remains valid for those items; items (b)/(c) can be
+struck from the fix plan. OQ-S4-3 (relative perf measurement) is unaffected.
