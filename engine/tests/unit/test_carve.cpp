@@ -2174,3 +2174,211 @@ TEST(CarveEngine, Rar4InnerEntryInventory) {
     EXPECT_EQ(u64(fh + head_size), entry->props()->extents.front().offset);
     EXPECT_EQ(100u, entry->props()->extents.front().length);
 }
+
+/* ---- N-051/N-052/N-053/N-054 fixtures (the carve-magic quartet) ---- */
+static void mkv_header(std::vector<u8>& img, size_t at, const char* doctype) {
+    /* EBML magic is the registry key; the header element's size vint and
+     * payload carry DocType (0x4282) + DocTypeVersion/ReadVersion children.
+     * vint sizes: 0x8N = 1-byte size of N; children use 2-byte IDs. */
+    const u8 magic[4] = {0x1A, 0x45, 0xDF, 0xA3};
+    std::memcpy(img.data() + at, magic, 4);
+    const size_t dtl = std::strlen(doctype);
+    const u32 payload = u32(2 + 1 + dtl + 4 + 4); /* DocType + Ver + ReadVer */
+    img[at + 4] = u8(0x80 | payload);             /* 1-byte size vint */
+    size_t p = at + 5;
+    img[p] = 0x42; img[p + 1] = 0x82;             /* DocType ID (0x4282) */
+    img[p + 2] = u8(0x80 | dtl);                  /* size = strlen */
+    std::memcpy(img.data() + p + 3, doctype, dtl);
+    p += 3 + dtl;
+    img[p] = 0x42; img[p + 1] = 0x87; img[p + 2] = 0x81; img[p + 3] = 1; /* DocTypeVersion=1 */
+    img[p + 4] = 0x42; img[p + 5] = 0x86; img[p + 6] = 0x81; img[p + 7] = 1; /* ReadVersion=1 */
+}
+
+static void iiu_tiff(std::vector<u8>& img, size_t at, u16 ifd_off, bool valid_ifd) {
+    /* IIU\0 header + IFD at ifd_off (either a real 1-entry IFD or garbage) */
+    u8* t = img.data() + at;
+    std::memcpy(t, "IIU\x00", 4);
+    t[4] = u8(ifd_off); t[5] = u8(ifd_off >> 8); /* LE u16 @+4 */
+    if (valid_ifd) {
+        u8* f = img.data() + at + ifd_off;
+        f[0] = 1; f[1] = 0;                       /* 1 entry */
+        f[2] = 0x00; f[3] = 0x01;                 /* tag 0x0100 */
+        f[4] = 3; f[5] = 0;                       /* type SHORT */
+        f[6] = 5; f[7] = 0; f[8] = 0; f[9] = 0;   /* count 5 > 4 */
+        f[10] = 0xB0; f[11] = 0x04;               /* value offset 1200 */
+        f[12] = 0; f[13] = 0; f[14] = 0; f[15] = 0; /* data offset */
+        f[16] = 0; f[17] = 0; f[18] = 0; f[19] = 0; /* next IFD = 0 */
+        std::memset(img.data() + at + 1200, 0x5A, 10); /* value data */
+    } else {
+        std::memset(img.data() + at + ifd_off, 0xFF, 32); /* IFD walk will fail */
+    }
+}
+
+TEST(Carve, MkvDocTypeWebmAccepted) {
+    /* N-051: the og's FileMKVAnalyser decodes the DocType and accepts
+     * webm (0x6D626577) + matroska only. The header payload ends at +20
+     * (clears the >16 liveness bar). */
+    std::vector<u8> img(64 * 1024, 0);
+    mkv_header(img, 4096, "webm");
+    mkv_header(img, 12288, "matroska");
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"Lost Files");
+    CarveFlags flags;
+    CarveStats s;
+    ASSERT_EQ(carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, s),
+              OK);
+    EXPECT_NE(find_carved_by_ext(root, "mkv"), nullptr) << "webm+matroska not carved";
+    EXPECT_GE(s.validated, 2u);
+}
+
+TEST(Carve, MkvDocTypeExoticRejected) {
+    /* an EBML use whose DocType is neither webm nor matroska: rejected by
+     * the og's analyser and by ours (the pre-N-051 core accepted any
+     * structurally-valid EBML). */
+    std::vector<u8> img(64 * 1024, 0);
+    mkv_header(img, 4096, "foob");
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"Lost Files");
+    CarveFlags flags;
+    CarveStats s;
+    ASSERT_EQ(carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, s),
+              OK);
+    EXPECT_EQ(find_carved_by_ext(root, "mkv"), nullptr) << "exotic DocType must not carve";
+}
+
+TEST(Carve, MkvElementBoundsGate) {
+    /* the og's header bounds gate: id_len + size_len + payload + 4 must
+     * stay <= 0x200. Here the size vint decodes 520 (2-byte vint 0x42 0x08):
+     * 2 + 520 + 4 = 526 > 512 -> reject before any payload read. */
+    std::vector<u8> img(64 * 1024, 0);
+    u8* t = img.data() + 4096;
+    std::memcpy(t, "\x1A\x45\xDF\xA3", 4);
+    t[4] = 0x42; t[5] = 0x08; /* vint: length 2, value 520 */
+    std::memset(t + 6, 0x5A, 64); /* plausible payload (never read) */
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"Lost Files");
+    CarveFlags flags;
+    CarveStats s;
+    ASSERT_EQ(carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, s),
+              OK);
+    EXPECT_EQ(find_carved_by_ext(root, "mkv"), nullptr) << "oversized header element must not carve";
+}
+
+TEST(Carve, HeifSiblingBrandLabeledHeif) {
+    /* N-052: the og relabels HEIF-family siblings (heix/mif1/msf1) to the
+     * display label L"HEIF"; heic-proper keeps L"HEIC". The FMT_HEIF row
+     * carries the rewritten label; the format id is distinct. */
+    std::vector<u8> img(256 * 1024, 0);
+    auto heic = bmff_head("heic");
+    std::memcpy(img.data() + 4096, heic.data(), heic.size());
+    auto mif1 = bmff_head("mif1");
+    std::memcpy(img.data() + 8192, mif1.data(), mif1.size());
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"Lost Files");
+    CarveFlags flags;
+    CarveStats s;
+    ASSERT_EQ(carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, s),
+              OK);
+    auto* heic_node = find_carved_by_ext(root, "heic");
+    ASSERT_NE(heic_node, nullptr) << "heic-proper must carve as HEIC";
+    EXPECT_EQ(heic_node->props()->carve_format, u32(FMT_HEIC));
+    auto* heif_node = find_carved_by_ext(root, "heif");
+    ASSERT_NE(heif_node, nullptr) << "mif1 sibling must carve (as HEIF)";
+    EXPECT_EQ(heif_node->props()->carve_format, u32(FMT_HEIF)) << "the relabeled format id";
+    EXPECT_EQ(heif_node->props()->extents.front().offset, u64(8192));
+}
+
+TEST(Carve, IiuTiffEpValidatedByTiffGrammar) {
+    /* N-053: the og binds the IIU\0 key to the TIFF chain (census :53,
+     * BruteForce::TiffAnalyzer). A structurally-valid IIU file carves as
+     * TIFF/EP (ext .tif, format id FMT_TIFF_EP) - the pre-fix core labeled
+     * every IIU file "Panasonic RAW" (.rw2). */
+    std::vector<u8> img(64 * 1024, 0);
+    iiu_tiff(img, 4096, 8, true);
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"Lost Files");
+    CarveFlags flags;
+    CarveStats s;
+    ASSERT_EQ(carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, s),
+              OK);
+    auto* tiff_ep = find_carved_by_ext(root, "tif");
+    ASSERT_NE(tiff_ep, nullptr) << "IIU TIFF/EP must carve as .tif";
+    EXPECT_EQ(tiff_ep->props()->carve_format, u32(FMT_TIFF_EP));
+    EXPECT_EQ(tiff_ep->props()->extents.front().offset, u64(4096));
+    EXPECT_EQ(find_carved_by_ext(root, "rw2"), nullptr)
+        << "a valid TIFF/EP must not take the RW2 row";
+}
+
+TEST(Carve, IiuRw2FallbackWhenTiffEpRejects) {
+    /* the IIU-salvage fallback (registered superset D-63): the TIFF/EP
+     * grammar rejects (garbage IFD), the og carves nothing - we salvage
+     * the Panasonic-shaped header at lower confidence. */
+    std::vector<u8> img(64 * 1024, 0);
+    iiu_tiff(img, 4096, 8, false);
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"Lost Files");
+    CarveFlags flags;
+    CarveStats s;
+    ASSERT_EQ(carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, s),
+              OK);
+    EXPECT_EQ(find_carved_by_ext(root, "tif"), nullptr) << "invalid IFD must not take TIFF/EP";
+    auto* rw2 = find_carved_by_ext(root, "rw2");
+    ASSERT_NE(rw2, nullptr) << "the IIU-salvage fallback must fire";
+    EXPECT_EQ(rw2->props()->carve_format, u32(FMT_RW2));
+}
+
+TEST(Carve, RafVariantHeaderAccepted) {
+    /* N-054: the og keys RAF on the 4-byte FUJI u32 (census :55); variant
+     * headers whose bytes 4..15 differ from FUJIFILMCCD-RAW must still
+     * carve (lower confidence, variant note). */
+    std::vector<u8> img(128 * 1024, 0);
+    u8* t = img.data() + 4096;
+    std::memcpy(t, "FUJI", 4);
+    std::memcpy(t + 4, "VARIAnt-raw  ", 12); /* non-canonical bytes 4..15 */
+    put32v(img, 4096 + 16, 0x0200);          /* version: sane */
+    put32v(img, 4096 + 0x54, 0);             /* section table starts empty */
+    put32v(img, 4096 + 0x54, 0x1000);
+    put32v(img, 4096 + 0x58, 0x2000);
+    put32v(img, 4096 + 0x60, 0x3000);
+    put32v(img, 4096 + 0x64, 0x4000);
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"Lost Files");
+    CarveFlags flags;
+    CarveStats s;
+    ASSERT_EQ(carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, s),
+              OK);
+    auto* raf = find_carved_by_ext(root, "raf");
+    ASSERT_NE(raf, nullptr) << "FUJI variant header must carve";
+    EXPECT_EQ(raf->props()->carve_format, u32(FMT_RAF));
+}
+
+TEST(Carve, JpegFourthByteOutsideOgSet) {
+    /* N-054 (documented superset, D-64): the og keys JPEG on FOUR exact
+     * dwords (FF D8 FF E0/E1/DB/EE - census :54); the core matches the
+     * 3-byte prefix, so FF D8 FF 99 + a valid JFIF body carves here and
+     * is not dispatched by the og's registry. Deliberate (I-009 family);
+     * validate_jpeg's grammar gates the false-positive surface. */
+    std::vector<u8> img(256 * 1024, 0);
+    const size_t at = 4096;
+    img[at] = 0xFF; img[at + 1] = 0xD8; img[at + 2] = 0xFF; img[at + 3] = 0x99;
+    /* a valid body: APP0 marked as APP9 (marker 0xE9 is outside the og's
+     * four) - reuse the grammar-complete shape with the 4th byte 0x99 */
+    (void)plant_jpeg(img, at); /* overwrites the first bytes: re-stamp */
+    img[at + 3] = 0x99; /* plant_jpeg wrote 0xE0; stamp the superset byte */
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"Lost Files");
+    CarveFlags flags;
+    CarveStats s;
+    ASSERT_EQ(carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, s),
+              OK);
+    auto* jpg = find_carved_by_ext(root, "jpg");
+    ASSERT_NE(jpg, nullptr) << "FF D8 FF 99 (outside the og's 4-dword set) must carve here";
+}

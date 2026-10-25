@@ -1888,3 +1888,19 @@ same way. Pinned by `RawFixer.NtfsPrimaryDamaged4Kn`,
   the Unknown path is untouched (the superset does not fire without
   data). Registered in the S-024 Resolution addendum with the decode
   evidence (evidence/decompiled-quotes/s6-health-grading-decode.md §6).
+
+### D-63/D-64 — carve-magic quartet registers (N-051..N-054; session-7 batch)
+
+- **D-63a — IIU-salvage fallback (N-053, ACCEPTED SUPERSET).** The og binds
+  the IIU\0 key to the TIFF chain only (census :53; no Panasonic row) and
+  carves nothing when the TIFF grammar rejects. The core's FMT_RW2 row now
+  fires after FMT_TIFF_EP rejects: IIU + a plausible IFD offset (u16@4 != 0)
+  salvages at confidence 600 with the honest note "IIU-salvage (TIFF/EP
+  rejected; Panasonic RAW fallback)". Pin:
+  Carve.IiuRw2FallbackWhenTiffEpRejects.
+- **D-64a — JPEG 3-byte prefix (N-054b, ACCEPTED SUPERSET).** The og keys
+  JPEG on four exact dwords (FF D8 FF E0/E1/DB/EE, census :54); the core
+  matches the 3-byte prefix - FF D8 FF xx with xx outside the og's four
+  carves here and is not dispatched by the og. I-009 family; validate_jpeg's
+  grammar gates the false-positive surface. Do not tighten for parity. Pin:
+  Carve.JpegFourthByteOutsideOgSet.

@@ -16,6 +16,7 @@ CarveResult validate_tiff(IStorageDevice* s, u64 hit, u64 cap);
 CarveResult validate_cr2(IStorageDevice* s, u64 hit, u64 cap);
 CarveResult validate_webp(IStorageDevice* s, u64 hit, u64 cap);
 CarveResult validate_heic(IStorageDevice* s, u64 hit, u64 cap);
+CarveResult validate_heif(IStorageDevice* s, u64 hit, u64 cap); /* N-052 */
 CarveResult validate_pdf(IStorageDevice* s, u64 hit, u64 cap);
 CarveResult validate_zip(IStorageDevice* s, u64 hit, u64 cap);
 CarveResult validate_docx(IStorageDevice* s, u64 hit, u64 cap);
@@ -54,7 +55,21 @@ CarveResult validate_dwg(IStorageDevice* s, u64 hit, u64 cap);
 
 namespace {
 const Signature kTable[] = {
-    {FMT_JPG, "jpg", {0xFF, 0xD8, 0xFF}, 3, 0, 512, 96ull << 20, 900, validate_jpeg, "JPEG"},
+    {FMT_JPG,
+     "jpg",
+     {0xFF, 0xD8, 0xFF},
+     3, /* N-054: the og keys JPEG on FOUR exact dwords (FF D8 FF
+         * E0/E1/DB/EE - census :54); the core matches the 3-byte prefix -
+         * a registered deliberate detection superset (I-009 family,
+         * D-64): FF D8 FF xx with xx outside the og's four is carved here
+         * and not dispatched by the og. validate_jpeg's grammar gates the
+         * false-positive surface; do not tighten for parity. */
+     0,
+     512,
+     96ull << 20,
+     900,
+     validate_jpeg,
+     "JPEG"},
     {FMT_PNG,
      "png",
      {0x89, 'P', 'N', 'G', 0x0D, 0x0A, 0x1A, 0x0A},
@@ -184,9 +199,12 @@ const Signature kTable[] = {
      "Olympus RAW"},
     {FMT_RAF,
      "raf",
-     {'F', 'U', 'J', 'I', 'F', 'I', 'L', 'M', 'C', 'C', 'D', '-', 'R', 'A', 'W', ' '},
-     16,
-     0,
+     {'F', 'U', 'J', 'I'},
+     4,
+     0, /* N-054: the og keys RAF on the 4-byte "FUJI" u32 (census :55,
+         * 0x494a5546); the 16-byte FUJIFILMCCD-RAW string is now the
+         * PRIMARY acceptance path inside validate_raf (not the sole one)
+         * - variant headers whose bytes 4..15 differ still carve. */
      1024,
      2ull << 30,
      850,
@@ -563,6 +581,33 @@ const Signature kTable[] = {
      validate_mp3_raw,
      "MPEG audio (sync FF)",
      true},
+    /* N-052: HEIF-family siblings (heix/mif1/msf1) - the og rewrites their
+     * display label to L"HEIF" (analyser-granular-batch1 :67-80). Same
+     * magic/offset/limits as FMT_HEIC (which now takes heic-proper only). */
+    {FMT_HEIF,
+     "heif",
+     {'f', 't', 'y', 'p'},
+     4,
+     4,
+     128,
+     512ull << 20,
+     750,
+     validate_heif,
+     "HEIF"},
+    /* N-053: the og binds the IIU\0 key to the TIFF chain (census :53,
+     * BruteForce::TiffAnalyzer - the TIFF/EP variant). FMT_RW2 stays as
+     * the post-reject fallback (its validator gained the IIU-salvage
+     * path); at an IIU position the trial order tries this row first. */
+    {FMT_TIFF_EP,
+     "tif",
+     {'I', 'I', 'U', 0x00},
+     4,
+     0,
+     1024,
+     1ull << 30,
+     850,
+     validate_tiff,
+     "TIFF/EP"},
 };
 } // namespace
 

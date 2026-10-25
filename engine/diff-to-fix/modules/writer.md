@@ -78,8 +78,8 @@ Core (audited `67193b6` + concurrent GAP-S6-7 in tree): `src/core/recovery/` (77
 
 | ID | Severity | One-line |
 |---|---|---|
-| N-013 | MINOR | Destination overlap check optional (drive-letter only) + first-extent-only |
-| N-015 | MINOR | No disk-full pre-check or fast-fail (wasted cycles after ENOSPC) |
+| N-013 | MINOR | **FIXED (s7; FIXED/ move s11)** — all-extent arming + any-resolving path arming; image→same-volume sub-claim refuted with corpus evidence |
+| N-015 | MINOR | **FIXED (s9 `915bce3`; FIXED/ move s11)** — ERR_DEST_FULL end-to-end: free_bytes pre-check + ENOSPC fast-fail, report still emitted |
 | N-009d (refined) | MINOR | ACL drop is the only divergence (timestamps/attributes match og) |
 ## Session-2 update (2026-10-25, core `e93decf`)
 

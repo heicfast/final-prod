@@ -185,7 +185,8 @@ namespace {
  * separately cited - family-tolerant, documented). The 98% watermark is
  * advisory-only here: its deep-check gate default is unpinned (finding's
  * open question), so it is computed into a stat, never a reject. */
-bool fat_table_validate(const std::vector<u8>& f, Flavor flavor, u32 entry_count, u32& used_out) {
+bool fat_table_validate(const std::vector<u8>& f, Flavor flavor, u32 entry_count,
+                        u32& used_out) {
     used_out = 0;
     if (f.empty())
         return false;
@@ -233,17 +234,17 @@ bool fat_table_validate(const std::vector<u8>& f, Flavor flavor, u32 entry_count
         }
         }
     };
-    const u32 eoc_family_min = flavor == Flavor::Fat12   ? 0xFF8
-                               : flavor == Flavor::Fat16 ? 0xFFF8
-                                                         : 0x0FFFFFF8;
+    const u32 eoc_family_min = flavor == Flavor::Fat12     ? 0xFF8
+                               : flavor == Flavor::Fat16   ? 0xFFF8
+                                                            : 0x0FFFFFF8;
     /* the og's OOB band is [n, BAD) - STRICTLY below the BAD sentinel
      * (0xFFF7 itself passes the sweep; a BAD cluster is a legal value).
      * FAT32 additionally carries the mask-24 alternate EOC family
      * (N-002: (raw & 0x07FFFFF8) == 0x07FFFFF8 -> EOC, e.g. dirty-high
      * forms 0x27FFFFF8); those values end chains, they are not links. */
-    const u32 bad_sentinel = flavor == Flavor::Fat12   ? 0xFF7
-                             : flavor == Flavor::Fat16 ? 0xFFF7
-                                                       : 0x0FFFFFF7;
+    const u32 bad_sentinel = flavor == Flavor::Fat12     ? 0xFF7
+                             : flavor == Flavor::Fat16   ? 0xFFF7
+                                                          : 0x0FFFFFF7;
     const u32 alt_eoc_min = flavor == Flavor::Fat32 ? 0x07FFFFF8 : bad_sentinel;
     const auto is_link = [&](u32 v) {
         return v >= 2 && v < bad_sentinel && v < n && v < alt_eoc_min;

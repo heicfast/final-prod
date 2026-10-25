@@ -54,3 +54,10 @@ Corpus decode read first-hand; core registry row read first-hand.
 ## Open questions
 
 None.
+
+## Resolution
+
+**Status:** FIXED
+**Fixed in commit:** this session's carve-magic-quartet batch
+**Verified by:** `Carve.HeifSiblingBrandLabeledHeif` - a heic-brand ftyp carves as FMT_HEIC (label "HEIC"), a mif1-brand ftyp carves as the NEW FMT_HEIF row (ext .heif, registry label "HEIF") - the og's brand-slot rewrite (analyser-granular-batch1 :67-80, re-read first-hand). Fail-before: the test does not exist on the pre-fix tree; pre-fix every family brand took FMT_HEIC/"HEIC".
+**Resolution notes:** FMT_HEIF appended to the FormatId enum + registry table (append-only: serialized carve_format values and the ABI's format list stay stable - cr_ui_carve_format_info enumerates the registry, so the new row surfaces to consumers automatically). kTrialOrder places FMT_HEIF after FMT_HEIC: at an ftyp position, heic-proper validates on FMT_HEIC (which now shrinks to the heic brand only); the siblings (heix/mif1/msf1) fall through to FMT_HEIF. validate_heic/validate_heif carry the og's distinction in their notes.

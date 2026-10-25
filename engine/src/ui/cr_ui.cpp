@@ -623,6 +623,15 @@ struct CrSession {
 
 struct CrSnapshot {
     std::unique_ptr<tree::Snapshot> snap;
+    /* S-009: value-captured session truth (a snapshot of a loaded
+     * session carries the error map + the free map + the slice view,
+     * so the disk map's snapshot path can paint bad and free cells -
+     * mid-scan maps no longer show an empty bad overlay). */
+    ReadErrorMap errors;
+    storage::FreeMap free_map;
+    u64 slice_start = 0;
+    u64 slice_bytes = 0;
+    bool have_view = false;
 };
 
 struct PropReleaser {
@@ -1522,11 +1531,31 @@ u32 scan_snapshot_impl(cr_ui_scan* scan, cr_ui_snapshot** out) {
     if (!scan || !out)
         return ret_(ERR_BAD_PARAMETER, "bad argument: scan/out");
     auto* s = reinterpret_cast<CrScan*>(scan);
-    auto snap = tree::Snapshot::capture(s->tree, s->running.load());
+    const bool running = s->running.load();
+    auto snap = tree::Snapshot::capture(s->tree, running);
     if (!snap)
         return ret_(ERR_NO_MEMORY, "snapshot allocation failed");
     auto* w = new CrSnapshot();
     w->snap = std::move(snap);
+    /* S-009: the mid-scan snapshot carries the LIVE error map (the og's
+     * AnalysisGridWidget primary use - UIUX/04:110 - paints bad cells
+     * while scanning). Telemetry's copy is taken under the controller
+     * lock (race-free); the free map is captured only when the scan is
+     * NOT running (the engine pass fills it mid-run - reading it live
+     * would be racy, and an absent map paints unknown, never a guess). */
+    {
+        std::lock_guard<std::mutex> lock(s->ctrl_mu);
+        if (s->ctrl) {
+            w->errors = s->ctrl->telemetry().errors;
+            if (!running)
+                w->free_map = s->stats.free_map;
+        }
+    }
+    if (s->dev != nullptr && s->dev->dev != nullptr) {
+        w->slice_start = s->dev->dev->absolute_base();
+        w->slice_bytes = s->dev->dev->size();
+        w->have_view = w->slice_bytes != 0;
+    }
     *out = reinterpret_cast<cr_ui_snapshot*>(w);
     return ret_ok();
 }
@@ -1723,6 +1752,12 @@ u32 session_snapshot_impl(cr_ui_session* sess, cr_ui_snapshot** out) {
         return ret_(ERR_NO_MEMORY, "snapshot allocation failed");
     auto* w = new CrSnapshot();
     w->snap = std::move(snap);
+    /* S-009: carry the session's map truth by value (race-free reads) */
+    w->errors = s->stats.errors;
+    w->free_map = s->stats.free_map;
+    w->slice_start = s->info.slice_offset;
+    w->slice_bytes = s->info.slice_bytes;
+    w->have_view = s->info.slice_bytes != 0;
     *out = reinterpret_cast<cr_ui_snapshot*>(w);
     return ret_ok();
 }
@@ -1754,10 +1789,14 @@ u32 disk_map_impl(cr_ui_session* sess, cr_ui_snapshot* snap, const cr_ui_disk_ma
         in.slice_start = s->info.slice_offset;
         in.slice_bytes = s->info.slice_bytes;
         in.fs_family = s->info.fs_family;
-        in.cluster_bytes = 0; /* not persisted in v1/v2 sessions -> 64 KiB cells */
+        /* S-009: the session's free-map record is the cluster hint when
+         * present (its granularity is the map's own cell size); sessions
+         * saved before the record keep the 64 KiB default. */
+        in.cluster_bytes = s->stats.free_map.valid() ? s->stats.free_map.cluster_bytes : 0;
         in.carve_completed = (s->info.stage_done_mask & orchestrator::STAGE_CARVE) != 0;
         errors = s->stats.errors; /* copy: builder reads it without locks */
         in.errors = &errors;
+        in.free_map = s->stats.free_map.valid() ? &s->stats.free_map : nullptr;
         owned_snap = tree::Snapshot::capture(s->tree, false);
         if (!owned_snap)
             return ret_(ERR_NO_MEMORY, "snapshot capture failed");
@@ -1776,9 +1815,18 @@ u32 disk_map_impl(cr_ui_session* sess, cr_ui_snapshot* snap, const cr_ui_disk_ma
         if (!want || want->total_bytes == 0)
             return ret_(ERR_BAD_PARAMETER,
                         "snapshots carry no view: want->start_byte/total_bytes are required");
+        /* S-009: the captured session truth feeds the snapshot path too
+         * (errors + free map from the snapshot's owning session); the
+         * view comes from `want` bounded by the captured slice. */
+        if (w->have_view && (want->start_byte < w->slice_start ||
+                             want->start_byte + want->total_bytes > w->slice_start + w->slice_bytes))
+            return ret_(ERR_RANGE_OUT_OF_BOUNDS, "want view is outside the session slice");
+        errors = w->errors;
+        in.errors = w->errors.ranges().empty() ? nullptr : &errors;
+        in.free_map = w->free_map.valid() ? &w->free_map : nullptr;
         in.slice_start = want->start_byte;
         in.slice_bytes = want->total_bytes;
-        in.cluster_bytes = want->cluster_bytes; /* caller hint when known */
+        in.cluster_bytes = w->free_map.valid() ? w->free_map.cluster_bytes : want->cluster_bytes;
         in.carve_completed = false;             /* mid-scan value view: extent coverage */
     }
 
@@ -2785,7 +2833,7 @@ u32 health_read_impl(uint32_t disk, cr_ui_smart_report* rep, cr_ui_smart_attr* a
         rep->nvme_available = 1;
         rep->critical_warning = nv.critical_warning;
         rep->temperature_c_x10 =
-            u32(nv.temperature_k) * 10 >= 2731 ? u32(nv.temperature_k) * 10 - 2731 : 0;
+            nv.decidegrees_c(); /* N-042: one source with the CLI print */
         rep->available_spare = nv.available_spare;
         rep->available_spare_threshold = nv.available_spare_threshold;
         rep->percentage_used = nv.percentage_used;

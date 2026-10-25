@@ -8757,12 +8757,77 @@ Stage Summary:
   was already og-parity from prior sessions; this wave is the bookkeeping
   the prior legs left behind). Session resolution tally: 6.
 
+Task ID: DFX13-T1 (session bootstrap — MINOR-first close-out wave; ID renamed from DFX11 at rebase time — parallel DFX10/DFX11/DFX12 lanes are live, this leg takes DFX13)
+Agent: main engineer (diff-to-fix session 11)
+Task: Bootstrap the remediation session; baseline; begin the MINOR tier
+per the session mandate (minor findings first, 20+ fixes targeted).
+
+Work Log:
+- Pulled core_recovery at HEAD `a5bbcfa` (the DFX7-T2 inventory head; S-032
+  archive-inventory + N-018 UBSan + N-042 NVMe-temp legs already landed by
+  the parallel sessions); corpus easeus-drw-research at `03ad46c` (unmoved,
+  matches every prior session's pin). Token in the git credential store
+  only, never committed; prompt saved redacted to
+  worklog/session-diff-fix-13-prompt.md.
+- Build baseline (linux-gcc preset, RelWithDebInfo + ASan): build clean;
+  FULL ctest 534/534 green (31.1 s). Baseline is green; finding work may
+  proceed.
+- Audited-commit context re-read: diff-to-fix/README, SUMMARY heads,
+  RESOLVED-INDEX, CROSS-REF-MATRIX session headers, severity scale. Direct
+  file inventory at `a5bbcfa`: SEVERE 3 · MAJOR 39 · MINOR 55 (48 without a
+  Resolution section; 7 resolved-but-not-moved) · INFO 22 (all ACKNOWLEDGED
+  per the parallel INFO-tier leg) · FIXED 73 · tracked-open 16.
+- Session plan: (1) audit-trail hygiene — move the 7 resolved MINOR files
+  to findings/FIXED/ with RESOLVED-INDEX rows and count updates; (2) fix
+  unresolved MINORs one-by-one in impact order (correctness before
+  cosmetics), each with fail-before/pass-after proof; (3) keep matrix,
+  modules, SUMMARY, counts current with every push.
+
+Stage Summary:
+- Baseline 534/534 green at `a5bbcfa`; inventory recorded; MINOR tier work
+  begins. Next: hygiene move of N-004/N-006, N-009, N-013, N-015, N-018,
+  N-036, N-042, then N-044, N-020, N-074 (doc-drift trios), the carve-magic
+  quartet N-051..N-054, N-045, N-067, N-068, N-069, and the remaining groups.
+
 ---
-Task ID: DFX13-T1 (session 13 bootstrap — renamed from DFX10 during this
-merge; a parallel leg had already claimed the DFX10 ID at 5ff4db7. The
-prompt file is renamed session-diff-fix-10 -> session-diff-fix-13 in the
-same merge commit.)
-Agent: main engineer (diff-to-fix session 10)
+Task ID: DFX13-T2 (audit-trail hygiene wave 1 — rebase note: the parallel DFX12 lane landed an overlapping reconciliation in f4fe677; this entry records the convergent move, duplicate RESOLVED-INDEX rows reconciled in the same push)
+Agent: main engineer (diff-to-fix session 11)
+Task: Move the four fully-resolved MINOR findings to findings/FIXED/ with
+index rows; repair matrix row corruption; update module verdicts + counts.
+
+Work Log:
+- Verified each candidate finding's Resolution section in full before the
+  move: N-013 (FIXED; one sub-claim refuted with corpus evidence),
+  N-015 (FIXED), N-018 (FIXED, `b1f9210`), N-042 (FIXED, `3678cbf`).
+  The group files N-004/N-006, N-009, N-036 carry open remainders inside
+  their Resolution sections — kept in MINOR/ (moving them would hide open
+  scope from the active roadmap).
+- git mv the four files MINOR/ -> FIXED/ (history preserved); four new
+  RESOLVED-INDEX rows under a live-inventory header (76 resolved findings).
+- CROSS-REF-MATRIX: writer+report cells (both section copies) now read
+  N-013/N-015 FIXED with landing refs; health cells read N-042 FIXED
+  (`3678cbf`); quality cell reads N-018 FIXED (`b1f9210`). Repaired the
+  pre-existing joined-row corruption in the session-5 matrix section
+  (carve row had lost-partition fused onto its tail — split back into two
+  rows, content byte-identical to the correct session-2 section rows).
+- modules/writer.md session-2 index rows + modules/health.md open-items
+  list updated to FIXED verdicts. SUMMARY.md gains the session-11 delta
+  with post-move counts: SEVERE 3 · MAJOR 39 · MINOR 51 · INFO 22 ·
+  FIXED 76 · OQ 16.
+
+Stage Summary:
+- Active MINOR count now reflects reality (51 files); the four moves are
+  bookkeeping only — every underlying fix was landed and proven by the
+  earlier sessions, with tests named in each finding's Resolution. Next:
+  begin fixing unresolved MINORs one-by-one, starting N-044, N-020/N-074
+  doc-drift, N-051..N-054 carve-magic quartet.
+---
+Task ID: DFX14-T1 (session 14 bootstrap — ID disambiguated twice: from
+DFX10 at merge 1 (the 5ff4db7 lineage had claimed it), from DFX13 at
+merge 2 (the DFX11 lineage squatted -13 for its prompt archive at
+6eecdc3 and its DFX13-T2 hygiene entry). Prompt file:
+worklog/session-diff-fix-14-prompt.md.)
+Agent: main engineer (diff-to-fix session 14)
 Task: Session bootstrap — pull both repos, record baseline, establish green suite, archive session prompt.
 
 Work Log:
@@ -8770,7 +8835,9 @@ Work Log:
   "Everything up-to-date" — no parallel landings since clone); corpus
   easeus-drw-research at 03ad46c (unmoved — matches every prior session's
   pin). Token in git credential store only, never committed.
-- Session prompt archived (token redacted) at worklog/session-diff-fix-10-prompt.md; read twice before reading began.
+- Session prompt archived (token redacted) at
+worklog/session-diff-fix-14-prompt.md (renamed twice; see the Task ID
+note); read twice before reading began.
 - Audit trail read: README (session lineage), SUMMARY (session-8 delta on
   top), SEVERITY-SCALE, PARAMETERS, CROSS-REF-MATRIX, RESOLVED-INDEX,
   CORPUS-ERRATA; open inventory by direct file count: SEVERE 3 (S-009 /
@@ -8792,11 +8859,56 @@ Stage Summary (post-merge union, supersedes the pre-merge order above):
   (f4fe677); N-042/N-044/UBSan-lane reds by the parallel legs; a duplicate
   M-053 landing from the DFX9 lineage (797af18) — the duplicate pair in
   FIXED/ is now this leg's first work item.
-- Live lane map after union: DFX8-legacy -> S-030 (in flight; S-029 only as
-  their fallback), DFX10 (5ff4db7 lineage) -> S-029 published, DFX11 ->
-  MAJOR by impact, DFX12 -> MINOR waves. DFX13 (this leg) takes the
-  unclaimed audit-trail reconciliation queue first (duplicate M-053 pair in
-  FIXED/, duplicate M-029 pair in MAJOR/, N-073-vs-N-004 probable duplicate
-  — flagged by DFX12-T2, unclaimed), then MAJOR in module batches with
+- Live lane map after merge 2 (supersedes the merge-1 map): DFX8-legacy ->
+  S-030 (in flight; S-029 only as their fallback), DFX10 (5ff4db7 lineage)
+  -> S-029 published, DFX11 -> MINOR-first (hygiene wave + the N-051..N-054
+  carve-magic quartet landed at b2f48c6; NOTE their DFX13-T2 naming), DFX12
+  -> MINOR waves (f4fe677). DFX14 (this leg): the unclaimed reconciliation
+  queue (duplicate M-053 pair in FIXED/, duplicate M-029 pair in MAJOR/,
+  N-073-vs-N-004 probable duplicate), then MAJOR in module batches with
   per-finding claims recorded before work. Pull before every push; full
   suite re-run after every pull.
+
+
+---
+Task ID: DFX14-T2 (cross-lane repair — the 5aaf044 "style(lint)" clobber)
+Agent: main engineer (diff-to-fix session 14)
+Task: Root-cause and repair the CI red the merge carried: four DiskMap
+tests (the S-009 acceptance quartet) failed on the union tree.
+
+Work Log:
+- Timeline: suite 539/539 GREEN at f15c286 (S-009 landing included); RED
+  after absorbing 5aaf044 ("style(lint): format the three files the latest
+  parallel landings pushed unformatted"). The commit is not a format pass:
+  it is a four-finding semantic rollback dressed as formatting - 83 lines
+  deleted, 15 inserted, across three files.
+- Verified first-hand per file (diff 0fc9994..5aaf044):
+  * src/ui/cr_ui.cpp - S-009 rolled back: CrSnapshot's value-captured
+    errors/free_map/slice-view fields, the mid-scan live-telemetry capture
+    under ctrl_mu, the session map-truth capture, and the disk-map
+    free-map cluster-hint input all deleted (the pre-S-009 comment
+    "not persisted in v1/v2 sessions -> 64 KiB cells" restored in their
+    place).
+  * src/app/rrecov.cpp - N-044 rolled back (--whole-disk reverted to
+    --deep, the deprecated-alias note deleted) AND N-042 rolled back (the
+    decidegrees_c() print replaced by the pre-fix inline Kelvin-remainder
+    math - the exact bug N-042's Resolution documents).
+  * src/core/fat/cr_chain.cpp - the M-012 mirror-scrutiny region reverted.
+- Verified no other leg touched the three files after the clobber: the
+  diff f15c286..origin/main on exactly these paths is byte-identical to
+  the clobber diff itself.
+- Repair (this merge commit): restored the f15c286 versions of the three
+  files - the state where the full suite was proven 539/539 green. Proof:
+  the four DiskMap tests (DiskMapSessionGeometryAndOverlays,
+  DiskMapFreeOverlayFromFatTable, DiskMapFreeCellsSurviveSessionReloadAnd-
+  Snapshot, DiskMapScanSnapshotCarriesFreeMap) plus the M-012 mirror and
+  CLI-contract surfaces re-verified green on the repaired tree; full ctest
+  re-run recorded in this leg's push.
+- Lesson (matches the FF-HANDOFF protocol): never absorb a "style/lint"
+  commit without diffing it - formatting never deletes 80 lines. The
+  suite-after-every-pull gate is what caught this one merge late.
+
+Stage Summary:
+- The clobber is repaired; S-009/N-042/N-044/M-012 landings stand again.
+  Watch for the clobbering lineage pushing the rollback forward - if it
+  reappears, re-apply this repair and flag the lineage in this worklog.

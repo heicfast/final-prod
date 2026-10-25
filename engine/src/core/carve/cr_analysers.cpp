@@ -86,6 +86,31 @@ u32 ebml_vint(IStorageDevice* s, u64 off, u64* v) {
     return len;
 }
 
+/* N-051: ebml_vint over an in-memory buffer (the EBML header payload is
+ * bounded <= 0x200 by the og's element-bounds gate - read once, walk
+ * locally). Same vint algorithm; 0 = invalid. */
+u32 ebml_vint_local(const u8* buf, u64 buf_len, u64 off, u64* v) {
+    if (off >= buf_len)
+        return 0;
+    const u8 first = buf[off];
+    u32 len = 0;
+    u8 mask = 0x80;
+    while (mask != 0) {
+        ++len;
+        if (first & mask)
+            break;
+        mask >>= 1;
+    }
+    if (len > 8 || off + len > buf_len)
+        return 0;
+    u64 value = u64(first & u8(mask - 1));
+    for (u32 i = 1; i < len; ++i)
+        value = (value << 8) | buf[off + i];
+    if (v)
+        *v = value;
+    return len;
+}
+
 /* ---- P1-12 shared block-scan helpers ------------------------------- *
  * The forward tail-marker searches (PDF %%EOF, ZIP EOCD), the JPEG SOS
  * entropy scan and the MP3 frame walk used to step in 0.5-1 KiB reads;
@@ -484,8 +509,25 @@ static CarveResult bmff_walk(IStorageDevice* s, u64 hit, u64 cap, const char* co
 }
 
 CarveResult validate_heic(IStorageDevice* s, u64 hit, u64 cap) {
-    static const char* const brands[] = {"heic", "heix", "mif1", "msf1"};
-    return bmff_walk(s, hit, cap, brands, 4);
+    /* N-052: heic-PROPER only (the og: brand 0x68656963 -> label L"HEIC",
+     * type-id 0x7C). The HEIF-family siblings (heix/mif1/msf1) moved to
+     * validate_heif, which carries the og's rewritten display label. */
+    static const char* const brands[] = {"heic"};
+    CarveResult r = bmff_walk(s, hit, cap, brands, 1);
+    if (r.ok)
+        r.note = "brand=heic";
+    return r;
+}
+
+CarveResult validate_heif(IStorageDevice* s, u64 hit, u64 cap) {
+    /* N-052: HEIF-family siblings only (mif1/heix/msf1). The og's analyser
+     * relabels these L"HEIF" (the brand slot rewrite) - our registry row
+     * carries that display label; heic-proper stays on FMT_HEIC. */
+    static const char* const brands[] = {"heix", "mif1", "msf1"};
+    CarveResult r = bmff_walk(s, hit, cap, brands, 3);
+    if (r.ok)
+        r.note = "HEIF-family (og display label: HEIF)";
+    return r;
 }
 CarveResult validate_mp4(IStorageDevice* s, u64 hit, u64 cap) {
     static const char* const brands[] = {"isom", "mp42", "mp41", "iso2", "avc1", "dash"};
@@ -913,8 +955,51 @@ CarveResult validate_mkv(IStorageDevice* s, u64 hit, u64 cap) {
     /* EBML header: 1A45DFA3 then size vint, then payload */
     u64 v = 0;
     u32 vlen = ebml_vint(s, hit + 4, &v);
-    if (vlen == 0 || v == 0 || v > 1024 * 1024)
-        return r;                 /* All-1 = streaming */
+    if (vlen == 0 || v == 0)
+        return r; /* All-1 = streaming */
+    /* N-051: the og's element-bounds gate (analyser-granular-batch1 :43-66,
+     * FileMKVAnalyser FUN_180016c70): header element total
+     * id_len + size_len + payload + 4 <= 0x200, else reject. */
+    if (u64(vlen) + v + 4 > 0x200)
+        return r;
+    /* N-051: the og's DocType discrimination - the EBML header payload
+     * carries the DocType element (ID 0x4282); accept webm (0x6D626577)
+     * and matroska, reject every other DocType (an exotic EBML use is
+     * rejected by the og's analyser and now by ours). */
+    {
+        u8 hdr[512]; /* <= 0x200 by the bounds gate above */
+        const u64 hdr_len = 4 + u64(vlen) + v; /* id(4) + size vint + payload */
+        if (hdr_len > sizeof(hdr) || !rd(s, hit, hdr, u32(hdr_len)))
+            return r;
+        u64 p = 4 + vlen; /* first child inside the header payload */
+        bool doctype_ok = false;
+        while (p + 2 <= hdr_len) {
+            u64 cid = 0, csz = 0;
+            const u32 cid_len = ebml_vint_local(hdr, hdr_len, p, &cid);
+            if (cid_len == 0)
+                break;
+            const u32 csz_len = ebml_vint_local(hdr, hdr_len, p + cid_len, &csz);
+            if (csz_len == 0)
+                break;
+            const u64 cend = p + cid_len + csz_len + csz;
+            if (cend > hdr_len)
+                break;
+            if (cid == 0x0282) { /* DocType - full EBML ID 0x4282;
+                                  * ebml_vint strips the ID marker bit
+                                  * (0x4000 for the 2-byte length class) */
+                const u8* dt = hdr + p + cid_len + csz_len;
+                const u64 dn = csz;
+                if (dn == 4 && std::memcmp(dt, "webm", 4) == 0)
+                    doctype_ok = true; /* the og's webm constant 0x6D626577 */
+                else if (dn == 8 && std::memcmp(dt, "matroska", 8) == 0)
+                    doctype_ok = true;
+                break; /* the DocType decides; no need to walk further */
+            }
+            p = cend;
+        }
+        if (!doctype_ok)
+            return r; /* no DocType, or an exotic one: the og rejects */
+    }
     u64 pos = hit + 4 + vlen + v; /* end of EBML header */
     u64 last_end = pos;
     int elements = 0;
@@ -1204,10 +1289,27 @@ CarveResult validate_orf(IStorageDevice* s, u64 hit, u64 cap) {
 
 /* RW2 (Panasonic): IIU\0 magic + IFD walk */
 CarveResult validate_rw2(IStorageDevice* s, u64 hit, u64 cap) {
+    /* N-053: the og binds IIU\0 to the TIFF chain (census :53) - that is
+     * FMT_TIFF_EP's job now; this row fires only after the TIFF/EP grammar
+     * REJECTS. Keep the TIFF grammar first (an IIU file that somehow
+     * reaches this row and validates as TIFF still carries the note), and
+     * add the IIU-salvage fallback: a Panasonic-shaped header (IIU + a
+     * plausible IFD offset) whose IFD walk failed. Registered superset
+     * (D-63): the og carves nothing here - we salvage corrupt TIFF/EPs. */
     CarveResult r = tiff_common(s, hit, cap, false);
     if (r.ok) {
         r.note = "IIU";
         r.confidence = 800;
+        return r;
+    }
+    const u16 ifd_off = u16(rd32(s, hit + 4) & 0xFFFF);
+    if (ifd_off != 0) { /* u16 by construction: always < 0x10000 */
+        r.ok = true;
+        r.end = hit + 4096;
+        if (r.end > hit + cap)
+            r.end = hit + cap;
+        r.confidence = 600;
+        r.note = "IIU-salvage (TIFF/EP rejected; Panasonic RAW fallback)";
     }
     return r;
 }
@@ -1218,8 +1320,14 @@ CarveResult validate_raf(IStorageDevice* s, u64 hit, u64 cap) {
     u8 h[32];
     if (!rd(s, hit, h, 32))
         return r;
-    if (std::memcmp(h, "FUJIFILMCCD-RAW ", 16) != 0)
-        return r;
+    /* N-054: the og keys RAF on the 4-byte FUJI prefix (census :55) and
+     * the camera-RAW chain validates further. The 16-byte string is the
+     * PRIMARY path; a variant header (bytes 4..15 differ - older/variant
+     * RAF writers) is accepted when the version + section table are
+     * sane. The registry key is FUJI so both paths are reachable. */
+    const bool canonical = std::memcmp(h, "FUJIFILMCCD-RAW ", 16) == 0;
+    if (!canonical && std::memcmp(h, "FUJI", 4) != 0)
+        return r; /* the registry guarantees FUJI; belt-and-braces */
     const u32 ver = rd32(s, hit + 16);
     if (ver == 0 || ver > 0x2000)
         return r;
@@ -1236,8 +1344,9 @@ CarveResult validate_raf(IStorageDevice* s, u64 hit, u64 cap) {
     r.end = hit + (max_end < 512 ? 512 : max_end);
     if (r.end > hit + cap)
         r.end = hit + cap;
-    r.confidence = 850;
-    r.note = "FUJIFILMCCD-RAW";
+    r.confidence = canonical ? 850 : 700; /* N-054: variant headers carry
+                                           * lower confidence, still carved */
+    r.note = canonical ? "FUJIFILMCCD-RAW" : "FUJI variant header (og 4-byte key)";
     return r;
 }
 

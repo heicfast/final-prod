@@ -100,6 +100,18 @@ enum FormatId : u32 {
     FMT_MPGA_FD,
     FMT_MPGA_FE,
     FMT_MPGA_FF,
+    /* N-052 (diff-to-fix): the og's HEIC analyser distinguishes the heic
+     * brand (label L"HEIC") from HEIF-family siblings, rewriting their
+     * display label to L"HEIF" (analyser-granular-batch1 :67-80). The
+     * FMT_HEIC row shrinks to heic-proper; this row carries the siblings.
+     * Id APPENDED (serialized carve_format values stay stable). */
+    FMT_HEIF,
+    /* N-053 (diff-to-fix): the og's registry binds the IIU\0 key to the
+     * TIFF chain (BruteForce::TiffAnalyzer, TIFF/EP variant - census :53);
+     * the core's IIU row was bound to "Panasonic RAW" instead. This row
+     * takes the og binding; FMT_RW2 becomes the fallback after TIFF/EP
+     * rejects. Id APPENDED. */
+    FMT_TIFF_EP,
     FMT_COUNT
 };
 

@@ -61,3 +61,10 @@ Census rows + registry rows read first-hand this session.
 ## Open questions
 
 None.
+
+## Resolution
+
+**Status:** FIXED
+**Fixed in commit:** this session's carve-magic-quartet batch
+**Verified by:** `Carve.RafVariantHeaderAccepted` (FUJI + non-canonical bytes 4..15 + sane version/section table carves at confidence 700 with the variant note) and `Carve.JpegFourthByteOutsideOgSet` (FF D8 FF 99 + valid JFIF body carves - the documented superset). Fail-before: the tests do not exist on the pre-fix tree; pre-fix a variant RAF header was MISSED entirely (the 16-byte string was the sole path).
+**Resolution notes:** both directions per the fix plan: (a) FMT_RAF's registry key shrinks to the og's 4-byte FUJI u32 (census :55, 0x494a5546); validate_raf keeps the 16-byte FUJIFILMCCD-RAW string as the PRIMARY path (confidence 850) and adds the variant path (version sane + section table sane; confidence 700, note "FUJI variant header"). (b) FMT_JPG keeps the 3-byte prefix - a registered deliberate detection superset (D-64, I-009 family): the og's four exact dwords (FF D8 FF E0/E1/DB/EE, census :54) are documented beside the row; validate_jpeg's grammar gates the false-positive surface. Do not tighten for parity.

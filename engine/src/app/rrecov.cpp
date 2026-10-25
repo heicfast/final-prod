@@ -3,7 +3,7 @@
  *
  * Commands:
  *   list                                  enumerate disks/volumes
- *   scan --disk N | --volume C: [--deep] [--quick-only] [--no-carve]
+ *   scan --disk N | --volume C: [--whole-disk] [--quick-only] [--no-carve]
  *         [--threads N] [--out file.crsf] [--resume file.crsf] [--json]
  *         [--log file] [--csv] [--filter s] [--deleted-only]
  *   tree --in file.crsf [--filter substr] [--deleted-only] [--csv] [--json]
@@ -506,8 +506,22 @@ int cmd_scan(int argc, wchar_t** argv, int& i) {
             have_target = true;
             continue;
         }
-        if (has_flag(argc, argv, i, L"--deep")) {
+        if (has_flag(argc, argv, i, L"--whole-disk")) {
+            /* N-044: the honest name. The og's "Deep Scan" toggle means the
+             * complete-searcher engine pass - which this CLI ALWAYS runs;
+             * this flag instead enables whole-disk lost-partition discovery.
+             * The deep stage is always on; --quick-only disables it. */
             cfg.whole_disk = true;
+            continue;
+        }
+        if (has_flag(argc, argv, i, L"--deep")) {
+            /* N-044: deprecated alias (kept one release with a note). Do
+             * not map the og's Deep Scan toggle onto this flag: it sets
+             * whole-disk lost-partition discovery, not the deep stage. */
+            cfg.whole_disk = true;
+            wprintf(L"[note] --deep is a deprecated alias for --whole-disk "
+                    L"(lost-partition discovery; the deep engine stage is always on - "
+                    L"--quick-only disables it)\n");
             continue;
         }
         if (has_flag(argc, argv, i, L"--quick-only")) {
@@ -567,7 +581,7 @@ int cmd_scan(int argc, wchar_t** argv, int& i) {
 
     /* lost-partition discovery only makes sense over a whole-disk view */
     if (cfg.whole_disk && target.volume_len != 0) {
-        wprintf(L"[note] --deep on a volume: lost-partition discovery needs --disk (skipping "
+        wprintf(L"[note] --whole-disk on a volume: lost-partition discovery needs --disk (skipping "
                 L"that stage)\n");
         cfg.whole_disk = false;
     }
@@ -1184,8 +1198,12 @@ int cmd_health(int argc, wchar_t** argv, int& i) {
     rc = win::health::read_nvme_health(h, nv);
     if (rc == OK && nv.available) {
         any_health_source = true;
+        /* N-042: decidegrees from the shared accessor - the pre-fix
+         * fractional digit was the KELVIN remainder (k % 10), wrong by up
+         * to ~0.55 C; now identical to the ABI spelling to the digit. */
+        const u32 dec_c = nv.decidegrees_c();
         wprintf(L"NVMe health: temp=%u.%uC spare=%u%%/threshold=%u%% used=%llu%% - %hs\n",
-                u32(nv.temperature_k) - 273, (u32(nv.temperature_k) % 10), nv.available_spare,
+                dec_c / 10, dec_c % 10, nv.available_spare,
                 nv.available_spare_threshold, static_cast<unsigned long long>(nv.percentage_used),
                 cr::health::health_grade_name(cr::health::grade_nvme(nv)));
         wprintf(L"  read=%llu bytes written=%llu bytes (M-036: units x 512,000)\n",
@@ -1638,7 +1656,8 @@ int wmain(int argc, wchar_t** argv) {
             L"rrecov - core_recovery CLI\n"
             L"usage:\n"
             L"  rrecov list\n"
-            L"  rrecov scan --disk N | --volume C: [--deep] [--quick-only] [--no-carve]\n"
+            L"  rrecov scan --disk N | --volume C: [--whole-disk] [--quick-only] [--no-carve]\n"
+            L"             (deep stage always on; --quick-only disables it; --whole-disk = lost-partition discovery)\n"
             L"             [--threads N] [--out file.crsf] [--resume file.crsf] [--log file]\n"
             L"             [--json] [--csv] [--filter s] [--deleted-only]\n"
             L"             [--repair] [--repair-apply] [--repair-undo file]\n"
