@@ -10638,3 +10638,28 @@ Stage Summary:
 - Suite green at every push (533 -> 631+ across the session).
 - SEVERE tier: 0 open across all lanes. MAJOR remaining ~20 (several
   claimed by DFX9/DFX11/DFX20/DFX21 lanes).
+
+
+---
+Task ID: DFX11-M049 (session 11, finding 8 — partial by design)
+Agent: main engineer (diff-to-fix fix session 11 — DFX11)
+Task: M-049 (error model) — the corpus-verifiable slice.
+
+Work Log:
+- Closed: the header parity claim rewritten to the value-space truth
+  (family-prefix only, D-68; the og has TWO corpus-documented 12-digit
+  codes — renumbering to them would break 26 others arbitrarily);
+  err_text tested for the first time (Error.ErrTextCoversEveryCode: 18
+  codes, distinct texts, fallback, OK=0). Suite 643/643.
+- Open (design-gated, next step recorded in the finding): the engine-
+  side error-context subset (module/operation/retry-state) — the natural
+  seam is the event stream's error-range family; the og's CErrorManager
+  layer stays out of core scope (MOM UI bus).
+- Audit trail: finding addendum (stays ACTIVE); matrix cell; SUMMARY.
+
+Stage Summary:
+- Session tally: 8 landings (6 full + 2 partial) + S-009 verification.
+  MAJOR tier now fully claimed by the legs; this lane moves to the
+  unclaimed MINOR pool next (engine-correctness first: N-067 exFAT
+  upcase, N-068 ZIP gates, N-069 CAB key; then the orchestrator UX
+  pair N-043/N-060).

@@ -247,6 +247,13 @@ next steps recorded in the finding): the bucket-ID translation (the og's
 buckets select by node+0x89 date TAGS, not ranges) + the general-raw
 naming bucket. Suite 636/636.
 
+**M-049 (partial):** the header's false parity claim REWRITTEN to the
+value-space truth (family-prefix convention only, D-68; the og has only
+two corpus-documented 12-digit codes — renumbering to them would break 26
+others arbitrarily); err_text tested for the first time (18 codes,
+distinct texts, fallback, OK=0). The engine-side error-context subset
+stays open (design-gated; next step in the finding). Suite 643/643.
+
 # SUMMARY.md — executive summary (diff-fix session 14 on top; earlier sessions below)
 ## Session-14 delta (2026-10-26 — DFX14: bootstrap, two merge repairs, the reconciliation wave)
 

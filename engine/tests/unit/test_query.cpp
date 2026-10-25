@@ -9,6 +9,8 @@
 #include "cr/query/cr_query.h"
 #include <algorithm>
 #include <random>
+#include <set>
+#include <string>
 
 using namespace cr;
 using namespace cr::query;
@@ -440,4 +442,34 @@ TEST(Query, ModifiedUnitIsFiletimeEverywhere) {
     ASSERT_EQ(u64(r.rows.size()), 1u);
     EXPECT_EQ(r.rows[0].modified, 133856275200000000ULL)
         << "the Row carries the node's FILETIME verbatim - never Unix seconds";
+}
+
+/* ------------------------------------------------------------------ */
+/* M-049: the err_text coverage pin (the surface was untested)          */
+/* ------------------------------------------------------------------ */
+
+#include "cr/cr_error.h"
+
+TEST(Error, ErrTextCoversEveryCode) {
+    /* M-049: every code must carry a distinct, non-empty text (the flat
+     * code->text table was untested; unknown codes get the fallback). */
+    const u32 codes[] = {
+        ERR_OPEN_FAILED, ERR_READ_FAILED, ERR_WRITE_FAILED, ERR_RANGE_OUT_OF_BOUNDS,
+        ERR_RETRY_EXHAUSTED, ERR_BAD_PARAMETER, ERR_NO_MEMORY, ERR_BAD_MAGIC,
+        ERR_UNSUPPORTED, ERR_TRUNCATED, ERR_CANCELLED, ERR_SESSION_FORMAT,
+        ERR_DEST_FULL, ERR_BAD_CHECKSUM, ERR_FVE_LOCKED, ERR_APPLY_CONSENT_DENIED,
+        ERR_INTERNAL, ERR_IMAGE_CORRUPT,
+    };
+    std::set<std::string> texts;
+    for (u32 c : codes) {
+        const char* t = cr::err_text(c);
+        ASSERT_NE(t, nullptr) << "code " << std::hex << c << " has no text";
+        EXPECT_STRNE(t, "") << "code " << std::hex << c << " has empty text";
+        texts.insert(t);
+    }
+    /* distinctness: two codes must not share text */
+    EXPECT_EQ(texts.size(), sizeof(codes) / sizeof(codes[0]));
+    /* unknown codes: the fallback, not a nullptr */
+    EXPECT_STRNE(cr::err_text(0xDEADBEEFu), "");
+    EXPECT_EQ(cr::err_text(0), std::string("OK")) << "0 is OK by contract";
 }
