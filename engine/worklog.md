@@ -4365,3 +4365,30 @@ ground truth that must agree). Suite re-run green post-rebase. The parallel leg
 also landed M-009 (64 KiB envelope, 7fd00e0), the raw-signs decode (S-012,
 N-023, N-024, OQ-T8 RESOLVED), the ReFS deep pass (M-022, I-012, GAP-ADS
 resolved), and the s2-third-leg reconciliation (18 findings, 9 OQs resolved).
+
+---
+Task ID: DF-T1 (diff-to-fix session bootstrap)
+Agent: main engineer (diff-to-fix fix session)
+Task: Pull both repos, record audited commit vs current commit, save the redacted prompt, baseline the tree.
+
+Work Log:
+- Baselines: core e6d5b01 (session-3 close + A-004/S-016 fix c33236f + worklog merge
+  f210b7e + api-session bootstrap), corpus 03ad46c (unmoved). Both pulled fresh; no
+  other repository consulted.
+- Session prompt saved token-redacted at worklog/session-diff-fix-prompt.md; read twice.
+- Audited-commit reconciliation: session-3 audited 7f2c83e; commits since: c33236f
+  (A-004 + S-016 fix — both findings already carry FIXED/ files and Resolutions),
+  f210b7e (worklog conflict-marker repair), e6d5b01 (api-session bootstrap, docs only).
+  No other finding-relevant code drift since the audit.
+- Toolchain stood up in container: cmake 4.4.4 + ninja via pip --user; zlib/lz4/zstd
+  system dev packages present; GTest v1.15.2 via FetchContent.
+- Baseline build + suite at e6d5b01 (Linux, Release-ish default config, -Werror):
+  cr_tests 305/305 PASS, cr_ui_tests 15/15 PASS, cr_ui_abi_check OK. main is green
+  pre-session; this is the regression floor for every fix.
+
+Stage Summary:
+- Bootstrap complete. 65 active findings + 6 tracked-open files to verify and close:
+  ACUTE 0 (A-004 closed by c33236f — re-verify first), SEVERE 9 (S-003, S-006, S-007,
+  S-009-remainder, S-011, S-012, S-013, S-014, S-015), MAJOR 18 (M-002, M-005, M-007,
+  M-008, M-010, M-011..M-023), MINOR 27, INFO 10, tracked-open 6 files. Reading wave
+  (T2) next: full diff-to-fix/ then core tree.
