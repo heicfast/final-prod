@@ -5813,6 +5813,169 @@ Work Log:
 
 Stage Summary:
 - main's ASan lane is green again; the 4 GuidDump/SizeZeroRescue tests pass clean.
+Task ID: DF-CIGREEN (CI triage + green restore)
+Agent: main engineer (diff-to-fix fix session)
+Task: The 5f1a212/cdd340b CI runs failed (linux ASan leaks, lint format, windows C4244,
+alignbench no-artifact). Triage and restore main to green.
+
+Work Log:
+- Linux ASan/LSan: the S-012 dump-emit ref leak was already fixed by the parallel
+  api-session leg (e7deda8, dp->release() after add_file); verified first-hand with
+  detect_leaks=1 locally (36/36 NtfsVolume, then 379/379 full) - my earlier local ASan
+  runs had detect_leaks=0, which is why the leak escaped this session; lesson recorded
+  (always run the ASan lane with leaks ON before pushing memory-touching fixes).
+- lint: 62 clang-format-18 violations across 6 files (both sessions' S-012/S-022 edits
+  plus the parallel legs' exfat/fat/lost/candidates/test edits) - formatted with the
+  CI-pinned clang-format 18.1.8 (version-matched to the lane), 0 violations after.
+- windows/alignbench: MSVC /W4 /WX C4244 at cr_fat_quick.cpp:409 (N-010b gate call
+  passing u32 logical_sector into a u16 param) - explicit checked cast (512 fallback,
+  matching the same file's backup-boot geometry math); alignbench's artifact-missing
+  error was downstream of the same compile failure.
+- Suite after fixes: 379/379 Linux default + 379/379 Linux ASan detect_leaks=1.
+
+Stage Summary:
+- main restored to green locally on every lane this container can run; CI will confirm
+  (windows needs the runner). The remaining CI-red commits in history pre-date the fixes.
+
+---
+Task ID: DF-HANDOFF (diff-to-fix session handoff)
+Agent: main engineer (diff-to-fix fix session)
+Task: Session close-out — exact commits, remaining items with rationale, next steps.
+
+Session arc (this leg):
+- Bootstrap at core e6d5b01 (suite 305/305 baseline); re-baselined twice through
+  parallel-session merges (597a9c6 → d374064/831dd4c), final tree 379/379 default +
+  379/379 ASan detect_leaks=1.
+- S-011 (SEVERE, tz): convergent re-verification of the parallel-landed fix + TWO
+  additions: (a) the host-dependence analysis error CORRECTED in D-49 and the finding
+  (DosDateTimeToFileTime performs no TZ conversion - Wine conformance-pinned; the og's
+  store is byte-deterministic local-as-UTC, so the fix yields EXACT cross-host parity);
+  (b) the west-offset (negative two's-complement) pin the landed tests lacked.
+  Commit 4fe9bff.
+- S-012 (SEVERE, two-pass NTFS): full implementation - destroy_fully_overwritten
+  default flipped (S-001 scope correction), pass-1 claim map, GUID-dump pass 2 (og's
+  exact stride/gates/destroy rules incl. size<=0x3ff, all-run-starts-claimed, folders
+  exempt, pseudo-# dedup), size-0 rescue (mirror-first read_record_mirror + post-walk
+  same-name merge, 0x800 skip). 5 tests, 4 fail-before proven. D-51 registered.
+  Commit 5f1a212 (+ e7deda8 leak fix by the parallel leg - my emit missed the
+  caller-held release; their trace caught it).
+- S-022 (SEVERE, INDX second source): D-N scope ruling re-decided on the resolved
+  UNVERIFIED-7 evidence; INDX-block validator/chain/entry harvest + $INDEX_ROOT
+  feeder in the remnant path (in-use only, never slack; 8 KiB window overlap); A26
+  module premise corrected. 4 tests, 3 fail-before proven. Commit cdd340b.
+- CI green restore: clang-format-18 sweep (6 files, both legs' edits), MSVC C4244
+  cast in the N-010b gate call, LSan verification of the leak fix. Commit 488c2e7.
+- Process notes: local ASan must run with detect_leaks=1 (this session masked the
+  S-012 leak with =0 - the CI lane and the parallel leg caught it); shell cwd resets
+  between tool calls (absolute paths / git -C everywhere); bulk test-fixture value
+  writes must re-stamp USA sector tails.
+
+State at close (488c2e7):
+- Suite: 379/379 Linux default, 379/379 Linux ASan (leaks ON), 16/16 cr_ui_tests,
+  ABI check OK. CI: linux/linux-tsan/fuzz/lint green at 488c2e7 (windows pending
+  runner confirmation - the C4244 fix + bitlocker include fix are in).
+- SEVERE remaining (5): S-003 + S-021 (the HFS+ journal pair - mechanics decoded in
+  the findings + b85c084 evidence; the largest remaining correctness gap), S-007
+  (carve formats - use the WAVE-1-CORRECTED evidence: CEPS not dBase, OneNote not
+  LZH), S-009-remainder (typed-event disk-map + filter cats; split tracked in N-020),
+  S-020 (ReFS attribute layer - resident/inline + multi-stream).
+- MAJOR wave mostly open (M-002, M-005, M-007, M-008, M-010, M-011..M-027 - several
+  touched by parallel legs; re-read each finding against current main first).
+- MINOR/INFO/OQ waves open; N-020's S-009/M-006 file split still pending.
+
+Next concrete steps (recommended order for the next leg):
+1. S-012 step-2 polish (optional): the in-walk strict same-name merge is decoded but
+   unreplicated (relaxed post-walk pass is the dominant og path) - only if a corpus
+   fixture demands it.
+2. S-003/S-021 - HFS+ journal pair (differential salvage first; the decode is in the
+   findings; JournalInfoBlock gate magic 0x4A4E4C78 LE + endian marker).
+3. S-007 carve formats (corrected evidence first).
+4. S-020 ReFS attribute layer.
+5. S-009-remainder + N-020 split.
+6. MAJOR wave in M-number order (re-verify each against current main - parallel legs
+   are landing fixes continuously; pull before every finding).
+
+---
+Task ID: DF4-S012-CONVERGE (diff-fix session 4 — S-012 parallel-convergence close-out)
+Agent: main engineer (diff-to-fix fix session)
+Task: S-012 (SEVERE, ntfs) — independently verify, implement, prove; converged with the
+parallel fix legs that landed mid-flight.
+
+Session arc (honest record):
+- Baseline verified: suite 351/351 Linux ASan at 4fe9bff (session start).
+- S-012 evidence independently re-verified first-hand (FUN_180017390 pass-1 processor,
+  FUN_18001a980 walk driver + 0x8000-sector chunking, FUN_18001acc0 gates/destroy rules,
+  FUN_180017190 claim inserter, FUN_180034b20/FUN_180040ea0 hidden+system detector,
+  FUN_18001e6c0 rescue entry chain) — every gate confirmed against the decompile.
+- Independent decode additions (NEW evidence, committed): DAT_18004cd70 = "$Boot"
+  extracted from the binary (.rdata paddr 0x4b570); the claim-condition pointer map
+  (param_1[0x70] = engine+0x380, +0x4b = +0x258, +0x381 adjacent pair); engine bytes
+  +0x380/+0x381 are NEVER written in-DLL — the claim-population ambiguity registered
+  (evidence/decompiled-quotes/ntfs-pass2-guid-dump.md §7 + OQ-S2M-1 probe list).
+- Parallel S-012 implementation completed locally (steps 1+2, 5 tests, fail-before
+  proven by stash/rebuild/probe — MainWalkKeepsOverwrittenDeleted FAILED pre-fix;
+  ghost.dat absence pre-fix documented) — then found the parallel fix legs had landed
+  a SUPERSET (steps 1+2+3: the size-0 mirror-resident harvest + same-name merge) plus
+  S-022, N-022/N-023/N-034 and the leak fix convergent with mine (dp->release() after
+  add_file). Per the convergence protocol: local duplicate DISCARDED, their landing
+  stands; re-based onto origin/main 75050bf.
+- Their landing verified first-hand this session: fresh build, full suite 396/396
+  green; code read against my own decode (name gate, destroy rules, claim map, rescue
+  chain — all match; their og-15 metafile table is a valid refinement of my
+  hidden+system gate reading).
+- Salvage landed (this commit): scripts/s012_hostile_smoke.cpp — the 400-iteration
+  ASan/UBSan hostile-input smoke (dump-region pokes, boot-geometry corruption,
+  truncation, random stabs) — PASSED against the landed implementation (the parallel
+  legs had no smoke; this hardens their fix); evidence addendum §7 + OQ-S2M-1 note.
+
+Stage Summary:
+- S-012 fully closed by convergence: two sessions independently verified the finding
+  from the decompile, implemented it, and cross-verified; the merged result carries
+  the superset implementation + this session's hostile-input proof + the claim-gate
+  evidence. Suite 396/396. Next per the DF-S022 handoff: S-003/S-021 (the HFS+
+  journal pair).
+
+---
+Task ID: DF5-S012-VERIFY (S-012 independent verification + duplicate discard)
+Agent: main engineer (diff-to-fix session-5 lane)
+Task: Independently verify the landed S-012 fix (this session built a parallel
+implementation before discovering the parallel legs had landed theirs).
+
+Work Log:
+- This session re-verified every S-012 citation first-hand at corpus 03ad46c
+  (pass-1 emit :18630; rescue gate :18493-18499; collector :18584-18625;
+  FUN_18001a980 :20957-21090; FUN_18001acc0 :21095-21295) and built a full
+  parallel implementation (membership removal + pass 2 + phase-B4 resolution;
+  local branch s012-local-backup @ 68e3819) with its own fail-before probe
+  (standalone mini-fixture, FAILED on the pre-fix tree as expected).
+- On push, origin had moved: the parallel legs landed 5f1a212 (S-012 steps
+  1+2+3 incl. size-0 rescue + mirror harvest + same-name merge), cdd340b
+  (S-022), 7cf6754-lineage (S-019), N-022/N-023/N-034, plus a new audit
+  integration wave (S-024..S-028, M-031..M-039, N-045..N-047, I-017/I-018).
+- Convergence check (first-hand, this session):
+  * is_guid_dump_name gates IDENTICAL to my independent derivation
+    (0x4C len, [0]='{', [37]='}', template [38..75] - two braced GUIDs).
+  * Membership: they flipped destroy_fully_overwritten default to false
+    (fix-plan step-1 option A) and kept the destroy path opt-in; my
+    removal approach was option B. Same default behavior.
+  * Pass-2 gates/destroy/chunking verified against my decompile reading
+    (claim-test at run START, 0x3ff, blanket-$, folder bypass, 0x8000
+    sectors, stride discipline); plus superset: og-15-table pass-2 gate,
+    sector-index dedup, mirror rescue.
+  * Their leak fix (75050bf/e7deda8) matches the leak my ASan run caught.
+  * Fresh clean ASan build on the synced tree: 396/396 PASS (this host).
+- DECISION: the landed superset fix stands; my duplicate implementation is
+  discarded (branch s012-local-backup retained locally for the record; the
+  bf7df39 convergence commit + hostile smoke + claim-gate decode make the
+  audit trail complete). No code contribution needed from this lane.
+- Lane continues at S-003 (HFS+ journal replay) per the handoff order.
+
+Stage Summary:
+- S-012 CLOSED and triple-verified (audit leg + two independent fix legs);
+  my session's corpus reading and the landed code agree on every gate.
+- Remaining SEVERE (handoff): S-003, S-007, S-009, S-020, S-021 + the new
+  S-023..S-028 audit wave. Next: S-003.
+
 Task ID: DF4-S012
 Agent: main engineer (diff-to-fix session 4)
 Task: S-012 — NTFS two-pass architecture: verify, classify, fix (membership + pass-2

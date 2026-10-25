@@ -1568,7 +1568,7 @@ static bool remnant_extract_data(const std::vector<AttrView>& attrs, const Remna
  * size and stops at the last-entry flag). */
 
 struct IndxEntryInfo {
-    u64 file_ref = 0;   /* seq<<48 | record# */
+    u64 file_ref = 0; /* seq<<48 | record# */
     u64 parent_ref = 0;
     u64 real_size = 0;
     tree::FileTimes times{};
@@ -1672,12 +1672,12 @@ static bool indx_block_validate(const u8* blk, u32 size) {
         return false;
     const u16 usa_off = u16(blk[4]) | (u16(blk[5]) << 8);
     const u16 usa_count = u16(blk[6]) | (u16(blk[7]) << 8);
-    const u32 entries_off = u32(blk[0x18]) | (u32(blk[0x19]) << 8) | (u32(blk[0x1A]) << 16) |
-                            (u32(blk[0x1B]) << 24);
-    const u32 in_use = u32(blk[0x1C]) | (u32(blk[0x1D]) << 8) | (u32(blk[0x1E]) << 16) |
-                       (u32(blk[0x1F]) << 24);
-    const u32 alloc = u32(blk[0x20]) | (u32(blk[0x21]) << 8) | (u32(blk[0x22]) << 16) |
-                      (u32(blk[0x23]) << 24);
+    const u32 entries_off =
+        u32(blk[0x18]) | (u32(blk[0x19]) << 8) | (u32(blk[0x1A]) << 16) | (u32(blk[0x1B]) << 24);
+    const u32 in_use =
+        u32(blk[0x1C]) | (u32(blk[0x1D]) << 8) | (u32(blk[0x1E]) << 16) | (u32(blk[0x1F]) << 24);
+    const u32 alloc =
+        u32(blk[0x20]) | (u32(blk[0x21]) << 8) | (u32(blk[0x22]) << 16) | (u32(blk[0x23]) << 24);
     if (size < alloc)
         return false;
     if (size / 512 < u32(usa_count) - 1)
@@ -1694,7 +1694,8 @@ static bool indx_block_validate(const u8* blk, u32 size) {
 /* og FUN_18000b4c0/FUN_18000e780: validate + fixup an INDX block found in
  * raw space, then walk the IN-USE entries (bounded, never slack; cap 0x1f5
  * entries per block) and emit each passing entry. */
-static void harvest_indx_block(RemnantCtx& ctx, const u8* blk, u32 avail, std::set<u64>& emitted_refs) {
+static void harvest_indx_block(RemnantCtx& ctx, const u8* blk, u32 avail,
+                               std::set<u64>& emitted_refs) {
     if (!indx_block_validate(blk, avail))
         return;
     const u16 usa_off = u16(blk[4]) | (u16(blk[5]) << 8);
@@ -1708,10 +1709,10 @@ static void harvest_indx_block(RemnantCtx& ctx, const u8* blk, u32 avail, std::s
     /* USA fixup: same multi-sector scheme as MFT records */
     if (fixup_apply(fix.data(), block_bytes, usa_off, usa_count, ctx.sector_bytes) != OK)
         return;
-    const u32 entries_off = u32(fix[0x18]) | (u32(fix[0x19]) << 8) | (u32(fix[0x1A]) << 16) |
-                            (u32(fix[0x1B]) << 24);
-    const u32 in_use = u32(fix[0x1C]) | (u32(fix[0x1D]) << 8) | (u32(fix[0x1E]) << 16) |
-                       (u32(fix[0x1F]) << 24);
+    const u32 entries_off =
+        u32(fix[0x18]) | (u32(fix[0x19]) << 8) | (u32(fix[0x1A]) << 16) | (u32(fix[0x1B]) << 24);
+    const u32 in_use =
+        u32(fix[0x1C]) | (u32(fix[0x1D]) << 8) | (u32(fix[0x1E]) << 16) | (u32(fix[0x1F]) << 24);
     const u64 entries_abs = u64(0x18) + entries_off;
     u64 bound = entries_abs + in_use;
     if (bound > block_bytes)
@@ -1774,12 +1775,12 @@ static void harvest_index_root(RemnantCtx& ctx, const std::vector<AttrView>& att
         if (resident_span(a, v, vlen) != OK || vlen < 0x20)
             continue;
         /* INDEX_HEADER at value+0x10 */
-        const u32 entries_off = u32(v[0x10]) | (u32(v[0x11]) << 8) | (u32(v[0x12]) << 16) |
-                                (u32(v[0x13]) << 24);
-        const u32 in_use = u32(v[0x14]) | (u32(v[0x15]) << 8) | (u32(v[0x16]) << 16) |
-                           (u32(v[0x17]) << 24);
-        const u32 ih_flags = u32(v[0x1C]) | (u32(v[0x1D]) << 8) | (u32(v[0x1E]) << 16) |
-                             (u32(v[0x1F]) << 24);
+        const u32 entries_off =
+            u32(v[0x10]) | (u32(v[0x11]) << 8) | (u32(v[0x12]) << 16) | (u32(v[0x13]) << 24);
+        const u32 in_use =
+            u32(v[0x14]) | (u32(v[0x15]) << 8) | (u32(v[0x16]) << 16) | (u32(v[0x17]) << 24);
+        const u32 ih_flags =
+            u32(v[0x1C]) | (u32(v[0x1D]) << 8) | (u32(v[0x1E]) << 16) | (u32(v[0x1F]) << 24);
         if ((ih_flags & 0x01) != 0)
             continue; /* large-index: entries live in INDX blocks, not here */
         if (in_use == 0 || in_use > 0x320)

@@ -344,10 +344,8 @@ void walk_entries(ScanCtx& ctx, const std::vector<u8>& buf, bool deleted_context
              * failing set is downgraded (damaged), not skipped. */
             const u8* sb = reinterpret_cast<const u8*>(se);
             const bool stream_reserved_bad =
-                in_use &&
-                (sb[0x02] != 0 ||
-                 !(sb[0x06] == 0 || sb[0x07] == 0) ||
-                 !(sb[0x10] == 0 || sb[0x11] == 0 || sb[0x12] == 0 || sb[0x13] == 0));
+                in_use && (sb[0x02] != 0 || !(sb[0x06] == 0 || sb[0x07] == 0) ||
+                           !(sb[0x10] == 0 || sb[0x11] == 0 || sb[0x12] == 0 || sb[0x13] == 0));
             if (stream_reserved_bad)
                 ++ctx.stats->sets_damaged;
             const u8 name_len = se->name_length;

@@ -135,8 +135,8 @@ int probe_fat(IStorageDevice* disk, u64 boot_lba, Candidate& c) {
     if (disk->read_at(p.fat_start + 8, fat_probe, 16) == OK)
         pts += 10;
     c.evidence.push_back({"fat-bpb", 20});
-    c.evidence.push_back({flavor == 3 ? "fat32-gate" : (flavor == 2 ? "fat16-gate" : "fat12-gate"),
-                          5});
+    c.evidence.push_back(
+        {flavor == 3 ? "fat32-gate" : (flavor == 2 ? "fat16-gate" : "fat12-gate"), 5});
     if (pts > 20)
         c.evidence.push_back({"fat-probe", 10});
     return pts;
