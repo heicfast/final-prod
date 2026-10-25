@@ -74,7 +74,14 @@ struct Filter {
     u32 origin_mask = 0xF; /* tree::Origin bits */
 };
 
-enum class SortKey : u8 { None = 0, Name, Size, Modified, Confidence, Path, Grade };
+enum class SortKey : u8 { None = 0, Name, Size, Modified, Confidence, Path, Grade,
+                      /* M-029: the og's Type column (results-view column
+                       * 3, corpus UIUX results-view captures). Ordering:
+                       * category (the FileFilter.xml iconIndex display order:
+                       * Graphic/Document/Email/Audio/Video/Other/Archive/
+                       * Bookmarks, iconIndex 0-7), then extension, then name.
+                       * None-category rows sort last. */
+                      Type };
 enum class SortDir : u8 { Asc = 0, Desc };
 
 struct Query {

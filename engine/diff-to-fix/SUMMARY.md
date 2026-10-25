@@ -235,6 +235,18 @@ name/role lengths bounds-checked BEFORE allocation. 6 tests; suite
 602/602. Counts: SEVERE 2 · MAJOR 32 · MINOR 46 · INFO 22 · FIXED 86
 files (85 findings + index).
 
+**M-029 (partial — three sub-items closed, the finding stays ACTIVE):**
+Type sort CLOSED (SortKey::Type, ABI code 7 append-only — iconIndex
+category order then extension then name; pinned with the full 8-row
+sequence); the modified-unit doc lie FIXED (FILETIME 100-ns since 1601 —
+the old "Unix seconds" line was false; pinned by
+Query.ModifiedUnitIsFiletimeEverywhere; the stale Category enum row
+fixed too); paging DOCUMENTED as the deliberate difference (no og
+page-size constant — UI-layer virtualization). Remaining (decode-blocked,
+next steps recorded in the finding): the bucket-ID translation (the og's
+buckets select by node+0x89 date TAGS, not ranges) + the general-raw
+naming bucket. Suite 636/636.
+
 # SUMMARY.md — executive summary (diff-fix session 14 on top; earlier sessions below)
 ## Session-14 delta (2026-10-26 — DFX14: bootstrap, two merge repairs, the reconciliation wave)
 

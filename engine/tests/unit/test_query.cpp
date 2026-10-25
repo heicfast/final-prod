@@ -365,3 +365,79 @@ TEST(Query, RandomizedAgainstReference) {
             EXPECT_EQ(ref[i].name, r.rows[i].name_utf8) << "round " << round << " row " << i;
     }
 }
+
+/* ------------------------------------------------------------------ */
+/* M-029 (this leg's slice): the Type sort key + the modified-unit pin  */
+/* ------------------------------------------------------------------ */
+
+TEST(Query, TypeSortKeyOrdersByCategoryThenExtension) {
+    /* M-029: the og's results-view Type column (column 3). Ordering:
+     * category in the FileFilter.xml iconIndex display order
+     * (Graphic/Document/Email/Audio/Video/Other/Archive/Bookmarks),
+     * then extension, then name; no-category rows last. */
+    tree::ResultTree t;
+    auto* root = t.add_root(u"Found");
+    auto add = [&t](tree::FileNode* parent, const char* nm) {
+        auto* p = new tree::FileProperties();
+        for (const char* q = nm; *q; ++q)
+            p->name.push_back(u16(u8(*q)));
+        p->logical_size = 10;
+        auto* n = t.add_file(parent, p);
+        p->release();
+        return n;
+    };
+    /* emission order deliberately scrambled vs the expected sort */
+    add(root, "zeta.mp3");       /* Audio -> slot 3 */
+    add(root, "alpha.txt");      /* Document -> slot 1 */
+    add(root, "omega.png");      /* Image(Graphic) -> slot 0 */
+    add(root, "beta.htm");       /* Document, ext htm (before txt) */
+    add(root, "gamma.mkv");      /* Video -> slot 4 */
+    add(root, "noext");          /* no extension -> Other? no: no dot ->
+                                  * cat_of -> Other (unknown ext) -> slot 5 */
+    add(root, "delta.zip");      /* Archive -> slot 6 */
+    add(root, "alpha2.txt");     /* Document, ext txt, name after beta.htm's
+                                  * tie-break demo */
+    query::Query q;
+    q.sort = query::SortKey::Type;
+    q.dir = query::SortDir::Asc;
+    query::Result r;
+    r = query::run(t, q);
+    ASSERT_EQ(u32(r.rows.size()), 8u);
+    /* expected: omega.png (Image) | beta.htm, alpha.txt, alpha2.txt
+     * (Document: htm < txt, then name) | zeta.mp3 (Audio) | gamma.mkv
+     * (Video) | noext (Other) | delta.zip (Archive) */
+    EXPECT_EQ(r.rows[0].name_utf8, "omega.png");
+    EXPECT_EQ(r.rows[1].name_utf8, "beta.htm");
+    EXPECT_EQ(r.rows[2].name_utf8, "alpha.txt");
+    EXPECT_EQ(r.rows[3].name_utf8, "alpha2.txt");
+    EXPECT_EQ(r.rows[4].name_utf8, "zeta.mp3");
+    EXPECT_EQ(r.rows[5].name_utf8, "gamma.mkv");
+    EXPECT_EQ(r.rows[6].name_utf8, "noext");
+    EXPECT_EQ(r.rows[7].name_utf8, "delta.zip");
+}
+
+TEST(Query, ModifiedUnitIsFiletimeEverywhere) {
+    /* M-029: the frozen `tree --json` contract claimed `modified` is Unix
+     * epoch SECONDS - false. The engines store FILETIME 100-ns since
+     * 1601 (cr_fat_quick.cpp:256-259: unix*1e7 + 116444736000000000);
+     * the query Row carries the node's value VERBATIM. This pin + the
+     * ground-truth-contracts unit fix close the doc lie: a consumer
+     * trusting the old line mis-parsed every timestamp by 369 years. */
+    tree::ResultTree t;
+    auto* root = t.add_root(u"Found");
+    auto* p = new tree::FileProperties();
+    for (const char* q = "dated.txt"; *q; ++q)
+        p->name.push_back(u16(u8(*q)));
+    p->logical_size = 7;
+    /* a REAL FILETIME: 2025-02-06 12:00 UTC ~= 133856275200000000
+     * (100-ns since 1601) - the same wire unit the FAT engine emits */
+    p->times.modified = 133856275200000000ULL;
+    (void)t.add_file(root, p);
+    p->release();
+    query::Query q;
+    query::Result r;
+    r = query::run(t, q);
+    ASSERT_EQ(u64(r.rows.size()), 1u);
+    EXPECT_EQ(r.rows[0].modified, 133856275200000000ULL)
+        << "the Row carries the node's FILETIME verbatim - never Unix seconds";
+}

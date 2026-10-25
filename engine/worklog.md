@@ -10536,3 +10536,36 @@ Stage Summary:
 - N-045 FIXED (tally 1/20+). MINOR 40 remain. Next: N-046 (geometry
   refresh), then N-041, N-057.
 
+
+---
+Task ID: DFX11-M029 (session 11, finding 7 — partial by design)
+Agent: main engineer (diff-to-fix fix session 11 — DFX11)
+Task: M-029 (query model) — the slice the corpus can verify today.
+
+Work Log:
+- Corpus re-verified first-hand: the filterbar family decode (artifact
+  31) + the DRWUI sort columns; the class-table comments
+  ("Today/3 days/week...", "<128MB/<1GB/<5GB...") are APPROXIMATIONS —
+  the Date/Size buckets select by the node+0x89 bits-11-14 date TAGS,
+  not ranges; a range translation without the tag decode would INVENT
+  constants. Decision: the bucket-ID translation stays open with the
+  decode next step recorded (the port never guesses).
+- Closed this push (all corpus-verifiable): (1) SortKey::Type (ABI code
+  7, append-only; iconIndex order then extension then name; pinned with
+  the full 8-row expected sequence); (2) the modified-unit doc lie
+  (ground-truth-contracts: FILETIME 100-ns since 1601; the old "Unix
+  seconds" line was false — 369-year mis-parse; pinned by
+  Query.ModifiedUnitIsFiletimeEverywhere; the stale Category enum row
+  fixed in the same pass); (3) paging documented as the deliberate
+  difference (no og page-size constant; offset+limit is host-side).
+- Tests: Query.TypeSortKeyOrdersByCategoryThenExtension +
+  Query.ModifiedUnitIsFiletimeEverywhere. Suite 636/636. Fail-before:
+  the Type sort key did not exist (capability-absence); the unit pin
+  asserts the OPPOSITE of the frozen doc's claim (the doc was the bug).
+- Audit trail: session-11 addendum on the finding (stays ACTIVE with
+  the two decode-blocked items + next steps); matrix query rows;
+  modules/query.md; ABI-CONTRACT's new query-paging section; SUMMARY.
+
+Stage Summary:
+- Session tally: 6 fixes + 2 partials (M-029 slice, S-009 verification).
+  Remaining claimed: M-049. Next: M-049 (error model divergence).
