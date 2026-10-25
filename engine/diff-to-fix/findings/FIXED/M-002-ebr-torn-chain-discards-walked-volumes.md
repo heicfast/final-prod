@@ -104,3 +104,30 @@ Not re-verified this session: this leg's partition agents closed OQ-T7/T9 + TOCB
 geometry edges first and did not reach the EBR extended-chain walk. Stays open with its
 session-1 evidence; the LdmManager/PartitionRecovery decompile locations are now mapped
 (`../evidence/decompiled-quotes/ldm-raid5-and-scoring.md`) — prioritize alongside M-016.
+
+## Resolution
+
+**Status:** FIXED
+**Fixed in commit:** (this session's M-002 commit — see `git log` for "fix: M-002")
+**Verified by:** `Mbr.TornLinkKeepsPriorVolumes` (fail-before: the caller's rc gate
+dropped BOTH walked volumes on the torn 3rd link — 0 logical volumes; pass-after: 2
+volumes + `EbrChainStatus::Partial` + `ebr_break_lba` = the torn link's LBA) and
+`Mbr.TornLinkStatusReported` (the status vocabulary: Ok/Failed/break-LBA; the
+PlainWithExtended whole-chain shape still reports Ok with break 0). Full suite
+552/552 Linux Release green after the fix.
+**Resolution notes:** the caller gate in `parse_disk_table` (cr_table_parse.cpp) now
+merges the walked prefix UNCONDITIONALLY — salvage-over-purity, matching the repo's
+own governing posture (AUDIT-FALLBACKS) and the og's shape (Partition.mo's chain parse
+feeds the same candidate pool the deep-scan block parsers fill independently — corpus
+mo-module-map; a broken link degrades to the walked prefix, never erases it). Chain
+honesty is carried by the new `DiskTable::ebr_status` (None/Ok/Partial/Failed) +
+`ebr_break_lba` (the first unreadable/invalid link's LBA), so downstream can report
+"N volumes found; chain broken at LBA X" per the fix plan step 1.
+`parse_ebr_chain` gained an optional `break_lba` out-param (defaulted — the public
+signature stays source-compatible for existing callers/tests). The fix plan's optional
+step 3 (one-link resync forward scan) was NOT added: the lost-partition scanner
+already probes unallocated regions independently (the finding's own impact note), and
+a resync scan would duplicate that surface with weaker gates — registered here as a
+deliberate scope decision, not a silent skip. Corpus citation re-verified first-hand:
+mo-module-map (deep-scan independence). Note: the finding's "2 good EBR links + 1
+torn" reproduction is exactly the shipped test fixture.

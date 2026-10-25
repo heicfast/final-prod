@@ -52,6 +52,19 @@ struct PartitionInfo {
     bool used = false; /* entry occupied */
 };
 
+/* M-002 (diff-to-fix): the extended-container chain verdict
+ * (DiskTable::ebr_status). A chain that breaks mid-walk KEEPS every
+ * volume already walked (salvage-over-purity — the og's deep-scan block
+ * parsers re-find volumes independently of the EBR chain,
+ * mo-module-map; the core's old gate discarded the walked set on the
+ * FIRST bad link). */
+enum class EbrChainStatus : u32 {
+    None = 0, /* no extended container on the disk */
+    Ok,       /* whole chain walked (or cycle-guarded) */
+    Partial,  /* chain broke mid-walk; the walked prefix is in partitions */
+    Failed,   /* chain broke before ANY volume was walked */
+};
+
 /* Result of reading the on-disk table of one disk. */
 struct DiskTable {
     TableLayout layout = TableLayout::None;
@@ -62,6 +75,10 @@ struct DiskTable {
     u64 first_usable_lba = 0;
     u64 last_usable_lba = 0;
     std::vector<PartitionInfo> partitions;
+    /* M-002: torn-chain honesty — ebr_break_lba is the LBA of the first
+     * unreadable/invalid EBR link (0 when the chain is whole). */
+    EbrChainStatus ebr_status = EbrChainStatus::None;
+    u64 ebr_break_lba = 0;
 };
 
 class CancelRegistry; /* fwd */
@@ -76,9 +93,12 @@ class CancelRegistry; /* fwd */
 u32 parse_disk_table(IStorageDevice* device, DiskTable& out);
 
 /* EBR chain walk (called by parse_disk_table for extended containers).
- * depth_limit bounds the chain (typical disks: < 128; guard = fix F7). */
+ * depth_limit bounds the chain (typical disks: < 128; guard = fix F7).
+ * break_lba (optional out): the LBA of the first unreadable/invalid
+ * link — the M-002 honesty carrier for DiskTable::ebr_break_lba. */
 constexpr u32 EBR_DEPTH_LIMIT = 1024;
-u32 parse_ebr_chain(IStorageDevice* device, u64 first_ebr_lba, std::vector<PartitionInfo>& out);
+u32 parse_ebr_chain(IStorageDevice* device, u64 first_ebr_lba,
+                    std::vector<PartitionInfo>& out, u64* break_lba = nullptr);
 
 /* Map an MBR type byte to FsKind (best effort, public id conventions). */
 FsKind mbr_type_to_kind(u8 type);
