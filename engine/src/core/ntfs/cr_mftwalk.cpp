@@ -1555,16 +1555,280 @@ static bool remnant_extract_data(const std::vector<AttrView>& attrs, const Remna
     return have_content;
 }
 
+/* ---- S-022: directory-entry second source (INDX blocks + $INDEX_ROOT) ----
+ *
+ * The og's "orphaned-record sweep" harvests the $FILE_NAME content embedded
+ * in INDX-block / $INDEX_ROOT entries as a second source for files whose
+ * MFT records no longer exist (first-hand decode:
+ * evidence/decompiled-quotes/s3-ntfs-indx-second-source.md). Gates below
+ * mirror the og exactly: entry >= 0x54, flags require DIRECTORY (0x10000000)
+ * or ARCHIVE (0x20), HIDDEN|SYSTEM both-set rejected, name-length bound,
+ * real size 48-bit, FOLDER attribute from flags bit 0x1C. In-use entries
+ * only - slack is NEVER harvested (the og's walk is bounded by the in-use
+ * size and stops at the last-entry flag). */
+
+struct IndxEntryInfo {
+    u64 file_ref = 0;   /* seq<<48 | record# */
+    u64 parent_ref = 0;
+    u64 real_size = 0;
+    tree::FileTimes times{};
+    u32 dos_flags = 0;
+    bool is_folder = false;
+    std::u16string name;
+};
+
+/* og FUN_18000e970 (:11025-49): per-entry gate + decode. Returns false when
+ * the entry fails a gate (caller skips it). */
+static bool indx_entry_decode(const u8* entry, u32 entry_len, IndxEntryInfo& out) {
+    if (entry_len < 0x54)
+        return false;
+    const u32 flags = u32(entry[0x48]) | (u32(entry[0x49]) << 8) | (u32(entry[0x4A]) << 16) |
+                      (u32(entry[0x4B]) << 24);
+    if ((flags & 0x10000020u) == 0)
+        return false; /* require DIRECTORY or ARCHIVE */
+    if ((flags & 0x06u) == 0x06u)
+        return false; /* HIDDEN|SYSTEM both set: rejected */
+    const u32 name_len = entry[0x50];
+    if (u64(entry_len) < u64(name_len) * 2 + 0x52)
+        return false;
+    std::memcpy(&out.file_ref, entry + 0x00, 8);
+    std::memcpy(&out.parent_ref, entry + 0x10, 8);
+    u64 alloc_sz = 0, real_sz = 0;
+    std::memcpy(&alloc_sz, entry + 0x38, 8);
+    std::memcpy(&real_sz, entry + 0x40, 8);
+    if (real_sz > alloc_sz)
+        return false; /* FUN_180045b50 sanity */
+    out.real_size = real_sz & 0xFFFFFFFFFFFFULL;
+    out.dos_flags = flags;
+    out.is_folder = (flags & 0x10000000u) != 0;
+    u64 t;
+    std::memcpy(&t, entry + 0x18, 8);
+    out.times.created = t;
+    std::memcpy(&t, entry + 0x20, 8);
+    out.times.modified = t;
+    std::memcpy(&t, entry + 0x30, 8);
+    out.times.accessed = t;
+    out.times.changed = 0; /* change time lives at +0x28; the og reads
+                              create/modify/access only (:11049 evidence) */
+    out.name.resize(name_len);
+    for (u32 i = 0; i < name_len; ++i)
+        out.name[i] = u16(entry[0x52 + i * 2]) | (u16(entry[0x53 + i * 2]) << 8);
+    return !out.name.empty();
+}
+
+/* Emit one harvested entry as a Lost node (the og's +0x888 collection is
+ * consumed into nodes by the post-walk merger; directories are emitted
+ * directly with the "$..."-name filter - FUN_1800445e0). Dedup: against
+ * structured results by (parent node, name) and by full file ref. */
+static void indx_emit_entry(RemnantCtx& ctx, const IndxEntryInfo& ei, std::set<u64>& emitted_refs,
+                            std::atomic<u64>& counter) {
+    if (ei.is_folder && !ei.name.empty() && ei.name[0] == u'$')
+        return; /* directory $-name filter */
+    if (emitted_refs.count(ei.file_ref) != 0)
+        return;
+    /* structured dedup: the file ref may already exist as a node (live MFT
+     * pass or an earlier remnant record) */
+    if (ctx.tree->find_by_record(ei.file_ref) != nullptr) {
+        emitted_refs.insert(ei.file_ref);
+        return;
+    }
+    /* name-level dedup under the parent directory (same shape the remnant
+     * record path uses) */
+    const u64 parent_record = ei.parent_ref & 0xFFFFFFFFFFFFULL;
+    tree::FileNode* parent_node = ctx.tree->find_by_record(ei.parent_ref);
+    if (parent_node != nullptr) {
+        for (tree::FileNode* c = parent_node->first_child(); c != nullptr; c = c->next_sibling()) {
+            if (c->props() != nullptr && c->props()->name == ei.name) {
+                emitted_refs.insert(ei.file_ref);
+                return;
+            }
+        }
+    }
+    tree::FileProperties* props = new (std::nothrow) tree::FileProperties();
+    if (props == nullptr)
+        return;
+    props->record_ref = ei.file_ref;
+    props->fs_kind = u32(FsKindCode::Ntfs);
+    props->name = ei.name;
+    props->logical_size = ei.real_size;
+    props->times = ei.times;
+    props->attributes = u16(ei.dos_flags & 0xFF) | (ei.is_folder ? 0x10 : 0);
+    props->flags = ei.is_folder ? u16(PFLAG_IS_DIR) : u16(0);
+    tree::FileNode* n = ctx.tree->add_file(ctx.root_lost, props);
+    props->release();
+    if (n) {
+        n->set_origin(tree::Origin::Lost);
+        n->set_deleted_state(tree::DeletedState::Damaged);
+        n->set_confidence(tree::Confidence::MetadataOnly);
+        emitted_refs.insert(ei.file_ref);
+        counter.fetch_add(1, std::memory_order_relaxed);
+        (void)parent_record;
+    }
+}
+
+/* og FUN_180045510 (:54704-30): INDX-buffer validator. */
+static bool indx_block_validate(const u8* blk, u32 size) {
+    if (size < 0x28 || std::memcmp(blk, "INDX", 4) != 0)
+        return false;
+    const u16 usa_off = u16(blk[4]) | (u16(blk[5]) << 8);
+    const u16 usa_count = u16(blk[6]) | (u16(blk[7]) << 8);
+    const u32 entries_off = u32(blk[0x18]) | (u32(blk[0x19]) << 8) | (u32(blk[0x1A]) << 16) |
+                            (u32(blk[0x1B]) << 24);
+    const u32 in_use = u32(blk[0x1C]) | (u32(blk[0x1D]) << 8) | (u32(blk[0x1E]) << 16) |
+                       (u32(blk[0x1F]) << 24);
+    const u32 alloc = u32(blk[0x20]) | (u32(blk[0x21]) << 8) | (u32(blk[0x22]) << 16) |
+                      (u32(blk[0x23]) << 24);
+    if (size < alloc)
+        return false;
+    if (size / 512 < u32(usa_count) - 1)
+        return false;
+    if (alloc < in_use)
+        return false;
+    if (usa_count >= 0x11)
+        return false;
+    if (((alloc + entries_off) / 0x200u & 0xFFFFu) != ((u32(usa_count) - 1) & 0xFFFFu))
+        return false;
+    return usa_off >= 0x28 && usa_off < 0x101;
+}
+
+/* og FUN_18000b4c0/FUN_18000e780: validate + fixup an INDX block found in
+ * raw space, then walk the IN-USE entries (bounded, never slack; cap 0x1f5
+ * entries per block) and emit each passing entry. */
+static void harvest_indx_block(RemnantCtx& ctx, const u8* blk, u32 avail, std::set<u64>& emitted_refs) {
+    if (!indx_block_validate(blk, avail))
+        return;
+    const u16 usa_off = u16(blk[4]) | (u16(blk[5]) << 8);
+    const u16 usa_count = u16(blk[6]) | (u16(blk[7]) << 8);
+    const u32 block_bytes = u32(usa_count - 1) * 512;
+    if (u64(block_bytes) > u64(avail))
+        return; /* torn block at the buffer edge - the chunk-boundary/
+                   read-window loss class the og's carry handles for its own
+                   windows; rejected here */
+    std::vector<u8> fix(blk, blk + block_bytes);
+    /* USA fixup: same multi-sector scheme as MFT records */
+    if (fixup_apply(fix.data(), block_bytes, usa_off, usa_count, ctx.sector_bytes) != OK)
+        return;
+    const u32 entries_off = u32(fix[0x18]) | (u32(fix[0x19]) << 8) | (u32(fix[0x1A]) << 16) |
+                            (u32(fix[0x1B]) << 24);
+    const u32 in_use = u32(fix[0x1C]) | (u32(fix[0x1D]) << 8) | (u32(fix[0x1E]) << 16) |
+                       (u32(fix[0x1F]) << 24);
+    const u64 entries_abs = u64(0x18) + entries_off;
+    u64 bound = entries_abs + in_use;
+    if (bound > block_bytes)
+        bound = block_bytes; /* in-use never exceeds the block (validated) */
+    /* chain validation pass (FUN_180045990): entry_len != 0, parent refs
+     * consistent with the first entry, real <= alloc per entry, stop at the
+     * last-entry flag - a chain violation voids the whole block */
+    u64 first_parent = 0;
+    bool have_first = false;
+    {
+        u64 p = entries_abs;
+        u32 walked = 0;
+        while (p + 0x0E <= bound && walked < 0x1F5) {
+            const u16 elen = u16(fix[p + 8]) | (u16(fix[p + 9]) << 8);
+            if (elen == 0 || p + elen > bound)
+                break;
+            const u16 eflags = u16(fix[p + 0x0C]) | (u16(fix[p + 0x0D]) << 8);
+            u64 parent = 0;
+            std::memcpy(&parent, fix.data() + p + 0x10, 8);
+            if (!have_first) {
+                first_parent = parent;
+                have_first = true;
+            } else if (parent != first_parent) {
+                return; /* inconsistent chain: not an index block */
+            }
+            if ((eflags & 2) != 0)
+                break; /* last entry */
+            p += elen;
+            ++walked;
+        }
+    }
+    /* harvest pass (in-use entries only) */
+    u64 p = entries_abs;
+    u32 walked = 0;
+    while (p + 0x0E <= bound && walked < 0x1F5) {
+        const u16 elen = u16(fix[p + 8]) | (u16(fix[p + 9]) << 8);
+        if (elen == 0 || p + elen > bound)
+            break;
+        IndxEntryInfo ei;
+        if (indx_entry_decode(fix.data() + p, elen, ei))
+            indx_emit_entry(ctx, ei, emitted_refs, ctx.emitted);
+        const u16 eflags = u16(fix[p + 0x0C]) | (u16(fix[p + 0x0D]) << 8);
+        if ((eflags & 2) != 0)
+            break; /* last entry: never walk into slack */
+        p += elen;
+        ++walked;
+    }
+}
+
+/* og FUN_18000f760 (:11609-83): $INDEX_ROOT entry harvest for remnant
+ * directory records - resident entries only (large-index flag 0, in-use
+ * size <= 0x320), same entry builder/gates as INDX blocks. */
+static void harvest_index_root(RemnantCtx& ctx, const std::vector<AttrView>& attrs,
+                               std::set<u64>& emitted_refs) {
+    for (const AttrView& a : attrs) {
+        if (a.type != ATTR_TYPE_INDEX_ROOT || a.nonresident)
+            continue;
+        const u8* v = nullptr;
+        u32 vlen = 0;
+        if (resident_span(a, v, vlen) != OK || vlen < 0x20)
+            continue;
+        /* INDEX_HEADER at value+0x10 */
+        const u32 entries_off = u32(v[0x10]) | (u32(v[0x11]) << 8) | (u32(v[0x12]) << 16) |
+                                (u32(v[0x13]) << 24);
+        const u32 in_use = u32(v[0x14]) | (u32(v[0x15]) << 8) | (u32(v[0x16]) << 16) |
+                           (u32(v[0x17]) << 24);
+        const u32 ih_flags = u32(v[0x1C]) | (u32(v[0x1D]) << 8) | (u32(v[0x1E]) << 16) |
+                             (u32(v[0x1F]) << 24);
+        if ((ih_flags & 0x01) != 0)
+            continue; /* large-index: entries live in INDX blocks, not here */
+        if (in_use == 0 || in_use > 0x320)
+            continue; /* og gate: resident entries <= 0x320 bytes */
+        const u64 entries_abs = u64(0x10) + entries_off;
+        u64 bound = entries_abs + in_use;
+        if (bound > vlen)
+            bound = vlen;
+        u64 p = entries_abs;
+        u32 walked = 0;
+        while (p + 0x0E <= bound && walked < 0x1F5) {
+            const u16 elen = u16(v[p + 8]) | (u16(v[p + 9]) << 8);
+            if (elen == 0 || p + elen > bound)
+                break;
+            IndxEntryInfo ei;
+            if (indx_entry_decode(v + p, elen, ei))
+                indx_emit_entry(ctx, ei, emitted_refs, ctx.emitted);
+            const u16 eflags = u16(v[p + 0x0C]) | (u16(v[p + 0x0D]) << 8);
+            if ((eflags & 2) != 0)
+                break;
+            p += elen;
+            ++walked;
+        }
+        break; /* first $INDEX_ROOT only (the og's 0x90 lookup) */
+    }
+}
+
 void scan_remnant_buffer(RemnantCtx& ctx, const u8* buf, u64 buf_len) {
     if (buf_len < ctx.record_size)
         return;
     const u64 scan_end = buf_len - ctx.record_size;
+    /* S-022: file-ref dedup across the harvested entries of this buffer
+     * (cross-buffer dedup rides on find_by_record + the writer's
+     * record_ref merge, the same shape the remnant record path uses) */
+    std::set<u64> indx_refs;
     for (u64 off = 0; off <= scan_end; off += 512) {
         if (ctx.aborted.load(std::memory_order_relaxed))
             return;
         const u8* rec = buf + off;
-        if (std::memcmp(rec, "FILE", 4) != 0)
+        if (std::memcmp(rec, "FILE", 4) != 0) {
+            /* S-022 feeder B: orphaned INDX block probe (the og's raw
+             * scanner dispatches 'INDX' clusters to FUN_18000b4c0; the
+             * claim-map side of that gate is the structured-dedup here -
+             * live directories' blocks yield entries that find_by_record
+             * resolves against the MFT-walk nodes) */
+            if (std::memcmp(rec, "INDX", 4) == 0)
+                harvest_indx_block(ctx, rec, u32(buf_len - off), indx_refs);
             continue;
+        }
         bool emitted_any = false;
         std::vector<u8> fix(size_t(ctx.record_size));
         std::memcpy(fix.data(), rec, size_t(ctx.record_size));
@@ -1652,6 +1916,12 @@ void scan_remnant_buffer(RemnantCtx& ctx, const u8* buf, u64 buf_len) {
                     emitted_any = true;
                     break; /* first valid $FILE_NAME is enough for a remnant */
                 }
+                /* S-022 feeder A: directory records found in raw space
+                 * harvest their resident $INDEX_ROOT entries (og
+                 * FUN_18000f760, fired from the remnant/run path :9951-52:
+                 * large-index==0, in-use <= 0x320, same entry gates) */
+                if ((rh.flags & RECORD_IS_DIRECTORY) != 0)
+                    harvest_index_root(ctx, attrs, indx_refs);
             }
         }
         if (emitted_any)
@@ -1738,12 +2008,16 @@ void scan_remnant_buffer(RemnantCtx& ctx, const u8* buf, u64 buf_len) {
 u32 remnant_range_scan(RemnantCtx& ctx, u64 start, u64 end) {
     std::vector<u8> buf;
     u64 base = start;
+    /* INDX blocks reach 8 KiB (usa_count < 0x11 -> <= 16 sectors); the
+     * inter-block overlap must cover them or blocks straddling a 4 MiB
+     * window edge are torn (the og carries an 8-sector window for the
+     * same reason - FUN_18000b4c0's split-block reassembly). */
+    const u64 overlap = ctx.record_size > 0x2000 ? ctx.record_size : 0x2000;
     while (base < end) {
         if (ctx.aborted.load(std::memory_order_relaxed))
             return ERR_CANCELLED;
         const u64 remain = end - base;
-        const u64 want =
-            remain < REMNANT_BLOCK + ctx.record_size ? remain : REMNANT_BLOCK + ctx.record_size;
+        const u64 want = remain < REMNANT_BLOCK + overlap ? remain : REMNANT_BLOCK + overlap;
         if (want < ctx.record_size)
             break;
         buf.resize(size_t(want));

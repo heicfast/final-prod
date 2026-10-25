@@ -306,7 +306,7 @@ collision with the parallel leg's I-006 ext4-nanoseconds, cleared).
 | Severity | Active | FIXED (in `findings/FIXED/`) | IDs (active) |
 |---|---|---|---|
 | ACUTE | **0** | A-001 (partial — ESP/MSR half stands fixed; LDM half false-positive), A-003, **A-002 (`7f2c83e` — real Microsoft/og GUIDs restored, session-3-verified; tests de-self-referenced)**, **A-004 + S-016 (`c33236f` — live-sink ErrorRange delivery + live snapshot error map)** | — |
-| SEVERE | 6 | S-001, S-002, S-004, S-005, S-006, S-008, S-010, **S-011 (tz parity; D-49 + host-independence correction)**, **S-013 (windowed-FAT accessor)**, **S-015 (raw-sign KiB units + per-format tails)**, **S-017 (1cc08c3)**, **S-014 (s4 — live+offline auto-unlock, cr/reghive module)**, **S-019 (7cf6754 — lost BitLocker FVE probe)**, S-018 (INVALID), **S-012 (diff-fix session — two-pass NTFS: pass-1 membership + GUID-dump pass 2 + size-0 rescue; D-51)** | S-003, S-007, S-009 (split pending N-020), **S-020, S-021, S-022 (S3 audit legs)** |
+| SEVERE | 5 | S-001, S-002, S-004, S-005, S-006, S-008, S-010, **S-011 (tz parity; D-49 + host-independence correction)**, **S-013 (windowed-FAT accessor)**, **S-015 (raw-sign KiB units + per-format tails)**, **S-017 (1cc08c3)**, **S-014 (s4 — live+offline auto-unlock, cr/reghive module)**, **S-019 (7cf6754 — lost BitLocker FVE probe)**, S-018 (INVALID), **S-012 (diff-fix session — two-pass NTFS; D-51)**, **S-022 (diff-fix session — INDX + $INDEX_ROOT second-source harvest)** | S-003, S-007, S-009 (split pending N-020), **S-020, S-021 (S3 audit legs)** |
 | MAJOR | 18 | M-001, **M-009 (7fd00e0 — 64 KiB envelope on the repair read path, session-3-verified)** | M-002, M-005, M-007, M-008, M-010, M-011..M-021, **M-022 (S3: ReFS file-value grammar)**, **M-023 (S3: filter model)** |
 | MINOR | 26 | N-002, N-003, N-010-theirs, **N-021 (this fix session)** | N-001, N-004..N-009 (grouped), N-011..N-022, N-023..N-029 (S2-third-leg, grouped), **N-030..N-032 (S3)** |
 | INFORMATIONAL | 10 | — | I-001..I-011, **I-012 (S3: GAP-ADS resolved — parity, shared limitation)** |
@@ -328,6 +328,7 @@ ext4/Btrfs invalid-UTF-8 finding (briefly M-007 in a local commit) renumbered to
 
 ## Remediation addition
 | 2026-10-26 (diff-fix) | S-012 | **FIXED** | Two-pass NTFS landed: destroy default off (pass-1 membership), GUID-dump pass 2 (claim map built during the walk, 0x400/512 stride, og-15 metafile gate, pseudo-# dedup, destroy on all-run-starts-claimed / <=0x3ff / $-name, folders never), size-0 rescue (mirror resident harvest + post-walk same-name merge, 0x800 skip). 5 tests (4 fail-before proven); suite 339/339 + ASan 339/339; D-51 |
+| 2026-10-26 (diff-fix) | S-022 | **FIXED** | INDX + $INDEX_ROOT second-source harvest in the remnant path (og validator/chain/entry gates, in-use only never slack, 8 KiB window overlap, D-N re-decided on resolved evidence). 4 tests (3 fail-before proven); suite 358/358 + ASan 358/358 |
 
 ## Counts per module (active findings)
 

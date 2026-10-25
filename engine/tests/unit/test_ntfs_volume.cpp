@@ -13,6 +13,8 @@
  */
 #include <gtest/gtest.h>
 #include "cr/ntfs/cr_bootstrap.h"
+#include "cr/ntfs/cr_attributes.h"
+#include "cr/ntfs/cr_fixup.h"
 #include "cr/ntfs/cr_bitmap.h"
 #include "cr/ntfs/cr_mftwalk.h"
 #include "cr/compress/cr_decomp.h"
@@ -1422,6 +1424,7 @@ TEST(NtfsVolume, EndToEndWalk) {
     EXPECT_GE(root_active->stats().file_count, 0u);
 }
 
+
 TEST(NtfsVolume, RecycleBinMapping) {
     Image img;
     build_image(img);
@@ -2592,4 +2595,253 @@ TEST(NtfsVolume, SizeZeroRescueSameNameMerge) {
     EXPECT_EQ(merged->props()->logical_size, 600u) << "size adopted from the same-name record";
     ASSERT_EQ(merged->props()->extents.size(), 1u);
     EXPECT_EQ(merged->props()->extents[0].offset, 190 * CLUSTER);
+}
+
+/* ---- S-022: directory-entry second source (INDX + $INDEX_ROOT) ----------- */
+
+namespace {
+
+/* one INDEX_ENTRY with an embedded $FILE_NAME key (test-side writer; the
+ * layout is the og-decoded one - see cr_ntfs_wire.h S-022 comment) */
+struct IndxTestEntry {
+    u64 ref = 0;
+    u64 parent = 0;
+    u64 alloc_sz = 0;
+    u64 real_sz = 0;
+    u32 dos_flags = 0x20; /* ARCHIVE by default (og gate needs it) */
+    const char16_t* name = u"";
+    bool last = false;
+};
+
+size_t write_indx_entry(std::vector<u8>& v, size_t at, const IndxTestEntry& e) {
+    const std::u16string n = e.name;
+    const u32 elen = 0x52u + u32(n.size()) * 2u;
+    const u32 padded = (elen + 7u) & ~7u;
+    RecBuilder::u64_from_bytes_le_wr(v, at + 0x00, e.ref);
+    RecBuilder::u16_from_bytes_le_wr(v, at + 0x08, u16(padded));
+    RecBuilder::u16_from_bytes_le_wr(v, at + 0x0A, u16(0x42 + n.size() * 2)); /* key len */
+    RecBuilder::u16_from_bytes_le_wr(v, at + 0x0C, u16(e.last ? 2 : 0));
+    RecBuilder::u64_from_bytes_le_wr(v, at + 0x10, e.parent);
+    RecBuilder::u64_from_bytes_le_wr(v, at + 0x18, 132000000000000000ULL); /* create */
+    RecBuilder::u64_from_bytes_le_wr(v, at + 0x20, 133000000000000000ULL); /* modify */
+    RecBuilder::u64_from_bytes_le_wr(v, at + 0x28, 134000000000000000ULL); /* change */
+    RecBuilder::u64_from_bytes_le_wr(v, at + 0x30, 135000000000000000ULL); /* access */
+    RecBuilder::u64_from_bytes_le_wr(v, at + 0x38, e.alloc_sz);
+    RecBuilder::u64_from_bytes_le_wr(v, at + 0x40, e.real_sz);
+    RecBuilder::u32_from_bytes_le_wr(v, at + 0x48, e.dos_flags);
+    RecBuilder::u32_from_bytes_le_wr(v, at + 0x4C, 0); /* reparse */
+    v[at + 0x50] = u8(n.size());
+    v[at + 0x51] = 0; /* namespace: win32 */
+    for (size_t i = 0; i < n.size(); ++i)
+        RecBuilder::u16_from_bytes_le_wr(v, at + 0x52 + i * 2, n[i]);
+    return at + padded;
+}
+
+/* a 4 KiB INDX block (8 sectors, usa_count 9) with the given in-use chain */
+std::vector<u8> build_indx_block(const std::vector<IndxTestEntry>& entries, u32 in_use_override = 0,
+                                 std::vector<IndxTestEntry>* slack = nullptr) {
+    std::vector<u8> blk(4096, 0);
+    std::memcpy(blk.data(), "INDX", 4);
+    RecBuilder::u16_from_bytes_le_wr(blk, 0x04, 0x28); /* usa offset */
+    RecBuilder::u16_from_bytes_le_wr(blk, 0x06, 9);    /* usa count: 8 sectors + 1 */
+    RecBuilder::u32_from_bytes_le_wr(blk, 0x18, 0x28); /* entries offset (rel. +0x18) */
+    RecBuilder::u32_from_bytes_le_wr(blk, 0x20, 4096 - 0x18); /* allocated (rel. +0x18) */
+    RecBuilder::u32_from_bytes_le_wr(blk, 0x24, 1);    /* leaf */
+    size_t at = 0x40;
+    for (const IndxTestEntry& e : entries)
+        at = write_indx_entry(blk, at, e);
+    const u32 in_use = in_use_override ? in_use_override : u32(at - 0x18);
+    RecBuilder::u32_from_bytes_le_wr(blk, 0x1C, in_use);
+    /* slack entries live after the in-use chain (never harvested) */
+    if (slack != nullptr)
+        for (const IndxTestEntry& e : *slack)
+            at = write_indx_entry(blk, at, e);
+    /* USA: slot0 = USN, slots 1..8 = sector-tail originals */
+    for (int i = 0; i < 9; ++i)
+        RecBuilder::u16_from_bytes_le_wr(blk, 0x28 + u32(i) * 2, 0xAAAA);
+    RecBuilder::u16_from_bytes_le_wr(blk, 0x28, 0x0BB8);
+    for (int s = 0; s < 8; ++s) {
+        blk[u64(s) * 512 + 510] = 0xB8;
+        blk[u64(s) * 512 + 511] = 0x0B;
+    }
+    return blk;
+}
+
+/* resident $INDEX_ROOT attribute carrying the given entries */
+void attr_index_root_entries(RecBuilder& r, const std::vector<IndxTestEntry>& es) {
+    std::vector<u8> val(0x400, 0);
+    RecBuilder::u32_from_bytes_le_wr(val, 0x00, 0x30); /* $I30 */
+    RecBuilder::u32_from_bytes_le_wr(val, 0x04, 1);    /* collation */
+    RecBuilder::u32_from_bytes_le_wr(val, 0x08, 512);  /* index block size */
+    val[0x0C] = 1;                      /* clusters per index block */
+    RecBuilder::u32_from_bytes_le_wr(val, 0x10, 0x10); /* entries offset (rel. to +0x10) */
+    RecBuilder::u32_from_bytes_le_wr(val, 0x18, 0x400 - 0x10); /* allocated */
+    RecBuilder::u32_from_bytes_le_wr(val, 0x1C, 0);    /* flags: not large-index */
+    size_t at = 0x20;
+    for (const IndxTestEntry& e : es)
+        at = write_indx_entry(val, at, e);
+    RecBuilder::u32_from_bytes_le_wr(val, 0x14, u32(at - 0x10)); /* in-use (rel. to +0x10) */
+    /* write as a resident attribute */
+    const u32 vlen = u32(at);
+    const u32 voff = 0x18;
+    const u32 alen = (voff + vlen + 7) / 8 * 8;
+    const u32 pos = r.attr_pos;
+    RecBuilder::u32_from_bytes_le_wr(r.buf, pos + 0, ATTR_TYPE_INDEX_ROOT);
+    RecBuilder::u32_from_bytes_le_wr(r.buf, pos + 4, alen);
+    r.buf[pos + 8] = 0; /* resident */
+    r.buf[pos + 9] = 0; /* unnamed */
+    RecBuilder::u16_from_bytes_le_wr(r.buf, pos + 10, u16(voff));
+    RecBuilder::u16_from_bytes_le_wr(r.buf, pos + 16, u16(vlen & 0xFFFF));
+    RecBuilder::u16_from_bytes_le_wr(r.buf, pos + 20, u16(voff));
+    std::memcpy(r.buf.data() + pos + voff, val.data(), vlen);
+    /* the bulk copy may span the USA sector tails - re-stamp them (the
+     * field-wise writers leave them intact; this one must restore them) */
+    for (u32 t = 0; t * SEC + SEC <= RECORD_SIZE; ++t) {
+        r.buf[u64(t) * SEC + SEC - 2] = 0xB8;
+        r.buf[u64(t) * SEC + SEC - 1] = 0x0B;
+    }
+    r.attr_pos += alen;
+}
+
+u32 scan_remnants_simple(IStorageDevice* dev, tree::ResultTree& tree, WalkStats& stats) {
+    auto* root_lost = tree.add_root(u"Lost Files");
+    return scan_mft_remnants(dev, SEC, CLUSTER, RECORD_SIZE, TOTAL_CLUSTERS, nullptr, nullptr,
+                             nullptr, tree, root_lost, stats);
+}
+
+} // namespace
+
+TEST(NtfsVolume, OrphanIndxBlockHarvestsEntries) {
+    /* S-022 feeder B: a directory's INDX block survives in raw space (its
+     * MFT record is gone) - the in-use entries surface as Lost nodes with
+     * name/size/times from the embedded $FILE_NAME keys. */
+    Image img;
+    {
+        const std::vector<IndxTestEntry> entries = {
+            {(1ull << 48) | 9001, (1ull << 48) | 55, 4096, 3000, 0x20, u"indx-a.dat", false},
+            {(1ull << 48) | 9002, (1ull << 48) | 55, 128, 100, 0x30, u"indx-dir", false},
+            {(1ull << 48) | 9003, (1ull << 48) | 55, 512, 512, 0x20, u"indx-b.dat", true},
+        };
+        auto blk = build_indx_block(entries);
+        std::memcpy(img.sec(20), blk.data(), blk.size());
+    }
+    MemDevice dev(img.raw(), img.geom());
+    tree::ResultTree tree;
+    WalkStats stats;
+    ASSERT_EQ(OK, scan_remnants_simple(&dev, tree, stats));
+    auto* root_lost = tree.roots()[0];
+    tree::FileNode *a = nullptr, *d = nullptr, *b = nullptr;
+    for (tree::FileNode* c = root_lost->first_child(); c; c = c->next_sibling()) {
+        if (c->name_utf8() == "indx-a.dat")
+            a = c;
+        else if (c->name_utf8() == "indx-dir")
+            d = c;
+        else if (c->name_utf8() == "indx-b.dat")
+            b = c;
+    }
+    ASSERT_NE(a, nullptr);
+    ASSERT_NE(d, nullptr);
+    ASSERT_NE(b, nullptr);
+    EXPECT_EQ(a->props()->logical_size, 3000u);
+    EXPECT_EQ(a->props()->times.created, 132000000000000000ULL);
+    EXPECT_EQ(a->confidence(), tree::Confidence::MetadataOnly);
+    EXPECT_EQ(a->origin(), tree::Origin::Lost);
+    EXPECT_EQ(d->props()->attributes & 0x10, 0x10u); /* folder bit from flags */
+    EXPECT_EQ(b->props()->logical_size, 512u);
+    EXPECT_GE(stats.emitted, 3u);
+}
+
+TEST(NtfsVolume, IndxHiddenSystemEntryRejected) {
+    /* S-022: the og's entry gate rejects HIDDEN|SYSTEM both-set entries
+     * (FUN_18000e970 :11032) - metafile-class content never surfaces. */
+    Image img;
+    {
+        const std::vector<IndxTestEntry> entries = {
+            {(1ull << 48) | 9101, (1ull << 48) | 55, 4096, 3000, 0x26, u"secret.dat", false},
+            {(1ull << 48) | 9102, (1ull << 48) | 55, 512, 512, 0x20, u"plain.dat", true},
+        };
+        auto blk = build_indx_block(entries);
+        std::memcpy(img.sec(20), blk.data(), blk.size());
+    }
+    MemDevice dev(img.raw(), img.geom());
+    tree::ResultTree tree;
+    WalkStats stats;
+    ASSERT_EQ(OK, scan_remnants_simple(&dev, tree, stats));
+    auto* root_lost = tree.roots()[0];
+    tree::FileNode* secret = nullptr;
+    for (tree::FileNode* c = root_lost->first_child(); c; c = c->next_sibling())
+        if (c->name_utf8() == "secret.dat")
+            secret = c;
+    EXPECT_EQ(nullptr, secret) << "HIDDEN|SYSTEM entries must be rejected";
+}
+
+TEST(NtfsVolume, IndxSlackNeverHarvested) {
+    /* S-022 parity edge: entries beyond the in-use end (deleted-entry
+     * remnants in INDX slack) are NEVER harvested - the og's walk is
+     * bounded by the in-use size and stops at the last-entry flag. */
+    Image img;
+    {
+        const std::vector<IndxTestEntry> entries = {
+            {(1ull << 48) | 9201, (1ull << 48) | 55, 512, 512, 0x20, u"live-entry.dat", true},
+        };
+        std::vector<IndxTestEntry> slack = {
+            {(1ull << 48) | 9202, (1ull << 48) | 55, 8000, 8000, 0x20, u"slack-ghost.dat",
+             false},
+        };
+        auto blk = build_indx_block(entries, 0, &slack);
+        std::memcpy(img.sec(20), blk.data(), blk.size());
+    }
+    MemDevice dev(img.raw(), img.geom());
+    tree::ResultTree tree;
+    WalkStats stats;
+    ASSERT_EQ(OK, scan_remnants_simple(&dev, tree, stats));
+    auto* root_lost = tree.roots()[0];
+    tree::FileNode *live = nullptr, *ghost = nullptr;
+    for (tree::FileNode* c = root_lost->first_child(); c; c = c->next_sibling()) {
+        if (c->name_utf8() == "live-entry.dat")
+            live = c;
+        else if (c->name_utf8() == "slack-ghost.dat")
+            ghost = c;
+    }
+    ASSERT_NE(live, nullptr);
+    EXPECT_EQ(nullptr, ghost) << "INDX slack entries must never be harvested";
+}
+
+TEST(NtfsVolume, RemnantDirRecordHarvestsIndexRootChildren) {
+    /* S-022 feeder A: a recovered directory record found in raw space with
+     * a resident $INDEX_ROOT (large-index==0, in-use <= 0x320) - its child
+     * entries surface as Lost/MetadataOnly nodes. */
+    Image img;
+    {
+        RecBuilder r;
+        r.header(40, RECORD_IN_USE | RECORD_IS_DIRECTORY);
+        r.attr_si(0x30);
+        r.attr_file_name(5, u"orphandir", FILE_NAME_WIN32, 0x30, 0, 0);
+        attr_index_root_entries(r, {
+            {(1ull << 48) | 9301, (1ull << 48) | 40, 2048, 1500, 0x20, u"rootchild-a.txt", false},
+            {(1ull << 48) | 9302, (1ull << 48) | 40, 256, 200, 0x20, u"rootchild-b.txt", true},
+        });
+        r.finish();
+        std::memcpy(img.sec(40), r.buf.data(), RECORD_SIZE);
+    }
+    MemDevice dev(img.raw(), img.geom());
+    tree::ResultTree tree;
+    WalkStats stats;
+    ASSERT_EQ(OK, scan_remnants_simple(&dev, tree, stats));
+    auto* root_lost = tree.roots()[0];
+    tree::FileNode *dir = nullptr, *ca = nullptr, *cb = nullptr;
+    for (tree::FileNode* c = root_lost->first_child(); c; c = c->next_sibling()) {
+        if (c->name_utf8() == "orphandir")
+            dir = c;
+        else if (c->name_utf8() == "rootchild-a.txt")
+            ca = c;
+        else if (c->name_utf8() == "rootchild-b.txt")
+            cb = c;
+    }
+    EXPECT_NE(dir, nullptr) << "the directory record itself still emits";
+    ASSERT_NE(ca, nullptr) << "$INDEX_ROOT children must be harvested";
+    ASSERT_NE(cb, nullptr);
+    EXPECT_EQ(ca->props()->logical_size, 1500u);
+    EXPECT_EQ(ca->confidence(), tree::Confidence::MetadataOnly);
+    EXPECT_EQ(cb->props()->logical_size, 200u);
 }

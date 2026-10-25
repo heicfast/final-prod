@@ -317,3 +317,13 @@ verified in their FIXED/ files with this leg's decompile quotes.
   `$`-name filtering / re-parenting by the dir map (:20104-20110) is undecoded;
   whether FUN_18000c890 (run coalescer) and FUN_18002a780 (B6 remnant scanner) are
   one sweep's two modes or two entries.
+
+
+## Diff-fix session addendum — S-022 (A26 corrected)
+
+A26's session-1 og-side premise ("no INDX walk in og either") is REFUTED (S-022 evidence:
+the og's orphaned-record sweep harvests INDX-block + $INDEX_ROOT entries). The core now
+implements the same harvest in the remnant path — in-use entries only, never slack, og
+gates exact (validator, chain parent-consistency, entry flag gates, 0x1f5 cap,
+$-name filter for directories). The wire family lives documented in `cr_ntfs_wire.h`
+(D-N ruling re-decided). See findings/FIXED/S-022-*.md.

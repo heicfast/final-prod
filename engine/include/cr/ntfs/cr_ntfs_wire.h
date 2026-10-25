@@ -189,10 +189,27 @@ static_assert(sizeof(StandardInformation) == 72);
 
 /* $INDEX_ROOT / $INDEX_ALLOCATION walking: the walk model is
  * attribute-based (children enumerated via $ATTRIBUTE_LIST record refs,
- * cr_mftwalk); no INDX-block walker exists and none is planned. The
- * speculative INDX wire family (magic, IndexHeader, IndexEntryHeader,
- * IndxBlockHeader) was deleted (plan ruling D-N, AUDIT-NTFS §4 row 9:
- * 0 refs; og INDX walking itself is UNVERIFIED-7 in the corpus). */
+ * cr_mftwalk). S-022 (diff-to-fix) resolved the old D-N scope ruling's
+ * premise: the og DOES walk INDX blocks and $INDEX_ROOT entries — the
+ * "orphaned-record sweep" (ntfs-engine--deep-dive.md:108; first-hand decode
+ * evidence/decompiled-quotes/s3-ntfs-indx-second-source.md) harvests
+ * directory-entry $FILE_NAME content as a second source for files whose
+ * MFT records no longer exist. The core implements the same harvest in the
+ * remnant path (cr_mftwalk.cpp): in-use entries only, never slack.
+ *
+ * INDX block (multi-sector header + INDEX_HEADER, per the og's validator
+ * FUN_180045510 — offsets from block start):
+ *   +0x00 'INDX' | +0x04 usa_offset (0x28..0x100) | +0x06 usa_count (<0x11)
+ *   +0x08 lsn | +0x10 vcn | +0x18 entries_offset (u32, rel. to +0x18)
+ *   +0x1C in-use size (u32, rel. to +0x18) | +0x20 allocated (u32, rel.)
+ *   +0x24 flags (1 = leaf)
+ * INDEX_ENTRY (the embedded key is a full $FILE_NAME):
+ *   +0x00 file ref (u64, seq<<48|record#) | +0x08 entry_len (u16)
+ *   +0x0A key_len (u16) | +0x0C flags (u16; bit1 = last)
+ *   +0x10 parent ref | +0x18/+0x20/+0x28/+0x30 create/modify/change/access
+ *   +0x38 allocated size | +0x40 real size (48-bit) | +0x48 dos flags
+ *   +0x4C reparse | +0x50 name length (u16 chars) | +0x51 namespace
+ *   +0x52 name (UTF-16LE) */
 
 /* ---- $MFT record 16 = $Bitmap etc: cluster bitmap attr ------------------ */
 

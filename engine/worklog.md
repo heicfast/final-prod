@@ -5741,3 +5741,33 @@ Work Log:
 
 Stage Summary:
 - ASan lane unblocked for all legs. No behavior change (refcount-only fix).
+Task ID: DF-S022 (S-022 — NTFS INDX/$INDEX_ROOT second-source harvest)
+Agent: main engineer (diff-to-fix fix session)
+Task: SEVERE S-022 — og harvests INDX-block + $INDEX_ROOT entries into results; core had
+no INDX decode (D-N refusal premised on "og UNVERIFIED-7", resolved by the S3 decode).
+
+Work Log:
+- Evidence re-verified first-hand from the consolidated quote file (validator FUN_180045510
+  incl. the (alloc+entries_off)/512 == usa_count-1 cross-check; chain walk FUN_180045990;
+  entry gates FUN_18000e970 :11025-49; $INDEX_ROOT variant FUN_18000f760; emit/collection
+  plumbing). Classification: CONFIRMED-DIVERGENCE.
+- Fix: cr_ntfs_wire.h D-N comment replaced with the og-decoded layout; scan_remnant_buffer
+  probes 'INDX' at the 512-stride and runs validate->fixup->chain-check->in-use harvest
+  (0x1f5 cap, slack never read); remnant DIR records harvest resident $INDEX_ROOT
+  (large-index==0, <=0x320) through the same entry builder; remnant_range_scan overlap
+  raised to 8 KiB (16-sector block bound). Entries emit as root_lost/MetadataOnly with
+  $-name filter for dirs; dedup by full file ref + (parent,name) vs structured results.
+- Claim-map wiring delta documented: the og's raw-scanner claim gate is enforced by the
+  structured dedup instead (remnant stage is post-walk; result-set equivalent).
+- Tests: OrphanIndxBlockHarvestsEntries, IndxHiddenSystemEntryRejected,
+  IndxSlackNeverHarvested, RemnantDirRecordHarvestsIndexRootChildren. FAIL-BEFORE 3/4
+  (the negative pin passes both sides per the finding's own prediction). Fixture lesson
+  recorded: bulk value writes must re-stamp USA sector tails. Suite 358/358 default +
+  358/358 ASan.
+- Audit trail: Resolution + FIXED/ move; SUMMARY (SEVERE 5 active) + remediation row;
+  matrix ntfs B4/B5/A26 cell; RESOLVED-INDEX; modules/ntfs.md A26 correction addendum.
+
+Stage Summary:
+- S-022 CLOSED: second-source recovery for files whose MFT records are gone (the og's
+  deep-scan advantage class) now exists in the core. Remaining SEVERE: S-003, S-007,
+  S-009-remnant, S-020, S-021. Next: S-003/S-021 (HFS+ journal pair).
