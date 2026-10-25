@@ -1905,23 +1905,36 @@ same way. Pinned by `RawFixer.NtfsPrimaryDamaged4Kn`,
   grammar gates the false-positive surface. Do not tighten for parity. Pin:
   Carve.JpegFourthByteOutsideOgSet.
 
-- **D-64 — image-container scope (S-030, ACCEPTED).** The og's import
-  factory dispatches six backends: edisk, vhdx, vmdk, vhd + the flat
-  fallback (.img/.dmg/raw) (DRWUI FUN_1405b3410). The core's image layer
-  implements flat, VMDK (monolithicSparse + standalone descriptors with
-  FLAT/SPARSE/ZERO extents), and VHD (fixed + dynamic). Two deliberate
-  exclusions and two tracked remainders, honestly registered:
-  **edisk** (EaseUS Todo-Backup's proprietary container — undecodable
-  without product internals; ERR_UNSUPPORTED) and **dmg** (Apple's
-  container; the og treats it as a FLAT file only when uncompressed,
-  which our flat fallback already covers — the compressed
-  ADC/ZLIB/LZFSE variants are out of scope). Remainders (capability, not
-  divergence): **VHDX** (the og's CVHDXDisk; ERR_UNSUPPORTED until the
-  metadata-table format lands) and **VMDK parent chains /
-  compressed grains / VHD differencing** (v1 reads base images only).
-  Pins: `Image.VmdkMonolithicSparseReadsAndScans`,
-  `Image.VhdDynamicDiskReadsAndScans`, `Image.RejectsBrokenInputs`
-  (VHDX → ERR_UNSUPPORTED).
+- **D-64 — image-container scope (S-030, ACCEPTED; CONVERGED across two
+  parallel landings — b30354d's flat/VMDK/VHD core, then the convergence
+  upgrade adding VHDX + the differencing families + the qemu-fixture
+  compatibility proof layer).** The og's import factory dispatches
+  edisk/vhdx/vmdk/vhd + the flat fallback for everything else including
+  .dmg (DRWUI FUN_1405b3410 — note: the factory has NO dmg case; the og
+  opens .dmg as raw flat bytes, compressed or not, and the scan reads
+  what a raw read yields; parity is the same flat fallback, NOT Apple
+  container parsing). The core now implements flat raw, VMDK
+  (monolithicSparse + descriptor extents FLAT/SPARSE/ZERO + parent
+  chains via parentFileNameHint, depth-capped), VHD (fixed + dynamic +
+  differencing via W2ku/W2ru locators), and VHDX dynamic (header pair
+  CRC-32C + region table + metadata + chunk-ratio BAT) with a READ-ONLY
+  in-memory log replay overlay (qemu vhdx-log.c walk semantics — a
+  recovery tool never rewrites its input; qemu itself refuses read-only
+  opens with a valid log sequence). One exclusion and two remainders,
+  honestly registered: **edisk** (EaseUS Todo-Backup proprietary,
+  undecoded in the corpus; ERR_UNSUPPORTED); **compressed VMDK**
+  (streamOptimized/streamMonolithic + the ESX VMFS extent families;
+  refused precisely, never mis-read as flat); **VHDX differencing**
+  (parent-locator metadata + sector-bitmap blocks; refused precisely).
+  Pins: `Image.VmdkSparseExtentReads`,
+  `Image.VmdkDifferencingChainReadsParent`,
+  `Image.VmdkStreamOptimizedRefused`, `Image.VhdDynamicDisk`,
+  `Image.VhdDifferencingReadsParentOnClearBitmap`,
+  `Image.VhdxDynamicReads`, `Image.VhdxLogOverlayServesUnflushedWrites`,
+  `Image.VhdxDifferencingRefusedPrecisely`,
+  `Image.EdiskRefusedAsRegisteredExclusion`, and the qemu-img-10.0.13
+  compatibility fixtures (`Image.QemuVmdkCompat`, `Image.QemuVhdCompat`,
+  `Image.QemuVhdxCompat` over tests/data/images).
 
 ## M. diff-to-fix session 10 (2026-10-26)
 
@@ -2045,3 +2058,6 @@ Pinned by Slice.TailReadRefusalPinned + the updated Slice.BoundsEnforced.
 If a future engine needs the og contract, the documented next step is the
 opt-in clamped-read primitive from the finding's path (2) — added THEN,
 not as dead code now.
+
+
+(The original session-10 D-64 draft was folded into the converged entry above.)

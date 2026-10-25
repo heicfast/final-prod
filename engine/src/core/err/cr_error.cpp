@@ -69,6 +69,9 @@ const char* err_text(u32 code) {
         return "apply consent denied (nothing was written)";
     case ERR_APPLY_STALE: /* S-029 */
         return "partition table changed since planning (re-run discovery and replan)";
+
+    case ERR_IMAGE_CORRUPT:
+        return "image container structurally corrupt";
     case ERR_INTERNAL:
         return "internal error";
     default:

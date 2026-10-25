@@ -10,6 +10,7 @@ add_executable(cr_tests
     unit/test_runlist.cpp
     unit/test_crc32_gpt.cpp
     unit/test_slice_devmap.cpp
+    unit/test_image.cpp
     unit/test_cached.cpp
     unit/test_directalign.cpp
     unit/test_retry.cpp
@@ -48,6 +49,13 @@ add_executable(cr_tests
 )
 
 target_link_libraries(cr_tests PRIVATE cr::core GTest::gtest_main)
+
+# S-030 image fixtures (qemu-generated): copied beside the test binary so
+# the compat tests find data/images/ regardless of the launch directory
+add_custom_command(TARGET cr_tests POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_directory
+            ${CMAKE_CURRENT_SOURCE_DIR}/data/images
+            $<TARGET_FILE_DIR:cr_tests>/data/images)
 
 # vcpkg DLL deployment backstop (no-op on Linux): applocal import-name
 # resolution skipped the lz4 debug DLL on windows CI (0xc0000135)

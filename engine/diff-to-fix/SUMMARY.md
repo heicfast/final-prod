@@ -255,6 +255,50 @@ re-check — now accepting exactly the two registered spellings.
 pass-after: both cases carve, lowercase node carries FMT_CAB_LC). Suite
 568/568 ASan; lint clean. Post-fix counts: MINOR 48 · FIXED 80 findings.
 
+# SUMMARY.md — executive summary (diff-fix session 10 on top; earlier sessions below)
+
+## Session-10 delta (2026-10-26 — DFX10: the S-030 convergence push)
+
+Session start `5ff4db7` (post-T1 bootstrap on `8e79960`-lineage); corpus
+`03ad46c` unmoved. Baseline 533/533 Linux Release re-verified at start.
+CONVERGENCE NOTE: a parallel session-8 lane landed S-030's first cut
+(flat/VMDK/VHD, `b30354d`) mid-flight; this session had independently
+implemented the full surface — the union keeps the first landing's audit
+record and lands this lane's superset engine (VHDX + log overlay, the
+differencing families, .dmg flat-parity correction, the qemu-fixture
+compatibility proof layer, image_path widened 256→512). The finding file
+carries both Resolutions.
+
+**S-030 FIXED (converged):** the disk-image scan-target surface — the og's
+"Import a disk image" input class (extension factory DRWUI:948237-948409,
+flat fallback :948389-948393, LBA0 classify :275877-880; Device.mo's
+libvmdk block device :49106-49124 with extent files + parent chains
+:48965-49100). Pure-core `cr::storage::open_image` behind an injected
+`ImageFileIo` seam: flat raw (.img/.dmg/.raw — .dmg opened raw, exactly the
+og's fallback, NOT Apple-UDIF parsing), VMDK (monolithicSparse +
+descriptor extents FLAT/SPARSE/ZERO, grain directory/table translation,
+differencing via parentFileNameHint, depth cap), VHD (fixed + dynamic +
+differencing: footer/dynamic-header one's-complement checksums, BAT,
+512-byte sector bitmaps, W2ku/W2ru parent locators), VHDX dynamic (header
+pair CRC-32C + highest-sequence, region table, metadata, chunk-ratio BAT)
+with a READ-ONLY in-memory log replay overlay (qemu vhdx-log.c walk
+semantics; D-64d — a recovery tool never rewrites its input). CLI
+`scan --image` / `recover --image`, identity-card v3 tail `image_path` +
+resume warning, repair-on-image stays analysis-only. Registered
+non-adoptions D-64a/b/c: .edisk proprietary, compressed VMDK/VMFS, VHDX
+differencing — all refused with precise errors, never silent mis-reads.
+**Proof discipline worth recording:** every format constant was pinned
+empirically on qemu-img-10.0.13-written files before coding; the committed
+compat fixtures (tests/data/images) caught two transposition bugs
+(VHDX log-descriptor field order; metadata-region GUID data3) that
+in-memory builders — written from the same misread spec-memory — could
+never catch. 20 new tests; suite **555/555** Linux Release. New module
+row: modules/imaging.md.
+
+**Counts after S-030 (direct file inventory at this push):** SEVERE 2
+(S-009, S-029) · MAJOR 39 · MINOR 55 · INFO 22 = 118 active / 73 FIXED
+finding files + RESOLVED-INDEX.
+
 # SUMMARY.md — executive summary (diff-fix session 9 on top; earlier sessions below)
 
 ## Session-9 delta (2026-10-26 — baseline repair + the SEVERE/MAJOR/MINOR fix waves)

@@ -12,6 +12,7 @@
 #define CR_TRANSPORT_H_
 
 #include "cr/storage/cr_device.h"
+#include "cr/storage/cr_image.h"
 #include "cr/storage/cr_slice.h"
 #include "cr/repair/cr_rawfixer.h"
 #include <memory>
@@ -31,6 +32,10 @@ namespace win {
 std::unique_ptr<IStorageDevice> open_rda_partition(const wchar_t* service_name, u32 disk, u32 part,
                                                    u32* err);
 std::unique_ptr<IStorageDevice> open_rda_volume(const wchar_t* service_name, u32 volume, u32* err);
+
+/* S-030 disk images: the platform-owned ImageFileIo (CreateFileW-backed)
+ * used by rrecov --image; feeds cr::storage::open_image. */
+storage::ImageFileIo& image_file_io();
 
 /* Direct Win32 handles: \\.\PhysicalDriveN (whole disk, read-only share) and
  * \\.\HarddiskVolumeN (volume handle). */

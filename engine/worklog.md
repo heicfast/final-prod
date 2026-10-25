@@ -10269,3 +10269,71 @@ Work Log:
 Stage Summary:
 - M-016 FIXED (session tally: 1). Next: M-019 (ZFS multivdev fallback +
   fletcher4 verify + next-DVA retry).
+
+Task ID: DFX10-T3-S030
+Agent: DFX10 (diff-fix session 10)
+Task: S-030 — disk-image scan targets (SEVERE)
+
+Work Log:
+- Verified the finding against the corpus evidence first-hand (s5-image-fscheck-persistence.md §A:
+  extension factory DRWUI:948237-948409, flat fallback :948389-948393, LBA0 classify :275877-880,
+  libvmdk block device Dev:49106-49124/:48965-49100) and the core (rrecov.cpp --disk/--volume only,
+  zero image code). CONFIRMED-DIVERGENCE.
+- Empirical format pinning BEFORE coding: qemu-img 10.0.13 fixtures; dumped VMDK header (packed!
+  capacity@0xC), GD/GT/grains, VHD footer/dynamic-header/BAT/blocks (checksum rule verified against
+  qemu bytes), VHDX headers/region/metadata/BAT/log entry; fetched qemu vhdx.h/vhdx-log.c for the
+  log walk + BAT chunk-ratio + metadata GUIDs (public format, authoritative reference).
+- Implemented include/cr/storage/cr_image.h + src/core/storage/cr_image.cpp (pure core, ImageFileIo
+  seam), src/win/cr_image_win.cpp (Win32 IO), CLI scan/recover --image, identity-card v3 tail
+  (VolumeInfo/VolumeSessionInfo/ScanConfig.volume_image + resume warning), LBA0 classification.
+- Fixed in flight (found by the committed qemu compat fixtures — the reason they exist):
+  VHD checksum rule (32-bit ~S, not byte-sum-all), VHDX log-descriptor field order
+  (trailing@4/leading@8/file_off@0x10/seq@0x18), metadata-region GUID data3=4B9A,
+  VMDK createType quote-stripping, monolithic embedded-descriptor extent-skip, log overlay keyed
+  on FILE offsets (not virtual — diverge on non-flat layouts).
+- 20 tests (structure builders + qemu compat); suite 555/555 Linux Release (was 533).
+- Audit trail: finding Resolution + move to FIXED/, RESOLVED-INDEX row, modules/imaging.md,
+  matrix S-030 row marked, SUMMARY session-10 section, PARITY-DELTAS D-64a/b/c/d.
+
+Stage Summary:
+- S-030 FIXED with remainders registered precisely (compressed VMDK, VHDX differencing — both
+  refused with ERR_UNSUPPORTED, next steps in the Resolution). One new error code (ERR_IMAGE_CORRUPT).
+- The compat-fixture proof layer is now a repo pattern: real-tool-written files catch spec-memory
+  transpositions that self-built fixtures cannot.
+
+---
+Task ID: DFX10-T3-S030b (rebase union + baseline repair)
+Agent: DFX10 (diff-fix session 10)
+Task: Land the S-030 convergence on the rebased main (parallel lanes raced)
+
+Work Log:
+- Pull found the parallel session-8 lane had landed S-030's first cut (b30354d:
+  flat/VMDK/VHD via ImageByteSource/ImageFileOps, VHDX + differencing refused) AND
+  S-009's free-map (c55bd45) + the hardening (0ba21d8) + M-007/M-045/M-037/M-054/N-069/N-030.
+- Union resolution: session/scan wiring kept from the LANDED side (image[256] field
+  names + the S-009 free-map producer in cr_scan.cpp — taking my whole file would
+  have reverted S-009); my superset engine (cr_image.{h,cpp} with VHDX + log overlay,
+  VMDK parent chains, VHD differencing, .dmg flat-parity, qemu compat fixtures)
+  replaces the first cut's engine; their fuzz_image.cpp ported to the ImageFileIo seam
+  (fuzz files now resolve to fuzz-owned copies of the input — exercises the multi-file
+  path + the parent depth cap); their 0xEE protective-entry classify rule superseded
+  by my classify_lba0 (EFI PART primary — kept the stricter GPT detection; their
+  BootLayout wrapper retired with the seam).
+- BASELINE REPAIR (cross-lane race): ExfatEngine.FreeMapProducerMatchesSpecBitMapping
+  red on clean HEAD (622a997) — M-054's test pinned fm.cluster_count == 100 (the raw
+  spec heap count) while the S-009 hardening (0ba21d8, landed minutes earlier in a
+  parallel lane) had already changed the producer to cluster_count = p.cluster_count + 2
+  (FreeMap's slot-coverage semantics: 2 virtual + all data clusters; capping at 100
+  drops the last two data clusters from is_free coverage). Producer is correct; test
+  re-pinned to 102 with the semantics documented in-test. Suite 603/603.
+- PARITY-DELTAS D-64 converged (both lanes' entries folded into one truth);
+  imaging.md = first landing + convergence update; S-030 finding carries both
+  Resolutions (first landing + convergence upgrade); RESOLVED-INDEX row cites both.
+
+Stage Summary:
+- Main green again (603/603). S-030 final state: flat/VMDK(+chains)/VHD(+diff)/VHDX(+log
+  overlay) + qemu-fixture compat layer + fuzz harness. Remainders registered: compressed
+  VMDK, VHDX differencing.
+- Lesson recorded twice this session: parallel lanes racing on the same finding MUST
+  re-read main before push; the qemu-compat-fixture proof layer is what caught
+  spec-memory bugs the in-memory builders could not.
