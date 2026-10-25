@@ -466,32 +466,6 @@ void plant_fve_boot(std::vector<u8>& img, u64 lba, const char* version) {
     std::memset(b + 0x0B, 0xFF, 0x1F5 - 0x0B);
     const size_t vlen = std::strlen(version);
     std::memcpy(b + 0x0B, version, vlen < 16 ? vlen : 16);
-
-/* ---- (minors session N-034 additions follow) ---- */
-/* ---- N-034 (diff-to-fix session): the og's deep-scan FAT ladder gates -- */
-
-namespace {
-
-/* Plant a FAT boot sector with the given geometry knobs. */
-void plant_fat_boot(std::vector<u8>& img, u64 lba, int spc, int num_fats, u16 root_entries,
-                    u32 total32, u16 spf16, u32 spf32, bool fat32_string) {
-    u8* b = img.data() + lba * 512;
-    b[0] = 0xEB;
-    b[1] = 0x3C;
-    b[2] = 0x90;
-    std::memcpy(b + 3, "MSDOS5.0", 8);
-    put16(img, lba * 512 + 0x0B, 512);
-    b[0x0D] = u8(spc);
-    put16(img, lba * 512 + 0x0E, 2);
-    b[0x10] = u8(num_fats);
-    put16(img, lba * 512 + 0x11, root_entries);
-    put16(img, lba * 512 + 0x13, 0); /* total16 unused */
-    b[0x15] = 0xF8;
-    put16(img, lba * 512 + 0x16, spf16);
-    put32v(img, lba * 512 + 0x20, total32);
-    put32v(img, lba * 512 + 0x24, spf32);
-    if (fat32_string)
-        std::memcpy(b + 0x52, "FAT32   ", 8);
     b[510] = 0x55;
     b[511] = 0xAA;
 }
@@ -607,6 +581,37 @@ TEST(LostDiscovery, LostBitlockerInsideExtendedRegionStillFound) {
             fve = &c;
     ASSERT_NE(fve, nullptr) << "table-independent discovery must reach the FVE sector";
     EXPECT_EQ(fve->fs, CandidateFs::BitLocker);
+}
+
+/* ---- N-034 (diff-to-fix session): the og's deep-scan FAT ladder gates -- */
+
+namespace {
+
+/* Plant a FAT boot sector with the given geometry knobs. */
+void plant_fat_boot(std::vector<u8>& img, u64 lba, int spc, int num_fats, u16 root_entries,
+                    u32 total32, u16 spf16, u32 spf32, bool fat32_string) {
+    u8* b = img.data() + lba * 512;
+    b[0] = 0xEB;
+    b[1] = 0x3C;
+    b[2] = 0x90;
+    std::memcpy(b + 3, "MSDOS5.0", 8);
+    put16(img, lba * 512 + 0x0B, 512);
+    b[0x0D] = u8(spc);
+    put16(img, lba * 512 + 0x0E, 2);
+    b[0x10] = u8(num_fats);
+    put16(img, lba * 512 + 0x11, root_entries);
+    put16(img, lba * 512 + 0x13, 0); /* total16 unused */
+    b[0x15] = 0xF8;
+    put16(img, lba * 512 + 0x16, spf16);
+    put32v(img, lba * 512 + 0x20, total32);
+    put32v(img, lba * 512 + 0x24, spf32);
+    if (fat32_string)
+        std::memcpy(b + 0x52, "FAT32   ", 8);
+    b[510] = 0x55;
+    b[511] = 0xAA;
+}
+
+} // namespace
 
 TEST(LostFatGates, Spc256Rejected) {
     /* N-034: SPC 256 is outside the og deep-gate set {1..128}; the old
