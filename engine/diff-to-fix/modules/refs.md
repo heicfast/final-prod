@@ -165,3 +165,16 @@ Complements M-022/I-012 above (same session, parallel leg; full inventory:
   reality on real volumes (decides M-026 escalation); run-flag polarity (decides
   N-036 fix-vs-INFO); FUN_1800089f0 consumer; keep-one tie-break fields; ReFS
   perf parameters X47–X50/X52 (needs a real ReFS volume — corpus has none).
+
+---
+
+## Session-3 parallel-leg rows (integration 2026-10-26)
+
+| ID | Severity | One-line |
+|---|---|---|
+| M-031 | MAJOR | Progress: one terminal tick vs og per-file binder `bool(u64, RefsFileProperties*&)` (RTTI-verified :617-19) |
+| OQ-RS-2..8 | OPEN | Container-map construction; ADS fold question; .mo deleted evidence; CRefsAppDataRunItem; system tables 0x500/0x701; volume-sig cross-check — `tracked-open/OQ-RS-refs-session3.md` |
+
+(This leg's ReFS decode corroborates S-020/M-022/M-026; its local A-004/S-012/
+S-013/M-011/M-013/N-023/N-024/I-009 were superseded by the lead leg's filings —
+see the reconciliation note in `tracked-open/OQ-RS-refs-session3.md`.)

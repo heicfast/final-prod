@@ -13,6 +13,63 @@ engine decoded end-to-end. 11 new findings; OQ-S2M-1 resolved; M-022 OQ-1/OQ-3
 resolved; M-023 counts corrected; corpus errata rows 29-36 filed. Suite 306/306 +
 C-ABI check OK at this leg's audited tree (evidence: `evidence/executions/s4-suite-green-and-abi-check.md`).
 
+## Session-3 storage/census parallel-leg integration (2026-10-26)
+
+A second session-3 parallel leg (the *storage/census* leg — raw_signs consumer
+decode, OQ-T8 dispatch, lost-partition scoring, ReFS first-class,
+CPartitionVirtualVolumeDevice, FileFilter+health, ext4/HFS+/Btrfs/ZFS census)
+rebased onto the reconciled main state after the S3-lead/S4 legs landed. Its
+**42 locally-filed findings were reconciled against the lead legs' filings**:
+
+- **19 kept, renumbered** past the taken IDs (S-024..S-028, M-031..M-039,
+  N-045..N-047, I-017/I-018) — the genuinely-new surfaces: **health grading
+  (S-024)**, **ext4 journal reparenting / meta_bg / backup-SB scan /
+  dir-parse resilience (S-025..S-027, M-037)**, **Btrfs xattrs (S-028)**,
+  **ReFS per-file progress (M-031)**, **the storage/slice layer (M-032
+  tail-read semantics, M-033 BitLocker in-stack decrypt, M-034 NAS, N-045/N-046,
+  I-017 — first audit of that layer; new `modules/storage.md`, complementing
+  `modules/transport.md`)**, **engine-side FileFilter validation (M-035)**,
+  **NVMe field coverage (M-036)**, **ZFS SA registry (M-038)**, **cross-engine
+  occupancy bitmap (M-039)**, **NVMe route MATCH record (I-018)**.
+- **23 dropped as superseded** by the lead legs' filings (which landed first):
+  local A-004→S-020; S-012→N-036; S-013→I-012; S-014/S-015/M-014/M-015/I-011→
+  M-017 (independent numeric corroboration added as an addendum); S-016→M-023;
+  S-022→S-015 (FIXED); M-011/M-013→M-022; M-022→M-020; M-025→N-030 (tail-formula
+  + 2 MiB cap + 500 MiB default folded in as an addendum); N-023/N-024→N-026/
+  N-037/I-013; N-027/N-028→N-020/N-040/M-029; I-009→M-026 (cross-ref added);
+  I-010/I-016→M-017/N-031 (OQ-T9/T8 both resolved by the lead legs);
+  I-014/I-015→I-014.
+- **New evidence:** `s3-virtual-volume-device.md`, `s3-filefilter-health.md`,
+  `s3-rawsigns-consumer-decode.md` (the CommonRawAnalyser loader/matcher/tail
+  decode). New tracked-open files: OQ-RS (8 ReFS probes), OQ-Z-E-FLT (ZFS
+  dsl-offsets **ACUTE-gated probe**, meta_bg stride, orphan reachability,
+  FileFilter blast radius). OQ-S4-1 gains the scorer wiring answer.
+- **Convergence highlights:** both S3 legs independently decoded the
+  dSuggestted scorer (fits to 3e-5 vs 6 decimals on different log rounds) and
+  the dead raw_signs confidence field — strong corroboration for the fix lanes.
+- **Baseline note:** this leg's findings were authored against `7fd00e0` (the
+  pre-S4 tree); the integration verified each against the reconciled main state
+  (through `d374064`). A-002 was live at this leg's baseline and is FIXED on
+  main (`7f2c83e`) — this leg's re-verification at `7fd00e0` is retained as
+  historical evidence in its worklog entry.
+
+## Counts per severity (active — excludes FIXED/) — post-integration (file inventory)
+
+| Severity | Active | FIXED | Notes |
+|---|---|---|---|
+| ACUTE | 0 | A-001(p), A-002, A-003, A-004+S-016 | — |
+| SEVERE | 13 | S-001/2/4/5/6/8/10/11/13/14/15/17(+18 invalid) | +S-024..S-028 (this integration) |
+| MAJOR | 34 | M-001, M-006(in S-009), M-009 | +M-031..M-039 (this integration) |
+| MINOR | 41 | N-002/3/10/21 | +N-045..N-047 (this integration) |
+| INFORMATIONAL | 16 | — | +I-017/I-018 (this integration) |
+| tracked-open | 11 files | OQ-T1/2/5/7/8/9 + S2 OQs resolved | +OQ-RS, OQ-Z-E-FLT (this integration) |
+| **Total active** | **104** | **27** | by direct file inventory at `d374064`+this commit |
+
+(The previous section's "61 active / 23 FIXED" reflected the S4 wave-1 close
+before the S4 continuation and this integration; the inventory above is the
+authoritative post-integration count. **S-023's grading engine + this leg's
+S-024 health grading are natural fix-lane companions.**)
+
 ## Session-4 delta (2026-10-26 — the never-audited-modules + API-lane session)
 
 Mandate: find what ALL prior sessions missed, remove/verify the fixed things, go

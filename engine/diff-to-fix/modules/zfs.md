@@ -129,3 +129,16 @@ fails), so mirror members read correctly and stripe members yield their local ha
 refusing loses that partial yield. M-019 stands, with the fallback + fletcher4/DVA-retry
 payload; the disagreement is recorded for the fix session to decide (honesty-of-reporting
 vs recovery-yield). Label superset rows unchanged (I-010).
+
+---
+
+## Session-3 parallel-leg census rows (integration 2026-10-26)
+
+| ID | Severity | One-line |
+|---|---|---|
+| M-038 | MAJOR | SA decode layout-1-hardcoded (og is registry-driven by NAME: ZPL_PARENT :24324 / ZPL_CRTIME :24807); non-1 registered layouts drop objects entirely |
+| OQ-Z1 | OPEN | dsl_dir/dsl_dataset offsets (ours child_dir_zapobj@24/ds_bp@128 vs kernel @32) — ACUTE-gated probe on a real pool |
+| OQ-Z2..Z5 | OPEN | txg decider (:2162-2170); multi-vdev DVA; decompression census (no zlib/lz4 strings in the og binary — it may not decompress at all); Quick-vs-Complete controller delta |
+
+Probes: `tracked-open/OQ-Z-E-FLT-session3.md`. (Lead leg's M-019 covers the
+multivdev-fallback/checksum side.)

@@ -5593,3 +5593,67 @@ Work Log:
 Stage Summary:
 - Lint lane + Windows-lane blockers cleared; one precisely-reported leak remains for
   the S-012 leg (their active queue).
+
+---
+Task ID: S3-INTEG (session-3 storage/census parallel leg — reconciliation + integration)
+Agent: session-3 parity auditor (read-only; the storage/census parallel leg)
+Task: Integrate this leg's 42 findings onto the reconciled main state after the
+S3-lead, fix, and S4/S5 legs landed first (ID collisions + supersessions).
+
+Work Log:
+- Discovered at push time: main had advanced past my baseline 7fd00e0 by the S3
+  lead leg (43149ff close: 77 active/24 FIXED), a diff-fix session (597a9c6:
+  A-002, A-004+S-016, S-013, S-014, S-015, S-017 fixed; S-018 invalid), S4
+  (3a6257c/668c52f/d870dd3: S-023, M-028..M-030, N-040..N-044, I-015/I-016,
+  first-time preview/query/transport modules), an S-019 fix (7cf6754), and an
+  S5 bootstrap (2001f7c) + ABI test work (d374064).
+- Salvaged all 42 local findings + evidence + module addenda to scratch; reset
+  to origin/main; reconciled finding-by-finding against the lead legs' content:
+  * SUPERSEDED (23): local A-004->S-020; S-012->N-036; S-013->I-012; S-014/
+    S-015/M-014/M-015/I-011->M-017 (my independent dSuggestted numeric fit
+    added as a convergence addendum); S-016->M-023; S-022->S-015(FIXED);
+    M-011/M-013->M-022 (their decode is deeper: system-dir-count gate + $I
+    handler); M-022->M-020 (rotating mirror index already filed); M-025->N-030
+    (tail-hit size formula + invented 2 MiB cap + 500 MiB default added as an
+    addendum); N-023/N-024->N-026/N-037/I-013; N-027/N-028->N-020/N-040/M-029;
+    I-009->M-026 (directionality cross-ref added); I-010/I-016->M-017/N-031
+    (OQ-T9/T8 resolved by lead legs — my decodes corroborate); I-014/I-015->I-014.
+  * KEPT + RENUMBERED (19): S-024..S-028, M-031..M-039, N-045..N-047,
+    I-017/I-018 — health grading, ext4 x4, Btrfs xattrs, ReFS progress,
+    storage layer x5, engine-side FileFilter validation, NVMe, ZFS SA,
+    occupancy bitmap, NVMe-MATCH record. Integration banner on each file;
+    cross-refs rewritten to the lead legs' IDs.
+- Evidence: kept 3 of my 6 files (virtual-volume-device, filefilter-health,
+  rawsigns-consumer-decode — renamed to sit beside the lead leg's
+  s3-rawsigns-units-and-dispatch.md; the other 3 (calcpartition-scoring,
+  rawsearch-registry, refs-engine-map) were redundant with the lead legs'
+  s3-calcpartition-scoring/s3-rawsearch-inventory/s3-refs-engine-inventory).
+- modules/storage.md added (the volume-abstraction layer's FIRST audit —
+  complements the S4 transport.md which covers the layer below). Module rows
+  appended to health/ext4/btrfs/zfs/refs/carve with reconciliation notes.
+- tracked-open: OQ-RS-refs-session3.md + OQ-Z-E-FLT-session3.md added with
+  reconciliation headers; OQ-S4-1 gained the scorer-wiring answer (M-035).
+- SUMMARY: integration section + post-integration inventory counts (104 active
+  / 27 FIXED / 11 tracked-open files — the previous 61/23 was the S4 wave-1
+  close). README: integration paragraph.
+- A-002 status arc recorded honestly: LIVE at my baseline 7fd00e0 (first-hand
+  re-verification), FIXED on main by the fix session (7f2c83e) — my baseline
+  evidence retained as history.
+- READ-ONLY discipline: only diff-to-fix/, worklog.md written. The salvage tree
+  lives outside the repo (audit scratch, not committed).
+
+Stage Summary:
+- The storage/census parallel leg's unique contributions are now on main:
+  19 renumbered findings (5 SEVERE, 9 MAJOR, 3 MINOR, 2 INFO), 3 evidence
+  files, modules/storage.md, 2 tracked-open probe files (incl. the ACUTE-gated
+  OQ-Z1 dsl-offsets question), and 5 addenda/cross-refs strengthening the lead
+  legs' findings with this leg's independent decodes.
+- Multi-leg coordination lesson recorded: this session had TWO parallel S3 legs
+  with overlapping mandates (lead: ReFS/NTFS/census; mine: storage/census/
+  raw-signs/scoring/filter/health). The renumber-past-taken-IDs protocol worked
+  but cost a full reconciliation pass; future sessions should claim ID ranges
+  in worklog before authoring.
+- Honest not-completed: the Linux suite re-run (toolchain bootstrapped late in
+  this container; fix legs' 363/363 at d374064 stands per their logs); OQ-Z1's
+  pool-image probe; OQ-RS-2's resident fixture build (belongs to S-020's fix
+  lane).

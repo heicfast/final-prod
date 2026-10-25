@@ -95,3 +95,18 @@ two findings into this addendum (full decode: `evidence/decompiled-quotes/s3-cal
    whole-volume extent — the containment-drop and 16-MiB rules consume different
    extents than the core's), S-019 (BitLocker "-FVE-FS-" lost-partition probe
    family missing — S-006 under-listed the og).
+
+---
+
+## Session-3 parallel-leg convergence note (2026-10-26)
+
+The *storage/census parallel leg* decoded the same scorer independently against
+the round-1 CalcPartition log (25+ rows fit to <= 3e-5, including the raw<=1
+identity non-monotonicity: 1 file -> 0.083079 ranks above 2 files -> 0.057586)
+and reached the same model — independent corroboration of this finding's
+arithmetic. Its decode additionally pinned: the evidence-accumulator producers
+on `CSearchedNTFSPartitionInfo+0x68` (NTFSSearchDLL :3046/:3078 = +80 system
+files, :7230 = +50 boot-SPC validated, :7220 = -10 read failure, :28973 = +30)
+and the display cap (top 2; 5 when >= 2 adjusted candidates, DRWUI :845676-701).
+Both legs rate the table-match polarity inversion (og +500 vs core -10/-20 at
+`cr_candidates.cpp:289-303`) the sharpest actionable slice of this finding.

@@ -23,3 +23,16 @@ step 3 requires the exact entry set before the gate can be byte-matched.
 
 RESOLVED when the 169 entries are enumerated with extraction evidence; fold into
 S-023's fix plan step 3 and re-pin its extension-gate test.
+
+---
+
+## Session-3 parallel-leg note (2026-10-26)
+
+This leg's FileFilter decode answers part of this question and extends it:
+the 170-entry x9-byte table `DAT_18005a090` (exFATSearchDLL :30824) is
+consumed by the **lost-partition content-consistency scorer**
+`FUN_180025390` (:30973-31156, reject at `considered/2 <= failed && ratio <=
+0.3 && failed != 0`, wired at 5 call sites) — see finding M-035 and evidence
+`evidence/decompiled-quotes/s3-filefilter-health.md` §A2. The
+blast-radius probe (is the table engine-wide or exFAT-only?) is now recorded
+as OQ-FLT-1 in `tracked-open/OQ-Z-E-FLT-session3.md`.
