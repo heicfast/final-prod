@@ -17,9 +17,11 @@ the og-codebase vs core comparison. State at session-3 close:
   `34b3441`, already in FIXED/; this session reconciled the stale SUMMARY that still
   listed it as top risk #1); M-009 FIXED (`7fd00e0`, `RwDevice::read_at` now routes
   through `aligned_read_at` — verified in-tree, Resolution added).
-- **Still live (re-verified at HEAD):** A-002 (fabricated LDM GPT GUIDs at
-  `cr_table_wire.h:87-90` + self-referential tests — the only pre-existing ACUTE at
-  session open); S-011 (exFAT tz subtraction at `cr_exfat_quick.cpp:138`).
+- **Fixed MID-SESSION (verified first-hand):** A-002 — `7f2c83e` restored the real
+  Microsoft/og LDM GUIDs (`…0434cfb3`/`…714a69ad`; this leg re-extracted them from four
+  og binaries independently, converging with the third leg's evidence and the 6-source
+  external table) and de-self-referenced the tests. The #1 roadmap item is CLOSED.
+  **Still live:** S-011 (exFAT tz subtraction at `cr_exfat_quick.cpp:138`).
 - **New findings (7):** S-015 (SEVERE — raw_signs.json min/max are KiB in the og
   (`max << 10`, default 0x7d000 KiB) vs bytes in the core: the 139-format raw-sign
   recall window is 1024x too small, 50 KiB vs 50 MiB); M-022 (ReFS file-value grammar:
@@ -111,15 +113,15 @@ collision with the parallel leg's I-006 ext4-nanoseconds, cleared).
 
 | Severity | Active | FIXED (in `findings/FIXED/`) | IDs (active) |
 |---|---|---|---|
-| ACUTE | 2 | A-001 (partial — ESP/MSR half stands fixed; LDM half false-positive), A-003 | **A-002 (LDM GUID regression — roadmap #1, still live at audit close)**, A-004 (event-sink crash, S2-third-leg) |
+| ACUTE | 1 | A-001 (partial — ESP/MSR half stands fixed; LDM half false-positive), A-003, **A-002 (`7f2c83e` — real Microsoft/og GUIDs restored, session-3-verified by an independent og-binary scan; tests de-self-referenced)** | **A-004 (event-sink crash, S2-third-leg)** |
 | SEVERE | 9 | S-001, S-002, S-004, S-005, S-008, **S-010 (3e34ed2 — volume quiesce, session-3-verified)** | S-003, S-006, S-007, S-009 (split pending N-020), S-011, S-012, S-013, S-014, **S-015 (S3: raw_signs KiB units)** |
 | MAJOR | 18 | M-001, **M-009 (7fd00e0 — 64 KiB envelope on the repair read path, session-3-verified)** | M-002, M-005, M-007, M-008, M-010, M-011..M-021, **M-022 (S3: ReFS file-value grammar)**, **M-023 (S3: filter model)** |
 | MINOR | 27 | N-002, N-003, N-010-theirs | N-001, N-004..N-009 (grouped), N-011..N-022, N-023..N-029 (S2-third-leg, grouped), **N-030..N-032 (S3)** |
 | INFORMATIONAL | 10 | — | I-001..I-011, **I-012 (S3: GAP-ADS resolved — parity, shared limitation)** |
 | tracked-open | 6 files | OQ-T1/T2/T5/T7/T8/T9 + all 9 S2-third-leg OQs RESOLVED across legs | OQ-T3*, OQ-T4*, OQ-T6 (bounded), OQ-S2A-1..4, OQ-S2C-3, OQ-S2M-1/2 (see files) |
-| **Total active findings** | **66** | **18** | |
+| **Total active findings** | **65** | **19** | |
 
-*(Counts by file inventory at session-3 close: 2+9+18+27+10 = 66 active, 18 FIXED.)*
+*(Counts by file inventory at session-3 close, after the mid-session A-002 fix: 1+9+18+27+10 = 65 active, 19 FIXED.)*
 
 **Note on S-009/M-006:** the S-009 disk-map component was FIXED via GAP-S6-11
 (`56cce87` — `cr_diskmap.cpp/.h` verified in-tree by this leg); the M-006 fuzz-CI
@@ -160,8 +162,8 @@ ext4/Btrfs invalid-UTF-8 finding (briefly M-007 in a local commit) renumbered to
 
 ## Top risks (ranked — post-reconciliation)
 
-1. **A-002 (ACUTE, blocks all GPT dynamic-disk recovery)** — still the roadmap #1;
-   see the A-002 block above. **S-015 (session 3) — raw-sign recall window 1024x too
+1. **A-004 (ACUTE — event-range fires through a config sink; the only active ACUTE
+   post-`7f2c83e`)**; then **S-015 (session 3) — raw-sign recall window 1024x too
    small** (raw_signs.json min/max read as bytes vs the og's KiB): every raw-sign
    format caps at 50 KiB (200 KiB for the media entries) where the og carves 50 MiB
    (200 MiB) — the largest single recall gap found in session 3; one-generator fix.
