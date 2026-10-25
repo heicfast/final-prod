@@ -6466,3 +6466,54 @@ LANE CLAIM: this leg takes **S-007 (carve missing common formats)** next —
 unclaimed in the latest CF-LANE reconciliation (their lane: S-027/S-025/S-028
 ext4+btrfs family; S-003/S-021 with the s7/df5 leg; S-023 with close-all-tiers).
 S-009/S-024 remain unclaimed after this.
+---
+Task ID: DF5-S021-S003 (HFS+ journal differential harvest)
+Agent: main engineer (diff-to-fix session-5 lane)
+Task: Fix S-021 (the journal deleted-record harvester — the og's PRIMARY
+deleted surface) and resolve S-003 (journal "replay" — outcome parity via
+the same substrate, mechanism premise corrected).
+
+Work Log:
+- Corpus first-hand re-verification at 03ad46c before coding: GetDeleteRecord
+  FUN_180011300 :13637-14190 (ring walk semantics, transaction test
+  first_u16 == (u32@+0x20>>4)-1, 16-byte entries at +0x20, count-1 loop,
+  wrap reads, termination at jhdr.start); the journal gates (:13530-13560,
+  LE structures — magic 0x4A4E4C78, endian 0x12345678, size cross-check);
+  the node gate FUN_180010720 (:13049-13100); the fork classification
+  (:13809-13817); the fallback reader (:1690-1790). THREE converging reads
+  confirm: NO live-tree overlay (scratch install FUN_180010110 + unchanged
+  live walk :10122 + the "replay driver" being GetDeleteRecord's own walk).
+- Implementation: journal_harvest_pass in cr_hfsplus_engine.cpp — the full
+  chain: JournalInfoBlock (BE, 'jnlx') -> jnl_header (LE, jnl.c) gates ->
+  bounded ring walk (split reads; tx test; leaf-only images with the og
+  gate subset; fork classification in og order; cnid==parent skip) ->
+  live-catalog differential (kept iff not-found or fileID differs) ->
+  deleted-tier emission with allocation-bitmap grading, the N-028a global
+  sink filter, and the extents-branch fallback map.
+- Endianness lesson recorded: journal-internal structures are LE (the og's
+  ushort loads are native) — the first BE fixture reproduced the exact
+  silent-zero-harvest failure mode S-021's open question warned about.
+- The og's own robustness defect observed + hardened: the ring walk has no
+  total bound (corrupt rings cycle forever); ours caps at one full ring.
+- Tests: JournalHarvestEmitsDeletedRecords (flagship + live-copy
+  suppression), JournalDifferentialDifferentFileIdKept,
+  JournalBadHeaderGates (3 modes), JournalWrapHandled (image spanning the
+  ring end). Fail-before: engine stashed, 3/4 fail (stats zero, nodes
+  missing); pass-after: 4/4; full suite 423/423 ASan.
+- Merge coordination: rebased onto the N-028/N-038/N-005 + M-023 +
+  N-016/N-017 + bench-docs waves mid-flight; test-file conflict resolved
+  keep-both; the N-028a sink filter extended to the journal emission (the
+  og's sink is global).
+- Audit trail: S-021 + S-003 Resolutions (both FIXED; S-003's premise
+  corrected with citations), both moved to findings/FIXED/; RESOLVED-INDEX
+  rows; PARITY-DELTAS D-56; modules/hfsplus.md session-5 section; matrix
+  cells + legend; SUMMARY remediation row; evidence
+  s021-failbefore-journal.md; tracked-open OQ-S003-journal-fallback-salvage.md
+  (the :1690-1790 fallback — consumer undecoded, no guessed implementation).
+
+Stage Summary:
+- The HFS+ deleted-file surface now matches the og's primary mechanism:
+  journal-carried recent deletions and pre-crash state surface as
+  deleted-tier results with content extents. Remaining SEVERE lane:
+  S-007 (carve formats), S-009 (disk-map split), S-020 (ReFS attribute
+  layer), S-023..S-028 (the new audit wave).

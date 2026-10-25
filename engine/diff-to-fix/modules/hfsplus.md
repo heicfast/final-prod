@@ -176,3 +176,34 @@ floor registered as hardening.
 
 **Tests:** +4 (3 fail-before discriminators + product-sanity case). Suite
 392/392.
+
+
+---
+
+## Session-5 fix update (2026-10-26, S-021 + S-003 landed)
+
+- **B4/B5/A25 → S-021 (SEVERE, FIXED):** the journal deleted-record
+  harvest is implemented (`journal_harvest_pass` in
+  `cr_hfsplus_engine.cpp`) — the og's PRIMARY deleted surface. Mechanism
+  per the decompile (all spans re-read first-hand): JournalInfoBlock →
+  jnl_header gates (LE; magic 0x4A4E4C78, endian 0x12345678, size
+  cross-check) → ring walk (split reads, transaction test
+  `first_u16 == (size_a>>4)-1`, 16-byte entries at +0x20, count-1 loop,
+  per-entry cancel) → leaf-only images (kind −1/height 1) classified by
+  fork ranges (catalog→extents→attributes→allocation→startup) →
+  cnid==parent skip → live differential (kept iff not-found or fileID
+  differs) → deleted-tier emission with bitmap grading, the N-028a sink
+  filter, and extents-branch fallbacks. Tests: 4 (harvest+differential,
+  different-fileID, bad gates, ring wrap); fail-before 3/4 on the stashed
+  engine; 423/423 ASan.
+- **B2/B6/A26 → S-003 (SEVERE, FIXED):** outcome parity via the same
+  substrate — pre-crash recent state (files created/renamed before the
+  crash, records living only in journal images) now surfaces as
+  deleted-tier results, matching the og's kind-5 emission. The "replay"
+  mechanism premise is CORRECTED in the audit trail (scratch install +
+  unchanged live walk + the :13660-13800 "replay driver" being
+  GetDeleteRecord's own walk — three converging first-hand reads). The
+  header-invalid fallback salvage (:1690-1790) is tracked:
+  `../tracked-open/OQ-S003-journal-fallback-salvage.md`.
+- **Hardening registered:** PARITY-DELTAS D-56 (ring bound, size caps,
+  no-harvest degradation, grading superset, the tx-magic OQ).

@@ -37,6 +37,12 @@ struct HfsScanStats {
     u64 orphans = 0;          /* stale records in freed catalog nodes */
     u64 overflow_extents = 0; /* extents resolved from the overflow tree */
     u64 bad_nodes = 0;
+    /* S-021 (diff-to-fix): the journal deleted-record harvest */
+    u64 journal_tx = 0;       /* transaction block-lists walked */
+    u64 journal_images = 0;   /* node images read from the ring */
+    u64 journal_leaves = 0;   /* leaf-kind images classified */
+    u64 journal_records = 0;  /* records kept after the live differential */
+    u64 journal_emitted = 0;  /* harvested records emitted as deleted */
     /* S-002 (diff-to-fix) */
     u64 attr_records = 0;     /* inline attribute records collected */
     u64 attr_unsupported = 0; /* non-0x10 record types skipped (og-parity) */
@@ -51,6 +57,11 @@ struct HfsScanStats {
 struct HfsScanFlags {
     bool keep_deleted = true;
     bool scan_freed_nodes = true; /* orphan sweep in free catalog nodes */
+    /* S-021: the journal deleted-record harvest (CHFSPlusJournal::
+     * GetDeleteRecord, HFSPlusSearchDLL FUN_180011300 :13637-14252) - the
+     * og's PRIMARY deleted surface on journaled volumes. Default ON =
+     * og parity; the ring walk is hard-bounded (see the engine source). */
+    bool journal_harvest = true;
     bool resource_forks = true;   /* emit ..namedfork/rsrc children */
     bool resolve_decmpfs = true;  /* S-002: com.apple.decmpfs content via
                                    * codec extents (both storage forms) */

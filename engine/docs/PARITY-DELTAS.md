@@ -1352,6 +1352,46 @@ spec-correct timestamps.
   MainWalkKeepsSystemFlaggedUserFile} on top of the original five pins.
 - **STATUS:** ACCEPTED (og parity; diff-to-fix S-012 FIXED).
 
+### D-56 — HFS+ journal differential harvest: the og's primary deleted surface (S-021/S-003)
+
+**Class:** parity (mechanism) + deliberate hardening · **Findings:** diff-to-fix S-021 (SEVERE, FIXED) + S-003 (SEVERE, FIXED — outcome parity; "replay" premise corrected) · **Date:** 2026-10-26
+
+The og's HFS+ journal consumer is a differential deleted-record harvester
+(CHFSPlusJournal::GetDeleteRecord, FUN_180011300 :13637-14252), NOT a
+live-tree replay: journal transaction images install into a scratch
+record, harvested catalog records emit into the kind-5 deleted branch, and
+the live catalog walk runs unchanged afterwards (:10122). The core now
+implements the same model (`journal_harvest_pass`): JournalInfoBlock →
+jnl_header (LE, jnl.c) gates → ring walk with split reads → leaf-only
+images classified by fork ranges → live-catalog differential (kept iff
+not-found or fileID differs) → deleted-tier emission with extents-branch
+fallbacks.
+
+Deliberate differences (all hardening, none affect result membership):
+- **Ring-walk bound:** one full ring of advances maximum — the og's loop
+  terminates only on `offset == jhdr.start` or cancel and can cycle
+  forever on a corrupt ring (observed defect, documented in the S-021
+  evidence log).
+- **Size caps:** journal ≤ 512 MiB, images/transaction sizes ≤ 16 MiB —
+  the og allocates what the header claims.
+- **Degradation:** a damaged journal (bad magic/endian/size cross-check)
+  degrades to a no-harvest, never a scan failure.
+- **Grading:** harvested records carry our display-tier bitmap grading
+  (Excellent/PartialRisk/Overwritten) — the og emits grade 5 and grades
+  downstream (OQ-S2M-1); same superset family as the freed-node sweep.
+- **The transaction-magic constant** `(u32@jhdr+0x20 >> 4) − 1` is
+  mechanically decoded (first-hand re-read this session) but its
+  derivation is corpus-undecoded; fixtures encode the same formula. A
+  wrong constant yields a silent zero-harvest (never wrong results) — the
+  risk note stays in OQ-S2M-1's probe list.
+
+**WHY:** correctness — the journal is the only place recent deletions
+remain visible on HFS+ (the live catalog overwrites delete records in
+place).
+**RISK:** none beyond the tracked constant question.
+**VERDICT: ACCEPTED** (decompile cited; fail-before/pass-after in
+`diff-to-fix/evidence/executions/s021-failbefore-journal.md`; 423/423 ASan).
+
 ### D-50 — Lost-partition superblock probes: ext parity + HFS+/Btrfs/ZFS/ReFS superset anchors (S-006)
 
 **Class:** parity (ext) + deliberate superset (HFS+/Btrfs/ZFS/ReFS) · **Finding:** diff-to-fix S-006 (SEVERE, FIXED) · **Date:** 2026-10-26

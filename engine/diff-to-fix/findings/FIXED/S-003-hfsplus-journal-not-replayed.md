@@ -175,3 +175,12 @@ The consumption-side evidence above (:10083 emit-grade-5, :10122 unchanged walk)
 **differential salvage** as the primary user-visible behavior — recently-deleted files get
 surfaced with extents/sizes; the og never "makes live entries newer". Recommend the fix
 implement the differential first and pin `FUN_180003ea0` before any overlay work.
+
+---
+
+## Resolution
+
+**Status:** FIXED (outcome parity via the S-021 substrate; the "replay" mechanism premise corrected; the header-invalid fallback residual tracked)
+**Fixed in commit:** (this commit — "fix: S-021 + S-003 - HFS+ journal deleted-record harvest")
+**Verified by:** the S-021 test set (HfsPlus.JournalHarvestEmitsDeletedRecords etc. — the journal-carried recent state now surfaces); fail-before/pass-after in `evidence/executions/s021-failbefore-journal.md`; suite 423/423 ASan; corpus re-verification cited in the S-021 Resolution.
+**Resolution notes:** The finding's headline claim ("post-crash recent state unrecoverable: files created/renamed/moved in the moments before the crash exist only in the journal — the og surfaces them, our core shows only the checkpointed catalog") is CONFIRMED and now FIXED: with the S-021 harvest landed, a file whose only catalog record lives in a journal transaction image surfaces in the core's deleted tier exactly as the og's kind-5 emission serves it. The MECHANISM premise is corrected in the audit trail: the og does NOT overlay journal images onto the live catalog ("replay") — three converging first-hand reads settle it: (1) images install into a SCRATCH record (FUN_180010110 writes a stack-local `local_f8` — never the volume trees); (2) the emit driver walks the live catalog UNCHANGED after the harvest (:10122); (3) the "replay driver" the first addendum decoded at :13660-13800 is GetDeleteRecord's own ring walk (inside :13637-14252). The differential-salvage model (session-2 leg) is the correct reading — this session's implementation follows it. The finding's original fix-plan magic `0x6a6e6c78` was already corrected to 0x4A4E4C78 by the addendum (corpus-wins). Remaining scope, precisely tracked: the journal-header-invalid fallback salvage (:1690-1790, FUN_180003ea0 consumer undecoded) → `tracked-open/OQ-S003-journal-fallback-salvage.md`.
