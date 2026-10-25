@@ -8491,3 +8491,43 @@ Stage Summary:
   residual, S-032 inventory payload, S-009 diskmap residual, then the
   scope-decision items S-029/S-030 — then the S6-close recommended next-10
   (M-052, N-074, N-068, N-065, N-070, N-067, N-075, N-073).
+
+---
+Task ID: DFX9-T0b (union repair — the remote's broken merge + the S-031 x S-032 contract hole)
+Agent: main engineer (diff-to-fix session 9)
+Task: Absorb the remote's parallel landings (S-032 archive inventory, S-031
+timestamp residual, N-018 UBSan lane, INFO-tier acknowledgements) — the
+rebase surfaced a broken remote main and a cross-finding contract hole.
+
+Work Log:
+- Remote moved during the first push attempt: b1f9210..origin/main brought
+  the S-032 lane (1a25869), the INFO acknowledgements (b2bd91b), and the
+  N-018 UBSan lane (b1f9210). Rebased; four conflicts resolved (worklog
+  union, RESOLVED-INDEX union, ui_abi_check — the remote's N-018 defect set
+  carried the byte-equivalent M-053 fixture repair, so M-053 reclassified
+  FIXED-ALREADY with both proofs).
+- REMOTE MAIN WAS BROKEN: tests/unit/test_carve.cpp carried committed
+  conflict markers (the S-031 timestamp leg and the S-032 inventory leg both
+  appended tests; git interleaved them on the shared MemDevice boilerplate;
+  -Werror rejects the markers). Reconstructed the file with BOTH legs' tests
+  in order (S-031's three timestamp tests, then S-032's helper + three
+  inventory tests; 26 CarveEngine tests total, zero markers).
+- Cross-finding defect found on the union tree (fail-before executed):
+  CarvedNodesCarryScanTimestamp + ScanTimestampSurvivesSessionRoundTrip RED
+  — the S-032 inventory children are raw records with NO scan stamp while
+  S-031's contract (and the og: FUN_140c41aa0 per-record timestamp,
+  ifileproperties-part3 :80) stamps EVERY record. Fixed: ep->times.modified
+  = ctx.scan_time in the emission loop, citation comment in-source.
+- Also repaired the committed markers inside findings/FIXED/S-024 (the s6
+  recon merge left HEAD/incoming duplicates of the N-058->N-074 renumber;
+  kept the richer side with the post-resolution correction).
+- Pass-after: FULL ctest 533/533 green (31.5 s) on the union tree. S-032
+  finding carries the session-9 addendum documenting the residue + fix.
+
+Stage Summary:
+- Remote main un-broken and green again (533/533); M-053 FIXED-ALREADY
+  (audit record stands); S-031 x S-032 contract hole closed with the
+  per-entry stamp. Session tally so far: M-053 (filed+verified), merge
+  repair, contract fix. Next: the remaining SEVERE tier (S-009 diskmap
+  residual, S-029 apply path, S-030 image scan) and the S6-close
+  recommended next-10.

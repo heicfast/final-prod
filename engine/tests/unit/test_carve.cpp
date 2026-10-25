@@ -1846,7 +1846,6 @@ TEST(CarveEngine, DeletedOnlyQueryIncludesCarvedFiles) {
 }
 
 /* ===================================================================== */
-/* ===================================================================== */
 /* S-031 timestamp residual: every carved node carries the scan-time     */
 /* stamp (the og's CRAWFileProperties per-record timestamp string,      */
 /* FUN_140c41aa0 "%d-%d-%d %d-%d-%d" — ifileproperties-part3 :80).       */
@@ -1920,6 +1919,7 @@ TEST(CarveEngine, RawSignCarvedNodesCarryScanTimestamp) {
     EXPECT_GE(carved, 1) << "raw-sign layer emit not found";
 }
 
+
 TEST(CarveEngine, ScanTimestampSurvivesSessionRoundTrip) {
     /* the og PERSISTS the per-record timestamp (the CRAW string field);
      * our equivalent carrier is record 4's times.modified — the stamped
@@ -1967,7 +1967,6 @@ TEST(CarveEngine, ScanTimestampSurvivesSessionRoundTrip) {
     scan2(loaded.roots().empty() ? nullptr : loaded.roots()[0]);
     EXPECT_TRUE(found) << "carved node not found after reload";
 }
-
 
 /* S-032: archive inner-entry inventory (og: complete inventory returned  */
 /* by the analysers — rawsearchdll--zip-analyser-carving.md :29-38;       */
@@ -2058,6 +2057,7 @@ TEST(CarveEngine, ZipInnerEntryInventoryEmitted) {
     EXPECT_EQ(tree::DeletedState::Deleted, entry->deleted_state());
 }
 
+
 TEST(CarveEngine, ZipIndexlessEntryInventory) {
     /* CD destroyed: the LFH-chain walk (CARVE-2) still returns the
      * inventory - names + data spans from each local header */
@@ -2104,6 +2104,7 @@ TEST(CarveEngine, ZipIndexlessEntryInventory) {
     EXPECT_TRUE(names.count("first.bin"));
     EXPECT_TRUE(names.count("second.bin"));
 }
+
 
 TEST(CarveEngine, Rar4InnerEntryInventory) {
     /* a REAL-layout RAR4 (MARK 7B + MAIN_HEAD size@+12 + FILE_HEAD with a
