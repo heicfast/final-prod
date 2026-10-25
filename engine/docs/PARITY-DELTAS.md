@@ -1040,6 +1040,60 @@ files.
 
 ---
 
+## K. core-api session (API surface + driver utilization, 2026-10-26)
+
+Every deliberate divergence this session introduced or closed, with evidence.
+Items that are plain MATCHES (self-healing reopen, grammar/token open, F11
+compensation, synchronous completion, driver-absent fallback, push/pull) are
+NOT registered here — see docs/DRIVER-UTILIZATION.md's checklist.
+
+- **D-50 — the unified 64 KiB read envelope on the DRIVER path too
+  (supersedes D-48c's framing).** The og's driver (EPMNtDrv) has no
+  alignment rule and forwards raw lengths — its user mode DOES issue
+  single-sector (512 B) probe reads through the driver path
+  (NTFSSearchDLL_decompiled.c:991, :20706), while its bulk chunking (4/7/2/1
+  MiB) is 64 KiB-multiple by construction. Our transport now rounds EVERY
+  issued read (both transports, one `io::direct_envelope`) to 64
+  KiB-multiple lengths clamped at the device end — probe reads fetch 64 KiB
+  instead of 512 B. Rationale: the mandate's non-negotiable property on
+  every direct read through the driver; 64 KiB subsumes sector alignment
+  (preserving the bench-run-40073093997 sector-rejection fix); the og's
+  observable BULK I/O shape is matched exactly. Semantics unchanged
+  (byte-granular IStorageDevice contract kept via the bounce path).
+  Proven by `DirectAlign.UnifiedEnvelopeExhaustivePropertyBothDevices`.
+- **D-51 — engine cache blocks at 256 KiB (og batches 2-4 MiB).** The og's
+  NTFS engine reads the MFT stream in 4096-sector (2 MiB) batches and its
+  device layer chunks at 4 MiB; our engine pipe coalesces to 256 KiB
+  (8 MiB LRU). 4,096 transitions/GiB vs the og's 256-512 — same class,
+  4-8x coarser; chosen to bound random-miss over-fetch (FAT deleted-chain
+  walks) while cutting 64 KiB blocks' 16,384/GiB. The alignbench sweep
+  (PERFORMANCE-BASELINE §6) owns further tuning.
+- **D-52 — carve-format registry as a unified two-layer enumeration.** The
+  og exposes RAWSearchDLL registry views (EUGetAnalyserList/Map/Multimap +
+  GetRawUserInfoMap — raw-dual-registry seeds); ours exposes one POD
+  enumeration over BOTH layers (grammar validators then raw-sign formats)
+  with stable append-only ordering. Equivalent host capability, different
+  shape; the og's RawConfig.ini per-format toggles are host-side policy on
+  both (ABI-CONTRACT §7a).
+- **D-53 — the og's carved-file NAMER callback is not an ABI export
+  (API-SURFACE-AUDIT op #5, PARTIAL-by-design).** The og registers a
+  std::function namer/filter at RAW vt+0x48 at discovery time; our carve
+  synthesizes signature-derived names and exposes carve_format/confidence
+  per node, so a host re-derives or renames post-query. The extension point
+  itself is not exported (a C callback for tree-identity-affecting naming
+  would thread into session persistence — not worth the ABI surface for a
+  UI policy the reference uses for its own dedup display).
+- **D-54 — SQLite session sidecar REJECTED-BY-REFERENCE (closes GAP-S6-12
+  as a removal).** ABI-CONTRACT §8 previously documented a sidecar index
+  the reference does not have (the og's durable store IS the .rsf
+  container; corpus rsf-format--scan-session.md §2-§5) and that we never
+  implemented. The false contract claim was cut (A-ABI-2); queries answer
+  from the in-memory session tree exactly as shipped.
+- **D-55 — category taxonomy stays 6-category/~90-ext vs the og's
+  8-category/1,481-ext runtime XML (M-023, open, engine scope).** The API
+  surface exposes the core's truthful taxonomy; the completion is tracked
+  as M-023 (filter model), not silently over-claimed here.
+
 ## J. UNDOCUMENTED DIVERGENCE CANDIDATES
 
 Things our code/docs do differently with no (or stale/contradictory) rationale

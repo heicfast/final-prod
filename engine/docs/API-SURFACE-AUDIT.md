@@ -57,8 +57,8 @@ engine boundary — a C host composes it from existing exports).
 | 4 | `CreateRAWSearcher` | carve stage bit | **MATCH** | |
 | 5 | `RegisterCarvedFileNamer` — UI registers `std::function<string(string,string)>` at RAW vt+0x48 (naming/filter policy at discovery) | not exposed; carve names synthesized from signature registry (`CarvedNNNN` + format) | **PARTIAL** | og: `DRWUI_decompiled.c:917273-917279`. Core: names + `carve_format`/`carve_confidence` are queryable per node (cr_ui.h node_info), so a host can re-derive/rename post-hoc; the extension point itself is not exported. Registered as a deliberate divergence (host-side naming) — see §5 D-API-1 |
 | 6 | `SetScanMode(int)` on last searcher | `whole_disk` + stage weights in scan config | **MATCH** | semantics folded into config |
-| 7 | `EnumerateAnalysers` — `EUGetAnalyserList/Map/Multimap` (RAWSearchDLL registry views) | **MISSING** | **MISSING** | og: RAWSearchDLL exports (corpus `rawsearch-carving--deep-dive.md` §1). Core keeps the 139-format signature registry internally (cr_rawsigns_data.cpp) but exports no enumeration. **Completion: add `cr_ui_carve_format_count()` + `cr_ui_carve_format_info()` (name/extension/magic/offset/min/max) — small, testable, no ABI break (appended exports).** |
-| 8 | `GetRawUserInfoMap` — per-extension preference table (RawConfig.ini, 34 toggles) | **MISSING** | **MISSING** | og: RawConfig.ini-driven preference map exposed as a DLL export. Core's format set is compile-time. With #7 the same surface can expose the registry rows a host needs for config UIs. Same completion item. |
+| 7 | `EnumerateAnalysers` — `EUGetAnalyserList/Map/Multimap` (RAWSearchDLL registry views) | `cr_ui_carve_format_count()` + `cr_ui_carve_format_info()` | **MATCH — landed** | og: RAWSearchDLL exports (corpus `rawsearch-carving--deep-dive.md` §1). One POD enumeration over BOTH carve layers (grammar validators then raw-sign formats), stable append-only ordering, added-export rule (no bump). ABI-CONTRACT §7a; contract test `CrUi.CarveFormatRegistryEnumeration` + C-consumer loop |
+| 8 | `GetRawUserInfoMap` — per-extension preference table (RawConfig.ini, 34 toggles) | same enumeration (the preference/toggle layer is host-side policy on both sides) | **MATCH — landed** | og: RawConfig.ini-driven preference map exposed as a DLL export, consumed by its UI to configure the searcher; ours documents the same split (ABI-CONTRACT §7a: the core carves the full registry, the host filters for its config surface) |
 
 ### 2.2 Scan lifecycle
 
@@ -80,7 +80,7 @@ engine boundary — a C host composes it from existing exports).
 | 17 | Recovery progress (typed `IUIProgressInfo`) | `cr_ui_recovery_config.progress` + `get_stats` | **MATCH** | og's `IUIProgressInfo` field layout NOT IN CORPUS (percent via vt+8 double documented); core's progress callback carries permille + counts |
 | 18 | Tree node metadata (`IFileProperties` 23 slots) | `cr_ui_snapshot_node` → `cr_ui_node_info` | **MATCH** | name/sizes/4 timestamps/attributes/flags/extents/deleted/origin/confidence/carve format/hash — field set ⊇ og's persisted set (cr_ui.h:392-430) |
 | 19 | Classify results — FileFilter.xml 8 categories / 1,481 extensions | 6 hard-coded categories / ~90 extensions | **WRONG** | og: `config-files/filtering-priority--config-layer.md` §2 + CORRECTIONS.md #5. Core query enum: 1..6 (cr_ui.h:483-485). Open finding **M-023** (filed session-3). The category taxonomy is engine-parity scope, tracked there; the API-side plan is §5 item 3 |
-| 20 | `ApplyFilter` — 0x48-B `AdvanceFilterCondition`, 7 groups (type/time/size/state/tag/path/search) | `cr_ui_query` | **PARTIAL** | core covers type/time/size/state(deleted)/search + origin/confidence extras; missing **tag** and **path** groups (og: `31-filterbar-family-decode.md` §3-§6). Push-down divergence D-29 registered (client-side filtering). Plan: §5 item 4 |
+| 20 | `ApplyFilter` — 0x48-B `AdvanceFilterCondition`, 7 groups (type/time/size/state/tag/path/search) | `cr_ui_query` (+ `path_prefix`) | **MATCH on 6 of 7 groups** | core covers type/time/size/state(deleted)/search + origin/confidence extras + **path (path_prefix, landed this session)**; **tag = NOT-EXPOSED** (the og's tag data is its Results-UI state — no core-side analog; registered D-53-adjacent). Push-down divergence D-29 registered (client-side filtering). Pins: `Query.PathPrefixFilterMatchesAndPrunes` (10 cases) + ABI + C-consumer blocks |
 | 21 | Search results (query + type dropdown) | `name_substring` filter | **MATCH** | ASCII-case-insensitive substring, documented |
 | 22 | Sort | query sort 0-5 × dir | **MATCH** | og sorts async via `CSortNodeThread`; core sorts at query time (session trees immutable) — mechanism documented D-29 |
 | 23 | Select/Deselect nodes | host-side (enqueue set = selection) | **N/A-by-layer** | the og's selection is UI widget state; recovery enqueue is the semantic equivalent |
@@ -129,39 +129,53 @@ engine boundary — a C host composes it from existing exports).
 
 ## 4. C consumer test coverage (the `/W4 /WX` gate)
 
-`tests/ui_abi_check.c` (563 lines) exercises: ABI gate, image open/geometry/
-transport, zero-init scan + progress monotonicity, stats/telemetry, double-run
-refusal, S-008 consent + undo, save/load/stats/info, snapshot node/dfs/TRUNCATED,
-query (count/limit/deleted/substring), preview (session + snapshot + metadata),
-recovery (create/destination/enqueue/process/stats/report + on-disk bytes),
-platform-truth (`ERR_UNSUPPORTED`), 2 BAD_PARAMETER probes.
+`tests/ui_abi_check.c`, expanded this session to the FULL cross-platform
+lifecycle: ABI gate, image open/geometry/transport + bad-open error path,
+carve-format registry enumeration + error contract, zero-init scan with
+progress monotonicity + typed-event counters (stage/progress/files,
+unknown-type ignore, subscribe/unsubscribe/resubscribe) + checkpoint_path +
+checkpoint_count, cancel-before-run → ERR_CANCELLED + truthful
+save-on-cancel, stats/telemetry, double-run refusal, S-008 pre-scan repair
+consent + transactional apply + undo save + CRUNDO01 magic, save_session,
+session load/stats/get_info, snapshot partial/count/node (+TRUNCATED name
+path)/dfs two-call, query (count-only, limit, deleted_only, name substring,
+path_prefix both directions), disk map (session auto-geometry + overlays +
+bad-ranges two-call + snapshot-requires-view refusal), preview (session +
+snapshot, read bytes, metadata), recovery (create/set_destination/enqueue_node/
+queue_count/process/stats/report_json + on-disk byte check + subtree/snapshot
+enqueue variants + cancel-before-process contract), session_resume +
+verify_identity positive path + completed-session no-op run, non-Windows
+`ERR_UNSUPPORTED` platform-truth, BAD_PARAMETER probes.
 
-**Not exercised by any C consumer today**: pause/resume/cancel,
-`session_resume`, `verify_identity`, `disk_map`, event subscription,
-subtree/snapshot enqueue variants, `recovery_cancel`, `checkpoint_count`,
-Windows-only surfaces (open_disk/open_volume/enumerate/health).
-C++ gtest covers most of these (test_cr_ui.cpp 14 tests) but the **C-consumer
-gate is the ABI's product-surface proof** — it must exercise the full
-lifecycle. Completion: §5 item 6.
+**Windows-only surfaces** (open_disk/open_volume/enumerate/health) are
+exercised on the Windows lane via the platform-truth probes and, against
+real disks with the driver loaded, by the bench harness (verify-driver.ps1,
+run-behavior.ps1, alignbench). The mid-run cross-thread cancel/pause
+semantics live in the C++ suite (std::thread; CancelSaveAndResume,
+PauseBlocksAndResumes) per the documented threading split.
 
-## 5. Completion plan (ordered)
+## 5. Completion plan — EXECUTED (all items landed this session)
 
-1. **Carve-format enumeration** (ops #7-#8): `cr_ui_carve_format_count()` +
-   `cr_ui_carve_format_info()` over the internal registry; contract test
-   asserting count>0, stable ordering, fields; C-consumer additions.
-2. **A-ABI-1** versioning policy fix (header comment) — must land BEFORE the
-   new exports so the policy is coherent at review time.
-3. **A-ABI-2** cut the SQLite sidecar claim; close GAP-S6-12 as
-   REJECTED-BY-REFERENCE; audit-trail in CORE-GAP-LIST.
-4. **Query filter parity** (op #20): add `path_prefix` filter group
-   (tag has no core-side analog — the og's tag data comes from its Results
-   UI; document as NOT-EXPOSED with rationale). Contract tests.
-5. **Doc drifts** A-ABI-3/4/5/6.
-6. **C-consumer expansion**: pause/resume/cancel, resume, verify_identity,
-   disk_map, events, recovery_cancel, checkpoint_count (Windows-only
-   surfaces stay on the Windows lane).
-7. M-023 (category taxonomy) remains engine-scope, tracked in
-   diff-to-fix — not blocking this session's API completion.
+1. **DONE** — Carve-format enumeration (ops #7-#8):
+   `cr_ui_carve_format_count()` + `cr_ui_carve_format_info()`; contract test +
+   C-consumer coverage; ABI-CONTRACT §7a.
+2. **DONE** — A-ABI-1 versioning policy fix (header comment corrected to the
+   operative append-only policy BEFORE the new exports landed).
+3. **DONE** — A-ABI-2 SQLite sidecar claim cut; GAP-S6-12 closed
+   REJECTED-BY-REFERENCE (corpus cite); registered D-54.
+4. **DONE** — Query path-prefix filter (op #20's path group);
+   `Query.PathPrefixFilterMatchesAndPrunes` + ABI + C-consumer blocks; tag
+   group documented NOT-EXPOSED (D-53 lineage).
+5. **DONE** — Doc drifts A-ABI-3/4/5 fixed (export counts, §5 names, §6
+   threading); A-ABI-6 (codeql `if: false` vs the RELEASE-NOTES claim)
+   remains open — a policy decision for the repo owner (re-enable the lane
+   or re-word the claim), flagged in the audit's findings table.
+6. **DONE** — C-consumer expansion (§4 above).
+7. M-023 (category taxonomy) remains engine-scope, tracked in diff-to-fix —
+   not blocking this session's API completion (D-55 registers it honestly).
 
-Each item lands with fail-before/pass-after tests and corpus cites in the
-commit message.
+Post-session statuses: ops #7/#8 → MATCH; op #20 → MATCH on 6-of-7 groups
+(tag NOT-EXPOSED with rationale); every cross-platform ABI export family has
+C-consumer coverage. Remaining tracked items: M-023 (engine scope), A-ABI-6
+(codeql policy), Windows-only-surface real-disk coverage rides the bench
+harness.
