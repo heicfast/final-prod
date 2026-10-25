@@ -205,6 +205,12 @@ u32 scan_one_window(ScanCtx& ctx, u64 base, const u8* win, u64 want, std::set<u6
                 return ERR_NO_MEMORY;
             }
             n->set_origin(tree::Origin::Carved);
+            /* S-031: every carved record is deleted-family state — the og's
+             * CRAWFileProperties FLAGS field is the constant 0x0020 across
+             * all 12,147 sampled records (ifileproperties-part3 :82); the
+             * deleted_only query view and deleted_count stats include the
+             * whole carve population */
+            n->set_deleted_state(tree::DeletedState::Deleted);
             n->set_confidence(cr.confidence >= 850 ? tree::Confidence::Excellent
                                                    : tree::Confidence::PartialRisk);
             ctx.validated.fetch_add(1, std::memory_order_relaxed);
@@ -362,6 +368,9 @@ u32 scan_one_window(ScanCtx& ctx, u64 base, const u8* win, u64 want, std::set<u6
                 return ERR_NO_MEMORY;
             }
             n->set_origin(tree::Origin::Carved);
+            /* S-031: same constant-0x20 FLAGS on the raw-sign layer — both
+             * carve emit sites flag deleted (see the grammar layer above) */
+            n->set_deleted_state(tree::DeletedState::Deleted);
             n->set_confidence(tail_paired ? tree::Confidence::PartialRisk
                                           : tree::Confidence::MetadataOnly);
             emitted_at.insert(start_abs);

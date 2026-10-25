@@ -26,6 +26,18 @@ data gap, engine consumes all family codes; exact next decode sites
 listed in the evidence §5.
 
 # SUMMARY.md (session 7) — preserved below
+
+## Closing-session delta — S-031 (2026-10-26)
+
+**S-031 FIXED (this push):** carved files flag Deleted (og FLAGS=0x0020
+constant, 12,147/12,147 corpus census — re-verified first-hand at
+ifileproperties-part3 :82). Both carve emit sites patched (grammar :207 +
+raw-sign :370, the merged-tree second site); `deleted_only` queries and
+`deleted_count` now include the carve population (the product's primary
+deleted-files view no longer drops the only recoverable content after
+metadata destruction). 3 tests, all fail-before proven
+(DeletedOnlyQueryIncludesCarvedFiles is the product-level discriminator);
+suite 491/491 Linux Release.
 ## Session-7 delta (2026-10-26 — the close-all-tiers fix session, low-severity-first order)
 
 Mandate (user-specified ordering): INFORMATIONAL → MINOR → MAJOR → SEVERE →
@@ -1224,7 +1236,6 @@ S-007, S-009-partial, S-020, S-023..S-028) · MAJOR 22 · MINOR 33 · INFO 12 ·
 **total active 77** / **35 FIXED** (tracked-open: the existing OQ files, now
 including OQ-S012).
 
-<<<<<<< HEAD
 
 **Fix-session-4 addendum (M-010):** the invalid-UTF-8 name edge closed — ext4/Btrfs
 names now carry a REVERSIBLE encoding of their raw bytes (U+E000 + byte) instead
@@ -1237,7 +1248,7 @@ renumbered **A-006** (findings/ACUTE/A-006-rawfixer-4kn-stack-buffer-overflow.md
 the hfsplus one keeps A-005 (its identity is baked into the Resolution,
 RESOLVED-INDEX, errata E37 and the module docs). Same protocol as the two prior
 collisions (recorded above).
-=======
+
 - **S-025 FIXED** (ext4 journal reparenting): the og's two-pass model —
   pre-walk harvest (parent map from "."/".." pairs; "."-less blocks stay
   owner-less orphans per S-004), post-walk emit reparenting under live
@@ -1250,7 +1261,6 @@ collisions (recorded above).
 
 **Live counts (after S-025):** ACUTE 0 · SEVERE 5 · MAJOR 36 ·
 MINOR 31 · INFO 18 · tracked-open 12 = **90 active** / **56 files in FIXED/**.
->>>>>>> 24d566f (fix(S-025): ext4 journal reparenting — the og's two-pass model; latent live-file duplicate found and fixed)
 
 - **S-028 FIXED** (btrfs xattrs): KEY_XATTR(24) dispatch — user.DOSATTRIB
   lands the Windows bits on the node (Samba hex text parsed); other user.*
