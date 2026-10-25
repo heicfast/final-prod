@@ -10604,42 +10604,6 @@ Stage Summary:
   repair x4, M-005, I-006 pin, M-043) + the INFO verification pass.
   Session 14 continues; next claim after the next pull.
 
-<<<<<<< HEAD
-
----
-Task ID: DFX14-T7 (T14 — the tracked-open queue)
-Agent: main engineer (diff-to-fix session 14)
-Task: Resolve-or-push-forward the 16 tracked-open items.
-
-Work Log:
-- SIX resolved-but-stranded items moved to FIXED/ with RESOLVED-INDEX
-  rows: OQ-S003 (records reconciled — the filename carried the RESOLVED
-  stamp while both file bodies kept pre-resolution text; the stale
-  FIXED/ duplicate removed, the closing-session record written in),
-  OQ-S2M-1 (s4, folded into S-023), OQ-S4-1 (s5, the grading table
-  dump), OQ-S4-2 (s5, residual redirected to N-063), OQ-T2-T5 (s2),
-  OQ-T8-T9 (s3, via N-031 + M-017).
-- TEN genuinely-open items pushed forward with session-14 addenda; two
-  with NEW corpus evidence: OQ-S5-1 (CheckVersion — zero DRWUI callers,
-  zero RecoveryModule/MainModule call sites, module IS in the 31-module
-  MOM load list, PE drops the whole MOM system; load documented,
-  invocation undecoded anywhere; next step refined to a
-  MainModule-decompile pass over the module-init vtable) and OQ-S2M-2
-  (probe 1 RUN as specified: zero hits for direct 0x3c/0x1e/0x14 stores
-  into candidate-info +0x68 — the store goes through a register/local;
-  next step refined to the SearchDLL candidate-info serializer decode).
-  OQ-T6-T7's T7 half noted resolved via I-008; OQ-S6-3's anchor-B half
-  noted superseded by M-051's landing. The rest stand with their filed
-  next steps (Windows-hardware, undecoded targets, RE-artifact gaps).
-- tracked-open/ is now 10 files, every one with a current session-14
-  addendum stating why it was not resolvable this session and the exact
-  next step.
-
-Stage Summary:
-- T14 CLOSED: no stranded resolutions remain in tracked-open/; the
-  queue's next-session entry points are precise. DFX14 tally: 10
-  finding-level resolutions + the INFO pass + T14 + 13 merge repairs.
-=======
 ---
 Task ID: DFX15-F6..F8 (session 15 continuation, MAJOR lane)
 Agent: core-parity-fix-agent (main)
@@ -10699,4 +10663,37 @@ Stage Summary:
   unclaimed MINOR pool next (engine-correctness first: N-067 exFAT
   upcase, N-068 ZIP gates, N-069 CAB key; then the orchestrator UX
   pair N-043/N-060).
->>>>>>> origin/main
+
+---
+Task ID: DFX14-T7 (T14 — the tracked-open queue)
+Agent: main engineer (diff-to-fix session 14)
+Task: Resolve-or-push-forward the 16 tracked-open items.
+
+Work Log:
+- SIX resolved-but-stranded items moved to FIXED/ with RESOLVED-INDEX
+  rows: OQ-S003 (records reconciled — the filename carried the RESOLVED
+  stamp while both file bodies kept pre-resolution text; the stale
+  FIXED/ duplicate removed, the closing-session record written in),
+  OQ-S2M-1 (s4, folded into S-023), OQ-S4-1 (s5, the grading table
+  dump), OQ-S4-2 (s5, residual redirected to N-063), OQ-T2-T5 (s2),
+  OQ-T8-T9 (s3, via N-031 + M-017).
+- TEN genuinely-open items pushed forward with session-14 addenda; two
+  with NEW corpus evidence: OQ-S5-1 (CheckVersion — zero DRWUI callers,
+  zero RecoveryModule/MainModule call sites, module IS in the 31-module
+  MOM load list, PE drops the whole MOM system; load documented,
+  invocation undecoded anywhere; next step refined to a
+  MainModule-decompile pass over the module-init vtable) and OQ-S2M-2
+  (probe 1 RUN as specified: zero hits for direct 0x3c/0x1e/0x14 stores
+  into candidate-info +0x68 — the store goes through a register/local;
+  next step refined to the SearchDLL candidate-info serializer decode).
+  OQ-T6-T7's T7 half noted resolved via I-008; OQ-S6-3's anchor-B half
+  noted superseded by M-051's landing. The rest stand with their filed
+  next steps (Windows-hardware, undecoded targets, RE-artifact gaps).
+- tracked-open/ is now 10 files, every one with a current session-14
+  addendum stating why it was not resolvable this session and the exact
+  next step.
+
+Stage Summary:
+- T14 CLOSED: no stranded resolutions remain in tracked-open/; the
+  queue's next-session entry points are precise. DFX14 tally: 10
+  finding-level resolutions + the INFO pass + T14 + 13 merge repairs.
