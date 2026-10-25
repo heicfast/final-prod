@@ -1328,8 +1328,18 @@ CarveResult validate_raf(IStorageDevice* s, u64 hit, u64 cap) {
     const bool canonical = std::memcmp(h, "FUJIFILMCCD-RAW ", 16) == 0;
     if (!canonical && std::memcmp(h, "FUJI", 4) != 0)
         return r; /* the registry guarantees FUJI; belt-and-braces */
+    /* N-076 (NEW-FINDING, DFX12 session-12 - discovered during N-054's
+     * fixture work): real-world RAF files carry the version at +16 as a
+     * 4-byte ASCII string ("0100"/"0201"; exiftool FujiFilm tags, the
+     * kladd/raw FormatVersion[4] header struct, freedesktop libopenraw)
+     * - read LE those are 0x3031..-style values far above the old
+     * binary cap, so this gate rejected every real RAF and the row was
+     * dead for real files since introduction (zero fixture coverage).
+     * Canonical acceptance: 4 ASCII digits OR a small binary value. */
     const u32 ver = rd32(s, hit + 16);
-    if (ver == 0 || ver > 0x2000)
+    const bool ascii_ver = h[16] >= '0' && h[16] <= '9' && h[17] >= '0' && h[17] <= '9' &&
+                           h[18] >= '0' && h[18] <= '9' && h[19] >= '0' && h[19] <= '9';
+    if (ver == 0 || (!ascii_ver && ver > 0x2000))
         return r;
     u64 max_end = 0;
     for (int i = 0; i < 4; ++i) { /* section offset/len pairs from +0x54 */

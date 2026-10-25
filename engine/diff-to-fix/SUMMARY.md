@@ -135,9 +135,38 @@ commit):** SEVERE 3 (S-009, S-029, S-030) · MAJOR 39 (incl. the known
 duplicate M-029 pair) · MINOR 49 · INFO 22 (all ACKNOWLEDGED — 0
 actionable) · tracked-open 16 · **FIXED/ 79 files (78 findings +
 RESOLVED-INDEX)**. Session fix tally (resolutions this session): 6
-moved-with-evidence + the group-file restoration. Ongoing: MINOR-first
-fix waves targeting 20+ in-session resolutions; N-073 noted as a
-probable N-004 duplicate (session-6 filing) — verification queued.
+moved-with-evidence + the group-file restoration.
+
+**Carve-magic quartet FIXED — CONVERGENT LANDINGS (this wave):** two
+parallel legs independently implemented the same four findings from the
+same corpus citations (the parallel lane's `b2f48c6` landed first and is
+canonical: bounded-buffer MKV DocType webm/matroska walk + the 0x200
+element-bounds gate; FMT_HEIF registry row for the HEIF relabel;
+FMT_TIFF_EP claims the IIU key with FMT_RW2 as the registered salvage
+D-63a; RAF keyed on the FUJI 4CC with the variant path, JPEG prefix
+registered D-64a). This session's convergence contributions: the
+independent corpus decode of the artifact's second constant 0x67805318
+(the Segment element ID 0x18538067 read little-endian — recorded in the
+finding + module doc for future audits), a second fail-before proof set
+(8/10 of this leg's name-identical tests RED on the stash-isolated
+pre-fix engine), and the finding-file moves to FIXED/ with the union
+Resolutions. **NEW-FINDING N-076 (DFX12, unique to this session):**
+while building N-054's fixtures: the canonical RAF version gate
+rejected every real-world RAF — the version at +16 is a 4-byte ASCII
+string ("0100"/"0201") misread as binary (LE values ~8e8 above the
+0x2000 cap); BOTH quartet landings carried the defect; the row was dead
+for real files since introduction, zero fixture coverage. Fixed in the
+union follow-up: ASCII-digits OR small-binary acceptance;
+Carve.RafRealAsciiVersionAccepted (fail-before executed RED on the
+pre-fix engine). Suite **563/563** linux-release post-union.
+
+**Counts after the quartet (direct file inventory at this commit):**
+SEVERE 1 (S-029 — S-009 and S-030 landed by the parallel lanes in the
+same window) · MAJOR 36 · MINOR 45 · INFO 22 (all ACKNOWLEDGED) ·
+tracked-open 16 · **FIXED/ 89 files (88 findings + RESOLVED-INDEX)**. Session resolution tally so
+far: 6 reconciliation moves + the N-076 discovery-fix + the quartet
+convergence work. Ongoing: MINOR-first waves; N-073 remains a probable
+N-004 duplicate — verification queued.
 
 ## Session-8 delta (2026-10-26 — the closing-verification fix session, SEVERE lane first)
 

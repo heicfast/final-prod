@@ -2359,6 +2359,33 @@ TEST(Carve, RafVariantHeaderAccepted) {
     EXPECT_EQ(raf->props()->carve_format, u32(FMT_RAF));
 }
 
+TEST(Carve, RafRealAsciiVersionAccepted) {
+    /* N-076 (NEW-FINDING, discovered during N-054's fixture work -
+     * both quartet landings carried the defect): real-world RAF files
+     * carry the version at +16 as a 4-byte ASCII string ("0100"/"0201")
+     * - read LE those are ~8e8, far above the old binary 0x2000 cap, so
+     * the canonical path rejected every real RAF (the row was dead for
+     * real files since introduction; zero fixture coverage). */
+    std::vector<u8> img(256 * 1024, 0);
+    const size_t at = 16384;
+    u8* t = img.data() + at;
+    std::memcpy(t, "FUJIFILMCCD-RAW ", 16);
+    std::memcpy(t + 16, "0201", 4);
+    put32v(img, at + 0x54, 96);
+    put32v(img, at + 0x54 + 4, 4096);
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"Lost Files");
+    CarveFlags flags;
+    CarveStats s;
+    ASSERT_EQ(carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, s),
+              OK);
+    auto* n = find_carved_by_ext(root, "raf");
+    ASSERT_NE(n, nullptr) << "real ASCII-version RAF must carve (pre-fix: the binary ver gate rejected it)";
+    EXPECT_EQ(n->props()->extents.front().offset, u64(at));
+    EXPECT_GE(n->props()->logical_size, u64(1024));
+}
+
 TEST(Carve, JpegFourthByteOutsideOgSet) {
     /* N-054 (documented superset, D-64): the og keys JPEG on FOUR exact
      * dwords (FF D8 FF E0/E1/DB/EE - census :54); the core matches the
