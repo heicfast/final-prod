@@ -1758,3 +1758,14 @@ Stage Summary:
   fail-before/pass-after tests, resolve or precisely advance the OQs, update matrix/SUMMARY/
   module docs/worklog, leave main green.
 
+---
+---
+Task ID: 8 (T8)
+Agent: main auditor
+Task: ZFS + ReFS + table/LDM module audit
+
+Work Log:
+- Read B-zfs/B-refs/B-partitionrecovery-rawfixer vs D sheets; verified in code: ZFS read_raw vdev!=0 refusal + PARITY-DELTAS D-09, ReFS detect memcmp widths + version gate, GPT GUID constants, EBR caller gate, LDM GPT-path finder.
+- EXECUTED PROOF (A-001): built canonical-GUID GPT fixture, ran core parser via libcr.a harness — parse_ldm_database = ERR_BAD_MAGIC on GPT dynamic disk; ESP→Reserved (dup GUID), MSR/Linux/LDM→Other. Cross-evidence: ESP/MSR canonical bytes found byte-for-byte in six og PartitionRecovery binaries. Header comment claiming triple-source verification is FALSE.
+- Findings: A-001 (ACUTE), M-002 (EBR salvage), N-007+I-004 (ReFS detect), OQ-T6 (ZFS anchors/multi-vdev), OQ-T7 (LDM RAID-5 rotation).
+- Wrote modules/zfs.md, modules/refs.md, modules/ldm.md; evidence/executions/gpt-guid-probe.md + harness.
