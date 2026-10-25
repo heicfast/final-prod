@@ -180,3 +180,39 @@ This session's Resolution above is the operative one: the free overlay is
 implemented, tested (4 fail-before-by-construction tests), and verified on
 both lanes. The N-020 leg's five other doc-drift corrections are
 unaffected and stand.
+
+### Session-9 independent verification + hardening addendum (2026-10-26)
+
+A second leg (this session) had independently root-caused, implemented, and
+verified the free overlay (its own viz::FreeSpaceMap design: capture-time
+budget-bounded downsampling, REC_FREE_SPACE_MAP record, cluster-hint cells;
+fail-before executed with 6 red on a behavior-revert build, 539/539 ASan +
+UBSan) when the rebase surfaced THIS landing already on main — the second
+concurrent S-009 collision of the day (after M-053). Union resolution: the
+landed storage::FreeMap implementation is the base (integrated with the
+parallel M-047/N-051..54/style landings; its snapshot-path capture exceeded
+the second leg's design); the second leg's UNIQUE assets ported onto it
+this push:
+
+- `tests/unit/test_diskmap.cpp` (NEW, 4 tests): the range_free edge matrix
+  (before-base/past-end/empty/straddling/sub-cluster spans, the middle-bit
+  clear), the REC_ALLOC_MAP record round-trip (bit-exact reload, prefix-
+  truncation rejection at every boundary, a cluster_count lie, the absent-
+  map never serializing), the zoom-window truth (Unknown/Free/Unknown
+  before/inside/past the map's coverage), and the downsample
+  raw-truth preservation.
+- `NtfsVolume.DiskMapFreeCellsFromRealBitmap`: the real $Bitmap drives the
+  overlay through the dispatch's exact producer contract (invert) — used
+  cluster 200 + active file -> Used; free 210 -> Free; the metadata-only
+  bitmap cluster -> Unknown; the free population dominates.
+- The C consumer's four-overlay call asserts free cells + the cluster hint
+  (the finding's original acceptance criterion, through plain C).
+- Verification: **555/555 on the Linux ASan preset AND 555/555 on the
+  UBSan lane** (both executed after the port).
+
+Honest note for the record: one sub-cluster-span assertion in the ported
+edge matrix was initially WRONG (it expected byte-granular refusal; the
+map's contract is cluster-granular — a span inside a free cluster reads
+free). Corrected against the landed contract, with the semantics documented
+in the test. The landed implementation's own coverage (reload + snapshot +
+precedence + uncovered-tail) plus this port closes the finding's test plan.

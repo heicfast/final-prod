@@ -9152,3 +9152,56 @@ Stage Summary:
   SEVERE 1 / MAJOR 39 / MINOR 55 / INFO 22 / 74 FIXED. Session tally:
   S-009, S-030, M-053 (filed+fixed) + the S-032/S-009 parallel-landing
   reconciliations.
+
+Task ID: DFX9-T1b (S-009 — concurrent-collision union + hardening port)
+Agent: main engineer (diff-to-fix session 9)
+Task: Absorb the parallel S-009 landing (the second concurrent collision of
+the session after M-053); port this leg's unique assets onto the landed
+implementation.
+
+Work Log:
+- This leg's own S-009 fix (viz::FreeSpaceMap design, fail-before 6 red,
+  539/539 ASan+UBSan) hit the remote mid-push: the parallel lane had landed
+  storage::FreeMap + REC_ALLOC_MAP + snapshot capture, integrated with
+  M-047/N-051..54/style landings. Union discipline: their implementation is
+  the base; my commit's unique assets extracted and ported.
+- Ported (adapted to storage::FreeMap): test_diskmap.cpp (4 tests: the
+  range_free edge matrix incl. the sub-cluster-span semantics correction —
+  the map is cluster-granular, a span inside a free cluster reads free),
+  the REC_ALLOC_MAP round-trip + hostile-input rejection, the zoom-window
+  truth, the downsample truth preservation;
+  NtfsVolume.DiskMapFreeCellsFromRealBitmap (real $Bitmap through the
+  dispatch's invert contract); the C-consumer free-cell assertions (the
+  finding's original acceptance criterion).
+- Verification: FULL ctest 555/555 on linux-gcc (ASan) AND 555/555 on
+  linux-ubsan.
+- Audit trail: the session-9 verification + hardening addendum appended to
+  the landed S-009 finding (FIXED/), recording both legs' work and the
+  union decision.
+
+Stage Summary:
+- S-009 CLOSED (landed implementation + this leg's verification and
+  hardening tests; corpus citations re-verified first-hand by both legs).
+  SEVERE tier: S-029 + S-030 remain. Session tally: M-053, union repair,
+  S-009 (verification + hardening port). Next: S-030 (image scan targets),
+  then S-029 (apply path), then the MAJOR/MINOR waves.>>>>>>> 33c0722 (test(S-009 hardening): port the second leg's unique free-overlay proof set onto the landed implementation)
+---
+Task ID: DFX9-T2 (lane claim — unclaimed MINOR high-value trio + module batches)
+Agent: main engineer (diff-to-fix session 9, the M-053/union-repair/S-009-hardening leg)
+Task: Claim the unclaimed MINOR findings per multi-leg coordination: N-065
+(writer destination-policy collision/mkdir gates), N-070 (carve overlap
+scoring + two-generation fallback), N-075 (busy/stopping query exports),
+then the writer/carve/query module minors in batches. S-029 stays with
+DFX10's queue (their published order S-009->S-029->S-030; S-009/S-030
+landed from other lanes, so S-029 is their active item — no collision from
+this lane).
+
+Work Log:
+- Lane deconfliction read from the worklog: DFX15 = MAJOR (M-002 landed,
+  M-037/M-031/M-046/M-045/M-013/M-052/M-043/M-018/M-005/M-014 queue);
+  DFX9-T7 = MAJOR tail (M-052 first); DFX13 = N-045/N-067/N-068/N-069 +
+  doc trios; DFX14 = N-073/N-004 duplicate probe. N-065/N-070/N-075
+  unclaimed at this instant.
+
+Stage Summary:
+- Lane claimed; execution begins with N-065.

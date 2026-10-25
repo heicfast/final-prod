@@ -20,6 +20,8 @@
 #include "cr/compress/cr_decomp.h"
 #include "cr/storage/cr_device.h"
 #include "cr/session/cr_records.h"
+#include "cr/tree/cr_diskmap.h"
+#include "cr/storage/cr_freemap.h"
 #include <array>
 #include <cstring>
 #include <functional>
@@ -3604,4 +3606,75 @@ TEST(NtfsVolume, UsnHarvestCapMinesTail) {
     }
     EXPECT_NE(tail_gone, nullptr) << "the TAIL delete must be mined (circular journal)";
     EXPECT_EQ(head_gone, nullptr) << "the skipped head window must not be mined";
+}
+
+
+/* ---- S-009 hardening (session 9's port): the REAL $Bitmap drives the
+ * free overlay through the exact producer contract the dispatch uses
+ * (invert: bit set = cluster free). The fixture's planted bitmap truth:
+ * used 4..83 (meta) + 200/201/240/250 + 220..223/230..231; free 210 and
+ * the rest. */
+TEST(NtfsVolume, DiskMapFreeCellsFromRealBitmap) {
+    Image img;
+    build_image(img);
+    MemDevice dev(img.raw(), img.geom());
+
+    u32 err = 0;
+    auto vol = NtfsVolume::open(std::unique_ptr<IStorageDevice>(new MemDevice(dev)), &err);
+    ASSERT_NE(vol, nullptr) << "open err " << err_text(err);
+    std::unique_ptr<VolumeBitmap> bm;
+    ASSERT_EQ(VolumeBitmap::load(vol.get(), bm), OK);
+    ASSERT_NE(bm, nullptr);
+    ASSERT_TRUE(bm->valid());
+    ASSERT_TRUE(bm->test(200));
+    ASSERT_FALSE(bm->test(210));
+
+    /* the dispatch's producer contract (cr_scan.cpp FsFamily::Ntfs):
+     * copy $Bitmap's bytes and invert - free = !in-use, out-of-range
+     * never consulted (bounded by bit_count) */
+    storage::FreeMap fm;
+    fm.base_byte = 0;
+    fm.cluster_bytes = vol->params().cluster_bytes;
+    fm.cluster_count = bm->bit_count();
+    fm.bits.assign(size_t((fm.cluster_count + 7) / 8), 0);
+    for (u64 c = 0; c < fm.cluster_count; ++c)
+        if (!bm->test(c))
+            fm.bits[size_t(c >> 3)] |= u8(1u << (c & 7));
+    ASSERT_TRUE(fm.valid());
+
+    /* a tree whose ACTIVE file lives on the bitmap-used cluster 200 */
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"Found (NTFS)");
+    auto* props = new tree::FileProperties();
+    props->name = u"onused.dat";
+    props->logical_size = CLUSTER;
+    props->extents.push_back({200 * CLUSTER, CLUSTER});
+    tree::FileNode* n = tree.add_file(root, props);
+    props->release();
+    ASSERT_NE(n, nullptr);
+    n->set_origin(tree::Origin::Structured);
+
+    viz::DiskMapInputs in;
+    in.slice_start = 0;
+    in.slice_bytes = fm.cluster_count * CLUSTER;
+    in.cluster_bytes = u32(CLUSTER);
+    in.free_map = &fm;
+    viz::DiskMapGeometry g;
+    std::vector<u8> alloc;
+    std::vector<std::pair<u64, u64>> bad;
+    ASSERT_EQ(
+        viz::build_disk_map(in, tree, g, &alloc, nullptr, nullptr, nullptr, bad, 0, nullptr), OK);
+    ASSERT_EQ(g.cell_bytes, u64(CLUSTER)) << "cluster hint renders cluster-sized cells";
+    ASSERT_GT(alloc.size(), 210u);
+
+    EXPECT_EQ(alloc[200], viz::kCellAllocUsed) << "active file on a used cluster";
+    EXPECT_EQ(alloc[210], viz::kCellAllocFree) << "bitmap-free, unclaimed cluster";
+    EXPECT_EQ(alloc[size_t(BITMAP_LCN)], viz::kCellAllocUnknown)
+        << "metadata-only used cluster stays Unknown (no file extent claims it)";
+
+    u64 free_cells = 0;
+    for (u8 v : alloc)
+        if (v == viz::kCellAllocFree)
+            ++free_cells;
+    EXPECT_GT(free_cells, alloc.size() / 2);
 }
