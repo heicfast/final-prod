@@ -4430,3 +4430,58 @@ Stage Summary:
   A-002 commits pushed; verified their A-002/A-004 fixes first-hand. Lane resumes
   at the SEVERE wave starting S-011 (exFAT tz), then S-013/S-015/S-014/S-012,
   pulling before each finding to avoid collisions.
+
+---
+Task ID: S3-W1R (session-3 wave-1 reconciliation — parallel-leg merge onto main)
+Agent: session-3 continuation auditor (read-only, S3 lead)
+Task: Wave-1 landed concurrently with two other session-3 legs; reconcile IDs and
+content onto main without losing either leg's work.
+
+Work Log:
+- Push of wave 1 (9e4ad5c, preserved) was rejected: main had advanced 34b3441 → e6d5b01
+  with parallel session-3 legs' work (A-002 fix 7f2c83e, M-009 fix 7fd00e0, A-004+S-016
+  fix c33236f, 18+ new findings with renumbered IDs, grouped-minor restructure,
+  OQ-T8 resolution, errata 19-21). Rebased-aborted; reset to origin/main; wave-1
+  content restored from 9e4ad5c via script with the renumber map.
+- ID-collision convention applied (IDs on main win): my S-012/S-013/S-014/S-015 →
+  S-017/S-018/S-019/S-020; M-011/M-012/M-015/M-016 → M-024/M-025/M-026/M-027;
+  N-025/N-027/N-028/N-030/N-031 → N-033..N-037; I-011 → I-013. Cross-refs fixed inside
+  all restored files (M-013/M-014 → M-017, my carve N-026 → inventory wording,
+  N-029 → N-026 group N-013b).
+- Convergent merges as addenda: N-031 (chain semantics + id-8 records + TIFF-family
+  equivalence), M-021 (per-chunk feed + stream geometry + pending state), M-017
+  (RTTI proof CalcPartition = geometry calculators + full AdjustPartitionInfoOrder
+  decode + stable-sort note), M-022 (e490/ea30 bodies = CRefsResidentDataRunList —
+  lead re-verified first-hand at :10413-10462; answers their fix-plan step 4),
+  I-009 (pin test), I-010 (probe-superset row). Drops: my N-029 (dup of N-013b),
+  my I-009/I-010/M-013/M-014/N-023/N-024 standalones.
+- S-007 CORRECTED with first-hand decompile re-verification (lead, this session):
+  C5 D0 D3 C6 = CEPSAnalyser AI/EPS at :1985 (NOT dBase — no DBF analyser exists);
+  E4 52 5C 7B = OneNote OneAnalyser/FileONEAnalyser at :2156-2177 (NOT LZH, and the
+  addendum's byte was 2C — wrong); LZH = list-layer LZHAnalyser at :3097. The other
+  leg's S-007 addendum carried both wrong rows; correction addendum + errata 22-28.
+- Evidence restored: s3-rawsearch-inventory, s3-calcpartition-scoring,
+  s3-refs-engine-inventory, s3-ext4-inventory, s3-hfsplus-inventory + 4 execution
+  dirs (calcpartition-vtables, ftyp-signature-deadness, ehb-ext4-dirwalk,
+  ntfs-usn-reason) + agent logs + PROTOCOL.
+- Module appends reconciled onto the remote legs' sections: carve.md (S-017/S-018/
+  M-024/M-025/N-033 + S-007 correction), refs.md (S-020/M-026/M-027/N-036/N-037/
+  I-013 + convergence notes + MATCH rows), lost-partition.md (M-017 addendum
+  pointers + S-019/N-034/N-035).
+- Tracked-open OQ-T9 section replaced: stale UNVERIFIED header → full RESOLVED
+  (both legs' decodes; residues → S-019/N-034/N-035 + OQ-S2M-2).
+- SUMMARY parallel-leg addendum: 14 new standalone findings table + merge map +
+  A-002 audit-trail chain + counts (ACUTE 0 — A-004 fixed by c33236f; 13 SEVERE,
+  22 MAJOR, 32 MINOR, 11 INFO = 78 active / 20 FIXED by file inventory).
+- Verified at HEAD before writing: A-002 constants + de-self-referenced tests
+  (cr_table_wire.h:67-73, test_crc32_gpt.cpp:394-395/:432-433, test_ldm.cpp:616-617),
+  M-009 aligned_read_at routing (cr_transport.cpp:814).
+
+Stage Summary:
+- Both parallel legs' work preserved; zero findings lost; five addenda enrich this
+  tree's findings; one cross-leg factual error (S-007 dBase/LZH rows) corrected with
+  first-hand evidence; one cross-leg open question (M-022 special-handler bodies)
+  answered. Counts: 78 active / 20 FIXED. Next: wave 2 on the TRUE gaps (see
+  S3-W2 entry): ext4/HFS+/Btrfs findings from the restored inventories, NTFS
+  remainder past S-012/N-024, ZFS/LDM remainder past M-019/M-016, orchestration/
+  session/writer remainder — while the api-session leg works the API/driver/perf lane.
