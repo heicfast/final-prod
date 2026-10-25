@@ -13,6 +13,8 @@
 
 #include <gtest/gtest.h>
 #include "cr/cr_ui.h"
+#include "cr/carve/cr_signatures.h"
+#include "cr/carve/cr_rawsigns.h"
 
 #include "test_tmpdir.hpp"
 
@@ -205,6 +207,68 @@ TEST(CrUi, AbiVersionAndLastError) {
     /* a failing call leaves a diagnostic behind */
     cr_ui_device* dev = nullptr;
     ASSERT_EQ(cr_ui_open_image("/nonexistent/x.img", 0, 0, &dev), 0x50020001u);
+    EXPECT_GT(std::strlen(cr_ui_last_error()), 0u);
+}
+
+/* ops #7-#8 parity (API-SURFACE-AUDIT §2.1): the og exposes its analyser
+ * registry views (EUGetAnalyserList/Map/Multimap + GetRawUserInfoMap); our
+ * carve-format enumeration is the equivalent. Contract: deterministic
+ * grammar-then-rawsign order, field sanity, cross-check against the internal
+ * tables, BAD_PARAMETER on out-of-range/null. */
+TEST(CrUi, CarveFormatRegistryEnumeration) {
+    const uint32_t n = cr_ui_carve_format_count();
+    ASSERT_GT(n, 0u);
+
+    /* cross-check the count against the internal tables */
+    const size_t grammar_n = cr::carve::registry_size();
+    const uint32_t raw_n = cr::carve::rawsigns::kFormatCount;
+    ASSERT_EQ(n, uint32_t(grammar_n) + raw_n);
+
+    /* deterministic order + field sanity; two identical passes */
+    std::vector<cr_ui_carve_format> a(n), b(n);
+    for (uint32_t i = 0; i < n; ++i)
+        ASSERT_EQ(cr_ui_carve_format_info(i, &a[i]), CR_UI_OK);
+    for (uint32_t i = 0; i < n; ++i)
+        ASSERT_EQ(cr_ui_carve_format_info(i, &b[i]), CR_UI_OK);
+
+    uint32_t grammar_seen = 0, raw_seen = 0;
+    for (uint32_t i = 0; i < n; ++i) {
+        EXPECT_EQ(std::memcmp(&a[i], &b[i], sizeof(cr_ui_carve_format)), 0); /* stability */
+        ASSERT_GT(std::strlen(a[i].ext), 0u);
+        EXPECT_EQ(std::strchr(a[i].ext, '.'), nullptr) << "ext carries no dot: " << a[i].ext;
+        for (const char* p = a[i].ext; *p; ++p)
+            EXPECT_TRUE((*p >= 'a' && *p <= 'z') || (*p >= '0' && *p <= '9') || *p == '-')
+                << "ext is lowercase/digit/dash: " << a[i].ext;
+        EXPECT_LE(a[i].base_confidence, 1000u);
+        EXPECT_LE(a[i].magic_len, 16u);
+        if (a[i].layer == 0) {
+            ++grammar_seen;
+            /* grammar rows come FIRST (FormatId order) */
+            EXPECT_LT(i, grammar_n);
+            /* row 0 cross-check: FMT_JPG */
+            if (i == 0) {
+                const cr::carve::Signature& s = cr::carve::registry()[0];
+                EXPECT_STREQ(a[i].ext, s.ext);
+                EXPECT_EQ(a[i].magic_len, s.header_len);
+                EXPECT_EQ(a[i].magic_offset, s.header_offset);
+                EXPECT_EQ(a[i].max_size, s.max_size);
+                EXPECT_EQ(std::memcmp(a[i].magic, s.header, s.header_len), 0);
+            }
+        } else {
+            ASSERT_EQ(a[i].layer, 1u);
+            ++raw_seen;
+            EXPECT_GE(i, grammar_n); /* raw-sign rows come after grammar rows */
+            EXPECT_GT(a[i].max_size, 0u) << "raw-sign rows carry converted byte sizes (S-015)";
+        }
+    }
+    EXPECT_EQ(grammar_seen, uint32_t(grammar_n));
+    EXPECT_EQ(raw_seen, raw_n);
+
+    /* error contract */
+    cr_ui_carve_format sink{};
+    EXPECT_EQ(cr_ui_carve_format_info(n, &sink), CR_UI_ERR_BAD_PARAMETER);
+    EXPECT_EQ(cr_ui_carve_format_info(n + 1000000u, &sink), CR_UI_ERR_BAD_PARAMETER);
+    EXPECT_EQ(cr_ui_carve_format_info(0, nullptr), CR_UI_ERR_BAD_PARAMETER);
     EXPECT_GT(std::strlen(cr_ui_last_error()), 0u);
 }
 

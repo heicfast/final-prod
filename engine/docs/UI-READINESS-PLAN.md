@@ -45,7 +45,7 @@ is an improvement beyond the og** (the og never resumes an interrupted scan).
 
 ### #1 (G-01) — `cr_ui` C-ABI shim DLL
 
-**Status: LANDED (2a93c45).** 57-export surface (include/cr/cr_ui.h),
+**Status: LANDED (2a93c45; refreshed core-api session).** 63-export surface (include/cr/cr_ui.h),
 cr_ui_tests + cr_ui_abi_check (plain-C full lifecycle) green plain+ASan;
 every acceptance item below is exercised except the Windows-lane DLL
 smoke + PE import gate, which ride the CI windows job (tracked below).

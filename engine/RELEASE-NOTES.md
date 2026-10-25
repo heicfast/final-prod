@@ -14,7 +14,7 @@ recovery only (NAS redirector, cloud).
 
 ```
 bin/    rrecov.exe            the CLI (scan / tree / recover / health / fix / bench)
-        cr_ui.dll             the UI C-ABI shim (57 exports; bind in-process)
+        cr_ui.dll             the UI C-ABI shim (63 exports; bind in-process)
         z.dll, lz4.dll, zstd.dll   vcpkg-built runtime (shipped binaries)
         vcruntime140*.dll, msvcp140*.dll, ucrtbase.dll + api-ms-win-crt-*  app-local CRT
 lib/    cr_ui.lib             import library (link against cr_ui.dll)

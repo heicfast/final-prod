@@ -4,8 +4,8 @@
 > binds `cr_ui.dll` / `libcr_ui.so` (G-01, issue #1). The header
 > `include/cr/cr_ui.h` is the machine surface; this file is the human contract
 > behind every symbol: ownership rules, threading rules, the error model, the
-> typed event stream (§6), the disk-map geometry model (§7), the SQLite-backed
-> session index (§8), and the stability policy (§9). Where a statement here and
+> typed event stream (§6), the disk-map geometry model (§7), the carve-format
+> registry (§7a), and the stability policy (§9). Where a statement here and
 > in the header disagree, the HEADER wins and this file must be fixed in the
 > same change — never the reverse.
 >
@@ -110,8 +110,8 @@ recover:     recovery_create -> recovery_set_destination
              -> recovery_enqueue_[node|subtree][_snapshot]* -> recovery_process
              -> recovery_report_json -> recovery_close
 events:      (any time after create) scan_set_event_fn — see §6
-disk map:    session_disk_map / scan_disk_map — see §7
-index:       scan_save_session also writes the sidecar index (see §8)
+carve formats: carve_format_count / carve_format_info — see §7a
+disk map:    cr_ui_disk_map (session OR snapshot) — see §7
 ```
 
 Cancellation semantics: `cancel()` makes `run()`/`process()` return
@@ -180,7 +180,9 @@ CR_UI_API uint32_t cr_ui_scan_set_event_fn(cr_ui_scan* s, cr_ui_event_fn fn,
 ```
 
 Contract:
-- Fired on the thread running `run()` only. Must not block (same rule as the
+- Fired on engine worker threads or the thread running `run()` (both are
+  possible — the engine's own scan workers emit stage/sample events; the
+  header's rule is authoritative). Must not block (same rule as the
   progress callback). No cancellation semantics — cancel via the token
   functions.
 - Ordering: stage transitions are delivered exactly once in scan order;
@@ -261,27 +263,67 @@ Semantics:
   (cell_bytes grows by powers of two to honor the cap); `got` reports the
   actual granularity chosen.
 
-## 8. SQLite session index (GAP-S6-12)
+## 7a. Carve-format registry (ops #7-#8 parity)
 
-The durable scan-session format stays the CRSF container (D-01 — the .rsf
-proven chunked-zlib scheme). The SQLite layer is a **queryable index
-sidecar** written next to it (`<session>.crsf` → `<session>.crsidx`):
+**Corpus lineage.** The reference exposes its RAW analyser registry to the UI
+through RAWSearchDLL exports — `EUGetAnalyserList` / `EUGetAnalyserMap` /
+`EUGetAnalyserMultimap` — and the per-extension preference table through
+`GetRawUserInfoMap` (tied to `config/RawConfig.ini`, 34 shipped toggles;
+corpus `rawsearch-carving--deep-dive.md` §1; `config-files/filtering-priority--config-layer.md` §4).
+A host uses these to build format-config surfaces and to know what the carve
+stages can surface.
 
-- One table per concern: `nodes` (node_id, parent_id, name, path, size,
-  times, origin, deleted, confidence, category, extent_count), `extents`
-  (node_id, ordinal, offset, len), `errors` (start, len), `session_info`
-  (identity card + stats). Row shape mirrors the query surface.
-- **Every connection** opens with `PRAGMA journal_mode=WAL`,
-  `busy_timeout = 15000`, `synchronous = NORMAL`, `cache_size = -8000`
-  (8 MiB bounded). Schema versioned (`user_version`); opening an older
-  schema upgrades in place (append-only migrations).
-- Query/filter/sort/paging for LOADED sessions is query-driven: the session
-  tree hydrates into the index once, and `cr_ui_query_run` may answer from
-  SQL (the in-memory tree remains the source of truth — the index is
-  rebuildable at any time and never silently diverges: a checksum of row
-  count + content hash is stored in `session_info`).
-- The index is a sidecar, never a dependency: if the file is missing or
-  corrupt, the session still loads and the index is rebuilt on demand.
+Our equivalent (core-api session, added-export rule §9):
+
+```c
+typedef struct cr_ui_carve_format {
+    uint32_t layer;           /* 0 grammar validator, 1 raw-sign prefilter */
+    char ext[24];             /* lowercase, no dot ("jpg"); NUL-padded */
+    uint64_t min_size;        /* bytes (raw-sign layer: KiB-converted once, S-015) */
+    uint64_t max_size;        /* bytes; 0 = unbounded (grammar layer) */
+    uint16_t base_confidence; /* 0..1000 before validator deltas */
+    uint32_t magic_len;       /* 0..16; grammar layer only */
+    uint32_t magic_offset;    /* magic position within the file start */
+    uint8_t magic[16];        /* header magic, grammar layer only */
+} cr_ui_carve_format;
+
+CR_UI_API uint32_t cr_ui_carve_format_count(void);
+CR_UI_API uint32_t cr_ui_carve_format_info(uint32_t index, cr_ui_carve_format* out);
+```
+
+Contract:
+- No handle, no lifecycle: the registry is compile-time immutable; both
+  functions are safe from any thread, any time (including before any other
+  call — no init ordering).
+- Deterministic order: grammar-registry rows first (FormatId order), then
+  raw-sign rows (`kFormats` order). Both tables only ever APPEND, so indices
+  are stable across releases; a consumer may persist them.
+- `cr_ui_carve_format_info` returns `ERR_BAD_PARAMETER` on out-of-range
+  index or null `out`; the out-of-range message carries the valid count.
+- `base_confidence` for raw-sign rows is the format's STRONGEST header-sign
+  confidence (the table stores confidence per sign; the max is the honest
+  per-format projection).
+- The og's RawConfig.ini per-format carve TOGGLES are host-side policy: the
+  core carves the full registry (matching the og engine, whose toggles are
+  applied by its UI when it configures the searcher); a host filters this
+  enumeration to build the same config surface.
+
+## 8. SQLite session index — REJECTED-BY-REFERENCE (closed GAP-S6-12)
+
+**This section previously specified a queryable SQLite sidecar index
+(`<session>.crsf` → `<session>.crsidx`) and claimed `cr_ui_scan_save_session`
+wrote it. That feature was never implemented (zero sqlite references in
+src/), and — decisive for the parity mandate — the reference has no such
+surface either: the og's durable session store IS the `.rsf` container
+(records 1-4, chunked zlib; corpus `rsf-format--scan-session.md` §2-§5);
+there is no sidecar index anywhere in the reference's corpus.** Per the
+mandate ("do not invent operations the reference does not have";
+"removing an invented path the reference does not have is required"), the
+claim is cut and GAP-S6-12 is closed REJECTED-BY-REFERENCE (corpus cite
+above). Query/filter/sort/paging answers from the in-memory session tree
+(`cr_ui_query_run`), exactly as shipped; sessions persist as CRSF only.
+No ABI surface ever referenced the sidecar, so this is a documentation-only
+closure — no consumer impact.
 
 ## 9. Stability policy
 
@@ -290,8 +332,14 @@ sidecar** written next to it (`<session>.crsf` → `<session>.crsidx`):
   or threading contracts of an existing symbol, renumbering the error-space
   symbols a consumer must handle.
 - ADDING exports, APPENDING struct fields, adding event `type` values,
-  adding overlay kinds, adding pragma-tuned DB fields: **no bump** —
-  consumers must already ignore unknowns (§6/§7 rules; the DB schema migrates).
+  adding overlay kinds: **no bump** — consumers must already ignore
+  unknowns (§6/§7 rules). The carve-format registry (§7a) is an added
+  export under this rule.
+- **The header's ABI-VERSIONING comment was corrected in the core-api
+  session to match this section** (it previously claimed new exports and
+  appended fields bump the version — contradicting both this section and
+  the repo's actual practice of append-only growth; see
+  docs/API-SURFACE-AUDIT.md A-ABI-1).
 - Structs are never reordered; new fields append; the header comments each
   struct with its ABI-since version.
 - The C consumer test (`tests/ui_abi_check.c`, MSVC `/W4 /WX` on the Windows

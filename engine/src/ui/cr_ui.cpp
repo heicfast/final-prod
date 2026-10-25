@@ -22,6 +22,8 @@
 #include "cr/cr_ui.h"
 
 #include "cr/orchestrator/cr_scan.h"
+#include "cr/carve/cr_signatures.h"
+#include "cr/carve/cr_rawsigns.h"
 #include "cr/tree/cr_diskmap.h"
 #include "cr/preview/cr_preview.h"
 #include "cr/query/cr_query.h"
@@ -2044,6 +2046,76 @@ extern "C" CR_UI_API void cr_ui_query_rows_free(cr_ui_query_row* rows, uint32_t 
         std::free(rows[i].path);
     }
     std::free(rows);
+}
+
+/* =========================================================================
+ * carve-format registry (ops #7-#8 parity: the og's analyser-registry views
+ * EUGetAnalyserList/Map/Multimap + GetRawUserInfoMap on RAWSearchDLL -
+ * corpus rawsearch-carving--deep-dive.md section 1). Grammar rows first
+ * (FormatId order), then raw-sign rows (kFormats order); both tables only
+ * ever APPEND, so the enumeration order is stable across releases.
+ * ========================================================================= */
+
+namespace {
+
+void copy_ext_24(char (&dst)[24], const char* src) {
+    u32 n = 0;
+    while (src && src[n] && n < sizeof(dst) - 1) {
+        dst[n] = src[n];
+        ++n;
+    }
+    dst[n] = 0;
+}
+
+} // namespace
+
+extern "C" CR_UI_API uint32_t cr_ui_carve_format_count(void) {
+    return guarded(
+        []() -> u32 { return u32(carve::registry_size()) + carve::rawsigns::kFormatCount; });
+}
+
+extern "C" CR_UI_API uint32_t cr_ui_carve_format_info(uint32_t index, cr_ui_carve_format* out) {
+    return guarded(
+        [](u32 i, cr_ui_carve_format* o) -> u32 {
+            if (!o)
+                return ret_(ERR_BAD_PARAMETER, "carve_format_info: out is null");
+            const u32 grammar_n = u32(carve::registry_size());
+            const u32 raw_n = carve::rawsigns::kFormatCount;
+            std::memset(o, 0, sizeof(*o));
+            if (i < grammar_n) {
+                const carve::Signature& s = carve::registry()[i];
+                o->layer = 0;
+                copy_ext_24(o->ext, s.ext);
+                o->min_size = s.min_size;
+                o->max_size = s.max_size;
+                o->base_confidence = s.base_confidence;
+                o->magic_len = s.header_len;
+                o->magic_offset = s.header_offset;
+                if (s.header_len)
+                    std::memcpy(o->magic, s.header, s.header_len);
+                return ret_ok();
+            }
+            if (i < grammar_n + raw_n) {
+                const u32 fmt = i - grammar_n;
+                const carve::rawsigns::RawSignFormat& f = carve::rawsigns::kFormats[fmt];
+                o->layer = 1;
+                copy_ext_24(o->ext, f.ext);
+                o->min_size = f.min_size;
+                o->max_size = f.max_size;
+                /* the format's strongest header-sign confidence (the table
+                 * stores confidence per sign, not per format) */
+                u16 best = 0;
+                for (u32 k = 0; k < carve::rawsigns::kHeaderSignCount; ++k)
+                    if (carve::rawsigns::kHeaderSigns[k].fmt == fmt &&
+                        carve::rawsigns::kHeaderSigns[k].conf > best)
+                        best = carve::rawsigns::kHeaderSigns[k].conf;
+                o->base_confidence = best;
+                return ret_ok();
+            }
+            return ret_(ERR_BAD_PARAMETER, "carve_format_info: index %u out of range (%u)", i,
+                        grammar_n + raw_n);
+        },
+        index, out);
 }
 
 /* =========================================================================

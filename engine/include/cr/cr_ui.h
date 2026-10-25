@@ -37,9 +37,15 @@
  *     block, and carry NO cancellation semantics (the token functions are
  *     the cancel path - mirroring the reference's separate abort event).
  *   - ABI VERSIONING: cr_ui_abi_version() returns CR_UI_ABI_VERSION.
- *     Breaking changes (signature/layout/semantics) bump it; new
- *     functions and appended struct fields bump it too (callers must
- *     check before use). Struct fields are never reordered or removed.
+ *     Compatibility policy (docs/ABI-CONTRACT.md section 9 - the operative
+ *     policy; this comment was corrected to match it in the core-api
+ *     session after the two documents disagreed): ADDING exports, APPENDING
+ *     struct fields, and adding event `type` values are COMPATIBLE and do
+ *     NOT bump (consumers detect features by export presence / zero-init
+ *     defaults in appended fields). Breaking changes (removing/renaming an
+ *     export, changing a field's type/meaning/order, changing an existing
+ *     symbol's ownership or threading contract) bump the version. Fields
+ *     are never reordered or removed within a version.
  *
  * Licensed under the MIT license. See LICENSE.
  */
@@ -511,6 +517,35 @@ CR_UI_API uint32_t cr_ui_query_run(cr_ui_session* sess, const cr_ui_query* q,
                                    cr_ui_query_row** rows, uint32_t* row_count,
                                    uint64_t* total_matched);
 CR_UI_API void cr_ui_query_rows_free(cr_ui_query_row* rows, uint32_t row_count);
+
+/* ---- carve-format registry (ops #7-#8 parity) ------------------------------
+ * The og exposes its analyser-registry views through RAWSearchDLL exports
+ * (EUGetAnalyserList / EUGetAnalyserMap / EUGetAnalyserMultimap) and the
+ * per-extension preference map (GetRawUserInfoMap) so its UI can build
+ * format-config surfaces (corpus rawsearch-carving--deep-dive.md section 1).
+ * Our equivalent: read-only enumeration of every format the carve stages
+ * can surface - BOTH layers (the grammar-validator registry and the
+ * raw-sign prefilter table). No handle: safe from any thread; the tables
+ * are immutable for the library's lifetime. */
+
+typedef struct cr_ui_carve_format {
+    uint32_t layer;           /* 0 grammar validator, 1 raw-sign prefilter */
+    char ext[24];             /* lowercase, no dot ("jpg"); NUL-padded */
+    uint64_t min_size;        /* bytes (raw-sign layer: KiB-converted once, S-015) */
+    uint64_t max_size;        /* bytes; 0 = unbounded (grammar layer) */
+    uint16_t base_confidence; /* 0..1000 before validator deltas */
+    uint32_t magic_len;       /* 0..16; grammar layer only */
+    uint32_t magic_offset;    /* magic position within the file start */
+    uint8_t magic[16];        /* header magic, grammar layer only */
+} cr_ui_carve_format;
+
+/* Total enumerable formats: grammar registry rows first (FormatId order),
+ * then raw-sign format rows (kFormats order). Deterministic, stable order
+ * across releases (both tables only ever APPEND). */
+CR_UI_API uint32_t cr_ui_carve_format_count(void);
+
+/* Row `index` [0, count()) into *out. BAD_PARAMETER on out-of-range. */
+CR_UI_API uint32_t cr_ui_carve_format_info(uint32_t index, cr_ui_carve_format* out);
 
 /* ---- disk map (GAP-S6-11; docs/ABI-CONTRACT.md section 7) ------------------
  * The visualization DATA PRODUCER (corpus lineage: AnalysisGridWidget

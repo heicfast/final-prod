@@ -230,6 +230,33 @@ int main(int argc, char** argv) {
     CHECK_EQ_U64(cr_ui_abi_version(), CR_UI_ABI_VERSION);
     CHECK(cr_ui_last_error() != NULL);
 
+    /* ---- carve-format registry (ops #7-#8 parity; ABI-CONTRACT 7a) ---- */
+    {
+        uint32_t fmt_n = cr_ui_carve_format_count();
+        cr_ui_carve_format fmt;
+        uint32_t k, grammar_n = 0, raw_n = 0;
+        CHECK(fmt_n > 0);
+        for (k = 0; k < fmt_n; ++k) {
+            CHECK_EQ_U64(cr_ui_carve_format_info(k, &fmt), CR_UI_OK);
+            CHECK(fmt.layer <= 1u);
+            CHECK(fmt.ext[0] != '\0');
+            CHECK(strchr(fmt.ext, '.') == NULL);
+            CHECK(fmt.ext[sizeof(fmt.ext) - 1] == '\0'); /* NUL-terminated within the field */
+            CHECK(fmt.base_confidence <= 1000u);
+            CHECK(fmt.magic_len <= 16u);
+            if (fmt.layer == 0u)
+                ++grammar_n;
+            else
+                ++raw_n;
+        }
+        CHECK(grammar_n > 0); /* grammar layer present (jpg et al.) */
+        CHECK(raw_n > 0);     /* raw-sign layer present (the 139-format table) */
+        /* error contract: out-of-range + null out */
+        CHECK_EQ_U64(cr_ui_carve_format_info(fmt_n, &fmt), CR_UI_ERR_BAD_PARAMETER);
+        CHECK_EQ_U64(cr_ui_carve_format_info(0, NULL), CR_UI_ERR_BAD_PARAMETER);
+        CHECK(strlen(cr_ui_last_error()) > 0);
+    }
+
     /* ---- fixture ---- */
     CHECK(build_fat16(img));
 
