@@ -99,6 +99,20 @@ carve-specific divergences surfaced.
 ## Session-2 update (2026-10-25, core `e93decf`)
 
 **Verdict changes (quotes in `../evidence/decompiled-quotes/carve-rawfixer-bitlocker-session2.md`):**
+- **S-018 INVALID (session 3, diff-fix leg — premise refuted first-hand):** the
+  finding claimed the og's JPEG analysers never check for FFD9 (a literal `0xd9`
+  grep over the decompiled bodies returned 0). Ghidra renders the byte as the SIGNED
+  CHAR literal `-0x27`: the modern JpegAnalyzer (FUN_180033a90) has FIVE FF D9 sites
+  and its size-accumulation accept path is EOI-gated (`if (uVar21 == 0) goto
+  <epilogue>`, :39760) - it scans BACKWARD for the last FF D9 in the buffer and
+  returns without accumulating a size when none exists. Our validate_jpeg's
+  EOI requirement is therefore consistent with the primary analyser as far as the
+  corpus proves (different mechanism: forward walk vs backward scan - which admits
+  more is open). NO code change; the residual (the legacy FileJPGAnalyser's
+  JFIF/Exif/generic sub-analysers FUN_18004bbd0/b3b0/c1e0, and the streamed
+  continuation outcome) is tracked in OQ-S3-JPEG-fallback-and-continuation-accept
+  with the exact decode list. Evidence:
+  evidence/decompiled-quotes/s3-jpeg-eoi-encoder-correction.md.
 - **S-017 FIXED (session 3, diff-fix leg):** the four ftyp-family signatures baked
   the ISO-BMFF box SIZE (four literal zero bytes) into their magic, so no real
   MP4/MOV/M4A/HEIC head (size 0x14/0x18/0x20) could ever match — four advertised

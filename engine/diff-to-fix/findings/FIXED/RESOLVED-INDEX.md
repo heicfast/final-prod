@@ -7,7 +7,7 @@ against the original finding. They are NOT counted in the active
 severity totals in `diff-to-fix/SUMMARY.md` and are NOT part of the
 active roadmap.
 
-## Resolved findings (21 — 12 from session 1 close/session-2 legs + A-002, A-004 (+ S-016), M-009, S-011, S-015, S-017; every file in this directory has a row)
+## Resolved findings (22 — 12 from session 1 close/session-2 legs + A-002, A-004 (+ S-016), M-009, S-011, S-015, S-017 + S-018 (INVALID, premise refuted); every file in this directory has a row)
 
 | ID | Severity (orig) | Title | Fix commit | Resolution |
 |---|---|---|---|---|
@@ -36,7 +36,7 @@ active roadmap.
 | **S-016** | SEVERE (session 3 — DISCOVERED during A-004's fail-before proof) | ErrorRange events never fired: snapshot error map fed only after the boundary emitters (documented error-delta stream was dead) | (this commit; fixed in the A-004 commit — same delivery path) | `tel_counts_` now live-merges the retry-pipe error map into `tel_.snap.errors` before every boundary emit (idempotent under ReadErrorMap normalization; telemetry-lock held). Proven by the same two ScanEvents tests; full evidence in the finding file. |
 | **S-015** | SEVERE (session 3) | raw_signs min/max are KiB in the og, bytes in the core — every raw-sign window 1024x too small, floor 1024x too low | (this commit; `git log` "fix: S-015") | KiB→bytes conversion at ONE point (gen_rawsigns.py, zero-max asserted away); table regenerated; tail walk rebuilt as a chunked forward scan bounded by named `kRawSignTailScanLimit` (8 MiB, og's true range documented); DISCOVERED sub-fix in-commit: per-format tail scoping (og pairs within the candidate's format record; cross-format pairing fabricated close positions). 6 fail-before/pass-after tests; suite 310/310 ASan |
 | **S-017** | SEVERE (session 3) | ftyp-family signatures structurally unreachable (zero size-bytes baked into the magic) — MP4/MOV/M4A/HEIC could never be grammar-carved | (this commit; `git log` "fix: S-017") | Re-keyed on "ftyp" with header_offset 4 (box size is data); match primitive extracted + shared with a NEW F8 self-probe (structural rule: no four-zero-byte magic prefixes; candidate-shift assertion); conservative naked-moov salvage entry (FMT_MOV_NAKED) mirroring the og's list-layer MovAnalyzer, tried last. 6 fail-before/pass-after tests (5 real-head carves + the probe); suite 320/320 ASan |
-## Acknowledged informational findings (NOT moved — deliberate supersets with pin tests)
+| **S-018** | SEVERE (session 3) — **INVALID (premise refuted first-hand)** | JPEG EOI policy: "og never checks FFD9" was built on a grep that missed Ghidra's signed-char rendering (-0x27 == 0xD9; 5 sites in the modern analyser; accept path EOI-gated at :39760) | (this commit; audit-trail correction only) | NO code change — the primary analyser is EOI-gated like our validator; the residual (legacy-fallback sub-analysers FUN_18004bbd0/b3b0/c1e0 + the streamed continuation outcome) is tracked in tracked-open/OQ-S3-JPEG-fallback-and-continuation-accept.md with the exact decode list |## Acknowledged informational findings (NOT moved — deliberate supersets with pin tests)
 
 These 7 findings (I-001 through I-007) are NOT bugs — they're deliberate
 superset behaviors the parallel leg verified and pinned with regression

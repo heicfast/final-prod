@@ -4625,3 +4625,40 @@ Stage Summary:
 - S-017 FIXED: MP4/MOV/M4A/HEIC carve end-to-end for the first time, the
   unreachable-magic class is a load-time gate (self-probe), and ftyp-destroyed
   MOV/MP4 salvage conservatively mirrors the og's list layer. Suite 320/320.
+
+---
+Task ID: DF3-T6 (S-018 — reclassification)
+Task: SEVERE S-018 re-verification — the JPEG EOI premise.
+
+Work Log:
+- Re-read the cited corpus artifact first-hand (RAWSearchDLL FUN_180033a90 :39489-41110
+  and the legacy body :57080-57567), reproducing the finding's own reproduction step
+  (grep for the EOI constant).
+- REFUTED at the reproduction step: the finding's "zero occurrences of 0xd9" is a grep
+  artifact — Ghidra renders the byte 0xD9 as the SIGNED CHAR literal -0x27 in
+  char-typed compares. Five FF D9 sites exist inside the modern analyser body
+  (rel. lines 217/231/262/480/501, incl. the shared backward-EOI helper), and the
+  size-accumulation accept path is explicitly EOI-gated: `if (uVar21 == 0) goto
+  LAB_1800342b6` (the epilogue) — no EOI pair in the buffer => no size => the
+  opposite of the finding's premise. The legacy dispatcher body indeed has no EOI
+  reference (that half stands) but it dispatches to JFIF/Exif/generic sub-analysers
+  (FUN_18004bbd0/b3b0/c1e0) whose accept criteria are NOT decoded.
+- Classification per the corpus-wins rule + severity discipline: INVALID as filed.
+  NO code change — loosening a working EOI-gated validator on a refuted premise
+  would be a premise-driven regression. The core's forward-walk EOI policy is
+  consistent with the EOI-gated primary analyser as far as the corpus proves
+  (backward-scan vs forward-walk admission width = open).
+- Residual filed honestly, not dropped: tracked-open/OQ-S3-JPEG-fallback-and-
+  continuation-accept.md — (1) decode the three legacy sub-analysers' accept
+  criteria; (2) decode the streamed continuation outcome (early return != final
+  reject; the 0x7800000 default). Either could resurrect the salvage claim with
+  corrected citations, in which case the original S-018 fix plan becomes valid.
+- Audit trail: evidence quote sheet (s3-jpeg-eoi-encoder-correction.md, full quotes
+  + line cites); S-018 Resolution (INVALID) + move to FIXED/ (record preserved);
+  RESOLVED-INDEX row (count 22); SUMMARY remediation row; CROSS-REF-MATRIX detail
+  row; modules/carve.md addendum.
+
+Stage Summary:
+- S-018 INVALID: a false-positive SEVERE caught at its own reproduction step —
+  the audit's grep missed Ghidra's signed-char rendering. The validator stands;
+  the genuinely-open residual is precisely tracked with the exact decode list.
