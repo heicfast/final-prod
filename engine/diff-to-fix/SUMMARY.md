@@ -17,9 +17,15 @@ corpus evidence, `CrUi.ImageSourceDestinationNearImageAccepted` pins),
 (writer+report ×2, health ×2, quality) + modules/writer.md + modules/health.md
 verdicts updated; a pre-existing joined-row corruption in the matrix
 session-5 section (carve ‖ lost-partition fused into one line) repaired.
-Partially-resolved group files **N-004/N-006, N-009, N-036 stay in MINOR/**
-until their open remainders (ext4 transport layering / Btrfs nodesize;
-N-009c CLI --filter UTF-8, N-009d ACL; N-036 container-map half) close.
+**Convergence note (rebase):** the parallel DFX12 lane landed an overlapping
+reconciliation (`f4fe677`) in the same window — moving N-004/N-005/N-006
+(now all three FIXED — the group file restored from the b2bd91b truncation)
+and **N-044** (`779eb21`: `--deep` renamed `--whole-disk`, deprecated alias
+kept) in addition to the same four. Union kept both records; the duplicate
+RESOLVED-INDEX rows were reconciled to one set in the same push. The group
+files **N-009 and N-036 stay in MINOR/** until their open remainders
+(N-009c CLI --filter UTF-8, N-009d ACL preservation; N-036 container-map
+half) close.
 
 **Counts at session-11 start (direct file inventory at `a5bbcfa`, after
 the hygiene move):** SEVERE 3 (S-009, S-029, S-030) · MAJOR 39 ·

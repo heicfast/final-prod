@@ -8789,10 +8789,8 @@ Stage Summary:
   N-036, N-042, then N-044, N-020, N-074 (doc-drift trios), the carve-magic
   quartet N-051..N-054, N-045, N-067, N-068, N-069, and the remaining groups.
 
-<<<<<<< HEAD
-=======
 ---
-Task ID: DFX11-T2 (audit-trail hygiene wave 1)
+Task ID: DFX13-T2 (audit-trail hygiene wave 1 — rebase note: the parallel DFX12 lane landed an overlapping reconciliation in f4fe677; this entry records the convergent move, duplicate RESOLVED-INDEX rows reconciled in the same push)
 Agent: main engineer (diff-to-fix session 11)
 Task: Move the four fully-resolved MINOR findings to findings/FIXED/ with
 index rows; repair matrix row corruption; update module verdicts + counts.
@@ -8823,4 +8821,3 @@ Stage Summary:
   earlier sessions, with tests named in each finding's Resolution. Next:
   begin fixing unresolved MINORs one-by-one, starting N-044, N-020/N-074
   doc-drift, N-051..N-054 carve-magic quartet.
->>>>>>> 0fe1536 (diff-to-fix(s11 hygiene): move N-013/N-015/N-018/N-042 to FIXED/ — RESOLVED-INDEX rows, matrix cells, module verdicts, counts)
