@@ -1855,3 +1855,18 @@ Stage Summary:
 - Deliverable complete: diff-to-fix/ = README, SUMMARY, SEVERITY-SCALE, PARAMETERS, CROSS-REF-MATRIX, 15 finding files (31 finding IDs), 19 module files, evidence (decompiled-quotes x3, executions x2 incl. the A-001 canonical-GUID proof harness), tracked-open x4 files (9 OQs).
 - Audited commit 67193b6 (concurrent GAP-S6 fixes through 7777e1c verified in-tree). Corpus 03ad46c.
 - No source files modified. Read-only mandate held throughout.
+
+---
+Task ID: 20-FINAL
+Agent: main auditor
+Task: Session close — final verification
+
+Work Log:
+- Added the missing tracked-open file (OQ-T8 dispatch order + OQ-T9 CalcPartition scoring) referenced by carve/lost-partition module files.
+- Verified read-only compliance: zero commits from this audit touch src/, include/, tests/, build, or workflows (git log 67193b6..HEAD filtered to source paths shows only the concurrent core-final session's GAP-S6 fixes).
+- Noted the parallel diff-fix session's corroboration (085cedf: S-001/M-001/N-001/I-001 independently confirmed; OQ-T1 resolved by them as dormant/same-direction — tracked-open file kept with their resolution noted for the next reader).
+- Final deliverable: 51 files in diff-to-fix/ (5 top-level docs, 15 finding files covering 31 finding IDs, 19 module files, 5 evidence files, 4 tracked-open files covering 9 OQs).
+
+Stage Summary:
+- Audit complete at baseline 67193b6 (concurrent fixes through 7777e1c verified in-tree). Corpus 03ad46c. Counts: 1 ACUTE, 9 SEVERE, 4 MAJOR, 12 MINOR, 5 INFORMATIONAL, 9 tracked-open.
+- Recommended first 20 fixes + parallel RE track in diff-to-fix/SUMMARY.md. All commits pushed to main. No source modified.
