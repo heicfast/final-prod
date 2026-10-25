@@ -7,7 +7,7 @@ against the original finding. They are NOT counted in the active
 severity totals in `diff-to-fix/SUMMARY.md` and are NOT part of the
 active roadmap.
 
-## Resolved findings (51 — every finding file in this directory has a row; live file inventory)
+## Resolved findings (55 — every finding file in this directory has a row; live file inventory) — every finding file in this directory has a row; live file inventory)
 
 ## Resolved findings (27 — sessions 1-4 combined: 12 from session-1/2 legs + A-002, A-004 (+S-016), M-009, S-006, S-011, S-013, S-015, S-017, S-018(INVALID), N-021, S-014, S-019; every file in this directory has a row)
 ## Resolved findings (37 — sessions 1-4 combined + the parallel fix legs' batches + M-023 (close-all-tiers session); every file in this directory has a row)
