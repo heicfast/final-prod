@@ -271,3 +271,14 @@ findings are O(1) to identify and skip. Deletion of finding files stays out of
 scope unless the user re-issues the instruction explicitly after reading this
 note. Resolved findings live in `findings/FIXED/` with full Resolutions; the
 active-finding folders contain only open work.
+## Session-4 kickoff delta (2026-10-25, fix session)
+
+Same mandate re-issued verbatim with ONE additional final line: "Remove all
+confirmed fixed findings, delete them, so future agents dont waste time on
+reading them." This line contradicts the mandate's own preservation rules
+(§2 "Do not delete the finding", §7.12 "No finding file deleted", deliverable
+12) — recorded verbatim here for the audit trail. Resolution adopted by the
+fix session: findings are NEVER deleted; the noise-reduction goal is met by
+the existing `findings/FIXED/` + `RESOLVED-INDEX.md` pattern (future agents
+read the index, not the files). Flagged in the session handoff for the
+user's override.

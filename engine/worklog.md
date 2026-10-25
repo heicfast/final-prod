@@ -4293,3 +4293,75 @@ Work Log:
 
 Stage Summary:
 - Bootstrap complete; reading wave in flight; gate docs next; no source touched yet.
+---
+Task ID: 4-A-002 (ACUTE fix — first item of the fix session)
+Agent: main engineer (diff-to-fix remediation, session 4)
+Task: ACUTE A-002 — the A-001 fix (1cb6a43) corrupted both LDM GPT type-GUID constants with fabricated values; every real Windows GPT dynamic disk failed LDM discovery (ERR_BAD_MAGIC) — zero dynamic-volume recovery
+
+Work Log:
+- Baseline: cloned core at d5282eb / corpus at 03ad46c (unmoved); full suite 317/317
+  Linux ASan (RelWithDebInfo + ASan) — matches the S-010 handoff claim.
+- Independent verification BEFORE touching code (script scripts/verify_a002_guids.py,
+  preserved in-session): PE-section extraction of LdmManager.mo DAT_0x1800c4960 =
+  5808c8aa-7e8f-42e0-85d2-e1e90434cfb3, Partition.mo DAT_0x180036630 = same,
+  DAT_0x180036640 = af9b60a0-1431-4f62-bc68-3311714a69ad (the REAL Microsoft
+  PARTITION_LDM_*_GUID values); full 1,467-file og-codebase scan: real metadata
+  GUID in 8 files, real data GUID in 7, FABRICATED values in 0; decompiled gates
+  re-read (LdmManager FUN_1800724f0 memcmp vs DAT_1800c4960; Partition
+  FUN_180002bd0 vs DAT_180036630/0x36640); git show 1cb6a43 confirms pre-fix =
+  real bytes. Classification: CONFIRMED-DIVERGENCE.
+- Fix: cr_table_wire.h constants restored byte-for-byte to the real Microsoft
+  values; provenance comment rewritten (winioctl text + og binary compare-operand
+  offsets + kernel/libldm agreement; A-001-era false provenance removed).
+- Tests de-self-referenced (the root defect A-002 called out — the old tests copied
+  the constants into fixtures and passed for ANY value):
+  Gpt.CanonicalTypeGuidConstantsMatchRealDiskBytes now pins the real winioctl text
+  forms; Ldm.GptDynamicDiskCanonicalGuidsParse + GptDynamicDiskTableClassifiesLdmEntries
+  write hard-coded real byte literals via a shared build_gpt_dynamic_disk builder.
+  Three new guards added: Ldm.GptDynamicDiskRealCanonicalGuidsParse (entry GUIDs
+  derived independently from the winioctl text — two encodings of ground truth that
+  must agree), Gpt.LdmGuidConstantsMatchMicrosoftWinioctlText (reverse-decode
+  constant -> GUID text vs string literals), Ldm.GptDynamicDiskFabricatedGuidsRejected
+  (negative: the fabricated 8e9f/384e bytes must be refused ERR_BAD_MAGIC).
+- Fail-before/pass-after PROOF: with the constants temporarily reverted to the
+  fabricated values, 6/7 guard tests FAIL (CanonicalGuidsParse,
+  RealCanonicalGuidsParse, FabricatedGuidsRejected [fails for the right reason:
+  fabricated fixture + fabricated constant = parse succeeds], TableClassifies,
+  Gpt.Canonical..., Gpt.LdmGuid...); with the fix, full suite 320/320 Linux ASan
+  (317 baseline + 3 new), two consecutive full-suite runs green. One unrelated
+  observation: Snapshot.ConcurrentEmitCaptureWalk flaked once under full -j load
+  (passes 5/5 isolated + 2 full-suite reruns) — pre-existing timing sensitivity,
+  NOT a regression; noted for a future CI-stability pass.
+- Audit trail: A-002 Resolution section appended; finding moved to findings/FIXED/;
+  RESOLVED-INDEX row + A-001 caveat; CROSS-REF-MATRIX table+ldm B/C cells -> M
+  (A-002 fixed); modules/ldm.md B1/B8/C19 -> M with A-002-fixed notes; SUMMARY.md
+  (counts 0 ACUTE / 43 active / 13 fixed, addendum resolved, top risks, remediation
+  log); README.md status; PARITY-CORE-REC.md GPT-LDM row (had the fabricated values
+  documented as canonical — corrected); AUDIT-PIPELINE.md LDM recognition row;
+  CAPABILITY-MATRIX.md LDM row; evidence/executions/gpt-guid-probe.md annotated
+  (session-1 "not present in og binaries" claim was a wrong-needle artifact) +
+  gpt-guid-probe-harness.cpp rewritten to write the real bytes.
+
+Stage Summary:
+- A-002 FIXED: every real Windows GPT dynamic disk parses again (is_gpt, full volume
+  graph, 2 layouts); the fabricated values are now regression-guarded from four
+  directions (byte literal fixture, text-derived fixture, winioctl text compare,
+  negative rejection). Zero ACUTE findings remain. Next per the recommended order:
+  S-011 (exFAT tz_offset, one-line), then M-009 (64 KiB envelope, one-line).
+
+---
+Task ID: 4-A-002-rebase (A-002 reconciliation note)
+Agent: main engineer (diff-to-fix remediation, session 4)
+
+Note: this session's A-002 fix (commit 5f95828, local) and the parallel leg's
+A-002 fix (7f2c83e) landed independently within the same window - both restored
+the identical real Microsoft GUID bytes and converged on the same de-self-
+referenced test architecture (hard-coded literals + shared builder + negative
+guard + winioctl-text guard). Rebased onto 7f2c83e: the parallel leg's versions
+are the landed base; this session's unique addition on top is the
+GptDynamicDiskRealCanonicalGuidsParse cross-encoding test (entry GUIDs derived
+independently from the winioctl text forms - two independent encodings of
+ground truth that must agree). Suite re-run green post-rebase. The parallel leg
+also landed M-009 (64 KiB envelope, 7fd00e0), the raw-signs decode (S-012,
+N-023, N-024, OQ-T8 RESOLVED), the ReFS deep pass (M-022, I-012, GAP-ADS
+resolved), and the s2-third-leg reconciliation (18 findings, 9 OQs resolved).

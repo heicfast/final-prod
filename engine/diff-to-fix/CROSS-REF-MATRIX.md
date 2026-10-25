@@ -15,7 +15,9 @@ Legend: `M` = MATCH · `A-n`/`S-n`/`M-n`/`N-n`/`I-n` = finding ID (in
   RETRACTED by the leg's own re-verification (exFAT fixer checksum predicate —
   core MATCH; see modules/exfat.md addendum).
 - New finding ID (parallel leg): N-010 (FAT BAD sentinel) — FIXED in same commit.
-- Resolved (moved to `findings/FIXED/`): A-001, S-001, S-004, S-005, S-008,
+- Resolved (moved to `findings/FIXED/`): A-001, **A-002 (fix-induced LDM GUID
+  regression — restored to the real Microsoft values; test fixtures
+  de-self-referenced)**, S-001, S-004, S-005, S-008,
   M-001, M-006 (combined with S-009 — split tracked in N-020), N-002, N-003,
   N-010-theirs, OQ-T1.
 - Acknowledged (stay in INFORMATIONAL/ with pin tests): I-001..I-005.

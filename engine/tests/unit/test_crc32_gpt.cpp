@@ -373,11 +373,13 @@ void expect_guid(const u8* constant, const char* canonical_text, const char* nam
 } // namespace
 
 TEST(Gpt, CanonicalTypeGuidConstantsMatchRealDiskBytes) {
-    /* A-001 regression guard: every GPT type-GUID constant must equal the
-     * canonical mixed-endian disk bytes. Before the fix, five of six were
-     * wrong (BIOS boot mangled, MSR held the ESP GUID, Linux fabricated,
-     * both LDM GUIDs correct only in the first dword) - GPT dynamic disks
-     * failed LDM discovery entirely. */
+    /* A-001/A-002 regression guard: every GPT type-GUID constant must
+     * equal the canonical mixed-endian disk bytes derived independently
+     * from the Microsoft text forms. A-001 fixed BIOS boot/MSR/Linux/ESP
+     * (previously mangled, duplicated, fabricated); A-002 then restored
+     * the two LDM GUIDs, which the A-001 fix had itself corrupted with
+     * fabricated values (in no og binary, no authoritative source) -
+     * every real GPT dynamic disk failed LDM discovery until A-002. */
     expect_guid(GPT_TYPE_EFI_SYSTEM, "c12a7328-f81f-11d2-ba4b-00a0c93ec93b", "ESP");
     expect_guid(GPT_TYPE_BIOS_BOOT, "21686148-6449-6e6f-744e-656564454649", "BIOS boot");
     expect_guid(GPT_TYPE_MICROSOFT_RESERVED, "e3c9e316-0b5c-4db8-817d-f92df00215ae", "MSR");
@@ -411,12 +413,12 @@ namespace {
 std::string guid_text(const u8* disk_bytes) {
     char buf[40];
     std::snprintf(buf, sizeof(buf), "%08x-%04x-%04x-%02x%02x-%02x%02x%02x%02x%02x%02x",
-                  u32(disk_bytes[0]) | (u32(disk_bytes[1]) << 8) |
-                      (u32(disk_bytes[2]) << 16) | (u32(disk_bytes[3]) << 24),
+                  u32(disk_bytes[0]) | (u32(disk_bytes[1]) << 8) | (u32(disk_bytes[2]) << 16) |
+                      (u32(disk_bytes[3]) << 24),
                   u16(disk_bytes[4]) | (u16(disk_bytes[5]) << 8),
-                  u16(disk_bytes[6]) | (u16(disk_bytes[7]) << 8),
-                  disk_bytes[8], disk_bytes[9], disk_bytes[10], disk_bytes[11],
-                  disk_bytes[12], disk_bytes[13], disk_bytes[14], disk_bytes[15]);
+                  u16(disk_bytes[6]) | (u16(disk_bytes[7]) << 8), disk_bytes[8], disk_bytes[9],
+                  disk_bytes[10], disk_bytes[11], disk_bytes[12], disk_bytes[13], disk_bytes[14],
+                  disk_bytes[15]);
     return std::string(buf);
 }
 

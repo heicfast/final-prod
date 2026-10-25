@@ -35,7 +35,7 @@
 | ZFS multi-vdev topology | UNVERIFIED in corpus | single-vdev only | **PARTIAL (gap, D-L)** | D-09 remains open — honest gap |
 | **ReFS (FIRST-CLASS)** | ReFSSearchDLL (full MSB chain) | full MSB chain: page signatures, dual-checkpoint max-clock, versioned pointer lists (minor>=14), next-chains, ObjectID/directory tables, $DATA runs, deleted/ID2 harvest, allocator grading | **DONE** | W2 REFS-1/2/3 (next-chain + versioned checkpoint + stale pins); test_refs_ldm.cpp (11 tests); DBR gate 3.4+ (major==3 && minor>3, FUN_180012390) |
 | ReFS containers / security / ADS | og extent UNDECODED | absent | **PARTIAL (tracked)** | AUDIT-LINUX-FS ReFS table — no silent claims |
-| **LDM (FIRST-CLASS)** | LdmManager | full decode: TOCAB01 databases, VBLKs, component/partition/volume assembly, RAID-0/1 concatenation, cross-disk resolver; GPT-dynamic discovery (canonical type GUIDs, A-001 fix) | **DONE** | test_ldm.cpp (incl. GptDynamicDiskCanonicalGuidsParse); LDM-1 honesty note (RAID-5 rotation UNDECODED og-side; our raid5_ls is the libldm verdict) |
+| **LDM (FIRST-CLASS)** | LdmManager | full decode: TOCAB01 databases, VBLKs, component/partition/volume assembly, RAID-0/1 concatenation, cross-disk resolver; GPT-dynamic discovery (real Microsoft type GUIDs — restored by A-002 after the A-001 fix's regression; og-verified + de-self-referenced guards) | **DONE** | test_ldm.cpp (incl. GptDynamicDiskCanonicalGuidsParse / RealCanonicalGuidsParse / FabricatedGuidsRejected); LDM-1 honesty note (RAID-5 rotation og-side dormant per I-008 — left-symmetric on both sides, RESOLVED) |
 
 ## 2. Pipeline
 

@@ -1,8 +1,16 @@
-// Audit harness: GPT dynamic-disk fixture with CANONICAL LDM GUIDs (winioctl.h
-// PARTITION_LDM_METADATA_GUID / PARTITION_LDM_DATA_GUID, mixed-endian disk form)
-// → run cr::table::parse_disk_table + cr::table::parse_ldm_database.
+// Audit harness: GPT dynamic-disk fixture with the REAL Microsoft LDM GUIDs
+// (winioctl.h PARTITION_LDM_METADATA_GUID / PARTITION_LDM_DATA_GUID, mixed-endian
+// disk form) → run cr::table::parse_disk_table + cr::table::parse_ldm_database.
 // Expected on a correct implementation: LDM metadata partition located,
 // parse_ldm_database proceeds past GPT entry scan ( PRIVHEAD magic optional ).
+//
+// A-002 CORRECTION (fix session): this harness originally wrote FABRICATED
+// GUID bytes (5808c8aa-8e9f-4c87-... / af9b60a0-384e-4f7d-...) as "canonical";
+// the real values below were verified four ways: Microsoft Learn
+// PARTITION_INFORMATION_GPT, the og binaries' own compare operands
+// (LdmManager.mo DAT_0x1800c4960, Partition.mo DAT_0x180036630/0x36640),
+// the Linux kernel EFI set, and execution (the unit suite's
+// GptDynamicDisk* tests). See findings/FIXED/A-002-*.md.
 #include <cr/table/cr_table_parse.h>
 #include <cr/table/cr_ldm.h>
 #include <cr/storage/cr_device.h>

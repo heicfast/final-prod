@@ -14,8 +14,10 @@ Core (audited commit `67193b6`, session-2 re-verified at `2545b83`→`4f0c841`):
 rotation + reconstruct, and Partition.mo's entry scan read first-hand from the
 decompiles (`evidence/decompiled-quotes/s2-ldm-gpt-gate.md`,
 `s2-ldm-raid5-rotation.md`). OQ-T7 RESOLVED (left-symmetric, MATCH). **A-002
-filed**: the A-001 fix corrupted both LDM GUIDs — real GPT dynamic disks fail
-LDM discovery on the current tree (executed proof).
+FIXED (A-002 fix session):** the two LDM GUID constants restored byte-for-byte
+to the real Microsoft values (independently re-verified against the og binaries
+first-hand); the regression tests de-self-referenced (real bytes hard-coded in
+fixtures) + 3 new guards; real GPT dynamic disks parse end-to-end again.
 
 ## Behavioral
 

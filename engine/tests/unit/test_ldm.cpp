@@ -17,6 +17,8 @@
 #include "test_fixtures.hpp"
 #include <gtest/gtest.h>
 #include <cstring>
+#include <cstdlib>
+#include <string>
 
 using namespace cr::testfixture;
 
@@ -533,7 +535,7 @@ namespace {
  * never the constants under test, so a corrupted constant fails the test
  * instead of quietly validating itself. */
 constexpr u8 REAL_LDM_METADATA_GUID[16] = {0xAA, 0xC8, 0x08, 0x58, 0x8F, 0x7E, 0xE0, 0x42,
-                                          0x85, 0xD2, 0xE1, 0xE9, 0x04, 0x34, 0xCF, 0xB3};
+                                           0x85, 0xD2, 0xE1, 0xE9, 0x04, 0x34, 0xCF, 0xB3};
 constexpr u8 REAL_LDM_DATA_GUID[16] = {0xA0, 0x60, 0x9B, 0xAF, 0x31, 0x14, 0x62, 0x4F,
                                        0xBC, 0x68, 0x33, 0x11, 0x71, 0x4A, 0x69, 0xAD};
 
@@ -636,6 +638,52 @@ TEST(Ldm, GptDynamicDiskTableClassifiesLdmEntries) {
     ASSERT_EQ(t.partitions.size(), 2u);
     EXPECT_EQ(t.partitions[0].fs, FsKind::Reserved); /* LDM metadata */
     EXPECT_EQ(t.partitions[1].fs, FsKind::Ldm);      /* LDM data */
+}
+
+namespace {
+
+/* Mixed-endian disk bytes derived from the Microsoft winioctl TEXT form -
+ * an encoding path INDEPENDENT of the byte literals above (A-002: the two
+ * paths must agree; a hex typo in either fails the paired test below). */
+std::vector<u8> winioctl_guid(const char* text) {
+    std::string t;
+    for (const char* p = text; *p; ++p)
+        if (*p != '-' && *p != '{' && *p != '}')
+            t += *p;
+    auto hx = [&](size_t i) { return u8(strtoul(t.substr(i, 2).c_str(), nullptr, 16)); };
+    std::vector<u8> b(16);
+    b[0] = hx(6);
+    b[1] = hx(4);
+    b[2] = hx(2);
+    b[3] = hx(0); /* Data1 LE */
+    b[4] = hx(10);
+    b[5] = hx(8); /* Data2 LE */
+    b[6] = hx(14);
+    b[7] = hx(12); /* Data3 LE */
+    for (int i = 0; i < 8; i++)
+        b[8 + i] = hx(16 + 2 * size_t(i)); /* Data4 raw */
+    return b;
+}
+
+} // namespace
+
+TEST(Ldm, GptDynamicDiskRealCanonicalGuidsParse) {
+    /* A-002 cross-encoding guard (added in the reconciliation of the two
+     * independently-landed A-002 fixes): the same disk as
+     * GptDynamicDiskCanonicalGuidsParse, but with the entry GUIDs derived
+     * independently from the Microsoft winioctl TEXT forms. The literal
+     * path and the text path are two independent encodings of ground
+     * truth and must agree on every byte - a hex typo in either the byte
+     * literals or the constants fails exactly one of the paired tests. */
+    const std::vector<u8> meta = winioctl_guid("5808c8aa-7e8f-42e0-85d2-e1e90434cfb3");
+    const std::vector<u8> data = winioctl_guid("af9b60a0-1431-4f62-bc68-3311714a69ad");
+    EXPECT_EQ(0, std::memcmp(REAL_LDM_METADATA_GUID, meta.data(), 16));
+    EXPECT_EQ(0, std::memcmp(REAL_LDM_DATA_GUID, data.data(), 16));
+    MemDevice dev(make_gpt_dynamic_disk(meta.data(), data.data()));
+    LdmInfo info;
+    ASSERT_EQ(OK, parse_ldm_database(&dev, info));
+    EXPECT_TRUE(info.is_gpt);
+    EXPECT_EQ(size_t(2), info.layouts.size());
 }
 
 } // namespace table

@@ -7,6 +7,17 @@ MSR  16e3c9e35c0bdb4817df92df00215ae -> UILogic.dll, MainModule.dll, LdmManager.
 LDM_META / LDM_DATA / BIOSBOOT / LINUX_FS / BASIC: not present as contiguous bytes in any scanned og binary (og likely compares via immediates or identifies LDM by PRIVHEAD magic/MBR 0x42; canonical values taken from winioctl.h)
 ```
 
+> **A-002 correction (fix session):** the LDM line above is WRONG and was the root
+> of the A-001 false positive that became the A-002 regression. The scan searched
+> for the session-1 "canonical" (in fact fabricated) needles; the REAL
+> `PARTITION_LDM_METADATA_GUID` disk bytes (`aac808588f7ee04285d2e1e90434cfb3`)
+> and `PARTITION_LDM_DATA_GUID` disk bytes (`a0609baf3114624fbc683311714a69ad`)
+> ARE present, byte-for-byte, in `LdmManager.mo` (DAT_0x1800c4960 — the og
+> GPT-dynamic gate's compare operand, FUN_1800724f0) and `Partition.mo`
+> (DAT_0x180036630 / DAT_0x180036640, FUN_180002bd0's operands). The A-002 fix
+> session's independent full-corpus scan (1,467 files) found the real metadata
+> GUID in 8 files and the real data GUID in 7, and the fabricated values in zero.
+
 ## Core probe execution (g++ -std=c++20, libcr.a built from audited 67193b6)
 ```
 parse_disk_table rc=0 partitions=4

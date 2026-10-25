@@ -66,7 +66,22 @@ things) landed in two parallel legs, reconciled here:
   S-002 to FIXED/ (the parallel leg's summary listed it open — stale), and filed
   **M-010** (S-005's residual invalid-UTF-8 edge: ext4/Btrfs name bytes destroyed vs og
   raw passthrough; ZFS edge verified parity first-hand via FUN_18001c630).
-## ⚠️ THIRD-LEG ADDENDUM (LDM deep-pass leg, session 2) — ACUTE A-002 filed
+## ⚠️ THIRD-LEG ADDENDUM (LDM deep-pass leg, session 2) — ~~ACUTE A-002 filed~~ **A-002 FIXED (fix session)**
+
+**A-002 RESOLVED (fix session, this file's top-priority item):** the two corrupted LDM
+GPT type-GUID constants were restored byte-for-byte to the real Microsoft
+`PARTITION_LDM_METADATA_GUID`/`PARTITION_LDM_DATA_GUID` values (= the pre-`1cb6a43`
+bytes, independently re-verified this fix session against the og binaries' own compare
+operands: LdmManager.mo DAT_0x1800c4960, Partition.mo DAT_0x180036630/0x36640; full
+1,467-file corpus scan: fabricated values in 0 files). The four regression tests were
+de-self-referenced (fixtures now hard-code the real bytes / winioctl text forms instead
+of copying the constants) and three new guards added
+(`Ldm.GptDynamicDiskRealCanonicalGuidsParse`, `Gpt.LdmGuidConstantsMatchMicrosoftWinioctlText`,
+`Ldm.GptDynamicDiskFabricatedGuidsRejected`). Fail-before proven: 6/7 guard tests fail
+on the fabricated constants; suite 320/320 Linux ASan post-fix. See
+`findings/FIXED/A-002-*.md` Resolution. A-002 is CLOSED; the remaining active
+ACUTE is session-3's A-004 (event-range config-sink mis-delivery — see the
+session-3 delta below), which the fix session takes up next.
 
 **Session-2 third-leg state at close (2026-10-25):** this leg resolved OQ-T2 (FAT mirror
 consult — per-entry zero-fallback, N-022 filed), OQ-T5 (exFAT ChecksumDBR — spec skip-set
@@ -145,7 +160,7 @@ ext4/Btrfs invalid-UTF-8 finding (briefly M-007 in a local commit) renumbered to
 | btrfs | – | – | 1 (M-010) | 1 (N-006) | 2 (I-003 ack, I-007) | – | ✔ |
 | zfs | – | – | – | – | 1 (I-007) | OQ-T6 | ✔ |
 | refs | – | – | (project GAP: ADS) | 1 (N-007) | 1 (I-004 ack) | – | ✔ |
-| ldm/table | 1 (**A-002**) | – | 1 (M-002) | – | 1 (I-008) | OQ-T7 **RESOLVED (this leg)** | ✔ |
+| ldm/table | – | – | 1 (M-002) | – | 1 (I-008) | OQ-T7 **RESOLVED (this leg)** | A-002 **FIXED** (fix session) ✔ |
 | lost-partition | – | 1 (S-006) | – | – | – | OQ-T9 | ✔ |
 | carve | – | 1 (S-007) | 1 (M-005) | 1 (N-008) | – | OQ-T8 | ✔ |
 | session | – | – | – | 1 (N-014) | (I-005.7 ack) | – | ✔ |
@@ -160,10 +175,12 @@ ext4/Btrfs invalid-UTF-8 finding (briefly M-007 in a local commit) renumbered to
 
 *(M-010 counts once per affected engine row for navigation, as S-005 did.)*
 
-## Top risks (ranked — post-reconciliation)
+## Top risks (ranked — fix-session state)
 
 1. **A-004 (ACUTE — event-range fires through a config sink; the only active ACUTE
-   post-`7f2c83e`)**; then **S-015 (session 3) — raw-sign recall window 1024x too
+   post-`7f2c83e`)** — crash-class latent defect on the public API surface; one-line
+   fix + two tests per its plan. **← the fix session's next item.** Then **S-015
+   (session 3) — raw-sign recall window 1024x too
    small** (raw_signs.json min/max read as bytes vs the og's KiB): every raw-sign
    format caps at 50 KiB (200 KiB for the media entries) where the og carves 50 MiB
    (200 MiB) — the largest single recall gap found in session 3; one-generator fix.
@@ -182,10 +199,10 @@ ext4/Btrfs invalid-UTF-8 finding (briefly M-007 in a local commit) renumbered to
    preserves raw bytes; ZFS edge is verified parity). Permanent loss of original name
    bytes for legacy-locale filenames.
 7. **M-009 (session 2, perf) — RawFixer bypasses the 64 KiB direct-I/O envelope.**
-   ~3.5× slow path on 4Kn NVMe. One-line fix.
-8. **OQ-T7 — LDM RAID-5 rotation unverified.** Safety-critical; if the og's rotation
-   differs from the assumed left-symmetric, every reconstructed RAID-5 member carries
-   wrong bytes.
+   ~3.5× slow path on 4Kn NVMe. **FIXED** (`7fd00e0`, verified first-hand `14f3a29`;
+   in `findings/FIXED/`).
+8. ~~**OQ-T7 — LDM RAID-5 rotation unverified.**~~ **RESOLVED** (left-symmetric both
+   sides; og's other rotations dormant — I-008).
 
 ## Recommended fix order (first 20 — post-reconciliation)
 
@@ -279,6 +296,7 @@ ext4/Btrfs invalid-UTF-8 finding (briefly M-007 in a local commit) renumbered to
 | 2026-10-25 | I-001..I-005 | **ACKNOWLEDGED** | deliberate supersets verified + pin tests (`f74a5dd`); re-verified this leg |
 | 2026-10-25 (S2) | S-010, S-011, M-007, M-008, M-009, N-011..N-020, N-021, I-006, I-007 | **NEW** | parallel session-2 leg, wave 2 |
 | 2026-10-25 (S2, this leg) | M-010 | **NEW** | S-005 residual invalid-UTF-8 edge; ZFS-side parity verified first-hand (FUN_18001c630) |
+| 2026-10-25 (fix session) | A-002 | **FIXED** | LDM GPT type-GUID constants restored to the real Microsoft values; 4 tests de-self-referenced + 3 new guards; fail-before 6/7, suite 320/320 Linux ASan; session-1 evidence chain corrected (see `findings/FIXED/A-002-*.md`) |
 
 ## Session-2 verification log (this leg, baseline `8574039`)
 
