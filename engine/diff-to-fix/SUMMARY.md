@@ -521,3 +521,14 @@ M-024/N-033's ABI surface; verify at the next fix-verification pass).
 **Re-baselined counts:** ACUTE 0 · SEVERE **13** (S-003, S-007, S-009-partial,
 S-011..S-014, S-019..S-022) · MAJOR 22 · MINOR 34 · INFO 12 · **total active 81**
 (22 in FIXED/ — S-017, S-018(invalid), S-006, S-015, N-021 joined the fixed set).
+
+**Final session-3 continuation close-out count correction (S3 lead, by direct file
+inventory at `4d138f2`):** S-011's fix also landed mid-flight — the live inventory
+is **0 ACUTE · 10 SEVERE (S-003, S-007, S-009-partial, S-012, S-013, S-014, S-019,
+S-020, S-021, S-022) · 22 MAJOR · 33 MINOR · 12 INFO = 77 active / 24 FIXED**. The
+session-3 continuation's own delta (all legs combined): +28 new findings filed
+(S-017..S-022, M-024..M-027, N-033..N-039, I-013, I-014 + the merged addenda),
+OQ-T8/OQ-T9/GAP-ADS resolved, 7 findings fixed or dispositioned by the parallel fix
+legs in the same window (S-006, S-011, S-015, S-017, S-018-INVALID, N-021, plus the
+A-002/A-004/S-016/M-009 retirements earlier in the session), and the remaining
+unverifieds are all in tracked-open with precise next artifacts.

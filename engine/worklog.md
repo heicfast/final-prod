@@ -4870,3 +4870,80 @@ Work Log:
   fix-verification pass).
 - SUMMARY re-baselined: 0 ACUTE / 13 SEVERE / 22 MAJOR / 34 MINOR / 12 INFO = 81
   active / 22 FIXED.
+
+---
+Task ID: S3-CLOSE (session-3 continuation — close-out handoff)
+Agent: session-3 continuation auditor (read-only, S3 lead — "second session" mandate)
+Task: Find what session 1+2 missed, verify/remove the fixed things, go deeper on
+og-vs-core, mark all remaining features/implementations/functions. Close.
+
+Work Log:
+- Session arc: wave 0 (bootstrap at 34b3441; A-002 re-verified live pre-fix) →
+  wave 1 (OQ-T8 carve dispatch decoded, OQ-T9 resolved with the premise CORRECTED
+  — CalcPartition = geometry calculators, real scoring = DRWUI content-counts
+  validated against CalcPartition.log; ReFS first-class deep pass; 17 findings)
+  → reconciliation onto main (parallel legs had advanced main to e6d5b01 with
+  A-002/A-004/S-016/M-009 fixes + 18 findings + grouped-minor restructure; my 14
+  renumbered standalones + 6 addenda + S-007 corrected first-hand (CEPS :1985,
+  OneNote :2156-2177, LZH :3097) + errata E22-E28) → wave 2 (S-021 HFS+ journal
+  harvest, S-022 NTFS INDX second source, N-038/N-039/I-014, NTFS remainder
+  MATCH-by-omission, matrix cells) → post-rebase corrections (S-017 FIXED,
+  S-018 INVALID independently re-verified, S-006/S-011/S-015/N-021 absorbed).
+- All pushes landed on main (9e4ad5c preserved pre-rebase; final 4d138f2 lineage).
+- Read-only compliance held: only diff-to-fix/ + worklog.md + worklog/ written.
+
+COVERAGE (this session's contributions, first-hand):
+- Corpus decompiled, line-cited this session: RAWSearchDLL dispatch/registry/scan
+  loop + JPEG/BMFF validators; ReFSSearchDLL (20,270 lines, ~75% via agent; e490/
+  ea30 bodies re-verified by lead at :10413-10462); HFSPlusSearchDLL journal
+  GetDeleteRecord + catalog/fork/attrs paths; EXT4SearchDLL journal-image walk;
+  NTFSSearchDLL USN gate + INDX sweep + attribute-type census (targeted greps);
+  FATSearchDLL/exFATSearchDLL CalcPartition vtables (RTTI executed walk);
+  DRWUI scorer + AdjustPartitionInfoOrder; LdmManager.mo/Partition.mo GUID sites
+  (re-probed); the JPEG -0x27 refutation sites.
+- Executed: LDM GUID binary re-extraction (python PE-walk, 3 binaries); CalcPartition
+  RTTI vtable dump; ftyp deadness probe (4 planted BMFF files); ext4 dir-walk probe;
+  USN reason probe (dispositioned in N-039).
+- External cross-checks: Wikipedia GPT type-GUID table + Microsoft Learn (A-002
+  chain); TSK/decmpfs literature (N-038 field-name question — unresolved, honestly
+  recorded).
+
+FINAL STATE (by direct inventory at close):
+- 77 active: 0 ACUTE, 10 SEVERE (S-003, S-007, S-009-partial, S-012, S-013, S-014,
+  S-019, S-020, S-021, S-022), 22 MAJOR, 33 MINOR, 12 INFO. 24 FIXED.
+- OQ-T8, OQ-T9, GAP-ADS: RESOLVED. Open: OQ-S2M-1/2, OQ-S2A-1..4, OQ-S2C-3,
+  OQ-T3/T4/T6(bounded), OQ-S3-jpeg-fallback-and-continuation + the per-finding
+  UNVERIFIEDs (all with next artifacts).
+
+RECOMMENDED NEXT 20 (fix session, updated):
+1) S-012 step 1 (flag flip — restore og deleted-file membership)
+2) S-013 (exFAT >32 MiB FAT windows — S-007's fix model)
+3) S-021 (HFS+ journal harvest — ring-walk substrate shared with S-003)
+4) S-003 (HFS+ journal replay — same substrate)
+5) S-022 (NTFS INDX orphan sweep — second-source names)
+6) S-020 + M-022 (ReFS grammar walk + resident materialization — S-020 needs
+   M-022's dual grammar; do M-022 step 1's real-volume dump FIRST)
+7) S-014 + S-019 (BitLocker unlock path + probe family — same subsystem)
+8) S-007 (carve format families, with the corrected CEPS/OneNote/LZH rows)
+9) M-026/M-027 (ReFS deleted model + identity dedup — after S-020/M-022)
+10) M-013/M-014 exFAT groups, M-011/M-012/M-015 FAT groups
+11) M-025 (carve read model — prerequisite for M-021's repair hook)
+12) M-019 (ZFS multivdev fallback + fletcher4 — the parity-vs-yield decision)
+13) M-016/N-025 (LDM TOCBlock + geometry)
+14) M-020 (btrfs profiles + default subvol)
+15) N-039 (USN gate: adopt og's 0x200 mask? — core is the CORRECT side; decide
+    policy, then register or match)
+16) N-034/N-035 (lost-partition gates + extent anchoring — with M-017)
+17) M-017 (content-count scoring — M-013/M-014's model + N-035's extents)
+18) N-036/N-037 (ReFS datarun flags + granularity gate)
+19) N-038 (HFS+ fork predicate — after the TN1150 field-name check)
+20) M-024/N-033 verification (the ABI registry wave 1f08c20 may already cover —
+    verify first, then close).
+
+Stage Summary:
+- Session-3 continuation complete. No source files touched. diff-to-fix/ is the
+  roadmap: 77 active findings (every one evidenced + actionable), 24 resolved with
+  audit trails, all open questions precise. Multi-leg coordination held: IDs
+  renumbered onto main's, convergent decodes merged as addenda, one cross-leg
+  factual error corrected with first-hand evidence, one of my own findings
+  refuted-and-absorbed with an SOP lesson recorded in the PROTOCOL.

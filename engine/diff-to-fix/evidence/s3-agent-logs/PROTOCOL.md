@@ -122,3 +122,15 @@ which module files. Keep it dense and factual — the lead turns it into the wor
   (`.rsf` session dumps, QA logs, driver references), `og-codebase/` (installed product tree).
 - Prior-session evidence to BUILD ON (don't redo): `diff-to-fix/evidence/decompiled-quotes/`,
   `diff-to-fix/evidence/executions/`, `diff-to-fix/tracked-open/`.
+
+## 8. Session-3 addendum — constant-search SOP (learned from the S-018 refutation)
+
+When proving "constant C does not appear in a decompiled body", a literal-text grep
+is NOT sufficient: Ghidra renders byte values >0x7F as **signed chars** (0xD9 →
+`-0x27`), u16/u32 compares may be widened/masked (`0xffffffd9`), and struct-field
+tests may use computed offsets. Every absence claim must grep the NEGATIVE and
+widened forms too: `C`, `-0x(100-C)` (char), sign-extended u32 forms, and — where
+the constant is part of a multi-byte signature — the OTHER bytes of the signature
+(e.g. FF D9 → grep `-1` + `-0x27` pairs). The S-018 JPEG-EOI refutation
+(`2adfa29`, re-verified by the S3 lead) is the canonical case: five FF D9 sites
+existed; a `0xd9` grep found none.
