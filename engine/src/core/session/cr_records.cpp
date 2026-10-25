@@ -277,7 +277,18 @@ u32 deserialize_tree(const u8* data, size_t len, tree::ResultTree& tree, u32* re
         /* (Convergent repair note: this session's DFX16 leg found the
          * same leak and filed the identical unique_ptr fix; the parallel
          * lane's N-077 PropsRef landing is canonical - kept, duplicate
-         * removed at the rebase union.) */
+         * removed at the rebase union.) */        /* Leak repair (found by the s19 ASan/LSan suite sweep): the
+         * N-058/M-051 break paths between this allocation and the
+         * attach+release below leaked the properties object (two leaks
+         * in the hostile-record tests). The guard releases on ANY exit
+         * from this iteration until ownership transfers. */
+        struct PropsGuard {
+            tree::FileProperties* p;
+            ~PropsGuard() {
+                if (p)
+                    p->release();
+            }
+        } props_guard{props};
         props->record_ref = c.g64();
         props->fs_kind = c.g32();
         if (props->fs_kind == 12)
@@ -397,6 +408,8 @@ u32 deserialize_tree(const u8* data, size_t len, tree::ResultTree& tree, u32* re
                 n = tree.add_file(parent, props);
             }
         }
+        props_guard.p = nullptr; /* ownership transferred (or the node
+                                  * attach failed: released below) */
         props->release();
         props_ref.owned = false; /* the tree owns its reference now */
 
