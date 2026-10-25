@@ -6838,3 +6838,94 @@ Work Log:
 Stage Summary:
 - Baseline recorded against the live remote; transport adapted (API); lane
   claimed; first fix target S-024 (health grading), then S-009.
+
+Task ID: DF4-A005-S021 (diff-fix session 4 — A-005 + S-021)
+Agent: main engineer (diff-to-fix fix session)
+Task: S-021 (SEVERE, hfsplus) — the journal deleted-record harvest; verification
+discovered A-005 (ACUTE, the B-tree record-span inversion) — both fixed together.
+
+Work Log:
+- S-021 evidence re-verified first-hand, gate by gate (CHFSPlusJournal ctor
+  FUN_180010e10: JIB at VH_blockSize x VH_journalInfoBlock, 180 bytes, swapped by
+  FUN_18000db70 — flags bit0 / base BE-u64@+0x24 / size BE-u64@+0x2C; jhdr 44
+  bytes LE-stored, 'JNLx' 0x4A4E4C78 + endian 0x12345678, walk origin u64@+0x10,
+  size@+0x18 cross-checked; ring walk FUN_180011300 with the u16 header test
+  (*local_c8 is ushort* — a Ghidra widening trap that fooled the earlier legs'
+  "first u32" rendering), 16-byte entries {u64 target, u32 size, u32 next} with
+  local_d0[4] = the node SIZE not a target block; entry loop advance
+  local_d0 += 8 ushorts = 16 bytes; node-image validator FUN_180010720; fork
+  classification FUN_18000cb70 by VOLUME address ranges; the differential at
+  :13958-62; emit FUN_18000c8f0). Three decode corrections recorded in
+  evidence/decompiled-quotes/s3-hfsplus-inventory.md §3a.
+- A-005 discovered: the fixture images failed the og-derived validator — the
+  validator's [end-2] == 14 + ascending chain pins TN1150 records-UP; the core's
+  for_each_record + make_leaf_node were records-DOWN (self-consistent, inverted
+  vs the format; on real volumes only record 0 per node would parse). Filed
+  ACUTE A-005 (findings/ACUTE/, moved to FIXED/ with the Resolution in this
+  commit); the session-1 corpus artifact's contrary note was an inference from
+  the core's own code — errata E37.
+- Fixes: for_each_record spans [slot(i+1), slot(i+2)); make_leaf_node packs
+  records UP from 14 (single fixture-builder point — all HFS+ fixtures flipped
+  with it); journal_harvest implemented in cr_hfsplus_engine.cpp (full gate
+  ladder + differential + extents side map + sweep dedup + stats + the
+  journal_harvest off switch); VH attributes parsed for the journaled flag.
+- Fail-before proven: (a) A-005 — the pre-fix reader against the corrected
+  fixtures fails EndToEndWalk + DecmpfsInlineAndRsrc + DecmpfsDisabledLeaves
+  (each side rejects the other's shape — the inversion demonstrated both ways);
+  (b) S-021 — the harvest disabled fails all three Journal* tests. Post-fix:
+  11/11 HfsPlus + full suite 401/401 Linux ASan.
+- Debug-driven corrections en route (all fixed in-tree): the header test read as
+  u32 (fixed to u16 per the decompile), journal_fork_contains used fork-logical
+  cursor arithmetic (fixed to per-extent VOLUME ranges — the og probes volume
+  addresses), the extents side-map key offset (fileID at key+4), zero-count
+  extent filtering for empty forks.
+- Audit trail: A-005 + S-021 Resolutions + FIXED/ moves; RESOLVED-INDEX (31);
+  CROSS-REF-MATRIX hfsplus rows; modules/hfsplus.md fix-session update;
+  SUMMARY remediation rows + fix-session-4 delta + counts (77 active / 35 FIXED);
+  PARITY-DELTAS D-52; CORPUS-ERRATA E37; evidence §3a addendum.
+
+Stage Summary:
+- S-021 CLOSED: the og's primary deleted surface for HFS+ now exists — journal
+  transaction images are harvested with the og's exact gates and differential.
+- A-005 CLOSED: a critical, audit-missed format inversion fixed across the
+  entire HFS+ surface — the largest silent-yield-loss class found in the
+  diff-to-fix program (real volumes were emitting ~1/n of their files).
+- Suite 401/401. Next: S-003 (journal replay — the OTHER consumer, shares the
+  ring-walk substrate now in-tree), then S-020 (ReFS resident), S-007 (carve
+  formats), and the S-023..S-028 wave.
+
+---
+Task ID: DF4-S021-CONVERGE (diff-fix session 4 — the S-021 reconciliation)
+Agent: main engineer (diff-to-fix fix session)
+Task: Reconcile the two S-021 landings (s5's journal_harvest_pass + DF4's decode
+corrections) onto one implementation; keep A-005; leave main green.
+
+Work Log:
+- The rebase surfaced the parallel s5 landing (c75f646: S-021 + S-003's framing
+  correction — no live-tree overlay; the consumption-side evidence stands).
+  The auto-merge had doubled the harvest (both functions + both call sites) —
+  full reconciliation performed instead of a mechanical both-sides merge:
+  the s5 pass structure kept (count-1 entry loop — MORE faithful than DF4's
+  count; newest-wins kept-map; four-tree classification; allocation-bitmap
+  grading; the S-003 disposition); DF4's corrections applied on top:
+  (1) the og's JIB offsets +0x24/+0x2C (FUN_18000db70's swap-set is the
+  dispositive decode; the ring reader's raw longlong arithmetic reads
+  jinfo+0x24 as the journal base) + the og's flags-bit-0 gate alongside the
+  real-format 'jnlx' magic check — fixture writes updated to match;
+  (2) the node-image validator extended to the og's full gate (nonzero header
+  word, free-space sentinel == 14, ascending offset chain);
+  (3) the harvest moved BEFORE the freed-node sweep + the harvested-cnids
+  dedup wired (both surfaces finding one record emit once);
+  (4) the DF4 duplicate harvest, helpers, stats fields, and duplicate tests
+  removed; the unique DF4 tests kept (JournalHarvestDisabledByFlag) +
+  LeafNodeLayoutMatchesOnDiskFormat (A-005);
+  (5) the test file's namespace skeleton normalized (the layered merges had
+  left re-opened namespace pairs + a stray closing brace).
+- The S-021 finding file carries both Resolutions + the convergence postscript;
+  the matrix cell reconciled; SUMMARY/module doc both-sides kept.
+
+Stage Summary:
+- One journal harvest in-tree, the superset of both decodes; suite 439/439
+  Linux ASan. A-005 stands (the ACUTE record-span fix). Remaining SEVERE per
+  the current inventory: S-003 (dispositioned by s5 — see its postscript),
+  S-007 (claimed by another lane), S-009-partial, S-020, S-023..S-028.

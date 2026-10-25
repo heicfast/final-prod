@@ -207,3 +207,28 @@ floor registered as hardening.
   `../tracked-open/OQ-S003-journal-fallback-salvage.md`.
 - **Hardening registered:** PARITY-DELTAS D-56 (ring bound, size caps,
   no-harvest degradation, grading superset, the tx-magic OQ).
+
+## Fix-session update (2026-10-26 — S-021 + A-005)
+
+- **B4/B5/B2/A25 → S-021 FIXED:** the journal deleted-record harvest landed
+  (`journal_harvest` in cr_hfsplus_engine.cpp): JIB gates (flags bit 0, base/size),
+  the VH journaled flag (0x2000), jhdr gates ('JNLx' LE magic + endian + size
+  cross-check), the ring walk (u16 header test `(blhdr_size>>4)-1`, block lists +
+  serial images with wrap modulo journal size, termination at the walk origin +
+  corruption step-cap), the og's node-image validator, leaf-only harvest, fork
+  classification by VOLUME address ranges (catalog → extents), the catalog
+  differential (absent-key or different-fileID keeps; cnid==parentCNID skips), the
+  extents side map for empty-fork records, deleted-node emission, sweep dedup.
+  Stats: journal_txns / journal_images / journal_records; `journal_harvest=false`
+  off switch. Tests: JournalHarvestEmitsDeletedRecords, JournalWrapHandled,
+  NonLeafImagesSkipped, JournalHarvestDisabledByFlag.
+- **B1/B2/A25 → A-005 FIXED (ACUTE, discovered during S-021's verification):** the
+  B-tree record-span convention was inverted vs the on-disk format (TN1150:
+  records UP from 14, [end-2] = record 0's offset = 14, ascending offsets, deepest
+  slot = free start; the og's journal validator gates exactly this). `for_each_record`
+  now takes record i = [slot(i+1), slot(i+2)); `make_leaf_node` packs records UP.
+  On real volumes the pre-fix reader emitted only record 0 per node. Guard test:
+  `HfsPlus.LeafNodeLayoutMatchesOnDiskFormat`.
+- **B OQ-3 resolved:** the og's cnid-sweep mechanics question — the deleted surface
+  is the journal harvest (now implemented) + the core's freed-node sweep superset
+  (I-014, deduped against the harvest).

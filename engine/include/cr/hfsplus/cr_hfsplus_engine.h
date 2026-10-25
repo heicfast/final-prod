@@ -72,6 +72,8 @@ struct HfsScanFlags {
 struct VolumeHeader {
     u16 signature = 0; /* 0x482B H+ / 0x4858 HX */
     u16 version = 0;
+    u32 attributes = 0; /* +0x04: kHFSVolumeJournaledMask 0x2000 gates the
+                         * journal harvest (og FUN_180010e10 :13467) */
     u32 block_size = 0;
     u32 total_blocks = 0;
     u32 free_blocks = 0;

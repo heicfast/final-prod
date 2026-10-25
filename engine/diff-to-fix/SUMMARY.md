@@ -706,6 +706,10 @@ ext4/Btrfs invalid-UTF-8 finding (briefly M-007 in a local commit) renumbered to
 | 2026-10-25 (S3) | A-002 | **FIXED** | `7f2c83e` real Microsoft/og GUIDs restored; tests de-self-referenced + negative guards; session-3 independent og-binary re-extraction converges (4 binaries / 7 sites) |
 | 2026-10-25 (S3) | S-010 | **FIXED** | `3e34ed2`+`414f56c`+`34b3441` volume quiesce on the repair write path; 3 fail-before lock tests; SUMMARY stale-row reconciled this session |
 | 2026-10-25 (S3) | M-009 | **FIXED** | `7fd00e0` RwDevice::read_at routes through the 64 KiB envelope; verified first-hand this session |
+| 2026-10-26 | **A-005 (NEW, discovered during S-021 verification)** | **FIXED** | HFS+ B-tree record-span convention inverted vs TN1150/the og's validator — on real volumes only record 0 per node was emitted; for_each_record spans + all fixtures corrected (one builder point); LeafNodeLayoutMatchesOnDiskFormat guard; fail-before: the old reader fails EndToEndWalk + both Decmpfs tests against the corrected fixtures |
+| 2026-10-26 | **S-021** | **FIXED** | the journal deleted-record harvest (the og's PRIMARY deleted HFS+ surface): JIB/jhdr gates, ring walk (u16 header test - a decode correction), og node-image validator, fork classification by volume ranges, catalog differential + extents side map, sweep dedup; 4 tests; suite 401/401 Linux ASan; decode corrections recorded in evidence s3-hfsplus-inventory.md §3a + errata E37 |
+| 2026-10-26 | **A-005 (NEW, discovered during S-021 verification)** | **FIXED** | HFS+ B-tree record-span convention inverted vs TN1150/the og's validator — on real volumes only record 0 per node was emitted; for_each_record spans + all fixtures corrected (one builder point); LeafNodeLayoutMatchesOnDiskFormat guard; fail-before: the old reader fails EndToEndWalk + both Decmpfs tests against the corrected fixtures |
+| 2026-10-26 | **S-021** | **FIXED** | the journal deleted-record harvest (the og's PRIMARY deleted HFS+ surface): JIB/jhdr gates, ring walk (u16 header test - a decode correction), og node-image validator, fork classification by volume ranges, catalog differential + extents side map, sweep dedup; 4 tests; suite 401/401 Linux ASan; decode corrections recorded in evidence s3-hfsplus-inventory.md §3a + errata E37 |
 | 2026-10-25 | M-001 | **FIXED** | record-size ladder (`5d6da5f`); in `findings/FIXED/` |
 | 2026-10-25 | S-001 | **FIXED** | destroy rule + sparse-run sub-fix (`e93decf`); in `findings/FIXED/` |
 | 2026-10-25 | S-002 | **FIXED** | attributes B-tree + decmpfs modes 3/4 (`c9e8860`); independently re-verified this leg; in `findings/FIXED/` |
@@ -953,3 +957,63 @@ OQ-T8/OQ-T9/GAP-ADS resolved, 7 findings fixed or dispositioned by the parallel 
 legs in the same window (S-006, S-011, S-015, S-017, S-018-INVALID, N-021, plus the
 A-002/A-004/S-016/M-009 retirements earlier in the session), and the remaining
 unverifieds are all in tracked-open with precise next artifacts.
+
+
+---
+
+## Fix-session-4 delta (2026-10-26 — A-005 + S-021; the S-012 convergence recorded in the worklog)
+
+**A-005 (ACUTE, NEW — discovered verifying S-021):** the HFS+ B-tree record-span
+convention was INVERTED vs the on-disk format (TN1150 records-UP from 14; the og's
+journal-image validator FUN_180010720 hard-gates [end-2] == 14 + ascending offsets).
+The core's reader and fixtures shared the inversion — on real volumes only record 0
+of each leaf node was emitted (the entire HFS+ surface: catalog walk, attributes,
+freed-node sweep, decmpfs). Fixed in for_each_record + make_leaf_node (single
+fixture-builder point); fail-before proven (old reader + corrected fixtures →
+EndToEndWalk/Decmpfs failures). The session-1 corpus artifact's "records grow from
+the END backward" note was an inference from the core's own code — corrected as
+errata E37.
+
+**S-021 (SEVERE) FIXED:** the journal deleted-record harvest — the og's PRIMARY
+deleted surface for HFS+ — implemented from a fresh first-hand decode (three
+corrections to the audit's rendering: the u16 header test, the 16-byte entry
+layout, the JIB/jhdr field map; all in evidence/decompiled-quotes/
+s3-hfsplus-inventory.md §3a). Catalog records pulled from journal transaction
+images are emitted as deleted results with the og's differential (absent-key or
+different-fileID) + extents side map; the freed-node sweep dedups against the
+harvest. 4 tests + the A-005 guard test; full suite **401/401** Linux ASan.
+
+**Counts after this fix (file inventory):** ACUTE **0** · SEVERE **10** (S-003,
+S-007, S-009-partial, S-020, S-023..S-028) · MAJOR 22 · MINOR 33 · INFO 12 ·
+**total active 77** / **35 FIXED** (7 tracked-open files: OQ-T2/T5, OQ-T6/T7,
+OQ-T8/T9, OQ-S2M-1/2, OQ-S3-JPEG, OQ-S012, + the S4-wave OQ files).
+
+
+---
+
+## Fix-session-4 delta (2026-10-26 — A-005 + S-021; the S-012 convergence recorded in the worklog)
+
+**A-005 (ACUTE, NEW — discovered verifying S-021):** the HFS+ B-tree record-span
+convention was INVERTED vs the on-disk format (TN1150 records-UP from 14; the og's
+journal-image validator FUN_180010720 hard-gates [end-2] == 14 + ascending offsets).
+The core's reader and fixtures shared the inversion — on real volumes only record 0
+of each leaf node was emitted (the entire HFS+ surface: catalog walk, attributes,
+freed-node sweep, decmpfs). Fixed in for_each_record + make_leaf_node (single
+fixture-builder point); fail-before proven (old reader + corrected fixtures →
+EndToEndWalk/Decmpfs failures). The session-1 corpus artifact's "records grow from
+the END backward" note was an inference from the core's own code — corrected as
+errata E37.
+
+**S-021 (SEVERE) FIXED:** the journal deleted-record harvest — the og's PRIMARY
+deleted surface for HFS+ — implemented from a fresh first-hand decode (three
+corrections to the audit's rendering: the u16 header test, the 16-byte entry
+layout, the JIB/jhdr field map; all in evidence/decompiled-quotes/
+s3-hfsplus-inventory.md §3a). Catalog records pulled from journal transaction
+images are emitted as deleted results with the og's differential (absent-key or
+different-fileID) + extents side map; the freed-node sweep dedups against the
+harvest. 4 tests + the A-005 guard test; full suite **401/401** Linux ASan.
+
+**Counts after this fix (file inventory):** ACUTE **0** · SEVERE **10** (S-003,
+S-007, S-009-partial, S-020, S-023..S-028) · MAJOR 22 · MINOR 33 · INFO 12 ·
+**total active 77** / **35 FIXED** (tracked-open: the existing OQ files, now
+including OQ-S012).

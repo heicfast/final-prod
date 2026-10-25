@@ -1611,3 +1611,41 @@ gate stated and pinned. N-010d (exFAT tz) was already fixed by S-011
 **Pin tests:** `ScanEvents.SingleBoundaryAtTeardown` (count == 3),
 `Pool.CancelPoolWatcherDrainsQueueWithinOneTick`, `Pool.CancelPoolWatcherNullTokenIsInert`,
 `NvmeHealth.PercentageUsedIsU8Width`, `WriterDirs.ProgressExcludesErrorItems`.
+### D-52 — HFS+ journal deleted-record harvest (S-021) + the record-span convention fix (A-005)
+
+**Session:** diff-to-fix remediation (S-021 + A-005). **Corpus:**
+HFSPlusSearchDLL CHFSPlusJournal (`hfsplusjournal.cpp` trace strings)
+:13637-14252 + FUN_18000c8f0 :10017-10127 + FUN_180010720 :13049-13108.
+
+- **A-005 (correctness, og-exact):** the HFS+ B-tree record-span convention
+  corrected to the on-disk format (TN1150, and the og's executable journal-image
+  validator): records pack UP from offset 14, [end-2] = record 0's offset = 14,
+  deeper slots ascend, deepest = free-space start. Record i =
+  [slot(i+1), slot(i+2)). The pre-fix core (and its fixtures) were inverted —
+  on real volumes only record 0 per node was emitted.
+- **Journal harvest (og-exact mechanics):** JIB gates (flags bit 0; base/size;
+  the VH journaled flag 0x2000), jhdr gates ('JNLx' LE magic, endian, size
+  cross-check), the ring walk (u16 header test `(blhdr_size>>4)-1`; block lists
+  + serial images with wrap; termination at the walk origin), the og's
+  node-image validator, leaf-only harvest, fork classification by VOLUME
+  address ranges, the catalog differential (keep absent-key or different-fileID
+  records; skip cnid == parentCNID), extents side map for empty-fork records.
+- **Deliberate divergences:**
+  - **Corruption step-cap** on the ring walk (journal_size/512 + 16 probes): the
+    og relies on the ring's own termination; a hostile/edited header could loop
+    the og forever. Bounded here — the harvest degrades to a partial ring, never
+    hangs.
+  - **Differential via the collected live keys** instead of per-record live-tree
+    searches: identical result set, one pass instead of O(records × log tree).
+  - **Freed-node sweep dedup against harvested cnids** (the sweep is a core
+    superset — I-014; both surfaces finding the same record emit once).
+  - `HfsScanFlags::journal_harvest = false` off switch; harvested records with
+    content carry `Confidence::Unknown` (the og emits ungraded).
+  - Attributes/allocation/startup journal images are walked (validated,
+    counted) but not harvested — the og uses their branches for other
+    consumers; the deleted-record surface is catalog+extents only.
+
+**Pin tests:** `HfsPlus.JournalHarvestEmitsDeletedRecords`,
+`HfsPlus.JournalWrapHandled`, `HfsPlus.NonLeafImagesSkipped`,
+`HfsPlus.JournalHarvestDisabledByFlag`, `HfsPlus.LeafNodeLayoutMatchesOnDiskFormat`
+(the A-005 convention guard).
