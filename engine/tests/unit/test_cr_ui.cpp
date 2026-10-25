@@ -946,6 +946,145 @@ TEST(CrUi, EventStreamUnsubscribeAndResubscribe) {
     EXPECT_EQ(log.events.size(), 0u) << "unsubscribed scans must emit nothing";
 }
 
+/* ---- N-040: ABI doc-truthfulness pins ---- */
+
+namespace {
+struct ThreadLog {
+    std::atomic<uint32_t> events{0};
+    std::atomic<bool> saw_non_run_thread{false};
+    std::thread::id run_thread{};
+    void record(const cr_ui_event*) {
+        events.fetch_add(1, std::memory_order_relaxed);
+        if (std::this_thread::get_id() != run_thread)
+            saw_non_run_thread.store(true, std::memory_order_relaxed);
+    }
+};
+void thread_cb(void* user, const cr_ui_event* e) {
+    static_cast<ThreadLog*>(user)->record(e);
+}
+} // namespace
+
+TEST(CrUi, EventThreadContractPinned) {
+    /* N-040 D3: the header's threading truth is "events may fire from
+     * ENGINE WORKER THREADS" (cr_ui.h contract block; the trampoline at
+     * cr_ui.cpp performs direct calls with no marshaling - documented in
+     * both files). The old ABI-CONTRACT claim "Fired on the thread
+     * running run() only" was FALSE. This pin keeps the doc, the header
+     * and the behavior in lockstep:
+     *  (a) doc-truth: the contract line names engine worker threads and
+     *      the false run()-thread-only claim is gone;
+     *  (b) behavior: serial scans (threads=1) deliver on the run()
+     *      thread - deterministic; parallel scans tolerate (and in
+     *      practice observe) worker-thread delivery - the callback
+     *      records it without any host-side marshaling requirement. */
+    const std::string doc = cr_test::read_repo_file("docs/ABI-CONTRACT.md");
+    ASSERT_FALSE(doc.empty());
+    EXPECT_NE(doc.find("Fired on engine worker threads or the thread running `run()`"),
+              std::string::npos)
+        << "ABI-CONTRACT must carry the truthful thread contract";
+    EXPECT_EQ(doc.find("Fired on the thread running `run()` only"), std::string::npos)
+        << "the false run()-thread-only claim must never return";
+    const std::string hdr = cr_test::read_repo_file("include/cr/cr_ui.h");
+    ASSERT_FALSE(hdr.empty());
+    EXPECT_NE(hdr.find("events may fire from ENGINE WORKER"), std::string::npos)
+        << "the header contract block must keep the worker-thread truth";
+
+    /* (b) serial: every delivery on the run() thread (deterministic - the
+     * serial scan paths run on the caller; the pin catches an accidental
+     * async emission that would break single-threaded hosts) */
+    {
+        Ui u;
+        std::string img = write_fixture("evthread_serial");
+        ASSERT_FALSE(img.empty());
+        ASSERT_EQ(cr_ui_open_image(img.c_str(), 0, 0, &u.dev), CR_UI_OK);
+        ThreadLog log;
+        cr_ui_scan_config cfg{};
+        cfg.threads = 1;
+        ASSERT_EQ(cr_ui_scan_create(&cfg, &u.scan), CR_UI_OK);
+        ASSERT_EQ(cr_ui_scan_attach_device(u.scan, u.dev), CR_UI_OK);
+        ASSERT_EQ(cr_ui_scan_set_event_fn(u.scan, thread_cb, &log), CR_UI_OK);
+        log.run_thread = std::this_thread::get_id();
+        ASSERT_EQ(cr_ui_scan_run(u.scan), CR_UI_OK);
+        EXPECT_GE(log.events.load(), 1u);
+        EXPECT_FALSE(log.saw_non_run_thread.load())
+            << "serial scans must deliver every event on the run() thread";
+    }
+    /* (b) parallel: worker-thread delivery is ALLOWED (the contract's
+     * allowance; observed in practice whenever the pool wins a window -
+     * not asserted as a requirement, only tolerated and recorded) */
+    {
+        Ui u;
+        std::string img = write_fixture("evthread_par");
+        ASSERT_FALSE(img.empty());
+        ASSERT_EQ(cr_ui_open_image(img.c_str(), 0, 0, &u.dev), CR_UI_OK);
+        ThreadLog log;
+        cr_ui_scan_config cfg{};
+        cfg.threads = 3;
+        cfg.stage_mask = 7;
+        ASSERT_EQ(cr_ui_scan_create(&cfg, &u.scan), CR_UI_OK);
+        ASSERT_EQ(cr_ui_scan_attach_device(u.scan, u.dev), CR_UI_OK);
+        ASSERT_EQ(cr_ui_scan_set_event_fn(u.scan, thread_cb, &log), CR_UI_OK);
+        log.run_thread = std::this_thread::get_id();
+        ASSERT_EQ(cr_ui_scan_run(u.scan), CR_UI_OK);
+        EXPECT_GE(log.events.load(), 1u);
+        /* worker delivery observed is legal; not required (pool scheduling
+         * is not a contract) - the run must simply complete cleanly with
+         * the recording callback active from any thread */
+    }
+}
+
+TEST(CrUi, SessionSaveWritesCrsfOnly) {
+    /* N-040 D1 pin: the save flow writes EXACTLY ONE file - the .crsf.
+     * The SQLite sidecar (<session>.crsidx) documented pre-fix never
+     * existed (ABI-CONTRACT section 8 now records the
+     * REJECTED-BY-REFERENCE closure); this pin guarantees no sidecar
+     * file ever appears next to a saved session. */
+    Ui u;
+    std::string img = write_fixture("saveonly");
+    ASSERT_FALSE(img.empty());
+    ASSERT_EQ(cr_ui_open_image(img.c_str(), 0, 0, &u.dev), CR_UI_OK);
+    cr_ui_scan_config cfg{};
+    cfg.stage_mask = 7;
+    ASSERT_EQ(cr_ui_scan_create(&cfg, &u.scan), CR_UI_OK);
+    ASSERT_EQ(cr_ui_scan_attach_device(u.scan, u.dev), CR_UI_OK);
+    ASSERT_EQ(cr_ui_scan_run(u.scan), CR_UI_OK);
+    namespace fs = std::filesystem;
+    const fs::path dir = fs::temp_directory_path() /
+        (std::string("cr_n040_") + std::to_string(CR_TEST_GETPID()));
+    fs::create_directories(dir);
+    const fs::path crsf = dir / "session.crsf";
+    ASSERT_EQ(cr_ui_scan_save_session(u.scan, crsf.string().c_str()), CR_UI_OK);
+    std::error_code ec;
+    size_t files = 0;
+    for (auto it = fs::directory_iterator(dir, ec); it != fs::directory_iterator(); ++it) {
+        (void)it->is_regular_file(ec);
+        ++files;
+    }
+    EXPECT_EQ(files, 1u) << "the save flow must write exactly the .crsf - no sidecar";
+    EXPECT_TRUE(fs::exists(crsf, ec));
+    EXPECT_FALSE(fs::exists(dir / "session.crsidx", ec))
+        << "the rejected SQLite sidecar must never appear";
+    fs::remove_all(dir, ec);
+}
+
+TEST(CrUi, AbiVersionAnnotationsAreTruthful) {
+    /* N-040 D4 pin: no "ABI-since 1.1/1.2" fake-version annotations may
+     * return to the header - no v1.1 or v1.2 was ever shippable (the
+     * macro read 1 until the deliberate v2 feature-batch bump, M-036).
+     * Appended fields are labeled with their landing (change id + era)
+     * per ABI-CONTRACT section 9. */
+    const std::string hdr = cr_test::read_repo_file("include/cr/cr_ui.h");
+    ASSERT_FALSE(hdr.empty());
+    EXPECT_EQ(hdr.find("ABI-since 1.1"), std::string::npos)
+        << "no v1.1 marker ever shipped - the label must not return";
+    EXPECT_EQ(hdr.find("ABI-since 1.2"), std::string::npos)
+        << "no v1.2 marker ever shipped - the label must not return";
+    const std::string doc = cr_test::read_repo_file("docs/ABI-CONTRACT.md");
+    ASSERT_FALSE(doc.empty());
+    EXPECT_NE(doc.find("no v1.1 or v1.2"), std::string::npos)
+        << "section 9 must keep the truthful sub-version history";
+}
+
 /* ---- GAP-S6-11: the disk-map data producer ---- */
 
 TEST(CrUi, DiskMapSessionGeometryAndOverlays) {

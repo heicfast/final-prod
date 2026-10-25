@@ -108,6 +108,9 @@ endif()
 add_executable(cr_ui_tests unit/test_cr_ui.cpp)
 target_link_libraries(cr_ui_tests PRIVATE cr::ui GTest::gtest_main)
 cr_deploy_vcpkg_binaries(cr_ui_tests)
+# doc-truth pins live in both binaries (N-040/N-045 lanes)
+target_compile_definitions(cr_ui_tests PRIVATE
+    CR_SOURCE_DIR="${CMAKE_SOURCE_DIR}")
 
 add_executable(cr_ui_abi_check ui_abi_check.c)
 target_link_libraries(cr_ui_abi_check PRIVATE cr::ui)

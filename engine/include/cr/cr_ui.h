@@ -169,8 +169,9 @@ typedef struct cr_ui_event {
     uint64_t checkpoint_index;
     /* lost candidate (CR_EVT_LOST_CANDIDATE) */
     uint64_t candidate_lba;
-    /* pre-scan repair (CR_EVT_REPAIR, S-008; ABI-since 1.2 - consumes the
-     * reserved slots, layout unchanged): planned/applied action count and
+    /* pre-scan repair (CR_EVT_REPAIR, S-008; v1-era append - consumes the
+     * reserved slots, layout unchanged; no 1.2 marker ever shipped, see
+     * ABI-CONTRACT section 9): planned/applied action count and
      * the outcome code documented at CR_EVT_REPAIR. */
     uint32_t repair_actions;
     uint32_t repair_outcome;
@@ -281,7 +282,8 @@ CR_UI_API uint32_t cr_ui_enumerate_volumes(cr_ui_volume_info* out, uint32_t* cou
  * (M-044; classification + carve-only - no structured engine exists on
  * either side) (5 reserved on the wire - never produced; 10 BitLocker is
  * probe-only, never a valid hint). */
-/* ---- pre-scan repair consent (S-008; ABI-since 1.2) --------------------
+/* ---- pre-scan repair consent (S-008; v1-era append - no 1.2 marker ----
+ * ever shipped, ABI-CONTRACT section 9) -----------------------------------
  * Corpus lineage: the reference runs RawFixer PRE-SCAN with a UI consent
  * prompt (rawfixer-fs-repair.md: invoked during scan preparation; the
  * DRWUI "Check" phase classes pair with the fixers). This is the
@@ -328,8 +330,10 @@ typedef struct cr_ui_scan_config {
                                        * (overwrite-in-place, CLI --out) */
     cr_ui_progress_fn progress;       /* optional live progress */
     void* progress_user;
-    uint32_t pre_scan_repair;               /* ABI-since 1.2: 1 = analyze + consent gate
-                                             * before the stages (S-008) */
+    uint32_t pre_scan_repair;               /* v1-era append (S-008; no 1.2
+                                             * marker ever shipped - section 9):
+                                             * 1 = analyze + consent gate
+                                             * before the stages */
     cr_ui_repair_consent_fn repair_consent; /* NULL = never execute */
     void* repair_consent_user;
 } cr_ui_scan_config;
@@ -379,7 +383,8 @@ typedef struct cr_ui_scan_stats {
     uint64_t bytes_scanned, elapsed_ms;
     uint64_t cached_hits, cached_misses;
     uint32_t error_ranges; /* final count (full detail via the session) */
-    /* ABI-since 1.2 (S-008 pre-scan repair outcome): */
+    /* v1-era append (S-008 pre-scan repair outcome; no 1.2 marker ever
+     * shipped - ABI-CONTRACT section 9): */
     uint32_t repair_ran;     /* analysis executed at all */
     uint32_t repair_planned; /* surfaced action count */
     uint32_t repair_applied; /* transactionally written (all-or-rolled-back) */
@@ -425,7 +430,8 @@ CR_UI_API uint32_t cr_ui_session_regrade(cr_ui_session* sess, const uint64_t* no
                                          uint32_t count, uint32_t* regraded);
 CR_UI_API uint32_t cr_ui_scan_checkpoint_count(cr_ui_scan* s, uint64_t* out);
 
-/* S-008 (ABI-since 1.2): persist the pre-scan repair's undo log to a
+/* S-008 (v1-era append - no 1.2 marker ever shipped, section 9): persist
+ * the pre-scan repair's undo log to a
  * file (the durable CRC-checked container). Valid after run() when the
  * repair executed; returns 0 on write. Returns CR_UI_ERR_BAD_PARAMETER
  * when nothing was applied (no undo log exists) or the scan has not
@@ -770,7 +776,8 @@ CR_UI_API uint32_t cr_ui_recovery_cancel(cr_ui_recovery* rec);
 typedef struct cr_ui_recovery_stats {
     uint64_t queued, done, refused, errors, hash_mismatch, resumed, salvaged, dirs;
     uint64_t nothing_to_recover; /* GAP-S6-7: metadata-only items skipped before
-                                  * any write (no file created; ABI-since 1.1,
+                                  * any write (no file created; v1-era append,
+                                  * no 1.1 marker ever shipped - section 9;
                                   * appended field - zero-init safe) */
 } cr_ui_recovery_stats;
 

@@ -76,6 +76,23 @@ window absorbed S-029/S-030/M-008/M-016/M-032/M-043/M-050/N-041/N-057/
 N-058/N-067/N-016a + the S-033 INVALID filing; counts are the live
 inventory at this commit.)
 
+**N-040 FIXED (D4 closed; D1/D2/D3/D5 verified already-landed):** the
+five ABI/doc truthfulness defects re-verified on the current tree —
+four had landed via parallel lanes (§8 SQLite REJECTED-BY-REFERENCE,
+S-009's disk-map free state, §6's event-thread line, M-029's FILETIME
+unit fix with its Query.ModifiedUnitIsFiletimeEverywhere pin). This
+session closed D4: the seven fake "ABI-since 1.1/1.2" header
+annotations rewritten to truthful era labels; ABI-CONTRACT §9 made
+coherent (v2 = M-036's deliberate feature-batch bump — appends still
+require no bump; no v1.1/1.2 ever shipped). New pins:
+CrUi.AbiVersionAnnotationsAreTruthful (fail-before RED executed on the
+stash-isolated pre-fix tree), CrUi.EventThreadContractPinned,
+CrUi.SessionSaveWritesCrsfOnly. Suite 656/656. Finding → FIXED/.
+
+**Counts after this landing (direct file inventory at the N-040 push):**
+SEVERE 0 · MAJOR 24 · MINOR 34 · INFO 22 (0 actionable) · tracked-open
+16 · FIXED 113 files (112 findings + RESOLVED-INDEX).
+
 
 ## Session-10 delta — the SEVERE tier close-out (2026-10-26)
 

@@ -10936,3 +10936,43 @@ Stage Summary:
 - Session tally: M-055 + N-077 fixed; N-020 reconciled (3 resolutions).
 - MINOR live count: 36. Next: N-070 (carve overlap scoring), N-074 (doc
   drift group 2), N-040 (ABI/doc truthfulness).
+
+---
+Task ID: DFX18-T3 (session 18, third fix — N-040)
+Agent: main engineer (diff-to-fix fix session 18 — DFX18)
+Task: N-040 ABI/doc truthfulness ×5 — re-verify every defect on the
+current tree, close the remainder, pin all five.
+
+Work Log:
+- Re-verification on the CURRENT tree (finding filed at 63a9167; tree
+  moved): D1 §8 already REJECTED-BY-REFERENCE (GAP-S6-12; zero
+  sqlite/crsidx in src/ — only FMT_SQLITE + filefilter category);
+  D2 "2 free" now real (S-009 FreeMap, doc+header agree 0/1/2/3);
+  D3 §6 line already "engine worker threads or the run() thread";
+  D5 ground-truth-contracts already FILETIME with the M-029 note +
+  Query.ModifiedUnitIsFiletimeEverywhere pin. All four classified
+  FIXED-ALREADY with citations.
+- D4 CLOSED this session: seven "ABI-since 1.1/1.2" cr_ui.h
+  annotations rewritten to truthful era labels ("v1-era append with
+  change id; no 1.1/1.2 marker ever shipped — §9"); §9 made coherent:
+  appends require NO bump, v2 = M-036's deliberate feature-batch
+  marker, the fake sub-version history recorded in the policy so it
+  cannot silently return.
+- Pins: CrUi.AbiVersionAnnotationsAreTruthful (fail-before RED
+  EXECUTED on the stash-isolated pre-fix tree), CrUi.EventThread-
+  ContractPinned (doc-truth + header lockstep + deterministic
+  serial-mode run-thread delivery + parallel worker tolerance —
+  forward guard, D3's doc landed via the parallel lane),
+  CrUi.SessionSaveWritesCrsfOnly (exactly one file beside the .crsf —
+  forward guard; the sidecar never existed in code).
+- Shared doc-read helper cr_test::read_repo_file added to
+  test_tmpdir.hpp (CR_SOURCE_DIR define now on BOTH test binaries);
+  test_cached.cpp refactored onto it (N-045's pin unchanged, re-run
+  green).
+- Suite 656/656 linux-release. Audit trail: Resolution (with the
+  per-defect FIXED-ALREADY classifications) + FIXED/ move, index row
+  (98 header), matrix abi cell, abi.md session-18 section, SUMMARY.
+
+Stage Summary:
+- N-040 FIXED (tally: 3 — N-045, N-046, N-040). MINOR 34 remain.
+  Next: N-020/N-074 (doc-drift pairs), then N-043/N-048/N-060/N-061.
