@@ -130,3 +130,22 @@ endif()
 include(GoogleTest)
 gtest_discover_tests(cr_tests)
 gtest_discover_tests(cr_ui_tests)
+
+# ---------------------------------------------------------------------------
+# M-055: Linux-side PARSE GATE over the Windows-only platform layer.
+#
+# src/win/*.cpp compiles only under MSVC; two build-breaking edits there
+# (cr_destio.cpp free_bytes nested inside write(); cr_transport.cpp
+# volume_extents outside namespace cr::win) survived multiple pushes
+# because no Linux-visible check parses these files. This gate runs
+# g++ -fsyntax-only over the whole win layer against the declaration-only
+# SDK stubs in tests/win-stub/ - structural corruption now fails the
+# Linux suite immediately. (The stubs declare, never link or run; a new
+# SDK symbol in src/win grows the stub - that failure is the gate
+# working.) Windows lane unaffected: MSVC compiles these files for real.
+# ---------------------------------------------------------------------------
+if(NOT WIN32 AND NOT CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+    add_test(NAME win_syntax_check
+        COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/../tools/win_syntax_check.sh
+                ${CMAKE_SOURCE_DIR})
+endif()

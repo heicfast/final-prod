@@ -1,4 +1,33 @@
-# SUMMARY.md — executive summary (session 10's close-out on top; earlier sessions below)
+# SUMMARY.md — executive summary (diff-fix session 22 on top; earlier sessions below)
+
+## Session-22 delta (2026-10-26 — DFX22: win-layer build-integrity M-055 + the MINOR-first queue)
+
+Session lane re-stamped 19→22 (IDs 19/20/21 squatted by parallel legs in
+the same window). Bootstrap: pulled the parallel wave (`e21de3e`→`93d7fa6`:
+S-029 + S-030 landings close the SEVERE tier, M-005/M-008/M-016/M-032/
+M-043/N-041/N-016a, D-70/D-71); baseline suite **629/629** Linux Release
+green with this session's additions; corpus `03ad46c` unmoved.
+
+**M-055 NEW-FINDING (MAJOR) filed + FIXED (first landing):** the
+Windows-only platform layer has been UNCOMPILABLE since 2026-10-25 21:07 —
+four independent structural breaks from three concurrent parity-fix
+landings that no prior session executed: (1) `915bce3` (N-015) nested
+`WinDestIo::free_bytes` inside `write()`'s body (missing closing brace);
+(2) `3b5397a` (N-013) defined `volume_extents`/`destination_volume_letter`
+AFTER the namespace closers (unqualified `VolExtent` error + the
+header-declared functions left undefined — the claimed destination-arming
+could never link); (3)+(4) `d8f6808` (N-041) left a stray `} // namespace
+rda` closer that closes `namespace win` mid-file AND deleted
+`RdaTargetDevice::heal_mu_` while keeping `read_at`'s heal lock on it.
+The windows Actions job's build-step failures over this window were
+visible and unaddressed. Fixed all four; landed the permanent gate:
+`tools/win_syntax_check.sh` + `tests/win-stub/` (four declaration-only
+SDK-faithful stub headers) wired as ctest `win_syntax_check` on the Linux
+gcc lane — the fail-before/pass-after run (exit 1 pre-fix with the exact
+diagnostics, exit 0 post-fix, all seven win-layer files parsing incl. the
+S-030 `cr_image_win.cpp`) is the finding's proof. Suite **629/629**.
+The N-056 queue proceeds on top of this (same file, its fix plan was
+unexecutable while the layer didn't parse).
 
 ## Session-10 delta — the SEVERE tier close-out (2026-10-26)
 

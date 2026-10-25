@@ -1,5 +1,11 @@
 # diff-to-fix/findings/FIXED/ — resolved findings (audit trail)
 
+## Resolved findings (session-22 wave: +M-055 NEW-FINDING; live file inventory)
+
+| ID | Severity (orig) | Title | Fix commit | Resolution |
+|---|---|---|---|---|
+| M-055 | MAJOR (S22 NEW-FINDING) | Win layer UNCOMPILABLE since 3b5397a/915bce3/d8f6808: four structural breaks (free_bytes nested in write(); volume_extents/destination_volume_letter outside namespace cr::win; stray `} // namespace rda`; RdaTargetDevice::heal_mu_ deleted with its use kept) | (this session's M-055 commit — file carries the full evidence + Resolution) | Four structural repairs + the permanent Linux-lane parse gate (tools/win_syntax_check.sh + tests/win-stub/ SDK-faithful declaration-only stubs, ctest win_syntax_check). Fail-before exit 1 with exact diagnostics / pass-after exit 0 over all seven win-layer files; suite 629/629. Q67 buildability MATCH from this gate forward; the windows Actions build-step failures over the broken window are recorded in the finding. |
+
 This directory preserves the original finding files for items the
 remediation leg has resolved. Files here are kept verbatim (with the
 added `## Resolution` section) so future sessions can audit the fix

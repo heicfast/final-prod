@@ -48,6 +48,7 @@ u32 WinDestIo::write(u64 item_id, u64 offset, const void* data, u32 len) {
         }
     }
     return OK;
+}
 
 u64 WinDestIo::free_bytes(const std::u16string& root_utf16) const {
     /* N-015: the og's pre-write free-space computation (RecoveryModule
@@ -61,7 +62,6 @@ u64 WinDestIo::free_bytes(const std::u16string& root_utf16) const {
                              nullptr, nullptr))
         return 0;
     return u64(avail.QuadPart);
-}
 }
 
 u32 WinDestIo::commit(u64 item_id) {

@@ -10337,3 +10337,45 @@ Stage Summary:
 - Lesson recorded twice this session: parallel lanes racing on the same finding MUST
   re-read main before push; the qemu-compat-fixture proof layer is what caught
   spec-memory bugs the in-memory builders could not.
+
+---
+Task ID: DFX22-T1 (M-055 NEW-FINDING — win-layer build integrity)
+Agent: main engineer (diff-to-fix minors-first session 22; lane re-stamped from 19 — IDs 19-21 squatted)
+Task: Bootstrap baseline + first fix. Pulled the parallel wave (S-029/S-030 close the
+SEVERE tier; M-005/M-008/M-016/M-032/M-043/N-041/N-016a; D-70/D-71) before any work.
+
+Work Log:
+- Baseline at 93d7fa6: linux-release suite green (629/629 incl. this session's gate).
+- Discovery: g++ -fsyntax-only with a declaration-only windows.h stub over
+  src/win/cr_destio.cpp errors at :52 — free_bytes nested inside write()'s body
+  (the N-015 landing 915bce3 lost write()'s closing brace). Git archaeology:
+  git show 915bce3 -- src/win/cr_destio.cpp shows the insertion point.
+- Second break: cr_transport.cpp volume_extents/destination_volume_letter defined
+  AFTER the namespace closers (N-013 landing 3b5397a) — unqualified VolExtent
+  error + the header-declared functions never defined (the N-013 arming could
+  never link).
+- Third + fourth breaks (revealed by the mid-session pull): N-041's d8f6808 left
+  a stray '} // namespace rda' closer (closes namespace win mid-file; the whole
+  public transport API resolves nothing after it) AND deleted
+  RdaTargetDevice::heal_mu_ while keeping read_at's heal lock on it (diff at
+  d8f6808^ shows the member at the class tail).
+- Fix: four structural repairs (brace restored; both functions relocated inside
+  namespace cr::win matching the header; stray closer removed; heal_mu_
+  restored).
+- Gate: tools/win_syntax_check.sh + tests/win-stub/ (windows.h, winioctl.h,
+  ntddscsi.h, shlwapi.h — declaration-only, SDK-faithful shapes,
+  -fshort-wchar -D_WIN32) wired as ctest win_syntax_check (Linux gcc lane
+  only; MSVC compiles the real files). Fail-before: exit 1 with the exact
+  diagnostics (stash-isolated); pass-after: exit 0, all 7 win-layer files
+  incl. the S-030 cr_image_win.cpp.
+- CI observation recorded: windows Actions job runs over the broken window show
+  the build step failing (run 40242066043 et al.) — visible red, unaddressed
+  by the lanes that landed the breaks. Lint + linux-ASan + fuzz lanes also red
+  at 11afbfa (parallel-lane sloppiness; assessed next).
+
+Stage Summary:
+- M-055 filed + FIXED (finding carries the full evidence + Resolution).
+- Audit trail: SUMMARY session-22 delta, matrix M-055 cells (writer+report x2,
+  quality), RESOLVED-INDEX row to be added at the FIXED/ move.
+- Next: N-020 bookkeeping move (FIXED/ + index row), N-056 on the now-parseable
+  destio, then the MINOR queue (N-067, N-068, N-070, ...).
