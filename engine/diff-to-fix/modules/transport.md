@@ -65,3 +65,12 @@ with silent fallback; `enumerate_disks(32, ...)` bounds enumeration.
 | M-030 | MAJOR | WinPE gate, stale-handle ladder, terminal OFFLINE, chunking provenance, 32-disk cap, silent RDA fallback |
 | N-041 | MINOR | Dead shipped code: RdaClient copy-session protocol + volume_letter_to_disk (zero callers) |
 | I-016 | INFORMATIONAL (shared) | Driver wire-contract register + FS-code-space warning |
+
+---
+
+## Session-5 audit (audited commit `7cf6754`)
+
+- WinPE artifacts (eusendmessage + boot-config) read for the first time: EuSendMessage is
+  installer-only (WM_COPYDATA dwData=999 → "DRW_Installer" window; no engine contract);
+  the boot chain confirms M-030's environment-gate evidence (ebrntdrv/epmdkdrv
+  demand-load, EUDCPEPM boot-time filter, PENetwork SMB destinations — registered I-019).

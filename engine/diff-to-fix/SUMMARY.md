@@ -94,6 +94,23 @@ M-042/M-043/M-045 family and the prior backlog order below.
 
 
 
+# SUMMARY.md — executive summary (session-5 audit leg on top of the closing/fix sessions; earlier sessions below)
+
+## Session-5 audit delta (2026-10-26 — the citation-gap / remaining-surface READ-ONLY session; full detail in the Session-5 delta section below)
+
+The audit leg's full delta (24 findings: A-005 ACUTE rawfixer 4Kn stack-buffer
+overflow; S-029 carved-deleted; S-030 archive inventories; M-040..M-045;
+N-048..N-061; I-019/I-020; OQ-S4-1 RESOLVED convergently with the fix leg —
+structure+consumption decode here, the extension-list dump there, both folded
+into S-023; OQ-S4-2 RESOLVED; corpus errata 37-40; suite 366/366 evidence at
+`7cf6754`) is recorded verbatim in the "Session-5 delta" section below — keep
+reading. **Counts after session-5 merge (direct file inventory at the merged tree):
+1 ACUTE (A-005) · 10 SEVERE · 43 MAJOR · 45 MINOR · 20 INFO = 119 active ·
+53 FIXED-family files (incl. RESOLVED-INDEX + the OQ-T1 record). The session-5
+leg filed 25 findings (A-005; S-031/S-032; M-046..M-051; N-051..N-064;
+I-021/I-022). The parallel fix legs' own counts sections below are historical
+snapshots, superseded by this line.**
+
 ## diff-to-fix closing session delta (2026-10-26 — the "fix ALL tiers" session)
 
 Session start `b65f1e6` (baseline 396/396 Linux Release, verified first-hand on
@@ -127,7 +144,7 @@ NOT adopted → **PARITY-DELTAS D-59**. 4 tests (3 fail-before); suite
 **Counts after S-027 (direct file inventory):** ACUTE 0 · **SEVERE 8** ·
 MAJOR 34 · MINOR 37 · INFO 18 = **97 active** / **38 FIXED**.
 
-# SUMMARY.md — executive summary (session 4 reconciled on top of the session-3 continuation; earlier sessions below)
+
 
 ## Close-all-tiers session delta (2026-10-26 — the "fix every finding" session)
 
@@ -270,10 +287,88 @@ RESOLVED-INDEX).
 
 **Audited commit:** session 1 `67193b6` → session 2 `5d6da5f`/`8574039`/`5f638a3` →
 session 3 `2ce2e6b` + in-flight fixes through `34b3441`+rebase → session-3 continuation
-through `43149ff` (S3 lead) → fix legs through `ed00020` → **session 4 (this leg):
-`63a9167`-lineage rebased to `204137b` on `ed00020`. Corpus:** `03ad46c` (unmoved).
+through `43149ff` (S3 lead) → fix legs through `ed00020` → session 4 `63a9167`-lineage
+rebased to `204137b` on `ed00020` → **session 5 (this leg): `d870dd3`-close + the S-019
+landing at `7cf6754`. Corpus:** `03ad46c` (unmoved).
 **Audit dates:** 2026-10-25 (sessions 1-3) · 2026-10-26 (session-3 continuation legs +
-session 4).
+session 4 + session 5).
+**Status:** session 5 = the never-cited-artifact + coverage-hole-closing leg: a systematic
+citation-gap sweep (83 cited corpus paths vs the full artifact tree) drove a reading wave
+over every never-cited artifact (6 RAWSearchDLL family files, rsf-record4,
+ifileproperties-part3, 8 MOM censuses, 9 UIUX files, WinPE pair, config-files) and every
+never-cited core file (cr_elevate, cr_destio, cr_snapshot, cr_cached, cr_decomp, cr_err,
+cr_diskmap); 24 new findings including the first ACUTE since A-004; OQ-S4-1 RESOLVED (the
+grading table dumped byte-exact); OQ-S4-2 RESOLVED-with-residual; corpus errata rows
+37-40; S-019's landing verified. Suite 366/366 at the audited tree (evidence:
+`evidence/executions/s5-baseline-suite-green.md`).
+
+## Session-5 delta (2026-10-26 — the citation-gap / remaining-surface session)
+
+Mandate: find what ALL prior sessions missed (by systematic inventory, not sampling),
+verify the fixed things, go deeper on og-vs-core, mark every remaining feature/function.
+
+- **The gap analysis (new method this session):** extracted every corpus path cited
+  across findings+modules (83 unique) and diffed against the artifact tree; same method
+  over core src/include basenames. Never-cited in-scope surfaces found and READ IN FULL:
+  the 6 RAWSearchDLL family artifacts + per-engine-function-map; SaveScan rsf-record4
+  (tree-node grammar) + ifileproperties-part3 (btrfs/zfs/RAW/generic); MOM
+  Error/Thread/Common/Config/CheckVersion/Log/bitlockerhelp/FileSystemCheck; UIUX
+  31/13/19/06/24/25/20/33/34; WinPE eusendmessage + boot-config; config-files
+  drwcfg-bin/userdata-remoteconfig/vendor-logs; core cr_elevate/cr_destio/cr_snapshot/
+  cr_cached/cr_decomp/cr_err/cr_diskmap; og-codebase data files (EUUserData, Dict,
+  DataFile.ini dispositions).
+- **A-005 (ACUTE — first since A-004):** rawfixer 4Kn stack-buffer overflow — the FIX-3
+  4Kn offset fix changed read LENGTHS to `sector` but left the 512-byte stack buffers;
+  3,584-byte overflow per read on 4Kn devices; CI blind (tests pin 512). Co-located
+  M-040: exFAT 512-byte repair plans + LDM GPT-path `*512` hardcodes (4Kn wrong offsets).
+- **S-029 (SEVERE):** carved files never marked deleted — og FLAGS=0x0020 constant on
+  all carved records; the core's `deleted_only` query and `deleted_count` exclude the
+  ENTIRE carve result set (cr_query.cpp:114 / cr_carve.cpp:174-182).
+- **S-030 (SEVERE):** archive inner-entry inventories absent — the og returns the
+  complete ZIP entry list (presented as archive contents) and stitches multi-part RARs;
+  the core emits one flat node per archive.
+- **MAJOR wave (6):** M-040 (4Kn LDM/exFAT plans), M-041 (session stats written-then-
+  discarded + direct-only refresh vs the og's trusted recursive image), M-042 (EUUserData
+  user-signature extensibility — 111 extensions, no counterpart), M-043 (error model:
+  false "reproduces the reference convention" claim; og 12-digit documented codes +
+  error objects), M-044 (~15 unpersisted og node fields incl. grading bits + hidden
+  roots), M-045 (RAW provenance fields: timestamp/checksum/note/anchors).
+- **MINOR wave (14):** N-048 MKV DocType, N-049 HEIC relabel, N-050 IIU binding,
+  N-051 RAF/JPEG strictness (both directions), N-052 SMART 0xD1 thresholds (health
+  disposition CORRECTED — data-layer gap, not presentation), N-053 WinDestIo temp leak,
+  N-054 TableLayout::Ebr dead + diskmap test debt, N-055 session load validation deltas,
+  N-056 btrfs/zfs session extras, N-057 save progress/cancel, N-058 run-log + session
+  auto-naming, N-059 memory monitor, N-060 carve naming invented (OQ-S4-2 resolution +
+  a corpus-artifact correction), N-061 Dict password-dictionary unlock aid.
+- **INFO registers:** I-019 (og always-elevated manifests — new binary evidence;
+  EuSendMessage installer-only; repair toggle; CRecoveryFilter layering; PENetwork SMB;
+  DRWCfg out-of-scope), I-020 (core supersets: CRC32/resync/bomb-caps, structured btrfs
+  extents, decoded zfs runlists, extra props).
+- **OQ resolutions:** OQ-S4-1 RESOLVED (169-entry grading table dumped byte-exact from
+  DRWUI.exe .data 0x141bb0500 — char[9] strided, last-dot/uppercase/exact-find
+  consumption, `""` + dead-`Raw` quirks; S-023's fix plan step 3 now actionable).
+  OQ-S4-2 RESOLVED-with-residual (the +0x48 hook = one-shot per-scan
+  "filter_generalraw" config fetch; NO og FileNNNN scheme — corpus deep-dive artifact's
+  contrary claim filed as errata row 37; residual = DRWUI merge-rename decode).
+- **Fix-verification:** S-019's landing (7cf6754) verified in-tree with its audit trail
+  (RESOLVED-INDEX row 27, matrix, module, 3 fail-before tests).
+- **Corpus errata rows 37-40:** the File0001 naming claim, the family-roster count
+  conflicts (census authoritative), the .rdata→.data grading-table correction, the
+  MOM-censuses-are-structural meta-note.
+- **Counts at session-5 close (direct file inventory):** **110 active** (1 ACUTE:
+  A-005 · 10 SEVERE: S-003, S-007, S-009-partial, S-012, S-020, S-021, S-022, S-023,
+  S-029, S-030 · 31 MAJOR: M-002, M-005, M-007, M-008, M-010..M-045 minus 6 in FIXED/ ·
+  52 MINOR: N-001..N-061 minus the FIXED/INVALID ones · 16 INFO: I-001..I-020 minus
+  I-004/I-005 in FIXED/) · **27 FIXED** (latest: S-019) · 8 tracked-open (2 resolved
+  this session: OQ-S4-1, OQ-S4-2-resolved).
+
+**Top-risk update (session 5):** #1 **A-005** (ACUTE — memory corruption on 4Kn; smallest
+verified fix: resize 4 buffers + sector-correct plans, one review unit with M-040), then
+S-029 (deleted-view excludes all carved files — one-line producer fix + tests), S-030
+(archive inventories), S-023 (grading — now unblocked by the table dump), S-020 (ReFS
+attribute layer), S-012 (NTFS pass-2), M-041/M-044 (session schema wave — reserve the
+grading bits while landing M-041), then M-042 (user signatures), M-043 (error model),
+and the M-011..M-015 family.
 **Status:** session 4 = the never-audited-modules leg: preview, query, transport audited
 for the first time; the bootstrapped-but-never-executed API-session lane executed
 (factory contract, driver-client pattern, measured suite/ABI verification); grading

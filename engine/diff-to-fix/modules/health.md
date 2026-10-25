@@ -82,3 +82,15 @@ during reconciliation.)
 | S-024 | SEVERE — **FIXED** (FIXED/S-024) | No grading layer: og Unknown/Good/Caution/Bad with vendor thresholds (SMART 0xD1) + SSD-wear vendor mapping + caution rules (5/197/198 raw>=1, SSD life <=10%, temp 50/60); ours a single failing bit |
 | M-036 | MAJOR | NVMe: host r/w + controller-busy + error-log fields dropped; data units unconverted (og x512,000); folds the N-009a percentage_used width fix |
 | I-018 | INFO | NVMe transport route verified byte-parity MATCH (IOCTL 0x2D1400 + {proto 3, type 2, page 2, 512B}) — upgrades AUDIT-PIPELINE's "corpus silent" row |
+
+## Session-5 audit (audited commit `7cf6754`)
+
+- **N-052 (MINOR, NEW — disposition correction):** ATA SMART thresholds (READ ATTRIBUTE
+  THRESHOLDS 0xD1) are never read; the og's engine reads them and its UI composes
+  threshold-based verdicts (Threshold column, firstCautionIndex — UIUX 19 + the
+  diskhealth companion artifact). This session's correction: the prior "presentation-layer
+  feature" verdict on the threshold semantics was WRONG — the read is an engine-side data
+  gap. NVMe unaffected (`available_spare_threshold` is read, cr_nvme.cpp:30).
+- **N-061 (MINOR, NEW):** the og's Dict password dictionary (228 entries; manage-bde
+  -Password consent-gated attempts) has no core counterpart — capability register, any
+  port must keep the consent gate (parameter F61).

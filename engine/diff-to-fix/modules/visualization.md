@@ -58,3 +58,12 @@ the line in the appended session-2 section above saying "M-006 (fuzz CI) unchang
 predates that fix landing and is superseded. Only the S-009 disk-map remainder stands
 (bitmap wiring → `kCellAllocFree`, CRSF record, snapshot error map, acceptance tests,
 §7 doc reconciliation).
+
+---
+
+## Session-5 audit (audited commit `7cf6754`)
+
+- **N-054 (MINOR, NEW):** `TableLayout::Ebr` is a dead enum value (never assigned —
+  either tag the extended-chain parse or delete it), and the diskmap's bad-sector overlay
+  + 64 MiB budget-growth paths are untested (cr_diskmap.cpp:129-157; write-only `total`
+  accumulator at :39). Fold the diskmap fuzz into S-009's harness ask when it lands.

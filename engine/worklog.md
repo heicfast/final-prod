@@ -7008,3 +7008,131 @@ Stage Summary:
   thresholds. Remaining SEVERE: S-007, S-009, S-025, S-027, S-028 (+ the
   s5b audit leg's new S-029/S-030). Next: S-025 (ext4 journal reparenting).
 >>>>>>> 0a90f0f (fix(S-024): health grading — the 4-status DiskHealth model (Unknown/Good/Caution/Bad), vendor thresholds via 0xD1, pure-core rules)
+
+Task ID: S5-T2..S5-CLOSE (session-5 diff-audit — the citation-gap wave)
+Agent: session-5 parity auditor (read-only continuation leg)
+Task: Close every citation gap found by systematic inventory; verify post-s4 fixes; resolve tracked-open OQs; mark every remaining og feature/function as a finding.
+
+Work Log:
+- Reading wave: 5 parallel agents + 2 OQ decoders over the never-cited surfaces (context
+  sheets A-F2 in the session scratch, NOT committed; key extracts committed as evidence).
+  Every load-bearing claim then verified FIRST-HAND by the lead before filing (A-005's
+  four overflow sites + transport 4096 + test 512-pin; S-029's three cite chains + the
+  negative carve grep; S-030's zip/rar artifacts; M-040's LDM-vs-main-parser contrast;
+  M-041's writer/reader asymmetry; M-042's EUUserData parse; M-043's 05-scan:62 values;
+  N-048..N-051's census/granular rows + core rows; N-052's grep; N-053's gate chain;
+  N-054's dead-enum grep; the mkv/IIU/RAF/HEIC core sides).
+- 24 findings filed (all in template, all corpus+core cited, all with fix plans + tests):
+  A-005 ACUTE (rawfixer 4Kn stack-buffer overflow — FIX-3 fixed offsets not buffers;
+  cr_rawfixer.cpp:557/573/589/638 receive sector-sized reads into u8[512]; first ACUTE
+  since A-004), S-029 SEVERE (carved files never marked deleted: og FLAGS=0x0020 constant
+  12,147/12,147; core deleted_only query + deleted_count exclude the entire carve set),
+  S-030 SEVERE (ZIP inner-entry inventories + multi-part RAR stitching absent — og returns
+  the complete inner file list), M-040 (4Kn: LDM GPT-path *512 hardcodes vs geometry-
+  correct main parser + exFAT 512-byte repair plans), M-041 (session stats written then
+  discarded + direct-only refresh vs og's trusted recursive image), M-042 (EUUserData
+  111-extension user-signature DB — no counterpart), M-043 (error model: false header
+  parity claim; og 12-digit documented codes + error objects), M-044 (~15 unpersisted og
+  node fields incl. grading bits 5-7 + hidden roots — schema debt for S-023's fix),
+  M-045 (RAW provenance: timestamp string, analyser checksum 0xFFFFFFFF-invalid, note,
+  tail anchor, boolean), N-048..N-061 (MKV DocType, HEIC relabel, IIU binding, RAF/JPEG
+  strictness, SMART 0xD1 — health disposition corrected, WinDestIo temp leak,
+  TableLayout::Ebr dead + diskmap debt, session load validation, btrfs/zfs extras, save
+  progress/cancel, run-log + auto-naming, memory monitor, carve naming invented — OQ-S4-2,
+  Dict password dictionary), I-019/I-020 (scope/deliberate-delta + superset registers,
+  incl. the new binary evidence that DRW.exe/DRWUI.exe manifests demand requireAdministrator).
+- OQ resolutions: OQ-S4-1 RESOLVED (169-entry grading extension table dumped byte-exact
+  from DRWUI.exe .data @0x141bb0500, char[9] strided, consumed via last-dot →
+  ASCII-uppercase → exact set::find by FUN_14038ac90; "" set-member + dead "Raw" entry
+  quirks documented; evidence committed as s5-grading-extension-table-dump.md; S-023
+  addendum written — fix plan step 3 actionable). OQ-S4-2 RESOLVED-with-residual (the
+  vtable+0x48 hook = one-shot per-scan "filter_generalraw" config fetch into the global
+  filter vector, NOT a per-file namer; og has NO FileNNNN scheme — per-analyser names:
+  MP4/MOV "Lost Name File (...)_EaseUS", CZeroEndRawFileInfo content names; residual =
+  DRWUI merge-rename vftable 0x140f5f528 decode).
+- Addenda: M-029 (filterbar 7-dim decode: tag/path dimensions have no core field; 3-slot
+  persistence; CSetFilterThread; CCheckNodeThread re-grade wiring), N-043 (live
+  "%1 file chunks scanned" milestone cadence), S-023 (the table resolution).
+- Corpus errata rows 37-40 (File0001 naming claim refuted; family-roster count conflicts
+  — census authoritative; .rdata→.data correction; MOM censuses are structural).
+- Fix verification: S-019's landing at 7cf6754 verified in-tree (RESOLVED-INDEX row 27,
+  matrix cell, module row, 3 fail-before tests, audit trail complete).
+- Executed evidence: full suite 366/366 green at the audited tree
+  (evidence/executions/s5-baseline-suite-green.md; includes the S-019 tests + ABI check).
+- Cross-cutting updates: CROSS-REF-MATRIX session-5 header + 8 grid-cell updates + 24
+  detail rows; Session-5 sections in 10 module files; SUMMARY session-5 delta (counts
+  110 active / 27 FIXED); README audited-commit refresh + session-5 navigation; tracked-
+  open OQ-S4-1/S4-2 moved to RESOLVED files.
+
+Stage Summary:
+- Session-5 end state: 110 active (1 ACUTE / 10 SEVERE / 31 MAJOR / 52 MINOR / 16 INFO)
+  + 27 FIXED + 6 open tracked-open OQs (S4-3 chunking bench; S3-JPEG; T2/T5; T6/T7;
+  T8-T9 resolved pieces; S2M-2 remainder). The citation-gap method is now exhausted:
+  every corpus artifact directory and every core src/include file has been cited by at
+  least one finding, module row, or evidence file — the audit's corpus coverage is
+  complete at the artifact-file granularity (deeper per-function decodes remain tracked).
+  Recommended fix order (first 20, updated):
+  1. A-005+M-040 (one review unit: resize 4 buffers, sector-correct plans, LDM geometry,
+     4Kn test fixtures — the ACUTE)
+  2. S-029 (one-line producer fix + 4 tests; the deleted-view correctness)
+  3. S-023 (unblocked: the table is dumped; land the grading engine + M-044's bit
+     reservation together)
+  4. S-030 (ZIP inventory first, RAR stitching second)
+  5. M-041+M-044+N-055 (one session-loader wave: read the stats, recursive refresh,
+     validation hardening, carrier reservation)
+  6. M-028 (preview caps — standing smallest-executed-proof item)
+  7. N-042/N-044/N-040 (the small CLI/doc trio from s4)
+  8. M-030 remainder (WinPE gate + terminal OFFLINE + LDM-path 200)
+  9. M-042 (user signatures — pairs with M-024's toggles)
+  10. M-045 (RAW provenance — same carve-record wave as S-029/S-030)
+  11. S-020 (ReFS attribute layer — needs real-volume fixtures)
+  12. S-012 (NTFS pass-2) / S-021 / S-022 (the S3 legs' SEVEREs)
+  13. M-043 (error model + the false header claim)
+  14. N-052 (SMART 0xD1 — disposition already corrected)
+  15. N-053/N-054 (writer/table hygiene)
+  16. N-057/N-058/N-059 (the orchestration liveness/logging trio)
+  17. M-029 remainder (bucket IDs + Type sort; the filterbar addendum's tag/path dims)
+  18. N-048..N-051 (carve validator details)
+  19. N-060 (naming — with the S-030 analyser work)
+  20. N-056/N-061 (session extras + the consent-gated dictionary decision)
+- Honest not-completed-by-this-leg: OQ-S4-3 (Windows bench), OQ-S3-JPEG (legacy fallback
+  decode), OQ-T2/T5/T6/T7 remainders, the DRWUI merge-rename residual (folded into
+  OQ-S4-2-RESOLVED), M-022's OQ-2 real-volume dump, N-032's hardware verification — all
+  carried in tracked-open with precise next artifacts. Executed og-side comparisons
+  remain Windows-lane (the session-5 findings are corpus-cited or core-source-verified;
+  the A-005 executed proof is deferred to the fix leg as the fail-before test).
+
+---
+Task ID: S5-REBASE (session-5 cross-leg reconciliation)
+Agent: session-5 parity auditor
+Task: Rebase the session-5 wave onto the actively-moving remote (the parallel fix/closing legs landed 20+ commits mid-session).
+
+Work Log:
+- Remote moved 2001f7c→9cc0675 during the wave: the closing/fix sessions landed S-003,
+  S-012, S-019, S-020, S-021, S-022, S-026, M-022, M-023, N-034, N-037..N-040 fixes;
+  the S3-storage census leg filed S-024..S-028/M-031..M-039/N-045..N-047/I-017/I-018;
+  bench legs recorded alignbench results (cr_ui ops 10.7-12.6 ns; carve_format_count=174).
+- ID COLLISION RESOLVED per the standing protocol: this leg's findings renumbered past
+  the parallel legs' — S-024→S-029 (carved-deleted), S-025→S-030 (archive inventories),
+  M-031..M-036→M-040..M-045, N-045..N-058→N-048..N-061, I-017/I-018→I-019/I-020 (A-005
+  uncCollided; cross-refs inside the parallel legs' findings untouched).
+- Rebase conflicts resolved append-only (carve/health/worklog both-sides; matrix merged
+  row-by-row with the newer FIXED dispositions preserved + my S5 cells spliced; SUMMARY
+  header merged with a superseding counts line). The remote's own committed STALE
+  conflict markers in CROSS-REF-MATRIX.md (their 08c66f8 hfsplus/ext4 merge) were
+  resolved as part of the same pass — ext4/hfsplus rows now reflect the landed S-003/
+  S-021/S-026 fixes.
+- OQ-S4-1 CONVERGENCE: the close-all-tiers leg resolved it independently in the same
+  window (same binary/VA, 169 × 9-byte entries, all flag bytes 0). Two independent
+  decodes agree; their extension-list dump + this leg's structure/consumption decode
+  are both folded into S-023's addendum and the RESOLVED tracked-open file.
+- Post-rebase validity sweep: A-005's overflow sites unchanged at HEAD (cr_rawfixer.cpp
+  :557-558 verified); S-029 re-verified at BOTH emit sites (the rawsigns work added a
+  second path at :330 — neither sets deleted; addendum filed); M-043's cr_error.h cites
+  unchanged; the other findings' cites audited at 7cf6754 remain historically accurate
+  with merged-tree anchors noted where shifted.
+
+Stage Summary:
+- Session-5 wave rebased clean onto 9cc0675-lineage; all 24 findings renumbered and
+  re-verified; the merged SUMMARY carries the superseding counts line (1 ACUTE / 12
+  SEVERE / 39 MAJOR / 51 MINOR / 20 INFO active by direct inventory at the merge).

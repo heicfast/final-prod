@@ -107,3 +107,22 @@ Core (audited `67193b6`): `src/core/session/` (721 LOC) + `include/cr/session/` 
   `evidence/decompiled-quotes/s5-image-fscheck-persistence.md` §D.
 - **Record richness** — `N-049`: persisted candidates lack bps/SPC/hidden/
   size-source/evidence fields the og's 0x448-byte record carries.
+
+## Session-5 audit (audited commit `7cf6754`) — rsf-record4 + ifileproperties-part3 read for the first time
+
+- **M-041 (MAJOR, NEW):** stats round-trip asymmetry — the writer persists 4×u64 root
+  stats and the reader discards them (`cr_records.cpp:247-250`); `refresh_stats` is
+  direct-children-only vs the og's persisted-and-trusted 40-byte recursive accumulator
+  image (rsf-format:285, 318-320).
+- **M-044 (MAJOR, NEW):** ~15 og wrapper/node fields (hidden-root bit, flag_72/73 grading
+  bits, 0xFFFF sentinels, f_71 enum remap, root roles, fixup) have no core carrier.
+- **N-055 (MINOR, NEW):** load validation deltas (forward parent re-parent, bad-marker
+  light-node, short-count OK, u16 name-length wrap) vs the og's per-node checks; the
+  core's CRC32/F10/bomb-caps registered as a superset (I-020).
+- **N-056 (MINOR, NEW):** btrfs secondary ids A/B + generation/transid qword and zfs
+  secondary flags unpersisted; ZfsDataRunlist flattening is a functional match.
+- **N-057 (MINOR, NEW):** save_session has no progress/cancel contract (og 40%→65%
+  per-node + per-child IsCancelled).
+- **N-058 (MINOR, partial):** no session auto-naming (`auto_<label><M><D><H><m><s>`).
+- S-029 cross-module: carved nodes round-trip Active (the deleted flag's producer-side
+  gap is carve's; the carrier exists).

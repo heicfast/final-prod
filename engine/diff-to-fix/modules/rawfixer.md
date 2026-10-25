@@ -124,3 +124,16 @@ offsets). Finding + Resolution in `findings/FIXED/A-003-*.md` (renumbered from t
 - **Retraction:** the N-017 candidate (checksum predicate divergence) is RETRACTED after the
   main auditor's own decompile re-read (skip-table {106,107,112}; core MATCH). The parallel
   leg's S-010 (write-path volume lock) is also FIXED (`3e34ed2` + follow-ups).
+
+---
+
+## Session-5 audit (audited commit `7cf6754`)
+
+- **A-005 (ACUTE, NEW — the first ACUTE since A-004):** 4Kn stack-buffer overflow in
+  `analyze()` — `u8 primary[512]`/`bak`/`backup` buffers receive `sector`-byte reads
+  (4096 on 4Kn) at cr_rawfixer.cpp:558/574/590/639. FIX-3 (F-A4-25) fixed the OFFSETS but
+  not the buffers; `cr_transport.cpp:960` genuinely reports 4096; `test_rawfixer.cpp:24`
+  pins 512 so CI is blind. Fix with M-040 in one review unit.
+- **M-040 (MAJOR, NEW):** the exFAT branches plan 512-byte restores/checksums on 4Kn
+  (`a.length = 512` at :644/:708, checksum span 512 at :649, backup read truncated at
+  :703) — wrong-sector write plans on 4Kn exFAT.
