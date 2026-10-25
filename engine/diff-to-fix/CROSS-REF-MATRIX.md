@@ -15,7 +15,7 @@ Legend: `M` = MATCH · `A-n`/`S-n`/`M-n`/`N-n`/`I-n` = finding ID (in
 | btrfs | I-003, S-005, N-006 | M | M | M | M | NA | NA | M | M | M | M |
 | zfs | OQ-T6, S-005 | ok | OQ-T6 | M | M | NA | NA | M | M | M | M |
 | refs | N-007, I-004, GAP-ADS | M | M | M | M | NA | NA | M | M | M | M |
-| table+ldm | A-001, M-002 | M | A-001 | M-002, OQ-T7 | ok | NA | NA | M | M | M | M (debt) |
+| table+ldm | M (A-001 fixed), M-002 | M | M (A-001 fixed) | M-002, OQ-T7 | ok | NA | NA | M | M | M | M (debt) |
 | lost-partition | S-006, OQ-T9 | NA | M | OQ-T9 | M | NA | NA | M | M | M | THIN |
 | carve | S-007, M-005 | M | S-007, N-008 | S-007, N-008, M-005 | M | NA | NA | M-005 | M | M | M |
 | tree | M | M | NA | M | M | NA | NA | ok | M | NA | M |
@@ -36,6 +36,10 @@ grep-verified) · **Q70 = M** (Win7 posture + import allowlist verified by CI PE
 the vehicle — see `tracked-open/` notes in OQ files) · **X51 = M** post-GAP-S6-13
 (64 KiB envelope; og driver is 512-sector contract — core superset) · **X53 = M**
 (cancel watcher 50 ms + per-record polls).
+
+A cell reading `M (X-n fixed)` marks a finding the remediation session closed —
+the finding file's Resolution section carries the fix commit and test evidence;
+the underlying parameter is MATCH as of that fix.
 
 Group keys: B behavioral · D data model · C constants/formats · A algorithms ·
 S state machine · O orchestration · P API · X performance · R architecture ·

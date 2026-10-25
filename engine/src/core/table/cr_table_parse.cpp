@@ -272,9 +272,15 @@ u32 parse_disk_table(IStorageDevice* device, DiskTable& out) {
                                                                           : FsKind::Ntfs;
                 else if (gpt_guid_equal(e.type_guid, GPT_TYPE_LDM_DATA))
                     p.fs = FsKind::Ldm;
+                else if (gpt_guid_equal(e.type_guid, GPT_TYPE_EFI_SYSTEM))
+                    p.fs = FsKind::EfiSystem; /* A-001: ESP is not MSR/Reserved -
+                                               * the og lists ESP as a scannable
+                                               * volume; our scan probes content,
+                                               * the kind feeds reporting only */
                 else if (gpt_guid_equal(e.type_guid, GPT_TYPE_BIOS_BOOT) ||
-                         gpt_guid_equal(e.type_guid, GPT_TYPE_MICROSOFT_RESERVED))
-                    p.fs = FsKind::Reserved;
+                         gpt_guid_equal(e.type_guid, GPT_TYPE_MICROSOFT_RESERVED) ||
+                         gpt_guid_equal(e.type_guid, GPT_TYPE_LDM_METADATA))
+                    p.fs = FsKind::Reserved; /* MSR / BIOS boot / LDM metadata */
                 else
                     p.fs = FsKind::Other;
                 for (int i = 0; i < 36; ++i)

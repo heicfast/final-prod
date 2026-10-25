@@ -1835,6 +1835,7 @@ Stage Summary:
   into the tracked-open file.
 - New sub-finding (sparse-run accounting in reused_ratio) to be fixed with S-001 and noted
   in its Resolution; no new finding file needed (same code path, same decompile evidence).
+<<<<<<< HEAD
 ---
 ---
 Task ID: 11-20 (T11..T20)
@@ -1870,3 +1871,50 @@ Work Log:
 Stage Summary:
 - Audit complete at baseline 67193b6 (concurrent fixes through 7777e1c verified in-tree). Corpus 03ad46c. Counts: 1 ACUTE, 9 SEVERE, 4 MAJOR, 12 MINOR, 5 INFORMATIONAL, 9 tracked-open.
 - Recommended first 20 fixes + parallel RE track in diff-to-fix/SUMMARY.md. All commits pushed to main. No source modified.
+=======
+
+---
+Task ID: 3 (A-001 fix)
+Agent: main engineer (diff-to-fix remediation session)
+Task: ACUTE A-001 — six wrong GPT type GUIDs; GPT dynamic disks fail LDM discovery
+
+Work Log:
+- Reproduced the audit's executed probe on the PRE-FIX build (git-stash of the three
+  source files): `parse_ldm_database rc=1342373889 (0x50030001 ERR_BAD_MAGIC)` —
+  GPT-dynamic discovery FAILS, byte-identical to the audit's log.
+- CORRECTED THE FINDING'S BYTE TABLE before fixing (corpus-wins rule): the original
+  rows listed ESP/Linux in GUID-text order and a 31-hex-digit MSR row (transposed).
+  Ran a fresh 556-binary og scan checking BOTH orders: ESP `28732ac11ff8d211ba4b00a0c93ec93b`,
+  MSR `16e3c9e35c0bb84d817df92df00215ae`, basic-data `a2a0d0eb...` appear byte-for-byte
+  in Partition.mo / LdmManager.mo / MainModule / RecoveryModule / UILogic / ToolsModule /
+  CloneModule / DeviceManager — ZERO text-order hits anywhere. The audit's evidence log
+  had transcribed the disk-order hits as text hex; corrected in the evidence file
+  (append-only) + finding (table replaced, correction note added).
+- Fix: cr_table_wire.h — all six constants to canonical mixed-endian disk bytes
+  (GPT_TYPE_EFI_SYSTEM added; BIOS boot "Hah!IdontNeedEFI"; real MSR; real Linux FS;
+  canonical LDM metadata/data). The false session-5 "verified in three sources" comment
+  replaced with true provenance. cr_table_parse.h — FsKind::EfiSystem appended (no value
+  shifts; PartitionInfo.fs has no scan-dispatch consumers — probe_family is content-based).
+  cr_table_parse.cpp — classification: ESP→EfiSystem, LDM metadata→Reserved,
+  MSR/BIOS-boot stay Reserved.
+- Tests (fail-before proven via pre-fix probe; all green after):
+  Gpt.CanonicalTypeGuidConstantsMatchRealDiskBytes (independent text→disk derivation,
+  incl. the "Hah!IdontNeedEFI" ASCII sanity), Gpt.EspMsrLinuxBiosbootLdmClassification,
+  Ldm.GptDynamicDiskCanonicalGuidsParse (real PRIVHEAD in canonical-GUID GPT layout →
+  parse OK, is_gpt, 2 layouts, privheads_matched=2 — the config+2047 slot carries the
+  backup GPT header in this geometry), Ldm.GptDynamicDiskTableClassifiesLdmEntries.
+  Full suite: 263/263 green, Linux ASan preset.
+- Docs in same commit: PARITY-CORE-REC "GPT — LDM GUIDs" row (claimed MATCH with wrong
+  data-GUID text — corrected), AUDIT-PIPELINE GPT recognition row (MATCH verdict
+  predates A-001 — annotated), CAPABILITY-MATRIX LDM row (+GPT-dynamic note),
+  modules/ldm.md (B1/C19 → M post-fix), CROSS-REF-MATRIX table+ldm row, SUMMARY.md
+  rewritten to the truthful running inventory (was stale all-zeros), A-001 finding
+  Resolution, evidence file correction appendix.
+
+Stage Summary:
+- A-001 FIXED: canonical GUIDs in, ESP un-duplicated from MSR, GPT dynamic disks
+  recover LDM volumes end-to-end (unit-proven), 4 permanent regression tests, 263/263.
+- Finding corrected (byte-order table), evidence corrected (og-binary hits are
+  disk-order, not text-order) — the audit's own conclusion was right, its byte
+  transcription was not.
+>>>>>>> ce6e6d7 (fix: A-001 - six GPT type GUIDs to canonical mixed-endian disk bytes)

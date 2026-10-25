@@ -13,6 +13,7 @@
  */
 
 #include "cr/table/cr_ldm.h"
+#include "cr/table/cr_table_parse.h"
 #include "test_fixtures.hpp"
 #include <gtest/gtest.h>
 #include <cstring>
@@ -502,5 +503,148 @@ TEST(Ldm, SpannedConcatenation) {
     EXPECT_EQ(ERR_READ_FAILED, half.read_at(SPAN_PART_SIZE * 512 + 512, buf.data(), 512));
 }
 } // namespace
+} // namespace table
+} // namespace cr
+
+namespace cr {
+namespace table {
+
+namespace {
+void put32le(u8* p, u32 v) { p[0] = u8(v); p[1] = u8(v >> 8); p[2] = u8(v >> 16); p[3] = u8(v >> 24); }
+void put64le(u8* p, u64 v) { for (int i = 0; i < 8; i++) p[i] = u8(v >> (8 * i)); }
+} // namespace
+
+/* ---- A-001: GPT dynamic disk with canonical type GUIDs ------------------ */
+
+TEST(Ldm, GptDynamicDiskCanonicalGuidsParse) {
+    /* Before the A-001 fix, GPT_TYPE_LDM_METADATA did not match the
+     * canonical PARTITION_LDM_METADATA_GUID bytes, so every GPT dynamic
+     * disk died in find_privhead with ERR_BAD_MAGIC - zero dynamic-volume
+     * recovery. This fixture reproduces the audit's executed probe as a
+     * permanent test: a real mixed-endian GPT layout (protective MBR,
+     * primary + backup headers with CRCs, canonical LDM metadata/data
+     * entries) wrapping the standard StripeDisk database. PRIVHEAD sits
+     * in the LAST block of the LDM metadata partition (libldm
+     * _read_privhead_gpt), which ends just before the backup-GPT area. */
+    StripeDisk sd;
+    const u64 total_secs = 65536; /* matches the fixture's 32 MiB disk */
+    const u64 cfg_start = total_secs - 2048;
+    const u64 ldm_meta_last = 65532; /* metadata partition [cfg_start, 65532] */
+    sd.fx.write_privhead(ldm_meta_last); /* PRIVHEAD at the partition's last block */
+    std::vector<u8> disk = sd.fx.take();
+
+    /* protective MBR over the 0x42 entry the fixture wrote */
+    u8* mbr = disk.data();
+    mbr[0x1BE + 4] = 0xEE;
+    p32be(mbr + 0x1BE + 8, 1);
+    p32be(mbr + 0x1BE + 12, u32(total_secs - 1));
+
+    /* primary GPT header (LBA1) */
+    u8* h = disk.data() + 512;
+    std::memcpy(h, "EFI PART", 8);
+    put32le(h + 8, 0x00010000);   /* revision */
+    put32le(h + 12, 92);          /* header size */
+    put64le(h + 24, 1);           /* current LBA */
+    put64le(h + 32, 65535);       /* backup LBA */
+    put64le(h + 40, 2);           /* first usable */
+    put64le(h + 48, 65531);       /* last usable */
+    put64le(h + 72, 2);           /* entries at LBA2 */
+    put32le(h + 80, 2);           /* 2 entries */
+    put32le(h + 84, 128);         /* entry size */
+
+    /* entries: LDM metadata [cfg_start, 65532]; LDM data [2048, 4096] */
+    std::vector<u8> entries(2 * 128, 0);
+    std::memcpy(entries.data() + 0, GPT_TYPE_LDM_METADATA, 16);
+    put64le(entries.data() + 32, cfg_start);
+    put64le(entries.data() + 40, ldm_meta_last);
+    std::memcpy(entries.data() + 128, GPT_TYPE_LDM_DATA, 16);
+    put64le(entries.data() + 128 + 32, 2048);
+    put64le(entries.data() + 128 + 40, 4096);
+    put32le(h + 88, crc32(entries.data(), entries.size()));
+    std::memcpy(disk.data() + 2 * 512, entries.data(), entries.size());
+    put32le(h + 16, crc32(h, 92));
+
+    /* backup GPT: entries at LBA 65534, header at LBA 65535 */
+    std::memcpy(disk.data() + 65534 * 512, entries.data(), entries.size());
+    u8* bh = disk.data() + 65535 * 512;
+    std::memcpy(bh, h, 512);
+    put32le(bh + 16, 0);
+    put64le(bh + 24, 65535);
+    put64le(bh + 32, 1);
+    put64le(bh + 72, 65534);
+    put32le(bh + 16, crc32(bh, 92));
+
+    MemDevice dev(std::move(disk));
+    LdmInfo info;
+    /* THE A-001 assertion: the LDM database on a GPT dynamic disk is
+     * discoverable through the canonical metadata GUID (was
+     * ERR_BAD_MAGIC before the fix). */
+    ASSERT_EQ(OK, parse_ldm_database(&dev, info));
+    EXPECT_TRUE(info.is_gpt);
+    EXPECT_EQ(size_t(2), info.layouts.size()); /* the same graph the MBR
+                                                  fixture yields */
+    EXPECT_EQ(u64(2), info.stats.privheads_matched); /* partition tail
+                                                        (65532) + config+1856
+                                                        (65344); the
+                                                        config+2047 slot
+                                                        (65535) carries the
+                                                        backup GPT header in
+                                                        this geometry, so no
+                                                        third PRIVHEAD */
+}
+
+TEST(Ldm, GptDynamicDiskTableClassifiesLdmEntries) {
+    /* the table layer sees the same GPT: LDM data classifies Ldm, the
+     * metadata partition classifies Reserved (A-001 classification) */
+    LdmInfo info; /* unused; keeping the parse surface honest */
+    (void)info;
+    StripeDisk sd;
+    const u64 total_secs = 65536;
+    const u64 cfg_start = total_secs - 2048;
+    sd.fx.write_privhead(65532);
+    std::vector<u8> disk = sd.fx.take();
+    u8* mbr = disk.data();
+    mbr[0x1BE + 4] = 0xEE;
+    p32be(mbr + 0x1BE + 8, 1);
+    p32be(mbr + 0x1BE + 12, u32(total_secs - 1));
+    u8* h = disk.data() + 512;
+    std::memcpy(h, "EFI PART", 8);
+    put32le(h + 8, 0x00010000);
+    put32le(h + 12, 92);
+    put64le(h + 24, 1);
+    put64le(h + 32, 65535);
+    put64le(h + 40, 2);
+    put64le(h + 48, 65531);
+    put64le(h + 72, 2);
+    put32le(h + 80, 2);
+    put32le(h + 84, 128);
+    std::vector<u8> entries(2 * 128, 0);
+    std::memcpy(entries.data() + 0, GPT_TYPE_LDM_METADATA, 16);
+    put64le(entries.data() + 32, cfg_start);
+    put64le(entries.data() + 40, 65532);
+    std::memcpy(entries.data() + 128, GPT_TYPE_LDM_DATA, 16);
+    put64le(entries.data() + 128 + 32, 2048);
+    put64le(entries.data() + 128 + 40, 4096);
+    put32le(h + 88, crc32(entries.data(), entries.size()));
+    std::memcpy(disk.data() + 2 * 512, entries.data(), entries.size());
+    put32le(h + 16, crc32(h, 92));
+    std::memcpy(disk.data() + 65534 * 512, entries.data(), entries.size());
+    u8* bh = disk.data() + 65535 * 512;
+    std::memcpy(bh, h, 512);
+    put32le(bh + 16, 0);
+    put64le(bh + 24, 65535);
+    put64le(bh + 32, 1);
+    put64le(bh + 72, 65534);
+    put32le(bh + 16, crc32(bh, 92));
+
+    MemDevice dev(std::move(disk));
+    DiskTable t;
+    ASSERT_EQ(parse_disk_table(&dev, t), OK);
+    EXPECT_EQ(t.layout, TableLayout::Gpt);
+    ASSERT_EQ(t.partitions.size(), 2u);
+    EXPECT_EQ(t.partitions[0].fs, FsKind::Reserved); /* LDM metadata */
+    EXPECT_EQ(t.partitions[1].fs, FsKind::Ldm);      /* LDM data */
+}
+
 } // namespace table
 } // namespace cr

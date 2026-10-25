@@ -31,9 +31,12 @@ enum class FsKind : u32 {
     Ldm,        /* dynamic disk data (recognized only) */
     Extended,   /* container, not a volume */
     Protective, /* GPT protective MBR entry */
-    Reserved,   /* GPT reserved / BIOS boot / MSR */
+    Reserved,   /* GPT reserved (MSR/BIOS boot/LDM metadata) */
     Linux,
     Other,
+    EfiSystem, /* EFI System Partition (appended: A-001 - ESP is its own kind,
+                * not conflated with MSR; the scan layer probes content, so a
+                * distinct kind only improves reporting/lost-partition inputs) */
 };
 
 enum class TableLayout : u32 { None = 0, Mbr, Ebr, Gpt, GptDamaged };

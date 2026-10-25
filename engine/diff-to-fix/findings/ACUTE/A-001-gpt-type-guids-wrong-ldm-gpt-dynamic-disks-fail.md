@@ -26,14 +26,27 @@ The og binaries embed the canonical GUIDs (binary scan found ESP and MSR byte-fo
 six PartitionRecovery binaries; `evidence/executions/gpt-guid-probe.md` lists offsets).
 Canonical values (mixed-endian disk form, as they appear in a GPT entry):
 
-| Type | Canonical GUID | Canonical disk bytes |
+| Type | Canonical GUID | Canonical disk bytes (mixed-endian, as stored in GPT entries) |
 |---|---|---|
-| EFI System | c12a7328-f81f-11d2-ba4b-00a0c93ec93b | `c12a7328f81f11d2ba4b00a0c93ec93b` |
-| Microsoft Reserved | e3c9e316-0b5c-4db8-817d-f92df00215ae | `16e3c9e35c0bdb4817df92df00215ae` |
-| BIOS boot | 21686148-6449-6e6f-744e-656564454649 | `4861682164496e6f744e656564454649` ("Hah!IdontNeedEFI") |
-| Linux filesystem | 0fc63daf-8483-4772-8e79-3d69d8477de4 | `0fc63daf848347728e793d69d8477de4` |
+| EFI System | c12a7328-f81f-11d2-ba4b-00a0c93ec93b | `28732ac11ff8d211ba4b00a0c93ec93b` |
+| Microsoft Reserved | e3c9e316-0b5c-4db8-817d-f92df00215ae | `16e3c9e35c0bb84d817df92df00215ae` |
+| BIOS boot | 21686148-6449-6e6f-744e-656564454649 | `4861682149646f6e744e656564454649` ("Hah!IdontNeedEFI") |
+| Linux filesystem | 0fc63daf-8483-4772-8e79-3d69d8477de4 | `af3dc60f838472478e793d69d8477de4` |
 | LDM metadata | 5808c8aa-8e9f-4c87-aea2-af0aa3c41687 | `aac808589f8e874caea2af0aa3c41687` |
 | LDM data | af9b60a0-384e-4f7d-8fa5-b1c3d6a9e2b0 | `a0609baf4e387d4f8fa5b1c3d6a9e2b0` |
+
+**Fix-session correction (evidence supersedes the original table rows):** the
+original table listed ESP and Linux-filesystem bytes in GUID-text order and
+carried a 31-hex-digit MSR row (a transposition typo). The bytes above are the
+mixed-endian EFI-GUID disk layout (Data1/Data2/Data3 little-endian, Data4 raw)
+that real GPT entries carry and that the parser's byte-wise `gpt_guid_equal`
+must compare against — confirmed by a fresh scan of all 556 corpus og binaries
+(fix session reproduction): ESP `28732ac1...`, MSR `16e3c9e3...` and basic-data
+`a2a0d0eb...` appear byte-for-byte in Partition.mo, LdmManager.mo,
+MainModule/RecoveryModule/UILogic/ToolsModule/CloneModule/DeviceManager;
+**zero** text-order occurrences exist anywhere (the original og-binary scan
+log had transcribed the disk-order hits as text-order hex). Reproduction
+recorded in `evidence/executions/gpt-guid-probe.md` §fix-session.
 
 ## What our core does
 
@@ -138,3 +151,34 @@ decide whether ESP maps to `Reserved` (skip-scan posture) or gets its own kind s
 reports. The og treats ESP as a scannable FAT volume (DRW lists it as a volume); if the
 core intends og parity there, ESP should NOT be lumped under Reserved. Resolve during the
 fix (needs a one-line product decision, recorded here).
+
+## Resolution
+
+**Status:** FIXED
+**Fixed in commit:** (this commit — see `git log` for `fix: A-001`)
+**Verified by:** reproduced the audit's executed probe on the pre-fix build
+(`parse_ldm_database rc=1342373889 (ERR_BAD_MAGIC)`, GPT-dynamic discovery
+FAILS) and the fixed build; permanent tests:
+`Gpt.CanonicalTypeGuidConstantsMatchRealDiskBytes`,
+`Gpt.EspMsrLinuxBiosbootLdmClassification`,
+`Ldm.GptDynamicDiskCanonicalGuidsParse` (full database parse through a
+canonical-GUID GPT layout with a real PRIVHEAD — OK, is_gpt, both volume
+layouts resolved), `Ldm.GptDynamicDiskTableClassifiesLdmEntries`.
+Full suite 263/263 green (Linux ASan preset).
+**Resolution notes:** all six constants in `cr_table_wire.h` replaced with the
+canonical mixed-endian disk bytes (see corrected table above; the byte-order
+rows for ESP/Linux/MSR in the original finding were transposition errors —
+corpus-wins rule applied). The false "verified in three sources" comment was
+rewritten with the true provenance (winioctl.h text forms + the 556-binary
+disk-order scan). ESP gets its own `FsKind::EfiSystem` (appended — no existing
+value shifts; `PartitionInfo.fs` has no scan-dispatch consumers: the scan
+layer probes content via `probe_family`, so this kind feeds reporting,
+lost-partition inputs and nothing else — the open question is resolved and
+recorded here). LDM metadata partitions classify `Reserved`; MSR/BIOS boot
+stay `Reserved`. The pre-fix probe's post-fix rerun still prints ERR_BAD_MAGIC
+for the *harness* because the harness's PRIVHEAD is a magic-only fake — the
+unit test with a real PRIVHEAD is the end-to-end proof that the GUID gate now
+passes. Downstream doc corrections made in the same commit:
+`docs/parity/PARITY-CORE-REC.md` "GPT — LDM GUIDs" row (claimed MATCH with the
+wrong data-GUID text — now corrected), `AUDIT-PIPELINE.md` GPT recognition row,
+`docs/CAPABILITY-MATRIX.md` LDM row (GPT-dynamic discovery note).

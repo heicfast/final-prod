@@ -3,6 +3,8 @@
 #include "cr/table/cr_table_parse.h"
 #include "cr/storage/cr_slice.h"
 #include <cstring>
+#include <cstdlib>
+#include <string>
 #include <vector>
 
 using namespace cr;
@@ -331,4 +333,112 @@ TEST(Gpt, HostileSalvageHeaderEntriesOutsideDiskRejected) {
     ASSERT_EQ(parse_disk_table(&dev, t), OK);
     EXPECT_EQ(t.layout, TableLayout::GptDamaged);
     EXPECT_TRUE(t.partitions.empty());
+}
+
+/* ---- A-001: canonical GPT type GUIDs (disk-byte order) ---------------- */
+
+namespace {
+
+/* Mixed-endian (EFI GUID) disk bytes derived independently from the
+ * canonical Microsoft text forms - the same derivation every real GPT
+ * formatter performs (Data1/Data2/Data3 little-endian, Data4 raw).
+ * This helper does NOT read the constants under test. */
+std::vector<u8> guid_disk_bytes(const char* text) {
+    std::string t;
+    for (const char* p = text; *p; ++p)
+        if (*p != '-' && *p != '{' && *p != '}')
+            t += *p;
+    auto hx = [&](size_t i) { return u8(strtoul(t.substr(i, 2).c_str(), nullptr, 16)); };
+    std::vector<u8> b(16);
+    b[0] = hx(6);  b[1] = hx(4);  b[2] = hx(2);  b[3] = hx(0);   /* Data1 LE */
+    b[4] = hx(10); b[5] = hx(8);                                    /* Data2 LE */
+    b[6] = hx(14); b[7] = hx(12);                                   /* Data3 LE */
+    for (int i = 0; i < 8; i++)
+        b[8 + i] = hx(16 + 2 * size_t(i));                          /* Data4 raw */
+    return b;
+}
+
+void expect_guid(const u8* constant, const char* canonical_text, const char* name) {
+    const std::vector<u8> want = guid_disk_bytes(canonical_text);
+    EXPECT_EQ(0, std::memcmp(constant, want.data(), 16)) << name << " != canonical "
+                                                        << canonical_text;
+}
+
+} // namespace
+
+TEST(Gpt, CanonicalTypeGuidConstantsMatchRealDiskBytes) {
+    /* A-001 regression guard: every GPT type-GUID constant must equal the
+     * canonical mixed-endian disk bytes. Before the fix, five of six were
+     * wrong (BIOS boot mangled, MSR held the ESP GUID, Linux fabricated,
+     * both LDM GUIDs correct only in the first dword) - GPT dynamic disks
+     * failed LDM discovery entirely. */
+    expect_guid(GPT_TYPE_EFI_SYSTEM, "c12a7328-f81f-11d2-ba4b-00a0c93ec93b", "ESP");
+    expect_guid(GPT_TYPE_BIOS_BOOT, "21686148-6449-6e6f-744e-656564454649", "BIOS boot");
+    expect_guid(GPT_TYPE_MICROSOFT_RESERVED, "e3c9e316-0b5c-4db8-817d-f92df00215ae", "MSR");
+    expect_guid(GPT_TYPE_BASIC_DATA, "ebd0a0a2-b9e5-4433-87c0-68b6b72699c7", "basic data");
+    expect_guid(GPT_TYPE_LINUX_FS, "0fc63daf-8483-4772-8e79-3d69d8477de4", "Linux fs");
+    expect_guid(GPT_TYPE_LDM_METADATA, "5808c8aa-8e9f-4c87-aea2-af0aa3c41687", "LDM metadata");
+    expect_guid(GPT_TYPE_LDM_DATA, "af9b60a0-384e-4f7d-8fa5-b1c3d6a9e2b0", "LDM data");
+    /* sanity of the derivation itself: the BIOS-boot GUID's disk bytes are
+     * the ASCII string "Hah!IdontNeedEFI" (the canonical curiosity that
+     * makes byte-order bugs visible) */
+    const u8 hahi[16] = {'H', 'a', 'h', '!', 'I', 'd', 'o', 'n',
+                          't', 'N', 'e', 'e', 'd', 'E', 'F', 'I'};
+    EXPECT_EQ(0, std::memcmp(GPT_TYPE_BIOS_BOOT, hahi, 16));
+}
+
+TEST(Gpt, EspMsrLinuxBiosbootLdmClassification) {
+    /* A-001: canonical-GUID entries classify to their own kinds. Before
+     * the fix, ESP matched the (duplicated, wrong) MSR constant and
+     * classified Reserved; MSR/Linux/LDM-metadata fell to Other. */
+    std::vector<u8> disk(u64(2048) * 512, 0);
+    disk[510] = 0x55;
+    disk[511] = 0xAA;
+    disk[446 + 4] = 0xEE;
+    put32(disk, 446 + 8, 1);
+    put32(disk, 446 + 12, 2047);
+
+    std::memcpy(disk.data() + 512, "EFI PART", 8);
+    put32(disk, 512 + 8, 0x00010000);
+    put32(disk, 512 + 12, 92);
+    put64(disk, 512 + 24, 1);
+    put64(disk, 512 + 32, 2047);
+    put64(disk, 512 + 40, 2);
+    put64(disk, 512 + 48, 2046);
+    put64(disk, 512 + 72, 2);
+    put32(disk, 512 + 80, 6);
+    put32(disk, 512 + 84, 128);
+
+    std::vector<u8> entries(6 * 128, 0);
+    struct E {
+        const u8* guid;
+        u64 first, last;
+    } es[] = {
+        {GPT_TYPE_EFI_SYSTEM, 200, 399},
+        {GPT_TYPE_MICROSOFT_RESERVED, 400, 431},
+        {GPT_TYPE_LINUX_FS, 500, 900},
+        {GPT_TYPE_BIOS_BOOT, 950, 1050},
+        {GPT_TYPE_LDM_METADATA, 1200, 1300},
+        {GPT_TYPE_LDM_DATA, 1400, 1600},
+    };
+    for (size_t i = 0; i < 6; i++) {
+        std::memcpy(entries.data() + i * 128, es[i].guid, 16);
+        put64(entries, i * 128 + 32, es[i].first);
+        put64(entries, i * 128 + 40, es[i].last);
+    }
+    put32(disk, 512 + 88, crc32(entries.data(), entries.size()));
+    std::memcpy(disk.data() + 2 * 512, entries.data(), entries.size());
+    put32(disk, 512 + 16, crc32(disk.data() + 512, 92));
+
+    MemDevice dev(std::move(disk));
+    DiskTable t;
+    ASSERT_EQ(parse_disk_table(&dev, t), OK);
+    EXPECT_EQ(t.layout, TableLayout::Gpt);
+    ASSERT_EQ(t.partitions.size(), 6u);
+    EXPECT_EQ(t.partitions[0].fs, FsKind::EfiSystem);
+    EXPECT_EQ(t.partitions[1].fs, FsKind::Reserved); /* MSR */
+    EXPECT_EQ(t.partitions[2].fs, FsKind::Linux);
+    EXPECT_EQ(t.partitions[3].fs, FsKind::Reserved); /* BIOS boot */
+    EXPECT_EQ(t.partitions[4].fs, FsKind::Reserved); /* LDM metadata */
+    EXPECT_EQ(t.partitions[5].fs, FsKind::Ldm);      /* LDM data */
 }

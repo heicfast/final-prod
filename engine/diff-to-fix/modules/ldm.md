@@ -11,8 +11,10 @@ Core (audited commit `67193b6`): `src/core/table/` (cr_table_parse, cr_ldm, cr_c
 
 ## Behavioral
 
-- **B1 detection** — **A-001** (six wrong GPT type GUIDs — executed proof: GPT dynamic
-  disks fail LDM discovery; ESP/MSR/Linux misclassified); `M` on MBR parsing (0x42
+- **B1 detection** — `M` post-A-001-fix (six GPT type GUIDs corrected to canonical
+  mixed-endian disk bytes; GPT dynamic disks now discover their LDM database —
+  `Ldm.GptDynamicDiskCanonicalGuidsParse`; ESP/MSR/Linux/BIOS-boot/LDM-metadata
+  classify correctly, ESP via the new FsKind::EfiSystem); `M` on MBR parsing (0x42
   dynamic detection at fixed 6×512 metadata offset — works), GPT header/entry CRC
   validation, backup-GPT salvage at device end, GPT_ENTRIES_READ_CAP.
 - **B2 recovery correctness** — `M` on MBR-dynamic path (PRIVHEAD/TOCBLOCK/VMDB parse,
@@ -28,7 +30,8 @@ Core (audited commit `67193b6`): `src/core/table/` (cr_table_parse, cr_ldm, cr_c
 
 ## Constants and formats
 
-- **C19** — **A-001** (the GUID constants); `M` on MBR/EBR/GPT signatures, PRIVHEAD/
+- **C19** — `M` post-A-001-fix (constants regression-guarded by
+  `Gpt.CanonicalTypeGuidConstantsMatchRealDiskBytes`); `M` on MBR/EBR/GPT signatures, PRIVHEAD/
   TOCBLOCK/VMDB magics, VBLK types 0x32/0x33/0x34/0x44/0x35/0x45/0x51.
 - **C20** — `M` (header/entry layouts, end-of-disk PRIVHEAD fallbacks
   last−2048+1856/+2047/last−1).
@@ -64,7 +67,7 @@ Core (audited commit `67193b6`): `src/core/table/` (cr_table_parse, cr_ldm, cr_c
 
 | ID | Severity | One-line |
 |---|---|---|
-| A-001 | ACUTE | Six wrong GPT type GUIDs — GPT dynamic disks get zero LDM recovery (executed proof) |
+| A-001 | ACUTE | Six wrong GPT type GUIDs — GPT dynamic disks get zero LDM recovery (executed proof) — **FIXED (diff-to-fix session)** |
 | M-002 | MAJOR | Torn EBR chain discards already-walked logical volumes |
 | OQ-T7 | tracked-open | RAID-5 rotation (left-symmetric assumed) vs LdmManager.mo |
 

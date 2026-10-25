@@ -3,6 +3,9 @@
 **Audited commit:** `67193b6` (with concurrent fixes through `7777e1c` in-tree where
 noted) · **Corpus:** `03ad46c` · **Audit date:** 2026-10-25 · **Status: COMPLETE** (all
 19 modules audited; every UNVERIFIED either resolved or tracked with a precise question).
+**Remediation session in flight** (the diff-to-fix executor): findings are closed in
+mandate order ACUTE → SEVERE → MAJOR → MINOR → INFO → tracked-open; resolutions and fix
+commits land in each finding file; this summary's Remediation log tracks the counts.
 
 ## Counts per severity (final)
 
@@ -44,10 +47,12 @@ module row for navigation.
 
 ## Top risks (ranked)
 
-1. **A-001 — six wrong GPT type-GUID constants** (executed proof): every **GPT dynamic
-   disk** fails LDM discovery outright (zero dynamic-volume recovery); ESP/MSR/Linux
-   partitions misclassify; the header comment falsely claims triple-source verification.
-   One-header fix, enormous impact.
+1. **A-001 — FIXED by the remediation session** (canonical mixed-endian disk bytes,
+   ESP un-duplicated from MSR, `FsKind::EfiSystem` added; GPT dynamic disks parse their
+   LDM database end-to-end — `Ldm.GptDynamicDiskCanonicalGuidsParse`; the audit's
+   executed probe is a permanent test). The finding's byte-order table carried ESP/Linux
+   in text order + a 31-digit MSR row — corrected per the corpus-wins rule (556-binary
+   og scan: disk-order hits only).
 2. **S-005 — filename mojibake** on ext4/Btrfs/ZFS: every non-ASCII filename on those
    filesystems recovers with garbage names (byte-lift instead of UTF-8 decode); the og
    passes UTF-8 through end-to-end (.rsf names are UTF-8; EXT4SearchDLL imports no
@@ -126,3 +131,10 @@ multi-vdev + nvlist anchor), OQ-T8 (carve dispatch order), OQ-T9 (CalcPartition 
   gap they register that this audit touched was re-verified (ReFS ADS re-verified open;
   ZFS D-09 re-verified open; the false GUID-verification comment is exactly the kind of
   self-documentation this audit exists to catch).
+
+## Remediation log (diff-to-fix executor session)
+
+| Date | Finding | Verdict | Evidence |
+|---|---|---|---|
+| 2026-10-25 | A-001 | **FIXED** | canonical GUIDs + 4 regression tests; pre-fix probe reproduced ERR_BAD_MAGIC, post-fix suite 263/263; byte-order table corrected (finding + evidence file) |
+| 2026-10-25 | OQ-T1 | **RESOLVED (decompile read)** | secondary claim map: same-direction (re-allocated), ctor-NULLed, never assigned anywhere in NTFSSearchDLL — dormant hook; write-up in tracked-open/OQ-T1 |
