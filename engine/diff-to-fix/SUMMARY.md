@@ -1,3 +1,49 @@
+# SUMMARY.md — executive summary (diff-fix session 15 on top; earlier sessions below)
+
+## Session-15 delta (2026-10-26 — DFX10: the S-009 third-implementation convergence + M-054)
+
+Session bootstrap `7c44bdc` (baseline 533/533 Release verified first-hand);
+mid-flight the remote advanced to `d487928` (the parallel lanes' S-009
+free-overlay landing via `storage::FreeMap`, S-030 disk-image targets, M-002,
+M-051, M-037, N-073, N-042/N-044 fixes) — absorbed by rebase; the union rules
+applied (the landed implementation is the base). Corpus `03ad46c` unmoved.
+
+**S-009 (convergence record):** this session had built a THIRD independent
+implementation (`cr::AllocClusterMap` — used-bits, slice-relative,
+byte_origin, fail-open truncation, RLE persistence; 5-test suite +
+behavioral fail-before proofs) when the parallel lane's design landed first.
+The landed `storage::FreeMap` stands; the third design is preserved on
+branch `s009-allocmap-impl` (`fb2bb91`) for the record and dropped from the
+tree. S-009's own Resolution (the landed one) remains operative.
+
+**M-054 (NEW-FINDING, MAJOR, filed + FIXED this push):** discovered during
+the third-implementation's exFAT producer verification — the engine's
+allocation-bitmap `Bitmap::test` read bit `c` for cluster `c`, but the MS
+exFAT spec §7.1 pins bit `i` = cluster `i+2` (the first cluster has index 2).
+TWO consumers inherited the shift: deleted-viability grading (wrong
+confidence grades on every real volume) AND the just-landed S-009 free-map
+producer (free overlay painted cluster `c` per cluster `c+2`'s state). The
+core's own fixtures encoded the same shift, so the suite was
+self-consistently wrong. Fixed: `Bitmap::test` reads bit `c-2` (clusters 0/1
+reserved-never-heap); both fixtures write the spec-correct bit; grading
+expectations unchanged (the intended behavior); NEW pin test
+`ExfatEngine.FreeMapProducerMatchesSpecBitMapping` guards the producer seam.
+**Fail-before EXECUTED on the landed base**: fixtures corrected + engine
+body reverted → `ExfatEngine.EndToEnd` red (over.dat Excellent instead of
+Overwritten) AND the new producer pin red; fixed → green. Suite after:
+**574/574 Release + 574/574 ASan + 574/574 UBSan** (three lanes, executed).
+
+Also this push: a committed conflict-marker remnant repaired in worklog.md
+(the trailing `>>>>>>> 33c0722` at :9187 — the zero-markers standard).
+
+**Counts after this push (direct file inventory):** SEVERE **1** (S-029 —
+S-030 landed by the parallel lane) · MAJOR 34 · MINOR 48 · INFO 22 (all
+ACKNOWLEDGED) · FIXED/ family **87 files** (incl. RESOLVED-INDEX; +M-054
+this push; S-009/S-030/M-002/M-051/M-037/N-073 by the parallel lanes).
+Top remaining risks: S-029 (the apply-path scope decision — the last
+SEVERE), then the M-tier by user impact (M-005 the carve gate next — same
+bitmap plumbing, one consumer).
+
 # SUMMARY.md — executive summary (diff-fix session 14 on top; earlier sessions below)
 
 ## Session-14 delta (2026-10-26 — DFX14: bootstrap, two merge repairs, the reconciliation wave)

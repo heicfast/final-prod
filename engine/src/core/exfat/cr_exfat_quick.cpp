@@ -148,10 +148,24 @@ u64 cluster_offset(const ExfatParams& p, u32 c) {
 struct Bitmap {
     std::vector<u8> data;
     u32 cluster_count = 0;
+    /* M-054 (NEW-FINDING, fixed): the on-disk allocation bitmap's bit i
+     * describes cluster i+2 (Microsoft exFAT spec section 7.1: "the first
+     * bit in the Allocation Bitmap describes the allocation status of the
+     * cluster with index 2" - the first cluster has index 2 for historical
+     * FAT reasons). The old test read bit c for cluster c - a two-cluster
+     * shift on every real volume; the core's own fixtures encoded the
+     * same shift (setbit(c) for cluster c), so the suite was
+     * self-consistently wrong. test() now reads bit c-2 for cluster c;
+     * the fixtures write bit c-2 for cluster c. This also fixes the
+     * S-009 FreeMap producer (free bits were derived from the shifted
+     * test on the landed base). */
     bool test(u32 c) const {
-        if (c / 8 >= data.size())
+        if (c < 2)
+            return false; /* clusters 0/1 are reserved - never heap bits */
+        const u64 bit = u64(c) - 2;
+        if (bit / 8 >= data.size())
             return false;
-        return (data[c / 8] & (1u << (c % 8))) != 0;
+        return (data[size_t(bit / 8)] & (1u << (bit % 8))) != 0;
     }
 };
 

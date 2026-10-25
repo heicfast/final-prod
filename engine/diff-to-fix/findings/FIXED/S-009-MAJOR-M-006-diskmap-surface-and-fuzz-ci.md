@@ -253,3 +253,28 @@ found. The finding's fix plan states "cells the bitmap marks free and no
 found-content covers" — `build_disk_map` now tracks the content mask
 internally (regardless of requested overlays) and found-content cells stay
 Unknown so consumers color them as content, never plain-free.
+---
+
+## Session-10 convergence addendum (the third implementation + the M-054 correction)
+
+A third independent S-009 implementation was built in this session's first
+leg (`cr::AllocClusterMap` — used-bits, slice-relative + alloc_base anchor,
+byte_origin for the FAT/exFAT heap offset, covered/truncated with fail-open
+unknowns, free-run RLE persistence; preserved on branch `s009-allocmap-impl`
+commit `fb2bb91` for the record, with its own 5-test suite and behavioral
+fail-before proofs). Mid-flight, the remote landed the parallel lane's
+`storage::FreeMap` design (free-set bits, absolute base, virtual-cluster
+convention, downsampled persistence, snapshot capture) plus a second leg's
+proof port — the union rules apply: **the landed implementation is the base**
+(this session's third design is dropped cleanly, its unique assets folded
+where they still added value: the spec-verification that produced M-054).
+
+**The correction this session lands on top:** the landed base inherited the
+engine's pre-M-054 bit mapping (`Bitmap::test` read bit `c` for cluster `c`;
+the spec pins bit `i` = cluster `i+2`), so the landed exFAT free-map producer
+marked cluster `c` per cluster `c+2`'s state on real volumes. M-054 (filed +
+fixed this session, findings/FIXED/M-054) corrects the engine mapping — the
+landed producer's `!test(c)` inversion now inverts the right bit — and pins
+the seam with `ExfatEngine.FreeMapProducerMatchesSpecBitMapping` (fail-before
+executed on the landed base: both it and EndToEnd's grading swap red with the
+body reverted). S-009's own landed Resolution stands as the operative record.

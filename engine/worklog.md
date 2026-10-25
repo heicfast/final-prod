@@ -9211,8 +9211,7 @@ Stage Summary:
   committed '>>>>>>> 33c0722' tail here; both sides preserved - the
   DFX9-T1b entry above is the kept record]
 
-(union note: the parallel a3e5fd8 S-009-hardening landing ends here — marker stripped by the DFX16 union pass)
----
+(union note: the parallel a3e5fd8 S-009-hardening landing ends here — marker stripped by the DFX16 union pass)---
 Task ID: DFX9-T2 (lane claim — unclaimed MINOR high-value trio + module batches)
 Agent: main engineer (diff-to-fix session 9, the M-053/union-repair/S-009-hardening leg)
 Task: Claim the unclaimed MINOR findings per multi-leg coordination: N-065
@@ -9660,3 +9659,52 @@ Work Log:
 Stage Summary:
 - Session unique resolutions: 8 (6 reconciliation + N-076 + N-030).
   N-069 credited to the parallel lane (convergent). MINOR 43 remain.
+---
+Task ID: DFX10-T2 (session 15, the S-009 convergence + M-054)
+Agent: main engineer (diff-to-fix closing session 15 — the DFX10 lineage
+renumbered past the parallel legs' sessions 11-14)
+Task: S-009 (claimed first) + the convergence with the parallel landing +
+M-054 (NEW-FINDING discovered during the S-009 producer verification).
+
+Work Log:
+- Built a third independent S-009 implementation first (cr::AllocClusterMap:
+  used-bits, slice-relative + alloc_base, byte_origin, covered/truncated
+  fail-open, RLE REC_ALLOC_MAP persistence; 5 DiskMap tests + CrUi + C
+  consumer acceptance; behavioral fail-before by toggling the producer and
+  cr_ui feeds off — both reds reproduced). Preserved on branch
+  s009-allocmap-impl (fb2bb91) for the record.
+- Mid-flight the remote advanced to d487928: the parallel lanes landed S-009
+  (storage::FreeMap design + snapshot capture + their own tests), S-030
+  (disk-image targets), M-002, M-051, M-037, N-073 and more. Union rules
+  applied: their landed implementation is the base; my third design dropped
+  cleanly (no tree conflict — the rebase started from their head).
+- Corpus verification during the third implementation produced M-054: the
+  MS exFAT spec section 7.1 pins bitmap bit i = cluster i+2; the engine's
+  Bitmap::test read bit c for cluster c (a two-cluster shift on every real
+  volume), the fixtures encoded the same shift (self-consistently wrong
+  suite), and the LANDED S-009 exFAT free-map producer inherited the shift.
+- M-054 FIXED on the landed base: Bitmap::test reads bit c-2 (clusters 0/1
+  reserved-never-heap); both fixtures write the spec-correct bit (setbit(c)
+  -> bit c-2); grading expectations unchanged (the intended behavior);
+  new pin test ExfatEngine.FreeMapProducerMatchesSpecBitMapping (producer
+  free/used at the sentinel clusters + range_free at the sentinel bytes).
+- Fail-before EXECUTED on the landed base: fixtures corrected + engine body
+  reverted -> ExfatEngine.EndToEnd red (over.dat Excellent(1) vs
+  Overwritten(3)) AND the new producer pin red; restored -> green.
+- Suites executed on the final tree: 574/574 Release + 574/574 ASan +
+  574/574 UBSan.
+- Merge-hygiene repair: committed conflict-marker remnant stripped from
+  worklog.md:9187 (trailing '- Audit trail: FIXED/M-054 (filed + Resolution), FIXED/S-009 session-15
+  convergence addendum (third implementation preserved on the branch, the
+  landed Resolution operative, M-054 the correction on top), RESOLVED-INDEX
+  M-054 row, matrix exfat row, modules/exfat.md session-15 row, SUMMARY
+  session-15 delta (counts re-baselined to the direct inventory).
+
+Stage Summary:
+- S-009: converged (landed design stands; third design preserved on
+  s009-allocmap-impl). M-054: filed + fixed with an executed fail-before.
+- SEVERE tier: S-029 only. Next: M-005 (carve bitmap gating — the same
+  plumbing's second consumer; includes the 8->64 MiB cap raise where the
+  fail-open/truncation semantics are load-bearing), then S-029, then the
+  MAJOR wave by user impact.
+>>>>>>> 774a093 (fix(M-054 NEW-FINDING): exFAT allocation bitmap bit i vs cluster i+2 — grading + the landed S-009 free-map producer shifted two clusters on every real volume)

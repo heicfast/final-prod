@@ -212,10 +212,15 @@ std::vector<u8> build_exfat_image(u8 tz = 0) {
     put32v(img, FAT + 50 * 4, 0xFFFFFFFF); /* bitmap */
     put32v(img, FAT + 70 * 4, 0xFFFFFFFF); /* subdir */
 
-    /* ---- allocation bitmap at cluster 50 (sector 75) ---- */
+    /* ---- allocation bitmap at cluster 50 (sector 75) ----
+     * M-054: the on-disk bitmap's bit i describes cluster i+2 (MS exFAT
+     * spec section 7.1) - setbit(c) writes the bit FOR cluster c. */
     {
         const size_t BM = 25 * 512 + (50 - 2) * 512;
-        auto setbit = [&](u32 c) { img[BM + c / 8] |= u8(1u << (c % 8)); };
+        auto setbit = [&](u32 c) {
+            const u32 bit = c - 2; /* cluster c -> bit c-2 (spec) */
+            img[BM + bit / 8] |= u8(1u << (bit % 8));
+        };
         setbit(2);
         setbit(3); /* root (2-cluster chain) */
         setbit(10);
@@ -616,6 +621,51 @@ TEST(ExfatEngine, EndToEnd) {
     EXPECT_EQ(photo->props()->times.created, 1738843200ULL * 10000000ULL + 116444736000000000ULL);
 }
 
+TEST(ExfatEngine, FreeMapProducerMatchesSpecBitMapping) {
+    /* M-054 pin: the S-009 free-map producer must reflect the SPEC bit
+     * mapping (on-disk bit i = cluster i+2, MS exFAT spec section 7.1).
+     * The pre-fix engine's Bitmap::test read bit c for cluster c, so both
+     * the deleted-viability grading AND the free map consulted cluster
+     * c+2's allocation state - a two-cluster shift on every real volume.
+     * Fail-before proof of record: with the fixtures spec-correct and the
+     * engine body reverted, gone/over grading swaps (EndToEnd red) and
+     * this producer's free/used answers shift by two clusters. */
+    auto img = build_exfat_image();
+    MemDevice dev(std::move(img));
+
+    tree::ResultTree tree;
+    auto* ra = tree.add_root(u"Found");
+    auto* rd = tree.add_root(u"Deleted");
+    auto* rl = tree.add_root(u"Lost");
+    ExfatScanFlags flags;
+    ExfatScanStats stats;
+    storage::FreeMap fm;
+    ASSERT_EQ(scan_exfat(&dev, flags, nullptr, nullptr, nullptr, tree, ra, rd, rl, stats, &fm),
+              OK)
+        << err_text(0);
+    ASSERT_TRUE(fm.valid());
+    EXPECT_EQ(fm.cluster_bytes, 512u);
+    EXPECT_EQ(fm.cluster_count, 100u);
+    /* heap base = sector 25; the map's virtual cluster 0 sits 2 clusters
+     * below it (the landed base's linear-cluster convention) */
+    EXPECT_EQ(fm.base_byte, u64(25 - 2) * 512);
+    /* in-use clusters read NOT free: the structural set (root 2-3, photo
+     * 10-11, doc 20-22, bitmap 50, subdir 70, inner 80) + over.dat's
+     * REUSED cluster 40 (the M-054 sentinel: pre-fix, bit 40 was read for
+     * cluster 40 - the bit that actually belongs to cluster 42) */
+    for (u32 c : {2u, 3u, 10u, 11u, 20u, 21u, 22u, 40u, 50u, 70u, 80u})
+        EXPECT_FALSE(fm.is_free(c)) << "cluster " << c << " must read in-use";
+    /* free clusters read free: gone.dat's cluster 30 (the deleted-free
+     * sentinel) and untouched heap clusters */
+    for (u32 c : {30u, 4u, 5u, 12u, 19u, 35u, 60u, 90u})
+        EXPECT_TRUE(fm.is_free(c)) << "cluster " << c << " must read free";
+    /* byte-granular truth at the sentinel: over.dat's cluster-40 byte
+     * range is NOT range-free; gone.dat's cluster-30 range IS */
+    const u64 heap = u64(25) * 512;
+    EXPECT_FALSE(fm.range_free(heap + u64(40 - 2) * 512, 512));
+    EXPECT_TRUE(fm.range_free(heap + u64(30 - 2) * 512, 512));
+}
+
 static std::vector<u8> exfat_image_with_torn_doc_checksum() {
     auto img = build_exfat_image();
     /* corrupt doc.txt's stream first_cluster low byte (breaks the set
@@ -896,10 +946,14 @@ std::vector<u8> build_exfat_large_fat_image() {
     fe(0x40005, 0x40006); /* fardir - WINDOW 1, 2 clusters */
     fe(0x40006, 0xFFFFFFFF);
 
-    /* allocation bitmap at cluster 50: bits for the used low clusters */
+    /* allocation bitmap at cluster 50: bits for the used low clusters
+     * (M-054: bit c-2 is cluster c's bit - spec section 7.1) */
     {
         const size_t BM = clus_off(50);
-        auto setbit = [&](u32 c) { img[BM + c / 8] |= u8(1u << (c % 8)); };
+        auto setbit = [&](u32 c) {
+            const u32 bit = c - 2;
+            img[BM + bit / 8] |= u8(1u << (bit % 8));
+        };
         setbit(2);
         setbit(20);
         setbit(21);
