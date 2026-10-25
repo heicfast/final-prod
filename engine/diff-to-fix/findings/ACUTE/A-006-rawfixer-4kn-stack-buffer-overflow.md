@@ -1,4 +1,4 @@
-# ACUTE A-005 — rawfixer analyze(): 4Kn stack-buffer overflow (512-byte buffers receive 4096-byte reads on 4Kn devices)
+# ACUTE A-006 (renumbered from A-005 — ID collision with the hfsplus record-span finding, both filed in the same window) — rawfixer analyze(): 4Kn stack-buffer overflow (512-byte buffers receive 4096-byte reads on 4Kn devices)
 
 **Severity:** ACUTE
 **Module:** rawfixer

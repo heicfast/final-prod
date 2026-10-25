@@ -7328,3 +7328,40 @@ Stage Summary:
   S-012 (converged), A-005, S-021 (converged), M-010. Remaining SEVERE/MAJOR
   lanes are claimed by the parallel sessions; next unclaimed MAJORs when a
   lane frees: M-002, M-007/M-008 (opt-in flags), M-011, M-013/M-014.
+
+---
+Task ID: DF4-WRAP (diff-fix session 4 — close-out)
+Agent: main engineer (diff-to-fix fix session)
+
+Session arc (all landed on main, suite 478/478 ASan at the tip):
+- S-012 (SEVERE): independently verified + implemented (fail-before proven);
+  converged with the parallel legs' superset landing; hostile-input smoke
+  (400 iterations ASan/UBSan) + the claim-gate evidence addendum (§7: the
+  "$Boot" constant, the +0x380/+0x381 engine-flag ambiguity, the
+  dump-position key decode) committed as the unique contributions.
+- A-005 (ACUTE, NEW — discovered verifying S-021): the HFS+ B-tree
+  record-span convention was inverted vs TN1150/the og's journal validator —
+  on real volumes only record 0 per node was emitted. Fixed (for_each_record
+  spans + the shared fixture builder + the LeafNodeLayout guard); errata E37
+  corrects the session-1 artifact note that propagated the inversion.
+- S-021 (SEVERE): the journal deleted-record harvest (the og's PRIMARY
+  deleted HFS+ surface) — fresh first-hand decode with three corrections to
+  the audit's field map (evidence §3a); implemented; RECONCILED with the
+  parallel s5 landing into one superset implementation (their pass structure
+  + my JIB-offset correction +0x24/+0x2C per the og's swap function, the
+  full node-image validator, the sweep dedup, the off-switch test).
+- M-010 (MAJOR): the lossless invalid-UTF-8 name mapping (U+E000 + byte,
+  bijective, with the inverse) for ext4/Btrfs; ZFS keeps U+FFFD (the og's
+  engine asymmetry pinned). Text + engine tests; the pre-fix U+FFFD
+  assertions are the fail-before witness.
+- ID-collision housekeeping: the parallel leg's rawfixer 4Kn finding
+  renumbered A-005 -> A-006 (mine keeps A-005; recorded in SUMMARY).
+
+Handoff: the remaining SEVERE/MAJOR lanes were all claimed by the active
+parallel sessions at close (S-007 landed 587a98a; S-024+S-009 by the ff
+session; S-025/S-027/S-028 landed by CF-LANE; A-006 rawfixer + S-029/S-030
+queued). The next session should: (1) re-inventory findings/ against
+SUMMARY's counts (the parallel legs move fast); (2) take the first unclaimed
+SEVERE, then MAJOR M-002/M-007/M-008/M-011/M-013/M-014 (the roadmap's
+original order); (3) keep pulling before every push — this session rebased
+six times.

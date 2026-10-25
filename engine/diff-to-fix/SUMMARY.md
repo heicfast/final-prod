@@ -1171,3 +1171,11 @@ including OQ-S012).
 **Fix-session-4 addendum (M-010):** the invalid-UTF-8 name edge closed — ext4/Btrfs
 names now carry a REVERSIBLE encoding of their raw bytes (U+E000 + byte) instead
 of baked U+FFFD; ZFS stays replacement (the og's own asymmetry). Suite 462/462.
+
+**ID-collision note (DF4, 2026-10-26):** two A-005s were filed in the same
+window by parallel legs — the HFS+ record-span inversion (FIXED, this session)
+and the rawfixer 4Kn stack-buffer overflow (open). The rawfixer finding is
+renumbered **A-006** (findings/ACUTE/A-006-rawfixer-4kn-stack-buffer-overflow.md);
+the hfsplus one keeps A-005 (its identity is baked into the Resolution,
+RESOLVED-INDEX, errata E37 and the module docs). Same protocol as the two prior
+collisions (recorded above).
