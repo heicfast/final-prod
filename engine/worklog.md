@@ -6131,3 +6131,30 @@ Work Log:
 
 Stage Summary:
 - Session bootstrapped; lane S-003/S-021 claimed; baseline green first-hand.
+
+---
+Task ID: DF-CLOSE-T1 (continuation)
+Agent: main engineer (diff-to-fix close-all-tiers session, continuation leg)
+Task: T1 — pull both repos, record commits, verify baseline, reconcile inventory.
+
+Work Log:
+- Repos pulled: core `ff05314` (includes the s7 closing-session merge claiming
+  S-003/S-021 — no collision with this lane), corpus `03ad46c` (unmoved).
+- Prompt already saved token-redacted by this session's bootstrap (`3278a22`,
+  `worklog/session-diff-fix-prompt.md`, 0 token occurrences verified).
+- Baseline executed first-hand: linux-release built clean, full suite
+  **405/405 PASS** (one flake: Snapshot.ConcurrentEmitCaptureWalk under first
+  full -j load — pre-existing timing sensitivity per worklog line 4331, passes
+  3/3 on isolated + full-suite reruns; NOT a regression).
+- Direct file inventory at `ff05314` (authoritative method per project
+  convention): **SEVERE 11** (S-003 S-007 S-009 S-020 S-021 S-023..S-028) ·
+  **MAJOR 34** (M-002 M-005 M-007 M-008 M-010..M-039) · **MINOR 33** ·
+  **INFO 16** · tracked-open 11 = **94 active findings + 11 OQ** / **37 FIXED**
+  (findings/FIXED/ holds 38 files incl. RESOLVED-INDEX.md).
+- Lane (per this session's earlier claim at `b8d91b5`, still valid): S-023 →
+  S-024 → S-025 → S-026 → S-027 → S-028 → S-020 → S-007 → S-009-remainder →
+  MAJOR wave in M-number order → MINOR → INFO → tracked-open. S-003/S-021
+  remain the s7 leg's claim (their `ff05314` merge records it).
+
+Stage Summary:
+- Baseline green 405/405; inventory reconciled to file-count truth; lane active.
