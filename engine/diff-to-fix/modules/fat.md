@@ -178,13 +178,16 @@ rejects; mirror-only mode) stays open.
 
 ## Session-5 addendum (2026-10-26, audited `7cf6754`)
 
-- **Boot-validation gate family** — `M-045` (MAJOR): six gate deltas vs the
-  og's CFatxBlockParser classification (bps any-512-multiple vs pow2-
-  512..4096; SPC ≤128 vs unbounded; "FAT32   "@+0x52 label required by og;
-  numFATs≠0 required by og; cluster ≥0xFFFFFF0 rejected by og; band-ordered
-  flavor retry vs deterministic). Full gate table in
-  `evidence/decompiled-quotes/s5-image-fscheck-persistence.md` §F. Extends
-  the M-015 family (engine-load validation) to the probe/classifier layer.
+- **Boot-validation gate family — `M-045` FIXED (s10):** corpus re-verified
+  first-hand (FUN_004610 + the three validators). (b)(c)(f) had already landed
+  via N-034/N-010b — `lost_boot_flavor` IS the og classifier (band retry,
+  512-multiple bps, label, numFATs, SPF≤12 cap, cluster cap) and
+  `boot_passes_open_gates` carries the engine labels. This session closed the
+  three validate_boot residuals that still gated probe_fat: any-512-multiple
+  bps (documented 32768 ceiling, PARITY-DELTAS), numFATs==0 hard reject,
+  cluster_count ≥ 0xFFFFFF0 reject. FatBps1536Accepted / FatZeroNumFatsRejected
+  / FatClusterCountOverflowRejected / FatBps32768CeilingAndNonMultipleRejected;
+  3 fail-before proven; suite 588/588. findings/FIXED/M-045.
 - **FAT copy-compare reporting** — folded into `M-041` (the check phase):
   the og reports FAT1/FAT2 disagreement (0x1005) as an audit error; the
   core's mirror arbitration (cr_chain.cpp:109-118) chooses silently.

@@ -1510,6 +1510,83 @@ TEST(FatEngine, SpcDomainMatchesOgSet) {
     }
 }
 
+/* ---- M-045 (diff-to-fix): the three validate_boot gates the og's        */
+/* classifier enforces and the core's engine gate lacked. (b) SPC and       */
+/* (c) the FAT32 label already landed via N-010b/N-034 (boot_passes_open_   */
+/* gates + lost_boot_flavor); these are the (a)/(d)/(e) residuals.          */
+
+TEST(FatEngine, FatBps1536Accepted) {
+    /* M-045(a): the og's classifier accepts ANY 512-multiple bps
+     * (FUN_180004610 :2542, (bps & 0x1ff) == 0) - 1536 is a rare-but-real
+     * geometry. Fail-before: the pow2-in-[512,4096] gate rejected it,
+     * making a lost_boot_flavor-accepted candidate invisible to
+     * probe_fat (validate_boot runs as its FIRST gate). */
+    auto img = build_fat16_image();
+    put16(img, 0x0B, 1536);
+    u8 boot[512];
+    std::memcpy(boot, img.data(), 512);
+    FatParams p;
+    const u32 rc = validate_boot(boot, u64(5074) * 1536, p);
+    ASSERT_EQ(rc, OK) << "any 512-multiple bps must classify (og parity)";
+    EXPECT_EQ(p.bytes_per_sector, 1536u);
+    /* the arithmetic is bps-generic: root sectors ceil(512*32/1536)=11 */
+    EXPECT_EQ(p.first_data_sector, u64(2) + 2 * 20 + 11);
+}
+
+TEST(FatEngine, FatBps32768CeilingAndNonMultipleRejected) {
+    /* M-045(a): the documented deliberate bound - 32768 is the last
+     * accepted size; 33280 (a 512-multiple above the ceiling) and 1000
+     * (not a multiple) are rejected. */
+    auto img = build_fat16_image();
+    u8 boot[512];
+    FatParams p;
+    put16(img, 0x0B, 32768);
+    std::memcpy(boot, img.data(), 512);
+    EXPECT_EQ(validate_boot(boot, u64(5074) * 32768, p), OK)
+        << "32768 is the documented ceiling (accepted)";
+    put16(img, 0x0B, 33280);
+    std::memcpy(boot, img.data(), 512);
+    EXPECT_NE(validate_boot(boot, u64(5074) * 33280, p), OK)
+        << "above the ceiling: rejected (documented deliberate bound)";
+    put16(img, 0x0B, 1000);
+    std::memcpy(boot, img.data(), 512);
+    EXPECT_NE(validate_boot(boot, u64(5074) * 1000, p), OK)
+        << "not a 512-multiple: rejected (og :2542 gate)";
+}
+
+TEST(FatEngine, FatZeroNumFatsRejected) {
+    /* M-045(d): numFATs == 0 is a hard reject - the og's every gate
+     * requires it nonzero (FUN_1800048f0/4a40/4b70 first checks); the
+     * old code let fat_area = 0 through (latent nonsense geometry).
+     * Fail-before: validate_boot returned OK. */
+    auto img = build_fat16_image();
+    img[0x10] = 0;
+    u8 boot[512];
+    std::memcpy(boot, img.data(), 512);
+    FatParams p;
+    EXPECT_NE(validate_boot(boot, u64(5074) * 512, p), OK)
+        << "numFATs == 0 must be rejected before any geometry is derived";
+}
+
+TEST(FatEngine, FatClusterCountOverflowRejected) {
+    /* M-045(e): cluster counts >= 0xFFFFFF0 are rejected outright - the
+     * og classifier's final band else-branch (FUN_180004610 :2595-2598);
+     * the spec's reserved max is 0x0FFFFFF6 so only overflow noise is
+     * cut. Fail-before: classified FAT32 and passed. */
+    auto img = build_fat16_image();
+    put16(img, 0x11, 0);          /* FAT32 shape: no root dir */
+    put16(img, 0x16, 0);          /* spf16 = 0 */
+    put32v(img, 0x24, 64);        /* spf32 */
+    put16(img, 0x13, 0);          /* use total32 */
+    put32v(img, 0x20, 130 + 0xFFFFFF0u); /* first_data 130 + cap clusters */
+    std::memcpy(img.data() + 0x52, "FAT32   ", 8);
+    u8 boot[512];
+    std::memcpy(boot, img.data(), 512);
+    FatParams p;
+    EXPECT_NE(validate_boot(boot, u64(0x100) * 512, p), OK)
+        << "cluster_count >= 0xFFFFFF0 must be rejected (og final-band gate)";
+}
+
 TEST(FatEngine, DateSanityRejectedInStrictMode) {
     /* N-010c: FUN_1800365a0 :44298-44315 - a nonzero date field with
      * month > 12 or day == 0 rejects the dentry (strict mode). The
