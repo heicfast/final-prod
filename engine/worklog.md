@@ -10243,6 +10243,7 @@ Work Log:
 Stage Summary:
 - Session unique resolutions: 10 + N-016a (partial group). MINOR 42
   remain (N-029 stays for its N-016b half). Next: N-062 (memory monitor),
+---
   N-056 (temp leak), N-063 (naming), or the grouped minors N-025/N-026.Task ID: DFX19-M016 (session 19, first MAJOR fix)
 Agent: main engineer (diff-to-fix fix session 19 — DFX19)
 Task: M-016 — LDM TOCBLOCK candidate set/order divergence.
@@ -10337,7 +10338,6 @@ Stage Summary:
 - Lesson recorded twice this session: parallel lanes racing on the same finding MUST
   re-read main before push; the qemu-compat-fixture proof layer is what caught
   spec-memory bugs the in-memory builders could not.
-
 ---
 Task ID: DFX22-T1 (M-055 NEW-FINDING — win-layer build integrity)
 Agent: main engineer (diff-to-fix minors-first session 22; lane re-stamped from 19 — IDs 19-21 squatted)
@@ -10379,3 +10379,123 @@ Stage Summary:
   quality), RESOLVED-INDEX row to be added at the FIXED/ move.
 - Next: N-020 bookkeeping move (FIXED/ + index row), N-056 on the now-parseable
   destio, then the MINOR queue (N-067, N-068, N-070, ...).
+
+---
+Task ID: DFX11-M050 (session 11, findings 5+6)
+Agent: main engineer (diff-to-fix fix session 11 — DFX11)
+Task: M-050 (session node-model roundtrip gaps) + N-058 (load validation
+deltas) — landed as ONE loader change per M-050's own fix plan step 2.
+
+Work Log:
+- Corpus re-verified first-hand: rsf-record4--tree-node-grammar.md (the
+  per-node marker/name/parent validation rules) + rsf-format :315-322.
+  Core wire re-audited against the CURRENT tree (the finding was filed
+  at 7cf6754, BEFORE S-023/M-051/M-047 landed): grade+overlap,
+  provenance, root stats, short names are ALREADY carried — the schema
+  debt the finding predicted was paid by those landings. The remaining
+  real gaps: no round-trip TEST (added), and N-058's four loader
+  soft spots.
+- Fix (one loader change): (a) forward parents deferred + resolved
+  post-loop (new optional reparented_out surface); (b) marker outside
+  {0,1} fails the record; (c) c.fail alone fails the load; (d) name AND
+  role lengths bounds-checked BEFORE allocation. Deliberate
+  NOT-PERSISTED registered in the finding: hidden-root bit (no in-memory
+  concept), f_6c/f_68 + f_71 (undecoded — opaque u16 carriage would
+  invent structure); OQ-tracked until corpus decodes land.
+- Tests: 6 (GradeRoleAndProvenanceRoundTrip, OldFormatStillLoads,
+  ForwardParentDeferredAndCounted, BadMarkerFailsTheRecord,
+  TruncatedTailFailsAfterFullCount, HostileNameAndRoleLengthBombs) —
+  fail-before by construction (each asserts the opposite of a behavior
+  the finding itself verified first-hand in the pre-fix loader).
+  Suite 602/602.
+- Audit trail: Resolutions on both findings (cross-referenced); both
+  moved to FIXED/; RESOLVED-INDEX (77); matrix cells; modules/session.md
+  row; SUMMARY extension.
+
+Stage Summary:
+- Session tally: 5 fixes (M-007, M-008, M-032, M-050, N-058) + the
+  S-009 verification. Remaining claimed: M-029, M-049. Next: M-029.
+
+---
+  N-056 (temp leak), N-063 (naming), or the grouped minors N-025/N-026.
+
+---
+Task ID: DFX12-T7 (table-visualization batch — N-057)
+Agent: main engineer (diff-to-fix minors-first session 12)
+Task: Close N-057's three sub-items: the dead Ebr enum, the untested
+overlay-budget growth path, and the write-only accumulator.
+
+Work Log:
+- Verified the finding's claims first-hand: grep TableLayout::Ebr
+  assignment sites = 0 (dead); cr_diskmap's budget path had no test;
+  Overlays::total set once, never read.
+- Ebr decision: DELETE would renumber the u32 enum (ABI-adjacent - cr_ui
+  maps layout values), so SET executed as the finding recommends: the
+  MBR parse assigns Ebr after parse_ebr_chain when an extended container
+  is present; ebr_status keeps carrying chain integrity (torn chains
+  classify Ebr with honest status); plain 4-primary MBR stays Mbr.
+- ABI: cr_ui's layout mapping gains the APPENDED code 3 (0 none/1 MBR/
+  2 GPT frozen; cr_ui.h comment updated); CLI prints "EBR".
+- DiskMap.OverlayBudgetGrowsCellSize: at exactly 64 MiB cells the cell
+  stays 512 (the loop is >, not >= - pinned); one sector past doubles to
+  1024; overlay vectors cap at the budget. Write-only total deleted.
+- Fail-before executed (stash-isolated pre-fix parse): Mbr.PlainWithExtended
+  + Mbr.EbrLayoutAssignedAndPlainMbrStaysMbr both RED; post-fix suite
+  600/600 linux-release (the M-002 torn-chain tests untouched - ebr
+  classification composes with chain-status honesty).
+
+Stage Summary:
+- Session unique resolutions: 12. MINOR 41 remain. Next: the doc-batch
+  wave (N-074 doc drift, N-040 ABI truthfulness), then N-062/N-046.
+
+---
+Task ID: DFX16-N067+S033 (the upcase integrity pass + the false positive it flushed out)
+Agent: main engineer (diff-to-fix session 11 — DFX16)
+Task: Verify and fix N-067 (exFAT upcase-table validation skipped).
+
+Work Log:
+- N-067 verification demanded settling the exFAT root-dentry type map
+  first. Filed NEW-FINDING S-033 claiming bitmap=0x83/upcase=0x81/label=0x82
+  (spec-recall + the corpus v2 artifact's garbled §3 row labels); built the
+  constants swap + fixture rewrite; captured a fail-before (FreeMap + EndToEo
+  grading RED on the rewritten fixture).
+- REFUTED MY OWN FINDING before push via the og's directory-walk switch
+  (exFATSearchDLL :24380-24460): case 0x81 validates the BITMAP shape
+  (flags@+1 free, reserved@+2..+0x13 zero-checked, cluster@+0x14,
+  length@+0x18); case 0x82 validates the UPCASE shape (reserved1@+1..+3,
+  TableChecksum@+4 free, reserved2@+8..+0x13, cluster@+0x14, length@+0x18).
+  The shipped og working on real volumes proves bitmap=0x81/upcase=0x82/
+  label=0x83 = the core's ORIGINAL constants. The claimed UPCASE layout had
+  been a 36-byte mis-derivation. Local branch reverted byte-exact; S-033
+  marked INVALID with the full evidence chain and moved to FIXED/ (S-018
+  precedent); corpus erratum E43 filed (CORPUS-ERRATA.md); RESOLVED-INDEX
+  row. Pushed as its own audit-trail commit - the false positive is part
+  of the record, not something to hide.
+- N-067 fixed on the verified constants: UpcaseEntry reintroduced (og
+  shape), the in-use upcase branch applies the og's dentry gates
+  (reserved1/2 zero-checked, checksum free, fc>=2), a length sanity bar
+  (zero/>1 MiB/>device flagged without stream access), and a chain-read
+  (contiguous fallback, 64 KiB bounded incremental checksum32 chunks)
+  compared against TableChecksum. Soft signal in ExfatScanStats
+  (upcase_validated / upcase_mismatches); grade-not-reject (EXFAT-2
+  posture; the og's exact failure path stays an honest open question).
+  Fixture: real 64-entry upcase table at cluster 60 (checksum-stamped,
+  FAT-EOC + bitmap-marked; the S-009-hardening + M-054-producer cluster
+  lists updated for the now-allocated cluster 60).
+- Tests: UpcaseTableChecksumValidated (clean: validated>=1/mismatch 0;
+  corrupt stamp: validated 0/mismatch 1, scan OK, files found) +
+  UpcaseLengthSanity (zero + absurd-4-GiB lengths flag; no hang, no
+  over-read). Fail-before executed with the validation unwired (both RED).
+  One expectation corrected in-pass: a corrupt table must not count as
+  validated.
+- Full suite 597/597 linux-gcc ASan; 42/42 UBSan on Exfat/DiskMap/FreeMap;
+  lint clean on all five touched files. Audit trail: Resolutions (S-033
+  INVALID + N-067 FIXED), FIXED/ moves, index rows, matrix cells
+  (exfat B1/A25/S35), modules/exfat.md, SUMMARY landing-2, E43.
+
+Stage Summary:
+- Session fix tally: N-069 FIXED, S-033 filed-and-refuted (INVALID — the
+  discipline worked as designed: the corpus/decompile won over confident
+  recall), N-067 FIXED. Next: N-068 (ZIP EOCD anchor + LFH sanity gates),
+  then the carve naming/policy minors not claimed by parallel lanes.
+

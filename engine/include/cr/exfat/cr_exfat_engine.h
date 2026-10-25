@@ -66,6 +66,15 @@ struct ExfatScanStats {
     u64 chains_broken = 0;
     u64 assumed_contiguous = 0; /* EXFAT-2: FREE-entry continuation salvage */
     u64 fat_window_refills = 0; /* S-013: windowed-FAT cache refills (big-FAT volumes) */
+    /* N-067 (diff-to-fix): the og's volume analyzer validates the upcase
+     * table as part of volume integrity (boot + upcase checks,
+     * CExFatVolumeAnalyer - fat-exfat-engine-internals.md:63-64). Grade,
+     * not reject: a corrupt table flags the volume's integrity signal
+     * but never stops the scan (the og's corrupt-volume posture, the
+     * EXFAT-2 salvage lineage). */
+    u64 upcase_validated =
+        0; /* in-use upcase dentries whose structure passed the og's shape gates */
+    u64 upcase_mismatches = 0; /* checksum/length/read integrity failures (0 = clean or absent) */
 };
 
 struct ExfatScanFlags {

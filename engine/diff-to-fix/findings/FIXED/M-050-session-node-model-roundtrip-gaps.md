@@ -93,3 +93,54 @@ The exact semantics of f_6c/f_68 (0xFFFF sentinels) and the 2↔5 remap target o
 censused but not decoded in the corpus artifact — the core should carry them as opaque u16s
 if byte-fidelity matters, or document them as NOT-PERSISTED (deliberate) once a decode lands.
 Tracked here, not blocking the carrier work.
+
+## Resolution (session 11 — DFX11, the carrier audit + the loader hardening)
+
+**Status:** FIXED (with N-058 landed in the same change, per this finding's
+own fix plan step 2: "land as one loader hardening change")
+**Fixed in commit:** this session's fix commit (`fix: M-050+N-058` — see git log)
+**Verified by:** `Session.GradeRoleAndProvenanceRoundTrip` (grade+overlap,
+root roles, short names, M-051 provenance — all round-trip), `Session.
+OldFormatStillLoads` (the forward-compat guard: a legacy v1-wire node with
+nflags=0 loads unchanged under the Restored root), `Session.
+ForwardParentDeferredAndCounted` (the forward reference resolves onto its
+parent — never silently re-parented; the hostile variant counts), `Session.
+BadMarkerFailsTheRecord`, `Session.TruncatedTailFailsAfterFullCount`,
+`Session.HostileNameAndRoleLengthBombs`. The five loader tests are
+fail-before by construction: each asserts the OPPOSITE of a behavior the
+finding itself verified first-hand in the pre-fix loader at 7cf6754
+(marker=7 loads as a light node; truncated-tail returns OK after the full
+count; forward parents silently re-parent; name/role resize up to 128 KiB
+before any bounds check). Suite 602/602 Linux Release.
+
+**Resolution notes:** the carrier audit, re-scoped against the CURRENT
+tree (this finding was filed at 7cf6754, BEFORE the S-023/M-051/M-047
+landings):
+- ALREADY CARRIED (landed by later fixes — this finding's predicted
+  schema debt was paid by those landings): grade + overlap (the S-023
+  byte: nflags bit3, "2-bit grade | 0x04 overlap | 0xF8 reserved"), RAW
+  carve provenance (M-051: nflags bit4), root stats (M-047), short names
+  (N-011a: bit2), compressed-extent codec/psize (bit1), resident blobs
+  (bit0).
+- NOW PINNED (this change): the round-trip TEST for grade/roles/
+  short-name/provenance did not exist — added (the finding's GradingBits
+  and RootRoles acceptance, satisfied by the S-023 carrier + role
+  strings). Root roles persist as u16 STRINGS - strictly richer than the
+  og's root-role u32 pair (rsf-record4); the mapping is documented here.
+- DELIBERATE NOT-PERSISTED (registered, no in-memory concept exists to
+  carry): the hidden-root bit (the og's UI display nodes - the core's
+  tree creates no hidden roots); the f_6c/f_68 0xFFFF sentinels and the
+  f_71 enum + 2<->5 remap (censused, undecoded in the corpus - the
+  finding's own open question). These stay OQ-tracked until corpus
+  decodes land; carrying opaque u16s for undecoded semantics would be
+  inventing structure.
+- THE LOADER HARDENING (N-058's four, one change as the plan directs):
+  (a) forward parent references DEFERRED + resolved after the loop, with
+  the never-resolving count surfaced through the new optional
+  deserialize_tree out-param `reparented_out`; (b) marker outside {0,1}
+  is corruption (fail the record; the container CRC/resync layer
+  recovers - never silent normalization to a light node); (c) a failed
+  stream is an error even when the full node count was created (the
+  created<size condition dropped); (d) the u16 name length AND the
+  full-node role length are bounds-checked BEFORE the allocation (the
+  og's per-node rule; the hostile 128 KiB-per-node resize is gone).

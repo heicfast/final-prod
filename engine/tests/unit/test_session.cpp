@@ -406,3 +406,304 @@ TEST(SessionTree, StatsDeletedCountRecursive) {
     t.refresh_stats();
     EXPECT_EQ(r->stats().deleted_count, 1u);
 }
+
+/* ------------------------------------------------------------------ */
+/* M-050 + N-058 (landed together per M-050's fix plan): the node-model */
+/* round-trip gaps closed + the loader hardening.                       */
+/* ------------------------------------------------------------------ */
+
+namespace {
+
+/* wire-accurate node builder for hand-crafted loader fixtures */
+struct WireNode {
+    u32 parent_id = 0xFFFFFFFFu;
+    u16 nflags = 0;
+    u8 marker = 0;
+    u8 origin = 0, deleted = 0, confidence = 0;
+    u8 grade_byte = 0;
+    std::u16string name;
+    std::u16string short_name;
+    u64 record_ref = 0;
+    u32 fs_kind = 0;
+    u64 logical = 0, allocated = 0;
+    std::string resident;
+    u32 carve_format = 0;
+    u16 carve_confidence = 0;
+    std::vector<u8> out;
+
+    WireNode& emit(std::vector<u8>& blob) {
+        out.clear();
+        auto p32 = [&blob](u32 v) {
+            for (int i = 0; i < 4; ++i)
+                blob.push_back(u8(v >> (8 * i)));
+        };
+        auto p16 = [&blob](u16 v) {
+            blob.push_back(u8(v));
+            blob.push_back(u8(v >> 8));
+        };
+        auto p64 = [&blob](u64 v) {
+            for (int i = 0; i < 8; ++i)
+                blob.push_back(u8(v >> (8 * i)));
+        };
+        (void)p32;
+        (void)p64;
+        p32(parent_id);
+        p16(nflags);
+        blob.push_back(marker);
+        blob.push_back(origin);
+        blob.push_back(deleted);
+        blob.push_back(confidence);
+        if (nflags & 8)
+            blob.push_back(grade_byte);
+        p64(record_ref);
+        p32(fs_kind);
+        p64(logical);
+        p64(allocated);
+        for (int i = 0; i < 4; ++i)
+            p64(0); /* times */
+        p32(0);   /* attributes */
+        p16(0);   /* flags */
+        p16(u16(name.size()));
+        for (u16 ch : name) {
+            blob.push_back(u8(ch));
+            blob.push_back(u8(ch >> 8));
+        }
+        if (nflags & 4) {
+            p16(u16(short_name.size()));
+            for (u16 ch : short_name) {
+                blob.push_back(u8(ch));
+                blob.push_back(u8(ch >> 8));
+            }
+        }
+        p32(0); /* extent count */
+        if (nflags & 2) {
+            p32(u32(resident.size()));
+            blob.insert(blob.end(), resident.begin(), resident.end());
+        }
+        p32(carve_format);
+        p16(carve_confidence);
+        blob.push_back(0); /* hash_valid */
+        /* no provenance (nflags&16) in the hand-crafted fixtures */
+        return *this;
+    }
+};
+
+std::vector<u8> blob_of_nodes(std::vector<WireNode> nodes) {
+    std::vector<u8> out;
+    auto p32 = [&out](u32 v) {
+        for (int i = 0; i < 4; ++i)
+            out.push_back(u8(v >> (8 * i)));
+    };
+    p32(u32(nodes.size()));
+    for (WireNode& w : nodes)
+        w.emit(out);
+    return out;
+}
+
+} // namespace
+
+TEST(Session, GradeRoleAndProvenanceRoundTrip) {
+    /* M-050's carrier audit, pinned end to end: grade + overlap (the
+     * S-023 landing's byte), root roles (strings - richer than the og's
+     * root-role u32 pair), short names (N-011a), and the M-051 carve
+     * provenance all survive save/load. */
+    tree::ResultTree t;
+    auto* root = t.add_root(u"Volume C");
+    tree::FileProperties* p = new tree::FileProperties();
+    p->name = u"carved.png";
+    p->short_name = u"CARVED~1.PNG";
+    p->logical_size = 2048;
+    p->carve_format = 7;
+    p->carve_confidence = 96;
+    p->carve_checksum = 0xDEADBEEFu;
+    p->carve_anchor_b = 1234;
+    p->carve_flag = true;
+    p->extents.push_back({4096, 2048});
+    auto* f = t.add_file(root, p);
+    p->release();
+    f->set_origin(tree::Origin::Carved);
+    f->set_confidence(tree::Confidence::Excellent);
+    f->set_grade_raw(tree::Grade::High);
+    f->set_overlap();
+    t.refresh_stats();
+
+    std::vector<u8> blob;
+    ASSERT_EQ(serialize_tree(t, blob), u32(OK));
+    tree::ResultTree t2;
+    ASSERT_EQ(deserialize_tree(blob.data(), blob.size(), t2), u32(OK));
+    ASSERT_EQ(t2.roots().size(), 1u);
+    tree::FileNode* r2 = t2.roots()[0];
+    EXPECT_EQ(static_cast<tree::FullNode*>(r2)->role, u"Volume C")
+        << "root roles round-trip (strings - richer than the og's u32 pair)";
+    tree::FileNode* c2 = r2->first_child();
+    ASSERT_NE(c2, nullptr);
+    EXPECT_EQ(c2->grade(), tree::Grade::High) << "grade round-trips (S-023 carrier)";
+    EXPECT_TRUE(c2->overlap()) << "overlap round-trips";
+    EXPECT_EQ(c2->origin(), tree::Origin::Carved);
+    ASSERT_NE(c2->props(), nullptr);
+    EXPECT_EQ(c2->props()->short_name, u"CARVED~1.PNG");
+    EXPECT_EQ(c2->props()->carve_checksum, 0xDEADBEEFu);
+    EXPECT_EQ(c2->props()->carve_anchor_b, 1234u);
+    EXPECT_TRUE(c2->props()->carve_flag);
+}
+
+TEST(Session, OldFormatStillLoads) {
+    /* M-050's forward-compat guard: a legacy v1-wire node (nflags=0 -
+    * no short name, no grade byte, no resident blob, no provenance)
+    * loads exactly as before, under the synthetic Restored root. */
+    WireNode w;
+    w.parent_id = 0xFFFFFFFFu;
+    w.marker = 0;
+    w.name = u"legacy.txt";
+    w.logical = 42;
+    const std::vector<u8> blob = blob_of_nodes({w});
+    tree::ResultTree t2;
+    u32 reparented = 99;
+    ASSERT_EQ(deserialize_tree(blob.data(), blob.size(), t2, &reparented), u32(OK));
+    EXPECT_EQ(reparented, 0u);
+    ASSERT_EQ(t2.roots().size(), 1u);
+    EXPECT_EQ(static_cast<tree::FullNode*>(t2.roots()[0])->role, u"Restored");
+    tree::FileNode* f = t2.roots()[0]->first_child();
+    ASSERT_NE(f, nullptr);
+    EXPECT_EQ(f->name_utf8(), "legacy.txt");
+    EXPECT_EQ(f->props()->logical_size, 42u);
+    EXPECT_EQ(f->grade(), tree::Grade::Average) << "no grade byte: the default";
+    EXPECT_TRUE(f->props()->short_name.empty()) << "no short name in v1";
+}
+
+TEST(Session, ForwardParentDeferredAndCounted) {
+    /* N-058 (a): a FORWARD parent reference resolves after the loop -
+     * node0 (parent=1) attaches under node1, NOT silently under the
+     * synthetic root; a never-resolving reference stays + is counted. */
+    {
+        WireNode n0;
+        n0.parent_id = 1; /* forward: node 1 has not loaded yet */
+        n0.name = u"child.txt";
+        WireNode n1;
+        n1.parent_id = 0xFFFFFFFFu; /* legacy top-level under Restored */
+        n1.name = u"parent.txt";
+        const std::vector<u8> blob = blob_of_nodes({n0, n1});
+        tree::ResultTree t2;
+        u32 reparented = 99;
+        ASSERT_EQ(deserialize_tree(blob.data(), blob.size(), t2, &reparented), u32(OK));
+        EXPECT_EQ(reparented, 0u) << "the forward reference resolved";
+        /* node1 under Restored; node0 under node1 */
+        tree::FileNode* top = nullptr;
+        for (tree::FileNode* r : t2.roots())
+            for (tree::FileNode* c = r->first_child(); c; c = c->next_sibling())
+                if (c->name_utf8() == "parent.txt")
+                    top = c;
+        ASSERT_NE(top, nullptr);
+        /* after resolution node0 moved under node1 (a grandchild of
+         * Restored - the search must walk recursively) */
+        tree::FileNode* moved = nullptr;
+        std::function<void(tree::FileNode*)> hunt = [&](tree::FileNode* n) {
+            for (tree::FileNode* c = n->first_child(); c; c = c->next_sibling()) {
+                if (c->name_utf8() == "child.txt")
+                    moved = c;
+                hunt(c);
+            }
+        };
+        for (tree::FileNode* r : t2.roots())
+            hunt(r);
+        ASSERT_NE(moved, nullptr) << "node0 vanished";
+        EXPECT_EQ(moved->parent(), top) << "the deferred forward ref landed on its parent";
+    }
+    {
+        /* the hostile variant: parent 999 (out of range) never resolves -
+         * the node stays under Restored and the count surfaces it */
+        WireNode n0;
+        n0.parent_id = 999;
+        n0.name = u"orphan.txt";
+        WireNode n1;
+        n1.parent_id = 0xFFFFFFFFu;
+        n1.name = u"other.txt";
+        const std::vector<u8> blob = blob_of_nodes({n0, n1});
+        tree::ResultTree t2;
+        u32 reparented = 0;
+        ASSERT_EQ(deserialize_tree(blob.data(), blob.size(), t2, &reparented), u32(OK));
+        EXPECT_EQ(reparented, 1u) << "the unresolved reference is counted, never silent";
+    }
+}
+
+TEST(Session, BadMarkerFailsTheRecord) {
+    /* N-058 (b): marker outside {0,1} is corruption, not a light node */
+    WireNode w;
+    w.marker = 7;
+    w.name = u"bad.txt";
+    const std::vector<u8> blob = blob_of_nodes({w});
+    tree::ResultTree t2;
+    EXPECT_EQ(deserialize_tree(blob.data(), blob.size(), t2), u32(0x50040001));
+}
+
+TEST(Session, TruncatedTailFailsAfterFullCount) {
+    /* N-058 (c): a stream that fails is an error even when the node was
+     * created before the failure surfaced (the old guard returned OK) */
+    WireNode w;
+    w.name = u"tail.txt";
+    w.logical = 100;
+    std::vector<u8> blob = blob_of_nodes({w});
+    ASSERT_GT(blob.size(), 20u);
+    blob.resize(blob.size() - 12); /* cut into the fixed tail fields */
+    tree::ResultTree t2;
+    EXPECT_EQ(deserialize_tree(blob.data(), blob.size(), t2), u32(0x50040001));
+}
+
+TEST(Session, HostileNameAndRoleLengthBombs) {
+    /* N-058 (d): a hostile u16 name/role length is bounds-checked BEFORE
+     * the allocation (the old code resized up to 128 KiB per node from a
+     * truncated record); the og bounds-checks per-node (rsf-record4). */
+    {
+        std::vector<u8> blob;
+        blob_of_nodes({WireNode()}); /* sized by a real node first */
+        blob.clear();
+        auto p32 = [](std::vector<u8>& b, u32 v) {
+            for (int i = 0; i < 4; ++i)
+                b.push_back(u8(v >> (8 * i)));
+        };
+        p32(blob, 1); /* one node */
+        p32(blob, 0xFFFFFFFFu);
+        blob.push_back(0); blob.push_back(0); /* nflags */
+        blob.push_back(0);                    /* marker */
+        blob.push_back(0); blob.push_back(0); blob.push_back(0); /* origin/deleted/conf */
+        for (int i = 0; i < 8; ++i) blob.push_back(0); /* record_ref */
+        for (int i = 0; i < 4; ++i) blob.push_back(0); /* fs_kind */
+        for (int i = 0; i < 8 * 2; ++i) blob.push_back(0); /* logical+allocated */
+        for (int i = 0; i < 8 * 4; ++i) blob.push_back(0); /* times */
+        for (int i = 0; i < 4; ++i) blob.push_back(0); /* attributes */
+        blob.push_back(0); blob.push_back(0); /* flags */
+        blob.push_back(0xE0); blob.push_back(0xEA); /* name_len = 0xEAE0 = 60128 */
+        blob.push_back(0x41); blob.push_back(0); /* 2 bytes of name, then EOF */
+        tree::ResultTree t2;
+        EXPECT_EQ(deserialize_tree(blob.data(), blob.size(), t2), u32(0x50040001));
+    }
+    {
+        /* the full-node role-length bomb */
+        std::vector<u8> blob;
+        auto p32 = [](std::vector<u8>& b, u32 v) {
+            for (int i = 0; i < 4; ++i)
+                b.push_back(u8(v >> (8 * i)));
+        };
+        p32(blob, 1);
+        p32(blob, 0xFFFFFFFFu);
+        blob.push_back(0); blob.push_back(0);
+        blob.push_back(1); /* marker = full node */
+        blob.push_back(0); blob.push_back(0); blob.push_back(0);
+        for (int i = 0; i < 8; ++i) blob.push_back(0);
+        for (int i = 0; i < 4; ++i) blob.push_back(0);
+        for (int i = 0; i < 8 * 2; ++i) blob.push_back(0);
+        for (int i = 0; i < 8 * 4; ++i) blob.push_back(0);
+        for (int i = 0; i < 4; ++i) blob.push_back(0);
+        blob.push_back(0); blob.push_back(0);
+        blob.push_back(0); blob.push_back(0); /* empty name */
+        /* nflags&4==0: no short name; ec=0 */
+        p32(blob, 0);
+        p32(blob, 0); /* carve_format */
+        blob.push_back(0); blob.push_back(0); /* carve_confidence */
+        blob.push_back(0); /* hash_valid */
+        blob.push_back(0xF0); blob.push_back(0xEA); /* role_len = 0xEAF0 = 60144 */
+        blob.push_back(0x41); blob.push_back(0); /* 2 bytes, then EOF */
+        tree::ResultTree t2;
+        EXPECT_EQ(deserialize_tree(blob.data(), blob.size(), t2), u32(0x50040001));
+    }
+}

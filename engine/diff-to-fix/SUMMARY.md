@@ -182,6 +182,21 @@ sector-unit under-zeroing defect noted, NOT adopted). No behavior change
 - the opt-in clamped read from the finding's path (2) is the documented
 next step WHEN an engine needs it. Suite 594/594 (Slice +1).
 
+**M-050 + N-058 FIXED (this push — one loader change, per M-050's plan):**
+the carrier audit re-scoped post S-023/M-051/M-047: grade+overlap,
+provenance, root stats, short names ALREADY carried (the predicted schema
+debt was paid by those landings) — now PINNED by
+Session.GradeRoleAndProvenanceRoundTrip + OldFormatStillLoads; roles
+persist as strings (richer than the og's u32 pair). Deliberate
+NOT-PERSISTED, OQ-tracked: hidden-root bit, f_6c/f_68, f_71 (undecoded —
+carrying opaque u16s would invent structure). N-058's four loader
+hardenings in the same change: forward parents DEFERRED + resolved
+post-loop (reparented count surfaced via the new optional out-param);
+marker outside {0,1} fails the record; c.fail alone fails the load;
+name/role lengths bounds-checked BEFORE allocation. 6 tests; suite
+602/602. Counts: SEVERE 2 · MAJOR 32 · MINOR 46 · INFO 22 · FIXED 86
+files (85 findings + index).
+
 # SUMMARY.md — executive summary (diff-fix session 14 on top; earlier sessions below)
 ## Session-14 delta (2026-10-26 — DFX14: bootstrap, two merge repairs, the reconciliation wave)
 
@@ -327,6 +342,23 @@ row: modules/imaging.md.
 **Counts after S-030 (direct file inventory at this push):** SEVERE 2
 (S-009, S-029) · MAJOR 39 · MINOR 55 · INFO 22 = 118 active / 73 FIXED
 finding files + RESOLVED-INDEX.
+
+**Session-11 landing 2 — S-033 (NEW-FINDING) INVALID + N-067 FIXED:** during
+the N-067 verification pass this leg filed S-033 (exFAT type-constants
+"shifted") and REFUTED IT THE SAME SESSION with the og's own decompile walk
+(:24380-24460): case 0x81 = the bitmap-shape validation (flags@+1 free,
+reserved@+2..+0x13 zero, cluster@+0x14/length@+0x18); case 0x82 = the
+upcase-shape validation (reserved1@+1..+3, checksum@+4 free, reserved2
+@+8..+0x13). Bitmap=0x81/upcase=0x82/label=0x83 — the core's constants
+were RIGHT all along; the local branch was reverted pre-push; corpus erratum
+E43 filed (the v2 artifact's garbled §3 row labels). N-067 then landed on
+the verified constants: the upcase volume-integrity check (og shape gates +
+chain-read checksum32 vs TableChecksum, soft `ExfatScanStats` signal,
+grade-not-reject) with a real 64-entry fixture table at cluster 60.
+`UpcaseTableChecksumValidated` + `UpcaseLengthSanity` (fail-before: the
+assertions were RED with the validation unwired). Suite 597/597 ASan;
+42/42 UBSan on the touched paths; lint clean. Counts: MINOR 47 · SEVERE 1
+(S-029) · FIXED 82 (incl. S-033 INVALID record).
 
 # SUMMARY.md — executive summary (diff-fix session 9 on top; earlier sessions below)
 
@@ -475,6 +507,18 @@ executed on the stash-isolated pre-fix decoder (4 RED). N-016b (raw-bytes
 persistence in sessions — versioned name_raw field) remains open with the
 precise schema step recorded in N-029's Resolution. Suite 594/594
 linux-release.
+
+**Table-visualization batch FIXED (this wave):** N-057 — all three
+sub-items: (1) TableLayout::Ebr assigned on extended chains (the
+recommended SET; the ABI gains the APPENDED code 3 with 0/1/2 frozen,
+the CLI prints EBR, plain MBR pinned; serialized-value stability is why
+deletion was rejected); (2) the 64 MiB overlay-budget growth path tested
+at the exact boundary (at-budget does NOT grow — the loop's `>`
+semantics pinned); (3) the write-only `total` accumulator deleted.
+Fail-before executed (both table tests RED on the pre-fix parse). Suite
+600/600 linux-release. Counts: MINOR 41 · FIXED/ 97 files. Session
+unique resolutions: 12 (6 reconciliation + N-076 + N-030 + N-041 +
+N-016a + N-057).
 
 ## Session-8 delta (2026-10-26 — the closing-verification fix session, SEVERE lane first)
 
