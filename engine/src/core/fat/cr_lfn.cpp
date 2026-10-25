@@ -66,6 +66,43 @@ bool lfn_assemble(const std::vector<const LfnEntry*>& slots, u8 checksum, std::u
     return !out.empty();
 }
 
+bool lfn_deleted_checksum_recover(const std::vector<const LfnEntry*>& slots,
+                                   const u8 short_name_raw[11], u8& out_first_byte,
+                                   u8& out_checksum) {
+    out_first_byte = 0;
+    out_checksum = 0;
+    if (slots.empty())
+        return false;
+    /* all slots must agree on the stored checksum (a torn/mixed set has no
+     * oracle); FAT-10 already filtered junk 0x0F entries. */
+    const u8 stored = slots.front()->checksum;
+    for (const LfnEntry* e : slots)
+        if (e->checksum != stored)
+            return false;
+    /* brute-force the destroyed first byte: the checksum folds byte 0 in
+     * first and rotates it 10 more times, so its contribution to the final
+     * sum is ROR^10(b0) - a bijection over the 256 candidates. Exactly one
+     * candidate can match `stored`; zero matches means the set is corrupt. */
+    u8 candidate = 0;
+    bool found = false;
+    for (u32 c = 0; c <= 0xFF; ++c) {
+        u8 name[11];
+        std::memcpy(name, short_name_raw, 11);
+        name[0] = u8(c);
+        if (lfn_checksum(name) == stored) {
+            if (found && candidate != u8(c))
+                return false; /* unreachable for this checksum family */
+            candidate = u8(c);
+            found = true;
+        }
+    }
+    if (!found)
+        return false;
+    out_first_byte = candidate;
+    out_checksum = stored;
+    return true;
+}
+
 std::u16string short_name_to_u16(const u8 name[11]) {
     std::u16string s;
     int base_end = 8;

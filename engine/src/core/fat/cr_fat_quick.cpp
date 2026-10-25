@@ -167,11 +167,27 @@ void walk_dir_entries(EmitCtx& ctx, const DirBuffer& buf, tree::FileNode* host,
         std::u16string name;
         u8 short_name[11];
         std::memcpy(short_name, e->name, 11);
-        if (deleted)
-            short_name[0] = '_'; /* undelete convention */
+        u8 chk = lfn_checksum(e->name); /* checksum over ORIGINAL 11 bytes */
+        if (deleted) {
+            /* GAP-S6-1 (bench 40079065019, probe-verified): the raw checksum
+             * over 0xE5-led bytes can NEVER match the LFN slots' stored value
+             * (computed at write time over the ORIGINAL first byte) - every
+             * deleted-LFN file fell back to the '_'-mangled 8.3 name. The
+             * stored checksum brute-forces the destroyed byte
+             * deterministically (bijection over 256 candidates); success
+             * restores BOTH the LFN validation target and the 8.3 fallback's
+             * first character. */
+            u8 recovered = 0, recovered_chk = 0;
+            if (!pending_lfn.empty() &&
+                lfn_deleted_checksum_recover(pending_lfn, e->name, recovered, recovered_chk)) {
+                chk = recovered_chk;
+                short_name[0] = recovered;
+            } else {
+                short_name[0] = '_'; /* undelete convention (no oracle) */
+            }
+        }
         if (short_name[0] == 0x05)
             short_name[0] = 0xE5;       /* KANJI escape */
-        u8 chk = lfn_checksum(e->name); /* checksum over ORIGINAL 11 bytes */
         bool lfn_ok = false;
         if (!pending_lfn.empty()) {
             std::u16string lfn;
@@ -202,11 +218,30 @@ void emit_entry(EmitCtx& ctx, const DirEntry& e, const std::u16string& name, boo
 
     /* chain resolution (F-A1-11: the walkers poll the token per step) */
     ChainResult chain;
+    bool inferred_chain = false;
     if (!deleted) {
         chain = follow_chain(*ctx.table, first_cluster, 0x10000, ctx.cancel);
     } else if (ctx.flags.reconstruct_deleted_chains && first_cluster >= 2) {
         chain = reconstruct_deleted_chain(*ctx.table, first_cluster, is_dir ? 0 : expect_clusters,
                                           ctx.cancel);
+        /* GAP-S6-2 (bench 40079065019: 46/10143 hash-true): an UNLINKED
+         * deleted chain (FAT zeroed at delete time) reconstructs as a
+         * single-cluster run while the dentry carries the full size - the
+         * writer then emits plausible-size, wrong-byte files. The
+         * contiguous-candidate heuristic completes the run when the linked
+         * walk came up short AND the first cluster is FREE (the freed-chain
+         * signature): [start, start+expect) validated against the FAT
+         * free-state. Inferred chains are flagged and never graded
+         * Excellent (the honesty cap below enforces PartialRisk). */
+        if (!is_dir && !chain.cancelled && chain.length() < expect_clusters &&
+            ctx.table->raw(first_cluster) == 0) {
+            ChainResult contig = reconstruct_contiguous_chain(*ctx.table, first_cluster,
+                                                              expect_clusters, ctx.cancel);
+            if (contig.length() > chain.length()) {
+                chain = std::move(contig);
+                inferred_chain = true;
+            }
+        }
     }
     if (chain.cancelled)
         return; /* unwinding mid-chain: no partial emission */
@@ -267,6 +302,10 @@ void emit_entry(EmitCtx& ctx, const DirEntry& e, const std::u16string& name, boo
          * chain was zeroed at delete time; content may be reused */
         if (!is_dir && first_cluster >= 2 && ctx.table->raw(first_cluster) == 0 &&
             g == tree::Confidence::Excellent)
+            g = tree::Confidence::PartialRisk;
+        /* GAP-S6-2: an inferred (contiguous-candidate) run is NEVER
+         * Excellent - it is a reconstruction, not FAT-verified truth */
+        if (inferred_chain && g == tree::Confidence::Excellent)
             g = tree::Confidence::PartialRisk;
         n->set_confidence(g);
     } else {

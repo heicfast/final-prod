@@ -213,6 +213,33 @@ ChainResult reconstruct_deleted_chain(const FatTable& t, u32 start, u32 expect_c
     return r;
 }
 
+ChainResult reconstruct_contiguous_chain(const FatTable& t, u32 start, u32 expect_clusters,
+                                         const CancelToken* cancel) {
+    /* GAP-S6-2: unlinked-chain contiguous candidate - see the header comment
+     * for the full rationale. Only applies with a real size expectation; the
+     * run is validated cluster-by-cluster against the FAT free-state and
+     * truncated at the first non-FREE cluster (honest partial prefix). */
+    ChainResult r;
+    if (start < 2 || start > t.max_cluster() || expect_clusters == 0)
+        return r;
+    u32 n = expect_clusters;
+    if (u64(start) + u64(n) - 1 > t.max_cluster())
+        n = u32(t.max_cluster() - start + 1);
+    for (u32 c = start; c < start + n; ++c) {
+        /* cancel poll at every candidate step (F-A1-11 cadence) */
+        if (cancel && cancel->checkpoint()) {
+            r.cancelled = true;
+            return r;
+        }
+        if (t.raw(c) != 0)
+            break; /* allocated/linked inside the candidate run: cut here */
+        r.clusters.push_back(c);
+    }
+    if (!r.clusters.empty())
+        r.inferred = true;
+    return r;
+}
+
 u32 validate_boot(const u8* sector512, u64 device_bytes, FatParams& out) {
     if (sector512 == nullptr || !fat::boot_signature_ok(sector512))
         return ERR_BAD_MAGIC;

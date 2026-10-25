@@ -587,3 +587,243 @@ TEST(FatEngine, DeletedLfnFragmentOrder) {
     EXPECT_EQ(victim->deleted_state(), tree::DeletedState::Deleted);
     EXPECT_GE(stats.lfn_recovered, 1u);
 }
+
+/* ---- GAP-S6-1: deleted-LFN checksum oracle (bench 40079065019 + probe) ----
+ *
+ * PROBE GROUND TRUTH (mtools FAT32 image, mdel, raw dentry dump - session
+ * worklog CORE-FINAL-1): deletion writes 0xE5 into byte 0 of EVERY 32-byte
+ * entry in the chain - for LFN slots that is the SEQUENCE byte; the 13-char
+ * name chunks are FULLY INTACT, and every slot carries the checksum that was
+ * computed at WRITE TIME over the ORIGINAL (pre-deletion) 8.3 bytes. The old
+ * code checksummed the 0xE5-led bytes and could never match -> every deleted
+ * long name fell back to '_'-mangled 8.3 (bench: SEED\TINY\_000.JPG). */
+
+TEST(FatEngine, DeletedLfnRealWorldChecksumRecoversFullName) {
+    /* the exact probe shape: "averylongfilename000.txt" (24 chars, 2 slots),
+     * alias AVERYL~1.TXT, checksum stored over the ORIGINAL 'A'-led bytes,
+     * then deletion 0xE5's all three entries' first bytes. */
+    auto img = build_fat16_image();
+    u8* root = img.data() + 42 * 512;
+    u8 name11[11] = {'A', 'V', 'E', 'R', 'Y', 'L', '~', '1', 'T', 'X', 'T'};
+    const u8 chk = lfn_checksum(name11); /* over the ORIGINAL bytes - what
+                                           * Windows stores at write time */
+    make_lfn_slot(root + 0 * 32, 0x42, chk, u"name000.txt"); /* seq2|last */
+    make_lfn_slot(root + 1 * 32, 0x01, chk, u"averylongfile"); /* seq1 */
+    make_dentry(root + 2 * 32, "AVERYL~1TXT", 0x20, 20, 1000, 0x5A46, 0x6000, true);
+    /* deletion markers: sequence byte of each slot + the 8.3 first byte */
+    root[0 * 32] = 0xE5;
+    root[1 * 32] = 0xE5;
+    root[2 * 32] = 0xE5;
+
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* ra = tree.add_root(u"Found");
+    auto* rd = tree.add_root(u"Deleted");
+    FatScanFlags flags;
+    FatScanStats stats;
+    ASSERT_EQ(scan_fat(&dev, flags, nullptr, nullptr, nullptr, tree, ra, rd, nullptr, stats),
+              OK);
+
+    auto all = collect_all(tree);
+    tree::FileNode* victim = nullptr;
+    for (auto* n : all)
+        if (n->name_utf8().find("averylongfilename000.txt") != std::string::npos)
+            victim = n;
+    ASSERT_NE(victim, nullptr) << "the FULL long name must recover from intact "
+                                  "name chunks + the checksum oracle";
+    EXPECT_EQ(victim->name_utf8(), "averylongfilename000.txt");
+    EXPECT_EQ(victim->deleted_state(), tree::DeletedState::Deleted);
+    EXPECT_GE(stats.lfn_recovered, 1u);
+}
+
+TEST(FatEngine, DeletedLfnSingleSlotChecksumRecovery) {
+    /* one-slot LFN ("report_v2.md" - base 9 chars > 8) with the REAL
+     * write-time checksum; deletion destroys slot + 8.3 first bytes. */
+    auto img = build_fat16_image();
+    u8* root = img.data() + 42 * 512;
+    u8 name11[11] = {'R', 'E', 'P', 'O', 'R', 'T', '~', '1', 'M', 'D'};
+    name11[10] = ' ';
+    const u8 chk = lfn_checksum(name11);
+    make_lfn_slot(root + 0 * 32, 0x41, chk, u"report_v2.md");
+    make_dentry(root + 1 * 32, "REPORT~1MD ", 0x20, 20, 1000, 0x5A46, 0x6000, true);
+    root[0 * 32] = 0xE5;
+    root[1 * 32] = 0xE5;
+
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* ra = tree.add_root(u"Found");
+    auto* rd = tree.add_root(u"Deleted");
+    FatScanFlags flags;
+    FatScanStats stats;
+    ASSERT_EQ(scan_fat(&dev, flags, nullptr, nullptr, nullptr, tree, ra, rd, nullptr, stats),
+              OK);
+
+    auto all = collect_all(tree);
+    tree::FileNode* victim = nullptr;
+    for (auto* n : all)
+        if (n->name_utf8() == "report_v2.md")
+            victim = n;
+    ASSERT_NE(victim, nullptr) << "single-slot deleted LFN must recover";
+    EXPECT_GE(stats.lfn_recovered, 1u);
+}
+
+TEST(FatEngine, DeletedLfnTornChecksumKeepsHonestFallback) {
+    /* slots disagree on the stored checksum -> no oracle -> the '_'
+     * convention fallback (never a fabricated long name). */
+    auto img = build_fat16_image();
+    u8* root = img.data() + 42 * 512;
+    u8 name11[11] = {'A', 'V', 'E', 'R', 'Y', 'L', '~', '1', 'T', 'X', 'T'};
+    const u8 chk = lfn_checksum(name11);
+    make_lfn_slot(root + 0 * 32, 0x42, chk, u"name000.txt");
+    make_lfn_slot(root + 1 * 32, 0x01, u8(chk ^ 0x5A), u"averylongfile"); /* torn */
+    make_dentry(root + 2 * 32, "AVERYL~1TXT", 0x20, 20, 1000, 0x5A46, 0x6000, true);
+    root[0 * 32] = 0xE5;
+    root[1 * 32] = 0xE5;
+    root[2 * 32] = 0xE5;
+
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* ra = tree.add_root(u"Found");
+    auto* rd = tree.add_root(u"Deleted");
+    FatScanFlags flags;
+    FatScanStats stats;
+    ASSERT_EQ(scan_fat(&dev, flags, nullptr, nullptr, nullptr, tree, ra, rd, nullptr, stats),
+              OK);
+
+    auto all = collect_all(tree);
+    bool saw_fabricated_long_name = false;
+    bool saw_fallback = false;
+    for (auto* n : all) {
+        if (n->name_utf8().find("averylongfilename") != std::string::npos)
+            saw_fabricated_long_name = true;
+        if (n->name_utf8() == "_VERYL~1.TXT")
+            saw_fallback = true;
+    }
+    EXPECT_FALSE(saw_fabricated_long_name) << "torn slot set must not yield a long name";
+    EXPECT_TRUE(saw_fallback) << "the '_'-convention 8.3 fallback must survive";
+}
+
+TEST(FatEngine, LfnDeletedChecksumBijection) {
+    /* the oracle is exact: for every 11-byte alias the brute-force returns
+     * the ORIGINAL first byte (spot-check across the byte space). */
+    for (u32 orig = 1; orig <= 0xFF; orig += 7) {
+        u8 name11[11] = {u8(orig), 'X', 'Y', '~', '1', 'T', 'X', 'T', ' ', ' ', ' '};
+        const u8 chk = lfn_checksum(name11);
+        LfnEntry slot = {};
+        slot.sequence = 0x41;
+        slot.attributes = ATTR_LFN;
+        slot.type = 0;
+        slot.checksum = chk;
+        slot.first_cluster = 0;
+        for (int i = 0; i < 5; ++i)
+            slot.name1[i] = 0xFFFF;
+        u8 raw[11] = {0xE5, 'X', 'Y', '~', '1', 'T', 'X', 'T', ' ', ' ', ' '};
+        u8 first = 0, got_chk = 0;
+        std::vector<const LfnEntry*> slots = {&slot};
+        ASSERT_TRUE(lfn_deleted_checksum_recover(slots, raw, first, got_chk))
+            << "recovery must succeed for orig=" << orig;
+        EXPECT_EQ(first, u8(orig)) << "recovered byte must equal the original";
+        EXPECT_EQ(got_chk, chk);
+    }
+}
+
+/* ---- GAP-S6-2: unlinked deleted chains get contiguous-candidate runs ----
+ *
+ * Bench 40079065019: FAT32 volume-scan cells committed 10143 files 'done'
+ * with manifest-matching sizes but only 46 hash-true - the classic
+ * first-cluster-only failure (freed chains yield ONE cluster; the writer
+ * zero-fills the rest at full size). The contiguous candidate completes the
+ * run, validated against the FAT free-state, graded PartialRisk. */
+
+TEST(FatEngine, DeletedUnlinkedChainGetsContiguousRun) {
+    auto img = build_fat16_image();
+    u8* root = img.data() + 42 * 512;
+    const size_t DATA = 74 * 512;
+    /* 4-cluster deleted-unlinked file at cluster 40 (FAT stays all-FREE -
+     * the zeroed links are exactly the unlink signature); content markers
+     * survive in the data area. */
+    make_dentry(root + 6 * 32, "UNLINK  TXT", 0x20, 40, 2048, 0x5A46, 0x6000, true);
+    for (u32 c = 40; c <= 43; ++c)
+        std::memcpy(img.data() + DATA + (c - 2) * 512, "UNLINKED-DATA-MARKER", 20);
+
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* ra = tree.add_root(u"Found");
+    auto* rd = tree.add_root(u"Deleted");
+    FatScanFlags flags;
+    FatScanStats stats;
+    ASSERT_EQ(scan_fat(&dev, flags, nullptr, nullptr, nullptr, tree, ra, rd, nullptr, stats),
+              OK);
+
+    auto all = collect_all(tree);
+    tree::FileNode* victim = nullptr;
+    for (auto* n : all)
+        if (n->name_utf8() == "_NLINK.TXT")
+            victim = n;
+    ASSERT_NE(victim, nullptr) << "unlinked deleted entry must surface";
+    /* the FULL 4-cluster contiguous run (was: 1 cluster pre-fix) */
+    ASSERT_EQ(victim->props()->extents.size(), 1u);
+    EXPECT_EQ(victim->props()->extents[0].offset, u64(72 + 40) * 512);
+    EXPECT_EQ(victim->props()->extents[0].length, u64(4) * 512);
+    EXPECT_EQ(victim->props()->logical_size, 2048u);
+    /* inferred chain: PartialRisk, never Excellent */
+    EXPECT_EQ(victim->confidence(), tree::Confidence::PartialRisk);
+}
+
+TEST(FatEngine, DeletedUnlinkedChainTruncatesAtReusedCluster) {
+    auto img = build_fat16_image();
+    u8* root = img.data() + 42 * 512;
+    const size_t FAT1 = 2 * 512;
+    /* 4-cluster candidate at 50, but cluster 52 is reallocated to a LIVE
+     * file (FAT entry non-zero) -> the run truncates to [50,51]; the
+     * 2-cluster prefix is honest partial content. */
+    make_dentry(root + 6 * 32, "TRUNC   TXT", 0x20, 50, 2048, 0x5A46, 0x6000, true);
+    set_fat16_entry(img, FAT1, 52, 0xFFFF); /* live allocation inside the run */
+    set_fat16_entry(img, 22 * 512, 52, 0xFFFF);
+
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* ra = tree.add_root(u"Found");
+    auto* rd = tree.add_root(u"Deleted");
+    FatScanFlags flags;
+    FatScanStats stats;
+    ASSERT_EQ(scan_fat(&dev, flags, nullptr, nullptr, nullptr, tree, ra, rd, nullptr, stats),
+              OK);
+
+    auto all = collect_all(tree);
+    tree::FileNode* victim = nullptr;
+    for (auto* n : all)
+        if (n->name_utf8() == "_RUNC.TXT")
+            victim = n;
+    ASSERT_NE(victim, nullptr);
+    ASSERT_EQ(victim->props()->extents.size(), 1u);
+    EXPECT_EQ(victim->props()->extents[0].offset, u64(72 + 50) * 512);
+    EXPECT_EQ(victim->props()->extents[0].length, u64(2) * 512); /* cut at 52 */
+    EXPECT_EQ(victim->confidence(), tree::Confidence::PartialRisk);
+}
+
+TEST(FatEngine, DeletedLinkedChainStillPrefersFatTruth) {
+    /* an INTACT linked chain (links survive deletion) must keep the
+     * FAT-walked run and its Excellent grading - the contiguous heuristic
+     * only completes runs that came up SHORT. (Chain 20->21 from the base
+     * fixture, size 1000 = 2 clusters.) */
+    auto img = build_fat16_image();
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* ra = tree.add_root(u"Found");
+    auto* rd = tree.add_root(u"Deleted");
+    FatScanFlags flags;
+    FatScanStats stats;
+    ASSERT_EQ(scan_fat(&dev, flags, nullptr, nullptr, nullptr, tree, ra, rd, nullptr, stats),
+              OK);
+    auto all = collect_all(tree);
+    tree::FileNode* del = nullptr;
+    for (auto* n : all)
+        if (n->name_utf8() == "_EL.TXT")
+            del = n;
+    ASSERT_NE(del, nullptr);
+    ASSERT_EQ(del->props()->extents.size(), 1u);
+    EXPECT_EQ(del->props()->extents[0].offset, u64(72 + 20) * 512);
+    EXPECT_EQ(del->props()->extents[0].length, u64(2) * 512);
+    EXPECT_EQ(del->confidence(), tree::Confidence::Excellent); /* FAT-linked truth */
+}

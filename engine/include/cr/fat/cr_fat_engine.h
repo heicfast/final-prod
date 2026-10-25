@@ -89,6 +89,7 @@ struct ChainResult {
     bool cycle = false;
     bool broken = false;    /* chain ended prematurely (0/BAD mid-chain) */
     bool cancelled = false; /* cancel token fired mid-walk (F-A1-11) */
+    bool inferred = false;  /* GAP-S6-2: contiguous-candidate run, not FAT-linked */
     u32 length() const { return u32(clusters.size()); }
 };
 
@@ -105,11 +106,42 @@ ChainResult follow_chain(const FatTable& t, u32 start, u32 max_len = 0x100000,
 ChainResult reconstruct_deleted_chain(const FatTable& t, u32 start, u32 expect_clusters,
                                       const CancelToken* cancel = nullptr);
 
+/* GAP-S6-2 (bench run 40079065019: 46/10143 hash-true - the "classic
+ * first-cluster-only" failure): a deleted file whose FAT links were zeroed
+ * at delete time reconstructs as a ONE-cluster chain while the dentry still
+ * carries the full size -> the writer emits plausible-size, wrong-byte
+ * files. The contiguous-candidate heuristic: freed chains are commonly
+ * physically contiguous (sequential writes), so the candidate run is
+ * [start, start+expect) validated cluster-by-cluster against the FAT
+ * free-state - every cluster in the run must be FREE (a reused cluster
+ * truncates the run at its first occurrence; the prefix survives, honestly
+ * partial). The result is flagged `inferred` - never graded Excellent
+ * (the honesty cap in emit_entry enforces that). Corpus lineage:
+ * CFatCompleteSearch "deleted-entry chain reconstruction" (v1 artifact
+ * §5); the exact unlinked-chain heuristic is corpus-UNVERIFIED - this is
+ * our reconstruction policy, registered in PARITY-DELTAS. */
+ChainResult reconstruct_contiguous_chain(const FatTable& t, u32 start, u32 expect_clusters,
+                                         const CancelToken* cancel = nullptr);
+
 /* ---- LFN ---- */
 u8 lfn_checksum(const u8 short_name[11]);
 /* Assemble LFN from collected slots (in disk order); returns false if the
  * checksum does not match the short entry (corrupt LFN -> fall back 8.3). */
 bool lfn_assemble(const std::vector<const LfnEntry*>& slots, u8 checksum, std::u16string& out);
+
+/* GAP-S6-1 (bench run 40079065019, probe-verified): a deleted dentry's 8.3
+ * first byte is 0xE5, so lfn_checksum over the raw bytes NEVER matches the
+ * checksum the LFN slots stored at write time (computed over the ORIGINAL
+ * first byte). The stored checksum is a deterministic oracle for that byte:
+ * the checksum's byte-0 contribution is a bijection (ROR^10 of the byte),
+ * so exactly one candidate in 0..255 can match when the slot set is intact.
+ * Recover the original first byte + the matching checksum; false when the
+ * slots disagree among themselves or no candidate matches (torn set).
+ * Probe evidence: deletion 0xE5's byte 0 of every 32-byte entry - for LFN
+ * slots that is the SEQUENCE byte; the 13-char name chunks are intact. */
+bool lfn_deleted_checksum_recover(const std::vector<const LfnEntry*>& slots,
+                                   const u8 short_name_raw[11], u8& out_first_byte,
+                                   u8& out_checksum);
 
 /* 8.3 name -> display string (strip pad spaces, split dot). */
 std::u16string short_name_to_u16(const u8 name[11]);
