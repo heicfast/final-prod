@@ -9206,7 +9206,10 @@ Stage Summary:
   hardening tests; corpus citations re-verified first-hand by both legs).
   SEVERE tier: S-029 + S-030 remain. Session tally: M-053, union repair,
   S-009 (verification + hardening port). Next: S-030 (image scan targets),
-  then S-029 (apply path), then the MAJOR/MINOR waves.>>>>>>> 33c0722 (test(S-009 hardening): port the second leg's unique free-overlay proof set onto the landed implementation)
+  then S-029 (apply path), then the MAJOR/MINOR waves.
+  [union-repaired by DFX11 session 11: the a3e5fd8 landing's merge left a
+  committed '>>>>>>> 33c0722' tail here; both sides preserved - the
+  DFX9-T1b entry above is the kept record]
 ---
 Task ID: DFX9-T2 (lane claim — unclaimed MINOR high-value trio + module batches)
 Agent: main engineer (diff-to-fix session 9, the M-053/union-repair/S-009-hardening leg)
@@ -9444,3 +9447,68 @@ Stage Summary:
   fix (unique) + my audit-trail convergence records. Session unique
   resolutions: 6 reconciliation moves + N-076. Next: N-056, N-063,
   N-069, N-029, N-030.
+
+---
+Task ID: DFX11-S009V (session 11, S-009 verification + convergence record)
+Agent: main engineer (diff-to-fix fix session 11 — DFX11)
+Task: S-009 was fixed CONVERGENTLY by this leg and the parallel DFX8/DFX9
+arc (c55bd45 + a3e5fd8 landed first). This entry records the independent
+verification, the corpus arbitrations, and the fold decision.
+
+Work Log:
+- This leg implemented the full free-overlay stack independently (Volume
+  AllocMap polarity, REC_ALLOC_MAP, snapshot context, want-relaxation,
+  13 tests, 547/547 at the pre-landing tree) — the rebase onto the
+  parallel landing (c55bd45, +M-031 d487928/6f6210f) exposed the
+  collision; per the lane protocol the FIRST LANDING wins and this leg's
+  convergent implementation was DROPPED CLEANLY (reset to origin/main).
+- Verification of the LANDED implementation, first-hand at 6f6210f:
+  suite 575/575 Linux Release. Corpus arbitrations from this pass:
+  * FAT free map: this leg had corrected the finding's plan text against
+    the corpus (no FAT BUILDER class in the RTTI evidence); the landed
+    leg derives the FAT free map from the loaded table. The corpus
+    settles it FOR the landed design: searchdll-family--architecture.md
+    :98 - "RAW pass: RAWSearchDLL carves by signatures across unallocated
+    clusters (VOLUME BITMAP FROM FS ENGINE) + free space" - the pipeline
+    demands the FS engine supply the volume bitmap, and for FAT the only
+    allocation truth IS the table (entry 0 = free). My narrow reading is
+    corrected here; the landed FAT free map is og-faithful.
+  * found-content suppression clause: the finding's plan text ("no
+    found-content covers") was stricter than the og; the landed rule
+    paints bitmap-free cells regardless of found content - which matches
+    the og's IBuildVolumeBitmap truth (the grid colors from the bitmap;
+    deleted content on free clusters shows FREE in the og too). The
+    landed design wins this arbitration as well.
+  * want-relaxation (NULL want -> session view) and the frozen
+    carve-completed mask on the snapshot path: this leg's variants were
+    considered and NOT folded - the landed contract (want required +
+    bounds-checked, carve_completed=false on value views, plus the NEW
+    cr_ui_scan_snapshot live surface) is coherent, pinned by their
+    tests, and covers the mid-scan use through the dedicated path.
+    Folding would churn the ABI contract twice for a nicety.
+- The a3e5fd8 landing's committed conflict tail in this worklog repaired
+  (both sides preserved; see the DFX9-T1b entry note).
+
+Stage Summary:
+- S-009 stands FIXED via the parallel landing; verified by this leg.
+  SEVERE remaining: S-029 (DFX10's claim), S-030 (DFX8 in flight).
+  This session's fix tally: 0 (verification only) - the 20+ target
+  continues on the MAJOR tier below.
+
+---
+Task ID: DFX11-CLAIM (session 11, lane claim — unclaimed MAJOR batch)
+Agent: main engineer (diff-to-fix fix session 11 — DFX11)
+Task: Lane claim, posted before any finding work. Per the worklog claim
+map: DFX15 owns M-046/M-045/M-013/M-052/M-043/M-018/M-014 (+M-002/M-037/
+M-031 landed), DFX9-T7 owns M-035/M-018/M-013/M-014, DFX14 owns M-005,
+DFX9-T2 owns N-065/N-070/N-075, DFX13 owns N-045/N-067/N-068/N-069,
+S-029 is DFX10's, S-030 is DFX8's. This leg claims the UNCLAIMED MAJOR
+batch, one-finding-one-commit-one-push:
+M-007 (NTFS hard-link fan-out), M-008 (NTFS attrlist chase scope/depth),
+M-032 (slice tail read clamp vs refusal), M-050 (session node-model
+roundtrip gaps), M-029 (query model sort/paging/bucket-ids/server-push),
+M-049 (error model divergence + parity claim). Extensions announced in
+this worklog as each lands.
+
+Stage Summary:
+- Claim posted; execution begins with M-007.
