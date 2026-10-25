@@ -17,7 +17,7 @@
 - Consequence: M-029's "server-side filter push" mechanism = this per-scan config fetch
   (the push happens at scan start, not per file); the og has NO FileNNNN naming scheme
   (carve names are per-analyser: MP4/MOV template "Lost Name File (...)_EaseUS",
-  CZeroEndRawFileInfo content-embedded names) — filed as N-060 with the corpus deep-dive
+  CZeroEndRawFileInfo content-embedded names) — filed as N-063 with the corpus deep-dive
   artifact's contrary claim queued as a corpus-errata row.
 
 ## Residual (precise next artifact)

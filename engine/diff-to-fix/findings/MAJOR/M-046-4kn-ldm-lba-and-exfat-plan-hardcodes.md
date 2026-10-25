@@ -1,4 +1,4 @@
-# MAJOR M-040 — 4Kn wrong-offset / truncated-plan defects: LDM GPT path hardcodes 512-byte LBAs; exFAT repair plans write 512 of 4096 bytes
+# MAJOR M-046 — 4Kn wrong-offset / truncated-plan defects: LDM GPT path hardcodes 512-byte LBAs; exFAT repair plans write 512 of 4096 bytes
 
 **Severity:** MAJOR
 **Module:** ldm + rawfixer

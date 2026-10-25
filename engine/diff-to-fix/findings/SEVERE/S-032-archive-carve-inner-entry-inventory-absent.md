@@ -1,4 +1,4 @@
-# SEVERE S-030 — Archive carve emits one flat node: the og reconstructs ZIP/RAR inner-entry inventories for the results tree
+# SEVERE S-032 — Archive carve emits one flat node: the og reconstructs ZIP/RAR inner-entry inventories for the results tree
 
 **Severity:** SEVERE
 **Module:** carve
@@ -103,8 +103,8 @@ model, on par with the S-023 grading surface.
 
 ## Related findings
 
-- S-029 (carved deleted flag — same emit path; land together)
-- M-045 (RAW provenance fields — same CRAWFileProperties grammar carries the og's archive
+- S-031 (carved deleted flag — same emit path; land together)
+- M-051 (RAW provenance fields — same CRAWFileProperties grammar carries the og's archive
   note fields; the inventory work should sequence with the provenance carrier)
 - S-007 (missing formats — the entry-inventory work per format should follow the og's
   analyser roster)

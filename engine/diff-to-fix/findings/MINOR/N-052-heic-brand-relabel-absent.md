@@ -1,4 +1,4 @@
-# MINOR N-049 — HEIC analyser does not relabel HEIF-family brands to the "HEIF" display label
+# MINOR N-052 — HEIC analyser does not relabel HEIF-family brands to the "HEIF" display label
 
 **Severity:** MINOR
 **Module:** carve
@@ -49,7 +49,7 @@ Corpus decode read first-hand; core registry row read first-hand.
 
 ## Related findings
 
-- N-048 (same artifact's decode family)
+- N-051 (same artifact's decode family)
 
 ## Open questions
 

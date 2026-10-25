@@ -143,7 +143,7 @@ hardwired-layout-0 finding; OQ-T7 RESOLVED-MATCH). This leg's active LDM items: 
 
 ## Session-5 audit (audited commit `7cf6754`)
 
-- **M-040 (MAJOR, NEW — LDM half):** the LDM-over-GPT discovery path hardcodes 512-byte
+- **M-046 (MAJOR, NEW — LDM half):** the LDM-over-GPT discovery path hardcodes 512-byte
   LBAs (`cr_ldm.cpp:1007/:1014/:1021` — `read_at(1*512,…)`, `entries_start_lba*512`,
   `last_lba*512`) while the main GPT parser is geometry-correct
   (`cr_table_parse.cpp:19-22`). On 4Kn GPT disks the LDM metadata partition is looked up

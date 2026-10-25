@@ -1,4 +1,4 @@
-# MINOR N-052 — ATA SMART thresholds never read (0xD1): the og's health engine reads READ ATTRIBUTE THRESHOLDS and surfaces threshold-based verdicts; the core reads only READ DATA (0xD0) — disposition correction for modules/health.md
+# MINOR N-055 — ATA SMART thresholds never read (0xD1): the og's health engine reads READ ATTRIBUTE THRESHOLDS and surfaces threshold-based verdicts; the core reads only READ DATA (0xD0) — disposition correction for modules/health.md
 
 **Severity:** MINOR
 **Module:** health

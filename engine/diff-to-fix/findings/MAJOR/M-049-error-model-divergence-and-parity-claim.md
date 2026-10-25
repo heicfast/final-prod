@@ -1,4 +1,4 @@
-# MAJOR M-043 — Error-model divergence: flat 28-code 8-hex-digit enum vs the og's error-object system with 12-digit HRESULT codes; cr_error.h's parity claim is wrong on the documented values
+# MAJOR M-049 — Error-model divergence: flat 28-code 8-hex-digit enum vs the og's error-object system with 12-digit HRESULT codes; cr_error.h's parity claim is wrong on the documented values
 
 **Severity:** MAJOR
 **Module:** err (+ ABI/CLI surfaces)
@@ -83,7 +83,7 @@ error surface beyond the raw u32.
 
 ## Related findings
 
-- N-058 (engine-log absence — the og's diagnostic `cout` channel and EPMLOG sink are the
+- N-061 (engine-log absence — the og's diagnostic `cout` channel and EPMLOG sink are the
   error-consumer surfaces this finding's context struct should feed)
 - N-040 (ABI doc truthfulness bundle — the header claim belongs to the same doc-accuracy
   family)

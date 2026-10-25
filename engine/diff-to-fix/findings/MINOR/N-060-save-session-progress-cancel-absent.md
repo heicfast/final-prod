@@ -1,4 +1,4 @@
-# MINOR N-057 — save_session has no progress or cancel contract: the og drives 40%→65% per-node progress with per-child IsCancelled teardown
+# MINOR N-060 — save_session has no progress or cancel contract: the og drives 40%→65% per-node progress with per-child IsCancelled teardown
 
 **Severity:** MINOR
 **Module:** session (+ orchestration)
@@ -56,7 +56,7 @@ Corpus flow section read first-hand; save path read first-hand (no token/event s
 ## Related findings
 
 - N-043 (progress liveness watchdog — same progress-contract family; land together)
-- N-055 (loader hardening — same module wave)
+- N-058 (loader hardening — same module wave)
 
 ## Open questions
 

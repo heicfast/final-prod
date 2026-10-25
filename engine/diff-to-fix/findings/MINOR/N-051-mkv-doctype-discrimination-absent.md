@@ -1,4 +1,4 @@
-# MINOR N-048 — MKV/WebM validator lacks the og's DocType discrimination and element-bounds gate
+# MINOR N-051 — MKV/WebM validator lacks the og's DocType discrimination and element-bounds gate
 
 **Severity:** MINOR
 **Module:** carve
@@ -61,7 +61,7 @@ session.
 ## Related findings
 
 - S-007 (format coverage — MKV exists both sides; this is the validator-detail delta)
-- N-049 (HEIC label family — the same granular-batch1 decode)
+- N-052 (HEIC label family — the same granular-batch1 decode)
 
 ## Open questions
 

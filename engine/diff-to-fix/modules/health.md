@@ -85,12 +85,12 @@ during reconciliation.)
 
 ## Session-5 audit (audited commit `7cf6754`)
 
-- **N-052 (MINOR, NEW — disposition correction):** ATA SMART thresholds (READ ATTRIBUTE
+- **N-055 (MINOR, NEW — disposition correction):** ATA SMART thresholds (READ ATTRIBUTE
   THRESHOLDS 0xD1) are never read; the og's engine reads them and its UI composes
   threshold-based verdicts (Threshold column, firstCautionIndex — UIUX 19 + the
   diskhealth companion artifact). This session's correction: the prior "presentation-layer
   feature" verdict on the threshold semantics was WRONG — the read is an engine-side data
   gap. NVMe unaffected (`available_spare_threshold` is read, cr_nvme.cpp:30).
-- **N-061 (MINOR, NEW):** the og's Dict password dictionary (228 entries; manage-bde
+- **N-064 (MINOR, NEW):** the og's Dict password dictionary (228 entries; manage-bde
   -Password consent-gated attempts) has no core counterpart — capability register, any
   port must keep the consent gate (parameter F61).

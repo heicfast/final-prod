@@ -19,7 +19,7 @@ extends this finding's filter-model evidence without changing its scope:
 - **CCheckNodeThread re-grade wiring**: recoverability re-grading runs on a TimeCritical
   worker per selection — S-023's per-selection re-grade now has its threading evidence.
 - **OQ-S4-2 naming correction (folds into this finding's doc-accuracy family)**: the og
-  has NO "FileNNNN" carve-naming scheme (see N-060) — the corpus deep-dive artifact's
+  has NO "FileNNNN" carve-naming scheme (see N-063) — the corpus deep-dive artifact's
   "File0001.jpg lives in the UI" claim is wrong and is filed as a corpus-errata row; the
   vtable+0x48 hook is a one-shot per-scan "filter_generalraw" config fetch, i.e. it
   belongs to THIS finding's server-side filter-push section (the push mechanism's config

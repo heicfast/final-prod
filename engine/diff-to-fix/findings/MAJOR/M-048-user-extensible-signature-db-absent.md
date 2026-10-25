@@ -1,4 +1,4 @@
-# MAJOR M-042 — User-extensible signature database (EUUserData) has no core counterpart
+# MAJOR M-048 — User-extensible signature database (EUUserData) has no core counterpart
 
 **Severity:** MAJOR
 **Module:** carve (+ query extension surfacing)

@@ -1,4 +1,4 @@
-# MAJOR M-044 — Session node-model round-trip gaps: the og persists ~15 wrapper/node state fields the core's wire cannot carry (hidden roots, grading bits, orphan hint, roles, fixup)
+# MAJOR M-050 — Session node-model round-trip gaps: the og persists ~15 wrapper/node state fields the core's wire cannot carry (hidden roots, grading bits, orphan hint, roles, fixup)
 
 **Severity:** MAJOR
 **Module:** session + tree
@@ -67,7 +67,7 @@ hidden/orphan work will hit; filing it now pins the carrier work.
   lands), a role u32 pair for roots, and an orphan-hint byte; document each in the session
   contract doc with the rsf-record4 field it mirrors.
 2. Add the loader-side validation the og applies (marker, name-length, parent-ref) — see
-  N-055 for the validation-delta specifics; land as one loader hardening change.
+  N-058 for the validation-delta specifics; land as one loader hardening change.
 3. Round-trip tests for each new field; keep old sessions loadable (unknown bits ignored
   forward-compatibly — the core's own format versioning rule).
 4. When S-023's grading engine lands, its per-node grades must persist through the new bits —
@@ -83,9 +83,9 @@ hidden/orphan work will hit; filing it now pins the carrier work.
 ## Related findings
 
 - S-023 (grading engine — bits 5-7 are its persistence carrier; this finding reserves them)
-- S-029 (carved deleted flag — the deleted bits already have a carrier; producer-side fix)
-- M-041 (stats round-trip — same loader path, land together)
-- N-055 (load validation deltas — the og's per-node checks the core lacks)
+- S-031 (carved deleted flag — the deleted bits already have a carrier; producer-side fix)
+- M-047 (stats round-trip — same loader path, land together)
+- N-058 (load validation deltas — the og's per-node checks the core lacks)
 
 ## Open questions
 

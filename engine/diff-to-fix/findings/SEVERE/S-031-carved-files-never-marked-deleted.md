@@ -1,4 +1,4 @@
-# SEVERE S-029 — Carved files are never marked deleted: og flags every carved record deleted (FLAGS=0x0020); core's deleted-filter and deleted-count exclude the entire carve result set
+# SEVERE S-031 — Carved files are never marked deleted: og flags every carved record deleted (FLAGS=0x0020); core's deleted-filter and deleted-count exclude the entire carve result set
 
 **Severity:** SEVERE
 **Module:** carve (producer) + session/query/tree (consumers)
@@ -102,9 +102,9 @@ a wrong-result divergence on the product's primary workflow, not a presentation 
 
 - S-023 (grading engine — the og's grade bits live at node+0x73 in the same FLAGS-adjacent
   byte family; a fix leg touching node state should sequence with this)
-- M-044 (session node-model round-trip gaps — the deleted bit is one of the few flags the
+- M-050 (session node-model round-trip gaps — the deleted bit is one of the few flags the
   core DOES carry; this finding closes the producer-side hole)
-- N-055 (session load validation deltas)
+- N-058 (session load validation deltas)
 
 ## Open questions
 

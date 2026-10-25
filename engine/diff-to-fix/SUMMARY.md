@@ -99,8 +99,8 @@ M-042/M-043/M-045 family and the prior backlog order below.
 ## Session-5 audit delta (2026-10-26 — the citation-gap / remaining-surface READ-ONLY session; full detail in the Session-5 delta section below)
 
 The audit leg's full delta (24 findings: A-005 ACUTE rawfixer 4Kn stack-buffer
-overflow; S-029 carved-deleted; S-030 archive inventories; M-040..M-045;
-N-048..N-061; I-019/I-020; OQ-S4-1 RESOLVED convergently with the fix leg —
+overflow; S-031 carved-deleted; S-032 archive inventories; M-046..M-051;
+N-051..N-064; I-021/I-022; OQ-S4-1 RESOLVED convergently with the fix leg —
 structure+consumption decode here, the extension-list dump there, both folded
 into S-023; OQ-S4-2 RESOLVED; corpus errata 37-40; suite 366/366 evidence at
 `7cf6754`) is recorded verbatim in the "Session-5 delta" section below — keep
@@ -320,29 +320,29 @@ verify the fixed things, go deeper on og-vs-core, mark every remaining feature/f
 - **A-005 (ACUTE — first since A-004):** rawfixer 4Kn stack-buffer overflow — the FIX-3
   4Kn offset fix changed read LENGTHS to `sector` but left the 512-byte stack buffers;
   3,584-byte overflow per read on 4Kn devices; CI blind (tests pin 512). Co-located
-  M-040: exFAT 512-byte repair plans + LDM GPT-path `*512` hardcodes (4Kn wrong offsets).
-- **S-029 (SEVERE):** carved files never marked deleted — og FLAGS=0x0020 constant on
+  M-046: exFAT 512-byte repair plans + LDM GPT-path `*512` hardcodes (4Kn wrong offsets).
+- **S-031 (SEVERE):** carved files never marked deleted — og FLAGS=0x0020 constant on
   all carved records; the core's `deleted_only` query and `deleted_count` exclude the
   ENTIRE carve result set (cr_query.cpp:114 / cr_carve.cpp:174-182).
-- **S-030 (SEVERE):** archive inner-entry inventories absent — the og returns the
+- **S-032 (SEVERE):** archive inner-entry inventories absent — the og returns the
   complete ZIP entry list (presented as archive contents) and stitches multi-part RARs;
   the core emits one flat node per archive.
-- **MAJOR wave (6):** M-040 (4Kn LDM/exFAT plans), M-041 (session stats written-then-
-  discarded + direct-only refresh vs the og's trusted recursive image), M-042 (EUUserData
-  user-signature extensibility — 111 extensions, no counterpart), M-043 (error model:
+- **MAJOR wave (6):** M-046 (4Kn LDM/exFAT plans), M-047 (session stats written-then-
+  discarded + direct-only refresh vs the og's trusted recursive image), M-048 (EUUserData
+  user-signature extensibility — 111 extensions, no counterpart), M-049 (error model:
   false "reproduces the reference convention" claim; og 12-digit documented codes +
-  error objects), M-044 (~15 unpersisted og node fields incl. grading bits + hidden
-  roots), M-045 (RAW provenance fields: timestamp/checksum/note/anchors).
-- **MINOR wave (14):** N-048 MKV DocType, N-049 HEIC relabel, N-050 IIU binding,
-  N-051 RAF/JPEG strictness (both directions), N-052 SMART 0xD1 thresholds (health
-  disposition CORRECTED — data-layer gap, not presentation), N-053 WinDestIo temp leak,
-  N-054 TableLayout::Ebr dead + diskmap test debt, N-055 session load validation deltas,
-  N-056 btrfs/zfs session extras, N-057 save progress/cancel, N-058 run-log + session
-  auto-naming, N-059 memory monitor, N-060 carve naming invented (OQ-S4-2 resolution +
-  a corpus-artifact correction), N-061 Dict password-dictionary unlock aid.
-- **INFO registers:** I-019 (og always-elevated manifests — new binary evidence;
+  error objects), M-050 (~15 unpersisted og node fields incl. grading bits + hidden
+  roots), M-051 (RAW provenance fields: timestamp/checksum/note/anchors).
+- **MINOR wave (14):** N-051 MKV DocType, N-052 HEIC relabel, N-053 IIU binding,
+  N-054 RAF/JPEG strictness (both directions), N-055 SMART 0xD1 thresholds (health
+  disposition CORRECTED — data-layer gap, not presentation), N-056 WinDestIo temp leak,
+  N-057 TableLayout::Ebr dead + diskmap test debt, N-058 session load validation deltas,
+  N-059 btrfs/zfs session extras, N-060 save progress/cancel, N-061 run-log + session
+  auto-naming, N-062 memory monitor, N-063 carve naming invented (OQ-S4-2 resolution +
+  a corpus-artifact correction), N-064 Dict password-dictionary unlock aid.
+- **INFO registers:** I-021 (og always-elevated manifests — new binary evidence;
   EuSendMessage installer-only; repair toggle; CRecoveryFilter layering; PENetwork SMB;
-  DRWCfg out-of-scope), I-020 (core supersets: CRC32/resync/bomb-caps, structured btrfs
+  DRWCfg out-of-scope), I-022 (core supersets: CRC32/resync/bomb-caps, structured btrfs
   extents, decoded zfs runlists, extra props).
 - **OQ resolutions:** OQ-S4-1 RESOLVED (169-entry grading table dumped byte-exact from
   DRWUI.exe .data 0x141bb0500 — char[9] strided, last-dot/uppercase/exact-find
@@ -357,17 +357,17 @@ verify the fixed things, go deeper on og-vs-core, mark every remaining feature/f
   MOM-censuses-are-structural meta-note.
 - **Counts at session-5 close (direct file inventory):** **110 active** (1 ACUTE:
   A-005 · 10 SEVERE: S-003, S-007, S-009-partial, S-012, S-020, S-021, S-022, S-023,
-  S-029, S-030 · 31 MAJOR: M-002, M-005, M-007, M-008, M-010..M-045 minus 6 in FIXED/ ·
-  52 MINOR: N-001..N-061 minus the FIXED/INVALID ones · 16 INFO: I-001..I-020 minus
+  S-031, S-032 · 31 MAJOR: M-002, M-005, M-007, M-008, M-010..M-051 minus 6 in FIXED/ ·
+  52 MINOR: N-001..N-064 minus the FIXED/INVALID ones · 16 INFO: I-001..I-022 minus
   I-004/I-005 in FIXED/) · **27 FIXED** (latest: S-019) · 8 tracked-open (2 resolved
   this session: OQ-S4-1, OQ-S4-2-resolved).
 
 **Top-risk update (session 5):** #1 **A-005** (ACUTE — memory corruption on 4Kn; smallest
-verified fix: resize 4 buffers + sector-correct plans, one review unit with M-040), then
-S-029 (deleted-view excludes all carved files — one-line producer fix + tests), S-030
+verified fix: resize 4 buffers + sector-correct plans, one review unit with M-046), then
+S-031 (deleted-view excludes all carved files — one-line producer fix + tests), S-032
 (archive inventories), S-023 (grading — now unblocked by the table dump), S-020 (ReFS
-attribute layer), S-012 (NTFS pass-2), M-041/M-044 (session schema wave — reserve the
-grading bits while landing M-041), then M-042 (user signatures), M-043 (error model),
+attribute layer), S-012 (NTFS pass-2), M-047/M-050 (session schema wave — reserve the
+grading bits while landing M-047), then M-048 (user signatures), M-049 (error model),
 and the M-011..M-015 family.
 **Status:** session 4 = the never-audited-modules leg: preview, query, transport audited
 for the first time; the bootstrapped-but-never-executed API-session lane executed

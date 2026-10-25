@@ -1,4 +1,4 @@
-# MAJOR M-041 — Session stats round-trip asymmetry: core writes 4×u64 root stats then discards them on load; refresh is direct-children-only vs the og's persisted recursive accumulator
+# MAJOR M-047 — Session stats round-trip asymmetry: core writes 4×u64 root stats then discards them on load; refresh is direct-children-only vs the og's persisted recursive accumulator
 
 **Severity:** MAJOR
 **Module:** session + tree
@@ -91,10 +91,10 @@ exist for.
 
 ## Related findings
 
-- S-029 (deleted_count under-count compound — carved files not counted deleted AND stats
+- S-031 (deleted_count under-count compound — carved files not counted deleted AND stats
   direct-only; fixing both is required for correct deleted totals)
-- M-044 (session node-model round-trip gaps — same reader path)
-- N-055 (session load validation deltas — same loader)
+- M-050 (session node-model round-trip gaps — same reader path)
+- N-058 (session load validation deltas — same loader)
 
 ## Open questions
 

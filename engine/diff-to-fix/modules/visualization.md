@@ -63,7 +63,7 @@ predates that fix landing and is superseded. Only the S-009 disk-map remainder s
 
 ## Session-5 audit (audited commit `7cf6754`)
 
-- **N-054 (MINOR, NEW):** `TableLayout::Ebr` is a dead enum value (never assigned —
+- **N-057 (MINOR, NEW):** `TableLayout::Ebr` is a dead enum value (never assigned —
   either tag the extended-chain parse or delete it), and the diskmap's bad-sector overlay
   + 64 MiB budget-growth paths are untested (cr_diskmap.cpp:129-157; write-only `total`
   accumulator at :39). Fold the diskmap fuzz into S-009's harness ask when it lands.

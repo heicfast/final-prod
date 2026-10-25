@@ -1,4 +1,4 @@
-# MINOR N-053 — WinDestIo: failed rename leaks the .part-N temp file (commit nulls the handle before MoveFileExW; close()'s delete gate requires a live handle) + UNC path untested
+# MINOR N-056 — WinDestIo: failed rename leaks the .part-N temp file (commit nulls the handle before MoveFileExW; close()'s delete gate requires a live handle) + UNC path untested
 
 **Severity:** MINOR
 **Module:** writer (destination I/O)

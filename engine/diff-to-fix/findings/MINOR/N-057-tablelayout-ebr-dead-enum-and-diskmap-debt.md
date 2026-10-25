@@ -1,4 +1,4 @@
-# MINOR N-054 — Dead code + test debt bundle: TableLayout::Ebr never assigned; diskmap bad-sector overlay and budget-growth paths untested with a write-only accumulator
+# MINOR N-057 — Dead code + test debt bundle: TableLayout::Ebr never assigned; diskmap bad-sector overlay and budget-growth paths untested with a write-only accumulator
 
 **Severity:** MINOR
 **Module:** table + visualization (diskmap)

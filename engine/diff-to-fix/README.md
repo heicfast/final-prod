@@ -53,9 +53,9 @@ citations) drove a full read of every never-cited surface: the 6 RAWSearchDLL fa
 artifacts + per-engine-function-map, `SaveScan/rsf-record4` + `ifileproperties-part3`,
 8 MOM censuses, 9 UIUX artifacts, the WinPE pair, config-files, and the core's
 never-cited files (elevate/destio/snapshot/cached/decomp/err/diskmap). 24 new findings —
-**A-005 (ACUTE: rawfixer 4Kn stack-buffer overflow)**, **S-029** (carved files never
-marked deleted — the deleted view excludes the whole carve set), **S-030** (ZIP/RAR
-inner-entry inventories), M-040..M-045, N-048..N-061, I-019/I-020; **OQ-S4-1 RESOLVED**
+**A-005 (ACUTE: rawfixer 4Kn stack-buffer overflow)**, **S-031** (carved files never
+marked deleted — the deleted view excludes the whole carve set), **S-032** (ZIP/RAR
+inner-entry inventories), M-046..M-051, N-051..N-064, I-021/I-022; **OQ-S4-1 RESOLVED**
 (the 169-entry grading table dumped byte-exact — S-023's fix is unblocked); OQ-S4-2
 RESOLVED-with-residual; corpus errata 37-40. Navigation: CROSS-REF-MATRIX session-5
 header + detail rows; per-module Session-5 sections in carve/session/rawfixer/health/

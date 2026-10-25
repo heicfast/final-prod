@@ -73,4 +73,4 @@ with silent fallback; `enumerate_disks(32, ...)` bounds enumeration.
 - WinPE artifacts (eusendmessage + boot-config) read for the first time: EuSendMessage is
   installer-only (WM_COPYDATA dwData=999 → "DRW_Installer" window; no engine contract);
   the boot chain confirms M-030's environment-gate evidence (ebrntdrv/epmdkdrv
-  demand-load, EUDCPEPM boot-time filter, PENetwork SMB destinations — registered I-019).
+  demand-load, EUDCPEPM boot-time filter, PENetwork SMB destinations — registered I-021).

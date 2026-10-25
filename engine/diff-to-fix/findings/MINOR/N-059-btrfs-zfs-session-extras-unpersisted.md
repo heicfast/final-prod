@@ -1,4 +1,4 @@
-# MINOR N-056 — Btrfs/ZFS session extras unpersisted: secondary ids A/B + generation/transid qword (Btrfs) and secondary flags u16 (ZFS); ZfsDataRunlist polymorphism flattened to extents (functional match)
+# MINOR N-059 — Btrfs/ZFS session extras unpersisted: secondary ids A/B + generation/transid qword (Btrfs) and secondary flags u16 (ZFS); ZfsDataRunlist polymorphism flattened to extents (functional match)
 
 **Severity:** MINOR
 **Module:** session (+ btrfs/zfs engines)
@@ -48,7 +48,7 @@ verified.
 1. Add optional per-node engine-extras block (append-only): {u32 id_a, u32 id_b, u64 gen,
    u16 zfs_flags} — populated by the btrfs/zfs emit paths, serialized after the props.
 2. Document the mapping in the session contract (which og field each mirrors).
-3. Keep the extent-vector runlist (registered superset — I-020).
+3. Keep the extent-vector runlist (registered superset — I-022).
 
 ## Tests to add
 
@@ -57,8 +57,8 @@ verified.
 
 ## Related findings
 
-- M-044 (node-model carrier wave — land together)
-- I-020 (superset registers — codec/psize expressiveness)
+- M-050 (node-model carrier wave — land together)
+- I-022 (superset registers — codec/psize expressiveness)
 
 ## Open questions
 

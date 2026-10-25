@@ -1,4 +1,4 @@
-# MINOR N-061 — BitLocker/Office password-dictionary unlock aid absent: the og ships Dict (228 common passwords) wired to manage-bde -Password and encrypted-document repair
+# MINOR N-064 — BitLocker/Office password-dictionary unlock aid absent: the og ships Dict (228 common passwords) wired to manage-bde -Password and encrypted-document repair
 
 **Severity:** MINOR
 **Module:** health→bitlocker family (unlock aid) + repair (out-of-scope side registered)
@@ -49,7 +49,7 @@ negative-space verified.
 1. If pursued: add a user-consented password-attempt unlock path (explicit UI/CLI
    "unlock with password" action) that tries the shipped dictionary then user-provided
    candidates via the existing manage-bde/PowerShell layer (S-014's plumbing).
-2. Keep every attempt inside the consented flow; log attempts to the run-log (N-058);
+2. Keep every attempt inside the consented flow; log attempts to the run-log (N-061);
    never auto-attempt on scan.
 3. Register the Office/HWPX side as out-of-scope (repair chain, I-010).
 
@@ -61,7 +61,7 @@ negative-space verified.
 ## Related findings
 
 - S-014 FIXED (the key-based unlock this extends)
-- I-019 (scope registers — the Office side)
+- I-021 (scope registers — the Office side)
 
 ## Open questions
 

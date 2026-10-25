@@ -1,4 +1,4 @@
-# MINOR N-058 — No persistent engine run-log and no session auto-naming: the og writes EPMLOG.log / vendor-log session forensics (doScan ranges, filter pushes, batch-1000 tree build) and auto-names sessions auto_<label><M><D><H><m><s>
+# MINOR N-061 — No persistent engine run-log and no session auto-naming: the og writes EPMLOG.log / vendor-log session forensics (doScan ranges, filter pushes, batch-1000 tree build) and auto-names sessions auto_<label><M><D><H><m><s>
 
 **Severity:** MINOR
 **Module:** orchestration + session (+ logging)
@@ -65,8 +65,8 @@ auto-naming).
 
 ## Related findings
 
-- M-043 (error-model — the run-log is the natural consumer of error contexts)
-- N-059 (memory monitor — the same Log.mo census surface)
+- M-049 (error-model — the run-log is the natural consumer of error contexts)
+- N-062 (memory monitor — the same Log.mo census surface)
 
 ## Open questions
 

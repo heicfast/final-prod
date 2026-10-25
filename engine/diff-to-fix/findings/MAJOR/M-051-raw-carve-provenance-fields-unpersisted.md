@@ -1,4 +1,4 @@
-# MAJOR M-045 — RAW carve provenance fields not persisted: the og's carved records carry a timestamp string, analyser checksum, note field, tail anchor, and a flag; the core's carve props set none
+# MAJOR M-051 — RAW carve provenance fields not persisted: the og's carved records carry a timestamp string, analyser checksum, note field, tail anchor, and a flag; the core's carve props set none
 
 **Severity:** MAJOR
 **Module:** carve + session
@@ -30,7 +30,7 @@ full read by any session): each carved file persists —
 | boolean | +0xF4 (u32) | 2,431/12,147 = 1 |
 | header offset / anchor A | +0x8C (qword) | 1,245/12,147 nonzero |
 
-plus the name (+0x12), size (+0x1A), FLAGS (+0x22, see S-029), marker (+0x25), type-registry
+plus the name (+0x12), size (+0x1A), FLAGS (+0x22, see S-031), marker (+0x25), type-registry
 ID (+0xF8, shared ID space with NTFS +0x60), and an unconditionally-present runlist.
 
 ## What our core does
@@ -87,8 +87,8 @@ RAW record family) reads the checksum the core never records.
 
 ## Related findings
 
-- S-029 (FLAGS 0x20 — same record, same emit path; land as one carve-record wave)
-- S-030 (inventory fields — same record family; same wave)
+- S-031 (FLAGS 0x20 — same record, same emit path; land as one carve-record wave)
+- S-032 (inventory fields — same record family; same wave)
 - S-023 (grading — the checksum is a grading input og-side)
 
 ## Open questions

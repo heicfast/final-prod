@@ -96,7 +96,7 @@ Core (audited `67193b6` + concurrent GAP-S6-7 in tree): `src/core/recovery/` (77
 
 ## Session-5 audit (audited commit `7cf6754`)
 
-- **N-053 (MINOR, NEW):** WinDestIo leaks the `.part-N` temp file when the commit-time
+- **N-056 (MINOR, NEW):** WinDestIo leaks the `.part-N` temp file when the commit-time
   rename fails (`commit()` nulls the handle before MoveFileExW; `close()`'s delete gate
   requires a live handle — cr_destio.cpp:44-71). UNC path construction untested. (An
   earlier scratch note claiming the ERROR_IO_PENDING branch is unreachable was withdrawn

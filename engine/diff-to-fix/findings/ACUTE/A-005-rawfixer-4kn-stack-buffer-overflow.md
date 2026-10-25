@@ -85,7 +85,7 @@ is exposed even though CI is green.
    `exfat_boot_sane`, `ntfs_boot_sane`, `a.after.assign(...)`) already take lengths or read
    only the fixed boot-sector fields inside the first 512 bytes.
 2. In the `exfat_via_backup` branch (`:638-651`) make the restore plan sector-correct too
-   (see M-040 for the co-located 512-hardcode defects): `a.length = sector`,
+   (see M-046 for the co-located 512-hardcode defects): `a.length = sector`,
    `a.after.assign(backup, backup + sector)`, and `plan_exfat_checksum_after(slice, plan,
    sector, backup)`.
 3. Add a 4Kn regression fixture to `test_rawfixer.cpp`: a `RamDevice` variant with
@@ -103,11 +103,11 @@ is exposed even though CI is green.
 
 ## Related findings
 
-- M-040 (the co-located 4Kn plan-truncation defects in the same function — the overflow fix
+- M-046 (the co-located 4Kn plan-truncation defects in the same function — the overflow fix
   and the plan fix should land together)
 - M-030 addendum (LDM resolver path — same "4Kn geometry plumbed unevenly" family)
 
 ## Open questions
 
 None. (Whether `execute()`'s write path would also reject the 512-byte plan on 4Kn is
-M-040's subject, not this finding's.)
+M-046's subject, not this finding's.)

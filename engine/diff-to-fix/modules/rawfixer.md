@@ -133,7 +133,7 @@ offsets). Finding + Resolution in `findings/FIXED/A-003-*.md` (renumbered from t
   `analyze()` — `u8 primary[512]`/`bak`/`backup` buffers receive `sector`-byte reads
   (4096 on 4Kn) at cr_rawfixer.cpp:558/574/590/639. FIX-3 (F-A4-25) fixed the OFFSETS but
   not the buffers; `cr_transport.cpp:960` genuinely reports 4096; `test_rawfixer.cpp:24`
-  pins 512 so CI is blind. Fix with M-040 in one review unit.
-- **M-040 (MAJOR, NEW):** the exFAT branches plan 512-byte restores/checksums on 4Kn
+  pins 512 so CI is blind. Fix with M-046 in one review unit.
+- **M-046 (MAJOR, NEW):** the exFAT branches plan 512-byte restores/checksums on 4Kn
   (`a.length = 512` at :644/:708, checksum span 512 at :649, backup read truncated at
   :703) — wrong-sector write plans on 4Kn exFAT.

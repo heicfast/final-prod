@@ -1,4 +1,4 @@
-# MINOR N-059 — No memory monitor: the og's Log.mo carries CMemMonitorManager (memory-pressure tracking during scans)
+# MINOR N-062 — No memory monitor: the og's Log.mo carries CMemMonitorManager (memory-pressure tracking during scans)
 
 **Severity:** MINOR
 **Module:** orchestration
@@ -41,7 +41,7 @@ Log.md census read first-hand; negative grep verified.
 
 ## Fix plan
 
-1. If/when N-058's run-log lands, add a lightweight process-memory sampler on the same
+1. If/when N-061's run-log lands, add a lightweight process-memory sampler on the same
    sink (period + threshold configurable; default conservative) emitting pressure events.
 2. Do NOT couple it to scheduling decisions without corpus evidence of og behavior.
 
@@ -51,7 +51,7 @@ Log.md census read first-hand; negative grep verified.
 
 ## Related findings
 
-- N-058 (run-log — the paired surface)
+- N-061 (run-log — the paired surface)
 
 ## Open questions
 

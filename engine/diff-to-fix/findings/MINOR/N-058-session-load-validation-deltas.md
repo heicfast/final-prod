@@ -1,4 +1,4 @@
-# MINOR N-055 — Session load validation deltas: forward parent_id silently re-parented; marker-not-in-{0,1} treated as light; fail&&complete returns OK; u16 name-length wrap — against the og's per-node marker/name/parent checks (with the core's CRC/resync/bomb-cap as a registered superset)
+# MINOR N-058 — Session load validation deltas: forward parent_id silently re-parented; marker-not-in-{0,1} treated as light; fail&&complete returns OK; u16 name-length wrap — against the og's per-node marker/name/parent checks (with the core's CRC/resync/bomb-cap as a registered superset)
 
 **Severity:** MINOR
 **Module:** session
@@ -57,7 +57,7 @@ executed fuzz this session (the fix leg's harness items below).
    recover).
 3. On stream failure, require `created == count && !c.fail` (or surface short-count).
 4. Re-check the u16 name length against the remaining record length before allocating.
-5. Keep the CRC32/F10/bomb-cap superset; register it in PARITY-DELTAS (I-020 family).
+5. Keep the CRC32/F10/bomb-cap superset; register it in PARITY-DELTAS (I-022 family).
 
 ## Tests to add
 
@@ -68,8 +68,8 @@ executed fuzz this session (the fix leg's harness items below).
 
 ## Related findings
 
-- M-041/M-044 (same loader — land as one session-hardening wave)
-- I-020 (superset registers)
+- M-047/M-050 (same loader — land as one session-hardening wave)
+- I-022 (superset registers)
 
 ## Open questions
 

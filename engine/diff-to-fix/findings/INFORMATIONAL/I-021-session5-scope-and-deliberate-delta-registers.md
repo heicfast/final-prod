@@ -1,4 +1,4 @@
-# INFORMATIONAL I-019 — Session-5 scope confirmations and deliberate-delta registers
+# INFORMATIONAL I-021 — Session-5 scope confirmations and deliberate-delta registers
 
 **Severity:** INFORMATIONAL (grouped registrations)
 **Modules:** cross-cutting (win/elevation, transport/WinPE, writer, query, bitlocker)
@@ -33,7 +33,7 @@ future sessions do not re-litigate them.
    the layering difference (the og's filter re-evaluation during recovery has no core
    counterpart event, folded into N-043/M-029's addenda).
 5. **PENetwork SMB destinations untested.** The og's WinPE build mounts SMB destinations
-   via PENetwork; the core's writer handles UNC paths (N-053's test gap). Register: SMB
+   via PENetwork; the core's writer handles UNC paths (N-056's test gap). Register: SMB
    destination recovery is a WinPE-lane validation item, not an engine gap.
 6. **DRWCfg.bin (AES-encrypted config cache) is UI-layer** — confirmed out of scope (the
    scan engine reads RawConfig/FileFilter/raw_signs/EUUserData, not DRWCfg).
@@ -44,7 +44,7 @@ Register rows in `docs/parity/PARITY-DELTAS.md`; no engine changes.
 
 ## Related findings
 
-- M-030 (WinPE gate — the engine-relevant remainder), N-053 (UNC test gap), S-008 (repair
+- M-030 (WinPE gate — the engine-relevant remainder), N-056 (UNC test gap), S-008 (repair
   gating), I-010 (prior scope register)
 
 ## Open questions

@@ -1,4 +1,4 @@
-# MINOR N-051 — RAF/JPEG magic strictness deltas (both directions): og keys RAF on 4-byte "FUJI" (core requires 16-byte "FUJIFILMCCD-RAW "); og keys JPEG on 4 exact dwords (core accepts any FF D8 FF)
+# MINOR N-054 — RAF/JPEG magic strictness deltas (both directions): og keys RAF on 4-byte "FUJI" (core requires 16-byte "FUJIFILMCCD-RAW "); og keys JPEG on 4 exact dwords (core accepts any FF D8 FF)
 
 **Severity:** MINOR
 **Module:** carve

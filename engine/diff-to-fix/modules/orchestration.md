@@ -125,12 +125,12 @@ dedup), GAP-S6-13 (64 KiB transport envelope).
 
 ## Session-5 audit (audited commit `7cf6754`)
 
-- **N-058 (MINOR, NEW):** no persistent engine run-log (the og's EPMLOG.log + qa/vendor
+- **N-061 (MINOR, NEW):** no persistent engine run-log (the og's EPMLOG.log + qa/vendor
   channels record doScan, sector ranges, filter pushes, batch-1000 tree builds,
   CalcPartition resolution) and no session auto-naming convention.
-- **N-059 (MINOR, NEW):** no memory monitor (og CMemMonitorManager — advisory only; do
+- **N-062 (MINOR, NEW):** no memory monitor (og CMemMonitorManager — advisory only; do
   not couple to scheduling without corpus evidence).
-- **N-057 (MINOR, NEW):** save_session lacks progress/cancel (og 40%→65% per-node with
+- **N-060 (MINOR, NEW):** save_session lacks progress/cancel (og 40%→65% per-node with
   per-child IsCancelled teardown).
 - **S-023 addendum:** OQ-S4-1 RESOLVED — the 169-entry grading extension table dumped
   byte-exact (evidence/decompiled-quotes/s5-grading-extension-table-dump.md); the fix

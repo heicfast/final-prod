@@ -1,4 +1,4 @@
-# INFORMATIONAL I-020 — Session-5 core-superset registers (things the core does that the og does not — deliberate, keep)
+# INFORMATIONAL I-022 — Session-5 core-superset registers (things the core does that the og does not — deliberate, keep)
 
 **Severity:** INFORMATIONAL (grouped registrations)
 **Modules:** session, carve, btrfs, zfs, transport
@@ -19,7 +19,7 @@ so a future "og-parity only" pass does not remove them.
    caps — none exist in the og's loader (rsf-record4's validation is per-field only). Keep.
 2. **Btrfs compressed extents:** the core persists structured codec/psize extents; the og
    persists an opaque buffer behind a dual-shape switch (+0xB5). Core is more expressive;
-   keep (the og's shape is documented in M-0xx/N-056's carriers for parity reference).
+   keep (the og's shape is documented in M-0xx/N-059's carriers for parity reference).
 3. **ZFS runlist:** decoded absolute extents + allocated_size superset vs the og's
    polymorphic ZfsDataRunlist; keep.
 4. **Naming wire:** single UTF-16LE name field vs the og's per-class u8/u16/u32/u64-length
@@ -35,7 +35,7 @@ Register rows in `docs/parity/PARITY-DELTAS.md`; no engine changes.
 
 ## Related findings
 
-- N-055 (the loader deltas that are NOT supersets — the fix side of the same read)
+- N-058 (the loader deltas that are NOT supersets — the fix side of the same read)
 - I-009/I-010 (prior superset/scope registers)
 
 ## Open questions

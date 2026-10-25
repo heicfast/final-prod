@@ -1,4 +1,4 @@
-# MINOR N-060 — Carve default naming is a core invention ("File%06u.ext"); the og derives names per-analyser (content-embedded names + "Lost Name File (...)EaseUS" template) — OQ-S4-2 RESOLVED with a corpus-artifact correction
+# MINOR N-063 — Carve default naming is a core invention ("File%06u.ext"); the og derives names per-analyser (content-embedded names + "Lost Name File (...)EaseUS" template) — OQ-S4-2 RESOLVED with a corpus-artifact correction
 
 **Severity:** MINOR
 **Module:** carve
@@ -53,7 +53,7 @@ carve artifacts.
 1. Correct the comment (remove the false corpus-policy claim).
 2. Add per-analyser naming hooks: MP4/MOV template per the og decode; a
    content-embedded-name extractor for the CZeroEndRawFileInfo format family (start with
-   the formats whose grammars carry names — ZIP entries are S-030's inventory; document
+   the formats whose grammars carry names — ZIP entries are S-032's inventory; document
    metadata types).
 3. Keep `File%06u` as the fallback for formats with no og naming rule (register as a
    deliberate default).
@@ -66,7 +66,7 @@ carve artifacts.
 
 ## Related findings
 
-- S-030 (archive inventory — the embedded-name work shares the analyser-detail wave)
+- S-032 (archive inventory — the embedded-name work shares the analyser-detail wave)
 - M-029 addendum (the naming correction folds into the query-model doc family)
 - CORPUS-ERRATA (the deep-dive artifact's "File0001.jpg" claim — errata row this session)
 
