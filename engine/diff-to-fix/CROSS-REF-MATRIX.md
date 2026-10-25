@@ -309,7 +309,7 @@ not-BAAD both sides; FAT quick-scan threading — already registered D-30x).
 | lost-partition | A30/A37/D12 | **I-024** (PartitionRecoveryD generator-sets + .dat persistence register) + **OQ-S6-1** (decode request); **M-017 addendum** (CalcPartition class evidence) |
 | orchestrator | A38/A41/P42/A44 | **N-075** (event-bus query-signals + pull-progress convention + typed IUIProgressInfo); **I-023** (DRWCfg scope register) |
 | visualization | P42/D-model | **S-009 addendum** (stale premise corrected — surface landed; residual: kCellAllocFree dead, VolumeBitmap discarded) |
-| query | P42 (sort Type) | **M-029 addendum** (path_prefix landed and verified in-tree — path-group sub-item CLOSED; Type key/bucket IDs/paging/server-push remain) |
+| query | P42 (sort Type) | M-029 addendum (path-group CLOSED session-6) + **session-11: Type sort CLOSED (SortKey::Type, ABI code 7, iconIndex order) + the modified-unit doc lie fixed (FILETIME, pinned) + paging documented as the deliberate difference (no og page-size constant); REMAINING: bucket-ID translation + general-raw naming (decode-blocked, next steps recorded in the finding)** |
 | abi (cr_ui) | P42 | **N-033 addendum** (carve-format registry landed — ABI sub-item CLOSED; CLI listing sub-item remains) |
 | quality (cross-cutting) | P46/P68 | **N-074** (doc-drift group #2: CAPABILITY-MATRIX LZNT1, CGL:135 diskmap, D-43 block size, D-19 collision, cr_health.h SMART list) |
 

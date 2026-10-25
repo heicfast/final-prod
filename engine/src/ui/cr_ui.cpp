@@ -2122,6 +2122,10 @@ u32 query_run_impl(cr_ui_session* sess, const cr_ui_query* q, cr_ui_query_row** 
     case 6: /* S-023: grade sort (the og's comparator puts grade-2 first) */
         cq.sort = query::SortKey::Grade;
         break;
+    case 7: /* M-029: the og's Type column (iconIndex category order,
+             * then extension, then name) */
+        cq.sort = query::SortKey::Type;
+        break;
     default:
         cq.sort = query::SortKey::None;
         break;

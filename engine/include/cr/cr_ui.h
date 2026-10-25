@@ -529,9 +529,16 @@ CR_UI_API uint32_t cr_ui_snapshot_dfs(cr_ui_snapshot* snap, uint32_t* indices, u
 
 /* sort: 0 none (emission order), 1 name, 2 size, 3 modified, 4 confidence,
  * 5 path, 6 grade (S-023: the CRecoverability verdict; desc = High first,
- * the og's results comparator order). dir: 0 asc, 1 desc. category bits:
+ * the og's results comparator order), 7 type (M-029: the og's results-view
+ * Type column - category in the FileFilter.xml iconIndex order, then
+ * extension, then name). dir: 0 asc, 1 desc. category bits:
  * 1 image, 2 video, 3 audio, 4 document, 5 archive, 6 other, 7 email,
- * 8 bookmarks. Zero-initialized struct = match-all. */
+ * 8 bookmarks. Zero-initialized struct = match-all.
+ * Paging: offset+limit is a HOST-side model (default limit 100) - the og
+ * has NO page-size constant (its results view virtualizes at the UI
+ * layer, ~1000-item incremental batches, sigResetStartIdx); the core
+ * claims no paging parity against it (M-029's registered deliberate
+ * difference). */
 typedef struct cr_ui_query {
     uint32_t category_mask;              /* 0 = all categories */
     uint64_t size_min, size_max;         /* 0 = unbounded */
