@@ -362,6 +362,7 @@ TEST(Orchestrator, UdfNotConfusedWithFat) {
     b[2] = 0x90;                     /* FAT jump code */
     std::memcpy(b + 3, "MSDOS5.0", 8); /* OEM */
     put16(img, 0x0B, 512);           /* pow2 bps */
+    b[0x10] = 2;                     /* numFATs (M-045's gate) */
     b[510] = 0x55;
     b[511] = 0xAA;
     MemDevice dev(std::move(img));
