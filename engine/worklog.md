@@ -1769,3 +1769,15 @@ Work Log:
 - EXECUTED PROOF (A-001): built canonical-GUID GPT fixture, ran core parser via libcr.a harness — parse_ldm_database = ERR_BAD_MAGIC on GPT dynamic disk; ESP→Reserved (dup GUID), MSR/Linux/LDM→Other. Cross-evidence: ESP/MSR canonical bytes found byte-for-byte in six og PartitionRecovery binaries. Header comment claiming triple-source verification is FALSE.
 - Findings: A-001 (ACUTE), M-002 (EBR salvage), N-007+I-004 (ReFS detect), OQ-T6 (ZFS anchors/multi-vdev), OQ-T7 (LDM RAID-5 rotation).
 - Wrote modules/zfs.md, modules/refs.md, modules/ldm.md; evidence/executions/gpt-guid-probe.md + harness.
+
+---
+Task ID: 9+10 (T9, T10)
+Agent: main auditor
+Task: lost-partition + carve module audit
+
+Work Log:
+- Read D-lost/D-carve + B-rawsearch-carving + PartitionRecoveryD census; verified in code: candidate dispatch (4 families only), registry magic table (no GIF/BMP/RTF/OLE/ADTS/MPEG/DWG), MP3 ID3-only magic, ZIP padding cap 5242880, orchestrator carve whole-slice (no bitmap gating).
+- EXECUTED set-comparison: parsed og raw_signs.json (139 ext listed) vs core registry ∪ rawsigns → missing common formats proven.
+- Reviewed in-window concurrent fixes: GAP-S6-6 (03ddcd2, nested-dedup containment), GAP-S6-8 (carve absolute-extent dedup), GAP-S6-7 (MetadataOnly skip), GAP-S6-13 (64KiB direct I/O) — all in audited tree.
+- Findings: S-006 (lost-partition probe families), S-007 (carve format coverage), M-005 (carve target policy), N-008 (ZIP padding/version/ZIP64), OQ-T8/T9.
+- Wrote modules/lost-partition.md, modules/carve.md.
