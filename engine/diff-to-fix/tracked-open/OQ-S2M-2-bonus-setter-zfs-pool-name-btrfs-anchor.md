@@ -26,3 +26,31 @@ EXT4 passthrough and the ZFS `MB2WC(0xFDE9,0,…)` site (`:24985/:25014`) are pr
 ## Acceptance
 
 Each item resolves with a single quoted site (grep-sized probes, ≤ 30 min each with the function maps). Fold: #1 → M-017 defaults; #2 → `modules/zfs.md` B10 note; #3 → `resolved/findings/S-005-*.md` addendum.
+
+---
+
+## Session-4 update (2026-10-26, commit `63a9167`) — PARTIAL RESOLUTION
+
+1. **NTFS +0x68 bonus setters FOUND** (independent-verification leg, verbatim):
+   `NTFSSearchDLL_decompiled.c:28804` `+= 0x32` (one-shot, flag at +0x178);
+   `:28944/:28973/:29002` `+= 0x1e` (three sites); `:29263` generic adder
+   `FUN_180024990` (called with 0x1e at :28996) — the MFT-run candidate-stitching
+   code. Values 30/50 per site — consistent with the CalcPartition-log
+   "NTFS 60 or 30" observations (two +30 sites, or 30 via one site).
+   *Remaining:* the exact per-site trigger conditions (which stitching outcomes
+   earn which bonus) — decode when porting M-017's scoring model.
+2. **FAT32 "20" setter: NOT-FOUND** — searched FATSearchDLL/exFATSearchDLL for the
+   `+0x68` accumulator patterns (`+ 0x14)`, `+ 0x1e)`, `+ 0x32)`): no match. Either
+   the FAT32 bonus is set through the generic adder with a different value, or the
+   "20" observation in the CalcPartition logs has a different source. Keep open.
+3. **ZFS pool display name: negative evidence re-confirmed** — 0 hits for "name"/
+   "pool" (case-insensitive) in `ZfsSearchDLL_decompiled.c`; the og engine never
+   reads the label nvlist "name". The DRWUI render path for FS 0xD remains the
+   undecoded half.
+4. **Btrfs premise CONFIRMED** — `BtrfsSearchDLL_imports.txt`: zero MultiByteTo-
+   WideChar/WideCharToMultiByte/mbstowcs imports (byte-oriented engine). The
+   DRWUI-side render conversion remains the open half.
+
+OQ-T9's full feature/weight table advances by item 1; the remaining decode work is
+now concentrated in: per-site trigger conditions (NTFS), the FAT32-20 source, the
+DRWUI render paths (ZFS name, Btrfs conversion).
