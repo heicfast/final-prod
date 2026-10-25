@@ -41,3 +41,18 @@ Register rows in `docs/parity/PARITY-DELTAS.md`; no engine changes.
 ## Open questions
 
 None.
+
+## Resolution
+
+**Status:** ACKNOWLEDGED (core-superset register — verified this session, session 7)
+**Verified by:** `src/core/session/cr_crsf.cpp` re-read directly: per-record
+CRC32 of the DECOMPRESSED data (:77, :166-192), decompression-bomb cap
+(:300-318 ERR_NO_MEMORY), F10 resync (:236-264 torn-tail salvage, UNIT-step
+skip) — none exist in the og's rsf loader (per-field validation only).
+Btrfs structured {codec, psize} extents at cr_btrfs_engine.cpp:612-662;
+ZFS decoded runlists + allocated_size at cr_zfs_engine.cpp:1294. All six
+registrations verified.
+**Resolution notes:** no code change. Registered as PARITY-DELTAS
+**D-60g..l** (session robustness family, btrfs/zfs expressiveness, naming
+wire, changed/allocated props, core-only carve anchors). A future
+"og-parity only" pass must not remove any of these.

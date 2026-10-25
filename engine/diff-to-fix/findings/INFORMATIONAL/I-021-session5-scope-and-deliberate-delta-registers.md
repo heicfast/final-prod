@@ -50,3 +50,20 @@ Register rows in `docs/parity/PARITY-DELTAS.md`; no engine changes.
 ## Open questions
 
 None.
+
+## Resolution
+
+**Status:** ACKNOWLEDGED (registration group — verified this session, session 7)
+**Verified by:** PE manifest strings re-checked directly in the corpus:
+DRW.exe = requireAdministrator, DRWUI.exe = requireAdministrator,
+DRWService.exe = asInvoker (strings_ascii.txt per binary) — matches the
+finding's parse. Core side: `src/win/cr_elevate.cpp` probe
+(`is_elevated()`) + graceful non-elevated degradation confirmed (no
+elevation demand anywhere); EuSendMessage WM_COPYDATA dwData=999 confirmed
+installer-only (no engine consumer); destination repair toggle confirmed
+UI-layer (the core's repair hook stays pre-scan per S-008's scope);
+CRecoveryFilter layering note stands (query-layer filtering, the writer
+takes the filtered set — N-043/M-029 carry the remainder).
+**Resolution notes:** no code change. Registered as PARITY-DELTAS
+**D-60a..f** (elevation superset, WinPE messenger scope, repair toggle
+layer, filter layering, SMB-as-WinPE-lane-item, DRWCfg UI-layer).

@@ -1746,3 +1746,36 @@ unless the row itself is first re-audited against the corpus.
   IMAPI2 burn — tool ops, not recovery; zero code in the core (grep-
   verified). S-029 (apply path) is deliberately NOT covered by this
   exclusion.
+
+### D-60 — Session-5 scope/superset registers (I-021/I-022, session-7 verification)
+
+Verified against corpus 03ad46c and the running core before acknowledgment.
+
+- **D-60a — Elevation (I-021-1, ACCEPTED).** Og: DRW.exe + DRWUI.exe =
+  requireAdministrator, DRWService.exe = asInvoker (manifest strings
+  re-verified per binary); the og has no non-elevated path. Core:
+  `cr_elevate` probe + graceful degradation. Do NOT demand elevation.
+- **D-60b — EuSendMessage (I-021-2, SCOPE).** WM_COPYDATA{999} to
+  "DRW_Installer" — installer-only; zero engine contract.
+- **D-60c — Destination repair toggle (I-021-3, LAYER).** UI-layer toggle;
+  the core's repair hook stays pre-scan (S-008 scope).
+- **D-60d — CRecoveryFilter layering (I-021-4, LAYER).** Og pushes filter
+  state into the write phase; core filters at query, writer takes the
+  filtered set. Equivalent semantics.
+- **D-60e — PENetwork SMB destinations (I-021-5, LANE).** WinPE-lane
+  validation item (N-056 test gap), not an engine gap.
+- **D-60f — DRWCfg.bin (I-021-6, SCOPE).** UI-layer AES config cache; the
+  engine reads RawConfig/FileFilter/raw_signs/EUUserData only.
+- **D-60g — Session robustness (I-022-1, ACCEPTED).** Per-record CRC32 of
+  the decompressed payload, F10 resync + torn-tail salvage, decompression
+  bomb caps (cr_crsf.cpp) — the og's loader is per-field only. Keep.
+- **D-60h — Btrfs compressed extents (I-022-2, ACCEPTED).** Structured
+  {codec, psize} vs the og's opaque dual-shape buffer.
+- **D-60i — ZFS runlist (I-022-3, ACCEPTED).** Decoded absolute extents +
+  allocated_size vs the og's polymorphic unvalidated shape.
+- **D-60j — Naming wire (I-022-4, ACCEPTED).** Single UTF-16LE field vs the
+  og's per-class length mix. Documented in the session contract.
+- **D-60k — changed/allocated props (I-022-5, ACCEPTED).** Core superset
+  fields with no og carrier.
+- **D-60l — Core-only carve anchors (I-022-6, ACCEPTED).** ISO9660, RAR5,
+  M4A, ZIP-CD/naked-MOV (S-007's register).
