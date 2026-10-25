@@ -42,3 +42,12 @@ M-017 (lost-partition scoring — the core's single-pass scorer this would exten
 ## Open questions
 
 See OQ-S6-1 — the complete question set lives there.
+
+---
+
+## Resolution
+
+**Status:** ACKNOWLEDGED (verified this session, closing session / df5 lineage — semantics stay tracked in OQ-S6-1)
+**Fixed in commit:** none — capability register; the behavioral decode remains OQ-S6-1's scope
+**Verified by:** corpus artifact re-read first-hand (MOM-modules/PartitionRecoveryD.md :14-24 + :35-40 — CGeneratorSetCompleteSearch ×2 / CGeneratorSetRegSearch ×2 / CGeneralGeneratorSetImpl ×2 / CBlockParser{Linux,Win32,ExtX,Fatx} ×2 and the lostpart.dat / partinfo.dat strings are verbatim); core side re-verified (src/core/lost/ single discover family; no .dat persistence). OQ-S6-1 exists in tracked-open/ with the precise question set.
+**Resolution notes:** The register's honesty is CONFIRMED: the class/string evidence supports the capability register but NOT a higher-severity behavioral claim — the finding correctly refuses to inflate (SEVERITY-SCALE discipline) and routes the decode to OQ-S6-1 with a concrete upgrade path (RegSearch pass recovering what CompleteSearch misses → MAJOR with a fix plan; legacy-compat → MATCH-architecture-different). The rationale is preserved; the upgrade decision belongs to whoever resolves OQ-S6-1.

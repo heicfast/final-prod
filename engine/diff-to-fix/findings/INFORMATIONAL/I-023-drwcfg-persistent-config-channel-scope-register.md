@@ -42,3 +42,12 @@ M-024 (runtime format-filter surface — the SCAN-AFFECTING config subset, which
 ## Open questions
 
 None.
+
+---
+
+## Resolution
+
+**Status:** ACKNOWLEDGED (verified this session, closing session / df5 lineage)
+**Fixed in commit:** none — deliberate scope exclusion, code unchanged (the register's instruction)
+**Verified by:** corpus artifact re-read first-hand (drwcfg-bin--aes-config-cache.md :30-40 — the AES-256-CBC hardcoded-key writer flow is real and UI-layer); core side re-verified (cr_ui.h:296 per-call struct; rrecov stateless CLI; no settings store anywhere in src/).
+**Resolution notes:** The deliberate-difference rationale is CONFIRMED and preserved: settings persistence is a host responsibility feeding the per-call config surface — the information content is identical, and the og's channel is UI state riding in the product binary. The register's do-not-copy note (hardcoded-key AES → DPAPI/keychain for any future host story) is the correct posture and stands. No code change, per the INFORMATIONAL safety-hardening rule.

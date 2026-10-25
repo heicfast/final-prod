@@ -8165,3 +8165,31 @@ Stage Summary:
   digit, N-044 --deep naming), then the grouped minors (N-025/N-026/N-027/
   N-047), then the S5 wave (N-051..N-064). Pull frequently - parallel legs
   are landing S-023/M-026/M-027/A-005 fixes and new audit findings.
+
+---
+Task ID: S7-INFO-TIER
+Agent: main engineer (closing session, df5 lineage)
+Task: INFORMATIONAL tier close-out — I-023 + I-024 verified and acknowledged
+(the tier's remaining open files; I-001..I-022 were acknowledged by the prior
+INFO waves).
+
+Work Log:
+- I-023 (DRWCfg.bin persistent config channel): corpus artifact re-read
+  first-hand (the AES-256-CBC hardcoded-key writer flow is real, UI-layer);
+  core re-verified (per-call cr_ui_scan_config, stateless CLI, no settings
+  store). Rationale CONFIRMED — host-owned settings, do-not-copy-hardcoded-
+  AES note preserved. ACKNOWLEDGED, no code change.
+- I-024 (PartitionRecoveryD generator sets + lostpart.dat/partinfo.dat):
+  the doubled generator-set classes and .dat strings verified verbatim in
+  the MOM artifact; core single-discover re-verified. The register's
+  refusal to inflate severity (class/string evidence only) is correct
+  discipline; the decode stays with OQ-S6-1 (exists, precise). ACKNOWLEDGED
+  with the tracked-open dependency noted.
+- Housekeeping: the misplaced N-004/N-006 group file returned to MINOR/
+  (a parallel merge had dropped it at findings/ root).
+
+Stage Summary:
+- INFO tier: 22/22 acknowledged (0 open). The remaining active inventory is
+  SEVERE 4 / MAJOR 39 / MINOR 55 + 16 tracked-open — all with active lane
+  owners per the latest handoffs (S-009 lane, the S-031->S-032->S-030->S-029
+  order, DFX7-T2 on MINOR, DFX8 bootstrapped).
