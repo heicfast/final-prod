@@ -95,6 +95,55 @@
 
 ## B. Engine semantics
 
+### D-50 — NTFS pass-2 dump scan: no heap-overrun read, no >512b claim-index ambiguity (S-012)
+
+- **WHAT OG DOES:** The pass-2 GUID-dump record loop scans a chunk with bound
+  `record_size × chunk_sectors` (FUN_18001acc0 :21125 uVar9 = uVar8 × param_3)
+  while the read filled only `chunk_sectors × sector_bytes` — for record_size
+  0x400 on 512b media the loop reads 2× past the filled buffer (uninitialized
+  heap interpreted as records; the chunk buffer itself is over-allocated
+  record_size<<15). The claim-map builder writes `min(run_clusters,
+  ceil(size/cluster))` bits starting at `engine[0x2c] × lcn`
+  (FUN_180017190 :18323-410) while the viability probe indexes
+  `engine[0x28] (= spc) × lcn` (:21220-22) — the 0x2c/0x28 field pair is
+  consistent only when sector==cluster scale; on multi-sector clusters the
+  claim coverage and probe index disagree (an og indexing bug that
+  under-destroys dump records).
+- **WHAT WE DO:** `guid_dump_scan_file` (src/core/ntfs/cr_mftwalk.cpp) scans
+  exactly the bytes read (chunk = min(0x8000 sectors × sector_bytes, run
+  remainder), buffer sized to the read) and the claim map is a merged
+  cluster-interval set probed at the run's start cluster — internally
+  consistent on every geometry. On 512b-sector volumes (spc=1) both behaviors
+  are exactly og-identical; the deltas exist only where the og reads
+  uninitialized memory or mis-indexes.
+- **WHY:** correctness-fix (two og defects deliberately not replicated;
+  reading uninitialized heap can fabricate records, mis-indexing changes
+  destroy outcomes on 4Kn clusters).
+- **RISK:** None on standard geometries; on 4Kn-cluster volumes our pass 2
+  may destroy dump records the og would have kept (its map under-claimed) —
+  the conservative side (fewer, verified-recoverable results).
+- **VERDICT: ACCEPTED** (S-012 Resolution; corpus cites re-read first-hand
+  this session; pinned by NtfsVolume.GuidDumpPassRecoversAndDestroysByOgRules).
+
+### D-51 — NTFS pass-2 membership: duplicates from dual sources kept (og parity)
+
+- **WHAT OG DOES:** pass-2 dump records carry SYNTHETIC record numbers
+  (chunk sector base + offset/record_size, FUN_18001acc0 :21137-38) and the
+  emit path (LAB_18001afe6 :21264-21292) performs no registry lookup against
+  pass-1 — a file present BOTH as a deleted live-MFT record AND inside a
+  GUID dump emits TWICE (first-hand verified this session; corrects the
+  S-012 finding's "dedup by record#" premise).
+- **WHAT WE DO:** Same — synthetic record refs (slice-relative sector base),
+  no cross-pass dedup; downstream merge dedups by record_ref exactly like
+  the og's consumer-side handling.
+- **WHY:** scope (parity; the og's second-source design intentionally
+  surfaces both copies — the dump copy may carry the older, recoverable
+  runlist).
+- **RISK:** Duplicate rows in results when a dump exists on-volume — the
+  og's users see the same.
+- **VERDICT: ACCEPTED** (S-012 Resolution; pinned by the dual-source shape
+  in the GuidDump test).
+
 ### D-04 — Byte-anchored geometry everywhere; 4Kn first-class (F1)
 
 - **WHAT OG DOES:** `eprdtdrv.sys` READ/WRITE complete with

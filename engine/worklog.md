@@ -5106,3 +5106,50 @@ Stage Summary:
   Next: continue the SEVERE wave on the re-baselined inventory (S-003/S-007/S-012/
   S-014 remain; S-006/S-013/S-015/S-017 landed by the parallel session, to be
   re-verified first-hand next).
+
+---
+Task ID: DF4-S012
+Agent: main engineer (diff-to-fix session 4)
+Task: S-012 — NTFS two-pass architecture: verify, classify, fix (membership + pass-2
+GUID-dump walk), split the rescue chain precisely.
+
+Work Log:
+- Independent re-verification (corpus first-hand, NTFSSearchDLL_decompiled.c at 03ad46c):
+  :18630 pass-1 unconditional emit re-read; GUID collector gates :18560-18625 (live-only,
+  len 0x4C, '{' head, trailing-0x26 memcmp template, '}' at [37]); FUN_18001a980 chunk walk
+  (:20957-21090: per-run <=0x8000-SECTOR chunks, absolute sector base); FUN_18001acc0 gates
+  and destroy (:21152-21264 line-by-line); claim map FUN_180017190 (:18323-410: size-clipped
+  loop, sparse skipped, $Boot DAT_18004cd70 exclusion — read the raw DLL at file offset
+  0x4b570 = "$Boot"); stride table decoded (init=record_size :21137; destroy/parse-fail
+  = max(0x400,rs); emit=record_size).
+- PREMISE CORRECTED (audit trail): pass-2 record numbers are SYNTHETIC (chunk sector base
+  + offset/record_size) and the emit path has NO registry lookup — there is NO cross-pass
+  dedup by record# og-side. The finding's dedup claim was wrong; not implemented.
+- Fix (cr_mftwalk.h/.cpp): destroy_fully_overwritten default FALSE (pass-1 membership
+  parity; flag = honest-recovery opt-in); guid_dump_pass (default on): GUID-file collection
+  in phase A + cluster-interval claim map (size-clipped, i30 for dirs) + guid_dump_scan_file
+  (chunked reads, og gate order, per-run-START viability probes, 0x3ff destroy, dir bypass,
+  synthetic record refs, phase-B parent resolution); 4 new WalkStats counters.
+- Fail-before discipline: MainWalkKeepsOverwrittenDeletedDefaultFlags FAILED with the old
+  default (record vanished); GuidDumpPassRecoversAndDestroysByOgRules FAILED with pass 2
+  disabled (0 files, no stale records). Both PASS after. One ASan lesson recorded in-code:
+  the claim block must run BEFORE props->release() and read locals only (hard-link clones
+  leave the builder's props unreferenced).
+- EndToEndWalk contract updated in the same change (overwrit.dat now present, Partially-
+  Overwritten/Overwritten; destroyed_overwritten == 0 under defaults).
+- og defects NOT replicated (documented PARITY-DELTAS-draft D-50/D-51): the chunk-buffer
+  scan overrun (record_size x chunk_sectors past the filled buffer) and the >512b-sector
+  claim-map indexing ambiguity (engine+0x2c vs +0x28).
+- Step 3 (size-0 rescue chain) split to tracked-open/OQ-S4-ntfs-size0-rescue-chain.md WITH
+  this session's decoded mechanics (trigger gates, merge suffix-match + same-parent/same-
+  time gate + 5000 cap + compressed skip, 9-fragment/0x400 caps, +0x72|=2 marker, 0xfe0001
+  re-emit, FUN_180041820 = the XP+ +0x1C self-record-number). Blocker: sector-list +
+  registry population (FUN_180042420/320, FUN_1800198a0) undecoded.
+- Suite 353/353 Linux ASan (351 before + 2 new tests).
+
+Stage Summary:
+- S-012 FIXED (steps 1+2+4): the core now produces dump-recovered records (the og's
+  deep-scan second source) and keeps every live-MFT deleted record (og membership).
+- Audit trail: finding moved to FIXED/ with Resolution; RESOLVED-INDEX row (26); matrix
+  ntfs rows updated; modules/ntfs.md S-012 rows updated; SUMMARY re-baselined to the
+  file-inventory truth (8 SEVERE / 22 MAJOR / 33 MINOR / 12 INFO active, 26 FIXED).

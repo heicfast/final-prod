@@ -9,10 +9,11 @@ active roadmap.
 
 ## Resolved findings (24 - see files; count maintained per move)
 ## Resolved findings (21 - see files; count maintained per move)
-## Resolved findings (23 — 12 from session 1 close/session-2 legs + A-002, A-004 (+ S-016), M-009, S-011, S-013, S-015, S-017 + S-018 (INVALID, premise refuted); every file in this directory has a row)
+## Resolved findings (26 — session-4: S-012 two-pass architecture landed; every file in this directory has a row)
 
 | ID | Severity (orig) | Title | Fix commit | Resolution |
 |---|---|---|---|---|
+| S-012 | SEVERE | NTFS single-pass: og pass-2 GUID-dump walk + destroy mis-scoped into pass 1 | (this commit) | Two-pass parity: destroy_fully_overwritten default false (pass-1 membership, :18630 unconditional emit); full pass-2 GUID-dump walk (collector :18584-18625, chunked reads FUN_18001a980, gates/destroy FUN_18001acc0 :21152-21264, synthetic record refs, claim map FUN_180017190); one finding premise corrected (NO cross-pass dedup og-side); step-3 rescue chain split to OQ-S4 tracked-open with decoded evidence; 2 fail-before tests + EndToEndWalk contract updated; og heap-overrun + 4Kn claim-index defects NOT replicated (PARITY-DELTAS D-50/D-51). Suite 353/353. |
 | A-004 | ACUTE (S2-third-leg) | ErrorRange events fire through the config sink while the guard checks the live sink (latent null-call crash / mis-delivery) | `c33236f` | ErrorRange delivered through the live sink (`event_fn_`); two ScanEvents tests (ErrorRangeGoesToLiveSink, SinkSwitchDeliversAllTypes); S-016 discovered during the fail-before proof and fixed in the same commit. |
 | S-002 | SEVERE | HFS+ Attributes B-tree / decmpfs not walked | `c9e8860` | attributes B-tree leaf-chain walk; decmpfs modes 3/4 emit codec-tagged extents the writer inflates at recovery time; named attributes surface as `..namedfork/<name>` children (D-46 superset). Independently re-verified session-2 close-out leg (FUN_180009c10 re-read). |
 | S-010 | SEVERE | RawFixer write device bypasses FSCTL_LOCK_VOLUME + FSCTL_DISMOUNT_VOLUME | `3e34ed2`+`414f56c`+`34b3441` | IWriteDevice::lock_volume() contract; execute() lock-before-write + zero-write refusal on busy volume; Windows RwDevice runs the corpus RecoveryModule LOCK/DeleteMountPoint/Flush/settle-verify/DISMOUNT sequence; 3 fail-before lock tests. Finding's destination-lock bullet corrected against the corpus (destination opens for writability+detection only). |

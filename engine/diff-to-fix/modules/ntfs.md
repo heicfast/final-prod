@@ -241,13 +241,24 @@ by session 2's line-by-line decompile read. Three new findings + one minor:
   lives in a **GUID-dump pass 2** the core does not have. The S-001 destroy fix (landed, moved
   to resolved/) implemented a pass-2 rule in the core's only walk — mis-scoped; default flags
   now make the core a subset of the og on live-MFT deleted files.
+  **Session-4: S-012 FIXED** — the two-pass architecture landed (membership flip + full
+  pass-2 dump walk); see FIXED/S-012 Resolution. B1/B4/A26 = MATCH-with-superset
+  (main-walk grading documented); B5 = OQ-S4 residual.
 - **B1 (metafile filter) → I-001 refined:** og pass 1 = 15-entry name table + SI
   hidden+system; blanket-`$` is pass-2-only. Core's blanket-`$` skips live `$foo` files og
   emits.
 - **B4 (viability accounting) → S-012:** og = per-RUNLIST-ENTRY, one probe at run START against
   a pass-1 claim map (live+dir+deleted-size>0 extents); core = per-cluster vs volume $Bitmap.
+  **Session-4: S-012 FIXED** — pass-2 GUID-dump walk implements exactly this accounting
+  (claim map + run-START probes + 0x3ff/destroy rules); the main-walk per-cluster $Bitmap
+  grading stays as the documented informational superset (D15) with destroy OFF by default
+  (pass-1 membership parity).
 - **B5 (rescue) → S-012:** og rescues size-0 deleted records from MFT-copy resident data +
-  same-name merges; core has none.
+  same-name merges; core has none. **Session-4: rescue chain split to
+  `tracked-open/OQ-S4-ntfs-size0-rescue-chain.md`** with the chain mechanics decoded
+  first-hand (trigger gates, merge suffix-match rule, 9-fragment cap, 0x400 content cap,
+  0xfe0001 re-emit); the undecoded sector-list/registry population is the blocker recorded
+  there. The core's resident-$DATA extraction already covers the direct-extraction path.
 - **C19/C20 (boot ladder) → M-001 revised + N-011b:** og rejects cpr==0/0-result, no pow2, no
   0x400 clamp, no 0xAA55; core pow2+clamp+%bps — two-sided divergence; the session-1 ladder
   quote was mis-attributed (bytes-per-sector lines).

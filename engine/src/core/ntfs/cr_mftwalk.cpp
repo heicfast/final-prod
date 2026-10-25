@@ -54,6 +54,310 @@ int namespace_rank(u8 ns) {
     }
 }
 
+/* ---- S-012: the og's pass-2 GUID-dump walk ----
+ *
+ * The og's NTFS scan is TWO-pass (NTFSSearchDLL): pass 1 walks the live MFT
+ * and emits every parsed record unconditionally (FUN_180017390 emit at
+ * :18630); pass 2 walks LIVE files named "{...}{3808876b-c176-4e48-
+ * b7ae-04046e6cc752}" (collector :18584-18625: state bit0 clear, name len
+ * 0x4C, '{' head, memcmp of the trailing 0x26 bytes against the template at
+ * :18607-09, '}' just before it), reads their $DATA runlists in <=0x8000-
+ * sector chunks (FUN_18001a980 :20957-21090) and parses the contents as
+ * stale MFT-record dumps (FUN_18001acc0 :21095+). Only THERE do the
+ * viability accounting, the size<=0x3ff destroy and the blanket-'$'
+ * metafile filter live. Dump records are the og's second source for files
+ * whose live MFT slots were reused after deletion - the deep-scan
+ * advantage the single-pass core could not produce at all.
+ *
+ * Pass-2 record gates (FUN_18001acc0, first-hand re-read this session):
+ *   'FILE' magic :21152 -> fixup :21153 -> metafile name-table gate
+ *   :21155/:18952 (FUN_180034b20) -> base-record == 0 (FUN_180041970,
+ *   skip at :21158) -> props parse (FUN_180006db0: $Tops/$TxfLog/
+ *   $RmMetadata/no-name -> NULL) -> post-parse destroy filter
+ *   `(state & 4) || !name || name[0]=='$'` :21186-91 -> directories
+ *   ($FILE_NAME flags 0x10000000 -> props word 0x10, FUN_180043700
+ *   :53481) bypass viability and always emit -> non-dir with size >
+ *   0x3ff: per-RUNLIST-ENTRY probe of the run START sector against the
+ *   pass-1 claim map (:21220-29), destroy iff `0 < total && intact ==
+ *   total` (:21249) -> non-dir with size <= 0x3ff: destroyed (the
+ *   `0x3ff < size` gate falls through to the destroy label :21208/
+ *   LAB_18001b06f :21257). Survivors emit with the deleted marker
+ *   (state |= 1, LAB_18001afe6 :21264). Record numbers are SYNTHETIC -
+ *   chunk sector base + offset/record_size (:21137-38) - so dump records
+ *   never collide with pass-1 record refs and no cross-pass dedup exists
+ *   og-side (first-hand verified: no registry lookup in the emit path).
+ *
+ * Stride after each candidate (record_size = volume $MFT record bytes,
+ * 0x200 fallback): gates fail -> record_size; props parse fail or destroy
+ * -> max(0x400, record_size); emit -> record_size (:21138 uVar19 init,
+ * LAB_18001b06f/LAB_18001b0b8 uVar16, LAB_18001b0cb uVar8). The og's scan
+ * bound `record_size * chunk_sectors` overruns the chunk buffer for
+ * record_size > sector_bytes (reads uninitialized heap - not replicated;
+ * a safety hardening, see the S-012 Resolution).
+ *
+ * Claim map (og engine[0x4a], built by pass 1 FUN_180017190 :18323-410 +
+ * claim gate :18523): every record that reaches the emit point (non-
+ * metafile, non-system) claims its primary runlist extents - data runs
+ * for files, $I30 for directories - clipped by the record size (the
+ * claim loop is size-bounded), sparse runs skipped. Probe = run START
+ * (spc * lcn :21220). Cluster-granular intervals implement it; the og's
+ * per-sector bitmap is equivalent at the run-start probe point on the
+ * standard geometries (the 0x2c-field scaling on >512b clusters is an
+ * og indexing ambiguity - see Resolution). */
+
+constexpr char kGuidDumpTemplate[] = "{3808876b-c176-4e48-b7ae-04046e6cc752}";
+constexpr size_t kGuidDumpNameLen = 0x4C; /* 76 UTF-16 chars = two braced GUIDs */
+
+static bool is_guid_dump_name(const std::u16string& n) {
+    if (n.size() != kGuidDumpNameLen || n[0] != u'{')
+        return false;
+    static const std::u16string tmpl = [] {
+        std::u16string t;
+        for (const char* p = kGuidDumpTemplate; *p != '\0'; ++p)
+            t.push_back(u16(*p));
+        return t;
+    }();
+    /* trailing 0x26 chars equal the template; '}' closes the FIRST guid */
+    if (n.compare(kGuidDumpNameLen - 38, 38, tmpl) != 0)
+        return false;
+    return n[kGuidDumpNameLen - 39] == u'}';
+}
+
+/* Merged cluster-interval claim map (S-012 pass 2). */
+struct ClaimMap {
+    std::vector<std::pair<u64, u64>> iv; /* sorted, disjoint [start, end) */
+
+    void claim(u64 start, u64 len) {
+        if (len == 0)
+            return;
+        const u64 a = start, b = start + len;
+        std::vector<std::pair<u64, u64>> out;
+        out.reserve(iv.size() + 1);
+        bool placed = false;
+        u64 lo = a, hi = b;
+        for (const auto& r : iv) {
+            if (r.second < lo) {
+                out.push_back(r);
+            } else if (r.first > hi) {
+                if (!placed) {
+                    out.push_back({lo, hi});
+                    placed = true;
+                }
+                out.push_back(r);
+            } else {
+                lo = lo < r.first ? lo : r.first;
+                hi = hi > r.second ? hi : r.second;
+            }
+        }
+        if (!placed)
+            out.push_back({lo, hi});
+        iv = std::move(out);
+    }
+
+    bool claimed(u64 cluster) const {
+        size_t lo = 0, hi = iv.size();
+        while (lo < hi) {
+            const size_t mid = lo + (hi - lo) / 2;
+            if (iv[mid].second <= cluster)
+                lo = mid + 1;
+            else
+                hi = mid;
+        }
+        return lo < iv.size() && iv[lo].first <= cluster;
+    }
+};
+
+/* volume metafiles only - NOT every '$' name (the old blanket skip
+ * swallowed $Recycle.Bin/$Extend subtree content: recycle deletions
+ * vanished from the results; user files named '$...' also vanished).
+ * Pass-1 gate = this table (og FUN_180034b20's 15-entry name table +
+ * SI hidden+system); pass 2 adds the blanket-'$' filter on top (I-001). */
+static bool is_metafile_name(const std::u16string& n) {
+    static const std::u16string kMeta[] = {
+        u"$MFT",        u"$MFTMirr", u"$LogFile", u"$Volume", u"$AttrDef",  u"$Bitmap", u"$Boot",
+        u"$BadClus",    u"$Secure",  u"$UpCase",  u"$Extend", u"$Quota",    u"$ObjId",  u"$Reparse",
+        u"$RmMetadata", u"$UsnJrnl", u"$SDH",     u"$SII",    u"$Transact", u"$Config"};
+    for (const std::u16string& m : kMeta)
+        if (n == m)
+            return true;
+    return false;
+}
+
+/* One GUID-dump file's record scan (S-012 pass 2). Emits survivors into
+ * `emitted` (phase B resolves their parents like any other node). */
+static void guid_dump_scan_file(NtfsVolume* vol, const RunList& data_runs, const ClaimMap& claims,
+                                CancelToken* cancel, tree::ResultTree& tree,
+                                tree::FullNode* root_deleted, std::vector<EmittedNode>& emitted,
+                                WalkStats& stats) {
+    const u32 sector_bytes = vol->params().sector_bytes;
+    const u64 record_size = vol->params().record_size != 0 ? vol->params().record_size : 0x200;
+    const u64 stride_ok = record_size > 0x400 ? record_size : 0x400;
+    const u32 cluster_bytes = vol->params().cluster_bytes;
+    /* chunk: 0x8000 SECTORS per read (og :21020-22); sized to the actual
+     * read, never the og's record_size<<15 over-allocation */
+    const u64 chunk_max = u64(0x8000) * sector_bytes;
+    std::vector<u8> buf;
+    for (const DataRun& run : data_runs.runs()) {
+        if (run.sparse || run.length == 0 || run.lcn == 0)
+            continue;
+        const u64 run_bytes = run.length * cluster_bytes;
+        for (u64 off = 0; off < run_bytes; off += chunk_max) {
+            if (cancel != nullptr && cancel->checkpoint())
+                return;
+            const u64 take = run_bytes - off < chunk_max ? run_bytes - off : chunk_max;
+            buf.assign(size_t(take), 0);
+            if (vol->read_at(run.lcn * cluster_bytes + off, buf.data(), u32(take)) != OK)
+                continue; /* unreadable chunk: og breaks the run on read
+                           * failure (:21030) - next run still walked */
+            /* record scan within the chunk. record_no base = the chunk's
+             * start SECTOR (slice-relative; og :21137 lVar18) - synthetic
+             * IDs, opaque to everything downstream */
+            const u64 sector_base = (run.lcn * cluster_bytes + off) / sector_bytes;
+            u64 p = 0;
+            while (p + 0x70 <= take) { /* minimum parseable record head */
+                const u8* rec = buf.data() + p;
+                u64 stride = record_size;
+                const u32 magic = u32(rec[0]) | (u32(rec[1]) << 8) | (u32(rec[2]) << 16) |
+                                  (u32(rec[3]) << 24);
+                if (magic != RECORD_MAGIC_FILE)
+                    goto advance;
+                {
+                    const u64 window = take - p < stride_ok ? take - p : stride_ok;
+                    std::vector<u8> fix(rec, rec + window);
+                    RecordHeader rh;
+                    std::memcpy(&rh, fix.data(), sizeof(rh));
+                    if (rh.base_record != 0)
+                        goto advance; /* extension record: hole stride */
+                    if (fixup_apply(fix.data(), u32(fix.size()), rh.update_sequence_offset,
+                                    rh.update_sequence_size, sector_bytes) != OK)
+                        goto advance;
+                    std::vector<AttrView> attrs;
+                    if (enum_attributes(fix.data(), u32(fix.size()), attrs) != OK) {
+                        stride = stride_ok; /* parse fail: 0x400 stride */
+                        goto advance;
+                    }
+                    /* name-table metafile gate (og FUN_180034b20) */
+                    std::vector<FileNameInfo> names;
+                    for (const AttrView& a : attrs) {
+                        if (a.type != ATTR_TYPE_FILE_NAME)
+                            continue;
+                        FileNameInfo fi;
+                        if (parse_file_name(a, fi) == OK && !fi.name.empty())
+                            names.push_back(fi);
+                    }
+                    if (names.empty()) { /* no usable name: og props NULL */
+                        stride = stride_ok;
+                        goto advance;
+                    }
+                    const FileNameInfo* best = &names[0];
+                    for (const FileNameInfo& n : names)
+                        if (namespace_rank(n.namespace_type) >
+                            namespace_rank(best->namespace_type))
+                            best = &n;
+                    if (is_metafile_name(best->name))
+                        goto advance; /* name-table gate: hole stride */
+                    /* post-parse destroy filter (:21186): system flag,
+                     * no name (checked), blanket '$' (I-001: pass-2-only) */
+                    const bool dir = (best->dos_flags & 0x10000000) != 0;
+                    if (!dir && (best->dos_flags & 0x04) != 0) {
+                        stride = stride_ok;
+                        goto advance;
+                    }
+                    if (best->name[0] == u'$') {
+                        stride = stride_ok;
+                        goto advance;
+                    }
+                    ++stats.guid_dump_records;
+                    /* $DATA facts: size + runs (props runlist builder
+                     * FUN_1800069e0; resident-only records -> no runs) */
+                    u64 size = best->real_size;
+                    RunList rl;
+                    std::vector<u8> resident;
+                    for (const AttrView& a : attrs) {
+                        if (a.type != ATTR_TYPE_DATA || a.name_length != 0)
+                            continue;
+                        if (!a.nonresident) {
+                            const u8* d = nullptr;
+                            u32 dlen = 0;
+                            if (resident_span(a, d, dlen) == OK && dlen > 0) {
+                                resident.assign(d, d + dlen);
+                                if (a.value_length != 0)
+                                    size = a.value_length;
+                            }
+                        } else {
+                            if (parse_data_runs(a, vol->params().total_clusters, rl) == OK &&
+                                a.actual != 0)
+                                size = a.actual;
+                        }
+                    }
+                    /* og viability + destroy (FUN_18001acc0 :21208-21264):
+                     * dirs always emit; size <= 0x3ff destroyed; larger
+                     * files destroyed iff EVERY run START is claimed */
+                    bool destroy = false;
+                    if (!dir) {
+                        if (size <= 0x3ff) {
+                            destroy = true;
+                        } else if (rl.total_clusters() > 0) {
+                            u64 total = 0, intact = 0;
+                            for (const DataRun& r : rl.runs()) {
+                                if (r.sparse || r.lcn == 0)
+                                    continue; /* -1 sparse: not counted */
+                                ++total;
+                                if (claims.claimed(r.lcn))
+                                    ++intact;
+                            }
+                            if (total > 0 && intact == total)
+                                destroy = true;
+                        }
+                    }
+                    if (destroy) {
+                        ++stats.guid_dump_destroyed;
+                        stride = stride_ok;
+                        goto advance;
+                    }
+                    /* emit (state |= 1 -> Deleted; synthetic record ref) */
+                    {
+                        tree::FileProperties* props = new (std::nothrow) tree::FileProperties();
+                        if (props == nullptr)
+                            return;
+                        props->record_ref = sector_base + p / record_size;
+                        props->fs_kind = u32(FsKindCode::Ntfs);
+                        props->name = best->name;
+                        props->logical_size = size;
+                        props->allocated_size = best->allocated_size;
+                        props->times = best->times;
+                        props->attributes = u16(best->dos_flags & 0xFF) | (dir ? 0x10 : 0);
+                        props->flags = u16(dir ? PFLAG_IS_DIR : 0);
+                        if (!resident.empty())
+                            props->resident_data = std::move(resident);
+                        else if (!rl.empty()) {
+                            std::vector<RunList::Extent> ex;
+                            rl.extents(ex);
+                            for (const auto& e : ex)
+                                props->extents.push_back(
+                                    {e.lcn * cluster_bytes, e.clusters * cluster_bytes});
+                        }
+                        tree::FileNode* n = tree.add_file(root_deleted, props);
+                        if (n == nullptr) {
+                            props->release();
+                            return;
+                        }
+                        n->set_deleted_state(tree::DeletedState::Deleted);
+                        n->set_confidence(tree::Confidence::Unknown); /* og: no pass-2 grade */
+                        n->set_origin(tree::Origin::Structured);
+                        emitted.push_back({n, best->parent_record, false});
+                        ++stats.guid_dump_emitted;
+                        props->release(); /* node holds the ref */
+                        /* emit stride: record_size (uVar19 init) */
+                    }
+                }
+            advance:
+                p += stride;
+            }
+        }
+    }
+}
+
 /* Build props for one record from its attribute views. */
 u32 build_props(NtfsVolume* vol, const std::vector<AttrView>& attrs, u64 record_no,
                 u16 record_flags, tree::FileProperties*& props_out,
@@ -246,20 +550,6 @@ static std::u16string recycle_token(const std::u16string& n) {
     return tok;
 }
 
-/* volume metafiles only - NOT every '$' name (the old blanket skip
- * swallowed $Recycle.Bin/$Extend subtree content: recycle deletions
- * vanished from the results; user files named '$...' also vanished) */
-static bool is_metafile_name(const std::u16string& n) {
-    static const std::u16string kMeta[] = {
-        u"$MFT",        u"$MFTMirr", u"$LogFile", u"$Volume", u"$AttrDef",  u"$Bitmap", u"$Boot",
-        u"$BadClus",    u"$Secure",  u"$UpCase",  u"$Extend", u"$Quota",    u"$ObjId",  u"$Reparse",
-        u"$RmMetadata", u"$UsnJrnl", u"$SDH",     u"$SII",    u"$Transact", u"$Config"};
-    for (const std::u16string& m : kMeta)
-        if (n == m)
-            return true;
-    return false;
-}
-
 constexpr u64 REMNANT_BLOCK = 4ull << 20;
 
 /* NTFS compression-block envelope expansion (GAP-P1-1).
@@ -408,6 +698,10 @@ u32 walk_mft(NtfsVolume* vol, VolumeBitmap* bitmap, const WalkerFlags& flags, Ca
 
     /* temp record buffer with fixup scratch */
     std::vector<u8> rec;
+    /* S-012 pass-2 state: collected GUID-dump files + the pass-1 claim map
+     * (og engine[0x65] list + engine[0x4a] map, FUN_180017190) */
+    std::vector<RunList> guid_dumps;
+    ClaimMap claims;
     for (u64 record_no = 0; record_no < max_record; ++record_no) {
         if (cancel && cancel->checkpoint())
             return ERR_CANCELLED;
@@ -690,17 +984,16 @@ u32 walk_mft(NtfsVolume* vol, VolumeBitmap* bitmap, const WalkerFlags& flags, Ca
             conf = tree::Confidence::Excellent; /* live file: extents owned by it */
         }
 
-        /* S-001 (diff-to-fix): the og destroy rule. After the viability
-         * grading, a DELETED non-directory file whose every probe cluster
-         * reads re-allocated is released WITHOUT reaching the result list
+        /* S-001 + S-012: the og destroy rule lives in the pass-2 dump parser
          * (FUN_18001acc0 :21249-21262: `0 < total && intact == total ->
-         * goto LAB_18001b06f` calls props Release and skips the
-         * list-insert at LAB_18001afe6). Folders never take the viability
-         * walk og-side (`(flags & 0x10) == 0` gate) and are never
-         * destroyed; live files own their clusters. Recovering such a
-         * file yields zeros - the og never offers it, so neither do we
-         * (default; the flag keeps the old keep-and-grade visibility for
-         * honest-recovery scans). */
+         * props Release`, skipping the list insert at LAB_18001afe6), NEVER
+         * in the main walk - pass 1 emits every parsed record
+         * unconditionally (:18630). Default OFF restores og pass-1
+         * membership; the opt-in flag keeps keep-and-grade visibility for
+         * honest-recovery scans. Pass 2 applies its own destroy rules
+         * regardless (guid_dump_scan_file). Folders never take the
+         * viability walk og-side (`(flags & 0x10) == 0` gate) and are never
+         * destroyed; live files own their clusters. */
         if (flags.destroy_fully_overwritten && !in_use && !is_dir &&
             conf == tree::Confidence::Overwritten) {
             ++stats.destroyed_overwritten;
@@ -897,12 +1190,53 @@ u32 walk_mft(NtfsVolume* vol, VolumeBitmap* bitmap, const WalkerFlags& flags, Ca
                 sp->release();
             }
         }
+        /* S-012 pass-1 claim map + GUID-dump collection (og FUN_180017190 /
+         * :18584-18625). Every record that reaches the emit point claims
+         * its primary runlist extents, size-clipped, sparse runs skipped;
+         * the og's own claim exclusions ($Boot/$LogFile prefixes, the
+         * metafile name table, hidden+system) never get this far (they
+         * continue'd at the gates above). Deleted size-0 records have no
+         * size to feed the claim loop - nothing claimed, og parity.
+         * Runs BEFORE props->release(): hard-link clones leave the builder's
+         * props unreferenced (nodes hold clones), so only locals are read. */
+        if (in_use && is_guid_dump_name(best->name) && !data_runs.empty()) {
+            guid_dumps.push_back(data_runs);
+            ++stats.guid_dump_files;
+        }
+        {
+            const RunList& rl = is_dir ? i30_runs : data_runs;
+            u64 remaining = data_real_size ? data_real_size : best->real_size;
+            if (is_dir && has_i30)
+                remaining = i30_runs.total_clusters() * vol->params().cluster_bytes;
+            for (const DataRun& r : rl.runs()) {
+                if (remaining == 0)
+                    break;
+                if (r.sparse || r.length == 0 || r.lcn == 0)
+                    continue;
+                u64 len = r.length;
+                const u64 size_clusters =
+                    (remaining + vol->params().cluster_bytes - 1) / vol->params().cluster_bytes;
+                if (len > size_clusters)
+                    len = size_clusters;
+                claims.claim(r.lcn, len);
+                remaining -= len * vol->params().cluster_bytes;
+            }
+        }
+
         /* each add_file call holds one ref; drop the builder's ref for clones */
         props->release(); /* nodes hold the refs */
+
         if (in_use)
             ++stats.active;
         else
             ++stats.deleted;
+    }
+
+    /* ---- phase A2: S-012 pass 2 - the GUID-dump walk (og :17983-84:
+     * engine[0x6d] = engine[0x4a]; FUN_18001a980(guid list)) ---- */
+    if (flags.guid_dump_pass) {
+        for (const RunList& dumps : guid_dumps)
+            guid_dump_scan_file(vol, dumps, claims, cancel, tree, root_deleted, emitted, stats);
     }
 
     /* ---- phase B: resolve parents (orphans -> root_lost) ---- */

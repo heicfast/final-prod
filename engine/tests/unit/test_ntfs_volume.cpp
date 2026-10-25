@@ -1308,17 +1308,19 @@ TEST(NtfsVolume, EndToEndWalk) {
 
     /* meta records skipped by '$' name; SYSTEM-attributed: none in fixture */
     EXPECT_EQ(stats.meta_skipped, 7u);          /* 0,1,2,3,4,6,7 ($ named) */
-    EXPECT_EQ(stats.destroyed_overwritten, 1u); /* overwrit.dat only */
+    /* S-012: the destroy rule belongs to pass 2 - the main walk keeps every
+     * deleted record (og pass-1 unconditional emit :18630); 0 destroyed */
+    EXPECT_EQ(stats.destroyed_overwritten, 0u);
     EXPECT_EQ(stats.damaged, 0u);
     EXPECT_EQ(stats.orphans, 0u);
     EXPECT_EQ(stats.hardlinks, 1u);
     EXPECT_EQ(stats.ads, 1u);
-    EXPECT_GE(stats.emitted, 9u);
+    EXPECT_GE(stats.emitted, 10u);
 
     /* locate nodes by name */
     tree::FileNode *rootdot = nullptr, *folder1 = nullptr, *readme = nullptr, *deleted = nullptr,
                    *partial = nullptr, *hard16 = nullptr, *hard5 = nullptr, *dirdel = nullptr,
-                   *holes = nullptr, *adsnode = nullptr, *adschild = nullptr;
+                   *holes = nullptr, *adsnode = nullptr, *adschild = nullptr, *overwrit = nullptr;
     std::vector<tree::FileNode*> all;
     std::function<void(tree::FileNode*)> collect = [&](tree::FileNode* n) {
         for (tree::FileNode* c = n->first_child(); c; c = c->next_sibling()) {
@@ -1352,14 +1354,16 @@ TEST(NtfsVolume, EndToEndWalk) {
             adsnode = n;
         else if (nm == "ads.txt:sec")
             adschild = n;
+        else if (nm == "overwrit.dat")
+            overwrit = n;
     }
     ASSERT_NE(rootdot, nullptr);
     ASSERT_NE(folder1, nullptr);
     ASSERT_NE(readme, nullptr);
     ASSERT_NE(deleted, nullptr);
-    /* S-001: fully-overwritten deleted files are DESTROYED (og parity -
-     * FUN_18001acc0 LAB_18001b06f); they never reach the tree */
-    ASSERT_EQ(1u, stats.destroyed_overwritten);
+    ASSERT_NE(overwrit, nullptr) << "S-012: main walk must keep overwritten deleted records";
+    EXPECT_EQ(overwrit->deleted_state(), tree::DeletedState::PartiallyOverwritten);
+    EXPECT_EQ(overwrit->confidence(), tree::Confidence::Overwritten);
     ASSERT_NE(dirdel, nullptr);
     ASSERT_NE(holes, nullptr);
     ASSERT_NE(partial, nullptr);
@@ -2235,4 +2239,217 @@ TEST(NtfsVolume, UserFileNamedDollarNotHidden) {
         find(r);
     EXPECT_TRUE(found) << "user file named '$...' must not be hidden by the "
                           "known-metafile filter";
+}
+
+/* ---- S-012: the two-pass architecture ---------------------------------- */
+
+namespace {
+
+/* a live GUID-dump file name: two braced GUIDs, the second being the og's
+ * fixed MFT-dump template (collector NTFSSearchDLL :18584-18625) */
+const char16_t* kDumpFileName =
+    u"{11111111-2222-3333-4444-555555555555}{3808876b-c176-4e48-b7ae-04046e6cc752}";
+
+/* walk helper: returns every node in the tree (children of roots) */
+std::vector<tree::FileNode*> collect_all(tree::ResultTree& tree) {
+    std::vector<tree::FileNode*> all;
+    std::function<void(tree::FileNode*)> collect = [&](tree::FileNode* n) {
+        for (tree::FileNode* c = n->first_child(); c; c = c->next_sibling()) {
+            all.push_back(c);
+            collect(c);
+        }
+    };
+    for (auto* r : tree.roots())
+        collect(r);
+    return all;
+}
+
+} // namespace
+
+TEST(NtfsVolume, MainWalkKeepsOverwrittenDeletedDefaultFlags) {
+    /* S-012 membership parity: the og's pass 1 emits EVERY parsed record
+     * unconditionally (:18630) - viability grading and destroy live in the
+     * pass-2 dump parser. A fully-overwritten deleted live-MFT file MUST be
+     * in the result set under DEFAULT flags (the pre-S-012 default dropped
+     * it - membership core-subset-og). */
+    Image img;
+    build_image(img);
+    MemDevice dev(img.raw(), img.geom());
+    u32 err = 0;
+    auto vol = NtfsVolume::open(std::unique_ptr<IStorageDevice>(new MemDevice(dev)), &err);
+    ASSERT_NE(vol, nullptr) << "open err " << err_text(err);
+    std::unique_ptr<VolumeBitmap> bm;
+    ASSERT_EQ(VolumeBitmap::load(vol.get(), bm), OK);
+
+    tree::ResultTree tree;
+    auto* ra = tree.add_root(u"Found");
+    auto* rd = tree.add_root(u"Deleted");
+    auto* rl = tree.add_root(u"Lost Files");
+    WalkerFlags wf; /* defaults: destroy_fully_overwritten == false */
+    WalkStats stats;
+    ASSERT_EQ(OK,
+              walk_mft(vol.get(), bm.get(), wf, nullptr, nullptr, nullptr, tree, ra, rd, rl, stats));
+    EXPECT_EQ(0u, stats.destroyed_overwritten);
+    tree::FileNode* over = nullptr;
+    for (tree::FileNode* n : collect_all(tree))
+        if (n->name_utf8() == "overwrit.dat")
+            over = n;
+    ASSERT_NE(over, nullptr) << "default flags: og pass-1 membership keeps "
+                              "fully-overwritten deleted records";
+    EXPECT_EQ(over->deleted_state(), tree::DeletedState::PartiallyOverwritten);
+    EXPECT_EQ(over->confidence(), tree::Confidence::Overwritten);
+
+    /* the opt-in destroy mode still works (honest-recovery visibility flag) */
+    tree::ResultTree tree2;
+    auto* ra2 = tree2.add_root(u"Found");
+    auto* rd2 = tree2.add_root(u"Deleted");
+    auto* rl2 = tree2.add_root(u"Lost Files");
+    WalkerFlags wf2;
+    wf2.destroy_fully_overwritten = true;
+    WalkStats stats2;
+    ASSERT_EQ(OK, walk_mft(vol.get(), bm.get(), wf2, nullptr, nullptr, nullptr, tree2, ra2, rd2,
+                           rl2, stats2));
+    EXPECT_EQ(1u, stats2.destroyed_overwritten);
+    bool seen = false;
+    for (tree::FileNode* n : collect_all(tree2))
+        if (n->name_utf8() == "overwrit.dat")
+            seen = true;
+    EXPECT_FALSE(seen) << "opt-in destroy mode drops the record";
+}
+
+TEST(NtfsVolume, GuidDumpPassRecoversAndDestroysByOgRules) {
+    /* S-012 pass 2: a live GUID-template file's $DATA is parsed as stale
+     * MFT-record dumps (og FUN_18001a980 + FUN_18001acc0). Five dump
+     * records pin every destroy rule:
+     *   A  run-start UNCLAIMED (LCN 110) ................ kept + emitted
+     *   B  runs at 200 (claimed by live readme) + 110 ... intact<total, kept
+     *   C  size 512 <= 0x3ff ............................ destroyed
+     *   E  run-start CLAIMED (LCN 200) .................. destroyed
+     *   D  directory (0x10000000) with claimed index ..... kept (dir bypass)
+     * The dump region itself (LCN 100..109) is claimed by the GUID file's
+     * own live extents - dump records pointing into their own storage
+     * would be destroyed, og parity. */
+    Image img;
+    build_image(img);
+    /* the GUID dump file: live, record 8, $DATA at LCN 100, 10 clusters */
+    {
+        RecBuilder r;
+        r.header(8, RECORD_IN_USE);
+        r.attr_si(0x20);
+        r.attr_file_name(5, kDumpFileName, FILE_NAME_WIN32_AND_DOS, 0x20, 10 * CLUSTER,
+                         10 * CLUSTER);
+        r.attr_data_runlist(100, 10, 10 * CLUSTER);
+        r.finish();
+        std::memcpy(img.sec(MFT_LCN + 8 * 2), r.buf.data(), RECORD_SIZE);
+    }
+    /* dump record A: deleted, 2 KiB, run at LCN 110 (unclaimed) */
+    {
+        RecBuilder r;
+        r.header(90, 0);
+        r.attr_si(0x20);
+        r.attr_file_name(16, u"stale_a.dat", FILE_NAME_WIN32_AND_DOS, 0x20, 2048, 2048);
+        r.attr_data_runlist(110, 4, 2048);
+        r.finish();
+        std::memcpy(img.sec(100), r.buf.data(), RECORD_SIZE);
+    }
+    /* dump record B: deleted, 2 runs - LCN 200 (claimed by live readme.txt)
+     * + LCN 111 (free): intact < total -> kept */
+    {
+        RecBuilder r;
+        r.header(91, 0);
+        r.attr_si(0x20);
+        r.attr_file_name(16, u"stale_b.dat", FILE_NAME_WIN32_AND_DOS, 0x20, 2048, 2048);
+        /* two-run runlist: vcn0 @ 200 (1 cluster), vcn1 @ 111 (3 clusters) */
+        r.attr_data_runlist_vcn(200, 1, 0, 2048);
+        r.attr_data_runlist_vcn(111, 3, 1, 2048);
+        r.finish();
+        std::memcpy(img.sec(100 + 2), r.buf.data(), RECORD_SIZE);
+    }
+    /* dump record C: deleted, size 512 <= 0x3ff -> destroyed */
+    {
+        RecBuilder r;
+        r.header(92, 0);
+        r.attr_si(0x20);
+        r.attr_file_name(16, u"stale_c.dat", FILE_NAME_WIN32_AND_DOS, 0x20, 512, 512);
+        r.attr_data_runlist(112, 1, 512);
+        r.finish();
+        std::memcpy(img.sec(100 + 4), r.buf.data(), RECORD_SIZE);
+    }
+    /* dump record E: deleted, run-start at LCN 200 fully claimed -> destroyed */
+    {
+        RecBuilder r;
+        r.header(93, 0);
+        r.attr_si(0x20);
+        r.attr_file_name(16, u"stale_e.dat", FILE_NAME_WIN32_AND_DOS, 0x20, 2048, 2048);
+        r.attr_data_runlist(200, 1, 2048);
+        r.finish();
+        std::memcpy(img.sec(100 + 6), r.buf.data(), RECORD_SIZE);
+    }
+    /* dump record D: DIRECTORY ($FILE_NAME flags 0x10000000) with an index
+     * run at claimed LCN 200 - dirs bypass viability, always emitted */
+    {
+        RecBuilder r;
+        r.header(94, RECORD_IS_DIRECTORY);
+        r.attr_si(0);
+        r.attr_file_name(16, u"stale_dir", FILE_NAME_WIN32_AND_DOS, 0x10000000, 0, 0);
+        r.attr_index_root();
+        r.attr_index_runlist(200, 1);
+        r.finish();
+        std::memcpy(img.sec(100 + 8), r.buf.data(), RECORD_SIZE);
+    }
+
+    MemDevice dev(img.raw(), img.geom());
+    u32 err = 0;
+    auto vol = NtfsVolume::open(std::unique_ptr<IStorageDevice>(new MemDevice(dev)), &err);
+    ASSERT_NE(vol, nullptr) << "open err " << err_text(err);
+    std::unique_ptr<VolumeBitmap> bm;
+    ASSERT_EQ(VolumeBitmap::load(vol.get(), bm), OK);
+
+    tree::ResultTree tree;
+    auto* ra = tree.add_root(u"Found");
+    auto* rd = tree.add_root(u"Deleted");
+    auto* rl = tree.add_root(u"Lost Files");
+    WalkerFlags wf;
+    WalkStats stats;
+    ASSERT_EQ(OK,
+              walk_mft(vol.get(), bm.get(), wf, nullptr, nullptr, nullptr, tree, ra, rd, rl, stats));
+    EXPECT_EQ(1u, stats.guid_dump_files);
+    EXPECT_EQ(5u, stats.guid_dump_records);
+    EXPECT_EQ(2u, stats.guid_dump_destroyed) << "C (size<=0x3ff) + E (all run-starts claimed)";
+    EXPECT_EQ(3u, stats.guid_dump_emitted) << "A + B + D survive";
+
+    bool a = false, b = false, c = false, e = false, d = false;
+    for (tree::FileNode* n : collect_all(tree)) {
+        const std::string nm = n->name_utf8();
+        if (nm == "stale_a.dat")
+            a = true;
+        else if (nm == "stale_b.dat")
+            b = true;
+        else if (nm == "stale_c.dat")
+            c = true;
+        else if (nm == "stale_e.dat")
+            e = true;
+        else if (nm == "stale_dir")
+            d = true;
+    }
+    EXPECT_TRUE(a) << "unclaimed dump record must be recovered";
+    EXPECT_TRUE(b) << "partially-claimed run-STARTs must survive (intact < total)";
+    EXPECT_FALSE(c) << "size <= 0x3ff dump records are destroyed";
+    EXPECT_FALSE(e) << "fully-claimed run-STARTs are destroyed";
+    EXPECT_TRUE(d) << "directories bypass viability and always emit";
+
+    /* the GUID dump file itself never leaks into the results as a node the
+     * user could "recover" (it is live system content) - pass 1 emitted it
+     * as an ACTIVE file, which is og behavior too; only check the survivors'
+     * shape here: stale_a extents point at its unclaimed run */
+    for (tree::FileNode* n : collect_all(tree)) {
+        if (n->name_utf8() == "stale_a.dat") {
+            ASSERT_EQ(n->props()->extents.size(), 1u);
+            EXPECT_EQ(n->props()->extents[0].offset, 110 * CLUSTER);
+            EXPECT_EQ(n->props()->logical_size, 2048u);
+            EXPECT_EQ(n->deleted_state(), tree::DeletedState::Deleted);
+            return;
+        }
+    }
+    FAIL() << "stale_a.dat not found";
 }

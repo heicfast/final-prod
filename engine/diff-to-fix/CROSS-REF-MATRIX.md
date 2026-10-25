@@ -26,7 +26,7 @@ Legend: `M` = MATCH · `A-n`/`S-n`/`M-n`/`N-n`/`I-n` = finding ID (in
 
 | Module \ Group | B | D | C | A | S | O | P | X | R | F | Q |
 |---|---|---|---|---|---|---|---|---|---|---|---|
-| ntfs | M-007, M-008 (S2), N-011, N-012 (S2); I-001 ack | M (S-001 fixed), N-012 (S2) | M | M-008 (S2) | M (M-001 fixed), N-001 | NA | NA | M | M | M | M (debt), N-019 (S2) |
+| ntfs | M-007, M-008 (S2), N-011, N-012 (S2); I-001 ack; S-012 FIXED (two-pass: pass-1 membership + pass-2 dump walk) | M (S-001+S-012 fixed: membership keep), N-012 (S2) | M | M-008 (S2) | M (M-001 fixed), N-001 | NA | NA | M | M | M | M (debt), N-019 (S2) |
 | fat | M (N-021 fixed) | M (N-021 fixed) | M | I-002 ack, OQ-T2 | M | NA | NA | M | M | M | M (debt) |
 | exfat | M (S-011 fixed), N-003 FIXED, OQ-T5 | N-003 FIXED; M (S-011 fixed) | M | M | M | NA | NA | M | M | M | M (debt) |
 | fat | M; N-021 (S2) | M; N-021 (S2) | M | I-002 ack, OQ-T2 | M | NA | NA | M | M | M | M (debt) |
@@ -89,7 +89,7 @@ F safety · Q quality (definitions in `PARAMETERS.md`).
 
 | Module | Parameter(s) | Verdict change (evidence in the finding + `evidence/decompiled-quotes/*session2*`) |
 |---|---|---|
-| ntfs | B1/B4/D15/A26/B5 | **S-012** — two-pass architecture: og pass 1 emits deleted ungraded/undestroyed; destroy+viability+0x3ff+blanket-$ live in the missing GUID-dump pass 2; size-0 rescue missing; S-001's fix mis-scoped (see FIXED/S-001 postscript) |
+| ntfs | B1/B4/D15/A26/B5 | **S-012 — FIXED (session 4)** — two-pass architecture landed: destroy default OFF (pass-1 membership, :18630), full pass-2 GUID-dump walk with claim map + og gates (:21152-21264); one premise corrected (no cross-pass dedup); rescue chain split to OQ-S4 (tracked-open, decoded evidence) |
 | ntfs | C19/C20/D11/D12/B7/C23 | **N-024** (8.3 short-name field; two-sided boot ladder; pass-2 stride quirk superset; namespace-ranking superset; og error facility codes) |
 | fat | B1/S35/X49 | **M-011** (table-size windows: og FAT32 128 KiB–300 MiB, FAT16 ≥12 sectors; core 16 MiB reject = scan-failure class) |
 | fat | A27/B2/S35 | **M-012** (mirror policy: primary-wins-on-nonzero incl. BAD, scrutinized mirror answers, mirror-only mode; supersedes the N-022 sub-case) |

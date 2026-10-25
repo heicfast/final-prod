@@ -39,19 +39,24 @@ struct WalkerFlags {
     bool skip_system_files = true; /* corpus: dos_flags & 4 -> skip */
     bool emit_ads = true;          /* named $DATA -> child nodes */
     bool harvest_usnjrnl = true;   /* $Extend/$UsnJrnl:$J deleted-name harvest */
-    /* S-001 (diff-to-fix): the og DESTROYS deleted non-directory files whose
-     * every probe cluster reads re-allocated in the allocation map - the
-     * viability loop's `0 < total && intact == total -> props.Release()`
-     * (NTFSSearchDLL FUN_18001acc0 :21249-21262, LAB_18001b06f skips the
-     * list insert at LAB_18001afe6); folders never take the viability
-     * walk (the `(flags & 0x10) == 0` gate) and are never destroyed.
-     * Default ON = og parity (such files yield all-zero content; the og
-     * result set never contains them). OFF keeps the previous
-     * keep-and-grade behavior (Confidence::Overwritten +
-     * DeletedState::PartiallyOverwritten) for honest-recovery scans that
-     * want the visibility - a reviewed divergence either way (S-001
-     * Resolution). */
-    bool destroy_fully_overwritten = true;
+    /* S-001 landed the og's destroy rule in the WRONG pass (S-012). The og's
+     * main MFT walk (pass 1, FUN_180017390) emits EVERY parsed record
+     * unconditionally - deleted included, no viability grading, no destroy
+     * (emit at :18630; the og's viability/destroy machinery lives in the
+     * pass-2 GUID-dump record parser FUN_18001acc0 :21208-21264). The core's
+     * in-walk grading stays (informational superset, D15 documented), but
+     * destroy-in-pass-1 removed records the og shows - membership must be
+     * pass-1-parity first. Default OFF = og membership. The flag keeps the
+     * opt-in destroy for honest-recovery scans that want it; pass 2 applies
+     * the og's real destroy rules regardless of this flag. */
+    bool destroy_fully_overwritten = false;
+    /* S-012 pass 2: after the main walk, collect LIVE files named
+     * "{...}{3808876b-c176-4e48-b7ae-04046e6cc752}" (0x4C chars, collector
+     * NTFSSearchDLL :18584-18625) and parse their $DATA contents as stale
+     * MFT-record dumps (FUN_18001a980 chunk walk + FUN_18001acc0 record
+     * gates). The og's deep-scan second source for records whose live MFT
+     * slots were reused after deletion. */
+    bool guid_dump_pass = true;
     /* viability gate boundary (NTFS-1): og is STRICT - `0x3ff < size`
      * (Dec 21208): files of exactly 0x3FF bytes take the fast-path with
      * no bitmap check; larger files get the $Bitmap grading. */
@@ -84,7 +89,14 @@ struct WalkStats {
     u64 compressed_failed = 0;     /* files whose envelope failed (zero-filled) */
     u64 destroyed_overwritten = 0; /* S-001: deleted files dropped by the og's
                                      destroy rule (all probe clusters
-                                     re-allocated; never emitted) */
+                                     re-allocated; never emitted). S-012: the
+                                     rule belongs to pass 2 - pass 1 keeps
+                                     every deleted record (og membership). */
+    u64 guid_dump_files = 0;       /* S-012: live GUID-template files collected */
+    u64 guid_dump_records = 0;     /* S-012: dump records parsed (post-gates) */
+    u64 guid_dump_destroyed = 0;   /* S-012: dump records destroyed (og rules:
+                                     size <= 0x3ff or all run-STARTs claimed) */
+    u64 guid_dump_emitted = 0;     /* S-012: dump records emitted into the tree */
 };
 
 /* Progress callback: (done, total) in walk units (records for the MFT
