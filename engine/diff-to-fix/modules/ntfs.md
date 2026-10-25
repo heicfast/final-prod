@@ -431,3 +431,17 @@ the hard-link emission model now matches the og by default.
   real pre-existing divergence-class bug that no earlier fixture exposed).
 - B7 verdict moves to MATCH for the emission model; the finding's OQ-S2A-2
   (consumer-side fan-out) remains open by design. Suite 582/582.
+
+---
+
+## Session-11 fix row 2 (2026-10-26, DFX11 — M-008 closed)
+
+**M-008 FIXED** (with the premise corrected against the corpus):
+`WalkerFlags::single_hop_attrlist` (default FALSE = the multi-hop BFS
+superset, D-66 — the finding's own recommendation); TRUE = og parity
+(depth-1, corpus FUN_180041df0 :52615-52687). The deleted-gate premise
+was STALE: FUN_18001acc0 is the GUID-DUMP pass 2 (S-012's decode), not a
+deleted-phase walk; pass 1 (FUN_180017390) emits every record AND builds
+the child-record list (:18461-18464, plVar9 non-NULL) — the og chases
+deleted records at depth 1 too. OQ-S2A-1 resolved by the same evidence;
+OQ-S2A-4 ($MFT bootstrap depth) stays open. 3 tests; suite 593/593.

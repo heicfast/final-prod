@@ -53,7 +53,7 @@
 | Report | UI-rendered | JSON report, CI-validated schema | **DONE (ours-only D-41)** | tools/validate_report.py |
 | Health/SMART | SAT wrapper | ATA_PASS_THROUGH + NVMe log-page 2, 0xD1 vendor thresholds, the 4-status grading model (Unknown/Good/Caution/Bad per the DiskHealth rules), derived verdicts | **DONE (delta D-42 + S-024 grading)** | test_health parse cases + test_health_grade (8 rule tests) |
 | RawFixer | FATFixer/CheckBackupDBR; NTFSFixer CheckMFT; FATFixer CheckFatTable/CheckRootDir; shared FixByScanSector; pre-scan position | analyze + dry-run + transactional apply/rollback, 4Kn-aware, consent-gated; CheckMFT ($MFT record 0 from $MFTMirr), CheckFatTable (sector-granular mirror restore), CheckRootDir/IsValidRootDir/CheckRoot advisories, FixByScanSector (bounded 64 MiB probe); wired pre-scan (CLI --repair/--repair-apply, cr_ui consent ABI, Repair events, undo-log persistence); volume quiesce S7 (lock before first write, refuse-not-race, corpus LOCK/DISMOUNT sequence) | **DONE (S-008+S-010)** | FIX-2/3 W3; test_rawfixer.cpp + PreScan* orchestrator/ABI tests |
-| Transport | EPRDTDRV grammar + direct | RDA grammar + direct duality, RdaClient surface (wizard), retry/bisection + ReadErrorMap | **DONE** | D-37/D-38; test_retry.cpp |
+| Transport | EPRDTDRV grammar + direct | RDA grammar + direct duality, retry/bisection + ReadErrorMap (the structured-open RdaClient was deleted by N-041 - zero callers since introduction; wire structs stay documented in cr_rda.h) | **DONE** | D-37/D-38; test_retry.cpp |
 | Orchestration | Quick+Advanced generations | staged single-pass (D-36), weighted monotonic progress, pause/cancel/checkpoint, error map | **DONE** | ARCH-4 reworded claims; test_orchestrator.cpp |
 
 ## 3. Explicit exclusions (standing)

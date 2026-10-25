@@ -551,7 +551,13 @@ u32 walk_mft(NtfsVolume* vol, VolumeBitmap* bitmap, const WalkerFlags& flags, Ca
              * the chase stay valid for the whole record's processing */
             std::vector<std::vector<u8>> child_records;
             std::vector<AttrListEntry> frontier = attrlist;
-            for (int level = 0; level < int(FRAG_DEPTH_LIMIT) && !frontier.empty(); ++level) {
+            /* M-008: the og's chase is DEPTH-1 (FUN_180041df0 iterates the
+             * child list, no recursion). single_hop_attrlist=true caps the
+             * BFS at one level for benchmark parity; the default keeps the
+             * multi-hop superset (the finding's recommendation). */
+            const int depth_limit =
+                flags.single_hop_attrlist ? 1 : int(FRAG_DEPTH_LIMIT);
+            for (int level = 0; level < depth_limit && !frontier.empty(); ++level) {
                 std::vector<AttrListEntry> next;
                 for (const AttrListEntry& e : frontier) {
                     if (e.type != ATTR_TYPE_DATA && e.type != ATTR_TYPE_INDEX_ALLOCATION &&

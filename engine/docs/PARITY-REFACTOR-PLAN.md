@@ -26,7 +26,7 @@ scope-escaped.
 
 ## 1. Prior claims that failed re-verification (corrections, not inherited)
 
-1. PARITY-ARCH.md:152 ("core consumes driver exclusively through RdaClient; structured
+1. ~~PARITY-ARCH.md:152~~ RESOLVED by N-041's deletion (session-12): the refuted "consumes exclusively through RdaClient
    OPEN_TARGET preferred") — **REFUTED**: production uses free-function grammar opens; the
    `crCreate*` wording is also wrong (0 matches).
 2. docs/architecture.md:80-81 ("the CLI saves on cancel") — **FALSE** at HEAD
@@ -47,7 +47,7 @@ scope-escaped.
 
 | # | Contested item | Decision | Rationale |
 |---|---|---|---|
-| D-A | `RdaClient` (dead in production, ~520 lines) | **KEEP + FIX, do not delete** | It is frozen contract surface for the wizard (TRANSPORT-CONTRACT §8: UI reads `info()/ioctl_base()/session_*` through it; imaging/verification is its purpose). Deleting breaks a consumed contract. Instead: fix its two slop paths (FB-T06/FB-T07), correct PARITY-ARCH.md:152 and the cr_rda.h narrative ("UI/imaging binding surface — production rrecov uses the free-function grammar path"), and register the class's role in PARITY-DELTAS. Free-function surface stays the production path (matches og Device.mo). |
+| D-A | `RdaClient` (dead in production, ~520 lines) | **SUPERSEDED — deleted (N-041, session-12)** | The KEEP ruling cited TRANSPORT-CONTRACT §8's "UI reads `info()/ioctl_base()/session_*` through it" - that document no longer exists in the tree and the claim is disproven by the exhaustive zero-caller grep (verified at audit time and again at deletion time: no consumer in src/, include/, tests/, tools/, bench/, fuzz/; cr_ui links the ENGINE, never src/win). N-041's wire-or-delete decision executed: the class + `volume_letter_to_disk` + the structured-open device plumbing deleted; wire structs stay documented in cr_rda.h; the grammar path is the sole production surface. FB-T06/FB-T07 moot (the slop paths died with the class). |
 | D-B | Dead-but-documented grammar leg `open_rda_volume` | **KEEP** | Documented grammar branch (TRANSPORT-CONTRACT §2.1; og Device.mo has the `Volume\%d` duality). Mark header "wizard binding surface". |
 | D-C | NTFS-1 viability boundary `>=0x3FF` vs og strict `>` | **MATCH OG** (strict `>`) | Unregistered divergence today = bug by the registry's own rule. One-line fix + boundary test at exactly 1023 bytes. |
 | D-D | NTFS-2 64 KiB MFT batching | **AMEND CONTRACT + REGISTER DELTA** | Device-IO is already 64-KiB-coalesced by the CachedReader (8 MiB LRU, 64-KiB blocks) — identical device-read count to og's bootstrap buffer. Engine-level re-batching would add complexity for zero IO change. Delete the two dead constants; rewrite ground-truth-contracts §2/§3 to "cache-coalesced 64-KiB reads"; register D-4x. |
@@ -72,7 +72,7 @@ scope-escaped.
 | W1-2 BitLocker: unreadable boot sector ⇒ Status::Unknown; CLI refuses with unlock guidance | cr_bitlocker.cpp, rrecov.cpp | unit: locked-volume unreadable ⇒ Unknown + scan refused | FB-B01 |
 | W1-3 `list` non-zero exit on enumeration failure; `health` exit 3 when ALL sources unavailable | rrecov.cpp | CLI contract test (exit codes) | FB-K01, FB-H04 |
 | W1-4 zstd/lz4 REQUIRED for production builds (CMake FATAL_ERROR when absent; fuzz lane relaxed) | CMakeLists, vcpkg.json | build gate: configure fails without libs | FB-X01 |
-| W1-5 RdaClient::open: GET_INFO failure ⇒ nullptr + wrong-driver error (no silent base-0) | cr_transport.cpp:264-269 | header-contract comment + code path review (win layer) | FB-T06 |
+| W1-5 RdaClient::open: GET_INFO failure ⇒ nullptr + wrong-driver error (no silent base-0) | ~~cr_transport.cpp:264-269~~ | MOOT — the class was deleted by N-041 (session-12); the slop path died with it | FB-T06 |
 | W1-6 delete `skip_hashless` (cr_safewriter.h:86) + correct PARITY-CORE-DOM.md:287 | cr_safewriter.h | grep: 0 refs | FB-R03 |
 | W1-7 delete `CarvedOnly` name, reserve value 5 | cr_scan.h:37 | existing session tests still green | FB-L03 |
 | W1-8 carve skipped-window honesty: do NOT count unreadable window bytes as scanned; surface `windows_skipped_bytes` | cr_carve.cpp:299-302, cr_carve.h | unit: failing window ⇒ bytes_scanned excludes it; stat present | FB-C01 |

@@ -73,6 +73,23 @@ walker-revert (3 nodes vs 1; the Win32/DOS links unfindable). Suite
 MINOR 48 · INFO 22 (0 actionable) · tracked-open 16 · FIXED 83 files
 (82 findings + RESOLVED-INDEX).
 
+**M-008 FIXED (this push — premise corrected against the corpus):**
+`WalkerFlags::single_hop_attrlist` (default FALSE = the multi-hop BFS
+superset, D-66, per the finding's own recommendation); TRUE = og parity
+(depth-1; corpus FUN_180041df0 :52615-52687). The finding's "deleted
+records never chased" premise was STALE — it read FUN_18001acc0 (the
+GUID-DUMP pass 2, S-012's decode) as a deleted-phase walk; pass 1
+(FUN_180017390 :18423+) emits every record AND builds the child list
+(:18461-18464, plVar9 non-NULL), so the og chases deleted records at
+depth 1 too — the fix-plan's deleted-gate step was REJECTED (corpus
+wins) and OQ-S2A-1 resolved by the same evidence. 3 tests (2 new +
+NestedAttrlistChase as the default guard); fail-before: walker-revert
+(2 vs 1 extents). Cross-lane repair in the same push: the M-054
+landing's +2 coverage hardening missed the S-009 leg's
+FreeMapProducerMatchesSpecBitMapping expectation (100 -> 102). Suite
+593/593. Counts after this push: SEVERE 2 · MAJOR 34 · MINOR 48 ·
+INFO 22 · FIXED 84 files (83 findings + index).
+
 # SUMMARY.md — executive summary (diff-fix session 14 on top; earlier sessions below)
 
 ## Session-14 delta (2026-10-26 — DFX14: bootstrap, two merge repairs, the reconciliation wave)
@@ -287,6 +304,28 @@ stays gated on the undecoded FUN_18000d670 grade emission). Suite
 **577/577** linux-release. Counts: MINOR 43 · FIXED/ 91 files (90
 findings + index). Session unique resolutions: 9 (6 reconciliation +
 N-076 + N-069 + N-030).
+
+**Dead-surface batch FIXED (this wave):** N-041 — the wire-or-delete
+decision executed as DELETE (the finding's own recommendation): the
+structured-open RdaClient class + the plumbing only it reached
+(rda_bind_structured, the device's structured_/OPEN_TARGET reopen
+branch, the orphaned grammar-bridge helpers) + volume_letter_to_disk —
+~16 KB / 511 diff lines of zero-caller code removed. The wire structs
+stay in cr_rda.h as the documented driver-contract mirror (marked); a
+CI dead-surface absence lint (the fix plan's
+Transport.GrammarPathIsSoleSurface, implemented as a lint-job grep gate)
+guards the symbols' return. The PARITY-REFACTOR-PLAN D-A KEEP ruling
+was SUPERSEDED with evidence (its cited TRANSPORT-CONTRACT §8 no
+longer exists in the tree; the "UI reads info()/ioctl_base()/session_*
+through it" claim is disproven by the exhaustive zero-caller grep).
+PARITY-ARCH.md:152's refuted claim corrected; AUDIT-ARCH ARCH-DEAD-1
+RESOLVED / ARCH-DEAD-2 re-annotated; CAPABILITY-MATRIX +
+DRIVER-UTILIZATION + PARITY-ORCH rows updated; FB-T06/FB-T07 moot.
+Suite 584/584 linux-release; format-churn hunks reverted to HEAD bytes
+so the format-18 CI gate sees only the intended diff. Counts: MINOR 42
+· FIXED/ 96 files (95 findings + index). Session unique resolutions:
+10 (6 reconciliation + N-076 + N-030 + N-041; N-069/N-051..N-054
+convergent with the parallel lanes).
 
 ## Session-8 delta (2026-10-26 — the closing-verification fix session, SEVERE lane first)
 

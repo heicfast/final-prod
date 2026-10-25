@@ -9660,6 +9660,7 @@ Stage Summary:
 - Session unique resolutions: 8 (6 reconciliation + N-076 + N-030).
   N-069 credited to the parallel lane (convergent). MINOR 43 remain.
 ---
+---
 Task ID: DFX10-T2 (session 15, the S-009 convergence + M-054)
 Agent: main engineer (diff-to-fix closing session 15 — the DFX10 lineage
 renumbered past the parallel legs' sessions 11-14)
@@ -9908,3 +9909,91 @@ Stage Summary:
   regions never offered). DFX14 tally: N-073 (FIXED-ALREADY, proven) +
   M-029 fold + the clobber repair (4 findings) + M-005 = 7 finding-level
   resolutions. Next: pull, re-verify lane map, claim the next item.
+
+---
+
+---
+Task ID: DFX12-T5 (dead-surface batch — N-041)
+Agent: main engineer (diff-to-fix minors-first session 12)
+Task: Execute the N-041 wire-or-delete decision as DELETE (the finding's
+recommendation), with full evidence chain for superseding the contrary
+REFACTOR-PLAN ruling.
+
+Work Log:
+- Re-verified zero callers first (RdaClient, volume_letter_to_disk,
+  rda_bind_structured, wrap_grammar_target, structured_ - exhaustive
+  grep over src/include/tests/tools/bench/fuzz).
+- FOUND A CONTRARY RULING: PARITY-REFACTOR-PLAN.md D-A said KEEP + FIX
+  ("frozen contract surface for the wizard; TRANSPORT-CONTRACT §8: UI
+  reads info()/ioctl_base()/session_* through it"). Disproved with
+  evidence: (1) the cited TRANSPORT-CONTRACT.md no longer exists in the
+  tree; (2) the "UI reads through it" claim fails the zero-caller grep
+  (cr_ui links the ENGINE, never src/win; no test/tool/bench/fuzz
+  consumer). The N-041 finding + AUDIT-ARCH ARCH-DEAD-1 (both citing
+  the same grep) are the operative records; D-A superseded in-place
+  with the evidence.
+- Deletion (~16 KB / 511 diff lines): RdaClient class (cr_rda.h decl +
+  cr_transport.cpp methods), the structured-open plumbing only it
+  reached (rda_bind_structured, structured_/kind_/disk_/part_/volume_
+  members, the OPEN_TARGET re-issue branch, the orphaned
+  wrap_grammar_target), volume_letter_to_disk (W4 KEEP-note +
+  declaration + body). Wire structs/constants KEPT in cr_rda.h as the
+  documented driver-protocol mirror (N-041 notes added; the corpus
+  ground truth is the driver-side rda_ioctl.h).
+- Transport.GrammarPathIsSoleSurface implemented as the CI lint-job
+  dead-surface absence grep (runs on every push; zero matches verified
+  locally).
+- Docs corrected in the same commit: PARITY-ARCH.md:152 (the refuted
+  claim), AUDIT-ARCH ARCH-DEAD-1/2, CAPABILITY-MATRIX, DRIVER-UTILIZATION
+  rows, PARITY-ORCH session_cancel rows, REFACTOR-PLAN W1-5/D-A/item-1.
+- Format-safety: the whole-file clang-format-23 pass churned two
+  pre-existing hunks where 23 disagrees with the CI's format-18 - those
+  hunks reverted to HEAD bytes so CI sees only the intended diff.
+- Suite 584/584 linux-release. The MSVC lane compiles the win layer on
+  push (the deletion is pure-cut; seams verified line-by-line).
+
+Stage Summary:
+- Session unique resolutions: 10 (6 reconciliation + N-076 + N-030 +
+  N-041; N-069 + the quartet convergent with parallel lanes). MINOR 42
+  remain. Next: N-029a maximal-subpart, N-056, N-063, N-062.
+
+---
+Task ID: DFX11-M008 (session 11, finding 3)
+Agent: main engineer (diff-to-fix fix session 11 — DFX11)
+Task: M-008 — the attrlist chase depth model. Verified, classified
+CONFIRMED-DIVERGENCE (depth) + FALSE-PREMISE (the deleted gate), fixed,
+proven.
+
+Work Log:
+- Corpus re-verified first-hand: FUN_180041df0 :52615-52687 (depth-1, no
+  recursion) + FUN_1800431d0 :18461-18464 inside FUN_180017390
+  (:18423-18562) — pass 1's per-record processor passes plVar9 non-NULL,
+  so the child-record list is built for EVERY record. THE FINDING'S
+  PREMISE CORRECTED: its "deleted-phase walk passes NULL param_6" claim
+  read FUN_18001acc0 (the GUID-DUMP pass 2, per S-012's decode) as a
+  deleted walk — the og chases DELETED records at depth 1 in pass 1.
+  The fix-plan's deleted-gate step was REJECTED (corpus wins); OQ-S2A-1
+  resolved by the same evidence; OQ-S2A-4 ($MFT bootstrap depth) stays
+  open.
+- Fix: WalkerFlags::single_hop_attrlist (default FALSE = the multi-hop
+  BFS superset, D-66 — the finding's own recommendation); TRUE = depth-1
+  parity (the chase stops after the first level; nested lists never
+  queue).
+- Tests: 2 new (MultiHopAttrlistOgParityStopsAtDepth1 — 1 extent/2048
+  bytes; DeletedAttrlistChaseFollowsChildrenAtDepth1 — the corrected
+  semantics on a deleted 3-record chain: default 8 clusters, parity 4 at
+  exactly LCN 140) + NestedAttrlistChase stays as the default guard.
+  Fail-before: walker-revert (2 vs 1 extents, 4096 vs 2048). Suite
+  593/593.
+- Cross-lane repair in the same push: the M-054 landing's +2 coverage
+  hardening (cluster_count = p.cluster_count + 2) missed the S-009 leg's
+  FreeMapProducerMatchesSpecBitMapping expectation — updated 100 -> 102
+  with the hardening's rationale comment.
+- Audit trail: Resolution + FIXED/ move (the premise correction recorded
+  in full); RESOLVED-INDEX (74); matrix M-008 cell; modules/ntfs.md row;
+  AUDIT-NTFS row 24 (MATCH at the flag; D-66 default); PARITY-DELTAS
+  D-66; SUMMARY extension.
+
+Stage Summary:
+- M-008 FIXED (session tally: 2). Next in my claimed batch: M-032 (slice
+  tail read clamp vs refusal).

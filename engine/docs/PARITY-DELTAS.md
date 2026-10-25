@@ -1978,3 +1978,19 @@ across the fan-out nodes, and the hardlinks WalkStats counter is nonzero
 only in this mode (the og's scan has no such counter). Pinned by
 `NtfsVolume.HardLinkFanOutOptIn` (per-link names, per-parent nodes) and
 `NtfsVolume.HardLinkSingleLinkMatchesOg` (the parity default).
+
+### D-66 — Attrlist chase depth: the multi-hop BFS default (M-008, REGISTERED SUPERSET — the default)
+
+The og's $ATTRIBUTE_LIST chase is depth-1 (FUN_180041df0 iterates the
+pass-1 child-record list, never recursing into child records' own lists).
+The core's default keeps the multi-hop BFS (depth 64, cycle guard): for a
+chain base -> child(nested list) -> grandchild($DATA), the og recovers the
+child's fragment and loses the grandchild's; the core merges both. This is
+a deliberate recovery superset — the og's depth-1 is a limitation, not a
+choice (the finding's own recommendation). Opt-in parity for benchmark
+comparisons: `WalkerFlags::single_hop_attrlist = true` (the chase stops
+after the first level). Note the corrected model (S-012's decode): the og
+chases DELETED records too in pass 1 — the deleted-gate variant some early
+notes assumed does NOT exist on either side. Pinned by
+`NtfsVolume.MultiHopAttrlistOgParityStopsAtDepth1` (parity) and
+`NestedAttrlistChase` (the default), plus the deleted-chain depth test.

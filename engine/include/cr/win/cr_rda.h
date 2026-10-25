@@ -74,8 +74,11 @@ static_assert(sizeof(DriverInfo) == 24, "DriverInfo wire size");
 
 /* ---------------------------------------------------------------------------
  * IOCTL_RDA_OPEN_TARGET input (mirror of RDA_OPEN_TARGET_IN). Size-frozen.
- * The structured open: no kernel string parsing, no PID token - preferred
- * over the legacy grammar when the driver advertises it.
+ * The structured open: no kernel string parsing, no PID token. DRIVER-SIDE
+ * contract documentation only: the core consumes the legacy PID-token
+ * grammar path as its sole production surface (N-041 deleted the unwired
+ * RdaClient in cr_transport.cpp - zero callers since introduction; the
+ * wire structs stay as the driver's documented protocol).
  * ------------------------------------------------------------------------- */
 struct OpenTargetIn {
     u32 struct_size;   /* sizeof == 24 */
@@ -103,7 +106,13 @@ u32 compute_pid_token(u32 pid);
  * Copy-session protocol (EUDCPEPM contract). The wire code is
  * normalized_code + ioctl_base (learned via GET_INFO).
  * ------------------------------------------------------------------------- */
-constexpr u32 kSessDiscovery = 0x800C2AC0u; /* filter stacks only */
+constexpr u32 kSessDiscovery =
+    0x800C2AC0u; /* N-041 (session-12): the client that consumed this session-wire block
+                  * (RdaClient) was deleted - zero callers since introduction. The
+                  * size-frozen structs and codes below stay as the client-side mirror of
+                  * the DRIVER's wire protocol (ground truth: the driver-side
+                  * rda_ioctl.h contract); no core code issues them. */
+/* filter stacks only */
 constexpr u32 kSessGetVersion = 0x800C2AC8u;
 constexpr u32 kSessOpenSession = 0x800C2AD0u;
 constexpr u32 kSessSessionOp = 0x800C2AD8u;  /* flush protected file */
@@ -211,83 +220,6 @@ constexpr u32 kGetProgressOutLen = 0x0Cu;
 /* Driver-reported version (GET_VERSION: u64 = (Major<<32)|Minor). */
 constexpr u32 kVersionMajor = 1u;
 constexpr u32 kVersionMinor = 0u;
-
-/* ---------------------------------------------------------------------------
- * RdaClient - the full driver client.
- *
- * One control-device handle (bare open, global mode) serves all IOCTLs;
- * target handles (opened via OPEN_TARGET or the legacy grammar) serve
- * sector IO with the F11 unscale. Thread-safe: control-handle IOCTLs
- * serialize on a critical section; target handles are independent
- * OVERLAPPED readers (one OVERLAPPED per call, per-thread stack).
- * ------------------------------------------------------------------------- */
-class RdaClient {
-public:
-    /* Opens \\.\{service} (bare). Returns null + err if the driver is not
-     * running (caller falls back to direct handles). */
-    static std::unique_ptr<RdaClient> open(const wchar_t* service_name, u32* err);
-
-    ~RdaClient();
-    RdaClient(const RdaClient&) = delete;
-    RdaClient& operator=(const RdaClient&) = delete;
-
-    /* Capability query (IOCTL_RDA_GET_INFO). False = driver too old /
-     * IOCTL unsupported. */
-    bool query_info(DriverInfo* out);
-
-    /* Version query (IOCTL_RDA_GET_VERSION): (major<<32)|minor. */
-    bool query_version(u64* out);
-
-    /* Structured target open (IOCTL_RDA_OPEN_TARGET) - the preferred path.
-     * The returned device implements IStorageDevice with the F11 unscale. */
-    std::unique_ptr<IStorageDevice> open_target(u32 kind, u32 disk, u32 part, u32 volume, u32* err);
-
-    /* Legacy grammar opens (EPMNtDrv/EUEDKEPM wire compat, PID token). */
-    std::unique_ptr<IStorageDevice> open_disk_grammar(u32 disk, u32 part, u32* err);
-    std::unique_ptr<IStorageDevice> open_volume_grammar(u32 volume, u32* err);
-
-    /* Identity IOCTLs (admin-gated by device SDDL). */
-    bool get_proc_name(u32 pid, wchar_t* out, u32 out_chars);
-
-    /* Copy-session protocol (imaging / verification). A session is an
-     * exclusive range claim on a disk; overlap fails with a sharing error. */
-    u64 session_open(u32 disk_id, u64 data_first_sec, u64 total_secs, u32* spb_out,
-                     u32* sector_size_out, u32* err);
-    bool session_flush(u64 handle); /* SESSION_OP: flush protected file */
-    bool session_start_backup(u64 handle, void* pump_buffer, u32 pump_bytes, u64 start_sec,
-                              u32 block_count, u32 spb, const u8* user_bitmap);
-    /* Pumps up to max_sec sectors into the registered buffer; returns the
-     * sector cursor to use next (0 + err when the stream is complete). */
-    bool session_get_next_block(u64 handle, u64 cursor_sec, u32 max_sec, u64* next_cursor,
-                                u8* progress, bool* stream_done, u32* err);
-    bool session_finalize(u64 handle, u32* percent_out); /* GET_PROGRESS */
-    bool session_cancel(u64 handle);
-    bool session_close(u64 handle);
-
-    /* Learned capability cache. */
-    const DriverInfo& info() const { return info_; }
-    bool has_info() const { return have_info_; }
-    u32 ioctl_base() const { return ioctl_base_; }
-
-private:
-    RdaClient();
-    bool ctl_ioctl(u32 code, void* in, u32 in_len, void* out, u32 out_len, u32* info_out);
-    /* Opens a fresh bare (global-mode) handle on the same service. */
-    void* open_bare_handle_(bool need_write);
-
-    void* ctrl_ = nullptr;       /* HANDLE to \\.\{service} */
-    void* info_mutex_ = nullptr; /* CRITICAL_SECTION guarding control IOCTLs */
-    u32 ioctl_base_ = 0;
-    DriverInfo info_ = {};
-    bool have_info_ = false;
-    wchar_t service_[64] = {0}; /* service this client talks to */
-    /* pump bookkeeping for session_get_next_block cursor math */
-    u32 pump_bytes_ = 0;
-    u32 session_sector_size_ = 0;
-    /* per-session plan bounds (handle -> data_first_sec, total_secs):
-     * the granted-sector estimate clamps to the plan end (audit row 41a) */
-    std::map<u64, std::pair<u64, u64>> session_plans_;
-};
 
 /* Service-name helpers. */
 std::wstring control_device_path(const wchar_t* service_name);
