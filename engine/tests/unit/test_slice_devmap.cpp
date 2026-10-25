@@ -41,11 +41,44 @@ TEST(Slice, BoundsEnforced) {
     u8 buf[512];
     EXPECT_EQ(slice->read_at(0, buf, 512), OK);
     EXPECT_EQ(buf[0], u8((10 * 512) & 0xFF));
-    /* read crossing the end - refused */
+    /* read crossing the end - refused. M-032/D-67: the og's virtual
+     * volume CLAMPS + zero-fills tail-crossing reads (HFSPlusSearchDLL
+     * FUN_180009290 :7219-7264: in-bounds prefix + memset tail, call
+     * succeeds); ours refuses the whole read - the registered deliberate
+     * divergence. The engine audit found no reliance on the og contract
+     * (the HFS+ journal ring reads are bounded within the ring; every
+     * other engine reads with explicitly bounded lengths and degrades
+     * gracefully on refusal). The og's tail memset is in SECTOR units
+     * (count-n, :7258) - an under-zeroing defect NOT adopted here. */
     EXPECT_EQ(slice->read_at(20 * 512 - 16, buf, 32), ERR_RANGE_OUT_OF_BOUNDS);
     /* read fully outside */
     EXPECT_EQ(slice->read_at(20 * 512 + 1, buf, 512), ERR_RANGE_OUT_OF_BOUNDS);
     /* read at very end edge - fine */
+    EXPECT_EQ(slice->read_at(20 * 512 - 512, buf, 512), OK);
+}
+
+/* M-032 (diff-to-fix), decision-gate outcome pinned: the slice layer's
+ * tail-crossing refusal is a DELIBERATE divergence from the og's
+ * clamp+zero-fill virtual-volume contract (corpus
+ * HFSPlusSearchDLL_decompiled.c FUN_180009290 :7219-7264, evidence
+ * s3-virtual-volume-device.md section 2). Engine audit this session: no
+ * engine issues crossing reads relying on zero-fill (journal_ring_read
+ * bounds every take within the ring; all other reads are explicitly
+ * bounded; refusals degrade through the damage counters). Registered as
+ * PARITY-DELTAS D-67 - the safer contract stays. */
+TEST(Slice, TailReadRefusalPinned) {
+    auto dev = std::make_unique<MemDevice>(u64(100) * 512);
+    u32 err = 0;
+    auto slice = PartitionSlice::create(dev.get(), 10 * 512, 20 * 512, &err);
+    ASSERT_NE(slice, nullptr);
+    EXPECT_EQ(err, OK);
+    u8 buf[512] = {0};
+    std::memset(buf, 0xAA, sizeof(buf));
+    /* the falsifiable claim from the finding: under the og semantics this
+     * succeeds with 512 zeros past the end; ours refuses */
+    EXPECT_EQ(slice->read_at(20 * 512 - 16, buf, 32), ERR_RANGE_OUT_OF_BOUNDS);
+    EXPECT_EQ(buf[0], u8(0xAA)) << "a refused read never touches the buffer";
+    /* prefix-only reads still succeed */
     EXPECT_EQ(slice->read_at(20 * 512 - 512, buf, 512), OK);
 }
 

@@ -90,6 +90,17 @@ FreeMapProducerMatchesSpecBitMapping expectation (100 -> 102). Suite
 593/593. Counts after this push: SEVERE 2 · MAJOR 34 · MINOR 48 ·
 INFO 22 · FIXED 84 files (83 findings + index).
 
+**M-032 FIXED (this push — the fix plan's own decision path 1):** slice
+tail-read semantics. The decision gate executed first: the engine audit
+found no reliance on the og's clamp+zero-fill contract (HFS+ journal ring
+reads bounded within the ring; all other reads explicitly bounded;
+refusals degrade via damage counters). The safer refusal stays; the
+divergence registered D-67; pinned by Slice.TailReadRefusalPinned + the
+updated BoundsEnforcement (corpus FUN_180009290 :7219-7264; the og's
+sector-unit under-zeroing defect noted, NOT adopted). No behavior change
+- the opt-in clamped read from the finding's path (2) is the documented
+next step WHEN an engine needs it. Suite 594/594 (Slice +1).
+
 # SUMMARY.md — executive summary (diff-fix session 14 on top; earlier sessions below)
 
 ## Session-14 delta (2026-10-26 — DFX14: bootstrap, two merge repairs, the reconciliation wave)

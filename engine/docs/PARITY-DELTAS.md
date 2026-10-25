@@ -1994,3 +1994,21 @@ chases DELETED records too in pass 1 — the deleted-gate variant some early
 notes assumed does NOT exist on either side. Pinned by
 `NtfsVolume.MultiHopAttrlistOgParityStopsAtDepth1` (parity) and
 `NestedAttrlistChase` (the default), plus the deleted-chain depth test.
+
+### D-67 — Slice tail-read refusal vs the og's clamp+zero-fill (M-032, ACCEPTED SAFETY DIVERGENCE)
+
+The og's virtual-volume layer (HFSPlusSearchDLL FUN_180009290 :7219-7264,
+DRWUI twin :1044939-1044979) CLAMPS a tail-crossing read: the in-bounds
+prefix is read from the parent and the past-end tail is zero-filled, and
+the call succeeds. Our PartitionSlice refuses the whole read with
+ERR_RANGE_OUT_OF_BOUNDS. This is a deliberate safety divergence: a refused
+read is honest; a zero-filled read can fabricate structure near a volume's
+computed end (ragged candidates). The engine audit (M-032's decision gate,
+session 11) found no reliance on the og contract — journal_ring_read bounds
+every take within the ring; all other engine reads are explicitly bounded;
+refusals degrade through the damage counters. The og's own tail memset is
+in SECTOR units (count-n, :7258) — an under-zeroing defect NOT adopted.
+Pinned by Slice.TailReadRefusalPinned + the updated Slice.BoundsEnforced.
+If a future engine needs the og contract, the documented next step is the
+opt-in clamped-read primitive from the finding's path (2) — added THEN,
+not as dead code now.

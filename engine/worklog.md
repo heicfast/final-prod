@@ -10056,3 +10056,35 @@ Stage Summary:
   session: S-029 → MAJOR wave (DFX15 handoff order M-045, M-043, M-005,
   M-007, M-008, then the remaining MAJORs by user impact), then MINOR
   batches as capacity allows. One finding, one verified fix, one push.
+
+---
+Task ID: DFX11-M032 (session 11, finding 4)
+Agent: main engineer (diff-to-fix fix session 11 — DFX11)
+Task: M-032 — slice tail-read semantics. Verified, ran the fix plan's
+decision gate, resolved by path 1.
+
+Work Log:
+- Corpus re-verified first-hand: HFSPlusSearchDLL FUN_180009290
+  :7219-7264 (clamp + zero-fill + succeed; the DRWUI twin identical);
+  the og's tail memset is in SECTOR units (:7258) — an under-zeroing
+  defect. Core re-verified: PartitionSlice strict refusal
+  (cr_slice.cpp:43-50) + the existing BoundsEnforced pin.
+- Decision gate (the finding's own step 1): audited the engines' read
+  patterns for end-crossing. HFS+ journal_ring_read bounds every take
+  within [jbase, jbase+jsize) — never crosses; all other engine reads
+  are explicitly bounded; a refusal degrades through the damage
+  counters. NO engine relies on the og's clamp+zero-fill contract.
+- Resolution per path (1): the safer refusal stays; D-67 registered;
+  Slice.TailReadRefusalPinned added (the finding's falsifiable claim
+  pinned: the crossing read that would return zeros under the og
+  semantics refuses here AND never touches the buffer) +
+  Slice.BoundsEnforced updated with the full og-contract citation.
+  Path (2)'s opt-in clamped read would be dead code today (the N-041
+  sweep precedent) - documented as the next step WHEN needed.
+- Audit trail: Resolution + FIXED/ move; RESOLVED-INDEX (75); matrix
+  storage cell; modules/storage.md row; PARITY-DELTAS D-67; SUMMARY
+  extension.
+
+Stage Summary:
+- M-032 FIXED (session tally: 3). Next in my claimed batch: M-050
+  (session node-model roundtrip gaps).
