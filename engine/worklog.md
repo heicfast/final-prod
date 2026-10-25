@@ -10603,3 +10603,38 @@ Stage Summary:
 - DFX14 tally: 10 finding-level resolutions (N-073, M-029 fold, clobber
   repair x4, M-005, I-006 pin, M-043) + the INFO verification pass.
   Session 14 continues; next claim after the next pull.
+
+---
+Task ID: DFX15-F6..F8 (session 15 continuation, MAJOR lane)
+Agent: core-parity-fix-agent (main)
+Task: M-045, M-043, M-024 + the M-054 baseline repair + PARITY-DELTAS rows
+
+Work Log:
+- M-045 (FAT validate_boot gates): corpus re-verified (FUN_004610 + 3
+  validators). (b)(c)(f) already landed via N-034/N-010b; closed the
+  (a)(d)(e) residuals — any-512-multiple bps (32768 documented ceiling,
+  D-70), numFATs==0 hard reject, cluster_count >= 0xFFFFFF0 reject.
+  4 tests, 3 fail-before proven. Commit bf547cf.
+- M-043 (NTFS backup boot + content proof): open() falls back to the
+  volume-end backup DBR (last sector — the corpus-decoded rawfixer
+  location) on signature OR validate failure; VolumeParams::
+  boot_from_backup report-only; probe_family requires FILE magic at
+  $MFT LCN. 5 tests, torn-primary pair fail-before proven. Also
+  repaired the M-054 rebase-union red (root-caused at clean HEAD: their
+  test vs producer convention — remote's own repair landed first, mine
+  dropped as redundant). Commit 1468393.
+- M-024 (runtime format filter): CarveFlags::disabled_formats +
+  carve_token_listed/carve_format_listed; grammar layer gates by trial
+  slot; raw-sign layer filters pre-best-pick; D-72 (default-off = host
+  policy). 3 tests, construction-level fail-before. The first
+  implementation's OOB trial-slot array (kTrialCount=65 > magic 64) was
+  caught by the new tests BEFORE landing — fixed with static_assert
+  bounds. Commit 12eb3b1.
+
+Stage Summary:
+- 7 MAJOR findings FIXED by this lane (M-002/M-037/M-031/M-046/M-045/
+  M-043/M-024) + 1 convergent (M-047, parallel lane landed first) + 1
+  baseline repair (M-054 union, redundant with remote's own).
+- Suite green at every push (533 -> 631+ across the session).
+- SEVERE tier: 0 open across all lanes. MAJOR remaining ~20 (several
+  claimed by DFX9/DFX11/DFX20/DFX21 lanes).
