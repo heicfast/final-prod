@@ -76,6 +76,23 @@ window absorbed S-029/S-030/M-008/M-016/M-032/M-043/M-050/N-041/N-057/
 N-058/N-067/N-016a + the S-033 INVALID filing; counts are the live
 inventory at this commit.)
 
+**N-040 FIXED (D4 closed; D1/D2/D3/D5 verified already-landed):** the
+five ABI/doc truthfulness defects re-verified on the current tree —
+four had landed via parallel lanes (§8 SQLite REJECTED-BY-REFERENCE,
+S-009's disk-map free state, §6's event-thread line, M-029's FILETIME
+unit fix with its Query.ModifiedUnitIsFiletimeEverywhere pin). This
+session closed D4: the seven fake "ABI-since 1.1/1.2" header
+annotations rewritten to truthful era labels; ABI-CONTRACT §9 made
+coherent (v2 = M-036's deliberate feature-batch bump — appends still
+require no bump; no v1.1/1.2 ever shipped). New pins:
+CrUi.AbiVersionAnnotationsAreTruthful (fail-before RED executed on the
+stash-isolated pre-fix tree), CrUi.EventThreadContractPinned,
+CrUi.SessionSaveWritesCrsfOnly. Suite 656/656. Finding → FIXED/.
+
+**Counts after this landing (direct file inventory at the N-040 push):**
+SEVERE 0 · MAJOR 24 · MINOR 34 · INFO 22 (0 actionable) · tracked-open
+16 · FIXED 113 files (112 findings + RESOLVED-INDEX).
+
 
 ## Session-10 delta — the SEVERE tier close-out (2026-10-26)
 
@@ -130,6 +147,20 @@ fs_hint 11. 4 tests, all fail-before; suite 599/599.
 
 Session counts at this landing: MAJOR open 30 -> 29 (M-044 moved to FIXED/),
 FIXED set grows to 99 files in findings/FIXED/.
+
+**M-028 FIXED (preview caps bypass):** the audit's executed bypass
+(65,568 device bytes pulled against a 4,096-byte cap with truncated=false
+on the docx/zip path) reproduced first-hand as the fail-before, then closed
+architecturally: `PreviewReader::read_cost` prices every fetch before the
+device is touched (compressed windows cost the whole psize block),
+`Window::fetch_any` gates on cost, all four docx reads route through the
+new `Window::checked_read` (honest archive/zip degrade + truncated=true),
+the over-budget head path propagates truncated, and a post-extraction
+device-delta belt guards future parsers. Header provenance corrected (og
+preview cap = 1 MiB at the UI socket layer per I-015; IInWindowStream =
+7-Zip's LZ input interface; the core's 4 MiB kept as documented superset)
++ the compressed-extent whole-block cost disclosed. 5 tests fail-before;
+fuzz tight-budget trap added; suite 662/662. MAJOR open 28.
 
 ## Session-19 delta (2026-10-26 — DFX19: MAJOR-first lane, first landing M-016)
 
@@ -207,6 +238,65 @@ this push; S-009/S-030/M-002/M-051/M-037/N-073 by the parallel lanes).
 Top remaining risks: S-029 (the apply-path scope decision — the last
 SEVERE), then the M-tier by user impact (M-005 the carve gate next — same
 bitmap plumbing, one consumer).
+# (session-20 delta below — the session-22 file header above is current)
+
+## Session-20 delta (2026-10-26 — DFX20: M-033, the BitLocker in-stack decrypt)
+
+Leg ID history: stamped DFX17 at bootstrap, re-stamped DFX18 then DFX20
+(two parallel legs squatted each name in the same window; the union kept
+all three bootstrap entries verbatim). Bootstrap baseline **584/584**
+linux-gcc (RelWithDebInfo + ASan) at `5d63124`; after absorbing the
+parallel lanes' landings (M-007, M-008, M-045, M-054, M-005, N-030, N-041,
+N-069) the pre-fix baseline re-verified **608/608** (the count grew with
+the absorbed waves). Corpus `03ad46c` unmoved. Lane claim: the UNCLAIMED
+MAJOR tier (M-033 first), posted before any finding work.
+
+**M-033 FIXED (the in-stack BitLocker decrypt — CONFIRMED-DIVERGENCE,
+verified against the corpus first-hand):** the og decrypts locked volumes
+in-stack (architecture doc §8: "FVE keys -> XTS-AES decrypt
+(BitLockerLib/OpenSSL)"), engines see plaintext; our core refused locked
+volumes unless the OS had them unlocked. The fix lands the layer exactly:
+`DecryptingDevice : IStorageDevice` (cr_decrypt_device.h) wraps the volume
+slice with per-sector LE-index XTS tweaks — physical -> slice -> [XTS]
+-> engine, the og's order. AES-128/256 + XTS are clean-room
+(cr_aes.cpp, no new third-party dependency — the tree stays
+zlib/lz4/zstd-only and Win7-inclusive) and pinned **byte-exact against
+vectors generated independently by pycryptodome AND OpenSSL EVP 3.5**
+(the EVP interface the og's BitLockerLib statically links) plus the
+FIPS-197 Appendix C KATs; XTS weak-key halves are rejected (OpenSSL 3.x's
+own rule). Key surface = the og's own API shape: the user supplies the
+FVEK (GetFullVolumeEncryptionKey's >=0x40-byte output, decompile
+:27075-27107) via `scan --volume X: --bitlocker-fvek <hex>` or the
+additive ABI export `cr_ui_open_volume_with_key` (no version bump —
+the documented additive policy). **Safety posture preserved**: locked
+WITHOUT a key keeps the ERR_FVE_LOCKED refusal (S61
+legitimate-unlock-only; FB-B01 never-scan-blind); auto-unlock-able
+volumes still take the OS path; a wrong key yields honest detection
+failure, never wrong-file results. The recovery-password/BEK -> VMK ->
+FVEK unwrap chain is out-of-corpus (ParserBitLocker :27633's datum parse
+sits behind opaque C++ graphs — FUN_180042350/FUN_180044e90; the
+finding's own open question says so, confirmed first-hand) — filed as
+tracked-open **OQ-S20-1** with the exact decompile entry points and next
+step. Fail-before intrinsic (the device/crypto types did not exist);
+13 tests in test_bitlocker_xts.cpp prove AES KATs, XTS cross-impl
+vectors, whole-sector vectors, round trips, weak-key rejection, tweak
+separation, plaintext reads through the wrapper, byte-exact
+unaligned/cross-sector reads, transport-error propagation, and the
+M-033 acceptance (an XTS-encrypted FAT16 volume is opaque to the raw
+engine and scans correctly through the decrypt device with the key).
+Suite **608/608** after.
+
+**Counts after this push (direct file inventory):** SEVERE **1** (S-029,
+DFX10's claim) · MAJOR **27** (M-005/M-007/M-008/M-037/M-045/M-046/
+M-054 landed by parallel lanes since session-15's count; M-033 this push)
+· MINOR **41** (parallel lanes landed N-041/N-069/N-030 since the
+session-15 count) · INFO 22 (all ACKNOWLEDGED) · FIXED/ family
+**102 files** (incl. RESOLVED-INDEX; +M-033 this push; the parallel waves'
+M-005/M-007/M-008/M-045/M-054/N-041/N-069/N-030 already inside) ·
+tracked-open **17** (+OQ-S20-1 this push). Top remaining risks: S-029 (the last SEVERE), then
+the MAJOR tier by user impact — M-042 (session-resume revalidation),
+M-017 (lost-partition scoring), M-019/M-020/M-038 (ZFS/btrfs parity
+depth), M-039 (occupancy bitmap) are this lane's next queue.
 # SUMMARY.md — executive summary (session 11 DFX11 on top; earlier sessions below)
 
 ## Session-11 delta (DFX11, this leg — S-009 verified + M-007 landed)

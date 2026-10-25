@@ -10070,6 +10070,76 @@ Work Log:
 Stage Summary:
 - M-008 FIXED (session tally: 2). Next in my claimed batch: M-032 (slice
   tail read clamp vs refusal).
+
+---
+Task ID: DFX20-M033 (session 20, finding 1 — the unclaimed-MAJOR lane's first landing)
+Agent: main engineer (diff-to-fix fix session 20 — DFX20; leg-ID history:
+DFX17 stamped at bootstrap, DFX18 and then DFX20 after two same-window
+squats by parallel legs — all bootstrap entries kept verbatim in the union)
+Task: M-033 — BitLocker in-stack decrypt vs pre-unlock refusal. Verified,
+classified CONFIRMED-DIVERGENCE, fixed, proven.
+
+Work Log:
+- Corpus verification first-hand: architecture/05-scan-engine-architecture.md
+  section 8 pins the in-stack layer ("FVE keys (DRWService pipe) -> XTS-AES
+  decrypt (BitLockerLib/OpenSSL)"); the bitlockerlib--bitlocker-implementation
+  artifact pins the cipher (OpenSSL EVP aes_{128,256}_xts), the key surface
+  (GetFullVolumeEncryptionKey/SetProcessProtectorKey/SetProcessProtectorKeyFromBEK),
+  and the recovery flow (user key -> derive -> engines see plaintext);
+  BitLockerLib_decompiled.c:27075-27107 pins the FVEK output shape (>=0x40
+  bytes). The decompile's "custom stretch" at :111-470 decoded as PLAIN
+  SHA-256 (Ch/Maj/ROTR structure verified) — the artifact itself labels the
+  KDF position inferred. ParserBitLocker (:27633) confirmed the metadata
+  parse is behind opaque C++ graphs (FUN_180042350/FUN_180044e90) — the
+  finding's own out-of-corpus open question holds; the datum grammar is
+  NOT legible without a dedicated RE pass.
+- Fix: (1) cr/crypto/cr_aes.h + src/core/crypto/cr_aes.cpp — clean-room
+  AES-128/256 (FIPS-197) + XTS (IEEE 1619-2007/SP 800-38E, whole-data-unit
+  discipline — BitLocker sector units are 512/4096-byte multiples; no CTS
+  partial units in the reference's sector path); XTS weak-key halves
+  rejected (OpenSSL 3.x's own rule). No new third-party dependency.
+  Three crypto bugs caught by the KATs during bring-up and fixed before
+  landing: ShiftRows lane masks (rows 1/3 swapped), rot_word direction
+  for the LSB-first word encoding, and the equivalent-inverse-cipher
+  AddRoundKey/InvMixColumns order. (2)
+  cr/storage/cr_decrypt_device.h + src/core/storage/cr_decrypt_device.cpp —
+  DecryptingDevice : IStorageDevice wrapping the volume slice (the og's
+  layer order), per-sector LE-index tweaks, whole-span staging decrypted
+  sector-by-sector, transport errors propagated verbatim. (3) Key surface:
+  scan --bitlocker-fvek <hex> (pre-pass, order-free; 64/128 hex chars)
+  + cr_ui_open_volume_with_key (additive ABI export per the documented
+  no-bump policy; C-ABI check compiled clean). Locked WITHOUT key keeps
+  ERR_FVE_LOCKED (S61/F13/FB-B01 posture preserved); auto-unlock-able
+  volumes still take the OS path; wrong key = honest detection failure.
+- Known-answer discipline: the XTS vectors were generated INDEPENDENTLY by
+  pycryptodome AND OpenSSL EVP 3.5 (the og's own cipher interface) — both
+  agreed byte-exact before the C++ was trusted; the famous "all-zero" XTS
+  vector from memory was REJECTED during verification (OpenSSL refuses
+  weak XTS keys; my remembered constant did not survive arbitration —
+  recorded here as a no-hallucination note).
+- Tests: 13 in tests/unit/test_bitlocker_xts.cpp (FIPS-197 KATs, XTS-128/
+  256 cross-implementation vectors, 512-byte sector vector, round trips,
+  weak-key rejection, tweak separation, plaintext-through-wrapper, byte-
+  exact unaligned/cross-sector reads, transport-error propagation, create
+  gating, and the M-033 acceptance: an XTS-encrypted FAT16 volume is
+  opaque to the raw engine, scans correctly through the decrypt device
+  with the key). Fail-before intrinsic (types absent on the audited
+  tree). Suite 608/608 linux-gcc RelWithDebInfo+ASan.
+- Audit trail: Resolution in the finding, moved to findings/FIXED/;
+  RESOLVED-INDEX row; CROSS-REF-MATRIX session-20 rows (storage S61,
+  abi export set, cli grammar); modules/storage.md BitLocker rows;
+  SUMMARY session-20 delta (counts re-baselined to the live inventory:
+  SEVERE 1 / MAJOR 27 / MINOR 41 / INFO 22 / FIXED 102 / OQ 17); new
+  tracked-open OQ-S20-1 (the FVE KDF interop, with the decompile entry
+  points); docs: CAPABILITY-MATRIX (exclusion rewritten), architecture.md
+  (platform transports), ABI-CONTRACT (ownership table), PARITY-DELTAS
+  D-75 (the FVEK-input scope, do-not-remove guidance).
+
+Stage Summary:
+- M-033 FIXED (session tally: 1). The in-stack decrypt capability the og
+  has on locked volumes is live, corpus-pinned, KAT-proven. Next in my
+  claimed queue: M-042 (session-resume lost revalidation), then M-017
+  (lost-partition scoring), M-019 (ZFS multivdev), M-020 (btrfs profile).
 ---
 Task ID: DFX21-CLAIM (session 21, lane claim — the tail half of the unclaimed MAJOR tier; queue split against the DFX19 head-half and the parallel DFX20/DFX18 M-033 lane)
 Agent: main engineer (diff-to-fix session 21 — DFX21; renamed DFX17->DFX19->DFX20->DFX21 after three parallel ID collisions in the same window, each resolved per the first-landing-wins protocol)
@@ -10916,3 +10986,43 @@ Stage Summary:
   moves, index rows, matrix cells, modules/carve verdict, E44 erratum.
   Next: N-045 (cache budget), N-029 (UTF-8 residuals), then the doc
   group N-074.
+
+---
+Task ID: DFX18-T3 (session 18, third fix — N-040)
+Agent: main engineer (diff-to-fix fix session 18 — DFX18)
+Task: N-040 ABI/doc truthfulness ×5 — re-verify every defect on the
+current tree, close the remainder, pin all five.
+
+Work Log:
+- Re-verification on the CURRENT tree (finding filed at 63a9167; tree
+  moved): D1 §8 already REJECTED-BY-REFERENCE (GAP-S6-12; zero
+  sqlite/crsidx in src/ — only FMT_SQLITE + filefilter category);
+  D2 "2 free" now real (S-009 FreeMap, doc+header agree 0/1/2/3);
+  D3 §6 line already "engine worker threads or the run() thread";
+  D5 ground-truth-contracts already FILETIME with the M-029 note +
+  Query.ModifiedUnitIsFiletimeEverywhere pin. All four classified
+  FIXED-ALREADY with citations.
+- D4 CLOSED this session: seven "ABI-since 1.1/1.2" cr_ui.h
+  annotations rewritten to truthful era labels ("v1-era append with
+  change id; no 1.1/1.2 marker ever shipped — §9"); §9 made coherent:
+  appends require NO bump, v2 = M-036's deliberate feature-batch
+  marker, the fake sub-version history recorded in the policy so it
+  cannot silently return.
+- Pins: CrUi.AbiVersionAnnotationsAreTruthful (fail-before RED
+  EXECUTED on the stash-isolated pre-fix tree), CrUi.EventThread-
+  ContractPinned (doc-truth + header lockstep + deterministic
+  serial-mode run-thread delivery + parallel worker tolerance —
+  forward guard, D3's doc landed via the parallel lane),
+  CrUi.SessionSaveWritesCrsfOnly (exactly one file beside the .crsf —
+  forward guard; the sidecar never existed in code).
+- Shared doc-read helper cr_test::read_repo_file added to
+  test_tmpdir.hpp (CR_SOURCE_DIR define now on BOTH test binaries);
+  test_cached.cpp refactored onto it (N-045's pin unchanged, re-run
+  green).
+- Suite 656/656 linux-release. Audit trail: Resolution (with the
+  per-defect FIXED-ALREADY classifications) + FIXED/ move, index row
+  (98 header), matrix abi cell, abi.md session-18 section, SUMMARY.
+
+Stage Summary:
+- N-040 FIXED (tally: 3 — N-045, N-046, N-040). MINOR 34 remain.
+  Next: N-020/N-074 (doc-drift pairs), then N-043/N-048/N-060/N-061.

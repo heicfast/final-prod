@@ -40,7 +40,7 @@
 
 | Object | Created by | Freed by | Borrows |
 |---|---|---|---|
-| `cr_ui_device` | `cr_ui_open_image` / `cr_ui_open_disk` / `cr_ui_open_volume` | `cr_ui_device_close` | — |
+| `cr_ui_device` | `cr_ui_open_image` / `cr_ui_open_disk` / `cr_ui_open_volume` / `cr_ui_open_volume_with_key` (M-033: locked-volume open with a user-supplied FVEK — the in-stack XTS decrypt opt-in; hex string in, same lifetime contract) | `cr_ui_device_close` | — |
 | `cr_ui_scan` | `cr_ui_scan_create` / `cr_ui_session_resume` | `cr_ui_scan_close` | the attached device (caller keeps it alive until after close) |
 | `cr_ui_session` | `cr_ui_session_load` | `cr_ui_session_close` | — |
 | `cr_ui_snapshot` | `cr_ui_scan_snapshot` / `cr_ui_session_snapshot` | `cr_ui_snapshot_close` | the scan/session it came from (values are copied; the source may close after the LAST row has been READ, not while rows are being read) |
@@ -357,16 +357,26 @@ closure — no consumer impact.
   or threading contracts of an existing symbol, renumbering the error-space
   symbols a consumer must handle.
 - ADDING exports, APPENDING struct fields, adding event `type` values,
-  adding overlay kinds: **no bump** — consumers must already ignore
+  adding overlay kinds: **no bump REQUIRED** — consumers must already ignore
   unknowns (§6/§7 rules). The carve-format registry (§7a) is an added
-  export under this rule.
+  export under this rule. A bump is still PERMITTED as a deliberate
+  feature-batch marker when a consumer-probeable presence signal is worth
+  it: v2 is exactly that (M-036's six fields could have shipped without a
+  bump under the append rule; the bump was issued so a host can branch on
+  `cr_ui_abi_version() >= 2` instead of probing field behavior). No other
+  bump has occurred: there is no v1.1 or v1.2 — the historical
+  "ABI-since 1.1/1.2" header annotations were doc defects (N-040 D4)
+  and have been rewritten to the truthful era labels ("v1-era append
+  with the change id"; every such field shipped while the macro read `1`
+  and is present in all v2 builds).
 - **The header's ABI-VERSIONING comment was corrected in the core-api
   session to match this section** (it previously claimed new exports and
   appended fields bump the version — contradicting both this section and
   the repo's actual practice of append-only growth; see
   docs/API-SURFACE-AUDIT.md A-ABI-1).
 - Structs are never reordered; new fields append; the header comments each
-  struct with its ABI-since version.
+  appended field with its landing (change id + era), never a version
+  number that was never shipped.
 - The C consumer test (`tests/ui_abi_check.c`, MSVC `/W4 /WX` on the Windows
   lane) exercises the full lifecycle on every push — it is the executable
   form of this contract.
