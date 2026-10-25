@@ -1504,3 +1504,25 @@ gate stated and pinned. N-010d (exFAT tz) was already fixed by S-011
 
 **Pin tests:** `HfsPlus.DotfileAndPrivateDataFiltered`, `PrdfRecordFolderized`,
 `RecordBit29SelectsResourceFork`, `LargeBlockSizeAccepted`.
+
+### D-54 — Orchestrator/health/writer quick wins (N-016/N-017/N-009a/N-009b)
+
+**Class:** parity/quality · **Findings:** diff-to-fix N-016, N-017, N-009a, N-009b (MINOR, FIXED 2026-10-26) · **Date:** 2026-10-26
+
+- **N-016:** the run()-exit stamp's `emit_boundary_events_` double call
+  (56cce87 merge artifact) removed — FilesFound fires once per boundary
+  (pinned: exactly 3 for the quick+deep fixture).
+- **N-017:** the carve-style 50 ms cancel watcher is factored into
+  `cr::CancelPoolWatcher` (cr_parallel.h) and wired at BOTH fan-outs (carve
+  windows + the orchestrator's parallel candidate scan) — a queued
+  candidate/work item never starts after a cancel; running jobs finish to
+  their own poll point. The carve behavior is unchanged (same semantics,
+  one implementation).
+- **N-009a:** NVMe `percentage_used` read at u8 width (spec; the reserved
+  byte at +6 no longer leaks into the value).
+- **N-009b:** writer `done_bytes` counts only non-Error outcomes (progress
+  honesty — the og's ExportThread counts written bytes).
+
+**Pin tests:** `ScanEvents.SingleBoundaryAtTeardown` (count == 3),
+`Pool.CancelPoolWatcherDrainsQueueWithinOneTick`, `Pool.CancelPoolWatcherNullTokenIsInert`,
+`NvmeHealth.PercentageUsedIsU8Width`, `WriterDirs.ProgressExcludesErrorItems`.

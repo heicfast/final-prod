@@ -74,6 +74,13 @@ engine layer.
 **Open questions:** none.
 
 
+## Resolution (partial — N-009a/N-009b fixed this session; N-009c/N-009d remain)
+
+**Status:** N-009a FIXED · N-009b FIXED · N-009c/N-009d still open (below)
+**Fixed in commit:** this session's quick-wins batch (cr_nvme.cpp u8 width; cr_safewriter.cpp done_bytes)
+**Verified by:** `NvmeHealth.PercentageUsedIsU8Width` (reserved byte 0xFF at +6 no longer leaks into the value — fails on the pre-batch source, passes after) and `WriterDirs.ProgressExcludesErrorItems` (done reaches only the written items' bytes: 4 of 6 with one poisoned item — fails pre-batch). Both proven in the fail-before worktree run at `6b58b6f`. Suite 397/397.
+**Resolution notes:** N-009a: percentage_used is a u8 per the NVMe health-log spec (values > 100 impossible); the u16 read consumed the reserved byte. N-009b: done_bytes accumulates only on non-Error outcomes — the og's ExportThread counts written bytes; the old unconditional add reported "100% done, N errors". N-009c (CLI --filter UTF-8 mangling) and N-009d (ACL preservation flag + registration) remain open in this file.
+
 ## I-005 Resolution
 
 **Status:** ACKNOWLEDGED (all 7 grouped supersets — preserved)

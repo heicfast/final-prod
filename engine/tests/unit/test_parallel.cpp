@@ -265,3 +265,63 @@ TEST(ParallelRemnants, SameRecordsAsSequential) {
 
 } // namespace
 } // namespace cr
+
+namespace cr {
+
+/* ---- N-017 (diff-to-fix): the factored cancel watcher ------------------- */
+
+TEST(Pool, CancelPoolWatcherDrainsQueueWithinOneTick) {
+    /* N-017: a QUEUED item must never start after a cancel. 64 long items
+     * (150 ms each) over 4 workers; cancel at 50 ms: with the watcher the
+     * abort lands within one 50 ms tick, so at most ~workers + 1 items
+     * ever START (each worker's in-flight item finishes to its own end);
+     * without the abort the workers keep pulling items for the full
+     * 64 x 150 / 4 = 2.4 s. */
+    const cr::u64 kItems = 64;
+    std::atomic<cr::u64> started{0};
+    std::atomic<bool> fire{false};
+    std::thread canceller([&fire]() {
+        std::this_thread::sleep_for(std::chrono::milliseconds(50));
+        fire.store(true, std::memory_order_release);
+    });
+    struct FlagToken : public CancelToken {
+        std::atomic<bool>* f_ = nullptr;
+        bool cancelled() const override {
+            return f_->load(std::memory_order_acquire);
+        }
+    } token;
+    token.f_ = &fire;
+    {
+        ThreadPool pool(4);
+        CancelPoolWatcher watcher(pool, &token);
+        const auto t0 = std::chrono::steady_clock::now();
+        u32 rc = parallel_for(pool, kItems, [&](u64) -> u32 {
+            started.fetch_add(1, std::memory_order_relaxed);
+            std::this_thread::sleep_for(std::chrono::milliseconds(150));
+            return OK;
+        });
+        watcher.done();
+        const auto elapsed =
+            std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - t0)
+                .count();
+        EXPECT_EQ(u32(ERR_CANCELLED), rc) << "the aborted pool must report cancellation";
+        EXPECT_LE(started.load(), 6u) << "queued items must not start after the cancel tick";
+        EXPECT_LT(elapsed, 1500) << "the scan must not run the full 2.4 s queue";
+    }
+    canceller.join();
+}
+
+TEST(Pool, CancelPoolWatcherNullTokenIsInert) {
+    /* no token: the watcher is a no-op (never aborts, joins cleanly) */
+    ThreadPool pool(2);
+    CancelPoolWatcher watcher(pool, nullptr);
+    std::atomic<u64> ran{0};
+    EXPECT_EQ(u32(OK), parallel_for(pool, 16, [&](u64) -> u32 {
+        ran.fetch_add(1, std::memory_order_relaxed);
+        return OK;
+    }));
+    watcher.done();
+    EXPECT_EQ(ran.load(), 16u);
+}
+
+} // namespace cr

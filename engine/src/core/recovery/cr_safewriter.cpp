@@ -463,7 +463,12 @@ u32 SafeWriter::process(CancelToken* cancel, bool (*progress)(u64, u64, void*), 
          * only hard abort. */
         if (rc == ERR_CANCELLED)
             return ERR_CANCELLED;
-        done_bytes += it.bytes_total;
+        /* N-009b (diff-to-fix): progress honesty - error items never
+         * count toward done_bytes (the og's ExportThread counts WRITTEN
+         * bytes; the old unconditional add over-reported on error-heavy
+         * runs - "100% done, 9,900 errors"). */
+        if (it.state != ItemState::Error)
+            done_bytes += it.bytes_total;
         if (progress && !progress(done_bytes, total_bytes ? total_bytes : 1, progress_user))
             return ERR_CANCELLED;
     }

@@ -426,12 +426,6 @@ u32 carve_slice(IStorageDevice* slice, const CarveFlags& flags, CancelToken* can
         std::atomic<u64> windows_done{0};
         const u64 total = ctx.total;
 
-        /* external cancel propagates into the pool */
-        struct WatchState {
-            CancelToken* external;
-            ThreadPool* pool;
-        } watch_state{cancel, &pool};
-
         auto worker_job = [&](u64 wi) -> u32 {
             /* pause-aware gate (G-07): a PausableToken freezes carve workers
              * here; plain tokens behave exactly like the old poll. */
@@ -453,20 +447,11 @@ u32 carve_slice(IStorageDevice* slice, const CarveFlags& flags, CancelToken* can
         /* main-thread watch loop: submit all windows, watch external cancel */
         u32 first_err = OK;
         if (cancel) {
-            /* poll cancel while submitting/running */
-            std::atomic<bool> submit_done{false};
-            std::thread watcher([&watch_state, &submit_done]() {
-                while (!submit_done.load(std::memory_order_acquire)) {
-                    if (watch_state.external->cancelled()) {
-                        watch_state.pool->abort();
-                        return;
-                    }
-                    std::this_thread::sleep_for(std::chrono::milliseconds(50));
-                }
-            });
+            /* poll cancel while submitting/running (N-017: the factored
+             * CancelPoolWatcher - identical 50 ms abort semantics) */
+            CancelPoolWatcher watcher(pool, cancel);
             first_err = parallel_for(pool, window_count, worker_job);
-            submit_done.store(true, std::memory_order_release);
-            watcher.join();
+            watcher.done();
             if (cancel->cancelled() && first_err == OK)
                 first_err = ERR_CANCELLED;
         } else {

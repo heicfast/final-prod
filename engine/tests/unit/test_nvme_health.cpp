@@ -77,3 +77,20 @@ TEST(NvmeHealth, NullRejected) {
     health::NvmeHealthInfo h;
     EXPECT_EQ(parse_nvme_health_page(nullptr, 512, h), ERR_TRUNCATED);
 }
+
+TEST(NvmeHealth, PercentageUsedIsU8Width) {
+    /* N-009a (diff-to-fix): the NVMe health log defines percentage_used
+     * as a single u8 at +5; the byte at +6 is reserved. The old u16 read
+     * consumed the reserved byte - a torn page with garbage there
+     * produced absurd percentages. */
+    auto p = build_page();
+    p[5] = 42;
+    p[6] = 0xFF; /* reserved byte garbage */
+    health::NvmeHealthInfo h;
+    ASSERT_EQ(parse_nvme_health_page(p.data(), u32(p.size()), h), OK);
+    EXPECT_EQ(h.percentage_used, 42u) << "the reserved byte at +6 must not leak in";
+    p[5] = 100; /* spec max */
+    p[6] = 0x01;
+    ASSERT_EQ(parse_nvme_health_page(p.data(), u32(p.size()), h), OK);
+    EXPECT_EQ(h.percentage_used, 100u);
+}

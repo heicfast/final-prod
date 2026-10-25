@@ -681,7 +681,9 @@ u32 ScanController::run(IStorageDevice* slice, CancelToken* cancel, bool (*progr
         if (RetryingDevice* rd = tel_retry_.load(std::memory_order_acquire))
             stats.errors.merge(rd->error_map_copy());
         tel_counts_(stats, cancel);
-        emit_boundary_events_(tel_stage_.load(std::memory_order_relaxed)); /* GAP-S6-10 */
+        /* N-016 (diff-to-fix): this was emitted twice back-to-back (a
+         * 56cce87 merge artifact) - FilesFound double-fired at teardown;
+         * one emit, like the other three call sites. */
         emit_boundary_events_(tel_stage_.load(std::memory_order_relaxed)); /* GAP-S6-10 */
         {
             std::lock_guard<std::mutex> lock(tel_.m);
@@ -1075,16 +1077,23 @@ u32 ScanController::run_deep(IStorageDevice* slice, CancelToken* cancel,
                         /* F-B-10 (AUDIT-ARCH): the constructed-but-unwired
                          * PoolCancelToken is REMOVED (dead). The workers
                          * poll the EXTERNAL cancel token inside
-                         * scan_candidate (engine loop heads) - a queued
-                         * candidate that starts after a cancel bails on
-                         * its first poll, so responsiveness is preserved
-                         * without a second token. */
+                         * scan_candidate (engine loop heads).
+                         * N-017 (diff-to-fix): the carve-style 50 ms
+                         * watcher ALSO aborts the pool on cancel - a
+                         * QUEUED candidate that starts after the cancel
+                         * previously ran to its first engine loop-head
+                         * poll (seconds on a damaged volume); now the
+                         * queue drains within one watcher tick, matching
+                         * cr_carve.cpp's watcher (the core's own
+                         * standard, and the og's abort-event shape). */
+                        CancelPoolWatcher cancel_watcher(pool, cancel);
                         u32 first_err = parallel_for(pool, n, [&](u64 i) -> u32 {
                             out_arr[i].rc = scan_candidate(items[i].slice.get(), items[i].root,
                                                            cancel, out_arr[i].files,
                                                            out_arr[i].deleted, deep_cb, &dbridge);
                             return OK; /* candidate misses never abort the scan */
                         });
+                        cancel_watcher.done();
                         for (const auto& o : outs) {
                             stats.files_found += o.files;
                             stats.deleted_found += o.deleted;

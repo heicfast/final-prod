@@ -6241,3 +6241,27 @@ in 3ff213c — both were S-023's dependencies). df-close leg: please take S-024
 (health grading) or S-025..S-027 (ext4 trio) next. The MFIX minors session stays
 on MINOR batches (their B3 landed N-028/N-038/N-005). Convergence protocol
 applies if we still collide (their landing stands; duplicate discarded).
+---
+Task ID: MFIX-B4 (minors-focus session, batch 4/12)
+Agent: main engineer (diff-to-fix minors session)
+Task: Quick-wins batch — N-016, N-017, N-009a, N-009b.
+
+Work Log:
+- N-016: removed the duplicate emit_boundary_events_ call (56cce87 merge
+  artifact, confirmed by blame); count pinned at exactly 3 for the quick+deep
+  fixture (was 4). Note: two adjacent FilesFound events from DIFFERENT call
+  sites are legitimate - the discriminator is the count, not adjacency.
+- N-017: new cr::CancelPoolWatcher (factored from the carve inline watcher);
+  wired at the orchestrator's parallel candidate fan-out AND the carve site
+  (refactor, behavior identical - all carve/orchestrator/pause tests green).
+  Unit tests: 64x150ms/4 workers, cancel@50ms -> ERR_CANCELLED, <=6 starts,
+  well under the 2.4s full queue.
+- N-009a: percentage_used u8 width (reserved byte at +6 no longer leaks).
+- N-009b: done_bytes excludes Error outcomes (progress honesty).
+- Fail-before proven (worktree at 6b58b6f): SingleBoundaryAtTeardown (4->3),
+  PercentageUsedIsU8Width, ProgressExcludesErrorItems - 3/3 fail before;
+  CancelPoolWatcher tests compile-gated. Suite 397/397.
+
+Stage Summary:
+- 2 MINOR findings closed (N-016, N-017 -> FIXED/); N-009 group 2/4 closed
+  (a+b; c+d remain open in the group file). D-54 registered.
