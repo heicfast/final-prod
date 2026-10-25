@@ -26,6 +26,23 @@ finding independently against the corpus before fixing; focus the MINOR tier.
 **MINOR 29** · INFO 12 = **71 active** / **29 FIXED** (FIXED/ holds 29 findings +
 RESOLVED-INDEX).
 
+**Batch 2 — NTFS minors (this push):**
+- **N-011 FIXED-ALREADY** (emit_ads flag landed with `367561d`; missing parity
+  pin + superset guard added this session).
+- **N-012 FIXED** ($SI attribute source + 0x7FF mask; 2 fail-before tests).
+- **N-024 group FIXED/REGISTERED** (short_name field + session persistence;
+  boot ladder = LoadNtfsVolume exactly — 5 fail-before/rescoped tests; stride
+  quirk + namespace ranking + error-facility mapping registered; D-52).
+- **N-039 FIXED** (0x20000 gate kept — the og's 0x200 mask registered as an og
+  defect; >64 MiB $J tail mining; fixture comment corrected; 4 tests).
+- Cross-lane green-main fix: the S-012 leg's ASan leak (caller-held
+  FileProperties ref never released at the GUID-dump emit) — suite now
+  384/384 under ASan detect_leaks=1 too.
+- Suite **384/384** Linux Release (+18 tests since session start).
+- NOTE: parallel audit legs landed concurrently (S-023..S-028, M-028..M-030+,
+  N-040..N-047, I-015..I-018 inventory; their own fixes). The minors-focus
+  session continues against the live inventory.
+
 
 
 **Audited commit:** session 1 `67193b6` → session 2 `5d6da5f`/`8574039`/`5f638a3` →

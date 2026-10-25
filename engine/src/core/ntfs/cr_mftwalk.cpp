@@ -59,8 +59,9 @@ u32 build_props(NtfsVolume* vol, const std::vector<AttrView>& attrs, u64 record_
                 u16 record_flags, tree::FileProperties*& props_out,
                 std::vector<AttrListEntry>& attrlist_out, std::vector<FileNameInfo>& names_out,
                 RunList& unnamed_data_out, bool& has_unnamed_data, RunList& i30_out, bool& has_i30,
-                tree::FileTimes& si_times, bool& has_si, std::vector<u8>& unnamed_resident_out,
-                u64& data_real_size, bool& data_compressed_out, u16& data_cunit_out) {
+                tree::FileTimes& si_times, bool& has_si, u32& si_flags_out,
+                std::vector<u8>& unnamed_resident_out, u64& data_real_size,
+                bool& data_compressed_out, u16& data_cunit_out) {
     props_out = nullptr;
     attrlist_out.clear();
     names_out.clear();
@@ -69,6 +70,7 @@ u32 build_props(NtfsVolume* vol, const std::vector<AttrView>& attrs, u64 record_
     i30_out = RunList();
     has_i30 = false;
     has_si = false;
+    si_flags_out = 0;
     unnamed_resident_out.clear();
     data_real_size = 0;
     data_compressed_out = false;
@@ -91,6 +93,9 @@ u32 build_props(NtfsVolume* vol, const std::vector<AttrView>& attrs, u64 record_
             StandardInfo si;
             if (parse_standard_information(a, si) == OK) {
                 si_times = si.times;
+                si_flags_out = si.dos_flags; /* N-012: the og serializes
+                                              * attributes from $SI
+                                              * (FUN_180044f60 @ :5351-68) */
                 has_si = true;
             }
             break;
@@ -521,13 +526,14 @@ u32 walk_mft(NtfsVolume* vol, VolumeBitmap* bitmap, const WalkerFlags& flags, Ca
         u64 data_real_size = 0;       /* primary unnamed $DATA: authoritative size */
         bool data_compressed = false; /* GAP-P1-1: compressed $DATA envelope */
         u16 data_cunit = 0;
+        u32 si_flags = 0; /* N-012: $STANDARD_INFORMATION dos_flags */
         bool recycle_pending = false; /* this record is a $Recycle.Bin $R */
         std::u16string recycle_rnd;   /* its pairing token (extension-stripped) */
         tree::FileTimes si_times{};
         tree::FileProperties* scratch = nullptr;
         std::vector<u8> unnamed_resident;
         if (build_props(vol, attrs, record_no, rh.flags, scratch, attrlist, names, data_runs,
-                        has_data, i30_runs, has_i30, si_times, has_si, unnamed_resident,
+                        has_data, i30_runs, has_i30, si_times, has_si, si_flags, unnamed_resident,
                         data_real_size, data_compressed, data_cunit) != OK) {
             ++stats.damaged;
             continue;
@@ -855,10 +861,31 @@ u32 walk_mft(NtfsVolume* vol, VolumeBitmap* bitmap, const WalkerFlags& flags, Ca
         props->record_ref = (record_no) | (u64(rh.sequence) << 48);
         props->fs_kind = u32(FsKindCode::Ntfs); /* corpus factory code */
         props->name = best->name;
+        /* N-011a: capture a distinct DOS-namespace $FILE_NAME as the 8.3
+         * short name (the og's props short-name field). Only when a
+         * SEPARATE DOS name exists - a single WIN32_AND_DOS name is the
+         * display name already and carries no extra information. */
+        for (const FileNameInfo& n : names) {
+            if (n.namespace_type == FILE_NAME_DOS && n.name != best->name) {
+                props->short_name = n.name;
+                break;
+            }
+        }
         props->logical_size = data_real_size ? data_real_size : best->real_size;
         props->allocated_size = best->allocated_size;
         props->times = has_si ? si_times : best->times;
-        props->attributes = u16(best->dos_flags & 0xFF) | (is_dir ? 0x10 : 0);
+        /* N-012 (diff-to-fix): the og serializes attributes from
+         * $STANDARD_INFORMATION's dos_flags (FUN_180044f60 on the $SI
+         * attribute, NTFSSearchDLL :5351-5368: read-only/hidden/system/
+         * archive bits gated per-bit + the 0x400 OFFLINE bit), NOT from
+         * $FILE_NAME; the old core used the namespace-best $FILE_NAME's
+         * flags masked to 0xFF (dropping OFFLINE and every high bit).
+         * $SI absent -> $FILE_NAME fallback (mirrors the time-precedence
+         * rule one line above). Mask widened to 0x7FF to preserve the
+         * OFFLINE bit (HSM-migrated files) and the 0x100-0x200 family. */
+        props->attributes =
+            (has_si ? u16(si_flags & 0x7FF) : u16(best->dos_flags & 0x7FF)) |
+            (is_dir ? u16(0x10) : 0);
         /* $R<rand> recycle remap: the ORIGINAL name/size/time from the $I
          * sibling (the $R record itself stays in-use inside the bin - it
          * was deleted from the user's location, so the node is Deleted) */
@@ -1100,31 +1127,47 @@ u32 walk_mft(NtfsVolume* vol, VolumeBitmap* bitmap, const WalkerFlags& flags, Ca
      * FILE_CREATE belongs to live files and must never surface deleted. */
     if (flags.harvest_usnjrnl && have_usn && !usn_runs.empty()) {
         std::vector<u8> jbuf;
-        u64 jtotal = 0;
+        u64 jstream = 0;
         for (const DataRun& dr : usn_runs.runs())
-            jtotal += dr.length * vol->params().cluster_bytes;
-        if (jtotal > USN_HARVEST_CAP)
+            jstream += dr.length * vol->params().cluster_bytes;
+        /* N-039 (diff-to-fix): $J is circular - the newest records (the
+         * recovery-relevant deletions) live at the TAIL. When the stream
+         * exceeds the mining cap, skip the head and mine the tail window
+         * (the old head-mining lost exactly the records a wrapped journal
+         * kept current). */
+        u64 jskip = 0;
+        u64 jtotal = jstream;
+        if (jtotal > USN_HARVEST_CAP) {
+            jskip = jtotal - USN_HARVEST_CAP;
             jtotal = USN_HARVEST_CAP;
+        }
         jbuf.assign(size_t(jtotal), 0);
         u64 got = 0;
+        u64 stream_pos = 0;
         for (const DataRun& dr : usn_runs.runs()) {
             if (got >= jtotal)
                 break;
+            const u64 run_start = stream_pos;
             u64 run_bytes = dr.length * vol->params().cluster_bytes;
-            if (run_bytes > jtotal - got)
-                run_bytes = jtotal - got;
+            stream_pos += run_bytes;
+            if (stream_pos <= jskip)
+                continue; /* entirely inside the skipped head */
+            const u64 take_from = run_start > jskip ? run_start : jskip;
+            u64 take = run_bytes - (take_from - run_start);
+            if (take > jtotal - got)
+                take = jtotal - got;
             if (dr.sparse || dr.length == 0 || dr.lcn == 0) {
-                got += run_bytes; /* sparse/unmapped: zeros (pre-assigned) */
+                got += take; /* sparse/unmapped: zeros (pre-assigned) */
                 continue;
             }
-            if (vol->read_at(dr.lcn * vol->params().cluster_bytes, jbuf.data() + got,
-                             u32(run_bytes)) != OK) {
+            if (vol->read_at(dr.lcn * vol->params().cluster_bytes + (take_from - run_start),
+                             jbuf.data() + got, u32(take)) != OK) {
                 /* damaged run: leave zeros, continue the stream */
                 ++stats.usn_damaged_runs;
-                got += run_bytes;
+                got += take;
                 continue;
             }
-            got += run_bytes;
+            got += take;
         }
         /* structured record set + names for dedup */
         std::set<u64> known_records;
@@ -1336,13 +1379,14 @@ u32 walk_mft(NtfsVolume* vol, VolumeBitmap* bitmap, const WalkerFlags& flags, Ca
                         u64 data_real2 = 0;
                         bool data_comp2 = false;
                         u16 data_cunit2 = 0;
+                        u32 gsi_flags2 = 0; /* N-012: the dumped record's $SI flags */
                         tree::FileTimes si_times2{};
                         tree::FileProperties* scratch2 = nullptr;
                         std::vector<u8> resident2;
                         if (enum_attributes(drec.data(), stride, attrs) != OK ||
                             build_props(vol, attrs, pseudo, rh.flags, scratch2, attrlist, names,
                                         data_runs2, has_data2, i30_runs2, has_i30_2, si_times2,
-                                        has_si2, resident2, data_real2, data_comp2,
+                                        has_si2, gsi_flags2, resident2, data_real2, data_comp2,
                                         data_cunit2) != OK ||
                             names.empty()) {
                             p += stride;
@@ -1398,7 +1442,11 @@ u32 walk_mft(NtfsVolume* vol, VolumeBitmap* bitmap, const WalkerFlags& flags, Ca
                         dp->logical_size = size2;
                         dp->allocated_size = best2->allocated_size;
                         dp->times = has_si2 ? si_times2 : best2->times;
-                        dp->attributes = u16(best2->dos_flags & 0xFF) | (is_dir2 ? 0x10 : 0);
+                        /* N-012: same $SI-precedence rule as the main walk
+                         * (the dumped record's own $SI flags when parsed) */
+                        dp->attributes = (has_si2 ? u16(gsi_flags2 & 0x7FF)
+                                                  : u16(best2->dos_flags & 0x7FF)) |
+                                         (is_dir2 ? u16(0x10) : 0);
                         dp->flags = u16(is_dir2 ? PFLAG_IS_DIR : 0);
                         if (has_data2 && !data_runs2.empty()) {
                             std::vector<RunList::Extent> ex;

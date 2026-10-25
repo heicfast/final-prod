@@ -557,6 +557,8 @@ struct NtfsVolumeImage {
         put64(img.data() + 0x30, 4);    /* $MFT LCN */
         put64(img.data() + 0x38, 100);  /* $MFTMirr LCN */
         b[0x40] = 0xF6;                 /* cpr -10 -> 1 KiB records */
+        b[0x44] = 0x01;                 /* index block: 1 cluster (N-011b:
+                                         * real DBRs carry this; 0 -> reject) */
         b[510] = 0x55;
         b[511] = 0xAA;
         const auto rec0 = build_meta_record(u"$MFT", true, 0);

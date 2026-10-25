@@ -1431,3 +1431,46 @@ gate stated and pinned. N-010d (exFAT tz) was already fixed by S-011
 `ExfatEngine.StreamReservedPartiallyNonzeroPassesOgByteOr`,
 `ExfatEngine.StreamReservedAllBytesNonzeroStillDamaged`,
 `ExfatEngine.StreamReserved1ByteStrictlyZero`.
+
+### D-52 — NTFS boot-ladder, attribute source, USN gate: og parity with registered deltas (N-011/N-012/N-024/N-039)
+
+**Class:** parity + registered superset (engine semantics) · **Findings:** diff-to-fix N-011, N-012, N-024 (N-011a..e), N-039 (MINOR, FIXED 2026-10-26) · **Date:** 2026-10-26
+
+- **Boot ladder (N-011b):** volume open now mirrors NTFSLib
+  `CNtfsVolume::LoadNtfsVolume` :19292-19344 exactly: bps 512-multiple
+  (pow2 dropped; 256 now rejected like the og), spc signed-byte decode
+  (direct < 0x81 including non-pow2, shift form above), cpr==0 / 0-result /
+  sub-sector record REJECTED (the M-001 fallback ladder belongs to the walk
+  function), index-block byte 0 rejected, no 0x400 clamp at open, no 0xAA55
+  check. **Registered core hardening kept** (the og lacks all four): the
+  4096 bps cap (spec max), the P1-4 shift-UB exponent guard (1 MiB record
+  cap — the og computes a 1 GiB record for cpr=-30), the P1-3 declared-size
+  sanity, and the bps-vs-device-sector match with the 512e escape.
+- **Attributes source (N-012):** serialized from `$STANDARD_INFORMATION`
+  dos_flags (:5351-5368, per-bit RO/hidden/system/archive + 0x400 OFFLINE),
+  `$FILE_NAME` fallback when `$SI` is absent, mask widened 0xFF → 0x7FF.
+- **Short name (N-011a):** new `FileProperties::short_name` (the og's
+  GetShortName* field), captured from a distinct DOS-namespace `$FILE_NAME`,
+  persisted as session record nflags bit 2 (versioned optional — old readers
+  skip, old files read back empty).
+- **USN harvest (N-039):** the 0x20000 FILE_DELETE gate stays (the og's
+  0x200 mask is COMPRESSION_CHANGE — an og defect, do NOT copy); >64 MiB
+  `$J` streams now mine the TAIL (circular journal — newest records last).
+  The og's 512-byte record cap and V2-only parsing stay core supersets
+  (long names and V3 records parse natively here).
+- **Registered supersets (N-011c/d):** the og pass-2 0x400/512 stride quirk
+  (512-byte-record MFT dumps skip every other record) is NOT replicated;
+  the core's uniform stride is the correct superset. The core's namespace
+  ranking (POSIX > WIN32_AND_DOS > WIN32 > DOS) vs the og's pick-one is a
+  deliberate recovery improvement.
+- **ADS (N-011):** `WalkerFlags::emit_ads` (default ON superset, OFF = og
+  parity drop) landed with 367561d; this session adds the missing parity
+  pin (`NtfsVolume.AdsDroppedInParityMode`).
+
+**Pin tests:** `NtfsVolume.AttributesFromSIWhenAvailable`,
+`AttributesFallBackToFileNameWhenSIAbsent`, `AttributesPreserveOfflineBit`,
+`ShortNameFieldRoundtrips` (incl. session roundtrip), `BootRecordSizeZeroRejected`,
+`BootNoPow2RecordSizeAcceptedAtDecodedValue`, `BootNegativeExponentOverflowRejected`,
+`AdsDroppedInParityMode`, `AdsEmittedByDefaultSuperset`,
+`UsnHarvestTrueDeleteReason0x80020000`, `UsnHarvestRejectsCompressionChangeOnly`,
+`UsnHarvestCapMinesTail`.

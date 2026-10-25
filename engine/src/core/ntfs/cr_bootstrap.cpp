@@ -14,27 +14,50 @@ namespace cr {
 namespace ntfs {
 
 namespace {
-bool power_of_two(u64 v) {
-    return v != 0 && (v & (v - 1)) == 0;
-}
 } // namespace
 
 u32 validate_boot_sector(const BootSector& bs, const Geometry& geom, VolumeParams& out) {
     if (!oem_is_ntfs(bs))
         return ERR_BAD_MAGIC;
-    if (!power_of_two(bs.bytes_per_sector) || bs.bytes_per_sector < 256 ||
+    /* N-011b (diff-to-fix, session-2 re-attribution of M-001's quote): the
+     * og's VOLUME-OPEN ladder is NTFSLib CNtfsVolume::LoadNtfsVolume
+     * :19292-19344 (verified first-hand this session):
+     *   - bps must be a 512 MULTIPLE (:19299 `(bps & 0x1ff) == 0`) - no
+     *     pow2 requirement (1536 passes); bps == 256 fails the og's mask.
+     *     The 4096 cap is core hardening (spec max; the og has none) -
+     *     registered in PARITY-DELTAS D-52.
+     *   - spc is a SIGNED byte: < 0x81 -> direct sectors-per-cluster (any
+     *     value, non-pow2 included); >= 0x81 -> 1 << (256 - spc) sectors
+     *     (:19308-19312). spc == 0 -> reject. The pow2 requirement is
+     *     dropped (the og has none).
+     *   - cpr (clusters-per-record i8): 0 or a 0-result -> the volume is
+     *     REJECTED (:19322/:19331 "It is not a NTFS volume!") - the M-001
+     *     0x200-fallback/0x400-clamp ladder belongs to the WALK function
+     *     (FUN_18001acc0), not volume open; no pow2 / %bps check, no
+     *     0x400 clamp here.
+     *   - index-block byte (+0x44): 0 -> reject (:19336-19343).
+     *   - no 0xAA55 check (the og never looks at the signature here).
+     * Core hardening kept and registered: the bps-vs-device-sector match
+     * (512e escape) and the P1-3 total-size sanity + P1-4 shift-UB guard
+     * (1 MiB record cap) - the og lacks all three. */
+    if ((bs.bytes_per_sector & 0x1FF) != 0 || bs.bytes_per_sector < 512 ||
         bs.bytes_per_sector > 4096)
         return ERR_BAD_PARAMETER;
-    if (bs.sectors_per_cluster == 0 || !power_of_two(bs.sectors_per_cluster))
+    if (bs.clusters_per_index_block == 0)
         return ERR_BAD_PARAMETER;
+    const i8 spc_raw = static_cast<i8>(bs.sectors_per_cluster);
+    if (spc_raw == 0)
+        return ERR_BAD_PARAMETER;
+    const u64 sectors_per_cluster =
+        spc_raw > 0 ? u64(spc_raw) : (1ULL << (u64(-spc_raw) & 31)); /* og shift decode */
     if (bs.bytes_per_sector != geom.logical_sector &&
         bs.bytes_per_sector != 512 /* 512e volumes report 512 in DBR */)
         return ERR_BAD_PARAMETER;
 
-    const u64 cluster_bytes = u64(bs.sectors_per_cluster) * bs.bytes_per_sector;
+    const u64 cluster_bytes = sectors_per_cluster * bs.bytes_per_sector;
     if (cluster_bytes == 0)
         return ERR_BAD_PARAMETER;
-    const u64 total_clusters = bs.total_sectors / bs.sectors_per_cluster;
+    const u64 total_clusters = bs.total_sectors / sectors_per_cluster;
     if (total_clusters == 0)
         return ERR_BAD_PARAMETER;
     /* P1-3: the declared volume must fit the actual device (2x slack for
@@ -47,20 +70,19 @@ u32 validate_boot_sector(const BootSector& bs, const Geometry& geom, VolumeParam
     if (bs.mftmirr_lcn >= total_clusters)
         return ERR_BAD_PARAMETER;
 
-    /* M-001 (diff-to-fix): the og NEVER rejects a volume over its record-size
-     * field - `record_size = device.vt[0x28](); if < 1 -> 0x200; buf_size =
-     * max(0x400, record_size)` (FUN_18001acc0 :21134-21142) - no pow2 check,
-     * no divisibility check, no rejection path; a torn DBR degrades the walk
-     * but the engine (and the remnant scan behind it) still runs. Degradation
-     * ladder: unusable encodings fall back to the og's 0x200 default, then
-     * the 0x400 minimum-capacity clamp applies. The old ERR_BAD_PARAMETER
-     * here refused the whole volume - and its remnant scan - on exactly the
-     * damaged disks the product exists for. */
+    /* N-011b: the og's OPEN ladder decodes cpr directly - positive ->
+     * cpr x sectors-per-cluster sectors, negative -> (2^(-cpr))/bps
+     * sectors (:19321-19330) - and REJECTS on 0/0-result. No pow2 or
+     * sector-divisibility check and no 0x400 clamp at open (the M-001
+     * walk-time ladder still governs buffer capacity inside the walk,
+     * whose evidence FUN_18001acc0 :21134-21142 stands). The P1-4
+     * shift-UB guard (exponents > 20 decode 0 -> reject) stays as core
+     * hardening (the og would compute a 1-GiB record size for -30). */
     u64 record_size = record_size_from_dbr(bs, bs.bytes_per_sector);
-    if (record_size == 0 || !power_of_two(record_size) || record_size % bs.bytes_per_sector != 0)
-        record_size = 0x200; /* og fallback (:21136) */
-    if (record_size < 0x400)
-        record_size = 0x400; /* og minimum parse capacity (:21139-21141) */
+    if (record_size == 0)
+        return ERR_BAD_PARAMETER; /* og: "It is not a NTFS volume!" */
+    if (record_size < bs.bytes_per_sector)
+        return ERR_BAD_PARAMETER; /* sub-sector record: the og's 0-result */
 
     out.record_size = record_size;
     out.cluster_bytes = static_cast<u32>(cluster_bytes);
