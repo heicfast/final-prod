@@ -119,6 +119,9 @@ public:
 
     bool loaded() const { return !fat1_.empty(); }
     u32 max_cluster() const { return max_cluster_; }
+    /* M-012: true when FAT1 was unreadable and the table was constructed
+     * from the mirror (og child1==NULL mirror-only scan) */
+    bool mirror_only() const { return mirror_only_; }
 
     /* cluster -> absolute byte offset of its data */
     static u64 cluster_offset(const FatParams& p, u32 cluster);
@@ -127,6 +130,7 @@ private:
     std::vector<u8> fat1_;
     std::vector<u8> fat2_;
     bool mirror_ = false;
+    bool mirror_only_ = false; /* M-012 */
     bool mirror_bad_salvage_ = false; /* N-022: opt-in, default og parity */
     u32 max_cluster_ = 0;
     Flavor flavor_ = Flavor::Fat32;
@@ -209,6 +213,9 @@ struct FatScanStats {
     u64 chains_broken = 0;
     u64 cycles_cut = 0;
     u64 date_rejected = 0; /* N-010c: dentries dropped by date sanity */
+    /* M-012/M-015 (diff-to-fix): damaged-FAT policy outcomes */
+    u64 mirror_only_scan = 0;   /* FAT1 unreadable, scanned on the mirror */
+    u64 fat_copy_rejected = 0;  /* a FAT copy failed validation; another used */
 };
 
 struct FatScanFlags {

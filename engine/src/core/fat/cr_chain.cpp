@@ -128,7 +128,21 @@ u32 FatTable::load(IStorageDevice* dev, const FatParams& p) {
         return ERR_BAD_PARAMETER;
     fat1_.resize(size_t(table_bytes));
     if (dev->read_at(p.fat_start, fat1_.data(), u32(table_bytes)) != OK) {
+        /* M-012 (diff-to-fix): mirror-only mode. The og's factory keeps a
+         * NULL child1 when FAT1 cannot be read and CDoubleFATTable::Next
+         * then serves the MIRROR's answer RAW (:54216 `child1 && ...` falls
+         * through; :54250 `return uVar2` with no scrutiny) - the volume
+         * still scans. The core used to fail the whole scan with
+         * ERR_READ_FAILED. */
         fat1_.clear();
+        if (p.fat_count >= 2 && p.fat2_start != 0) {
+            fat1_.resize(size_t(table_bytes));
+            if (dev->read_at(p.fat2_start, fat1_.data(), u32(table_bytes)) == OK) {
+                mirror_only_ = true;
+                return OK; /* no second mirror to consult */
+            }
+            fat1_.clear();
+        }
         return ERR_READ_FAILED;
     }
     if (p.fat_count >= 2 && p.fat2_start != 0) {
@@ -178,17 +192,47 @@ bool fs_name_matches(const u8* at, const char* want) {
 }
 } // namespace
 
+u32 FatTable::mirror_consult_(u32 cluster) const {
+    /* M-012 (diff-to-fix): the og's mirror scrutiny, FUN_180041de0
+     * :54226-54248 re-read first-hand. Consulted ONLY when the primary
+     * answered FREE (N-022); the mirror's answer is then SCRUTINIZED:
+     *   backward (alt < cluster): reject a shifted copy (mirror(c+1) ==
+     *     alt+1), reject a cross-link (mirror(alt-1) == alt), accept only
+     *     contiguity (mirror(alt) == alt+1); else 0.
+     *   forward: accept unless the mirror claims BAD/EOC (a mirror is not
+     *     believed when the primary said FREE).
+     * The old code accepted ANY non-zero non-BAD mirror answer - torn
+     * FAT1/FAT2 pairs (shifted copies) produced bogus chains. */
+    const u32 alt = entry_at(fat2_, cluster);
+    if (alt == 0)
+        return 0;
+    if (alt < cluster) {
+        /* backward link: shifted copy / cross-link / contiguity */
+        const u32 next_c1 = entry_at(fat2_, cluster + 1);
+        if (next_c1 == alt + 1)
+            return 0; /* shifted copy of the primary's layout */
+        const u32 at_alt = entry_at(fat2_, alt);
+        const u32 before_alt = alt >= 1 ? entry_at(fat2_, alt - 1) : 0;
+        if (alt != 0 && before_alt == alt)
+            return 0; /* cross-link: alt is already claimed */
+        if (alt != 0 && at_alt == alt + 1)
+            return alt; /* contiguity-consistent: believe */
+        return 0;
+    }
+    /* forward: mirror BAD/EOC not believed after a primary FREE */
+    if (alt == CHAIN_BAD || alt >= CHAIN_EOC_MIN)
+        return 0;
+    return alt;
+}
+
 u32 FatTable::next(u32 cluster) const {
     if (cluster < 2 || cluster > max_cluster_)
         return 0;
     u32 v = entry_at(fat1_, cluster);
     /* N-022: mirror consult on primary FREE only (og parity); the
      * primary's BAD answer is served directly (chain truncates). */
-    if (mirror_ && v == 0) {
-        u32 alt = entry_at(fat2_, cluster);
-        if (alt != 0 && alt != CHAIN_BAD)
-            return alt;
-    }
+    if (mirror_ && v == 0)
+        return mirror_consult_(cluster);
     if (mirror_ && v == CHAIN_BAD && mirror_bad_salvage_) {
         /* opt-in torn-pair salvage (recovery mode, NOT the og default) */
         u32 alt = entry_at(fat2_, cluster);
@@ -218,13 +262,9 @@ u32 FatTable::raw(u32 cluster) const {
     if (cluster < 2 || cluster > max_cluster_)
         return 0;
     u32 v = entry_at(fat1_, cluster);
-    /* N-022: same consult policy as next() - primary FREE consults the
-     * mirror; primary BAD is served raw unless salvage is opted in. */
-    if (mirror_ && v == 0) {
-        u32 alt = entry_at(fat2_, cluster);
-        if (alt != 0 && alt != CHAIN_BAD)
-            return alt;
-    }
+    /* N-022 + M-012: same consult+scrutiny policy as next(). */
+    if (mirror_ && v == 0)
+        return mirror_consult_(cluster);
     if (mirror_ && v == CHAIN_BAD && mirror_bad_salvage_) {
         u32 alt = entry_at(fat2_, cluster);
         if (alt != 0 && alt != CHAIN_BAD)

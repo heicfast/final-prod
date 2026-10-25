@@ -1035,6 +1035,164 @@ TEST(FatEngine, SmallFat16TableDeclined) {
     EXPECT_EQ(rc, ERR_BAD_PARAMETER) << "spf=8 FAT16 declined (og window)";
 }
 
+
+namespace {
+/* a device that FAILS reads over a byte range (the FAT1 region) */
+class HoleDevice final : public IStorageDevice {
+public:
+    HoleDevice(std::vector<u8> b, u64 hole_off, u64 hole_len)
+        : data_(std::move(b)), off_(hole_off), len_(hole_len) {
+        geom_.logical_sector = 512;
+        geom_.physical_sector = 512;
+        geom_.sector_count = data_.size() / 512;
+        geom_.total_bytes = geom_.sector_count * 512;
+    }
+    u32 read_at(u64 o, void* buf, u32 len) override {
+        if (o < off_ + len_ && o + len > off_)
+            return ERR_READ_FAILED; /* any overlap with the hole fails */
+        if (o > data_.size() || len > data_.size() - o)
+            return ERR_RANGE_OUT_OF_BOUNDS;
+        std::memcpy(buf, data_.data() + o, len);
+        return OK;
+    }
+    const Geometry& geometry() const override { return geom_; }
+
+private:
+    std::vector<u8> data_;
+    u64 off_, len_;
+    Geometry geom_;
+};
+} // namespace
+
+TEST(FatEngine, MirrorShiftedCopyRejected) {
+    /* M-012(b): a mirror answer that is a shifted copy of the primary
+     * layout (mirror(c+1) == alt+1) is REJECTED by the og's scrutiny
+     * (FUN_180041de0 :54230-32); the old core followed it into bogus
+     * backward chains. */
+    auto img = build_fat16_image();
+    /* FAT1 cluster 20 (FREE in the fixture's unused space); plant a torn
+     * mirror: FAT2[20] = 19 (backward), FAT2[21] = 20 (= alt+1: shifted) */
+    const size_t FAT2 = 22 * 512; /* fixture: reserved=1, spf=20? see below */
+    (void)FAT2;
+    MemDevice dev(std::move(img));
+    /* direct FatTable-level check: construct params + table by hand */
+    FatParams p;
+    {
+        auto img2 = build_fat16_image();
+        const u8* b = img2.data();
+        p.bytes_per_sector = u16_from_bytes_le(b + 0x0B);
+        p.sectors_per_cluster = b[0x0D];
+        p.cluster_bytes = u32(p.sectors_per_cluster) * p.bytes_per_sector;
+        p.reserved_sectors = u16_from_bytes_le(b + 0x0E);
+        p.fat_count = b[0x10];
+        p.fat_sectors = u16_from_bytes_le(b + 0x16);
+        p.fat_start = u64(p.reserved_sectors) * p.bytes_per_sector;
+        p.fat2_start = p.fat_start + u64(p.fat_sectors) * p.bytes_per_sector;
+        p.root_entries = u16_from_bytes_le(b + 0x11);
+        p.flavor = Flavor::Fat16;
+        p.cluster_count = 5000;
+    }
+    /* rebuild a table with a torn mirror directly */
+    auto img3 = build_fat16_image();
+    const size_t f1 = size_t(p.fat_start), f2 = size_t(p.fat2_start);
+    /* FAT1[50] = 0 (free); FAT2[50] = 49 (backward); FAT2[51] = 50 (alt+1) */
+    put16(img3, f1 + 50 * 2, 0);
+    put16(img3, f2 + 50 * 2, 49);
+    put16(img3, f2 + 51 * 2, 50);
+    MemDevice dev3(std::move(img3));
+    FatTable t;
+    ASSERT_EQ(t.load(&dev3, p), OK);
+    EXPECT_EQ(t.next(50), 0u) << "shifted-copy mirror answer rejected";
+    /* contiguity-consistent backward answer IS believed */
+    auto img4 = build_fat16_image();
+    put16(img4, f1 + 60 * 2, 0);  /* primary free */
+    put16(img4, f2 + 60 * 2, 59); /* backward */
+    put16(img4, f2 + 59 * 2, 60); /* mirror(59) == 60 == alt+1: contiguous */
+    put16(img4, f2 + 58 * 2, 0);  /* no cross-link claim */
+    MemDevice dev4(std::move(img4));
+    FatTable t2;
+    ASSERT_EQ(t2.load(&dev4, p), OK);
+    EXPECT_EQ(t2.next(60), 59u) << "contiguity-consistent backward answer believed";
+}
+
+TEST(FatEngine, MirrorCrossLinkRejected) {
+    /* M-012(b): mirror(alt-1) == alt (the target is already claimed) is a
+     * cross-link - rejected by the og's scrutiny (:54236-38). */
+    auto img = build_fat16_image();
+    FatParams p;
+    {
+        const u8* b = img.data();
+        p.bytes_per_sector = u16_from_bytes_le(b + 0x0B);
+        p.sectors_per_cluster = b[0x0D];
+        p.cluster_bytes = u32(p.sectors_per_cluster) * p.bytes_per_sector;
+        p.reserved_sectors = u16_from_bytes_le(b + 0x0E);
+        p.fat_count = b[0x10];
+        p.fat_sectors = u16_from_bytes_le(b + 0x16);
+        p.fat_start = u64(p.reserved_sectors) * p.bytes_per_sector;
+        p.fat2_start = p.fat_start + u64(p.fat_sectors) * p.bytes_per_sector;
+        p.flavor = Flavor::Fat16;
+        p.cluster_count = 5000;
+    }
+    const size_t f1 = size_t(p.fat_start), f2 = size_t(p.fat2_start);
+    /* FAT1[70] = 0; FAT2[70] = 69 (backward); FAT2[68] = 69 (claimed!) */
+    put16(img, f1 + 70 * 2, 0);
+    put16(img, f2 + 70 * 2, 69);
+    put16(img, f2 + 68 * 2, 69); /* cross-link: 69 already pointed at */
+    put16(img, f2 + 69 * 2, 70); /* and contiguous - but the claim kills it */
+    MemDevice dev(std::move(img));
+    FatTable t;
+    ASSERT_EQ(t.load(&dev, p), OK);
+    EXPECT_EQ(t.next(70), 0u) << "cross-linked mirror answer rejected";
+}
+
+TEST(FatEngine, MirrorOnlyScanFat1Unreadable) {
+    /* M-012(c): FAT1 unreadable, FAT2 intact - the og scans the volume on
+     * the raw mirror (child1 == NULL); the core used to fail the whole
+     * scan with ERR_READ_FAILED. */
+    auto img = build_fat16_image();
+    FatParams p;
+    u64 fat1_len;
+    {
+        const u8* b = img.data();
+        p.bytes_per_sector = u16_from_bytes_le(b + 0x0B);
+        p.sectors_per_cluster = b[0x0D];
+        p.cluster_bytes = u32(p.sectors_per_cluster) * p.bytes_per_sector;
+        p.reserved_sectors = u16_from_bytes_le(b + 0x0E);
+        p.fat_count = b[0x10];
+        p.fat_sectors = u16_from_bytes_le(b + 0x16);
+        p.fat_start = u64(p.reserved_sectors) * p.bytes_per_sector;
+        p.fat2_start = p.fat_start + u64(p.fat_sectors) * p.bytes_per_sector;
+        fat1_len = u64(p.fat_sectors) * p.bytes_per_sector;
+        p.flavor = Flavor::Fat16;
+        p.cluster_count = 5000;
+        p.root_entries = u16_from_bytes_le(b + 0x11);
+    }
+    /* punch a hole over the whole FAT1 region */
+    HoleDevice dev(std::move(img), p.fat_start, fat1_len);
+    FatTable t;
+    ASSERT_EQ(t.load(&dev, p), OK) << "mirror-only load succeeds";
+    EXPECT_TRUE(t.mirror_only());
+    /* the fixture's chains (10->11->12 EOC, mirrored in FAT2) resolve */
+    EXPECT_EQ(t.next(10), 11u);
+    /* and the full scan works on the mirror-only device */
+    auto img2 = build_fat16_image();
+    HoleDevice dev2(std::move(img2), p.fat_start, fat1_len);
+    tree::ResultTree tree;
+    auto* ra = tree.add_root(u"Found");
+    auto* rd = tree.add_root(u"Deleted");
+    FatScanFlags flags;
+    FatScanStats stats;
+    u32 rc = scan_fat(&dev2, flags, nullptr, nullptr, nullptr, tree, ra, rd, nullptr, stats);
+    EXPECT_EQ(rc, OK) << "the whole volume scans on the raw mirror";
+    EXPECT_EQ(stats.mirror_only_scan, 1u);
+    auto all = collect_all(tree);
+    bool readme = false;
+    for (auto* n : all)
+        if (n->name_utf8() == "readme_document_v1.txt")
+            readme = true;
+    EXPECT_TRUE(readme) << "live file recovered through the mirror";
+}
+
 } // namespace
 
 TEST(FatEngine, InvalidDateYieldsZeroFileTime) {
