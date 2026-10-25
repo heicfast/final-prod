@@ -51,7 +51,7 @@ Core (audited `67193b6`): `src/app/rrecov.cpp` (1,498 LOC).
 
 | ID | Severity | One-line |
 |---|---|---|
-| N-020 (partial) | MINOR | cli.md commands list + exit codes conflate; verify/query are API-only |
+| N-020 (partial) | MINOR | **FIXED** (moved to findings/FIX/ session 22): cli.md commands list + exit codes corrected — the two rows at the top of this file carry the corrected text; verify/query marked API-only |
 ## Session-2 update (2026-10-25, core `e93decf`)
 
 - **N-009c group gains a neighbor:** A-004's sink mismatch is reachable from any embedder

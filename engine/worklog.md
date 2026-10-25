@@ -10841,3 +10841,28 @@ Work Log:
 Stage Summary:
 - N-046 FIXED (session tally: 2 — N-045, N-046). Next: N-040 (ABI doc
   truthfulness), then N-020/N-074 (doc-drift pairs).
+
+---
+Task ID: DFX22-T2 (lane claim + N-020 bookkeeping + N-077 baseline repair)
+Agent: main engineer (diff-to-fix minors-first session 22)
+Task: Post the disjoint MINOR queue claim; N-020 reconciliation move; N-077 leak repair.
+
+Work Log:
+- Lane claim (disjoint from DFX17's N-068/N-063/N-065/N-056/N-029 set and
+  DFX18's N-046-next): N-020 (move), N-070, N-074, N-040, N-043, N-047,
+  N-050, N-035, N-014, N-059, N-060, N-062, N-064, N-066, N-071, N-075,
+  N-049, N-061, N-031, the N-025/26/27 + N-007/8/9 groups, N-019.
+- N-077 (in the prior push): deserialize_tree caller-ref leak on the
+  N-058/M-051 early-break paths — PropsRef guard; ASan lane 640/640
+  (was red: TruncatedTailFailsAfterFullCount + HostileNameAndRoleLengthBombs
+  leaked 528 B); finding filed in FIXED/ with the fail-before quote.
+- N-020: all six drift instances verified landed on the current tree
+  (AUDIT-PIPELINE:179 WRITER-1 FIXED; cli.md commands/exit rows corrected;
+  PERFORMANCE-PROFILE historical-baseline note + 8 MiB truth; S-009/M-006
+  in FIXED/) — moved the resolved file MINOR/ -> FIXED/ with a
+  RESOLVED-INDEX row, cli.md verdict-row update, matrix quality cell.
+
+Stage Summary:
+- Session tally: M-055 + N-077 fixed; N-020 reconciled (3 resolutions).
+- MINOR live count: 36. Next: N-070 (carve overlap scoring), N-074 (doc
+  drift group 2), N-040 (ABI/doc truthfulness).

@@ -1,6 +1,12 @@
 # diff-to-fix/findings/FIXED/ — resolved findings (audit trail)
 
-## Resolved findings (session-22 wave: +M-055 NEW-FINDING, +N-077 NEW-FINDING; live file inventory)
+## Resolved findings (session-22 wave: +M-055 NEW-FINDING, +N-077 NEW-FINDING, +N-020 reconciliation move; live file inventory)
+
+| ID | Severity (orig) | Title | Fix commit | Resolution |
+|---|---|---|---|---|
+| N-020 | MINOR (S2) | Documentation drift across five spots (audit-trail hygiene) | fixed in the DFX-era doc-accuracy batch (Resolution in file; verified on the current tree this session) | FIXED — all six drift instances corrected and re-verified on `main` this session: AUDIT-PIPELINE WRITER-1 now FIXED (line 179), cli.md commands/exit-code rows carry the N-020-corrected text, PERFORMANCE-PROFILE carries the historical-baseline note + the 8 MiB cache truth, the S-009/M-006 file sits in FIXED/ with its Resolution. The file stayed in MINOR/ after resolution (bookkeeping debt); moved now with this index row. |
+
+
 
 | ID | Severity (orig) | Title | Fix commit | Resolution |
 |---|---|---|---|---|
