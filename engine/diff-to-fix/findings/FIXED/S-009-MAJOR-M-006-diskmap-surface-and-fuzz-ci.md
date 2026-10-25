@@ -152,3 +152,10 @@ Items 1 and M-005 share one plumbing fix (BitmapProvider) — implement together
 5. Acceptance: the four-overlay C-consumer call can report free cells for a structured NTFS scan (today it reports Unknown outside active extents).
 
 **Related:** N-074 (the GAP-S6-11 row that must close-with-residual), the visualization module row (matrix update this session).
+
+## Resolution (S-009 half; the M-006 half is closed above)
+
+**Status:** FIXED (S-009 disk-map surface; N-020 drift corrected - this file said OPEN after the surface had landed)
+**Fixed in commit:** GAP-S6-11 landing `56cce87` (verified independently on the current tree this session)
+**Verified by:** the surface exists and is tested on the current tree: `cr_ui.h:610-629` exports `cr_ui_disk_map` + `cr_ui_disk_map_free` with the geometry/alloc/coverage/found/confidence model; `cr_ui.cpp` implements `disk_map_impl` (session auto-geometry, overlays, bad_ranges two-call); `tests/unit/test_cr_ui.cpp:953+` drives it (want-geometry contract, snapshot-requires-geometry). Suite green (ASan + UBSan lanes).
+**Resolution notes:** the ABI-CONTRACT §7 model landed as specified: a downsampled region map {offset, length, state (allocated/free/bad), coverage, confidence} over the session's device geometry, queryable through the flat C ABI - the AnalysisGridWidget data source equivalent at the engine boundary. The finding file is moved to findings/FIXED/ per the session-2 mandate; both halves (S-009 + M-006/fuzz CI e30b84d) are closed. The disk-map CI acceptance pair registered in ABI-CONTRACT §7 is covered by the cr_ui tests above.

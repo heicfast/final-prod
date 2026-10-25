@@ -1,5 +1,10 @@
 # PERFORMANCE-PROFILE — baseline measurements at HEAD `064fcf4` (session 6, 2026-10-25)
 
+> N-020 drift note: this file is a SESSION-6 HISTORICAL BASELINE. See
+> `diff-to-fix/` for the current remediation status; GAP-S6-13 (the 64 KiB
+> direct-read envelope) LANDED in `7777e1c` - the alignment table below is
+> updated, the measured figures stay session-6.
+
 > Purpose (mandate §1): the measured performance truth of the current build
 > BEFORE this session's changes, so every later number has a comparison
 > point. Two evidence classes: (a) LOCAL first-hand measurements (Linux
@@ -47,9 +52,9 @@ code-level root cause registered in `bench/root-causes.json` and a GAP id in
 
 | Path | Alignment today | Verdict | Action |
 |---|---|---|---|
-| Direct raw handles (`\\.\PhysicalDriveN`, `\\.\HarddiskVolumeN`) | logical-sector (512) envelope, bounce-buffered when unaligned | **BELOW the 64 KiB contract** (GAP-S6-13) | 64 KiB envelope on the direct path: reads whose length is a multiple of 4 KiB but not 64 KiB take the documented ~3.5× slow path on the Windows volume stack (~830 MB/s vs ~2900 MB/s on NVMe, mandate §4); fix = round envelope lengths UP to 64 KiB multiples, clamp at device end, pass-through when already 64 KiB-aligned (no bounce, no copy) |
+| Direct raw handles (`\\.\\PhysicalDriveN`, `\\.\\HarddiskVolumeN`) | 64 KiB envelope, pass-through when already aligned | **ABOVE (contract met)** - N-020 drift corrected: GAP-S6-13 LANDED in `7777e1c` (cr_directalign.h + cr_transport.cpp aligned_read_at; the pre-fix row described the 512-byte envelope and the ~3.5x slow path on 4 KiB-multiple/64 KiB-misaligned lengths) | the slow-path class is now the ALIGNED pass-through's rare fallback; per-read length checks stay gated in bench (len%512 and len*512 contracts) |
 | RDA driver transport | logical-sector envelope | kernel IRP path — not subject to the user-mode slow path; keep sector alignment | none (documented) |
-| Engine reads (all FS engines) | `CachedDevice` 64 KiB block batching (1 MiB cache, corpus MFT batch size) | already 64 KiB-multiple by construction | none |
+| Engine reads (all FS engines) | `CachedDevice` 64 KiB block batching (N-020 drift corrected: **8 MiB cache at the orchestrator call site** - `cr_scan.cpp` CachedReader::create(..., 8<<20, 64*1024); the 1 MiB default in `cr_cached.h:25` is overridden; AUDIT-ARCH.md:37 cites 8 MiB correctly) | already 64 KiB-multiple by construction | none |
 | Recovery writer | 1 MiB chunks (default) + exact-size tail chunk | tail chunks unaligned → bounce path after fix; body chunks already 64 KiB multiples | covered by the envelope fix |
 | Remnant scanner | 4 MiB block-buffered | already 64 KiB multiples | none |
 
