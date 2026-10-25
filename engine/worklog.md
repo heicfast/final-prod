@@ -1468,3 +1468,12 @@ Stage Summary:
 - Deliverables: comparative-bench.yml green on workflow_dispatch (smoke, tools=both); versioned seed corpus + generators; 12-mode deletion scripts; og automation (coordinate driver + rsf harvest + cap funnel + FlaUI probe); docs/COMPARATIVE-BENCHMARK.md + benchmark-summary.json generated per run by compare.py; regression baseline candidate + gate; VLM evidence bundle; this handoff.
 - Known environment limitations: external run canceller blocks long full-matrix runs (retry when quiet; nightly schedule also wired); ours-behavior job still red pending the resume-salvage revalidation; FlaUiProbe fails to build in CI (recorded, auxiliary only).
 - Top BELOW/open items for the next session (root-causes.json carries full detail): quick_format ours 0.0% re-measure post-d763cdb; delete_partition dual-partition discovery (ours finds one of two); permanent_delete precision (MetadataOnly zero-fill FPs, 991 salvaged); keep-control 0/8 on volume scans (enrichment path fixed in c1982dd, revalidate); og permanent_delete re-measure post BENCH-OG-F1 (the 0.0% was an automation defect).
+
+---
+## Session: diff-to-fix parity audit (read-only roadmap session)
+
+Task: Full read-only parity audit of core_recovery @ 064fcf44ba09823c8089cbfe0c53254fed7e351c against easeus-drw-research @ 03ad46ccd6086000e53d7d3871ef43cd7f32e462. Deliverable: diff-to-fix/ directory (findings, module verdicts, cross-ref matrix, evidence, tracked-open). No source files modified.
+
+Work Log:
+- T1: Cloned both repos; recorded commit hashes; saved redacted prompt to worklog/session-diff-audit-prompt.md; created diff-to-fix/ skeleton; this worklog entry.
+- Next: parallel context-sheet reads (agents A-E), then PARAMETERS/SEVERITY/README/SUMMARY skeletons, then module-by-module audit waves.
