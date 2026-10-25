@@ -86,3 +86,63 @@ contains F and our core's does not.
 
 None material; the journal on-disk format is public (Apple TN1150 + hfspluslib source
 structure documented in the corpus).
+
+---
+
+## Verification addendum (diff-to-fix remediation session — evidence decoded, fix deferred)
+
+**Status:** CONFIRMED-DIVERGENCE (re-verified) — implementation deliberately not
+rushed in this session; the following first-hand decompile evidence replaces the
+artifact-level cites and is the next session's starting point. Nothing below is
+guessed: every line was read from `HFSPlusSearchDLL_decompiled.c` this session.
+
+New og-verified facts (CHFSPlusJournal, `hfspluslib\hfsplusjournal.cpp` trace
+strings at :13417-14213; replay driver at :13660-13800):
+
+1. **JournalInfoBlock gate** (read as a 44-byte block; error codes
+   0x5004000000501 bad magic / 0x5004100000501 bad endian / 0x5004200000501 size
+   mismatch, :13542-13554 and :1715-1722):
+   `[info+0] u32 == 0x4A4E4C78` (Apple jnl.c `JOURNAL_INFO_MAGIC` — **the
+   finding's fix-plan magic `0x6a6e6c78` is wrong**; 0x4A4E4C78 is 'JNLx' and
+   jnl.c journal structures are LITTLE-endian, unlike the rest of HFS+),
+   `[info+4] u32 == 0x12345678` (endian marker),
+   `[info+0x18] u64 == volume.journal_size` (volume object +0x2c — the SAME
+   field the ring wrap uses), `[info+0x10] u64` = journal start offset (printed
+   by the "Journal Start Offset:0x" trace at :13705).
+2. **Replay driver** (:13660-13800): reads the first block at the journal
+   start; the transaction's entry list lives at block offset +0x20 as an array
+   of `{?, u32 image_size@+4, u16 target_block@+8}` (local_d0 = buf+0x10 u16s;
+   `*(u32*)(local_d0+4)` allocated and read per entry, `local_d0[4]` passed to
+   the installer as the target block). Each image is read from the journal
+   ring with the offset ADVANCING by the image size and WRAPPING via
+   `offset %= journal_size` (volume+0x2c, :13743-13748) — the circular-buffer
+   walk. Cancel is polled per entry (vt[0x10] + vt[0x88]).
+3. **Image install**: every image is validated by `FUN_180010720` — the SAME
+   B-tree node-kind gate ({-1,0,1,2}) the catalog reader uses — and then
+   installed by `FUN_180010110(ctx, image, target_block, 1)` (call at :13789;
+   the 4th arg is a constant 1 = "apply/replace" presumably). The overlay is
+   therefore per-B-TREE-NODE keyed by block number, not per-raw-block: replayed
+   images enter the tree readers as node-cache entries. **Remaining decode for
+   the next session (small):** `FUN_180010110` (:12766-12850) — which tree(s)
+   receive the install and whether the 4th argument is apply-vs-peek; and the
+   first-block header fields before +0x20 (checksum/sequence — the entry list
+   start is +0x20, i.e. a 32-byte transaction header).
+4. **Fallback flow when the info block is invalid** (:1715-1760): the og does
+   NOT give up — it allocates 0x8000, scans node-shaped images with the same
+   `FUN_180010720` gate and installs them via `FUN_180003ea0` (a second
+   installer!) — a recovery-grade salvage of raw node images from the journal
+   region even without a valid info block. This is a SECOND og behavior the
+   original finding did not record; the fix should implement it behind the
+   same flag.
+
+**Remaining scope for the fix (next session):** (a) implement the
+JournalInfoBlock gate with the corrected magic 0x4A4E4C78 + endian + size
+cross-check; (b) transaction-list walk with the ring arithmetic above +
+per-entry cancel; (c) node-image overlay keyed by {tree, block number}
+applied in the core's read_tree_node (the engine's single node-read choke
+point); (d) the FUN_180010110 4th-arg semantic decode; (e) the info-block-
+invalid fallback salvage; (f) tests per the original fix plan (mini 4-block
+ring fixture). Estimated: one focused session.
+**Finding text correction:** the fix-plan's `magic 0x6a6e6c78` must read
+`0x4A4E4C78` (jnl.c JOURNAL_INFO_MAGIC, LE-stored) — the audit's value was
+wrong; corrected here per the corpus-wins rule.
