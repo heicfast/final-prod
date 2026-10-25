@@ -655,18 +655,24 @@ u32 scan_ext4(IStorageDevice* slice, const Ext4ScanFlags& flags, CancelToken* ca
      * zeroed in the journal copy - replay restores cpu_to_be32(magic).
      *
      * D-07 RE-PINNED (AUDIT-LINUX-FS E-2; EXT4SearchDLL FUN_18000e5b0 +
-     * FUN_18000e890, decompiled :12159-12368): the og gates on the jsb
-     * magic + blocktype {3,4} and then feeds EVERY block of the journal
+     * FUN_18000e890, decompiled :12159-12368) + S-004 (diff-to-fix): the
+     * og gates on the jsb magic + blocktype {3,4} at journal block 0
+     * ([:12207]/[:12212]), then feeds EVERY block of the declared log
      * range to the directory-block parser ("GotJournalDir /
-     * TraverseJournalDir" traces) - it implements NO descriptor/commit/
-     * revoke transaction semantics; a REVOKE block simply fails the
-     * dir-parse. We match that salvage surface: every descriptor-referenced
-     * data block is parsed, committed or not (the old commit gate dropped
-     * uncommitted-tail dir blocks the og surfaces). Revoked-target
-     * filtering is not applied either - the live-tree visit set still
-     * filters entries that survived, and stale dir content is exactly
-     * what a recovery product wants (stale-snapshot salvage, now
-     * og-exact rather than a documented divergence). */
+     * TraverseJournalDir" traces) in 1 MiB windows with a per-block
+     * cancel check - it implements NO descriptor/commit/revoke
+     * transaction semantics; descriptor/revoke blocks simply fail the
+     * dir-parse. We match that salvage surface EXACTLY (S-004): the jsb
+     * gates the whole pass, the range is the jsb's own s_first/s_maxlen,
+     * and every block is parsed whether any descriptor references it or
+     * not. The one deliberate strictly-better addition (accept set
+     * unchanged): blocks a descriptor tagged JBD2_FLAG_ESCAPE get a
+     * second parse with the journal magic restored, recovering the first
+     * dirent the og's raw parse loses to the escape zeroing - a dir
+     * block never starts with the magic, so restoration cannot add a
+     * false accept. Revoked-target filtering is not applied either -
+     * the live-tree visit set still filters entries that survived, and
+     * stale dir content is exactly what a recovery product wants. */
     if (flags.salvage_journal && root_lost) {
         InodeView jiv;
         if (read_inode(v, v.sb.journal_inum, jiv) && !jiv.extents.empty()) {
@@ -676,10 +682,14 @@ u32 scan_ext4(IStorageDevice* slice, const Ext4ScanFlags& flags, CancelToken* ca
 
             constexpr u32 JBD2_MAGIC = 0xC03B3998u;
             constexpr u32 JBD2_DESCRIPTOR_BLOCK = 1;
-            constexpr u32 JBD2_COMMIT_BLOCK = 2;
+            /* commit (2) and revoke (5) blocks exist in the format but the
+             * every-block parser rejects them through the dir grammar
+             * (their magic u32 is an impossible inode) - the og feeds them
+             * to the dir parser and they fail there too (E-2) */
+            [[maybe_unused]] constexpr u32 JBD2_COMMIT_BLOCK = 2;
             constexpr u32 JBD2_SUPERBLOCK_V1 = 3;
             constexpr u32 JBD2_SUPERBLOCK_V2 = 4;
-            constexpr u32 JBD2_REVOKE_BLOCK = 5;
+            [[maybe_unused]] constexpr u32 JBD2_REVOKE_BLOCK = 5;
             constexpr u32 JBD2_FLAG_ESCAPE = 1;
             constexpr u32 JBD2_FLAG_SAME_UUID = 2;
             constexpr u32 JBD2_FLAG_LAST_TAG = 8;
@@ -743,83 +753,77 @@ u32 scan_ext4(IStorageDevice* slice, const Ext4ScanFlags& flags, CancelToken* ca
                 }
             }
 
-            /* pass 1: descriptors -> tags (journal-sequential data blocks).
-             * Commit blocks only mark txn boundaries - the og has NO commit
-             * gating (E-2) and neither do we now. */
-            struct Txn {
-                u64 desc_block;
-                u32 sequence;
-                std::vector<std::pair<u64, bool>> data_blocks; /* {jblock, escaped} */
-            };
-            std::vector<Txn> txns;
-            {
-                u64 blk = 0;
-                while (blk < jblocks) {
-                    u32 seq = 0;
-                    if (is_header(blk, JBD2_DESCRIPTOR_BLOCK, seq)) {
-                        Txn t;
-                        t.desc_block = blk;
-                        t.sequence = seq;
-                        u64 off = blk * bs + 12; /* after journal_header_t */
-                        const u64 end = (blk + 1) * bs;
-                        u64 expect = blk + 1;
-                        bool first_tag = true;
-                        bool last = false;
-                        while (off + tag_size <= end && !last) {
-                            const u32 fl = jbe16(off, flags_off);
-                            bool escaped = (fl & JBD2_FLAG_ESCAPE) != 0;
-                            last = (fl & JBD2_FLAG_LAST_TAG) != 0;
-                            t.data_blocks.push_back({expect, escaped});
-                            off += tag_size;
-                            if (first_tag && (fl & JBD2_FLAG_SAME_UUID) == 0) {
-                                /* first tag without SAME_UUID: a 16-byte
-                                 * journal UUID follows the tag bytes
-                                 * (commit.c jbd2 write order: tag, uuid) */
-                                if (off + 16 > end)
-                                    break;
-                                off += 16;
-                            }
-                            first_tag = false;
-                            ++expect;
-                        }
-                        txns.push_back(std::move(t));
-                    } else if (is_header(blk, JBD2_COMMIT_BLOCK, seq)) {
-                        /* boundary only - no gating (E-2) */
-                    } else if (is_header(blk, JBD2_REVOKE_BLOCK, seq)) {
-                        /* revoke blocks are not dir content - they fail the
-                         * dir-parse in the og too; nothing to do */
-                    }
-                    ++blk;
-                }
-            }
+            /* S-004: the jsb gates the ENTIRE salvage (og [:12207]/[:12212] -
+             * magic 0xC03B3998 + blocktype {3,4} at journal block 0); a
+             * journal whose first block is not a superblock is refused
+             * whole, exactly like the og. */
+            u32 jsb_seq = 0;
+            if (is_header(0, JBD2_SUPERBLOCK_V1, jsb_seq) ||
+                is_header(0, JBD2_SUPERBLOCK_V2, jsb_seq)) {
+                /* the range comes from the jsb's own fields
+                 * (jbd2 journal_superblock_t: s_maxlen u32 BE @+0x10,
+                 * s_first u32 BE @+0x14; the og walks [start, end) in
+                 * 1 MiB windows from the same fields, :12219-12224) */
+                const u64 begin = jbe32(0, 0x14);
+                const u64 declared = jbe32(0, 0x10);
+                u64 end = begin + declared;
+                if (end > jblocks)
+                    end = jblocks;
 
-            /* pass 2: salvage directory entries from EVERY descriptor's data
-             * blocks (committed or not - og parity, E-2) */
-            std::set<std::pair<u32, std::u16string>> seen;
-            for (const Txn& t : txns) {
-                if (cancel && cancel->checkpoint())
-                    break;
-                for (const auto& [jb, escaped] : t.data_blocks) {
-                    if (jb >= jblocks)
-                        break;
-                    u8* raw = jdata.data() + jb * bs;
-                    /* escaped block: the tag says the first 4 bytes were
-                     * zeroed because they collided with the journal magic
-                     * (recovery.c jbd2_journal_recover... restores
-                     * cpu_to_be32(JBD2_MAGIC) = bytes C0 3B 39 98) */
-                    std::vector<u8> unescaped;
-                    const u8* blk = raw;
-                    if (escaped) {
-                        unescaped.assign(raw, raw + bs);
-                        unescaped[0] = 0xC0;
-                        unescaped[1] = 0x3B;
-                        unescaped[2] = 0x39;
-                        unescaped[3] = 0x98;
-                        blk = unescaped.data();
+                /* descriptor scan - NOT the salvage driver anymore: it only
+                 * records which blocks carry the ESCAPE tag so the
+                 * strictly-better restored parse can run (see the header
+                 * comment), and counts descriptors for telemetry. */
+                std::map<u64, bool> escape_tags; /* jblock -> escaped */
+                u64 descriptor_count = 0;
+                {
+                    u64 blk = 0;
+                    while (blk < jblocks) {
+                        u32 seq = 0;
+                        if (is_header(blk, JBD2_DESCRIPTOR_BLOCK, seq)) {
+                            ++descriptor_count;
+                            u64 off = blk * bs + 12; /* after journal_header_t */
+                            const u64 dend = (blk + 1) * bs;
+                            u64 expect = blk + 1;
+                            bool first_tag = true;
+                            bool last = false;
+                            while (off + tag_size <= dend && !last) {
+                                const u32 fl = jbe16(off, flags_off);
+                                bool escaped = (fl & JBD2_FLAG_ESCAPE) != 0;
+                                last = (fl & JBD2_FLAG_LAST_TAG) != 0;
+                                if (expect < jblocks)
+                                    escape_tags[expect] = escaped;
+                                off += tag_size;
+                                if (first_tag && (fl & JBD2_FLAG_SAME_UUID) == 0) {
+                                    /* first tag without SAME_UUID: a 16-byte
+                                     * journal UUID follows the tag bytes
+                                     * (commit.c jbd2 write order) */
+                                    if (off + 16 > dend)
+                                        break;
+                                    off += 16;
+                                }
+                                first_tag = false;
+                                ++expect;
+                            }
+                        }
+                        ++blk;
                     }
+                }
+
+                /* the salvage: EVERY block of [begin, end) feeds the
+                 * directory-block parser (og parity, "GotJournalDir /
+                 * TraverseJournalDir"): jsb/descriptor/commit/revoke blocks
+                 * self-reject through the dir-grammar (their first u32 is
+                 * the journal magic - an impossible inode/rec_len pair);
+                 * unreferenced dir remnants surface exactly like the og's.
+                 * A descriptor-ESCAPE-tagged block additionally parses with
+                 * the magic restored (strictly better, accept set
+                 * unchanged). */
+                std::set<std::pair<u32, std::u16string>> seen;
+                auto salvage_dir_block = [&](const u8* blk) {
                     std::vector<DirEntry> entries;
                     if (!parse_dir_block(blk, bs, true, entries))
-                        continue;
+                        return;
                     for (const auto& de : entries) {
                         if (de.inode == 0 || de.name.empty() || de.name.size() < 2)
                             continue;
@@ -829,7 +833,7 @@ u32 scan_ext4(IStorageDevice* slice, const Ext4ScanFlags& flags, CancelToken* ca
                             continue; /* already in the live tree */
                         auto* props = new (std::nothrow) tree::FileProperties();
                         if (!props)
-                            break;
+                            return;
                         props->name = de.name;
                         props->fs_kind = u32(FsKindCode::Ext4);
                         props->record_ref = de.inode;
@@ -843,7 +847,28 @@ u32 scan_ext4(IStorageDevice* slice, const Ext4ScanFlags& flags, CancelToken* ca
                             ++stats.journal_salvaged;
                         }
                     }
+                };
+                std::vector<u8> unescaped;
+                for (u64 jb = begin; jb < end; ++jb) {
+                    if (cancel && cancel->checkpoint())
+                        break; /* og: per-block cancel (:12234-12238) */
+                    const u8* raw = jdata.data() + jb * bs;
+                    salvage_dir_block(raw);
+                    auto et = escape_tags.find(jb);
+                    if (et != escape_tags.end() && et->second) {
+                        /* the tag says the first 4 bytes were zeroed
+                         * because they collided with the journal magic
+                         * (recovery.c restores cpu_to_be32(JBD2_MAGIC)
+                         * = bytes C0 3B 39 98) */
+                        unescaped.assign(raw, raw + bs);
+                        unescaped[0] = 0xC0;
+                        unescaped[1] = 0x3B;
+                        unescaped[2] = 0x39;
+                        unescaped[3] = 0x98;
+                        salvage_dir_block(unescaped.data());
+                    }
                 }
+                (void)descriptor_count;
             }
         }
     }

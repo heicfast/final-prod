@@ -212,6 +212,8 @@ Img build_volume() {
         bput32(jsb + 0, 0xC03B3998u);
         bput32(jsb + 4, 3); /* JBD2_SUPERBLOCK_V1 */
         bput32(jsb + 8, 9);
+        bput32(jsb + 0x10, 5); /* S-004: s_maxlen - the declared log range */
+        bput32(jsb + 0x14, 0); /* s_first */
         bput32(jsb + 0x28, 0); /* s_feature_incompat: none */
 
         /* descriptor at journal block 1: tags reference journal-sequential
@@ -423,6 +425,7 @@ TEST(Ext4Engine, JournalUncommittedTailSurfaces) {
     constexpr u64 B_JOURNAL = 10;
     /* grow the journal inode by 2 blocks (5 -> 7) and plant the tail */
     write_inode(img, 8, 0x8000, 7 * BS, B_JOURNAL, 7, 1, 0);
+    bput32(img.block(B_JOURNAL) + 0x10, 7); /* s_maxlen covers the tail */
     {
         u8* desc = img.block(B_JOURNAL + 5);
         bput32(desc + 0, 0xC03B3998u);
@@ -459,6 +462,67 @@ TEST(Ext4Engine, JournalUncommittedTailSurfaces) {
 
 namespace cr {
 namespace ext4 {
+
+/* ---- S-004: every-block journal salvage + jsb gate --------------------- */
+
+TEST(Ext4Engine, JournalUnreferencedDirBlockSalvaged) {
+    /* S-004 (diff-to-fix): the og feeds EVERY block of the declared log
+     * range to the dir parser - a directory remnant no surviving
+     * descriptor references (overwritten ring, mid-write tail) surfaces.
+     * The old descriptor-referenced-only salvage dropped it. */
+    auto img = build_volume();
+    constexpr u64 B_JOURNAL = 10;
+    write_inode(img, 8, 0x8000, 8 * BS, B_JOURNAL, 8, 1, 0);
+    bput32(img.block(B_JOURNAL) + 0x10, 8); /* s_maxlen: whole range */
+    {
+        /* a dir block at journal block 6 that NO descriptor tags */
+        u8* rem = img.block(B_JOURNAL + 6);
+        u32 cur = 0;
+        add_dirent(rem, cur, 52, "orphan.txt", 1);
+        /* a plain junk block at 7 - must not parse, must not crash */
+        memset(img.block(B_JOURNAL + 7), 0x11, BS);
+    }
+    MemDevice dev(img.raw());
+    tree::ResultTree tree;
+    auto* ra = tree.add_root(u"Found");
+    auto* rl = tree.add_root(u"Lost Files");
+    Ext4ScanFlags fl;
+    Ext4ScanStats st;
+    u32 rc = scan_ext4(&dev, fl, nullptr, nullptr, nullptr, tree, ra, nullptr, rl, st);
+    ASSERT_EQ(OK, rc) << err_text(rc);
+    EXPECT_EQ(8u, st.journal_blocks);
+    EXPECT_EQ(3u, st.journal_salvaged); /* ghost + esc + UNREFERENCED */
+    bool saw = false;
+    for (tree::FileNode* c = rl->first_child(); c; c = c->next_sibling())
+        if (c->props() && c->name_utf8() == "orphan.txt")
+            saw = true;
+    EXPECT_TRUE(saw) << "unreferenced journal dir block must surface (og parity)";
+}
+
+TEST(Ext4Engine, JournalFirstBlockNotJsbNoSalvage) {
+    /* S-004 strict parity: the og refuses the whole salvage when journal
+     * block 0 is not a superblock (magic + blocktype {3,4} gate,
+     * :12207/:12212). A descriptor-headed journal yields nothing on both
+     * sides now (the pre-fix core salvaged it - a superset the audit
+     * flagged as claim 2). */
+    auto img = build_volume();
+    constexpr u64 B_JOURNAL = 10;
+    /* turn the jsb into a descriptor block: same magic, type 1 */
+    bput32(img.block(B_JOURNAL) + 4, 1); /* JBD2_DESCRIPTOR_BLOCK */
+    MemDevice dev(img.raw());
+    tree::ResultTree tree;
+    auto* ra = tree.add_root(u"Found");
+    auto* rl = tree.add_root(u"Lost Files");
+    Ext4ScanFlags fl;
+    Ext4ScanStats st;
+    u32 rc = scan_ext4(&dev, fl, nullptr, nullptr, nullptr, tree, ra, nullptr, rl, st);
+    ASSERT_EQ(OK, rc) << err_text(rc);
+    EXPECT_EQ(5u, st.journal_blocks); /* the journal data still counts */
+    EXPECT_EQ(0u, st.journal_salvaged); /* but nothing is salvaged */
+    for (tree::FileNode* c = rl->first_child(); c; c = c->next_sibling())
+        if (c->props())
+            ADD_FAILURE() << "no journal node may surface without a jsb";
+}
 
 /* ---- S-005: on-disk UTF-8 names decode, never byte-lift ---------------- */
 

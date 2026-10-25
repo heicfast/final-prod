@@ -109,3 +109,34 @@ Two falsifiable claims:
 ## Open questions
 
 None.
+
+## Resolution
+
+**Status:** FIXED
+**Fixed in commit:** (this commit — see `git log` for `fix: S-004`)
+**Verified by:** runtime fail-before/pass-after — with the engine .cpp
+reverted alone, BOTH new tests fail
+(`Ext4Engine.JournalUnreferencedDirBlockSalvaged`: the unreferenced dir
+block never surfaces; `Ext4Engine.JournalFirstBlockNotJsbNoSalvage`: the
+descriptor-headed journal salvages 2 names the og refuses); restored, all
+ext4 tests pass including the pre-existing JournalSalvage/
+JournalUncommittedTailSurfaces pins. Suite 293/293 (Linux ASan).
+**Resolution notes:** implemented strict og parity on both axes of the
+falsifiable claims: (1) EVERY block of the jsb-declared log range
+(s_first@+0x14, s_maxlen@+0x10, jbd2 journal_superblock_t — the og walks
+the same range in its 1 MiB windows, :12219-12224) now feeds
+parse_dir_block; jsb/descriptor/commit/revoke blocks self-reject through
+the dir grammar (their magic u32 is an impossible inode/rec_len pair —
+the og's parser fails them identically), so unreferenced dir remnants
+surface; (2) the jsb magic + blocktype {3,4} gate at journal block 0
+(:12207/:12212) now refuses the whole salvage when block 0 is not a
+superblock — closing the audit's claim-2 superset; the jsb-gate decision
+is strict parity, registered here (a torn-jsb journal loses our salvage,
+matching the og's empty yield). The descriptor pass survives ONLY as the
+escape map + telemetry: descriptor-tagged ESCAPE blocks get a second
+parse with the journal magic restored — the strictly-better addition the
+fix plan prescribed (accept set unchanged: a dir block never starts with
+the magic), which is what recovers the escaped block's first dirent the
+og's raw parse loses. The self-contradictory D-07 comment was rewritten
+(step 4). Per-block cancel checkpoint matches the og's per-block cancel
+(:12234-12238).

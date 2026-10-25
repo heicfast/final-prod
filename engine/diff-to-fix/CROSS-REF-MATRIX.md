@@ -10,7 +10,7 @@ Legend: `M` = MATCH · `A-n`/`S-n`/`M-n`/`N-n`/`I-n` = finding ID (in
 | ntfs | M (S-001, M-001 fixed), I-001 | M (S-001 fixed) | M | M | M (M-001, N-001 fixed) | NA | NA | M | M | M | M (debt) |
 | fat | M | M | M | I-002, OQ-T2 | M | NA | NA | M | M | M | M (debt) |
 | exfat | N-003, OQ-T5 | N-003 | M | M | M | NA | NA | M | M | M | M (debt) |
-| ext4 | S-004, M (S-005 fixed) | ok | M (erratum) | S-004 | N-004 | NA | NA | M | M | N-004 | M (debt) |
+| ext4 | M (S-004, S-005 fixed) | ok | M (erratum) | M (S-004 fixed) | N-004 | NA | NA | M | M | N-004 | M (debt) |
 | hfsplus | M (S-002 fixed), S-003, N-005 | M | M | M | M | NA | NA | M | M | M | THIN |
 | btrfs | I-003, M (S-005 fixed), N-006 | M | M | M | M | NA | NA | M | M | M | M |
 | zfs | OQ-T6, M (S-005 fixed) | ok | OQ-T6 | M | M | NA | NA | M | M | M | M |

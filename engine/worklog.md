@@ -2138,3 +2138,30 @@ Stage Summary:
   through the writer's codec-extent path; named-fork/extended-attribute content surfaces
   as recoverable children; the constant that was "defined and never used" is now a full
   subsystem, og-parity in membership and mechanism.
+
+---
+Task ID: 9 (S-004 fix)
+Agent: main engineer (diff-to-fix remediation session)
+Task: SEVERE S-004 — ext4 journal salvage descriptor-referenced-only; no jsb gate
+
+Work Log:
+- Both falsifiable claims re-verified against the finding's decompile cites (CORRECTIONS row 6
+  folded in): the og gates on jsb magic + blocktype {3,4} at journal block 0 (:12207/:12212),
+  walks the jsb-declared range in 1 MiB windows (:12219-24) and feeds EVERY block to the dir
+  parser with per-block cancel (:12234-38). CONFIRMED-DIVERGENCE on both axes.
+- Fix: jsb gate + s_first/s_maxlen range + every-block parse (headers self-reject through the
+  dir grammar). The descriptor pass is demoted to the escape map: descriptor-tagged ESCAPE
+  blocks get a second magic-restored parse (strictly better, accept set unchanged — the
+  audit's prescribed keep). jsb-gate decision = strict parity (the claim-2 superset is
+  closed); the self-contradictory D-07 comment rewritten.
+- Tests: JournalUnreferencedDirBlockSalvaged (journal block 6 dir remnant, NO descriptor ->
+  surfaces; junk block 7 tolerated), JournalFirstBlockNotJsbNoSalvage (descriptor-headed
+  journal -> 0 salvaged, og parity). Fail-before proven by reverting the engine alone (both
+  tests fail). Existing JournalSalvage + JournalUncommittedTailSurfaces fixtures updated with
+  the jsb-declared range and still pass unchanged in their assertions.
+- Suite 293/293 (Linux ASan). Audit trail: S-004 Resolution, ext4.md A25 rows, matrix ext4
+  A/B cells, SUMMARY remediation log.
+
+Stage Summary:
+- S-004 FIXED: ext4 journal salvage now yields the og's full name set (unreferenced remnants
+  included) and refuses exactly the journals the og refuses.
