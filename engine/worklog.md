@@ -4986,3 +4986,93 @@ Stage Summary:
 - S-013 FIXED: the exFAT engine recovers full chains on >32 MiB-FAT volumes (the
   modern large-volume default class) for the first time; degradation on unreadable
   windows is bounded and graded. Suite 322/322.
+
+---
+Task ID: DF3-CLOSE (diff-fix session 3 close-out handoff)
+Task: Session handoff — exact commits, remaining items with rationale, next concrete steps.
+
+Session arc (this leg, diff-fix session 3):
+- A-002 (ACUTE) FIXED — 7f2c83e: real Microsoft LDM GPT GUIDs restored (own PE
+  extraction re-verified the corpus bytes first-hand: LdmManager.mo DAT_1800c4960 =
+  Partition.mo DAT_180036630 = 5808c8aa-7e8f-42e0-85d2-e1e90434cfb3, DAT_180036640 =
+  af9b60a0-1431-4f62-bc68-3311714a69ad; 1,470-file corpus scan: fabricated values in
+  ZERO og binaries). Tests de-self-referenced to hard-coded real bytes + negative
+  guard + GUID-text guard. Fail-before 5/5 -> pass-after; suite 303/303.
+- A-004 (ACUTE) + S-016 (SEVERE, DISCOVERED during A-004's fail-before proof) FIXED
+  — c33236f: ErrorRange delivered through the live sink; tel_counts_ feeds the
+  snapshot error map before every boundary emit (the ErrorRange event stream had
+  NEVER fired since 56cce87 - the documented ABI-CONTRACT.md §6 error-delta stream
+  was dead code; the S-016 discovery is why A-004's null-call was latent, and why no
+  test caught either). Two ScanEvents tests; suite 305/305.
+- S-015 (SEVERE) FIXED — 021e2e6: raw_signs min/max are KiB in the og (three
+  consumption sites + tail-acceptance gate decoded first-hand); ONE conversion point
+  in gen_rawsigns.py (zero-max entries asserted; og 500 MiB default documented);
+  table regenerated (every format window was 1024x too small, floor 1024x too low);
+  tail walk rebuilt (chunked forward scan, named 8 MiB bound, og's true range
+  documented); DISCOVERED sub-fix in-commit: per-format tail scoping (the og pairs
+  tails within the candidate's format record; cross-format pairing fabricated close
+  positions — the session-1 fixture itself relied on the artifact). 6
+  fail-before/pass-after tests; suite 310/310.
+- S-017 (SEVERE) FIXED — 1cc08c3: the four ftyp-family signatures baked literal
+  zero box-SIZE bytes into the magic (structurally unreachable - MP4/MOV/M4A/HEIC
+  could never grammar-carve). Re-keyed on the "ftyp" box TYPE; match primitive
+  extracted + shared with a NEW F8 load-time self-probe (the synthetic-buffer match
+  alone was proven WEAK during fail-before - it faithfully reproduces a broken
+  magic; the structural four-zero-prefix rule is the gate); conservative naked-moov
+  salvage (FMT_MOV_NAKED) mirrors the og's list-layer MovAnalyzer, tried last.
+  6 fail-before/pass-after tests; suite 320/320.
+- S-018 (SEVERE) INVALID — 2adfa29: the finding's premise ("neither og generation
+  checks FFD9") refuted at its own reproduction step - the audit's literal `0xd9`
+  grep missed Ghidra's signed-char rendering (-0x27): FIVE FF D9 sites in the modern
+  analyser, and its size-accumulation accept path is EOI-gated (uVar21 == 0 ->
+  epilogue). NO code change (loosening a working validator on a refuted premise =
+  premise-driven regression). Residual filed precisely: tracked-open/
+  OQ-S3-JPEG-fallback-and-continuation-accept.md (legacy JFIF/Exif/generic
+  sub-analysers FUN_18004bbd0/b3b0/c1e0 + the streamed continuation outcome). The
+  audit leg codified the lesson repo-wide as a PROTOCOL signed-char SOP (43149ff).
+- S-013 (SEVERE) FIXED — d2d9b03: exFAT windowed-FAT accessor (og FUN_180021c60
+  parity: 1 MiB cached windows, no size cap) as the ONLY fallback — have_fat never
+  false while fat_length != 0; the silent 1-cluster truncation on >32 MiB-FAT volumes
+  (the modern large-volume class) is gone. Fail-before lesson recorded: the
+  truncation lives in EXTENT COVERAGE (logical_size mirrors the stream entry);
+  assertions pin extent length + second-cluster dir content. SetBuilder extended
+  additively (spec-7.6.3 multi-chunk names). Suite 322/322 + hostile-entry smoke.
+- Session process events, honestly recorded: two conflict-marker escapes during
+  rebase (f210b7e fixed the shipped markers; resolve_conflicts.py now guards every
+  merge); one weak self-probe caught by its own fail-before and strengthened; the
+  deletion-instruction contradiction ruled for the audit-trail-preservation contract
+  (worklog/session-diff-fix-prompt.md addendum) — findings/FIXED/ preserved,
+  RESOLVED-INDEX kept current so closed findings are O(1) to skip.
+
+State at close (d2d9b03):
+- Suite 333/333 Linux ASan green at tip (net +13 tests this leg: A-002 x2, A-004/S-016
+  x2, S-015 x5 net, S-017 x6 net, S-013 x2 + re-based fixtures; parallel legs added
+  the S-011 timestamp tests).
+- ACUTE tier: EMPTY (A-002, A-004 closed; A-003 previously fixed).
+- SEVERE closed this leg: S-015, S-016 (discovered), S-017, S-013; S-018 INVALID.
+- Remaining SEVERE (10 per the audit close-out's tally): S-003 (HFS+ journal,
+  mechanics decoded - the leg-3 handoff's recommended next), S-006 (lost-partition
+  probe families), S-007 (carve formats - evidence corrected by the wave-1 leg),
+  S-009-remainder (typed-event disk-map + filter cats, split tracked in N-020),
+  S-012 (destroy mis-scope: step 1 = one flag flip restoring og deleted-file
+  membership), S-014 (BitLocker FveAutoUnlock paths), S-019 (lost BitLocker FVE
+  probe), S-020 (ReFS resident materialization) + the S2/S3 parallel findings
+  (S-019/S-020 wave-1; see their files).
+- Tracked-open added: OQ-S3-JPEG (legacy JPEG fallback + continuation accept).
+- Windows CI: constants/logic changes only (no new imports anywhere this leg; the
+  /W4 /WX surface unchanged; the Win7-inclusive import gate untouched). The
+  executed numbers (4Kn envelope, og-recall benches) remain the bench harness's
+  vehicle per each finding's own reproduction notes (no Windows host in-session).
+
+Next concrete steps (recommended order for the next leg):
+1. S-012 step 1 — the one-flag restore of og deleted-file membership (destroy rule
+   mis-scope; evidence decoded in the finding + S-001's postscript).
+2. S-003 — HFS+ journal replay (mechanics already decoded; b85c084 evidence
+   addendum; the largest remaining correctness gap).
+3. S-014/S-019 — the BitLocker pair (registry path + FVE probe; same corpus
+   surface, fix together).
+4. S-006 — lost-partition probe families (engine wiring only).
+5. S-007 — carve formats (use the WAVE-1-CORRECTED evidence: CEPS not dBase,
+   OneNote not LZH - the pre-correction rows are stale).
+6. OQ-S3-JPEG — decode FUN_18004bbd0's accept path; re-file or close S-018's
+   residual with quotes.
