@@ -208,6 +208,87 @@ TEST(Query, FilterSortPageCorrectness) {
     }
 }
 
+/* og AdvanceFilterCondition path group parity (API-SURFACE-AUDIT op #20):
+ * the row's FULL path (root role + ancestors + own name, '/'-joined) must
+ * start with the prefix, ASCII-case-insensitive; the walk prunes subtrees
+ * whose accumulated path is prefix-incompatible with the filter. */
+TEST(Query, PathPrefixFilterMatchesAndPrunes) {
+    tree::ResultTree t;
+    auto* found = t.add_root(u"Found");
+    auto* sub = add_file(t, found, "sub", 0, 0, 0, false, tree::Origin::Virtual);
+    add_file(t, sub, "b.jpg", 100, 1000, 1, false, tree::Origin::Structured);
+    add_file(t, sub, "a.txt", 200, 2000, 2, true, tree::Origin::Structured);
+    auto* other = add_file(t, found, "other", 0, 0, 0, false, tree::Origin::Virtual);
+    add_file(t, other, "e.png", 10, 10, 1, false, tree::Origin::Structured);
+    add_file(t, found, "c.mp4", 300, 3000, 1, false, tree::Origin::Carved);
+    t.refresh_stats();
+
+    /* no filter: sub, b.jpg, a.txt, other, e.png, c.mp4 = 6 rows */
+    {
+        const Result r = run(t, Query{});
+        EXPECT_EQ(u64(6), r.total_matched);
+    }
+    /* directory-prefix: the dir row itself + both children = 3 rows */
+    {
+        Query q;
+        q.filter.path_prefix = "Found/sub";
+        const Result r = run(t, q);
+        EXPECT_EQ(u64(3), r.total_matched);
+    }
+    /* ASCII-case-insensitive on every segment */
+    {
+        Query q;
+        q.filter.path_prefix = "found/SUB";
+        const Result r = run(t, q);
+        EXPECT_EQ(u64(3), r.total_matched);
+    }
+    /* mid-name prefix: "Found/s" matches sub (+children) but not other */
+    {
+        Query q;
+        q.filter.path_prefix = "Found/s";
+        const Result r = run(t, q);
+        EXPECT_EQ(u64(3), r.total_matched);
+    }
+    /* the sibling branch */
+    {
+        Query q;
+        q.filter.path_prefix = "Found/ot";
+        const Result r = run(t, q);
+        EXPECT_EQ(u64(2), r.total_matched); /* other + e.png */
+    }
+    /* full-file prefix narrows to exactly one row */
+    {
+        Query q;
+        q.filter.path_prefix = "Found/sub/b";
+        const Result r = run(t, q);
+        ASSERT_EQ(u64(1), r.total_matched);
+        EXPECT_EQ("b.jpg", r.rows[0].name_utf8);
+    }
+    /* root-segment prefix = the whole root's subtree */
+    {
+        Query q;
+        q.filter.path_prefix = "Found";
+        const Result r = run(t, q);
+        EXPECT_EQ(u64(6), r.total_matched);
+    }
+    /* non-matching prefix: zero rows, and the pruned walk still runs clean */
+    {
+        Query q;
+        q.filter.path_prefix = "Found/zzz";
+        const Result r = run(t, q);
+        EXPECT_EQ(u64(0), r.total_matched);
+        EXPECT_TRUE(r.rows.empty());
+    }
+    /* composes with the other filter groups (deleted + prefix) */
+    {
+        Query q;
+        q.filter.path_prefix = "Found/sub";
+        q.filter.deleted_only = true;
+        const Result r = run(t, q);
+        EXPECT_EQ(u64(1), r.total_matched); /* a.txt only (b.jpg active) */
+    }
+}
+
 TEST(Query, RandomizedAgainstReference) {
     std::mt19937_64 rng(12345);
     for (int round = 0; round < 20; ++round) {

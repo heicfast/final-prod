@@ -92,13 +92,39 @@ bool contains_ci(const std::string& hay, const std::string& needle) {
     return false;
 }
 
+/* ASCII-case-insensitive prefix test (the path-prefix filter's comparator). */
+bool starts_with_ci(const std::string& hay, const std::string& prefix) {
+    if (prefix.empty())
+        return true;
+    if (hay.size() < prefix.size())
+        return false;
+    for (size_t k = 0; k < prefix.size(); ++k) {
+        char a = hay[k], b = prefix[k];
+        if (a >= 'A' && a <= 'Z')
+            a = char(a - 'A' + 'a');
+        if (b >= 'A' && b <= 'Z')
+            b = char(b - 'A' + 'a');
+        if (a != b)
+            return false;
+    }
+    return true;
+}
+
+/* Subtree prune test for the path-prefix walk: can ANY descendant of a node
+ * whose accumulated path is `dir` still match `prefix`? Descendant paths all
+ * start with dir + '/'; some descendant matches iff `dir` and `prefix` are
+ * prefix-compatible (one is a prefix of the other - '/' is case-neutral). */
+bool path_compatible(const std::string& dir, const std::string& prefix) {
+    return starts_with_ci(dir, prefix) || starts_with_ci(prefix, dir);
+}
+
 struct Ctx {
     const Filter* f;
     std::vector<const tree::FileNode*> matched;
 };
 
 bool passes(const Filter& f, const tree::FileNode* n, const tree::FileProperties* pr,
-            Category& cat_out) {
+            Category& cat_out, const std::string& full_path) {
     if (n->is_full() || pr == nullptr)
         return false; /* roots/structure: never result rows */
     /* Fast paths first: name-dependent predicates (category, extension,
@@ -134,6 +160,12 @@ bool passes(const Filter& f, const tree::FileNode* n, const tree::FileProperties
         if (!f.name_substring.empty() && !contains_ci(name, f.name_substring))
             return false;
     }
+    /* the path-prefix filter (og AdvanceFilterCondition path group): the
+     * row's full path must start with the prefix; the walk only passes a
+     * materialized path when the filter is active (the plain count path
+     * keeps its no-string-conversion fast lane) */
+    if (!f.path_prefix.empty() && !starts_with_ci(full_path, f.path_prefix))
+        return false;
     return true;
 }
 
@@ -141,13 +173,21 @@ void walk(const tree::FileNode* n, const std::string& prefix, Ctx& c) {
     for (const tree::FileNode* ch = n->first_child(); ch; ch = ch->next_sibling()) {
         const tree::FileProperties* pr = ch->props();
         Category cat = Category::Other;
-        if (passes(*c.f, ch, pr, cat)) {
+        /* the child's accumulated path is materialized ONLY when the
+         * path-prefix filter is active (prefix carries the ancestors,
+         * '/'-joined, no trailing separator - the Row::path_utf8 shape) */
+        std::string full;
+        if (!c.f->path_prefix.empty()) {
+            const std::string name = ch->name_utf8();
+            full = prefix.empty() ? name : prefix + "/" + name;
+        }
+        if (passes(*c.f, ch, pr, cat, full)) {
             c.matched.push_back(ch);
             (void)cat;
-            (void)prefix;
         }
-        if (ch->first_child())
-            walk(ch, prefix, c);
+        if (ch->first_child() &&
+            (c.f->path_prefix.empty() || path_compatible(full, c.f->path_prefix)))
+            walk(ch, full, c);
     }
 }
 
@@ -166,8 +206,17 @@ Result run(const tree::ResultTree& tree, const Query& q) {
     Ctx ctx;
     ctx.f = &q.filter;
     ctx.matched.reserve(1024);
-    for (const tree::FileNode* r : tree.roots())
-        walk(r, std::string(), ctx);
+    for (const tree::FileNode* r : tree.roots()) {
+        /* the root's own path segment (FullNode role, ASCII fallback) -
+         * only materialized when the path filter is active */
+        std::string root_seg;
+        if (!q.filter.path_prefix.empty() && r->is_full()) {
+            const auto* fn = static_cast<const tree::FullNode*>(r);
+            for (u16 ch : fn->role)
+                root_seg.push_back(char(u8(ch < 0x80 ? ch : u'_')));
+        }
+        walk(r, root_seg, ctx);
+    }
     out.total_matched = ctx.matched.size();
 
     /* sort when requested: stable, over the matched index only */

@@ -547,8 +547,32 @@ int main(int argc, char** argv) {
         CHECK_EQ_U64(total, 1u);
         CHECK_EQ_U64(row_count, 1u);
         CHECK(strcmp(rows[0].name, "DOC.TXT") == 0);
-        cr_ui_query_rows_free(rows, row_count);
-        rows = NULL;
+        /* path_prefix (ABI-since core-api, og path filter group): the row's
+         * own full path as the prefix selects exactly that row; a bogus
+         * prefix selects nothing */
+        CHECK(rows[0].path != NULL);
+        if (rows[0].path != NULL) {
+            char doc_path[600];
+            snprintf(doc_path, sizeof(doc_path), "%s", rows[0].path);
+            cr_ui_query_rows_free(rows, row_count);
+            rows = NULL;
+            memset(&q, 0, sizeof(q));
+            q.path_prefix = doc_path;
+            q.limit = 50;
+            CHECK_EQ_U64(cr_ui_query_run(sess, &q, &rows, &row_count, &total), CR_UI_OK);
+            CHECK_EQ_U64(total, 1u);
+            cr_ui_query_rows_free(rows, row_count);
+            rows = NULL;
+            memset(&q, 0, sizeof(q));
+            q.path_prefix = "NO/SUCH/PREFIX";
+            q.count_only = 1;
+            CHECK_EQ_U64(cr_ui_query_run(sess, &q, &rows, &row_count, &total), CR_UI_OK);
+            CHECK_EQ_U64(total, 0u);
+            CHECK(rows == NULL);
+        } else {
+            cr_ui_query_rows_free(rows, row_count);
+            rows = NULL;
+        }
     }
 
     /* ---- disk map (GAP-S6-11 data producer: session path, auto geometry) ---- */

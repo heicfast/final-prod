@@ -421,7 +421,66 @@ TEST(CrUi, QueryFiltersSortPaging) {
     uint32_t n = 0;
     ASSERT_EQ(cr_ui_query_run(u.sess, &q, &rows, &n, &total), CR_UI_OK);
     EXPECT_GE(total, 3u);
+    const uint64_t full_total = total;
     cr_ui_query_rows_free(rows, n);
+
+    /* path_prefix (ABI-since core-api, the og AdvanceFilterCondition path
+     * group): the root segment of an ACTUAL row's path selects the whole
+     * tree (case-insensitive); a non-matching prefix selects nothing; a
+     * full-path prefix selects exactly that row */
+    {
+        q = cr_ui_query{};
+        q.limit = 50;
+        ASSERT_EQ(cr_ui_query_run(u.sess, &q, &rows, &n, &total), CR_UI_OK);
+        ASSERT_GE(n, 1u);
+        ASSERT_NE(rows[0].path, nullptr);
+        const std::string p0(rows[0].path);
+        const auto slash = p0.find('/');
+        ASSERT_NE(slash, std::string::npos) << "row path carries the root segment: " << p0;
+        const std::string root_seg = p0.substr(0, slash);
+        const std::string up_seg = [](std::string s) {
+            for (char& c : s)
+                if (c >= 'a' && c <= 'z')
+                    c = char(c - 'a' + 'A');
+            return s;
+        }(root_seg);
+        /* the DOC row's full path as the prefix -> exactly itself */
+        std::string doc_path;
+        for (uint32_t i = 0; i < n; ++i)
+            if (rows[i].name && std::strcmp(rows[i].name, "DOC.TXT") == 0)
+                doc_path = rows[i].path;
+        ASSERT_FALSE(doc_path.empty());
+        cr_ui_query_rows_free(rows, n);
+        rows = nullptr;
+
+        q = cr_ui_query{};
+        q.path_prefix = root_seg.c_str();
+        q.count_only = 1;
+        ASSERT_EQ(cr_ui_query_run(u.sess, &q, &rows, &n, &total), CR_UI_OK);
+        EXPECT_EQ(total, full_total) << "root-segment prefix selects the whole tree";
+
+        q = cr_ui_query{};
+        q.path_prefix = up_seg.c_str();
+        q.count_only = 1;
+        ASSERT_EQ(cr_ui_query_run(u.sess, &q, &rows, &n, &total), CR_UI_OK);
+        EXPECT_EQ(total, full_total) << "prefix matching is ASCII-case-insensitive";
+
+        q = cr_ui_query{};
+        q.path_prefix = "NO/SUCH/PREFIX";
+        q.count_only = 1;
+        ASSERT_EQ(cr_ui_query_run(u.sess, &q, &rows, &n, &total), CR_UI_OK);
+        EXPECT_EQ(total, 0u);
+
+        q = cr_ui_query{};
+        q.path_prefix = doc_path.c_str();
+        q.limit = 50;
+        ASSERT_EQ(cr_ui_query_run(u.sess, &q, &rows, &n, &total), CR_UI_OK);
+        EXPECT_EQ(total, 1u);
+        ASSERT_EQ(n, 1u);
+        EXPECT_STREQ(rows[0].name, "DOC.TXT");
+        cr_ui_query_rows_free(rows, n);
+        rows = nullptr;
+    }
 
     /* category: .jpg -> Image */
     q = cr_ui_query{};

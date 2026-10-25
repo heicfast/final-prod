@@ -5594,6 +5594,7 @@ Stage Summary:
   the S-012 leg (their active queue).
 
 ---
+<<<<<<< HEAD
 Task ID: S3-INTEG (session-3 storage/census parallel leg — reconciliation + integration)
 Agent: session-3 parity auditor (read-only; the storage/census parallel leg)
 Task: Integrate this leg's 42 findings onto the reconciled main state after the
@@ -5691,3 +5692,34 @@ Stage Summary:
   via S-011); 1 audit sub-claim corrected (SPC domain); N-001 duplicate reconciled.
 - MINOR tier: 29 files remain. Suite 366/366 green. FAT12 engine-open recovery preserved
   (registered superset D-51) — future sessions must not "fix" it away.
+=======
+Task ID: API-T4b (query path-prefix filter)
+Agent: main engineer (core-api session)
+Task: op #20 completion — the og AdvanceFilterCondition path group at the ABI.
+
+Work Log:
+- Core: query::Filter::path_prefix (empty = no filter, zero-init safe); the walk
+  threads the accumulated path (root role + ancestors + own name, '/'-joined —
+  the exact Row::path_utf8 shape) and PRUNES subtrees whose accumulated path is
+  prefix-incompatible with the filter (path_compatible: one is a prefix of the
+  other, '/' case-neutral). Path materialization ONLY when the filter is active —
+  the plain count path keeps its no-string-conversion fast lane (the 1M-node
+  budget). ASCII-case-insensitive comparator (starts_with_ci) matching
+  name_substring's policy. Evidence: corpus 31-filterbar-family-decode.md §3-§6
+  (the og's 7-group AdvanceFilterCondition; path group decoded there).
+- ABI: cr_ui_query::path_prefix appended (added-field rule — no bump, ABI stays 1;
+  the corrected §9 policy's first exercised append). NULL = no filter.
+- Tests: Query.PathPrefixFilterMatchesAndPrunes (10 cases: no-filter, dir prefix,
+  case-insensitivity, mid-name prefix, sibling branch, exact-file prefix, root
+  segment, no-match, deleted+prefix composition) + ABI-level block in
+  CrUi.QueryFiltersSortPaging (root-segment-from-actual-row, case-insensitive,
+  bogus prefix = 0, full-path = exactly 1) + C-consumer block (row's own path as
+  prefix -> 1; bogus -> 0). The tag group stays NOT-EXPOSED (og's tag data is
+  its Results-UI state; no core-side analog — documented in the audit).
+- Suite 368/372 (the 4 red = the cross-lane S-012 MFT-walk leak, reported);
+  ui_abi_check OK; clang-format clean.
+
+Stage Summary:
+- API-SURFACE-AUDIT op #20: PARTIAL -> MATCH on the path group; tag group
+  documented NOT-EXPOSED with rationale. Completion plan items 1-6 all landed.
+>>>>>>> 82a7d81 (feat(query): path_prefix filter — the og AdvanceFilterCondition path group (op #20 completion))

@@ -497,6 +497,9 @@ typedef struct cr_ui_query {
     const char* const* extensions;       /* lowercased WITH dot; NULL = none */
     uint32_t extension_count;
     const char* name_substring; /* UTF-8, ASCII-case-insensitive */
+    const char* path_prefix;    /* ABI-since core-api: full-path prefix filter
+                                 * (og AdvanceFilterCondition path group),
+                                 * ASCII-case-insensitive; NULL = no filter */
     uint32_t deleted_only;
     uint32_t origin_mask; /* 0 = all origins */
     uint32_t sort, dir;

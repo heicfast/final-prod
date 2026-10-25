@@ -54,6 +54,13 @@ struct Filter {
     u32 confidence_min = 0;              /* tree::Confidence ordinal floor (0..4) */
     std::vector<std::string> extensions; /* lowercased, WITH the dot */
     std::string name_substring;          /* UTF-8, ASCII-case-insensitive */
+    /* og AdvanceFilterCondition path group (corpus 31-filterbar-family-decode.md
+     * §3-§6): the row's FULL path (root role + ancestors + own name,
+     * '/'-joined - the same string Row::path_utf8 produces) must start with
+     * this prefix, ASCII-case-insensitive. Empty = no filter (zero-init
+     * safe); the walk prunes subtrees whose accumulated path is
+     * prefix-incompatible with the filter. */
+    std::string path_prefix;
     bool deleted_only = false;
     u32 origin_mask = 0xF; /* tree::Origin bits */
 };
