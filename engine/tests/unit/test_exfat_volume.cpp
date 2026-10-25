@@ -432,6 +432,21 @@ TEST(ExfatEngine, TimestampsMatchExplorerDisplay) {
     EXPECT_EQ(photo->props()->times.accessed, want);
 }
 
+TEST(ExfatEngine, TimestampsWestOffsetAlsoIgnored) {
+    /* S-011 negative-direction pin: tz = 0x7C (7-bit two's-complement
+     * 124 -> -4 quarter-hours = UTC-1). The pre-fix core's subtraction
+     * flipped sign on west offsets (stored wall clock + 1 h); the pin
+     * covers the negative two's-complement decode path the east/zero
+     * cases do not exercise. */
+    tree::ResultTree tree;
+    tree::FileNode* photo = scan_photo_with_tz(0x7C, tree);
+    ASSERT_NE(photo, nullptr);
+    const u64 want = 1738843200ULL * 10000000ULL + 116444736000000000ULL;
+    EXPECT_EQ(photo->props()->times.created, want);
+    EXPECT_EQ(photo->props()->times.modified, want);
+    EXPECT_EQ(photo->props()->times.accessed, want);
+}
+
 TEST(ExfatEngine, EndToEnd) {
     auto img = build_exfat_image();
     MemDevice dev(std::move(img));

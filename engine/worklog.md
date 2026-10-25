@@ -5076,3 +5076,33 @@ Next concrete steps (recommended order for the next leg):
    OneNote not LZH - the pre-correction rows are stale).
 6. OQ-S3-JPEG — decode FUN_18004bbd0's accept path; re-file or close S-018's
    residual with quotes.
+
+---
+Task ID: DF-S011b (S-011 verification pass + negative-direction pin)
+Agent: main engineer (diff-to-fix fix session)
+Task: Convergent re-verification of the parallel-landed S-011 fix; correction of the
+host-dependence analysis error; negative two's-complement (west-offset) pin.
+
+Work Log:
+- Rebased onto the parallel session's landing (46f0e39 fix + fec812d addendum after my
+  local c0bfc02 converged on the identical fix; local duplicate discarded, their landing
+  stands). Current main re-baselined: suite 333/333 green first-hand at 597a9c6.
+- CORRECTION (audit-trail): D-49 and the S-011 Impact section claimed the og's stored
+  FILETIME is scanning-host-TZ-dependent. Refuted: DosDateTimeToFileTime performs NO
+  timezone conversion (Wine conformance tests pin it == SystemTimeToFileTime of the same
+  wall clock; ReactOS/Wine sources TZ-free; MS "File Times" docs place FAT local-to-UTC
+  in the FS driver/FindFirstFile, bypassed by the og's raw-dentry parsing). The og store
+  is byte-deterministic local-as-UTC on EVERY host; host TZ only enters at DRWUI display
+  (FileTimeToLocalFileTime :412990-413010 / :368323-329). Fix yields exact cross-host
+  parity. D-49 corrected in place + S-011 addendum.
+- Negative-direction pin added: ExfatEngine.TimestampsWestOffsetAlsoIgnored (tz=0x7C =
+  UTC-1) - the landed east (+2h/+8h) and zero pins do not exercise the two's-complement
+  west path, where the pre-fix subtraction flipped sign (stored wall clock + 1 h).
+- Suite 334/334 Linux (333 + 1 net-new).
+
+Stage Summary:
+- S-011 fully closed and cross-verified by two sessions with convergent fixes; the only
+  analytical error in the trail (host-dependence) is corrected with primary evidence.
+  Next: continue the SEVERE wave on the re-baselined inventory (S-003/S-007/S-012/
+  S-014 remain; S-006/S-013/S-015/S-017 landed by the parallel session, to be
+  re-verified first-hand next).

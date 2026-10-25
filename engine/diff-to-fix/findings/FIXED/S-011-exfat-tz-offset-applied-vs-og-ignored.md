@@ -262,3 +262,21 @@ deleted/in-use bits from the type byte) into the engine's working struct and nev
 the +0x14..+0x18 ms/tz tail at all; the file-entry validator `FUN_180002f90` zero-checks
 the +0x19..+0x1F reserved tail. The tz bytes are structurally dead in the og's entire
 pipeline, not merely unapplied at emission.
+
+
+### Diff-fix verification addendum (2026-10-26, independent re-verification)
+
+Convergent re-verification of the landed fix (0x-independent of the landing session):
+the fix, tests, and D-49 were reproduced first-hand and are correct. One analytical
+correction is folded into D-49 and this file: the original Impact section (and D-49's
+first draft) claimed the og's stored FILETIME depends on the scanning host's timezone —
+refuted by API semantics: `DosDateTimeToFileTime` performs NO timezone conversion (Wine
+conformance tests assert it equals `SystemTimeToFileTime` of the same wall clock;
+ReactOS/Wine sources TZ-free; MS "File Times" docs place FAT local-to-UTC conversion in
+the FS driver / `FindFirstFile`, which the og bypasses by parsing raw dentries). The
+og's store is byte-deterministic local-as-UTC on every host; host TZ only enters at
+DRWUI display time (`FileTimeToLocalFileTime`, DRWUI_decompiled.c:412990-413010 /
+:368323-368329). The fix therefore yields EXACT cross-host parity. Negative-direction
+pin added: `ExfatEngine.TimestampsWestOffsetAlsoIgnored` (tz = 0x7C = UTC-1 — the
+two's-complement west path the east/zero pins do not exercise; the pre-fix subtraction
+flipped sign on west offsets). Suite 334/334 Linux.

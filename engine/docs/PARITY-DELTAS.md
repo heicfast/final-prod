@@ -1157,16 +1157,25 @@ the tz bytes (verified first-hand: zero TZ-conversion imports beyond
 `DosDateTimeToFileTime` itself; six call sites at
 `exFATSearchDLL_decompiled.c:5215-5235` / `:45174-45194` taking
 `(date_word, time_word, &ft)` only; zero `*900` quarter-hour arithmetic in
-the whole DLL). The og's resulting FILETIME therefore depends on the
-SCANNING HOST's timezone — a portability defect the og ships.
+the whole DLL). DosDateTimeToFileTime performs NO timezone
+conversion — it interprets the MS-DOS wall clock as UTC (Wine conformance tests
+assert `DosDateTimeToFileTime(1980-01-01, 00:00)` == `SystemTimeToFileTime` of
+the same wall clock; ReactOS/Wine implementations are TZ-free; MS "File Times"
+docs place FAT local-to-UTC conversion in the FS driver / `FindFirstFile`,
+which the og bypasses by parsing raw dentries). The og's resulting FILETIME is
+therefore byte-deterministic and HOST-INDEPENDENT — the on-disk local wall
+clock re-interpreted as UTC on every host. (Correction 2026-10-26, diff-fix
+verification pass: this record and the S-011 finding's Impact section
+originally claimed host-dependence — refuted by the API-semantics evidence
+above. Host TZ only enters at DRWUI display time, FileTimeToLocalFileTime,
+DRWUI_decompiled.c:412990-413010 / :368323-368329.)
 
 **Core decision (S-011 fix):** the core's `exfat_time_to_unix100` does NOT
 apply the tz bytes either. It carries the on-disk time through the shared
 FAT-family datetime core (`fat_datetime_to_unix_seconds`), host-independent,
 on-disk-time-as-UTC — exactly what the core's FAT engine already does for
 the same wire format (and holds a MATCH verdict for). This matches the og
-byte-for-byte on a UTC+0 host and is host-independent everywhere (better
-cross-host .rsf portability than the og). The spec-correct UTC
+byte-for-byte on EVERY host (both sides are host-independent local-as-UTC). The spec-correct UTC
 interpretation was REMOVED by this fix (it diverged from the og's .rsf
 bytes on every non-UTC file by exactly `tz_offset × 900 × 10⁷` 100ns
 units). The wire tz fields remain parsed for completeness
