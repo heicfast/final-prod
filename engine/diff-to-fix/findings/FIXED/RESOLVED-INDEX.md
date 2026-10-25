@@ -1,6 +1,12 @@
 # diff-to-fix/findings/FIXED/ — resolved findings (audit trail)
 
-## Resolved findings (session-22 wave: +M-055 NEW-FINDING; live file inventory)
+## Resolved findings (session-22 wave: +M-055 NEW-FINDING, +N-077 NEW-FINDING; live file inventory)
+
+| ID | Severity (orig) | Title | Fix commit | Resolution |
+|---|---|---|---|---|
+| N-077 | MINOR (S22 NEW-FINDING, baseline repair) | deserialize_tree leaks the caller's FileProperties ref on every early break between allocation and attach (LeakSanitizer red since b7d4e22) | (this session's N-077 commit — file carries the evidence + Resolution) | Scoped PropsRef guard; normal path unchanged (explicit release + dismiss). Fail-before executed on the unmodified tree (Session.TruncatedTailFailsAfterFullCount + Session.HostileNameAndRoleLengthBombs Failed with the 528-byte leak report); pass-after ASan suite 640/640 + release lane green. |
+
+
 
 | ID | Severity (orig) | Title | Fix commit | Resolution |
 |---|---|---|---|---|

@@ -218,6 +218,26 @@ u32 deserialize_tree(const u8* data, size_t len, tree::ResultTree& tree,
     const u32 count = c.g32();
     if (c.fail)
         return 0x50040001;
+    /* N-077 (session 22 baseline repair): the caller-held FileProperties
+     * reference leaked on every early break between the per-record
+     * allocation and the successful attach (the N-058 bounds-gates and
+     * the truncated-tail paths) - LeakSanitizer red on
+     * Session.TruncatedTailFailsAfterFullCount and
+     * Session.HostileNameAndRoleLengthBombs since b7d4e22. The guard
+     * releases the caller's ref on ANY exit from the iteration unless
+     * the normal path has already released it (owned=false after the
+     * successful handoff). */
+    struct PropsRef {
+        tree::FileProperties* p;
+        bool owned = true;
+        explicit PropsRef(tree::FileProperties* pp) : p(pp) {}
+        ~PropsRef() {
+            if (owned)
+                p->release();
+        }
+        PropsRef(const PropsRef&) = delete;
+        PropsRef& operator=(const PropsRef&) = delete;
+    };
     std::vector<tree::FileNode*> by_id(count, nullptr);
     std::vector<tree::FileNode*> created;
     tree::FullNode* default_root = nullptr; /* lazy synthetic root */
@@ -253,6 +273,7 @@ u32 deserialize_tree(const u8* data, size_t len, tree::ResultTree& tree,
         auto* props = new (std::nothrow) tree::FileProperties();
         if (!props)
             return 0x50030009;
+        PropsRef props_ref(props); /* N-077: releases on every early break */
         props->record_ref = c.g64();
         props->fs_kind = c.g32();
         if (props->fs_kind == 12)
@@ -373,6 +394,7 @@ u32 deserialize_tree(const u8* data, size_t len, tree::ResultTree& tree,
             }
         }
         props->release();
+        props_ref.owned = false; /* the tree owns its reference now */
         if (!n) {
             break;
         }
