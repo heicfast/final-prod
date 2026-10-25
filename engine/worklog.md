@@ -9205,3 +9205,37 @@ Work Log:
 
 Stage Summary:
 - Lane claimed; execution begins with N-065.
+
+
+---
+Task ID: DFX14-T4 (lane claim — M-005)
+Agent: main engineer (diff-to-fix session 14)
+Task: Claim recorded before any finding work: M-005 (MAJOR, carve) — the
+allocation-bitmap carve gate.
+
+Work Log:
+- Verified per the SOP before claiming: M-005 is CONFIRMED-DIVERGENCE at
+  HEAD 8783c2f — the S-009 landing produced the FreeMap producer side and
+  stats surface only; run_carve_stage (cr_scan.cpp:1194) still passes no
+  bitmap to carve_slice and the carve probes the whole slice
+  unconditionally (grep: zero free_map consumers in src/core/carve/).
+- Corpus verified first-hand this session (ghidra-searchdll/
+  RAWSearchDLL_decompiled.c :9440-9466 + FUN_180058df0 :67842-67856 —
+  richer than the finding's paraphrase): bit SET in the og's bitmap =
+  used cluster -> position suppressed from dispatch; cluster-aligned hit
+  skips the whole cluster (local_1e0 += spc-1); OOB (bit-count bound [2])
+  or no bitmap -> dispatch proceeds (raw disks unchanged). The og's
+  bitmap is the USED map; the core's FreeMap is inverted (bit set =
+  free) - the gate inverts: clear = used.
+- Plan: CarveFlags.free_map (nullable FreeMap*) -> ScanCtx gate helpers
+  -> grammar-loop + raw-sign-loop suppression with the cluster skip ->
+  CarveStats.bitmap_skipped_clusters/_bytes -> ScanStats.
+  carve_bitmap_skipped_bytes (orchestrator wiring rebases the map
+  slice-relative at the run_carve_stage call site) -> tests
+  (Carve.BitmapSkipsUsedClusters / Carve.NoBitmapCarvesEverything /
+  telemetry) + a local wall-clock bench on a 50%-used fixture, numbers
+  to the Resolution per the performance SOP.
+
+Stage Summary:
+- M-005 in flight on DFX14. Other lanes' queues unaffected (no overlap
+  with DFX9-T7's M-052/M-035/M-018/M-013/M-014 or DFX9-T2's MINOR trio).
