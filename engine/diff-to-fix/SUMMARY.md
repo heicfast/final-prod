@@ -59,13 +59,13 @@ collision with the parallel leg's I-006 ext4-nanoseconds, cleared).
 
 | Severity | Active | FIXED (in `findings/FIXED/`) | IDs (active) |
 |---|---|---|---|
-| ACUTE | 1 | A-001 | **A-002 (third-leg addendum — fix-induced regression)** |
+| ACUTE | 1 | A-001, **A-003** (discovered by the continuation leg; `repair::rebase_plan` parent-basis fix — RENUMBERED from its local A-002 to clear the collision with this leg's A-002 GUID-regression finding, which landed on main first) | **A-002 (third-leg addendum — fix-induced regression)** |
 | SEVERE | 6 | S-001, S-002, S-004, S-005, S-008 | S-003, S-006, S-007, S-009 (partial), S-010, S-011 |
 | MAJOR | 6 | M-001 | M-002, M-005, M-007, M-008, M-009, M-010 |
 | MINOR | 16 | N-002, N-003, N-010 | N-001, N-004..N-009, N-011..N-020, N-021 |
 | INFORMATIONAL | 8 (7 ACKNOWLEDGED + 1 informational-record) | — | I-001..I-007, I-008 (dormant RAID-5 rotations — a MATCH record) |
 | tracked-open | 12 | OQ-T1, OQ-T7 (RESOLVED) | OQ-T2..T6, OQ-T8, OQ-T9, OQ-S2A-1..4, OQ-S2C-3 |
-| **Total active findings** | **45** | **11** | |
+| **Total active findings** | **45** | **12** | |
 
 **Note on S-009/M-006:** the S-009 disk-map component was FIXED via GAP-S6-11
 (`56cce87` — `cr_diskmap.cpp/.h` verified in-tree by this leg); the M-006 fuzz-CI

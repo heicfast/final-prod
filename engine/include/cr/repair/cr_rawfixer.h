@@ -49,6 +49,7 @@
 
 #include "../cr_types.h"
 #include "../storage/cr_device.h"
+#include <memory>
 #include <string>
 #include <vector>
 
@@ -142,6 +143,17 @@ u32 analyze(IStorageDevice* slice, RepairPlan& plan);
  * action applied so far is restored, in reverse order). The undo log is
  * populated even on success (the operator may still revert later). */
 u32 execute(IWriteDevice* dev, const RepairPlan& plan, UndoLog& undo);
+
+/* Rebase every action offset by base_bytes (A-002): plans derived from a
+ * partition/volume SLICE view carry slice-relative offsets, but the write
+ * devices the callers open are PARENT devices (whole disks, whole image
+ * files). Executing a slice-relative plan against a parent device writes
+ * at the WRONG location - including parent offset 0, over the MBR/GPT.
+ * The orchestrator (pre-scan repair) and the CLI (fix --part) both rebase
+ * before execute, so the undo log - and 'fix --undo-apply' - always
+ * carries parent-absolute offsets, exactly as the undo-apply contract
+ * documents. */
+void rebase_plan(RepairPlan& plan, u64 base_bytes);
 
 /* ---- Phase 3: undo (RESTORE) ----
  * Replays the undo log's original bytes back, verifying each write. */

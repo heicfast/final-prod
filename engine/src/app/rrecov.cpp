@@ -164,31 +164,16 @@ struct OpenResult {
  * lets the orchestrator execute the transactional plan pre-scan; the
  * undo log is persisted beside the session for rrecov fix --undo-apply. */
 
-/* Volume-scan write view: an RW disk handle mapped through the volume's
- * slice offset (repairs stay inside the scanned volume). */
-class VolumeWriteSlice final : public repair::IWriteDevice {
-public:
-    VolumeWriteSlice(std::unique_ptr<repair::IWriteDevice> parent, u64 base)
-        : parent_(std::move(parent)), base_(base) {}
-    u32 read_at(u64 off, void* buf, u32 len) override {
-        return parent_->read_at(off + base_, buf, len);
-    }
-    u32 write_at(u64 off, const void* buf, u32 len) override {
-        return parent_->write_at(off + base_, buf, len);
-    }
-    u64 size() const override { return parent_->size() > base_ ? parent_->size() - base_ : 0; }
-    u32 sector_bytes() const override { return parent_->sector_bytes(); }
-
-private:
-    std::unique_ptr<repair::IWriteDevice> parent_;
-    u64 base_;
-};
+/* S-008 pre-scan repair write device (A-002 design note): the hooks
+ * return the UNMAPPED parent writer (the whole RW disk); the
+ * orchestrator rebases the slice-relative plan onto the parent basis
+ * before execute (repair::rebase_plan), so the undo log - and
+ * 'fix --undo-apply' - always carries disk-absolute offsets. */
 
 struct RepairCliCtx {
     bool apply = false;
     int consent_calls = 0;
     u32 disk = 0;
-    u64 slice_base = 0; /* volume_start; 0 = whole-disk view */
     std::unique_ptr<repair::IWriteDevice> writer;
 };
 
@@ -221,10 +206,10 @@ repair::IWriteDevice* scan_repair_open_writer(void* user) {
                     : "administrator rights required for repairs (elevate and retry)");
         return nullptr;
     }
-    if (c->slice_base != 0)
-        c->writer.reset(new VolumeWriteSlice(std::move(w), c->slice_base));
-    else
-        c->writer = std::move(w);
+    /* UNMAPPED parent writer (A-002): the orchestrator rebases the plan
+     * onto the parent basis - volume scans included - so no slice mapping
+     * belongs here. */
+    c->writer = std::move(w);
     return c->writer.get();
 }
 
@@ -597,8 +582,7 @@ int cmd_scan(int argc, wchar_t** argv, int& i) {
     if (repair) {
         cfg.pre_scan_repair = true;
         repair_ctx.apply = repair_apply;
-        repair_ctx.disk = target.disk;
-        repair_ctx.slice_base = target.volume_start;
+        repair_ctx.disk = target.disk; /* the parent basis for the undo log */
         cfg.repair.consent = scan_repair_consent;
         cfg.repair.open_writer = scan_repair_open_writer;
         cfg.repair.close_writer = scan_repair_close_writer;
@@ -1490,6 +1474,7 @@ int cmd_fix(int argc, wchar_t** argv, int& i) {
     }
     IStorageDevice* slice = view.get();
     std::unique_ptr<IStorageDevice> part_slice;
+    u64 part_base = 0; /* A-002: partition base in DISK bytes (0 = whole disk) */
     if (part >= 1) {
         table::DiskTable t;
         u32 trc = table::parse_disk_table(view.get(), t);
@@ -1503,8 +1488,9 @@ int cmd_fix(int argc, wchar_t** argv, int& i) {
         }
         const auto& p = t.partitions[size_t(part) - 1];
         u32 prc = 0;
+        part_base = p.start_lba * view->geometry().logical_sector;
         part_slice =
-            cr::PartitionSlice::create(view.get(), p.start_lba * view->geometry().logical_sector,
+            cr::PartitionSlice::create(view.get(), part_base,
                                        u64(p.sector_count) * view->geometry().logical_sector, &prc);
         if (!part_slice) {
             wprintf(L"cannot slice partition %d (rc=%08x)\n", part, prc);
@@ -1537,8 +1523,18 @@ int cmd_fix(int argc, wchar_t** argv, int& i) {
         return 0;
     }
 
-    wprintf(L"repair plan for %hs volume: %zu action(s)\n", plan.fs_family.c_str(),
-            plan.actions.size());
+    /* A-002 (discovered during the S-008 session): the plan's offsets are
+     * SLICE-relative, but the write device below is the whole PHYSICAL
+     * DISK - without this rebase, 'fix --part N --apply' would write the
+     * repair at DISK offset 0, over the MBR/GPT. The rebase happens
+     * before the display so the dry-run shows the true disk-absolute
+     * targets; the undo log (and --undo-apply) carries the same basis,
+     * matching its documented contract. */
+    if (part_base != 0)
+        repair::rebase_plan(plan, part_base);
+
+    wprintf(L"repair plan for %hs volume: %zu action(s)%s\n", plan.fs_family.c_str(),
+            plan.actions.size(), part_base != 0 ? L" (disk-absolute offsets)" : L"");
     for (const auto& a : plan.actions) {
         const char* kind =
             a.kind == repair::ActionKind::RestoreBootFromBackup ? "restore-boot-from-backup"

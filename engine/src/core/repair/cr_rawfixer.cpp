@@ -531,6 +531,11 @@ u32 UndoLog::deserialize(const u8* data, size_t len, UndoLog& out) {
 
 /* ---- Phase 1: analyze ---- */
 
+void rebase_plan(RepairPlan& plan, u64 base_bytes) {
+    for (auto& a : plan.actions)
+        a.offset += base_bytes;
+}
+
 u32 analyze(IStorageDevice* slice, RepairPlan& plan) {
     plan.actions.clear();
     plan.refused = false;

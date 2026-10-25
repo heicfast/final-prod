@@ -77,3 +77,21 @@ WIRING gap; session 2 covers the SAFETY + PERF gaps on the write path):
 | S-010 | SEVERE | Repair-path volume lock missing (FSCTL_LOCK_VOLUME + FSCTL_DISMOUNT_VOLUME) |
 | M-009 | MAJOR | RawFixer read path bypasses the 64 KiB direct-I/O envelope |
 | OQ-S2C-3 | open question | Og's pre-scan RawFixer consent UX (auto vs prompted) |
+
+### Continuation-leg addendum (A-003, offset-basis unification)
+
+The continuation remediation leg's independent S-008 verification discovered
+**A-003 (ACUTE)**: cmd_fix analyzed through `PartitionSlice` but executed on
+the whole-disk device with no offset translation — `fix --part N --apply`
+wrote the repair at DISK LBA 0 (over the MBR/GPT), and the S-008 volume-scan
+undo logs carried slice-relative offsets that `--undo-apply` replays against
+the whole disk (the undo-direction instance). FIXED with one basis mechanism:
+`repair::rebase_plan` applied after consent, before execute (orchestrator by
+`slice->absolute_base()`; cmd_fix by `part_base`, with the dry-run display
+showing disk-absolute targets); the S-008 writer adapters
+(`VolumeWriteSlice`/`UiVolumeWriteSlice`) removed (mapping + rebase would
+double the offset); `ImageWriteDevice` opens at base 0. Undo logs — and
+`fix --undo-apply` — now always carry parent-absolute offsets per the
+documented contract. Proof: `RawFixer.RebasedPartitionPlanWritesAtDiskBasisNeverLba0`
+(disk LBA 0 byte-identical, partition-absolute landing, disk-absolute undo
+offsets). Finding + Resolution in `findings/FIXED/A-003-*.md` (renumbered from the local A-002 to clear the collision with the diff-audit-s2 leg's A-002 GUID-regression finding).

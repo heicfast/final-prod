@@ -1151,35 +1151,22 @@ bool ui_repair_consent(const repair::RepairPlan& plan, void* user) {
     return s->repair_consent(s->repair_consent_user, &p) != 0;
 }
 
-#ifdef _WIN32
-/* volume slice write view over the Windows RW disk transport */
-class UiVolumeWriteSlice final : public repair::IWriteDevice {
-public:
-    UiVolumeWriteSlice(std::unique_ptr<repair::IWriteDevice> parent, u64 base)
-        : parent_(std::move(parent)), base_(base) {}
-    u32 read_at(u64 off, void* buf, u32 len) override {
-        return parent_->read_at(off + base_, buf, len);
-    }
-    u32 write_at(u64 off, const void* buf, u32 len) override {
-        return parent_->write_at(off + base_, buf, len);
-    }
-    u64 size() const override { return parent_->size() > base_ ? parent_->size() - base_ : 0; }
-    u32 sector_bytes() const override { return parent_->sector_bytes(); }
-
-private:
-    std::unique_ptr<repair::IWriteDevice> parent_;
-    u64 base_;
-};
-#endif
+/* (A-002: the former UiVolumeWriteSlice is gone - the orchestrator's
+ * repair::rebase_plan is the single offset-basis mechanism, so the UI's
+ * writer is always the parent-basis device.) */
 
 repair::IWriteDevice* ui_repair_open_writer(void* user) {
     auto* s = static_cast<CrScan*>(user);
     if (!s || !s->dev)
         return nullptr;
     CrDevice* d = s->dev;
+    /* A-002: the writer is ALWAYS a parent-basis device (the whole image
+     * file / the whole RW disk); the orchestrator rebases the
+     * slice-relative plan onto that basis before execute (repair::
+     * rebase_plan). Mapping here too would double the offset. */
     if (!d->image_path.empty()) {
         u32 err = OK;
-        auto w = ImageWriteDevice::open(d->image_path.c_str(), d->image_offset, 0, &err);
+        auto w = ImageWriteDevice::open(d->image_path.c_str(), 0, 0, &err);
         if (!w)
             return nullptr;
         s->repair_writer = std::move(w);
@@ -1193,14 +1180,7 @@ repair::IWriteDevice* ui_repair_open_writer(void* user) {
             w = win::open_disk_rw(d->disk, false, nullptr, &err);
         if (!w)
             return nullptr;
-        if (d->volume_len != 0) {
-            /* volume device: map writes through the slice base (the read
-             * view's offset within the parent disk) */
-            const u64 base = d->dev->absolute_base();
-            s->repair_writer.reset(new UiVolumeWriteSlice(std::move(w), base));
-        } else {
-            s->repair_writer = std::move(w);
-        }
+        s->repair_writer = std::move(w);
         return s->repair_writer.get();
     }
 #endif

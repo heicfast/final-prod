@@ -563,6 +563,14 @@ u32 ScanController::run(IStorageDevice* slice, CancelToken* cancel, bool (*progr
                     stats.repair_writer_unavailable = true;
                     emit_repair(3, 0);
                 } else {
+                    /* A-002: the plan's offsets are SLICE-relative (the
+                     * analyze ran on the scan's slice view), but the
+                     * hooks' writer is a PARENT device (whole disk / whole
+                     * image file). Rebase before execute so the repair
+                     * lands at the volume's parent-absolute offset - and
+                     * the undo log carries parent-absolute offsets, the
+                     * exact contract 'fix --undo-apply' documents. */
+                    repair::rebase_plan(rplan, slice->absolute_base());
                     rrc = repair::execute(wdev, rplan, stats.repair_undo);
                     stats.repair_status = rrc;
                     stats.repair_actions_applied =

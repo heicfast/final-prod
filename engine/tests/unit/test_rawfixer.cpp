@@ -9,6 +9,7 @@
 #include "cr/ntfs/cr_fixup.h"
 #include "cr/ntfs/cr_mftwalk.h"
 #include "cr/ntfs/cr_ntfs_wire.h"
+#include "cr/storage/cr_slice.h"
 #include "cr/exfat/cr_exfat_engine.h"
 #include <gtest/gtest.h>
 #include <cstring>
@@ -808,6 +809,58 @@ TEST(RawFixer, FixByScanSectorIdenticalCandidatesNotAmbiguous) {
     EXPECT_FALSE(plan.refused);
     ASSERT_EQ(1u, plan.actions.size());
     EXPECT_EQ(ActionKind::DeepScanBootRestore, plan.actions[0].kind);
+}
+
+TEST(RawFixer, RebasedPartitionPlanWritesAtDiskBasisNeverLba0) {
+    /* A-002: a plan analyzed through a partition-slice view carries
+     * slice-relative offsets; executing it against the whole-disk write
+     * device without repair::rebase_plan writes at DISK offset 0 - over
+     * the MBR/GPT (the bug). Rebased, the repair lands at the
+     * partition-absolute offset, disk LBA 0 stays untouched, and the undo
+     * log carries disk-absolute offsets (the documented --undo-apply
+     * contract). Fail-before is structural: without the rebase call the
+     * same execute writes at disk offset 0 and the MBR assertions fail. */
+    NtfsVolumeImage v(true); /* torn $MFT record 0 -> a one-action plan */
+    const u64 part_base = 4096ull * 512; /* partition start LBA 4096 */
+    std::vector<u8> disk(16ull << 20, 0);
+    /* place the volume image at the partition base */
+    std::memcpy(disk.data() + part_base, v.img.data(), v.img.size());
+    /* an MBR at LBA 0 that must survive the repair untouched */
+    disk[510] = 0x55;
+    disk[511] = 0xAA;
+    disk[446] = 0x80;
+
+    /* analyze through the partition slice (slice-relative offsets) */
+    RamDevice whole(disk);
+    u32 prc = 0;
+    auto slice = cr::PartitionSlice::create(&whole, part_base, u64(v.img.size()), &prc);
+    ASSERT_NE(nullptr, slice.get());
+    RepairPlan plan;
+    ASSERT_EQ(OK, analyze(slice.get(), plan));
+    ASSERT_EQ(1u, plan.actions.size());
+    EXPECT_EQ(NtfsVolumeImage::MFT_OFF, plan.actions[0].offset); /* slice-relative */
+
+    /* the A-002 rebase: the same call the orchestrator and cmd_fix make */
+    rebase_plan(plan, part_base);
+    EXPECT_EQ(NtfsVolumeImage::MFT_OFF + part_base, plan.actions[0].offset);
+
+    /* execute against the WHOLE-DISK device (the parent basis) */
+    RamWriteDevice diskw(disk);
+    UndoLog log;
+    ASSERT_EQ(OK, execute(&diskw, plan, log));
+
+    /* disk LBA 0 (the MBR) untouched - the A-002 invariant */
+    EXPECT_EQ(0x55, diskw.d_[510]);
+    EXPECT_EQ(0xAA, diskw.d_[511]);
+    EXPECT_EQ(0x80, diskw.d_[446]);
+    /* the repair landed at the partition-absolute offset: record 0 now
+     * equals the mirror's record 0 exactly */
+    EXPECT_EQ(0, std::memcmp(diskw.d_.data() + part_base + NtfsVolumeImage::MFT_OFF,
+                             v.img.data() + NtfsVolumeImage::MIRR_OFF, 1024));
+    /* the undo log carries DISK-absolute offsets (the documented
+     * --undo-apply contract) */
+    ASSERT_EQ(1u, log.entries.size());
+    EXPECT_EQ(NtfsVolumeImage::MFT_OFF + part_base, log.entries[0].offset);
 }
 
 } // namespace repair

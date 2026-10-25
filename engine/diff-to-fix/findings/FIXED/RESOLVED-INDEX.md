@@ -7,11 +7,12 @@ against the original finding. They are NOT counted in the active
 severity totals in `diff-to-fix/SUMMARY.md` and are NOT part of the
 active roadmap.
 
-## Resolved findings (10 — fixed between session 1 close and session 2 rebase)
+## Resolved findings (12 — fixed between session 1 close and session 2 rebase)
 
 | ID | Severity (orig) | Title | Fix commit | Resolution |
 |---|---|---|---|---|
 | A-001 | ACUTE | Six GPT type-GUID constants wrong; GPT dynamic disks fail LDM | `1cb6a43` | Canonical mixed-endian disk bytes; `FsKind::EfiSystem` added; 4 permanent regression tests incl. end-to-end GPT-dynamic LDM parse. Suite 263/263. Pre-fix probe reproduced `ERR_BAD_MAGIC` verbatim. |
+| A-003 | ACUTE (discovered) | `fix --part --apply` wrote at disk LBA 0; volume-scan undo logs slice-relative | (this commit) | `repair::rebase_plan` — one offset-basis mechanism: plans rebased to the parent basis after consent, before execute (orchestrator by `slice->absolute_base()`, cmd_fix by `part_base`, display shows disk-absolute targets). S-008 writer adapters removed (mapping + rebase would double); undo logs parent-absolute per the documented `--undo-apply` contract. `RawFixer.RebasedPartitionPlanWritesAtDiskBasisNeverLba0` proves LBA 0 untouched + partition-absolute landing + disk-absolute undo offsets. |
 | S-001 | SEVERE | Fully-overwritten deleted NTFS files emitted (graded) vs og destroy | `e93decf` | `WalkerFlags::destroy_fully_overwritten` (default ON) drops fully-overwritten deleted non-directories; `stats.destroyed_overwritten` telemetry. Sparse-run accounting sub-bug fixed in same commit. Honest-mode flag pins old keep-and-grade for parity-bench. |
 | S-004 | SEVERE | ext4 journal salvage descriptor referenced only (not every-block) | `51ac671` / `e0175b3` | ext4 journal salvage now parses every block of the jsb-declared range (was: descriptor-only). jsb gate added. Fail-before/pass-after tests. |
 | S-005 | SEVERE | ext4/Btrfs/ZFS names byte-lifted to mojibake | `2f3237d` | Shared strict RFC 3629 decoder `include/cr/cr_text.h`; sites: ext4 dir block, Btrfs dir items, ZFS dnode names + zap child names + nvlist pool display name (sub-site discovered during fix). 3 engine fail-before/pass-after tests + 11 decoder vectors. Suite 281/281. |

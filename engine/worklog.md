@@ -3419,7 +3419,6 @@ Stage Summary:
   20. N-020 (6 stale doc claims — including the S-009 finding file that should
       move to FIXED/ per GAP-S6-11 having landed)
 
-
 ---
 Task ID: 18-b (Windows red root cause — CRT sharing; this leg)
 Agent: main engineer (diff-to-fix remediation, second parallel leg)
@@ -3505,3 +3504,64 @@ Stage Summary:
   anchor, no CRCs - matching the core's structure exactly.
 - New: N-010 (invalid-UTF-8 name fidelity: og EXT4/Btrfs raw-bytes-to-.rsf vs core
   FFFD-baked; og ZFS CP_UTF8-converts at least one path).
+
+---
+
+---
+Task ID: 9 (A-003 discovered + fixed; S-008 parallel-leg reconciliation)
+Agent: main engineer (diff-to-fix remediation session, continuation leg 3)
+Task: ACUTE A-003 (discovered) — fix --part wrote at disk LBA 0; volume-scan undo
+logs slice-relative. Includes reconciliation with the parallel leg's S-008.
+
+Work Log:
+- Pulled mid-flight: the parallel remediation leg had landed S-004, S-008
+  (independently implemented), N-002, N-003, N-010, M-006, I-001..I-005 acks,
+  plus a whole diff-audit session-2 wave (17 new findings, findings/FIXED/
+  layout, CORPUS-ERRATA, module updates). My in-flight S-008 commit
+  conflicted on rebase; ABORTED it and reset to origin/main (their S-008 is
+  complete and broader: $FILE_NAME identity checks, repair events, undo-save
+  ABI, VolumeWriteSlice). My S-008 implementation was superseded - NOT
+  re-landed (no duplicate code).
+- Verified their S-008 first-hand (read the diff; ran their 16 new tests;
+  suite 297/297 + 15/15 + ABI green at 1882847).
+- A-002 verified STILL LIVE on their code: cmd_fix --part analyzes a
+  PartitionSlice and executes on the whole PhysicalDrive device with no
+  translation (grep: no rebase in their rrecov.cpp). Filed ACUTE/A-003 per
+  section 8 (in their findings/FIXED/ layout, with Resolution).
+- DISCOVERED the undo-direction instance while designing the fix: their S-008
+  writer adapters (VolumeWriteSlice/UiVolumeWriteSlice/ImageWriteDevice-at-
+  offset) map slice-relative plans onto the parent, so repairs land correctly,
+  BUT the undo log records slice-relative offsets while the documented
+  'fix --undo-apply' contract replays against the whole disk - a volume-scan
+  undo restores at the WRONG disk offsets. Both instances documented in the
+  A-002 finding.
+- Fix: ONE basis mechanism - repair::rebase_plan (core, 4 lines, unit-proven)
+  applied AFTER consent, BEFORE execute:
+  * orchestrator: rebase by slice->absolute_base() (volume scans get
+    parent-absolute plans; undo logs parent-absolute).
+  * cmd_fix: rebase by part_base before the dry-run display (display shows
+    "(disk-absolute offsets)").
+  * CLI scan hook: returns the UNMAPPED parent writer (adapter removed).
+  * UI hook: image writer opens at base 0; UiVolumeWriteSlice removed.
+  * Consent callbacks still see slice-relative offsets (the scanned volume's
+    own coordinates) - the rebase is an execution-basis concern.
+- Test: RawFixer.RebasedPartitionPlanWritesAtDiskBasisNeverLba0 (partition
+  slice -> analyze -> rebase -> whole-disk execute: MBR at LBA 0 byte-identical,
+  repair at part_base+MFT_OFF byte-equals the mirror record, undo log offset
+  part_base-absolute). Fail-before is structural (without the rebase call the
+  execute writes at disk offset 0 and the MBR assertions fail).
+- Audit trail: findings/FIXED/A-003-*.md + RESOLVED-INDEX row (12 resolved);
+  SUMMARY ACUTE rows (renumbered A-002->A-003 to clear the collision with the
+  diff-audit-s2 leg's A-002 GUID-regression finding, which landed first); modules/rawfixer.md continuation addendum.
+- Suite: 298/298 core + 15/15 UI + ABI check green (Linux ASan build).
+- REBASE NOTE (vs 18-b): this entry was rebased onto the Windows CRT-sharing
+  fix (_wfsopen _SH_DENYNO) - the A-002 changes and the CRT fix touch
+  different lines of the same image-device code and compose cleanly; the
+  summary counts above were re-merged with the parallel leg's S-002/M-010
+  reconciliation (S-002 FIXED, M-010 filed, tracked-open 13, A-002 in FIXED:
+  43 active / 12 fixed).
+
+Stage Summary:
+- A-002 FIXED in both instances (fix path + scan undo path) with a single
+  parent-basis rule; the S-008 parallel implementation is preserved and now
+  basis-correct for volume scans. No duplicate S-008 code landed.
