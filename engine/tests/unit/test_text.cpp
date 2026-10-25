@@ -163,15 +163,19 @@ TEST(Text, InvalidByteLosslessMapping) {
 }
 
 TEST(Text, LosslessRoundTripRecoversRawBytes) {
-    /* the inverse: original name bytes come back byte-for-byte */
-    const char raw[] = {'r', char(0xE9), 's', 'u', 'm', char(0xE9), '.', 't', 'x', 't'};
+    /* the inverse: original name bytes come back byte-for-byte.
+     * MSVC /W4 C4310 note: char is signed there, so the >0x7F test
+     * bytes are spelled as their negative two's-complement values
+     * (0xE9 == -0x17, 0xC3 == -0x3D, 0xA9 == -0x57) - same bytes,
+     * constant fits, no truncation warning. */
+    const char raw[] = {'r', char(-0x17), 's', 'u', 'm', char(-0x17), '.', 't', 'x', 't'};
     const std::u16string mapped =
         utf8_to_u16_lossless(std::string_view(raw, sizeof(raw)));
     std::string back;
     ASSERT_TRUE(lossless_u16_to_utf8(mapped, back));
     EXPECT_EQ(0, memcmp(raw, back.data(), sizeof(raw)));
     /* mixed: valid UTF-8 + raw bytes round-trip together */
-    const char mixed[] = {'a', char(0xC3), char(0xA9), 'b', char(0xE9), 'c'};
+    const char mixed[] = {'a', char(-0x3D), char(-0x57), 'b', char(-0x17), 'c'};
     const std::u16string m2 =
         utf8_to_u16_lossless(std::string_view(mixed, sizeof(mixed)));
     std::string b2;
