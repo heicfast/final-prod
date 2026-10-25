@@ -268,12 +268,12 @@ u32 read_smart(void* disk_handle, SmartReport& out) {
         if (c2 != ' ')
             model.push_back(c2);
     }
-    out.is_ssd = health::model_says_ssd(model) || looks_like_ssd(h);
+    out.is_ssd = cr::health::model_says_ssd(model) || looks_like_ssd(h);
     {
-        std::vector<health::SmartAttrInput> ais;
+        std::vector<cr::health::SmartAttrInput> ais;
         ais.reserve(out.attributes.size());
         for (const SmartAttribute& a : out.attributes) {
-            health::SmartAttrInput ai;
+            cr::health::SmartAttrInput ai;
             ai.id = a.id;
             ai.value = a.value;
             ai.worst = a.worst;
@@ -282,9 +282,9 @@ u32 read_smart(void* disk_handle, SmartReport& out) {
             ai.failing_bit = a.failing;
             ais.push_back(ai);
         }
-        const health::SmartGradeInputs gi = health::make_grade_inputs(model, ais);
-        std::vector<health::HealthGrade> grades;
-        out.grade = health::grade_smart(gi, grades);
+        const cr::health::SmartGradeInputs gi = cr::health::make_grade_inputs(model, ais);
+        std::vector<cr::health::HealthGrade> grades;
+        out.grade = cr::health::grade_smart(gi, grades);
         for (size_t k = 0; k < grades.size() && k < out.attributes.size(); ++k)
             out.attributes[k].grade = grades[k];
     }

@@ -1149,7 +1149,7 @@ int cmd_health(int argc, wchar_t** argv, int& i) {
             u64 raw = u64(a.raw[0]) | (u64(a.raw[1]) << 8) | (u64(a.raw[2]) << 16);
             wprintf(L"  %-4u %-6u %-6u %-6u %-12llu %-9hs %hs\n", a.id, a.value, a.worst,
                     a.vendor_threshold, static_cast<unsigned long long>(raw),
-                    health::health_grade_name(a.grade), a.name.c_str());
+                    cr::health::health_grade_name(a.grade), a.name.c_str());
         }
         wprintf(L"  reallocated=%llu pending=%llu uncorrectable=%llu hours=%llu temp=%lluC\n",
                 static_cast<unsigned long long>(sm.reallocated_sectors),
@@ -1158,11 +1158,11 @@ int cmd_health(int argc, wchar_t** argv, int& i) {
                 static_cast<unsigned long long>(sm.power_on_hours),
                 static_cast<unsigned long long>(sm.temperature_c));
         /* S-024: the og DiskHealth 4-status verdict */
-        wprintf(L"  health: %hs (%hs)\n", health::health_grade_name(sm.grade),
+        wprintf(L"  health: %hs (%hs)\n", cr::health::health_grade_name(sm.grade),
                 sm.is_ssd ? "SSD" : "HDD/unknown");
-        if (sm.grade == health::HealthGrade::Bad)
+        if (sm.grade == cr::health::HealthGrade::Bad)
             wprintf(L"  WARNING: BAD - back up data immediately\n");
-        else if (sm.grade == health::HealthGrade::Caution)
+        else if (sm.grade == cr::health::HealthGrade::Caution)
             wprintf(L"  WARNING: Caution - recover data FIRST, image before any scan\n");
         if (sm.failing_now)
             wprintf(L"  WARNING: failing attribute present\n");
@@ -1180,7 +1180,7 @@ int cmd_health(int argc, wchar_t** argv, int& i) {
         wprintf(L"NVMe health: temp=%u.%uC spare=%u%%/threshold=%u%% used=%llu%% - %hs\n",
                 u32(nv.temperature_k) - 273, (u32(nv.temperature_k) % 10), nv.available_spare,
                 nv.available_spare_threshold, static_cast<unsigned long long>(nv.percentage_used),
-                health::health_grade_name(health::grade_nvme(nv)));
+                cr::health::health_grade_name(cr::health::grade_nvme(nv)));
         wprintf(L"  read=%llu units written=%llu units power-on=%lluh unsafe-shutdowns=%llu "
                 L"media-errors=%llu\n",
                 static_cast<unsigned long long>(nv.data_units_read),
