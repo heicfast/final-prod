@@ -8443,6 +8443,7 @@ Stage Summary:
 - No semantic overlap remains: S-032 is FIXED by the parallel lane (dropped
   from this session's SEVERE queue — S-009/S-029/S-030 remain).
 
+<<<<<<< HEAD
 Task ID: DFX9-T0 (diff-fix session 9 bootstrap + baseline repair)
 Agent: main engineer (diff-to-fix session 9)
 Task: Session bootstrap — pull both repos, record baseline commits, establish
@@ -8595,3 +8596,36 @@ Stage Summary:
   impact/tractability, then MINOR batches. Baseline build running.
   (Session ID DFX11 — a parallel leg also filed as DFX10; this leg's pushes
   carry DFX11 stamps to keep the shared worklog unambiguous.)
+
+---
+Task ID: DFX12-BOOT (session 12, minors-first closing leg)
+Agent: main engineer (diff-to-fix minors-first session 12)
+Task: Session bootstrap — baseline, prompt saved, inventory recorded.
+
+Work Log:
+- Saved this session's mandate (token redacted) to
+  worklog/session-diff-fix-12-minors-prompt.md; read twice.
+- Recorded state: core HEAD 7c44bdc (session-8 M-053 head); corpus 03ad46c
+  (unmoved, verified first-hand).
+- Environment bring-up: cmake 4.4.4 (pip), gcc 14.2, system zlib/lz4/zstd,
+  gtest via FetchContent v1.15.2. linux-release configured + built clean.
+- Baseline executed: **533/533 green** (ctest, linux-release) at 7c44bdc;
+  the suite grew past the session-8 record of 526 (M-053/S-032/N-018 lanes).
+- Live inventory (direct file count at 7c44bdc): findings/SEVERE 3
+  (S-009, S-029, S-030) · findings/MAJOR 43 · findings/MINOR 51 ·
+  findings/INFORMATIONAL 24 (all carrying Resolution/acknowledgement) ·
+  tracked-open 16 · findings/FIXED 71 (incl. RESOLVED-INDEX).
+- Session order (user-specified): MINOR-first waves, every finding
+  independently re-verified against corpus 03ad46c and the running code
+  before any change; one finding, one verified fix, one push; fixed
+  findings move to findings/FIXED/ with Resolution + RESOLVED-INDEX row.
+- Housekeeping targets identified (convergent with DFX11's inventory):
+  N-004/N-006, N-009, N-013, N-015, N-018, N-036 carry complete
+  Resolution sections from prior legs but were never moved out of MINOR/ —
+  first commits will reconcile the audit trail (no code change).
+
+Stage Summary:
+- Session 12 open: baseline green at 533/533, inventory recorded,
+  MINOR-first fix waves begin. Target: 20+ findings resolved this
+  session with fail-before/pass-after proof for each. (Session ID DFX12
+  chosen to disambiguate from the parallel DFX9/DFX10/DFX11 legs.)
