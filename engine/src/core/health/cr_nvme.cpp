@@ -21,7 +21,7 @@ u64 le128(const u8* p) {
 } // namespace
 
 u32 parse_nvme_health_page(const u8* page, u32 bytes, NvmeHealthInfo& out) {
-    if (page == nullptr || bytes < 176)
+    if (page == nullptr || bytes < 192)
         return ERR_TRUNCATED;
     out.available = true;
     out.critical_warning = page[0];
@@ -34,10 +34,19 @@ u32 parse_nvme_health_page(const u8* page, u32 bytes, NvmeHealthInfo& out) {
     out.percentage_used = page[5];
     out.data_units_read = le128(page + 32);
     out.data_units_written = le128(page + 48);
+    /* M-036: host r/w, controller-busy and the error-log count were
+     * dropped by the original parser; data units are converted to bytes
+     * exactly as the og DiskHealth does (x 512,000, :5589-5614). */
+    out.host_reads = le128(page + 64);
+    out.host_writes = le128(page + 80);
+    out.controller_busy_time = le128(page + 96);
     out.power_cycles = le128(page + 112);
     out.power_on_hours = le128(page + 128);
     out.unsafe_shutdowns = le128(page + 144);
     out.media_errors = le128(page + 160);
+    out.num_error_log_entries = le128(page + 176);
+    out.data_bytes_read = out.data_units_read * 512000u;
+    out.data_bytes_written = out.data_units_written * 512000u;
     return OK;
 }
 

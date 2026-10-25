@@ -349,7 +349,7 @@ closure — no consumer impact.
 
 ## 9. Stability policy
 
-- `CR_UI_ABI_VERSION` is `1`. It bumps on ANY of: removing/renaming an
+- `CR_UI_ABI_VERSION` is `2` (v2 = M-036: six appended `cr_ui_smart_report` fields — host_reads, host_writes, controller_busy_time, num_error_log_entries, data_bytes_read, data_bytes_written — at the struct tail; every pre-v2 field and offset unchanged). It bumps on ANY of: removing/renaming an
   export, changing a struct FIELD (type/meaning/order), changing ownership
   or threading contracts of an existing symbol, renumbering the error-space
   symbols a consumer must handle.

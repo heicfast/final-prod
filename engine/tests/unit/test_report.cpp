@@ -285,6 +285,102 @@ TEST(Report, MultiExtentSpannedVolumeRefused) {
     ASSERT_EQ(OK, legacy.enqueue(between_b, u"out\\"));
 }
 
+/* N-015 mocks: destination-full behavior driven by the IO layer */
+struct FullIo final : DestIo {
+    u32 create_temp_calls = 0;
+    u32 write_calls = 0;
+    u32 fail_on_write = 2; /* ERR_DEST_FULL on the 2nd write call */
+    u64 free_at = 0;       /* 0 = unknown (pre-check skipped) */
+    u32 create_temp(u64, const std::u16string&, const std::u16string&) override {
+        ++create_temp_calls;
+        return 0;
+    }
+    u32 mkdir(const std::u16string&) override { return 0; }
+    u32 write(u64, u64, const void*, u32) override {
+        ++write_calls;
+        if (write_calls == fail_on_write)
+            return ERR_DEST_FULL;
+        return 0;
+    }
+    u32 commit(u64) override { return 0; }
+    void close(u64) override {}
+    bool exists(const std::u16string&) override { return false; }
+    u64 free_bytes(const std::u16string&) const override { return free_at; }
+};
+
+TEST(Report, DestFullFastFailStopsAttempting) {
+    /* N-015 fail-before/pass-after:
+     * BEFORE (pre-fix): write fails with a generic code, the pass
+     * COLLECTS it (WRITER-1) and attempts EVERY remaining item -
+     * rc == OK, 3 errors, 4 create_temp cycles.
+     * AFTER: ERR_DEST_FULL aborts the pass at the failing item - item 2
+     * Error(ERR_DEST_FULL), items 3-4 stay Pending (never attempted:
+     * create_temp_calls == 2), rc == ERR_DEST_FULL, stats.dest_full. */
+    std::vector<u8> img(16 * 512, 0);
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* found = tree.add_root(u"Found");
+    auto* a = add_node(tree, found, "a.bin", 0, 512);
+    auto* b = add_node(tree, found, "b.bin", 512, 512);
+    auto* c = add_node(tree, found, "c.bin", 1024, 512);
+    auto* d = add_node(tree, found, "d.bin", 1536, 512);
+    tree.refresh_stats();
+
+    FullIo io;
+    WriterConfig cfg;
+    SafeWriter writer(io, &dev, cfg);
+    ASSERT_EQ(OK, writer.enqueue(a, u"out\\"));
+    ASSERT_EQ(OK, writer.enqueue(b, u"out\\"));
+    ASSERT_EQ(OK, writer.enqueue(c, u"out\\"));
+    ASSERT_EQ(OK, writer.enqueue(d, u"out\\"));
+
+    WriterStats stats;
+    EXPECT_EQ(ERR_DEST_FULL, writer.process(nullptr, nullptr, nullptr, stats));
+    EXPECT_TRUE(stats.dest_full);
+    EXPECT_EQ(2u, io.create_temp_calls); /* items 3-4 never attempted */
+    EXPECT_EQ(2u, io.write_calls);
+
+    const std::vector<report::Item> items = writer.report_items();
+    ASSERT_EQ(4u, items.size());
+    EXPECT_EQ(Outcome::Done, items[0].outcome);       /* a.bin committed */
+    EXPECT_EQ(Outcome::Error, items[1].outcome);      /* b.bin hit ENOSPC */
+    EXPECT_EQ(u32(ERR_DEST_FULL), items[1].reason);
+    EXPECT_EQ(Outcome::Pending, items[2].outcome);    /* c.bin: never attempted */
+    EXPECT_EQ(Outcome::Pending, items[3].outcome);    /* d.bin: never attempted */
+}
+
+TEST(Report, DestFullPreCheckRefusesUpfront) {
+    /* N-015 pre-check (the og computes destination free space before
+     * writing, RecoveryModule :47033-47038): when the figure is KNOWN
+     * and cannot hold the queue, the pass refuses upfront - zero write
+     * cycles, every item Pending, rc == ERR_DEST_FULL at 0%. */
+    std::vector<u8> img(16 * 512, 0);
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* found = tree.add_root(u"Found");
+    auto* na = add_node(tree, found, "a.bin", 0, 512);
+    auto* nb = add_node(tree, found, "b.bin", 512, 512);
+    auto* nc = add_node(tree, found, "c.bin", 1024, 512);
+    (void)na; (void)nb; (void)nc;
+    tree.refresh_stats();
+
+    FullIo io;
+    io.free_at = 100; /* known: 100 bytes < 1536 queued */
+    WriterConfig cfg;
+    SafeWriter writer(io, &dev, cfg);
+    writer.enqueue(na, u"out\\");
+    writer.enqueue(nb, u"out\\");
+    writer.enqueue(nc, u"out\\");
+
+    WriterStats stats;
+    EXPECT_EQ(ERR_DEST_FULL, writer.process(nullptr, nullptr, nullptr, stats));
+    EXPECT_TRUE(stats.dest_full);
+    EXPECT_EQ(0u, io.create_temp_calls); /* nothing attempted at all */
+    EXPECT_EQ(0u, io.write_calls);
+    for (const auto& it : writer.report_items())
+        EXPECT_EQ(Outcome::Pending, it.outcome);
+}
+
 TEST(Report, SalvagedOutcomeMarksZeroFilledCommits) {
     /* FB-R02 (W2-18): a committed item whose device read failed mid-stream
      * is ZERO-FILLED (Skip policy) and must surface as outcome "salvaged"

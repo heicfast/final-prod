@@ -72,7 +72,7 @@ extern "C" {
 #define CR_UI_API __attribute__((visibility("default")))
 #endif
 
-#define CR_UI_ABI_VERSION 1u
+#define CR_UI_ABI_VERSION 2u
 
 /* Selected error codes (full table: cr_error.h; same numeric space). */
 #define CR_UI_OK 0x00000000u
@@ -781,6 +781,13 @@ typedef struct cr_ui_smart_report {
     /* media class + TRIM */
     uint32_t ssd_like; /* seek-penalty heuristic */
     uint32_t trim_known, trim_enabled;
+    /* ABI v2 (M-036): the og DiskHealth's full NVMe row set - host
+     * r/w, controller busy time, error-log count - and the data-unit
+     * -> byte conversion (x 512,000, DiskHealth_decompiled.c
+     * :5589-5614). Appended fields; see ABI-CONTRACT.md section 9. */
+    uint64_t host_reads, host_writes, controller_busy_time;
+    uint64_t num_error_log_entries;
+    uint64_t data_bytes_read, data_bytes_written;
 } cr_ui_smart_report;
 
 /* One call fills the report AND (when attrs != NULL) up to attr_cap

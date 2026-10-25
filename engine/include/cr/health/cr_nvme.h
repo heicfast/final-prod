@@ -46,13 +46,25 @@ struct NvmeHealthInfo {
     u64 percentage_used = 0;
     u64 data_units_read = 0;
     u64 data_units_written = 0;
+    /* M-036: data units are 512,000-byte units (NVMe base spec); the og
+     * DiskHealth converts to bytes with a full 64-bit multiply
+     * (:5589-5601, :5602-5614 - the 5-byte LE chain x 0x7d000). The raw
+     * counts stay for on-disk truth; the converted pair is what reports
+     * show. */
+    u64 data_bytes_read = 0;
+    u64 data_bytes_written = 0;
+    u64 host_reads = 0;
+    u64 host_writes = 0;
+    u64 controller_busy_time = 0;
     u64 power_cycles = 0;
     u64 power_on_hours = 0;
     u64 unsafe_shutdowns = 0;
     u64 media_errors = 0;
+    u64 num_error_log_entries = 0;
 };
 
-/* Parse a health log page buffer (bytes >= 176; the 512-byte page always
+/* Parse a health log page buffer (bytes >= 192 - the page's last field,
+ * num_error_log_entries, ends at +192; the 512-byte page always
  * satisfies this). Returns ERR_TRUNCATED on short buffers, OK otherwise.
  * Sets out.available = true on success. */
 u32 parse_nvme_health_page(const u8* page, u32 bytes, NvmeHealthInfo& out);

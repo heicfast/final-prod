@@ -46,6 +46,10 @@ enum Err : u32 {
     ERR_DEST_OVERLAP = 0x50050001,
     ERR_DEST_UNWRITABLE = 0x50050002,
     ERR_HASH_MISMATCH = 0x50050003,
+    /* N-015: destination full (ENOSPC mapped at the DestIo layer; the
+     * writer fast-fails the remaining queue instead of attempting every
+     * item, and the pre-check refuses upfront when free space is known) */
+    ERR_DEST_FULL = 0x50050004,
 
     /* --- bitlocker policy --- */
     ERR_FVE_LOCKED = 0x50060001,

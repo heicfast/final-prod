@@ -25,6 +25,17 @@ Classifier residual: the exotic-vendor thunks stay generic 0/1 — a pure
 data gap, engine consumes all family codes; exact next decode sites
 listed in the evidence §5.
 
+**M-036 FIXED (this push):** NVMe health's full row set — host reads /
+writes, controller busy time, error-log entries (spec offsets; the og's
+route was already a byte-parity MATCH per I-018) — plus the data-unit →
+byte conversion exactly as the og computes it (×512,000,
+DiskHealth_decompiled.c :5589-5614, re-verified first-hand; a full
+64-bit multiply). NvmeHealthInfo extends, the cr_ui C-ABI report
+appends the six fields with CR_UI_ABI_VERSION 1 → 2 (ABI-CONTRACT §9;
+contract docs updated in the same change), the CLI prints bytes like
+the og. 2 new tests + the moved 192-byte gate; suite 485/485 Linux
+Release. N-009a's pin re-verified in the same file.
+
 # SUMMARY.md — executive summary (session 7 on top of session 5b; earlier sessions below)
 
 ## Session-7 delta (2026-10-26 — the close-all-tiers fix session, low-severity-first order)

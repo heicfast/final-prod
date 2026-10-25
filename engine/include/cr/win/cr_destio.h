@@ -24,6 +24,9 @@ public:
     u32 commit(u64 item_id) override;
     void close(u64 item_id) override;
     bool exists(const std::u16string& path_utf16) override;
+    /* N-015: GetDiskFreeSpaceExW "available to caller" at the root;
+     * 0 when the root cannot be probed (not-yet-created etc.) */
+    u64 free_bytes(const std::u16string& root_utf16) const override;
 
 private:
     struct Open {

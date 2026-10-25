@@ -15,8 +15,14 @@ u32 WinDestIo::create_temp(u64 item_id, const std::u16string& final_path,
     std::u16string temp = final_path + temp_suffix; /* per-item suffix (audit row 35c) */
     HANDLE h = CreateFileW(reinterpret_cast<const wchar_t*>(temp.c_str()), GENERIC_WRITE, 0,
                            nullptr, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
-    if (h == INVALID_HANDLE_VALUE)
+    if (h == INVALID_HANDLE_VALUE) {
+        /* N-015: ENOSPC maps to the distinct destination-full code so the
+         * writer fast-fails the queue instead of attempting every item */
+        const DWORD e = GetLastError();
+        if (e == ERROR_DISK_FULL || e == ERROR_HANDLE_DISK_FULL)
+            return ERR_DEST_FULL;
         return ERR_DEST_UNWRITABLE;
+    }
     open_[item_id] = Open{h, temp, final_path};
     return OK;
 }
@@ -35,10 +41,27 @@ u32 WinDestIo::write(u64 item_id, u64 offset, const void* data, u32 len) {
             if (!GetOverlappedResult(HANDLE(it->second.handle), &ov, &got, TRUE) || got != len)
                 return ERR_WRITE_FAILED;
         } else {
+            /* N-015: ENOSPC is destination-full, not a generic write failure */
+            if (e == ERROR_DISK_FULL || e == ERROR_HANDLE_DISK_FULL)
+                return ERR_DEST_FULL;
             return ERR_WRITE_FAILED;
         }
     }
     return OK;
+
+u64 WinDestIo::free_bytes(const std::u16string& root_utf16) const {
+    /* N-015: the og's pre-write free-space computation (RecoveryModule
+     * :47033-47038, GetDiskFreeSpaceExA) - the "available to caller"
+     * figure at the destination root. 0 = unknown (probe failed: root
+     * not yet created etc.) - the writer then skips the pre-check. */
+    if (root_utf16.empty())
+        return 0;
+    ULARGE_INTEGER avail{};
+    if (!GetDiskFreeSpaceExW(reinterpret_cast<const wchar_t*>(root_utf16.c_str()), &avail,
+                             nullptr, nullptr))
+        return 0;
+    return u64(avail.QuadPart);
+}
 }
 
 u32 WinDestIo::commit(u64 item_id) {
