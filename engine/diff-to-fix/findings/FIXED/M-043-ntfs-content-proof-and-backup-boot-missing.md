@@ -200,7 +200,7 @@ legs' records and reconciles the technical truth on the merged tree:
   (verified location +0x510, +1-when-identical), and NTFSSearchDLL never
   reads the backup. The fallback is a deliberate RECOVERY SUPERSET —
   torn-DBR volumes open read-only with the boot_from_backup flag while
-  repair stays consent-gated. Registered as PARITY-DELTAS D-72; bench
+  repair stays consent-gated. Registered as PARITY-DELTAS D-73; bench
   comparisons must expect core-only finds on torn-DBR NTFS fixtures.
   This leg's pre-fallback pin (refusal assertion) is superseded by the
   landing's own test set (TornPrimaryBackupBootScans /

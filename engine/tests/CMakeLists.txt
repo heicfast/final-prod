@@ -57,6 +57,12 @@ add_custom_command(TARGET cr_tests POST_BUILD
             ${CMAKE_CURRENT_SOURCE_DIR}/data/images
             $<TARGET_FILE_DIR:cr_tests>/data/images)
 
+# N-045 doc-truth pin lane: the register-vs-source consistency tests
+# (e.g. Cached.ScanCacheBudgetIsTheRegisteredDivergence) read repo files
+# at runtime - hand them the source root (works on MSVC and gcc lanes).
+target_compile_definitions(cr_tests PRIVATE
+    CR_SOURCE_DIR="${CMAKE_SOURCE_DIR}")
+
 # vcpkg DLL deployment backstop (no-op on Linux): applocal import-name
 # resolution skipped the lz4 debug DLL on windows CI (0xc0000135)
 cr_deploy_vcpkg_binaries(cr_tests)
@@ -130,3 +136,22 @@ endif()
 include(GoogleTest)
 gtest_discover_tests(cr_tests)
 gtest_discover_tests(cr_ui_tests)
+
+# ---------------------------------------------------------------------------
+# M-055: Linux-side PARSE GATE over the Windows-only platform layer.
+#
+# src/win/*.cpp compiles only under MSVC; two build-breaking edits there
+# (cr_destio.cpp free_bytes nested inside write(); cr_transport.cpp
+# volume_extents outside namespace cr::win) survived multiple pushes
+# because no Linux-visible check parses these files. This gate runs
+# g++ -fsyntax-only over the whole win layer against the declaration-only
+# SDK stubs in tests/win-stub/ - structural corruption now fails the
+# Linux suite immediately. (The stubs declare, never link or run; a new
+# SDK symbol in src/win grows the stub - that failure is the gate
+# working.) Windows lane unaffected: MSVC compiles these files for real.
+# ---------------------------------------------------------------------------
+if(NOT WIN32 AND NOT CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+    add_test(NAME win_syntax_check
+        COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/../tools/win_syntax_check.sh
+                ${CMAKE_SOURCE_DIR})
+endif()

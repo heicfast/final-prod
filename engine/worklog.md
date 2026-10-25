@@ -10338,6 +10338,49 @@ Stage Summary:
 - Lesson recorded twice this session: parallel lanes racing on the same finding MUST
   re-read main before push; the qemu-compat-fixture proof layer is what caught
   spec-memory bugs the in-memory builders could not.
+---
+Task ID: DFX22-T1 (M-055 NEW-FINDING — win-layer build integrity)
+Agent: main engineer (diff-to-fix minors-first session 22; lane re-stamped from 19 — IDs 19-21 squatted)
+Task: Bootstrap baseline + first fix. Pulled the parallel wave (S-029/S-030 close the
+SEVERE tier; M-005/M-008/M-016/M-032/M-043/N-041/N-016a; D-70/D-71) before any work.
+
+Work Log:
+- Baseline at 93d7fa6: linux-release suite green (629/629 incl. this session's gate).
+- Discovery: g++ -fsyntax-only with a declaration-only windows.h stub over
+  src/win/cr_destio.cpp errors at :52 — free_bytes nested inside write()'s body
+  (the N-015 landing 915bce3 lost write()'s closing brace). Git archaeology:
+  git show 915bce3 -- src/win/cr_destio.cpp shows the insertion point.
+- Second break: cr_transport.cpp volume_extents/destination_volume_letter defined
+  AFTER the namespace closers (N-013 landing 3b5397a) — unqualified VolExtent
+  error + the header-declared functions never defined (the N-013 arming could
+  never link).
+- Third + fourth breaks (revealed by the mid-session pull): N-041's d8f6808 left
+  a stray '} // namespace rda' closer (closes namespace win mid-file; the whole
+  public transport API resolves nothing after it) AND deleted
+  RdaTargetDevice::heal_mu_ while keeping read_at's heal lock on it (diff at
+  d8f6808^ shows the member at the class tail).
+- Fix: four structural repairs (brace restored; both functions relocated inside
+  namespace cr::win matching the header; stray closer removed; heal_mu_
+  restored).
+- Gate: tools/win_syntax_check.sh + tests/win-stub/ (windows.h, winioctl.h,
+  ntddscsi.h, shlwapi.h — declaration-only, SDK-faithful shapes,
+  -fshort-wchar -D_WIN32) wired as ctest win_syntax_check (Linux gcc lane
+  only; MSVC compiles the real files). Fail-before: exit 1 with the exact
+  diagnostics (stash-isolated); pass-after: exit 0, all 7 win-layer files
+  incl. the S-030 cr_image_win.cpp.
+- CI observation recorded: windows Actions job runs over the broken window show
+  the build step failing (run 40242066043 et al.) — visible red, unaddressed
+  by the lanes that landed the breaks. Lint + linux-ASan + fuzz lanes also red
+  at 11afbfa (parallel-lane sloppiness; assessed next).
+
+Stage Summary:
+- M-055 filed + FIXED (finding carries the full evidence + Resolution).
+- Audit trail: SUMMARY session-22 delta, matrix M-055 cells (writer+report x2,
+  quality), RESOLVED-INDEX row to be added at the FIXED/ move.
+- Next: N-020 bookkeeping move (FIXED/ + index row), N-056 on the now-parseable
+  destio, then the MINOR queue (N-067, N-068, N-070, ...).
+
+---
 Task ID: DFX11-M050 (session 11, findings 5+6)
 Agent: main engineer (diff-to-fix fix session 11 — DFX11)
 Task: M-050 (session node-model roundtrip gaps) + N-058 (load validation
@@ -10406,6 +10449,93 @@ Stage Summary:
   wave (N-074 doc drift, N-040 ABI truthfulness), then N-062/N-046.
 
 ---
+Task ID: DFX16-N067+S033 (the upcase integrity pass + the false positive it flushed out)
+Agent: main engineer (diff-to-fix session 11 — DFX16)
+Task: Verify and fix N-067 (exFAT upcase-table validation skipped).
+
+Work Log:
+- N-067 verification demanded settling the exFAT root-dentry type map
+  first. Filed NEW-FINDING S-033 claiming bitmap=0x83/upcase=0x81/label=0x82
+  (spec-recall + the corpus v2 artifact's garbled §3 row labels); built the
+  constants swap + fixture rewrite; captured a fail-before (FreeMap + EndToEo
+  grading RED on the rewritten fixture).
+- REFUTED MY OWN FINDING before push via the og's directory-walk switch
+  (exFATSearchDLL :24380-24460): case 0x81 validates the BITMAP shape
+  (flags@+1 free, reserved@+2..+0x13 zero-checked, cluster@+0x14,
+  length@+0x18); case 0x82 validates the UPCASE shape (reserved1@+1..+3,
+  TableChecksum@+4 free, reserved2@+8..+0x13, cluster@+0x14, length@+0x18).
+  The shipped og working on real volumes proves bitmap=0x81/upcase=0x82/
+  label=0x83 = the core's ORIGINAL constants. The claimed UPCASE layout had
+  been a 36-byte mis-derivation. Local branch reverted byte-exact; S-033
+  marked INVALID with the full evidence chain and moved to FIXED/ (S-018
+  precedent); corpus erratum E43 filed (CORPUS-ERRATA.md); RESOLVED-INDEX
+  row. Pushed as its own audit-trail commit - the false positive is part
+  of the record, not something to hide.
+- N-067 fixed on the verified constants: UpcaseEntry reintroduced (og
+  shape), the in-use upcase branch applies the og's dentry gates
+  (reserved1/2 zero-checked, checksum free, fc>=2), a length sanity bar
+  (zero/>1 MiB/>device flagged without stream access), and a chain-read
+  (contiguous fallback, 64 KiB bounded incremental checksum32 chunks)
+  compared against TableChecksum. Soft signal in ExfatScanStats
+  (upcase_validated / upcase_mismatches); grade-not-reject (EXFAT-2
+  posture; the og's exact failure path stays an honest open question).
+  Fixture: real 64-entry upcase table at cluster 60 (checksum-stamped,
+  FAT-EOC + bitmap-marked; the S-009-hardening + M-054-producer cluster
+  lists updated for the now-allocated cluster 60).
+- Tests: UpcaseTableChecksumValidated (clean: validated>=1/mismatch 0;
+  corrupt stamp: validated 0/mismatch 1, scan OK, files found) +
+  UpcaseLengthSanity (zero + absurd-4-GiB lengths flag; no hang, no
+  over-read). Fail-before executed with the validation unwired (both RED).
+  One expectation corrected in-pass: a corrupt table must not count as
+  validated.
+- Full suite 597/597 linux-gcc ASan; 42/42 UBSan on Exfat/DiskMap/FreeMap;
+  lint clean on all five touched files. Audit trail: Resolutions (S-033
+  INVALID + N-067 FIXED), FIXED/ moves, index rows, matrix cells
+  (exfat B1/A25/S35), modules/exfat.md, SUMMARY landing-2, E43.
+
+Stage Summary:
+- Session fix tally: N-069 FIXED, S-033 filed-and-refuted (INVALID — the
+  discipline worked as designed: the corpus/decompile won over confident
+  recall), N-067 FIXED. Next: N-068 (ZIP EOCD anchor + LFH sanity gates),
+  then the carve naming/policy minors not claimed by parallel lanes.
+
+---
+Task ID: DFX18-T1 (session 18, first fix — N-045)
+Agent: main engineer (diff-to-fix fix session 18 — DFX18)
+Task: N-045 scan-cache budget 8-vs-4 MiB + algorithm divergence — verify
+against the corpus, resolve per the finding's own fix plan (register the
+deliberate divergence), pin with a doc-truth test.
+
+Work Log:
+- Corpus re-verified first-hand: DRWUI_decompiled.c:919080-:919092 —
+  cache count = 0x400000 / bytes_per_sector (4 MiB), fallback 0x2000
+  blocks; ctor :962250-:962292 (1000-entry cache, one per physical
+  disk); the session-6 addendum's prefetch-engine read (:962250-:962597:
+  prefetch thread, 10-run window, 1000-sector runs, CRITICAL_SECTION)
+  re-read too. Both cites CONFIRMED.
+- Core re-verified live: cr_scan.cpp construction site `8ull << 20,
+  256 * 1024` (the addendum's refreshed cite is accurate).
+- Resolution = the finding's fix plan (document deliberate, no code
+  change): PARITY-DELTAS D-72 (budget + algorithm, both cites, the
+  benchmark-gated change policy), divergence block in cr_cached.h,
+  construction-site D-72 cite in cr_scan.cpp, docs/benchmarking.md §4
+  intent note.
+- Doc-truth pin: Cached.ScanCacheBudgetIsTheRegisteredDivergence —
+  new CR_SOURCE_DIR define (tests/CMakeLists.txt) lets the test read
+  the source constant + the D-72 row + the header block at runtime and
+  assert lockstep. Fail-before EXECUTED: stash-isolated pre-fix tree →
+  RED (no D-72 row, no header block); pass-after green.
+- Suite 592/592 linux-release (584 at the pre-rebase clone + parallel
+  M-007/M-054/M-045/M-046/M-037/M-031/N-030 landings + this test).
+- Audit trail: Resolution + move to FIXED/, RESOLVED-INDEX row (new 96
+  header), matrix storage P47/P48 cell → MATCH(registered),
+  modules/storage.md session-6 row verdict, SUMMARY session-18 section
+  (moved to top — the parallel sessions had stacked newer sections).
+
+Stage Summary:
+- N-045 FIXED (tally 1/20+). MINOR 40 remain. Next: N-046 (geometry
+  refresh), then N-041, N-057.
+
 Task ID: DFX14-T6 (M-043 — completed)
 Agent: main engineer (diff-to-fix session 14)
 Task: M-043 (MAJOR, ntfs recognition): verify, classify, fix, prove.

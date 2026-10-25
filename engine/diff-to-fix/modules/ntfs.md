@@ -438,7 +438,7 @@ the hard-link emission model now matches the og by default.
 
 **M-008 FIXED** (with the premise corrected against the corpus):
 `WalkerFlags::single_hop_attrlist` (default FALSE = the multi-hop BFS
-superset, D-66 — the finding's own recommendation); TRUE = og parity
+superset, D-73 — the finding's own recommendation); TRUE = og parity
 (depth-1, corpus FUN_180041df0 :52615-52687). The deleted-gate premise
 was STALE: FUN_18001acc0 is the GUID-DUMP pass 2 (S-012's decode), not a
 deleted-phase walk; pass 1 (FUN_180017390) emits every record AND builds

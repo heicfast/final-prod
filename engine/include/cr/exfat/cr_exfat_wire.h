@@ -104,7 +104,9 @@ struct NameEntry {
 };
 static_assert(sizeof(NameEntry) == 32);
 
-/* Allocation bitmap entry (0x81) */
+/* Allocation bitmap entry (0x81 — the og's own walk validates this shape
+ * at decompile :24380-24460: flags@+1 free, reserved@+2..+0x13 zero,
+ * cluster@+0x14, length@+0x18; S-033 INVALID record) */
 struct BitmapEntry {
     u8 type;           /* +0x00 0x81 */
     u8 bitmap_flags;   /* +0x01 bit0: which FAT/bitmap copy */
@@ -114,10 +116,25 @@ struct BitmapEntry {
 };
 static_assert(sizeof(BitmapEntry) == 32);
 
-/* Up-case-table (0x82) and volume-label (0x83) entries: the engine skips
- * both by TYPE byte only - no field of either is ever parsed - so their
- * structs were deleted (AUDIT-FAT §6 rows 16; W4: structs are kept only as
- * layout docs where the parser reads their fields, cf. BootSectorMain). */
+/* Up-case-table entry (0x82) — reintroduced by N-067: the volume-integrity
+ * pass reads its TableChecksum / FirstCluster / DataLength. Layout is the
+ * og's own case -0x7e validation shape (decompile :24440-24452):
+ * reserved1@+1..+3 zero-checked, TableChecksum@+4 free (the checked field),
+ * reserved2@+8..+0x13 zero-checked, then the shared cluster/length tail. */
+struct UpcaseEntry {
+    u8 type;            /* +0x00 0x82 */
+    u8 reserved1[3];    /* +0x01 og: zero-checked */
+    u32 table_checksum; /* +0x04 checksum32 of the table bytes */
+    u8 reserved2[12];   /* +0x08 og: zero-checked */
+    u32 first_cluster;  /* +0x14 */
+    u64 data_length;    /* +0x18 table bytes */
+};
+static_assert(sizeof(UpcaseEntry) == 32);
+
+/* Volume-label (0x83) entries: the engine skips them by TYPE byte only -
+ * no field is ever parsed - so the struct stays deleted (AUDIT-FAT §6
+ * rows 16; W4: structs are kept only as layout docs where the parser
+ * reads their fields, cf. BootSectorMain). */
 
 #pragma pack(pop)
 
