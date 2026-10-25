@@ -1167,6 +1167,7 @@ S-007, S-009-partial, S-020, S-023..S-028) · MAJOR 22 · MINOR 33 · INFO 12 ·
 **total active 77** / **35 FIXED** (tracked-open: the existing OQ files, now
 including OQ-S012).
 
+<<<<<<< HEAD
 
 **Fix-session-4 addendum (M-010):** the invalid-UTF-8 name edge closed — ext4/Btrfs
 names now carry a REVERSIBLE encoding of their raw bytes (U+E000 + byte) instead
@@ -1179,3 +1180,17 @@ renumbered **A-006** (findings/ACUTE/A-006-rawfixer-4kn-stack-buffer-overflow.md
 the hfsplus one keeps A-005 (its identity is baked into the Resolution,
 RESOLVED-INDEX, errata E37 and the module docs). Same protocol as the two prior
 collisions (recorded above).
+=======
+- **S-025 FIXED** (ext4 journal reparenting): the og's two-pass model —
+  pre-walk harvest (parent map from "."/".." pairs; "."-less blocks stay
+  owner-less orphans per S-004), post-walk emit reparenting under live
+  parents (record index) or salvaged parents (fixpoint chains); unresolvable
+  chains flat with real names (the finding's iNode-naming expectation
+  corrected per the corpus: that naming is the sweep's). FILE inodes now
+  enter visited_inodes — a LATENT live-file duplicate bug the flat path
+  hid, exposed by the claim-interaction test and fixed with it. 3 tests;
+  473/473 Release + 473/473 ASan(leaks).
+
+**Live counts (after S-025):** ACUTE 0 · SEVERE 5 · MAJOR 36 ·
+MINOR 31 · INFO 18 · tracked-open 12 = **90 active** / **56 files in FIXED/**.
+>>>>>>> 24d566f (fix(S-025): ext4 journal reparenting — the og's two-pass model; latent live-file duplicate found and fixed)

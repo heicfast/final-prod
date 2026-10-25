@@ -1024,3 +1024,152 @@ TEST(Ext4Engine, BadMagicWithoutBackupsStillRejected) {
 
 } // namespace ext4
 } // namespace cr
+
+/* ---- S-025: journal-salvaged reparenting (the og's two-pass model) ------ */
+
+namespace cr {
+namespace ext4 {
+namespace {
+
+/* extend the fixture's journal to `total` blocks and rewrite the jsb */
+void grow_journal(Img& img, u32 total) {
+    constexpr u64 B_JOURNAL = 10;
+    write_inode(img, 8 /* journal inum per SB 0xE0 */, 0x8000, total * BS, B_JOURNAL, total, 1, 0);
+    u8* jsb = img.block(B_JOURNAL);
+    bput32(jsb + 0x10, total); /* s_maxlen - the declared log range */
+}
+
+} // namespace
+
+TEST(Ext4Engine, JournalSalvagedDirReparented) {
+    /* a deleted directory whose journal copy survives: the journal holds a
+     * snapshot of the LIVE parent's dir block (naming the deleted dir) AND
+     * the deleted dir's own block (naming its child). The og reparents
+     * the salvaged dir under its original parent (FUN_180003de0's orphan
+     * finalize :3077-3119); ours must too - not flat in Lost Files. */
+    auto img = build_volume();
+    grow_journal(img, 8);
+    /* journal block 5: a snapshot of "sub" (inode 4) with an EXTRA entry
+     * naming the deleted dir "childdir" (inode 7) */
+    u8* snap_sub = img.block(10 + 5);
+    memset(snap_sub, 0, BS);
+    u32 c1 = 0;
+    add_dirent(snap_sub, c1, 4, ".", 2);          /* owner: sub (LIVE) */
+    add_dirent(snap_sub, c1, 2, "..", 2);         /* sub's parent: root */
+    add_dirent(snap_sub, c1, 5, "nested.bin", 1); /* live child */
+    add_dirent(snap_sub, c1, 7, "childdir", 2);   /* deleted dir */
+    /* journal block 6: childdir's own snapshot: owner 7, parent 4 (sub) */
+    u8* snap_child = img.block(10 + 6);
+    memset(snap_child, 0, BS);
+    u32 c2 = 0;
+    add_dirent(snap_child, c2, 7, ".", 2);
+    add_dirent(snap_child, c2, 4, "..", 2);
+    add_dirent(snap_child, c2, 9, "deep.txt", 1);
+
+    MemDevice dev(img.raw());
+    tree::ResultTree tree;
+    auto* ra = tree.add_root(u"Found");
+    auto* rl = tree.add_root(u"Lost Files");
+    Ext4ScanFlags fl;
+    Ext4ScanStats st;
+    u32 rc = scan_ext4(&dev, fl, nullptr, nullptr, nullptr, tree, ra, nullptr, rl, st);
+    ASSERT_EQ(OK, rc) << err_text(rc);
+
+    /* find the LIVE "sub" node; "childdir" must be ITS child, and
+     * "deep.txt" must sit under "childdir" - nothing in Lost Files */
+    std::function<tree::FileNode*(tree::FileNode*, const char*)> find =
+        [&](tree::FileNode* n, const char* name) -> tree::FileNode* {
+        for (tree::FileNode* c = n->first_child(); c; c = c->next_sibling()) {
+            if (c->props() && c->name_utf8() == name)
+                return c;
+            if (tree::FileNode* r = find(c, name))
+                return r;
+        }
+        return nullptr;
+    };
+    tree::FileNode* sub = find(ra, "sub");
+    ASSERT_NE(sub, nullptr) << "live sub dir must exist";
+    tree::FileNode* childdir = find(sub, "childdir");
+    ASSERT_NE(childdir, nullptr) << "the salvaged dir must sit under its live parent";
+    EXPECT_EQ(tree::Origin::Lost, childdir->origin());
+    tree::FileNode* deep = find(childdir, "deep.txt");
+    ASSERT_NE(deep, nullptr) << "the salvaged child chains under the salvaged dir";
+    EXPECT_TRUE(rl->first_child() == nullptr || !find(rl, "childdir"))
+        << "the reparented dir must NOT be flat in Lost Files";
+    EXPECT_EQ(4u, st.journal_salvaged); /* ghost + esc (the S-004 orphan
+                                         * path) + childdir + deep.txt */
+}
+
+TEST(Ext4Engine, JournalUnreferencedOrphanFlatWithRealName) {
+    /* a journal dir block whose owning dir is named by NO other block: the
+     * chain is unresolvable - the og's unreferenced-orphan placement
+     * (flat under the lost root), and journal children keep their on-disk
+     * names (the iNode%I64d fallback is the SWEEP surface's naming -
+     * the og's own trace: journal children get real names) */
+    auto img = build_volume();
+    grow_journal(img, 8);
+    u8* snap = img.block(10 + 5);
+    memset(snap, 0, BS);
+    u32 c = 0;
+    add_dirent(snap, c, 7, ".", 2); /* owner 7 - nobody names inode 7 */
+    add_dirent(snap, c, 4, "..", 2);
+    add_dirent(snap, c, 9, "lonely.txt", 1);
+
+    MemDevice dev(img.raw());
+    tree::ResultTree tree;
+    auto* ra = tree.add_root(u"Found");
+    auto* rl = tree.add_root(u"Lost Files");
+    Ext4ScanFlags fl;
+    Ext4ScanStats st;
+    u32 rc = scan_ext4(&dev, fl, nullptr, nullptr, nullptr, tree, ra, nullptr, rl, st);
+    ASSERT_EQ(OK, rc) << err_text(rc);
+    bool seen = false;
+    for (tree::FileNode* n = rl->first_child(); n; n = n->next_sibling()) {
+        if (n->props() && n->name_utf8() == "lonely.txt") {
+            seen = true;
+            EXPECT_EQ(tree::Origin::Lost, n->origin());
+        }
+    }
+    EXPECT_TRUE(seen) << "the unresolvable-chain entry surfaces flat with its real name";
+}
+
+TEST(Ext4Engine, TwoPassJournalClaimInteraction) {
+    /* an entry the live tree already claimed must NOT be duplicated by the
+     * journal pass (the og's reachability check FUN_180003fb0 :2807-2871:
+     * the live claim wins) */
+    auto img = build_volume();
+    grow_journal(img, 8);
+    u8* snap = img.block(10 + 5);
+    memset(snap, 0, BS);
+    u32 c = 0;
+    add_dirent(snap, c, 4, ".", 2); /* owner: sub (LIVE) */
+    add_dirent(snap, c, 2, "..", 2);
+    add_dirent(snap, c, 5, "nested.bin", 1); /* INO_SUB: visited by the walk */
+    add_dirent(snap, c, 3, "hello.txt", 1);  /* INO_HELLO: visited */
+
+    MemDevice dev(img.raw());
+    tree::ResultTree tree;
+    auto* ra = tree.add_root(u"Found");
+    auto* rl = tree.add_root(u"Lost Files");
+    Ext4ScanFlags fl;
+    Ext4ScanStats st;
+    u32 rc = scan_ext4(&dev, fl, nullptr, nullptr, nullptr, tree, ra, nullptr, rl, st);
+    ASSERT_EQ(OK, rc) << err_text(rc);
+    /* nested.bin appears exactly ONCE in the whole tree (under sub) */
+    size_t count = 0;
+    std::function<void(tree::FileNode*)> countwalk = [&](tree::FileNode* n) {
+        for (tree::FileNode* x = n->first_child(); x; x = x->next_sibling()) {
+            if (x->props() && x->name_utf8() == "nested.bin")
+                ++count;
+            countwalk(x);
+        }
+    };
+    for (auto* r : tree.roots())
+        countwalk(r);
+    EXPECT_EQ(size_t(1), count) << "the live claim wins - no journal duplicate";
+    EXPECT_EQ(2u, st.journal_salvaged) << "only the S-004 orphan remnants (ghost + esc) surface; "
+                                          "the live-claimed entries do not duplicate";
+}
+
+} // namespace ext4
+} // namespace cr

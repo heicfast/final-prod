@@ -7365,3 +7365,51 @@ SUMMARY's counts (the parallel legs move fast); (2) take the first unclaimed
 SEVERE, then MAJOR M-002/M-007/M-008/M-011/M-013/M-014 (the roadmap's
 original order); (3) keep pulling before every push — this session rebased
 six times.
+
+---
+Task ID: CT-S025 (S-025 fix — ext4 journal reparenting)
+Agent: main engineer (diff-to-fix close-all-tiers session)
+Task: SEVERE S-025 — the og's two-pass journal model + orphan reparenting
+(our salvage emitted everything flat under Lost Files).
+
+Work Log:
+- Corpus verification: the finding's cites re-read (FUN_180003de0 :2722-2802
+  pass structure; :3077-3119 parent map; :2807-2871 reachability; :2986-2991
+  the iNode naming — CORRECTED against the og's own trace decode: that
+  naming belongs to the inode SWEEP, not journal children). Classification:
+  CONFIRMED-DIVERGENCE.
+- Fix: pass 1 (pre-walk harvest — NEW): every journal dir block with "."
+  links {owner -> parent + entries} into the parent map; "."-less blocks
+  keep their entries as owner-less orphans (S-004's core surface
+  unchanged). The jsb gate + jsb-declared range + descriptor-tagged
+  ESCAPE restore all preserved (the first draft had a zero-byte restore
+  heuristic — caught and fixed before commit; a genuine zero block would
+  have been corrupted). Pass 2 (post-walk emit): live-claimed children
+  skipped (the reachability rule — OQ-E1 resolved structurally); others
+  attach under the owning dir's node — live via find_by_record, salvaged
+  via the fixpoint map; unresolvable chains flat with real names. Root
+  props now carry record_ref=2 (the record index answers the root chain).
+- LATENT BUG FOUND + FIXED (a NEW divergence the audit missed): the walk's
+  visited_inodes tracked only DIRECTORIES — journal entries pointing at
+  LIVE FILES re-emitted duplicates. The claim-interaction test exposed it;
+  fixed (files-only insert at the child emit; inserting dirs there would
+  no-op walk_dir's cycle guard and SKIP SUBTREES — first attempt caught by
+  EndToEndWalk going red). No new finding file needed: it is inseparable
+  from S-025's surface (the flat path could not express the duplicate) —
+  fixed and pinned in the same change, announced here per the no-silent-
+  fixes rule.
+- Tests: 3 (reparented chain; unresolvable flat + real name; claim
+  interaction). Fail-before: by construction for the reparenting (the old
+  flat emit, grep-verified); the claim test doubles as the latent-bug
+  fail-before (nested.bin duplicated pre-fix). 19 pre-existing ext4 tests
+  stay green.
+- Suite: 473/473 Linux Release (470 + 3) + 473/473 ASan detect_leaks=1;
+  clang-format 18.1.8 clean.
+- Audit trail: S-025 -> FIXED/ (Resolution with the iNode-naming
+  correction); RESOLVED-INDEX row (56 files); matrix ext4 row;
+  modules/ext4.md verdict; SUMMARY live counts (90 active).
+
+Stage Summary:
+- S-025 CLOSED. Remaining SEVERE: S-007, S-009, S-028 (+ S-029/S-030 new
+  from the s5b audit leg). Next: S-028 (btrfs xattrs).
+>>>>>>> 24d566f (fix(S-025): ext4 journal reparenting — the og's two-pass model; latent live-file duplicate found and fixed)
