@@ -2105,3 +2105,14 @@ D-72 in this leg's push; the parallel leg's scan-cache register (N-045)
 landed as D-72 in the same window. The FAT-entry precedent applies — the
 later landing renumbers; this one is now D-73. All references updated.)*
 
+
+### D-72 — carve default-off formats are host policy, not engine constants (M-024)
+
+The og's RawConfig.ini [Filter] ships STL and VPJ default-DISABLED — its
+effective carve set differs from its compiled set. The core ships every
+compiled format ENABLED and expresses default-off through
+`CarveFlags::disabled_formats` (the host's policy layer — the CLI/UI can
+mirror the og's shipped defaults by passing "stl vpj"). Rationale: an
+engine constant would bake one vendor's config into the library; the og
+itself separates engine (compiled analysers) from policy (the ini). Pinned
+by `CarveEngine.AllFormatsEnabledByDefault`.

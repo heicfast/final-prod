@@ -201,3 +201,5 @@ default; the og's exact failure path stays an open question inside the
 finding). The fixture carries a real 64-entry table at cluster 60.
 Preceded by the S-033 INVALID record (the constants were verified right
 BEFORE this fix — bitmap=0x81/upcase=0x82/label=0x83 stands).
+
+| N-067 upcase-table validation | **MATCH (grade-not-reject)** | `ExfatEngine.UpcaseTableChecksumValidated`, `ExfatEngine.UpcaseTableValidVolumeUnflagged`, `ExfatEngine.UpcaseLengthSanity` (spec seeded CRC via table::crc32_seeded; ExfatScanStats.upcase_checked/upcase_invalid) |
