@@ -75,3 +75,29 @@ PID token `b0|(b1+b0)<<8|(b2+b1)<<16|(b3+b2)<<24` ↔ `compute_pid_token` `cr_tr
 (byte-identical) · 200-disk cap ↔ `cr_rda.h:66` · IOCTLs 0x60002400/04/08 ↔ `cr_rda.h:41-43` ·
 driver-absent duality `Device_decompiled.c:7793-7822` ↔ `cr_transport.h:23-37` · FilterFolder
 junk list (`filtering-priority--config-layer.md` §3; DRWUI log `PushFolderFilter:84`) → M-018.
+
+## Session-3 correction addendum (cross-leg reconciliation, read-only)
+
+The dispatch-order lines above list "registry list sweep (:9894-920)" before
+"u16 multimap (:9932-10063)". Disassembly of the same function settles the
+execution order as **u32 → u16 → list sweep**:
+
+```
+0x18000d1dc  test edi,edi                ; first-u32 nonzero gate
+0x18000d1e4  call 0x180006a80            ; u32 map descent + analyser trials
+             ... [rax+0x40]/[rax+0x10] accept paths, FUN_18000d920 ...
+0x18000d2da  call 0x18000d3e0            ; u16 registry (test rax; jne done)
+0x18000d2ea  test r15,r15
+0x18000d2f3  call 0x180006a80            ; list sweep (second get)
+```
+
+The decompile's line numbers misled the ordering (the sweep BODY decompiles
+after the u16 call's line because the u16 call site is line 9891 while the
+sweep's statements follow at 9898+ — statement order, not line-number order of
+the cited ranges). Everything else in the block above (sector-aligned stride,
+bitmap gate, per-key chains, first-accept-wins per layer) is convergent with
+the independent session-3 decode (N-031 +
+`s3-rawsigns-units-and-dispatch.md` §4), which additionally decoded: the
+sign-DB layer runs LAST (the dispatch's NULL edge → `FUN_18000d670`, VA
+0x18000cadc `test rax,rax; je`), the all-zero-sector metrics, and the KiB
+units of raw_signs.json min/max (S-015).
