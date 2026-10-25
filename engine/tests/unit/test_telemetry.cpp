@@ -178,6 +178,11 @@ std::vector<u8> build_fat16_wide(size_t root_files) {
     b[511] = 0xAA;
 
     const size_t FAT1 = 2 * 512, FAT2 = 22 * 512, ROOT = 42 * 512;
+    /* M-015: canonical media words (real-volume shape) */
+    put16(img, FAT1 + 0 * 2, 0xFFF8);
+    put16(img, FAT1 + 1 * 2, 0xFFFF);
+    put16(img, FAT2 + 0 * 2, 0xFFF8);
+    put16(img, FAT2 + 1 * 2, 0xFFFF);
     put16(img, FAT1 + 5 * 2, 0xFFFF);
     put16(img, FAT2 + 5 * 2, 0xFFFF);
     u8* root = img.data() + ROOT;

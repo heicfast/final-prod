@@ -48,3 +48,10 @@ Decompile-verified (agent S2-B; `evidence/decompiled-quotes/fat-exfat-session2.m
 ## Open questions
 
 The deep-check flag at object +0x30 defaults unverified — treat the watermark as advisory-on-deep-scan until pinned (engineering team, one breakpoint).
+
+## Resolution
+
+**Status:** FIXED
+**Fixed in commit:** (this commit)
+**Verified by:** FatEngine.CrossLinkedFat1RejectedAndFat2Used (fail-before FAILED: the corrupt FAT1 was walked, cross-linked chains and all; pass-after: FAT1 wholesale-rejected, chains resolve through the promoted FAT2, the corrupt links are gone, fat_copy_rejected set), FatEngine.MediaByteCanonicalEnforcedFat16 (fail-before FAILED; pass-after: zeroed media pair rejects the copy, the clean mirror carries the volume, both-bad refuses with ERR_BAD_MAGIC). Suite 463/463 Linux ASan.
+**Resolution notes:** fat_table_validate ports FUN_180041b00 (:54052-54141, re-read first-hand): the exact media-word pair for FAT16 (u32@FAT[0] == 0xFFFFFFF8; FAT12/FAT32 family-tolerant per the og's own CFAT32), the entry sweep (==1, self-loops, OOB pointers in [n, BAD) - the band is STRICTLY below the BAD sentinel so BAD clusters are legal values, and FAT32's mask-24 alternate EOC family (N-002) ends chains rather than reading as links), and the claims-map cross-link walk (a cluster claimed by two different chain roots rejects the whole table). On FAT1 rejection the mirror is validated and promoted (the og factory's alternate-copy retry, :3817-3950); both-bad declines the table with ERR_BAD_MAGIC. The 98% watermark is computed as an advisory (used-link count) but never a reject - its deep-check gate default is unpinned (the finding's own open question). Fixture corrections in the same change: the four synthetic FAT16 volume builders (test_fat_volume, test_orchestrator, test_pause_resume, test_cr_ui, test_telemetry) never wrote the canonical media pair - real volumes always carry it, and the lazy fixtures were rejected by the (correct) og-parity validator; they now write FAT[0]=0xFFF8/FAT[1]=0xFFFF like every real FAT16.

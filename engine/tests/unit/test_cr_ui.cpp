@@ -80,6 +80,11 @@ std::vector<unsigned char> build_fat16() {
     img[510] = 0x55;
     img[511] = 0xAA;
 
+    /* M-015: canonical media words (real-volume shape) */
+    put16(img, kFAT1 + 0 * 2, 0xFFF8);
+    put16(img, kFAT1 + 1 * 2, 0xFFFF);
+    put16(img, kFAT2 + 0 * 2, 0xFFF8);
+    put16(img, kFAT2 + 1 * 2, 0xFFFF);
     put16(img, kFAT1 + 5 * 2, 0xFFFF);
     put16(img, kFAT2 + 5 * 2, 0xFFFF); /* root dir */
     put16(img, kFAT1 + 10 * 2, 11);

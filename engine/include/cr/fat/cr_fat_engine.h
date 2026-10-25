@@ -137,6 +137,13 @@ private:
 
     u32 entry_at(const std::vector<u8>& f, u32 cluster) const;
     u32 mirror_consult_(u32 primary) const;
+    bool fat_validate_(const FatParams& p);   /* M-015 */
+    bool fat2_validate_(const FatParams& p);  /* M-015 */
+    bool fat_copy_rejected_ = false;          /* M-015 */
+public:
+    /* M-015: true when the primary copy failed validation and the mirror
+     * was promoted (og alternate-region retry outcome) */
+    bool fat_copy_rejected() const { return fat_copy_rejected_; }
 };
 
 /* ---- chain walker ---- */

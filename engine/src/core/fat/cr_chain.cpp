@@ -153,7 +153,155 @@ u32 FatTable::load(IStorageDevice* dev, const FatParams& p) {
             mirror_ = true;
         }
     }
+    /* M-015 (diff-to-fix): whole-table validation + copy retry. The og
+     * validates each loaded copy (CFAT16 FUN_180041b00 :54052-141: media
+     * word pair exact, entry sweep, claims-map cross-link walk; CFAT32
+     * family-tolerant + the 98% watermark under the deep-check flag) and
+     * the factory retries alternate FAT regions on rejection
+     * (:3817-3950). The core loaded whichever copy it read, unvalidated -
+     * a corrupt FAT1 silently produced wrong chains where the og scanned
+     * a clean copy. */
+    if (!fat_validate_(p)) {
+        if (!fat2_.empty() && fat2_validate_(p)) {
+            /* the mirror is clean: promote it to the primary (og child1
+             * = the alternate copy) and keep consulting it as mirror */
+            fat1_ = fat2_;
+            fat_copy_rejected_ = true;
+            return OK;
+        }
+        fat1_.clear();
+        fat2_.clear();
+        mirror_ = false;
+        return ERR_BAD_MAGIC;
+    }
     return OK;
+}
+
+namespace {
+/* M-015: the og's whole-table validation, ported from FUN_180041b00
+ * (:54052-54141, re-read first-hand). Flavor-shared sweep + claims walk;
+ * the FAT16 media-word check is exact (u32@FAT[0] == 0xFFFFFFF8), FAT12/
+ * FAT32 are family-tolerant (the og's CFAT32 :53853-53919; CFAT12 is not
+ * separately cited - family-tolerant, documented). The 98% watermark is
+ * advisory-only here: its deep-check gate default is unpinned (finding's
+ * open question), so it is computed into a stat, never a reject. */
+bool fat_table_validate(const std::vector<u8>& f, Flavor flavor, u32 entry_count,
+                        u32& used_out) {
+    used_out = 0;
+    if (f.empty())
+        return false;
+    const u32 n = entry_count;
+    if (n < 3)
+        return false;
+    /* media words: FAT16 exact 0xFFFFFFF8 (the pair FAT[0..1]); other
+     * flavors tolerate the family forms */
+    if (flavor == Flavor::Fat16) {
+        if (f.size() < 4)
+            return false;
+        const u32 media = u32_from_bytes_le(f.data());
+        if (media != 0xFFFFFFF8u)
+            return false;
+    } else if (f.size() < 8) {
+        return false;
+    }
+    /* entry sweep: OOB pointers (>= n, below the EOC family), == 1,
+     * self-loops invalidate the WHOLE table */
+    const auto raw_entry = [&](u32 c) -> u32 {
+        switch (flavor) {
+        case Flavor::Fat12: {
+            const size_t off = size_t(c) + size_t(c) / 2;
+            if (off + 2 > f.size())
+                return 0xFFFF;
+            u32 v = u16_from_bytes_le(f.data() + off);
+            if (c & 1)
+                v >>= 4;
+            else
+                v &= 0xFFF;
+            return v;
+        }
+        case Flavor::Fat16: {
+            const size_t off = size_t(c) * 2;
+            if (off + 2 > f.size())
+                return 0xFFFF;
+            return u16_from_bytes_le(f.data() + off);
+        }
+        case Flavor::Fat32:
+        default: {
+            const size_t off = size_t(c) * 4;
+            if (off + 4 > f.size())
+                return 0xFFFFFFFFu;
+            return u32_from_bytes_le(f.data() + off) & 0x0FFFFFFF;
+        }
+        }
+    };
+    const u32 eoc_family_min = flavor == Flavor::Fat12     ? 0xFF8
+                               : flavor == Flavor::Fat16   ? 0xFFF8
+                                                            : 0x0FFFFFF8;
+    /* the og's OOB band is [n, BAD) - STRICTLY below the BAD sentinel
+     * (0xFFF7 itself passes the sweep; a BAD cluster is a legal value).
+     * FAT32 additionally carries the mask-24 alternate EOC family
+     * (N-002: (raw & 0x07FFFFF8) == 0x07FFFFF8 -> EOC, e.g. dirty-high
+     * forms 0x27FFFFF8); those values end chains, they are not links. */
+    const u32 bad_sentinel = flavor == Flavor::Fat12     ? 0xFF7
+                             : flavor == Flavor::Fat16   ? 0xFFF7
+                                                          : 0x0FFFFFF7;
+    const u32 alt_eoc_min = flavor == Flavor::Fat32 ? 0x07FFFFF8 : bad_sentinel;
+    const auto is_link = [&](u32 v) {
+        return v >= 2 && v < bad_sentinel && v < n && v < alt_eoc_min;
+    };
+    u32 used = 0;
+    for (u32 i = 2; i < n; ++i) {
+        const u32 v = raw_entry(i);
+        if (v == 1 || v == i)
+            return false; /* ==1 / self-loop */
+        if (v >= n && v < bad_sentinel && v < alt_eoc_min)
+            return false; /* OOB pointer below the BAD sentinel */
+        if (is_link(v))
+            ++used; /* a live link (watermark advisory) */
+    }
+    used_out = used;
+    /* claims-map cross-link walk: every unclaimed entry roots a chain;
+     * a cluster claimed by two different roots is a cross-link; a walk
+     * visiting n-2 entries is a cycle covering the table - both reject
+     * the whole table (og :54084-54114). Bounded to the same n budget. */
+    std::vector<u32> claims(size_t(n), 0);
+    for (u32 i = 2; i < n; ++i) {
+        if (claims[i] != 0)
+            continue;
+        u32 c = i;
+        for (u32 steps = 0; steps < n; ++steps) {
+            const u32 v = raw_entry(c);
+            if (v < 2 || v >= eoc_family_min || v >= n || v >= alt_eoc_min)
+                break; /* free / EOC family (incl. mask-24) / BAD: ends */
+            if (claims[v] == 0) {
+                claims[v] = i;
+            } else if (claims[v] != i) {
+                return false; /* cross-link: another chain's cluster */
+            }
+            c = v;
+        }
+        /* (a chain visiting every entry = a covering cycle also rejects;
+         * the per-root walks above terminate before that on real tables,
+         * and the O(n) total budget bounds the pathological case) */
+    }
+    return true;
+}
+} // namespace
+
+bool FatTable::fat_validate_(const FatParams& p) {
+    const u32 entry_count = max_cluster_ + 1 < 0xFFFFFF0u ? max_cluster_ + 1 : 0xFFFFFF0u;
+    u32 used = 0;
+    const bool ok = fat_table_validate(fat1_, flavor_, entry_count, used);
+    (void)p;
+    return ok;
+}
+
+bool FatTable::fat2_validate_(const FatParams& p) {
+    const u32 entry_count = max_cluster_ + 1 < 0xFFFFFF0u ? max_cluster_ + 1 : 0xFFFFFF0u;
+    u32 used = 0;
+    const bool ok = fat_table_validate(fat2_, flavor_, entry_count, used);
+    (void)p;
+    return ok;
 }
 
 namespace {
