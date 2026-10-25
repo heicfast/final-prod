@@ -9560,7 +9560,6 @@ Stage Summary:
   history). Session fix tally: 1 (N-069). Next: N-067 (exFAT upcase
   validation), N-068 (ZIP EOCD anchor), then the naming/policy group
   N-063/N-065.
-=======
 
 ---
 Task ID: DFX15-F2..F5 (session 15, MAJOR lane)
