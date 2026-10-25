@@ -5934,3 +5934,44 @@ Stage Summary:
   the superset implementation + this session's hostile-input proof + the claim-gate
   evidence. Suite 396/396. Next per the DF-S022 handoff: S-003/S-021 (the HFS+
   journal pair).
+
+---
+Task ID: DF5-S012-VERIFY (S-012 independent verification + duplicate discard)
+Agent: main engineer (diff-to-fix session-5 lane)
+Task: Independently verify the landed S-012 fix (this session built a parallel
+implementation before discovering the parallel legs had landed theirs).
+
+Work Log:
+- This session re-verified every S-012 citation first-hand at corpus 03ad46c
+  (pass-1 emit :18630; rescue gate :18493-18499; collector :18584-18625;
+  FUN_18001a980 :20957-21090; FUN_18001acc0 :21095-21295) and built a full
+  parallel implementation (membership removal + pass 2 + phase-B4 resolution;
+  local branch s012-local-backup @ 68e3819) with its own fail-before probe
+  (standalone mini-fixture, FAILED on the pre-fix tree as expected).
+- On push, origin had moved: the parallel legs landed 5f1a212 (S-012 steps
+  1+2+3 incl. size-0 rescue + mirror harvest + same-name merge), cdd340b
+  (S-022), 7cf6754-lineage (S-019), N-022/N-023/N-034, plus a new audit
+  integration wave (S-024..S-028, M-031..M-039, N-045..N-047, I-017/I-018).
+- Convergence check (first-hand, this session):
+  * is_guid_dump_name gates IDENTICAL to my independent derivation
+    (0x4C len, [0]='{', [37]='}', template [38..75] - two braced GUIDs).
+  * Membership: they flipped destroy_fully_overwritten default to false
+    (fix-plan step-1 option A) and kept the destroy path opt-in; my
+    removal approach was option B. Same default behavior.
+  * Pass-2 gates/destroy/chunking verified against my decompile reading
+    (claim-test at run START, 0x3ff, blanket-$, folder bypass, 0x8000
+    sectors, stride discipline); plus superset: og-15-table pass-2 gate,
+    sector-index dedup, mirror rescue.
+  * Their leak fix (75050bf/e7deda8) matches the leak my ASan run caught.
+  * Fresh clean ASan build on the synced tree: 396/396 PASS (this host).
+- DECISION: the landed superset fix stands; my duplicate implementation is
+  discarded (branch s012-local-backup retained locally for the record; the
+  bf7df39 convergence commit + hostile smoke + claim-gate decode make the
+  audit trail complete). No code contribution needed from this lane.
+- Lane continues at S-003 (HFS+ journal replay) per the handoff order.
+
+Stage Summary:
+- S-012 CLOSED and triple-verified (audit leg + two independent fix legs);
+  my session's corpus reading and the landed code agree on every gate.
+- Remaining SEVERE (handoff): S-003, S-007, S-009, S-020, S-021 + the new
+  S-023..S-028 audit wave. Next: S-003.
