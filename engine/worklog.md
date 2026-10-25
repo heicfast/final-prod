@@ -6317,3 +6317,29 @@ Stage Summary:
   discards cluster-inconsistent garbage runlists. ReFS attribute-layer parity is
   test-pinned; the remaining ReFS open items are the container map (N-036), the
   deleted-model pair (M-026/M-027), and the OQ-2 real-volume dump.
+
+
+## Session: diff-to-fix closing session — fix all tiers (2026-10-26)
+
+**Prompt:** `worklog/session-diff-fix-closing-prompt.md` (token redacted).
+**Session start commit (core):** `b65f1e6` (pulled fresh; s6 bootstrap + merge included).
+**Corpus:** `03ad46c` (unmoved). **Mandate:** close every finding in `diff-to-fix/`
+— verify each independently against the corpus, fix with tests, prove, record
+resolutions, update the whole audit trail, keep main green.
+
+**Baseline established first-hand this session:** linux-release configure+build clean
+(cmake 4.4.4 / g++ 14.2), `ctest` **396/396 PASS** at `b65f1e6` on this host.
+
+**State at start (direct file inventory):** 0 ACUTE · 11 SEVERE · 34 MAJOR ·
+37 MINOR · 18 INFO active / 35 FIXED · 11 tracked-open OQ files.
+Active SEVERE: S-003, S-007, S-009, S-020, S-021, S-023, S-024, S-025, S-026,
+S-027, S-028. Priority order per mandate: SEVERE first (S-003/S-021 HFS+ journal
+pair was the standing handoff order), then MAJOR, MINOR, INFO, tracked-open.
+
+Task ID: T1 (bootstrap)
+Agent: main engineer (diff-to-fix closing session)
+Work Log:
+- Repos pulled: core `b65f1e6`, corpus `03ad46c`. Token redacted prompt saved.
+- Build + full suite verified green first-hand (396/396).
+- Audit trail reading begins (T2): SUMMARY, matrix, all finding files, modules,
+  evidence — before any code change.
