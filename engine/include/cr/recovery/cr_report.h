@@ -87,11 +87,32 @@ struct Totals {
     std::string destination; /* UTF-8 destination identity */
 };
 
+/* S-023: the og RecoveryAssistant's scan-analysis statistics block (8
+ * counters + per-category counts + the recoverability gauge). Optional:
+ * when present it is emitted as the "scan_analysis" object after the
+ * totals (a report built by a writer that has no scan context - resumed
+ * sessions, queue-only runs - simply omits it). */
+struct ScanAnalysis {
+    u64 total_file_count = 0;
+    u64 raw_count = 0;
+    u64 lost_partition_exist_file_count = 0;
+    u64 lost_partition_delete_file_count = 0;
+    u64 quick_scan_exist_file_count = 0;
+    u64 quick_scan_delete_file_count = 0;
+    u64 deep_scan_file_count = 0;
+    u64 quick_scan_delete_extend = 0;
+    u64 category_counts[8] = {0}; /* Image..Bookmarks (query::Category-1) */
+    u64 matched = 0;
+    u64 total = 0;
+    bool small_result = false;
+};
+
 /* Serialize as a complete JSON document (trailing newline, UTF-8).
  * Escaping: \" \\ \b \f \n \r \t and \u00XX for the remaining C0 controls;
  * invalid UTF-8 bytes are emitted as U+FFFD so the document stays valid
  * JSON regardless of recovered names. Deterministic field order (schema). */
-std::string build_report(const std::vector<Item>& items, const Totals& totals);
+std::string build_report(const std::vector<Item>& items, const Totals& totals,
+                         const ScanAnalysis* analysis = nullptr);
 
 /* The engine version string baked in at build time (CMake-injected). */
 const char* engine_version();

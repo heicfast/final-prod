@@ -97,3 +97,26 @@ dedup), GAP-S6-13 (64 KiB transport envelope).
 - **GAP-S6-10 typed event stream otherwise verified consistent** with the og's event-bus
   model (granularity/payloads; the og's MO-layer progress weighting remains matched per
   session-1 verdicts — no new deltas found in the MO sweep).
+
+
+## S-023 grading verdicts (close-all-tiers session — the post-scan CRecoverability pass)
+
+- **P15 (grading model)** — **S-023 FIXED** (findings/FIXED/S-023): the og's
+  3-grade model {Low, Average, High} now exists as `tree::Grade` with the og
+  setter semantics (monotonic-max, grade-2 sticky, overlap flag set with
+  forcing ≥ 2). The post-scan pass (`tree::grading::grade_tree`,
+  `cr_grading.cpp`) runs at scan completion: size floor, Email-category fast
+  path, existing-file rule, carve-device small-file rule, NTFS device-index
+  rule (+ QuickScanDeleteExtend), and the 169-entry extension-table-gated
+  extent-end twin detection (FAT-family −2 address offset). Per-selection
+  `regrade_node` (grade-1 only). The in-walk 5-tier Confidence is untouched
+  (allocation-axis superset, different question).
+- **P13 (assistant statistics)** — S-023 FIXED: `AssistantStats` (8 counters
+  + 8 category counts + matched/total with the small-result heuristic) in
+  ScanStats; persisted as REC_ASSISTANT_STATS (record type 6); surfaced
+  via `cr_ui_scan_assistant` and the report's `scan_analysis` block.
+- **P38 (grading telemetry)** — S-023 FIXED: graded_count on the stats; the
+  pass is a deterministic post-scan stage (the og's two background jobs are
+  its message-pump implementation detail).
+- Registered non-adoptions (in the Resolution): the og's UNDECODED NTFS
+  vt+0xb8/vt+0x100 sub-rule and its internal matched/total composition.

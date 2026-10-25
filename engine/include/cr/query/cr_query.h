@@ -74,7 +74,7 @@ struct Filter {
     u32 origin_mask = 0xF; /* tree::Origin bits */
 };
 
-enum class SortKey : u8 { None = 0, Name, Size, Modified, Confidence, Path };
+enum class SortKey : u8 { None = 0, Name, Size, Modified, Confidence, Path, Grade };
 enum class SortDir : u8 { Asc = 0, Desc };
 
 struct Query {

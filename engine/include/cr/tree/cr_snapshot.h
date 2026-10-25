@@ -48,10 +48,12 @@ struct SnapNode {
     u64 node_id = 0;
     u32 fs_kind = 0;
     u64 record_ref = 0;
-    u8 origin = 0;     /* tree::Origin */
-    u8 deleted = 0;    /* tree::DeletedState */
-    u8 confidence = 0; /* tree::Confidence */
-    bool full = false; /* FullNode discriminator (roots / virtual) */
+    u8 origin = 0;        /* tree::Origin */
+    u8 deleted = 0;       /* tree::DeletedState */
+    u8 confidence = 0;    /* tree::Confidence */
+    u8 grade = 1;         /* tree::Grade (S-023; 1 = the emit default) */
+    bool overlap = false; /* tree overlap flag (S-023) */
+    bool full = false;    /* FullNode discriminator (roots / virtual) */
 
     /* content (copied, snapshot-owned) */
     u64 logical_size = 0;

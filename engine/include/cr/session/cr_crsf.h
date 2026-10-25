@@ -45,6 +45,11 @@ enum RecordType : u32 {
     REC_PARTITION_CONTEXT = 3,
     REC_RESULT_TREE = 4,
     REC_ERROR_MAP = 5,
+    /* S-023: the post-scan grading statistics (the og RecoveryAssistant
+     * block). Old readers skip unknown types; the record is OPTIONAL - a
+     * session saved by a build without the grading pass simply lacks it
+     * and the counters re-derive as zeros on load. */
+    REC_ASSISTANT_STATS = 6,
 };
 
 /* In-memory record. */

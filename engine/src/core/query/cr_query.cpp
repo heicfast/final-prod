@@ -257,6 +257,15 @@ Result run(const tree::ResultTree& tree, const Query& q) {
                                  return desc ? x > y : x < y;
                              });
             break;
+        case SortKey::Grade: /* S-023: the og's results comparator puts
+                              * grade-2 first (DRWUI :535155-535161) - asc
+                              * here = Low..High, desc = High first */
+            std::stable_sort(ctx.matched.begin(), ctx.matched.end(),
+                             [&](const tree::FileNode* a, const tree::FileNode* b) {
+                                 const u32 x = u32(a->grade()), y = u32(b->grade());
+                                 return desc ? x > y : x < y;
+                             });
+            break;
         case SortKey::Path:
         case SortKey::None:
             break; /* Path: rows below sort lexicographically by path */

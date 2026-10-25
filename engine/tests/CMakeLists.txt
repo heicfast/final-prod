@@ -14,6 +14,7 @@ add_executable(cr_tests
     unit/test_retry.cpp
     unit/test_parallel.cpp
     unit/test_node_tree.cpp
+    unit/test_grading.cpp
     unit/test_ntfs_volume.cpp
     unit/test_fat_volume.cpp
     unit/test_exfat_volume.cpp

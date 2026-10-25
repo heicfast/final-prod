@@ -372,6 +372,42 @@ typedef struct cr_ui_scan_stats {
 } cr_ui_scan_stats;
 
 CR_UI_API uint32_t cr_ui_scan_get_stats(cr_ui_scan* s, cr_ui_scan_stats* out);
+
+/* ---- S-023: post-scan grading (the og's CRecoverability model) -------
+ * The grading pass runs at scan completion (all stages done); grades are
+ * stored on the tree nodes (monotonic, grade-2 sticky), persist with the
+ * session, and are re-derivable per selection. The statistics mirror the
+ * og's RecoveryAssistant block. */
+
+typedef struct cr_ui_assistant_stats {
+    uint64_t total_file_count;
+    uint64_t raw_count;
+    uint64_t lost_partition_exist_file_count;
+    uint64_t lost_partition_delete_file_count;
+    uint64_t quick_scan_exist_file_count;
+    uint64_t quick_scan_delete_file_count;
+    uint64_t deep_scan_file_count;
+    uint64_t quick_scan_delete_extend;
+    uint64_t category_counts[8]; /* image video audio document archive
+                                  * other email bookmarks */
+    uint64_t matched, total;     /* the recoverability gauge; when total < 100
+                                  * the og forces matched to 0 (small-result
+                                  * heuristic - the gauge never shows) */
+    uint32_t small_result;
+    uint64_t graded_count;
+} cr_ui_assistant_stats;
+
+/* The scan-completion grading statistics. Valid after run() returns OK
+ * (or after resume of a completed session; the counters re-derive from
+ * the loaded tree). */
+CR_UI_API uint32_t cr_ui_scan_assistant(cr_ui_scan* s, cr_ui_assistant_stats* out);
+
+/* Per-selection re-grade (the og's FUN_1401d7110 semantics): re-run the
+ * grading rules on the given session-tree nodes. Only grade-1 (average)
+ * nodes are eligible - grade 0 and 2 verdicts are final (sticky).
+ * Returns OK with *regarded set to the count actually re-graded. */
+CR_UI_API uint32_t cr_ui_session_regrade(cr_ui_session* sess, const uint64_t* node_ids,
+                                         uint32_t count, uint32_t* regraded);
 CR_UI_API uint32_t cr_ui_scan_checkpoint_count(cr_ui_scan* s, uint64_t* out);
 
 /* S-008 (ABI-since 1.2): persist the pre-scan repair's undo log to a
@@ -451,6 +487,11 @@ typedef struct cr_ui_node_info {
     uint32_t origin;     /* tree::Origin: 0 structured, 1 carved, 2 lost, 3 virtual */
     uint32_t deleted;    /* tree::DeletedState: 0 active, 1 deleted, 2 partial, 3 damaged */
     uint32_t confidence; /* tree::Confidence ordinal 0..4 */
+    uint32_t grade;      /* tree::Grade: 0 low, 1 average, 2 high (S-023;
+                          * the og's CRecoverability verdict, computed by
+                          * the post-scan grading pass) */
+    uint32_t overlap;    /* 1 when the twin/overlap rule flagged this node
+                          * (og bit 2 of node+0x73) */
     uint32_t is_full;    /* roots/virtuals carry role + stats */
     uint64_t logical_size, allocated_size;
     uint64_t created, modified, changed, accessed; /* 100ns since 1601 */
@@ -487,8 +528,10 @@ CR_UI_API uint32_t cr_ui_snapshot_dfs(cr_ui_snapshot* snap, uint32_t* indices, u
  * enumeration + client-side predicates (see above). */
 
 /* sort: 0 none (emission order), 1 name, 2 size, 3 modified, 4 confidence,
- * 5 path. dir: 0 asc, 1 desc. category bits: 1 image, 2 video, 3 audio,
- * 4 document, 5 archive, 6 other. Zero-initialized struct = match-all. */
+ * 5 path, 6 grade (S-023: the CRecoverability verdict; desc = High first,
+ * the og's results comparator order). dir: 0 asc, 1 desc. category bits:
+ * 1 image, 2 video, 3 audio, 4 document, 5 archive, 6 other, 7 email,
+ * 8 bookmarks. Zero-initialized struct = match-all. */
 typedef struct cr_ui_query {
     uint32_t category_mask;              /* 0 = all categories */
     uint64_t size_min, size_max;         /* 0 = unbounded */
@@ -514,6 +557,8 @@ typedef struct cr_ui_query_row {
     char* path;       /* UTF-8 heap, '/'-joined */
     uint64_t size, modified;
     uint32_t origin, deleted, confidence, category;
+    uint32_t grade; /* S-023: tree::Grade 0..2 (rows carry the verdict so
+                     * parity UIs can sort grade-2 first like the og) */
 } cr_ui_query_row;
 
 CR_UI_API uint32_t cr_ui_query_run(cr_ui_session* sess, const cr_ui_query* q,

@@ -337,6 +337,19 @@ int main(int argc, char** argv) {
     CHECK_EQ_U64(cr_ui_scan_get_stats(scan, &st), CR_UI_OK);
     CHECK(st.files_found >= 1);   /* DOC.TXT */
     CHECK(st.deleted_found >= 1); /* DELFILE.TXT */
+    /* S-023: the grading pass ran at completion (the assistant block is
+     * populated; existing DOC.TXT graded High, deleted DELFILE.TXT
+     * carries a grade, the gauge obeys the small-result rule) */
+    {
+        cr_ui_assistant_stats as;
+        memset(&as, 0, sizeof(as));
+        CHECK_EQ_U64(cr_ui_scan_assistant(scan, &as), CR_UI_OK);
+        CHECK(as.graded_count >= 2);
+        CHECK_EQ_U64(as.total_file_count, as.graded_count);
+        CHECK_EQ_U64(as.total, as.total_file_count);
+        CHECK(as.total < 100 ? as.matched == 0 : 1); /* small-result rule */
+        CHECK_EQ_U64(as.quick_scan_exist_file_count >= 1, 1);
+    }
     CHECK_EQ_U64(cr_ui_scan_telemetry(scan, &tel), CR_UI_OK);
     CHECK_EQ_U64(tel.overall_permille, 1000u);
     CHECK_EQ_U64(tel.running, 0u);
@@ -506,6 +519,10 @@ int main(int argc, char** argv) {
         CHECK(strcmp(name, "DOC.TXT") == 0);
         CHECK_EQ_U64(info.logical_size, 1000u);
         CHECK_EQ_U64(info.deleted, 0u);
+        /* S-023: the og's CRecoverability verdict - existing file with
+         * size >= 1 is grade 2 (High); never grade-less */
+        CHECK_EQ_U64(info.grade, 2u);
+        CHECK_EQ_U64(info.overlap, 0u);
         doc_node_id = info.node_id;
         CHECK(doc_node_id != 0);
         /* truncated name buffer -> CR_UI_ERR_TRUNCATED with the full length */
@@ -529,6 +546,16 @@ int main(int argc, char** argv) {
             if (strcmp(rows[i].name, "DOC.TXT") == 0)
                 doc_node_id = rows[i].node_id;
         CHECK(doc_node_id != 0);
+        /* S-023: rows carry the grade (High for the existing DOC.TXT) */
+        {
+            int saw_doc = 0;
+            for (i = 0; i < row_count; ++i)
+                if (strcmp(rows[i].name, "DOC.TXT") == 0) {
+                    saw_doc = 1;
+                    CHECK_EQ_U64(rows[i].grade, 2u);
+                }
+            CHECK(saw_doc);
+        }
         cr_ui_query_rows_free(rows, row_count);
         rows = NULL;
         /* deleted_only keeps DELFILE.TXT */
@@ -573,6 +600,33 @@ int main(int argc, char** argv) {
             cr_ui_query_rows_free(rows, row_count);
             rows = NULL;
         }
+    }
+
+    /* ---- S-023: per-selection re-grade (grade-1 only; grade 0/2 final) ---- */
+    {
+        uint32_t regraded = 0xFFFFFFFFu;
+        uint64_t ids[2];
+        size_t n_ids = 0;
+        /* collect one grade-1 (average) node id via a deleted_only query
+         * (deleted structured files stay average unless a rule raised
+         * them) + the existing DOC.TXT (grade 2 - must be refused) */
+        cr_ui_query q;
+        memset(&q, 0, sizeof(q));
+        q.deleted_only = 1;
+        q.limit = 10;
+        CHECK_EQ_U64(cr_ui_query_run(sess, &q, &rows, &row_count, &total), CR_UI_OK);
+        for (i = 0; i < row_count && n_ids < 2; ++i) {
+            CHECK(rows[i].grade <= 2u); /* domain guard */
+            if (rows[i].grade == 1u && n_ids < 1)
+                ids[n_ids++] = rows[i].node_id;
+        }
+        cr_ui_query_rows_free(rows, row_count);
+        rows = NULL;
+        if (doc_node_id)
+            ids[n_ids++] = doc_node_id; /* grade 2: refused by the gate */
+        CHECK(n_ids >= 1);
+        CHECK_EQ_U64(cr_ui_session_regrade(sess, ids, (uint32_t)n_ids, &regraded), CR_UI_OK);
+        CHECK(regraded <= 1); /* at most the single grade-1 node ran */
     }
 
     /* ---- disk map (GAP-S6-11 data producer: session path, auto geometry) ---- */

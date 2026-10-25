@@ -163,7 +163,45 @@ const char* hash_status_name(HashStatus s) {
 
 } // namespace
 
-std::string build_report(const std::vector<Item>& items, const Totals& t) {
+static void append_analysis(std::string& out, const ScanAnalysis& a) {
+    out.append("  \"scan_analysis\": {\n");
+    append_num(out, "total_file_count", a.total_file_count, false);
+    out.append(",\n");
+    append_num(out, "raw_count", a.raw_count, false);
+    out.append(",\n");
+    append_num(out, "lost_partition_exist_file_count", a.lost_partition_exist_file_count, false);
+    out.append(",\n");
+    append_num(out, "lost_partition_delete_file_count", a.lost_partition_delete_file_count, false);
+    out.append(",\n");
+    append_num(out, "quick_scan_exist_file_count", a.quick_scan_exist_file_count, false);
+    out.append(",\n");
+    append_num(out, "quick_scan_delete_file_count", a.quick_scan_delete_file_count, false);
+    out.append(",\n");
+    append_num(out, "deep_scan_file_count", a.deep_scan_file_count, false);
+    out.append(",\n");
+    append_num(out, "quick_scan_delete_extend", a.quick_scan_delete_extend, false);
+    out.append(",\n");
+    static const char* kCatNames[8] = {"image",   "video", "audio", "document",
+                                       "archive", "other", "email", "bookmarks"};
+    out.append("    \"categories\": {");
+    for (size_t i = 0; i < 8; ++i) {
+        out.append(i ? ", " : "");
+        out.append("\"");
+        out.append(kCatNames[i]);
+        out.append("\": ");
+        out.append(std::to_string(a.category_counts[i]));
+    }
+    out.append("},\n");
+    append_num(out, "matched", a.matched, false);
+    out.append(",\n");
+    append_num(out, "total", a.total, false);
+    out.append(",\n");
+    append_num(out, "small_result", a.small_result ? 1 : 0, false);
+    out.append("\n  },\n");
+}
+
+std::string build_report(const std::vector<Item>& items, const Totals& t,
+                         const ScanAnalysis* analysis) {
     std::string out;
     out.reserve(256 + items.size() * 160);
     out.append("{\n");
@@ -193,6 +231,12 @@ std::string build_report(const std::vector<Item>& items, const Totals& t) {
     append_num(out, "pending", t.pending, true);
     append_num(out, "bytes", t.bytes, true);
     out.append("},\n");
+
+    /* S-023: the optional scan-analysis block (the og's RecoveryAssistant
+     * statistics; the og emits them through its UI/log, we surface them in
+     * the report schema per the finding's fix plan). */
+    if (analysis)
+        append_analysis(out, *analysis);
 
     /* per-item outcomes (queue order; item_id monotonic) */
     out.append("  \"items\": [");

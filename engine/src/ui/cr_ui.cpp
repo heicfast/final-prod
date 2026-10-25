@@ -644,6 +644,11 @@ struct CrRecovery {
     CrDevice* dev = nullptr;  /* borrowed */
     std::u16string dest_root; /* trailing separator, core convention */
     bool have_dest = false;
+    /* S-023: the scan-analysis block (copied from the first session the
+     * recovery enqueues from; reports stay truthful for standalone
+     * device-scope recoveries - absent = the block is omitted). */
+    bool have_analysis = false;
+    recovery::report::ScanAnalysis analysis;
     cr_ui_recovery_progress_fn progress = nullptr;
     void* progress_user = nullptr;
     recovery::WriterStats stats{};
@@ -1437,6 +1442,30 @@ u32 scan_stats_impl(cr_ui_scan* scan, cr_ui_scan_stats* out) {
     return ret_ok();
 }
 
+/* S-023: the scan-completion grading statistics (post-scan pass). */
+u32 scan_assistant_impl(cr_ui_scan* scan, cr_ui_assistant_stats* out) {
+    if (!scan || !out)
+        return ret_(ERR_BAD_PARAMETER, "bad argument: scan/out");
+    auto* s = reinterpret_cast<CrScan*>(scan);
+    const tree::grading::AssistantStats& a = s->stats.assistant;
+    std::memset(out, 0, sizeof(*out));
+    out->total_file_count = a.total_file_count;
+    out->raw_count = a.raw_count;
+    out->lost_partition_exist_file_count = a.lost_partition_exist_file_count;
+    out->lost_partition_delete_file_count = a.lost_partition_delete_file_count;
+    out->quick_scan_exist_file_count = a.quick_scan_exist_file_count;
+    out->quick_scan_delete_file_count = a.quick_scan_delete_file_count;
+    out->deep_scan_file_count = a.deep_scan_file_count;
+    out->quick_scan_delete_extend = a.quick_scan_delete_extend;
+    for (size_t i = 0; i < 8; ++i)
+        out->category_counts[i] = a.category_counts[i];
+    out->matched = a.matched;
+    out->total = a.total;
+    out->small_result = a.small_result ? 1u : 0u;
+    out->graded_count = a.graded_count;
+    return ret_ok();
+}
+
 /* S-008: persist the pre-scan repair undo log (durable container). */
 u32 scan_repair_save_undo_impl(cr_ui_scan* scan, const char* utf8_path) {
     if (!scan || !utf8_path)
@@ -1563,6 +1592,9 @@ extern "C" CR_UI_API uint32_t cr_ui_scan_telemetry(cr_ui_scan* scan, cr_ui_telem
 extern "C" CR_UI_API uint32_t cr_ui_scan_get_stats(cr_ui_scan* scan, cr_ui_scan_stats* out) {
     return guarded(scan_stats_impl, scan, out);
 }
+extern "C" CR_UI_API uint32_t cr_ui_scan_assistant(cr_ui_scan* scan, cr_ui_assistant_stats* out) {
+    return guarded(scan_assistant_impl, scan, out);
+}
 extern "C" CR_UI_API uint32_t cr_ui_scan_checkpoint_count(cr_ui_scan* scan, uint64_t* out) {
     return guarded(scan_checkpoint_count_impl, scan, out);
 }
@@ -1640,6 +1672,45 @@ u32 session_stats_impl(cr_ui_session* sess, cr_ui_scan_stats* out) {
     out->bytes_scanned = st.bytes_scanned;
     out->elapsed_ms = st.elapsed_ms;
     out->error_ranges = u32(st.errors.ranges().size());
+    return ret_ok();
+}
+
+/* S-023: per-selection re-grade on the stable session tree. */
+u32 session_regrade_impl(cr_ui_session* sess, const uint64_t* node_ids, uint32_t count,
+                         uint32_t* regraded) {
+    if (!sess || !regraded)
+        return ret_(ERR_BAD_PARAMETER, "bad argument: sess/regraded");
+    if (count != 0 && !node_ids)
+        return ret_(ERR_BAD_PARAMETER, "bad argument: ids");
+    auto* s = reinterpret_cast<CrSession*>(sess);
+    if (!s->stats.assistant.graded_count) {
+        /* no grading pass ever ran (pre-S-023 session or never scanned):
+         * honest refusal - grades would be fabricated */
+        return ret_(ERR_BAD_PARAMETER, "session carries no grading pass");
+    }
+    tree::grading::GradeContext gctx; /* per-node fs_kind is the truth source */
+    tree::grading::DeviceSlot slot;
+    gctx.devices.push_back(slot);
+    u32 n = 0;
+    std::vector<tree::FileNode*> stack;
+    for (tree::FileNode* r : s->tree.roots())
+        stack.push_back(r);
+    while (!stack.empty()) {
+        tree::FileNode* nd = stack.back();
+        stack.pop_back();
+        for (tree::FileNode* c = nd->first_child(); c; c = c->next_sibling())
+            stack.push_back(c);
+        if (nd->is_full() || !nd->props())
+            continue;
+        for (uint32_t i = 0; i < count; ++i) {
+            if (nd->node_id() == node_ids[i]) {
+                if (tree::grading::regrade_node(nd, gctx))
+                    ++n;
+                break;
+            }
+        }
+    }
+    *regraded = n;
     return ret_ok();
 }
 
@@ -1824,6 +1895,10 @@ extern "C" CR_UI_API void cr_ui_session_close(cr_ui_session* sess) {
 extern "C" CR_UI_API uint32_t cr_ui_session_get_info(cr_ui_session* sess, cr_ui_session_info* out) {
     return guarded(session_info_impl, sess, out);
 }
+extern "C" CR_UI_API uint32_t cr_ui_session_regrade(cr_ui_session* sess, const uint64_t* node_ids,
+                                                    uint32_t count, uint32_t* regraded) {
+    return guarded(session_regrade_impl, sess, node_ids, count, regraded);
+}
 extern "C" CR_UI_API uint32_t cr_ui_session_stats(cr_ui_session* sess, cr_ui_scan_stats* out) {
     return guarded(session_stats_impl, sess, out);
 }
@@ -1876,6 +1951,8 @@ u32 snapshot_node_impl(cr_ui_snapshot* snap, uint32_t index, cr_ui_node_info* ou
     out->origin = n.origin;
     out->deleted = n.deleted;
     out->confidence = n.confidence;
+    out->grade = n.grade;
+    out->overlap = n.overlap ? 1u : 0u;
     out->is_full = n.full ? 1u : 0u;
     out->logical_size = n.logical_size;
     out->allocated_size = n.allocated_size;
@@ -1988,6 +2065,9 @@ u32 query_run_impl(cr_ui_session* sess, const cr_ui_query* q, cr_ui_query_row** 
     case 5:
         cq.sort = query::SortKey::Path;
         break;
+    case 6: /* S-023: grade sort (the og's comparator puts grade-2 first) */
+        cq.sort = query::SortKey::Grade;
+        break;
     default:
         cq.sort = query::SortKey::None;
         break;
@@ -2019,6 +2099,7 @@ u32 query_run_impl(cr_ui_session* sess, const cr_ui_query* q, cr_ui_query_row** 
         arr[i].deleted = r.deleted;
         arr[i].confidence = r.confidence;
         arr[i].category = r.category;
+        arr[i].grade = r.node ? u32(r.node->grade()) : 1u;
         if (!arr[i].name || !arr[i].path) {
             for (u32 k = 0; k <= i; ++k) {
                 std::free(arr[k].name);
@@ -2375,6 +2456,42 @@ u32 recovery_enqueue_node_impl(cr_ui_recovery* rec, cr_ui_session* sess, uint64_
                     static_cast<unsigned long long>(node_id));
     if (!node->props())
         return ret_(ERR_BAD_PARAMETER, "node has no content properties");
+    /* S-023: adopt the session's scan analysis once (the report's block) */
+    if (!r->have_analysis && s->stats.assistant.graded_count) {
+        const tree::grading::AssistantStats& a = s->stats.assistant;
+        r->analysis.total_file_count = a.total_file_count;
+        r->analysis.raw_count = a.raw_count;
+        r->analysis.lost_partition_exist_file_count = a.lost_partition_exist_file_count;
+        r->analysis.lost_partition_delete_file_count = a.lost_partition_delete_file_count;
+        r->analysis.quick_scan_exist_file_count = a.quick_scan_exist_file_count;
+        r->analysis.quick_scan_delete_file_count = a.quick_scan_delete_file_count;
+        r->analysis.deep_scan_file_count = a.deep_scan_file_count;
+        r->analysis.quick_scan_delete_extend = a.quick_scan_delete_extend;
+        for (size_t k = 0; k < 8; ++k)
+            r->analysis.category_counts[k] = a.category_counts[k];
+        r->analysis.matched = a.matched;
+        r->analysis.total = a.total;
+        r->analysis.small_result = a.small_result;
+        r->have_analysis = true;
+    }
+    /* S-023: adopt the session's scan analysis once (the report's block) */
+    if (!r->have_analysis && s->stats.assistant.graded_count) {
+        const tree::grading::AssistantStats& a = s->stats.assistant;
+        r->analysis.total_file_count = a.total_file_count;
+        r->analysis.raw_count = a.raw_count;
+        r->analysis.lost_partition_exist_file_count = a.lost_partition_exist_file_count;
+        r->analysis.lost_partition_delete_file_count = a.lost_partition_delete_file_count;
+        r->analysis.quick_scan_exist_file_count = a.quick_scan_exist_file_count;
+        r->analysis.quick_scan_delete_file_count = a.quick_scan_delete_file_count;
+        r->analysis.deep_scan_file_count = a.deep_scan_file_count;
+        r->analysis.quick_scan_delete_extend = a.quick_scan_delete_extend;
+        for (size_t k = 0; k < 8; ++k)
+            r->analysis.category_counts[k] = a.category_counts[k];
+        r->analysis.matched = a.matched;
+        r->analysis.total = a.total;
+        r->analysis.small_result = a.small_result;
+        r->have_analysis = true;
+    }
     const std::u16string dir = r->dest_root + rel_dir_of(node);
     const u32 eq = r->writer->enqueue(node, dir);
     return ret_(eq, "enqueue %s", err_text(eq)); /* overlap callers count by code */
@@ -2543,7 +2660,8 @@ u32 recovery_report_json_impl(cr_ui_recovery* rec, const char* source_utf8, char
     const std::string doc = recovery::report::build_report(
         r->writer->report_items(),
         r->writer->report_totals(source_utf8 ? source_utf8 : "", u16_to_u8(r->dest_root), elapsed,
-                                 r->stats));
+                                 r->stats),
+        r->have_analysis ? &r->analysis : nullptr);
     char* p = dup_str(doc);
     if (!p)
         return ret_(ERR_NO_MEMORY, "report allocation failed");

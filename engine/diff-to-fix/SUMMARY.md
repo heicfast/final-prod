@@ -137,9 +137,27 @@ with Resolution sections; matrix/modules/counts updated as fixes land.
   0x141bb0500 — extracted first-hand from the corpus DRWUI.exe: 169 × 9-byte
   entries {8-char NUL-padded key, flag byte 0}, first key "Raw"; the dump
   feeds S-023's deep-validation gate).
+- **S-023 FIXED** (the grading engine — the largest missing capability):
+  tree::Grade {Low,Average,High} with the og's exact setter semantics
+  (monotonic-max, grade-2 sticky, overlap flag); the post-scan pass
+  (cr_grading.cpp) implementing the decoded decision tree (size floor,
+  Email-category fast path, existing-file rule, carve-device small-file
+  rule, NTFS device-index rule + QuickScanDeleteExtend counter,
+  extension-table-gated extent-end twin detection with the FAT-family −2
+  address offset); per-selection regrade (grade-1 only); RecoveryAssistant
+  statistics (8 counters + 8 category counts + matched/total with the
+  small-result heuristic); ABI surface (node grade/overlap, query-row grade,
+  sort key 6, cr_ui_scan_assistant, cr_ui_session_regrade); session
+  persistence (node bit 3 + REC_ASSISTANT_STATS record 6); the report's
+  scan_analysis block (CLI + ABI paths). Registered non-adoptions: the
+  UNDECODED NTFS vt+0xb8/vt+0x100 sub-rule (no blind structural guess) and
+  the og's internal matched/total composition (matched = grade-2 count,
+  documented). 15 unit tests + C-consumer lifecycle; fail-before by
+  construction (capability absent). Suite 429/429 Release + 429/429 ASan.
+  **In-walk Confidence untouched** (allocation-axis superset).
 
-**Counts after M-023 (direct file inventory):** ACUTE 0 · SEVERE 11 · MAJOR 33 ·
-MINOR 37 · INFO 16 = **97 active** / **34 files in FIXED/** (33 findings +
+**Counts after S-023 (direct file inventory):** ACUTE 0 · SEVERE 10 · MAJOR 33 ·
+MINOR 37 · INFO 16 = **96 active** / **35 files in FIXED/** (34 findings +
 RESOLVED-INDEX).
 
 ## S-012 verification-and-correction delta (2026-10-26 — diff-fix session 4, the reconciliation leg)

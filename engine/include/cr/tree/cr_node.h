@@ -44,6 +44,14 @@ enum class Confidence : u8 {
     MetadataOnly = 4, /* no extents at all (residentless / torn record) */
 };
 
+/* S-023: the og's CRecoverability 3-grade model (DRWUI bits 5-7 of
+ * node+0x73). A SEPARATE decision system from Confidence (which is the
+ * in-walk allocation-axis model): grades are computed by the post-scan
+ * grading pass (cr_grading.cpp) from category/device/overlap/extension
+ * inputs, stored with og semantics - monotonic-max, grade-2 sticky -
+ * and re-graded on demand for grade-1 nodes (per-selection). */
+enum class Grade : u8 { Low = 0, Average = 1, High = 2 };
+
 /* G-02: mid-scan value snapshot (defined in cr_snapshot.h). */
 class Snapshot;
 
@@ -136,6 +144,28 @@ public:
     void set_deleted_state(DeletedState d) { deleted_ = d; }
     void set_origin(Origin o) { origin_ = o; }
 
+    /* S-023 grade: og setter semantics (FUN_140089630) - grade 0 clears
+     * unless the current grade is 2 (sticky); grades 1/2 only raise
+     * (monotonic max). The overlap flag (og bit 2 of +0x73, set by
+     * FUN_1400895b0 together with forcing grade >= 2) never clears. */
+    Grade grade() const { return grade_; }
+    void set_grade(Grade g) {
+        if (g == Grade::Low) {
+            if (grade_ != Grade::High)
+                grade_ = Grade::Low; /* grade-2 nodes are never cleared */
+        } else if (u8(grade_) < u8(g)) {
+            grade_ = g; /* max(cur, new) */
+        }
+    }
+    bool overlap() const { return overlap_; }
+    void set_overlap() { /* og: bit 2 + grade >= 2 together */
+        overlap_ = 1;
+        set_grade(Grade::High);
+    }
+    /* Direct field set (session deserialize round-trip ONLY - never a
+     * rule application; the setter above is the graded path). */
+    void set_grade_raw(Grade g) { grade_ = g; }
+
     u64 node_id() const { return node_id_; } /* stable within the tree */
     bool is_full() const { return full_; }   /* light/full discrimination */
 
@@ -158,7 +188,9 @@ protected:
     Origin origin_ : 4 = Origin::Structured;
     DeletedState deleted_ : 4 = DeletedState::Active;
     Confidence confidence_ : 4 = Confidence::Unknown;
-    bool full_ = false; /* FullNode marker (non-polymorphic discrimination) */
+    Grade grade_ : 2 = Grade::Average; /* og engine default: grade 1 at emit */
+    u8 overlap_ : 1 = 0;               /* og twin/overlap flag (bit 2 of +0x73) */
+    bool full_ = false;                /* FullNode marker (non-polymorphic discrimination) */
     u64 node_id_ = 0;
 };
 
