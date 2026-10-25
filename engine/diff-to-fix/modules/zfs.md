@@ -30,7 +30,9 @@ largest single-engine file) + `include/cr/zfs/` + `tests/unit/test_zfs_volume.cp
   one-second precision where the og's ZPL node carries nanoseconds; recorded as a
   precision note (not graded: og's persisted time semantics for ZFS not decoded;
   revisit with OQ-T6).
-- **B10 Unicode** — **S-005** (byte-lift mojibake, cross-engine).
+- **B10 Unicode** — `M` post-S-005-fix (dnode names, zap child names AND the
+  nvlist pool display name decode via `text::utf8_to_u16`;
+  `Zfs.NonAsciiNamesDecodedNotByteLifted` covers all three + a CJK pool name).
 
 ## Constants and formats
 
@@ -61,4 +63,4 @@ largest single-engine file) + `include/cr/zfs/` + `tests/unit/test_zfs_volume.cp
 | ID | Severity | One-line |
 |---|---|---|
 | OQ-T6 | tracked-open | nvlist anchor; multi-vdev DVA resolution; uberblock geometry; checksum depth |
-| S-005 | SEVERE | (cross-engine) Names byte-lifted → mojibake |
+| S-005 | SEVERE | (cross-engine) Names byte-lifted → mojibake — **FIXED (diff-to-fix session)** |

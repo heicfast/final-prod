@@ -10,10 +10,10 @@ Legend: `M` = MATCH · `A-n`/`S-n`/`M-n`/`N-n`/`I-n` = finding ID (in
 | ntfs | S-001, M-001, I-001 | S-001 | M | M | M-001, N-001 | NA | NA | M | M | M | M (debt) |
 | fat | M | M | M | I-002, OQ-T2 | M | NA | NA | M | M | M | M (debt) |
 | exfat | N-003, OQ-T5 | N-003 | M | M | M | NA | NA | M | M | M | M (debt) |
-| ext4 | S-004, S-005 | ok | M (erratum) | S-004 | N-004 | NA | NA | M | M | N-004 | M (debt) |
+| ext4 | S-004, M (S-005 fixed) | ok | M (erratum) | S-004 | N-004 | NA | NA | M | M | N-004 | M (debt) |
 | hfsplus | S-002, S-003, N-005 | M | M | M | M | NA | NA | M | M | M | THIN |
-| btrfs | I-003, S-005, N-006 | M | M | M | M | NA | NA | M | M | M | M |
-| zfs | OQ-T6, S-005 | ok | OQ-T6 | M | M | NA | NA | M | M | M | M |
+| btrfs | I-003, M (S-005 fixed), N-006 | M | M | M | M | NA | NA | M | M | M | M |
+| zfs | OQ-T6, M (S-005 fixed) | ok | OQ-T6 | M | M | NA | NA | M | M | M | M |
 | refs | N-007, I-004, GAP-ADS | M | M | M | M | NA | NA | M | M | M | M |
 | table+ldm | M (A-001 fixed), M-002 | M | M (A-001 fixed) | M-002, OQ-T7 | ok | NA | NA | M | M | M | M (debt) |
 | lost-partition | S-006, OQ-T9 | NA | M | OQ-T9 | M | NA | NA | M | M | M | THIN |

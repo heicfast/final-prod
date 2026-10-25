@@ -5,6 +5,7 @@
 
 #include "cr/btrfs/cr_btrfs_engine.h"
 #include "cr/cr_bits.h" /* shared byte readers (W4 dedup, DC-12) */
+#include "cr/cr_text.h" /* S-005: on-disk UTF-8 names decode, not byte-lift */
 #include "cr/compress/cr_decomp.h"
 #include <cstring>
 #include <functional>
@@ -705,8 +706,12 @@ u32 scan_btrfs(IStorageDevice* slice, CancelToken* cancel, WalkProgressLike prog
                 DirEntry de;
                 de.child = le64(di + DI_LOCATION);
                 de.type = di[DI_TYPE];
-                for (u32 i = 0; i < name_len && i < 255; ++i)
-                    de.name.push_back(u16(di[DI_NAME + i]));
+                /* S-005 (diff-to-fix): Btrfs dir-item names are UTF-8
+                 * bytes the og passes through unconverted - decode
+                 * strictly; bad sequences become U+FFFD */
+                de.name = text::utf8_to_u16(std::string_view(
+                    reinterpret_cast<const char*>(di) + DI_NAME,
+                    name_len > 255 ? 255 : name_len));
                 if (!de.name.empty())
                     dirs[k.objectid].push_back(std::move(de));
                 off += DI_HEADER + name_len + data_len;

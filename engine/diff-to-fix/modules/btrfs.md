@@ -29,7 +29,8 @@ Core (audited commit `67193b6`): `src/core/btrfs/cr_btrfs_engine.cpp` (799 LOC) 
 - **B5 orphan** — `M` synthetic subvolume names (core's own convention; og's
   CBtrfsQuickTreeBuilder naming not decoded — no contradiction found).
 - **B9 timestamps** — `M` unix→filetime_ns.
-- **B10 Unicode** — **S-005** (byte-lift mojibake; filed under ext4 cross-engine finding).
+- **B10 Unicode** — `M` post-S-005-fix (dir-item names decode via the shared
+  `text::utf8_to_u16`; `Btrfs.NonAsciiNamesDecodedNotByteLifted`).
 
 ## Constants and formats
 
@@ -65,4 +66,4 @@ Core (audited commit `67193b6`): `src/core/btrfs/cr_btrfs_engine.cpp` (799 LOC) 
 |---|---|---|
 | I-003 | INFO | Core exceeds og: working deep scan + unconditional mirror probing |
 | N-006 | MINOR | Nodesize validation stricter than og band (corrupt-SB only) |
-| S-005 | SEVERE | (cross-engine) Names byte-lifted → mojibake |
+| S-005 | SEVERE | (cross-engine) Names byte-lifted → mojibake — **FIXED (diff-to-fix session)** |

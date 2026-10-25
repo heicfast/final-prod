@@ -5,6 +5,7 @@
 
 #include "cr/ext4/cr_ext4_engine.h"
 #include "cr/cr_bits.h" /* shared byte readers (W4 dedup, DC-12) */
+#include "cr/cr_text.h" /* S-005: on-disk UTF-8 names decode, not byte-lift */
 #include <cstring>
 #include <functional>
 #include <map>
@@ -397,10 +398,13 @@ bool parse_dir_block(const u8* p, u64 len, bool filetype, std::vector<DirEntry>&
             DirEntry de;
             de.inode = ino;
             de.type = filetype ? p[off + 7] : 0;
-            for (u32 i = 0; i < name_len; ++i) {
-                u16 c = p[off + 8 + i];
-                de.name.push_back(c);
-            }
+            /* S-005 (diff-to-fix): ext4 directory names are UTF-8 bytes;
+             * the og passes them through unconverted (EXT4SearchDLL has no
+             * conversion import; .rsf stores UTF-8) - decode strictly, bad
+             * sequences become U+FFFD (never byte-lift: "é" must not
+             * surface as "Ã©") */
+            de.name = text::utf8_to_u16(
+                std::string_view(reinterpret_cast<const char*>(p) + off + 8, name_len));
             out.push_back(de);
         }
         off += rec_len;

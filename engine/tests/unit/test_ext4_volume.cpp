@@ -6,6 +6,8 @@
 #include "cr/ext4/cr_ext4_engine.h"
 #include <gtest/gtest.h>
 #include <cstring>
+#include <functional>
+#include <map>
 #include <set>
 
 namespace cr {
@@ -452,5 +454,72 @@ TEST(Ext4Engine, JournalUncommittedTailSurfaces) {
 }
 
 } // namespace
+} // namespace ext4
+} // namespace cr
+
+namespace cr {
+namespace ext4 {
+
+/* ---- S-005: on-disk UTF-8 names decode, never byte-lift ---------------- */
+
+TEST(Ext4Engine, NonAsciiNamesDecodedNotByteLifted) {
+    /* ext4 directory names are raw UTF-8 bytes; the og passes them through
+     * (EXT4SearchDLL imports no conversion API; .rsf stores UTF-8). The
+     * engine must decode them to true code points - the pre-fix byte-lift
+     * turned "照片" into "æ–‡ä»¶"-style mojibake. */
+    auto img = build_volume();
+    {
+        /* append entries after the existing root-dir records (cursor 76):
+         * CJK "照片.jpg", accent "café.txt", and a torn sequence name */
+        u8* root = img.block(B_ROOTDIR);
+        u32 cur = 76;
+        add_dirent(root, cur, INO_HELLO, "\xe7\x85\xa7\xe7\x89\x87.jpg", 1);
+        add_dirent(root, cur, INO_SUB, "caf\xc3\xa9.txt", 1);
+        add_dirent(root, cur, INO_GONE, "\xff(bad", 1);
+    }
+    MemDevice dev(img.raw());
+
+    tree::ResultTree tree;
+    auto* ra = tree.add_root(u"Found");
+    auto* rd = tree.add_root(u"Deleted");
+    auto* rl = tree.add_root(u"Lost Files");
+    Ext4ScanFlags fl;
+    Ext4ScanStats st;
+    u32 rc = scan_ext4(&dev, fl, nullptr, nullptr, nullptr, tree, ra, rd, rl, st);
+    ASSERT_EQ(OK, rc) << err_text(rc);
+
+    std::map<std::string, std::u16string> by_utf8;
+    std::function<void(tree::FileNode*)> collect = [&](tree::FileNode* n) {
+        for (tree::FileNode* c = n->first_child(); c; c = c->next_sibling()) {
+            if (c->props())
+                by_utf8[c->name_utf8()] = c->props()->name;
+            collect(c);
+        }
+    };
+    collect(ra);
+
+    /* CJK name: true code points, not Latin-1-per-byte mojibake */
+    ASSERT_TRUE(by_utf8.count("\xe7\x85\xa7\xe7\x89\x87.jpg") != 0)
+        << "CJK name absent from results";
+    EXPECT_EQ(by_utf8["\xe7\x85\xa7\xe7\x89\x87.jpg"],
+              std::u16string(u"\u7167\u7247.jpg"));
+    /* accented name */
+    ASSERT_TRUE(by_utf8.count("caf\xc3\xa9.txt") != 0);
+    EXPECT_EQ(by_utf8["caf\xc3\xa9.txt"], std::u16string(u"caf\u00e9.txt"));
+    /* invalid lead byte: one U+FFFD, the valid tail survives */
+    ASSERT_TRUE(by_utf8.count("\xef\xbf\xbd(bad") != 0)
+        << "FFFD name absent: " << by_utf8.begin()->first;
+    EXPECT_EQ(by_utf8["\xef\xbf\xbd(bad"], std::u16string(u"\ufffd(bad"));
+    /* whole-pipeline: the UTF-8 projection of a decoded CJK name equals
+     * the original on-disk bytes (this is what tree --json emits) */
+    for (tree::FileNode* c = ra->first_child(); c; c = c->next_sibling()) {
+        for (tree::FileNode* f = c->first_child(); f; f = f->next_sibling()) {
+            if (f->props() && f->props()->name == std::u16string(u"\u7167\u7247.jpg")) {
+                EXPECT_STREQ("\xe7\x85\xa7\xe7\x89\x87.jpg", f->name_utf8().c_str());
+            }
+        }
+    }
+}
+
 } // namespace ext4
 } // namespace cr

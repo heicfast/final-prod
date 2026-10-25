@@ -25,6 +25,7 @@ add_executable(cr_tests
     unit/test_ldm.cpp
     unit/test_lostpart.cpp
     unit/test_sha256.cpp
+    unit/test_text.cpp
     unit/test_carve.cpp
     unit/test_session.cpp
     unit/test_orchestrator.cpp

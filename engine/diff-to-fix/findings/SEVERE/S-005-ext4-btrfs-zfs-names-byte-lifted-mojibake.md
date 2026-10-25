@@ -86,3 +86,37 @@ reports, sessions, and the UI.
 ## Open questions
 
 None.
+
+## Resolution
+
+**Status:** FIXED
+**Fixed in commit:** (this commit — see `git log` for `fix: S-005`)
+**Verified by:** fail-before/pass-after: `Ext4Engine.NonAsciiNamesDecodedNotByteLifted`,
+`Btrfs.NonAsciiNamesDecodedNotByteLifted`, `Zfs.NonAsciiNamesDecodedNotByteLifted`
+(all three FAILED on the pre-fix engines — reproduced with the engine changes
+git-stashed — and pass on the fix); decoder unit vectors
+`Text.AsciiPassesThrough` .. `Text.RoundTripThroughNodeUtf8` (11 cases: CJK,
+accent, astral-plane surrogate pairs, overlong, surrogate-halves, beyond
+U+10FFFF, per-byte resync, truncated tails, embedded NUL, round-trip).
+Full suite 281/281 green (Linux ASan preset).
+**Resolution notes:** new shared codec `include/cr/cr_text.h`
+(`text::utf8_to_u16`, strict RFC 3629 decoder with the codebase's established
+U+FFFD + per-byte-resync policy — identical to cr_ui's `u8_to_u16` and the
+report escaper, so no third policy was introduced). Replaced the byte-lift
+loops: ext4 `parse_dir_block` (cr_ext4_engine.cpp:400), Btrfs dir items
+(cr_btrfs_engine.cpp:708), and THREE ZFS sites the finding's core-reference
+list did not enumerate — dnode names (cr_zfs_engine.cpp:1292), zap child-name
+prefix concat (:1161) and the pool display name built from the nvlist
+`pool_name` (:1174; a CJK pool name was mojibake at the result ROOT). The
+orchestrator's synthesized names were audited for the same class per the fix
+plan: `Candidate @`/`subvol-N`/`InodeNNNN`/carve `CarvedNNNN.ext` are
+snprintf-ASCII (safe), and `volume_label`/`model`/`serial` are char[32]
+UTF-8->UTF-8 copies into equally-typed session fields (no u16 involved) —
+no further sites. The report-layer check from the test plan is covered by
+asserting `FileNode::name_utf8()` (the exact projection `tree --json`
+emits) round-trips a CJK name to the original on-disk bytes. Reference
+behavior re-verified first-hand this session: `.rsf` name field is UTF-8
+(rsf-format--scan-session.md :326) and EXT4SearchDLL contains no
+MultiByteToWideChar/WideCharToMultiByte/CharToOem import (fresh binary scan).
+N-009c (CLI `--filter` mangling) is confirmed to reuse this decoder when
+that finding is remediated.

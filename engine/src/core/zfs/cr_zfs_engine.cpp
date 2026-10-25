@@ -34,6 +34,7 @@
 
 #include "cr/zfs/cr_zfs_engine.h"
 #include "cr/cr_bits.h" /* shared byte readers (W4 dedup, DC-12) */
+#include "cr/cr_text.h" /* S-005: on-disk UTF-8 names decode, not byte-lift */
 #include "cr/compress/cr_decomp.h"
 #include <cstring>
 #include <functional>
@@ -1156,9 +1157,9 @@ u32 scan_zfs(IStorageDevice* slice, CancelToken* cancel, WalkProgressLike progre
                 std::vector<ZapEntry> children;
                 if (read_zap(v, mos, child_zap, children)) {
                     for (const auto& c : children) {
+                        /* S-005: zap child names are UTF-8 - decode */
                         std::u16string sub = prefix;
-                        for (char ch : c.name)
-                            sub.push_back(u16(u8(ch)));
+                        sub += text::utf8_to_u16(c.name);
                         walk_dir(c.value, sub, depth + 1);
                     }
                 }
@@ -1169,9 +1170,8 @@ u32 scan_zfs(IStorageDevice* slice, CancelToken* cancel, WalkProgressLike progre
         (void)progress(2, 4, progress_user);
 
     /* 4. per-dataset ZPL walk: master node object 1 -> ROOT -> dirs. */
-    std::u16string pool_display_;
-    for (char ch : (cfg.valid && !cfg.pool_name.empty() ? cfg.pool_name : std::string("pool")))
-        pool_display_.push_back(u16(u8(ch)));
+    std::u16string pool_display_ = text::utf8_to_u16(
+        cfg.valid && !cfg.pool_name.empty() ? cfg.pool_name : std::string("pool"));
     for (const auto& ds : datasets) {
         if (cancel && cancel->checkpoint())
             return ERR_CANCELLED;
@@ -1288,8 +1288,7 @@ u32 scan_zfs(IStorageDevice* slice, CancelToken* cancel, WalkProgressLike progre
                 auto* p = new (std::nothrow) tree::FileProperties();
                 if (!p)
                     return;
-                for (char ch : e.name)
-                    p->name.push_back(u16(u8(ch)));
+                p->name = text::utf8_to_u16(e.name); /* S-005: UTF-8 decode */
                 p->fs_kind = u32(FsKindCode::Zfs); /* corpus factory code */
                 p->logical_size = ci->size;
                 p->allocated_size = ci->dn.maxblkid() != 0

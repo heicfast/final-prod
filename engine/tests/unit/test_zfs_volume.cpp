@@ -15,6 +15,8 @@
 #include "cr/compress/cr_decomp.h"
 #include <gtest/gtest.h>
 #include <cstring>
+#include <functional>
+#include <map>
 #include <set>
 
 namespace cr {
@@ -901,3 +903,79 @@ TEST(Zfs, TruncatedSourcesRejectedNotOverread) {
      * the vast majority of truncations must be rejected */
     EXPECT_GT(accepted, int(full.size()) - 4);
 }
+
+namespace cr {
+namespace zfs {
+
+/* ---- S-005: on-disk UTF-8 names decode, never byte-lift ---------------- */
+
+TEST(Zfs, NonAsciiNamesDecodedNotByteLifted) {
+    /* ZFS zap/dnode names and the pool name are raw UTF-8 (nvlist strings
+     * and zap name arrays); the og passes them through unconverted. Decode
+     * to true code points - the pool display name included. */
+    auto img = build_pool();
+    {
+        /* re-write the ZPL root dir microzap: a CJK entry, an accented
+         * entry, and an invalid-sequence entry, all pointing at existing
+         * objects (10 = hello.txt's dnode, 11 = bigdir) */
+        auto z = make_microzap({{"hello.txt", 10},
+                                {"\xe7\x85\xa7\xe7\x89\x87.jpg", 10},
+                                {"caf\xc3\xa9.txt", 10},
+                                {"\xff(bad", 11},
+                                {"bigdir", 11},
+                                {"zlefile", 12},
+                                {"embedded.txt", 13},
+                                {"legacy.txt", 14}});
+        memcpy(img.data() + B_ROOTDIR_ZAP, z.data(), z.size());
+        /* pool display name: patch the 4-byte nvlist string "tank" in all
+         * four vdev labels to the 4-byte UTF-8 name "\xe6\x96\x87x" ("文x")
+         * - same length, so the packed nvlist stays structurally valid */
+        const unsigned char from[4] = {'t', 'a', 'n', 'k'};
+        const unsigned char to[4] = {0xe6, 0x96, 0x87, 'x'};
+        size_t patched = 0;
+        for (size_t i = 0; i + 4 <= img.size(); ++i) {
+            if (std::memcmp(img.data() + i, from, 4) == 0) {
+                std::memcpy(img.data() + i, to, 4);
+                ++patched;
+            }
+        }
+        ASSERT_GE(patched, 4u) << "pool name not found in labels";
+    }
+    MemDevice dev(img);
+    tree::ResultTree tree;
+    auto* ra = tree.add_root(u"Found");
+    ZfsScanStats st;
+    ASSERT_EQ(OK, scan_zfs(&dev, nullptr, nullptr, nullptr, tree, ra, nullptr, nullptr, st));
+
+    std::map<std::string, std::u16string> names;
+    std::function<void(tree::FileNode*, const std::string&)> collect =
+        [&](tree::FileNode* n, const std::string& p) {
+            for (tree::FileNode* c = n->first_child(); c; c = c->next_sibling()) {
+                if (!c->props())
+                    continue;
+                const std::string nm = c->name_utf8();
+                const std::string full = p.empty() ? nm : p + "/" + nm;
+                names[full] = c->props()->name;
+                collect(c, full);
+            }
+        };
+    collect(ra, "");
+
+    /* CJK file name: true code points under the CJK pool root */
+    ASSERT_TRUE(names.count("\xe6\x96\x87x/\xe7\x85\xa7\xe7\x89\x87.jpg") != 0)
+        << "CJK path absent";
+    EXPECT_EQ(names["\xe6\x96\x87x/\xe7\x85\xa7\xe7\x89\x87.jpg"],
+              std::u16string(u"\u7167\u7247.jpg"));
+    /* accented name */
+    ASSERT_TRUE(names.count("\xe6\x96\x87x/caf\xc3\xa9.txt") != 0);
+    EXPECT_EQ(names["\xe6\x96\x87x/caf\xc3\xa9.txt"], std::u16string(u"caf\u00e9.txt"));
+    /* invalid lead byte -> U+FFFD, valid tail survives */
+    ASSERT_TRUE(names.count("\xe6\x96\x87x/\xef\xbf\xbd(bad") != 0);
+    EXPECT_EQ(names["\xe6\x96\x87x/\xef\xbf\xbd(bad"], std::u16string(u"\ufffd(bad"));
+    /* the pool display root itself decoded the patched name */
+    ASSERT_TRUE(names.count("\xe6\x96\x87x") != 0);
+    EXPECT_EQ(names["\xe6\x96\x87x"], std::u16string(u"\u6587x"));
+}
+
+} // namespace zfs
+} // namespace cr

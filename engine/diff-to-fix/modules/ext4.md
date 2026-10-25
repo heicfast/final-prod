@@ -28,7 +28,9 @@ Core (audited commit `67193b6`): `src/core/ext4/cr_ext4_engine.cpp` (851 LOC) +
   parity per :587–589 comment).
 - **B6 damaged-volume** — **S-004** (journal salvage surface).
 - **B9 timestamps** — `M` unix→100ns ns precision.
-- **B10 Unicode** — **S-005** (byte-lift mojibake).
+- **B10 Unicode** — `M` post-S-005-fix (shared `text::utf8_to_u16` decoder;
+  `Ext4Engine.NonAsciiNamesDecodedNotByteLifted` proves CJK/accent/invalid
+  names decode to true code points).
 - **B7 sparse** — `M` unwritten-extent semantics (0x8000 hole/extents, :215).
 
 ## Constants and formats
@@ -67,7 +69,7 @@ Core (audited commit `67193b6`): `src/core/ext4/cr_ext4_engine.cpp` (851 LOC) +
 | ID | Severity | One-line |
 |---|---|---|
 | S-004 | SEVERE | Journal salvage: descriptor-referenced only vs og every-block (+ jsb gate direction) |
-| S-005 | SEVERE | Names byte-lifted → mojibake (cross-engine, filed here for ext4) |
+| S-005 | SEVERE | Names byte-lifted → mojibake (cross-engine, filed here for ext4) — **FIXED (diff-to-fix session)** |
 | N-004 | MINOR | CatchBuffer backtrack lives in transport layer, not in-engine |
 
 ## Corpus errata candidates surfaced by this wave

@@ -1918,3 +1918,45 @@ Stage Summary:
   disk-order, not text-order) — the audit's own conclusion was right, its byte
   transcription was not.
 >>>>>>> ce6e6d7 (fix: A-001 - six GPT type GUIDs to canonical mixed-endian disk bytes)
+
+---
+Task ID: 4 (S-005 fix)
+Agent: main engineer (diff-to-fix remediation session)
+Task: SEVERE S-005 — ext4/Btrfs/ZFS names byte-lifted to UTF-16 (mojibake)
+
+Work Log:
+- Re-verified the reference claim first-hand: .rsf record-4 name field is `char name[name_len]`
+  UTF-8 (rsf-format--scan-session.md :326), and a fresh import scan of og EXT4SearchDLL shows
+  ZERO MultiByteToWideChar/WideCharToMultiByte/CharToOem — the og passes on-disk UTF-8 through
+  unconverted. CONFIRMED-DIVERGENCE.
+- Fix: new shared codec include/cr/cr_text.h (text::utf8_to_u16 + append_codepoint) — strict
+  RFC 3629 decoder with the codebase's established policy (U+FFFD per bad lead, per-byte resync;
+  identical to cr_ui's u8_to_u16 and the report escaper — no third policy introduced).
+- Replaced the byte-lift loops: ext4 parse_dir_block; Btrfs dir items; ZFS dnode names +
+  zap child-name prefix + the pool display name (nvlist pool_name — a CJK pool name was
+  mojibake at the result ROOT; the finding's core-references listed only the dnode site).
+- Audited the orchestrator's synthesized-name set per the fix plan: snprintf-ASCII everywhere
+  ("Candidate @", subvol-N, InodeNNNN, CarvedNNNN); volume_label/model/serial are char[32]
+  UTF-8->UTF-8 copies into equally-typed session fields — no further byte-lift sites.
+- Tests (fail-before reproduced by stashing only the three engine files — all 3 engine tests
+  FAILED against byte-lift engines, pass after):
+  * tests/unit/test_text.cpp (11 vectors: CJK, accent, astral surrogate pairs, overlong,
+    surrogate-halves, beyond-U+10FFFF, per-byte resync, truncated tails, embedded NUL,
+    round-trip) — registered in tests/CMakeLists.txt.
+  * Ext4Engine.NonAsciiNamesDecodedNotByteLifted (root-dir appended CJK/accent/invalid
+    entries; asserts u16 code points AND name_utf8() round-trip = the exact projection
+    tree --json emits).
+  * Btrfs.NonAsciiNamesDecodedNotByteLifted (FS-tree rebuilt with CJK/accent/invalid dir
+    items; distinct child objectids — the engine collapses same-object names, hard-link
+    semantics, noted).
+  * Zfs.NonAsciiNamesDecodedNotByteLifted (root microzap rebuilt + in-place 4-byte nvlist
+    patch "tank"->"\xe6\x96\x87x" so the pool DISPLAY name decodes; covers all 3 zfs sites).
+- Full suite: 281/281 green (Linux ASan). Audit trail: S-005 Resolution written; ext4/btrfs/zfs
+  module B10 rows -> M post-fix; CROSS-REF-MATRIX S-005 cells -> M (S-005 fixed); SUMMARY risk #2
+  marked fixed + remediation log row.
+
+Stage Summary:
+- S-005 FIXED: non-ASCII filenames on ext4/Btrfs/ZFS now decode to true code points across the
+  whole pipeline (disk UTF-8 -> u16 -> report/session UTF-8); CJK pool names included.
+- Discovered-and-fixed sub-site: ZFS pool display name (not in the finding's reference list);
+  noted in the Resolution.

@@ -11,6 +11,7 @@
 #include <zlib.h>
 #include "cr/compress/cr_decomp.h"
 #include <cstring>
+#include <map>
 #include <set>
 
 namespace cr {
@@ -756,5 +757,73 @@ TEST(Btrfs, InlineAndCompressedExtents) {
 }
 
 } // namespace
+} // namespace btrfs
+} // namespace cr
+
+namespace cr {
+namespace btrfs {
+
+/* ---- S-005: on-disk UTF-8 names decode, never byte-lift ---------------- */
+
+TEST(Btrfs, NonAsciiNamesDecodedNotByteLifted) {
+    /* Btrfs dir-item names are raw UTF-8 bytes the og passes through
+     * unconverted; the engine must decode them to true code points. */
+    auto img = build_volume();
+    {
+        NodeBuilder nb;
+        Key ki;
+        ki.type = 1;       /* INODE_ITEM */
+        ki.objectid = 256; /* subvol root dir */
+        nb.add(ki, make_inode(0x4000, NODESIZE, 2, 1700000000ull));
+        ki.objectid = 257;
+        nb.add(ki, make_inode(0x8000, 14, 1, 1700000000ull));
+        ki.objectid = 258;
+        nb.add(ki, make_inode(0x4000, NODESIZE, 2, 1700000000ull));
+        ki.objectid = 259;
+        nb.add(ki, make_inode(0x8000, 14, 1, 1700000000ull));
+        Key ke;
+        ke.type = 1;
+        ke.objectid = 257;
+        ke.offset = 0;
+        nb.add(ke, make_extent_data(L_DATA, 4096));
+        ke.objectid = 259;
+        nb.add(ke, make_extent_data(L_DATA, 4096));
+        std::vector<u8> packed = make_dir_item(257, "\xe7\x85\xa7\xe7\x89\x87.jpg", 1);
+        {
+            /* distinct child objectids: the engine emits one node per child
+             * object (hard-link names for one object collapse to a single
+             * node), so each probe name owns its own inode */
+            std::vector<u8> acc = make_dir_item(258, "caf\xc3\xa9.txt", 2);
+            packed.insert(packed.end(), acc.begin(), acc.end());
+            std::vector<u8> bad = make_dir_item(259, "\xff(bad", 1);
+            packed.insert(packed.end(), bad.begin(), bad.end());
+        }
+        Key kd;
+        kd.type = 84;
+        kd.objectid = 256;
+        kd.offset = 0x11110001;
+        nb.add(kd, packed);
+        auto nd = nb.finish(L_FS_TREE, 0);
+        memcpy(img.data() + L_FS_TREE, nd.data(), NODESIZE);
+    }
+    MemDevice dev(img);
+    tree::ResultTree tree;
+    auto* ra = tree.add_root(u"F");
+    BtrfsScanStats st;
+    ASSERT_EQ(OK, scan_btrfs(&dev, nullptr, nullptr, nullptr, tree, ra, nullptr, nullptr, st));
+
+    std::map<std::string, std::u16string> names;
+    for (tree::FileNode* c = ra->first_child(); c; c = c->next_sibling())
+        for (tree::FileNode* x = c->first_child(); x; x = x->next_sibling())
+            if (x->props())
+                names[x->name_utf8()] = x->props()->name;
+    ASSERT_TRUE(names.count("\xe7\x85\xa7\xe7\x89\x87.jpg") != 0);
+    EXPECT_EQ(names["\xe7\x85\xa7\xe7\x89\x87.jpg"], std::u16string(u"\u7167\u7247.jpg"));
+    ASSERT_TRUE(names.count("caf\xc3\xa9.txt") != 0);
+    EXPECT_EQ(names["caf\xc3\xa9.txt"], std::u16string(u"caf\u00e9.txt"));
+    ASSERT_TRUE(names.count("\xef\xbf\xbd(bad") != 0);
+    EXPECT_EQ(names["\xef\xbf\xbd(bad"], std::u16string(u"\ufffd(bad"));
+}
+
 } // namespace btrfs
 } // namespace cr
