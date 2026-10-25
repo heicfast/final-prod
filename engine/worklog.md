@@ -4662,3 +4662,47 @@ Stage Summary:
 - S-018 INVALID: a false-positive SEVERE caught at its own reproduction step —
   the audit's grep missed Ghidra's signed-char rendering. The validator stands;
   the genuinely-open residual is precisely tracked with the exact decode list.
+
+---
+Task ID: API-T2+T3 (reading wave + gate docs)
+Agent: main engineer (core-api session)
+Task: Four-leg corpus/driver/core read; three gate documents produced and pushed BEFORE code.
+
+Work Log:
+- Four parallel read legs completed (corpus driver-usage; corpus API-facing; driver repo full;
+  core repo full) — every load-bearing claim then re-verified first-hand: cr_transport.cpp read
+  line-by-line (grammar open :617-624, token :285-289, F11 unscale :43-59, 64KiB direct envelope
+  :144-171, RDA sector envelope :172-201, RwDevice routing :805-815, driver-absent logic
+  open_disk :718-728), cr_directalign.h in full, PERFORMANCE-PROFILE/BENCHMARK-REPORT in full.
+- KEY RECONCILIATIONS (corpus-wins):
+  * The og's recovery path uses NO driver session engine (EPMNtDrv stateless; EUDCPEPM sessions
+    are WinPE copy-only with zero in-tree DRW openers — eudcpepm-euedkepm--hook-drivers.md
+    "Verified role + consumer analysis"). Core matches by NOT using sessions for scans.
+  * The og's completion model is strictly synchronous (LPOVERLAPPED NULL at every raw site —
+    Device_decompiled.c:57010/55940/56143). Core's effective-sync matches. Mandate's async rule
+    satisfied trivially (reference issues none).
+  * Driver-absent = silent direct fallback in the og (probe FUN_1800577e0 then same code path
+    opens PhysicalDrive/HarddiskVolume) — core matches + observable transport string.
+  * EUEDKEPM weakness mechanics verified (plain IoCreateDevice :577, no SDDL, self-derivable
+    token) — our SDDL D:P(A;;GA;;;BA)(A;;GA;;;SY) hardening kept, documented.
+- GATE DOCS WRITTEN (docs/):
+  * API-SURFACE-AUDIT.md — 37 reference operations audited: 24 MATCH / 4 MATCH+ / 2 PARTIAL /
+    2 MISSING (carve-format enumeration ops #7-#8) / 1 WRONG (M-023 category taxonomy,
+    engine-scope) / 8 N/A-by-layer; 6 infrastructure findings (A-ABI-1 versioning contradiction,
+    A-ABI-2 SQLite sidecar documented-but-absent → CUT as REJECTED-BY-REFERENCE, A-ABI-3..6 doc
+    drifts); ordered completion plan.
+  * DRIVER-UTILIZATION.md — per-interaction audit: open/addressing MATCH, request shape MATCH,
+    completion MATCH, error mapping PARTIAL (missing og's error-6 self-healing reopen —
+    Device_decompiled.c:55947-55959), session lifecycle MATCH (reconciled: no sessions in
+    recovery on both sides), SDDL deliberate divergence kept, read granularity PARTIAL
+    (core 64KiB blocks vs og 4MiB chunks — 16-64x transitions), push/pull MATCH, driver-absent
+    MATCH, buffering MATCH. 64 KiB envelope unification decision: BOTH paths.
+  * PERFORMANCE-BASELINE.md — driver microbench (532.9 MiB/s seq 64K, 8217 ns open, +52%
+    fuzz dispatch, 64/64 SHA-identical), core local baselines, transition-count analysis
+    (og 256-512/GiB vs core ~16,384/GiB sequential), 7-entry NOT-MEASURED plan with
+    acceptance targets.
+
+Stage Summary:
+- Gates pushed before any code change (mandate §1). Next: T4+ implementation wave (carve-format
+  enumeration, versioning policy fix, SQLite claim cut, 64 KiB unification, self-healing reopen,
+  1 MiB sequential blocks, C-consumer expansion, Windows CI benchmarks).
