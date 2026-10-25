@@ -88,3 +88,33 @@ None.
 ## Open questions
 
 None.
+
+## Resolution
+
+**Status:** FIXED
+**Fixed in commit:** d7f3c78 (`fix: N-001`)
+**Verified by:** fail-before/pass-after on the discriminating record:
+`NtfsVolume.MirrorCoversRunlistSize` builds a 16-cluster (8-record)
+$MFTMirr runlist with a primary $MFT hole at records 2..31 and asserts
+record 5 - inside the runlist span but past the old hardcoded `record_no
+< 4` window - is served from the mirror (pre-fix: ERR_RANGE_OUT_OF_BOUNDS,
+proven by running the test against the M-001-only build). Plus
+`NtfsVolume.MirrorResidentDataRejected` (resident $DATA -> mirror invalid,
+volume still opens, no fabricated mapping). Suite 289/289 (Linux ASan).
+**Resolution notes:** mirror service capacity now derives from the mirror
+own $DATA runlist span (records = span_bytes / record_size, defensive cap
+1024), matching the og InitMFTMirror this+0x70 computation and the
+ReadFileRecord gate `record <= this+0x70` (NTFSLib_decompiled.c :17411-17413,
+:17460 - both read first-hand this session). Two finding-adjacent
+corrections made in the same change: (1) the finding said the current code
+"simply leaves mirr_valid_ false" on resident $DATA - not exactly true:
+the old code attempted to decode the resident CONTENT as a runlist and
+could accept a fabricated mapping; the fix implements the og true
+semantics (first unnamed $DATA: resident -> mirror invalid, per the logged
+"$MFTMirror::$DATA is resident!" abort at :17378-17382); (2) the old loop
+accepted a LATER $DATA attribute - now the FIRST unnamed $DATA decides,
+matching the og break at :17393. Test-fixture notes recorded inline:
+the fixture mirror slots overlap the MFT tail and its record-2 slot held
+a build-order zero placeholder (the audit Q65 "mirror read path records
+1..3" test gap was real - the fixture never exercised the mirror; both
+quirks are now materialized explicitly in the tests).

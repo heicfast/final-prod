@@ -70,8 +70,9 @@ Core (audited commit `67193b6`): `src/core/ntfs/` (6 files, 2,311 LOC) +
   0x10/0x20/0x30/0x40/0x80).
 - **C20 offsets/sizes** — `M` (attr header fields, FILE_NAME layout at
   parent@0/times@8..32/alloc@40/real@48/flags@56/reparse@60/namelen@64/
-  ns@65/name@66; SI layout; USA at +0x1E, sector slots +0x1FE). **N-001**
-  (mirror span hardcoded 4).
+  ns@65/name@66; SI layout; USA at +0x1E, sector slots +0x1FE). `M` post-N-001-fix (mirror span
+  derives from the runlist, og this+0x70 parity; resident $DATA aborts
+  the mirror exactly like the og logged path).
 - **C21 enum values** — `M` FsKindCode::Ntfs=3 = og factory code 3.
 
 ## Algorithms
@@ -133,7 +134,7 @@ Core (audited commit `67193b6`): `src/core/ntfs/` (6 files, 2,311 LOC) +
 |---|---|---|
 | S-001 | SEVERE | Fully-overwritten deleted files emitted (graded) vs og destroy — **FIXED (diff-to-fix session; incl. sparse-run ratio sub-fix)** |
 | M-001 | MAJOR | Bootstrap rejects record sizes og clamps (torn-DBR availability) — **FIXED (diff-to-fix session)** |
-| N-001 | MINOR | $MFTMirr fallback hardcoded records 0..3 vs runlist span |
+| N-001 | MINOR | $MFTMirr fallback hardcoded records 0..3 vs runlist span — **FIXED (d7f3c78)** |
 | I-001 | INFO | Known-20 metafile filter vs blanket `$`-skip (deliberate, documented) |
 | OQ-T1 | tracked-open | Secondary claim map semantics undecoded — **RESOLVED (decompile read, this session)** |
 
