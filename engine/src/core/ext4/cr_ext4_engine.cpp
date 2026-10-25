@@ -33,10 +33,13 @@ constexpr u32 SB_JOURNAL_INUM = 0xE0;
 constexpr u32 SB_DESC_SIZE = 0xFE;
 constexpr u32 SB_BLOCKS_HI = 0x150;
 constexpr u32 SB_FIRST_META_BG = 0x230; /* s_first_meta_bg u32 - meta_bg
-                                            * front-region bound (e2fsprogs
-                                            * ext2_fs.h; verified on real
-                                            * mkfs images this session) */
-constexpr u32 SB_INODE_SIZE = 0x58; /* u16; s_first_ino u32 owns 0x54..0x57 */
+                                         * front-region bound (e2fsprogs
+                                         * ext2_fs.h; verified on real
+                                         * mkfs images this session) */
+constexpr u32 SB_BLOCK_GROUP_NR = 0x5A; /* s_block_group_nr u16 (kernel
+                                         * ext4.h; verified on real backup
+                                         * SBs this session) */
+constexpr u32 SB_INODE_SIZE = 0x58;     /* u16; s_first_ino u32 owns 0x54..0x57 */
 constexpr u16 SB_MAGIC_VALUE = 0xEF53;
 
 constexpr u32 INCOMPAT_64BIT = 0x0080;
@@ -45,8 +48,31 @@ constexpr u32 INCOMPAT_EXTENTS = 0x0040;
 constexpr u32 INCOMPAT_BIGALLOC = 0x0400;
 constexpr u32 INCOMPAT_META_BG = 0x0010;
 constexpr u32 MAX_META_DESC_READS = 4096; /* lazy meta-group block-read budget
-                                             * (bounded; one read per
-                                             * meta-group, cached) */
+                                           * (bounded; one read per
+                                           * meta-group, cached) */
+
+/* S-027 backup-SB rescue bounds. Canonical ext4 group byte-size is
+ * 8 * block_size^2 (bpg = 8*bs blocks): 8 MiB (1KiB blocks), 32 MiB (2KiB),
+ * 128 MiB (4KiB) - every geometry's group boundaries are multiples of
+ * 8 MiB, so probing g*8MiB + {0, 1024} for g >= 1 covers all of them
+ * (the +1024 family is the 1KiB-block volume whose group 1 starts at
+ * first_data_block + 8192 blocks = 8 MiB + 1024 bytes). Verified against
+ * real mke2fs images this session: classic 1KiB image backup at block
+ * 8193 = 8 MiB + 1024; 4KiB meta_bg image group-64 boundary at byte
+ * 128 MiB. The og's own walker (FUN_180001b00, vtable slot 53, no
+ * textual caller - host-side parameterization) probes at sector
+ * granularity over a caller-supplied range; the corpus artifact
+ * (artifacts/SearchDLL/ext4-engine--deep-dive.md §2) documents the
+ * engine probing "the primary offset and backup superblock positions
+ * (sparse/backup superblock blocks: 8193, 32768...)" - exactly the
+ * canonical positions implemented here. */
+constexpr u64 BACKUP_SB_GRID = 1ull << 20;     /* 1 MiB probe grid */
+constexpr u64 BACKUP_SB_FIRST = 8;             /* first grid multiple worth
+                                                   probing (backups live at
+                                                   >= the first group
+                                                   boundary = 8 MiB) */
+constexpr u64 BACKUP_SB_MAX_GRID = 4ull << 20; /* 4 TiB coverage cap - a
+                                                   bounded rescue walk */
 
 constexpr u32 ROOT_INODE = 2;
 constexpr u32 JOURNAL_INODE_DEFAULT = 8;
@@ -161,6 +187,7 @@ bool validate_superblock(const u8 sb[1024], SuperBlock& out) {
     out.first_meta_bg = le32(sb + SB_FIRST_META_BG);
     if (out.first_meta_bg > out.groups)
         out.first_meta_bg = u32(out.groups);
+    out.block_group_nr = le16(sb + SB_BLOCK_GROUP_NR);
     if ((out.feature_incompat & INCOMPAT_64BIT) != 0) {
         out.desc_size = le16(sb + SB_DESC_SIZE);
         if (out.desc_size < 64)
@@ -184,6 +211,23 @@ namespace {
 struct Volume {
     IStorageDevice* dev = nullptr;
     SuperBlock sb;
+
+    /* S-027: when the volume was adopted from a BACKUP superblock found
+     * at slice byte X, all volume-relative block numbers must be offset
+     * by base = X - (first_data_block + s_block_group_nr*bpg)*block_size
+     * (the true volume start inside the slice). Primary-SB scans keep
+     * base == 0. The og's sub-searcher rebases by found-0x400 - a boot-area
+     * model that misplaces every structure by 1024 bytes for backup SBs
+     * (group g's copy has no boot skip); our s_block_group_nr arithmetic is
+     * exact and is the documented non-adoption (PARITY-DELTAS D-59). */
+    u64 base = 0;
+
+    /* S-027: when the front GDT is dead, descriptors are read from the
+     * backup GDT block that follows the adopted backup SB (e2fsprogs
+     * layout, verified on real images: "Backup superblock at B, Group
+     * descriptor(s) at B+1"). */
+    u64 alt_gdt_block = 0;
+    u64 backup_sb_block = 0;
 
     /* GDT bytes (raw) - descriptors are indexed per group. For meta_bg
      * volumes gdt stays EMPTY: descriptors resolve per meta-group through
@@ -212,17 +256,19 @@ struct Volume {
      */
     bool meta_bg = false;
     u32 meta_group_size = 0;
-    u32 meta_desc_reads = 0;                 /* one per cached meta-group */
+    u32 meta_desc_reads = 0;                   /* one per cached meta-group */
     std::map<u64, std::vector<u8>> meta_cache; /* meta-group -> desc block */
 
     u64 desc_block_for(u64 m) const {
         if (m < sb.first_meta_bg)
-            return sb.first_data_block + 1 + m;
+            return (m == 0 && alt_gdt_block != 0) ? alt_gdt_block : sb.first_data_block + 1 + m;
         const u64 bg = m * meta_group_size; /* first group of the meta-group */
         /* bg == 0 only when first_meta_bg == 0: group 0 hosts the primary
          * superblock, its descriptor block follows it. Every other
          * meta-group boundary empirically has no backup SB (powers of two
          * never collide with the sparse_super 3/5/7 powers). */
+        if (bg == 0 && alt_gdt_block != 0)
+            return alt_gdt_block;
         return sb.first_data_block + bg * u64(sb.blocks_per_group) + (bg == 0 ? 1 : 0);
     }
 
@@ -248,7 +294,7 @@ struct Volume {
                 const u64 db = desc_block_for(m);
                 std::vector<u8> buf(size_t(sb.block_size));
                 if (db == 0 || db >= sb.blocks_count ||
-                    dev->read_at(db * sb.block_size, buf.data(), u32(buf.size())) != OK)
+                    dev->read_at(base + db * sb.block_size, buf.data(), u32(buf.size())) != OK)
                     buf.clear();
                 it = meta_cache.emplace(m, std::move(buf)).first;
             }
@@ -323,7 +369,7 @@ bool walk_extent_node(Volume& v, const u8* node, u32 depth, u64& max_blocks,
         if (child == 0 || child >= v.sb.blocks_count)
             continue;
         std::vector<u8> buf(size_t(v.sb.block_size));
-        if (v.dev->read_at(child * v.sb.block_size, buf.data(), u32(buf.size())) != OK)
+        if (v.dev->read_at(v.base + child * v.sb.block_size, buf.data(), u32(buf.size())) != OK)
             continue; /* bad child: salvage the rest */
         if (!walk_extent_node(v, buf.data(), depth - 1, max_blocks, out, level + 1))
             return false;
@@ -340,7 +386,7 @@ bool read_inode(Volume& v, u32 ino, InodeView& iv) {
     const GroupDesc gd = v.group(group);
     if (gd.inode_table == 0)
         return false;
-    const u64 table_off = gd.inode_table * v.sb.block_size + u64(index) * v.sb.inode_size;
+    const u64 table_off = v.base + gd.inode_table * v.sb.block_size + u64(index) * v.sb.inode_size;
     u8 raw[1024] = {}; /* s_inode_size can be up to the block size */
     if (v.sb.inode_size > sizeof(raw))
         return false;
@@ -403,7 +449,7 @@ bool read_inode(Volume& v, u32 ino, InodeView& iv) {
             if (levels == 0 || indirection_block == 0)
                 return true;
             std::vector<u8> blk(size_t(v.sb.block_size));
-            if (v.dev->read_at(u64(indirection_block) * v.sb.block_size, blk.data(),
+            if (v.dev->read_at(v.base + u64(indirection_block) * v.sb.block_size, blk.data(),
                                u32(blk.size())) != OK)
                 return false;
             for (u32 i = 0; i < per_block; ++i) {
@@ -445,7 +491,7 @@ bool read_extent_data(Volume& v, const InodeView& iv, u64 max_bytes, std::vector
         u64 take = e.length;
         if (take > want - done)
             take = want - done;
-        if (v.dev->read_at(e.offset, out.data() + done, u32(take)) != OK) {
+        if (v.dev->read_at(v.base + e.offset, out.data() + done, u32(take)) != OK) {
             /* salvage: keep zeros for this extent, continue (catch-buffer
              * behavior - the transport retry layer already isolated the
              * bad sectors) */
@@ -479,12 +525,14 @@ bool parse_dir_block(const u8* p, u64 len, bool filetype, std::vector<DirEntry>&
             DirEntry de;
             de.inode = ino;
             de.type = filetype ? p[off + 7] : 0;
-            /* S-005 (diff-to-fix): ext4 directory names are UTF-8 bytes;
-             * the og passes them through unconverted (EXT4SearchDLL has no
-             * conversion import; .rsf stores UTF-8) - decode strictly, bad
-             * sequences become U+FFFD (never byte-lift: "é" must not
-             * surface as "Ã©") */
-            de.name = text::utf8_to_u16(
+            /* S-005 + M-010 (diff-to-fix): ext4 directory names are raw
+             * bytes the og passes through UNCONVERTED (EXT4SearchDLL has
+             * no conversion import; .rsf stores UTF-8) - decode strictly,
+             * and keep invalid bytes LOSSLESSLY (U+E000 + byte, bijective)
+             * so the original name bytes round-trip (never byte-lift:
+             * "é" must not surface as "Ã©"; never U+FFFD:
+             * the og keeps the raw bytes) */
+            de.name = text::utf8_to_u16_lossless(
                 std::string_view(reinterpret_cast<const char*>(p) + off + 8, name_len));
             out.push_back(de);
         }
@@ -495,6 +543,85 @@ bool parse_dir_block(const u8* p, u64 len, bool filetype, std::vector<DirEntry>&
 
 } // namespace
 
+/* ---------------------------------------------------------------------------
+ * S-027: backup-superblock rescue (the og's engine-side lost-volume walk).
+ *
+ * Og mechanics (first-hand, this session): EXT4SearchDLL FUN_180001b00
+ * (CEXT4CompleteSearchController vtable slot 53 - the only reference, at
+ * .rdata 0x180016880; no textual caller, the host parameterizes it) reads
+ * candidate positions, validates each 512-byte window with THE SAME
+ * superblock validator as the primary open (FUN_180004710 at :636), and on
+ * a hit at byte X spawns a CEXT4CompleteSearch sub-searcher rebased at
+ * X - 0x400 (:637-645), collecting it only if it yields >= 1 (:646-660).
+ * The corpus artifact (artifacts/SearchDLL/ext4-engine--deep-dive.md SS2)
+ * documents the probed positions as "the primary offset and backup
+ * superblock positions (sparse/backup superblock blocks: 8193, 32768...)"
+ * - the canonical group-boundary backups. Deliberate divergences (D-59):
+ * (a) we probe the canonical positions (8 MiB-multiple group boundaries +
+ * the 1 KiB +1024 family) rather than an unbounded sector sweep - the og
+ * walker's caller-side range is unpinned, the artifact's positions are
+ * these; (b) a failed probe read skips onward instead of aborting the
+ * whole walk (the og returns 0 on the first failed read - its CatchBuffer
+ * proxy pre-salvages; our transport retry layer already isolated the bad
+ * sectors upstream); (c) the adopted volume is rebased by its true start
+ * computed from s_block_group_nr (SB+0x5A, verified on real backup SBs),
+ * not the og's found-0x400 boot-area model (which misplaces every
+ * structure by 1024 bytes for backup copies - group g has no boot skip).
+ * ------------------------------------------------------------------------- */
+enum class BackupSbResult { NotFound, Found, Cancelled };
+
+BackupSbResult rescue_backup_superblock(IStorageDevice* slice, CancelToken* cancel, SuperBlock& out,
+                                        u64& found_byte_out, u64& probes) {
+    const u64 dev_bytes = slice->geometry().total_bytes;
+    u64 max_m = dev_bytes / BACKUP_SB_GRID;
+    if (max_m > BACKUP_SB_MAX_GRID)
+        max_m = BACKUP_SB_MAX_GRID;
+    /* one 8 KiB window per grid step covers BOTH candidate positions
+     * (m*1MiB + 0 and m*1MiB + 1024: each needs 1024 bytes) */
+    constexpr u64 WIN = 8192;
+    std::vector<u8> win{std::vector<u8>(size_t(WIN))};
+    for (u64 m = BACKUP_SB_FIRST; m < max_m; ++m) {
+        if (cancel && cancel->checkpoint())
+            return BackupSbResult::Cancelled;
+        const u64 wbase = m * BACKUP_SB_GRID;
+        if (wbase + WIN > dev_bytes)
+            break;
+        if (slice->read_at(wbase, win.data(), u32(WIN)) != OK)
+            continue; /* bad region: skip, keep walking (the og aborts the
+                       * whole walk on the first failed read - its
+                       * CatchBuffer proxy pre-salvages; our transport retry
+                       * layer already isolated the bad sectors upstream) */
+        for (u64 skip = 0; skip <= 1024; skip += 1024) {
+            const u64 at = wbase + skip;
+            ++probes;
+            /* cheap gate first: the magic u16 at +0x38 (the og's walker
+             * reads the full window; the magic gate is behavior-equal -
+             * validate_superblock rejects anything without it) */
+            if (le16(win.data() + skip + 0x38) != SB_MAGIC_VALUE)
+                continue;
+            SuperBlock cand;
+            if (!validate_superblock(win.data() + skip, cand))
+                continue;
+            /* consistent backup? its group number must fit the volume and
+             * the implied volume start must be block-aligned to this
+             * geometry (the copy sits at (first_data_block +
+             * group_nr*bpg) blocks from the volume start) */
+            const u64 group_first =
+                u64(cand.first_data_block) + u64(cand.block_group_nr) * cand.blocks_per_group;
+            if (cand.block_group_nr == 0 || group_first * cand.block_size > at)
+                continue; /* primary-shaped or inconsistent copy */
+            const u64 implied_start = at - group_first * cand.block_size;
+            if (implied_start % cand.block_size != 0)
+                continue; /* unaligned volume start: not this geometry's
+                           * backup (a later probe may match) */
+            found_byte_out = at;
+            out = cand;
+            return BackupSbResult::Found;
+        }
+    }
+    return BackupSbResult::NotFound;
+}
+
 u32 scan_ext4(IStorageDevice* slice, const Ext4ScanFlags& flags, CancelToken* cancel,
               WalkProgressLike progress, void* progress_user, tree::ResultTree& tree,
               tree::FullNode* root_active, tree::FullNode* root_deleted, tree::FullNode* root_lost,
@@ -502,13 +629,37 @@ u32 scan_ext4(IStorageDevice* slice, const Ext4ScanFlags& flags, CancelToken* ca
     if (slice == nullptr || root_active == nullptr)
         return ERR_BAD_PARAMETER;
 
-    /* 1. superblock */
+    /* 1. superblock (primary, then the S-027 backup-SB rescue ladder) */
     u8 sb[1024];
-    if (slice->read_at(1024, sb, sizeof(sb)) != OK)
-        return ERR_READ_FAILED;
+    const bool primary_read_ok = slice->read_at(1024, sb, sizeof(sb)) == OK;
     Volume v;
-    if (!validate_superblock(sb, v.sb))
-        return ERR_BAD_MAGIC;
+    bool primary_valid = primary_read_ok && validate_superblock(sb, v.sb);
+    if (!primary_valid) {
+        /* S-027: a destroyed/damaged primary superblock is exactly the og's
+         * engine-side lost-volume case (FUN_180001b00 + sub-searcher). The
+         * rescue probes the canonical backup positions and adopts the first
+         * valid backup SB. */
+        if (!flags.rescue_backup_sb)
+            return primary_read_ok ? ERR_BAD_MAGIC : ERR_READ_FAILED;
+        u64 found_byte = 0;
+        const BackupSbResult rr =
+            rescue_backup_superblock(slice, cancel, v.sb, found_byte, stats.backup_sb_probes);
+        if (rr == BackupSbResult::Cancelled)
+            return ERR_CANCELLED;
+        if (rr == BackupSbResult::NotFound)
+            return primary_read_ok ? ERR_BAD_MAGIC : ERR_READ_FAILED;
+        /* exact volume start from the backup's own s_block_group_nr: the
+         * backup sits at (first_data_block + group_nr*bpg) blocks from the
+         * true volume start (verified on real images: group-1 copy at block
+         * 8193 on a 1 KiB volume, s_block_group_nr == 1) */
+        const u64 group_first =
+            u64(v.sb.first_data_block) + u64(v.sb.block_group_nr) * v.sb.blocks_per_group;
+        v.base = found_byte - group_first * v.sb.block_size;
+        /* volume-relative block of the adopted copy (invariant across
+         * dispatch contexts); the backup GDT follows it at +1 */
+        v.backup_sb_block = group_first;
+        stats.backup_sb_block = v.backup_sb_block;
+    }
     v.dev = slice;
     if ((v.sb.feature_incompat & INCOMPAT_BIGALLOC) != 0)
         return ERR_UNSUPPORTED; /* cluster-granular bitmaps/extents: emitting
@@ -526,24 +677,215 @@ u32 scan_ext4(IStorageDevice* slice, const Ext4ScanFlags& flags, CancelToken* ca
      * silent-missing-files bug this fix closes. */
     v.meta_bg = (v.sb.feature_incompat & INCOMPAT_META_BG) != 0;
     v.gdt_block = v.sb.first_data_block + 1;
+    bool front_gdt_dead = false;
     if (v.meta_bg) {
         v.meta_group_size = v.sb.desc_size ? v.sb.block_size / v.sb.desc_size : 0;
         if (v.meta_group_size == 0)
             return ERR_BAD_PARAMETER; /* desc_size > block_size: impossible
                                        * geometry, refuse loudly */
-        /* seed the front meta-group (m == 0) from the classic location so
-         * the common groups resolve without an extra device round trip */
+        /* liveness probe: meta-group 0's descriptor must reference a real
+         * inode table on any live volume (lazy read through the resolver) */
+        front_gdt_dead = v.group(0).inode_table == 0;
     } else {
         const u64 gdt_bytes = v.sb.groups * v.sb.desc_size;
         if (gdt_bytes == 0 || gdt_bytes > (8ull << 20))
             return ERR_BAD_PARAMETER;
         v.gdt.resize(size_t(gdt_bytes));
-        if (slice->read_at(v.gdt_block * v.sb.block_size, v.gdt.data(), u32(gdt_bytes)) != OK)
-            return ERR_READ_FAILED;
+        if (slice->read_at(v.base + v.gdt_block * v.sb.block_size, v.gdt.data(), u32(gdt_bytes)) !=
+            OK) {
+            if (v.backup_sb_block == 0)
+                return ERR_READ_FAILED;         /* primary scan, no ladder to walk */
+            v.gdt.assign(size_t(gdt_bytes), 0); /* dead front: ladder below */
+        }
+        front_gdt_dead = v.group(0).inode_table == 0;
+    }
+    /* S-027 GDT ladder: the e2fsck order - front GDT first, then the backup
+     * GDT immediately following the adopted backup SB (e2fsprogs layout,
+     * verified on real images: classic "Backup superblock at 8193, Group
+     * descriptors at 8194-8197" - the FULL table; meta_bg "Group descriptor
+     * at 8194" - meta-group 0's block, later meta-groups stay distributed
+     * and resolve through the S-026 resolver). */
+    if (front_gdt_dead && v.backup_sb_block != 0) {
+        v.alt_gdt_block = v.backup_sb_block + 1;
+        if (!v.meta_bg) {
+            const u64 gdt_bytes = v.sb.groups * v.sb.desc_size;
+            std::vector<u8> alt(size_t(gdt_bytes), 0);
+            if (slice->read_at(v.base + v.alt_gdt_block * v.sb.block_size, alt.data(),
+                               u32(gdt_bytes)) == OK)
+                v.gdt.swap(alt);
+        } else {
+            v.meta_cache.clear(); /* re-resolve m == 0 through the alt block */
+            v.meta_desc_reads = 0;
+        }
+        stats.gdt_from_backup = v.group(0).inode_table != 0;
+        if (!stats.gdt_from_backup)
+            v.alt_gdt_block = 0; /* both dead: honest empty resolution */
     }
     stats.block_groups = v.sb.groups;
 
     const bool filetype = (v.sb.feature_incompat & INCOMPAT_FILETYPE) != 0;
+
+    /* S-025 pass 1: the PRE-WALK journal harvest (og FUN_180003de0 :2773 -
+     * the journal pass runs BEFORE the root walk and again AFTER :2778).
+     * Pass 1 collects the parent map + entry lists from every journal dir
+     * block (no emission); the live walk then runs; pass 2 emits what the
+     * live tree did NOT claim, reparented under reachable parents (the
+     * og's orphan finalize :3077-3119 + the reachability check
+     * :2807-2871 - a child the live tree claimed stays there).
+     *
+     * The S-004 gates are intact: the jsb gates the WHOLE harvest (magic
+     * + blocktype {3,4} at journal block 0), the range is the jsb's own
+     * s_first/s_maxlen, every block in range feeds the dir parser, and
+     * ESCAPE-tagged blocks additionally parse with the magic restored
+     * (descriptor-tag driven, never a zero-byte heuristic). Blocks WITH
+     * "." link into the parent map; blocks WITHOUT "." (torn/unlinked
+     * remnants - S-004's core case) contribute owner-less entries that
+     * surface flat under the lost root exactly like the og. */
+    struct JournalDirInfo {
+        u32 parent = 0;                /* from ".." */
+        std::vector<DirEntry> entries; /* named children */
+    };
+    std::map<u32, JournalDirInfo> journal_dirs; /* owning dir inode -> info */
+    std::vector<DirEntry> journal_orphans;      /* "."-less blocks' entries */
+    if (flags.salvage_journal && root_lost) {
+        InodeView jiv;
+        if (read_inode(v, v.sb.journal_inum, jiv) && !jiv.extents.empty()) {
+            std::vector<u8> jdata;
+            read_extent_data(v, jiv, 64ull << 20, jdata);
+            const u64 bs = v.sb.block_size;
+            const u64 jblocks = jdata.size() / bs;
+            stats.journal_blocks = jblocks;
+
+            constexpr u32 JBD2_MAGIC = 0xC03B3998u;
+            auto jbe32 = [&](u64 blk, u32 off) -> u32 {
+                if (blk >= jblocks || blk * bs + off + 4 > jdata.size())
+                    return 0;
+                const u8* q = jdata.data() + blk * bs + off;
+                return (u32(q[0]) << 24) | (u32(q[1]) << 16) | (u32(q[2]) << 8) | u32(q[3]);
+            };
+            auto jbe16 = [&](u64 at, u32 off) -> u32 {
+                if (at + off + 2 > jdata.size())
+                    return 0;
+                const u8* q = jdata.data() + at + off;
+                return (u32(q[0]) << 8) | u32(q[1]);
+            };
+            auto is_header = [&](u64 blk, u32 type, u32& seq) -> bool {
+                if (blk >= jblocks)
+                    return false;
+                if (jbe32(blk, 0) != JBD2_MAGIC)
+                    return false;
+                if (jbe32(blk, 4) != type)
+                    return false;
+                seq = jbe32(blk, 8);
+                return true;
+            };
+            u32 jsb_seq = 0;
+            if (is_header(0, 3, jsb_seq) || is_header(0, 4, jsb_seq)) {
+                const u32 incompat = jbe32(0, 0x28);
+                u32 tag_size = 8;
+                u32 flags_off = 6;
+                if (incompat & 0x8) { /* CSUM_V2 */
+                    tag_size = 14;
+                    flags_off = 6;
+                }
+                if (incompat & 0x10) { /* CSUM_V3: block_tag3_t, flags BE32@+4 */
+                    tag_size = 16;
+                    flags_off = 4;
+                }
+                if (incompat & 0x2) { /* 64BIT: blocknr_high extends the tag */
+                    if (tag_size < 12)
+                        tag_size = 12;
+                }
+                const u64 begin = jbe32(0, 0x14);
+                const u64 declared = jbe32(0, 0x10);
+                u64 end = begin + declared;
+                if (end > jblocks)
+                    end = jblocks;
+
+                /* descriptor scan: the ESCAPE tags drive the restored parse
+                 * (S-004's rule - the tag says the first 4 bytes were
+                 * zeroed; a zero-byte heuristic would corrupt genuine
+                 * zero blocks) */
+                std::map<u64, bool> escape_tags;
+                {
+                    u64 blk = 0;
+                    while (blk < jblocks) {
+                        u32 seq = 0;
+                        if (is_header(blk, 1, seq)) { /* DESCRIPTOR */
+                            u64 off = blk * bs + 12;
+                            const u64 dend = (blk + 1) * bs;
+                            u64 expect = blk + 1;
+                            bool first_tag = true;
+                            bool last = false;
+                            while (off + tag_size <= dend && !last) {
+                                const u32 fl = jbe16(off, flags_off);
+                                bool escaped = (fl & 1) != 0;
+                                last = (fl & 8) != 0;
+                                if (expect < jblocks)
+                                    escape_tags[expect] = escaped;
+                                off += tag_size;
+                                if (first_tag && (fl & 2) == 0)
+                                    off += 16; /* journal UUID after tag1 */
+                                first_tag = false;
+                                ++expect;
+                            }
+                        }
+                        ++blk;
+                    }
+                }
+
+                auto parse_one = [&](const u8* blk) {
+                    std::vector<DirEntry> entries;
+                    if (!parse_dir_block(blk, bs, true, entries))
+                        return;
+                    u32 dir_ino = 0, parent_ino = 0;
+                    for (const auto& de : entries) {
+                        if (de.name == u".")
+                            dir_ino = de.inode;
+                        else if (de.name == u"..")
+                            parent_ino = de.inode;
+                    }
+                    if (dir_ino != 0) {
+                        auto& info = journal_dirs[dir_ino];
+                        if (parent_ino != 0)
+                            info.parent = parent_ino;
+                        for (const auto& de : entries) {
+                            if (de.name == u"." || de.name == u"..")
+                                continue;
+                            if (de.inode == 0 || de.name.empty())
+                                continue;
+                            info.entries.push_back(de);
+                        }
+                    } else {
+                        /* no ".": unlinked remnant - entries surface flat
+                         * (S-004's core case; the og's parent map gets
+                         * no linkage from this block either) */
+                        for (const auto& de : entries) {
+                            if (de.inode == 0 || de.name.empty())
+                                continue;
+                            journal_orphans.push_back(de);
+                        }
+                    }
+                };
+                std::vector<u8> restored;
+                for (u64 jb = begin; jb < end; ++jb) {
+                    if (cancel && cancel->checkpoint())
+                        break;
+                    const u8* raw = jdata.data() + jb * bs;
+                    parse_one(raw);
+                    auto et = escape_tags.find(jb);
+                    if (et != escape_tags.end() && et->second) {
+                        restored.assign(raw, raw + bs);
+                        restored[0] = 0xC0;
+                        restored[1] = 0x3B;
+                        restored[2] = 0x39;
+                        restored[3] = 0x98;
+                        parse_one(restored.data());
+                    }
+                }
+            }
+        }
+    }
 
     /* 3. live tree walk from root inode 2 */
     struct WalkCtx {
@@ -606,12 +948,20 @@ u32 scan_ext4(IStorageDevice* slice, const Ext4ScanFlags& flags, CancelToken* ca
             props->times.changed = unix_to_filetime_ns(child.ctime, child.ctime_nsec);
             props->times.accessed = unix_to_filetime_ns(child.atime, child.atime_nsec);
             for (const auto& e : child.extents)
-                props->extents.push_back({e.offset, e.length});
+                props->extents.push_back({v.base + e.offset, e.length});
             props->record_ref = de.inode;
             tree::FileNode* n = ctx.tree->add_file(parent, props);
             props->release();
             if (!n)
                 return ERR_NO_MEMORY;
+            /* S-025: FILES enter the visited set too (directories enter
+             * at walk_dir entry - inserting here would make the recursive
+             * call's own insert a no-op and SKIP THE SUBTREE). Without
+             * this, a journal snapshot entry pointing at a LIVE file
+             * re-emitted it as a duplicate - the reachability rule needs
+             * every claimed inode. */
+            if (!is_dir)
+                ctx.visited_inodes.insert(de.inode);
             if (child.dtime != 0 || child.links == 0)
                 n->set_deleted_state(tree::DeletedState::Deleted);
             if (is_dir) {
@@ -630,6 +980,8 @@ u32 scan_ext4(IStorageDevice* slice, const Ext4ScanFlags& flags, CancelToken* ca
         root_props->name = u"/";
         root_props->fs_kind = u32(FsKindCode::Ext4);
         root_props->attributes = 0x10;
+        root_props->record_ref = ROOT_INODE; /* S-025: the record index
+                                              * answers the root chain */
         tree::FileNode* root_node = tree.add_file(root_active, root_props);
         root_props->release();
         if (root_node == nullptr)
@@ -652,8 +1004,9 @@ u32 scan_ext4(IStorageDevice* slice, const Ext4ScanFlags& flags, CancelToken* ca
             if (it == bitmaps.end()) {
                 const GroupDesc gd = v.group(g);
                 std::vector<u8> bm(size_t(v.sb.block_size));
-                if (gd.block_bitmap == 0 || slice->read_at(gd.block_bitmap * v.sb.block_size,
-                                                           bm.data(), u32(bm.size())) != OK)
+                if (gd.block_bitmap == 0 ||
+                    slice->read_at(v.base + gd.block_bitmap * v.sb.block_size, bm.data(),
+                                   u32(bm.size())) != OK)
                     bm.clear();
                 it = bitmaps.emplace(g, std::move(bm)).first;
             }
@@ -705,7 +1058,7 @@ u32 scan_ext4(IStorageDevice* slice, const Ext4ScanFlags& flags, CancelToken* ca
             props->times.changed = unix_to_filetime_ns(iv.ctime, iv.ctime_nsec);
             props->times.accessed = unix_to_filetime_ns(iv.atime, iv.atime_nsec);
             for (const auto& e : iv.extents)
-                props->extents.push_back({e.offset, e.length});
+                props->extents.push_back({v.base + e.offset, e.length});
             props->record_ref = ino;
             tree::FileNode* n = tree.add_file(root_deleted, props);
             props->release();
@@ -739,235 +1092,112 @@ u32 scan_ext4(IStorageDevice* slice, const Ext4ScanFlags& flags, CancelToken* ca
         }
     }
 
-    /* 5. journal salvage (jbd2). On-disk truth (include/linux/jbd2.h,
-     * fs/jbd2/{journal.c,recovery.c,commit.c}): EVERY journal structure is
-     * BIG-ENDIAN. journal_header_t {h_magic BE32, h_blocktype BE32,
-     * h_sequence BE32}; blocktypes DESCRIPTOR=1 COMMIT=2 SUPERBLOCK_V1=3
-     * SUPERBLOCK_V2=4 REVOKE=5; jsb s_feature_incompat@0x28 with bits
-     * REVOKE=0x1, 64BIT=0x2, ASYNC_COMMIT=0x4, CSUM_V2=0x8, CSUM_V3=0x10;
-     * tag widths per journal_tag_bytes(): V3 = 16 (flags BE32@+4), V2-csum
-     * = 14 with 64BIT / 10 without (flags BE16@+6), plain = 12 / 8; the
-     * FIRST tag of each descriptor carries no SAME_UUID -> a 16-byte
-     * journal UUID follows it (commit.c jbd2_journal_write_tag). Data
-     * blocks follow the descriptor sequentially in the journal; a block
-     * whose tag has JBD2_FLAG_ESCAPE had its leading 0xC03B3998 bytes
-     * zeroed in the journal copy - replay restores cpu_to_be32(magic).
-     *
-     * D-07 RE-PINNED (AUDIT-LINUX-FS E-2; EXT4SearchDLL FUN_18000e5b0 +
-     * FUN_18000e890, decompiled :12159-12368) + S-004 (diff-to-fix): the
-     * og gates on the jsb magic + blocktype {3,4} at journal block 0
-     * ([:12207]/[:12212]), then feeds EVERY block of the declared log
-     * range to the directory-block parser ("GotJournalDir /
-     * TraverseJournalDir" traces) in 1 MiB windows with a per-block
-     * cancel check - it implements NO descriptor/commit/revoke
-     * transaction semantics; descriptor/revoke blocks simply fail the
-     * dir-parse. We match that salvage surface EXACTLY (S-004): the jsb
-     * gates the whole pass, the range is the jsb's own s_first/s_maxlen,
-     * and every block is parsed whether any descriptor references it or
-     * not. The one deliberate strictly-better addition (accept set
-     * unchanged): blocks a descriptor tagged JBD2_FLAG_ESCAPE get a
-     * second parse with the journal magic restored, recovering the first
-     * dirent the og's raw parse loses to the escape zeroing - a dir
-     * block never starts with the magic, so restoration cannot add a
-     * false accept. Revoked-target filtering is not applied either -
-     * the live-tree visit set still filters entries that survived, and
-     * stale dir content is exactly what a recovery product wants. */
+    /* 5. journal salvage emission (pass 2; the S-004 on-disk-truth
+     * documentation lives with the pass-1 harvest above): the og's orphan
+     * finalize - every harvested entry the live tree did NOT claim,
+     * reparented under reachable parents; see the pass-1 comment for the
+     * corpus citations. */
     if (flags.salvage_journal && root_lost) {
-        InodeView jiv;
-        if (read_inode(v, v.sb.journal_inum, jiv) && !jiv.extents.empty()) {
-            std::vector<u8> jdata;
-            read_extent_data(v, jiv, 64ull << 20, jdata);
-            stats.journal_blocks = jdata.size() / v.sb.block_size;
-
-            constexpr u32 JBD2_MAGIC = 0xC03B3998u;
-            constexpr u32 JBD2_DESCRIPTOR_BLOCK = 1;
-            /* commit (2) and revoke (5) blocks exist in the format but the
-             * every-block parser rejects them through the dir grammar
-             * (their magic u32 is an impossible inode) - the og feeds them
-             * to the dir parser and they fail there too (E-2) */
-            [[maybe_unused]] constexpr u32 JBD2_COMMIT_BLOCK = 2;
-            constexpr u32 JBD2_SUPERBLOCK_V1 = 3;
-            constexpr u32 JBD2_SUPERBLOCK_V2 = 4;
-            [[maybe_unused]] constexpr u32 JBD2_REVOKE_BLOCK = 5;
-            constexpr u32 JBD2_FLAG_ESCAPE = 1;
-            constexpr u32 JBD2_FLAG_SAME_UUID = 2;
-            constexpr u32 JBD2_FLAG_LAST_TAG = 8;
-            constexpr u32 JBD2_INCOMPAT_64BIT = 0x2;
-            constexpr u32 JBD2_INCOMPAT_CSUM_V2 = 0x8;
-            constexpr u32 JBD2_INCOMPAT_CSUM_V3 = 0x10;
-            const u64 jblocks = stats.journal_blocks;
-            const u64 bs = v.sb.block_size;
-
-            /* jbd2 reads are BIG-endian */
-            auto jbe32 = [&](u64 blk, u32 off) -> u32 {
-                if (blk >= jblocks || blk * bs + off + 4 > jdata.size())
-                    return 0;
-                const u8* p = jdata.data() + blk * bs + off;
-                return (u32(p[0]) << 24) | (u32(p[1]) << 16) | (u32(p[2]) << 8) | u32(p[3]);
-            };
-            auto jbe16 = [&](u64 at, u32 off) -> u32 {
-                if (at + off + 2 > jdata.size())
-                    return 0;
-                const u8* p = jdata.data() + at + off;
-                return (u32(p[0]) << 8) | u32(p[1]);
-            };
-            auto is_header = [&](u64 blk, u32 type, u32& seq) -> bool {
-                if (blk >= jblocks)
-                    return false;
-                if (jbe32(blk, 0) != JBD2_MAGIC)
-                    return false;
-                if (jbe32(blk, 4) != type)
-                    return false;
-                seq = jbe32(blk, 8);
-                return true;
-            };
-
-            /* journal superblock at block 0 (type 3 or 4 - jbd2 journal_load
-             * accepts both): s_feature_incompat@0x28 decides the tag width */
-            u32 tag_size = 8;  /* plain: {blocknr, flags} */
-            u32 flags_off = 4; /* t_flags position in the tag */
-            bool v3_csum = false;
-            {
-                u32 seq = 0;
-                if (is_header(0, JBD2_SUPERBLOCK_V1, seq) ||
-                    is_header(0, JBD2_SUPERBLOCK_V2, seq)) {
-                    const u32 incompat = jbe32(0, 0x28);
-                    v3_csum = (incompat & JBD2_INCOMPAT_CSUM_V3) != 0;
-                    if (v3_csum) {
-                        tag_size = 16; /* journal_block_tag3_t */
-                        flags_off = 4; /* t_flags BE32@+4 */
-                    } else {
-                        /* journal_block_tag_t: {blocknr BE32, checksum BE16,
-                         * flags BE16@+6, blocknr_high BE32@+8} = 12 with
-                         * csum/64BIT, 12-4 without 64BIT, +2 with CSUM_V2 */
-                        tag_size = 12;
-                        flags_off = 6;
-                        if (incompat & JBD2_INCOMPAT_64BIT)
-                            tag_size = 12;
-                        else
-                            tag_size = 8;
-                        if (incompat & JBD2_INCOMPAT_CSUM_V2)
-                            tag_size += 2;
-                    }
-                }
+        /* S-025 pass 2: emit the harvested entries RE-PARENTED
+         * (the og's orphan finalize): a child whose parent chain
+         * resolves in the final tree attaches under that node -
+         * live parents through the record index, salvaged parents
+         * through the local map (chains resolve fixpoint-style);
+         * unresolvable chains land flat under the lost root with
+         * their real names (the og's iNode%I64d fallback is the
+         * SWEEP surface's naming - journal children keep on-disk
+         * names). Children the live tree claimed stay there
+         * (FUN_180003fb0 reachability: the live claim wins). */
+        std::map<u32, tree::FileNode*> salvaged_nodes;
+        auto attach_point_for = [&](u32 dir_ino) -> tree::FileNode* {
+            auto ln = salvaged_nodes.find(dir_ino);
+            if (ln != salvaged_nodes.end())
+                return ln->second;
+            if (ctx.visited_inodes.count(dir_ino)) {
+                tree::FileNode* live = tree.find_by_record(dir_ino);
+                if (live)
+                    return live;
             }
-
-            /* S-004: the jsb gates the ENTIRE salvage (og [:12207]/[:12212] -
-             * magic 0xC03B3998 + blocktype {3,4} at journal block 0); a
-             * journal whose first block is not a superblock is refused
-             * whole, exactly like the og. */
-            u32 jsb_seq = 0;
-            if (is_header(0, JBD2_SUPERBLOCK_V1, jsb_seq) ||
-                is_header(0, JBD2_SUPERBLOCK_V2, jsb_seq)) {
-                /* the range comes from the jsb's own fields
-                 * (jbd2 journal_superblock_t: s_maxlen u32 BE @+0x10,
-                 * s_first u32 BE @+0x14; the og walks [start, end) in
-                 * 1 MiB windows from the same fields, :12219-12224) */
-                const u64 begin = jbe32(0, 0x14);
-                const u64 declared = jbe32(0, 0x10);
-                u64 end = begin + declared;
-                if (end > jblocks)
-                    end = jblocks;
-
-                /* descriptor scan - NOT the salvage driver anymore: it only
-                 * records which blocks carry the ESCAPE tag so the
-                 * strictly-better restored parse can run (see the header
-                 * comment), and counts descriptors for telemetry. */
-                std::map<u64, bool> escape_tags; /* jblock -> escaped */
-                u64 descriptor_count = 0;
-                {
-                    u64 blk = 0;
-                    while (blk < jblocks) {
-                        u32 seq = 0;
-                        if (is_header(blk, JBD2_DESCRIPTOR_BLOCK, seq)) {
-                            ++descriptor_count;
-                            u64 off = blk * bs + 12; /* after journal_header_t */
-                            const u64 dend = (blk + 1) * bs;
-                            u64 expect = blk + 1;
-                            bool first_tag = true;
-                            bool last = false;
-                            while (off + tag_size <= dend && !last) {
-                                const u32 fl = jbe16(off, flags_off);
-                                bool escaped = (fl & JBD2_FLAG_ESCAPE) != 0;
-                                last = (fl & JBD2_FLAG_LAST_TAG) != 0;
-                                if (expect < jblocks)
-                                    escape_tags[expect] = escaped;
-                                off += tag_size;
-                                if (first_tag && (fl & JBD2_FLAG_SAME_UUID) == 0) {
-                                    /* first tag without SAME_UUID: a 16-byte
-                                     * journal UUID follows the tag bytes
-                                     * (commit.c jbd2 write order) */
-                                    if (off + 16 > dend)
-                                        break;
-                                    off += 16;
-                                }
-                                first_tag = false;
-                                ++expect;
-                            }
-                        }
-                        ++blk;
-                    }
-                }
-
-                /* the salvage: EVERY block of [begin, end) feeds the
-                 * directory-block parser (og parity, "GotJournalDir /
-                 * TraverseJournalDir"): jsb/descriptor/commit/revoke blocks
-                 * self-reject through the dir-grammar (their first u32 is
-                 * the journal magic - an impossible inode/rec_len pair);
-                 * unreferenced dir remnants surface exactly like the og's.
-                 * A descriptor-ESCAPE-tagged block additionally parses with
-                 * the magic restored (strictly better, accept set
-                 * unchanged). */
-                std::set<std::pair<u32, std::u16string>> seen;
-                auto salvage_dir_block = [&](const u8* blk) {
-                    std::vector<DirEntry> entries;
-                    if (!parse_dir_block(blk, bs, true, entries))
-                        return;
-                    for (const auto& de : entries) {
-                        if (de.inode == 0 || de.name.empty() || de.name.size() < 2)
-                            continue;
-                        if (!seen.insert({de.inode, de.name}).second)
-                            continue;
-                        if (ctx.visited_inodes.count(de.inode))
-                            continue; /* already in the live tree */
-                        auto* props = new (std::nothrow) tree::FileProperties();
-                        if (!props)
-                            return;
-                        props->name = de.name;
-                        props->fs_kind = u32(FsKindCode::Ext4);
-                        props->record_ref = de.inode;
-                        props->attributes = de.type == 2 ? 0x10 : 0;
-                        tree::FileNode* n = tree.add_file(root_lost, props);
-                        props->release();
-                        if (n) {
-                            n->set_origin(tree::Origin::Lost);
-                            n->set_deleted_state(tree::DeletedState::Deleted);
-                            n->set_confidence(tree::Confidence::PartialRisk);
-                            ++stats.journal_salvaged;
-                        }
-                    }
-                };
-                std::vector<u8> unescaped;
-                for (u64 jb = begin; jb < end; ++jb) {
-                    if (cancel && cancel->checkpoint())
-                        break; /* og: per-block cancel (:12234-12238) */
-                    const u8* raw = jdata.data() + jb * bs;
-                    salvage_dir_block(raw);
-                    auto et = escape_tags.find(jb);
-                    if (et != escape_tags.end() && et->second) {
-                        /* the tag says the first 4 bytes were zeroed
-                         * because they collided with the journal magic
-                         * (recovery.c restores cpu_to_be32(JBD2_MAGIC)
-                         * = bytes C0 3B 39 98) */
-                        unescaped.assign(raw, raw + bs);
-                        unescaped[0] = 0xC0;
-                        unescaped[1] = 0x3B;
-                        unescaped[2] = 0x39;
-                        unescaped[3] = 0x98;
-                        salvage_dir_block(unescaped.data());
-                    }
-                }
-                (void)descriptor_count;
+            return nullptr;
+        };
+        auto emit_entry = [&](u32 dir_ino, const DirEntry& de) {
+            if (ctx.visited_inodes.count(de.inode))
+                return; /* live claim wins (the og's reachability) */
+            if (salvaged_nodes.count(de.inode))
+                return; /* already emitted via another block */
+            if (de.inode == 0 || de.name.empty() || de.name.size() < 2)
+                return;
+            tree::FileNode* attach = attach_point_for(dir_ino);
+            if (!attach)
+                attach = root_lost; /* unresolvable chain: flat,
+                                     * real name kept (S-025) */
+            auto* props = new (std::nothrow) tree::FileProperties();
+            if (!props)
+                return;
+            props->name = de.name;
+            props->fs_kind = u32(FsKindCode::Ext4);
+            props->record_ref = de.inode;
+            props->attributes = de.type == 2 ? 0x10 : 0;
+            tree::FileNode* n = tree.add_file(attach, props);
+            props->release();
+            if (n) {
+                n->set_origin(tree::Origin::Lost);
+                n->set_deleted_state(tree::DeletedState::Deleted);
+                n->set_confidence(tree::Confidence::PartialRisk);
+                salvaged_nodes[de.inode] = n;
+                ++stats.journal_salvaged;
+            }
+        };
+        /* fixpoint: parents first (chains), then the rest flat -
+         * iterate until no new attachment resolves (bounded by
+         * the entry count; every round either emits or stabilizes) */
+        bool progressed = true;
+        size_t rounds = 0;
+        const size_t max_rounds = journal_dirs.size() + 2;
+        while (progressed && rounds < max_rounds) {
+            progressed = false;
+            ++rounds;
+            for (const auto& kv : journal_dirs) {
+                const u32 d = kv.first;
+                if (!attach_point_for(d) && !ctx.visited_inodes.count(d))
+                    continue; /* this dir's attach point may resolve
+                               * in a later round */
+                for (const auto& de : kv.second.entries)
+                    emit_entry(d, de);
+                progressed = true;
+            }
+        }
+        /* the remainder: owning dirs that never resolved - their
+         * entries still emit (flat under the lost root, the og's
+         * unreferenced-orphan placement with real names kept) */
+        for (const auto& kv : journal_dirs) {
+            for (const auto& de : kv.second.entries)
+                emit_entry(kv.first, de);
+        }
+        /* owner-less remnant entries (S-004's "."-less blocks): flat under
+         * the lost root - the og's unlinked-dir surface, unchanged */
+        for (const auto& de : journal_orphans) {
+            if (ctx.visited_inodes.count(de.inode))
+                continue; /* live claim wins */
+            if (salvaged_nodes.count(de.inode))
+                continue;
+            if (de.inode == 0 || de.name.empty() || de.name.size() < 2)
+                continue;
+            auto* props = new (std::nothrow) tree::FileProperties();
+            if (!props)
+                break;
+            props->name = de.name;
+            props->fs_kind = u32(FsKindCode::Ext4);
+            props->record_ref = de.inode;
+            props->attributes = de.type == 2 ? 0x10 : 0;
+            tree::FileNode* n = tree.add_file(root_lost, props);
+            props->release();
+            if (n) {
+                n->set_origin(tree::Origin::Lost);
+                n->set_deleted_state(tree::DeletedState::Deleted);
+                n->set_confidence(tree::Confidence::PartialRisk);
+                salvaged_nodes[de.inode] = n;
+                ++stats.journal_salvaged;
             }
         }
     }

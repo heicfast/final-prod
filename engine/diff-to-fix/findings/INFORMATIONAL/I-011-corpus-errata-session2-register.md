@@ -24,3 +24,14 @@ Session-2 exhaustive decompile reads contradicted eight corpus artifact claims. 
 **Status:** ACKNOWLEDGED
 **Verified by:** the eight corrections cross-checked against diff-to-fix/CORPUS-ERRATA.md (rows present; the session-2 register mirrors the corpus-side CORRECTIONS.md the read-only repo carries).
 **Resolution notes:** Corpus-side errata register, acknowledged as evidence-quality maintenance: future sessions must cite the CORRECTED facts (flags 0x10 = DIRECTORY; pass 2 parses GUID-dump contents not the live MFT; small records are DESTROYED not kept; HFS+ journal magic 0x4a4e4c78 little-endian). Items 1-3 fed S-001/S-012 and are now embodied in those findings' resolutions; no core change.
+
+**Status:** ACKNOWLEDGED (corpus-errata register — all 8 rows filed)
+**Verified by:** the 8 rows are recorded in `diff-to-fix/CORPUS-ERRATA.md`
+(Session-2 contributions, rows 1-8 of that section); findings cite the
+decompiles, not the stale artifacts. The corpus repo is read-only for this
+session's scope (CORRECTIONS.md fold-back happens corpus-side).
+**Resolution notes:** the leftover action item ("fix
+modules/visualization.md:16/:33 when next touched") is completed THIS
+session: the stale D16 verdict line still claiming the open
+"7-cat/85-ext vs og 8/1489" gap is updated to the M-023-FIXED state
+(generated 1,481-ext table, 8 categories). No core change.

@@ -931,8 +931,8 @@ TEST(Refs, MultipleDataAttributesMerged) {
         frows.push_back(data_attr_row({{240, 1}}));
         frows.push_back(data_attr_row({{241, 1}})); /* adjacent -> coalesce */
         frows.push_back(data_attr_row({{250, 1}})); /* disjoint */
-        rewrite_root_table(
-            img, {file_row_key(u"multi.dat", build_node(frows, gi_block(12288, 12288)))});
+        rewrite_root_table(img,
+                           {file_row_key(u"multi.dat", build_node(frows, gi_block(12288, 12288)))});
     }
     memset(img.data() + 240 * CLUSTER, 'M', 12 * CLUSTER);
     RamDevice dev(img);
@@ -973,7 +973,7 @@ TEST(Refs, PagedRunTableFollowed) {
         for (int k = 0; k < 4; ++k)
             put64(child_ref.data() + k * 8, 240 + k);
         std::vector<u8> inner = build_node({Row{std::vector<u8>(8, 0), child_ref}});
-        inner[0x28 + 0x0C] = 1; /* height */
+        inner[0x28 + 0x0C] = 1;   /* height */
         inner[0x28 + 0x0D] = 0x1; /* NODE_INNER */
         std::vector<Row> frows;
         std::vector<u8> key(12, 0);
@@ -1140,8 +1140,7 @@ TEST(Refs, HardLinkRowsCollapseToOneResult) {
     {
         std::vector<Row> rows;
         /* same object: identical placement, size and times; two names */
-        const std::vector<u8> node =
-            build_node({data_attr_row({{270, 2}})}, gi_block(8192, 8192));
+        const std::vector<u8> node = build_node({data_attr_row({{270, 2}})}, gi_block(8192, 8192));
         rows.push_back(file_row_key(u"link_a.dat", node));
         rows.push_back(file_row_key(u"link_b.dat", node));
         rewrite_root_table(img, rows);
@@ -1188,8 +1187,7 @@ TEST(Refs, RecycleRoutedFlaggedAndDollarIRemap) {
         put32(ival.data() + 0x00, 0xC0FFEE33);
         std::vector<Row> irows;
         irows.push_back({ikey, ival});
-        rows.push_back(file_row_key(u"$I7F3K2L.txt",
-                                    build_node(irows, gi_block(88, 0))));
+        rows.push_back(file_row_key(u"$I7F3K2L.txt", build_node(irows, gi_block(88, 0))));
         rewrite_root_table(img, rows);
     }
     {
@@ -1236,7 +1234,6 @@ TEST(Refs, RecycleRoutedFlaggedAndDollarIRemap) {
     EXPECT_EQ(rr->props()->times.modified, 0x01D2000000000000ull);
     EXPECT_EQ(rr->deleted_state(), tree::DeletedState::Deleted);
 }
-
 
 } // namespace
 } // namespace refs

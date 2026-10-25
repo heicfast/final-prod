@@ -10,6 +10,7 @@
 #include "cr/compress/cr_decomp.h" /* S-002: kZlib for decmpfs extents */
 #include <cstring>
 #include <functional>
+#include <cstdio>
 #include <map>
 #include <set>
 
@@ -288,7 +289,7 @@ bool parse_catalog_record(const u8* key, u32 rec_bytes, CatalogRecord& out) {
         out.access_date = be32(body + CF_ACCESS_DATE);
         out.data_fork = parse_fork(body + CF_DATA_FORK);
         out.rsrc_fork = parse_fork(body + CF_RESOURCE_FORK);
-        out.owner_flags = body[0x29];          /* N-038: fork-selection bit */
+        out.owner_flags = body[0x29];             /* N-038: fork-selection bit */
         out.finder_file_type = be32(body + 0x30); /* N-028c: 'prdf' gate */
         return out.cnid >= CNID_FIRST_USER || out.cnid == CNID_ROOT_FOLDER;
     }
@@ -303,7 +304,16 @@ bool parse_catalog_record(const u8* key, u32 rec_bytes, CatalogRecord& out) {
     return false; /* threads: no new info (parent links already known) */
 }
 
-/* Walk every record of one node through the record-offset array. */
+/* Walk every record of one node through the record-offset array.
+ * A25/A-005 (diff-to-fix): the on-disk layout (TN1150, and the og's own
+ * journal-image validator FUN_180010720 :13094-13108) packs records UP
+ * from offset 14: record 0 always starts at 14, deeper array slots hold
+ * HIGHER values, and the deepest slot (node_size - 2*(nrec+1)) is the
+ * free-space start. Record i = [slot(i+1)'s value, slot(i+2)'s value);
+ * the pre-fix reader took the END from the SHALLOWER slot (records-DOWN)
+ * - self-consistent with the synthetic fixtures but inverted vs the
+ * format, silently skipping every record except record 0 on real
+ * volumes. */
 bool for_each_record(u32 node_size, const std::vector<u8>& node, i16 want_kind,
                      const std::function<bool(const u8* rec, u32 len)>& fn) {
     if (node.size() < 14 + 2 || node_size == 0)
@@ -317,15 +327,16 @@ bool for_each_record(u32 node_size, const std::vector<u8>& node, i16 want_kind,
     const u16 nrec = be16(node.data() + NH_NUM_RECORDS);
     if (nrec == 0 || nrec > (node_size - 14) / 2)
         return false;
-    /* record offsets: last (nrec) u16s of the node, BE, offsets from node
-     * start; record i occupies [off(i), off(i-1)) growing downward */
     const u8* base = node.data();
     for (u32 i = 0; i < nrec; ++i) {
+        /* record i starts at slot(i+1) and ends at slot(i+2) - the next
+         * record's start; the last record ends at the free-space start
+         * (slot(nrec+1)) */
         const u32 off_this = be16(base + node_size - (i + 1) * 2);
-        const u32 off_prev = i == 0 ? node_size : be16(base + node_size - i * 2);
-        if (off_this < 14 || off_this >= node_size || off_prev > node_size || off_prev <= off_this)
+        const u32 off_next = be16(base + node_size - (i + 2) * 2);
+        if (off_this < 14 || off_this >= node_size || off_next > node_size || off_next <= off_this)
             continue; /* damaged entry: skip */
-        if (!fn(base + off_this, off_prev - off_this))
+        if (!fn(base + off_this, off_next - off_this))
             return false;
     }
     return true;
@@ -497,6 +508,39 @@ u64 fork_offset_to_absolute(Volume& v, u32 cnid, u8 fork_type, const ForkData& f
     return 0;
 }
 
+/* ---- S-021: journal deleted-record harvest --------------------------------
+ *
+ * The og's PRIMARY deleted-file surface for HFS+ (HFSPlusSearchDLL
+ * CHFSPlusJournal::GetDeleteRecord :13637-14252 + the FUN_18000c8f0 emit
+ * driver :10017-10127; the vendor path string "hfsplusjournal.cpp" appears
+ * at :13417/:13794/:14235). The journal is a ring of transaction
+ * block-lists; each entry carries a B-tree node image and its owning
+ * volume block. Leaf images of the catalog tree hold catalog records that
+ * may no longer be in the live tree; the og keeps a harvested record only
+ * when the live catalog does not have the same key, or has it with a
+ * different fileID (:13958-62). Extents-overflow images feed a {cnid ->
+ * extents} side map for harvested files whose own fork is empty.
+ *
+ * On-disk shape (all decoded first-hand against the decompile this
+ * session; see the S-021 Resolution + the evidence addendum for the
+ * derivations and the open constant question):
+ *   JournalInfoBlock (180 bytes, BE, at block vh.journal_info_block):
+ *     +0x00 u32 flags (bit 0 required set - the og's gate), +0x24 u64
+ *     journal byte offset, +0x2C u64 journal size.
+ *   journal header (44 bytes, LE - jnl.c stores its structures in host
+ *     order; magic 0x4A4E4C78 'JNLx' + endian 0x12345678):
+ *     +0x08 u64 start (oldest transaction), +0x10 u64 ring walk origin,
+ *     +0x18 u64 journal size (cross-checked), +0x20 u32 block-list
+ *     extent (probe re-read size + ring advance + the header-test base),
+ *     +0x24 u32 jhdr size, +0x28 u32 block size (probe size + the
+ *     target-block multiplier).
+ *   Transaction block list (the block-list extent bytes at the ring
+ *     cursor): first u32 == (blhdr_size >> 4) - 1 is the header test;
+ *     u16 entry count at +2; entries at +0x20, 16 bytes each:
+ *       +0x00 u64 target volume block, +0x08 u32 image size, +0x0C next.
+ *     The images follow the block list serially in the ring.
+ */
+
 } // namespace
 
 u64 mac_to_filetime(u32 mac_sec) {
@@ -532,6 +576,7 @@ bool validate_volume_header(const u8 vh[512], VolumeHeader& out) {
 
     out.signature = sig;
     out.version = version;
+    out.attributes = be32(vh + 4);
     out.block_size = block_size;
     out.total_blocks = total_blocks;
     out.free_blocks = be32(vh + VH_FREE_BLOCKS);
@@ -559,8 +604,12 @@ bool validate_volume_header(const u8 vh[512], VolumeHeader& out) {
  *
  * On-disk chain (Apple jnl.c layout, LE structures inside the journal):
  *   VH+0x0C journalInfoBlock -> JournalInfoBlock (TN1150, BE fields:
- *   flags u32@0, magic 0x6A6E6C78 u32@4, journal byte offset u64@8,
- *   size u64@16) -> jnl_header at the journal start (LITTLE-endian:
+ *   flags u32@0 [bit 0 = the og's gate], magic 0x6A6E6C78 u32@4, journal
+ *   byte offset u64@+0x24, size u64@+0x2C [the og's FUN_18000db70 swaps
+ *   exactly the three BE fields it reads: [0..3], [0x24..0x2B],
+ *   [0x2C..0x33]; the ring reader's raw longlong arithmetic reads the
+ *   base at +0x24 - the DF4-S021 convergence correction, og-decode over
+ *   the earlier +8/+16 rendering]) -> jnl_header at the journal start (LITTLE-endian:
  *   magic 0x4A4E4C78 u32@0, endian 0x12345678 u32@4, end u64@8,
  *   start u64@0x10, size u64@0x18 cross-checked against the info block,
  *   :13542-13554, size_a u32@0x20, size_b u32@0x28).
@@ -639,6 +688,27 @@ static bool journal_node_image_ok(const u8* img, u32 size) {
         return false; /* kBTLeafNode */
     if (kind == 1 && height != 0)
         return false; /* kBTIndexNode (og gate) */
+    /* the og's full validator (FUN_180010720 :13094-13108, converged from
+     * the DF4 A-005 decode): the zero/record header must be nonzero, the
+     * free-space sentinel (BE-u16 at node end-2) == 14 (TN1150: record 0
+     * always at 14 - the record-span convention A-005 fixed), and the
+     * offset chain ASCENDS toward deeper slots (a mid-chain violation
+     * stops the walk but does not reject - the og is lenient there). */
+    if (be32(img + 8) == 0)
+        return false; /* zero/garbage region */
+    const u32 n = be16(img + 0xA);
+    if (n == 0 || n > (size - 14) / 2)
+        return false;
+    if (be16(img + size - 2) != 14)
+        return false;
+    u32 prev = 14;
+    for (u32 i = 2; i <= n + 1; ++i) {
+        const u64 slot = u64(size) - u64(i) * 2;
+        const u32 off = be16(img + slot);
+        if (slot < off || off <= prev)
+            break; /* the og stops the walk, does not reject */
+        prev = off;
+    }
     return true;
 }
 
@@ -652,10 +722,11 @@ struct HarvestedRec {
  * to a no-harvest, never a scan failure - the og treats it as evidence,
  * not an error). */
 static void journal_harvest_pass(Volume& v, CancelToken* cancel,
-                                  const std::map<std::pair<u32, std::u16string>, u32>& live_by_key,
-                                  tree::ResultTree& tree, tree::FullNode* root_deleted,
-                                  HfsScanStats& stats, bool emit,
-                                  std::map<u32, std::vector<ForkData::Extent>>& ext_out) {
+                                 const std::map<std::pair<u32, std::u16string>, u32>& live_by_key,
+                                 tree::ResultTree& tree, tree::FullNode* root_deleted,
+                                 HfsScanStats& stats, bool emit,
+                                 std::map<u32, std::vector<ForkData::Extent>>& ext_out,
+                                 std::set<u32>& emitted_cnids) {
     if (v.vh.journal_info_block == 0)
         return;
     const u64 bs = v.vh.block_size;
@@ -663,11 +734,20 @@ static void journal_harvest_pass(Volume& v, CancelToken* cancel,
     u8 info[512];
     if (bs < 512 || v.dev->read_at(info_off, info, 512) != OK)
         return;
-    /* JournalInfoBlock: BE fields (TN1150) */
+    /* JournalInfoBlock: BE fields. The 'jnlx' magic at +4 is a real-format
+     * gate (xnu hfs_format.h); the og's own flags gate (bit 0 of the
+     * first u32, FUN_180010e10) and the base/size offsets +0x24/+0x2C
+     * follow the og's decode (FUN_18000db70 swaps exactly [0..3],
+     * [0x24..0x2B], [0x2C..0x33] - the fields it reads; the ring reader's
+     * raw longlong arithmetic reads *(u64*)(jinfo+0x24) as the journal
+     * base). Converged from the DF4-S021 decode; a real-volume bench
+     * remains the final vehicle (OQ stands). */
     if (be32(info + 4) != 0x6A6E6C78) /* 'jnlx' */
         return;
-    const u64 jbase = be64(info + 8);
-    const u64 jsize = be64(info + 16);
+    if ((be32(info + 0) & 1u) == 0) /* the og's flags gate */
+        return;
+    const u64 jbase = be64(info + 0x24);
+    const u64 jsize = be64(info + 0x2C);
     if (jsize == 0 || jsize > (512u << 20)) /* hard cap: 512 MiB */
         return;
     /* jnl_header: 44 bytes, LITTLE-endian (jnl.c) */
@@ -757,33 +837,32 @@ static void journal_harvest_pass(Volume& v, CancelToken* cancel,
                 else if (in_fork(v.allocation_fork, 6, addr))
                     which = 4;
                 if (which == 1) {
-                    for_each_record(image_size, image, NH_KIND_LEAF,
-                                    [&](const u8* rec, u32 len) {
-                                        CatalogRecord cr;
-                                        if (!parse_catalog_record(rec, len, cr))
-                                            return true;
-                                        if (cr.cnid == cr.parent_cnid)
-                                            return true; /* og :13961-62 rule */
-                                        kept[{cr.parent_cnid, cr.name}] = cr;
-                                        return true;
-                                    });
+                    for_each_record(image_size, image, NH_KIND_LEAF, [&](const u8* rec, u32 len) {
+                        CatalogRecord cr;
+                        if (!parse_catalog_record(rec, len, cr))
+                            return true;
+                        if (cr.cnid == cr.parent_cnid)
+                            return true; /* og :13961-62 rule */
+                        kept[{cr.parent_cnid, cr.name}] = cr;
+                        return true;
+                    });
                 } else if (which == 2) {
-                    for_each_record(image_size, image, NH_KIND_LEAF,
-                                    [&](const u8* rec, u32 len) {
-                                        /* overflow record format (same as the
-                                         * live overflow walk) */
-                                        if (len < 10 + 64)
-                                            return true;
-                                        const u32 file_id = be32(rec + 4);
-                                        for (int i = 0; i < 8; ++i) {
-                                            ForkData::Extent ex;
-                                            ex.start_block = be32(rec + 10 + u32(i) * 8);
-                                            ex.block_count = be32(rec + 10 + u32(i) * 8 + 4);
-                                            if (ex.block_count)
-                                                ext_out[file_id].push_back(ex);
-                                        }
-                                        return true;
-                                    });
+                    for_each_record(image_size, image, NH_KIND_LEAF, [&](const u8* rec, u32 len) {
+                        /* overflow record format (same as the
+                         * live overflow walk; A-006: 12-byte key +
+                         * 64-byte descriptor block at key+12) */
+                        if (len < 12 + 64)
+                            return true;
+                        const u32 file_id = be32(rec + 4);
+                        for (int i = 0; i < 8; ++i) {
+                            ForkData::Extent ex;
+                            ex.start_block = be32(rec + 12 + u32(i) * 8);
+                            ex.block_count = be32(rec + 12 + u32(i) * 8 + 4);
+                            if (ex.block_count)
+                                ext_out[file_id].push_back(ex);
+                        }
+                        return true;
+                    });
                 }
                 /* attributes/allocation branches feed og-side maps the core's
                  * harvested-file emission does not consume (decmpfs for
@@ -802,8 +881,8 @@ static void journal_harvest_pass(Volume& v, CancelToken* cancel,
         return;
 
     /* allocation-bitmap grading (same discipline as the freed-node sweep:
-    * all-extent-blocks-free -> Excellent, some -> PartialRisk, none ->
-    * Overwritten; the og's own grade-5 maps downstream - OQ-S2M-1) */
+     * all-extent-blocks-free -> Excellent, some -> PartialRisk, none ->
+     * Overwritten; the og's own grade-5 maps downstream - OQ-S2M-1) */
     std::vector<u8> jalloc;
     if (v.allocation_fork.total_blocks != 0) {
         jalloc.resize(size_t(v.allocation_fork.logical_size), 0);
@@ -842,6 +921,7 @@ static void journal_harvest_pass(Volume& v, CancelToken* cancel,
             continue;
         }
         ++stats.journal_records;
+        emitted_cnids.insert(cr.cnid); /* the sweep dedups against these */
         auto* props = new (std::nothrow) tree::FileProperties();
         if (!props)
             return;
@@ -923,8 +1003,7 @@ u32 scan_hfsplus(IStorageDevice* slice, const HfsScanFlags& flags, CancelToken* 
     /* N-005: total-volume product sanity (the og has no such check; a
      * torn blockSize/totalBlocks pair would feed absurd offsets - mirror
      * of the NTFS P1-3 guard, 2x slack for truncated-tail volumes). */
-    if (slice->size() != 0 &&
-        u64(v.vh.block_size) * u64(v.vh.total_blocks) > slice->size() * 2)
+    if (slice->size() != 0 && u64(v.vh.block_size) * u64(v.vh.total_blocks) > slice->size() * 2)
         return ERR_BAD_PARAMETER;
     v.dev = slice;
     v.allocation_fork = parse_fork(vh_raw + VH_ALLOCATION_FORK);
@@ -953,16 +1032,19 @@ u32 scan_hfsplus(IStorageDevice* slice, const HfsScanFlags& flags, CancelToken* 
                 if (!read_tree_node(v, v.extents_fork, CNID_EXTENTS_FILE, ext_node_size, cur, leaf))
                     break;
                 for_each_record(ext_node_size, leaf, NH_KIND_LEAF, [&](const u8* rec, u32 len) {
-                    /* overflow record: key{keyLength u16, forkType u8, pad u8,
-                     * fileID u32, startBlock u32}, body = 8 extent descriptors */
-                    if (len < 10 + 64)
+                    /* overflow record: key{keyLength u16 = 10 (data length;
+                     * the field itself makes the key 12 bytes), forkType u8,
+                     * pad u8, fileID u32, startBlock u32} then the 64-byte
+                     * HFSPlusExtentRecord (8 descriptors) at key+12
+                     * (A-006: TN1150-verbatim - was off by two) */
+                    if (len < 12 + 64)
                         return true;
                     const u8 fork_type = rec[2];
                     const u32 file_id = be32(rec + 4);
                     ForkData::Extent ext[8];
                     for (int i = 0; i < 8; ++i) {
-                        ext[i].start_block = be32(rec + 10 + u32(i) * 8);
-                        ext[i].block_count = be32(rec + 10 + u32(i) * 8 + 4);
+                        ext[i].start_block = be32(rec + 12 + u32(i) * 8);
+                        ext[i].block_count = be32(rec + 12 + u32(i) * 8 + 4);
                     }
                     auto& list = v.overflow[file_id][fork_type];
                     for (int i = 0; i < 8; ++i)
@@ -1107,8 +1189,7 @@ u32 scan_hfsplus(IStorageDevice* slice, const HfsScanFlags& flags, CancelToken* 
          * compressed-extent contract (cr_safewriter decode path), no
          * memory-resident blob and no size cap below the writer's own
          * 256 MiB guard. */
-        if (flags.resolve_decmpfs && !is_dir &&
-            (rsrc_marked || r.data_fork.logical_size == 0)) {
+        if (flags.resolve_decmpfs && !is_dir && (rsrc_marked || r.data_fork.logical_size == 0)) {
             auto ait = attributes.find(r.cnid);
             if (ait != attributes.end()) {
                 const AttrEntry* dec = nullptr;
@@ -1244,6 +1325,20 @@ u32 scan_hfsplus(IStorageDevice* slice, const HfsScanFlags& flags, CancelToken* 
     /* 6. orphan sweep: catalog nodes OUTSIDE the active leaf chain hold
      * stale records from deleted files (HFS+ delete overwrites catalog
      * records; freed nodes keep the old bytes until reused). */
+    /* 5.5 S-021: the journal deleted-record harvest - the og's PRIMARY
+     * deleted surface - runs BEFORE the sweep so the sweep (a documented
+     * core superset, I-014) can dedup against the harvested cnids (both
+     * surfaces finding the same record emit once). */
+    std::set<u32> journal_harvested;
+    if (flags.journal_harvest && flags.keep_deleted && root_deleted) {
+        std::map<std::pair<u32, std::u16string>, u32> live_by_key;
+        for (const auto& r : records)
+            live_by_key[{r.parent_cnid, r.name}] = r.cnid;
+        std::map<u32, std::vector<ForkData::Extent>> harvest_ext;
+        journal_harvest_pass(v, cancel, live_by_key, tree, root_deleted, stats, true, harvest_ext,
+                             journal_harvested);
+    }
+
     if (flags.scan_freed_nodes && flags.keep_deleted && root_deleted) {
         std::set<u32> live_chain;
         {
@@ -1316,6 +1411,10 @@ u32 scan_hfsplus(IStorageDevice* slice, const HfsScanFlags& flags, CancelToken* 
                     ++stats.sink_filtered;
                     return true;
                 }
+                if (journal_harvested.count(cr.cnid))
+                    return true; /* already emitted by the journal harvest
+                                  * (S-021 - the sweep is a core superset;
+                                  * both surfaces found the same record) */
                 ++stats.orphans;
                 /* N-028c/N-038: the record-processor gates apply to every
                  * record source on the og (FUN_180009940 is shared). */
@@ -1339,9 +1438,8 @@ u32 scan_hfsplus(IStorageDevice* slice, const HfsScanFlags& flags, CancelToken* 
                 props->times.modified = mac_to_filetime(cr.mod_date);
                 props->record_ref = cr.cnid;
                 if (cr.rec_type == REC_FILE && !o_dir)
-                    for (const auto& ex :
-                         resolve_file_extents(v, cr.cnid, o_rsrc_marked ? 0xFF : 0, o_fork,
-                                              v.total_bytes()))
+                    for (const auto& ex : resolve_file_extents(v, cr.cnid, o_rsrc_marked ? 0xFF : 0,
+                                                               o_fork, v.total_bytes()))
                         props->extents.push_back({ex.first, ex.second});
                 tree::FileNode* n = tree.add_file(root_deleted, props);
                 props->release();
@@ -1376,19 +1474,6 @@ u32 scan_hfsplus(IStorageDevice* slice, const HfsScanFlags& flags, CancelToken* 
                 return true;
             });
         }
-    }
-
-    /* 6b. S-021: journal deleted-record harvest (the og's primary deleted
-     * surface on journaled volumes - runs AFTER the live collection so the
-     * differential sees the full live set; emitted flat under root_deleted
-     * exactly like the og's kind-5 branch, with the extents-branch
-     * fallback feeding empty forks). */
-    if (flags.journal_harvest && flags.keep_deleted && root_deleted) {
-        std::map<std::pair<u32, std::u16string>, u32> live_by_key;
-        for (const auto& r : records)
-            live_by_key[{r.parent_cnid, r.name}] = r.cnid;
-        std::map<u32, std::vector<ForkData::Extent>> harvest_ext;
-        journal_harvest_pass(v, cancel, live_by_key, tree, root_deleted, stats, true, harvest_ext);
     }
 
     if (progress)

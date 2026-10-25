@@ -37,6 +37,13 @@ constexpr u32 kTrialOrder[] = {
     FMT_WEBP, FMT_WAV, FMT_PDF, FMT_7Z, FMT_SQLITE, FMT_AVI, FMT_MKV, FMT_RAR5, FMT_RAR4, FMT_PST,
     FMT_ORF, FMT_RAF, FMT_RW2, FMT_PSD, FMT_MP3, FMT_M4A, FMT_ASF, FMT_FLV, FMT_CAB, FMT_ISO,
     FMT_TIFF_BE, FMT_ORF_IIRS, FMT_ORF_MMOR, FMT_ZIP_CD,
+    /* S-007: the og's common formats - distinct magics (no overlap with
+     * the entries above), so the placement after the specific set is
+     * safe; FMT_MP3 (ID3-headed) stays ahead of the raw sync family. */
+    FMT_GIF, FMT_BMP, FMT_RTF, FMT_OLE, FMT_MPEGPS, FMT_MPEGES, FMT_DWG, FMT_AAC, FMT_AAC2,
+    FMT_MPGA_E2, FMT_MPGA_E3, FMT_MPGA_E4, FMT_MPGA_E5, FMT_MPGA_E6, FMT_MPGA_E7, FMT_MPGA_F2,
+    FMT_MPGA_F3, FMT_MPGA_F4, FMT_MPGA_F5, FMT_MPGA_F6, FMT_MPGA_F7, FMT_MPGA_FA, FMT_MPGA_FB,
+    FMT_MPGA_FC, FMT_MPGA_FD, FMT_MPGA_FE, FMT_MPGA_FF,
     /* S-017: ftyp-destroyed MOV salvage (og MovAnalyzer list layer) -
      * LAST: the ftyp-keyed entries must claim the position first */
     FMT_MOV_NAKED};
@@ -63,6 +70,13 @@ struct ScanCtx {
     std::atomic<u64> sign_hits{0};
     std::atomic<u64> sign_validated{0};
     std::atomic<u64> windows_skipped{0}; /* unreadable after retry (FB-C01) */
+    /* S-007: [start, end) ranges of emitted suppress_overlap streams (the
+     * repeating-sync audio family); guarded by the emission path's own
+     * serialization (single-threaded path: one worker; parallel: the
+     * window dispatch is exclusive per range... the list is appended by
+     * the same worker that scans the window, and read within the same
+     * window scan - cross-window overlap re-checks by re-walking). */
+    std::vector<std::pair<u64, u64>> overlap_covered;
     std::atomic<u32> file_index{0};
     std::atomic<bool> aborted{false};
     /* GAP-S6-8: the disk-absolute basis for extents + dedup queries.
@@ -113,6 +127,18 @@ u32 scan_one_window(ScanCtx& ctx, u64 base, const u8* win, u64 want, std::set<u6
             if (emitted_at.count(cand_abs)) {
                 ctx.duplicates.fetch_add(1, std::memory_order_relaxed);
                 break;
+            }
+            if (sig.suppress_overlap) {
+                bool inside = false;
+                for (const auto& cov : ctx.overlap_covered)
+                    if (cand_abs > cov.first && cand_abs < cov.second) {
+                        inside = true;
+                        break;
+                    }
+                if (inside) {
+                    ctx.duplicates.fetch_add(1, std::memory_order_relaxed);
+                    continue; /* a mid-stream sync of an emitted stream */
+                }
             }
 
             /* F9 dedup vs structured results + prior carved nodes (the
@@ -170,6 +196,8 @@ u32 scan_one_window(ScanCtx& ctx, u64 base, const u8* win, u64 want, std::set<u6
                     ctx.hashed.fetch_add(1, std::memory_order_relaxed);
                 }
             }
+            if (sig.suppress_overlap)
+                ctx.overlap_covered.push_back({cand_abs, cand_abs + file_len});
             tree::FileNode* n = ctx.tree->add_file(ctx.carve_root, props);
             props->release();
             if (n == nullptr) {

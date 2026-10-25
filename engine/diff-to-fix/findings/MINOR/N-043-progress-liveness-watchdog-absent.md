@@ -79,3 +79,16 @@ a recorded decision, not an accident.
 
 1. Whether the heartbeat should also carry a stall-reason hint (retry-pipe state) —
    design question for the engineering team, not an audit question.
+
+---
+
+## Session-5 addendum (2026-10-26) — the dialog-inventory liveness evidence (artifact 06, first read)
+
+UIUX/06-dialog-telemetry-inventory.md (never cited before this session) adds the og's
+live-milestone semantics to this finding's evidence: during scanning the og surfaces
+live "%1 file chunks scanned" milestones (the 3-branch tree builds in ~1000-item batches
+per the qa-logs channel), i.e. coarse progress advances are driven by real unit-of-work
+completions, not only timers. The core's permille-coalesced, stage-boundary files-found
+events remain the honest subset this finding records; the fix decision
+(accept-and-document vs heartbeat event) is unchanged, with the og's milestone cadence now
+cited on the reference side.

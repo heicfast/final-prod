@@ -91,3 +91,13 @@ Core (audited `67193b6` + concurrent GAP-S6-7 in tree): `src/core/recovery/` (77
   including backslash → `#` (`:357536-545`); core's `sanitize_name` replaces 8 chars with `_`
   and does NOT sanitize backslash — fold into the N-009 group when touched.
 - N-014b: carved-name split (`Carved%06u` vs `File%06u` inside one scan) — writer-visible.
+
+---
+
+## Session-5 audit (audited commit `7cf6754`)
+
+- **N-056 (MINOR, NEW):** WinDestIo leaks the `.part-N` temp file when the commit-time
+  rename fails (`commit()` nulls the handle before MoveFileExW; `close()`'s delete gate
+  requires a live handle — cr_destio.cpp:44-71). UNC path construction untested. (An
+  earlier scratch note claiming the ERROR_IO_PENDING branch is unreachable was withdrawn
+  this session — overlapped handles make it reachable.)

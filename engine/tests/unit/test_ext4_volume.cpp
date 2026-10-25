@@ -569,10 +569,15 @@ TEST(Ext4Engine, NonAsciiNamesDecodedNotByteLifted) {
     /* accented name */
     ASSERT_TRUE(by_utf8.count("caf\xc3\xa9.txt") != 0);
     EXPECT_EQ(by_utf8["caf\xc3\xa9.txt"], std::u16string(u"caf\u00e9.txt"));
-    /* invalid lead byte: one U+FFFD, the valid tail survives */
-    ASSERT_TRUE(by_utf8.count("\xef\xbf\xbd(bad") != 0)
-        << "FFFD name absent: " << by_utf8.begin()->first;
-    EXPECT_EQ(by_utf8["\xef\xbf\xbd(bad"], std::u16string(u"\ufffd(bad"));
+    /* M-010 (diff-to-fix): an invalid lead byte now maps LOSSLESSLY to
+     * U+E000 + byte (the og's EXT4 engine keeps raw names unconverted -
+     * zero conversion imports; the original bytes must stay
+     * reconstructible: unit - 0xE000 = 0xFF). The valid tail survives;
+     * the map key is the tree's UTF-8 projection of U+E0FF (EE 83 BF). */
+    ASSERT_TRUE(by_utf8.count("\xee\x83\xbf(bad") != 0)
+        << "lossless name absent: " << by_utf8.begin()->first;
+    EXPECT_EQ(by_utf8["\xee\x83\xbf(bad"],
+              std::u16string(u"\uE0FF(bad"));
     /* whole-pipeline: the UTF-8 projection of a decoded CJK name equals
      * the original on-disk bytes (this is what tree --json emits) */
     for (tree::FileNode* c = ra->first_child(); c; c = c->next_sibling()) {
@@ -583,7 +588,6 @@ TEST(Ext4Engine, NonAsciiNamesDecodedNotByteLifted) {
         }
     }
 }
-
 
 /* ===================================================================== */
 /* S-026: meta_bg group-descriptor resolution.                           */
@@ -623,8 +627,8 @@ constexpr u32 MBG_INO_FAR = 16 * MBG_IPG + 1; /* first inode of group 16 */
 
 /* write an inode into the table of ITS OWN group (tables at different
  * blocks per group) */
-void mbg_write_inode(Img& img, u32 ino, u16 mode, u64 size, u64 extent_block,
-                     u32 extent_blocks, u16 links, u32 dtime, u64 itable_block) {
+void mbg_write_inode(Img& img, u32 ino, u16 mode, u64 size, u64 extent_block, u32 extent_blocks,
+                     u16 links, u32 dtime, u64 itable_block) {
     u8* p = img.block(itable_block) + size_t((ino - 1) % MBG_IPG) * INO_SZ;
     memset(p, 0, INO_SZ);
     put16(p + 0x00, mode);
@@ -658,11 +662,11 @@ void mbg_write_sb(Img& img, u32 first_meta_bg) {
     put32(sb + 0x20, MBG_BPG);              /* s_blocks_per_group */
     put32(sb + 0x28, MBG_IPG);              /* s_inodes_per_group */
     put16(sb + 0x38, 0xEF53);
-    put32(sb + 0x4C, 1);                    /* rev level 1 */
+    put32(sb + 0x4C, 1); /* rev level 1 */
     put16(sb + 0x58, INO_SZ);
-    put32(sb + 0x60, 0x0092);               /* filetype | meta_bg | 64bit */
-    put16(sb + 0xFE, 64);                   /* s_desc_size */
-    put32(sb + 0x230, first_meta_bg);       /* s_first_meta_bg */
+    put32(sb + 0x60, 0x0092);         /* filetype | meta_bg | 64bit */
+    put16(sb + 0xFE, 64);             /* s_desc_size */
+    put32(sb + 0x230, first_meta_bg); /* s_first_meta_bg */
     put32(sb + 0xE0, 8);
 }
 
@@ -701,8 +705,7 @@ Img build_metabg_volume(u32 first_meta_bg) {
     mbg_write_inode(img, INO_HELLO, 0x8000, 14, MBG_HELLO_DATA, 1, 1, 0, 3);
     mbg_write_inode(img, 8, 0x8000, 0, 0, 0, 1, 0, 3); /* journal: empty */
     /* group 16 table: the far inode lives BEYOND the front GDT reach */
-    mbg_write_inode(img, MBG_INO_FAR, 0x8000, 33, MBG_FAR_DATA, 1, 1, 0,
-                    MBG_G16_ITABLE);
+    mbg_write_inode(img, MBG_INO_FAR, 0x8000, 33, MBG_FAR_DATA, 1, 1, 0, MBG_G16_ITABLE);
 
     /* root dir: ".", "..", hello.txt, far.bin */
     u8* root = img.block(MBG_ROOTDIR);
@@ -721,8 +724,7 @@ Img build_metabg_volume(u32 first_meta_bg) {
 /* device that counts reads at a given byte range (cache-reuse probe) */
 class CountingDevice final : public MemDevice {
 public:
-    CountingDevice(std::vector<u8> d, u64 watch_off)
-        : MemDevice(std::move(d)), watch_(watch_off) {}
+    CountingDevice(std::vector<u8> d, u64 watch_off) : MemDevice(std::move(d)), watch_(watch_off) {}
     u32 read_at(u64 off, void* buf, u32 len) override {
         if (off == watch_)
             ++hits_;
@@ -777,8 +779,7 @@ TEST(Ext4Engine, MetaBgDeletedSweepReachesDistributedGroups) {
      * 16 with dtime set must be emitted under Deleted (pre-fix: silently
      * missing for the same front-GDT reason) */
     auto img = build_metabg_volume(0);
-    mbg_write_inode(img, MBG_INO_FAR + 1, 0x8000, 64, MBG_FAR_DATA + 1, 1, 0, 4242,
-                    MBG_G16_ITABLE);
+    mbg_write_inode(img, MBG_INO_FAR + 1, 0x8000, 64, MBG_FAR_DATA + 1, 1, 0, 4242, MBG_G16_ITABLE);
     MemDevice dev(img.raw());
     tree::ResultTree tree;
     auto* ra = tree.add_root(u"Found");
@@ -802,8 +803,7 @@ TEST(Ext4Engine, MetaBgDescriptorBlockReadOnce) {
      * :3664-3703; the perf-guard twin of that behavior) */
     auto img = build_metabg_volume(0);
     /* a second dirent in group 16 forces multiple inode reads there */
-    mbg_write_inode(img, MBG_INO_FAR + 1, 0x8000, 8, MBG_FAR_DATA + 1, 1, 1, 0,
-                    MBG_G16_ITABLE);
+    mbg_write_inode(img, MBG_INO_FAR + 1, 0x8000, 8, MBG_FAR_DATA + 1, 1, 1, 0, MBG_G16_ITABLE);
     u8* root = img.block(MBG_ROOTDIR);
     u32 cur = 76;
     add_dirent(root, cur, MBG_INO_FAR + 1, "far2.bin", 1);
@@ -848,6 +848,327 @@ TEST(Ext4Engine, MetaBgSuperblockFieldsParsed) {
     put32(img.block(1) + 0x230, 2);
     ASSERT_TRUE(validate_superblock(img.block(1), sb));
     EXPECT_EQ(2u, sb.first_meta_bg);
+}
+
+/* ===================================================================== */
+/* S-027: backup-superblock rescue (the og's engine-side lost-volume     */
+/* walk: FUN_180001b00 + sub-searcher spawn, corpus artifact §2).        */
+/* ===================================================================== */
+
+namespace {
+
+/* canonical 1KiB geometry: 2 groups, so the group-1 backup superblock
+ * sits at block first_data_block + 1*8192 = 8193 = 8 MiB + 1024 with
+ * s_block_group_nr == 1 (verified on real mke2fs images this session) */
+constexpr u32 BKB_BPG = 8192;
+constexpr u32 BKB_IPG = 16;
+constexpr u64 BKB_BLOCKS = 2 * BKB_BPG + 1; /* blocks 0..16384 */
+constexpr u64 BKB_BACKUP_SB = 8193;
+constexpr u64 BKB_BACKUP_GDT = 8194;
+constexpr u64 BKB_G1_ITABLE = 8195;
+constexpr u64 BKB_G1_BITMAP = 8198;
+constexpr u64 BKB_FAR_DATA = 8197;
+constexpr u32 BKB_INO_FAR = 1 * BKB_IPG + 1; /* inode 17: group 1 */
+
+Img build_backup_volume(bool kill_primary_gdt) {
+    Img img(BKB_BLOCKS);
+    /* primary superblock (block 1) - will be zeroed after copying */
+    u8* sb = img.block(1);
+    put32(sb + 0x00, 2 * BKB_IPG);     /* s_inodes_count */
+    put32(sb + 0x04, u32(BKB_BLOCKS)); /* s_blocks_count_lo */
+    put32(sb + 0x14, 1);               /* s_first_data_block */
+    put32(sb + 0x18, 0);               /* log_block_size 0 (1024) */
+    put32(sb + 0x20, BKB_BPG);         /* s_blocks_per_group */
+    put32(sb + 0x28, BKB_IPG);         /* s_inodes_per_group */
+    put16(sb + 0x38, 0xEF53);
+    put32(sb + 0x4C, 1); /* rev level 1 */
+    put16(sb + 0x58, INO_SZ);
+    put32(sb + 0x60, 0x0002); /* FILETYPE */
+    put32(sb + 0xE0, 8);
+    /* backup superblock at block 8193: same fields + s_block_group_nr = 1
+     * (the real mkfs backup shape - verified: primary 0, group-1 copy 1) */
+    u8* bsb = img.block(BKB_BACKUP_SB);
+    memcpy(bsb, sb, 1024);
+    put16(bsb + 0x5A, 1); /* s_block_group_nr */
+
+    /* primary GDT at block 2: group 0 + group 1 descriptors */
+    u8* g = img.block(2);
+    memset(g, 0, BS);
+    put32(g + 0x00, 5); /* group 0 block bitmap */
+    put32(g + 0x04, 0);
+    put32(g + 0x08, 3); /* group 0 inode table */
+    put32(g + 32 + 0x00, u32(BKB_G1_BITMAP));
+    put32(g + 32 + 0x08, u32(BKB_G1_ITABLE));
+    /* backup GDT at block 8194: the full table copy (e2fsprogs layout) */
+    memcpy(img.block(BKB_BACKUP_GDT), g, 64);
+
+    if (kill_primary_gdt)
+        memset(img.block(2), 0, BS); /* front GDT dead */
+
+    /* group 0 inodes at blocks 3..4 */
+    mbg_write_inode(img, INO_ROOT, 0x4000, BS, 6, 1, 2, 0, 3);
+    mbg_write_inode(img, INO_HELLO, 0x8000, 14, 7, 1, 1, 0, 3);
+    mbg_write_inode(img, 8, 0x8000, 0, 0, 0, 1, 0, 3); /* journal: empty */
+    /* group 1 inode table at blocks 8195..8196: the far inode */
+    mbg_write_inode(img, BKB_INO_FAR, 0x8000, 33, BKB_FAR_DATA, 1, 1, 0, BKB_G1_ITABLE);
+
+    /* root dir: ".", "..", hello.txt, far.bin */
+    u8* root = img.block(6);
+    memset(root, 0, BS);
+    u32 cur = 0;
+    add_dirent(root, cur, INO_ROOT, ".", 2);
+    add_dirent(root, cur, INO_ROOT, "..", 2);
+    add_dirent(root, cur, INO_HELLO, "hello.txt", 1);
+    add_dirent(root, cur, BKB_INO_FAR, "far.bin", 1);
+
+    memcpy(img.block(7), "backup-rescue", 14);
+    memset(img.block(BKB_FAR_DATA), 0x66, 33);
+
+    /* destroy the primary superblock last */
+    memset(img.block(1), 0, BS);
+    return img;
+}
+
+} // namespace
+
+TEST(Ext4Engine, BackupSuperblockRescueWhenPrimaryDestroyed) {
+    /* the finding's core scenario: primary SB destroyed, group-1 backup
+     * alive. The pre-fix engine returned ERR_BAD_MAGIC and the volume was
+     * invisible; the og's stride walker + sub-searcher found it. */
+    auto img = build_backup_volume(false);
+    MemDevice dev(img.raw());
+    tree::ResultTree tree;
+    auto* ra = tree.add_root(u"Found");
+    auto* rd = tree.add_root(u"Deleted");
+    auto* rl = tree.add_root(u"Lost Files");
+    Ext4ScanFlags fl;
+    Ext4ScanStats st;
+    u32 rc = scan_ext4(&dev, fl, nullptr, nullptr, nullptr, tree, ra, rd, rl, st);
+    ASSERT_EQ(OK, rc) << err_text(rc);
+    EXPECT_EQ(2u, st.block_groups);
+    EXPECT_EQ(8193u, st.backup_sb_block);
+    EXPECT_FALSE(st.gdt_from_backup) << "front GDT alive: no fallback";
+
+    const auto found = collect_names(ra);
+    EXPECT_TRUE(found.count("hello.txt"));
+    ASSERT_TRUE(found.count("far.bin")) << "group-1 file missing through rescue";
+}
+
+TEST(Ext4Engine, BackupRescueFallsBackToBackupGdt) {
+    /* primary SB AND front GDT dead: descriptors must come from the backup
+     * GDT immediately after the found backup SB (e2fsprogs "Backup
+     * superblock at B, Group descriptors at B+1" - verified on real
+     * images: classic volumes carry the FULL table there) */
+    auto img = build_backup_volume(true);
+    MemDevice dev(img.raw());
+    tree::ResultTree tree;
+    auto* ra = tree.add_root(u"Found");
+    Ext4ScanFlags fl;
+    Ext4ScanStats st;
+    u32 rc = scan_ext4(&dev, fl, nullptr, nullptr, nullptr, tree, ra, nullptr, nullptr, st);
+    ASSERT_EQ(OK, rc) << err_text(rc);
+    EXPECT_TRUE(st.gdt_from_backup);
+    const auto found = collect_names(ra);
+    ASSERT_TRUE(found.count("far.bin")) << "backup-GDT resolution failed";
+}
+
+TEST(Ext4Engine, BackupRescueWholeDiskRebase) {
+    /* the volume embedded at a 1 MiB-aligned offset inside a bigger
+     * container (the whole-disk dispatch case): the backup SB is found at
+     * container + 8 MiB + 1024; s_block_group_nr arithmetic yields the
+     * exact volume base, and emitted extents are container-relative */
+    constexpr u64 VOL_OFF = 2ull << 20; /* 2 MiB (grid-aligned) */
+    auto img = build_backup_volume(false);
+    std::vector<u8> disk(size_t(VOL_OFF) + img.size(), 0);
+    memcpy(disk.data() + VOL_OFF, img.raw().data(), img.size());
+    MemDevice dev(disk);
+    tree::ResultTree tree;
+    auto* ra = tree.add_root(u"Found");
+    Ext4ScanFlags fl;
+    Ext4ScanStats st;
+    u32 rc = scan_ext4(&dev, fl, nullptr, nullptr, nullptr, tree, ra, nullptr, nullptr, st);
+    ASSERT_EQ(OK, rc) << err_text(rc);
+    EXPECT_EQ(8193u, st.backup_sb_block); /* volume-relative block, not byte */
+    const auto found = collect_names(ra);
+    ASSERT_TRUE(found.count("far.bin")) << "rebased volume unresolved";
+    /* emitted extents are SLICE-relative (base included) */
+    bool checked = false;
+    for (tree::FileNode* c = ra->first_child(); c && !checked; c = c->next_sibling()) {
+        for (tree::FileNode* f = c->first_child(); f; f = f->next_sibling()) {
+            if (f->props() && f->name_utf8() == "far.bin") {
+                ASSERT_FALSE(f->props()->extents.empty());
+                EXPECT_EQ(VOL_OFF + BKB_FAR_DATA * BS, f->props()->extents[0].offset);
+                checked = true;
+                break;
+            }
+        }
+    }
+    ASSERT_TRUE(checked) << "far.bin node not found for extent check";
+}
+
+TEST(Ext4Engine, BadMagicWithoutBackupsStillRejected) {
+    /* rescue finds nothing (backup SB destroyed too): the original
+     * ERR_BAD_MAGIC contract stands - probes ran and found no candidate */
+    auto img = build_backup_volume(false);
+    memset(img.block(BKB_BACKUP_SB), 0, BS);
+    MemDevice dev(img.raw());
+    tree::ResultTree tree;
+    auto* ra = tree.add_root(u"Found");
+    Ext4ScanFlags fl;
+    Ext4ScanStats st;
+    u32 rc = scan_ext4(&dev, fl, nullptr, nullptr, nullptr, tree, ra, nullptr, nullptr, st);
+    EXPECT_EQ(ERR_BAD_MAGIC, rc);
+    EXPECT_NE(0u, st.backup_sb_probes) << "probe grid never ran";
+    EXPECT_EQ(0u, st.backup_sb_block);
+}
+
+} // namespace ext4
+} // namespace cr
+
+/* ---- S-025: journal-salvaged reparenting (the og's two-pass model) ------ */
+
+namespace cr {
+namespace ext4 {
+namespace {
+
+/* extend the fixture's journal to `total` blocks and rewrite the jsb */
+void grow_journal(Img& img, u32 total) {
+    constexpr u64 B_JOURNAL = 10;
+    write_inode(img, 8 /* journal inum per SB 0xE0 */, 0x8000, total * BS, B_JOURNAL, total, 1, 0);
+    u8* jsb = img.block(B_JOURNAL);
+    bput32(jsb + 0x10, total); /* s_maxlen - the declared log range */
+}
+
+} // namespace
+
+TEST(Ext4Engine, JournalSalvagedDirReparented) {
+    /* a deleted directory whose journal copy survives: the journal holds a
+     * snapshot of the LIVE parent's dir block (naming the deleted dir) AND
+     * the deleted dir's own block (naming its child). The og reparents
+     * the salvaged dir under its original parent (FUN_180003de0's orphan
+     * finalize :3077-3119); ours must too - not flat in Lost Files. */
+    auto img = build_volume();
+    grow_journal(img, 8);
+    /* journal block 5: a snapshot of "sub" (inode 4) with an EXTRA entry
+     * naming the deleted dir "childdir" (inode 7) */
+    u8* snap_sub = img.block(10 + 5);
+    memset(snap_sub, 0, BS);
+    u32 c1 = 0;
+    add_dirent(snap_sub, c1, 4, ".", 2);          /* owner: sub (LIVE) */
+    add_dirent(snap_sub, c1, 2, "..", 2);         /* sub's parent: root */
+    add_dirent(snap_sub, c1, 5, "nested.bin", 1); /* live child */
+    add_dirent(snap_sub, c1, 7, "childdir", 2);   /* deleted dir */
+    /* journal block 6: childdir's own snapshot: owner 7, parent 4 (sub) */
+    u8* snap_child = img.block(10 + 6);
+    memset(snap_child, 0, BS);
+    u32 c2 = 0;
+    add_dirent(snap_child, c2, 7, ".", 2);
+    add_dirent(snap_child, c2, 4, "..", 2);
+    add_dirent(snap_child, c2, 9, "deep.txt", 1);
+
+    MemDevice dev(img.raw());
+    tree::ResultTree tree;
+    auto* ra = tree.add_root(u"Found");
+    auto* rl = tree.add_root(u"Lost Files");
+    Ext4ScanFlags fl;
+    Ext4ScanStats st;
+    u32 rc = scan_ext4(&dev, fl, nullptr, nullptr, nullptr, tree, ra, nullptr, rl, st);
+    ASSERT_EQ(OK, rc) << err_text(rc);
+
+    /* find the LIVE "sub" node; "childdir" must be ITS child, and
+     * "deep.txt" must sit under "childdir" - nothing in Lost Files */
+    std::function<tree::FileNode*(tree::FileNode*, const char*)> find =
+        [&](tree::FileNode* n, const char* name) -> tree::FileNode* {
+        for (tree::FileNode* c = n->first_child(); c; c = c->next_sibling()) {
+            if (c->props() && c->name_utf8() == name)
+                return c;
+            if (tree::FileNode* r = find(c, name))
+                return r;
+        }
+        return nullptr;
+    };
+    tree::FileNode* sub = find(ra, "sub");
+    ASSERT_NE(sub, nullptr) << "live sub dir must exist";
+    tree::FileNode* childdir = find(sub, "childdir");
+    ASSERT_NE(childdir, nullptr) << "the salvaged dir must sit under its live parent";
+    EXPECT_EQ(tree::Origin::Lost, childdir->origin());
+    tree::FileNode* deep = find(childdir, "deep.txt");
+    ASSERT_NE(deep, nullptr) << "the salvaged child chains under the salvaged dir";
+    EXPECT_TRUE(rl->first_child() == nullptr || !find(rl, "childdir"))
+        << "the reparented dir must NOT be flat in Lost Files";
+    EXPECT_EQ(4u, st.journal_salvaged); /* ghost + esc (the S-004 orphan
+                                         * path) + childdir + deep.txt */
+}
+
+TEST(Ext4Engine, JournalUnreferencedOrphanFlatWithRealName) {
+    /* a journal dir block whose owning dir is named by NO other block: the
+     * chain is unresolvable - the og's unreferenced-orphan placement
+     * (flat under the lost root), and journal children keep their on-disk
+     * names (the iNode%I64d fallback is the SWEEP surface's naming -
+     * the og's own trace: journal children get real names) */
+    auto img = build_volume();
+    grow_journal(img, 8);
+    u8* snap = img.block(10 + 5);
+    memset(snap, 0, BS);
+    u32 c = 0;
+    add_dirent(snap, c, 7, ".", 2); /* owner 7 - nobody names inode 7 */
+    add_dirent(snap, c, 4, "..", 2);
+    add_dirent(snap, c, 9, "lonely.txt", 1);
+
+    MemDevice dev(img.raw());
+    tree::ResultTree tree;
+    auto* ra = tree.add_root(u"Found");
+    auto* rl = tree.add_root(u"Lost Files");
+    Ext4ScanFlags fl;
+    Ext4ScanStats st;
+    u32 rc = scan_ext4(&dev, fl, nullptr, nullptr, nullptr, tree, ra, nullptr, rl, st);
+    ASSERT_EQ(OK, rc) << err_text(rc);
+    bool seen = false;
+    for (tree::FileNode* n = rl->first_child(); n; n = n->next_sibling()) {
+        if (n->props() && n->name_utf8() == "lonely.txt") {
+            seen = true;
+            EXPECT_EQ(tree::Origin::Lost, n->origin());
+        }
+    }
+    EXPECT_TRUE(seen) << "the unresolvable-chain entry surfaces flat with its real name";
+}
+
+TEST(Ext4Engine, TwoPassJournalClaimInteraction) {
+    /* an entry the live tree already claimed must NOT be duplicated by the
+     * journal pass (the og's reachability check FUN_180003fb0 :2807-2871:
+     * the live claim wins) */
+    auto img = build_volume();
+    grow_journal(img, 8);
+    u8* snap = img.block(10 + 5);
+    memset(snap, 0, BS);
+    u32 c = 0;
+    add_dirent(snap, c, 4, ".", 2); /* owner: sub (LIVE) */
+    add_dirent(snap, c, 2, "..", 2);
+    add_dirent(snap, c, 5, "nested.bin", 1); /* INO_SUB: visited by the walk */
+    add_dirent(snap, c, 3, "hello.txt", 1);  /* INO_HELLO: visited */
+
+    MemDevice dev(img.raw());
+    tree::ResultTree tree;
+    auto* ra = tree.add_root(u"Found");
+    auto* rl = tree.add_root(u"Lost Files");
+    Ext4ScanFlags fl;
+    Ext4ScanStats st;
+    u32 rc = scan_ext4(&dev, fl, nullptr, nullptr, nullptr, tree, ra, nullptr, rl, st);
+    ASSERT_EQ(OK, rc) << err_text(rc);
+    /* nested.bin appears exactly ONCE in the whole tree (under sub) */
+    size_t count = 0;
+    std::function<void(tree::FileNode*)> countwalk = [&](tree::FileNode* n) {
+        for (tree::FileNode* x = n->first_child(); x; x = x->next_sibling()) {
+            if (x->props() && x->name_utf8() == "nested.bin")
+                ++count;
+            countwalk(x);
+        }
+    };
+    for (auto* r : tree.roots())
+        countwalk(r);
+    EXPECT_EQ(size_t(1), count) << "the live claim wins - no journal duplicate";
+    EXPECT_EQ(2u, st.journal_salvaged) << "only the S-004 orphan remnants (ghost + esc) surface; "
+                                          "the live-claimed entries do not duplicate";
 }
 
 } // namespace ext4

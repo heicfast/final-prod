@@ -189,6 +189,16 @@ u32 read_smart(void* disk_handle, SmartReport& out) {
         return ERR_HEALTH_UNAVAILABLE;
     out.smart_version = u16(table[0]) | (u16(table[1]) << 8);
 
+    /* 2b. SMART READ_THRESHOLDS (feature 0xD1, S-024): the vendor
+     * thresholds the Bad rule compares against. Same 30x12 entry table
+     * at +2; the threshold value sits at entry+1 (the public ATA
+     * thresholds layout - id, threshold, reserved[10]). Failure is
+     * non-fatal: grading falls back to raw-count-only rules (threshold
+     * 0 = unavailable). */
+    u8 thr[512];
+    const bool got_thr = via_legacy ? smart_rcv_legacy(h, 0xD1, 0, 0xB0, thr)
+                                    : ata_passthrough(h, 0xD1, 0, 0xB0, thr);
+
     /* The 362-byte attribute table holds 30 twelve-byte entries at +2.
      * Entry layout (ATA-ATAPI-7): id@+0, flags(u16)@+1, value@+3,
      * worst@+4, raw[6]@+5, reserved@+11. */
@@ -202,6 +212,11 @@ u32 read_smart(void* disk_handle, SmartReport& out) {
         a.value = p[3];
         a.worst = p[4];
         std::memcpy(a.raw, p + 5, 6);
+        if (got_thr) {
+            const u8* tp = thr + 2 + e * 12;
+            if (tp[0] == a.id)
+                a.vendor_threshold = tp[1];
+        }
         /* flags bit0 = pre-failure (advisory) attribute; bit3 = FAILED NOW.
          * A pre-failure attribute that has decayed to zero is failing. */
         a.failing = (flags & 0x0008) != 0 || ((flags & 0x0001) != 0 && a.value == 0);
@@ -237,6 +252,28 @@ u32 read_smart(void* disk_handle, SmartReport& out) {
         default:
             break;
         }
+    }
+
+    /* S-024: the 4-status grading pass (pure-core rules; the og DiskHealth
+     * model). is_ssd feeds the SSD-wear gate + the temperature class. */
+    out.is_ssd = looks_like_ssd(h);
+    {
+        health::SmartGradeInputs gi;
+        gi.is_ssd = out.is_ssd;
+        for (const SmartAttribute& a : out.attributes) {
+            health::SmartAttrInput ai;
+            ai.id = a.id;
+            ai.value = a.value;
+            ai.worst = a.worst;
+            std::memcpy(ai.raw, a.raw, 6);
+            ai.vendor_threshold = a.vendor_threshold;
+            ai.failing_bit = a.failing;
+            gi.attrs.push_back(ai);
+        }
+        std::vector<health::HealthGrade> grades;
+        out.grade = health::grade_smart(gi, grades);
+        for (size_t k = 0; k < grades.size() && k < out.attributes.size(); ++k)
+            out.attributes[k].grade = grades[k];
     }
     return OK;
 }

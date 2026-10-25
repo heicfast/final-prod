@@ -62,3 +62,15 @@ are session 4's.
 | M-023 | MAJOR (s1/s3, amended) — **FIXED** (FIXED/M-023) | Category/extension coverage gap (counts corrected: 8 vs 6 cats, 1,481 vs 64 ext) → generated 1,481-ext table + 2 new categories |
 | N-040 | MINOR (shared) | The frozen-contract `modified` unit falsehood is canonically fixed in M-029's plan |
 | S-023 | SEVERE (shared) | No precomputed category map / assistant statistics (query re-derives per row) |
+
+---
+
+## Session-5 audit (audited commit `7cf6754`)
+
+- **M-029 addendum (filterbar decode, UIUX 31 first read):** the 7-dimension
+  AdvanceFilterCondition layout confirmed (tag + path dimensions have NO core field); 3
+  filter-slot persistence (CAdvanceFileFilterMgr) absent; CSetFilterThread refilter
+  worker vs synchronous core query; CCheckNodeThread re-grade wiring (TimeCritical) now
+  cited for S-023's per-selection re-grade. OQ-S4-2's naming correction folded: the og has
+  no FileNNNN scheme (N-063); the +0x48 hook is the filter-push config source, i.e. it
+  belongs to this module's server-push section.

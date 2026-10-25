@@ -10,11 +10,14 @@
 #include "cr/cr_text.h"
 #include <gtest/gtest.h>
 #include <string>
+#include <cstring>
 #include <string_view>
 
 namespace {
 
 using cr::text::utf8_to_u16;
+using cr::text::utf8_to_u16_lossless;
+using cr::text::lossless_u16_to_utf8;
 
 std::u16string u(std::initializer_list<char16_t> cps) {
     return std::u16string(cps.begin(), cps.end());
@@ -135,4 +138,57 @@ TEST(Text, RoundTripThroughNodeUtf8) {
         }
         EXPECT_EQ(c, back) << "round-trip broke for " << c;
     }
+}
+
+/* ---- M-010: the lossless invalid-byte mapping (ext4/Btrfs) ------------- */
+
+TEST(Text, InvalidByteLosslessMapping) {
+    /* a Latin-1 byte that cannot start a valid sequence maps to
+     * U+E000 + byte - bijective, reconstructible, never U+FFFD */
+    EXPECT_EQ(u"\uE0E9", utf8_to_u16_lossless("\xE9"));
+    /* valid sequences untouched */
+    EXPECT_EQ(u"r\u00E9sum\u00E9.txt",
+              utf8_to_u16_lossless("r\xC3\xA9sum\xC3\xA9.txt"));
+    /* a torn 3-byte lead: the lead byte maps losslessly, each following
+     * continuation byte fails its own lead test and maps individually */
+    const std::u16string torn = utf8_to_u16_lossless("\xE2\x28\xA1");
+    EXPECT_EQ(3u, torn.size());
+    EXPECT_EQ(0xE0E2u, torn[0]);
+    EXPECT_EQ(0x28u, torn[1]); /* '(' is valid ASCII */
+    EXPECT_EQ(0xE0A1u, torn[2]);
+    /* lone continuation bytes */
+    EXPECT_EQ(0xE080u, utf8_to_u16_lossless("\x80")[0]);
+    /* 0xF8+ lead bytes */
+    EXPECT_EQ(0xE0FEu, utf8_to_u16_lossless("\xFE")[0]);
+}
+
+TEST(Text, LosslessRoundTripRecoversRawBytes) {
+    /* the inverse: original name bytes come back byte-for-byte */
+    const char raw[] = {'r', char(0xE9), 's', 'u', 'm', char(0xE9), '.', 't', 'x', 't'};
+    const std::u16string mapped =
+        utf8_to_u16_lossless(std::string_view(raw, sizeof(raw)));
+    std::string back;
+    ASSERT_TRUE(lossless_u16_to_utf8(mapped, back));
+    EXPECT_EQ(0, memcmp(raw, back.data(), sizeof(raw)));
+    /* mixed: valid UTF-8 + raw bytes round-trip together */
+    const char mixed[] = {'a', char(0xC3), char(0xA9), 'b', char(0xE9), 'c'};
+    const std::u16string m2 =
+        utf8_to_u16_lossless(std::string_view(mixed, sizeof(mixed)));
+    std::string b2;
+    ASSERT_TRUE(lossless_u16_to_utf8(m2, b2));
+    EXPECT_EQ(0, memcmp(mixed, b2.data(), sizeof(mixed)));
+    /* a foreign private-use unit (never emitted by the decoder) is
+     * refused by the inverse */
+    const std::u16string foreign = u"\uF8FF";
+    std::string b3;
+    EXPECT_FALSE(lossless_u16_to_utf8(foreign, b3));
+}
+
+TEST(Text, ZfsDecoderStaysReplacement) {
+    /* M-010 pin: the ZFS-side decoder keeps U+FFFD (the og ZFS engine
+     * converts via MultiByteToWideChar(CP_UTF8, flags=0) - FUN_18001c630
+     * :24995+). The engine asymmetry is deliberate og parity; guards
+     * against someone "unifying" the decoders. */
+    EXPECT_EQ(u"\uFFFD", utf8_to_u16("\xE9"));
+    EXPECT_EQ(u"r\uFFFDsum\uFFFD.txt", utf8_to_u16("r\xE9sum\xE9.txt"));
 }

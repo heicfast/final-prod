@@ -1,5 +1,15 @@
 # CROSS-REF-MATRIX.md — module × parameter verdict matrix (post-rebase with parallel leg)
 
+**Session-5 changes (2026-10-26, audited `7cf6754`):** the never-cited-artifact wave —
+new findings **A-005 (ACUTE — rawfixer 4Kn stack-buffer overflow; the first ACUTE since
+A-004), S-031, S-032, M-046..M-051, N-051..N-064, I-021, I-022**; OQ-S4-1 RESOLVED (the
+169-entry grading table dumped byte-exact — S-023 addendum + evidence file); OQ-S4-2
+RESOLVED-with-residual (the vtable+0x48 hook is a per-scan filter-config fetch, not a
+namer — N-063 + corpus errata row 37); M-029/N-043 addenda (filterbar decode + liveness
+evidence); corpus errata rows 37-40; three evidence files (grading-table dump, session-5
+quotes pack, baseline 366/366 execution). New module coverage: `err` gains M-049 (via the
+cross-cutting err/error-model row below); `win/elevation` + `destio` registered in I-021.
+
 Legend: `M` = MATCH · `A-n`/`S-n`/`M-n`/`N-n`/`I-n` = finding ID (in
 `findings/<SEVERITY>/`) · `NA` = NOT-APPLICABLE (reason in the module file) ·
 `ok` = MATCH-with-note (see module file). Full per-parameter expansion in each
@@ -61,9 +71,9 @@ dispositions is the surviving one).
 | ntfs | M-007, M-008 (S2); N-011 FIXED-ALREADY + N-012 FIXED (minors session 2026-10-26, D-52); I-001 ack; S-012 FIXED (two-pass: pass-1 membership + pass-2 dump walk + size-0 rescue; convergent dual-agent fix); **M-043 (S5b: content-proof recognition + scanner backup-boot)** | M (S-001+S-012 fixed: membership keep), N-012 (S2) | M | M-008 (S2) | M (M-001 fixed), N-001 | NA | NA | M | M | M | M (debt), N-019 (S2) |
 | fat | M; N-021 (S2); **M-045 (S5b: boot-gate family — bps/SPC/label/numFATs/cap/band-retry; resolves S-006's FATX remainder)** | M; N-021 (S2) | M | I-002 ack, OQ-T2 | M | NA | NA | M | M | M | M (debt) |
 | exfat | M (S-011 + S-013 fixed), N-003 FIXED, OQ-T5 | N-003 FIXED; M (S-011 fixed) | M | M | M | NA | NA | M (S-013 windowed-FAT FIXED) | M | M | M (debt) |
-| ext4 | S-004 FIXED, S-026 FIXED (meta_bg resolver, D-58); **M-010**, I-006 (S2), I-007 (S2) | ok; **M-010**, I-006 (S2), I-007 (S2) | M (S-026 fixed: meta-group desc blocks) | S-004 FIXED, S-025 OPEN | N-004 | NA | NA | M | M | N-004 | M (debt) |
+| ext4 | S-004 FIXED, S-025 FIXED (two-pass reparenting, D-58/59 siblings), S-026 FIXED (meta_bg resolver, D-58), S-027 FIXED (backup-SB rescue, D-59); **M-010**, I-006 (S2), I-007 (S2) | ok; **M-010**, I-006 (S2), I-007 (S2) | M (S-026 fixed: meta-group desc blocks; S-027 fixed: backup-SB positions + s_block_group_nr) | S-004 FIXED, S-025 OPEN | N-004 | NA | NA | M | M | N-004 | M (debt) |
 | hfsplus | S-002 FIXED, **S-003 FIXED (s5)**, **S-021 FIXED (s5 — journal harvest)**, N-005 FIXED, N-038 FIXED; I-007 (S2) | M; I-007 (S2) | M | M | M | NA | NA | M | M | M | M (S-021 tests; THIN closed) |
-| btrfs | I-003 ack, M (S-005 fixed), N-006; **M-010**, I-007 (S2) | M; **M-010**, I-007 (S2) | M | M | M | NA | NA | M | M | M | M |
+| btrfs | I-003 ack, M (S-005 fixed), N-006; **M-010 FIXED (lossless mapping)**, I-007 (S2) | M; **M-010 FIXED**, I-007 (S2); **S-028 FIXED** (xattrs: DOSATTRIB bits + user.* records + the compression-property tag) | M | M | M | NA | NA | M | M | M | M |
 | zfs | OQ-T6, M (S-005 fixed); I-007 (S2) | ok | OQ-T6 | M | M | NA | NA | M | M | M | M |
 | refs | N-007, I-004 ack, **M-022 FIXED (s4)**, I-012 (S3: GAP-ADS resolved); **S-020 FIXED (s4)**; **M-026/M-027 FIXED (s4: stale-page sweep + identity keep-one + recycle routing)** | M | M | **M-022 FIXED (s4)** | M | NA | NA | M | M | M | M |
 | table+ldm | M (A-002 FIXED — real Microsoft GUIDs restored), M-002 | M | M (A-002 FIXED; A-001 fixed) | M-002, M (OQ-T7 resolved — I-008) | ok | NA | NA | M | M | M | M (debt) |
@@ -72,10 +82,28 @@ dispositions is the surviving one).
 | tree | M | M | NA | M | M | NA | NA | ok | M | NA | M |
 | session | M | M (D12), N-014 (S2) | **M-042 (S5b: lostpart.dat resume re-validation + layout snapshot missing)**; N-049 (S5b: record richness) | NA | M; N-014 (S2) | NA | NA | M | M | I-005.7 ack | M (debt) |
 | writer+report | M | M | NA | M | M | M | NA | ok | M | **N-013 (S2), N-015 (S2)**, N-009d | M (debt) |
-| health | M (S-014 FIXED s4 — live+offline auto-unlock) | NA | N-009a | NA | M | NA | NA | NA | M | M | M + **N-032 (S3: CSMI/USB-bridge transports)**; **N-042 (S4: CLI temp fractional digit — renumbered past the parallel legs' N-033..N-039)** |
+| health | M (S-014 FIXED s4 — live+offline auto-unlock) | NA | N-009a | NA | **M; S-024 (S3) FIXED** (FIXED/S-024: HealthGrade 4-status model + 0xD1 vendor thresholds + the full rule set) | NA | NA | NA | M | M | M + **N-032 (S3: CSMI/USB-bridge transports)**; **N-042 (S4: CLI temp fractional digit)** |
 | rawfixer | M (S-008+S-010 fixed) | NA | M | M (S-008 fixed) | M | NA | NA | M (M-009 fixed) | M | M (S-008+S-010 fixed) | M |
 | orchestrator | M | M | NA | M-005 | M; **N-016 (S2), N-017 (S2)** | **S-023 (S4) FIXED** (FIXED/S-023: post-scan grading pass + RecoveryAssistant statistics + ABI regrade); N-043 (S4: progress watchdog) | NA | M | M | M | M |
 | visualization | S-009 (partial-FIXED-in-tree, finding file stale — N-020) | **M-023 (S3)** FIXED (findings/FIXED/M-023: generated 1,481-ext table + Email/Bookmarks cats; runtime-XML surface = deliberate non-adoption) | NA | M | M | NA | M | M | M | NA | M |
+
+| ext4 | S-003 FIXED (HFS+ journal differential harvest, landed with S-021), S-004 FIXED, S-026 FIXED (meta_bg resolver, D-58); **M-010**, I-006 (S2), I-007 (S2) | ok; **M-010**, I-006 (S2), I-007 (S2) | M (S-026 fixed: meta-group desc blocks) | S-025 OPEN (theirs: journal reparenting), S-004 FIXED | N-004 | NA | NA | M | M | N-004 | M (debt) |
+| hfsplus | S-002 FIXED, S-003 FIXED, S-021 FIXED (s5 — journal harvest, the og's PRIMARY deleted surface), N-005 FIXED, N-038 FIXED; I-007 (S2) | M; I-007 (S2) | M | M | M | NA | NA | M | M | M | M (S-021 tests; THIN closed) |
+| btrfs | I-003 ack, M (S-005 fixed), N-006; **M-010**, I-007 (S2) | M; **M-010**, I-007 (S2) | M | M | M | NA | NA | M | M | M | M |
+| zfs | OQ-T6, M (S-005 fixed); I-007 (S2) | ok | OQ-T6 | M | M | NA | NA | M | M | M | M |
+| refs | N-007, I-004 ack, **M-022 FIXED (s4)**, I-012 (S3: GAP-ADS resolved — parity); **S-020 FIXED (s4: resident+all-rows+paged+granularity)** | M | M | **M-022 FIXED (s4: dual grammar + gen tag)** | M | NA | NA | M | M | M | M |
+| table+ldm | M (A-002 FIXED — real Microsoft GUIDs restored), M-002 | M | M (A-002 FIXED; A-001 fixed), **M-046 (S5: LDM GPT-path 512-hardcodes)** | M-002, M (OQ-T7 resolved — I-008) | ok | NA | NA | M | M | M | M (debt) |
+| carve | S-007, M-005, **S-031 (S5: carved nodes never marked deleted)**, **S-032 (S5: archive inner-entry inventories)** | **S-031 (S5)**, **M-051 (S5: RAW provenance fields)** | S-007, N-008, **N-051/N-052/N-053/N-054 (S5: MKV DocType / HEIC relabel / IIU binding / RAF-JPEG strictness)**; M (S-015 units FIXED), M (S-017 ftyp magics FIXED) | S-007, N-008, M-005, S-032 (S5: multi-part stitching) | S-007, N-008, M-005 | M | NA | NA | M (S-015 tail-walk FIXED: named 8 MiB bound, og range documented) | M | **N-063 (S5: default naming invented; og per-analyser names)**, **M-048 (S5: user-signature extensibility)** | M |
+
+| table+ldm | M (A-002 FIXED — real Microsoft GUIDs restored), M-002 | M | M (A-002 FIXED; A-001 fixed) | M-002, M (OQ-T7 resolved — I-008) | ok | NA | NA | M | M | M | M (debt) |
+| carve | S-007 **FIXED (primary set + full audio family)**, M-005 | M | S-007 **FIXED** (niche ~25-format tail precisely scoped in the finding), N-008; M (S-015 units FIXED), M (S-017 ftyp magics FIXED) | M-005 | M | NA | NA | M (S-015 tail-walk FIXED: named 8 MiB bound, og range documented) | M | M | M || lost-partition | M (S-006 fixed; S-019 FIXED s4 — BitLocker family), OQ-T9 RESOLVED (M-017 formula) | NA | M (S-006 fixed; S-019) | M | M | NA | NA | M | M | M | M |
+| tree | M | M | NA | M | M | NA | NA | ok | M | NA | M |
+| session | **M-047 (S5: stats round-trip asymmetry)**, **M-050 (S5: node-model carriers)**, S-031-adj (S5) | M-047, M-050, **N-059 (S5: btrfs/zfs extras)**, N-014 (S2) | M | NA | M; N-014 (S2); **N-058 (S5: load validation deltas)** | NA | NA | M | **N-060 (S5: save progress/cancel)** | I-005.7 ack; **N-061 (S5: auto-naming)** | M (debt) |
+| writer+report | M | M | NA | M | M | M | NA | ok | M | **N-013 (S2), N-015 (S2)**, N-009d, **N-056 (S5: WinDestIo temp leak on failed rename)** | M (debt) |
+| health | M (S-014 FIXED s4 — live+offline auto-unlock), **N-064 (S5: password-dictionary unlock aid absent)** | NA | N-009a; N-055 (S5) FIXED by the S-024 fix leg (0xD1 + 4-status grading) | NA | M | NA | NA | NA | M | M | M + **N-032 (S3: CSMI/USB-bridge transports)**; **N-042 (S4: CLI temp fractional digit — renumbered past the parallel legs' N-033..N-039)** |
+| rawfixer | **A-005 (S5 ACUTE: 4Kn stack-buffer overflow)**, M (S-008+S-010 fixed) | NA | M | M (S-008 fixed) | M | NA | NA | M (M-009 fixed) | **M-046 (S5: 4Kn exFAT plan truncation)** | M (S-008+S-010 fixed) | M |
+| orchestrator | M | M | NA | M-005 | M; **N-016 (S2), N-017 (S2)** | **S-023 (S4: no post-scan grading engine / RecoveryAssistant — S5 addendum: OQ-S4-1 RESOLVED, table dumped)**; N-043 (S4: progress watchdog + S5 liveness addendum) | NA | M | M | **N-061 (S5: run-log), N-062 (S5: memory monitor)**, **N-060 (S5: save progress/cancel)** | M |
+| visualization | S-009 (partial-FIXED-in-tree, finding file stale — N-020) | **M-023 (S3)** FIXED (findings/FIXED/M-023: generated 1,481-ext table + Email/Bookmarks cats; runtime-XML surface = deliberate non-adoption) | NA | M | M | NA | M | M | M | NA | M; **N-057 (S5: diskmap overlay test debt + dead enum)** |
 | abi (cr_ui) | NA | M | ok | NA | M | M | S-009 | M | M | M | **N-040 (S4: doc truthfulness), N-041 (S4: dead code), I-016 (S4: factory register + FS-code spaces)** |
 | cli | N-009c | NA | M | NA | M | NA | M | NA | M | M | ok; N-020 (S2); **N-044 (S4: --deep naming hazard)** |
 | quality (cross-cutting) | NA | NA | NA | NA | NA | NA | NA | NA | NA | NA | **N-018 (S2), N-019 (S2), N-020 (S2)**; M-006 FIXED |
@@ -183,6 +211,8 @@ reading was wrong — corrected in `evidence/decompiled-quotes/fat-exfat-session
 | refs | F-gate/B1 | **I-013** (host-OS runtime gate: og refuses < Win8 hosts; core host-agnostic — deliberate portability superset) |
 | refs | (convergence) | I-012 named-streams parity confirmed convergent; C21/A26/X51/B10 newly-M (see modules/refs.md S3 rows) |
 | hfsplus | B4/B5/B2/A25 | **S-021 — FIXED (s5)** (`journal_harvest_pass`: ring walk + differential + deleted-tier emission; D-56; the tx-magic derivation stays OQ) |
+| hfsplus | B2/A26 (extents-overflow decode) | **A-007 — FIXED (closing session; twice-renumbered A-005→A-006→A-007 after the rawfixer-4Kn collision)** (descriptors at key+12, TN1150-verbatim — the 12-byte key includes the keyLength field; both parse sites (live walk + S-021 journal branch) were off by two and silently dropped fragmented tails; first populated overflow fixture) |
+| hfsplus | B4/B5/B2/A25 | **S-021 — FIXED (fix session, 2026-10-26)** (journal deleted-record harvest: JIB/jhdr gates, ring walk with the u16 header test, og node-image validator, fork classification by volume ranges, catalog differential + extents side map; field-map corrections in evidence/decompiled-quotes/s3-hfsplus-inventory.md §3a; **discovered ACUTE A-005** — the B-tree record-span inversion — fixed in the same commit) |
 | hfsplus | B2/B7 | **N-038** (fork-selection predicate: og record byte +0x29 bit 0x20 → rsrc fork + decmpfs mark; core data-fork + empty-fork substitution; field-name UNVERIFIED) |
 | ext4 | B1/B4/A27/Q51 | **I-014** (deleted-inode sweep superset; fragmented-journal-walk correctness advantage — og physical+1 is wrong, core extent-map correct; X51 MATCH; "do not replicate" registrations) |
 | hfsplus | B1/B7 (rows 4-6) | **I-014** (allocation-bitmap grading probable superset — UNVERIFIED residual; hard links/hot files MATCH-by-omission; decmpfs modes 1/2 MATCH-by-omission) |
@@ -198,3 +228,33 @@ S-015→S-020, M-011→M-024, M-012→M-025, M-015→M-026, M-016→M-027, N-025
 N-027→N-034, N-028→N-035, N-030→N-036, N-031→N-037, I-011→I-013; merged as
 addenda: dispatch→N-031, video-feed→M-021, scoring/merge→M-017, resident-bodies→M-022,
 byte-pin→I-009, probe-row→I-010; dropped as dups: boot-geometry→N-013b, byte-granularity→I-009.)*
+
+## Session-5 detail rows (2026-10-26, audited `7cf6754`)
+
+| Module | Parameters | Finding |
+|---|---|---|
+| rawfixer | F60/Q67/Q65/A25 | **A-005 — ACUTE (S5)** (4Kn stack-buffer overflow: `u8 x[512]` buffers receive `sector`-byte reads at cr_rawfixer.cpp:558/574/590/639; transport reports 4096 on 4Kn; tests pin 512 — FIX-3 fixed offsets, not buffers) |
+| carve+session+query | B4/D11/D12/B1 | **S-031 (S5)** (carved files never marked deleted: og FLAGS=0x0020 constant on all 12,147 sampled records; core's deleted_only filter and deleted_count exclude the entire carve set) |
+| carve | B1/B2/D11/A27/A28 | **S-032 (S5)** (ZIP/RAR inner-entry inventories: og returns the complete inner file inventory + multi-part RAR stitching; core emits one flat node) |
+| ldm+rawfixer | C20/B2/A25/F60 | **M-046 (S5)** (4Kn wrong-offset/truncated-plan: LDM GPT path hardcodes `*512` at 3 sites vs the geometry-correct main parser; exFAT plans write 512 of 4096 bytes + wrong checksum span) |
+| session+tree | D12/D11/B8 | **M-047 (S5)** (stats round-trip asymmetry: writer persists 4×u64, reader discards them; refresh is direct-children-only vs the og's persisted-and-trusted recursive accumulator) |
+| carve | B1/A28/D16 | **M-048 (S5)** (EUUserData user-extensible signature DB — 111 extensions, `"offset,hex"` signs + MIME — has no core counterpart) |
+| err+abi | C23/D14/F35/Q46 | **M-049 (S5)** (error model: flat 28-code 8-hex enum with a false "reproduces the reference convention" header claim vs the og's 12-digit documented codes + error-object architecture) |
+| session+tree | D11/D12/B4 | **M-050 (S5)** (node-model round-trip gaps: ~15 og wrapper fields — hidden-root bit, grading bits 5-7, roles, fixup, sentinels — have no core carrier) |
+| carve+session | D11/D12/B9 | **M-051 (S5)** (RAW provenance unpersisted: timestamp string, analyser checksum w/ 0xFFFFFFFF invalid marker, note, tail anchor, boolean) |
+| carve | A28/B3/C19 | N-051 (S5) MKV DocType discrimination + element-bounds gate absent |
+| carve | B10/A28 | N-052 (S5) HEIC brand relabel to L"HEIF" absent |
+| carve | C19/B1/B10 | N-053 (S5) IIU magic: og binds TIFF/EP chain, core binds RW2 |
+| carve | C19/B1/B3 | N-054 (S5) RAF 4-byte-vs-16-byte strictness (miss) + JPEG 4-dword-vs-prefix (superset) |
+| health | B1/D11/Q68 | N-055 (S5) SMART thresholds (0xD1) never read — modules/health.md "presentation-layer" disposition corrected |
+| writer | F62/Q65/A35 | N-056 (S5) WinDestIo .part-N temp leak on failed rename + UNC untested |
+| table+visualization | Q65/A54/Q69 | N-057 (S5) TableLayout::Ebr dead + diskmap overlay/budget test debt |
+| session | A35/D12/F35 | N-058 (S5) load validation deltas (forward parent re-parent, bad-marker light, short-count OK, name-length wrap) + CRC/resync superset register |
+| session+btrfs+zfs | D11/D12 | N-059 (S5) btrfs secondary ids/generation + zfs secondary flags unpersisted |
+| session+orchestrator | F32/F38/F41 | N-060 (S5) save_session progress/cancel contract absent (og 40%→65% per-node + IsCancelled) |
+| orchestration+session | F35/Q46/D12 | N-061 (S5) no persistent engine run-log + no auto_<label><M><D><H><m><s> session auto-naming |
+| orchestration | F35/P49 | N-062 (S5) no memory monitor (og CMemMonitorManager) |
+| carve | B10/A28/Q68 | N-063 (S5) default_namer "File%06u" is a core invention (og: per-analyser content names + "Lost Name File (...)_EaseUS"); OQ-S4-2 resolution |
+| health/bitlocker | F61/B1 | N-064 (S5) Dict password-dictionary unlock aid absent (228 entries, manage-bde -Password; consent-gated port required) |
+| cross-cutting | B1/F59/F61/F62/Q46 | I-021 (S5) scope/deliberate-delta registers (og always-elevated manifests, EuSendMessage installer-only, repair toggle, CRecoveryFilter layering, PENetwork SMB, DRWCfg.bin) |
+| session/carve/btrfs/zfs | D12/A27/Q67 | I-022 (S5) core-superset registers (CRC32/resync/bomb-caps, structured btrfs extents, decoded zfs runlists, UTF-16 unification, extra props, core-only formats) |

@@ -38,20 +38,20 @@ struct HfsScanStats {
     u64 overflow_extents = 0; /* extents resolved from the overflow tree */
     u64 bad_nodes = 0;
     /* S-021 (diff-to-fix): the journal deleted-record harvest */
-    u64 journal_tx = 0;       /* transaction block-lists walked */
-    u64 journal_images = 0;   /* node images read from the ring */
-    u64 journal_leaves = 0;   /* leaf-kind images classified */
-    u64 journal_records = 0;  /* records kept after the live differential */
-    u64 journal_emitted = 0;  /* harvested records emitted as deleted */
+    u64 journal_tx = 0;      /* transaction block-lists walked */
+    u64 journal_images = 0;  /* node images read from the ring */
+    u64 journal_leaves = 0;  /* leaf-kind images classified */
+    u64 journal_records = 0; /* records kept after the live differential */
+    u64 journal_emitted = 0; /* harvested records emitted as deleted */
     /* S-002 (diff-to-fix) */
     u64 attr_records = 0;     /* inline attribute records collected */
     u64 attr_unsupported = 0; /* non-0x10 record types skipped (og-parity) */
     u64 decmpfs_files = 0;    /* files whose content resolved from decmpfs */
     u64 named_forks = 0;      /* attribute children emitted */
     /* N-028/N-038 (diff-to-fix, minors session) */
-    u64 sink_filtered = 0;    /* dotfiles + 'HFS+ Private Data' (og sink) */
-    u64 prf_folderized = 0;   /* 'prdf' file records folderized (og gate) */
-    u64 rsrc_marked_files = 0;/* ownerFlags 0x20: rsrc-fork content path */
+    u64 sink_filtered = 0;     /* dotfiles + 'HFS+ Private Data' (og sink) */
+    u64 prf_folderized = 0;    /* 'prdf' file records folderized (og gate) */
+    u64 rsrc_marked_files = 0; /* ownerFlags 0x20: rsrc-fork content path */
 };
 
 struct HfsScanFlags {
@@ -62,16 +62,18 @@ struct HfsScanFlags {
      * og's PRIMARY deleted surface on journaled volumes. Default ON =
      * og parity; the ring walk is hard-bounded (see the engine source). */
     bool journal_harvest = true;
-    bool resource_forks = true;   /* emit ..namedfork/rsrc children */
-    bool resolve_decmpfs = true;  /* S-002: com.apple.decmpfs content via
-                                   * codec extents (both storage forms) */
-    bool named_forks = true;      /* S-002: attributes as ..namedfork/<name> */
+    bool resource_forks = true;  /* emit ..namedfork/rsrc children */
+    bool resolve_decmpfs = true; /* S-002: com.apple.decmpfs content via
+                                  * codec extents (both storage forms) */
+    bool named_forks = true;     /* S-002: attributes as ..namedfork/<name> */
 };
 
 /* Volume header (BE fields decoded). */
 struct VolumeHeader {
     u16 signature = 0; /* 0x482B H+ / 0x4858 HX */
     u16 version = 0;
+    u32 attributes = 0; /* +0x04: kHFSVolumeJournaledMask 0x2000 gates the
+                         * journal harvest (og FUN_180010e10 :13467) */
     u32 block_size = 0;
     u32 total_blocks = 0;
     u32 free_blocks = 0;

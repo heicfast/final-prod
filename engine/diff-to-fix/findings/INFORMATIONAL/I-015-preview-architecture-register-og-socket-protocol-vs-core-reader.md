@@ -81,3 +81,13 @@ None.
 **Status:** ACKNOWLEDGED
 **Verified by:** kMaxRead 4 MiB / kMaxDecode 256 MiB confirmed in cr_preview.h this session; the og's socket-protocol constants (602-byte MediaInfo, 10 s bounded wait, ports 20171/20172, 100 MB UI cap) are recorded in the finding so parity tests target the right layer.
 **Resolution notes:** Deliberate architectural difference, preserved: the og previews through a UI-layer ZeroMQ media-agent child process; the core's in-process bounded reader is the engine-side equivalent. The reference constants stay registered for the day a UI layer exists. No core change.
+
+**Status:** ACKNOWLEDGED (deliberate architectural difference — register preserved)
+**Verified by:** this session: core preview bounds re-confirmed
+(`cr_preview.cpp:24` kMaxRead clamp at read time; `:59` kMaxDecode bound
+in metadata extraction). The og protocol constants (602-byte 0x25A
+header, payload (0, 0x100000], GlobalAlloc 0x42, ports 20171/20172,
+100×100 ms) remain recorded in this finding and its evidence file.
+**Resolution notes:** no code change. Registered as PARITY-DELTAS
+**D-59h**. Parity tests must not byte-compare preview payloads across
+the two layers; hosts building a UI get the reference contract here.

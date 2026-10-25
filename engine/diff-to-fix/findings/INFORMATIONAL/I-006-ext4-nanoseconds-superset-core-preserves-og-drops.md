@@ -157,3 +157,18 @@ None. The deliberate superset is documented; no further RE needed.
 **Status:** ACKNOWLEDGED
 **Verified by:** first-hand code re-read this session (decode_extra at cr_ext4_engine.cpp:96, unix_to_filetime_ns at cr_types.h:56 - the kernel ext4_decode_extra_time algorithm; og cites at :5494-5515/:6262-6282 re-checked: sec-only reads + wMilliseconds=0).
 **Resolution notes:** Deliberate superset, preserved. The core keeps nanosecond timestamps the og drops to second-granularity; users gain precision, parity benches diverge mechanically on non-zero nsec (bench-filter note, not a regression). Future work must PRESERVE this divergence; do not "fix" precision DOWN to the og.
+
+**Status:** ACKNOWLEDGED (deliberate superset — preserved)
+**Verified by:** first-hand re-verification this session (session 7):
+corpus `ghidra-searchdll/EXT4SearchDLL_decompiled.c:5494-5515` (i_ctime
+sec-only read, `_gmtime32_s`, `wMilliseconds = 0` hardcoded) and `:6255-6285`
+(3rd/4th FILETIME slots zero-initialized, never assigned) re-read directly;
+core `cr_ext4_engine.cpp:96` (`decode_extra` — kernel ext4_decode_extra_time),
+`:603-607`/`:702-704` (all four timestamps through `unix_to_filetime_ns`),
+`cr_types.h:56` — all re-read directly.
+**Resolution notes:** the rationale is correct and verified on both sides:
+the og's ext4 engine is second-only (sub-second forced to zero at two
+independent sites), the core preserves nsec at 100ns granularity per the
+ext4 spec. No code change. Registered as PARITY-DELTAS **D-59a**. Bench
+comparisons must expect mechanical divergence on the sub-second units —
+expected, not a regression. Future work must PRESERVE this divergence.

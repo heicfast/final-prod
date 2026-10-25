@@ -96,7 +96,7 @@ tests to add, contract/doc updates, acceptance criteria.>
 | S3-EHB   | S-017, S-018, M-019, M-020, N-036, N-037, N-038, N-039, I-013 |
 | S3-FEZL  | S-019, S-020, M-021, M-022, N-040, N-041, N-042, N-043, I-014 |
 | S3-ORCH  | S-021, M-023, M-024, N-044, N-045, N-046, N-047, I-015 |
-| S3-CLIABI| S-022, M-025, N-048, N-049, N-050, I-016 |
+| S3-CLIABI| S-022, M-025, N-051, N-052, N-053, I-016 |
 
 If you find more divergences than IDs in your range, file the most important ones and
 list the rest in your scratch report as candidates (the lead assigns follow-up IDs).

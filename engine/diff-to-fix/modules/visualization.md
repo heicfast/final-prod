@@ -12,9 +12,9 @@ Core (audited `67193b6`): `src/core/query/cr_query.cpp` + `src/core/preview/cr_p
 - **D16 filter model** — `M`-note: core's filter predicate set (name/path/kind/state/
   size/time) covers the og's bucket model (Date 0x100–0x105, Size 0x1000–0x1004) at the
   engine layer; the og's FileFilter.xml category membership (8 categories / 1,481 ext) is
-  UI-side — core's kind filtering is coarser (per-FS kind, not per-extension-category).
-  Registered project gap (CORE-GAP-LIST: 7-cat/85-ext vs og 8/1489) — verdict:
-  DIVERGENCE-MAJOR via the project's own register (re-verified open).
+  UI-side. **M-023 FIXED** (generated 1,481-ext table from the corpus FileFilter.xml, 8
+  categories incl. Email+Bookmarks; the stale "7-cat/85-ext vs og 8/1489" gap figure is
+  superseded — see findings/FIXED/M-023 and I-011's Resolution).
 - **D17 sort model** — `M` (Path/name/size/time sorts; Path sort materializes paths —
   perf note only).
 - **D18 paging** — `M` (bounded fetch, strict/lenient modes).
@@ -58,3 +58,12 @@ the line in the appended session-2 section above saying "M-006 (fuzz CI) unchang
 predates that fix landing and is superseded. Only the S-009 disk-map remainder stands
 (bitmap wiring → `kCellAllocFree`, CRSF record, snapshot error map, acceptance tests,
 §7 doc reconciliation).
+
+---
+
+## Session-5 audit (audited commit `7cf6754`)
+
+- **N-057 (MINOR, NEW):** `TableLayout::Ebr` is a dead enum value (never assigned —
+  either tag the extended-chain parse or delete it), and the diskmap's bad-sector overlay
+  + 64 MiB budget-growth paths are untested (cr_diskmap.cpp:129-157; write-only `total`
+  accumulator at :39). Fold the diskmap fuzz into S-009's harness ask when it lands.

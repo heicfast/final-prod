@@ -92,3 +92,15 @@ None.
 **Status:** ACKNOWLEDGED
 **Verified by:** CORPUS-ERRATA.md rows 37-42 present and cross-checked against the finding's six corrections (CTbFile = TB-scale disk-IMAGE abstraction; CFatVirtualView family = tool-ops virtualization; EFIBoot mechanism; Fixup binding; FATX naming; extension-table location/sorting).
 **Resolution notes:** Corpus-side documentation corrections, fed back via the errata register; no core change. Future sessions citing mo-module-map.md or Fixup.md must use the corrected characterizations. The OQ-S4-1 grading-table claims (".rdata"/"sorted string-map") carry the correction into that tracked item's evidence base.
+
+**Status:** ACKNOWLEDGED (corpus-doc corrections — rows 37-42 filed)
+**Verified by:** this session: `diff-to-fix/CORPUS-ERRATA.md` "Session-5
+additions" section carries the six corrections (CTbFile = boot.ini
+wrapper; CFatVirtualView = Ntfs2FAT conversion engine; CFirstVolumeMergeDeal
+= EPM partition merge; EFIBoot = UEFI NVRAM, not ESP files; Fixup =
+link-time shared library; CRecoverability extension table in .data,
+unsorted, 169 entries). The corpus repo is read-only for this session;
+the fold-back to the corpus's own CORRECTIONS.md happens corpus-side.
+**Resolution notes:** no core change. The core-side consequences are
+carried by S-030/M-040/I-019 (finding references updated by the s5b
+audit leg already).

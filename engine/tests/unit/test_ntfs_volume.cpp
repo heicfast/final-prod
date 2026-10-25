@@ -3309,7 +3309,6 @@ TEST(NtfsVolume, ShortNameFieldRoundtrips) {
         << "short_name must survive the session roundtrip (nflags bit 2)";
 }
 
-
 /* Plant the $UsnJrnl:$J record (MFT slot 23) mapping LCN 160, 2 clusters -
    the same shape the UsnJrnlHarvest fixture uses. */
 void plant_usnjrnl_record(Image& img) {
@@ -3412,7 +3411,7 @@ TEST(NtfsVolume, UsnHarvestTrueDeleteReason0x80020000) {
 
 TEST(NtfsVolume, UsnHarvestRejectsCompressionChangeOnly) {
     /* N-039 pin: 0x80000200 (CLOSE|COMPRESSION_CHANGE - NOT a deletion)
-    * must NOT harvest. The og's 0x200 gate fires here - an og defect. */
+     * must NOT harvest. The og's 0x200 gate fires here - an og defect. */
     Image img;
     build_image(img);
     plant_usnjrnl_record(img);
@@ -3484,9 +3483,9 @@ TEST(NtfsVolume, UsnHarvestCapMinesTail) {
      *       start + the NEW delete (tailgone.txt) at the very end. */
     Image img;
     build_image(img);
-    const u64 kHoleClusters = 4096;                    /* 2 MiB sparse */
-    const u64 kR3Clusters = (64ull << 20) / CLUSTER;   /* exactly the cap */
-    const u64 kTailLcn = 160 + 2 + kHoleClusters;      /* r3 mapped here */
+    const u64 kHoleClusters = 4096;                  /* 2 MiB sparse */
+    const u64 kR3Clusters = (64ull << 20) / CLUSTER; /* exactly the cap */
+    const u64 kTailLcn = 160 + 2 + kHoleClusters;    /* r3 mapped here */
     const u64 kTotalSectors = (kTailLcn + kR3Clusters) * (CLUSTER / SEC);
     img.raw().resize(size_t(kTotalSectors * SEC), 0);
     img.geom().sector_count = kTotalSectors;

@@ -7,6 +7,8 @@ against.
 | | |
 |---|---|
 | **Audited core commit** | **session 5b (this leg): `7cf6754`-lineage rebased onto `c75f646`** (the S-019 fix leg verified first-hand in-source this session; the parallel fix legs' landings visible at rebase time: S-012 `c69a790`+`5f1a212`, S-022 `cdd340b`, S-020/M-022/N-037 `9af8014`, S-026 `0c1f58e`, S-021+S-003 `c75f646`, M-023 `d80a52e`, the N-batches and MSVC/bench legs). Session 4: `204137b` (lineage `63a9167` rebased onto `ed00020` — S-013 `d2d9b03` + S-014 `ed00020` included; suite 306/306 + C-ABI check green at that tree). Session 3 (all legs, close at `43149ff` + continuation): baselines `34b3441`→`e6d5b01`→`abe8e36`→`1f08c20`; mid-session landings verified by the audit legs: S-010 `3e34ed2`, M-009 `7fd00e0`, A-002 `7f2c83e`(+`abe26b8`), A-004+S-016 `c33236f`, S-017 `1cc08c3`, S-018 INVALID `2adfa29`, S-006 `abe8e36`, S-011, S-015 `021e2e6`, N-021 `6fc8c0e`, S-013 `d2d9b03`, S-014 `ed00020`. Sessions 1-2 baselines: `67193b6`/`5d6da5f`/`8574039`/`5f638a3`. Corpus `03ad46c` throughout. |
+
+| **Audited core commit** | **session 5: `7cf6754`** (the S-019 landing, one commit past session-4 close `d870dd3`; suite 366/366 executed green at this tree — `evidence/executions/s5-baseline-suite-green.md`). **session 4: `204137b`** (this leg's wave-1 commit; lineage `63a9167` rebased onto `ed00020` — the fix legs' S-013 `d2d9b03` + S-014 `ed00020` included; suite 306/306 + C-ABI check executed green at this tree). Session 3 (all legs, close at `43149ff` + continuation): baselines `34b3441`→`e6d5b01`→`abe8e36`→`1f08c20`; mid-session landings verified by the audit legs: S-010 `3e34ed2`, M-009 `7fd00e0`, A-002 `7f2c83e`(+`abe26b8`), A-004+S-016 `c33236f`, S-017 `1cc08c3`, S-018 INVALID `2adfa29`, S-006 `abe8e36`, S-011, S-015 `021e2e6`, N-021 `6fc8c0e`, S-013 `d2d9b03`, S-014 `ed00020`. Sessions 1-2 baselines: `67193b6`/`5d6da5f`/`8574039`/`5f638a3`. Corpus `03ad46c` throughout. |
 | **Corpus (ground truth) commit** | `03ad46c` (`easeus-drw-research` main, unmoved) |
 
 **Session-3 storage/census parallel leg (integrated 2026-10-26, post-S4)** added
@@ -44,3 +46,17 @@ OQ-S2M-1 (grading locus → S-023) and M-022's OQ-1/OQ-3; filed corpus errata ro
 29-36. Navigation: SUMMARY.md (deltas + counts + top risks) → CROSS-REF-MATRIX.md
 (module × parameter verdicts) → modules/*.md (per-module detail) → findings/
 (template-complete, evidence-cited) → tracked-open/ (precise open questions).
+
+**Session 5 (2026-10-26, audited `7cf6754`) — the citation-gap wave:** a systematic
+inventory (corpus paths cited by findings vs the artifact tree; core file basenames vs
+citations) drove a full read of every never-cited surface: the 6 RAWSearchDLL family
+artifacts + per-engine-function-map, `SaveScan/rsf-record4` + `ifileproperties-part3`,
+8 MOM censuses, 9 UIUX artifacts, the WinPE pair, config-files, and the core's
+never-cited files (elevate/destio/snapshot/cached/decomp/err/diskmap). 24 new findings —
+**A-005 (ACUTE: rawfixer 4Kn stack-buffer overflow)**, **S-031** (carved files never
+marked deleted — the deleted view excludes the whole carve set), **S-032** (ZIP/RAR
+inner-entry inventories), M-046..M-051, N-051..N-064, I-021/I-022; **OQ-S4-1 RESOLVED**
+(the 169-entry grading table dumped byte-exact — S-023's fix is unblocked); OQ-S4-2
+RESOLVED-with-residual; corpus errata 37-40. Navigation: CROSS-REF-MATRIX session-5
+header + detail rows; per-module Session-5 sections in carve/session/rawfixer/health/
+ldm/orchestration/writer/visualization/transport/query.
