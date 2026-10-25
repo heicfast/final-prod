@@ -3675,3 +3675,47 @@ Stage Summary:
   NTFSSearchDLL/NTFSLib decompiles (verification cites), plus binary extractions
   (LdmManager.mo, Partition.mo, ZfsSearchDLL.dll, FATSearchDLL.dll, RawFixer.dll
   - RTTI vtables, GUID constants, skip-set arrays, strings censuses).
+
+---
+Task ID: 5-b (S-010 fix — this leg)
+Agent: main engineer (diff-to-fix remediation, second parallel leg)
+Task: SEVERE S-010 — repair write path lacks the og's volume lock/dismount quiesce
+
+Work Log:
+- Verified the finding first-hand: corpus RecoveryModule_decompiled.c:44686-44720 (and the
+  PartitionRecovery mirror) shows FSCTL_LOCK_VOLUME 0x90018 -> DeleteVolumeMountPointA ->
+  FlushFileBuffers -> Sleep(2000) -> FSCTL_IS_VOLUME_MOUNTED 0x90020 verify ->
+  FSCTL_DISMOUNT_VOLUME 0x9001c before repair writes; our RwDevice opened
+  share-read+share-write with no quiesce. CONFIRMED-DIVERGENCE.
+- Fix: IWriteDevice::lock_volume()/unlock_volume() (S7 in the rawfixer safety standard;
+  file/RAM writers keep the documented OK default - no OS volume); execute() acquires the
+  lock before the first write, releases on every exit via a guard, propagates the device's
+  error (a busy volume = ERR_VOLUME_LOCK_FAILED, new code) with ZERO writes performed.
+- Windows RwDevice::lock_volume(): per MOUNTED volume on the writer's disk (enumerate_volumes
+  filtered by the new disk_ member), the corpus sequence verbatim; the volume handles are
+  held for the device lifetime so the locks live until close (Win32 contract). The two
+  volume-slice adapters (rrecov VolumeWriteSlice, cr_ui UiVolumeWriteSlice) forward the lock
+  to the parent transport. CLI consent print now warns that drive letters are removed during
+  repair (corpus behavior, consent-gated).
+- CORRECTED THE FINDING (corpus wins): its fix-plan bullet "the writer's destination volume
+  should ALSO take the lock (cr_destio.cpp)" mis-reads the corpus - 04-recovery-workflow.md
+  §7.3 opens \\.\X: of the destination for WRITABILITY + SAME-VOLUME detection only, and
+  recovery writes go through normal file APIs (§7.5), which REQUIRE a mounted destination;
+  the og does not lock the destination and neither do we (the overlap refusal F62 covers
+  the same-volume case). Correction recorded in the Resolution.
+- Tests (fail-before proven by stashing only cr_rawfixer.cpp - 3/3 fail pre-fix):
+  RawFixer.VolumeLockAcquiredBeforeFirstWrite (write path records a violation if it ever
+  writes without a lock), RawFixer.VolumeLockFailureNeverWrites (refused lock = zero
+  writes, volume bytes untouched, undo log empty), RawFixer.UnlockHappensOnRollbackPath
+  (guard fires on the failure exit too). Suite 316/316 Linux ASan.
+- Audit trail: S-010 moved to findings/FIXED/ with Resolution (incl. the correction);
+  modules/rawfixer.md S-010 rows -> FIXED; CROSS-REF-MATRIX rawfixer B/F cells -> M
+  (S-008+S-010 fixed); SUMMARY remediation log row; CAPABILITY-MATRIX; ABI-CONTRACT repair
+  SAFETY line.
+
+Stage Summary:
+- S-010 FIXED: the repair write path now quiesces mounted volumes the way the og does
+  (lock/delete-mountpoint/flush/settle/verify/dismount, locks held until writer close),
+  refuses instead of racing a busy volume, and the destination-volume bullet was corrected
+  against the corpus. Next in this leg's lane: M-009 (same file - RwDevice read path
+  bypasses the 64 KiB envelope).

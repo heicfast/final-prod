@@ -29,6 +29,12 @@ Core (audited `67193b6`; **S-008 fixed post-audit**): `src/core/repair/cr_rawfix
 - **exFAT boot checksum** — `M` on the shared implementation (spec skip-set; og
   predicate undecoded — OQ-T5).
 - **S32** — `NA`-note (execute is short; no cancel tokens — fine).
+- **Volume quiesce (S-010)** — `M (S-010 FIXED)`: `IWriteDevice::lock_volume()`/`
+  unlock_volume()` (S7 in the safety standard); `execute()` locks before the first write
+  and unlocks on every exit; a refused lock = ERR_VOLUME_LOCK_FAILED with zero writes
+  (concurrent access refused, never raced). The Windows RwDevice runs the corpus
+  RecoveryModule sequence per mounted volume on the disk (LOCK -> DeleteMountPoint ->
+  Flush -> settle -> verify -> DISMOUNT; handles held until close).
 
 ## Findings index
 
@@ -36,6 +42,7 @@ Core (audited `67193b6`; **S-008 fixed post-audit**): `src/core/repair/cr_rawfix
 |---|---|---|
 | S-008 | SEVERE | Boot-sector subset + not wired pre-scan (og: 33 methods incl. CheckMFT/FAT-table, pre-scan) — **FIXED** |
 | OQ-T5 | tracked-open | ChecksumDBR per-byte predicate |
+| S-010 | SEVERE | Repair write path lacked the og's volume lock/dismount quiesce — **FIXED** |
 
 ---
 
@@ -74,7 +81,7 @@ WIRING gap; session 2 covers the SAFETY + PERF gaps on the write path):
 
 | ID | Severity | One-line |
 |---|---|---|
-| S-010 | SEVERE | Repair-path volume lock missing (FSCTL_LOCK_VOLUME + FSCTL_DISMOUNT_VOLUME) |
+| S-010 | SEVERE | Repair-path volume lock missing (FSCTL_LOCK_VOLUME + FSCTL_DISMOUNT_VOLUME) — **FIXED** |
 | M-009 | MAJOR | RawFixer read path bypasses the 64 KiB direct-I/O envelope |
 | OQ-S2C-3 | open question | Og's pre-scan RawFixer consent UX (auto vs prompted) |
 

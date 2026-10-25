@@ -199,6 +199,14 @@ Contract:
   the UI through the `cr_ui_repair_consent_fn` callback (see the header's
   S-008 block), and the transactional result through
   `cr_ui_scan_stats` + `cr_ui_scan_repair_save_undo`.
+- Pre-scan repair SAFETY (S-010): the engine acquires the write device's
+  exclusive volume lock BEFORE any repair write (the corpus RecoveryModule
+  sequence: FSCTL_LOCK_VOLUME -> DeleteVolumeMountPoint -> FlushFileBuffers ->
+  settle -> verify-mounted -> FSCTL_DISMOUNT_VOLUME, per mounted volume on the
+  repaired disk) and releases it when the writer closes. Concurrent access is
+  REFUSED (the refusal surfaces through the repair outcome), never raced; a
+  refused lock means zero writes. Image-file devices (tests, offline images)
+  have no OS volume to lock.
 
 ## 7. Disk-map geometry (GAP-S6-11) — the visualization data model
 

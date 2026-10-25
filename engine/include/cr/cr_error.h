@@ -54,6 +54,7 @@ enum Err : u32 {
     ERR_HEALTH_UNAVAILABLE = 0x50070001,
     ERR_REPAIR_REFUSED = 0x50080001,
     ERR_REPAIR_UNDO_FAILED = 0x50080002,
+    ERR_VOLUME_LOCK_FAILED = 0x50080003, /* S-010: volume busy, quiesce refused */
 
     /* --- generic engine failure (task exceptions, defensive) --- */
     ERR_INTERNAL = 0x50090001,

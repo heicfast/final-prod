@@ -933,6 +933,19 @@ u32 execute(IWriteDevice* dev, const RepairPlan& plan, UndoLog& undo) {
     u32 ssec = dev->sector_bytes();
     if (ssec == 0 || ssec > 65536 || (ssec & (ssec - 1)) != 0)
         ssec = 512;
+    /* S-010 volume quiesce: acquire the device's volume lock BEFORE the
+     * first write (corpus RecoveryModule sequence). A lock failure is a
+     * clean refusal - zero writes performed, the concurrent user keeps
+     * their access and the volume keeps its bytes (never raced). The
+     * guard releases the lock on every exit path; on Windows the locks
+     * additionally live until the handle closes. The device's own error
+     * code propagates (the win layer's busy path is ERR_VOLUME_LOCK_FAILED). */
+    if (u32 lrc = dev->lock_volume())
+        return lrc;
+    struct UnlockGuard {
+        IWriteDevice* dev;
+        ~UnlockGuard() { dev->unlock_volume(); }
+    } unlock_guard{dev};
     try {
         for (const auto& a : plan.actions) {
             if (a.length == 0 || a.after.size() != a.length) {

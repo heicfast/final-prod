@@ -45,6 +45,10 @@ public:
     std::vector<u8> d_;
     u32 writes = 0;
     u32 fail_write_at = ~u32(0); /* offset whose write fails (test hook) */
+    /* S-010 lock-contract recording */
+    u32 lock_rc = OK;
+    int lock_calls = 0, unlock_calls = 0;
+    bool write_before_lock = false;
 
     explicit RamWriteDevice(std::vector<u8> d) : d_(std::move(d)) {}
     u32 read_at(u64 off, void* buf, u32 len) override {
@@ -54,6 +58,8 @@ public:
         return OK;
     }
     u32 write_at(u64 off, const void* buf, u32 len) override {
+        if (lock_calls == 0)
+            write_before_lock = true; /* contract violation if observed */
         if (off > d_.size() || len > d_.size() - off)
             return ERR_RANGE_OUT_OF_BOUNDS;
         if (u32(off) == fail_write_at)
@@ -63,6 +69,11 @@ public:
         return OK;
     }
     u64 size() const override { return d_.size(); }
+    u32 lock_volume() override {
+        ++lock_calls;
+        return lock_rc;
+    }
+    void unlock_volume() override { ++unlock_calls; }
 };
 
 void put16(u8* p, u16 v) {
@@ -863,5 +874,64 @@ TEST(RawFixer, RebasedPartitionPlanWritesAtDiskBasisNeverLba0) {
     EXPECT_EQ(NtfsVolumeImage::MFT_OFF + part_base, log.entries[0].offset);
 }
 
+
+/* ---- S-010: volume quiesce contract (corpus RecoveryModule lock sequence) ---- */
+
+TEST(RawFixer, VolumeLockAcquiredBeforeFirstWrite) {
+    /* execute() must acquire the device's volume lock BEFORE any write and
+     * release it after the transaction completes. */
+    Fat16MirrorImage v;
+    v.write_fat_sector(2, 0, 0xAB);
+    RamDevice dev(v.img);
+    RepairPlan plan;
+    ASSERT_EQ(OK, analyze(&dev, plan));
+    ASSERT_EQ(1u, plan.actions.size());
+
+    RamWriteDevice wd(v.img);
+    UndoLog undo_log;
+    ASSERT_EQ(OK, execute(&wd, plan, undo_log));
+    EXPECT_GE(wd.lock_calls, 1);
+    EXPECT_GE(wd.unlock_calls, 1);
+    EXPECT_FALSE(wd.write_before_lock); /* the core contract of S-010 */
+    EXPECT_EQ(1u, wd.writes);
+}
+
+TEST(RawFixer, VolumeLockFailureNeverWrites) {
+    /* a busy volume (lock refused) aborts the repair with ZERO writes -
+     * concurrent access is refused, never raced */
+    Fat16MirrorImage v;
+    v.write_fat_sector(2, 0, 0xAB);
+    RamDevice dev(v.img);
+    RepairPlan plan;
+    ASSERT_EQ(OK, analyze(&dev, plan));
+    ASSERT_EQ(1u, plan.actions.size());
+
+    RamWriteDevice wd(v.img);
+    wd.lock_rc = ERR_VOLUME_LOCK_FAILED;
+    UndoLog undo_log;
+    EXPECT_EQ(ERR_VOLUME_LOCK_FAILED, execute(&wd, plan, undo_log));
+    EXPECT_EQ(0u, wd.writes);
+    EXPECT_EQ(0xAB, wd.d_[Fat16MirrorImage::FAT2]); /* untouched */
+    EXPECT_TRUE(undo_log.entries.empty());
+    EXPECT_EQ(0, wd.unlock_calls); /* nothing was locked */
+}
+
+TEST(RawFixer, UnlockHappensOnRollbackPath) {
+    /* the guard releases the lock on EVERY exit - including a mid-plan
+     * failure that rolls back */
+    Fat16MirrorImage v;
+    v.write_fat_sector(2, 0, 0xAB);
+    v.write_fat_sector(2, 3, 0xAB);
+    RamDevice dev(v.img);
+    RepairPlan plan;
+    ASSERT_EQ(OK, analyze(&dev, plan));
+    ASSERT_EQ(2u, plan.actions.size());
+
+    RamWriteDevice wd(v.img);
+    wd.fail_write_at = u32(Fat16MirrorImage::FAT2 + 3 * 512);
+    UndoLog undo_log;
+    EXPECT_EQ(ERR_WRITE_FAILED, execute(&wd, plan, undo_log));
+    EXPECT_GE(wd.unlock_calls, 1); /* the guard fired on the failure path */
+}
 } // namespace repair
 } // namespace cr

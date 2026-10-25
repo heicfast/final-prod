@@ -238,3 +238,46 @@ mounted volume while any other process holds a handle to it.
   0xfffc)` at `RawFixer_decompiled.c:73827` suggests a UI operation ID
   `0x200a` is started, but whether this blocks for user consent or
   just displays progress is unclear from the decompile alone.
+
+## Resolution
+
+**Status:** FIXED
+**Fixed in commit:** (this commit; see `git log` for the S-010 fix on main)
+**Verified by:** `RawFixer.VolumeLockAcquiredBeforeFirstWrite` (lock precedes the first write -
+the device's write path records a contract violation if it ever fires without a lock;
+unlock after the transaction), `RawFixer.VolumeLockFailureNeverWrites` (a refused lock aborts
+with ERR_VOLUME_LOCK_FAILED and ZERO writes - the volume keeps its bytes, the concurrent user
+keeps their access), `RawFixer.UnlockHappensOnRollbackPath` (the guard releases on the
+mid-plan failure/rollback exit too). All three fail-before/pass-after (proven by stashing only
+`src/core/repair/cr_rawfixer.cpp`). Suite 316/316 Linux ASan; the Windows RwDevice lock
+sequence compiles under MSVC /W4 /WX on Windows CI (the DeviceIoControl order is implemented
+verbatim from the decompile citation; no Windows-side unit double exists for DeviceIoControl
+itself - the sequence is enforced at the interface contract level, which is what the pure
+core can prove).
+
+**Resolution notes:** CONFIRMED-DIVERGENCE, fixed at every layer the finding demands:
+(1) `IWriteDevice::lock_volume()/unlock_volume()` added (S7 in the safety standard);
+file/RAM-backed writers keep the OK default (no OS volume to quiesce - documented), the two
+volume-slice adapters (CLI `VolumeWriteSlice`, cr_ui `UiVolumeWriteSlice`) FORWARD the lock to
+the underlying RW transport. (2) `execute()` acquires the lock before the first write and
+releases it on every exit path via a guard; the device's error code propagates
+(ERR_VOLUME_LOCK_FAILED on a busy volume) and a refused lock performs zero writes.
+(3) The Windows `RwDevice::lock_volume()` implements the corpus RecoveryModule sequence
+verbatim (ghidra-partition/RecoveryModule_decompiled.c:44686-44720 + the PartitionRecovery
+mirror): per MOUNTED volume on the writer's disk - FSCTL_LOCK_VOLUME 0x90018 (:44686; failure
+= clean refusal), DeleteVolumeMountPointW (:44699; W variant of the cited A call - same
+syscall), FlushFileBuffers (:44703), Sleep(2000) settle (:44707), FSCTL_IS_VOLUME_MOUNTED
+0x90020 verify (:44708), FSCTL_DISMOUNT_VOLUME 0x9001c (:44713); the volume handles are held
+for the device lifetime so the locks live until close (the Win32 contract), matching the
+finding's unlock-on-close expectation. RwDevice now carries its disk number so
+`enumerate_volumes` can filter to the repaired disk. The drive-letter removal during repair
+is corpus behavior - the CLI consent print now says so explicitly.
+CORRECTION of the finding's fix plan (corpus wins, per the mandate): the last bullet of
+"Files to modify" proposed taking the volume lock on the RECOVERY DESTINATION volume via
+`src/win/cr_destio.cpp`. The cited corpus text (architecture/04-recovery-workflow.md §7.3)
+says the og opens `\\.\X:` of the destination for "writability + same-volume detection"
+ONLY - recovery writes then go through NORMAL file APIs (CreateDirectoryW, file streams,
+§7.5), which REQUIRE the destination volume mounted and lockable-by-nothing; locking or
+dismounting it would break every recovery. The og does not lock the destination, and neither
+do we. The destination's writability + same-volume (overlap) checks are the separate,
+already-implemented F62 hardening.

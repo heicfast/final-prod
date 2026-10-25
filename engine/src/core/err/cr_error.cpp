@@ -61,6 +61,8 @@ const char* err_text(u32 code) {
         return "repair refused by policy";
     case ERR_REPAIR_UNDO_FAILED:
         return "repair undo failed";
+    case ERR_VOLUME_LOCK_FAILED:
+        return "volume lock failed (volume busy - close other programs and retry)";
     case ERR_INTERNAL:
         return "internal error";
     default:

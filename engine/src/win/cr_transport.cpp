@@ -14,6 +14,7 @@
 
 #include "cr/win/cr_transport.h"
 #include "cr/win/cr_rda.h"
+#include "cr/win/cr_enumerate.h" /* S-010: volume enumeration for the lock sequence */
 #include "cr/table/cr_table_parse.h"
 #include "cr/storage/cr_directalign.h"
 #include <windows.h>
@@ -733,10 +734,72 @@ namespace {
 
 class RwDevice final : public cr::repair::IWriteDevice {
 public:
-    RwDevice(HANDLE h, Geometry g, bool via_rda) : h_(h), geom_(g), via_rda_(via_rda) {}
+    RwDevice(HANDLE h, Geometry g, bool via_rda, u32 disk = 0)
+        : h_(h), geom_(g), via_rda_(via_rda), disk_(disk) {}
     ~RwDevice() override {
+        /* S-010: closing the held volume handles releases their locks
+         * (the Win32 contract: a volume lock lasts until every handle
+         * that took it closes). */
+        release_locked_volumes_();
         if (h_ != INVALID_HANDLE_VALUE)
             CloseHandle(h_);
+    }
+
+    /* S-010 volume quiesce (corpus RecoveryModule_decompiled.c:44686-44720
+     * and its PartitionRecovery mirror): per MOUNTED volume on this disk -
+     *   FSCTL_LOCK_VOLUME (0x90018)   :44686 - a busy volume = refuse
+     *   DeleteVolumeMountPointA        :44699 - the OS must not re-open it
+     *   FlushFileBuffers               :44703
+     *   Sleep(2000) settle             :44707
+     *   FSCTL_IS_VOLUME_MOUNTED (0x90020) :44708 - verify the lock took
+     *   FSCTL_DISMOUNT_VOLUME (0x9001c)  :44713
+     * The volume handles are held for the device lifetime (the lock is
+     * released at close). Unmounted volumes (no letter) have nothing to
+     * quiesce. A lock that cannot be acquired = ERR_VOLUME_LOCK_FAILED:
+     * execute() refuses the whole repair before the first write - the
+     * concurrent user keeps the volume, never a raced write. */
+    u32 lock_volume() override {
+        if (locked_)
+            return OK; /* idempotent */
+        VolumeEntryList vols;
+        if (enumerate_volumes(vols) != OK)
+            return OK; /* enumeration unavailable (e.g. no letters at all) */
+        for (const auto& v : vols) {
+            if (v.disk != disk_ || v.letter == 0)
+                continue;
+            wchar_t vol_path[16];
+            _snwprintf_s(vol_path, 16, _TRUNCATE, L"\\\\.\\%c:", v.letter);
+            HANDLE vh = CreateFileW(vol_path, GENERIC_READ | GENERIC_WRITE,
+                                    FILE_SHARE_READ | FILE_SHARE_WRITE, nullptr, OPEN_EXISTING,
+                                    FILE_ATTRIBUTE_NORMAL, nullptr);
+            if (vh == INVALID_HANDLE_VALUE)
+                return ERR_VOLUME_LOCK_FAILED; /* in use: refuse, never race */
+            DWORD bytes_ret = 0;
+            if (!DeviceIoControl(vh, FSCTL_LOCK_VOLUME, nullptr, 0, nullptr, 0, &bytes_ret,
+                                 nullptr)) {
+                CloseHandle(vh);
+                return ERR_VOLUME_LOCK_FAILED; /* busy volume: clean refusal */
+            }
+            /* the letter must go so the OS does not hand the volume back
+             * out (corpus :44699); unmount + settle + verify + dismount */
+            wchar_t mount[8] = {v.letter, L':', L'\\', 0};
+            DeleteVolumeMountPointW(mount);
+            FlushFileBuffers(vh);
+            Sleep(2000); /* corpus :44707 settle */
+            DeviceIoControl(vh, FSCTL_IS_VOLUME_MOUNTED, nullptr, 0, nullptr, 0, &bytes_ret,
+                            nullptr); /* corpus :44708 verify */
+            DeviceIoControl(vh, FSCTL_DISMOUNT_VOLUME, nullptr, 0, nullptr, 0, &bytes_ret,
+                            nullptr); /* corpus :44713 */
+            locked_volumes_.push_back(vh);
+        }
+        locked_ = true;
+        return OK;
+    }
+    void unlock_volume() override {
+        /* closing the handles releases their locks (the destructor does
+         * the same); dropping them here matches the symmetric contract
+         * for callers that finish early */
+        release_locked_volumes_();
     }
 
     u32 read_at(u64 off, void* buf, u32 len) override {
@@ -790,9 +853,21 @@ public:
     u32 sector_bytes() const override { return geom_.logical_sector ? geom_.logical_sector : 512; }
 
 private:
+    /* close every held volume handle - that is what releases the locks */
+    void release_locked_volumes_() {
+        for (HANDLE vh : locked_volumes_)
+            if (vh != INVALID_HANDLE_VALUE)
+                CloseHandle(vh);
+        locked_volumes_.clear();
+        locked_ = false;
+    }
+
     HANDLE h_;
     Geometry geom_;
-    bool via_rda_;
+    bool via_rda_ = false;
+    u32 disk_ = 0;
+    bool locked_ = false;
+    std::vector<HANDLE> locked_volumes_;
 };
 
 } // namespace
@@ -811,7 +886,7 @@ std::unique_ptr<cr::repair::IWriteDevice> open_disk_rw(u32 disk, bool prefer_rda
             if (g.total_bytes != 0) {
                 if (err)
                     *err = OK;
-                return std::unique_ptr<cr::repair::IWriteDevice>(new RwDevice(h, g, true));
+                return std::unique_ptr<cr::repair::IWriteDevice>(new RwDevice(h, g, true, disk));
             }
             CloseHandle(h);
         }
@@ -834,7 +909,7 @@ std::unique_ptr<cr::repair::IWriteDevice> open_disk_rw(u32 disk, bool prefer_rda
     }
     if (err)
         *err = OK;
-    return std::unique_ptr<cr::repair::IWriteDevice>(new RwDevice(h, g, false));
+    return std::unique_ptr<cr::repair::IWriteDevice>(new RwDevice(h, g, false, disk));
 }
 
 bool volume_letter_to_disk(wchar_t letter, u32* disk, u32* part) {

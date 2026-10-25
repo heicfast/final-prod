@@ -187,8 +187,11 @@ bool scan_repair_consent(const repair::RepairPlan& plan, void* user) {
                 a.length, a.reason.c_str());
     for (const auto& adv : plan.advisories)
         wprintf(L"  [repair][advisory] %hs\n", adv.c_str());
-    if (c->apply)
+    if (c->apply) {
+        wprintf(L"[repair] applying - mounted volumes on the disk are locked and their drive "
+                L"letters removed for the repair (corpus behavior; restored on next mount)\n");
         return true;
+    }
     wprintf(L"[repair] dry-run only - re-run with --repair-apply to execute\n");
     return false;
 }

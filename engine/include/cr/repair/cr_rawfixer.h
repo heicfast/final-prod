@@ -40,6 +40,12 @@
  *       Directory CONTENT and FAT entries beyond the mirror restore are
  *       NEVER rewritten; their checks are report-only advisories (corpus
  *       CheckRootDir/IsValidRootDir/CheckRoot v1 posture).
+ *   S7. Volume quiesce (S-010): execute() acquires the write device's
+ *       volume lock BEFORE the first write and releases it after the last
+ *       (corpus RecoveryModule: FSCTL_LOCK_VOLUME -> DeleteVolumeMountPoint
+ *       -> FlushFileBuffers -> settle -> verify -> FSCTL_DISMOUNT_VOLUME).
+ *       A lock failure is a clean refusal (ERR_VOLUME_LOCK_FAILED) with
+ *       ZERO writes performed - concurrent access is refused, never raced.
  *
  * Licensed under the MIT license. See LICENSE.
  */
@@ -68,6 +74,19 @@ public:
      * execute() coalesces every action up to this unit (4Kn drives report
      * 4096). Implementations override with their probed geometry. */
     virtual u32 sector_bytes() const { return 512; }
+    /* S-010 volume quiesce: called by execute() before the first write.
+     * VOLUME-backed writers (the Windows RW transport) override with the
+     * corpus RecoveryModule sequence: per mounted volume on the disk,
+     * FSCTL_LOCK_VOLUME (a busy volume = ERR_VOLUME_LOCK_FAILED, the
+     * repair is refused - never raced), DeleteVolumeMountPoint,
+     * FlushFileBuffers, settle, verify-mounted, FSCTL_DISMOUNT_VOLUME;
+     * the locks live until the device closes. File/RAM-backed writers
+     * have no OS volume to quiesce and keep the OK default. */
+    virtual u32 lock_volume() { return OK; }
+    /* Release acquired locks. The Windows implementation releases at
+     * handle close; the pair exists so other platforms and test doubles
+     * observe the symmetric contract. */
+    virtual void unlock_volume() {}
 };
 
 enum class ActionKind : u32 {
