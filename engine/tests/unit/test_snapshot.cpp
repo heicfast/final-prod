@@ -209,7 +209,13 @@ TEST(Snapshot, ConcurrentEmitCaptureWalk) {
             add(t, root, "f2.txt", u64(i) * 512, 16);
     });
     std::thread capturer([&] {
-        while (!stop.load()) {
+        /* keep looping while the emitters run, but guarantee at least one
+         * capture even if the capturer is scheduled after both emitters
+         * already joined (the old `while (!stop)` could exit with zero
+         * captures on a slow-scheduler run - the flake was in the harness,
+         * not the product; the race window under test exists whenever the
+         * threads DO overlap, which TSan still sees when they do). */
+        while (!stop.load() || captures.load() == 0) {
             auto s = tree::Snapshot::capture(t, true);
             if (!s)
                 continue;

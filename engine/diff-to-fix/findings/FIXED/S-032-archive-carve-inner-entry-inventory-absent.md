@@ -147,3 +147,36 @@ unchanged; this finding stands as filed.
 **Fixed in commit:** (this session's fix commit — `git log` "fix: S-032")
 **Verified by:** `CarveEngine.ZipInnerEntryInventoryEmitted` (CD path: the carved ZIP carries a `letter.txt` child with size + a PRECISE data extent inside the parent), `CarveEngine.ZipIndexlessEntryInventory` (CARVE-2 LFH-chain path: both inner names surface with no CD), `CarveEngine.Rar4InnerEntryInventory` (a REAL-layout RAR4 — MARK + MAIN_HEAD(HEAD_SIZE@+12) + FILE_HEAD(name) + END — carves end-exact AND carries the `photo.bin` child with size + data extent; doubles as the first positive real-layout RAR4 fixture) — all 3 fail-before proven on the stash-reverted build; full suite **517/517** Linux Release (514 + 3 net-new); ASan+UBSan clean over all 23 CarveEngine tests.
 **Resolution notes:** Corpus re-verified first-hand plus the session-6 recon addendum's demand-side citation (rawsearchdll--zip-analyser-carving.md :64 — the merged entry list feeds the results-tree builder: "ZIP files expand to their inner file list in the DRWUI tree"). Implementation: `CarveResult` gains a bounded `entries` inventory (name/size/data span, ≤4096 entries, names ≤512 B; RAR4 names ≤272 B per the og's FUN_180012d00 buffer). `zip_common` collects on BOTH paths — the central-directory walk (CD records: nameLen@+28/extraLen@+30/commentLen@+32, csize@+20, usize@+24, LFH offset@+42, name@+46, each entry's data span localized through its OWN LFH name/extra lengths) and the indexless LFH chain (name@+30 + the deterministic next-entry arithmetic). `validate_rar4` collects FILE-block (type 0x74) names per the classic layout (optional PACK_SIZE@flags&0x8000, UNP_SIZE, HOST_OS, FILE_CRC, FTIME, UNP_VER, METHOD, NAME_SIZE, ATTR, optional high-sizes@flags&0x100; data follows HEAD_SIZE). Emission: the carved archive node gains child nodes (Origin::Carved + DeletedState::Deleted per S-031's constant-0x20 family; PartialRisk when the data span is localized, MetadataOnly otherwise). REGISTERED SUPERSET (extends the finding's presentation parity): an entry with a localized span carries a precise extent INSIDE the parent's extent — a consumer can recover one entry without the whole archive. DISCOVERED DIVERGENCE FIXED IN THE SAME CHANGE: the pre-fix `validate_rar4` read MAIN_HEAD's HEAD_SIZE at hit+11 (flags-high|size-low as LE) — off by one against the real RAR4 archive layout; it slipped through because no positive real-layout fixture existed (only the RAR5 rejection test). Corrected to hit+12 (the technote position); real MAIN_HEADs (HEAD_SIZE=13) now parse. Scoped remainders (tracked honestly, NOT silently dropped): RAR multi-part stitching (A27's volume-name part matching — a separate discovery surface; the og's walker iterates parts by volume name) and RAR5 inner entries (our clean-room RAR5 surface has no og parity requirement — the og's validators reject RAR5). The og's size-from-sum rule (session-6 addendum #2) is already embodied by the EOCD-geometry + indexless-chain sizing (both compute the extent from the parsed structures, not a magic guess).
+
+---
+
+## Verification addendum (session 9 — independent verification + merge repair, 2026-10-26)
+
+The parallel lane's landing (`1a25869`, verified first-hand at `b1f9210`)
+independently re-verified against the corpus citations above: CONFIRMED
+implementation — CD walk (nameLen@+28/csize@+20/usize@+24/LFH@+42, per-entry
+data spans localized through each entry's OWN LFH), indexless LFH chain,
+RAR4 FILE-block names (classic layout, 272 B cap), ≤4096-entry bound, child
+nodes Carved+Deleted with precise in-parent extents (registered superset —
+per-entry recovery), plus the RAR4 HEAD_SIZE off-by-one fix (hit+11 → +12 —
+real bug, first positive real-layout fixture). This session's audit of the
+same finding (convergent, dropped in reconciliation) contributes three
+deltas now folded in:
+
+1. **Merge repair:** the landing's merge left committed conflict markers in
+   `tests/unit/test_carve.cpp` (remote main did not compile) — resolved with
+   BOTH test sets intact (S-031 timestamp trio + S-032 inventory trio,
+   26 CarveEngine tests). The same repair cleaned the committed markers in
+   `FIXED/S-024` (the N-058→N-074 ID-rename block).
+2. **S-031 stamp on the children:** inner-entry child nodes now carry the
+   run's scan-time stamp (`times.modified`) like every other carved node —
+   the og stamps the archive record (the children are our superset surface);
+   `CarvedNodesCarryScanTimestamp` walks them with the same assertion.
+3. **Hostile-archive honesty:** the 4,096-entry cap silently truncates
+   over-cap inventories — recorded here as a residual nicety (the S-015
+   lesson applies: a `truncated` flag would make the partial list honest);
+   NOT blocking: the bound exists, memory is capped, and the og's census
+   never observed an archive over 4k entries.
+
+Suite after the repair: **515/515** Linux Release, 3 consecutive full runs
+green (the tree at `b1f9210` did not build — repaired before this count).

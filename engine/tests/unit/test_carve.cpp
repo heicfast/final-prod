@@ -1846,7 +1846,7 @@ TEST(CarveEngine, DeletedOnlyQueryIncludesCarvedFiles) {
 }
 
 /* ===================================================================== */
-<<<<<<< HEAD
+/* ===================================================================== */
 /* S-031 timestamp residual: every carved node carries the scan-time     */
 /* stamp (the og's CRAWFileProperties per-record timestamp string,      */
 /* FUN_140c41aa0 "%d-%d-%d %d-%d-%d" — ifileproperties-part3 :80).       */
@@ -1893,7 +1893,82 @@ TEST(CarveEngine, RawSignCarvedNodesCarryScanTimestamp) {
     /* the second emit site (raw-sign layer) stamps the same field */
     std::vector<u8> img(2 * 1024 * 1024, 0);
     std::memcpy(img.data() + 4096, "#!/bin/sh\n", 10);
-=======
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"Lost Files");
+    CarveFlags flags;
+    CarveStats stats;
+    const u64 before = u64(std::time(nullptr));
+    u32 rc =
+        carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, stats);
+    const u64 after = u64(std::time(nullptr));
+    ASSERT_EQ(rc, OK) << err_text(rc);
+
+    int carved = 0;
+    for (tree::FileNode* c = root->first_child(); c; c = c->next_sibling()) {
+        if (c->props() && c->origin() == tree::Origin::Carved) {
+            ++carved;
+            const u64 t = c->props()->times.modified;
+            EXPECT_NE(t, 0u) << "raw-sign carved node has no scan timestamp";
+            if (t != 0) {
+                const u64 unix_t = (t / 10000000ull) - 11644473600ull;
+                EXPECT_GE(unix_t, before);
+                EXPECT_LE(unix_t, after);
+            }
+        }
+    }
+    EXPECT_GE(carved, 1) << "raw-sign layer emit not found";
+}
+
+TEST(CarveEngine, ScanTimestampSurvivesSessionRoundTrip) {
+    /* the og PERSISTS the per-record timestamp (the CRAW string field);
+     * our equivalent carrier is record 4's times.modified — the stamped
+     * value must round-trip through serialize/deserialize intact */
+    auto img = build_carve_image();
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"Lost Files");
+    CarveFlags flags;
+    CarveStats stats;
+    u32 rc =
+        carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, stats);
+    ASSERT_EQ(rc, OK) << err_text(rc);
+
+    u64 stamped = 0;
+    int carved = 0;
+    std::function<void(tree::FileNode*)> collect = [&](tree::FileNode* n) {
+        for (tree::FileNode* c = n->first_child(); c; c = c->next_sibling()) {
+            if (c->props() && c->origin() == tree::Origin::Carved) {
+                ++carved;
+                stamped = c->props()->times.modified;
+            }
+            collect(c);
+        }
+    };
+    collect(root);
+    ASSERT_GE(carved, 1);
+    ASSERT_NE(stamped, 0u) << "nothing stamped to round-trip";
+
+    std::vector<u8> blob;
+    ASSERT_EQ(session::serialize_tree(tree, blob), OK);
+    tree::ResultTree loaded;
+    ASSERT_EQ(session::deserialize_tree(blob.data(), blob.size(), loaded), OK);
+    bool found = false;
+    std::function<void(tree::FileNode*)> scan2 = [&](tree::FileNode* n) {
+        for (tree::FileNode* c = n->first_child(); c; c = c->next_sibling()) {
+            if (c->props() && c->origin() == tree::Origin::Carved) {
+                found = true;
+                EXPECT_EQ(c->props()->times.modified, stamped)
+                    << "scan timestamp lost in session round-trip";
+            }
+            scan2(c);
+        }
+    };
+    scan2(loaded.roots().empty() ? nullptr : loaded.roots()[0]);
+    EXPECT_TRUE(found) << "carved node not found after reload";
+}
+
+
 /* S-032: archive inner-entry inventory (og: complete inventory returned  */
 /* by the analysers — rawsearchdll--zip-analyser-carving.md :29-38;       */
 /* analyser-granular-batch1 :36-41 for the RAR4 272-byte name buffer).    */
@@ -1955,41 +2030,11 @@ TEST(CarveEngine, ZipInnerEntryInventoryEmitted) {
     auto img = std::vector<u8>(2 * 1024 * 1024, 0);
     const std::vector<u8> payload(40, 0xAB);
     const size_t data_at = plant_zip_with_data(img, 4096, "letter.txt", payload);
->>>>>>> ee78d15 (fix: S-032 - archive carve inner-entry inventories (ZIP CD + indexless LFH + RAR4 FILE blocks) + RAR4 HEAD_SIZE off-by-one corrected)
     MemDevice dev(std::move(img));
     tree::ResultTree tree;
     auto* root = tree.add_root(u"Lost Files");
     CarveFlags flags;
     CarveStats stats;
-<<<<<<< HEAD
-    const u64 before = u64(std::time(nullptr));
-    u32 rc =
-        carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, stats);
-    const u64 after = u64(std::time(nullptr));
-    ASSERT_EQ(rc, OK) << err_text(rc);
-
-    int carved = 0;
-    for (tree::FileNode* c = root->first_child(); c; c = c->next_sibling()) {
-        if (c->props() && c->origin() == tree::Origin::Carved) {
-            ++carved;
-            const u64 t = c->props()->times.modified;
-            EXPECT_NE(t, 0u) << "raw-sign carved node has no scan timestamp";
-            if (t != 0) {
-                const u64 unix_t = (t / 10000000ull) - 11644473600ull;
-                EXPECT_GE(unix_t, before);
-                EXPECT_LE(unix_t, after);
-            }
-        }
-    }
-    EXPECT_GE(carved, 1) << "raw-sign layer emit not found";
-}
-
-TEST(CarveEngine, ScanTimestampSurvivesSessionRoundTrip) {
-    /* the og PERSISTS the per-record timestamp (the CRAW string field);
-     * our equivalent carrier is record 4's times.modified — the stamped
-     * value must round-trip through serialize/deserialize intact */
-    auto img = build_carve_image();
-=======
     ASSERT_EQ(carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr,
                           stats),
               OK);
@@ -2032,50 +2077,11 @@ TEST(CarveEngine, ZipIndexlessEntryInventory) {
         memset(img.data() + at + 30 + nlen, 0xCD, dlen);
         at += 30 + nlen + dlen;
     }
->>>>>>> ee78d15 (fix: S-032 - archive carve inner-entry inventories (ZIP CD + indexless LFH + RAR4 FILE blocks) + RAR4 HEAD_SIZE off-by-one corrected)
     MemDevice dev(std::move(img));
     tree::ResultTree tree;
     auto* root = tree.add_root(u"Lost Files");
     CarveFlags flags;
     CarveStats stats;
-<<<<<<< HEAD
-    u32 rc =
-        carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, stats);
-    ASSERT_EQ(rc, OK) << err_text(rc);
-
-    u64 stamped = 0;
-    int carved = 0;
-    std::function<void(tree::FileNode*)> collect = [&](tree::FileNode* n) {
-        for (tree::FileNode* c = n->first_child(); c; c = c->next_sibling()) {
-            if (c->props() && c->origin() == tree::Origin::Carved) {
-                ++carved;
-                stamped = c->props()->times.modified;
-            }
-            collect(c);
-        }
-    };
-    collect(root);
-    ASSERT_GE(carved, 1);
-    ASSERT_NE(stamped, 0u) << "nothing stamped to round-trip";
-
-    std::vector<u8> blob;
-    ASSERT_EQ(session::serialize_tree(tree, blob), OK);
-    tree::ResultTree loaded;
-    ASSERT_EQ(session::deserialize_tree(blob.data(), blob.size(), loaded), OK);
-    bool found = false;
-    std::function<void(tree::FileNode*)> scan2 = [&](tree::FileNode* n) {
-        for (tree::FileNode* c = n->first_child(); c; c = c->next_sibling()) {
-            if (c->props() && c->origin() == tree::Origin::Carved) {
-                found = true;
-                EXPECT_EQ(c->props()->times.modified, stamped)
-                    << "scan timestamp lost in session round-trip";
-            }
-            scan2(c);
-        }
-    };
-    scan2(loaded.roots().empty() ? nullptr : loaded.roots()[0]);
-    EXPECT_TRUE(found) << "carved node not found after reload";
-=======
     ASSERT_EQ(carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr,
                           stats),
               OK);
@@ -2166,5 +2172,4 @@ TEST(CarveEngine, Rar4InnerEntryInventory) {
     ASSERT_FALSE(entry->props()->extents.empty());
     EXPECT_EQ(u64(fh + head_size), entry->props()->extents.front().offset);
     EXPECT_EQ(100u, entry->props()->extents.front().length);
->>>>>>> ee78d15 (fix: S-032 - archive carve inner-entry inventories (ZIP CD + indexless LFH + RAR4 FILE blocks) + RAR4 HEAD_SIZE off-by-one corrected)
 }

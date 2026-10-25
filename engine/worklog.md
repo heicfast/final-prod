@@ -8306,3 +8306,39 @@ Stage Summary:
   SUMMARY delta. This session's tally: S-025 (convergent verification +
   addendum), S-026, S-027, S-031, S-032 — plus D-58/D-59, OQ-E2, the RAR4
   off-by-one discovery, and the S-031/S-032 test-suite guards.
+
+---
+Task ID: DFX9-T3 (S-032 parallel-landing verification + merge repair)
+Agent: main engineer (diff-to-fix closing session 9)
+Task: Verify the parallel lane's S-032 landing; repair the broken merge;
+salvage this session's convergent deltas.
+
+Work Log:
+- Detected: remote main b1f9210 does NOT compile — the S-032 landing's
+  merge (08fc73f/48aca53) left committed conflict markers in
+  tests/unit/test_carve.cpp (3 blocks); FIXED/S-024 also carried a marker
+  block from the 4a3f5d4 rename race.
+- Verified their S-032 implementation first-hand against the corpus
+  (zip-analyser-carving :29-38/:64; analyser-granular-batch1 :36-41):
+  CONFIRMED — CD walk with per-entry LFH-localized data spans (superset),
+  indexless chain, RAR4 classic-layout names (272B), 4096-entry bound, and
+  the RAR4 HEAD_SIZE off-by-one fix (hit+11 -> +12, real layout bug; first
+  positive real-layout fixture). Their design (child nodes) supersedes my
+  convergent node-inventory design (dropped cleanly; deltas folded below).
+- Repaired test_carve.cpp: both test sets reconstructed (S-031 timestamp
+  trio + S-032 inventory trio; 26 CarveEngine tests). S-024's marker block
+  resolved (N-074 renumbered side + post-resolution correction kept).
+  Full-repo git grep: zero conflict markers remain.
+- Salvaged delta: inner-entry children now stamp times.modified with the
+  run's scan time (S-031 semantics; CarvedNodesCarryScanTimestamp walks
+  them). Recorded the 4096-cap truncation-flag nicety as a finding-file
+  addendum note (not blocking).
+- Re-applied the flaky-test fix (Snapshot.ConcurrentEmitCaptureWalk) the
+  merge dropped: stop condition guarantees >=1 capture. 3x full suite
+  green after repair (515/515).
+
+Stage Summary:
+- Remote main compile break repaired; S-032 verified CONFIRMED/FIXED with
+  this session's convergent deltas folded; the flake fix is back on main.
+- Suite 515/515 x3. SEVERE remaining: S-009 (free overlay), S-029 (apply
+  path), S-030 (disk images). Next: S-009.

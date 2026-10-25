@@ -240,6 +240,7 @@ u32 scan_one_window(ScanCtx& ctx, u64 base, const u8* win, u64 want, std::set<u6
                 ep->fs_kind = u32(FsKindCode::Raw);
                 ep->logical_size = e.size;
                 ep->carve_format = sig.id;
+                ep->times.modified = ctx.scan_time; /* S-031: children stamp too */
                 if (e.data_len != 0 && e.data_offset != 0)
                     ep->extents.push_back({e.data_offset + ctx.ext_base, e.data_len});
                 tree::FileNode* en = ctx.tree->add_file(n, ep);

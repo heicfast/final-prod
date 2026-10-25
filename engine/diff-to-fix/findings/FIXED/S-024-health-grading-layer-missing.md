@@ -128,9 +128,6 @@ Resolution are superseded by this addendum with corpus citations.
 
 ## Addendum (session 6 — doc-truth sub-item: the health header claims threshold commands it never issues, 2026-10-26)
 
-<<<<<<< HEAD
-While verifying this finding's SMART side against the UIUX/19 decode (first-cited this session: the og's S.M.A.R.T. table columns "ID / Attribute / Current / Worst→(ST) / **Threshold** / RawValue / **Status**" and the tri-state "Good / Caution! / Normal" — 19-diskhealth-quick-ui.md:26-27), a header-truth defect surfaced on OUR side: `include/cr/win/cr_health.h:8` claims the SMART ladder issues "0xD1 READ_THRESHOLDS / 0xD8 RETURN_STATUS" — `src/win/cr_health.cpp` issues only IDENTIFY (0xEC, :172-174) and SMART READ DATA (0xB0 feature 0xD0, :186-187); 0xD1/0xD8 appear nowhere (grep-verified). The header comment over-claims the shipped command set. This finding's fix plan (grading via thresholds) is the path that will genuinely issue 0xD1; until then the header must match reality (folded into N-058's doc-truth group, sub-item 5). The Threshold/Status/tri-state capability gap itself is exactly this finding's scope — no separate finding filed.
-=======
 While verifying this finding's SMART side against the UIUX/19 decode (first-cited this session: the og's S.M.A.R.T. table columns "ID / Attribute / Current / Worst→(ST) / **Threshold** / RawValue / **Status**" and the tri-state "Good / Caution! / Normal" — 19-diskhealth-quick-ui.md:26-27), a header-truth defect surfaced on OUR side: `include/cr/win/cr_health.h:8` claims the SMART ladder issues "0xD1 READ_THRESHOLDS / 0xD8 RETURN_STATUS" — `src/win/cr_health.cpp` issues only IDENTIFY (0xEC, :172-174) and SMART READ DATA (0xB0 feature 0xD0, :186-187); 0xD1/0xD8 appear nowhere (grep-verified). The header comment over-claims the shipped command set. This finding's fix plan (grading via thresholds) is the path that will genuinely issue 0xD1; until then the header must match reality (folded into N-074's doc-truth group, sub-item 5). The Threshold/Status/tri-state capability gap itself is exactly this finding's scope — no separate finding filed.
 
 ### Post-resolution correction (session 6, after the fix landed)
@@ -142,4 +139,3 @@ now genuinely issued, both transports). The addendum's doc-truth sub-item is
 therefore HALF-resolved: 0xD1's header claim is now true; **0xD8 RETURN_STATUS
 remains claimed-but-unissued** (`cr_health.h:8-9` still lists it; grep of
 cr_health.cpp: 0 hits) — N-074's sub-item 5 narrows to the 0xD8 line only.
->>>>>>> 4a3f5d4 (diff-audit-s6 recon: multi-leg ID reconciliation — 3 convergent findings harvested into the landed S-031/S-032/N-059; 14 unique renamed (M-052, N-065..N-075, I-023/I-024); post-resolution corrections for the same-window fix wave (S-007 MPEG-family landed, S-024 0xD1 landed) — append-only, cross-refs scoped to session-6 sections only)
