@@ -36,8 +36,8 @@ commits land in each finding file; this summary's Remediation log tracks the cou
 | session | – | – | – | – | (I-005.7) | – | ✔ |
 | writer | – | – | – | 2 (N-009b/d) | – | – | ✔ |
 | health | – | – | – | 1 (N-009a) | – | – | ✔ |
-| rawfixer | – | 1 (S-008) | – | – | – | OQ-T5 | ✔ |
-| orchestration | – | (S-008 wiring) | (M-005) | – | – | – | ✔ |
+| rawfixer | – | 1 (S-008 **FIXED**) | – | – | – | OQ-T5 | ✔ |
+| orchestration | – | (S-008 wiring **FIXED**) | (M-005) | – | – | – | ✔ |
 | visualization | – | 1 (S-009) | (project GAP: filter cats) | – | – | – | ✔ |
 | abi | – | (S-009) | – | – | – | – | ✔ |
 | cli | – | – | – | 1 (N-009c) | – | – | ✔ |
@@ -60,9 +60,14 @@ module row for navigation.
 3. **S-002/S-003 — HFS+ attributes tree (decmpfs) and journal both missing**: macOS
    compressed files recover as empty shells; crashed volumes lose journal-carried recent
    state.
-4. **S-008 — RawFixer not wired pre-scan + boot-sector-only subset**: the og repairs
-   MFT/FAT-table/root before scanning; on damaged metadata the og gets structured
-   recovery and the core gets carving-only.
+4. **S-008 — FIXED by the remediation session**: RawFixer is wired pre-scan
+   (consent-gated: CLI `--repair`/`--repair-apply`, cr_ui consent ABI; a denied/failed
+   repair falls through to the unrepaired scan) and the method surface now carries
+   CheckMFT ($MFT record 0 restored from $MFTMirr slot 0 — proven at the engine
+   boundary: torn record 0 → `NtfsVolume::open` fails, repaired → opens), CheckFatTable
+   (sector-granular torn-copy restore from the signature-valid sibling; ambiguity
+   refused S3), CheckRootDir/IsValidRootDir/CheckRoot advisories, and FixByScanSector
+   (bounded 64 MiB window, content-deduped candidates).
 5. **S-006/S-007 — discovery coverage**: no lost-partition probes for Linux/Mac/ReFS
    filesystems (og has CExtXBlockParser et al.); carve misses GIF/BMP/headerless-MP3/
    AAC/RTF/OLE-Office/MPEG/DWG.
@@ -144,3 +149,4 @@ multi-vdev + nvlist anchor), OQ-T8 (carve dispatch order), OQ-T9 (CalcPartition 
 | 2026-10-25 | S-001 | **FIXED** | destroy rule + sparse-run ratio sub-fix + counter; runtime fail-before/pass-after on EndToEndWalk; honest-mode pin test |
 | 2026-10-25 | S-005 | **FIXED** | shared decoder + 3 engines + zfs pool name; fail-before/pass-after proven on all three engine tests |
 | 2026-10-25 | OQ-T1 | **RESOLVED (decompile read)** | secondary claim map: same-direction (re-allocated), ctor-NULLed, never assigned anywhere in NTFSSearchDLL — dormant hook; write-up in tracked-open/OQ-T1 |
+| 2026-10-25 | S-008 | **FIXED** | CheckMFT/CheckFatTable/CheckRootDir-advisories/FixByScanSector + pre-scan consent-gated wiring (orchestrator hooks, Repair events, CLI flags, cr_ui ABI 1.2, undo persistence); 16 fail-before/pass-after tests (unit + engine-boundary + orchestrator + C-ABI incl. /W4 consumer), suite 297/297 Linux ASan |

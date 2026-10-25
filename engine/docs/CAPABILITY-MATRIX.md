@@ -52,7 +52,7 @@
 | Writer | direct write + name_N rename | queue, collision policy, atomic temp+rename, hash verify, dirs, Salvaged outcome truth | **DONE+** | F11/F12/D-17; test_writer_dirs, Salvaged tests |
 | Report | UI-rendered | JSON report, CI-validated schema | **DONE (ours-only D-41)** | tools/validate_report.py |
 | Health/SMART | SAT wrapper | ATA_PASS_THROUGH + NVMe log-page 2, derived verdicts | **DONE (delta D-42)** | test_health parse cases |
-| RawFixer | FATFixer/CheckBackupDBR | analyze + dry-run + transactional apply/rollback, 4Kn-aware, consent-gated | **DONE** | FIX-2/3 W3; test_rawfixer.cpp |
+| RawFixer | FATFixer/CheckBackupDBR; NTFSFixer CheckMFT; FATFixer CheckFatTable/CheckRootDir; shared FixByScanSector; pre-scan position | analyze + dry-run + transactional apply/rollback, 4Kn-aware, consent-gated; CheckMFT ($MFT record 0 from $MFTMirr), CheckFatTable (sector-granular mirror restore), CheckRootDir/IsValidRootDir/CheckRoot advisories, FixByScanSector (bounded 64 MiB probe); wired pre-scan (CLI --repair/--repair-apply, cr_ui consent ABI, Repair events, undo-log persistence) | **DONE (S-008)** | FIX-2/3 W3; test_rawfixer.cpp + PreScan* orchestrator/ABI tests |
 | Transport | EPRDTDRV grammar + direct | RDA grammar + direct duality, RdaClient surface (wizard), retry/bisection + ReadErrorMap | **DONE** | D-37/D-38; test_retry.cpp |
 | Orchestration | Quick+Advanced generations | staged single-pass (D-36), weighted monotonic progress, pause/cancel/checkpoint, error map | **DONE** | ARCH-4 reworded claims; test_orchestrator.cpp |
 

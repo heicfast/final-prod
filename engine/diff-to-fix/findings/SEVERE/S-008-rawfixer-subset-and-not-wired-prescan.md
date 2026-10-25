@@ -101,3 +101,69 @@ FAT1 but intact FAT2 is repaired+scanned in the og (CheckFatTable) and not in th
 The og's consent UX for RawFixer (auto vs prompted) is not fully decoded from the corpus
 (the PPL-async progress plumbing suggests a UI prompt); the fix plan gates on consent
 either way.
+
+## Resolution
+
+**Status:** FIXED
+**Fixed in commit:** (this commit; see `git log` for the S-008 fix commit on main)
+**Verified by:** 16 new tests, all fail-before/pass-after (fail-before reproduced by stashing only
+`src/core/repair/cr_rawfixer.cpp` resp. `src/core/orchestrator/cr_scan.cpp` and re-running):
+`RawFixer.MftRecord0RestoredFromMirror`, `RawFixer.MftCleanNeverTouched`,
+`RawFixer.MftBothInvalidNoWrite`, `RawFixer.MftRestoreMakesVolumeOpenable` (the finding's
+falsifiable claim (1) proven at the engine boundary: torn $MFT record 0 + intact $MFTMirr ->
+`NtfsVolume::open` fails pre-repair, succeeds post-repair, fails again after undo),
+`RawFixer.FatTornMirrorCopyRestoredSectorGranular`, `RawFixer.FatTornPrimaryRestoredFromMirror`,
+`RawFixer.FatMirrorAmbiguityNeverWritten` (S3), `RawFixer.FatCleanMirrorNoAction`,
+`RawFixer.FixByScanSectorRebuildsBootFromOnlyCandidate`,
+`RawFixer.FixByScanSectorAmbiguousCandidatesRefused` (S3),
+`RawFixer.FixByScanSectorIdenticalCandidatesNotAmbiguous` (content-dedupe),
+`Orchestrator.PreScanRepairRestoresTornFatAndScans` (falsifiable claim (2) end-to-end: torn FAT1
+repaired pre-scan after consent, engines observe repaired bytes, structured scan completes, event
+stream carries ready->applied), `Orchestrator.PreScanRepairDeniedNeverWrites`,
+`Orchestrator.PreScanRepairWithoutHooksNeverWrites` (S1 default-deny),
+`CrUi.PreScanRepairConsentGateAndUndoLog` + `CrUi.PreScanRepairDeniedLeavesFileUntouched` (the C
+ABI lifecycle incl. on-disk repair of the image file, stats fields, CR_EVT_REPAIR events, undo
+container persistence) + the extended `tests/ui_abi_check.c` (MSVC /W4 /WX consumer, Linux
+ASan-clean run). Full suite 297/297 (Linux ASan preset).
+
+**Resolution notes:** Independently re-verified the finding against the corpus before fixing:
+`rawfixer-v2--method-inventory.md` (33-method table; CheckMFT record-size math §3; FAT
+CheckFatTable reads both copies - wFatTableStartSector and backupFatStartSector = reserved +
+sectors-per-FAT - and flags damage) and the raw decompile
+(`re-workspace/reversed/ghidra-partition/RawFixer_decompiled.c`: FUN_18005de40 = 'FILE' magic +
+record-name check; FUN_18005df00 = $MFTMirr identity check; NTFSFixer::CheckSector's state
+machine classifies $MFT/$MFTMirr records; FATFixer::CheckFatTable @0x10e) - the finding's
+reference claims held; nothing in it needed correction. CONFIRMED-DIVERGENCE, fixed as follows.
+(1) Repair methods added to `cr_rawfixer.cpp` analyze(): CheckMFT - $MFT record 0 validated by
+magic + USA fixup (the engine's own `fixup_validate`, single source of truth) + $FILE_NAME
+identity "$MFT" (the og's name check); on failure the $MFTMirr slot 0 is validated the same way
+and planned as `RestoreMftRecordFromMirror` (only the mirror-backed restore, never a synthesized
+record; both invalid -> advisory, no write). CheckFatTable - both FAT copies stream-compared in
+64 KiB blocks; when exactly one copy carries a valid entry signature (entry0=media, entry1=EOC at
+the width's packing), the torn copy's differing sectors are planned sector-granular
+(coalesced runs) as `RestoreFatSectorFromMirror`; equal validity + differences = S3 advisory, no
+write. CheckRootDir/IsValidRootDir/CheckRoot - report-only advisories per the fix plan's v1 scope
+(repair requires directory reconstruction; registered here as the remaining follow-up surface).
+FixByScanSector - bounded 64 MiB windowed probe (64 KiB block reads, X51 discipline) for
+boot-shaped sectors, family-masked; byte-identical candidates dedupe to one repair; distinct
+multiples refused (S3); wired as the deep fallback for NTFS (no volume-end backup), exFAT (no
+sector-12 backup), FAT (no sector-6 backup) and the family-unknown terminal. (2) Pre-scan wiring:
+`ScanConfig::pre_scan_repair` + `RepairHooks` (consent / open_writer / close_writer) run
+repair::analyze on the caller's slice BEFORE the retry/cache pipe (writes bypass the cache; the
+engines see repaired bytes); a non-empty plan is surfaced through the typed event stream (new
+`Repair` event type, ready->applied/denied/failed) and `ScanStats` repair fields incl. the undo
+log; execution is consent-gated (S1: no consent callback = never executed) and a denied/failed
+repair never aborts the scan (corpus fall-through to the unrepaired scan). (3) CLI:
+`rrecov scan --repair` (analyze + report, dry-run) / `--repair-apply` (the flag is the consent) /
+`--repair-undo <file>` (durable undo container; default rrecov-scan-repair-diskN.undo; restore
+via the existing `fix --undo-apply`); volume scans map writes through the slice via
+`VolumeWriteSlice`. (4) cr_ui C ABI (ABI-since 1.2, append-only; the event struct consumes the
+reserved slots so the layout is unchanged): `cr_ui_scan_config.pre_scan_repair` +
+`cr_ui_repair_consent_fn(const cr_ui_repair_plan*)`, CR_EVT_REPAIR, repair fields in
+`cr_ui_scan_stats`, `cr_ui_scan_repair_save_undo`; the shim opens the image file r+b (portable)
+or the Windows RW transport mapped through the device slice; resumed scans keep the gate.
+Safety posture preserved and extended (noted per mandate): the consent gate (S1), clean-refusal
+(S2), ambiguity-refusal (S3 - the CheckFatTable equal-validity case and multi-candidate deep
+scan), transaction (S4) and verify (S5) all hold; S6's scope line was rewritten to include the
+two new mirror-backed restore families (FAT table copies, $MFT record 0 from $MFTMirr) while
+directory CONTENT stays unwritable by design.

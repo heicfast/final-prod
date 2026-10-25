@@ -516,6 +516,68 @@ u32 ScanController::run(IStorageDevice* slice, CancelToken* cancel, bool (*progr
     tel_running_.store(true, std::memory_order_release);
     tel_cancel_.store(cancel, std::memory_order_release);
 
+    /* ---- S-008 pre-scan repair (corpus RawFixer position: repair, then
+     * scan) ----
+     * Runs BEFORE the retry/cache pipe is constructed: repair writes must
+     * bypass the cache, and the engines/probe_family below must observe
+     * the repaired bytes (a cached stale boot sector would defeat the
+     * repair). Consent-gated (S1): analyze() is read-only; nothing is
+     * written unless the consent hook approves AND the caller provides a
+     * write view. Outcome never aborts the scan - the og falls through to
+     * scanning the unrepaired volume the same way. Skipped entirely when
+     * the token is already cancelled (the stamp path below owns that
+     * return; an early return here would leave telemetry running). */
+    if (cfg_.pre_scan_repair && !(cancel && cancel->checkpoint())) {
+        repair::RepairPlan rplan;
+        u32 rrc = repair::analyze(slice, rplan);
+        stats.repair_ran = true;
+        stats.repair_detected = rplan.detected;
+        std::snprintf(stats.repair_family, sizeof(stats.repair_family), "%s",
+                      rplan.fs_family.c_str());
+        stats.repair_advisories = rplan.advisories;
+        stats.repair_actions_planned = u32(rplan.actions.size());
+        stats.repair_status = rrc;
+        const auto emit_repair = [&](u32 outcome, u64 actions) {
+            if (!event_fn_)
+                return;
+            event::Event e;
+            e.type = event::Type::Repair;
+            e.stage = 0xFFFFFFFFu;
+            e.timestamp_ms = 0; /* pre-stage: no run clock yet */
+            e.repair_actions = actions;
+            e.repair_outcome = outcome;
+            event_fn_(e, event_user_);
+        };
+        if (rrc == OK && !rplan.refused && !rplan.actions.empty()) {
+            emit_repair(0, rplan.actions.size()); /* ready for consent */
+            bool do_exec = false;
+            if (cfg_.repair.consent)
+                do_exec = cfg_.repair.consent(rplan, cfg_.repair.user);
+            if (!do_exec) {
+                stats.repair_consent_denied = true;
+                emit_repair(2, rplan.actions.size());
+            } else {
+                repair::IWriteDevice* wdev =
+                    cfg_.repair.open_writer ? cfg_.repair.open_writer(cfg_.repair.user) : nullptr;
+                if (wdev == nullptr) {
+                    stats.repair_writer_unavailable = true;
+                    emit_repair(3, 0);
+                } else {
+                    rrc = repair::execute(wdev, rplan, stats.repair_undo);
+                    stats.repair_status = rrc;
+                    stats.repair_actions_applied =
+                        rrc == OK ? u32(rplan.actions.size()) : 0; /* atomic: all or rolled back */
+                    if (rrc == OK)
+                        emit_repair(1, stats.repair_actions_applied);
+                    else
+                        emit_repair(3, 0); /* rolled back; scan continues unrepaired */
+                    if (cfg_.repair.close_writer)
+                        cfg_.repair.close_writer(wdev, cfg_.repair.user);
+                }
+            }
+        }
+    }
+
     /* R1.6 production wiring (audit row 40a): every engine read goes
      * through retry+bisection (bad-sector isolation with Skip-mode
      * zero-fill, so one dead spot cannot abort a scan) and a bounded LRU

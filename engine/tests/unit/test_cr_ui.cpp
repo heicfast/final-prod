@@ -676,6 +676,7 @@ struct EventLog {
     uint32_t progress_samples = 0;
     uint32_t files_events = 0;
     uint32_t checkpoints = 0;
+    uint32_t repair_events = 0;
     uint32_t unknown_types = 0;
     bool saw_quick = false, saw_deep = false, saw_carve = false;
     void record(const cr_ui_event* e) {
@@ -692,6 +693,9 @@ struct EventLog {
             break;
         case CR_EVT_SCAN_PROGRESS:
             ++progress_samples;
+            break;
+        case CR_EVT_REPAIR: /* S-008: known type of this build */
+            ++repair_events;
             break;
         case CR_EVT_FILES_FOUND:
             ++files_events;
@@ -906,4 +910,176 @@ TEST(CrUi, DiskMapSnapshotRequiresViewGeometry) {
     EXPECT_GT(got.cell_count, 0u);
     cr_ui_disk_map_free(fnd);
     cr_ui_snapshot_close(snap);
+}
+
+/* ---- S-008: pre-scan repair through the C ABI (image device) ---- */
+
+namespace {
+
+unsigned g_consent_calls = 0;
+cr_ui_repair_plan g_consent_plan{};
+uint32_t g_consent_reply = 1; /* consent by default */
+
+uint32_t repair_consent_cb(void* user, const cr_ui_repair_plan* plan) {
+    ++*static_cast<unsigned*>(user);
+    g_consent_plan = *plan;
+    return g_consent_reply;
+}
+
+std::string write_torn_fat_fixture(const char* tag) {
+    const std::string path = cr_test::tmp_path("cr_ui", tag);
+    auto img = build_fat16();
+    /* FAT16 entry signatures on both copies... */
+    for (size_t fat : {kFAT1, kFAT2}) {
+        img[fat + 0] = 0xF8;
+        img[fat + 1] = 0xFF;
+        img[fat + 2] = 0xFF;
+        img[fat + 3] = 0xFF;
+    }
+    /* ...then tear FAT1's signature sector (the finding's damaged-FAT1 case) */
+    std::memset(img.data() + kFAT1, 0xAB, 512);
+    FILE* f = std::fopen(path.c_str(), "wb");
+    if (!f)
+        return {};
+    const size_t n = std::fwrite(img.data(), 1, img.size(), f);
+    std::fclose(f);
+    return n == img.size() ? path : std::string();
+}
+
+} // namespace
+
+TEST(CrUi, PreScanRepairConsentGateAndUndoLog) {
+    /* The full C-ABI lifecycle: the shim analyzes pre-scan, surfaces the
+     * plan through the consent callback, executes the transactional
+     * repair into the IMAGE FILE after consent, reports it through the
+     * typed event stream + stats, and persists the undo log. */
+    Ui u;
+    std::string img = write_torn_fat_fixture("repair");
+    ASSERT_FALSE(img.empty());
+    ASSERT_EQ(cr_ui_open_image(img.c_str(), 0, 0, &u.dev), CR_UI_OK);
+    EventLog log;
+    g_consent_calls = 0;
+    g_consent_reply = 1;
+    std::memset(&g_consent_plan, 0, sizeof(g_consent_plan));
+    cr_ui_scan_config cfg{};
+    cfg.stage_mask = 1; /* quick only */
+    cfg.pre_scan_repair = 1;
+    cfg.repair_consent = repair_consent_cb;
+    cfg.repair_consent_user = &g_consent_calls;
+    ASSERT_EQ(cr_ui_scan_create(&cfg, &u.scan), CR_UI_OK);
+    ASSERT_EQ(cr_ui_scan_attach_device(u.scan, u.dev), CR_UI_OK);
+    ASSERT_EQ(cr_ui_scan_set_event_fn(u.scan, event_cb, &log), CR_UI_OK);
+    ASSERT_EQ(cr_ui_scan_run(u.scan), CR_UI_OK);
+
+    /* the consent saw the plan (family, one action, not refused) */
+    ASSERT_EQ(g_consent_calls, 1u);
+    EXPECT_EQ(g_consent_plan.detected, 1u);
+    EXPECT_EQ(std::string(g_consent_plan.fs_family), "fat");
+    EXPECT_EQ(g_consent_plan.action_count, 1u);
+    EXPECT_EQ(g_consent_plan.refused, 0u);
+    EXPECT_NE(std::string(g_consent_plan.reason).find("FAT"), std::string::npos);
+
+    /* stats carry the outcome */
+    cr_ui_scan_stats st{};
+    ASSERT_EQ(cr_ui_scan_get_stats(u.scan, &st), CR_UI_OK);
+    EXPECT_EQ(st.repair_ran, 1u);
+    EXPECT_EQ(st.repair_planned, 1u);
+    EXPECT_EQ(st.repair_applied, 1u);
+    EXPECT_EQ(st.repair_denied, 0u);
+
+    /* the typed event stream saw ready -> applied */
+    int ready = -1, applied = -1;
+    for (size_t i = 0; i < log.events.size(); ++i) {
+        if (log.events[i].type == CR_EVT_REPAIR) {
+            if (log.events[i].repair_outcome == 0 && ready < 0)
+                ready = int(i);
+            if (log.events[i].repair_outcome == 1 && applied < 0)
+                applied = int(i);
+        }
+    }
+    ASSERT_GE(ready, 0);
+    ASSERT_GE(applied, 0);
+    EXPECT_LT(ready, applied);
+    EXPECT_EQ(log.events[size_t(ready)].repair_actions, 1u);
+    EXPECT_EQ(log.events[size_t(applied)].repair_actions, 1u);
+    EXPECT_EQ(log.unknown_types, 0u);
+
+    /* the repair LANDED in the image file (the write side of the device) */
+    {
+        FILE* f = std::fopen(img.c_str(), "rb");
+        ASSERT_NE(f, nullptr);
+        unsigned char fat1[4] = {};
+        ASSERT_EQ(std::fseek(f, long(kFAT1), 0), 0);
+        ASSERT_EQ(std::fread(fat1, 1, 4, f), 4u);
+        std::fclose(f);
+        EXPECT_EQ(fat1[0], 0xF8);
+        EXPECT_EQ(fat1[1], 0xFF);
+    }
+
+    /* the undo log persists and is a valid container */
+    const std::string undo_path = img + ".undo";
+    ASSERT_EQ(cr_ui_scan_repair_save_undo(u.scan, undo_path.c_str()), CR_UI_OK);
+    FILE* f = std::fopen(undo_path.c_str(), "rb");
+    ASSERT_NE(f, nullptr);
+    unsigned char magic[8] = {};
+    ASSERT_EQ(std::fread(magic, 1, 8, f), 8u);
+    std::fclose(f);
+    EXPECT_EQ(0, std::memcmp(magic, "CRUNDO01", 8));
+
+    /* nothing applied -> save_undo refuses truthfully */
+    {
+        Ui u2;
+        std::string img2 = write_fixture("repair_clean");
+        ASSERT_FALSE(img2.empty());
+        /* clean fixture: no FAT signature -> both copies damaged -> no
+         * action; the undo-save contract must refuse */
+        ASSERT_EQ(cr_ui_open_image(img2.c_str(), 0, 0, &u2.dev), CR_UI_OK);
+        cr_ui_scan_config cfg2{};
+        cfg2.stage_mask = 1;
+        ASSERT_EQ(cr_ui_scan_create(&cfg2, &u2.scan), CR_UI_OK);
+        ASSERT_EQ(cr_ui_scan_attach_device(u2.scan, u2.dev), CR_UI_OK);
+        ASSERT_EQ(cr_ui_scan_run(u2.scan), CR_UI_OK);
+        cr_ui_scan_stats st2{};
+        ASSERT_EQ(cr_ui_scan_get_stats(u2.scan, &st2), CR_UI_OK);
+        EXPECT_EQ(st2.repair_ran, 0u); /* pre_scan_repair off: nothing ran */
+        EXPECT_EQ(cr_ui_scan_repair_save_undo(u2.scan, (img2 + ".u").c_str()),
+                  0x50030003u /* ERR_BAD_PARAMETER */);
+    }
+}
+
+TEST(CrUi, PreScanRepairDeniedLeavesFileUntouched) {
+    Ui u;
+    std::string img = write_torn_fat_fixture("repair_deny");
+    ASSERT_FALSE(img.empty());
+    ASSERT_EQ(cr_ui_open_image(img.c_str(), 0, 0, &u.dev), CR_UI_OK);
+    g_consent_calls = 0;
+    g_consent_reply = 0; /* deny */
+    cr_ui_scan_config cfg{};
+    cfg.stage_mask = 1;
+    cfg.pre_scan_repair = 1;
+    cfg.repair_consent = repair_consent_cb;
+    cfg.repair_consent_user = &g_consent_calls;
+    ASSERT_EQ(cr_ui_scan_create(&cfg, &u.scan), CR_UI_OK);
+    ASSERT_EQ(cr_ui_scan_attach_device(u.scan, u.dev), CR_UI_OK);
+    ASSERT_EQ(cr_ui_scan_run(u.scan), CR_UI_OK);
+    ASSERT_EQ(g_consent_calls, 1u);
+    cr_ui_scan_stats st{};
+    ASSERT_EQ(cr_ui_scan_get_stats(u.scan, &st), CR_UI_OK);
+    EXPECT_EQ(st.repair_ran, 1u);
+    EXPECT_EQ(st.repair_planned, 1u);
+    EXPECT_EQ(st.repair_applied, 0u);
+    EXPECT_EQ(st.repair_denied, 1u);
+    /* the image file is byte-identical to the torn fixture (no write) */
+    {
+        FILE* f = std::fopen(img.c_str(), "rb");
+        ASSERT_NE(f, nullptr);
+        unsigned char fat1[4] = {};
+        ASSERT_EQ(std::fseek(f, long(kFAT1), 0), 0);
+        ASSERT_EQ(std::fread(fat1, 1, 4, f), 4u);
+        std::fclose(f);
+        EXPECT_EQ(fat1[0], 0xAB);
+        EXPECT_EQ(fat1[1], 0xAB);
+    }
+    EXPECT_EQ(cr_ui_scan_repair_save_undo(u.scan, (img + ".u").c_str()),
+              0x50030003u /* nothing applied */);
 }

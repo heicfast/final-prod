@@ -2165,3 +2165,68 @@ Work Log:
 Stage Summary:
 - S-004 FIXED: ext4 journal salvage now yields the og's full name set (unreferenced remnants
   included) and refuses exactly the journals the og refuses.
+
+---
+Task ID: 5-a (S-008 fix — this continuation leg's lane)
+Agent: main engineer (diff-to-fix remediation, second parallel leg)
+Task: SEVERE S-008 — RawFixer boot-sector-only subset + not wired pre-scan
+
+Work Log:
+- Re-verified the finding first-hand against the corpus BEFORE any change:
+  rawfixer-v2--method-inventory.md (33-method table, §3 CheckMFT record-size math),
+  rawfixer-fs-repair.md (strategy trees, pre-scan position), and the raw decompile
+  (ghidra-partition/RawFixer_decompiled.c): FUN_18005de40 = 'FILE' magic + record-name
+  check; FUN_18005df00 = $MFTMirr name check; FATFixer::CheckFatTable @0x10e reads BOTH
+  copies (wFatTableStartSector / backupFatStartSector = reserved + sectors_per_fat) and
+  flags damage; NTFSFixer::CheckSector classifies $MFT/$MFTMirr records by state.
+  Finding CONFIRMED-DIVERGENCE, no corrections needed.
+- Repair methods in cr_rawfixer.cpp/.h: CheckMFT (record 0: magic + fixup_validate +
+  $FILE_NAME == "$MFT"; mirror slot 0 validated the same way -> RestoreMftRecordFromMirror;
+  both invalid -> advisory only), CheckFatTable (64 KiB-block stream compare of both FAT
+  copies; exactly-one-valid-signature -> sector-granular coalesced RestoreFatSectorFromMirror
+  actions; equal validity + diff -> S3 advisory, never a coin-flip write), CheckRootDir /
+  IsValidRootDir / CheckRoot report-only advisories (plan.advisories), FixByScanSector
+  (bounded 64 MiB window, 64 KiB reads, family-masked, CRC32 content-dedupe; distinct
+  multiples refused S3) wired as the deep fallback in the NTFS / exFAT / FAT / unknown
+  branches. Safety standard S6 scope line rewritten (FAT mirror copies + $MFT record 0
+  from mirror are now in scope; directory content never written).
+- Pre-scan wiring: ScanConfig::pre_scan_repair + RepairHooks (consent/open_writer/
+  close_writer); run() executes repair::analyze BEFORE the retry/cache pipe (writes bypass
+  the cache; engines see repaired bytes); new event::Type::Repair (ready/applied/denied/
+  failed outcomes); ScanStats repair fields incl. the undo log; denied/failed repair never
+  aborts the scan (corpus fall-through).
+- CLI: rrecov scan --repair (dry-run) / --repair-apply (the flag is the consent) /
+  --repair-undo <file>; VolumeWriteSlice maps volume-scan writes through the slice;
+  undo log persisted + summary printed. Usage text updated.
+- cr_ui C ABI (ABI-since 1.2, append-only; cr_ui_event consumes the reserved slots ->
+  layout unchanged): pre_scan_repair + cr_ui_repair_consent_fn + cr_ui_repair_plan POD,
+  CR_EVT_REPAIR, repair fields in cr_ui_scan_stats, cr_ui_scan_repair_save_undo; shim
+  bridges: image files reopened r+b (portable), Windows disks/volumes via open_disk_rw +
+  UiVolumeWriteSlice; resumed scans keep the gate; ABI-CONTRACT.md §6 + header updated.
+- Tests (16 new, ALL fail-before-proven by stashing only the two src files and re-running:
+  9/11 rawfixer + 3/3 orchestrator failed pre-fix; the 2 trivially-green ones are
+  clean-volume never-touched cases that also pass pre-fix by construction):
+  RawFixer.MftRecord0RestoredFromMirror / MftCleanNeverTouched / MftBothInvalidNoWrite /
+  MftRestoreMakesVolumeOpenable (claim (1) at the engine boundary: open fails torn ->
+  succeeds repaired -> fails again after undo) / FatTornMirrorCopyRestoredSectorGranular /
+  FatTornPrimaryRestoredFromMirror / FatMirrorAmbiguityNeverWritten / FatCleanMirrorNoAction /
+  FixByScanSectorRebuildsBootFromOnlyCandidate / FixByScanSectorAmbiguousCandidatesRefused /
+  FixByScanSectorIdenticalCandidatesNotAmbiguous;
+  Orchestrator.PreScanRepairRestoresTornFatAndScans (claim (2) end-to-end + events) /
+  PreScanRepairDeniedNeverWrites / PreScanRepairWithoutHooksNeverWrites;
+  CrUi.PreScanRepairConsentGateAndUndoLog / PreScanRepairDeniedLeavesFileUntouched (C ABI,
+  on-disk image repair verified) + tests/ui_abi_check.c extended (pure C consumer; one
+  ASan-caught 512-byte-write-from-4-byte-buffer bug in MY test code fixed before landing).
+- Full suite 297/297 (Linux ASan); cr_ui_abi_check runs green locally. Windows CI (MSVC
+  /W4 /WX + the extended ABI check) to confirm on push.
+- Audit trail: S-008 Resolution written; modules/rawfixer.md verdicts -> M (S-008 FIXED);
+  CROSS-REF-MATRIX rawfixer row -> M (S-008 fixed) in B/A/F; SUMMARY risk #4 rewritten +
+  remediation log row + per-module table annotations; CAPABILITY-MATRIX RawFixer row
+  updated; ABI-CONTRACT.md §6 CR_EVT_REPAIR documented.
+
+Stage Summary:
+- S-008 FIXED end-to-end: both falsifiable claims proven with tests (torn $MFT record 0 +
+  intact mirror -> engine opens post-repair; torn FAT1 + intact FAT2 -> repaired pre-scan
+  after consent, structured scan proceeds), consent-gated per S1 with default-deny,
+  transactional guarantees unchanged, og fall-through preserved. cr_ui ABI extended
+  append-only (event layout unchanged via the reserved slots).

@@ -32,8 +32,14 @@
  *       back every action applied before it.
  *   S5. Verification: every fixer re-validates the structures it wrote
  *       after the write; mismatch = immediate full rollback.
- *   S6. Scope: boot sectors, checksums and derived geometry only. FAT
- *       chains, MFT records and directory content are NEVER rewritten.
+ *   S6. Scope (S-008): boot sectors, checksums, derived geometry, the FAT
+ *       table MIRROR copies (a torn copy restored sector-granular from a
+ *       signature-valid sibling, corpus FATFixer::CheckFatTable), and $MFT
+ *       record 0 restored from $MFTMirr slot 0 (corpus NTFSFixer::CheckMFT
+ *       - only the mirror-backed restore, never a synthesized record).
+ *       Directory CONTENT and FAT entries beyond the mirror restore are
+ *       NEVER rewritten; their checks are report-only advisories (corpus
+ *       CheckRootDir/IsValidRootDir/CheckRoot v1 posture).
  *
  * Licensed under the MIT license. See LICENSE.
  */
@@ -67,6 +73,15 @@ enum class ActionKind : u32 {
     RestoreBootFromBackup = 1, /* copy backup boot sector over a damaged primary */
     RepairBootChecksum = 2,    /* exFAT: recompute the boot-region checksum fill */
     RepairGeometryField = 3,   /* derived BPB field (e.g. sectors-per-cluster shift) */
+    /* S-008 (corpus RawFixer method inventory, rawfixer-v2 §1): */
+    RestoreMftRecordFromMirror = 4, /* $MFT record 0 restored from $MFTMirr slot 0
+                                     * (NTFSFixer::CheckMFT mirror-backed repair) */
+    RestoreFatSectorFromMirror = 5, /* one FAT-copy sector restored from the
+                                     * signature-valid sibling copy
+                                     * (FATFixer::CheckFatTable) */
+    DeepScanBootRestore = 6,        /* FixByScanSector: the only boot-shaped
+                                     * candidate in the bounded 64 MiB window
+                                     * written over the destroyed primary */
 };
 
 struct RepairAction {
@@ -79,6 +94,12 @@ struct RepairAction {
 
 struct RepairPlan {
     std::vector<RepairAction> actions;
+    /* S-008 report-only check results (corpus CheckRootDir /
+     * IsValidRootDir / CheckRoot): human-readable lines the caller
+     * surfaces (CLI print, UI advisories). A check that fails here NEVER
+     * produces a write - repairing directory content is out of scope by
+     * design. */
+    std::vector<std::string> advisories;
     bool refused = false;
     std::string refusal_reason;
     std::string fs_family; /* detected family (ntfs/fat/exfat) */

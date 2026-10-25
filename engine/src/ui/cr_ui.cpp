@@ -314,6 +314,10 @@ struct CrDevice {
     bool disk_known = false;
     u64 volume_len = 0; /* nonzero = a volume slice (not whole-disk) */
     const char* transport = "image";
+    /* S-008 pre-scan repair: image devices remember their source so the
+     * shim can reopen the SAME bytes read-write for the consented repair. */
+    std::string image_path;
+    u64 image_offset = 0;
 };
 
 /* read-only, sector-granular file-backed device (the portable source for
@@ -369,6 +373,77 @@ private:
     FILE* f_;
     u64 base_, total_;
     Geometry geom_;
+};
+
+/* S-008: read-write view over an image file, mapped through the image
+ * offset - the write side of ImageFileDevice (same bytes, opened "r+b"
+ * so nothing is truncated). Sector-granular bounds identical to the read
+ * view; repair writes land inside the scanned image only. */
+class ImageWriteDevice final : public repair::IWriteDevice {
+public:
+    static std::unique_ptr<ImageWriteDevice> open(const char* u8path, u64 offset, u64 bytes,
+                                                  u32* err) {
+        *err = OK;
+#ifdef _WIN32
+        const std::wstring w = u8_to_ws(u8path);
+        FILE* f = nullptr;
+        if (_wfopen_s(&f, w.c_str(), L"r+b") != 0 || !f) {
+            *err = ERR_OPEN_FAILED;
+            return nullptr;
+        }
+#else
+        FILE* f = std::fopen(u8path, "r+b");
+        if (!f) {
+            *err = ERR_OPEN_FAILED;
+            return nullptr;
+        }
+#endif
+        const u64 fsize = file_size_of(f);
+        if (bytes == 0)
+            bytes = fsize > offset ? fsize - offset : 0;
+        if (offset > fsize || bytes == 0 || offset + bytes > fsize) {
+            std::fclose(f);
+            *err = ERR_BAD_PARAMETER;
+            return nullptr;
+        }
+        const u64 total = bytes & ~u64(511);
+        if (total == 0) {
+            std::fclose(f);
+            *err = ERR_BAD_PARAMETER;
+            return nullptr;
+        }
+        return std::unique_ptr<ImageWriteDevice>(new ImageWriteDevice(f, offset, total));
+    }
+    ~ImageWriteDevice() override {
+        if (f_) {
+            std::fflush(f_);
+            std::fclose(f_);
+        }
+    }
+    u32 read_at(u64 off, void* buf, u32 len) override {
+        if (off > total_ || len > total_ - off)
+            return ERR_RANGE_OUT_OF_BOUNDS;
+        if (len == 0)
+            return OK;
+        if (fseek64(f_, base_ + off) != 0 || std::fread(buf, 1, len, f_) != len)
+            return ERR_READ_FAILED;
+        return OK;
+    }
+    u32 write_at(u64 off, const void* buf, u32 len) override {
+        if (off > total_ || len > total_ - off)
+            return ERR_RANGE_OUT_OF_BOUNDS;
+        if (len == 0)
+            return OK;
+        if (fseek64(f_, base_ + off) != 0 || std::fwrite(buf, 1, len, f_) != len)
+            return ERR_WRITE_FAILED;
+        return OK;
+    }
+    u64 size() const override { return total_; }
+
+private:
+    ImageWriteDevice(FILE* f, u64 base, u64 total) : f_(f), base_(base), total_(total) {}
+    FILE* f_;
+    u64 base_, total_;
 };
 
 /* =========================================================================
@@ -498,6 +573,12 @@ struct CrScan {
     bool started = false;  /* run() entered at least once (one-shot) */
     bool has_ctrl = false; /* fresh-run or resumed controller exists */
     bool is_resumed = false;
+    /* S-008 pre-scan repair: the C-ABI consent callback + the lazily
+     * opened write view (image: same file r+b; Windows disk/volume: the
+     * RW transport mapped through the device slice). */
+    cr_ui_repair_consent_fn repair_consent = nullptr;
+    void* repair_consent_user = nullptr;
+    std::unique_ptr<repair::IWriteDevice> repair_writer;
     u32 resumed_boot_hash = 0;
     std::string ck_path;
     FILE* ck_file = nullptr;
@@ -582,8 +663,8 @@ void scan_event_trampoline_(const orchestrator::event::Event& e, void* user) {
     out.error_ranges = e.error_ranges;
     out.checkpoint_index = e.checkpoint_index;
     out.candidate_lba = e.candidate_lba;
-    out.reserved[0] = 0;
-    out.reserved[1] = 0;
+    out.repair_actions = u32(e.repair_actions);
+    out.repair_outcome = e.repair_outcome;
     s->event_fn(s->event_user, &out);
 }
 
@@ -777,6 +858,8 @@ u32 open_image_impl(const char* utf8_path, uint64_t offset, uint64_t bytes, cr_u
     auto* d = new CrDevice();
     d->dev = std::move(dev);
     d->transport = "image";
+    d->image_path = utf8_path; /* S-008: the write side reopens these */
+    d->image_offset = offset;
     *out = reinterpret_cast<cr_ui_device*>(d);
     return ret_ok();
 }
@@ -1033,6 +1116,97 @@ extern "C" CR_UI_API uint32_t cr_ui_enumerate_volumes(cr_ui_volume_info* out, ui
 
 namespace {
 
+/* ---- S-008 pre-scan repair bridges (CrScan* as hook user) ---- */
+bool ui_repair_consent(const repair::RepairPlan& plan, void* user) {
+    auto* s = static_cast<CrScan*>(user);
+    if (!s || !s->repair_consent)
+        return false; /* default-deny: never execute without a callback */
+    cr_ui_repair_plan p;
+    std::memset(&p, 0, sizeof(p));
+    p.detected = plan.detected ? 1u : 0u;
+    copy_bstr(p.fs_family, sizeof(p.fs_family), plan.fs_family.c_str());
+    p.action_count = u32(plan.actions.size());
+    p.refused = plan.refused ? 1u : 0u;
+    const std::string& reason =
+        plan.refused ? plan.refusal_reason
+                     : (plan.actions.empty() ? plan.refusal_reason : plan.actions[0].reason);
+    copy_bstr(p.reason, sizeof(p.reason), reason.c_str());
+    p.advisory_count = u32(plan.advisories.size());
+    return s->repair_consent(s->repair_consent_user, &p) != 0;
+}
+
+#ifdef _WIN32
+/* volume slice write view over the Windows RW disk transport */
+class UiVolumeWriteSlice final : public repair::IWriteDevice {
+public:
+    UiVolumeWriteSlice(std::unique_ptr<repair::IWriteDevice> parent, u64 base)
+        : parent_(std::move(parent)), base_(base) {}
+    u32 read_at(u64 off, void* buf, u32 len) override {
+        return parent_->read_at(off + base_, buf, len);
+    }
+    u32 write_at(u64 off, const void* buf, u32 len) override {
+        return parent_->write_at(off + base_, buf, len);
+    }
+    u64 size() const override { return parent_->size() > base_ ? parent_->size() - base_ : 0; }
+    u32 sector_bytes() const override { return parent_->sector_bytes(); }
+
+private:
+    std::unique_ptr<repair::IWriteDevice> parent_;
+    u64 base_;
+};
+#endif
+
+repair::IWriteDevice* ui_repair_open_writer(void* user) {
+    auto* s = static_cast<CrScan*>(user);
+    if (!s || !s->dev)
+        return nullptr;
+    CrDevice* d = s->dev;
+    if (!d->image_path.empty()) {
+        u32 err = OK;
+        auto w = ImageWriteDevice::open(d->image_path.c_str(), d->image_offset, 0, &err);
+        if (!w)
+            return nullptr;
+        s->repair_writer = std::move(w);
+        return s->repair_writer.get();
+    }
+#ifdef _WIN32
+    if (d->disk_known) {
+        u32 err = OK;
+        auto w = win::open_disk_rw(d->disk, true, L"RDA", &err);
+        if (!w)
+            w = win::open_disk_rw(d->disk, false, nullptr, &err);
+        if (!w)
+            return nullptr;
+        if (d->volume_len != 0) {
+            /* volume device: map writes through the slice base (the read
+             * view's offset within the parent disk) */
+            const u64 base = d->dev->absolute_base();
+            s->repair_writer.reset(new UiVolumeWriteSlice(std::move(w), base));
+        } else {
+            s->repair_writer = std::move(w);
+        }
+        return s->repair_writer.get();
+    }
+#endif
+    return nullptr; /* unknown source: repair unavailable, never guessed */
+}
+
+void ui_repair_close_writer(repair::IWriteDevice* /*dev*/, void* user) {
+    static_cast<CrScan*>(user)->repair_writer.reset();
+}
+
+void arm_repair_hooks(CrScan* s, const cr_ui_scan_config* cfg) {
+    if (!cfg || !cfg->pre_scan_repair)
+        return;
+    s->cfg.pre_scan_repair = true;
+    s->repair_consent = cfg->repair_consent;
+    s->repair_consent_user = cfg->repair_consent_user;
+    s->cfg.repair.consent = ui_repair_consent;
+    s->cfg.repair.open_writer = ui_repair_open_writer;
+    s->cfg.repair.close_writer = ui_repair_close_writer;
+    s->cfg.repair.user = s;
+}
+
 u32 scan_create_impl(const cr_ui_scan_config* cfg, cr_ui_scan** out) {
     if (!out)
         return ret_(ERR_BAD_PARAMETER, "bad argument: out");
@@ -1042,6 +1216,7 @@ u32 scan_create_impl(const cr_ui_scan_config* cfg, cr_ui_scan** out) {
         delete s;
         return rc; /* fill_scan_config already set last_error */
     }
+    arm_repair_hooks(s, cfg); /* S-008: pre-scan repair consent gate */
     if (cfg && cfg->progress) {
         s->progress = cfg->progress;
         s->progress_user = cfg->progress_user;
@@ -1256,6 +1431,32 @@ u32 scan_stats_impl(cr_ui_scan* scan, cr_ui_scan_stats* out) {
     out->cached_hits = st.cached_hits;
     out->cached_misses = st.cached_misses;
     out->error_ranges = u32(st.errors.ranges().size());
+    /* S-008 pre-scan repair outcome */
+    out->repair_ran = st.repair_ran ? 1u : 0u;
+    out->repair_planned = st.repair_actions_planned;
+    out->repair_applied = st.repair_actions_applied;
+    out->repair_denied = (st.repair_consent_denied || st.repair_writer_unavailable) ? 1u : 0u;
+    return ret_ok();
+}
+
+/* S-008: persist the pre-scan repair undo log (durable container). */
+u32 scan_repair_save_undo_impl(cr_ui_scan* scan, const char* utf8_path) {
+    if (!scan || !utf8_path)
+        return ret_(ERR_BAD_PARAMETER, "bad argument: scan/path");
+    auto* s = reinterpret_cast<CrScan*>(scan);
+    if (!s->started)
+        return ret_(ERR_BAD_PARAMETER, "scan has not run");
+    if (s->stats.repair_actions_applied == 0 || s->stats.repair_undo.entries.empty())
+        return ret_(ERR_BAD_PARAMETER, "no repair was applied (no undo log)");
+    FILE* f = open_file(utf8_path, true);
+    if (!f)
+        return ret_(ERR_OPEN_FAILED, "cannot create undo log %s", utf8_path);
+    std::vector<u8> blob;
+    s->stats.repair_undo.serialize(blob);
+    const size_t n = std::fwrite(blob.data(), 1, blob.size(), f);
+    std::fclose(f);
+    if (n != blob.size())
+        return ret_(ERR_SESSION_IO, "short write on %s", utf8_path);
     return ret_ok();
 }
 
@@ -1366,6 +1567,10 @@ extern "C" CR_UI_API uint32_t cr_ui_scan_get_stats(cr_ui_scan* scan, cr_ui_scan_
 }
 extern "C" CR_UI_API uint32_t cr_ui_scan_checkpoint_count(cr_ui_scan* scan, uint64_t* out) {
     return guarded(scan_checkpoint_count_impl, scan, out);
+}
+extern "C" CR_UI_API uint32_t cr_ui_scan_repair_save_undo(cr_ui_scan* scan,
+                                                            const char* utf8_path) {
+    return guarded(scan_repair_save_undo_impl, scan, utf8_path);
 }
 extern "C" CR_UI_API uint32_t cr_ui_scan_save_session(cr_ui_scan* scan, const char* utf8_path) {
     return guarded(scan_save_session_impl, scan, utf8_path);
@@ -1566,6 +1771,7 @@ u32 session_resume_impl(cr_ui_session* sess, const cr_ui_scan_config* original_c
         scan->progress = original_cfg->progress;
         scan->progress_user = original_cfg->progress_user;
     }
+    arm_repair_hooks(scan, original_cfg); /* S-008: resumed scans keep the consent gate */
     if (original_cfg && original_cfg->checkpoint_path_utf8 && *original_cfg->checkpoint_path_utf8)
         scan->ck_path = original_cfg->checkpoint_path_utf8;
     FILE* f = open_file(s->path.c_str(), false);

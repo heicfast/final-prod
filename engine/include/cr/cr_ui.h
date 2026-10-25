@@ -140,6 +140,11 @@ typedef void (*cr_ui_recovery_progress_fn)(void* user, uint64_t bytes_done, uint
 #define CR_EVT_ERROR_RANGE 4u     /* read-failure range appended (delta) */
 #define CR_EVT_CHECKPOINT 5u      /* a G-13 checkpoint was written */
 #define CR_EVT_LOST_CANDIDATE 6u  /* lost-partition candidate found */
+#define CR_EVT_REPAIR 7u         /* pre-scan repair lifecycle (S-008):
+                                    * outcome 0 plan ready for consent,
+                                    * 1 applied, 2 consent denied,
+                                    * 3 failed/unavailable; repair_actions
+                                    * carries the planned/applied count. */
 
 typedef struct cr_ui_event {
     uint32_t type;            /* CR_EVT_* above */
@@ -157,7 +162,11 @@ typedef struct cr_ui_event {
     uint64_t checkpoint_index;
     /* lost candidate (CR_EVT_LOST_CANDIDATE) */
     uint64_t candidate_lba;
-    uint32_t reserved[2];     /* zero - appended fields only (ABI-since 1.1) */
+    /* pre-scan repair (CR_EVT_REPAIR, S-008; ABI-since 1.2 - consumes the
+     * reserved slots, layout unchanged): planned/applied action count and
+     * the outcome code documented at CR_EVT_REPAIR. */
+    uint32_t repair_actions;
+    uint32_t repair_outcome;
 } cr_ui_event;
 
 typedef void (*cr_ui_event_fn)(void* user, const cr_ui_event* evt);
@@ -250,6 +259,33 @@ CR_UI_API uint32_t cr_ui_enumerate_volumes(cr_ui_volume_info* out, uint32_t* cou
 /* fs_hint values (orchestrator::FsFamily, serialized values): 0 auto-probe,
  * 1 NTFS, 2 FAT, 3 exFAT, 4 ext4, 6 HFS+, 7 Btrfs, 8 ZFS, 9 ReFS
  * (5 reserved on the wire - never produced). */
+/* ---- pre-scan repair consent (S-008; ABI-since 1.2) --------------------
+ * Corpus lineage: the reference runs RawFixer PRE-SCAN with a UI consent
+ * prompt (rawfixer-fs-repair.md: invoked during scan preparation; the
+ * DRWUI "Check" phase classes pair with the fixers). This is the
+ * equivalent surface: when cr_ui_scan_config.pre_scan_repair is 1, the
+ * shim runs the read-only repair analysis before the stages and calls
+ * repair_consent ONCE (on the run thread, before any engine read) with
+ * a POD summary whenever a repairable plan exists. Nonzero return =
+ * execute the transactional repair through the shim-opened write view
+ * (image files: the same file reopened read-write at the image offset;
+ * Windows disks and volumes: the platform RW transport mapped through
+ * the device's slice). Zero, a NULL callback, or no available write view
+ * = the plan is surfaced via CR_EVT_REPAIR events and stats and NEVER
+ * executed (default-deny). The undo log is retrievable after run() via
+ * cr_ui_scan_repair_save_undo. */
+typedef struct cr_ui_repair_plan {
+    uint32_t detected;       /* family identified at all */
+    char fs_family[8];       /* "ntfs"/"fat"/"exfat", or "" when unknown */
+    uint32_t action_count;   /* planned write actions (0 = clean) */
+    uint32_t refused;        /* 1 = analysis refused (no safe repair) */
+    char reason[160];        /* refusal reason, or the first action's
+                              * reason; NUL-truncated */
+    uint32_t advisory_count; /* report-only findings (see stats/events) */
+} cr_ui_repair_plan;
+
+typedef uint32_t (*cr_ui_repair_consent_fn)(void* user, const cr_ui_repair_plan* plan);
+
 typedef struct cr_ui_scan_config {
     uint32_t stage_mask;   /* 0 = default (quick|deep|carve = 7); else bits
                             * 1 quick, 2 deep, 4 carve */
@@ -270,6 +306,10 @@ typedef struct cr_ui_scan_config {
                                        * (overwrite-in-place, CLI --out) */
     cr_ui_progress_fn progress;       /* optional live progress */
     void* progress_user;
+    uint32_t pre_scan_repair; /* ABI-since 1.2: 1 = analyze + consent gate
+                               * before the stages (S-008) */
+    cr_ui_repair_consent_fn repair_consent; /* NULL = never execute */
+    void* repair_consent_user;
 } cr_ui_scan_config;
 
 CR_UI_API uint32_t cr_ui_scan_create(const cr_ui_scan_config* cfg, cr_ui_scan** out);
@@ -317,10 +357,23 @@ typedef struct cr_ui_scan_stats {
     uint64_t bytes_scanned, elapsed_ms;
     uint64_t cached_hits, cached_misses;
     uint32_t error_ranges; /* final count (full detail via the session) */
+    /* ABI-since 1.2 (S-008 pre-scan repair outcome): */
+    uint32_t repair_ran;    /* analysis executed at all */
+    uint32_t repair_planned;/* surfaced action count */
+    uint32_t repair_applied;/* transactionally written (all-or-rolled-back) */
+    uint32_t repair_denied; /* consent denied or unavailable (nothing written) */
 } cr_ui_scan_stats;
 
 CR_UI_API uint32_t cr_ui_scan_get_stats(cr_ui_scan* s, cr_ui_scan_stats* out);
 CR_UI_API uint32_t cr_ui_scan_checkpoint_count(cr_ui_scan* s, uint64_t* out);
+
+/* S-008 (ABI-since 1.2): persist the pre-scan repair's undo log to a
+ * file (the durable CRC-checked container). Valid after run() when the
+ * repair executed; returns 0 on write. Returns CR_UI_ERR_BAD_PARAMETER
+ * when nothing was applied (no undo log exists) or the scan has not
+ * run. The operator restores with the CLI's
+ * `rrecov fix --disk N --undo-apply <file>`. */
+CR_UI_API uint32_t cr_ui_scan_repair_save_undo(cr_ui_scan* s, const char* utf8_path);
 
 /* Writes the full truthful session (.crsf) - the same record set the CLI
  * emits, loadable by cr_ui_session_load / `rrecov tree`. Valid after run()

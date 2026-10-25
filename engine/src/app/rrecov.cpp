@@ -158,6 +158,80 @@ struct OpenResult {
     u64 volume_len = 0;
 };
 
+/* ---- S-008 pre-scan repair (scan --repair / --repair-apply) ----
+ * The CLI posture the finding specifies: default OFF; --repair analyzes
+ * and reports (dry-run), --repair-apply is the explicit consent that
+ * lets the orchestrator execute the transactional plan pre-scan; the
+ * undo log is persisted beside the session for rrecov fix --undo-apply. */
+
+/* Volume-scan write view: an RW disk handle mapped through the volume's
+ * slice offset (repairs stay inside the scanned volume). */
+class VolumeWriteSlice final : public repair::IWriteDevice {
+public:
+    VolumeWriteSlice(std::unique_ptr<repair::IWriteDevice> parent, u64 base)
+        : parent_(std::move(parent)), base_(base) {}
+    u32 read_at(u64 off, void* buf, u32 len) override {
+        return parent_->read_at(off + base_, buf, len);
+    }
+    u32 write_at(u64 off, const void* buf, u32 len) override {
+        return parent_->write_at(off + base_, buf, len);
+    }
+    u64 size() const override { return parent_->size() > base_ ? parent_->size() - base_ : 0; }
+    u32 sector_bytes() const override { return parent_->sector_bytes(); }
+
+private:
+    std::unique_ptr<repair::IWriteDevice> parent_;
+    u64 base_;
+};
+
+struct RepairCliCtx {
+    bool apply = false;
+    int consent_calls = 0;
+    u32 disk = 0;
+    u64 slice_base = 0; /* volume_start; 0 = whole-disk view */
+    std::unique_ptr<repair::IWriteDevice> writer;
+};
+
+bool scan_repair_consent(const repair::RepairPlan& plan, void* user) {
+    auto* c = static_cast<RepairCliCtx*>(user);
+    ++c->consent_calls;
+    wprintf(L"[repair] %hs volume: %zu action(s) planned\n", plan.fs_family.c_str(),
+            plan.actions.size());
+    for (const auto& a : plan.actions)
+        wprintf(L"  [repair] offset=%llu len=%u : %hs\n",
+                static_cast<unsigned long long>(a.offset), a.length, a.reason.c_str());
+    for (const auto& adv : plan.advisories)
+        wprintf(L"  [repair][advisory] %hs\n", adv.c_str());
+    if (c->apply)
+        return true;
+    wprintf(L"[repair] dry-run only - re-run with --repair-apply to execute\n");
+    return false;
+}
+
+repair::IWriteDevice* scan_repair_open_writer(void* user) {
+    auto* c = static_cast<RepairCliCtx*>(user);
+    u32 e = 0;
+    auto w = win::open_disk_rw(c->disk, true, L"RDA", &e);
+    if (!w)
+        w = win::open_disk_rw(c->disk, false, nullptr, &e);
+    if (!w) {
+        wprintf(L"[repair] cannot open disk %u for write (rc=%08x): %hs\n", c->disk, e,
+                cr::win::is_elevated()
+                    ? "write access denied even elevated (device busy, locked or protected)"
+                    : "administrator rights required for repairs (elevate and retry)");
+        return nullptr;
+    }
+    if (c->slice_base != 0)
+        c->writer.reset(new VolumeWriteSlice(std::move(w), c->slice_base));
+    else
+        c->writer = std::move(w);
+    return c->writer.get();
+}
+
+void scan_repair_close_writer(repair::IWriteDevice* /*dev*/, void* user) {
+    static_cast<RepairCliCtx*>(user)->writer.reset();
+}
+
 /* SESS-2 (GAP-W3-9a): fill the session identity card from the disk
  * enumeration - model/serial, UTF-8, informational. The volume identity
  * proper (boot-sector CRC32) is computed by the orchestrator at run
@@ -423,8 +497,9 @@ int cmd_scan(int argc, wchar_t** argv, int& i) {
     bool have_target = false;
     orchestrator::ScanConfig cfg;
     cfg.whole_disk = false;
-    std::wstring out_path, log_path, resume_path;
+    std::wstring out_path, log_path, resume_path, repair_undo_path;
     bool json = false;
+    bool repair = false, repair_apply = false;
     TreePrintFlags print_flags;
 
     while (i < argc) {
@@ -482,6 +557,17 @@ int cmd_scan(int argc, wchar_t** argv, int& i) {
             json = true;
             continue;
         }
+        if (has_flag(argc, argv, i, L"--repair")) {
+            repair = true;
+            continue;
+        }
+        if (has_flag(argc, argv, i, L"--repair-apply")) {
+            repair = true;
+            repair_apply = true;
+            continue;
+        }
+        if (get_opt(argc, argv, i, L"--repair-undo", &repair_undo_path))
+            continue;
         wprintf(L"unknown scan option: %s\n", argv[i]);
         return 1;
     }
@@ -498,9 +584,26 @@ int cmd_scan(int argc, wchar_t** argv, int& i) {
         cfg.whole_disk = false;
     }
     log_open(log_path.empty() ? nullptr : log_path.c_str());
-    log_line("rrecov scan: threads=%u quick=%d deep=%d carve=%d whole_disk=%d", cfg.threads,
-             int(cfg.run_quick), int(cfg.run_deep), int(cfg.run_carve), int(cfg.whole_disk));
+    log_line("rrecov scan: threads=%u quick=%d deep=%d carve=%d whole_disk=%d repair=%d/%d", cfg.threads,
+             int(cfg.run_quick), int(cfg.run_deep), int(cfg.run_carve), int(cfg.whole_disk),
+             int(repair), int(repair_apply));
     fill_identity_card(target.disk, cfg); /* SESS-2: model/serial into the card */
+
+    /* S-008 pre-scan repair hooks: --repair analyzes + reports; the
+     * --repair-apply FLAG is the consent (non-interactive CLI posture);
+     * the RW handle opens lazily at consent time (never grabbed for a
+     * dry-run). Volume scans map writes through the volume slice. */
+    RepairCliCtx repair_ctx;
+    if (repair) {
+        cfg.pre_scan_repair = true;
+        repair_ctx.apply = repair_apply;
+        repair_ctx.disk = target.disk;
+        repair_ctx.slice_base = target.volume_start;
+        cfg.repair.consent = scan_repair_consent;
+        cfg.repair.open_writer = scan_repair_open_writer;
+        cfg.repair.close_writer = scan_repair_close_writer;
+        cfg.repair.user = &repair_ctx;
+    }
 
     /* Cross-disk LDM members (audit row 30): on a whole-disk scan of an
      * LDM (dynamic) disk, spanned/striped/mirrored/RAID-5 volumes may
@@ -620,6 +723,37 @@ int cmd_scan(int argc, wchar_t** argv, int& i) {
         log_line("  read-error range: @%llu +%llu (attempts %u)",
                  static_cast<unsigned long long>(er.offset),
                  static_cast<unsigned long long>(er.length), er.attempts);
+
+    /* S-008 pre-scan repair summary (visible even when the plan was empty,
+    * refused, or consent-denied - the operator always sees the truth) */
+    if (repair && stats.repair_ran) {
+        wprintf(L"[repair] family=%hs planned=%u applied=%u%s%s%s\n", stats.repair_family,
+                stats.repair_actions_planned, stats.repair_actions_applied,
+                stats.repair_consent_denied ? L" (consent denied - nothing written)" : L"",
+                stats.repair_writer_unavailable ? L" (no write handle available)" : L"",
+                stats.repair_status != OK ? L" (see log)" : L"");
+        for (const auto& adv : stats.repair_advisories)
+            wprintf(L"[repair][advisory] %hs\n", adv.c_str());
+        if (stats.repair_actions_applied > 0) {
+            if (repair_undo_path.empty())
+                repair_undo_path = L"rrecov-scan-repair-disk" + std::to_wstring(target.disk) +
+                                   L".undo";
+            std::vector<u8> blob;
+            stats.repair_undo.serialize(blob);
+            FILE* uf = nullptr;
+            if (_wfopen_s(&uf, repair_undo_path.c_str(), L"wb") == 0 && uf != nullptr) {
+                fwrite(blob.data(), 1, blob.size(), uf);
+                fclose(uf);
+                wprintf(L"[repair] undo log saved: %s (%zu bytes) - restore with: "
+                        L"rrecov fix --disk %u --undo-apply %s\n",
+                        repair_undo_path.c_str(), blob.size(), target.disk,
+                        repair_undo_path.c_str());
+            } else {
+                wprintf(L"[repair] WARNING: could not save the undo log to %s\n",
+                        repair_undo_path.c_str());
+            }
+        }
+    }
     log_close();
 
     /* save helper: full truthful session from the (now quiesced) tree */
@@ -1469,6 +1603,7 @@ int wmain(int argc, wchar_t** argv) {
             L"  rrecov scan --disk N | --volume C: [--deep] [--quick-only] [--no-carve]\n"
             L"             [--threads N] [--out file.crsf] [--resume file.crsf] [--log file]\n"
             L"             [--json] [--csv] [--filter s] [--deleted-only]\n"
+            L"             [--repair] [--repair-apply] [--repair-undo file]\n"
             L"  rrecov tree --in file.crsf [--filter s] [--deleted-only] [--csv]\n"
             L"  rrecov recover --in file.crsf --disk N --to DIR [--deleted-only] [--filter s]\n"
             L"             [--report file.json]\n"

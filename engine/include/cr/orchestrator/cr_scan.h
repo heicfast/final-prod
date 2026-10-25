@@ -19,6 +19,7 @@
 #include "../session/cr_crsf.h"
 #include "../session/cr_records.h"
 #include "cr/lost/cr_lostpart.h"
+#include "cr/repair/cr_rawfixer.h"
 #include <atomic>
 #include <chrono>
 #include <memory>
@@ -82,7 +83,8 @@ enum class Type : u32 {
     FilesFound = 3,  /* files-found counters advanced (stage boundary) */
     ErrorRange = 4,  /* a read-failure range was appended (delta) */
     Checkpoint = 5,  /* a G-13 checkpoint was written */
-    LostCandidate = 6 /* a lost-partition candidate was found */
+    LostCandidate = 6, /* a lost-partition candidate was found */
+    Repair = 7       /* S-008: pre-scan repair lifecycle (see Repair fields) */
 };
 
 struct Event {
@@ -101,6 +103,14 @@ struct Event {
     u64 checkpoint_index = 0;
     /* LostCandidate */
     u64 candidate_lba = 0;
+    /* Repair (Type::Repair; S-008). Fires (a) when analyze() produced a
+     * non-empty, non-refused plan - repair_outcome 0 ("ready"),
+     * repair_actions = planned action count - and (b) once the outcome is
+     * known: 1 applied (repair_actions = actions actually written),
+     * 2 consent denied, 3 execution failed or writer unavailable.
+     * stage stays 0xFFFFFFFF (pre-scan). */
+    u64 repair_actions = 0;
+    u32 repair_outcome = 0;
 };
 
 using EventFn = void (*)(const Event& evt, void* user);
@@ -114,6 +124,34 @@ struct ScanConfig {
     FsFamily fs_hint = FsFamily::Unknown; /* auto-probed when Unknown */
     StageWeights weights;
     u32 threads = 0; /* 0 = auto (hw-1, clamp 1..8); 1 = single-threaded */
+
+    /* ---- pre-scan repair (S-008; corpus RawFixer pre-scan position:
+     * repair, then scan) ----
+     * OFF by default (CLI default; the reference UI flow enables it with
+     * a consent prompt). When ON, run() executes repair::analyze() on the
+     * caller's slice BEFORE any engine/probe reads, surfaces the plan
+     * (event stream + stats), and executes the transactional writes ONLY
+     * when the consent hook returns true AND a write view can be opened.
+     * No hooks = analysis surfaced, nothing ever written (S1). A failed or
+     * denied repair NEVER aborts the scan - the og falls through to
+     * scanning/caving the unrepaired volume the same way. */
+    bool pre_scan_repair = false;
+    struct RepairHooks {
+        /* Called once per scan when analyze() produced a non-empty,
+         * non-refused plan, before any write. Called on the scan thread
+         * (run()'s caller thread) BEFORE the stages start; may prompt a
+         * user. NULL = consent never granted (plans surface, never
+         * execute). */
+        bool (*consent)(const repair::RepairPlan& plan, void* user) = nullptr;
+        /* Open a WRITE view of the same bytes the scan reads (the platform
+         * layer's RW handle at the same slice offset). NULL return =
+         * repair unavailable this scan (recorded, scan proceeds). */
+        repair::IWriteDevice* (*open_writer)(void* user) = nullptr;
+        /* Close the writer exactly once per successful open (NULL device
+         * allowed), before run() proceeds. */
+        void (*close_writer)(repair::IWriteDevice* dev, void* user) = nullptr;
+        void* user = nullptr;
+    } repair;
 
     /* Volume label for the session VolumeInfo (G-14). Supplied by the
      * caller (the CLI/win layer reads it from the volume entry; engines
@@ -171,6 +209,22 @@ struct ScanStats {
     u64 cached_misses = 0;
     ReadErrorMap errors;
     std::vector<lost::Candidate> lost_candidates;
+
+    /* ---- S-008 pre-scan repair outcome (filled when cfg.pre_scan_repair) ----
+     * repair_status: OK (clean, applied, or surfaced-but-denied), or the
+     * analyze/execute error code. repair_undo is populated only when
+     * actions were applied; the CALLER persists it (the CLI writes the
+     * durable container next to the session). */
+    bool repair_ran = false;
+    bool repair_detected = false;
+    char repair_family[8] = {0}; /* "ntfs"/"fat"/"exfat"/"" */
+    u32 repair_status = 0;
+    u32 repair_actions_planned = 0;
+    u32 repair_actions_applied = 0;
+    bool repair_consent_denied = false;
+    bool repair_writer_unavailable = false;
+    std::vector<std::string> repair_advisories;
+    repair::UndoLog repair_undo;
 };
 
 /* ---- live scan observability (G-04/G-05/G-06) ----

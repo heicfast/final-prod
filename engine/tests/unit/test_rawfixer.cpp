@@ -5,6 +5,10 @@
 
 #include "cr/repair/cr_rawfixer.h"
 #include "cr/cr_error.h"
+#include "cr/ntfs/cr_attributes.h"
+#include "cr/ntfs/cr_fixup.h"
+#include "cr/ntfs/cr_mftwalk.h"
+#include "cr/ntfs/cr_ntfs_wire.h"
 #include "cr/exfat/cr_exfat_engine.h"
 #include <gtest/gtest.h>
 #include <cstring>
@@ -462,5 +466,350 @@ TEST(RawFixer, UndoLogRoundTrip) {
 }
 
 } // namespace
+
+/* ---- S-008: CheckMFT / CheckFatTable / CheckRootDir / FixByScanSector ---- */
+
+
+/* One spec-shaped 1 KiB MFT record: USA fixup (USN=1 on both sector tails)
+ * + a resident $FILE_NAME carrying `name`. When `mft_runlist` is set, also
+ * a resident $DATA whose value bytes are the $MFT runlist (tiny-MFT path
+ * the engine's load_mft_stream accepts). */
+std::vector<u8> build_meta_record(const std::u16string& name, bool mft_runlist, u32 record_no) {
+    std::vector<u8> rec(1024, 0);
+    auto* rh = reinterpret_cast<ntfs::RecordHeader*>(rec.data());
+    rh->magic = ntfs::RECORD_MAGIC_FILE;
+    rh->update_sequence_offset = 0x30;
+    rh->update_sequence_size = 3; /* 2 sectors + 1 */
+    rh->sequence = 1;
+    rh->link_count = 1;
+    rh->attribute_offset = 0x38;
+    rh->flags = ntfs::RECORD_IN_USE;
+    rh->bytes_in_use = 1024;
+    rh->bytes_allocated = 1024;
+    rh->base_record = 0;
+    rh->next_attr_id = 4;
+    rh->record_number = record_no;
+    put16(rec.data() + 0x30, 1); /* USA: USN 1, placeholder tails 0 */
+    put16(rec.data() + 510, 1);  /* sector tails carry the USN */
+    put16(rec.data() + 1022, 1);
+    u32 pos = 0x38;
+    /* $FILE_NAME resident: value at 0x18 */
+    {
+        const u32 vlen = 66 + u32(name.size()) * 2;
+        const u32 alen = (24 + vlen + 7) / 8 * 8;
+        put32(rec.data() + pos + 0, ntfs::ATTR_TYPE_FILE_NAME);
+        put32(rec.data() + pos + 4, alen);
+        rec[pos + 8] = 0;
+        rec[pos + 9] = 0;
+        put16(rec.data() + pos + 10, u16(24));
+        put32(rec.data() + pos + 16, vlen);
+        put16(rec.data() + pos + 20, u16(24));
+        u8* v = rec.data() + pos + 24;
+        v[64] = u8(name.size());
+        v[65] = ntfs::FILE_NAME_POSIX;
+        for (size_t i = 0; i < name.size(); ++i)
+            put16(v + 66 + u32(i) * 2, name[i]);
+        pos += alen;
+    }
+    if (mft_runlist) {
+        /* resident $DATA: value = one run (16 clusters at LCN 4) + terminator */
+        static const u8 rl[5] = {0x21, 0x10, 0x04, 0x00, 0x00};
+        const u32 vlen = sizeof(rl);
+        const u32 alen = (24 + vlen + 7) / 8 * 8;
+        put32(rec.data() + pos + 0, ntfs::ATTR_TYPE_DATA);
+        put32(rec.data() + pos + 4, alen);
+        rec[pos + 8] = 0;
+        rec[pos + 9] = 0;
+        put16(rec.data() + pos + 10, u16(24));
+        put32(rec.data() + pos + 16, vlen);
+        put16(rec.data() + pos + 20, u16(24));
+        std::memcpy(rec.data() + pos + 24, rl, sizeof(rl));
+        pos += alen;
+    }
+    put32(rec.data() + pos, 0xFFFFFFFF); /* terminator */
+    return rec;
+}
+
+/* Minimal openable NTFS volume (1 MiB, spc 1, records 1 KiB): boot, $MFT
+ * record 0 at LCN 4 (with the $MFT runlist), root record 5 valid, $MFTMirr
+ * slot 0 (byte copy of record 0) at LCN 100. */
+struct NtfsVolumeImage {
+    std::vector<u8> img;
+    static constexpr u64 MFT_OFF = 4 * 512;
+    static constexpr u64 MIRR_OFF = 100 * 512;
+    explicit NtfsVolumeImage(bool tear_record0) : img(1ull << 20, 0) {
+        u8* b = img.data();
+        std::memcpy(b + 3, "NTFS    ", 8);
+        put16(img.data() + 0x0B, 512);
+        b[0x0D] = 1;            /* spc 1 */
+        put64(img.data() + 0x28, 2048); /* total sectors (1 MiB) */
+        put64(img.data() + 0x30, 4);    /* $MFT LCN */
+        put64(img.data() + 0x38, 100);  /* $MFTMirr LCN */
+        b[0x40] = 0xF6;         /* cpr -10 -> 1 KiB records */
+        b[510] = 0x55;
+        b[511] = 0xAA;
+        const auto rec0 = build_meta_record(u"$MFT", true, 0);
+        std::memcpy(img.data() + MFT_OFF, rec0.data(), rec0.size());
+        const auto root5 = build_meta_record(u".", false, 5);
+        std::memcpy(img.data() + MFT_OFF + 5 * 1024, root5.data(), root5.size());
+        std::memcpy(img.data() + MIRR_OFF, rec0.data(), rec0.size()); /* mirror slot 0 */
+        if (tear_record0)
+            std::memset(img.data() + MFT_OFF, 0xDE, 1024); /* torn primary */
+    }
+};
+
+/* Mirrored FAT16 volume (5074 sectors): reserved 2, two 20-sector FATs,
+ * 512 root entries. Both FAT copies carry the FAT16 entry signature. */
+struct Fat16MirrorImage {
+    std::vector<u8> img;
+    static constexpr u64 FAT1 = 2 * 512;
+    static constexpr u64 FAT2 = 22 * 512;
+    static constexpr u64 FAT_BYTES = 20 * 512;
+    static constexpr u64 ROOT = 42 * 512;
+    Fat16MirrorImage() : img(u64(5074) * 512, 0) {
+        u8* b = img.data();
+        std::memcpy(b + 3, "MSDOS5.0", 8);
+        put16(img.data() + 0x0B, 512);
+        b[0x0D] = 1;
+        put16(img.data() + 0x0E, 2);
+        b[0x10] = 2; /* mirrored */
+        put16(img.data() + 0x11, 512);
+        put16(img.data() + 0x13, 5074);
+        b[0x15] = 0xF8;
+        put16(img.data() + 0x16, 20);
+        std::memcpy(b + 0x36, "FAT16   ", 8);
+        b[510] = 0x55;
+        b[511] = 0xAA;
+        for (u64 fat : {FAT1, FAT2}) {
+            img[fat + 0] = 0xF8; /* entry0 = 0xFFF8 (media) */
+            img[fat + 1] = 0xFF;
+            img[fat + 2] = 0xFF; /* entry1 = 0xFFFF */
+            img[fat + 3] = 0xFF;
+        }
+    }
+    void write_fat_sector(u32 copy /*1|2*/, u64 sector_in_fat, u8 fill) {
+        const u64 base = copy == 1 ? FAT1 : FAT2;
+        std::memset(img.data() + base + sector_in_fat * 512, fill, 512);
+    }
+};
+
+TEST(RawFixer, MftRecord0RestoredFromMirror) {
+    NtfsVolumeImage v(true);
+    RamDevice dev(v.img);
+    RepairPlan plan;
+    ASSERT_EQ(OK, analyze(&dev, plan));
+    EXPECT_TRUE(plan.detected);
+    EXPECT_EQ("ntfs", plan.fs_family);
+    ASSERT_EQ(1u, plan.actions.size());
+    EXPECT_EQ(ActionKind::RestoreMftRecordFromMirror, plan.actions[0].kind);
+    EXPECT_EQ(NtfsVolumeImage::MFT_OFF, plan.actions[0].offset);
+    EXPECT_EQ(1024u, plan.actions[0].length);
+    /* the restore source is the mirror slot 0, byte for byte */
+    EXPECT_EQ(0, memcmp(plan.actions[0].after.data(),
+                        v.img.data() + NtfsVolumeImage::MIRR_OFF, 1024));
+
+    RamWriteDevice wd(v.img);
+    UndoLog undo_log;
+    ASSERT_EQ(OK, execute(&wd, plan, undo_log));
+    EXPECT_EQ(0, memcmp(wd.d_.data() + NtfsVolumeImage::MFT_OFF,
+                        v.img.data() + NtfsVolumeImage::MIRR_OFF, 1024));
+    /* undo restores the torn original */
+    ASSERT_EQ(OK, undo(wd, undo_log));
+    EXPECT_EQ(0xDE, wd.d_[NtfsVolumeImage::MFT_OFF]);
+}
+
+TEST(RawFixer, MftCleanNeverTouched) {
+    NtfsVolumeImage v(false);
+    RamDevice dev(v.img);
+    RepairPlan plan;
+    ASSERT_EQ(OK, analyze(&dev, plan));
+    EXPECT_TRUE(plan.detected);
+    EXPECT_TRUE(plan.actions.empty());
+    EXPECT_TRUE(plan.advisories.empty());
+}
+
+TEST(RawFixer, MftBothInvalidNoWrite) {
+    NtfsVolumeImage v(true);
+    std::memset(v.img.data() + NtfsVolumeImage::MIRR_OFF, 0xBA, 1024); /* mirror torn too */
+    RamDevice dev(v.img);
+    RepairPlan plan;
+    ASSERT_EQ(OK, analyze(&dev, plan));
+    EXPECT_TRUE(plan.actions.empty());
+    ASSERT_FALSE(plan.advisories.empty());
+    bool found = false;
+    for (const auto& a : plan.advisories)
+        if (a.find("$MFTMirr") != std::string::npos)
+            found = true;
+    EXPECT_TRUE(found);
+}
+
+TEST(RawFixer, MftRestoreMakesVolumeOpenable) {
+    /* the finding's falsifiable claim (1), proven at the engine boundary:
+     * a torn $MFT record 0 with an intact mirror makes NtfsVolume::open
+     * fail (carve-only path); after the consent-gated repair the volume
+     * opens and the structured engine can walk it. */
+    NtfsVolumeImage v(true);
+    u32 err = 0;
+    auto before = ntfs::NtfsVolume::open(
+        std::unique_ptr<IStorageDevice>(new RamDevice(v.img)), &err);
+    EXPECT_EQ(nullptr, before) << "torn record 0 must fail volume open";
+
+    RamDevice dev(v.img);
+    RepairPlan plan;
+    ASSERT_EQ(OK, analyze(&dev, plan));
+    ASSERT_EQ(1u, plan.actions.size());
+    RamWriteDevice wd(v.img);
+    UndoLog undo_log;
+    ASSERT_EQ(OK, execute(&wd, plan, undo_log));
+
+    auto after = ntfs::NtfsVolume::open(
+        std::unique_ptr<IStorageDevice>(new RamDevice(wd.d_)), &err);
+    ASSERT_NE(nullptr, after) << "repaired volume must open: " << err_text(err);
+    EXPECT_EQ(1024u, after->params().record_size);
+
+    /* undo returns the volume to the unopenable state (transactional truth) */
+    ASSERT_EQ(OK, undo(wd, undo_log));
+    auto reverted = ntfs::NtfsVolume::open(
+        std::unique_ptr<IStorageDevice>(new RamDevice(wd.d_)), &err);
+    EXPECT_EQ(nullptr, reverted);
+}
+
+TEST(RawFixer, FatTornMirrorCopyRestoredSectorGranular) {
+    /* FAT2 torn: signature sector + sectors 3,4 -> exactly two coalesced
+     * restore actions (sector 0 alone; sectors 3-4 as one run) sourced
+     * from the signature-valid FAT1. */
+    Fat16MirrorImage v;
+    v.write_fat_sector(2, 0, 0xAB);
+    v.write_fat_sector(2, 3, 0xAB);
+    v.write_fat_sector(2, 4, 0xAB);
+    RamDevice dev(v.img);
+    RepairPlan plan;
+    ASSERT_EQ(OK, analyze(&dev, plan));
+    EXPECT_EQ("fat", plan.fs_family);
+    ASSERT_EQ(2u, plan.actions.size());
+    EXPECT_EQ(ActionKind::RestoreFatSectorFromMirror, plan.actions[0].kind);
+    EXPECT_EQ(Fat16MirrorImage::FAT2, plan.actions[0].offset);
+    EXPECT_EQ(512u, plan.actions[0].length);
+    EXPECT_EQ(ActionKind::RestoreFatSectorFromMirror, plan.actions[1].kind);
+    EXPECT_EQ(Fat16MirrorImage::FAT2 + 3 * 512, plan.actions[1].offset);
+    EXPECT_EQ(1024u, plan.actions[1].length);
+    /* sources are FAT1's bytes */
+    EXPECT_EQ(0, memcmp(plan.actions[0].after.data(), v.img.data() + Fat16MirrorImage::FAT1, 512));
+    EXPECT_EQ(0, memcmp(plan.actions[1].after.data(),
+                        v.img.data() + Fat16MirrorImage::FAT1 + 3 * 512, 1024));
+
+    RamWriteDevice wd(v.img);
+    UndoLog undo_log;
+    ASSERT_EQ(OK, execute(&wd, plan, undo_log));
+    EXPECT_EQ(0, memcmp(wd.d_.data() + Fat16MirrorImage::FAT2,
+                        wd.d_.data() + Fat16MirrorImage::FAT1, Fat16MirrorImage::FAT_BYTES));
+    ASSERT_EQ(OK, undo(wd, undo_log));
+    EXPECT_EQ(0xAB, wd.d_[Fat16MirrorImage::FAT2]);
+}
+
+TEST(RawFixer, FatTornPrimaryRestoredFromMirror) {
+    /* the reverse direction: FAT1's signature sector torn, FAT2 valid */
+    Fat16MirrorImage v;
+    v.write_fat_sector(1, 0, 0xCD);
+    RamDevice dev(v.img);
+    RepairPlan plan;
+    ASSERT_EQ(OK, analyze(&dev, plan));
+    ASSERT_EQ(1u, plan.actions.size());
+    EXPECT_EQ(ActionKind::RestoreFatSectorFromMirror, plan.actions[0].kind);
+    EXPECT_EQ(Fat16MirrorImage::FAT1, plan.actions[0].offset);
+    RamWriteDevice wd(v.img);
+    UndoLog undo_log;
+    ASSERT_EQ(OK, execute(&wd, plan, undo_log));
+    EXPECT_EQ(0, memcmp(wd.d_.data() + Fat16MirrorImage::FAT1,
+                        wd.d_.data() + Fat16MirrorImage::FAT2, Fat16MirrorImage::FAT_BYTES));
+}
+
+TEST(RawFixer, FatMirrorAmbiguityNeverWritten) {
+    /* both copies signature-valid but differing later sectors: S3 - no
+     * side is provably good, an advisory reports it, no write is planned */
+    Fat16MirrorImage v;
+    v.write_fat_sector(1, 7, 0x11);
+    RamDevice dev(v.img);
+    RepairPlan plan;
+    ASSERT_EQ(OK, analyze(&dev, plan));
+    EXPECT_TRUE(plan.actions.empty());
+    ASSERT_FALSE(plan.advisories.empty());
+    bool found = false;
+    for (const auto& a : plan.advisories)
+        if (a.find("ambiguous") != std::string::npos)
+            found = true;
+    EXPECT_TRUE(found);
+}
+
+TEST(RawFixer, FatCleanMirrorNoAction) {
+    Fat16MirrorImage v;
+    RamDevice dev(v.img);
+    RepairPlan plan;
+    ASSERT_EQ(OK, analyze(&dev, plan));
+    EXPECT_TRUE(plan.actions.empty());
+    EXPECT_TRUE(plan.advisories.empty());
+}
+
+TEST(RawFixer, FixByScanSectorRebuildsBootFromOnlyCandidate) {
+    /* no family evidence in the primary or any backup; one FAT-shaped
+     * sector at 1 MiB rebuilds the DBR (FixByScanSector) */
+    Fat16MirrorImage layout; /* canonical FATs + root, valid signature */
+    std::vector<u8> img(8ull << 20, 0);
+    std::memcpy(img.data() + 1 * 1024 * 1024, layout.img.data(), 512); /* stray boot copy */
+    /* canonical structures at volume-relative offsets (post-restore truth) */
+    std::memcpy(img.data() + Fat16MirrorImage::FAT1, layout.img.data() + Fat16MirrorImage::FAT1,
+                Fat16MirrorImage::FAT_BYTES);
+    std::memcpy(img.data() + Fat16MirrorImage::FAT2, layout.img.data() + Fat16MirrorImage::FAT2,
+                Fat16MirrorImage::FAT_BYTES);
+    RamDevice dev(img);
+    RepairPlan plan;
+    ASSERT_EQ(OK, analyze(&dev, plan));
+    EXPECT_TRUE(plan.detected);
+    EXPECT_EQ("fat", plan.fs_family);
+    ASSERT_EQ(1u, plan.actions.size());
+    EXPECT_EQ(ActionKind::DeepScanBootRestore, plan.actions[0].kind);
+    EXPECT_EQ(0u, plan.actions[0].offset);
+    EXPECT_EQ(0, memcmp(plan.actions[0].after.data(), layout.img.data(), 512));
+
+    RamWriteDevice wd(img);
+    UndoLog undo_log;
+    ASSERT_EQ(OK, execute(&wd, plan, undo_log));
+    EXPECT_EQ(0, memcmp(wd.d_.data(), layout.img.data(), 512));
+}
+
+TEST(RawFixer, FixByScanSectorAmbiguousCandidatesRefused) {
+    /* two DISTINCT boot-shaped sectors -> S3 refusal, no write */
+    Fat16MirrorImage layout;
+    std::vector<u8> img(8ull << 20, 0);
+    std::memcpy(img.data() + 1 * 1024 * 1024, layout.img.data(), 512);
+    std::memcpy(img.data() + 2 * 1024 * 1024, layout.img.data(), 512);
+    put16(img.data() + 2 * 1024 * 1024 + 0x13, 5073); /* distinct content: total sectors - 1 */
+    RamDevice dev(img);
+    RepairPlan plan;
+    ASSERT_EQ(OK, analyze(&dev, plan));
+    EXPECT_TRUE(plan.refused);
+    EXPECT_TRUE(plan.actions.empty());
+    EXPECT_NE(std::string::npos, plan.refusal_reason.find("distinct"));
+}
+
+TEST(RawFixer, FixByScanSectorIdenticalCandidatesNotAmbiguous) {
+    /* two byte-identical copies of the boot sector: one content, one
+     * repair - deduplicated, not an ambiguity */
+    Fat16MirrorImage layout;
+    std::vector<u8> img(8ull << 20, 0);
+    std::memcpy(img.data() + 1 * 1024 * 1024, layout.img.data(), 512);
+    std::memcpy(img.data() + 2 * 1024 * 1024, layout.img.data(), 512);
+    std::memcpy(img.data() + Fat16MirrorImage::FAT1, layout.img.data() + Fat16MirrorImage::FAT1,
+                Fat16MirrorImage::FAT_BYTES);
+    std::memcpy(img.data() + Fat16MirrorImage::FAT2, layout.img.data() + Fat16MirrorImage::FAT2,
+                Fat16MirrorImage::FAT_BYTES);
+    RamDevice dev(img);
+    RepairPlan plan;
+    ASSERT_EQ(OK, analyze(&dev, plan));
+    EXPECT_FALSE(plan.refused);
+    ASSERT_EQ(1u, plan.actions.size());
+    EXPECT_EQ(ActionKind::DeepScanBootRestore, plan.actions[0].kind);
+}
+
 } // namespace repair
 } // namespace cr

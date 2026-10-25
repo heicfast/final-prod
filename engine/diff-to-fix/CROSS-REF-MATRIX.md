@@ -22,7 +22,7 @@ Legend: `M` = MATCH · `A-n`/`S-n`/`M-n`/`N-n`/`I-n` = finding ID (in
 | session | M | M (D12) | M | NA | M | NA | NA | M | M | I-005.7 | M (debt) |
 | writer+report | M | M | NA | M | M | M | NA | ok | M | N-009d | M (debt) |
 | health | M | NA | N-009a | NA | M | NA | NA | NA | M | M | THIN |
-| rawfixer | S-008 | NA | M | S-008 | M | NA | NA | M | M | S-008 | M |
+| rawfixer | M (S-008 fixed) | NA | M | M (S-008 fixed) | M | NA | NA | M | M | M (S-008 fixed) | M |
 | orchestrator | M | M | NA | M-005 | M | M | NA | M | M | M | M |
 | visualization | S-009 | GAP-cats, M | NA | M | M | NA | M | M | M | NA | M |
 | abi (cr_ui) | NA | M | ok | NA | M | M | S-009 | M | M | M | M |

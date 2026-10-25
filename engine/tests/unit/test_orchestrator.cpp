@@ -437,3 +437,182 @@ TEST(SafeWriter, ResidentPrefixNotOverwritten) {
         }
     }
 }
+
+/* ---- S-008: pre-scan repair wiring (consent-gated, corpus RawFixer
+ * position: repair, then scan) ---- */
+#include "cr/repair/cr_rawfixer.h"
+
+namespace {
+
+/* Write view over the SAME memory the scan reads (the platform layer's RW
+ * handle stand-in for tests). */
+class SharedRamWrite final : public repair::IWriteDevice {
+public:
+    explicit SharedRamWrite(MemDevice& dev) : d_(dev.raw()) {}
+    u32 read_at(u64 off, void* buf, u32 len) override {
+        if (off > d_.size() || len > d_.size() - off)
+            return ERR_RANGE_OUT_OF_BOUNDS;
+        std::memcpy(buf, d_.data() + off, len);
+        return OK;
+    }
+    u32 write_at(u64 off, const void* buf, u32 len) override {
+        if (off > d_.size() || len > d_.size() - off)
+            return ERR_RANGE_OUT_OF_BOUNDS;
+        std::memcpy(d_.data() + off, buf, len);
+        ++writes;
+        return OK;
+    }
+    u64 size() const override { return d_.size(); }
+    u32 writes = 0;
+
+private:
+    std::vector<u8>& d_;
+};
+
+struct RepairCtx {
+    bool consent = false;
+    int consent_calls = 0;
+    SharedRamWrite* dev = nullptr;
+    std::vector<std::pair<u32, u64>> events; /* (outcome, actions) */
+};
+
+bool test_consent(const repair::RepairPlan& plan, void* user) {
+    auto* ctx = static_cast<RepairCtx*>(user);
+    ++ctx->consent_calls;
+    EXPECT_FALSE(plan.refused);
+    EXPECT_FALSE(plan.actions.empty());
+    return ctx->consent;
+}
+repair::IWriteDevice* test_open_writer(void* user) {
+    return static_cast<RepairCtx*>(user)->dev;
+}
+void test_close_writer(repair::IWriteDevice* dev, void*) { (void)dev; }
+void test_event_fn(const event::Event& evt, void* user) {
+    if (evt.type == event::Type::Repair)
+        static_cast<RepairCtx*>(user)->events.emplace_back(evt.repair_outcome,
+                                                           evt.repair_actions);
+}
+
+/* build_fat16 + the FAT16 entry signature on both copies, FAT1 sector 0 torn */
+struct TornFatFixture {
+    std::vector<u8> img;
+    static constexpr u64 FAT1 = 2 * 512, FAT2 = 22 * 512;
+    TornFatFixture() : img(build_fat16()) {
+        for (u64 fat : {FAT1, FAT2}) {
+            img[fat + 0] = 0xF8;
+            img[fat + 1] = 0xFF;
+            img[fat + 2] = 0xFF;
+            img[fat + 3] = 0xFF;
+        }
+        std::memset(img.data() + FAT1, 0xAB, 512); /* torn signature sector */
+    }
+};
+
+TEST(Orchestrator, PreScanRepairRestoresTornFatAndScans) {
+    /* finding claim (2) end-to-end: a FAT16 volume with a torn FAT1
+     * signature sector is repaired pre-scan after consent; the engines
+     * observe the repaired bytes and the structured scan completes. */
+    TornFatFixture fx;
+    MemDevice dev(std::move(fx.img));
+    SharedRamWrite wdev(dev);
+    RepairCtx ctx;
+    ctx.consent = true;
+    ctx.dev = &wdev;
+
+    tree::ResultTree tree;
+    ScanConfig cfg;
+    cfg.run_quick = true;
+    cfg.run_deep = false;
+    cfg.run_carve = false;
+    cfg.pre_scan_repair = true;
+    cfg.repair.consent = test_consent;
+    cfg.repair.open_writer = test_open_writer;
+    cfg.repair.close_writer = test_close_writer;
+    cfg.repair.user = &ctx;
+    cfg.event_fn = test_event_fn;
+    cfg.event_user = &ctx;
+    ScanController ctrl(tree, cfg);
+    ScanStats stats;
+    u32 rc = ctrl.run(&dev, nullptr, nullptr, nullptr, stats);
+    ASSERT_EQ(rc, OK) << err_text(rc);
+
+    /* the repair executed exactly one transactional action */
+    EXPECT_EQ(1u, ctx.consent_calls);
+    EXPECT_TRUE(stats.repair_ran);
+    EXPECT_EQ("fat", std::string(stats.repair_family));
+    EXPECT_EQ(1u, stats.repair_actions_planned);
+    EXPECT_EQ(1u, stats.repair_actions_applied);
+    EXPECT_FALSE(stats.repair_consent_denied);
+    EXPECT_EQ(1u, wdev.writes);
+    ASSERT_EQ(1u, stats.repair_undo.entries.size());
+    /* FAT1's signature sector restored from the sibling copy */
+    EXPECT_EQ(0xF8, dev.raw()[TornFatFixture::FAT1 + 0]);
+    EXPECT_EQ(0xFF, dev.raw()[TornFatFixture::FAT1 + 1]);
+    EXPECT_EQ(0, std::memcmp(dev.raw().data() + TornFatFixture::FAT1,
+                             dev.raw().data() + TornFatFixture::FAT2, 512));
+    /* the structured scan proceeded on the repaired volume */
+    EXPECT_GE(stats.files_found, 1u);
+    /* event stream: ready-for-consent then applied */
+    ASSERT_EQ(2u, ctx.events.size());
+    EXPECT_EQ(0u, ctx.events[0].first);
+    EXPECT_EQ(1u, ctx.events[0].second);
+    EXPECT_EQ(1u, ctx.events[1].first);
+    EXPECT_EQ(1u, ctx.events[1].second);
+}
+
+TEST(Orchestrator, PreScanRepairDeniedNeverWrites) {
+    TornFatFixture fx;
+    MemDevice dev(std::move(fx.img));
+    SharedRamWrite wdev(dev);
+    RepairCtx ctx;
+    ctx.consent = false;
+    ctx.dev = &wdev;
+
+    tree::ResultTree tree;
+    ScanConfig cfg;
+    cfg.run_quick = true;
+    cfg.run_deep = false;
+    cfg.run_carve = false;
+    cfg.pre_scan_repair = true;
+    cfg.repair.consent = test_consent;
+    cfg.repair.open_writer = test_open_writer;
+    cfg.repair.close_writer = test_close_writer;
+    cfg.repair.user = &ctx;
+    ScanController ctrl(tree, cfg);
+    ScanStats stats;
+    u32 rc = ctrl.run(&dev, nullptr, nullptr, nullptr, stats);
+    ASSERT_EQ(rc, OK) << err_text(rc);
+    /* consent asked and denied: nothing written, the volume is untouched,
+     * and the scan still completes (falls through unrepaired) */
+    EXPECT_EQ(1u, ctx.consent_calls);
+    EXPECT_EQ(0u, wdev.writes);
+    EXPECT_EQ(0u, stats.repair_actions_applied);
+    EXPECT_TRUE(stats.repair_consent_denied);
+    EXPECT_EQ(0xAB, dev.raw()[TornFatFixture::FAT1 + 0]);
+    EXPECT_GE(stats.files_found, 0u);
+}
+
+TEST(Orchestrator, PreScanRepairWithoutHooksNeverWrites) {
+    /* S1: no consent hook at all = the plan is surfaced in stats but can
+     * never execute (default-deny) */
+    TornFatFixture fx;
+    MemDevice dev(std::move(fx.img));
+
+    tree::ResultTree tree;
+    ScanConfig cfg;
+    cfg.run_quick = true;
+    cfg.run_deep = false;
+    cfg.run_carve = false;
+    cfg.pre_scan_repair = true; /* hooks left null */
+    ScanController ctrl(tree, cfg);
+    ScanStats stats;
+    u32 rc = ctrl.run(&dev, nullptr, nullptr, nullptr, stats);
+    ASSERT_EQ(rc, OK) << err_text(rc);
+    EXPECT_TRUE(stats.repair_ran);
+    EXPECT_EQ(1u, stats.repair_actions_planned);
+    EXPECT_EQ(0u, stats.repair_actions_applied);
+    EXPECT_TRUE(stats.repair_consent_denied);
+    EXPECT_EQ(0xAB, dev.raw()[TornFatFixture::FAT1 + 0]);
+}
+
+} // namespace

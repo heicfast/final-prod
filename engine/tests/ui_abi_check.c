@@ -160,6 +160,19 @@ static void recovery_progress_cb(void* user, uint64_t done, uint64_t total) {
     ++*calls;
 }
 
+/* S-008 pre-scan repair consent (records the plan it saw; consents) */
+static unsigned g_abi_consent_action_count = 0;
+static unsigned g_abi_consent_detected = 0;
+static char g_abi_consent_family[16] = {0};
+static uint32_t abi_repair_consent(void* user, const cr_ui_repair_plan* plan) {
+    unsigned* calls = (unsigned*)user;
+    ++*calls;
+    g_abi_consent_action_count = plan->action_count;
+    g_abi_consent_detected = plan->detected;
+    snprintf(g_abi_consent_family, sizeof(g_abi_consent_family), "%s", plan->fs_family);
+    return 1; /* consent */
+}
+
 /* find a snapshot row by (case-insensitive ASCII) name; returns index or -1 */
 static int snap_find(cr_ui_snapshot* snap, const char* want) {
     uint32_t n = 0, i;
@@ -252,6 +265,97 @@ int main(int argc, char** argv) {
     CHECK_EQ_U64(tel.running, 0u);
     /* double-run refusal (one-shot lifecycle, CLI parity) */
     CHECK(cr_ui_scan_run(scan) != CR_UI_OK);
+
+    /* ---- S-008 pre-scan repair (consent-gated, image device) ---- */
+    {
+        cr_ui_device* dev2 = NULL;
+        cr_ui_scan* scan2 = NULL;
+        cr_ui_event evt;
+        unsigned consent_calls = 0;
+        char undo_path[512];
+        /* FAT16 entry signatures on both copies, then a torn FAT1
+         * signature sector: the classic damaged-mirror case */
+        {
+            unsigned char sig[4] = {0xF8, 0xFF, 0xFF, 0xFF};
+            unsigned char torn[512];
+            unsigned char fat1_head[4];
+            FILE* f = fopen(img, "r+b");
+            CHECK(f != NULL);
+            memset(torn, 0xAB, sizeof(torn));
+            if (f) {
+                CHECK(fseek(f, (long)FAT1_OFF, SEEK_SET) == 0);
+                CHECK(fwrite(sig, 1, 4, f) == 4);
+                CHECK(fseek(f, (long)FAT2_OFF, SEEK_SET) == 0);
+                CHECK(fwrite(sig, 1, 4, f) == 4);
+                CHECK(fseek(f, (long)FAT1_OFF, SEEK_SET) == 0);
+                CHECK(fwrite(torn, 1, sizeof(torn), f) == sizeof(torn)); /* torn sector */
+                /* the torn fill must not accidentally keep the signature */
+                CHECK(fseek(f, (long)FAT1_OFF, SEEK_SET) == 0);
+                CHECK(fread(fat1_head, 1, 4, f) == 4);
+                CHECK(memcmp(fat1_head, torn, 4) == 0);
+                fclose(f);
+            }
+        }
+        memset(&evt, 0, sizeof(evt)); /* new event fields compile + default zero */
+        evt.type = CR_EVT_REPAIR;
+        evt.repair_actions = 1;
+        evt.repair_outcome = 1;
+        CHECK(evt.type == 7u);
+        CHECK_EQ_U64(evt.repair_actions, 1u);
+        CHECK_EQ_U64(sizeof(cr_ui_repair_plan) >= sizeof("ntfs") + 8u, 1u);
+        CHECK_EQ_U64(cr_ui_open_image(img, 0, 0, &dev2), CR_UI_OK);
+        memset(&cfg, 0, sizeof(cfg));
+        cfg.stage_mask = 1; /* quick only */
+        cfg.pre_scan_repair = 1;
+        cfg.repair_consent = abi_repair_consent;
+        cfg.repair_consent_user = &consent_calls;
+        CHECK_EQ_U64(cr_ui_scan_create(&cfg, &scan2), CR_UI_OK);
+        CHECK_EQ_U64(cr_ui_scan_attach_device(scan2, dev2), CR_UI_OK);
+        CHECK_EQ_U64(cr_ui_scan_run(scan2), CR_UI_OK);
+        CHECK_EQ_U64(consent_calls, 1u);
+        CHECK_EQ_U64(g_abi_consent_action_count, 1u);
+        CHECK(g_abi_consent_detected == 1u);
+        CHECK(strcmp(g_abi_consent_family, "fat") == 0);
+        CHECK_EQ_U64(cr_ui_scan_get_stats(scan2, &st), CR_UI_OK);
+        CHECK_EQ_U64(st.repair_ran, 1u);
+        CHECK_EQ_U64(st.repair_planned, 1u);
+        CHECK_EQ_U64(st.repair_applied, 1u);
+        CHECK_EQ_U64(st.repair_denied, 0u);
+        /* the transaction landed in the image file */
+        {
+            unsigned char fat1_head[4];
+            FILE* f = fopen(img, "rb");
+            CHECK(f != NULL);
+            if (f) {
+                CHECK(fseek(f, (long)FAT1_OFF, SEEK_SET) == 0);
+                CHECK(fread(fat1_head, 1, 4, f) == 4);
+                fclose(f);
+                CHECK_EQ_U64(fat1_head[0], 0xF8u);
+                CHECK_EQ_U64(fat1_head[1], 0xFFu);
+            }
+        }
+        /* the undo container persists (magic checked) */
+        snprintf(undo_path, sizeof(undo_path), "%s.undo", img);
+        CHECK_EQ_U64(cr_ui_scan_repair_save_undo(scan2, undo_path), CR_UI_OK);
+        {
+            unsigned char magic[8];
+            FILE* f = fopen(undo_path, "rb");
+            CHECK(f != NULL);
+            if (f) {
+                CHECK(fread(magic, 1, 8, f) == 8);
+                fclose(f);
+                CHECK(memcmp(magic, "CRUNDO01", 8) == 0);
+            }
+            remove(undo_path);
+        }
+        /* nothing-applied refusal contract is covered by the C++ suite
+         * (CrUi.PreScanRepairDeniedLeavesFileUntouched); here the surface
+         * must compile and round-trip under /W4 /WX */
+        cr_ui_scan_close(scan2);
+        cr_ui_device_close(dev2);
+        scan2 = NULL;
+        dev2 = NULL;
+    }
 
     /* ---- session save ---- */
     snprintf(crsf_path, sizeof(crsf_path), "%s.crsf", img);

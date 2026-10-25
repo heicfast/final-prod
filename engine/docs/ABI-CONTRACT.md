@@ -147,6 +147,7 @@ typed stream.
 #define CR_EVT_ERROR_RANGE      4u  /* read-failure range appended (delta) */
 #define CR_EVT_CHECKPOINT       5u  /* a checkpoint was written */
 #define CR_EVT_LOST_CANDIDATE   6u  /* lost-partition candidate found */
+#define CR_EVT_REPAIR           7u  /* pre-scan repair lifecycle (S-008) */
 
 typedef struct cr_ui_event {
     uint32_t type;            /* CR_EVT_* above */
@@ -164,7 +165,12 @@ typedef struct cr_ui_event {
     uint64_t checkpoint_index;
     /* lost candidate (CR_EVT_LOST_CANDIDATE) */
     uint64_t candidate_lba;
-    uint32_t reserved[2];              /* zero — appended fields only */
+    /* pre-scan repair (CR_EVT_REPAIR; ABI-since 1.2 - the former reserved
+     * slots, layout unchanged): planned/applied action count + outcome
+     * (0 plan ready for consent, 1 applied, 2 consent denied,
+     * 3 failed or writer unavailable). stage stays 0xFFFFFFFF. */
+    uint32_t repair_actions;
+    uint32_t repair_outcome;
 } cr_ui_event;
 
 typedef void (*cr_ui_event_fn)(void* user, const cr_ui_event* evt);
@@ -185,6 +191,14 @@ Contract:
   telemetry + the session (ReadErrorMap is serialized — `cr_device.h`).
 - Zero-init `cr_ui_event` is invalid (type is mandatory); unknown `type`
   values MUST be ignored by consumers (forward compatibility).
+- `CR_EVT_REPAIR` (ABI-since 1.2) fires only when
+  `cr_ui_scan_config.pre_scan_repair` was set: once with outcome 0 when
+  the pre-scan analysis produced a non-empty non-refused plan (the consent
+  callback decides), and once more with the final outcome (applied /
+  denied / failed). It NEVER carries a pointer; the plan summary reaches
+  the UI through the `cr_ui_repair_consent_fn` callback (see the header's
+  S-008 block), and the transactional result through
+  `cr_ui_scan_stats` + `cr_ui_scan_repair_save_undo`.
 
 ## 7. Disk-map geometry (GAP-S6-11) — the visualization data model
 
