@@ -9844,7 +9844,7 @@ Work Log:
   commit past 5d63124). Corpus `easeus-drw-research` @ `03ad46c` (unmoved).
 - Full suite at `11afbfa`: **584/584 green** (linux-gcc RelWithDebInfo +
   ASan, cmake 4.4.4 via pip --user, g++ 14.2).
-- Prompt saved to `worklog/session-diff-fix-19-prompt.md` (token redacted).
+- Prompt saved to `worklog/session-diff-fix-20-prompt.md` (token redacted).
 - Inventory at baseline: SEVERE 1 (S-029, DFX10's claim) · MAJOR 32 active ·
   MINOR 43 active · INFO 22 · FIXED 94 · tracked-open 13 non-resolved.
 - Lane claim (avoiding DFX15's announced queue M-045→M-043→M-005→M-007/
@@ -9997,3 +9997,31 @@ Work Log:
 Stage Summary:
 - M-008 FIXED (session tally: 2). Next in my claimed batch: M-032 (slice
   tail read clamp vs refusal).
+---
+Task ID: DFX21-CLAIM (session 21, lane claim — the tail half of the unclaimed MAJOR tier; queue split against the DFX19 head-half and the parallel DFX20/DFX18 M-033 lane)
+Agent: main engineer (diff-to-fix session 21 — DFX21; renamed DFX17->DFX19->DFX20->DFX21 after three parallel ID collisions in the same window, each resolved per the first-landing-wins protocol)
+Task: Lane claim, posted after the DFX19 head-half claim (ff734d7) and
+the parallel DFX20 (ex-DFX18) M-033-in-flight landing (1fb5bdf lineage)
+— queue SPLIT to avoid duplicate work, per the first-landing-wins
+protocol. DFX19 keeps its posted head half (M-016, M-019, M-038, M-017,
+M-020); the DFX20/DFX18 lane owns M-033 (in flight, ceded by this leg).
+This leg (DFX21) takes the TAIL half — the
+recognition/preview/carve/session/orchestrator/check modules — in this
+execution order (user directive: MAJOR first, 20+ fixes):
+M-044 (UDF recognition) -> M-028 (preview caps bypass) -> M-021 (carve
+post-processor hook) -> M-024 (runtime format filter) -> M-042
+(session-resume revalidation) -> M-039 (occupancy bitmap feed) -> M-048
+(user signature DB) -> M-025 (carve read model, benched) -> M-041 (check
+phase) -> M-040 (boot-chain disposition) -> M-034 (NAS disposition) ->
+M-030 (driver utilization — Windows-only, feasibility-gated). MINOR/
+INFO/tracked-open after the MAJOR queue. One finding, one verified fix,
+one push. If DFX19 reaches into this half anyway, first-landing wins and
+this leg skips to the next item.
+
+Work Log:
+- Bootstrap: cloned both repos at corpus 03ad46c (unmoved), core main
+  11afbfa. Baseline built + full suite 584/584 green (linux-release).
+- Prompt saved token-redacted to worklog/session-diff-fix-20-prompt.md.
+
+Stage Summary:
+- Claim posted; execution begins with M-016.
