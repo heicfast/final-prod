@@ -1758,6 +1758,7 @@ Stage Summary:
   fail-before/pass-after tests, resolve or precisely advance the OQs, update matrix/SUMMARY/
   module docs/worklog, leave main green.
 
+
 ---
 ---
 Task ID: 8 (T8)
@@ -1781,3 +1782,56 @@ Work Log:
 - Reviewed in-window concurrent fixes: GAP-S6-6 (03ddcd2, nested-dedup containment), GAP-S6-8 (carve absolute-extent dedup), GAP-S6-7 (MetadataOnly skip), GAP-S6-13 (64KiB direct I/O) — all in audited tree.
 - Findings: S-006 (lost-partition probe families), S-007 (carve format coverage), M-005 (carve target policy), N-008 (ZIP padding/version/ZIP64), OQ-T8/T9.
 - Wrote modules/lost-partition.md, modules/carve.md.
+
+
+---
+Task ID: 2 (T2/T3 partial — verification reads)
+Agent: main engineer (diff-to-fix remediation session)
+Task: Corpus verification of NTFS findings (S-001, M-001, N-001, I-001, OQ-T1)
+
+Work Log:
+- Read `ntfs-engine-algorithms-v2--deleted-viability.md` in full; read decompiled
+  `FUN_18001acc0` (NTFSSearchDLL :21095-21302) directly, first-hand. Confirmed:
+  * record-size prologue :21134-21142 — `if < 1 -> 0x200`, `buf = max(0x400, rs)` — NO
+    pow2/divisibility/rejection path (M-001 CONFIRMED vs our ERR_BAD_PARAMETER).
+  * blanket `name[0]=='$'` filter :21186 (I-001 reference behavior CONFIRMED).
+  * destroy branch :21249-21262 — `0 < iVar21 && iVar20 == iVar21 -> goto LAB_18001b06f`
+    = props Release WITHOUT the list insert at LAB_18001afe6 (S-001 CONFIRMED: og drops
+    fully-reallocated deleted files; viability gate only for non-folders, `(flags&0x10)==0`).
+  * strict `0x3ff < size` at :21208 (core already strict — NTFS-1 stays green).
+- OQ-T1 RESOLVED (decompile-first read, no new Ghidra needed):
+  * Direction: the secondary check `bitmap[0xC] -> vt+0x20(sector)` composes via `||` into
+    the SAME `iVar20++` (intact/re-allocated) counter as the primary bit test — H2 (inverse
+    "still-free" semantics) REFUTED. A secondary hit swings toward destroy/keep exactly
+    like a primary hit.
+  * Object identity: the "bitmap" handed to the viability loop is a 0x70-byte scan-built
+    claimed-sector bit-set (ctor FUN_18002c330: buffer@+0x00, size@+0x08, limit@+0x10,
+    spc@+0x18, base@+0x50, secondary-ptr@+0x60, budget 0x5f400000@+0x68). Bits are SET
+    during the scan by marking already-processed files' run sectors (FUN_18002c1e0 range
+    setter, called from FUN_180017190 at :18409) — it is NOT the volume $Bitmap read from
+    disk; the +0x48 fallback instance is constructed on demand, zeroed (:18526-18545).
+  * The secondary pointer at +0x60 is ctor-initialized NULL and NO code path in the entire
+    NTFSSearchDLL decompile ever assigns it — the secondary test is a dormant polymorphic
+    hook in this build; it never fires. Our single-$Bitmap reused_ratio is therefore not
+    biased by any missing secondary map.
+- Read NTFSLib `InitMFTMirror` (ghidra-mo :17343-17414) first-hand: unnamed-$DATA-walk,
+  resident -> "$MFTMirror::$DATA is resident!" abort (return 0), runlist to this+0x60,
+  span this+0x70 = (last_run.offset + last_run.len) * factors, and `ReadFileRecord` gates
+  mirror service on `param_1 <= *(this+0x70)` (:17460) — the mirror coverage is
+  runlist-derived, NOT a hardcoded 4 (N-001 CONFIRMED).
+- Found a finding-adjacent divergence the audit missed (sub-bug of S-001, same fix family):
+  `VolumeBitmap::reused_ratio` (cr_bitmap.cpp:86-102) counts SPARSE runs fully into both
+  `total` and `reused`; the og iterator skips `*it == -1` entries entirely (:21220) —
+  sparse clusters are excluded from the ratio on the og side. Core-side consequence: a
+  deleted sparse/compressed file with free real clusters can be graded Overwritten on
+  bogus accounting. Will fix with S-001.
+- Also confirmed for N-001 fix: our `enum_mirr_attrs` accepts RESIDENT $DATA on the mirror
+  record as a runlist source (divergence vs og's hard abort) and takes the LAST decodable
+  $DATA instead of the FIRST unnamed $DATA — both will be aligned in the N-001 fix.
+
+Stage Summary:
+- S-001, M-001, N-001, I-001 = CONFIRMED-DIVERGENCE (with first-hand decompile cites).
+- OQ-T1 = RESOLVED this session (direction + object identity + dormancy), pending write-up
+  into the tracked-open file.
+- New sub-finding (sparse-run accounting in reused_ratio) to be fixed with S-001 and noted
+  in its Resolution; no new finding file needed (same code path, same decompile evidence).
