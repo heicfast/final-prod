@@ -484,6 +484,14 @@ FsFamily ScanController::probe_family(IStorageDevice* slice) {
      * decompile-verified gate from RefsProc::CRefsVolumeBootRecord). */
     if (std::memcmp(sec + 3, "ReFS", 4) == 0)
         return FsFamily::Refs;
+    /* BitLocker: OEM "-FVE-FS-" (S-019; the og's type-0xB classifier gate,
+     * PartitionRecoveryD_decompiled.c:2778-2785). Recognized explicitly so
+     * encrypted content never falls through to the ext4-magic probe (a
+     * random 0xEF53 in the ciphertext would mis-dispatch); the engine
+     * dispatch's default path surfaces the candidate as a locked volume
+     * with zero files - the og's pre-unlock behavior. */
+    if (std::memcmp(sec + 3, "-FVE-FS-", 8) == 0)
+        return FsFamily::BitLocker;
     /* HFS+/HFSX: volume-header signature at byte 1024 ("H+"/"HX") with a
      * sane version (4 or 5) - the version gate disambiguates from an ext4
      * superblock whose s_inodes_count happens to read as the signature. */
@@ -1288,9 +1296,10 @@ u32 ScanController::load_session_summary(session::Reader& r, tree::ResultTree& t
             session::PartitionContext pc;
             if (session::deserialize_partition_context(rec.data.data(), rec.data.size(), pc) ==
                     OK &&
-                pc.kind == 1 && pc.fs_kind <= u32(lost::CandidateFs::Refs)) {
+                pc.kind == 1 && pc.fs_kind <= u32(lost::CandidateFs::BitLocker)) {
                 /* S-006: Ext2..Refs appended (values 6..10); sessions written
-                 * before S-006 only carry <= Unknown (5) and stay valid. */
+                 * before S-006 only carry <= Unknown (5) and stay valid.
+                 * S-019: BitLocker appended (value 10) - same rule. */
                 lost::Candidate c;
                 c.start_lba = pc.start_lba;
                 c.sector_count = pc.sector_count;

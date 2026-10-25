@@ -5397,3 +5397,53 @@ Stage Summary:
   deliberately not attempted (agent-A verified DRWReport is a crash reporter with no
   scan-report surface — the core's report is a documented deliberate addition, see
   M-029/N-040 family).
+
+---
+---
+Task ID: S4-F3 (S-019 fix)
+Agent: main engineer (diff-to-fix remediation session 4)
+Task: Verify and fix S-019 — lost BitLocker ("-FVE-FS-") partition probe family missing.
+
+Work Log:
+- Corpus verification BEFORE the fix (first-hand): FUN_180004ce0
+  (PartitionRecoveryD_decompiled.c:2731-2830) builds the 8-byte literal
+  "-FVE-FS-" byte-by-byte (2d 46 56 45 2d 46 53 2d, :2778-2785) and memcmp's
+  it against boot+3; a secondary memcmp at boot+0x1E0 against an
+  'x'/0xFF template; on match FUN_180004610 assigns type 0xB and skips FAT
+  classification (:2604-2606). BitlockerParser vftable :721, wired into the
+  CompleteSearch/RegSearch/Fast1M/Fast generator sets. CONFIRMED-DIVERGENCE
+  (the core's dispatch had no BitLocker branch; the FVE sector died in the
+  FAT catch-all).
+- Fix: probe_bitlocker in cr_candidates.cpp (the og's exact gate; dispatch
+  BEFORE the FAT catch-all); scoring per the fix plan (boot-sig +15,
+  fve-shape +25 — grade-only, the og's gate is shape-free); size = marked
+  device-tail fallback (FVE VBR geometry decode is the finding's open
+  question — corpus-undecoded); CandidateFs::BitLocker (append-only value
+  10); FsFamily::BitLocker + probe_family OEM branch (encrypted content
+  never falls to the ext4-magic probe — a random 0xEF53 in ciphertext would
+  mis-dispatch); engine-dispatch default surfaces the locked-volume
+  candidate (the og's pre-unlock behavior); session deserialize gate
+  extended append-only. Signed-char 0xFF compare uses unsigned char (the
+  PROTOCOL S-018 lesson — caught by -Werror type-limits on the first build).
+- Tests: LostDiscovery.LostBitlockerPartitionDiscovered (candidate surfaces,
+  fs/scoring/evidence/size-marker + materialize + OEM round-trip),
+  LostBitlockerOemNoise (no-55AA -> no candidate; 55AA+OEM+binary-garbage
+  version -> boot-sig-only candidate, pinning the og's shape-free gate),
+  LostBitlockerInsideExtendedRegionStillFound (table-independent discovery
+  with an EBR in the table).
+- Proof: fail-before (probe/dispatch stashed, enums kept so the tests
+  compile) 3/3 FAILED — fve == nullptr, no candidate ever created, exactly
+  the finding's falsifiable claim; pass-after 3/3 PASS; full suite 365/365
+  linux-gcc ASan (362 baseline + 3); clang-format gate clean; Windows lane:
+  constants/logic only, no new imports (Win7 gate untouched).
+- Audit trail: S-019 -> findings/FIXED/ with Resolution; RESOLVED-INDEX row
+  (26->27); CROSS-REF-MATRIX lost-partition B/B-row cells; modules/
+  lost-partition.md s4 section; SUMMARY counts (SEVERE active -1) +
+  remediation-log row; CAPABILITY-MATRIX lost-partition row.
+
+Stage Summary:
+- S-019 CLOSED: lost BitLocker partitions now surface as candidates through
+  the og's exact classifier gate, locked-volume inventory correct, no
+  accidental engine dispatch on ciphertext. The BitLocker pair (S-014
+  unlock path + S-019 discovery) is fully closed this session. Remaining
+  SEVERE: S-003, S-007, S-009-split, S-012, S-020, S-021, S-022.
