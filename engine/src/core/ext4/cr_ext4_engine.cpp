@@ -508,23 +508,42 @@ struct DirEntry {
     u8 type = 0;
 };
 
-bool parse_dir_block(const u8* p, u64 len, bool filetype, std::vector<DirEntry>& out) {
+bool parse_dir_block(const u8* p, u64 len, bool filetype, u32 inodes_count,
+                     std::vector<DirEntry>& out) {
     u64 off = 0;
     int sane = 0, total = 0;
     while (off + 8 <= len) {
         const u32 ino = le32(p + off);
         const u16 rec_len = le16(p + off + 4);
         const u8 name_len = p[off + 6];
-        if (rec_len < 8 || (rec_len & 3) != 0 || off + rec_len > len)
-            break;
-        if (name_len + 8 > rec_len)
-            break;
+        /* M-037 (diff-to-fix) — the og's damage model, decoded first-hand
+         * from EXT4SearchDLL FUN_180005820 (:4146-4168): a structurally
+         * invalid entry is SKIPPED by a 4-byte resync slide (the og's walk
+         * never trusts a bad rec_len for its stride — the slide
+         * re-syncs on the next 4-aligned valid entry, so the entries
+         * AFTER a corruption survive), with the og's exact gate set:
+         *   - type byte must be 1..7 (when the filesystem carries types)
+         *   - rec_len 4-aligned and >= (name_len+11)&~3 (the padded floor)
+         *   - inode# <= inodes_count
+         * inode==0 TERMINATES the og's block walk (:4155); the core
+         * deliberately keeps walking past holes (recovers more; pinned
+         * by Ext4Engine.InodeZeroHoleContinues, I-014-style superset). */
+        const u32 floor = (u32(name_len) + 11u) & ~3u;
+        const u8 ftype = p[off + 7];
+        const bool type_bad = filetype && !(ftype >= 1 && ftype <= 7);
+        const bool struct_bad =
+            rec_len < 8 || (rec_len & 3) != 0 || off + rec_len > len || rec_len < floor;
+        const bool ino_bad = inodes_count != 0 && ino > inodes_count;
+        if (struct_bad || type_bad || ino_bad) {
+            off += 4; /* the og's resync slide (FUN_180005820 skip path) */
+            continue;
+        }
         ++total;
         if (ino != 0 && name_len > 0) {
             ++sane;
             DirEntry de;
             de.inode = ino;
-            de.type = filetype ? p[off + 7] : 0;
+            de.type = filetype ? ftype : 0;
             /* S-005 + M-010 (diff-to-fix): ext4 directory names are raw
              * bytes the og passes through UNCONVERTED (EXT4SearchDLL has
              * no conversion import; .rsf stores UTF-8) - decode strictly,
@@ -836,7 +855,15 @@ u32 scan_ext4(IStorageDevice* slice, const Ext4ScanFlags& flags, CancelToken* ca
 
                 auto parse_one = [&](const u8* blk) {
                     std::vector<DirEntry> entries;
-                    if (!parse_dir_block(blk, bs, true, entries))
+                    /* M-037: the inode#<=inodes_count gate belongs to the
+                     * og's LIVE dir walk (FUN_180005820 :4168); the
+                     * journal-salvage surface (S-004's decode) has its own
+                     * parser whose gate set carries no count check — a
+                     * journal snapshot legitimately references inodes the
+                     * truncated/rebuilt superblock no longer counts (the
+                     * S-004 fixtures model exactly that: ghost inode 50 on
+                     * an 8-inode volume). Gate OFF here, ON in walk_dir. */
+                    if (!parse_dir_block(blk, bs, true, 0, entries))
                         return;
                     u32 dir_ino = 0, parent_ino = 0;
                     for (const auto& de : entries) {
@@ -918,7 +945,8 @@ u32 scan_ext4(IStorageDevice* slice, const Ext4ScanFlags& flags, CancelToken* ca
         std::vector<u8> data;
         read_extent_data(*ctx.v, iv, MAX_DIR_BYTES, data);
         std::vector<DirEntry> entries;
-        if (!parse_dir_block(data.data(), data.size(), ctx.filetype, entries))
+        if (!parse_dir_block(data.data(), data.size(), ctx.filetype,
+                             ctx.v->sb.inodes_count, entries))
             return OK; /* unparseable dir: metadata-only below */
 
         for (const auto& de : entries) {

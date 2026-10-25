@@ -52,3 +52,34 @@ I-014 (parallel leg register) (E-notes: our other ext4 supersets), S-025/S-026/S
 ## Open questions
 
 None — both policies are quoted.
+
+## Resolution
+
+**Status:** FIXED
+**Fixed in commit:** (this session's M-037 commit — see `git log` for "fix: M-037")
+**Verified by:** `Ext4Engine.CorruptRecLenSkipsEntryNotBlock` and
+`Ext4Engine.FileTypeGateSkipsInvalid` (both fail-before — proven this session by
+temporarily restoring the old break-on-invalid gate and rebuilding: 2/3 FAILED,
+restored fix → all green); `Ext4Engine.InodeZeroHoleContinues` (the deliberate
+superset pin — passes before AND after by design, the og stops at inode-0 and the
+core deliberately does not). Full suite 565/565 Linux Release green.
+**Resolution notes:** `parse_dir_block` (cr_ext4_engine.cpp) now implements the og's
+exact damage model as re-decoded first-hand this session from
+EXT4SearchDLL FUN_180005820 (:4146-4168): a structurally invalid entry (rec_len < 8,
+misaligned, overrunning the block, or below the og's padded floor
+`(name_len+11)&~3`; type byte outside 1..7 when the FS carries types; inode#
+above inodes_count) is SKIPPED by a **4-byte resync slide** — the og's walk never
+trusts a bad rec_len for its stride; the slide re-syncs on the next 4-aligned valid
+entry so the entries AFTER a corruption survive. The audit's "skip entry, continue"
+summary is implemented with the decode's exact mechanism. Two documented scope
+decisions: (1) the inode-0 stop is NOT adopted — the core keeps walking past holes
+(pinned by `Ext4Engine.InodeZeroHoleContinues`; I-014-style deliberate superset per
+the fix plan's own recommendation); (2) valid entries keep advancing by rec_len (the
+og advances by padded-name-size and relies on zero-fill tails to terminate — the
+core's rec_len advance handles non-zeroed slack correctly; registered divergence in
+the code comment). The inode#<=inodes_count gate applies ONLY to the live dir walk
+(walk_dir) — the journal-salvage surface (S-004's separately-decoded parser) passes
+the gate disabled: journal snapshots legitimately reference inodes a
+truncated/rebuilt superblock no longer counts, and the S-004 fixtures (ghost inode
+50 on an 8-inode volume) pin that behavior. The majority-valid gate is retained
+(not in the fix plan's scope).
