@@ -297,7 +297,7 @@ not-BAAD both sides; FAT quick-scan threading — already registered D-30x).
 | carve | B1/C19 | **N-069 FIXED s11** (CAB mscf case key — FMT_CAB_LC dual row + two-spelling validator re-check; findings/FIXED/); B1/A28 **N-068** (ZIP EOCD anchor + LFH sanity gates) |
 | carve | A28/A29/D15/B3 | **N-070 (S5) FIXED s22** (overlap scoring: accumulated base+verdict ranking implemented, fail-before CR2-vs-DNG; two-generation fallback REGISTERED as D-75 — legacy bodies undecoded); **M-056 (S22 NEW-FINDING) FIXED** (TIFF-family size basis mix — multi-strip TIFFs carved at the 256 MiB cap); **S-007 addendum** (bare-MPEG dispatch gap — 18+ u16 sync keys vs ID3-only; family roster with provenance) |
 | session | D11/D12/B4/B9 | **S-031 (converged)** (carved files: deleted flag + timestamp + validator payload dropped at emission; sessions round-trip the misstatement) |
-| session | D12/S36 | **N-066** (identity card: firmware/WWN/interface + 512-byte boot snapshot vs model/serial/CRC32) |
+| session | D12/S36 | **N-066** (identity card: firmware/WWN/interface + 512-byte boot snapshot vs model/serial/CRC32); A35/D12/F35 **N-078 FIXED s17** (truncated carve_note silent-OK exit — the c.fail-less break; filed+fixed, renumbered past the parallel lane's N-077 leak finding; findings/FIXED/) |
 | session/tree | D11/D12/P42 | **M-051+N-059 (converged)** (type-registry ID + per-FS secondary payload slots missing) |
 | writer | A27/S35/P46 | **N-065** (collision `name_N`/cap 10000 vs ` (N)`/cap 64/`_dup`; mkdir 0/0xB7-only; **D-19 premise refuted** with decompile evidence) |
 | health | P46/P68 | **S-024 addendum** (cr_health.h claims 0xD1/0xD8 never issued — doc-truth sub-item; capability gap stays S-024) |

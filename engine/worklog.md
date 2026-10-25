@@ -11063,3 +11063,94 @@ Work Log:
 Stage Summary:
 - N-040 FIXED (tally: 3 — N-045, N-046, N-040). MINOR 34 remain.
   Next: N-020/N-074 (doc-drift pairs), then N-043/N-048/N-060/N-061.
+Task ID: DFX17-F1 (session 17, finding 1 — N-067 CONVERGENCE RECORD)
+Agent: main engineer (diff-to-fix fix session 17 — DFX17, MINOR-first mandate)
+Task: N-067 — this leg implemented the fix independently, but the parallel
+DFX16 lane landed theirs (6795918) first while this leg's push sat behind
+a rebase conflict. Per the lane protocol: FIRST LANDING WINS. This entry
+records the independent verification of THEIR landing and the honest drop
+of THIS leg's competing implementation.
+
+Work Log:
+- Their landing verified first-hand against the corpus decompile
+  (exFATSearchDLL_decompiled.c :24440-24452, case -0x7e): the og's
+  0x82-dentry shape gates are reserved1@+1..+3 zero, checksum field
+  @+4..+7 FREE (exactly 4 bytes), reserved2@+8..+0xF zero, and the
+  LAB_18001db06 bVar21 gate requiring u32@+0x10..+0x13 zero;
+  first_cluster@+0x14 range-checked [2, 0xFFFFFFF5]; u64@+0x18 in
+  cluster arithmetic. Their UpcaseEntry layout, shape gates, fc>=2,
+  length sanity, chain-read checksum32, soft stats
+  (upcase_validated/upcase_mismatches), and grade-not-reject posture
+  match the decompile on every axis. Their suite claim re-executed:
+  exFAT subset green at the landed tree.
+- This leg's implementation DROPPED (never pushed; recoverable at reflog
+  commit c65672f for the record): its wire layout (u16 table_checksum@+2,
+  u32 table_length@+0x10) came from a FAULTY SPEC RECOLLECTION and is
+  refuted by the og's own field map - the free zone is exactly +4..+7 (a
+  u16@+4 would leave +6/+7 zero-checked; they are not), and +0x10..+0x13
+  is zero-REQUIRED (bVar21), so it can never be a length field; the og's
+  length read is the u64@+0x18 (the bitmap-family tail). Their checksum32
+  choice is family-consistent (the 4-byte free zone admits the 32-bit
+  accumulator the boot region already uses). Lesson registered for all
+  future sessions: THE DECOMPILE IS THE AUTHORITY for og dentry shapes -
+  never trust unverified spec memory against it.
+- This leg's en-route baseline repair (M-054 test expectation 100u ->
+  102u, commit 508bbd0) was also superseded in-window by the parallel
+  lanes' equivalent repairs (eeeccbd + 8c02a57 dedupe) - never reached
+  origin; both attempts preserved in local history only.
+
+Stage Summary:
+- N-067 stands FIXED via the parallel DFX16 landing (6795918); verified
+  by this leg with the decompile read above. Session tally: 0 fixes
+  (convergence verification). Next: N-068, N-063, N-065, N-056, N-029.
+
+---
+Task ID: DFX17-F2 (session 17, finding 2 — baseline LeakSanitizer red CONVERGED + N-078 NEW-FINDING)
+Agent: main engineer (diff-to-fix fix session 17 — DFX17, MINOR-first mandate)
+Task: main was LeakSanitizer-RED at the post-rebase union tree (792 B in
+3 allocations, deserialize_tree cr_records.cpp:253). Root-caused, fixed;
+the parallel session-22 lane landed the SAME leak fix (PropsRef, their
+N-077, 98b7d13) in the same window - CONVERGED, theirs stands (functionally
+identical guards; this leg's PropsGuard dropped in the union per
+first-landing-wins). This leg's five-path regression test then caught a
+SECOND, SEMANTIC defect their landing does not cover -> filed as N-078
+(renumbered from a draft N-077 when their leak finding took that ID) and
+fixed.
+
+Work Log:
+- Root cause: deserialize_tree allocates a FileProperties per record
+  (creation ref); five corrupt-record break sites exit between the
+  allocation and the node attach WITHOUT releasing the ref (name-length
+  bomb, truncated resident data, truncated sha128, truncated carve_note,
+  role-length bomb). The suite's existing corruption tests drove three
+  of them -> 3 x 264 B leaked, LSan fails the ASan lane.
+- Leak fix (CONVERGED with their PropsRef): a scope guard releasing the
+  creation ref on every early exit, the attach path disarming it. Their
+  landing (98b7d13) has the identical shape; union kept theirs.
+- NEW five-path regression test
+  (Session.CorruptRecordEarlyExitsReleaseProps) drives ALL five exits.
+  Case (4) - truncated carve_note - FAILED with rc == OK (0) even ON
+  THE LEAK-ONLY LANDING: that site's break leaves c.fail unset, so a
+  corrupt record loads as a SILENT PARTIAL LOAD (violating N-058's
+  failed-stream rule). Filed as N-078 (findings/FIXED/, in-session
+  file+fix; renumbered past their N-077) and fixed with the one-line
+  root cause: c.fail = true before the break (the pattern every sibling
+  site already used). THE PARALLEL LANE'S N-077 DOES NOT COVER THIS -
+  the new test's case (4) is red against leak-only trees.
+- Fail-before EXECUTED on both defects: (a) LSan red on the pre-fix
+  tree (792 B), (b) case (4) returning OK=0. Pass-after: full suite
+  614/614 (+3 env-skipped qemu-compat tests, qemu-img not installed -
+  documented environment conditionals) + 21/21 cr_ui_tests +
+  cr_ui_abi_check OK, LeakSanitizer CLEAN.
+- Audit trail: N-078 finding file with full template + Resolution
+  (filed directly into FIXED/ per the in-session file+fix convention);
+  RESOLVED-INDEX row; matrix session A35/D12/F35 cell; modules/
+  session.md session-17 fix row; SUMMARY session-17 delta.
+
+Stage Summary:
+- Baseline restored green; N-078 filed+fixed (their N-077 covers the
+  leak half only - the c.fail gap is pinned red by the new test against
+  leak-only trees). Session tally: 1 finding fixed (N-078) + 2 baseline
+  repairs (one converged) + 1 convergence verification (N-067). Next:
+  N-068 (ZIP EOCD anchor + LFH sanity gates), then N-063/N-065/N-056/
+  N-029.

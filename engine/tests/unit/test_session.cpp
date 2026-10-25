@@ -707,3 +707,97 @@ TEST(Session, HostileNameAndRoleLengthBombs) {
         EXPECT_EQ(deserialize_tree(blob.data(), blob.size(), t2), u32(0x50040001));
     }
 }
+
+/* ---- baseline repair (DFX17): corrupt-record early exits release props --- */
+
+TEST(Session, CorruptRecordEarlyExitsReleaseProps) {
+    /* Five loader break sites exit AFTER the per-record FileProperties
+     * allocation but BEFORE the node attach: name-length bomb, truncated
+     * resident data, truncated sha128, truncated carve_note, role-length
+     * bomb. Each leaked the whole props object (LeakSanitizer: 792 B in
+     * 3 allocations on the suite's corruption tests). The ownership guard
+     * releases the creation ref on every early exit; this test drives
+     * ALL FIVE paths so the ASan/LSan gate is the fail-before proof
+     * (suite exits LeakSanitizer-RED pre-fix, clean post-fix). */
+    auto node_prefix = [](std::vector<u8>& b, u16 nflags, u8 marker) {
+        auto p32 = [&b](u32 v) {
+            for (int i = 0; i < 4; ++i)
+                b.push_back(u8(v >> (8 * i)));
+        };
+        auto p16 = [&b](u16 v) {
+            b.push_back(u8(v));
+            b.push_back(u8(v >> 8));
+        };
+        p32(1);                       /* node count */
+        p32(0xFFFFFFFFu);             /* parent_id */
+        p16(nflags);
+        b.push_back(marker);
+        b.push_back(0);               /* origin */
+        b.push_back(0);               /* deleted */
+        b.push_back(0);               /* confidence */
+        for (int i = 0; i < 8; ++i) b.push_back(0);  /* record_ref */
+        for (int i = 0; i < 4; ++i) b.push_back(0);  /* fs_kind */
+        for (int i = 0; i < 8 * 2; ++i) b.push_back(0); /* logical+allocated */
+        for (int i = 0; i < 8 * 4; ++i) b.push_back(0); /* times */
+        for (int i = 0; i < 4; ++i) b.push_back(0);  /* attributes */
+        b.push_back(0); b.push_back(0);               /* flags */
+    };
+
+    { /* (1) name-length bomb: claims 512 bytes, 2 provided */
+        std::vector<u8> b;
+        node_prefix(b, 0, 0);
+        b.push_back(0x00); b.push_back(0x02); /* name_len = 512 */
+        b.push_back(0x41); b.push_back(0);
+        tree::ResultTree t;
+        EXPECT_EQ(deserialize_tree(b.data(), b.size(), t), u32(0x50040001));
+    }
+    { /* (2) truncated resident data: rlen 64, 8 provided (nflags&2) */
+        std::vector<u8> b;
+        node_prefix(b, 2, 0);
+        b.push_back(0); b.push_back(0);       /* name_len = 0 */
+        for (u32 i = 0; i < 4; ++i) b.push_back(0); /* extent count */
+        for (u32 i = 0; i < 4; ++i) b.push_back(0x40); /* rlen = 0x40404040? no: LE 64 */
+        for (int i = 0; i < 8; ++i) b.push_back(0xAA); /* 8 of 64 bytes */
+        tree::ResultTree t;
+        EXPECT_EQ(deserialize_tree(b.data(), b.size(), t), u32(0x50040001));
+    }
+    { /* (3) truncated sha128: hash_valid=1, 4 of 16 provided */
+        std::vector<u8> b;
+        node_prefix(b, 0, 0);
+        b.push_back(0); b.push_back(0);       /* name_len = 0 */
+        for (u32 i = 0; i < 4; ++i) b.push_back(0); /* extent count */
+        for (u32 i = 0; i < 4; ++i) b.push_back(0); /* carve_format */
+        b.push_back(0); b.push_back(0);       /* carve_confidence */
+        b.push_back(1);                       /* hash_valid */
+        for (int i = 0; i < 4; ++i) b.push_back(0x5A); /* 4 of 16 sha bytes */
+        tree::ResultTree t;
+        EXPECT_EQ(deserialize_tree(b.data(), b.size(), t), u32(0x50040001));
+    }
+    { /* (4) truncated carve_note: nl claims 8 bytes, 2 provided (nflags&16) */
+        std::vector<u8> b;
+        node_prefix(b, 16, 0);
+        b.push_back(0); b.push_back(0);       /* name_len = 0 */
+        for (u32 i = 0; i < 4; ++i) b.push_back(0); /* extent count */
+        for (u32 i = 0; i < 4; ++i) b.push_back(0); /* carve_format */
+        b.push_back(0); b.push_back(0);       /* carve_confidence */
+        b.push_back(0);                       /* hash_valid */
+        for (u32 i = 0; i < 4; ++i) b.push_back(0); /* carve_checksum */
+        b.push_back(8); b.push_back(0);       /* note length = 8 */
+        b.push_back(0x41); b.push_back(0);    /* 2 of 8 bytes */
+        tree::ResultTree t;
+        EXPECT_EQ(deserialize_tree(b.data(), b.size(), t), u32(0x50040001));
+    }
+    { /* (5) role-length bomb: full node claims 128-byte role, 2 provided */
+        std::vector<u8> b;
+        node_prefix(b, 0, 1); /* marker = full node */
+        b.push_back(0); b.push_back(0);       /* name_len = 0 */
+        for (u32 i = 0; i < 4; ++i) b.push_back(0); /* extent count */
+        for (u32 i = 0; i < 4; ++i) b.push_back(0); /* carve_format */
+        b.push_back(0); b.push_back(0);       /* carve_confidence */
+        b.push_back(0);                       /* hash_valid */
+        b.push_back(0x80); b.push_back(0x00); /* role_len = 128 */
+        b.push_back(0x52); b.push_back(0);    /* 2 bytes, then EOF */
+        tree::ResultTree t;
+        EXPECT_EQ(deserialize_tree(b.data(), b.size(), t), u32(0x50040001));
+    }
+}
