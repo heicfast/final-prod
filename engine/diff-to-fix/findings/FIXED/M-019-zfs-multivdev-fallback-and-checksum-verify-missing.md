@@ -50,3 +50,41 @@ Decompile-verified with full quotes (agent S2-C2; `evidence/decompiled-quotes/bt
 ## Open questions
 
 The og's pool display-name source (it never reads the label "name" field; `root_dataset` drives enumeration) — tracked in OQ-S2M-2.
+
+## Resolution
+
+**Status:** FIXED
+**Fixed in commit:** (this session's M-019 fix — see `git log` for "fix(M-019)")
+**Verified by:** `Zfs.ChecksumFailDropsAndRetriesNextDva` (fail-before PROVEN by temporary
+revert: the torn DVA0 copy — a well-formed DECOY microzap — entered results as if valid,
+decoy.txt visible and every real entry hidden; pass-after: the fletcher4 gate drops the
+decoy, the DVA1 retry recovers the real zap, checksum_drops >= 1),
+`Zfs.StripedPoolForeignVdevFallbackRead` (fail-before PROVEN: the foreign-vdev file was
+left extentless by the L0 skip; pass-after: the extent is planned at the fallback
+position, foreign_vdev_reads >= 1, checksum_drops == 0),
+`Zfs.MirrorSecondMemberScan` (pin: mirror-labeled pools walk fully through vdev 0 — the
+"accidental MATCH at id 0" made intentional; unsupported_vdevs reports without refusing),
+plus the re-stamped full fixture family (EndToEndWalk/LabelPositions/NewestTxg/NonAscii
+now carry real fletcher4 checksums — two independent encodings, engine interleaved port
+vs fixture textbook loop, cross-checked). Suite 614/614 Linux RelWithDebInfo + ASan.
+**Resolution notes:** Corpus re-verified first-hand: FUN_1800168b0 :19544-56 (registry
+loop, first-entry fallback — never fails), :17996 `(dva_w1 + 0x2000) * 0x200` (the +4 MiB
+vdev skip, already matched by the core's offset model), :18010 `prop>>0x28 & 0xff` (the
+checksum-type field = blk_prop bits 40-47), :18076 gate `(zc==7)||(zc==0)`,
+:18093-18111 (the interleaved 4-accumulator fletcher4), :18117 (32-byte memcmp vs
+bp+0x60), :18124-131 (index<2 -> retry next DVA, else drop). Fix: (1) read_raw drops the
+`vdev != 0` refusal — every DVA resolves through the og's first-entry fallback (the
+scanned disk); foreign reads counted in the new ZfsScanStats.foreign_vdev_reads.
+(2) read_block gains the fletcher4 gate over the RAW bytes for types {7, 0} with the
+32-byte stored compare, next-DVA retry (index < 2) on mismatch AND on read failure (the
+og's failed read reaches the same retry through the empty-buffer checksum path — its
+all-zero-stored-checksum acceptance quirk is unobservable on real pools and not
+replicated, noted in-source); drops counted in ZfsScanStats.checksum_drops. Other
+checksum types pass unverified — og parity. (3) plan_file_extents' L0 walk drops its
+own foreign-vdev skip: extents are planned at the fallback position and counted.
+Registered divergence boundary: the core's extent-lazy content model defers file-data
+verification to stream time (writer transport, N-004/N-073 family) — every block the
+scan READS (objsets, dnode arrays, ZAPs, indirect nodes) is now fletcher4-gated; the
+label-level unsupported_vdevs counter stays as the topology report. Fixtures upgraded to
+checksum-carrying pools (type-7 fletcher4 stamped in dependency order — uberblock ->
+MOS -> MOS array -> ZPL -> ZPL array; tests that mutate blocks re-stamp the chain).

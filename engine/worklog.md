@@ -10696,6 +10696,42 @@ Work Log:
 Stage Summary:
 - T14 CLOSED: no stranded resolutions remain in tracked-open/; the
   queue's next-session entry points are precise. DFX14 tally: 10
+  finding-level resolutions + the INFO pass + T14 + 13 merge repairs.---
+Task ID: DFX19-M019 (session 19, second MAJOR fix)
+Agent: main engineer (diff-to-fix fix session 19 — DFX19)
+Task: M-019 — ZFS multi-vdev fallback + fletcher4 verify + next-DVA retry.
+
+Work Log:
+- Corpus re-verified FIRST-HAND: FUN_1800168b0 :19544-56 (registry loop,
+  first-entry fallback), :17996 (+4 MiB skip), :18010 (checksum field =
+  blk_prop bits 40-47), :18076 gate {7,0}, :18093-18111 (interleaved
+  fletcher4), :18117 (32-byte memcmp vs bp+0x60), :18124-131 (index<2
+  retry). Both fletcher4 encodings (og-interleaved vs textbook)
+  cross-checked numerically for 10 lengths incl. tails - identical.
+- Fix: (1) read_raw vdev!=0 refusal -> foreign_vdev_reads counter;
+  (2) read_block fletcher4 gate + 32-byte compare + next-DVA retry on
+  mismatch AND read failure (the og's empty-buffer path); drops counted;
+  (3) plan_file_extents L0 skip -> fallback-position extents, counted.
+  ZfsScanStats appended foreign_vdev_reads + checksum_drops (no ABI
+  consumer - C++ only, M-036's append pattern).
+- Fixtures upgraded to checksum-carrying pools: make_bp stamps type-7
+  fletcher4 from the image; ordered stamping pass for the circular
+  objset chain (uberblock -> B_MOS -> MOS array -> B_ZPL -> ZPL array);
+  restamp_zpl_array helper closes the full chain for tests that mutate
+  blocks. NonAscii test re-stamps its rewritten zap.
+- Fail-before PROVEN by temporary revert of the three behavior hunks:
+  ChecksumFailDropsAndRetriesNextDva RED (decoy zap accepted, real
+  entries hidden), StripedPoolForeignVdevFallbackRead RED (foreign file
+  extentless). MirrorSecondMemberScan pins the id-0 mirror walk.
+- Suite 614/614 (linux-gcc RelWithDebInfo + ASan) - includes the
+  parallel lanes' new tests absorbed by rebase.
+- Audit trail: Resolution, finding -> FIXED/, RESOLVED-INDEX row, matrix
+  zfs cell -> FIXED (s19), modules/zfs.md verdict + the OQ-T6
+  disagreement paragraph resolved in favor of recovery-yield, SUMMARY
+  session-19 section extended.
+
+Stage Summary:
+- M-019 FIXED (session tally: 2). Next: M-038 (ZFS SA layout registry).
   finding-level resolutions + the INFO pass + T14 + 13 merge repairs.
 
 
