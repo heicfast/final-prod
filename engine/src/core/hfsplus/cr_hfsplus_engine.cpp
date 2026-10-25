@@ -364,6 +364,7 @@ bool for_each_record(u32 node_size, const std::vector<u8>& node, i16 want_kind,
  */
 
 constexpr u32 ATTR_KEY_FILE_ID = 0x04;
+constexpr u32 ATTR_KEY_START_BLOCK = 0x08; /* key startBlock u32 (S-021 attr differential) */
 constexpr u32 ATTR_KEY_NAME_LEN = 0x0C;
 constexpr u32 ATTR_KEY_NAME = 0x0E;
 constexpr u32 ATTR_DATA_HEADER = 16;   /* recordType+r1+r2+length */
@@ -374,6 +375,7 @@ struct AttrEntry {
     std::u16string name; /* UTF-16 (decoded from the BE key) */
     u64 value_off = 0;   /* absolute slice offset of the value bytes */
     u32 value_len = 0;   /* value byte length (from the record header) */
+    u32 start_block = 0; /* key startBlock (S-021 live-attr differential) */
     bool decmpfs = false;
     u32 decmpfs_mode = 0;
     u32 uncompressed_size = 0;
@@ -456,6 +458,7 @@ bool walk_attributes_tree(Volume& v, CancelToken* cancel,
                 return true;
             }
             a.value_len = be32(data + 12);
+            a.start_block = be32(rec + ATTR_KEY_START_BLOCK); /* S-021 key */
             if (a.value_len == 0 || u64(key_len) + ATTR_DATA_HEADER + a.value_len > len)
                 return true; /* value must live inside the record */
             a.value_off = node_abs + u64(rec - leaf.data()) + key_len + ATTR_DATA_HEADER;
@@ -723,6 +726,7 @@ struct HarvestedRec {
  * not an error). */
 static void journal_harvest_pass(Volume& v, CancelToken* cancel,
                                  const std::map<std::pair<u32, std::u16string>, u32>& live_by_key,
+                                 const std::set<std::tuple<u32, u32, std::u16string>>& live_attr_keys,
                                  tree::ResultTree& tree, tree::FullNode* root_deleted,
                                  HfsScanStats& stats, bool emit,
                                  std::map<u32, std::vector<ForkData::Extent>>& ext_out,
@@ -768,7 +772,20 @@ static void journal_harvest_pass(Volume& v, CancelToken* cancel,
 
     std::vector<u8> block(std::max<size_t>(size_a, size_b));
     std::vector<u8> image;
-    std::map<std::pair<u32, std::u16string>, CatalogRecord> kept; /* newest wins */
+    /* The og's harvest map is ordered by {key, fileID} (the dedup compare
+     * at :13974+ matches both): same key + same fileID -> the newest
+     * image wins; same key under a DIFFERENT fileID -> both entries
+     * survive. There is no cnid==parentCNID skip - the audit's reading
+     * mis-parsed `*(int*)(puVar25 + 4)` as the key's parent field;
+     * puVar25 is the record DATA (ushort* arithmetic -> +8 bytes), so
+     * both operands are the canonical fileID (S-021 convergence
+     * correction, decoded from the decompile pointer types). */
+    std::map<std::tuple<u32, std::u16string, u32>, CatalogRecord> kept;
+    /* journal attribute records (which==3): fileID -> inline entries with
+     * values living inside the journal images (absolute slice offsets) -
+     * the og's decmpfs-size fallback for harvested files (FUN_180009f40
+     * :7937-82 attribute consumption) */
+    std::map<u32, std::vector<AttrEntry>> journal_attrs;
     u64 off = jstart;
     u64 advanced = 0;
     /* fork classification helper: is byte address inside a fork's extents? */
@@ -815,6 +832,7 @@ static void journal_harvest_pass(Volume& v, CancelToken* cancel,
                 if (image_size == 0 || image_size > (16u << 20))
                     continue;
                 image.assign(image_size, 0);
+                const u64 img_ring_off = off; /* ring read advances off */
                 if (!journal_ring_read(v.dev, jbase, jsize, off, image.data(), image_size))
                     continue; /* damaged image: skip, keep walking */
                 advanced += image_size;
@@ -824,6 +842,9 @@ static void journal_harvest_pass(Volume& v, CancelToken* cancel,
                 if (int(i8(image[8])) != -1) /* leaves only (og :13799) */
                     continue;
                 ++stats.journal_leaves;
+                /* absolute slice offset of the image (journal attribute
+                 * values live inside the image bytes) */
+                const u64 image_abs = jbase + img_ring_off;
                 /* classify the target by fork ranges, og order */
                 const u64 addr = u64(size_b) * target_block;
                 int which = 0; /* 1 catalog, 2 extents, 3 attributes, 4 allocation */
@@ -841,9 +862,7 @@ static void journal_harvest_pass(Volume& v, CancelToken* cancel,
                         CatalogRecord cr;
                         if (!parse_catalog_record(rec, len, cr))
                             return true;
-                        if (cr.cnid == cr.parent_cnid)
-                            return true; /* og :13961-62 rule */
-                        kept[{cr.parent_cnid, cr.name}] = cr;
+                        kept[{cr.parent_cnid, cr.name, cr.cnid}] = cr;
                         return true;
                     });
                 } else if (which == 2) {
@@ -864,9 +883,63 @@ static void journal_harvest_pass(Volume& v, CancelToken* cancel,
                         return true;
                     });
                 }
-                /* attributes/allocation branches feed og-side maps the core's
-                 * harvested-file emission does not consume (decmpfs for
-                 * harvested records is the N-038 lane); counted as leaves. */
+                /* attributes branch (which==3): the og harvests inline
+                 * attribute records into volume+0x78's map (:14085-14145,
+                 * not-found-only differential vs the live attributes tree)
+                 * and consumes them as the decmpfs fallback for harvested
+                 * files (FUN_180009f40). Allocation (which==4) / startup
+                 * images have no harvest branch og-side. */
+                if (which == 3) {
+                    for_each_record(image_size, image, NH_KIND_LEAF,
+                                    [&](const u8* rec, u32 len) {
+                        /* attribute record: keyLength (counts itself) +
+                         * pad + fileId + startBlock + nameLen + name, then
+                         * [recordType BE][r1][r2][length BE][value] */
+                        if (len < 16)
+                            return true;
+                        const u32 key_len = be16(rec);
+                        if (key_len < 16 || u64(key_len) + ATTR_DATA_HEADER > len)
+                            return true;
+                        const u32 file_id = be32(rec + ATTR_KEY_FILE_ID);
+                        const u32 start_block = be32(rec + ATTR_KEY_START_BLOCK);
+                        const u32 name_len = be16(rec + ATTR_KEY_NAME_LEN);
+                        if (key_len < 14 + 2 * u64(name_len) || name_len > MAX_RECORD_NAME)
+                            return true;
+                        const u8* data = rec + key_len;
+                        if (be32(data) != ATTR_INLINE_DATA)
+                            return true; /* og: inline records only */
+                        const u32 value_len = be32(data + 12);
+                        if (value_len == 0 ||
+                            u64(key_len) + ATTR_DATA_HEADER + value_len > len)
+                            return true;
+                        AttrEntry a;
+                        for (u32 i = 0; i < name_len; ++i)
+                            a.name.push_back(be16(rec + ATTR_KEY_NAME + u32(i) * 2));
+                        a.start_block = start_block;
+                        a.value_len = value_len;
+                        a.value_off = image_abs + u64(rec - image.data()) + key_len +
+                                      ATTR_DATA_HEADER;
+                        /* live-tree differential: not-found-only (the og
+                         * searches the live attributes tree by key
+                         * {fileId, startBlock, name} before keeping) */
+                        if (live_attr_keys.count({file_id, start_block, a.name}))
+                            return true;
+                        /* decmpfs facts (value fields LITTLE-endian) */
+                        if (a.value_len >= 12 && a.name == u"com.apple.decmpfs" &&
+                            le32(data + ATTR_DATA_HEADER) == DECMPFS_MAGIC_LE) {
+                            a.decmpfs = true;
+                            a.decmpfs_mode = le32(data + ATTR_DATA_HEADER + 4);
+                            a.uncompressed_size = le32(data + ATTR_DATA_HEADER + 8);
+                            if (a.decmpfs_mode == 4 && a.value_len >= 16)
+                                a.rsrc_offset = le32(data + ATTR_DATA_HEADER + 12);
+                        }
+                        auto& list = journal_attrs[file_id];
+                        if (list.size() < (1u << 16))
+                            list.push_back(std::move(a));
+                        ++stats.journal_attr_records;
+                        return true;
+                    });
+                }
             }
         } else {
             /* the probe read already advanced `off` by size_b */
@@ -949,6 +1022,51 @@ static void journal_harvest_pass(Volume& v, CancelToken* cancel,
                         l = v.total_bytes() > o ? v.total_bytes() - o : 0;
                     if (l)
                         props->extents.push_back({o, l});
+                }
+            }
+        }
+        /* og fallback #2 (S-021 attributes branch): a harvested file with
+         * an empty data fork whose com.apple.decmpfs attribute survives
+         * only in the journal resolves its content from the journal image
+         * (mode 3: zlib stream inside the attribute value; mode 4: zlib
+         * stream at an offset inside the record's resource fork) - the
+         * same codec-extent contract the live decmpfs path uses */
+        if (props->extents.empty() && !is_dir && cr.data_fork.logical_size == 0) {
+            auto ait = journal_attrs.find(cr.cnid);
+            if (ait != journal_attrs.end()) {
+                const AttrEntry* dec = nullptr;
+                for (const auto& a : ait->second)
+                    if (a.decmpfs && (a.decmpfs_mode == 3 || a.decmpfs_mode == 4) &&
+                        a.uncompressed_size != 0) {
+                        dec = &a;
+                        break;
+                    }
+                if (dec != nullptr) {
+                    bool ext_ok = false;
+                    u64 abs = 0;
+                    u64 psize = 0;
+                    if (dec->decmpfs_mode == 3) {
+                        if (dec->value_len > 12) {
+                            abs = dec->value_off + 12;
+                            psize = dec->value_len - 12;
+                            ext_ok = true;
+                        }
+                    } else if (cr.rsrc_fork.logical_size > dec->rsrc_offset) {
+                        bool map_ok = false;
+                        abs = fork_offset_to_absolute(v, cr.cnid, 0xFF, cr.rsrc_fork,
+                                                      dec->rsrc_offset, map_ok);
+                        if (map_ok) {
+                            psize = cr.rsrc_fork.logical_size - dec->rsrc_offset;
+                            ext_ok = true;
+                        }
+                    }
+                    if (ext_ok) {
+                        props->extents.clear();
+                        props->extents.push_back({abs, u64(dec->uncompressed_size),
+                                                  u32(compress::kZlib), psize});
+                        props->logical_size = dec->uncompressed_size;
+                        ++stats.decmpfs_files;
+                    }
                 }
             }
         }
@@ -1334,9 +1452,15 @@ u32 scan_hfsplus(IStorageDevice* slice, const HfsScanFlags& flags, CancelToken* 
         std::map<std::pair<u32, std::u16string>, u32> live_by_key;
         for (const auto& r : records)
             live_by_key[{r.parent_cnid, r.name}] = r.cnid;
+        /* live attribute keys {fileId, startBlock, name} for the
+         * attributes-branch not-found-only differential (S-021) */
+        std::set<std::tuple<u32, u32, std::u16string>> live_attr_keys;
+        for (const auto& akv : attributes)
+            for (const auto& a : akv.second)
+                live_attr_keys.insert({akv.first, a.start_block, a.name});
         std::map<u32, std::vector<ForkData::Extent>> harvest_ext;
-        journal_harvest_pass(v, cancel, live_by_key, tree, root_deleted, stats, true, harvest_ext,
-                             journal_harvested);
+        journal_harvest_pass(v, cancel, live_by_key, live_attr_keys, tree, root_deleted, stats,
+                             true, harvest_ext, journal_harvested);
     }
 
     if (flags.scan_freed_nodes && flags.keep_deleted && root_deleted) {

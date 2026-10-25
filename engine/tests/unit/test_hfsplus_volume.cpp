@@ -1188,6 +1188,106 @@ TEST(HfsPlus, JournalHarvestDisabledByFlag) {
     EXPECT_EQ(0u, st.journal_emitted);
 }
 
+TEST(HfsPlus, JournalSameKeyDifferentFileIdBothKept) {
+    /* The og's harvest map is ordered by {key, fileID} (the dedup compare
+     * at :13974+ matches BOTH): two journal records under the same
+     * (parent, name) with different fileIDs are two distinct deleted
+     * incarnations - BOTH emit. (The audit's "cnid != parentCNID" reading
+     * mis-parsed the compare operand: `puVar25 + 4` is ushort* arithmetic
+     * = DATA+8 = fileID, so the rule is fileID-vs-fileID, and there is no
+     * parent-skip. S-021 convergence correction.) */
+    auto img = build_volume_journal();
+    auto dup_a = make_record(2, u"dup.txt", 2, 41, 100, B_JDATA, 1, 0, 0, 0);
+    auto dup_b = make_record(2, u"dup.txt", 2, 42, 200, B_JDATA, 1, 0, 0, 0);
+    auto leaf = make_leaf_node({dup_a, dup_b}, 0);
+    memcpy(img.data() + u64(10) * BS + u64(2) * BS, leaf.data(), NODE_SIZE);
+
+    MemDevice dev(img);
+    tree::ResultTree tree;
+    auto* ra = tree.add_root(u"Found");
+    auto* rd = tree.add_root(u"Deleted");
+    auto* rl = tree.add_root(u"Lost Files");
+    HfsScanFlags fl;
+    HfsScanStats st;
+    u32 rc = scan_hfsplus(&dev, fl, nullptr, nullptr, nullptr, tree, ra, rd, rl, st);
+    ASSERT_EQ(OK, rc) << err_text(rc);
+    EXPECT_EQ(2u, st.journal_records) << "both {key, fileID} entries survive the map";
+    EXPECT_EQ(2u, st.journal_emitted);
+    int dup_count = 0;
+    u64 sizes = 0;
+    for (tree::FileNode* c = rd->first_child(); c; c = c->next_sibling()) {
+        if (c->props() && c->name_utf8() == "dup.txt") {
+            ++dup_count;
+            sizes += c->props()->logical_size;
+        }
+    }
+    EXPECT_EQ(2, dup_count) << "same key, different fileID: both incarnations emit";
+    EXPECT_EQ(u64(300), sizes) << "the two incarnations carry their own sizes (100 + 200)";
+}
+
+TEST(HfsPlus, JournalAttrDecmpfsFallbackFeedsEmptyForkFile) {
+    /* The attributes branch (og :14085-14145, not-found-only differential)
+    * feeds the decmpfs fallback for harvested files (FUN_180009f40): a
+     * deleted file whose com.apple.decmpfs attribute survives only in the
+     * journal resolves its content from the journal image (mode 3: the
+     * zlib stream lives inside the attribute value, inside the image). */
+    auto img = build_volume_journal();
+    img.resize(17 * BS, 0); /* block 15 = the attributes-fork header node */
+
+    /* harvested catalog record: ghost.pages, EMPTY data fork */
+    auto ghost = make_record(2, u"ghost.pages", 2, 45, 0, 0, 0, 0, 0, 0);
+    auto leaf = make_leaf_node({ghost}, 0);
+    memcpy(img.data() + u64(10) * BS + u64(2) * BS, leaf.data(), NODE_SIZE);
+
+    /* live attributes tree: a header-only node at block 15 (no records -
+     * the journal attribute survives the not-found-only differential) */
+    u8* vh = img.data() + 1024;
+    write_fork(vh + 0x160, 1 * BS, 15, 1);
+    u8* ahdr = img.data() + u64(15) * BS;
+    ahdr[8] = 1; /* kind = header */
+    ahdr[9] = 0;
+    be16(ahdr + 10, 3);
+    be16(ahdr + 14 + 0x12, NODE_SIZE);
+    be32(ahdr + 14 + 0x0A, 0); /* firstLeaf = 0 */
+    be32(ahdr + 14 + 0x0E, 0); /* lastLeaf = 0 */
+
+    /* entry[1] becomes an attributes-branch image: a leaf carrying the
+     * com.apple.decmpfs record for cnid 45 (mode 3, zlib payload) */
+    const std::string plain = "journal-only decmpfs payload for ghost.pages";
+    const std::vector<u8> zbuf = zlib_compress(plain);
+    std::vector<u8> value = decmpfs_value(3, u32(plain.size()), 0);
+    value.insert(value.end(), zbuf.begin(), zbuf.end());
+    auto attr_rec = make_attr_record(45, u"com.apple.decmpfs", 0x10, value);
+    auto attr_leaf = make_leaf_node({attr_rec}, 0);
+    memcpy(img.data() + u64(10) * BS + u64(3) * BS, attr_leaf.data(), NODE_SIZE);
+    write_tx_entry(img, u64(10) * BS, BS, 1, 15 /*attributes fork*/, NODE_SIZE);
+
+    MemDevice dev(img);
+    tree::ResultTree tree;
+    auto* ra = tree.add_root(u"Found");
+    auto* rd = tree.add_root(u"Deleted");
+    auto* rl = tree.add_root(u"Lost Files");
+    HfsScanFlags fl;
+    HfsScanStats st;
+    u32 rc = scan_hfsplus(&dev, fl, nullptr, nullptr, nullptr, tree, ra, rd, rl, st);
+    ASSERT_EQ(OK, rc) << err_text(rc);
+    EXPECT_EQ(1u, st.journal_attr_records) << "the journal attribute record is kept";
+
+    tree::FileNode* node = nullptr;
+    for (tree::FileNode* c = rd->first_child(); c; c = c->next_sibling())
+        if (c->props() && c->name_utf8() == "ghost.pages")
+            node = c;
+    ASSERT_NE(node, nullptr);
+    EXPECT_EQ(u64(plain.size()), node->props()->logical_size)
+        << "the decmpfs uncompressed size wins over the empty fork";
+    ASSERT_EQ(1u, node->props()->extents.size());
+    EXPECT_NE(0u, node->props()->extents[0].codec)
+        << "the content extent is codec-tagged (kZlib)";
+    EXPECT_EQ(u64(zbuf.size()), node->props()->extents[0].psize)
+        << "the on-disk payload size is the zlib stream inside the attribute value";
+    EXPECT_EQ(1u, st.decmpfs_files);
+}
+
 } // namespace
 } // namespace hfsplus
 } // namespace cr
