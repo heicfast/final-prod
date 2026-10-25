@@ -99,6 +99,25 @@ carve-specific divergences surfaced.
 ## Session-2 update (2026-10-25, core `e93decf`)
 
 **Verdict changes (quotes in `../evidence/decompiled-quotes/carve-rawfixer-bitlocker-session2.md`):**
+- **S-017 FIXED (session 3, diff-fix leg):** the four ftyp-family signatures baked
+  the ISO-BMFF box SIZE (four literal zero bytes) into their magic, so no real
+  MP4/MOV/M4A/HEIC head (size 0x14/0x18/0x20) could ever match — four advertised
+  formats dead, surfacing only as raw-sign .lrf mislabels. Re-keyed on the "ftyp"
+  box TYPE with header_offset 4; candidate now lands on the size field and the
+  brand reads at candidate+8 land where real files carry it. The window-matching
+  primitive is extracted (match_signature, cr_signatures.h) and shared with a NEW
+  F8 load-time self-probe (self_probe_registry): unreachable magics and mis-shifted
+  candidates fail at startup — the probe's synthetic-buffer match alone was proven
+  WEAK during fail-before (it faithfully reproduces a broken magic), so the
+  structural rule (four-zero-byte magic prefixes assert a 32-bit data field is
+  constant) is the gate that catches the class. Conservative naked-moov salvage
+  (FMT_MOV_NAKED, appended id): mirrors the og's list-layer MovAnalyzer
+  (FUN_180004fb0 :2919-4208 — the live registration path; the u16 key at :2748 is
+  dead under the zero-header guard :9954) for ftyp-destroyed files, tried LAST so
+  ftyp-keyed entries claim intact positions first; og accept criteria undecoded —
+  the follow-up surface is documented in S-017's Resolution. Tests:
+  Carve.Mp4RealFtypIsom / MovRealFtypQt / HeicRealFtypHeic / M4aRealFtyp /
+  MovMoovWithoutFtyp / RegistrySelfProbeReachesEveryFormat.
 - **S-015 FIXED (session 3, diff-fix leg):** raw_signs min/max decoded as KiB in the
   og (`*0x400` gate / `<<10` size / `min<<10` acceptance) — the compiled table now
   converts once in the generator (zero-max entries refused; the og's 500 MiB default

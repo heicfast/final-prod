@@ -171,7 +171,7 @@
 - LDM recovery stance: damaged VBLKs counted+skipped (kernel/og abort), uncommitted VMDB parsed with `stats.degraded`, config-region clamped (F-A3-10 wants a tighter clamp), backup-PRIVHEAD fallback before giving up (cr_ldm.cpp:1054-1071) — the og aborts on corrupt PRIVHEAD ("Cannot find disk%d PRIVHEAD structure…Aborting", og :59769-59776).
 - PST hardening (wMagicClient "MS" gate + AMap readability probe) — documented additions on top of og-verified constants.
 - Host-side NameCallback architecture — matches og; the *string* is a delta (F-A3-7).
-- RAR5/DNG/HEIC/WEBP/7Z validators — clean-room additions beyond confirmed og analysers (og has C7ZIPAnalyser, RawFormat_xjq::HEIC — so 7z/HEIC have og counterparts; DNG rides og's TIFF-family analysers per multimap note; WEBP unconfirmed).
+- RAR5/DNG/HEIC/WEBP/7Z validators — clean-room additions beyond confirmed og analysers (og has C7ZIPAnalyser, RawFormat_xjq::HEIC — so 7z/HEIC have og counterparts; DNG rides og's TIFF-family analysers per multimap note; WEBP unconfirmed). S-017 (session 3): the four ftyp-family signatures (MP4/MOV/M4A/HEIC) are REACHABLE now — previously the magic baked literal zero box-size bytes and no real BMFF file could ever match; keyed on "ftyp"+header_offset 4 with an F8 self-probe guarding the class (see diff-to-fix S-017 Resolution).
 
 ## Bottom line
 

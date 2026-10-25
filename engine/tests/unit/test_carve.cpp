@@ -1219,3 +1219,156 @@ TEST(CarveEngine, SlicedDeviceSecondPassFullyDedupedAndAbsolute) {
            "ours-behavior resume-equivalence failure)";
     EXPECT_GE(s2.duplicates, 4u);
 }
+
+/* ---- S-017: the ftyp family must be REACHABLE and correctly shifted ----- */
+
+namespace {
+
+/* minimal real-world BMFF head: a coherent box chain - ftyp box
+ * (size 0x14 = 4 size + 4 type + 4 major + 4 minor + 4 ONE compat brand)
+ * followed by one concrete mdat box so the box walk ends sanely. Box
+ * sizes must cover exactly the bytes written - a mis-sized box swallows
+ * the next box's header (the mdat SIZE becomes the mdat type) and the
+ * walk mis-parses. */
+std::vector<u8> bmff_head(const char* brand) {
+    std::vector<u8> v;
+    auto be32 = [&](u32 x) {
+        v.push_back(u8(x >> 24));
+        v.push_back(u8(x >> 16));
+        v.push_back(u8(x >> 8));
+        v.push_back(u8(x));
+    };
+    const u32 mdat_payload = 512;
+    be32(0x14); /* ftyp: covers exactly size+type+major+minor+1 compat */
+    for (char ch : std::string("ftyp"))
+        v.push_back(u8(ch));
+    for (int i = 0; i < 4; ++i)
+        v.push_back(u8(brand[i])); /* major brand */
+    be32(0x00000200); /* minor version */
+    for (int i = 0; i < 4; ++i)
+        v.push_back(u8(brand[i])); /* compatible brands (1) */
+    be32(8 + mdat_payload); /* mdat box */
+    for (char ch : std::string("mdat"))
+        v.push_back(u8(ch));
+    v.resize(v.size() + mdat_payload, 0x5A);
+    return v;
+}
+
+tree::FileNode* find_carved_by_ext(tree::FileNode* root, const char* ext) {
+    const std::string dot_ext = std::string(".") + ext;
+    for (tree::FileNode* c = root->first_child(); c; c = c->next_sibling()) {
+        const std::string nm = c->name_utf8();
+        if (nm.size() > dot_ext.size() &&
+            nm.compare(nm.size() - dot_ext.size(), dot_ext.size(), dot_ext) == 0)
+            return c;
+    }
+    return nullptr;
+}
+
+} // namespace
+
+TEST(Carve, Mp4RealFtypIsom) {
+    /* real MP4: ftyp isom size 0x18 + mdat. Pre-S-017 the magic carried
+     * four literal zero size-bytes so NO real MP4 could ever match. */
+    std::vector<u8> img(256 * 1024, 0);
+    auto mp4 = bmff_head("isom");
+    std::memcpy(img.data() + 6144, mp4.data(), mp4.size());
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"Lost Files");
+    CarveFlags flags;
+    CarveStats s;
+    ASSERT_EQ(carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, s),
+              OK);
+    auto* n = find_carved_by_ext(root, "mp4");
+    ASSERT_NE(n, nullptr) << "real MP4 (ftyp isom, size 0x18) not carved";
+    EXPECT_EQ(n->props()->extents.front().offset, u64(6144));
+    /* candidate = magic-4 (the SIZE field), so the extent starts at the
+     * ftyp box, not at the "ftyp" type bytes */
+    EXPECT_GE(n->props()->logical_size, u64(mp4.size()));
+}
+
+TEST(Carve, MovRealFtypQt) {
+    std::vector<u8> img(256 * 1024, 0);
+    auto mov = bmff_head("qt  ");
+    std::memcpy(img.data() + 10240, mov.data(), mov.size());
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"Lost Files");
+    CarveFlags flags;
+    CarveStats s;
+    ASSERT_EQ(carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, s),
+              OK);
+    auto* n = find_carved_by_ext(root, "mov");
+    ASSERT_NE(n, nullptr) << "real MOV (ftyp qt) not carved";
+    EXPECT_EQ(n->props()->extents.front().offset, u64(10240));
+}
+
+TEST(Carve, HeicRealFtypHeic) {
+    std::vector<u8> img(256 * 1024, 0);
+    auto heic = bmff_head("heic");
+    std::memcpy(img.data() + 4096, heic.data(), heic.size());
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"Lost Files");
+    CarveFlags flags;
+    CarveStats s;
+    ASSERT_EQ(carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, s),
+              OK);
+    auto* n = find_carved_by_ext(root, "heic");
+    ASSERT_NE(n, nullptr) << "real HEIC (ftyp heic) not carved";
+    EXPECT_EQ(n->props()->extents.front().offset, u64(4096));
+}
+
+TEST(Carve, M4aRealFtyp) {
+    std::vector<u8> img(256 * 1024, 0);
+    auto m4a = bmff_head("M4A ");
+    std::memcpy(img.data() + 20480, m4a.data(), m4a.size());
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"Lost Files");
+    CarveFlags flags;
+    CarveStats s;
+    ASSERT_EQ(carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, s),
+              OK);
+    auto* n = find_carved_by_ext(root, "m4a");
+    ASSERT_NE(n, nullptr) << "real M4A (ftyp M4A ) not carved";
+    EXPECT_EQ(n->props()->extents.front().offset, u64(20480));
+}
+
+TEST(Carve, MovMoovWithoutFtyp) {
+    /* og MovAnalyzer parity (S-017 fix plan step 3): a file whose ftyp
+     * box was destroyed but whose top-level moov+mdat survive still
+     * carves via the naked-moov anchor. */
+    std::vector<u8> img(256 * 1024, 0);
+    /* coherent top-level chain WITHOUT any ftyp: a real 0x14 moov box
+     * (type swapped into the bmff_head layout) followed by mdat */
+    auto moov = bmff_head("xxxx");
+    moov[4] = 'm';
+    moov[5] = 'o';
+    moov[6] = 'o';
+    moov[7] = 'v';
+    std::memcpy(img.data() + 8192, moov.data(), moov.size());
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"Lost Files");
+    CarveFlags flags;
+    CarveStats s;
+    ASSERT_EQ(carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, s),
+              OK);
+    auto* n = find_carved_by_ext(root, "mov");
+    ASSERT_NE(n, nullptr) << "naked-moov MOV not salvaged";
+    EXPECT_EQ(n->props()->extents.front().offset, u64(8192));
+}
+
+TEST(Carve, RegistrySelfProbeReachesEveryFormat) {
+    /* S-017 F8 self-probe: every signature's magic must be reachable
+     * through the scan's own match primitive with the correct candidate
+     * shift. The pre-S-017 BMFF entries (literal zero size-bytes in the
+     * magic) pass validate_registry but fail this probe - load-time
+     * deadness is now a gate. */
+    std::vector<const Signature*> bad;
+    EXPECT_EQ(self_probe_registry(&bad), 0u);
+    for (const Signature* s : bad)
+        ADD_FAILURE() << "unreachable signature: " << (s ? s->name : "?");
+}

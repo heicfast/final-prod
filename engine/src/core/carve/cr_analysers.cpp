@@ -502,6 +502,46 @@ CarveResult validate_mov(IStorageDevice* s, u64 hit, u64 cap) {
     return r;
 }
 
+CarveResult validate_mov_naked(IStorageDevice* s, u64 hit, u64 cap) {
+    /* S-017: conservative mirror of the og's list-layer MovAnalyzer for
+     * ftyp-destroyed files (RAWSearchDLL FUN_180004fb0 :2919-4208 - the
+     * live registration path; the u16 key at :2748 is dead under the
+     * zero-header guard :9954). Anchored on a top-level "moov" box: the
+     * walk must consume well-formed boxes to the box end; accept with
+     * raw-sign-class confidence. The og's exact accept depth is not
+     * decoded (pending-continuation model :10114) - the conservative
+     * accept here is documented in S-017's Resolution as the follow-up
+     * surface. */
+    CarveResult r;
+    u64 pos = hit; /* hit = moov box start (size field) */
+    u32 sz = rdbe32(s, pos);
+    if (sz == 0 || sz == 1)
+        return r; /* to-EOF/largesize moov: not a sane salvage anchor */
+    if (u64(sz) < 8 || u64(sz) > cap)
+        return r;
+    /* the moov box must itself be well-formed: size covers the type */
+    u8 type[4];
+    if (!rd(s, pos + 4, type, 4) || std::memcmp(type, "moov", 4) != 0)
+        return r;
+    /* walk the top-level boxes that follow; require at least one more
+     * well-formed box (mdat/free/wide) so a lone 4-byte moov string in
+     * noise does not accept */
+    u64 next = pos + sz;
+    u32 second_sz = rdbe32(s, next);
+    u8 second_type[4];
+    if (!rd(s, next + 4, second_type, 4))
+        return r;
+    if (second_sz == 0 || second_sz == 1)
+        return r; /* keep the conservative anchor: concrete sizes only */
+    if (u64(second_sz) < 8 || next + u64(second_sz) > hit + cap)
+        return r;
+    r.ok = true;
+    r.end = next + second_sz;
+    r.confidence = 620;
+    r.note = "naked-moov+box-walk";
+    return r;
+}
+
 /* ---- PDF: %PDF-1.x + %%EOF ---- */
 CarveResult validate_pdf(IStorageDevice* s, u64 hit, u64 cap) {
     CarveResult r;

@@ -36,7 +36,7 @@ Legend: `M` = MATCH · `A-n`/`S-n`/`M-n`/`N-n`/`I-n` = finding ID (in
 | refs | N-007, I-004 ack, **M-022 (S3)**, I-012 (S3: GAP-ADS resolved — parity) | M | M | M | **M-022 (S3)** | M | NA | NA | M | M | M | M |
 | table+ldm | M (A-002 FIXED — real Microsoft GUIDs restored), M-002 | M | M (A-002 FIXED; A-001 fixed) | M-002, M (OQ-T7 resolved — I-008) | ok | NA | NA | M | M | M | M (debt) |
 | lost-partition | S-006, OQ-T9 | NA | M | OQ-T9 | M | NA | NA | M | M | M | THIN |
-| carve | A28/B1/B2/B3/X47/X48/D15 | **S-015 — FIXED (session 3)** (KiB units restored at the generator; tail walk chunked + bounded; per-format tail scoping discovered+fixed in-commit) |
+| carve | S-007, M-005 | M | S-007, N-008; M (S-015 units FIXED), M (S-017 ftyp magics FIXED) | S-007, N-008, M-005 | M | NA | NA | M (S-015 tail-walk FIXED: named 8 MiB bound, og range documented) | M | M | M |
 | tree | M | M | NA | M | M | NA | NA | ok | M | NA | M |
 | session | M | M (D12), N-014 (S2) | M | NA | M; N-014 (S2) | NA | NA | M | M | I-005.7 ack | M (debt) |
 | writer+report | M | M | NA | M | M | M | NA | ok | M | **N-013 (S2), N-015 (S2)**, N-009d | M (debt) |
@@ -104,6 +104,7 @@ F safety · Q quality (definitions in `PARAMETERS.md`).
 | lost-partition | A30 | **M-017** (OQ-T9 resolved: og ln(count)/ln(max) content scoring, +500 table-match, count==1 quirk, AdjustPartitionInfoOrder rules — verified vs 187 log rows; core absolute points divergent) |
 | carve | B1/X47/X51 | **I-009** (byte-stepped probing = detection superset; block-shape constants) |
 | carve | B2-adj/R54/R57 | **M-021** (video-repair pre-scan hook absent) |
+| carve | B1/B2/C19/A28/Q65/P46 | **S-017 — FIXED (session 3)** (ftyp-family magics re-keyed on the box TYPE; F8 self-probe guards the unreachable-magic class; naked-moov salvage mirrors the og MovAnalyzer conservatively, tried last) |
 | carve | D13/B10 | **N-027** (carved-name split inside the core; runtime per-format config surface; ZIP padding inversion + two-tier version gates — refines N-008) |
 | session | B10/D12 | **N-029** (U+FFFD replacement-count policy + substitution timing in saved sessions; cross-refs parallel leg's M-010) |
 | health | F61/B1 | **S-014** (BitLocker auto-unlock: wrong live registry path, offline-hive path absent, unassociated enumeration — F61 was never scored before) |

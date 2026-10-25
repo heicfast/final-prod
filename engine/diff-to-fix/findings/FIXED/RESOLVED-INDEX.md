@@ -7,7 +7,7 @@ against the original finding. They are NOT counted in the active
 severity totals in `diff-to-fix/SUMMARY.md` and are NOT part of the
 active roadmap.
 
-## Resolved findings (20 — 12 from session 1 close/session-2 legs + A-002, A-004 (+ S-016, discovered+fixed in the A-004 pass), M-009, S-011 in later legs + S-015 in session 3; every file in this directory has a row)
+## Resolved findings (21 — 12 from session 1 close/session-2 legs + A-002, A-004 (+ S-016), M-009, S-011, S-015, S-017; every file in this directory has a row)
 
 | ID | Severity (orig) | Title | Fix commit | Resolution |
 |---|---|---|---|---|
@@ -35,7 +35,7 @@ active roadmap.
 | **A-004** | ACUTE (session 3) | ErrorRange fired through the config sink while the guard checked the live sink (null-call crash / mis-delivery on the set_event_sink pattern) | (this commit; `git log` "fix: A-004") | Delivery routed through `event_fn_(e, event_user_)` like every other event type; grep-audit proved :340 the sole wrong-sink read. Two ScanEvents tests (live-sink + switch); suite 305/305 ASan. |
 | **S-016** | SEVERE (session 3 — DISCOVERED during A-004's fail-before proof) | ErrorRange events never fired: snapshot error map fed only after the boundary emitters (documented error-delta stream was dead) | (this commit; fixed in the A-004 commit — same delivery path) | `tel_counts_` now live-merges the retry-pipe error map into `tel_.snap.errors` before every boundary emit (idempotent under ReadErrorMap normalization; telemetry-lock held). Proven by the same two ScanEvents tests; full evidence in the finding file. |
 | **S-015** | SEVERE (session 3) | raw_signs min/max are KiB in the og, bytes in the core — every raw-sign window 1024x too small, floor 1024x too low | (this commit; `git log` "fix: S-015") | KiB→bytes conversion at ONE point (gen_rawsigns.py, zero-max asserted away); table regenerated; tail walk rebuilt as a chunked forward scan bounded by named `kRawSignTailScanLimit` (8 MiB, og's true range documented); DISCOVERED sub-fix in-commit: per-format tail scoping (og pairs within the candidate's format record; cross-format pairing fabricated close positions). 6 fail-before/pass-after tests; suite 310/310 ASan |
-
+| **S-017** | SEVERE (session 3) | ftyp-family signatures structurally unreachable (zero size-bytes baked into the magic) — MP4/MOV/M4A/HEIC could never be grammar-carved | (this commit; `git log` "fix: S-017") | Re-keyed on "ftyp" with header_offset 4 (box size is data); match primitive extracted + shared with a NEW F8 self-probe (structural rule: no four-zero-byte magic prefixes; candidate-shift assertion); conservative naked-moov salvage entry (FMT_MOV_NAKED) mirroring the og's list-layer MovAnalyzer, tried last. 6 fail-before/pass-after tests (5 real-head carves + the probe); suite 320/320 ASan |
 ## Acknowledged informational findings (NOT moved — deliberate supersets with pin tests)
 
 These 7 findings (I-001 through I-007) are NOT bugs — they're deliberate

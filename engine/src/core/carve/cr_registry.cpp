@@ -41,6 +41,7 @@ CarveResult validate_flv(IStorageDevice* s, u64 hit, u64 cap);
 CarveResult validate_cab(IStorageDevice* s, u64 hit, u64 cap);
 CarveResult validate_iso(IStorageDevice* s, u64 hit, u64 cap);
 CarveResult validate_zip_cd(IStorageDevice* s, u64 hit, u64 cap);
+CarveResult validate_mov_naked(IStorageDevice* s, u64 hit, u64 cap);
 
 namespace {
 const Signature kTable[] = {
@@ -69,8 +70,8 @@ const Signature kTable[] = {
     {FMT_WEBP, "webp", {'R', 'I', 'F', 'F'}, 4, 0, 64, 128ull << 20, 800, validate_webp, "WebP"},
     {FMT_HEIC,
      "heic",
-     {0, 0, 0, 0, 'f', 't', 'y', 'p'},
-     8,
+     {'f', 't', 'y', 'p'},
+     4,
      4,
      128,
      512ull << 20,
@@ -109,26 +110,17 @@ const Signature kTable[] = {
      850,
      validate_sqlite,
      "SQLite"},
-    {FMT_MP4,
-     "mp4",
-     {0, 0, 0, 0, 'f', 't', 'y', 'p'},
-     8,
-     4,
-     128,
-     4ull << 30,
-     750,
-     validate_mp4,
-     "MP4"},
-    {FMT_MOV,
-     "mov",
-     {0, 0, 0, 0, 'f', 't', 'y', 'p'},
-     8,
-     4,
-     128,
-     4ull << 30,
-     700,
-     validate_mov,
-     "QuickTime"},
+    /* S-017: the BMFF magic is the "ftyp" BOX TYPE at candidate+4 - the
+     * box SIZE at candidate+0 is data (0x14/0x18/0x20 for real files), so
+     * baking literal zero size-bytes into the magic made all four
+     * signatures unreachable (only a degenerate size-0 box ever matched,
+     * and even that mis-shifted the candidate by 4 so every brand read
+     * landed on the "ftyp" bytes and rejected). Keyed on "ftyp" with
+     * header_offset 4, the candidate lands on the size field and the
+     * validators read the brand at candidate+8 - where real files carry
+     * it. */
+    {FMT_MP4, "mp4", {'f', 't', 'y', 'p'}, 4, 4, 128, 4ull << 30, 750, validate_mp4, "MP4"},
+    {FMT_MOV, "mov", {'f', 't', 'y', 'p'}, 4, 4, 128, 4ull << 30, 700, validate_mov, "QuickTime"},
     {FMT_AVI, "avi", {'R', 'I', 'F', 'F'}, 4, 0, 64, 4ull << 30, 700, validate_avi, "AVI"},
     {FMT_MKV,
      "mkv",
@@ -213,15 +205,7 @@ const Signature kTable[] = {
     {FMT_PSD, "psd", {'8', 'B', 'P', 'S'}, 4, 0, 64, 4ull << 30, 870, validate_psd, "Photoshop"},
     {FMT_MP3, "mp3", {'I', 'D', '3'}, 3, 0, 512, 512ull << 20, 820, validate_mp3, "MP3 audio"},
     {FMT_WAV, "wav", {'R', 'I', 'F', 'F'}, 4, 0, 36, 4ull << 30, 900, validate_wav, "WAV audio"},
-    {FMT_M4A,
-     "m4a",
-     {0, 0, 0, 0, 'f', 't', 'y', 'p'},
-     8,
-     4,
-     128,
-     4ull << 30,
-     800,
-     validate_m4a,
+    {FMT_M4A, "m4a", {'f', 't', 'y', 'p'}, 4, 4, 128, 4ull << 30, 800, validate_m4a,
      "M4A audio"},
     {FMT_ASF,
      "wmv",
@@ -294,6 +278,25 @@ const Signature kTable[] = {
      600,
      validate_zip_cd,
      "ZIP (central directory)"},
+    /* S-017: the og's list-layer MovAnalyzer (RAWSearchDLL FUN_180004fb0
+     * :2919-4208; the u16-key 0x0000 registration at :2748 is dead under
+     * the dispatch's zero-header guard :9954 - the LIVE path is the list
+     * layer) also salvages MOV/MP4 whose ftyp box was destroyed. We mirror
+     * it conservatively: anchor on a naked top-level "moov" box (metadata
+     * anchor - mdat/wide/free are too generic to key on), walk the box
+     * grammar, accept with raw-sign-class confidence. The og's exact
+     * accept criteria are not decoded (pending-continuation model
+     * :10114 - tracked as a follow-up in S-017's Open questions). */
+    {FMT_MOV_NAKED,
+     "mov",
+     {'m', 'o', 'o', 'v'},
+     4,
+     4,
+     64,
+     4ull << 30,
+     620,
+     validate_mov_naked,
+     "QuickTime (naked moov)"},
 };
 } // namespace
 
@@ -338,6 +341,55 @@ u32 validate_registry(std::vector<const Signature*>* bad) {
         }
     }
     return rejects;
+}
+
+u32 self_probe_registry(std::vector<const Signature*>* bad) {
+    /* S-017 F8 self-probe: prove every signature's magic is REACHABLE
+     * through the exact window-match primitive the scan uses. A synthetic
+     * buffer per signature: magic at header_offset, candidate lands at
+     * buffer start. This is the gate that would have caught the pre-S-017
+     * BMFF entries (magic included four literal zero size-bytes - a real
+     * file's 0x14/0x18/0x20 size field can never match them, but the
+     * synthetic buffer faithfully carried the same zeros, so the probe
+     * would have shown a hit ONLY for a degenerate size-0 box, which is
+     * not what the validator accepts: the probe also asserts the
+     * candidate shift puts the magic exactly at header_offset of the
+     * candidate). */
+    std::vector<const Signature*> local;
+    std::vector<const Signature*>& out = bad ? *bad : local;
+    u32 failures = 0;
+    for (size_t i = 0; i < registry_size(); ++i) {
+        const Signature& s = kTable[i];
+        bool reached = true;
+        /* structural rule (S-017): a magic whose first four bytes are all
+         * zero asserts a 32-bit DATA field is a constant - the pre-S-017
+         * BMFF entries baked the box SIZE into the magic this way. No real
+         * format's constant magic starts with four zero bytes (a size-0
+         * prefix is the degenerate to-EOF box, not a real file); reject
+         * the class at load time. */
+        if (s.header_len >= 4 && s.header[0] == 0 && s.header[1] == 0 && s.header[2] == 0 &&
+            s.header[3] == 0)
+            reached = false;
+        const u64 buf_len = u64(s.header_offset) + s.header_len + 64;
+        std::vector<u8> buf(size_t(buf_len), 0);
+        std::memcpy(buf.data() + s.header_offset, s.header, s.header_len);
+        bool synth_reached = false;
+        for (u64 off = 0; off + s.header_len <= buf_len; ++off) {
+            u64 cand_rel = 0;
+            if (match_signature(s, buf.data(), buf_len, off, cand_rel)) {
+                /* the candidate must start exactly where the synthetic
+                 * file starts (buffer offset 0) - a mis-shifted magic
+                 * (the pre-S-017 candidate-4 bug class) fails here too */
+                if (cand_rel == 0)
+                    synth_reached = true;
+            }
+        }
+        if (!reached || !synth_reached) {
+            ++failures;
+            out.push_back(&s);
+        }
+    }
+    return failures;
 }
 
 } // namespace carve

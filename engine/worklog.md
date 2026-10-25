@@ -4581,3 +4581,47 @@ Stage Summary:
   restored, far tails pair in-format, and the units are pinned by table-level tests.
   ACUTE tier empty; SEVERE remaining: S-003, S-006, S-007, S-009-remnant, S-011,
   S-012, S-013, S-014. Suite 310/310.
+
+---
+Task ID: DF3-T5 (S-017)
+Task: SEVERE S-017 — ftyp-family signatures structurally unreachable (zero box-size
+bytes baked into the magic): MP4/MOV/M4A/HEIC could never be grammar-carved.
+
+Work Log:
+- Verified first-hand: registry entries {0,0,0,0,'f','t','y','p'} len 8 offset 4;
+  scan memcmp of the full 8 bytes (cr_carve.cpp) -> only a degenerate size-0 ftyp
+  box can match, and even that mis-shifts the candidate by 4 (brand read lands on
+  the "ftyp" bytes -> every validator rejects). Corpus: og carves these via the
+  LIST layer (MovAnalyzer FUN_180004fb0 :2919-4208; HEICAnalyser; the u16-key 0x0000
+  registration at :2748 is dead under the zero-header guard :9954) - CONFIRMED.
+- Fix: (1) re-keyed all four entries on {'f','t','y','p'} len 4 header_offset 4 -
+  the box SIZE at candidate+0 is data; validators now read the brand at
+  candidate+8 where real files carry it. (2) match primitive extracted to
+  match_signature (cr_signatures.h) - ONE source of truth shared by the scan
+  dispatch and a NEW F8 load-time self-probe (self_probe_registry): reachable
+  magic + exact candidate-shift assertion. Fail-before VERIFICATION taught the
+  probe's design: a synthetic buffer faithfully REPRODUCES a broken magic (the
+  naive probe PASSED with the broken table) - the structural rule from the
+  finding (four-zero-byte magic prefixes = a 32-bit data field asserted constant)
+  is the gate that catches the class. (3) fix-plan step 3, conservatively:
+  FMT_MOV_NAKED (appended id; serialized values stable) keyed on a top-level
+  "moov" box, validator = coherent box chain (moov sane + one following
+  concrete-size box), conf 620, tried LAST in kTrialOrder; og accept criteria
+  undecoded (pending-continuation :10114) - documented follow-up, NOT invented
+  parity. (4) fixture lesson (test-side): BMFF heads must be a COHERENT box
+  chain - a mis-sized ftyp swallows the mdat header and the walk mis-parses
+  (caught via end=24 stubs); builder fixed (0x14 ftyp + concrete mdat).
+- Fail-before/pass-after: pre-fix table restored -> 5/5 real-head tests FAILED
+  (zero BMFF grammar hits) + probe FAILED (structural rule); post-fix 6/6 PASS;
+  full suite 320/320 Linux ASan (314 + 6 net-new).
+- Audit trail in-commit: S-017 Resolution + FIXED/ move; RESOLVED-INDEX row
+  (heading 21); CROSS-REF-MATRIX carve grid row restored to full 11-cell form
+  (my earlier S-015 conflict merge had collapsed it into a detail-row shape -
+  reconstructed with both S-015 and S-017 cell updates) + S-017 detail row;
+  SUMMARY remediation row; modules/carve.md addendum; PARITY-CORE-REC HEIC/7z
+  clean-room bullet updated (the four formats are now reachable, not aspirational).
+
+Stage Summary:
+- S-017 FIXED: MP4/MOV/M4A/HEIC carve end-to-end for the first time, the
+  unreachable-magic class is a load-time gate (self-probe), and ftyp-destroyed
+  MOV/MP4 salvage conservatively mirrors the og's list layer. Suite 320/320.

@@ -13,6 +13,7 @@
 
 #include "../cr_types.h"
 #include "../storage/cr_device.h"
+#include <cstring>
 #include <vector>
 
 namespace cr {
@@ -61,6 +62,10 @@ enum FormatId : u32 {
      * LFH AND central-directory entries (PK\x01\x02 - preferred) AND the
      * EOCD; indexless archives (destroyed CD) still carve. */
     FMT_ZIP_CD,
+    /* S-017: the og's list-layer MovAnalyzer also salvages MOV/MP4 whose
+     * ftyp box was destroyed (naked moov). Id APPENDED to keep serialized
+     * carve_format values stable. */
+    FMT_MOV_NAKED,
     FMT_COUNT
 };
 
@@ -101,6 +106,34 @@ size_t registry_size();
 /* F8 gate: validate every entry; returns 0 = OK, else the count of rejects
  * (with a diagnostic list in `bad`). */
 u32 validate_registry(std::vector<const Signature*>* bad);
+
+/* S-017 F8 self-probe: for every signature, place its magic at
+ * header_offset inside a synthetic buffer and run the SAME window-match
+ * logic scan_one_window uses (match_signature below). Unreachable
+ * signatures - a magic no real file can carry, e.g. the pre-S-017 BMFF
+ * entries that baked literal zero size-bytes into the magic - fail here
+ * at load time instead of shipping as dead code. Returns 0 = OK, else the
+ * count of signatures whose magic could not be reached (listed in `bad`). */
+u32 self_probe_registry(std::vector<const Signature*>* bad);
+
+/* S-017: the single window-matching primitive shared by the carve scan
+ * and the F8 self-probe (one source of truth - a magic change cannot
+ * desynchronize the two). `off` is the window offset of the first magic
+ * byte; on match, `cand_rel` receives the candidate's window-relative
+ * start (off - header_offset). Window-head clip included. */
+inline bool match_signature(const Signature& sig, const u8* win, u64 win_len, u64 off,
+                            u64& cand_rel) {
+    if (off >= win_len || win_len - off < sig.header_len)
+        return false;
+    if (sig.header[0] != win[off])
+        return false;
+    if (sig.header_len > 1 && std::memcmp(win + off, sig.header, sig.header_len) != 0)
+        return false;
+    if (off < sig.header_offset)
+        return false; /* window head clip */
+    cand_rel = off - sig.header_offset;
+    return true;
+}
 
 } // namespace carve
 } // namespace cr

@@ -37,7 +37,10 @@ constexpr u32 kTrialOrder[] = {
     FMT_HEIC,   FMT_JPG, FMT_PNG,     FMT_WEBP,     FMT_WAV,      FMT_PDF,   FMT_7Z,
     FMT_SQLITE, FMT_AVI, FMT_MKV,     FMT_RAR5,     FMT_RAR4,     FMT_PST,   FMT_ORF,
     FMT_RAF,    FMT_RW2, FMT_PSD,     FMT_MP3,      FMT_M4A,      FMT_ASF,   FMT_FLV,
-    FMT_CAB,    FMT_ISO, FMT_TIFF_BE, FMT_ORF_IIRS, FMT_ORF_MMOR, FMT_ZIP_CD};
+    FMT_CAB,    FMT_ISO, FMT_TIFF_BE, FMT_ORF_IIRS, FMT_ORF_MMOR, FMT_ZIP_CD,
+    /* S-017: ftyp-destroyed MOV salvage (og MovAnalyzer list layer) -
+     * LAST: the ftyp-keyed entries must claim the position first */
+    FMT_MOV_NAKED};
 constexpr u32 kTrialCount = sizeof(kTrialOrder) / sizeof(kTrialOrder[0]);
 
 /* Shared scan context (single-thread: one worker touches it; parallel:
@@ -79,19 +82,19 @@ u32 scan_one_window(ScanCtx& ctx, u64 base, const u8* win, u64 want, std::set<u6
         if (ctx.aborted.load(std::memory_order_relaxed))
             return ERR_CANCELLED;
         const u8 c = win[off];
-        /* first-byte dispatch: only formats whose magic starts with c */
+        /* first-byte dispatch: only formats whose magic starts with c.
+         * The match itself (magic compare + window-head clip + candidate
+         * shift) is match_signature in cr_signatures.h - the SAME
+         * primitive the S-017 F8 self-probe runs, so a magic the scan
+         * cannot reach fails at load time (one source of truth). */
         for (u32 ti = 0; ti < kTrialCount; ++ti) {
             const Signature& sig = ctx.reg[kTrialOrder[ti]];
             if (sig.header[0] != c)
+                continue; /* first-byte fast path */
+            u64 cand_rel = 0;
+            if (!match_signature(sig, win, want, off, cand_rel))
                 continue;
-            if (off + sig.header_len > want)
-                continue;
-            if (std::memcmp(win + off, sig.header, sig.header_len) != 0)
-                continue;
-            /* magic found at window offset off: candidate file start */
-            if (off < sig.header_offset)
-                continue; /* window head clip */
-            const u64 cand_abs = base + off - sig.header_offset;
+            const u64 cand_abs = base + cand_rel;
             if (cand_abs + sig.min_size > ctx.total)
                 continue;
             ctx.hits.fetch_add(1, std::memory_order_relaxed);
