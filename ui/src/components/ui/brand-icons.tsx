@@ -41,40 +41,6 @@ export function BrandBriefcaseLogo({ className }: { className?: string }): React
   );
 }
 
-export function RobotMascotAvatar({ className }: { className?: string }): React.JSX.Element {
-  return (
-    <svg
-      viewBox="0 0 36 36"
-      fill="none"
-      className={cn('size-6 shrink-0', className)}
-      aria-hidden
-    >
-      <circle cx="18" cy="18" r="16" fill="#D6E6FF" />
-      <rect x="5" y="15" width="3" height="7" rx="1.5" fill="#1677FF" />
-      <rect x="28" y="15" width="3" height="7" rx="1.5" fill="#1677FF" />
-      <rect
-        x="7.5"
-        y="10"
-        width="21"
-        height="16.5"
-        rx="8.25"
-        fill="white"
-        stroke="#4096FF"
-        strokeWidth="1.5"
-      />
-      <rect x="10.5" y="13.5" width="15" height="8.5" rx="4.25" fill="#0F172A" />
-      <circle cx="14.8" cy="17.8" r="1.8" fill="#38BDF8" />
-      <circle cx="21.2" cy="17.8" r="1.8" fill="#38BDF8" />
-      <path
-        d="M16 23.5C16.8 24.2 19.2 24.2 20 23.5"
-        stroke="#1677FF"
-        strokeWidth="1.3"
-        strokeLinecap="round"
-      />
-    </svg>
-  );
-}
-
 export function SidebarHardwareDiskIcon({
   className,
 }: {
@@ -182,47 +148,21 @@ export function SidebarMoreToolsIcon({ className }: { className?: string }): Rea
     >
       <rect
         x="2.8"
-        y="2.8"
-        width="6"
-        height="6"
-        rx="1.4"
+        y="2.5"
+        width="13.5"
+        height="15"
+        rx="2.2"
         fill="#E2ECFF"
         fillOpacity="0.85"
         stroke="currentColor"
         strokeWidth="1.35"
       />
-      <rect
-        x="2.8"
-        y="11.2"
-        width="6"
-        height="6"
-        rx="1.4"
-        fill="#E2ECFF"
-        fillOpacity="0.85"
-        stroke="currentColor"
-        strokeWidth="1.35"
-      />
-      <rect
-        x="11.2"
-        y="11.2"
-        width="6"
-        height="6"
-        rx="1.4"
-        fill="#93C5FD"
-        fillOpacity="0.85"
-        stroke="currentColor"
-        strokeWidth="1.35"
-      />
-      <rect
-        x="14.2"
-        y="2.1"
-        width="5.6"
-        height="5.6"
-        rx="1.3"
-        transform="rotate(35 14.2 2.1)"
-        fill="#60A5FA"
+      <path
+        d="M5.2 10.2H7.6L8.9 7.2L10.8 13L12.1 10.2H14.2"
         stroke="#1677FF"
-        strokeWidth="1.3"
+        strokeWidth="1.45"
+        strokeLinecap="round"
+        strokeLinejoin="round"
       />
     </svg>
   );
@@ -353,9 +293,11 @@ export function SidebarChronoSnapIcon({
 
 export function Drive3dIcon({
   isSystemDrive,
+  bitlocker,
   className,
 }: {
   isSystemDrive?: boolean;
+  bitlocker?: boolean;
   className?: string;
 }): React.JSX.Element {
   return (
@@ -405,6 +347,20 @@ export function Drive3dIcon({
           <span className="bg-[#0078D4]" />
           <span className="bg-[#0078D4]" />
           <span className="bg-[#0078D4]" />
+        </span>
+      ) : null}
+      {bitlocker ? (
+        <span className="absolute bottom-0.5 left-0.5 flex size-4 items-center justify-center rounded-[4px] bg-white shadow-xs ring-1 ring-[#BFDBFE]">
+          <svg viewBox="0 0 12 12" fill="none" className="size-3">
+            <path
+              d="M3.8 5.2V3.6C3.8 2.4 4.7 1.5 5.9 1.5C6.9 1.5 7.7 2.1 8 3"
+              stroke="#64748B"
+              strokeWidth="1.3"
+              strokeLinecap="round"
+            />
+            <rect x="2.5" y="5" width="7" height="5.5" rx="1.2" fill="#0078D4" />
+            <circle cx="6" cy="7.8" r="1" fill="white" />
+          </svg>
         </span>
       ) : null}
     </div>

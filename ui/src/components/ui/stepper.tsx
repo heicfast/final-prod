@@ -44,7 +44,7 @@ function Segmented<T extends string>({
             title={opt.srLabel}
             onClick={() => onChange(opt.value)}
             className={cn(
-              'inline-flex h-7 items-center gap-1.5 rounded-sm px-2.5 text-xs font-medium outline-none',
+              'inline-flex h-7 flex-1 items-center justify-center gap-1.5 rounded-sm px-2.5 text-xs font-medium outline-none',
               'transition-[colors,opacity] active:opacity-[var(--press-opacity)]',
               'focus-visible:ring-2 focus-visible:ring-ring',
               active

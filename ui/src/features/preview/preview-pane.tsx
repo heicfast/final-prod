@@ -8,6 +8,7 @@ import {
   MinusIcon,
   PlusIcon,
   TextIcon,
+  XIcon,
 } from 'lucide-react';
 import { useNodeDetail, useThumbnail } from '@/queries/results';
 import { usePreview } from '@/queries/preview';
@@ -17,7 +18,13 @@ import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { ConfidenceBadge } from '@/components/ui/confidence-badge';
 import { Hint } from '@/components/ui/tooltip';
-import { RobotMascotAvatar } from '@/components/ui/brand-icons';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import { hexWorker } from '@/workers/hex-worker-client';
 
 /**
@@ -29,65 +36,96 @@ import { hexWorker } from '@/workers/hex-worker-client';
 export function PreviewPane({
   scanId,
   nodeId,
+  onClose,
 }: {
   scanId: string;
   nodeId: string | null;
+  onClose?: () => void;
 }): React.JSX.Element {
   const { t, i18n } = useTranslation();
   const detail = useNodeDetail(scanId, nodeId);
   const node = detail.data?.node ?? null;
   const preview = usePreview(scanId, nodeId);
-  const bodyRef = React.useRef<HTMLDivElement | null>(null);
+  const [modalOpen, setModalOpen] = React.useState(false);
 
   return (
-    <div className="relative flex h-full min-h-0 flex-col bg-surface">
+    <div
+      className="relative flex h-full min-h-0 flex-col overflow-y-auto bg-white dark:bg-surface"
+      onClick={(e) => e.stopPropagation()}
+    >
       {node ? (
         <>
-          {/* Reference top inspector header & live thumbnail with overlaid "Preview" button */}
-          <div className="flex flex-col items-center px-3 pt-3 pb-3">
-            <div className="mb-2 flex w-full items-center justify-between px-1">
-              <p className="truncate text-xs font-semibold text-foreground" title={node.name}>
-                {node.name}
-              </p>
-            </div>
-            <div className="relative flex h-[136px] w-full items-center justify-center overflow-hidden rounded-lg border border-[#E2ECF9] bg-[#F2F6FC] dark:border-border dark:bg-surface-tint">
+          {/* Reference top thumbnail card + filename + Preview button (preview-panel-live_343e85c9.png) */}
+          <div className="flex flex-col px-4 pt-3.5 pb-3">
+            {onClose ? (
+              <div className="mb-1.5 flex items-center justify-end">
+                <button
+                  type="button"
+                  onClick={onClose}
+                  aria-label={t('common.close')}
+                  className="inline-flex size-6 items-center justify-center rounded-md text-[#64748B] transition-colors hover:bg-[#F1F5F9] hover:text-[#1E293B] dark:text-foreground-secondary dark:hover:bg-surface-hover dark:hover:text-foreground"
+                >
+                  <XIcon className="size-3.5" aria-hidden />
+                </button>
+              </div>
+            ) : null}
+
+            <div className="relative flex h-[132px] w-full items-center justify-center overflow-hidden rounded-[8px] border border-[#E2ECF9] bg-[#F2F6FC] dark:border-border dark:bg-surface-tint">
               <Thumbnail scanId={scanId} nodeId={node.id} available={node.thumbnailAvailable} />
-              <button
-                type="button"
-                onClick={() => bodyRef.current?.scrollIntoView({ behavior: 'smooth' })}
-                className="absolute bottom-3 inline-flex h-8 min-w-[116px] items-center justify-center rounded-md border border-[#93C5FD] bg-[#EAF2FF]/95 px-4 text-xs font-semibold text-[#0958D9] shadow-xs backdrop-blur-xs transition-colors hover:bg-[#DCE8FF] focus-visible:ring-2 focus-visible:ring-ring dark:border-border dark:bg-surface-elevated/95 dark:text-primary dark:hover:bg-surface-hover"
-              >
-                {t('preview.title')}
-              </button>
             </div>
+
+            {/* Filename directly below thumbnail */}
+            <h3
+              className="mt-2.5 text-center break-all text-[12.5px] leading-snug font-medium text-[#1E293B] dark:text-foreground"
+              title={node.name}
+            >
+              {node.name}
+            </h3>
+
+            {/* Light blue "Preview" button below filename matching preview-panel-live_343e85c9.png */}
+            <button
+              type="button"
+              onClick={() => setModalOpen(true)}
+              className="mt-2.5 inline-flex h-8 w-full items-center justify-center rounded-[6px] bg-[#DCEBFF] px-4 text-[12.5px] font-semibold text-[#1677FF] transition-colors hover:bg-[#C7E0FF] focus-visible:ring-2 focus-visible:ring-ring dark:bg-surface-elevated dark:text-primary dark:hover:bg-surface-hover"
+            >
+              {t('preview.title')}
+            </button>
           </div>
 
-          {/* Stacked metadata matching reference inspector (Size, Date Modified, Path, Status, Recovery Chances) */}
-          <div className="space-y-2.5 border-b border-border px-4 pb-3 text-xs">
+          {/* Stacked metadata ending at Recovery Chances (Size, Date Modified, Path, Status, Recovery Chances) */}
+          <div className="space-y-3 px-4 pt-1 pb-4 text-[12px]">
             <div>
-              <div className="text-foreground-secondary">{t('results.column.size')}</div>
-              <div className="mt-0.5 font-medium text-foreground tabular">
+              <div className="text-[#94A3B8] dark:text-foreground-secondary">
+                {t('results.column.size')}
+              </div>
+              <div className="mt-0.5 font-medium text-[#1E293B] tabular dark:text-foreground">
                 {formatBytes(node.sizeBytes, i18n.language)}
               </div>
             </div>
             <div>
-              <div className="text-foreground-secondary">{t('results.column.modified')}</div>
-              <div className="mt-0.5 font-medium text-foreground tabular">
+              <div className="text-[#94A3B8] dark:text-foreground-secondary">
+                {t('results.column.modified')}
+              </div>
+              <div className="mt-0.5 font-medium text-[#1E293B] tabular dark:text-foreground">
                 {formatDateTime(node.modifiedAt, i18n.language)}
               </div>
             </div>
             <div>
-              <div className="text-foreground-secondary">{t('results.pathTab')}</div>
+              <div className="text-[#94A3B8] dark:text-foreground-secondary">
+                {t('results.pathTab')}
+              </div>
               <div
-                className="mt-0.5 truncate font-medium text-foreground"
+                className="mt-0.5 truncate font-medium text-[#1E293B] dark:text-foreground"
                 title={node.path ?? 'C:\\'}
               >
                 {node.path ?? 'C:\\'}
               </div>
             </div>
             <div>
-              <div className="text-foreground-secondary">{t('results.column.type')}</div>
-              <div className="mt-0.5 flex items-center gap-2 font-medium text-foreground">
+              <div className="text-[#94A3B8] dark:text-foreground-secondary">
+                {t('results.column.type')}
+              </div>
+              <div className="mt-0.5 flex items-center gap-2 font-medium text-[#1E293B] dark:text-foreground">
                 <span>
                   {node.origin === 'existing'
                     ? t('preview.statusExisting')
@@ -95,26 +133,39 @@ export function PreviewPane({
                       ? t('preview.statusRaw')
                       : t('preview.statusDeleted')}
                 </span>
-                <span className="text-foreground-secondary uppercase">{node.extension}</span>
+                <span className="text-[#64748B] uppercase dark:text-foreground-secondary">
+                  {node.extension}
+                </span>
               </div>
             </div>
             <div>
-              <div className="text-foreground-secondary">{t('results.column.condition')}</div>
+              <div className="text-[#94A3B8] dark:text-foreground-secondary">
+                {t('results.column.condition')}
+              </div>
               <div className="mt-1">
                 <ConfidenceBadge grade={node.confidence} scanId={scanId} nodeId={node.id} />
               </div>
             </div>
           </div>
 
-          <div ref={bodyRef} className="min-h-0 flex-1 overflow-auto p-3">
-            <PreviewBody previewQuery={preview} />
-          </div>
-
-          {detail.data?.confidenceReason ? (
-            <div className="border-t border-border px-3 py-2 text-xs text-foreground-secondary">
-              {detail.data.confidenceReason}
-            </div>
-          ) : null}
+          <Dialog open={modalOpen} onOpenChange={setModalOpen}>
+            <DialogContent
+              className="max-w-2xl rounded-[12px] border border-[#DCE6F5] bg-white p-5 shadow-2xl dark:border-border dark:bg-surface-elevated"
+              aria-label={node.name}
+            >
+              <DialogHeader>
+                <DialogTitle className="truncate text-[15px] font-bold text-[#1E293B] dark:text-foreground">
+                  {node.name}
+                </DialogTitle>
+                <DialogDescription className="text-[12px] text-[#64748B] dark:text-foreground-secondary">
+                  {detail.data?.confidenceReason ?? formatBytes(node.sizeBytes, i18n.language)}
+                </DialogDescription>
+              </DialogHeader>
+              <div className="mt-2 min-h-[260px] max-h-[65vh] overflow-y-auto">
+                <PreviewBody previewQuery={preview} />
+              </div>
+            </DialogContent>
+          </Dialog>
         </>
       ) : (
         <div className="flex flex-1 flex-col items-center justify-center gap-2 p-6 text-center text-foreground-secondary">
@@ -124,11 +175,6 @@ export function PreviewPane({
           <p className="mt-2 text-xs">{t('preview.title')}</p>
         </div>
       )}
-
-      {/* Floating Robot Mascot Helper badge in bottom-right of preview pane (preview-panel-live_343e85c9.png) */}
-      <div className="pointer-events-none absolute right-3 bottom-3 opacity-90" aria-hidden>
-        <RobotMascotAvatar className="size-8 drop-shadow-xs" />
-      </div>
     </div>
   );
 }

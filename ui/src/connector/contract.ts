@@ -113,6 +113,8 @@ export interface Volume {
   readonly quickScanAvailable: boolean;
   /** Optional connector-exposed sector size override for advanced settings. */
   readonly sectorSize?: number;
+  /** Whether BitLocker encryption is enabled on this volume. */
+  readonly bitlocker?: boolean;
 }
 
 export interface LostPartitionHint {

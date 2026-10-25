@@ -16,13 +16,13 @@ import { useThumbnail } from '@/queries/results';
  * shared selection store contract passed in as props.
  */
 
-const COLUMN_WIDTHS: Record<string, number> = {
-  checkbox: 40,
-  name: 320,
-  modified: 140,
-  type: 110,
-  size: 100,
-  condition: 120,
+const COLUMN_CLASSES: Record<string, string> = {
+  checkbox: 'w-9 shrink-0',
+  name: 'min-w-[140px] flex-1',
+  modified: 'w-[120px] shrink-0',
+  type: 'w-[68px] shrink-0',
+  size: 'w-[84px] shrink-0',
+  condition: 'w-[148px] shrink-0',
 };
 
 /** Shared row-membership test across both selection modes. */
@@ -42,7 +42,7 @@ function SortHeader({
   currentDirection,
   onSort,
   align = 'left',
-  width,
+  colClass,
 }: {
   field: SortField;
   label: string;
@@ -50,7 +50,7 @@ function SortHeader({
   currentDirection: 'asc' | 'desc';
   onSort: (f: SortField) => void;
   align?: 'left' | 'right';
-  width: number;
+  colClass: string;
 }): React.JSX.Element {
   const { t } = useTranslation();
   const active = currentField === field;
@@ -63,15 +63,17 @@ function SortHeader({
     <div
       role="columnheader"
       aria-sort={active ? (currentDirection === 'asc' ? 'ascending' : 'descending') : 'none'}
-      className="flex border-r border-b border-border/70 last:border-r-0"
-      style={{ width }}
+      className={cn('flex border-r border-b border-border/70 last:border-r-0', colClass)}
     >
       <button
         type="button"
-        onClick={() => onSort(field)}
+        onClick={(e) => {
+          e.stopPropagation();
+          onSort(field);
+        }}
         aria-label={`${label} — ${active ? (currentDirection === 'asc' ? t('a11y.sortDescending') : t('a11y.sortAscending')) : t('a11y.sortAscending')}`}
         className={cn(
-          'flex h-9 w-full select-none items-center justify-between gap-1 px-3 text-xs font-medium text-foreground-secondary transition-colors hover:bg-surface-hover/50 hover:text-foreground',
+          'flex h-9 w-full select-none items-center justify-between gap-1 px-2.5 text-xs font-medium text-foreground-secondary transition-colors hover:bg-surface-hover/50 hover:text-foreground',
           'focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset',
           align === 'right' && 'justify-end',
         )}
@@ -103,6 +105,7 @@ export function VirtualFileList({
   onRowDoubleClick,
   onCheckboxChange,
   onSelectAll,
+  onClearActive,
   allSelected,
   someSelected = false,
   sort,
@@ -124,6 +127,7 @@ export function VirtualFileList({
   onRowDoubleClick: (node: ResultNode) => void;
   onCheckboxChange: (node: ResultNode) => void;
   onSelectAll: (checked: boolean) => void;
+  onClearActive?: () => void;
   allSelected: boolean;
   someSelected?: boolean;
   sort: { field: SortField; direction: 'asc' | 'desc' };
@@ -161,24 +165,18 @@ export function VirtualFileList({
     return () => el.removeEventListener('scroll', onScroll);
   }, [loadMore, hasNextPage, ref]);
 
-  const totalWidth =
-    COLUMN_WIDTHS.checkbox +
-    COLUMN_WIDTHS.name +
-    COLUMN_WIDTHS.modified +
-    COLUMN_WIDTHS.type +
-    COLUMN_WIDTHS.size +
-    COLUMN_WIDTHS.condition;
-
   return (
     <div
-      className={cn('flex h-full min-h-0 flex-col bg-surface', className)}
+      className={cn('flex h-full min-h-0 flex-col overflow-hidden bg-surface', className)}
       role="grid"
       aria-rowcount={total}
+      onClick={() => onClearActive?.()}
     >
       {viewMode === 'icons' ? (
         <div
           className="flex h-9 shrink-0 items-center gap-2.5 border-b border-border bg-surface px-3.5 text-xs font-medium text-foreground"
           role="row"
+          onClick={(e) => e.stopPropagation()}
         >
           <div role="columnheader" className="flex items-center gap-2">
             <Checkbox
@@ -193,13 +191,16 @@ export function VirtualFileList({
         </div>
       ) : (
         <div
-          className="group/column flex shrink-0 border-b border-border bg-surface text-sm"
+          className="group/column flex w-full shrink-0 border-b border-border bg-surface text-sm"
           role="row"
         >
           <div
             role="columnheader"
-            className="flex h-9 items-center justify-center border-b border-border/70"
-            style={{ width: COLUMN_WIDTHS.checkbox }}
+            className={cn(
+              'flex h-9 items-center justify-center border-b border-border/70',
+              COLUMN_CLASSES.checkbox,
+            )}
+            onClick={(e) => e.stopPropagation()}
           >
             <Checkbox
               checked={
@@ -215,7 +216,7 @@ export function VirtualFileList({
             currentField={sort.field}
             currentDirection={sort.direction}
             onSort={onSortChange}
-            width={COLUMN_WIDTHS.name}
+            colClass={COLUMN_CLASSES.name}
           />
           <SortHeader
             field="modified"
@@ -223,7 +224,7 @@ export function VirtualFileList({
             currentField={sort.field}
             currentDirection={sort.direction}
             onSort={onSortChange}
-            width={COLUMN_WIDTHS.modified}
+            colClass={COLUMN_CLASSES.modified}
           />
           <SortHeader
             field="type"
@@ -231,7 +232,7 @@ export function VirtualFileList({
             currentField={sort.field}
             currentDirection={sort.direction}
             onSort={onSortChange}
-            width={COLUMN_WIDTHS.type}
+            colClass={COLUMN_CLASSES.type}
           />
           <SortHeader
             field="size"
@@ -239,7 +240,7 @@ export function VirtualFileList({
             currentField={sort.field}
             currentDirection={sort.direction}
             onSort={onSortChange}
-            width={COLUMN_WIDTHS.size}
+            colClass={COLUMN_CLASSES.size}
             align="right"
           />
           <SortHeader
@@ -248,14 +249,14 @@ export function VirtualFileList({
             currentField={sort.field}
             currentDirection={sort.direction}
             onSort={onSortChange}
-            width={COLUMN_WIDTHS.condition}
+            colClass={COLUMN_CLASSES.condition}
           />
         </div>
       )}
       <div
         ref={ref}
         role="rowgroup"
-        className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto"
+        className="min-h-0 flex-1 overflow-x-auto overflow-y-auto"
         tabIndex={0}
         aria-label={t('results.column.name')}
       >
@@ -273,10 +274,10 @@ export function VirtualFileList({
           />
         ) : (
           <div
+            className="w-full min-w-[560px]"
             style={{
               height: virtualizer.getTotalSize(),
               position: 'relative',
-              width: totalWidth,
             }}
           >
             {virtualizer.getVirtualItems().map((vRow) => {
@@ -307,19 +308,27 @@ export function VirtualFileList({
                   aria-selected={isSelected}
                   data-active={isActive || undefined}
                   className={cn(
-                    'absolute inset-x-0 flex cursor-default items-center rounded-sm text-xs transition-colors',
+                    'absolute inset-x-0 flex w-full cursor-default items-center rounded-sm text-xs transition-colors',
                     isSelected || isActive
                       ? 'bg-[#D2E3FC]/85 dark:bg-surface-selected/60'
                       : 'hover:bg-[#EBF2FF]/70 dark:hover:bg-surface-hover/50',
                   )}
                   style={{ top: vRow.start, height: rowHeight }}
-                  onClick={(e) => onRowClick(node, idx, e)}
-                  onDoubleClick={() => onRowDoubleClick(node)}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onRowClick(node, idx, e);
+                  }}
+                  onDoubleClick={(e) => {
+                    e.stopPropagation();
+                    onRowDoubleClick(node);
+                  }}
                 >
                   <div
                     role="gridcell"
-                    className="flex h-full items-center justify-center"
-                    style={{ width: COLUMN_WIDTHS.checkbox }}
+                    className={cn(
+                      'flex h-full items-center justify-center',
+                      COLUMN_CLASSES.checkbox,
+                    )}
                     onClick={(e) => e.stopPropagation()}
                   >
                     <Checkbox
@@ -330,8 +339,7 @@ export function VirtualFileList({
                   </div>
                   <div
                     role="gridcell"
-                    className="flex h-full items-center gap-2.5 px-3"
-                    style={{ width: COLUMN_WIDTHS.name }}
+                    className={cn('flex h-full items-center gap-2 px-2.5', COLUMN_CLASSES.name)}
                   >
                     <FileIconFor node={node} />
                     <span className="truncate font-medium" title={node.name}>
@@ -340,8 +348,10 @@ export function VirtualFileList({
                   </div>
                   <div
                     role="gridcell"
-                    className="flex h-full items-center px-3 text-foreground-secondary"
-                    style={{ width: COLUMN_WIDTHS.modified }}
+                    className={cn(
+                      'flex h-full items-center px-2.5 text-foreground-secondary',
+                      COLUMN_CLASSES.modified,
+                    )}
                   >
                     <span className="truncate tabular">
                       {formatDate(node.modifiedAt, i18n.language)}
@@ -349,8 +359,10 @@ export function VirtualFileList({
                   </div>
                   <div
                     role="gridcell"
-                    className="flex h-full items-center px-3 text-foreground-secondary"
-                    style={{ width: COLUMN_WIDTHS.type }}
+                    className={cn(
+                      'flex h-full items-center px-2.5 text-foreground-secondary',
+                      COLUMN_CLASSES.type,
+                    )}
                   >
                     <span className="truncate uppercase">
                       {node.extension?.replace('.', '') ?? ''}
@@ -358,15 +370,16 @@ export function VirtualFileList({
                   </div>
                   <div
                     role="gridcell"
-                    className="flex h-full items-center justify-end px-3 tabular"
-                    style={{ width: COLUMN_WIDTHS.size }}
+                    className={cn(
+                      'flex h-full items-center justify-end px-2.5 tabular',
+                      COLUMN_CLASSES.size,
+                    )}
                   >
                     {formatBytes(node.sizeBytes, i18n.language)}
                   </div>
                   <div
                     role="gridcell"
-                    className="flex h-full items-center px-3"
-                    style={{ width: COLUMN_WIDTHS.condition }}
+                    className={cn('flex h-full items-center px-2.5', COLUMN_CLASSES.condition)}
                   >
                     <ConfidencePillInline grade={node.confidence} />
                   </div>
@@ -422,8 +435,14 @@ function IconGridBody({
                 ? 'border-[#1677FF] bg-[#EDF4FF] ring-1 ring-[#1677FF] dark:border-primary dark:bg-surface-selected dark:ring-primary'
                 : 'border-[#E2E8F0] bg-white hover:border-[#93C5FD] hover:bg-[#EFF5FF] dark:border-border dark:bg-surface-elevated dark:hover:border-primary/60 dark:hover:bg-surface-hover',
             )}
-            onClick={(e) => onRowClick(node, idx, e)}
-            onDoubleClick={() => onRowDoubleClick(node)}
+            onClick={(e) => {
+              e.stopPropagation();
+              onRowClick(node, idx, e);
+            }}
+            onDoubleClick={(e) => {
+              e.stopPropagation();
+              onRowDoubleClick(node);
+            }}
           >
             <div
               role="gridcell"

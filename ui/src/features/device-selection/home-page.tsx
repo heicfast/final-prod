@@ -4,8 +4,10 @@ import { useTranslation } from 'react-i18next';
 import type { Device, Volume } from '@/connector/contract';
 import {
   CheckIcon,
+  ChevronRightIcon,
   ChevronUpIcon,
   CircleAlertIcon,
+  FolderIcon,
   HardDriveIcon,
   LockIcon,
   PlugZapIcon,
@@ -22,6 +24,14 @@ import { Badge } from '@/components/ui/badge';
 import { EmptyState } from '@/components/ui/empty-state';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Hint } from '@/components/ui/tooltip';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import {
   Desktop3dIcon,
   Drive3dIcon,
@@ -54,6 +64,14 @@ export function HomePage(): React.JSX.Element {
   const pickDirectory = usePickDirectory();
   const [selectedId, setSelectedId] = React.useState<string | null>(null);
   const [helpOpen, setHelpOpen] = React.useState(false);
+  const [folderDialogOpen, setFolderDialogOpen] = React.useState(false);
+  const [selectedFolderVolId, setSelectedFolderVolId] = React.useState<string>('vol-sys');
+  const [selectedFolderSubpath, setSelectedFolderSubpath] =
+    React.useState<string>('Users\\Documents');
+  const [expandedDrives, setExpandedDrives] = React.useState<Record<string, boolean>>({
+    'vol-sys': true,
+    'vol-data': true,
+  });
   const showRemovable = params.has('media');
 
   const devices = devicesQuery.data ?? [];
@@ -82,13 +100,24 @@ export function HomePage(): React.JSX.Element {
   };
 
   const onChooseFolder = (): void => {
-    const hintVolume = devices.flatMap((d) => d.volumes)[0];
+    const firstVol = physical.flatMap((d) => d.volumes)[0];
+    if (firstVol) {
+      setSelectedFolderVolId(firstVol.id);
+    }
+    setFolderDialogOpen(true);
+  };
+
+  const onConfirmFolder = (): void => {
+    const allVols = physical.flatMap((d) => d.volumes);
+    const targetVol = allVols.find((v) => v.id === selectedFolderVolId) ?? allVols[0];
+    if (!targetVol) return;
+    setFolderDialogOpen(false);
     pickDirectory.mutate(
-      { volumeId: hintVolume?.id ?? null },
+      { volumeId: targetVol.id },
       {
         onSuccess: (picked) => {
           if (!picked) return;
-          beginScan(hintVolume?.id ?? '', picked);
+          beginScan(targetVol.id, picked);
         },
         onError: (err) => toast.error(err.message),
       },
@@ -331,6 +360,138 @@ export function HomePage(): React.JSX.Element {
           {t('home.scanAction')}
         </button>
       </div>
+
+      {/* Windows-style "Select Folder" Mini Popup Dialog */}
+      <Dialog open={folderDialogOpen} onOpenChange={setFolderDialogOpen}>
+        <DialogContent
+          className="w-[440px] max-w-[92vw] rounded-[12px] border border-[#DCE6F5] bg-white p-5 shadow-2xl dark:border-border dark:bg-surface-elevated"
+          aria-label={t('home.chooseFolder')}
+        >
+          <DialogHeader>
+            <DialogTitle className="text-[15px] font-bold text-[#1E293B] dark:text-foreground">
+              {t('home.chooseFolder')}
+            </DialogTitle>
+            <DialogDescription className="text-[12px] text-[#64748B] dark:text-foreground-secondary">
+              {t('home.subtitle')}
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="mt-3 h-[230px] overflow-y-auto rounded-[8px] border border-[#E2E8F0] bg-[#F8FAFC] p-2 dark:border-border dark:bg-surface">
+            {physical
+              .flatMap((d) => d.volumes)
+              .map((vol) => {
+                const isExp = expandedDrives[vol.id] ?? true;
+                const drivePrefix = vol.letter ? `${vol.letter}:\\` : '';
+                const subFolders =
+                  vol.letter === 'C'
+                    ? [
+                        'Users\\Documents',
+                        'Users\\Downloads',
+                        'Users\\Pictures',
+                        'Users\\Desktop',
+                        'Projects',
+                        'Backups',
+                      ]
+                    : ['Projects', 'Media', 'Backups', 'Shared', 'Archive'];
+                return (
+                  <div key={vol.id} className="mb-1">
+                    <div className="flex items-center gap-1 rounded-[6px] px-1.5 py-1 text-[12.5px] font-semibold text-[#1E293B] hover:bg-[#EBF2FF] dark:text-foreground dark:hover:bg-surface-hover">
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setExpandedDrives((prev) => ({ ...prev, [vol.id]: !isExp }))
+                        }
+                        className="flex size-5 items-center justify-center text-[#64748B]"
+                        aria-label={vol.label}
+                      >
+                        <ChevronRightIcon
+                          className={cn('size-3.5 transition-transform', isExp && 'rotate-90')}
+                          aria-hidden
+                        />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSelectedFolderVolId(vol.id);
+                          setSelectedFolderSubpath(subFolders[0] ?? 'Users');
+                        }}
+                        className="flex flex-1 items-center gap-2 text-left"
+                      >
+                        <Drive3dIcon
+                          isSystemDrive={vol.letter === 'C'}
+                          bitlocker={vol.bitlocker}
+                          className="size-6"
+                        />
+                        <span className="truncate">{vol.label}</span>
+                      </button>
+                    </div>
+                    {isExp ? (
+                      <div className="ml-6 space-y-0.5 border-l border-[#E2E8F0] pl-2 dark:border-border">
+                        {subFolders.map((sub) => {
+                          const isPicked =
+                            selectedFolderVolId === vol.id && selectedFolderSubpath === sub;
+                          return (
+                            <button
+                              key={sub}
+                              type="button"
+                              onClick={() => {
+                                setSelectedFolderVolId(vol.id);
+                                setSelectedFolderSubpath(sub);
+                              }}
+                              onDoubleClick={onConfirmFolder}
+                              className={cn(
+                                'flex w-full items-center gap-2 rounded-[5px] px-2 py-1 text-left text-[12px] transition-colors',
+                                isPicked
+                                  ? 'bg-[#D6E6FF] font-semibold text-[#0958D9] dark:bg-surface-selected dark:text-primary'
+                                  : 'text-[#334155] hover:bg-[#EBF2FF]/70 dark:text-foreground-secondary dark:hover:bg-surface-hover',
+                              )}
+                            >
+                              <FolderIcon
+                                className="size-4 shrink-0 fill-[#93C5FD] text-[#3B82F6]"
+                                aria-hidden
+                              />
+                              <span className="truncate">
+                                {drivePrefix}
+                                {sub}
+                              </span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    ) : null}
+                  </div>
+                );
+              })}
+          </div>
+
+          <div className="mt-2.5 flex items-center gap-2 rounded-[6px] border border-[#E2E8F0] bg-[#F8FAFC] px-3 py-1.5 text-[12px] dark:border-border dark:bg-surface">
+            <span className="shrink-0 font-medium text-[#64748B] dark:text-foreground-secondary">
+              {t('results.pathTab')}:
+            </span>
+            <span className="truncate font-mono text-[#1E293B] dark:text-foreground">
+              {(physical.flatMap((d) => d.volumes).find((v) => v.id === selectedFolderVolId)
+                ?.letter ?? 'C') +
+                ':\\' +
+                selectedFolderSubpath}
+            </span>
+          </div>
+
+          <DialogFooter className="mt-4 flex justify-end gap-2">
+            <Button variant="secondary" size="sm" onClick={() => setFolderDialogOpen(false)}>
+              {t('common.close')}
+            </Button>
+            <Button
+              variant="primary"
+              size="sm"
+              onClick={onConfirmFolder}
+              loading={pickDirectory.isPending || startScan.isPending}
+              className="[background-image:none] bg-[#1677FF] text-white hover:bg-[#0958D9]"
+            >
+              {t('common.continue')}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
@@ -356,6 +517,7 @@ function DeviceCard({
     device.status === 'disconnected' || device.volumes.some((v) => v.status === 'disconnected');
   const hasLost = device.volumes.some((v) => v.lostPartition);
   const isSystemDrive = device.volumes.some((v) => v.letter === 'C');
+  const hasBitlocker = device.volumes.some((v) => v.bitlocker);
 
   const freeBytes = Math.max(0, device.capacity.totalBytes - device.capacity.usedBytes);
   const usedRatio =
@@ -404,7 +566,7 @@ function DeviceCard({
         onClick={onSelect}
         className="flex w-full items-center gap-4 text-left outline-none focus-visible:ring-2 focus-visible:ring-ring"
       >
-        <Drive3dIcon isSystemDrive={isSystemDrive} />
+        <Drive3dIcon isSystemDrive={isSystemDrive} bitlocker={hasBitlocker} />
 
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">

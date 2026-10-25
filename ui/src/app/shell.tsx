@@ -3,7 +3,6 @@ import { NavLink, Outlet, useLocation, useNavigate } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import { getCurrentWindow } from '@tauri-apps/api/window';
 import {
-  HeartPulseIcon,
   InfoIcon,
   KeyRoundIcon,
   LanguagesIcon,
@@ -27,9 +26,6 @@ import {
   DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
 } from '@/components/ui/menus';
 import { AboutDialog } from '@/features/settings-about/about-dialog';
 import { ActivationDialog } from '@/features/settings-about/activation-dialog';
@@ -37,7 +33,6 @@ import { setLocale, SUPPORTED_LOCALES } from '@/i18n';
 import { WindowControls } from '@/components/ui/window-controls';
 import {
   BrandBriefcaseLogo,
-  RobotMascotAvatar,
   SidebarChronoSnapIcon,
   SidebarFileRepairIcon,
   SidebarHardwareDiskIcon,
@@ -70,9 +65,9 @@ const NAV_DATA_RECOVERY = [
     end: false,
   },
   {
-    to: '/tools',
+    to: '/health',
     icon: SidebarMoreToolsIcon,
-    labelKey: 'sidebar.moreTools',
+    labelKey: 'sidebar.diskHealth',
     end: false,
   },
 ] as const;
@@ -119,7 +114,6 @@ export function WizardShell(): React.JSX.Element {
   const location = useLocation();
   const [aboutOpen, setAboutOpen] = React.useState(false);
   const [activationOpen, setActivationOpen] = React.useState(false);
-  const [helperOpen, setHelperOpen] = React.useState(false);
   const sidebarCollapsed = useUiStore((s) => s.sidebarCollapsed);
   const toggleSidebar = useUiStore((s) => s.toggleSidebar);
   const mainRef = React.useRef<HTMLElement | null>(null);
@@ -159,78 +153,6 @@ export function WizardShell(): React.JSX.Element {
         </div>
 
         <div className="flex items-center gap-1.5">
-          {/* Robot Mascot Helper Popover ("Hi! Guess you need:") */}
-          <Popover open={helperOpen} onOpenChange={setHelperOpen}>
-            <PopoverTrigger asChild>
-              <button
-                type="button"
-                aria-label={t('guide.trigger')}
-                title={t('guide.trigger')}
-                data-testid="header-mascot-trigger"
-                className="flex size-7 items-center justify-center rounded-full transition-transform hover:scale-105 focus-visible:ring-2 focus-visible:ring-ring"
-              >
-                <RobotMascotAvatar className="size-6" />
-              </button>
-            </PopoverTrigger>
-            <PopoverContent
-              align="end"
-              className="w-64 rounded-[12px] border border-[#DCE8FF] bg-white p-4 shadow-xl dark:border-border dark:bg-surface"
-            >
-              <div className="flex items-center gap-2.5 pb-2.5">
-                <RobotMascotAvatar className="size-8" />
-                <p className="text-[13px] font-bold text-[#1E293B] dark:text-foreground">
-                  {t('guide.panelTitle')}
-                </p>
-              </div>
-              <div className="space-y-1.5 border-t border-[#F1F5F9] pt-2.5 dark:border-border">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setHelperOpen(false);
-                    void navigate('/lost-partition');
-                  }}
-                  className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-[12.5px] text-[#334155] transition-colors hover:bg-[#EBF2FF] hover:text-[#1677FF] dark:text-foreground-secondary dark:hover:bg-surface-hover dark:hover:text-primary"
-                >
-                  <span className="size-1.5 shrink-0 rounded-full bg-[#1677FF]" aria-hidden />
-                  <span>{t('guide.missing')}</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setHelperOpen(false);
-                    void navigate('/repair');
-                  }}
-                  className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-[12.5px] text-[#334155] transition-colors hover:bg-[#EBF2FF] hover:text-[#1677FF] dark:text-foreground-secondary dark:hover:bg-surface-hover dark:hover:text-primary"
-                >
-                  <span className="size-1.5 shrink-0 rounded-full bg-[#1677FF]" aria-hidden />
-                  <span>{t('guide.damaged')}</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setHelperOpen(false);
-                    void navigate('/');
-                  }}
-                  className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-[12.5px] text-[#334155] transition-colors hover:bg-[#EBF2FF] hover:text-[#1677FF] dark:text-foreground-secondary dark:hover:bg-surface-hover dark:hover:text-primary"
-                >
-                  <span className="size-1.5 shrink-0 rounded-full bg-[#1677FF]" aria-hidden />
-                  <span>{t('guide.deleted')}</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setHelperOpen(false);
-                    setAboutOpen(true);
-                  }}
-                  className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-[12.5px] text-[#334155] transition-colors hover:bg-[#EBF2FF] hover:text-[#1677FF] dark:text-foreground-secondary dark:hover:bg-surface-hover dark:hover:text-primary"
-                >
-                  <span className="size-1.5 shrink-0 rounded-full bg-[#1677FF]" aria-hidden />
-                  <span>{t('guide.chat')}</span>
-                </button>
-              </div>
-            </PopoverContent>
-          </Popover>
-
           {/* Orange Buy Now Pill / Cart Button */}
           <button
             type="button"
@@ -342,6 +264,22 @@ export function WizardShell(): React.JSX.Element {
                 {t('nav.settings')}
               </DropdownMenuItem>
               <DropdownMenuSeparator />
+              <div className="px-2 py-1 text-[11px] font-semibold text-foreground-secondary">
+                {t('guide.trigger')} — {t('guide.panelTitle')}
+              </div>
+              <DropdownMenuItem onClick={() => navigate('/lost-partition')}>
+                {t('guide.missing')}
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => navigate('/repair')}>
+                {t('guide.damaged')}
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => navigate('/')}>
+                {t('guide.deleted')}
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setAboutOpen(true)}>
+                {t('guide.chat')}
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
               <DropdownMenuItem onClick={() => setAboutOpen(true)}>
                 {t('nav.about')}
               </DropdownMenuItem>
@@ -425,15 +363,6 @@ export function WizardShell(): React.JSX.Element {
             )}
 
             <div className="mt-auto space-y-0.5 pt-2">
-              <div className="sr-only focus-within:not-sr-only">
-                <SidebarLink
-                  to="/health"
-                  icon={HeartPulseIcon}
-                  labelKey="sidebar.diskHealth"
-                  end
-                  collapsed={sidebarCollapsed}
-                />
-              </div>
               <div
                 className={cn(
                   'flex items-center pt-1',
@@ -471,12 +400,15 @@ export function WizardShell(): React.JSX.Element {
           tabIndex={-1}
           aria-label={t('a11y.mainRegion')}
           className={cn(
-            'min-h-0 min-w-0 flex-1 overflow-hidden bg-white outline-none dark:bg-background',
+            'flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-white outline-none dark:bg-background',
             !inExplorerFlow &&
               'rounded-tl-[16px] shadow-[-2px_-2px_12px_rgba(22,119,255,0.04)]',
           )}
         >
-          <div key={location.pathname} className="h-full route-fade">
+          <div
+            key={location.pathname}
+            className="route-fade flex h-full min-h-0 flex-1 flex-col overflow-hidden"
+          >
             <Outlet />
           </div>
         </main>

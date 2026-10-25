@@ -5,13 +5,17 @@ import { RefreshCcwIcon } from 'lucide-react';
 import { useDevices, useRefreshDevices } from '@/queries/devices';
 import { useStartScan } from '@/queries/scan';
 import { formatBytes } from '@/lib/format';
+import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 
 /**
- * SD Card Recovery Page (reference: landing-sidebar-sdcard-page_bb0f35e7.png) —
- * header with circular refresh button, centerpiece illustration (drone, DSLR,
- * monitor with unplugged indicator, dash cam, PC tower, robot mascot holding
- * SD card), SDR / SSR / DVR 3-column feature row, and bottom detection banner.
+ * SD Card Recovery Page (references: Screenshot_2026-10-25_015201_2a9dc07f.png &
+ * landing-sidebar-sdcard-page_bb0f35e7.png) —
+ * header with inline circular refresh icon, selectable SD/MMC/MS PRO card row
+ * ("Others  58 GB", "Disk2"), bottom rounded feature card with SDR / SSR / DVR
+ * colorful icons + badges, and footer bar with "SD card connected but not
+ * detected? Show all external devices or Get Help" on the left and
+ * "Search for Lost Data" primary blue CTA button on the right.
  */
 export function SdCardPage(): React.JSX.Element {
   const { t, i18n } = useTranslation();
@@ -20,16 +24,23 @@ export function SdCardPage(): React.JSX.Element {
   const refresh = useRefreshDevices();
   const startScan = useStartScan();
   const [showExternal, setShowExternal] = React.useState(false);
+  const [selectedCardId, setSelectedCardId] = React.useState<string>('dev-sd');
 
   const devices = devicesQuery.data ?? [];
   const externalDevices = devices.filter((d) => d.kind === 'sd' || d.kind === 'usb');
+  const sdDevice =
+    externalDevices.find((d) => d.id === selectedCardId) ??
+    externalDevices.find((d) => d.kind === 'sd') ??
+    externalDevices[0] ??
+    devices[0];
 
-  const beginScan = (targetId: string): void => {
+  const beginScan = (targetId?: string): void => {
+    const resolvedId = targetId ?? sdDevice?.id ?? 'dev-sd';
     startScan.mutate(
-      { targetId },
+      { targetId: resolvedId },
       {
         onSuccess: ({ scanId }) => {
-          void navigate(`/scan/${targetId}/live?scanId=${scanId}`);
+          void navigate(`/scan/${resolvedId}/live?scanId=${scanId}`);
         },
         onError: (err) => toast.error(err.message),
       },
@@ -38,105 +49,185 @@ export function SdCardPage(): React.JSX.Element {
 
   return (
     <div className="flex h-full min-h-0 flex-col justify-between overflow-y-auto px-8 py-6">
-      {/* Header */}
-      <div className="flex items-start justify-between gap-4">
-        <div>
+      {/* Top Section: Header + Selectable SD Card Row */}
+      <div>
+        <div className="flex items-center gap-2.5">
           <h1 className="text-[20px] font-bold tracking-tight text-[#1E293B] dark:text-foreground">
             {t('sdCard.title')}
           </h1>
-          <p className="mt-1.5 max-w-3xl text-[13px] leading-relaxed text-[#64748B] dark:text-foreground-secondary">
-            {t('sdCard.subtitle')}
-          </p>
+          <button
+            type="button"
+            onClick={() => void refresh.mutate()}
+            disabled={refresh.isPending}
+            aria-label={t('sdCard.refresh')}
+            title={t('sdCard.refresh')}
+            className="inline-flex size-7 shrink-0 items-center justify-center rounded-full text-[#1E293B] transition-colors hover:bg-[#E2E8F0]/70 hover:text-[#1677FF] focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50 dark:text-foreground dark:hover:bg-surface-hover"
+          >
+            <RefreshCcwIcon
+              className={cn('size-4', refresh.isPending && 'animate-spin')}
+              aria-hidden
+            />
+          </button>
         </div>
-        <button
-          type="button"
-          onClick={() => void refresh.mutate()}
-          disabled={refresh.isPending}
-          aria-label={t('sdCard.refresh')}
-          title={t('sdCard.refresh')}
-          className="mt-1 flex size-8 shrink-0 items-center justify-center rounded-full border border-[#E2E8F0] bg-white text-[#64748B] shadow-2xs transition-colors hover:border-[#93C5FD] hover:bg-[#EFF6FF] hover:text-[#0958D9] focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50 dark:border-border dark:bg-surface-elevated dark:text-foreground-secondary dark:hover:border-primary/60 dark:hover:bg-surface-hover dark:hover:text-primary"
-        >
-          <RefreshCcwIcon className="size-4" aria-hidden />
-        </button>
-      </div>
+        <p className="mt-1.5 max-w-4xl text-[13px] leading-relaxed text-[#64748B] dark:text-foreground-secondary">
+          {t('sdCard.subtitle')}
+        </p>
 
-      {/* Centerpiece Illustration */}
-      <div className="my-4 flex flex-col items-center justify-center">
-        <SdCardCenterIllustration />
-
-        {/* 3 Feature Columns: SDR / SSR / DVR */}
-        <div className="mt-5 grid w-full max-w-3xl grid-cols-1 gap-6 sm:grid-cols-3">
-          <FeatureBadgeItem
-            badge="SDR"
-            title={t('sdCard.sdrTitle')}
-            body={t('sdCard.sdrBody')}
-          />
-          <FeatureBadgeItem
-            badge="SSR"
-            title={t('sdCard.ssrTitle')}
-            body={t('sdCard.ssrBody')}
-          />
-          <FeatureBadgeItem
-            badge="DVR"
-            title={t('sdCard.dvrTitle')}
-            body={t('sdCard.dvrBody')}
-          />
-        </div>
-
-        {/* Optional expanded external devices tray when user clicks "Show all external devices" */}
-        {showExternal && externalDevices.length > 0 ? (
-          <div className="mt-5 w-full max-w-2xl rounded-[10px] border border-[#DCE8FF] bg-[#F8FAFD] p-3.5 dark:border-border dark:bg-surface-elevated">
-            <div className="mb-2 text-[12px] font-semibold text-[#475569] dark:text-foreground-secondary">
-              {t('home.removableGroup')} ({externalDevices.length})
-            </div>
-            <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
-              {externalDevices.map((dev) => (
-                <div
-                  key={dev.id}
-                  className="flex items-center justify-between gap-3 rounded-[8px] border border-[#E2E8F0] bg-white px-3.5 py-2.5 dark:border-border dark:bg-surface"
-                >
-                  <div className="min-w-0">
-                    <div className="truncate text-[13px] font-semibold text-[#1E293B] dark:text-foreground">
-                      {dev.label}
-                    </div>
-                    <div className="text-[11px] text-[#64748B] tabular dark:text-foreground-secondary">
-                      {dev.model} · {formatBytes(dev.capacity.totalBytes, i18n.language)}
-                    </div>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => beginScan(dev.id)}
-                    className="shrink-0 rounded-[6px] bg-[#1677FF] px-3 py-1.5 text-[12px] font-semibold text-white transition-colors hover:bg-[#0958D9] dark:bg-primary dark:text-primary-foreground dark:hover:bg-primary-hover"
-                  >
-                    {t('sdCard.start')}
-                  </button>
+        {/* Connected SD/MMC/MS PRO Card Row (matching Screenshot_2026-10-25_015201_2a9dc07f.png) */}
+        <div className="mt-5 space-y-2.5">
+          <div
+            role="button"
+            tabIndex={0}
+            onClick={() => {
+              if (sdDevice) setSelectedCardId(sdDevice.id);
+            }}
+            onDoubleClick={() => beginScan(sdDevice?.id)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                beginScan(sdDevice?.id);
+              }
+            }}
+            className="group flex w-full cursor-pointer items-center justify-between rounded-[10px] border-2 border-[#1677FF] bg-[#EDF4FF] px-5 py-3.5 transition-all hover:bg-[#E4EFFE] focus-visible:ring-2 focus-visible:ring-ring dark:border-primary dark:bg-surface-selected"
+          >
+            <div className="flex items-center gap-4">
+              <SdCardSlotIcon />
+              <div>
+                <div className="text-[14px] font-bold text-[#1E293B] dark:text-foreground">
+                  SD/MMC/MS PRO
                 </div>
-              ))}
+                <div className="mt-0.5 flex items-center gap-4 text-[12.5px] text-[#64748B] tabular dark:text-foreground-secondary">
+                  <span>Others</span>
+                  <span>58 GB</span>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-4">
+              <span className="text-[13px] font-medium text-[#64748B] dark:text-foreground-secondary">
+                Disk2
+              </span>
             </div>
           </div>
-        ) : null}
+
+          {/* Optional expanded external devices list when user clicks "Show all external devices" */}
+          {showExternal && externalDevices.length > 0 ? (
+            <div className="rounded-[10px] border border-[#DCE8FF] bg-[#F8FAFD] p-3.5 dark:border-border dark:bg-surface-elevated">
+              <div className="mb-2 text-[12px] font-semibold text-[#475569] dark:text-foreground-secondary">
+                {t('home.removableGroup')} ({externalDevices.length})
+              </div>
+              <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
+                {externalDevices.map((dev) => (
+                  <div
+                    key={dev.id}
+                    className="flex items-center justify-between gap-3 rounded-[8px] border border-[#E2E8F0] bg-white px-3.5 py-2.5 dark:border-border dark:bg-surface"
+                  >
+                    <div className="min-w-0">
+                      <div className="truncate text-[13px] font-semibold text-[#1E293B] dark:text-foreground">
+                        {dev.label}
+                      </div>
+                      <div className="text-[11px] text-[#64748B] tabular dark:text-foreground-secondary">
+                        {dev.model} · {formatBytes(dev.capacity.totalBytes, i18n.language)}
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => beginScan(dev.id)}
+                      className="shrink-0 rounded-[6px] bg-[#1677FF] px-3 py-1.5 text-[12px] font-semibold text-white transition-colors hover:bg-[#0958D9] dark:bg-primary dark:text-primary-foreground dark:hover:bg-primary-hover"
+                    >
+                      {t('sdCard.start')}
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ) : null}
+        </div>
       </div>
 
-      {/* Bottom Floating Info Banner */}
-      <div className="mx-auto w-full max-w-4xl rounded-[8px] bg-[#EBF3FF] px-5 py-3 text-center text-[13px] text-[#475569] dark:bg-surface-tint dark:text-foreground-secondary">
-        <span>{t('sdCard.bannerPrefix')} </span>
-        <button
-          type="button"
-          onClick={() => setShowExternal((v) => !v)}
-          className="font-semibold text-[#1677FF] underline decoration-[#1677FF]/60 underline-offset-2 hover:text-[#0958D9] dark:text-primary dark:hover:text-primary-hover"
-        >
-          {t('sdCard.showExternal')}
-        </button>
-        <span> {t('sdCard.bannerOr')} </span>
-        <button
-          type="button"
-          onClick={() => toast.info(t('sdCard.helpToast'))}
-          className="font-semibold text-[#1677FF] underline decoration-[#1677FF]/60 underline-offset-2 hover:text-[#0958D9] dark:text-primary dark:hover:text-primary-hover"
-        >
-          {t('sdCard.getHelp')}
-        </button>
+      {/* Bottom Section: Rounded SDR/SSR/DVR Feature Card + Footer Bar (Screenshot_2026-10-25_015201_2a9dc07f.png) */}
+      <div className="mt-6 space-y-4">
+        <div className="rounded-[12px] border border-[#E5EEFA] bg-[#F8FAFF] px-7 py-5 shadow-2xs dark:border-border dark:bg-surface-elevated">
+          <div className="grid grid-cols-1 gap-6 sm:grid-cols-3">
+            <FeatureBadgeItem
+              badge="SDR"
+              title={t('sdCard.sdrTitle')}
+              body={t('sdCard.sdrBody')}
+            />
+            <FeatureBadgeItem
+              badge="SSR"
+              title={t('sdCard.ssrTitle')}
+              body={t('sdCard.ssrBody')}
+            />
+            <FeatureBadgeItem
+              badge="DVR"
+              title={t('sdCard.dvrTitle')}
+              body={t('sdCard.dvrBody')}
+            />
+          </div>
+        </div>
+
+        {/* Footer Bar: Left detection links + Right "Search for Lost Data" primary blue CTA */}
+        <div className="flex flex-wrap items-center justify-between gap-4 pt-1">
+          <div className="text-[13px] text-[#64748B] dark:text-foreground-secondary">
+            <span>{t('sdCard.bannerPrefix')} </span>
+            <button
+              type="button"
+              onClick={() => setShowExternal((v) => !v)}
+              className="font-medium text-[#1677FF] underline decoration-[#1677FF]/60 underline-offset-2 hover:text-[#0958D9] dark:text-primary dark:hover:text-primary-hover"
+            >
+              {t('sdCard.showExternal')}
+            </button>
+            <span> {t('sdCard.bannerOr')} </span>
+            <button
+              type="button"
+              onClick={() => toast.info(t('sdCard.helpToast'))}
+              className="font-medium text-[#1677FF] underline decoration-[#1677FF]/60 underline-offset-2 hover:text-[#0958D9] dark:text-primary dark:hover:text-primary-hover"
+            >
+              {t('sdCard.getHelp')}
+            </button>
+          </div>
+
+          <button
+            type="button"
+            disabled={startScan.isPending}
+            onClick={() => beginScan()}
+            className="inline-flex h-10 min-w-[200px] items-center justify-center rounded-[8px] bg-[#1677FF] px-6 text-[14px] font-semibold text-white shadow-xs transition-all hover:bg-[#0958D9] active:scale-[var(--press-scale)] focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50 dark:bg-primary dark:text-primary-foreground dark:hover:bg-primary-hover"
+          >
+            {t('home.scanAction')}
+          </button>
+        </div>
       </div>
     </div>
+  );
+}
+
+function SdCardSlotIcon(): React.JSX.Element {
+  return (
+    <svg viewBox="0 0 40 44" fill="none" className="size-10 shrink-0" aria-hidden>
+      <path
+        d="M6 2H26L34 10V38C34 40.2 32.2 42 30 42H6C3.8 42 2 40.2 2 38V6C2 3.8 3.8 2 6 2Z"
+        fill="url(#sd-card-blue)"
+      />
+      <rect x="7" y="6" width="3" height="7" rx="1" fill="#FBBF24" />
+      <rect x="12" y="6" width="3" height="7" rx="1" fill="#FBBF24" />
+      <rect x="17" y="6" width="3" height="7" rx="1" fill="#FBBF24" />
+      <rect x="22" y="6" width="3" height="7" rx="1" fill="#FBBF24" />
+      <rect x="7" y="25" width="20" height="11" rx="2" fill="white" fillOpacity="0.22" />
+      <defs>
+        <linearGradient
+          id="sd-card-blue"
+          x1="2"
+          y1="2"
+          x2="34"
+          y2="42"
+          gradientUnits="userSpaceOnUse"
+        >
+          <stop stopColor="#3B82F6" />
+          <stop offset="1" stopColor="#1D4ED8" />
+        </linearGradient>
+      </defs>
+    </svg>
   );
 }
 
@@ -150,12 +241,64 @@ function FeatureBadgeItem({
   body: string;
 }): React.JSX.Element {
   return (
-    <div className="flex items-start gap-3">
-      <div
-        className="flex size-10 shrink-0 flex-col items-center justify-center rounded-[8px] border border-[#DCE6F5] bg-[#F4F7FC] text-[#475569] dark:border-border dark:bg-surface-elevated dark:text-foreground-secondary"
-        aria-hidden
-      >
-        <span className="rounded-[3px] bg-[#64748B] px-1.5 py-0.5 text-[9px] font-bold tracking-wider text-white dark:bg-primary dark:text-primary-foreground">
+    <div className="flex items-start gap-3.5">
+      <div className="relative flex size-11 shrink-0 items-center justify-center" aria-hidden>
+        {badge === 'SDR' ? (
+          <svg viewBox="0 0 44 44" fill="none" className="size-11">
+            <rect
+              x="6"
+              y="4"
+              width="24"
+              height="32"
+              rx="4"
+              fill="#DBEAFE"
+              stroke="#60A5FA"
+              strokeWidth="1.5"
+            />
+            <rect x="10" y="8" width="3" height="5" rx="0.8" fill="#3B82F6" />
+            <rect x="15" y="8" width="3" height="5" rx="0.8" fill="#3B82F6" />
+            <rect x="20" y="8" width="3" height="5" rx="0.8" fill="#3B82F6" />
+            <circle cx="28" cy="26" r="7" fill="#10B981" />
+            <path
+              d="M25 26L27 28L31.5 23.5"
+              stroke="white"
+              strokeWidth="1.8"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          </svg>
+        ) : badge === 'SSR' ? (
+          <svg viewBox="0 0 44 44" fill="none" className="size-11">
+            <rect
+              x="4"
+              y="6"
+              width="30"
+              height="26"
+              rx="4"
+              fill="#DCFCE7"
+              stroke="#34D399"
+              strokeWidth="1.5"
+            />
+            <circle cx="13" cy="14" r="2.5" fill="#10B981" />
+            <path d="M7 28L15 19L21 25L26 20L31 28H7Z" fill="#10B981" fillOpacity="0.65" />
+          </svg>
+        ) : (
+          <svg viewBox="0 0 44 44" fill="none" className="size-11">
+            <rect
+              x="4"
+              y="6"
+              width="30"
+              height="26"
+              rx="4"
+              fill="#EDE9FE"
+              stroke="#A78BFA"
+              strokeWidth="1.5"
+            />
+            <circle cx="19" cy="19" r="7" fill="#F97316" />
+            <path d="M17.5 15.5L22.5 19L17.5 22.5V15.5Z" fill="white" />
+          </svg>
+        )}
+        <span className="absolute -bottom-0.5 right-0 rounded-[4px] bg-[#64748B] px-1.5 py-0.5 text-[9px] font-bold tracking-wider text-white shadow-2xs">
           {badge}
         </span>
       </div>
@@ -168,188 +311,5 @@ function FeatureBadgeItem({
         </div>
       </div>
     </div>
-  );
-}
-
-function SdCardCenterIllustration(): React.JSX.Element {
-  return (
-    <svg
-      viewBox="0 0 420 220"
-      fill="none"
-      className="h-[195px] w-full max-w-[420px] select-none"
-      aria-hidden
-    >
-      {/* Soft shadow base */}
-      <ellipse cx="210" cy="198" rx="155" ry="14" fill="#EBF2FF" />
-
-      {/* Dashed orbital arc */}
-      <ellipse
-        cx="205"
-        cy="108"
-        rx="145"
-        ry="72"
-        stroke="#CBD5E1"
-        strokeWidth="1.4"
-        strokeDasharray="4 4"
-      />
-
-      {/* Top-left Drone (UAV) */}
-      <g transform="translate(56, 36)">
-        <line x1="6" y1="14" x2="38" y2="14" stroke="#64748B" strokeWidth="2" />
-        <line
-          x1="2"
-          y1="8"
-          x2="14"
-          y2="8"
-          stroke="#94A3B8"
-          strokeWidth="2"
-          strokeLinecap="round"
-        />
-        <line
-          x1="30"
-          y1="8"
-          x2="42"
-          y2="8"
-          stroke="#94A3B8"
-          strokeWidth="2"
-          strokeLinecap="round"
-        />
-        <rect
-          x="13"
-          y="10"
-          width="18"
-          height="9"
-          rx="4"
-          fill="#E2E8F0"
-          stroke="#64748B"
-          strokeWidth="1.3"
-        />
-        <circle cx="22" cy="14.5" r="2.2" fill="#1677FF" />
-      </g>
-
-      {/* Bottom-left DSLR Camera */}
-      <g transform="translate(54, 118)">
-        <rect x="4" y="8" width="34" height="24" rx="4" fill="#94A3B8" />
-        <path d="M13 8L16 3H26L29 8H13Z" fill="#64748B" />
-        <circle cx="21" cy="20" r="8" fill="#475569" stroke="white" strokeWidth="1.5" />
-        <circle cx="21" cy="20" r="3.5" fill="#60A5FA" />
-      </g>
-
-      {/* Top-right Action / Dash Cam */}
-      <g transform="translate(274, 24)">
-        <rect
-          x="4"
-          y="6"
-          width="32"
-          height="24"
-          rx="4"
-          fill="#CBD5E1"
-          stroke="#64748B"
-          strokeWidth="1.3"
-        />
-        <circle cx="15" cy="18" r="6.5" fill="#334155" stroke="white" strokeWidth="1.4" />
-        <circle cx="15" cy="18" r="2.5" fill="#38BDF8" />
-        <rect x="25" y="10" width="6" height="4" rx="1" fill="#64748B" />
-      </g>
-
-      {/* Right PC Tower */}
-      <g transform="translate(285, 76)">
-        <rect
-          x="0"
-          y="0"
-          width="64"
-          height="106"
-          rx="6"
-          fill="#E2E8F0"
-          stroke="#94A3B8"
-          strokeWidth="1.4"
-        />
-        <rect x="8" y="12" width="48" height="8" rx="2" fill="#94A3B8" />
-        <rect x="8" y="26" width="48" height="5" rx="1.5" fill="#CBD5E1" />
-        <circle cx="32" cy="48" r="4" fill="#64748B" />
-      </g>
-
-      {/* Central Monitor */}
-      <g transform="translate(122, 54)">
-        <rect x="0" y="0" width="152" height="102" rx="8" fill="#64748B" />
-        <rect x="6" y="6" width="140" height="82" rx="4" fill="#F8FAFC" />
-        {/* Screen skeleton bars */}
-        <rect x="18" y="20" width="54" height="7" rx="3.5" fill="#E2E8F0" />
-        <rect x="18" y="34" width="88" height="6" rx="3" fill="#EDF2F7" />
-        <rect x="18" y="46" width="72" height="6" rx="3" fill="#EDF2F7" />
-        {/* Stand */}
-        <path d="M62 102H90L98 122H54L62 102Z" fill="#CBD5E1" />
-        <rect x="44" y="122" width="64" height="5" rx="2.5" fill="#94A3B8" />
-
-        {/* Orange Unplugged Warning Circle on top-right of monitor */}
-        <g transform="translate(128, -14)">
-          <circle cx="18" cy="18" r="18" fill="#FFF7ED" stroke="#FDBA74" strokeWidth="2" />
-          <path d="M12 24L24 12" stroke="#F97316" strokeWidth="2.2" strokeLinecap="round" />
-          <path
-            d="M14 14L11 17L19 25L22 22"
-            stroke="#F97316"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          />
-        </g>
-      </g>
-
-      {/* Robot Mascot holding Blue SD Card in foreground */}
-      <g transform="translate(222, 92)">
-        {/* Blue SD Card held on left */}
-        <g transform="translate(0, 26) rotate(-8)">
-          <path
-            d="M4 0H34L44 10V52C44 55.3 41.3 58 38 58H4C1.8 58 0 56.2 0 54V4C0 1.8 1.8 0 4 0Z"
-            fill="#1677FF"
-          />
-          <rect x="6" y="6" width="4" height="9" rx="1" fill="#FBBF24" />
-          <rect x="13" y="6" width="4" height="9" rx="1" fill="#FBBF24" />
-          <rect x="20" y="6" width="4" height="9" rx="1" fill="#FBBF24" />
-          <rect x="27" y="6" width="4" height="9" rx="1" fill="#FBBF24" />
-          <text
-            x="10"
-            y="44"
-            fill="white"
-            fontSize="14"
-            fontWeight="800"
-            fontFamily="sans-serif"
-          >
-            SD
-          </text>
-        </g>
-
-        {/* Robot Body & Head */}
-        <g transform="translate(36, 4)">
-          <rect
-            x="14"
-            y="48"
-            width="38"
-            height="36"
-            rx="16"
-            fill="white"
-            stroke="#93C5FD"
-            strokeWidth="2"
-          />
-          <rect x="22" y="56" width="22" height="14" rx="4" fill="#DBEAFE" />
-          {/* Head */}
-          <rect x="2" y="16" width="5" height="12" rx="2.5" fill="#1677FF" />
-          <rect x="59" y="16" width="5" height="12" rx="2.5" fill="#1677FF" />
-          <rect
-            x="6"
-            y="4"
-            width="54"
-            height="42"
-            rx="20"
-            fill="white"
-            stroke="#93C5FD"
-            strokeWidth="2"
-          />
-          <rect x="13" y="13" width="40" height="22" rx="10" fill="#0F172A" />
-          <ellipse cx="25" cy="24" rx="3.5" ry="4.5" fill="#38BDF8" />
-          <ellipse cx="41" cy="24" rx="3.5" ry="4.5" fill="#38BDF8" />
-        </g>
-      </g>
-    </svg>
   );
 }

@@ -84,10 +84,9 @@ export const en = {
     fileBackup: 'File Backup',
     hardwareDisk: 'Hardware Disk',
     sdCard: 'SD Card',
-    moreTools: 'More Recovery Tools',
     fileRepair: 'File Repair',
     lostPartition: 'Lost Partition Rescue',
-    chronoSnap: 'ChronoSnap Backup',
+    chronoSnap: 'Scan Snapshot',
     diskHealth: 'Disk Health',
     collapse: 'Collapse sidebar',
     expand: 'Expand sidebar',
@@ -135,32 +134,11 @@ export const en = {
     helpToast: 'Ensure the card reader is firmly connected and unlocked.',
   },
   tools: {
-    title: 'More Recovery Tools',
-    subtitle: 'Tackle complex data loss with our advanced recovery tools.',
-    crashedTitle: 'Crashed PC Rescue',
-    crashedBody: 'Create a bootable USB drive to recover data from an unbootable Windows PC',
-    nasTitle: 'NAS and Linux',
-    nasBody:
-      'Recover lost files from network-attached storage (NAS) or Linux-based storage devices with ease.',
-    raidTitle: 'RAID Recovery',
-    raidBody:
-      'Automatically reconstructs stripped, mirrored, or parity RAID arrays for safe data extraction.',
-    cloudTitle: 'Cloud Recovery',
-    cloudBody:
-      'Scan and recover deleted or lost data from cloud accounts and local sync directories.',
-    imageTitle: 'Image Recovery',
-    imageBody:
-      'Mount and scan raw disk images (.img, .iso, .vhd) to extract lost partitions and files.',
-    healthTitle: 'Disk Health',
-    healthBody:
-      'Monitor S.M.A.R.T. telemetry, temperature, and bad sectors to prevent hardware data loss.',
-    openTool: 'Open tool',
-    providerTitle: 'Advanced Recovery Module',
     providerBody:
       'This specialized module prepares a read-only recovery environment for complex storage topologies.',
   },
   backup: {
-    title: 'ChronoSnap Backup',
+    title: 'Scan Snapshot',
     subtitle: 'Create instant recovery checkpoints and resume saved scan sessions anytime.',
     featurePointTitle: 'Instant Session Snapshots',
     featurePointBody:

@@ -45,14 +45,14 @@ export function ResultsRoute(): React.JSX.Element {
   const partial = state.data.status === 'cancelled';
 
   return (
-    <div className="flex h-full min-h-0 flex-col">
+    <div className="flex h-full min-h-0 flex-col overflow-hidden">
       {partial ? (
         <PartialBanner
           targetId={state.data.params.targetId}
           pathScope={state.data.params.pathScope}
         />
       ) : null}
-      <div className="min-h-0 flex-1">
+      <div className="flex h-full min-h-0 flex-1 flex-col overflow-hidden">
         <ResultsExplorer scanId={scanId} liveMode={false} />
       </div>
     </div>
