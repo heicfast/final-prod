@@ -73,6 +73,17 @@ with open remainders) · INFO 22 (all ACKNOWLEDGED) · FIXED 76 finding
 files + RESOLVED-INDEX · tracked-open 16. Subsequent session-11 landings
 append their deltas below as they push.
 
+**Session-11 landing 1 — N-069 FIXED:** CAB lowercase-key parity. The og's
+registry carries duplicate keys for case-insensitive formats ("MSCF"/"mscf"
+— census :94, "deliberate registry bloat for correctness" :127); the core
+keyed uppercase only. `FMT_CAB_LC` appended (serialized ids stable) with a
+registry row sharing `validate_cab`; the fail-before run exposed a second
+site the fix plan missed — `validate_cab`'s internal uppercase-only magic
+re-check — now accepting exactly the two registered spellings.
+`Carve.CabLowercaseMagic` (fail-before: lowercase cabinet never probed;
+pass-after: both cases carve, lowercase node carries FMT_CAB_LC). Suite
+568/568 ASan; lint clean. Post-fix counts: MINOR 48 · FIXED 80 findings.
+
 # SUMMARY.md — executive summary (diff-fix session 9 on top; earlier sessions below)
 
 ## Session-9 delta (2026-10-26 — baseline repair + the SEVERE/MAJOR/MINOR fix waves)

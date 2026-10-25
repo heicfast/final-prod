@@ -36,10 +36,13 @@ constexpr u64 MAX_FILE_READ_FOR_HASH = 8ull << 20;
 /* specificity-first: same-magic families order their most specific
  * member first (DOCX>ZIP, CR2>DNG>TIFF, RAR5>RAR4, M4A>MP4/MOV) */
 constexpr u32 kTrialOrder[] = {
-    FMT_DOCX, FMT_ZIP, FMT_CR2, FMT_DNG, FMT_TIFF, FMT_MOV, FMT_MP4, FMT_HEIC, FMT_HEIF, FMT_JPG, FMT_PNG, /* N-052: HEIC heic-proper first; HEIF siblings follow */
+    FMT_DOCX, FMT_ZIP, FMT_CR2, FMT_DNG, FMT_TIFF, FMT_MOV, FMT_MP4, FMT_HEIC, FMT_HEIF, FMT_JPG,
+    FMT_PNG, /* N-052: HEIC heic-proper first; HEIF siblings follow */
     FMT_WEBP, FMT_WAV, FMT_PDF, FMT_7Z, FMT_SQLITE, FMT_AVI, FMT_MKV, FMT_RAR5, FMT_RAR4, FMT_PST,
-    FMT_ORF, FMT_RAF, FMT_TIFF_EP, FMT_RW2, FMT_PSD, /* N-053: TIFF/EP claims IIU before the RW2 fallback */ FMT_MP3, FMT_M4A, FMT_ASF, FMT_FLV, FMT_CAB, FMT_ISO,
-    FMT_TIFF_BE, FMT_ORF_IIRS, FMT_ORF_MMOR, FMT_ZIP_CD,
+    FMT_ORF, FMT_RAF, FMT_TIFF_EP, FMT_RW2, FMT_PSD,
+    /* N-053: TIFF/EP claims IIU before the RW2 fallback */ FMT_MP3, FMT_M4A, FMT_ASF, FMT_FLV,
+    FMT_CAB, FMT_ISO, FMT_TIFF_BE, FMT_ORF_IIRS, FMT_ORF_MMOR, FMT_ZIP_CD,
+    FMT_CAB_LC, /* N-069: lowercase CAB key follows its uppercase sibling (distinct magic) */
     /* S-007: the og's common formats - distinct magics (no overlap with
      * the entries above), so the placement after the specific set is
      * safe; FMT_MP3 (ID3-headed) stays ahead of the raw sync family. */
@@ -343,8 +346,7 @@ u32 scan_one_window(ScanCtx& ctx, u64 base, const u8* win, u64 want, std::set<u6
                                 len = lo + scanned + th.pos + 512;
                                 /* M-051: anchor B = the tail sign's exact position
                                  * (stride base + the sign's intra-stride offset) */
-                                tail_off = start_abs + lo + scanned + th.pos +
-                                           u64(th.sign->offset);
+                                tail_off = start_abs + lo + scanned + th.pos + u64(th.sign->offset);
                                 if (len > hi)
                                     len = hi;
                                 conf = u16((u32(best->conf) + u32(th.sign->conf)) / 2 + 100);

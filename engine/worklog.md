@@ -9210,6 +9210,8 @@ Stage Summary:
   [union-repaired by DFX11 session 11: the a3e5fd8 landing's merge left a
   committed '>>>>>>> 33c0722' tail here; both sides preserved - the
   DFX9-T1b entry above is the kept record]
+
+(union note: the parallel a3e5fd8 S-009-hardening landing ends here — marker stripped by the DFX16 union pass)
 ---
 Task ID: DFX9-T2 (lane claim — unclaimed MINOR high-value trio + module batches)
 Agent: main engineer (diff-to-fix session 9, the M-053/union-repair/S-009-hardening leg)
@@ -9512,3 +9514,49 @@ this worklog as each lands.
 
 Stage Summary:
 - Claim posted; execution begins with M-007.
+
+Task ID: DFX16-N069 (union-tree repair + first MINOR fix)
+Agent: main engineer (diff-to-fix session 11 — DFX16; see the DFX13-T1
+entry for this leg's ID history: DFX11 -> DFX13 (squatted) -> this leg
+now stamps DFX16 to stay unambiguous against the DFX14/DFX15 lanes)
+Task: Re-baseline the union tree; repair the 5aaf044 clobber if still
+needed; fix N-069 end to end with fail-before proof.
+
+Work Log:
+- Union-tree baseline: full suite 543/547 RED (4 S-009 disk-map tests).
+  Root-caused by worktree bisect: green at c55bd45 (S-009 landing), red
+  from 5aaf044 — the "style(lint)" commit that claimed content-identical
+  formatting but actually pushed STALE file versions, deleting the S-009
+  snapshot implementation from cr_ui.cpp and reverting N-042 + N-044 in
+  rrecov.cpp. Repaired locally (restore + clang-format, 547/547 green)
+  and pushed 786ff05; the parallel DFX14 lane landed the equivalent
+  repair c4e37d1 in the same window — rebase union kept theirs, my commit
+  dropped as superseded (recorded here; no duplicate repair in history).
+- Re-baselined on the union: 567/567 green at a3e5fd8 (S-030, M-002,
+  M-047, M-051 + S-009 hardening tests now in-tree from the parallel
+  lanes). Inventory: SEVERE 1 (S-029, claimed by DFX10's queue) · MAJOR
+  36 · MINOR 49 (41 unresolved files) · INFO 22 · FIXED 80 · OQ 16.
+- N-069 verified then fixed. Corpus: registry census :94 ("MSCF"/"mscf"
+  dual keys, FileCABAnalyser) + :127 (duplicate-key policy, no
+  case-folding). Fail-before executed: `Carve.CabLowercaseMagic` RED on
+  the pre-fix tree (lowercase CFHEADER never probed — exactly the
+  finding's falsifiable claim). Fix: FMT_CAB_LC appended to FormatId,
+  registry row {'m','s','c','f'} sharing validate_cab, trial-order slot
+  after FMT_CAB. The fail-before run exposed a SECOND site the fix plan
+  missed: validate_cab's internal uppercase-only memcmp re-check killed
+  the lowercase hits post-anchor — now accepts exactly the two
+  registered spellings (mixed case never anchors; no row keys it).
+  Pass-after: both cases carve, lowercase node carries FMT_CAB_LC;
+  registry F8 + self-probe gates pass (row appended, order = FormatId).
+- Full suite 568/568 green (linux-gcc RelWithDebInfo + ASan); clang-format
+  clean on all six touched files. Audit trail: Resolution in the finding,
+  moved to findings/FIXED/, RESOLVED-INDEX row, matrix carve cell
+  (B1/C19 -> FIXED), modules/carve.md verdict paragraph, SUMMARY
+  session-11 landing note (MINOR 48 · FIXED 80).
+
+Stage Summary:
+- Baseline honesty restored (the clobber is repaired by DFX14's union;
+  this leg's identical repair dropped as superseded, both attempts in
+  history). Session fix tally: 1 (N-069). Next: N-067 (exFAT upcase
+  validation), N-068 (ZIP EOCD anchor), then the naming/policy group
+  N-063/N-065.

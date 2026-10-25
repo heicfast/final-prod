@@ -332,3 +332,11 @@ Fail-before evidence for this session's independent run: 8/10 of this
 leg's tests RED on the stash-isolated pre-fix engine (the parallel leg's
 8 tests carry their own fail-by-absence proofs). Suite post-union:
 549/549 linux-release.
+
+**N-069 (MINOR, S5) — FIXED (s11):** the og's duplicate-key policy for
+case-insensitive formats is now mirrored — FMT_CAB_LC (lowercase `mscf`)
+is its own registry row sharing validate_cab, and the validator's internal
+magic re-check accepts exactly the two registered spellings (census :94,
+policy :127; mixed case never anchors — no row keys it).
+`Carve.CabLowercaseMagic` proves both cases carve; the lowercase node
+carries the distinct format id. B1/C19 verdict for this row: MATCH.

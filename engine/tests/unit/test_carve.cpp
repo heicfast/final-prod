@@ -1919,7 +1919,6 @@ TEST(CarveEngine, RawSignCarvedNodesCarryScanTimestamp) {
     EXPECT_GE(carved, 1) << "raw-sign layer emit not found";
 }
 
-
 TEST(CarveEngine, ScanTimestampSurvivesSessionRoundTrip) {
     /* the og PERSISTS the per-record timestamp (the CRAW string field);
      * our equivalent carrier is record 4's times.modified — the stamped
@@ -1977,7 +1976,7 @@ namespace {
 
 /* a minimal REAL-layout ZIP: one LFH (named entry + real data) + CD + EOCD */
 size_t plant_zip_with_data(std::vector<u8>& img, size_t at, const char* name,
-                            const std::vector<u8>& data) {
+                           const std::vector<u8>& data) {
     const size_t nlen = strlen(name);
     std::memcpy(img.data() + at, "PK\x03\x04", 4);
     put16(img, at + 4, 20);
@@ -2008,13 +2007,13 @@ size_t plant_zip_with_data(std::vector<u8>& img, size_t at, const char* name,
     const size_t cd_len = 46 + nlen;
     const size_t eocd_at = cd_at + cd_len;
     std::memcpy(img.data() + eocd_at, "PK\x05\x06", 4);
-    put16(img, eocd_at + 4, 0);  /* this disk */
-    put16(img, eocd_at + 6, 0);  /* disk with CD start */
-    put16(img, eocd_at + 8, 1);  /* entries this disk */
-    put16(img, eocd_at + 10, 1); /* total entries */
-    put32v(img, eocd_at + 12, u32(cd_len));       /* CD size */
-    put32v(img, eocd_at + 16, u32(local_len));    /* CD offset (LFH-relative) */
-    put16(img, eocd_at + 20, 0); /* comment len */
+    put16(img, eocd_at + 4, 0);                /* this disk */
+    put16(img, eocd_at + 6, 0);                /* disk with CD start */
+    put16(img, eocd_at + 8, 1);                /* entries this disk */
+    put16(img, eocd_at + 10, 1);               /* total entries */
+    put32v(img, eocd_at + 12, u32(cd_len));    /* CD size */
+    put32v(img, eocd_at + 16, u32(local_len)); /* CD offset (LFH-relative) */
+    put16(img, eocd_at + 20, 0);               /* comment len */
     return data_at;
 }
 
@@ -2034,14 +2033,14 @@ TEST(CarveEngine, ZipInnerEntryInventoryEmitted) {
     auto* root = tree.add_root(u"Lost Files");
     CarveFlags flags;
     CarveStats stats;
-    ASSERT_EQ(carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr,
-                          stats),
-              OK);
+    ASSERT_EQ(
+        carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, stats),
+        OK);
 
     tree::FileNode* zip_node = nullptr;
     for (tree::FileNode* c = root->first_child(); c; c = c->next_sibling())
-        if (c->props() && c->props()->carve_format == FMT_ZIP &&
-            !c->props()->extents.empty() && c->props()->extents.front().offset == 4096)
+        if (c->props() && c->props()->carve_format == FMT_ZIP && !c->props()->extents.empty() &&
+            c->props()->extents.front().offset == 4096)
             zip_node = c;
     ASSERT_NE(zip_node, nullptr) << "archive node not carved";
     ASSERT_EQ(tree::Origin::Carved, zip_node->origin());
@@ -2056,7 +2055,6 @@ TEST(CarveEngine, ZipInnerEntryInventoryEmitted) {
     EXPECT_EQ(tree::Origin::Carved, entry->origin());
     EXPECT_EQ(tree::DeletedState::Deleted, entry->deleted_state());
 }
-
 
 TEST(CarveEngine, ZipIndexlessEntryInventory) {
     /* CD destroyed: the LFH-chain walk (CARVE-2) still returns the
@@ -2082,14 +2080,14 @@ TEST(CarveEngine, ZipIndexlessEntryInventory) {
     auto* root = tree.add_root(u"Lost Files");
     CarveFlags flags;
     CarveStats stats;
-    ASSERT_EQ(carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr,
-                          stats),
-              OK);
+    ASSERT_EQ(
+        carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, stats),
+        OK);
 
     tree::FileNode* zip_node = nullptr;
     for (tree::FileNode* c = root->first_child(); c; c = c->next_sibling())
-        if (c->props() && c->props()->carve_format == FMT_ZIP &&
-            !c->props()->extents.empty() && c->props()->extents.front().offset == 4096) {
+        if (c->props() && c->props()->carve_format == FMT_ZIP && !c->props()->extents.empty() &&
+            c->props()->extents.front().offset == 4096) {
             zip_node = c;
             break; /* the FIRST archive: the second LFH re-carves as its own
                     * nested candidate (dedup keyed exact-start, the
@@ -2104,7 +2102,6 @@ TEST(CarveEngine, ZipIndexlessEntryInventory) {
     EXPECT_TRUE(names.count("first.bin"));
     EXPECT_TRUE(names.count("second.bin"));
 }
-
 
 TEST(CarveEngine, Rar4InnerEntryInventory) {
     /* a REAL-layout RAR4 (MARK 7B + MAIN_HEAD size@+12 + FILE_HEAD with a
@@ -2126,20 +2123,21 @@ TEST(CarveEngine, Rar4InnerEntryInventory) {
     put16(img, at + 12, 13); /* HEAD_SIZE - the corrected field position */
     /* FILE_HEAD at at+20 */
     const size_t fh = at + 20;
-    const size_t head_size = 32 + nlen; /* base7+pack4+unp4+host1+crc4+ftime4+ver1+method1+nsize2+attr4+name */
+    const size_t head_size =
+        32 + nlen; /* base7+pack4+unp4+host1+crc4+ftime4+ver1+method1+nsize2+attr4+name */
     put16(img, fh + 0, 0);
-    img[fh + 2] = 0x74; /* FILE */
+    img[fh + 2] = 0x74;         /* FILE */
     put16(img, fh + 3, 0x8000); /* LONG_BLOCK: PACK_SIZE follows */
     put16(img, fh + 5, u16(head_size));
-    put32v(img, fh + 7, u32(dlen));    /* PACK_SIZE */
-    put32v(img, fh + 11, u32(dlen));   /* UNP_SIZE */
-    img[fh + 15] = 0;                  /* HOST_OS */
-    put32v(img, fh + 16, 0);           /* FILE_CRC */
-    put32v(img, fh + 20, 0x60000000);  /* FTIME */
-    img[fh + 24] = 29;                 /* UNP_VER */
-    img[fh + 25] = 0x30;               /* METHOD stored */
-    put16(img, fh + 26, u16(nlen));    /* NAME_SIZE */
-    put32v(img, fh + 28, 0x20);        /* ATTR archive */
+    put32v(img, fh + 7, u32(dlen));   /* PACK_SIZE */
+    put32v(img, fh + 11, u32(dlen));  /* UNP_SIZE */
+    img[fh + 15] = 0;                 /* HOST_OS */
+    put32v(img, fh + 16, 0);          /* FILE_CRC */
+    put32v(img, fh + 20, 0x60000000); /* FTIME */
+    img[fh + 24] = 29;                /* UNP_VER */
+    img[fh + 25] = 0x30;              /* METHOD stored */
+    put16(img, fh + 26, u16(nlen));   /* NAME_SIZE */
+    put32v(img, fh + 28, 0x20);       /* ATTR archive */
     std::memcpy(img.data() + fh + 32, nm, nlen);
     memset(img.data() + fh + head_size, 0x5E, dlen);
     /* END block */
@@ -2154,9 +2152,9 @@ TEST(CarveEngine, Rar4InnerEntryInventory) {
     auto* root = tree.add_root(u"Lost Files");
     CarveFlags flags;
     CarveStats stats;
-    ASSERT_EQ(carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr,
-                          stats),
-              OK);
+    ASSERT_EQ(
+        carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, stats),
+        OK);
 
     tree::FileNode* rar_node = nullptr;
     for (tree::FileNode* c = root->first_child(); c; c = c->next_sibling())
@@ -2186,28 +2184,49 @@ static void mkv_header(std::vector<u8>& img, size_t at, const char* doctype) {
     const u32 payload = u32(2 + 1 + dtl + 4 + 4); /* DocType + Ver + ReadVer */
     img[at + 4] = u8(0x80 | payload);             /* 1-byte size vint */
     size_t p = at + 5;
-    img[p] = 0x42; img[p + 1] = 0x82;             /* DocType ID (0x4282) */
-    img[p + 2] = u8(0x80 | dtl);                  /* size = strlen */
+    img[p] = 0x42;
+    img[p + 1] = 0x82;           /* DocType ID (0x4282) */
+    img[p + 2] = u8(0x80 | dtl); /* size = strlen */
     std::memcpy(img.data() + p + 3, doctype, dtl);
     p += 3 + dtl;
-    img[p] = 0x42; img[p + 1] = 0x87; img[p + 2] = 0x81; img[p + 3] = 1; /* DocTypeVersion=1 */
-    img[p + 4] = 0x42; img[p + 5] = 0x86; img[p + 6] = 0x81; img[p + 7] = 1; /* ReadVersion=1 */
+    img[p] = 0x42;
+    img[p + 1] = 0x87;
+    img[p + 2] = 0x81;
+    img[p + 3] = 1; /* DocTypeVersion=1 */
+    img[p + 4] = 0x42;
+    img[p + 5] = 0x86;
+    img[p + 6] = 0x81;
+    img[p + 7] = 1; /* ReadVersion=1 */
 }
 
 static void iiu_tiff(std::vector<u8>& img, size_t at, u16 ifd_off, bool valid_ifd) {
     /* IIU\0 header + IFD at ifd_off (either a real 1-entry IFD or garbage) */
     u8* t = img.data() + at;
     std::memcpy(t, "IIU\x00", 4);
-    t[4] = u8(ifd_off); t[5] = u8(ifd_off >> 8); /* LE u16 @+4 */
+    t[4] = u8(ifd_off);
+    t[5] = u8(ifd_off >> 8); /* LE u16 @+4 */
     if (valid_ifd) {
         u8* f = img.data() + at + ifd_off;
-        f[0] = 1; f[1] = 0;                       /* 1 entry */
-        f[2] = 0x00; f[3] = 0x01;                 /* tag 0x0100 */
-        f[4] = 3; f[5] = 0;                       /* type SHORT */
-        f[6] = 5; f[7] = 0; f[8] = 0; f[9] = 0;   /* count 5 > 4 */
-        f[10] = 0xB0; f[11] = 0x04;               /* value offset 1200 */
-        f[12] = 0; f[13] = 0; f[14] = 0; f[15] = 0; /* data offset */
-        f[16] = 0; f[17] = 0; f[18] = 0; f[19] = 0; /* next IFD = 0 */
+        f[0] = 1;
+        f[1] = 0; /* 1 entry */
+        f[2] = 0x00;
+        f[3] = 0x01; /* tag 0x0100 */
+        f[4] = 3;
+        f[5] = 0; /* type SHORT */
+        f[6] = 5;
+        f[7] = 0;
+        f[8] = 0;
+        f[9] = 0; /* count 5 > 4 */
+        f[10] = 0xB0;
+        f[11] = 0x04; /* value offset 1200 */
+        f[12] = 0;
+        f[13] = 0;
+        f[14] = 0;
+        f[15] = 0; /* data offset */
+        f[16] = 0;
+        f[17] = 0;
+        f[18] = 0;
+        f[19] = 0;                                     /* next IFD = 0 */
         std::memset(img.data() + at + 1200, 0x5A, 10); /* value data */
     } else {
         std::memset(img.data() + at + ifd_off, 0xFF, 32); /* IFD walk will fail */
@@ -2255,7 +2274,8 @@ TEST(Carve, MkvElementBoundsGate) {
     std::vector<u8> img(64 * 1024, 0);
     u8* t = img.data() + 4096;
     std::memcpy(t, "\x1A\x45\xDF\xA3", 4);
-    t[4] = 0x42; t[5] = 0x08; /* vint: length 2, value 520 */
+    t[4] = 0x42;
+    t[5] = 0x08;                  /* vint: length 2, value 520 */
     std::memset(t + 6, 0x5A, 64); /* plausible payload (never read) */
     MemDevice dev(std::move(img));
     tree::ResultTree tree;
@@ -2264,7 +2284,8 @@ TEST(Carve, MkvElementBoundsGate) {
     CarveStats s;
     ASSERT_EQ(carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, s),
               OK);
-    EXPECT_EQ(find_carved_by_ext(root, "mkv"), nullptr) << "oversized header element must not carve";
+    EXPECT_EQ(find_carved_by_ext(root, "mkv"), nullptr)
+        << "oversized header element must not carve";
 }
 
 TEST(Carve, HeifSiblingBrandLabeledHeif) {
@@ -2394,11 +2415,14 @@ TEST(Carve, JpegFourthByteOutsideOgSet) {
      * validate_jpeg's grammar gates the false-positive surface. */
     std::vector<u8> img(256 * 1024, 0);
     const size_t at = 4096;
-    img[at] = 0xFF; img[at + 1] = 0xD8; img[at + 2] = 0xFF; img[at + 3] = 0x99;
+    img[at] = 0xFF;
+    img[at + 1] = 0xD8;
+    img[at + 2] = 0xFF;
+    img[at + 3] = 0x99;
     /* a valid body: APP0 marked as APP9 (marker 0xE9 is outside the og's
      * four) - reuse the grammar-complete shape with the 4th byte 0x99 */
     (void)plant_jpeg(img, at); /* overwrites the first bytes: re-stamp */
-    img[at + 3] = 0x99; /* plant_jpeg wrote 0xE0; stamp the superset byte */
+    img[at + 3] = 0x99;        /* plant_jpeg wrote 0xE0; stamp the superset byte */
     MemDevice dev(std::move(img));
     tree::ResultTree tree;
     auto* root = tree.add_root(u"Lost Files");
@@ -2408,6 +2432,81 @@ TEST(Carve, JpegFourthByteOutsideOgSet) {
               OK);
     auto* jpg = find_carved_by_ext(root, "jpg");
     ASSERT_NE(jpg, nullptr) << "FF D8 FF 99 (outside the og's 4-dword set) must carve here";
+}
+
+/* Build a minimal-but-grammar-valid CFHEADER at `at` with the magic in
+ * either case (MSCF / mscf). Layout: magic@0, reserved@4, cbCabinet@8,
+ * reserved@12, coffFiles@16, reserved@20, version@24, cFolders@26,
+ * cFiles@28, flags@30, setID@32, iCabinet@34. */
+static void cab_header(std::vector<u8>& img, size_t at, bool lower) {
+    auto put32 = [&](u32 x) {
+        img[at + 8] = u8(x);
+        img[at + 9] = u8(x >> 8);
+        img[at + 10] = u8(x >> 16);
+        img[at + 11] = u8(x >> 24);
+    };
+    (void)put32;
+    const char* magic = lower ? "mscf" : "MSCF";
+    for (int i = 0; i < 4; ++i)
+        img[at + i] = u8(magic[i]);
+    /* cbCabinet @8 = 4096 */
+    img[at + 8] = 0x00;
+    img[at + 9] = 0x10;
+    img[at + 10] = 0;
+    img[at + 11] = 0;
+    /* coffFiles @16 = 0x24 */
+    img[at + 16] = 0x24;
+    img[at + 17] = 0;
+    img[at + 18] = 0;
+    img[at + 19] = 0;
+    /* version 3.1 @24, cFolders=2 @26, cFiles=10 @28, flags=0 @30,
+     * setID=1 @32, iCabinet=0 @34; reserved fields stay zero */
+    img[at + 24] = 3;
+    img[at + 25] = 1;
+    img[at + 26] = 2;
+    img[at + 27] = 0;
+    img[at + 28] = 10;
+    img[at + 29] = 0;
+    img[at + 30] = 0;
+    img[at + 31] = 0;
+    img[at + 32] = 1;
+    img[at + 33] = 0;
+    img[at + 34] = 0;
+    img[at + 35] = 0;
+}
+
+TEST(Carve, CabLowercaseMagic) {
+    /* N-069: the og's registry carries BOTH keys for case-insensitive
+     * formats - "MSCF"/"mscf" are two separate registry rows (census :94,
+     * "deliberate registry bloat for correctness", :127). A cabinet whose
+     * CFHEADER spells the magic lowercase must carve exactly like the
+     * uppercase one (same validator, same ext). */
+    std::vector<u8> img(256 * 1024, 0);
+    cab_header(img, 4096, false); /* uppercase MSCF */
+    cab_header(img, 12288, true); /* lowercase mscf */
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"Lost Files");
+    CarveFlags flags;
+    CarveStats s;
+    ASSERT_EQ(carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, s),
+              OK);
+    const std::string dot_cab = ".cab";
+    size_t carved = 0;
+    tree::FileNode* lower_node = nullptr;
+    for (tree::FileNode* c = root->first_child(); c; c = c->next_sibling()) {
+        const std::string nm = c->name_utf8();
+        if (nm.size() > dot_cab.size() &&
+            nm.compare(nm.size() - dot_cab.size(), dot_cab.size(), dot_cab) == 0) {
+            ++carved;
+            if (c->props()->extents.front().offset == u64(12288))
+                lower_node = c;
+        }
+    }
+    EXPECT_EQ(carved, 2u) << "both magic cases must carve (og dual-key policy)";
+    ASSERT_NE(lower_node, nullptr) << "lowercase mscf cabinet must carve";
+    EXPECT_EQ(lower_node->props()->carve_format, u32(FMT_CAB_LC))
+        << "the lowercase key is its own registry row (the og's duplicate-key policy)";
 }
 
 /* ===================================================================== */
@@ -2443,8 +2542,7 @@ TEST(CarveEngine, ProvenanceChecksumAndAnchorsPersist) {
             ++checked;
             EXPECT_NE(c->props()->carve_checksum, 0xFFFFFFFFu)
                 << "readable record header must carry a real checksum";
-            if (c->props()->carve_checksum != 0xFFFFFFFFu &&
-                !c->props()->extents.empty()) {
+            if (c->props()->carve_checksum != 0xFFFFFFFFu && !c->props()->extents.empty()) {
                 u8 hdr[512];
                 const u64 off = c->props()->extents.front().offset;
                 const u64 ln = c->props()->extents.front().length;
@@ -2474,7 +2572,7 @@ TEST(CarveEngine, ProvenanceChecksumAndAnchorsPersist) {
 TEST(CarveEngine, TailAnchorCarriedOnTailPairedHits) {
     /* the raw-sign layer's tail-paired rows carry anchor B (the og's
      * +0x94 tail offset); the sqlite tail-pair fixture (S-015's proven
-    * shape) pins the anchor at the EOI position; header-only shapes
+     * shape) pins the anchor at the EOI position; header-only shapes
      * keep 0. */
     std::vector<u8> img(4 * 1024 * 1024, 0);
     const u64 start = 4096;
