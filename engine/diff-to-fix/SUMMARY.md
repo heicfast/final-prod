@@ -1,3 +1,42 @@
+# SUMMARY.md — executive summary (diff-fix session 14 on top; earlier sessions below)
+
+## Session-14 delta (2026-10-26 — DFX14: bootstrap, two merge repairs, the reconciliation wave)
+
+Session bootstrap `7c44bdc` (baseline **533/533** Linux Release, no flakes);
+corpus `03ad46c` unmoved. Two merges absorbed the parallel legs' landings
+(S-009 free-overlay by the DFX8-legacy lane c55bd45/74e4d36; N-020 doc drift
++ the DFX12 bookkeeping wave; N-042/N-044 + the DFX11 hygiene wave). The
+second merge caught and repaired a disguised rollback: **5aaf044
+("style(lint)") was a four-finding semantic clobber** — S-009's cr_ui.cpp
+snapshot capture, N-042's decidegrees print, N-044's --whole-disk rename, and
+M-012's cr_chain mirror scrutiny, 83 lines deleted under a formatting label.
+Restored from the verified-green f15c286 state in the same merge (c4e37d1);
+suite 547/547 then 553/553 proved it. Protocol lesson recorded: never absorb
+a "style" commit without diffing it.
+
+**N-073 FIXED-ALREADY (this push):** the ext4 CatchBuffer engine-path residual
+— N-004's transport-layer landing (`7f03c4b`) covers it by composition: every
+orchestrator-driven engine read goes through the retry pipe (cr_scan.cpp:714/
+723 pass `pipe` into run_quick/run_deep). Proven with the three engine-path
+tests this finding's own plan named, via an ExactFaultDevice alignment-fault
+model on the production pipe shape: `Ext4Engine.CatchBufferBacktrackSalvage`
+(tree intact, salvaged range never recorded bad), `Ext4Engine.BacktrackOff-
+ZeroFillsTheWindow` (the policy flag reproduces the pre-N-004 world — the
+finding's exact claim), `Ext4Engine.ZeroFillOnlyWhenBacktrackAlsoFails` (only
+the truly unreadable half zeroed; error map exactly [5632,512)). Suite
+**553/553**. Finding → FIXED/; RESOLVED-INDEX row; matrix ext4 row; ext4.md
+S35 + both index rows (incl. the N-057→N-073 renumbering correction).
+
+**M-029 duplicate reconciled (this push):** the merge-era fragment
+`M-029-query-model-gaps-sort-paging-buckets-server-push.md` (a stray session-5
+addendum under a duplicate ID — no title, no finding header) folded verbatim
+into the canonical M-029 file and removed. The canonical remains ACTIVE (Type
+sort key, bucket-ID translation, paging parity claim, server-side push).
+
+**Counts after this wave (direct file inventory):** SEVERE 2 (S-029, S-030) ·
+MAJOR 37 · MINOR 48 · INFO 22 (0 actionable) · tracked-open 16 · FIXED 82
+files (81 findings + RESOLVED-INDEX).
+
 # SUMMARY.md — executive summary (diff-fix session 11 on top; earlier sessions below)
 
 ## Session-11 delta (2026-10-26 — the MINOR-first close-out wave)

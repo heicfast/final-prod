@@ -49,7 +49,7 @@ Core (audited commit `67193b6`): `src/core/ext4/cr_ext4_engine.cpp` (851 LOC) +
 ## State machine
 
 - **S32** — `M` cancel per journal block / per inode window.
-- **S35** — **N-004** (CatchBuffer layering), `M` on SB-reject posture (core rejects
+- **S35** — ~~N-004~~ **FIXED** (`FIXED/N-004-N-006` group: RetryPolicy::backtrack at the transport layer) + ~~N-073~~ **FIXED-ALREADY** (FIXED/N-073, session 14: the ext4-path residual closed by the same landing, proven with 3 engine-path pin tests); `M` on SB-reject posture (core rejects
   invalid SB like og; no clamp-vs-reject divergence here — both reject on the quoted
   field set).
 
@@ -70,7 +70,8 @@ Core (audited commit `67193b6`): `src/core/ext4/cr_ext4_engine.cpp` (851 LOC) +
 |---|---|---|
 | S-004 | SEVERE | Journal salvage: descriptor-referenced only vs og every-block (+ jsb gate direction) — **FIXED `51ac671` (session-2 verified)** |
 | S-005 | SEVERE | Names byte-lifted → mojibake (cross-engine, filed here for ext4) — **FIXED (diff-to-fix session)** |
-| N-004 | MINOR | CatchBuffer backtrack lives in transport layer, not in-engine |
+| N-004 | MINOR | CatchBuffer backtrack lives in transport layer, not in-engine — **FIXED (transport landing, DFX12-reconciled)** |
+| N-073 | MINOR (s6) | The engine-path residual of the same salvage (this finding's text) — **FIXED-ALREADY (session 14: N-004's landing + engine-path pin tests)** |
 
 ## Corpus errata candidates surfaced by this wave
 
@@ -184,4 +185,4 @@ constant) — `tracked-open/OQ-Z-E-FLT-session3.md`.
 
 | ID | Severity | One-line |
 |---|---|---|
-| N-057 | MINOR | CatchBuffer bad-sector salvage: og re-reads a 1 KiB-backtrack shifted window on failure (ext4-engine--deep-dive.md:25-33); core zero-fills the extent after transport retries |
+| N-057→N-073 | MINOR | (renumbered at integration — the table's original N-057 ID was a pre-coordination session-6 local number) CatchBuffer bad-sector salvage: og re-reads a 1 KiB-backtrack shifted window on failure (ext4-engine--deep-dive.md:25-33); core zero-fills the extent after transport retries — **FIXED-ALREADY (session 14: N-004's transport landing covers it; 3 engine-path pin tests in test_ext4_volume.cpp)** |

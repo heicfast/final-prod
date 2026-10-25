@@ -8912,6 +8912,58 @@ Stage Summary:
 - The clobber is repaired; S-009/N-042/N-044/M-012 landings stand again.
   Watch for the clobbering lineage pushing the rollback forward - if it
   reappears, re-apply this repair and flag the lineage in this worklog.
+
+
+---
+Task ID: DFX14-T3 (the reconciliation queue: N-073 + the M-029 duplicate)
+Agent: main engineer (diff-to-fix session 14)
+Task: The unclaimed audit-trail reconciliation queue (per the DFX14 lane
+claim): classify N-073 (the "probable duplicate of N-004" per DFX12-T2) with
+execution proof; fold the duplicate M-029 pair flagged by DFX11/DFX12.
+
+Work Log:
+- N-073 verified per the SOP: premise TRUE at filing (zero backtrack sites),
+  stopped being true at N-004's landing 7f03c4b (RetryPolicy::backtrack at
+  the transport boundary). The engine-path coverage verified by composition:
+  cr_scan.cpp:714/723 pass the pipe (cache->RetryingDevice->shim->slice)
+  into run_quick/run_deep; scan_ext4 sets v.dev = that pipe (cr_ext4_engine
+  :663); read_extent_data's salvage sites (:495/:565/:592) cite exactly this
+  layering in-source.
+- Engine-path proof = the finding's own plan's tests, executed this session
+  on an ExactFaultDevice (alignment-fault model, exact (offset,length)
+  windows): CatchBufferBacktrackSalvage (fault defeats same-window retries
+  AND both bisect halves; only the 1 KiB-backtrack (4096,2048) succeeds;
+  tree intact; error map EMPTY - the og-parity "salvaged is never bad");
+  BacktrackOffZeroFillsTheWindow (backtrack OFF = the pre-N-004 world =
+  the finding's claim, whole-window zero-fill, metadata-only tree, full
+  span mapped); ZeroFillOnlyWhenBacktrackAlsoFails (low half real, high
+  half dead - tail.txt dirent in the dead half never surfaces; map exactly
+  [5632,512)). First run caught two test-construction defects (wrong
+  backtrack pair offset 4096 vs 4608; fixture dir-block gap broke the
+  parser walk before the tail dirent) - both fixed (pad dirent + correct
+  pairs); all three then green.
+- N-073 -> findings/FIXED/ with the Resolution; RESOLVED-INDEX row +
+  81-header; matrix ext4 row; modules/ext4.md: S35 row, findings-index
+  rows, and the session-6 table's stale N-057 ID corrected to N-073
+  (renumbered at integration - ext4.md:187 had carried the pre-coordination
+  local number).
+- M-029 pair reconciled: the fragment
+  M-029-query-model-gaps-sort-paging-buckets-server-push.md (stray session-5
+  addendum, no title/header, merge-era) folded VERBATIM into the canonical
+  M-029 file with a fold note; fragment removed (git history preserves it;
+  nothing referenced it by filename - all M-029 references are by ID).
+  The M-053 pair was verified already-reconciled (both files carry the
+  concurrent-filing sections; both RESOLVED-INDEX rows stand, one row per
+  file - the DFX12-T2 flag is closed by inspection).
+- SUMMARY session-14 delta on top; counts after the wave: SEVERE 2 (S-029,
+  S-030) / MAJOR 37 / MINOR 48 / INFO 22 (0 actionable) / tracked-open 16 /
+  FIXED 82 files (81 findings + index). Suite 553/553 (linux-release).
+
+Stage Summary:
+- Reconciliation queue CLOSED (all three DFX12-T2 flags resolved: M-053
+  already done, M-029 folded, N-073 classified+proven). DFX14 next: MAJOR
+  tier in module batches with per-finding claims (D-11 lane map above);
+  S-030 stays the DFX8-legacy lane's, S-029 the 5ff4db7 lineage's.
 ---
 Task ID: DFX9-T5 (M-047)
 Agent: main engineer (diff-to-fix closing session 9)
