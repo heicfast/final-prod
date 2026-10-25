@@ -1704,3 +1704,14 @@ Work Log:
 - Cross-read B-ntfs.md vs D-ntfs.md; spot-verified critical claims in code (is_metafile_name list, viability gate strict >, Overwritten emission path, mirror fallback record_no<4, bootstrap record-size rejection, Confidence/DeletedState enums).
 - Wrote findings: S-001 (overwritten-deleted emitted vs og destroy — SEVERE), M-001 (record-size reject vs og clamp — MAJOR), N-001 (MFTMirr hardcoded 0..3 — MINOR), I-001 (metafile filter deviation — INFO), OQ-T1 tracked-open (secondary claim map).
 - Wrote evidence/decompiled-quotes/ntfs-viability-and-filters.md (6 quotes with file+line), modules/ntfs.md (full parameter verdicts + 2 corpus errata candidates: runlist nibble prose, flags-0x10 conflict resolution).
+
+---
+Task ID: 6 (T6)
+Agent: main auditor
+Task: FAT + exFAT module audit
+
+Work Log:
+- Read B-fat/B-exfat/D-fat/D-exfat sheets; verified in code: FAT12 BAD canonicalization, EOC family handling in next()/follow_chain, mirror trigger, exFAT boot checksum skip bytes, entry-set checksum (set_ok → PartialRisk only, files kept), stream first-cluster gate.
+- SETTLED POLARITY CONFLICT: read exFATSearchDLL_decompiled.c:1846-1875 directly — stream dentry valid iff first_cluster != 1 && < 0xFFFFFFF7 (goto TRUE-return path). Core's AUDIT-FAT reading is CORRECT; artifact fat-exfat-engine-algorithms-v2 §3 polarity is INVERTED (corpus erratum candidate #6). Agent B's sheet had propagated the artifact reading.
+- Findings: I-002 (FAT12 BAD, INFO), N-002 (EOC families, MINOR), N-003 (exFAT entry-set checksum, MINOR), OQ-T2+OQ-T5 tracked-open (mirror trigger; ChecksumDBR predicate).
+- Wrote modules/fat.md, modules/exfat.md, evidence quotes Q1-Q4.
