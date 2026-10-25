@@ -18,6 +18,7 @@ import {
 import { Table, TableBody, TableCell, TableRow } from '@/components/ui/table';
 import { toast } from 'sonner';
 import { PaletteIcon } from 'lucide-react';
+import { AboutDialog } from './about-dialog';
 
 /** Picker order: app modes wrapping the adopted palettes (ADR-007). */
 const THEME_MODES: readonly ThemeMode[] = [
@@ -64,6 +65,7 @@ export function SettingsPage(): React.JSX.Element {
   const driver = useDriverStatus();
   const locale = isAppLocale(i18n.language) ? i18n.language : 'en';
   const [scale, setScaleState] = React.useState<number>(() => readStoredScale());
+  const [aboutOpen, setAboutOpen] = React.useState(false);
 
   const setScale = (next: number): void => {
     setScaleState(next);
@@ -171,9 +173,14 @@ export function SettingsPage(): React.JSX.Element {
       </section>
 
       <section aria-labelledby="settings-about">
-        <h2 id="settings-about" className="mb-3 text-base font-semibold">
-          {t('settings.aboutTitle')}
-        </h2>
+        <div className="mb-3 flex items-center justify-between">
+          <h2 id="settings-about" className="text-base font-semibold">
+            {t('settings.aboutTitle')}
+          </h2>
+          <Button variant="secondary" size="sm" onClick={() => setAboutOpen(true)}>
+            {t('nav.about')}
+          </Button>
+        </div>
         <div className="overflow-hidden rounded-lg border border-border bg-surface shadow-card">
           <Table>
             <TableBody>
@@ -219,6 +226,7 @@ export function SettingsPage(): React.JSX.Element {
           </Table>
         </div>
       </section>
+      <AboutDialog open={aboutOpen} onOpenChange={setAboutOpen} />
     </div>
   );
 }

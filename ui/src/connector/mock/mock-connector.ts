@@ -629,7 +629,7 @@ export class MockConnector {
       await latency(60, 30);
       const rt = this.requireScan(scanId);
       let nodes: TreeNode[];
-      if (mode === 'type') nodes = rt.space.typeTree(rt.scopeMask);
+      if (mode === 'type') nodes = rt.space.typeTree(rt.scopeMask, parentId);
       else if (mode === 'raw') nodes = rt.space.rawTree(rt.scopeMask);
       else nodes = rt.space.pathTreeChildren(parentId, rt.scopeMask);
       const vf = this.visibleFraction(rt);

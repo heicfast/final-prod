@@ -101,10 +101,16 @@ export function ResultsExplorer({
   );
   const total = pages.data?.pages[pages.data.pages.length - 1]?.total ?? 0;
 
-  // Default to the first loaded row when no explicit row has been clicked yet,
-  // matching the reference screenshots where row 0 is highlighted and its
-  // preview card is immediately populated in the right inspector pane.
-  const effectiveActiveNodeId = activeNodeId ?? rows[0]?.id ?? null;
+  React.useEffect(() => {
+    if (!activeNodeId) return;
+    const onKeyDown = (e: KeyboardEvent): void => {
+      if (e.key === 'Escape') {
+        setActiveNodeId(null);
+      }
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [activeNodeId]);
 
   const rowHeight = ui.viewMode === 'details' ? 42 : 96;
   const selectionSnapshot = React.useMemo(
@@ -194,7 +200,10 @@ export function ResultsExplorer({
       : rows.every((r) => selection.ids.has(r.id)));
 
   return (
-    <div className="flex h-full min-h-0 flex-col bg-surface">
+    <div
+      className="flex h-full min-h-0 flex-col overflow-hidden bg-surface"
+      onClick={() => setActiveNodeId(null)}
+    >
       {/* Sub-header Toolbar (matching reference screenshots: #EDF3FF bar with soft-blue nav buttons, breadcrumb, view toggle, Filter button, and search box) */}
       <div className="flex h-12 shrink-0 items-center gap-2 border-b border-[#D8E5FA] bg-[#EDF3FF] px-3 dark:border-border dark:bg-surface">
         <div className="flex items-center gap-1.5">
@@ -340,17 +349,20 @@ export function ResultsExplorer({
       {filterBarOpen ? <FilterBar /> : null}
 
       {/* 3-pane */}
-      <div className="flex min-h-0 flex-1">
+      <div className="flex min-h-0 flex-1 overflow-hidden">
         {/* Left tree */}
         <aside
-          className="w-60 shrink-0 overflow-y-auto border-r border-border bg-[#F5F8FF] dark:bg-surface"
+          className="h-full w-60 shrink-0 overflow-y-auto border-r border-border bg-[#F5F8FF] dark:bg-surface"
           aria-label={t('results.pathTab')}
         >
           <div className="p-2.5">
             <Segmented
               ariaLabel={t('results.pathTab')}
               value={filter.treeMode === 'raw' ? 'type' : filter.treeMode}
-              onChange={(v: ResultTreeMode) => filter.setTreeMode(v)}
+              onChange={(v: ResultTreeMode) => {
+                setActiveNodeId(null);
+                filter.setTreeMode(v);
+              }}
               className="w-full"
               options={[
                 { value: 'path', label: t('results.pathTab') },
@@ -362,15 +374,18 @@ export function ResultsExplorer({
             scanId={scanId}
             mode={filter.treeMode}
             selectedId={filter.treeNodeId}
-            onSelect={(nodeId) => filter.setTreeNode(nodeId)}
+            onSelect={(nodeId) => {
+              setActiveNodeId(null);
+              filter.setTreeNode(nodeId);
+            }}
           />
         </aside>
 
         {/* Center list */}
-        <div className="min-w-0 flex-1">
+        <div className="flex h-full min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
           <ContextMenu>
             <ContextMenuTrigger asChild>
-              <div className="h-full">
+              <div className="flex h-full min-h-0 flex-1 flex-col overflow-hidden">
                 {pages.isLoading ? (
                   <div className="space-y-px p-2">
                     {Array.from({ length: 14 }, (_, i) => (
@@ -405,10 +420,11 @@ export function ResultsExplorer({
                     selectedIds={selection.ids}
                     exclusions={selection.exclusions}
                     selectionMode={selection.mode}
-                    activeId={effectiveActiveNodeId}
+                    activeId={activeNodeId}
                     onRowClick={onRowClick}
                     onRowDoubleClick={(node) => setActiveNodeId(node.id)}
                     onCheckboxChange={(node) => selection.toggle(node.id)}
+                    onClearActive={() => setActiveNodeId(null)}
                     onSelectAll={(checked) => {
                       if (!checked) {
                         selection.clear();
@@ -448,8 +464,8 @@ export function ResultsExplorer({
                     selection.mode === 'ids' && selection.ids.size === 1
                       ? [...selection.ids][0]
                       : null;
-                  if (single ?? effectiveActiveNodeId)
-                    setActiveNodeId(single ?? effectiveActiveNodeId);
+                  const target = single ?? activeNodeId ?? rows[0]?.id ?? null;
+                  if (target) setActiveNodeId(target);
                 }}
               >
                 <SearchIcon aria-hidden />
@@ -480,7 +496,12 @@ export function ResultsExplorer({
                 {t('results.context.smartSelect')}
               </ContextMenuItem>
               <ContextMenuSeparator />
-              <ContextMenuItem onClick={() => selection.clear()}>
+              <ContextMenuItem
+                onClick={() => {
+                  selection.clear();
+                  setActiveNodeId(null);
+                }}
+              >
                 <XIcon aria-hidden />
                 {t('results.context.clearSelection')}
               </ContextMenuItem>
@@ -488,16 +509,22 @@ export function ResultsExplorer({
           </ContextMenu>
         </div>
 
-        {/* Right preview — resizable via the splitter drag handle
-            (corpus: QSplitter between tree/list and details pane). */}
-        <aside
-          className="relative shrink-0 overflow-y-auto border-l border-border bg-surface"
-          style={{ width: ui.previewPaneWidth }}
-          aria-label={t('preview.title')}
-        >
-          <PreviewPane scanId={scanId} nodeId={effectiveActiveNodeId} />
-          <PreviewPaneResizer />
-        </aside>
+        {/* Right preview — opens ONLY when a file row is clicked/selected, and closes when clicking outside */}
+        {activeNodeId ? (
+          <aside
+            className="relative h-full shrink-0 overflow-hidden border-l border-border bg-surface"
+            style={{ width: ui.previewPaneWidth }}
+            aria-label={t('preview.title')}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <PreviewPane
+              scanId={scanId}
+              nodeId={activeNodeId}
+              onClose={() => setActiveNodeId(null)}
+            />
+            <PreviewPaneResizer />
+          </aside>
+        ) : null}
       </div>
 
       {/* Bottom status bar — rendered here only when NOT in liveMode

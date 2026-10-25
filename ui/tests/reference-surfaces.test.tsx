@@ -6,7 +6,7 @@ import { ThemeProvider } from '@/app/theme';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { WizardShell } from '@/app/shell';
 import { SdCardPage } from '@/features/device-selection/sd-card-page';
-import { ToolsPage } from '@/features/tools/tools-page';
+import { HealthPage } from '@/features/health/health-page';
 import { BackupPage } from '@/features/backup/backup-page';
 import { RepairPage } from '@/features/repair/repair-page';
 import { LostPartitionPage } from '@/features/lost-partition/lost-partition-page';
@@ -39,18 +39,15 @@ describe('reference UI surfaces and sidebar', () => {
     expect(screen.queryByText(/built-in simulator/i)).toBeNull();
     expect(screen.getByText('Hardware Disk')).toBeVisible();
     expect(screen.getByText('SD Card')).toBeVisible();
-    expect(screen.getByText('More Recovery Tools')).toBeVisible();
+    expect(screen.getByText('Disk Health')).toBeVisible();
     expect(screen.getByText('File Repair')).toBeVisible();
     expect(screen.getByText('Lost Partition Rescue')).toBeVisible();
-    expect(screen.getByText('ChronoSnap Backup')).toBeVisible();
+    expect(screen.getByText('Scan Snapshot')).toBeVisible();
   });
 
-  it('opens the robot helper popover ("Hi! Guess you need:") from the title bar', async () => {
+  it('does not render any robot/AI mascot icon in the title bar', () => {
     wrap(<WizardShell />);
-    fireEvent.click(screen.getByRole('button', { name: /recovery assistant/i }));
-    expect(await screen.findByText(/hi! guess you need:/i)).toBeVisible();
-    expect(screen.getByText(/unable to find your hard drive\?/i)).toBeVisible();
-    expect(screen.getByText(/try advanced file repair/i)).toBeVisible();
+    expect(screen.queryByRole('button', { name: /recovery assistant/i })).toBeNull();
   });
 
   it('renders the Activate dialog with Paste bubble, Activate CTA, and Buy a License Now button', async () => {
@@ -63,59 +60,60 @@ describe('reference UI surfaces and sidebar', () => {
     expect(screen.getByRole('button', { name: /buy a license now/i })).toBeVisible();
   });
 
-  it('renders the SD Card page with SDR, SSR, DVR columns and detection banner', () => {
+  it('renders the SD Card page with SD/MMC/MS PRO row, SDR/SSR/DVR columns, and Search for Lost Data CTA', () => {
     wrap(<SdCardPage />, '/sd-card');
     expect(
       screen.getByRole('heading', {
         name: /connect your memory card to recover lost photos & videos/i,
       }),
     ).toBeVisible();
+    expect(screen.getByText('SD/MMC/MS PRO')).toBeVisible();
     expect(screen.getByText('Fix SD card access')).toBeVisible();
     expect(screen.getByText('Photos that open')).toBeVisible();
     expect(screen.getByText('Video that play')).toBeVisible();
     expect(screen.getByRole('button', { name: /show all external devices/i })).toBeVisible();
+    expect(screen.getByRole('button', { name: /search for lost data/i })).toBeVisible();
   });
 
-  it('renders More Recovery Tools with all 6 reference cards and opens tool dialog', async () => {
-    wrap(<ToolsPage />, '/tools');
-    expect(screen.getByRole('heading', { name: /more recovery tools/i })).toBeVisible();
-    expect(screen.getByText('Crashed PC Rescue')).toBeVisible();
-    expect(screen.getByText('NAS and Linux')).toBeVisible();
-    expect(screen.getByText('RAID Recovery')).toBeVisible();
-    expect(screen.getByText('Cloud Recovery')).toBeVisible();
-    expect(screen.getByText('Image Recovery')).toBeVisible();
-    expect(screen.getByText('Disk Health')).toBeVisible();
-    fireEvent.click(screen.getByText('Crashed PC Rescue'));
-    expect(await screen.findByRole('dialog', { name: /crashed pc rescue/i })).toBeVisible();
+  it('renders the redesigned Disk Health page directly', async () => {
+    wrap(<HealthPage />, '/health');
+    expect(await screen.findByRole('heading', { name: /disk health/i })).toBeVisible();
+    expect(await screen.findByText(/s\.m\.a\.r\.t\. attributes/i)).toBeVisible();
   });
 
-  it('renders File Repair landing view with 3 repair rows and Start CTA', () => {
+  it('renders File Repair directly on Add Files Dropzone -> Queue & Repair All', () => {
     wrap(<RepairPage />, '/repair');
     expect(
       screen.getByRole('heading', {
         name: /repair corrupted videos, photos and documents/i,
       }),
     ).toBeVisible();
-    expect(screen.getByText('Repair corrupted or unplayable videos')).toBeVisible();
-    expect(screen.getByText('Repair damaged or partially missing photos')).toBeVisible();
-    expect(screen.getByText('Repair damaged or cannot be opened documents')).toBeVisible();
-    expect(screen.getByRole('button', { name: /^start$/i })).toBeVisible();
+    expect(
+      screen.getByText(/click or drag files from your local disk to start the repair/i),
+    ).toBeVisible();
+    fireEvent.click(screen.getByRole('button', { name: /add files/i }));
+    expect(screen.getByText('WinMemoryCleaner (1).exe')).toBeVisible();
+    expect(screen.getByRole('button', { name: /repair all/i })).toBeVisible();
   });
 
-  it('renders Lost Partition Rescue landing view with 3 partition rows and Start CTA', async () => {
+  it('renders Lost Partition Rescue directly on Disk Selection -> Smart Partition Scan Completed', async () => {
     wrap(<LostPartitionPage />, '/lost-partition');
     expect(
       await screen.findByRole('heading', { name: /lost partition rescue/i }),
     ).toBeVisible();
-    expect(screen.getByText('Partition Missing')).toBeVisible();
-    expect(screen.getByText('Partition Cannot Be Opened')).toBeVisible();
-    expect(screen.getByText('BitLocker Partition Missing/Damaged')).toBeVisible();
-    expect(screen.getByRole('button', { name: /^start$/i })).toBeVisible();
+    expect(
+      screen.getByText(/choose a disk to start searching for lost partition\(s\)/i),
+    ).toBeVisible();
+    fireEvent.click(screen.getByRole('button', { name: /search for lost partition/i }));
+    expect(
+      screen.getByRole('heading', { name: /smart partition scan completed/i }),
+    ).toBeVisible();
+    expect(screen.getByRole('button', { name: /try data recovery/i })).toBeVisible();
   });
 
-  it('renders ChronoSnap Backup page', () => {
+  it('renders Scan Snapshot page', () => {
     wrap(<BackupPage />, '/backup');
-    expect(screen.getByRole('heading', { name: /chronosnap backup/i })).toBeVisible();
+    expect(screen.getByRole('heading', { name: /scan snapshot/i })).toBeVisible();
     expect(screen.getByText('Saved Recovery Checkpoints')).toBeVisible();
   });
 });

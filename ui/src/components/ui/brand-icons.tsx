@@ -41,40 +41,6 @@ export function BrandBriefcaseLogo({ className }: { className?: string }): React
   );
 }
 
-export function RobotMascotAvatar({ className }: { className?: string }): React.JSX.Element {
-  return (
-    <svg
-      viewBox="0 0 36 36"
-      fill="none"
-      className={cn('size-6 shrink-0', className)}
-      aria-hidden
-    >
-      <circle cx="18" cy="18" r="16" fill="#D6E6FF" />
-      <rect x="5" y="15" width="3" height="7" rx="1.5" fill="#1677FF" />
-      <rect x="28" y="15" width="3" height="7" rx="1.5" fill="#1677FF" />
-      <rect
-        x="7.5"
-        y="10"
-        width="21"
-        height="16.5"
-        rx="8.25"
-        fill="white"
-        stroke="#4096FF"
-        strokeWidth="1.5"
-      />
-      <rect x="10.5" y="13.5" width="15" height="8.5" rx="4.25" fill="#0F172A" />
-      <circle cx="14.8" cy="17.8" r="1.8" fill="#38BDF8" />
-      <circle cx="21.2" cy="17.8" r="1.8" fill="#38BDF8" />
-      <path
-        d="M16 23.5C16.8 24.2 19.2 24.2 20 23.5"
-        stroke="#1677FF"
-        strokeWidth="1.3"
-        strokeLinecap="round"
-      />
-    </svg>
-  );
-}
-
 export function SidebarHardwareDiskIcon({
   className,
 }: {
@@ -182,47 +148,21 @@ export function SidebarMoreToolsIcon({ className }: { className?: string }): Rea
     >
       <rect
         x="2.8"
-        y="2.8"
-        width="6"
-        height="6"
-        rx="1.4"
+        y="2.5"
+        width="13.5"
+        height="15"
+        rx="2.2"
         fill="#E2ECFF"
         fillOpacity="0.85"
         stroke="currentColor"
         strokeWidth="1.35"
       />
-      <rect
-        x="2.8"
-        y="11.2"
-        width="6"
-        height="6"
-        rx="1.4"
-        fill="#E2ECFF"
-        fillOpacity="0.85"
-        stroke="currentColor"
-        strokeWidth="1.35"
-      />
-      <rect
-        x="11.2"
-        y="11.2"
-        width="6"
-        height="6"
-        rx="1.4"
-        fill="#93C5FD"
-        fillOpacity="0.85"
-        stroke="currentColor"
-        strokeWidth="1.35"
-      />
-      <rect
-        x="14.2"
-        y="2.1"
-        width="5.6"
-        height="5.6"
-        rx="1.3"
-        transform="rotate(35 14.2 2.1)"
-        fill="#60A5FA"
+      <path
+        d="M5.2 10.2H7.6L8.9 7.2L10.8 13L12.1 10.2H14.2"
         stroke="#1677FF"
-        strokeWidth="1.3"
+        strokeWidth="1.45"
+        strokeLinecap="round"
+        strokeLinejoin="round"
       />
     </svg>
   );
@@ -353,11 +293,16 @@ export function SidebarChronoSnapIcon({
 
 export function Drive3dIcon({
   isSystemDrive,
+  bitlocker,
+  bitlockerLocked,
   className,
 }: {
   isSystemDrive?: boolean;
+  bitlocker?: boolean | 'unlocked' | 'locked';
+  bitlockerLocked?: boolean;
   className?: string;
 }): React.JSX.Element {
+  const isLocked = bitlocker === 'locked' || Boolean(bitlockerLocked);
   return (
     <div
       className={cn('relative flex size-12 shrink-0 items-center justify-center', className)}
@@ -406,6 +351,44 @@ export function Drive3dIcon({
           <span className="bg-[#0078D4]" />
           <span className="bg-[#0078D4]" />
         </span>
+      ) : null}
+      {bitlocker ? (
+        <svg
+          viewBox="0 0 16 16"
+          fill="none"
+          className="absolute bottom-0.5 right-0 size-[17px] bg-transparent drop-shadow-[0_1px_1.5px_rgba(15,23,42,0.25)]"
+          aria-hidden
+        >
+          {isLocked ? (
+            /* Closed shackle (BitLocker locked) */
+            <path
+              d="M4.8 7V4.4C4.8 2.6 6.2 1.2 8 1.2C9.8 1.2 11.2 2.6 11.2 4.4V7"
+              stroke="#64748B"
+              strokeWidth="1.65"
+              strokeLinecap="round"
+            />
+          ) : (
+            /* Open shackle (BitLocker unlocked) */
+            <path
+              d="M4.8 7V4.2C4.8 2.4 6.2 1.1 8 1.1C9.5 1.1 10.7 2 11.1 3.3"
+              stroke="#64748B"
+              strokeWidth="1.65"
+              strokeLinecap="round"
+            />
+          )}
+          <rect
+            x="3"
+            y="6.6"
+            width="10"
+            height="7.6"
+            rx="1.6"
+            fill={isLocked ? '#F59E0B' : '#0078D4'}
+            stroke="white"
+            strokeWidth="0.9"
+          />
+          <circle cx="8" cy="10" r="1.15" fill="white" />
+          <path d="M8 10.8V12.4" stroke="white" strokeWidth="1.1" strokeLinecap="round" />
+        </svg>
       ) : null}
     </div>
   );

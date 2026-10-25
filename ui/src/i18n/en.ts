@@ -33,14 +33,6 @@ export const en = {
     providerUnavailable:
       'Licensing server could not verify this code offline. No license was activated.',
   },
-  guide: {
-    trigger: 'Recovery Assistant',
-    panelTitle: 'Hi! Guess you need:',
-    missing: 'Unable to find your hard drive?',
-    damaged: 'Try Advanced File Repair',
-    deleted: 'Quick start guide',
-    chat: 'Chat with us',
-  },
   menu: {
     label: 'Menu',
   },
@@ -84,10 +76,9 @@ export const en = {
     fileBackup: 'File Backup',
     hardwareDisk: 'Hardware Disk',
     sdCard: 'SD Card',
-    moreTools: 'More Recovery Tools',
     fileRepair: 'File Repair',
     lostPartition: 'Lost Partition Rescue',
-    chronoSnap: 'ChronoSnap Backup',
+    chronoSnap: 'Scan Snapshot',
     diskHealth: 'Disk Health',
     collapse: 'Collapse sidebar',
     expand: 'Expand sidebar',
@@ -135,32 +126,11 @@ export const en = {
     helpToast: 'Ensure the card reader is firmly connected and unlocked.',
   },
   tools: {
-    title: 'More Recovery Tools',
-    subtitle: 'Tackle complex data loss with our advanced recovery tools.',
-    crashedTitle: 'Crashed PC Rescue',
-    crashedBody: 'Create a bootable USB drive to recover data from an unbootable Windows PC',
-    nasTitle: 'NAS and Linux',
-    nasBody:
-      'Recover lost files from network-attached storage (NAS) or Linux-based storage devices with ease.',
-    raidTitle: 'RAID Recovery',
-    raidBody:
-      'Automatically reconstructs stripped, mirrored, or parity RAID arrays for safe data extraction.',
-    cloudTitle: 'Cloud Recovery',
-    cloudBody:
-      'Scan and recover deleted or lost data from cloud accounts and local sync directories.',
-    imageTitle: 'Image Recovery',
-    imageBody:
-      'Mount and scan raw disk images (.img, .iso, .vhd) to extract lost partitions and files.',
-    healthTitle: 'Disk Health',
-    healthBody:
-      'Monitor S.M.A.R.T. telemetry, temperature, and bad sectors to prevent hardware data loss.',
-    openTool: 'Open tool',
-    providerTitle: 'Advanced Recovery Module',
     providerBody:
       'This specialized module prepares a read-only recovery environment for complex storage topologies.',
   },
   backup: {
-    title: 'ChronoSnap Backup',
+    title: 'Scan Snapshot',
     subtitle: 'Create instant recovery checkpoints and resume saved scan sessions anytime.',
     featurePointTitle: 'Instant Session Snapshots',
     featurePointBody:
@@ -178,22 +148,8 @@ export const en = {
   },
   lostPartition: {
     title: 'Lost Partition Rescue',
-    subtitle: 'Instantly recover missing or damaged partitions',
-    scenarioMissing: {
-      title: 'Partition Missing',
-      body: 'Recover partitions showing as "Unallocated Space" or "RAW" in Disk Management',
-    },
-    scenarioUnopenable: {
-      title: 'Partition Cannot Be Opened',
-      body: 'Fix partitions displaying "Access Denied" or "Format Required" prompts',
-    },
-    scenarioBitlocker: {
-      title: 'BitLocker Partition Missing/Damaged',
-      body: 'Repair lost or corrupted BitLocker partitions',
-    },
-    bitlockerNote: 'Encrypted volumes require the BitLocker recovery key.',
+    subtitle: 'Choose a disk to start searching for lost partition(s)',
     diskList: 'Choose a disk to search',
-    start: 'Start',
   },
   scan: {
     filesFoundWithSize: 'Files Found: {{count}} ({{size}})',
@@ -427,10 +383,6 @@ export const en = {
   repair: {
     title: 'Repair Corrupted Videos, Photos and Documents',
     introBody: 'Add corrupted files to easily repair them.',
-    featureVideo: 'Repair corrupted or unplayable videos',
-    featurePhoto: 'Repair damaged or partially missing photos',
-    featureDoc: 'Repair damaged or cannot be opened documents',
-    start: 'Start',
     findings: 'Findings',
     noFindings: 'No repairable problems were found.',
     fix: 'Repair {{count}} problem',

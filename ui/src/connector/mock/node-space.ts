@@ -537,6 +537,16 @@ export class NodeSpace {
       if (SPECIAL_PATH_GROUPS.includes(nodeScope as (typeof SPECIAL_PATH_GROUPS)[number])) {
         if (nodeScope === 'lost-paths' && origin !== 'lost-path') return false;
         if (nodeScope === 'raw-all' && origin !== 'raw') return false;
+      } else if (nodeScope === 'lost-root') {
+        if (origin !== 'lost-path') return false;
+      } else if (nodeScope.startsWith('lost-d')) {
+        if (origin !== 'lost-path') return false;
+        if (this.fDir[i] !== Number(nodeScope.slice(6))) return false;
+      } else if (nodeScope === 'recon-root') {
+        if (origin !== 'raw' && origin !== 'deleted') return false;
+      } else if (nodeScope.startsWith('recon-d')) {
+        if (origin !== 'raw' && origin !== 'deleted') return false;
+        if (this.fDir[i] !== Number(nodeScope.slice(7))) return false;
       } else if (nodeScope === 'root') {
         if (origin !== 'existing' && origin !== 'deleted') return false;
       } else if (nodeScope.startsWith('d')) {
@@ -545,7 +555,11 @@ export class NodeSpace {
         if (this.fDir[i] !== Number(nodeScope.slice(1))) return false;
       }
     } else if (filter.nodeId && filter.treeMode === 'type') {
-      if (filter.nodeId.startsWith('c')) {
+      if (filter.nodeId.startsWith('ext:')) {
+        const [, catId, extWanted] = filter.nodeId.split(':');
+        if (catId && this.categoryOf(i) !== catId) return false;
+        if (extWanted && this.extensionOf(i) !== extWanted) return false;
+      } else if (filter.nodeId.startsWith('c')) {
         const wanted = CATEGORY_IDS[Number(filter.nodeId.slice(1))];
         if (wanted && this.categoryOf(i) !== wanted) return false;
       }
@@ -695,13 +709,14 @@ export class NodeSpace {
       const lostSize = this.sizeByOrigin('lost-path', scope);
       const rawCount = this.countByOrigin('raw', scope);
       const rawSize = this.sizeByOrigin('raw', scope);
+      const rootChildrenCount = this.childrenOf.get('root')?.length ?? 0;
       return [
         {
           id: 'root',
           parentId: null,
           label: 'root',
           icon: 'device',
-          childCount: this.childrenOf.get('root')?.length ?? 0,
+          childCount: rootChildrenCount,
           fileCount: rootRec.fileCount,
           sizeBytes: rootRec.sizeBytes,
           origin: 'existing',
@@ -711,7 +726,7 @@ export class NodeSpace {
           parentId: null,
           label: 'lost-paths',
           icon: 'group',
-          childCount: 0,
+          childCount: rootChildrenCount > 0 ? 1 : 0,
           fileCount: lostCount,
           sizeBytes: lostSize,
           origin: 'lost-path',
@@ -722,7 +737,7 @@ export class NodeSpace {
           parentId: null,
           label: 'raw',
           icon: 'group',
-          childCount: 0,
+          childCount: rootChildrenCount > 0 ? 1 : 0,
           fileCount: rawCount,
           sizeBytes: rawSize,
           origin: 'raw',
@@ -730,8 +745,73 @@ export class NodeSpace {
         },
       ];
     }
-    if (parentId === 'lost-paths' || parentId === 'raw-all') {
-      return []; // flat groups — their files are listed via query()
+    if (parentId === 'lost-paths') {
+      const lostCount = this.countByOrigin('lost-path', scope);
+      const lostSize = this.sizeByOrigin('lost-path', scope);
+      return [
+        {
+          id: 'lost-root',
+          parentId: 'lost-paths',
+          label: 'Windows',
+          icon: 'directory',
+          childCount: this.childrenOf.get('root')?.length ?? 0,
+          fileCount: lostCount,
+          sizeBytes: lostSize,
+          origin: 'lost-path',
+        },
+      ];
+    }
+    if (parentId === 'raw-all') {
+      const rawCount = this.countByOrigin('raw', scope);
+      const rawSize = this.sizeByOrigin('raw', scope);
+      return [
+        {
+          id: 'recon-root',
+          parentId: 'raw-all',
+          label: 'Windows',
+          icon: 'directory',
+          childCount: this.childrenOf.get('root')?.length ?? 0,
+          fileCount: rawCount,
+          sizeBytes: rawSize,
+          origin: 'raw',
+        },
+      ];
+    }
+    if (parentId === 'lost-root' || parentId.startsWith('lost-d')) {
+      const underlyingParent =
+        parentId === 'lost-root' ? 'root' : `d${parentId.slice('lost-d'.length)}`;
+      const kidIds = this.childrenOf.get(underlyingParent) ?? [];
+      return kidIds
+        .map((kid) => this.dirIndexById.get(kid))
+        .filter((rec): rec is DirectoryRecord => Boolean(rec))
+        .map((rec) => ({
+          id: `lost-${rec.id}`,
+          parentId,
+          label: rec.name,
+          icon: 'directory' as const,
+          childCount: this.childrenOf.get(rec.id)?.length ?? 0,
+          fileCount: Math.max(1, Math.round(rec.fileCount * 0.2)),
+          sizeBytes: Math.round(rec.sizeBytes * 0.2),
+          origin: 'lost-path' as const,
+        }));
+    }
+    if (parentId === 'recon-root' || parentId.startsWith('recon-d')) {
+      const underlyingParent =
+        parentId === 'recon-root' ? 'root' : `d${parentId.slice('recon-d'.length)}`;
+      const kidIds = this.childrenOf.get(underlyingParent) ?? [];
+      return kidIds
+        .map((kid) => this.dirIndexById.get(kid))
+        .filter((rec): rec is DirectoryRecord => Boolean(rec))
+        .map((rec) => ({
+          id: `recon-${rec.id}`,
+          parentId,
+          label: rec.name,
+          icon: 'directory' as const,
+          childCount: this.childrenOf.get(rec.id)?.length ?? 0,
+          fileCount: Math.max(1, Math.round(rec.fileCount * 0.3)),
+          sizeBytes: Math.round(rec.sizeBytes * 0.3),
+          origin: 'raw' as const,
+        }));
     }
     const kidIds = this.childrenOf.get(parentId) ?? [];
     const out: TreeNode[] = [];
@@ -785,14 +865,39 @@ export class NodeSpace {
     }));
   }
 
-  typeTree(scope: Uint8Array | null = null): TreeNode[] {
+  typeTree(scope: Uint8Array | null = null, parentId: string | null = null): TreeNode[] {
+    if (parentId && parentId.startsWith('c')) {
+      const catIdx = Number(parentId.slice(1));
+      const cat = CATEGORY_IDS[catIdx];
+      if (!cat) return [];
+      const extCounts = new Map<string, { count: number; size: number }>();
+      for (let i = 0; i < this.fileCount; i++) {
+        if (!this.inScope(i, scope)) continue;
+        if (this.fCat[i] !== catIdx) continue;
+        const ext = this.extensionOf(i);
+        const cur = extCounts.get(ext) ?? { count: 0, size: 0 };
+        cur.count += 1;
+        cur.size += this.fSize[i] ?? 0;
+        extCounts.set(ext, cur);
+      }
+      return [...extCounts.entries()].map(([ext, info]) => ({
+        id: `ext:${cat}:${ext}`,
+        parentId,
+        label: ext.toUpperCase(),
+        icon: 'directory' as const,
+        childCount: 0,
+        fileCount: info.count,
+        sizeBytes: info.size,
+        origin: 'existing' as const,
+      }));
+    }
     const agg = this.categoryAggregates(scope);
     return CATEGORY_IDS.map((cat, idx) => ({
       id: `c${idx}`,
       parentId: 'root',
       label: cat,
       icon: 'category' as const,
-      childCount: 0,
+      childCount: agg[idx].count > 0 ? 1 : 0,
       fileCount: agg[idx].count,
       sizeBytes: agg[idx].size,
       origin: 'existing' as const,
