@@ -60,3 +60,19 @@ None — root cause executed and proven deterministic on both lanes.
 **Fixed in commit:** (this session's M-053 commit — see `git log` for "fix: M-053")
 **Verified by:** `cr_ui_abi_check` exits 0 with the full C lifecycle green ("cr_ui_abi_check: OK (4 progress calls, 0 recovery calls)") on BOTH the release lane and the ASan lane (`ASAN_OPTIONS=detect_leaks=0`, local execution this session); fail-before executed and recorded above (exit 139 / SEGV at baseline, first true failure `cr_ui_scan_run` → `ERR_BAD_MAGIC` with the deterministic plain-C reproducer isolating the media-word pair as the sole differing bytes).
 **Resolution notes:** Root cause was the fixture, not the engine — M-015's exact-pair validator is correct og parity (`CFAT16` FUN_180041b00), so the fix adds the canonical real-volume media words to `tests/ui_abi_check.c build_fat16()` (both FAT copies), exactly matching the C++ fixtures the M-015 commit itself updated. The second half hardens the check's control flow: a failed `cr_ui_scan_run` now halts the check with the diagnostic (`cr_ui_last_error()`) and a clean exit 1 instead of cascading CHECK failures into the `rows[0]` NULL deref — modeling what a real C consumer does with a failed precondition. No production code changed. The C ABI consumer gate is live again on every push (ctest); future C-surface regressions will be caught.
+
+### Concurrent-filing reconciliation (session 9, both legs preserved)
+
+A parallel session (this file's author, landing `7c44bdc`) and the session-9
+diff-fix leg independently root-caused and fixed this same regression in the
+same window — the parallel lane via a deterministic plain-C reproducer and
+this landing (fixture + guard), the session-9 leg via a worktree bisect
+pinned at the regression point (`63d9067` green / `6dc1e32` SEGV) with the
+full causal-chain repro. The session-9 leg filed the same defect as
+`M-053-m015-landing-missed-c-consumer-fixture-ci-red.md` (kept side-by-side,
+append-only) before seeing this landing; both files stand as the two legs'
+records of one defect. Fix attribution: this landing's fixture bytes +
+guard are what main carries; the session-9 file's evidence
+(`evidence/executions/s9-m053-abi-fixture-regression.md`) adds the
+regression-point worktree proof. No content conflict — the repairs were
+byte-equivalent in effect.

@@ -8442,3 +8442,52 @@ Work Log:
 Stage Summary:
 - No semantic overlap remains: S-032 is FIXED by the parallel lane (dropped
   from this session's SEVERE queue — S-009/S-029/S-030 remain).
+
+Task ID: DFX9-T0 (diff-fix session 9 bootstrap + baseline repair)
+Agent: main engineer (diff-to-fix session 9)
+Task: Session bootstrap — pull both repos, record baseline commits, establish
+a green build/test baseline; file and fix the regression found in the
+baseline (M-053).
+
+Work Log:
+- Pulled core_recovery at HEAD c231f2f (audit-trail lineage; the S-021
+  journal-gate re-append head); corpus easeus-drw-research at 03ad46c
+  (unmoved, matches every prior session's pin). Token in the git credential
+  store only, never committed; prompt saved redacted to
+  worklog/session-diff-fix-9-prompt.md.
+- Build baseline (linux-gcc preset, RelWithDebInfo + ASan): build clean;
+  full ctest 517/518 — cr_ui_abi_check SEGV (ui_abi_check.c:576, ASan READ
+  at 0x8). CI-gating red at HEAD: root-caused BEFORE any finding work.
+- Root cause chain (standalone repro, session scratch): scan_run fails
+  "scan bad magic" — fat_table_validate Flavor::Fat16 media-word gate
+  (cr_chain.cpp:194-199) rejects the ui_abi_check fixture whose FAT[0]/FAT[1]
+  were never written. The validator is og-correct M-015 parity (corpus
+  CFAT16 FUN_1800041b00 :54052-141); the fixture is not a valid FAT16 volume.
+- Timeline proven by worktree builds: 63d9067 (M-015 parent) abi check
+  GREEN; 6dc1e32 (M-015 landing) abi check SEGV — the landing updated
+  test_fat_volume.cpp + test_orchestrator.cpp with the canonical media pair
+  but missed tests/ui_abi_check.c:build_fat16() (the ported C-consumer
+  twin). Linux CI gate red for the whole 6dc1e32..c231f2f window (every
+  "suite N/N green" claim in that window named only the cr_tests runner).
+- NEW-FINDING M-053 (MAJOR) filed per the discovered-divergence SOP.
+  Fixture repaired in-session (build_fat16() media pair; standalone repro
+  post-fix: files_found=2 deleted_found=1; name-substring query total=1,
+  rows[0].name="DOC.TXT" — the exact crashing assertion; FULL ctest 518/518
+  green on the pre-rebase tree).
+- REBASE UNION: the parallel DFX7 lane had landed the byte-equivalent
+  fixture repair inside b1f9210 (N-018's UBSan defect set, "recovered by
+  the DFX7 session" in-code) WITHOUT filing the regression. Union kept
+  their bytes; M-053 reclassified FIXED-ALREADY with both proofs (their
+  landing + this session's worktree bisect at the regression point:
+  63d9067 green / 6dc1e32 SEGV). Evidence:
+  diff-to-fix/evidence/executions/s9-m053-abi-fixture-regression.md.
+- Audit trail updated with the push: M-053 finding (FIXED-ALREADY,
+  findings/FIXED/), RESOLVED-INDEX row, CROSS-REF-MATRIX session-9
+  section, SUMMARY session-9 delta with exact baseline counts.
+
+Stage Summary:
+- Baseline green established; CI-gating regression M-053 filed+fixed+pushed
+  (session fix #1). Next: SEVERE tier in impact order — S-031 timestamp
+  residual, S-032 inventory payload, S-009 diskmap residual, then the
+  scope-decision items S-029/S-030 — then the S6-close recommended next-10
+  (M-052, N-074, N-068, N-065, N-070, N-067, N-075, N-073).

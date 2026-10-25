@@ -1,3 +1,36 @@
+# SUMMARY.md — executive summary (diff-fix session 9 on top; earlier sessions below)
+
+## Session-9 delta (2026-10-26 — baseline repair + the SEVERE/MAJOR/MINOR fix waves)
+
+Session start `c231f2f` (audit-trail lineage; the S-021 journal-gate
+re-append head); corpus `03ad46c` unmoved. Baseline pull found Linux CI RED:
+`cr_ui_abi_check` SEGV — root-caused first, before any finding work (a
+session does not fix findings on a red baseline).
+
+**NEW-FINDING M-053 (MAJOR) filed — FIXED-ALREADY (rebase union):** the
+M-015 landing (`6dc1e32`) updated the two C++ FAT16 fixture builders with
+the canonical media pair but missed the third —
+`tests/ui_abi_check.c:build_fat16()` (the ported C-consumer twin). From
+`6dc1e32` the plain-C ABI proof was dead (scan `ERR_BAD_MAGIC` on the
+invalid fixture → NULL rows → SEGV at :576) and the Linux CI gate red on
+every push in the window. This session root-caused it independently
+(worktree bisect: parent `63d9067` green / landing SEGV; standalone repro
+of the full failure chain; own fixture repair 518/518 green) and filed the
+finding per the discovered-divergence SOP — while the parallel DFX7 lane
+landed the byte-equivalent fixture repair inside `b1f9210` (N-018's UBSan
+defect set) WITHOUT filing the regression. The rebase union kept their
+bytes; M-053 is the formal record of the red window, classified
+FIXED-ALREADY with both proofs. Evidence:
+`evidence/executions/s9-m053-abi-fixture-regression.md`.
+
+**Counts at session-9 start (direct file inventory at `c231f2f`):**
+SEVERE 5 (S-009 residual, S-029, S-030, S-031 stub — timestamp residual,
+S-032) · MAJOR 40 · MINOR 55 · INFO 22 = 122 active; findings/FIXED/ 67
+finding files + RESOLVED-INDEX; tracked-open 16 files. After the M-053
+filing+fix: active count unchanged (122 — the finding was born fixed in the
+same push); FIXED 68 finding files. Subsequent session-9 landings append
+their deltas below as they push.
+
 # SUMMARY.md — executive summary (session-6 fix leg + session 7 below; earlier sessions below)
 
 ## Session-8 delta (2026-10-26 — the closing-verification fix session, S-009 first lane)

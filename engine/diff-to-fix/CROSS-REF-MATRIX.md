@@ -300,3 +300,9 @@ New tracked-open: **OQ-S6-1** (PartitionRecoveryD generator-set semantics), **OQ
 (Btrfs RC4 target), **OQ-S6-3** (CRAW +0xF4/anchor-B/checksum consumption) — 14 tracked-open
 files total. Session-6 verified-fixed addenda: M-029 (partial), N-033 (partial), N-045 (cite),
 M-017/M-030/S-007/S-009/S-024 (evidence sharpened).
+
+## Session-9 detail rows (2026-10-26 — the diff-fix session-9 baseline-regression filing)
+
+| Module | Parameter(s) | Verdict change |
+|---|---|---|
+| fat (test infrastructure / CI gate) | M-015 landing coverage | **M-053 — FIXED-ALREADY (s9; the repair itself is the parallel DFX7 lane's `b1f9210` inside N-018's defect set — this session's filing is the formal record: root-caused independently via worktree bisect at the regression point (parent green / landing SEGV), the formal finding filed per the discovered-divergence SOP after the parallel lane fixed the bytes without a finding. Engine code untouched (og-parity validator correct). `evidence/executions/s9-m053-abi-fixture-regression.md`) |
