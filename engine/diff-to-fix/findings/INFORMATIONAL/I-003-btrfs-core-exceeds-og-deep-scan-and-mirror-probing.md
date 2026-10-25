@@ -91,3 +91,16 @@ The og's `BtrfsCache.txt` re-scan cache (persisted next to the DLL) has no core
 counterpart — perf-only, re-scan speed; not registered as a defect (an engine that writes
 files next to its own DLL during a scan is an og behavior worth NOT replicating; recorded
 here for completeness).
+
+
+## Resolution
+
+**Status:** ACKNOWLEDGED (deliberate supersets — preserved)
+**Verified by:** the NULL-stub decompile (:11-19) and the mirror-abort
+decompile (:10320-10324) re-read from the finding's evidence; both hold. The
+requested pin ALREADY EXISTS: `Btrfs.MirrorSelectionNewestGeneration`
+(primary SB smashed -> 64 MiB mirror recovers the volume) — no new test
+needed, the guard the finding asked for is in place. Registered this
+session: PARITY-DELTAS D-48a (first row for the mirror-probing + deep-scan
+superset; benches must not assume og deep-Btrfs output). Future work must
+PRESERVE both supersets.

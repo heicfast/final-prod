@@ -72,3 +72,16 @@ engine layer.
 
 **Related findings:** S-005 (the mojibake fix lands in the same decoder N-009c reuses).
 **Open questions:** none.
+
+
+## I-005 Resolution
+
+**Status:** ACKNOWLEDGED (all 7 grouped supersets — preserved)
+**Verified by:** coverage check per the finding's own instruction ("ensure
+each has a PARITY-DELTAS row; several already do"): RAR5 + PST hardening =
+D-13a/b (pre-existing); ZFS ashift 10..13 = D-04 (pre-existing);
+driver-absent fallback = D-37/D-24 (pre-existing); the 64 KiB direct-I/O
+envelope had NO row and is registered this session as D-48c; Btrfs/ReFS/
+bounds/session supersets are cross-registered (D-48a, D-48b, D-38). The audit
+verified every code comment documents its divergence — re-confirmed. No code
+change — future work must PRESERVE all of them.

@@ -2191,3 +2191,47 @@ TEST(NtfsVolume, MirrorResidentDataRejected) {
     EXPECT_EQ(ERR_RANGE_OUT_OF_BOUNDS, vol->read_record(2, rec))
         << "resident mirror $DATA must never serve a fabricated mapping";
 }
+
+TEST(NtfsVolume, UserFileNamedDollarNotHidden) {
+    /* I-001 (diff-to-fix, INFORMATIONAL): the og's blanket name[0]=='$'
+     * skip (FUN_18001acc0 :21186) hides user files named '$...'; our
+     * known-20 metafile filter surfaces them (a reviewed recovery-positive
+     * superset). Pin it so nobody "fixes" parity by restoring the blanket
+     * skip. */
+    Image img;
+    build_image(img);
+    {
+        RecBuilder r;
+        r.header(23, RECORD_IN_USE);
+        r.attr_si(0x20);
+        r.attr_file_name(16, u"$notes.txt", FILE_NAME_WIN32_AND_DOS, 0x20, 8, 8);
+        r.attr_data_runlist(240, 1, 8);
+        r.finish();
+        std::memcpy(img.sec(MFT_LCN + 46), r.buf.data(), RECORD_SIZE);
+    }
+    MemDevice dev(img.raw(), img.geom());
+    u32 err = 0;
+    auto vol = NtfsVolume::open(std::unique_ptr<IStorageDevice>(new MemDevice(dev)), &err);
+    ASSERT_NE(vol, nullptr) << "open err " << err_text(err);
+    std::unique_ptr<VolumeBitmap> bm;
+    ASSERT_EQ(VolumeBitmap::load(vol.get(), bm), OK);
+    tree::ResultTree tree;
+    auto* ra = tree.add_root(u"F");
+    auto* rd = tree.add_root(u"D");
+    auto* rl = tree.add_root(u"L");
+    WalkerFlags wf;
+    WalkStats st;
+    ASSERT_EQ(OK, walk_mft(vol.get(), bm.get(), wf, nullptr, nullptr, nullptr, tree, ra, rd, rl, st));
+    bool found = false;
+    std::function<void(tree::FileNode*)> find = [&](tree::FileNode* n) {
+        for (tree::FileNode* c = n->first_child(); c; c = c->next_sibling()) {
+            if (c->props() && c->name_utf8() == "$notes.txt")
+                found = true;
+            find(c);
+        }
+    };
+    for (auto* r : tree.roots())
+        find(r);
+    EXPECT_TRUE(found) << "user file named '$...' must not be hidden by the "
+                          "known-metafile filter";
+}

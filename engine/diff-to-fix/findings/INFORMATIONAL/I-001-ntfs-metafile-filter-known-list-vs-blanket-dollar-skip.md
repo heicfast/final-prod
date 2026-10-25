@@ -91,3 +91,16 @@ No code change required. Actions:
 ## Open questions
 
 None.
+
+
+## Resolution
+
+**Status:** ACKNOWLEDGED (deliberate, recovery-positive superset — preserved)
+**Verified by:** first-hand re-verification this session: the blanket
+`name[0]=='$'` skip exists in the og loop (FUN_18001acc0 :21186, read
+directly); no recycle-remap counterpart exists in the corpus artifacts; the
+rationale (recycle deletions + user '$…' files surface) is correct and
+code-documented. Pin test `NtfsVolume.UserFileNamedDollarNotHidden` added
+(active `$notes.txt` must surface — guards against anyone "fixing" parity by
+restoring the blanket skip). Already registered: PARITY-DELTAS D-12 (known-
+metafiles + $I/$R remap). Future work must PRESERVE this divergence.

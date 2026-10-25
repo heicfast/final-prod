@@ -50,3 +50,13 @@ row.
 
 **Related findings:** A-001 (partition-table side of detection), the ReFS module file.
 **Open questions:** none.
+
+
+## I-004 Resolution
+
+**Status:** ACKNOWLEDGED (deliberate, recovery-positive superset — preserved)
+**Verified by:** the code comment documents "wider recovery scope, same
+structure walk"; the og gate (major==3 && minor>3 + major==1 path) is
+corpus-documented; the rationale holds. Registered this session: PARITY-DELTAS
+D-48b (first row; parity benches must not count ReFS 2.x / 3.0–3.3 yield
+against the og). No code change — future work must PRESERVE the superset.

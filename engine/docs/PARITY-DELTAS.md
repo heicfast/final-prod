@@ -1013,6 +1013,33 @@ Split verdict — three sub-claims:
 
 ---
 
+### D-48 — Audit-acknowledged supersets (diff-to-fix I-003 / I-004 / I-005.4)
+
+Rows registered here had no prior PARITY-DELTAS entry (per the I-batch fix
+plans' "check before duplicating" instruction); every rationale was verified
+against the corpus evidence this session and ACKNOWLEDGED in the finding
+files.
+
+- **D-48a — Btrfs mirror probing + working deep scan (I-003, ACCEPTED).**
+  Og: `EUCreateBtrfsComplateSearcher` is a NULL stub and the SB scan aborts
+  when the primary's magic fails. Ours: every mirror offset probed
+  (kernel `btrfs_sb_offset()`/og .rdata parity), newest generation wins,
+  full chunk-map/root-tree deep walk. Pins: `Btrfs.MirrorSelectionNewestGeneration`
+  (primary smashed -> 64 MiB mirror recovers). Benches must NOT assume og
+  deep-Btrfs output.
+- **D-48b — ReFS version-gate superset (I-004, ACCEPTED).** Og: gate
+  major==3 && minor>3 (+ a major==1 path). Ours: major 1..3 with full shape
+  validation ("wider recovery scope, same structure walk") - ReFS 2.x and
+  3.0-3.3 volumes are attempted where the og refuses; parity benches must not
+  count their yield against the og.
+- **D-48c — 64 KiB direct-I/O envelope (I-005.4, ACCEPTED; GAP-S6-13).**
+  Og driver EPMNtDrv has a hard 512-byte sector contract; ours issues
+  64 KiB-aligned direct reads with a zero-copy fast path (~3.5x on the
+  slow-path shapes per the fix's measurements). A throughput superset, not a
+  behavioral one.
+
+---
+
 ## J. UNDOCUMENTED DIVERGENCE CANDIDATES
 
 Things our code/docs do differently with no (or stale/contradictory) rationale

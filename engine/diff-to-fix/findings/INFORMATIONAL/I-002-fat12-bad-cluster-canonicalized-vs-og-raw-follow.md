@@ -95,3 +95,20 @@ and exclude FAT12-with-bad-cluster fixtures from og-content-comparison benches.
 ## Open questions
 
 None.
+
+
+## Resolution
+
+**Status:** ACKNOWLEDGED (deliberate delta — kept; the parity-owner call was
+made and documented)
+**Verified by:** CORRECTIONS row 3 re-confirmed (the og follows FAT12 BAD
+0xFF7 raw — garbage-tolerant continuation); the core's honest truncation
+plus the F-A1-1 canonicalization history support KEEPING the current
+behavior. Already registered: PARITY-DELTAS D-39 verdict (FAT-4 cross-ref).
+The requested FAT16 regression guard was added —
+`FatEngine.Fat16BadClusterStillCanonical` — and it DISCOVERED a real adjacent
+divergence (N-010: the BAD sentinel was swallowed by the reserved-range EOC
+branch), filed separately and FIXED. FAT12 content parity on
+BAD-containing chains remains a registered divergence (recovered bytes are a
+strict prefix of the og's; both graded honestly). Future work must PRESERVE
+the FAT12 delta as a reviewed decision.

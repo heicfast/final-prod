@@ -15,7 +15,7 @@ commits land in each finding file; this summary's Remediation log tracks the cou
 | SEVERE | 9 | S-001 … S-009 |
 | MAJOR | 4 | M-001, M-002, M-005, M-006 |
 | MINOR | 13 | N-001 … N-010 (N-004..N-006 and N-009a-d grouped in shared files) |
-| INFORMATIONAL | 5 | I-001 … I-005 (I-005 groups 7 reviewed supersets) |
+| INFORMATIONAL | 5 (all ACKNOWLEDGED) | I-001 … I-005 (I-005 groups 7 reviewed supersets) |
 | tracked-open (UNVERIFIED) | 9 | OQ-T1 … OQ-T9 (4 files) |
 
 ## Counts per module (final)
@@ -142,6 +142,7 @@ multi-vdev + nvlist anchor), OQ-T8 (carve dispatch order), OQ-T9 (CalcPartition 
 | Date | Finding | Verdict | Evidence |
 |---|---|---|---|
 | 2026-10-25 | A-001 | **FIXED** | canonical GUIDs + 4 regression tests; pre-fix probe reproduced ERR_BAD_MAGIC, post-fix suite 263/263; byte-order table corrected (finding + evidence file) |
+| 2026-10-25 | I-001..I-005 | **ACKNOWLEDGED** (all 5 INFO findings) | rationale verified; D-48a/b/c registered for the unregistered supersets; pins: UserFileNamedDollarNotHidden, Fat16BadClusterStillCanonical (which discovered N-010), existing btrfs mirror pin cross-referenced |
 | 2026-10-25 | N-010 | **FIXED** (NEW, discovered during I-002 pinning) | BAD sentinel ordered before the reserved-range test; Fat16BadClusterStillCanonical fails before, passes after |
 | 2026-10-25 | M-006 | **FIXED** | fuzz CI job re-enabled (codeql deferral documented); zero-crash gate live on the next push |
 | 2026-10-25 | N-002 | **FIXED** | mask-24 EOC family (+ raw 0xFFFFFFF8 subsumed); unit fail-before/pass-after |
