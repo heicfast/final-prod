@@ -1184,8 +1184,12 @@ int cmd_health(int argc, wchar_t** argv, int& i) {
     rc = win::health::read_nvme_health(h, nv);
     if (rc == OK && nv.available) {
         any_health_source = true;
+        /* N-042: decidegrees from the shared accessor - the pre-fix
+         * fractional digit was the KELVIN remainder (k % 10), wrong by up
+         * to ~0.55 C; now identical to the ABI spelling to the digit. */
+        const u32 dec_c = nv.decidegrees_c();
         wprintf(L"NVMe health: temp=%u.%uC spare=%u%%/threshold=%u%% used=%llu%% - %hs\n",
-                u32(nv.temperature_k) - 273, (u32(nv.temperature_k) % 10), nv.available_spare,
+                dec_c / 10, dec_c % 10, nv.available_spare,
                 nv.available_spare_threshold, static_cast<unsigned long long>(nv.percentage_used),
                 cr::health::health_grade_name(cr::health::grade_nvme(nv)));
         wprintf(L"  read=%llu bytes written=%llu bytes (M-036: units x 512,000)\n",

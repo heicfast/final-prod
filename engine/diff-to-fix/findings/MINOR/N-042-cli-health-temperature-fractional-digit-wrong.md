@@ -73,3 +73,10 @@ recovery-results impact.
 ## Open questions
 
 None.
+
+## Resolution
+
+**Status:** FIXED
+**Fixed in commit:** this session's cli/health-minors batch
+**Verified by:** `Nvme.CliTempFractionIsCelsiusDecidegrees` - the corrected table (309K -> 35.9, was "36.5"; 300K -> 26.9, was "27.0"; 310K -> 36.9) + the 273.1K floor guard (0 decidegrees, never wrap) + the truncation-bias bound. Suite 516+ ASan.
+**Resolution notes:** single source per the fix plan: `NvmeHealthInfo::decidegrees_c()` (include/cr/health/cr_nvme.h) carries the ABI's spelling (k*10 - 2731, floor-guarded at 273.1K); the CLI print (rrecov.cpp NVMe health line) derives %u.%u from (dec/10, dec%10) - the pre-fix fractional digit was the KELVIN remainder (k % 10), mathematically wrong by up to ~0.55 C and systematically biased; the ABI site (cr_ui.cpp temperature_c_x10) now calls the same accessor. CLI and ABI agree to the digit for the whole table.

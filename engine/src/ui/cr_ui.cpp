@@ -2785,7 +2785,7 @@ u32 health_read_impl(uint32_t disk, cr_ui_smart_report* rep, cr_ui_smart_attr* a
         rep->nvme_available = 1;
         rep->critical_warning = nv.critical_warning;
         rep->temperature_c_x10 =
-            u32(nv.temperature_k) * 10 >= 2731 ? u32(nv.temperature_k) * 10 - 2731 : 0;
+            nv.decidegrees_c(); /* N-042: one source with the CLI print */
         rep->available_spare = nv.available_spare;
         rep->available_spare_threshold = nv.available_spare_threshold;
         rep->percentage_used = nv.percentage_used;

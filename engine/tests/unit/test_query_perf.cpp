@@ -64,6 +64,11 @@ TEST(QueryPerf, MillionNodesFilterCountUnder200ms) {
            (unsigned long long)r.total_matched);
 #if defined(__SANITIZE_THREAD__)
     constexpr u64 kBudgetMs = 2000; /* TSan instrumentation slowdown */
+#elif defined(__SANITIZE_UNDEFINED__)
+    constexpr u64 kBudgetMs = 2000; /* UBSan lane (N-018): every UB check is
+                                       a runtime branch on the filter's hot
+                                       path; the 200ms contract stays
+                                       enforced on the ASan/Release lanes */
 #elif defined(__has_feature)
 #if __has_feature(thread_sanitizer)
     constexpr u64 kBudgetMs = 2000;
