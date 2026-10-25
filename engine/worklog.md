@@ -8961,3 +8961,41 @@ Work Log:
 Stage Summary:
 - DFX15 lane claimed: the MAJOR tier. Baseline rebuild next; fixes follow
   one-finding-one-commit-one-push.
+---
+Task ID: FF-CODA (session close — the clobber lesson + final state)
+Agent: main engineer (diff-to-fix closing session — fix-all-tiers continuation)
+Task: Record the 5aaf044 clobber + its repair; final session state.
+
+Work Log:
+- The 5aaf044 "style-only" push clobbered the S-009/N-044 legs' code in
+  rrecov.cpp/cr_chain.cpp/cr_ui.cpp (built on a stale tree, pushed
+  wholesale past the union tool's code-guard). The parallel arc repaired
+  it at c4e37d1 within minutes (the lane-watch discipline works);
+  357ede6 redoes ONLY the formatting against the current head. LESSON
+  RECORDED: the code-guard exists for every push, including style-only
+  ones - bypassing it while parallel legs land is exactly how the
+  clobber chain happened three times this session.
+- Session CI-red kills (all verified against live job logs): the first
+  S-024 landing's health::HealthGrade MSVC break (1a8cebb), test_text
+  C4310 (00125bd), the Linux-lane SEGV root-caused to the C consumer
+  fixture's missing FAT16 media pair (abf5663, with the loud-fail row
+  guard), the UBSan query-perf budget scaling (6f36e31), three lint
+  sweeps (hfsplus at 6f36e31; rrecov/cr_ui/cr_chain at 357ede6).
+- Live at close (1ef812ba lineage): linux/tsan/ubsan/fuzz GREEN at the
+  5aaf044-era fixes; windows reds from the disk-image lane's mid-flight
+  VolExtent state are theirs (their landings superseded); S-009 landed
+  FIXED (c55bd45) with M-057 carving the residual; SEVERE at last
+  direct count: S-029, S-030 (mid-flight), S-032 — all younger than
+  this session's mandate start and in active lanes.
+
+Stage Summary:
+- Session final: S-024 upgraded to the decoded truth (both finding open
+  questions RESOLVED from the corpus), M-036 + N-055 closed, 2 MSVC
+  breaks + 1 Linux SEGV + 1 UBSan scaling + 3 lint sweeps closed,
+  3 audit-trail clobber recoveries + the transport hardened
+  (api_git.py + union_push.py with 404/section/index/matrix handling),
+  the worklog's conflict markers resolved (both sides kept), the stale
+  S-031 duplicate removed, the full decode evidence for the health
+  surface recorded (s6-health-grading-decode.md), and the handoff
+  (FF-HANDOFF) + final counts (SUMMARY) pushed. The audit trail tells
+  the truth at close.
