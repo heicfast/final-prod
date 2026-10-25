@@ -8789,3 +8789,38 @@ Stage Summary:
   N-036, N-042, then N-044, N-020, N-074 (doc-drift trios), the carve-magic
   quartet N-051..N-054, N-045, N-067, N-068, N-069, and the remaining groups.
 
+<<<<<<< HEAD
+=======
+---
+Task ID: DFX11-T2 (audit-trail hygiene wave 1)
+Agent: main engineer (diff-to-fix session 11)
+Task: Move the four fully-resolved MINOR findings to findings/FIXED/ with
+index rows; repair matrix row corruption; update module verdicts + counts.
+
+Work Log:
+- Verified each candidate finding's Resolution section in full before the
+  move: N-013 (FIXED; one sub-claim refuted with corpus evidence),
+  N-015 (FIXED), N-018 (FIXED, `b1f9210`), N-042 (FIXED, `3678cbf`).
+  The group files N-004/N-006, N-009, N-036 carry open remainders inside
+  their Resolution sections — kept in MINOR/ (moving them would hide open
+  scope from the active roadmap).
+- git mv the four files MINOR/ -> FIXED/ (history preserved); four new
+  RESOLVED-INDEX rows under a live-inventory header (76 resolved findings).
+- CROSS-REF-MATRIX: writer+report cells (both section copies) now read
+  N-013/N-015 FIXED with landing refs; health cells read N-042 FIXED
+  (`3678cbf`); quality cell reads N-018 FIXED (`b1f9210`). Repaired the
+  pre-existing joined-row corruption in the session-5 matrix section
+  (carve row had lost-partition fused onto its tail — split back into two
+  rows, content byte-identical to the correct session-2 section rows).
+- modules/writer.md session-2 index rows + modules/health.md open-items
+  list updated to FIXED verdicts. SUMMARY.md gains the session-11 delta
+  with post-move counts: SEVERE 3 · MAJOR 39 · MINOR 51 · INFO 22 ·
+  FIXED 76 · OQ 16.
+
+Stage Summary:
+- Active MINOR count now reflects reality (51 files); the four moves are
+  bookkeeping only — every underlying fix was landed and proven by the
+  earlier sessions, with tests named in each finding's Resolution. Next:
+  begin fixing unresolved MINORs one-by-one, starting N-044, N-020/N-074
+  doc-drift, N-051..N-054 carve-magic quartet.
+>>>>>>> 0fe1536 (diff-to-fix(s11 hygiene): move N-013/N-015/N-018/N-042 to FIXED/ — RESOLVED-INDEX rows, matrix cells, module verdicts, counts)

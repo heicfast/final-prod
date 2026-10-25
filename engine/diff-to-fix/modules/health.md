@@ -131,4 +131,7 @@ on main mid-session are that lane's in-flight state, not health.
 | Q65 | FullFieldSurface / DataUnitsConvertedToBytes / PercentageUsedIsU8Width / the 192-byte gate test |
 
 Open health items after this leg: N-032 (CSMI/USB-bridge transports),
-N-042 (CLI temp fractional digit), N-064 (Dict password dictionary).
+N-064 (Dict password dictionary). N-042 **FIXED (s7 `3678cbf`; FIXED/
+move s11)** — `NvmeHealthInfo::decidegrees_c()` is the one decidegree
+source for the CLI print and the ABI `temperature_c_x10` (Q65 test set
+covers it).

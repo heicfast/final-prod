@@ -7,6 +7,15 @@ against the original finding. They are NOT counted in the active
 severity totals in `diff-to-fix/SUMMARY.md` and are NOT part of the
 active roadmap.
 
+## Resolved findings (76 — live file inventory minus RESOLVED-INDEX.md, session-11 hygiene move: +N-013, +N-015, +N-018, +N-042 — the parallel legs landed and verified these fixes; this session's move records them in the index and takes them out of the active MINOR count. Partially-resolved group files N-004/N-006, N-009, N-036 stay in MINOR/ until their open remainders close.)
+
+| ID | Severity (orig) | Title | Fix commit | Resolution |
+|---|---|---|---|---|
+| N-013 | MINOR (S2) | Destination overlap check optional (drive-letter gate) + first-extent-only | (parallel writer-minors batch — finding carries the evidence) | All-extent arming via `win::volume_extents()` + `set_destination_spans()`; any-resolving path arming via `GetFinalPathNameByHandleW`/`GetVolumePathNameW`; junctions resolve to target volume; image→same-volume sub-claim REFUTED with corpus evidence (architecture/04 §7 step 1 — recommendation, not block; `CrUi.ImageSourceDestinationNearImageAccepted` pins). Fail-before: test could not exist pre-fix (no multi-span API). |
+| N-015 | MINOR (S2) | Writer: no disk-full pre-check or ENOSPC fast-fail | (parallel writer-minors batch — finding carries the evidence) | `ERR_DEST_FULL` end-to-end: `DestIo::free_bytes` pre-check (refuse upfront, items stay Pending, rc at 0%) + WinDestIo ENOSPC→ERR_DEST_FULL mapping + SafeWriter fast-fail (tail never attempted); CLI still emits the report. Proven by `Report.DestFullFastFailStopsAttempting` + `Report.DestFullPreCheckRefusesUpfront`. |
+| N-018 | MINOR (S2) | UBSan not enabled in any CI lane (Q67 third prong) | `b1f9210` (DFX7-T2 wave) | `linux-ubsan` preset + CI job; first run caught 3 real defects (unaligned u16 fixture stores, engine-side unaligned LFN loads, C-consumer fixture missing M-015 media words) — all fixed in the same change. 522/522 UBSan-clean + ASan-clean; Q67 now has all three prongs. |
+| N-042 | MINOR (S4) | CLI health temperature fractional digit is the Kelvin remainder | `3678cbf` (DFX7-T2 wave) | One decidegree source `NvmeHealthInfo::decidegrees_c()` (k*10−2731, 273.1 K floor) for CLI print and ABI `temperature_c_x10`; proven by `Nvme.CliTempFractionIsCelsiusDecidegrees` (309 K → 35.9, was "36.5"). |
+
 ## Resolved findings (61 — every finding file in this directory has a row; live file inventory) — every finding file in this directory has a row; live file inventory)
 
 ## Resolved findings (71 — live file inventory minus RESOLVED-INDEX.md, session-8 post-merge reconciliation; +M-053 this session, convergent with the parallel N-018 lane's fixture fix at `b1f9210`)

@@ -1,3 +1,33 @@
+# SUMMARY.md — executive summary (diff-fix session 11 on top; earlier sessions below)
+
+## Session-11 delta (2026-10-26 — the MINOR-first close-out wave)
+
+Session start `a5bbcfa` (DFX7-T2 inventory head; S-032/N-018/N-042 legs
+already landed by the parallel sessions); corpus `03ad46c` unmoved.
+Baseline before any change: linux-gcc (RelWithDebInfo + ASan) **534/534**
+green. Mandate: minor findings first, 20+ fixes, fixed findings moved to
+findings/FIXED/, all docs/counts current.
+
+**Audit-trail hygiene wave 1 (this entry):** four fully-resolved MINOR
+findings moved from MINOR/ to FIXED/ with RESOLVED-INDEX rows — **N-013**
+(all-extent destination arming; image→same-volume sub-claim REFUTED with
+corpus evidence, `CrUi.ImageSourceDestinationNearImageAccepted` pins),
+**N-015** (`ERR_DEST_FULL` end-to-end), **N-018** (UBSan lane, `b1f9210`),
+**N-042** (one decidegree source, `3678cbf`). Matrix cells
+(writer+report ×2, health ×2, quality) + modules/writer.md + modules/health.md
+verdicts updated; a pre-existing joined-row corruption in the matrix
+session-5 section (carve ‖ lost-partition fused into one line) repaired.
+Partially-resolved group files **N-004/N-006, N-009, N-036 stay in MINOR/**
+until their open remainders (ext4 transport layering / Btrfs nodesize;
+N-009c CLI --filter UTF-8, N-009d ACL; N-036 container-map half) close.
+
+**Counts at session-11 start (direct file inventory at `a5bbcfa`, after
+the hygiene move):** SEVERE 3 (S-009, S-029, S-030) · MAJOR 39 ·
+MINOR 51 (44 fully-unresolved files + N-004/N-006 + N-009 + N-036 groups
+with open remainders) · INFO 22 (all ACKNOWLEDGED) · FIXED 76 finding
+files + RESOLVED-INDEX · tracked-open 16. Subsequent session-11 landings
+append their deltas below as they push.
+
 # SUMMARY.md — executive summary (diff-fix session 9 on top; earlier sessions below)
 
 ## Session-9 delta (2026-10-26 — baseline repair + the SEVERE/MAJOR/MINOR fix waves)
