@@ -313,3 +313,11 @@ M-017/M-030/S-007/S-009/S-024 (evidence sharpened).
 | Module | Parameter(s) | Verdict change |
 |---|---|---|
 | fat (test infrastructure / CI gate) | M-015 landing coverage | **M-053 — FIXED-ALREADY (s9; the repair itself is the parallel DFX7 lane's `b1f9210` inside N-018's defect set — this session's filing is the formal record: root-caused independently via worktree bisect at the regression point (parent green / landing SEGV), the formal finding filed per the discovered-divergence SOP after the parallel lane fixed the bytes without a finding. Engine code untouched (og-parity validator correct). `evidence/executions/s9-m053-abi-fixture-regression.md`) |
+
+## Session-20 detail rows (2026-10-26 — DFX20, the unclaimed-MAJOR lane)
+
+| Module | Parameter(s) | Verdict change |
+|---|---|---|
+| storage | S61 (BitLocker placement) | **M-033 FIXED (DFX20)** — the in-stack XTS-AES decrypting device now exists (`DecryptingDevice : IStorageDevice`, cr_decrypt_device.h; AES-128/256+XTS clean-room in cr_aes.cpp, pinned byte-exact against pycryptodome AND OpenSSL EVP 3.5 — the og's own cipher interface — plus FIPS-197 KATs; per-sector LE-index tweaks; the og's layer order physical -> slice -> [XTS] -> engine). Key surface = the og's GetFullVolumeEncryptionKey output shape: `--bitlocker-fvek` CLI + `cr_ui_open_volume_with_key` (additive ABI export, no version bump). Locked-without-key refusal PRESERVED (S61/F13; FB-B01). The recovery-password/BEK -> VMK -> FVEK unwrap chain stays out-of-corpus — tracked-open OQ-S20-1 with the decompile entry points (ParserBitLocker :27633, FUN_180042350/FUN_180044e90). 13 tests; suite 608/608. |
+| abi (cr_ui) | P42 (export set) | **M-033 additive export** — `cr_ui_open_volume_with_key` (keyed locked-volume open, the in-stack decrypt opt-in); ABI policy: additive = compatible, no version bump; C-consumer check compiled clean against the new declaration. |
+| cli | C24/grammar | **M-033** — `scan --volume X: --bitlocker-fvek <hex>` (64/128 hex chars, pre-pass so option order is free); locked refusal message now points at the new path. |

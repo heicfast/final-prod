@@ -206,6 +206,19 @@ CR_UI_API uint32_t cr_ui_open_image(const char* utf8_path, uint64_t offset, uint
 CR_UI_API uint32_t cr_ui_open_disk(uint32_t disk, cr_ui_device** out);
 CR_UI_API uint32_t cr_ui_open_volume(char letter, cr_ui_device** out);
 
+/* M-033 (additive export - compatible per the ABI policy, no version bump):
+ * locked-volume open with a user-supplied FVEK - the in-stack XTS-AES
+ * decrypt path the reference implements below its engines (FVE keys ->
+ * XTS decrypt; corpus architecture doc section 8 + BitLockerLib artifact).
+ * utf8_hex_fvek: 64 hex chars (AES-128-XTS) or 128 hex chars (AES-256-XTS)
+ * - the full-volume-encryption-key bytes (key||tweak-key concatenated,
+ * the GetFullVolumeEncryptionKey output shape). ERR_BAD_PARAMETER on
+ * malformed/weak key material; ERR_UNSUPPORTED off-Windows; the
+ * no-key refusal contract of cr_ui_open_volume is unchanged (locked
+ * without a key stays CR_UI_ERR_FVE_LOCKED - legitimate unlock only). */
+CR_UI_API uint32_t cr_ui_open_volume_with_key(char letter, const char* utf8_hex_fvek,
+                                               cr_ui_device** out);
+
 CR_UI_API void cr_ui_device_close(cr_ui_device* dev);
 
 typedef struct cr_ui_geometry {

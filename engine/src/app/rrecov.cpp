@@ -40,6 +40,8 @@
 #include "cr/win/cr_health.h"
 #include "cr/win/cr_transport.h"
 #include "cr/win/cr_elevate.h"
+#include "cr/storage/cr_decrypt_device.h"
+#include "cr/crypto/cr_aes.h"
 #include <windows.h>
 #include <map>
 #include <chrono>
@@ -154,6 +156,9 @@ void log_line(const char* fmt, ...) {
 struct OpenResult {
     std::unique_ptr<IStorageDevice> device; /* the view handed to engines */
     std::unique_ptr<IStorageDevice> hold;   /* parent disk (slices reference it) */
+    std::unique_ptr<IStorageDevice> slice_hold; /* M-033: the slice under the
+                                                 * decrypting device (wrapper is
+                                                 * non-owning; kept alive here) */
     u32 disk = 0;
     u64 volume_start = 0; /* 0 = whole-disk view */
     u64 volume_len = 0;
@@ -271,29 +276,73 @@ bool open_disk_view(u32 n, OpenResult& out) {
     return true;
 }
 
-bool open_volume_view(wchar_t letter, OpenResult& out) {
+bool parse_fvek_hex(const std::wstring& hex, std::vector<u8>& out) {
+    /* M-033: the user-supplied FVEK (the og's
+     * BitLockerManager::GetFullVolumeEncryptionKey output shape):
+     * 64 hex chars = 32 bytes (AES-128-XTS), 128 = 64 bytes (AES-256-XTS). */
+    out.clear();
+    if (hex.size() != 64 && hex.size() != 128)
+        return false;
+    out.reserve(hex.size() / 2);
+    for (size_t k = 0; k < hex.size(); k += 2) {
+        int b = 0;
+        for (int j = 0; j < 2; j++) {
+            wchar_t c = hex[k + j];
+            int v;
+            if (c >= L'0' && c <= L'9')
+                v = int(c - L'0');
+            else if (c >= L'a' && c <= L'f')
+                v = int(c - L'a' + 10);
+            else if (c >= L'A' && c <= L'F')
+                v = int(c - L'A' + 10);
+            else
+                return false;
+            b = (b << 4) | v;
+        }
+        out.push_back(u8(b));
+    }
+    return true;
+}
+
+bool open_volume_view(wchar_t letter, OpenResult& out, const std::wstring& fvek_hex) {
+    std::vector<u8> fvek;
+    const bool have_key = !fvek_hex.empty() && parse_fvek_hex(fvek_hex, fvek);
+    if (!fvek_hex.empty() && !have_key) {
+        wprintf(L"[bitlocker] --bitlocker-fvek: expected 64 hex chars (AES-128-XTS) "
+                L"or 128 hex chars (AES-256-XTS)\n");
+        return false;
+    }
     const win::bitlocker::Status bst = win::bitlocker::status(letter);
-    if (bst == win::bitlocker::Status::Unknown) {
+    if (bst == win::bitlocker::Status::Unknown && !have_key) {
         /* Boot sector unreadable: the BitLocker state cannot be determined
          * (typical for a locked volume denying \\.\X: reads). Never scan
-         * blind - refuse with the unlock path (FB-B01). */
+         * blind - refuse with the unlock path (FB-B01). With a user key
+         * the in-stack decrypt path may proceed (M-033): the user has
+         * supplied key material, which is the og's own opt-in. */
         wprintf(L"[bitlocker] %c: boot sector unreadable - cannot determine BitLocker state\n"
                 L"  (typical for a locked volume). Unlock with:\n"
                 L"  Unlock-BitLocker -MountPoint %c: -RecoveryPassword <key>\n"
-                L"then re-run.\n",
+                L"or re-run with --bitlocker-fvek <hex> (the in-stack decrypt path).\n",
                 letter, letter);
         return false;
     }
-    if (bst == win::bitlocker::Status::Locked) {
+    if (bst == win::bitlocker::Status::Locked && !have_key) {
         wprintf(L"[bitlocker] %c: locked - trying auto-unlock...\n", letter);
         if (win::bitlocker::try_auto_unlock(letter) != OK) {
             wprintf(L"[bitlocker] still locked. Unlock with:\n"
                     L"  Unlock-BitLocker -MountPoint %c: -RecoveryPassword <key>\n"
-                    L"then re-run.\n",
+                    L"or re-run with --bitlocker-fvek <hex> (the in-stack decrypt path).\n",
                     letter);
             return false;
         }
         wprintf(L"[bitlocker] auto-unlocked\n");
+    }
+    if (have_key && (bst == win::bitlocker::Status::Locked ||
+                     bst == win::bitlocker::Status::Unknown ||
+                     bst == win::bitlocker::Status::UnlockedEncrypted)) {
+        wprintf(L"[bitlocker] %c: in-stack XTS-AES decrypt active (%hs key, "
+                L"engines see plaintext)\n",
+                letter, fvek.size() == 32 ? "128-bit" : "256-bit");
     }
     u32 disk = 0;
     u64 start = 0, len = 0;
@@ -315,7 +364,22 @@ bool open_volume_view(wchar_t letter, OpenResult& out) {
     out.volume_len = len;
     /* the slice references the parent by raw pointer - keep it alive */
     out.hold = std::move(whole.device);
-    out.device = std::move(slice);
+    if (have_key) {
+        /* M-033: wrap the volume slice in the in-stack XTS decrypting
+         * device - the og's layer order (physical -> slice -> [BitLocker
+         * XTS] -> engine; corpus architecture doc §8). The wrapped slice
+         * must outlive the wrapper; both are held by OpenResult. */
+        auto dec = DecryptingDevice::create(slice.get(), fvek.data(), fvek.size());
+        if (!dec) {
+            wprintf(L"[bitlocker] key material rejected (weak or malformed FVEK)\n");
+            return false;
+        }
+        wprintf(L"[bitlocker] decrypting device wraps the volume slice\n");
+        out.slice_hold = std::move(slice);
+        out.device = std::move(dec);
+    } else {
+        out.device = std::move(slice);
+    }
     wprintf(L"[volume] %c: disk %u @%llu +%llu\n", letter, disk,
             static_cast<unsigned long long>(start), static_cast<unsigned long long>(len));
     return true;
@@ -579,6 +643,15 @@ u64 file_size_cb(void* user) {
  * ------------------------------------------------------------------------- */
 
 int cmd_scan(int argc, wchar_t** argv, int& i) {
+    /* M-033 pre-pass: --bitlocker-fvek may appear anywhere on the line
+     * (the target --volume is opened in the main loop below). */
+    std::wstring fvek_hex;
+    for (int k = i; k + 1 < argc; ++k) {
+        if (wcscmp(argv[k], L"--bitlocker-fvek") == 0) {
+            fvek_hex = argv[k + 1];
+            break;
+        }
+    }
     OpenResult target;
     bool have_target = false;
     orchestrator::ScanConfig cfg;
@@ -599,9 +672,13 @@ int cmd_scan(int argc, wchar_t** argv, int& i) {
         if (get_opt(argc, argv, i, L"--volume", &v)) {
             if (v.size() < 1)
                 return 1;
-            if (!open_volume_view(v[0], target))
+            if (!open_volume_view(v[0], target, fvek_hex))
                 return 1;
             have_target = true;
+            continue;
+        }
+        if (get_opt(argc, argv, i, L"--bitlocker-fvek", &v)) {
+            /* consumed by the pre-pass; not a positional */
             continue;
         }
         if (get_opt(argc, argv, i, L"--image", &v)) {
@@ -1783,6 +1860,9 @@ int wmain(int argc, wchar_t** argv) {
             L"             [--threads N] [--out file.crsf] [--resume file.crsf] [--log file]\n"
             L"             [--json] [--csv] [--filter s] [--deleted-only]\n"
             L"             [--repair] [--repair-apply] [--repair-undo file]\n"
+            L"             [--bitlocker-fvek hex]  (locked volume: user-supplied FVEK,\n"
+            L"                                     64/128 hex chars - in-stack XTS-AES\n"
+            L"                                     decrypt, engines see plaintext)\n"
             L"  rrecov tree --in file.crsf [--filter s] [--deleted-only] [--csv]\n"
             L"  rrecov recover --in file.crsf --disk N --to DIR [--deleted-only] [--filter s]\n"
             L"             [--report file.json]\n"

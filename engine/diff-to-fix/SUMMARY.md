@@ -1,4 +1,62 @@
-# SUMMARY.md — executive summary (diff-fix session 15 on top; earlier sessions below)
+# SUMMARY.md — executive summary (diff-fix session 20 on top; earlier sessions below)
+
+## Session-20 delta (2026-10-26 — DFX20: M-033, the BitLocker in-stack decrypt)
+
+Leg ID history: stamped DFX17 at bootstrap, re-stamped DFX18 then DFX20
+(two parallel legs squatted each name in the same window; the union kept
+all three bootstrap entries verbatim). Bootstrap baseline **584/584**
+linux-gcc (RelWithDebInfo + ASan) at `5d63124`; after absorbing the
+parallel lanes' landings (M-007, M-008, M-045, M-054, M-005, N-030, N-041,
+N-069) the pre-fix baseline re-verified **608/608** (the count grew with
+the absorbed waves). Corpus `03ad46c` unmoved. Lane claim: the UNCLAIMED
+MAJOR tier (M-033 first), posted before any finding work.
+
+**M-033 FIXED (the in-stack BitLocker decrypt — CONFIRMED-DIVERGENCE,
+verified against the corpus first-hand):** the og decrypts locked volumes
+in-stack (architecture doc §8: "FVE keys -> XTS-AES decrypt
+(BitLockerLib/OpenSSL)"), engines see plaintext; our core refused locked
+volumes unless the OS had them unlocked. The fix lands the layer exactly:
+`DecryptingDevice : IStorageDevice` (cr_decrypt_device.h) wraps the volume
+slice with per-sector LE-index XTS tweaks — physical -> slice -> [XTS]
+-> engine, the og's order. AES-128/256 + XTS are clean-room
+(cr_aes.cpp, no new third-party dependency — the tree stays
+zlib/lz4/zstd-only and Win7-inclusive) and pinned **byte-exact against
+vectors generated independently by pycryptodome AND OpenSSL EVP 3.5**
+(the EVP interface the og's BitLockerLib statically links) plus the
+FIPS-197 Appendix C KATs; XTS weak-key halves are rejected (OpenSSL 3.x's
+own rule). Key surface = the og's own API shape: the user supplies the
+FVEK (GetFullVolumeEncryptionKey's >=0x40-byte output, decompile
+:27075-27107) via `scan --volume X: --bitlocker-fvek <hex>` or the
+additive ABI export `cr_ui_open_volume_with_key` (no version bump —
+the documented additive policy). **Safety posture preserved**: locked
+WITHOUT a key keeps the ERR_FVE_LOCKED refusal (S61
+legitimate-unlock-only; FB-B01 never-scan-blind); auto-unlock-able
+volumes still take the OS path; a wrong key yields honest detection
+failure, never wrong-file results. The recovery-password/BEK -> VMK ->
+FVEK unwrap chain is out-of-corpus (ParserBitLocker :27633's datum parse
+sits behind opaque C++ graphs — FUN_180042350/FUN_180044e90; the
+finding's own open question says so, confirmed first-hand) — filed as
+tracked-open **OQ-S20-1** with the exact decompile entry points and next
+step. Fail-before intrinsic (the device/crypto types did not exist);
+13 tests in test_bitlocker_xts.cpp prove AES KATs, XTS cross-impl
+vectors, whole-sector vectors, round trips, weak-key rejection, tweak
+separation, plaintext reads through the wrapper, byte-exact
+unaligned/cross-sector reads, transport-error propagation, and the
+M-033 acceptance (an XTS-encrypted FAT16 volume is opaque to the raw
+engine and scans correctly through the decrypt device with the key).
+Suite **608/608** after.
+
+**Counts after this push (direct file inventory):** SEVERE **1** (S-029,
+DFX10's claim) · MAJOR **27** (M-005/M-007/M-008/M-037/M-045/M-046/
+M-054 landed by parallel lanes since session-15's count; M-033 this push)
+· MINOR **41** (parallel lanes landed N-041/N-069/N-030 since the
+session-15 count) · INFO 22 (all ACKNOWLEDGED) · FIXED/ family
+**102 files** (incl. RESOLVED-INDEX; +M-033 this push; the parallel waves'
+M-005/M-007/M-008/M-045/M-054/N-041/N-069/N-030 already inside) ·
+tracked-open **17** (+OQ-S20-1 this push). Top remaining risks: S-029 (the last SEVERE), then
+the MAJOR tier by user impact — M-042 (session-resume revalidation),
+M-017 (lost-partition scoring), M-019/M-020/M-038 (ZFS/btrfs parity
+depth), M-039 (occupancy bitmap) are this lane's next queue.
 
 ## Session-15 delta (2026-10-26 — DFX10: the S-009 third-implementation convergence + M-054)
 

@@ -9997,3 +9997,73 @@ Work Log:
 Stage Summary:
 - M-008 FIXED (session tally: 2). Next in my claimed batch: M-032 (slice
   tail read clamp vs refusal).
+
+---
+Task ID: DFX20-M033 (session 20, finding 1 — the unclaimed-MAJOR lane's first landing)
+Agent: main engineer (diff-to-fix fix session 20 — DFX20; leg-ID history:
+DFX17 stamped at bootstrap, DFX18 and then DFX20 after two same-window
+squats by parallel legs — all bootstrap entries kept verbatim in the union)
+Task: M-033 — BitLocker in-stack decrypt vs pre-unlock refusal. Verified,
+classified CONFIRMED-DIVERGENCE, fixed, proven.
+
+Work Log:
+- Corpus verification first-hand: architecture/05-scan-engine-architecture.md
+  section 8 pins the in-stack layer ("FVE keys (DRWService pipe) -> XTS-AES
+  decrypt (BitLockerLib/OpenSSL)"); the bitlockerlib--bitlocker-implementation
+  artifact pins the cipher (OpenSSL EVP aes_{128,256}_xts), the key surface
+  (GetFullVolumeEncryptionKey/SetProcessProtectorKey/SetProcessProtectorKeyFromBEK),
+  and the recovery flow (user key -> derive -> engines see plaintext);
+  BitLockerLib_decompiled.c:27075-27107 pins the FVEK output shape (>=0x40
+  bytes). The decompile's "custom stretch" at :111-470 decoded as PLAIN
+  SHA-256 (Ch/Maj/ROTR structure verified) — the artifact itself labels the
+  KDF position inferred. ParserBitLocker (:27633) confirmed the metadata
+  parse is behind opaque C++ graphs (FUN_180042350/FUN_180044e90) — the
+  finding's own out-of-corpus open question holds; the datum grammar is
+  NOT legible without a dedicated RE pass.
+- Fix: (1) cr/crypto/cr_aes.h + src/core/crypto/cr_aes.cpp — clean-room
+  AES-128/256 (FIPS-197) + XTS (IEEE 1619-2007/SP 800-38E, whole-data-unit
+  discipline — BitLocker sector units are 512/4096-byte multiples; no CTS
+  partial units in the reference's sector path); XTS weak-key halves
+  rejected (OpenSSL 3.x's own rule). No new third-party dependency.
+  Three crypto bugs caught by the KATs during bring-up and fixed before
+  landing: ShiftRows lane masks (rows 1/3 swapped), rot_word direction
+  for the LSB-first word encoding, and the equivalent-inverse-cipher
+  AddRoundKey/InvMixColumns order. (2)
+  cr/storage/cr_decrypt_device.h + src/core/storage/cr_decrypt_device.cpp —
+  DecryptingDevice : IStorageDevice wrapping the volume slice (the og's
+  layer order), per-sector LE-index tweaks, whole-span staging decrypted
+  sector-by-sector, transport errors propagated verbatim. (3) Key surface:
+  scan --bitlocker-fvek <hex> (pre-pass, order-free; 64/128 hex chars)
+  + cr_ui_open_volume_with_key (additive ABI export per the documented
+  no-bump policy; C-ABI check compiled clean). Locked WITHOUT key keeps
+  ERR_FVE_LOCKED (S61/F13/FB-B01 posture preserved); auto-unlock-able
+  volumes still take the OS path; wrong key = honest detection failure.
+- Known-answer discipline: the XTS vectors were generated INDEPENDENTLY by
+  pycryptodome AND OpenSSL EVP 3.5 (the og's own cipher interface) — both
+  agreed byte-exact before the C++ was trusted; the famous "all-zero" XTS
+  vector from memory was REJECTED during verification (OpenSSL refuses
+  weak XTS keys; my remembered constant did not survive arbitration —
+  recorded here as a no-hallucination note).
+- Tests: 13 in tests/unit/test_bitlocker_xts.cpp (FIPS-197 KATs, XTS-128/
+  256 cross-implementation vectors, 512-byte sector vector, round trips,
+  weak-key rejection, tweak separation, plaintext-through-wrapper, byte-
+  exact unaligned/cross-sector reads, transport-error propagation, create
+  gating, and the M-033 acceptance: an XTS-encrypted FAT16 volume is
+  opaque to the raw engine, scans correctly through the decrypt device
+  with the key). Fail-before intrinsic (types absent on the audited
+  tree). Suite 608/608 linux-gcc RelWithDebInfo+ASan.
+- Audit trail: Resolution in the finding, moved to findings/FIXED/;
+  RESOLVED-INDEX row; CROSS-REF-MATRIX session-20 rows (storage S61,
+  abi export set, cli grammar); modules/storage.md BitLocker rows;
+  SUMMARY session-20 delta (counts re-baselined to the live inventory:
+  SEVERE 1 / MAJOR 27 / MINOR 41 / INFO 22 / FIXED 102 / OQ 17); new
+  tracked-open OQ-S20-1 (the FVE KDF interop, with the decompile entry
+  points); docs: CAPABILITY-MATRIX (exclusion rewritten), architecture.md
+  (platform transports), ABI-CONTRACT (ownership table), PARITY-DELTAS
+  D-72 (the FVEK-input scope, do-not-remove guidance).
+
+Stage Summary:
+- M-033 FIXED (session tally: 1). The in-stack decrypt capability the og
+  has on locked volumes is live, corpus-pinned, KAT-proven. Next in my
+  claimed queue: M-042 (session-resume lost revalidation), then M-017
+  (lost-partition scoring), M-019 (ZFS multivdev), M-020 (btrfs profile).

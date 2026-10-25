@@ -58,11 +58,16 @@
 
 ## 3. Explicit exclusions (standing)
 
-Cloud/NAS/remote recovery; BitLocker decryption (detection + legitimate unlock
-only, F13 — the legitimate unlock itself is live-registry + offline-hive capable
-since S-014: per-volume-GUID `Control\FVEAutoUnlock` keys + dead-system SYSTEM
-hives, og DRWService/bitlockerhelp paths); signing (OSSign disabled); `.rsf`
-import (G-11, tracked disposition).
+Cloud/NAS/remote recovery; BitLocker FVE-key DERIVATION from a recovery
+password or .BEK inside our stack (tracked-open OQ-S20-1: the FVE metadata
+datum grammar is not decoded in the corpus; in-STACK DECRYPTION ITSELF is
+live since M-033 — a user-supplied FVEK, the og's GetFullVolumeEncryptionKey
+output shape, flows through `DecryptingDevice`, the in-stack XTS-AES layer
+matching the og's volume-IO placement: `--bitlocker-fvek` CLI /
+`cr_ui_open_volume_with_key` ABI; detection + legitimate unlock remain the
+S-014 posture: live-registry + offline-hive auto-unlock, and locked volumes
+WITHOUT user key material stay refused — ERR_FVE_LOCKED, no bypass); signing
+(OSSign disabled); `.rsf` import (G-11, tracked disposition).
 
 ## 4. Open gap register (code-verified)
 

@@ -40,7 +40,7 @@
 
 | Object | Created by | Freed by | Borrows |
 |---|---|---|---|
-| `cr_ui_device` | `cr_ui_open_image` / `cr_ui_open_disk` / `cr_ui_open_volume` | `cr_ui_device_close` | — |
+| `cr_ui_device` | `cr_ui_open_image` / `cr_ui_open_disk` / `cr_ui_open_volume` / `cr_ui_open_volume_with_key` (M-033: locked-volume open with a user-supplied FVEK — the in-stack XTS decrypt opt-in; hex string in, same lifetime contract) | `cr_ui_device_close` | — |
 | `cr_ui_scan` | `cr_ui_scan_create` / `cr_ui_session_resume` | `cr_ui_scan_close` | the attached device (caller keeps it alive until after close) |
 | `cr_ui_session` | `cr_ui_session_load` | `cr_ui_session_close` | — |
 | `cr_ui_snapshot` | `cr_ui_scan_snapshot` / `cr_ui_session_snapshot` | `cr_ui_snapshot_close` | the scan/session it came from (values are copied; the source may close after the LAST row has been READ, not while rows are being read) |
