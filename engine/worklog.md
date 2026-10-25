@@ -8443,6 +8443,7 @@ Stage Summary:
 - No semantic overlap remains: S-032 is FIXED by the parallel lane (dropped
   from this session's SEVERE queue — S-009/S-029/S-030 remain).
 
+---
 Task ID: DFX9-T0 (diff-fix session 9 bootstrap + baseline repair)
 Agent: main engineer (diff-to-fix session 9)
 Task: Session bootstrap — pull both repos, record baseline commits, establish
@@ -8649,6 +8650,7 @@ Stage Summary:
   before each push (pull --rebase every time).
 
 ---
+<<<<<<< HEAD
 Task ID: DFX8-S009 (session 8, finding 2)
 Agent: main engineer (diff-to-fix closing session 8)
 Task: S-009 — the disk-map free overlay (the residual the session-6 addendum
@@ -8717,3 +8719,41 @@ Work Log:
 
 Stage Summary:
 - S-030 in flight on DFX8. S-029 unclaimed-at-this-instant (DFX10's queue).
+
+---
+Task ID: DFX12-T2 (audit-trail reconciliation — six stale-resolved MINOR moves)
+Agent: main engineer (diff-to-fix minors-first session 12)
+Task: Move six findings whose fixes landed in prior sessions (Resolutions
+already written, commit evidence verified first-hand) out of MINOR/ into
+findings/FIXED/; repair the audit-trail damage found during the move.
+
+Work Log:
+- Verified each Resolution's commit evidence first-hand: N-004/N-006
+  (7f03c4b — RetryPolicy::backtrack in cr_device.h/cr_retry.cpp, pin test
+  Btrfs.NonPow2NodesizeRejectedRegistered, PARITY-DELTAS D-62a), N-013
+  (DFX7 writer-minors batch — win::destination_volume_letter /
+  volume_extents / set_destination_spans; Report.MultiExtentSpannedVolume-
+  Refused), N-015 (915bce3 — ERR_DEST_FULL end to end), N-018 (b1f9210 —
+  linux-ubsan preset + CI job), N-042 (3678cbf — decidegrees_c single
+  source), N-044 (779eb21 — --whole-disk rename).
+- AUDIT-TRAIL DAMAGE FOUND AND REPAIRED: b2bd91b's "housekeeping" note
+  ("N-004/N-006 group returned to MINOR/") accidentally truncated the
+  group file from 99 lines to the 7-line N-005 stub — the original
+  three-finding text and the N-004/N-006 Resolution sections were gone
+  from the working tree. Restored byte-identical from git history
+  (f3ec0bb blob); all cited tests verified present in the tree.
+- Moves: N-004-N-006, N-013, N-015, N-018, N-042, N-044 → findings/FIXED/.
+  RESOLVED-INDEX rows added (one per file, commit SHAs + test names).
+- N-009 (c/d sub-rows open) and N-036 (container-map half open) stay in
+  MINOR/ — partial by design, not stale.
+- SUMMARY session-12 delta added: live counts after reconciliation —
+  SEVERE 3 · MAJOR 39 · MINOR 49 · INFO 22 (0 actionable) · tracked-open
+  16 · FIXED 79 files (78 findings + index). Also noted: N-073 is a
+  probable duplicate of the N-004 landing (session-6 citation-gap
+  filing); duplicate M-029 pair and duplicate M-053 files in FIXED/
+  queued for reconciliation.
+
+Stage Summary:
+- Six findings formally closed in the audit trail (no code change — code
+  was already og-parity from prior sessions; this wave is the bookkeeping
+  the prior legs left behind). Session resolution tally: 6.

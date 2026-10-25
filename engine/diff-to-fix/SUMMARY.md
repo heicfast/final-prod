@@ -31,7 +31,38 @@ filing+fix: active count unchanged (122 — the finding was born fixed in the
 same push); FIXED 68 finding files. Subsequent session-9 landings append
 their deltas below as they push.
 
-# SUMMARY.md — executive summary (session-6 fix leg + session 7 below; earlier sessions below)
+# SUMMARY.md — executive summary (session 12 on top of session 9; earlier sessions below)
+
+## Session-12 delta (2026-10-26 — the minors-first reconciliation wave, DFX12)
+
+Session start `7c44bdc` (bootstrapped at `7444fd6` after rebase onto the
+parallel lanes' N-044/UBSan-CI landings); corpus `03ad46c` unmoved.
+Baseline before any change: Linux Release suite **533/533** green.
+Order per user mandate: MINOR-first waves; every finding independently
+re-verified before fixing; fixed findings move to `findings/FIXED/`.
+
+**Audit-trail reconciliation (this wave):** six MINOR files whose fixes
+landed in prior sessions (commit evidence verified first-hand: `7f03c4b`,
+`915bce3`, `b1f9210`, `3678cbf`, `779eb21`) had never been moved out of
+MINOR/ — N-004/N-005/N-006 (group), N-013, N-015, N-018, N-042, N-044
+now live in FIXED/ with RESOLVED-INDEX rows. **Audit-trail damage
+repaired:** the b2bd91b "housekeeping" commit had accidentally truncated
+the N-004/N-005/N-006 group file from 99 lines to the 7-line N-005 stub
+(the original finding text + the N-004/N-006 Resolution sections were
+lost from the working tree; git history held them) — restored in full
+and all three cited test sets verified present (Retry.Backtrack* x3,
+HfsPlus.LargeBlockSizeAccepted, Btrfs.NonPow2NodesizeRejectedRegistered).
+N-009 (c/d sub-rows open) and N-036 (container-map half open) stay in
+MINOR/ as partially resolved by design.
+
+**Counts after the reconciliation (direct file inventory at this
+commit):** SEVERE 3 (S-009, S-029, S-030) · MAJOR 39 (incl. the known
+duplicate M-029 pair) · MINOR 49 · INFO 22 (all ACKNOWLEDGED — 0
+actionable) · tracked-open 16 · **FIXED/ 79 files (78 findings +
+RESOLVED-INDEX)**. Session fix tally (resolutions this session): 6
+moved-with-evidence + the group-file restoration. Ongoing: MINOR-first
+fix waves targeting 20+ in-session resolutions; N-073 noted as a
+probable N-004 duplicate (session-6 filing) — verification queued.
 
 ## Session-8 delta (2026-10-26 — the closing-verification fix session, SEVERE lane first)
 
