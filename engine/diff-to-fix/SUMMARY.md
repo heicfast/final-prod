@@ -108,9 +108,26 @@ addendum under a duplicate ID — no title, no finding header) folded verbatim
 into the canonical M-029 file and removed. The canonical remains ACTIVE (Type
 sort key, bucket-ID translation, paging parity claim, server-side push).
 
+**M-005 FIXED (this push):** the carve allocation-bitmap gate. Corpus
+re-verified first-hand before implementing (RAWSearchDLL :9440-9466 +
+FUN_180058df0 :67842-67856) — three details richer than the finding's
+paraphrase, all folded in: OOB/no-bitmap dispatch proceeds (raw-disk rule);
+the cluster jump requires cluster alignment; the og's bitmap is the USED
+map so the core's inverted FreeMap flips the gate's polarity. The gate
+lives in BOTH dispatch layers (grammar per-byte + raw-sign 512-stride);
+the map enters via CarveFlags.free_map with the orchestrator rebasing
+stats.free_map (S-009's producer surface) slice-relative at the call site.
+Tests: Carve.BitmapSkipsUsedClusters + Carve.NoBitmapCarvesEverything
+(null AND invalid maps carve all). Bench (scripts/bench_m005.cpp, 16 MiB
+LCG-random, 50% used, median of 3, two invocations): 1137.8/1124.7 ms
+ungated vs 606.3/594.4 ms gated = **1.88x/1.89x** (plan expected >= 1.5x).
+Bench lesson recorded: all-0xFF fixtures are adversarial (FMT_MPGA_FF's
+{0xFF,0xFF} magic — parity with the og's FF sync family); representative
+mixed-content fill is the honest measurement. Suite 575/575.
+
 **Counts after this wave (direct file inventory):** SEVERE 2 (S-029, S-030) ·
-MAJOR 37 · MINOR 48 · INFO 22 (0 actionable) · tracked-open 16 · FIXED 82
-files (81 findings + RESOLVED-INDEX).
+MAJOR 36 · MINOR 48 · INFO 22 (0 actionable) · tracked-open 16 · FIXED 83
+files (82 findings + RESOLVED-INDEX).
 
 # SUMMARY.md — executive summary (diff-fix session 11 on top; earlier sessions below)
 

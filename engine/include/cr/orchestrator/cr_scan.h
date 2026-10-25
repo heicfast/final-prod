@@ -218,6 +218,9 @@ struct ScanStats {
     u64 elapsed_ms = 0;
     u64 cached_hits = 0; /* R1.6 pipe counters (diagnostics) */
     u64 cached_misses = 0;
+    /* M-005: used-cluster bytes the carve dispatch never offered (the
+     * og's block-scan bitmap gate). 0 when no bitmap was available. */
+    u64 carve_bitmap_skipped_bytes = 0;
     ReadErrorMap errors;
     std::vector<lost::Candidate> lost_candidates;
 

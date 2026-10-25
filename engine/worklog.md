@@ -9773,15 +9773,15 @@ Stage Summary:
   while this bootstrap pushed — dropped from this queue; queue head is
   N-067, then N-068, N-063, N-065, N-056, N-029.)
 ---
-Task ID: DFX18-BOOT (session 18 bootstrap)
-Agent: main engineer (diff-to-fix fix session 18 — DFX18)
+Task ID: DFX20-BOOT (session 20 bootstrap)
+Agent: main engineer (diff-to-fix fix session 20 — DFX20)
 Task: Session bootstrap per the standing SOP: pull, baseline, inventory,
 post the lane claim before any finding work.
 
 Work Log:
 - Pulled origin/main: HEAD `5d63124` (0 behind, 0 ahead); corpus
   `03ad46c` unmoved. Prompt archived token-redacted at
-  worklog/session-diff-fix-18-prompt.md.
+  worklog/session-diff-fix-20-prompt.md.
 - Baseline build + suite on linux-gcc (RelWithDebInfo + ASan):
   **584/584 green** (ctest, 36.8s). The tree is clean at bootstrap.
 - Inventory at HEAD: SEVERE 1 (S-029, DFX10's claim) · MAJOR 32 ·
@@ -9790,7 +9790,7 @@ Work Log:
   M-045/M-013/M-052/M-043/M-018/M-014 next-queue; DFX14: M-005; DFX11:
   M-007/M-008/M-032/M-050/M-029/M-049; DFX9-T7: M-035/M-018/M-013/M-014;
   DFX9-T2: N-065/N-070/N-075; DFX13/DFX16: N-045/N-067/N-068, then
-  N-063/N-065). This leg DFX18 claims (ID disambiguation: the parallel MINOR-first leg posted as DFX17 first — both claims stand, disjoint tiers) the UNCLAIMED MAJOR tier, largest
+  N-063/N-065). This leg DFX20 claims (ID history: DFX17/DFX18 both squatted by parallel legs in the same window — third re-stamp wins; M-016 ceded to DFX19 whose claim posted first) (ID disambiguation: the parallel MINOR-first leg posted as DFX17 first — both claims stand, disjoint tiers) the UNCLAIMED MAJOR tier, largest
   user impact first, one-finding-one-commit-one-push:
   M-033 (BitLocker in-stack decrypt) → M-042 (session resume lost
   revalidation) → M-017 (lost partition scoring) → M-016 (LDM TOCBlock)
@@ -9807,3 +9807,104 @@ Work Log:
 Stage Summary:
 - Bootstrap complete: 584/584 green at `5d63124`, inventory recorded,
   lane claim posted. Execution begins with M-033.
+---
+
+---
+Task ID: DFX18-CLAIM (session 18 lane claim — MINOR-first, disjoint from DFX17)
+Agent: main engineer (diff-to-fix fix session 18 — DFX18, MINOR-first mandate)
+Task: Lane claim, posted before any finding work. DFX17's queue (per its
+bootstrap entry) is N-067, N-068, N-063, N-065, N-056, N-029 + group
+files. This lane claims the DISJOINT remainder of the MINOR tier, in
+this order: N-045 (cache budget), N-046 (geometry refresh), N-041 (dead
+code rdaclient), N-057 (TableLayout EBR dead enum), N-040 (ABI doc
+truthfulness), N-020 + N-074 (doc-drift pairs), N-061 (runlog/auto-name),
+N-062 (memory monitor), N-064 (dict), N-048 (logging seam), N-043
+(progress watchdog), N-060 (save-progress cancel), N-059/N-058/N-066
+(session persistence/identity trio), N-049/N-050/N-035 (lost-record
+family), N-031/N-033 (carve dispatch/registry), N-007-I-004, N-008,
+N-025, N-026, N-027, N-032, N-036 (container half), N-071, N-072, N-014,
+N-019, and the DFX9-T2-era claims N-070/N-075 if those lanes stay
+silent. One finding, one verified fix, one push. Baseline this session:
+linux-release 584/584 green at eeeccbd lineage (rebased prompt push
+e21de3e).
+
+Stage Summary:
+- Claim posted; execution begins with N-045.
+
+---
+Task ID: DFX19-T1 (session 19 bootstrap + lane claim — ID renamed from DFX17: that ID was squatted by the parallel minors lane above, now DFX18)
+Agent: main engineer (diff-to-fix fix session 19 — DFX19, MAJOR-first mandate)
+Task: Baseline the union tree, save the session prompt (token redacted),
+post the lane claim, then execute the MAJOR tier one-by-one per the user's
+directive (fix majors first; 20+ fixes targeted).
+
+Work Log:
+- Baseline: pulled to `11afbfa` (the N-030/N-069-converged landing; one
+  commit past 5d63124). Corpus `easeus-drw-research` @ `03ad46c` (unmoved).
+- Full suite at `11afbfa`: **584/584 green** (linux-gcc RelWithDebInfo +
+  ASan, cmake 4.4.4 via pip --user, g++ 14.2).
+- Prompt saved to `worklog/session-diff-fix-19-prompt.md` (token redacted).
+- Inventory at baseline: SEVERE 1 (S-029, DFX10's claim) · MAJOR 32 active ·
+  MINOR 43 active · INFO 22 · FIXED 94 · tracked-open 13 non-resolved.
+- Lane claim (avoiding DFX15's announced queue M-045→M-043→M-005→M-007/
+  M-008 and the session-11 claims M-007/M-008/M-032/M-050/M-029/M-049 and
+  the DFX15/DFX9-T7 claims M-013/M-014/M-018/M-052/M-035): this leg claims
+  the unclaimed MAJOR batch in impact order — **M-016 (LDM TOCBLOCK
+  candidates), M-019 (ZFS multivdev+fletcher4), M-038 (ZFS SA layout
+  registry), M-017 (lost scoring), M-020 (btrfs profile), M-021 (carve
+  video repair), M-033 (BitLocker in-stack decrypt), M-039 (occupancy
+  bitmap), M-024 (runtime format filter), M-028 (preview caps), M-042
+  (session resume revalidation), M-044 (UDF recognition), M-048 (user
+  signature DB), M-025 (carve read model, benched), M-030/M-034/M-040/
+  M-041 (architectural, last)**. MINOR/INFO/tracked-open after the MAJOR
+  queue. First-landing-wins arbitration per the lane protocol.
+
+Stage Summary:
+- Baseline green and claimed. Execution begins with M-016.
+Task ID: DFX14-T4 (M-005 — completed)
+Agent: main engineer (diff-to-fix session 14)
+Task: M-005 (MAJOR, carve): verify, classify, fix, prove, document.
+
+Work Log:
+- Classification: CONFIRMED-DIVERGENCE at 8783c2f (verified in the claim
+  entry): the S-009 landing produced the FreeMap producer + stats surface
+  only; the carve received no bitmap.
+- Corpus re-verified first-hand (ghidra-searchdll/RAWSearchDLL_decompiled.c
+  :9440-9466 + FUN_180058df0 :67842-67856): (a) OOB (bit-count bound [2])
+  or no bitmap -> dispatch PROCEEDS; (b) the cluster jump requires
+  cluster-ALIGNED positions (pos % spc == 0); (c) the og's bitmap is the
+  USED map — the core's FreeMap inverts the gate's polarity.
+- Implementation: CarveFlags.free_map (nullable, slice-relative) ->
+  ScanCtx gate helpers (gate_used / gate_next_cluster /
+  gate_check_and_skip) -> gates in BOTH dispatch layers (grammar per-byte
+  + raw-sign 512-stride); run_carve_stage rebases stats.free_map
+  slice-relative; CarveStats.bitmap_skipped_clusters/_bytes counted at
+  the grammar layer ONLY (the sign layer rides without double-counting —
+  the first test run caught the double-count, fixed with the count flag);
+  ScanStats.carve_bitmap_skipped_bytes surface.
+- Tests (fail-before intrinsic — CarveFlags had no free_map pre-fix):
+  Carve.BitmapSkipsUsedClusters (used-cluster PNG suppressed, free-cluster
+  PNG carved, telemetry exactly 2/8192) + Carve.NoBitmapCarvesEverything
+  (null AND invalid maps carve everything). Suite 575/575.
+- Bench (scripts/bench_m005.cpp, 16 MiB deterministic LCG-random, 4 KiB
+  clusters, 50% used, 1 thread, median of 3, two invocations): ungated
+  1137.8/1124.7 ms, gated 606.3/594.4 ms = 1.88x/1.89x (plan >= 1.5x).
+  BENCH LESSON: an all-0xFF fixture is adversarial, not representative —
+  FMT_MPGA_FF carries magic {0xFF,0xFF} (og parity: its raw-sign table has
+  the same FF family), so all-0xFF makes every position a candidate and
+  validation dominates; two bench timeouts taught it. Pseudo-random
+  mixed-content fill is the honest fixture. (Also a C++ lesson: a
+  `std::vector<u8> img(size_t(IMG));` line is a vexing-parse function
+  declaration — the compiler caught it; use a named size variable.)
+- Audit trail: Resolution + move to FIXED/; RESOLVED-INDEX 82-header +
+  row; matrix carve+orchestrator rows; modules/carve.md (A25, cost note,
+  index, decompile note); N-008 group file's canonical pointer updated to
+  the FIXED/ path; SUMMARY session-14 delta extended + counts (MAJOR 36,
+  FIXED 83 files).
+
+Stage Summary:
+- M-005 FIXED: the carve now gates its sweep on the engine's allocation
+  truth — perf (1.88x on 50% used) + false-positive reduction (live-file
+  regions never offered). DFX14 tally: N-073 (FIXED-ALREADY, proven) +
+  M-029 fold + the clobber repair (4 findings) + M-005 = 7 finding-level
+  resolutions. Next: pull, re-verify lane map, claim the next item.
