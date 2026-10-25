@@ -9707,7 +9707,6 @@ Stage Summary:
   plumbing's second consumer; includes the 8->64 MiB cap raise where the
   fail-open/truncation semantics are load-bearing), then S-029, then the
   MAJOR wave by user impact.
->>>>>>> 774a093 (fix(M-054 NEW-FINDING): exFAT allocation bitmap bit i vs cluster i+2 — grading + the landed S-009 free-map producer shifted two clusters on every real volume)
 
 ---
 Task ID: DFX11-M007 (session 11, finding 2)
@@ -9742,3 +9741,34 @@ Work Log:
 Stage Summary:
 - M-007 FIXED (session tally: 1). Next in my claimed batch: M-008 (NTFS
   attrlist chase scope/depth).
+
+---
+Task ID: DFX17-T1 (session 17 bootstrap — baseline + inventory)
+Agent: main engineer (diff-to-fix fix session 17 — DFX17, MINOR-first mandate; renamed from DFX15 to stay unambiguous against the parallel session-15 MAJOR lane above)
+Task: Pull both repos, record audited vs current commit, verify green
+baseline before any finding work; establish the MINOR work queue.
+
+Work Log:
+- Core cloned at `b8b0318` (main HEAD, 2026-10-25 22:46:25 +0000 —
+  the N-069 landing; audited-commit lineage per diff-to-fix/README.md
+  session-5b `7cf6754`-lineage, sessions 6-14 landings on top).
+  Corpus at `03ad46c` (unmoved, verified).
+- Baseline build: linux-gcc preset (RelWithDebInfo + ASan), full build
+  clean. Test sweep: cr_tests **562/562**, cr_ui_tests **21/21**,
+  cr_ui_abi_check OK (4 progress calls, 0 recovery calls). GREEN.
+- Session prompt saved token-redacted to
+  `worklog/session-diff-fix-17-minors-prompt.md`.
+- Inventory (direct file count at `b8b0318`): SEVERE 1 (S-029) ·
+  MAJOR 32 · MINOR 43 files · INFO 22 · FIXED 94 (incl. RESOLVED-INDEX)
+  · tracked-open 16.
+- Mandate: MINOR findings first, 20+ fixes this session. Queue from
+  the DFX16 handoff + unresolved MINOR files: N-067, N-068, N-063,
+  N-065, N-056, N-029, N-030, then the group files and the rest of
+  the MINOR tier.
+
+Stage Summary:
+- Baseline verified green at `b8b0318`. MINOR-first queue established.
+  Execution begins with N-067 (exFAT upcase-table validation).
+  (Post-rebase note: N-030 landed by the parallel DFX15 lane at 11afbfa
+  while this bootstrap pushed — dropped from this queue; queue head is
+  N-067, then N-068, N-063, N-065, N-056, N-029.)
