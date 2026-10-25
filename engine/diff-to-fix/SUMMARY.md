@@ -338,6 +338,20 @@ so the format-18 CI gate sees only the intended diff. Counts: MINOR 42
 10 (6 reconciliation + N-076 + N-030 + N-041; N-069/N-051..N-054
 convergent with the parallel lanes).
 
+**Text-policy batch (this wave):** N-016a (the N-029 group's first half)
+FIXED — text::utf8_to_u16 now follows the maximal-subpart policy (RFC 3629
+§3.1; MultiByteToWideChar(CP_UTF8, flags=0) semantics, the og's
+restore-path conversion): ONE U+FFFD per ill-formed maximal subpart
+instead of one per bad byte — a truncated/interrupted sequence consumes
+its lead + the continuations that extended it; a fully-read but invalid
+sequence (overlong/surrogate/range) consumes all of it; C0/C1 excluded at
+lead classification (RFC 3629). Text.MaximalSubpartReplacement (the
+finding's named vectors) + four re-pinned policy tests; fail-before
+executed on the stash-isolated pre-fix decoder (4 RED). N-016b (raw-bytes
+persistence in sessions — versioned name_raw field) remains open with the
+precise schema step recorded in N-029's Resolution. Suite 594/594
+linux-release.
+
 ## Session-8 delta (2026-10-26 — the closing-verification fix session, SEVERE lane first)
 
 Session start `4a924d1` (rebased bootstrap `3494606`); corpus `03ad46c`

@@ -51,29 +51,34 @@ TEST(Text, AstralPlaneBecomesSurrogatePair) {
 }
 
 TEST(Text, OverlongFormsRejectedAsReplacement) {
-    /* the resync rule is per lead byte (cr_ui + report-escaper policy): a
-     * rejected sequence's continuations are re-scanned and each surfaces
-     * as its own replacement - one FFFD per bad byte */
+    /* N-029a maximal-subpart policy (RFC 3629 §3.1; the og's restore path -
+     * MultiByteToWideChar(CP_UTF8, flags=0)): a fully-read but invalid
+     * sequence is ONE U+FFFD consuming all of its bytes. C0/C1 leads are
+     * RFC-excluded at classification (no well-formed sequence begins
+     * with them), so their continuations surface as their own subparts. */
     EXPECT_EQ(utf8_to_u16("\xc0\x80"), u({u'\uFFFD', u'\uFFFD'})); /* NUL overlong */
     EXPECT_EQ(utf8_to_u16("\xc1\xbf"), u({u'\uFFFD', u'\uFFFD'})); /* 2-byte overlong */
-    EXPECT_EQ(utf8_to_u16("\xe0\x80\x80"), u({u'\uFFFD', u'\uFFFD', u'\uFFFD'}));
-    EXPECT_EQ(utf8_to_u16("\xf0\x80\x80\x80"), u({u'\uFFFD', u'\uFFFD', u'\uFFFD', u'\uFFFD'}));
+    EXPECT_EQ(utf8_to_u16("\xe0\x80\x80"), u({u'\uFFFD'})); /* 3-byte overlong: one subpart */
+    EXPECT_EQ(utf8_to_u16("\xf0\x80\x80\x80"), u({u'\uFFFD'})); /* 4-byte overlong: one subpart */
     /* the overlong VALUE never decodes: no U+0000 from C0 80 */
     EXPECT_EQ(utf8_to_u16("\xc0\x80").find(u'\0'), std::u16string::npos);
 }
 
 TEST(Text, SurrogateHalvesRejected) {
     /* U+D800 encoded as UTF-8 (ED A0 80) must not enter UTF-16 raw;
-     * per-byte resync: the rejected lead + each continuation = FFFD */
-    EXPECT_EQ(utf8_to_u16("\xed\xa0\x80"), u({u'\uFFFD', u'\uFFFD', u'\uFFFD'}));
-    EXPECT_EQ(utf8_to_u16("\xed\xbf\xbf"), u({u'\uFFFD', u'\uFFFD', u'\uFFFD'}));
+     * N-029a maximal-subpart: the fully-read invalid sequence is ONE
+     * U+FFFD consuming all three bytes (the og's MB2WC semantics) */
+    EXPECT_EQ(utf8_to_u16("\xed\xa0\x80"), u({u'\uFFFD'}));
+    EXPECT_EQ(utf8_to_u16("\xed\xbf\xbf"), u({u'\uFFFD'}));
     /* the last legal code point below the surrogate gap still decodes */
     EXPECT_EQ(utf8_to_u16("\xed\x9f\xbf"), u({char16_t(0xD7FF)})); /* U+D7FF */
 }
 
 TEST(Text, BeyondUnicodeRejected) {
-    /* U+110000 (F4 90 80 80) and above - reject + per-byte resync */
-    EXPECT_EQ(utf8_to_u16("\xf4\x90\x80\x80"), u({u'\uFFFD', u'\uFFFD', u'\uFFFD', u'\uFFFD'}));
+    /* U+110000 (F4 90 80 80) and above - ONE U+FFFD for the maximal
+     * subpart (N-029a; the whole well-formed-but-invalid sequence
+     * consumes) */
+    EXPECT_EQ(utf8_to_u16("\xf4\x90\x80\x80"), u({u'\uFFFD'}));
     /* the RFC-legal maximum U+10FFFF decodes fine */
     EXPECT_EQ(utf8_to_u16("\xf4\x8f\xbf\xbf"), u({char16_t(0xDBFF), char16_t(0xDFFF)}));
 }
@@ -88,14 +93,39 @@ TEST(Text, InvalidLeadBytesResyncOneByte) {
 TEST(Text, TruncatedTailBecomesReplacement) {
     /* valid lead with missing continuations at end-of-buffer */
     EXPECT_EQ(utf8_to_u16("caf\xc3"), u({u'c', u'a', u'f', u'\uFFFD'}));
-    /* a partial sequence resyncs one byte past the bad lead, so the
-     * already-consumed continuation bytes each surface as their own
-     * replacement (cr_ui policy; matches the report escaper's resync) */
-    EXPECT_EQ(utf8_to_u16("\xe7\x85"), u({u'\uFFFD', u'\uFFFD'}));
-    EXPECT_EQ(utf8_to_u16("\xf0\x9f"), u({u'\uFFFD', u'\uFFFD'}));
-    /* interrupted mid-sequence: the continuation is not consumed by the
-     * next decode step (resync lands on the continuation byte itself) */
+    /* N-029a maximal-subpart: a truncated sequence consumes its lead +
+     * the continuations that extended it - ONE U+FFFD (the og's
+     * MB2WC(CP_UTF8, flags=0) count; the pre-fix core emitted one
+     * FFFD per byte) */
+    EXPECT_EQ(utf8_to_u16("\xe7\x85"), u({u'\uFFFD'}));
+    EXPECT_EQ(utf8_to_u16("\xf0\x9f"), u({u'\uFFFD'}));
+    EXPECT_EQ(utf8_to_u16("\xf0\x9f\x98"), u({u'\uFFFD'}));
+    /* interrupted mid-sequence: the maximal subpart is the lead byte
+     * alone; the ASCII suffix decodes */
     EXPECT_EQ(utf8_to_u16("\xe7\x41"), u({u'\uFFFD', u'A'}));
+}
+
+TEST(Text, MaximalSubpartReplacement) {
+    /* N-029a (the finding's named vectors): the og's restore path
+     * converts names via MultiByteToWideChar(CP_UTF8, flags=0), which
+     * follows the maximal-subpart policy - ONE U+FFFD per maximal
+     * subpart, resuming at the offending byte. The pre-fix core emitted
+     * one FFFD per bad byte ("FFFD FFFD x" for \xE6\x96x). */
+    /* \xE6\x96x: E6 starts a 3-byte sequence, 96 extends it, 'x'
+     * breaks it - the maximal subpart is E6 96 -> ONE FFFD, then 'x' */
+    EXPECT_EQ(utf8_to_u16("\xe6\x96x"), u({u'\uFFFD', u'x'}));
+    /* \xF0\x80\x80\x80: fully-read overlong sequence - ONE FFFD
+     * consuming all four bytes, the 'y' suffix survives */
+    EXPECT_EQ(utf8_to_u16("\xf0\x80\x80\x80y"), u({u'\uFFFD', u'y'}));
+    /* truncated-tail classes at true end-of-buffer */
+    EXPECT_EQ(utf8_to_u16("a\xe6\x96"), u({u'a', u'\uFFFD'}));
+    EXPECT_EQ(utf8_to_u16("a\xf0\x9f\x98"), u({u'a', u'\uFFFD'}));
+    /* a continuation-only run: each lone continuation is its own
+     * single-byte subpart (they can never begin a sequence) */
+    EXPECT_EQ(utf8_to_u16("\x80\x80\x80"), u({u'\uFFFD', u'\uFFFD', u'\uFFFD'}));
+    /* mixed: maximal-subpart FFFD + a valid CJK sequence after it */
+    EXPECT_EQ(utf8_to_u16("\xe6\x96\xe7\x85\xa7"),
+              u({u'\uFFFD', char16_t(0x7167)}));
 }
 
 TEST(Text, EmbeddedNulDecodes) {
