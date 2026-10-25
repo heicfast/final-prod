@@ -4759,3 +4759,35 @@ Stage Summary:
   documented supersets; ReFS DBRs are no longer dropped as FAT noise. Remaining in
   this leg's lane: S-003 (HFS+ journal replay) or S-007 (carve formats) - pull first
   to re-check the parallel legs.
+---
+Task ID: 4-N-021 (MINOR fix — fourth item of the fix session)
+Agent: main engineer (diff-to-fix remediation, session 4)
+Task: MINOR N-021 — FAT invalid/zero date yields non-zero FileTime in core, zero in og
+
+Work Log:
+- Verified first-hand: FATSearchDLL_decompiled.c:32135-32138 re-read — the og's
+  DosDateTimeToFileTime failure branch zeroes the props slot (and the parallel
+  modified-slot site carries the same shape); the core's cr_fat_quick.cpp:255-262
+  added the NTFS epoch delta unconditionally, so an invalid date stored
+  1970-01-01 instead of the zero FileTime (1601-01-01). Classification:
+  CONFIRMED-DIVERGENCE.
+- Fix: fat_to_filetime lambda guards the three assignments (created/modified/
+  accessed) - 0 from fat_date_to_unix (exactly the invalid/saturated class; a
+  valid FAT date is >= unix 315532800) maps to FileTime 0, matching the og's
+  failure branch; the exFAT sibling already had this shape (S-011 alignment).
+- Tests: 4 new in test_fat_volume.cpp on a private fixture copy (three extra
+  dentries: date 0x0000, month 13, day 0; the valid README pin). Fail-before
+  proven by stashing only cr_fat_quick.cpp: 3 behavior tests FAIL, the valid-date
+  guard passes both sides. One fixture bug fixed during development (10-char
+  dentry name into the 11-char field). Suite 347/347 Linux ASan (343 + 4);
+  clang-format 18.1.8 clean; post-format rebuild green.
+- Audit trail: N-021 Resolution + move to FIXED/; RESOLVED-INDEX row; SUMMARY
+  (MINOR 26 active / 61 total / 23 FIXED, remediation log); CROSS-REF-MATRIX fat
+  B/D cells -> M.
+
+Stage Summary:
+- N-021 FIXED. Session 4 tally: A-002 (reconciliation + cross-encoding guard),
+  S-011, S-006, N-021 — all fail-before-proven, all audit-trailed, main green
+  throughout. M-017 (scoring) sized and deliberately left for a fresh session
+  (multi-hour: content-probe pass + 6-rule AdjustPartitionInfoOrder port +
+  N-035 extents + stable sort) with its plan fully decoded in the finding.

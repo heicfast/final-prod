@@ -252,14 +252,22 @@ void emit_entry(EmitCtx& ctx, const DirEntry& e, const std::u16string& name, boo
     props->name = name;
     props->fs_kind = u32(ctx.p.flavor); /* 0=FAT12 1=FAT16 2=FAT32 (corpus codes) */
     props->logical_size = is_dir ? u64(chain.length()) * ctx.p.cluster_bytes : e.file_size;
-    props->times.created =
-        u64(fat_date_to_unix(e.creation_date, e.creation_time, e.creation_tenths)) * 10000000ULL +
-        116444736000000000ULL; /* unix->100ns1601 */
-    props->times.modified =
-        u64(fat_date_to_unix(e.write_date, e.write_time, 0)) * 10000000ULL + 116444736000000000ULL;
+    /* N-021 og parity: an invalid/zero FAT date (DosDateTimeToFileTime
+     * failure class - month 0/13, day 0/32) yields the ZERO FileTime
+     * (1601-01-01 UTC), not 1970-01-01. The og zeroes the props slot on
+     * conversion failure (FATSearchDLL_decompiled.c:32135-32138:
+     * "if (BVar5 == 0) *slot = 0"); fat_date_to_unix returns 0 exactly for
+     * that class (a valid date is >= 1980-01-01 = unix 315532800), so the
+     * 0 here maps 1:1 onto the og's failure branch. The exFAT sibling has
+     * carried the same early-exit since S-011 (exfat_time_to_unix100). */
+    const auto fat_to_filetime = [](u16 date, u16 time, u8 tenths) -> u64 {
+        const u32 secs = fat_date_to_unix(date, time, tenths);
+        return secs ? u64(secs) * 10000000ULL + 116444736000000000ULL : 0;
+    };
+    props->times.created = fat_to_filetime(e.creation_date, e.creation_time, e.creation_tenths);
+    props->times.modified = fat_to_filetime(e.write_date, e.write_time, 0);
     props->times.changed = props->times.modified;
-    props->times.accessed =
-        u64(fat_date_to_unix(e.access_date, 0, 0)) * 10000000ULL + 116444736000000000ULL;
+    props->times.accessed = fat_to_filetime(e.access_date, 0, 0);
     props->attributes = e.attributes;
     if (deleted)
         props->flags &= ~u16(0x10);

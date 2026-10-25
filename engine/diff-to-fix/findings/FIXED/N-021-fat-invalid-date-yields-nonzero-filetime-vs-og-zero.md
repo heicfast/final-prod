@@ -167,3 +167,10 @@ invalid FAT dates. Divergence = `116444736000000000` (100ns units) =
   behavior is an unintended side-effect of the early-return-0 in
   `fat_datetime_to_unix_seconds` and the caller's unconditional
   `+ EPOCH_DELTA`. Low priority; the fix plan above resolves it.
+
+## Resolution
+
+**Status:** FIXED
+**Fixed in commit:** (this session's N-021 fix commit — see `git log` for "fix: N-021")
+**Verified by:** fail-before/pass-after executed this session: with only `cr_fat_quick.cpp` reverted, `FatEngine.InvalidDateYieldsZeroFileTime` (date 0x0000), `FatEngine.InvalidMonthYieldsZeroFileTime` (month 13 = 0x01A1) and `FatEngine.InvalidDayYieldsZeroFileTime` (day 0 = 0x0020) FAIL (core stored 116444736000000000 = 1970-01-01); `FatEngine.ValidDateYieldsCorrectFileTime` (0x5A46/0x6000 -> unix 1738843200) passes on both sides as the regression guard. Full suite 347/347 Linux ASan (343 baseline + 4 new). Corpus quote re-verified first-hand this session: `FATSearchDLL_decompiled.c:32135-32138` — `DosDateTimeToFileTime(...)` followed by `if (BVar5 == 0) *(u64*)(plVar7 + 0x25) = 0;` (the parallel modified-slot site at :32143+ carries the same shape).
+**Resolution notes:** classification CONFIRMED-DIVERGENCE. The three timestamp assignments in `cr_fat_quick.cpp` now route through a `fat_to_filetime` lambda that returns the ZERO FileTime (1601-01-01 UTC) when `fat_date_to_unix` yields 0 — exactly the og's zero-on-conversion-failure branch (`DosDateTimeToFileTime` returns 0 for the invalid-date class, and the og zeroes the props slot). The 0-return maps 1:1 onto the failure class: a valid FAT date is >= 1980-01-01 = unix 315532800, so `fat_date_to_unix` returns 0 only for invalid dates or >2106 saturation (both are conversion failures in the og's sense). The exFAT sibling already carried the early-exit (`exfat_time_to_unix100`, aligned with S-011); the FAT engine now matches both. No other `fat_date_to_unix` call sites exist (verified by grep: the three in `cr_fat_quick.cpp` are exhaustive). The shared datetime core and the exFAT engine are unchanged; the valid-date path is bit-identical (regression guard pins it).

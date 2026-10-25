@@ -7,7 +7,7 @@ against the original finding. They are NOT counted in the active
 severity totals in `diff-to-fix/SUMMARY.md` and are NOT part of the
 active roadmap.
 
-## Resolved findings (22 — 12 from session 1 close/session-2 legs + A-002, A-004 (+ S-016), M-009, S-011, S-015, S-017 + S-018 (INVALID, premise refuted); every file in this directory has a row)
+## Resolved findings (24 - see files; count maintained per move)
 ## Resolved findings (21 - see files; count maintained per move)
 
 | ID | Severity (orig) | Title | Fix commit | Resolution |
@@ -17,6 +17,7 @@ active roadmap.
 | S-010 | SEVERE | RawFixer write device bypasses FSCTL_LOCK_VOLUME + FSCTL_DISMOUNT_VOLUME | `3e34ed2`+`414f56c`+`34b3441` | IWriteDevice::lock_volume() contract; execute() lock-before-write + zero-write refusal on busy volume; Windows RwDevice runs the corpus RecoveryModule LOCK/DeleteMountPoint/Flush/settle-verify/DISMOUNT sequence; 3 fail-before lock tests. Finding's destination-lock bullet corrected against the corpus (destination opens for writability+detection only). |
 | S-011 | SEVERE | exFAT tz_offset applied (core) vs ignored (og); FileTime diverges by tz hours | (this session's S-011 fix commit) | tz subtraction removed from exfat_time_to_unix100 — on-disk time carried through the shared FAT-family datetime core exactly like FAT (host-independent, on-disk-as-UTC); wire tz fields stay parsed with the og-parity note. 3 guards: TimestampsMatchOgLocalAsUtc (tz=0x88) + TimestampsMatchExplorerDisplay (tz=0x20) fail-before/pass-after, TimestampsZeroTzPassThrough sentinel guard. Suite 325/325. |
 | S-006 | SEVERE | Lost-partition probes cover only NTFS/FAT/exFAT/GPT; the og's deep scan also finds Linux/FATX partitions | (this session's S-006 fix commit) | probe_ext implements the og's decoded CExtX accept gates (magic/geometry/group-cross-check/block_group_nr==0) + GDT liveness, SB-derived size; HFS+/Btrfs/ZFS/ReFS anchors as documented supersets (PARITY-DELTAS D-50; the og has no parsers for these - finding's og-coverage claim corrected); ReFS DBR rescued from the FAT catch-all via detect_refs on a bounded window; 7 tests (5 fail-before); suite 332/332. FATX = scoped remainder (criteria not corpus-decoded); M-017 scoring = own finding. |
+| N-021 | MINOR | FAT invalid/zero date yields non-zero FileTime in core, zero in og | (this session's N-021 fix commit) | fat_to_filetime lambda: 0 from fat_date_to_unix -> ZERO FileTime (1601-01-01), the og's DosDateTimeToFileTime-failure zero-out branch; 4 tests (3 fail-before: date 0, month 13, day 0; valid-date guard). Suite 347/347. |
 | S-016 | SEVERE (discovered in A-004's fix) | ErrorRange event stream dead code — snapshot error map fed only after the emitters | `c33236f` | tel_counts_ now feeds the live retry-pipe error map into the snapshot before every boundary emit; fixed together with A-004 (same delivery path); covered by the same two ScanEvents tests. |
 | M-009 | MAJOR | RawFixer read path bypasses the 64 KiB direct-I/O envelope | `7fd00e0` | RwDevice::read_at routes through aligned_read_at (the GAP-S6-13 mandate); verified first-hand in `14f3a29`; ~3.5x slow path on 4Kn NVMe eliminated. |
 | N-001 | MINOR | NTFS MftMirr fallback hardcodes 4 records | (parallel leg — see finding file) | resolved by the parallel legs; finding file in FIXED/ carries the Resolution. |

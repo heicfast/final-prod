@@ -133,13 +133,13 @@ collision with the parallel leg's I-006 ext4-nanoseconds, cleared).
 | ACUTE | **0** | A-001 (partial — ESP/MSR half stands fixed; LDM half false-positive), A-003, **A-002 (`7f2c83e` — real Microsoft/og GUIDs restored, session-3-verified; tests de-self-referenced)**, **A-004 + S-016 (`c33236f` — live-sink ErrorRange delivery + live snapshot error map)** | — |
 | SEVERE | 7 | S-001, S-002, S-004, S-005, S-008, **S-010 (3e34ed2)**, **S-011 (this fix session)**, **S-006 (this fix session — ext probes = og-parity accept gates; HFS+/Btrfs/ZFS/ReFS = documented supersets, D-50; FATX scoped remainder)** | S-003, S-007, S-009 (split pending N-020), S-012, S-013, S-014, **S-015 (S3: raw_signs KiB units)** |
 | MAJOR | 18 | M-001, **M-009 (7fd00e0 — 64 KiB envelope on the repair read path, session-3-verified)** | M-002, M-005, M-007, M-008, M-010, M-011..M-021, **M-022 (S3: ReFS file-value grammar)**, **M-023 (S3: filter model)** |
-| MINOR | 27 | N-002, N-003, N-010-theirs | N-001, N-004..N-009 (grouped), N-011..N-022, N-023..N-029 (S2-third-leg, grouped), **N-030..N-032 (S3)** |
+| MINOR | 26 | N-002, N-003, N-010-theirs, **N-021 (this fix session)** | N-001, N-004..N-009 (grouped), N-011..N-022, N-023..N-029 (S2-third-leg, grouped), **N-030..N-032 (S3)** |
 | INFORMATIONAL | 10 | — | I-001..I-011, **I-012 (S3: GAP-ADS resolved — parity, shared limitation)** |
 | tracked-open | 6 files | OQ-T1/T2/T5/T7/T8/T9 + all 9 S2-third-leg OQs RESOLVED across legs | OQ-T3*, OQ-T4*, OQ-T6 (bounded), OQ-S2A-1..4, OQ-S2C-3, OQ-S2M-1/2 (see files) |
-| **Total active findings** | **62** | **22** | |
+| **Total active findings** | **61** | **23** | |
 
-*(Counts by file inventory, fix-session state after A-004/S-016 (c33236f), S-011 and S-006
-(this session): 0+7+18+27+10 = 62 active, 22 FIXED.)*
+*(Counts by file inventory, fix-session state after A-004/S-016 (c33236f), S-011, S-006 and
+N-021 (this session): 0+7+18+26+10 = 61 active, 23 FIXED.)*
 
 **Note on S-009/M-006:** the S-009 disk-map component was FIXED via GAP-S6-11
 (`56cce87` — `cr_diskmap.cpp/.h` verified in-tree by this leg); the M-006 fuzz-CI

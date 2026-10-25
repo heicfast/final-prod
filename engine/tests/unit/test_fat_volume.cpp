@@ -914,3 +914,102 @@ TEST(FatEngine, Fat16BadClusterStillCanonical) {
     EXPECT_TRUE(r.broken) << "FAT16 BAD (0xFFF7) must canonicalize to CHAIN_BAD";
     ASSERT_EQ(2u, r.clusters.size());
 }
+
+/* ---- N-021: invalid/zero FAT dates yield the ZERO FileTime (og parity) -- */
+
+namespace {
+
+/* Build the standard FAT16 fixture and plant three extra live dentries with
+ * invalid dates (own copy - the shared fixture is untouched). */
+std::vector<u8> build_fat16_image_with_bad_dates(u16 zero_date_dentry_date, u16 month13_date,
+                                                 u16 day0_date) {
+    auto img = build_fat16_image();
+    u8* root = img.data() + 42 * 512;
+    /* cluster 15 already carries an EOC chain in the fixture; reuse it */
+    make_dentry(root + 6 * 32, "ZERODAT TXT", 0x20, 15, 100, zero_date_dentry_date, 0x6000, false);
+    make_dentry(root + 7 * 32, "MONTH13 TXT", 0x20, 15, 100, month13_date, 0x6000, false);
+    make_dentry(root + 8 * 32, "DAYZERO TXT", 0x20, 15, 100, day0_date, 0x6000, false);
+    return img;
+}
+
+tree::FileNode* find_node(tree::ResultTree& tree, const char* want) {
+    for (auto* n : collect_all(tree)) {
+        if (n->name_utf8() == want)
+            return n;
+    }
+    return nullptr;
+}
+
+} // namespace
+
+TEST(FatEngine, InvalidDateYieldsZeroFileTime) {
+    /* N-021: date 0x0000 = "date unknown" (all fields zero) - the
+     * DosDateTimeToFileTime failure class. The og zeroes the props slot
+     * (FATSearchDLL_decompiled.c:32135-32138); the core used to store
+     * 1970-01-01 (the epoch delta added to 0). */
+    auto img = build_fat16_image_with_bad_dates(0x0000, 0x01A1 /* month 13 */, 0x0020 /* day 0 */);
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* ra = tree.add_root(u"Found");
+    auto* rd = tree.add_root(u"Deleted");
+    auto* rl = tree.add_root(u"Lost");
+    FatScanFlags flags;
+    FatScanStats stats;
+    ASSERT_EQ(scan_fat(&dev, flags, nullptr, nullptr, nullptr, tree, ra, rd, rl, stats), OK);
+    tree::FileNode* z = find_node(tree, "ZERODAT.TXT");
+    ASSERT_NE(z, nullptr);
+    EXPECT_EQ(z->props()->times.created, 0ULL); /* zero FileTime = 1601-01-01 */
+    EXPECT_EQ(z->props()->times.modified, 0ULL);
+    EXPECT_EQ(z->props()->times.accessed, 0ULL);
+}
+
+TEST(FatEngine, InvalidMonthYieldsZeroFileTime) {
+    auto img = build_fat16_image_with_bad_dates(0x0000, 0x01A1, 0x0020);
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* ra = tree.add_root(u"Found");
+    auto* rd = tree.add_root(u"Deleted");
+    auto* rl = tree.add_root(u"Lost");
+    FatScanFlags flags;
+    FatScanStats stats;
+    ASSERT_EQ(scan_fat(&dev, flags, nullptr, nullptr, nullptr, tree, ra, rd, rl, stats), OK);
+    tree::FileNode* m = find_node(tree, "MONTH13.TXT");
+    ASSERT_NE(m, nullptr); /* month 13 is not a month */
+    EXPECT_EQ(m->props()->times.created, 0ULL);
+    EXPECT_EQ(m->props()->times.modified, 0ULL);
+    EXPECT_EQ(m->props()->times.accessed, 0ULL);
+}
+
+TEST(FatEngine, InvalidDayYieldsZeroFileTime) {
+    auto img = build_fat16_image_with_bad_dates(0x0000, 0x01A1, 0x0020);
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* ra = tree.add_root(u"Found");
+    auto* rd = tree.add_root(u"Deleted");
+    auto* rl = tree.add_root(u"Lost");
+    FatScanFlags flags;
+    FatScanStats stats;
+    ASSERT_EQ(scan_fat(&dev, flags, nullptr, nullptr, nullptr, tree, ra, rd, rl, stats), OK);
+    tree::FileNode* d = find_node(tree, "DAYZERO.TXT");
+    ASSERT_NE(d, nullptr); /* day 0 is not a day */
+    EXPECT_EQ(d->props()->times.created, 0ULL);
+    EXPECT_EQ(d->props()->times.modified, 0ULL);
+    EXPECT_EQ(d->props()->times.accessed, 0ULL);
+}
+
+TEST(FatEngine, ValidDateYieldsCorrectFileTime) {
+    /* N-021 regression guard: valid dates are unchanged by the fix.
+     * 0x5A46 = 2025-02-06, 0x6000 = 12:00 -> unix 1738843200. */
+    auto img = build_fat16_image_with_bad_dates(0x0000, 0x01A1, 0x0020);
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* ra = tree.add_root(u"Found");
+    auto* rd = tree.add_root(u"Deleted");
+    auto* rl = tree.add_root(u"Lost");
+    FatScanFlags flags;
+    FatScanStats stats;
+    ASSERT_EQ(scan_fat(&dev, flags, nullptr, nullptr, nullptr, tree, ra, rd, rl, stats), OK);
+    tree::FileNode* r = find_node(tree, "readme_document_v1.txt");
+    ASSERT_NE(r, nullptr);
+    EXPECT_EQ(r->props()->times.modified, 1738843200ULL * 10000000ULL + 116444736000000000ULL);
+}
