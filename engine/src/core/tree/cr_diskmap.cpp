@@ -16,7 +16,7 @@ namespace viz {
 
 namespace {
 
-constexpr u64 kDefaultCellBytes = 64 * 1024;  /* the og grid granularity class */
+constexpr u64 kDefaultCellBytes = 64 * 1024;             /* the og grid granularity class */
 constexpr u64 kOverlayBudgetBytes = 64ULL * 1024 * 1024; /* total overlay cap */
 
 u64 choose_cell_bytes(u64 total, u32 cluster_bytes) {
@@ -76,9 +76,9 @@ u64 cell_of(u64 abs_byte, u64 base, u64 cell_bytes) {
 } // namespace
 
 u32 build_disk_map(const DiskMapInputs& in, const tree::Snapshot& snap, DiskMapGeometry& geom,
-                   std::vector<u8>* allocation, std::vector<u8>* coverage,
-                   std::vector<u8>* found, std::vector<u8>* confidence,
-                   std::vector<std::pair<u64, u64>>& bad_ranges, u32 bad_cap, u32* bad_needed) {
+                   std::vector<u8>* allocation, std::vector<u8>* coverage, std::vector<u8>* found,
+                   std::vector<u8>* confidence, std::vector<std::pair<u64, u64>>& bad_ranges,
+                   u32 bad_cap, u32* bad_needed) {
     if ((!allocation && !coverage && !found && !confidence) || in.slice_bytes == 0)
         return ERR_BAD_PARAMETER;
     geom = DiskMapGeometry{};
@@ -135,10 +135,9 @@ u32 build_disk_map(const DiskMapInputs& in, const tree::Snapshot& snap, DiskMapG
                 continue; /* outside the mapped view */
             ++count;
             if (count <= bad_cap)
-                bad_ranges.emplace_back(r.offset,
-                                        end > in.slice_start + in.slice_bytes
-                                            ? in.slice_start + in.slice_bytes - r.offset
-                                            : r.length);
+                bad_ranges.emplace_back(r.offset, end > in.slice_start + in.slice_bytes
+                                                      ? in.slice_start + in.slice_bytes - r.offset
+                                                      : r.length);
             /* mark the cells */
             if (coverage || allocation) {
                 const u64 c0 = cell_of(r.offset, in.slice_start, geom.cell_bytes);
@@ -160,9 +159,9 @@ u32 build_disk_map(const DiskMapInputs& in, const tree::Snapshot& snap, DiskMapG
 }
 
 u32 build_disk_map(const DiskMapInputs& in, const tree::ResultTree& tree, DiskMapGeometry& geom,
-                   std::vector<u8>* allocation, std::vector<u8>* coverage,
-                   std::vector<u8>* found, std::vector<u8>* confidence,
-                   std::vector<std::pair<u64, u64>>& bad_ranges, u32 bad_cap, u32* bad_needed) {
+                   std::vector<u8>* allocation, std::vector<u8>* coverage, std::vector<u8>* found,
+                   std::vector<u8>* confidence, std::vector<std::pair<u64, u64>>& bad_ranges,
+                   u32 bad_cap, u32* bad_needed) {
     /* the snapshot path is the value-semantic, race-free shape; capture
      * and delegate (same emission order - byte parity is a tree contract
      * and the map is order-insensitive by construction) */

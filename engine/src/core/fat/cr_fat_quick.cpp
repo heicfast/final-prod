@@ -187,7 +187,7 @@ void walk_dir_entries(EmitCtx& ctx, const DirBuffer& buf, tree::FileNode* host,
             }
         }
         if (short_name[0] == 0x05)
-            short_name[0] = 0xE5;       /* KANJI escape */
+            short_name[0] = 0xE5; /* KANJI escape */
         bool lfn_ok = false;
         if (!pending_lfn.empty()) {
             std::u16string lfn;

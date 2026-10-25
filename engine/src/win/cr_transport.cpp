@@ -160,8 +160,7 @@ u32 aligned_read_at(HANDLE h, u64 off, void* buf, u32 len, const Geometry& g, bo
          * worker items concurrently) */
         thread_local std::vector<u8> bounce;
         bounce.resize(size_t(e.issued_len));
-        const u32 rc =
-            overlapped_read(h, e.issued_off, bounce.data(), u32(e.issued_len), false);
+        const u32 rc = overlapped_read(h, e.issued_off, bounce.data(), u32(e.issued_len), false);
         if (rc != OK)
             return rc;
         if (e.take != u64(len))

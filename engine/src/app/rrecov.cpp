@@ -198,8 +198,8 @@ bool scan_repair_consent(const repair::RepairPlan& plan, void* user) {
     wprintf(L"[repair] %hs volume: %zu action(s) planned\n", plan.fs_family.c_str(),
             plan.actions.size());
     for (const auto& a : plan.actions)
-        wprintf(L"  [repair] offset=%llu len=%u : %hs\n",
-                static_cast<unsigned long long>(a.offset), a.length, a.reason.c_str());
+        wprintf(L"  [repair] offset=%llu len=%u : %hs\n", static_cast<unsigned long long>(a.offset),
+                a.length, a.reason.c_str());
     for (const auto& adv : plan.advisories)
         wprintf(L"  [repair][advisory] %hs\n", adv.c_str());
     if (c->apply)
@@ -584,9 +584,9 @@ int cmd_scan(int argc, wchar_t** argv, int& i) {
         cfg.whole_disk = false;
     }
     log_open(log_path.empty() ? nullptr : log_path.c_str());
-    log_line("rrecov scan: threads=%u quick=%d deep=%d carve=%d whole_disk=%d repair=%d/%d", cfg.threads,
-             int(cfg.run_quick), int(cfg.run_deep), int(cfg.run_carve), int(cfg.whole_disk),
-             int(repair), int(repair_apply));
+    log_line("rrecov scan: threads=%u quick=%d deep=%d carve=%d whole_disk=%d repair=%d/%d",
+             cfg.threads, int(cfg.run_quick), int(cfg.run_deep), int(cfg.run_carve),
+             int(cfg.whole_disk), int(repair), int(repair_apply));
     fill_identity_card(target.disk, cfg); /* SESS-2: model/serial into the card */
 
     /* S-008 pre-scan repair hooks: --repair analyzes + reports; the
@@ -725,7 +725,7 @@ int cmd_scan(int argc, wchar_t** argv, int& i) {
                  static_cast<unsigned long long>(er.length), er.attempts);
 
     /* S-008 pre-scan repair summary (visible even when the plan was empty,
-    * refused, or consent-denied - the operator always sees the truth) */
+     * refused, or consent-denied - the operator always sees the truth) */
     if (repair && stats.repair_ran) {
         wprintf(L"[repair] family=%hs planned=%u applied=%u%s%s%s\n", stats.repair_family,
                 stats.repair_actions_planned, stats.repair_actions_applied,
@@ -736,8 +736,8 @@ int cmd_scan(int argc, wchar_t** argv, int& i) {
             wprintf(L"[repair][advisory] %hs\n", adv.c_str());
         if (stats.repair_actions_applied > 0) {
             if (repair_undo_path.empty())
-                repair_undo_path = L"rrecov-scan-repair-disk" + std::to_wstring(target.disk) +
-                                   L".undo";
+                repair_undo_path =
+                    L"rrecov-scan-repair-disk" + std::to_wstring(target.disk) + L".undo";
             std::vector<u8> blob;
             stats.repair_undo.serialize(blob);
             FILE* uf = nullptr;

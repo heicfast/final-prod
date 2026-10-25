@@ -517,7 +517,7 @@ TEST(Ext4Engine, JournalFirstBlockNotJsbNoSalvage) {
     Ext4ScanStats st;
     u32 rc = scan_ext4(&dev, fl, nullptr, nullptr, nullptr, tree, ra, nullptr, rl, st);
     ASSERT_EQ(OK, rc) << err_text(rc);
-    EXPECT_EQ(5u, st.journal_blocks); /* the journal data still counts */
+    EXPECT_EQ(5u, st.journal_blocks);   /* the journal data still counts */
     EXPECT_EQ(0u, st.journal_salvaged); /* but nothing is salvaged */
     for (tree::FileNode* c = rl->first_child(); c; c = c->next_sibling())
         if (c->props())
@@ -565,8 +565,7 @@ TEST(Ext4Engine, NonAsciiNamesDecodedNotByteLifted) {
     /* CJK name: true code points, not Latin-1-per-byte mojibake */
     ASSERT_TRUE(by_utf8.count("\xe7\x85\xa7\xe7\x89\x87.jpg") != 0)
         << "CJK name absent from results";
-    EXPECT_EQ(by_utf8["\xe7\x85\xa7\xe7\x89\x87.jpg"],
-              std::u16string(u"\u7167\u7247.jpg"));
+    EXPECT_EQ(by_utf8["\xe7\x85\xa7\xe7\x89\x87.jpg"], std::u16string(u"\u7167\u7247.jpg"));
     /* accented name */
     ASSERT_TRUE(by_utf8.count("caf\xc3\xa9.txt") != 0);
     EXPECT_EQ(by_utf8["caf\xc3\xa9.txt"], std::u16string(u"caf\u00e9.txt"));

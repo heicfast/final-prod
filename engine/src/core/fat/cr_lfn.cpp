@@ -67,8 +67,8 @@ bool lfn_assemble(const std::vector<const LfnEntry*>& slots, u8 checksum, std::u
 }
 
 bool lfn_deleted_checksum_recover(const std::vector<const LfnEntry*>& slots,
-                                   const u8 short_name_raw[11], u8& out_first_byte,
-                                   u8& out_checksum) {
+                                  const u8 short_name_raw[11], u8& out_first_byte,
+                                  u8& out_checksum) {
     out_first_byte = 0;
     out_checksum = 0;
     if (slots.empty())

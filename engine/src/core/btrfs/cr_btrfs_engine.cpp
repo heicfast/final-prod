@@ -710,8 +710,7 @@ u32 scan_btrfs(IStorageDevice* slice, CancelToken* cancel, WalkProgressLike prog
                  * bytes the og passes through unconverted - decode
                  * strictly; bad sequences become U+FFFD */
                 de.name = text::utf8_to_u16(std::string_view(
-                    reinterpret_cast<const char*>(di) + DI_NAME,
-                    name_len > 255 ? 255 : name_len));
+                    reinterpret_cast<const char*>(di) + DI_NAME, name_len > 255 ? 255 : name_len));
                 if (!de.name.empty())
                     dirs[k.objectid].push_back(std::move(de));
                 off += DI_HEADER + name_len + data_len;

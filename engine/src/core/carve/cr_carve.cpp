@@ -64,11 +64,11 @@ struct ScanCtx {
     std::atomic<u32> file_index{0};
     std::atomic<bool> aborted{false};
     /* GAP-S6-8: the disk-absolute basis for extents + dedup queries.
-    * Carve positions are slice-relative (reads, bounds, emitted_at stay
-    * relative); the TREE keys must be disk-absolute so the resumed carve
-    * dedups against checkpoint-loaded nodes (which are absolute - F-1)
-    * instead of re-emitting them as extra entries. Base 0 on synthetic /
-    * whole-disk devices: behavior identical to the old code. */
+     * Carve positions are slice-relative (reads, bounds, emitted_at stay
+     * relative); the TREE keys must be disk-absolute so the resumed carve
+     * dedups against checkpoint-loaded nodes (which are absolute - F-1)
+     * instead of re-emitting them as extra entries. Base 0 on synthetic /
+     * whole-disk devices: behavior identical to the old code. */
     u64 ext_base = 0;
 };
 

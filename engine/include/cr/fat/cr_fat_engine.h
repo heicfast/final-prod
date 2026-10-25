@@ -140,8 +140,8 @@ bool lfn_assemble(const std::vector<const LfnEntry*>& slots, u8 checksum, std::u
  * Probe evidence: deletion 0xE5's byte 0 of every 32-byte entry - for LFN
  * slots that is the SEQUENCE byte; the 13-char name chunks are intact. */
 bool lfn_deleted_checksum_recover(const std::vector<const LfnEntry*>& slots,
-                                   const u8 short_name_raw[11], u8& out_first_byte,
-                                   u8& out_checksum);
+                                  const u8 short_name_raw[11], u8& out_first_byte,
+                                  u8& out_checksum);
 
 /* 8.3 name -> display string (strip pad spaces, split dot). */
 std::u16string short_name_to_u16(const u8 name[11]);

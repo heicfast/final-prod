@@ -469,7 +469,6 @@ TEST(RawFixer, UndoLogRoundTrip) {
 
 /* ---- S-008: CheckMFT / CheckFatTable / CheckRootDir / FixByScanSector ---- */
 
-
 /* One spec-shaped 1 KiB MFT record: USA fixup (USN=1 on both sector tails)
  * + a resident $FILE_NAME carrying `name`. When `mft_runlist` is set, also
  * a resident $DATA whose value bytes are the $MFT runlist (tiny-MFT path
@@ -541,11 +540,11 @@ struct NtfsVolumeImage {
         u8* b = img.data();
         std::memcpy(b + 3, "NTFS    ", 8);
         put16(img.data() + 0x0B, 512);
-        b[0x0D] = 1;            /* spc 1 */
+        b[0x0D] = 1;                    /* spc 1 */
         put64(img.data() + 0x28, 2048); /* total sectors (1 MiB) */
         put64(img.data() + 0x30, 4);    /* $MFT LCN */
         put64(img.data() + 0x38, 100);  /* $MFTMirr LCN */
-        b[0x40] = 0xF6;         /* cpr -10 -> 1 KiB records */
+        b[0x40] = 0xF6;                 /* cpr -10 -> 1 KiB records */
         b[510] = 0x55;
         b[511] = 0xAA;
         const auto rec0 = build_meta_record(u"$MFT", true, 0);
@@ -605,8 +604,8 @@ TEST(RawFixer, MftRecord0RestoredFromMirror) {
     EXPECT_EQ(NtfsVolumeImage::MFT_OFF, plan.actions[0].offset);
     EXPECT_EQ(1024u, plan.actions[0].length);
     /* the restore source is the mirror slot 0, byte for byte */
-    EXPECT_EQ(0, memcmp(plan.actions[0].after.data(),
-                        v.img.data() + NtfsVolumeImage::MIRR_OFF, 1024));
+    EXPECT_EQ(0,
+              memcmp(plan.actions[0].after.data(), v.img.data() + NtfsVolumeImage::MIRR_OFF, 1024));
 
     RamWriteDevice wd(v.img);
     UndoLog undo_log;
@@ -650,8 +649,8 @@ TEST(RawFixer, MftRestoreMakesVolumeOpenable) {
      * opens and the structured engine can walk it. */
     NtfsVolumeImage v(true);
     u32 err = 0;
-    auto before = ntfs::NtfsVolume::open(
-        std::unique_ptr<IStorageDevice>(new RamDevice(v.img)), &err);
+    auto before =
+        ntfs::NtfsVolume::open(std::unique_ptr<IStorageDevice>(new RamDevice(v.img)), &err);
     EXPECT_EQ(nullptr, before) << "torn record 0 must fail volume open";
 
     RamDevice dev(v.img);
@@ -662,15 +661,15 @@ TEST(RawFixer, MftRestoreMakesVolumeOpenable) {
     UndoLog undo_log;
     ASSERT_EQ(OK, execute(&wd, plan, undo_log));
 
-    auto after = ntfs::NtfsVolume::open(
-        std::unique_ptr<IStorageDevice>(new RamDevice(wd.d_)), &err);
+    auto after =
+        ntfs::NtfsVolume::open(std::unique_ptr<IStorageDevice>(new RamDevice(wd.d_)), &err);
     ASSERT_NE(nullptr, after) << "repaired volume must open: " << err_text(err);
     EXPECT_EQ(1024u, after->params().record_size);
 
     /* undo returns the volume to the unopenable state (transactional truth) */
     ASSERT_EQ(OK, undo(wd, undo_log));
-    auto reverted = ntfs::NtfsVolume::open(
-        std::unique_ptr<IStorageDevice>(new RamDevice(wd.d_)), &err);
+    auto reverted =
+        ntfs::NtfsVolume::open(std::unique_ptr<IStorageDevice>(new RamDevice(wd.d_)), &err);
     EXPECT_EQ(nullptr, reverted);
 }
 

@@ -605,9 +605,9 @@ TEST(FatEngine, DeletedLfnRealWorldChecksumRecoversFullName) {
     auto img = build_fat16_image();
     u8* root = img.data() + 42 * 512;
     u8 name11[11] = {'A', 'V', 'E', 'R', 'Y', 'L', '~', '1', 'T', 'X', 'T'};
-    const u8 chk = lfn_checksum(name11); /* over the ORIGINAL bytes - what
-                                           * Windows stores at write time */
-    make_lfn_slot(root + 0 * 32, 0x42, chk, u"name000.txt"); /* seq2|last */
+    const u8 chk = lfn_checksum(name11);                       /* over the ORIGINAL bytes - what
+                                                                * Windows stores at write time */
+    make_lfn_slot(root + 0 * 32, 0x42, chk, u"name000.txt");   /* seq2|last */
     make_lfn_slot(root + 1 * 32, 0x01, chk, u"averylongfile"); /* seq1 */
     make_dentry(root + 2 * 32, "AVERYL~1TXT", 0x20, 20, 1000, 0x5A46, 0x6000, true);
     /* deletion markers: sequence byte of each slot + the 8.3 first byte */
@@ -621,8 +621,7 @@ TEST(FatEngine, DeletedLfnRealWorldChecksumRecoversFullName) {
     auto* rd = tree.add_root(u"Deleted");
     FatScanFlags flags;
     FatScanStats stats;
-    ASSERT_EQ(scan_fat(&dev, flags, nullptr, nullptr, nullptr, tree, ra, rd, nullptr, stats),
-              OK);
+    ASSERT_EQ(scan_fat(&dev, flags, nullptr, nullptr, nullptr, tree, ra, rd, nullptr, stats), OK);
 
     auto all = collect_all(tree);
     tree::FileNode* victim = nullptr;
@@ -655,8 +654,7 @@ TEST(FatEngine, DeletedLfnSingleSlotChecksumRecovery) {
     auto* rd = tree.add_root(u"Deleted");
     FatScanFlags flags;
     FatScanStats stats;
-    ASSERT_EQ(scan_fat(&dev, flags, nullptr, nullptr, nullptr, tree, ra, rd, nullptr, stats),
-              OK);
+    ASSERT_EQ(scan_fat(&dev, flags, nullptr, nullptr, nullptr, tree, ra, rd, nullptr, stats), OK);
 
     auto all = collect_all(tree);
     tree::FileNode* victim = nullptr;
@@ -687,8 +685,7 @@ TEST(FatEngine, DeletedLfnTornChecksumKeepsHonestFallback) {
     auto* rd = tree.add_root(u"Deleted");
     FatScanFlags flags;
     FatScanStats stats;
-    ASSERT_EQ(scan_fat(&dev, flags, nullptr, nullptr, nullptr, tree, ra, rd, nullptr, stats),
-              OK);
+    ASSERT_EQ(scan_fat(&dev, flags, nullptr, nullptr, nullptr, tree, ra, rd, nullptr, stats), OK);
 
     auto all = collect_all(tree);
     bool saw_fabricated_long_name = false;
@@ -752,8 +749,7 @@ TEST(FatEngine, DeletedUnlinkedChainGetsContiguousRun) {
     auto* rd = tree.add_root(u"Deleted");
     FatScanFlags flags;
     FatScanStats stats;
-    ASSERT_EQ(scan_fat(&dev, flags, nullptr, nullptr, nullptr, tree, ra, rd, nullptr, stats),
-              OK);
+    ASSERT_EQ(scan_fat(&dev, flags, nullptr, nullptr, nullptr, tree, ra, rd, nullptr, stats), OK);
 
     auto all = collect_all(tree);
     tree::FileNode* victim = nullptr;
@@ -787,8 +783,7 @@ TEST(FatEngine, DeletedUnlinkedChainTruncatesAtReusedCluster) {
     auto* rd = tree.add_root(u"Deleted");
     FatScanFlags flags;
     FatScanStats stats;
-    ASSERT_EQ(scan_fat(&dev, flags, nullptr, nullptr, nullptr, tree, ra, rd, nullptr, stats),
-              OK);
+    ASSERT_EQ(scan_fat(&dev, flags, nullptr, nullptr, nullptr, tree, ra, rd, nullptr, stats), OK);
 
     auto all = collect_all(tree);
     tree::FileNode* victim = nullptr;
@@ -814,8 +809,7 @@ TEST(FatEngine, DeletedLinkedChainStillPrefersFatTruth) {
     auto* rd = tree.add_root(u"Deleted");
     FatScanFlags flags;
     FatScanStats stats;
-    ASSERT_EQ(scan_fat(&dev, flags, nullptr, nullptr, nullptr, tree, ra, rd, nullptr, stats),
-              OK);
+    ASSERT_EQ(scan_fat(&dev, flags, nullptr, nullptr, nullptr, tree, ra, rd, nullptr, stats), OK);
     auto all = collect_all(tree);
     tree::FileNode* del = nullptr;
     for (auto* n : all)

@@ -154,7 +154,7 @@ u32 SafeWriter::enqueue_common(const tree::FileProperties* pr, tree::FileNode* n
      * Empty files (size 0) are real content and keep the normal path. */
     if (pr->logical_size > 0 && pr->extents.empty() && pr->resident_data.empty()) {
         it.nothing_to_recover = true;
-        it.bytes_total = 0; /* nothing attempted - the report stays truthful */
+        it.bytes_total = 0;         /* nothing attempted - the report stays truthful */
         it.state = ItemState::Done; /* counted at process(); never Pending */
         queue_.push_back(it);
         return OK;

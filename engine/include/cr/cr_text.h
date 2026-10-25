@@ -78,9 +78,9 @@ inline std::u16string utf8_to_u16(std::string_view in) {
                 cp = (cp << 6) | (p[i] & 0x3Fu);
         }
         /* RFC 3629: reject overlong forms and surrogate halves */
-        if (ok && ((extra == 1 && cp < 0x80u) || (extra == 2 && cp < 0x800u) ||
-                   (extra == 3 && cp < 0x10000u) ||
-                   (cp >= 0xD800u && cp <= 0xDFFFu) || cp > 0x10FFFFu))
+        if (ok &&
+            ((extra == 1 && cp < 0x80u) || (extra == 2 && cp < 0x800u) ||
+             (extra == 3 && cp < 0x10000u) || (cp >= 0xD800u && cp <= 0xDFFFu) || cp > 0x10FFFFu))
             ok = false;
         if (!ok) {
             cp = 0xFFFDu;

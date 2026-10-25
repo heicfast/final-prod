@@ -636,7 +636,7 @@ u32 ScanController::run(IStorageDevice* slice, CancelToken* cancel, bool (*progr
         if (RetryingDevice* rd = tel_retry_.load(std::memory_order_acquire))
             stats.errors.merge(rd->error_map_copy());
         tel_counts_(stats, cancel);
-    emit_boundary_events_(tel_stage_.load(std::memory_order_relaxed)); /* GAP-S6-10 */
+        emit_boundary_events_(tel_stage_.load(std::memory_order_relaxed)); /* GAP-S6-10 */
         emit_boundary_events_(tel_stage_.load(std::memory_order_relaxed)); /* GAP-S6-10 */
         {
             std::lock_guard<std::mutex> lock(tel_.m);
@@ -965,9 +965,8 @@ u32 ScanController::run_deep(IStorageDevice* slice, CancelToken* cancel,
                 ntfs::WalkStats rem;
                 rc = ntfs::scan_mft_remnants(slice, vol->params().sector_bytes,
                                              vol->params().cluster_bytes, vol->params().record_size,
-                                             vol->params().total_clusters,
-                                             cancel, deep_cb, &dbridge, tree_, root_lost_, rem,
-                                             threads);
+                                             vol->params().total_clusters, cancel, deep_cb,
+                                             &dbridge, tree_, root_lost_, rem, threads);
                 tree_.rebase_new_extents(rem_mark, vol_offset_);
                 stats.files_found += rem.emitted;
             }

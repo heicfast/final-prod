@@ -789,9 +789,7 @@ TEST(CrUi, TypedEventStreamFullLifecycle) {
         ASSERT_EQ(cr_ui_scan_create(&cfg2, &u2.scan), CR_UI_OK);
         ASSERT_EQ(cr_ui_scan_attach_device(u2.scan, u2.dev), CR_UI_OK);
         ASSERT_EQ(cr_ui_scan_pause(u2.scan), CR_UI_OK); /* park at the gate */
-        auto fut = std::async(std::launch::async, [&u2] {
-            return cr_ui_scan_run(u2.scan);
-        });
+        auto fut = std::async(std::launch::async, [&u2] { return cr_ui_scan_run(u2.scan); });
         /* wait for the running flag via telemetry (bounded; the pause
          * parks the scan inside the first engine gate) */
         cr_ui_telemetry t;

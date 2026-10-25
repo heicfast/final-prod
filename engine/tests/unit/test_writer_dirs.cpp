@@ -440,7 +440,7 @@ TEST(WriterDirs, MetadataOnlyItemSkipsNotZeroFills) {
     /* reconciliation: queued == done + refused + errors + resumed +
      * nothing_to_recover + pending */
     EXPECT_EQ(t.queued, t.done + t.refused + t.errors + t.resumed + t.nothing_to_recover +
-                           t.pending + t.dirs);
+                            t.pending + t.dirs);
     /* the JSON round-trips the new outcome + totals field (validator) */
     const std::string doc = report::build_report(items, t);
     EXPECT_NE(doc.find("nothing_to_recover"), std::string::npos);

@@ -75,13 +75,13 @@ struct WalkStats {
     u64 orphans = 0;
     u64 hardlinks = 0;
     u64 ads = 0;
-    u64 usn_records = 0;       /* journal records parsed */
-    u64 usn_names = 0;         /* deleted names the MFT pass missed */
-    u64 usn_damaged_runs = 0;  /* $J runs that failed to read (zeros kept) */
-    u64 recycle_info = 0;      /* $Recycle.Bin $I metadata files parsed */
-    u64 recycle_remapped = 0;  /* $R records mapped to their original name */
-    u64 compressed_blocks = 0; /* GAP-P1-1: expanded NTFS compression blocks */
-    u64 compressed_failed = 0; /* files whose envelope failed (zero-filled) */
+    u64 usn_records = 0;           /* journal records parsed */
+    u64 usn_names = 0;             /* deleted names the MFT pass missed */
+    u64 usn_damaged_runs = 0;      /* $J runs that failed to read (zeros kept) */
+    u64 recycle_info = 0;          /* $Recycle.Bin $I metadata files parsed */
+    u64 recycle_remapped = 0;      /* $R records mapped to their original name */
+    u64 compressed_blocks = 0;     /* GAP-P1-1: expanded NTFS compression blocks */
+    u64 compressed_failed = 0;     /* files whose envelope failed (zero-filled) */
     u64 destroyed_overwritten = 0; /* S-001: deleted files dropped by the og's
                                      destroy rule (all probe clusters
                                      re-allocated; never emitted) */

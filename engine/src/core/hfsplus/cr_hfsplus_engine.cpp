@@ -6,7 +6,7 @@
  */
 
 #include "cr/hfsplus/cr_hfsplus_engine.h"
-#include "cr/cr_bits.h" /* shared byte readers (W4 dedup, DC-12) */
+#include "cr/cr_bits.h"            /* shared byte readers (W4 dedup, DC-12) */
 #include "cr/compress/cr_decomp.h" /* S-002: kZlib for decmpfs extents */
 #include <cstring>
 #include <functional>
@@ -351,13 +351,13 @@ constexpr u32 ATTR_INLINE_DATA = 0x10; /* og gate value (:7825) */
 constexpr u32 DECMPFS_MAGIC_LE = 0x66706D63;
 
 struct AttrEntry {
-    std::u16string name;   /* UTF-16 (decoded from the BE key) */
-    u64 value_off = 0;     /* absolute slice offset of the value bytes */
-    u32 value_len = 0;     /* value byte length (from the record header) */
+    std::u16string name; /* UTF-16 (decoded from the BE key) */
+    u64 value_off = 0;   /* absolute slice offset of the value bytes */
+    u32 value_len = 0;   /* value byte length (from the record header) */
     bool decmpfs = false;
     u32 decmpfs_mode = 0;
     u32 uncompressed_size = 0;
-    u32 rsrc_offset = 0;   /* mode 4: offset into the resource fork */
+    u32 rsrc_offset = 0; /* mode 4: offset into the resource fork */
 };
 
 /* Walk the attributes B-tree leaf chain once, collecting every inline
@@ -410,8 +410,8 @@ bool walk_attributes_tree(Volume& v, CancelToken* cancel,
             }
         }
         std::vector<u8> leaf;
-        if (!have_abs || !read_tree_node(v, v.attributes_fork, CNID_ATTRIBUTES_FILE, node_size,
-                                         cur, leaf))
+        if (!have_abs ||
+            !read_tree_node(v, v.attributes_fork, CNID_ATTRIBUTES_FILE, node_size, cur, leaf))
             break;
         for_each_record(node_size, leaf, NH_KIND_LEAF, [&](const u8* rec, u32 len) {
             if (len < 16)
@@ -463,8 +463,8 @@ bool walk_attributes_tree(Volume& v, CancelToken* cancel,
 }
 
 /* Map a logical offset inside a file fork to its absolute slice offset. */
-u64 fork_offset_to_absolute(Volume& v, u32 cnid, u8 fork_type, const ForkData& fork,
-                           u64 logical, bool& ok) {
+u64 fork_offset_to_absolute(Volume& v, u32 cnid, u8 fork_type, const ForkData& fork, u64 logical,
+                            bool& ok) {
     ok = false;
     std::vector<ForkData::Extent> all(fork.extents, fork.extents + 8);
     auto it = v.overflow.find(cnid);
@@ -487,7 +487,6 @@ u64 fork_offset_to_absolute(Volume& v, u32 cnid, u8 fork_type, const ForkData& f
     }
     return 0;
 }
-
 
 } // namespace
 
@@ -724,8 +723,8 @@ u32 scan_hfsplus(IStorageDevice* slice, const HfsScanFlags& flags, CancelToken* 
                     }
                     if (ext_ok) {
                         props->extents.clear();
-                        props->extents.push_back({abs, u64(dec->uncompressed_size),
-                                                  u32(compress::kZlib), psize});
+                        props->extents.push_back(
+                            {abs, u64(dec->uncompressed_size), u32(compress::kZlib), psize});
                         props->logical_size = dec->uncompressed_size;
                         ++stats.decmpfs_files;
                     }

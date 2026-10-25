@@ -350,18 +350,23 @@ std::vector<u8> guid_disk_bytes(const char* text) {
             t += *p;
     auto hx = [&](size_t i) { return u8(strtoul(t.substr(i, 2).c_str(), nullptr, 16)); };
     std::vector<u8> b(16);
-    b[0] = hx(6);  b[1] = hx(4);  b[2] = hx(2);  b[3] = hx(0);   /* Data1 LE */
-    b[4] = hx(10); b[5] = hx(8);                                    /* Data2 LE */
-    b[6] = hx(14); b[7] = hx(12);                                   /* Data3 LE */
+    b[0] = hx(6);
+    b[1] = hx(4);
+    b[2] = hx(2);
+    b[3] = hx(0); /* Data1 LE */
+    b[4] = hx(10);
+    b[5] = hx(8); /* Data2 LE */
+    b[6] = hx(14);
+    b[7] = hx(12); /* Data3 LE */
     for (int i = 0; i < 8; i++)
-        b[8 + i] = hx(16 + 2 * size_t(i));                          /* Data4 raw */
+        b[8 + i] = hx(16 + 2 * size_t(i)); /* Data4 raw */
     return b;
 }
 
 void expect_guid(const u8* constant, const char* canonical_text, const char* name) {
     const std::vector<u8> want = guid_disk_bytes(canonical_text);
-    EXPECT_EQ(0, std::memcmp(constant, want.data(), 16)) << name << " != canonical "
-                                                        << canonical_text;
+    EXPECT_EQ(0, std::memcmp(constant, want.data(), 16))
+        << name << " != canonical " << canonical_text;
 }
 
 } // namespace
@@ -383,7 +388,7 @@ TEST(Gpt, CanonicalTypeGuidConstantsMatchRealDiskBytes) {
      * the ASCII string "Hah!IdontNeedEFI" (the canonical curiosity that
      * makes byte-order bugs visible) */
     const u8 hahi[16] = {'H', 'a', 'h', '!', 'I', 'd', 'o', 'n',
-                          't', 'N', 'e', 'e', 'd', 'E', 'F', 'I'};
+                         't', 'N', 'e', 'e', 'd', 'E', 'F', 'I'};
     EXPECT_EQ(0, std::memcmp(GPT_TYPE_BIOS_BOOT, hahi, 16));
 }
 
@@ -414,12 +419,9 @@ TEST(Gpt, EspMsrLinuxBiosbootLdmClassification) {
         const u8* guid;
         u64 first, last;
     } es[] = {
-        {GPT_TYPE_EFI_SYSTEM, 200, 399},
-        {GPT_TYPE_MICROSOFT_RESERVED, 400, 431},
-        {GPT_TYPE_LINUX_FS, 500, 900},
-        {GPT_TYPE_BIOS_BOOT, 950, 1050},
-        {GPT_TYPE_LDM_METADATA, 1200, 1300},
-        {GPT_TYPE_LDM_DATA, 1400, 1600},
+        {GPT_TYPE_EFI_SYSTEM, 200, 399},     {GPT_TYPE_MICROSOFT_RESERVED, 400, 431},
+        {GPT_TYPE_LINUX_FS, 500, 900},       {GPT_TYPE_BIOS_BOOT, 950, 1050},
+        {GPT_TYPE_LDM_METADATA, 1200, 1300}, {GPT_TYPE_LDM_DATA, 1400, 1600},
     };
     for (size_t i = 0; i < 6; i++) {
         std::memcpy(entries.data() + i * 128, es[i].guid, 16);

@@ -57,8 +57,7 @@ u32 validate_boot_sector(const BootSector& bs, const Geometry& geom, VolumeParam
      * here refused the whole volume - and its remnant scan - on exactly the
      * damaged disks the product exists for. */
     u64 record_size = record_size_from_dbr(bs, bs.bytes_per_sector);
-    if (record_size == 0 || !power_of_two(record_size) ||
-        record_size % bs.bytes_per_sector != 0)
+    if (record_size == 0 || !power_of_two(record_size) || record_size % bs.bytes_per_sector != 0)
         record_size = 0x200; /* og fallback (:21136) */
     if (record_size < 0x400)
         record_size = 0x400; /* og minimum parse capacity (:21139-21141) */
@@ -410,7 +409,8 @@ u32 NtfsVolume::read_record(u64 record_no, std::vector<u8>& out) {
                 return dev_->read_at(mlcn * p_.cluster_bytes + rel, out.data(), u32(out.size()));
         }
         return ERR_RANGE_OUT_OF_BOUNDS;
-    }    return dev_->read_at(lcn * p_.cluster_bytes + rel, out.data(), u32(out.size()));
+    }
+    return dev_->read_at(lcn * p_.cluster_bytes + rel, out.data(), u32(out.size()));
 }
 
 } // namespace ntfs

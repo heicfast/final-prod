@@ -200,8 +200,8 @@ TEST(LostDiscovery, TwoHealthyDeletedPartitionsBothSurface) {
     /* the bench shape: two ~equal NTFS partitions at unequal offsets,
      * both boot sectors intact (GPT entries removed - data untouched). */
     std::vector<u8> img(u64(16384) * 512, 0); /* 8 MiB disk */
-    plant_ntfs(img, 32768 / 8, 4096, 64);        /* A: LBA 4096, 2 MiB */
-    plant_ntfs(img, 12288, 4096, 64);            /* B: LBA 12288, 2 MiB */
+    plant_ntfs(img, 32768 / 8, 4096, 64);     /* A: LBA 4096, 2 MiB */
+    plant_ntfs(img, 12288, 4096, 64);         /* B: LBA 12288, 2 MiB */
     MemDevice dev(std::move(img));
     DiscoveryResult r;
     ASSERT_EQ(discover(&dev, {}, 1, nullptr, nullptr, nullptr, r), OK);
@@ -217,8 +217,8 @@ TEST(LostDiscovery, DamagedBpbFallbackMustNotSwallowPeer) {
      * B (healthy) starts inside that envelope. The nested-same-fs dedup
      * must NOT treat a fallback-sized extent as containment evidence. */
     std::vector<u8> img(u64(16384) * 512, 0);
-    plant_ntfs(img, 4096, 4096, 64);   /* A: healthy shape first */
-    plant_ntfs(img, 12288, 4096, 64);  /* B: healthy, later offset */
+    plant_ntfs(img, 4096, 4096, 64);  /* A: healthy shape first */
+    plant_ntfs(img, 12288, 4096, 64); /* B: healthy, later offset */
     /* damage A's BPB AFTER planting (total-sectors field destroyed -> the
      * probe falls back to the device-end size) */
     put64(img, 4096 * 512 + 0x28, 0);

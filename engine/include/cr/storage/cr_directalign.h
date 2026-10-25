@@ -48,7 +48,7 @@ struct DirectEnvelope {
 inline DirectEnvelope direct_envelope(u64 off, u32 len, u64 dev_size) {
     DirectEnvelope e;
     if (len == 0 || off >= dev_size)
-        return e; /* empty or past the end: nothing to issue */
+        return e;                   /* empty or past the end: nothing to issue */
     const u64 end = off + u64(len); /* off+len <= 16 TiB devices: no overflow
                                      * with u64 math on u32 len */
     const u64 a_off = (off / kDirectAlignBytes) * kDirectAlignBytes;

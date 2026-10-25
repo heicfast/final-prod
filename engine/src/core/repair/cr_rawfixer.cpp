@@ -152,8 +152,8 @@ bool ntfs_record_named(const u8* rec, u32 recsize, u32 bps, const std::u16string
                              bps) != OK)
         return false;
     std::vector<u8> fixed(rec, rec + recsize);
-    if (ntfs::fixup_apply(fixed.data(), recsize, rh.update_sequence_offset,
-                          rh.update_sequence_size, bps) != OK)
+    if (ntfs::fixup_apply(fixed.data(), recsize, rh.update_sequence_offset, rh.update_sequence_size,
+                          bps) != OK)
         return false;
     std::vector<ntfs::AttrView> attrs;
     if (ntfs::enum_attributes(fixed.data(), recsize, attrs) != OK)
@@ -270,8 +270,8 @@ bool fat_copy_signature_ok(const u8* first, u32 width, u8 media) {
  * CheckRootDir (report-only advisory), run against the boot-sector image
  * the scanner will see. Sector-granular: only differing sectors of the
  * torn copy are rewritten, undo-logged by execute(). */
-void fat_check_tables_and_root(IStorageDevice* slice, RepairPlan& plan, const u8* boot,
-                                u32 sector, u64 total) {
+void fat_check_tables_and_root(IStorageDevice* slice, RepairPlan& plan, const u8* boot, u32 sector,
+                               u64 total) {
     const u16 bps = le16(boot + 0x0B);
     const u8 spc = boot[0x0D];
     const u16 reserved = le16(boot + 0x0E);
@@ -340,8 +340,7 @@ void fat_check_tables_and_root(IStorageDevice* slice, RepairPlan& plan, const u8
             /* coalesce contiguous differing sectors into actions */
             size_t run_start = 0;
             for (size_t k = 1; k <= diff.size(); ++k) {
-                const bool flush =
-                    k == diff.size() || diff[k] != diff[k - 1] + sector;
+                const bool flush = k == diff.size() || diff[k] != diff[k - 1] + sector;
                 if (!flush)
                     continue;
                 const u64 span_off = diff[run_start];
@@ -460,8 +459,7 @@ void deep_scan_boot_candidates(IStorageDevice* slice, u32 sector, u64 total, u32
                     hit = true;
                 if (!hit && (family_mask & SHAPE_FAT) != 0 && fat_boot_sane(sec, total))
                     hit = true;
-                if (!hit && (family_mask & SHAPE_EXFAT) != 0 &&
-                    exfat_boot_sane(sec, total, sector))
+                if (!hit && (family_mask & SHAPE_EXFAT) != 0 && exfat_boot_sane(sec, total, sector))
                     hit = true;
                 if (hit)
                     hits.push_back({off + s, std::vector<u8>(sec, sec + 512)});
@@ -615,9 +613,9 @@ u32 analyze(IStorageDevice* slice, RepairPlan& plan) {
             return OK;
         }
         if (cands.size() > 1)
-            plan.refusal_reason =
-                "NTFS primary damaged, no valid backup, " + std::to_string(cands.size()) +
-                " distinct boot-shaped sectors in the deep window (S3)";
+            plan.refusal_reason = "NTFS primary damaged, no valid backup, " +
+                                  std::to_string(cands.size()) +
+                                  " distinct boot-shaped sectors in the deep window (S3)";
         else
             plan.refusal_reason = "NTFS primary damaged and no valid backup boot sector (S3)";
         plan.refused = true;
@@ -689,7 +687,7 @@ u32 analyze(IStorageDevice* slice, RepairPlan& plan) {
 
         if (checksum_ok && geometry_ok) {
             exfat_check_root_advise(slice, plan, primary, total); /* S-008 CheckRoot */
-            return OK; /* S2: clean */
+            return OK;                                            /* S2: clean */
         }
 
         /* Primary boot shape damaged beyond the OEM? Restore the boot
@@ -730,11 +728,10 @@ u32 analyze(IStorageDevice* slice, RepairPlan& plan) {
                 }
                 plan.refused = true;
                 plan.refusal_reason =
-                    cands.size() > 1
-                        ? "exFAT primary damaged, no valid backup, " +
-                              std::to_string(cands.size()) +
-                              " distinct boot-shaped sectors in the deep window (S3)"
-                        : "exFAT primary damaged and no valid backup boot sector (S3)";
+                    cands.size() > 1 ? "exFAT primary damaged, no valid backup, " +
+                                           std::to_string(cands.size()) +
+                                           " distinct boot-shaped sectors in the deep window (S3)"
+                                     : "exFAT primary damaged and no valid backup boot sector (S3)";
                 return OK;
             }
         }
@@ -846,15 +843,14 @@ u32 analyze(IStorageDevice* slice, RepairPlan& plan) {
      * additionally needs the boot-region checksum recompute. */
     {
         std::vector<ScanCandidate> cands;
-        deep_scan_boot_candidates(slice, sector, total,
-                                  SHAPE_NTFS | SHAPE_FAT | SHAPE_EXFAT, cands);
+        deep_scan_boot_candidates(slice, sector, total, SHAPE_NTFS | SHAPE_FAT | SHAPE_EXFAT,
+                                  cands);
         if (cands.size() == 1) {
             const auto& cand = cands[0];
             const bool cand_exfat = exfat_boot_sane(cand.bytes.data(), total, sector);
             plan.detected = true;
-            plan.fs_family = cand_exfat
-                                 ? "exfat"
-                                 : (ntfs_boot_sane(cand.bytes.data(), total) ? "ntfs" : "fat");
+            plan.fs_family =
+                cand_exfat ? "exfat" : (ntfs_boot_sane(cand.bytes.data(), total) ? "ntfs" : "fat");
             RepairAction a;
             a.kind = ActionKind::DeepScanBootRestore;
             a.offset = 0;
@@ -864,9 +860,8 @@ u32 analyze(IStorageDevice* slice, RepairPlan& plan) {
                        "the only boot-shaped sector in the 64 MiB window (FixByScanSector)";
             plan.actions.push_back(std::move(a));
             if (cand_exfat) {
-                const u32 cand_bps = 1u << (cand.bytes[0x6C] >= 9 && cand.bytes[0x6C] <= 12
-                                                ? cand.bytes[0x6C]
-                                                : 9);
+                const u32 cand_bps =
+                    1u << (cand.bytes[0x6C] >= 9 && cand.bytes[0x6C] <= 12 ? cand.bytes[0x6C] : 9);
                 plan_exfat_checksum_after(slice, plan, cand_bps, cand.bytes.data());
                 exfat_check_root_advise(slice, plan, cand.bytes.data(), total);
             } else if (plan.fs_family == "ntfs") {

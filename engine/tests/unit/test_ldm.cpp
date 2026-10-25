@@ -510,8 +510,16 @@ namespace cr {
 namespace table {
 
 namespace {
-void put32le(u8* p, u32 v) { p[0] = u8(v); p[1] = u8(v >> 8); p[2] = u8(v >> 16); p[3] = u8(v >> 24); }
-void put64le(u8* p, u64 v) { for (int i = 0; i < 8; i++) p[i] = u8(v >> (8 * i)); }
+void put32le(u8* p, u32 v) {
+    p[0] = u8(v);
+    p[1] = u8(v >> 8);
+    p[2] = u8(v >> 16);
+    p[3] = u8(v >> 24);
+}
+void put64le(u8* p, u64 v) {
+    for (int i = 0; i < 8; i++)
+        p[i] = u8(v >> (8 * i));
+}
 } // namespace
 
 /* ---- A-001: GPT dynamic disk with canonical type GUIDs ------------------ */
@@ -529,7 +537,7 @@ TEST(Ldm, GptDynamicDiskCanonicalGuidsParse) {
     StripeDisk sd;
     const u64 total_secs = 65536; /* matches the fixture's 32 MiB disk */
     const u64 cfg_start = total_secs - 2048;
-    const u64 ldm_meta_last = 65532; /* metadata partition [cfg_start, 65532] */
+    const u64 ldm_meta_last = 65532;     /* metadata partition [cfg_start, 65532] */
     sd.fx.write_privhead(ldm_meta_last); /* PRIVHEAD at the partition's last block */
     std::vector<u8> disk = sd.fx.take();
 
@@ -542,15 +550,15 @@ TEST(Ldm, GptDynamicDiskCanonicalGuidsParse) {
     /* primary GPT header (LBA1) */
     u8* h = disk.data() + 512;
     std::memcpy(h, "EFI PART", 8);
-    put32le(h + 8, 0x00010000);   /* revision */
-    put32le(h + 12, 92);          /* header size */
-    put64le(h + 24, 1);           /* current LBA */
-    put64le(h + 32, 65535);       /* backup LBA */
-    put64le(h + 40, 2);           /* first usable */
-    put64le(h + 48, 65531);       /* last usable */
-    put64le(h + 72, 2);           /* entries at LBA2 */
-    put32le(h + 80, 2);           /* 2 entries */
-    put32le(h + 84, 128);         /* entry size */
+    put32le(h + 8, 0x00010000); /* revision */
+    put32le(h + 12, 92);        /* header size */
+    put64le(h + 24, 1);         /* current LBA */
+    put64le(h + 32, 65535);     /* backup LBA */
+    put64le(h + 40, 2);         /* first usable */
+    put64le(h + 48, 65531);     /* last usable */
+    put64le(h + 72, 2);         /* entries at LBA2 */
+    put32le(h + 80, 2);         /* 2 entries */
+    put32le(h + 84, 128);       /* entry size */
 
     /* entries: LDM metadata [cfg_start, 65532]; LDM data [2048, 4096] */
     std::vector<u8> entries(2 * 128, 0);
@@ -581,8 +589,8 @@ TEST(Ldm, GptDynamicDiskCanonicalGuidsParse) {
      * ERR_BAD_MAGIC before the fix). */
     ASSERT_EQ(OK, parse_ldm_database(&dev, info));
     EXPECT_TRUE(info.is_gpt);
-    EXPECT_EQ(size_t(2), info.layouts.size()); /* the same graph the MBR
-                                                  fixture yields */
+    EXPECT_EQ(size_t(2), info.layouts.size());       /* the same graph the MBR
+                                                        fixture yields */
     EXPECT_EQ(u64(2), info.stats.privheads_matched); /* partition tail
                                                         (65532) + config+1856
                                                         (65344); the

@@ -1568,8 +1568,7 @@ extern "C" CR_UI_API uint32_t cr_ui_scan_get_stats(cr_ui_scan* scan, cr_ui_scan_
 extern "C" CR_UI_API uint32_t cr_ui_scan_checkpoint_count(cr_ui_scan* scan, uint64_t* out) {
     return guarded(scan_checkpoint_count_impl, scan, out);
 }
-extern "C" CR_UI_API uint32_t cr_ui_scan_repair_save_undo(cr_ui_scan* scan,
-                                                            const char* utf8_path) {
+extern "C" CR_UI_API uint32_t cr_ui_scan_repair_save_undo(cr_ui_scan* scan, const char* utf8_path) {
     return guarded(scan_repair_save_undo_impl, scan, utf8_path);
 }
 extern "C" CR_UI_API uint32_t cr_ui_scan_save_session(cr_ui_scan* scan, const char* utf8_path) {
@@ -1711,7 +1710,7 @@ u32 disk_map_impl(cr_ui_session* sess, cr_ui_snapshot* snap, const cr_ui_disk_ma
         in.slice_start = want->start_byte;
         in.slice_bytes = want->total_bytes;
         in.cluster_bytes = want->cluster_bytes; /* caller hint when known */
-        in.carve_completed = false;            /* mid-scan value view: extent coverage */
+        in.carve_completed = false;             /* mid-scan value view: extent coverage */
     }
 
     std::vector<u8> a, cv, f, cf;

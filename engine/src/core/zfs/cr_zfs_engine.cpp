@@ -1289,7 +1289,7 @@ u32 scan_zfs(IStorageDevice* slice, CancelToken* cancel, WalkProgressLike progre
                 if (!p)
                     return;
                 p->name = text::utf8_to_u16(e.name); /* S-005: UTF-8 decode */
-                p->fs_kind = u32(FsKindCode::Zfs); /* corpus factory code */
+                p->fs_kind = u32(FsKindCode::Zfs);   /* corpus factory code */
                 p->logical_size = ci->size;
                 p->allocated_size = ci->dn.maxblkid() != 0
                                         ? u64(ci->dn.datablksz()) * (ci->dn.maxblkid() + 1)

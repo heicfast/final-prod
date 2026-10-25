@@ -1262,7 +1262,7 @@ TEST(NtfsVolume, ShiftedHeaderSalvage) {
     auto* root_lost = tree.add_root(u"Lost Files");
     WalkStats stats;
     u32 rc = scan_mft_remnants(&dev, SEC, CLUSTER, RECORD_SIZE, TOTAL_CLUSTERS, nullptr, nullptr,
-                               nullptr, tree,                               root_lost, stats);
+                               nullptr, tree, root_lost, stats);
     ASSERT_EQ(rc, OK);
     tree::FileNode* found = nullptr;
     for (tree::FileNode* c = root_lost->first_child(); c; c = c->next_sibling())
@@ -1307,7 +1307,7 @@ TEST(NtfsVolume, EndToEndWalk) {
     ASSERT_EQ(rc, OK) << err_text(rc);
 
     /* meta records skipped by '$' name; SYSTEM-attributed: none in fixture */
-    EXPECT_EQ(stats.meta_skipped, 7u); /* 0,1,2,3,4,6,7 ($ named) */
+    EXPECT_EQ(stats.meta_skipped, 7u);          /* 0,1,2,3,4,6,7 ($ named) */
     EXPECT_EQ(stats.destroyed_overwritten, 1u); /* overwrit.dat only */
     EXPECT_EQ(stats.damaged, 0u);
     EXPECT_EQ(stats.orphans, 0u);
@@ -1527,7 +1527,7 @@ TEST(NtfsVolume, RemnantScanFindsDetachedRecord) {
     auto* root_lost = tree.add_root(u"Lost Files");
     WalkStats stats;
     u32 rc = scan_mft_remnants(&dev, SEC, CLUSTER, RECORD_SIZE, TOTAL_CLUSTERS, nullptr, nullptr,
-                               nullptr, tree,                               root_lost, stats);
+                               nullptr, tree, root_lost, stats);
     ASSERT_EQ(rc, OK);
     /* find the floating node */
     tree::FileNode* found = nullptr;
@@ -1940,8 +1940,8 @@ TEST(NtfsVolume, OverwrittenHonestModeKeepsAndGrades) {
     WalkerFlags wf;
     wf.destroy_fully_overwritten = false;
     WalkStats stats;
-    ASSERT_EQ(OK, walk_mft(vol.get(), bm.get(), wf, nullptr, nullptr, nullptr, tree, ra, rd,
-                           rl, stats));
+    ASSERT_EQ(
+        OK, walk_mft(vol.get(), bm.get(), wf, nullptr, nullptr, nullptr, tree, ra, rd, rl, stats));
     EXPECT_EQ(0u, stats.destroyed_overwritten);
 
     std::vector<tree::FileNode*> all;
@@ -1994,8 +1994,8 @@ TEST(NtfsVolume, BootNonPow2RecordSizeClampsAndScans) {
     auto* rd = tree.add_root(u"D");
     auto* rl = tree.add_root(u"L");
     WalkStats st;
-    EXPECT_EQ(OK, walk_mft(vol.get(), nullptr, WalkerFlags(), nullptr, nullptr, nullptr, tree,
-                           ra, rd, rl, st));
+    EXPECT_EQ(OK, walk_mft(vol.get(), nullptr, WalkerFlags(), nullptr, nullptr, nullptr, tree, ra,
+                           rd, rl, st));
     EXPECT_GE(st.emitted, 9u); /* the normal fixture yield - no records lost */
 }
 
@@ -2095,7 +2095,7 @@ void patch_mirror_runlist(Image& img, u64 lcn, u64 clusters) {
      * fixture builder computes the same layout every time; re-encode the
      * runlist at the $DATA attribute's runlist offset (attr+0x40) */
     u32 name_alen = (0x18 + 66 + 2 * 8 + 7) / 8 * 8; /* "$MFTMirr" = 8 chars */
-    u8* attr = rec + 0x38 + name_alen; /* $FILE_NAME precedes $DATA */
+    u8* attr = rec + 0x38 + name_alen;               /* $FILE_NAME precedes $DATA */
     RunList rl;
     rl.runs().push_back(DataRun{0, clusters, 0, lcn, false});
     std::vector<u8> rle = rl.encode();
@@ -2103,8 +2103,8 @@ void patch_mirror_runlist(Image& img, u64 lcn, u64 clusters) {
      * wipe past it (the attribute terminator sits at +0x48) */
     std::memset(attr + 0x40, 0, 8);
     std::memcpy(attr + 0x40, rle.data(), rle.size());
-    put64le_at(attr + 0x18, clusters - 1);          /* last_vcn */
-    put64le_at(attr + 0x28, clusters * CLUSTER);    /* allocated */
+    put64le_at(attr + 0x18, clusters - 1);       /* last_vcn */
+    put64le_at(attr + 0x28, clusters * CLUSTER); /* allocated */
 }
 
 /* patch record 0 ($MFT)'s $DATA runlist to [data 4, sparse 60]: records at
@@ -2122,8 +2122,8 @@ void patch_mft_runlist_with_hole(Image& img) {
     ASSERT_LE(rle.size(), 8u); /* the runlist area (alen 72 - 0x40) */
     std::memset(attr + 0x40, 0, 8);
     std::memcpy(attr + 0x40, rle.data(), rle.size());
-    put64le_at(attr + 0x18, 63);                     /* last_vcn */
-    put64le_at(attr + 0x28, 64 * CLUSTER);           /* allocated */
+    put64le_at(attr + 0x18, 63);           /* last_vcn */
+    put64le_at(attr + 0x28, 64 * CLUSTER); /* allocated */
 }
 
 } // namespace
@@ -2180,7 +2180,7 @@ TEST(NtfsVolume, MirrorResidentDataRejected) {
         u8* rec = img.sec(MFT_LCN + 2); /* record 1 = $MFTMirr */
         u32 name_alen = (0x18 + 66 + 2 * 8 + 7) / 8 * 8;
         u8* attr = rec + 0x38 + name_alen; /* the $DATA attribute */
-        attr[8] = 0;                      /* nonresident flag -> resident */
+        attr[8] = 0;                       /* nonresident flag -> resident */
     }
     patch_mft_runlist_with_hole(img); /* primary hole forces the fallback */
     MemDevice dev(img.raw(), img.geom());

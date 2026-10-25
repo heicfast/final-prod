@@ -46,10 +46,10 @@ namespace cr {
 namespace viz {
 
 struct DiskMapGeometry {
-    u64 start_byte = 0;   /* absolute base of the mapped view */
-    u64 total_bytes = 0;  /* mapped extent */
-    u64 cell_bytes = 0;   /* the granularity ACTUALLY used */
-    u64 cell_count = 0;   /* the overlay array lengths */
+    u64 start_byte = 0;    /* absolute base of the mapped view */
+    u64 total_bytes = 0;   /* mapped extent */
+    u64 cell_bytes = 0;    /* the granularity ACTUALLY used */
+    u64 cell_count = 0;    /* the overlay array lengths */
     u32 cluster_bytes = 0; /* 0 = no cluster model was known */
     u32 fs_family = 0;     /* orchestrator::FsFamily value */
 };
@@ -63,11 +63,11 @@ constexpr u8 kCellAllocFree = 2;
 constexpr u8 kCellAllocFsBad = 3;
 
 struct DiskMapInputs {
-    u64 slice_start = 0;           /* absolute base of the scanned view */
-    u64 slice_bytes = 0;           /* extent of the scanned view */
-    u32 cluster_bytes = 0;         /* 0 = unknown -> 64 KiB default cells */
-    u32 fs_family = 0;             /* orchestrator::FsFamily value */
-    bool carve_completed = false;  /* coverage truth: carve read everything */
+    u64 slice_start = 0;                  /* absolute base of the scanned view */
+    u64 slice_bytes = 0;                  /* extent of the scanned view */
+    u32 cluster_bytes = 0;                /* 0 = unknown -> 64 KiB default cells */
+    u32 fs_family = 0;                    /* orchestrator::FsFamily value */
+    bool carve_completed = false;         /* coverage truth: carve read everything */
     const ReadErrorMap* errors = nullptr; /* bad-sector overlay source */
 };
 
@@ -77,17 +77,15 @@ struct DiskMapInputs {
  * [start,len] u64 pairs (absolute bytes); *bad_needed returns the true
  * count either way; bad_cap < needed is ERR_TRUNCATED after filling. */
 u32 build_disk_map(const DiskMapInputs& in, const tree::ResultTree& tree, DiskMapGeometry& geom,
-                   std::vector<u8>* allocation, std::vector<u8>* coverage,
-                   std::vector<u8>* found, std::vector<u8>* confidence,
-                   std::vector<std::pair<u64, u64>>& bad_ranges, u32 bad_cap,
-                   u32* bad_needed);
+                   std::vector<u8>* allocation, std::vector<u8>* coverage, std::vector<u8>* found,
+                   std::vector<u8>* confidence, std::vector<std::pair<u64, u64>>& bad_ranges,
+                   u32 bad_cap, u32* bad_needed);
 
 /* Snapshot variant (the mid-scan surface - value semantics, race-free). */
 u32 build_disk_map(const DiskMapInputs& in, const tree::Snapshot& snap, DiskMapGeometry& geom,
-                   std::vector<u8>* allocation, std::vector<u8>* coverage,
-                   std::vector<u8>* found, std::vector<u8>* confidence,
-                   std::vector<std::pair<u64, u64>>& bad_ranges, u32 bad_cap,
-                   u32* bad_needed);
+                   std::vector<u8>* allocation, std::vector<u8>* coverage, std::vector<u8>* found,
+                   std::vector<u8>* confidence, std::vector<std::pair<u64, u64>>& bad_ranges,
+                   u32 bad_cap, u32* bad_needed);
 
 } // namespace viz
 } // namespace cr

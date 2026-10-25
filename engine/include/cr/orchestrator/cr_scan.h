@@ -78,19 +78,19 @@ struct StageWeights {
  *  - Unknown `type` values MUST be ignored by consumers (forward compat). */
 namespace event {
 enum class Type : u32 {
-    ScanStage = 1,   /* a stage transition (quick/deep/carve) */
-    ScanProgress = 2,/* a coalesced progress sample */
-    FilesFound = 3,  /* files-found counters advanced (stage boundary) */
-    ErrorRange = 4,  /* a read-failure range was appended (delta) */
-    Checkpoint = 5,  /* a G-13 checkpoint was written */
+    ScanStage = 1,     /* a stage transition (quick/deep/carve) */
+    ScanProgress = 2,  /* a coalesced progress sample */
+    FilesFound = 3,    /* files-found counters advanced (stage boundary) */
+    ErrorRange = 4,    /* a read-failure range was appended (delta) */
+    Checkpoint = 5,    /* a G-13 checkpoint was written */
     LostCandidate = 6, /* a lost-partition candidate was found */
-    Repair = 7       /* S-008: pre-scan repair lifecycle (see Repair fields) */
+    Repair = 7         /* S-008: pre-scan repair lifecycle (see Repair fields) */
 };
 
 struct Event {
     Type type = Type::ScanStage;
-    u32 stage = 0xFFFFFFFFu;      /* 0 quick, 1 deep, 2 carve, 0xFFFFFFFF none */
-    u64 timestamp_ms = 0;         /* run-elapsed, pause-compensated */
+    u32 stage = 0xFFFFFFFFu; /* 0 quick, 1 deep, 2 carve, 0xFFFFFFFF none */
+    u64 timestamp_ms = 0;    /* run-elapsed, pause-compensated */
     /* ScanProgress */
     u64 bytes_done = 0, bytes_total = 0; /* stage-true bytes where counted (carve) */
     u32 stage_permille = 0, overall_permille = 0;
@@ -98,7 +98,7 @@ struct Event {
     u64 files_found = 0, deleted_found = 0, carved_found = 0;
     /* ErrorRange: the newest appended span (absolute device bytes) */
     u64 err_start_bytes = 0, err_len_bytes = 0;
-    u32 error_ranges = 0;        /* cumulative count after the append */
+    u32 error_ranges = 0; /* cumulative count after the append */
     /* Checkpoint */
     u64 checkpoint_index = 0;
     /* LostCandidate */

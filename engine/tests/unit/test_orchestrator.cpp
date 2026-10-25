@@ -6,6 +6,7 @@
 #include "cr/storage/cr_device.h"
 #include "test_fixtures.hpp"
 #include <cstring>
+#include <utility>
 #include <vector>
 
 using namespace cr;
@@ -486,11 +487,12 @@ bool test_consent(const repair::RepairPlan& plan, void* user) {
 repair::IWriteDevice* test_open_writer(void* user) {
     return static_cast<RepairCtx*>(user)->dev;
 }
-void test_close_writer(repair::IWriteDevice* dev, void*) { (void)dev; }
+void test_close_writer(repair::IWriteDevice* dev, void*) {
+    (void)dev;
+}
 void test_event_fn(const event::Event& evt, void* user) {
     if (evt.type == event::Type::Repair)
-        static_cast<RepairCtx*>(user)->events.emplace_back(evt.repair_outcome,
-                                                           evt.repair_actions);
+        static_cast<RepairCtx*>(user)->events.emplace_back(evt.repair_outcome, evt.repair_actions);
 }
 
 /* build_fat16 + the FAT16 entry signature on both copies, FAT1 sector 0 torn */

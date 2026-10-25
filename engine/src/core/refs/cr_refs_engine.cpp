@@ -453,8 +453,7 @@ u32 scan_refs(IStorageDevice* slice, const RefsScanFlags& flags, CancelToken* ca
         std::fprintf(stderr,
                      "[refs-dbg] boot ok: bps=%u spc=%u cluster=%u clusters=%llu major=%u "
                      "minor=%u page=%u x %u clusters\n",
-                     boot.bytes_per_sector, boot.sectors_per_cluster,
-                     unsigned(boot.cluster_bytes),
+                     boot.bytes_per_sector, boot.sectors_per_cluster, unsigned(boot.cluster_bytes),
                      static_cast<unsigned long long>(boot.volume_clusters), boot.major, boot.minor,
                      eng.page_bytes, eng.page_clusters);
 
@@ -515,9 +514,10 @@ u32 scan_refs(IStorageDevice* slice, const RefsScanFlags& flags, CancelToken* ca
         std::fprintf(stderr,
                      "[refs-dbg] checkpoint probes: cluster %llu -> %s, cluster %llu -> %s "
                      "(vol_sig=%08x)\n",
-                     static_cast<unsigned long long>(chkp_clusters[0]), ok1 ? "CHKP+sig-ok" : "FAIL",
-                     static_cast<unsigned long long>(chkp_clusters[1]), ok2 ? "CHKP+sig-ok" : "FAIL",
-                     vol_sig);
+                     static_cast<unsigned long long>(chkp_clusters[0]),
+                     ok1 ? "CHKP+sig-ok" : "FAIL",
+                     static_cast<unsigned long long>(chkp_clusters[1]),
+                     ok2 ? "CHKP+sig-ok" : "FAIL", vol_sig);
     if (ok1)
         dump("checkpoint page", chkp.data(), 64);
     if (ok1 && ok2)
@@ -564,7 +564,8 @@ u32 scan_refs(IStorageDevice* slice, const RefsScanFlags& flags, CancelToken* ca
      * minor=7 with a body layout minor >= 14. The old code keyed on
      * boot.minor and read the WRONG descriptor list on every such volume
      * -> table_root(0) garbage -> BAD_MAGIC. */
-    const u32 ptr_lst_off = le16(chkp.data() + 0x56) >= 0x0E ? 0xA8 : 0x94; /* body+0x58 / body+0x44 */
+    const u32 ptr_lst_off =
+        le16(chkp.data() + 0x56) >= 0x0E ? 0xA8 : 0x94; /* body+0x58 / body+0x44 */
     if (dbg)
         std::fprintf(stderr,
                      "[refs-dbg] checkpoint body: major=%u minor=%u ptr_count=%u list@0x%x "

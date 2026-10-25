@@ -2299,3 +2299,25 @@ Work Log:
 Stage Summary:
 - N-010 filed and FIXED: BAD-terminated chains grade broken on both sides again; the
   I-002 pin passes; chains_broken accounting counts them once more.
+
+Task ID: 18-a (CI red repair — this leg)
+Agent: main engineer (diff-to-fix remediation, second parallel leg)
+Task: Repair red Windows/lint gates on main (both legs' accumulated commits)
+
+Work Log:
+- Both CI gates were red across the parallel legs' pushes (e93decf..51ac671 and mine):
+  * windows: test_hfsplus_volume.cpp used std::search without <algorithm> - GCC's
+    transitive includes masked it on Linux, MSVC refused (error C2039/C3861) - root
+    cause of the S-002 commit's red build.
+  * lint: 42 files accumulated clang-format violations from both legs' commits
+    (cr_ui/cr_hfsplus/cr_carve/cr_btrfs/cr_zfs/test_* etc).
+- Fixes: added <algorithm> to test_hfsplus_volume.cpp (S-002 fallout) and <utility> to
+  test_orchestrator.cpp (MSVC-strict std::pair); ran clang-format 18.1.8 - THE CI
+  VERSION, installed via pip to avoid version drift - over every violating file
+  (formatting-only; verified behavior-preserved by the full suite).
+- Full suite 309/309 (Linux ASan) after the repair; local clang-format gate now clean
+  with the exact CI toolchain version.
+
+Stage Summary:
+- CI red root causes fixed (missing include + format debt); push to follow; Windows CI
+  to be verified green before proceeding to the next finding in this leg's lane.

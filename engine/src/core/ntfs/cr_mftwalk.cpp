@@ -1134,7 +1134,7 @@ struct RemnantCtx {
  * is a registered bounded gap (CORE-GAP-LIST GAP-S6-4 note). Returns true
  * when the node carries recoverable content (extents or resident data). */
 static bool remnant_extract_data(const std::vector<AttrView>& attrs, const RemnantCtx& ctx,
-                                  tree::FileProperties* props, u64& rem_size) {
+                                 tree::FileProperties* props, u64& rem_size) {
     bool have_content = false;
     for (const AttrView& da : attrs) {
         if (da.type != ATTR_TYPE_DATA || da.name_length != 0)
@@ -1162,8 +1162,8 @@ static bool remnant_extract_data(const std::vector<AttrView>& attrs, const Remna
                 std::vector<RunList::Extent> ex;
                 rl.extents(ex);
                 for (const auto& e : ex)
-                    props->extents.push_back({e.lcn * ctx.cluster_bytes,
-                                              e.clusters * ctx.cluster_bytes});
+                    props->extents.push_back(
+                        {e.lcn * ctx.cluster_bytes, e.clusters * ctx.cluster_bytes});
                 have_content = !props->extents.empty();
             }
             break;
@@ -1262,7 +1262,7 @@ void scan_remnant_buffer(RemnantCtx& ctx, const u8* buf, u64 buf_len) {
                          * unverifiable post-format); empty ones stay
                          * MetadataOnly */
                         n->set_confidence(have_content ? tree::Confidence::PartialRisk
-                                                        : tree::Confidence::MetadataOnly);
+                                                       : tree::Confidence::MetadataOnly);
                         ctx.emitted.fetch_add(1, std::memory_order_relaxed);
                     }
                     props->release();
@@ -1343,7 +1343,7 @@ void scan_remnant_buffer(RemnantCtx& ctx, const u8* buf, u64 buf_len) {
                 n->set_origin(tree::Origin::Lost);
                 n->set_deleted_state(tree::DeletedState::Damaged);
                 n->set_confidence(have_content ? tree::Confidence::PartialRisk
-                                                : tree::Confidence::MetadataOnly);
+                                               : tree::Confidence::MetadataOnly);
                 ctx.emitted.fetch_add(1, std::memory_order_relaxed);
             }
             props->release();

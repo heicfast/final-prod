@@ -23,8 +23,8 @@ std::u16string u(std::initializer_list<char16_t> cps) {
 } // namespace
 
 TEST(Text, AsciiPassesThrough) {
-    EXPECT_EQ(utf8_to_u16(std::string_view("hello.txt", 9)), u({u'h', u'e', u'l', u'l',
-                                                                u'o', u'.', u't', u'x', u't'}));
+    EXPECT_EQ(utf8_to_u16(std::string_view("hello.txt", 9)),
+              u({u'h', u'e', u'l', u'l', u'o', u'.', u't', u'x', u't'}));
     EXPECT_TRUE(utf8_to_u16(std::string_view("", 0)).empty());
 }
 
@@ -35,8 +35,7 @@ TEST(Text, LatinAccentDecodes) {
 
 TEST(Text, CjkDecodesToCodePoints) {
     /* "照片" - U+7167 U+7247, UTF-8 E7 85 A7 E7 89 87 */
-    EXPECT_EQ(utf8_to_u16("\xe7\x85\xa7\xe7\x89\x87"),
-              u({char16_t(0x7167), char16_t(0x7247)}));
+    EXPECT_EQ(utf8_to_u16("\xe7\x85\xa7\xe7\x89\x87"), u({char16_t(0x7167), char16_t(0x7247)}));
     /* the byte-lift used to produce U+00E7 U+0085 U+00A7 U+00E7 U+0089 U+0087 */
     EXPECT_EQ(utf8_to_u16("\xe7\x85\xa7").size(), 1u);
 }
@@ -55,8 +54,7 @@ TEST(Text, OverlongFormsRejectedAsReplacement) {
     EXPECT_EQ(utf8_to_u16("\xc0\x80"), u({u'\uFFFD', u'\uFFFD'})); /* NUL overlong */
     EXPECT_EQ(utf8_to_u16("\xc1\xbf"), u({u'\uFFFD', u'\uFFFD'})); /* 2-byte overlong */
     EXPECT_EQ(utf8_to_u16("\xe0\x80\x80"), u({u'\uFFFD', u'\uFFFD', u'\uFFFD'}));
-    EXPECT_EQ(utf8_to_u16("\xf0\x80\x80\x80"),
-              u({u'\uFFFD', u'\uFFFD', u'\uFFFD', u'\uFFFD'}));
+    EXPECT_EQ(utf8_to_u16("\xf0\x80\x80\x80"), u({u'\uFFFD', u'\uFFFD', u'\uFFFD', u'\uFFFD'}));
     /* the overlong VALUE never decodes: no U+0000 from C0 80 */
     EXPECT_EQ(utf8_to_u16("\xc0\x80").find(u'\0'), std::u16string::npos);
 }
@@ -72,8 +70,7 @@ TEST(Text, SurrogateHalvesRejected) {
 
 TEST(Text, BeyondUnicodeRejected) {
     /* U+110000 (F4 90 80 80) and above - reject + per-byte resync */
-    EXPECT_EQ(utf8_to_u16("\xf4\x90\x80\x80"),
-              u({u'\uFFFD', u'\uFFFD', u'\uFFFD', u'\uFFFD'}));
+    EXPECT_EQ(utf8_to_u16("\xf4\x90\x80\x80"), u({u'\uFFFD', u'\uFFFD', u'\uFFFD', u'\uFFFD'}));
     /* the RFC-legal maximum U+10FFFF decodes fine */
     EXPECT_EQ(utf8_to_u16("\xf4\x8f\xbf\xbf"), u({char16_t(0xDBFF), char16_t(0xDFFF)}));
 }
@@ -81,8 +78,7 @@ TEST(Text, BeyondUnicodeRejected) {
 TEST(Text, InvalidLeadBytesResyncOneByte) {
     /* 0xFF / 0xFE / lone continuation bytes: one U+FFFD each, the rest
      * of the name survives - a torn byte must not destroy the suffix */
-    EXPECT_EQ(utf8_to_u16("\xff\xfe(bad"),
-              u({u'\uFFFD', u'\uFFFD', u'(', u'b', u'a', u'd'}));
+    EXPECT_EQ(utf8_to_u16("\xff\xfe(bad"), u({u'\uFFFD', u'\uFFFD', u'(', u'b', u'a', u'd'}));
     EXPECT_EQ(utf8_to_u16("ok\x80ok"), u({u'o', u'k', u'\uFFFD', u'o', u'k'}));
 }
 
@@ -108,9 +104,8 @@ TEST(Text, EmbeddedNulDecodes) {
 TEST(Text, RoundTripThroughNodeUtf8) {
     /* the pipeline contract: decode(UTF-8) -> u16 -> re-encode must yield
      * the original bytes for every well-formed input */
-    const std::string cases[] = {
-        "plain", "café", "\xe7\x85\xa7\xe7\x89\x87.jpg", "\xf0\x9f\x98\x80.png",
-        "\xc3\xa9\xe2\x82\xac\xf0\x9f\x98\x80"};
+    const std::string cases[] = {"plain", "café", "\xe7\x85\xa7\xe7\x89\x87.jpg",
+                                 "\xf0\x9f\x98\x80.png", "\xc3\xa9\xe2\x82\xac\xf0\x9f\x98\x80"};
     for (const std::string& c : cases) {
         const std::u16string wide = utf8_to_u16(c);
         std::string back;

@@ -948,17 +948,17 @@ TEST(Zfs, NonAsciiNamesDecodedNotByteLifted) {
     ASSERT_EQ(OK, scan_zfs(&dev, nullptr, nullptr, nullptr, tree, ra, nullptr, nullptr, st));
 
     std::map<std::string, std::u16string> names;
-    std::function<void(tree::FileNode*, const std::string&)> collect =
-        [&](tree::FileNode* n, const std::string& p) {
-            for (tree::FileNode* c = n->first_child(); c; c = c->next_sibling()) {
-                if (!c->props())
-                    continue;
-                const std::string nm = c->name_utf8();
-                const std::string full = p.empty() ? nm : p + "/" + nm;
-                names[full] = c->props()->name;
-                collect(c, full);
-            }
-        };
+    std::function<void(tree::FileNode*, const std::string&)> collect = [&](tree::FileNode* n,
+                                                                           const std::string& p) {
+        for (tree::FileNode* c = n->first_child(); c; c = c->next_sibling()) {
+            if (!c->props())
+                continue;
+            const std::string nm = c->name_utf8();
+            const std::string full = p.empty() ? nm : p + "/" + nm;
+            names[full] = c->props()->name;
+            collect(c, full);
+        }
+    };
     collect(ra, "");
 
     /* CJK file name: true code points under the CJK pool root */

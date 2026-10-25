@@ -134,22 +134,23 @@ typedef void (*cr_ui_recovery_progress_fn)(void* user, uint64_t bytes_done, uint
  * overall permille; files-found/error events are stage-boundary samples
  * (the engines do not publish per-file increments); unknown type values
  * MUST be ignored (forward compatibility). */
-#define CR_EVT_SCAN_STAGE 1u      /* stage transition */
-#define CR_EVT_SCAN_PROGRESS 2u   /* coalesced progress sample */
-#define CR_EVT_FILES_FOUND 3u     /* files-found counters (cumulative) */
-#define CR_EVT_ERROR_RANGE 4u     /* read-failure range appended (delta) */
-#define CR_EVT_CHECKPOINT 5u      /* a G-13 checkpoint was written */
-#define CR_EVT_LOST_CANDIDATE 6u  /* lost-partition candidate found */
-#define CR_EVT_REPAIR 7u         /* pre-scan repair lifecycle (S-008):
-                                    * outcome 0 plan ready for consent,
-                                    * 1 applied, 2 consent denied,
-                                    * 3 failed/unavailable; repair_actions
-                                    * carries the planned/applied count. */
+#define CR_EVT_SCAN_STAGE 1u     /* stage transition */
+#define CR_EVT_SCAN_PROGRESS 2u  /* coalesced progress sample */
+#define CR_EVT_FILES_FOUND 3u    /* files-found counters (cumulative) */
+#define CR_EVT_ERROR_RANGE 4u    /* read-failure range appended (delta) */
+#define CR_EVT_CHECKPOINT 5u     /* a G-13 checkpoint was written */
+#define CR_EVT_LOST_CANDIDATE 6u /* lost-partition candidate found */
+#define CR_EVT_REPAIR                                                                              \
+    7u /* pre-scan repair lifecycle (S-008):                                                       \
+        * outcome 0 plan ready for consent,                                                        \
+        * 1 applied, 2 consent denied,                                                             \
+        * 3 failed/unavailable; repair_actions                                                     \
+        * carries the planned/applied count. */
 
 typedef struct cr_ui_event {
-    uint32_t type;            /* CR_EVT_* above */
-    uint32_t stage;           /* 0 quick, 1 deep, 2 carve, 0xFFFFFFFF none */
-    uint64_t timestamp_ms;    /* run-elapsed, pause-compensated */
+    uint32_t type;         /* CR_EVT_* above */
+    uint32_t stage;        /* 0 quick, 1 deep, 2 carve, 0xFFFFFFFF none */
+    uint64_t timestamp_ms; /* run-elapsed, pause-compensated */
     /* progress sample (CR_EVT_SCAN_PROGRESS) */
     uint64_t bytes_done, bytes_total; /* stage-true bytes where counted */
     uint32_t stage_permille, overall_permille;
@@ -157,7 +158,7 @@ typedef struct cr_ui_event {
     uint64_t files_found, deleted_found, carved_found;
     /* error-map delta (CR_EVT_ERROR_RANGE): the newly-failed span */
     uint64_t err_start_bytes, err_len_bytes;
-    uint32_t error_ranges;    /* cumulative count after the append */
+    uint32_t error_ranges; /* cumulative count after the append */
     /* checkpoint (CR_EVT_CHECKPOINT) */
     uint64_t checkpoint_index;
     /* lost candidate (CR_EVT_LOST_CANDIDATE) */
@@ -306,8 +307,8 @@ typedef struct cr_ui_scan_config {
                                        * (overwrite-in-place, CLI --out) */
     cr_ui_progress_fn progress;       /* optional live progress */
     void* progress_user;
-    uint32_t pre_scan_repair; /* ABI-since 1.2: 1 = analyze + consent gate
-                               * before the stages (S-008) */
+    uint32_t pre_scan_repair;               /* ABI-since 1.2: 1 = analyze + consent gate
+                                             * before the stages (S-008) */
     cr_ui_repair_consent_fn repair_consent; /* NULL = never execute */
     void* repair_consent_user;
 } cr_ui_scan_config;
@@ -358,10 +359,10 @@ typedef struct cr_ui_scan_stats {
     uint64_t cached_hits, cached_misses;
     uint32_t error_ranges; /* final count (full detail via the session) */
     /* ABI-since 1.2 (S-008 pre-scan repair outcome): */
-    uint32_t repair_ran;    /* analysis executed at all */
-    uint32_t repair_planned;/* surfaced action count */
-    uint32_t repair_applied;/* transactionally written (all-or-rolled-back) */
-    uint32_t repair_denied; /* consent denied or unavailable (nothing written) */
+    uint32_t repair_ran;     /* analysis executed at all */
+    uint32_t repair_planned; /* surfaced action count */
+    uint32_t repair_applied; /* transactionally written (all-or-rolled-back) */
+    uint32_t repair_denied;  /* consent denied or unavailable (nothing written) */
 } cr_ui_scan_stats;
 
 CR_UI_API uint32_t cr_ui_scan_get_stats(cr_ui_scan* s, cr_ui_scan_stats* out);
@@ -534,19 +535,19 @@ CR_UI_API void cr_ui_query_rows_free(cr_ui_query_row* rows, uint32_t row_count);
  * either way; bad_cap < needed -> CR_UI_ERR_TRUNCATED after filling. */
 
 typedef struct cr_ui_disk_map_geometry {
-    uint64_t start_byte;  /* in: view base (snapshot path); out: used base */
-    uint64_t total_bytes; /* in: view extent; out: used extent */
-    uint64_t cell_bytes;  /* in: 0 = auto; out: the granularity used */
-    uint64_t cell_count;  /* out: the overlay array lengths */
+    uint64_t start_byte;    /* in: view base (snapshot path); out: used base */
+    uint64_t total_bytes;   /* in: view extent; out: used extent */
+    uint64_t cell_bytes;    /* in: 0 = auto; out: the granularity used */
+    uint64_t cell_count;    /* out: the overlay array lengths */
     uint32_t cluster_bytes; /* out: 0 when no cluster model was known */
     uint32_t fs_family;     /* out: orchestrator::FsFamily value */
 } cr_ui_disk_map_geometry;
 
 CR_UI_API uint32_t cr_ui_disk_map(cr_ui_session* sess, cr_ui_snapshot* snap,
-                                  const cr_ui_disk_map_geometry* want,
-                                  cr_ui_disk_map_geometry* got, uint8_t** allocation,
-                                  uint8_t** coverage, uint8_t** found, uint8_t** confidence,
-                                  uint64_t* bad_ranges, uint32_t bad_cap, uint32_t* bad_count);
+                                  const cr_ui_disk_map_geometry* want, cr_ui_disk_map_geometry* got,
+                                  uint8_t** allocation, uint8_t** coverage, uint8_t** found,
+                                  uint8_t** confidence, uint64_t* bad_ranges, uint32_t bad_cap,
+                                  uint32_t* bad_count);
 
 /* Frees an overlay array returned by cr_ui_disk_map (each array
  * separately; NULL is a no-op). */

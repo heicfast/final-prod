@@ -7,6 +7,7 @@
 #include <zlib.h>
 #include "cr/compress/cr_decomp.h"
 #include <gtest/gtest.h>
+#include <algorithm>
 #include <cstring>
 #include <set>
 
@@ -303,16 +304,16 @@ TEST(HfsPlus, EndToEndWalk) {
 
 /* one attributes-B-tree leaf record: key + inline data wrapper */
 std::vector<u8> make_attr_record(u32 cnid, const std::u16string& name, u32 record_type,
-                                const std::vector<u8>& value) {
+                                 const std::vector<u8>& value) {
     const u32 n = u32(name.size());
     const u32 key_len = 14 + 2 * n; /* keyLength COUNTS itself (og :7771) */
     std::vector<u8> rec;
     rec.resize(key_len, 0);
     be16(rec.data(), u16(key_len)); /* includes itself */
-    be32(rec.data() + 2, 0);       /* pad */
-    be32(rec.data() + 4, cnid);    /* fileId (og: +4) */
-    be32(rec.data() + 8, 0);       /* startBlock */
-    be16(rec.data() + 12, u16(n)); /* nameLen in UTF-16 chars (og: +0xC) */
+    be32(rec.data() + 2, 0);        /* pad */
+    be32(rec.data() + 4, cnid);     /* fileId (og: +4) */
+    be32(rec.data() + 8, 0);        /* startBlock */
+    be16(rec.data() + 12, u16(n));  /* nameLen in UTF-16 chars (og: +0xC) */
     for (u32 i = 0; i < n; ++i)
         be16(rec.data() + 14 + u32(i) * 2, name[i]);
     /* data: [recordType BE][r1][r2][length BE][value] (og gate 0x10) */
@@ -377,10 +378,8 @@ TEST(HfsPlus, DecmpfsInlineAndRsrcContentRecovered) {
     auto dir_rec = make_record(2, u"Documents", 1, 21, 0, 0, 0, 0, 0, 0);
     auto nested_rec = make_record(21, u"notes.rtf", 2, 22, 44, B_RSRC_DATA, 1, 8, B_GONE_DATA, 1);
     auto inline_rec = make_record(2, u"inline.pages", 2, 25, 0, 0, 0, 0, 0, 0);
-    auto rsrc_rec = make_record(2, u"rsrc.pages", 2, 26, 0, 0, 0, 64 + z26.size(),
-                                B_MODE4_RSRC, 1);
-    auto leaf1 = make_leaf_node({root_rec, file_rec, dir_rec, nested_rec, inline_rec, rsrc_rec},
-                                0);
+    auto rsrc_rec = make_record(2, u"rsrc.pages", 2, 26, 0, 0, 0, 64 + z26.size(), B_MODE4_RSRC, 1);
+    auto leaf1 = make_leaf_node({root_rec, file_rec, dir_rec, nested_rec, inline_rec, rsrc_rec}, 0);
     memcpy(img.data() + u64(B_CAT_LEAF1) * BS, leaf1.data(), NODE_SIZE);
     /* header leafRecords count is informational; nothing gates on it */
 
@@ -466,8 +465,8 @@ TEST(HfsPlus, DecmpfsInlineAndRsrcContentRecovered) {
          * image and inflate - the recovered content must be exact */
         std::vector<u8> packed(size_t(e.psize), 0), plain(size_t(e.length), 0);
         memcpy(packed.data(), img.data() + e.offset, size_t(e.psize));
-        ASSERT_TRUE(compress::decompress_block(e.codec, packed.data(), packed.size(),
-                                               plain.data(), plain.size()));
+        ASSERT_TRUE(compress::decompress_block(e.codec, packed.data(), packed.size(), plain.data(),
+                                               plain.size()));
         EXPECT_EQ(0, memcmp(plain.data(), content25.data(), content25.size()));
     }
 
@@ -481,8 +480,8 @@ TEST(HfsPlus, DecmpfsInlineAndRsrcContentRecovered) {
         EXPECT_EQ(u64(content26.size()), e.length);
         std::vector<u8> packed(size_t(e.psize), 0), plain(size_t(e.length), 0);
         memcpy(packed.data(), img.data() + e.offset, size_t(e.psize));
-        ASSERT_TRUE(compress::decompress_block(e.codec, packed.data(), packed.size(),
-                                               plain.data(), plain.size()));
+        ASSERT_TRUE(compress::decompress_block(e.codec, packed.data(), packed.size(), plain.data(),
+                                               plain.size()));
         EXPECT_EQ(0, memcmp(plain.data(), content26.data(), content26.size()));
     }
 
@@ -529,8 +528,8 @@ TEST(HfsPlus, DecmpfsDisabledLeavesEmptyShell) {
     fl.resolve_decmpfs = false;
     fl.named_forks = false;
     HfsScanStats st;
-    ASSERT_EQ(OK, scan_hfsplus(&dev, fl, nullptr, nullptr, nullptr, tree, ra, nullptr, nullptr,
-                               st));
+    ASSERT_EQ(OK,
+              scan_hfsplus(&dev, fl, nullptr, nullptr, nullptr, tree, ra, nullptr, nullptr, st));
     EXPECT_EQ(0u, st.decmpfs_files);
     tree::FileNode* f = nullptr;
     for (tree::FileNode* c = ra->first_child(); c; c = c->next_sibling())

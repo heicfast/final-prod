@@ -41,8 +41,8 @@ TEST(DirectAlign, UnalignedOffsetAndLengthEnvelope) {
     const auto e = direct_envelope(1000, 4100, 16ULL * 1024 * 1024);
     EXPECT_TRUE(e.ok);
     EXPECT_FALSE(e.direct);
-    EXPECT_EQ(e.issued_off, 0u);            /* floor64k(1000) */
-    EXPECT_EQ(e.issued_len, u64(65536));    /* ceil64k(1000+4100) = 64 KiB */
+    EXPECT_EQ(e.issued_off, 0u);         /* floor64k(1000) */
+    EXPECT_EQ(e.issued_len, u64(65536)); /* ceil64k(1000+4100) = 64 KiB */
     EXPECT_EQ(e.skip, u64(1000));
     EXPECT_EQ(e.take, u64(4100));
 }
@@ -82,9 +82,9 @@ TEST(DirectAlign, OneMiBWriterChunkAtAlignedOffsetStaysDirect) {
 }
 
 TEST(DirectAlign, OutOfBoundsAndEmptyRequestsFail) {
-    EXPECT_FALSE(direct_envelope(0, 0, 4096).ok);          /* empty */
-    EXPECT_FALSE(direct_envelope(4096, 512, 4096).ok);     /* past the end */
-    EXPECT_FALSE(direct_envelope(4096, 512, 0).ok);        /* empty device */
+    EXPECT_FALSE(direct_envelope(0, 0, 4096).ok);      /* empty */
+    EXPECT_FALSE(direct_envelope(4096, 512, 4096).ok); /* past the end */
+    EXPECT_FALSE(direct_envelope(4096, 512, 0).ok);    /* empty device */
 }
 
 TEST(DirectAlign, IssuedLengthAlwaysSixtyFourKMultipleExceptTail) {
