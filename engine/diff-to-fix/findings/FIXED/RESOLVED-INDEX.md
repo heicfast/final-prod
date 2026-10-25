@@ -64,6 +64,12 @@ active roadmap.
 |---|---|---|---|---|
 | N-041 | MINOR (S5) | Dead code: RdaClient (zero callers) + volume_letter_to_disk | DFX12 dead-surface batch (this commit) | Option (b) DELETE executed: class + structured-open plumbing + volume_letter_to_disk removed (~16 KB); wire structs stay as documented driver contract in cr_rda.h; the REFACTOR-PLAN's KEEP ruling superseded with evidence (its cited TRANSPORT-CONTRACT §8 no longer exists; the "UI reads through it" claim grep-disproven); PARITY-ARCH.md:152 corrected; CI absence-lint guards the symbols' return; FB-T06/FB-T07 moot. |
 
+## Resolved findings (88 — table-visualization batch: +N-057; live file inventory)
+
+| ID | Severity (orig) | Title | Fix commit | Resolution |
+|---|---|---|---|---|
+| N-057 | MINOR (S5) | TableLayout::Ebr dead enum + diskmap budget/overlay test debt + write-only accumulator | DFX12 table-visualization batch (this commit) | Ebr ASSIGNED on extended chains (the recommended option; ABI code 3 appended, 0..2 frozen; CLI prints EBR; plain MBR pinned); DiskMap.OverlayBudgetGrowsCellSize covers the 64 MiB boundary exactly (at-budget no-growth `>` semantics pinned); write-only `total` accumulator deleted. Fail-before executed: both table tests RED pre-fix. |
+
 ## Resolved findings (37 — sessions 1-4 combined + the parallel fix legs' batches + M-023 (close-all-tiers session); every file in this directory has a row)
 ## Resolved findings (38 — sessions 1-4 combined: 12 from session-1/2 legs + A-002, A-004 (+S-016), M-009, S-006, S-011, S-013, S-015, S-017, S-018(INVALID), N-021, S-014; every file in this directory has a row)
 ## Resolved findings (31 — sessions 1-4 combined: every file in this directory has a row; +A-005, +S-021 this commit)

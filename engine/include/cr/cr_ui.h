@@ -231,7 +231,7 @@ typedef struct cr_ui_disk_info {
     uint32_t logical_sector;
     uint32_t physical_sector;
     uint32_t removable; /* 1 = USB/SD bus */
-    uint32_t layout;    /* 0 none, 1 MBR, 2 GPT */
+    uint32_t layout;    /* 0 none, 1 MBR, 2 GPT, 3 EBR (N-057 append - extended-chain tables; 0..2 frozen) */
     uint32_t table_ok;
     char model[128];  /* UTF-8, may be empty */
     char serial[128]; /* UTF-8, may be empty */

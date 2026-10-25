@@ -1080,6 +1080,11 @@ u32 enumerate_disks_impl(cr_ui_disk_info* out, uint32_t* count) {
                 o.layout = 2;
             else if (d.table.layout == table::TableLayout::Mbr)
                 o.layout = 1;
+            else if (d.table.layout == table::TableLayout::Ebr)
+                /* N-057: APPENDED code 3 (0=none/1=MBR/2=GPT frozen);
+                 * the extended-chain layout is a first-class og
+                 * classification (MOM Partition.md) */
+                o.layout = 3;
         }
         copy_bstr(o.model, sizeof(o.model), ws_to_u8(d.model));
         copy_bstr(o.serial, sizeof(o.serial), ws_to_u8(d.serial));

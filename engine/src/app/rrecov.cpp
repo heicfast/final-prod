@@ -399,10 +399,13 @@ int print_disks() {
     for (const auto& d : list) {
         wprintf(L"  Disk %u: %llu MiB (%s) %s [%s] %s\n", d.number, d.size_bytes >> 20,
                 d.model.c_str(), d.serial.c_str(), d.removable ? L"removable" : L"fixed",
-                d.table_ok ? (d.table.layout == table::TableLayout::Gpt
-                                  ? L"GPT"
-                                  : (d.table.layout == table::TableLayout::Mbr ? L"MBR" : L"-"))
-                           : L"no-table");
+                d.table_ok
+                    ? (d.table.layout == table::TableLayout::Gpt
+                           ? L"GPT"
+                           : (d.table.layout == table::TableLayout::Mbr
+                                  ? L"MBR"
+                                  : (d.table.layout == table::TableLayout::Ebr ? L"EBR" : L"-")))
+                    : L"no-table");
         for (const auto& v : vols) {
             if (v.disk == d.number) {
                 wprintf(L"    %c: %s %s %llu MiB %s\n", v.letter, v.fs_name.c_str(),

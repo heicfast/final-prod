@@ -10243,6 +10243,7 @@ Work Log:
 Stage Summary:
 - Session unique resolutions: 10 + N-016a (partial group). MINOR 42
   remain (N-029 stays for its N-016b half). Next: N-062 (memory monitor),
+---
   N-056 (temp leak), N-063 (naming), or the grouped minors N-025/N-026.Task ID: DFX19-M016 (session 19, first MAJOR fix)
 Agent: main engineer (diff-to-fix fix session 19 — DFX19)
 Task: M-016 — LDM TOCBLOCK candidate set/order divergence.
@@ -10371,3 +10372,35 @@ Work Log:
 Stage Summary:
 - Session tally: 5 fixes (M-007, M-008, M-032, M-050, N-058) + the
   S-009 verification. Remaining claimed: M-029, M-049. Next: M-029.
+
+---
+  N-056 (temp leak), N-063 (naming), or the grouped minors N-025/N-026.
+
+---
+Task ID: DFX12-T7 (table-visualization batch — N-057)
+Agent: main engineer (diff-to-fix minors-first session 12)
+Task: Close N-057's three sub-items: the dead Ebr enum, the untested
+overlay-budget growth path, and the write-only accumulator.
+
+Work Log:
+- Verified the finding's claims first-hand: grep TableLayout::Ebr
+  assignment sites = 0 (dead); cr_diskmap's budget path had no test;
+  Overlays::total set once, never read.
+- Ebr decision: DELETE would renumber the u32 enum (ABI-adjacent - cr_ui
+  maps layout values), so SET executed as the finding recommends: the
+  MBR parse assigns Ebr after parse_ebr_chain when an extended container
+  is present; ebr_status keeps carrying chain integrity (torn chains
+  classify Ebr with honest status); plain 4-primary MBR stays Mbr.
+- ABI: cr_ui's layout mapping gains the APPENDED code 3 (0 none/1 MBR/
+  2 GPT frozen; cr_ui.h comment updated); CLI prints "EBR".
+- DiskMap.OverlayBudgetGrowsCellSize: at exactly 64 MiB cells the cell
+  stays 512 (the loop is >, not >= - pinned); one sector past doubles to
+  1024; overlay vectors cap at the budget. Write-only total deleted.
+- Fail-before executed (stash-isolated pre-fix parse): Mbr.PlainWithExtended
+  + Mbr.EbrLayoutAssignedAndPlainMbrStaysMbr both RED; post-fix suite
+  600/600 linux-release (the M-002 torn-chain tests untouched - ebr
+  classification composes with chain-status honesty).
+
+Stage Summary:
+- Session unique resolutions: 12. MINOR 41 remain. Next: the doc-batch
+  wave (N-074 doc drift, N-040 ABI truthfulness), then N-062/N-046.

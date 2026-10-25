@@ -462,6 +462,18 @@ persistence in sessions — versioned name_raw field) remains open with the
 precise schema step recorded in N-029's Resolution. Suite 594/594
 linux-release.
 
+**Table-visualization batch FIXED (this wave):** N-057 — all three
+sub-items: (1) TableLayout::Ebr assigned on extended chains (the
+recommended SET; the ABI gains the APPENDED code 3 with 0/1/2 frozen,
+the CLI prints EBR, plain MBR pinned; serialized-value stability is why
+deletion was rejected); (2) the 64 MiB overlay-budget growth path tested
+at the exact boundary (at-budget does NOT grow — the loop's `>`
+semantics pinned); (3) the write-only `total` accumulator deleted.
+Fail-before executed (both table tests RED on the pre-fix parse). Suite
+600/600 linux-release. Counts: MINOR 41 · FIXED/ 97 files. Session
+unique resolutions: 12 (6 reconciliation + N-076 + N-030 + N-041 +
+N-016a + N-057).
+
 ## Session-8 delta (2026-10-26 — the closing-verification fix session, SEVERE lane first)
 
 Session start `4a924d1` (rebased bootstrap `3494606`); corpus `03ad46c`

@@ -36,7 +36,6 @@ struct Overlays {
     u64 cells = 0;
     u64 cell_bytes = 0;
     u64 base = 0;
-    u64 total = 0;
 };
 
 /* Mark one node's extents into the overlays. The extent basis must match
@@ -101,7 +100,6 @@ u32 build_disk_map(const DiskMapInputs& in, const tree::Snapshot& snap, DiskMapG
     ov.cells = geom.cell_count;
     ov.cell_bytes = geom.cell_bytes;
     ov.base = in.slice_start;
-    ov.total = in.slice_bytes;
     if (allocation)
         allocation->assign(size_t(geom.cell_count), kCellAllocUnknown);
     if (coverage)
