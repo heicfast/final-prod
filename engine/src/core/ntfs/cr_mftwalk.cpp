@@ -1416,10 +1416,14 @@ u32 walk_mft(NtfsVolume* vol, VolumeBitmap* bitmap, const WalkerFlags& flags, Ca
                         if (pit != by_record.end() && pit->second != nullptr)
                             host = pit->second;
                         tree::FileNode* dn = tree.add_file(host, dp);
-                        if (dn == nullptr) {
-                            dp->release();
+                        /* drop the caller-held ref - the node holds its own
+                         * (add_file contract; S-012 leg leak fix: this site
+                         * never released, 460+ bytes per scan failing the
+                         * ASan lane - reported by the api-session leg in
+                         * 591f40c with the exact trace) */
+                        dp->release();
+                        if (dn == nullptr)
                             return ERR_NO_MEMORY;
-                        }
                         dn->set_deleted_state(tree::DeletedState::Deleted);
                         dn->set_confidence(is_dir2 ? tree::Confidence::Unknown : conf2);
                         dn->set_origin(tree::Origin::Structured);

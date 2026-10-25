@@ -5594,7 +5594,6 @@ Stage Summary:
   the S-012 leg (their active queue).
 
 ---
-<<<<<<< HEAD
 Task ID: S3-INTEG (session-3 storage/census parallel leg — reconciliation + integration)
 Agent: session-3 parity auditor (read-only; the storage/census parallel leg)
 Task: Integrate this leg's 42 findings onto the reconciled main state after the
@@ -5692,7 +5691,6 @@ Stage Summary:
   via S-011); 1 audit sub-claim corrected (SPC domain); N-001 duplicate reconciled.
 - MINOR tier: 29 files remain. Suite 366/366 green. FAT12 engine-open recovery preserved
   (registered superset D-51) — future sessions must not "fix" it away.
-=======
 Task ID: API-T4b (query path-prefix filter)
 Agent: main engineer (core-api session)
 Task: op #20 completion — the og AdvanceFilterCondition path group at the ABI.
@@ -5722,4 +5720,24 @@ Work Log:
 Stage Summary:
 - API-SURFACE-AUDIT op #20: PARTIAL -> MATCH on the path group; tag group
   documented NOT-EXPOSED with rationale. Completion plan items 1-6 all landed.
->>>>>>> 82a7d81 (feat(query): path_prefix filter — the og AdvanceFilterCondition path group (op #20 completion))
+
+---
+Task ID: MFIX-B1b (cross-lane green-main fix)
+Agent: main engineer (diff-to-fix minors session)
+Task: S-012 leg's ASan leak (reported by the api-session leg in 591f40c, left red cross-lane).
+
+Work Log:
+- Reproduced: 460+ bytes leaked per scan at cr_mftwalk.cpp:1392 (dump-pass-2
+  FileProperties objects) failing 4 NtfsVolume tests on the ASan lane.
+- Root cause: the GUID-dump emit site allocated a FileProperties (caller-held
+  ref) and passed it to tree.add_file without ever dropping the caller's ref -
+  the add_file contract (cr_node.h:190-192: "call once per parent, then release
+  once") requires it; every sibling site in the file (:943/:1017/:1217/:1635/:1720)
+  releases - this one site missed it.
+- Fix: dp->release() right after add_file (object dies if add_file failed; node
+  holds its own ref on success) - the same pattern as the :943 site.
+- Verified: full suite 374/374 under ASan with detect_leaks=1 (was 370/374 + leak
+  reports). Release build unchanged 374/374.
+
+Stage Summary:
+- ASan lane unblocked for all legs. No behavior change (refcount-only fix).
