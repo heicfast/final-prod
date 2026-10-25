@@ -6050,3 +6050,26 @@ leak follow-ups). The converging leg's duplicate implementation was dropped at m
 its INDEPENDENT corpus verification is preserved as the session-4 convergence addendum
 in findings/FIXED/S-012-*.md (premise correction: NO cross-pass dedup og-side; $Boot
 DAT_18004cd70 decoded; stride table; two og defects deliberately not replicated).
+
+---
+## Session: diff-to-fix remediation — close all tiers (2026-10-26)
+
+**Prompt:** `worklog/session-diff-fix-prompt.md` (token redacted).
+**Audited commit (per diff-to-fix/README.md):** session 4 wave-1 `204137b` + all
+in-flight fix legs; the worklog's most recent handoff (DF4-S012-CONVERGE) closes at
+`bf7df39`. **Corpus:** `03ad46c` (unmoved).
+**Session start commit:** `bf7df39` (core main; suite 396/396 Linux Release green at
+baseline, 4.25 s — this session's own executed verification).
+**Active inventory at start (direct file count):** 0 ACUTE · 11 SEVERE (S-003, S-007,
+S-009, S-020, S-021, S-023, S-024, S-025, S-026, S-027, S-028) · 34 MAJOR (M-002,
+M-005, M-007, M-008, M-010..M-039) · 37 MINOR (N-004..N-047 groups) · 16 INFORMATIONAL
+· 11 tracked-open = 98 active + 33 FIXED (findings/FIXED/ holds 34 files incl.
+RESOLVED-INDEX.md).
+**Mandate:** verify → reproduce → classify → fix → test → document → push for every
+finding; INFO tier ACKNOWLEDGED; tracked-open resolved or pushed forward; matrix to
+MATCH; release tag if clean.
+
+Work log:
+- T1 complete: repos pulled (core `bf7df39`, corpus `03ad46c`), prompt saved
+  token-redacted, linux-release build configured + built, full suite **396/396 PASS**
+  (4.25 s) — the session's executed baseline.
