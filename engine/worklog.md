@@ -8019,3 +8019,29 @@ Stage Summary:
   with the same unit conversion; ABI v2 is additive-only. Remaining
   health items: N-032 (CSMI/USB transports), N-042 (CLI temp digit),
   N-064 (Dict dictionary).
+Task ID: DFX9-T1 (diff-fix session 9 bootstrap)
+Agent: main engineer (diff-to-fix closing session 9)
+Task: Session bootstrap — pull both repos, record baseline, establish green suite.
+
+Work Log:
+- Pulled core_recovery (S-021 OQ re-append lineage c231f2f + mid-bootstrap
+  parallel landings through ef5f390: M-036 NVMe health fixed, test_text MSVC
+  constants, S-031 SEVERE/ stale duplicate removed); corpus easeus-drw-research
+  at 03ad46c (unmoved — matches every prior session's pin). Token in git
+  credential store only, never committed.
+- Session prompt mandate: fix ALL tiers, 20+ fixes target, findings moved to FIXED/
+  with resolutions, all audit-trail docs updated.
+- Baseline build: cmake 4.4.4 (pip venv), linux-release preset, full build clean.
+- Baseline suite: 500/500 green at c231f2f. One flaky observation on first run
+  (Snapshot.ConcurrentEmitCaptureWalk failed once, passed standalone + 2 full
+  re-runs) — noted as pre-existing flakiness, not caused by this session.
+- Active inventory after the parallel M-036 landing: SEVERE 4 (S-009 free-overlay
+  residual, S-029, S-030, S-032), MAJOR 39, MINOR 55, INFO 22 = 120 active /
+  69 FIXED / 16 tracked-open. The S-031 timestamp residual lives in the FIXED/
+  canonical's session-6 verification addendum (SEVERE/ copy removed by ef5f390).
+
+Stage Summary:
+- Session open. Baseline c231f2f+ef5f390 + corpus 03ad46c recorded; suite 500/500 green.
+- Fix order: S-031 timestamp residual -> S-032 -> S-009 -> S-030 -> S-029 ->
+  MAJOR tier (selection by impact/tractability) -> MINOR batches.
+
