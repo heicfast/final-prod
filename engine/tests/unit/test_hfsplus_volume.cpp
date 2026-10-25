@@ -115,32 +115,35 @@ std::vector<u8> make_record(u32 parent, const std::u16string& name, i16 type, u3
     return out;
 }
 
-/* Assemble a leaf node from records. */
-std::vector<u8> make_leaf_node(const std::vector<std::vector<u8>>& recs, u32 forward) {
-    std::vector<u8> node(NODE_SIZE, 0);
+/* Assemble a leaf node from records.
+ * A-005 (diff-to-fix): the on-disk layout (TN1150; the og's journal-image
+ * validator FUN_180010720 hard-gates this shape) packs records UP from
+ * offset 14 - record 0 at [14, 14+l0), record 1 after it - with the
+ * record-offset array growing DOWN from the node end: [end-2] = record
+ * 0's offset (= 14), [end-4] = record 1's offset, ..., the deepest entry
+ * [end-2*(n+1)] = the free-space start. The pre-fix builder packed
+ * records DOWN from below the array (self-consistent with the inverted
+ * reader, wrong vs the format). */
+std::vector<u8> make_leaf_node(const std::vector<std::vector<u8>>& recs, u32 forward,
+                               u32 node_size = NODE_SIZE) {
+    std::vector<u8> node(node_size, 0);
     be32(node.data() + 0, forward); /* forwardLink */
     be32(node.data() + 4, 0);       /* backwardLink */
     node[8] = 0xFF;                 /* kind = -1 (kBTLeafNode, TN1150) */
     node[9] = 1;                    /* height */
     be16(node.data() + 10, u16(recs.size()));
-    /* records packed downward, stopping below the offset array
-     * (the last (nrec+1) u16 slots belong to the array) */
-    u32 end = NODE_SIZE - u32(recs.size() + 1) * 2;
+    u32 at = 14; /* first record right after the 14-byte node header */
     std::vector<u32> offsets;
     for (const auto& r : recs) {
-        end -= u32(r.size());
-        memcpy(node.data() + end, r.data(), r.size());
-        offsets.push_back(end);
+        memcpy(node.data() + at, r.data(), r.size());
+        offsets.push_back(at);
+        at += u32(r.size());
     }
-    /* offset array: entries for each record (in order), node-space BE u16,
-     * occupying the final (nrec+1) u16s: offsets[0] at node_end-2*(nrec+1)+2...
-     * spec: record offsets stored in reverse at the node end: the FIRST
-     * record's offset is closest to the end */
-    /* TN1150: record i's offset sits at nodeSize - 2*(i+1); a final
-     * free-space offset follows at nodeSize - 2*(numRecords+1) */
+    /* offset array: entry i at nodeSize - 2*(i+1); the deepest entry
+     * (n+1) is the free-space start */
     for (u32 i = 0; i < offsets.size(); ++i)
-        be16(node.data() + NODE_SIZE - (i + 1) * 2, u16(offsets[i]));
-    be16(node.data() + NODE_SIZE - (offsets.size() + 1) * 2, u16(offsets[0]));
+        be16(node.data() + node_size - (i + 1) * 2, u16(offsets[i]));
+    be16(node.data() + node_size - (offsets.size() + 1) * 2, u16(at));
     return node;
 }
 
@@ -559,16 +562,34 @@ TEST(HfsPlus, BadSignatureRejected) {
               scan_hfsplus(&dev, fl, nullptr, nullptr, nullptr, tree, ra, nullptr, nullptr, st));
 }
 
-} // namespace
-} // namespace hfsplus
-} // namespace cr
+/* S-021 fixture helpers live with the landed tests below (build_volume_journal / write_tx_entry /
+ * write_journal_info) */
 
-namespace cr {
-namespace hfsplus {
+u32 rd16(const u8* p) {
+    return u32(p[0]) << 8 | p[1];
+}
+
+TEST(HfsPlus, LeafNodeLayoutMatchesOnDiskFormat) {
+    /* A-005 guard: fixture nodes must carry the on-disk shape the og's
+     * journal-image validator (FUN_180010720) accepts - record 0's
+     * offset == 14 at [end-2], ascending offsets deeper, records packed
+     * up from offset 14. Guards the convention against re-inversion. */
+    auto rec1 = make_record(2, u"aaaa", 2, 50, 0, 0, 0, 0, 0, 0);
+    auto rec2 = make_record(2, u"bbbb", 2, 51, 0, 0, 0, 0, 0, 0);
+    auto node = make_leaf_node({rec1, rec2}, 0);
+    const u32 off0 = rd16(node.data() + NODE_SIZE - 2);
+    const u32 off1 = rd16(node.data() + NODE_SIZE - 4);
+    const u32 free = rd16(node.data() + NODE_SIZE - 6);
+    EXPECT_EQ(14u, off0) << "record 0 always starts at 14 (TN1150)";
+    EXPECT_EQ(14u + rec1.size(), off1) << "record 1 follows record 0";
+    EXPECT_EQ(14u + rec1.size() + rec2.size(), free) << "deepest slot = free start";
+    EXPECT_GT(off1, off0);
+    EXPECT_GT(free, off1);
+    EXPECT_EQ(0, memcmp(node.data() + 14, rec1.data(), rec1.size()));
+    EXPECT_EQ(0, memcmp(node.data() + 14 + rec1.size(), rec2.data(), rec2.size()));
+}
 
 /* ---- N-028 / N-038 / N-005 (diff-to-fix minors session) ----------------- */
-
-namespace {
 
 /* patch a file record's ownerFlags (+0x29) and FinderInfo fileType (+0x30)
  * inside a make_record() blob (key is padded to even, then the body) */
@@ -582,8 +603,6 @@ void patch_file_record(cr::u8* rec, const std::u16string& name, cr::u8 owner_fla
     if (file_type)
         std::memcpy(rec + body_off + 0x30, file_type, 4);
 }
-
-} // namespace
 
 TEST(HfsPlus, DotfileAndPrivateDataFiltered) {
     /* N-028a: the og's result sink (FUN_1800057d0 :3714-3718) destroys
@@ -796,16 +815,9 @@ TEST(HfsPlus, LargeBlockSizeAccepted) {
     }
 }
 
-} // namespace hfsplus
-} // namespace cr
-
 /* ------------------------------------------------------------------ */
 /* S-021: journal deleted-record harvest fixtures + tests               */
 /* ------------------------------------------------------------------ */
-
-namespace cr {
-namespace hfsplus {
-namespace {
 
 constexpr u32 B_JINFO = 9;  /* JournalInfoBlock */
 constexpr u32 B_JDATA = 14; /* harvested file's content (free in bitmap) */
@@ -829,10 +841,11 @@ void le64j(u8* p, u64 v) {
 void write_journal_info(std::vector<u8>& d, u32 jinfo_block, u64 jbase, u64 jsize, u64 jstart,
                         u32 size_a, u32 size_b) {
     u8* ji = d.data() + u64(jinfo_block) * BS;
-    be32(ji + 0, 0);          /* flags */
+    be32(ji + 0, 1);          /* flags: bit 0 set (the og's gate) */
     be32(ji + 4, 0x6A6E6C78); /* 'jnlx' */
-    be64(ji + 8, jbase);      /* journal byte offset */
-    be64(ji + 16, jsize);     /* journal size */
+    be64(ji + 0x24, jbase);   /* journal byte offset (the og's decode -
+                               * FUN_18000db70 swaps [0x24..0x2B]) */
+    be64(ji + 0x2C, jsize);   /* journal size ([0x2C..0x33]) */
     u8* jh = d.data() + jbase;
     le32j(jh + 0, 0x4A4E4C78); /* JNLx (jnl.c, LE) */
     le32j(jh + 4, 0x12345678); /* endian marker */
@@ -870,8 +883,6 @@ std::vector<u8> make_index_node() {
     n[9] = 0; /* height 0 (og FUN_180010720 gate) */
     return n;
 }
-
-} // namespace
 
 /* Journal layout (test A): JournalInfoBlock @9; journal region 10..13
  * (4 blocks); tx at ring BS (block 11); entry[0] image = a catalog leaf
@@ -1059,5 +1070,25 @@ TEST(HfsPlus, JournalWrapHandled) {
     EXPECT_EQ(u64(13) * BS, found->props()->extents[0].offset);
 }
 
+TEST(HfsPlus, JournalHarvestDisabledByFlag) {
+    /* the explicit off switch: no journal reads, no harvest (the S-021
+     * convergence kept the landed pass; this guard pins the flag) */
+    auto img = build_volume_journal();
+    MemDevice dev(img);
+    tree::ResultTree tree;
+    auto* ra = tree.add_root(u"Found");
+    auto* rd = tree.add_root(u"Deleted");
+    auto* rl = tree.add_root(u"Lost Files");
+    HfsScanFlags fl;
+    fl.journal_harvest = false;
+    HfsScanStats st;
+    u32 rc = scan_hfsplus(&dev, fl, nullptr, nullptr, nullptr, tree, ra, rd, rl, st);
+    ASSERT_EQ(OK, rc) << err_text(rc);
+    EXPECT_EQ(0u, st.journal_tx);
+    EXPECT_EQ(0u, st.journal_images);
+    EXPECT_EQ(0u, st.journal_emitted);
+}
+
+} // namespace
 } // namespace hfsplus
 } // namespace cr
