@@ -158,7 +158,7 @@
 
 ### F-B-16 (P3) — `cr_device.h` "engines AND transports both honour it" overclaim
 - **Axis**: Cancellation / doc. **Verdict**: MISMATCH (doc).
-- **Ours**: `cr_device.h:94-95` claims fix F3 wired cancel into transports; Grep over `src/` shows CancelToken polling only in engines, carve, lost discovery, and the writer — **no src/win transport polls a token** (only `RdaClient::session_cancel`, a driver session ioctl, cr_transport.cpp:498, unused by the scan path).
+- **Ours**: `cr_device.h:94-95` claims fix F3 wired cancel into transports; Grep over `src/` shows CancelToken polling only in engines, carve, lost discovery, and the writer — **no src/win transport polls a token** (the driver-session cancel ioctl lived in `RdaClient::session_cancel` - deleted with the class by N-041, session-12; unused by the scan path its whole life).
 - **Fix**: reword the comment ("engines and the recovery writer poll it; transports are token-free").
 
 ### F-B-17 (P3) — `--filter` is case-insensitive in `tree`, case-sensitive in `recover`
@@ -269,7 +269,7 @@
 1. og `CCallBackOperate` opcodes 0,1,3,4,5,6 field-level semantics (method names read from exports; bodies of Start* not fully decoded) — the 3-level model itself is certain, exact OC_PARAM payload layout is not.
 2. Whether og's `.rsf` session flags ever **resume** a partial scan (04 §8's "resume/recover later without rescanning" is ambiguous; rsf artifact decode covers display/recover only) — our G-07 equivalent on the og side is unproven either way.
 3. og-side retry/bisection bad-sector isolation semantics (our RetryingDevice R1.6 has no located og counterpart beyond `CStorageDeviceWithCache`; possibly in eprdtdrv internals — not read for this axis).
-4. `RdaClient::session_cancel` (cr_transport.cpp:498) — whether anything wires it into scan cancellation (appears unused by the orchestrator/CLI path).
+4. ~~`RdaClient::session_cancel`~~ — RESOLVED by N-041's deletion (session-12): nothing ever wired it into scan cancellation (zero-caller grep); the class is gone, the grammar path is the sole transport surface.
 5. §10/§11 struct field-for-field (health/repair parity agent's scope).
 6. og behavior for `list`-style enumeration failure exit codes (og is GUI-only; no CLI reference exists — our G-20 has no og comparator).
 

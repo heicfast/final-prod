@@ -9660,6 +9660,7 @@ Stage Summary:
 - Session unique resolutions: 8 (6 reconciliation + N-076 + N-030).
   N-069 credited to the parallel lane (convergent). MINOR 43 remain.
 ---
+---
 Task ID: DFX10-T2 (session 15, the S-009 convergence + M-054)
 Agent: main engineer (diff-to-fix closing session 15 — the DFX10 lineage
 renumbered past the parallel legs' sessions 11-14)
@@ -9872,3 +9873,50 @@ Stage Summary:
   regions never offered). DFX14 tally: N-073 (FIXED-ALREADY, proven) +
   M-029 fold + the clobber repair (4 findings) + M-005 = 7 finding-level
   resolutions. Next: pull, re-verify lane map, claim the next item.
+
+---
+
+---
+Task ID: DFX12-T5 (dead-surface batch — N-041)
+Agent: main engineer (diff-to-fix minors-first session 12)
+Task: Execute the N-041 wire-or-delete decision as DELETE (the finding's
+recommendation), with full evidence chain for superseding the contrary
+REFACTOR-PLAN ruling.
+
+Work Log:
+- Re-verified zero callers first (RdaClient, volume_letter_to_disk,
+  rda_bind_structured, wrap_grammar_target, structured_ - exhaustive
+  grep over src/include/tests/tools/bench/fuzz).
+- FOUND A CONTRARY RULING: PARITY-REFACTOR-PLAN.md D-A said KEEP + FIX
+  ("frozen contract surface for the wizard; TRANSPORT-CONTRACT §8: UI
+  reads info()/ioctl_base()/session_* through it"). Disproved with
+  evidence: (1) the cited TRANSPORT-CONTRACT.md no longer exists in the
+  tree; (2) the "UI reads through it" claim fails the zero-caller grep
+  (cr_ui links the ENGINE, never src/win; no test/tool/bench/fuzz
+  consumer). The N-041 finding + AUDIT-ARCH ARCH-DEAD-1 (both citing
+  the same grep) are the operative records; D-A superseded in-place
+  with the evidence.
+- Deletion (~16 KB / 511 diff lines): RdaClient class (cr_rda.h decl +
+  cr_transport.cpp methods), the structured-open plumbing only it
+  reached (rda_bind_structured, structured_/kind_/disk_/part_/volume_
+  members, the OPEN_TARGET re-issue branch, the orphaned
+  wrap_grammar_target), volume_letter_to_disk (W4 KEEP-note +
+  declaration + body). Wire structs/constants KEPT in cr_rda.h as the
+  documented driver-protocol mirror (N-041 notes added; the corpus
+  ground truth is the driver-side rda_ioctl.h).
+- Transport.GrammarPathIsSoleSurface implemented as the CI lint-job
+  dead-surface absence grep (runs on every push; zero matches verified
+  locally).
+- Docs corrected in the same commit: PARITY-ARCH.md:152 (the refuted
+  claim), AUDIT-ARCH ARCH-DEAD-1/2, CAPABILITY-MATRIX, DRIVER-UTILIZATION
+  rows, PARITY-ORCH session_cancel rows, REFACTOR-PLAN W1-5/D-A/item-1.
+- Format-safety: the whole-file clang-format-23 pass churned two
+  pre-existing hunks where 23 disagrees with the CI's format-18 - those
+  hunks reverted to HEAD bytes so CI sees only the intended diff.
+- Suite 584/584 linux-release. The MSVC lane compiles the win layer on
+  push (the deletion is pure-cut; seams verified line-by-line).
+
+Stage Summary:
+- Session unique resolutions: 10 (6 reconciliation + N-076 + N-030 +
+  N-041; N-069 + the quartet convergent with parallel lanes). MINOR 42
+  remain. Next: N-029a maximal-subpart, N-056, N-063, N-062.
