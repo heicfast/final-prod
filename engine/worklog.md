@@ -7284,3 +7284,10 @@ Stage Summary:
   pre-fix registry carved zero of the finding's eight families; post-fix
   all eight + the full 18-key MPEG-audio sync family carve with the og's
   FP discipline. Suite 436/436.
+---
+Task ID: DF4-T4 (lane claim: A-005)
+Agent: main engineer (diff-fix session 4 — the S-012/S-007 lane)
+
+LANE CLAIM: **A-005 (ACUTE — rawfixer 4Kn stack-buffer overflow)** taken now
+(the only active ACUTE; unclaimed in the latest reconciliation). The S-024+S-009
+lane continues per its claim; S-029/S-030 stay unclaimed.
