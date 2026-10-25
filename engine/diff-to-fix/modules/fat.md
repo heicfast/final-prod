@@ -46,8 +46,10 @@ Core (audited commit `67193b6`, includes concurrent GAP-S6-1/S6-2 fix `9fc82b0`)
 
 - **A25/A26** — `M` flavor dispatch → dual FAT → dir walk (CFatFolderAnalyzeCB parity:
   "."-entry signature `0x202020202020202E` + attr 0x10 anchor) → chain follow.
-- **A27 fragment handling** — **I-002** (FAT12 BAD canonicalization), **N-002** (EOC
-  families), **OQ-T2** (mirror trigger), `M` on deleted-chain reconstruction
+- **A27 fragment handling** — **I-002** (FAT12 BAD canonicalization — pending
+  acknowledgement), `M` post-N-002-fix (mask-24 EOC family ends chains
+  cleanly, og Next parity; single-entry approximation documented),
+  **OQ-T2** (mirror trigger), `M` on deleted-chain reconstruction
   (linked walk + contiguous-candidate completion + honesty cap, GAP-S6-2).
 
 ## State machine
@@ -73,7 +75,7 @@ Core (audited commit `67193b6`, includes concurrent GAP-S6-1/S6-2 fix `9fc82b0`)
 | ID | Severity | One-line |
 |---|---|---|
 | I-002 | INFO | FAT12 BAD canonicalized (chain truncated) vs og raw follow — registered delta |
-| N-002 | MINOR | Alternate EOC families → broken chains vs og clean end |
+| N-002 | MINOR | Alternate EOC families → broken chains vs og clean end — **FIXED (diff-to-fix session)** |
 | OQ-T2 | tracked-open | CDoubleFATTable mirror switch trigger undecoded |
 
 ## Corpus errata candidates surfaced by this wave

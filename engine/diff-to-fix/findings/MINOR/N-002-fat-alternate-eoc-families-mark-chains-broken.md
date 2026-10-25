@@ -97,3 +97,24 @@ core, with identical `clusters` content up to that point.
 The og's alternate-family test consults both `entry` and `next` (two FAT slots); our walker
 tests one entry at a time. Whether any real formatter writes the two-slot form is unknown —
 the single-entry approximation is documented rather than resolved.
+
+## Resolution
+
+**Status:** FIXED
+**Fixed in commit:** (this commit — see `git log` for `fix: N-002`)
+**Verified by:** fail-before/pass-after — with `src/core/fat/cr_chain.cpp`
+reverted, `FatEngine.Fat32EocMask24AndAlternateFamiliesEndClean` fails at the
+first `broken` expectation (the mask-24 chain {5, 6, 0x27FFFFF8} ends
+broken); restored, it passes: chains {5,6}, {20}, {10} all end cleanly.
+Suite 295/295 (Linux ASan).
+**Resolution notes:** the FAT32 branch of `FatTable::entry_at` now applies
+the og's mask-24 tolerance (`(raw & 0x07FFFFF8) == 0x07FFFFF8 -> EOC`,
+FATSearchDLL Next :8030-8048) on the RAW 32-bit entry before the canonical
+28-bit tests; the mask-24 test also subsumes the og's raw `0xFFFFFFF8`
+form (checked: 0xFFFFFFF8 & 0x07FFFFF8 == 0x07FFFFF8). The alternate
+family was already covered by the existing reserved-range branch
+(0x0FFFFFF0..F7 -> EOC after masking) and is pinned by the test's third
+chain. The single-entry approximation for the og's two-slot forms
+((entry,next) pairs) is documented in the code comment as the finding's
+fix plan prescribed — our walker tests one entry at a time and the masked
+tests collapse the two-slot semantics.

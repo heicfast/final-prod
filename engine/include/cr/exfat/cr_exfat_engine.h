@@ -67,7 +67,15 @@ struct ExfatScanStats {
 };
 
 struct ExfatScanFlags {
-    bool validate_entry_sets = true;
+    /* N-003 (diff-to-fix): the og exFAT engine has NO entry-set checksum
+     * loop anywhere (verified-absence search over 1,299 decompiled
+     * functions, B-exfat 3.4) - it grades live sets purely structurally.
+     * DEFAULT FALSE = og parity: a live file with a torn SetChecksum
+     * grades normally instead of PartialRisk. TRUE = the honest-recovery
+     * strictness (keep, never drop: the file is still emitted, only
+     * downgraded) - a reviewed deliberate divergence while enabled
+     * (registered in docs/PARITY-DELTAS.md). */
+    bool validate_entry_sets = false;
 };
 
 u32 scan_exfat(IStorageDevice* slice, const ExfatScanFlags& flags, CancelToken* cancel,

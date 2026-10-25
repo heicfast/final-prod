@@ -89,3 +89,22 @@ file normally (no checksum input exists) and our core grades it `PartialRisk`.
 ## Open questions
 
 None.
+
+## Resolution
+
+**Status:** FIXED
+**Fixed in commit:** (this commit — see `git log` for `fix: N-003`)
+**Verified by:** fail-before/pass-after — with the header flip reverted,
+`ExfatEngine.SetChecksumMismatchGradesExcellentInOgProfile` fails (the
+torn-checksum file grades PartialRisk under the old default-true); with
+the fix, the og-profile test passes AND the honest-mode pin
+(`SetChecksumMismatchMarksDamaged`, now explicit `validate_entry_sets =
+true`) still passes — both profile behaviors proven. Suite 295/295.
+**Resolution notes:** default flipped to `false` per the fix plan (the
+verified-absence decompile search holds: the og has NO entry-set checksum
+loop); the strictness remains available behind the explicit honest-mode
+flag with keep-and-downgrade semantics (never drop). The deviation
+direction is registered in docs/PARITY-DELTAS.md as D-47 (default OFF =
+og parity; the deliberate strictness exists only behind the explicit
+flag). The old default-true test was updated to the honest-mode pin
+rather than deleted; the og-profile behavior gets its own test.

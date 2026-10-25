@@ -2167,6 +2167,7 @@ Stage Summary:
   included) and refuses exactly the journals the og refuses.
 
 ---
+
 Task ID: 5-a (S-008 fix — this continuation leg's lane)
 Agent: main engineer (diff-to-fix remediation, second parallel leg)
 Task: SEVERE S-008 — RawFixer boot-sector-only subset + not wired pre-scan
@@ -2230,3 +2231,27 @@ Stage Summary:
   after consent, structured scan proceeds), consent-gated per S1 with default-deny,
   transactional guarantees unchanged, og fall-through preserved. cr_ui ABI extended
   append-only (event layout unchanged via the reserved slots).
+
+Task ID: 10 (N-002 + N-003 fixes)
+Agent: main engineer (diff-to-fix remediation session)
+Task: MINOR N-002 (FAT EOC families) + MINOR N-003 (exFAT entry-set checksum default)
+
+Work Log:
+- N-002: FAT32 entry_at applies the og's mask-24 tolerance on the RAW entry
+  ((raw & 0x07FFFFF8) == 0x07FFFFF8 -> EOC, FATSearchDLL Next :8030-8048) before the
+  canonical 28-bit tests; the test subsumes the og's raw 0xFFFFFFF8 form. The alternate
+  family was already covered by the reserved-range branch (pinned by the test). The
+  single-entry approximation for the og's two-slot forms documented in code.
+- N-003: ExfatScanFlags::validate_entry_sets default flipped true -> false (og parity;
+  the verified-absence decompile search holds). Honest-mode strictness kept behind the
+  explicit flag (never drop, downgrade only); registered as PARITY-DELTAS D-47.
+- Tests: FatEngine.Fat32EocMask24AndAlternateFamiliesEndClean (chains {5,6,0x27FFFFF8},
+  {20,0xFFFFFFF8}, {10,0x0FFFFFF5} all end clean - unit-level FatTable+follow_chain);
+  ExfatEngine.SetChecksumMismatchGradesExcellentInOgProfile (new, default flags) +
+  SetChecksumMismatchMarksDamaged (updated to the explicit honest-mode pin).
+- Fail-before proven by stashing both source files: 3 failing tests; restored suite
+  295/295 (Linux ASan).
+
+Stage Summary:
+- N-002 + N-003 FIXED: FAT chains written by BIOS/embedded formatters end cleanly like
+  the og; exFAT grading is og-parity by default with the honest strictness one flag away.

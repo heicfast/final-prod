@@ -410,7 +410,7 @@ TEST(ExfatEngine, EndToEnd) {
     EXPECT_EQ(photo->props()->times.created, 1738843200ULL * 10000000ULL + 116444736000000000ULL);
 }
 
-TEST(ExfatEngine, SetChecksumMismatchMarksDamaged) {
+static std::vector<u8> exfat_image_with_torn_doc_checksum() {
     auto img = build_exfat_image();
     /* corrupt doc.txt's stream first_cluster low byte (breaks the set
      * checksum without breaking the grammar) */
@@ -418,11 +418,39 @@ TEST(ExfatEngine, SetChecksumMismatchMarksDamaged) {
     /* find doc.txt set: bitmap(1) + upcase(1) + label(1) + photo(3) = 5th
      * entry onward: entries 5,6,7 = doc set; stream is entry 6 */
     img[ROOT + 6 * 32 + 20] ^= 0x01;
-    MemDevice dev(std::move(img));
+    return img;
+}
 
+TEST(ExfatEngine, SetChecksumMismatchGradesExcellentInOgProfile) {
+    /* N-003 (diff-to-fix): the og engine performs NO entry-set checksum
+     * validation (verified absence) - default flags grade a live file with
+     * a torn SetChecksum normally, exactly like the og. */
+    MemDevice dev(exfat_image_with_torn_doc_checksum());
+    tree::ResultTree tree;
+    auto* ra = tree.add_root(u"Found");
+    ExfatScanFlags flags; /* defaults: og-parity profile */
+    ExfatScanStats stats;
+    ASSERT_EQ(scan_exfat(&dev, flags, nullptr, nullptr, nullptr, tree, ra, nullptr, nullptr, stats),
+              OK);
+    EXPECT_EQ(0u, stats.sets_damaged); /* not even counted in og mode */
+    auto all = collect_all(tree);
+    tree::FileNode* doc = nullptr;
+    for (auto* n : all)
+        if (n->name_utf8() == "doc.txt")
+            doc = n;
+    ASSERT_NE(doc, nullptr);
+    EXPECT_EQ(doc->confidence(), tree::Confidence::Excellent);
+}
+
+TEST(ExfatEngine, SetChecksumMismatchMarksDamaged) {
+    /* honest-recovery profile: validate_entry_sets=true keeps the
+     * deliberate strictness - the file is still emitted (never dropped),
+     * downgraded to PartialRisk (pins the pre-N-003 behavior) */
+    MemDevice dev(exfat_image_with_torn_doc_checksum());
     tree::ResultTree tree;
     auto* ra = tree.add_root(u"Found");
     ExfatScanFlags flags;
+    flags.validate_entry_sets = true; /* honest mode */
     ExfatScanStats stats;
     ASSERT_EQ(scan_exfat(&dev, flags, nullptr, nullptr, nullptr, tree, ra, nullptr, nullptr, stats),
               OK);

@@ -827,3 +827,69 @@ TEST(FatEngine, DeletedLinkedChainStillPrefersFatTruth) {
     EXPECT_EQ(del->props()->extents[0].length, u64(2) * 512);
     EXPECT_EQ(del->confidence(), tree::Confidence::Excellent); /* FAT-linked truth */
 }
+
+/* ---- N-002: the og's tolerant EOC families -------------------------------- */
+
+TEST(FatEngine, Fat32EocMask24AndAlternateFamiliesEndClean) {
+    /* N-002 (diff-to-fix): the og's chain termination recognizes EOC
+     * variants some BIOS/embedded formatters write (FATSearchDLL Next,
+     * :8030-8048): the mask-24 family (dirty high bits, e.g. 0x27FFFFF8 /
+     * 0xFFFFFFF8) and the reserved 0x0FFFFFF0..F7 range. Our core
+     * followed the masked value as a cluster number -> out of range ->
+     * chain "broken"; the og ends those chains cleanly. Unit-level on
+     * FatTable + follow_chain per the finding's reproduction plan. */
+    std::vector<u8> img(u64(66562) * 512, 0);
+    u8* b = img.data();
+    std::memcpy(b + 3, "MSDOS5.0", 8);
+    put16(img, 0x0B, 512);
+    b[0x0D] = 1;
+    put16(img, 0x0E, 8);
+    b[0x10] = 2;
+    put16(img, 0x11, 0);
+    put16(img, 0x13, 0);
+    b[0x15] = 0xF8;
+    put16(img, 0x16, 0); /* FAT32: spf16 == 0 */
+    put32v(img, 0x20, 66562);
+    put32v(img, 0x24, 512);
+    put32v(img, 0x2C, 2);
+    b[510] = 0x55;
+    b[511] = 0xAA;
+    const size_t FAT1 = 8 * 512, FAT2 = 520 * 512;
+    auto link32 = [&](u32 c, u32 v) {
+        put32v(img, FAT1 + c * 4, v);
+        put32v(img, FAT2 + c * 4, v);
+    };
+    /* mask-24 family with high dirty bits (a real formatter artifact) */
+    link32(5, 6);
+    link32(6, 0x27FFFFF8);
+    /* full-dirty canonical form (the og's raw 0xFFFFFFF8 check) */
+    link32(20, 0xFFFFFFF8);
+    /* alternate family: reserved 0x0FFFFFF5 (pins the existing branch) */
+    link32(10, 0x0FFFFFF5);
+
+    u8 boot[512];
+    std::memcpy(boot, b, 512);
+    MemDevice dev(std::move(img));
+    FatParams p;
+    ASSERT_EQ(validate_boot(boot, u64(66562) * 512, p), OK);
+    ASSERT_EQ(p.flavor, Flavor::Fat32);
+    FatTable t;
+    ASSERT_EQ(t.load(&dev, p), OK);
+
+    /* mask-24 chain: clean end, both clusters, no broken flag */
+    ChainResult r1 = follow_chain(t, 5, 0x10000, nullptr);
+    EXPECT_FALSE(r1.broken) << "mask-24 EOC variant must end the chain cleanly";
+    ASSERT_EQ(2u, r1.clusters.size());
+    EXPECT_EQ(5u, r1.clusters[0]);
+    EXPECT_EQ(6u, r1.clusters[1]);
+
+    /* full-dirty canonical: clean single-cluster chain */
+    ChainResult r2 = follow_chain(t, 20, 0x10000, nullptr);
+    EXPECT_FALSE(r2.broken);
+    ASSERT_EQ(1u, r2.clusters.size());
+
+    /* alternate family: clean end */
+    ChainResult r3 = follow_chain(t, 10, 0x10000, nullptr);
+    EXPECT_FALSE(r3.broken);
+    ASSERT_EQ(1u, r3.clusters.size());
+}

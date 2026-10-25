@@ -993,6 +993,26 @@ Split verdict — three sub-claims:
 
 ---
 
+### D-47 — exFAT entry-set checksum strictness: honest-mode only (N-003)
+
+- **WHAT OG DOES:** the og exFAT engine validates dentry triples
+  structurally only — a verified-absence search over all 1,299 decompiled
+  functions found NO entry-set checksum loop anywhere (B-exfat 3.4); a live
+  file with a torn SetChecksum grades normally.
+- **WHAT WE DO:** `ExfatScanFlags::validate_entry_sets` defaults FALSE
+  (og parity, N-003): torn-checksum live sets grade Excellent. TRUE (the
+  honest-recovery profile) keeps the deliberate strictness — files are
+  NEVER dropped, only downgraded to PartialRisk with a sets_damaged
+  counter.
+- **WHY:** a torn checksum is real corruption evidence the og ignores;
+  strictness that never removes content is a recovery-product improvement.
+- **RISK:** none while disabled (exact og grading); enabled, grades differ
+  from the og by design (the profile is explicit at the call site).
+- **VERDICT: ACCEPTED (default OFF = og parity; the divergence exists
+  only behind the explicit honest-mode flag, registered per N-003).**
+
+---
+
 ## J. UNDOCUMENTED DIVERGENCE CANDIDATES
 
 Things our code/docs do differently with no (or stale/contradictory) rationale

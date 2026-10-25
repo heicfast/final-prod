@@ -63,10 +63,21 @@ u32 FatTable::entry_at(const std::vector<u8>& f, u32 cluster) const {
         size_t off = size_t(cluster) * 4;
         if (off + 4 > f.size())
             return 0;
-        u32 v = u32_from_bytes_le(f.data() + off) & 0x0FFFFFFF;
+        const u32 raw = u32_from_bytes_le(f.data() + off);
+        u32 v = raw & 0x0FFFFFFF;
         if (v == 0x0FFFFFF7)
             return CHAIN_BAD;
         if (v >= 0x0FFFFFF8)
+            return CHAIN_EOC_MIN;
+        /* N-002 (diff-to-fix): the og's tolerant mask-24 EOC family
+         * (FATSearchDLL Next, :8030-8048): `(next & 0x07FFFFF8) ==
+         * 0x07FFFFF8 -> EOC` - BIOS/embedded formatters write EOC variants
+         * with dirty high bits (0x27FFFFF8, 0xFFFFFFF8, ...) that the og
+         * accepts; the mask-24 test also subsumes the og's raw
+         * `entry == 0xFFFFFFF8` form. Single-entry approximation: the og's
+         * two-slot alternate-family forms collapse into the reserved-range
+         * branch below (values 0x0FFFFFF0..F7 already end the chain). */
+        if ((raw & 0x07FFFFF8) == 0x07FFFFF8)
             return CHAIN_EOC_MIN;
         return v;
     }

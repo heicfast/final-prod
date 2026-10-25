@@ -23,7 +23,9 @@ Core (audited commit `67193b6`): `src/core/exfat/` (2 files, 678 LOC) +
   multi-cluster directories (EXFAT-6).
 - **B3 false positives** — `M` structural validators match og exactly (reserved zeros,
   volume-label triple 0x81/0x82 placement, UTF-16 fragment validation).
-- **B4 deleted classification** — **N-003** (entry-set checksum strictness); `M` on
+- **B4 deleted classification** — `M` post-N-003-fix (entry-set checksum
+  validation defaults OFF = og parity; honest-mode strictness registered
+  as PARITY-DELTAS D-47); `M` on
   deleted-set acceptance (0x80-cleared dentries accepted through the same class tests —
   core `entry_in_use()`/`entry_type()` masking verified).
 - **B5 orphan reconstruction** — `M`-note (assumed-contiguous salvage for unchained
@@ -75,7 +77,7 @@ Core (audited commit `67193b6`): `src/core/exfat/` (2 files, 678 LOC) +
 
 | ID | Severity | One-line |
 |---|---|---|
-| N-003 | MINOR | Entry-set checksum enforced on live sets beyond og (grading-only) |
+| N-003 | MINOR | Entry-set checksum enforced on live sets beyond og (grading-only) — **FIXED (diff-to-fix session)** |
 | OQ-T5 | tracked-open | ChecksumDBR per-byte predicate (skip-set) undecoded |
 
 ## Corpus errata candidates surfaced by this wave
