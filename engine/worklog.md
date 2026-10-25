@@ -1503,3 +1503,194 @@ Work Log:
 Stage Summary:
 - Gate phase complete per mandate §1 (docs before code). 15 session-6 GAP rows registered, every one evidence-cited (code line + corpus artifact or local probe).
 - Next: P0 engine wave in closure order - GAP-S6-1 (FAT LFN brute-force), GAP-S6-2 (FAT contiguous chain), GAP-S6-3 (ReFS body-minor gate), GAP-S6-4 (remnant $DATA extents), each with fail-before/pass-after tests.
+---
+Task ID: 2-C
+Agent: C (core public surface reader)
+Task: Exhaustive read of core headers/build/CI/docs/CLI for diff-audit context sheet C
+
+Work Log:
+- Read all 53 headers under include/cr/ line by line (root cr_types/cr_bits/cr_error/cr_parallel/cr_ui + storage, ntfs x7, fat x2, exfat x2, ext4, hfsplus, btrfs, zfs, refs x2, table x3, tree x2, carve x3, session x2, lost, orchestrator, query, preview, crypto, compress, recovery x2, repair, health, win x7). Recorded every public type/enum (exact numeric values), function signature, callback type, and stated ownership/lifetime contract.
+- Read build system: CMakeLists.txt, CMakePresets.json, vcpkg.json, cmake/DeployVcpkgBinaries.cmake, src/{,core/,app/,ui/,win/}CMakeLists.txt, tests/CMakeLists.txt, fuzz/Makefile. Captured targets (cr_core STATIC PIC, cr_ui SHARED hidden-visibility, cr_win STATIC, rrecov, cr_tests/cr_ui_tests/cr_ui_abi_check/cr_destio_tests), sanitizers (ASan preset, TSan CI job, fuzz fuzzer+address+undefined), the 13 fuzz targets and their run budgets, the Win7 posture (_WIN32_WINNT=0x0601 + post-link stamping), and the required-codec policy (zlib/lz4/zstd FATAL if missing, FB-X01).
+- Read .github/workflows/ci.yml (lint/linux/linux-tsan/windows + fuzz and codeql both if:false bench-session skips), comparative-bench.yml (prepare/bench-ours/ours-behavior/bench-og/compare; matrix fs x 12 scenarios; no continue-on-error; RDA driver v0.2.1), release.yml (SDK bundle + CRT/UCRT + stamp/gate + SHA256SUMS).
+- Read tools/verify_pe_um.py (PE32+ 6.1 gate + strict kernel32/advapi32 allowlists + name-only DLL gate), tools/stamp_osversion_um.py, tools/ref_imports_um.json (27 kernel32 + 6 advapi32 functions, exact list extracted), tools/validate_report.py (report schema v1 enforcement).
+- Read README.md, RELEASE-NOTES.md (v0.3.0-parity), LICENSE (MIT).
+- Read docs/: full read of CAPABILITY-MATRIX, architecture, requirements, ground-truth-contracts, crsf-format, recovery-report-schema, error-fix-registry, PARITY-DELTAS (D-01..D-45 structure + verdict roll-up + section J + D-45), CORE-GAP-LIST, PARITY-AUDIT; full read of all 7 docs/parity/PARITY-*.md (+ draft headings); structural pass over build/testing/roadmap/benchmarking/UI-READINESS-PLAN/PARITY-REFACTOR-PLAN/ADR-UI-SNAPSHOT; full read of BENCHMARK-REPORT.
+- Read all 7 root AUDIT-*.md fully (AUDIT, AUDIT-NTFS, AUDIT-FAT, AUDIT-ARCH, AUDIT-LINUX-FS, AUDIT-PIPELINE, AUDIT-FALLBACKS): recorded finding-ID schemes (F-A1-*/F-A2-*/F-A3-*/F-A4-*/F-B-*/F-C-*/F-D-*, NTFS-*/FAT-*/EXFAT-*/BTR-*/REFS-*/E-*/HFS-*/DC-*, ARCH-*, FB-*, WRITER-*/HEALTH-*/CARVE-*/SESS-*/PIPE-*), dead-code registers, UNVERIFIED registers, and open-vs-fixed states.
+- Read worklog.md head (100) and tail (200); read worklog/session-05-prompt.md, session-parity-prompt.md, session-parity-refactor-prompt.md fully (project history: session-5 verification, parity audit, parity refactor, bench sessions, current diff-to-fix session).
+- Read bench/README.md and bench/root-causes.json (7 open root-cause entries: delete_partition discovery, permanent_delete MetadataOnly zero-fill FPs, quick_format names-only, resume carve-dedup, FAT32 names+content, ReFS real-volume ERR_BAD_MAGIC, NTFS decay_80 collapse).
+- Read src/app/rrecov.cpp (1498 lines) fully: 7 commands, every flag, exit codes (scan 0/1/3, list 1, recover 0/1/2, health 0/1/3, fix 0/1/2, bench 0/1/2), Ctrl-C/save-on-cancel, LDM cross-disk resolver, checkpoint sink, [F12] arming, frozen --csv/--json schemas.
+- Read src/ui/cr_ui.cpp (2265 lines) fully: all 57 exports, ImageFileDevice, portable FileDestIo, progress bridge single-flight monotonic, F-1 parent-disk unwrap for preview/recovery, ERR_UNSUPPORTED platform truths.
+- Listed scripts/ (20 files); read compare_report.py, compare_og_rsf.py (og .rsf record-4 grammar + content-type table), gen_rawsigns.py, rematch_inventory.py, bench_score.py (GAP-BENCH-1..3 fixes encoded).
+- Wrote /home/z/my-project/scratch/context-sheets/C-core-public-surface.md (single file, ~560 lines, 11 sections: file inventory, per-header API surface with exact enum values, module map, build system incl. exact import allowlist, CI pipeline, report/session formats, documented parity state per doc, CLI surface, known-issue inventory, project-admitted divergences with citations, 14 open questions).
+
+Stage Summary:
+- Files read: 53 headers, 9 build files, 3 workflows, 4 tools, 3 root docs, 7 root AUDIT docs, 7+1 parity docs, 10 fully-read docs + 8 structural, worklog.md + 3 prompts, bench README + root-causes.json, rrecov.cpp, cr_ui.cpp, 20 scripts listed / 5 read.
+- Key outputs: scratch/context-sheets/C-core-public-surface.md. Highlights for the audit: the project's own open-issue register is large and specific (7 bench root-causes incl. ReFS real-volume rejection and FAT32 deleted recovery both-broken; D-09/D-30 NEEDS-WORK deltas; CAPABILITY-MATRIX vs CORE-GAP-LIST conflict on GAP-P1-1; ARCH-1 RdaClient dead-surface disposition; 14 open questions listed for verification waves).
+- No source files modified; no commits made.
+---
+Task ID: 2-E
+Agent: E (independent verification probes)
+Task: Binary-level verification probes on corpus + core standalone-compilation check
+
+Work Log:
+- Tool availability survey: python3 3.12.15 (pefile 2024.8.26 installed into venv via `python3 -m pip install pefile`), objdump/readelf/strings/nm (binutils 2.44, pei-x86-64 supported), file 5.46, od 9.7, gcc/g++ 14.2.0, make 4.4.1; NOT available: 7z/7za, radare2/rabin2, xxd, clang/clang++, cmake, wine, pwsh. zlib/lz4/zstd dev headers present.
+- PE surface dump (scratch/probes/pe_dump.py): 38 binaries (9 SearchDLLs, DRW/DRWUI/DRWService, 21 PartitionRecovery DLL/EXE/SYS, libvmdk, BUILDPE drivers epmdkdrv/ebrntdrv/EUEDKEPM/EUDCPEPM, EuShare EuMrx.sys). Per-binary dumps <name>-pe.txt with sections/directories/exports+ordinals/imports/version-info; summary.tsv + all-exports.txt. Confirmed .mo files are PE32+ DLLs (MOM modules).
+- Export surface: every FS SearchDLL exports exactly 2 factory functions (EUCreate<FS>QuickSearcher + EUCreate<FS>Searcher; Btrfs full variant misspelled EUCreateBtrfsComplateSearcher); RAWSearchDLL exports 6 (adds EUGetAnalyserList/Map/Multimap + GetRawUserInfoMap + EUCreateRAWSearcherForCellTest); DRWUI exports 9 (C++ IObject); DRW.exe/DRWService.exe export 0.
+- Import analysis: storage API surface per binary (CreateFileW/DeviceIoControl/DefineDosDevice/GetLogicalDrives/FSCTL-capable sets); found shared exported virtual `?DeviceIoControl@IStorageDevice@@UEAAHKPEAXK0KPEAK@Z` across MainModule/ToolsModule/PartitionRecovery/RecoveryModule/UILogic/RawFixer/peformat; DRWUI pulls NTFS USN/MFT FSCTLs (0x90064/0x90068/0x900B0/0x900BB); PartitionRecovery writers use SET/DELETE_DRIVE_LAYOUT_EX (0x70140/0x7C1D0; DELETE also inside NTFSSearchDLL @0x72378).
+- IOCTL census (scratch/probes/ioctl_scan.py -> ioctl-census.txt): byte-scanned 31 binaries for 60+ codes; objdump-disassembled eprdtdrv.sys DEVICE_CONTROL dispatch (eprdtdrv-dispatch-disasm.txt) proving custom codes 0x60002400/0x60002404/0x60002408 (0x2404 computed via `sub $0x60002400` + `cmp $4`, out-buffer >= 0x208) + passthrough via IoGetAttachedDeviceReference/IoBuildDeviceIoControlRequest — matches re-workspace artifacts exactly. EUDCPEPM.sys: all 15 custom codes 0x800C2AC8..0x800C2B38 present as jump-table dwords @0x159e-0x190b; IoctlBase=0x10000 confirmed in BUILDPE regdrv.reg (DeviceName epmdiskcopydrv, volume-class UpperFilter). EuRdr codes 0x140320..0x140644 confirmed in DRWUI (7 literals) + EuMrx.sys (2).
+- raw_signs.json full parse (raw_signs-structure/stats/grammar.txt): dict of 139 formats; schema {header:{signs:[..]}, tail:{signs:[..]}?, min, max}; sign grammar "<offset>,<HEX>,<score>" (261 signs, 199 header + 62 tail, 46 formats with tails, scores 0.50-1.00, zero wildcards); size gates min 1/100/1024/10240, max 51200/204800; UTF-16 magics embedded as hex (zdct, tbres); jpg/png/pdf/mp4/zip/office ABSENT -> common formats are hard-coded carvers in RAWSearchDLL, raw_signs.json is the long-tail layer.
+- FileFilter.xml parse (filefilter-structure.txt): 8 FileCategory nodes, 9 FileType nodes, 1489 extension entries (1481 unique); tag misspelled <Extention>; Graphic 320 / Document 432 / Email 19 / Audio 281 / Video 217 / Other 0 / Archive 219 / Bookmarks 1.
+- Strings probes (strings-probes.txt/-probes2.txt with exact offsets): NTFSSearchDLL UTF-16 system files ($MFT@0x6c130, $MFTMirr@0x6c140, $Bitmap@0x6c120, $BadClus@0x6c0e0, $LogFile@0x6c158, $Volume@0x6c0c0, $Secure@0x6c0f8, $UpCase@0x6c090, $Extend@0x6c170) + ASCII $Boot/$UsnJrnl/$Recycle/$RmMetadata + "FILE0"@0x71288 + PDB paths; RAWSearchDLL RTTI census: 199 classes, carving families BruteForce(30)/RawSpeed(30)/Brance(23)/RawFormat_xjq(12) + global(71) + FileZIP/FileOLE + tinyxml2; "raw_signs.json"@0x69630 + key "signs"@0x69640; DRWUI stage strings (Deep scan StartSector=...@0x12429d8, Quick/Advanced Scanning%1, Files Found:, DeepScanning, %s\FileFilter.xml); ReFSSearchDLL "ReFS"@0x18a08 + refs RTTI namespace; ZfsSearchDLL uberblock magic 0x00bab10c x6 + vdev_tree + "checksum can't pass".
+- 7z/archive test: no 7z on Linux; PartitionRecovery dir is plain; static magic-scan: SetupUE.exe = 32-bit EaseUS bootstrapper (no embedded archive; _cabs + PDB), unins000.exe = Inno Setup, SaveScan/*.rsf = opaque binary session files (7.4/52.7/9.0 MB), BUILDPE/EaseUS-x64 = flat WinPE payload. No Windows binary executed.
+- Driver family byte-diff: eprdtdrv.sys vs eprdtdrv_win7older.sys differ in 9703 bytes; eprdtdrv_win7older.sys == BUILDPE ebrntdrv.sys (identical md5 73ddde6e...); epmdkdrv.sys third distinct build. Device.mo holds \\.\EPRDTDRV\%d\Volume\%d / \\.\EPRDTDRV\%d\%d grammar + WMI MSFT_* namespaces.
+- Core standalone build: g++ -std=c++20 -fsyntax-only -Wall -Wextra over all 45 src/core cpp files -> 45/45 pass; full compile+ar into scratch/build/libcr.a (35.3 MB), linked -lz -llz4 -lzstd -lpthread; zero Windows headers in src/core. fuzz/Makefile dry-run OK but libFuzzer needs clang (g++ rejects -fsanitize=fuzzer); cmake absent so CMakePresets not configurable here.
+- Fixture probes (scratch/build): python-built GPT fixture (protective MBR + LBA1 header + CRCs + backup) -> core parse_disk_table: layout=GPT primary_ok=1 backup_ok=1, names/usable-range correct. Extended 8-GUID fixture exposed GPT type-GUID classification defects in include/cr/table/cr_table_wire.h: GPT_TYPE_BIOS_BOOT spells "Hah!IdeoNeedEFI\0" (canonical "Hah!IdontNeedEFI"); GPT_TYPE_MICROSOFT_RESERVED holds the EFI-System GUID in big-endian textual order (wrong GUID + wrong order); GPT_TYPE_LINUX_FS is a mangled hybrid (decodes 0657FD6D-C439-7541-86DF-0E49CEB2D19F, matches neither 0FC63DAF Linux-FS nor swap); GPT_TYPE_LDM_METADATA byte5 0x7E vs canonical 0x8E. Empirically: ESP/MSR/BIOS-boot/Linux-FS/LDM-metadata entries all classify as Other; only BasicData->Ntfs, LdmData->Ldm, swap->Other correct. MBR+EBR fixture: primaries + both logical volumes emitted correctly (relative-EBR semantics verified); noted salvage gap: a broken EBR link (ERR_BAD_MAGIC) makes the caller discard already-walked logical volumes (only OK/ERR_CYCLE_LIMIT kept).
+- Deliverables written: scratch/context-sheets/E-verification-capabilities.md (tool matrix, capability verdicts, executability verdict, open questions) and scratch/context-sheets/E-probe-results.md (all results with commands/offsets). No repo files modified; no commits.
+
+Stage Summary:
+- Probes run: 38 PE dumps, 31-binary IOCTL census + dispatch disassembly proof, raw_signs.json full grammar decode (139 formats / 261 signs / offset,HEX,score), FileFilter.xml structure (8 cats / 1489 exts), strings+RTTI probes on 5 binaries with exact offsets, driver trio byte-diff, static installer ID, full standalone g++ build of core (45/45) + execution of parse_disk_table against 3 synthetic fixtures (GPT happy, 8-GUID matrix, MBR+EBR chain).
+- Key results: engine surface = 2 factory exports per FS engine (RAW 6); custom driver IOCTLs 0x60002400/04/08 + EUDCPEPM 0x800C2AC8-0x800C2B38 + EuRdr 0x140320-0x140644 verified at byte/disasm level; carving families BruteForce/RawSpeed/Brance/RawFormat_xjq confirmed as RTTI namespaces; raw_signs.json is long-tail-only (no jpg/png/zip...); core fully Linux-compilable and its GPT/MBR/EBR parsing verified live; NEW FINDINGS for diff-audit: 4 wrong GPT type-GUID constants in cr_table_wire.h (BIOS_BOOT/MSR/LINUX_FS/LDM_METADATA) causing ESP/MSR/BIOS-boot/Linux/LDM-metadata misclassification, and EBR-chain salvage gap discarding partial logical volumes on mid-chain ERR_BAD_MAGIC.
+- Not verifiable here: empirical og execution (no wine/Windows; bench/og PowerShell harness), Ghidra-grade new decompiles, libFuzzer campaigns (no clang), Authenticode validation, .rsf live round-trip.
+
+---
+Task ID: 2-A
+Agent: A (corpus architecture & behavior reader)
+Task: Exhaustive read of corpus architecture/behavior docs for diff-audit context sheet A
+
+Work Log:
+- Read all 9 architecture/*.md docs fully (00-INDEX, 01-build-tree, 02-kernel-drivers, 03-winpe, 04-recovery-workflow, 05-scan-engine, 05-uiux, 06-repair-chain, 07-user-flow).
+- Read re-workspace/README.md + artifacts/CORRECTIONS.md (8 errata rows extracted verbatim).
+- Read DRWUI-exe--main-ui-architecture.md, DRWUI-exe--thread-architecture.md, DRWUI-subsystems--assistant-grading-preview.md (grading engine + category IDs + preview protocol), plus DRW-exe--launcher.md and DRWService-exe--bitlocker-service.md for launch/IPC semantics.
+- Read all 5 SaveScan/ artifacts fully (rsf-format master + record4 grammar + ifileproperties parts 1-3) — extracted every constant, offset, GUID, grammar rule.
+- Read all 6 config-files/ artifacts (config-data-reference, drwcfg AES cache, filtering-priority layer, qa-logs session forensics, userdata-remoteconfig, vendor-logs forensics).
+- Read all 38 UIUX/*.md artifacts fully (01-35 + 5 dynamic-ground-truth files).
+- Read all 10 runtime-families/*.md; read per-binary census files for DRW, DRWService, DRWReport, DRWUI, legacy, deepening-batch3.
+- Parsed og-codebase config artifacts directly: raw_signs.json (139 ext, key structure, confidence range, examples), FileFilter.xml (8 categories, 1489 elements / 1481 unique — reconciles CORRECTIONS #5), RawConfig.ini (34 toggles), recoveryFree.ini (hexdump), DataFile.ini, auto.txt, needcopy.txt, dlconfig.xml (61 OBJECTs), PEtools.xml, config/config.ini + version.ini + nasconfig.ini + FilterFolder.ini + PriorityDisplayType.xml + usefullostfiles.xml + themdark.ini + shellexe.ini, NasConfig/{NasModel.xml, ssh_config.ini}; listed SaveScan/ (3 auto_*.rsf samples).
+- Read the most substantive files in Cloud/ (cloud-recovery-architecture), Licensing/ (licensing-activation-chain, euinapp), Installer/ (setupue pair), DiskHealth/ (smart-companion), EuShare/ (eumrx-nas-architecture, full), FileRepair/ (repair-architecture), Languages/ (family census), MOM-modules/ (ui-bridge + dependency matrix), WinPE/ (boot-config, pe-payload-census, eusendmessage).
+- Wrote /home/z/my-project/scratch/context-sheets/A-corpus-architecture.md (1,329 lines): file inventory, recovery workflow, stage model & progress semantics, full .rsf session format, grading model, filter model, config formats, UI/UX flow, threading/orchestration, 7-driver architecture, WinPE, errata register, 40 numbered divergence candidates with citations, 22 open questions.
+
+Stage Summary:
+- ~115 corpus documents/config files read in full (9 architecture + 62 artifacts + 38 UIUX + 10 runtime-families + 7 per-binary + ~20 og-codebase configs).
+- Key outputs: context sheet A at /home/z/my-project/scratch/context-sheets/A-corpus-architecture.md — the audit-critical extraction of the corpus ground truth (stage/progress semantics incl. bottomarea.cpp 838/856 nStatus=4 m_iScanType 3→4 and the 40→65% rsf save progress formula; complete .rsf container/record/tree grammar with all GUIDs and field orders; grading boundaries; filter bucket IDs 0x100-0x105/0x1000-0x1004; FS-code tables; 7-driver IOCTL contracts; 40 divergence candidates).
+- Reconciled the FileFilter 1489-vs-1481 erratum (1489 elements, 1481 unique, 8 duplicated extensions) and RawConfig 34 toggles by direct parse.
+- No repository files modified; only this worklog entry and the context sheet were written.
+
+---
+Task ID: 2-D
+Agent: D (core per-module deep reader)
+Task: Exhaustive read of core src/ implementation for diff-audit context sheets
+
+Work Log:
+- Verified scope with ls: 52 .cpp files under src/ (24,793 LOC) + 37 unit-test files (15,077 LOC); created /home/z/my-project/scratch/context-sheets/.
+- Read every source file line-by-line, module by module, citing file:line for each fact:
+  - NTFS: cr_mftwalk.cpp, cr_attributes.cpp, cr_bitmap.cpp, cr_fixup.cpp, cr_bootstrap.cpp, cr_runlist.cpp (+ cr_ntfs_wire.h, cr_mftwalk.h) — walk phases A/B/B2/C, viability gate (strict 0x3FF, NTFS-1), recycle $I/$R remap (GAP-P1-3), LZNT1 envelope expansion (GAP-P1-1), USN harvest caps, remnant scan + shifted-header salvage, fixup only-2-tails parity.
+  - FAT: cr_fat_quick.cpp, cr_chain.cpp, cr_lfn.cpp — deleted-LFN reversal (FAT-1), FAT12 EOC canonicalization, backup-boot FAT32-only (FAT-8), deleted-chain grading + honesty cap.
+  - exFAT: cr_exfat_quick.cpp, cr_exfat_dentry.cpp — boot-region checksum skip semantics, EXFAT-1..6 gates, assumed-contiguous salvage.
+  - ext4: cr_ext4_engine.cpp — extents/indirect ladder, dtime||links==0 deleted predicate, dnode sweep w/ bitmap grading, jbd2 no-commit-gate salvage (E-2).
+  - HFS+: cr_hfsplus_engine.cpp — B-tree leaf chain, SInt8 sign-extension fix (F-A2-17), freed-node sweep.
+  - btrfs: cr_btrfs_engine.cpp — chunk-root/root-tree discovery, BTR-2 uuid adoption, BTR-3 inline, BTR-4 compression; (void)root_deleted/root_lost noted.
+  - ZFS: cr_zfs_engine.cpp — label/uberblock probing (shifts 10..13), nvlist XDR+native, micro/fat ZAP, gang pieces, BPE decode, BE-pool refusal; no deleted recovery (documented parity).
+  - ReFS: cr_refs_detect.cpp + cr_refs_engine.cpp — MSB probe, bootstrap chain, REFS-1 next-chain, REFS-2 minor>=14 layout, allocator polarity calibration, deleted grading (no Excellent tier).
+  - Table/LDM: cr_table_parse.cpp, cr_crc32.cpp, cr_ldm.cpp — two-step GPT salvage, EBR chain, PRIVHEAD/TOCBLOCK/VMDB/VBLK decode, layout resolution, LdmVolumeDevice RAID-5 left-symmetric reconstruction + re-anchoring.
+  - Lost: cr_candidates.cpp — 4 probe families, overlap scoring, audit row 31b device-tail sizes.
+  - Carve: cr_carve.cpp, cr_analysers.cpp, cr_registry.cpp, cr_rawsigns.cpp, cr_rawsigns_data.cpp — window/overlap constants, trial order, F9 len-classes, P1-12 1 MiB probe blocks, all 31 grammar validators (JPEG/PNG/TIFF/WebP/BMFF/PDF/ZIP family incl. CD-anchor + indexless + zero-pad, 7z/SQLite/AVI/MKV/RAR4/5/PST/DNG/ORF/RAF/RW2/PSD/MP3/WAV/M4A/ASF/FLV/CAB/ISO), 139-format generated raw-sign layer.
+  - Tree: cr_node.cpp, cr_snapshot.cpp — arena, O(1) append, dedup indexes, F-1 rebase idempotency, G-02 snapshot.
+  - Session: cr_crsf.cpp, cr_records.cpp — chunk framing, torn-tail salvage (BENCH-F1), P1-7 64 MiB bomb cap, v2 record flags.
+  - Writer/Report: cr_safewriter.cpp, cr_report.cpp — overlap refusal F12, WRITER-1 per-item collection, G-08 dirs, FB-R02 salvaged, G-09 report, U+FFFD-safe JSON.
+  - Rawfixer: cr_rawfixer.cpp — boot-only repair surface, sector-span RMW transaction, FIX-2 error-code split.
+  - Health/err: cr_nvme.cpp, cr_error.cpp — pure NVMe page parser, 25-entry error table.
+  - Orchestrator: cr_scan.cpp — stage machine, retry->cache pipe wiring, probe_family offsets, LDM-first dispatch (ARCH-DUP-4), parallel candidates (F-B-10/11), telemetry G-04..G-06, checkpoints G-13, resume G-07/BENCH-F2, F-1 rebases.
+  - Query/Preview: cr_query.cpp, cr_preview.cpp — fast-path ordering, Path sort, Window strict/lenient fetch, docx raw-deflate.
+  - Storage family: cr_cached.cpp, cr_retry.cpp, cr_slice.cpp, cr_devmap.cpp, cr_decomp.cpp (lzjb/zle/gzip/LZNT1 byte-exact + hardening), cr_sha256.cpp (FIPS 180-4), cr_parallel.cpp (pool + parallel_for exception containment).
+  - Win: cr_transport.cpp (RDA client + F11 unscale + alignment shim + FB-T06/T07), cr_enumerate.cpp, cr_bitlocker.cpp (FB-B01, BEK auto-unlock), cr_health.cpp (ATA passthrough + legacy SMART ioctl), cr_destio.cpp (atomic rename), cr_elevate.cpp.
+  - App/UI: rrecov.cpp (7 commands, exit-code contract, save-on-cancel, LDM registry, identity verify) and cr_ui.cpp (C ABI, guarded entries, single-flight progress, snapshot/preview/recovery surface).
+- Read all 36+1 unit-test files (case names + assertion targets + gaps) and built the tests inventory: 248 TEST() cases.
+- Grep-verified ZERO TODO/FIXME/XXX/placeholder/stub/mock markers across src/ and include/ (only false-positive hits: an NTSTATUS hex and a \uXXXX escape in comments); recorded deliberate non-implementations documented in comments (btrfs/ZFS deleted recovery, NTFS INDX walker, LZO extent unmapping, BIGALLOC refusal, BE ZFS pools).
+- Wrote 23 sheets: D-ntfs, D-fat, D-exfat, D-ext4, D-hfsplus, D-btrfs, D-zfs, D-refs, D-table-partition, D-lost, D-carve, D-tree, D-session, D-writer-report, D-rawfixer, D-health, D-orchestrator, D-query-preview, D-storage, D-win, D-cli-ui, D-tests-inventory, D-summary — each with the 10 mandated sections, magic-byte/deleted-classification/checksum/state-transition quotes, constants tables, and per-module test gaps.
+
+Stage Summary:
+- Files read: 52/52 src .cpp (24,793 LOC) fully, plus required headers (cr_ntfs_wire.h, cr_mftwalk.h, cr_fat_wire.h, cr_exfat_wire.h, cr_table_wire.h, cr_types.h folds) and all 37 tests/unit files (15,077 LOC); 824 fuzz LOC inventoried.
+- Sheets produced: 23 markdown files under /home/z/my-project/scratch/context-sheets/ (D-*.md).
+- Headline extractions for the parity audit: 0 TODO/stub markers anywhere; deleted-recovery absent by design on btrfs+ZFS; UTF-8 names byte-lifted (not decoded) on ext4/btrfs/ZFS; ZFS drops sub-second timestamps; NTFS viability gate strict-inequality (NTFS-1); every fallback carries an audit-row citation; Win layer has no dynamic loading and no OS-version gates (Win7 compatibility via pure Win32 + legacy SMART ioctl); test blind spots concentrated in the Windows platform layer, cap/budget boundaries, and 4Kn geometry.
+- No repository files modified; only this worklog entry and the context sheets were written. No git commit performed.
+---
+Task ID: 2-B
+Agent: B (corpus per-engine decompiled-tree reader)
+Task: Exhaustive read of SearchDLL + PartitionRecovery artifacts and decompiled spot-verification for diff-audit context sheets
+
+Work Log:
+- Read ALL 30 SearchDLL artifact .md files (task said 31; dir holds 30 — every file present was
+  read fully, incl. the six rawsearchdll--family-* rosters, both registry artifacts, zip + PST/RAR/
+  MKV/HEIC granular docs, engine-matrix, per-engine-function-map).
+- Read ALL 14 PartitionRecovery artifact .md files (mom architecture + mo-module-map, rawfixer v1+v2,
+  eprdtdrv internals v1+v2, epmntdrv trio naming/byte-diff, EUDCPEPM/EUEDKEPM v1+v2, pending-op
+  engine, GetDriverInfo, BitLockerLib, Burn).
+- Read artifacts/CORRECTIONS.md (8 rows) and folded every row into the sheets (0xFFF resident cap
+  retracted; FUN_180041970 = base-record test; FAT12 BAD raw-follow; ext4 backup-SB unverified;
+  1481-ext/34-toggle recounts; ext4 journal {3,4} gate; strict 0x3ff viability; no Btrfs chunk-uuid).
+- Spot-verified ~40 claims against the raw decompiled trees with exact snippets+line cites:
+  * NTFS: FUN_18001acc0 batch loop (:21128-21300: 'FILE' magic, fixup FUN_180041bb0 :52513,
+    flags@+0x23/&4/'$' filter, STRICT 0x3ff<size :21208, bitmap pair +0x40/+0x48, destroy iff
+    intact==total :21250, add-flag byte@+0x3d|=1), FUN_18002c2e0 bitmap bit test :35643,
+    fastsearch ini default ON :7163, 0x940 factory :39.
+  * FAT: FUN_180041c80 FAT16 Next (0xFFF7->0xFFFFFF7, >=0xFFF8->0xFFFFFF8) :54125, FAT12 table
+    (0xFFF->0xFFFFFFFF, 0xFF7 falls through RAW) :53790, EOC mask families :8030-8048, 0xE5 sites
+    + <0x10000 guard :14634, LFN 0x40@+0x72 :11442, chain loop (c-2)*SPC+first_data :11237.
+  * exFAT: dentry type classes (t-3/t-5/t-0x40/t+0x3F)&0x7F + reserved-zero + first-cluster gate
+    :1846-1871, backward triple walk FUN_180003120, 0x8E0 quick object, FNV-1a FUN_180011160;
+    absence of any entry-set-checksum loop in the engine; RawFixer boot checksum FUN_18000e7e0
+    (c<<31 | (c>>1)+b over sector_size*0xB).
+  * ext4: 0xEF53@+0x38 :3222, first_data_block cross-checks, 0x400<<log, 64-bit block count
+    CONCAT44 :3232, GDT math, journal 0xC03B3998 + blocktype {3,4} :12207/:12306, CatchBuffer
+    0xE00/0x400. NEW: the "+0x18 log_block_size guard" is mechanically byte@SB+0x60 =
+    feature_incompat bit 0 (COMPRESSION) — artifact mislabels it; core already had it right.
+  * HFS+: H+/HX + &0x1FF + <0x11 + clamps :10005-10010, error 0x5017900000002, leaf walker math.
+  * Btrfs: _BHRfS_M@+0x40, sectorsize@+0x90/nodesize@+0x94, band [0x86,0x86+0xFF7B) no-pow2,
+    generation@+0x48 newest-wins, mirror-abort-if-primary-fails. NEW: EUCreateBtrfsComplateSearcher
+    is a NULL-returning stub (no plain EUCreateBtrfsSearcher exists).
+  * ZFS: 0xBAB10C sites, 0x80-qword stride, txg@UB+0x10 comparisons, nvlist read 0x1C000/0x4000
+    with type-9 "vdev_tree" recursion + type-2 BE u64 accumulation.
+  * ReFS: SUPB/CHKP/MSB+ReFSFSRS page_type 1/2/3, first-DWORD compare, parse(page+8,size-0x20);
+    RefsQuickSearchFiles 0x90+0x210 3-arg quick factory, RefsSearchController 0xC0.
+  * RAW: 6 exports :72122+, registry keys (PDF/TIFF/PNG/JPEG) :1548-2053, ZIP probe version gate
+    <=0x13 or ==0x62 (:18294 — artifact said <=10), PK dispatch + 0x500001 padding cap + 16-byte
+    sector-tail zero test :18480-18510, status 0x48/0xd, PST 0x0E/0x17 + 0xA8/0xB8 + 1 MiB floor
+    FUN_180041eb0, RAR4 gate FUN_180012bb0, HEIC 0x68656963 :21275, JPEG SOF0 height>400
+    pixels/8 estimate :39648, EBML constants.
+  * PartitionRecovery/RawFixer: 33-method inventory presence, NTFSFixer::CheckMFT signed
+    clusters_per_record (1<<(-cpr&0x1F)) + 0xFFFFFFFF sentinel, InitMFTMirror record-1 fallback
+    chain in NTFSLib :17310-17430, PartitionRecoveryD parser vftables, eprdtdrv IOCTL
+    0x60002400/04/08 + sector<<9, boot-label FAT32/NTFS checks.
+- Skimmed core_recovery src/core + include/cr per module (ntfs mftwalk/chain/bootstrap/fixup,
+  fat chain/lfn/quick, exfat dentry/quick, ext4/btrfs/zfs/refs/hfsplus engines, carve
+  registry/analysers/rawsigns, lost candidates, orchestrator, repair rawfixer) to pin divergence
+  candidates with file:line.
+- Wrote 11 deliverables to /home/z/my-project/scratch/context-sheets/: B-ntfs.md, B-fat.md,
+  B-exfat.md, B-ext4.md, B-hfsplus.md, B-btrfs.md, B-zfs.md, B-refs.md, B-rawsearch-carving.md,
+  B-partitionrecovery-rawfixer.md, B-summary.md. No repo files modified; no ghp_ strings written.
+
+Stage Summary:
+- Files read: 30 SearchDLL + 14 PartitionRecovery artifacts + CORRECTIONS.md, all fully; ~40
+  decompile sites spot-verified across ghidra-searchdll/ghidra-partition/ghidra-mo/ghidra-drivers.
+- Sheets produced: 10 per-engine sheets + B-summary engine matrix (~184 cited constants total;
+  every constant carries an artifact citation; ~75 additionally [B-VERIFIED] with function+line).
+- Key results: (a) all 8 CORRECTIONS rows folded in and respected; (b) 4 NEW errata candidates
+  for the corpus (ext4 +0x60 incompat guard mislabel; ZIP version gate 0x13/0x62; Btrfs complete
+  searcher is a NULL stub + no EUCreateBtrfsSearcher; exFAT ChecksumDBR byte-range description vs
+  11-sector loop bound); (c) top divergence candidates with confidence: NTFS $-skip blanket vs
+  known-metafiles (HIGH), NTFS fully-overwritten destroy vs grade (HIGH), FAT12 BAD raw vs
+  canonicalize (HIGH, registered), exFAT boot-checksum coverage (HIGH), ext4 journal every-block
+  vs descriptor-referenced (MED), Btrfs og-has-no-deep-scan (HIGH), ZFS nvlist 0x1C000 single read
+  vs per-label (HIGH), RAW analyser coverage 106+chains vs 34 (HIGH); (d) NTFS flags-bit-0x10
+  CONFLICT (folder vs in-use) documented as OQ-1 for audit resolution.
+Do not git commit.
+
+---
+Task ID: 2-CONSOLIDATE
+Agent: main auditor
+Task: Consolidate parallel context sheets (A-E) — T2 close-out
+
+Work Log:
+- Agents A (corpus architecture, ~115 docs), B (SearchDLL+PartitionRecovery artifacts, 44 docs, 10 per-engine sheets, ~184 cited constants), C (core public surface, 53 headers + build/CI/docs), D (core src, 52 files / 24,793 LOC + 37 test files), E (binary probes: 38 PE dumps, IOCTL census, raw_signs.json, core Linux build + live table-parser fixture run) all complete.
+- Sheets consolidated under scratch (outside repo, per read-only rule). Key empirical finds already surfaced: E-1 four wrong GPT type GUIDs in cr_table_wire.h; E-2 EBR salvage gap; B: NTFS $-skip blanket vs known-metafiles, FAT12 BAD cluster raw-follow, exFAT boot-checksum coverage, Btrfs og complete-searcher NULL stub, ZFS nvlist 0x1C000 single-read, RAW analyser 106+chains vs core 34, corpus OQ-1 NTFS flags-0x10 folder-vs-inuse conflict.
+- Next: T3 skeleton docs (PARAMETERS/SEVERITY/README/SUMMARY), T4 matrix scaffold, then module waves.
