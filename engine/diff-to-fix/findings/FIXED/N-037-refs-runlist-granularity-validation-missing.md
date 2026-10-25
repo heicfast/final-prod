@@ -76,3 +76,10 @@ extents present today (documents the divergence).
 ## Open questions
 
 None.
+
+## Resolution
+
+**Status:** FIXED (folded into the S-020 implementation, as the finding itself anticipated)
+**Fixed in commit:** (this commit — the S-020 fix)
+**Verified by:** Refs.RunlistGranularityMismatchDiscarded (fail-before FAILED: 4 garbage runs accepted; pass-after: discarded, metadata-only, granularity_discards 1).
+**Resolution notes:** attr_runs_granularity_ok implements the FUN_18000e020 gate: pow2-floor(ceil(allocated_size/sector_bytes) / total_run_clusters) must equal sectors-per-cluster; mismatch clears the whole extent list. One finding premise corrected on the :10213 re-read: the og divides the props' FIRST FIELD (+0) — the allocated size, not the logical size (the alloc-vs-run-count invariant; with logical size the gate would discard every healthy small file). Suite 402/402.

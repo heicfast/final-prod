@@ -68,6 +68,12 @@ struct RefsScanStats {
     u64 orphan_tables = 0;  /* tables unreachable from the root (lost) */
     u64 damaged_nodes = 0;  /* nodes failing validation */
     u64 allocator_rows = 0; /* allocator bitmap rows loaded (0 = none) */
+    /* S-020/M-022 (og attribute-layer parity) */
+    u64 resident_files = 0;   /* inline files materialized as resident extents */
+    u64 dollar_i_rows = 0;    /* $Recycle.Bin "$I" resident records read */
+    u64 paged_chases = 0;     /* indirect/paged run-table pages followed */
+    u64 granularity_discards = 0; /* runlists discarded by the og granularity
+                                   * gate (garbage-run false-positive guard) */
 };
 
 struct RefsScanFlags {

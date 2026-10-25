@@ -98,3 +98,10 @@ model physical runs and pass today — consistent with the single-container coin
   clear)? Next artifact: a real ReFS volume dump (none in corpus — vendor QA scanned none) or
   the `RefsFileSystemAnalyser.mo` decompile (`CRefsAllocatorMgr`/`CRefsBlockRefTableProc`,
   ghidra-mo) which builds the partition-side equivalent of the container table.
+
+## Resolution
+
+**Status:** PARTIALLY FIXED (recognizer half landed with S-020; the container-map half remains open — the real-volume probe is still the deciding evidence)
+**Fixed in commit:** (this commit — the recognizer half)
+**Verified by:** the S-020 test set (Refs.MultipleDataAttributesMerged / PagedRunTableFollowed exercise the recognizer through the thesis flag; the og 0x40-recognizer branch is the attr_walk_runs og_run gate, corpus-cited inline).
+**Resolution notes:** parse-run recognition now accepts BOTH flavors: the og recognizer (flags & 0x40 with ref-size u16@+0xa == 0x18 — entries carrying 0x40 without 0x10 are no longer dropped) and the thesis grammar (flags & 0x10, the historical fixture form); flag 0x20 marks physical (untranslated) blocks; container-relative blocks go through translate_cluster; block 0 entries are skipped (og :8891-95). The `local_f8`... correction: the DEAD container_lcn map is still dead — populating it needs the system-directory container-table decode (FUN_180002a60) plus a real multi-container volume to validate against; that stays this finding's open scope with its own tests-to-add list (Refs_Container_Relative_Run_Translated et al.). No behavior change on single-container volumes (the translate is identity there).

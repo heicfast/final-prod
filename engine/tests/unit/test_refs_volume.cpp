@@ -762,6 +762,311 @@ TEST(Refs, VbrMinor14BodyMinorOldListStillOldLayout) {
     EXPECT_TRUE(hello) << "old body layout (0x94) must be used when the BODY minor is old";
 }
 
+/* ---- S-020 / M-022: the og attribute layer ------------------------------ */
+
+namespace cr {
+namespace refs {
+namespace {
+
+/* run-row value (thesis grammar): lcn@0, flags 0x10 @8, clusters@0x14 */
+std::vector<u8> run_row(u64 lcn, u32 clusters) {
+    std::vector<u8> v(0x18, 0);
+    put64(v.data() + 0x00, lcn);
+    put16(v.data() + 0x08, 0x0010);
+    put32(v.data() + 0x14, clusters);
+    return v;
+}
+
+/* thesis-grammar $DATA attribute row: key {len,off,type@+8=0x80}, value =
+ * a leaf node of run rows */
+Row data_attr_row(const std::vector<std::pair<u64, u32>>& runs) {
+    std::vector<u8> key(12, 0);
+    put32(key.data() + 0x00, u32(12));
+    put32(key.data() + 0x04, 0);
+    put16(key.data() + 0x08, 0x80);
+    std::vector<Row> rows;
+    for (const auto& r : runs)
+        rows.push_back({std::vector<u8>(8, 0), run_row(r.first, r.second)});
+    return {key, build_node(rows)};
+}
+
+/* file-row key {0x00010030, name} */
+Row file_row_key(const char16_t* name, const std::vector<u8>& node_val, u16 flags = 0) {
+    std::vector<u8> key;
+    key.resize(4);
+    put32(key.data(), 0x00010030);
+    std::vector<u8> nm = u16name(name);
+    key.insert(key.end(), nm.begin(), nm.end());
+    return {key, node_val, flags};
+}
+
+/* general-info variable block */
+std::vector<u8> gi_block(u64 size, u64 alloc) {
+    std::vector<u8> var(0x40, 0);
+    put64(var.data() + 0x00, 0x01D0000000000000ull);
+    put64(var.data() + 0x08, 0x01D1000000000000ull);
+    put32(var.data() + 0x30, u32(size));
+    put64(var.data() + 0x38, alloc);
+    return var;
+}
+
+/* rewrite the root directory table (cluster 160) with the given rows */
+void rewrite_root_table(std::vector<u8>& img, const std::vector<Row>& rows) {
+    write_page(img, 160, 0x2B42534D, 0x600, build_node(rows));
+}
+
+/* find a 4-byte magic inside the root-table page; returns page offset */
+size_t find_in_page(std::vector<u8>& img, u64 page_cluster, u32 magic) {
+    const u8* base = img.data() + page_cluster * CLUSTER;
+    for (size_t i = 0; i + 4 <= PAGE; ++i)
+        if ((u32(base[i]) | (u32(base[i + 1]) << 8) | (u32(base[i + 2]) << 16) |
+             (u32(base[i + 3]) << 24)) == magic)
+            return i;
+    return SIZE_MAX;
+}
+
+TEST(Refs, ResidentInlineFileRecovered) {
+    /* S-020: a resident descriptor row (key {type=0x10, subtype=1}, value
+     * carrying offset pair) materializes the inline content as a synthetic
+     * extent - the og's CRefsResidentDataRunList (FUN_18000e490). The
+     * content bytes live later in the same metadata page. */
+    std::vector<u8> img = build_volume();
+    {
+        std::vector<u8> res_key(0x10, 0);
+        put16(res_key.data() + 0x00, 0x10); /* type == value length (og gate) */
+        put16(res_key.data() + 0x02, 1);    /* object subtype 1 (resident) */
+        std::vector<u8> res_val(0x10, 0);
+        put32(res_val.data() + 0x00, 0xC0FFEE11); /* locate-by-magic */
+        /* o1 patched after the page is laid out */
+        std::vector<Row> frows;
+        frows.push_back({res_key, res_val});
+        rewrite_root_table(img, {file_row_key(u"inline.txt", build_node(frows, gi_block(100, 0)))});
+    }
+    /* content at page offset 0x3F00; patch o1 = 0x3F00 - val_offset */
+    {
+        const size_t val_off = find_in_page(img, 160, 0xC0FFEE11);
+        ASSERT_NE(val_off, SIZE_MAX);
+        u8* page = img.data() + 160 * CLUSTER;
+        put32(page + val_off + 8, u32(0x3F00 - val_off));
+        put32(page + val_off + 0xC, 0);
+        memset(page + 0x3F00, 'R', 128); /* the inline content */
+    }
+    RamDevice dev(img);
+    tree::ResultTree tree;
+    auto* ra = tree.add_root(u"Found");
+    auto* rd = tree.add_root(u"Deleted");
+    auto* rl = tree.add_root(u"Lost");
+    RefsScanFlags flags;
+    RefsScanStats stats;
+    ASSERT_EQ(OK, scan_refs(&dev, flags, nullptr, nullptr, nullptr, tree, ra, rd, rl, stats));
+    EXPECT_GE(stats.resident_files, 1u);
+    std::vector<tree::FileNode*> act;
+    collect(ra, act);
+    const tree::FileNode* inl = nullptr;
+    for (auto* n : act)
+        if (n->name_utf8() == "inline.txt")
+            inl = n;
+    ASSERT_NE(inl, nullptr) << "resident file emitted";
+    ASSERT_EQ(inl->props()->extents.size(), 1u) << "inline content materialized";
+    EXPECT_EQ(inl->props()->extents[0].offset, 160 * CLUSTER + 0x3F00);
+    EXPECT_EQ(inl->props()->extents[0].length, 2 * CLUSTER); /* ceil + straddle slack */
+    /* the extent covers the content bytes */
+    EXPECT_EQ(img[160 * CLUSTER + 0x3F00], 'R');
+}
+
+TEST(Refs, ResidentDollarIMetadataRead) {
+    /* S-020: "$I"-named type-100 resident records (the og FUN_18000ea30
+     * recycle handler) are materialized with content, like the og's
+     * CRefsResidentDataRunList for $Recycle.Bin metadata. */
+    std::vector<u8> img = build_volume();
+    {
+        std::vector<u8> res_key(0x10, 0);
+        put16(res_key.data() + 0x00, 100); /* type 100 == value length gate */
+        std::vector<u8> res_val(100, 0);
+        put32(res_val.data() + 0x00, 0xC0FFEE22);
+        std::vector<Row> frows;
+        frows.push_back({res_key, res_val});
+        rewrite_root_table(img, {file_row_key(u"$IRECYCL", build_node(frows, gi_block(300, 0)))});
+    }
+    {
+        const size_t val_off = find_in_page(img, 160, 0xC0FFEE22);
+        ASSERT_NE(val_off, SIZE_MAX);
+        u8* page = img.data() + 160 * CLUSTER;
+        put32(page + val_off + 8, u32(0x3F00 - val_off));
+        put32(page + val_off + 0xC, 0);
+        memset(page + 0x3F00, '$', 300);
+    }
+    RamDevice dev(img);
+    tree::ResultTree tree;
+    auto* ra = tree.add_root(u"Found");
+    auto* rd = tree.add_root(u"Deleted");
+    auto* rl = tree.add_root(u"Lost");
+    RefsScanFlags flags;
+    RefsScanStats stats;
+    ASSERT_EQ(OK, scan_refs(&dev, flags, nullptr, nullptr, nullptr, tree, ra, rd, rl, stats));
+    EXPECT_GE(stats.dollar_i_rows, 1u) << "$I recycle record read resident";
+    std::vector<tree::FileNode*> act;
+    collect(ra, act);
+    const tree::FileNode* di = nullptr;
+    for (auto* n : act)
+        if (n->name_utf8() == "$IRECYCL")
+            di = n;
+    ASSERT_NE(di, nullptr);
+    ASSERT_EQ(di->props()->extents.size(), 1u);
+    EXPECT_EQ(di->props()->extents[0].offset, 160 * CLUSTER + 0x3F00);
+}
+
+TEST(Refs, MultipleDataAttributesMerged) {
+    /* S-020: every data-bearing attribute row contributes (no first-match
+     * break); adjacent runs coalesce (og c790/e020). */
+    std::vector<u8> img = build_volume();
+    {
+        std::vector<Row> frows;
+        frows.push_back(data_attr_row({{240, 1}}));
+        frows.push_back(data_attr_row({{241, 1}})); /* adjacent -> coalesce */
+        frows.push_back(data_attr_row({{250, 1}})); /* disjoint */
+        rewrite_root_table(
+            img, {file_row_key(u"multi.dat", build_node(frows, gi_block(12288, 12288)))});
+    }
+    memset(img.data() + 240 * CLUSTER, 'M', 12 * CLUSTER);
+    RamDevice dev(img);
+    tree::ResultTree tree;
+    auto* ra = tree.add_root(u"Found");
+    auto* rd = tree.add_root(u"Deleted");
+    auto* rl = tree.add_root(u"Lost");
+    RefsScanFlags flags;
+    RefsScanStats stats;
+    ASSERT_EQ(OK, scan_refs(&dev, flags, nullptr, nullptr, nullptr, tree, ra, rd, rl, stats));
+    std::vector<tree::FileNode*> act;
+    collect(ra, act);
+    const tree::FileNode* m = nullptr;
+    for (auto* n : act)
+        if (n->name_utf8() == "multi.dat")
+            m = n;
+    ASSERT_NE(m, nullptr);
+    ASSERT_EQ(m->props()->extents.size(), 2u) << "3 runs -> 2 extents (adjacent coalesced)";
+    EXPECT_EQ(m->props()->extents[0].offset, 240 * CLUSTER);
+    EXPECT_EQ(m->props()->extents[0].length, 2 * CLUSTER);
+    EXPECT_EQ(m->props()->extents[1].offset, 250 * CLUSTER);
+}
+
+TEST(Refs, PagedRunTableFollowed) {
+    /* S-020: an INNER (paged) $DATA value node is followed to its child
+     * page (og FUN_18000cf30) - the old code rejected inner nodes and the
+     * file lost ALL content. */
+    std::vector<u8> img = build_volume();
+    {
+        /* child page at cluster 240: leaf node of run rows */
+        std::vector<Row> runs;
+        runs.push_back({std::vector<u8>(8, 0), run_row(260, 2)});
+        write_page(img, 240, 0x2B42534D, 0, build_node(runs));
+        memset(img.data() + 260 * CLUSTER, 'P', 2 * CLUSTER);
+        /* the $DATA value = an INNER node pointing at the child page:
+         * build a leaf then patch height=1 / flags=INNER (ih @node+0x28) */
+        std::vector<u8> child_ref(0x20, 0);
+        for (int k = 0; k < 4; ++k)
+            put64(child_ref.data() + k * 8, 240 + k);
+        std::vector<u8> inner = build_node({Row{std::vector<u8>(8, 0), child_ref}});
+        inner[0x28 + 0x0C] = 1; /* height */
+        inner[0x28 + 0x0D] = 0x1; /* NODE_INNER */
+        std::vector<Row> frows;
+        std::vector<u8> key(12, 0);
+        put32(key.data() + 0x00, 12);
+        put16(key.data() + 0x08, 0x80);
+        frows.push_back({key, inner});
+        rewrite_root_table(img,
+                           {file_row_key(u"paged.dat", build_node(frows, gi_block(8192, 8192)))});
+    }
+    RamDevice dev(img);
+    tree::ResultTree tree;
+    auto* ra = tree.add_root(u"Found");
+    auto* rd = tree.add_root(u"Deleted");
+    auto* rl = tree.add_root(u"Lost");
+    RefsScanFlags flags;
+    RefsScanStats stats;
+    ASSERT_EQ(OK, scan_refs(&dev, flags, nullptr, nullptr, nullptr, tree, ra, rd, rl, stats));
+    EXPECT_GE(stats.paged_chases, 1u) << "the inner $DATA table chased its page";
+    std::vector<tree::FileNode*> act;
+    collect(ra, act);
+    const tree::FileNode* pd = nullptr;
+    for (auto* n : act)
+        if (n->name_utf8() == "paged.dat")
+            pd = n;
+    ASSERT_NE(pd, nullptr);
+    ASSERT_EQ(pd->props()->extents.size(), 1u) << "child-page runs recovered";
+    EXPECT_EQ(pd->props()->extents[0].offset, 260 * CLUSTER);
+    EXPECT_EQ(pd->props()->extents[0].length, 2 * CLUSTER);
+}
+
+TEST(Refs, Gen7OldGrammarDatarunAttribute) {
+    /* M-022: the og's old-grammar 0x178-keyed data rows (gen < 8, this
+     * fixture is minor 10 -> gen 7) yield runs. */
+    std::vector<u8> img = build_volume();
+    {
+        std::vector<Row> frows;
+        std::vector<u8> key(2, 0);
+        put16(key.data(), 0x0178);
+        std::vector<Row> runs;
+        runs.push_back({std::vector<u8>(8, 0), run_row(260, 1)});
+        frows.push_back({key, build_node(runs)});
+        memset(img.data() + 260 * CLUSTER, 'G', CLUSTER);
+        rewrite_root_table(img,
+                           {file_row_key(u"old.dat", build_node(frows, gi_block(4096, 4096)))});
+    }
+    RamDevice dev(img);
+    tree::ResultTree tree;
+    auto* ra = tree.add_root(u"Found");
+    auto* rd = tree.add_root(u"Deleted");
+    auto* rl = tree.add_root(u"Lost");
+    RefsScanFlags flags;
+    RefsScanStats stats;
+    ASSERT_EQ(OK, scan_refs(&dev, flags, nullptr, nullptr, nullptr, tree, ra, rd, rl, stats));
+    std::vector<tree::FileNode*> act;
+    collect(ra, act);
+    const tree::FileNode* o = nullptr;
+    for (auto* n : act)
+        if (n->name_utf8() == "old.dat")
+            o = n;
+    ASSERT_NE(o, nullptr);
+    ASSERT_EQ(o->props()->extents.size(), 1u) << "0x178-keyed row recovered (gen < 8 grammar)";
+    EXPECT_EQ(o->props()->extents[0].offset, 260 * CLUSTER);
+}
+
+TEST(Refs, RunlistGranularityMismatchDiscarded) {
+    /* S-020 step 4 / N-037: runs inconsistent with the recorded allocation
+     * (4 run clusters vs a 1-cluster alloc) are discarded - the og's
+     * garbage-run false-positive guard (FUN_18000e020). */
+    std::vector<u8> img = build_volume();
+    {
+        std::vector<Row> frows;
+        frows.push_back(data_attr_row({{260, 1}, {261, 1}, {262, 1}, {263, 1}}));
+        rewrite_root_table(img,
+                           {file_row_key(u"garbage.dat", build_node(frows, gi_block(4096, 4096)))});
+        memset(img.data() + 260 * CLUSTER, 'X', 4 * CLUSTER);
+    }
+    RamDevice dev(img);
+    tree::ResultTree tree;
+    auto* ra = tree.add_root(u"Found");
+    auto* rd = tree.add_root(u"Deleted");
+    auto* rl = tree.add_root(u"Lost");
+    RefsScanFlags flags;
+    RefsScanStats stats;
+    ASSERT_EQ(OK, scan_refs(&dev, flags, nullptr, nullptr, nullptr, tree, ra, rd, rl, stats));
+    EXPECT_GE(stats.granularity_discards, 1u) << "the inconsistent runlist was discarded";
+    std::vector<tree::FileNode*> act;
+    collect(ra, act);
+    const tree::FileNode* g = nullptr;
+    for (auto* n : act)
+        if (n->name_utf8() == "garbage.dat")
+            g = n;
+    ASSERT_NE(g, nullptr) << "the file still surfaces (metadata-only)";
+    EXPECT_EQ(g->props()->extents.size(), 0u) << "no garbage extents";
+}
+
+} // namespace
+} // namespace refs
+} // namespace cr
+
 } // namespace
 } // namespace refs
 } // namespace cr

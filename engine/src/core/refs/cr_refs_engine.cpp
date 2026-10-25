@@ -35,11 +35,23 @@ constexpr u32 ROW_FILE = 0x00010030;
 constexpr u32 ROW_DIR_LINK = 0x00020030;
 constexpr u32 ROW_ID2 = 0x80000020;
 
-/* ---- attribute type ids (thesis table 4.1) ---- */
-constexpr u16 ATTR_DATA = 0x80;
+/* ---- attribute type ids (thesis table 4.1 + og key+0 spaces) ---- */
+constexpr u16 ATTR_DATA = 0x80; /* thesis/core grammar: type u16 @key+8 */
+/* og grammar (ReFSSearchDLL FUN_18000ba90 :8348-8427, type u16 @key+0):
+ *   0x178 old-layout data-run rows (gen < 8); >= 0xb1 with 0x28-byte keys
+ *   (gen >= 8, modern); 0x108/0xf8 property-flag rows; 100 ("$I…"
+ *   recycle) and subtype-1 specials -> resident materialization
+ *   (FUN_18000ea30 / FUN_18000e490). */
+constexpr u16 OG_ROW_DATARUN_OLD = 0x178;
+constexpr u16 OG_ROW_FLAG_A = 0x108;
+constexpr u16 OG_ROW_FLAG_B = 0xf8;
+constexpr u16 OG_ROW_RECYCLE_I = 100;
 
-/* ---- data-run flags (thesis table 4.38) ---- */
-constexpr u16 RUN_HAS_DATA = 0x0010;
+/* ---- data-run flags (thesis table 4.38 + og FUN_18000c790 :8880-8895) ---- */
+constexpr u16 RUN_HAS_DATA = 0x0010;   /* core/thesis grammar */
+constexpr u16 RUN_HAS_BLOCK = 0x0040;  /* og: entry carries a block reference */
+constexpr u16 RUN_PHYSICAL = 0x0020;   /* og: physical LCN, no container translate */
+constexpr u16 RUN_REF_SIZE_OK = 0x18;  /* og: ref-size u16@+0xa must equal 0x18 */
 
 /* ---- index-entry flags ---- */
 constexpr u16 ENTRY_DELETED = 0x4;
@@ -142,6 +154,14 @@ struct EntryView {
     u16 val_len = 0;
     u16 flags = 0;
     bool ok = false;
+    /* S-020 resident materialization: the page the entry came from (all
+     * entries of one page share these) - the og computes content positions
+     * through a record-context offset chain (FUN_18000e490 :10365-75
+     * value{+8,+0xc} + node{+0x5c,+0x60} + caller); the pointer form is the
+     * exact equivalent with the buffers already in hand. */
+    const u8* page_buf = nullptr;
+    u64 page_byte_base = 0;
+    u32 page_len = 0;
 };
 
 struct NodeView {
@@ -229,6 +249,7 @@ bool walk_table(Engine& e, const u64 root_lcns[4], u32 depth,
     std::vector<u8> page;
     if (!e.read_page(root_lcns, page))
         return false;
+    const u64 page_base = first * e.boot.cluster_bytes;
     const NodeView nv = parse_node(page.data() + 0x50, page.size() - 0x50);
     if (!nv.ok) {
         if (e.stats)
@@ -239,6 +260,9 @@ bool walk_table(Engine& e, const u64 root_lcns[4], u32 depth,
         EntryView ent = entry_at(nv, i);
         if (!ent.ok)
             continue;
+        ent.page_buf = page.data();
+        ent.page_byte_base = page_base;
+        ent.page_len = u32(page.size());
         if (nv.flags & NODE_INNER) {
             if (ent.val_len >= 0x20) {
                 u64 cl[4];
@@ -279,34 +303,189 @@ GeneralInfo parse_general_info(const u8* var, u32 len) {
     return gi;
 }
 
-u16 attr_type_of(const EntryView& e) {
-    return e.key_len >= 10 ? le16(e.key + 8) : 0;
-}
+/* $DATA value = embedded data-run table root node (thesis 4.38 rows);
+ * superseded by attr_walk_runs (S-020) which also follows paged tables.
+ * The thesis key grammar (type u16 @key+8, ATTR_DATA 0x80) is consumed
+ * inline in emit_file's attribute loop. */
 
-/* $DATA value = embedded data-run table root node (thesis 4.38 rows). */
-struct DataRun {
-    u64 lcn = 0;
-    u32 clusters = 0;
-    bool has_data = false;
+/* ---- S-020 / M-022: the og's attribute-value walk ----------------------
+ *
+ * The og iterates EVERY attribute row of a file's embedded table
+ * (FUN_18000ba90 :8348-8427), dispatching on the type u16 at key+0:
+ *   0x178 -> old-layout data-run rows (gen < 8); gen >= 8 modern rows are
+ *            key-size 0x28 with type >= 0xb1 (outer gate) / >= 0x29 (the
+ *            value handler FUN_18000c560 :8776-8800);
+ *   0x108 / 0xf8 -> property-flag markers (bits 1 / 3);
+ *   key-size 0x10 + type 100 + "$I" name -> the recycle-$I resident
+ *            materializer FUN_18000ea30;
+ *   key-size 0x10 + object subtype 1 -> the resident materializer
+ *            FUN_18000e490 (inline file content).
+ * Inside a data-run value table, entries are either run entries
+ * (FUN_18000c790: flags & 0x40 required, ref-size u16@+0xa == 0x18, block
+ * u64@+0, cluster-offset u32@+0xc, cluster-count u32@+0x14; flag 0x20 =
+ * physical, else container-translated; block 0 -> skipped) or indirect node
+ * records whose pages are chased and merged (FUN_18000cf30) - inner-node
+ * run tables are FOLLOWED, never rejected. After the loop the runlist is
+ * granularity-validated (FUN_18000e020 :10201-81: pow2-floor(avg sectors
+ * per run cluster) must equal sectors-per-cluster; mismatch discards the
+ * whole runlist - a garbage-run false-positive guard).
+ *
+ * The core's thesis grammar (type u16@key+8 == 0x80) stays alongside the og
+ * grammar - both are accepted until a real-volume dump (OQ-2 in the M-022
+ * finding) settles which generations carry which key layout; the existing
+ * synthetic fixtures pin the 0x80 form. */
+
+struct AttrWalkCtx {
+    Engine& e;
+    std::vector<tree::FileProperties::Extent>& extents; /* byte-space, merged */
+    u64 cluster_bytes = 0;
+    u32 spc = 0;              /* sectors per cluster */
+    u64 volume_clusters = 0;
+    u64 volume_bytes = 0;
+    RefsScanStats* stats = nullptr;
+    u64 run_clusters = 0;     /* total clusters across merged runs */
+    u32 hops = 0;             /* indirect-chase bound */
 };
 
-bool parse_data_runs(const u8* node, u32 node_len, std::vector<DataRun>& out) {
+/* append a cluster-space run, coalescing when adjacent (og c790/e020) */
+static void attr_push_run(AttrWalkCtx& c, u64 start, u32 len) {
+    if (len == 0 || len >= 0x10000000u)
+        return;
+    if (!c.extents.empty()) {
+        auto& last = c.extents.back();
+        const u64 last_start = last.offset / c.cluster_bytes;
+        const u64 last_len = last.length / c.cluster_bytes;
+        if (last_start + last_len == start && last.length % c.cluster_bytes == 0) {
+            last.length += u64(len) * c.cluster_bytes;
+            c.run_clusters += len;
+            return;
+        }
+    }
+    const u64 off = start * c.cluster_bytes;
+    const u64 l = u64(len) * c.cluster_bytes;
+    /* P1-9 overflow-safe bound (emit-time check repeated for the merge) */
+    if (start >= c.volume_clusters || l > c.volume_bytes || off > c.volume_bytes - l)
+        return;
+    c.extents.push_back({off, l});
+    c.run_clusters += len;
+}
+
+/* walk one attribute value as a run table: INNER nodes chase their child
+ * page references (og FUN_18000cf30 - paged run tables are followed, never
+ * rejected); LEAF entries are run rows under the og recognizer (flags &
+ * 0x40 + ref-size 0x18) or the thesis grammar (flags & 0x10). Depth- and
+ * hop-bounded recursion. */
+static void attr_walk_runs(AttrWalkCtx& c, const u8* node, u32 node_len, u32 depth) {
+    if (depth > MAX_TABLE_DEPTH || c.hops > 64)
+        return;
     const NodeView nv = parse_node(node, node_len);
-    if (!nv.ok || (nv.flags & NODE_INNER))
-        return false;
+    if (!nv.ok)
+        return;
+    if ((nv.flags & NODE_INNER) != 0) {
+        /* inner node: entries carry LCN-quad page references */
+        for (u32 i = 0; i < nv.ki_count; ++i) {
+            EntryView ent = entry_at(nv, i);
+            if (!ent.ok || ent.val_len < 0x20)
+                continue;
+            u64 cl[4];
+            for (int k = 0; k < 4; ++k)
+                cl[k] = le64(ent.val + k * 8);
+            if (cl[0] == 0)
+                continue;
+            ++c.hops;
+            std::vector<u8> page;
+            if (c.e.read_page(cl, page) && page.size() > 0x50) {
+                if (c.stats)
+                    ++c.stats->paged_chases;
+                attr_walk_runs(c, page.data() + 0x50, u32(page.size() - 0x50), depth + 1);
+            }
+        }
+        return;
+    }
     for (u32 i = 0; i < nv.ki_count; ++i) {
         EntryView ent = entry_at(nv, i);
         if (!ent.ok || ent.val_len < 0x18)
             continue;
-        DataRun r;
-        r.lcn = le64(ent.val + 0x00);
+        /* run entry: og recognizer (0x40 + refsize) or thesis grammar (0x10) */
         const u16 fl = le16(ent.val + 8);
-        r.clusters = le32(ent.val + 0x14);
-        r.has_data = (fl & RUN_HAS_DATA) != 0;
-        if (r.clusters != 0 && r.clusters < 0x10000000u)
-            out.push_back(r);
+        const bool og_run = (fl & RUN_HAS_BLOCK) != 0 && le16(ent.val + 0xa) == RUN_REF_SIZE_OK;
+        const bool thesis_run = (fl & RUN_HAS_DATA) != 0;
+        if (!og_run && !thesis_run)
+            continue;
+        u64 start = le64(ent.val + 0x00);
+        const u32 off = le32(ent.val + 0xc);
+        const u32 len = le32(ent.val + 0x14);
+        if (og_run && (fl & RUN_PHYSICAL) == 0)
+            start = c.e.translate_cluster(start); /* container-relative */
+        if (start == 0)
+            continue; /* og: block 0 -> no reference */
+        attr_push_run(c, start + off, len);
     }
+}
+
+/* resident/inline content materialization (og FUN_18000e490 / FUN_18000ea30):
+ * locate the inline bytes by the value's offset pair + the entry's own page
+ * position, enforce the og gates (value length == type, cluster <= 64 KiB,
+ * size <= 64 KiB, run < 4 clusters) and emit ONE synthetic extent covering
+ * the content (the og builds a CRefsResidentDataRunList - same placement,
+ * deferred read). Returns true when a resident extent was materialized. */
+static bool attr_materialize_resident(AttrWalkCtx& c, const EntryView& ae, u16 og_type,
+                                      u64 logical_size, u64 msb_base) {
+    if (ae.val_len != og_type)
+        return false; /* og gate: value length == the type field */
+    if (ae.val_len < 0x10 || c.cluster_bytes == 0 || c.cluster_bytes > 0x10000)
+        return false;
+    if (logical_size == 0 || logical_size > 0x10000)
+        return false; /* resident gate: <= 64 KiB */
+    if (ae.val_len < 0x10 || ae.page_buf == nullptr)
+        return false;
+    /* content position: value offset pair + the entry's position in its page
+     * (the og's record-context chain, pointer form) */
+    const u32 o1 = le32(ae.val + 8);
+    const u32 o2 = le32(ae.val + 0xc);
+    const i64 ent_pos = ae.val - ae.page_buf;
+    if (ent_pos < 0 || u64(ent_pos) + o1 + o2 >= ae.page_len)
+        return false;
+    const u64 content_abs = ae.page_byte_base + u64(ent_pos) + o1 + o2;
+    u64 block = content_abs / c.cluster_bytes;
+    const u64 rem = content_abs % c.cluster_bytes;
+    if (block < 4)
+        block += msb_base; /* og: reserved low clusters live in the MSB base */
+    block = c.e.translate_cluster(block);
+    u32 run_clusters = u32((logical_size + c.cluster_bytes - 1) / c.cluster_bytes);
+    if (rem != 0)
+        ++run_clusters; /* the og's +1 slack when content straddles */
+    if (run_clusters >= 4)
+        return false; /* og gate: resident runs stay under 4 clusters */
+    const u64 off = block * c.cluster_bytes + rem;
+    const u64 l = u64(run_clusters) * c.cluster_bytes;
+    if (off > c.volume_bytes || l > c.volume_bytes - off)
+        return false;
+    c.extents.push_back({off, l});
+    if (c.stats)
+        ++c.stats->resident_files;
     return true;
+}
+
+/* og granularity validation (FUN_18000e020 :10201-81): the pow2-floored
+ * average sector-granularity of the merged runs must equal the volume's
+ * sectors-per-cluster; mismatch discards the whole runlist (the og reads
+ * the props' allocated size at +0 - the alloc-vs-run-count consistency
+ * invariant; logical size only when no allocation is recorded). */
+static bool attr_runs_granularity_ok(const AttrWalkCtx& c, u64 allocated_size,
+                                     u64 logical_size) {
+    if (c.run_clusters == 0 || c.spc == 0)
+        return true; /* no non-resident runs: nothing to validate */
+    u64 bytes = allocated_size != 0 ? allocated_size : logical_size;
+    if (bytes == 0)
+        return true; /* sizes unknown: nothing to validate against */
+    const u64 bps = c.e.boot.bytes_per_sector ? c.e.boot.bytes_per_sector : 512;
+    const u64 sectors = bytes / bps + (bytes % bps != 0 ? 1 : 0);
+    const u64 avg = sectors / c.run_clusters;
+    u64 pow = 0;
+    for (u64 bit = 1; bit <= avg; bit <<= 1)
+        pow = bit; /* largest power of two <= avg (0 when avg == 0) */
+    return pow == c.spc;
 }
 
 /* Medium-allocator bitmap (checkpoint pointer[1]) for deleted-extent
@@ -735,29 +914,102 @@ u32 scan_refs(IStorageDevice* slice, const RefsScanFlags& flags, CancelToken* ca
             }
             props->attributes = (gi.flags & 0x10000000) != 0 ? 0x10 : 0;
 
-            /* attribute rows: $DATA (0x80) -> embedded data-run table */
+            /* S-020/M-022: the og attribute walk - EVERY row is dispatched
+             * (no first-match break), under both grammars:
+             *   thesis/core: type u16 @key+8 == 0x80, value >= 0x28 (the
+             *                historical fixture grammar, kept as a superset
+             *                until the real-volume dump settles the layouts)
+             *   og: type u16 @key+0 - 0x178 old data rows / >=0xb1 modern
+             *       (gen >= 8) / 0x108+0xf8 property flags / "$I" recycle /
+             *       subtype-1 resident materialization
+             * gen tag (og FUN_180004980 :2466-77): major 3 -> minor < 5: 3,
+             * 5..10: 7, 11..12: 8, 13+: 9; modern grammar iff gen >= 8. */
+            u32 gen = 0;
+            if (e.boot.major == 3)
+                gen = e.boot.minor < 5 ? 3 : (e.boot.minor < 0xb ? 7 : (e.boot.minor < 0xd ? 8 : 9));
+            AttrWalkCtx ctx{e,       props->extents, e.boot.cluster_bytes,
+                            e.boot.sectors_per_cluster, e.boot.volume_clusters,
+                            e.boot.volume_bytes,        &stats,
+                            0,          0};
+            const u64 msb_base = 0; /* single-container volumes: pages are
+                                     * volume-absolute (no MSB rebase; the
+                                     * og's +0x70 chain is context-form) */
+            u32 og_prop_flags = 0;
+            bool have_grammar_row = false;
             for (u32 i = 0; i < nv.ki_count; ++i) {
-                const EntryView ae = entry_at(nv, i);
-                if (!ae.ok || attr_type_of(ae) != ATTR_DATA || ae.val_len < 0x28)
+                EntryView ae = entry_at(nv, i);
+                if (!ae.ok)
                     continue;
-                std::vector<DataRun> runs;
-                if (!parse_data_runs(ae.val, ae.val_len, runs))
-                    break;
-                for (const auto& r : runs) {
-                    if (!r.has_data)
-                        continue; /* sparse hole */
-                    const u64 lcn = e.translate_cluster(r.lcn);
-                    const u64 off = lcn * e.boot.cluster_bytes;
-                    const u64 len = u64(r.clusters) * e.boot.cluster_bytes;
-                    /* P1-9: overflow-safe form (off/len can wrap) */
-                    if (lcn < e.boot.volume_clusters && len <= e.boot.volume_bytes &&
-                        off <= e.boot.volume_bytes - len) {
-                        props->extents.push_back({off, len});
-                        ++stats.data_runs;
+                /* the embedded table lives inside the file row's value, in
+                 * the same physical page: propagate the page context so the
+                 * resident materialization can compute absolute positions */
+                ae.page_buf = ev.page_buf;
+                ae.page_byte_base = ev.page_byte_base;
+                ae.page_len = ev.page_len;
+                /* (A) thesis grammar: $DATA (0x80) at key+8 */
+                if (ae.key_len >= 10 && le16(ae.key + 8) == ATTR_DATA && ae.val_len >= 0x28) {
+                    attr_walk_runs(ctx, ae.val, ae.val_len, 0);
+                    have_grammar_row = true;
+                    continue; /* ALL such rows contribute (og: no break) */
+                }
+                /* (B) og grammar: type u16 at key+0 */
+                if (ae.key_len < 2)
+                    continue;
+                const u16 og_type = le16(ae.key);
+                if (og_type == OG_ROW_DATARUN_OLD) {
+                    og_prop_flags |= 2;
+                    attr_walk_runs(ctx, ae.val, ae.val_len, 0);
+                    have_grammar_row = true;
+                } else if (og_type == OG_ROW_FLAG_A) {
+                    og_prop_flags |= 1;
+                } else if (og_type == OG_ROW_FLAG_B) {
+                    og_prop_flags |= 3;
+                } else if (gen >= 8 && ae.key_len == 0x28 && og_type >= 0xb1) {
+                    attr_walk_runs(ctx, ae.val, ae.val_len, 0);
+                    have_grammar_row = true;
+                } else if (ae.key_len == 0x10) {
+                    /* recycle $I (type 100 + "$I" name) or the subtype-1
+                     * resident content descriptor (FUN_18000ea30/e490) */
+                    const bool is_dollar_i =
+                        og_type == OG_ROW_RECYCLE_I && name16.size() > 2 &&
+                        name16[0] == u'$' && name16[1] == u'I';
+                    const bool is_resident_desc = le16(ae.key + 2) == 1;
+                    if ((is_dollar_i || is_resident_desc) &&
+                        attr_materialize_resident(ctx, ae, og_type, gi.size, msb_base)) {
+                        have_grammar_row = true;
+                        if (is_dollar_i)
+                            ++ctx.stats->dollar_i_rows;
                     }
                 }
-                break; /* default (unnamed) data stream */
             }
+            (void)have_grammar_row;
+            /* runlist granularity validation (og e020): discard garbage
+             * runlists; the resident extent (if any) survives only when no
+             * non-resident runs exist (og: resident first, runlist after) */
+            if (!attr_runs_granularity_ok(ctx, gi.alloc_size, gi.size)) {
+                props->extents.clear();
+                ++ctx.stats->granularity_discards;
+            }
+            /* keep exactly one resident extent when runs supersede it (the
+             * og's non-resident runlist overwrites the resident slot) */
+            if (ctx.run_clusters > 0) {
+                /* drop a resident extent pushed earlier in the loop */
+                for (size_t k = 0; k < props->extents.size();) {
+                    if (props->extents[k].length < 4 * e.boot.cluster_bytes &&
+                        props->extents[k].length % e.boot.cluster_bytes == 0 &&
+                        props->extents[k].offset % e.boot.cluster_bytes != 0) {
+                        props->extents.erase(props->extents.begin() + long(k));
+                        if (ctx.stats->resident_files > 0)
+                            --ctx.stats->resident_files;
+                    } else {
+                        ++k;
+                    }
+                }
+            }
+            stats.data_runs += props->extents.size();
+            (void)og_prop_flags; /* property flags tracked for og-parity
+                                  * surfaces (grading consumers); not yet
+                                  * consumed by the core's grading model */
 
             tree::FileNode* node = tree.add_file(parent, props);
             props->release(); /* tree holds the reference */

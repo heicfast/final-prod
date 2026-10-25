@@ -6050,3 +6050,56 @@ leak follow-ups). The converging leg's duplicate implementation was dropped at m
 its INDEPENDENT corpus verification is preserved as the session-4 convergence addendum
 in findings/FIXED/S-012-*.md (premise correction: NO cross-pass dedup og-side; $Boot
 DAT_18004cd70 decoded; stride table; two og defects deliberately not replicated).
+
+---
+Task ID: DF4-S020-M022
+Agent: main engineer (diff-to-fix session 4)
+Task: S-020 (SEVERE) + M-022 (MAJOR) + N-037 (MINOR, folded) — the ReFS attribute
+layer: verify, classify, fix. N-036 (MINOR) recognizer half fixed in the same change.
+
+Work Log:
+- Independent re-verification (corpus first-hand, ReFSSearchDLL_decompiled.c): the
+  file-handler attribute loop re-read (:8290-8500: iterate ALL RefsNodeRecord children,
+  type u16@key+0, 0x178/0x108/0xf8 dispatch, the modern 0x28-key/>=0xb1 gate, the
+  "$I" handler call with the +0x5c/+0x60 caller offsets, the local_f8==1 special);
+  FUN_18000c560 (old requires type==0x178; modern requires keylen 0x28 + >=0x29);
+  FUN_18000c790 run-entry grammar (0x40 required, refsize 0x18@+0xa, block@+0,
+  offset u32@+0xc, length u32@+0x14, 0x20 physical, translate else, block-0 skip,
+  adjacent coalescing); FUN_18000e490 resident materialization (value-len==type,
+  <=64KiB cluster/size gates, <4-cluster runs, offset-chain position, MSB base for
+  blocks <4, CRefsResidentDataRunList + props+0x62 attach, +0x48 intra-cluster
+  offset); FUN_18000e020 granularity gate (:10201-81 re-read — the divided quantity
+  is the PROPS FIRST FIELD = allocated size, not logical; pow2-band == device spc).
+- FIELD-IDENTITY AMBIGUITY RESOLVED: M-022's param_1[10] "system-dir list counter"
+  vs S-020's gen tag — FUN_180004980 :2466-77 writes gen 3/7/8/9 at +0x1d8 from the
+  BOOT major/minor (major 3: minor<5 -> 3, 5..10 -> 7, 11..12 -> 8, 13+ -> 9); the
+  >= 8 grammar gate aligns exactly with that scale (modern = ReFS 3.11+). The core
+  derives the tag from boot major/minor.
+- local_f8 decode note: the decompile shows local_f8 only WRITTEN at :8485 (=0)
+  after being READ at :8422 — Ghidra artifact; the object-subtype-1 reading
+  (le16@key+2, the directory-row subtype space) is the documented interpretation.
+- Fix (cr_refs_engine.cpp/.h): EntryView carries page context (walk_table sets it;
+  emit_file propagates into the embedded node's entries); the old first-$DATA-break
+  loop replaced by the full og dispatch — thesis key+8/0x80 grammar kept as
+  documented superset + og key+0 grammar {0x178, 0x108/0xf8 flags, modern >=0xb1
+  w/ 0x28 keys gated on gen>=8, "$I" type-100 resident, subtype-1 resident};
+  attr_walk_runs (leaf run rows both recognizers + inner-node child-page chase,
+  hop/depth bounded, adjacent coalescing); attr_materialize_resident (pointer-form
+  position arithmetic, all og gates, single synthetic extent);
+  attr_runs_granularity_ok (pow2-band vs spc, allocated size). 4 new stats fields.
+- Fail-before discipline: 6/6 FAILED on the engine-reverted build (stash/pop);
+  402/402 green with the fix (396 + 6 net-new). One plumbing lesson: the embedded
+  node's EntryViews must inherit the page context from the file-row entry for the
+  resident position arithmetic.
+- Audit trail: S-020 + M-022 + N-037 moved to FIXED/ with Resolutions (premise
+  corrections recorded: granularity divides ALLOCATED size; gen-tag reading);
+  N-036 addendum (recognizer half landed, container-map half open); matrix refs
+  rows; modules/refs.md session-4 section; SUMMARY counts (95 active / 36 FIXED);
+  CAPABILITY-MATRIX ReFS-ADS row -> DONE (attribute layer) with the N-036 caveat.
+
+Stage Summary:
+- The ReFS engine now recovers resident/inline files (the og's CRefsResidentDataRunList
+  class), all attribute rows (no first-match truncation), paged run tables, and
+  discards cluster-inconsistent garbage runlists. ReFS attribute-layer parity is
+  test-pinned; the remaining ReFS open items are the container map (N-036), the
+  deleted-model pair (M-026/M-027), and the OQ-2 real-volume dump.

@@ -311,7 +311,7 @@ collision with the parallel leg's I-006 ext4-nanoseconds, cleared).
 | MINOR | 26 | N-002, N-003, N-010-theirs, **N-021 (this fix session)** | N-001, N-004..N-009 (grouped), N-011..N-022, N-023..N-029 (S2-third-leg, grouped), **N-030..N-032 (S3)** |
 | INFORMATIONAL | 10 | — | I-001..I-011, **I-012 (S3: GAP-ADS resolved — parity, shared limitation)** |
 | tracked-open | 6 files | OQ-T1/T2/T5/T7/T8/T9 + all 9 S2-third-leg OQs RESOLVED across legs | OQ-T3*, OQ-T4*, OQ-T6 (bounded), OQ-S2A-1..4, OQ-S2C-3, OQ-S2M-1/2 (see files) |
-| **Total active findings** | **98** | **33** | |
+| **Total active findings** | **95** | **36** | |
 
 *(Session-4 MERGE re-baseline (direct file inventory after integrating the parallel
 diff-fix/api/audit legs): 11 SEVERE + 34 MAJOR + 37 MINOR + 16 INFO = 98 active files,
@@ -319,7 +319,12 @@ diff-fix/api/audit legs): 11 SEVERE + 34 MAJOR + 37 MINOR + 16 INFO = 98 active 
 this file — including the wave-1 "86 active" and the mid-session "104 active" figures
 (both pre-merge snapshots). Session-4 S-012 was a CONVERGENT dual-agent fix — the landed
 implementation (5f1a212 + leak follow-ups) stands; the parallel verification is in the
-S-012 Resolution's convergence addendum.)*
+S-012 Resolution's convergence addendum.*
+
+*(Session-4 continuation: **S-020 (SEVERE) + M-022 (MAJOR) + N-037 (MINOR) FIXED** by
+the ReFS attribute-layer landing — the counts move to 10 SEVERE + 33 MAJOR + 36 MINOR
++ 16 INFO = 95 active, 36 FIXED (N-036 half-fixed stays active with its container-map
+residual). Fail-before 6/6, suite 402/402 Linux ASan.)*
 
 **Note on S-009/M-006:** the S-009 disk-map component was FIXED via GAP-S6-11
 (`56cce87` — `cr_diskmap.cpp/.h` verified in-tree by this leg); the M-006 fuzz-CI

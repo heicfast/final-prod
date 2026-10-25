@@ -178,3 +178,25 @@ Complements M-022/I-012 above (same session, parallel leg; full inventory:
 (This leg's ReFS decode corroborates S-020/M-022/M-026; its local A-004/S-012/
 S-013/M-011/M-013/N-023/N-024/I-009 were superseded by the lead leg's filings —
 see the reconciliation note in `tracked-open/OQ-RS-refs-session3.md`.)
+
+## Session-4 update (S-020 / M-022 / N-037 FIXED; N-036 half-fixed)
+
+- **B2/B7/A27 → S-020 FIXED:** the full og attribute layer — resident/inline content
+  materialized as synthetic extents (FUN_18000e490/ea30, pointer-form position
+  arithmetic), every attribute row iterated (no first-match break), adjacent-run
+  coalescing, paged/indirect run tables chased (FUN_18000cf30), granularity
+  validation discards cluster-inconsistent runlists (FUN_18000e020). 6 fail-before
+  tests in test_refs_volume.cpp. Extent-only recovery (resident_data stays unused —
+  the og's resident model is a run-list, matching the core's extent form).
+- **A25/A26 → M-022 FIXED:** dual grammar (thesis key+8/0x80 + og key+0 dispatch);
+  generation tag resolved to the boot-derived 3/7/8/9 scale (FUN_180004980
+  :2466-77; the param_1[10] list-counter vs gen-tag ambiguity settled for the
+  gen-tag reading); property-flag rows (0x108/0xf8) tracked; the "$I" recycle
+  handler ported as a resident run-list builder (session-4 OQ-1 decode).
+- **B3 → N-037 FIXED (folded):** granularity gate vs the ALLOCATED size (premise
+  corrected — the og reads props+0, not the logical size).
+- **C20/A27 → N-036 half-fixed:** run-entry recognizer accepts the og 0x40+refsize
+  form; 0x20 = physical; container-map population remains open (real-volume probe).
+- **Open (unchanged):** OQ-2 real-volume key-layout dump; N-036 container map;
+  M-026/M-027 deleted-model/object-identity; I-013 host-OS gate superset.
+
