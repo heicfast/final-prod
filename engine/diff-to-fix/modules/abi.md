@@ -54,3 +54,39 @@ abi-specific divergences surfaced.
   is not.
 - N-011e: og error facility codes (0x2980005 family) vs core `cr::Err` — a consumer-facing
   mapping table belongs in ABI-CONTRACT (registration item).
+
+---
+
+## Session-18 update (2026-10-26, DFX18 — N-040 closed)
+
+**N-040 (ABI/doc truthfulness, five defects) — FIXED** (four sub-defects
+landed via parallel lanes and were verified this session; D4 closed here):
+
+- **D1 SQLite sidecar** — ALREADY FIXED by the parallel §8 rewrite
+  (REJECTED-BY-REFERENCE, closed GAP-S6-12; corpus rsf-format--scan-
+  session.md §2-§5). Verified: zero sqlite/crsidx references in src/
+  (the only "sqlite" strings are the carve format row and the filefilter
+  category); the :114 save-flow claim is gone. Pinned forward by
+  `CrUi.SessionSaveWritesCrsfOnly` (exactly one file next to a saved
+  session — no .crsidx, ever).
+- **D2 disk-map "2 free"** — ALREADY FIXED by S-009's landing (the ABI
+  documents 0/1/2/3 with "2 free = engine bitmap truth"; the state is
+  produced by storage::FreeMap and pinned by the DiskMap.* overlay
+  tests).
+- **D3 event-thread contract** — ALREADY FIXED in the doc (§6 line
+  "Fired on engine worker threads or the thread running `run()`");
+  pinned forward by `CrUi.EventThreadContractPinned` (doc-truth +
+  header lockstep + deterministic serial-mode run-thread delivery +
+  parallel-mode worker-delivery tolerance).
+- **D4 "ABI-since 1.1/1.2" fake versions** — FIXED this session: all
+  seven header annotations rewritten to the truthful era labels
+  ("v1-era append with the change id; no 1.1/1.2 marker ever shipped");
+  ABI-CONTRACT §9 made coherent (v2 = M-036's deliberate feature-batch
+  bump; appends still require no bump; the sub-version history recorded).
+  Pinned by `CrUi.AbiVersionAnnotationsAreTruthful` (fail-before RED
+  executed on the stash-isolated pre-fix tree).
+- **D5 `modified` unit lie** — ALREADY FIXED by M-029's landing
+  (ground-truth-contracts now carries "FILETIME 100-ns since 1601" with
+  the M-029 correction note; `Query.ModifiedUnitIsFiletimeEverywhere`
+  is the pin — re-cited as this finding's TreeJson.ModifiedFieldIsFiletime
+  spec, satisfied).
