@@ -5894,3 +5894,43 @@ Next concrete steps (recommended order for the next leg):
 5. S-009-remainder + N-020 split.
 6. MAJOR wave in M-number order (re-verify each against current main - parallel legs
    are landing fixes continuously; pull before every finding).
+
+---
+Task ID: DF4-S012-CONVERGE (diff-fix session 4 — S-012 parallel-convergence close-out)
+Agent: main engineer (diff-to-fix fix session)
+Task: S-012 (SEVERE, ntfs) — independently verify, implement, prove; converged with the
+parallel fix legs that landed mid-flight.
+
+Session arc (honest record):
+- Baseline verified: suite 351/351 Linux ASan at 4fe9bff (session start).
+- S-012 evidence independently re-verified first-hand (FUN_180017390 pass-1 processor,
+  FUN_18001a980 walk driver + 0x8000-sector chunking, FUN_18001acc0 gates/destroy rules,
+  FUN_180017190 claim inserter, FUN_180034b20/FUN_180040ea0 hidden+system detector,
+  FUN_18001e6c0 rescue entry chain) — every gate confirmed against the decompile.
+- Independent decode additions (NEW evidence, committed): DAT_18004cd70 = "$Boot"
+  extracted from the binary (.rdata paddr 0x4b570); the claim-condition pointer map
+  (param_1[0x70] = engine+0x380, +0x4b = +0x258, +0x381 adjacent pair); engine bytes
+  +0x380/+0x381 are NEVER written in-DLL — the claim-population ambiguity registered
+  (evidence/decompiled-quotes/ntfs-pass2-guid-dump.md §7 + OQ-S2M-1 probe list).
+- Parallel S-012 implementation completed locally (steps 1+2, 5 tests, fail-before
+  proven by stash/rebuild/probe — MainWalkKeepsOverwrittenDeleted FAILED pre-fix;
+  ghost.dat absence pre-fix documented) — then found the parallel fix legs had landed
+  a SUPERSET (steps 1+2+3: the size-0 mirror-resident harvest + same-name merge) plus
+  S-022, N-022/N-023/N-034 and the leak fix convergent with mine (dp->release() after
+  add_file). Per the convergence protocol: local duplicate DISCARDED, their landing
+  stands; re-based onto origin/main 75050bf.
+- Their landing verified first-hand this session: fresh build, full suite 396/396
+  green; code read against my own decode (name gate, destroy rules, claim map, rescue
+  chain — all match; their og-15 metafile table is a valid refinement of my
+  hidden+system gate reading).
+- Salvage landed (this commit): scripts/s012_hostile_smoke.cpp — the 400-iteration
+  ASan/UBSan hostile-input smoke (dump-region pokes, boot-geometry corruption,
+  truncation, random stabs) — PASSED against the landed implementation (the parallel
+  legs had no smoke; this hardens their fix); evidence addendum §7 + OQ-S2M-1 note.
+
+Stage Summary:
+- S-012 fully closed by convergence: two sessions independently verified the finding
+  from the decompile, implemented it, and cross-verified; the merged result carries
+  the superset implementation + this session's hostile-input proof + the claim-gate
+  evidence. Suite 396/396. Next per the DF-S022 handoff: S-003/S-021 (the HFS+
+  journal pair).

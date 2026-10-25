@@ -34,7 +34,7 @@ Candidate loci, all unverified:
 ## Why it matters
 
 - D15 verdicts for `ntfs` currently say the core's Confidence enum is a "superset feature". If the og computes a real grade downstream (e.g. from $I/$R pairing or extent-claimed ratios), the core's in-walk grading is not a superset but a **different model**, and the S-012 rework should either keep the core grade as a registered extra or mirror the og's model.
-- The engine config bytes `+0x258/+0x259` (claim-skip and metafile-gate overrides, ctor defaults not decoded — `:18343-52`, `:18952`) may alter pass-2 claim semantics on damaged-volume modes; decode them in the same pass.
+- The engine config bytes `+0x258/+0x259` (claim-skip and metafile-gate overrides, ctor defaults not decoded — `:18343-52`, `:18952`) may alter pass-2 claim semantics on damaged-volume modes; decode them in the same pass. Fix-session addendum (DF4-S012): the claim-population gate adds engine bytes **+0x380/+0x381** (claim-all / claim-$LogFile; never written in-DLL — see evidence/decompiled-quotes/ntfs-pass2-guid-dump.md §7) — include them in the same ctor-default probe.
 
 ## Corpus artifacts to examine next
 

@@ -90,3 +90,43 @@ Error facility codes: 0x2980005/0x2a30006/0x2a90006 (:18908-27), 0x3a90001 OOM (
 0x17c0004 (:17897). Names: props name = char* UTF-8 via `WideCharToMultiByte(CP 0xFDE9)` with
 ACP+`'_'` fallback (`FUN_180006610 :4860-4906`). No namespace keep/skip logic (core ranking is
 superset). SI-times override FN when valid (:5344-51) — core matches (`cr_mftwalk.cpp:734`).
+
+## 7. Claim-population gate constants (fix-session addendum, 2026-10-26 — DF4-S012)
+
+First-hand decode of the pass-1 claim condition (`FUN_180017390 :18501-18549`), fed by a
+fresh binary extraction:
+
+```
+:18501  uVar12 = FUN_180034b20(param_4,*param_5);      // != 0 iff $SI dos_flags
+                                                        // carries BOTH 0x04|0x02
+                                                        // (FUN_180040ea0 :51960-75:
+                                                        //  FUN_180041b70(ctx,0x10,0) =
+                                                        //  $STANDARD_INFORMATION;
+                                                        //  flags&4 && flags&2 -> 1)
+:18503  bVar19 = (int)uVar12 == 0;                     // TRUE for regular files
+:18505-27  6-byte compare of name[0..5] vs DAT_18004cd70, with the $LogFile
+           exception: engine+0x381 == 0 && strcmp(name,"$LogFile")==0 -> bVar3 = false
+:18525  if (((char)param_1[0x70] != '\0') || ((!bVar19 && (bVar3)))) && (bVar4)
+             -> FUN_180017190(engine, map, props, engine+0x258)
+```
+
+- **`DAT_18004cd70` = `"$Boot"`** (5 chars + NUL = the 6 compared bytes) — extracted from
+  `NTFSSearchDLL.dll` `.rdata` (paddr 0x4b570, VA 0x18004cd70; rabin2 strings dump line 16).
+- **Pointer-arithmetic map:** `param_1[0x70]` (longlong\*) = engine byte **+0x380**;
+  `*(char*)(param_1 + 0x4b)` = engine byte **+0x258**; `*(char*)(param_1 + 0x381)` =
+  engine byte **+0x381** (adjacent to +0x380 — a flag pair: claim-all / claim-$LogFile).
+- **Observation:** engine bytes +0x380/+0x381 are **never written anywhere in the DLL's
+  decompile** (only the two read sites above) — they are zero-initialized unless the host
+  (DRWUI/loader) sets them. With +0x380 = 0 the textual gate reads "only hidden+system
+  metafile records claim" (and pass 1 filters those at the walk gate, so the map would stay
+  empty and pass-2 viability would never destroy anything but `size <= 0x3ff` records,
+  making FUN_1800161f0's claim probe dead code) — the landed fix therefore implements the
+  audit's three-agent-verified semantics (live + deleted-with-size + dir extents claim;
+  $LogFile never) and registers this ambiguity here for the OQ-S2M-1 engine-config decode
+  (add +0x380/+0x381 to its +0x258/+0x259 probe list).
+- **Record-key decode (pass-2 identity):** `FUN_18001acc0 :21186-87` —
+  `lVar18 = local_c0 / record_size + param_4` where param_4 = the chunk's absolute start
+  sector (FUN_18001a980 :21016: `spc * lcn + base`): the pass-2 claim key is the
+  **dump position**, a key space disjoint from pass-1's MFT-position keys — first-hand
+  confirmation that the finding's "dedup by record#" plan text was a misreading while its
+  test design (reused-slot records recovered) is correct.
