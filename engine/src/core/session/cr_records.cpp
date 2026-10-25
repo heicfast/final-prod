@@ -212,7 +212,8 @@ u32 serialize_tree(const tree::ResultTree& tree, std::vector<u8>& out) {
     return OK;
 }
 
-u32 deserialize_tree(const u8* data, size_t len, tree::ResultTree& tree) {
+u32 deserialize_tree(const u8* data, size_t len, tree::ResultTree& tree,
+                      u32* reparented_out) {
     Cursor c{data, len};
     const u32 count = c.g32();
     if (c.fail)
@@ -220,10 +221,31 @@ u32 deserialize_tree(const u8* data, size_t len, tree::ResultTree& tree) {
     std::vector<tree::FileNode*> by_id(count, nullptr);
     std::vector<tree::FileNode*> created;
     tree::FullNode* default_root = nullptr; /* lazy synthetic root */
+    /* N-058 (diff-to-fix, landed with M-050 per its fix plan): forward
+     * parent references are DEFERRED and resolved after the loop, not
+     * silently re-parented to the synthetic root; nodes whose parent
+     * never resolves (out of range / that record failed) stay under the
+     * synthetic root and are counted in *reparented_out. The count is
+     * the surface the finding demanded ("surface a reparented count in
+     * the load result"). */
+    struct Deferred {
+        tree::FileNode* node;
+        u32 wanted_parent;
+    };
+    std::vector<Deferred> deferred;
+    u32 reparented = 0;
     for (u32 i = 0; i < count; ++i) {
         const u32 parent_id = c.g32();
         const u16 nflags = c.g16(); /* v1 reserved / v2 node flags */
         const u8 marker = c.g8();
+        /* N-058: the og validates marker in {0,1} per-node (rsf-record4);
+         * anything else is corruption - fail the record and let the
+         * container's CRC/resync layer recover, never silently normalize
+         * to a light node. */
+        if (marker != 0 && marker != 1) {
+            c.fail = true;
+            break;
+        }
         const u8 origin = c.g8();
         const u8 deleted = c.g8();
         const u8 confidence = c.g8();
@@ -244,6 +266,13 @@ u32 deserialize_tree(const u8* data, size_t len, tree::ResultTree& tree) {
         props->attributes = c.g32();
         props->flags = c.g16();
         const u16 name_len = c.g16();
+        /* N-058: bounds-check BEFORE allocating (a hostile u16 could
+         * claim 128 KiB per node); the og validates name length against
+         * the record bounds per-node. */
+        if (c.fail || c.left < size_t(name_len) * 2u) {
+            c.fail = true;
+            break;
+        }
         props->name.resize(name_len);
         for (u16 k = 0; k < name_len; ++k)
             props->name[k] = c.g16();
@@ -292,6 +321,12 @@ u32 deserialize_tree(const u8* data, size_t len, tree::ResultTree& tree) {
         if (marker == 1) {
             /* full node: role + stats; re-attach as a root-level virtual */
             const u16 role_len = c.g16();
+            /* N-058: same class as the name-length bomb (the og bounds-
+             * checks per-node); checked BEFORE the allocation. */
+            if (c.fail || c.left < size_t(role_len) * 2u) {
+                c.fail = true;
+                break;
+            }
             std::u16string role(role_len, 0);
             for (u16 k = 0; k < role_len; ++k)
                 role[k] = c.g16();
@@ -311,16 +346,31 @@ u32 deserialize_tree(const u8* data, size_t len, tree::ResultTree& tree) {
                 n = full;
             }
         } else {
-            tree::FileNode* parent =
-                (parent_id != 0xFFFFFFFFu && parent_id < count) ? by_id[parent_id] : nullptr;
-            if (parent == nullptr) {
-                /* top-level file node: attach under a synthetic root */
+            tree::FileNode* parent = nullptr;
+            if (parent_id != 0xFFFFFFFFu && parent_id < count)
+                parent = by_id[parent_id];
+            if (parent == nullptr && parent_id != 0xFFFFFFFFu) {
+                /* N-058: a forward reference (pid > i) or a reference to
+                 * a record that failed - DEFER it; resolve after the
+                 * loop. Never silently re-parent at emit time. */
                 if (!default_root)
                     default_root = tree.add_root(u"Restored");
-                parent = default_root;
-            }
-            if (parent)
+                if (default_root) {
+                    n = tree.add_file(default_root, props);
+                    if (n)
+                        deferred.push_back({n, parent_id});
+                }
+            } else if (parent == nullptr) {
+                /* parent 0xFFFFFFFF on a LIGHT node: legacy top-level
+                 * file (the writer never emits this today; old files
+                 * did) - the designed synthetic-root path */
+                if (!default_root)
+                    default_root = tree.add_root(u"Restored");
+                if (default_root)
+                    n = tree.add_file(default_root, props);
+            } else {
                 n = tree.add_file(parent, props);
+            }
         }
         props->release();
         if (!n) {
@@ -340,12 +390,26 @@ u32 deserialize_tree(const u8* data, size_t len, tree::ResultTree& tree) {
         if (c.fail)
             break;
     }
+    /* N-058: resolve the deferred forward references now that every
+     * record had its chance to load; the ones that never resolve stay
+     * under the synthetic root and are counted (never silent). */
+    for (const Deferred& d : deferred) {
+        if (d.wanted_parent < count && by_id[d.wanted_parent] != nullptr &&
+            by_id[d.wanted_parent] != d.node)
+            tree.reparent(d.node, by_id[d.wanted_parent]);
+        else
+            ++reparented;
+    }
+    if (reparented_out != nullptr)
+        *reparented_out = reparented;
     /* M-047: intact loads TRUST the persisted root stats (the og's model
      * - the image is the pre-save recursive truth). Only a PARTIAL load
      * (some nodes missing) recomputes: the stale image would overcount a
      * tree that lost nodes to corruption. The recompute is recursive -
-     * the same accumulator semantics the writer used. */
-    if (c.fail && count > 0 && created.size() < count) {
+     * the same accumulator semantics the writer used.
+     * N-058: a stream that FAILED is an error even when every expected
+     * node was created (a degraded final node must not load as OK). */
+    if (c.fail && count > 0) {
         tree.refresh_stats();
         return u32(0x50040001);
     }

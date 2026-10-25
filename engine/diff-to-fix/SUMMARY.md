@@ -153,6 +153,21 @@ sector-unit under-zeroing defect noted, NOT adopted). No behavior change
 - the opt-in clamped read from the finding's path (2) is the documented
 next step WHEN an engine needs it. Suite 594/594 (Slice +1).
 
+**M-050 + N-058 FIXED (this push — one loader change, per M-050's plan):**
+the carrier audit re-scoped post S-023/M-051/M-047: grade+overlap,
+provenance, root stats, short names ALREADY carried (the predicted schema
+debt was paid by those landings) — now PINNED by
+Session.GradeRoleAndProvenanceRoundTrip + OldFormatStillLoads; roles
+persist as strings (richer than the og's u32 pair). Deliberate
+NOT-PERSISTED, OQ-tracked: hidden-root bit, f_6c/f_68, f_71 (undecoded —
+carrying opaque u16s would invent structure). N-058's four loader
+hardenings in the same change: forward parents DEFERRED + resolved
+post-loop (reparented count surfaced via the new optional out-param);
+marker outside {0,1} fails the record; c.fail alone fails the load;
+name/role lengths bounds-checked BEFORE allocation. 6 tests; suite
+602/602. Counts: SEVERE 2 · MAJOR 32 · MINOR 46 · INFO 22 · FIXED 86
+files (85 findings + index).
+
 # SUMMARY.md — executive summary (diff-fix session 14 on top; earlier sessions below)
 ## Session-14 delta (2026-10-26 — DFX14: bootstrap, two merge repairs, the reconciliation wave)
 

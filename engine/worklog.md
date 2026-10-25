@@ -10337,3 +10337,37 @@ Stage Summary:
 - Lesson recorded twice this session: parallel lanes racing on the same finding MUST
   re-read main before push; the qemu-compat-fixture proof layer is what caught
   spec-memory bugs the in-memory builders could not.
+Task ID: DFX11-M050 (session 11, findings 5+6)
+Agent: main engineer (diff-to-fix fix session 11 — DFX11)
+Task: M-050 (session node-model roundtrip gaps) + N-058 (load validation
+deltas) — landed as ONE loader change per M-050's own fix plan step 2.
+
+Work Log:
+- Corpus re-verified first-hand: rsf-record4--tree-node-grammar.md (the
+  per-node marker/name/parent validation rules) + rsf-format :315-322.
+  Core wire re-audited against the CURRENT tree (the finding was filed
+  at 7cf6754, BEFORE S-023/M-051/M-047 landed): grade+overlap,
+  provenance, root stats, short names are ALREADY carried — the schema
+  debt the finding predicted was paid by those landings. The remaining
+  real gaps: no round-trip TEST (added), and N-058's four loader
+  soft spots.
+- Fix (one loader change): (a) forward parents deferred + resolved
+  post-loop (new optional reparented_out surface); (b) marker outside
+  {0,1} fails the record; (c) c.fail alone fails the load; (d) name AND
+  role lengths bounds-checked BEFORE allocation. Deliberate
+  NOT-PERSISTED registered in the finding: hidden-root bit (no in-memory
+  concept), f_6c/f_68 + f_71 (undecoded — opaque u16 carriage would
+  invent structure); OQ-tracked until corpus decodes land.
+- Tests: 6 (GradeRoleAndProvenanceRoundTrip, OldFormatStillLoads,
+  ForwardParentDeferredAndCounted, BadMarkerFailsTheRecord,
+  TruncatedTailFailsAfterFullCount, HostileNameAndRoleLengthBombs) —
+  fail-before by construction (each asserts the opposite of a behavior
+  the finding itself verified first-hand in the pre-fix loader).
+  Suite 602/602.
+- Audit trail: Resolutions on both findings (cross-referenced); both
+  moved to FIXED/; RESOLVED-INDEX (77); matrix cells; modules/session.md
+  row; SUMMARY extension.
+
+Stage Summary:
+- Session tally: 5 fixes (M-007, M-008, M-032, M-050, N-058) + the
+  S-009 verification. Remaining claimed: M-029, M-049. Next: M-029.
