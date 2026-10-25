@@ -56,3 +56,29 @@ Core (audited `67193b6`): `src/core/session/` (721 LOC) + `include/cr/session/` 
 ## Test gaps (test debt, no finding)
 
 64 MiB bomb-cap path, 65536-record guard, legacy remap, "Restored" synthetic root path.
+
+---
+
+## Session 2 re-audit (audited commit `5d6da5f`)
+
+- **S34/D12/S36 — N-014 (MINOR):** stage checkpoint is NOT atomic.
+  `cr_ui.cpp:1131` opens via `_wfopen_s(&f, w.c_str(), L"wb")` which
+  TRUNCATES the existing file to zero on open. `emit_checkpoint_()`
+  (`cr_scan.cpp:418-433`) does `seek(0)` then writes a fresh container
+  header + records + finalize. `Writer::finalize()` (`cr_crsf.cpp:172-200`)
+  patches `record_count` and per-record `chain`/`crc` fields IN PLACE via
+  seek+write; no `.tmp` + atomic rename. If the process is killed between
+  `fopen("wb")` (truncate) and `finalize()` completing, the checkpoint file
+  is torn. The previous good checkpoint is GONE (truncated). The og's
+  pattern writes each auto-save to a FRESH timestamped file
+  (`auto_<volume>_<MM>_<DD>_<HH>_<MM>_<SS>.rsf` per
+  `rsf-format--scan-session.md §5.5`), so a torn new file leaves the
+  previous auto-save intact. The torn-tail salvage (`cr_crsf.cpp:240-276`)
+  mitigates the worst case (recovers the indexed prefix); the atomic-rename
+  fix preserves the previous good state on top.
+
+### Session 2 findings index (this module)
+
+| ID | Severity | One-line |
+|---|---|---|
+| N-014 | MINOR | Stage checkpoint not atomic (truncate-then-write; previous destroyed on crash) |

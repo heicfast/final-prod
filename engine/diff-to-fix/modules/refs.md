@@ -68,3 +68,12 @@ Core (audited commit `67193b6` **including concurrent GAP-S6-3 fix `7797bd6`**):
 | N-007 | MINOR | Full-signature memcmp vs og first-DWORD (corrupt-page tolerance) |
 | I-004 | INFO | Version-gate superset 1.x–3.x (documented; og gates 3.4+/1.x) |
 | (project GAP) | MAJOR | ReFS ADS/containers/security not implemented (og .mo family covers) — re-verified open |
+
+---
+
+## Session 2 re-audit (audited commit `5d6da5f`)
+
+No new refs-specific findings in session 2. The session-1 verdicts
+stand. Session 2's parallel agents re-verified the architecture parameters
+(R54-R58) and safety parameters (F60-F64) cross-cuttingly; no new
+refs-specific divergences surfaced.

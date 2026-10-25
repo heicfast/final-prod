@@ -67,3 +67,24 @@ Core (audited commit `67193b6`): `src/core/btrfs/cr_btrfs_engine.cpp` (799 LOC) 
 | I-003 | INFO | Core exceeds og: working deep scan + unconditional mirror probing |
 | N-006 | MINOR | Nodesize validation stricter than og band (corrupt-SB only) |
 | S-005 | SEVERE | (cross-engine) Names byte-lifted → mojibake — **FIXED (diff-to-fix session)** |
+
+---
+
+## Session 2 re-audit (audited commit `5d6da5f`)
+
+- **B9 extra timestamps — I-007 (INFO, superset):** core reads all 4
+  Btrfs inode timespecs (`INO_ATIME = 0x70`, `INO_CTIME = 0x7C`,
+  `INO_MTIME = 0x88`, `INO_otime = 0x94`) via `cr_btrfs_engine.cpp:83-86,
+  625-633, 750-753`. Og's `FUN_180006ba0` at
+  `BtrfsSearchDLL_decompiled.c:4430-4446` reads only 3 (ctime + mtime +
+  atime); the 4th Btrfs inode timespec at `+0x94/+0x9C` (otime → crtime) is
+  NEVER read by the og BTRFS engine. Core superset — every Btrfs file has
+  non-zero `created` slot where the og's has zero. Note: og's Btrfs engine
+  DOES preserve nsec (`*(uint*)(param_3+0x84)/100` at `:4437`), unlike the
+  og's ext4 engine (which drops nsec — see I-006). Internal og inconsistency.
+
+### Session 2 findings index (this module)
+
+| ID | Severity | One-line |
+|---|---|---|
+| I-007 | INFO | Core reads 4 timestamps (incl. otime→created), og reads 3 (otime dropped) |

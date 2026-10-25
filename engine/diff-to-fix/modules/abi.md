@@ -34,3 +34,12 @@ exports, ABI_VERSION 1, zero-init safe, thread-local last-error) +
 | ID | Severity | One-line |
 |---|---|---|
 | S-009 | SEVERE | Disk-map operation group absent (ABI-CONTRACT §7 to-build) |
+
+---
+
+## Session 2 re-audit (audited commit `5d6da5f`)
+
+No new abi-specific findings in session 2. The session-1 verdicts
+stand. Session 2's parallel agents re-verified the architecture parameters
+(R54-R58) and safety parameters (F60-F64) cross-cuttingly; no new
+abi-specific divergences surfaced.

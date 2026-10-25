@@ -36,3 +36,44 @@ Core (audited `67193b6`; **S-008 fixed post-audit**): `src/core/repair/cr_rawfix
 |---|---|---|
 | S-008 | SEVERE | Boot-sector subset + not wired pre-scan (og: 33 methods incl. CheckMFT/FAT-table, pre-scan) — **FIXED** |
 | OQ-T5 | tracked-open | ChecksumDBR per-byte predicate |
+
+---
+
+## Session 2 re-audit (audited commit `5d6da5f`)
+
+Two new findings on the RawFixer WRITE path (session 1's S-008 covered the
+WIRING gap; session 2 covers the SAFETY + PERF gaps on the write path):
+
+- **F60/F63/R58/S35 — S-010 (SEVERE, safety):** `RwDevice` in
+  `cr_transport.cpp:822` opens with `GENERIC_READ|GENERIC_WRITE` +
+  `FILE_SHARE_READ|FILE_SHARE_WRITE`, NO `FSCTL_LOCK_VOLUME`,
+  NO `FSCTL_DISMOUNT_VOLUME`, NO `DeleteVolumeMountPoint`,
+  NO `FlushFileBuffers`, NO `Sleep`-settle, NO `FSCTL_IS_VOLUME_MOUNTED`
+  verify. The og's `RecoveryModule.dll` (and the duplicate in
+  `PartitionRecovery.dll`) performs the full sequence at
+  `RecoveryModule_decompiled.c:44686-44720`:
+  `FSCTL_LOCK_VOLUME` (0x90018) → `DeleteVolumeMountPointA` →
+  `FlushFileBuffers` → `Sleep(2000)` settle → `FSCTL_IS_VOLUME_MOUNTED`
+  (0x90020) verify → `FSCTL_DISMOUNT_VOLUME` (0x9001c). The core's repair
+  writes can race with the OS file-system driver (NTFS journaling, AV
+  scanners, background indexers, Explorer browsing). The transactional
+  undo log mitigates the worst case (rollback on verify-mismatch), but a
+  torn write that the read-back verify itself races with could land
+  inconsistent bytes — silent volume corruption. The SCAN path is MATCH
+  (both og and core open the scan volume with `FILE_SHARE_READ|WRITE|DELETE`).
+- **X51 — M-009 (MAJOR, perf):** `RwDevice::read_at` (`cr_transport.cpp:743-749`)
+  calls `overlapped_read(h_, off, buf, len, via_rda_)` directly, bypassing
+  the `aligned_read_at` envelope (`:148-170`) that GAP-S6-13 mandates for
+  every direct read path. The scan-path devices (`DirectDevice:213-219`,
+  `RdaTargetDevice:263-269`) both route through the envelope; only
+  `RwDevice` skips it. On 4Kn NVMe devices this triggers the documented
+  ~3.5× slow path (~830 MB/s vs ~2900 MB/s). The mandate (`cr_directalign.h:1-22`)
+  is violated. One-line fix: route through `aligned_read_at`.
+
+### Session 2 findings index (this module)
+
+| ID | Severity | One-line |
+|---|---|---|
+| S-010 | SEVERE | Repair-path volume lock missing (FSCTL_LOCK_VOLUME + FSCTL_DISMOUNT_VOLUME) |
+| M-009 | MAJOR | RawFixer read path bypasses the 64 KiB direct-I/O envelope |
+| OQ-S2C-3 | open question | Og's pre-scan RawFixer consent UX (auto vs prompted) |

@@ -64,3 +64,27 @@ largest single-engine file) + `include/cr/zfs/` + `tests/unit/test_zfs_volume.cp
 |---|---|---|
 | OQ-T6 | tracked-open | nvlist anchor; multi-vdev DVA resolution; uberblock geometry; checksum depth |
 | S-005 | SEVERE | (cross-engine) Names byte-lifted → mojibake — **FIXED (diff-to-fix session)** |
+
+---
+
+## Session 2 re-audit (audited commit `5d6da5f`)
+
+- **B9 timestamps — MATCH re-verified:** core `cr_zfs_engine.cpp:1236-1239,
+  1249-1252` `le64(b + SA_LAYOUT1_ATIME)` reads only the first 8 bytes
+  (seconds) of the 16-byte SA timestamp attribute. Og
+  `ZfsSearchDLL_decompiled.c:24464` calls `FUN_180010ef0(pbVar8, pbVar3,
+  ...)` where `pbVar3 = pbVar8 + min(local_28, 8)` — caps the read at 8
+  bytes. Both drop the second u64 (nsec). MATCH. (Note: the S-005 fix
+  addressed the filename mojibake; the timestamp behavior was correct on
+  both sides already.)
+- **B9 extra timestamps — I-007 (INFO, superset candidate):** the S-005
+  finding's resolution added the ZFS pool display name decoding; this
+  session did NOT surface a ZFS-specific extra-timestamp divergence
+  beyond what S-005 covered. ZFS B9 verdict: MATCH-with-note (the
+  4-timestamp superset pattern of I-007 does NOT apply to ZFS — the og
+  reads the same number of ZFS timestamps as the core).
+
+### Session 2 findings index (this module)
+
+(No new ZFS-specific findings in session 2. S-005 was the ZFS B10 finding;
+it is now FIXED and lives in `findings/FIXED/`.)

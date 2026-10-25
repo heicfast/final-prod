@@ -150,3 +150,86 @@ describes `67193b6`; the fix direction closes the gap. **Re-audit of the
 remnant $DATA path against the corpus remnant artifacts is queued for the next
 full audit pass** (the corpus's remnant scan documentation is thin —
 FUN_18002a780 shifted-salve is the primary decoded reference).
+
+---
+
+## Session 2 re-audit (audited commit `5d6da5f`)
+
+Session 1's NTFS B7 "MATCH" verdict for hard-link/ADS/sparse was **REFUTED**
+by session 2's line-by-line decompile read. Three new findings + one minor:
+
+- **B7 hard-link fan-out — M-007 (MAJOR, superset):** og's `FUN_180006db0`
+  calls `FUN_1800448b0` exactly ONCE per record (decompile `:5273`); the
+  function fetches at most TWO `$FILE_NAME` attributes (indices 0 and 1) and
+  picks ONE by namespace ranking. The core's `cr_mftwalk.cpp:711-724` collects
+  ALL distinct parents and emits ONE node per parent (`:796-841`). Test
+  `EndToEndWalk` `stats.hardlinks == 1u` proves the divergence. The session-1
+  "M one node per distinct parent with shared refcounted props" verdict was
+  based on a misread of the LOCK/unlock block as hard-link refcount management
+  (the cited lines `21170-21205` are actually the viability+destroy block —
+  see S-001's errata section).
+- **B7 ADS — N-011 (MINOR, superset):** og's `FUN_1800069e0:5159-5160`
+  explicitly checks `is_named($DATA)` and skips when true — ADS silently
+  dropped. The core's `cr_mftwalk.cpp:854-899` emits ADS as child nodes,
+  capturing resident ADS content + nonresident ADS extents. Tests
+  `ResidentAdsCarriesContent` and `EndToEndWalk` `stats.ads == 1u` pass on
+  the core; would fail on the og.
+- **A25/A27 `$ATTRIBUTE_LIST` chase scope + depth — M-008 (MAJOR, superset):**
+  og's `FUN_180041df0` (`:52615-52687`) is depth-1 with no recursion into
+  child records' `$ATTRIBUTE_LIST`. The deleted-phase walk `FUN_18001acc0`
+  (`:21095-21302`) passes NULL `param_6` at `:21161-21162`, disabling the
+  chase entirely for deleted records. The core's `cr_mftwalk.cpp:475-572`
+  is a multi-hop BFS with depth bound 64 (`FRAG_DEPTH_LIMIT` at `:23`),
+  cycle guard via `visited` vector (`:489-501`), and fires for ALL records
+  (no in-use gate). Test `NestedAttrlistChase` exercises multi-hop chase
+  for record 23 → 24 → 25.
+- **D11 compressed/sparse flag — N-012 (MINOR):** og's `+0x23` serialized
+  flags sourced from `$SI.dos_flags` (`:5351`); core's `props->attributes`
+  sourced from `$FILE_NAME.dos_flags` (`cr_mftwalk.cpp:735`) and masked to
+  `& 0xFF` (drops 0x400 OFFLINE). Source mismatch + bit-mask divergence.
+
+### Confirmed MATCH items (session 2 re-verified)
+
+- **B7 sparse accounting post-S-001 sub-fix:** og
+  `FUN_18001acc0:21220` `if (*plVar13 != -1)` skips sparse runs in viability
+  iterator; core `cr_bitmap.cpp:96-97` `if (r.sparse) continue;` skips sparse
+  in `reused_ratio`. Both exclude sparse from `total` and `reused`/`intact`.
+  The candidate-4 concern (sparse-but-allocated falsely destroyed) is NOT
+  a divergence: a sparse-only deleted file grades `Excellent` (ratio 0.0)
+  and is NOT destroyed by either side.
+- **B7 reparse points:** og `FUN_180006db0` only handles types 0x10/0x30/0x80,
+  no 0xC0 dispatch. Core `cr_mftwalk.cpp:78-153` `build_props` switch only
+  handles `ATTRIBUTE_LIST`/`FILE_NAME`/`STANDARD_INFORMATION`/`DATA`/
+  `INDEX_ALLOCATION`. Both ignore `$REPARSE_POINT`.
+- **B7 `$OBJECT_ID` (0x40):** both ignore. MATCH.
+- **B7 `$VOLUME_NAME`/`$VOLUME_INFORMATION`:** both ignore at the engine
+  level (volume label is an orchestrator/UI concern). MATCH.
+- **B9 `$SI` vs `$FILE_NAME` time precedence:** og
+  `FUN_180006db0:5338-5341` sets from `$FILE_NAME`, then `:5347-5350`
+  OVERRIDES with `$SI` times if `$SI` exists and is valid. Core
+  `cr_mftwalk.cpp:734` `props->times = has_si ? si_times : best->times;`.
+  `$SI` wins when present, both sides. (Minor note: og stores 3 times
+  [created/modified/changed — no accessed] per the serializer field map;
+  core stores 4 via `FileTimes`. Extra `accessed` is informational.)
+- **B7 `$FILE_NAME` with parent ref to deleted dir:** both reparent to
+  `root_lost` for unresolved parents. MATCH.
+
+### Session 2 findings index (this module)
+
+| ID | Severity | One-line |
+|---|---|---|
+| M-007 | MAJOR | Hard-link fan-out: og emits 1 node per record, core emits N |
+| M-008 | MAJOR | `$ATTRIBUTE_LIST` chase scope + depth: core multi-hop all-records, og depth-1 in-use-only |
+| N-011 | MINOR | ADS: og ignores named `$DATA`, core emits ADS as child nodes |
+| N-012 | MINOR | Compressed/sparse flag: $SI vs $FILE_NAME source mismatch + 0xFF mask drops 0x400 |
+| OQ-S2A-1..4 | open questions | In-use-phase record selection; downstream hard-link/ADS handling; $MFT $AttrList depth |
+
+## Session 1 findings index (preserved for navigation)
+
+| ID | Severity | One-line |
+|---|---|---|
+| S-001 | ~~SEVERE~~ → FIXED | Fully-overwritten deleted files emitted (graded) vs og destroy — moved to `findings/FIXED/` |
+| M-001 | ~~MAJOR~~ → FIXED | Bootstrap rejects record sizes og clamps — moved to `findings/FIXED/` |
+| N-001 | MINOR | $MFTMirr fallback hardcoded records 0..3 vs runlist span |
+| I-001 | INFO | Known-20 metafile filter vs blanket `$`-skip (deliberate, documented) |
+| OQ-T1 | ~~tracked-open~~ → FIXED | Secondary claim map semantics — moved to `findings/FIXED/` |

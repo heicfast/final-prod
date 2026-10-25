@@ -74,3 +74,21 @@ Core (audited commit `67193b6`): `src/core/hfsplus/cr_hfsplus_engine.cpp` (680 L
 
 - HFS+ hard links (special catalog records): og handling not decoded; core surfaces them
   as ordinary records. Both-sides-undocumented — revisit if a corpus decode lands.
+
+---
+
+## Session 2 re-audit (audited commit `5d6da5f`)
+
+- **B9 extra timestamps — I-007 (INFO, superset):** core reads all 4
+  HFS+ catalog dates (`create_date`, `mod_date`, `attr_date`, `access_date`)
+  via `cr_hfsplus_engine.cpp:494-497` with `mac_to_filetime()`. Og reads
+  only 3 (create/content_mod/attr_mod) at
+  `HFSPlusSearchDLL_decompiled.c:8012, 8027, 8042`; the 4th HFS+ catalog
+  date `access_date` at `+0xCC` is NEVER read. The constant `0x239eae080 =
+  9561628800` matches core's `mac_to_filetime` exactly. Core superset.
+
+### Session 2 findings index (this module)
+
+| ID | Severity | One-line |
+|---|---|---|
+| I-007 | INFO | Core reads 4 timestamps (incl. access_date), og reads 3 (access_date dropped) |

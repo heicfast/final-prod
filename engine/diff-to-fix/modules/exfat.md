@@ -86,3 +86,26 @@ Core (audited commit `67193b6`): `src/core/exfat/` (2 files, 678 LOC) +
    evidence) — core is right.
 2. `rawfixer-v2--method-inventory.md` §4 ChecksumDBR byte-range description ("bytes
    11..209 + 510") contradicts the verified loop bound (`sector_size × 0xB`).
+
+---
+
+## Session 2 re-audit (audited commit `5d6da5f`)
+
+- **B9 tz_offset — S-011 (SEVERE, parity):** exFAT stores each file's
+  create/modify/access timestamps as local time on disk PLUS a per-timestamp
+  `UtcOffset` byte (7-bit two's-complement quarter-hours from UTC). The og's
+  `exFATSearchDLL.dll` imports NONE of `LocalFileTimeToFileTime`/
+  `FileTimeToLocalFileTime`/`GetTimeZoneInformation` (verified by full read of
+  `rabin2_imports.txt`). The og's `FUN_180001370` at
+  `exFATSearchDLL_decompiled.c:5215-5235` calls `DosDateTimeToFileTime` on the
+  raw date+time words (host-timezone-dependent local-as-UTC). The core's
+  `exfat_time_to_unix100(ts, tz)` (`cr_exfat_quick.cpp:121-139`) reads the `tz`
+  byte and SUBTRACTS the offset to produce true UTC. The two diverge by
+  exactly `tz_offset × 900 × 10⁷` (100ns units). For UTC+8 files that's 8
+  hours. Spec-correct UTC vs og's local-as-UTC. Parity-breaking.
+
+### Session 2 findings index (this module)
+
+| ID | Severity | One-line |
+|---|---|---|
+| S-011 | SEVERE | tz_offset applied (core) vs ignored (og); FileTime diverges by tz hours |

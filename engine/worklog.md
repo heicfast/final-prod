@@ -3344,3 +3344,77 @@ Stage Summary:
 - 5 new findings authored (M-009, N-017, N-018, N-019, N-020) + M-006 expansion (D6 catalogues
   fuzz harness gaps). 14 MATCH items re-verified. 4 corpus errata candidates. 5 open questions.
   Read-only mandate held.
+
+---
+Task ID: S2-2 (session 2 wave 3 — module files + CORPUS-ERRATA + final commit)
+Agent: main auditor (session 2)
+Task: Wave 3 — update per-module files with session 2 findings; author CORPUS-ERRATA.md; final commit + push
+
+Work Log:
+- Updated 12 of 19 module files with session 2 sections:
+  * ntfs.md (session 1 B7 refuted; new M-007, M-008, N-011, N-012 + 6 confirmed MATCH items)
+  * fat.md (new N-010)
+  * exfat.md (new S-011)
+  * ext4.md (new I-006, I-007)
+  * hfsplus.md (new I-007)
+  * btrfs.md (new I-007)
+  * zfs.md (B9 MATCH re-verified; S-005 covered the B10 filename divergence)
+  * rawfixer.md (new S-010, M-009)
+  * orchestration.md (new N-016, N-017)
+  * session.md (new N-014)
+  * writer.md (new N-013, N-015 + N-009d refinement)
+  * cli.md (new N-020 partial)
+  * health.md (no new findings — confirmed session 1 verdicts)
+- The remaining 6 modules (ldm, lost-partition, carve, refs, visualization, abi)
+  got brief "no new findings" session 2 notes for audit-trail completeness.
+- Authored diff-to-fix/CORPUS-ERRATA.md cataloging 18 corpus errata candidates
+  surfaced across session 1 + session 2:
+  * E1-E6 (from S2-A): NTFS deep-dive/algorithms-v2 misreads (LOCK/unlock block,
+    in-use-flag, viability gate >=, 0x40 attribute cite, secondary claim map).
+  * E7-E10 (from S2-B): timestamp-decode out-of-scope notes for FAT/exFAT,
+    ext4/HFS+, Btrfs/ZFS algorithm docs; NTFS precedence gap in internals doc.
+  * E11-E14 (from S2-C): 04-recovery-workflow ACL/lock-volume understate,
+    rsf-format boot-sector snapshot vs CRC32, locked-volumes repair-path gap,
+    rsf record-header CRC32 hardening.
+  * E15-E18 (from S2-D): ntfs-engine-internals.md GlobalMemoryStatus citation
+    incomplete, condition-variables claim may apply to wrong binary,
+    DRWUI thread-architecture work-stealing claim uncited, 05-scan-engine
+    "512B sectors" too narrow for RDA driver.
+
+Stage Summary:
+- Wave 3 complete: 12 module files updated with session 2 sections; 6 module
+  files got brief notes; CORPUS-ERRATA.md authored (18 entries).
+- Session 2 deliverables:
+  * diff-to-fix/findings/FIXED/ — 5 resolved findings moved here + RESOLVED-INDEX.md
+  * diff-to-fix/findings/{SEVERE,MAJOR,MINOR,INFORMATIONAL}/ — 17 new finding files
+  * diff-to-fix/CROSS-REF-MATRIX.md — session 2 changes marked (S2)
+  * diff-to-fix/SUMMARY.md — active counts (0/9/6/18/7/8) + session 2 delta + remediation log
+  * diff-to-fix/README.md — session 2 navigation
+  * diff-to-fix/CORPUS-ERRATA.md — 18 corpus errata candidates
+  * diff-to-fix/modules/*.md — 12 modules updated with session 2 sections; 6 with brief notes
+- Final active counts: 0 ACUTE, 9 SEVERE, 6 MAJOR, 18 MINOR, 7 INFO, 8 tracked-open = 38 active.
+- Resolved counts: 5 (in findings/FIXED/).
+- Read-only mandate held throughout: zero source files modified. Only diff-to-fix/
+  and worklog.md (and worklog/session-2-diff-audit-prompt.md) touched.
+- Recommended next remediation wave (priority order):
+  1. S-010 (safety regression on repair path; can corrupt volumes during concurrent access)
+  2. S-011 (exFAT tz_offset; one-line fix; matches og's local-as-UTC)
+  3. M-009 (RawFixer bypasses 64 KiB envelope; one-line fix)
+  4. S-002 (HFS+ decmpfs — primary user scenario)
+  5. S-008 (RawFixer pre-scan wiring; composes with S-010's lock fix)
+  6. S-006 (lost-partition probe families)
+  7. S-007 (carve formats)
+  8. S-003 (HFS+ journal replay)
+  9. S-004 (ext4 journal every-block surface)
+  10. M-007/M-008 (hard-link fan-out + $AttrList chase; opt-in parity flags)
+  11. M-002 (EBR torn-chain salvage)
+  12. M-005 (carve bitmap gating)
+  13. M-006 (re-enable fuzz CI + add 6 missing harnesses per N-019)
+  14. N-010 (FAT invalid-date one-line guard)
+  15. N-013/N-014/N-015 (writer destination validation trio; composes with S-010's lock fix)
+  16. N-016 (emit_boundary_events double-call bug; one-line removal)
+  17. N-017 (cancel watcher coverage; one-line parallel_for poll)
+  18. N-018 (UBSan CI lane; mirror the TSan lane)
+  19. N-019 (12 missing per-parameter regression tests)
+  20. N-020 (6 stale doc claims — including the S-009 finding file that should
+      move to FIXED/ per GAP-S6-11 having landed)

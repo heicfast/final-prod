@@ -82,3 +82,23 @@ Core (audited commit `67193b6`, includes concurrent GAP-S6-1/S6-2 fix `9fc82b0`)
 
 - (via exFAT wave, filed here for the FAT-family artifact): none additional this module —
   see exfat.md.
+
+---
+
+## Session 2 re-audit (audited commit `5d6da5f`)
+
+- **B9 invalid-date sentinel — N-010 (MINOR):** og's `FATSearchDLL` calls
+  `DosDateTimeToFileTime` then explicitly zeros the props slot on failure
+  (`FATSearchDLL_decompiled.c:32135-32138` `if (BVar5 == 0) *slot = 0;` —
+  zero FILETIME = `1601-01-01 UTC`). The core's `fat_datetime_to_unix_seconds`
+  returns 0 for invalid dates (`cr_fat_wire.h:130`), but the caller
+  `cr_fat_quick.cpp:255-262` unconditionally adds `116444736000000000ULL`,
+  yielding `1970-01-01 UTC` instead of `0`. The exFAT engine in the same
+  codebase handles this correctly (`cr_exfat_quick.cpp:124-125` early-exit
+  on `date == 0`). Only the FAT engine has the divergence. One-line guard fix.
+
+### Session 2 findings index (this module)
+
+| ID | Severity | One-line |
+|---|---|---|
+| N-010 | MINOR | Invalid-date yields non-zero FileTime in core (1970-01-01), zero in og (1601-01-01) |

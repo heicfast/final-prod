@@ -50,3 +50,31 @@ Core (audited `67193b6` + concurrent fixes in tree): `src/core/orchestrator/cr_s
 Concurrent fixes landed in-window and are IN the audited tree: GAP-S6-6 (candidate
 dedup containment), GAP-S6-7 (metadata-only skip), GAP-S6-8 (carve absolute-extent
 dedup), GAP-S6-13 (64 KiB transport envelope).
+
+---
+
+## Session 2 re-audit (audited commit `5d6da5f`)
+
+- **O38 — N-016 (MINOR):** `emit_boundary_events_` double-call bug at
+  `cr_scan.cpp:577-578` — the same call appears twice, once with 4-space
+  indent and once with 8-space indent (clear merge artifact). The function
+  emits `FilesFound` + `ErrorRange` events; double-calling double-emits these
+  on every stage exit. The other 3 call sites (`:652`, `:1016`, `:1070`)
+  each call it once. UI consumers counting events see double counts on the
+  final boundary tick.
+- **X53 — N-017 (MINOR):** cancel watcher coverage inconsistent. The carve
+  multi-threaded path spawns a 50 ms watcher (`cr_carve.cpp:418-429`) that
+  polls `cancel->cancelled()` and calls `pool->abort()`. The orchestrator's
+  parallel candidate scan (`cr_scan.cpp:952-1003`) uses `parallel_for(pool,
+  n, worker_job)` with NO equivalent watcher; workers poll the external
+  `cancel` token at engine loop heads only. A queued candidate that starts
+  AFTER a user cancel will not bail until its first engine loop head — could
+  be hundreds of records in. Worst-case latency bounded by one candidate's
+  first poll cadence.
+
+### Session 2 findings index (this module)
+
+| ID | Severity | One-line |
+|---|---|---|
+| N-016 | MINOR | emit_boundary_events_ double-call bug (telemetry inflation) |
+| N-017 | MINOR | Cancel watcher coverage inconsistent (carve has, orchestrator doesn't) |

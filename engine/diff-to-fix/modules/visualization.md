@@ -31,3 +31,12 @@ Core (audited `67193b6`): `src/core/query/cr_query.cpp` + `src/core/preview/cr_p
 |---|---|---|
 | S-009 | SEVERE | No volume-bitmap/disk-map surface (ABI-CONTRACT §7 to-build) |
 | (project GAP) | MAJOR | Filter category granularity 7-cat/85-ext vs og 8/1489 |
+
+---
+
+## Session 2 re-audit (audited commit `5d6da5f`)
+
+No new visualization-specific findings in session 2. The session-1 verdicts
+stand. Session 2's parallel agents re-verified the architecture parameters
+(R54-R58) and safety parameters (F60-F64) cross-cuttingly; no new
+visualization-specific divergences surfaced.

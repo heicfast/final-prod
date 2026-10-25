@@ -79,3 +79,31 @@ Core (audited commit `67193b6`): `src/core/ext4/cr_ext4_engine.cpp` (851 LOC) +
 2. `ext4-engine--deep-dive.md` backup-SB positions (8193, 32768, …) are kernel-knowledge
    overreach, not in the decompile (CORRECTIONS #4 already says UNVERIFIED; core does not
    probe backup SBs either — consistent).
+
+---
+
+## Session 2 re-audit (audited commit `5d6da5f`)
+
+- **B9 nanoseconds — I-006 (INFO, superset):** core's `decode_extra()`
+  (`cr_ext4_engine.cpp:88-93`) extracts nsec from `*_extra` word (kernel
+  `ext4_decode_extra_time` algorithm). `unix_to_filetime_ns(sec, nsec)`
+  (`cr_types.h:56-61`) preserves nsec at 100ns granularity. Og's
+  `EXT4SearchDLL` reads only seconds (`i_ctime` at +0x0C, `i_mtime` at +0x10)
+  and uses `_gmtime32_s` (second-granularity) + `wMilliseconds = 0`
+  hardcoded — sub-second precision silently dropped. Core is strictly more
+  precise; .rsf byte stream differs by sub-second 100ns units.
+- **B9 extra timestamps — I-007 (INFO, superset):** core reads all 4
+  timestamps (created/modified/changed/accessed) via `i_atime_extra`,
+  `i_ctime_extra`, `i_mtime_extra`, `i_crtime`, `i_crtime_extra`
+  (`cr_ext4_engine.cpp:283-297`). Og reads only 2 (ctime + mtime) at
+  `EXT4SearchDLL_decompiled.c:6262-6282`; the 3rd/4th FILETIME slots
+  (`props+0x4b`/`+0x55`) are initialized to 0 and NEVER assigned. Core
+  superset — every ext4 file has non-zero `created`/`accessed` slots where
+  the og's has zeros.
+
+### Session 2 findings index (this module)
+
+| ID | Severity | One-line |
+|---|---|---|
+| I-006 | INFO | Nanoseconds superset (core preserves nsec; og drops to second-only) |
+| I-007 | INFO | Core reads 4 timestamps, og reads 2 (created/accessed dropped) |

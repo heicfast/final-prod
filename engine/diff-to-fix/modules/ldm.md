@@ -75,3 +75,12 @@ Core (audited commit `67193b6`): `src/core/table/` (cr_table_parse, cr_ldm, cr_c
 
 Audited baseline `67193b6` already includes concurrent fixes through `7797bd6`; no
 table/LDM files were touched by the concurrent session's later commits at audit time.
+
+---
+
+## Session 2 re-audit (audited commit `5d6da5f`)
+
+No new ldm-specific findings in session 2. The session-1 verdicts
+stand. Session 2's parallel agents re-verified the architecture parameters
+(R54-R58) and safety parameters (F60-F64) cross-cuttingly; no new
+ldm-specific divergences surfaced.

@@ -29,3 +29,15 @@ Core (audited `67193b6`): `src/core/health/cr_nvme.cpp` (113 LOC parser) +
 ## Test debt
 
 Win-layer passthrough paths; attribute-row decode vectors.
+
+---
+
+## Session 2 re-audit (audited commit `5d6da5f`)
+
+No new health-specific findings in session 2. The N-009a finding (NVMe
+percentage_used u16 vs spec u8) stands. Health module is otherwise MATCH
+per session 1's verdicts.
+
+### Session 2 findings index (this module)
+
+(No new findings in session 2.)

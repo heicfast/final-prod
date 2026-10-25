@@ -60,3 +60,12 @@ Core (audited commit `67193b6` + concurrent `03ddcd2` GAP-S6-6 fix in tree):
 `03ddcd2` (GAP-S6-6, concurrent session) landed during this audit and is INCLUDED in the
 audited tree: nested-dedup containment now requires probe-derived sizes. The S-006 probe
 set is unchanged by that fix.
+
+---
+
+## Session 2 re-audit (audited commit `5d6da5f`)
+
+No new lost-partition-specific findings in session 2. The session-1 verdicts
+stand. Session 2's parallel agents re-verified the architecture parameters
+(R54-R58) and safety parameters (F60-F64) cross-cuttingly; no new
+lost-partition-specific divergences surfaced.
