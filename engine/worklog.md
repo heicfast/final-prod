@@ -7600,10 +7600,8 @@ Stage Summary:
 - S-028 CLOSED. Remaining SEVERE: S-009, S-029, S-030, S-031, S-032 (the
   s5b/s7 audit legs' new filings + the disk-map remainder). Next: S-031
   (carved files never marked deleted) — small + user-visible.
->>>>>>> 7fdd51a (fix(S-028): btrfs xattr recovery — user.DOSATTRIB attribute bits, user.* stream records, the compression-property tag)
 
 ---
-<<<<<<< HEAD
 Task ID: S7-MERGE2
 Agent: main engineer (closing session, df5 lineage)
 Task: Converge with the 5b0bc7b arc (S-025 ext4 reparenting, S-028 btrfs xattrs, the api-close handoff) + the A-006 ID-collision resolution.
@@ -7761,7 +7759,6 @@ Stage Summary:
   matrix ext4 row; modules/ext4.md; SUMMARY re-baselined to the concurrent
   parallel-leg inventory (7 SEVERE / 92 active / 53 FIXED).
 
->>>>>>> 0348532f6a7de11bdf94e47f188bbb4e579b0644
 ---
 Task ID: FF-S024 (S-024 decoded-truth upgrade — health grading engine)
 Agent: main engineer (diff-to-fix closing session — fix-all-tiers continuation)
@@ -7825,7 +7822,6 @@ Stage Summary:
   only deliberate divergence (failing-bit → disk Bad) registered as
   D-62. Open health items: M-036 (NVMe field coverage), N-032 (CSMI/
   USB transports), N-042 (CLI temp digit), N-064 (Dict dictionary).
-=======
 Task ID: S6-WAVE1+RECON (session-6 deep continuation, wave 1 + the multi-leg ID reconciliation)
 Agent: session-6 parity auditor (read-only continuation — never-cited surfaces + fix verification)
 Task: Execute the session-5 citation-gap lanes (A-H, defined 2001f7c, never run), verify/update
@@ -7879,7 +7875,6 @@ Stage Summary:
   S-031 two-site emission fix → N-074 doc batch → N-068 ZIP validators → N-065 writer
   collision/D-19 → N-070 overlap scoring → S-032 payload → N-067 upcase → N-075 query
   exports → N-073 catch-buffer.
->>>>>>> 4a3f5d4 (diff-audit-s6 recon: multi-leg ID reconciliation — 3 convergent findings harvested into the landed S-031/S-032/N-059; 14 unique renamed (M-052, N-065..N-075, I-023/I-024); post-resolution corrections for the same-window fix wave (S-007 MPEG-family landed, S-024 0xD1 landed) — append-only, cross-refs scoped to session-6 sections only)
 ---
 Task ID: CF-S031 (closing session)
 Agent: main engineer (diff-to-fix closing session)
