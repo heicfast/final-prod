@@ -1,0 +1,33 @@
+# modules/visualization.md — query/preview/disk-map audit verdicts
+
+Reference: og AnalysisGridWidget + IBuildVolumeBitmap + event bus (UIUX/03/04/08,
+searchdll-family §2), preview caps (UIUX/10: 15 s video QTimer, 100 MB cap,
+VAPreview ports 20171/20172 + 602-byte header protocol), RecoveryAssistant categories.
+
+Core (audited `67193b6`): `src/core/query/cr_query.cpp` + `src/core/preview/cr_preview.cpp`
+(1,081 LOC) + `tests/unit/test_query.cpp` + `test_preview.cpp` + `test_query_perf.cpp`.
+
+## Verdicts
+
+- **D16 filter model** — `M`-note: core's filter predicate set (name/path/kind/state/
+  size/time) covers the og's bucket model (Date 0x100–0x105, Size 0x1000–0x1004) at the
+  engine layer; the og's FileFilter.xml category membership (8 categories / 1,481 ext) is
+  UI-side — core's kind filtering is coarser (per-FS kind, not per-extension-category).
+  Registered project gap (CORE-GAP-LIST: 7-cat/85-ext vs og 8/1489) — verdict:
+  DIVERGENCE-MAJOR via the project's own register (re-verified open).
+- **D17 sort model** — `M` (Path/name/size/time sorts; Path sort materializes paths —
+  perf note only).
+- **D18 paging** — `M` (bounded fetch, strict/lenient modes).
+- **X48/X52** — `M` (1M nodes < 200 ms query budget, randomized-vs-reference tests).
+- **Preview** — `M`-note: core preview decodes docx raw-deflate + truncated-magic gates;
+  og preview caps (15 s / 100 MB / VAPreview protocol) are UI-service-layer — engine
+  data contract satisfied; the og's video/audio preview services are out of the core's
+  engine scope (UI product decision).
+- **Disk map** — **S-009** (IBuildVolumeBitmap/AnalysisGridWidget surface absent).
+
+## Findings index
+
+| ID | Severity | One-line |
+|---|---|---|
+| S-009 | SEVERE | No volume-bitmap/disk-map surface (ABI-CONTRACT §7 to-build) |
+| (project GAP) | MAJOR | Filter category granularity 7-cat/85-ext vs og 8/1489 |

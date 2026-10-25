@@ -1835,3 +1835,23 @@ Stage Summary:
   into the tracked-open file.
 - New sub-finding (sparse-run accounting in reused_ratio) to be fixed with S-001 and noted
   in its Resolution; no new finding file needed (same code path, same decompile evidence).
+---
+---
+Task ID: 11-20 (T11..T20)
+Agent: main auditor
+Task: session/writer/health/rawfixer/orchestration/visualization/abi/cli audits + cross-cutting (T17 perf/arch/safety, T19 quality) + closeout
+
+Work Log:
+- T11 session: CRSF vs .rsf field-equivalence verified (chunk algebra identical, records equivalent, hardening supersets) — no findings, module file.
+- T12 writer: M on overlap refusal/sanitization/streaming; N-009b (progress over-report), N-009d (ACL).
+- T13 health+rawfixer: N-009a (u16 percentage_used); S-008 (RawFixer boot-sector subset + not wired pre-scan vs og 33-method pre-scan repair incl. CheckMFT/CheckFatTable).
+- T14 orchestration: stage model/progress/threading/resume verified M; M-005 (carve whole-slice vs og bitmap-gated free-space) filed under carve.
+- T15 visualization: S-009 (no disk-map/IBuildVolumeBitmap surface; ABI-CONTRACT §7 to-build); filter-category granularity re-verified open as project GAP.
+- T16 ABI+CLI: cr_ui surface/versioning M; N-009c (--filter ASCII mangling).
+- T17-T19 cross-cutting: X51 64KiB envelope verified post-GAP-S6-13 (superset vs og 512-sector driver); fuzz CI disabled → M-006; sanitizers/docs/stubs/Win7 verified clean; I-005 groups 7 reviewed supersets.
+- T20 closeout: SUMMARY.md finalized (1 ACUTE / 9 SEVERE / 4 MAJOR / 12 MINOR / 5 INFO / 9 tracked-open; fix order ranked), CROSS-REF-MATRIX finalized, all 19 module files complete.
+
+Stage Summary:
+- Deliverable complete: diff-to-fix/ = README, SUMMARY, SEVERITY-SCALE, PARAMETERS, CROSS-REF-MATRIX, 15 finding files (31 finding IDs), 19 module files, evidence (decompiled-quotes x3, executions x2 incl. the A-001 canonical-GUID proof harness), tracked-open x4 files (9 OQs).
+- Audited commit 67193b6 (concurrent GAP-S6 fixes through 7777e1c verified in-tree). Corpus 03ad46c.
+- No source files modified. Read-only mandate held throughout.
