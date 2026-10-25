@@ -854,6 +854,7 @@ ext4/Btrfs invalid-UTF-8 finding (briefly M-007 in a local commit) renumbered to
 | 2026-10-25 (S3) | A-002 | **FIXED** | `7f2c83e` real Microsoft/og GUIDs restored; tests de-self-referenced + negative guards; session-3 independent og-binary re-extraction converges (4 binaries / 7 sites) |
 | 2026-10-25 (S3) | S-010 | **FIXED** | `3e34ed2`+`414f56c`+`34b3441` volume quiesce on the repair write path; 3 fail-before lock tests; SUMMARY stale-row reconciled this session |
 | 2026-10-25 (S3) | M-009 | **FIXED** | `7fd00e0` RwDevice::read_at routes through the 64 KiB envelope; verified first-hand this session |
+| 2026-10-26 | **M-010** | **FIXED** | lossless invalid-UTF-8 name mapping for ext4/Btrfs (U+E000+byte, bijective, with the inverse); ZFS keeps U+FFFD (the og asymmetry pinned); Text.* + Btrfs.Latin1* + updated NonAscii* tests; suite 462/462 Linux ASan |
 | 2026-10-26 | **A-005 (NEW, discovered during S-021 verification)** | **FIXED** | HFS+ B-tree record-span convention inverted vs TN1150/the og's validator — on real volumes only record 0 per node was emitted; for_each_record spans + all fixtures corrected (one builder point); LeafNodeLayoutMatchesOnDiskFormat guard; fail-before: the old reader fails EndToEndWalk + both Decmpfs tests against the corrected fixtures |
 | 2026-10-26 | **S-021** | **FIXED** | the journal deleted-record harvest (the og's PRIMARY deleted HFS+ surface): JIB/jhdr gates, ring walk (u16 header test - a decode correction), og node-image validator, fork classification by volume ranges, catalog differential + extents side map, sweep dedup; 4 tests; suite 401/401 Linux ASan; decode corrections recorded in evidence s3-hfsplus-inventory.md §3a + errata E37 |
 | 2026-10-26 | **A-005 (NEW, discovered during S-021 verification)** | **FIXED** | HFS+ B-tree record-span convention inverted vs TN1150/the og's validator — on real volumes only record 0 per node was emitted; for_each_record spans + all fixtures corrected (one builder point); LeafNodeLayoutMatchesOnDiskFormat guard; fail-before: the old reader fails EndToEndWalk + both Decmpfs tests against the corrected fixtures |
@@ -1165,3 +1166,8 @@ harvest. 4 tests + the A-005 guard test; full suite **401/401** Linux ASan.
 S-007, S-009-partial, S-020, S-023..S-028) · MAJOR 22 · MINOR 33 · INFO 12 ·
 **total active 77** / **35 FIXED** (tracked-open: the existing OQ files, now
 including OQ-S012).
+
+
+**Fix-session-4 addendum (M-010):** the invalid-UTF-8 name edge closed — ext4/Btrfs
+names now carry a REVERSIBLE encoding of their raw bytes (U+E000 + byte) instead
+of baked U+FFFD; ZFS stays replacement (the og's own asymmetry). Suite 462/462.

@@ -92,6 +92,108 @@ inline std::u16string utf8_to_u16(std::string_view in) {
     return out;
 }
 
+/* M-010 (diff-to-fix): LOSSLESS variant for the raw-byte engines (ext4,
+ * Btrfs). The og's EXT4/Btrfs DLLs import no byte<->wide conversion at
+ * all (EXT4SearchDLL_imports.txt / BtrfsSearchDLL_imports.txt - re-verified
+ * M-010 session: zero hits), so whatever bytes the directory entry carries
+ * reach the og's session verbatim. A name that is not valid UTF-8 must
+ * therefore stay RECONSTRUCTIBLE in the core too: every byte that cannot
+ * start (or continue) a valid sequence maps to U+E000 + byte (the
+ * private-use plane; MUTF-8-style lossless mapping). The mapping is a
+ * bijection - original_byte = unit - 0xE000 - so the on-disk name bytes
+ * round-trip: no information is destroyed.
+ *
+ * The split surface IS the og parity: ZFS's og engine converts every name
+ * with MultiByteToWideChar(CP_UTF8, flags=0) and bakes U+FFFD
+ * (ZfsSearchDLL FUN_18001c630 :24995+), so ZFS keeps utf8_to_u16
+ * (replacement) - the engine asymmetry is deliberate and pinned by test.
+ *
+ * Do NOT "clean" private-use units downstream (session/report/CLI must
+ * pass them through; the round-trip pin test guards this). */
+inline std::u16string utf8_to_u16_lossless(std::string_view in) {
+    std::u16string out;
+    out.reserve(in.size());
+    const u8* p = reinterpret_cast<const u8*>(in.data());
+    const u8* end = p + in.size();
+    while (p < end) {
+        u32 cp = 0;
+        u32 extra = 0;
+        if (*p < 0x80u) {
+            cp = *p;
+        } else if ((*p & 0xE0u) == 0xC0u) {
+            cp = *p & 0x1Fu;
+            extra = 1;
+        } else if ((*p & 0xF0u) == 0xE0u) {
+            cp = *p & 0x0Fu;
+            extra = 2;
+        } else if ((*p & 0xF8u) == 0xF0u) {
+            cp = *p & 0x07u;
+            extra = 3;
+        } else {
+            cp = 0xE000u + *p; /* lone continuation / 0xF8+: raw byte */
+        }
+        bool ok = true;
+        for (u32 i = 1; ok && i <= extra; ++i) {
+            if (p + i >= end || (p[i] & 0xC0u) != 0x80u)
+                ok = false;
+            else
+                cp = (cp << 6) | (p[i] & 0x3Fu);
+        }
+        /* RFC 3629: reject overlong forms and surrogate halves */
+        if (ok &&
+            ((extra == 1 && cp < 0x80u) || (extra == 2 && cp < 0x800u) ||
+             (extra == 3 && cp < 0x10000u) || (cp >= 0xD800u && cp <= 0xDFFFu) || cp > 0x10FFFFu))
+            ok = false;
+        if (!ok && extra == 0 && cp >= 0xE000u && cp <= 0xE0FFu) {
+            /* a raw-byte mapping: emit as-is (the branch above set it) */
+        } else if (!ok) {
+            /* a torn multi-byte sequence: keep the LEAD byte losslessly
+             * and resync; the continuation bytes map individually below
+             * (each fails its own lead test -> U+E000 + byte) */
+            cp = 0xE000u + *p;
+            extra = 0;
+        }
+        append_codepoint(out, cp);
+        p += 1 + extra;
+    }
+    return out;
+}
+
+/* M-010: recover the original raw bytes from a lossless-mapped name
+ * (inverse of utf8_to_u16_lossless). Valid codepoints re-encode as
+ * UTF-8; private-use units in [U+E000, U+E0FF] return their byte.
+ * Returns false if the string contains any other private-use unit
+ * (not produced by the lossless decoder). */
+inline bool lossless_u16_to_utf8(const std::u16string& in, std::string& out) {
+    out.clear();
+    out.reserve(in.size());
+    for (u16 u : in) {
+        if (u >= 0xE000u && u <= 0xE0FFu) {
+            out.push_back(char(u8(u - 0xE000u)));
+            continue;
+        }
+        if (u > 0xE0FFu && u <= 0xF8FFu)
+            return false; /* private-use units the decoder never emits */
+        u32 cp = u;
+        if (cp < 0x80u) {
+            out.push_back(char(u8(cp)));
+        } else if (cp < 0x800u) {
+            out.push_back(char(u8(0xC0u | (cp >> 6))));
+            out.push_back(char(u8(0x80u | (cp & 0x3Fu))));
+        } else if (cp < 0x10000u) {
+            out.push_back(char(u8(0xE0u | (cp >> 12))));
+            out.push_back(char(u8(0x80u | ((cp >> 6) & 0x3Fu))));
+            out.push_back(char(u8(0x80u | (cp & 0x3Fu))));
+        } else {
+            out.push_back(char(u8(0xF0u | (cp >> 18))));
+            out.push_back(char(u8(0x80u | ((cp >> 12) & 0x3Fu))));
+            out.push_back(char(u8(0x80u | ((cp >> 6) & 0x3Fu))));
+            out.push_back(char(u8(0x80u | (cp & 0x3Fu))));
+        }
+    }
+    return true;
+}
+
 } // namespace text
 } // namespace cr
 

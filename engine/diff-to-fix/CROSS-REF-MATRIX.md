@@ -76,9 +76,9 @@ dispositions is the surviving one).
 
 | ext4 | S-003 OPEN, S-004 FIXED, S-026 FIXED (meta_bg resolver, D-58); **M-010**, I-006 (S2), I-007 (S2) | ok; **M-010**, I-006 (S2), I-007 (S2) | M (S-026 fixed: meta-group desc blocks) | S-003 OPEN, S-004 FIXED, S-025 OPEN | N-004 | NA | NA | M | M | N-004 | M (debt) |
 | hfsplus | S-002 OPEN, S-003 OPEN, N-005; I-007 (S2) | M; I-007 (S2) | M | M | M | NA | NA | M | M | M | THIN |
-| ext4 | S-003 OPEN, S-004 FIXED; **M-010**, I-006 (S2), I-007 (S2) | ok; **M-010**, I-006 (S2), I-007 (S2) | M | S-003 OPEN, S-004 FIXED | N-004 | NA | NA | M | M | N-004 | M (debt) |
+| ext4 | S-003 OPEN, S-004 FIXED; **M-010 FIXED (lossless U+E000+byte mapping)**, I-006 (S2), I-007 (S2) | ok; **M-010 FIXED**, I-006 (S2), I-007 (S2) | M | S-003 OPEN, S-004 FIXED | N-004 | NA | NA | M | M | N-004 | M (debt) |
 | hfsplus | S-002 FIXED, **S-003 FIXED (s5)**, **S-021 FIXED (converged: s5 pass + DF4 decode corrections incl. the og's JIB offsets +0x24/+0x2C and the full node-image validator; A-005 the record-span ACUTE fixed in the same arc)**, N-005 FIXED, N-038 FIXED; I-007 (S2) | M; I-007 (S2) | M | **M (A-005 FIXED — TN1150 records-UP convention)** | M | NA | NA | M | M | M | M (S-021 tests + LeafNodeLayout guard; THIN closed) |
-| btrfs | I-003 ack, M (S-005 fixed), N-006; **M-010**, I-007 (S2) | M; **M-010**, I-007 (S2) | M | M | M | NA | NA | M | M | M | M |
+| btrfs | I-003 ack, M (S-005 fixed), N-006; **M-010 FIXED (lossless mapping)**, I-007 (S2) | M; **M-010 FIXED**, I-007 (S2) | M | M | M | NA | NA | M | M | M | M |
 | zfs | OQ-T6, M (S-005 fixed); I-007 (S2) | ok | OQ-T6 | M | M | NA | NA | M | M | M | M |
 | refs | N-007, I-004 ack, **M-022 FIXED (s4)**, I-012 (S3: GAP-ADS resolved); **S-020 FIXED (s4)**; **M-026/M-027 FIXED (s4: stale-page sweep + identity keep-one + recycle routing)** | M | M | **M-022 FIXED (s4)** | M | NA | NA | M | M | M | M |
 | table+ldm | M (A-002 FIXED — real Microsoft GUIDs restored), M-002 | M | M (A-002 FIXED; A-001 fixed) | M-002, M (OQ-T7 resolved — I-008) | ok | NA | NA | M | M | M | M (debt) |

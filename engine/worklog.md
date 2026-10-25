@@ -7291,3 +7291,40 @@ Agent: main engineer (diff-fix session 4 — the S-012/S-007 lane)
 LANE CLAIM: **A-005 (ACUTE — rawfixer 4Kn stack-buffer overflow)** taken now
 (the only active ACUTE; unclaimed in the latest reconciliation). The S-024+S-009
 lane continues per its claim; S-029/S-030 stay unclaimed.
+
+Task ID: DF4-M010 (diff-fix session 4 — M-010)
+Agent: main engineer (diff-to-fix fix session)
+Task: M-010 (MAJOR) — ext4/Btrfs invalid-UTF-8 names destroyed (U+FFFD baked);
+the og preserves the raw bytes.
+
+Work Log:
+- Evidence re-verified first-hand: EXT4SearchDLL_imports.txt +
+  BtrfsSearchDLL_imports.txt — zero MultiByteToWideChar/WideCharToMultiByte
+  hits (raw passthrough); ZfsSearchDLL has exactly one (the CP_UTF8/flags-0
+  converter — replacement). The .rsf name fields are raw byte strings.
+- Fix: utf8_to_u16_lossless (strict RFC 3629 for well-formed input; invalid
+  bytes -> U+E000 + byte, bijective; torn multi-byte leads keep their lead
+  byte and resync, continuations map individually) + lossless_u16_to_utf8
+  (the inverse; refuses foreign private-use units) in cr_text.h; the ext4 +
+  Btrfs engine call sites swapped; ZFS call sites unchanged (the asymmetry
+  IS the og parity). Convention documented in the header (downstream must
+  not clean private-use units).
+- Tests: Text.InvalidByteLosslessMapping + Text.LosslessRoundTripRecoversRawBytes
+  + Text.ZfsDecoderStaysReplacement (the pure-function set incl. the pin);
+  Btrfs.Latin1NameRoundTripsRawBytes (the engine round-trip); the existing
+  Ext4Engine/Btrfs NonAscii tests updated to the lossless assertions (their
+  pre-fix green U+FFFD assertions are the fail-before witness); the ZFS
+  engine pin (Zfs.NonAsciiNamesDecodedNotByteLifted) unchanged and green.
+  One bug of mine en route: the first expected map key used the wrong UTF-8
+  encoding of U+E0FF (EF A3 BF; correct is EE 83 BF) — fixed by computing
+  the projection.
+- Audit trail: Resolution + FIXED/ move; RESOLVED-INDEX (36); matrix ext4/
+  btrfs B10 cells; SUMMARY row + addendum; PARITY-DELTAS D-53.
+
+Stage Summary:
+- M-010 CLOSED: legacy non-UTF-8 names on ext4/Btrfs recover under their
+  original byte content (reversibly encoded), no longer destroyed. Suite
+  462/462 Linux ASan. Lane state: my session's findings closed this window:
+  S-012 (converged), A-005, S-021 (converged), M-010. Remaining SEVERE/MAJOR
+  lanes are claimed by the parallel sessions; next unclaimed MAJORs when a
+  lane frees: M-002, M-007/M-008 (opt-in flags), M-011, M-013/M-014.

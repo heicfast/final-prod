@@ -1819,3 +1819,28 @@ bounded extent now) + the bench seed-matrix extension (Windows runner).
 
 **Pin tests:** `Carve.S007CommonFormatsCarve`, `Carve.S007ValidatorsRejectNoise`,
 `Carve.S007TruncatedSalvageSemantics`.
+
+### D-53 — ext4/Btrfs lossless invalid-UTF-8 name mapping (M-010)
+
+**Session:** diff-to-fix remediation (M-010). **Corpus:** EXT4SearchDLL /
+BtrfsSearchDLL imports (zero conversion APIs — re-verified); ZfsSearchDLL
+FUN_18001c630 :24995+ (CP_UTF8, flags 0 — replacement).
+
+- The og's ext4/Btrfs engines pass raw name bytes through UNCONVERTED into the
+  session; the core's internal representation is UTF-16, so raw bytes must be
+  ENCODED reversibly: every byte that cannot start or continue a valid UTF-8
+  sequence maps to **U+E000 + byte** (private-use plane; bijective). This is a
+  *fidelity* superset over the og's observable behavior (the og keeps the bytes;
+  the core keeps a reversible encoding of them — `lossless_u16_to_utf8`
+  recovers the original byte string).
+- **ZFS stays U+FFFD** (the strict `utf8_to_u16`): the og's ZFS engine converts
+  via `MultiByteToWideChar(CP_UTF8, 0)` and bakes replacements — the engine
+  asymmetry IS the parity. Pinned by `Text.ZfsDecoderStaysReplacement` and the
+  unchanged `Zfs.NonAsciiNamesDecodedNotByteLifted`.
+- Downstream layers (session/report/CLI) must NOT sanitize private-use units —
+  they round-trip arbitrary UTF-16 today; the round-trip tests guard this.
+
+**Pin tests:** `Text.InvalidByteLosslessMapping`,
+`Text.LosslessRoundTripRecoversRawBytes`, `Btrfs.Latin1NameRoundTripsRawBytes`,
+the updated `Ext4Engine`/`Btrfs` `NonAsciiNamesDecodedNotByteLifted` (lossless
+assertions).

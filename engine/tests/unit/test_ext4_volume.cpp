@@ -569,10 +569,15 @@ TEST(Ext4Engine, NonAsciiNamesDecodedNotByteLifted) {
     /* accented name */
     ASSERT_TRUE(by_utf8.count("caf\xc3\xa9.txt") != 0);
     EXPECT_EQ(by_utf8["caf\xc3\xa9.txt"], std::u16string(u"caf\u00e9.txt"));
-    /* invalid lead byte: one U+FFFD, the valid tail survives */
-    ASSERT_TRUE(by_utf8.count("\xef\xbf\xbd(bad") != 0)
-        << "FFFD name absent: " << by_utf8.begin()->first;
-    EXPECT_EQ(by_utf8["\xef\xbf\xbd(bad"], std::u16string(u"\ufffd(bad"));
+    /* M-010 (diff-to-fix): an invalid lead byte now maps LOSSLESSLY to
+     * U+E000 + byte (the og's EXT4 engine keeps raw names unconverted -
+     * zero conversion imports; the original bytes must stay
+     * reconstructible: unit - 0xE000 = 0xFF). The valid tail survives;
+     * the map key is the tree's UTF-8 projection of U+E0FF (EE 83 BF). */
+    ASSERT_TRUE(by_utf8.count("\xee\x83\xbf(bad") != 0)
+        << "lossless name absent: " << by_utf8.begin()->first;
+    EXPECT_EQ(by_utf8["\xee\x83\xbf(bad"],
+              std::u16string(u"\uE0FF(bad"));
     /* whole-pipeline: the UTF-8 projection of a decoded CJK name equals
      * the original on-disk bytes (this is what tree --json emits) */
     for (tree::FileNode* c = ra->first_child(); c; c = c->next_sibling()) {

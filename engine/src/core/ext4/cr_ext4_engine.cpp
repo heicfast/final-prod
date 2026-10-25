@@ -525,12 +525,14 @@ bool parse_dir_block(const u8* p, u64 len, bool filetype, std::vector<DirEntry>&
             DirEntry de;
             de.inode = ino;
             de.type = filetype ? p[off + 7] : 0;
-            /* S-005 (diff-to-fix): ext4 directory names are UTF-8 bytes;
-             * the og passes them through unconverted (EXT4SearchDLL has no
-             * conversion import; .rsf stores UTF-8) - decode strictly, bad
-             * sequences become U+FFFD (never byte-lift: "é" must not
-             * surface as "Ã©") */
-            de.name = text::utf8_to_u16(
+            /* S-005 + M-010 (diff-to-fix): ext4 directory names are raw
+             * bytes the og passes through UNCONVERTED (EXT4SearchDLL has
+             * no conversion import; .rsf stores UTF-8) - decode strictly,
+             * and keep invalid bytes LOSSLESSLY (U+E000 + byte, bijective)
+             * so the original name bytes round-trip (never byte-lift:
+             * "é" must not surface as "Ã©"; never U+FFFD:
+             * the og keeps the raw bytes) */
+            de.name = text::utf8_to_u16_lossless(
                 std::string_view(reinterpret_cast<const char*>(p) + off + 8, name_len));
             out.push_back(de);
         }
