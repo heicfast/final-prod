@@ -645,7 +645,10 @@ TEST(ExfatEngine, FreeMapProducerMatchesSpecBitMapping) {
         << err_text(0);
     ASSERT_TRUE(fm.valid());
     EXPECT_EQ(fm.cluster_bytes, 512u);
-    EXPECT_EQ(fm.cluster_count, 100u);
+    /* the 0ba21d8 hardening: cluster numbers 0..cluster_count+1 (the two
+     * virtual + ALL data clusters - the first landing dropped the last
+     * two data clusters out of coverage) */
+    EXPECT_EQ(fm.cluster_count, 102u);
     /* heap base = sector 25; the map's virtual cluster 0 sits 2 clusters
      * below it (the landed base's linear-cluster convention) */
     EXPECT_EQ(fm.base_byte, u64(25 - 2) * 512);
@@ -656,8 +659,9 @@ TEST(ExfatEngine, FreeMapProducerMatchesSpecBitMapping) {
     for (u32 c : {2u, 3u, 10u, 11u, 20u, 21u, 22u, 40u, 50u, 70u, 80u})
         EXPECT_FALSE(fm.is_free(c)) << "cluster " << c << " must read in-use";
     /* free clusters read free: gone.dat's cluster 30 (the deleted-free
-     * sentinel) and untouched heap clusters */
-    for (u32 c : {30u, 4u, 5u, 12u, 19u, 35u, 60u, 90u})
+     * sentinel), untouched heap clusters, and the LAST two data clusters
+     * (100/101 - the 0ba21d8 under-coverage fix's sentinel) */
+    for (u32 c : {30u, 4u, 5u, 12u, 19u, 35u, 60u, 90u, 100u, 101u})
         EXPECT_TRUE(fm.is_free(c)) << "cluster " << c << " must read free";
     /* byte-granular truth at the sentinel: over.dat's cluster-40 byte
      * range is NOT range-free; gone.dat's cluster-30 range IS */
