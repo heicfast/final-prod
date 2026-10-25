@@ -32,14 +32,14 @@ std::vector<u8> build_page() {
     p[5] = 42;            /* percentage used */
     put64(p, 32, 1111);   /* data units read */
     put64(p, 48, 2222);   /* data units written */
-    put64(p, 64, 999001); /* host reads (must NOT surface anywhere) */
+    put64(p, 64, 999001); /* host reads */
     put64(p, 80, 999002); /* host writes */
     put64(p, 96, 999003); /* controller busy time */
     put64(p, 112, 3333);  /* power cycles */
     put64(p, 128, 4444);  /* power on hours */
     put64(p, 144, 5555);  /* unsafe shutdowns */
     put64(p, 160, 6666);  /* media errors */
-    put64(p, 176, 7777);  /* error log entries (not surfaced) */
+    put64(p, 176, 7777);  /* error log entries */
     return p;
 }
 
@@ -63,13 +63,45 @@ TEST(NvmeHealth, PageFieldOffsets) {
     EXPECT_EQ(h.media_errors, 6666u);     /* was 3333 (power cycles) */
 }
 
+TEST(NvmeHealth, FullFieldSurface) {
+    /* M-036 (diff-to-fix): the og's NVMe row set includes host reads /
+     * writes, controller busy time and the error-log count - the four
+     * fields the original parser dropped. Every field gets a distinct
+     * fixture value so a wrong offset cannot pass by coincidence. */
+    auto p = build_page();
+    health::NvmeHealthInfo h;
+    ASSERT_EQ(parse_nvme_health_page(p.data(), u32(p.size()), h), OK);
+    EXPECT_EQ(h.host_reads, 999001u);
+    EXPECT_EQ(h.host_writes, 999002u);
+    EXPECT_EQ(h.controller_busy_time, 999003u);
+    EXPECT_EQ(h.num_error_log_entries, 7777u);
+}
+
+TEST(NvmeHealth, DataUnitsConvertedToBytes) {
+    /* M-036: data units are 512,000-byte units; the og DiskHealth converts
+     * with a full 64-bit multiply (DiskHealth_decompiled.c :5589-5614,
+     * the 5-byte LE chain x 0x7d000). Raw counts stay alongside. */
+    auto p = build_page();
+    health::NvmeHealthInfo h;
+    ASSERT_EQ(parse_nvme_health_page(p.data(), u32(p.size()), h), OK);
+    EXPECT_EQ(h.data_bytes_read, 1111u * 512000u);
+    EXPECT_EQ(h.data_bytes_written, 2222u * 512000u);
+    EXPECT_EQ(h.data_units_read, 1111u); /* raw count preserved */
+    EXPECT_EQ(h.data_units_written, 2222u);
+    /* a large realistic count: 1e9 units = 512,000,000,000 bytes */
+    put64(p, 32, 1000000000ull);
+    ASSERT_EQ(parse_nvme_health_page(p.data(), u32(p.size()), h), OK);
+    EXPECT_EQ(h.data_bytes_read, 1000000000ull * 512000u);
+}
+
 TEST(NvmeHealth, ShortBufferRejected) {
-    std::vector<u8> p(175, 0);
+    std::vector<u8> p(191, 0);
     health::NvmeHealthInfo h;
     EXPECT_EQ(parse_nvme_health_page(p.data(), u32(p.size()), h), ERR_TRUNCATED);
     EXPECT_FALSE(h.available);
-    /* exactly 176 (through media_errors) is accepted */
-    p.resize(176);
+    /* exactly 192 (through num_error_log_entries, +176..191) is accepted
+     * - the gate moved from 176 when M-036 surfaced the last field */
+    p.resize(192);
     EXPECT_EQ(parse_nvme_health_page(p.data(), u32(p.size()), h), OK);
 }
 

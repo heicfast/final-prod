@@ -140,7 +140,7 @@ corpus searchdll-family sec.1 + DRWUI-exe sec.9.2). Our equivalent is the
 
 | Contract | Value | Evidence |
 |---|---|---|
-| ABI identity | `CR_UI_ABI_VERSION 1u`; every `cr_ui_*` returns u32 from the cr::Err space; thread-local last-error; catch-all guard per export; abi_size-versioned PODs | include/cr/cr_ui.h; src/ui/cr_ui.cpp |
+| ABI identity | `CR_UI_ABI_VERSION 2u` (v2: M-036 appended cr_ui_smart_report fields; v1 fields/offsets unchanged); every `cr_ui_*` returns u32 from the cr::Err space; thread-local last-error; catch-all guard per export; abi_size-versioned PODs | include/cr/cr_ui.h; src/ui/cr_ui.cpp |
 | Config validity | configs are ZERO-INIT VALID (filters/paths/checkpoint optional) - the og factory pattern | cr_ui.h zero-init policy |
 | run() threading | runs on the CALLER's thread (the reference UI calls its controllers from its own worker); pause/cancel/telemetry/checkpoint_count safe from ANY thread, any time | cr_ui.h threading block; ScanController telemetry lock |
 | Progress callback | fired from scan worker threads, single-flight: serialized, strictly monotonic in overall_permille (stale out-of-order deliveries dropped; stage flips at a steady permille still emit) | scan_progress_bridge_ + CrScan::progress_mu |
