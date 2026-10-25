@@ -36,7 +36,7 @@ Legend: `M` = MATCH · `A-n`/`S-n`/`M-n`/`N-n`/`I-n` = finding ID (in
 | refs | N-007, I-004 ack, **M-022 (S3)**, I-012 (S3: GAP-ADS resolved — parity) | M | M | M | **M-022 (S3)** | M | NA | NA | M | M | M | M |
 | table+ldm | M (A-002 FIXED — real Microsoft GUIDs restored), M-002 | M | M (A-002 FIXED; A-001 fixed) | M-002, M (OQ-T7 resolved — I-008) | ok | NA | NA | M | M | M | M (debt) |
 | lost-partition | S-006, OQ-T9 | NA | M | OQ-T9 | M | NA | NA | M | M | M | THIN |
-| carve | S-007, M-005 | M | S-007, N-008 | S-007, N-008, M-005 | M | NA | NA | M-005 | M | M | M |
+| carve | A28/B1/B2/B3/X47/X48/D15 | **S-015 — FIXED (session 3)** (KiB units restored at the generator; tail walk chunked + bounded; per-format tail scoping discovered+fixed in-commit) |
 | tree | M | M | NA | M | M | NA | NA | ok | M | NA | M |
 | session | M | M (D12), N-014 (S2) | M | NA | M; N-014 (S2) | NA | NA | M | M | I-005.7 ack | M (debt) |
 | writer+report | M | M | NA | M | M | M | NA | ok | M | **N-013 (S2), N-015 (S2)**, N-009d | M (debt) |

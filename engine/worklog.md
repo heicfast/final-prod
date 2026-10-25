@@ -4535,3 +4535,49 @@ Stage Summary:
   is retired to a documented deliberate divergence (D-49). Next: S-015 (raw-signs
   KiB units, one-generator fix), then S-013 (exFAT FAT-over-32MiB truncation) or
   S-003 (HFS+ journal replay).
+---
+Task ID: DF3-T4 (S-015)
+Task: SEVERE S-015 — raw_signs min/max KiB-vs-bytes unit inversion (every raw-sign
+carve window 1024x too small, floor 1024x too low); plus the cross-format tail-pairing
+divergence discovered during the fix.
+
+Work Log:
+- Re-verified first-hand against the corpus decompile (not just the finding's quotes):
+  FUN_1800205b0 :25225-25240 (max@+8, 0x7d000 default, span < max*0x400 gate, size =
+  max<<10) and the tail-acceptance LAB_180020acb (computed size < (fmt->min << 10) ->
+  reject: min is KiB too, consumed at acceptance). CONFIRMED-DIVERGENCE.
+- Fail-before (worktree stashed to pre-fix source): 6 tests FAILED — UnitsAreKib
+  (byte-unit table), CarvesFiveMiBVob (no node / wrong stub), TailPairWindowScaled +
+  RawSignTailPairWithinFormat (no far pairing), MinFloorOneKib (sub-KiB junk admitted),
+  RawSignLayerHeaderOnlyAndSharedMagic (cross-format tail pairing).
+- Fix: (1) gen_rawsigns.py converts KiB->bytes at ONE point, documents the decoded
+  semantics, refuses zero-max entries (og 500 MiB default = silent divergence risk);
+  cr_rawsigns_data.cpp regenerated (139 formats, e.g. vob 10 MiB..200 MiB). (2) tail
+  walk rebuilt: chunked forward scan (1 MiB + kMaxSignBytes overlap, straddle-safe;
+  unreadable chunk -> honest header-only fallback), bounded by NAMED
+  kRawSignTailScanLimit (8 MiB) with the og's true full-window range documented
+  (cr_rawsigns.h) — the old 2 MiB single-read gate would have disabled ALL pairing
+  under true units. (3) DISCOVERED + fixed: per-format tail scoping (og pairs tails
+  within the candidate's own format record — our scan_tail matched all 62 signs
+  across formats and fabricated close positions; proven live: a .sample candidate
+  closed by flp's tail, and the session-1 fixture itself relied on the artifact).
+  New scan_tail_for_format; carve wired to it. Debug artifact: corpus sign offsets
+  are DECIMAL (apk tail off 28, not 0x28) — fixture math corrected accordingly.
+- Two pre-existing carve fixtures re-based to true units (GrammarValidationAndSpecificity:
+  jfif noise needs a 256 KiB region for its 100 KiB floor, extent now max-clamped;
+  SecondPassFullyDeduped: sign-layer-live invariant preserved on the enlarged fixture).
+- Pass-after: 6/6 rawsign tests green; full suite 310/310 Linux ASan (305 + 5 net-new).
+- Audit trail in-commit: S-015 Resolution + FIXED/ move; RESOLVED-INDEX row (count 16);
+  CROSS-REF-MATRIX carve C/A/X cells + session-3 row; SUMMARY remediation row;
+  modules/carve.md session-3 addendum; cr_rawsigns.h divergence block rewritten;
+  PARITY-CORE-REC F-A3-14 marked RESOLVED (named bound supersedes the 2 MiB nit).
+- Honest not-done (recorded in the Resolution): og-execution recall benches
+  (100 KiB / 5 MiB / 150 MiB seeded payloads) need the Windows bench harness —
+  same session limitation class as M-009; registered for the bench vehicle.
+
+Stage Summary:
+- S-015 FIXED: the raw-sign safety net recovers og-scale windows again (50 KiB ->
+  50 MiB class extents, 200 KiB -> 200 MiB for media), the sub-KiB junk floor is
+  restored, far tails pair in-format, and the units are pinned by table-level tests.
+  ACUTE tier empty; SEVERE remaining: S-003, S-006, S-007, S-009-remnant, S-011,
+  S-012, S-013, S-014. Suite 310/310.

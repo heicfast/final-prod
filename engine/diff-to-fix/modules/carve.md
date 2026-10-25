@@ -99,6 +99,19 @@ carve-specific divergences surfaced.
 ## Session-2 update (2026-10-25, core `e93decf`)
 
 **Verdict changes (quotes in `../evidence/decompiled-quotes/carve-rawfixer-bitlocker-session2.md`):**
+- **S-015 FIXED (session 3, diff-fix leg):** raw_signs min/max decoded as KiB in the
+  og (`*0x400` gate / `<<10` size / `min<<10` acceptance) — the compiled table now
+  converts once in the generator (zero-max entries refused; the og's 500 MiB default
+  would be a silent divergence); every format's window was 1024x too small and the
+  floor 1024x too low. Tail walk rebuilt: chunked forward scan (1 MiB reads +
+  sign-length overlap), named `kRawSignTailScanLimit` (8 MiB) with the og's true
+  full-window range (up to 200 MiB) documented in cr_rawsigns.h as the bound's
+  rationale. DISCOVERED + fixed in-commit: per-format tail scoping — the og pairs
+  tails within the candidate format's own record; the core's format-agnostic scan
+  fabricated close positions (pinned by RawSignLayerHeaderOnlyAndSharedMagic:
+  fst has no tail signs, stays header-only; RawSignTailPairWithinFormat/TailPairWindowScaled
+  pin in-format far-tail pairing). Units + floor + far-window pinned by
+  RawSigns.UnitsAreKib / CarvesFiveMiBVob / MinFloorOneKib.
 - **OQ-T8 RESOLVED:** og dispatch = sector-aligned probing, 3-layer first-accept-wins
   (u32 RB-tree → u16 multimap → list sweep), per-key modern→legacy chains, no cross-layer
   resolution. Core byte-steps = detection superset (registered, I-009).

@@ -5,7 +5,13 @@ corpus raw_signs.json (the og's layer-1 carving database, 139 formats).
 The corpus format per extension:
     { "header": {"signs": ["<offset>,<hex>,<confidence>", ...]},
       "tail":   {"signs": [...]},           # optional
-      "min": <min bytes>, "max": <max bytes> }
+      "min": <min KiB>, "max": <max KiB> }
+
+The min/max fields are KiB COUNTS in the og (S-015, decoded from
+RAWSearchDLL FUN_1800205b0: gate `span < max * 0x400`, emitted size
+`max << 10`, tail-acceptance `size < (min << 10) -> reject`, default max
+0x7d000 KiB = 500 MiB when absent/zero). This generator is the ONE
+conversion point: it emits BYTES (KiB * 1024) into the compiled table.
 
 Output: src/core/carve/cr_rawsigns_data.cpp - three sorted arrays plus the
 extension string pool. Regenerate after corpus updates:
@@ -38,7 +44,15 @@ def main():
     for ext in sorted(db.keys()):
         e = db[ext]
         fi = len(fmts)
-        fmts.append((ext, int(e.get("min", 0) or 0), int(e.get("max", 0) or 0)))
+        # S-015: the og stores min/max in KiB; convert ONCE here to bytes.
+        min_kib = int(e.get("min", 0) or 0)
+        max_kib = int(e.get("max", 0) or 0)
+        # The og treats a zero/absent max as 512000 KiB (500 MiB, the
+        # 0x7d000 default). Rather than shipping a silent default-rule
+        # divergence, refuse to generate from a table that relies on it.
+        assert max_kib > 0, f"format {ext!r} has max==0 (og default 500 MiB would apply)"
+        assert 0 <= min_kib < max_kib, f"format {ext!r} min/max out of range"
+        fmts.append((ext, min_kib * 1024, max_kib * 1024))
         for s in e.get("header", {}).get("signs", []):
             off, b, conf = parse_sign(s)
             hdr.append((off, b, conf, fi))

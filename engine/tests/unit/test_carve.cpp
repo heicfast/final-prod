@@ -1,6 +1,7 @@
 /* Carving engine tests: grammar validation, specificity, dedup, hashing. */
 #include <gtest/gtest.h>
 #include "cr/carve/cr_carve.h"
+#include "cr/carve/cr_rawsigns.h"
 #include "cr/storage/cr_device.h"
 #include "cr/storage/cr_slice.h"
 #include <cstring>
@@ -196,7 +197,10 @@ std::vector<u8> build_carve_image() {
     /* CARVE-2: the background is NON-ZERO noise - the og's zero-padding
      * end extension (trailing all-zero 16-byte blocks absorbed, 5.24 MB
      * cap) must not eat the gaps between plants on this fixture. */
-    std::vector<u8> img(32 * 1024, 0xAA);
+    /* S-015: 256 KiB - the jfif raw-sign noise plant needs >= 100 KiB of
+     * region to clear its KiB-scaled min floor (pre-fix bytes-units made
+     * 32 KiB sufficient; the og's true floor is 100 KiB). */
+    std::vector<u8> img(256 * 1024, 0xAA);
     plant_jpeg(img, 512);
     plant_png(img, 2048);
     /* plain ZIP: the name is long enough that the archive clears the
@@ -266,8 +270,10 @@ TEST(CarveEngine, GrammarValidationAndSpecificity) {
              * candidate (corpus sign 0,ffd8ffe000104a464946) - the og's
              * layer-1 semantics: header signs accept what grammar rejects */
             EXPECT_GE(n->props()->carve_format, 0xFFFF0000u);
+            /* S-015: jfif max is 51200 KiB (50 MiB), device-clamped to the
+             * 256 KiB fixture - NOT the pre-fix 51200-byte stub */
             EXPECT_EQ(n->props()->logical_size,
-                      size_t(32768 - 12288)); /* jfif max, device-clamped */
+                      size_t(256 * 1024 - 12288)); /* jfif max, device-clamped */
         } else
             FAIL() << "unexpected carved node at " << n->props()->extents.front().offset;
         switch (fmt) {
@@ -696,15 +702,56 @@ TEST(CarveEngine, PdfEofLastWinsAndFrameFloors) {
     EXPECT_EQ(1, pdfs); /* pdf2 (no %%EOF) and the 1-frame MP3 rejected */
 }
 
-TEST(CarveEngine, RawSignLayerHeaderAndTail) {
-    /* header-only format: the corpus "sample" sign (#!/bin/sh) */
-    std::vector<u8> img(512 * 1024, 0);
+namespace {
+/* S-015: find a compiled raw-sign format row by extension. */
+const rawsigns::RawSignFormat* find_format(const char* ext) {
+    for (u32 i = 0; i < rawsigns::kFormatCount; ++i)
+        if (std::strcmp(rawsigns::kFormats[i].ext, ext) == 0)
+            return &rawsigns::kFormats[i];
+    return nullptr;
+}
+} // namespace
+
+TEST(RawSigns, UnitsAreKib) {
+    /* S-015: the corpus raw_signs.json min/max fields are KiB counts in
+     * the og (FUN_1800205b0: gate max*0x400, size max<<10, tail floor
+     * min<<10, default 0x7d000 KiB); the compiled table carries BYTES.
+     * Before the fix the table carried the raw KiB integers as bytes -
+     * every format window was 1024x too small and the floor 1024x too
+     * low. */
+    const auto* vob = find_format("vob");
+    const auto* flac = find_format("flac");
+    const auto* sample = find_format("sample");
+    ASSERT_NE(vob, nullptr);
+    ASSERT_NE(flac, nullptr);
+    ASSERT_NE(sample, nullptr);
+    EXPECT_EQ(vob->min_size, u64(10240) * 1024);   /* 10 MiB */
+    EXPECT_EQ(vob->max_size, u64(204800) * 1024);  /* 200 MiB */
+    EXPECT_EQ(flac->min_size, u64(1024) * 1024);   /* 1 MiB */
+    EXPECT_EQ(flac->max_size, u64(51200) * 1024);  /* 50 MiB */
+    EXPECT_EQ(sample->min_size, u64(1024));        /* 1 KiB */
+    EXPECT_EQ(sample->max_size, u64(51200) * 1024);
+}
+
+TEST(CarveEngine, RawSignLayerHeaderOnlyAndSharedMagic) {
+    /* S-015 re-based to the decoded KiB units + per-format tail scoping.
+     * (a) header-only: corpus "sample" (#!/bin/sh), min 1 KiB / max
+     * 50 MiB -> in a 4 MiB image the extent clamps to the device end.
+     * (b) the 46 4c 68 64 magic is SHARED by flp/fst in the og's table;
+     * the best-confidence header sign is fst's 4,06000000 @ 0.63, and fst
+     * carries NO tail signs - the og pairs tails within the candidate's
+     * own format record, so fst emits header-only even with flp's tail
+     * planted in range. The pre-S-015 cross-format pairing (a .fst node
+     * closed by flp's tail, and a .sample node closed the same way) is the
+     * divergence this pins away. */
+    std::vector<u8> img(4 * 1024 * 1024, 0);
     std::memcpy(img.data() + 4096, "#!/bin/sh\n", 10);
-    /* header+tail family: the 46 4c 68 64 magic is SHARED by flp/fst in
-     * the og's table - the best-confidence (tail-paired) sign wins, which
-     * for this plant is fst (its tail sign matches the planted region) */
-    std::memcpy(img.data() + 8192, "\x46\x4c\x68\x64\x06\x00\x00\x00\x00\x00", 10);
-    std::memcpy(img.data() + 8192 + 10240 + 512 + 17, "\x5c\x44\x00\x00\x00\x00", 6);
+    const u64 start = 8192;
+    /* flp's own header (10 bytes) so flp's tail really is in-format range;
+     * fst's shorter signs still win the best-confidence pick */
+    std::memcpy(img.data() + start, "\x46\x4c\x68\x64\x06\x00\x00\x00\x00\x00", 10);
+    std::memcpy(img.data() + start + 1024 * 1024 + 2 * 1024 * 1024 + 17,
+                "\x5c\x44\x00\x00\x00\x00", 6); /* flp tail sign, off 17 (decimal) */
     MemDevice dev(std::move(img));
     tree::ResultTree tree;
     auto* root = tree.add_root(u"Lost Files");
@@ -715,26 +762,145 @@ TEST(CarveEngine, RawSignLayerHeaderAndTail) {
     /* F-A3-6 regression: exact count (was doubled by the copy-paste
      * duplicate accumulation lines) */
     EXPECT_EQ(s.sign_hits, 2u);
+    /* NO cross-format pairing: the sample/fst candidates own no tail
+     * signs, so nothing pairs with flp's tail */
+    EXPECT_EQ(s.sign_validated, 0u);
     tree::FileNode* sample_n = nullptr;
-    tree::FileNode* tail_n = nullptr;
+    tree::FileNode* fst_n = nullptr;
     for (tree::FileNode* c = root->first_child(); c; c = c->next_sibling()) {
         const std::string nm = c->name_utf8();
         if (nm.size() > 7 && nm.compare(nm.size() - 7, 7, ".sample") == 0)
             sample_n = c;
         if (nm.size() > 4 && nm.compare(nm.size() - 4, 4, ".fst") == 0)
-            tail_n = c;
+            fst_n = c;
     }
     ASSERT_NE(sample_n, nullptr) << "header-only sign hit missing";
-    ASSERT_NE(tail_n, nullptr) << "header+tail sign hit missing";
-    /* header-only: extent = the format max (51200) */
+    ASSERT_NE(fst_n, nullptr) << "shared-magic header hit missing";
+    /* header-only: extent = the format max (50 MiB) clamped to device end */
     EXPECT_EQ(sample_n->props()->extents.front().offset, u64(4096));
-    EXPECT_EQ(sample_n->props()->logical_size, u64(51200));
+    EXPECT_EQ(sample_n->props()->logical_size, u64(4 * 1024 * 1024 - 4096));
     EXPECT_GE(sample_n->props()->carve_confidence, 500);
-    /* tail-paired: the tail sector closes the file */
-    EXPECT_EQ(tail_n->props()->extents.front().offset, u64(8192));
-    EXPECT_EQ(tail_n->props()->logical_size, u64(10240 + 512 + 512));
-    EXPECT_EQ(tail_n->confidence(), tree::Confidence::PartialRisk);
-    EXPECT_GE(tail_n->props()->carve_confidence, 700); /* paired bonus */
+    /* fst: header-only at its own max (50 MiB), NOT closed by flp's tail */
+    EXPECT_EQ(fst_n->props()->extents.front().offset, start);
+    EXPECT_EQ(fst_n->props()->logical_size, u64(4 * 1024 * 1024 - start));
+    EXPECT_EQ(fst_n->confidence(), tree::Confidence::MetadataOnly); /* header-only raw-sign grade */
+    EXPECT_EQ(fst_n->props()->carve_confidence, 630);
+}
+
+TEST(CarveEngine, RawSignTailPairWithinFormat) {
+    /* S-015: sqlite (min 1 KiB, max 50 MiB) carries its own tail sign
+     * (offset 31 DECIMAL, conf 1.00) - the far tail pairs within the
+     * format and closes the file at the tail sector. Tail sits ~2 MiB past
+     * the window start: far beyond the pre-fix 50 KiB window, inside the
+     * chunked 8 MiB walk. */
+    std::vector<u8> img(4 * 1024 * 1024, 0);
+    const u64 start = 4096;
+    const u64 lo = 1024;                    /* sqlite min, KiB-scaled */
+    const u64 tail_stride = 2 * 1024 * 1024; /* 512-aligned stride past lo */
+    std::memcpy(img.data() + start, "SQLite form", 11); /* sqlite header sign */
+    std::memcpy(img.data() + start + lo + tail_stride + 31,
+                "\x11\x1d\x05\x15\x19\x0f\x0f\x77\x6f\x72\x64", 11); /* sqlite tail */
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"Lost Files");
+    CarveFlags flags;
+    CarveStats s;
+    ASSERT_EQ(carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, s),
+              OK);
+    EXPECT_GE(s.sign_validated, 1u);
+    tree::FileNode* sql_n = nullptr;
+    for (tree::FileNode* c = root->first_child(); c; c = c->next_sibling()) {
+        const std::string nm = c->name_utf8();
+        if (nm.size() > 7 && nm.compare(nm.size() - 7, 7, ".sqlite") == 0)
+            sql_n = c;
+    }
+    ASSERT_NE(sql_n, nullptr) << "sqlite raw-sign hit missing";
+    EXPECT_EQ(sql_n->props()->logical_size, lo + tail_stride + 512);
+    EXPECT_GE(sql_n->props()->carve_confidence, 700); /* (920+1000)/2+100 capped 1000 */
+}
+
+TEST(RawSigns, CarvesFiveMiBVob) {
+    /* S-015 recall proof: a vob header sign in unallocated space gets a
+     * 200 MiB-class extent (clamped to the region), not the pre-fix
+     * 200 KiB stub extent. The region must also exceed vob's 10 MiB
+     * floor (min<<10 acceptance) - a smaller region is rejected on BOTH
+     * sides (pinned separately by the og's tail-acceptance gate). */
+    std::vector<u8> img(12 * 1024 * 1024, 0);
+    const u64 start = 6144; /* 512-aligned stride */
+    std::memcpy(img.data() + start + 10, "\x01\x89\xc3\xf8", 4); /* vob hdr sign */
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"Lost Files");
+    CarveFlags flags;
+    CarveStats s;
+    ASSERT_EQ(carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, s),
+              OK);
+    tree::FileNode* vob_n = nullptr;
+    for (tree::FileNode* c = root->first_child(); c; c = c->next_sibling()) {
+        const std::string nm = c->name_utf8();
+        if (nm.size() > 4 && nm.compare(nm.size() - 4, 4, ".vob") == 0)
+            vob_n = c;
+    }
+    ASSERT_NE(vob_n, nullptr) << "vob raw-sign hit missing";
+    EXPECT_EQ(vob_n->props()->extents.front().offset, start);
+    /* extent = max_size (200 MiB) clamped to device end: the whole region,
+     * not the pre-fix 204800-byte stub */
+    EXPECT_EQ(vob_n->props()->logical_size, u64(12 * 1024 * 1024) - start);
+}
+
+TEST(RawSigns, MinFloorOneKib) {
+    /* S-015 false-positive floor: formats with min=1 KiB reject
+     * sub-KiB remnants (device end closer than 1 KiB from the hit);
+     * the pre-fix byte-unit floor admitted them. */
+    std::vector<u8> img(64 * 1024, 0);
+    /* 512-aligned hit with only 384 bytes left: below the 1 KiB floor */
+    std::memcpy(img.data() + 127 * 512, "#!/bin/sh\n", 10); /* sample: min 1 KiB */
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"Lost Files");
+    CarveFlags flags;
+    CarveStats s;
+    ASSERT_EQ(carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, s),
+              OK);
+    EXPECT_EQ(s.sign_hits, 0u); /* 400 bytes < the 1 KiB floor: rejected */
+    bool any = false;
+    for (tree::FileNode* c = root->first_child(); c; c = c->next_sibling())
+        any = true;
+    EXPECT_FALSE(any);
+}
+
+TEST(RawSigns, TailPairWindowScaled) {
+    /* S-015 tail window: apk (min 1 KiB, max 50 MiB) with its EOCD tail
+     * sign ~2 MiB past the header - far beyond the pre-fix 50 KiB window,
+     * inside the chunked 8 MiB walk. Pairing confirms the close. The tail
+     * sign is planted lo-relative (the walk starts at start+min), with the
+     * pattern at a 512-aligned stride + the sign's own 0x28 offset. */
+    std::vector<u8> img(4 * 1024 * 1024, 0);
+    const u64 start = 4096;
+    const u64 lo = 1024; /* apk min, KiB-scaled */
+    const u64 tail_stride = 2 * 1024 * 1024; /* 512-aligned */
+    std::memcpy(img.data() + start, "PK\x03\x04", 4);              /* apk header */
+    /* apk tail sign: offset 28 DECIMAL (corpus offsets are decimal),
+     * bytes 50 4b 05 06 00 00 00 00 */
+    std::memcpy(img.data() + start + lo + tail_stride + 28,
+                "\x50\x4b\x05\x06\x00\x00\x00\x00", 8);
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"Lost Files");
+    CarveFlags flags;
+    CarveStats s;
+    ASSERT_EQ(carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, s),
+              OK);
+    EXPECT_GE(s.sign_validated, 1u);
+    tree::FileNode* apk_n = nullptr;
+    for (tree::FileNode* c = root->first_child(); c; c = c->next_sibling()) {
+        const std::string nm = c->name_utf8();
+        if (nm.size() > 4 && nm.compare(nm.size() - 4, 4, ".apk") == 0)
+            apk_n = c;
+    }
+    ASSERT_NE(apk_n, nullptr) << "apk raw-sign hit missing";
+    EXPECT_EQ(apk_n->props()->logical_size, lo + tail_stride + 512);
+    EXPECT_GE(apk_n->props()->carve_confidence, 700); /* paired bonus */
 }
 
 /* FB-C01 (AUDIT-FALLBACKS): an unreadable window is SKIPPED and its bytes

@@ -125,10 +125,9 @@
 - **og evidence:** engine gated per-extension at runtime via `config/RawConfig.ini` (37 extension toggles, loaded at decompiled line 13133 — deep-dive §4); `GetRawUserInfoMap` export exposes the user extension→analyser bindings (deep-dive §1; census §1); `EUUserData` is a second magic/MIME DB (searchdll-family §4.3).
 - **Suggested fix:** add a per-format enable mask to CarveFlags (config-file driven), and note EUUserData as an unimplemented og layer in capability docs.
 
-### F-A3-14 — Tail-pair search bound (≤2 MiB) contradicts header doc (dead on current corpus)
-- **Priority:** P3 · **Axis:** Constants / Doc · **Verdict:** doc-vs-code nit
-- **Ours:** `cr_rawsigns.h:15-16` says tails are searched "within [start+min, start+max)"; `cr_carve.cpp:200` additionally requires `hi - lo <= 2 MiB` (skips pairing otherwise). Corpus max−min = 204800−10240 = 194,560 B < 2 MiB, so the cap never triggers today — but the doc and code diverge if the corpus grows.
-- **Suggested fix:** document the cap in the header (or assert max−min ≤ 2 MiB at table-build time).
+### F-A3-14 — Tail-pair search bound (≤2 MiB) contradicts header doc (dead on current corpus) — RESOLVED by S-015
+- **Priority:** P3 · **Axis:** Constants / Doc · **Verdict:** RESOLVED (diff-to-fix S-015, session 3)
+- **Ours (post-S-015):** the tail walk is now a chunked forward scan with a NAMED bound (`kRawSignTailScanLimit` = 8 MiB, `cr_rawsigns.h`) documented against the og's true full-window behavior (FUN_1800205b0 streams the whole [min<<10, max<<10) window, up to 200 MiB); the bound is a documented divergence (tails beyond it emit header-only). The min/max units are decoded KiB (S-015) and converted once in the generator, so max−min can reach ~190 MiB — the old `hi - lo <= 2 MiB` gate would have skipped ALL pairing on the true-unit table; the chunked walk restores it within the bound.
 
 ### F-A3-15 — Carve scope: full-slice scan vs og's unallocated+free-space targeting
 - **Priority:** P3 · **Axis:** Behavior / Threading (cost) · **Verdict:** DELTA (documented in spirit)

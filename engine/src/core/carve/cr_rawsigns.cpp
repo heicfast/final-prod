@@ -49,12 +49,25 @@ void SignIndex::probe_header(const u8* p, u64 avail, std::vector<const RawSign*>
 }
 
 bool SignIndex::scan_tail(const u8* buf, u64 len, TailHit& out) const {
-    /* stride the buffer at sector boundaries; test every tail sign whose
-     * (offset, first byte) matches. The tail sign array is small (62);
-     * a per-stride linear scan over a first-byte bucket is fine. */
+    return scan_tail_impl(buf, len, -1, out);
+}
+
+bool SignIndex::scan_tail_for_format(const u8* buf, u64 len, u32 fmt, TailHit& out) const {
+    return scan_tail_impl(buf, len, i64(fmt), out);
+}
+
+/* S-015 companion: stride the buffer at sector boundaries; test tail signs
+ * whose (offset, first byte) matches. fmt_filter >= 0 restricts the scan
+ * to the candidate format's own tail signs (og FUN_1800205b0 pairs tails
+ * within the candidate's format record); the unfiltered scan_tail remains
+ * for diagnostics. The tail sign array is small (62); a per-stride linear
+ * scan is fine. */
+bool SignIndex::scan_tail_impl(const u8* buf, u64 len, i64 fmt_filter, TailHit& out) const {
     for (u64 pos = 0; pos + 512 <= len; pos += 512) {
         for (u32 i = 0; i < kTailSignCount; ++i) {
             const RawSign& s = kTailSigns[i];
+            if (fmt_filter >= 0 && s.fmt != u32(fmt_filter))
+                continue;
             if (u64(s.offset) + s.len > 512)
                 continue; /* tail sign must fit in one stride head */
             if (std::memcmp(buf + pos + s.offset, s.bytes, s.len) != 0)

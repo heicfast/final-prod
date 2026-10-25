@@ -207,23 +207,63 @@ u32 scan_one_window(ScanCtx& ctx, u64 base, const u8* win, u64 want, std::set<u6
             u64 len = fmt.max_size;
             u16 conf = best->conf;
             bool tail_paired = false;
-            /* tail pairing: bounded search inside [start+min, start+max) */
+            /* tail pairing: bounded forward walk inside [start+min, start+max).
+             * The og searches the FULL KiB-scaled window incrementally
+             * (FUN_1800205b0 keeps returning 2 "need more data" while the
+             * buffered span is below max*0x400, up to max<<10 = 200 MiB for
+             * the media entries; tail acceptance gates size >= min<<10).
+             * DOCUMENTED DIVERGENCE (S-015): we cap the forward-read walk
+             * at kRawSignTailScanLimit instead of streaming the whole
+             * window - tails beyond the bound fall back to header-only
+             * emission. Chunked with a kMaxSignBytes overlap so a tail
+             * sign straddling a chunk edge is never split. */
+            static constexpr u64 kTailScanChunk = 1ull << 20; /* 1 MiB reads */
             if (fmt.min_size < fmt.max_size && start_abs + fmt.min_size < ctx.total) {
                 const u64 lo = fmt.min_size;
                 const u64 hi =
                     fmt.max_size < ctx.total - start_abs ? fmt.max_size : ctx.total - start_abs;
-                if (hi > lo && hi - lo <= (2ull << 20)) { /* bounded (<=2 MiB) */
-                    std::vector<u8> tail_buf(size_t(hi - lo), 0);
-                    if (ctx.slice->read_at(start_abs + lo, tail_buf.data(), u32(tail_buf.size())) ==
-                        OK) {
-                        rawsigns::SignIndex::TailHit th;
-                        if (idx.scan_tail(tail_buf.data(), tail_buf.size(), th)) {
-                            len = lo + th.pos + 512;
-                            conf = u16((u32(best->conf) + u32(th.sign->conf)) / 2 + 100);
-                            if (conf > 1000)
-                                conf = 1000;
-                            tail_paired = true;
+                if (hi > lo) {
+                    const u64 window = hi - lo;
+                    const u64 scan_len = window < idx.tail_scan_limit() ? window
+                                                                        : idx.tail_scan_limit();
+                    std::vector<u8> tail_buf(size_t(kTailScanChunk) +
+                                            rawsigns::kMaxSignBytes);
+                    u64 scanned = 0;
+                    rawsigns::SignIndex::TailHit th;
+                    while (scanned < scan_len) {
+                        const u64 chunk_want =
+                            scan_len - scanned < kTailScanChunk ? scan_len - scanned
+                                                                : kTailScanChunk;
+                        /* overlap read: [lo+scanned, lo+scanned+chunk_want+signs)
+                         * keeps any <=kMaxSignBytes tail sign contiguous.
+                         * avail is window-relative: the device end is
+                         * start_abs+hi, so at most hi-lo-scanned bytes
+                         * remain (NOT hi-scanned - lo is the walk base). */
+                        const u64 avail_max = hi - lo - scanned;
+                        const u64 read_len =
+                            avail_max < chunk_want + rawsigns::kMaxSignBytes
+                                ? avail_max
+                                : chunk_want + rawsigns::kMaxSignBytes;
+                        u8* buf = tail_buf.data();
+                        if (ctx.slice->read_at(start_abs + lo + scanned, buf,
+                                              u32(read_len)) == OK) {
+                            if (idx.scan_tail_for_format(buf, read_len, best->fmt, th)) {
+                                len = lo + scanned + th.pos + 512;
+                                if (len > hi)
+                                    len = hi;
+                                conf = u16((u32(best->conf) + u32(th.sign->conf)) / 2 + 100);
+                                if (conf > 1000)
+                                    conf = 1000;
+                                tail_paired = true;
+                                break;
+                            }
+                        } else {
+                            /* unreadable tail region: stop the walk - the
+                             * candidate stays header-only rather than
+                             * fabricating a tail it could not read */
+                            break;
                         }
+                        scanned += chunk_want;
                     }
                 }
             }
