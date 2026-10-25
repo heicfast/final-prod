@@ -321,6 +321,28 @@ stays gated on the undecoded FUN_18000d670 grade emission). Suite
 findings + index). Session unique resolutions: 9 (6 reconciliation +
 N-076 + N-069 + N-030).
 
+**Dead-surface batch FIXED (this wave):** N-041 — the wire-or-delete
+decision executed as DELETE (the finding's own recommendation): the
+structured-open RdaClient class + the plumbing only it reached
+(rda_bind_structured, the device's structured_/OPEN_TARGET reopen
+branch, the orphaned grammar-bridge helpers) + volume_letter_to_disk —
+~16 KB / 511 diff lines of zero-caller code removed. The wire structs
+stay in cr_rda.h as the documented driver-contract mirror (marked); a
+CI dead-surface absence lint (the fix plan's
+Transport.GrammarPathIsSoleSurface, implemented as a lint-job grep gate)
+guards the symbols' return. The PARITY-REFACTOR-PLAN D-A KEEP ruling
+was SUPERSEDED with evidence (its cited TRANSPORT-CONTRACT §8 no
+longer exists in the tree; the "UI reads info()/ioctl_base()/session_*
+through it" claim is disproven by the exhaustive zero-caller grep).
+PARITY-ARCH.md:152's refuted claim corrected; AUDIT-ARCH ARCH-DEAD-1
+RESOLVED / ARCH-DEAD-2 re-annotated; CAPABILITY-MATRIX +
+DRIVER-UTILIZATION + PARITY-ORCH rows updated; FB-T06/FB-T07 moot.
+Suite 584/584 linux-release; format-churn hunks reverted to HEAD bytes
+so the format-18 CI gate sees only the intended diff. Counts: MINOR 42
+· FIXED/ 96 files (95 findings + index). Session unique resolutions:
+10 (6 reconciliation + N-076 + N-030 + N-041; N-069/N-051..N-054
+convergent with the parallel lanes).
+
 ## Session-8 delta (2026-10-26 — the closing-verification fix session, SEVERE lane first)
 
 Session start `4a924d1` (rebased bootstrap `3494606`); corpus `03ad46c`

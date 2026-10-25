@@ -52,6 +52,12 @@ active roadmap.
 | N-069 | MINOR (S6) | CAB lowercase mscf registry key missing (og registers both cases) | DFX12 carve-minors batch (this commit) | FMT_CAB_LC row (appended id) keyed on {'m','s','c','f'} with the same validate_cab (the og's duplicate-key policy, census :94/:127); validate_cab accepts either case like FileCABAnalyser; Carve.CabLowercaseMagic (fail-before by construction: byte-exact scan + 0 lowercase rows pre-fix). |
 | N-030 | MINOR (S5) | raw_signs confidence field dead in og; core invents semantics | DFX12 carve-minors batch (this commit) | Registered deliberate superset (fix-plan option (b)): cr_rawsigns.h divergence block states the field is DEAD DATA in the og (FUN_18001e510 :23522-23765 never reads part[2]; erratum 19); PARITY-DELTAS D-66 with do-not-remove guidance; winner selection + the tail blend pinned by the existing RawSignLayerHeaderOnlyAndSharedMagic / RawSignTailPairWithinFormat tests. Option (a) gated on the undecoded FUN_18000d670 grade emission — recorded as the revisit precondition. |
 
+## Resolved findings (87 — dead-surface batch: +N-041; live file inventory)
+
+| ID | Severity (orig) | Title | Fix commit | Resolution |
+|---|---|---|---|---|
+| N-041 | MINOR (S5) | Dead code: RdaClient (zero callers) + volume_letter_to_disk | DFX12 dead-surface batch (this commit) | Option (b) DELETE executed: class + structured-open plumbing + volume_letter_to_disk removed (~16 KB); wire structs stay as documented driver contract in cr_rda.h; the REFACTOR-PLAN's KEEP ruling superseded with evidence (its cited TRANSPORT-CONTRACT §8 no longer exists; the "UI reads through it" claim grep-disproven); PARITY-ARCH.md:152 corrected; CI absence-lint guards the symbols' return; FB-T06/FB-T07 moot. |
+
 ## Resolved findings (37 — sessions 1-4 combined + the parallel fix legs' batches + M-023 (close-all-tiers session); every file in this directory has a row)
 ## Resolved findings (38 — sessions 1-4 combined: 12 from session-1/2 legs + A-002, A-004 (+S-016), M-009, S-006, S-011, S-013, S-015, S-017, S-018(INVALID), N-021, S-014; every file in this directory has a row)
 ## Resolved findings (31 — sessions 1-4 combined: every file in this directory has a row; +A-005, +S-021 this commit)
