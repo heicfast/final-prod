@@ -257,7 +257,10 @@ typedef struct cr_ui_disk_map_geometry {
 } cr_ui_disk_map_geometry;
 
 /* Per-cell overlays, one byte per cell, allocated by the library: */
-/*  allocation: 0 unknown, 1 used, 2 free, 3 bad (marked by the FS) */
+/*  allocation: 0 unknown, 1 used (active structured files), 2 free */
+/*              (S-009: engine bitmap truth - NTFS $Bitmap / FAT /    */
+/*               exFAT table; never overriding used or bad),           */
+/*              3 bad (retry-layer error spans - NOT FS-marked)        */
 /*  coverage:   0 unscanned, 1 scanned */
 /*  found:      0 none, else count of found-file cells capped at 255 */
 /*  confidence: 0 none, else the max Confidence ordinal (0..4) of content

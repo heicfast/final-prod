@@ -31,6 +31,7 @@
 #include "cr/storage/cr_slice.h"
 #include "cr/table/cr_ldm.h"
 #include "cr/table/cr_table_parse.h"
+#include "cr/tree/cr_diskmap.h"
 #include "cr/zfs/cr_zfs_engine.h"
 #include <chrono>
 #include <cstring>
@@ -808,6 +809,7 @@ struct EngineRun {
     u32 rc = OK;
     u64 files = 0;
     u64 deleted = 0;
+    storage::FreeMap free_map; /* S-009: the bitmap truth (main pass only) */
 };
 
 EngineRun run_engine_dispatch(FsFamily fam, IStorageDevice* slice, bool deep_extras,
@@ -835,6 +837,20 @@ EngineRun run_engine_dispatch(FsFamily fam, IStorageDevice* slice, bool deep_ext
                             root_deleted, root_lost, ws);
         r.files = candidate_mode ? ws.emitted : ws.active;
         r.deleted = ws.deleted;
+        /* S-009: $Bitmap IS the allocation truth (bit set = in use);
+         * invert to free (slice-relative base; rebased to the absolute
+         * basis at the dispatch tail, exactly like the tree extents). */
+        if (bm && bm->valid() && vol->params().cluster_bytes != 0) {
+            r.free_map.base_byte = 0;
+            r.free_map.cluster_bytes = vol->params().cluster_bytes;
+            r.free_map.cluster_count = bm->bit_count();
+            r.free_map.bits.assign(size_t((bm->bit_count() + 7) / 8), 0);
+            const std::vector<u8>& src = bm->buffer();
+            const size_t n = r.free_map.bits.size() < src.size() ? r.free_map.bits.size()
+                                                                 : src.size();
+            for (size_t i = 0; i < n; ++i)
+                r.free_map.bits[i] = u8(~src[i]); /* invert: free = !in-use */
+        }
         break;
     }
     case FsFamily::Fat: {
@@ -842,7 +858,7 @@ EngineRun run_engine_dispatch(FsFamily fam, IStorageDevice* slice, bool deep_ext
         fl.reconstruct_deleted_chains = deep_extras;
         fat::FatScanStats fs;
         rc = fat::scan_fat(slice, fl, cancel, progress, pu, tree, root_active, root_deleted,
-                           root_lost, fs);
+                           root_lost, fs, &r.free_map);
         r.files = fs.files;
         r.deleted = fs.deleted_entries;
         break;
@@ -851,7 +867,7 @@ EngineRun run_engine_dispatch(FsFamily fam, IStorageDevice* slice, bool deep_ext
         exfat::ExfatScanFlags fl;
         exfat::ExfatScanStats es;
         rc = exfat::scan_exfat(slice, fl, cancel, progress, pu, tree, root_active, root_deleted,
-                               root_lost, es);
+                               root_lost, es, &r.free_map);
         r.files = es.files;
         r.deleted = es.deleted_entries;
         break;
@@ -905,6 +921,11 @@ EngineRun run_engine_dispatch(FsFamily fam, IStorageDevice* slice, bool deep_ext
         rc = OK; /* unknown FS: quick yields nothing; deep/carve still run */
         break;
     }
+    /* S-009: the engine free maps are SLICE-relative; rebase to the
+     * absolute device basis exactly like the tree extents (F-1) so the
+     * disk map's cell math lines up with the extent overlays. */
+    if (r.free_map.valid() && slice->absolute_base() != 0)
+        r.free_map.base_byte += slice->absolute_base();
     r.rc = candidate_mode ? u32(OK) : rc;
     return r;
 }
@@ -982,6 +1003,9 @@ u32 ScanController::run_engine_pass(IStorageDevice* slice, bool deep_mode, Cance
         return er.rc;
     stats.files_found += er.files;
     stats.deleted_found += er.deleted;
+    /* S-009: the main pass owns the free-map truth (candidate probes
+     * never overwrite it - a lost volume's bitmap is not the slice's). */
+    stats.free_map = er.free_map;
     return rc;
 }
 
@@ -1274,7 +1298,21 @@ u32 ScanController::save_session(session::Writer& w, const ScanStats& stats) con
 
     if (session::serialize_error_map(stats.errors, blob) == OK)
         if (u32 rc = w.add_record(session::REC_ERROR_MAP, blob.data(), u32(blob.size())))
-            return rc;
+                return rc;
+
+    /* S-009: the downsampled free map (optional record; readers that
+     * predate it skip unknown types). The RAW cluster map is never
+     * persisted - the cell-granular form is bounded by the same overlay
+     * budget the map builder honors, so a 16 TiB volume persists <= 8
+     * MiB, not a 512 MiB $Bitmap copy. */
+    if (stats.free_map.valid()) {
+        storage::FreeMap down;
+        if (viz::downsample_free_map(stats.free_map, vol_offset_, vol_bytes_, down) == OK) {
+            if (session::serialize_free_map(down, blob) == OK)
+                if (u32 rc = w.add_record(session::REC_ALLOC_MAP, blob.data(), u32(blob.size())))
+                    return rc;
+        }
+    }
     return OK;
 }
 
@@ -1316,6 +1354,9 @@ u32 ScanController::load_session_summary(session::Reader& r, tree::ResultTree& t
         }
         case session::REC_ERROR_MAP:
             (void)session::deserialize_error_map(rec.data.data(), rec.data.size(), stats.errors);
+            break;
+        case session::REC_ALLOC_MAP: /* S-009: the free overlay truth */
+            (void)session::deserialize_free_map(rec.data.data(), rec.data.size(), stats.free_map);
             break;
         case session::REC_ASSISTANT_STATS: /* S-023 */
             (void)session::deserialize_assistant_stats(rec.data.data(), rec.data.size(),

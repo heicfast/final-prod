@@ -13,6 +13,7 @@
 
 #include "../cr_types.h"
 #include "../storage/cr_device.h"
+#include "../storage/cr_freemap.h"
 #include "../tree/cr_node.h"
 #include "../tree/cr_grading.h"
 #include <vector>
@@ -42,6 +43,14 @@ u32 deserialize_tree(const u8* data, size_t len, tree::ResultTree& tree);
 /* ---- read error map (REC_ERROR_MAP payload) ---- */
 u32 serialize_error_map(const ReadErrorMap& map, std::vector<u8>& out);
 u32 deserialize_error_map(const u8* data, size_t len, ReadErrorMap& map);
+
+/* ---- S-009 engine free map (REC_ALLOC_MAP payload) ----
+ * Wire layout: u32 cluster_bytes, u32 reserved(0), u64 base_byte,
+ * u64 cluster_count, u32 bits_len, bits bytes. The stored map is the
+ * DOWNSAMPLED cell-granular form (viz::downsample_free_map) - bounded
+ * by the overlay budget, not the raw cluster bitmap. */
+u32 serialize_free_map(const storage::FreeMap& fm, std::vector<u8>& out);
+u32 deserialize_free_map(const u8* data, size_t len, storage::FreeMap& fm);
 
 /* ---- volume info (REC_VOLUME_INFO payload) ---- */
 struct VolumeInfo {

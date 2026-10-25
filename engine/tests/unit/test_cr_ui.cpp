@@ -13,6 +13,11 @@
 
 #include <gtest/gtest.h>
 #include "cr/cr_ui.h"
+/* S-009 pure-builder tests: the core symbols resolve from libcr_ui
+ * (which embeds the core); these includes are for the types only. */
+#include "cr/storage/cr_device.h"
+#include "cr/tree/cr_diskmap.h"
+#include "cr/tree/cr_node.h"
 
 #include "test_tmpdir.hpp"
 
@@ -962,7 +967,11 @@ TEST(CrUi, DiskMapSessionGeometryAndOverlays) {
     ASSERT_NE(fnd, nullptr);
     ASSERT_NE(conf, nullptr);
     EXPECT_GT(got.cell_count, 0u);
-    EXPECT_GE(got.cell_bytes, 65536ull); /* default granularity class */
+    /* S-009: the session's free-map record is the cluster hint, so the
+     * grid is cluster-granular (512 on this fixture) - not the 64 KiB
+     * default that pre-record sessions degrade to. */
+    EXPECT_GE(got.cell_bytes, 512u);
+    EXPECT_EQ(got.cluster_bytes, 512u);
     /* coverage: the fixture scan completed carve -> every cell covered */
     bool all_cov = true;
     for (uint64_t i = 0; i < got.cell_count; ++i)
@@ -1026,6 +1035,194 @@ TEST(CrUi, DiskMapSnapshotRequiresViewGeometry) {
     EXPECT_GT(got.cell_count, 0u);
     cr_ui_disk_map_free(fnd);
     cr_ui_snapshot_close(snap);
+}
+
+/* ---- S-009: the free overlay (the engine bitmap truth) ---- */
+
+TEST(CrUi, DiskMapFreeOverlayFromFatTable) {
+    /* The FAT IS the allocation bitmap: the fixture's table marks
+     * clusters 5,10,11,12,20,30,31 in use; everything else is entry 0
+     * = free. After a full scan + session round-trip, the disk map must
+     * paint FREE cells where the table says free, USED where the active
+     * structured file lives (DOC.TXT, chain 10-12), and leave UNKNOWN
+     * where neither claim applies (the deleted file's chain 20: its FAT
+     * entry is non-zero so it is not free, and deleted content never
+     * marks USED - the honest neither-state). */
+    Ui u;
+    std::string img, crsf;
+    ASSERT_TRUE(scan_to_session("dmap_free", u, img, crsf));
+    cr_ui_disk_map_geometry want{};
+    cr_ui_disk_map_geometry got{};
+    uint8_t* alloc = nullptr;
+    uint32_t bad_count = 0;
+    ASSERT_EQ(cr_ui_disk_map(u.sess, nullptr, &want, &got, &alloc, nullptr, nullptr, nullptr,
+                             nullptr, 0, &bad_count),
+              CR_UI_OK);
+    ASSERT_NE(alloc, nullptr);
+    /* the session's free-map record is the cluster hint: 512-byte cells */
+    ASSERT_EQ(got.cluster_bytes, 512u);
+    ASSERT_EQ(got.cell_bytes, 512u);
+    /* data base = sector 74; cluster c lives at cell 72 + c */
+    const unsigned cell_doc = 72 + 10;      /* DOC.TXT first cluster */
+    const unsigned cell_del = 72 + 20;      /* DELFILE.TXT (deleted) */
+    const unsigned cell_free = 72 + 200;    /* far-away free cluster */
+    ASSERT_LT(cell_free, unsigned(got.cell_count));
+    EXPECT_EQ(alloc[cell_doc], 1u) << "active structured content is USED, never free";
+    EXPECT_EQ(alloc[cell_del], 0u) << "deleted chain: FAT non-zero (not free), deleted (not USED)";
+    EXPECT_EQ(alloc[cell_free], 2u) << "bitmap-free cluster with no content paints FREE";
+    /* the overwhelming majority of the fixture is free */
+    uint64_t free_cells = 0;
+    for (uint64_t i = 0; i < got.cell_count; ++i)
+        if (alloc[i] == 2u)
+            ++free_cells;
+    EXPECT_GT(free_cells, 4500u) << "the fixture has ~5000 free clusters";
+    cr_ui_disk_map_free(alloc);
+}
+
+TEST(CrUi, DiskMapFreeCellsSurviveSessionReloadAndSnapshot) {
+    /* The same session through BOTH read paths: the loaded session
+     * (REC_ALLOC_MAP round-trip) and the value snapshot captured from
+     * it. Both must report the same free population - the record's
+     * downsampled granularity rebuilds the identical grid. */
+    Ui u;
+    std::string img, crsf;
+    ASSERT_TRUE(scan_to_session("dmap_rt", u, img, crsf));
+    uint64_t free_via_session = 0;
+    {
+        cr_ui_disk_map_geometry want{}, got{};
+        uint8_t* alloc = nullptr;
+        uint32_t bad_count = 0;
+        ASSERT_EQ(cr_ui_disk_map(u.sess, nullptr, &want, &got, &alloc, nullptr, nullptr, nullptr,
+                                 nullptr, 0, &bad_count),
+                  CR_UI_OK);
+        for (uint64_t i = 0; i < got.cell_count; ++i)
+            if (alloc[i] == 2u)
+                ++free_via_session;
+        cr_ui_disk_map_free(alloc);
+        ASSERT_GT(free_via_session, 4500u);
+    }
+    cr_ui_snapshot* snap = nullptr;
+    ASSERT_EQ(cr_ui_session_snapshot(u.sess, &snap), CR_UI_OK);
+    cr_ui_disk_map_geometry want{}, got{};
+    uint8_t* alloc = nullptr;
+    uint32_t bad_count = 0;
+    want.start_byte = 0;
+    want.total_bytes = 512ull * 5074;
+    ASSERT_EQ(cr_ui_disk_map(nullptr, snap, &want, &got, &alloc, nullptr, nullptr, nullptr,
+                             nullptr, 0, &bad_count),
+              CR_UI_OK);
+    uint64_t free_via_snapshot = 0;
+    for (uint64_t i = 0; i < got.cell_count; ++i)
+        if (alloc[i] == 2u)
+            ++free_via_snapshot;
+    EXPECT_EQ(free_via_snapshot, free_via_session)
+        << "the snapshot must carry the same free-map truth as the session";
+    /* the captured slice bounds the snapshot's view */
+    cr_ui_disk_map_geometry oob{}, got2{};
+    uint8_t* f2 = nullptr;
+    oob.start_byte = 512ull * 5074;
+    oob.total_bytes = 4096;
+    EXPECT_EQ(cr_ui_disk_map(nullptr, snap, &oob, &got2, &f2, nullptr, nullptr, nullptr, nullptr,
+                             0, &bad_count),
+              0x50020004u /* ERR_RANGE_OUT_OF_BOUNDS */);
+    EXPECT_EQ(f2, nullptr);
+    cr_ui_disk_map_free(alloc);
+    cr_ui_disk_map_free(f2);
+    cr_ui_snapshot_close(snap);
+}
+
+TEST(CrUi, DiskMapScanSnapshotCarriesFreeMap) {
+    /* A completed scan's value snapshot carries the engine free map too
+     * (the !running capture path): the mid-scan surface paints free
+     * cells without ever loading the session file. */
+    Ui u;
+    const std::string img = write_fixture("dmap_ss");
+    ASSERT_FALSE(img.empty());
+    ASSERT_EQ(cr_ui_open_image(img.c_str(), 0, 0, &u.dev), CR_UI_OK);
+    cr_ui_scan_config cfg{};
+    ASSERT_EQ(cr_ui_scan_create(&cfg, &u.scan), CR_UI_OK);
+    ASSERT_EQ(cr_ui_scan_attach_device(u.scan, u.dev), CR_UI_OK);
+    ASSERT_EQ(cr_ui_scan_run(u.scan), CR_UI_OK);
+    cr_ui_snapshot* snap = nullptr;
+    ASSERT_EQ(cr_ui_scan_snapshot(u.scan, &snap), CR_UI_OK);
+    cr_ui_disk_map_geometry want{}, got{};
+    uint8_t* alloc = nullptr;
+    uint32_t bad_count = 0;
+    want.start_byte = 0;
+    want.total_bytes = 512ull * 5074;
+    ASSERT_EQ(cr_ui_disk_map(nullptr, snap, &want, &got, &alloc, nullptr, nullptr, nullptr,
+                             nullptr, 0, &bad_count),
+              CR_UI_OK);
+    ASSERT_NE(alloc, nullptr);
+    EXPECT_EQ(got.cluster_bytes, 512u) << "the free map is the cluster hint on this path too";
+    uint64_t free_cells = 0;
+    for (uint64_t i = 0; i < got.cell_count; ++i)
+        if (alloc[i] == 2u)
+            ++free_cells;
+    EXPECT_GT(free_cells, 4500u);
+    cr_ui_disk_map_free(alloc);
+    cr_ui_snapshot_close(snap);
+}
+
+TEST(DiskMap, FreeNeverOverridesUsedOrBadAndDownsampleIsConservative) {
+    /* Pure-builder precedence proof with a HOSTILE map: the bitmap
+     * claims every cluster free while a structured-active extent covers
+     * one cell and a read-error span covers another. USED and FsBad are
+     * the stricter claims - free must never override either. Plus the
+     * persistence downsample: cells only partially covered by the raw
+     * map stay NOT free (unknown is not free). */
+    using namespace cr;
+    tree::ResultTree t;
+    tree::FullNode* root = t.add_root(u"V");
+    auto* p = new tree::FileProperties();
+    p->record_ref = 1;
+    p->name = u"used.bin";
+    p->logical_size = 512;
+    p->extents.push_back({2 * 512, 512}); /* cell 2 */
+    tree::FileNode* f = t.add_file(root, p);
+    ASSERT_NE(f, nullptr);
+    p->release();
+
+    storage::FreeMap fm; /* claims ALL of [0, 8 KiB) free */
+    fm.base_byte = 0;
+    fm.cluster_bytes = 512;
+    fm.cluster_count = 16;
+    fm.bits.assign(2, 0xFF);
+
+    ReadErrorMap errors; /* a bad span over cell 5 */
+    errors.add(5 * 512, 512, 3);
+
+    viz::DiskMapInputs in;
+    in.slice_start = 0;
+    in.slice_bytes = 16 * 512;
+    in.cluster_bytes = 512;
+    in.free_map = &fm;
+    in.errors = &errors;
+    viz::DiskMapGeometry geom;
+    std::vector<u8> alloc;
+    std::vector<std::pair<u64, u64>> bad;
+    u32 bad_needed = 0;
+    ASSERT_EQ(viz::build_disk_map(in, t, geom, &alloc, nullptr, nullptr, nullptr, bad, 8,
+                                  &bad_needed),
+              u32(OK));
+    ASSERT_EQ(geom.cell_count, 16u);
+    EXPECT_EQ(alloc[2], 1u) << "USED is the stricter claim - hostile-free must not win";
+    EXPECT_EQ(alloc[5], 3u) << "FsBad (error span) is the stricter claim";
+    EXPECT_EQ(alloc[6], 2u) << "plain free cell paints FREE";
+    EXPECT_EQ(alloc[15], 2u);
+    EXPECT_EQ(bad_needed, 1u);
+
+    /* downsample: the raw map covers [0, 8 KiB) but the view is 12 KiB
+     * -> cells 16..23 (of the 24 half-KiB cells... at 512-byte cells)
+     * are NOT covered and must stay not-free even in the raw map's own
+     * tail; the covered cells stay free. */
+    storage::FreeMap down;
+    ASSERT_EQ(viz::downsample_free_map(fm, 0, 12 * 1024, down), u32(OK));
+    ASSERT_EQ(down.cluster_count, 24u); /* 12 KiB at 512-byte cells */
+    for (u64 k = 0; k < 16; ++k)
+        EXPECT_TRUE(down.is_free(k)) << "covered free clusters stay free after downsample";
+    for (u64 k = 16; k < 24; ++k)
+        EXPECT_FALSE(down.is_free(k)) << "uncovered tail is unknown, never free";
 }
 
 /* ---- S-008: pre-scan repair through the C ABI (image device) ---- */

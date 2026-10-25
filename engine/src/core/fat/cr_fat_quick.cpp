@@ -365,7 +365,7 @@ void emit_entry(EmitCtx& ctx, const DirEntry& e, const std::u16string& name, boo
 u32 scan_fat(IStorageDevice* slice, const FatScanFlags& flags, CancelToken* cancel,
              WalkProgressLike progress, void* progress_user, tree::ResultTree& tree,
              tree::FullNode* root_active, tree::FullNode* root_deleted, tree::FullNode* root_lost,
-             FatScanStats& stats) {
+             FatScanStats& stats, storage::FreeMap* free_out) {
     if (slice == nullptr)
         return ERR_BAD_PARAMETER;
     u8 boot[512];
@@ -420,6 +420,25 @@ u32 scan_fat(IStorageDevice* slice, const FatScanFlags& flags, CancelToken* canc
     /* M-012: mirror-only scans surface in the stats (og child1==NULL) */
     if (table.mirror_only())
         ++stats.mirror_only_scan;
+
+    /* S-009 (free overlay): the FAT IS the allocation bitmap - entry 0
+     * = free cluster (the IBuildVolumeBitmap truth the og's engines
+     * produce). Cluster 0's byte = the data-area base minus the two
+     * virtual reserved clusters, so the map is linear in the cluster
+     * number exactly like the og's cluster->sector math. */
+    if (free_out != nullptr) {
+        free_out->clear();
+        const u64 data_base = u64(p.first_data_sector) * p.bytes_per_sector;
+        const u64 two_cb = u64(2) * p.cluster_bytes;
+        free_out->base_byte = data_base >= two_cb ? data_base - two_cb : 0;
+        free_out->cluster_bytes = p.cluster_bytes;
+        free_out->cluster_count = table.max_cluster() + 1;
+        free_out->bits.assign(size_t((free_out->cluster_count + 7) / 8), 0);
+        for (u64 c = 0; c < free_out->cluster_count; ++c) {
+            if (table.raw(u32(c)) == 0)
+                free_out->bits[size_t(c >> 3)] |= u8(1u << (c & 7));
+        }
+    }
 
     EmitCtx ctx;
     ctx.dev = slice;

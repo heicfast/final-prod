@@ -153,9 +153,30 @@ Items 1 and M-005 share one plumbing fix (BitmapProvider) — implement together
 
 **Related:** N-074 (the GAP-S6-11 row that must close-with-residual), the visualization module row (matrix update this session).
 
-## Resolution (S-009 half; the M-006 half is closed above)
+---
 
-**Status:** FIXED (S-009 disk-map surface; N-020 drift corrected - this file said OPEN after the surface had landed)
-**Fixed in commit:** GAP-S6-11 landing `56cce87` (verified independently on the current tree this session)
-**Verified by:** the surface exists and is tested on the current tree: `cr_ui.h:610-629` exports `cr_ui_disk_map` + `cr_ui_disk_map_free` with the geometry/alloc/coverage/found/confidence model; `cr_ui.cpp` implements `disk_map_impl` (session auto-geometry, overlays, bad_ranges two-call); `tests/unit/test_cr_ui.cpp:953+` drives it (want-geometry contract, snapshot-requires-geometry). Suite green (ASan + UBSan lanes).
-**Resolution notes:** the ABI-CONTRACT §7 model landed as specified: a downsampled region map {offset, length, state (allocated/free/bad), coverage, confidence} over the session's device geometry, queryable through the flat C ABI - the AnalysisGridWidget data source equivalent at the engine boundary. The finding file is moved to findings/FIXED/ per the session-2 mandate; both halves (S-009 + M-006/fuzz CI e30b84d) are closed. The disk-map CI acceptance pair registered in ABI-CONTRACT §7 is covered by the cr_ui tests above.
+## Resolution
+
+**Status:** FIXED
+**Fixed in commit:** (this session's S-009 commit — see `git log` for "fix: S-009")
+**Verified by:** 4 new fail-before-by-construction tests (the finding itself grep-verified `kCellAllocFree` had ZERO assignment sites pre-fix — every test asserting `alloc[cell] == 2` was impossible before): `CrUi.DiskMapFreeOverlayFromFatTable` (session path, FAT-table truth: USED at the active doc chain, UNKNOWN at the deleted chain, FREE at bitmap-free clusters, >4500 free cells on the fixture), `CrUi.DiskMapFreeCellsSurviveSessionReloadAndSnapshot` (the REC_ALLOC_MAP round-trip: identical free population via session and via snapshot + the snapshot view bounds check), `CrUi.DiskMapScanSnapshotCarriesFreeMap` (the completed-scan snapshot path), `DiskMap.FreeNeverOverridesUsedOrBadAndDownsampleIsConservative` (hostile-map precedence proof: USED and FsBad never overridden by free; the downsample's uncovered tail stays not-free). Suite 515/515 Linux Release + 21/21 cr_ui_tests + `cr_ui_abi_check` green, and the same three green on the ASan lane (executed this session on the merged tree).
+**Resolution notes:** The residual the session-6 addendum scoped is closed end-to-end. (1) Producer: `storage::FreeMap` (new `include/cr/storage/cr_freemap.h` — bit set = free, out-of-range never free) filled by the engines that own an allocation bitmap — NTFS from `$Bitmap` (the already-loaded `VolumeBitmap`, inverted; accessors added), FAT from the loaded table (entry 0 = free, cluster 0's byte = data base − 2 clusters, the og's linear cluster math), exFAT from the allocation-bitmap dentry walk (bit set = allocated, inverted; the 8 MiB loader cap's tail stays conservatively not-free). Engines write slice-relative; `run_engine_dispatch` rebases to the absolute device basis exactly like the tree extents (F-1); candidate probes never overwrite the main-pass map. (2) Consumer: `build_disk_map` gains `DiskMapInputs.free_map` and paints `kCellAllocFree` only on still-unknown cells fully covered by bitmap-free clusters — USED (the stricter structured claim) and FsBad (error spans) are never overridden, matching the finding's fix plan verbatim. (3) Persistence: `REC_ALLOC_MAP` (record type 7, optional, old readers skip) stores the DOWNSAMPLED cell-granular map (`viz::downsample_free_map` — the same `choose_cell_bytes` sizing, so a 16 TiB volume persists ≤ 8 MiB, never a 512 MiB $Bitmap copy); `load_session_summary` restores it and the session disk-map path uses its granularity as the cluster hint (pre-record sessions keep the 64 KiB default — unknown, never a guess). (4) The session-2 audit's snapshot-path items close too: `CrSnapshot` now value-captures the session's error map + free map + slice view (`cr_ui_session_snapshot`), and `cr_ui_scan_snapshot` captures the live telemetry error map under the controller lock (the mid-scan AnalysisGridWidget use, UIUX/04:110) plus the free map when the scan is not running (a live read would be racy — absent paints unknown). The snapshot `want` view is now bounds-checked against the captured slice. (5) Doc truth: the header's "engine bitmap is not persisted (registered follow-up)" rule and ABI-CONTRACT §7's "3 bad (marked by the FS)" drift corrected (bad = retry-layer spans; free = engine bitmap). ReFS/ext4/HFS+/Btrfs/ZFS stay without a free map (no bitmap surface decoded in the corpus for them — the og's `IBuildVolumeBitmap` is cited only for the NTFS/FAT-family engines); their cells degrade to unknown, which is the documented honest state. M-006 (fuzz CI) was fixed long ago (`e30b84d`); N-057's bad-overlay coverage debt is now partially paid (the precedence test drives the error-map path); the Ebr enum and the budget-growth test remain N-057's open scope.
+
+---
+
+## Parallel-landing reconciliation (session 8)
+
+The N-020 doc-drift leg (parallel, `74e4d36`) moved this file to FIXED with
+a Resolution crediting only the GAP-S6-11 surface landing (`56cce87`) —
+while the same file's session-6 addendum (quoted verbatim above their
+Resolution) documents the FREE-OVERLAY RESIDUAL as the actual open
+divergence (`kCellAllocFree` never assigned, engine bitmaps
+loaded-and-discarded, no persistence, no snapshot error map). A surface
+landing is not a residual fix: marking this finding FIXED on the surface
+alone was premature — the exact "hallucinated parity" class the fix
+sessions are mandated against (a finding is FIXED only with a test that
+proves it, and no test could produce a free cell before this session).
+This session's Resolution above is the operative one: the free overlay is
+implemented, tested (4 fail-before-by-construction tests), and verified on
+both lanes. The N-020 leg's five other doc-drift corrections are
+unaffected and stand.

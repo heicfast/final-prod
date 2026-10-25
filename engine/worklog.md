@@ -8443,7 +8443,6 @@ Stage Summary:
 - No semantic overlap remains: S-032 is FIXED by the parallel lane (dropped
   from this session's SEVERE queue — S-009/S-029/S-030 remain).
 
-<<<<<<< HEAD
 Task ID: DFX9-T0 (diff-fix session 9 bootstrap + baseline repair)
 Agent: main engineer (diff-to-fix session 9)
 Task: Session bootstrap — pull both repos, record baseline commits, establish
@@ -8534,7 +8533,6 @@ Stage Summary:
   recommended next-10.
 
 ---
-<<<<<<< HEAD
 Task ID: DFX7-T2 (MINOR tier, waves 3-4)
 Agent: main engineer (diff-to-fix session 7)
 Task: Continue the MINOR tier; repair cross-lane landing corruption as found.
@@ -8649,3 +8647,59 @@ Stage Summary:
 - Baseline green. DFX10 fix order: SEVERE (S-009 → S-029 → S-030) then MAJOR by
   impact. Note: DFX12 runs MINOR-first waves in parallel — coordinate via worklog
   before each push (pull --rebase every time).
+
+---
+Task ID: DFX8-S009 (session 8, finding 2)
+Agent: main engineer (diff-to-fix closing session 8)
+Task: S-009 — the disk-map free overlay (the residual the session-6 addendum
+scoped): kCellAllocFree never produced, no persistence, snapshot paths carry
+no error map. Verified, fixed, proven.
+
+Work Log:
+- Re-verified the finding first-hand: grep kCellAllocFree assignment sites in
+  src/ = 0 (the finding's claim holds at session start); the session-6
+  addendum's fix plan (bitmap producer -> fill pass -> downsampled
+  persistence -> tests) executed as written.
+- Implementation (files): include/cr/storage/cr_freemap.h (NEW — FreeMap:
+  bit set = free, out-of-range never free, conservative range_free);
+  ntfs/cr_bitmap.h (bit_count/buffer accessors); fat/exfat engine scan
+  signatures gained optional FreeMap* out (FAT: table entry-0 truth,
+  cluster-0 base = data base - 2 clusters; exFAT: allocation-bitmap dentry
+  inverted, 8 MiB loader cap tail stays not-free);
+  orchestrator/cr_scan.{h,cpp} (EngineRun.free_map; NTFS $Bitmap inverted;
+  absolute rebase at the dispatch tail exactly like tree extents; main pass
+  owns stats.free_map, candidates never overwrite);
+  tree/cr_diskmap.{h,cpp} (DiskMapInputs.free_map + the fill pass: FREE only
+  on still-unknown cells fully covered; downsample_free_map with the same
+  choose_cell_bytes budget); session records (REC_ALLOC_MAP type 7 +
+  serialize/deserialize with bits-coverage validation); save/load wiring;
+  ui/cr_ui.cpp (session path feeds map+cluster hint; CrSnapshot captures
+  errors+free map+view; scan snapshots capture live telemetry errors under
+  ctrl_mu + the completed map when !running; snapshot want bounds-checked).
+- Docs: cr_diskmap.h truth rule + cr_ui.h overlay comments + ABI-CONTRACT
+  section 7 corrected (free = engine bitmap; bad = retry-layer spans, not
+  FS-marked); visualization.md session-8 verdict table.
+- Tests (4 new, fail-before by construction — zero kCellAllocFree producers
+  existed): DiskMapFreeOverlayFromFatTable (FAT truth: USED at doc chain /
+  UNKNOWN at deleted chain / FREE at >4500 cells), FreeCellsSurviveSessionReload
+  AndSnapshot (record round-trip + snapshot parity + OOB refusal),
+  ScanSnapshotCarriesFreeMap, FreeNeverOverridesUsedOrBadAndDownsampleIs
+  Conservative (hostile-map precedence + conservative downsample tail).
+  The stale 64KiB-cell assertion in DiskMapSessionGeometryAndOverlays
+  updated to the new cluster-hint truth.
+- Verification on the merged tree (incl. the parallel lanes' S-032 + N-018
+  landings): 515/515 cr_tests + 21/21 cr_ui_tests + cr_ui_abi_check green,
+  on Release AND ASan lanes.
+- Audit trail: finding -> FIXED/ with full Resolution; RESOLVED-INDEX row;
+  matrix visualization+abi rows; visualization.md session-8 verdict;
+  SUMMARY session-8 delta + counts (SEVERE 2 remain: S-029, S-030); N-057
+  addendum (bad-overlay coverage paid; Ebr enum + budget-growth remain).
+
+Stage Summary:
+- S-009 FIXED. The disk map now paints the og's IBuildVolumeBitmap truth
+  (free/used) for every engine that owns an allocation bitmap, persists it
+  budget-bounded, and carries it through both snapshot paths. Counts:
+  SEVERE 2 (S-029 lost-partition apply, S-030 image targets) / MAJOR 39 /
+  MINOR 55 / INFO 22 / 72 FIXED. Next: S-030 (image scan targets - the
+  flat-file device + --image CLI + VMDK sparse extents), then S-029
+  (consent-gated apply path).

@@ -116,6 +116,22 @@ u32 build_disk_map(const DiskMapInputs& in, const tree::Snapshot& snap, DiskMapG
                      sn.confidence, ov);
     }
 
+    /* S-009 free overlay: the engine bitmap's truth fills the cells the
+     * structured pass left unknown. Precedence is honest: USED (the
+     * stricter structured-extent claim) and later FsBad (an error span)
+     * are never overridden by free; only still-unknown cells that are
+     * FULLY covered by bitmap-free clusters become kCellAllocFree. */
+    if (allocation && in.free_map != nullptr && in.free_map->valid()) {
+        const storage::FreeMap& fm = *in.free_map;
+        for (u64 c = 0; c < geom.cell_count; ++c) {
+            if ((*allocation)[size_t(c)] != kCellAllocUnknown)
+                continue;
+            const u64 b0 = in.slice_start + c * geom.cell_bytes;
+            if (fm.range_free(b0, geom.cell_bytes))
+                (*allocation)[size_t(c)] = kCellAllocFree;
+        }
+    }
+
     /* coverage: carve completion read the whole slice - the honest
      * all-cells mark; without it, coverage is exactly the extent-derived
      * cells already marked above */
@@ -170,6 +186,26 @@ u32 build_disk_map(const DiskMapInputs& in, const tree::ResultTree& tree, DiskMa
         return ERR_NO_MEMORY;
     return build_disk_map(in, *snap, geom, allocation, coverage, found, confidence, bad_ranges,
                           bad_cap, bad_needed);
+}
+
+u32 downsample_free_map(const storage::FreeMap& raw, u64 slice_start, u64 slice_bytes,
+                        storage::FreeMap& out) {
+    out.clear();
+    if (!raw.valid() || slice_bytes == 0)
+        return ERR_BAD_PARAMETER;
+    const u64 cell = choose_cell_bytes(slice_bytes, raw.cluster_bytes);
+    const u64 cells = (slice_bytes + cell - 1) / cell;
+    out.base_byte = slice_start;
+    out.cluster_bytes = u32(cell);
+    out.cluster_count = cells;
+    out.bits.assign(size_t((cells + 7) / 8), 0);
+    for (u64 c = 0; c < cells; ++c) {
+        const u64 b0 = slice_start + c * cell;
+        const u64 b1 = b0 + cell;
+        if (b1 <= slice_start + slice_bytes && raw.range_free(b0, cell))
+            out.bits[size_t(c >> 3)] |= u8(1u << (c & 7));
+    }
+    return OK;
 }
 
 } // namespace viz

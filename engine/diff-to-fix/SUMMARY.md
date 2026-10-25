@@ -33,12 +33,34 @@ their deltas below as they push.
 
 # SUMMARY.md — executive summary (session-6 fix leg + session 7 below; earlier sessions below)
 
-## Session-8 delta (2026-10-26 — the closing-verification fix session, S-009 first lane)
+## Session-8 delta (2026-10-26 — the closing-verification fix session, SEVERE lane first)
 
 Session start `4a924d1` (rebased bootstrap `3494606`); corpus `03ad46c`
 unmoved. Baseline before any change: Linux Release suite **500/500** +
 `cr_ui_tests` 21/21. Order per mandate: SEVERE → MAJOR → MINOR → INFO →
 TRACKED-OPEN; every finding independently re-verified before fixing.
+
+**S-009 FIXED (SEVERE — the disk-map free overlay; the last open half of
+the S-009/M-006 split file):** the engine bitmap truth is now produced,
+consumed, and persisted. `storage::FreeMap` (new type) filled by NTFS
+(`$Bitmap` inverted), FAT (table entry-0 = free), exFAT (allocation-bitmap
+dentry inverted) — rebased to the absolute device basis exactly like the
+tree extents; `build_disk_map` paints `kCellAllocFree` only on
+still-unknown cells fully covered by bitmap-free clusters (USED and FsBad
+are never overridden — hostile-map precedence proven by test);
+`REC_ALLOC_MAP` (new optional record) persists the DOWNSAMPLED
+cell-granular map (the same 64 MiB-budget sizing — ≤ 8 MiB on a 16 TiB
+volume, never a raw $Bitmap copy) and restores it as the session's
+cluster hint; both snapshot paths value-carry the truth (session
+snapshots: errors + free map + view bounds; scan snapshots: the live
+telemetry error map + the completed map). Doc drift retired (the header's
+"not persisted (registered follow-up)" rule; ABI-CONTRACT §7's "3 bad
+(marked by the FS)"). 4 fail-before-by-construction tests (the finding
+itself grep-verified `kCellAllocFree` had ZERO assignment sites); suite
+**515/515 + cr_ui_tests 21/21 + cr_ui_abi_check** green on Release AND
+ASan (merged tree incl. the parallel lanes' S-032/N-018 landings).
+N-057's bad-overlay coverage item paid; Ebr enum + budget-growth test
+remain its scope.
 
 **NEW-FINDING M-053 (MAJOR, filed + FIXED):** discovered during the S-009
 verification pass — the C-ABI consumer check (`cr_ui_abi_check`, registered
@@ -52,8 +74,16 @@ differing bytes between the passing C++ fixture and the failing C fixture
 are the two media-word pairs). Fix: canonical media words in the fixture +
 a precondition bail-out after a failed scan (a real consumer checks the
 return code and stops). Engine untouched — M-015's exact-pair validator is
-correct og parity. `cr_ui_abi_check` green on release AND ASan (executed
-both lanes). Findings/FIXED/M-053 + RESOLVED-INDEX row + matrix Q66 note.
+correct og parity. CONVERGENT with the parallel N-018 lane's fixture fix
+(`b1f9210`/`abf5663`); this leg's unique contribution is the formal finding
+record + the bail-out hardening. `cr_ui_abi_check` green on release AND
+ASan (executed both lanes).
+
+**Counts after the session-8 SEVERE lane (direct file inventory):**
+ACUTE 0 · **SEVERE 2** (S-029, S-030 — S-032 was fixed by the parallel
+lane in-window) · MAJOR 39 (M-053 filed+fixed in-session) · MINOR 55 ·
+INFO 22 (all ACKNOWLEDGED) = **118 active / 72 FIXED** (live inventory:
+findings/FIXED/ = 73 files incl. RESOLVED-INDEX).
 
 ## Session-6 delta (2026-10-26 — the S-024 decoded-truth upgrade)
 

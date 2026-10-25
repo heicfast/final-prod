@@ -71,3 +71,17 @@ diskmap test-file enumeration).
 Whether the og's disk-map bad-sector overlay granularity (per-cell vs per-sector) matches
 ours is UNVERIFIED — the UIUX artifacts describe the visual, not the cell math; a UI-layer
 decode would pin it. Not blocking the test-debt fix.
+
+---
+
+## Addendum (session 8 — S-009 pays the bad-overlay coverage debt)
+
+The S-009 free-overlay fix (this session) landed
+`DiskMap.FreeNeverOverridesUsedOrBadAndDownsampleIsConservative`, which
+drives the bad-sector overlay path end-to-end (a ReadErrorMap span through
+`build_disk_map`: FsBad cell marking + `bad_needed` accounting + the
+bad_ranges fill) — the finding's "no test drives a bad-sector overlay"
+item is closed. The remaining open scope narrows to: (1) the
+`TableLayout::Ebr` dead-enum decision (assign or remove), (2) the
+budget-growth path (>64 MiB overlay → cell doubling) and the write-only
+`total` accumulator at `cr_diskmap.cpp:39`.

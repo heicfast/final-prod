@@ -72,3 +72,24 @@ predates that fix landing and is superseded. Only the S-009 disk-map remainder s
 | ID | Severity | One-line |
 |---|---|---|
 | S-009 addendum | — | Stale premise corrected (the diskmap surface landed — C consumer exercises it); the RESIDUAL: kCellAllocFree never assigned (grep 0 sites), NTFS VolumeBitmap loaded-and-discarded at cr_scan.cpp:813-814 — the free overlay is unproducible until the engine bitmaps feed the viz layer. Concrete fix plan appended to the finding |
+
+---
+
+## Session-8 verdict (fix session — S-009 closed)
+
+**S-009 FIXED** (this session's S-009 commit; finding → findings/FIXED/ with the full
+Resolution). The free overlay is real end-to-end:
+
+| Parameter | Verdict | Evidence |
+|---|---|---|
+| B1 (bitmap surface — free/used truth) | **MATCH** | `storage::FreeMap` produced by the engines that own an allocation bitmap (NTFS `$Bitmap` inverted via the new VolumeBitmap accessors; FAT table entry-0; exFAT allocation-bitmap dentry inverted), absolute-rebased like tree extents; `build_disk_map` paints `kCellAllocFree` only on still-unknown cells fully covered by bitmap-free clusters (USED/FsBad never overridden — the hostile-map precedence test) |
+| persistence (CRSF record) | **MATCH** | `REC_ALLOC_MAP` (type 7, optional, old readers skip): the DOWNSAMPLED cell-granular map (`viz::downsample_free_map`, the same 64 MiB-budget sizing — ≤ 8 MiB on a 16 TiB volume); restored as the session path's cluster hint; pre-record sessions degrade to unknown, never a guess |
+| snapshot path (session-2 audit items) | **MATCH** | `cr_ui_session_snapshot` value-captures errors + free map + slice view (bounds-checked `want`); `cr_ui_scan_snapshot` captures the live telemetry error map under the controller lock (the mid-scan AnalysisGridWidget use) + the free map when !running |
+| acceptance tests | **MATCH** | `DiskMapFreeOverlayFromFatTable`, `DiskMapFreeCellsSurviveSessionReloadAndSnapshot`, `DiskMapScanSnapshotCarriesFreeMap`, `DiskMap.FreeNeverOverridesUsedOrBadAndDownsampleIsConservative` — fail-before by construction (the finding grep-verified `kCellAllocFree` had zero assignment sites) |
+| §7 doc truth | **MATCH** | ABI-CONTRACT §7 + `cr_ui.h` comments corrected: free = engine bitmap truth; bad = retry-layer spans (not FS-marked); `cr_diskmap.h`'s "not persisted (registered follow-up)" rule retired |
+
+Engines without a corpus-decoded bitmap surface (ReFS/ext4/HFS+/Btrfs/ZFS) stay
+unknown-celled — the og's `IBuildVolumeBitmap` is cited only for the NTFS/FAT-family
+engines (searchdll-family--architecture.md §2). N-057's remaining scope: the Ebr enum
+decision + the budget-growth test (the bad-overlay coverage item paid by the S-009
+precedence test).

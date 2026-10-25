@@ -17,6 +17,7 @@
 #define CR_EXFAT_ENGINE_H_
 
 #include "../storage/cr_device.h"
+#include "../storage/cr_freemap.h"
 #include "../tree/cr_node.h"
 #include "cr_exfat_wire.h"
 #include <memory>
@@ -79,10 +80,14 @@ struct ExfatScanFlags {
     bool validate_entry_sets = false;
 };
 
+/* S-009 (free overlay): free_out, when non-null, receives the
+ * cluster-granular free map from the volume allocation bitmap (bit
+ * set = cluster allocated per the exFAT spec; the map inverts to
+ * free). Optional so existing callers are untouched. */
 u32 scan_exfat(IStorageDevice* slice, const ExfatScanFlags& flags, CancelToken* cancel,
                bool (*progress)(u64, u64, void*), void* progress_user, tree::ResultTree& tree,
                tree::FullNode* root_active, tree::FullNode* root_deleted, tree::FullNode* root_lost,
-               ExfatScanStats& stats);
+               ExfatScanStats& stats, storage::FreeMap* free_out = nullptr);
 
 } // namespace exfat
 } // namespace cr

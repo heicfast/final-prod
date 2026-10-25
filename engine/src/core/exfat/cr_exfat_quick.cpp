@@ -524,7 +524,7 @@ void walk_entries(ScanCtx& ctx, const std::vector<u8>& buf, bool deleted_context
 u32 scan_exfat(IStorageDevice* slice, const ExfatScanFlags& flags, CancelToken* cancel,
                bool (*progress)(u64, u64, void*), void* progress_user, tree::ResultTree& tree,
                tree::FullNode* root_active, tree::FullNode* root_deleted, tree::FullNode* root_lost,
-               ExfatScanStats& stats) {
+               ExfatScanStats& stats, storage::FreeMap* free_out) {
     if (slice == nullptr)
         return ERR_BAD_PARAMETER;
     ExfatParams p;
@@ -586,6 +586,32 @@ u32 scan_exfat(IStorageDevice* slice, const ExfatScanFlags& flags, CancelToken* 
         recurse_dir(ctx, p.first_cluster_of_root, false, nullptr, 0);
     if (ctx.cancel && ctx.cancel->checkpoint())
         return ERR_CANCELLED;
+
+    /* S-009 (free overlay): the allocation bitmap dentry walked above is
+     * the exFAT allocation truth (bit set = cluster allocated). Invert
+     * to free; clusters beyond the loaded bitmap (the 8 MiB loader cap)
+     * stay NOT-free (unknown is not free). Cluster 0's byte = the heap
+     * base minus the two virtual reserved clusters (linear like the
+     * engine's cluster_offset math). */
+    if (free_out != nullptr) {
+        free_out->clear();
+        if (ctx.have_bitmap && p.cluster_count != 0 && p.cluster_bytes != 0) {
+            const u64 heap_base = u64(p.cluster_heap_offset) * p.bytes_per_sector;
+            const u64 two_cb = u64(2) * p.cluster_bytes;
+            free_out->base_byte = heap_base >= two_cb ? heap_base - two_cb : 0;
+            free_out->cluster_bytes = p.cluster_bytes;
+            free_out->cluster_count = p.cluster_count;
+            free_out->bits.assign(size_t((u64(p.cluster_count) + 7) / 8), 0);
+            const size_t avail =
+                free_out->bits.size() < ctx.bitmap.data.size() ? free_out->bits.size()
+                                                               : ctx.bitmap.data.size();
+            const u64 covered = u64(avail) * 8;
+            for (u64 c = 0; c < covered && c < free_out->cluster_count; ++c) {
+                if (!ctx.bitmap.test(u32(c)))
+                    free_out->bits[size_t(c >> 3)] |= u8(1u << (c & 7));
+            }
+        }
+    }
 
     stats.fat_window_refills = ctx.fat.refills; /* S-013 windowed-FAT telemetry */
     if (progress)

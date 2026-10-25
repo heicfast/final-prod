@@ -322,6 +322,42 @@ u32 deserialize_error_map(const u8* data, size_t len, ReadErrorMap& map) {
     return consumed <= len ? u32(OK) : u32(0x50040001);
 }
 
+u32 serialize_free_map(const storage::FreeMap& fm, std::vector<u8>& out) {
+    out.clear();
+    if (!fm.valid())
+        return ERR_BAD_PARAMETER;
+    put32(out, fm.cluster_bytes);
+    put32(out, 0); /* reserved */
+    put64(out, fm.base_byte);
+    put64(out, fm.cluster_count);
+    put32(out, u32(fm.bits.size()));
+    out.insert(out.end(), fm.bits.begin(), fm.bits.end());
+    return OK;
+}
+
+u32 deserialize_free_map(const u8* data, size_t len, storage::FreeMap& fm) {
+    fm.clear();
+    if (data == nullptr || len < 28)
+        return ERR_SESSION_FORMAT;
+    Cursor c(data, len);
+    const u32 cluster_bytes = c.g32();
+    (void)c.g32(); /* reserved */
+    const u64 base_byte = c.g64();
+    const u64 cluster_count = c.g64();
+    const u32 bits_len = c.g32();
+    if (c.fail || cluster_bytes == 0 || cluster_count == 0)
+        return ERR_SESSION_FORMAT;
+    if (u64(bits_len) != (cluster_count + 7) / 8)
+        return ERR_SESSION_FORMAT; /* the bits must cover the declared clusters */
+    if (size_t(bits_len) > c.left)
+        return ERR_SESSION_FORMAT;
+    fm.cluster_bytes = cluster_bytes;
+    fm.base_byte = base_byte;
+    fm.cluster_count = cluster_count;
+    fm.bits.assign(c.p, c.p + bits_len);
+    return OK;
+}
+
 u32 serialize_volume_info(const VolumeInfo& vi, std::vector<u8>& out) {
     out.clear();
     put32(out, vi.fs_kind);
