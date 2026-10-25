@@ -71,3 +71,14 @@ tracked-open); the fallback-chain fix is safe under either answer.
 **Fixed in commit:** this session's carve-magic-quartet batch
 **Verified by:** `Carve.IiuTiffEpValidatedByTiffGrammar` (a structurally-valid IIU file carves as .tif/FMT_TIFF_EP, never the RW2 row) and `Carve.IiuRw2FallbackWhenTiffEpRejects` (garbage IFD: TIFF/EP rejects, the IIU-salvage fallback fires at lower confidence). Fail-before: the tests do not exist on the pre-fix tree; pre-fix every IIU file took FMT_RW2/"Panasonic RAW" (.rw2) - the mislabel the finding describes.
 **Resolution notes:** the og binds IIU\0 to the TIFF chain (census :53, BruteForce::TiffAnalyzer - re-read first-hand; the og has NO Panasonic row). Implemented per the fix plan's collision-semantics option: new FMT_TIFF_EP row (appended; magic IIU\0, validator validate_tiff - the TIFF/EP grammar, label "TIFF/EP", ext .tif) tried BEFORE FMT_RW2 in kTrialOrder; FMT_RW2's validator gained the post-reject IIU-salvage path (IIU + plausible IFD offset, confidence 600) - a REGISTERED SUPERSET (D-63): the og carves nothing when the TIFF grammar rejects; we salvage corrupt TIFF/EP headers. The note tells the truth on every path.
+
+### DFX12 convergence addendum (session 12)
+
+Convergent with this leg's same-resolution implementation (new
+FMT_TIFF_EP row claiming the IIU key with the TIFF grammar ahead of an
+FMT_RW2 salvage fallback, registered superset — their D-63a numbering is
+canonical; this leg's duplicate D-64 register dropped in the union).
+Both legs' test pairs are name-identical
+(Carve.IiuTiffEpValidatedByTiffGrammar / Carve.IiuRw2FallbackWhenTiffEpRejects);
+this leg executed both RED on the stash-isolated pre-fix engine as the
+second fail-before proof set.

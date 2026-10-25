@@ -291,3 +291,44 @@ belongs to M-024/N-033's family.
 | ID | Verdict |
 |---|---|
 | M-051 | **FIXED** — the RAW provenance fields land as the finding's plan scoped: carve_checksum = CRC32(extent's first 512 bytes) at both emit sites (0xFFFFFFFF = the og's invalid marker, the default for non-records incl. the S-032 inner-entry children); carve_anchor_b = the tail sign's exact position on raw-sign tail-paired hits (0 = header-only, the og's 261/12,147 census); carve_note + carve_flag carried and round-tripped (the og's note is "usually empty"; +0xF4's semantics undecoded — OQ-S6-3). Anchor A = the extent start (already carried). Record-4 nflags-bit4 block. 2 fail-before tests. |
+## Session-12 update (2026-10-26, DFX12 — the carve-magic quartet, CONVERGENT with the parallel lane)
+
+**N-051/N-052/N-053/N-054 FIXED by two convergent landings** (this
+session verified the corpus first-hand — analyser-granular-batch1
+:43-80, registry census :53-55, carving deep-dive :28-60 — while the
+parallel lane's `b2f48c6` landed the same four findings in the same
+window; the union takes their landing as canonical per the repo's
+collision convention, and this session's independent verification +
+fail-before execution stand as the second proof set):
+
+- **N-051:** their validate_mkv (bounds gate + DocType webm/matroska
+  discrimination) is canonical; this session's independent decode adds
+  that the artifact's second constant 0x67805318 is the Segment element
+  ID 0x18538067 read little-endian (a decode refinement recorded here
+  for future audits — real matroska files carry both a matroska
+  DocType and a Segment element, so both readings agree on real files).
+- **N-052:** their FMT_HEIF registry row is canonical (heic-proper stays
+  HEIC; siblings relabel HEIF). This session's alternative carrier
+  (per-file CarveResult::ext_override keeping one type-id) is preserved
+  in git history (017d63b) as the rejected design — the finding's
+  "type-id unchanged" guidance vs the registry-row approach was decided
+  by first-landing.
+- **N-053:** same resolution both legs (FMT_TIFF_EP claims the IIU key
+  with validate_tiff; FMT_RW2 = salvage fallback, their D-63a = this
+  session's D-64).
+- **N-054:** same resolution both legs (FUJI 4CC + canonical-string
+  primary + variant path; JPEG prefix registered, their D-64a).
+- **N-076 (S12 NEW-FINDING — THIS session's unique contribution):**
+  discovered while building the N-054 fixtures: the canonical RAF
+  version gate rejected every real-world RAF (the version field at +16
+  is a 4-byte ASCII string "0100"/"0201"; LE-read values ~8e8 far above
+  the 0x2000 binary cap) — the row was dead for real files since
+  introduction, with zero fixture coverage. The parallel landing
+  (b2f48c6) still carries the defect; fixed in this session's follow-up
+  commit with Carve.RafRealAsciiVersionAccepted (fail-before executed
+  on the stash-isolated pre-fix engine: RED).
+
+Fail-before evidence for this session's independent run: 8/10 of this
+leg's tests RED on the stash-isolated pre-fix engine (the parallel leg's
+8 tests carry their own fail-by-absence proofs). Suite post-union:
+549/549 linux-release.

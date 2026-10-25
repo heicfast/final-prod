@@ -9152,6 +9152,7 @@ Stage Summary:
   SEVERE 1 / MAJOR 39 / MINOR 55 / INFO 22 / 74 FIXED. Session tally:
   S-009, S-030, M-053 (filed+fixed) + the S-032/S-009 parallel-landing
   reconciliations.
+---
 
 Task ID: DFX10-T0 (diff-fix session 10 bootstrap)
 Agent: main engineer (diff-to-fix session 10)
@@ -9260,3 +9261,141 @@ Work Log:
 Stage Summary:
 - M-005 in flight on DFX14. Other lanes' queues unaffected (no overlap
   with DFX9-T7's M-052/M-035/M-018/M-013/M-014 or DFX9-T2's MINOR trio).
+
+---
+---
+Task ID: DFX12-T3 (carve-magic quartet — N-051/N-052/N-053/N-054 + NEW-FINDING N-076)
+Agent: main engineer (diff-to-fix minors-first session 12)
+Task: Fix the carve-magic quartet findings with corpus-first verification,
+fail-before/pass-after proof, per-file label architecture, and the
+discovered RAF defect.
+
+Work Log:
+- Corpus verified first-hand for all four: analyser-granular-batch1 :43-80
+  (MKV vint + bounds + DocType constants; HEIC brand relabel),
+  registry census :53-55 (IIU -> TiffAnalyzer; FUJI 4CC; JPEG 4 dwords),
+  carving deep-dive :28-60 (FUN_180037b50 reused for II/MM/IU/IRO).
+- N-051: validate_mkv mirrored FUN_180016c70 - header bounds gate
+  (vint_bytes+size+4 <= 0x200), DocType 0x4282 vs "webm" (0x6D626577),
+  Segment element detection. DECODE: the artifact's second constant
+  0x67805318 = the Segment element ID 0x18538067 read little-endian
+  (resolves the finding's open question - it is not a DocType string).
+  Exotic EBML rejected (og parity); webm files carry the per-file
+  "webm" label.
+- N-052: new CarveResult::ext_override (cr_signatures.h) - per-file
+  display-label rewrite; validate_heic re-reads the brand: heic-proper
+  -> "HEIC", siblings (heix/mif1/msf1) -> "HEIF" (og L"HEIF" rewrite);
+  carve_format stays FMT_HEIC (og 0x7C single-family). Emit path hands
+  the namer a swapped-ext Signature copy - NameCallback contract
+  unchanged (single consumer = the orchestrator lambda).
+- N-053: FMT_TIFF_EP row APPENDED (ids stable) claims IIU\0 with
+  validate_tiff (og binding); kTrialOrder puts it before FMT_RW2;
+  validate_rw2 rewritten as the first-IFD salvage fallback (torn-chain
+  RW2s still carve, confidence 600, RW2 label) - registered
+  PARITY-DELTAS D-64.
+- N-054: FMT_RAF re-keyed on the 4-byte FUJI 4CC; validate_raf split
+  canonical/variant paths (canonical string primary; variant = nonzero
+  version + >=1 live section). JPEG 3-byte prefix kept + REGISTERED
+  (D-65) with the og's 4-dword set documented.
+- NEW-FINDING N-076 (discovered-divergence SOP): while building N-054
+  fixtures, found the canonical RAF version gate (ver>0x2000 binary
+  read) rejected every real-world RAF - the version field is a 4-byte
+  ASCII string ("0100"/"0201"; cross-checked exiftool/kladd/freedesktop
+  layouts). The FMT_RAF row was dead for real files since introduction;
+  zero fixture coverage. Fixed in the same change: ASCII-digits OR
+  small-binary acceptance. Filed in FIXED/ with full evidence.
+- Fail-before executed: git-stash isolated rebuild of the pre-fix
+  engine + the new tests - 8/10 RED (MkvWebm/MkvExoticRejected/
+  MkvBoundsGate/HeifSibling/IiuTiffEp/IiuRw2Fallback/RafVariant/
+  RafAsciiVersion); the 2 by-design pins (MatroskaSegment - its
+  fail-before partner is ExoticRejected; JpegFourthByte - documents
+  the superset on both trees) pass pre-fix as expected.
+- Suite 549/549 linux-release post-fix (10 new tests). ASan lane
+  running. Audit trail: 4 Resolutions + N-076 finding + moves to
+  FIXED/, RESOLVED-INDEX rows, matrix detail rows + module-row update,
+  modules/carve.md session-12 section, SUMMARY delta, PARITY-DELTAS
+  D-64/D-65.
+
+Stage Summary:
+- Session resolution tally: 11 (6 reconciliation + quartet + N-076).
+  MINOR 44 remain. Next: N-056 (WinDestIo temp leak), N-063 (naming),
+  N-069 (CAB mscf), N-029/N-030 (rawsigns), then N-045/N-046/N-067/
+  N-068/N-073 verification.
+
+---
+Task ID: DFX12-T3-CONV (quartet collision resolution record)
+Agent: main engineer (diff-to-fix minors-first session 12)
+Task: Rebase-union with the parallel lane's same-window quartet landing
+(b2f48c6) — their landing is canonical; this session's N-076 remains.
+
+Work Log:
+- Remote moved during the quartet push: the parallel lane landed the
+  SAME four findings (b2f48c6) with the same corpus citations, plus
+  S-030 (image targets, b30354d), M-002 (torn EBR, fb6acdc), M-051
+  (RAW provenance, 5516a27), M-047 (6d0f1fd), and the session-11
+  hygiene moves 5ba6b57 (which overlap this session's earlier
+  reconciliation moves — union kept both, no content lost).
+- Union resolution per the repo's collision convention: their quartet
+  implementation is CANONICAL (first landing, green on main) — their
+  validate_mkv (DocType webm/matroska), their FMT_HEIF registry row,
+  their FMT_TIFF_EP + RW2 salvage (their D-63a/D-64a numbering wins;
+  this session's duplicate D-64/D-65 block dropped from PARITY-DELTAS).
+  This session's independent verification, corpus decode (0x67805318 =
+  Segment ID 0x18538067 LE) and fail-before execution recorded in
+  modules/carve.md's session-12 convergence section as the second
+  proof set; the rejected ext_override design preserved in git history
+  (017d63b).
+- THIS SESSION'S UNIQUE CONTRIBUTION still to land: N-076 (the RAF
+  ASCII-version defect) — their validate_raf still carries the
+  `ver > 0x2000` binary gate that rejects every real-world RAF.
+  Follow-up commit next: the N-076 fix + this leg's
+  Carve.RafRealAsciiVersionAccepted (+ its fail-before already
+  executed on the stash-isolated pre-fix engine this session).
+- Audit-trail state after the union: N-051..N-054 Resolutions (their
+  canonical versions, kept from their landing), this session's N-076
+  finding file + index rows + matrix rows stand.
+
+Stage Summary:
+- Tally adjustment: the quartet counts as CONVERGENT landings (their
+  commit + this session's independent proof set), not double fixes.
+  This session's resolution tally: 6 (reconciliation) + N-076 (next
+  commit) + the convergence work. N-056/N-063/N-069/N-029/N-030 remain
+  the next MINOR wave.
+
+---
+Task ID: DFX12-T3-CONV2 (union repair — the --theirs inversion caught and corrected)
+Agent: main engineer (diff-to-fix minors-first session 12)
+Task: Correct the T3 rebase union: during rebase, `git checkout --theirs`
+resolves to the commit being REPLAYED (mine), not the remote — the first
+union had silently kept MY implementation and reverted the remote's
+M-047/M-051 code+test state (CarvedNodesAreDeleted RED: my test base
+pre-dated M-047's recursive refresh; my cr_carve.cpp pre-dated M-051's
+provenance emit). Detected by the full-suite red; root-caused by a
+worktree build at pure b30354d (the test passes there).
+
+Work Log:
+- Restored b30354d's full code state (src include tests) — the parallel
+  lane's quartet implementation is canonical, WITH their M-047/M-051
+  co-lane state intact.
+- Re-applied THIS session's unique contribution on top: the N-076 fix
+  (validate_raf ASCII-digit OR small-binary version acceptance; their
+  landing carried the defect) + the Carve.RafRealAsciiVersionAccepted
+  test (fail-before for the identical test executed earlier this
+  session on the stash-isolated pre-fix engine: RED).
+- Dropped my redundant MkvMatroskaSegmentAccepted add-on test (their
+  MkvDocTypeWebmAccepted covers webm+matroska per their Resolution).
+- Audit trail corrected to canonical truth: RESOLVED-INDEX quartet rows
+  (their implementation + this session's decode/fail-before addenda),
+  matrix detail rows, SUMMARY convergence paragraph + live counts
+  (SEVERE 1 · MAJOR 36 · MINOR 45 · INFO 22 · tracked-open 16 · FIXED
+  89 files), the four FIXED/ finding files carry their Resolutions +
+  this session's convergence addenda, N-076 finding updated.
+- Suite post-union: 563/563 linux-release (was 549/549 pre-union on my
+  implementation; the parallel lanes added M-047/M-051/S-030/M-002
+  tests in the window).
+
+Stage Summary:
+- The union is now truthful: their quartet code (canonical) + my N-076
+  fix (unique) + my audit-trail convergence records. Session unique
+  resolutions: 6 reconciliation moves + N-076. Next: N-056, N-063,
+  N-069, N-029, N-030.
