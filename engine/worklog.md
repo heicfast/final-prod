@@ -16708,6 +16708,31 @@ Stage Summary:
 
 
 ---
+Task ID: DFX33b-T7 (the M-040 convergence + push-through)
+Agent: main engineer (diff-to-fix fix session 33b — DFX33b)
+
+Work Log:
+- The parallel lane's stage-b landing (da46b14) arrived mid-flight;
+  their module shape is canonical per first-landing-wins; this lane's
+  independent decode found FOUR corpus divergences in it, each proven
+  and fixed on top: (1) GPT match = GUID alone (:3417-3422 — no start
+  in the GPT branch); (2) MBR match = walk-level flags (:3431-3434);
+  (3) absent BootOrder = silent no-op (:3629 — no error path); (4)
+  missing Boot#### STOPS the walk (:3648 break, not skip;
+  stopped_early as the observability superset). Plus kMaxBootEntries =
+  0xffff (the ushort truncation). Tests: 13 NvramFix green (their 9 +
+  the corrected 2 + the new 2).
+- The rrecov apply --boot-fix wiring adapted to the canonical API
+  (plan → consent → execute; failures advisory).
+- The finding's Resolution carries the full convergence record.
+- Verified: 926/926 ctest; pushed ddb7e1c (through two merge waves).
+
+Stage Summary:
+- M-040 stands complete on main. Board: SEVERE 0 · MAJOR 0 · MINOR 0 ·
+  tracked-open 2 (OQ-S4-3, OQ-FLT-2). Next: the OQ-FLT-2 decode (the
+  DRWUI AdvanceFilterCondition per-group semantics), then OQ-S4-3's
+  precise push-forward, then the release tag + handoff.
+
 Task ID: SESSION-CLOSE-1 (the OQ-S4-3 dispatch evidence recorded)
 Agent: main engineer (the closing parity session)
 
@@ -16758,3 +16783,217 @@ Stage Summary:
 - main repaired to fully-buildable on every lane this container can verify;
   the Windows+ fuzz legs carry precisely-diagnosed fixes for CI. OQ-S4-3's
   execution path re-entered on a green-build tree.
+
+
+Task ID: DFX36-T4 (M-040 stage b + the win layer)
+Agent: main engineer (diff-to-fix fix session 36 — DFX36)
+Task: M-040 stage (b) — the UEFI NVRAM Boot#### updater + the win-layer
+file IO (stage a's second half)
+
+Work Log:
+- Corpus decode FIRST (EFIBoot_decompiled.c, first-hand): the matcher
+  FUN_1800046f0 (:3366-3434 — the EFI_LOAD_OPTION walk, the
+  HARDDRIVE node layout, the MBR signature+start+size vs GPT
+  GUID-only asymmetry, the sticky-flag semantics) and the updater
+  FUN_180004b40 (:3564-3715 — BootOrder walk, patch-every-04/01-node,
+  the new-info struct {signature, partition number, start, size}, the
+  three break sites, BootOrder never rewritten). Readiness probe
+  (:3888-3894), privilege enable (:3248-3264), the XP-compat dynamic
+  resolver (:3281-3290).
+- Stage (b) landed as the pure module cr/efifix: the injected
+  FirmwareVars interface (available/get/set) so the logic tests
+  everywhere; boot_entry_matches + update_boot_entries under the P62
+  consent gate (default-deny, ERR_REPAIR_REFUSED). Bounds-clamped
+  walks (the og overreads hostile variables — registered hardening).
+- The win layer cr/win/cr_bootfix: repair_bcd_file (dynamic-ntdll
+  ZwUnloadKey hive unload under SeRestore/SeBackup, best-effort with
+  log; whole-file read; plan_rewrites; OVERLAPPED-positioned writes —
+  no SetFilePointer import; FlushFileBuffers tail) +
+  make_firmware_vars (the real firmware APIs + the readiness probe) +
+  run_boot_chain_repair (BCD files + NVRAM under one consent; either
+  leg's failure reported, never blocking).
+- The PE allowlist grew 6 audited entries with corpus cites
+  (LookupPrivilegeValueW, AdjustTokenPrivileges,
+  Get/SetFirmwareEnvironmentVariableW, LoadLibraryW, FreeLibrary — all
+  Vista-era or older; the gate's documented conscious-update process).
+  The win-stub SDK grew the matching declarations; win_syntax_check
+  green over all 9 win files.
+- Tests: 9 EfiFix tests incl. the finding's own named
+  NvramPatchUpdatesLoadOption (the injected-resolver design). Fail-
+  before by construction (new module). The -O0 UBSan lane caught a
+  real uninit-tail bug in the Boot%04X name buffer during development
+  — fixed in the landing (the lane working as designed).
+- Verified: suite 920/920 linux-release; EfiFix+BcdFix 14/14 under
+  ASan and UBSan.
+
+Stage Summary:
+- M-040 stages (a)+(b)+win layer landed. The remaining scope is the
+  S-029 post-apply host-side wiring (the cr_ui apply-flow call site
+  feeding run_boot_chain_repair from the applied plan's geometry) —
+  precisely tracked on the finding.
+
+---
+Task ID: DFX36-T5 (M-040 convergence + the GPT mis-decode correction)
+Agent: main engineer (diff-to-fix fix session 36 — DFX36)
+Task: Reconcile the convergent stage-b landing (theirs hit origin
+first) + correct the GPT matcher against the corpus
+
+Work Log:
+- The parallel lane's M-040 stage-b (cr/nvramfix + cr/win/cr_bootfix,
+  zero new static imports — GetModuleHandleW+GetProcAddress seam,
+  ntdll!RtlAdjustPrivilege) hit origin first: canonical. This lane's
+  convergent cr/efifix module + tests DROPPED cleanly (first-landing-
+  wins); its decode evidence recorded in the finding's convergence
+  addendum.
+- THE CORRECTION (corpus wins): the canonical matcher read GPT mode as
+  "GUID AND start". The decompile's GPT branch (FUN_1800046f0
+  :3420-3424) compares ONLY the two signature u64 halves (node+0x18 vs
+  ctx+0x34, node+0x20 vs ctx+0x3c) — ctx+0x48 (the start) is never
+  consulted in the GPT branch (only the MBR branch reads it, with
+  ctx+0x50 = size, at :3396-3400). The og's asymmetry: MBR = signature
+  AND start AND size; GPT = GUID only. Fixed: hd_node_matches's GPT
+  branch drops the start compare; the header comment states the
+  asymmetry with line cites; the test renamed
+  NvramFix.MatchesGptByGuidOnly with the wrong-start node now asserted
+  as a MATCH (plan.size() == 2); the finding's Resolution note +
+  convergence addendum record the correction. A GPT entry whose node
+  carries the right GUID at a stale start is exactly what the og
+  rewrites — the stricter reading left it stale.
+- Pushed-red repair found during reconciliation: the canonical lane's
+  cr_bootfix.cpp landed WITHOUT its win-stub additions (HMODULE/
+  FARPROC/GetProcAddress/GetModuleHandleW) — win_syntax_check RED on
+  origin/main. The stub grew the declarations (the gate's documented
+  process); all 9 win files parse green again.
+- This lane's 6 PE-allowlist additions dropped (the canonical design
+  needs none — zero static imports); the gate stays at its audited
+  minimum.
+- Verified: suite 924/924 linux-release; NvramFix+BcdFix 16/16 under
+  ASan and UBSan; win_syntax_check green.
+
+Stage Summary:
+- M-040 CLOSED (canonical stages a+b, the win layer, the corrected
+  GPT semantics). Board: SEVERE 0, MAJOR 0, MINOR 0; tracked-open:
+  OQ-S4-3 (Windows-lane), OQ-FLT-2 (status to be re-checked — the
+  parallel lane's audit rows mention an OQ-Z-E-FLT closure).
+
+---
+Task ID: DFX36-T6 (the ddb7e1c union repair — origin/main was RED)
+Agent: main engineer (diff-to-fix fix session 36 — DFX36)
+Task: Repair the pushed-red ddb7e1c merge (committed conflict markers in
+8 files + an internally inconsistent API) and land the truthful union
+
+Work Log:
+- Origin/main at ddb7e1c was RED: its merge reverted nvramfix's
+  stopped_early signature while rrecov + the tests still used it
+  (uncompilable), AND committed conflict markers in 8 files (the
+  nvramfix/bootfix sources + headers, rrecov, the win-stub, the M-040
+  finding, the matrix, modules/boot-repair).
+- Repaired as the coherent union: the stopped_early API everywhere
+  (the correction wave's observability superset — bodies, callers,
+  tests consistent); the audit files unioned truthfully (the canonical
+  full-position rewrite FUN_180004b40 + the four correction-wave fixes
+  recorded; the GPT GUID-alone + the absent-BootOrder no-op + the
+  missing-variable walk stop; the 13-test roster); the matrix row's
+  **** formatting glitch fixed; the win-stub deduplicated (the merge
+  had glued both declaration sites).
+- Verified: suite 926/926 linux-release; win_syntax_check green over
+  all 9 win files; the NvramFix 13/13 + BcdFix green under ASan/UBSan
+  (verified at the pre-merge tree; re-verified release here).
+
+Stage Summary:
+- Main green again. M-040 CLOSED with the corrected semantics. Board:
+  SEVERE 0, MAJOR 0, MINOR 0; tracked-open: OQ-S4-3 + OQ-FLT-2
+  (status to re-check against the parallel lanes' closures).
+
+
+---
+Task ID: DFX33b-T8 (OQ-FLT-2 verification + the pushed-red repairs + the session close)
+Agent: main engineer (diff-to-fix fix session 33b — DFX33b)
+
+Work Log:
+- OQ-FLT-2: independently completed the apply-method decode the
+  session-37 closure deferred — the per-group semantics in full
+  (dword 0 deleted/class + the 0x40000000 mark; dword 1 kind select
+  bits 1-9 with the bit-10 runtime gate; dword 2 the date group with
+  the day-granularity range mode over dwords 3-6; dword 8 the
+  type/size group - category mask + the >1GiB bucket + the explicit
+  [min,max] range at dwords 10-13; dword 14 THE SEVENTH enable group
+  - the tag mask; dword 15 the exclusion group; dword 16 the flag-40
+  group), the tag vocabulary's source (node-FLAG bit positions, not a
+  string table), and the PATH-MATCHING HYPOTHESIS REFUTED (no
+  path/string group exists in the 0x48 condition; dwords 7/9/17 carry
+  no per-node test; the Path-vs-Type difference is the manager).
+  Appended as the complement record on
+  findings/FIXED/OQ-Z-E-FLT-session3-resolved.md.
+- Two pushed-red repairs this stretch: (1) the parallel lane's merge
+  commits carried committed conflict markers in nvramfix/bootfix/
+  rrecov (the ddb7e1c push was red) — resolved to the corrected
+  signatures, 926/926; (2) the nested-marker residue from the two
+  lanes' identical convergence repairs — resolved to the convergent
+  signatures, pushed 7f153c6, 926/926.
+
+Stage Summary:
+- The findings board is EMPTY at every severity tier: SEVERE 0 ·
+  MAJOR 0 · MINOR 0 · INFORMATIONAL all ACKNOWLEDGED · FIXED/ 223
+  files. tracked-open: OQ-S4-3 alone (the Windows bench — dispatched
+  by the parallel lane, in flight at this writing). The audit closes
+  cleanly pending that execution's numbers.
+
+---
+Task ID: RV2 (review-validate session — the CI-red repair wave + the ledger/docs overhaul)
+Agent: review-and-validate session
+Task: Fix the four red CI gates the parallel waves pushed through; the
+PARITY-DELTAS collision reconciliation; the documentation overhaul (new
+API/formats/parameters/connection docs + README/RELEASE-NOTES refresh);
+the --check CLI half of M-041 the canonical landing had lost.
+
+Work Log:
+- CI diagnosis (run 40286862579 at 297661c + prior runs): lint
+  (~100 drifted files), fuzz (fuzz_image.cpp born-broken: map::insert(u64)
+  since its S-030 landing), windows (gmtime_r POSIX-only C3861 + two
+  u32->u16 C4244 casts in cr_carve.cpp), linux-tsan (a real data race —
+  two carve pool threads entering the test's EventRecorder concurrently;
+  the product contract at cr_scan.h:110-113 explicitly documents
+  non-serialized worker-thread delivery, so the TEST was at fault).
+- All four fixed at the source; a parallel lane (0e6a642/78c11d0)
+  independently landed the same two win-build fixes — converged cleanly
+  in the merge (their comment wording kept). TSan suite 870/870 + 0
+  warnings across 5 stress runs post-fix.
+- PARITY-DELTAS reconciliation (the DFX35 KNOWN DEBT): 12 same-number
+  collisions resolved per the errata convention (D-91..D-102 renumbered;
+  4 superseded copies dropped with the errata note); 7 live references
+  updated repo-wide; ledger now 97 rows, zero duplicate numbers.
+- CAPABILITY-MATRIX repaired: the four stacked S-014 posture paragraphs
+  collapsed to the canonical dict-only wording (matching D-80 + the win
+  layer), the duplicated lost-partition row removed, upstream's M-040
+  boot-chain row kept, the APPLY sub-deltas renamed D-98a..d.
+- Hallucination sweep (scripts/hallucination_sweep*.py): every test name
+  claimed in every finding's Resolution cross-checked against the actual
+  suite (928 TEST() sites) and full git history. Result: 162
+  claimed-but-missing tokens, ALL resolved as plan-section names,
+  re-suited/renamed landings, or word-order variants — every
+  behavior spot-checked has a live pin. Two evidence-wording overclaims
+  corrected in the trail (M-030's "Windows CI surface this fix wires";
+  M-044's convergence addendum cites plan names - the first Resolution's
+  names are live). No hallucinated fixes found.
+- M-041 CLI half landed: the canonical Resolution claimed "CLI scan
+  --check" but grep-verified it NEVER existed in any commit (the union
+  chain kept the ABI half, lost the CLI half). Landed: --check flag ->
+  ScanConfig::pre_scan_check + the per-finding report print; parse-gate
+  green; finding Resolution addendum 2 appended.
+- Safety-hardening inventory verified intact post-collisions: destination
+  overlap refusal (cr_apply A3), BitLocker legitimate-unlock-only
+  (ERR_FVE_LOCKED + consent architecture), RawFixer explicit consent
+  (S1 header contract), 4Kn gates (512..4096), SDDL (driver-side
+  documented divergence), ReFS/LDM first-class (1577+1513 LOC engines,
+  68 tests).
+- Documentation overhaul: docs/API.md (new), docs/FORMATS.md (new),
+  docs/PARAMETERS.md (new), docs/CONNECTION-GUIDE.md (new), README.md
+  refreshed (current scope/status/docs index), RELEASE-NOTES.md rewritten
+  for v0.4.0-parity referencing SUMMARY.md + PARITY-DELTAS.md.
+- Final tree: 885+4 skipped core + 35 UI tests green; lint clean;
+  win-layer parse gate green; no conflict markers anywhere.
+
+Stage Summary:
+- The review session's remaining deliverable: tag v0.4.0-parity once CI
+  is green on the docs push, and the final handoff note.

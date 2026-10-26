@@ -42,7 +42,7 @@ public:
         }
         next_ += 1;
         open_[next_] = path;
-        return u32(next_); /* MSVC C4244: the fixture counter is tiny */
+        return u32(next_);
     }
     u32 read(u64 file, u64 offset, void* buf, u32 len) override {
         const auto h = open_.find(file);
@@ -857,7 +857,7 @@ public:
         }
         next_ += 1;
         open_[next_] = path;
-        return u32(next_); /* MSVC C4244: the fixture counter is tiny */
+        return u32(next_);
     }
     u32 read(u64 file, u64 offset, void* buf, u32 len) override {
         if (!open_.count(file))

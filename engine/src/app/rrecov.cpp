@@ -6,7 +6,7 @@
  *   scan --disk N | --volume C: [--whole-disk] [--quick-only] [--no-carve]
  *         [--threads N] [--out file.crsf] [--resume file.crsf] [--json]
  *         [--log file] [--csv] [--filter s] [--deleted-only]
- *          *         [--bitlocker-fvek hex] [--bitlocker-dict [file]]
+ *          *         [--bitlocker-fvek hex] [--bitlocker-dict [file]] [--check]
  *   tree --in file.crsf [--filter substr] [--deleted-only] [--csv] [--json]
  *   recover --in file.crsf --disk N --to DIR [--deleted-only] [--filter s]
  *         [--report file.json]
@@ -922,6 +922,13 @@ int cmd_scan(int argc, wchar_t** argv, int& i) {
         }
         if (get_opt(argc, argv, i, L"--repair-undo", &repair_undo_path))
             continue;
+        if (has_flag(argc, argv, i, L"--check")) {
+            /* M-041: the read-only damage-audit pre-scan pass (og
+             * FileSystemCheck parity, 0x1001..0x100e taxonomy; never
+             * aborts the scan - the report informs, the scan proceeds) */
+            cfg.pre_scan_check = true;
+            continue;
+        }
         wprintf(L"unknown scan option: %s\n", argv[i]);
         return 1;
     }
@@ -1161,6 +1168,24 @@ int cmd_scan(int argc, wchar_t** argv, int& i) {
                 wprintf(L"[repair] WARNING: could not save the undo log to %s\n",
                         repair_undo_path.c_str());
             }
+        }
+    }
+
+    /* M-041 damage-audit summary: the full per-finding report (the og's
+     * 0x1001..0x100e taxonomy, cluster/LCN/version as param, path hints
+     * where the og logs "Name: %s\%s"). The scan already ran regardless -
+     * the audit informs, never aborts. */
+    if (cfg.pre_scan_check && stats.check_ran) {
+        wprintf(L"[check] family=%hs status=%u issues=%zu%s\n", stats.check_report.family,
+                stats.check_status, stats.check_report.errors.size(),
+                stats.check_detected ? L"" : L" (clean)");
+        for (const auto& is : stats.check_report.errors) {
+            if (is.path_hint.empty())
+                wprintf(L"[check]   0x%04x param=%llu\n", is.code,
+                        static_cast<unsigned long long>(is.param));
+            else
+                wprintf(L"[check]   0x%04x param=%llu  %hs\n", is.code,
+                        static_cast<unsigned long long>(is.param), is.path_hint.c_str());
         }
     }
     log_close();

@@ -216,6 +216,9 @@ inline DWORD SetFilePointer(HANDLE, LONG, LONG*, DWORD) {
 typedef void* FARPROC;
 typedef void* HMODULE;
 typedef void* HINSTANCE;
+/* M-040 (diff-to-fix): the bootfix win layer's dynamic-resolution seam
+ * (GetModuleHandleW + GetProcAddress, EFIBoot :3281-3290's own pattern).
+ * Declarations only - the parse gate never links them. */
 inline HMODULE GetModuleHandleW(const wchar_t*) {
     return (HMODULE)0;
 }

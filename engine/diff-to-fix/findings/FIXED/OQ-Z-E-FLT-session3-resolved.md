@@ -393,3 +393,46 @@ Future reference for any new query-model finding: the apply-method decode
 entry points are FUN_1401b61f0(mode) -> mode 0: FUN_1401d4920+8 / mode 1:
 FUN_1401d4930+8 / mode 2: FUN_14031c410+8 (the CAdvanceFileFilterMgr
 singletons; verified this session at DRWUI_decompiled.c :319062-319112).**
+
+
+---
+
+## DFX33b verification + complement (2026-10-26 — the per-group semantics decoded FIRST-HAND; the path-matching hypothesis REFUTED)
+
+This lane independently completed the apply-method decode the closure
+record points at (DRWUI_decompiled.c, every read first-hand) — the
+per-group semantics in full, superseding the "pends the apply decode"
+placeholders:
+
+- **The dispatch** (FUN_14072f8c0 :1170069-1170101): the per-mode
+  manager (FUN_1401b61f0(singleton, mode): mode 0 = ctx+0x18 via
+  FUN_1401d4920, mode 1 = ctx+0x20 via FUN_1401d4930, mode 2 = the
+  FUN_14031c410 singleton, each +8), the 0x48 condition copy, the
+  6-enable-bit completeness predicate (FUN_1406f91d0), NULL to the
+  vtable+0x10 apply when all six are set.
+- **The seven groups** (the per-node predicate family :413030-414060;
+  enable bit SET = group bypassed, clear = tested; payload dwords
+  follow the enable): (dword 0) deleted/class select bits 1-2 + the
+  0x40000000 mark action (FUN_140255130); (dword 1) KIND select bits
+  1-9 (FUN_1402564f0: node-type enum 6 / flag bits 2,7,8,9 / types
+  {0xb,0x11} / flag bits 0x23-0x25; bit 10 runtime-gated via
+  FUN_1401bc920/DAT_1425e72e0 and self-clearing); (dword 2) the date
+  group - bit 6 = day-granularity range mode over the FILETIME pair at
+  dwords 3-6 (FUN_140256830); (dword 8) type/size - bits 1-7 the
+  category mask via DAT_141bc2b50, bit 5 the ">1 GiB" bucket, bit 7
+  the explicit [min,max] size range at dwords 10-13; (dword 14) THE
+  SEVENTH enable group the completeness predicate does not consult -
+  the tag mask (>> 1) vs node-flag bits 21+ (DAT_141bc2b44); (dword
+  15) the exclusion group - bits 1-4 exclude node-flag bits
+  0x1f-0x22 (FUN_140256bf0); (dword 16) bit 1 on node-flag bit 40.
+- **The tag vocabulary's source**: node-FLAG BIT POSITIONS (21+),
+  not a string table.
+- **The path-matching hypothesis REFUTED**: the 0x48 condition has NO
+  path/string group - dwords 7, 9, 17 carry no per-node test; the
+  Path-vs-Type difference is the MANAGER (mode 0 vs 1); text/path
+  filtering rides the separate filter-bar surface, not
+  AdvanceFilterCondition. M-029's landed bucket translation is
+  CONSISTENT with this decode (dword-2/dword-8's range modes).
+
+No code change required (the closure stands); this record completes
+the evidence the closure deferred to.
