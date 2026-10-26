@@ -63,17 +63,11 @@ u32 try_auto_unlock_offline(wchar_t letter, const wchar_t* hive_path);
  * the scan/open path calls it - a locked volume still refuses with
  * ERR_FVE_LOCKED until the host invokes this (the CLI's --bitlocker-dict
  * flag / the cr_ui dictionary action). Candidates: the shipped dictionary
-<<<<<<< HEAD
- * first (corpus order), then the user-provided wide strings. Every attempt
- * is logged through the cr::log seam (index only - password material is
- * never logged). Returns OK when a candidate unlocked the volume,
-=======
  * first (corpus order), then the user-provided wide strings (the ABI
  * form) or the loaded og-format dictionary file (the narrow CLI overload -
  * the absorbed convergent-landing capability). Every attempt is logged
  * through the cr::log seam (index only - password material is never
  * logged). Returns OK when a candidate unlocked the volume,
->>>>>>> 880e2a1b1429859df8d575aa53e835d1d65fe01f
  * ERR_FVE_LOCKED when the whole set failed. */
 u32 unlock_with_dictionary(wchar_t letter, const wchar_t* const* user_passwords,
                            size_t user_count);

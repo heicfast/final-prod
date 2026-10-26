@@ -362,10 +362,6 @@ bool parse_fvek_hex(const std::wstring& hex, std::vector<u8>& out) {
     return true;
 }
 
-<<<<<<< HEAD
-
-=======
->>>>>>> 880e2a1b1429859df8d575aa53e835d1d65fe01f
 /* N-064 (absorbed from the convergent DFX34 landing): load user password
  * candidates from a dictionary file in the og's exact Dict format
  * (comma-terminated lines, CRLF/LF, pure ASCII - cr::dict::parse is the
@@ -403,17 +399,12 @@ bool load_dict_candidates(const std::wstring& path, std::vector<std::string>& ou
     return true;
 }
 
-<<<<<<< HEAD
-bool open_volume_view(wchar_t letter, OpenResult& out, const std::wstring& fvek_hex,
-                       bool dict_consent, const std::vector<std::string>& dict_user) {
-=======
 /* N-064: open_volume_view carries the ONE consented dictionary surface:
  * --bitlocker-dict (bare = the shipped 228-entry table; with a file
  * value = the user's og-format dictionary) - the og's user-initiated
  * unlock action. It never fires without the flag (F61). */
 bool open_volume_view(wchar_t letter, OpenResult& out, const std::wstring& fvek_hex,
                       bool dict_consent, const std::vector<std::string>& dict_user) {
->>>>>>> 880e2a1b1429859df8d575aa53e835d1d65fe01f
     std::vector<u8> fvek;
     const bool have_key = !fvek_hex.empty() && parse_fvek_hex(fvek_hex, fvek);
     if (!fvek_hex.empty() && !have_key) {
@@ -422,46 +413,24 @@ bool open_volume_view(wchar_t letter, OpenResult& out, const std::wstring& fvek_
         return false;
     }
     const win::bitlocker::Status bst = win::bitlocker::status(letter);
-<<<<<<< HEAD
-    if (bst == win::bitlocker::Status::Unknown && !have_key) {
-        /* Boot sector unreadable: the BitLocker state cannot be determined
-         * (typical for a locked volume denying \\.\X: reads). Never scan
-         * blind - refuse with the unlock path (FB-B01). With a user key
-         * the in-stack decrypt path may proceed (M-033): the user has
-         * supplied key material, which is the og's own opt-in. With the
-         * explicit --bitlocker-dict consent the dictionary unlock is
-         * tried before this refusal (N-064; the convergent landing's
-         * design point: a locked volume denying reads is exactly the
-         * dictionary aid's target population). */
-=======
     /* N-064's Unknown-state design point (the convergent landing's, kept):
      * a boot-unreadable volume (typical: a LOCKED volume denying \\.\X:
      * reads) with the explicit dictionary consent gets the attempt BEFORE
      * the FB-B01 refusal - a locked volume denying reads is exactly the
      * dictionary aid's target population. Without consent/key: refuse. */
-    if (bst == win::bitlocker::Status::Unknown && !have_key) {
->>>>>>> 880e2a1b1429859df8d575aa53e835d1d65fe01f
-        if (dict_consent) {
+    if (bst == win::bitlocker::Status::Unknown && !have_key) {        if (dict_consent) {
             wprintf(L"[bitlocker] %c: boot sector unreadable - trying the password "
                     L"dictionary...\n",
                     letter);
             if (win::bitlocker::unlock_with_dictionary(letter, dict_user) != OK) {
                 wprintf(L"[bitlocker] still locked. Unlock with:\n"
                         L"  Unlock-BitLocker -MountPoint %c: -RecoveryPassword <key>\n"
-<<<<<<< HEAD
-                        L"or re-run with --bitlocker-fvek <hex> (the in-stack decrypt path).\n",
-                        letter);
-                return false;
-            }
-=======
                         L"or re-run with --bitlocker-fvek <hex> (the in-stack decrypt path),\n"
                         L"or --bitlocker-dict [file] (the consented password-dictionary unlock).\n",
                         letter);
                 return false;
             }
-            wprintf(L"[bitlocker] dictionary-unlocked\n");
->>>>>>> 880e2a1b1429859df8d575aa53e835d1d65fe01f
-        } else {
+            wprintf(L"[bitlocker] dictionary-unlocked\n");        } else {
             /* Boot sector unreadable: the BitLocker state cannot be determined.
              * Never scan blind - refuse with the unlock path (FB-B01). With a
              * user key the in-stack decrypt path may proceed (M-033): the user
@@ -500,12 +469,7 @@ bool open_volume_view(wchar_t letter, OpenResult& out, const std::wstring& fvek_
             wprintf(L"[bitlocker] still locked. Unlock with:\n"
                     L"  Unlock-BitLocker -MountPoint %c: -RecoveryPassword <key>\n"
                     L"or re-run with --bitlocker-fvek <hex> (the in-stack decrypt path),\n"
-<<<<<<< HEAD
-                    L"or --bitlocker-dict to try the shipped password dictionary.\n",
-=======
-                    L"or --bitlocker-dict [file] to try a password dictionary.\n",
->>>>>>> 880e2a1b1429859df8d575aa53e835d1d65fe01f
-                    letter);
+                    L"or --bitlocker-dict [file] to try a password dictionary.\n",                    letter);
             return false;
         } else {
             wprintf(L"[bitlocker] auto-unlocked\n");

@@ -228,11 +228,6 @@ struct FatScanStats {
     /* M-012/M-015 (diff-to-fix): damaged-FAT policy outcomes */
     u64 mirror_only_scan = 0;   /* FAT1 unreadable, scanned on the mirror */
     u64 fat_copy_rejected = 0;  /* a FAT copy failed validation; another used */
-    /* M-052 (diff-to-fix): the recycle-bin $I/$R pairing (the shared
-     * cr/recycle model - the corpus documents the same capability for
-     * the FAT engine, fat-exfat-engine-internals.md :21/:37-40/:101). */
-    u64 recycle_info = 0;     /* $I metadata streams parsed */
-    u64 recycle_remapped = 0; /* $R files surfaced under their original name */
 };
 
 struct FatScanFlags {

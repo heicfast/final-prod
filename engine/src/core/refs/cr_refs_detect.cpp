@@ -32,49 +32,44 @@ u32 detect_refs(IStorageDevice* slice, RefsInfo& out) {
         return ERR_READ_FAILED;
 
     /* "MSB+ReFSFSRS" appears at the start of metadata session pages; the
-     * checkpoint variant embeds "CHKPSUPBMSB+ReFSFSRS".
+     * checkpoint variant embeds "CHKPSUPBMSB+ReFSFSRS". Both start with
+     * the 16-byte ReFSFSRS page identity at offset 8.
      *
-     * N-007 (the og's discovery width, ReFSSearchDLL :11689-11720,
-     * re-verified first-hand): the og selects the variant string
-     * ("SUPBMSB+ReFSFSRS" / "CHKPSUPBMSB+ReFSFSRS" / "MSB+ReFSFSRS")
-     * and compares the FIRST DWORD ONLY (`*param_2 == *(int*)pcVar4`) -
-     * the page's remaining bytes are validated downstream by the
-     * ref-parser (FUN_18000ff60), not by the discovery gate. A page
-     * whose first 4 bytes match but whose later signature bytes are
-     * corrupt is therefore DISCOVERED by the og; rejecting it outright
-     * made this probe blind on volumes where every page carries
-     * late-byte corruption. Discovery here = first-DWORD; the full-width
-     * memcmp survives as a GRADING signal (signature_partial), never a
-     * rejection. The three first-DWORD keys are distinct ("SUPB",
-     * "CHKP", "MSB+"), so no variant masking exists at 4 bytes. */
-    constexpr u32 SIG_SUPB = 0x42505553; /* "SUPB" */
-    constexpr u32 SIG_CHKP = 0x504B4843; /* "CHKP" */
-    constexpr u32 SIG_MSB = 0x2B42534D;  /* "MSB+" */
+     * N-007 (diff-to-fix): the og's dispatch matches the FIRST DWORD
+     * only (ReFSSearchDLL :11689-11720: `*param_2 == *(int*)pcVar4`
+     * against "SUPB"/"CHKP"/"MSB+") - a page with a corrupt signature
+     * tail is still opened and left to the ref-parser's validation. The
+     * core now matches that discovery rule; the full-width memcmp stays
+     * as the grading signal (signature_partial = first-4 hit, full
+     * compare failed). */
+    auto page_match = [&](const char* sig, u32 sig_len, const u8* p) -> int {
+        /* returns: 0 = no match, 1 = full match, 2 = first-dword only */
+        if (std::memcmp(p, sig, 4) != 0)
+            return 0;
+        if (std::memcmp(p, sig, sig_len) == 0)
+            return 1;
+        return 2;
+    };
     for (u32 off = 0; off + 32 <= probe; off += 512) {
         const u8* p = buf.data() + off;
-        const u32 psig = u32(p[0]) | (u32(p[1]) << 8) | (u32(p[2]) << 16) | (u32(p[3]) << 24);
-        if (psig != SIG_SUPB && psig != SIG_CHKP && psig != SIG_MSB)
+        if (const int m = page_match("SUPBMSB+ReFSFSRS", 16, p)) {
+            out.found = true;
+            out.msb_offset = off;
+            out.signature_partial = (m == 2);
             continue;
-        /* og discovery: first-DWORD match opens the page */
-        out.found = true;
-        out.msb_offset = off;
-        if (psig == SIG_CHKP)
-            out.checkpointed = true;
-        /* grading signal: the full-width signature (the pre-N-007 gate) */
-        const char* full;
-        size_t full_len;
-        if (psig == SIG_CHKP) {
-            full = "CHKPSUPBMSB+ReFSFSRS";
-            full_len = 20;
-        } else if (psig == SIG_SUPB) {
-            full = "SUPBMSB+ReFSFSRS";
-            full_len = 16;
-        } else {
-            full = "MSB+ReFSFSRS";
-            full_len = 12;
         }
-        if (std::memcmp(p, full, full_len) != 0)
-            out.signature_partial = true;
+        if (const int m = page_match("CHKPSUPBMSB+ReFSFSRS", 20, p)) {
+            out.found = true;
+            out.checkpointed = true;
+            out.msb_offset = off;
+            out.signature_partial = (m == 2);
+            continue;
+        }
+        if (const int m = page_match("MSB+ReFSFSRS", 12, p)) {
+            out.found = true;
+            out.msb_offset = off;
+            out.signature_partial = (m == 2);
+        }
     }
     if (!out.found) {
         /* ReFS v3+ identification: the FS name "ReFS" at volume offset

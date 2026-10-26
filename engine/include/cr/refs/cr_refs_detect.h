@@ -31,14 +31,6 @@ namespace refs {
 struct RefsInfo {
     bool found = false;
     bool checkpointed = false; /* CHKPSUPB present: newer layout */
-    /* N-007: the og's page discovery compares the FIRST DWORD only
-     * (ReFSSearchDLL :11689-11720: the variant string is selected, then
-     * `*param_2 == *(int*)pcVar4` - 4 bytes); the full page is validated
-     * downstream by the ref-parser. A page whose first 4 bytes match a
-     * ReFS signature but whose later signature bytes are corrupt is
-     * therefore DISCOVERED by the og; this probe keeps the full-width
-     * memcmp as a grading signal instead of a rejection gate. */
-    bool signature_partial = false;
     u64 msb_offset = 0;        /* first metadata session block hit */
     u32 sequence = 0;          /* ReFS sequence (layout generation) */
     char version[16] = {0};    /* from the identification string */
