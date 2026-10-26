@@ -15612,3 +15612,27 @@ Work Log:
 
 Stage Summary:
 - Remote green again. M-030 verification starts now (the lane's claim).
+
+---
+Task ID: DFX36-CLAIM (session 36 — lane claim, posted before work)
+Agent: main engineer (DFX36 — diff-to-fix execution session 36)
+Task: Lane claim (protocol): S-034 (SEVERE — the ZFS ring txg-history walk,
+the three decode items + the behavioral fix) → N-007 (ReFS first-DWORD
+discovery match) → N-072 (btrfs rescan cache + zfs label polling) →
+OQ-S4-3/OQ-FLT-2 dispositions → audit-trail completeness sweep
+(CROSS-REF-MATRIX/SUMMARY/modules vs the live tree). M-030 is claimed by
+the DFX23 lane (their entry "M-030 verification starts now"); M-039/M-040
+signaled by other lanes — will verify their landings when they arrive and
+take up any remainder they leave.
+
+Work Log:
+- Baseline established at ea1a3c7-pull: BUILD RED on main repaired
+  (cr_ui.h union markers, 40fc440 — convergent with the parallel lanes'
+  32f82f3/58557d3 repairs; mine rode the same union); suite green
+  841/845 (4 env-skips) + cr_ui_tests 33/33 after repair; pushed.
+- Parallel-lane landings absorbed (M-048 21ea6c2, N-066+N-080 4d3f040,
+  N-065 3be045d + the N-079-family unions).
+
+Stage Summary:
+- Lane open. S-034 decode starts now (corpus: ZfsSearchDLL_decompiled.c
+  ring walk + addBlock + the ZplNode visitor path).
