@@ -2136,7 +2136,8 @@ int cmd_apply(int argc, wchar_t** argv, int& i) {
          * pair: the legacy boot partition's \Boot\BCD + the ESP's
          * \EFI\MICROSOFT\BOOT\BCD); --boot-fix-bcd overrides with an
          * explicit path. The C: system-root guess matches the og's
-         * GetSystemDirectoryA-based probe (FUN_1800017a0). */
+         * GetSystemDirectoryA-based probe (FUN_1800017a0). Plan-only
+         * first (no writes), then the consent-gated execute + flush. */
         const wchar_t* paths[2] = {L"C:\\Boot\\BCD",
                                    L"C:\\EFI\\MICROSOFT\\BOOT\\BCD"};
         bool any = false;
@@ -2146,39 +2147,62 @@ int cmd_apply(int argc, wchar_t** argv, int& i) {
                     continue; /* an explicit path replaces both guesses */
                 bcd_path = boot_fix_bcd.c_str();
             }
-            const u32 brc = win::bootfix::bcd_rewrite_file(
-                bcd_path, sig, boot_fix_old_lba, new_lba, bootfix_cli_consent, &ctx, &applied);
+            std::vector<cr::bcdfix::BcdRewrite> bcd_plan;
+            u32 brc = win::bootfix::bcd_file_plan(bcd_path, sig, boot_fix_old_lba, new_lba,
+                                                  &bcd_plan);
+            if (brc != OK || bcd_plan.empty()) {
+                if (brc != OK)
+                    wprintf(L"[boot-fix] %ls: rc=%08x %hs\n", bcd_path, brc, err_text(brc));
+                continue;
+            }
+            applied = 0;
+            brc = win::bootfix::bcd_file_execute(bcd_path, bcd_plan, bootfix_cli_consent, &ctx,
+                                                 &applied);
             if (brc == OK && applied > 0) {
                 wprintf(L"[boot-fix] %zu device element(s) rewritten in %ls "
                         L"(LBA %llu -> %llu)\n",
                         applied, bcd_path, static_cast<unsigned long long>(boot_fix_old_lba),
                         static_cast<unsigned long long>(new_lba));
                 any = true;
-            } else if (brc == ERR_OPEN_FAILED) {
-                wprintf(L"[boot-fix] %ls not openable (mounted? bootfix::unload_bcd_hive "
-                        L"runs inside the rewrite's retry)\n",
-                        bcd_path);
+            } else if (brc == ERR_REPAIR_REFUSED) {
+                wprintf(L"[boot-fix] %ls: consent refused - nothing written\n", bcd_path);
             } else if (brc != OK) {
                 wprintf(L"[boot-fix] %ls: rc=%08x %hs\n", bcd_path, brc, err_text(brc));
             }
         }
-        /* the NVRAM renumber pass (EFIBoot's state-4 update; the partition
-         * number after apply = the MBR slot + 1). ERR_UNSUPPORTED = BIOS
-         * system - reported, never fatal (the table write already
-         * succeeded; the og's boot-repair failures are advisory too). */
-        nvramfix::Target nt;
-        nt.gpt = false;
-        nt.mbr_signature = sig;
-        nt.old_partition_start = boot_fix_old_lba;
-        nt.partition_size = plan.sector_count;
+        /* the NVRAM full-position pass (EFIBoot's FUN_180004b40 update;
+         * the new partition number = the MBR slot + 1, the new start =
+         * the applied candidate's LBA). ERR_UNSUPPORTED = BIOS system -
+         * reported, never fatal (the table write already succeeded; the
+         * og's boot-repair failures are advisory too). */
+        nvramfix::TargetPartition nt;
+        nt.gpt_mode = false;
+        nt.old_mbr_signature = sig;
+        nt.old_start = boot_fix_old_lba;
+        nt.old_size = plan.sector_count;
         nt.new_partition_number = plan.entry_index + 1;
-        nvramfix::UpdateStats nst;
-        const u32 nrc = win::bootfix::nvram_renumber(nt, &nst);
-        if (nrc == OK && nst.patched > 0) {
-            wprintf(L"[boot-fix] NVRAM: %zu of %zu Boot entry(ies) renumbered to partition "
-                    L"%u\n",
-                    nst.patched, nst.inspected, nt.new_partition_number);
-            any = true;
+        nt.new_start = plan.start_lba;
+        nt.new_size = plan.sector_count;
+        nt.new_mbr_signature = sig;
+        u32 nrc = OK;
+        bool stopped_early = false;
+        const auto nplan = win::bootfix::nvram_plan(nt, &nrc, &stopped_early);
+        if (nrc == OK && !nplan.empty()) {
+            size_t napplied = 0;
+            nrc = win::bootfix::nvram_execute(nplan, bootfix_cli_consent, &ctx, &napplied);
+            if (nrc == OK && napplied > 0) {
+                wprintf(L"[boot-fix] NVRAM: %zu Boot entr%s repositioned to partition %u "
+                        L"LBA %llu%s\n",
+                        napplied, napplied == 1 ? L"y" : L"ies", nt.new_partition_number,
+                        static_cast<unsigned long long>(nt.new_start),
+                        stopped_early ? L" (walk stopped at a stale BootOrder id)"
+                                      : L"");
+                any = true;
+            } else if (nrc == ERR_REPAIR_REFUSED) {
+                wprintf(L"[boot-fix] NVRAM: consent refused - nothing written\n");
+            } else if (nrc != OK) {
+                wprintf(L"[boot-fix] NVRAM: rc=%08x %hs\n", nrc, err_text(nrc));
+            }
         } else if (nrc == ERR_UNSUPPORTED) {
             wprintf(L"[boot-fix] NVRAM: not a UEFI system (skipped)\n");
         } else if (nrc != OK) {

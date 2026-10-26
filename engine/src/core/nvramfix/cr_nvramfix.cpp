@@ -38,23 +38,20 @@ void put64_at(u8* p, u64 v) {
         p[i] = u8(v >> (8 * i));
 }
 
-bool sig16_eq(const u8* a, const u8* b) {
-    return memcmp(a, b, 16) == 0;
-}
-
 /* Does this HARDDRIVE node match the target's OLD identity?
- * (FUN_1800046f0's semantics, first-hand decode: MBR mode matches the
- * disk signature AND start AND size; GPT mode matches the 16-byte
- * partition GUID AND start.) */
+ * (FUN_1800046f0's semantics, first-hand decode - DFX33b correction
+ * wave, corpus re-verified twice: MBR mode matches the disk signature
+ * AND start AND size; GPT mode matches the 16-byte partition GUID
+ * ONLY - the branch at :3417-3422 compares the two GUID u64s
+ * (node+0x18 vs ctx+0x34, node+0x20 vs ctx+0x3c) and breaks with a
+ * match immediately; no start/size compare exists in the GPT branch.) */
 bool hd_node_matches(const u8* node, const TargetPartition& t) {
     const u8 sig_type = node[kHdSignatureType];
     const u8 mbr_type = node[kHdMbrType];
     if (t.gpt_mode) {
         if (sig_type != 2 || mbr_type != 2)
             return false;
-        if (!sig16_eq(node + kHdSignature, t.old_gpt_guid))
-            return false;
-        return le64_at(node + kHdPartitionStart) == t.old_start;
+        return memcmp(node + kHdSignature, t.old_gpt_guid, 16) == 0;
     }
     if (sig_type != 1 || mbr_type != 1)
         return false;
@@ -78,12 +75,31 @@ void hd_node_rewrite(u8* node, const TargetPartition& t) {
         memcpy(node + kHdSignature, &t.new_mbr_signature, 4);
 }
 
-/* Walk one EFI_LOAD_OPTION's device path: true when a HARDDRIVE node
- * matches the target (the entry is a rewrite candidate). The walk
- * mirrors the corpus exactly: the UTF-16 description at +6 is skipped
- * to its NUL (+1), then nodes advance by their u16 Length until the
- * END_ENTIRE (7f/ff) node. A node length below its own header size or
- * a walk past the buffer = malformed (bounded, stops). */
+/* Per-node MBR predicates - the corpus's WALK-LEVEL flag semantics
+ * (FUN_1800046f0, DFX33b correction wave): the og collects bVar3 (a
+ * disk-signature match) and bVar4 (a start+size match) across the
+ * WHOLE device-path walk - the two flags do NOT need to ride the same
+ * node - and the entry matches when both hold at the end
+ * (:3431-3434 `if (MBR && bVar3 && bVar4) matched`). A per-node
+ * all-fields match would silently drop split-flag entries the og
+ * patches. */
+bool hd_node_sig_matches(const u8* node, const TargetPartition& t) {
+    return node[kHdSignatureType] == 1 && node[kHdMbrType] == 1 &&
+           le32_at(node + kHdSignature) == t.old_mbr_signature;
+}
+bool hd_node_geom_matches(const u8* node, const TargetPartition& t) {
+    return le64_at(node + kHdPartitionStart) == t.old_start &&
+           le64_at(node + kHdPartitionSize) == t.old_size;
+}
+
+/* Walk one EFI_LOAD_OPTION's device path: true when the entry matches
+ * the target. The walk mirrors the corpus exactly: the UTF-16
+ * description at +6 is skipped to its NUL (+1), then nodes advance by
+ * their u16 Length until the END_ENTIRE (7f/ff) node. A node length
+ * below its own header size or a walk past the buffer = malformed
+ * (bounded, stops). GPT mode matches on the first GUID-equal node
+ * (the og breaks immediately); MBR mode ORs the two flags across the
+ * whole walk and matches when both are set. */
 bool entry_matches(const std::vector<u8>& value, const TargetPartition& t) {
     if (value.size() < kLoadOptDescription + 2)
         return false;
@@ -100,6 +116,8 @@ bool entry_matches(const std::vector<u8>& value, const TargetPartition& t) {
     if (p + 1 >= value.size())
         return false; /* no NUL / no room for any node: malformed */
     /* the device path nodes start AT p (the corpus's psVar6++ shape) */
+    bool sig_flag = false;
+    bool geom_flag = false;
     while (p + kNodeHeaderSize <= value.size()) {
         const u8 type = value[p];
         const u8 subtype = value[p + 1];
@@ -109,12 +127,20 @@ bool entry_matches(const std::vector<u8>& value, const TargetPartition& t) {
         if (len < kNodeHeaderSize || p + len > value.size())
             break; /* malformed: bounded stop, never past the buffer */
         if (type == kTypeMedia && subtype == kSubTypeHarddrive && len >= kHdNodeSize) {
-            if (hd_node_matches(value.data() + p, t))
-                return true;
+            const u8* node = value.data() + p;
+            if (t.gpt_mode) {
+                if (hd_node_matches(node, t))
+                    return true; /* the og breaks with a match immediately */
+            } else {
+                if (hd_node_sig_matches(node, t))
+                    sig_flag = true;
+                if (hd_node_geom_matches(node, t))
+                    geom_flag = true;
+            }
         }
         p += len;
     }
-    return false;
+    return !t.gpt_mode && sig_flag && geom_flag;
 }
 
 /* Patch every HARDDRIVE node in a matched entry (the og rewrites every
@@ -171,7 +197,8 @@ std::u16string boot_name(u16 id) {
 } // namespace
 
 std::vector<NvramRewrite> plan_boot_entries(GetVarFn get, void* get_user,
-                                             const TargetPartition& target, u32* error) {
+                                             const TargetPartition& target, u32* error,
+                                             bool* stopped_early) {
     if (error)
         *error = OK;
     std::vector<NvramRewrite> plan;
@@ -180,22 +207,41 @@ std::vector<NvramRewrite> plan_boot_entries(GetVarFn get, void* get_user,
             *error = ERR_BAD_PARAMETER;
         return plan;
     }
-    /* BootOrder: the u16 entry-id array (the og's 0x100000 read cap) */
+    /* BootOrder: the u16 entry-id array (the og's 0x100000 read cap).
+     * DFX33b correction wave (corpus re-verified): a zero-byte BootOrder
+     * read - absent OR failed - is the og's SILENT NO-OP (FUN_180004b40
+     * :3629 `if (uVar10 != 0)` wraps the whole walk; there is no error
+     * path), so an empty plan with OK is the faithful posture, not
+     * ERR_READ_FAILED. The entry count is (len >> 1) & 0xffff - the
+     * og's ushort truncation (:3637-3639) - and a trailing odd byte is
+     * simply not an entry. */
     std::vector<u8> order(size_t(kMaxVariableBytes), 0);
     const u32 order_len = get(u"BootOrder", order.data(), u32(order.size()), get_user);
-    if (order_len == 0 || (order_len & 1) != 0) {
-        if (error)
-            *error = ERR_READ_FAILED; /* absent or odd-sized: no BootOrder */
-        return plan;
+    if (order_len == 0) {
+        if (stopped_early)
+            *stopped_early = false;
+        return plan; /* no BootOrder: the og's silent no-op */
     }
-    const size_t entries = order_len / 2 > kMaxBootEntries ? kMaxBootEntries : order_len / 2;
+    const size_t entries = (order_len / 2) > kMaxBootEntries ? kMaxBootEntries : order_len / 2;
     std::vector<u8> value(size_t(kMaxVariableBytes), 0);
     for (size_t i = 0; i < entries; ++i) {
         const u16 id = le16_at(order.data() + i * 2);
         const std::u16string name = boot_name(id);
         const u32 len = get(name.c_str(), value.data(), u32(value.size()), get_user);
-        if (len == 0)
-            continue; /* absent entry in BootOrder: skip (the og's rc==2) */
+        if (len == 0) {
+            /* DFX33b correction wave: the og STOPS THE WHOLE WALK at a
+             * BootOrder entry whose variable reads zero bytes
+             * (FUN_1800046f0 returns rc=2 on a zero-byte get and the
+             * caller breaks the loop, FUN_180004b40 :3648
+             * `if (iVar8 != 0) break`) - a stale BootOrder id is not
+             * skipped past, everything after it stays unpatched. The
+             * earlier-planned entries stand (the og applies as it
+             * walks). *stopped_early is our observability superset -
+             * the og itself signals nothing. */
+            if (stopped_early)
+                *stopped_early = true;
+            break;
+        }
         const std::vector<u8> original(value.begin(), value.begin() + len);
         if (!entry_matches(original, target))
             continue; /* not our partition: untouched */

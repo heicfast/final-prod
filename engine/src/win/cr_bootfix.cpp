@@ -278,7 +278,9 @@ bool __nvram_set(const char16_t* name, const void* data, u32 len, void* /*user*/
 } // namespace
 
 std::vector<nvramfix::NvramRewrite> nvram_plan(const nvramfix::TargetPartition& target,
-                                                u32* error) {
+                                                u32* error, bool* stopped_early) {
+    if (stopped_early)
+        *stopped_early = false;
     if (!firmware_seam().resolved) {
         if (error)
             *error = ERR_UNSUPPORTED;
@@ -289,7 +291,7 @@ std::vector<nvramfix::NvramRewrite> nvram_plan(const nvramfix::TargetPartition& 
             *error = ERR_REPAIR_REFUSED; /* no privilege: refuse cleanly */
         return {};
     }
-    return nvramfix::plan_boot_entries(&__nvram_get, nullptr, target, error);
+    return nvramfix::plan_boot_entries(&__nvram_get, nullptr, target, error, stopped_early);
 }
 
 u32 nvram_execute(const std::vector<nvramfix::NvramRewrite>& plan, nvramfix::ConsentFn consent,
