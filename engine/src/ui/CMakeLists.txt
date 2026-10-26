@@ -25,7 +25,13 @@ if(WIN32)
 endif()
 
 # Export ONLY the CR_UI_API surface (gcc/clang: default visibility off;
-# MSVC exports dllexport symbols only by default).
+# MSVC exports dllexport symbols only by default). One documented
+# exception (cr_ui_exports.def): the cr::log sink seam the shim's own
+# test binary drives - mirrors what Linux's .dynsym exposes for the
+# embedded static core anyway (see the .def header comment).
+if(MSVC)
+    target_sources(cr_ui PRIVATE cr_ui_exports.def)
+endif()
 set_target_properties(cr_ui PROPERTIES
     CXX_VISIBILITY_PRESET hidden
     VISIBILITY_INLINES_HIDDEN ON
