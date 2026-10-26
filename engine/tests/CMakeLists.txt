@@ -90,6 +90,10 @@ if(WIN32)
     add_executable(cr_destio_tests unit/test_destio_win.cpp)
     target_link_libraries(cr_destio_tests PRIVATE cr::win GTest::gtest_main)
     target_include_directories(cr_destio_tests PRIVATE ${CMAKE_SOURCE_DIR}/tests)
+    # test_tmpdir.hpp's read_repo_file needs the source root (the cr_tests
+    # define above; the win-only target was missing it - Windows CI C2065)
+    target_compile_definitions(cr_destio_tests PRIVATE
+        CR_SOURCE_DIR="${CMAKE_SOURCE_DIR}")
     cr_deploy_vcpkg_binaries(cr_destio_tests)
     add_test(NAME destio COMMAND cr_destio_tests)
 

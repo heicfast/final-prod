@@ -10,6 +10,10 @@
  */
 
 #include <gtest/gtest.h>
+/* MAX_PATH / GetCurrentDirectoryW / GetVolumePathNameW (the relative-path
+ * volume test): pulled explicitly - nothing in the cr headers guarantees
+ * the Win32 shell/path set on the MSVC lane (Windows CI C2065/C3861) */
+#include <windows.h>
 #include "cr/win/cr_destio.h"
 #include "cr/win/cr_transport.h" /* N-013 arming contracts */
 #include "test_tmpdir.hpp"
