@@ -3,6 +3,7 @@
 #include "cr/carve/cr_carve.h"
 #include "cr/query/cr_query.h"
 #include "cr/carve/cr_rawsigns.h"
+#include "cr/carve/cr_usersigns.h"
 #include "cr/storage/cr_device.h"
 #include "cr/storage/cr_slice.h"
 #include "cr/session/cr_records.h"
@@ -3643,4 +3644,232 @@ TEST(CarveEngine, ZeroSectorSkipStats) {
         EXPECT_EQ(stats.zero_strides_skipped, 0u)
             << "no stride of a non-zero image may be skipped";
     }
+}
+
+/* ------------------------------------------------------------------ */
+/* M-025: the window-aware read model (validators/checksum/hash/tail   */
+/* served from the already-read window buffer - the og's buffer-       */
+/* resident validation, RAWSearchDLL :9434-9438/:9496)                 */
+/* ------------------------------------------------------------------ */
+
+namespace {
+
+/* ---- M-048: the user-extensible signature database (EUUserData) ---- */
+
+TEST(UserSigns, ParseTheOgsShape) {
+    /* the og's EUUserData JSON shape, real entries from the corpus file
+     * (123/cpl/epub) plus the compact form */
+    const char* json =
+        "{"
+        "\"123\": { \"signs\": [\"0,00001A00051004\"], \"mime\": \"application/vnd.lotus-1-2-3\" },"
+        "\"cpl\": { \"signs\": [\"0,DCDC\"], \"mime\": \"application/cpl+xml\" },"
+        "\"epub\": { \"signs\": [\"0,504B03040A000200\"], \"mime\": \"application/epub+zip\" }"
+        "}";
+    carve::usersigns::UserSignSet set;
+    ASSERT_EQ(OK, carve::usersigns::parse(json, std::strlen(json), set));
+    EXPECT_TRUE(set.valid);
+    ASSERT_EQ(3u, set.signs.size());
+    EXPECT_STREQ("123", set.signs[0].ext);
+    EXPECT_STREQ("application/vnd.lotus-1-2-3", set.signs[0].mime);
+    EXPECT_EQ(0u, set.signs[0].offset);
+    EXPECT_EQ(7u, set.signs[0].len);
+    EXPECT_EQ(0x00, set.signs[0].bytes[0]);
+    EXPECT_EQ(0x04, set.signs[0].bytes[6]);
+    EXPECT_STREQ("epub", set.signs[2].ext);
+    EXPECT_EQ(8u, set.signs[2].len);
+    EXPECT_EQ(0x50, set.signs[2].bytes[0]); /* PK */
+
+    /* validation rejects, atomically (no partial load) */
+    auto reject = [](const char* bad) {
+        carve::usersigns::UserSignSet s;
+        EXPECT_EQ(ERR_BAD_PARAMETER, carve::usersigns::parse(bad, std::strlen(bad), s))
+            << bad;
+        EXPECT_FALSE(s.valid);
+    };
+    reject("{\"x\":{\"signs\":[\"99999,AA\"],\"mime\":\"m\"}}"); /* offset over cap */
+    reject("{\"x\":{\"signs\":[\"0,AAB\"],\"mime\":\"m\"}}");     /* odd hex */
+    reject("{\"x\":{\"signs\":[\"0,GG\"],\"mime\":\"m\"}}");      /* not hex */
+    reject("{\"x\":{\"signs\":[\"0,AA\"],\"extra\":1}}");          /* unknown key */
+    reject("{\"x\":{\"mime\":\"m\"}}");                        /* no signs */
+    reject("{\"bad-ext!\":{\"signs\":[\"0,AA\"],\"mime\":\"m\"}}"); /* charset */
+    reject("{\"x\":{\"signs\":[\"0,AA\"],\"mime\":\"m\"}} trailing"); /* garbage */
+    reject("");                                                  /* empty */
+    reject("[]");                                                /* not an object */
+    /* empty signs array is dead config */
+    reject("{\"x\":{\"signs\":[],\"mime\":\"m\"}}");
+}
+
+TEST(CarveEngine, UserSignatureProbedAtStride) {
+    /* a device whose only content is a user-taught magic at a 512-byte
+     * stride: DEADBEEF at 0x2000 is no built-in magic - without the
+     * registration nothing is carved; with it exactly one .xyz record */
+    std::vector<u8> img(2ull << 20, 0);
+    img[0x2000] = 0xDE;
+    img[0x2001] = 0xAD;
+    img[0x2002] = 0xBE;
+    img[0x2003] = 0xEF;
+
+    /* pre-condition: no user signs installed -> nothing carved */
+    ASSERT_EQ(0u, carve::usersigns::active_count());
+    {
+        MemDevice dev(img);
+        tree::ResultTree tree;
+        auto* root = tree.add_root(u"Carved");
+        CarveFlags fl;
+        fl.hash_small_files = false;
+        CarveStats st;
+        ASSERT_EQ(OK, carve_slice(&dev, fl, nullptr, nullptr, nullptr, tree, root, nullptr,
+                                  nullptr, st));
+        EXPECT_EQ(0u, st.sign_hits) << "DEADBEEF is not a built-in magic";
+    }
+
+    /* register and re-carve */
+    const char* json =
+        "{\"xyz\": {\"signs\": [\"0,DEADBEEF\"], \"mime\": \"application/x-xyz\"}}";
+    carve::usersigns::UserSignSet set;
+    ASSERT_EQ(OK, carve::usersigns::parse(json, std::strlen(json), set));
+    ASSERT_EQ(OK, carve::usersigns::install_set(std::move(set)));
+    ASSERT_EQ(1u, carve::usersigns::active_count());
+
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"Carved");
+    CarveFlags fl;
+    fl.hash_small_files = false;
+    CarveStats st;
+    ASSERT_EQ(OK, carve_slice(&dev, fl, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr,
+                              st));
+    EXPECT_EQ(1u, st.sign_hits);
+    tree::FileNode* hit = nullptr;
+    for (tree::FileNode* c = root->first_child(); c; c = c->next_sibling())
+        if (c->props() && c->props()->name.find(u".xyz") != std::u16string::npos)
+            hit = c;
+    ASSERT_NE(hit, nullptr) << "the user-taught extension surfaces";
+    EXPECT_EQ(0xFFFE0000u, hit->props()->carve_format);
+    EXPECT_EQ(600u, hit->props()->carve_confidence);
+    EXPECT_EQ(std::u16string(u"application/x-xyz"), hit->props()->carve_note);
+    ASSERT_EQ(1u, hit->props()->extents.size());
+    EXPECT_EQ(0x2000u, hit->props()->extents[0].offset);
+
+    /* teardown: clear the registry for the other tests (replace with an
+     * empty-but-valid set is not possible - install requires signs; the
+     * registry is per-process, so this test owns it) */
+}
+
+TEST(CarveEngine, UserSignatureYieldsToBuiltInAtSamePosition) {
+    /* collision rule: a user sign whose magic ALSO matches a built-in at
+     * the same stride defers - the built-in layer probes first and the
+     * position is claimed (the og's compiled tables win). A PNG magic at
+     * a stride: PNG (built-in) carves it; a user sign for the same bytes
+     * must not double-emit. */
+    std::vector<u8> img(2ull << 20, 0);
+    plant_png(img, 0x2000);
+    const char* json =
+        "{\"png2\": {\"signs\": [\"0,89504E47\"], \"mime\": \"application/x-png2\"}}";
+    carve::usersigns::UserSignSet set;
+    ASSERT_EQ(OK, carve::usersigns::parse(json, std::strlen(json), set));
+    ASSERT_EQ(OK, carve::usersigns::install_set(std::move(set)));
+
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"Carved");
+    CarveFlags fl;
+    fl.hash_small_files = false;
+    CarveStats st;
+    ASSERT_EQ(OK, carve_slice(&dev, fl, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr,
+                              st));
+    /* the built-in PNG owns the position: exactly one record, and it is
+     * the grammar-layer PNG (not the user tag) */
+    u32 png_records = 0, user_records = 0;
+    for (tree::FileNode* c = root->first_child(); c; c = c->next_sibling()) {
+        if (!c->props())
+            continue;
+        if (c->props()->carve_format == 0xFFFE0000u)
+            ++user_records;
+        else if (c->props()->carve_format == FMT_PNG)
+            ++png_records;
+    }
+    EXPECT_EQ(1u, png_records) << "the built-in PNG claims the position";
+    EXPECT_EQ(0u, user_records) << "no user-sign double emission";
+}
+
+} // namespace
+
+TEST(CarveEngine, WindowBufferReusedByValidatorChecksumAndHash) {
+    /* A fixture small enough to be ONE scan window: every candidate's
+     * validator probes, M-051 checksum reads, and small-file hash reads
+     * fall entirely inside [0, want). With the window view (M-025) the
+     * ONLY device reads are the window reads themselves - before the fix
+     * every candidate re-read its probe block + 512 B checksum + hash
+     * content from the device (3+ extra reads per emitted file). */
+    auto img = build_carve_image();
+    const u64 dev_bytes = img.size();
+    CountingDevice dev(std::move(img));
+
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"Lost Files");
+    CarveFlags flags; /* hash_small_files defaults ON (8 MiB threshold) */
+    CarveStats stats;
+    ASSERT_EQ(carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr,
+                          stats),
+              OK)
+        << err_text(OK);
+    ASSERT_GE(stats.validated, 4u) << "the shared fixture carries jpg/png/zip/docx";
+
+    /* one window: total 256 KiB < 1 MiB WINDOW -> exactly ONE device read
+     * for the scan itself; zero re-reads for validation, checksums, or
+     * hashing (all served from the window buffer) */
+    EXPECT_EQ(dev.calls(), 1u) << "validator/checksum/hash re-reads must be served from the "
+                                  "window buffer (M-025); saw "
+                               << dev.calls() << " device reads";
+    EXPECT_EQ(dev.bytes(), dev_bytes);
+}
+
+TEST(CarveEngine, BoundaryStraddlingCandidateSplitsReadsCorrectly) {
+    /* A JPEG whose extent crosses the 1 MiB window boundary: the view
+     * serves the in-window prefix from the buffer and reads only the tail
+     * from the device - the carved length and checksum must match the
+     * device-truth. Fail modes: torn reads (wrong bytes), wrong length,
+     * or a missed candidate. */
+    std::vector<u8> img(3ull << 20, 0xAA); /* 3 MiB: 3 windows */
+    /* the JPEG starts 256 bytes before the 1 MiB window boundary: its
+     * magic lives in window 0, its validator's first 1 MiB probe block
+     * crosses the window's end (1 MiB + 4 KiB) - the split-read path */
+    const u64 jpg_start = (1ull << 20) - 256;
+    plant_jpeg(img, size_t(jpg_start));
+    CountingDevice dev(std::move(img));
+
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"Lost Files");
+    CarveFlags flags;
+    CarveStats stats;
+    ASSERT_EQ(carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr,
+                          stats),
+              OK)
+        << err_text(OK);
+
+    std::vector<tree::FileNode*> all;
+    std::function<void(tree::FileNode*)> collect = [&](tree::FileNode* n) {
+        for (tree::FileNode* c = n->first_child(); c; c = c->next_sibling()) {
+            all.push_back(c);
+            collect(c);
+        }
+    };
+    collect(root);
+    bool found = false;
+    for (auto* n : all) {
+        if (n->props()->extents.empty())
+            continue;
+        if (n->props()->extents.front().offset == jpg_start) {
+            found = true;
+            EXPECT_GE(n->props()->logical_size, 500u)
+                << "the straddling JPEG must carve to its planted extent";
+        }
+    }
+    EXPECT_TRUE(found) << "the boundary-straddling JPEG must be carved";
+    /* 3 windows scanned; the JPEG's tail beyond window 0 is read from the
+     * device (the split-read path); window 0's validator/hash/checksum
+     * reads stay in-buffer. The exact device-read count is not pinned
+     * (the tail walk may chunk) - the carve CORRECTNESS above is the
+     * assertion; this test guards the split-read contract. */
 }

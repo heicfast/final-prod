@@ -22,6 +22,7 @@
 #include "../session/cr_crsf.h"
 #include "../session/cr_records.h"
 #include "cr/lost/cr_lostpart.h"
+#include "cr/check/cr_fscheck.h"
 #include "cr/repair/cr_rawfixer.h"
 #include <atomic>
 #include <chrono>
@@ -126,7 +127,15 @@ enum class Type : u32 {
     ErrorRange = 4,    /* a read-failure range was appended (delta) */
     Checkpoint = 5,    /* a G-13 checkpoint was written */
     LostCandidate = 6, /* a lost-partition candidate was found */
-    Repair = 7         /* S-008: pre-scan repair lifecycle (see Repair fields) */
+    Repair = 7,        /* S-008: pre-scan repair lifecycle (see Repair fields) */
+    /* NOTE: ABI wire values 8 (CR_EVT_HEARTBEAT) and 9
+     * (CR_EVT_SAVE_PROGRESS) are SHIM-side events (the watchdog thread
+     * and the save path) - the core never emits them. The core's next
+     * event type therefore starts at 10. */
+    FsCheck = 10       /* M-041: pre-scan damage-audit phase done (see check
+                        * fields; fires ONCE per scan with the final report
+                        * summary — per-error detail rides the session record
+                        * and stats) */
 };
 
 struct Event {
@@ -162,6 +171,12 @@ struct Event {
      * stage stays 0xFFFFFFFF (pre-scan). */
     u64 repair_actions = 0;
     u32 repair_outcome = 0;
+    /* FsCheck (Type::FsCheck; M-041). check_errors = the report's issue
+     * count; check_family = the detected family byte ('f'/'n'/0); the
+     * full report (codes, params, paths) persists as REC_FS_CHECK and
+     * surfaces in ScanStats. stage stays 0xFFFFFFFF (pre-scan). */
+    u64 check_errors = 0;
+    u32 check_family = 0;
 };
 
 using EventFn = void (*)(const Event& evt, void* user);
@@ -204,6 +219,20 @@ struct ScanConfig {
         void* user = nullptr;
     } repair;
 
+    /* ---- M-041 pre-scan damage-audit check phase (the og's
+     * FileSystemCheck: CCheckFAT + CCheckNTFSVolume, corpus
+     * ghidra-mo/FileSystemCheck_decompiled.c) ----
+     * OFF by default (like pre_scan_repair: the og runs the check from
+     * its dedicated check/repair flows, not every scan). When ON, run()
+     * executes check::run_fscheck() on the caller's slice AFTER the
+     * repair stage (the og's order — repair writes first, the audit
+     * sees the repaired bytes) and BEFORE any engine/probe read. The
+     * report NEVER aborts the scan (the og's escalation stance: the
+     * audit informs, the scan proceeds — rawfixer-fs-repair.md:59-65).
+     * Surfacing: ScanStats.check_* + event::Type::FsCheck + the
+     * REC_FS_CHECK session record. */
+    bool pre_scan_check = false;
+
     /* Volume label for the session VolumeInfo (G-14). Supplied by the
      * caller (the CLI/win layer reads it from the volume entry; engines
      * never own it). UTF-8, NUL-padded into the session record. */
@@ -214,6 +243,14 @@ struct ScanConfig {
      * proper is the boot-sector hash the orchestrator computes itself. */
     char volume_model[48] = {0};
     char volume_serial[32] = {0};
+
+    /* N-066 (the og record-3 identity axes): firmware revision, WWN /
+     * serial-2, and the interface description from the disk enumeration
+     * (UTF-8 NUL-padded; zero-init = absent - pre-N-066 hosts and image
+     * targets leave them empty and the v4 card fields stay zeros). */
+    char volume_firmware[32] = {0};
+    char volume_wwn[32] = {0};
+    char volume_interface[32] = {0};
 
     /* S-030 (image targets): the image FILE path when the scan target is
      * a disk image (the og's import flow keeps the file identity for the
@@ -292,6 +329,11 @@ struct ScanStats {
     /* N-031: all-zero 512-byte strides whose raw-sign probe was skipped
      * (the og's zero-sector fast-skip analog; diagnostics/telemetry). */
     u64 carve_zero_strides = 0;
+    /* M-018: nodes the FilterFolder pass flagged (the og's
+     * PushFolderFilter hidden set - OS droppings, metadata noise,
+     * localized "New Folder" names, SVI, BitLocker artifacts). */
+    u64 junk_filtered = 0;
+
     /* M-035: lost candidates the engine-side content-consistency scorer
      * rejected (the og's exFAT-only FUN_180025390 rule - majority
      * checkable + match ratio < 0.3 + at least one checkable file, or a
@@ -327,6 +369,16 @@ struct ScanStats {
     bool repair_writer_unavailable = false;
     std::vector<std::string> repair_advisories;
     repair::UndoLog repair_undo;
+
+    /* ---- M-041 pre-scan damage-audit report (filled when
+     * cfg.pre_scan_check) ----
+     * The full issue list (the og's 0x1001..0x100e taxonomy with
+     * cluster/LCN/version params and path hints) + the summary counters.
+     * Persisted as REC_FS_CHECK; the event stream carries the summary. */
+    bool check_ran = false;
+    bool check_detected = false;
+    u32 check_status = 0; /* run_fscheck's return (OK even on findings) */
+    check::FsCheckReport check_report;
 
     /* ---- S-023: post-scan grading (the og's CRecoverability model) ----
      * Filled by the grading pass at scan completion; the per-node grades
@@ -589,6 +641,12 @@ private:
     u32 vol_logical_sector_ = 0;
     u32 vol_physical_sector_ = 0;
     u32 vol_boot_hash_ = 0; /* SESS-2: CRC32 of the slice's first 512 bytes */
+    /* N-066: the full 512-byte boot-sector image behind vol_boot_hash_
+     * (the og record-3's +0x518 snapshot - mismatch diagnostics and the
+     * offline re-materialization datum). valid=false when the read failed
+     * or the session was resumed pre-run. */
+    u8 vol_boot_snapshot_[512] = {0};
+    bool vol_boot_snapshot_valid_ = false;
     u32 session_configured_mask_ = 0;
     /* G-13: the run's stats reference for checkpoint serialization +
      * emitted-checkpoint count (diagnostics) */

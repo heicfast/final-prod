@@ -67,6 +67,12 @@ enum RecordType : u32 {
      * path). Payload: u32 count + per-entry {u64 start, u64 count,
      * u32 type}. */
     REC_DISK_LAYOUT = 8,
+    /* M-041 (diff-to-fix): the damage-audit check-phase report (the og's
+     * FileSystemCheck error set, codes 0x1001..0x100e). OPTIONAL with
+     * the same skip-unknown-types rule — sessions saved without the
+     * check stage simply lack it and the report reads as empty.
+     * Payload: check::serialize_fs_check. */
+    REC_FS_CHECK = 9,
 };
 
 /* In-memory record. */

@@ -265,6 +265,7 @@ with the table loop disabled), `NameUtf16TableAllowedCharAccepted`
 pins the U+1A00-passes/U+0100-fails boundary. The B10 (names) cell
 keeps its MATCH verdict — now without the residual-FP asterisk.
 
+<<<<<<< HEAD
 ## Session-24 verdict update (M-052 FIXED, DFX24, 2026-10-26)
 
 **Recycle-bin pairing — `M-052` FIXED.** The exfat engine carries the
@@ -278,3 +279,19 @@ name/size/deletion-time, marked Deleted, with the post-walk fixup for
 late-ordered pairs. Stats `recycle_info` / `recycle_remapped`.
 B4/B5/D11 verdict: MATCH. Fail-before EXECUTED (engine mutation:
 3/4 RED; the over-matching pin green by design).
+=======
+---
+
+## Session-35 verdict update (M-052 FIXED, 2026-10-26)
+
+**Recycle-bin pairing mirrored — `M-052` FIXED.** "$RECYCLE.BIN
+handling mirrored from FAT engine" (fat-exfat-engine-internals.md :71)
+is now true in the core too: the exFAT walk carries the bin context
+through walk_entries/recurse_dir (and through the M-013 oracle's
+parked-set re-walks — ParkedSet.in_bin), parses in-bin $I records from
+the cluster chain, and remaps $R sets to their original name/size/time
+with the Deleted state. Same shared model as FAT (cr_recycle.h), same
+four-root recognition set (exFATSearchDLL :40583-40592, verified
+first-hand). Proof: ExfatEngine.RecyclePairingMirrored (fail-before
+EXECUTED). B4/B5/D11 verdict: MATCH.
+>>>>>>> 880e2a1b1429859df8d575aa53e835d1d65fe01f

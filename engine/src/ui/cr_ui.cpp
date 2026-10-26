@@ -27,6 +27,7 @@
 #include "cr/orchestrator/cr_scan.h"
 #include "cr/carve/cr_signatures.h"
 #include "cr/carve/cr_rawsigns.h"
+#include "cr/carve/cr_usersigns.h"
 #include "cr/tree/cr_diskmap.h"
 #include "cr/preview/cr_preview.h"
 #include "cr/query/cr_query.h"
@@ -827,6 +828,8 @@ void scan_event_trampoline_(const orchestrator::event::Event& e, void* user) {
     out.candidate_lba = e.candidate_lba;
     out.repair_actions = u32(e.repair_actions);
     out.repair_outcome = e.repair_outcome;
+    out.check_errors = e.check_errors;
+    out.check_family = e.check_family;
     /* N-043: every progress arrival resets the heartbeat watchdog's
      * stall clock (the og watches its engine step counter +0x8fc;
      * CR_EVT_SCAN_PROGRESS is that counter's echo on this surface). */
@@ -1079,6 +1082,11 @@ u32 fill_scan_config(const cr_ui_scan_config* in, orchestrator::ScanConfig& out)
     copy_card(out.volume_label, sizeof(out.volume_label), in ? in->volume_label_utf8 : nullptr);
     copy_card(out.volume_model, sizeof(out.volume_model), in ? in->volume_model_utf8 : nullptr);
     copy_card(out.volume_serial, sizeof(out.volume_serial), in ? in->volume_serial_utf8 : nullptr);
+    copy_card(out.volume_firmware, sizeof(out.volume_firmware),
+              in ? in->volume_firmware_utf8 : nullptr);
+    copy_card(out.volume_wwn, sizeof(out.volume_wwn), in ? in->volume_wwn_utf8 : nullptr);
+    copy_card(out.volume_interface, sizeof(out.volume_interface),
+              in ? in->volume_interface_utf8 : nullptr);
     /* M-029: the raw/carve category root's display name (the og's
      * "filter_generalraw" surface); empty = the default role */
     copy_card(out.raw_category_name, sizeof(out.raw_category_name),
@@ -1603,6 +1611,8 @@ u32 scan_create_impl(const cr_ui_scan_config* cfg, cr_ui_scan** out) {
     arm_repair_hooks(s, cfg); /* S-008: pre-scan repair consent gate */
     if (cfg)
         s->memory_warn_mb = cfg->memory_warn_mb; /* N-062 */
+    if (cfg && cfg->pre_scan_check) /* M-041: the damage-audit phase */
+        s->cfg.pre_scan_check = true;
     if (cfg && cfg->progress) {
         s->progress = cfg->progress;
         s->progress_user = cfg->progress_user;
@@ -1623,6 +1633,13 @@ void fill_identity_card(u32 disk, orchestrator::ScanConfig& cfg) {
     const std::string sr = ws_to_u8(disks[disk].serial);
     copy_card(cfg.volume_model, sizeof(cfg.volume_model), m.c_str());
     copy_card(cfg.volume_serial, sizeof(cfg.volume_serial), sr.c_str());
+    /* N-066: the record-3 axes from the (N-080-fixed) enumeration. */
+    const std::string fw = ws_to_u8(disks[disk].firmware);
+    const std::string wwn = ws_to_u8(disks[disk].wwn);
+    const std::string ifc = ws_to_u8(disks[disk].interface_desc);
+    copy_card(cfg.volume_firmware, sizeof(cfg.volume_firmware), fw.c_str());
+    copy_card(cfg.volume_wwn, sizeof(cfg.volume_wwn), wwn.c_str());
+    copy_card(cfg.volume_interface, sizeof(cfg.volume_interface), ifc.c_str());
 }
 
 /* cross-disk LDM resolver (the cmd_scan block, verbatim semantics) */
@@ -1885,6 +1902,10 @@ u32 scan_stats_impl(cr_ui_scan* scan, cr_ui_scan_stats* out) {
     out->repair_planned = st.repair_actions_planned;
     out->repair_applied = st.repair_actions_applied;
     out->repair_denied = (st.repair_consent_denied || st.repair_writer_unavailable) ? 1u : 0u;
+    /* M-041 damage-audit report summary */
+    out->check_ran = st.check_ran ? 1u : 0u;
+    out->check_errors = u32(st.check_report.errors.size());
+    out->check_detected = st.check_detected ? 1u : 0u;
     return ret_ok();
 }
 
@@ -3684,4 +3705,45 @@ extern "C" CR_UI_API uint32_t cr_ui_health_read(uint32_t disk, cr_ui_smart_repor
                                                 cr_ui_smart_attr* attrs, uint32_t attr_cap,
                                                 uint32_t* attr_count) {
     return guarded(health_read_impl, disk, rep, attrs, attr_cap, attr_count);
+}
+
+/* ---- M-048: the user-extensible signature database (ABI-since 2.1) ---- */
+
+extern "C" CR_UI_API uint32_t cr_ui_register_user_signs(const char* json_bytes,
+                                                       uint32_t json_len) {
+    if (json_bytes == nullptr || json_len == 0)
+        return ERR_BAD_PARAMETER;
+    carve::usersigns::UserSignSet set;
+    if (u32 rc = carve::usersigns::parse(json_bytes, size_t(json_len), set))
+        return rc;
+    return carve::usersigns::install_set(std::move(set));
+}
+
+extern "C" CR_UI_API uint32_t cr_ui_user_sign_count(void) {
+    return carve::usersigns::active_count();
+}
+
+extern "C" CR_UI_API uint32_t cr_ui_user_sign_info(uint32_t index, cr_ui_user_sign* out) {
+    if (out == nullptr)
+        return ERR_BAD_PARAMETER;
+    std::memset(out, 0, sizeof(*out));
+    /* snapshot under the registry's own lock discipline: match_at/count
+     * are the guarded surfaces; the info walk takes one consistent copy */
+    const u32 n = carve::usersigns::active_count();
+    if (index >= n)
+        return ERR_BAD_PARAMETER;
+    /* one consistent copy under the registry's lock (the count-then-read
+     * window is closed by re-validating against the snapshot) */
+    carve::usersigns::UserSignSet snap;
+    if (u32 rc = carve::usersigns::snapshot(snap))
+        return rc;
+    if (index >= snap.signs.size())
+        return ERR_BAD_PARAMETER; /* the set changed between calls */
+    const carve::usersigns::UserSign& s = snap.signs[index];
+    std::memcpy(out->ext, s.ext, sizeof(out->ext));
+    std::memcpy(out->mime, s.mime, sizeof(out->mime));
+    out->offset = s.offset;
+    out->sign_len = s.len;
+    std::memcpy(out->bytes, s.bytes, sizeof(out->bytes));
+    return OK;
 }

@@ -1,6 +1,8 @@
 /* Orchestrator + safe recovery writer tests. */
 #include <gtest/gtest.h>
 #include "cr/orchestrator/cr_scan.h"
+#include "cr/orchestrator/cr_filterfolder.h"
+#include "cr/query/cr_query.h"
 #include "cr/cr_errmod.h"
 #include "cr/recovery/cr_safewriter.h"
 #include "cr/session/cr_crsf.h"
@@ -211,6 +213,170 @@ TEST(Orchestrator, DynamicDiskVolumeScan) {
         collect(r);
     ASSERT_NE(nullptr, doc);
 }
+
+/* ---- M-018: the FilterFolder result-set junk filter ---- */
+
+TEST(FilterFolder, CorpusListsPinned) {
+    /* the shipped FilterFolder.ini sets, byte-exact from the corpus file
+     * (count pins = regeneration-drift guard, the filefilter precedent) */
+    EXPECT_EQ(4u, filterfolder::data::kFolderCount);
+    EXPECT_EQ(7u, filterfolder::data::kFileCount);
+    EXPECT_EQ(14u, filterfolder::data::kFatNameCount);
+    /* FolderName: upgrade/setup scaffolding */
+    EXPECT_TRUE(filterfolder::is_junk_name(u"Config.Msi", true));
+    EXPECT_TRUE(filterfolder::is_junk_name(u"$Windows.~BT", true));
+    EXPECT_TRUE(filterfolder::is_junk_name(u"$Windows.~WS", true));
+    EXPECT_TRUE(filterfolder::is_junk_name(u"$Windows.~TMP", true));
+    /* FileName: metadata noise (ASCII-fold: FAT 8.3 renders uppercase) */
+    EXPECT_TRUE(filterfolder::is_junk_name(u"desktop.ini", false));
+    EXPECT_TRUE(filterfolder::is_junk_name(u"DESKTOP.INI", false));
+    EXPECT_TRUE(filterfolder::is_junk_name(u"._.DS_Store", false));
+    EXPECT_TRUE(filterfolder::is_junk_name(u".DS_Store", false));
+    EXPECT_TRUE(filterfolder::is_junk_name(u"$UsnJrnl", false));
+    EXPECT_TRUE(filterfolder::is_junk_name(u"$USNJRNL", false));
+    EXPECT_TRUE(filterfolder::is_junk_name(u"IndexerVolumeGuid", false));
+    EXPECT_TRUE(filterfolder::is_junk_name(u"WPSettings.dat", false));
+    EXPECT_TRUE(filterfolder::is_junk_name(u"WPSETTINGS.DAT", false));
+    EXPECT_TRUE(filterfolder::is_junk_name(u"MountPointManagerRemoteDatabase", false));
+    /* FatFilterName: the localized New Folder family + SVI + BitLocker */
+    EXPECT_TRUE(filterfolder::is_junk_name(u"New Folder", true));
+    EXPECT_TRUE(filterfolder::is_junk_name(u"\u65B0\u5EFA\u6587\u4EF6\u5939", true));   /* zh-CN */
+    EXPECT_TRUE(filterfolder::is_junk_name(u"\u65B0\u5EFA\u8CC7\u6599\u593E", true));   /* zh-TW */
+    EXPECT_TRUE(filterfolder::is_junk_name(u"\u65B0\u3057\u3044\u30D5\u30A9\u30EB\u30C0\u30FC", true)); /* ja */
+    EXPECT_TRUE(filterfolder::is_junk_name(u"\uC0C8 \uD3F4\uB354", true));  /* ko */
+    EXPECT_TRUE(filterfolder::is_junk_name(u"Neuer Ordner", true));
+    EXPECT_TRUE(filterfolder::is_junk_name(u"Nova pasta", true));
+    EXPECT_TRUE(filterfolder::is_junk_name(u"Nuova cartella", true));
+    EXPECT_TRUE(filterfolder::is_junk_name(u"Nueva carpeta", true));
+    EXPECT_TRUE(filterfolder::is_junk_name(u"Nouveau dossier", true));
+    EXPECT_TRUE(filterfolder::is_junk_name(u"System Volume Information", true));
+    EXPECT_TRUE(filterfolder::is_junk_name(u"AadRecoveryPasswordDelete", false));
+    EXPECT_TRUE(filterfolder::is_junk_name(u"ClientRecoveryPasswordRotation", false));
+    EXPECT_TRUE(filterfolder::is_junk_name(u"FveDecryptedVolumeFolder", false));
+    /* negatives: real files never filtered */
+    EXPECT_FALSE(filterfolder::is_junk_name(u"DOC.TXT", false));
+    EXPECT_FALSE(filterfolder::is_junk_name(u"resume 2026.pdf", false));
+    EXPECT_FALSE(filterfolder::is_junk_name(u"Photos", true));
+    EXPECT_FALSE(filterfolder::is_junk_name(u"", false));
+    /* the folder list does not hit files and vice versa */
+    EXPECT_FALSE(filterfolder::is_junk_name(u"Config.Msi", false));
+    EXPECT_FALSE(filterfolder::is_junk_name(u"desktop.ini", true));
+}
+
+TEST(Orchestrator, JunkFilteredFromResults) {
+    /* a FAT16 volume carrying the og's hidden set: DESKTOP.INI,
+     * $USNJRNL (8.3), an LFN "System Volume Information" dir and an LFN
+     * zh-CN New Folder dir; KEEP.ME is the negative control. The scan
+     * must flag exactly the four junk nodes (stats + flags) and the
+     * query surface must exclude them while the real files stay. */
+    auto img = build_fat16();
+    constexpr size_t ROOT = 42 * 512;
+    u8* root = img.data() + ROOT;
+    auto dentry = [&](size_t slot, const char* n11, u8 attr, u32 cl, u32 sz) {
+        u8* e = root + slot * 32;
+        std::memset(e, 0, 32);
+        for (int i = 0; i < 11; ++i)
+            e[i] = u8(n11[i]);
+        e[11] = attr;
+        put16(img, ROOT + slot * 32 + 20, u16(cl >> 16));
+        put16(img, ROOT + slot * 32 + 26, u16(cl));
+        put32v(img, ROOT + slot * 32 + 28, sz);
+    };
+    /* LFN chain writer: fragments physically DESCENDING (last first),
+     * 13 UTF-16 chars per slot, checksum ties to the 8.3 alias that
+     * follows (the engine's lfn_assemble contract). */
+    auto lfn_chain = [&](size_t slot, const std::u16string& name, const char* alias11) {
+        u8 alias[11];
+        std::memcpy(alias, alias11, 11);
+        u32 sum = 0;
+        for (int i = 0; i < 11; ++i)
+            sum = ((sum & 1) << 7) + (sum >> 1) + u32(alias[i]);
+        const u8 chk = u8(sum & 0xFF);
+        const size_t frags = (name.size() + 12) / 13;
+        for (size_t f = frags; f >= 1; --f) {
+            u8* e = root + (slot + (frags - f)) * 32;
+            std::memset(e, 0xFF, 32);
+            e[0] = u8(f == frags ? 0x40 | f : f);
+            e[11] = 0x0F; /* LFN */
+            e[12] = 0;
+            e[13] = chk;
+            e[26] = 0;
+            e[27] = 0;
+            static const size_t off[3] = {1, 14, 28};
+            static const int cnt[3] = {5, 6, 2};
+            size_t pos = (f - 1) * 13;
+            for (int pi = 0; pi < 3; ++pi) {
+                for (int ci = 0; ci < cnt[pi]; ++ci) {
+                    const u16 ch = pos < name.size() ? name[pos] : (pos == name.size() ? 0x0000 : 0xFFFF);
+                    e[off[pi] + 2 * size_t(ci)] = u8(ch & 0xFF);
+                    e[off[pi] + 2 * size_t(ci) + 1] = u8(ch >> 8);
+                    ++pos;
+                }
+            }
+        }
+        return slot + frags; /* the alias entry's slot */
+    };
+    dentry(2, "DESKTOP INI", 0x20, 11, 100);
+    dentry(3, "$USNJRNL   ", 0x20, 11, 282);
+    dentry(4, "KEEP    ME ", 0x20, 11, 10);
+    { /* System Volume Information (dir) */
+        const size_t alias_slot = lfn_chain(5, u"System Volume Information", "SYSTEM~1   ");
+        dentry(alias_slot, "SYSTEM~1   ", 0x10, 0, 0);
+    }
+    { /* zh-CN New Folder (dir) */
+        const size_t alias_slot = lfn_chain(8, u"\u65B0\u5EFA\u6587\u4EF6\u5939", "NEWFOL~1   ");
+        dentry(alias_slot, "NEWFOL~1   ", 0x10, 0, 0);
+    }
+
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    ScanConfig cfg;
+    cfg.run_quick = true;
+    cfg.run_carve = false;
+    ScanController ctrl(tree, cfg);
+    ScanStats stats;
+    ASSERT_EQ(OK, ctrl.run(&dev, nullptr, nullptr, nullptr, stats)) << err_text(u32(0));
+    EXPECT_EQ(4u, stats.junk_filtered)
+        << "DESKTOP.INI + $USNJRNL + System Volume Information + the zh-CN New Folder";
+
+    /* the flags are on exactly the junk nodes */
+    std::map<std::string, bool> flagged;
+    std::function<void(tree::FileNode*)> collect = [&](tree::FileNode* n) {
+        for (tree::FileNode* c = n->first_child(); c; c = c->next_sibling()) {
+            if (c->props())
+                flagged[c->name_utf8()] =
+                    (c->props()->flags & tree::NODE_FLAG_JUNK_FILTERED) != 0;
+            collect(c);
+        }
+    };
+    for (tree::FileNode* r : tree.roots())
+        collect(r);
+    EXPECT_TRUE(flagged.count("DESKTOP.INI") && flagged["DESKTOP.INI"]);
+    EXPECT_TRUE(flagged.count("$USNJRNL") && flagged["$USNJRNL"]);
+    EXPECT_TRUE(flagged.count("System Volume Information") && flagged["System Volume Information"]);
+    EXPECT_TRUE(flagged.count("\u65B0\u5EFA\u6587\u4EF6\u5939") &&
+                flagged["\u65B0\u5EFA\u6587\u4EF6\u5939"]);
+    ASSERT_TRUE(flagged.count("DOC.TXT"));
+    EXPECT_FALSE(flagged["DOC.TXT"]) << "real files are never junk-filtered";
+    ASSERT_TRUE(flagged.count("KEEP.ME"));
+    EXPECT_FALSE(flagged["KEEP.ME"]) << "the negative control stays visible";
+
+    /* the query surface excludes the junk set (the og's presented tree) */
+    query::Query q;
+    q.limit = 1000;
+    query::Result res = query::run(tree, q);
+    std::set<std::string> names;
+    for (const auto& row : res.rows)
+        names.insert(row.name_utf8);
+    EXPECT_FALSE(names.count("DESKTOP.INI"));
+    EXPECT_FALSE(names.count("$USNJRNL"));
+    EXPECT_FALSE(names.count("System Volume Information"));
+    EXPECT_TRUE(names.count("DOC.TXT"));
+    EXPECT_TRUE(names.count("KEEP.ME"));
+    EXPECT_TRUE(names.count("_ELFILE.TXT"))
+        << "deleted files are results too (the FAT undelete convention renders 0xE5 as _)";
+}
+
 } // namespace
 
 /* ---- N-048: the engine logging seam ---- */
@@ -1569,4 +1735,106 @@ TEST(Orchestrator, ReadPipeZeroCapacityDegradesToBareSlice) {
     ASSERT_EQ(rp.pipe, &dev);
     EXPECT_EQ(nullptr, rp.chain);
     EXPECT_EQ(nullptr, rp.retry);
+}
+
+TEST(Orchestrator, LogSinkRegistrySurvivesHeavyChurn) {
+    /* N-079 additive pin (the DFX23 convergent landing's test, ported
+     * onto the canonical deque-pool fix): the seam must keep delivery
+     * on the CURRENT sink through heavy registration churn, superseded
+     * registrations must go silent, and the null-unregister path must
+     * leave the registry usable without burning pool capacity. The
+     * canonical fix's pool is unbounded so 20 registrations exercise the
+     * swap bookkeeping; the pin holds for either registry design. */
+    LogRecorder current, stale;
+    cr::log::set_sink(&LogRecorder::sink, &stale);
+    for (int i = 0; i < 20; ++i) /* heavy churn past any small pool */
+        cr::log::set_sink(&LogRecorder::sink, &current);
+    EXPECT_TRUE(cr::log::enabled());
+    cr::log::write(cr::log::Level::Info, "after churn %d", 1);
+    cr::log::set_sink(nullptr, nullptr);
+    EXPECT_FALSE(cr::log::enabled());
+    EXPECT_EQ(stale.lines.size(), 0u) << "superseded registrations go silent";
+    ASSERT_FALSE(current.lines.empty());
+    EXPECT_NE(current.lines[0].second.find("after churn"), std::string::npos)
+        << "delivery follows the CURRENT sink through the churn";
+    current.lines.clear();
+    cr::log::set_sink(&LogRecorder::sink, &current);
+    cr::log::write(cr::log::Level::Warn, "revived");
+    cr::log::set_sink(nullptr, nullptr);
+    ASSERT_EQ(current.lines.size(), 1u);
+    EXPECT_NE(current.lines[0].second.find("revived"), std::string::npos)
+        << "the null-publish unregister leaves the registry usable";
+}
+
+TEST(Orchestrator, IdentityCardV4SnapshotAndAxes) {
+    /* N-066 end-to-end: run() captures the full 512-byte boot-sector image
+     * alongside the CRC32 (the og record-3's +0x518 snapshot) and emits it
+     * into the VolumeInfo v4 tail; the config's record-3 axes (firmware,
+     * WWN, interface) flow through to the card. */
+    auto img = build_fat16();
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    ScanConfig cfg;
+    cfg.run_quick = true;
+    cfg.run_deep = false;
+    cfg.run_carve = false;
+    std::memcpy(cfg.volume_firmware, "01.02D-04", 9);
+    std::memcpy(cfg.volume_wwn, "50014ee2b8a1c2d3", 16);
+    std::memcpy(cfg.volume_interface, "USB Device", 10);
+    ScanController ctrl(tree, cfg);
+    ScanStats stats;
+    ASSERT_EQ(ctrl.run(&dev, nullptr, nullptr, nullptr, stats), OK) << err_text(u32(0));
+    struct MemFile {
+        std::vector<u8> data;
+        u64 pos = 0;
+        static u32 wr(void* u, const void* b, u32 len) {
+            auto* m = static_cast<MemFile*>(u);
+            if (m->pos + len > m->data.size())
+                m->data.resize(size_t(m->pos + len));
+            std::memcpy(m->data.data() + m->pos, b, len);
+            m->pos += len;
+            return 0;
+        }
+        static u64 tl(void* u) { return static_cast<MemFile*>(u)->pos; }
+        static u32 sk(void* u, u64 abs) {
+            static_cast<MemFile*>(u)->pos = abs;
+            return 0;
+        }
+    } mf;
+    {
+        session::Writer w(MemFile::wr, MemFile::tl, MemFile::sk, &mf);
+        ASSERT_EQ(w.open(7), OK);
+        ASSERT_EQ(ctrl.save_session(w, stats), OK);
+        ASSERT_EQ(w.finalize(), OK);
+    }
+    session::Reader r(+[](void* u, void* b, u32 len) -> u32 {
+        auto* m = static_cast<MemFile*>(u);
+        if (m->pos + len > m->data.size())
+            return 1;
+        std::memcpy(b, m->data.data() + m->pos, len);
+        m->pos += len;
+        return 0;
+    }, MemFile::sk, +[](void* u) -> u64 { return static_cast<MemFile*>(u)->data.size(); }, &mf);
+    ASSERT_EQ(r.open(nullptr), OK);
+    bool saw_vi = false;
+    for (u32 i = 0; i < r.record_count(); ++i) {
+        session::Record rec;
+        ASSERT_EQ(r.read_record(i, rec), OK);
+        if (rec.type != session::REC_VOLUME_INFO)
+            continue;
+        session::VolumeInfo vi;
+        ASSERT_EQ(session::deserialize_volume_info(rec.data.data(), rec.data.size(), vi), OK);
+        saw_vi = true;
+        EXPECT_EQ(0, std::strcmp(vi.firmware, "01.02D-04"));
+        EXPECT_EQ(0, std::strcmp(vi.wwn, "50014ee2b8a1c2d3"));
+        EXPECT_EQ(0, std::strcmp(vi.interface_desc, "USB Device"));
+        /* the snapshot is the fixture's first 512 bytes and the hash is
+         * crc32 of the same - two views of ONE read (N-066's contract) */
+        u8 boot[512] = {};
+        ASSERT_EQ(dev.read_at(0, boot, sizeof(boot)), u32(OK));
+        EXPECT_EQ(0, std::memcmp(vi.boot_snapshot, boot, 512));
+        EXPECT_EQ(table::crc32(boot, sizeof(boot)), vi.boot_hash);
+        break;
+    }
+    EXPECT_TRUE(saw_vi) << "the VolumeInfo record must be present";
 }

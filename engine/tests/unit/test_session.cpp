@@ -220,7 +220,8 @@ TEST(Crsf, VolumeInfoIdentityCardRoundTrip) {
     std::snprintf(vi.image, sizeof(vi.image), "/vm/disks/qemu.img"); /* S-030 v3 tail */
     std::vector<u8> blob;
     ASSERT_EQ(serialize_volume_info(vi, blob), OK);
-    EXPECT_EQ(blob.size(), 80u + 84u + 256u) << "v3 layout: v2 + the S-030 image tail";
+    EXPECT_EQ(blob.size(), 80u + 84u + 256u + 608u)
+        << "v4 layout: v2 + the S-030 image tail + the N-066 axes/snapshot";
 
     VolumeInfo out;
     ASSERT_EQ(deserialize_volume_info(blob.data(), blob.size(), out), OK);
@@ -973,4 +974,161 @@ TEST(Session, AutoNamingConvention) {
         const bool ok = (i % 3 == 2) ? tail[i] == '_' : (tail[i] >= '0' && tail[i] <= '9');
         EXPECT_TRUE(ok) << "bad stamp character at " << i << ": " << tail;
     }
+}
+
+TEST(Session, BtrfsExtrasRoundTrip) {
+    /* N-059 (diff-to-fix): the og's Btrfs record secondary payload —
+     * secondary id A (+0x3B; our carrier = the owning subvol root id),
+     * secondary id B (+0x3F; no decoded source, stays 0), and the
+     * generation/transid qword (+0x81; our carrier = the inode item's
+     * generation) — survives save/load through the nflags bit-6 block. */
+    tree::ResultTree t;
+    auto* root = t.add_root(u"Volume B");
+    tree::FileProperties* p = new tree::FileProperties();
+    p->name = u"snap.dat";
+    p->fs_kind = u32(FsKindCode::Btrfs);
+    p->logical_size = 4096;
+    p->btrfs_id_a = 257;      /* subvol root id (the N-047 naming datum) */
+    p->btrfs_id_b = 0;        /* undecoded — never invented */
+    p->btrfs_generation = 0x1122334455667788ull;
+    p->extents.push_back({8192, 4096});
+    auto* f = t.add_file(root, p);
+    (void)f;
+    p->release();
+    t.refresh_stats();
+
+    std::vector<u8> blob;
+    ASSERT_EQ(serialize_tree(t, blob), u32(OK));
+    tree::ResultTree t2;
+    ASSERT_EQ(deserialize_tree(blob.data(), blob.size(), t2), u32(OK));
+    tree::FileNode* c2 = t2.roots()[0]->first_child();
+    ASSERT_NE(c2, nullptr);
+    ASSERT_NE(c2->props(), nullptr);
+    EXPECT_EQ(c2->props()->btrfs_id_a, 257u);
+    EXPECT_EQ(c2->props()->btrfs_id_b, 0u);
+    EXPECT_EQ(c2->props()->btrfs_generation, 0x1122334455667788ull);
+    /* the ZFS/HFS+ slots ride the same block and stay zero here */
+    EXPECT_EQ(c2->props()->zfs_secondary_flags, 0u);
+}
+
+TEST(Session, ZfsSecondaryFlagsRoundTrip) {
+    /* N-059: the og's ZFS record secondary-flags u16 (+0x5A; our carrier
+     * = the znode ZPL_FLAGS low word, census-level semantics carried
+     * opaque) and — the session-6 addendum's fold — the HFS+ record's
+     * u16 flags (+0xE) + Finder type id (+0x74) ride the same block. */
+    tree::ResultTree t;
+    auto* root = t.add_root(u"Volume Z");
+    tree::FileProperties* pz = new tree::FileProperties();
+    pz->name = u"tank.creds";
+    pz->fs_kind = u32(FsKindCode::Zfs);
+    pz->zfs_secondary_flags = 0x0008; /* the immutable-family bit word */
+    auto* fz = t.add_file(root, pz);
+    (void)fz;
+    pz->release();
+    tree::FileProperties* ph = new tree::FileProperties();
+    ph->name = u"readme";
+    ph->fs_kind = u32(FsKindCode::Hfsplus);
+    ph->hfs_secondary_flags = 0x0100; /* the catalog record's flags word */
+    ph->hfs_type_id = 0x74657874;     /* 'text' — the Finder file type */
+    auto* fh = t.add_file(root, ph);
+    (void)fh;
+    ph->release();
+    t.refresh_stats();
+
+    std::vector<u8> blob;
+    ASSERT_EQ(serialize_tree(t, blob), u32(OK));
+    tree::ResultTree t2;
+    ASSERT_EQ(deserialize_tree(blob.data(), blob.size(), t2), u32(OK));
+    tree::FileNode* z2 = t2.roots()[0]->first_child();
+    ASSERT_NE(z2, nullptr);
+    ASSERT_NE(z2->props(), nullptr);
+    EXPECT_EQ(z2->props()->zfs_secondary_flags, 0x0008u);
+    tree::FileNode* h2 = z2->next_sibling();
+    ASSERT_NE(h2, nullptr);
+    ASSERT_NE(h2->props(), nullptr);
+    EXPECT_EQ(h2->props()->hfs_secondary_flags, 0x0100u);
+    EXPECT_EQ(h2->props()->hfs_type_id, 0x74657874u);
+    /* the btrfs slots stay zero for non-btrfs nodes */
+    EXPECT_EQ(h2->props()->btrfs_generation, 0ull);
+}
+
+TEST(Session, EngineExtrasAbsentWhenUnpopulated) {
+    /* N-059: the nflags bit-6 block is written ONLY when a carrier is
+     * nonzero — a plain node's record stays the pre-N-059 shape (old
+     * readers and old files both directions unaffected). */
+    tree::ResultTree t;
+    auto* root = t.add_root(u"Volume F");
+    tree::FileProperties* p = new tree::FileProperties();
+    p->name = u"plain.txt";
+    p->logical_size = 10;
+    auto* f = t.add_file(root, p);
+    (void)f;
+    p->release();
+    t.refresh_stats();
+    std::vector<u8> blob;
+    ASSERT_EQ(serialize_tree(t, blob), u32(OK));
+    /* the fixed 24-byte block is absent: byte-compare against a second
+     * serialization of the SAME tree after zeroing a carrier proves the
+     * gate (identical bytes = no block in either) */
+    tree::ResultTree t2;
+    ASSERT_EQ(deserialize_tree(blob.data(), blob.size(), t2), u32(OK));
+    tree::FileNode* c2 = t2.roots()[0]->first_child();
+    ASSERT_NE(c2, nullptr);
+    EXPECT_EQ(c2->props()->btrfs_id_a, 0u);
+    EXPECT_EQ(c2->props()->zfs_secondary_flags, 0u);
+    EXPECT_EQ(c2->props()->hfs_type_id, 0u);
+    std::vector<u8> blob2;
+    ASSERT_EQ(serialize_tree(t2, blob2), u32(OK));
+    EXPECT_EQ(blob, blob2) << "no extras block: the record shape is unchanged";
+}
+
+TEST(Session, IdentityCardFirmwareWwnInterface) {
+    /* N-066 (diff-to-fix): the og record-3's identity axes — firmware
+     * revision (+0x206), WWN/serial-2 (+0x30A), interface description
+     * (+0x414) — round-trip through the v4 tail; the CRC32 boot_hash
+     * stays the fast verify path. */
+    session::VolumeInfo vi;
+    vi.fs_kind = 3;
+    std::memcpy(vi.model, "WDC WD40EFRX", 12);
+    std::memcpy(vi.serial, "WD-WCC4E1234567", 15);
+    std::memcpy(vi.firmware, "82.00A82", 8);
+    std::memcpy(vi.wwn, "50014ee2b8a1c2d3", 16);
+    std::memcpy(vi.interface_desc, "SATA", 4);
+    vi.boot_hash = 0xABCD1234u;
+    std::vector<u8> blob;
+    ASSERT_EQ(serialize_volume_info(vi, blob), u32(OK));
+    session::VolumeInfo vo;
+    ASSERT_EQ(deserialize_volume_info(blob.data(), blob.size(), vo), u32(OK));
+    EXPECT_EQ(0, std::strcmp(vo.firmware, "82.00A82"));
+    EXPECT_EQ(0, std::strcmp(vo.wwn, "50014ee2b8a1c2d3"));
+    EXPECT_EQ(0, std::strcmp(vo.interface_desc, "SATA"));
+    EXPECT_EQ(vo.boot_hash, 0xABCD1234u);
+    EXPECT_EQ(0, std::strcmp(vo.model, "WDC WD40EFRX"));
+}
+
+TEST(Session, BootSnapshotRoundTrip) {
+    /* N-066: the og record-3's +0x518 datum — the full 512-byte
+     * first-sector image (MBR/BOOT incl. the partition table) round-trips
+     * byte-exact; v1/v2/v3-length records leave it zeroed. */
+    session::VolumeInfo vi;
+    for (size_t i = 0; i < 512; ++i)
+        vi.boot_snapshot[i] = u8(i * 7 + 3);
+    vi.boot_snapshot[510] = 0x55;
+    vi.boot_snapshot[511] = 0xAA;
+    std::vector<u8> blob;
+    ASSERT_EQ(serialize_volume_info(vi, blob), u32(OK));
+    session::VolumeInfo vo;
+    ASSERT_EQ(deserialize_volume_info(blob.data(), blob.size(), vo), u32(OK));
+    EXPECT_EQ(0, std::memcmp(vo.boot_snapshot, vi.boot_snapshot, 512));
+
+    /* the v3-length prefix (everything before the v4 tail) loads with a
+     * zeroed snapshot — the pre-N-066 file contract */
+    const size_t v3_len = blob.size() - (32 + 32 + 32 + 512);
+    session::VolumeInfo v3;
+    ASSERT_EQ(deserialize_volume_info(blob.data(), v3_len, v3), u32(OK));
+    const session::VolumeInfo zero;
+    EXPECT_EQ(0, std::memcmp(v3.boot_snapshot, zero.boot_snapshot, 512));
+    EXPECT_EQ(0, v3.firmware[0]);
+    EXPECT_EQ(0, v3.wwn[0]);
+    EXPECT_EQ(0, v3.interface_desc[0]);
 }
