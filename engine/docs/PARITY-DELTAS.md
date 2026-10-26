@@ -111,19 +111,30 @@
 - **RISK:** User-visible improvement on 4Kn media; none on 512-byte media.
 - **VERDICT: ACCEPTED** (both sides cited; F1 markers in code+tests).
 
-### D-05 — ZFS deleted-file story: newest-txg live state only (parity decision)
+### D-05 — ZFS deleted-file story: newest-txg live state only — PREMISE REFUTED (S-034, DFX30 2026-10-26)
 
-- **WHAT OG DOES:** Reads the newest valid uberblock's live state; deleted content
-  left to RAW carving (CoW "copy-on-everything" semantics). Evidence: corpus
-  `SearchDLL/zfs-engine--deep-dive.md` §2 ("selects the highest-transaction-g
-  valid uberblock — exactly how ZFS import finds the newest pool state").
-- **WHAT WE DO:** Same policy, documented in the engine header.
-  Evidence: `src/core/zfs/cr_zfs_engine.cpp:24–26` ("Deleted-file story (parity
-  decision, AUDIT.md row 26): … the og reads the newest txg's live state only and
-  lets RAW carving cover deleted content. We do the same."); AUDIT.md row 26.
-- **WHY:** scope (parity with og; old-txg walk out of scope).
-- **RISK:** Deleted-ZFS recall equals og (carving-only) — honest parity.
-- **VERDICT: ACCEPTED** (both sides cited, documented at the engine).
+- **WHAT OG DOES (re-decoded first-hand):** walks EVERY uberblock slot in the
+  label-0 ring (quick-searcher run loop FUN_180006b90 :5685-5841: per-slot
+  `txg = *(u64*)(slot+0x10)` -> FUN_180003150 "addBlock" with a per-txg
+  `VdevLoc::UberData` registry (FUN_180017310) and a per-state tree walk
+  emitting ZplNodes via a `bool(shared_ptr<ZplNode>)` visitor; "from_txg: 0,
+  birth_txg: <txg>" on the success path, unbounded descent). Files deleted
+  within the ring's txg window ARE og-visible.
+- **WHAT WE DO:** newest-txg live state only; deleted content left to RAW
+  carving. Evidence: `src/core/zfs/cr_zfs_engine.cpp` (best_txg ring walk;
+  the header comment — corrected at S-034's filing — previously asserted the
+  refuted premise).
+- **WHY THE ORIGINAL D-05 WAS WRONG:** its corpus citation
+  (`zfs-engine--deep-dive.md` §2 "selects the highest-transaction-group valid
+  uberblock") over-read a NEIGHBOR-txg comparison inside the ring scan
+  (`plVar12[-0x7e] <= plVar12[2]` = slot-1KiB-back vs current) as a
+  newest-only SELECTION; the caller-level semantics (which the deep-dive did
+  not decode) iterate every slot per txg.
+- **RISK:** Deleted-ZFS recall strictly BELOW og inside the ring window.
+- **VERDICT: REFUTED PREMISE — open gap S-034** (diff-to-fix/findings/SEVERE/
+  S-034-zfs-ring-txg-history-not-walked.md). Not a parity decision anymore;
+  the fix (per-txg ring walk with cross-txg dedup) is queued behind the
+  three decode items in S-034's fix plan.
 
 ### D-06 — Btrfs deleted recovery: newest-generation tree only (row 20) — CLOSED
 
@@ -2415,3 +2426,29 @@ final fallback the finding mandates). Real-hardware validation on an
 Intel RST host is pending for both implementations' claims (the finding
 records this as inherent: UNVERIFIED-BY-EXECUTION on this hardware).
 Recovery correctness is unaffected (health is advisory).
+
+
+### D-79 — Btrfs RAID0/RAID10 chunk reads: kernel stripe math vs the og's read failure (M-020, REGISTERED SUPERSET)
+
+The og's logical→physical node reader (BtrfsSearchDLL FUN_1800042a0,
+:2498-2583, verified first-hand session 33) serves ONLY the 2-copy class
+(SINGLE/DUP/RAID1 → the rotating mirror). RAID0 (class 8) and RAID10
+(class 0x40) fall through to LAB_1800043fe — the read FAILS; the og
+recovers nothing from striped chunks. The pre-fix core instead read
+stripe 0 of every chunk unconditionally — on striped chunks that yields
+WRONG BYTES (crossed data), which is worse than nothing for content
+correctness.
+
+The core now implements the kernel stripe math for both profiles
+(RAID0: `idx = stripe_nr % n`, physical = stripes[idx].offset +
+(stripe_nr/n)·stripe_len + in-stripe; RAID10: mirror-set selection with
+og-style member rotation), splits raw extents at stripe boundaries so
+spanning files map per-stripe, and refuses+counts what cannot be mapped
+correctly (compressed extents spanning stripes, classes &0x80/&0x100,
+zero stripe_len on striped chunks — the og refuses the latter classes
+too). This is a deliberate recovery-positive superset: content the og
+cannot read is recovered with correct bytes, and nothing is ever emitted
+with wrong bytes. Fixtures: `Btrfs.Raid0StripeMathSplitsAtStripeBoundaries`
+(the spanning split + the in-stripe offset), `Btrfs.Raid10GeometryGate`
+(the og's parse-time gate stays og-exact — the superset is read-side
+only).

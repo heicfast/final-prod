@@ -12924,6 +12924,44 @@ Stage Summary:
   decompile walk, then OQ-RS, then OQ-S20-1 (the big BitLocker leg).
 
 ---
+Task ID: DFX27-M058 (session 27, MAJOR lane — NEW-FINDING)
+Agent: main engineer (diff-to-fix fix session 27 — DFX27)
+Task: M-058 — run()'s cache-failure fallback UAF (found during M-049 verification)
+
+Work Log:
+- Discovered while reasoning about retry_raw's lifetime for the M-049
+  error-context stamps: CachedReader::create takes inner BY VALUE and destroys
+  it on every failure return, so the old fallback
+  `pipe = cached ? cached.get() : retry_raw` handed engine reads to freed
+  memory whenever cache creation failed (latent: run()'s constants cannot
+  fail; the `: slice` sub-branch was dead). The adjacent comment documented
+  the OPPOSITE (bare-slice) fallback.
+- Fail-before EXECUTED: scripts/m058_uaf_repro.cpp (the original inline shape,
+  failing geometry) under ASan -> heap-use-after-free, freed by
+  RetryingDevice::~RetryingDevice inside create's failure return (evidence:
+  diff-to-fix/evidence/executions/s27-m058-readpipe-uaf-asan.md).
+- Fix: build_read_pipe(slice, cache_bytes, block_bytes) extracted (cr_scan.h
+  ReadPipe + the function); the degraded path is a pinned contract - bare
+  slice, no retry isolation, surfaced in the contract comment. run() consumes
+  ReadPipe rp; tel_retry_ published only when the chain owns the retry device.
+- Tests: ReadPipeBuildsCacheOverRetryForValidGeometry +
+  ReadPipeDegradesToBareSliceWhenCacheCreationFails +
+  ReadPipeZeroCapacityDegradesToBareSlice (all green). The N-045/D-72 budget
+  pin (Cached.ScanCacheBudgetIsTheRegisteredDivergence) re-anchored to the
+  call-site expression `build_read_pipe(slice, 8ull << 20, 256 * 1024)` -
+  same lockstep contract, truth moved with the construction.
+- Suite: linux-release **746/746**.
+- Audit trail: finding filed in MAJOR/ then moved to FIXED/ with Resolution;
+  RESOLVED-INDEX row; modules/orchestration.md session-27 row; SUMMARY
+  session-27 delta.
+
+Stage Summary:
+- M-058 FIXED (NEW-FINDING, filed + fixed same session). M-049's
+  implementation continues on top (the error-context carrier is half-landed
+  in the working tree).
+
+
+---
 Task ID: DFX33-T0 (session 33 bootstrap — final re-stamp; the DFX32 stamp
 was taken by the mid-MAJOR-cluster lane 372bcf1 while this lane's union
 push was in flight — no more lane-meta after this, fixing starts NOW)
@@ -13119,6 +13157,46 @@ Work Log:
 Stage Summary:
 - Tally 4 (N-009 group, M-057, N-036, N-049). MINOR 13 remain. Next:
   N-050 (recognition contract boot-only).
+
+---
+Task ID: DFX29-T3 (session 23 lane, fifth fix — N-050, recognition contract)
+Agent: main engineer (diff-to-fix fix session 29-lane — DFX29)
+Task: N-050 two-stage recognition (the FAT + exFAT content proofs).
+
+Work Log:
+- Corpus re-verified FIRST-HAND: FATFileSystemAnalyser FUN_180002580
+  (:1385-1500 — UDF probe first, classification, then root verification)
+  and FUN_180002180 (:1124-1144 — type 1/2 -> FUN_180001f70 fixed-root
+  scan; type 3 -> FUN_180001d70 root-cluster walk); FUN_180001f70's
+  arithmetic read first-hand (root sector = reserved + nfats*spf,
+  per-sector reads + per-entry scan). The finding's cheap single-read
+  form is its own fix plan's choice.
+- Implementation (probe_family): exFAT = exfat::validate_boot_region as
+  the content proof (OEM-first; structural rc == the engine's own gate —
+  the checksum stays informational on BOTH sides, no recovery-negative
+  strictness); FAT = root-dir first-sector readability (FAT12/16
+  fixed-root and FAT32 root-cluster arithmetic, rootCluster>=2);
+  `recognition: <family> content-verified` lines on the N-048 seam
+  (incl. M-043's NTFS site).
+- Two stale test expectations CORRECTED toward og parity (verified
+  against the decode): spoofed-EXFAT-OEM over FAT16 -> Fat (the og's
+  multi-analyser outcome); the painted-FAT-boot UDF image -> Unknown
+  (no valid FAT geometry — the og's root verification refuses; the old
+  Fat was the spoof-accepting answer).
+- Tests: SpoofedExfatOemRejectedBeforeEngine, SpoofedFatBoot-
+  UnreadableRootRejected, RealExfatBootContentVerified (the positive
+  pin, wire-struct offsets). Fail-before EXECUTED on the
+  git-checkout-reverted probe: 2 RED / 1 positive-pin.
+- Documentation: ground-truth-contracts.md §0 (the two-stage contract,
+  per-family citations, the honest HFS+/Btrfs/ZFS/ReFS gap + the exFAT
+  analyser's unpinned body).
+- Suite 757/757. Audit trail: Resolution, FIXED/ move, index row,
+  matrix note, SUMMARY batch-4 delta + counts.
+
+Stage Summary:
+- Tally 5 (N-009 group, M-057, N-036, N-049, N-050). MINOR 12 remain.
+  Next: N-033 (carve capability ABI).
+
 Task ID: DFX31-N064 (session 31, MINOR tail-first lane — finding 1)
 Agent: main engineer (diff-to-fix fix session 31 — DFX31)
 Task: N-064 — the Dict password-dictionary unlock aid (BitLocker
@@ -13245,6 +13323,17 @@ Work Log:
 Stage Summary:
 - M-049 FIXED (tally: 1). MAJOR 13 remain. Next: M-035 (engine-side
   FileFilter validation).
+
+
+[DFX27 convergence note: M-049 landed first from the DFX24 lane
+(8ba2316) while this lane's own duplicate implementation was mid-flight —
+first-landing-wins honored, the duplicate dropped, the landing verified
+sound in review (per-thread RAII stamps + owner fallback + the event/ABI
+triple; 8 tests). This lane's M-058 (the retry_raw UAF their landing left
+untouched) stays landed. DFX27 proceeds per the open-inventory pull check
+(M-035 unless a parallel lane lands it first).]
+
+---
 Task ID: DFX35-1 (session 35, first fix — M-014)
 Agent: main engineer (diff-to-fix fix session 35 — DFX35, MAJOR-first)
 Task: M-014 — exFAT structural entry gates (secondary count, timestamps,
@@ -13297,7 +13386,6 @@ Work Log:
 Stage Summary:
 - M-014 FIXED (session tally: 1). MAJOR 13 remain. Next: M-052 (the
   FAT/exFAT recycle-bin pairing — NTFS implementation generalizes).
-=======
 
 ---
 ---
@@ -13349,7 +13437,6 @@ Stage Summary:
   (Dict password aid), N-071 (enumerate breadth delta). Then N-072/
   N-033/N-019/N-050 with pull-before-each. MINOR tier now 16 open.
 
-=======
 
 ---
 Task ID: DFX35-T2 (session 35 — MAJOR lane claim, posted before finding work)
@@ -13369,3 +13456,138 @@ Work Log:
 
 Stage Summary:
 - Claim posted; starting M-052 (FAT/exFAT recycle-bin pairing).
+
+
+
+---
+Task ID: DFX30-T3 (OQ-Z2 resolved -> NEW-FINDING S-034 filed + doc-truth)
+Agent: main engineer (diff-to-fix fix session 30 — DFX30)
+Task: OQ-Z2 — the addBlock from_txg/birth_txg gate: does the og implement
+snapshot/clone block attribution, and does the core's newest-txg-only rule
+lose og-visible content?
+
+Work Log:
+- First-hand decode with a brace-depth-annotated control-flow extraction of
+  FUN_180003150 (ZfsSearchDLL :1967-2259) and its complete caller context:
+  - The caller is the QUICK searcher's run loop (FUN_180006b90 :5312-5918):
+    ring-slot iteration (pvVar18 += 0x400) reading txg = *(u64*)(slot+0x10)
+    per slot, building the "\n\ntxg = %llu, last_txg = %llu" progression
+    log, and calling FUN_180003150 per slot with the
+    bool(shared_ptr<ZplNode>) visitor lambda installed at :5812-5815.
+  - The ring loader (FUN_180018930 :21323+) reads 128 KiB at offset
+    0x20000 = label-0's uberblock ring, HARDCODED 1 KiB slots (the og
+    cannot read ashift>10 pools' full rings; the core's shifts-10..13 probe
+    is the registered superset, OQ-T6.3).
+  - addBlock: per-txg VdevLoc::UberData registry (FUN_180017310's
+    txg->_Ref_count_obj<VdevLoc::UberData> map), record match on
+    txg@+0x10, tree-open FUN_180016c50, and on success "from_txg: 0,
+    birth_txg: <txg>" (:2162-2170 — the OQ's cited lines) +
+    FUN_18001ac60(uberData, 0, cb) — the from_txg=0 UNBOUNDED recursive
+    descent (FUN_18001d9a0, recursion at :23457 propagates param).
+- CONCLUSION: the og walks EVERY uberblock in the ring (per-txg state
+  recovery), NOT newest-only, and NOT per-block txg attribution. The core's
+  parity premise (engine header :24-26 + D-05 + AUDIT.md row-26 citation)
+  is REFUTED. Files deleted within the ring window are og-visible,
+  core-invisible.
+- NEW-FINDING S-034 filed (SEVERE): findings/SEVERE/
+  S-034-zfs-ring-txg-history-not-walked.md — full decode, falsifiable gap,
+  fix plan with the three decode items that gate implementation (no
+  guessed parity): (a) cross-txg emission/dedup semantics, (b) MOS
+  snapshot re-emission, (c) last_txg's role.
+- Doc-truth landed at filing: engine header comment corrected (the refuted
+  premise replaced with the S-034 pointer); PARITY-DELTAS D-05 re-verdicted
+  REFUTED-PREMISE -> open gap (with the why: D-05's corpus citation
+  over-read plVar12[-0x7e] <= plVar12[2] — a NEIGHBOR-txg ring comparison —
+  as newest-only selection); docs/parity/PARITY-CORE-FS2.md zfs
+  Deleted-classification row -> DIVERGENCE-SEVERE (S-034); corpus erratum
+  E45 appended (the zfs-engine--deep-dive §2 label);
+  CROSS-REF-MATRIX zfs B/D cells + session-30 note; SUMMARY session-30
+  delta.
+- Verified: suite 749/749 linux-release green at the filing tree (the
+  source change is comment-only; full re-run executed, not assumed).
+
+Stage Summary:
+- OQ-Z2 RESOLVED via S-034 (SEVERE NEW-FINDING, doc-truth landed; behavioral
+  fix queued behind decode items). Session tally: OQ-FLT-1 + OQ-Z5 + OQ-Z2
+  resolved, S-034 filed. Next on this lane: OQ-Z1 (og dsl_dir/dsl_dataset
+  offsets — the MOS-walk documentation question).
+
+---
+Task ID: DFX33-T1 (session 33, first fix)
+Agent: main engineer (diff-to-fix fix session 33 — DFX33)
+Task: M-020 — Btrfs chunk-profile machinery (RAID10 gates, 2-copy rotating
+mirror reads) + default-subvolume pick.
+
+Work Log:
+- Corpus re-verified LINE BY LINE first-hand: chunk parse + RAID10 gate
+  (:2145-2169), profile classes + rotating mirror (:2498-2543, the read
+  path), default-subvolume DIR_ITEM pick (FUN_1800061f0 :3975-4060).
+  DECODE ERROR IN THE AUDIT'S SUMMARY corrected in the record: the og's
+  read path serves ONLY class 0x20 (SINGLE/DUP/RAID1, rotating mirror);
+  RAID0 (class 8) and RAID10 (class 0x40) fall to LAB_1800043fe = read
+  FAILURE — the og recovers nothing from striped chunks. The audit's
+  "2-copy (DUP/RAID1/RAID10)" prose was wrong; its quote block was right.
+- Implemented: full stripe-array decode + geometry in parse_chunk (RAID10
+  gate og-exact); profile-aware logical_to_physical (2-copy rotation
+  og-exact, RAID0/RAID10 kernel stripe math as the REGISTERED SUPERSET
+  D-79 — the pre-fix stripe-0 read emitted WRONG BYTES on striped chunks;
+  classes &0x80/&0x100 refused like the og); map_extent_pieces splits raw
+  extents at stripe boundaries; compressed extents atomic (refused +
+  counted, unmappable_extents); default-subvolume DIR_ITEM pick with both
+  og gates + root-5 fallback, default renders at the volume root (ReFS
+  convention), non-default subvols keep N-047 containers;
+  mirror_rotations stat. Fix-plan item 3 verified already-by-construction
+  (Skip-mode RetryingDevice records sector-granular failures below the
+  engine — no duplicate recording).
+- Tests: 4 new fail-before EXECUTED (4/4 RED on the pre-fix-behavior
+  tree: rotation/gate/default-rendering disabled in place) —
+  Raid1RotatingMirrorReads, Raid10GeometryGate,
+  Raid0StripeMathSplitsAtStripeBoundaries,
+  DefaultDirItemNonSubvolumeLocationFallsBack; EndToEndWalk +
+  SubvolumeNamedFromRootRef updated to the default-at-root expectations
+  (RED on the same tree). First build caught my own fixture error (the
+  2-copy formula maps copy i to stripes[i].offset + rel — the leaf copy
+  belongs at P_COPY1 + 0x1000, not the stripe base; debug-printed, fixed,
+  debug prints removed before commit). Suite 747/747 linux-release.
+- Audit trail: Resolution + FIXED/ move; matrix btrfs row MATCH;
+  modules/btrfs.md session-33 verdicts; SUMMARY session-33 delta;
+  PARITY-DELTAS D-79 (renumbered from a D-78 collision with the parallel
+  N-032 landing, per the errata convention).
+- Union with the parallel wave (11fff2a: M-014, M-049, M-058, N-032,
+  N-064, OQ evidence) resolved both-sides-kept; suite green on the union.
+
+Stage Summary:
+- M-020 FIXED (tally: 1). MAJOR 13 open at this landing (parallel lanes
+  landed M-014/M-049 in the same window). Next: pull, then M-025 (carve
+  read model) or whatever remains open.
+
+Task ID: DFX30-T4 (OQ-Z1 resolved — no divergence)
+Agent: main engineer (diff-to-fix fix session 30 — DFX30)
+Task: OQ-Z1 — og dsl_dir/dsl_dataset offset constants (documentation
+question; the core already proven kernel-correct by the session-6
+refinement)
+
+Work Log:
+- The og-side decode executed first-hand (the OQ's "next session" entry
+  point): MOS walk -> "root_dataset" literal-string ZAP resolution
+  (FUN_18000bf60/FUN_18001e270, :19941/:20003, LITTLE-ENDIAN u64 values =
+  kernel ZAP semantics) -> FUN_180017690 dataset open (:20313-20787).
+- The load-bearing read PROVEN: the og reads the dataset root blkptr at
+  dnode-bonus+128 (bonus from node+0x1d*8 copied to local_13a8/local_1328;
+  FUN_180014ec0 receives local_1328 = the bonus+128 position, :20452-20506)
+  = kernel dsl_dataset_phys.ds_bp@128 = the core's DS_BP=128
+  (cr_zfs_engine.cpp:320/:1333). MATCH.
+- head_dataset_obj@8/child_dir_zapobj@24: explicit sites not individually
+  cited (they sit in the +0x1010 dnode-cache map consumers); closed by the
+  shipped-product argument (a deviating offset breaks the og on every real
+  pool; ds_bp@128 + LE-u64 ZAP semantics demonstrate kernel-layout
+  navigation) + the core's header-correctness re-verified (:316-320).
+- Disposition: NO og quirk to document; no PARITY-DELTAS row; the OQ's
+  kernel-text mis-transcription already recorded by session 6. The ACUTE
+  risk is fully retired (both engines kernel-layout).
+- Audit trail: OQ-Z1 marked RESOLVED inside OQ-Z-E-FLT-session3.md.
+
+Stage Summary:
+- OQ-Z1 RESOLVED (no divergence; core stands). Session tally: OQ-FLT-1,
+  OQ-Z5, OQ-Z2->S-034, OQ-Z1. Next on this lane: OQ-E1 (ext4 orphan
+  reachability — gates S-018 step 3).

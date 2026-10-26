@@ -115,6 +115,47 @@ std::u16string ScanController::raw_root_name_() const {
     return u"Other Deleted Files (Carved)";
 }
 
+ReadPipe build_read_pipe(IStorageDevice* slice, u64 cache_bytes, u32 block_bytes) {
+    /* M-058: single construction point for the scan read chain
+     * (slice -> SliceShim -> RetryingDevice -> CachedReader), with the
+     * degraded path as a PINNED contract: when CachedReader::create fails
+     * (bad cache geometry - unreachable from run()'s constants), create()
+     * has already DESTROYED the retry device it took by value, so the only
+     * memory-safe fallback is the BARE SLICE. The pre-M-058 inline code
+     * fell back to the raw retry pointer there - a use-after-free on the
+     * defensive path, and the opposite of what its own comment documented.
+     * Degradation truth: no cache (re-read cost only) AND no retry
+     * isolation (a dead spot aborts its engine read; surfaced, never
+     * hidden). */
+    ReadPipe rp;
+    if (slice == nullptr)
+        return rp; /* caller error; run() null-checks before calling */
+    RetryPolicy policy;
+    policy.max_attempts = 3;
+    policy.mode = RetryMode::Skip; /* surface + zero-fill, never abort */
+    auto shim = std::unique_ptr<IStorageDevice>(cr::SliceShim::shim(slice));
+    auto retry = RetryingDevice::create(std::move(shim), policy);
+    if (!retry) {
+        /* shim/retry construction failure (never taken for slice != null):
+         * degrade to the bare slice, same contract as the cache-failure
+         * path below. */
+        rp.pipe = slice;
+        return rp;
+    }
+    RetryingDevice* retry_raw = retry.get();
+    auto cached = CachedReader::create(std::move(retry), cache_bytes, block_bytes);
+    if (!cached) {
+        /* create() destroyed the retry device on this path - the bare
+         * slice is the only live device left. */
+        rp.pipe = slice;
+        return rp;
+    }
+    rp.retry = retry_raw; /* valid: the cache owns it from here to teardown */
+    rp.pipe = cached.get();
+    rp.chain = std::move(cached);
+    return rp;
+}
+
 ScanController::ScanController(tree::ResultTree& tree, ScanConfig cfg)
     : tree_(tree), cfg_(std::move(cfg)) {
     event_fn_ = cfg_.event_fn; /* GAP-S6-10: config seed, setter overrides */
@@ -598,14 +639,36 @@ FsFamily ScanController::probe_family(IStorageDevice* slice) {
                  * FUN_180005180 :4038-4058) */
                 const u16 usa_off = u16_from_bytes_le(rec + 0x04);
                 const u16 usa_cnt = u16_from_bytes_le(rec + 0x06);
-                if (usa_cnt != 0 && usa_cnt < 0x11 && usa_off >= 0x2a && usa_off < 0x2a + 0xd7)
+                if (usa_cnt != 0 && usa_cnt < 0x11 && usa_off >= 0x2a && usa_off < 0x2a + 0xd7) {
+                    log::write(log::Level::Info,
+                               "recognition: ntfs content-verified (MFT record 0 + USA "
+                               "bounds)");
                     return FsFamily::Ntfs;
+                }
             }
         }
         /* content proof failed: not NTFS by proof - fall through */
     }
-    if (std::memcmp(sec + 3, "EXFAT   ", 8) == 0)
-        return FsFamily::Exfat;
+    if (std::memcmp(sec + 3, "EXFAT   ", 8) == 0) {
+        /* N-050 (the exFAT half): the og's analyser layer proves content
+         * BEFORE the engine runs; the cheap exFAT form is the engine's
+         * own boot-region validator (EXFAT-4's structural gates: OEM,
+         * 55AA, shift bounds, the MustBeZero sweep +0x0B..+0x3F, FAT
+         * count/length, heap fit - exFATSearchDLL FUN_180021e80
+         * :28180-28208). A spoofed EXFAT OEM on a FAT/NTFS sector fails
+         * the sweep (their BPB bytes are nonzero there) and never
+         * dispatches the engine; a real boot region proves itself. The
+         * boot-checksum verdict stays informational exactly as the
+         * engine treats it (the engine gates on the structural rc only
+         * - matching verdicts, no recovery-negative strictness). */
+        exfat::ExfatParams xp;
+        if (exfat::validate_boot_region(slice, xp) == OK) {
+            log::write(log::Level::Info, "recognition: exfat content-verified (boot region)");
+            return FsFamily::Exfat;
+        }
+        /* content proof failed: fall through (the FAT gates underneath
+         * decide - the og's multi-analyser outcome) */
+    }
     /* ReFS: OEM "ReFS" + the DBR bytes-per-sector field (u32 @+0x20 == 512,
      * decompile-verified gate from RefsProc::CRefsVolumeBootRecord). */
     if (std::memcmp(sec + 3, "ReFS", 4) == 0)
@@ -671,8 +734,43 @@ FsFamily ScanController::probe_family(IStorageDevice* slice) {
      * the same way and the family result is Unknown). */
     if (sec[510] == 0x55 && sec[511] == 0xAA) {
         const u16 bps = u16_from_bytes_le(sec + 0x0B);
-        if (sec[0x10] != 0 && bps >= 512 && bps <= 4096 && (bps & (bps - 1)) == 0)
-            return FsFamily::Fat;
+        if (sec[0x10] != 0 && bps >= 512 && bps <= 4096 && (bps & (bps - 1)) == 0) {
+            /* N-050 (the FAT half): the og's analyser verifies the ROOT
+             * DIRECTORY after FAT-type classification before recognition
+             * (FATFileSystemAnalyser FUN_180002180 :1124-1144: fixed-root
+             * scan for types 1/2 = FUN_180001f70, root-cluster chain walk
+             * for type 3 = FUN_180001d70). The cheap form (the finding's
+             * fix plan): ONE bounded read at the computed root offset -
+             * FAT12/16: reserved + numFats*spf16; FAT32 (spf16 == 0):
+             * reserved + numFats*spf32 + (rootCluster-2)*spc. A volume
+             * whose root is unreadable (spoofed OEM over garbage, a
+             * truncated image) fails the proof and never dispatches the
+             * engine; a readable root sector proves the classification. */
+            const u16 reserved = u16_from_bytes_le(sec + 0x0E);
+            const u8 spc = sec[0x0D];
+            const u16 spf16 = u16_from_bytes_le(sec + 0x16);
+            u64 root_sector = 0;
+            bool root_known = false;
+            if (spf16 != 0) {
+                root_sector = u64(reserved) + u64(sec[0x10]) * spf16;
+                root_known = true; /* FAT12/16 fixed root */
+            } else {
+                const u32 spf32 = u32_from_bytes_le(sec + 0x24);
+                const u32 root_cluster = u32_from_bytes_le(sec + 0x2C);
+                if (spc != 0 && root_cluster >= 2) {
+                    root_sector = u64(reserved) + u64(sec[0x10]) * spf32 +
+                                  (u64(root_cluster) - 2) * spc;
+                    root_known = true; /* FAT32 root cluster */
+                }
+            }
+            u8 root_first[512];
+            if (root_known && slice->read_at(root_sector * bps, root_first, sizeof(root_first)) == OK) {
+                log::write(log::Level::Info,
+                           "recognition: fat content-verified (root directory readable)");
+                return FsFamily::Fat;
+            }
+            /* root proof failed: not FAT by proof - fall through */
+        }
     }
     /* ext2/3/4: superblock magic at byte offset 1024+0x38 */
     u8 sb2[2] = {};
@@ -847,42 +945,34 @@ u32 ScanController::run(IStorageDevice* slice, CancelToken* cancel, bool (*progr
      * zero-fill, so one dead spot cannot abort a scan) and a bounded LRU
      * cache (MFT re-reads, FAT chains). The borrowed slice enters the
      * chain via the non-owning SliceShim. The accumulated error map
-     * surfaces in ScanStats. */
-    RetryPolicy policy;
-    policy.max_attempts = 3;
-    policy.mode = RetryMode::Skip; /* surface + zero-fill, never abort */
-    auto shim = std::unique_ptr<IStorageDevice>(cr::SliceShim::shim(slice));
-    auto retry = RetryingDevice::create(std::move(shim), policy);
-    /* Raw pointer captured BEFORE the unique_ptr moves into the cache:
-     * `retry` is null after CachedReader::create(std::move(retry)) - the
-     * previous tel_retry_.store(retry.get()) stored nullptr, silently
-     * disabling BOTH the live error map (telemetry G-06) and the
-     * end-of-run stats merge (save-on-cancel contract). retry_raw stays
-     * valid exactly while the pipe chain keeps the device alive: the
-     * cache owns it on success; on cache-creation failure create()
-     * destroys it, so the pointer is only published when `cached` owns
-     * it and the pipe falls back to the bare slice. */
-    RetryingDevice* retry_raw = retry.get();
-    /* Cache block 256 KiB (core-api session, read-granularity tuning): the
-     * reference's device layer chunks ReadFile at 4 MiB and its NTFS engine
-     * batches the MFT stream at 2 MiB (Device_decompiled.c:56545;
-     * NTFSSearchDLL_decompiled.c:5649-5678) - every og chunk is a 64 KiB
-     * multiple by construction. 64 KiB blocks paid 16x the user/kernel
-     * transitions per byte; 256 KiB recovers 4x of that while bounding the
-     * over-fetch on random misses (FAT deleted-chain walks) at 4x. The
-     * transport-level sweep (bench/tools/alignbench, PERFORMANCE-BASELINE
-     * section 5) measures the full curve; tune on its data. Cache stays
-     * 8 MiB total (capacity = 32 blocks). The 8-vs-4 MiB budget AND the
+     * surfaces in ScanStats.
+     *
+     * M-058: the construction lives in build_read_pipe() - the defensive
+     * fallback (cache-creation failure) is a pinned contract there, not
+     * an inline pointer dance. Cache block 256 KiB (core-api session,
+     * read-granularity tuning): the reference's device layer chunks
+     * ReadFile at 4 MiB and its NTFS engine batches the MFT stream at
+     * 2 MiB (Device_decompiled.c:56545; NTFSSearchDLL_decompiled.c:5649-
+     * 5678) - every og chunk is a 64 KiB multiple by construction. 64 KiB
+     * blocks paid 16x the user/kernel transitions per byte; 256 KiB
+     * recovers 4x of that while bounding the over-fetch on random misses
+     * (FAT deleted-chain walks) at 4x. The transport-level sweep
+     * (bench/tools/alignbench, PERFORMANCE-BASELINE section 5) measures
+     * the full curve; tune on its data. Cache stays 8 MiB total
+     * (capacity = 32 blocks). The 8-vs-4 MiB budget AND the
      * reactive-LRU-vs-og-prefetch-thread algorithm are REGISTERED
      * deliberate divergences (N-045, PARITY-DELTAS D-72; og cites:
      * DRWUI_decompiled.c:919080-:919092 budget 0x400000/sector,
      * :962250-:962597 prefetch engine) — pinned by
      * Cached.ScanCacheBudgetIsTheRegisteredDivergence. */
-    auto cached = CachedReader::create(std::move(retry), 8ull << 20, 256 * 1024);
-    IStorageDevice* pipe = cached ? static_cast<IStorageDevice*>(cached.get())
-                                  : (retry_raw ? static_cast<IStorageDevice*>(retry_raw) : slice);
-    if (cached)
-        tel_retry_.store(retry_raw, std::memory_order_release);
+    ReadPipe rp = build_read_pipe(slice, 8ull << 20, 256 * 1024);
+    IStorageDevice* pipe = rp.pipe;
+    /* tel_retry_ published only when the chain owns the retry device (the
+     * live error-map source: telemetry G-06 + the end-of-run stats merge
+     * for the save-on-cancel contract). On the degraded path (bare
+     * slice) there is no retry layer, hence no error map to publish. */
+    if (rp.retry)
+        tel_retry_.store(rp.retry, std::memory_order_release);
 
     if (cfg_.fs_hint == FsFamily::Unknown && (cfg_.run_quick || cfg_.run_deep)) {
         /* M-049: the probe is the scan layer's own read - attributed to
@@ -1000,8 +1090,8 @@ u32 ScanController::run(IStorageDevice* slice, CancelToken* cancel, bool (*progr
     checkpoint_stats_ = nullptr;
     /* surface the retry layer's error map (R1.6; merged inside stamp for
      * every exit path) + cache counters */
-    if (cached)
-        stats.cached_hits = cached->hits(), stats.cached_misses = cached->misses();
+    if (rp.chain)
+        stats.cached_hits = rp.chain->hits(), stats.cached_misses = rp.chain->misses();
     tree_.refresh_stats();
     /* S-023: the post-scan CRecoverability grading pass - the og runs its
      * two "Recoverability analyze" jobs at scan completion (DRWUI

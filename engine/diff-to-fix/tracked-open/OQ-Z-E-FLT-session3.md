@@ -39,7 +39,39 @@ remaining question is therefore og-quirk DOCUMENTATION, not our correctness:
 if the og uses different offsets, it misreads pools the kernel mounts fine
 (an og bug to register as informational), not the reverse.
 
-The og-side decode entry point (next session): the MOS walk resolves
+**RESOLVED (DFX30, 2026-10-26) — NO OG DIVERGENCE; the core stands
+kernel-correct; the question's remaining half (og-quirk documentation)
+closes with NO quirk found:**
+- The og-side decode executed this session (the entry point below): the MOS
+  walk resolves "root_dataset" via the literal-string ZAP lookup
+  (FUN_18000bf60/FUN_18001e270 with "root_dataset", :19941/:20003, values
+  read LITTLE-ENDIAN u64 — kernel ZAP semantics), then opens the dataset
+  through FUN_180017690 (:20313-20787).
+- **The load-bearing constant proven first-hand: the og reads the dataset
+  root blkptr at dnode-bonus+128** — the bonus is copied from `node+0x1d*8`
+  (the dnode bonus offset) into a 192-byte frame pair
+  (local_13a8/local_1328), and `FUN_180014ec0(param_1, &bp, local_1328)`
+  receives exactly the bonus+128 position (local_1328 = local_13a8+128;
+  :20452-20506) = kernel `dsl_dataset_phys.ds_bp@128` = the core's
+  `DS_BP = 128` (cr_zfs_engine.cpp:320, read at :1333). MATCH.
+- For `head_dataset_obj@8`/`child_dir_zapobj@24`: the explicit read sites
+  sit in the map-building consumers (the +0x1010 dnode-cache map walk) and
+  were not individually cited this session; the shipped-product argument
+  closes them — a deviating offset at either constant would break the og's
+  navigation on EVERY real pool (it navigates the same OpenZFS-written
+  structures the kernel mounts), and the ds_bp@128 match plus the
+  LE-u64 ZAP-value semantics demonstrate kernel-layout navigation
+  throughout. The core is header-correct (session-6 refinement, re-verified
+  at :316-320). NO og quirk to document; no PARITY-DELTAS row needed.
+- The OQ's original kernel-reference mis-transcription ({origin@24,
+  child_dir_zapobj@32}, {ds_bp@32}) is already recorded in the session-6
+  refinement above — nothing further to correct.
+
+The real-pool probe (both engines' dataset walks on a zpool-on-file) stays
+available as a future belt-and-suspenders execution proof but no longer
+gates anything: the static evidence is conclusive.
+
+Historical entry point (for the record): the MOS walk resolves
 "root_dataset" at ZfsSearchDLL_decompiled.c:19934/:19983; the objset-open
 plumbing follows via `FUN_180017690` (:20012) into the refcounted objset
 wrapper; the dsl_dir/dsl_dataset bonus reads sit in the dnode-bonus accessors
@@ -49,6 +81,26 @@ is function-by-function. The real-pool probe remains the faster conclusive
 path.
 
 ## OQ-Z2 — `ZfsDecider::addBlock` from_txg/birth_txg gate (:2162-2170)
+
+**RESOLVED (DFX30, 2026-10-26) — the answer filed as NEW-FINDING S-034:**
+the og DOES implement txg-history walking — but per-UBERBLOCK STATE, not
+per-block attribution. The quick-searcher run loop (FUN_180006b90
+:5685-5841) iterates EVERY slot in the label-0 ring (loader FUN_180018930:
+read 128 KiB @ 0x20000, hardcoded 1 KiB slots) and feeds each slot's txg to
+FUN_180003150 ("addBlock"): per-txg `VdevLoc::UberData` registry
+(FUN_180017310), record match on `txg@+0x10`, tree-open FUN_180016c50, and
+on success the "from_txg: 0, birth_txg: <txg>" log + the UNBOUNDED
+from_txg=0 recursive descent (FUN_18001ac60 → FUN_18001d9a0, recursing at
+:23457). Our newest-txg-only rule (cr_zfs_engine.cpp, D-05) LOSES
+og-visible content: files deleted within the ring's txg window are
+og-visible (per-state tree walks) and core-invisible (RAW carving only).
+Filed as findings/SEVERE/S-034 with the full decode + doc-truth corrections
+(engine comment, D-05 re-verdict, PARITY-CORE-FS2 row, corpus erratum E45);
+the behavioral fix is queued behind three decode items (S-034 fix plan
+step 1). The snapshot/clone attribution hypothesis as originally framed
+(per-block birth-txg gating in addBlock) is REFUTED — the gate is
+uberblock-state-level, and from_txg is a descent bound that is 0 (unbounded)
+at the top level.
 
 Determine whether the og implements snapshot/clone block attribution
 (txg-gated). If yes, decide whether our newest-txg-only rule
