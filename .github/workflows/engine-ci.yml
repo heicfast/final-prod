@@ -1,0 +1,183 @@
+name: engine-ci
+
+# The engine lane (docs/INTEGRATION-PLAN.md §8.3), adopted from the engine
+# repository's own proven CI (history: 51701b14 / deletion 2a99173c) with
+# working-directory adjusted to the engine/ sub-tree and paths filtered so
+# a UI break cannot red this lane. Lane meanings are unchanged: lint,
+# Linux ASan (the full suite), TSan, UBSan, the Windows MSVC build with the
+# Win7 PE gates, and the fuzz smoke campaign.
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'engine/**'
+      - '.github/workflows/engine-ci.yml'
+  pull_request:
+    paths:
+      - 'engine/**'
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    working-directory: engine
+
+jobs:
+  lint:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: clang-format check
+        run: |
+          sudo apt-get update -qq && sudo apt-get install -y -qq clang-format-18 > /dev/null
+          find src include tests -name '*.h' -o -name '*.hpp' -o -name '*.cpp' -o -name '*.c' \
+            | xargs clang-format-18 --dry-run --Werror
+
+      - name: dead-surface absence lint (N-041)
+        run: |
+          if grep -rn --include='*.cpp' --include='*.h' --include='*.c' \
+               -e 'RdaClient::' -e 'class RdaClient' -e 'volume_letter_to_disk' \
+               src include tests tools bench fuzz; then
+            echo "FAIL: deleted dead-surface symbols found in production code"
+            exit 1
+          fi
+          echo "OK: no deleted-surface symbols present"
+
+  linux:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install deps
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq zlib1g-dev liblz4-dev libzstd-dev libgtest-dev > /dev/null
+      - name: Configure + build + test (pure core, ASan)
+        run: |
+          cmake --preset linux-gcc
+          cmake --build --preset linux-gcc -j"$(nproc)"
+          ctest --preset linux-gcc
+
+      - name: Recovery report schema validation (G-09)
+        run: |
+          python3 tools/validate_report.py "$(python3 -c 'import tempfile; print(tempfile.gettempdir())')/cr_report_sample.json"
+
+      - name: Win7 PE gate self-test (GAP-W6-WIN7)
+        run: |
+          python3 tools/test_verify_pe_um.py
+
+  linux-tsan:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install deps
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq zlib1g-dev liblz4-dev libzstd-dev libgtest-dev > /dev/null
+      - name: Configure + build + test (pure core, TSan)
+        run: |
+          cmake -S . -B build/tsan -G "Unix Makefiles" \
+            -DCMAKE_BUILD_TYPE=Debug \
+            -DCMAKE_C_COMPILER=gcc -DCMAKE_CXX_COMPILER=g++ \
+            -DCR_ENABLE_ASAN=OFF \
+            -DCMAKE_CXX_FLAGS="-fsanitize=thread -fPIE" \
+            -DCMAKE_EXE_LINKER_FLAGS="-fsanitize=thread -pie" \
+            -DCMAKE_SHARED_LINKER_FLAGS="-fsanitize=thread"
+          cmake --build build/tsan -j"$(nproc)"
+          cd build/tsan && ctest --output-on-failure -j2
+
+  linux-ubsan:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install deps
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq zlib1g-dev liblz4-dev libzstd-dev libgtest-dev > /dev/null
+      - name: Configure + build + test (pure core, UBSan)
+        run: |
+          cmake --preset linux-ubsan
+          cmake --build --preset linux-ubsan -j"$(nproc)"
+          ctest --preset linux-ubsan -j2
+
+  windows:
+    runs-on: windows-2022
+    steps:
+      - uses: actions/checkout@v4
+      - name: Configure + build (Debug + Release, manifest vcpkg)
+        shell: pwsh
+        working-directory: engine
+        run: |
+          $env:VCPKG_ROOT = $env:VCPKG_INSTALLATION_ROOT
+          Write-Host "vcpkg at: $env:VCPKG_ROOT"
+          cmake --preset win-x64-debug
+          if ($LASTEXITCODE) { exit 1 }
+          cmake --build --preset win-x64-debug
+          if ($LASTEXITCODE) { exit 1 }
+          cmake --preset win-x64-release
+          if ($LASTEXITCODE) { exit 1 }
+          cmake --build --preset win-x64-release
+          if ($LASTEXITCODE) { exit 1 }
+      - name: Diagnostics - deployed DLLs + PE imports
+        if: always()
+        shell: pwsh
+        working-directory: engine
+        run: |
+          Write-Host "== vcpkg installed bin trees =="
+          Get-ChildItem build\win-x64-debug\vcpkg_installed -Recurse -Filter *.dll -ErrorAction SilentlyContinue |
+            Select-Object -ExpandProperty FullName | Write-Host
+          Write-Host "== deployed next to Debug exes =="
+          Get-ChildItem build\win-x64-debug\tests\Debug, build\win-x64-debug\src\app\Debug -Filter *.dll -ErrorAction SilentlyContinue |
+            Select-Object -ExpandProperty Name | Write-Host
+          $dumpbin = Get-ChildItem "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Tools\MSVC\*\bin\Hostx64\x64\dumpbin.exe" |
+            Sort-Object FullName -Descending | Select-Object -First 1
+          if ($dumpbin) {
+            Write-Host "== cr_tests.exe imports =="
+            & $dumpbin.FullName /imports build\win-x64-debug\tests\Debug\cr_tests.exe |
+              Select-String -Pattern "DLL name|\.dll" | Select-Object -First 30 | Write-Host
+            Write-Host "== rrecov.exe imports =="
+            & $dumpbin.FullName /imports build\win-x64-debug\src\app\Debug\rrecov.exe |
+              Select-String -Pattern "DLL name|\.dll" | Select-Object -First 30 | Write-Host
+          }
+      - name: Win7 posture gate (stamp + import allowlist)
+        shell: pwsh
+        working-directory: engine
+        run: |
+          python tools/stamp_osversion_um.py build\win-x64-release\src\app\Release\rrecov.exe
+          if ($LASTEXITCODE) { exit 1 }
+          python tools/stamp_osversion_um.py build\win-x64-release\tests\Release\cr_tests.exe
+          if ($LASTEXITCODE) { exit 1 }
+          python tools/stamp_osversion_um.py build\win-x64-release\src\ui\Release\cr_ui.dll
+          if ($LASTEXITCODE) { exit 1 }
+          python tools/verify_pe_um.py build\win-x64-release\src\app\Release\rrecov.exe --allowlist tools/ref_imports_um.json
+          if ($LASTEXITCODE) { exit 1 }
+          python tools/verify_pe_um.py build\win-x64-release\tests\Release\cr_tests.exe --allowlist tools/ref_imports_um.json
+          if ($LASTEXITCODE) { exit 1 }
+          python tools/verify_pe_um.py build\win-x64-release\src\ui\Release\cr_ui.dll --allowlist tools/ref_imports_um.json
+          if ($LASTEXITCODE) { exit 1 }
+      - name: Tests
+        shell: pwsh
+        working-directory: engine
+        run: |
+          $env:VCPKG_ROOT = $env:VCPKG_INSTALLATION_ROOT
+          ctest --preset win-x64-release -C Release
+
+  fuzz:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - name: install clang + zlib
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq clang zlib1g-dev liblz4-dev libzstd-dev > /dev/null
+      - name: build fuzzers
+        run: make -C fuzz all CXX=clang++
+      - name: smoke campaign (45s per target, zero-crash gate)
+        run: make -C fuzz run CXX=clang++
+      - name: upload corpus on crash
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: fuzz-crash-corpus
+          path: |
+            engine/fuzz/corpus
+            engine/fuzz/build/*crash*
+            engine/fuzz/build/*leak*
+            engine/fuzz/build/*timeout*
+          retention-days: 7
+          if-no-files-found: ignore

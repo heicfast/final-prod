@@ -155,13 +155,18 @@ Section "${PRODUCT_NAME} (required)" SEC_APP
 
   ; ---- 2. Engine kit: cr_ui.dll + import lib + the vcpkg runtime DLLs ----
   ; staged by build.ps1 from the engine's own POST_BUILD-deployed set.
+  ; LAYOUT TRUTH (bridge decision, docs/BUILD.md): the Rust bridge STATICALLY
+  ; imports cr_ui.dll — the loader resolves static imports from the exe's
+  ; directory at process start, so the DLLs ride BESIDE ${APP_EXE} at
+  ; $INSTDIR (not an $INSTDIR\engine subfolder, which is off the loader's
+  ; search path and would 0xc0000135 at app start).
   SetDetailsPrint textonly
   DetailPrint "Installing native recovery engine..."
   SetDetailsPrint both
-  SetOutPath "$INSTDIR\engine"
-  File "${ENGINE_KIT}/*"
+  SetOutPath "$INSTDIR"
+  File /x cr_ui.lib "${ENGINE_KIT}/*"
 
-  ${IfNot} ${FileExists} "$INSTDIR\engine\cr_ui.dll"
+  ${IfNot} ${FileExists} "$INSTDIR\cr_ui.dll"
     Abort "Engine kit incomplete: cr_ui.dll is missing."
   ${EndIf}
 
@@ -169,7 +174,7 @@ Section "${PRODUCT_NAME} (required)" SEC_APP
   ; zstd naming varies) — count *.dll in the kit; cr_ui.dll alone is fatal
   ; (0xc0000135 at app start, engine CMakeLists.txt:151-154).
   StrCpy $EngineDllCount 0
-  FindFirst $0 $1 "$INSTDIR\engine\*.dll"
+  FindFirst $0 $1 "$INSTDIR\*.dll"
   ${DoUntil} $1 == ""
     IntOp $EngineDllCount $EngineDllCount + 1
     FindNext $0 $1
@@ -503,7 +508,20 @@ Section "Uninstall"
   ${EndIf}
 
   ; ---- 5. Our own files ----------------------------------------------------
-  RMDir /r "$INSTDIR\engine"
+  ; Engine kit DLLs live BESIDE the app exe (loader truth — see install):
+  ; delete every file the kit staged that the inner uninstaller did not
+  ; own (its manifest covers only the Tauri bundle). cr_ui.lib + the
+  ; runtime DLLs are ours.
+  Delete /REBOOTOK "$INSTDIR\cr_ui.dll"
+  Delete /REBOOTOK "$INSTDIR\rrecov.exe"
+  Delete /REBOOTOK "$INSTDIR\zlib1.dll"
+  Delete /REBOOTOK "$INSTDIR\z.dll"
+  Delete /REBOOTOK "$INSTDIR\lz4.dll"
+  Delete /REBOOTOK "$INSTDIR\liblz4.dll"
+  Delete /REBOOTOK "$INSTDIR\liblz4d.dll"
+  Delete /REBOOTOK "$INSTDIR\zstd.dll"
+  Delete /REBOOTOK "$INSTDIR\zstdd.dll"
+  Delete /REBOOTOK "$INSTDIR\libzstd.dll"
   RMDir /r "$INSTDIR\driver"
 
   ; ---- 6. Registry ---------------------------------------------------------

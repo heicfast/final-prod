@@ -131,9 +131,22 @@ function Invoke-Ui {
         if ($LASTEXITCODE -ne 0) { throw 'ui tests failed' }
     }
 
-    # Stage the engine kit beside the shell so the bridge links/loads it.
-    $shellTarget = Join-Path $RepoRoot 'ui\src-tauri\target\release'
-    New-Item -ItemType Directory -Force -Path $shellTarget | Out-Null
+    # Stage the engine kit so the bridge LINKS (cr_ui.lib on the search path)
+    # and LOADS (cr_ui.dll + runtime DLLs beside the built exe — static-import
+    # resolution happens from the exe directory at process start).
+    $engineKit = Join-Path $StageDir 'engine'
+    if (-not (Test-Path (Join-Path $engineKit 'cr_ui.dll'))) {
+        throw "engine kit not staged ($engineKit) - run the engine lane first (build.ps1 -Target engine)"
+    }
+    $shellRelease = Join-Path $RepoRoot 'ui\src-tauri\target\release'
+    $shellDebug   = Join-Path $RepoRoot 'ui\src-tauri\target\debug'
+    foreach ($t in @($shellRelease, $shellDebug)) {
+        New-Item -ItemType Directory -Force -Path $t | Out-Null
+        Copy-Item (Join-Path $engineKit '*') -Destination $t -Force
+    }
+    # build.rs adds these dirs to the link search when CR_UI_LIB_DIR is unset;
+    # the env var keeps the source of the kit explicit in this lane.
+    $env:CR_UI_LIB_DIR = $engineKit
     # cargo build is driven by tauri build (beforeBuildCommand runs pnpm build).
     pnpm tauri build
     if ($LASTEXITCODE -ne 0) { throw 'ui tauri build failed' }

@@ -6,8 +6,9 @@
 #   RecoveryWizard-<version>-portable.zip
 #   ├── Recovery Wizard.exe        the Tauri app (frontend embedded; WebView2
 #   │                              runtime must be present on the machine)
-#   ├── engine\                    cr_ui.dll + import lib + vcpkg runtime DLLs
-#   │                              (the complete host-binding kit)
+#   ├── cr_ui.dll + runtime DLLs    the complete host-binding kit, BESIDE the
+#   │                              exe (static-import loader truth - the DLLs
+#   │                              must sit in the exe's directory)
 #   ├── driver\                    rda.sys + rdacli.exe + rda.inf + the SCM
 #   │                              install/uninstall scripts — STAGED, NOT
 #   │                              INSTALLED. Manual, consent-explicit install
@@ -42,10 +43,11 @@ if (-not (Test-Path (Join-Path $driverStage 'rda.sys'))) {
 
 $portableRoot = Join-Path $OutDir "RecoveryWizard-$Version-portable"
 if (Test-Path $portableRoot) { Remove-Item $portableRoot -Recurse -Force }
-New-Item -ItemType Directory -Force -Path (Join-Path $portableRoot 'engine'), (Join-Path $portableRoot 'driver') | Out-Null
+New-Item -ItemType Directory -Force -Path (Join-Path $portableRoot 'driver') | Out-Null
 
 Copy-Item $appExe -Destination $portableRoot
-Copy-Item (Join-Path $engineKit '*') -Destination (Join-Path $portableRoot 'engine') -Recurse
+# Kit DLLs ride BESIDE the exe (static-import loader truth - see recoverywizard.nsi)
+Copy-Item (Join-Path $engineKit '*') -Destination $portableRoot -Force
 Copy-Item (Join-Path $driverStage '*') -Destination (Join-Path $portableRoot 'driver') -Recurse
 
 $readme = @"

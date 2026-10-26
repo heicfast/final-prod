@@ -86,3 +86,134 @@ Earlier this hour (same lane): engine/ advanced to core_recovery@5ddccd8
 engine-kit DLL staging from the POST_BUILD-deployed set instead of hardcoded
 z.dll/lz4.dll names); ui version files synced to VERSION 0.5.0 (the
 Assert-VersionConsistency gate was throwing on every run).
+
+---
+
+## 2026-10-26T16:00Z — T7-T10 wiring session: the bridge lands, the simulated backend is gone, CI consolidated at root
+
+Session start state: main at 87b9ccd9 (engine/ advanced to
+core_recovery@22e9657 with history preserved; T1-T6, T11, T12 done; T11's
+installer compile-validated). The engine update session that preceded this
+one had drafted the Rust bridge + TS connector locally but was lost to an
+unexpected stop before any commit — this session rebuilt the whole T7-T10
+surface from the ratified plan + the committed contracts, committing and
+pushing in four chunks (1efb8d32, 02d153af, 728b0baa + this commit).
+
+The Rust bridge (ui/src-tauri/src/{bridge,commands}):
+- bridge/abi.rs — the FFI surface pinned 1:1 from cr_ui.h (this exact
+  filename is the validate.mjs phase-2 trigger); bridge/error.rs —
+  BridgeError{code, bridgeCode, message} per error-codes.json, ERR_CANCELLED
+  never crosses as an error; bridge/util.rs — two-call protocols, the
+  single 100ns-1601 -> ISO-8601 conversion point (civil-from-days, no
+  chrono), base64, SendPtr, OwnedCrString; bridge/state.rs — Arc-ed
+  registries (long passes hold the entry's snapshot mutex, never the
+  registry lock), per-generation snapshot metadata cache built in ONE DFS
+  pre-order pass (paths O(total path bytes); subtree aggregates in the
+  reverse pass), engine close order enforced on Drop, session source
+  re-attach best-effort by model+serial (browsing never blocked on a gone
+  source); bridge/events.rs — sinks only try_send (engine worker threads
+  never block/lock/re-enter), single emitter per handle, HEARTBEAT is
+  liveness-only, bad-sector map bounded 4096 with exact counts,
+  LOST_CANDIDATE/REPAIR/FS_CHECK ride counters+logs (no payload surface
+  exists; repair analysis armed default-deny), job emitter coalesces byte
+  samples + polls stats/report-tail at 2s cadence for currentFile/verify
+  truth; bridge/filefilter.rs — GENERATED from the engine's own 1,481-entry
+  table (ui/scripts/gen-filefilter.mjs, --check freshness gate; exact
+  parity verified 1481/1481 including the dv-avi/dvr-ms/mp+ entries).
+- commands/ — 33 commands implementing the amended manifest: devices
+  (open-probe status, Win32 usage, virtual quick-targets vol-recycle-bin /
+  vol-desktop -> system volume + implicit pathScope); scan (the documented
+  binding lifecycle, G-11 scope validation, pre-scan repair + damage audit
+  READ-ONLY with the engine's documented default-deny [G-1], terminal latch
+  from run() rc with exact stats + the G-3 sum, transients cleared when
+  telemetry catches up); results (ONE bridge-side filter path for BOTH live
+  scans and sessions [G-7: cr_ui_query cannot express the 'existing' atom];
+  the tree modes reproduce the retired simulator's visible contract from
+  REAL origins — lost branch is the real dir tree pruned to lost dirs, raw
+  branch flat truth; sorts mirror the engine); preview (ADR-008 dispatch
+  from engine metadata, image cap 16 MiB, unreadable spans -> the typed
+  preview-damaged refusal, av/office metadata payloads with null renderables
+  [G-4], thumbnails graphics-only); sessions (ProgramData store, N-061
+  auto-name UTC, mtime-keyed lazy list cache [OQ-4], load pre-check +
+  best-effort attach); recovery (config map, F12 armed engine-side, G-02b
+  snapshot-index enqueue, recover-all pages the filtered query, status from
+  the engine's stats, items/report from the report JSON with the outcome map
+  + 500-cap/truncatedItemLists); health (threshold null — the engine has
+  none); repair (the four G-1 typed refusals); system (SCM RDA probe +
+  \\.\RDA + IOCTL 0x60002448 [OQ-5 pinned from cr_transport.h: service RDA],
+  engineVersion null [G-6], real write-probe destination validation,
+  reveal_in_explorer absorbed into system_open_path via the opener plugin).
+- Cargo.toml: serde_json + windows-sys (cfg-gated); build.rs: cr_ui.lib
+  static-import link wiring (CR_UI_LIB_DIR override + staged target dirs;
+  cargo check/clippy need no kit).
+
+The TS connector (src/connector/tauri/tauri-connector.ts): the 36 contract
+methods over the 33 commands; REASON_KEYS (all 24 codes) + the engine
+numeric map + detail.code; hex JSON-array -> Uint8Array normalization;
+listen()-based subscriptions with the contract's unsubscribe shape.
+src/connector/index.ts exports only the real singleton.
+
+The removal (plan §5): mock tree (mock-connector, fixtures, node-space,
+rng), tauri/not-implemented.ts, queries/dev.ts, connector-mock.test.ts,
+node-space.test.ts, the RNG block in format.test.ts,
+ScenarioControl/MockScenarioId/connectorMode from the contract; dev-panel
+restructured (language/density/perf-overlay survive); settings/about mode
+rows removed; the dead "Open location" item WIRED (existing-origin rows
+reveal their real on-disk path via getNodeDetail + openPath through the
+queries layer; the rest carry the truthful openLocationMissing title).
+Locales: dead keys removed, the REASON_KEYS vocabulary added (en + zh in
+lockstep); i18n sweep 375 defined / 0 unused / 0 missing.
+
+Test seam (plan §5.5): tests/fakes/test-connector.ts — the labeled TEST
+DOUBLE (never shipped; A7 enforces it; the G-1 gaps refuse exactly like
+production); vite.config.ts test-mode alias (exact-match regex; production
+builds verified to contain the real connector and zero double strings);
+arch-lint A7 added; tests/connector-tauri.test.ts — 23 tests pinning the
+command surface, error model, REASON_KEYS-vs-catalogs, and unsubscribe
+shapes against a spied IPC boundary.
+
+contracts/command-surface.json amended to the shipped truth (33 commands):
+consent_respond/preview_read/preview_close moved to a rationale-bearing
+`removed` array. contracts/validate.mjs GREEN with phase 2 active for the
+first time: 33 Rust impls x 32 TS invocations cross-checked both ways.
+
+Gates (local, this sandbox): typecheck clean; eslint 0 errors; arch-lint
+A1-A7 OK (75 files); ast-grep x2 clean; prettier clean; jscpd 0 clones;
+vitest 127/127; coverage 96.4/84.4/100/98.6 on the real connector
+(thresholds 70/60/70/70); production build + bundle:check in budget
+(111.9/200 KB main, 296.5/500 KB total); knip GREEN with
+KNIP_DISABLE_RAW_TRANSFER=1 (the same knob the UI repo's original CI
+documented — without it oxc's raw transfer exceeds this 4GB sandbox's
+allocation limit, before AND after these changes).
+
+Installer/build alignment (this commit): build.ps1's ui lane NOW actually
+stages the engine kit (cr_ui.lib + DLLs into target/{release,debug} +
+CR_UI_LIB_DIR) — the comment claimed it before but no copy existed;
+recoverywizard.nsi installs the kit BESIDE the app exe (layout truth: the
+bridge statically imports cr_ui.dll — loader resolution happens from the
+exe directory; an engine\ subfolder would 0xc0000135), excludes the import
+library from the customer layout, ships rrecov.exe as the G-1 CLI undo
+path, and the uninstaller deletes the kit explicitly; portable.ps1 mirrors
+the beside-exe layout.
+
+CI consolidated at root (per plan §8.3, the consolidation the T4 deletion
+of inert sub-tree workflows pointed at): contracts-ci.yml (validate.mjs +
+filefilter freshness), ui-ci.yml (all TS gates + cargo check/clippy —
+no engine kit needed), engine-ci.yml (lint/ASan/TSan/UBSan/Windows-MSVC +
+Win7 PE gates/fuzz — adopted from the engine repo's proven lanes with
+working-directory + paths filters), driver-ci.yml (lint/fuzz/unit/WDK
+matrix + unsigned assertion — adopted likewise). Push watches: first run
+of the Rust lanes will surface compile reds this sandbox could not check
+(no cargo here) — iterate on them per the worklog's next-actions.
+
+docs/INTEGRATION-GAPS.md created: G-1..G-11 with the session's resolutions
+(the consent-flow decision recorded in full under G-1) + the hygiene items.
+
+Remaining (tracked, in order): watch the four root workflows' first runs
+and fix every red for the right reason (T17 lane); INTEGRATION-VALIDATION
+evidence (T14: budgets vs the retired simulator's documented latencies;
+the mid-scan query cost measurement G-7 depends on); e2e under
+`vite build --mode test` (ui-e2e.yml + playwright config update — the
+built-bundle story the plan §5.4 sets); release.yml (T13); docs sweep
+(T16: README/BUILD/ARCHITECTURE/RELEASE/TESTING + CONNECTOR-CONTRACT mock
+sections + stale VITE_CONNECTOR references); RC tag (T18); handoff (T20).

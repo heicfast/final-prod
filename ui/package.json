@@ -2,7 +2,7 @@
   "name": "recovery-wizard-ui",
   "private": true,
   "version": "0.5.0",
-  "description": "Recovery Wizard UI \u2014 Tauri 2 + React 19 + TypeScript (mock-connector driven, clean-room re-implementation)",
+  "description": "Recovery Wizard UI — Tauri 2 + React 19 + TypeScript (mock-connector driven, clean-room re-implementation)",
   "type": "module",
   "packageManager": "pnpm@12.15.0",
   "engines": {
@@ -26,7 +26,11 @@
     "knip": "knip",
     "jscpd": "jscpd src --min-tokens 70 --reporters consoleFull --ignore \"src/theme/adopted/**\"",
     "bundle:check": "node scripts/bundle-check.mjs",
-    "visual:compare": "node scripts/visual-compare.mjs"
+    "visual:compare": "node scripts/visual-compare.mjs",
+    "filefilter:check": "node scripts/gen-filefilter.mjs --check",
+    "sg:lint:raw": "ast-grep scan --rule rules/no-raw-invoke.yml --globs '!src/connector/**' src",
+    "sg:lint:connector": "ast-grep scan --rule rules/no-connector-import-outside-queries.yml --globs '!src/queries/**' --globs '!src/connector/**' src",
+    "sg:lint": "pnpm run sg:lint:raw && pnpm run sg:lint:connector"
   },
   "dependencies": {
     "@radix-ui/react-checkbox": "1.4.1",

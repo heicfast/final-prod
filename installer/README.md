@@ -40,7 +40,11 @@ Flow (per-machine; per-user varies as noted):
    - the inner Tauri setup runs `/S /allusers|/currentuser /D=$INSTDIR`
      (silent; same dir), integrity-checked (`Recovery Wizard.exe` +
      `uninstall.exe` must exist);
-   - engine kit → `$INSTDIR\engine\` with an integrity gate (`cr_ui.dll`
+   - engine kit → `$INSTDIR\` (BESIDE the app exe — layout truth: the Rust
+     bridge statically imports `cr_ui.dll`, and the loader resolves static
+     imports from the exe's directory at process start; an `engine\`
+     subfolder is off the search path and would fail with 0xc0000135) with an
+     integrity gate (`cr_ui.dll`
      plus at least one runtime DLL — the 0xc0000135 guard);
    - driver staged to `$INSTDIR\driver\`, then registered via **the driver's
      own `install.ps1`** (exact SCM semantics: `type= kernel start= demand
@@ -61,7 +65,8 @@ Flow (per-machine; per-user varies as noted):
 (`uninstall.ps1`, with `sc stop`/`sc delete`/`Delete /REBOOTOK` fallback and
 a belt-and-braces file check) → ProgramData sessions **kept by default**
 (deleted only on explicit consent — reference parity: user data survives) →
-inner Tauri uninstaller silent (`_?=` choreography) → `engine\`, `driver\`,
+inner Tauri uninstaller silent (`_?=` choreography) → kit DLLs at `$INSTDIR` (explicit
+ deletes — the inner uninstaller's manifest covers only the Tauri bundle) → `driver\`,
 product registry keys, final `RMDir`.
 
 **Update**: rerun the installer (in-place; NSIS standard). The driver step

@@ -1,0 +1,104 @@
+name: ui-ci
+
+# The UI lane (docs/INTEGRATION-PLAN.md §8.3): every quality gate the UI
+# repository defined, plus the Rust bridge compile checks. cargo check /
+# clippy need NO engine kit (no link step); the full tauri build with the
+# engine kit is the release lane's business (build.ps1 / release.yml).
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'ui/**'
+      - 'contracts/**'
+      - '.github/workflows/ui-ci.yml'
+  pull_request:
+    paths:
+      - 'ui/**'
+      - 'contracts/**'
+
+permissions:
+  contents: read
+
+jobs:
+  ci:
+    runs-on: windows-latest
+    defaults:
+      run:
+        working-directory: ui
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 12.15.0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+          cache-dependency-path: ui/pnpm-lock.yaml
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Typecheck
+        run: pnpm typecheck
+
+      - name: Lint
+        run: pnpm lint
+
+      - name: Format check
+        run: pnpm format:check
+
+      - name: Architecture rules (arch-lint A1-A7)
+        run: pnpm arch:lint
+
+      - name: Architecture rules (ast-grep)
+        run: pnpm sg:lint
+
+      - name: filefilter mirror freshness
+        run: pnpm filefilter:check
+
+      - name: Dead code (knip)
+        run: pnpm knip
+        env:
+          # oxc raw-transfer reserves a huge buffer per parsing core —
+          # unnecessary on CI and fragile on memory-constrained runners
+          # (the same knob this sandbox needs; documented in the UI repo's
+          # original CI and carried forward).
+          KNIP_DISABLE_RAW_TRANSFER: '1'
+
+      - name: Duplication (jscpd)
+        run: pnpm jscpd
+
+      - name: Unit + component tests (coverage thresholds 70/60/70/70)
+        run: pnpm test:coverage
+
+      - name: Production build (real connector; the test double is
+          unreachable in production mode — verified by the alias contract)
+        run: pnpm build
+
+      - name: Bundle budget
+        run: pnpm bundle:check
+        env:
+          BUDGET_MAIN_KB: '200'
+          BUDGET_TOTAL_KB: '500'
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: stable
+
+      - name: Cargo check (bridge; no link step — engine kit not required)
+        working-directory: ui/src-tauri
+        run: cargo check
+
+      - name: Clippy (strict)
+        working-directory: ui/src-tauri
+        run: cargo clippy -- -D warnings
+
+      - name: Upload web dist artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: web-dist
+          path: ui/dist/
+          retention-days: 7
