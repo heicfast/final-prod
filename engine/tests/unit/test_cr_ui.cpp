@@ -1748,6 +1748,7 @@ TEST(CrUi, CheckpointPreviousGoodSurvivesTornEmit) {
     EXPECT_EQ(after, good) << "previous good checkpoint preserved byte-identical";
     /* the torn staging file did not survive either */
     EXPECT_EQ(std::fopen((ck + ".tmp").c_str(), "rb"), nullptr);
+}
 
 /* ---------------------------------------------------------------- */
 /* S-029: lost-partition APPLY through the C ABI (consent, undo)     */
