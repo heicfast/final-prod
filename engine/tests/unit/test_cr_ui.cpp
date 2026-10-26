@@ -1556,3 +1556,89 @@ TEST(CrUi, ImageSourceDestinationNearImageAccepted) {
     const std::string dest = cr_test::tmp_path("cr_ui", ".dest-near");
     EXPECT_EQ(cr_ui_recovery_set_destination(u.rec, dest.c_str()), CR_UI_OK);
 }
+
+/* ---- N-014: atomic checkpoint staging + commit-by-rename ------------ */
+
+TEST(CrUi, CheckpointAtomicStagingAndCommit) {
+    /* A full scan with a checkpoint path: the final path must hold the
+     * LAST COMMITTED checkpoint (a valid, loadable session container)
+     * and the .tmp staging file must be cleaned up (N-014's cleanup
+     * contract). Pre-fix the file was opened "wb" on the FINAL path and
+     * patched in place - torn on crash. */
+    const std::string img = write_fixture("ckatomic");
+    ASSERT_FALSE(img.empty());
+    const std::string ck = cr_test::tmp_path("ckatomic", ".rsf");
+    Ui u;
+    ASSERT_EQ(cr_ui_open_image(img.c_str(), 0, 0, &u.dev), CR_UI_OK);
+    cr_ui_scan_config cfg{};
+    cfg.checkpoint_path_utf8 = ck.c_str();
+    ASSERT_EQ(cr_ui_scan_create(&cfg, &u.scan), CR_UI_OK);
+    ASSERT_EQ(cr_ui_scan_attach_device(u.scan, u.dev), CR_UI_OK);
+    ASSERT_EQ(cr_ui_scan_run(u.scan), CR_UI_OK);
+    /* the final path holds a loadable session container */
+    FILE* f = std::fopen(ck.c_str(), "rb");
+    ASSERT_NE(f, nullptr) << "the committed checkpoint must exist at the final path";
+    std::vector<unsigned char> first(std::fseek(f, 0, SEEK_END) ? 0 : size_t(std::ftell(f)));
+    std::rewind(f);
+    ASSERT_EQ(std::fread(first.data(), 1, first.size(), f), first.size());
+    std::fclose(f);
+    ASSERT_GE(first.size(), size_t(16)) << "a finalized container is never empty";
+    /* the staging file is cleaned up after the scan */
+    EXPECT_EQ(std::fopen((ck + ".tmp").c_str(), "rb"), nullptr)
+        << "the .tmp staging file must not survive the scan";
+    cr_ui_scan_close(u.scan);
+    u.scan = nullptr;
+    /* and the container loads as a session */
+    ASSERT_EQ(cr_ui_session_load(ck.c_str(), &u.sess), CR_UI_OK);
+}
+
+TEST(CrUi, CheckpointPreviousGoodSurvivesTornEmit) {
+    /* The N-014 crash window: a SECOND scan on the same checkpoint path
+     * that never reaches a commit (immediate cancel - the process-died-
+     * mid-emit shape) must leave the PREVIOUS good checkpoint at the
+     * final path BYTE-IDENTICAL. Pre-fix the "wb" open truncated the
+     * final path at scan start - the previous good state was destroyed
+     * BEFORE any checkpoint was even attempted. */
+    const std::string img = write_fixture("cktorn");
+    ASSERT_FALSE(img.empty());
+    const std::string ck = cr_test::tmp_path("cktorn", ".rsf");
+    /* scan 1: completes; the final path holds the good checkpoint */
+    {
+        Ui u;
+        ASSERT_EQ(cr_ui_open_image(img.c_str(), 0, 0, &u.dev), CR_UI_OK);
+        cr_ui_scan_config cfg{};
+        cfg.checkpoint_path_utf8 = ck.c_str();
+        ASSERT_EQ(cr_ui_scan_create(&cfg, &u.scan), CR_UI_OK);
+        ASSERT_EQ(cr_ui_scan_attach_device(u.scan, u.dev), CR_UI_OK);
+        ASSERT_EQ(cr_ui_scan_run(u.scan), CR_UI_OK);
+    }
+    FILE* f = std::fopen(ck.c_str(), "rb");
+    ASSERT_NE(f, nullptr);
+    std::vector<unsigned char> good(size_t(std::fseek(f, 0, SEEK_END) ? 0 : std::ftell(f)));
+    std::rewind(f);
+    ASSERT_EQ(std::fread(good.data(), 1, good.size(), f), good.size());
+    std::fclose(f);
+    ASSERT_GE(good.size(), size_t(16));
+    /* scan 2: crash-simulation - cancel before run; no checkpoint ever
+     * commits; the staging tmp is created and torn away at teardown */
+    {
+        Ui u;
+        ASSERT_EQ(cr_ui_open_image(img.c_str(), 0, 0, &u.dev), CR_UI_OK);
+        cr_ui_scan_config cfg{};
+        cfg.checkpoint_path_utf8 = ck.c_str();
+        ASSERT_EQ(cr_ui_scan_create(&cfg, &u.scan), CR_UI_OK);
+        ASSERT_EQ(cr_ui_scan_attach_device(u.scan, u.dev), CR_UI_OK);
+        ASSERT_EQ(cr_ui_scan_cancel(u.scan), CR_UI_OK);
+        EXPECT_EQ(cr_ui_scan_run(u.scan), 0x50020005u); /* ERR_CANCELLED */
+    }
+    /* the previous good checkpoint survives byte-identical */
+    f = std::fopen(ck.c_str(), "rb");
+    ASSERT_NE(f, nullptr) << "the final path must never be destroyed by a torn emit";
+    std::vector<unsigned char> after(size_t(std::fseek(f, 0, SEEK_END) ? 0 : std::ftell(f)));
+    std::rewind(f);
+    ASSERT_EQ(std::fread(after.data(), 1, after.size(), f), after.size());
+    std::fclose(f);
+    EXPECT_EQ(after, good) << "previous good checkpoint preserved byte-identical";
+    /* the torn staging file did not survive either */
+    EXPECT_EQ(std::fopen((ck + ".tmp").c_str(), "rb"), nullptr);
+}

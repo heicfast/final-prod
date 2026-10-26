@@ -11533,3 +11533,34 @@ Stage Summary:
   with the lane map above. No release tag (honest: the tier is not
   closed).
 >>>>>>> 99f45aecd6f48aca32dad902c9adb4ae029f1d61
+
+---
+Task ID: DFX22-T7 (N-014 — atomic stage checkpoints)
+Agent: main engineer (diff-to-fix minors-first session 22)
+Task: N-014 — checkpoint truncate-then-write destroys the previous good
+state on crash; implement temp+rename atomicity.
+
+Work Log:
+- Corpus re-verified: rsf-format--scan-session.md §5.5 (fresh
+  timestamped file per auto-save — the og's crash safety) + §5.4.4
+  (append-within-save). Core re-verified: open_file "wb" on the FINAL
+  checkpoint path (truncate at scan start); finalize patches in place.
+- Fix: CheckpointSink gained a nullable commit hook; emit_checkpoint_
+  invokes it after every successful finalize (failed commit aborts the
+  run with its code — same contract as a failed write, and the
+  checkpoint does not count as emitted). The cr_ui adapter stages
+  <path>.tmp + commits by fflush + fclose + rename + staging reopen
+  (closed-handle rename on Windows avoids MoveFileExW's share
+  constraint); scan teardown and scan_close remove the transient tmp.
+- Tests: CrUi.CheckpointPreviousGoodSurvivesTornEmit (fail-before
+  EXECUTED on the isolated pre-fix tree: the final path came back EMPTY
+  — {} vs the good CRSF bytes — the exact destroyed-previous state) +
+  CrUi.CheckpointAtomicStagingAndCommit + Checkpoint.CommitHookFires-
+  AfterEveryFinalizeAndAbortsOnError. Suite 704/704.
+- The timestamped-history pattern (the finding's open question) stays
+  out of scope as recorded — the atomic rename matches the og's
+  crash-safety guarantee without the UX decision.
+
+Stage Summary:
+- Session tally: 9 resolutions. MINOR live count 29. Next: N-059
+  (Btrfs/ZFS session extras) or N-071 (device enumeration breadth).

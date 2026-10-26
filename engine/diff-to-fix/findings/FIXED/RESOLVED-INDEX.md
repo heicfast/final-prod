@@ -1,6 +1,12 @@
 # diff-to-fix/findings/FIXED/ — resolved findings (audit trail)
 
-## Resolved findings (session-22 wave: +M-055, +N-077, +N-020, +N-070 +M-056 (NEW-FINDING), +N-074 (convergent), +N-047, +N-035; live file inventory)
+## Resolved findings (session-22 wave: +M-055, +N-077, +N-020, +N-070 +M-056 (NEW-FINDING), +N-074 (convergent), +N-047, +N-035, +N-014; live file inventory)
+
+| ID | Severity (orig) | Title | Fix commit | Resolution |
+|---|---|---|---|---|
+| N-014 | MINOR (S2) | Stage checkpoint not atomic; previous checkpoint destroyed on crash (truncate-then-write) | (this session's N-014 atomic-checkpoint batch — file carries the Resolution) | CheckpointSink.commit hook fires after every finalize; the cr_ui adapter stages <path>.tmp and commits by fflush+fclose+rename (closed-handle rename — no FILE_SHARE_DELETE constraint); teardown removes the transient tmp. Fail-before EXECUTED: pre-fix scan-2's "wb" truncate left the final path EMPTY vs the good CRSF bytes; pass-after byte-identical. Suite 704/704. |
+
+
 
 | ID | Severity (orig) | Title | Fix commit | Resolution |
 |---|---|---|---|---|

@@ -437,11 +437,13 @@ u32 ScanController::emit_checkpoint_() const {
     if (!cfg_.checkpoint)
         return OK;
     /* fresh container per checkpoint: rewind the sink first so every
-     * emit overwrites from position 0 (the file always holds the newest
-     * COMPLETE checkpoint; a torn one is no worse than none - the reader
-     * re-indexes forward by construction). The sink triple IS the writer's
-     * IO (a file-backed sink makes this <path>.tmp + flush + rename). The
-     * record set matches save_session exactly - mask truth included. */
+     * emit overwrites from position 0 (the STAGING side; the committed
+     * final path always holds the newest COMPLETE checkpoint - a torn
+     * staging file is no worse than none, the previous good final is
+     * never destroyed: N-014's atomic-rename contract). The sink triple
+     * IS the writer's IO (a file-backed sink stages <path>.tmp and the
+     * commit hook renames over <path>). The record set matches
+     * save_session exactly - mask truth included. */
     if (cfg_.checkpoint.seek)
         if (u32 rc = cfg_.checkpoint.seek(cfg_.checkpoint.user, 0))
             return rc;
@@ -458,6 +460,13 @@ u32 ScanController::emit_checkpoint_() const {
         return rc;
     if (u32 rc = w.finalize())
         return rc;
+    /* N-014: the atomic commit - file-backed sinks rename the completed
+     * .tmp over the final path here (a crash before this point leaves
+     * the previous good checkpoint in place; a crash after it leaves the
+     * new one - both sides of the window are good states). */
+    if (cfg_.checkpoint.commit)
+        if (u32 rc = cfg_.checkpoint.commit(cfg_.checkpoint.user))
+            return rc;
     ++checkpoint_count_;
     if (event_fn_ != nullptr) { /* GAP-S6-10 */
         event::Event e;
