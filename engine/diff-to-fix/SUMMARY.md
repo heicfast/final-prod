@@ -21,7 +21,7 @@ re-executed (I-001's blanket `$`-skip re-read at NTFSSearchDLL_decompiled.c
 rows; the deliberate divergences they register stay preserved with their pin
 tests (the INFORMATIONAL safety-hardening rule — no code change).
 
-**Post-move counts:** SEVERE **0** · MAJOR 14 · MINOR 19 · INFO **0 open**
+**Post-move counts (session-25 close, pre-session-28):** SEVERE **0** · MAJOR 14 · MINOR 19 · INFO **0 open**
 (22 acknowledged, all in FIXED/) · **FIXED/ 171 files** (170 findings +
 RESOLVED-INDEX) · tracked-open 11 (resolution wave below — see the session's
 worklog entries for the per-OQ dispositions).

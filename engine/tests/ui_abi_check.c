@@ -387,12 +387,29 @@ int main(int argc, char** argv) {
     {
         cr_ui_scan* sc = NULL;
         cr_ui_scan_config c2;
+        uint32_t q = 7;
         memset(&c2, 0, sizeof(c2));
         c2.stage_mask = 1;
         CHECK_EQ_U64(cr_ui_scan_create(&c2, &sc), CR_UI_OK);
         CHECK_EQ_U64(cr_ui_scan_attach_device(sc, dev), CR_UI_OK);
+        /* N-075 query ops: at rest, then after cancel (the single-threaded
+         * edges of the busy/stopping contract - the mid-run cross-thread
+         * truth is the C++ suite's ScanBusyStoppingQueries) */
+        CHECK_EQ_U64(cr_ui_scan_busy(sc, &q), CR_UI_OK);
+        CHECK_EQ_U64(q, 0u);
+        CHECK_EQ_U64(cr_ui_scan_stopping(sc, &q), CR_UI_OK);
+        CHECK_EQ_U64(q, 0u);
         CHECK_EQ_U64(cr_ui_scan_cancel(sc), CR_UI_OK);
+        CHECK_EQ_U64(cr_ui_scan_stopping(sc, &q), CR_UI_OK);
+        CHECK_EQ_U64(q, 1u); /* the live request is visible pre-run too */
+        CHECK_EQ_U64(cr_ui_scan_busy(sc, &q), CR_UI_OK);
+        CHECK_EQ_U64(q, 0u); /* never started - not busy */
         CHECK_EQ_U64(cr_ui_scan_run(sc), CR_UI_ERR_CANCELLED);
+        /* the bad-argument contract compiles and refuses in plain C */
+        CHECK_EQ_U64(cr_ui_scan_busy(NULL, &q), CR_UI_ERR_BAD_PARAMETER);
+        CHECK_EQ_U64(cr_ui_scan_busy(sc, NULL), CR_UI_ERR_BAD_PARAMETER);
+        CHECK_EQ_U64(cr_ui_scan_stopping(NULL, &q), CR_UI_ERR_BAD_PARAMETER);
+        CHECK_EQ_U64(cr_ui_scan_stopping(sc, NULL), CR_UI_ERR_BAD_PARAMETER);
         /* the cancelled scan still saves a truthful session (D-18) */
         {
             char cpath[512];

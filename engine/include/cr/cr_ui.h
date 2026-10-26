@@ -391,6 +391,20 @@ CR_UI_API uint32_t cr_ui_scan_pause(cr_ui_scan* s);  /* blocks engines cooperati
 CR_UI_API uint32_t cr_ui_scan_resume(cr_ui_scan* s); /* releases a pause */
 CR_UI_API uint32_t cr_ui_scan_cancel(cr_ui_scan* s); /* run() -> ERR_CANCELLED */
 
+/* N-075 (v2-era append): synchronous state queries — the og's
+ * reference-out query signals (sigIsBusy(bool&) x14, sigIsStopping(bool&)
+ * x8 -> isBusy(bool&) relays — corpus UIUX/25-connect-wiring-graph.md
+ * :125-144) surfaced as ABI ops a host can call at any time. busy: run()
+ * is executing on some thread (the LIVE execution state; telemetry's
+ * running field mirrors it through the snapshot). stopping: cr_ui_scan_
+ * cancel was called and the run is winding down — the live cancel
+ * REQUEST on the token, distinct from cr_ui_telemetry's cancelled flag
+ * (the post-run state). Synchronous by construction (the stronger
+ * contract vs the og's Qt-connection-dependent answer edge). Any thread,
+ * any time; *out is 0 or 1. */
+CR_UI_API uint32_t cr_ui_scan_busy(cr_ui_scan* s, uint32_t* out);
+CR_UI_API uint32_t cr_ui_scan_stopping(cr_ui_scan* s, uint32_t* out);
+
 typedef struct cr_ui_stage_tel {
     uint32_t permille;    /* 0..1000 within the stage, monotonic */
     uint64_t units_done;  /* engine work units (records/dentries/...) */

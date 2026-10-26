@@ -2291,3 +2291,27 @@ policy the og baked into its transports: file placement, rollover,
 compaction, async). The og's per-line timestamp/process decoration is
 its transports' job; the core emits the message text. Pinned by
 `Orchestrator.LogSilentByDefault` + `Orchestrator.LogSinkReceivesScanBrackets`.
+
+### D-77 — progress delivery: push events + telemetry pull, not the og's poll-dominant timer farm (N-075, REGISTERED DIVERGENCE)
+
+The og's progress model is predominantly PULL-polled: 38 `timeout()`
+timer consumers call `onGet*Progress` on the UI thread, and the only
+progress-push signal is `sigPercentChange` (CUISink's — corpus
+UIUX/25-connect-wiring-graph.md :175-192); scan/finish events push.
+The core inverts this deliberately: progress is a coalesced monotonic
+PUSH (`CR_EVT_SCAN_PROGRESS` + the cr_ui_progress bridge with
+single-flight delivery), and the pull surface is the telemetry
+snapshot (`cr_ui_scan_telemetry`, any thread, any time) — the host
+that wants og-style polling simply calls telemetry on its own timer,
+so the information content is fully covered by the two surfaces the
+core already had. The og's reference-out QUERY signals
+(`sigIsBusy(bool&)` ×14, `sigIsStopping(bool&)` ×8, :125-144) are now
+surfaced as the synchronous ABI ops `cr_ui_scan_busy` /
+`cr_ui_scan_stopping` (N-075's fix) — synchronous by construction,
+the stronger contract vs the og's Qt-connection-dependent answer
+edge. The og's typed `IUIProgressInfo` per-item recovery-progress
+interface (UIUX/20-moc-surface-sink-architecture.md :145) maps onto
+the writer's report/queue item-state surfaces (documented in
+ABI-CONTRACT §5a) rather than a parallel ABI interface. Pinned by
+`CrUi.ScanBusyStoppingQueries` + the plain-C edges in
+`cr_ui_abi_check`.

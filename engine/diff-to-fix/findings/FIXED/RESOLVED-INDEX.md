@@ -1,5 +1,11 @@
 # diff-to-fix/findings/FIXED/ — resolved findings (audit trail)
 
+## Resolved findings (session-28 wave: +N-075 (rear-first MINOR lane, DFX28); live file inventory)
+
+| ID | Severity (orig) | Title | Fix commit | Resolution |
+|---|---|---|---|---|
+| N-075 | MINOR (s6, renumbered from the session-6-local N-059 at integration) | Event-bus contract shape: og query-signals (sigIsBusy(bool&) x14, sigIsStopping(bool&) x8 — reference-out queries) + pull-polled progress + typed IUIProgressInfo vs core one-way push | (this session's N-075 commit — file carries the Resolution) | cr_ui_scan_busy + cr_ui_scan_stopping appended (v2-era append, no bump): synchronous query ops — busy = the live run-lifecycle atomic, stopping = the LIVE token cancel request (persists after the one-shot run; distinct from telemetry's post-run cancelled flag). Pull-progress convention REGISTERED as PARITY-DELTAS D-77 (the og's 38-consumer poll farm vs push + any-thread telemetry pull); the typed IUIProgressInfo mapping documented in ABI-CONTRACT 5 (recovery_progress_fn + queue_count + get_stats + report_json — no parallel interface). Pinned by CrUi.ScanBusyStoppingQueries (mid-run pause-gate proof, fail-before RED at compile — the symbols did not exist) + the plain-C edges in cr_ui_abi_check. Suite 738/738. |
+
 ## Resolved findings (session-25 wave: +I-001..I-024 — the INFORMATIONAL tier closed into FIXED/ (22/22 acknowledged, re-verified on `716d121`, pins green 737/737); live file inventory)
 
 > The 22 INFORMATIONAL findings were acknowledged across sessions 2-14

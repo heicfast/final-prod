@@ -90,3 +90,5 @@ landed via parallel lanes and were verified this session; D4 closed here):
   the M-029 correction note; `Query.ModifiedUnitIsFiletimeEverywhere`
   is the pin — re-cited as this finding's TreeJson.ModifiedFieldIsFiletime
   spec, satisfied).
+
+| N-075 query-signal exports | **MATCH** (cr_ui_scan_busy / cr_ui_scan_stopping — v2-era append, no bump; the og's reference-out signals as synchronous ops; D-77 registers the pull-progress convention; recovery-progress mapping documented in ABI-CONTRACT 5) | `CrUi.ScanBusyStoppingQueries`, plain-C edges in `cr_ui_abi_check` |

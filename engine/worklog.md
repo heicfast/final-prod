@@ -12394,3 +12394,50 @@ Work Log:
 Stage Summary:
 - Session 27 open on the disjoint MAJOR-head lane. First fix: M-049 (error
   model divergence and parity claim).
+
+---
+Task ID: DFX28-T1 (session 28, first fix — N-075)
+Agent: main engineer (diff-to-fix fix session 28 — DFX28)
+Task: N-075 the event-bus contract shape: og query-signals + pull-progress
+convention + typed IUIProgressInfo vs the core's one-way push.
+
+Work Log:
+- Corpus re-verified first-hand: UIUX/25-connect-wiring-graph.md :41-62
+  (doDispatchMessage 15-subscriber star + the double bridge), :125-144
+  (the results-page hub: sigIsBusy(bool&) ×14, sigIsStopping(bool&) ×8,
+  sigGetRightIndex(int&,int&) ×4 — reference-out query signals), :175-192
+  ("Progress = poll, events = push"; 38 timeout consumers;
+  sigPercentChange the only push), 20-moc-surface-sink-architecture.md
+  :145 (typed IUIProgressInfo on RecoverProgressUISink). CONFIRMED-
+  DIVERGENCE (the query-semantics gap; the push model itself is the
+  registered D-21/D-30x design).
+- Landed (the finding's own "cheapest honest close" verbatim):
+  cr_ui_scan_busy + cr_ui_scan_stopping appended to the cr_ui ABI
+  (v2-era append, NO bump — ABI-CONTRACT §9): synchronous query ops;
+  busy = the shim's run-lifecycle atomic; stopping = the LIVE
+  PausableToken cancel request (persists after the one-shot run — the
+  honest "a cancel WAS requested" answer; distinct from telemetry's
+  post-run cancelled flag). PARITY-DELTAS D-77 registers the pull-progress
+  convention difference (poll-dominant og vs push + telemetry pull, the
+  information content covered). ABI-CONTRACT §5 gains the state-query
+  line + the recovery-progress mapping note (typed IUIProgressInfo ->
+  recovery_progress_fn + queue_count + get_stats + report_json —
+  deliberately NO parallel interface).
+- Tests: CrUi.ScanBusyStoppingQueries (mid-run pause-gate window: busy
+  observed live, stopping flips the instant cancel() lands while busy
+  stays true through wind-down, busy=false + one-shot stopping=true
+  after the cancelled return, at-rest zeros, 4 bad-argument contracts)
+  + plain-C edges in ui_abi_check.c (at-rest, post-cancel, bad-args —
+  the C-ABI proof rule for touched surfaces). Fail-before EXECUTED:
+  build RED on the stash-isolated pre-fix tree (both symbols not
+  declared — compile failure in both test TUs), pass-after green.
+- Suite 738/738 linux-release. Audit trail: Resolution + FIXED/ move,
+  RESOLVED-INDEX row, matrix orchestrator cell -> MATCH, orchestration.md
+  (stale session-6-local N-059 ID corrected to the renumbered N-075
+  FIXED row + verdict table row), abi.md verdict row, SUMMARY session-28
+  delta + counts (MINOR 18, FIXED/ 172).
+
+Stage Summary:
+- N-075 FIXED (session tally: 1). MINOR 18 remain. Next: N-019 (the
+  12-scenario per-parameter regression-test gap — the literal Q65
+  interpretation, one test per missing scenario).

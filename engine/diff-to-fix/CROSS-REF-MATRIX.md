@@ -322,7 +322,7 @@ not-BAAD both sides; FAT quick-scan threading — already registered D-30x).
 | btrfs | P47/P48/S36 | **N-072** (BtrfsCache.txt re-scan cache); **OQ-S6-2** (RC4 PRGA target) |
 | zfs | A25/S35 | **N-072** (label import polling); INFO-register (lzjb/zle/gzip decode — no divergence claimable, evidence ledger only) |
 | lost-partition | A30/A37/D12 | **I-024** (PartitionRecoveryD generator-sets + .dat persistence register) + **OQ-S6-1** (decode request); **M-017 addendum** (CalcPartition class evidence) |
-| orchestrator | A38/A41/P42/A44 | **N-075** (event-bus query-signals + pull-progress convention + typed IUIProgressInfo); **I-023** (DRWCfg scope register) |
+| orchestrator | A38/A41/P42/A44 | ~~N-075~~ **MATCH** (FIXED/N-075, session 28: `cr_ui_scan_busy`/`cr_ui_scan_stopping` synchronous query exports — the og's sigIsBusy(bool&) x14 / sigIsStopping(bool&) x8 reference-out signals; pull-progress convention REGISTERED as D-77; typed IUIProgressInfo mapping documented in ABI-CONTRACT 5; pinned by `CrUi.ScanBusyStoppingQueries` + the plain-C edges); **I-023** (DRWCfg scope register) |
 | visualization | P42/D-model | **S-009 addendum** (stale premise corrected — surface landed; residual: kCellAllocFree dead, VolumeBitmap discarded) |
 | query | P42 (sort Type) | M-029 addendum (path-group CLOSED session-6) + **session-11: Type sort CLOSED (SortKey::Type, ABI code 7, iconIndex order) + the modified-unit doc lie fixed (FILETIME, pinned) + paging documented as the deliberate difference (no og page-size constant); REMAINING: bucket-ID translation + general-raw naming (decode-blocked, next steps recorded in the finding)** |
 | abi (cr_ui) | P42 | **N-033 addendum** (carve-format registry landed — ABI sub-item CLOSED; CLI listing sub-item remains) |
