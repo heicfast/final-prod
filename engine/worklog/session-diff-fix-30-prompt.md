@@ -1,8 +1,8 @@
 <<<<<<< HEAD
-# Session 29 prompt (re-stamped from local 25→26→27 bootstraps after same-window ID collisions; queue unchanged: tracked-open tail) (diff-to-fix fix session — DFX27) — saved token-redacted at bootstrap
+# Session 30 prompt (re-stamped from local 25→26→27 bootstraps after same-window ID collisions; queue unchanged: tracked-open tail) (diff-to-fix fix session — DFX27) — saved token-redacted at bootstrap
 
 # (Re-stamped twice from the local DFX25/DFX26 bootstraps after same-window ID
-# collisions with parallel lanes — see worklog DFX29-T0.)
+# collisions with parallel lanes — see worklog DFX30-T0.)
 
 # (This lane originally bootstrapped as DFX25; re-stamped after a same-window ID
 # collision with the parallel INFO-closure lane, per the first-landing-wins protocol.)

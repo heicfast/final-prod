@@ -12438,7 +12438,7 @@ Stage Summary:
 Task ID: DFX27-T0 (session 27 bootstrap — lane claim; re-stamped 25→26→27 —
 parallel lanes in this window took DFX25 (INFO closure) and DFX26 (MAJOR-tail
 back-to-front); DFX23 MINOR and DFX24 MAJOR claims stalled at bootstrap)
-Agent: main engineer (diff-to-fix fix session 27 — DFX27)
+Agent: main engineer (diff-to-fix fix session 30 — DFX30)
 Task: Session bootstrap + DISJOINT lane claim: the MAJOR tier HEAD
 (front-to-back), which is disjoint from DFX26's claimed MAJOR-tail
 (back-to-front). First-landing-wins on any overlapping finding; pull before
@@ -12520,7 +12520,7 @@ Task ID: DFX27-T0 (session 27 bootstrap — lane claim; re-stamped twice:
 the local DFX25 collided with the parallel INFO-closure lane, the local
 DFX26 re-stamp then collided with the parallel MAJOR-tail lane's 65122f0
 claim — this lane takes the next free ID)
-Agent: main engineer (diff-to-fix fix session 27 — DFX27)
+Agent: main engineer (diff-to-fix fix session 30 — DFX30)
 Task: Session bootstrap + DISJOINT lane claim: the tracked-open queue TAIL
 (split against DFX25, whose natural queue order starts at the head) +
 independent verification of landed closures + NEW-FINDING work.
@@ -12549,5 +12549,5 @@ Work Log:
 - One finding, one verified fix, one push throughout.
 
 Stage Summary:
-- Session 27 open on the disjoint tracked-open tail. Baseline green.
+- Session 30 open on the disjoint tracked-open tail. Baseline green.
   First act: OQ-Z-E-FLT (ZFS/exFAT/FLT open questions).
