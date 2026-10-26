@@ -12497,6 +12497,52 @@ Stage Summary:
   model divergence and parity claim).
 
 ---
+Task ID: DFX28-T1 (session 28, first fix — N-075)
+Agent: main engineer (diff-to-fix fix session 28 — DFX28)
+Task: N-075 the event-bus contract shape: og query-signals + pull-progress
+convention + typed IUIProgressInfo vs the core's one-way push.
+
+Work Log:
+- Corpus re-verified first-hand: UIUX/25-connect-wiring-graph.md :41-62
+  (doDispatchMessage 15-subscriber star + the double bridge), :125-144
+  (the results-page hub: sigIsBusy(bool&) ×14, sigIsStopping(bool&) ×8,
+  sigGetRightIndex(int&,int&) ×4 — reference-out query signals), :175-192
+  ("Progress = poll, events = push"; 38 timeout consumers;
+  sigPercentChange the only push), 20-moc-surface-sink-architecture.md
+  :145 (typed IUIProgressInfo on RecoverProgressUISink). CONFIRMED-
+  DIVERGENCE (the query-semantics gap; the push model itself is the
+  registered D-21/D-30x design).
+- Landed (the finding's own "cheapest honest close" verbatim):
+  cr_ui_scan_busy + cr_ui_scan_stopping appended to the cr_ui ABI
+  (v2-era append, NO bump — ABI-CONTRACT §9): synchronous query ops;
+  busy = the shim's run-lifecycle atomic; stopping = the LIVE
+  PausableToken cancel request (persists after the one-shot run — the
+  honest "a cancel WAS requested" answer; distinct from telemetry's
+  post-run cancelled flag). PARITY-DELTAS D-78 registers the pull-progress
+  convention difference (poll-dominant og vs push + telemetry pull, the
+  information content covered). ABI-CONTRACT §5 gains the state-query
+  line + the recovery-progress mapping note (typed IUIProgressInfo ->
+  recovery_progress_fn + queue_count + get_stats + report_json —
+  deliberately NO parallel interface).
+- Tests: CrUi.ScanBusyStoppingQueries (mid-run pause-gate window: busy
+  observed live, stopping flips the instant cancel() lands while busy
+  stays true through wind-down, busy=false + one-shot stopping=true
+  after the cancelled return, at-rest zeros, 4 bad-argument contracts)
+  + plain-C edges in ui_abi_check.c (at-rest, post-cancel, bad-args —
+  the C-ABI proof rule for touched surfaces). Fail-before EXECUTED:
+  build RED on the stash-isolated pre-fix tree (both symbols not
+  declared — compile failure in both test TUs), pass-after green.
+- Suite 738/738 linux-release. Audit trail: Resolution + FIXED/ move,
+  RESOLVED-INDEX row, matrix orchestrator cell -> MATCH, orchestration.md
+  (stale session-6-local N-059 ID corrected to the renumbered N-075
+  FIXED row + verdict table row), abi.md verdict row, SUMMARY session-28
+  delta + counts (MINOR 18, FIXED/ 172).
+
+Stage Summary:
+- N-075 FIXED (session tally: 1). MINOR 18 remain. Next: N-019 (the
+  12-scenario per-parameter regression-test gap — the literal Q65
+  interpretation, one test per missing scenario).
+
 Task ID: DFX30-T0.5 (lane-ID disambiguation #2 — the MAJOR-tail lane keeps its
 scope, re-stamps its ID only; NO new claim)
 Agent: core-parity-fix-agent (main, DFX30 — previously the "DFX26" whose
@@ -12579,6 +12625,43 @@ Work Log:
 Stage Summary:
 - DFX29 open on the MINOR middle band. Tally so far (this lane): N-009
   group + M-057. First fix: N-036 (ReFS data-run recognizer).
+
+---
+Task ID: DFX29-T1 (session 23 lane, third fix — N-036, the container half)
+Agent: main engineer (diff-to-fix fix session 29-lane — DFX29)
+Task: N-036's remaining scope: the ReFS container-translation model.
+
+Work Log:
+- Corpus re-verified FIRST-HAND beyond the finding: FUN_180011e90
+  (:13223-13267) AND FUN_180004820 (:2355-2386) — both consumers
+  byte-identical (key ((block/span)>>1)-2)*span; rewrite (block &
+  (span-1)) | base; identity when block<span / map null / key absent).
+  NEW DECODE this session: the span wiring — volume+0x148 (= DBR+0x34,
+  written at :2463) -> parser+0xa8 via FUN_180011cd0's field copy
+  (+0xa0 offset mapping); and FUN_180002a60's record shape (0xa0/0xe0
+  payload, base/unit tail pair, unit==span gate, counter*span map key).
+  The alternative key-relative shape reading (payload key at +0x20 per
+  :8043-8050) is recorded as the residual — the auditor's reading
+  implemented, unit==span the discriminator either way.
+- Implementation: translate_cluster rewritten to the og formula (u64
+  wrap semantics preserved); RefsBoot::container_clusters (DBR+0x34);
+  container_record_base() decoder; collection in the ObjectID-table walk
+  (zero extra I/O) + bounded system-table sweep (IDs < 0x100; user trees
+  are 0x600+). The top-nibble invented model removed.
+- Tests: 4 new (ContainerRelativeRunTranslatedPerOgFormula,
+  PhysicalRunFlag20Untranslated, ContainerBlockBelowSpanStaysPhysical,
+  SingleContainerExtentsUnchanged). Fail-before EXECUTED on the
+  identity-reverted tree: 2 RED — the second (PhysicalRun) failed for a
+  genuine second-order reason: both proof files collapsed onto extent 42
+  and M-027's placement-signature dedup dropped the loser.
+- Suite 744/744 linux-release. Audit trail: Resolution rewritten (both
+  halves now closed), FIXED/ move, index row, matrix refs row, SUMMARY
+  batch-2 delta + counts.
+
+Stage Summary:
+- Tally 3 (N-009 group, M-057, N-036). MINOR 17 remain. Next: N-049
+  (lost-record field richness).
+
 ---
 Task ID: DFX28-T2 (lane claim refresh — the N-025 lane; disjoint from DFX29 middle band + the 2adfb51 rear-first claim)
 Agent: main engineer (MINOR-first mandate lane; N-025 landed as e2b4549)
@@ -12971,3 +13054,40 @@ Work Log:
 Stage Summary:
 - N-027 FIXED (session tally: 3 — N-025, N-026, N-027). MINOR 15 remain.
   Next: N-031 (carve dispatch deltas — zero-sector skip + stride doc).
+---
+Task ID: DFX30-T2 (OQ-Z5 resolved)
+Agent: main engineer (diff-to-fix fix session 30 — DFX30)
+Task: OQ-Z5 — CZfsSearchController vs CZfsQuickSearch vtable delta (what
+ZFS "complete" adds over "quick")
+
+Work Log:
+- First-hand MSVC RTTI walk on ZfsSearchDLL.dll (TypeDescriptor ->
+  RTTICompleteObjectLocator -> vftable; corrected for x64 8-byte VA
+  pointers): CZfsSearchController vftable RVA 0x180030ea8 = 34 slots;
+  CZfsQuickSearch vftable RVA 0x180030c38 = 16 slots.
+- Interfaces named by the dtor-side vftable installs:
+  ICompleteFileSystemSearchController (FUN_180010cb0 :14806) vs
+  IQuickFileSystemSearchController (FUN_180001720 :404) — the product-wide
+  engine-plugin contract (all 9 engines expose the factory pair per the
+  engine-matrix artifact), NOT a ZFS-specific fork.
+- Slot-by-slot reads: quick = one-shot bulk collect (FUN_180006b40 =
+  push_back(+0xa0) into caller's vector) + ~600-line run loop
+  FUN_180006b90 driving the shared ZFS machinery; complete = streaming
+  per-hit emission (FUN_180011260, property records + sector math + the
+  uberblock-magic 0x00bab10c / ZEC_MAGIC 0x0210da7ab10c7a11 label probe,
+  zec at +0x1d8 = 512-byte-slot assumption), restart entry
+  (FUN_180011200), five config channels (+0xb8..+0xd8), callback
+  registration slot (FUN_180010d30).
+- ZEC_MAGIC identified: 0x0210da7ab10c7a11 = the zio_eck trailer magic —
+  the og's emit-path validation checks ub-magic + zec at a 512-byte-slot
+  geometry; the core's ring walk probes shifts 10..13 kernel-correctly
+  (registered superset, OQ-T6.3).
+- Core-parity consequence: the core models quick/deep at the orchestrator
+  over a single ZFS engine = the union of both interfaces. No code change.
+- Audit trail: OQ-Z5 marked RESOLVED in OQ-Z-E-FLT-session3.md; evidence at
+  diff-to-fix/evidence/decompiled-quotes/s30-oq-z5-zfs-quick-vs-complete.md.
+
+Stage Summary:
+- OQ-Z5 RESOLVED (interface split named; complete adds streaming emission
+  + restart + config channels; quick is a real one-shot scanner). Next on
+  this lane: OQ-Z2 (addBlock from_txg/birth_txg gate).

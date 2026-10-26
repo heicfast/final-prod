@@ -69,6 +69,25 @@ at all (which would make our writer-side decode a superset).
 
 ## OQ-Z5 — CZfsSearchController vs CZfsQuickSearch delta
 
+**RESOLVED (DFX30, 2026-10-26):** first-hand RTTI walk + slot-by-slot read
+(evidence: `diff-to-fix/evidence/decompiled-quotes/s30-oq-z5-zfs-quick-vs-complete.md`).
+The split is the product-wide plugin-interface split —
+`IQuickFileSystemSearchController` (16 slots) vs
+`ICompleteFileSystemSearchController` (34 slots, named by FUN_180010cb0
+:14806 / FUN_180001720 :404) — not a ZFS-specific fork. Complete adds: (1)
+streaming per-hit emission with property records via an installed
+std::function (+0xb0; FUN_180011260 with sector math + the uberblock-magic/
+ZEC_MAGIC label validation probe, zec at +0x1d8 = 512-byte-slot assumption)
+vs quick's one-shot bulk collect of a single value (FUN_180006b40 =
+push_back(+0xa0) into the caller's vector); (2) a restart entry
+(FUN_180011200 free-and-rescan); (3) five extra config channels
+(+0xb8/+0xc0/+0xc8/+0xd0/+0xd8). Quick is a REAL scanner (its run loop
+FUN_180006b90 is ~600 lines driving the shared ZFS machinery chain; its
+object is the bigger one, 0x120 vs 0xe8, carrying its own result buffer at
++0x108/+0x110). Core models quick/deep at the orchestrator layer over one
+engine = the union; no code change. Cross-ref I-016 (factory-contract
+register).
+
 Diff the two vtables (:15429/:15472) — the only engine of the four where both
 searchers are real classes. Names what ZFS "complete" adds over quick.
 

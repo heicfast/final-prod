@@ -376,6 +376,77 @@ TEST(CrUi, PauseBlocksAndResumes) {
     EXPECT_EQ(tel.overall_permille, 1000u);
 }
 
+TEST(CrUi, ScanBusyStoppingQueries) {
+    /* N-075: the og's reference-out query signals - sigIsBusy(bool&) x14,
+     * sigIsStopping(bool&) x8 (corpus UIUX/25-connect-wiring-graph.md
+     * :125-144) - surfaced as synchronous ABI query ops. The pause gate is
+     * a deterministic mid-run window: busy must be true while run()
+     * executes, stopping must flip the moment cancel() lands (the LIVE
+     * token request), and both must answer at rest. stopping stays true
+     * after the run ends: the token is one-shot, the honest "a cancel was
+     * requested on this handle" answer. */
+    const std::string img = write_fixture("busyq");
+    ASSERT_FALSE(img.empty());
+    Ui u;
+    ASSERT_EQ(cr_ui_open_image(img.c_str(), 0, 0, &u.dev), CR_UI_OK);
+    cr_ui_scan_config cfg{};
+    ASSERT_EQ(cr_ui_scan_create(&cfg, &u.scan), CR_UI_OK);
+    ASSERT_EQ(cr_ui_scan_attach_device(u.scan, u.dev), CR_UI_OK);
+
+    /* at rest: neither busy nor stopping */
+    uint32_t busy = 5, stopping = 5;
+    ASSERT_EQ(cr_ui_scan_busy(u.scan, &busy), CR_UI_OK);
+    ASSERT_EQ(cr_ui_scan_stopping(u.scan, &stopping), CR_UI_OK);
+    EXPECT_EQ(busy, 0u) << "a scan that never ran is not busy";
+    EXPECT_EQ(stopping, 0u) << "no cancel was requested";
+
+    /* mid-run through the pause gate: busy=true, stopping still false */
+    ASSERT_EQ(cr_ui_scan_pause(u.scan), CR_UI_OK);
+    std::atomic<bool> done{false};
+    std::atomic<uint32_t> run_rc{0};
+    std::thread runner([&] { run_rc = cr_ui_scan_run(u.scan); done = true; });
+    bool saw_busy = false;
+    for (int i = 0; i < 300 && !done.load(); ++i) { /* up to ~3 s */
+        uint32_t b = 0;
+        if (cr_ui_scan_busy(u.scan, &b) == CR_UI_OK && b == 1u)
+            saw_busy = true;
+        if (saw_busy)
+            break;
+        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+    }
+    ASSERT_TRUE(saw_busy) << "busy must be observable while run() executes";
+    ASSERT_EQ(cr_ui_scan_busy(u.scan, &busy), CR_UI_OK);
+    EXPECT_EQ(busy, 1u);
+    ASSERT_EQ(cr_ui_scan_stopping(u.scan, &stopping), CR_UI_OK);
+    EXPECT_EQ(stopping, 0u) << "parked is not stopping - no cancel requested";
+
+    /* cancel while parked: stopping flips immediately, busy stays true
+     * while the run winds down through the gate */
+    ASSERT_EQ(cr_ui_scan_cancel(u.scan), CR_UI_OK);
+    ASSERT_EQ(cr_ui_scan_stopping(u.scan, &stopping), CR_UI_OK);
+    EXPECT_EQ(stopping, 1u) << "the live cancel request must be visible at once";
+    ASSERT_EQ(cr_ui_scan_busy(u.scan, &busy), CR_UI_OK);
+    EXPECT_EQ(busy, 1u) << "run() is still winding down after cancel";
+
+    runner.join();
+    ASSERT_TRUE(done.load());
+    EXPECT_EQ(run_rc.load(), CR_UI_ERR_CANCELLED) << "cancel during the pause gate aborts the run";
+
+    /* after the cancelled run: busy=false; the one-shot request stays
+     * visible (the og's isStopping answers the same for its one-shot
+     * stop event) */
+    ASSERT_EQ(cr_ui_scan_busy(u.scan, &busy), CR_UI_OK);
+    EXPECT_EQ(busy, 0u);
+    ASSERT_EQ(cr_ui_scan_stopping(u.scan, &stopping), CR_UI_OK);
+    EXPECT_EQ(stopping, 1u) << "the token is one-shot: the request persists";
+
+    /* the bad-argument contract of both query ops */
+    EXPECT_EQ(cr_ui_scan_busy(nullptr, &busy), CR_UI_ERR_BAD_PARAMETER);
+    EXPECT_EQ(cr_ui_scan_busy(u.scan, nullptr), CR_UI_ERR_BAD_PARAMETER);
+    EXPECT_EQ(cr_ui_scan_stopping(nullptr, &stopping), CR_UI_ERR_BAD_PARAMETER);
+    EXPECT_EQ(cr_ui_scan_stopping(u.scan, nullptr), CR_UI_ERR_BAD_PARAMETER);
+}
+
 TEST(CrUi, SnapshotEnumeration) {
     Ui u;
     std::string img, crsf;
