@@ -420,13 +420,6 @@ typedef struct cr_ui_scan_config {
                                     * absent the shim fills them from the
                                     * disk enumeration (Windows, CLI parity) */
     const char* volume_serial_utf8;
-    /* N-066 (appended tail, zero-init safe - hosts compiled before this
-     * field pass zeros and the axes stay absent): the og record-3
-     * identity axes; the shim fills them from the enumeration like
-     * model/serial. */
-    const char* volume_firmware_utf8;
-    const char* volume_wwn_utf8;
-    const char* volume_interface_utf8;
     const char* checkpoint_path_utf8; /* optional: stage-boundary auto-
                                        * checkpoints written to this file
                                        * (overwrite-in-place, CLI --out) */
@@ -448,7 +441,6 @@ typedef struct cr_ui_scan_config {
                                              * Warn line through the cr::log
                                              * seam at/above the threshold.
                                              * Zero-init safe (0 = off). */
-<<<<<<< Updated upstream
     const char* raw_category_name_utf8;     /* v2-era append (M-029): the
                                              * display name for the raw/carve
                                              * category root - the og's
@@ -456,7 +448,6 @@ typedef struct cr_ui_scan_config {
                                              * naming surface. NULL/"" = the
                                              * default "Other Deleted Files
                                              * (Carved)" role. */
-=======
     uint32_t pre_scan_check; /* v2-era append (M-041): 1 = run the
                               * read-only damage-audit check phase
                               * (the og's FileSystemCheck error set,
@@ -467,7 +458,12 @@ typedef struct cr_ui_scan_config {
                               * cr_ui_scan_stats' check_* fields, the
                               * FsCheck event and the session record.
                               * Zero-init safe (0 = off). */
->>>>>>> Stashed changes
+    /* N-066 (v2-era append): the record-3 identity axes - optional
+     * overrides; when absent the shim fills them from the disk
+     * enumeration like model/serial. Zero-init safe (NULL = absent). */
+    const char* volume_firmware_utf8;
+    const char* volume_wwn_utf8;
+    const char* volume_interface_utf8;
 } cr_ui_scan_config;
 
 CR_UI_API uint32_t cr_ui_scan_create(const cr_ui_scan_config* cfg, cr_ui_scan** out);
