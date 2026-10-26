@@ -509,3 +509,26 @@ against it; this is a registered deliberate difference. Sort code 7 (Type)
 mirrors the og's results-view Type column: category in the FileFilter.xml
 iconIndex order (Graphic/Document/Email/Audio/Video/Other/Archive/
 Bookmarks), then extension, then name.
+
+### Query bucket translation + the raw-category name (M-029, session 32)
+
+`cr_ui_query_apply_buckets` (added export, §9 no-bump) translates the og
+filter-bar's stable bucket IDs — the exact action-ID set the DRWUI menus
+build (CTimeFilterBtn/CSizeFilterBtn): Date 0x100/0x101/0x102/0x103 +
+0x105 Custom, Size 0x1000..0x1004 + 0x1006 Custom — into the query's
+`modified_from/to` and `size_min/max` range fields, in place. Date
+windows are day-truncated LOCAL windows derived from the host clock
+exactly like the og's cached bounds (today / yesterday / (today−7d,
+today] / (today−30d, today], COleDateTimeSpan day arithmetic); Custom is
+inclusive on local-day-truncated bounds. Size buckets use the og's exact
+byte boundaries (≤512 KiB, ≤1 MiB, ≤512 MiB, ≤1 GiB, >1 GiB); Custom is
+inclusive. The SKIPPED IDs (0x104, 0x1005) and any unknown value are
+rejected with `CR_UI_ERR_BAD_PARAMETER` — the core never invents menu
+semantics the og does not have.
+
+`cr_ui_scan_config.raw_category_name_utf8` (tail append) is the og's
+per-scan "filter_generalraw" display-name surface (corpus
+s5-oq-s4-2-raw-naming-hook.md): the raw/carve category root's role name.
+NULL/"" = the default "Other Deleted Files (Carved)". Resume recognizes
+both the default and the configured name, so a re-run never spawns a
+duplicate raw root.

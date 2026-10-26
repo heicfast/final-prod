@@ -93,7 +93,9 @@ during reconciliation.)
   gap. NVMe unaffected (`available_spare_threshold` is read, cr_nvme.cpp:30).
 - **N-064 (MINOR, NEW):** the og's Dict password dictionary (228 entries; manage-bde
   -Password consent-gated attempts) has no core counterpart — capability register, any
-  port must keep the consent gate (parameter F61).
+  port must keep the consent gate (parameter F61). **FIXED (s34 DFX34)** — see the
+  Session-34 fix leg below; consent gate preserved (F61), the og's asset not copied
+  (D-78 authored seed + format-compatible loader).
 ## Session-6 fix leg (2026-10-26 — the S-024 decoded-truth upgrade)
 
 S-024's engine re-decoded first-hand from DiskHealth_decompiled.c and the
@@ -116,6 +118,19 @@ CLI --bitlocker-dict consent flag; cr_ui_unlock_volume_with_dictionary
 ABI export; index-only logging through the N-048/N-061 seam). The S-027
 lane's Ext4Engine.Backup* reds visible on main mid-session were that
 lane's in-flight state, not health.
+M-036 (NVMe field coverage) landed FIXED (s7, above). N-064 **FIXED
+(s34 DFX34)**: the Dict password-dictionary unlock aid — pure `cr/pwddict`
+(parse in the og's exact format, byte-verified first-hand vs
+og-codebase/Dict: comma-terminated CRLF lines, unterminated final entry,
+space-bearing entries; authored 20-entry seed = REGISTERED DIVERGENCE
+D-78, the og's asset never copied, the loader is format-compatible so the
+og's own file works verbatim) + the consent-gated sequencer (dedup, caps,
+attempt-log lines carry progress+length only, never password text) + win
+`try_password_unlock` (the same unlock() plumbing as a typed password —
+no in-process crypto, F61 legitimate-unlock-only preserved: nothing in
+the scan path references it) + CLI `--bitlocker-pwddict <path|seed>`.
+9 `Pwddict.*` tests; executed fail-before RED; suite 752/752. The S-027 lane's Ext4Engine.Backup* reds visible
+on main mid-session are that lane's in-flight state, not health.
 
 ---
 
