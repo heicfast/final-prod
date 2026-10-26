@@ -15611,3 +15611,40 @@ Work Log:
 
 Stage Summary:
 - Remote green again. M-030 verification starts now (the lane's claim).
+
+---
+Task ID: DFX34-T6 (session 34, sixth landing — N-007 FIXED)
+Agent: main engineer (diff-to-fix fix session 34 — DFX34)
+Task: N-007 — ReFS page-signature discovery width (full memcmp vs the
+og's first-DWORD dispatch).
+
+Work Log:
+- Corpus re-verified FIRST-HAND before the change:
+  ReFSSearchDLL_decompiled.c :11689-11720 — param_4==1/2/3 selects
+  "SUPBMSB+ReFSFSRS"/"CHKPSUPBMSB+ReFSFSRS"/"MSB+ReFSFSRS"; the gate is
+  `*param_2 == *(int*)pcVar4` (FIRST DWORD only); full validation is the
+  ref-parser's (FUN_18000ff60). CONFIRMED-DIVERGENCE.
+- Scope finding: the ENGINE's page acceptance
+  (cr_refs_engine.cpp:152) was already first-DWORD og-exact; the gap was
+  detect_refs — the probe the lost-partition discovery consumes
+  (cr_candidates.cpp:456) — so a lost ReFS partition whose pages carry
+  late-byte corruption was missed at candidate time.
+- Fix per the finding's plan: detect_refs's page loop dispatches on the
+  first DWORD (three distinct keys "SUPB"/"CHKP"/"MSB+" — no variant
+  masking at 4 bytes); the full-width memcmp survives as the
+  `RefsInfo::signature_partial` grading flag (found + flagged, never
+  rejected); last-hit-wins msb_offset order + checkpointed mapping
+  unchanged.
+- Tests: RefsDetect.PartialSignaturePageDetectedAndFlagged ("SUPB" +
+  corrupt tail -> found, flagged) + RefsDetect.FullSignaturePageNot-
+  FlaggedPartial (the inverse boundary). Fail-before EXECUTED: fix
+  stashed -> the test unit does not compile (no signature_partial
+  member) — the capability was absent. Suite 893/893.
+- Audit trail: N-007 Resolution + FIXED/ move (I-004's ACKNOWLEDGED
+  Resolution rides along; both halves closed), RESOLVED-INDEX row,
+  matrix refs row, modules/refs.md session-34 verdict table.
+
+Stage Summary:
+- N-007 FIXED (session tally: N-065 verified-closure + N-007 fixed).
+  MINOR open: N-072 only. Next: N-072 (Btrfs cache + ZFS label retry),
+  then the MAJOR tier.
