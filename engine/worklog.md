@@ -13992,6 +13992,88 @@ Stage Summary:
   Next: OQ-FLT-2 (AdvanceFilterCondition layout — gates N-028).
 
 ---
+Task ID: DFX28-T3 (session 28, third act — pushed-red repair: committed conflict markers)
+Agent: main engineer (diff-to-fix fix session 28 — DFX28)
+Task: Repair the conflict markers a parallel lane's merge committed into
+rrecov.cpp + cr_bitlocker.h + PARITY-DELTAS.md + CAPABILITY-MATRIX.md
+(the win_syntax_check gate was RED on origin/main — executed first-hand
+at the start of N-033's work: "version control conflict marker in file"
+on both files + the missing-brace cascade).
+
+Work Log:
+- Root cause: two parallel lanes landed N-064 with DIFFERENT designs in
+  the same window (lane A: --bitlocker-pwddict <file|seed> via
+  load_pwddict_candidates + try_password_unlock; lane B: valueless
+  --bitlocker-dict via unlock_with_dictionary); a later union merge
+  committed the unresolved markers (both functions exist in the .cpp;
+  only the header decls + the CLI usage sites collided).
+- Repair (semantic union, both lanes' tested surfaces preserved):
+  cr_bitlocker.h keeps BOTH declarations with a merged consent doc
+  block; rrecov.cpp's open_volume_view carries BOTH consent surfaces
+  (pwddict_arg + dict_consent) - the locked path tries auto-unlock,
+  then the shipped dictionary (if --bitlocker-dict), then the file/seed
+  candidates (if --bitlocker-pwddict), then refuses with guidance
+  naming all three unlock paths; HEAD lane's late Unknown-status
+  pwddict block kept (its tested shape); the Unknown early-refusal
+  gate now exempts both consents.
+- PARITY-DELTAS.md: the two-side D-78/D-79 conflict union-kept with an
+  errata note (same-window duplicate registrations; cite by finding).
+  CAPABILITY-MATRIX.md: the two N-064 descriptions unioned into one
+  text naming BOTH flags (matching the code union).
+- The M-020-stale fallout repaired with it: my session's
+  Btrfs.TwoSubvolumesRootSeparately (landed 30 min prior) asserted the
+  pre-M-020 "subvol-5/hello.txt" rooting; M-020's landing (default
+  subvol renders children at the volume root) made it stale - the test
+  re-verified + updated to the M-020 semantics (default at root,
+  non-default container, leakage assertions both directions).
+- Proof: win_syntax_check RED pre-repair (executed first-hand), green
+  post-repair (all win + app files parse); full suite 827/827
+  linux-release on the repaired tree.
+
+Stage Summary:
+- Pushed-red repaired (the M-055/M-057 family discipline). The N-033
+  CLI landing follows on the clean base.
+
+---
+Task ID: DFX28-T4 (session 28, third fix — N-033)
+Agent: main engineer (diff-to-fix fix session 28 — DFX28)
+Task: N-033's remaining scope: the CLI listing sub-item + the per-scan
+registry-refresh divergence (the ABI half landed session 6).
+
+Work Log:
+- Corpus re-verified: the EUGetAnalyserList/Map/Multimap exports
+  (RAWSearchDLL :72170-72208) + the FAT engine's clone sequence
+  (:13872-13977 LoadLibrary/GetProcAddress + tree-copy; per-scan
+  re-fetch :29290-29361) re-read first-hand; the deep-dive's host-
+  enumeration role confirmed. CLI absence re-verified on the current
+  tree (grep rrecov.cpp: 0 hits).
+- CLI landed: `rrecov list-carve-formats` subcommand (the grammar's
+  subcommand shape, not the fix plan's option form - the finding's
+  impact section asks for the list surface) - one row per format over
+  BOTH layers (layer tag, ext, min/max, base confidence, grammar magic
+  hex); FB-K01 exit discipline (empty registry / failed row = exit 1);
+  usage text updated.
+- D-80 registered (per-scan refresh divergence: the og's cross-DLL
+  clone is multi-DLL machinery; the core reads its compile-time
+  immutable registry directly - same content by construction); ABI-
+  CONTRACT 7a gains the CLI projection note + the D-80 pointer.
+- Gate extension: win_syntax_check now parses app files that include
+  cr/cr_ui.h via -D__declspec(x)= (ELF g++ rejects __declspec; the
+  gate checks structure, MSVC CI exercises the real macro) - the
+  fail-before executed (parse errors -> neutralization -> green).
+- Tests: the ABI half's CarveFormatRegistryEnumeration covers every
+  print-safety invariant the CLI loop consumes (re-cited); the parse
+  gate covers the new command's structure; Windows CI smoke runs the
+  runtime surface.
+- Suite 827/827 linux-release. Audit trail: Resolution + FIXED/ move,
+  RESOLVED-INDEX row, matrix abi row -> MATCH, SUMMARY delta + counts,
+  D-80, ABI-CONTRACT 7a.
+
+Stage Summary:
+- N-033 FIXED (session tally: 3 — N-075, N-019, N-033 — + the pushed-red
+  repair). MINOR 5 open (N-007, N-059, N-065, N-066, N-072). Next:
+  N-066 (session identity card).
+
 Task ID: DFX30-T8 (OQ-FLT-2 pushed forward with new evidence)
 Agent: main engineer (diff-to-fix fix session 30 — DFX30)
 Task: OQ-FLT-2 — the AdvanceFilterCondition 0x48-byte layout.
@@ -14190,7 +14272,6 @@ Stage Summary:
   rear queue (N-072/N-033/N-019/N-050 — contested by DFX28's lane;
   first-landing-wins per finding, pull before each).
 
-=======
 
 ---
 Task ID: DFX30-T3 (session 30, third push — the N-071 convergence repair +
@@ -14236,7 +14317,6 @@ Stage Summary:
   ledger has duplicate numbers from the window (D-75 x2, D-78 x2, D-79
   x3) - a deterministic renumbering pass is queued.
 
-=======
 
 ---
 Task ID: DFX30-T4b (session 30 — the ledger repair landed; survey)
@@ -14256,7 +14336,6 @@ Stage Summary:
   pushes (N-064 convergence support, marker cleanup, Btrfs union red,
   delta ledger). Next: survey the remaining open set and continue.
 
-=======
 
 ---
 Task ID: DFX25-T4b (session 25 — OQ-S6-1 resolution)
@@ -14323,3 +14402,62 @@ Stage Summary:
 - OQ-S5-1 RESOLVED (dead-shipped / MATCH-by-omission). Session tally: 28
   resolutions. Remaining tracked-open: OQ-RS, OQ-S20-1, OQ-S4-3,
   OQ-T6-T7, OQ-Z-E-FLT residues (DFX30's active lane).
+Task ID: DFX30-T12 (OQ-S6-1 resolved + closed)
+Agent: main engineer (diff-to-fix fix session 30 — DFX30)
+Task: OQ-S6-1 — PartitionRecoveryD generator-set semantics + the
+lostpart.dat/partinfo.dat formats.
+
+Work Log:
+- Family census (factory registrations FUN_18000d3b0): FOUR generator
+  sets — Reg(1), Fast(2), Fast1M(3), Complete(4); all CSettingsStore
+  subclasses; Fast pair parameterized (+0x38/+0x40); Complete/Reg
+  identical vtables (RTTI-walked, 5 slots, dtor-only difference).
+- The location generators: CLocationGenAbnormal,
+  CLocationGenDependOnGeomotry, CLocationGenFromReg. FromReg's reader
+  (FUN_18000f5b0) decoded first-hand: MountedDevices-style REG_BINARY
+  "Data" values, '#' markers at +0xC4/+0xE6, 32-byte field at +0xC6,
+  %I64X hex parse, sector-alignment check -> {offset, sector_count}
+  probe seed. RegSearch = registry-seeded targeted pass (hypothesis (a)
+  CONFIRMED).
+- The .dat formats: partinfo.dat = 24-byte "Part"-magic records (the
+  remembered live table; memcmp'd at run start for layout-change
+  detection — the M-042 REC_DISK_LAYOUT semantics); lostpart.dat =
+  1096-byte "Part"-magic records (remembered lost candidates; the
+  get-first API at FUN_180020120). Module-dir paths via FUN_180025dc0.
+- Q3 superseded (the x2 doubling = the four-set family artifact); Q4:
+  registry-seeded recall is a subset of the exhaustive sweep — core
+  recall parity holds; the fast path is a latency optimization
+  (deliberate-difference note for mom-capabilities.md, no finding).
+- Audit trail: resolution recorded in the file; closed to FIXED/.
+
+Stage Summary:
+- OQ-S6-1 RESOLVED + closed. Session tally: 12 items (S-034 + D-09 +
+  10 OQ dispositions). Remaining on this lane: OQ-S5-1 (CheckVersion
+  consumer).
+
+---
+Task ID: DFX30-T12b (OQ-S6-1 — convergent landing CORRECTED)
+Agent: main engineer (diff-to-fix fix session 30 — DFX30)
+
+Work Log:
+- Push met DFX25's convergent OQ-S6-1 resolution. Their .dat decode is
+  richer than mine (delete-on-first-use lifecycle, dedup keys
+  {+0x28,+0x30,+8}, GetModuleFileNameW module-dir) and is ADOPTED.
+- Their point 1 ("behaviorally identical; the name does not refer to the
+  Windows registry") is REFUTED by the mode-dispatch layer they did not
+  reach: FUN_180022430 (:20851-20895) dispatches on the search-mode field
+  (the factory-id space) — mode 1 (RegSearch) attaches CLocationGenFromReg
+  (FUN_1800214c0) + the .dat context load; mode 4 (CompleteSearch)
+  attaches FUN_180021d70 + a 0x4000 parameter. CLocationGenFromReg's
+  loader FUN_18000f5b0 = RegOpenKeyA + RegQueryValueExA("Data") with the
+  MountedDevices '#'@+0xC4/+0xE6 / 32B-field@+0xC6 / %I64X decode —
+  hypothesis (a) CONFIRMED (registry-seeded probing).
+- Correction recorded as the CORRECTION ADDENDUM in the file (their
+  content preserved verbatim; the union stands); Q4's no-unique-recall
+  conclusion SURVIVES the correction (registry positions subset of the
+  exhaustive sweep). File closed to FIXED/.
+- Their residual (which UI surface requests mode 1 vs 4) stands.
+
+Stage Summary:
+- OQ-S6-1 closed with a two-lane union + one corrected conclusion.
+  Remaining on this lane: OQ-S5-1 (CheckVersion consumer).
