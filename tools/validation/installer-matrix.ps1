@@ -206,7 +206,11 @@ Add-Row -Phase 'install' -Result 'ok' -Facts @{
     installMode   = $installed.swKey.InstallMode
     files         = @($installed.inventory).Count
     driverService = "$($installed.driverService)"
-    testDlls      = @($installed.testDllsShipped).Count
+    # Truthful count: the collection is .Name (null on a clean kit — the
+    # null IS the dirt signal for the guard below); @($null).Count would
+    # report 1 for a PERFECTLY CLEAN kit (run 15's facts row said 1 while
+    # the guard correctly passed). Null-safe count here.
+    testDlls      = if ($null -ne $installed.testDllsShipped) { @($installed.testDllsShipped).Count } else { 0 }
 }
 
 if (-not ($installed.appExePresent -and $installed.crUiPresent)) {
