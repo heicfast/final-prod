@@ -279,7 +279,17 @@ class TestConnector implements RecoveryConnector {
 
   readonly scan = {
     startScan: (params: ScanParams): Promise<{ scanId: string }> => {
-      if (params.targetId !== DEVICE.id && params.targetId !== VOLUME_C.id) {
+      // The virtual Home quick-targets resolve to the system volume in the
+      // real bridge (with an implicit pathScope). The double mirrors the
+      // SUCCESS (it must succeed exactly where production succeeds); the
+      // fixed fixture tree stands in for the resolved results. Everything
+      // else still fails with device-gone, exactly like production.
+      const resolvesToVolumeC =
+        params.targetId === DEVICE.id ||
+        params.targetId === VOLUME_C.id ||
+        params.targetId === 'vol-recycle-bin' ||
+        params.targetId === 'vol-desktop';
+      if (!resolvesToVolumeC) {
         return Promise.reject(
           connError('device-gone', `target ${params.targetId} is not present`),
         );
