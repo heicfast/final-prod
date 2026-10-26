@@ -558,3 +558,26 @@ stride, after the built-in layers (built-in-wins). The tag space for
 user-sign records is 0xFFFE0000 (distinct from raw-sign 0xFFFF0000+fmt).
 Re-registration replaces — the og's config-reload posture (EUUserData is
 re-read per scan, never session state).
+
+### 7e. The transport-open diagnostic (M-030, ABI-since 2.2)
+
+`cr_ui_last_transport_error()` reports WHY the last `cr_ui_open_disk`
+ended on the transport it did. The og's ABI surface reports the
+driver-vs-direct decision's failure reason; the pre-fix core silently
+fell back RDA -> direct and overwrote the RDA leg's error code, so a
+degraded-but-working transport was indistinguishable from a healthy
+one. The advisory is process-global, advisory-only (never gates an
+open's own return code), never cleared by reads:
+
+- `0` — the last open succeeded on its first-choice leg (or no open was
+  attempted; the unsupported-platform stub records the clean state).
+- `CR_UI_ERR_*` — the surviving leg's error: when the RDA leg fails and
+  the direct fallback succeeds, the advisory carries the RDA error (the
+  degraded transport is diagnosable); when both legs fail, the open's
+  return code and the advisory agree.
+
+The WinPE environment gate (M-030's other half of the open path) rides
+the same surface implicitly: in a PE environment the RDA leg is skipped
+entirely (the og's callers go `\\.\PhysicalDrive%d` direct -
+Device_decompiled.c :50653-50663), so the advisory never reports a
+driver-leg error that was never attempted.

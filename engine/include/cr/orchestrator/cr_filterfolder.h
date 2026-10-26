@@ -49,6 +49,13 @@ namespace data {
 extern const u8 kFolderPool[];
 extern const u8 kFilePool[];
 extern const u8 kFatNamePool[];
+/* N-081: the pools are semicolon-delimited with a TRAILING delimiter and
+ * NO NUL terminator - reading them as C strings overruns the arrays
+ * (global-buffer-overflow under ASan, first caught on the linux-gcc
+ * lane). The byte lengths pin the parse to the array bounds. */
+extern const u32 kFolderPoolLen;
+extern const u32 kFilePoolLen;
+extern const u32 kFatNamePoolLen;
 extern const u32 kFolderCount;
 extern const u32 kFileCount;
 extern const u32 kFatNameCount;

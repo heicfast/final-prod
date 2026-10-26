@@ -39,6 +39,7 @@ add_executable(cr_tests
     unit/test_carve.cpp
     unit/test_session.cpp
     unit/test_orchestrator.cpp
+    unit/test_transport_logic.cpp
     unit/test_pause_resume.cpp
     unit/test_telemetry.cpp
     unit/test_writer_dirs.cpp
