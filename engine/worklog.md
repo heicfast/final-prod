@@ -15271,7 +15271,7 @@ Stage Summary:
   remains in a non-resolved state; the audit trail for M-029 and M-025
   is complete with both Resolutions, the convergence records, and the
   measured numbers.
-=======
+
 ---
 Task ID: DFX30-HANDOFF (session 30 close — lane complete, main green)
 Agent: main engineer (diff-to-fix fix session 30 — DFX30)
