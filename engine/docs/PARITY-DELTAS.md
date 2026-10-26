@@ -2426,3 +2426,29 @@ final fallback the finding mandates). Real-hardware validation on an
 Intel RST host is pending for both implementations' claims (the finding
 records this as inherent: UNVERIFIED-BY-EXECUTION on this hardware).
 Recovery correctness is unaffected (health is advisory).
+
+
+### D-79 — Btrfs RAID0/RAID10 chunk reads: kernel stripe math vs the og's read failure (M-020, REGISTERED SUPERSET)
+
+The og's logical→physical node reader (BtrfsSearchDLL FUN_1800042a0,
+:2498-2583, verified first-hand session 33) serves ONLY the 2-copy class
+(SINGLE/DUP/RAID1 → the rotating mirror). RAID0 (class 8) and RAID10
+(class 0x40) fall through to LAB_1800043fe — the read FAILS; the og
+recovers nothing from striped chunks. The pre-fix core instead read
+stripe 0 of every chunk unconditionally — on striped chunks that yields
+WRONG BYTES (crossed data), which is worse than nothing for content
+correctness.
+
+The core now implements the kernel stripe math for both profiles
+(RAID0: `idx = stripe_nr % n`, physical = stripes[idx].offset +
+(stripe_nr/n)·stripe_len + in-stripe; RAID10: mirror-set selection with
+og-style member rotation), splits raw extents at stripe boundaries so
+spanning files map per-stripe, and refuses+counts what cannot be mapped
+correctly (compressed extents spanning stripes, classes &0x80/&0x100,
+zero stripe_len on striped chunks — the og refuses the latter classes
+too). This is a deliberate recovery-positive superset: content the og
+cannot read is recovered with correct bytes, and nothing is ever emitted
+with wrong bytes. Fixtures: `Btrfs.Raid0StripeMathSplitsAtStripeBoundaries`
+(the spanning split + the in-stripe offset), `Btrfs.Raid10GeometryGate`
+(the og's parse-time gate stays og-exact — the superset is read-side
+only).

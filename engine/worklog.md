@@ -12924,6 +12924,44 @@ Stage Summary:
   decompile walk, then OQ-RS, then OQ-S20-1 (the big BitLocker leg).
 
 ---
+Task ID: DFX27-M058 (session 27, MAJOR lane — NEW-FINDING)
+Agent: main engineer (diff-to-fix fix session 27 — DFX27)
+Task: M-058 — run()'s cache-failure fallback UAF (found during M-049 verification)
+
+Work Log:
+- Discovered while reasoning about retry_raw's lifetime for the M-049
+  error-context stamps: CachedReader::create takes inner BY VALUE and destroys
+  it on every failure return, so the old fallback
+  `pipe = cached ? cached.get() : retry_raw` handed engine reads to freed
+  memory whenever cache creation failed (latent: run()'s constants cannot
+  fail; the `: slice` sub-branch was dead). The adjacent comment documented
+  the OPPOSITE (bare-slice) fallback.
+- Fail-before EXECUTED: scripts/m058_uaf_repro.cpp (the original inline shape,
+  failing geometry) under ASan -> heap-use-after-free, freed by
+  RetryingDevice::~RetryingDevice inside create's failure return (evidence:
+  diff-to-fix/evidence/executions/s27-m058-readpipe-uaf-asan.md).
+- Fix: build_read_pipe(slice, cache_bytes, block_bytes) extracted (cr_scan.h
+  ReadPipe + the function); the degraded path is a pinned contract - bare
+  slice, no retry isolation, surfaced in the contract comment. run() consumes
+  ReadPipe rp; tel_retry_ published only when the chain owns the retry device.
+- Tests: ReadPipeBuildsCacheOverRetryForValidGeometry +
+  ReadPipeDegradesToBareSliceWhenCacheCreationFails +
+  ReadPipeZeroCapacityDegradesToBareSlice (all green). The N-045/D-72 budget
+  pin (Cached.ScanCacheBudgetIsTheRegisteredDivergence) re-anchored to the
+  call-site expression `build_read_pipe(slice, 8ull << 20, 256 * 1024)` -
+  same lockstep contract, truth moved with the construction.
+- Suite: linux-release **746/746**.
+- Audit trail: finding filed in MAJOR/ then moved to FIXED/ with Resolution;
+  RESOLVED-INDEX row; modules/orchestration.md session-27 row; SUMMARY
+  session-27 delta.
+
+Stage Summary:
+- M-058 FIXED (NEW-FINDING, filed + fixed same session). M-049's
+  implementation continues on top (the error-context carrier is half-landed
+  in the working tree).
+
+
+---
 Task ID: DFX33-T0 (session 33 bootstrap — final re-stamp; the DFX32 stamp
 was taken by the mid-MAJOR-cluster lane 372bcf1 while this lane's union
 push was in flight — no more lane-meta after this, fixing starts NOW)
@@ -13245,6 +13283,17 @@ Work Log:
 Stage Summary:
 - M-049 FIXED (tally: 1). MAJOR 13 remain. Next: M-035 (engine-side
   FileFilter validation).
+
+
+[DFX27 convergence note: M-049 landed first from the DFX24 lane
+(8ba2316) while this lane's own duplicate implementation was mid-flight —
+first-landing-wins honored, the duplicate dropped, the landing verified
+sound in review (per-thread RAII stamps + owner fallback + the event/ABI
+triple; 8 tests). This lane's M-058 (the retry_raw UAF their landing left
+untouched) stays landed. DFX27 proceeds per the open-inventory pull check
+(M-035 unless a parallel lane lands it first).]
+
+---
 Task ID: DFX35-1 (session 35, first fix — M-014)
 Agent: main engineer (diff-to-fix fix session 35 — DFX35, MAJOR-first)
 Task: M-014 — exFAT structural entry gates (secondary count, timestamps,
@@ -13297,7 +13346,6 @@ Work Log:
 Stage Summary:
 - M-014 FIXED (session tally: 1). MAJOR 13 remain. Next: M-052 (the
   FAT/exFAT recycle-bin pairing — NTFS implementation generalizes).
-=======
 
 ---
 ---
@@ -13349,7 +13397,6 @@ Stage Summary:
   (Dict password aid), N-071 (enumerate breadth delta). Then N-072/
   N-033/N-019/N-050 with pull-before-each. MINOR tier now 16 open.
 
-=======
 
 ---
 Task ID: DFX35-T2 (session 35 — MAJOR lane claim, posted before finding work)
@@ -13369,6 +13416,7 @@ Work Log:
 
 Stage Summary:
 - Claim posted; starting M-052 (FAT/exFAT recycle-bin pairing).
+
 
 
 ---
@@ -13425,6 +13473,54 @@ Stage Summary:
   offsets — the MOS-walk documentation question).
 
 ---
+Task ID: DFX33-T1 (session 33, first fix)
+Agent: main engineer (diff-to-fix fix session 33 — DFX33)
+Task: M-020 — Btrfs chunk-profile machinery (RAID10 gates, 2-copy rotating
+mirror reads) + default-subvolume pick.
+
+Work Log:
+- Corpus re-verified LINE BY LINE first-hand: chunk parse + RAID10 gate
+  (:2145-2169), profile classes + rotating mirror (:2498-2543, the read
+  path), default-subvolume DIR_ITEM pick (FUN_1800061f0 :3975-4060).
+  DECODE ERROR IN THE AUDIT'S SUMMARY corrected in the record: the og's
+  read path serves ONLY class 0x20 (SINGLE/DUP/RAID1, rotating mirror);
+  RAID0 (class 8) and RAID10 (class 0x40) fall to LAB_1800043fe = read
+  FAILURE — the og recovers nothing from striped chunks. The audit's
+  "2-copy (DUP/RAID1/RAID10)" prose was wrong; its quote block was right.
+- Implemented: full stripe-array decode + geometry in parse_chunk (RAID10
+  gate og-exact); profile-aware logical_to_physical (2-copy rotation
+  og-exact, RAID0/RAID10 kernel stripe math as the REGISTERED SUPERSET
+  D-79 — the pre-fix stripe-0 read emitted WRONG BYTES on striped chunks;
+  classes &0x80/&0x100 refused like the og); map_extent_pieces splits raw
+  extents at stripe boundaries; compressed extents atomic (refused +
+  counted, unmappable_extents); default-subvolume DIR_ITEM pick with both
+  og gates + root-5 fallback, default renders at the volume root (ReFS
+  convention), non-default subvols keep N-047 containers;
+  mirror_rotations stat. Fix-plan item 3 verified already-by-construction
+  (Skip-mode RetryingDevice records sector-granular failures below the
+  engine — no duplicate recording).
+- Tests: 4 new fail-before EXECUTED (4/4 RED on the pre-fix-behavior
+  tree: rotation/gate/default-rendering disabled in place) —
+  Raid1RotatingMirrorReads, Raid10GeometryGate,
+  Raid0StripeMathSplitsAtStripeBoundaries,
+  DefaultDirItemNonSubvolumeLocationFallsBack; EndToEndWalk +
+  SubvolumeNamedFromRootRef updated to the default-at-root expectations
+  (RED on the same tree). First build caught my own fixture error (the
+  2-copy formula maps copy i to stripes[i].offset + rel — the leaf copy
+  belongs at P_COPY1 + 0x1000, not the stripe base; debug-printed, fixed,
+  debug prints removed before commit). Suite 747/747 linux-release.
+- Audit trail: Resolution + FIXED/ move; matrix btrfs row MATCH;
+  modules/btrfs.md session-33 verdicts; SUMMARY session-33 delta;
+  PARITY-DELTAS D-79 (renumbered from a D-78 collision with the parallel
+  N-032 landing, per the errata convention).
+- Union with the parallel wave (11fff2a: M-014, M-049, M-058, N-032,
+  N-064, OQ evidence) resolved both-sides-kept; suite green on the union.
+
+Stage Summary:
+- M-020 FIXED (tally: 1). MAJOR 13 open at this landing (parallel lanes
+  landed M-014/M-049 in the same window). Next: pull, then M-025 (carve
+  read model) or whatever remains open.
+
 Task ID: DFX30-T4 (OQ-Z1 resolved — no divergence)
 Agent: main engineer (diff-to-fix fix session 30 — DFX30)
 Task: OQ-Z1 — og dsl_dir/dsl_dataset offset constants (documentation

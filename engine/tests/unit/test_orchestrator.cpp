@@ -1447,3 +1447,47 @@ TEST(SafeWriter, InvalidUtf8NameRestoredFromRaw) {
         << "restore filename must substitute per the og's conversion, not "
            "carry private-use units";
 }
+
+/* ---- M-058: the read-pipe construction is a pinned contract -------------- */
+
+TEST(Orchestrator, ReadPipeBuildsCacheOverRetryForValidGeometry) {
+    MemDevice dev(build_fat16());
+    ReadPipe rp = build_read_pipe(&dev, 8ull << 20, 256 * 1024);
+    /* the healthy path: engines read through the cache, the live error-map
+     * source is the cache's inner retry device, the chain owns it all */
+    ASSERT_NE(nullptr, rp.pipe);
+    ASSERT_NE(nullptr, rp.chain);
+    ASSERT_NE(nullptr, rp.retry);
+    EXPECT_NE(rp.pipe, &dev);
+    u8 boot[512] = {};
+    ASSERT_EQ(rp.pipe->read_at(0, boot, sizeof(boot)), OK);
+    EXPECT_EQ(0x55u, boot[510]);
+    EXPECT_EQ(0xAAu, boot[511]);
+}
+
+TEST(Orchestrator, ReadPipeDegradesToBareSliceWhenCacheCreationFails) {
+    MemDevice dev(build_fat16());
+    /* cache_bytes < block_bytes -> CachedReader::create refuses AND destroys
+     * the retry device it took by value. The pre-M-058 inline construction
+     * fell back to the destroyed retry pointer here (use-after-free); the
+     * pinned contract is the BARE SLICE. */
+    ReadPipe rp = build_read_pipe(&dev, 4096, 8192);
+    ASSERT_EQ(rp.pipe, &dev) << "degraded pipe must be the caller's slice";
+    EXPECT_EQ(nullptr, rp.chain) << "no cache exists on this path";
+    EXPECT_EQ(nullptr, rp.retry) << "no live error-map source on this path";
+    /* the degraded pipe must be READABLE (it is the slice itself) */
+    u8 boot[512] = {};
+    ASSERT_EQ(rp.pipe->read_at(0, boot, sizeof(boot)), OK);
+    EXPECT_EQ(0x55u, boot[510]);
+    EXPECT_EQ(0xAAu, boot[511]);
+}
+
+TEST(Orchestrator, ReadPipeZeroCapacityDegradesToBareSlice) {
+    MemDevice dev(build_fat16());
+    /* capacity == 0 (cache_bytes == block_bytes is fine, but a zero cache
+     * budget must round to zero blocks) - same pinned degradation */
+    ReadPipe rp = build_read_pipe(&dev, 0, 256 * 1024);
+    ASSERT_EQ(rp.pipe, &dev);
+    EXPECT_EQ(nullptr, rp.chain);
+    EXPECT_EQ(nullptr, rp.retry);
+}

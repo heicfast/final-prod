@@ -1,4 +1,76 @@
-# SUMMARY.md — executive summary (sessions 30+23+25+28 on top; earlier sessions below)
+# SUMMARY.md — executive summary (diff-fix session 33 on top; earlier sessions below)
+
+## Session-33 delta (2026-10-26 — DFX33: M-020 FIXED — the Btrfs profile machinery + default subvolume)
+
+Baseline 737/737 linux-release verified first-hand at the session's union
+tree (02b950f + the parallel claim landings); corpus `03ad46c` unmoved.
+Lane: first-landing-wins on the MAJOR tier (M-020 first).
+
+**M-020 FIXED (MAJOR — Btrfs chunk profiles + default subvolume):** the
+corpus was re-verified line-by-line BEFORE the fix and the audit's Summary
+carried a decode error, corrected in the record: the og's read path
+(:2498-2583) serves ONLY the 2-copy class (SINGLE/DUP/RAID1 → rotating
+mirror, :2534-2540); RAID0/RAID10 classes FALL TO THE FAILURE RETURN —
+the og reads NOTHING from striped chunks (the audit's "2-copy profiles
+(DUP/RAID1/RAID10) through a rotating mirror" was wrong; its own quote
+block was right). Implemented og-exact: the RAID10 parse-time geometry
+gate (:2162-2168), the per-chunk rotating mirror index for the 2-copy
+class, the default-subvolume DIR_ITEM pick ((6, 0x54, 0x8dbfc2d2)
+"default" with a ROOT_ITEM located key; root-5 fallback; :3975-4060) with
+the default's children rendering at the volume root (ReFS convention) and
+non-default subvols keeping their N-047 containers. Registered superset
+D-79: RAID0/RAID10 kernel stripe math (the pre-fix stripe-0 read emitted
+wrong bytes on striped chunks; now mapped correctly or refused+counted —
+`unmappable_extents`), raw extents split at stripe boundaries,
+compressed extents stay atomic. Fix-plan item 3 (error-map) verified
+already-by-construction (the Skip-mode RetryingDevice pipe records
+sector-granular failures below the engine; no duplicate recording).
+Proof: 4 new fail-before tests (Raid1RotatingMirrorReads,
+Raid10GeometryGate, Raid0StripeMathSplitsAtStripeBoundaries,
+DefaultDirItemNonSubvolumeLocationFallsBack — all RED on the
+pre-fix-behavior tree, 4/4) + the updated EndToEndWalk /
+SubvolumeNamedFromRootRef (default-at-root expectations, RED on the same
+tree); suite **747/747** linux-release at the fix commit (parallel-lane
+test landings included in the count; incl. win_syntax_check).
+
+**Post-fix counts (this landing):** SEVERE **0** · MAJOR **13** open ·
+MINOR 18 (per the union; parallel lanes may land more in-flight) · INFO
+**0 open** · FIXED **174** files · tracked-open 11. Next on this lane:
+M-025 (carve 8 MiB pingpong → streaming) or whatever remains open at the
+next pull.
+
+
+---
+
+# SUMMARY.md — executive summary (sessions 27+30+31+35 on top; earlier sessions below)
+
+## Session-27 delta (2026-10-26 — DFX27: the MAJOR-head lane; M-058 NEW-FINDING filed + fixed; M-049 convergence)
+
+Baseline: linux-release **743/743** at `db3de2c` (post-merge with the window's
+parallel claims; suite re-verified after every pull). Corpus `03ad46c` unmoved.
+Lane: the MAJOR tier head (M-049 → M-035 → M-052 → M-014 → …), disjoint from
+the parallel lanes' tail/mid claims.
+
+**M-058 NEW-FINDING (MAJOR) filed + FIXED (found during M-049 verification):**
+reasoning about `retry_raw`'s lifetime on every path (the M-049 error-context
+stamping) exposed that run()'s cache-failure fallback dereferenced the retry
+device `CachedReader::create` destroys on its failure returns — a latent
+use-after-free on the defensive path (unreachable at run()'s constant geometry,
+**executed under ASan** in the standalone repro — evidence/executions/
+s27-m058-readpipe-uaf-asan.md) and the direct contradiction of the adjacent
+comment (which documented the bare-slice fallback). Fixed by extracting
+`build_read_pipe()` with the degraded path as a pinned contract; 3 ReadPipe pin
+tests; the N-045/D-72 budget pin re-anchored to the call site (lockstep
+preserved). Suite **746/746**.
+
+**M-049 convergence (first-landing-wins):** the parallel DFX24 lane landed
+the error-context carrier (`8ba2316` — per-thread RAII stamps + the retry
+device's owner fallback + the err_module/err_operation/err_attempts event/ABI
+triple; 8 tests, suite 745/745 at its tree) while this lane's duplicate
+implementation was mid-flight. The duplicate was dropped; the landing was
+reviewed sound on the merged tree (suite green below). This lane proceeds to
+M-035 — also named as DFX24's next target; first-landing-wins on the pull.
+
 
 ## Session-30 delta (2026-10-26 — DFX30: the tracked-open tail lane — OQ resolutions + NEW-FINDING S-034)
 
@@ -199,7 +271,6 @@ returns ERR_HEALTH_UNAVAILABLE on the RST-shaped mock. Registered
 remainders D-78 (RAID-census routing, LSILOGIC sibling, SMART
 auto-enable write — report-only module). Suite **752/752** at the fix
 commit (754/754 on the post-union tree with the parallel N-064 tests).
-
 ## Session-23 delta (2026-10-26 — DFX23: the MINOR-first closing wave, batch 1 — N-009 group closed + M-057)
 
 Baseline `716d121` verified green FIRST-HAND (linux-release **737/737**,

@@ -11,7 +11,9 @@
 #include <gtest/gtest.h>
 #include <zlib.h>
 #include "cr/compress/cr_decomp.h"
+#include <algorithm>
 #include <cstring>
+#include <functional>
 #include <map>
 #include <set>
 
@@ -407,43 +409,44 @@ TEST(Btrfs, EndToEndWalk) {
     };
     walk(ra, "");
 
-    EXPECT_TRUE(paths.count("subvol-5"));
-    EXPECT_TRUE(paths.count("subvol-5/hello.txt"));
-    EXPECT_TRUE(paths.count("subvol-5/sub"));
-    EXPECT_TRUE(paths.count("subvol-5/sub/nested.bin"));
+    /* M-020: no "default" DIR_ITEM in the fixture -> the og's fallback
+     * makes root 5 the default -> its children render at the volume
+     * root directly (no subvol-5 container). */
+    EXPECT_TRUE(paths.count("hello.txt"));
+    EXPECT_TRUE(paths.count("sub"));
+    EXPECT_TRUE(paths.count("sub/nested.bin"));
+    EXPECT_FALSE(paths.count("subvol-5")) << "the default subvol renders at the root, no container";
 
-    /* verify extents + sizes */
+    /* verify extents + sizes (hello.txt is a direct child of the root) */
     int checked = 0;
-    for (tree::FileNode* sv = ra->first_child(); sv; sv = sv->next_sibling())
-        for (tree::FileNode* c = sv->first_child(); c; c = c->next_sibling()) {
-            if (!c->props())
-                continue;
-            if (c->name_utf8() == "hello.txt") {
-                EXPECT_EQ(u64(14), c->props()->logical_size);
-                ASSERT_EQ(1u, c->props()->extents.size());
-                EXPECT_EQ(L_DATA, c->props()->extents[0].offset);
-                EXPECT_EQ(4096u, c->props()->extents[0].length);
-                ++checked;
-            }
-            if (c->name_utf8() == "sub")
-                for (tree::FileNode* n2 = c->first_child(); n2; n2 = n2->next_sibling())
-                    if (n2->props() && n2->name_utf8() == "nested.bin") {
-                        EXPECT_EQ(u64(22), n2->props()->logical_size);
-                        EXPECT_EQ(L_DATA + 4096, n2->props()->extents[0].offset);
-                        ++checked;
-                    }
+    for (tree::FileNode* c = ra->first_child(); c; c = c->next_sibling()) {
+        if (!c->props())
+            continue;
+        if (c->name_utf8() == "hello.txt") {
+            EXPECT_EQ(u64(14), c->props()->logical_size);
+            ASSERT_EQ(1u, c->props()->extents.size());
+            EXPECT_EQ(L_DATA, c->props()->extents[0].offset);
+            EXPECT_EQ(4096u, c->props()->extents[0].length);
+            ++checked;
         }
+        if (c->name_utf8() == "sub")
+            for (tree::FileNode* n2 = c->first_child(); n2; n2 = n2->next_sibling())
+                if (n2->props() && n2->name_utf8() == "nested.bin") {
+                    EXPECT_EQ(u64(22), n2->props()->logical_size);
+                    EXPECT_EQ(L_DATA + 4096, n2->props()->extents[0].offset);
+                    ++checked;
+                }
+    }
     EXPECT_EQ(2, checked);
 }
 
 
 TEST(Btrfs, SubvolumeNamedFromRootRef) {
-    /* N-047: the og surfaces each subvolume with its ROOT_REF-derived
+    /* N-047 + M-020: a NON-default subvolume takes its ROOT_REF-derived
      * display name (kernel btrfs_root_ref: dirid@0, sequence@8,
-     * name_len@16, name@18; key.objectid = the child subvol id). The
-     * root tree here carries a ROOT_REF naming subvol 5 "golden" - the
-     * node must take that name; subvol-<id> remains only the fallback
-     * for unnamed subvolumes. */
+     * name_len@16, name@18; key.objectid = the child subvol id); the
+     * default subvolume (here selected by the "default" DIR_ITEM -> 5)
+     * renders at the volume root with no container of its own. */
     auto img = build_volume();
     {
         NodeBuilder nb;
@@ -457,16 +460,39 @@ TEST(Btrfs, SubvolumeNamedFromRootRef) {
         k3.type = 132;
         k3.offset = 0;
         nb.add(k3, make_root_item(L_CHUNK_TREE, 0));
+        /* second subvolume 256 ("golden" via ROOT_REF), tree reusing the
+         * FS-tree leaf shape: the naming is what is under test. */
+        Key k256;
+        k256.objectid = 256;
+        k256.type = 132;
+        k256.offset = 0;
+        nb.add(k256, make_root_item(L_FS_TREE, 256));
         Key kr;
-        kr.objectid = 5; /* the child this ROOT_REF names */
-        kr.type = 156;  /* ROOT_REF */
-        kr.offset = 0;  /* parent tree id (not consumed for naming) */
+        kr.objectid = 256; /* the child this ROOT_REF names */
+        kr.type = 156;   /* ROOT_REF */
+        kr.offset = 0;   /* parent tree id (not consumed for naming) */
         std::vector<u8> ref(18 + 6, 0);
-        put64(ref.data() + 0, 256);  /* dirid */
-        put64(ref.data() + 8, 1);    /* sequence */
-        put16(ref.data() + 16, 6);   /* name_len */
+        put64(ref.data() + 0, 256); /* dirid */
+        put64(ref.data() + 8, 1);   /* sequence */
+        put16(ref.data() + 16, 6);  /* name_len */
         memcpy(ref.data() + 18, "golden", 6);
         nb.add(kr, ref);
+        /* M-020: the "default" DIR_ITEM (ROOT_TREE_DIR 6, DIR_ITEM 0x54,
+         * crc32c("default") = 0x8dbfc2d2) pointing at root 5 - the
+         * record spells "default" (len 7) and its located key is a
+         * ROOT_ITEM (0x84), the og's two gates */
+        Key kd;
+        kd.objectid = 6;
+        kd.type = 84; /* DIR_ITEM */
+        kd.offset = 0x8dbfc2d2ULL;
+        std::vector<u8> rec(30 + 7, 0);
+        put64(rec.data() + 0, 5); /* located objectid: root 5 */
+        rec[8] = 132;            /* located type: ROOT_ITEM (og gate) */
+        put64(rec.data() + 17, 1);
+        put16(rec.data() + 25, 0); /* data_len */
+        put16(rec.data() + 27, 7); /* name_len */
+        memcpy(rec.data() + 30, "default", 7);
+        nb.add(kd, rec);
         auto nd = nb.finish(L_ROOT_TREE, 0);
         memcpy(img.data() + L_ROOT_TREE, nd.data(), NODESIZE);
     }
@@ -475,6 +501,7 @@ TEST(Btrfs, SubvolumeNamedFromRootRef) {
     auto* ra = tree.add_root(u"Found");
     BtrfsScanStats st;
     ASSERT_EQ(OK, scan_btrfs(&dev, nullptr, nullptr, nullptr, tree, ra, nullptr, nullptr, st));
+    EXPECT_EQ(2u, st.subvolumes);
     std::set<std::string> paths;
     std::function<void(tree::FileNode*, std::string)> walk = [&](tree::FileNode* n,
                                                                  const std::string& p) {
@@ -488,10 +515,12 @@ TEST(Btrfs, SubvolumeNamedFromRootRef) {
         }
     };
     walk(ra, "");
-    EXPECT_TRUE(paths.count("golden")) << "the ROOT_REF name owns the subvol node";
+    EXPECT_TRUE(paths.count("golden")) << "the non-default subvol keeps its ROOT_REF-named container";
     EXPECT_TRUE(paths.count("golden/hello.txt"));
     EXPECT_TRUE(paths.count("golden/sub/nested.bin"));
-    EXPECT_FALSE(paths.count("subvol-5")) << "the fallback name must not appear when ROOT_REF names it";
+    EXPECT_TRUE(paths.count("hello.txt")) << "the default subvol's children render at the root";
+    EXPECT_FALSE(paths.count("subvol-5")) << "the default never gets a container";
+    EXPECT_FALSE(paths.count("subvol-256")) << "the fallback name must not appear when ROOT_REF names it";
 }
 
 TEST(Btrfs, FileAttributeNormalBit) {
@@ -574,10 +603,14 @@ TEST(Btrfs, PackedDirItemsInOneItem) {
     BtrfsScanStats st;
     ASSERT_EQ(OK, scan_btrfs(&dev, nullptr, nullptr, nullptr, tree, ra, nullptr, nullptr, st));
     std::set<std::string> names;
-    for (tree::FileNode* c = ra->first_child(); c; c = c->next_sibling())
-        for (tree::FileNode* x = c->first_child(); x; x = x->next_sibling())
-            if (x->props())
-                names.insert(x->name_utf8());
+    std::function<void(tree::FileNode*)> collect = [&](tree::FileNode* n) {
+        for (tree::FileNode* c = n->first_child(); c; c = c->next_sibling()) {
+            if (c->props())
+                names.insert(c->name_utf8());
+            collect(c);
+        }
+    };
+    collect(ra);
     EXPECT_TRUE(names.count("hello.txt"));
     EXPECT_TRUE(names.count("sub"));
 }
@@ -605,10 +638,14 @@ TEST(Btrfs, MirrorSelectionNewestGeneration) {
     EXPECT_EQ(1u, st.subvolumes);
     /* and the walked file proves the chunk map still resolved */
     bool found = false;
-    for (tree::FileNode* sv = ra->first_child(); sv; sv = sv->next_sibling())
-        for (tree::FileNode* c = sv->first_child(); c; c = c->next_sibling())
+    std::function<void(tree::FileNode*)> find = [&](tree::FileNode* n) {
+        for (tree::FileNode* c = n->first_child(); c; c = c->next_sibling()) {
             if (c->props() && c->name_utf8() == "hello.txt")
                 found = true;
+            find(c);
+        }
+    };
+    find(ra);
     EXPECT_TRUE(found);
 }
 
@@ -916,10 +953,14 @@ TEST(Btrfs, NonAsciiNamesDecodedNotByteLifted) {
     ASSERT_EQ(OK, scan_btrfs(&dev, nullptr, nullptr, nullptr, tree, ra, nullptr, nullptr, st));
 
     std::map<std::string, std::u16string> names;
-    for (tree::FileNode* c = ra->first_child(); c; c = c->next_sibling())
-        for (tree::FileNode* x = c->first_child(); x; x = x->next_sibling())
-            if (x->props())
-                names[x->name_utf8()] = x->props()->name;
+    std::function<void(tree::FileNode*)> collect = [&](tree::FileNode* n) {
+        for (tree::FileNode* c = n->first_child(); c; c = c->next_sibling()) {
+            if (c->props())
+                names[c->name_utf8()] = c->props()->name;
+            collect(c);
+        }
+    };
+    collect(ra);
     ASSERT_TRUE(names.count("\xe7\x85\xa7\xe7\x89\x87.jpg") != 0);
     EXPECT_EQ(names["\xe7\x85\xa7\xe7\x89\x87.jpg"], std::u16string(u"\u7167\u7247.jpg"));
     ASSERT_TRUE(names.count("caf\xc3\xa9.txt") != 0);
@@ -969,10 +1010,14 @@ TEST(Btrfs, Latin1NameRoundTripsRawBytes) {
     BtrfsScanStats st;
     ASSERT_EQ(OK, scan_btrfs(&dev, nullptr, nullptr, nullptr, tree, ra, nullptr, nullptr, st));
     tree::FileNode* found = nullptr;
-    for (tree::FileNode* c = ra->first_child(); c; c = c->next_sibling())
-        for (tree::FileNode* x = c->first_child(); x; x = x->next_sibling())
-            if (x->props() && x->props()->name.size() == 10 && x->props()->name[1] == u16(0xE0E9))
-                found = x;
+    std::function<void(tree::FileNode*)> find = [&](tree::FileNode* n) {
+        for (tree::FileNode* c = n->first_child(); c; c = c->next_sibling()) {
+            if (c->props() && c->props()->name.size() == 10 && c->props()->name[1] == u16(0xE0E9))
+                found = c;
+            find(c);
+        }
+    };
+    find(ra);
     ASSERT_NE(found, nullptr) << "the Latin-1-named file must surface";
     /* the exact lossless form: 'r' U+E0E9 's' 'u' 'm' U+E0E9 '.' 't' 'x' 't' */
     const std::u16string want = u"r\uE0E9sum\uE0E9.txt";
@@ -1223,6 +1268,424 @@ TEST(Btrfs, CompressionPropertyTagged) {
     ASSERT_NE(hello, nullptr);
     ASSERT_FALSE(hello->props()->extents.empty());
     EXPECT_EQ(0u, hello->props()->extents[0].codec);
+}
+
+/* ---- M-020: chunk profiles + default subvolume ---- */
+
+/* Write a chunk item (key + 48B head + stripes) at the current sys-array
+ * position; returns bytes consumed. type/stripes shape the profile. */
+static u32 put_sys_chunk(u8* sb, u32 pos, u64 logical, u64 length, u64 type, u64 stripe_len,
+                         const std::vector<std::pair<u64, u64>>& stripes, u16 sub_stripes) {
+    put64(sb + pos, 256);
+    sb[pos + 8] = 228; /* CHUNK */
+    put64(sb + pos + 9, logical);
+    pos += 17;
+    put64(sb + pos + 0, length);
+    put64(sb + pos + 8, 3); /* owner */
+    put64(sb + pos + 0x10, stripe_len);
+    put64(sb + pos + 0x18, type);
+    put32(sb + pos + 0x20, 4096);
+    put32(sb + pos + 0x24, 4096);
+    put32(sb + pos + 0x28, 4096);
+    put16(sb + pos + 0x2C, u16(stripes.size()));
+    put16(sb + pos + 0x2E, sub_stripes);
+    for (u32 i = 0; i < stripes.size(); ++i) {
+        put64(sb + pos + 48 + u32(i) * 32, stripes[i].first);     /* devid */
+        put64(sb + pos + 48 + u32(i) * 32 + 8, stripes[i].second); /* offset */
+    }
+    return u32(17 + 48 + stripes.size() * 32);
+}
+
+TEST(Btrfs, Raid10GeometryGate) {
+    /* M-020: the og's parse-time RAID10 geometry gate
+     * (BtrfsSearchDLL :2162-2168): sub_stripes==0 or num_stripes<
+     * sub_stripes rejects the chunk. Pre-fix the core accepted ANY
+     * geometry and mapped stripe 0. */
+    std::vector<u8> d(size_t(IMG_BYTES), 0);
+    u8* sb = d.data() + 0x10000;
+    put64(sb + 0x40, 0x4D5F53665248425FULL);
+    memcpy(sb + 0x20, FSID, 16);
+    put64(sb + 0x48, 42);
+    put32(sb + 0x90, 4096);
+    put32(sb + 0x94, 4096);
+    u32 pos = 0x32B;
+    pos += put_sys_chunk(sb, pos, 0x100000, 7ull << 20, 7, 4096, {{1, 0x100000}}, 0);
+    /* bad RAID10: sub_stripes 2 > num_stripes 1 - the og rejects */
+    pos += put_sys_chunk(sb, pos, 0x900000, 0x10000, 0x40 | 4, 0x10000, {{1, 0x900000}}, 2);
+    put32(sb + 0xA0, pos - 0x32B);
+    SuperBlock out;
+    EXPECT_TRUE(validate_superblock(sb, out));
+    EXPECT_EQ(1u, out.sys_chunks.size()) << "the malformed RAID10 chunk must be rejected";
+
+    /* sub_stripes == 0 on a RAID10 chunk: also rejected */
+    {
+        std::vector<u8> d2(size_t(IMG_BYTES), 0);
+        u8* sb2 = d2.data() + 0x10000;
+        put64(sb2 + 0x40, 0x4D5F53665248425FULL);
+        memcpy(sb2 + 0x20, FSID, 16);
+        put64(sb2 + 0x48, 42);
+        put32(sb2 + 0x90, 4096);
+        put32(sb2 + 0x94, 4096);
+        u32 p = 0x32B;
+        p += put_sys_chunk(sb2, p, 0x900000, 0x10000, 0x40 | 4, 0x10000, {{1, 0x900000}}, 0);
+        put32(sb2 + 0xA0, p - 0x32B);
+        SuperBlock o2;
+        EXPECT_TRUE(validate_superblock(sb2, o2));
+        EXPECT_EQ(0u, o2.sys_chunks.size()) << "RAID10 with sub_stripes 0 must be rejected";
+    }
+
+    /* sane RAID10 geometry: accepted, full stripe array decoded */
+    {
+        std::vector<u8> d3(size_t(IMG_BYTES), 0);
+        u8* sb3 = d3.data() + 0x10000;
+        put64(sb3 + 0x40, 0x4D5F53665248425FULL);
+        memcpy(sb3 + 0x20, FSID, 16);
+        put64(sb3 + 0x48, 42);
+        put32(sb3 + 0x90, 4096);
+        put32(sb3 + 0x94, 4096);
+        u32 p = 0x32B;
+        p += put_sys_chunk(sb3, p, 0x900000, 0x10000, 0x40 | 4, 0x10000,
+                           {{1, 0x900000}, {1, 0x910000}, {1, 0x920000}, {1, 0x930000}}, 2);
+        put32(sb3 + 0xA0, p - 0x32B);
+        SuperBlock o3;
+        EXPECT_TRUE(validate_superblock(sb3, o3));
+        ASSERT_EQ(1u, o3.sys_chunks.size());
+        EXPECT_EQ(0x40 | 4, o3.sys_chunks[0].type);
+        EXPECT_EQ(0x10000u, o3.sys_chunks[0].stripe_len);
+        EXPECT_EQ(4u, o3.sys_chunks[0].num_stripes);
+        EXPECT_EQ(2u, o3.sys_chunks[0].sub_stripes);
+        ASSERT_EQ(4u, o3.sys_chunks[0].stripes.size());
+        EXPECT_EQ(0x930000u, o3.sys_chunks[0].stripes[3].offset);
+    }
+}
+
+/* RAID1 fixture: identity sys chunk carries chunk/root/FS trees; the
+ * FS-tree ROOT (internal) is only valid at stripe 0's physical, the LEAF
+ * only at stripe 1's - the og's rotating mirror (:2534-2540) is the only
+ * mapping that recovers both. Pre-fix (stripe-0 always) the leaf reads
+ * the internal node's copy (bytenr mismatch) and no file is found. */
+static std::vector<u8> build_raid1_volume() {
+    constexpr u64 L_R1_CHUNK = 0x800000;
+    constexpr u64 L_FS_ROOT = 0x800000;   /* internal node logical */
+    constexpr u64 L_FS_LEAF = 0x801000;   /* leaf logical */
+    constexpr u64 P_COPY0 = 0x900000;     /* stripe 0: internal node copy */
+    constexpr u64 P_COPY1 = 0x910000;     /* stripe 1: leaf copy */
+    constexpr u64 L_DATA = 0x700000;      /* data extent (identity chunk) */
+    std::vector<u8> d(10ull << 20, 0);
+
+    u8* sb = d.data() + 0x10000;
+    put64(sb + 0x40, 0x4D5F53665248425FULL);
+    memcpy(sb + 0x20, FSID, 16);
+    memcpy(sb + 0x60, CTUUID, 16);
+    put64(sb + 0x48, 42);
+    put32(sb + 0x90, 4096);
+    put32(sb + 0x94, 4096);
+    u32 pos = 0x32B;
+    pos += put_sys_chunk(sb, pos, 0x100000, 7ull << 20, 7, 4096, {{1, 0x100000}}, 0);
+    put32(sb + 0xA0, pos - 0x32B);
+
+    /* chunk tree: identity chunk + the RAID1 metadata chunk */
+    {
+        NodeBuilder nb;
+        Key ck;
+        ck.objectid = 256;
+        ck.type = 228;
+        ck.offset = 0x100000;
+        std::vector<u8> chunk(48 + 32, 0);
+        put64(chunk.data() + 0, 7ull << 20);
+        put64(chunk.data() + 8, 3);
+        put64(chunk.data() + 0x10, 4096);
+        put64(chunk.data() + 0x18, 7);
+        put32(chunk.data() + 0x20, 4096);
+        put32(chunk.data() + 0x24, 4096);
+        put32(chunk.data() + 0x28, 4096);
+        put16(chunk.data() + 0x2C, 1);
+        put64(chunk.data() + 48, 1);
+        put64(chunk.data() + 48 + 8, 0x100000);
+        nb.add(ck, chunk);
+        Key rk;
+        rk.objectid = 256;
+        rk.type = 228;
+        rk.offset = L_R1_CHUNK;
+        std::vector<u8> r1(48 + 64, 0);
+        put64(r1.data() + 0, 0x10000); /* 64 KiB chunk */
+        put64(r1.data() + 8, 3);
+        put64(r1.data() + 0x10, 4096);
+        put64(r1.data() + 0x18, 4 | 0x10); /* METADATA | RAID1 */
+        put32(r1.data() + 0x20, 4096);
+        put32(r1.data() + 0x24, 4096);
+        put32(r1.data() + 0x28, 4096);
+        put16(r1.data() + 0x2C, 2); /* num_stripes */
+        put16(r1.data() + 0x2E, 0);
+        put64(r1.data() + 48, 1);            /* stripe0 devid */
+        put64(r1.data() + 48 + 8, P_COPY0);  /* stripe0 offset */
+        put64(r1.data() + 48 + 32, 1);       /* stripe1 devid */
+        put64(r1.data() + 48 + 40, P_COPY1); /* stripe1 offset */
+        nb.add(rk, r1);
+        auto nd = nb.finish(L_CHUNK_TREE, 0);
+        memcpy(d.data() + L_CHUNK_TREE, nd.data(), NODESIZE);
+    }
+
+    /* root tree: FS tree at L_FS_ROOT (inside the RAID1 chunk) */
+    {
+        NodeBuilder nb;
+        Key k5;
+        k5.objectid = 5;
+        k5.type = 132;
+        k5.offset = 0;
+        nb.add(k5, make_root_item(L_FS_ROOT, 256));
+        Key k3;
+        k3.objectid = 3;
+        k3.type = 132;
+        k3.offset = 0;
+        nb.add(k3, make_root_item(L_CHUNK_TREE, 0));
+        auto nd = nb.finish(L_ROOT_TREE, 0);
+        memcpy(d.data() + L_ROOT_TREE, nd.data(), NODESIZE);
+    }
+
+    /* FS tree: internal root (copy at P_COPY0) pointing at the leaf */
+    {
+        NodeBuilder nb;
+        Key any;
+        any.objectid = 256;
+        any.type = 1;
+        any.offset = 0;
+        auto nd = nb.finish_internal(L_FS_ROOT, 1, {{any, L_FS_LEAF}});
+        memcpy(d.data() + P_COPY0, nd.data(), NODESIZE);
+    }
+    /* the leaf (copy at P_COPY1 + in-chunk offset 0x1000: the 2-copy
+     * formula maps copy i of logical L to stripes[i].offset + L -
+     * chunk_start - the og's :2540 mapping): one file "rotated.txt" */
+    {
+        NodeBuilder nb;
+        const u64 MTIME = 1600000000;
+        Key ki;
+        ki.type = 1;
+        ki.objectid = 256;
+        nb.add(ki, make_inode(0x4000, NODESIZE, 2, MTIME));
+        ki.objectid = 257;
+        nb.add(ki, make_inode(0x8000, 13, 1, MTIME));
+        Key ke;
+        ke.type = 108;
+        ke.objectid = 257;
+        ke.offset = 0;
+        nb.add(ke, make_extent_data(L_DATA, 4096));
+        Key kd;
+        kd.type = 84;
+        kd.objectid = 256;
+        kd.offset = 0x11110001;
+        nb.add(kd, make_dir_item(257, "rotated.txt", 1));
+        auto nd = nb.finish(L_FS_LEAF, 0);
+        memcpy(d.data() + P_COPY1 + (L_FS_LEAF - L_R1_CHUNK), nd.data(), NODESIZE);
+    }
+    memcpy(d.data() + L_DATA, "raid1 mirror", 13);
+    return d;
+}
+
+TEST(Btrfs, Raid1RotatingMirrorReads) {
+    /* M-020: 2-copy chunks rotate the mirror index per access
+     * (BtrfsSearchDLL :2534-2540) - first access stripe 0, second stripe
+     * 1, alternating. Only the rotation recovers BOTH the internal root
+     * (copy at stripe 0) and the leaf (copy at stripe 1). */
+    auto img = build_raid1_volume();
+    MemDevice dev(img);
+    tree::ResultTree tree;
+    auto* ra = tree.add_root(u"Found");
+    BtrfsScanStats st;
+    ASSERT_EQ(OK, scan_btrfs(&dev, nullptr, nullptr, nullptr, tree, ra, nullptr, nullptr, st));
+    EXPECT_EQ(1u, st.subvolumes);
+    EXPECT_EQ(1u, st.files) << "the leaf is only valid on stripe 1 - the rotation must reach it";
+    EXPECT_EQ(0u, st.damaged_nodes);
+    EXPECT_GE(st.mirror_rotations, 1u) << "at least one access served by the non-first stripe";
+    tree::FileNode* rot = nullptr;
+    std::function<void(tree::FileNode*)> find = [&](tree::FileNode* n) {
+        for (tree::FileNode* c = n->first_child(); c; c = c->next_sibling()) {
+            if (c->props() && c->name_utf8() == "rotated.txt")
+                rot = c;
+            find(c);
+        }
+    };
+    find(ra);
+    ASSERT_NE(rot, nullptr);
+    ASSERT_EQ(1u, rot->props()->extents.size());
+    EXPECT_EQ(u64(0x700000), rot->props()->extents[0].offset);
+    EXPECT_EQ(4096u, rot->props()->extents[0].length);
+}
+
+TEST(Btrfs, Raid0StripeMathSplitsAtStripeBoundaries) {
+    /* M-020 REGISTERED SUPERSET: the og's read path fails RAID0 chunks
+     * (class 8 -> LAB_1800043fe, verified :2521-2583); the core maps them
+     * with the kernel stripe math and splits extents at stripe
+     * boundaries. Pre-fix the core emitted ONE stripe-0-relative extent
+     * with wrong bytes. */
+    constexpr u64 L_R0_CHUNK = 0x800000;
+    constexpr u64 P_S0 = 0x900000;
+    constexpr u64 P_S1 = 0x920000;
+    constexpr u64 STRIPE = 0x10000;
+    auto img = build_volume(); /* identity chunk + trees */
+    /* grow the image so the stripe offsets exist */
+    img.resize(10ull << 20, 0);
+    /* chunk tree: add the RAID0 data chunk [0x800000, 128 KiB) */
+    {
+        NodeBuilder nb;
+        Key ck;
+        ck.objectid = 256;
+        ck.type = 228;
+        ck.offset = 0x100000;
+        std::vector<u8> chunk(48 + 32, 0);
+        put64(chunk.data() + 0, 7ull << 20);
+        put64(chunk.data() + 8, 3);
+        put64(chunk.data() + 0x10, 4096);
+        put64(chunk.data() + 0x18, 7);
+        put32(chunk.data() + 0x20, 4096);
+        put32(chunk.data() + 0x24, 4096);
+        put32(chunk.data() + 0x28, 4096);
+        put16(chunk.data() + 0x2C, 1);
+        put64(chunk.data() + 48, 1);
+        put64(chunk.data() + 48 + 8, 0x100000);
+        nb.add(ck, chunk);
+        Key rk;
+        rk.objectid = 256;
+        rk.type = 228;
+        rk.offset = L_R0_CHUNK;
+        std::vector<u8> r0(48 + 64, 0);
+        put64(r0.data() + 0, 2 * STRIPE);
+        put64(r0.data() + 8, 3);
+        put64(r0.data() + 0x10, STRIPE); /* stripe_len 64 KiB */
+        put64(r0.data() + 0x18, 1 | 8);  /* DATA | RAID0 */
+        put32(r0.data() + 0x20, 4096);
+        put32(r0.data() + 0x24, 4096);
+        put32(r0.data() + 0x28, 4096);
+        put16(r0.data() + 0x2C, 2);
+        put64(r0.data() + 48, 1);
+        put64(r0.data() + 48 + 8, P_S0);
+        put64(r0.data() + 48 + 32, 1);
+        put64(r0.data() + 48 + 40, P_S1);
+        nb.add(rk, r0);
+        auto nd = nb.finish(L_CHUNK_TREE, 0);
+        memcpy(img.data() + L_CHUNK_TREE, nd.data(), NODESIZE);
+    }
+    /* FS tree: hello.txt's extent spans the first stripe boundary
+     * (rel 0xF000..0x11000), nested.bin sits wholly on stripe 1 */
+    {
+        NodeBuilder nb;
+        const u64 MTIME = 1600000000;
+        Key ki;
+        ki.type = 1;
+        ki.objectid = 256;
+        nb.add(ki, make_inode(0x4000, NODESIZE, 2, MTIME));
+        ki.objectid = 257;
+        nb.add(ki, make_inode(0x8000, 0x2000, 1, MTIME)); /* spanning.bin */
+        ki.objectid = 259;
+        nb.add(ki, make_inode(0x8000, 0x100, 1, MTIME)); /* second.bin */
+        Key ke;
+        ke.type = 108;
+        ke.objectid = 257;
+        ke.offset = 0;
+        nb.add(ke, make_extent_data(L_R0_CHUNK + 0xF000, 0x2000)); /* spans 0x10000 */
+        ke.objectid = 259;
+        nb.add(ke, make_extent_data(L_R0_CHUNK + STRIPE + 0x123, 0x100)); /* stripe 1 */
+        Key kd;
+        kd.type = 84;
+        kd.objectid = 256;
+        kd.offset = 0x11110001;
+        nb.add(kd, make_dir_item(257, "spanning.bin", 1));
+        kd.offset = 0x22220002;
+        nb.add(kd, make_dir_item(259, "second.bin", 1));
+        auto nd = nb.finish(L_FS_TREE, 0);
+        memcpy(img.data() + L_FS_TREE, nd.data(), NODESIZE);
+    }
+    /* content at the true physical targets */
+    memset(img.data() + P_S0 + 0xF000, 0xA5, 0x1000);
+    memset(img.data() + P_S1, 0x5A, 0x1000);
+    memset(img.data() + P_S1 + 0x123, 0xC3, 0x100);
+
+    MemDevice dev(img);
+    tree::ResultTree tree;
+    auto* ra = tree.add_root(u"Found");
+    BtrfsScanStats st;
+    ASSERT_EQ(OK, scan_btrfs(&dev, nullptr, nullptr, nullptr, tree, ra, nullptr, nullptr, st));
+    tree::FileNode* span = nullptr;
+    tree::FileNode* second = nullptr;
+    std::function<void(tree::FileNode*)> find = [&](tree::FileNode* n) {
+        for (tree::FileNode* c = n->first_child(); c; c = c->next_sibling()) {
+            if (c->props() && c->name_utf8() == "spanning.bin")
+                span = c;
+            if (c->props() && c->name_utf8() == "second.bin")
+                second = c;
+            find(c);
+        }
+    };
+    find(ra);
+    ASSERT_NE(span, nullptr);
+    ASSERT_NE(second, nullptr);
+    /* the spanning extent splits at the stripe boundary: piece on stripe
+     * 0 [P_S0+0xF000, 0x1000] + piece on stripe 1 [P_S1, 0x1000] */
+    ASSERT_EQ(2u, span->props()->extents.size());
+    EXPECT_EQ(P_S0 + 0xF000, span->props()->extents[0].offset);
+    EXPECT_EQ(0x1000u, span->props()->extents[0].length);
+    EXPECT_EQ(P_S1, span->props()->extents[1].offset);
+    EXPECT_EQ(0x1000u, span->props()->extents[1].length);
+    /* the stripe-1 extent maps to stripe 1's physical + in-stripe offset */
+    ASSERT_EQ(1u, second->props()->extents.size());
+    EXPECT_EQ(P_S1 + 0x123, second->props()->extents[0].offset);
+    EXPECT_EQ(0x100u, second->props()->extents[0].length);
+    EXPECT_EQ(0u, st.unmappable_extents);
+}
+
+TEST(Btrfs, DefaultDirItemNonSubvolumeLocationFallsBack) {
+    /* M-020: the og's located-key gate - a "default" DIR_ITEM whose
+     * located key is NOT a ROOT_ITEM is rejected ("expected subvolume",
+     * :4041-4053) and the root-5 fallback owns the pick. */
+    auto img = build_volume();
+    {
+        NodeBuilder nb;
+        Key k5;
+        k5.objectid = 5;
+        k5.type = 132;
+        k5.offset = 0;
+        nb.add(k5, make_root_item(L_FS_TREE, 256));
+        Key k3;
+        k3.objectid = 3;
+        k3.type = 132;
+        k3.offset = 0;
+        nb.add(k3, make_root_item(L_CHUNK_TREE, 0));
+        Key kd;
+        kd.objectid = 6;
+        kd.type = 84;
+        kd.offset = 0x8dbfc2d2ULL;
+        std::vector<u8> rec(30 + 7, 0);
+        put64(rec.data() + 0, 999); /* located objectid */
+        rec[8] = 1;                 /* located type: INODE_ITEM - NOT 0x84 */
+        put16(rec.data() + 27, 7);
+        memcpy(rec.data() + 30, "default", 7);
+        nb.add(kd, rec);
+        auto nd = nb.finish(L_ROOT_TREE, 0);
+        memcpy(img.data() + L_ROOT_TREE, nd.data(), NODESIZE);
+    }
+    MemDevice dev(img);
+    tree::ResultTree tree;
+    auto* ra = tree.add_root(u"Found");
+    BtrfsScanStats st;
+    ASSERT_EQ(OK, scan_btrfs(&dev, nullptr, nullptr, nullptr, tree, ra, nullptr, nullptr, st));
+    /* root 5 remains the default: children at the volume root, no
+     * subvol-5 container, and no crash from the bogus located key */
+    std::set<std::string> paths;
+    std::function<void(tree::FileNode*, std::string)> walk = [&](tree::FileNode* n,
+                                                                 const std::string& p) {
+        for (tree::FileNode* c = n->first_child(); c; c = c->next_sibling()) {
+            if (!c->props())
+                continue;
+            std::string nm = c->name_utf8();
+            std::string full = p.empty() ? nm : p + "/" + nm;
+            paths.insert(full);
+            walk(c, full);
+        }
+    };
+    walk(ra, "");
+    EXPECT_TRUE(paths.count("hello.txt")) << "the root-5 fallback keeps the default at the root";
+    EXPECT_FALSE(paths.count("subvol-5"));
+    EXPECT_EQ(1u, st.subvolumes);
 }
 
 } // namespace btrfs
