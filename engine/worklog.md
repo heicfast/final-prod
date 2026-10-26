@@ -14830,6 +14830,39 @@ Stage Summary:
 - OQ-S5-1 closed (convergent two-lane). MY CLAIMED QUEUE IS COMPLETE.
 
 ---
+Task ID: DFX33-T4 (session 33 — pushed-red REPAIR, protocol)
+Agent: main engineer (diff-to-fix fix session 33 — DFX33)
+Task: Repair the 667c2d2 union: the N-064 multi-lane collision had left
+rrecov.cpp/cr_bitlocker.h with committed conflict fragments and DROPPED
+the pwddict module; win_syntax_check was RED on origin/main.
+
+Work Log:
+- Root cause: three parallel N-064 designs (cr::dict DFX31, cr::pwddict
+  DFX34, and a third variant) landed through successive unions; the
+  667c2d2 union interleaved their open_volume_view/pre-pass variants and
+  dropped include/cr/pwddict/, src/core/pwddict/, tests/unit/test_pwddict.cpp
+  (present in 26e4147's tree, absent in HEAD).
+- Repairs: (1) open_volume_view reconstructed canonically — the 5-surface
+  signature (fvek_hex, pwddict_arg, dict_consent, dict_user) with both
+  consent surfaces tried in flag order (explicit candidates via
+  try_password_unlock, then the shipped+user dictionary via
+  unlock_with_dictionary), the Unknown-status consent shape, and the
+  F61 never-auto-attempt rule preserved verbatim; (2) the cmd_scan
+  pre-pass reconstructed (fvek/pwddict/dict+optional-value pre-scans,
+  dict_user honest-failure load); (3) load_pwddict_candidates' truncated
+  file-tail restored from 26e4147; (4) cr_bitlocker.h: one
+  try_password_unlock declaration, both unlock_with_dictionary overloads
+  (both implemented in cr_bitlocker.cpp), orphaned comment fragments
+  dropped; (5) the pwddict module + test restored from 26e4147 and
+  re-registered in both CMakeLists; (6) the duplicate print_carve_formats
+  removed (the N-033 rich table projection stands — ABI-contract 7a).
+- Verified: win_syntax_check GREEN; full suite **855/855** linux-release.
+
+Stage Summary:
+- main green again. Session tally: 3 fixes (M-020, M-025, M-018) + this
+  repair. Next: pull, then the live MAJOR queue head.
+
+
 Task ID: DFX34-T3 (session 34, third landing — the post-merge corruption repair, take two)
 Agent: main engineer (diff-to-fix fix session 34 — DFX34)
 Task: Repair the SECOND corruption wave: the 53-commit parallel merge
@@ -15196,6 +15229,49 @@ Stage Summary:
 - Main green at the union (849/849). Audit trail + repairs landed
   together.
 
+
+Task ID: DFX32-TCLOSE (session 32 close — handoff)
+Agent: main engineer (diff-to-fix fix session 32 — DFX32)
+Task: Session close: final verification sweep + handoff.
+
+Work Log:
+- Final state verified first-hand: linux-release **865/865 PASS**
+  (win_syntax_check included, 0 errors) on the fully-merged main after
+  the last pull; corpus 03ad46c unmoved throughout the session.
+- Session tally (this lane):
+  * **M-029 FIXED** (the decode-blocked remainder — the Date/Size
+    bucket-ID translation + the general-raw naming surface; the DRWUI
+    first-hand decode of FUN_140705c50/FUN_140706060/FUN_140254670/
+    FUN_140255820/FUN_140256830; 5 fail-before-proven tests; the
+    cr_ui_query_apply_buckets added export; ScanConfig::raw_category_name
+    with resume-safe matching).
+  * **M-025 closed as the convergent complement** (DFX33's WindowDevice
+    canonical; this lane kept scripts/bench_m025.cpp with the MEASURED
+    9.88x read-call / 2.08x device-byte reduction + the sign-quiet bench
+    lesson + the 2 complementary behavior tests; PARITY-DELTAS D-81
+    supplement).
+  * **3 pushed-red repairs** (the N-064 convergent-merge union; the
+    M-025/N-064 ledger reconciliation; the merge-storm reconstruction —
+    the last ceded to a parallel lane's identical first-landing repair)
+    + the PARITY-DELTAS numbering coherence repair (D-80..D-86, one
+    section each; the missed D-84 renumber applied; the logging seam
+    D-86).
+- The window's collective progress (observed at close): MAJOR 14 → 6
+  open (M-030/M-034/M-039/M-040/M-041/M-048 remain; M-039+M-048 and M-041
+  freshly claimed by active lanes), MINOR 19 → 4, tracked-open 11 → 2,
+  FIXED/ 208 files, suite 737 → 865.
+
+Stage Summary:
+- DFX32 closes. Remaining handoff: the open MAJORs all have active lanes
+  (M-039/M-048 lane + M-041 lane per their posted claims; M-030/M-034/
+  M-040 remain for the next window — M-030's four open items are
+  win-layer-heavy (WinPE gate, terminal OFFLINE, LDM 32-disk cap,
+  transport-error surfacing), M-034/M-040 are the two big feature
+  families (NAS layer, boot-chain repair)). No finding this lane touched
+  remains in a non-resolved state; the audit trail for M-029 and M-025
+  is complete with both Resolutions, the convergence records, and the
+  measured numbers.
+=======
 ---
 Task ID: DFX30-HANDOFF (session 30 close — lane complete, main green)
 Agent: main engineer (diff-to-fix fix session 30 — DFX30)
