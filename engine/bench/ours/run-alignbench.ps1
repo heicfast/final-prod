@@ -15,6 +15,14 @@
 #      F11 Information x512 unscale verified, same sweep subset.
 #   4. cr_ui cheap-op API latency (optional): late-bound DllImport loop over
 #      abi_version / last_error / carve_format_count / carve_format_info.
+#   5. OQ-S4-3 (session 25): the chunk-strategy verdict - the sweep gains the
+#      og's 7 MiB VOLUME chunk (4 MiB device chunk already present) and a
+#      per-measurement cpu_ms (TotalProcessorTime delta); the verdict block
+#      emits chunk_strategy_ratios (og 4 MiB/7 MiB vs core 64 KiB/256 KiB,
+#      throughput + cpu-per-byte) into the JSON. The transport-level half of
+#      the OQ's acceptance metrics; scan-level time-to-first-result comes
+#      from the comparative-bench scan matrix. UNVERIFIED-BY-EXECUTION until
+#      the Windows lane runs it (the acceptance's standing clause).
 #
 # Hard gates (exit non-zero): open failures, any failed read, wrong read
 # counts (the F11 len*512 contract), missing results. The two-pass checksums
@@ -58,6 +66,9 @@ public class BenchResult {
     public ulong bytes;
     public double ms;
     public int reads;
+    public double cpu_ms;       /* OQ-S4-3: process CPU time over the measured
+                                  * pass (TotalProcessorTime delta) - the chunk-
+                                  * strategy comparison needs CPU, not just MB/s */
 }
 
 public static class AlignBench {
@@ -121,13 +132,15 @@ public static class AlignBench {
         bool ovh = qd > 1;
         IntPtr h = Open(path, noBuffering, ovh);
         var sw = Stopwatch.StartNew();
+        var proc = System.Diagnostics.Process.GetCurrentProcess();
+        TimeSpan cpu0 = proc.TotalProcessorTime;
         ulong check = 1469598103934665603UL; // FNV-1a basis - verifies both passes read the same bytes
         ulong bytesTotal = 0; int reads = 0;
         byte[] buf = new byte[chunk];
         try {
             for (int p = 0; p < passes; ++p) {
                 if (p == 1) { r.checksum = check; } // first-pass checksum snapshot
-                if (p == 1) { check = 1469598103934665603UL; bytesTotal = 0; reads = 0; sw.Restart(); }
+                if (p == 1) { check = 1469598103934665603UL; bytesTotal = 0; reads = 0; sw.Restart(); cpu0 = proc.TotalProcessorTime; }
                 if (!ovh) {
                     for (long off = 0; off < spanBytes; off += chunk) {
                         var ov = new OVERLAPPED();
@@ -195,6 +208,7 @@ public static class AlignBench {
         sw.Stop();
         r.bytes = bytesTotal; r.reads = reads; r.ms = sw.Elapsed.TotalMilliseconds;
         r.mib_per_s = bytesTotal / (1024.0 * 1024.0) / (sw.Elapsed.TotalSeconds);
+        r.cpu_ms = (proc.TotalProcessorTime - cpu0).TotalMilliseconds;
         return r;
     }
 
@@ -279,13 +293,14 @@ function Add-Result($r) {
         config         = $r.config
         mib_per_s      = [math]::Round($r.mib_per_s, 2)
         ms             = [math]::Round($r.ms, 1)
+        cpu_ms         = [math]::Round($r.cpu_ms, 1)
         reads          = $r.reads
         bytes          = $r.bytes
         checksum       = $r.checksum
         checksum2      = $r.checksum2
         checksum_match = $r.checksum_match
     })
-    Write-Host ("  {0}  ->  {1} MiB/s ({2} reads, {3} ms)" -f $r.config, [math]::Round($r.mib_per_s, 2), $r.reads, [math]::Round($r.ms, 1))
+    Write-Host ("  {0}  ->  {1} MiB/s ({2} reads, {3} ms, cpu {4} ms)" -f $r.config, [math]::Round($r.mib_per_s, 2), $r.reads, [math]::Round($r.ms, 1), [math]::Round($r.cpu_ms, 1))
 }
 
 $span = [long]$SpanMiB * 1024 * 1024
@@ -299,7 +314,12 @@ foreach ($chunk in @(128KB, 132KB)) {
 }
 
 Write-Host "== 2. read-size x queue-depth sweep (production flag shape, QD1 sync + overlapped QD>1) =="
-foreach ($chunk in @(64KB, 256KB, 1MB, 4MB)) {
+# OQ-S4-3: 7 MiB added - the og's VOLUME chunk size (Device_decompiled.c:56912;
+# 4 MiB = the og's device chunk :56545). The og-strategy proxy = the large
+# buffered synchronous chunks; the core-strategy proxy = the production
+# 64 KiB/256 KiB shapes. Both are 64 KiB multiples (the envelope holds in
+# all cases - the comparison is chunk SIZE, not alignment).
+foreach ($chunk in @(64KB, 256KB, 1MB, 4MB, 7MB)) {
     foreach ($qd in @(1, 2, 4, 8)) {
         $r = [AlignBench]::SeqRead($Target, [uint32]$chunk, $qd, $false, $false, $span, 2)
         Add-Result $r
@@ -340,11 +360,41 @@ if ($c128 -and $c132 -and $c132.mib_per_s -gt 0) {
     Write-Host ("ALIGNMENT RATIO (128KiB / 132KiB, NO_BUFFERING, QD1): {0}x  [documented: ~3.5x on mid-range NVMe]" -f $ratio)
 }
 
+# ---- OQ-S4-3: the chunk-strategy verdict (og's large buffered chunks vs the
+# core's production read shapes, transport level, same target/span). Ratios
+# >1 mean the og-strategy chunk is FASTER at transport level. Scan-level
+# time-to-first-result comes from the comparative-bench scan matrix; this is
+# the transport-level half of the OQ's acceptance metrics (MB/s + CPU). ----
+$strategy = [ordered]@{}
+function Strat-Pair($label, $ogChunkBytes, $coreChunkBytes) {
+    $og   = $results | Where-Object { $_.config -match ('chunk=' + $ogChunkBytes + ' qd=1 nobuf=0') } | Select-Object -First 1
+    $core = $results | Where-Object { $_.config -match ('chunk=' + $coreChunkBytes + ' qd=1 nobuf=0') } | Select-Object -First 1
+    if ($og -and $core -and $core.mib_per_s -gt 0) {
+        $strategy[$label] = [ordered]@{
+            og_chunk_mib_per_s   = $og.mib_per_s
+            og_chunk_cpu_ms      = $og.cpu_ms
+            core_chunk_mib_per_s = $core.mib_per_s
+            core_chunk_cpu_ms    = $core.cpu_ms
+            throughput_ratio_og_over_core = [math]::Round($og.mib_per_s / $core.mib_per_s, 3)
+            cpu_ratio_og_over_core       = [math]::Round(($og.cpu_ms / $og.bytes) / ($core.cpu_ms / $core.bytes), 3)
+        }
+        Write-Host ("CHUNK STRATEGY {0}: og {1} MiB/s (cpu {2} ms) vs core {3} MiB/s (cpu {4} ms) -> throughput {5}x, cpu-per-byte {6}x" -f $label, $og.mib_per_s, $og.cpu_ms, $core.mib_per_s, $core.cpu_ms, $strategy[$label].throughput_ratio_og_over_core, $strategy[$label].cpu_ratio_og_over_core)
+    }
+}
+# 4 MiB (the og's DEVICE chunk) and 7 MiB (the og's VOLUME chunk) vs the
+# core's two production shapes (64 KiB envelope reads; the 256 KiB cache
+# block the scan pipe rides on - D-51/D-72).
+Strat-Pair 'og4m_vs_core64k'   4194304  65536
+Strat-Pair 'og4m_vs_core256k'  4194304  262144
+Strat-Pair 'og7m_vs_core64k'   7340032  65536
+Strat-Pair 'og7m_vs_core256k'  7340032  262144
+
 if ($results.Count -eq 0) { Write-Error 'no benchmark results'; exit 1 }
 
 $out = [ordered]@{
     environment = $envInfo
     alignment_ratio_64k_over_4k = $ratio
+    chunk_strategy_ratios = $strategy
     api_latency_ns = $apiLatency
     results = $results
 }

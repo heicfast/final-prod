@@ -14690,6 +14690,43 @@ Stage Summary:
   Remaining on this lane: OQ-S5-1 (CheckVersion consumer).
 
 ---
+Task ID: DFX25-T4g (session 25 — OQ-S4-3 push-forward + the near-miss record)
+Agent: main engineer (DFX25)
+Task: OQ-S4-3 (chunking relative perf) — land the engineering prerequisite;
+resolve or precisely push forward.
+
+Work Log:
+- The OQ's required code change ("a 4 MiB-chunk build variant") landed as a
+  RUNTIME variant: run-alignbench.ps1 sweep + 7 MiB (the og's VOLUME chunk;
+  4 MiB was already present); cpu_ms (TotalProcessorTime delta) on every
+  measurement — the OQ's CPU metric; a chunk_strategy_ratios verdict block
+  (og4m/og7m x core64k/core256k, throughput + cpu-per-byte) into the JSON;
+  the header documents the OQ-S4-3 extension.
+- Real gate gap closed: scripts/ps_parsecheck.ps1's file list was missing
+  run-alignbench.ps1 + scripts/bench_seed.ps1 — added (the pre-dispatch
+  parse gate now covers the whole bench .ps1 fleet).
+- OQ-S4-3 status: UNVERIFIED-BY-EXECUTION, pushed forward precisely — the
+  remaining step is exactly one Windows execution (dispatch the API
+  Benchmark workflow / run alignbench on the Windows lane) + transcribe
+  the verdict into the OQ file, M-030's Resolution addendum, and SUMMARY's
+  performance section. The scan-level time-to-first-result half comes from
+  the existing comparative-bench matrix.
+- NEAR-MISS RECORD (verification discipline): an apparent "[m/[M-eating
+  corruption" of the bench fleet (ath]::Round / branches: ain] across 10
+  files) was investigated — display-layer artifact: the tool-output
+  pipeline strips literal [m/[M pairs as false ANSI SGR codes. Byte-level
+  verification (od -c + python reads) REFUTED the corruption: the files
+  use lowercase [math]:: (valid PowerShell — type resolution is
+  case-insensitive) and branches: [main]. A corruption-gate script and a
+  SEVERE finding were drafted and ABORTED before any push. No healthy file
+  touched; no finding filed; the lesson recorded in the OQ file: verify
+  suspected corruption at BYTE level before filing.
+
+Stage Summary:
+- OQ-S4-3: prerequisite landed, one Windows execution remains (precise next
+  step recorded). Session tally: 29 resolutions (22 INFO closures, A-008
+  ACUTE, OQ-Z1/S6-3/S6-2/S6-1/S5-1 resolutions, OQ-S4-3 push-forward with
+  the prerequisite landed).
 Task ID: DFX30-T13 (OQ-S5-1 resolved + closed — my queue's last item)
 Agent: main engineer (diff-to-fix fix session 30 — DFX30)
 Task: OQ-S5-1 — is CheckVersion.mo's OS-aware recovery live or
@@ -14812,6 +14849,102 @@ Stage Summary:
   from the same window's merge storms, not from any single lane's
   intent). The N-064 CLI surface is coherent: --bitlocker-dict [file]
   + --bitlocker-pwddict <file> alias, both consent-only.
+Task ID: DFX35-2 (session 35, second fix — M-052 + the N-079 discovery)
+Agent: main engineer (diff-to-fix fix session 35 — DFX35, MAJOR-first)
+Task: M-052 — the FAT/exFAT recycle-bin $I/$R pairing; generalize the
+NTFS model into a shared helper.
+
+Work Log:
+- Corpus re-verified FIRST-HAND: the four-name _stricmp bin-root
+  recognizer in all three SearchDLLs (FAT :1668-1677, exFAT :40583-
+  40592, NTFS :37387-37410 — including the deliberate "$RECYCLE.BI0"
+  mangled-variant match), the NTFS ancestor-chain scope consumer
+  (:43538-43550), the artifact's pairing statement ("by index across
+  bin subfolders", fat-exfat-engine-internals.md :37-40). CONFIRMED.
+- Discovery during verification (N-079, filed as NEW-FINDING): the
+  NTFS landing matched $I/$R name prefixes EVERYWHERE — user files
+  named "$Image.txt" vanished (unconditional skip, no parse gate) and
+  out-of-bin "$R…" files mis-paired with in-bin $I records (wrong
+  name + wrong Deleted forcing). The og's own handling is
+  location-scoped (parent-chain walk over the recognizer).
+- Landed: include/cr/cr_recycle.h — parse_record (the $I v1/v2
+  parser, format-dependent pathlen moved verbatim from the NTFS
+  landing), token_of (dot-stripped pairing token), is_bin_root (the
+  four-name set, ASCII case-insensitive). FAT: bin context threaded
+  through walk_dir_entries/recurse_dir/emit_entry; in-bin $I read
+  from the chain (bounded 2076 B) + parsed + skipped; $R remap at
+  emission or post-walk fixup; recycle_info/recycle_remapped stats.
+  exFAT: same model in walk_entries/recurse_dir; ParkedSet carries
+  in_bin through the M-013 oracle re-walk. NTFS: wrappers delegate to
+  the shared header; the $I skip is parse-gated; ALL $R remaps moved
+  post-walk with the bin-ancestry check (N-079 fix).
+- Tests: FatEngine.RecyclePairingRestoresOriginalName +
+  RecycleLegacyRoots + NonRecycleDollarFilesStayRaw (FAT16 fixture
+  extension: $RECYCLE.BIN\S-1-5-21\$I/$R on clusters 40/41/50/51);
+  ExfatEngine.RecyclePairingMirrored (bin at cluster 90, sets planted
+  through SetBuilder — first run caught my own name-length miscount:
+  "$RECYCLE.BIN" is 12 chars, not 11, so the root never matched);
+  NtfsVolume.RecycleBinScopeOutOfBinDollarFilesStayRaw (self-contained
+  volume — the shared dump image's MFT only covers records 0..13, so
+  the scope test needed its own geometry).
+- Debug detour: the first exFAT run showed recycle_info=0; a
+  temporary walk trace (since removed) found the truncated
+  '$RECYCLE.BI' name — the miscount above, not an engine defect. Also
+  verified en route: SetBuilder::finish_set's entries.size()*32 loop
+  is checksum-equivalent to the engine's byte range whenever the set
+  is followed by >= 2976 zero bytes (16 ROL15 zero-steps = identity;
+  2976 % 16 == 0) — benign, left as is.
+- Fail-before EXECUTED: the three engine .cpp files stashed (headers
+  kept so the new tests compile) — 4 of 5 new tests RED (the fifth,
+  NonRecycleDollarFilesStayRaw, is the no-over-match guard: green on
+  both trees by design). Restored: suite 794/794 linux-release.
+- Audit trail: M-052 Resolution + FIXED/ move; N-079 finding filed
+  (NEW-FINDING, MINOR) with Resolution + FIXED/; matrix rows (fat
+  B4/B5/D11, exfat B4/B5/D11, ntfs N-079 row); modules fat/exfat/ntfs
+  session-35 verdicts; CAPABILITY-MATRIX recycle row extended to all
+  three engines; SUMMARY session-35 delta appended.
+
+Stage Summary:
+- M-052 FIXED + N-079 NEW-FINDING FIXED (session tally: 2). MAJOR 11
+  remain. Next: M-020 (Btrfs chunk profiles + default subvol pick).
+---
+Task ID: DFX35-3 (session 35 — the pushed-red repair before M-020)
+Agent: main engineer (DFX35)
+Task: Repair the pushed-red main inherited from the window's merge
+churn (the M-055/DFX22 precedent).
+
+Work Log:
+- The union rebase exposed two red tests from the parallel window's
+  merge chain (verified absent from my own files):
+  (1) win_syntax_check: cr_bitlocker.h carried COMMITTED conflict
+  markers (duplicate CONSENT block + a bare ======= at :91) and
+  rrecov.cpp had comment/code interleaved into broken syntax — the
+  196d75a merge ("827/827 green" claimed) mangled both. The merge
+  chain ALSO dropped the entire N-064 pwddict module (include/cr/
+  pwddict/, src/core/pwddict/, tests/unit/test_pwddict.cpp, both
+  CMake wirings) — the restored rrecov includes cr/pwddict/
+  cr_pwddict.h.
+  (2) Enumerate.ScopeDeltaRegisteredWithRevisitTrigger: the DFX30-T4
+  canonical renumber (their own note: "enumeration two-stack
+  D-79->D-84, Btrfs M-020 D-79->D-83") was applied to one copy of the
+  tripled ledger sections but a later bad merge reverted the first
+  copy; re-applied the two renames to the first-copy headings.
+- Restored from the last-green tree 126710f: cr_bitlocker.h, rrecov.cpp,
+  the pwddict module (3 files + 2 CMake wirings, indentation
+  normalized).
+- Suite 841/841 linux-release post-repair (win_syntax_check green; the
+  pwddict tests restored with the module).
+- KNOWN DEBT (still the DFX30 lane's declared next push, not hijacked):
+  PARITY-DELTAS.md carries DUPLICATED section blocks from the window's
+  union merges (the same D-rows at 2-3 file positions: D-80 x4, D-81
+  x3, D-79 copies) — the deterministic dedup/renumber pass stays
+  queued; this repair only restored the canonical first-copy numbers
+  the failing test anchors on.
+
+Stage Summary:
+- Main green again (841/841). Proceeding to M-020.
+
+---
 Task ID: DFX31-REPAIR2 (session 31 — the second pushed-red repair + a coordination plea)
 Agent: main engineer (diff-to-fix fix session 31 — DFX31)
 Task: Repair the re-broken main (a parallel lane's "union repair" 26e4147
@@ -14845,4 +14978,3 @@ Stage Summary:
 - Main green again (849/849). Session tally stands: N-064 (+convergence),
   N-071, N-059, two pushed-red repairs, one convergence repair. Next:
   pull, then N-066/N-072/N-065 (the MINOR tail) if still open.
-

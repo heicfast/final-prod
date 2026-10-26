@@ -2591,7 +2591,7 @@ records this as inherent: UNVERIFIED-BY-EXECUTION on this hardware).
 Recovery correctness is unaffected (health is advisory).
 
 
-### D-79 — Btrfs RAID0/RAID10 chunk reads: kernel stripe math vs the og's read failure (M-020, REGISTERED SUPERSET)
+### D-83 — Btrfs RAID0/RAID10 chunk reads: kernel stripe math vs the og's read failure (M-020, REGISTERED SUPERSET)
 
 The og's logical→physical node reader (BtrfsSearchDLL FUN_1800042a0,
 :2498-2583, verified first-hand session 33) serves ONLY the 2-copy class
@@ -2660,6 +2660,7 @@ mixed-content unit fixture carries the realism duty). The geometry change
 (4-8 MiB ping-pong) was evaluated on both lanes and NOT taken on either:
 dispatch cost is byte-granularity-dominated (the I-009 superset) and the
 window size only affects the re-read margin the view already removed.
+
 ### D-84 — disk enumeration: the two-stack merge (PhysicalDrive loop + cfgmgr32 disk interfaces), not the og's five-stack fan-in (N-071, REGISTERED DIVERGENCE — partial port with scope rationale)
 
 **Class:** registered divergence (enumeration breadth) · **Finding:**
@@ -5175,6 +5176,102 @@ with wrong bytes. Fixtures: `Btrfs.Raid0StripeMathSplitsAtStripeBoundaries`
 only).
 
 
+
+### D-81 — Carve validators are stateless single-shot; no pending-object/ContinueScan streaming state (M-025, REGISTERED ARCHITECTURAL DIVERGENCE)
+
+The og's block scan keeps open-ended formats (MovAnalyzer/MTS and family)
+as pending CRawFileInfo objects re-fed every sector through analyser slot
+4 (ContinueScan, RAWSearchDLL :9541-9605, :10114-10144) until the
+analyser reports done — O(1) per-sector work per open file against
+buffer-resident data. The core's validators are stateless single-shot
+functions (CarveResult (*)(IStorageDevice*, hit, cap)) that walk their
+grammar from the hit; there is no cross-window per-candidate state.
+
+Why kept: (1) the stateless contract is what the existing 46-test carve
+suite pins and what every ported analyser to date (S-007's MPEG family,
+S-017's MOV salvage) has been written against — a pending-object
+migration would touch every validator for no measured coverage gain
+(byte-granular dispatch finds mid-sector starts the og never sees,
+I-009); (2) the read-model half of the finding — the cost profile — is
+now served by the window buffer (M-025's WindowDevice: candidates cost
+zero device re-reads when their reads fit the window, 13x fewer reads
+measured), which was the dominant structural cost; (3) the og's
+continuation machinery exists to serve ITS buffer-resident model — with
+validators reading through the window context the same coverage is
+achieved without per-sector state.
+
+Boundary: any future port of an og analyser that genuinely requires
+incremental continuation (streaming formats whose end cannot be probed
+by a bounded forward walk) must either keep that model in its own layer
+or extend the validator contract — this register is the flag S-017's
+fix-plan step 3 cites.
+### D-84 — disk enumeration: the two-stack merge (PhysicalDrive loop + cfgmgr32 disk interfaces), not the og's five-stack fan-in (N-071, REGISTERED DIVERGENCE — partial port with scope rationale)
+
+**Class:** registered divergence (enumeration breadth) · **Finding:**
+diff-to-fix N-071 (MINOR, fixed with the two-stack merge; residual
+registered here) · **Date:** 2026-10-26
+
+**WHAT OG DOES:** the device discovery fan-in spans five stacks — WMI
+(MSFT_* namespaces), SetupAPI device interfaces, VDS (dynamic-disk
+packs), Storage Spaces, and Function Discovery (mom-module-system
+architecture :57-59; the QA boot census shows `CDiskEnumerator :
+Storage space init` + `GetUsedPhysicalDisks` + `Vds loadservice` running
+alongside the plain `disk enumerate` — vendor-logs :13-29) — merged into
+the device list the UI presents, with hot-plug notification.
+
+**WHAT WE DO:** a two-stack merge: the numbered `\\.\PhysicalDrive0..N`
+loop (geometry/alignment/descriptor/table parse) + the cfgmgr32
+`GUID_DEVINTERFACE_DISK` present-instance pass (every interface opened,
+queried with the same IOCTL family, merged by
+`merge_disk_enumeration` — dedup by disk number, then by instance
+path; N-071's landing). The WMI/VDS/Storage-Spaces/FunctionDiscovery
+stacks are not ported; hot-plug eventing is not ported (the CLI/UI
+re-enumerates on demand).
+
+**WHY:** (1) Every block device Windows exposes for user-mode READ
+surfaces as `\\.\PhysicalDriveN` or a disk-interface instance — the two
+stacks cover the readable-device space the recovery engine consumes;
+the og's extra stacks feed its UI metadata (WMI friendly names, VDS
+dynamic-volume CONFIG — which our LDM engine parses from the disk
+itself — and Storage Spaces pool topology for display). (2) The
+finding's own open question records that Storage Spaces members DO
+surface as PhysicalDrive in practice (the miss-case is
+UNVERIFIED-BY-EXECUTION without a Storage Spaces host; the QA census
+shows the stacks RUNNING, not a disk the numbered namespace lacks). (3)
+FunctionDiscovery and hot-plug notify are product-shell concerns (the
+og's DeviceManager.mo is a UI-facing module); the engine's contract is
+a complete device LIST on demand, which the merge provides. The
+cfgmgr32 pair (`CM_Get_Device_Interface_List_SizeW`/
+`CM_Get_Device_Interface_ListW`) is Win2000-era — the Win7-inclusive
+import gate holds (cfgmgr32 added to the strict allowlist with the
+function pair).
+
+**RISK:** a device reachable ONLY through VDS/Storage-Spaces stacks and
+absent from both the PhysicalDrive namespace AND the disk-interface
+list would be missed — no such device class is documented in the corpus
+(the QA host's own Storage-Spaces census ran WITHOUT producing an
+extra device). The merge is the engine scope; the UI shell may layer
+its own stacks later.
+
+> **Status: promoted from the parity-audit draft (docs/parity/PARITY-DELTAS-draft.md)
+> after auditor review.** Every entry carries WHAT OG DOES (corpus cite), WHAT WE DO
+> (file:line), WHY (rationale class), RISK, and VERDICT (ACCEPTED / NEEDS-WORK).
+> A delta that is not in this registry is a bug, not a delta. `rda-wizard` carries the
+> UI-scoped mirror (its docs/PARITY-DELTAS.md); this file is the single source of truth.
+>
+> **Parity-audit session 1 closures (2026-10-23):**
+> - F-A1-3 (fixup validation scope) resolved as **PARITY, not a delta**: we now match the
+>   og's first-two-tails validation (FUN_1800411f0). The 4Kn sector-size parameterization
+>   (og hardcodes 0x200) remains a registered delta below (F1 family).
+> - F-B-8 (abort-path error-map merge) closed by the concurrent UI-readiness work —
+>   the stamp() lambda now merges the retry error map on every exit path.
+> - G-18 gang-block clause and G-19 cross-disk LDM scoping: stale texts corrected in
+>   rda-wizard/docs/CORE-CONTRACT.md (gang blocks are assembled; the resolver landed).
+> - F-C-1 (§13 list-format transcription error) fixed in rda-wizard bd83be3.
+> - Auditor wave-1 engine fixes that matched og behavior are PARITY (not deltas):
+>   FAT12 sentinels, NTFS viability probe size, HFS+ B-tree layout, NVMe page-2 offsets,
+>   carve stats double-count, undo-apply disk guard.
+
 ## A. Format / session
 
 ### D-01 — CRSF `.crsf` session format vs og `.rsf` (semantics parity, not byte identity)
@@ -7571,7 +7668,6 @@ the POSIX test shims.
 
 ### D-78 — the password-dictionary unlock aid: authored seed + format-compatible loader, the og's Dict asset not copied (N-064, REGISTERED DIVERGENCE)
 
-=======
 ### D-80 — the password-dictionary data posture: the corpus Dict converted as generated data (raw_signs precedent), user dictionaries loadable (N-064 convergence record — two parallel landings, first-landing-wins)
 
 **Class:** convergence record (replaces this lane's original D-78
@@ -7623,7 +7719,6 @@ complete; D-78).
      the standing errata convention both stand; future sessions cite
      them by FINDING (N-064 / N-032 / M-020), not by bare D-number. -->
 
-=======
 ### D-78 — CSMI SMART transport: SCSI-address routing, no RAID census; LSILOGIC sibling and SMART auto-enable not ported (N-032, REGISTERED DIVERGENCE — transport scope)
 
 **Class:** registered divergence (health transport scope) · **Finding:**
@@ -7669,7 +7764,7 @@ records this as inherent: UNVERIFIED-BY-EXECUTION on this hardware).
 Recovery correctness is unaffected (health is advisory).
 
 
-### D-79 — Btrfs RAID0/RAID10 chunk reads: kernel stripe math vs the og's read failure (M-020, REGISTERED SUPERSET)
+### D-83 — Btrfs RAID0/RAID10 chunk reads: kernel stripe math vs the og's read failure (M-020, REGISTERED SUPERSET)
 
 The og's logical→physical node reader (BtrfsSearchDLL FUN_1800042a0,
 :2498-2583, verified first-hand session 33) serves ONLY the 2-copy class
@@ -7725,7 +7820,7 @@ incremental continuation (streaming formats whose end cannot be probed
 by a bounded forward walk) must either keep that model in its own layer
 or extend the validator contract — this register is the flag S-017's
 fix-plan step 3 cites.
-### D-79 — disk enumeration: the two-stack merge (PhysicalDrive loop + cfgmgr32 disk interfaces), not the og's five-stack fan-in (N-071, REGISTERED DIVERGENCE — partial port with scope rationale)
+### D-84 — disk enumeration: the two-stack merge (PhysicalDrive loop + cfgmgr32 disk interfaces), not the og's five-stack fan-in (N-071, REGISTERED DIVERGENCE — partial port with scope rationale)
 
 **Class:** registered divergence (enumeration breadth) · **Finding:**
 diff-to-fix N-071 (MINOR, fixed with the two-stack merge; residual

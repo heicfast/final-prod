@@ -40,3 +40,45 @@ standing acceptance path is the Windows bench lane (bench/ours/run-ours.ps1
 evidence this session; the next concrete step is unchanged and precise:
 run the paired bench on the Windows lane and record the numbers in this
 file + SUMMARY's performance section.
+
+
+---
+
+## Session-25 addendum (DFX25 — the engineering prerequisite LANDED; the Windows execution remains)
+
+The OQ's own "bench to run next" item 1 required a code change ("a 4 MiB-chunk
+build variant of the direct path"). That prerequisite now exists as a RUNTIME
+variant instead of a build variant (one build, two strategies):
+
+- `bench/ours/run-alignbench.ps1` sweep extended with **7 MiB** (the og's
+  VOLUME chunk, Device_decompiled.c:56912; the 4 MiB DEVICE chunk :56545 was
+  already in the matrix) — the og-strategy proxy and the core-strategy proxy
+  (64 KiB envelope reads / the 256 KiB cache block) now run in ONE harness
+  pass on the same target/span.
+- Every measurement now records **cpu_ms** (Process.TotalProcessorTime delta
+  over the measured pass) — the OQ's CPU metric.
+- A **chunk_strategy_ratios** verdict block emits og-vs-core throughput ratios
+  and cpu-per-byte ratios (4 pairs: og4m/og7m x core64k/core256k) into
+  alignbench.json — the acceptance's MB/s + CPU half lands as a recorded
+  number the moment the Windows lane executes.
+- `scripts/ps_parsecheck.ps1` file list extended: run-alignbench.ps1 and
+  scripts/bench_seed.ps1 were MISSING from the pre-dispatch parse gate (a
+  real gap closed in the same change).
+
+**Status: UNVERIFIED-BY-EXECUTION (unchanged) — the remaining step is exactly
+one Windows execution**: dispatch the API Benchmark workflow (or run
+`bench/ours/run-alignbench.ps1 -Target '\\.\C:' -SpanMiB 512` on the
+Windows lane), then transcribe the chunk_strategy_ratios verdict + the
+comparative-bench scan-level time-to-first-result into this file, M-030's
+Resolution addendum, and SUMMARY's performance section. The scan-level
+time-to-first-result half comes from the existing comparative-bench matrix
+(quick/deep scans) — no further engineering is required on either half.
+
+Verification-discipline note (recorded for future sessions): during this
+push-forward, an apparent `[m/[M`-eating corruption of the bench fleet
+(ath]::Round / branches: ain]) was investigated and REFUTED at byte level
+(od/python): the files use lowercase `[math]::` (valid PowerShell, type
+resolution is case-insensitive) and `branches: [main]` — the "corruption"
+was a display-layer artifact stripping `[m`/`[M` pairs as false ANSI SGR
+codes. No finding filed; no healthy file "repaired". The lesson: verify
+suspected corruption at BYTE level (od -c / python reads) before filing.
