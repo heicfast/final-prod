@@ -1790,5 +1790,89 @@ TEST(Zfs, RingStatesCountedAcrossLabels) {
     EXPECT_EQ(u64(1), st.ring_states);
 }
 
+/* ------------------------------------------------------------------ */
+/* N-072: the delay-execution label retry (live handles only)          */
+/* ------------------------------------------------------------------ */
+
+/* A device whose first K read calls fail (the torn-label window), then
+ * reads succeed - the hot-unplug/replug shape the og's polling import
+ * heals. is_static_media stays FALSE (a live handle). */
+class FlakyStartDevice : public IStorageDevice {
+public:
+    FlakyStartDevice(std::vector<u8> d, u32 fail_first)
+        : d_(std::move(d)), fail_first_(fail_first) {
+        g_.logical_sector = 512;
+        g_.physical_sector = 512;
+        g_.total_bytes = d_.size();
+        g_.sector_count = d_.size() / 512;
+    }
+    u32 read_at(u64 off, void* buf, u32 len) override {
+        if (reads_++ < fail_first_)
+            return ERR_READ_FAILED;
+        if (off > d_.size() || len > d_.size() - off)
+            return ERR_RANGE_OUT_OF_BOUNDS;
+        std::memcpy(buf, d_.data() + off, len);
+        return OK;
+    }
+    const Geometry& geometry() const override { return g_; }
+
+private:
+    Geometry g_{};
+    std::vector<u8> d_;
+    u32 fail_first_ = 0;
+    u32 reads_ = 0;
+};
+
+TEST(Zfs, LabelRetryBackoff) {
+    /* the finding's named scenario: first probe fails, second succeeds
+     * via the fault-injecting device - the pool is found on retry and
+     * the retry is counted (fail-before by construction: the pre-N-072
+     * engine returned ERR_BAD_MAGIC after ONE sweep - no retry existed). */
+    auto img = build_pool();
+    /* fail the first 64 reads: the first label sweep dies on every label
+     * (each label's reads break on the first failure); the 250 ms backoff
+     * passes, the second sweep reads the intact pool */
+    FlakyStartDevice dev(img, 64);
+    tree::ResultTree tree;
+    auto* ra = tree.add_root(u"Found");
+    ZfsScanStats st;
+    u32 rc = scan_zfs(&dev, nullptr, nullptr, nullptr, tree, ra, nullptr, nullptr, st);
+    ASSERT_EQ(OK, rc) << err_text(rc);
+    EXPECT_GE(st.label_retries, 1u);
+    EXPECT_NE(st.txg, 0u);
+}
+
+TEST(Zfs, LabelRetryGivesUpBounded) {
+    /* every read fails forever: the retry loop is BOUNDED (3 retries) and
+     * the engine reports ERR_BAD_MAGIC (worst case adds 250+500+1000 ms
+     * of cancel-aware backoff, then stops - never an infinite poll) */
+    auto img = build_pool();
+    FlakyStartDevice dev(img, 0xFFFFFFFFu);
+    tree::ResultTree tree;
+    auto* ra = tree.add_root(u"Found");
+    ZfsScanStats st;
+    EXPECT_EQ(ERR_BAD_MAGIC, scan_zfs(&dev, nullptr, nullptr, nullptr, tree, ra, nullptr, nullptr, st));
+    EXPECT_EQ(st.label_retries, 3u);
+}
+
+TEST(Zfs, StaticMediaNeverRetries) {
+    /* an image file (static media) with a torn label: NO retry - a torn
+     * image cannot heal (the finding's rule; is_static_media gates the
+     * loop). A failing read device marked static fails after ONE sweep. */
+    auto img = build_pool();
+    class StaticFlakyDevice final : public FlakyStartDevice {
+    public:
+        StaticFlakyDevice(std::vector<u8> d, u32 fail_first)
+            : FlakyStartDevice(std::move(d), fail_first) {}
+        bool is_static_media() const override { return true; }
+    };
+    StaticFlakyDevice dev(img, 0xFFFFFFFFu);
+    tree::ResultTree tree;
+    auto* ra = tree.add_root(u"Found");
+    ZfsScanStats st;
+    EXPECT_EQ(ERR_BAD_MAGIC, scan_zfs(&dev, nullptr, nullptr, nullptr, tree, ra, nullptr, nullptr, st));
+    EXPECT_EQ(st.label_retries, 0u) << "static media never enters the retry loop";
+}
+
 } // namespace zfs
 } // namespace cr

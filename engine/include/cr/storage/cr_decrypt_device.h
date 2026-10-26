@@ -68,6 +68,7 @@ public:
     const Geometry& geometry() const override;
     u64 size() const override { return inner_->size(); }
     u64 absolute_base() const override { return inner_->absolute_base(); }
+    bool is_static_media() const override { return inner_->is_static_media(); }
 
 private:
     DecryptingDevice() = default;

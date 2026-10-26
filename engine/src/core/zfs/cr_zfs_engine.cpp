@@ -46,10 +46,12 @@
 #include "cr/cr_text.h" /* S-005: on-disk UTF-8 names decode, not byte-lift */
 #include "cr/compress/cr_decomp.h"
 #include <algorithm>
+#include <chrono>
 #include <cstring>
 #include <functional>
 #include <map>
 #include <set>
+#include <thread>
 #include <utility>
 
 namespace cr {
@@ -1198,7 +1200,16 @@ u32 scan_zfs(IStorageDevice* slice, CancelToken* cancel, WalkProgressLike progre
      * superset-safe rule: label-0 consecutive repeats collapse exactly
      * as in the og; cross-label repeats - which the og never sees, it
      * reads label 0 only - collapse too, so the multi-label detection
-     * superset does not multiply walks). */
+     * superset does not multiply walks).
+     *
+     * N-072 (the og's delay-execution import polling, remaining-engines
+     * artifact :86): the sweep is a re-runnable unit - when the first
+     * pass finds no valid uberblock on a LIVE handle, the og's import
+     * path polls with delay-execution (a hot-unplug/replug or a
+     * mid-transaction rewrite can heal between sweeps). The bounded
+     * retry below mirrors that: 3 retries, 250/500/1000 ms backoff,
+     * cancel-aware in 50 ms slices; static media (image files) never
+     * retries - a torn image stays torn. */
     const u64 label_base[4] = {0, LABEL_SIZE, total - 2 * LABEL_SIZE, total - LABEL_SIZE};
     LabelConfig cfg;
     struct UbState {
@@ -1207,7 +1218,11 @@ u32 scan_zfs(IStorageDevice* slice, CancelToken* cancel, WalkProgressLike progre
     };
     std::vector<UbState> states;
     std::set<u64> seen_txgs;
-    for (int li = 0; li < 4; ++li) {
+    auto run_label_sweep = [&]() -> u32 {
+        cfg = LabelConfig{};
+        states.clear();
+        seen_txgs.clear();
+        for (int li = 0; li < 4; ++li) {
         if (label_base[li] + LABEL_SIZE > total)
             continue;
         /* config nvlist at label+16K (first 112K is vdev_phys) */
@@ -1297,6 +1312,25 @@ u32 scan_zfs(IStorageDevice* slice, CancelToken* cancel, WalkProgressLike progre
             if (hits > 0)
                 break; /* found the pool's true uberblock geometry */
         }
+        }
+        return OK;
+    };
+    if (const u32 sweep_rc = run_label_sweep(); sweep_rc != OK)
+        return sweep_rc; /* e.g. the big-endian-pool refusal propagates */
+
+    /* N-072: bounded label retry with backoff (live handles only) */
+    constexpr u32 kLabelBackoffMs[3] = {250, 500, 1000};
+    for (int retry = 0; states.empty() && !slice->is_static_media() && retry < 3; ++retry) {
+        if (cancel && cancel->checkpoint())
+            return ERR_CANCELLED;
+        for (u32 slept = 0; slept < kLabelBackoffMs[retry]; slept += 50) {
+            if (cancel && cancel->cancelled())
+                return ERR_CANCELLED;
+            std::this_thread::sleep_for(std::chrono::milliseconds(50));
+        }
+        ++stats.label_retries;
+        if (const u32 sweep_rc = run_label_sweep(); sweep_rc != OK)
+            return sweep_rc;
     }
     if (states.empty())
         return ERR_BAD_MAGIC;
