@@ -2263,13 +2263,25 @@ TEST(CrUi, UserSignRegistrationSurface) {
 
 TEST(CrUi, TransportErrorAdvisoryZeroOnCleanState) {
     /* M-030 claim (f): the ABI can now report the transport-open
-     * diagnostic (ABI-since 2.2, additive). On the Linux stub the open
-     * path is UNSUPPORTED and records the clean state, so the advisory
-     * reads 0 - the ABI contract pin; the Windows lane's
-     * Abi.TransportErrorSurfaced exercises the recorded-error path
-     * (RDA leg fails with X -> the direct fallback succeeds -> the
-     * advisory reports X). Fail-before: the export did not exist. */
+     * diagnostic (ABI-since 2.2, additive). The clean-state contract:
+     * 0 = the last open succeeded (or no open was attempted), and the
+     * Linux stub's UNSUPPORTED open records nothing. Both legs hold on
+     * the CI lanes: Linux answers UNSUPPORTED (no platform layer);
+     * the Windows runner has no RDA service, so the DIRECT leg opens
+     * PhysicalDrive0 clean and a successful open resets the advisory
+     * to 0 (open_disk_impl :1199). The recorded-error leg - RDA
+     * present and failing, direct fallback succeeding - needs a
+     * driver-attached host (the M-030 contract is surfaced either way
+     * by cr_ui_last_transport_error). Fail-before: the export did not
+     * exist. */
     cr_ui_device* d = nullptr;
-    EXPECT_EQ(cr_ui_open_disk(0, &d), CR_UI_ERR_UNSUPPORTED);
+    const uint32_t rc = cr_ui_open_disk(0, &d);
+#ifdef _WIN32
+    EXPECT_EQ(rc, 0u) << "elevated runner, no RDA service: the direct leg opens clean";
+    ASSERT_NE(d, nullptr);
+    cr_ui_device_close(d);
+#else
+    EXPECT_EQ(rc, CR_UI_ERR_UNSUPPORTED);
+#endif
     EXPECT_EQ(cr_ui_last_transport_error(), 0u);
 }

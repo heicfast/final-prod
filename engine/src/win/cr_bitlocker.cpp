@@ -392,28 +392,40 @@ size_t enum_auto_unlock_keys(void* hkey_root, std::vector<reghive::AutoUnlockKey
         DWORD size = 0;
         if (RegQueryValueExW(sub, L"Data", nullptr, &type, nullptr, &size) == ERROR_SUCCESS &&
             type == REG_BINARY && size >= 32) {
-            /* the og allocates 0x200 and memcpy's min(size, 0x100) - cap the
-             * blob at 256 bytes, floor at 32 (BEK-class blob size) */
-            DWORD cap = reghive::kFveMaxBlobBytes;
-            if (size < cap)
-                cap = size;
-            std::vector<u8> buf(cap);
-            DWORD got = cap;
-            if (RegQueryValueExW(sub, L"Data", nullptr, nullptr, buf.data(), &got) ==
-                    ERROR_SUCCESS &&
-                got == cap) {
-                reghive::AutoUnlockKey key;
-                key.volume_guid.reserve(name_len);
-                for (DWORD c = 0; c < name_len; ++c) {
-                    wchar_t wc = name[c];
-                    /* uppercase like the og's _strupr_s (GUID text is ASCII) */
-                    if (wc >= L'a' && wc <= L'z')
-                        wc = wchar_t(wc - L'a' + L'A');
-                    key.volume_guid.push_back(char(wc));
+            /* the og allocates 0x200 and memcpy's min(size, 0x100): read
+             * the WHOLE value into the 0x200 allocation first, then copy
+             * the 256-byte corpus cap. RegQueryValueExW never copies
+             * partial data into a too-small buffer - it answers
+             * ERROR_MORE_DATA and leaves the buffer untouched - so the
+             * capped-buffer shortcut silently SKIPPED every >256-byte
+             * value (the CI bitlocker lane caught it as n==1 on the
+             * 512-byte fixture; real FVE Data blobs are 0x138 = 312
+             * bytes, so the live path was dropping every real key).
+             * Values larger than the og's 0x200 allocation stay skipped,
+             * exactly like the reference's own read failure. */
+            constexpr DWORD kOgReadBuf = 0x200;
+            if (size <= kOgReadBuf) {
+                std::vector<u8> full(size);
+                DWORD got = size;
+                if (RegQueryValueExW(sub, L"Data", nullptr, nullptr, full.data(), &got) ==
+                        ERROR_SUCCESS &&
+                    got == size) {
+                    DWORD cap = reghive::kFveMaxBlobBytes;
+                    if (size < cap)
+                        cap = size;
+                    reghive::AutoUnlockKey key;
+                    key.volume_guid.reserve(name_len);
+                    for (DWORD c = 0; c < name_len; ++c) {
+                        wchar_t wc = name[c];
+                        /* uppercase like the og's _strupr_s (GUID text is ASCII) */
+                        if (wc >= L'a' && wc <= L'z')
+                            wc = wchar_t(wc - L'a' + L'A');
+                        key.volume_guid.push_back(char(wc));
+                    }
+                    key.blob.assign(full.data(), full.data() + cap);
+                    out.push_back(std::move(key));
+                    ++n;
                 }
-                key.blob = std::move(buf);
-                out.push_back(std::move(key));
-                ++n;
             }
         }
         RegCloseKey(sub);
