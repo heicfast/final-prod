@@ -54,12 +54,14 @@
 #include <mutex>
 #include <cerrno>
 #include <chrono>
+#include <thread>
 #include <cstdarg>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
 #include <functional>
 #include <map>
+#include <condition_variable>
 #include <memory>
 #include <string>
 #include <vector>
@@ -669,6 +671,22 @@ struct CrScan {
     std::mutex progress_mu;
     u32 last_pm = 0xFFFFFFFFu;
     u32 last_stage = 0xFFFFFFFFu;
+    /* N-043 heartbeat watchdog: fires CR_EVT_HEARTBEAT from its own
+     * thread every 5000 ms while run() is in flight and no
+     * CR_EVT_SCAN_PROGRESS arrived in the window - the og's liveness
+     * watchdog (DRWUI_decompiled.c:910565-910585, CreateThread
+     * :910864), honest variant: no synthetic permille advance, the
+     * payload carries the standing telemetry truth. last_progress_at
+     * / saw_progress / run_started_at are guarded by heartbeat_mu;
+     * heartbeat_stop + the cv shut the thread down at run end (and
+     * defensively at close). */
+    std::thread heartbeat_thread;
+    std::mutex heartbeat_mu;
+    std::condition_variable heartbeat_cv;
+    bool heartbeat_stop = false;
+    std::chrono::steady_clock::time_point run_started_at{};
+    std::chrono::steady_clock::time_point last_progress_at{};
+    bool saw_progress = false;
 #ifdef _WIN32
     std::vector<std::unique_ptr<IStorageDevice>> ldm_members;
 #endif
@@ -757,7 +775,73 @@ void scan_event_trampoline_(const orchestrator::event::Event& e, void* user) {
     out.candidate_lba = e.candidate_lba;
     out.repair_actions = u32(e.repair_actions);
     out.repair_outcome = e.repair_outcome;
+    /* N-043: every progress arrival resets the heartbeat watchdog's
+     * stall clock (the og watches its engine step counter +0x8fc;
+     * CR_EVT_SCAN_PROGRESS is that counter's echo on this surface). */
+    if (u32(e.type) == CR_EVT_SCAN_PROGRESS) {
+        std::lock_guard<std::mutex> hb(s->heartbeat_mu);
+        s->last_progress_at = std::chrono::steady_clock::now();
+        s->saw_progress = true;
+    }
     s->event_fn(s->event_user, &out);
+}
+
+/* N-043: the liveness heartbeat watchdog - the og's 5 s watchdog thread
+ * (FUN_140577100, DRWUI_decompiled.c:910565-910585: Sleep(5000), and when
+ * the engine step counter +0x8fc lags the expected count +0x8f8, bump the
+ * coarse progress +0xe8 and re-fire the progress callback; started via
+ * CreateThread at :910864). HONEST VARIANT - the registered divergence
+ * this implementation pins: the og fabricates coarse-progress movement
+ * during stalls; we fire a dedicated CR_EVT_HEARTBEAT that carries the
+ * STANDING telemetry truth (permille never advances without work). A
+ * host can therefore distinguish "alive, stalled on I/O" from "hung"
+ * without ever being shown fake progress. */
+void heartbeat_loop_(CrScan* s, orchestrator::ScanController* ctrl) {
+    std::unique_lock<std::mutex> lock(s->heartbeat_mu);
+    for (;;) {
+        s->heartbeat_cv.wait_for(lock, std::chrono::milliseconds(5000));
+        if (s->heartbeat_stop)
+            return;
+        if (!s->running.load(std::memory_order_acquire))
+            continue;
+        const auto now = std::chrono::steady_clock::now();
+        const auto last = s->saw_progress ? s->last_progress_at : s->run_started_at;
+        if (now - last < std::chrono::milliseconds(5000))
+            continue; /* live progress in the window - no heartbeat */
+        lock.unlock();
+        /* standing truth only; telemetry takes its own lock (never
+         * nested under heartbeat_mu - the trampoline takes heartbeat_mu
+         * only after tel_publish_ has released tel_.m) */
+        const orchestrator::ScanTelemetrySnapshot t = ctrl->telemetry();
+        u32 stage = 0xFFFFFFFFu;
+        u32 stage_pm = 0xFFFFFFFFu;
+        if (!t.quick.completed) {
+            stage = 0;
+            stage_pm = t.quick.permille;
+        } else if (!t.deep.completed) {
+            stage = 1;
+            stage_pm = t.deep.permille;
+        } else if (!t.carve.completed) {
+            stage = 2;
+            stage_pm = t.carve.permille;
+        }
+        cr_ui_event out;
+        std::memset(&out, 0, sizeof(out));
+        out.type = CR_EVT_HEARTBEAT;
+        out.stage = stage;
+        out.timestamp_ms = u32(t.elapsed_ms & 0xFFFFFFFFull);
+        out.bytes_done = t.bytes_scanned; /* carve-true bytes so far */
+        out.bytes_total = 0;              /* unknown - honest, never invented */
+        out.stage_permille = stage_pm;
+        out.overall_permille = t.overall_permille; /* standing, never bumped */
+        out.files_found = t.files_found;
+        out.deleted_found = t.deleted_found;
+        out.carved_found = t.carved_found;
+        out.error_ranges = u32(t.errors.ranges().size());
+        if (s->event_fn)
+            s->event_fn(s->event_user, &out);
+        lock.lock();
+    }
 }
 
 bool scan_progress_bridge_(u32 overall_pm, void* user) {
@@ -1500,8 +1584,29 @@ u32 scan_run_impl(cr_ui_scan* scan) {
         }
     }
     s->started = true;
+    {
+        std::lock_guard<std::mutex> lock(s->heartbeat_mu);
+        s->run_started_at = std::chrono::steady_clock::now();
+        s->saw_progress = false;
+        s->heartbeat_stop = false;
+    }
     s->running.store(true);
+    /* N-043: the liveness watchdog (only when events are subscribed -
+     * a silent host cannot observe a heartbeat anyway). ctrl is stable
+     * for the whole run; the raw pointer is captured under ctrl_mu. */
+    if (s->event_fn) {
+        std::lock_guard<std::mutex> lock(s->ctrl_mu);
+        if (s->ctrl)
+            s->heartbeat_thread = std::thread(heartbeat_loop_, s, s->ctrl.get());
+    }
     const u32 rc = s->ctrl->run(s->dev->dev.get(), &s->token, scan_progress_bridge_, s, s->stats);
+    {
+        std::lock_guard<std::mutex> lock(s->heartbeat_mu);
+        s->heartbeat_stop = true;
+    }
+    s->heartbeat_cv.notify_all();
+    if (s->heartbeat_thread.joinable())
+        s->heartbeat_thread.join();
     s->running.store(false);
     if (s->ck_sink) {
         if (s->ck_sink->f)
@@ -1774,6 +1879,17 @@ extern "C" CR_UI_API void cr_ui_scan_close(cr_ui_scan* scan) {
             std::remove(s->ck_sink->tmp_path.c_str());
 #endif
         }
+        /* N-043: defensively stop + join the heartbeat watchdog - a
+         * joinable std::thread member would std::terminate the process
+         * at deletion (close while run() is in flight is a host bug,
+         * but the failure mode must not be termination) */
+        {
+            std::lock_guard<std::mutex> lock(s->heartbeat_mu);
+            s->heartbeat_stop = true;
+        }
+        s->heartbeat_cv.notify_all();
+        if (s->heartbeat_thread.joinable())
+            s->heartbeat_thread.join();
         delete s;
     } catch (...) {
     }

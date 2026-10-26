@@ -133,7 +133,9 @@ typedef void (*cr_ui_recovery_progress_fn)(void* user, uint64_t bytes_done, uint
  *
  * Contract: POD payload (no pointers to free - a transport bridge can
  * serialize it byte-for-byte); events may fire from ENGINE WORKER
- * THREADS (the shim does NOT serialize event deliveries - single-flight
+ * THREADS or the shim's HEARTBEAT WATCHDOG thread (N-043: the 5 s
+ * liveness watchdog fires CR_EVT_HEARTBEAT from its own thread; the
+ * shim does NOT serialize event deliveries - single-flight
  * is this callback's own discipline if it needs it); must not block; no
  * cancellation semantics (the token functions are the cancel path);
  * stage transitions fire in scan order; progress samples coalesce by
@@ -152,6 +154,16 @@ typedef void (*cr_ui_recovery_progress_fn)(void* user, uint64_t bytes_done, uint
         * 1 applied, 2 consent denied,                                                             \
         * 3 failed/unavailable; repair_actions                                                     \
         * carries the planned/applied count. */
+#define CR_EVT_HEARTBEAT 8u /* N-043 liveness heartbeat: fired from the shim's watchdog thread    \
+                             * every 5000 ms while run() is in flight and no                    \
+                             * CR_EVT_SCAN_PROGRESS arrived in the window (the og's 5 s         \
+                             * watchdog, DRWUI_decompiled.c:910565-910585 + CreateThread        \
+                             * :910864) - the HONEST variant: the payload carries the           \
+                             * standing telemetry truth, never a synthetic permille             \
+                             * advance (the og's watchdog bumps its coarse counter +1           \
+                             * instead). stage = 0xFFFFFFFF; bytes_total = 0 (unknown);         \
+                             * overall_permille / stage_permille = the standing values;         \
+                             * timestamp_ms = elapsed_ms; files counters = standing. */
 
 typedef struct cr_ui_event {
     uint32_t type;         /* CR_EVT_* above */

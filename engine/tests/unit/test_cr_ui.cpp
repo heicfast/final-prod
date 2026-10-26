@@ -800,6 +800,7 @@ struct EventLog {
     uint32_t files_events = 0;
     uint32_t checkpoints = 0;
     uint32_t repair_events = 0;
+    uint32_t heartbeats = 0; /* N-043: known type (slow lanes may stall >5s) */
     uint32_t unknown_types = 0;
     bool saw_quick = false, saw_deep = false, saw_carve = false;
     void record(const cr_ui_event* e) {
@@ -820,6 +821,9 @@ struct EventLog {
         case CR_EVT_REPAIR: /* S-008: known type of this build */
             ++repair_events;
             break;
+        case CR_EVT_HEARTBEAT: /* N-043: known type (slow lanes may stall) */
+            ++heartbeats;
+            break;
         case CR_EVT_FILES_FOUND:
             ++files_events;
             break;
@@ -827,7 +831,7 @@ struct EventLog {
             ++checkpoints;
             break;
         default:
-            if (e->type > CR_EVT_LOST_CANDIDATE)
+            if (e->type > CR_EVT_HEARTBEAT)
                 ++unknown_types; /* must never happen from this build */
             break;
         }
@@ -946,6 +950,108 @@ TEST(CrUi, EventStreamUnsubscribeAndResubscribe) {
     EXPECT_EQ(log.events.size(), 0u) << "unsubscribed scans must emit nothing";
 }
 
+/* ---- N-043: the liveness heartbeat watchdog ---- */
+
+namespace {
+struct HeartbeatLog {
+    std::mutex mu;
+    std::vector<cr_ui_event> events;
+    std::vector<std::thread::id> threads;
+    void record(const cr_ui_event* e) {
+        std::lock_guard<std::mutex> lock(mu);
+        events.push_back(*e);
+        threads.push_back(std::this_thread::get_id());
+    }
+};
+void hb_event_cb(void* user, const cr_ui_event* e) {
+    static_cast<HeartbeatLog*>(user)->record(e);
+}
+} // namespace
+
+TEST(CrUi, HeartbeatDuringStall) {
+    /* N-043 (the finding's fix-plan option (b), the honest heartbeat): a
+     * pause-parked scan is a DETERMINISTIC stall - no CR_EVT_SCAN_PROGRESS
+     * fires while parked, run() is in flight - so the 5 s watchdog (the
+     * og's FUN_140577100 cadence, DRWUI_decompiled.c:910565-910585) must
+     * fire CR_EVT_HEARTBEAT from its OWN thread. The honest divergence:
+     * the og's watchdog bumps its coarse progress counter (+0xe8) and
+     * re-fires the progress callback - FABRICATED movement; ours must
+     * carry the STANDING permille (zero synthetic advance) so the full
+     * log incl. heartbeats stays strictly monotonic (the finding's
+     * Progress.HeartbeatDuringStall + PermilleStrictlyMonotonicUnder-
+     * Heartbeat pair, proven on one deterministic stall fixture - two
+     * 6+ second stalls would double the suite for no extra coverage). */
+    Ui u;
+    std::string img = write_fixture("hb");
+    ASSERT_FALSE(img.empty());
+    ASSERT_EQ(cr_ui_open_image(img.c_str(), 0, 0, &u.dev), CR_UI_OK);
+    HeartbeatLog log;
+    cr_ui_scan_config cfg{};
+    cfg.stage_mask = 7;
+    ASSERT_EQ(cr_ui_scan_create(&cfg, &u.scan), CR_UI_OK);
+    ASSERT_EQ(cr_ui_scan_attach_device(u.scan, u.dev), CR_UI_OK);
+    ASSERT_EQ(cr_ui_scan_set_event_fn(u.scan, hb_event_cb, &log), CR_UI_OK);
+    ASSERT_EQ(cr_ui_scan_pause(u.scan), CR_UI_OK); /* park at the first gate */
+    auto fut = std::async(std::launch::async, [&u] { return cr_ui_scan_run(u.scan); });
+    cr_ui_telemetry t{};
+    for (int i = 0; i < 3000; ++i) {
+        if (cr_ui_scan_telemetry(u.scan, &t) == CR_UI_OK && t.running)
+            break;
+        std::this_thread::sleep_for(std::chrono::milliseconds(1));
+    }
+    ASSERT_EQ(t.running, 1u) << "the scan must park RUNNING inside the pause gate";
+
+    /* the stall window: poll for the watchdog's first beat (bounded at
+     * 12 s; the cadence is 5 s from the last progress - the park fires
+     * none, so the clock runs from run start) */
+    bool saw_hb = false;
+    uint32_t hb_pm = 0, last_progress_pm = 0;
+    bool saw_progress = false;
+    std::thread::id hb_thread{};
+    for (int i = 0; i < 12000 && !saw_hb; ++i) {
+        std::this_thread::sleep_for(std::chrono::milliseconds(1));
+        std::lock_guard<std::mutex> lock(log.mu);
+        for (size_t k = 0; k < log.events.size(); ++k) {
+            if (log.events[k].type == CR_EVT_HEARTBEAT) {
+                saw_hb = true;
+                hb_pm = log.events[k].overall_permille;
+                hb_thread = log.threads[k];
+            } else if (log.events[k].type == CR_EVT_SCAN_PROGRESS) {
+                saw_progress = true;
+                last_progress_pm = log.events[k].overall_permille;
+            }
+        }
+    }
+    /* EXPECT (not ASSERT): a failure must NOT return early here - the
+     * parked scan + the async run thread below MUST be released or the
+     * fixture teardown deadlocks against the pause gate */
+    EXPECT_TRUE(saw_hb) << "the watchdog must beat during a >5s stall";
+    /* the standing truth, never a synthetic advance (the og's +1 bump is
+     * the registered divergence this pin forbids) */
+    EXPECT_EQ(hb_pm, saw_progress ? last_progress_pm : 0u)
+        << "heartbeats must carry the standing permille - no fabricated movement";
+    /* from the watchdog's OWN thread (not the test thread; the scan runs
+     * on the async thread) */
+    if (saw_hb) {
+        EXPECT_NE(hb_thread, std::this_thread::get_id());
+    }
+
+    /* always resume and complete cleanly with the watchdog joined */
+    ASSERT_EQ(cr_ui_scan_resume(u.scan), CR_UI_OK);
+    ASSERT_EQ(fut.get(), CR_UI_OK);
+
+    /* full-log monotonicity INCLUDING heartbeats (progress + heartbeat
+     * events never regress overall_permille) */
+    uint32_t last = 0;
+    std::lock_guard<std::mutex> lock(log.mu);
+    for (const auto& e : log.events) {
+        if (e.type == CR_EVT_SCAN_PROGRESS || e.type == CR_EVT_HEARTBEAT) {
+            EXPECT_GE(e.overall_permille, last);
+            last = e.overall_permille;
+        }
+    }
+}
+
 /* ---- N-040: ABI doc-truthfulness pins ---- */
 
 namespace {
@@ -979,9 +1085,10 @@ TEST(CrUi, EventThreadContractPinned) {
      *      records it without any host-side marshaling requirement. */
     const std::string doc = cr_test::read_repo_file("docs/ABI-CONTRACT.md");
     ASSERT_FALSE(doc.empty());
-    EXPECT_NE(doc.find("Fired on engine worker threads or the thread running `run()`"),
+    EXPECT_NE(doc.find("Fired on engine worker threads, the thread running `run()`, or the"),
               std::string::npos)
-        << "ABI-CONTRACT must carry the truthful thread contract";
+        << "ABI-CONTRACT must carry the truthful thread contract (the N-043 "
+           "heartbeat watchdog is the third delivery thread)";
     EXPECT_EQ(doc.find("Fired on the thread running `run()` only"), std::string::npos)
         << "the false run()-thread-only claim must never return";
     const std::string hdr = cr_test::read_repo_file("include/cr/cr_ui.h");

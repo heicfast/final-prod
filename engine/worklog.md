@@ -11704,3 +11704,50 @@ Work Log:
 Stage Summary:
 - Convergence recorded honestly; next queue item: M-048 (user-extensible
   signature DB), then M-025 (carve read model).
+
+---
+
+---
+Task ID: DFX18-T5 (session 18, fifth fix — N-043)
+Agent: main engineer (diff-to-fix fix session 18 — DFX18)
+Task: N-043 progress liveness — implement fix-plan option (b), the
+honest heartbeat event.
+
+Work Log:
+- Corpus re-verified first-hand: FUN_140577100 (DRWUI_decompiled.c
+  :910565-910585) — Sleep(5000) loop, step counter +0x8fc vs expected
+  +0x8f8, coarse bump +0xe8, callback re-fire vt+8; CreateThread at
+  :910864; cancel flag at +200. Exactly as the finding cites.
+- Implementation: CR_EVT_HEARTBEAT (8u, appended — no version bump per
+  §9) + the shim's watchdog thread (5000 ms cv wait; fires while
+  running && no CR_EVT_SCAN_PROGRESS in the window; payload = the
+  STANDING telemetry truth: overall/stage permille, files counters,
+  elapsed_ms, carve-true bytes; bytes_total=0 unknown). Defensive join
+  at run end AND close (joinable-thread termination hazard). Both
+  event consumers (EventLog + the C consumer) taught the type — slow
+  CI lanes legitimately emit heartbeats on >5s silent windows; unknown
+  thresholds moved past 8.
+- The honest divergence registered in ABI-CONTRACT §6 (the og bumps
+  coarse progress = fabricated movement; ours never advances permille
+  without work). The doc's verbatim event block updated in lockstep —
+  AND its stale "ABI-since 1.2" copy (a D4 leftover the N-040 fix
+  missed: the doc embeds a copy of the header block) fixed too.
+- Tests: CrUi.HeartbeatDuringStall (pause-parked scan = deterministic
+  stall; standing-permille assertion + watchdog-thread assertion +
+  full-log monotonicity incl. heartbeats — the finding's two test
+  names on one deterministic fixture). Fail-before RED executed clean
+  (12.9s, zero beats) — the first fail-before attempt exposed a
+  test-design flaw (ASSERT before resume leaked the parked scan →
+  teardown deadlock); hardened to EXPECT + always-resume in the same
+  change. Dangling-else -Werror caught and fixed.
+- The EventThreadContractPinned pin (N-040) caught my own contract-text
+  change — updated in the same commit (the lockstep working both
+  directions).
+- TSan lane: 686/686 CLEAN (the threading mandate for a new thread).
+  linux-release 686/686. Audit trail: Resolution + FIXED/ move, index
+  row (100 header), matrix orchestrator rows (both session rows),
+  SUMMARY counts.
+
+Stage Summary:
+- N-043 FIXED (tally: 5 — N-045, N-046, N-040, N-074, N-043). MINOR 32
+  remain. Next: N-060 (save-progress cancel), N-061 (runlog).

@@ -167,7 +167,8 @@ static void recovery_progress_cb(void* user, uint64_t done, uint64_t total) {
 /* typed event stream (GAP-S6-10): counts per CR_EVT_*; unknown types ignored
  * (forward-compat rule, ABI-CONTRACT section 6) */
 static unsigned g_evt_stage = 0, g_evt_progress = 0, g_evt_files = 0, g_evt_err = 0,
-                g_evt_checkpt = 0, g_evt_lost = 0, g_evt_repair = 0, g_evt_unknown = 0;
+                g_evt_checkpt = 0, g_evt_lost = 0, g_evt_repair = 0, g_evt_hb = 0,
+                g_evt_unknown = 0;
 static void event_cb(void* user, const cr_ui_event* evt) {
     (void)user;
     if (!evt)
@@ -193,6 +194,9 @@ static void event_cb(void* user, const cr_ui_event* evt) {
         break;
     case 7u:
         ++g_evt_repair;
+        break;
+    case CR_EVT_HEARTBEAT: /* N-043: the liveness watchdog (slow lanes) */
+        ++g_evt_hb;
         break;
     default:
         ++g_evt_unknown;

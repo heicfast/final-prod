@@ -172,6 +172,25 @@ issued — dropped). New pin: Health.SmartCommandListMatchesImplementation
 SEVERE 0 · MAJOR 24 · MINOR 33 · INFO 22 (0 actionable) · tracked-open
 16 · FIXED 114 files (113 findings + RESOLVED-INDEX).
 
+**N-043 FIXED (the honest heartbeat — fix-plan option (b)):** new event
+type CR_EVT_HEARTBEAT (appended, no version bump) fired from the shim's
+watchdog thread every 5000 ms while run() is in flight and no
+CR_EVT_SCAN_PROGRESS arrived in the window — the og's 5 s liveness
+watchdog (FUN_140577100, DRWUI_decompiled.c:910565-910585, re-verified
+first-hand) in the HONEST variant: the payload carries the standing
+telemetry truth, never a synthetic permille advance (the og's +0xe8
+coarse bump is the registered divergence, ABI-CONTRACT §6).
+CrUi.HeartbeatDuringStall (pause-parked scan = deterministic stall;
+fail-before RED executed — the run also caught and fixed a test-design
+flaw where ASSERT-before-resume leaked the parked scan). TSan 686/686
+CLEAN (new thread); both event consumers taught the type; the
+EventThreadContractPinned pin caught the contract-text change and moved
+with it in the same commit. Suite 686/686. Finding → FIXED/.
+
+**Counts after this landing (direct file inventory at the N-043 push):**
+SEVERE 0 · MAJOR 24 · MINOR 32 · INFO 22 (0 actionable) · tracked-open
+16 · FIXED 115 files (114 findings + RESOLVED-INDEX).
+
 ## Session-10 delta — the SEVERE tier close-out (2026-10-26)
 
 This lane (DFX10) executed the published order S-009 -> S-029 -> S-030
