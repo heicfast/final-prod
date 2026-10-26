@@ -190,6 +190,17 @@ struct ScanConfig {
      * --disk/--volume targets and pre-v3 sessions. */
     char volume_image[256] = {0};
 
+    /* M-029 (the narrowed "server-side push", session-5 correction): the
+     * display name for the carve/raw category root. The og names its
+     * general-RAW category node through a one-shot per-scan config fetch
+     * (the "filter_generalraw" key through the controller's vtable+0x48
+     * hook - localized/remote-config-driven; corpus
+     * evidence/decompiled-quotes/s5-oq-s4-2-raw-naming-hook.md). Empty =
+     * the default "Other Deleted Files (Carved)" role. UTF-8, NUL-padded;
+     * the resume path recognizes BOTH the default and the configured name
+     * so a re-run never spawns a duplicate raw root. */
+    char raw_category_name[64] = {0};
+
     /* ---- auto-checkpoint (G-13, issue #9) ----
      * Invoked by the orchestrator at STAGE BOUNDARIES with a freshly
      * serialized session (state + volume + contexts + tree + error map -
@@ -429,6 +440,10 @@ public:
     const ScanConfig& config() const { return cfg_; }
 
 private:
+    /* M-029: the raw/carve category root's role string - the configured
+     * display name (cfg_.raw_category_name, the og's "filter_generalraw"
+     * surface) when set, the default role otherwise. */
+    std::u16string raw_root_name_() const;
     u32 run_quick(IStorageDevice* slice, CancelToken* cancel, bool (*progress)(u32, void*),
                   void* pu, ScanStats& stats);
     u32 run_deep(IStorageDevice* slice, CancelToken* cancel, bool (*progress)(u32, void*), void* pu,

@@ -2078,3 +2078,135 @@ TEST(CrUi, LostApplyRefusesOverlapAndSlices) {
     EXPECT_EQ(res.outcome, 2u);
     EXPECT_NE(std::string(res.reason).find("slice"), std::string::npos);
 }
+
+/* ------------------------------------------------------------------ */
+/* M-029: the og filter-bar bucket IDs through the ABI                 */
+/* ------------------------------------------------------------------ */
+
+TEST(CrUi, QueryApplyBucketsFillsAndRejects) {
+    Ui u;
+    std::string img, crsf;
+    ASSERT_TRUE(scan_to_session("buckets", u, img, crsf));
+
+    /* full population for reference */
+    cr_ui_query q{};
+    uint64_t total = 0;
+    cr_ui_query_row* rows = nullptr;
+    uint32_t n = 0;
+    ASSERT_EQ(cr_ui_query_run(u.sess, &q, &rows, &n, &total), CR_UI_OK);
+    ASSERT_GE(total, 3u);
+    const uint64_t full_total = total;
+    cr_ui_query_rows_free(rows, n);
+    rows = nullptr;
+
+    /* Date bucket 0x103 (Last 1 month): the range becomes a concrete
+     * local-day window ending today - and since the fixture's files carry
+     * FAT-epoch dates (1980), the translated window excludes them all,
+     * proving the range flows through the query path */
+    q = cr_ui_query{};
+    ASSERT_EQ(cr_ui_query_apply_buckets(&q, 0x103, 0, 0, 0, 0, 0), CR_UI_OK);
+    EXPECT_GT(q.modified_from, 0u);
+    EXPECT_GT(q.modified_to, q.modified_from);
+    const uint64_t day = 24ull * 3600 * 10'000'000;
+    EXPECT_GE(q.modified_to - q.modified_from, 29 * day);  /* 30 local days */
+    EXPECT_LE(q.modified_to - q.modified_from, 31 * day);  /* DST-tolerant */
+    ASSERT_EQ(cr_ui_query_run(u.sess, &q, &rows, &n, &total), CR_UI_OK);
+    EXPECT_EQ(total, 0u) << "1980-dated fixture rows cannot fall in the last month";
+    cr_ui_query_rows_free(rows, n);
+
+    /* Date bucket 0 (none): the axis is untouched */
+    q = cr_ui_query{};
+    q.modified_from = 0;
+    q.modified_to = 0;
+    ASSERT_EQ(cr_ui_query_apply_buckets(&q, 0, 0, 0, 0, 0, 0), CR_UI_OK);
+    EXPECT_EQ(q.modified_from, 0u);
+    EXPECT_EQ(q.modified_to, 0u);
+
+    /* Size bucket 0x1000 (< 512KB): everything in the fixture */
+    q = cr_ui_query{};
+    ASSERT_EQ(cr_ui_query_apply_buckets(&q, 0, 0x1000, 0, 0, 0, 0), CR_UI_OK);
+    EXPECT_EQ(q.size_min, 0u);
+    EXPECT_EQ(q.size_max, uint64_t(512 * 1024));
+    ASSERT_EQ(cr_ui_query_run(u.sess, &q, &rows, &n, &total), CR_UI_OK);
+    EXPECT_EQ(total, full_total);
+    cr_ui_query_rows_free(rows, n);
+
+    /* Size bucket 0x1004 (> 1 GiB): nothing in the fixture */
+    q = cr_ui_query{};
+    ASSERT_EQ(cr_ui_query_apply_buckets(&q, 0, 0x1004, 0, 0, 0, 0), CR_UI_OK);
+    EXPECT_EQ(q.size_min, uint64_t(1024 * 1024 * 1024) + 1);
+    ASSERT_EQ(cr_ui_query_run(u.sess, &q, &rows, &n, &total), CR_UI_OK);
+    EXPECT_EQ(total, 0u);
+    cr_ui_query_rows_free(rows, n);
+
+    /* Size custom 0x1006: inclusive [500, 1000] catches both boundary
+     * rows - DOC.TXT (1000 B, the inclusive upper bound) and DELFILE.TXT
+     * (500 B, the inclusive lower bound) - but not PHOTO.JPG (200 B) */
+    q = cr_ui_query{};
+    ASSERT_EQ(cr_ui_query_apply_buckets(&q, 0, 0x1006, 0, 0, 500, 1000), CR_UI_OK);
+    ASSERT_EQ(cr_ui_query_run(u.sess, &q, &rows, &n, &total), CR_UI_OK);
+    ASSERT_EQ(total, 2u);
+    /* the deleted 8.3 name surfaces as "_ELFILE.TXT" (the 0xE5 marker
+     * destroys the first character) - match by size for robustness */
+    bool saw_doc = false, saw_del = false;
+    for (uint32_t i = 0; i < n; ++i) {
+        if (rows[i].size == 1000)
+            saw_doc = true;
+        if (rows[i].size == 500)
+            saw_del = true;
+    }
+    EXPECT_TRUE(saw_doc);
+    EXPECT_TRUE(saw_del);
+    cr_ui_query_rows_free(rows, n);
+
+    /* the skipped IDs (0x104, 0x1005), unknown values, and a null query
+     * are rejected - the core never invents bucket semantics */
+    q = cr_ui_query{};
+    EXPECT_EQ(cr_ui_query_apply_buckets(&q, 0x104, 0, 0, 0, 0, 0), CR_UI_ERR_BAD_PARAMETER);
+    EXPECT_EQ(cr_ui_query_apply_buckets(&q, 0, 0x1005, 0, 0, 0, 0), CR_UI_ERR_BAD_PARAMETER);
+    EXPECT_EQ(cr_ui_query_apply_buckets(&q, 0x9999, 0, 0, 0, 0, 0), CR_UI_ERR_BAD_PARAMETER);
+    EXPECT_EQ(cr_ui_query_apply_buckets(&q, 0, 0x1234, 0, 0, 0, 0), CR_UI_ERR_BAD_PARAMETER);
+    EXPECT_EQ(cr_ui_query_apply_buckets(nullptr, 0, 0, 0, 0, 0, 0), CR_UI_ERR_BAD_PARAMETER);
+    /* rejection leaves the query untouched */
+    EXPECT_EQ(q.modified_from, 0u);
+    EXPECT_EQ(q.size_min, 0u);
+}
+
+TEST(CrUi, RawCategoryNameNamesTheCarveRoot) {
+    /* M-029: the og's per-scan "filter_generalraw" naming surface - the
+     * configured display name becomes the carve root's role (and rides
+     * the session round-trip; the resume path recognizes it) */
+    const std::string img = write_fixture("rawname");
+    ASSERT_FALSE(img.empty());
+    Ui u;
+    ASSERT_EQ(cr_ui_open_image(img.c_str(), 0, 0, &u.dev), CR_UI_OK);
+    cr_ui_scan_config cfg{};
+    cfg.raw_category_name_utf8 = "General Raw Files";
+    ASSERT_EQ(cr_ui_scan_create(&cfg, &u.scan), CR_UI_OK);
+    ASSERT_EQ(cr_ui_scan_attach_device(u.scan, u.dev), CR_UI_OK);
+    ASSERT_EQ(cr_ui_scan_run(u.scan), CR_UI_OK);
+
+    /* the carve root carries the configured name; the standard roots are
+     * untouched */
+    cr_ui_snapshot* snap = nullptr;
+    ASSERT_EQ(cr_ui_scan_snapshot(u.scan, &snap), CR_UI_OK);
+    uint32_t count = 0;
+    ASSERT_EQ(cr_ui_snapshot_node_count(snap, &count), CR_UI_OK);
+    ASSERT_GT(count, 0u);
+    bool saw_custom = false, saw_found = false;
+    char name[128];
+    for (uint32_t i = 0; i < count; ++i) {
+        cr_ui_node_info info{};
+        if (cr_ui_snapshot_node(snap, i, &info, name, sizeof(name)) != CR_UI_OK)
+            continue;
+        if (!info.is_full)
+            continue; /* only roots carry roles */
+        if (std::strcmp(name, "General Raw Files") == 0)
+            saw_custom = true;
+        if (std::strcmp(name, "Found") == 0)
+            saw_found = true;
+    }
+    cr_ui_snapshot_close(snap);
+    EXPECT_TRUE(saw_found) << "the standard Found root is unaffected";
+    EXPECT_TRUE(saw_custom) << "the carve root carries the configured name";
+}

@@ -15,6 +15,7 @@
 #include "cr/orchestrator/cr_scan.h"
 #include "cr/cr_log.h"
 #include "cr/cr_bits.h"
+#include "cr/cr_text.h"
 #include "cr/btrfs/cr_btrfs_engine.h"
 #include "cr/carve/cr_carve.h"
 #include "cr/cr_bits.h"
@@ -75,6 +76,15 @@ u32 weighted_progress(const StageWeights& w, u32 quick_pm, u32 deep_pm, u32 carv
     return permille > 1000 ? 1000 : permille;
 }
 
+std::u16string ScanController::raw_root_name_() const {
+    /* M-029: the configured display name when present (the og's
+     * "filter_generalraw" naming surface), the default role otherwise. */
+    for (const char c : cfg_.raw_category_name)
+        if (c != '\0')
+            return text::utf8_to_u16(cfg_.raw_category_name);
+    return u"Other Deleted Files (Carved)";
+}
+
 ScanController::ScanController(tree::ResultTree& tree, ScanConfig cfg)
     : tree_(tree), cfg_(std::move(cfg)) {
     event_fn_ = cfg_.event_fn; /* GAP-S6-10: config seed, setter overrides */
@@ -85,7 +95,7 @@ ScanController::ScanController(tree::ResultTree& tree, ScanConfig cfg)
         root_lost_ = tree_.add_root(u"Lost Files");
     }
     if (cfg_.run_carve)
-        root_carved_ = tree_.add_root(u"Other Deleted Files (Carved)");
+        root_carved_ = tree_.add_root(raw_root_name_());
 }
 
 ScanController::ScanController(tree::ResultTree& tree, ScanConfig cfg,
@@ -114,7 +124,11 @@ ScanController::ScanController(tree::ResultTree& tree, ScanConfig cfg,
                 root_deleted_ = static_cast<tree::FullNode*>(r);
             else if (role == u"Lost Files")
                 root_lost_ = static_cast<tree::FullNode*>(r);
-            else if (role == u"Other Deleted Files (Carved)")
+            /* M-029: the raw root may carry the ORIGINAL run's configured
+             * display name (persisted as its role); recognize both the
+             * default and the current config so a resume never spawns a
+             * duplicate raw root. */
+            else if (role == u"Other Deleted Files (Carved)" || role == raw_root_name_())
                 root_carved_ = static_cast<tree::FullNode*>(r);
         }
     } else if (cfg_.run_quick || cfg_.run_deep) {
@@ -123,7 +137,7 @@ ScanController::ScanController(tree::ResultTree& tree, ScanConfig cfg,
         root_lost_ = tree_.add_root(u"Lost Files");
     }
     if (cfg_.run_carve && root_carved_ == nullptr)
-        root_carved_ = tree_.add_root(u"Other Deleted Files (Carved)");
+        root_carved_ = tree_.add_root(raw_root_name_());
     /* M-042: a whole-disk-basis resume (the only basis persisted lost
      * candidates exist on - whole_disk scans) enables the run-start
      * re-validation; volume-basis resumes keep the candidates as-is

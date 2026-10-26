@@ -371,6 +371,13 @@ typedef struct cr_ui_scan_config {
                                              * Warn line through the cr::log
                                              * seam at/above the threshold.
                                              * Zero-init safe (0 = off). */
+    const char* raw_category_name_utf8;     /* v2-era append (M-029): the
+                                             * display name for the raw/carve
+                                             * category root - the og's
+                                             * per-scan "filter_generalraw"
+                                             * naming surface. NULL/"" = the
+                                             * default "Other Deleted Files
+                                             * (Carved)" role. */
 } cr_ui_scan_config;
 
 CR_UI_API uint32_t cr_ui_scan_create(const cr_ui_scan_config* cfg, cr_ui_scan** out);
@@ -700,6 +707,28 @@ CR_UI_API uint32_t cr_ui_query_run(cr_ui_session* sess, const cr_ui_query* q,
                                    cr_ui_query_row** rows, uint32_t* row_count,
                                    uint64_t* total_matched);
 CR_UI_API void cr_ui_query_rows_free(cr_ui_query_row* rows, uint32_t row_count);
+
+/* M-029 (v2-era added export): translate the og filter-bar's Date/Size
+ * bucket IDs into this query's range fields, in place.
+ *
+ * date_bucket / size_bucket are the og's stable action IDs (the
+ * CTimeFilterBtn/CSizeFilterBtn menus): Date 0x100 Today, 0x101 Yesterday,
+ * 0x102 Last 7 days, 0x103 Last 1 month, 0x105 Custom; Size 0x1000 < 512KB,
+ * 0x1001 512KB~1MB, 0x1002 1MB~512MB, 0x1003 512MB~1GB, 0x1004 > 1GB,
+ * 0x1006 Custom. 0 leaves that axis untouched. The skipped IDs (0x104,
+ * 0x1005) and any unknown value are REJECTED with CR_UI_ERR_INVALID_PARAM
+ * - the core never invents semantics the og's menu does not have.
+ *
+ * Date windows are computed from the host clock as day-truncated LOCAL
+ * time exactly like the og (its cached today/yesterday/7d/30d bounds);
+ * Custom (0x105) uses date_custom_from/to as FILETIMEs, both ends
+ * inclusive after local-day truncation. Size buckets use the og's exact
+ * byte boundaries; Custom (0x1006) is inclusive on [size_custom_min,
+ * size_custom_max]. */
+CR_UI_API uint32_t cr_ui_query_apply_buckets(
+    cr_ui_query* q, uint32_t date_bucket, uint32_t size_bucket,
+    uint64_t date_custom_from, uint64_t date_custom_to,
+    uint64_t size_custom_min, uint64_t size_custom_max);
 
 /* ---- carve-format registry (ops #7-#8 parity) ------------------------------
  * The og exposes its analyser-registry views through RAWSearchDLL exports
