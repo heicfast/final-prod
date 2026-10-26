@@ -27,21 +27,11 @@ Core (audited commit `67193b6` + concurrent `03ddcd2` GAP-S6-6 fix in tree):
 
 ## Algorithms
 
-- **A30 candidate scoring** — **FIXED (DFX20 / M-017, findings/FIXED/)**: the og's
-  content-driven dSuggested + AdjustPartitionInfoOrder are ported (cr_scoring.{h,cpp});
-  the fan-out counts recovered content per candidate and ranks by the og's ln-normalized
-  per-FS weights (+ per-FS bonus defaults; + the +500 table match; denominator = the
-  PRE-+500 pass-1 max - a decode correction the fix pinned by fitting the QA-log rows),
-  then curates (containment proper-subset drop per the round-1 log arbitration, 0.1/0.3
-  FAT tie rules, size-match promotion to result #2 with the follower-score copy -
-  re-decoded first-hand at LAB_140510a0e; stable descending sort). The UI curation cap
-  is deliberately NOT ported (the og moves overflow to a secondary list; the core would
-  lose data). score = the og-shaped permille; REC_PARTITION_CONTEXT v3 round-trips the
-  counts. Executed fail-before (ranking disabled -> the orchestrator test RED); 7 tests;
-  suite 706/706. The structural evidence points remain on the evidence list (the
-  tie-break input); the old UNVERIFIED verdict is superseded - OQ-T9 was already
-  resolved by the session-3 legs' decode, and this session's port closes the loop.
-
+- **A30 candidate scoring** — og's CalcPartition scoring walk is corpus-undecoded
+  (B-partitionrecovery OQ-3); core's evidence-points model (15/25/30 NTFS etc.) is a
+  documented concretization. Verdict: **UNVERIFIED-against-og model**, no contradiction
+  demonstrable → OQ-T9. Overlap penalties (−20/−10) and dedup (first-nested-wins →
+  post-fix probe-size-only containment) are core-side models.
 - **A25** — `M` two-pass windowed scan (64 KiB windows, 1-sector stride).
 
 ## State machine
@@ -90,6 +80,14 @@ lost-partition-specific divergences surfaced.
   **ln(count)/ln(maxCount)** (per-scan relative normalization); count==1 keeps numerator 1.0
   (quirk). Core = absolute structural evidence points — ordering diverges on almost any
   multi-candidate fixture.
+- **M-017 FIXED (s19):** the og's content-driven scoring landed end to end — weighted
+  count (f+50·d NTFS family / f+10·d HFS+ / (f+d)·50 FAT) + the observed per-FS bonus
+  (NTFS 60/30, FAT 20; OQ-S2M-2 residual) + the +500 table-match (the old overlap
+  penalties' polarity inversion repaired), ln(count)/ln(max) in permille with the og's
+  edge cases, the containment-in-known drop (table-matched candidates exempt), the
+  stable descending sort, and the :842776-93 iVar16 size-match promotion re-decoded
+  first-hand. Candidate.score is permille; structural points tie-break
+  (Candidate.structural_points). Resolution in findings/FIXED/M-017.
 - **A29-adjacent → M-017:** AdjustPartitionInfoOrder post-hoc rules (0.1/0.3 gap keeps,
   ~16 MiB over-large duplicate re-score + splice-to-front, FAT multi-child keep) — no core
   counterpart.

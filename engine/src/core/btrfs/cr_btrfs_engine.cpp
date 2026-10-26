@@ -772,6 +772,7 @@ u32 scan_btrfs(IStorageDevice* slice, CancelToken* cancel, WalkProgressLike prog
         struct DirEntry {
             u64 child;
             std::u16string name;
+            std::string name_raw; /* N-016b: original bytes when mapped */
             u8 type;
         };
         std::map<u64, std::vector<DirEntry>> dirs;
@@ -794,8 +795,13 @@ u32 scan_btrfs(IStorageDevice* slice, CancelToken* cancel, WalkProgressLike prog
                  * raw bytes the og passes through unconverted - decode
                  * strictly, invalid bytes LOSSLESSLY (U+E000 + byte,
                  * bijective; M-010: the og keeps the raw bytes) */
-                de.name = text::utf8_to_u16_lossless(std::string_view(
-                    reinterpret_cast<const char*>(di) + DI_NAME, name_len > 255 ? 255 : name_len));
+                const u16 capped_len = name_len > 255 ? 255 : name_len;
+                de.name = text::utf8_to_u16_lossless(
+                    std::string_view(reinterpret_cast<const char*>(di) + DI_NAME, capped_len));
+                /* N-016b (N-029 residual): original bytes alongside the
+                 * mapped name (the og's session keeps them verbatim). */
+                if (text::name_has_raw_band(de.name))
+                    de.name_raw.assign(reinterpret_cast<const char*>(di) + DI_NAME, capped_len);
                 if (!de.name.empty())
                     dirs[k.objectid].push_back(std::move(de));
                 off += DI_HEADER + name_len + data_len;
@@ -828,6 +834,7 @@ u32 scan_btrfs(IStorageDevice* slice, CancelToken* cancel, WalkProgressLike prog
                     if (!cp)
                         return;
                     cp->name = de.name;
+                    cp->name_raw = de.name_raw; /* N-016b: og-parity raw bytes */
                     cp->fs_kind = u32(FsKindCode::Btrfs); /* factory 11 (row 45) */
                     cp->logical_size = cit->second.size;
                     /* N-047: the og's FILE_ATTRIBUTE_NORMAL (0x80) on

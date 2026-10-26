@@ -41,6 +41,7 @@ std::unique_ptr<Snapshot> ResultTree::capture_snapshot(bool partial) const {
         s.overlap = n->overlap();
         if (const FileProperties* p = n->props()) {
             s.name = p->name;
+            s.name_raw = p->name_raw; /* N-016b: raw bytes survive snapshots */
             s.fs_kind = p->fs_kind;
             s.record_ref = p->record_ref;
             s.logical_size = p->logical_size;
@@ -120,6 +121,7 @@ FileProperties* Snapshot::materialize_props(u32 index) const {
     p->attributes = s.attributes;
     p->flags = s.flags;
     p->name = s.name;
+    p->name_raw = s.name_raw; /* N-016b */
     p->resident_data = s.resident_data;
     p->extents = s.extents;
     p->carve_format = s.carve_format;

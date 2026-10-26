@@ -154,13 +154,17 @@ TEST(LostDiscovery, FindsScoresAndRejectsNoise) {
     EXPECT_EQ(noise, nullptr); /* incoherent BPB rejected */
 
     EXPECT_EQ(ntfs_c->fs, CandidateFs::Ntfs);
-    EXPECT_GE(ntfs_c->score, 70); /* 15 boot + 25 bpb + 30 mft probe */
+    EXPECT_EQ(ntfs_c->structural_points, 70); /* 15 boot + 25 bpb + 30 mft */
+    EXPECT_EQ(ntfs_c->score, 1000); /* M-017: best content count this scan
+        (60: no files, NTFS bonus) - ln-normalized to the top */
     EXPECT_EQ(ntfs_c->sector_count, 512u);
     EXPECT_EQ(ntfs_c->start_lba + ntfs_c->sector_count, 1536u); /* no tail overlap
         with the live partition at 2048 -> no Overlaps penalty in this case */
 
     EXPECT_EQ(exfat_c->fs, CandidateFs::Exfat);
-    EXPECT_GE(exfat_c->score, 35); /* 15 + 20 */
+    EXPECT_EQ(exfat_c->structural_points, 35); /* 15 + 20 */
+    /* M-017: count 0 (no content, no bonus pinned) -> 1/ln(60) = 244 */
+    EXPECT_EQ(exfat_c->score, 244);
     EXPECT_EQ(exfat_c->sector_count, 2048u);
 
     /* sorted desc */
@@ -545,7 +549,9 @@ TEST(LostDiscovery, LostBitlockerOemNoise) {
     EXPECT_EQ(c8192, nullptr) << "no 55AA: the classifier must not fire";
     ASSERT_NE(c9216, nullptr);
     EXPECT_EQ(c9216->fs, CandidateFs::BitLocker);
-    EXPECT_EQ(c9216->score, 15); /* boot-sig only: the og's gate shape-free */
+    EXPECT_EQ(c9216->structural_points, 15); /* boot-sig only (M-017: the
+        structural points are the tie-break key; the score is the
+        content model - a lone BitLocker candidate is best-of-scan) */
 }
 
 TEST(LostDiscovery, LostBitlockerInsideExtendedRegionStillFound) {
@@ -720,4 +726,234 @@ TEST(LostDiscovery, FatBootWithOgGatesBecomesCandidate) {
             fat_c = &c;
     ASSERT_NE(fat_c, nullptr) << "valid FAT16 boot must surface as a candidate";
     EXPECT_EQ(fat_c->fs, CandidateFs::Fat);
+}
+
+TEST(LostDiscovery, Fat32ExtentUsesDataAreaForContainment) {
+    /* N-035: the og's containment math is anchored at the DATA AREA
+     * (EndSec = DataAreaStart + totalSec; DRWUI_decompiled.c
+     * :842476-842479; CalcPartition.log: FAT32 candidates carry
+     * StartSec->DataAreaStart gaps of 472011..2724233 sectors). A peer
+     * whose boot sector sits inside the outer's reserved+FATs region is
+     * NOT contained by the og - the metadata gap spans it, the data
+     * area does not. Pre-fix the whole-volume extent swallowed it. */
+    /* outer FAT16 at 16: reserved 2 + 2 FATs x 300 + root 32 =
+     * first_data 634 (data area from 650); total 40000, spc 8 ->
+     * ~4920 clusters (FAT16 bracket). Inner FAT12 at 316 - inside the
+     * outer's SECOND FAT region [18..618), before the data area. */
+    std::vector<u8> img(u64(40960) * 512, 0);
+    plant_fat_boot(img, 16, 8, 2, 512, 40000, 300, 0, false);
+    plant_fat_boot(img, 316, 8, 2, 512, 2000, 20, 0, false);
+    MemDevice dev(std::move(img));
+    DiscoveryResult r;
+    ASSERT_EQ(discover(&dev, {}, 1, nullptr, nullptr, nullptr, r), OK);
+    const Candidate* outer = nullptr;
+    const Candidate* inner = nullptr;
+    int fat_count = 0;
+    for (const auto& c : r.candidates) {
+        if (c.fs != CandidateFs::Fat)
+            continue;
+        ++fat_count;
+        if (c.start_lba == 16)
+            outer = &c;
+        if (c.start_lba == 316)
+            inner = &c;
+    }
+    ASSERT_NE(outer, nullptr);
+    EXPECT_NE(inner, nullptr)
+        << "the peer inside the outer's FAT region is not contained by the data-area extent";
+    EXPECT_GE(fat_count, 2);
+}
+
+TEST(LostDiscovery, LostCandidateReportsDataAreaOffset) {
+    /* N-035: the Candidate carries BOTH extents - the whole-volume one
+     * (materialize/slicing need the metadata region) and the og's
+     * data-area one (DataAreaStart + totalSec; the QA log's totalSec).
+     * FAT is the metadata-gap family; NTFS shows DataAreaStart ==
+     * StartSec in the corpus log. */
+    std::vector<u8> img(u64(40960) * 512, 0);
+    plant_fat_boot(img, 16, 8, 2, 512, 40000, 300, 0, false);
+    plant_ntfs(img, 2048, 4000, 100);
+    MemDevice dev(std::move(img));
+    DiscoveryResult r;
+    ASSERT_EQ(discover(&dev, {}, 1, nullptr, nullptr, nullptr, r), OK);
+    const Candidate* fat_c = nullptr;
+    const Candidate* ntfs_c = nullptr;
+    for (const auto& c : r.candidates) {
+        if (c.fs == CandidateFs::Fat && c.start_lba == 16)
+            fat_c = &c;
+        if (c.fs == CandidateFs::Ntfs && c.start_lba == 2048)
+            ntfs_c = &c;
+    }
+    ASSERT_NE(fat_c, nullptr);
+    ASSERT_NE(ntfs_c, nullptr);
+    /* FAT: reserved 2 + 2x300 FATs + 32 root = first_data 634 */
+    EXPECT_EQ(fat_c->sector_count, 40000u); /* whole-volume extent intact */
+    EXPECT_EQ(fat_c->data_start_lba, 16u + 634u);
+    EXPECT_EQ(fat_c->data_sector_count, 40000u - 634u);
+    /* NTFS: DataAreaStart == StartSec (the corpus log's no-gap shape) */
+    EXPECT_EQ(ntfs_c->data_start_lba, ntfs_c->start_lba);
+    EXPECT_EQ(ntfs_c->data_sector_count, ntfs_c->sector_count);
+}
+
+/* ---------------------------------------------------------------- */
+/* M-017: the og's content-driven scoring (DRWUI FUN_14050fda0,     */
+/* verified to 6 decimals against all 187 CalcPartition.log rows)   */
+/* ---------------------------------------------------------------- */
+
+namespace {
+
+/* plant a WALKABLE FAT16 volume at `lba` with `nfiles` real root
+ * files (the FAT engine's own scan counts them through the lost
+ * content probe) */
+void plant_fat16_content(std::vector<u8>& img, u64 lba, u16 nfiles) {
+    /* 8 MiB: (16384 - 74)/1 = 16310 data clusters - above the 4085
+     * FAT16/FAT12 boundary (a 1 MiB volume would decode as FAT12) */
+    const u64 vol_sectors = 16384;
+    u8* b = img.data() + lba * 512;
+    std::memcpy(b + 3, "MSWIN4.1", 8);
+    put16(img, lba * 512 + 0x0B, 512); /* bps */
+    b[0x0D] = 1;                        /* spc */
+    put16(img, lba * 512 + 0x0E, 2);   /* reserved */
+    b[0x10] = 2;                        /* numfats (N-034 gate: 1..2) */
+    put16(img, lba * 512 + 0x11, 512); /* root entries */
+    put16(img, lba * 512 + 0x13, u16(vol_sectors));
+    b[0x15] = 0xF8;                     /* media */
+    put16(img, lba * 512 + 0x16, 20);   /* spf */
+    put16(img, lba * 512 + 0x18, 63);   /* spt */
+    put16(img, lba * 512 + 0x1A, 255);  /* heads */
+    b[0x26] = 0x29;
+    std::memcpy(b + 0x2B, "LOSTFAT    ", 11);
+    std::memcpy(b + 0x36, "FAT16   ", 8);
+    b[510] = 0x55;
+    b[511] = 0xAA;
+    /* FAT1 @+2, FAT2 @+22, ROOT @+42 (512 entries x 32B = 32 sectors),
+     * DATA @+74 */
+    const u64 FAT1 = (lba + 2) * 512, FAT2 = (lba + 22) * 512;
+    const u64 ROOT = (lba + 42) * 512, DATA = (lba + 74) * 512;
+    put16(img, FAT1 + 0, 0xFFF8); /* M-015 canonical media word */
+    put16(img, FAT1 + 2, 0xFFFF);
+    put16(img, FAT2 + 0, 0xFFF8);
+    put16(img, FAT2 + 2, 0xFFFF);
+    for (u16 i = 0; i < nfiles; ++i) {
+        const u32 cl = 2 + i;
+        put16(img, FAT1 + cl * 2, 0xFFFF); /* one-cluster chain */
+        put16(img, FAT2 + cl * 2, 0xFFFF);
+        u8* e = img.data() + ROOT + size_t(i) * 32;
+        std::memset(e, 0, 32);
+        e[0] = 'F';
+        e[1] = u8('0' + (i / 10) % 10);
+        e[2] = u8('0' + i % 10);
+        e[3] = ' ';
+        e[4] = 'T';
+        e[5] = 'X';
+        e[6] = 'T';
+        e[11] = 0x20; /* archive */
+        put16(img, ROOT + size_t(i) * 32 + 14, 0x5821); /* write date (valid) */
+        put16(img, ROOT + size_t(i) * 32 + 16, 0x6000); /* write time */
+        put16(img, ROOT + size_t(i) * 32 + 18, 0x5821); /* access date */
+        put16(img, ROOT + size_t(i) * 32 + 26, u16(cl));
+        put32v(img, ROOT + size_t(i) * 32 + 28, 100);
+        std::memcpy(img.data() + DATA + (cl - 2) * 512, "DATA", 4);
+    }
+}
+
+} // namespace
+
+TEST(LostScoring, MatchesLogRows) {
+    /* the formula reproduced from CalcPartition.log rows (the og's own
+     * executed output, verified to 6 decimals in the finding). The
+     * 429/168849 row is exact; the other rows' scan maxima are not
+     * printed in the log, so they are recovered by inversion from the
+     * logged 6-decimal ratios (hence the 1e-5 band). */
+    EXPECT_NEAR(score_ratio(429, 168849), 0.503579, 1e-6);
+    /* (0 files, 25 folders) FAT32 + bonus 20 -> count 1270 */
+    EXPECT_NEAR(score_ratio(weighted_count(1, 0, 25) + 20, 199961), 0.585518, 1e-5);
+    /* the count==1 identity quirk: 1 file outranks a 2-file candidate
+     * (ln(2) < 1 < ln(3) - the quirk's true extent) */
+    EXPECT_NEAR(score_ratio(1, 199924), 0.081928, 1e-5);
+    EXPECT_GT(score_ratio(1, 199924), score_ratio(2, 199924));
+    /* degenerate denominators stay 1.0 */
+    EXPECT_DOUBLE_EQ(score_ratio(1, 1), 1.0);
+    EXPECT_DOUBLE_EQ(score_ratio(0, 1), 1.0);
+    /* the og's per-FS weights (FUN_14050fda0 :842176-842200) */
+    EXPECT_EQ(u64(429 + 50 * 3), weighted_count(3, 429, 3)); /* NTFS family */
+    EXPECT_EQ(u64(10 + 10 * 3), weighted_count(8, 10, 3));   /* HFS+ f+10d */
+    EXPECT_EQ(u64((7 + 3) * 50), weighted_count(1, 7, 3));   /* FAT (f+d)*50 */
+    EXPECT_EQ(u64((7 + 3) * 50), weighted_count(2, 7, 3));   /* FAT */
+}
+
+TEST(LostDiscovery, FileRichCandidateOutranksCleanBoot) {
+    /* M-017's falsifiable claim: a file-rich candidate outranks a
+     * file-poor one with CLEANER structural evidence - the og's score
+     * measures recovery value, not signature plausibility. The old
+     * absolute-points model ranked the clean NTFS (70) above the FAT
+     * (30) regardless of content. */
+    std::vector<u8> img(u64(32768) * 512, 0); /* 16 MiB disk */
+    plant_ntfs(img, 1024, 512, 64);           /* clean NTFS: 70 pts, no content */
+    plant_fat16_content(img, 4096, 40);       /* rich FAT16: 30 pts, 40 files */
+    MemDevice dev(std::move(img));
+    DiscoveryResult r;
+    ASSERT_EQ(discover(&dev, {}, 1, nullptr, nullptr, nullptr, r), OK);
+    ASSERT_GE(r.candidates.size(), 2u);
+    /* the FAT's weighted count (40*50 + 20 = 2020) dominates the empty
+     * NTFS's (0 + 60) - ln(60)/ln(2020) = 537 permille */
+    EXPECT_EQ(r.candidates[0].fs, CandidateFs::Fat) << "content must outrank structure";
+    EXPECT_EQ(r.candidates[0].score, 1000);
+    ASSERT_EQ(r.candidates[1].fs, CandidateFs::Ntfs);
+    EXPECT_EQ(r.candidates[1].score, 537);
+    EXPECT_EQ(r.candidates[1].content_count, u64(60));
+}
+
+TEST(LostDiscovery, TableMatchBonus500) {
+    /* "Found once partition:%I64d": a candidate whose start matches a
+     * live table entry gains +500 on its count (DRWUI :842260-66). The
+     * core's old model INVERTED this polarity (overlap penalties). */
+    std::vector<u8> img(u64(32768) * 512, 0);
+    plant_ntfs(img, 2048, 512, 64);
+    plant_fat16_content(img, 8192, 40);
+    MemDevice dev(std::move(img));
+    table::PartitionInfo live;
+    live.start_lba = 2048;
+    live.sector_count = 512;
+    live.used = true;
+    live.fs = table::FsKind::Ntfs;
+    std::vector<table::PartitionInfo> known{live};
+    DiscoveryResult r;
+    ASSERT_EQ(discover(&dev, known, 1, nullptr, nullptr, nullptr, r), OK);
+    const Candidate* ntfs_c = nullptr;
+    for (const auto& c : r.candidates)
+        if (c.fs == CandidateFs::Ntfs)
+            ntfs_c = &c;
+    ASSERT_NE(ntfs_c, nullptr);
+    EXPECT_TRUE(ntfs_c->table_match);
+    /* 0 files + NTFS bonus 60 + table-match 500 = 560 */
+    EXPECT_EQ(ntfs_c->content_count, u64(560));
+    /* ln(560)/ln(2020) = 831 permille (without the bonus it would be
+     * 537 - the FAT at 2020 stays ahead, the og's relative model) */
+    EXPECT_EQ(ntfs_c->score, 831);
+}
+
+TEST(LostDiscovery, OverLargeDuplicateRescoredToFront) {
+    /* AdjustPartitionInfoOrder :842776-93 + :842851: the first
+     * size-matching candidate AFTER at least one non-matching one (the
+     * iVar16 counter) gets the leader's score copied and is spliced to
+     * result #2 (log-proven round 3). A matcher adjacent to the leader
+     * takes the break path instead. */
+    std::vector<u8> img(u64(131072) * 512, 0); /* 64 MiB disk */
+    plant_fat16_content(img, 4096, 40);  /* leader: 2020, 16384 sectors */
+    plant_ntfs(img, 1024, 65536, 64);    /* NON-matcher: 32 MiB vs 8 MiB */
+    plant_ntfs(img, 70000, 4096, 64);    /* matcher: 2 MiB within 16 MiB */
+    MemDevice dev(std::move(img));
+    DiscoveryResult r;
+    ASSERT_EQ(discover(&dev, {}, 1, nullptr, nullptr, nullptr, r), OK);
+    ASSERT_GE(r.candidates.size(), 3u);
+    EXPECT_EQ(r.candidates[0].fs, CandidateFs::Fat);
+    EXPECT_EQ(r.candidates[0].score, 1000);
+    /* the size-matched candidate: spliced to #2 with the leader's
+     * score (the non-matching NTFS at 1024 precedes it) */
+    EXPECT_EQ(r.candidates[1].start_lba, u64(70000));
+    EXPECT_EQ(r.candidates[1].score, r.candidates[0].score);
+    /* the non-matching candidate keeps its own ln score and #3 */
+    EXPECT_EQ(r.candidates[2].start_lba, u64(1024));
+    EXPECT_EQ(r.candidates[2].score, 537);
 }

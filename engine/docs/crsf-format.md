@@ -78,10 +78,6 @@ v2 (41 bytes): v1 + u32 bytes_per_sector, u32 sectors_per_cluster,
                (flags bit 0 = size_from_device_end, bit 1 = geometry valid;
                the og's per-record CSearchedPartitionInfo payload,
                PartitionRecoveryD lostpart.dat +0x38 bps / +0x444 SPC)
-v3 (57 bytes, M-017): v2 + u64 content_files, u64 content_folders
-               (the og's dSuggested raw-count inputs - the ranked order
-               and scores survive save/load; v1/v2 sessions load them
-               zeroed and their score field keeps its save-time meaning)
 the record LENGTH carries the version: v1 sessions (25 B) load with the
 extras zeroed and stay re-validatable by classification only.
 ```

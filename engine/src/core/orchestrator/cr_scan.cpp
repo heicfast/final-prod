@@ -23,7 +23,6 @@
 #include "cr/fat/cr_fat_engine.h"
 #include "cr/hfsplus/cr_hfsplus_engine.h"
 #include "cr/lost/cr_lostpart.h"
-#include "cr/lost/cr_scoring.h"
 #include "cr/ntfs/cr_bootstrap.h"
 #include "cr/ntfs/cr_bitmap.h"
 #include "cr/ntfs/cr_mftwalk.h"
@@ -438,11 +437,13 @@ u32 ScanController::emit_checkpoint_() const {
     if (!cfg_.checkpoint)
         return OK;
     /* fresh container per checkpoint: rewind the sink first so every
-     * emit overwrites from position 0 (the file always holds the newest
-     * COMPLETE checkpoint; a torn one is no worse than none - the reader
-     * re-indexes forward by construction). The sink triple IS the writer's
-     * IO (a file-backed sink makes this <path>.tmp + flush + rename). The
-     * record set matches save_session exactly - mask truth included. */
+     * emit overwrites from position 0 (the STAGING side; the committed
+     * final path always holds the newest COMPLETE checkpoint - a torn
+     * staging file is no worse than none, the previous good final is
+     * never destroyed: N-014's atomic-rename contract). The sink triple
+     * IS the writer's IO (a file-backed sink stages <path>.tmp and the
+     * commit hook renames over <path>). The record set matches
+     * save_session exactly - mask truth included. */
     if (cfg_.checkpoint.seek)
         if (u32 rc = cfg_.checkpoint.seek(cfg_.checkpoint.user, 0))
             return rc;
@@ -459,6 +460,13 @@ u32 ScanController::emit_checkpoint_() const {
         return rc;
     if (u32 rc = w.finalize())
         return rc;
+    /* N-014: the atomic commit - file-backed sinks rename the completed
+     * .tmp over the final path here (a crash before this point leaves
+     * the previous good checkpoint in place; a crash after it leaves the
+     * new one - both sides of the window are good states). */
+    if (cfg_.checkpoint.commit)
+        if (u32 rc = cfg_.checkpoint.commit(cfg_.checkpoint.user))
+            return rc;
     ++checkpoint_count_;
     if (event_fn_ != nullptr) { /* GAP-S6-10 */
         event::Event e;
@@ -1247,11 +1255,9 @@ u32 ScanController::run_deep(IStorageDevice* slice, CancelToken* cancel,
                     std::unique_ptr<IStorageDevice> slice;
                     tree::FullNode* root;
                     u64 base; /* F-1: candidate start on the disk */
-                    size_t cand_index; /* M-017: stats.lost_candidates slot */
                 };
                 std::vector<CandWork> work;
-                for (size_t ci = 0; ci < dr.candidates.size(); ci++) {
-                    const auto& c = dr.candidates[ci];
+                for (const auto& c : dr.candidates) {
                     emit_lost_candidate_(c); /* GAP-S6-10 */
                     auto cand_slice = lost::materialize(slice, c);
                     if (!cand_slice)
@@ -1262,7 +1268,7 @@ u32 ScanController::run_deep(IStorageDevice* slice, CancelToken* cancel,
                     for (const char* p = buf; *p; ++p)
                         role.push_back(u16(u8(*p)));
                     const u64 cbase = cand_slice->absolute_base();
-                    work.push_back({std::move(cand_slice), tree_.add_root(role), cbase, ci});
+                    work.push_back({std::move(cand_slice), tree_.add_root(role), cbase});
                 }
                 if (!work.empty()) {
                     if (threads > 1 && work.size() > 1) {
@@ -1323,42 +1329,6 @@ u32 ScanController::run_deep(IStorageDevice* slice, CancelToken* cancel,
                             tree_.rebase_subtree_extents(w.root, w.base);
                         }
                     }
-                    /* M-017: the og's content-driven ranking (dSuggested,
-                     * DRWUI FUN_14050fda0) - count the recovered content
-                     * per candidate (the og's per-volume file/folder
-                     * attribution; both live and deleted nodes count -
-                     * recovery value is what the score measures), rank by
-                     * the og's ln-normalized weights with the +500
-                     * table-match bonus, then apply the
-                     * AdjustPartitionInfoOrder curation (containment
-                     * drop, top-2 ties, size-match promotion). The
-                     * structural probe points stay on the evidence list
-                     * (the tie-break input); `score` becomes the og-shaped
-                     * permille. */
-                    for (const auto& w : work) {
-                        u64 files = 0, folders = 0;
-                        std::function<void(tree::FileNode*)> count_subtree =
-                            [&](tree::FileNode* n) {
-                                for (tree::FileNode* c = n->first_child(); c;
-                                     c = c->next_sibling()) {
-                                    if (c->props() && (c->props()->attributes & 0x10) != 0)
-                                        folders++;
-                                    else
-                                        files++;
-                                    count_subtree(c);
-                                }
-                            };
-                        count_subtree(w.root);
-                        stats.lost_candidates[w.cand_index].content_files = files;
-                        stats.lost_candidates[w.cand_index].content_folders = folders;
-                    }
-                    std::vector<lost::scoring::Ranked> ranked;
-                    lost::scoring::rank_and_adjust(stats.lost_candidates, ranked, known,
-                                                   slice->geometry().sector_count);
-                    stats.lost_candidates.clear();
-                    stats.lost_candidates.reserve(ranked.size());
-                    for (const auto& r : ranked)
-                        stats.lost_candidates.push_back(r.cand);
                 }
             }
         } else if (lrc == ERR_CANCELLED) {
@@ -1519,10 +1489,6 @@ u32 ScanController::save_session(session::Writer& w, const ScanStats& stats) con
             pc.flags |= 0x1;
         if (c.have_geometry)
             pc.flags |= 0x2;
-        /* M-017 v3: the content counts (the ranked order + scores
-         * round-trip through the record) */
-        pc.content_files = c.content_files;
-        pc.content_folders = c.content_folders;
         if (session::serialize_partition_context(pc, blob) == OK)
             if (u32 rc =
                     w.add_record(session::REC_PARTITION_CONTEXT, blob.data(), u32(blob.size())))
@@ -1640,9 +1606,6 @@ u32 ScanController::load_session_summary(session::Reader& r, tree::ResultTree& t
                 c.hidden_sectors = pc.hidden_sectors;
                 c.size_from_device_end = (pc.flags & 0x1) != 0;
                 c.have_geometry = (pc.flags & 0x2) != 0;
-                /* M-017 v3: the persisted content counts */
-                c.content_files = pc.content_files;
-                c.content_folders = pc.content_folders;
                 /* M-042: the og re-reads every persisted record at search
                  * start and DROPS the ones the current disk no longer
                  * confirms (PRD:20748-20842). Two execution points: here

@@ -1042,3 +1042,53 @@ TEST(ScanConfig, DeepStageDefaultsOnAndWholeDiskOff) {
     EXPECT_TRUE(cfg.run_deep) << "the alias never touches the deep stage";
     EXPECT_TRUE(cfg.run_carve) << "the alias never touches the carve stage";
 }
+
+/* ---- N-016b (N-029 residual): restore filename derived from raw ------- */
+
+TEST(SafeWriter, InvalidUtf8NameRestoredFromRaw) {
+    /* The og's restore path names the output file from the ORIGINAL
+     * on-disk bytes via MultiByteToWideChar(CP_UTF8, flags=0) - DRWUI
+     * :264664-694, invoked at :357529 - which is the maximal-subpart
+     * policy (N-016a). A node carrying raw bytes must therefore restore
+     * under the FFFD-substituted name, NOT the private-unit display form
+     * (the tree/report keep the lossless U+E000+byte display per D-53;
+     * the created FILE matches what the og would create). Fail-before:
+     * final_name carried the U+E0FF private-use unit. */
+    MockIo io;
+    std::vector<u8> img(64 * 512, 0);
+    const char* payload = "RAWDATA";
+    std::memcpy(img.data() + 512, payload, 7);
+    MemDevice dev(std::move(img));
+    SafeWriter writer(io, &dev, WriterConfig{});
+    writer.set_destination(dev.size(), dev.size());
+
+    tree::ResultTree tree;
+    auto* ra = tree.add_root(u"R");
+    {
+        auto* pr = new tree::FileProperties();
+        /* display name: the lossless mapping of "\xff(bad" (M-010) */
+        pr->name = u"\uE0FF(bad";
+        pr->name_raw = "\xff(bad"; /* the original on-disk bytes */
+        pr->logical_size = 7;
+        tree::FileProperties::Extent ex;
+        ex.offset = 512;
+        ex.length = 7;
+        pr->extents.push_back(ex);
+        tree::FileNode* n = tree.add_file(ra, pr);
+        pr->release();
+        ASSERT_NE(nullptr, n);
+        ASSERT_EQ(writer.enqueue(n, u16_("R:\\out")), OK);
+    }
+    WriterStats ws;
+    ASSERT_EQ(writer.process(nullptr, nullptr, nullptr, ws), OK);
+    ASSERT_EQ(1u, ws.done);
+
+    /* the og's restore name: 0xFF is an invalid lead -> ONE U+FFFD
+     * (maximal subpart), then "(bad" verbatim. resolve_collision's
+     * contract returns the BASENAME (the dest_dir join happens at the io
+     * boundary) - so the assertion pins the substituted basename. */
+    ASSERT_EQ(1u, writer.queue().size());
+    EXPECT_EQ(writer.queue()[0].final_name, std::u16string(u"\uFFFD(bad"))
+        << "restore filename must substitute per the og's conversion, not "
+           "carry private-use units";
+}

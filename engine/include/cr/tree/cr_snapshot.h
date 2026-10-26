@@ -45,6 +45,7 @@ struct SnapNode {
 
     /* identity + classification */
     std::u16string name; /* display name (FullNode: the role string) */
+    std::string name_raw; /* N-016b: original on-disk bytes when mapped */
     u64 node_id = 0;
     u32 fs_kind = 0;
     u64 record_ref = 0;

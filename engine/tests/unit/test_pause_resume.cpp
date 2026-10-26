@@ -947,3 +947,53 @@ TEST(PauseResume, SaveAfterResumeReloadsCleanly) {
         EXPECT_EQ(STAGE_QUICK | STAGE_DEEP | STAGE_CARVE, info3.configured_mask);
     }
 }
+
+TEST(Checkpoint, CommitHookFiresAfterEveryFinalizeAndAbortsOnError) {
+    /* N-014: the orchestrator calls the sink's commit hook after every
+     * successful finalize() (the atomic-rename seam), and a FAILED
+     * commit aborts the scan with its error code - the same contract a
+     * failed write carries (never a silent checkpoint gap). */
+    MemDevice dev(build_fat16());
+    tree::ResultTree tree;
+    ScanConfig cfg;
+    struct Sink : VecIo {
+        unsigned commits = 0;
+        bool fail_next = false;
+        static u32 commit(void* user) {
+            auto* s = static_cast<Sink*>(user);
+            if (s->fail_next) {
+                s->fail_next = false;
+                return ERR_SESSION_IO;
+            }
+            ++s->commits;
+            return OK;
+        }
+    };
+    Sink sink;
+    cfg.checkpoint.write = VecIo::wr;
+    cfg.checkpoint.tell = VecIo::tl;
+    cfg.checkpoint.seek = VecIo::sk;
+    cfg.checkpoint.commit = Sink::commit;
+    cfg.checkpoint.user = &sink;
+    {
+        ScanController ctrl(tree, cfg);
+        ScanStats stats;
+        ASSERT_EQ(OK, ctrl.run(&dev, nullptr, nullptr, nullptr, stats));
+        EXPECT_GT(ctrl.checkpoint_count(), 0u);
+        EXPECT_EQ(sink.commits, unsigned(ctrl.checkpoint_count()))
+            << "commit fires exactly once per checkpoint";
+    }
+    {
+        /* a failing commit aborts the run with the commit's own code */
+        tree::ResultTree tree2;
+        ScanConfig cfg2 = cfg;
+        Sink sink2;
+        sink2.fail_next = true;
+        cfg2.checkpoint.user = &sink2;
+        ScanController ctrl2(tree2, cfg2);
+        ScanStats stats2;
+        EXPECT_EQ(ERR_SESSION_IO, ctrl2.run(&dev, nullptr, nullptr, nullptr, stats2));
+        EXPECT_EQ(0u, ctrl2.checkpoint_count())
+            << "the failed checkpoint does not count as emitted";
+    }
+}

@@ -119,7 +119,11 @@ u32 serialize_tree(const tree::ResultTree& tree, std::vector<u8>& out) {
          *   bit2: short_name follows the name (N-011a, versioned
          *         optional: u16 length + UTF-16 units)
          *   bit3: the S-023 grade byte follows the short name (2-bit
-         *         grade | 0x04 overlap flag | 0xF8 reserved-zero) */
+         *         grade | 0x04 overlap flag | 0xF8 reserved-zero)
+         *   bit4: M-051 RAW provenance follows the hash flag
+         *   bit5: N-016b name_raw follows the short name (u16 byte
+         *         length + raw bytes - the og's .rsf keeps original
+         *         on-disk name bytes verbatim) */
         u16 nflags = 0;
         if (pr) {
             for (const auto& e : pr->extents)
@@ -137,6 +141,8 @@ u32 serialize_tree(const tree::ResultTree& tree, std::vector<u8>& out) {
                 (pr->carve_checksum != 0xFFFFFFFFu || !pr->carve_note.empty() ||
                  pr->carve_anchor_b != 0 || pr->carve_flag))
                 nflags |= 16; /* M-051: RAW provenance follows */
+            if (pr && !pr->name_raw.empty())
+                nflags |= 32; /* N-016b: original name bytes follow */
         }
         put32(out, parent_ids[i]);
         put16(out, nflags);
@@ -165,6 +171,10 @@ u32 serialize_tree(const tree::ResultTree& tree, std::vector<u8>& out) {
             put16(out, u16(sn.size()));
             for (u16 ch : sn)
                 put16(out, ch);
+        }
+        if (nflags & 32) { /* N-016b: the original on-disk name bytes */
+            put16(out, u16(pr->name_raw.size()));
+            out.insert(out.end(), pr->name_raw.begin(), pr->name_raw.end());
         }
         const u32 ec = pr ? u32(pr->extents.size()) : 0;
         put32(out, ec);
@@ -311,6 +321,18 @@ u32 deserialize_tree(const u8* data, size_t len, tree::ResultTree& tree, u32* re
             props->short_name.resize(sn_len);
             for (u16 k = 0; k < sn_len; ++k)
                 props->short_name[k] = c.g16();
+        }
+        if (nflags & 32) { /* N-016b: original on-disk name bytes */
+            const u16 nr = c.g16();
+            /* N-058/N-077 class: bounds-check BEFORE the resize (the og
+             * validates per-node); the PropsRef guard covers the exit */
+            if (c.fail || c.left < size_t(nr)) {
+                c.fail = true;
+                break;
+            }
+            props->name_raw.resize(nr);
+            if (nr && !c.bytes(reinterpret_cast<u8*>(props->name_raw.data()), nr))
+                break;
         }
         const u32 ec = c.g32();
         props->extents.resize(ec);
@@ -593,16 +615,12 @@ u32 serialize_partition_context(const PartitionContext& pc, std::vector<u8>& out
     put32(out, pc.score);
     out.push_back(pc.kind);
     /* v2 tail (M-042): the og's per-record geometry payload + flags. The
-     * record length itself carries the version (25 = v1, 41 = v2, 57 = v3)
-     * — the same length-detection the SessionState v2 tail uses. */
+     * record length itself carries the version (25 = v1, 41 = v2) — the
+     * same length-detection the SessionState v2 tail uses. */
     put32(out, pc.bytes_per_sector);
     put32(out, pc.sectors_per_cluster);
     put32(out, pc.hidden_sectors);
     put32(out, pc.flags);
-    /* v3 tail (M-017): the og's content-count inputs (the dSuggested raw
-     * weights) so a reloaded session keeps the ranked order + scores. */
-    put64(out, pc.content_files);
-    put64(out, pc.content_folders);
     return OK;
 }
 
@@ -620,10 +638,6 @@ u32 deserialize_partition_context(const u8* data, size_t len, PartitionContext& 
         pc.sectors_per_cluster = c.g32();
         pc.hidden_sectors = c.g32();
         pc.flags = c.g32();
-    }
-    if (!c.fail && len >= 57) {
-        pc.content_files = c.g64();
-        pc.content_folders = c.g64();
     }
     return c.fail ? u32(0x50040001) : u32(OK);
 }

@@ -981,6 +981,11 @@ TEST(Btrfs, Latin1NameRoundTripsRawBytes) {
     std::string back;
     ASSERT_TRUE(text::lossless_u16_to_utf8(found->props()->name, back));
     EXPECT_EQ(std::string("r\xE9sum\xE9.txt"), back);
+    /* N-016b (N-029 residual): the ORIGINAL bytes now ride alongside the
+     * mapped display name (props->name_raw) - the og's .rsf keeps them
+     * verbatim, so sessions persist them and the writer derives the
+     * og-parity restore filename. Fail-before: the field stayed empty. */
+    EXPECT_EQ(std::string("r\xE9sum\xE9.txt"), found->props()->name_raw);
 }
 
 } // namespace

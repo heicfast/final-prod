@@ -120,6 +120,65 @@ The per-engine-function-map artifact (first-cited this session) evidences the sc
 ## Resolution
 
 **Status:** FIXED
+**Fixed in commit:** (this session's M-017 fix — see `git log` for "fix(M-017)")
+**Verified by:** `LostScoring.MatchesLogRows` (the formula against CalcPartition.log rows: the
+exact 429/168849 -> 0.503579 row; the (0,25)+20 -> 0.585518 and count==1 -> 0.081928 rows with
+inversion-recovered maxima; the count==1-beats-count==2 identity quirk; the per-FS weights
+f+50d / f+10d(HFS+) / (f+d)·50(FAT)), `LostDiscovery.FileRichCandidateOutranksCleanBoot`
+(fail-before PROVEN: the old absolute-points model ranked the clean-boot NTFS (70) above the
+40-file FAT (30) regardless of content; the content model ranks the FAT 1000 vs NTFS 537),
+`LostDiscovery.TableMatchBonus500` (fail-before: no bonus existed; now a table-matched
+candidate carries count 560 = 0 + 60 bonus + 500, and the containment-drop keeps matched
+candidates), `LostDiscovery.OverLargeDuplicateRescoredToFront` (fail-before: no promotion
+existed; now the first size-match after a non-matcher is spliced to #2 with the leader's
+score, and an adjacent matcher takes the decompile's break path). Suite 691/691.
+**Resolution notes:** The scoring pipeline now follows the og end to end. (1) Content probe:
+every surviving candidate is materialized and walked by its family's engine over a scratch
+tree (progress-call budget 200k as the registered safety valve; BitLocker/GPT families have
+no walkable model and stay count-0 + bonus). (2) The og's weighted count
+(FUN_14050fda0 :842176-842200): NTFS family files+50·folders, HFS+ files+10·folders, FAT
+(files+folders)·50; plus the per-FS bonus (observed NTFS 60 healthy/30 partial — the
+census-decoded accumulator family — FAT 20; other families unpinned per OQ-S2M-2, registered)
+and the +500 table-match ("Found once partition:%I64d" :842260-66) — replacing the old
+INVERTED polarity (the -10/-20 overlap penalties at the same decision point). (3) Score =
+ln(count)/ln(max) in permille with the og's exact edge cases (count<=1 numerator stays 1.0;
+max<=1 denominator 1.0); the structural points survive as the tie-break key
+(Candidate.structural_points) so the ordering is fully determined. (4) AdjustPartitionInfoOrder
+port: the containment-in-known drop (used, non-container partitions; table-MATCHED candidates
+exempt — they take the +500 instead), the FS-grouped dedup (already present), the stable
+descending sort (std::stable_sort — the og's merge sort; std::sort is not stable), and the
+:842776-93 size-match promotion re-decoded first-hand this session: |totalSector-ref|·512 <
+16 MiB+1, promoted only when a NON-matching candidate precedes the match in list order (the
+iVar16 counter — an adjacent matcher takes the break path, which the naive "promote the first
+size-match" reading would miss). Candidate.score is now permille (0..1000); the session wire
+stays u32; the display cap (top 2; 5 with >=2 adjusted) is the DRWUI presentation layer, not
+the core — registered. OQ-S2M-2 (the bonus setters' provenance) remains the tracked residual.
+Rebase integration note: the parallel lane's N-035 landing (data-area-anchored candidate
+extents) merged with this fix — the containment-drop and the 16-MiB size-match promotion
+now consume the DATA-AREA extents (the og's EndSec = DataAreaStart + totalSec math, and
+the QA log's totalSec field), exactly as N-035's decode demands; reconciled at the union
+with both lanes' tests green (709/709).
+
+---
+
+## Convergence record (DFX20, this session)
+
+A second, independent implementation of this fix landed in the same window
+(DFX20 lane: cr/lost/cr_scoring.{h,cpp} + the orchestrator count wiring +
+REC_PARTITION_CONTEXT v3). Per the lane protocol the FIRST landing is
+canonical — the operative Resolution above — and the convergent
+implementation was DROPPED CLEANLY from the tree (its commit is preserved
+in git history). Two decode divergences between the lanes are recorded
+here for the next verification pass, NOT as claims against the canonical
+landing: (a) the per-FS bonus defaults — the canonical landing uses the
+finding's observed values (NTFS 60/30, FAT 20), the convergent lane's
+QA-log row fit produced FAT 20 / else 0 (the 429-file NTFS row fits with
+bonus 0 under the convergent lane's pre-+500 denominator reading); (b)
+the size-match promotion mechanics — both lanes re-decoded LAB_140510a0e
+first-hand and MECHANICALLY AGREE that a size-match at the head breaks
+while the first non-head match promotes; the canonical landing's
+log-parity tests are the operative proof. The bonus question folds into
+OQ-S2M-2 (the setter decode resolves both defaults).
 **Fixed in commit:** <this push — DFX20 session, M-017 landing>
 **Verified by:** 7 tests: LostScoring.ScoringMatchesLogRows (the QA-log rows reproduced to print tolerance — 429f→0.5036, 51f→0.32665, the count==1 edge 1/ln(max), the max=1.0 identity), LostScoring.FileRichCandidateOutranksCleanBoot, LostScoring.TableMatchBonus500, LostScoring.SizeMatchPromotionToResultTwo, LostScoring.ContainmentDropAndFATTieRule (incl. the FAT-specific 0.3 arm and its NTFS counterpart), LostScoring.CountOneEdgeRanksAboveSmallCounts, and LostScoringIntegration.FileRichCandidateOutranksThinCandidateInScan — the finding's falsifiable fixture EXECUTED at the orchestrator level (fail-before proven: with the rank_and_adjust call temporarily disabled the test goes RED on the discovery-order list; restored -> green). Suite 706/706 linux-gcc (RelWithDebInfo + ASan).
 **Resolution notes:** CONFIRMED-DIVERGENCE, fixed per the finding's 5-step plan plus the session-3 addendum's full AdjustPartitionInfoOrder decode. New pure-core module cr/lost/cr_scoring.{h,cpp}: (1) the og's raw counts — FS 8/HFS+ = files + folders*10; FS 1/2/FAT16-32 = (files+folders)*50 (the unsigned FS-1<2 edge preserved: FAT12 falls to the else branch); else = files + folders*50; + the per-candidate bonus; +500 on a known-partition-table match (start + family). (2) DECODE CORRECTION the fix pinned during bring-up: the denominator is computed in the og's PASS 1 from the PRE-+500 maximum (:842209-842236); the +500 is a pass-2 per-candidate numerator add (:842260-842267) — the QA-log rows only fit this way (429f: ln(429)/ln(168818), the top candidate's pre-bonus raw). (3) ln/ln normalization with the raw<=1 numerator edge (the count==1 non-monotonicity). (4) Bonus defaults reproduce the observed rows (FAT16/32 = 20, everything else 0; the producer decode stays OQ-S2M-2 — not invented). (5) The full AdjustPartitionInfoOrder port: known-extent containment drop (corpus arbitration: the round-1 log proves the +500 exact-match candidate SURVIVED, so with one live table feeding both rules the drop is proper-subset-only — the og's ActivePartition list and scorer array are disjoint inputs), top-2 tie rules (gap <= 0.1 drops #2; <= 0.3 drops #2 when #2 is FAT — NTFS-over-FAT priority), the size-match promotion re-decoded FIRST-HAND this session (LAB_140510a0e :842843-842858: the first size-matched candidate at sorted position >= 1 — |totalSector - reference|*512 < 16 MiB+1 — is marked promoted and, when it sits at position >= 2, spliced to RESULT #2 with the FOLLOWING candidate's score copied into it, matching the log's round-3 landing exactly), the FAT multi-child drop left as a REGISTERED RESIDUAL (no core-side input — the og reads a CFATSearchedPartitionInfo sub-object vector; inventing one would be hallucination), STABLE descending sort (std::stable_sort, the og's merge sort), and the result cap NOT ported (a UI curation layer the og feeds into a secondary list — the core surfaces every candidate; dropping results in the core would be data loss). (6) Orchestrator wiring: the candidate fan-out now counts recovered content per candidate root (files + folders; both live and deleted — recovery value), ranks, and rewrites stats.lost_candidates in the og's order; `score` becomes the og-shaped permille (the og's dSuggested is a double printed %f — the permille preserves the int score field's persisted shape); the structural probe points remain as the evidence list. (7) Persistence: REC_PARTITION_CONTEXT v3 (57 bytes, length-detected like v2) carries content_files/content_folders so a reloaded session keeps the ranked order + scores. The reference-sector producer (the og's *(this+0x40)) is unpinned: the core passes the scan view's total sectors and the API takes it explicitly (0 = the rule honestly does not fire) — registered, not papered over. OQ-T9 stays resolved (the addendum's geometry-calculator retirement); OQ-S2M-2 (bonus setters) and the FAT multi-child residual remain tracked.

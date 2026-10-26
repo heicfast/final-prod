@@ -214,6 +214,19 @@ inline bool lossless_u16_to_utf8(const std::u16string& in, std::string& out) {
     return true;
 }
 
+/* N-016b (N-029 residual, s17): does this decoded name carry lossless
+ * raw-byte mappings (the U+E000..U+E0FF band)? Such names MUST carry
+ * their original on-disk bytes in props->name_raw - the band is exactly
+ * where "mapped invalid byte" and "legitimately-encoded private-use
+ * codepoint" become ambiguous, so the raw bytes (not the inverse map)
+ * are the only faithful reconstruction. */
+inline bool name_has_raw_band(const std::u16string& name) {
+    for (u16 u : name)
+        if (u >= 0xE000u && u <= 0xE0FFu)
+            return true;
+    return false;
+}
+
 } // namespace text
 } // namespace cr
 

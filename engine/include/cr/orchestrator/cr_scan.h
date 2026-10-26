@@ -194,8 +194,9 @@ struct ScanConfig {
      * Invoked by the orchestrator at STAGE BOUNDARIES with a freshly
      * serialized session (state + volume + contexts + tree + error map -
      * the same record set save_session emits). The caller provides the
-     * IO triple (the file-backed sink writes <path>.tmp + flush +
-     * rename: atomic per the platform); a failed sink write ABORTS the
+     * IO triple + optional commit hook (the file-backed sink writes
+     * <path>.tmp + flush + rename: atomic per the platform, N-014);
+     * a failed sink write ABORTS the
      * scan with its error code (never a silent checkpoint gap). The
      * serialized mask is truthful (actual completion), so resume() from
      * the last checkpoint skips finished stages by construction. */
@@ -203,6 +204,16 @@ struct ScanConfig {
         u32 (*write)(void* user, const void* bytes, u32 len) = nullptr;
         u64 (*tell)(void* user) = nullptr;
         u32 (*seek)(void* user, u64 absolute) = nullptr;
+        /* N-014 (diff-to-fix): invoked after EVERY successful finalize()
+         * - the atomic commit. File-backed sinks fflush + close + rename
+         * <tmp> -> <final> + reopen the tmp for the next emit, so a
+         * crash mid-emit leaves the FINAL path holding the previous good
+         * checkpoint (the og's fresh-file-per-save crash-safety,
+         * rsf-format--scan-session.md §5.5) and a torn .tmp that the
+         * next run simply overwrites. Null = not file-backed (in-memory
+         * sinks: behavior unchanged). A failed commit aborts the scan
+         * with its error code - same contract as a failed write. */
+        u32 (*commit)(void* user) = nullptr;
         void* user = nullptr;
         explicit operator bool() const { return write && tell && seek; }
     };

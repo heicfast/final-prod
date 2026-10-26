@@ -15,7 +15,12 @@
 #include "cr/hfsplus/cr_hfsplus_engine.h"
 #include "cr/btrfs/cr_btrfs_engine.h"
 #include "cr/refs/cr_refs_detect.h"
+#include "cr/refs/cr_refs_engine.h"
+#include "cr/zfs/cr_zfs_engine.h"
+#include "cr/tree/cr_node.h"
+#include "cr/ntfs/cr_mftwalk.h"
 #include <algorithm>
+#include <cmath>
 #include <cstring>
 
 namespace cr {
@@ -144,6 +149,14 @@ int probe_fat(IStorageDevice* disk, u64 boot_lba, Candidate& c) {
         return -100;
     int pts = 20; /* valid FAT BPB (og gate passed) */
     c.sector_count = p.total_bytes / p.bytes_per_sector;
+    /* N-035: FAT is the metadata-gap family - the data area begins at
+     * first_data_sector (reserved + two FATs [+ root dir on FAT12/16]
+     * ahead of it; the og's DataAreaStart). totalSec is data-area-sized
+     * (EndSec = DataAreaStart + totalSec in the og's dump). */
+    c.data_start_lba = boot_lba + p.first_data_sector;
+    c.data_sector_count =
+        c.sector_count > p.first_data_sector ? c.sector_count - p.first_data_sector
+                                             : c.sector_count;
     /* FAT area probe: entries 2..4 readable and first data cluster sane */
     u8 fat_probe[16];
     if (disk->read_at(p.fat_start + 8, fat_probe, 16) == OK)
@@ -557,6 +570,189 @@ bool revalidate_candidate(IStorageDevice* disk, const Candidate& c) {
                          volume) */
     return true;
 }
+/* ---------------------------------------------------------------- */
+/* M-017: the og's content-driven scoring model                      */
+/* ---------------------------------------------------------------- */
+
+/* DRWUI FS codes (FUN_14050fda0's switch input). The core's CandidateFs
+ * maps: Fat -> 1, HfsPlus -> 8, everything else -> the NTFS-family
+ * default branch (files + 50*folders). */
+int og_fs_code(CandidateFs fs) {
+    switch (fs) {
+    case CandidateFs::Fat:
+        return 1;
+    case CandidateFs::HfsPlus:
+        return 8;
+    default:
+        return 3; /* NTFS family (any non-FAT non-HFS code) */
+    }
+}
+
+u64 weighted_count(int og_fs_code, u64 files, u64 folders) {
+    /* FUN_14050fda0 :842176-842200: NTFS family -> files + 50*folders;
+     * FS 8 (HFS+) -> files + 10*folders; FS 1/2 (FAT) -> (f+d)*50 */
+    if (og_fs_code == 8)
+        return files + 10 * folders;
+    if (og_fs_code == 1 || og_fs_code == 2)
+        return (files + folders) * 50;
+    return files + 50 * folders;
+}
+
+double score_ratio(u64 count, u64 max_count) {
+    /* FUN_14050fda0 :842226-274: num = count > 1 ? ln(count) : 1.0
+     * (the count<=1 identity quirk - a 1-file candidate outranks every
+     * 2..6-file candidate when max > e^2); denom = max > 1 ? ln(max)
+     * : 1.0; score = num/denom */
+    const double num = count > 1 ? std::log(double(count)) : 1.0;
+    const double den = max_count > 1 ? std::log(double(max_count)) : 1.0;
+    if (den <= 0.0)
+        return 1.0;
+    return num / den;
+}
+
+namespace {
+
+/* count surfaced nodes (files vs folders) under a root */
+void count_tree(tree::FileNode* n, u64& files, u64& folders) {
+    for (tree::FileNode* c = n->first_child(); c; c = c->next_sibling()) {
+        if (!c->props())
+            continue;
+        if (c->props()->attributes & 0x10)
+            ++folders;
+        else
+            ++files;
+        count_tree(c, files, folders);
+    }
+}
+
+/* bounded content probe: materialize the candidate and run the family's
+ * engine scan over a scratch tree; the counts feed the og's weighted
+ * count. A progress-call budget bounds hostile/pathological volumes
+ * (each engine calls progress per file/block; past the budget the walk
+ * stops and the partial counts stand - the og's own walk is unbounded,
+ * this is the registered safety valve). */
+constexpr u64 CONTENT_PROBE_BUDGET = 200000;
+
+void content_counts(IStorageDevice* disk, const Candidate& c, CancelToken* cancel,
+                    u64& files, u64& folders) {
+    files = 0;
+    folders = 0;
+    if (c.fs == CandidateFs::BitLocker || c.fs == CandidateFs::GptTable ||
+        c.fs == CandidateFs::Unknown)
+        return; /* encrypted/table families: no walkable content model */
+    auto slice = materialize(disk, c);
+    if (!slice)
+        return;
+    tree::ResultTree tree;
+    auto* ra = tree.add_root(u"probe");
+    if (!ra)
+        return;
+    auto* rd = tree.add_root(u"d");
+    u64 calls = 0;
+    auto budget = [](u64, u64, void* user) {
+        auto* n = static_cast<u64*>(user);
+        return ++*n < CONTENT_PROBE_BUDGET;
+    };
+    u32 rc = OK;
+    switch (c.fs) {
+    case CandidateFs::Ntfs: {
+        u32 open_rc = OK;
+        auto vol = ntfs::NtfsVolume::open(
+            std::unique_ptr<IStorageDevice>(SliceShim::shim(slice.get())), &open_rc);
+        if (vol) {
+            ntfs::WalkerFlags wf;
+            ntfs::WalkStats ws;
+            rc = ntfs::walk_mft(vol.get(), nullptr, wf, cancel, budget, &calls, tree, ra, rd,
+                                nullptr, ws);
+        }
+        break;
+    }
+    case CandidateFs::Fat: {
+        fat::FatScanFlags fl;
+        fat::FatScanStats st;
+        rc = fat::scan_fat(slice.get(), fl, cancel, budget, &calls, tree, ra, rd, nullptr, st,
+                           nullptr);
+        break;
+    }
+    case CandidateFs::Exfat: {
+        exfat::ExfatScanFlags fl;
+        exfat::ExfatScanStats st;
+        rc = exfat::scan_exfat(slice.get(), fl, cancel, budget, &calls, tree, ra, rd, nullptr,
+                               st, nullptr);
+        break;
+    }
+    case CandidateFs::Ext2: {
+        ext4::Ext4ScanFlags fl;
+        ext4::Ext4ScanStats st;
+        rc = ext4::scan_ext4(slice.get(), fl, cancel, budget, &calls, tree, ra, rd, nullptr, st);
+        break;
+    }
+    case CandidateFs::HfsPlus: {
+        hfsplus::HfsScanFlags fl;
+        hfsplus::HfsScanStats st;
+        rc = hfsplus::scan_hfsplus(slice.get(), fl, cancel, budget, &calls, tree, ra, rd,
+                                   nullptr, st);
+        break;
+    }
+    case CandidateFs::Btrfs: {
+        btrfs::BtrfsScanStats st;
+        rc = btrfs::scan_btrfs(slice.get(), cancel, budget, &calls, tree, ra, rd, nullptr, st);
+        break;
+    }
+    case CandidateFs::Zfs: {
+        zfs::ZfsScanStats st;
+        rc = zfs::scan_zfs(slice.get(), cancel, budget, &calls, tree, ra, rd, nullptr, st);
+        break;
+    }
+    case CandidateFs::Refs: {
+        refs::RefsScanFlags fl;
+        refs::RefsScanStats st;
+        rc = refs::scan_refs(slice.get(), fl, cancel, budget, &calls, tree, ra, rd, nullptr, st);
+        break;
+    }
+    default:
+        return;
+    }
+    (void)rc; /* partial walks (budget/cancel) still count */
+    count_tree(ra, files, folders);
+    count_tree(rd, files, folders);
+}
+
+/* the per-FS bonus the SearchDLLs supply at info+0x68 (observed values:
+ * NTFS 60/30, FAT32 20 - OQ-S2M-2 tracks the setter decode; the NTFS
+ * accumulator family is census-decoded: +80 system files, +50 boot-SPC
+ * validated, -10 read failure, +30). The core's analog: the healthy-
+ * probe bonus for the family's strong evidence, the degraded value when
+ * the structural probe was partial. */
+u64 fs_bonus(const Candidate& c) {
+    switch (c.fs) {
+    case CandidateFs::Ntfs:
+        /* observed 60 (all probes strong) / 30 (partial) */
+        for (const auto& e : c.evidence)
+            if (c.evidence.size() >= 3 && std::string_view(e.tag) == "mft-probe")
+                return 60;
+        return 30;
+    case CandidateFs::Fat:
+        return 20; /* observed FAT32 */
+    default:
+        return 0; /* unpinned (OQ-S2M-2) */
+    }
+}
+
+/* "Found once partition:%I64d": the candidate's start matches a live
+ * table entry (DRWUI :842260-66). The core's old model INVERTED this
+ * polarity (overlap penalties -10/-20 at the same decision point). */
+bool table_match(const Candidate& c, const std::vector<table::PartitionInfo>& known) {
+    for (const auto& p : known) {
+        if (!p.used)
+            continue;
+        if (p.start_lba == c.start_lba)
+            return true;
+    }
+    return false;
+}
+
+} // namespace
 
 u32 discover(IStorageDevice* disk, const std::vector<table::PartitionInfo>& known,
              u32 stride_sectors, CancelToken* cancel, bool (*progress)(u64, u64, void*),
@@ -671,18 +867,40 @@ u32 discover(IStorageDevice* disk, const std::vector<table::PartitionInfo>& know
             /* bound by device tail */
             if (c.start_lba + c.sector_count > disk->size() / ls)
                 c.sector_count = disk->size() / ls - c.start_lba;
-            c.score = pts;
+            /* N-035: probes that do not set a data-area extent are the
+             * DataAreaStart == StartSec shape (NTFS/exFAT/others per the
+             * corpus log); the tail fallback inherits the same
+             * normalization (its containment is already excluded by
+             * GAP-S6-6's flag). */
+            if (c.data_sector_count == 0) {
+                c.data_start_lba = c.start_lba;
+                c.data_sector_count = c.sector_count;
+            }
+            if (c.data_start_lba + c.data_sector_count > c.start_lba + c.sector_count) {
+                /* the data extent can never exceed the volume extent */
+                c.data_start_lba = c.start_lba;
+                c.data_sector_count = c.sector_count;
+            }
+            c.structural_points = pts; /* M-017: the primary score is the
+                                          * content model; points tie-break */
             found.push_back(c);
         }
     }
 
-    /* pass 2: dedup + overlap scoring */
+    /* pass 2: dedup (same-fs nested: the outer/earlier wins) */
     std::vector<Candidate> keep;
     for (size_t i = 0; i < found.size(); ++i) {
         bool dup = false;
         for (size_t j = 0; j < keep.size(); ++j) {
-            if (found[i].fs == keep[j].fs && found[i].start_lba >= keep[j].start_lba &&
-                found[i].start_lba < keep[j].start_lba + keep[j].sector_count) {
+            /* N-035: containment runs on the DATA-AREA extent (the og's
+             * EndSec = DataAreaStart + totalSec math) - a peer whose boot
+             * sector sits inside the outer's reserved+FATs region is NOT
+             * contained: the metadata gap spans it, the data area does
+             * not. */
+            if (found[i].fs == keep[j].fs &&
+                found[i].start_lba >= keep[j].data_start_lba &&
+                found[i].start_lba <
+                    keep[j].data_start_lba + keep[j].data_sector_count) {
                 /* GAP-S6-6: a fallback-sized outer candidate spans to disk
                  * end BY CONSTRUCTION - its "containment" of a later peer
                  * is an artifact, not evidence of nesting. Only probe-
@@ -696,25 +914,109 @@ u32 discover(IStorageDevice* disk, const std::vector<table::PartitionInfo>& know
         if (!dup)
             keep.push_back(found[i]);
     }
+
+    /* pass 3 (M-017): the og's content-driven scoring.
+     * (a) containment-in-known drop: a candidate FULLY inside a live
+     *     (used, non-container) partition is dropped (AdjustPartition-
+     *     InfoOrder rule (a), FUN_140510410 :842495+). The old core
+     *     kept such candidates with a -20 penalty - the polarity
+     *     inversion the census leg called the sharpest slice of this
+     *     finding. Containers (extended/protective) do not count: a
+     *     candidate inside the extended container's span but outside
+     *     every real volume is genuinely lost (the og's own lost scan
+     *     walks the container's unallocated interior). */
+    std::vector<Candidate> adjusted;
+    adjusted.reserve(keep.size());
     for (auto& c : keep) {
-        Overlap ov = classify_overlap(c.start_lba, c.sector_count, known);
-        switch (ov) {
-        case Overlap::Inside:
-            c.score -= 20; /* a filesystem inside a live partition: damaged
-                              inner volume - still reportable, lower score */
-            break;
-        case Overlap::Overlaps:
-        case Overlap::Contains:
-            c.score -= 10;
-            break;
-        case Overlap::None:
-        default:
-            break;
+        /* M-017 (a): the containment-in-known drop — a candidate's DATA
+         * AREA (N-035: the og's EndSec = DataAreaStart + totalSec math)
+         * fully inside a live (used, non-container) partition is dropped
+         * (AdjustPartitionInfoOrder rule (a)). This REPLACES the old
+         * -20/-10 overlap penalties, which were the polarity inversion
+         * of the og's +500 table-match. Containers (extended/protective)
+         * do not count; a table-MATCHED candidate (same start) is exempt
+         * — it takes the +500 instead. */
+        bool contained = false;
+        for (const auto& p : known) {
+            if (!p.used || p.fs == table::FsKind::Extended || p.fs == table::FsKind::Protective)
+                continue;
+            if (c.start_lba == p.start_lba)
+                continue; /* the table-MATCH case ("Found once partition"):
+                           * +500 in the count, never a containment drop */
+            if (c.data_start_lba >= p.start_lba &&
+                c.data_start_lba + c.data_sector_count <= p.start_lba + p.sector_count) {
+                contained = true;
+                break;
+            }
+        }
+        if (!contained)
+            adjusted.push_back(std::move(c));
+    }
+
+    /* (b) the content probe + the og's weighted count: per-FS weights,
+     *     the per-FS bonus (info+0x68, observed values), and the +500
+     *     table-match bonus ("Found once partition:%I64d") */
+    u64 max_count = 1;
+    for (auto& c : adjusted) {
+        u64 files = 0, folders = 0;
+        content_counts(disk, c, cancel, files, folders);
+        u64 count = weighted_count(og_fs_code(c.fs), files, folders);
+        count += fs_bonus(c);
+        c.table_match = table_match(c, known);
+        if (c.table_match)
+            count += 500;
+        c.content_count = count;
+        if (count > max_count)
+            max_count = count;
+    }
+    /* (c) score = ln(count)/ln(max) in permille, the og's exact edge
+     *     cases; structural points stay as the tie-break key */
+    for (auto& c : adjusted)
+        c.score = int(score_ratio(c.content_count, max_count) * 1000.0);
+
+    /* (d) stable descending sort by score (order stability for equal
+     *     scores - the og's merge sort; std::sort is NOT stable),
+     *     tie-broken by the structural points */
+    std::stable_sort(adjusted.begin(), adjusted.end(), [](const Candidate& a, const Candidate& b) {
+        if (a.score != b.score)
+            return a.score > b.score;
+        return a.structural_points > b.structural_points;
+    });
+
+    /* (e) the ~16 MiB size-match promotion (AdjustPartitionInfoOrder
+     *     :842851, log-proven in CalcPartition.log round 3): a candidate
+     *     whose SIZE matches the leader's within the 16 MiB tolerance
+     *     gets the leader's score copied and is spliced to result #2. */
+    if (adjusted.size() >= 2) {
+        /* FUN_140510410 :842776-793: |totalSector - ref| * 0x200 <
+         * 0x1000001 (the ~16 MiB tolerance); the FIRST size-matching
+         * candidate is promoted ONLY when at least one NON-matching
+         * candidate precedes it in list order (the iVar16 counter) -
+         * a matcher adjacent to the leader breaks the scan instead
+         * (nothing to splice). One promotion per pass. */
+        constexpr u64 TOL = 16ull * 1024 * 1024 / 512; /* 16 MiB in sectors */
+        const Candidate& leader = adjusted[0];
+        u64 non_matches_before = 0;
+        for (size_t i = 1; i < adjusted.size(); ++i) {
+            /* N-035: the og's 16-MiB size-match consumes the data-area
+             * totalSec (the QA log's field) */
+            const u64 a = adjusted[i].data_sector_count;
+            const u64 b = leader.data_sector_count;
+            const u64 diff = a > b ? a - b : b - a;
+            if (diff <= TOL) {
+                if (non_matches_before == 0)
+                    break; /* adjacent match: the og's break path */
+                Candidate promoted = adjusted[i];
+                promoted.score = leader.score;
+                adjusted.erase(adjusted.begin() + long(i));
+                adjusted.insert(adjusted.begin() + 1, std::move(promoted));
+                break;
+            }
+            ++non_matches_before;
         }
     }
-    std::sort(keep.begin(), keep.end(),
-              [](const Candidate& a, const Candidate& b) { return a.score > b.score; });
-    out.candidates = std::move(keep);
+
+    out.candidates = std::move(adjusted);
     out.sectors_scanned = sectors_scanned;
     out.read_errors = read_errors;
     if (progress)

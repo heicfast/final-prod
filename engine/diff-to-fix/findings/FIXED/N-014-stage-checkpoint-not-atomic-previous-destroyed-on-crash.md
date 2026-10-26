@@ -173,3 +173,10 @@ saves destroy the previous good state.
   decision (more disk usage, more recovery options) — out of scope for
   this finding. The atomic-rename fix is the minimum to match the
   og's crash-safety guarantee.
+
+## Resolution
+
+**Status:** FIXED
+**Fixed in commit:** this session's N-014 atomic-checkpoint batch
+**Verified by:** `CrUi.CheckpointPreviousGoodSurvivesTornEmit` (fail-before EXECUTED on the stash-isolated pre-fix tree with the new-field test isolated out: scan-2's "wb" open left the final path EMPTY — `{}` vs the good CRSF bytes, exactly the finding's destroyed-previous-checkpoint; pass-after byte-identical preservation) + `CrUi.CheckpointAtomicStagingAndCommit` (the committed final loads as a session container; no `.tmp` survives the scan) + `Checkpoint.CommitHookFiresAfterEveryFinalizeAndAbortsOnError` (commit fires exactly once per emitted checkpoint; a failing commit aborts the run with its own code and the checkpoint does not count as emitted) + full suite 704/704.
+**Resolution notes:** The CheckpointSink gained a `commit` hook (nullable — in-memory sinks unchanged) that `emit_checkpoint_()` invokes after every successful `finalize()`. The cr_ui file adapter stages into `<path>.tmp` and commits via fflush + fclose + rename(tmp → final) + a fresh staging reopen (the rename runs on a CLOSED handle on Windows — MoveFileExW's FILE_SHARE_DELETE constraint avoided by construction); scan teardown and scan_close remove the transient `.tmp` (a torn never-committed emit is never trusted). Crash windows: before the first commit the FINAL holds the previous good checkpoint (pre-fix: truncated to zero at scan start); between commits the FINAL holds the last committed one; the rename itself is atomic per-platform. The og's crash-safety (rsf-format §5.5's fresh-file-per-save) is matched without adopting the timestamped-history pattern (the finding's own open question — a UX decision recorded as out of scope). The sink-triple contract comment in cr_scan.h updated to describe the staging + commit model; the torn-tail salvage (BENCH-F1) is unchanged and remains the reader-side backstop.

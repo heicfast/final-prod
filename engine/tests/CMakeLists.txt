@@ -31,7 +31,6 @@ add_executable(cr_tests
     unit/test_sha256.cpp
     unit/test_bitlocker_xts.cpp
     unit/test_resume_revalidation.cpp
-    unit/test_lost_scoring.cpp
     unit/test_text.cpp
     unit/test_carve.cpp
     unit/test_session.cpp

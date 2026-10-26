@@ -257,6 +257,22 @@ Bootstrap `ff734d7` (union of the parallel lanes' claims: DFX18 on the MINOR
 tier, this leg on the unclaimed MAJOR batch); baseline suite **594/594**
 Linux RelWithDebInfo + ASan. Corpus `03ad46c` unmoved.
 
+**M-017 FIXED (fourth landing):** lost-partition scoring — the core's
+absolute structural points are replaced by the og's content model:
+every surviving candidate is materialized and walked by its engine
+(progress-budgeted), the count is weighted per FS (f+50·d NTFS /
+f+10·d HFS+ / (f+d)·50 FAT) plus the observed bonus (NTFS 60/30, FAT
+20) plus the +500 table-match — the old model's overlap penalties were
+the polarity INVERSION of exactly this bonus. Score = ln(count)/
+ln(max) in permille with the og's edge cases (count<=1 identity
+quirk); structural points tie-break. AdjustPartitionInfoOrder ported:
+containment-in-known drop (table-matched candidates exempt), stable
+sort, and the :842776-93 size-match promotion re-decoded first-hand
+(the iVar16 counter — an adjacent matcher takes the break path the
+naive reading misses). 4 fail-before tests incl. the CalcPartition
+log-row parity test. Suite 691/691. findings/FIXED/M-017; matrix
+lost-partition A30 MATCH.
+
 **M-038 FIXED (third landing):** ZFS SA registry-driven decode — the
 core's SA decode was layout-1-hardcoded (`layout != 1 -> nullptr`,
 dropping every object with a registered non-1 layout). Now: the og's
@@ -410,33 +426,12 @@ papered over). **Executed fail-before**: the re-validation gates disabled
 -> ResumeDropsStaleCandidateAfterRelayout RED on both surfaces; restored
 -> green. 6 tests in test_resume_revalidation.cpp; suite 685/685.
 
-**M-017 FIXED (the lost-partition scoring model):** CONFIRMED-DIVERGENCE,
-fixed per the finding's plan + the session-3 addendum's full decode. The
-og's content-driven dSuggested is now the core's ranking (cr_scoring.{h,cpp}):
-per-FS file/folder weights (incl. the unsigned FAT12 edge), per-FS bonus
-defaults that fit the observed QA rows (FAT16/32 = 20, else 0; the setter
-decode stays OQ-S2M-2), the +500 table-match, and a DECODE CORRECTION the
-fix pinned during bring-up (the denominator is the PRE-+500 pass-1 max -
-the QA-log rows only reproduce that way). AdjustPartitionInfoOrder ported
-in full: containment proper-subset drop (corpus arbitration: the round-1
-log's +500 candidate SURVIVED, so exact table matches stay), 0.1/0.3 FAT
-tie rules, the size-match promotion RE-DECODED first-hand (first match at
-position >= 1 splices to RESULT #2 with the follower's score - the log's
-round-3 landing; the finding's older "splice-to-front"/"result #2"
-contradiction resolved by reading LAB_140510a0e directly), stable sort,
-and the UI curation cap deliberately not ported (data loss in the core).
-The fan-out counts per-candidate recovered content; score becomes the
-og-shaped permille; REC_PARTITION_CONTEXT v3 (57 B) round-trips the
-counts. Fail-before EXECUTED at the orchestrator level (ranking disabled
--> the two-volume fixture test RED; restored -> green). 7 tests; suite
-706/706.
-
-**Counts after this push (direct file inventory):** SEVERE **0** (S-029
-landed by the DFX10 lane - the tier is EMPTY) · MAJOR **15** (parallel lanes landed M-019/M-016/M-021/M-028/M-032/M-038/M-044/M-043/M-024/M-030/M-037/M-046/M-002/M-031/M-054 etc. alongside M-005/M-007/M-008/M-045; 
-this session: M-033 + M-042 + M-017)
+**Counts after this push (direct file inventory):** SEVERE **1** (S-029,
+DFX10's claim) · MAJOR **26** (M-005/M-007/M-008/M-037/M-045/M-046/
+M-054 landed by parallel lanes since session-15's count; M-033 + M-042 this push)
 · MINOR **41** (parallel lanes landed N-041/N-069/N-030 since the
 session-15 count) · INFO 22 (all ACKNOWLEDGED) · FIXED/ family
-**138 files** (incl. RESOLVED-INDEX; +M-033 +M-042 +M-017 this session; the parallel waves'
+**103 files** (incl. RESOLVED-INDEX; +M-033 +M-042 this push; the parallel waves'
 M-005/M-007/M-008/M-045/M-054/N-041/N-069/N-030 already inside) ·
 tracked-open **17** (+OQ-S20-1 this push). Top remaining risks: S-029 (the last SEVERE), then
 the MAJOR tier by user impact — M-042 (session-resume revalidation),
@@ -730,6 +725,24 @@ Sectors + ZipCleanArchiveNotInflatedByZeroSlack + Zip64ExtraFieldContinues
 Chain. Suite 685/685 ASan; 55/55 UBSan carve. Counts: MINOR 28 · FIXED 85
 (the parallel lanes' N-040/N-046/N-057/N-058/N-077/M-002/M-007/M-044/M-047/
 M-050/M-051/M-054/M-056 landings share the window).
+
+**Session-11 close-out (DFX16 leg):** this leg's verified landings —
+**N-069** (CAB dual-key), **N-067** (exFAT upcase integrity), **N-068**
+(ZIP LFH gates; EOCD half FIXED-ALREADY by the CD anchor), **N-008** (ZIP
+salvage extension + clean-archive honesty + ZIP64 chain), **S-033**
+(NEW-FINDING filed during N-067 verification and REFUTED the same session
+by the og's own decompile walk — INVALID with corpus errata E43; the
+exFAT type constants were RIGHT all along), plus the hygiene moves
+(N-013/N-015/N-018/N-042 → FIXED/), corpus erratum E44 (the ZIP
+entry-point table's labels/bounds), the 5aaf044 "style"-clobber
+root-cause + the convergent N-077 leak repair, and multiple union-tree
+repairs during the heavily-parallel window. **Final counts at this leg's
+close (direct file inventory): SEVERE 0 · MAJOR 18 · MINOR 29 (27 fully
+unresolved + N-009/N-036 partials) · INFO 22 (all ACKNOWLEDGED) · FIXED
+135 finding files · tracked-open 11.** Suite 691/691 linux-gcc ASan +
+640/640 linux-ubsan on the closing tree. No release tag: the audit is
+not closed (the MAJOR tier and the session/health/log minor families
+remain — see the worklog handoff for the lane map).
 
 # SUMMARY.md — executive summary (diff-fix session 9 on top; earlier sessions below)
 

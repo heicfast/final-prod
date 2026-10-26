@@ -6,6 +6,7 @@
 #include "cr/recovery/cr_safewriter.h"
 #include "cr/tree/cr_snapshot.h"
 #include "cr/compress/cr_decomp.h"
+#include "cr/cr_text.h" /* N-016b: raw-name restore derivation */
 #include <chrono>
 #include <cstring>
 
@@ -141,7 +142,18 @@ u32 SafeWriter::enqueue_common(const tree::FileProperties* pr, tree::FileNode* n
     it.dest_dir = dest_dir;
     if (!it.dest_dir.empty() && it.dest_dir.back() != u'\\' && it.dest_dir.back() != u'/')
         it.dest_dir.push_back(u'\\');
-    const std::u16string clean = sanitize_name(pr->name);
+    /* N-016b (N-029 residual, s17): the og's restore path derives the
+     * restored FILENAME from the ORIGINAL on-disk name bytes via
+     * MultiByteToWideChar(CP_UTF8, flags=0) - DRWUI :264664-694, invoked
+     * at :357529 - which is exactly our maximal-subpart utf8_to_u16
+     * (N-016a policy match). When the node carries its raw bytes (the
+     * lossless U+E000+byte display mapping stays in the tree/report per
+     * D-53), the restore name therefore substitutes FFFD per the og -
+     * NOT private-use units in the created filename. Clean names decode
+     * identically either way, so only band-unit names change behavior. */
+    const std::u16string restore_base =
+        !pr->name_raw.empty() ? text::utf8_to_u16(pr->name_raw) : pr->name;
+    const std::u16string clean = sanitize_name(restore_base);
     it.final_name = resolve_collision(it.dest_dir, clean);
     it.item_id = next_id_++;
     it.is_dir = is_dir;

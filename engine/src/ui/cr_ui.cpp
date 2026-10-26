@@ -284,11 +284,63 @@ u32 f_write_cb(void* user, const void* bytes, u32 len) {
     FILE* f = static_cast<FILE*>(user);
     return std::fwrite(bytes, 1, len, f) == len ? OK : ERR_SESSION_IO;
 }
+
 u64 f_tell_cb(void* user) {
     return ftell64(static_cast<FILE*>(user));
 }
 u32 f_seek_cb(void* user, u64 absolute) {
     return fseek64(static_cast<FILE*>(user), absolute) == 0 ? OK : ERR_SESSION_IO;
+}
+
+/* ---- N-014: atomic checkpoint adapter --------------------------------- */
+/* (file-scope so the callbacks below can see it) */
+struct CkSink {
+    FILE* f = nullptr; /* the STAGING file (<path>.tmp) */
+    std::string final_path;
+    std::string tmp_path;
+};
+/* Writes stage into <path>.tmp; every successful finalize() commits via
+ * fflush + fclose + rename(tmp -> final) + a fresh staging reopen. A
+ * crash mid-emit leaves the FINAL path holding the previous good
+ * checkpoint (the og's fresh-file-per-save crash-safety - rsf-format
+ * --scan-session.md §5.5: a torn save never destroys the previous good
+ * state) and a torn .tmp the next run overwrites. The pre-fix "wb"
+ * open on the FINAL path truncated it on every emit - a crash between
+ * truncate and finalize destroyed the previous checkpoint wholesale. */
+u32 ck_write_cb(void* user, const void* bytes, u32 len) {
+    auto* s = static_cast<CkSink*>(user);
+    return s->f ? f_write_cb(s->f, bytes, len) : u32(ERR_SESSION_IO);
+}
+u64 ck_tell_cb(void* user) {
+    auto* s = static_cast<CkSink*>(user);
+    return s->f ? f_tell_cb(s->f) : u64(0);
+}
+u32 ck_seek_cb(void* user, u64 absolute) {
+    auto* s = static_cast<CkSink*>(user);
+    return s->f ? f_seek_cb(s->f, absolute) : u32(ERR_SESSION_IO);
+}
+u32 ck_commit_cb(void* user) {
+    auto* s = static_cast<CkSink*>(user);
+    if (!s || !s->f)
+        return ERR_SESSION_IO;
+    std::fflush(s->f);
+    std::fclose(s->f);
+    s->f = nullptr;
+#ifdef _WIN32
+    /* the staging handle is CLOSED: the replace-rename cannot hit a
+     * sharing violation (MoveFileExW on an open file needs
+     * FILE_SHARE_DELETE, which fopen does not request). */
+    if (!MoveFileExW(u8_to_ws(s->tmp_path.c_str()).c_str(),
+                     u8_to_ws(s->final_path.c_str()).c_str(),
+                     MOVEFILE_REPLACE_EXISTING))
+        return ERR_SESSION_IO;
+#else
+    if (std::rename(s->tmp_path.c_str(), s->final_path.c_str()) != 0)
+        return ERR_SESSION_IO;
+#endif
+    /* staging for the NEXT emit (truncating the just-renamed-away tmp) */
+    s->f = open_file(s->tmp_path.c_str(), true);
+    return s->f ? OK : ERR_SESSION_IO;
 }
 u32 f_read_cb(void* user, void* buf, u32 len) {
     FILE* f = static_cast<FILE*>(user);
@@ -605,7 +657,9 @@ struct CrScan {
     std::unique_ptr<repair::IWriteDevice> repair_writer;
     u32 resumed_boot_hash = 0;
     std::string ck_path;
-    FILE* ck_file = nullptr;
+    /* N-014: the atomic checkpoint sink - staging file (<path>.tmp) +
+     * commit-by-rename adapter (final path never truncated in place). */
+    std::unique_ptr<struct CkSink> ck_sink;
     /* progress bridge throttle state. The orchestrator fires the bridge from
      * EVERY carve/pool worker concurrently (engine_progress_bridge_ is the
      * per-thread entry), so the dedup pair and the user callback invocation
@@ -1416,15 +1470,22 @@ u32 scan_run_impl(cr_ui_scan* scan) {
     if (s->running.load())
         return ret_(ERR_BAD_PARAMETER, "scan is already running on another thread");
 
-    /* checkpoint wiring (CLI: --out / --resume in-place) */
-    if (!s->ck_path.empty() && !s->ck_file) {
-        s->ck_file = open_file(s->ck_path.c_str(), true);
-        if (!s->ck_file)
-            return ret_(ERR_SESSION_IO, "cannot create checkpoint file %s", s->ck_path.c_str());
-        s->cfg.checkpoint.write = f_write_cb;
-        s->cfg.checkpoint.tell = f_tell_cb;
-        s->cfg.checkpoint.seek = f_seek_cb;
-        s->cfg.checkpoint.user = s->ck_file;
+    /* checkpoint wiring (CLI: --out / --resume in-place). N-014: the
+     * sink stages into <path>.tmp and commits by rename - the final path
+     * is never truncated in place. */
+    if (!s->ck_path.empty() && !s->ck_sink) {
+        s->ck_sink.reset(new CkSink);
+        s->ck_sink->final_path = s->ck_path;
+        s->ck_sink->tmp_path = s->ck_path + ".tmp";
+        s->ck_sink->f = open_file(s->ck_sink->tmp_path.c_str(), true);
+        if (!s->ck_sink->f)
+            return ret_(ERR_SESSION_IO, "cannot create checkpoint file %s",
+                        s->ck_sink->tmp_path.c_str());
+        s->cfg.checkpoint.write = ck_write_cb;
+        s->cfg.checkpoint.tell = ck_tell_cb;
+        s->cfg.checkpoint.seek = ck_seek_cb;
+        s->cfg.checkpoint.commit = ck_commit_cb;
+        s->cfg.checkpoint.user = s->ck_sink.get();
     }
 
 #ifdef _WIN32
@@ -1442,9 +1503,18 @@ u32 scan_run_impl(cr_ui_scan* scan) {
     s->running.store(true);
     const u32 rc = s->ctrl->run(s->dev->dev.get(), &s->token, scan_progress_bridge_, s, s->stats);
     s->running.store(false);
-    if (s->ck_file) {
-        std::fclose(s->ck_file);
-        s->ck_file = nullptr;
+    if (s->ck_sink) {
+        if (s->ck_sink->f)
+            std::fclose(s->ck_sink->f);
+        /* the staging file is transient: the final path holds the last
+         * COMMITTED checkpoint; a leftover .tmp is a torn never-committed
+         * emit (N-014's crash window) - remove it, never trust it. */
+#ifdef _WIN32
+        DeleteFileW(u8_to_ws(s->ck_sink->tmp_path.c_str()).c_str());
+#else
+        std::remove(s->ck_sink->tmp_path.c_str());
+#endif
+        s->ck_sink.reset();
         s->cfg.checkpoint = orchestrator::ScanConfig::CheckpointSink{};
     }
     if (rc != OK)
@@ -1693,8 +1763,17 @@ extern "C" CR_UI_API void cr_ui_scan_close(cr_ui_scan* scan) {
         return;
     try {
         auto* s = reinterpret_cast<CrScan*>(scan);
-        if (s->ck_file)
-            std::fclose(s->ck_file);
+        if (s->ck_sink) {
+            if (s->ck_sink->f)
+                std::fclose(s->ck_sink->f);
+            /* N-014: the staging file is transient (a torn never-committed
+             * emit); the final path holds the last committed checkpoint. */
+#ifdef _WIN32
+            DeleteFileW(u8_to_ws(s->ck_sink->tmp_path.c_str()).c_str());
+#else
+            std::remove(s->ck_sink->tmp_path.c_str());
+#endif
+        }
         delete s;
     } catch (...) {
     }
