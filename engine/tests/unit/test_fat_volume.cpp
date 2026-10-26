@@ -1668,7 +1668,6 @@ TEST(FatEngine, PrimaryFreeStillConsultsMirror) {
     ASSERT_EQ(t.load(&dev, p), OK);
     EXPECT_EQ(t.next(10), 11u) << "primary FREE must consult the mirror (og gate)";
 }
-<<<<<<< HEAD
 /* ---- M-052 (diff-to-fix): the recycle-bin $I/$R pairing on FAT -------- */
 
 namespace {
@@ -1685,25 +1684,10 @@ std::vector<u8> build_fat16_recycle_image(const char* bin_root_name8_3,
                                           u64 deletion_filetime) {
     auto img = build_fat16_image();
     const size_t FAT1 = 2 * 512;
-=======
-/* ---- M-052 (diff-to-fix): the FAT recycle-bin $I/$R pairing ---------- */
-
-namespace {
-
-/* a filled $RECYCLE.BIN on the FAT16 fixture: <bin-root>\S-1-5-21\ holds a
- * $I7ABC12 metadata record (v2, 544 B, cluster 50) + its $R7ABC12.JPG
- * content (2048 B, cluster 51). bin_root_8_3 selects the root name so the
- * legacy roots (Recycler/Recycled) reuse the same body. */
-std::vector<u8> build_fat16_recycle_image(const char* bin_root_8_3) {
-    auto img = build_fat16_image();
-    const size_t FAT1 = 2 * 512;
-    const size_t FAT2 = 22 * 512;
->>>>>>> 880e2a1b1429859df8d575aa53e835d1d65fe01f
     const size_t ROOT = 42 * 512;
     const size_t DATA = 74 * 512;
     auto link = [&](u32 c, u16 v) {
         set_fat16_entry(img, FAT1, c, v);
-<<<<<<< HEAD
         set_fat16_entry(img, 22 * 512, c, v); /* mirrored FAT2 */
     };
     link(40, 0xFFFF); /* bin root */
@@ -1814,128 +1798,10 @@ TEST(FatEngine, RecycleLegacyRoots) {
         if (legacy != nullptr) {
             EXPECT_EQ(legacy->props()->logical_size, 777u);
         }
-=======
-        set_fat16_entry(img, FAT2, c, v);
-    };
-    link(40, 0xFFFF); /* bin root dir */
-    link(41, 0xFFFF); /* SID subfolder */
-    link(50, 0xFFFF); /* $I record */
-    link(51, 0xFFFF); /* $R content */
-
-    /* root: the bin directory (fixture used slots 0..5) */
-    u8* root = img.data() + ROOT;
-    make_dentry(root + 6 * 32, bin_root_8_3, ATTR_DIRECTORY, 40, 0, 0x5A46, 0x6000, false);
-
-    /* bin root content (cluster 40): . .. SID */
-    u8* bin = img.data() + DATA + (40 - 2) * 512;
-    make_dentry(bin + 0 * 32, ".          ", ATTR_DIRECTORY, 40, 0, 0x5A46, 0x6000, false);
-    make_dentry(bin + 1 * 32, "..         ", ATTR_DIRECTORY, 0, 0, 0x5A46, 0x6000, false);
-    make_dentry(bin + 2 * 32, "S-1-5-21   ", ATTR_DIRECTORY, 41, 0, 0x5A46, 0x6000, false);
-
-    /* SID content (cluster 41): . .. $I $R */
-    u8* sid = img.data() + DATA + (41 - 2) * 512;
-    make_dentry(sid + 0 * 32, ".          ", ATTR_DIRECTORY, 41, 0, 0x5A46, 0x6000, false);
-    make_dentry(sid + 1 * 32, "..         ", ATTR_DIRECTORY, 40, 0, 0x5A46, 0x6000, false);
-    make_dentry(sid + 2 * 32, "$I7ABC12   ", 0x20, 50, 544, 0x5A46, 0x6000, false);
-    make_dentry(sid + 3 * 32, "$R7ABC12JPG", 0x20, 51, 2048, 0x5A46, 0x6000, false);
-
-    /* $I record (cluster 50): v2 fixed form - version, size, FILETIME,
-     * pathlen, original path "C:\vacation.jpg" (15 chars) */
-    u8* irec = img.data() + DATA + (50 - 2) * 512;
-    put32v(img, DATA + (50 - 2) * 512, 2); /* version 2 */
-    put32v(img, DATA + (50 - 2) * 512 + 4, 0);
-    put32v(img, DATA + (50 - 2) * 512 + 8, 4096);  /* original size */
-    put32v(img, DATA + (50 - 2) * 512 + 12, 0);
-    put32v(img, DATA + (50 - 2) * 512 + 16, 0);    /* FILETIME lo */
-    put32v(img, DATA + (50 - 2) * 512 + 20, 30);   /* FILETIME hi -> 30<<32 */
-    put32v(img, DATA + (50 - 2) * 512 + 24, 15);   /* pathlen */
-    const char16_t* path = u"C:\\vacation.jpg";
-    for (int i = 0; i < 15; ++i)
-        put_u16(irec + 28 + i * 2, path[i]);
-
-    /* $R content (cluster 51): a recognizable marker */
-    std::memcpy(img.data() + DATA + (51 - 2) * 512, "RECYCLED-CONTENT", 16);
-    return img;
-}
-
-struct FatScanOut {
-    tree::ResultTree tree;
-    std::vector<tree::FileNode*> all;
-};
-void fat_scan_collect(std::vector<u8> img, FatScanStats* stats, FatScanOut& out) {
-    MemDevice dev(std::move(img));
-    auto* ra = out.tree.add_root(u"Found");
-    auto* rd = out.tree.add_root(u"Deleted");
-    auto* rl = out.tree.add_root(u"Lost");
-    FatScanFlags flags;
-    if (scan_fat(&dev, flags, nullptr, nullptr, nullptr, out.tree, ra, rd, rl, *stats) != OK)
-        return;
-    std::function<void(tree::FileNode*)> collect = [&](tree::FileNode* n) {
-        for (tree::FileNode* c = n->first_child(); c; c = c->next_sibling()) {
-            out.all.push_back(c);
-            collect(c);
-        }
-    };
-    for (auto* r : out.tree.roots())
-        collect(r);
-}
-
-} // namespace
-
-TEST(FatEngine, RecyclePairingRestoresOriginalName) {
-    /* M-052 falsifiable claim: a FAT32/FAT16 volume holding
-     * $RECYCLE.BIN\S-1-5-21-...\$R7ABC12.jpg + $I7ABC12 - the og emits a
-     * recycle-surfaced result carrying the original name/path/deletion
-     * date from the $I record (IRecycleBinNode2UI,
-     * fat-exfat-engine-internals.md :37-40). Fail-before: the pre-fix
-     * core emitted two raw-named files with no pairing. */
-    FatScanStats stats;
-    FatScanOut out;
-    fat_scan_collect(build_fat16_recycle_image("$RECYCLEBIN"), &stats, out);
-    EXPECT_EQ(stats.recycle_info, 1u) << "the $I record must parse";
-    EXPECT_EQ(stats.recycle_remapped, 1u) << "the $R must remap";
-    tree::FileNode* vac = nullptr;
-    int raw_r = 0, raw_i = 0;
-    for (auto* n : out.all) {
-        const std::string nm = n->name_utf8();
-        if (nm == "vacation.jpg")
-            vac = n;
-        if (nm == "$R7ABC12.JPG")
-            ++raw_r;
-        if (nm == "$I7ABC12")
-            ++raw_i;
-    }
-    ASSERT_NE(vac, nullptr) << "the $R must surface as its original name";
-    EXPECT_EQ(vac->props()->logical_size, 4096u) << "size from the $I record";
-    EXPECT_EQ(vac->props()->times.modified, (u64(30) << 32)) << "deletion FILETIME";
-    EXPECT_EQ(vac->deleted_state(), tree::DeletedState::Deleted);
-    ASSERT_EQ(vac->props()->extents.size(), 1u);
-    EXPECT_EQ(vac->props()->extents[0].offset, u64(74 + 49) * 512) << "$R content cluster";
-    EXPECT_EQ(raw_i, 0) << "bin metadata never surfaces";
-    EXPECT_EQ(raw_r, 0) << "the raw $R name is remapped away";
-}
-
-TEST(FatEngine, RecycleLegacyRoots) {
-    /* M-052: the og matches all bin roots byte-exact (_stricmp,
-     * FATSearchDLL :1668-1677): Recycler (NT4-2000) and Recycled (Win9x)
-     * get the same pairing as $RECYCLE.BIN. */
-    for (const char* root : {"RECYCLER   ", "RECYCLED   "}) {
-        FatScanStats stats;
-        FatScanOut out;
-        fat_scan_collect(build_fat16_recycle_image(root), &stats, out);
-        EXPECT_EQ(stats.recycle_info, 1u) << root << ": $I must parse";
-        EXPECT_EQ(stats.recycle_remapped, 1u) << root << ": $R must remap";
-        tree::FileNode* vac = nullptr;
-        for (auto* n : out.all)
-            if (n->name_utf8() == "vacation.jpg")
-                vac = n;
-        ASSERT_NE(vac, nullptr) << root << ": the legacy root must pair";
->>>>>>> 880e2a1b1429859df8d575aa53e835d1d65fe01f
     }
 }
 
 TEST(FatEngine, NonRecycleDollarFilesStayRaw) {
-<<<<<<< HEAD
     /* M-052 over-matching pin: '$'-prefixed directories that are NOT bin
      * roots keep their children raw-named - no special-casing beyond the
      * three corpus roots. */
@@ -1966,33 +1832,4 @@ TEST(FatEngine, NonRecycleDollarFilesStayRaw) {
         if (n->name_utf8() == "$NOTE.TXT")
             raw_ok = true;
     EXPECT_TRUE(raw_ok) << "non-bin '$' files must stay raw-named";
-=======
-    /* M-052 pin: out-of-bin $I/$R-named files are ordinary content (the
-     * og scopes the bin handling to the recognized roots). The fixture
-     * plants the SAME names at the volume root - outside any bin. */
-    auto img = build_fat16_recycle_image("$RECYCLEBIN");
-    /* rename the bin-root dentry in place to a non-bin name (all other
-     * fields - attributes, cluster, dates - stay untouched) */
-    const size_t ROOT = 42 * 512;
-    const char plain[11] = {'P', 'L', 'A', 'I', 'N', 'D', 'I', 'R', ' ', ' ', ' '};
-    std::memcpy(img.data() + ROOT + 6 * 32, plain, 11);
-    FatScanStats stats;
-    FatScanOut out;
-    fat_scan_collect(std::move(img), &stats, out);
-    EXPECT_EQ(stats.recycle_info, 0u) << "no bin root: the $I must not be treated as metadata";
-    EXPECT_EQ(stats.recycle_remapped, 0u);
-    int raw_r = 0, raw_i = 0, vac = 0;
-    for (auto* n : out.all) {
-        const std::string nm = n->name_utf8();
-        if (nm == "$R7ABC12.JPG")
-            ++raw_r;
-        if (nm == "$I7ABC12")
-            ++raw_i;
-        if (nm == "vacation.jpg")
-            ++vac;
-    }
-    EXPECT_EQ(raw_i, 1u) << "out-of-bin $I-named file stays a raw result";
-    EXPECT_EQ(raw_r, 1u) << "out-of-bin $R-named file stays a raw result";
-    EXPECT_EQ(vac, 0u) << "no remap outside the bin";
->>>>>>> 880e2a1b1429859df8d575aa53e835d1d65fe01f
 }

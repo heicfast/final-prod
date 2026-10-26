@@ -15673,3 +15673,32 @@ Work Log:
 Stage Summary:
 - Lane open. S-034 decode starts now (corpus: ZfsSearchDLL_decompiled.c
   ring walk + addBlock + the ZplNode visitor path).
+
+---
+Task ID: DFX33-T7 (session 33 — second pushed-red REPAIR, protocol)
+Agent: main engineer (diff-to-fix fix session 33 — DFX33)
+Task: Repair the M-052 multi-lane collision (FAT/exFAT/NTFS recycle-bin
+files interleaved by successive unions; win_syntax_check + the build RED
+on origin/main).
+
+Work Log:
+- Root cause: TWO parallel M-052 landings (c33c64b the cr_recycle-helper
+  extraction; 76d4878 the shared-model variant) met in successive unions;
+  the interleaving glued duplicate struct fields (FatScanStats/
+  ExfatScanStats recycle pairs), duplicated function bodies
+  (parse_recycle_info, recycle_token), committed markers (cr_mftwalk,
+  cr_fat_quick, cr_exfat_quick, cr_recycle.h, both engine headers, the
+  test files) and re-broke rrecov/cr_bitlocker (the same N-064
+  interleaving as T4).
+- Repair: the ENGINE files restored verbatim from the coherent c33c64b
+  landing (cr_fat_quick, cr_fat_engine.h, cr_exfat_quick,
+  cr_exfat_engine.h, cr_mftwalk, cr_recycle.h + the three engine test
+  files); the WIN layer kept on my canonical line (rrecov + cr_bitlocker
+  from the M-048 landing 21ea6c2 — the 5-surface BitLocker repair + the
+  M-048 --user-signs CLI + the M-018 junk-filter gates all intact).
+- Verified: full suite **891/891** linux-release (incl. win_syntax_check,
+  cr_ui_abi_check, the M-052 recycle tests from both landing variants).
+
+Stage Summary:
+- main green again. Session tally: 5 fixes (M-020, M-025, M-018, M-048,
+  N-007) + 2 multi-lane repairs (T4, T7).
