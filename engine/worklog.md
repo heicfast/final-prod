@@ -15175,6 +15175,55 @@ Stage Summary:
 - Claim posted; starting M-041 (full corpus re-read of
   FileSystemCheck_decompiled.c first).
 
+---
+Task ID: DFX35-4 (session 35, third fix — M-041)
+Agent: main engineer (DFX35)
+Task: M-041 — the damage-audit check phase (FileSystemCheck.mo parity).
+
+Work Log:
+- Corpus re-verified FIRST-HAND (all load-bearing cites):
+  FAT12/16/32 ceilings (:1355-1360/:1413-1417/:1469-1473 — they CLAMP
+  the audited cluster count, not reject; the finding's framing
+  corrected), 0x1004 size-vs-chain arithmetic (:2050-2076), volume-size
+  gate (:2832-2835), `.`/`..` byte validation (:1893-1907), version set
+  {0x102, 3, 0x301} (:2994-3003), orphan BAD sentinels (:872-878) ->
+  0x1003 (:945-951), FAT copies -> 0x1005 (:745-752), "Bitmap mark it
+  as free!!!" (:3200). CONFIRMED-DIVERGENCE.
+- Landed: include/cr/check/cr_fscheck.h + src/core/check/cr_fscheck.cpp
+  (both passes, taxonomy in numeric parity; the 12-bit/16-bit/32-bit FAT
+  entry decoder; the BorrowedDevice non-owning adapter for
+  NtfsVolume::open); the orchestrator stage (after repair, before
+  engines; default ON with run_fs_check opt-out; report in
+  ScanStats.fs_check_* + a log Warn line; NEVER aborts).
+- Development corrections caught by the tests themselves: (1) the $MFT
+  proof must parse the $FILE_NAME PAYLOAD's name (parse_file_name), not
+  the attribute's own name; (2) the runlist decode must go through
+  parse_data_runs (attribute-relative offset), not a record-relative
+  pointer; (3) the $Bitmap size sanity is in BYTES (clusters x cluster
+  size) with a coverage + 1 MiB tolerance; (4) the dir-cycle detection
+  must run BEFORE the global cross-link test (a self-referencing chain
+  is a cycle, not a cross-link); (5) the check stage reads the RAW
+  slice — pipe reads stole the error map's per-range ENGINE attribution
+  (the ErrorRange attribution test caught it: last_err_module became
+  the orchestrator's stamp when the check touched a dead sector first).
+- Fixture notes recorded: build_image's MFT/MIRR LCN overlap (68..71)
+  makes it bitmap-cross-linked by construction — the check tests use
+  build_dump_image (bitmap-consistent); the mirror-region re-plant for
+  the $MFTMirr proof (the recycle records overwrite the mirror copies,
+  the known quirk).
+- Tests: 14 (FatCheck.* x9 incl. the BAD-sentinel negative, NtfsCheck.*
+  x4 incl. the 3.1-passes pin, Orchestrator.CheckPhaseNeverAbortsScan).
+  Fail-before by construction (the API did not exist — N-046 precedent).
+  Suite 877/877 linux-release.
+- Audit trail: Resolution + FIXED/ move; NEW module row
+  modules/check-phase.md; matrix check-phase row; SUMMARY session-35
+  addition; CAPABILITY-MATRIX row.
+
+Stage Summary:
+- M-041 FIXED (session tally: 3 — M-014, M-052, M-041 + N-079 + 3
+  repair pushes). MAJOR 5 remain (M-030/M-034/M-039/M-040/M-048).
+  Next: pull-check; M-039/M-048 are the parallel lane's claimed next -
+  coordinate via the worklog before taking one.
 
 
 
@@ -15739,3 +15788,42 @@ Stage Summary:
   are the proof set). MINOR open: N-072 only. Next: N-072, then MAJORs
   (M-030/M-034/M-039/M-040/M-048 — verifying which the parallel lanes
   drain while I work).
+Task ID: DFX24-T8 (M-034 + the M-052 convergence union)
+Agent: DFX24 (session 24, the MAJOR lane)
+Task: M-034 NAS scope disposition; the convergent-M-052 union repair
+
+Work Log:
+- M-034: product decision made and registered — PARITY-DELTAS D-88 (NAS/remote scanning excluded from core device scope; EuMrx = host-layer surface; the corpus proves scan-path plumbing only — the REVISIT TRIGGER). cr_device.h divergence block + Storage.ParityDeltasListsNasExclusion doc-truth pin. Finding -> FIXED/ (scope registration = the fix plan's step 3).
+- M-052 convergence: the parallel DFX35 lane's convergent implementation hit origin first (four-root set incl. $RECYCLE.BI0, verified in all three SearchDLLs — corpus-richer than the artifact's three roots); their inline-header API adopted as canonical; this lane's .cpp dropped cleanly; the two Resolutions unioned with the convergence record; my N-079 renumbered N-080 (ID collision with their NTFS bin-scope finding, first-landing-wins).
+- Pushed-red unions repaired (twice this window): the M-052-era markers across cr_recycle.h/cr_fat_quick/cr_exfat_quick/cr_mftwalk/test files + the re-broken rrecov.cpp/cr_bitlocker.h (canonical cr::dict design restored). Suite 893/893.
+
+Stage Summary:
+- M-034 FIXED (scope registration). M-052 canonical after convergence. Remaining MAJOR: M-030, M-039, M-040.
+
+Task ID: DFX33-T7 (session 33 — second pushed-red REPAIR, protocol)
+Agent: main engineer (diff-to-fix fix session 33 — DFX33)
+Task: Repair the M-052 multi-lane collision (FAT/exFAT/NTFS recycle-bin
+files interleaved by successive unions; win_syntax_check + the build RED
+on origin/main).
+
+Work Log:
+- Root cause: TWO parallel M-052 landings (c33c64b the cr_recycle-helper
+  extraction; 76d4878 the shared-model variant) met in successive unions;
+  the interleaving glued duplicate struct fields (FatScanStats/
+  ExfatScanStats recycle pairs), duplicated function bodies
+  (parse_recycle_info, recycle_token), committed markers (cr_mftwalk,
+  cr_fat_quick, cr_exfat_quick, cr_recycle.h, both engine headers, the
+  test files) and re-broke rrecov/cr_bitlocker (the same N-064
+  interleaving as T4).
+- Repair: the ENGINE files restored verbatim from the coherent c33c64b
+  landing (cr_fat_quick, cr_fat_engine.h, cr_exfat_quick,
+  cr_exfat_engine.h, cr_mftwalk, cr_recycle.h + the three engine test
+  files); the WIN layer kept on my canonical line (rrecov + cr_bitlocker
+  from the M-048 landing 21ea6c2 — the 5-surface BitLocker repair + the
+  M-048 --user-signs CLI + the M-018 junk-filter gates all intact).
+- Verified: full suite **891/891** linux-release (incl. win_syntax_check,
+  cr_ui_abi_check, the M-052 recycle tests from both landing variants).
+
+Stage Summary:
+- main green again. Session tally: 5 fixes (M-020, M-025, M-018, M-048,
+  N-007) + 2 multi-lane repairs (T4, T7).

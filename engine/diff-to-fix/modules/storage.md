@@ -98,3 +98,15 @@ an engine needs it. I-017's register is unchanged; M-033 untouched.
 | P42/A54 | the scope contract documented at the surface (cr_enumerate.h SCOPE note); the SetupAPI disk-interface pass named as the designed extension point |
 
 Q65: Enumerate.{ScopeDeltaRegisteredWithRevisitTrigger, BusyDiskMetadataRetryShipsInQueryDisk, ScopeContractDocumentedInHeader} (source-truth pins; win-layer behavior parse-gated on Linux, exercised on the MSVC lane).
+
+## Session-24 verdict update (M-034 scope-registered, DFX24, 2026-10-26)
+
+**NAS/remote device layer — `M-034` resolved by scope registration.**
+PARITY-DELTAS D-88: NAS scanning is excluded from the core's device
+scope (the EuMrx redirector is host-layer surface; the corpus proves
+the scan-path plumbing only — deleted-file yield over SMB is
+undecoded and is the row's REVISIT TRIGGER). cr_device.h carries the
+divergence block; `Storage.ParityDeltasListsNasExclusion` pins both
+artifacts. The IStorageDevice contract itself is transport-agnostic
+and remains open to an SMB-backed host device — the Q54/Q55/A8
+verdicts: MATCH-by-registered-scope-exclusion.
