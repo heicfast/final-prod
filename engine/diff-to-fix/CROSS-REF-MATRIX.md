@@ -16,6 +16,16 @@ divergences (each file carries its ACKNOWLEDGED Resolution; pin tests green on
 `716d121`, 737/737). No verdict changed — `ack` was and remains MATCH-by-
 deliberate-divergence; only the filing location moved per the user directive.
 Tracked-open dispositions recorded per-OQ in the session's worklog entries.
+**Session-24 changes (2026-10-26, DFX24 — the disjoint MAJOR lane; DFX23 owns the MINOR queue
+in the same window):** **M-049 FIXED** — the error-model row below (err+abi): the session-11
+half (header truth + err_text coverage) + this session's close-out of the finding's registered
+step 2, the engine-side error-context subset (the og's per-module error registrars, Error.md
+census): the error-range event family carries the module/operation/retry-state triple
+(`err_module`/`err_operation`/`err_attempts` on `cr_ui_event`, CR_ERRMOD_*/CR_ERROP_* ABI
+constants pinned by static asserts), attributed per-range at failure time (cr::errmod thread
+stamp + device-owner fallback for engine-internal pools); sessions keep the geometric trio
+(wire-compat pinned both directions); D-68 updated. Fail-before RED executed at the retry-device
+seam (5/6); suite 745/745.
 
 **Session-22 changes (2026-10-26, DFX22 — build-integrity NEW-FINDING + the carve overlap/scoring wave):** **M-055**
 (MAJOR) — the `src/win` platform layer was UNCOMPILABLE since `3b5397a`/`915bce3`/
@@ -278,7 +288,7 @@ byte-pin→I-009, probe-row→I-010; dropped as dups: boot-geometry→N-013b, by
 | ldm+rawfixer | C20/B2/A25/F60 | ~~M-046 (S5)~~ **FIXED (s10)** — GPT path geometry-correct ×3; exFAT plans bps-sized; LDM 512-LBA unit family fixed; 3 fail-before tests; findings/FIXED/M-046 |
 | session+tree | D12/D11/B8 | ~~**M-047 (S5)**~~ **M-047 FIXED (s9)** (FIXED/M-047: recursive refresh_stats + the persisted-image trust on load; partial loads recompute) |
 | carve | B1/A28/D16 | **M-048 (S5)** (EUUserData user-extensible signature DB — 111 extensions, `"offset,hex"` signs + MIME — has no core counterpart) |
-| err+abi | C23/D14/F35/Q46 | **M-049 (S5)** (error model: flat 28-code 8-hex enum with a false "reproduces the reference convention" header claim vs the og's 12-digit documented codes + error-object architecture) |
+| err+abi | C23/D14/F35/Q46 | ~~**M-049 (S5)**~~ **M-049 FIXED (s24 DFX24)** (FIXED/M-049: session-11 header truth + err_text; session-24 closes the registered step 2 — the engine-side error-context subset on the error-range event family: err_module/err_operation/err_attempts + CR_ERRMOD_*/CR_ERROP_*, per-range attribution recorded at failure time via the cr::errmod thread stamp + device-owner fallback; 8 fail-before-proven tests; ABI pins; D-68 updated) |
 | session+tree | D11/D12/B4 | **M-050 (S5)** (node-model round-trip gaps: ~15 og wrapper fields — hidden-root bit, grading bits 5-7, roles, fixup, sentinels — have no core carrier) |
 | carve+session | D11/D12/B9 | **M-051 (S5)** (RAW provenance unpersisted: timestamp string, analyser checksum w/ 0xFFFFFFFF invalid marker, note, tail anchor, boolean) |
 | carve | A28/B3/C19 | ~~N-051 (S5) MKV DocType discrimination + element-bounds gate absent~~ **FIXED (S12)** — FIXED via the parallel lane's b2f48c6 (canonical): bounded-buffer DocType walk (webm/matroska via 0x6D626577), 0x200 element-bounds gate; DFX12 convergence addendum: 0x67805318 = Segment ID 0x18538067 LE + independent fail-before run (8/10 RED pre-fix) |

@@ -1,6 +1,7 @@
 /* Orchestrator + safe recovery writer tests. */
 #include <gtest/gtest.h>
 #include "cr/orchestrator/cr_scan.h"
+#include "cr/cr_errmod.h"
 #include "cr/recovery/cr_safewriter.h"
 #include "cr/session/cr_crsf.h"
 #include "cr/storage/cr_device.h"
@@ -1164,6 +1165,8 @@ struct EventRecorder {
     std::vector<event::Type> seen;
     u64 last_err_start = 0, last_err_len = 0;
     u32 max_error_ranges = 0;
+    /* M-049: the error-context triple on the last ErrorRange event */
+    u32 last_err_module = 0xFFFFFFFFu, last_err_operation = 0xFFFFFFFFu, last_err_attempts = 0;
     static void on_evt(const event::Event& e, void* user) {
         auto* r = static_cast<EventRecorder*>(user);
         r->seen.push_back(e.type);
@@ -1171,6 +1174,9 @@ struct EventRecorder {
             r->last_err_start = e.err_start_bytes;
             r->last_err_len = e.err_len_bytes;
             r->max_error_ranges = std::max(r->max_error_ranges, e.error_ranges);
+            r->last_err_module = e.err_module;
+            r->last_err_operation = e.err_operation;
+            r->last_err_attempts = e.err_attempts;
         }
     }
     bool has(event::Type t) const { return std::find(seen.begin(), seen.end(), t) != seen.end(); }
@@ -1267,6 +1273,111 @@ TEST(ScanEvents, SingleBoundaryAtTeardown) {
      * completion plus the run()-exit stamp = 3. The pre-fix double-fire
      * at the stamp produced 4 (the N-016 merge artifact). */
     EXPECT_EQ(files_found, 3u) << "one FilesFound per boundary - no teardown double-fire";
+}
+
+/* ---- M-049: the error-context triple (module/operation/retry state) on
+ * the ErrorRange event - the engine-side subset of the og's error-object
+ * architecture (per-module registrars; the MOM-bus manager layer stays out
+ * of core scope) ---- */
+
+namespace {
+/* M-049 fixture: build_fat16 plus a SUBDIRECTORY whose cluster sits in
+ * the SECOND 256 KiB cache block (sector 532 = cluster 460) - beyond
+ * every probe read (they all touch only block 0 on this geometry) but
+ * squarely inside the FAT engine's directory traversal. A dead sector
+ * there is recorded while the ENGINE-pass thread stamp is active: the
+ * per-sub-pass attribution this test proves. */
+std::vector<u8> build_fat16_with_far_subdir() {
+    std::vector<u8> img = build_fat16();
+    const size_t FAT1 = 2 * 512, FAT2 = 22 * 512, ROOT = 42 * 512;
+    const u32 SUB_CL = 460; /* sector 74 + 458 = 532: cache block 1 */
+    put16(img, FAT1 + SUB_CL * 2, 0xFFFF);
+    put16(img, FAT2 + SUB_CL * 2, 0xFFFF);
+    u8* root = img.data() + ROOT;
+    u8* e = root + 2 * 32; /* slot 2: the first free slot - a zero name[0]
+                            * there is the END marker, so the entry must
+                            * land at 2 to be walked at all */
+    std::memset(e, 0, 32);
+    const char* name = "FARSUB     ";
+    for (int i = 0; i < 11; ++i)
+        e[i] = u8(name[i]);
+    e[11] = 0x10; /* ATTR_DIRECTORY */
+    put16(img, ROOT + 2 * 32 + 20, 0);
+    put16(img, ROOT + 2 * 32 + 26, u16(SUB_CL));
+    put32v(img, ROOT + 2 * 32 + 28, 0);
+    /* the subdir cluster itself: all-zero dentries (empty directory) */
+    return img;
+}
+} // namespace
+
+TEST(ScanEvents, ErrorRangeCarriesModuleOperationAttempts) {
+    /* a persistent read failure inside the FAT engine's own directory
+     * traversal (the far subdir cluster - first touched by the engine,
+     * never by the probe) must arrive attributed to the FAT module,
+     * operation READ, with the retry pipe's attempt count - the triple
+     * the og's error objects would have carried as module/proc context. */
+    FailingSectorDevice dev(build_fat16_with_far_subdir(), 532);
+    tree::ResultTree tree;
+    ScanConfig cfg;
+    cfg.run_quick = true;
+    cfg.run_deep = true;
+    cfg.run_carve = false;
+    cfg.whole_disk = false;
+    ScanController ctrl(tree, cfg);
+    EventRecorder rec;
+    ASSERT_EQ(OK, ctrl.set_event_sink(&EventRecorder::on_evt, &rec));
+    ScanStats stats;
+    ASSERT_EQ(OK, ctrl.run(&dev, nullptr, nullptr, nullptr, stats));
+    ASSERT_TRUE(rec.has(event::Type::ErrorRange)) << "the engine traversed the far subdir";
+    EXPECT_EQ(u32(errmod::kFat), rec.last_err_module) << "attributed to the FAT engine pass";
+    EXPECT_EQ(errmod::op_read, rec.last_err_operation) << "the error-range family is reads";
+    EXPECT_EQ(3u, rec.last_err_attempts) << "the retry policy's attempt count";
+}
+
+TEST(ScanEvents, ProbeBlockFailureAttributesToOrchestrator) {
+    /* the SAME dead sector in cache block 0 (the boot/FAT/root region)
+     * is first touched by the PROBE's cache-block read - attributed to
+     * the orchestrator module: the attribution tracks WHO was reading
+     * when the range was recorded, not a stage constant. (The existing
+     * A-004 fixtures' sector-30 failures ride this path.) */
+    FailingSectorDevice dev(build_fat16(), 30);
+    tree::ResultTree tree;
+    ScanConfig cfg;
+    cfg.run_quick = true;
+    cfg.run_deep = true;
+    cfg.run_carve = false;
+    cfg.whole_disk = false;
+    ScanController ctrl(tree, cfg);
+    EventRecorder rec;
+    ASSERT_EQ(OK, ctrl.set_event_sink(&EventRecorder::on_evt, &rec));
+    ScanStats stats;
+    ASSERT_EQ(OK, ctrl.run(&dev, nullptr, nullptr, nullptr, stats));
+    ASSERT_TRUE(rec.has(event::Type::ErrorRange));
+    EXPECT_EQ(u32(errmod::kOrchestrator), rec.last_err_module)
+        << "the probe's block read was the first (and only) reader";
+    EXPECT_EQ(errmod::op_read, rec.last_err_operation);
+}
+
+TEST(ScanEvents, CarveErrorRangeAttributesToCarveModule) {
+    /* the same failing sector read by the CARVE sweep attributes to the
+     * carve module - the attribution is per-sub-pass, not a constant: the
+     * module id distinguishes WHO was reading when the sector died. */
+    FailingSectorDevice dev(build_fat16(), 30);
+    tree::ResultTree tree;
+    ScanConfig cfg;
+    cfg.run_quick = false;
+    cfg.run_deep = false;
+    cfg.run_carve = true;
+    cfg.whole_disk = false;
+    ScanController ctrl(tree, cfg);
+    EventRecorder rec;
+    ASSERT_EQ(OK, ctrl.set_event_sink(&EventRecorder::on_evt, &rec));
+    ScanStats stats;
+    ASSERT_EQ(OK, ctrl.run(&dev, nullptr, nullptr, nullptr, stats));
+    ASSERT_TRUE(rec.has(event::Type::ErrorRange)) << "the carve window sweep read the dead sector";
+    EXPECT_EQ(u32(errmod::kCarve), rec.last_err_module) << "attributed to the carve sweep";
+    EXPECT_EQ(errmod::op_read, rec.last_err_operation);
+    EXPECT_EQ(3u, rec.last_err_attempts);
 }
 
 TEST(ScanConfig, DeepStageDefaultsOnAndWholeDiskOff) {

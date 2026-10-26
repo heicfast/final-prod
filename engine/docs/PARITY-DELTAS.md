@@ -2154,7 +2154,7 @@ engine constant would bake one vendor's config into the library; the og
 itself separates engine (compiled analysers) from policy (the ini). Pinned
 by `CarveEngine.AllFormatsEnabledByDefault`.
 
-### D-68 — Error value space: family-prefix convention only; numeric values core-internal (M-049, ACCEPTED)
+### D-68 — Error value space: family-prefix convention only; numeric values core-internal (M-049, ACCEPTED; context subset LANDED)
 
 The og's engine errors are 12-hex-digit HRESULT-shaped codes
 (0x5002200000004 open-fail, 0x5002c0000004 read-fail — the only two
@@ -2166,10 +2166,22 @@ numeric values; the old header claim ("reproduces the reference engine
 convention") was false as written — value equality was never true for any
 code. Renumbering to the two known 12-digit values would break 26 others
 arbitrarily (the og table is undocumented); the family-prefix match is
-the honest extent of the parity. The error-object layer stays out of core
-scope (UI-bus architecture); the engine-side subset (module/operation/
-retry-state context) is the registered open item in the finding. Pinned
-by Error.ErrTextCoversEveryCode + the header truth.
+the honest extent of the parity. Pinned by Error.ErrTextCoversEveryCode +
+the header truth.
+
+The ENGINE-SIDE SUBSET of the og's error objects LANDED with M-049's
+close-out (session 24): the error-range event family now carries the
+module/operation/retry-state triple (`err_module`/`err_operation`/
+`err_attempts` on `cr_ui_event`, CR_ERRMOD_*/CR_ERROP_* constants; the
+og's module ids are string class-names, ours are core-internal numbers —
+the D-68 value-space policy applied to the module dimension). Per-range
+attribution is recorded at failure time (thread stamp + device-owner
+fallback, cr_errmod.h); sessions persist the geometric trio unchanged
+(a reloaded range is honestly unattributed). The MOM-bus
+manager/track-manager layer stays out of core scope (UI-bus
+architecture). Pinned by ScanEvents.ErrorRangeCarriesModuleOperation-
+Attempts + CarveErrorRangeAttributesToCarveModule + ProbeBlockFailure-
+AttributesToOrchestrator + the Retry/DevMap/Errmod unit trio.
 
 ### D-75 — carve validator chain: single modern validator per format, no legacy File*Analyser fallback generation (N-070, REGISTERED SIMPLIFICATION — deliberately not ported)
 

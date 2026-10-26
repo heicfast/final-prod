@@ -1,6 +1,7 @@
 /* PartitionSlice bounds + ReadErrorMap tests (R1.5, R1.6). */
 #include <gtest/gtest.h>
 #include "cr/storage/cr_slice.h"
+#include "cr/cr_errmod.h"
 #include <cstring>
 
 using namespace cr;
@@ -117,6 +118,67 @@ TEST(DevMap, AddMergeSerialize) {
     ASSERT_EQ(m2.ranges().size(), 1u);
     EXPECT_EQ(m2.ranges()[0].offset, 100u);
     EXPECT_EQ(m2.ranges()[0].length, 145u);
+}
+
+/* ---- M-049: the per-range module attribution (cr_errmod.h) ------------ */
+
+TEST(DevMap, ModuleAttributionRecordedAndNewestWinsOnCoalesce) {
+    /* the attribution recorded at failure time travels on the range; when
+     * runs coalesce, the NEWEST constituent's attribution wins (the
+     * record keeps the latest failure's context - the og's error-track
+     * semantics). Every absorb in one add() involves the incoming range,
+     * so "newest wins" is well-defined. */
+    ReadErrorMap m;
+    m.add(100, 50, 3, errmod::kFat);
+    ASSERT_EQ(m.ranges().size(), 1u);
+    EXPECT_EQ(m.ranges()[0].module, u32(errmod::kFat));
+
+    /* disjoint range, disjoint attribution */
+    m.add(400, 10, 3, errmod::kCarve);
+    ASSERT_EQ(m.ranges().size(), 2u);
+    EXPECT_EQ(m.ranges()[1].module, u32(errmod::kCarve));
+
+    /* overlapping range with a DIFFERENT module: absorbed geometrically,
+     * the incoming (newest) attribution wins, attempts take the max */
+    m.add(120, 60, 5, errmod::kLost); /* [120,180) bridges into [100,150) */
+    ASSERT_EQ(m.ranges().size(), 2u); /* the [400,410) range is untouched */
+    EXPECT_EQ(m.ranges()[0].offset, 100u);
+    EXPECT_EQ(m.ranges()[0].length, 80u); /* [100,180) */
+    EXPECT_EQ(m.ranges()[0].attempts, 5u);
+    EXPECT_EQ(m.ranges()[0].module, u32(errmod::kLost)) << "newest constituent's attribution";
+    EXPECT_EQ(m.ranges()[1].module, u32(errmod::kCarve));
+
+    /* merge() preserves attributions (feeds add() in insertion order) */
+    ReadErrorMap other;
+    other.add(500, 10, 2, errmod::kNtfs);
+    m.merge(other);
+    ASSERT_EQ(m.ranges().size(), 3u);
+    EXPECT_EQ(m.ranges()[2].module, u32(errmod::kNtfs));
+}
+
+TEST(DevMap, ModuleNotSerializedWireStaysTrio) {
+    /* the session wire format is the geometric trio (offset/length/
+     * attempts) - unchanged in both directions by M-049; a deserialized
+     * range is honestly UNATTRIBUTED (module 0), and re-serializing a
+     * reloaded map produces the byte-identical trio stream. */
+    ReadErrorMap m;
+    m.add(100, 50, 3, errmod::kFat);
+    m.add(200, 10, 2, errmod::kCarve);
+    std::vector<u8> out;
+    m.serialize(out);
+    /* count + 2 ranges x 5 u32s = 11 u32s = 44 bytes: NO module words */
+    EXPECT_EQ(out.size(), 44u);
+
+    u32 used = 0;
+    ReadErrorMap re = ReadErrorMap::deserialize(out.data(), out.size(), &used);
+    EXPECT_EQ(used, out.size());
+    ASSERT_EQ(re.ranges().size(), 2u);
+    EXPECT_EQ(re.ranges()[0].module, 0u) << "unattributed after reload";
+    EXPECT_EQ(re.ranges()[1].module, 0u);
+
+    std::vector<u8> out2;
+    re.serialize(out2);
+    EXPECT_EQ(out, out2) << "round-trip byte-identical - the wire never carried modules";
 }
 
 /* ---- N-046: geometry refresh after removable-media change ------------- */

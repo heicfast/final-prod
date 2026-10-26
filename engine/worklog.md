@@ -13159,3 +13159,62 @@ Work Log:
 Stage Summary:
 - N-064 FIXED (session tally: 1). Next: N-071 (device enumeration
   breadth), pulling first — parallel lanes are active on the MINOR tier.
+=======
+---
+Task ID: DFX24-T1 (session 24, first fix — M-049)
+Agent: main engineer (diff-to-fix fix session 24 — DFX24)
+Task: M-049 — the error model's registered step 2: the engine-side
+error-context subset (module/operation/retry state).
+
+Work Log:
+- Corpus re-verified FIRST-HAND: architecture/05-scan-engine-
+  architecture.md:62 (the two 12-digit documented codes) + re-workspace/
+  artifacts/MOM-modules/Error.md (IErrorModule/IErrorProc/CErrorManager/
+  CErrorTrackManager registrar census). Session-11's half (header truth,
+  err_text test) verified landed in-tree.
+- Design (the finding's own next-step seam — the event family):
+  cr::errmod (cr_errmod.h/.cpp) — the module-id enum (kNone/kOrchestrator/
+  9 engines/kCarve/kLost/kLdm) + op ids + per-THREAD stamp with RAII
+  Guard; RetryingDevice gains the per-DEVICE owner fallback
+  (set_owner_module) + stamps each recorded ReadErrorRange with
+  stamp-else-owner.
+- Wiring: the orchestrator stamps every sub-pass (probe/table =
+  ORCHESTRATOR; engine pass = module_for_family(fs_hint); LDM database
+  block = kLdm; remnant = kNtfs; discovery = kLost; scan_candidate =
+  probe ORCHESTRATOR then per-candidate family — stamped INSIDE the task
+  so the parallel fan-out carries exact per-task attribution with no
+  shared-state race; carve = kCarve) + publish_owner_module_ between
+  sub-passes (engine-internal pools' fallback).
+- Carriers: ReadErrorRange.module (NOT serialized — 44-byte wire pin,
+  reloaded ranges honestly kNone; coalescence keeps the NEWEST
+  attribution, every absorb involves the incoming range by the
+  sorted-disjoint invariant); event::Event + cr_ui_event append
+  err_module/err_operation/err_attempts + alignment pad (8-byte POD pin
+  stands; v2-era append, no bump per §9); CR_ERRMOD_*/CR_ERROP_* ABI
+  constants pinned by 15 static asserts in cr_ui.cpp; trampoline copies
+  the triple; the N-048 read-failure log line carries module=%u.
+- First build caught my own scope error (module declared inside the
+  lock-guard block, used in the log line after it) — fixed before any
+  test run.
+- Fail-before RED EXECUTED at the single retry-device seam (attribution
+  forced kNone): 5/6 RED — ErrorRangeCarriesModuleOperationAttempts,
+  ProbeBlockFailureAttributesToOrchestrator,
+  CarveErrorRangeAttributesToCarveModule,
+  Retry.ThreadStampAttributedToRecordedRange,
+  Retry.OwnerFallbackCoversUnstampedWorkerThreads. Restored → GREEN.
+- Fixture truth discovered en route: the probe's 256 KiB cache-block
+  read is the FIRST reader of every block-0 dead sector (the A-004
+  fixtures' sector-30 failures attribute to ORCHESTRATOR — pinned by its
+  own test, the attribution tracks WHO was reading); the FAT-engine
+  attribution test needed a far subdir (cluster 460 = cache block 1,
+  root slot 2 — slot 3 was past the zero end-of-directory marker).
+- Suite 745/745 linux-release (8 new tests). ui_abi_check.c event_cb
+  extended (plain-C readability of the triple).
+- Audit trail: Resolution + FIXED/ move, RESOLVED-INDEX row, matrix
+  err+abi cell + session-24 header, SUMMARY session-24 delta, D-68
+  updated (subset landed), ABI-CONTRACT §6 constants block,
+  CAPABILITY-MATRIX orchestration row.
+
+Stage Summary:
+- M-049 FIXED (tally: 1). MAJOR 13 remain. Next: M-035 (engine-side
+  FileFilter validation).

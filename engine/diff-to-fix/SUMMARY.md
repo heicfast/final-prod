@@ -1,4 +1,4 @@
-# SUMMARY.md — executive summary (sessions 23+25+28 on top; earlier sessions below)
+# SUMMARY.md — executive summary (sessions 23+24+25+28 on top; earlier sessions below)
 
 ## Session-28 delta (2026-10-26 — DFX28: the rear-first MINOR lane)
 
@@ -239,10 +239,6 @@ reviewed in the Resolution). Suite **754/754**.
 open (22 acknowledged in FIXED/) · tracked-open 11 · FIXED/ **178** files
 (177 findings + RESOLVED-INDEX). Next on this lane: N-050 (recognition contract) →
 N-033 → N-064.
-
-<!-- DFX16 note: session 16 ran as a parallel lane in the same window as
-     sessions 17-22; its delta is recorded here for chronology. -->
-
 ## Session-23 delta (2026-10-26 — DFX23: the MINOR-first close-out lane, N-025 first landing)
 
 Session bootstrap at `716d121` (DFX16-M013 rebase reconciliation; N-062 the
@@ -278,6 +274,45 @@ CarveFlags.disabled_formats), N-014d FIXED-ALREADY (N-008's salvage-polarity
 inversion + N-068's LFH gates; this session's re-read of :18479-18498
 confirmed the direction verbatim and corrected the audit's "~4 GiB" cap to
 the real 0x500001 loop bound). Suite **749/749**.
+## Session-24 delta (2026-10-26 — DFX24: the disjoint MAJOR lane; DFX23 owns the MINOR queue)
+
+Bootstrap: the parallel DFX23 lane claimed the full MINOR tier at 354c555
+in the same window — this lane re-stamped 23→24 and claimed the DISJOINT
+open MAJOR tier (14 findings). Baseline executed first-hand BEFORE the
+claim: linux-release suite **737/737** green at 716d121 (= 354c555
+content); corpus 03ad46c unmoved (re-verified at first read).
+
+**M-049 FIXED (MAJOR — the error model, both halves now closed):** the
+session-11 half (header value-space truth + the err_text coverage test)
+was verified landed; this session closed the finding's registered step 2
+— the engine-side error-context subset of the og's error-object
+architecture (per-module registrars, Error.md census; corpus re-verified
+first-hand: 05-scan-engine-architecture.md:62 + the Error.md RTTI
+census). The error-range event family now carries the
+module/operation/retry-state triple: `err_module`/`err_operation`/
+`err_attempts` on `cr_ui_event` (v2-era append + alignment pad — the
+8-byte-multiple POD pin stands, no ABI bump per §9), new CR_ERRMOD_*
+(NONE/ORCHESTRATOR/9 structured engines/CARVE/LOST/LDM) + CR_ERROP_*
+(READ) ABI constants pinned to the core enum by 15 static asserts. The
+attribution is per-range and recorded at failure time: `cr::errmod`
+(cr_errmod.h) — a per-thread stamp the orchestrator sets around every
+sub-pass (probe/table = orchestrator, engine pass = family, remnant =
+NTFS, discovery = LOST, candidates = per-candidate family stamped inside
+scan_candidate, carve = CARVE, LDM database = LDM) + a per-device owner
+fallback on the retry device covering engine-internal worker pools;
+coalesced ranges keep the NEWEST attribution; sessions persist the
+geometric trio unchanged (44-byte wire pin — reloaded ranges honestly
+kNone). The N-048 read-failure log line carries the module id. D-68
+updated (the subset is no longer the open item). Fail-before RED
+EXECUTED at the single retry-device seam (attribution disabled: 5/6 RED
+— the three event-attribution tests + the two retry-unit tests);
+restored → suite **745/745** linux-release (8 new tests); ui_abi_check.c
+extended (plain-C /W4 /WX readability of the triple).
+
+**Counts after this landing (direct file inventory):** SEVERE 0 · MAJOR
+13 · MINOR 19 (DFX23's queue) · INFO 24 · tracked-open 11 · **FIXED/ 150
+files** (149 findings + RESOLVED-INDEX). Next on this lane: M-035
+(engine-side FileFilter validation) → M-052 → M-014 → M-018.
 
 ## Session-16 delta (2026-10-26 — DFX16: S-029 closed — the SEVERE tier is empty)
 

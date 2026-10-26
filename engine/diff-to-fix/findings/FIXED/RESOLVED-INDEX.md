@@ -65,6 +65,13 @@
 | I-022 | INFORMATIONAL | Session-5 core superset registers | `896cee3` (ack) — moved FIXED/ this session | ACKNOWLEDGED — cr_crsf.cpp per-record decompressed-CRC32 + bomb cap re-read first-hand this session (:78/:167/:319); D-60 family. |
 | I-023 | INFORMATIONAL | DrwCfg persistent config channel scope register | `b2bd91b` (ack) — moved FIXED/ this session | ACKNOWLEDGED — settings persistence is host responsibility; og's hardcoded-key AES channel not copied (DPAPI note stands); no code change. |
 | I-024 | INFORMATIONAL | PartitionRecoveryD generator sets and .dat persistence register | `b2bd91b` (ack) — moved FIXED/ this session | ACKNOWLEDGED — capability register; behavioral decode remains OQ-S6-1's scope (this session's queue). |
+## Resolved findings (session-24 wave: +M-049 (DFX24, the disjoint MAJOR lane); live file inventory)
+
+| ID | Severity (orig) | Title | Fix commit | Resolution |
+|---|---|---|---|---|
+| M-049 | MAJOR (S5) | Error-model divergence: flat 28-code 8-hex enum vs the og's error-object system with 12-digit HRESULT codes; cr_error.h's parity claim false | (this session's M-049 commit — file carries the Resolution) | Session-11 half (header truth + err_text coverage) + this session's close-out of the registered step 2: the engine-side error-context subset on the error-range event family — err_module/err_operation/err_attempts on cr_ui_event (v2-era append, alignment-padded) + CR_ERRMOD_*/CR_ERROP_* constants pinned by 15 static asserts; per-range attribution recorded at failure time (cr::errmod thread stamp + device-owner fallback for engine-internal worker pools); sessions keep the geometric trio (44-byte wire pin, reloaded ranges honestly kNone); coalescence keeps the newest attribution; D-68 updated (the subset landed). Corpus re-verified first-hand (05-scan:62 + Error.md census). Fail-before RED executed at the retry-device seam (5/6); suite 745/745; ui_abi_check.c extended. |
+
+
 
 ## Resolved findings (session-22 wave: +M-055, +N-077, +N-020, +N-070 +M-056 (NEW-FINDING), +N-074 (convergent), +N-047, +N-035, +N-014; live file inventory)
 
