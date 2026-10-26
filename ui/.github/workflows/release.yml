@@ -1,0 +1,80 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Verify tag matches app version
+        shell: bash
+        run: |
+          TAG="${GITHUB_REF_NAME#v}"
+          APP_VERSION=$(node -p "require('./src-tauri/tauri.conf.json').version")
+          if [ "$TAG" != "$APP_VERSION" ]; then
+            echo "Tag v$TAG does not match app version $APP_VERSION" >&2
+            exit 1
+          fi
+          echo "Version match: $TAG"
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 12.15.0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build NSIS installer (unsigned)
+        run: pnpm tauri build --ci --bundles nsis
+        env:
+          VITE_CONNECTOR: mock
+
+      - name: Locate installer
+        shell: bash
+        run: |
+          set -e
+          INSTALLER=$(find src-tauri/target/release/bundle/nsis -name '*.exe' | head -n 1)
+          if [ -z "$INSTALLER" ]; then
+            echo "NSIS installer not found in src-tauri/target/release/bundle/nsis" >&2
+            ls -R src-tauri/target/release/bundle || true
+            exit 1
+          fi
+          echo "INSTALLER_PATH=$INSTALLER" >> "$GITHUB_ENV"
+          echo "Found: $INSTALLER"
+
+      - name: Generate checksum
+        shell: bash
+        run: |
+          cd "$(dirname "$INSTALLER_PATH")"
+          sha256sum "$(basename "$INSTALLER_PATH")" > "$(basename "$INSTALLER_PATH").sha256"
+          cat "$(basename "$INSTALLER_PATH").sha256"
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          body: |
+            Recovery Wizard UI — mock-connector build.
+
+            **Note: artifacts are NOT signed.** Code signing will be enabled
+            once certificates are provisioned; until then Windows may show
+            SmartScreen warnings for this installer. Verify the SHA-256
+            checksum before running.
+          files: |
+            ${{ env.INSTALLER_PATH }}
+            ${{ env.INSTALLER_PATH }}.sha256
+          generate_release_notes: true
