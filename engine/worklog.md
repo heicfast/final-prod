@@ -13800,3 +13800,40 @@ Stage Summary:
 - N-071 FIXED (session tally: 2 — N-064, N-071). Next: N-032 (health
   transports CSMI/USB bridges) or N-033 (analyser registry exports),
   pulling first.
+
+---
+Task ID: DFX31-N064-CONV (session 31 — the N-064 two-landing reconciliation + pushed-red repair)
+Agent: main engineer (diff-to-fix fix session 31 — DFX31)
+Task: Reconcile the convergent N-064 landings (first-landing-wins) and
+repair the pushed-red main (ccbe9eb committed unresolved conflict
+markers into the win layer).
+
+Work Log:
+- Timeline verified by commit timestamps: DFX31's N-064 (cr::dict) pushed
+  at 05:26:57Z (4c475ba content); the parallel DFX34 lane's cr::pwddict
+  landed 05:37:29Z (817740c); their union merge ccbe9eb committed
+  conflict markers into cr_bitlocker.h/.cpp regions + rrecov.cpp
+  (win_syntax_check RED — pushed-red main, the M-055 class of break).
+- Reconciliation: markers resolved to the canonical (first-landed,
+  cr::dict) side; the cr::pwddict module + --bitlocker-pwddict flag +
+  test_pwddict.cpp dropped cleanly; the ONE genuine superset capability
+  ABSORBED — user-supplied dictionary files in the og's exact format:
+  --bitlocker-dict [file] (load_dict_candidates rides cr::dict::parse,
+  256 KiB hostile-input cap, honest failures on unreadable/over-cap/
+  invalid/empty dictionaries) + the DFX34 design point that the
+  Unknown-state (boot-unreadable, typically locked) volume gets the
+  consented dictionary attempt before its refusal + the narrow-candidate
+  unlock_with_dictionary overload for the CLI path.
+- D-78 (their data-posture registration) renumbered to D-80 and re-worded
+  as the convergence record (the canonical posture: the corpus Dict
+  converts as generated data per the raw_signs.json precedent — 228
+  common passwords are facts, not creative expression; the loader keeps
+  host flexibility). Both Resolutions preserved in the finding file
+  (append-only); the convergence record appended after them.
+- Verified: full build green; win_syntax_check green (all 8 files);
+  suite 814/814 linux-release at the reconciliation tree.
+
+Stage Summary:
+- N-064 convergence closed; main green again. Session tally: N-064
+  (canonical + convergence), N-071. Next: pull, then N-072 or N-066.
+

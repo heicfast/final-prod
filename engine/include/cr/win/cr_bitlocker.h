@@ -56,23 +56,6 @@ u32 try_auto_unlock(wchar_t letter);
  * the hive unlocked the volume, ERR_FVE_LOCKED otherwise. */
 u32 try_auto_unlock_offline(wchar_t letter, const wchar_t* hive_path);
 
-<<<<<<< HEAD
-/* N-064 (the og's Dict unlock aid): the USER-CONSENTED password-dictionary
- * path - the og's BitlockerUnlockDialog -> BitlockerUnlockThread flow
- * (UIUX 15-scenario-flows:33) fed by the shipped Dict file
- * (config-data-reference.md:20/:86). Candidates (dictionary entries and/or
- * user-typed passwords, narrow UTF-8) are attempted sequentially through
- * the SAME unlock() plumbing as a typed password (PowerShell
- * Unlock-BitLocker -Password, manage-bde -Password fallback) - Windows
- * applies or rejects each one; the core performs no crypto. Sequencing,
- * dedup, caps and the attempt log lines live in the pure pwddict module
- * (cr/pwddict/cr_pwddict.h; the policy is documented there).
- *
- * CONSENT: nothing in the scan path calls this - only an explicit host
- * unlock action may (F61: legitimate unlock only, never auto-attempt on
- * scan). Returns OK or ERR_FVE_LOCKED. */
-u32 try_password_unlock(wchar_t letter, const std::vector<std::string>& candidates);
-=======
 /* N-064 (diff-to-fix): the password-dictionary unlock aid - the og's Dict
  * flow (228-entry shipped dictionary, config-data-reference.md :20; tried
  * through the same PowerShell -Password / manage-bde -Password plumbing as
@@ -86,7 +69,10 @@ u32 try_password_unlock(wchar_t letter, const std::vector<std::string>& candidat
  * ERR_FVE_LOCKED when the whole set failed. */
 u32 unlock_with_dictionary(wchar_t letter, const wchar_t* const* user_passwords,
                            size_t user_count);
->>>>>>> origin/main
+
+/* Narrow-candidate overload (the CLI path; UTF-8/ASCII candidates from a
+ * loaded dictionary file ride the same consent loop). */
+u32 unlock_with_dictionary(wchar_t letter, const std::vector<std::string>& user_candidates);
 
 #ifdef _WIN32
 namespace detail {
