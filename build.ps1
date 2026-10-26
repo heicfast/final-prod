@@ -68,7 +68,13 @@ function Invoke-Engine {
     cmake --build --preset $preset --parallel
     if ($LASTEXITCODE -ne 0) { throw 'engine build failed' }
     if (-not $SkipTests -and $Configuration -eq 'Release') {
-        ctest --preset $preset --output-on-failure
+        # -C is REQUIRED on the VS multi-config generator: without it the
+        # config-dependent test executables cannot resolve (the v0.5.0-rc1
+        # release run: destio / bitlocker / cr_ui_abi_check went 'Not Run',
+        # ctest exited nonzero, the build failed — while the gtest-discovered
+        # suite ran fine, which is why 924/927 passed). Same form as the
+        # engine repo's own proven windows lane (engine-ci.yml).
+        ctest --preset $preset -C $Configuration --output-on-failure
         if ($LASTEXITCODE -ne 0) { throw 'engine tests failed' }
     }
     Pop-Location

@@ -493,3 +493,27 @@ dropped in favor of theirs). Three deltas they lacked, layered on top:
   not-started branch had one; failed needed its own for silent logs).
 - installer/README.md: the stale integrity-check reference
   'Recovery Wizard.exe' corrected to recovery-wizard-ui.exe.
+
+---
+
+## 2026-10-26T23:15Z — v0.5.0-rc1 release run: failed at engine ctest; build.ps1 fixed; rc2 cut
+
+The rc1 release run (40413302053) died in step 10 at build.ps1:72 —
+'engine tests failed': 924/927 passed, destio/bitlocker/cr_ui_abi_check
+'Not Run'. Root cause: build.ps1 invoked `ctest --preset win-x64-release`
+WITHOUT -C on the VS multi-config generator — the three plain add_test
+entries cannot resolve their config-dependent executables that way (the
+gtest_discovered suite resolves, hence 924 green and the misleading '99%
+passed'). The engine repo's own windows lane always passes `-C Release`
+(engine-ci.yml line 157). build.ps1's test path had never run on CI
+before: every validation lane used -SkipTests and engine-ci uses its own
+invocation — exactly what an RC is for (RELEASE.md candidate discipline).
+
+Fix: `ctest --preset $preset -C $Configuration --output-on-failure` (the
+engine-ci form). No release object was half-created for rc1 (the upload
+step never ran; verified via the API — zero releases).
+
+rc2 cut: VERSION + the three lockstep consumers -> 0.5.0-rc2 (the rc1 tag
+is immutable; failures roll forward, tags never move). The rc2 tree also
+carries the /SD silent-mode fix (bdf4eb3d) + the ask_close live-check
+delta (d0670530) — rc1's installer would have hung any /S deploy.

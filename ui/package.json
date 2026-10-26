@@ -1,7 +1,7 @@
 {
   "name": "recovery-wizard-ui",
   "private": true,
-  "version": "0.5.0-rc1",
+  "version": "0.5.0-rc2",
   "description": "Recovery Wizard UI — Tauri 2 + React 19 + TypeScript (mock-connector driven, clean-room re-implementation)",
   "type": "module",
   "packageManager": "pnpm@12.15.0",
