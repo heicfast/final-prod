@@ -80,12 +80,39 @@ bool query_disk_handle(HANDLE h, PhysicalDisk& d) {
     return ok;
 }
 
-bool query_disk(u32 n, PhysicalDisk& d) {
-    wchar_t path[64];
-    _snwprintf_s(path, 64, _TRUNCATE, L"\\\\.\\PhysicalDrive%u", n);
+
+/* N-071 hardening (convergent with the two-stack port): a disk held by
+ * another process (backup/AV/imaging - share modes that exclude our
+ * data-open request) must not vanish from the device list. The og's
+ * stacks (WMI/SetupAPI - mom-module-system--architecture.md :57-59)
+ * list disks WITHOUT opening them; both of our stacks open, so on
+ * ERROR_ACCESS_DENIED / ERROR_SHARING_VIOLATION retry a 0-access
+ * metadata-only open: no read/write share conflict, and the
+ * FILE_ANY_ACCESS IOCTLs used here (geometry-EX, storage query,
+ * device number) still answer. A disk that cannot even be
+ * metadata-opened stays absent (the honest limit - PARITY-DELTAS
+ * D-80's revisit trigger). */
+HANDLE open_disk_for_query(const wchar_t* path, bool& busy) {
     HANDLE h =
         CreateFileW(path, GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
                     nullptr, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr);
+    if (h == INVALID_HANDLE_VALUE) {
+        const DWORD le = GetLastError();
+        if (le != ERROR_ACCESS_DENIED && le != ERROR_SHARING_VIOLATION)
+            return INVALID_HANDLE_VALUE;
+        h = CreateFileW(path, 0, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, nullptr,
+                        OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr);
+        if (h == INVALID_HANDLE_VALUE)
+            return INVALID_HANDLE_VALUE;
+        busy = true; /* listed, but data scans must re-open later */
+    }
+    return h;
+}
+
+bool query_disk(u32 n, PhysicalDisk& d) {
+    wchar_t path[64];
+    _snwprintf_s(path, 64, _TRUNCATE, L"\\\\.\\PhysicalDrive%u", n);
+    HANDLE h = open_disk_for_query(path, d.busy);
     if (h == INVALID_HANDLE_VALUE)
         return false;
     const bool ok = query_disk_handle(h, d);
@@ -151,12 +178,10 @@ u32 enumerate_disk_interfaces(PhysicalDiskList& out) {
     const wchar_t* p = buf.c_str();
     while (*p) {
         const size_t len = wcslen(p);
-        HANDLE h = CreateFileW(p, GENERIC_READ,
-                               FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, nullptr,
-                               OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr);
+        PhysicalDisk d;
+        d.interface_path = std::wstring(p, len);
+        HANDLE h = open_disk_for_query(p, d.busy);
         if (h != INVALID_HANDLE_VALUE) {
-            PhysicalDisk d;
-            d.interface_path = std::wstring(p, len);
             STORAGE_DEVICE_NUMBER num = {};
             DWORD br = 0;
             if (DeviceIoControl(h, IOCTL_STORAGE_GET_DEVICE_NUMBER, nullptr, 0, &num, sizeof(num),

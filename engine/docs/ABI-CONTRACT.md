@@ -422,6 +422,20 @@ Contract:
   core carves the full registry (matching the og engine, whose toggles are
   applied by its UI when it configures the searcher); a host filters this
   enumeration to build the same config surface.
+- **CLI projection (N-033's close):** `rrecov list-carve-formats` prints the
+  full enumeration (one row per format: layer, ext, min/max, base
+  confidence, grammar magic) — the CLI shape of the og host's
+  EUGetAnalyserList-driven "formats we can recover" surface. Exit 0 only on
+  a complete walk; an empty registry or a failed row is exit 1 (the FB-K01
+  family: scripts must never mistake a broken table for "nothing to
+  carve").
+- The og's FS engines re-clone the RAWSearchDLL registry per scan
+  (FATSearchDLL :13872-13977 LoadLibrary/GetProcAddress + the per-scan
+  re-fetch :29290-29361); the core's registry is compile-time immutable
+  and read directly — PARITY-DELTAS D-80 registers the difference (same
+  content by construction; the clone pattern exists only because the og
+  is multi-DLL).
+
 - Per-scan refresh divergence (N-033, registered): the og's FS engines
   RE-CLONE the RAWSearchDLL registry per scan
   (FATSearchDLL_decompiled.c :29290-29361 — LoadLibrary +

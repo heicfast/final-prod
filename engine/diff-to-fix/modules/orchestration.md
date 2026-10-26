@@ -158,3 +158,18 @@ dedup), GAP-S6-13 (64 KiB transport envelope).
 | ID | Severity | One-line |
 |---|---|---|
 | M-058 | MAJOR (NEW-FINDING, fixed same session) | run()'s cache-failure fallback dereferenced the retry device CachedReader::create destroys on failure returns (latent UAF on the defensive path, ASan-proven in the standalone repro) + the adjacent comment documented the opposite (bare-slice) fallback. FIXED: build_read_pipe() extracted — the degraded path is a pinned contract (bare slice, no retry isolation, surfaced), 3 ReadPipe pin tests, N-045 budget pin re-anchored to the call site (lockstep preserved). |
+
+
+## Session-33 verdict update (2026-10-26, DFX33 — M-018 FIXED)
+
+**B1/D16 → MATCH (post-fix):** the og's PushFolderFilter junk filter is
+now the core's — `filterfolder::apply()` runs post-walk (pre-grading,
+pre-session-capture) marking the FilterFolder.ini hidden sets on the
+nodes (NODE_FLAG_JUNK_FILTERED); query rows, the CLI tree and recover-all
+planning all skip flagged nodes (sessions re-derive on resume). The lists
+ship as generated data (scripts/gen_filterfolder.py from the corpus
+config, byte-exact — the file's `._.DS_Store` and `新建資料夾` correct the
+finding's typos); matching is exact u16 equality with ASCII-fold
+(comparator mode undecoded in the corpus — registered D-82).
+`ScanStats.junk_filtered` added. TxtViewFiles/SumaryFileType stay
+out-of-scope (preview/count-unification surfaces, not the hidden set).

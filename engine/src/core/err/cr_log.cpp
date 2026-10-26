@@ -9,6 +9,7 @@
 #include <atomic>
 #include <cstdio>
 #include <cstring>
+#include <deque>
 #include <mutex>
 
 namespace cr {
@@ -22,12 +23,20 @@ struct Site {
 };
 
 std::mutex g_mu;
-/* written under g_mu, read lock-free on the write fast path (sites are
- * immutable once published; set_sink replaces the pointer atomically and
- * leaks the old site - sinks are set once per process in practice, and a
- * use-after-free on a racing write is worse than a bounded leak on an
- * exotic swap) */
+/* written under g_mu, read lock-free on the write fast path. Sites live
+ * in a static deque's stable storage: retired sites are never freed
+ * while a racing reader may hold them (same no-UAF swap semantics the
+ * original leak-by-design intended), but the storage is OWNED and
+ * destroyed at exit - LeakSanitizer-clean (the N-062 landing's bare
+ * `new` left the final Site leaked on every process, red on the ASan
+ * lane; filed as N-079). deque push_back never moves existing
+ * elements, so published &site pointers stay valid. */
 std::atomic<Site*> g_site{nullptr};
+
+std::deque<Site>& site_pool() {
+    static std::deque<Site> pool;
+    return pool;
+}
 
 void write_va(Level level, const char* fmt, va_list ap) {
     Site* site = g_site.load(std::memory_order_acquire);
@@ -50,16 +59,15 @@ void write_va(Level level, const char* fmt, va_list ap) {
 } // namespace
 
 void set_sink(SinkFn fn, void* user) {
-    Site* next = nullptr;
-    if (fn) {
-        next = new Site();
-        next->fn = fn;
-        next->user = user;
-    }
-    /* publish under the write mutex; the old site is leaked by design
-     * (see g_site's comment) */
+    /* publish under the write mutex; retired sites stay alive in the
+     * pool (see g_site's comment) - no free-while-read, no heap leak */
     std::lock_guard<std::mutex> lock(g_mu);
-    g_site.store(next, std::memory_order_release);
+    if (fn) {
+        site_pool().push_back(Site{fn, user});
+        g_site.store(&site_pool().back(), std::memory_order_release);
+    } else {
+        g_site.store(nullptr, std::memory_order_release);
+    }
 }
 
 bool enabled() {

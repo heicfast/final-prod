@@ -89,3 +89,12 @@ journal ring reads are bounded within the ring; everything else is
 explicitly bounded; refusals degrade via the damage counters). The
 opt-in clamped-read primitive (path 2) is the documented next step WHEN
 an engine needs it. I-017's register is unchanged; M-033 untouched.
+
+## Session-30 fix row (2026-10-26 — N-071 closed by scope registration + the busy-disk hardening)
+
+| Parameter | Verdict |
+|---|---|
+| B8 device discovery (enumeration breadth) | **MATCH-by-scope-registration (D-80)** — the engine's device truth stays the PhysicalDrive namespace + volume-letter companion; the og's five-stack fan-in is MOM UI machinery. The load-bearing observable (a busy disk stays listed) is ported: query_disk retries a 0-access metadata-only open on ERROR_ACCESS_DENIED/ERROR_SHARING_VIOLATION (busy=true on the row). Revisit trigger in D-80: a live miss-case (disk in Disk Management but absent from `rrecov list`) reopens the row |
+| P42/A54 | the scope contract documented at the surface (cr_enumerate.h SCOPE note); the SetupAPI disk-interface pass named as the designed extension point |
+
+Q65: Enumerate.{ScopeDeltaRegisteredWithRevisitTrigger, BusyDiskMetadataRetryShipsInQueryDisk, ScopeContractDocumentedInHeader} (source-truth pins; win-layer behavior parse-gated on Linux, exercised on the MSVC lane).

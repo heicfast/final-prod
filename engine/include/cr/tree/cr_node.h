@@ -34,6 +34,16 @@ namespace tree {
  * props - a reloaded session's nodes are already absolute. */
 constexpr u16 NODE_FLAG_EXT_SHIFTED = 0x8000;
 
+/* NODE_FLAG_JUNK_FILTERED (M-018, bit 14 - tree-internal, set only by the
+ * orchestrator's filterfolder pass): the node matched the og's shipped
+ * FilterFolder.ini hidden sets (OS droppings, metadata noise, localized
+ * "New Folder" names, System Volume Information, BitLocker recovery
+ * artifacts). Presentation surfaces (query rows, CLI tree, recover-all
+ * planning) skip flagged nodes - the og's PushFolderFilter "hide OS junk
+ * from results". Engines never set it; sessions re-derive it on resume
+ * (the pass is idempotent and names are stable). */
+constexpr u16 NODE_FLAG_JUNK_FILTERED = 0x4000;
+
 enum class Origin : u8 { Structured = 0, Carved = 1, Lost = 2, Virtual = 3 };
 enum class DeletedState : u8 { Active = 0, Deleted = 1, PartiallyOverwritten = 2, Damaged = 3 };
 enum class Confidence : u8 {
@@ -299,6 +309,19 @@ public:
 
     /* Move a node to a new parent (link surgery is tree-internal). */
     void reparent(FileNode* node, FileNode* new_parent);
+
+    /* M-035: detach a root's subtree from the tree - the rejected-candidate
+     * mechanism (the og's engine-side scorer drops a content-inconsistent
+     * lost candidate's results entirely; ours walks first, then scores, so
+     * the walk's emission is undone here). Removes the subtree from
+     * roots_, nodes_ and both dedup indexes, runs the nodes' destructors
+     * (props references released exactly once per node - hard links keep
+     * their surviving refs), and leaves the arena bytes reserved until
+     * the tree's own destruction (the arena is bulk-freed by design; the
+     * memory is bounded by the rejected candidates' file counts). Stats
+     * recomputed by the next refresh_stats() call. Call on the scan thread
+     * after the subtree's own emission finished (single-writer handoff). */
+    void detach_subtree(FileNode* root);
 
     /* clear without destroying (engines may reuse) */
     void reset();

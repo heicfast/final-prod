@@ -53,11 +53,20 @@ std::u16string SafeWriter::sanitize_name(const std::u16string& in) {
 
 std::u16string SafeWriter::resolve_collision(const std::u16string& dir,
                                              const std::u16string& base_name) const {
+    /* N-065: the og's collision format (DRWUI :357116-357131, re-verified
+     * first-hand): L"%s_%d" for extensionless names and L"%s_%d%s"
+     * (name, counter, extension) otherwise - `name_1.ext`, `name_2.ext` -
+     * via FID_conflict_sprintf_s, counter starting at 1, giving up when
+     * the counter passes rename_attempts (the og's cap: 10,000). On
+     * exhaustion the og FAILS the file (the loop breaks to the failure
+     * path); the old core's `name (N).ext` shape + `_dup` fallback were
+     * og-foreign and the fallback could itself collide. */
     std::u16string prefix = dir;
     if (!prefix.empty() && prefix.back() != u'\\' && prefix.back() != u'/')
         prefix.push_back(u'\\');
     std::u16string cand = base_name;
-    for (u32 attempt = 1; attempt < cfg_.rename_attempts; ++attempt) {
+    u32 tried = 0; /* renamed candidates attempted (the og's counter) */
+    for (;;) {
         const std::u16string key = prefix + u"|" + cand;
         const bool intra = claimed_names_.count(key) != 0;
         /* pre-existing destination finals only conflict under Rename
@@ -69,12 +78,16 @@ std::u16string SafeWriter::resolve_collision(const std::u16string& dir,
             claimed_names_.insert(key);
             return cand;
         }
+        if (tried == cfg_.rename_attempts)
+            break; /* the og's `if (10000 < counter) break` - exhausted */
+        ++tried;
         char buf[16];
-        snprintf(buf, sizeof(buf), " (%u)", attempt + 1);
+        snprintf(buf, sizeof(buf), "_%u", tried);
         std::u16string suffix;
         for (const char* p = buf; *p; ++p)
             suffix.push_back(u16(u8(*p)));
-        /* insert before the LAST dot (keep the extension) */
+        /* the og's two branches: "%s_%d" (no extension) / "%s_%d%s"
+         * (split at the LAST dot, keeping the extension) */
         size_t last_dot = base_name.rfind(u'.');
         if (last_dot == std::u16string::npos || last_dot == 0) {
             cand = base_name + suffix;
@@ -82,7 +95,8 @@ std::u16string SafeWriter::resolve_collision(const std::u16string& dir,
             cand = base_name.substr(0, last_dot) + suffix + base_name.substr(last_dot);
         }
     }
-    return base_name + u"_dup";
+    return {}; /* exhausted: the caller FAILS the item (og semantics - no
+                  synthesized fallback name, no _dup) */
 }
 
 u32 SafeWriter::enqueue(tree::FileNode* node, const std::u16string& dest_dir) {
@@ -155,6 +169,15 @@ u32 SafeWriter::enqueue_common(const tree::FileProperties* pr, tree::FileNode* n
         !pr->name_raw.empty() ? text::utf8_to_u16(pr->name_raw) : pr->name;
     const std::u16string clean = sanitize_name(restore_base);
     it.final_name = resolve_collision(it.dest_dir, clean);
+    if (it.final_name.empty()) {
+        /* N-065: the rename space is exhausted (the og's cap-break) - the
+         * item is FAILED at process time, never a synthesized _dup name */
+        it.final_name = clean; /* report the intended name */
+        it.name_exhausted = true;
+        it.item_id = next_id_++;
+        queue_.push_back(it);
+        return OK;
+    }
     it.item_id = next_id_++;
     it.is_dir = is_dir;
     if (is_dir) {
@@ -482,6 +505,15 @@ u32 SafeWriter::process(CancelToken* cancel, bool (*progress)(u64, u64, void*), 
             ++stats.refused;
             continue;
         }
+        if (it.name_exhausted) {
+            /* N-065: the collision rename space is exhausted - the og's
+             * cap-break fails the file (DRWUI :357131). Zero I/O; the
+             * report row carries ERR_DEST_NAME_EXHAUSTED. */
+            it.state = ItemState::Error;
+            it.error = ERR_DEST_NAME_EXHAUSTED;
+            ++stats.errors;
+            continue;
+        }
         if (it.nothing_to_recover) {
             /* GAP-S6-7: counted, reported, never written - zero bytes of
              * I/O (process() short-circuit; the report row tells the truth) */
@@ -609,6 +641,11 @@ std::vector<report::Item> SafeWriter::report_items() const {
         if (it.state == ItemState::Refused) {
             r.outcome = report::Outcome::Refused;
             r.reason = it.error;
+        } else if (it.name_exhausted) {
+            /* N-065: the og's cap-10000 collision break - the file is
+             * failed, never a synthesized fallback name */
+            r.outcome = report::Outcome::Error;
+            r.reason = ERR_DEST_NAME_EXHAUSTED;
         } else if (it.nothing_to_recover) {
             /* GAP-S6-7: skipped before any write - metadata-only item */
             r.outcome = report::Outcome::NothingToRecover;

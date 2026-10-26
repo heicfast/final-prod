@@ -57,6 +57,10 @@ enum Err : u32 {
      * writer fast-fails the remaining queue instead of attempting every
      * item, and the pre-check refuses upfront when free space is known) */
     ERR_DEST_FULL = 0x50050004,
+    /* N-065: collision rename space exhausted (the og's cap-10000 loop:
+     * DRWUI :357131 `if (10000 < counter) break` - the file is FAILED,
+     * never a synthesized fallback name) */
+    ERR_DEST_NAME_EXHAUSTED = 0x50050005,
 
     /* --- bitlocker policy --- */
     ERR_FVE_LOCKED = 0x50060001,

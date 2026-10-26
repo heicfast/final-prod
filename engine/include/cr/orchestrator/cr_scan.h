@@ -292,6 +292,18 @@ struct ScanStats {
     /* N-031: all-zero 512-byte strides whose raw-sign probe was skipped
      * (the og's zero-sector fast-skip analog; diagnostics/telemetry). */
     u64 carve_zero_strides = 0;
+    /* M-018: nodes the FilterFolder pass flagged (the og's
+     * PushFolderFilter hidden set - OS droppings, metadata noise,
+     * localized "New Folder" names, SVI, BitLocker artifacts). */
+    u64 junk_filtered = 0;
+
+    /* M-035: lost candidates the engine-side content-consistency scorer
+     * rejected (the og's exFAT-only FUN_180025390 rule - majority
+     * checkable + match ratio < 0.3 + at least one checkable file, or a
+     * structurally impossible data start). The candidate stays listed
+     * (the og's per-hit persistence keeps the find; M-042) but its walked
+     * files are detached from the tree and its counts report zero. */
+    u64 lost_content_rejected = 0;
     ReadErrorMap errors;
     std::vector<lost::Candidate> lost_candidates;
 
@@ -495,7 +507,7 @@ private:
                         bool covers_both);
     u32 scan_candidate(IStorageDevice* cand_slice, tree::FullNode* croot, CancelToken* cancel,
                        u64& files_out, u64& deleted_out, bool (*progress)(u64, u64, void*),
-                       void* progress_user);
+                       void* progress_user, u64* content_rejected = nullptr);
 
     /* ---- telemetry internals (G-04/G-05/G-06) ---- */
     struct TelemetryState {

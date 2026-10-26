@@ -425,3 +425,24 @@ File%06u is now the REGISTERED deliberate default (PARITY-DELTAS D-76,
 with the UTC-vs-host-local template formatting divergence). 4 tests,
 fail-before 3/3 RED. B10/A28 → MATCH for the decoded surface; the
 CZeroEnd-family membership beyond MP4/MOV is the recorded remainder.
+
+
+## Session-33 verdict update (2026-10-26, DFX33 — M-025 FIXED)
+
+**X51/X47 → MATCH (post-fix, the read-model half):** scan_one_window now
+wraps the slice in a window-serving device for the window's duration —
+reads inside [base, base+want) are served from the window buffer, reads
+straddling a window edge split into buffer-prefix + device-tail
+(byte-identical by construction). Validators, both M-051 checksum sites,
+both hash sites and the raw-sign tail scans all read through it. The
+counting-device execution the finding's own test list prescribes:
+**52 → 4 device reads** on the 4 MiB / 4-plant fixture (pre-fix: 4 window
+fills + 48 per-candidate re-reads; post-fix: fills only — 13x fewer,
+zero per-candidate re-reads for in-window candidates). Geometry (1 MiB
+windows + byte-granular dispatch) intentionally unchanged: the finding's
+fix-plan item 3 requires bench evidence for geometry changes, and the
+executed-transport comparison is the Windows bench lane's job (the
+finding itself records no og-execution possible here; M-009 posture).
+The I-009 mid-sector superset stays. Stateless-vs-pending model
+difference registered (PARITY-DELTAS D-81) — the porting boundary the
+S-017 plan must respect.
