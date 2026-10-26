@@ -14154,6 +14154,148 @@ Stage Summary:
   OQ-S6-1 (PartitionRecoveryD generator sets).
 
 ---
+---
+Task ID: DFX30-T2 (session 30, second fix — N-071)
+Agent: main engineer (diff-to-fix fix session 30 — DFX30)
+Task: N-071 — device enumeration breadth (the deferred trio, 2/3;
+N-064 absorbed by the parallel DFX31 lane mid-flight).
+
+Work Log:
+- Re-verified the finding's premise against the corpus (mom-module-
+  system--architecture.md :57-59 five-stack list; the QA census) and
+  the current cr_enumerate.cpp; the open question (Storage Spaces
+  members failing to surface as PhysicalDriveN) stays
+  UNVERIFIED-BY-EXECUTION — no observed miss in any fleet.
+- Resolution per the finding's own recommendation, option (a):
+  PARITY-DELTAS D-80 (the scope registration + revisit trigger; renumbered past the parallel lane same-window D-79), PLUS
+  the one real behavioral gap ported: query_disk now retries a
+  0-ACCESS metadata-only open on ERROR_ACCESS_DENIED/
+  ERROR_SHARING_VIOLATION — the FILE_ANY_ACCESS geometry/descriptor
+  IOCTLs answer, so a share-blocked disk stays listed (busy=true);
+  the og's stacks enumerate without opening, our loop's truth is the
+  open, the retry closes the observable difference. Option (b) NOT
+  built (speculative surface on an unobserved miss — the opposite of
+  no-hallucinated-parity).
+- Tests: 3 source-truth pins (Enumerate.ScopeDeltaRegistered...,
+  BusyDiskMetadataRetryShipsInQueryDisk, ScopeContractDocumentedInHeader
+  — the N-074 doc-truth pattern; the behavior is MSVC-lane territory,
+  parse-gated on Linux). win-stub extended with the two error codes;
+  win_syntax_check green over all 8 win-layer files.
+- Audit trail: Resolution + FIXED/ move; RESOLVED-INDEX row; matrix
+  storage row; modules/storage.md session-30 row; SUMMARY counts.
+
+Stage Summary:
+- N-071 FIXED (session tally: 2 — N-032, N-071). The deferred trio is
+  drained on this lane (N-064 landed by DFX31). Next: pull, then the
+  rear queue (N-072/N-033/N-019/N-050 — contested by DFX28's lane;
+  first-landing-wins per finding, pull before each).
+
+=======
+
+---
+Task ID: DFX30-T3 (session 30, third push — the N-071 convergence repair +
+the repo-wide committed-marker cleanup)
+Agent: main engineer (diff-to-fix fix session 30 — DFX30)
+Task: Repair the pushed-red state inherited from the window's parallel
+merges (committed conflict markers) + land the N-071 convergence.
+
+Work Log:
+- DISCOVERED mid-push: merge 220e0be ("sync before N-071 push")
+  COMMITTED conflict markers in include/cr/win/cr_bitlocker.h (1 block,
+  the two convergent N-064 declarations), src/app/rrecov.cpp (5 blocks,
+  the two N-064 CLI designs), plus marker soup in docs/PARITY-DELTAS.md,
+  docs/CAPABILITY-MATRIX.md, RESOLVED-INDEX.md and three worklog prompt
+  archives. Repo-wide scan found every instance; all repaired.
+- N-064 convergence resolution (both implementations stand, both are
+  consumed): the header keeps BOTH declarations (try_password_unlock =
+  the cr::pwddict surface; unlock_with_dictionary = the cr::dict
+  surface); rrecov's open_volume_view unified to (letter, out, fvek_hex,
+  pwddict_arg, dict_consent) with the consent chain: auto-unlock →
+  [--bitlocker-dict → shipped dictionary] → [--bitlocker-pwddict
+  <path|seed> → loaded candidates] → refusal advertising both aids.
+  Both flags parsed in the cmd_scan pre-pass; usage line updated; the
+  guidance message advertises both surfaces. F61 consent posture
+  preserved: no flag, no attempt, ERR_FVE_LOCKED.
+- N-071 convergence (my option-(a)+hardening landed onto the parallel
+  lane's option-(b) two-stack port): THEIR canonical stands (the
+  cfgmgr32 GUID_DEVINTERFACE_DISK present-instance pass +
+  merge_disk_enumeration pure seam + its 4 merge tests); MY busy-disk
+  hardening integrated into open_disk_for_query() used by BOTH stacks
+  (0-access metadata-only retry on ERROR_ACCESS_DENIED/
+  ERROR_SHARING_VIOLATION; busy=true). Delta rows: D-79 = their
+  two-stack port (canonical), D-80 = my companion scope row (renumbered
+  past the same-window D-79 collisions); my 3 source-truth pins updated
+  to pin the CONVERGED truth (both rows registered, both stacks use the
+  retry).
+- Suite 826/826 linux-release; win_syntax_check green over all 8
+  win-layer files; repo-wide zero-marker scan clean.
+
+Stage Summary:
+- N-071 FIXED (convergent union; session tally: 2 — N-032, N-071) +
+  the pushed-red repair. REMAINING KNOWN DEBT (next push): the delta
+  ledger has duplicate numbers from the window (D-75 x2, D-78 x2, D-79
+  x3) - a deterministic renumbering pass is queued.
+
+=======
+
+---
+Task ID: DFX30-T4b (session 30 — the ledger repair landed; survey)
+Agent: main engineer (diff-to-fix fix session 30 — DFX30)
+
+Work Log:
+- The delta-ledger union repair landed (see commit 9a3b6bd): nested
+  markers stripped, duplicate topics deduped, collisions renumbered
+  (D-81..D-85), the D-80 N-064 convergence body restored verbatim,
+  references updated repo-wide; the Btrfs pushed-red union repaired
+  (M-020 default-subvol semantics vs N-019's stale expectation).
+- Suite 822/822 on the repaired tree; win_syntax_check green; the
+  repo-wide zero-marker scan clean.
+
+Stage Summary:
+- Session tally: N-032 FIXED + N-071 FIXED (convergent) + 4 repair
+  pushes (N-064 convergence support, marker cleanup, Btrfs union red,
+  delta ledger). Next: survey the remaining open set and continue.
+
+=======
+
+---
+Task ID: DFX25-T4b (session 25 — OQ-S6-1 resolution)
+Agent: main engineer (DFX25)
+Task: Resolve OQ-S6-1 (PartitionRecoveryD generator-set semantics +
+lostpart.dat/partinfo.dat formats) — decode, classify, land.
+
+Work Log:
+- Decode first-hand (PartitionRecoveryD_decompiled.c + byte-level vtable
+  dumps from the .mo binary): CGeneratorSetRegSearch and
+  CGeneratorSetCompleteSearch are behaviorally IDENTICAL (same base ctor
+  FUN_180006d90; vtables 0x18002c1a8/0x18002c2e8 share every method
+  except the dtor) — registration identities in the mode map
+  (FUN_18000d3b0: Complete=4, Reg=1, Fast=2, Fast1M=3). The
+  "registry-driven second pass" hypothesis REFUTED; the name is not the
+  Windows registry.
+- The .dat files decoded: module's own directory; partinfo.dat =
+  0x18-byte "Part"-magic live-table snapshot (delete-both-on-first-use,
+  rewritten per run, memcmp'd at the next run -> layout_changed ->
+  progress reset); lostpart.dat = 0x448-byte "Part"-magic candidate
+  cache (appended per discovery, deduped by {+0x28,+0x30,+8} when the
+  layout is unchanged).
+- Consequences landed: I-020's upgrade condition refuted (stays
+  acknowledged INFO — I-024 addendum recorded); M-042 CONFIRMED at the
+  mechanism level (the same information flow as REC_DISK_LAYOUT type 8
+  + per-candidate revalidation); no core surface added (no .dat files —
+  session-embedded equivalents already landed; the og's
+  delete-on-first-use makes them per-boot scratch). x2 census = two
+  instances of the whole search stack.
+- Evidence file s25-oq-s6-1-generator-sets-and-dat-files.md; OQ resolved
+  in tracked-open; I-024 addendum; landed be3a8a9 (via merge e77c749).
+- Housekeeping: worklog.md.bak (a parallel lane's merge artifact,
+  949KB) removed from the tree — git history preserves all content.
+
+Stage Summary:
+- OQ-S6-1 RESOLVED (no code change — decode-only landing). Session
+  tally: 27 resolutions (22 INFO closures, A-008 ACUTE, OQ-Z1, OQ-S6-3,
+  OQ-S6-2, OQ-S6-1). Next: OQ-S5-1 (CheckVersion's consumer).
+
 Task ID: DFX30-T12 (OQ-S6-1 resolved + closed)
 Agent: main engineer (diff-to-fix fix session 30 — DFX30)
 Task: OQ-S6-1 — PartitionRecoveryD generator-set semantics + the
@@ -14186,3 +14328,30 @@ Stage Summary:
 - OQ-S6-1 RESOLVED + closed. Session tally: 12 items (S-034 + D-09 +
   10 OQ dispositions). Remaining on this lane: OQ-S5-1 (CheckVersion
   consumer).
+
+---
+Task ID: DFX30-T12b (OQ-S6-1 — convergent landing CORRECTED)
+Agent: main engineer (diff-to-fix fix session 30 — DFX30)
+
+Work Log:
+- Push met DFX25's convergent OQ-S6-1 resolution. Their .dat decode is
+  richer than mine (delete-on-first-use lifecycle, dedup keys
+  {+0x28,+0x30,+8}, GetModuleFileNameW module-dir) and is ADOPTED.
+- Their point 1 ("behaviorally identical; the name does not refer to the
+  Windows registry") is REFUTED by the mode-dispatch layer they did not
+  reach: FUN_180022430 (:20851-20895) dispatches on the search-mode field
+  (the factory-id space) — mode 1 (RegSearch) attaches CLocationGenFromReg
+  (FUN_1800214c0) + the .dat context load; mode 4 (CompleteSearch)
+  attaches FUN_180021d70 + a 0x4000 parameter. CLocationGenFromReg's
+  loader FUN_18000f5b0 = RegOpenKeyA + RegQueryValueExA("Data") with the
+  MountedDevices '#'@+0xC4/+0xE6 / 32B-field@+0xC6 / %I64X decode —
+  hypothesis (a) CONFIRMED (registry-seeded probing).
+- Correction recorded as the CORRECTION ADDENDUM in the file (their
+  content preserved verbatim; the union stands); Q4's no-unique-recall
+  conclusion SURVIVES the correction (registry positions subset of the
+  exhaustive sweep). File closed to FIXED/.
+- Their residual (which UI surface requests mode 1 vs 4) stands.
+
+Stage Summary:
+- OQ-S6-1 closed with a two-lane union + one corrected conclusion.
+  Remaining on this lane: OQ-S5-1 (CheckVersion consumer).

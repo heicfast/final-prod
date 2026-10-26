@@ -135,7 +135,7 @@ class, the default-subvolume DIR_ITEM pick ((6, 0x54, 0x8dbfc2d2)
 "default" with a ROOT_ITEM located key; root-5 fallback; :3975-4060) with
 the default's children rendering at the volume root (ReFS convention) and
 non-default subvols keeping their N-047 containers. Registered superset
-D-79: RAID0/RAID10 kernel stripe math (the pre-fix stripe-0 read emitted
+D-80: RAID0/RAID10 kernel stripe math (the pre-fix stripe-0 read emitted
 wrong bytes on striped chunks; now mapped correctly or refused+counted —
 `unmappable_extents`), raw extents split at stripe boundaries,
 compressed extents stay atomic. Fix-plan item 3 (error-map) verified
@@ -484,6 +484,23 @@ for this finding corrected to the integrated N-071.
 
 Counts after this landing: **MINOR 17 open** (N-064, N-071 moved to
 FIXED/), MAJOR 14 open (DFX27/DFX26 lanes), INFO 0, tracked-open 11.
+
+## Session-30 delta, part 2 (2026-10-26 — DFX30: N-071 closed — the deferred trio complete on this lane)
+
+**N-071 FIXED (MINOR — enumeration breadth):** resolved by the finding's
+own recommended option (a) — PARITY-DELTAS **D-80** registers the
+PhysicalDrive-namespace scope with the revisit trigger the open
+question demands — PLUS the ported load-bearing effect: query_disk's
+0-access metadata-only retry on ERROR_ACCESS_DENIED/
+ERROR_SHARING_VIOLATION (a disk share-blocked by backup/AV/imaging
+stays listed with busy=true; the og's stacks get this by enumerating
+without opening). Option (b) deliberately not built: the Storage
+Spaces miss-case is UNVERIFIED-BY-EXECUTION per the finding's own text.
+3 source-truth pins (the N-074 doc-truth pattern); win-stub extended
+(ERROR_ACCESS_DENIED/ERROR_SHARING_VIOLATION); win_syntax_check green
+over all 8 files. (N-064 absorbed by the parallel DFX31 lane
+mid-flight — first-landing-wins; the deferred trio's third member
+landed elsewhere.)
 
 ## Session-30 delta (2026-10-26 — DFX30: the deferred win-layer trio, 1/N-032)
 
