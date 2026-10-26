@@ -43,6 +43,7 @@ public:
     u32 read_at(u64 offset, void* buffer, u32 length) override;
     const Geometry& geometry() const override { return inner_->geometry(); }
     u64 size() const override { return inner_->size(); }
+    bool is_static_media() const override { return inner_->is_static_media(); }
 
     /* The accumulated read-failure map for this scan pass. Reference
      * semantics: valid for the post-run merge on the scan thread only. */

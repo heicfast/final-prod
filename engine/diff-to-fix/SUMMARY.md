@@ -90,6 +90,39 @@ engine header's deleted-file story rewritten.
 (M-040) · MINOR 1 (N-072) · tracked-open 2 (OQ-S4-3, OQ-FLT-2) ·
 **FIXED 220**.
 
+## Session-33b delta (2026-10-26 — DFX33b: S-034 FIXED — the ZFS ring txg-history walk; lane re-stamped DFX33b after a parallel DFX33 first-landing)
+
+**S-034 FIXED (SEVERE — the board's last SEVERE):** the og's quick searcher
+was re-decoded end-to-end first-hand (run loop :5312-5918 ring slot
+iteration; addBlock :1967-2259; UberData registry :20085-20340; emission
+walk :26173-26320 with the `from_txg < birth_txg || from_txg == 0` gate —
+always true at the top level; the collector :5280-5311 is a plain
+push_back with NO engine-side dedup; last_txg is display-only). The core
+now walks EVERY valid uberblock state from all four labels' rings
+(txg-deduped, newest-first): the first state whose MOS chain opens is the
+LIVE tree; older states are RECALL walks with a cross-state identity
+dedup (dataset, parent dir, entry name, object id, dnode bp0 birth) —
+deleted-in-window files surface as Deleted nodes in place, unchanged
+directories re-walk against their existing node (deleted descendants
+surface under them), modified-in-window entries recall the prior version
+as a Deleted sibling, torn states skip like the og's tree-open failure.
+Proof: 4 fail-before-RED tests (RingWindowDeletedFileRecalled,
+RingWindowUnchangedEntriesEmitOnce,
+RingWindowModifiedFilePriorVersionRecalled,
+RingTornNewestStateFallsBackToOlder); suite 903/903 post-merge.
+`ZfsScanStats::ring_states` telemetry; D-05 re-verdicted FIXED in
+PARITY-DELTAS.
+
+**Ledger repair in the same landing:** PARITY-DELTAS.md's merge-storm
+duplicate rows were deduplicated (172 duplicate blocks dropped — 156
+content-identical + 16 divergent reconciled keeping the extended body;
+99 D-rows remain, one per number, sections A-G intact). D-05 appeared
+3x, D-06 3x, D-19/D-54/D-61/D-71/D-73/D-77/D-80/D-81/D-84 duplicated
+with divergences — all reconciled.
+
+**Board after this landing:** SEVERE 0 · MAJOR 1 (M-040) · MINOR 1
+(N-072) · tracked-open 2 (OQ-S4-3, OQ-FLT-2) · FIXED 220 files.
+
 ## Session-33 delta, part 5 (2026-10-26 — DFX33: N-007 FIXED — ReFS page-signature discovery width)
 
 **N-007 FIXED (MINOR — with the I-004 half staying ACKNOWLEDGED):** the

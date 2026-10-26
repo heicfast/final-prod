@@ -124,6 +124,13 @@ public:
      * (PartitionSlice overrides); 0 for whole-device views. Feeds the
      * session VolumeInfo (G-14) and destination-overlap math. */
     virtual u64 absolute_base() const { return 0; }
+    /* N-072 (ZFS label retry): true when this device is STATIC MEDIA - an
+     * image file (or a window over one). Static media cannot heal: a torn
+     * label stays torn, so robustness retries (the og's delay-execution
+     * import polling) are skipped for it. Default false = a live handle
+     * (a real disk/volume); the image devices and every wrapper forward
+     * accordingly. */
+    virtual bool is_static_media() const { return false; }
 };
 
 /* Cancellation token consulted at loop heads (R6.2; reference cancel

@@ -160,6 +160,45 @@ TEST(FsCheck, FatDuplicateRefDetected) {
     EXPECT_TRUE(rep.has_code(CHK_FAT_TABLE_INVALID));
 }
 
+/* ---- 0x1006 (the hole half): an entry pointing into the dead zone
+ * between the data region and the reserved family — the og's
+ * FUN_180005fd0 entry-hole scan (:4392-4415). ---- */
+TEST(FsCheck, FatEntryHoleReported) {
+    Fat16Vol v;
+    /* entry 2 points past the last data cluster (5004 clusters ->
+     * valid clusters 2..5005) but below the reserved floor 0xFFF6:
+     * the dead zone -> 0x1006 */
+    v.set_fat(2, 5002);
+
+    FsCheckReport rep;
+    ASSERT_EQ(check_fat(std::make_unique<MemDevice>(v.img).get(), {}, rep), OK);
+    EXPECT_TRUE(rep.has_code(CHK_FAT_TABLE_INVALID));
+}
+
+/* ---- 0x1002 (the FAT dir-walk form): a live file's chain re-enters a
+ * cluster a previous chain already traversed — the og's FUN_1800027a0
+ * shadow-registry re-entry (:1156-1173, param = the cross-linked
+ * cluster). The shared-HEAD shape: no two FAT entries name the same
+ * target, so the table-level duplicate scan stays quiet — only the
+ * walk-order re-entry reports. ---- */
+TEST(FsCheck, FatCrossLinkedChainReported) {
+    Fat16Vol v;
+    v.make_dentry(0, "GOOD.TXT", 0x20, 2, 1024);
+    v.set_fat(2, 3);
+    v.set_fat(3, EOC16);
+    /* a second live file whose chain STARTS INSIDE good.txt's chain
+     * (cluster 3): the dir audit's second walk re-enters it */
+    v.make_dentry(1, "CLASH.TXT", 0x20, 3, 512);
+
+    FsCheckReport rep;
+    ASSERT_EQ(check_fat(std::make_unique<MemDevice>(v.img).get(), {}, rep), OK);
+    ASSERT_TRUE(rep.has_code(CHK_DUPLICATE_ALLOC));
+    EXPECT_EQ(rep.first_of(CHK_DUPLICATE_ALLOC)->param, 3u);
+    /* the shared cluster is reported once per re-entering chain, and the
+     * report carries nothing else (no table dup, no size mismatch) */
+    EXPECT_EQ(rep.errors.size(), 1u);
+}
+
 /* ---- 0x1007: subdirectory missing the '.'/'..' pair ---- */
 TEST(FsCheck, DirDotPairMissingRejected) {
     Fat16Vol v;

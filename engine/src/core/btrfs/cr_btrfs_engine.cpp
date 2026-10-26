@@ -4,6 +4,7 @@
  */
 
 #include "cr/btrfs/cr_btrfs_engine.h"
+#include "cr/btrfs/cr_btrfs_cache.h" /* N-072: the re-scan cache */
 #include "cr/cr_bits.h" /* shared byte readers (W4 dedup, DC-12) */
 #include "cr/cr_text.h" /* S-005: on-disk UTF-8 names decode, not byte-lift */
 #include "cr/compress/cr_decomp.h"
@@ -478,7 +479,8 @@ bool validate_superblock(const u8 sb[4096], SuperBlock& out) {
 
 u32 scan_btrfs(IStorageDevice* slice, CancelToken* cancel, WalkProgressLike progress,
                void* progress_user, tree::ResultTree& tree, tree::FullNode* root_active,
-               tree::FullNode* root_deleted, tree::FullNode* root_lost, BtrfsScanStats& stats) {
+               tree::FullNode* root_deleted, tree::FullNode* root_lost, BtrfsScanStats& stats,
+               const BtrfsCacheConfig* cache) {
     (void)root_deleted;
     (void)root_lost;
     if (slice == nullptr || root_active == nullptr)
@@ -512,20 +514,48 @@ u32 scan_btrfs(IStorageDevice* slice, CancelToken* cancel, WalkProgressLike prog
     if (!have_best)
         return ERR_BAD_MAGIC;
 
+    /* N-072: the re-scan metadata cache. The og persists BtrfsCache.txt
+     * beside its DLL (string evidence; format undecoded - ours is the
+     * registered format in cr_btrfs_cache.h). OFF by default; when the
+     * caller supplied a cache dir + io and a VALID blob exists for this
+     * volume (fsid + generation match), the chunk map and the two tree
+     * roots are adopted and the chunk-tree walk + root probing below are
+     * SKIPPED (the re-scan's repeated derivations). Any mismatch
+     * discards the blob - the walk runs as if no cache existed. */
+    const bool cache_on = cache != nullptr && cache->io != nullptr && !cache->dir.empty();
+    BtrfsCacheData cached;
+    bool cache_hit = false;
+    if (cache_on) {
+        std::vector<u8> blob;
+        if (cache->io->read_blob(cache->dir, best.fsid, blob) &&
+            cache_parse_validate(best.fsid, best.generation, blob, cached) &&
+            cached.chunk_root != 0 && cached.root_tree != 0) {
+            cache_hit = true;
+            ++stats.cache_hits;
+        }
+    }
+
     Volume v;
     v.dev = slice;
     v.sb = best;
-    v.chunks = best.sys_chunks;
+    v.chunks = cache_hit ? cached.chunks : best.sys_chunks;
 
-    /* 2. chunk tree walk: build the full logical->physical map.
-     * The chunk tree root's logical address: candidates validated by the
-     * node's self-referential bytenr (a wrong offset can never validate)
-     * AND by the presence of CHUNK items (only the chunk tree holds them).
-     * BTR-2: the expected chunk_tree_uuid is adopted from the first
-     * self-validating chunk-tree node header (kernel semantics) instead
-     * of the bogus SB+0x60 read - the candidate path used to always fail
-     * and every scan fell through to the bounded system-chunk scan. */
     u64 chunk_root = 0;
+    u64 root_tree = 0;
+    if (cache_hit) {
+        /* the cached derivations skip the chunk-root candidate chase, the
+         * chunk-tree walk and the root-tree probe - the trees themselves
+         * are still walked and re-validated fresh every scan */
+        chunk_root = cached.chunk_root;
+        root_tree = cached.root_tree;
+        stats.chunks = v.chunks.size();
+    } else {
+    /* 2. chunk tree walk: build the full logical->physical map. The chunk
+     * tree root's logical address: candidates validated by the node's
+     * self-referential bytenr (a wrong offset can never validate) AND by
+     * the presence of CHUNK items (only the chunk tree holds them). BTR-2:
+     * the expected chunk_tree_uuid is adopted from the first
+     * self-validating chunk-tree node header (kernel semantics). */
     {
         std::vector<u64> candidates;
         /* chunk_root@sb+0x58 and root@sb+0x50 are the canonical fields
@@ -617,7 +647,6 @@ u32 scan_btrfs(IStorageDevice* slice, CancelToken* cancel, WalkProgressLike prog
     /* 3. root tree discovery: candidates + scan of metadata chunks for the
      * node holding ROOT_ITEM(CHUNK_TREE) (only the root tree contains it;
      * cross-validates with the chunk tree we already loaded). */
-    u64 root_tree = 0;
     {
         std::vector<u64> candidates{le64(sb_raw.data() + 0x50), le64(sb_raw.data() + 0x58),
                                     le64(sb_raw.data() + 0x60), le64(sb_raw.data() + 0x68),
@@ -667,6 +696,23 @@ u32 scan_btrfs(IStorageDevice* slice, CancelToken* cancel, WalkProgressLike prog
     }
     if (root_tree == 0)
         return ERR_BAD_MAGIC;
+    } /* cache-miss derivation path (N-072: the chunk chase, the chunk walk
+      * and the root probe are the re-scan's repeated derivations) */
+
+    /* N-072 save point: persist this scan's derivations for the next one.
+     * A failed write is non-fatal (the scan already has its results); a
+     * blob over the size bound is skipped (bounded cache). */
+    if (cache_on && !cache_hit) {
+        BtrfsCacheData d;
+        d.generation = best.generation;
+        d.chunk_root = chunk_root;
+        d.root_tree = root_tree;
+        d.chunks = v.chunks;
+        std::vector<u8> blob;
+        if (cache_serialize(best.fsid, d, cache->max_bytes, blob) &&
+            cache->io->write_blob(cache->dir, best.fsid, blob))
+            ++stats.cache_writes;
+    }
     if (progress)
         (void)progress(2, 4, progress_user);
 

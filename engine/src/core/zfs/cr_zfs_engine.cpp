@@ -21,23 +21,29 @@
  * Compression: off/lzjb/zle/gzip via zlib, lz4, zstd (cr::compress).
  * Extents carry {codec, psize} so the writer decodes at stream time.
  *
- * Deleted-file story (S-034, FIXED DFX37): ZFS is CoW with
- * copy-on-everything semantics, and the og's quick searcher walks EVERY
- * uberblock in the label-0 ring — per-txg state recovery (first-hand
- * decode: ZfsSearchDLL FUN_180006b90 :5685-5841 iterates every 1KiB ring
- * slot, FUN_180003150 "addBlock" opens each slot's txg state through the
- * txg->UberData registry FUN_180017310, the from_txg=0 descent
- * FUN_18001ac60 walks it; last_txg is display-only — its sole binary
- * occurrence is the progress string). This engine now matches: the probe
- * collects EVERY valid ring uberblock (txg-keyed, the registry's
- * semantics), the newest state walks as the live tree, then every older
- * state walks into the deleted tree with cross-state identity dedup
- * (dataset head object + object id + the dnode's first block pointer's
- * logical birth txg) — files deleted within the ring's txg window
- * surface as Deleted results, unchanged objects emit once (the og emits
- * one ZplNode per state with no engine-side dedup — FUN_180012450 is a
- * plain ctor — the core's identity dedup is the registered
- * presentation-side equivalent, PARITY-DELTAS).
+ * Deleted-file story (S-034, FIXED this session): ZFS is CoW with
+ * copy-on-everything semantics, and the og's quick-searcher run loop
+ * (ZfsSearchDLL FUN_180006b90 :5685-5841) iterates EVERY uberblock slot
+ * in the label-0 ring, opening each slot's txg state through a per-txg
+ * VdevLoc::UberData registry (FUN_180003150 "addBlock" ->
+ * FUN_180017310) and walking it with an UNBOUNDED from_txg=0 descent
+ * (FUN_18001ac60 -> FUN_18001d9a0; the only emission gate is
+ * `from_txg < birth_txg || from_txg == 0` - always true at top level),
+ * so every state's ZplNodes reach the host (the collector
+ * FUN_180006b40 is a plain push_back; dedup is host-side tree
+ * semantics). This engine now walks every valid ring state
+ * (txg-deduped - a closed txg's rootbp is 1:1, vdev_label.c)
+ * newest-first: the first state that opens is the LIVE tree; each
+ * older state is a RECALL walk emitting only entries whose cross-state
+ * identity (dataset, parent dir, entry name, object id, dnode bp0
+ * birth) no newer state claimed - deleted-in-window content surfaces
+ * as Deleted nodes in place (unchanged directories are re-walked
+ * against their existing node so deleted descendants surface), and
+ * modified-in-window entries recall the prior version as a Deleted
+ * sibling (the og emits every state's node; newest-wins is a
+ * tree-level consequence). Torn states (checksum loss on the MOS
+ * chain) are skipped exactly like the og's FUN_180016c50 tree-open
+ * failure - the ring walk continues.
  *
  * Big-endian pools (SPARC/POWER writers) are detected and refused with a
  * clear error code rather than misparsed (bit 63 of blk_prop marks the
@@ -50,10 +56,13 @@
 #include "cr/cr_bits.h" /* shared byte readers (W4 dedup, DC-12) */
 #include "cr/cr_text.h" /* S-005: on-disk UTF-8 names decode, not byte-lift */
 #include "cr/compress/cr_decomp.h"
+#include <algorithm>
 #include <cstring>
 #include <functional>
 #include <map>
 #include <set>
+#include <chrono>
+#include <thread>
 
 namespace cr {
 namespace zfs {
@@ -85,9 +94,7 @@ constexpr u64 UBERBLOCK_MAGIC = 0x00BAB10CULL;
 constexpr u32 BP_DVA = 0;
 constexpr u32 BP_PROP = 48;
 constexpr u32 BP_CKSUM = 96; /* blk_cksum (zio_cksum_t, 32 bytes) */
-constexpr u32 BP_PHYS_BIRTH = 72; /* blk_phys_birth (allocated txg) */
-constexpr u32 BP_LOGICAL_BIRTH = 80; /* blk_birth (born txg) - S-034's
-                                      * cross-state identity component */
+constexpr u32 BP_BIRTH = 72;
 constexpr u32 BP_SIZE = 128;
 
 constexpr u32 ZIO_COMPRESS_LZJB = 3;
@@ -1193,20 +1200,38 @@ u32 scan_zfs(IStorageDevice* slice, CancelToken* cancel, WalkProgressLike progre
 
     /* 1. labels: OpenZFS layout - L0@0, L1@256K, L2@end-512K, L3@end-256K.
      * Each: [8K skip][8K boot env][112K vdev_phys (config nvlist at its
-     * start)][128K uberblock ring (128 slots x 1KiB)]. */
+     * start)][128K uberblock ring (128 slots x 1KiB)].
+     *
+     * N-072 (the og's delay-execution import polling, remaining-engines
+     * artifact :86): the sweep is a re-runnable unit - when the first
+     * pass finds no valid uberblock on a LIVE handle, the og's import
+     * path polls with delay-execution (a hot-unplug/replug or a
+     * mid-transaction rewrite can heal between sweeps). The bounded
+     * retry below mirrors that: 3 retries, 250/500/1000 ms backoff,
+     * cancel-aware in 50 ms slices; static media (image files) never
+     * retries - a torn image stays torn. */
     const u64 label_base[4] = {0, LABEL_SIZE, total - 2 * LABEL_SIZE, total - LABEL_SIZE};
+    /* S-034 + N-072 union: the label sweep is a re-runnable unit
+     * (N-072's delay-execution import retry — live handles only, the
+     * og's polling import per remaining-engines artifact :86) that
+     * COLLECTS EVERY valid uberblock state (S-034: the og's quick
+     * searcher walks the whole label-0 ring — FUN_180006b90
+     * :5685-5841, stride-0x400 slot loop — and opens each slot's txg
+     * state through the per-txg VdevLoc::UberData registry
+     * FUN_180003150 "addBlock" -> FUN_180017310; newest-txg-only was a
+     * refuted premise, see findings/FIXED/S-034). The core reads all
+     * four labels' rings (the existing geometry superset — labels 2/3
+     * carry the current txgs on real pools). */
+    struct RingState {
+        u64 txg;
+        std::vector<u8> ub;
+    };
     LabelConfig cfg;
-    /* S-034: collect EVERY valid uberblock in the rings (txg-keyed, the
-     * og's per-txg UberData registry semantics - FUN_180017310's
-     * txg->UberData map; a txg appearing in several labels' rings walks
-     * once). The og's quick searcher iterates every ring slot and walks
-     * each slot's txg state (FUN_180006b90 :5685-5841 -> addBlock
-     * FUN_180003150 :1967-2259; the from_txg=0 unbounded descent
-     * FUN_18001ac60) - files deleted within the ring's txg window are
-     * og-visible and were core-invisible (the refuted "newest only"
-     * parity claim, this file's header). */
-    std::map<u64, std::vector<u8>> ring_states;
-    for (int li = 0; li < 4; ++li) {
+    std::vector<RingState> ring_states;
+    auto run_label_sweep = [&]() -> u32 {
+        cfg = LabelConfig{};
+        ring_states.clear();
+        for (int li = 0; li < 4; ++li) {
         if (label_base[li] + LABEL_SIZE > total)
             continue;
         /* config nvlist at label+16K (first 112K is vdev_phys) */
@@ -1288,21 +1313,52 @@ u32 scan_zfs(IStorageDevice* slice, CancelToken* cancel, WalkProgressLike progre
                 }
                 ++hits;
                 const u64 txg = le64(ub.data() + UB_TXG);
-                /* S-034: keep every valid state (the first 1KiB carries
-                 * all consumed fields); map-insert dedups a txg seen in
-                 * several labels */
-                auto res =
-                    ring_states.emplace(txg, std::vector<u8>(ub.begin(), ub.begin() + UBERBLOCK_SIZE));
-                (void)res;
+                if (txg != 0) /* txg 0 = a never-written slot; the og's
+                              * addBlock no-ops on it (registry miss) */
+                    ring_states.push_back(
+                        RingState{txg, std::vector<u8>(ub.begin(), ub.begin() + UBERBLOCK_SIZE)});
             }
             if (hits > 0)
                 break; /* found the pool's true uberblock geometry */
         }
+        }
+        return OK;
+    };
+    if (const u32 sweep_rc = run_label_sweep(); sweep_rc != OK)
+        return sweep_rc; /* e.g. the big-endian-pool refusal propagates */
+
+    /* N-072: bounded label retry with backoff (live handles only) */
+    constexpr u32 kLabelBackoffMs[3] = {250, 500, 1000};
+    for (int retry = 0; ring_states.empty() && !slice->is_static_media() && retry < 3; ++retry) {
+        if (cancel && cancel->checkpoint())
+            return ERR_CANCELLED;
+        for (u32 slept = 0; slept < kLabelBackoffMs[retry]; slept += 50) {
+            if (cancel && cancel->cancelled())
+                return ERR_CANCELLED;
+            std::this_thread::sleep_for(std::chrono::milliseconds(50));
+        }
+        ++stats.label_retries;
+        if (const u32 sweep_rc = run_label_sweep(); sweep_rc != OK)
+            return sweep_rc;
+    }
+    /* txg-dedup + newest-first ordering. A closed txg's rootbp is 1:1
+     * (vdev_label.c writes exactly one uberblock per txg), so same-txg
+     * slots — including across the four labels — are the same
+     * transaction state; a torn same-txg copy fails its checksum and
+     * the state is skipped at open time below (the og's tree-open
+     * FUN_180016c50 fails the same way and the slot no-ops). */
+    {
+        std::set<u64> seen_txg;
+        std::vector<RingState> uniq;
+        for (auto& s : ring_states)
+            if (seen_txg.insert(s.txg).second)
+                uniq.push_back(std::move(s));
+        std::sort(uniq.begin(), uniq.end(),
+                  [](const RingState& a, const RingState& b) { return a.txg > b.txg; });
+        ring_states = std::move(uniq);
     }
     if (ring_states.empty())
         return ERR_BAD_MAGIC;
-    const u64 best_txg = ring_states.rbegin()->first;
-    stats.txg = best_txg;
 
     Volume v;
     v.dev = slice;
@@ -1313,52 +1369,48 @@ u32 scan_zfs(IStorageDevice* slice, CancelToken* cancel, WalkProgressLike progre
     if (cfg.valid && cfg.vdev_type != "disk" && !cfg.vdev_type.empty())
         ++stats.unsupported_vdevs; /* mirror/raidz: report only */
 
-    /* S-034: the cross-state walk context. States are walked NEWEST first
-     * (the live state), then descending txg. Identity across states is
-     * (dataset head object, object id, logical birth txg) - an unchanged
-     * object has the same key in every state (dedup: one emission); a
-     * modified object has a new birth per state (the newest state's copy
-     * is live, older copies surface as deleted history); an object whose
-     * key never appears in a newer state is deleted-in-window. The og
-     * emits one ZplNode per state with no engine-side dedup
-     * (FUN_180012450 is a plain ctor; the visitor bulk-collects) - the
-     * core's identity dedup is the registered presentation-side
-     * equivalent (PARITY-DELTAS). */
-    struct RingObjKey {
-        u64 head, obj, birth;
-        bool operator<(const RingObjKey& o) const {
-            return head != o.head ? head < o.head : (obj != o.obj ? obj < o.obj : birth < o.birth);
+    /* 2-4. per-state walk (S-034). The og's quick searcher walks every
+     * ring state's tree; the first state that opens serves as the LIVE
+     * tree (Active nodes); every older state is a RECALL walk — entries
+     * whose cross-state identity was not claimed by a newer state
+     * surface as Deleted nodes (deleted-in-window content), unchanged
+     * entries dedup to their newest-state node, and an unchanged
+     * directory is re-walked per state against its existing node so
+     * deleted-in-window DESCENDANTS still surface in place. */
+    struct EntryKey {
+        std::u16string ds;
+        u64 parent;
+        std::string name;
+        u64 obj;
+        u64 birth;
+        bool operator<(const EntryKey& o) const {
+            if (ds != o.ds) return ds < o.ds;
+            if (parent != o.parent) return parent < o.parent;
+            if (name != o.name) return name < o.name;
+            if (obj != o.obj) return obj < o.obj;
+            return birth < o.birth;
         }
     };
-    std::set<RingObjKey> ring_seen;                /* full identity: emission dedup */
-    std::set<std::pair<u64, u64>> ring_live;       /* (head, obj): exists in a newer state */
-    std::map<std::u16string, tree::FileNode*> ring_ds_nodes; /* deleted-tree dataset nodes */
-    std::map<std::pair<u64, u64>, std::pair<tree::FileNode*, bool>> ring_dir_nodes; /* (head,dir)
-                                                                   * -> (shadow node, live) */
-    u64 ring_deleted_files = 0;
-    std::u16string pool_display_ = text::utf8_to_u16(
-        cfg.valid && !cfg.pool_name.empty() ? cfg.pool_name : std::string("pool"));
+    std::map<EntryKey, tree::FileNode*> claimed; /* identity -> node */
+    std::map<std::u16string, tree::FileNode*> ds_nodes;
 
-    /* Walk ONE pool state. Returns 0 = walked, 1 = state unusable
-     * (torn MOS/objdir - skipped), 2 = cancelled. `live` selects the
-     * active-tree emission (the newest state) vs the deleted-tree
-     * emission with identity dedup (older states). */
-    auto walk_state = [&](const std::vector<u8>& ub, bool live) -> int {
-    /* 2. MOS: rootbp -> objset_phys; object 1 = object directory ZAP. */
+    enum class StateWalk { Opened, Failed, Cancelled };
+    auto walk_state = [&](const RingState& st, bool live) -> StateWalk {
+    /* MOS: rootbp -> objset_phys; object 1 = object directory ZAP. */
     ObjSet mos;
-    if (!mos.load(&v, ub.data() + UB_ROOTBP))
-        return 1;
+    if (!mos.load(&v, st.ub.data() + UB_ROOTBP))
+        return StateWalk::Failed;
 
     std::vector<ZapEntry> objdir;
     if (!read_zap(v, mos, 1, objdir) || objdir.empty())
-        return 1;
+        return StateWalk::Failed;
 
     u64 dataset_dir_obj = 0;
     for (const auto& e : objdir)
         if (e.name == "root_dataset" || e.name == "dataset")
             dataset_dir_obj = e.value;
     if (dataset_dir_obj == 0)
-        return 1;
+        return StateWalk::Failed;
     if (live && progress)
         (void)progress(1, 4, progress_user);
 
@@ -1367,7 +1419,6 @@ u32 scan_zfs(IStorageDevice* slice, CancelToken* cancel, WalkProgressLike progre
     struct WalkOut {
         std::u16string name;
         std::vector<u8> ds_bp;
-        u64 head = 0; /* the head dsl_dataset MOS object (S-034 key) */
     };
     std::vector<WalkOut> datasets;
     std::function<void(u64, const std::u16string&, int)> walk_dir =
@@ -1389,7 +1440,6 @@ u32 scan_zfs(IStorageDevice* slice, CancelToken* cancel, WalkProgressLike progre
                     u64(hdn.bonuslen()) <= hdn.bonus_cap()) {
                     WalkOut wo;
                     wo.name = prefix;
-                    wo.head = head_obj;
                     wo.ds_bp.assign(hdn.bonus() + DS_BP, hdn.bonus() + DS_BP + BP_SIZE);
                     datasets.push_back(std::move(wo));
                 }
@@ -1411,18 +1461,24 @@ u32 scan_zfs(IStorageDevice* slice, CancelToken* cancel, WalkProgressLike progre
         (void)progress(2, 4, progress_user);
 
     /* 4. per-dataset ZPL walk: master node object 1 -> ROOT -> dirs. */
+    std::u16string pool_display_ = text::utf8_to_u16(
+        cfg.valid && !cfg.pool_name.empty() ? cfg.pool_name : std::string("pool"));
     for (const auto& ds : datasets) {
         if (cancel && cancel->checkpoint())
-            return 2;
+            return StateWalk::Cancelled;
         ObjSet zpl;
         if (!zpl.load(&v, ds.ds_bp.data()))
             continue;
-        if (live)
-            ++stats.datasets;
 
         std::u16string dname = ds.name.empty() ? pool_display_ : ds.name;
-        tree::FileNode* ds_node = nullptr;
-        if (live) {
+        /* S-034: dataset node find-or-create — a dataset present in a
+         * newer state keeps ITS node (children recall under it); a
+         * dataset only an older state knows surfaces as Deleted. */
+        tree::FileNode* ds_node;
+        auto dit = ds_nodes.find(dname);
+        if (dit != ds_nodes.end()) {
+            ds_node = dit->second;
+        } else {
             auto* dprops = new (std::nothrow) tree::FileProperties();
             if (!dprops)
                 continue;
@@ -1432,30 +1488,11 @@ u32 scan_zfs(IStorageDevice* slice, CancelToken* cancel, WalkProgressLike progre
             dprops->release();
             if (!ds_node)
                 continue;
+            if (!live)
+                ds_node->set_deleted_state(tree::DeletedState::Deleted);
+            ds_nodes.emplace(dname, ds_node);
+            ++stats.datasets;
             ++stats.dirs;
-            ring_live.insert({ds.head, ds.head}); /* dataset container */
-        } else {
-            /* the deleted-tree dataset node: cached by name so every older
-             * state's content merges under one node; a dataset absent from
-             * all newer states is itself deleted (marked) */
-            auto it = ring_ds_nodes.find(dname);
-            if (it != ring_ds_nodes.end()) {
-                ds_node = it->second;
-            } else {
-                auto* dprops = new (std::nothrow) tree::FileProperties();
-                if (!dprops)
-                    continue;
-                dprops->name = dname;
-                dprops->attributes = 0x10;
-                dprops->fs_kind = u32(FsKindCode::Zfs);
-                ds_node = tree.add_file(root_deleted, dprops);
-                dprops->release();
-                if (!ds_node)
-                    continue;
-                if (ring_live.count({ds.head, ds.head}) == 0)
-                    ds_node->set_deleted_state(tree::DeletedState::Deleted);
-                ring_ds_nodes.emplace(dname, ds_node);
-            }
         }
 
         std::vector<ZapEntry> master;
@@ -1622,48 +1659,24 @@ u32 scan_zfs(IStorageDevice* slice, CancelToken* cancel, WalkProgressLike progre
                 if (ci == nullptr)
                     continue;
                 const bool is_dir = ci->dir;
-                /* S-034: the object's cross-state identity - the dnode's
-                 * first block pointer's LOGICAL birth txg (blkptr+80;
-                 * unchanged objects carry the same birth in every state
-                 * that still references them). */
+                /* S-034: cross-state identity — (dataset, parent dir
+                 * object, entry name, object id, dnode bp0 birth). A
+                 * newer state's claim wins the node; an unchanged
+                 * directory is still re-walked per state (against its
+                 * existing node) so deleted-in-window descendants
+                 * surface in place; a same-path different-birth entry
+                 * (modified in-window) is a distinct identity and
+                 * recalls the prior version as a Deleted sibling — the
+                 * og emits every state's ZplNode, newest-wins is a
+                 * tree-level consequence, not an engine-side drop. */
                 const u64 birth =
-                    ci->dn.nblkptr() > 0 ? le64(ci->dn.blkptr(0) + BP_LOGICAL_BIRTH) : 0;
-                const RingObjKey key{ds.head, e.value, birth};
-                if (!live) {
-                    /* an object already emitted by a newer state: files
-                     * skip entirely; dirs still traverse (their OLD
-                     * content may hold deleted children) through the
-                     * shadow node */
-                    if (!is_dir && ring_seen.count(key) != 0)
-                        continue;
-                    if (is_dir) {
-                        auto dit = ring_dir_nodes.find({ds.head, e.value});
-                        tree::FileNode* dir_node;
-                        if (dit != ring_dir_nodes.end()) {
-                            dir_node = dit->second.first;
-                        } else {
-                            auto* sp = new (std::nothrow) tree::FileProperties();
-                            if (!sp)
-                                continue;
-                            sp->name = text::utf8_to_u16(e.name);
-                            sp->fs_kind = u32(FsKindCode::Zfs);
-                            sp->attributes = 0x10;
-                            sp->record_ref = e.value;
-                            dir_node = tree.add_file(parent, sp);
-                            sp->release();
-                            if (!dir_node)
-                                continue;
-                            /* a dir that exists in a newer state is a
-                             * live container here; one absent everywhere
-                             * newer is itself deleted */
-                            if (ring_live.count({ds.head, e.value}) == 0)
-                                dir_node->set_deleted_state(tree::DeletedState::Deleted);
-                            ring_dir_nodes.emplace(std::make_pair(ds.head, e.value),
-                                                   std::make_pair(dir_node, true));
-                        }
-                        emit_dir(e.value, dir_node, depth + 1);
-                        continue;
-                    }
+                    ci->dn.nblkptr() > 0 ? le64(ci->dn.blkptr(0) + BP_BIRTH) : 0;
+                EntryKey key{dname, dir_obj, e.name, e.value, birth};
+                auto cit = claimed.find(key);
+                if (cit != claimed.end()) {
+                    if (is_dir)
+                        emit_dir(e.value, cit->second, depth + 1);
+                    continue;
                 }
                 auto* p = new (std::nothrow) tree::FileProperties();
                 if (!p)
@@ -1707,76 +1720,64 @@ u32 scan_zfs(IStorageDevice* slice, CancelToken* cancel, WalkProgressLike progre
                                 p->extents.push_back(ex);
                             }
                         }
-                        if (live)
-                            stats.compressed_extents += compressed;
+                        stats.compressed_extents += compressed;
                         for (auto& em : plan.embedded) {
                             if (em.size() <= (1u << 20)) {
                                 p->resident_data.insert(p->resident_data.end(), em.begin(),
                                                         em.end());
-                                if (live)
-                                    ++stats.embedded_files;
+                                ++stats.embedded_files;
                             }
                         }
                     }
                 }
-                if (live)
-                    ring_seen.insert(key);
                 tree::FileNode* n = tree.add_file(parent, p);
                 p->release();
                 if (!n)
                     continue;
+                if (!live)
+                    n->set_deleted_state(tree::DeletedState::Deleted);
+                claimed.emplace(key, n);
                 if (is_dir) {
-                    if (live) {
-                        ++stats.dirs;
-                        ring_live.insert({ds.head, e.value});
-                        emit_dir(e.value, n, depth + 1);
-                    }
-                    /* non-live dirs never take this path (the shadow
-                     * branch above handled them) */
+                    ++stats.dirs;
+                    emit_dir(e.value, n, depth + 1);
                 } else {
-                    if (live) {
-                        ++stats.files;
-                    } else {
-                        n->set_deleted_state(tree::DeletedState::Deleted);
-                        ring_seen.insert(key);
-                        ++ring_deleted_files;
-                    }
+                    ++stats.files;
                 }
             }
         };
         emit_dir(root_obj, ds_node, 0);
-        if (live && progress)
+        if (progress)
             (void)progress(3, 4, progress_user);
     }
-    return 0;
-    };
+    return StateWalk::Opened;
+    }; /* walk_state */
 
-    /* the live state first (the newest uberblock - the og's newest state
-     * is simply the LAST ring slot it walks; the core walks it FIRST so
-     * every older emission is resolved against the live set) */
-    {
-        const int rc = walk_state(ring_states.rbegin()->second, true);
-        if (rc == 2)
+    /* Drive every ring state newest-first (S-034): the first state
+     * whose MOS chain opens is the LIVE tree; older states are recall
+     * walks. A state that fails to open (torn rootbp / checksum loss)
+     * is skipped exactly like the og's tree-open failure — the walk
+     * continues with the remaining ring. */
+    ptrdiff_t live_idx = -1;
+    for (size_t si = 0; si < ring_states.size(); ++si) {
+        if (cancel && cancel->checkpoint())
             return ERR_CANCELLED;
-        if (rc != 0)
-            return ERR_BAD_MAGIC;
-        ++stats.ring_states_walked;
-    }
-    /* then every older ring state, newest -> oldest (S-034: the og's
-     * per-txg window recall). Skipped without a deleted-root emission
-     * surface (the pre-S-034 call shape stays supported). */
-    if (root_deleted != nullptr && ring_states.size() > 1) {
-        for (auto it = std::next(ring_states.rbegin()); it != ring_states.rend(); ++it) {
-            if (cancel && cancel->checkpoint())
-                return ERR_CANCELLED;
-            const int rc = walk_state(it->second, false);
-            if (rc == 2)
-                return ERR_CANCELLED;
-            if (rc == 0)
-                ++stats.ring_states_walked;
+        const bool live = (live_idx < 0);
+        switch (walk_state(ring_states[si], live)) {
+        case StateWalk::Cancelled:
+            return ERR_CANCELLED;
+        case StateWalk::Opened:
+            ++stats.ring_states;
+            if (live) {
+                live_idx = ptrdiff_t(si);
+                stats.txg = ring_states[si].txg;
+            }
+            break;
+        case StateWalk::Failed:
+            break; /* torn/corrupt state: skip, ring continues */
         }
     }
-    stats.ring_deleted_recovered = ring_deleted_files;
+    if (live_idx < 0)
+        return ERR_BAD_MAGIC;
 
     stats.damaged_blocks = v.damaged;
     stats.microzap_entries = v.microzap_entries;

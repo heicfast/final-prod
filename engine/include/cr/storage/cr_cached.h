@@ -56,6 +56,7 @@ public:
 
     u32 read_at(u64 offset, void* buffer, u32 length) override;
     const Geometry& geometry() const override { return inner_->geometry(); }
+    bool is_static_media() const override { return inner_->is_static_media(); }
 
     u64 hits() const { return hits_; }
     u64 misses() const { return misses_; }

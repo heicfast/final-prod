@@ -36,6 +36,7 @@ add_library(cr_core STATIC
     ext4/cr_ext4_engine.cpp
     hfsplus/cr_hfsplus_engine.cpp
     btrfs/cr_btrfs_engine.cpp
+    btrfs/cr_btrfs_cache.cpp
     zfs/cr_zfs_engine.cpp
     lost/cr_candidates.cpp
     lost/cr_consistency.cpp
@@ -55,7 +56,6 @@ add_library(cr_core STATIC
     recovery/cr_report.cpp
     recovery/cr_dict.cpp
     recovery/cr_dict_data.cpp
-    pwddict/cr_pwddict.cpp
     orchestrator/cr_filterfolder.cpp
     orchestrator/cr_filterfolder_data.cpp
     preview/cr_preview.cpp
@@ -65,6 +65,7 @@ add_library(cr_core STATIC
     repair/cr_rawfixer.cpp
     apply/cr_apply.cpp
     reghive/cr_reghive.cpp
+    bcdfix/cr_bcdfix.cpp
     refs/cr_refs_engine.cpp
     orchestrator/cr_scan.cpp
     tree/cr_node.cpp
