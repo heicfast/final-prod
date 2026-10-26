@@ -270,7 +270,7 @@ byte-pin→I-009, probe-row→I-010; dropped as dups: boot-geometry→N-013b, by
 | carve | C19/B1/B3 | ~~N-054 (S5) RAF 4-byte-vs-16-byte strictness (miss) + JPEG 4-dword-vs-prefix (superset)~~ **FIXED (S12)** — FIXED via b2f48c6 (canonical): RAF keyed on the FUJI 4CC, 16-byte string PRIMARY + variant path (conf 700); JPEG 3-byte prefix REGISTERED (D-64a, og's 4 dwords documented); + N-076 (DFX12): the ASCII-version gate fix their landing still lacked |
 | health | B1/D11/Q68 | N-055 (S5) SMART thresholds (0xD1) never read — modules/health.md "presentation-layer" disposition corrected |
 | carve | B1/A28 | N-076 (S12 NEW-FINDING, discovered during N-054 verification) — validate_raf's version gate rejected every real-world RAF (ASCII version "0100"/"0201" at +16 misread as binary, LE value ≫ 0x2000 cap); the FMT_RAF row was dead for real files since introduction (zero fixture coverage). **FIXED in the same change** — ASCII-digits OR small-binary acceptance; Carve.RafRealAsciiVersionAccepted fail-before executed |
-| writer | F62/Q65/A35 | N-056 (S5) WinDestIo .part-N temp leak on failed rename + UNC untested |
+| writer | F62/Q65/A35 | **N-056 FIXED s17** (WinDestIo .part-N temp leak on failed rename — commit deletes + close gates on the rename state; UNC contracts tested; findings/FIXED/) |
 | table+visualization | Q65/A54/Q69 | N-057 (S5) TableLayout::Ebr dead + diskmap overlay/budget test debt |
 | session | A35/D12/F35 | N-058 (S5) load validation deltas (forward parent re-parent, bad-marker light, short-count OK, name-length wrap) + CRC/resync superset register |
 | session+btrfs+zfs | D11/D12 | N-059 (S5) btrfs secondary ids/generation + zfs secondary flags unpersisted |

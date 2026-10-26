@@ -202,11 +202,21 @@ comment repaired, File%06u registered as the deliberate default
 RED; 679/679 + 24/24. The CZeroEnd-family membership beyond MP4/MOV is
 the honestly recorded remainder (decode each of the 22 SetName callers).
 
+**N-056 FIXED (MINOR):** the WinDestIo failed-rename temp leak closed at
+both sites the finding's plan named — commit() deletes the staged temp in
+the rename-failure path, and close()'s delete gate is the RENAME STATE
+(Open::temp_renamed) instead of handle liveness (the old gate provably
+never fired after a failed rename: the handle was nulled pre-rename).
+WinDestIo.FailedRenameCleansTemp (structural fail-before pinned in-test)
++ WinDestIo.UncShapedPathsFailCleanly (the UNC-family contracts). The
+Windows/MSVC lane proves execution (Linux cannot exercise WinDestIo —
+the finding's own deferral); Linux suite 684/684 unaffected.
+
 **Counts after this wave (direct file inventory):** SEVERE 0 · MAJOR ~31 ·
-MINOR 26 files · INFO 22 (0 actionable) · tracked-open 16 · FIXED 100
-finding files + RESOLVED-INDEX. Queue head: N-056 (windestio temp leak),
-then N-046/N-043 and the remaining MINOR tier (N-068/N-065 left to the
-DFX16 lane's published queue).
+MINOR 23 files · INFO 22 (0 actionable) · tracked-open 16 · FIXED 101
+finding files + RESOLVED-INDEX. Queue head: N-046 (geometry refresh),
+then N-043 (progress liveness watchdog) and the remaining MINOR tier
+(N-068/N-065 left to the DFX16 lane's published queue).
 
 # SUMMARY.md — executive summary (session 10's close-out on top; earlier sessions below)
 

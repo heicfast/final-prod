@@ -106,3 +106,19 @@ Core (audited `67193b6` + concurrent GAP-S6-7 in tree): `src/core/recovery/` (77
 | ID | Severity | One-line |
 |---|---|---|
 | N-048 | MINOR | Collision naming: og `name_N.ext` (`%s_%d` forms) cap 10,000 (DRWUI:357116-357131) vs core `name (N).ext` cap 64 + `_dup` fallback; mkdir: og accepts SHCreateDirectoryExW only on 0/0xB7 (DRWUI:870436-438) vs core exist-as-dir-beats-any-error — and D-19's "collision unevidenced in og" premise refuted (evidence: s6-writer-collision-and-mkdir.md) |
+
+## Session-17 fix row (2026-10-26, DFX17 — N-056 closed)
+
+**N-056 FIXED** (findings/FIXED/): the failed-rename temp leak closed at
+both sites — commit() deletes the staged temp in the rename-failure path
+(the og's funnel leaves no orphaned temps, UIUX 11), and close()'s
+delete gate is now the RENAME STATE (`Open::temp_renamed`, set only
+after a successful MoveFileExW) instead of handle liveness (the old
+gate provably never fired after a failed rename: commit() nulls the
+handle BEFORE MoveFileExW). Covers every un-committed exit (write-phase,
+flush, failed rename with the close-side retry) and never fires
+post-success. WinDestIo.FailedRenameCleansTemp (structural fail-before
+pinned in-test) + WinDestIo.UncShapedPathsFailCleanly (the `\\?\UNC\`
+family: exists/mkdir/create_temp contracts on an unresolvable share).
+Windows/MSVC lane proves execution; Linux suite 684/684 unaffected.
+F62/A35/Q65 → MATCH.
