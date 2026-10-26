@@ -7933,3 +7933,45 @@ policy the og baked into its transports: file placement, rollover,
 compaction, async). The og's per-line timestamp/process decoration is
 its transports' job; the core emits the message text. Pinned by
 `Orchestrator.LogSilentByDefault` + `Orchestrator.LogSinkReceivesScanBrackets`.
+
+### D-88 — NAS/remote scanning: excluded from the core's device scope; the EuMrx redirector is host-layer surface (M-034, REGISTERED DIVERGENCE — scope)
+
+**Class:** registered divergence (scope exclusion) · **Finding:**
+diff-to-fix M-034 (MAJOR, resolved by registration — the disposition
+the finding demanded) · **Date:** 2026-10-26
+
+**WHAT OG DOES:** the product scans NAS shares through a remote-device
+layer — `CRemoteDevice`/`CDoScanRemoteDevice` (rtti_classes.json,
+DRWUI census) wrapping an EuMrx redirector that mounts shares as
+drive paths (`X:\EuShare.com\…`, architecture/05-scan-engine-
+architecture.md §8; DRWUI-exe--main-ui-architecture.md :214-215
+documents the EuMrx/NAS scan flow).
+
+**WHAT WE DO:** the five local-device storage layers only (device,
+slice, cached, retry, devmap — physical, slice-bounded, cached,
+retrying, and image views). No remote transport, no EuMrx equivalent,
+no share-mounting. A HOST may layer an SMB-backed `IStorageDevice` —
+the device contract (cr_device.h) is intentionally transport-agnostic,
+and the win layer's volume path (`\\.\C:`) reads mapped network drives
+through the OS redirector for file-level recovery.
+
+**WHY:** (1) The EuMrx interop is og-internal plumbing — the finding's
+own fix plan records that "the device contract is the parity surface",
+not the redirector. (2) The corpus proves the scan-path plumbing only
+(RTTI + architecture docs); whether the og's NAS scan actually
+recovers deleted files from shares — server-side undelete semantics
+differ fundamentally from raw block access — is a product-level
+question the corpus does not answer (the finding's own open question).
+(3) A network stack is not pure-core surface: the core deliberately
+owns no OS facilities below the device contract, and SMB client
+behavior (credentials, timeouts, offline caching) is host policy. (4)
+The capability was never previously dispositioned anywhere — this row
+is the registration the finding existed to force.
+
+**RISK:** users needing NAS recovery must go through the host layer's
+mapped-drive path (file-level, whatever the OS redirector exposes) —
+no raw-block carving over SMB. No such device class is documented in
+the corpus as recoverable-by-block-access; the exclusion is scope, not
+capability loss. REVISIT TRIGGER: a corpus decode of the EuMrx scan's
+actual recovery semantics (deleted-file yield on shares) would reopen
+the row.

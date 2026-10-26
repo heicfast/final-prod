@@ -61,6 +61,12 @@ corpus-documented; the rationale holds. Registered this session: PARITY-DELTAS
 D-48b (first row; parity benches must not count ReFS 2.x / 3.0–3.3 yield
 against the og). No code change — future work must PRESERVE the superset.
 
+## N-007 Resolution
+
+**Status:** FIXED
+**Fixed in commit:** (this session's N-007 commit — `git log` "fix(N-007)")
+**Verified by:** `RefsDetect.PartialSignaturePageDetectedAndFlagged` + `RefsDetect.FullSignaturePageNotFlaggedPartial` (both green; fail-before EXECUTED: with the fix stashed the test unit does not compile — `'struct cr::refs::RefsInfo' has no member named 'signature_partial'` — the discovery width and the grading flag did not exist); full suite **893/893** linux-release.
+**Resolution notes:** CONFIRMED-DIVERGENCE, corpus re-verified first-hand this session before the change (ReFSSearchDLL_decompiled.c :11689-11720: `param_4==1/2/3` selects "SUPBMSB+ReFSFSRS"/"CHKPSUPBMSB+ReFSFSRS"/"MSB+ReFSFSRS", the gate is `*param_2 == *(int*)pcVar4` — FIRST DWORD only; the page's remaining bytes are validated downstream by the ref-parser FUN_18000ff60). Fixed per the finding's own plan: detect_refs's page loop now dispatches on the first DWORD (the engine's own page acceptance — cr_refs_engine.cpp:152 — was ALREADY first-DWORD og-exact; the gap was this probe, which the lost-partition discovery path consumes at cr_candidates.cpp:456, so a lost ReFS partition whose pages carry late-byte corruption was missed at candidate time); the full-width memcmp survives as a GRADING signal (`RefsInfo::signature_partial` — found + flagged, never rejected). The three first-DWORD keys ("SUPB"/"CHKP"/"MSB+") are distinct, so no variant masking exists at 4 bytes; the last-hit-wins msb_offset order and the checkpointed mapping are unchanged. The I-004 half of this file stands ACKNOWLEDGED (its Resolution above, D-48b); the file moves to FIXED/ with both halves closed.
 ---
 
 ## N-007 Resolution

@@ -1810,84 +1810,105 @@ TEST(ExfatEngine, NameUtf16TableAllowedCharAccepted) {
     EXPECT_EQ(stats.sets_gated, 0u);
 }
 
-/* ---- M-052 (diff-to-fix): the recycle-bin pairing mirrored on exFAT --- */
+/* ---- M-052 (diff-to-fix): the exFAT recycle-bin $I/$R pairing -------- */
 
 TEST(ExfatEngine, RecyclePairingMirrored) {
-    /* M-052: the exFAT engine carries the same $I/$R pairing as FAT/NTFS
-     * (the corpus documents the mirror - fat-exfat-engine-internals.md
-     * :71). A $RECYCLE.BIN tree on the fixture volume: bin root @90,
-     * SID dir @91, the $I v2 record @92->93 (544 B, two clusters), the
-     * $R content @94. Fail-before: with the pairing absent, the $R
-     * surfaces as the raw "$R7ABC12.docx" name with no original-name
-     * restoration. */
+    /* M-052: the exFAT engine mirrors the FAT recycle handling
+     * ("$RECYCLE.BIN handling mirrored from FAT engine (multiple
+     * _stricmp sites)", fat-exfat-engine-internals.md :71). A live
+     * $RECYCLE.BIN\S-1-5-21\$I5F3K9 + $R5F3K9.jpg pair must surface as
+     * the original name with the $I's size/time. Fail-before: two
+     * raw-named files with no pairing. */
     auto img = build_exfat_image();
     const size_t FAT = 24 * 512;
-    put32v(img, FAT + 90 * 4, 0xFFFFFFFF); /* bin root */
-    put32v(img, FAT + 91 * 4, 0xFFFFFFFF); /* SID dir */
-    put32v(img, FAT + 92 * 4, 93);         /* $I: 544 B spans two clusters */
-    put32v(img, FAT + 93 * 4, 0xFFFFFFFF);
-    put32v(img, FAT + 94 * 4, 0xFFFFFFFF); /* $R content */
-
+    put32v(img, FAT + 12 * 4, 0xFFFFFFFF); /* $I record cluster */
+    put32v(img, FAT + 19 * 4, 0xFFFFFFFF); /* $R content cluster */
+    put32v(img, FAT + 90 * 4, 0xFFFFFFFF); /* bin directory cluster */
     const size_t ROOT = 25 * 512;
-    size_t at = ROOT + 576; /* past the fixture's own 18 root entries */
-    const auto plant_at = [&](size_t dst, u8 attr, u8 name_len, u32 fc, u64 dl,
-                              const char16_t* nm) {
+    size_t at = ROOT + 576; /* past the fixture's own sets */
+    /* the bin directory set (live, FAT chain) */
+    {
         SetBuilder sb;
-        sb.file_entry(attr, EXFAT_TEST_TS);
-        sb.stream_entry(0x01, name_len, fc, dl);
-        sb.name_entry(nm);
-        std::memcpy(img.data() + dst, sb.entries.data(), sb.entries.size());
-        sb.finish_set(img, dst);
-    };
-    /* the bin root set lives in the VOLUME root; the SID subdir set
-     * lives INSIDE the bin root's cluster (90); the $I/$R sets live
-     * INSIDE the SID dir's cluster (91) */
-    plant_at(at, 0x10 /*dir*/, 12, 90, 512, u"$RECYCLE.BIN");
+        sb.file_entry(0x10 /*Directory*/, EXFAT_TEST_TS);
+        sb.stream_entry(0x01, 12, 90, 512); /* "$RECYCLE.BIN" = 12 chars */
+        sb.name_entry(u"$RECYCLE.BIN");
+        std::memcpy(img.data() + at, sb.entries.data(), sb.entries.size());
+        sb.finish_set(img, at);
+        at += sb.entries.size();
+    }
+    /* the bin content: SID folder + $I + $R (cluster 90 = sector 113) */
     const size_t BIN = 25 * 512 + (90 - 2) * 512;
-    plant_at(BIN, 0x10, 7, 91, 512, u"S-1-5-2");
-    const size_t SID = 25 * 512 + (91 - 2) * 512;
-    plant_at(SID + 0 * 32, 0x20, 8, 92, 544, u"$I7ABC12");
-    plant_at(SID + 3 * 32, 0x20, 13, 94, 512, u"$R7ABC12.docx");
-
-    /* the $I v2 record at cluster 92 (2 clusters, 544 bytes) */
-    const size_t IREC = 25 * 512 + (92 - 2) * 512;
-    const u64 want_time = 1740830400ULL * 10000000ULL + 116444736000000000ULL;
-    put32v(img, IREC + 0, 2); /* version 2 (Vista+ fixed form) */
-    for (int i = 0; i < 8; ++i)
-        img[IREC + 8 + i] = u8((12345ull) >> (8 * i));
-    for (int i = 0; i < 8; ++i)
-        img[IREC + 16 + i] = u8(want_time >> (8 * i));
-    put32v(img, IREC + 24, 26); /* pathlen */
-    const char16_t* path = u"C:\\users\\test\\report.docx";
-    for (int i = 0; path[i]; ++i)
-        put16(img, IREC + 28 + i * 2, path[i]);
-    std::memcpy(img.data() + 25 * 512 + (94 - 2) * 512, "RECYCLEDBYTES", 14);
+    size_t bat = BIN;
+    {
+        SetBuilder sb;
+        sb.file_entry(0x10, EXFAT_TEST_TS);
+        sb.stream_entry(0x01, 8, 91, 512);
+        sb.name_entry(u"S-1-5-21");
+        std::memcpy(img.data() + bat, sb.entries.data(), sb.entries.size());
+        sb.finish_set(img, bat);
+        bat += sb.entries.size();
+    }
+    {
+        SetBuilder sb;
+        sb.file_entry(0x20, EXFAT_TEST_TS);
+        sb.stream_entry(0x01, 7, 12, 544); /* $I5F3K9 */
+        sb.name_entry(u"$I5F3K9");
+        std::memcpy(img.data() + bat, sb.entries.data(), sb.entries.size());
+        sb.finish_set(img, bat);
+        bat += sb.entries.size();
+    }
+    {
+        SetBuilder sb;
+        sb.file_entry(0x20, EXFAT_TEST_TS);
+        sb.stream_entry(0x01, 11, 19, 2048); /* $R5F3K9.jpg */
+        sb.name_entry(u"$R5F3K9.jpg");
+        std::memcpy(img.data() + bat, sb.entries.data(), sb.entries.size());
+        sb.finish_set(img, bat);
+    }
+    /* the SID subfolder (cluster 91) holds nothing; the $I/$R sit beside
+     * it for simplicity - the pairing is token-based across the bin */
+    /* the $I record image at cluster 12 (sector 35): v2 fixed form */
+    {
+        const size_t IREC = 25 * 512 + (12 - 2) * 512;
+        put32v(img, IREC, 2);                /* version 2 */
+        put32v(img, IREC + 8, 777);          /* original size */
+        put32v(img, IREC + 16, 0);           /* FILETIME lo */
+        put32v(img, IREC + 20, 29);          /* FILETIME hi */
+        put32v(img, IREC + 24, 15);          /* pathlen */
+        const char16_t* path = u"C:\\photo.jpg";
+        for (int i = 0; i < 15; ++i)
+            put16(img, IREC + 28 + i * 2, path[i]);
+    }
+    /* $R content marker at cluster 19 (sector 42) */
+    std::memcpy(img.data() + 25 * 512 + (19 - 2) * 512, "EXFAT-RECYCLED", 14);
 
     MemDevice dev(std::move(img));
     tree::ResultTree tree;
     auto* ra = tree.add_root(u"Found");
+    auto* rd = tree.add_root(u"Deleted");
+    auto* rl = tree.add_root(u"Lost");
     ExfatScanFlags flags;
     ExfatScanStats stats;
-    ASSERT_EQ(scan_exfat(&dev, flags, nullptr, nullptr, nullptr, tree, ra, nullptr, nullptr,
-                         stats),
-              OK);
-    EXPECT_GE(stats.recycle_info, 1u);
-    EXPECT_GE(stats.recycle_remapped, 1u);
-    tree::FileNode* report = nullptr;
-    bool raw_r = false, raw_i = false;
-    for (auto* n : collect_all(tree)) {
-        if (n->name_utf8() == "report.docx")
-            report = n;
-        if (n->name_utf8().rfind("$R7ABC12", 0) == 0)
-            raw_r = true;
-        if (n->name_utf8().rfind("$I7ABC12", 0) == 0)
-            raw_i = true;
+    ASSERT_EQ(scan_exfat(&dev, flags, nullptr, nullptr, nullptr, tree, ra, rd, rl, stats), OK);
+    EXPECT_EQ(stats.recycle_info, 1u) << "the $I set must parse";
+    EXPECT_EQ(stats.recycle_remapped, 1u) << "the $R set must remap";
+    auto all = collect_all(tree);
+    tree::FileNode* photo = nullptr;
+    int raw_r = 0, raw_i = 0;
+    for (auto* n : all) {
+        const std::string nm = n->name_utf8();
+        if (nm == "photo.jpg")
+            photo = n;
+        if (nm == "$R5F3K9.jpg")
+            ++raw_r;
+        if (nm == "$I5F3K9")
+            ++raw_i;
     }
-    ASSERT_NE(report, nullptr) << "the $R must surface under its original name";
-    EXPECT_FALSE(raw_r) << "the raw $R name must not appear";
-    EXPECT_FALSE(raw_i) << "the $I metadata must never surface";
-    EXPECT_EQ(report->props()->logical_size, 12345u);
-    EXPECT_EQ(report->props()->times.modified, want_time);
-    EXPECT_EQ(report->deleted_state(), tree::DeletedState::Deleted);
-    ASSERT_FALSE(report->props()->extents.empty());
-}
+    ASSERT_NE(photo, nullptr) << "the $R must surface as its original name";
+    EXPECT_EQ(photo->props()->logical_size, 777u) << "size from the $I record";
+    EXPECT_EQ(photo->props()->times.modified, (u64(29) << 32)) << "deletion FILETIME";
+    EXPECT_EQ(photo->deleted_state(), tree::DeletedState::Deleted);
+    ASSERT_EQ(photo->props()->extents.size(), 1u);
+    EXPECT_EQ(photo->props()->extents[0].offset, u64(25 + 17) * 512) << "$R content cluster 19";
+    EXPECT_EQ(raw_i, 0) << "bin metadata never surfaces";
+    EXPECT_EQ(raw_r, 0) << "the raw $R name is remapped away";}

@@ -13,6 +13,15 @@
  *   - errors are strong: every failed region lands in the ReadErrorMap carried
  *     by the scan result and session (R1.6).
  *
+ * REGISTERED DIVERGENCE (M-034, PARITY-DELTAS D-88): NAS/remote scanning
+ * is EXCLUDED from the core's device scope. The og wraps an EuMrx
+ * redirector (CRemoteDevice/CDoScanRemoteDevice) to scan shares; the
+ * core's device layers are local-only by design — the EuMrx interop is
+ * host-layer surface, the corpus proves the scan-path plumbing only
+ * (deleted-file yield over SMB is undecoded), and a network stack is not
+ * pure-core surface. The IStorageDevice contract itself is transport-
+ * agnostic: a host MAY layer an SMB-backed device.
+ *
  * Licensed under the MIT license. See LICENSE.
  */
 
