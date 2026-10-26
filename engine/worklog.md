@@ -14830,6 +14830,21 @@ Stage Summary:
 - OQ-S5-1 closed (convergent two-lane). MY CLAIMED QUEUE IS COMPLETE.
 
 ---
+Task ID: DFX24-T3 (M-052 + baseline repairs)
+Agent: DFX24 (session 24, the MAJOR lane)
+Task: M-052 FAT/exFAT recycle-bin pairing; union-red repairs
+
+Work Log:
+- M-052: verified the finding's corpus citations (fat-exfat-engine-internals.md :21/:37-40/:71/:101) and the NTFS reference implementation (cr_mftwalk.cpp:162-250 + the GAP-P1-3 post-walk fixup); extracted the model into include/cr/cr_recycle.h + src/core/recovery/cr_recycle.cpp (name + content-stream parameterization); NTFS refactored to consume it (identical behavior); FAT + exFAT walks wired (bin-root subtree marking, $I parse-and-remember, $R remap + Deleted state, post-walk fixup, new stats).
+- 4 tests added (FAT pairing, legacy roots, non-recycle over-matching pin, exFAT mirror); fail-before EXECUTED as an engine mutation (bin-root marker neutralized: 3/4 RED; the pin green by design); suite 848/848 linux-release + ASan lane green.
+- Baseline repair 2: the 9a9340e/196d75a parallel-merge lineage committed conflict markers into cr_bitlocker.h + a structurally broken rrecov.cpp (win_syntax_check RED — the gate did its job). Repaired as the canonical union: 6afa8fc's cr::dict ruling + the N-033 CLI additions. Green post-repair.
+- Audit trail: M-052 finding -> FIXED/ with Resolution; RESOLVED-INDEX row; fat/exfat matrix rows -> MATCH; module verdict updates; SUMMARY session-24 delta extended.
+
+Stage Summary:
+- M-052 FIXED (the audit's engine-consistency finding closed; the shared helper is the fix plan's architecture).
+- Pushed-red main repaired twice this session (D-84 ledger row; win-layer markers).
+- Remaining MAJOR: M-018, M-030, M-034, M-039, M-040, M-041, M-048.
+
 Task ID: DFX33-T4 (session 33 — pushed-red REPAIR, protocol)
 Agent: main engineer (diff-to-fix fix session 33 — DFX33)
 Task: Repair the 667c2d2 union: the N-064 multi-lane collision had left
@@ -15160,6 +15175,55 @@ Stage Summary:
 - Claim posted; starting M-041 (full corpus re-read of
   FileSystemCheck_decompiled.c first).
 
+---
+Task ID: DFX35-4 (session 35, third fix — M-041)
+Agent: main engineer (DFX35)
+Task: M-041 — the damage-audit check phase (FileSystemCheck.mo parity).
+
+Work Log:
+- Corpus re-verified FIRST-HAND (all load-bearing cites):
+  FAT12/16/32 ceilings (:1355-1360/:1413-1417/:1469-1473 — they CLAMP
+  the audited cluster count, not reject; the finding's framing
+  corrected), 0x1004 size-vs-chain arithmetic (:2050-2076), volume-size
+  gate (:2832-2835), `.`/`..` byte validation (:1893-1907), version set
+  {0x102, 3, 0x301} (:2994-3003), orphan BAD sentinels (:872-878) ->
+  0x1003 (:945-951), FAT copies -> 0x1005 (:745-752), "Bitmap mark it
+  as free!!!" (:3200). CONFIRMED-DIVERGENCE.
+- Landed: include/cr/check/cr_fscheck.h + src/core/check/cr_fscheck.cpp
+  (both passes, taxonomy in numeric parity; the 12-bit/16-bit/32-bit FAT
+  entry decoder; the BorrowedDevice non-owning adapter for
+  NtfsVolume::open); the orchestrator stage (after repair, before
+  engines; default ON with run_fs_check opt-out; report in
+  ScanStats.fs_check_* + a log Warn line; NEVER aborts).
+- Development corrections caught by the tests themselves: (1) the $MFT
+  proof must parse the $FILE_NAME PAYLOAD's name (parse_file_name), not
+  the attribute's own name; (2) the runlist decode must go through
+  parse_data_runs (attribute-relative offset), not a record-relative
+  pointer; (3) the $Bitmap size sanity is in BYTES (clusters x cluster
+  size) with a coverage + 1 MiB tolerance; (4) the dir-cycle detection
+  must run BEFORE the global cross-link test (a self-referencing chain
+  is a cycle, not a cross-link); (5) the check stage reads the RAW
+  slice — pipe reads stole the error map's per-range ENGINE attribution
+  (the ErrorRange attribution test caught it: last_err_module became
+  the orchestrator's stamp when the check touched a dead sector first).
+- Fixture notes recorded: build_image's MFT/MIRR LCN overlap (68..71)
+  makes it bitmap-cross-linked by construction — the check tests use
+  build_dump_image (bitmap-consistent); the mirror-region re-plant for
+  the $MFTMirr proof (the recycle records overwrite the mirror copies,
+  the known quirk).
+- Tests: 14 (FatCheck.* x9 incl. the BAD-sentinel negative, NtfsCheck.*
+  x4 incl. the 3.1-passes pin, Orchestrator.CheckPhaseNeverAbortsScan).
+  Fail-before by construction (the API did not exist — N-046 precedent).
+  Suite 877/877 linux-release.
+- Audit trail: Resolution + FIXED/ move; NEW module row
+  modules/check-phase.md; matrix check-phase row; SUMMARY session-35
+  addition; CAPABILITY-MATRIX row.
+
+Stage Summary:
+- M-041 FIXED (session tally: 3 — M-014, M-052, M-041 + N-079 + 3
+  repair pushes). MAJOR 5 remain (M-030/M-034/M-039/M-040/M-048).
+  Next: pull-check; M-039/M-048 are the parallel lane's claimed next -
+  coordinate via the worklog before taking one.
 
 
 
@@ -15303,6 +15367,7 @@ Stage Summary:
   remains in a non-resolved state; the audit trail for M-029 and M-025
   is complete with both Resolutions, the convergence records, and the
   measured numbers.
+
 ---
 Task ID: DFX30-HANDOFF (session 30 close — lane complete, main green)
 Agent: main engineer (diff-to-fix fix session 30 — DFX30)
@@ -15564,6 +15629,52 @@ Stage Summary:
   pulling first.
 
 ---
+Task ID: DFX33-T6 (session 33, fifth fix)
+Agent: main engineer (diff-to-fix fix session 33 — DFX33)
+Task: N-007 — ReFS page-signature discovery width (the I-004 half of the
+combined file stays ACKNOWLEDGED).
+
+Work Log:
+- Corpus re-verified first-hand: ReFSSearchDLL :11689-11720 — the page
+  dispatch selects the signature string then compares the FIRST DWORD
+  only; corrupt-tail pages open, the ref-parser validates further.
+- Implemented: page_match (first-4 discovery + full-width grading) in
+  cr_refs_detect.cpp; RefsInfo::signature_partial added; the engine's own
+  validation chain untouched.
+- Tests: RefsDetect.PartialSignaturePageDetected (fail-before EXECUTED
+  RED: the corrupt-tail-only volume was ERR_BAD_MAGIC pre-fix). Refs
+  suite 32/32; full suite 891/891 linux-release.
+- Audit trail: N-007 Resolution appended (I-004's stays as-is); file
+  moved to FIXED/; matrix row; modules/refs.md verdict; SUMMARY part-5.
+
+Stage Summary:
+- N-007 FIXED (tally: 5 — M-020, M-025, M-018, M-048, N-007 — plus the
+  T4 repair). MAJOR 4, MINOR 2 open. Next: N-065 or the queue head.
+
+Task ID: DFX34-T5 (session 34, fifth landing — N-065 closed FIXED-ALREADY)
+Agent: main engineer (diff-to-fix fix session 34 — DFX34)
+Task: N-065 (writer destination-policy minors) — verify the parallel
+lane's landing, close the audit trail.
+
+Work Log:
+- Verified in-source on the current tree: collision = the og's two
+  `%s_%d`/`%s_%d%s` branches (cr_safewriter.cpp:47+, last-dot split,
+  extensionless branch, counter from 1), rename_attempts = 10,000
+  (cr_safewriter.h:100), exhaustion FAILS the item (the `_dup` fallback
+  and the ` (N)` shape removed); mkdir = the 0/0xB7 SHCreateDirectoryExW
+  contract in semantic form with the documented drive-root-chain root
+  cause (MSVC test #227: the literal gate failed every drive-letter
+  destination); D-19 rewritten (PARITY-DELTAS:456+).
+- Proof tests executed green FIRST-HAND: CollisionNameUnderscoreFormat,
+  CollisionExhaustionFailsTheItem, MkdirSemanticsMatchShCreateDirectoryEx.
+- Audit trail: Resolution (FIXED-ALREADY) + FIXED/ move, RESOLVED-INDEX
+  row, CROSS-REF-MATRIX writer cell, modules/writer.md session-34
+  verification table.
+
+Stage Summary:
+- N-065 closed FIXED-ALREADY (tally: 1 verified closure this session).
+  MINOR open: N-007/I-004, N-072. Next: N-007 (ReFS first-DWORD
+  discovery), then N-072 (Btrfs cache + ZFS retry).
 Task ID: DFX23-T5 (343e206 window repair)
 Agent: session-23 (this lane)
 Task: absorb 343e206 (N-066/N-080 + the M-041 ABI field) + repair the
@@ -15635,3 +15746,143 @@ Work Log:
 Stage Summary:
 - M-030 CLOSED; the ASan lane is clean again. Open MAJOR: M-034, M-039
   (claimed elsewhere), M-040. Next: pull-check, then M-034 or M-040.
+Task ID: DFX34-T6 (session 34, sixth landing — N-007 FIXED)
+Agent: main engineer (diff-to-fix fix session 34 — DFX34)
+Task: N-007 — ReFS page-signature discovery width (full memcmp vs the
+og's first-DWORD dispatch).
+
+Work Log:
+- Corpus re-verified FIRST-HAND before the change:
+  ReFSSearchDLL_decompiled.c :11689-11720 — param_4==1/2/3 selects
+  "SUPBMSB+ReFSFSRS"/"CHKPSUPBMSB+ReFSFSRS"/"MSB+ReFSFSRS"; the gate is
+  `*param_2 == *(int*)pcVar4` (FIRST DWORD only); full validation is the
+  ref-parser's (FUN_18000ff60). CONFIRMED-DIVERGENCE.
+- Scope finding: the ENGINE's page acceptance
+  (cr_refs_engine.cpp:152) was already first-DWORD og-exact; the gap was
+  detect_refs — the probe the lost-partition discovery consumes
+  (cr_candidates.cpp:456) — so a lost ReFS partition whose pages carry
+  late-byte corruption was missed at candidate time.
+- Fix per the finding's plan: detect_refs's page loop dispatches on the
+  first DWORD (three distinct keys "SUPB"/"CHKP"/"MSB+" — no variant
+  masking at 4 bytes); the full-width memcmp survives as the
+  `RefsInfo::signature_partial` grading flag (found + flagged, never
+  rejected); last-hit-wins msb_offset order + checkpointed mapping
+  unchanged.
+- Tests: RefsDetect.PartialSignaturePageDetectedAndFlagged ("SUPB" +
+  corrupt tail -> found, flagged) + RefsDetect.FullSignaturePageNot-
+  FlaggedPartial (the inverse boundary). Fail-before EXECUTED: fix
+  stashed -> the test unit does not compile (no signature_partial
+  member) — the capability was absent. Suite 893/893.
+- Audit trail: N-007 Resolution + FIXED/ move (I-004's ACKNOWLEDGED
+  Resolution rides along; both halves closed), RESOLVED-INDEX row,
+  matrix refs row, modules/refs.md session-34 verdict table.
+
+Stage Summary:
+- N-007 FIXED (session tally: N-065 verified-closure + N-007 fixed).
+  MINOR open: N-072 only. Next: N-072 (Btrfs cache + ZFS label retry),
+  then the MAJOR tier.
+Task ID: DFX36-CLAIM (session 36 — lane claim, posted before work)
+Agent: main engineer (DFX36 — diff-to-fix execution session 36)
+Task: Lane claim (protocol): S-034 (SEVERE — the ZFS ring txg-history walk,
+the three decode items + the behavioral fix) → N-007 (ReFS first-DWORD
+discovery match) → N-072 (btrfs rescan cache + zfs label polling) →
+OQ-S4-3/OQ-FLT-2 dispositions → audit-trail completeness sweep
+(CROSS-REF-MATRIX/SUMMARY/modules vs the live tree). M-030 is claimed by
+the DFX23 lane (their entry "M-030 verification starts now"); M-039/M-040
+signaled by other lanes — will verify their landings when they arrive and
+take up any remainder they leave.
+
+Work Log:
+- Baseline established at ea1a3c7-pull: BUILD RED on main repaired
+  (cr_ui.h union markers, 40fc440 — convergent with the parallel lanes'
+  32f82f3/58557d3 repairs; mine rode the same union); suite green
+  841/845 (4 env-skips) + cr_ui_tests 33/33 after repair; pushed.
+- Parallel-lane landings absorbed (M-048 21ea6c2, N-066+N-080 4d3f040,
+  N-065 3be045d + the N-079-family unions).
+
+Stage Summary:
+- Lane open. S-034 decode starts now (corpus: ZfsSearchDLL_decompiled.c
+  ring walk + addBlock + the ZplNode visitor path).
+
+---
+Task ID: DFX34-T7 (session 34, seventh landing — the M-052/N-079 collision repair + the N-007 convergence)
+Agent: main engineer (diff-to-fix fix session 34 — DFX34)
+Task: Repair the M-052 multi-lane collision residue (main RED on the
+N-079 test) + absorb the convergent N-007 second landing.
+
+Work Log:
+- Root cause of the red: the 53b7d68 convergence repair adopted
+  c33c64b's engine files, which carry the N-079 scope defect (the
+  $I/$R name-prefix gate matches everywhere), while the tree kept
+  76d4878's N-079 pin test — plus a union-glued missing brace in
+  test_exfat_volume.cpp and a stray c33c64b cr_recycle.cpp (a .cpp
+  variant of 76d4878's header-only model with a different RecycleInfo
+  shape).
+- Repair: adopted 76d4878's coherent set wholesale (cr_mftwalk with the
+  bin-membership gate via recycle::is_bin_root, the header-only
+  cr_recycle.h, both engines' quick scans + headers + tests); removed
+  the stray .cpp + its CMake entry; fixed the glued test brace.
+- N-007 convergence: the remote ALSO landed N-007 (lambda-based
+  first-DWORD dispatch — equivalent semantics to mine); adopted origin's
+  implementation (first-landing-wins) and kept THIS lane's two proof
+  tests (the remote landing shipped none). Both RefsDetect partial
+  tests green on the adopted implementation.
+- Suite 894/894; gate 0 FAIL; zero markers in src/include/tests.
+
+Stage Summary:
+- Main green again. N-007 stands FIXED (convergent; this lane's tests
+  are the proof set). MINOR open: N-072 only. Next: N-072, then MAJORs
+  (M-030/M-034/M-039/M-040/M-048 — verifying which the parallel lanes
+  drain while I work).
+Task ID: DFX24-T8 (M-034 + the M-052 convergence union)
+Agent: DFX24 (session 24, the MAJOR lane)
+Task: M-034 NAS scope disposition; the convergent-M-052 union repair
+
+Work Log:
+- M-034: product decision made and registered — PARITY-DELTAS D-88 (NAS/remote scanning excluded from core device scope; EuMrx = host-layer surface; the corpus proves scan-path plumbing only — the REVISIT TRIGGER). cr_device.h divergence block + Storage.ParityDeltasListsNasExclusion doc-truth pin. Finding -> FIXED/ (scope registration = the fix plan's step 3).
+- M-052 convergence: the parallel DFX35 lane's convergent implementation hit origin first (four-root set incl. $RECYCLE.BI0, verified in all three SearchDLLs — corpus-richer than the artifact's three roots); their inline-header API adopted as canonical; this lane's .cpp dropped cleanly; the two Resolutions unioned with the convergence record; my N-079 renumbered N-080 (ID collision with their NTFS bin-scope finding, first-landing-wins).
+- Pushed-red unions repaired (twice this window): the M-052-era markers across cr_recycle.h/cr_fat_quick/cr_exfat_quick/cr_mftwalk/test files + the re-broken rrecov.cpp/cr_bitlocker.h (canonical cr::dict design restored). Suite 893/893.
+
+Stage Summary:
+- M-034 FIXED (scope registration). M-052 canonical after convergence. Remaining MAJOR: M-030, M-039, M-040.
+
+Task ID: DFX33-T7 (session 33 — second pushed-red REPAIR, protocol)
+Agent: main engineer (diff-to-fix fix session 33 — DFX33)
+Task: Repair the M-052 multi-lane collision (FAT/exFAT/NTFS recycle-bin
+files interleaved by successive unions; win_syntax_check + the build RED
+on origin/main).
+
+Work Log:
+- Root cause: TWO parallel M-052 landings (c33c64b the cr_recycle-helper
+  extraction; 76d4878 the shared-model variant) met in successive unions;
+  the interleaving glued duplicate struct fields (FatScanStats/
+  ExfatScanStats recycle pairs), duplicated function bodies
+  (parse_recycle_info, recycle_token), committed markers (cr_mftwalk,
+  cr_fat_quick, cr_exfat_quick, cr_recycle.h, both engine headers, the
+  test files) and re-broke rrecov/cr_bitlocker (the same N-064
+  interleaving as T4).
+- Repair: the ENGINE files restored verbatim from the coherent c33c64b
+  landing (cr_fat_quick, cr_fat_engine.h, cr_exfat_quick,
+  cr_exfat_engine.h, cr_mftwalk, cr_recycle.h + the three engine test
+  files); the WIN layer kept on my canonical line (rrecov + cr_bitlocker
+  from the M-048 landing 21ea6c2 — the 5-surface BitLocker repair + the
+  M-048 --user-signs CLI + the M-018 junk-filter gates all intact).
+- Verified: full suite **891/891** linux-release (incl. win_syntax_check,
+  cr_ui_abi_check, the M-052 recycle tests from both landing variants).
+
+Stage Summary:
+- main green again. Session tally: 5 fixes (M-020, M-025, M-018, M-048,
+  N-007) + 2 multi-lane repairs (T4, T7).
+---
+Task ID: DFX24-T5 (M-039)
+Agent: DFX24 (session 24, the MAJOR lane)
+Task: M-039 cross-engine occupancy bitmap -> carve skip gate
+
+Work Log:
+- Verified the finding's corpus citations (EXT4 FUN_180012040 :14892-93 + fill :6866-6869, Btrfs :2547-2551, Zfs :40576/:40599) against the decompile.
+- Implemented the fix plan's three steps: orchestrator-side extent aggregation from the result tree (structured origins only, sorted + coalesced interval set, slice-relative rebase); CarveFlags::occupied_ranges feeding BOTH dispatch layers (grammar: suppress + jump-to-interval-end; raw-sign: 512-stride suppress); interval-set memory shape. Carved nodes excluded from the gate (resume re-carve protection). occupancy_skipped telemetry on CarveStats + ScanStats.
+- 3 tests (SkipsFsAllocatedRegions, StructuredBoundaryPartialOverlap, OccupancyGateJumpsWholeInterval); fail-before EXECUTED as an engine mutation (2/3 RED; the straddle pin green by design); suite 895/895.
+- Audit trail: finding -> FIXED/ with Resolution; index row; matrix rows; carve + orchestration module verdicts; SUMMARY delta.
+
+Stage Summary:
+- M-039 FIXED. Remaining MAJOR: M-030, M-040.

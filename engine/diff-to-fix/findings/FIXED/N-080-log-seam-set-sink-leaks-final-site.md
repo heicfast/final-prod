@@ -1,4 +1,4 @@
-# MINOR N-079 — cr::log set_sink leaks the final Site (LeakSanitizer red on the ASan lane since the N-062 landing)
+# MINOR N-080 — cr::log set_sink leaks the final Site (LeakSanitizer red on the ASan lane since the N-062 landing)
 
 **Severity:** MINOR (16-byte process-lifetime leak; ASan-lane CI red — 4 tests)
 **Module:** err (the N-048 logging seam)
@@ -54,6 +54,6 @@ None — the defect and the fix are both fully local.
 ## Resolution
 
 **Status:** FIXED
-**Fixed in commit:** (this session's N-079 commit — DFX24 baseline repair)
+**Fixed in commit:** (this session's N-080 commit — DFX24 baseline repair; renumbered from a same-window N-079 collision with the parallel DFX35 lane's NTFS bin-scope finding — first-landing-wins, the errata convention)
 **Verified by:** the four ASan-lane tests (`Orchestrator.LogSilentByDefault`, `Orchestrator.LogSinkReceivesScanBrackets`, `Orchestrator.MemoryMonitorEmitsUnderPressure`, `CrUi.HeartbeatDuringStall`) — RED at the pre-fix tree (leak reports naming `cr_log.cpp:55`, reproduced first-hand with the fix stashed), GREEN after; ASan lane 750/750 at the fix tree, 826/826 at the post-union tree.
 **Resolution notes:** `set_sink` now publishes from a `static std::deque<Site>` pool under the existing write mutex (deque `push_back` preserves element addresses, so the lock-free reader's `g_site` load keeps its no-UAF guarantee — the landed design's invariant, kept exactly). The `fn == nullptr` path publishes null (silence) without allocating. Retired sites remain alive in the pool for the process lifetime (the intentional never-free-while-racing posture), but the storage is owned and destroyed at static destruction — LeakSanitizer-clean. No concurrency contract, no emission-site behavior, and no ABI surface changed.
