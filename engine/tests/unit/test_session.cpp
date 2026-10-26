@@ -944,3 +944,33 @@ TEST(Session, SaveCancelsCleanly) {
               u32(ERR_CANCELLED));
     EXPECT_EQ(blob0.size(), 0u) << "a cancelled entry tick emits nothing";
 }
+
+TEST(Session, AutoNamingConvention) {
+    /* N-061: the og's session auto-naming convention, byte-exact vs the
+     * corpus sample - the shipped "auto_Local Disk (I_)10_14_23_13_21"
+     * .rsf (qa-logs--session-forensics.md: "auto_" + label with the
+     * Windows-forbidden ':' sanitized to '_' + LOCAL-time M_D_H_m_s). */
+    std::tm tm{};
+    tm.tm_mon = 9; /* October (0-based) */
+    tm.tm_mday = 14;
+    tm.tm_hour = 23;
+    tm.tm_min = 13;
+    tm.tm_sec = 21;
+    EXPECT_EQ(auto_session_name_at(u"Local Disk (I:)", tm),
+              "auto_Local Disk (I_)10_14_23_13_21");
+    /* the full forbidden set sanitizes to '_' (never a name-breaking
+     * character survives; spaces and parentheses pass through) */
+    EXPECT_EQ(auto_session_name_at(u"a<b>c:d\"e/f\\g|h?i*j", tm),
+              "auto_a_b_c_d_e_f_g_h_i_j10_14_23_13_21");
+    /* an empty label keeps the stamp alone (the og's unlabeled fallback) */
+    EXPECT_EQ(auto_session_name_at(u"", tm), "auto_10_14_23_13_21");
+    /* the live variant reads the local clock: prefix + the stamp pattern */
+    const std::string live = auto_session_name(u"Vol");
+    EXPECT_EQ(live.substr(0, 8), "auto_Vol");
+    const std::string tail = live.substr(8);
+    ASSERT_EQ(tail.size(), 14u); /* MM_DD_HH_mm_ss: 10 digits + 4 '_' */
+    for (size_t i = 0; i < tail.size(); ++i) {
+        const bool ok = (i % 3 == 2) ? tail[i] == '_' : (tail[i] >= '0' && tail[i] <= '9');
+        EXPECT_TRUE(ok) << "bad stamp character at " << i << ": " << tail;
+    }
+}

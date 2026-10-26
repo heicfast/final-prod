@@ -298,6 +298,24 @@ sites reverted, the seam present: zero lines). Suite 732/732.
 SEVERE 0 · MAJOR 24 · MINOR 30 · INFO 22 (0 actionable) · tracked-open
 16 · FIXED 117 files (116 findings + RESOLVED-INDEX).
 
+**N-061 FIXED (both halves):** the persistent run-log is the N-048
+seam + the CLI's --log file (the EPMLOG.log role) with the qa-logs
+semantic set at the core (START/END brackets with extent/stages and
+rc/counters/error-ranges/pause-compensated duration, stage
+boundaries, committed checkpoints, candidate resolutions with the
+CalcPartition.log scored truth); default-silent — the conservative
+read of the channel-gating open question. The session auto-naming
+helper: session::auto_session_name_at(label, tm) — byte-exact vs the
+corpus sample `auto_Local Disk (I_)10_14_23_13_21` (the forbidden-set
+sanitization incl. ':' → '_', LOCAL-time M_D_H_m_s, UTF-8 out);
+Session.AutoNamingConvention (fail-before by construction). The CLI's
+--out stays explicit (frozen contract — auto-save-on-default is the
+og's UI policy, not the library's). Suite 733/733.
+
+**Counts after this landing (direct file inventory at the N-061 push):**
+SEVERE 0 · MAJOR 24 · MINOR 29 · INFO 22 (0 actionable) · tracked-open
+16 · FIXED 118 files (117 findings + RESOLVED-INDEX).
+
 ## Session-10 delta — the SEVERE tier close-out (2026-10-26)
 
 This lane (DFX10) executed the published order S-009 -> S-029 -> S-030

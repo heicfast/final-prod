@@ -12094,3 +12094,39 @@ Stage Summary:
   N-048). MINOR 30 remain. Next: N-061's auto-naming half (the
   run-log half rode this seam), then N-062 (the memory monitor on
   the same sink).
+
+---
+Task ID: DFX18-T8 (session 18, eighth fix — N-061)
+Agent: main engineer (diff-to-fix fix session 18 — DFX18)
+Task: N-061 the persistent run-log + the session auto-naming.
+
+Work Log:
+- Corpus re-verified first-hand: the qa-logs channel content
+  (CScanMgr::doScan, quick/deep ranges, filter pushes,
+  UpdateScanFinishedInfo, CalcPartition's fileCount-ranked resolution)
+  + the auto-naming sample "auto_Local Disk (I_)10_14_23_13_21"
+  (byte-exact, ':' sanitized to '_', LOCAL-time M_D_H_m_s).
+- Run-log half: RESOLVED through the N-048 seam (landed earlier this
+  session — the CLI --log file is the persistent EPMLOG-role sink; the
+  semantic set emits at the core). Default-silent (the conservative
+  read of the channel-gating open question).
+- Auto-naming half: session::auto_session_name_at(label, tm) +
+  auto_session_name(label) (cr_crsf.h/cpp) — forbidden-set
+  sanitization, LOCAL M_D_H_m_s 2-digit underscore-separated, UTF-8
+  out (lone surrogates -> U+FFFD per the shared text policy). The
+  CLI's --out stays explicit (frozen contract; auto-save-on-default
+  is the og's UI policy — the host calls the helper).
+- Test: Session.AutoNamingConvention (the corpus sample byte-exact;
+  the full forbidden set; the empty-label fallback; the live-clock
+  stamp pattern — first run caught my own stamp-size miscount, 14 not
+  15). Fail-before by construction (the helpers did not exist). My
+  first implementation landed outside the namespace — caught by the
+  build, moved inside.
+- Suite 733/733 linux-release. Audit trail: Resolution + FIXED/ move,
+  index row (103 header), matrix rows (session cell + the
+  orchestration+session detail row), SUMMARY counts.
+
+Stage Summary:
+- N-061 FIXED (tally: 8 — N-045, N-046, N-040, N-074, N-043, N-060,
+  N-048, N-061). MINOR 29 remain. Next: N-062 (the memory monitor on
+  the same seam — the finding's own pairing), claimed in the matrix.

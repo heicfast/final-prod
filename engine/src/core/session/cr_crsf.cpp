@@ -6,6 +6,7 @@
 #include "cr/session/cr_crsf.h"
 #include "cr/table/cr_table_wire.h" /* crc32 */
 #include <zlib.h>
+#include <cstdio>
 #include <cstring>
 
 namespace cr {
@@ -326,6 +327,62 @@ u32 Reader::read_record(u32 index, Record& out) {
         return 0x50030002; /* BAD_CHECKSUM: caller may continue with later records */
     }
     return OK;
+}
+
+
+/* ---- N-061: the session auto-naming convention ---------------------- */
+
+namespace {
+bool name_char_forbidden(char16_t u) {
+    /* the Windows name-forbidden set (the corpus sample's ':' -> '_') plus
+     * C0 controls; everything else passes through (non-ASCII labels encode
+     * through the shared UTF-8 text policy) */
+    return u < 0x20 || u == u'<' || u == u'>' || u == u':' || u == u'"' ||
+           u == u'/' || u == u'\\' || u == u'|' || u == u'?' || u == u'*';
+}
+} // namespace
+
+std::string auto_session_name_at(const std::u16string& label, const std::tm& local) {
+    std::string out = "auto_";
+    out.reserve(8 + label.size() + 16);
+    for (char16_t u : label) {
+        if (name_char_forbidden(u)) {
+            out.push_back('_');
+        } else if (u < 0x80) {
+            out.push_back(char(u));
+        } else {
+            /* non-ASCII label units encode as UTF-8 (the shared text
+             * policy: a lone surrogate reads as U+FFFD, matching the
+             * name-decode path) */
+            u32 cp = u;
+            if (cp >= 0xD800 && cp <= 0xDFFF)
+                cp = 0xFFFD;
+            if (cp < 0x800) {
+                out.push_back(char(0xC0 | (cp >> 6)));
+                out.push_back(char(0x80 | (cp & 0x3F)));
+            } else {
+                out.push_back(char(0xE0 | (cp >> 12)));
+                out.push_back(char(0x80 | ((cp >> 6) & 0x3F)));
+                out.push_back(char(0x80 | (cp & 0x3F)));
+            }
+        }
+    }
+    char stamp[24];
+    std::snprintf(stamp, sizeof(stamp), "%02d_%02d_%02d_%02d_%02d", local.tm_mon + 1,
+                  local.tm_mday, local.tm_hour, local.tm_min, local.tm_sec);
+    out += stamp;
+    return out;
+}
+
+std::string auto_session_name(const std::u16string& label) {
+    std::time_t now = std::time(nullptr);
+    std::tm local{};
+#ifdef _WIN32
+    localtime_s(&local, &now);
+#else
+    localtime_r(&now, &local);
+#endif
+    return auto_session_name_at(label, local);
 }
 
 } // namespace session

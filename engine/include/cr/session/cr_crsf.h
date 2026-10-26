@@ -19,7 +19,9 @@
 
 #include "../cr_types.h"
 #include "../storage/cr_device.h"
+#include <ctime>
 #include <memory>
+#include <string>
 #include <vector>
 
 namespace cr {
@@ -126,6 +128,19 @@ private:
 /* Chunk framing exposed for tests. */
 u32 crsf_chunk_frame(const u8* payload, u32 len, bool compress, std::vector<u8>& out);
 u32 crsf_chunk_parse(const u8* data, u32 len, std::vector<u8>& out);
+
+/* ---- N-061: the session auto-naming convention ---------------------- */
+
+/* The og's convention (corpus qa-logs--session-forensics.md: the shipped
+ * "auto_Local Disk (I_)10_14_23_13_21" .rsf): "auto_" + the volume label
+ * with Windows-name-forbidden characters sanitized to '_' (the sample's
+ * ':' becomes '_'), followed by the LOCAL-time stamp M_D_H_m_s (2-digit,
+ * underscore-separated). UTF-8 out (the label encodes through the shared
+ * text policy). auto_session_name_at takes an explicit tm (deterministic
+ * tests); auto_session_name reads the local clock (naming call - single
+ * thread expected, like every file-naming path). */
+std::string auto_session_name_at(const std::u16string& label, const std::tm& local);
+std::string auto_session_name(const std::u16string& label);
 
 } // namespace session
 } // namespace cr
