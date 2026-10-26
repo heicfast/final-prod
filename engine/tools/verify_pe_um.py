@@ -153,6 +153,26 @@ ALLOWLIST_ADDITIONS = {
     # advapi32 CRT-adjacent
     "RegQueryValueExW": "registry reads (auto-unlock, elevation probe); XP-era",
     "AdjustTokenGroups": "token probe (if linked by elevation path); XP-era",
+    # S-014 / S-010 / M-033 wave (rrecov.exe first flagged these on the
+    # 2026-10-26 gate run): every one Win7-inclusive by construction.
+    "RegQueryInfoKeyW":
+        "S-014 FVEAutoUnlock subkey census (cr_bitlocker.cpp :376, the og's "
+        "DRWService enumeration shape); NT-era API",
+    "GetWindowsDirectoryW":
+        "S-014 offline-hive/system-volume context probe (cr_bitlocker.cpp :456); "
+        "Win16-era API",
+    "GetDiskFreeSpaceExW":
+        "destination free-space gate (cr_destio.cpp :61, the og ExportThread "
+        "insufficient-space analog); Win95OSR2/NT4-era API",
+    "GetTickCount":
+        "transport handle-token entropy mix (cr_transport.cpp :751); Win32 "
+        "day-one API",
+    "GetSystemDirectoryA":
+        "transport system-dir probe (cr_transport.cpp :468; the og's "
+        "FUN_1800017a0 reads it the same way); Win16-era API",
+    "SetVolumeMountPointW":
+        "S-010 quiesce family: re-create the saved volume mount point after "
+        "repair (cr_transport.cpp :842); Win2000-era API",
 }
 
 EXPECTED_MACHINE = 0x8664
