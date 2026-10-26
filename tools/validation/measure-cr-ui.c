@@ -43,6 +43,7 @@
 #endif
 #include <windows.h>
 #include <psapi.h>
+#include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -116,6 +117,19 @@ static void measure_event_fn(void* user, const cr_ui_event* evt) {
                             (LONG)(evt->files_found + evt->deleted_found + evt->carved_found));
 }
 
+/* Streaming JSON evidence: one line per phase AS IT COMPLETES — partial
+ * evidence still lands when a later phase fails (all-or-nothing stdout
+ * lost the scan numbers to a dfs failure on the first real run). */
+static void phase_json(const char* phase, const char* fmt, ...) {
+    va_list ap;
+    va_start(ap, fmt);
+    printf("T14-ENGINE %s ", phase);
+    vprintf(fmt, ap);
+    printf("\n");
+    fflush(stdout);
+    va_end(ap);
+}
+
 /* ------------------------------------------------------------------- main */
 
 static void fail(const char* phase, uint32_t rc) {
@@ -147,6 +161,10 @@ int main(int argc, char** argv) {
         record(&s_enum, now_ms() - t0);
         ndisks = dk; nvols = vv;
     }
+    phase_json("enumerate",
+               "{\"disks\": %u, \"volumes\": %u, \"p50Ms\": %.3f, \"p95Ms\": %.3f, \"iterations\": %d}",
+               (unsigned)ndisks, (unsigned)nvols, s_enum.n ? pct(&s_enum, 0.5) : -1.0,
+               s_enum.n ? pct(&s_enum, 0.95) : -1.0, s_enum.n);
 
     /* ---- pick a volume + its disk ------------------------------------ */
     char sys_letter = 'C';
@@ -175,6 +193,10 @@ int main(int argc, char** argv) {
         }
         record(&s_health, dt);
     }
+    phase_json("health",
+               "{\"supported\": %d, \"p50Ms\": %.3f, \"p95Ms\": %.3f, \"iterations\": %d}",
+               health_supported, s_health.n ? pct(&s_health, 0.5) : -1.0,
+               s_health.n ? pct(&s_health, 0.95) : -1.0, s_health.n);
 
     /* ---- scan (startScan + progress stream + throughput) ------------- */
     cr_ui_device* dev = NULL;
@@ -212,6 +234,13 @@ int main(int argc, char** argv) {
     memset(&stats, 0, sizeof(stats));
     cr_ui_scan_get_stats(scan, &stats);
     SIZE_T mem_after_scan = peak_working_set();
+    phase_json("scan",
+               "{\"runMs\": %.1f, \"firstEventMs\": %.1f, \"events\": %ld, \"filesFound\": %llu, \"bytesScanned\": %llu, \"engineElapsedMs\": %llu, \"throughputBytesPerSecond\": %.0f}",
+               run_ms, g_first_event_ms < 0 ? -1.0 : g_first_event_ms - g_scan_start_ms,
+               (long)g_events,
+               (unsigned long long)(stats.files_found + stats.deleted_found + stats.carved_found),
+               (unsigned long long)tel.bytes_scanned, (unsigned long long)tel.elapsed_ms,
+               tel.elapsed_ms > 0 ? (double)tel.bytes_scanned * 1000.0 / (double)tel.elapsed_ms : 0.0);
 
     /* ---- snapshot + rows (results tree/query on a live scan) --------- */
     double t_snap0 = now_ms();
@@ -227,11 +256,20 @@ int main(int argc, char** argv) {
     uint32_t dfs_need = 0;
     rc = cr_ui_snapshot_dfs(snap, NULL, &dfs_need);
     if (rc != 0) fail("snapshot_dfs(size)", rc);
-    static uint32_t dfs[1u << 20];
-    uint32_t dfs_cap = dfs_need < (1u << 20) ? dfs_need : (1u << 20);
+    /* The runner's system volume can exceed any fixed cap (the first real
+     * run's tree was bigger than the 1M-entry static array) — allocate
+     * exactly what the engine asked for. */
+    uint32_t* dfs = (uint32_t*)malloc(sizeof(uint32_t) * (size_t)dfs_need);
+    if (dfs == NULL) fail("malloc(dfs indices)", 1);
+    uint32_t dfs_cap = dfs_need;
     double t_dfs0 = now_ms();
     rc = cr_ui_snapshot_dfs(snap, dfs, &dfs_cap);
-    if (rc != 0) fail("snapshot_dfs", rc);
+    if (rc != 0) {
+        fprintf(stderr,
+                "snapshot_dfs fill failed rc=0x%08x (needed %u, capacity %u) last_error=%s\n",
+                rc, dfs_need, dfs_cap, cr_ui_last_error());
+        exit(2);
+    }
     double dfs_ms = now_ms() - t_dfs0;
 
     /* paged row reads — the bridge's page shape is 500 rows */
@@ -253,6 +291,10 @@ int main(int argc, char** argv) {
         record(&s_rows, now_ms() - t0);
     }
     SIZE_T mem_after_rows = peak_working_set();
+    phase_json("snapshot",
+               "{\"snapshotMs\": %.1f, \"nodeCount\": %u, \"dfsMs\": %.1f, \"rowsPaged500P50Ms\": %.3f, \"rowsPaged500P95Ms\": %.3f, \"pages\": %d}",
+               snap_ms, (unsigned)nodes, dfs_ms, s_rows.n ? pct(&s_rows, 0.5) : -1.0,
+               s_rows.n ? pct(&s_rows, 0.95) : -1.0, s_rows.n);
 
     /* ---- preview (requestPreview) ------------------------------------ */
     double pv_open_ms = 0, pv_read_ms = 0, pv_meta_ms = 0;
@@ -285,44 +327,24 @@ int main(int argc, char** argv) {
     } else {
         fprintf(stderr, "no file node in snapshot — preview phase recorded unavailable\n");
     }
+    phase_json("preview",
+               "{\"available\": %d, \"openMs\": %.3f, \"read64KiBMs\": %.3f, \"metadataMs\": %.3f, \"fileSize\": %llu}",
+               preview_done, pv_open_ms, pv_read_ms, pv_meta_ms,
+               (unsigned long long)pv_size);
 
-    /* ---- report ------------------------------------------------------- */
-    double enum_p50 = s_enum.n ? pct(&s_enum, 0.5) : -1;
-    double enum_p95 = s_enum.n ? pct(&s_enum, 0.95) : -1;
-    double health_p50 = s_health.n ? pct(&s_health, 0.5) : -1;
-    double health_p95 = s_health.n ? pct(&s_health, 0.95) : -1;
-    double rows_p50 = s_rows.n ? pct(&s_rows, 0.5) : -1;
-    double rows_p95 = s_rows.n ? pct(&s_rows, 0.95) : -1;
-    double tput = tel.elapsed_ms > 0 ? (double)tel.bytes_scanned * 1000.0 / (double)tel.elapsed_ms : 0;
+    /* ---- final lines (memory + context; every phase already streamed) -- */
+    phase_json("memory",
+               "{\"peakWorkingSetBeforeScanBytes\": %llu, \"peakAfterScanBytes\": %llu, \"peakAfterRowsBytes\": %llu}",
+               (unsigned long long)mem_before_scan, (unsigned long long)mem_after_scan,
+               (unsigned long long)mem_after_rows);
+    phase_json("context",
+               "{\"abiVersion\": %u, \"stageMask\": %u, \"volume\": \"%c\", \"volumeBytes\": %llu}",
+               (unsigned)abi, (unsigned)cfg.stage_mask, sys_letter,
+               (unsigned long long)geom.total_bytes);
+    printf("T14-ENGINE retiredSimulatorBudgetsMs {\"listDevices\": [120, 240], \"startScan\": [300, 540], \"queryResults\": [40, 140], \"preview\": [80, 400], \"health\": [160, 400]}\n");
+    fflush(stdout);
 
-    printf("{\n");
-    printf("  \"abiVersion\": %u,\n", (unsigned)abi);
-    printf("  \"stageMask\": %u,\n", (unsigned)cfg.stage_mask);
-    printf("  \"volume\": \"%c\",\n", sys_letter);
-    printf("  \"volumeBytes\": %llu,\n", (unsigned long long)geom.total_bytes);
-    printf("  \"enumerate\": { \"disks\": %u, \"volumes\": %u, \"p50Ms\": %.3f, \"p95Ms\": %.3f, \"iterations\": %d },\n",
-           (unsigned)ndisks, (unsigned)nvols, enum_p50, enum_p95, s_enum.n);
-    printf("  \"health\": { \"supported\": %d, \"p50Ms\": %.3f, \"p95Ms\": %.3f, \"iterations\": %d },\n",
-           health_supported, health_p50, health_p95, s_health.n);
-    printf("  \"scan\": { \"runMs\": %.1f, \"firstEventMs\": %.1f, \"events\": %ld, \"filesFound\": %llu, \"bytesScanned\": %llu, \"engineElapsedMs\": %llu, \"throughputBytesPerSecond\": %.0f },\n",
-           run_ms,
-           g_first_event_ms < 0 ? -1.0 : g_first_event_ms - g_scan_start_ms,
-           (long)g_events,
-           (unsigned long long)(stats.files_found + stats.deleted_found + stats.carved_found),
-           (unsigned long long)tel.bytes_scanned,
-           (unsigned long long)tel.elapsed_ms,
-           tput);
-    printf("  \"snapshot\": { \"snapshotMs\": %.1f, \"nodeCount\": %u, \"dfsMs\": %.1f, \"rowsPaged500P50Ms\": %.3f, \"rowsPaged500P95Ms\": %.3f, \"pages\": %d },\n",
-           snap_ms, (unsigned)nodes, dfs_ms, rows_p50, rows_p95, s_rows.n);
-    printf("  \"preview\": { \"available\": %d, \"openMs\": %.3f, \"read64KiBMs\": %.3f, \"metadataMs\": %.3f, \"fileSize\": %llu },\n",
-           preview_done, pv_open_ms, pv_read_ms, pv_meta_ms, (unsigned long long)pv_size);
-    printf("  \"memory\": { \"peakWorkingSetBeforeScanBytes\": %llu, \"peakAfterScanBytes\": %llu, \"peakAfterRowsBytes\": %llu },\n",
-           (unsigned long long)mem_before_scan,
-           (unsigned long long)mem_after_scan,
-           (unsigned long long)mem_after_rows);
-    printf("  \"retiredSimulatorBudgetsMs\": { \"listDevices\": [120, 240], \"startScan\": [300, 540], \"queryResults\": [40, 140], \"preview\": [80, 400], \"health\": [160, 400] }\n");
-    printf("}\n");
-
+    free(dfs);
     cr_ui_snapshot_close(snap);
     cr_ui_scan_close(scan);
     cr_ui_device_close(dev);

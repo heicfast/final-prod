@@ -53,11 +53,13 @@ jobs:
           # The harness links cr_ui.dll statically — run it from the kit dir.
           Copy-Item measure-cr-ui.exe -Destination $kit
           Push-Location $kit
-          .\measure-cr-ui.exe --quick-only > "$env:GITHUB_WORKSPACE\t14-engine.json"
+          # Streaming per-phase JSON lines: partial evidence survives a later
+          # phase failure.
+          .\measure-cr-ui.exe --quick-only > "$env:GITHUB_WORKSPACE\t14-engine.jsonl"
           $rc = $LASTEXITCODE
           Pop-Location
           if ($rc -ne 0) { exit 1 }
-          Get-Content "$env:GITHUB_WORKSPACE\t14-engine.json" | Write-Host
+          Get-Content "$env:GITHUB_WORKSPACE\t14-engine.jsonl" | Write-Host
 
       - name: Bridge-side measurements (G-7 filter cost + NodeMeta memory bound)
         uses: dtolnay/rust-toolchain@stable
@@ -81,7 +83,8 @@ jobs:
           $rc = $LASTEXITCODE
           Pop-Location
           if ($rc -ne 0) { exit 1 }
-          # Extract the JSON evidence lines.
+          # Extract the JSON evidence lines (cargo captures stdout; the
+          # T14JSON: prefix survives --nocapture).
           Select-String -Path t14-bridge.log -Pattern 'T14JSON:' |
             ForEach-Object { $_.Line -replace '^.*T14JSON: ', '' } | Set-Content t14-bridge.jsonl
           Get-Content t14-bridge.jsonl | Write-Host
@@ -106,7 +109,7 @@ jobs:
         with:
           name: t14-measurements
           path: |
-            t14-engine.json
+            t14-engine.jsonl
             t14-bridge.jsonl
             t14-bridge.log
             runner-context.json
