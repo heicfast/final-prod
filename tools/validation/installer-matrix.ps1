@@ -47,6 +47,7 @@ param(
 $ErrorActionPreference = 'Stop'
 
 $InstallDir = "$env:ProgramFiles\HeicFast\Recovery Wizard"
+$AppExeName = 'Recovery Wizard.exe'   # tauri productName (APP_EXE in recoverywizard.nsi)
 $Unkey = 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\HeicFast Recovery Wizard'
 $SwKey = 'HKLM:\SOFTWARE\HeicFast\Recovery Wizard'
 $SessionsDir = "$env:ProgramData\HeicFast\Recovery Wizard\sessions"
@@ -142,7 +143,7 @@ if ($install.exitCode -ne 0) {
     throw "installer exited $($install.exitCode)"
 }
 
-$appExe = Join-Path $InstallDir 'RecoveryWizard.exe'
+$appExe = Join-Path $InstallDir $AppExeName
 $crUi = Join-Path $InstallDir 'cr_ui.dll'
 $installed = [ordered]@{
     appExePresent = Test-Path $appExe
@@ -221,7 +222,7 @@ $un = "$InstallDir\HeicFastUninstall.exe"
 $sw = [System.Diagnostics.Stopwatch]::StartNew()
 $p = Start-Process -FilePath $un -ArgumentList '/S' -Wait -PassThru
 $sw.Stop()
-Start-Sleep -Seconds 3
+Start-Sleep -Seconds 5
 
 $after = [ordered]@{
     exitCode          = $p.ExitCode

@@ -188,10 +188,19 @@ function Invoke-Installer {
         Sort-Object LastWriteTime -Descending | Select-Object -First 1
     if (-not $appBundle) { throw 'no Tauri NSIS app bundle found; run the ui lane first' }
     $makensis = Find-Makensis
-    & $makensis "/DPRODUCT_VERSION=$Version" "/DAPP_BUNDLE=$($appBundle.FullName)" `
-        "/DENGINE_KIT=$(Join-Path $StageDir 'engine')" `
-        "/DDRIVER_STAGE=$(Join-Path $StageDir 'driver')" `
-        "/DOUT_DIR=$OutDir" (Join-Path $RepoRoot 'installer\recoverywizard.nsi')
+    # NSIS define paths are normalized to FORWARD slashes: makensis's File
+    # globbing accepts backslash single-file paths but a mixed
+    # 'D:\dir\kit/*' filespec finds no files (first seen on a real Windows
+    # runner — the local compile-check had used forward slashes throughout,
+    # which is why it never caught this).
+    $appBundleFwd   = ($appBundle.FullName -replace '\\', '/')
+    $engineKitFwd   = ((Join-Path $StageDir 'engine') -replace '\\', '/')
+    $driverStageFwd = ((Join-Path $StageDir 'driver') -replace '\\', '/')
+    $outDirFwd      = ($OutDir -replace '\\', '/')
+    & $makensis "/DPRODUCT_VERSION=$Version" "/DAPP_BUNDLE=$appBundleFwd" `
+        "/DENGINE_KIT=$engineKitFwd" `
+        "/DDRIVER_STAGE=$driverStageFwd" `
+        "/DOUT_DIR=$outDirFwd" (Join-Path $RepoRoot 'installer\recoverywizard.nsi')
     if ($LASTEXITCODE -ne 0) { throw 'installer build failed' }
     Write-Host "[installer] -> $OutDir\RecoveryWizard-$Version-setup.exe"
 }

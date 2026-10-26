@@ -236,7 +236,7 @@ int main(int argc, char** argv) {
 
     /* paged row reads — the bridge's page shape is 500 rows */
     samples_t s_rows = {0};
-    uint64_t first_file_node = 0;
+    uint32_t first_file_row = CR_UI_SNAP_NONE; /* row INDEX (preview addressing) */
     static cr_ui_node_info nfo;
     static char namebuf[1024];
     for (uint32_t off = 0; off + 500 <= dfs_cap; off += 500) {
@@ -244,8 +244,11 @@ int main(int argc, char** argv) {
         for (uint32_t i = 0; i < 500; i++) {
             if (cr_ui_snapshot_node(snap, dfs[off + i], &nfo, namebuf, sizeof(namebuf)) != 0)
                 fail("snapshot_node", 1);
-            if (first_file_node == 0 && !(nfo.attributes & 0x10) && nfo.logical_size > 0)
-                first_file_node = nfo.node_id;
+            /* cr_ui_preview_open_snapshot addresses by ROW INDEX (cr_ui.h:
+             * 'snapshot row index, or session node_id') — not node_id. */
+            if (first_file_row == CR_UI_SNAP_NONE && !(nfo.attributes & 0x10) &&
+                nfo.logical_size > 0)
+                first_file_row = dfs[off + i];
         }
         record(&s_rows, now_ms() - t0);
     }
@@ -255,10 +258,10 @@ int main(int argc, char** argv) {
     double pv_open_ms = 0, pv_read_ms = 0, pv_meta_ms = 0;
     uint64_t pv_size = 0;
     int preview_done = 0;
-    if (first_file_node != 0) {
+    if (first_file_row != CR_UI_SNAP_NONE) {
         cr_ui_preview* pv = NULL;
         double t0 = now_ms();
-        rc = cr_ui_preview_open_snapshot(dev, snap, first_file_node, &pv);
+        rc = cr_ui_preview_open_snapshot(dev, snap, first_file_row, &pv);
         pv_open_ms = now_ms() - t0;
         if (rc == 0 && pv) {
             preview_done = 1;
@@ -266,9 +269,8 @@ int main(int argc, char** argv) {
             t0 = now_ms();
             static unsigned char readbuf[64 * 1024];
             uint32_t got = 0;
-            uint64_t unreadable = 0;
             uint64_t want = pv_size < 65536 ? pv_size : 65536;
-            cr_ui_preview_read(pv, 0, readbuf, (uint32_t)want, &got, &unreadable);
+            cr_ui_preview_read(pv, 0, readbuf, (uint32_t)want, &got);
             pv_read_ms = now_ms() - t0;
             static cr_ui_metadata meta;
             t0 = now_ms();
