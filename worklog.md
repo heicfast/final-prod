@@ -340,3 +340,49 @@ Every claim above is verifiable: the runs are in the repository's Actions
 history at the named SHAs; the committed evidence artifacts are in
 docs/INTEGRATION-VALIDATION/ and docs/; the manifest's removed-commands
 rationale is in contracts/command-surface.json itself.
+
+---
+
+## 2026-10-26T18:35Z — G-1 (a) SHIPPED (consent flow end to end); TSan green; the T14/T15 pipeline dispatched
+
+The one capability gap with a UX consequence is closed (G-1 follow-up (a),
+the ratified plan §4.5 design), pushed through three CI rounds with every
+red fixed for the cause:
+
+- Bridge: bridge/consent.rs (ConsentGate + ConsentPipe + the sink), the
+  state-registry consent map, scan_start arming the REAL callback, cancel
+  force-deny (the deadlock rule), the run-tail pipe free + survivor close +
+  undo-log persistence after an approved repair, consent_respond re-added
+  (the removed[] entry retired), scan_state's pendingConsent re-hydration.
+- Contracts: command-surface v2 (34 commands, 6 events), consent-not-found
+  in bridgeOnlyCodes, event-mapping.md's consent section rewritten to the
+  shipped scan-scoped keying (the plan §4.3 deviation recorded, plan text
+  stays frozen).
+- TS/UI: the typed prompt on the scan page (non-dismissable, Deny the safe
+  default, refused/no-action Approve disabled), the consent store (event +
+  state re-hydration), 38 connector methods, en/zh locales.
+- Tests: 130/130 vitest, 14/14 e2e (2 new consent specs — the round-1
+  re-hydration spec taught the hash-router lesson: page.goto destroys the
+  in-memory double; the fixture navigates by location.hash now), the
+  double's Desktop-target damaged-volume fixture (walk BLOCKED until
+  answered, mirroring the run thread).
+- Round reds, root-caused: Borrow<&str> map lookup (&&str), a
+  prettier-missed spec edit, the responsive keyboard spec's latent
+  mount-race (either-name regex matched h1+h2 — pinned to the page h1),
+  clippy type_complexity on the 4-tuple (ScanPrep struct, R7 style).
+
+Also this window:
+- engine-ci TSan: the original job was wedged >9h on one step (cancelled);
+  the re-run completed GREEN — the lane is 6/6 at a790cf9b.
+- The T14/T15 pipeline: tools/validation/measure-cr-ui.c (engine-side
+  harness against the staged kit, pinned-header include), the results.rs
+  #[ignore]d G-7 filter/memory measurements (ui-ci check gains --tests),
+  tools/validation/installer-matrix.ps1, and validation-evidence.yml —
+  dispatched at d87c7d3c (run 40377623726).
+- A real bug fixed while writing the matrix: the uninstaller's MB_YESNO
+  sessions prompt auto-answered YES in silent mode — /S uninstalls silently
+  WIPED ProgramData. Silent now keeps state; interactive consent deletes.
+
+Remaining: watch the validation run (T14/T15 evidence), commit the reviewed
+evidence into docs/INTEGRATION-VALIDATION/, then T18 (cut v0.5.0-rc1, watch
+release.yml end to end, clean-runner install via the matrix, final tag).
