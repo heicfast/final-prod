@@ -247,9 +247,33 @@ M-048) · MINOR 5 open (N-007, N-059, N-065, N-066, N-072) · INFO 0
 actionable (all acknowledged) · FIXED/ grows with every parallel
 landing (live count at the RESOLVED-INDEX; the window's parallel lanes
 closed M-014/M-020/M-025/M-029/M-035/M-052 among the MAJORs).
-Suite **848/848** linux-release; ASan lane green. Next on this lane:
-M-018 (FilterFolder junk filter) → M-039 (occupancy bitmap) → M-048
-(signature DB) → M-030/M-034/M-040/M-041.
+**M-034 FIXED (MAJOR — resolved by scope registration):** the NAS/
+remote-layer finding existed to force a disposition that had never
+been made anywhere; PARITY-DELTAS D-88 now registers the exclusion
+(what the og does: CRemoteDevice/CDoScanRemoteDevice + EuMrx; what
+the core does: five local-device layers, transport-agnostic contract;
+why: the EuMrx interop is host plumbing, the corpus proves scan-path
+plumbing only — the REVISIT TRIGGER is a decode of the og's actual
+deleted-file yield over SMB). cr_device.h divergence block +
+`Storage.ParityDeltasListsNasExclusion` doc-truth pin.
+
+**Convergence record (M-052):** a parallel lane (DFX35) landed a
+convergent M-052 implementation that hit origin first and is
+corpus-richer on one axis (the og's FOUR-name root set incl. the
+"$RECYCLE.BI0" FAT-mangled form, verified in all three SearchDLLs);
+their inline-header API is canonical after the union, this lane's
+three-root .cpp implementation dropped cleanly. Their landing also
+filed+fixed N-079 (the NTFS bin-scope defect — out-of-bin $I/$R
+handling); this lane's log-seam leak finding renumbered N-079→N-080
+(same-window ID collision, first-landing-wins). Two more pushed-red
+unions repaired this window (the M-052-era source-file markers; the
+re-broken rrecov.cpp/cr_bitlocker.h — the canonical cr::dict design
+restored both times).
+
+**Post-fix counts (live file inventory at this session's push):**
+SEVERE 0 · MAJOR 3 open (M-030, M-039, M-040) · MINOR 1 open (N-072)
+· INFO 0 actionable · suite **893/893** linux-release. Next on this
+lane: M-039 (occupancy bitmap) → M-030 (transport) → M-040.
 
 
 ## Session-34 delta (2026-10-26 — DFX34: the N-064 convergent-landing reconciliation + the MINOR-tail lane)

@@ -15673,3 +15673,16 @@ Work Log:
 Stage Summary:
 - Lane open. S-034 decode starts now (corpus: ZfsSearchDLL_decompiled.c
   ring walk + addBlock + the ZplNode visitor path).
+
+---
+Task ID: DFX24-T8 (M-034 + the M-052 convergence union)
+Agent: DFX24 (session 24, the MAJOR lane)
+Task: M-034 NAS scope disposition; the convergent-M-052 union repair
+
+Work Log:
+- M-034: product decision made and registered — PARITY-DELTAS D-88 (NAS/remote scanning excluded from core device scope; EuMrx = host-layer surface; the corpus proves scan-path plumbing only — the REVISIT TRIGGER). cr_device.h divergence block + Storage.ParityDeltasListsNasExclusion doc-truth pin. Finding -> FIXED/ (scope registration = the fix plan's step 3).
+- M-052 convergence: the parallel DFX35 lane's convergent implementation hit origin first (four-root set incl. $RECYCLE.BI0, verified in all three SearchDLLs — corpus-richer than the artifact's three roots); their inline-header API adopted as canonical; this lane's .cpp dropped cleanly; the two Resolutions unioned with the convergence record; my N-079 renumbered N-080 (ID collision with their NTFS bin-scope finding, first-landing-wins).
+- Pushed-red unions repaired (twice this window): the M-052-era markers across cr_recycle.h/cr_fat_quick/cr_exfat_quick/cr_mftwalk/test files + the re-broken rrecov.cpp/cr_bitlocker.h (canonical cr::dict design restored). Suite 893/893.
+
+Stage Summary:
+- M-034 FIXED (scope registration). M-052 canonical after convergence. Remaining MAJOR: M-030, M-039, M-040.

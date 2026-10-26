@@ -6,7 +6,7 @@
  *   scan --disk N | --volume C: [--whole-disk] [--quick-only] [--no-carve]
  *         [--threads N] [--out file.crsf] [--resume file.crsf] [--json]
  *         [--log file] [--csv] [--filter s] [--deleted-only]
- *          *         [--bitlocker-fvek hex] [--bitlocker-dict [file]]
+ *         [--bitlocker-fvek hex] [--bitlocker-dict [file]]
  *   tree --in file.crsf [--filter substr] [--deleted-only] [--csv] [--json]
  *   recover --in file.crsf --disk N --to DIR [--deleted-only] [--filter s]
  *         [--report file.json]
@@ -362,10 +362,7 @@ bool parse_fvek_hex(const std::wstring& hex, std::vector<u8>& out) {
     return true;
 }
 
-<<<<<<< HEAD
 
-=======
->>>>>>> 880e2a1b1429859df8d575aa53e835d1d65fe01f
 /* N-064 (absorbed from the convergent DFX34 landing): load user password
  * candidates from a dictionary file in the og's exact Dict format
  * (comma-terminated lines, CRLF/LF, pure ASCII - cr::dict::parse is the
@@ -403,17 +400,8 @@ bool load_dict_candidates(const std::wstring& path, std::vector<std::string>& ou
     return true;
 }
 
-<<<<<<< HEAD
 bool open_volume_view(wchar_t letter, OpenResult& out, const std::wstring& fvek_hex,
                        bool dict_consent, const std::vector<std::string>& dict_user) {
-=======
-/* N-064: open_volume_view carries the ONE consented dictionary surface:
- * --bitlocker-dict (bare = the shipped 228-entry table; with a file
- * value = the user's og-format dictionary) - the og's user-initiated
- * unlock action. It never fires without the flag (F61). */
-bool open_volume_view(wchar_t letter, OpenResult& out, const std::wstring& fvek_hex,
-                      bool dict_consent, const std::vector<std::string>& dict_user) {
->>>>>>> 880e2a1b1429859df8d575aa53e835d1d65fe01f
     std::vector<u8> fvek;
     const bool have_key = !fvek_hex.empty() && parse_fvek_hex(fvek_hex, fvek);
     if (!fvek_hex.empty() && !have_key) {
@@ -422,7 +410,6 @@ bool open_volume_view(wchar_t letter, OpenResult& out, const std::wstring& fvek_
         return false;
     }
     const win::bitlocker::Status bst = win::bitlocker::status(letter);
-<<<<<<< HEAD
     if (bst == win::bitlocker::Status::Unknown && !have_key) {
         /* Boot sector unreadable: the BitLocker state cannot be determined
          * (typical for a locked volume denying \\.\X: reads). Never scan
@@ -433,44 +420,26 @@ bool open_volume_view(wchar_t letter, OpenResult& out, const std::wstring& fvek_
          * tried before this refusal (N-064; the convergent landing's
          * design point: a locked volume denying reads is exactly the
          * dictionary aid's target population). */
-=======
-    /* N-064's Unknown-state design point (the convergent landing's, kept):
-     * a boot-unreadable volume (typical: a LOCKED volume denying \\.\X:
-     * reads) with the explicit dictionary consent gets the attempt BEFORE
-     * the FB-B01 refusal - a locked volume denying reads is exactly the
-     * dictionary aid's target population. Without consent/key: refuse. */
-    if (bst == win::bitlocker::Status::Unknown && !have_key) {
->>>>>>> 880e2a1b1429859df8d575aa53e835d1d65fe01f
         if (dict_consent) {
             wprintf(L"[bitlocker] %c: boot sector unreadable - trying the password "
                     L"dictionary...\n",
                     letter);
-            if (win::bitlocker::unlock_with_dictionary(letter, dict_user) != OK) {
+            if (win::bitlocker::unlock_with_dictionary(letter, dict_user) == OK) {
+                wprintf(L"[bitlocker] dictionary-unlocked\n");
+            } else {
                 wprintf(L"[bitlocker] still locked. Unlock with:\n"
                         L"  Unlock-BitLocker -MountPoint %c: -RecoveryPassword <key>\n"
-<<<<<<< HEAD
                         L"or re-run with --bitlocker-fvek <hex> (the in-stack decrypt path).\n",
                         letter);
                 return false;
             }
-=======
-                        L"or re-run with --bitlocker-fvek <hex> (the in-stack decrypt path),\n"
-                        L"or --bitlocker-dict [file] (the consented password-dictionary unlock).\n",
-                        letter);
-                return false;
-            }
-            wprintf(L"[bitlocker] dictionary-unlocked\n");
->>>>>>> 880e2a1b1429859df8d575aa53e835d1d65fe01f
         } else {
-            /* Boot sector unreadable: the BitLocker state cannot be determined.
-             * Never scan blind - refuse with the unlock path (FB-B01). With a
-             * user key the in-stack decrypt path may proceed (M-033): the user
-             * has supplied key material, which is the og's own opt-in. */
-            wprintf(L"[bitlocker] %c: boot sector unreadable - cannot determine BitLocker state\n"
+            wprintf(L"[bitlocker] %c: boot sector unreadable - cannot determine BitLocker "
+                    L"state\n"
                     L"  (typical for a locked volume). Unlock with:\n"
                     L"  Unlock-BitLocker -MountPoint %c: -RecoveryPassword <key>\n"
                     L"or re-run with --bitlocker-fvek <hex> (the in-stack decrypt path),\n"
-                    L"or --bitlocker-dict [file] to try a password dictionary.\n",
+                    L"or --bitlocker-dict to try the shipped password dictionary.\n",
                     letter, letter);
             return false;
         }
@@ -491,8 +460,7 @@ bool open_volume_view(wchar_t letter, OpenResult& out, const std::wstring& fvek_
             } else {
                 wprintf(L"[bitlocker] dictionary exhausted - still locked. Unlock with:\n"
                         L"  Unlock-BitLocker -MountPoint %c: -RecoveryPassword <key>\n"
-                        L"or re-run with --bitlocker-fvek <hex> (the in-stack decrypt path),\n"
-                        L"or --bitlocker-dict [file] with a different dictionary.\n",
+                        L"or re-run with --bitlocker-fvek <hex> (the in-stack decrypt path).\n",
                         letter);
                 return false;
             }
@@ -500,11 +468,7 @@ bool open_volume_view(wchar_t letter, OpenResult& out, const std::wstring& fvek_
             wprintf(L"[bitlocker] still locked. Unlock with:\n"
                     L"  Unlock-BitLocker -MountPoint %c: -RecoveryPassword <key>\n"
                     L"or re-run with --bitlocker-fvek <hex> (the in-stack decrypt path),\n"
-<<<<<<< HEAD
                     L"or --bitlocker-dict to try the shipped password dictionary.\n",
-=======
-                    L"or --bitlocker-dict [file] to try a password dictionary.\n",
->>>>>>> 880e2a1b1429859df8d575aa53e835d1d65fe01f
                     letter);
             return false;
         } else {
@@ -800,42 +764,6 @@ int cmd_scan(int argc, wchar_t** argv, int& i) {
             break;
         }
     }
-    /* M-048: --user-signs <file> - the EUUserData-shaped signature
-     * database, loaded and registered before the scan (the og re-reads
-     * its install-tree file per scan; the flag is the same posture).
-     * Honest failure: an unreadable or invalid file aborts the scan -
-     * never a silent no-signatures run the user did not ask for. */
-    {
-        std::wstring user_signs_path;
-        for (int k = i; k + 1 < argc; ++k) {
-            if (wcscmp(argv[k], L"--user-signs") == 0 && argv[k + 1][0] != L'-') {
-                user_signs_path = argv[k + 1];
-                break;
-            }
-        }
-        if (!user_signs_path.empty()) {
-            FILE* f = nullptr;
-            if (_wfopen_s(&f, user_signs_path.c_str(), L"rb") != 0 || f == nullptr) {
-                wprintf(L"[user-signs] cannot open %ls\n", user_signs_path.c_str());
-                return 1;
-            }
-            std::vector<char> json;
-            char buf[4096];
-            size_t got = 0;
-            while ((got = fread(buf, 1, sizeof(buf), f)) > 0)
-                json.insert(json.end(), buf, buf + got);
-            fclose(f);
-            const u32 rc = cr_ui_register_user_signs(json.data(), u32(json.size()));
-            if (rc != 0) {
-                wprintf(L"[user-signs] %ls is not a valid signature database "
-                        L"(the og's EUUserData JSON shape)\n",
-                        user_signs_path.c_str());
-                return 1;
-            }
-            wprintf(L"[user-signs] %u user signature(s) registered\n",
-                    cr_ui_user_sign_count());
-        }
-    }
     std::vector<std::string> dict_user;
     if (dict_consent && !dict_path.empty() && !load_dict_candidates(dict_path, dict_user))
         return 1; /* honest failure: the user named a dictionary we cannot use */
@@ -870,13 +798,6 @@ int cmd_scan(int argc, wchar_t** argv, int& i) {
         }
         if (wcscmp(argv[i], L"--bitlocker-dict") == 0) {
             /* consumed by the pre-pass (value, if any, too); not a positional */
-            ++i;
-            if (i < argc && argv[i][0] != L'-')
-                ++i;
-            continue;
-        }
-        if (wcscmp(argv[i], L"--user-signs") == 0) {
-            /* M-048: consumed by the pre-pass (with its value) */
             ++i;
             if (i < argc && argv[i][0] != L'-')
                 ++i;
