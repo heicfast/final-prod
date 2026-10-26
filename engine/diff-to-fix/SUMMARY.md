@@ -24,8 +24,26 @@ the error-context carrier (`8ba2316` — per-thread RAII stamps + the retry
 device's owner fallback + the err_module/err_operation/err_attempts event/ABI
 triple; 8 tests, suite 745/745 at its tree) while this lane's duplicate
 implementation was mid-flight. The duplicate was dropped; the landing was
-reviewed sound on the merged tree (suite green below). This lane proceeds to
-M-035 — also named as DFX24's next target; first-landing-wins on the pull.
+reviewed sound on the merged tree (suite green below).
+
+**M-035 FIXED (MAJOR — the engine-side FileFilter validation):** the og's
+exFAT-only lost-candidate content-consistency scorer (FUN_180025390, re-verified
+line-by-line first-hand incl. the classifier and the filter-set helper) is now
+the `cr::lost` scorer: considered/filterable/matched counters decompile-exact,
+the reject rule `considered/2 <= filterable && ratio < 0.3 && filterable != 0`
+(STRICT < — corrected from the decompile's `<= 0.3 && != 0.3`; the finding
+text said `<=`), the substring classifier + MOV/MP4/JPG family specials,
+out-of-bounds data-start invalidation. scan_candidate scores the walked files
+after the engine dispatch and detaches the subtree on reject (the new
+ResultTree::detach_subtree — the memory-safe drop mechanism), zeroes the
+counts, bumps ScanStats::lost_content_rejected. The candidate stays listed
+(per-hit persistence, M-042). 15 tests (the finding's 3 named + helpers +
+detach + 2 end-to-end whole-disk ghost scans); fail-before EXECUTED; suite
+**808/808**. Corpus corrections: the reject boundary is strict-<; the finding's
+"failed" label for iVar17 is the CHECKABLE count (the majority gate is
+checkable-dominated, not mismatch-dominated). This lane proceeds per the open
+inventory (M-052/M-018/M-020 contested with the parallel lanes — pull-check
+before each).
 
 
 ## Session-30 delta (2026-10-26 — DFX30: the tracked-open tail lane — OQ resolutions + NEW-FINDING S-034)

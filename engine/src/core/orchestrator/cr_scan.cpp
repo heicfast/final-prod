@@ -25,6 +25,7 @@
 #include "cr/fat/cr_fat_engine.h"
 #include "cr/hfsplus/cr_hfsplus_engine.h"
 #include "cr/lost/cr_lostpart.h"
+#include "cr/lost/cr_consistency.h"
 #include "cr/ntfs/cr_bootstrap.h"
 #include "cr/ntfs/cr_bitmap.h"
 #include "cr/ntfs/cr_mftwalk.h"
@@ -83,6 +84,36 @@ u32 module_for_family(FsFamily fam) {
         return errmod::kZfs;
     default:
         return errmod::kOrchestrator;
+    }
+}
+
+/* M-035: collect the walked files under a candidate root for the
+ * content-consistency scorer. Safe on the candidate's own worker thread
+ * after its dispatch returned (single-writer handoff: only this thread
+ * emitted into this root; other candidates' workers never touch it). */
+void collect_consistency_files(tree::FullNode* root, std::vector<lost::ConsistencyFile>& out) {
+    if (root == nullptr)
+        return;
+    std::vector<tree::FileNode*> stack;
+    for (tree::FileNode* c = root->first_child(); c != nullptr; c = c->next_sibling())
+        stack.push_back(c);
+    while (!stack.empty()) {
+        tree::FileNode* n = stack.back();
+        stack.pop_back();
+        const tree::FileProperties* p = n->props();
+        if (p != nullptr) {
+            lost::ConsistencyFile f;
+            f.name = &p->name;
+            f.is_directory = (p->attributes & 0x10) != 0; /* ATTR_DIRECTORY */
+            f.length = p->logical_size;
+            if (!p->extents.empty()) {
+                f.has_extent = true;
+                f.data_start = p->extents.front().offset;
+            }
+            out.push_back(f);
+        }
+        for (tree::FileNode* c = n->first_child(); c != nullptr; c = c->next_sibling())
+            stack.push_back(c);
     }
 }
 
@@ -1421,6 +1452,7 @@ u32 ScanController::run_deep(IStorageDevice* slice, CancelToken* cancel,
                         struct Out {
                             u64 files = 0;
                             u64 deleted = 0;
+                            u64 content_rejected = 0;
                             u32 rc = OK;
                         };
                         std::vector<Out> outs(work.size());
@@ -1444,30 +1476,38 @@ u32 ScanController::run_deep(IStorageDevice* slice, CancelToken* cancel,
                         u32 first_err = parallel_for(pool, n, [&](u64 i) -> u32 {
                             out_arr[i].rc = scan_candidate(items[i].slice.get(), items[i].root,
                                                            cancel, out_arr[i].files,
-                                                           out_arr[i].deleted, deep_cb, &dbridge);
+                                                           out_arr[i].deleted, deep_cb, &dbridge,
+                                                           &out_arr[i].content_rejected);
                             return OK; /* candidate misses never abort the scan */
                         });
                         cancel_watcher.done();
                         for (const auto& o : outs) {
                             stats.files_found += o.files;
                             stats.deleted_found += o.deleted;
+                            stats.lost_content_rejected += o.content_rejected; /* M-035 */
                             (void)o.rc;
                         }
                         if (first_err != OK)
                             rc = first_err;
                         /* F-1: candidate nodes are CANDIDATE-relative; the pool
                          * has joined, so rebase each candidate's private
-                         * subtree to the disk basis on this thread */
-                        for (const auto& w : work)
-                            tree_.rebase_subtree_extents(w.root, w.base);
+                         * subtree to the disk basis on this thread (a
+                         * content-REJECTED candidate's subtree was detached
+                         * - its root is empty and the rebase is a no-op,
+                         * but skipping it keeps the intent explicit) */
+                        for (size_t wi = 0; wi < work.size(); ++wi)
+                            if (outs[wi].content_rejected == 0)
+                                tree_.rebase_subtree_extents(work[wi].root, work[wi].base);
                     } else {
                         for (auto& w : work) {
-                            u64 files = 0, deleted = 0;
+                            u64 files = 0, deleted = 0, content_rejected = 0;
                             (void)scan_candidate(w.slice.get(), w.root, cancel, files, deleted,
-                                                 deep_cb, &dbridge);
+                                                 deep_cb, &dbridge, &content_rejected);
                             stats.files_found += files;
                             stats.deleted_found += deleted;
-                            tree_.rebase_subtree_extents(w.root, w.base);
+                            stats.lost_content_rejected += content_rejected; /* M-035 */
+                            if (content_rejected == 0) /* detached: nothing to rebase */
+                                tree_.rebase_subtree_extents(w.root, w.base);
                         }
                     }
                 }
@@ -1491,7 +1531,8 @@ u32 ScanController::run_deep(IStorageDevice* slice, CancelToken* cancel,
 
 u32 ScanController::scan_candidate(IStorageDevice* cand_slice, tree::FullNode* croot,
                                    CancelToken* cancel, u64& files_out, u64& deleted_out,
-                                   bool (*progress)(u64, u64, void*), void* progress_user) {
+                                   bool (*progress)(u64, u64, void*), void* progress_user,
+                                   u64* content_rejected) {
     /* M-049: the probe is the orchestrator's read; the dispatch is the
      * candidate's family - stamped HERE (not at the fan-out site) so
      * every pool task carries its own candidate's attribution exactly,
@@ -1518,6 +1559,37 @@ u32 ScanController::scan_candidate(IStorageDevice* cand_slice, tree::FullNode* c
                                              progress_user, tree_, croot, croot, croot);
     files_out += er.files;
     deleted_out += er.deleted;
+
+    /* M-035: the og's ENGINE-SIDE content-consistency validation, ported
+     * to our seam (the og runs it inside the exFAT engine's candidate
+     * walk - FUN_180025390, exFAT-only per OQ-FLT-1's cross-engine scan;
+     * our engines emit directly into the shared tree, so the score runs
+     * over the walk's output HERE and a reject detaches the subtree -
+     * same observable outcome: a content-inconsistent candidate surfaces
+     * no files). Uniform for every exFAT candidate-shaped walk (the lost
+     * fan-out AND the LDM volume scans); the og's LDM-path wiring is
+     * corpus-UNVERIFIED (documented with the finding). */
+    if (fam == FsFamily::Exfat) {
+        std::vector<lost::ConsistencyFile> files;
+        collect_consistency_files(croot, files);
+        const lost::ConsistencyVerdict v =
+            lost::score_content_consistency(cand_slice, files.data(), files.size());
+        if (v.rejected) {
+            tree_.detach_subtree(croot);
+            files_out = 0;
+            deleted_out = 0;
+            if (content_rejected != nullptr)
+                ++(*content_rejected);
+            /* N-048 seam: the rejection is an Info-level audit line (the
+             * og's CalcPartition flow logs its accept/reject decisions). */
+            if (cr::log::enabled())
+                cr::log::write(cr::log::Level::Info,
+                               "lost candidate content-rejected: considered=%llu "
+                               "filterable=%llu matched=%llu ratio=%.3f%s",
+                               v.considered, v.filterable, v.matched, v.ratio,
+                               v.out_of_bounds ? " (data start out of bounds)" : "");
+        }
+    }
     return OK;
 }
 

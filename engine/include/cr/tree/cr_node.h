@@ -271,6 +271,19 @@ public:
     /* Move a node to a new parent (link surgery is tree-internal). */
     void reparent(FileNode* node, FileNode* new_parent);
 
+    /* M-035: detach a root's subtree from the tree - the rejected-candidate
+     * mechanism (the og's engine-side scorer drops a content-inconsistent
+     * lost candidate's results entirely; ours walks first, then scores, so
+     * the walk's emission is undone here). Removes the subtree from
+     * roots_, nodes_ and both dedup indexes, runs the nodes' destructors
+     * (props references released exactly once per node - hard links keep
+     * their surviving refs), and leaves the arena bytes reserved until
+     * the tree's own destruction (the arena is bulk-freed by design; the
+     * memory is bounded by the rejected candidates' file counts). Stats
+     * recomputed by the next refresh_stats() call. Call on the scan thread
+     * after the subtree's own emission finished (single-writer handoff). */
+    void detach_subtree(FileNode* root);
+
     /* clear without destroying (engines may reuse) */
     void reset();
 
