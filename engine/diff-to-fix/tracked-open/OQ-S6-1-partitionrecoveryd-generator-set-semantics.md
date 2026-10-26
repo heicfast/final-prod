@@ -1,8 +1,47 @@
 # OQ-S6-1 — PartitionRecoveryD: CompleteSearch vs RegSearch generator-set semantics + lostpart.dat/partinfo.dat formats
 
 **Filed by:** session-6 deep-continuation audit (I-020's decode request)
-**Status:** OPEN — corpus artifacts do not decode the behavior; needs a decompile pass
-**Blocking:** I-020's final disposition (INFORMATIONAL register today; upgrades to MAJOR if the decode shows a second search pass with unique recall)
+**Status:** RESOLVED (session 25, DFX25) — full decode; no code change (evidence: `../evidence/decompiled-quotes/s25-oq-s6-1-generator-sets-and-dat-files.md`)
+**Blocking:** (was I-020's disposition — the upgrade condition is REFUTED; I-020 stays the acknowledged register)
+
+## RESOLUTION (session 25, 2026-10-26)
+
+1. **RegSearch vs CompleteSearch: behaviorally IDENTICAL.** Both derive
+   from the same CGeneralGeneratorSetImpl base (ctor FUN_180006d90
+   :4028); their vtables (dumped byte-level: 0x18002c1a8 vs 0x18002c2e8)
+   share ALL methods except the dtor thunk. They are registration
+   identities in the mode map (FUN_18000d3b0 :7919: **Complete=4,
+   Reg=1, Fast=2, Fast1M=3** — factory thunks that just `new(0x38)` +
+   the shared ctor). The "registry-driven second pass with unique
+   recall" hypothesis is REFUTED; the name does not refer to the
+   Windows registry. **I-020's upgrade condition is refuted — it stays
+   the acknowledged INFORMATIONAL register.**
+2. **The .dat files fully decoded**: they live in the MODULE'S OWN
+   DIRECTORY (GetModuleFileNameW → dir → append; FUN_180025d30/:23126).
+   partinfo.dat = 0x18-byte "Part"-magic records — the live-table
+   snapshot; on first use per process BOTH files are DELETED, then
+   partinfo.dat is rewritten from the current table; at the next run
+   it is memcmp'd against the live table → layout_changed → progress
+   reset. lostpart.dat = 0x448-byte "Part"-magic candidate records,
+   appended per discovered candidate; loaded at scan start; when the
+   layout is unchanged, candidates are deduped against the cache
+   (match {+0x28,+0x30,+8}); new candidates reset progress.
+   Cross-run caches in the DLL dir — NOT the registry, NOT %APPDATA%.
+3. **The ×2 parser census = two INSTANCES of the whole search stack**
+   (the generator sets are behaviorally identical, so they cannot own
+   disjoint parser families).
+4. **No unique recall** — the Reg path surfaces nothing the Complete
+   pass cannot; the decode CONFIRMS M-042's landed design at the
+   mechanism level (partinfo semantics = REC_DISK_LAYOUT type 8's
+   layout_changed flow; lostpart.dat candidate cache + dedup +
+   revalidation = M-042's per-candidate persistence +
+   revalidate-on-resume). The core needs no new surface — no .dat
+   files (session-embedded equivalents already landed; the og's
+   delete-on-first-use makes them per-boot scratch, not durable
+   knowledge).
+5. Residual (small): which UI surface requests mode 1 vs 4 is
+   undecoded (originates outside this module; cannot change the
+   answer — the constructed objects are behaviorally identical).
 
 ## The precise questions
 

@@ -3381,6 +3381,115 @@ std::vector<u8> build_bmff_named_image(u8 mvhd_version, u32 v0_time, u64 v1_time
     return img;
 }
 
+
+/* M-025: window-serving read context - the og's already-in-buffer model.
+ * A fully in-window candidate (validator walk + checksum + small-file
+ * hash) must cost ZERO additional device reads: the window fill is the
+ * only traffic. Pre-fix every marker-walk rd(), the entropy block, the
+ * 512 B checksum and the hash re-read were separate device reads per
+ * candidate (~15-20 per small JPEG). */
+class CountingDevice final : public IStorageDevice {
+public:
+    explicit CountingDevice(std::vector<u8> b) : data_(std::move(b)) {
+        geom_.logical_sector = 512;
+        geom_.physical_sector = 512;
+        geom_.sector_count = data_.size() / 512;
+        geom_.total_bytes = geom_.sector_count * 512;
+    }
+    u32 read_at(u64 off, void* buf, u32 len) override {
+        ++calls_;
+        bytes_ += len;
+        if (off > data_.size() || len > data_.size() - off)
+            return ERR_RANGE_OUT_OF_BOUNDS;
+        std::memcpy(buf, data_.data() + off, len);
+        return OK;
+    }
+    const Geometry& geometry() const override { return geom_; }
+    u64 calls() const { return calls_; }
+    u64 bytes() const { return bytes_; }
+
+private:
+    std::vector<u8> data_;
+    Geometry geom_{};
+    u64 calls_ = 0;
+    u64 bytes_ = 0;
+};
+
+TEST(CarveEngine, WindowServingEliminatesPerCandidateRereads) {
+    /* one small PNG per window at +0x2000 (outside every overlap zone,
+     * clear of the previous window's 4 KiB tail): the PNG validator's
+     * reads (IHDR probes + the small chunk walk) all fall inside the
+     * window [w*1MiB, w*1MiB + 1MiB + 4KiB), so a correct window-serving
+     * device serves ALL of them from the buffer */
+    std::vector<u8> img(4ull << 20, 0);
+    int planted = 0;
+    for (int w = 0; w < 4; ++w) {
+        plant_png(img, size_t(w) * (1ull << 20) + 0x2000);
+        ++planted;
+    }
+    CountingDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"Carved");
+    CarveFlags fl;
+    fl.hash_small_files = true;
+    fl.hash_threshold = 8ull << 20; /* hash every plant (519 B each) */
+    CarveStats st;
+    ASSERT_EQ(OK, carve_slice(&dev, fl, nullptr, nullptr, nullptr, tree, root, nullptr,
+                              nullptr, st));
+    EXPECT_EQ(u64(planted), st.validated) << "all plants carved";
+    EXPECT_EQ(u64(planted), st.hashed) << "all plants hashed (in-window, no re-read)";
+    EXPECT_EQ(u64(0), st.rejected) << "PNG plants attract no cross-format trials";
+    /* the four window fills are the ONLY device reads - every validator
+     * probe, chunk walk, checksum and hash served from the window buffer
+     * (the og's already-in-buffer model: candidates cost zero device
+     * traffic when their reads fit the window) */
+    EXPECT_EQ(u64(4), dev.calls())
+        << "per-candidate device re-reads must be eliminated (window fills only)";
+}
+
+TEST(CarveEngine, WindowServingServesStraddlingReadsCorrectly) {
+    /* M-025 correctness: a read straddling the window end serves the
+     * in-window prefix from the buffer and the remainder from the device
+     * - byte-identical to a direct device read. A JPEG planted near the
+     * END of a window validates with the same extent, checksum and hash
+     * as the same plant mid-window. */
+    std::vector<u8> img(2ull << 20, 0);
+    const size_t at = (1ull << 20) - 300; /* the 521 B plant crosses the
+                                           * window-0 boundary (window 0
+                                           * covers [0, 1 MiB + 4 KiB)) */
+    plant_jpeg(img, at);
+    CountingDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"Carved");
+    CarveFlags fl;
+    fl.hash_small_files = true;
+    fl.hash_threshold = 8ull << 20;
+    CarveStats st;
+    ASSERT_EQ(OK, carve_slice(&dev, fl, nullptr, nullptr, nullptr, tree, root, nullptr,
+                              nullptr, st));
+    ASSERT_EQ(1u, st.validated);
+    ASSERT_EQ(1u, st.hashed);
+    /* the emitted node's checksum matches a direct CRC32 of the plant */
+    tree::FileNode* n = nullptr;
+    for (tree::FileNode* c = root->first_child(); c; c = c->next_sibling())
+        if (c->props())
+            n = c;
+    ASSERT_NE(n, nullptr);
+    ASSERT_EQ(1u, n->props()->extents.size());
+    EXPECT_EQ(u64(at), n->props()->extents[0].offset);
+    EXPECT_EQ(u64(521), n->props()->extents[0].length);
+    EXPECT_TRUE(n->props()->hash_valid);
+    /* direct CRC32 of the same bytes for the checksum comparison */
+    std::vector<u8> probe(512, 0);
+    CountingDevice direct(([] {
+        std::vector<u8> d(2ull << 20, 0);
+        plant_jpeg(d, (1ull << 20) - 300);
+        return d;
+    })());
+    ASSERT_EQ(OK, direct.read_at(at, probe.data(), 512));
+    EXPECT_EQ(cr::table::crc32(probe.data(), 512), n->props()->carve_checksum);
+}
+
 } // namespace
 
 TEST(CarveEngine, Mp4NamedByMetadataTemplate) {
@@ -3543,37 +3652,6 @@ TEST(CarveEngine, ZeroSectorSkipStats) {
 /* ------------------------------------------------------------------ */
 
 namespace {
-
-/* MemDevice + a read/byte counter: the M-025 proof harness (the finding's
- * own test spec - "count read_at calls per emitted file with a counting
- * device"). */
-class CountingDevice final : public IStorageDevice {
-public:
-    explicit CountingDevice(std::vector<u8> b) : data_(std::move(b)) {
-        geom_.logical_sector = 512;
-        geom_.physical_sector = 512;
-        geom_.sector_count = data_.size() / 512;
-        geom_.total_bytes = geom_.sector_count * 512;
-    }
-    u32 read_at(u64 off, void* buf, u32 len) override {
-        if (off > data_.size() || len > data_.size() - off)
-            return ERR_RANGE_OUT_OF_BOUNDS;
-        ++reads_;
-        bytes_read_ += len;
-        std::memcpy(buf, data_.data() + off, len);
-        return OK;
-    }
-    const Geometry& geometry() const override { return geom_; }
-    u64 reads() const { return reads_; }
-    u64 bytes_read() const { return bytes_read_; }
-
-private:
-    std::vector<u8> data_;
-    Geometry geom_;
-    u64 reads_ = 0;
-    u64 bytes_read_ = 0;
-};
-
 } // namespace
 
 TEST(CarveEngine, WindowBufferReusedByValidatorChecksumAndHash) {
@@ -3600,10 +3678,10 @@ TEST(CarveEngine, WindowBufferReusedByValidatorChecksumAndHash) {
     /* one window: total 256 KiB < 1 MiB WINDOW -> exactly ONE device read
      * for the scan itself; zero re-reads for validation, checksums, or
      * hashing (all served from the window buffer) */
-    EXPECT_EQ(dev.reads(), 1u) << "validator/checksum/hash re-reads must be served from the "
+    EXPECT_EQ(dev.calls(), 1u) << "validator/checksum/hash re-reads must be served from the "
                                   "window buffer (M-025); saw "
-                               << dev.reads() << " device reads";
-    EXPECT_EQ(dev.bytes_read(), dev_bytes);
+                               << dev.calls() << " device reads";
+    EXPECT_EQ(dev.bytes(), dev_bytes);
 }
 
 TEST(CarveEngine, BoundaryStraddlingCandidateSplitsReadsCorrectly) {

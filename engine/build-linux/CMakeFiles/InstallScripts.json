@@ -1,0 +1,11 @@
+{
+	"InstallScripts" : 
+	[
+		"/home/z/my-project/work/core_recovery/build-linux/cmake_install.cmake",
+		"/home/z/my-project/work/core_recovery/build-linux/src/cmake_install.cmake",
+		"/home/z/my-project/work/core_recovery/build-linux/src/core/cmake_install.cmake",
+		"/home/z/my-project/work/core_recovery/build-linux/src/ui/cmake_install.cmake",
+		"/home/z/my-project/work/core_recovery/build-linux/tests/cmake_install.cmake"
+	],
+	"Parallel" : false
+}

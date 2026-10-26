@@ -63,7 +63,15 @@ constexpr u8 NODE_ROOT = 0x2;
 constexpr u32 MAX_NODES_PER_TABLE = 4096;
 constexpr u32 MAX_TABLE_DEPTH = 32;
 constexpr u64 ROOT_DIR_TABLE = 0x600; /* fixed root directory id */
-constexpr u64 FSMETADATA_TABLE = 0x520;
+/* OQ-RS-7 (s31, ReFSSearchDLL_decompiled.c:600-620 + :1150-1154): the og
+ * registers system-table handlers for EXACTLY {0x500, 0x600, 0x701} in
+ * the RefsQuickSearchFilesImpl ctor, and NORMALIZES any table id > 0x700
+ * to the 0x701 family (`else if (0x700 < puVar11) puVar11 = 0x701;`).
+ * 0x520 appears nowhere in ReFSSearchDLL - the old FSMETADATA_TABLE
+ * exclusion was an uncited T10-era guess; the og's non-root system
+ * families are 0x500 and everything above 0x700. */
+constexpr u64 SYSTEM_TABLE_LO = 0x500;
+constexpr u64 SYSTEM_TABLE_HI = 0x700;
 
 /* Session state threaded through the walk. */
 struct Engine {
@@ -1460,9 +1468,11 @@ u32 scan_refs(IStorageDevice* slice, const RefsScanFlags& flags, CancelToken* ca
     w.progress_user = progress_user;
     u64 root_id = ROOT_DIR_TABLE;
     if (tables.find(root_id) == tables.end()) {
-        /* fallback: a directory table that is nobody's child */
+        /* fallback: a directory table that is nobody's child, excluding
+         * the og's system families (0x500, >0x700 - OQ-RS-7) */
         for (const auto& kv : tables) {
-            if (kv.first == FSMETADATA_TABLE || child_tables.count(kv.first))
+            if (kv.first == SYSTEM_TABLE_LO || kv.first > SYSTEM_TABLE_HI ||
+                child_tables.count(kv.first))
                 continue;
             root_id = kv.first;
             break;
@@ -1541,8 +1551,8 @@ u32 scan_refs(IStorageDevice* slice, const RefsScanFlags& flags, CancelToken* ca
     /* ---- 9. orphan tables -> lost tree ---- */
     if (root_lost != nullptr) {
         for (const auto& kv : tables) {
-            if (kv.second.visited || kv.first == FSMETADATA_TABLE || kv.first == root_id ||
-                child_tables.count(kv.first))
+            if (kv.second.visited || kv.first == SYSTEM_TABLE_LO || kv.first > SYSTEM_TABLE_HI ||
+                kv.first == root_id || child_tables.count(kv.first))
                 continue;
             std::set<u64> visited;
             u32 nodes = 0;

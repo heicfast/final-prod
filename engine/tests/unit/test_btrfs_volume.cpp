@@ -441,6 +441,116 @@ TEST(Btrfs, EndToEndWalk) {
 }
 
 
+TEST(Btrfs, TwoSubvolumesRootSeparately) {
+    /* N-019 scenario 8 (the rooting surface EndToEndWalk only covered for
+     * ONE subvolume): two subvolumes on one filesystem - every file lands
+     * under its OWN subvol root, no cross-subvol leakage either direction.
+     * Subvol ids: 5 (the FS tree itself) + 256 (the first legal user
+     * subvol id - the engine skips ids < 256 except the FS tree). */
+    auto img = build_volume();
+    constexpr u64 L_FS_TREE2 = 0x106000; /* second FS tree (identity chunk) */
+    constexpr u64 L_DATA2 = 0x702000;    /* its file data */
+
+    /* root tree: FS_TREE(5) + subvol(256) + CHUNK_TREE(3) root items */
+    {
+        NodeBuilder nb;
+        Key k5;
+        k5.objectid = 5;
+        k5.type = 132;
+        k5.offset = 0;
+        nb.add(k5, make_root_item(L_FS_TREE, 256));
+        Key k256;
+        k256.objectid = 256;
+        k256.type = 132;
+        k256.offset = 0;
+        nb.add(k256, make_root_item(L_FS_TREE2, 256));
+        Key k3;
+        k3.objectid = 3;
+        k3.type = 132;
+        k3.offset = 0;
+        nb.add(k3, make_root_item(L_CHUNK_TREE, 0));
+        auto nd = nb.finish(L_ROOT_TREE, 0);
+        memcpy(img.data() + L_ROOT_TREE, nd.data(), NODESIZE);
+    }
+    /* second FS tree: root dir (256) + second.txt (257) */
+    {
+        NodeBuilder nb;
+        const u64 MTIME = 1600000000;
+        Key ki;
+        ki.type = 1; /* INODE_ITEM */
+        ki.objectid = 256;
+        nb.add(ki, make_inode(0x4000, NODESIZE, 2, MTIME));
+        ki.objectid = 257;
+        nb.add(ki, make_inode(0x8000, 11, 1, MTIME));
+        Key ke;
+        ke.type = 108; /* EXTENT_DATA */
+        ke.objectid = 257;
+        ke.offset = 0;
+        nb.add(ke, make_extent_data(L_DATA2, 4096));
+        Key kd;
+        kd.type = 84; /* DIR_ITEM */
+        kd.objectid = 256;
+        kd.offset = 0x44440004;
+        nb.add(kd, make_dir_item(257, "second.txt", 1));
+        auto nd = nb.finish(L_FS_TREE2, 0);
+        memcpy(img.data() + L_FS_TREE2, nd.data(), NODESIZE);
+    }
+    memcpy(img.data() + L_DATA2, "subvol two!", 11);
+
+    MemDevice dev(img);
+    tree::ResultTree tree;
+    auto* ra = tree.add_root(u"Found");
+    BtrfsScanStats st;
+    u32 rc = scan_btrfs(&dev, nullptr, nullptr, nullptr, tree, ra, nullptr, nullptr, st);
+    ASSERT_EQ(OK, rc) << err_text(rc);
+    EXPECT_EQ(2u, st.subvolumes);
+    EXPECT_EQ(3u, st.files);
+
+    std::set<std::string> paths;
+    std::function<void(tree::FileNode*, std::string)> walk = [&](tree::FileNode* n,
+                                                                 const std::string& p) {
+        for (tree::FileNode* c = n->first_child(); c; c = c->next_sibling()) {
+            if (!c->props())
+                continue;
+            std::string full = p.empty() ? c->name_utf8() : p + "/" + c->name_utf8();
+            paths.insert(full);
+            walk(c, full);
+        }
+    };
+    walk(ra, "");
+
+    /* each subvolume under its OWN root, M-020's default-subvol semantics:
+     * subvol 5 IS the default (no "default" dir item in the fixture -> the
+     * og's root-5 fallback, FUN_1800061f0 :4060) so ITS files root at the
+     * volume top; subvol 256 (non-default) stays a named container. */
+    EXPECT_TRUE(paths.count("hello.txt"));
+    EXPECT_TRUE(paths.count("sub/nested.bin"));
+    EXPECT_TRUE(paths.count("subvol-256/second.txt"));
+    /* no cross-subvol leakage */
+    EXPECT_FALSE(paths.count("subvol-5/second.txt"));
+    EXPECT_FALSE(paths.count("subvol-256/hello.txt"));
+    EXPECT_FALSE(paths.count("subvol-256/nested.bin"));
+    EXPECT_FALSE(paths.count("subvol-5/hello.txt"));
+
+    /* the second subvol's file: size + extent + content at its own data */
+    tree::FileNode* second = nullptr;
+    std::function<void(tree::FileNode*)> find = [&](tree::FileNode* n) {
+        for (tree::FileNode* c = n->first_child(); c; c = c->next_sibling()) {
+            if (c->props() && c->name_utf8() == "second.txt")
+                second = c;
+            find(c);
+        }
+    };
+    find(ra);
+    ASSERT_NE(second, nullptr);
+    EXPECT_EQ(u64(11), second->props()->logical_size);
+    ASSERT_EQ(1u, second->props()->extents.size());
+    EXPECT_EQ(L_DATA2, second->props()->extents[0].offset);
+    u8 buf[11] = {};
+    ASSERT_EQ(OK, dev.read_at(second->props()->extents[0].offset, buf, 11));
+    EXPECT_EQ(0, memcmp(buf, "subvol two!", 11));
+}
+
 TEST(Btrfs, SubvolumeNamedFromRootRef) {
     /* N-047 + M-020: a NON-default subvolume takes its ROOT_REF-derived
      * display name (kernel btrfs_root_ref: dirid@0, sequence@8,

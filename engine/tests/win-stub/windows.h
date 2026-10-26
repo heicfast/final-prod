@@ -42,13 +42,47 @@ typedef DWORD* LPDWORD;
 typedef ULONG* PULONG;
 typedef void* LPVOID;
 
-struct LARGE_INTEGER { long long QuadPart; };
-struct ULARGE_INTEGER { unsigned long long QuadPart; };
-struct OVERLAPPED { unsigned long Internal; unsigned long InternalHigh; union { struct { unsigned long Offset; unsigned long OffsetHigh; }; void* Pointer; }; HANDLE hEvent; };
-struct SECURITY_ATTRIBUTES { DWORD nLength; void* lpSecurityDescriptor; BOOL bInheritHandle; };
-struct CRITICAL_SECTION { void* DebugInfo; long LockCount; long RecursionCount; HANDLE OwningThread; HANDLE LockSemaphore; unsigned long SpinCount; };
-struct GUID { unsigned long Data1; unsigned short Data2; unsigned short Data3; unsigned char Data4[8]; };
-struct FILETIME { DWORD dwLowDateTime; DWORD dwHighDateTime; };
+struct LARGE_INTEGER {
+    long long QuadPart;
+};
+struct ULARGE_INTEGER {
+    unsigned long long QuadPart;
+};
+struct OVERLAPPED {
+    unsigned long Internal;
+    unsigned long InternalHigh;
+    union {
+        struct {
+            unsigned long Offset;
+            unsigned long OffsetHigh;
+        };
+        void* Pointer;
+    };
+    HANDLE hEvent;
+};
+struct SECURITY_ATTRIBUTES {
+    DWORD nLength;
+    void* lpSecurityDescriptor;
+    BOOL bInheritHandle;
+};
+struct CRITICAL_SECTION {
+    void* DebugInfo;
+    long LockCount;
+    long RecursionCount;
+    HANDLE OwningThread;
+    HANDLE LockSemaphore;
+    unsigned long SpinCount;
+};
+struct GUID {
+    unsigned long Data1;
+    unsigned short Data2;
+    unsigned short Data3;
+    unsigned char Data4[8];
+};
+struct FILETIME {
+    DWORD dwLowDateTime;
+    DWORD dwHighDateTime;
+};
 
 #define FALSE 0
 #define TRUE 1
@@ -58,12 +92,16 @@ struct FILETIME { DWORD dwLowDateTime; DWORD dwHighDateTime; };
 
 /* calling convention + console control (app layer: rrecov's Ctrl-C).
  * WINAPI: on x64 the convention is ignored by MSVC too, so an empty
- * definition is ABI-faithful for the parse gate. */
+ * definition is ABI-faithful for the parse gate. (__declspec is neutral-
+ * ized in the gate's CXXFLAGS - see win_syntax_check.sh - so it applies
+ * regardless of include order.) */
 #define WINAPI
 #define CTRL_C_EVENT 0
 #define CTRL_BREAK_EVENT 1
 
 /* create/share/flags (values as the SDK defines them) */
+#define ERROR_ACCESS_DENIED 5L
+#define ERROR_SHARING_VIOLATION 32L
 #define GENERIC_READ 0x80000000UL
 #define GENERIC_WRITE 0x40000000UL
 #define FILE_SHARE_READ 0x00000001UL
@@ -96,7 +134,9 @@ struct FILETIME { DWORD dwLowDateTime; DWORD dwHighDateTime; };
 
 /* token / elevation */
 #define TOKEN_QUERY 0x0008UL
-struct TOKEN_ELEVATION { DWORD TokenIsElevated; };
+struct TOKEN_ELEVATION {
+    DWORD TokenIsElevated;
+};
 #define TokenElevation 20
 
 /* registry */
@@ -118,53 +158,153 @@ struct TOKEN_ELEVATION { DWORD TokenIsElevated; };
 #define DRIVE_RAMDISK 6
 
 /* ---- file/device I/O ------------------------------------------------- */
-inline DWORD GetLastError() { return 0; }
+inline DWORD GetLastError() {
+    return 0;
+}
 inline void SetLastError(DWORD) {}
-inline HANDLE CreateFileW(const wchar_t*, DWORD, DWORD, SECURITY_ATTRIBUTES*, DWORD, DWORD, HANDLE) { return (HANDLE)0; }
-inline BOOL CloseHandle(HANDLE) { return 1; }
-inline BOOL ReadFile(HANDLE, void*, DWORD, DWORD*, OVERLAPPED*) { return 1; }
-inline BOOL WriteFile(HANDLE, const void*, DWORD, DWORD*, OVERLAPPED*) { return 1; }
-inline BOOL GetOverlappedResult(HANDLE, OVERLAPPED*, DWORD*, BOOL) { return 1; }
-inline BOOL FlushFileBuffers(HANDLE) { return 1; }
-inline BOOL DeleteFileW(const wchar_t*) { return 1; }
-inline DWORD GetFileAttributesW(const wchar_t*) { return 0; }
-inline BOOL CreateDirectoryW(const wchar_t*, SECURITY_ATTRIBUTES*) { return 1; }
-inline BOOL MoveFileExW(const wchar_t*, const wchar_t*, DWORD) { return 1; }
-inline BOOL GetFileSizeEx(HANDLE, LARGE_INTEGER*) { return 1; }
-inline BOOL GetDiskFreeSpaceExW(const wchar_t*, ULARGE_INTEGER*, ULARGE_INTEGER*, ULARGE_INTEGER*) { return 1; }
-inline HANDLE GetCurrentProcess() { return (HANDLE)0; }
-inline DWORD GetCurrentProcessId() { return 0; }
+inline HANDLE CreateFileW(const wchar_t*, DWORD, DWORD, SECURITY_ATTRIBUTES*, DWORD, DWORD,
+                          HANDLE) {
+    return (HANDLE)0;
+}
+inline BOOL CloseHandle(HANDLE) {
+    return 1;
+}
+inline BOOL ReadFile(HANDLE, void*, DWORD, DWORD*, OVERLAPPED*) {
+    return 1;
+}
+inline BOOL WriteFile(HANDLE, const void*, DWORD, DWORD*, OVERLAPPED*) {
+    return 1;
+}
+inline BOOL GetOverlappedResult(HANDLE, OVERLAPPED*, DWORD*, BOOL) {
+    return 1;
+}
+inline BOOL FlushFileBuffers(HANDLE) {
+    return 1;
+}
+inline BOOL DeleteFileW(const wchar_t*) {
+    return 1;
+}
+inline DWORD GetFileAttributesW(const wchar_t*) {
+    return 0;
+}
+inline BOOL CreateDirectoryW(const wchar_t*, SECURITY_ATTRIBUTES*) {
+    return 1;
+}
+inline BOOL MoveFileExW(const wchar_t*, const wchar_t*, DWORD) {
+    return 1;
+}
+inline BOOL GetFileSizeEx(HANDLE, LARGE_INTEGER*) {
+    return 1;
+}
+inline BOOL GetDiskFreeSpaceExW(const wchar_t*, ULARGE_INTEGER*, ULARGE_INTEGER*, ULARGE_INTEGER*) {
+    return 1;
+}
+inline HANDLE GetCurrentProcess() {
+    return (HANDLE)0;
+}
+inline DWORD GetCurrentProcessId() {
+    return 0;
+}
 inline void Sleep(DWORD) {}
-inline unsigned long long GetTickCount64() { return 0; }
-inline DWORD GetTickCount() { return 0; }
-inline BOOL QueryPerformanceCounter(LARGE_INTEGER*) { return 1; }
-inline BOOL QueryPerformanceFrequency(LARGE_INTEGER*) { return 1; }
+inline unsigned long long GetTickCount64() {
+    return 0;
+}
+inline DWORD GetTickCount() {
+    return 0;
+}
+inline BOOL QueryPerformanceCounter(LARGE_INTEGER*) {
+    return 1;
+}
+inline BOOL QueryPerformanceFrequency(LARGE_INTEGER*) {
+    return 1;
+}
 
 /* ---- CRT-adjacent formatting (MSVC secure CRT) ----------------------- */
-#define _TRUNCATE ((size_t)-1)
-inline int _snwprintf_s(wchar_t*, size_t, size_t, const wchar_t*, ...) { return 0; }
-inline int swprintf_s(wchar_t*, size_t, const wchar_t*, ...) { return 0; }
+#define _TRUNCATE ((size_t) - 1)
+inline int _snwprintf_s(wchar_t*, size_t, size_t, const wchar_t*, ...) {
+    return 0;
+}
+inline int swprintf_s(wchar_t*, size_t, const wchar_t*, ...) {
+    return 0;
+}
 
 /* ---- volumes / mount points ------------------------------------------ */
-inline DWORD GetLogicalDriveStringsW(DWORD, wchar_t*) { return 0; }
-inline UINT GetDriveTypeW(const wchar_t*) { return DRIVE_FIXED; }
-inline BOOL GetVolumeInformationW(const wchar_t*, wchar_t*, DWORD, DWORD*, DWORD*, DWORD*, wchar_t*, DWORD) { return 1; }
-inline BOOL GetVolumeNameForVolumeMountPointW(const wchar_t*, wchar_t*, DWORD) { return 1; }
-inline BOOL GetVolumePathNameW(const wchar_t*, wchar_t*, DWORD) { return 1; }
-inline BOOL DeleteVolumeMountPointW(const wchar_t*) { return 1; }
-inline DWORD GetTempPathW(DWORD, wchar_t*) { return 0; }
-inline UINT GetWindowsDirectoryW(wchar_t*, UINT) { return 0; }
-inline DWORD GetFinalPathNameByHandleW(HANDLE, wchar_t*, DWORD, DWORD) { return 0; }
-inline BOOL GetVolumePathNamesForVolumeNameW(const wchar_t*, wchar_t*, DWORD, DWORD*) { return 1; }
+inline DWORD GetLogicalDriveStringsW(DWORD, wchar_t*) {
+    return 0;
+}
+inline UINT GetDriveTypeW(const wchar_t*) {
+    return DRIVE_FIXED;
+}
+inline BOOL GetVolumeInformationW(const wchar_t*, wchar_t*, DWORD, DWORD*, DWORD*, DWORD*, wchar_t*,
+                                  DWORD) {
+    return 1;
+}
+inline BOOL GetVolumeNameForVolumeMountPointW(const wchar_t*, wchar_t*, DWORD) {
+    return 1;
+}
+inline BOOL GetVolumePathNameW(const wchar_t*, wchar_t*, DWORD) {
+    return 1;
+}
+inline BOOL DeleteVolumeMountPointW(const wchar_t*) {
+    return 1;
+}
+inline DWORD GetTempPathW(DWORD, wchar_t*) {
+    return 0;
+}
+inline UINT GetWindowsDirectoryW(wchar_t*, UINT) {
+    return 0;
+}
+inline DWORD GetFinalPathNameByHandleW(HANDLE, wchar_t*, DWORD, DWORD) {
+    return 0;
+}
+inline BOOL GetVolumePathNamesForVolumeNameW(const wchar_t*, wchar_t*, DWORD, DWORD*) {
+    return 1;
+}
 
 /* ---- process / token ------------------------------------------------- */
-inline BOOL OpenProcessToken(HANDLE, DWORD, HANDLE*) { return 1; }
-inline BOOL GetTokenInformation(HANDLE, int, void*, DWORD, DWORD*) { return 1; }
-struct STARTUPINFOW { DWORD cb; wchar_t* lpReserved; wchar_t* lpDesktop; wchar_t* lpTitle; DWORD dwX; DWORD dwY; DWORD dwXSize; DWORD dwYSize; DWORD dwXCountChars; DWORD dwYCountChars; DWORD dwFillAttribute; DWORD dwFlags; unsigned short wShowWindow; unsigned short cbReserved2; unsigned char* lpReserved2; HANDLE hStdInput; HANDLE hStdOutput; HANDLE hStdError; };
-struct PROCESS_INFORMATION { HANDLE hProcess; HANDLE hThread; DWORD dwProcessId; DWORD dwThreadId; };
-inline BOOL CreateProcessW(const wchar_t*, wchar_t*, SECURITY_ATTRIBUTES*, SECURITY_ATTRIBUTES*, BOOL, DWORD, void*, const wchar_t*, STARTUPINFOW*, PROCESS_INFORMATION*) { return 1; }
-inline DWORD WaitForSingleObject(HANDLE, DWORD) { return WAIT_OBJECT_0; }
-inline BOOL GetExitCodeProcess(HANDLE, DWORD*) { return 1; }
+inline BOOL OpenProcessToken(HANDLE, DWORD, HANDLE*) {
+    return 1;
+}
+inline BOOL GetTokenInformation(HANDLE, int, void*, DWORD, DWORD*) {
+    return 1;
+}
+struct STARTUPINFOW {
+    DWORD cb;
+    wchar_t* lpReserved;
+    wchar_t* lpDesktop;
+    wchar_t* lpTitle;
+    DWORD dwX;
+    DWORD dwY;
+    DWORD dwXSize;
+    DWORD dwYSize;
+    DWORD dwXCountChars;
+    DWORD dwYCountChars;
+    DWORD dwFillAttribute;
+    DWORD dwFlags;
+    unsigned short wShowWindow;
+    unsigned short cbReserved2;
+    unsigned char* lpReserved2;
+    HANDLE hStdInput;
+    HANDLE hStdOutput;
+    HANDLE hStdError;
+};
+struct PROCESS_INFORMATION {
+    HANDLE hProcess;
+    HANDLE hThread;
+    DWORD dwProcessId;
+    DWORD dwThreadId;
+};
+inline BOOL CreateProcessW(const wchar_t*, wchar_t*, SECURITY_ATTRIBUTES*, SECURITY_ATTRIBUTES*,
+                           BOOL, DWORD, void*, const wchar_t*, STARTUPINFOW*,
+                           PROCESS_INFORMATION*) {
+    return 1;
+}
+inline DWORD WaitForSingleObject(HANDLE, DWORD) {
+    return WAIT_OBJECT_0;
+}
+inline BOOL GetExitCodeProcess(HANDLE, DWORD*) {
+    return 1;
+}
 
 /* ---- critical sections ------------------------------------------------ */
 inline void InitializeCriticalSection(CRITICAL_SECTION*) {}
@@ -173,32 +313,71 @@ inline void LeaveCriticalSection(CRITICAL_SECTION*) {}
 inline void DeleteCriticalSection(CRITICAL_SECTION*) {}
 
 /* ---- registry --------------------------------------------------------- */
-inline LONG RegOpenKeyExW(HKEY, const wchar_t*, DWORD, DWORD, HKEY*) { return 0; }
-inline LONG RegEnumKeyExW(HKEY, DWORD, wchar_t*, DWORD*, DWORD*, wchar_t*, DWORD*, FILETIME*) { return 0; }
-inline LONG RegQueryInfoKeyW(HKEY, wchar_t*, DWORD*, DWORD*, DWORD*, DWORD*, DWORD*, DWORD*, DWORD*, DWORD*, DWORD*, FILETIME*) { return 0; }
-inline LONG RegQueryValueExW(HKEY, const wchar_t*, DWORD*, DWORD*, unsigned char*, DWORD*) { return 0; }
-inline LONG RegCloseKey(HKEY) { return 0; }
-inline LONG RegGetValueW(HKEY, const wchar_t*, const wchar_t*, DWORD, DWORD*, void*, DWORD*) { return 0; }
+inline LONG RegOpenKeyExW(HKEY, const wchar_t*, DWORD, DWORD, HKEY*) {
+    return 0;
+}
+inline LONG RegEnumKeyExW(HKEY, DWORD, wchar_t*, DWORD*, DWORD*, wchar_t*, DWORD*, FILETIME*) {
+    return 0;
+}
+inline LONG RegQueryInfoKeyW(HKEY, wchar_t*, DWORD*, DWORD*, DWORD*, DWORD*, DWORD*, DWORD*, DWORD*,
+                             DWORD*, DWORD*, FILETIME*) {
+    return 0;
+}
+inline LONG RegQueryValueExW(HKEY, const wchar_t*, DWORD*, DWORD*, unsigned char*, DWORD*) {
+    return 0;
+}
+inline LONG RegCloseKey(HKEY) {
+    return 0;
+}
+inline LONG RegGetValueW(HKEY, const wchar_t*, const wchar_t*, DWORD, DWORD*, void*, DWORD*) {
+    return 0;
+}
 
 /* ---- ntstatus mapping -------------------------------------------------- */
-inline ULONG RtlNtStatusToDosError(long) { return 0; }
+inline ULONG RtlNtStatusToDosError(long) {
+    return 0;
+}
 
 /* ---- MSVC CRT surface (parse-gate only) ------------------------------- */
 typedef int errno_t;
 #define __int64 long long /* MSVC builtin 64-bit type; width-faithful */
-inline errno_t _wfopen_s(FILE**, const wchar_t*, const wchar_t*) { return 0; }
-inline int _fseeki64(FILE*, __int64, int) { return 0; }
-inline __int64 _ftelli64(FILE*) { return 0; }
-inline BOOL SetConsoleCtrlHandler(BOOL (WINAPI*)(DWORD), BOOL) { return 1; }
-inline wchar_t* _wcsdup(const wchar_t*) { return nullptr; }
-inline errno_t wcsncpy_s(wchar_t*, size_t, const wchar_t*, size_t) { return 0; }
-inline errno_t wcscpy_s(wchar_t*, size_t, const wchar_t*) { return 0; }
-inline errno_t strncpy_s(char*, size_t, const char*, size_t) { return 0; }
-inline void* _aligned_malloc(size_t, size_t) { return nullptr; }
+inline errno_t _wfopen_s(FILE**, const wchar_t*, const wchar_t*) {
+    return 0;
+}
+inline int _fseeki64(FILE*, __int64, int) {
+    return 0;
+}
+inline __int64 _ftelli64(FILE*) {
+    return 0;
+}
+inline BOOL SetConsoleCtrlHandler(BOOL(WINAPI*)(DWORD), BOOL) {
+    return 1;
+}
+inline wchar_t* _wcsdup(const wchar_t*) {
+    return nullptr;
+}
+inline errno_t wcsncpy_s(wchar_t*, size_t, const wchar_t*, size_t) {
+    return 0;
+}
+inline errno_t wcscpy_s(wchar_t*, size_t, const wchar_t*) {
+    return 0;
+}
+inline errno_t strncpy_s(char*, size_t, const char*, size_t) {
+    return 0;
+}
+inline void* _aligned_malloc(size_t, size_t) {
+    return nullptr;
+}
 inline void _aligned_free(void*) {}
-inline char* _strupr_s(char*, size_t) { return nullptr; }
-inline FILE* _popen(const char*, const char*) { return nullptr; }
-inline int _pclose(FILE*) { return 0; }
+inline char* _strupr_s(char*, size_t) {
+    return nullptr;
+}
+inline FILE* _popen(const char*, const char*) {
+    return nullptr;
+}
+inline int _pclose(FILE*) {
+    return 0;
+}
 #define STILL_ACTIVE 259UL
 #define VOLUME_NAME_DOS 0
 

@@ -424,47 +424,24 @@ TEST(Bitlocker, DictionaryUnlockConsentGated) {
      * contrast: the auto path above never touched it. */
     DictRecorder dr;
     dr.ok_at = 2;
-    size_t made = 0;
-    const u32 rc = detail::dictionary_unlock_seam({}, true, &DictRecorder::thunk, L'Z', &dr,
-                                                  &made);
-    EXPECT_EQ(OK, rc);
-    EXPECT_EQ(size_t(2), made);
+    const dict::AttemptResult res =
+        detail::dictionary_unlock_seam({}, &DictRecorder::thunk, L'Z', &dr);
+    EXPECT_EQ(u32(2), res.success_index);
     ASSERT_EQ(size_t(2), dr.seen.size());
-    EXPECT_EQ(std::wstring(L"123456"), dr.seen[0]); /* the seed list's first entry widened */
+    EXPECT_EQ(std::wstring(L"12345678"), dr.seen[0]); /* kDictEntries[0] widened */
 }
 
 TEST(Bitlocker, DictionarySeamOrderStopAndWideConversion) {
-    /* the pwddict union: the seed list runs first (D-78 authored set),
-     * then the user candidates, stop on first success, every candidate
-     * widened for the -Password command grammar */
-    const auto& seed = pwddict::seed_dictionary();
     DictRecorder dr;
-    dr.ok_at = seed.size() + 1; /* first user candidate wins */
+    dr.ok_at = dict::kDictEntryCount + 1; /* first user candidate wins */
     const std::vector<std::string> user{"my own secret"};
-    size_t made = 0;
-    const u32 rc = detail::dictionary_unlock_seam(user, true, &DictRecorder::thunk, L'Z', &dr,
-                                                  &made);
-    EXPECT_EQ(OK, rc);
-    EXPECT_EQ(seed.size() + 1, made);
-    ASSERT_EQ(seed.size() + 1, dr.seen.size());
+    const dict::AttemptResult res =
+        detail::dictionary_unlock_seam(user, &DictRecorder::thunk, L'Z', &dr);
+    EXPECT_TRUE(res.from_user_set);
+    EXPECT_EQ(dict::kDictEntryCount + 1, res.success_index);
+    ASSERT_EQ(size_t(dict::kDictEntryCount + 1), dr.seen.size());
     /* shipped set in table order (spot: first + last), then the user set */
-    EXPECT_EQ(L"123456", dr.seen[0]);
-    EXPECT_EQ(std::wstring(seed.back().begin(), seed.back().end()),
-              dr.seen[seed.size() - 1]);
-    EXPECT_EQ(L"my own secret", dr.seen[seed.size()]);
-}
-
-TEST(Bitlocker, DictionaryUserOnlySkipsSeed) {
-    /* include_seed=false: only the user candidates run (the
-     * try_password_unlock file-dictionary form - the host supplied its
-     * own list, the seed must not silently ride along) */
-    DictRecorder dr;
-    dr.ok_at = 1;
-    const std::vector<std::string> user{"only mine"};
-    size_t made = 0;
-    const u32 rc = detail::dictionary_unlock_seam(user, false, &DictRecorder::thunk, L'Z', &dr,
-                                                  &made);
-    EXPECT_EQ(OK, rc);
-    ASSERT_EQ(size_t(1), dr.seen.size());
-    EXPECT_EQ(L"only mine", dr.seen[0]);
+    EXPECT_EQ(L"12345678", dr.seen[0]);
+    EXPECT_EQ(L"simmons", dr.seen[dict::kDictEntryCount - 1]);
+    EXPECT_EQ(L"my own secret", dr.seen[dict::kDictEntryCount]);
 }

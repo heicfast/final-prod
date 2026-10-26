@@ -20,7 +20,7 @@
 
 #include "../cr_types.h"
 #include "../reghive/cr_reghive.h"
-#include "../pwddict/cr_pwddict.h"
+#include "../recovery/cr_dict.h"
 #include <string>
 
 namespace cr {
@@ -56,29 +56,23 @@ u32 try_auto_unlock(wchar_t letter);
  * the hive unlocked the volume, ERR_FVE_LOCKED otherwise. */
 u32 try_auto_unlock_offline(wchar_t letter, const wchar_t* hive_path);
 
-/* N-064 (the og's Dict unlock aid), convergent two-lane union: BOTH
- * surfaces are the USER-CONSENTED password-dictionary path - the og's
- * BitlockerUnlockDialog -> BitlockerUnlockThread flow (UIUX
- * 15-scenario-flows:33) fed by the shipped Dict file
- * (config-data-reference.md:20/:86). Candidates are attempted
- * sequentially through the SAME unlock() plumbing as a typed password
- * (PowerShell Unlock-BitLocker -Password, manage-bde -Password fallback)
- * - Windows applies or rejects each one; the core performs no crypto.
- * Sequencing, dedup, caps and the attempt log lines live in the pure
- * pwddict module (cr/pwddict/cr_pwddict.h; the policy is documented
- * there).
- *
- * CONSENT: nothing in the scan path calls either form - only an explicit
- * host unlock action may (F61: legitimate unlock only, never auto-attempt
- * on scan). Both return OK or ERR_FVE_LOCKED. */
-u32 try_password_unlock(wchar_t letter, const std::vector<std::string>& candidates);
-
-/* The ABI-shaped form (the cr_ui dictionary action / the CLI's valueless
- * --bitlocker-dict consent flag): the shipped seed dictionary runs first,
- * then the user-provided wide strings (narrowed; non-ASCII rejected with
- * ERR_BAD_PARAMETER - the dictionary grammar is ASCII). */
+/* N-064 (diff-to-fix): the password-dictionary unlock aid - the og's Dict
+ * flow (228-entry shipped dictionary, config-data-reference.md :20; tried
+ * through the same PowerShell -Password / manage-bde -Password plumbing as
+ * a user-typed password). This is the EXPLICIT CONSENT ACTION: nothing in
+ * the scan/open path calls it - a locked volume still refuses with
+ * ERR_FVE_LOCKED until the host invokes this (the CLI's --bitlocker-dict
+ * flag / the cr_ui dictionary action). Candidates: the shipped dictionary
+ * first (corpus order), then the user-provided wide strings. Every attempt
+ * is logged through the cr::log seam (index only - password material is
+ * never logged). Returns OK when a candidate unlocked the volume,
+ * ERR_FVE_LOCKED when the whole set failed. */
 u32 unlock_with_dictionary(wchar_t letter, const wchar_t* const* user_passwords,
                            size_t user_count);
+
+/* Narrow-candidate overload (the CLI path; UTF-8/ASCII candidates from a
+ * loaded dictionary file ride the same consent loop). */
+u32 unlock_with_dictionary(wchar_t letter, const std::vector<std::string>& user_candidates);
 
 #ifdef _WIN32
 namespace detail {
@@ -90,14 +84,12 @@ std::wstring build_unlock_command(wchar_t letter, int key_type,
                                   const std::wstring& key_or_path, bool legacy_manage_bde);
 
 /* The dictionary loop with the attempt seam (the recorder surface for the
- * N-064 contract tests): runs the pure pwddict sequencer over
- * user_candidates (+ the seed dictionary when include_seed), feeding each
- * candidate to `attempt` (recorder in tests, the real unlock in the
- * product flow). Returns the sequencer's OK / ERR_FVE_LOCKED and fills
- * attempts_made. */
-u32 dictionary_unlock_seam(const std::vector<std::string>& user_candidates, bool include_seed,
-                           u32 (*attempt)(wchar_t letter, const wchar_t* password, void* user),
-                           wchar_t letter, void* user, size_t* attempts_made);
+ * N-064 contract tests). Candidates are converted to wide and fed to
+ * `attempt`; returns the cr::dict::AttemptResult. */
+cr::dict::AttemptResult dictionary_unlock_seam(
+    const std::vector<std::string>& user_candidates,
+    u32 (*attempt)(wchar_t letter, const wchar_t* password, void* user), wchar_t letter,
+    void* user);
 
 /* The og's live registry path constant (ASCII view for tests). */
 const char* fve_live_registry_path_a();

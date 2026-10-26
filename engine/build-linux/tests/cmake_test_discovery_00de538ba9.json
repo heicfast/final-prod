@@ -1,0 +1,183 @@
+{
+  "tests": 33,
+  "name": "AllTests",
+  "testsuites": [
+    {
+      "name": "CrUi",
+      "tests": 32,
+      "testsuite": [
+        {
+          "name": "AbiVersionAndLastError",
+          "file": "\/home\/z\/my-project\/work\/core_recovery\/tests\/unit\/test_cr_ui.cpp",
+          "line": 215
+        },
+        {
+          "name": "CarveFormatRegistryEnumeration",
+          "file": "\/home\/z\/my-project\/work\/core_recovery\/tests\/unit\/test_cr_ui.cpp",
+          "line": 233
+        },
+        {
+          "name": "ScanLifecycleOverImage",
+          "file": "\/home\/z\/my-project\/work\/core_recovery\/tests\/unit\/test_cr_ui.cpp",
+          "line": 278
+        },
+        {
+          "name": "CancelSaveAndResume",
+          "file": "\/home\/z\/my-project\/work\/core_recovery\/tests\/unit\/test_cr_ui.cpp",
+          "line": 308
+        },
+        {
+          "name": "PauseBlocksAndResumes",
+          "file": "\/home\/z\/my-project\/work\/core_recovery\/tests\/unit\/test_cr_ui.cpp",
+          "line": 345
+        },
+        {
+          "name": "ScanBusyStoppingQueries",
+          "file": "\/home\/z\/my-project\/work\/core_recovery\/tests\/unit\/test_cr_ui.cpp",
+          "line": 379
+        },
+        {
+          "name": "SnapshotEnumeration",
+          "file": "\/home\/z\/my-project\/work\/core_recovery\/tests\/unit\/test_cr_ui.cpp",
+          "line": 450
+        },
+        {
+          "name": "QueryFiltersSortPaging",
+          "file": "\/home\/z\/my-project\/work\/core_recovery\/tests\/unit\/test_cr_ui.cpp",
+          "line": 496
+        },
+        {
+          "name": "PreviewSessionAndSnapshot",
+          "file": "\/home\/z\/my-project\/work\/core_recovery\/tests\/unit\/test_cr_ui.cpp",
+          "line": 622
+        },
+        {
+          "name": "RecoverySubtreeAndRename",
+          "file": "\/home\/z\/my-project\/work\/core_recovery\/tests\/unit\/test_cr_ui.cpp",
+          "line": 683
+        },
+        {
+          "name": "ErrorPathsAndPlatformTruth",
+          "file": "\/home\/z\/my-project\/work\/core_recovery\/tests\/unit\/test_cr_ui.cpp",
+          "line": 797
+        },
+        {
+          "name": "TypedEventStreamFullLifecycle",
+          "file": "\/home\/z\/my-project\/work\/core_recovery\/tests\/unit\/test_cr_ui.cpp",
+          "line": 919
+        },
+        {
+          "name": "EventStreamUnsubscribeAndResubscribe",
+          "file": "\/home\/z\/my-project\/work\/core_recovery\/tests\/unit\/test_cr_ui.cpp",
+          "line": 1011
+        },
+        {
+          "name": "HeartbeatDuringStall",
+          "file": "\/home\/z\/my-project\/work\/core_recovery\/tests\/unit\/test_cr_ui.cpp",
+          "line": 1064
+        },
+        {
+          "name": "SaveProgressEventsAndAtomicCancel",
+          "file": "\/home\/z\/my-project\/work\/core_recovery\/tests\/unit\/test_cr_ui.cpp",
+          "line": 1203
+        },
+        {
+          "name": "EventThreadContractPinned",
+          "file": "\/home\/z\/my-project\/work\/core_recovery\/tests\/unit\/test_cr_ui.cpp",
+          "line": 1286
+        },
+        {
+          "name": "SessionSaveWritesCrsfOnly",
+          "file": "\/home\/z\/my-project\/work\/core_recovery\/tests\/unit\/test_cr_ui.cpp",
+          "line": 1356
+        },
+        {
+          "name": "AbiVersionAnnotationsAreTruthful",
+          "file": "\/home\/z\/my-project\/work\/core_recovery\/tests\/unit\/test_cr_ui.cpp",
+          "line": 1390
+        },
+        {
+          "name": "DiskMapSessionGeometryAndOverlays",
+          "file": "\/home\/z\/my-project\/work\/core_recovery\/tests\/unit\/test_cr_ui.cpp",
+          "line": 1410
+        },
+        {
+          "name": "DiskMapSnapshotRequiresViewGeometry",
+          "file": "\/home\/z\/my-project\/work\/core_recovery\/tests\/unit\/test_cr_ui.cpp",
+          "line": 1473
+        },
+        {
+          "name": "DiskMapFreeOverlayFromFatTable",
+          "file": "\/home\/z\/my-project\/work\/core_recovery\/tests\/unit\/test_cr_ui.cpp",
+          "line": 1501
+        },
+        {
+          "name": "DiskMapFreeCellsSurviveSessionReloadAndSnapshot",
+          "file": "\/home\/z\/my-project\/work\/core_recovery\/tests\/unit\/test_cr_ui.cpp",
+          "line": 1541
+        },
+        {
+          "name": "DiskMapScanSnapshotCarriesFreeMap",
+          "file": "\/home\/z\/my-project\/work\/core_recovery\/tests\/unit\/test_cr_ui.cpp",
+          "line": 1593
+        },
+        {
+          "name": "PreScanRepairConsentGateAndUndoLog",
+          "file": "\/home\/z\/my-project\/work\/core_recovery\/tests\/unit\/test_cr_ui.cpp",
+          "line": 1723
+        },
+        {
+          "name": "PreScanRepairDeniedLeavesFileUntouched",
+          "file": "\/home\/z\/my-project\/work\/core_recovery\/tests\/unit\/test_cr_ui.cpp",
+          "line": 1822
+        },
+        {
+          "name": "ImageSourceDestinationNearImageAccepted",
+          "file": "\/home\/z\/my-project\/work\/core_recovery\/tests\/unit\/test_cr_ui.cpp",
+          "line": 1859
+        },
+        {
+          "name": "CheckpointAtomicStagingAndCommit",
+          "file": "\/home\/z\/my-project\/work\/core_recovery\/tests\/unit\/test_cr_ui.cpp",
+          "line": 1882
+        },
+        {
+          "name": "CheckpointPreviousGoodSurvivesTornEmit",
+          "file": "\/home\/z\/my-project\/work\/core_recovery\/tests\/unit\/test_cr_ui.cpp",
+          "line": 1915
+        },
+        {
+          "name": "LostApplyConsentGateAndUndo",
+          "file": "\/home\/z\/my-project\/work\/core_recovery\/tests\/unit\/test_cr_ui.cpp",
+          "line": 2028
+        },
+        {
+          "name": "LostApplyRefusesOverlapAndSlices",
+          "file": "\/home\/z\/my-project\/work\/core_recovery\/tests\/unit\/test_cr_ui.cpp",
+          "line": 2099
+        },
+        {
+          "name": "QueryApplyBucketsFillsAndRejects",
+          "file": "\/home\/z\/my-project\/work\/core_recovery\/tests\/unit\/test_cr_ui.cpp",
+          "line": 2157
+        },
+        {
+          "name": "RawCategoryNameNamesTheCarveRoot",
+          "file": "\/home\/z\/my-project\/work\/core_recovery\/tests\/unit\/test_cr_ui.cpp",
+          "line": 2246
+        }
+      ]
+    },
+    {
+      "name": "DiskMap",
+      "tests": 1,
+      "testsuite": [
+        {
+          "name": "FreeNeverOverridesUsedOrBadAndDownsampleIsConservative",
+          "file": "\/home\/z\/my-project\/work\/core_recovery\/tests\/unit\/test_cr_ui.cpp",
+          "line": 1626
+        }
+      ]
+    }
+  ]
+}
