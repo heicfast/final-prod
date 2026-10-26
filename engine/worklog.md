@@ -15957,6 +15957,55 @@ Stage Summary:
 - S-034 FIXED and pushed (cb046ed). Board: MAJOR 1 (M-040), MINOR 1
   (N-072), tracked-open 2 (OQ-S4-3, OQ-FLT-2). SEVERE 0.
 
+Task ID: DFX34-T8 (session 34, eighth landing — N-072 FIXED, the last open MINOR)
+Agent: main engineer (diff-to-fix fix session 34 — DFX34)
+Task: N-072 — the Btrfs re-scan metadata cache + the ZFS
+delay-execution label polling (the MINOR tier's last open finding).
+
+Work Log:
+- Corpus re-verified first-hand: remaining-engines artifact :66-67
+  (BtrfsCache.txt relative-path string — subvolume/chunk trees cached)
+  + :86 ("Delay-execution import (polling during long walks)"); both
+  string-evidence only (the og's cache format + invalidation rule are
+  NOT decoded anywhere in the corpus — the finding's open question).
+  CONFIRMED-DIVERGENCE.
+- Part A (the live/static discriminator, the retry's gate): the new
+  `IStorageDevice::is_static_media()` (default false = live handle);
+  forwarded through CachedReader / RetryingDevice / DecryptingDevice /
+  PartitionSlice / SliceShim; true on all four image device classes
+  (Flat/Vmdk/Vhd/Vhdx).
+- Part B (the ZFS retry): the label sweep extracted into a re-runnable
+  lambda (the BE-pool refusal propagates via its return code); on a
+  live handle with no valid uberblock: up to 3 retries, 250/500/1000 ms
+  backoff, cancel-aware in 50 ms slices (cancelled() in the sleep,
+  checkpoint() at the loop head); stats.label_retries; static media
+  never enters the loop.
+- Part C (the Btrfs cache): pure codec cr_btrfs_cache.h/.cpp (magic
+  CRBTC001 + version + fsid + generation + chunk map + both tree roots
+  + zlib CRC32; strict validate: fsid AND generation match-or-discard,
+  hostile-blob caps 100k chunks / 4k stripes, 1 MiB default bound);
+  scan_btrfs trailing `const BtrfsCacheConfig* = nullptr` (OFF by
+  default); host-owned file seam BtrfsCacheIo; on a hit: chunk map +
+  chunk_root + root_tree adopted, the chunk chase/walk + root probe
+  SKIPPED (warm-scan nodes_read strictly lower, tree output identical,
+  no rewrite on hit); trees NEVER cached (re-validated every scan).
+  REGISTERED DIVERGENCE D-89 (own format — the og's is undecoded;
+  caller-supplied dir — the og's beside-the-DLL write is the finding's
+  own hazard note; OFF by default — the og writes unconditionally).
+- Tests: 7 proof tests (4 cache + 3 retry) incl. the finding's three
+  named ones; fail-before EXECUTED (retry cap temporarily zeroed ->
+  both Zfs retry tests RED with ERR_BAD_MAGIC, the pre-fix behavior;
+  restored -> 7/7 GREEN). Suite 904/904.
+- Audit trail: Resolution + FIXED/ move, RESOLVED-INDEX row, matrix
+  btrfs+zfs rows, modules/btrfs.md + modules/zfs.md session-34 verdict
+  tables, PARITY-DELTAS D-89.
+
+Stage Summary:
+- N-072 FIXED — the MINOR tier is EMPTY. Session tally: N-007 FIXED +
+  N-065 FIXED-ALREADY + N-072 FIXED + N-064 convergent-absorbed (+5
+  main-red repairs). Remaining open: MAJOR M-030, M-040 (the parallel
+  lanes drained the rest). Next: M-030 or M-040.
+
 Task ID: DFX36-T1 (session 36 start + pushed-red repair)
 Agent: main engineer (diff-to-fix fix session 36 — DFX36)
 Task: Session start protocol; repair the 7ec5446 union regression (build RED on main)

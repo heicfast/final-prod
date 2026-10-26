@@ -2978,3 +2978,33 @@ the corpus as recoverable-by-block-access; the exclusion is scope, not
 capability loss. REVISIT TRIGGER: a corpus decode of the EuMrx scan's
 actual recovery semantics (deleted-file yield on shares) would reopen
 the row.
+
+### D-89 — the Btrfs re-scan cache: our own format, caller-supplied directory, OFF by default (N-072, REGISTERED DIVERGENCE)
+
+**OG:** BtrfsSearchDLL persists a relative-path `BtrfsCache.txt` beside the
+engine DLL to speed re-scans of the same volume — subvolume/chunk trees
+cached (artifacts/SearchDLL/remaining-engines artifact :66-67). STRING
+EVIDENCE ONLY: the og's cache format, keying and invalidation rule are not
+decoded anywhere in the corpus.
+
+**CORE (N-072):** the mechanism is ported with three deliberate deltas, each
+required by the finding's own fix plan: (1) the format is OUR OWN — a
+versioned binary blob ("CRBTC001", zlib CRC32, fsid + generation strict
+match-or-discard, hostile-blob caps, 1 MiB size bound) documented in
+`cr_btrfs_cache.h`; no og format exists to match, so none is claimed. (2)
+The placement is a CALLER-SUPPLIED cache directory (the og's beside-the-DLL
+write breaks under Program Files / readonly media / multi-user contexts —
+the finding's own hazard note). (3) The cache is OFF by default (the og
+writes unconditionally); a host opts in per scan with a directory + IO seam.
+What is cached: the derived chunk map + the chunk-root/root-tree bytenrs —
+exactly the re-scan's repeated derivations; the trees themselves are NEVER
+cached (every scan re-reads and re-validates them — recovery-honest).
+
+**RISK:** a warm scan adopts the cached chunk map when fsid AND generation
+match; a volume whose generation advanced (any live write) invalidates
+cleanly (re-derive + rewrite). A corrupt/foreign/truncated blob is
+discarded, never adopted.
+
+**VERDICT:** ACCEPTED (registered divergence: own format + placement +
+default-off vs the og's undecoded beside-the-DLL write; the capability gap
+N-072 filed is closed).

@@ -170,6 +170,7 @@ multivdev-fallback/checksum side.)
 | N-056 | MINOR | Delay-execution label/uberblock import polling missing (og retries with backoff during long walks; core probes once — torn pools fail immediately) |
 | INFO-register | — | Core decompresses lzjb/zle/gzip/lz4/zstd (cr_zfs_engine.cpp:19-21); the og models per-object compression (std::map<int64,zio_compress>, remaining-engines:80). No divergence claimable in either direction (both read compressed pools); recorded for the decode-evidence ledger |
 
+<<<<<<< HEAD
 
 ---
 
@@ -178,3 +179,10 @@ multivdev-fallback/checksum side.)
 | ID | Severity | One-line |
 |---|---|---|
 | S-034 | SEVERE → **FIXED** | Ring txg-history walk: every valid uberblock state walked newest-first, cross-state identity dedup (dataset, parent, name, objid, bp0 birth); deleted-in-window files surface as Deleted in place; modified-in-window recalls the prior version as a Deleted sibling; torn states skipped like the og's tree-open failure. Decode items (1)(2)(3) answered first-hand (collector = plain push_back, no engine dedup; per-state tree walk is the state's own content; last_txg display-only). Tests: RingWindowDeletedFileRecalled / RingWindowUnchangedEntriesEmitOnce / RingWindowModifiedFilePriorVersionRecalled / RingTornNewestStateFallsBackToOlder (all fail-before RED). `ring_states` telemetry added |
+=======
+## Session-34 fix leg (DFX34) — N-072 (the label-retry half)
+
+| Parameter | Verdict |
+|---|---|
+| A25/S35 label import + recovery | **MATCH** — the og's delay-execution import polling (remaining-engines artifact :86) landed as the bounded label retry: the sweep re-runnable, live handles retry 3x with 250/500/1000 ms cancel-aware backoff, static media (image files — the new `is_static_media()` device discriminator, forwarded through every wrapper) never retries; `label_retries` on ZfsScanStats; the BE-pool refusal propagates unchanged |
+>>>>>>> origin/main

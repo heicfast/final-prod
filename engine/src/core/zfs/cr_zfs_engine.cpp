@@ -61,6 +61,8 @@
 #include <functional>
 #include <map>
 #include <set>
+#include <chrono>
+#include <thread>
 
 namespace cr {
 namespace zfs {
@@ -1198,9 +1200,19 @@ u32 scan_zfs(IStorageDevice* slice, CancelToken* cancel, WalkProgressLike progre
 
     /* 1. labels: OpenZFS layout - L0@0, L1@256K, L2@end-512K, L3@end-256K.
      * Each: [8K skip][8K boot env][112K vdev_phys (config nvlist at its
-     * start)][128K uberblock ring (128 slots x 1KiB)]. */
+     * start)][128K uberblock ring (128 slots x 1KiB)].
+     *
+     * N-072 (the og's delay-execution import polling, remaining-engines
+     * artifact :86): the sweep is a re-runnable unit - when the first
+     * pass finds no valid uberblock on a LIVE handle, the og's import
+     * path polls with delay-execution (a hot-unplug/replug or a
+     * mid-transaction rewrite can heal between sweeps). The bounded
+     * retry below mirrors that: 3 retries, 250/500/1000 ms backoff,
+     * cancel-aware in 50 ms slices; static media (image files) never
+     * retries - a torn image stays torn. */
     const u64 label_base[4] = {0, LABEL_SIZE, total - 2 * LABEL_SIZE, total - LABEL_SIZE};
     LabelConfig cfg;
+<<<<<<< HEAD
     /* S-034: collect EVERY valid uberblock state from the rings — the
      * og's quick searcher walks the whole label-0 ring (FUN_180006b90
      * :5685-5841, stride-0x400 slot loop) and opens each slot's txg
@@ -1215,6 +1227,15 @@ u32 scan_zfs(IStorageDevice* slice, CancelToken* cancel, WalkProgressLike progre
     };
     std::vector<RingState> ring_states;
     for (int li = 0; li < 4; ++li) {
+=======
+    u64 best_txg = 0;
+    std::vector<u8> best_ub;
+    auto run_label_sweep = [&]() -> u32 {
+        cfg = LabelConfig{};
+        best_txg = 0;
+        best_ub.clear();
+        for (int li = 0; li < 4; ++li) {
+>>>>>>> origin/main
         if (label_base[li] + LABEL_SIZE > total)
             continue;
         /* config nvlist at label+16K (first 112K is vdev_phys) */
@@ -1304,6 +1325,25 @@ u32 scan_zfs(IStorageDevice* slice, CancelToken* cancel, WalkProgressLike progre
             if (hits > 0)
                 break; /* found the pool's true uberblock geometry */
         }
+        }
+        return OK;
+    };
+    if (const u32 sweep_rc = run_label_sweep(); sweep_rc != OK)
+        return sweep_rc; /* e.g. the big-endian-pool refusal propagates */
+
+    /* N-072: bounded label retry with backoff (live handles only) */
+    constexpr u32 kLabelBackoffMs[3] = {250, 500, 1000};
+    for (int retry = 0; best_ub.empty() && !slice->is_static_media() && retry < 3; ++retry) {
+        if (cancel && cancel->checkpoint())
+            return ERR_CANCELLED;
+        for (u32 slept = 0; slept < kLabelBackoffMs[retry]; slept += 50) {
+            if (cancel && cancel->cancelled())
+                return ERR_CANCELLED;
+            std::this_thread::sleep_for(std::chrono::milliseconds(50));
+        }
+        ++stats.label_retries;
+        if (const u32 sweep_rc = run_label_sweep(); sweep_rc != OK)
+            return sweep_rc;
     }
     /* txg-dedup + newest-first ordering. A closed txg's rootbp is 1:1
      * (vdev_label.c writes exactly one uberblock per txg), so same-txg
