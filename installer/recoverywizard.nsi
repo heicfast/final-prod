@@ -489,6 +489,16 @@ Section "Uninstall"
 
   ; ---- 3. Shared state: sessions kept by default (explicit consent) ------
   ${If} ${FileExists} "${PROGRAMDATA_SESSIONS}\*.*"
+    ; SILENT mode must NEVER delete user data: NSIS auto-answers a
+    ; MessageBox with its default button (MB_YESNO -> IDYES), so the
+    ; original prompt silently WIPED sessions on every /S uninstall —
+    ; the opposite of this block's own "No recommended" copy. Silent
+    ; keeps state (recorded in the uninstall log); only an interactive
+    ; user can consent to deletion.
+    ${If} ${Silent}
+      DetailPrint "Silent uninstall: shared state kept (${PROGRAMDATA_ROOT}) — data deletion requires interactive consent."
+      goto keep_state
+    ${EndIf}
     MessageBox MB_YESNO|MB_ICONQUESTION "Also delete the saved scan sessions in$\r$\n${PROGRAMDATA_SESSIONS} ?$\r$\n$\r$\nChoose No to keep them (recommended — recovered files live wherever you saved them and are never touched)." IDYES del_state IDNO keep_state
     del_state:
       RMDir /r "${PROGRAMDATA_ROOT}"

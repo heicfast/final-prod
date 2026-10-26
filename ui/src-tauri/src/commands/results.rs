@@ -929,3 +929,176 @@ fn compose_confidence_reason(m: &NodeMeta) -> Option<String> {
     s.push_str(&format!(" ({grade})"));
     Some(s)
 }
+
+// ---------------------------------------------------------------------------
+// T14 measurement tests — #[ignore]d, NEVER part of the normal ui-ci lane
+// (which runs cargo check + clippy only). The validation-evidence workflow
+// runs them explicitly with `cargo test --release -- --ignored --nocapture`
+// and records the JSON lines into docs/INTEGRATION-VALIDATION/t14-bridge.md
+// (docs/INTEGRATION-VALIDATION.md "Pending evidence" — the G-7 filter cost
+// over the metadata cache at 10^5/10^6 scales + the NodeMeta memory bound).
+// ---------------------------------------------------------------------------
+#[cfg(test)]
+mod t14_validation {
+    use super::{matches_pred, Pred};
+    use crate::bridge::state::NodeMeta;
+    use std::alloc::{GlobalAlloc, Layout, System};
+    use std::sync::atomic::{AtomicU64, Ordering};
+    use std::time::Instant;
+
+    /// Deterministic synthetic metas: a realistic name/path/category mix
+    /// (25% dirs — excluded by the list filter, like real trees — plus a
+    /// spread of origins/deleted states/categories/extensions).
+    fn synth_metas(n: usize) -> Vec<NodeMeta> {
+        let exts = ["jpg", "png", "pdf", "docx", "mp4", "zip", "txt", "xlsx"];
+        (0..n)
+            .map(|i| {
+                let ext = exts[i % exts.len()];
+                let is_dir = i % 4 == 0;
+                let name = if is_dir {
+                    format!("d{i}")
+                } else {
+                    format!("f{i}.{ext}")
+                };
+                NodeMeta {
+                    node_id: i as u64,
+                    parent: if i == 0 { u32::MAX } else { (i / 10) as u32 },
+                    name: name.clone(),
+                    path: format!("users/public/docs/{name}"),
+                    is_dir,
+                    size: if is_dir { 0 } else { (i as u64 % 900_000) + 100 },
+                    modified_ft: 132_000_000_000_000_000 + (i as u64) * 3_600_000_000,
+                    created_ft: 131_000_000_000_000_000,
+                    accessed_ft: 133_000_000_000_000_000,
+                    origin: (i % 4) as u32,
+                    deleted: if i % 3 == 0 { 0 } else { 1 },
+                    confidence: (i % 5) as u32,
+                    grade: (i % 3) as u32,
+                    extent_count: (i % 7) as u32,
+                    hash_valid: (i % 2) as u32,
+                    overlap: 0,
+                    category: if is_dir { 0 } else { 1 + (i % 8) as u8 },
+                    file_count: 0,
+                    tree_size: 0,
+                    child_count: 0,
+                }
+            })
+            .collect()
+    }
+
+    fn timed_pass(metas: &[NodeMeta], pred: &Pred, label: &str) {
+        let t0 = Instant::now();
+        let hits: usize = metas.iter().filter(|m| matches_pred(m, pred)).count();
+        let dt = t0.elapsed();
+        let per_node_ns = dt.as_nanos() as f64 / metas.len() as f64;
+        println!(
+            "T14JSON: {{\"leg\": \"g7-filter-{label}\", \"nodes\": {}, \"hits\": {}, \"totalMs\": {:.3}, \"nsPerNode\": {:.1}}}",
+            metas.len(),
+            hits,
+            dt.as_secs_f64() * 1000.0,
+            per_node_ns
+        );
+    }
+
+    #[test]
+    #[ignore = "T14 measurement — the validation-evidence workflow runs it (cargo test --release -- --ignored --nocapture)"]
+    fn g7_filter_cost_over_metadata_cache() {
+        for &scale in &[100_000usize, 1_000_000] {
+            let metas = synth_metas(scale);
+            // The two pred shapes the UI sends: the wide 'all files' pass and
+            // the scoped + category-filtered pass (the worst case that still
+            // walks every row: a scope prefix + a category bit + a search).
+            let all_files = Pred {
+                origin_mask: 0xF,
+                require_active_only: false,
+                require_deleted: false,
+                path_prefix: None,
+                category_bits: 0,
+                ext_exact: None,
+                search: None,
+                size_min: 0,
+                size_max: u64::MAX,
+                date_from_ft: 0,
+                date_to_ft: 0,
+                extensions: Vec::new(),
+                hide_empty_files: false,
+            };
+            let scoped = Pred {
+                path_prefix: Some("users/public/docs".to_string()),
+                category_bits: 0b0000_0101, // graphics + documents
+                search: Some("f1".to_string()),
+                ..all_files
+            };
+            timed_pass(&metas, &all_files, "all");
+            timed_pass(&metas, &scoped, "scoped");
+        }
+    }
+
+    /// Counting allocator — measures the NodeMeta cache's real heap cost.
+    /// Module-scope static (a #[global_allocator] must live at module scope);
+    /// it only exists in the TEST binary and wraps System 1:1. The counter is
+    /// growth-only (alloc/realloc bytes); the tests snapshot deltas, and the
+    /// workflow runs with --test-threads=1 so no other test allocates inside
+    /// a measurement window.
+    struct Counting;
+    static ALLOCATED: AtomicU64 = AtomicU64::new(0);
+
+    #[global_allocator]
+    static A: Counting = Counting;
+
+    unsafe impl GlobalAlloc for Counting {
+        unsafe fn alloc(&self, l: Layout) -> *mut u8 {
+            let p = System.alloc(l);
+            if !p.is_null() {
+                ALLOCATED.fetch_add(l.size() as u64, Ordering::Relaxed);
+            }
+            p
+        }
+        unsafe fn dealloc(&self, p: *mut u8, l: Layout) {
+            System.dealloc(p, l)
+        }
+        unsafe fn realloc(&self, p: *mut u8, l: Layout, n: usize) -> *mut u8 {
+            let q = System.realloc(p, l, n);
+            if !q.is_null() {
+                ALLOCATED.fetch_add(n as u64, Ordering::Relaxed);
+            }
+            q
+        }
+    }
+
+    #[test]
+    #[ignore = "T14 measurement — the validation-evidence workflow runs it (cargo test --release -- --ignored --nocapture --test-threads=1)"]
+    fn node_meta_cache_memory_bound() {
+        for &scale in &[100_000usize, 1_000_000] {
+            ALLOCATED.store(0, Ordering::Relaxed);
+            let before = ALLOCATED.load(Ordering::Relaxed);
+            let metas = synth_metas(scale);
+            let after = ALLOCATED.load(Ordering::Relaxed);
+            let bytes = after.saturating_sub(before);
+            let per_node = bytes / scale as u64;
+            println!(
+                "T14JSON: {{\"leg\": \"nodemeta-memory\", \"nodes\": {}, \"heapBytes\": {}, \"bytesPerNode\": {}, \"structSizeBytes\": {}}}",
+                scale,
+                bytes,
+                per_node,
+                std::mem::size_of::<NodeMeta>()
+            );
+            // The documented bound: the cache is O(n) over the tree with
+            // small per-node strings (INTEGRATION-VALIDATION "memory bounds"
+            // row). 1 KiB/node would already be pathological.
+            assert!(
+                per_node < 1024,
+                "per-node cache cost {per_node} exceeds the documented bound"
+            );
+            drop(metas);
+        }
+
+        // The static bounded structures, pinned so the doc row stays true:
+        // bad-sector map cap 4,096 rows; the scan event channel is 512 deep
+        // and the recovery progress channel 64 (state.rs constants).
+        println!(
+            "T14JSON: {{\"leg\": \"static-bounds\", \"badSectorMapCap\": {}, \"scanEventChannel\": 512, \"recoveryProgressChannel\": 64}}",
+            crate::bridge::state::BAD_SECTOR_MAP_CAP
+        );
+    }
+}

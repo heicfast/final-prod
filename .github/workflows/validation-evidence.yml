@@ -1,0 +1,170 @@
+name: validation-evidence
+
+# T14 + T15 (docs/INTEGRATION-VALIDATION.md "Pending evidence"): measured
+# latency/throughput against the retired simulator's documented budgets, the
+# G-7 filter cost over the bridge metadata cache at 10^5/10^6 scales, memory
+# bounds, and the installer runtime matrix (install / uninstall / update /
+# repair) on a clean Windows runner.
+#
+# workflow_dispatch ONLY: the numbers are runner-dependent, so every run is
+# recorded deliberately — the artifacts are downloaded, reviewed, and
+# committed under docs/INTEGRATION-VALIDATION/ by hand (the workflow itself
+# never pushes; contents: read).
+#
+# No masking: a leg that cannot run fails the run (installer-matrix.ps1
+# throws on any failing row; the harness exits nonzero on a hard phase
+# failure; unavailable phases are RECORDED as unavailable, never skipped
+# silently).
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  t14-measurements:
+    name: T14 engine latency + bridge filter/memory measurements
+    runs-on: windows-2022
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Engine kit (build.ps1 -Target engine; contracts gate runs inside)
+        shell: pwsh
+        run: |
+          ./build.ps1 -Target engine -SkipTests   # engine tests are engine-ci's lane
+          if ($LASTEXITCODE -ne 0) { exit 1 }
+
+      - name: Compile the measurement harness (cl /std:c17 against the staged kit)
+        uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: x64
+
+      - name: Compile + run the harness
+        shell: pwsh
+        run: |
+          $version = (Get-Content VERSION -Raw).Trim()
+          $kit = "build\out\stage-$version\engine"
+          cl /nologo /std:c17 /O2 /W4 /DWIN32_LEAN_AND_MEAN `
+             tools\validation\measure-cr-ui.c /I engine\include `
+             /Fe:measure-cr-ui.exe /link "$kit\cr_ui.lib" psapi.lib
+          if ($LASTEXITCODE -ne 0) { exit 1 }
+          # The harness links cr_ui.dll statically — run it from the kit dir.
+          Copy-Item measure-cr-ui.exe -Destination $kit
+          Push-Location $kit
+          .\measure-cr-ui.exe --quick-only > "$env:GITHUB_WORKSPACE\t14-engine.json"
+          $rc = $LASTEXITCODE
+          Pop-Location
+          if ($rc -ne 0) { exit 1 }
+          Get-Content "$env:GITHUB_WORKSPACE\t14-engine.json" | Write-Host
+
+      - name: Bridge-side measurements (G-7 filter cost + NodeMeta memory bound)
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: stable
+
+      - name: Run the ignored T14 tests (release, serialized, uncaptured)
+        shell: pwsh
+        run: |
+          $version = (Get-Content VERSION -Raw).Trim()
+          $kit = Resolve-Path "build\out\stage-$version\engine"
+          $env:CR_UI_LIB_DIR = "$kit"
+          # The test binary statically imports cr_ui.dll: stage the kit's
+          # DLLs beside it (deps\ is where cargo runs lib-test binaries).
+          $tgt = "ui\src-tauri\target\release"
+          New-Item -ItemType Directory -Force -Path "$tgt", "$tgt\deps" | Out-Null
+          Copy-Item "$kit\*" -Destination "$tgt" -Force
+          Copy-Item "$kit\*.dll" -Destination "$tgt\deps" -Force
+          Push-Location ui\src-tauri
+          cargo test --release -- --ignored --nocapture --test-threads=1 2>&1 | Tee-Object ..\..\t14-bridge.log
+          $rc = $LASTEXITCODE
+          Pop-Location
+          if ($rc -ne 0) { exit 1 }
+          # Extract the JSON evidence lines.
+          Select-String -Path t14-bridge.log -Pattern 'T14JSON:' |
+            ForEach-Object { $_.Line -replace '^.*T14JSON: ', '' } | Set-Content t14-bridge.jsonl
+          Get-Content t14-bridge.jsonl | Write-Host
+
+      - name: Runner context (recorded with every measurement)
+        shell: pwsh
+        run: |
+          @{
+            imageOs     = $env:ImageOS
+            runnerName  = $env:RUNNER_NAME
+            cpu         = (Get-CimInstance Win32_Processor | Select-Object -First 1 -ExpandProperty Name)
+            cores       = (Get-CimInstance Win32_Processor | Select-Object -First 1 -ExpandProperty NumberOfLogicalProcessors)
+            ramGb       = [math]::Round((Get-CimInstance Win32_ComputerSystem).TotalPhysicalMemory / 1GB, 1)
+            ranAtUtc    = (Get-Date).ToUniversalTime().ToString('o')
+            commit      = '${{ github.sha }}'
+            runUrl      = '${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}'
+          } | ConvertTo-Json | Set-Content runner-context.json
+
+      - name: Upload T14 evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: t14-measurements
+          path: |
+            t14-engine.json
+            t14-bridge.jsonl
+            t14-bridge.log
+            runner-context.json
+          retention-days: 30
+          if-no-files-found: error
+
+  t15-installer-matrix:
+    name: T15 installer runtime matrix (clean runner)
+    runs-on: windows-2022
+    timeout-minutes: 100
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 12.15.0
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: stable
+
+      - uses: nuget/setup-nuget@v2
+
+      - uses: microsoft/setup-msbuild@v2
+
+      - name: Full product build (all lanes; tests are the CI lanes' job)
+        shell: pwsh
+        run: |
+          $env:CR_UI_LIB_DIR = ''   # build.ps1 stages the kit and sets this itself
+          ./build.ps1 -Target all -SkipTests
+          if ($LASTEXITCODE -ne 0) { exit 1 }
+
+      - name: Run the runtime matrix (install / update / repair / uninstall)
+        shell: pwsh
+        run: |
+          $version = (Get-Content VERSION -Raw).Trim()
+          ./tools/validation/installer-matrix.ps1 `
+            -InstallerPath "build\out\RecoveryWizard-$version-setup.exe" `
+            -OutDir t15-evidence
+          if ($LASTEXITCODE -ne 0) { exit 1 }
+
+      - name: Upload the built installer (for the RC run + manual inspection)
+        uses: actions/upload-artifact@v4
+        with:
+          name: t15-installer
+          path: build/out/RecoveryWizard-*-setup.exe
+          retention-days: 30
+          if-no-files-found: error
+
+      - name: Upload T15 evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: t15-runtime-matrix
+          path: t15-evidence/
+          retention-days: 30
+          if-no-files-found: error

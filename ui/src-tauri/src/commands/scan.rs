@@ -66,6 +66,15 @@ pub fn normalize_scope(raw: &str, volume_letter: Option<u8>) -> BridgeResult<Opt
     Ok(Some(rest.to_lowercase()))
 }
 
+/// What `scan_start_blocking` hands the thread launcher: the registered
+/// entry, the event receiver for the emitter, and the leaked consent pipe
+/// (the run thread's property — freed in the run tail after run() returns).
+pub struct ScanPrep {
+    pub entry: Arc<ScanEntry>,
+    pub events: std::sync::mpsc::Receiver<abi::CrUiEvent>,
+    pub consent: SendPtr<ConsentPipe>,
+}
+
 #[tauri::command]
 pub async fn scan_start(
     app: tauri::AppHandle,
@@ -76,12 +85,13 @@ pub async fn scan_start(
     let state = state.inner().clone();
     let state_for_launch = state.clone();
     let app_for_prep = app.clone();
-    let (entry, scan_id, rx, consent_user) = tauri::async_runtime::spawn_blocking(move || {
+    let prep = tauri::async_runtime::spawn_blocking(move || {
         scan_start_blocking(&state, &app_for_prep, target_id, path_scope)
     })
     .await
     .map_err(|e| BridgeError::bridge(code::UNKNOWN, format!("blocking join: {e}")))??;
-    launch_run_thread(app, state_for_launch, entry, rx, consent_user);
+    let scan_id = prep.entry.scan_id.clone();
+    launch_run_thread(app, state_for_launch, prep);
     Ok(json!({ "scanId": scan_id }))
 }
 
@@ -94,12 +104,7 @@ pub fn scan_start_blocking(
     app: &tauri::AppHandle,
     target_id: String,
     path_scope: Option<String>,
-) -> BridgeResult<(
-    Arc<ScanEntry>,
-    String,
-    std::sync::mpsc::Receiver<abi::CrUiEvent>,
-    SendPtr<ConsentPipe>,
-)> {
+) -> BridgeResult<ScanPrep> {
     // ABI gate: refuse to bind on mismatch (plan §4.8).
     let abi_v = unsafe { abi::cr_ui_abi_version() };
     if abi_v != abi::CR_UI_ABI_VERSION {
@@ -260,7 +265,11 @@ pub fn scan_start_blocking(
         .map_err(|_| BridgeError::bridge(code::UNKNOWN, "registry lock"))?
         .insert(scan_id.clone(), entry.clone());
 
-    Ok((entry, scan_id, rx, consent_user))
+    Ok(ScanPrep {
+        entry,
+        events: rx,
+        consent: consent_user,
+    })
 }
 
 /// Spawn the emitter + run threads (called by the command wrapper once the
@@ -271,10 +280,13 @@ pub fn scan_start_blocking(
 pub fn launch_run_thread(
     app: tauri::AppHandle,
     state: Arc<BridgeState>,
-    entry: Arc<ScanEntry>,
-    rx: std::sync::mpsc::Receiver<abi::CrUiEvent>,
-    consent_user: SendPtr<ConsentPipe>,
+    prep: ScanPrep,
 ) {
+    let ScanPrep {
+        entry,
+        events: rx,
+        consent: consent_user,
+    } = prep;
     let scan_id = entry.scan_id.clone();
     let live = entry.live.clone();
     let snapshot_exists = entry.snapshot_exists.clone();
