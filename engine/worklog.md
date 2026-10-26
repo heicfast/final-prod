@@ -16871,3 +16871,36 @@ Stage Summary:
   SEVERE 0, MAJOR 0, MINOR 0; tracked-open: OQ-S4-3 + OQ-FLT-2
   (status to re-check against the parallel lanes' closures).
 
+
+---
+Task ID: DFX33b-T8 (OQ-FLT-2 verification + the pushed-red repairs + the session close)
+Agent: main engineer (diff-to-fix fix session 33b — DFX33b)
+
+Work Log:
+- OQ-FLT-2: independently completed the apply-method decode the
+  session-37 closure deferred — the per-group semantics in full
+  (dword 0 deleted/class + the 0x40000000 mark; dword 1 kind select
+  bits 1-9 with the bit-10 runtime gate; dword 2 the date group with
+  the day-granularity range mode over dwords 3-6; dword 8 the
+  type/size group - category mask + the >1GiB bucket + the explicit
+  [min,max] range at dwords 10-13; dword 14 THE SEVENTH enable group
+  - the tag mask; dword 15 the exclusion group; dword 16 the flag-40
+  group), the tag vocabulary's source (node-FLAG bit positions, not a
+  string table), and the PATH-MATCHING HYPOTHESIS REFUTED (no
+  path/string group exists in the 0x48 condition; dwords 7/9/17 carry
+  no per-node test; the Path-vs-Type difference is the manager).
+  Appended as the complement record on
+  findings/FIXED/OQ-Z-E-FLT-session3-resolved.md.
+- Two pushed-red repairs this stretch: (1) the parallel lane's merge
+  commits carried committed conflict markers in nvramfix/bootfix/
+  rrecov (the ddb7e1c push was red) — resolved to the corrected
+  signatures, 926/926; (2) the nested-marker residue from the two
+  lanes' identical convergence repairs — resolved to the convergent
+  signatures, pushed 7f153c6, 926/926.
+
+Stage Summary:
+- The findings board is EMPTY at every severity tier: SEVERE 0 ·
+  MAJOR 0 · MINOR 0 · INFORMATIONAL all ACKNOWLEDGED · FIXED/ 223
+  files. tracked-open: OQ-S4-3 alone (the Windows bench — dispatched
+  by the parallel lane, in flight at this writing). The audit closes
+  cleanly pending that execution's numbers.
