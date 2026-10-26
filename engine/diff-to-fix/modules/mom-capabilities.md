@@ -102,9 +102,14 @@ Audited 2026-10-26 (session 5) — first-time coverage for every row here.
 - **CheckVersion.mo (OS-aware recovery)** — registered here: offline
   OS-install detection (\winnt/\windows sweep, rdisk 0..31 × partition
   1..32, offline SYSTEM hive ProductType ServerNT/LanmanNT/WinNT) —
-  core absent; **UNRESOLVED consumer** (no host binary references the
-  module; possibly dead-shipped) — tracked as OQ-S5-1 (tracked-open) so
-  the capability claim is not filed as a finding without a live consumer.
+  core absent; **DEAD-SHIPPED — RESOLVED (DFX30, 2026-10-26, OQ-S5-1)**:
+  the MOM load contract is by-name lazy (mom-module-system §1.1), and the
+  exhaustive sweep across every corpus decompile (incl. the now-present
+  MainModule_decompiled.c — the exact next artifact DFX14 queued) finds
+  ZERO "CheckVersion" load requests — the module ships, implements its
+  GetModule contract, and is never loaded. The og's live behavior does
+  NOT include OS-aware recovery; the core's absence is MATCH-by-omission
+  (no finding, deliberate parity by shared dead code).
 
 ## Findings index (this module)
 
@@ -135,7 +140,7 @@ Audited 2026-10-26 (session 5) — first-time coverage for every row here.
 
 ## Open (tracked)
 
-- **OQ-S5-1** (new): CheckVersion.mo's consumer — is OS-aware recovery
+- **OQ-S5-1** — RESOLVED (DFX30): dead-shipped; MATCH-by-omission (the row above)
   live in the og product or dead-shipped? Next artifacts: BUILDPE payload
   string sweep + DRWService/EuRepairHost decompiles (not in the reversed
   set).

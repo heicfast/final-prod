@@ -14355,3 +14355,40 @@ Work Log:
 Stage Summary:
 - OQ-S6-1 closed with a two-lane union + one corrected conclusion.
   Remaining on this lane: OQ-S5-1 (CheckVersion consumer).
+
+---
+Task ID: DFX30-T13 (OQ-S5-1 resolved + closed — my queue's last item)
+Agent: main engineer (diff-to-fix fix session 30 — DFX30)
+Task: OQ-S5-1 — is CheckVersion.mo's OS-aware recovery live or
+dead-shipped legacy?
+
+Work Log:
+- The load contract established: by-name LAZY loading
+  (FUN_1800017f0(name) -> +".mo" -> LoadLibraryA -> GetModule) — a
+  module is live only when a host requests it by name string.
+- The sweep DFX14 queued is now executable: MainModule_decompiled.c
+  EXISTS in ghidra-partition/ (plus RecoveryModule, UILogic,
+  ToolsModule, and 15 more host DLLs, all 120 ghidra-mo modules,
+  DRWUI.exe, and the remaining trees). grep -rln "CheckVersion" across
+  every decompile tree = exactly ONE hit: the module's own file.
+  module_import_matrix.json (36 modules) agrees: zero references.
+- CheckVersion.mo ships with the full contract (GetModule + IObject
+  exports; CRT/KERNEL32-only imports) and full implementations
+  (FUN_180003050/FUN_180003580/FUN_1800029e0) — but no host ever loads
+  it. DEAD-SHIPPED.
+- Disposition: MATCH-by-omission (core's absence of OS-aware recovery =
+  parity with the og's dead code; no finding).
+- Audit trail: resolution recorded in the OQ file; the
+  mom-capabilities.md register row updated (UNRESOLVED consumer ->
+  DEAD-SHIPPED RESOLVED); file closed to FIXED/.
+
+Stage Summary:
+- OQ-S5-1 RESOLVED + closed. MY LANE'S CLAIMED QUEUE IS COMPLETE:
+  OQ-Z-E-FLT (7 sub-questions resolved + 1 pushed with evidence),
+  OQ-T6-T7 (closed), OQ-S6-3 (closed), OQ-S6-2 (closed, convergent),
+  OQ-S6-1 (closed, convergent + corrected), OQ-S5-1 (closed). Plus:
+  S-034 NEW-FINDING filed (SEVERE, doc-truth landed), D-09 re-verdicted,
+  corpus errata E45/E46(convergence), M-035's blast-radius question
+  answered. Remaining tracked-open items belong to DFX25's head queue
+  (OQ-RS, OQ-S20-1 [resolved by DFX31], OQ-S2M-2, OQ-S3, OQ-S4-3) —
+  check for stalls.

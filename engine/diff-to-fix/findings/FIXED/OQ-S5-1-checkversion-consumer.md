@@ -1,6 +1,13 @@
 # OQ-S5-1 — Is CheckVersion.mo's OS-aware recovery live in the og product, or dead-shipped legacy?
 
-**Status:** OPEN (session 5) · **Module:** mom-runtime/CheckVersion · **Parameters:** P1 (detection — OS-install classification), P42 (surface)
+**Status:** RESOLVED (DFX30, 2026-10-26) — **DEAD-SHIPPED: no consumer
+exists.** The by-name load-request sweep is now EXHAUSTED across every
+decompiled host in the corpus — including `MainModule_decompiled.c`
+(the exact artifact DFX14's addendum queued as missing, now present in
+`ghidra-partition/`). Zero load requests. The core's absence of
+OS-aware recovery = **MATCH-by-omission** (the og capability was never
+live).
+**Module:** mom-runtime/CheckVersion · **Parameters:** P1 (detection — OS-install classification), P42 (surface)
 **Audited commit:** `7cf6754` · corpus `03ad46c`
 
 ## The precise question
@@ -34,7 +41,38 @@ be filed.
    whether GetModule-by-name can be driven by a config file (config/*.ini
    in og-codebase) rather than code references.
 
-## Acceptance
+## RESOLUTION (DFX30, 2026-10-26 — the sweep exhausted)
+
+- The MOM load contract is **by-name, lazy, on-demand**
+  (`FUN_1800017f0("DeviceManager")` -> append ".mo" -> LoadLibraryA ->
+  GetProcAddress("GetModule") -> self-registration —
+  mom-module-system--architecture.md §1.1, line-cited). A module goes
+  live ONLY when some host requests it by name string.
+- The sweep: `grep -rln "CheckVersion"` across ALL corpus decompile
+  trees — ghidra-partition (MainModule, RecoveryModule,
+  PartitionRecovery.dll, UILogic, ToolsModule, CloneModule, Boot,
+  BootDriver, Burn, Win32Bcd, WinChkdsk, AutoUpdate, GetDriverInfo,
+  Logger, RawFixer, BitLockerLib, libvmdk, peformat, setupdrvx64),
+  ghidra-mo (all 120 module decompiles), ghidra-drwui (DRWUI.exe),
+  ghidra-core, ghidra-wave2, ghidra-misc, ghidra-local — returns
+  **exactly ONE hit: CheckVersion_decompiled.c itself** (the module's
+  own self-references). The module_import_matrix.json (36 modules)
+  agrees: zero modules reference CheckVersion.
+- CheckVersion.mo IS shipped (og-codebase/PartitionRecovery/
+  CheckVersion.mo; PE with the full IObject/GetModule contract; imports
+  only CRT/KERNEL32/MSVCP — no outbound module dependencies) and fully
+  implements the OS-detect surface (FUN_180003050 module main,
+  DiskContainer::scan FUN_180003580 rdisk 0..31 x partition 1..32,
+  IsWindowsServerInstalled FUN_1800029e0 SELECT\CURRENT ->
+  PRODUCTOPTIONS\PRODUCTTYPE). But no host in the corpus ever
+  requests it: **dead-shipped legacy**.
+- The acceptance criterion's second branch fires: **MATCH-by-omission
+  with dead-shipping evidence** — the og product's live behavior does
+  NOT include OS-aware recovery; the core's zero ProductType/OS-detect
+  surface is parity, not a gap. modules/mom-capabilities.md carries the
+  dead-shipping register row (updated in the same landing).
+
+## Acceptance (for the record)
 
 RESOLVED when a consumer is found (→ file the missing-capability finding
 with the consumer's call chain) or the payload sweep is exhausted (→
