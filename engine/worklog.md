@@ -14237,3 +14237,23 @@ Stage Summary:
   x3) - a deterministic renumbering pass is queued.
 
 =======
+
+---
+Task ID: DFX30-T4b (session 30 — the ledger repair landed; survey)
+Agent: main engineer (diff-to-fix fix session 30 — DFX30)
+
+Work Log:
+- The delta-ledger union repair landed (see commit 9a3b6bd): nested
+  markers stripped, duplicate topics deduped, collisions renumbered
+  (D-81..D-85), the D-80 N-064 convergence body restored verbatim,
+  references updated repo-wide; the Btrfs pushed-red union repaired
+  (M-020 default-subvol semantics vs N-019's stale expectation).
+- Suite 822/822 on the repaired tree; win_syntax_check green; the
+  repo-wide zero-marker scan clean.
+
+Stage Summary:
+- Session tally: N-032 FIXED + N-071 FIXED (convergent) + 4 repair
+  pushes (N-064 convergence support, marker cleanup, Btrfs union red,
+  delta ledger). Next: survey the remaining open set and continue.
+
+=======
