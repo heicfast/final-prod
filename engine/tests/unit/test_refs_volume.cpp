@@ -1346,6 +1346,101 @@ TEST(Refs, ProgressCancellationMidWalk) {
     EXPECT_LT(emitted, 48u) << "the walk must have been cut short mid-table";
 }
 
+/* ---- N-026 group: the og's DBR geometry gates (FUN_180012390) ---- */
+
+TEST(Refs, Bps256Accepted) {
+    /* N-013b: the og's bps ladder is {256,512,1024,2048,4096}
+     * (:13544-13546). A 256-bps DBR (spc 16 -> 4-KiB cluster) must open;
+     * the old core refused every bps except 512/4096. */
+    std::vector<u8> img = build_volume();
+    put32(img.data() + 0x20, 256);
+    put32(img.data() + 0x24, 16);
+    RefsBoot b;
+    ASSERT_TRUE(validate_boot(img.data(), b));
+    EXPECT_EQ(256u, b.bytes_per_sector);
+    EXPECT_EQ(4096ull, b.cluster_bytes);
+    EXPECT_TRUE(b.valid);
+}
+
+TEST(Refs, Bps1024Accepted) {
+    /* N-013b: 1024 bps (spc 4 -> 4-KiB cluster) - refused by the old
+     * core, opened by the og. */
+    std::vector<u8> img = build_volume();
+    put32(img.data() + 0x20, 1024);
+    put32(img.data() + 0x24, 4);
+    RefsBoot b;
+    ASSERT_TRUE(validate_boot(img.data(), b));
+    EXPECT_EQ(1024u, b.bytes_per_sector);
+    EXPECT_EQ(4096ull, b.cluster_bytes);
+}
+
+TEST(Refs, Cluster16KRejected) {
+    /* N-013b: the og gates the cluster PRODUCT to {4 KiB, 64 KiB}
+     * (:13547-13549); a 16-KiB cluster (bps 512 x spc 32) is not a shape
+     * ReFS formats carry - the og refuses it and so must we (the old
+     * core accepted any pow2 cluster). */
+    std::vector<u8> img = build_volume();
+    put32(img.data() + 0x24, 32);
+    RefsBoot b;
+    EXPECT_FALSE(validate_boot(img.data(), b));
+}
+
+TEST(Refs, Cluster64KAccepted) {
+    /* N-013b boundary pin: 64 KiB (bps 512 x spc 128) is the og's other
+     * legal cluster size. */
+    std::vector<u8> img = build_volume();
+    put32(img.data() + 0x24, 128);
+    put64(img.data() + 0x18, 1024 * 128); /* keep sector count coherent */
+    RefsBoot b;
+    ASSERT_TRUE(validate_boot(img.data(), b));
+    EXPECT_EQ(65536ull, b.cluster_bytes);
+    EXPECT_EQ(128u, b.sectors_per_cluster);
+}
+
+TEST(Refs, OpenReadIsFourKiB) {
+    /* N-013d: the og opens the volume with a 4-KiB read
+     * (alloc(0x1000) + FUN_180012390(buf, 0x1000), :2425-2444). A
+     * recording device pins the scan's first read length at 4096 (the
+     * old core read 512). */
+    std::vector<u8> img = build_volume();
+    class LenProbe final : public IStorageDevice {
+    public:
+        explicit LenProbe(std::vector<u8>& d) : d_(d.data()), n_(d.size()) {
+            g_.logical_sector = 512;
+            g_.physical_sector = 512;
+            g_.total_bytes = n_;
+            g_.sector_count = n_ / 512;
+        }
+        u32 read_at(u64 off, void* buf, u32 len) override {
+            if (off > n_ || len > n_ - off)
+                return ERR_RANGE_OUT_OF_BOUNDS;
+            if (first_len_ == 0)
+                first_len_ = len;
+            memcpy(buf, d_ + off, len);
+            return OK;
+        }
+        const Geometry& geometry() const override { return g_; }
+        u32 first_len() const { return first_len_; }
+
+    private:
+        Geometry g_{};
+        u8* d_;
+        u64 n_;
+        u32 first_len_ = 0;
+    };
+    LenProbe dev(img);
+    tree::ResultTree tree;
+    auto* ra = tree.add_root(u"Found");
+    auto* rd = tree.add_root(u"Deleted");
+    auto* rl = tree.add_root(u"Lost");
+    RefsScanFlags flags;
+    RefsScanStats stats;
+    const u32 rc = scan_refs(&dev, flags, nullptr, nullptr, nullptr, tree, ra, rd, rl, stats);
+    if (rc == OK || rc == ERR_BAD_MAGIC)
+        SUCCEED() << "scan ran to a verdict";
+    EXPECT_EQ(4096u, dev.first_len()) << "the volume-open read must be the og's 4 KiB";
+}
+
 } // namespace
 } // namespace refs
 } // namespace cr

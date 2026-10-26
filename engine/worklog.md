@@ -12532,3 +12532,38 @@ MAJOR. No overlap with any posted claim.
 Stage Summary:
 - Lane re-based at 0a9b19e post-merge; N-025 FIXED (e2b4549); front band
   claimed; proceeding to N-026.
+
+---
+Task ID: DFX28-T3 (session 28, second fix — N-026)
+Agent: main engineer (diff-to-fix fix session — MINOR front band)
+Task: N-026 the ReFS page/gate minors group (N-013a/b/c/d).
+
+Work Log:
+- Corpus re-verified first-hand, full decode chains this time:
+  - N-013b confirmed verbatim (bps ladder + cluster product gates, FUN_180012390).
+  - N-013d confirmed (alloc(0x1000) + FUN_180012390(buf, 0x1000) at :2425-2444).
+  - N-013a DISPROVEN: header.size = 0x20 (FUN_18000fc80:11705) + ref.size, and
+    the ref parser FUN_18000ff60:11875 sets ref.size = 0x30 as a HARDCODED
+    immediate -> body 0x50 by construction; the audit's "page+4 dynamic field"
+    was the parsed header OBJECT's field in Ghidra's view, never a raw-page
+    read. Core hardcode IS parity.
+  - N-013c DISPROVEN: read FUN_180011e90 in full — ((pos/unit)>>1-2)*unit is
+    the container-map key (identity-when-small / binary-search / rewrite
+    (block&(unit-1))|base) = N-036's decode. The og reads the superblock at
+    the SINGLE metadata base spc*0x1E (:2457; FUN_1800021e0 reads one cluster
+    there); checkpoint A at sb[5], fallback B at sb[6] (:946-1010) — matching
+    the core's existing chain. No backup probe exists in the og.
+- Fix (cr_refs_engine.cpp): bps gate {256,512,1024,2048,4096}; cluster
+  product gate {4096,65536} replacing pow2-spc<=128; open read 4096 (512
+  narrow fallback for sub-4-KiB synthetic slices only).
+- Tests: Refs.Bps256Accepted, Refs.Bps1024Accepted, Refs.Cluster16KRejected,
+  Refs.OpenReadIsFourKiB — all fail-before RED on the stash-isolated pre-fix
+  tree; Refs.Cluster64KAccepted boundary pin. Suite 748/748.
+- Audit trail: Resolution (mixed FIXED/INVALID with the decode evidence) +
+  FIXED/ move, RESOLVED-INDEX row, matrix refs row, refs.md verdicts (2
+  sections), SUMMARY session delta.
+
+Stage Summary:
+- N-026 FIXED (session tally: 2 — N-025, N-026). MINOR 16 remain. Two audit
+  claims corrected in the trail rather than "fixed" in code (N-013a, N-013c).
+  Next: N-027 (the carve/writer group).

@@ -549,10 +549,26 @@ bool validate_boot(const u8 sector[512], RefsBoot& out) {
     if (le32(sector + 0x10) != 0x53525346) /* "FSRS" */
         return false;
     const u32 bps = le32(sector + 0x20);
-    if (bps != 512 && bps != 4096)
+    /* N-013b (MINOR): the og's bps gate is the full powers-of-two ladder
+     * {0x100,0x200,0x400,0x800,0x1000} = {256,512,1024,2048,4096}
+     * (FUN_180012390:13544-13546, re-verified first-hand this session:
+     * `uVar3 == 0x100 || uVar3 == 0x200 || uVar3 == 0x400 || uVar3 == 0x800
+     * || uVar3 == 0x1000`). The old core accepted only {512,4096} - a
+     * 256/1024/2048-bps volume the og opens was refused outright. */
+    if (bps != 256 && bps != 512 && bps != 1024 && bps != 2048 && bps != 4096)
         return false;
     const u32 spc = le32(sector + 0x24);
-    if (spc == 0 || (spc & (spc - 1)) != 0 || spc > 128)
+    if (spc == 0)
+        return false;
+    /* N-013b: the og gates the CLUSTER product, not spc itself
+     * (:13547-13549: `uVar6 = spc * bps; uVar6 == 0x1000 ||
+     * uVar6 == 0x10000`) - ReFS formats only ever carry 4-KiB or 64-KiB
+     * clusters (the og accepts no other shape). The old core accepted any
+     * pow2 spc <= 128 (any pow2 cluster up to 512 KiB) - an unregistered
+     * superset over shapes the og refuses; parity closes on the product
+     * gate (a subsumed spc sanity: only integral spc can hit the set). */
+    const u64 cluster = u64(bps) * spc;
+    if (cluster != 4096 && cluster != 65536)
         return false;
     const u64 sectors = le64(sector + 0x18);
     if (sectors == 0)
@@ -560,7 +576,7 @@ bool validate_boot(const u8 sector[512], RefsBoot& out) {
     out.valid = true;
     out.bytes_per_sector = bps;
     out.sectors_per_cluster = spc;
-    out.cluster_bytes = u64(bps) * spc;
+    out.cluster_bytes = cluster;
     out.volume_clusters = sectors / spc;
     out.volume_bytes = sectors * bps;
     out.major = sector[0x28];
@@ -603,9 +619,19 @@ u32 scan_refs(IStorageDevice* slice, const RefsScanFlags& flags, CancelToken* ca
     };
 
     /* ---- 1. boot ---- */
-    u8 sec[512];
-    if (slice->read_at(0, sec, 512) != OK)
-        return ERR_READ_FAILED;
+    /* N-013d (MINOR): the og opens the volume with a 4-KiB read
+     * (FUN at :2425-2444: alloc(0x1000) + read + FUN_180012390(...,
+     * 0x1000); its gate needs >= 0x200). The old core read 512 B -
+     * harmless on every real volume but not the og's shape; aligned
+     * here, with the sub-4-KiB slice narrow-read kept for degenerate
+     * synthetic images only. */
+    u8 sec[4096];
+    u32 open_len = 4096;
+    if (slice->read_at(0, sec, open_len) != OK) {
+        open_len = 512;
+        if (slice->read_at(0, sec, open_len) != OK)
+            return ERR_READ_FAILED;
+    }
     dump("DBR sector 0", sec, 64);
     RefsBoot boot;
     if (!validate_boot(sec, boot)) {
