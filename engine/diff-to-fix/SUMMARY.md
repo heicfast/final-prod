@@ -1,3 +1,4 @@
+
 # SUMMARY.md — executive summary (diff-fix session 23 on top; earlier sessions below)
 
 ## Session-23 delta (2026-10-26 — DFX23: the MINOR-first closing wave, batch 1 — N-009 group closed + M-057)
@@ -33,13 +34,43 @@ parses all 8 Windows-only files permanently; fail-before EXECUTED (the
 exact `'e' was not declared` diagnostic), pass-after 8/8. Q67 buildability
 now covers every Windows-only directory (src/win + src/app).
 
-**Post-fix counts (this batch):** SEVERE **0** · MAJOR 14 open (M-057
-filed+fixed same session) · MINOR **18** · INFO 22 (all acknowledged) ·
-FIXED **151** files (149 findings + RESOLVED-INDEX) · tracked-open 11.
+**Post-fix counts (this batch, union with the parallel lanes' INFO
+closure):** SEVERE **0** · MAJOR 14 open (M-057 filed+fixed same session) ·
+MINOR **18** · INFO **0 open** (22 acknowledged — closed into FIXED/ by the
+parallel DFX25 lane in the same window) · FIXED **173** files (172 findings
++ RESOLVED-INDEX — mine +2, theirs +22, overlapping base 149) ·
+tracked-open 11.
 Suite **740/740** linux-release at the fix commit (+3 Text tests, gate
 extended). Next on this lane: N-007/I-004 → N-025 → N-026 → N-027 →
 N-031 → N-036 → N-049 → N-059 → N-065 → N-066 → N-075 → N-019 → N-050 →
 N-033 → N-072, then the win-layer/crypto-heavy N-032/N-071/N-064.
+
+## Session-25 delta (2026-10-26 — DFX25: the INFORMATIONAL tier closed into FIXED/; tracked-open resolution wave)
+
+Baseline `716d121` verified green first-hand (737/737 linux-release, full
+suite); corpus `03ad46c` unmoved. User directive: INFORMATIONAL +
+tracked-open first, 20+ resolutions, acknowledged findings moved to
+findings/FIXED/, all docs/counts current.
+
+**INFO tier closed (22/22 → FIXED/):** every INFORMATIONAL finding has been
+ACKNOWLEDGED since sessions 2-14 (each file carries its own Resolution with
+first-hand verification evidence; the DFX14-T5 pass re-verified 22/22 once).
+This session re-verified the tier on the current tree before the move:
+resolutions present 22/22; the five load-bearing pins executed green
+(UserFileNamedDollarNotHidden, Fat16BadClusterStillCanonical,
+MirrorSelectionNewestGeneration, NanosecondsPreservedFromExtraField,
+ScanCacheBudgetIsTheRegisteredDivergence); two first-hand spot-checks
+re-executed (I-001's blanket `$`-skip re-read at NTFSSearchDLL_decompiled.c
+:21186; I-022's per-record decompressed-CRC32 re-read at cr_crsf.cpp
+:78/:167/:319). All 22 files moved to findings/FIXED/ with RESOLVED-INDEX
+rows; the deliberate divergences they register stay preserved with their pin
+tests (the INFORMATIONAL safety-hardening rule — no code change).
+
+**Post-move counts:** SEVERE **0** · MAJOR 14 · MINOR 19 · INFO **0 open**
+(22 acknowledged, all in FIXED/) · **FIXED/ 171 files** (170 findings +
+RESOLVED-INDEX) · tracked-open 11 (resolution wave below — see the session's
+worklog entries for the per-OQ dispositions).
+
 
 <!-- DFX16 note: session 16 ran as a parallel lane in the same window as
      sessions 17-22; its delta is recorded here for chronology. -->
