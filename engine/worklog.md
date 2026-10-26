@@ -13218,3 +13218,55 @@ Work Log:
 Stage Summary:
 - M-049 FIXED (tally: 1). MAJOR 13 remain. Next: M-035 (engine-side
   FileFilter validation).
+Task ID: DFX35-1 (session 35, first fix — M-014)
+Agent: main engineer (diff-to-fix fix session 35 — DFX35, MAJOR-first)
+Task: M-014 — exFAT structural entry gates (secondary count, timestamps,
+stream non-zero fields, name flags).
+
+Work Log:
+- Baseline verified first-hand: 737/737 linux-release at 716d121; corpus
+  03ad46c unmoved. Session prompt saved (token redacted) to
+  worklog/session-diff-fix-35-prompt.md.
+- Corpus re-verified LINE BY LINE (not from the finding text):
+  FUN_180002f90 :1779-1802 (sc bound + inline create check + modify/
+  access via FUN_180002f40 + reserved1/2 zero), FUN_180002f40 :1762-1777
+  (the five field masks), FUN_180029280 :34562-34564 (stream non-zero
+  gates + next-is-name), FUN_180003030 :1811-1834 (name flags/first
+  char/NUL walk/15-char bound), the per-entry switch :25507-25560 (gates
+  apply to live AND deleted entries), FUN_180003090 :1840-1866 (root
+  triple = empty-dir RECOGNITION signal, not an emission gate —
+  documented out of scope). CONFIRMED-DIVERGENCE.
+- Corrections to the finding, corpus-wins: timestamp sanity covers ALL
+  THREE stamps (finding quoted create/modify only); all-zero timestamp
+  FAILS (day==0) — the fix plan's "treat all-zero as valid" guess
+  refuted by the decompile.
+- Landed: file_entry_structural_ok + fat_datetime_fields_ok +
+  name_fragment_gates_ok (anonymous namespace, walk-internal); three
+  gate insertion points in walk_entries (file head before torn-park;
+  stream after the M-013 deleted-checksum block; name fragments before
+  assembly); oracle declared bound 512→19; new stat sets_gated.
+- Corpus-UNVERIFIED residue documented, not guessed: the 0xHH00 UTF-16
+  validity table (PTR_180045a00 — bytes not recoverable; no raw binary
+  in the corpus, no .rdata dump in any artifact).
+- Fixture truth: six planted sets carried TS=0 (the refuted premise —
+  the og rejects zero-stamp sets); updated to 2025-02-06 12:00. One
+  test needed a root-chain extension (2->3->4->5) for six planted sets.
+- Tests: 5 new gate tests + 1 boundary guard (ValidBoundaryTimestamps
+  first run caught my own name-length miscount in the fixture — fixed).
+  Fail-before EXECUTED: gates neutralized via temporary `false &&`
+  patch, all 5 RED, gates restored, all GREEN. Suite 743/743
+  linux-release.
+- ASan lane: 739/743 — the 4 LSan flags (Orchestrator.Log*/MemoryMonitor
+  + CrUi.HeartbeatDuringStall) verified IDENTICAL at the stashed
+  baseline tree: the N-048 sink's documented immortal allocation
+  (cr_log.cpp:55 "leaked by design"). CI runners disable LSan (ptrace
+  restriction) so main is green in CI; local-only artifact. Recorded
+  for the next session; not this finding's regression.
+- Audit trail: Resolution + FIXED/ move, matrix exfat rows (header cell
+  + B3/B4/B10 detail), modules/exfat.md session-35 verdict, SUMMARY
+  session-35 delta (re-stamped DFX23->DFX35 at the rebase: the parallel
+  lane squatted 23 first).
+
+Stage Summary:
+- M-014 FIXED (session tally: 1). MAJOR 13 remain. Next: M-052 (the
+  FAT/exFAT recycle-bin pairing — NTFS implementation generalizes).

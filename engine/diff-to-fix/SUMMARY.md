@@ -239,6 +239,44 @@ reviewed in the Resolution). Suite **754/754**.
 open (22 acknowledged in FIXED/) · tracked-open 11 · FIXED/ **178** files
 (177 findings + RESOLVED-INDEX). Next on this lane: N-050 (recognition contract) →
 N-033 → N-064.
+<<<<<<< HEAD
+=======
+## Session-35 delta (2026-10-26 — DFX35, re-stamped from 23: the MAJOR-closing wave, M-014 first)
+
+Baseline `716d121` verified green first-hand (737/737 linux-release);
+corpus `03ad46c` unmoved. Lane: MAJOR-first per the session mandate,
+20+ fixes targeted. Open inventory at start: MAJOR 14 · MINOR 19 ·
+INFO 24 · tracked-open 11 (SEVERE/ACUTE tiers empty).
+
+**M-014 FIXED (MAJOR — the exFAT structural entry gates):** the og's
+four gate families landed decompile-exact (FUN_180002f90 /
+FUN_180002f40 / FUN_180029280 / FUN_180003030, every citation
+re-read first-hand in the corpus, not from the finding text):
+secondary_count ∈ [2,18]; create+modify+access timestamp field sanity
+(day≠0, month∈[1,12], hour≤23, min≤59, 2sec≤29 — all-zero FAILS,
+correcting the fix-plan guess); stream non-zero gates (data_length,
+first_cluster, name_length — empty files never emitted, the og quirk
+inherited as parity); name flags/first-char gates. Gates apply to
+live, deleted and oracle re-walked sets; new stat `sets_gated`; the
+oracle's declared bound tightened 512→19. Corpus-UNVERIFIED residue
+documented, not guessed: the 0xHH00 UTF-16 validity table
+(PTR_180045a00 bytes not recoverable). Six fixtures carried TS=0
+stamps (the refuted premise) — updated to real stamps. Proof: 5
+fail-before EXECUTED tests + 1 boundary guard; suite 743/743
+linux-release. Environment note recorded for the next session: the
+local ASan lane flags 4 LSan items (the N-048 sink's documented
+immortal allocation) — verified identical at the baseline tree; CI
+runners disable LSan (ptrace), so main stays green in CI.
+
+**Counts after this landing (pre-merge with the parallel lanes' window):** MAJOR 13 · MINOR 19 · INFO 24 ·
+FIXED 150 findings. Next on this lane: M-052 (FAT/exFAT recycle-bin
+pairing — the NTFS implementation generalizes) → M-020 (Btrfs chunk
+profiles) → M-035 (lost-partition content validation).>>>>>>> 6816de5 (fix(M-014): exFAT structural entry gates — FUN_180002f90/FUN_180029280/FUN_180003030 decompile-exact)
+
+<!-- DFX16 note: session 16 ran as a parallel lane in the same window as
+     sessions 17-22; its delta is recorded here for chronology. -->
+
+>>>>>>> c2714c0 (fix(M-014): exFAT structural entry gates — FUN_180002f90/FUN_180029280/FUN_180003030 decompile-exact)
 ## Session-23 delta (2026-10-26 — DFX23: the MINOR-first close-out lane, N-025 first landing)
 
 Session bootstrap at `716d121` (DFX16-M013 rebase reconciliation; N-062 the
