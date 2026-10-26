@@ -1,4 +1,91 @@
-# SUMMARY.md — executive summary (diff-fix session 33 on top; earlier sessions below)
+# SUMMARY.md — executive summary (diff-fix sessions 32+33+34 on top; earlier sessions below)
+
+## Session-34 delta (2026-10-26 — DFX34: the MINOR-tail lane, first landing — N-064)
+
+Bootstrap at `65122f0`-lineage (the window's parallel claim wave absorbed
+by union merges; ID re-stamped 27→32→34 across three push races, each
+squatted pre-landing — first-landing-wins honored). Baseline linux-release
+**737/737** green FIRST-HAND at the claim tree; corpus `03ad46c` unmoved
+(verified at first corpus read). Lane: the MINOR tier tail back-to-front,
+20+ fix target, groups per sub-fix, every parallel landing absorbed.
+
+**N-064 FIXED (MINOR — the BitLocker password-dictionary unlock aid):**
+the og ships a 228-entry Dict (2,742 B) wired to BitLockerLib's
+manage-bde -Password flow + the repair line (config-data-reference:20/:86;
+the UI consent = BitlockerUnlockDialog → BitlockerUnlockThread). Corpus
+re-verified BYTE-LEVEL this session (comma-terminated CRLF lines,
+unterminated final entry, space-bearing entries — "charlie brown" read
+first-hand). Landed: pure `cr/pwddict` (format-exact parse + authored
+20-entry seed = **REGISTERED DIVERGENCE D-78** (the og's asset never
+copied; the loader is byte-format-compatible so the og's own Dict file
+works verbatim) + the consent-gated sequencer: order-preserving dedup,
+caps 4096/128/256KiB, attempt-log lines carry progress + candidate LENGTH
+only — password text never logged) + win `try_password_unlock` (SAME
+unlock() plumbing as a typed password: PowerShell Unlock-BitLocker
+-Password → manage-bde -Password fallback; CP_UTF8 widen; Windows applies
+the key, the core does no crypto) + CLI `scan --bitlocker-pwddict
+<path|seed>` (the explicit flag IS the consent — nothing in the scan
+path references the sequencer; F61 legitimate-unlock-only preserved,
+locked volumes without consent/key stay ERR_FVE_LOCKED). Attempt policy
+(the finding's open question): sequential, first-success-wins, one
+attempt per candidate, duplicates once — documented in the header.
+Proof: 9 `Pwddict.*` tests + executed fail-before RED (the test unit
+does not compile on the pre-fix tree — the capability was absent);
+win_syntax_check itself caught the first win-layer draft's undeclared
+MultiByteToWideChar/CP_UTF8 (stub surface grown — the gate working).
+Suite **752/752** at the fix tree. The repair-line Dict consumers
+(EuOfficeRepairFile/archive CheckPassWord) stay scope-excluded (I-010).
+
+**Post-fix counts:** SEVERE **0** · MAJOR 14 · MINOR **16** · INFO 0
+open · **FIXED/ 175 files** (174 findings + RESOLVED-INDEX) ·
+tracked-open 11 OQs. Next on this lane (tail-first): N-071 (device
+enumeration breadth) → N-072 (btrfs rescan cache + zfs label polling) →
+N-075 → N-066 → N-065 → N-059 → N-050 → N-049 → N-036 → N-033 → N-031
+→ N-027 → N-026 → N-007/I-004 → N-019 → N-032, absorbing the parallel
+lanes' landings per first-landing-wins.
+
+
+## Session-32 delta (2026-10-26 — DFX32: M-029 FIXED — the Date/Size bucket-ID translation + the general-raw naming surface; the query finding fully closed)
+
+Baseline 737/737 linux-release verified first-hand at the claim tree (02b950f
+content); corpus `03ad46c` unmoved. Lane: the unclaimed mid-MAJOR cluster
+(claimed at bootstrap after the same-window ID churn — the ex-DFX26 lane
+holds DFX30/MAJOR-tail, DFX27→DFX35 MAJOR-head, three lanes hold MINOR,
+the OQ queue is split head/tail between DFX30/DFX31).
+
+**The decode the finding was blocked on** (all first-hand,
+ghidra-drwui/DRWUI_decompiled.c): the og's filter-bar bucket menus —
+CTimeFilterBtn FUN_140705c50 (0x100 Today / 0x101 Yesterday / 0x102
+"Last 7 days" / 0x103 "Last 1 month" / **0x104 SKIPPED** / 0x105 Custom)
+and CSizeFilterBtn FUN_140706060 (0x1000 "< 512KB" / 0x1001 "512KB~1MB" /
+0x1002 "1MB~512MB" / 0x1003 "512MB~1GB" / 0x1004 "> 1GB" / **0x1005
+SKIPPED** / 0x1006 Custom — the audit's "<128MB/<1GB/<5GB" class-table
+approximations corrected by the decode); the bounds initializer
+FUN_140254670 (today/yesterday/−7d/−30d/−365d cached as day-truncated
+LOCAL time, COleDateTimeSpan arithmetic); the node-side tag setters
+(date tags node+0x89 bits 11-14; size-bucket tags bits 17-22 with
+FUN_140255820's exact mutually-exclusive inclusive boundaries); the
+custom-range matcher FUN_140256830 (local-day-truncated, inclusive both
+ends).
+
+**Landed:** `query::apply_date_bucket` / `apply_size_bucket`
+(DateBucket/SizeBucket enums; skipped + unknown IDs REJECTED — no
+invented constants) + the `cr_ui_query_apply_buckets` **added export**
+(ABI-CONTRACT §9: no bump) + `ScanConfig::raw_category_name` /
+`cr_ui_scan_config.raw_category_name_utf8` with resume-safe raw-root
+matching (the "filter_generalraw" surface per the OQ-S4-2 correction —
+the narrowed "server-side push"). 5 tests, all fail-before RED on the
+stash-neutered tree (translation returning false / the default name
+hard-wired), GREEN after; suite 805/805 linux-release on the final
+union (the window's parallel landings absorbed: M-049/M-014/M-020/
+N-050/M-058 + the OQ resolutions).
+
+**Counts after this landing (live tree):** SEVERE 1 · MAJOR **10** ·
+MINOR 8 · INFO 0 open · tracked-open 10 · FIXED/ **190 files**. M-029's
+every sub-item is now closed across sessions (path group s6; Type sort +
+modified-unit + paging s11; buckets + naming s32).
+
+
 
 ## Session-33 delta (2026-10-26 — DFX33: M-020 FIXED — the Btrfs profile machinery + default subvolume)
 
@@ -157,11 +244,32 @@ live, stopping flips at cancel, one-shot persistence after return) +
 plain-C edges in `cr_ui_abi_check`; fail-before EXECUTED at compile (the
 symbols did not exist). Suite **738/738** at the fix commit.
 
-**Post-merge union counts (session-28 close on the merged tree, absorbing
-the parallel N-009/N-025/M-057 landings):** SEVERE **0** · MAJOR **14** ·
-MINOR **16** · INFO 0 open (22 acknowledged in FIXED/) · **FIXED/ 174
-findings** (175 files incl. RESOLVED-INDEX) · tracked-open 11. Next on
-this lane: N-019 (the 12-scenario regression-test gap), then
+**N-019 FIXED (MINOR — the 13-scenario per-parameter regression-test gap,
+after full per-scenario re-verification on the current tree):** 6 scenarios
+ALREADY-FIXED by later landings (ADS boundary, sparse ratio, FAT cross-link,
+HFS+ resource fork, LDM stripe alignment, LDM mirror read — covering tests
+re-cited in the Resolution); 1 SUPERSEDED (the overlap-scoring premise —
+M-017's content-driven model replaced the penalty table the finding cited);
+1 N/A (exFAT multi-fork); 1 routed to OQ-T6 with NEW evidence (ZFS snapshot:
+the og surfaces DSL snapshot roots per the corpus capa digest; core
+negative-space verified — the OQ's next decode target is now precise);
+4 tests WRITTEN with executed mutation fail-befores:
+`NtfsVolume.HardLinkDestroyRuleInteraction` (the destroy decision is
+per-RECORD upstream of the fan-out — destroyed once, both links vanish
+together in fan-out mode, partial reuse keeps PartialRisk),
+`Ext4Engine.ExtentTreeDepth3` (root depth 3 → index → index → leaf; two
+disjoint runs, byte-exact content markers),
+`Btrfs.TwoSubvolumesRootSeparately` (subvol 5 + subvol 256; every file
+under its own root, no leakage either direction), and
+`Refs.PropertyFlagAndUnknownRowsDoNotBreakDataWalk` (the honest rescope of
+the corpus-silent integrity-stream scenario: property-flag rows 0x108/0xf8
++ unknown-type rows walked past, data byte-exact, granularity guard quiet).
+Suite **753/753**.
+
+**Post-fix counts (session-28, after N-075 + N-019):** SEVERE **0** ·
+MAJOR **14** · MINOR **15** · INFO 0 open (22 acknowledged in FIXED/) ·
+**FIXED/ 175 findings** (176 files incl. RESOLVED-INDEX) · tracked-open 11
+(OQ-T6 pushed forward with new evidence). Next on this lane:
 N-050/N-033/N-072 rear-first.
 
 ## Session-31 delta, wave 2 (2026-10-26 — DFX31: OQ-S3-JPEG resolved — S-018 RE-FILED CONFIRMED and FIXED: the truncated-JPEG salvage)
@@ -269,8 +377,28 @@ Office/HWPX consumer stays out-of-scope (I-010). Fail-before EXECUTED
 3 win-lane tests; suite 754/754. Attempt policy documented per the
 finding's open question: sequential, no retry, no parallelism.
 
-Counts after this landing: **MINOR 18 open** (N-064 moved to FIXED/),
-MAJOR 14 open (DFX27/DFX26 lanes), INFO 0, tracked-open 11.
+**N-071 FIXED (MINOR — the two-stack disk enumeration):** the og's
+CDiskEnumerator merges five discovery stacks (mom-module-system :57-59;
+the QA census shows storage-spaces init + VDS load alongside the plain
+enumerate — vendor-logs :13-29); the core had the numbered
+PhysicalDrive loop only. Landed: enumerate_disk_interfaces (cfgmgr32
+GUID_DEVINTERFACE_DISK present-instance pass — the documented GUID
+locally defined; number via IOCTL_STORAGE_GET_DEVICE_NUMBER; the loop's
+query factored into query_disk_handle so both stacks share one query
+path; table parse through the pure core when numbered) +
+merge_disk_enumeration (PURE header-inline merge: dedup by number — the
+loop's richer entry wins — then by instance path; unknown-number
+entries path-dedup only; any cfgmgr failure degrades to stack 1
+untouched). Residual stacks (WMI/VDS/StorageSpaces/FunctionDiscovery/
+hot-plug) REGISTERED as D-79 — UI metadata + eventing, not the
+readable-device space. cfgmgr32 joined the strict Win7-inclusive import
+allowlist (Win2000-era CM pair). Fail-before EXECUTED (3 RED on the
+merge-disabled tree); 4 pure tests; win_syntax_check green (cfgmgr32
+stub pair); suite 769/769. modules/storage.md's stale local N-055 row
+for this finding corrected to the integrated N-071.
+
+Counts after this landing: **MINOR 17 open** (N-064, N-071 moved to
+FIXED/), MAJOR 14 open (DFX27/DFX26 lanes), INFO 0, tracked-open 11.
 
 ## Session-30 delta (2026-10-26 — DFX30: the deferred win-layer trio, 1/N-032)
 
@@ -503,6 +631,28 @@ FIXED/ **188** files (187 findings + RESOLVED-INDEX). N-064 (on this
 lane's original claim) landed by the parallel window. Next on this lane:
 N-033 (carve capability ABI), then the unclaimed MINOR remainder
 (N-065/N-066/N-059/N-072), then feasible MAJORs.
+
+## Session-23 delta, batch 5 (2026-10-26 — DFX29: N-033 closed — the CLI half + the refresh-divergence register)
+
+**N-033 FIXED (the finding's last open scope):** `rrecov
+--list-carve-formats` renders the cr_ui carve-format table (the ABI half
+landed in session 6) — layer/ext/size bounds/base confidence/grammar
+magic, checked before command dispatch (works bare), usage updated.
+Parity tooling and CLI hosts self-describe the carve set. ABI-CONTRACT
+§7a gains the per-scan registry-refresh divergence note (the og's FS
+engines re-clone the cross-DLL RAWSearchDLL registry per scan,
+FATSearchDLL :29290-29361; the core's tables are compile-time immutable
+append-only — the enumeration is lifetime-valid, no refresh seam; the
+future runtime-config path is named as a versioned-ABI question). Gate
+hardening en route: cr_ui.h's `__declspec` expansion under the parse
+gate's -D_WIN32 is neutralized in the gate's CXXFLAGS (include-order-
+proof; never in shipping code) — win_syntax_check 8/8 GREEN. Suite
+**800/800**.
+
+**Post-fix counts:** SEVERE **0** · MAJOR 11 · MINOR **7** · INFO 0 open ·
+tracked-open 10 · FIXED/ **189** files (188 findings + RESOLVED-INDEX).
+Next on this lane: N-065 (writer destination policy) -> N-066 -> N-059
+-> N-072, then feasible MAJORs (M-052/M-035/M-048/M-018).
 
 <!-- DFX16 note: session 16 ran as a parallel lane in the same window as
      sessions 17-22; its delta is recorded here for chronology. -->

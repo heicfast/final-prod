@@ -33,7 +33,11 @@ fi
 #   wchar_t buffers must have the same width the MSVC lane sees.
 # -D_WIN32: the layer's #ifdef _WIN32 branches (e.g. cr_bitlocker's
 #   registry detail namespace) must parse exactly as MSVC sees them.
-CXXFLAGS="-std=c++20 -fshort-wchar -D_WIN32 -fsyntax-only -I$STUB_DIR -I$SRC_DIR/include"
+# -D'__declspec(x)=': the app layer includes cr_ui.h (whose CR_UI_API
+# expands to __declspec(dllexport/dllimport) under _WIN32) possibly BEFORE
+# windows.h - a command-line function-like no-op is include-order-proof
+# (the gate never links, so the storage class is irrelevant to parsing).
+CXXFLAGS="-std=c++20 -fshort-wchar -D_WIN32 -D__declspec(x)= -fsyntax-only -I$STUB_DIR -I$SRC_DIR/include"
 
 rc=0
 for f in "$SRC_DIR"/src/win/*.cpp; do

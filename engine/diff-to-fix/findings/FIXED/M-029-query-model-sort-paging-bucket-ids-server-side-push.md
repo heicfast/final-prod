@@ -309,3 +309,12 @@ naming bucket (the narrowed server-side push): NEXT STEP: the
 "filter_generalraw" key's consumer-side naming chain is decoded
 (OQ-S4-2); what remains is the stable core-side surface for hosts - an
 optional name-override on the scan API per the session-5 correction.
+
+---
+
+## Resolution
+
+**Status:** FIXED
+**Fixed in commit:** `f388cad` (riding the union merges to `f7fd795`)
+**Verified by:** Query.DateBucketsTranslateToRanges + Query.SizeBucketsTranslateToRanges + Query.BucketFiltersThroughRun (cr_tests) + CrUi.QueryApplyBucketsFillsAndRejects + CrUi.RawCategoryNameNamesTheCarveRoot (cr_ui_tests) — all five fail-before RED on the stash-neutered tree (translation returning false / the default raw name hard-wired), GREEN after; suite 805/805 linux-release on the final union.
+**Resolution notes:** The decode-blocked remainder closed by a first-hand corpus decode (ghidra-drwui/DRWUI_decompiled.c): the CTimeFilterBtn menu FUN_140705c50 (0x100 Today / 0x101 Yesterday / 0x102 Last 7 days / 0x103 Last 1 month / 0x104 SKIPPED / 0x105 Custom) and CSizeFilterBtn menu FUN_140706060 (0x1000 "< 512KB" / 0x1001 "512KB~1MB" / 0x1002 "1MB~512MB" / 0x1003 "512MB~1GB" / 0x1004 "> 1GB" / 0x1005 SKIPPED / 0x1006 Custom) — correcting the finding's own class-table approximations ("<128MB/<1GB/<5GB"); the bounds initializer FUN_140254670 (today/yesterday/−7d/−30d/−365d as day-truncated LOCAL time via COleDateTimeSpan); the node-side tag setters (date tags at node+0x89 bits 11-14, size-bucket tags at bits 17-22 with FUN_140255820's exact inclusive boundaries); and the custom-range matcher FUN_140256830 (local-day-truncated, inclusive both ends). Landed as query::apply_date_bucket/apply_size_bucket (the DateBucket/SizeBucket enums; unknown + skipped IDs REJECTED — no invented constants) + the cr_ui_query_apply_buckets added export (ABI-CONTRACT §9: no bump) + ScanConfig::raw_category_name / cr_ui_scan_config.raw_category_name_utf8 with resume-safe root matching (the narrowed "server-side push" surface per the session-5 OQ-S4-2 correction). The finding's remaining registry (Type sort key, modified-unit doc, paging-parity claim) was already closed by the session-11 addendum; with this landing every sub-item of the finding is closed.

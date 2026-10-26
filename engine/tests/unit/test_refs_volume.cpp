@@ -1017,6 +1017,76 @@ TEST(Refs, MultipleDataAttributesMerged) {
     EXPECT_EQ(m->props()->extents[1].offset, 250 * CLUSTER);
 }
 
+TEST(Refs, PropertyFlagAndUnknownRowsDoNotBreakDataWalk) {
+    /* N-019 scenario 10, honestly scoped: the corpus is SILENT on ReFS
+     * integrity streams (0 hits across the refs artifacts - verified this
+     * session), so neither side's integrity behavior is corpus-pinned and
+     * an "integrity-stream parity" test would freeze a guess. The closest
+     * HONEST surface - and the real robustness property - is the attribute
+     * walk's tolerance: a file whose embedded table carries the og's
+     * property-flag marker rows (0x108 / 0xf8 - the property-flag surface
+     * an integrity-enabled or attributed file rides) and an UNKNOWN-type
+     * row (forward layout) must still recover its data byte-exact: the
+     * flag rows are tracked (og prop bits), unknown rows are skipped, and
+     * neither takes down the data-run walk or trips the granularity
+     * discard. */
+    std::vector<u8> img = build_volume();
+    {
+        std::vector<Row> frows;
+        /* og property-flag marker A (type 0x108 -> prop bit 1) */
+        {
+            std::vector<u8> k(4, 0);
+            put16(k.data(), 0x108);
+            frows.push_back({k, std::vector<u8>(4, 0)});
+        }
+        /* og property-flag marker B (type 0xf8 -> prop bits 1|2) */
+        {
+            std::vector<u8> k(4, 0);
+            put16(k.data(), 0xf8);
+            frows.push_back({k, std::vector<u8>(4, 0)});
+        }
+        /* an UNKNOWN row type (0x199, 4-byte key - matches no dispatch
+         * arm): forward-compat tolerance, walked past */
+        {
+            std::vector<u8> k(4, 0);
+            put16(k.data(), 0x199);
+            frows.push_back({k, std::vector<u8>(8, 0xAB)});
+        }
+        /* the data itself: one 2-cluster run */
+        frows.push_back(data_attr_row({{260, 2}}));
+        rewrite_root_table(img,
+                           {file_row_key(u"propflag.dat", build_node(frows, gi_block(8192, 8192)))});
+    }
+    memset(img.data() + 260 * CLUSTER, 'P', 2 * CLUSTER);
+    RamDevice dev(img);
+    tree::ResultTree tree;
+    auto* ra = tree.add_root(u"Found");
+    auto* rd = tree.add_root(u"Deleted");
+    auto* rl = tree.add_root(u"Lost");
+    RefsScanFlags flags;
+    RefsScanStats stats;
+    ASSERT_EQ(OK, scan_refs(&dev, flags, nullptr, nullptr, nullptr, tree, ra, rd, rl, stats));
+    std::vector<tree::FileNode*> act;
+    collect(ra, act);
+    const tree::FileNode* pf = nullptr;
+    for (auto* n : act)
+        if (n->name_utf8() == "propflag.dat")
+            pf = n;
+    ASSERT_NE(pf, nullptr) << "the attributed file must still surface";
+    ASSERT_NE(pf->props(), nullptr);
+    EXPECT_EQ(u64(8192), pf->props()->logical_size);
+    ASSERT_EQ(1u, pf->props()->extents.size())
+        << "the data row must fully resolve around the flag/unknown rows";
+    EXPECT_EQ(u64(260) * CLUSTER, pf->props()->extents[0].offset);
+    EXPECT_EQ(u64(2) * CLUSTER, pf->props()->extents[0].length);
+    /* byte-exact content through the resolved extent */
+    std::vector<u8> buf(2 * CLUSTER, 0);
+    ASSERT_EQ(OK, dev.read_at(pf->props()->extents[0].offset, buf.data(), u32(buf.size())));
+    EXPECT_EQ(buf, std::vector<u8>(2 * CLUSTER, u8('P')));
+    /* the walk never tripped the garbage-runlist guard on this file */
+    EXPECT_EQ(0u, stats.granularity_discards);
+}
+
 TEST(Refs, PagedRunTableFollowed) {
     /* S-020: an INNER (paged) $DATA value node is followed to its child
      * page (og FUN_18000cf30) - the old code rejected inner nodes and the

@@ -113,3 +113,32 @@ T7 (LDM RAID-5 rotation parity) was resolved by I-008's verification (the
 four og rotations are dormant dead-code; the enabled left-symmetric mode
 is a proven MATCH — see FIXED/INFORMATIONAL/I-008). T6 (the ZFS nvlist
 anchor / multi-vdev DVA / uberblock geometry set) remains open as filed.
+
+---
+
+## Session-28 addendum — OQ-T6 evidence push (N-019's scenario-9 verification)
+
+Re-verification of N-019's "ZFS snapshot" scenario surfaced two new facts
+that sharpen this OQ's next decode target:
+
+1. **Corpus side (positive, capa-level):** `SearchDLL/zfs-engine--deep-dive.md`
+   §3 states the engine "surfaces snapshot roots when present in the DSL tree
+   (family evidence: dataset hierarchy enumeration)" — the og DOES have a
+   per-dataset snapshot surface, evidence class = capa digest (not a
+   decompiled walk).
+2. **Core side (negative-space, verified this session):**
+   `cr_zfs_engine.cpp` enumerates the dataset chain (objdir "root_dataset" →
+   dsl_dir → head_dataset → ZPL) but has NO snapshot surface: no
+   `origin_obj` chase (dsl_dir_phys +16 / dsl_dataset props), no
+   `ds_snapnames` ZAP walk, no snapshot-root emission. A pool with snapshots
+   surfaces only the head datasets.
+
+**Precise next decode target:** the DSL-tree snapshot enumeration in
+`ZfsSearchDLL_decompiled.c` — starting from the dsl_dataset bonus block
+(`ds_bp@128` is already parsed by the core; `dsl_dataset_phys` carries
+`propszap`/`next_snapobj`/`prev_snapobj` chain pointers) — locate the
+snapshot-root walk (the strings scan in the original OQ found NO
+"snapshot"/"@"/"com.delphix" strings, so the surface likely rides the
+numeric `next_snapobj`/`prev_snapobj` chain rather than a name ZAP; the
+ROOT_REF-style naming decode would follow). Until decoded, snapshot
+recovery stays correctly out of the core (no hallucinated parity).

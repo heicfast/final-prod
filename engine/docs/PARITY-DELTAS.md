@@ -2397,6 +2397,48 @@ FileProperties → a WriterConfig `preserve_dacl` flag (default OFF)
 applying it via SetSecurityInfo on the win destio layer only — never on
 the POSIX test shims.
 
+<<<<<<< HEAD
+### D-78 — the password-dictionary unlock aid: authored seed + format-compatible loader, the og's Dict asset not copied (N-064, REGISTERED DIVERGENCE)
+
+**OG:** ships a 228-entry password dictionary at install root (`Dict`,
+2,742 B — byte-verified, artifacts/config-files/config-data-reference.md:20)
+consumed by BitLockerLib's manage-bde -Password unlock flow
+(config-data-reference.md:86) and the repair line's password-aware
+consumers (EuOfficeRepairFile encrypted HWPX; archive repair's
+CheckPassWord/CheckPassWordByData — FileRepair/archive-repair artifact).
+
+**CORE:** the MECHANISM is ported whole (N-064): `cr/pwddict` parses
+dictionaries in the og's exact file format (comma-terminated CRLF lines,
+unterminated final entry, space-bearing entries — decoded first-hand from
+the corpus file), and `bitlocker::try_password_unlock` feeds candidates
+through the same Windows unlock plumbing as a typed password. The SHIPPED
+list is an authored 20-entry seed of universal common-password patterns
+(present in every public leaked-credential corpus) — the og's 228-entry
+asset is NOT copied into this repo (the fixing rules forbid copying
+proprietary data files; the list's composition is the og's editorial
+asset even where individual entries are universal). A host that wants the
+og-exact behavior points the CLI's `--bitlocker-pwddict <path>` at any
+dictionary file in the format — the og's own Dict file works verbatim.
+
+**CONSENT MODEL (preserved, F61):** the sequencer has NO scan-path
+reference; it runs only inside an explicit host unlock action (the CLI
+flag / the UI unlock dialog analog). Locked volumes without user
+consent or key material stay refused ERR_FVE_LOCKED — the S-014/F13
+legitimate-unlock-only posture is unchanged. Attempt policy (corpus is
+silent on ordering/rate-limiting — the finding's own open question):
+sequential, first-success-wins, one attempt per candidate, duplicates
+attempted once; attempt log lines carry progress + candidate length
+only, never password text.
+
+**RISK:** none beyond the og's own (a user-consented dictionary run
+against the user's own locked volume; Windows applies/rejects every
+password). The repair-line Dict consumers (encrypted Office/HWPX,
+password-protected archives) stay scope-excluded with I-010.
+
+**VERDICT:** ACCEPTED (registered divergence: authored seed +
+format-compatible loader vs the og's copied asset; mechanism parity
+complete; D-78).
+=======
 ### D-78 — CSMI SMART transport: SCSI-address routing, no RAID census; LSILOGIC sibling and SMART auto-enable not ported (N-032, REGISTERED DIVERGENCE — transport scope)
 
 **Class:** registered divergence (health transport scope) · **Finding:**
@@ -2466,3 +2508,51 @@ with wrong bytes. Fixtures: `Btrfs.Raid0StripeMathSplitsAtStripeBoundaries`
 (the spanning split + the in-stripe offset), `Btrfs.Raid10GeometryGate`
 (the og's parse-time gate stays og-exact — the superset is read-side
 only).
+>>>>>>> origin/main
+### D-79 — disk enumeration: the two-stack merge (PhysicalDrive loop + cfgmgr32 disk interfaces), not the og's five-stack fan-in (N-071, REGISTERED DIVERGENCE — partial port with scope rationale)
+
+**Class:** registered divergence (enumeration breadth) · **Finding:**
+diff-to-fix N-071 (MINOR, fixed with the two-stack merge; residual
+registered here) · **Date:** 2026-10-26
+
+**WHAT OG DOES:** the device discovery fan-in spans five stacks — WMI
+(MSFT_* namespaces), SetupAPI device interfaces, VDS (dynamic-disk
+packs), Storage Spaces, and Function Discovery (mom-module-system
+architecture :57-59; the QA boot census shows `CDiskEnumerator :
+Storage space init` + `GetUsedPhysicalDisks` + `Vds loadservice` running
+alongside the plain `disk enumerate` — vendor-logs :13-29) — merged into
+the device list the UI presents, with hot-plug notification.
+
+**WHAT WE DO:** a two-stack merge: the numbered `\\.\PhysicalDrive0..N`
+loop (geometry/alignment/descriptor/table parse) + the cfgmgr32
+`GUID_DEVINTERFACE_DISK` present-instance pass (every interface opened,
+queried with the same IOCTL family, merged by
+`merge_disk_enumeration` — dedup by disk number, then by instance
+path; N-071's landing). The WMI/VDS/Storage-Spaces/FunctionDiscovery
+stacks are not ported; hot-plug eventing is not ported (the CLI/UI
+re-enumerates on demand).
+
+**WHY:** (1) Every block device Windows exposes for user-mode READ
+surfaces as `\\.\PhysicalDriveN` or a disk-interface instance — the two
+stacks cover the readable-device space the recovery engine consumes;
+the og's extra stacks feed its UI metadata (WMI friendly names, VDS
+dynamic-volume CONFIG — which our LDM engine parses from the disk
+itself — and Storage Spaces pool topology for display). (2) The
+finding's own open question records that Storage Spaces members DO
+surface as PhysicalDrive in practice (the miss-case is
+UNVERIFIED-BY-EXECUTION without a Storage Spaces host; the QA census
+shows the stacks RUNNING, not a disk the numbered namespace lacks). (3)
+FunctionDiscovery and hot-plug notify are product-shell concerns (the
+og's DeviceManager.mo is a UI-facing module); the engine's contract is
+a complete device LIST on demand, which the merge provides. The
+cfgmgr32 pair (`CM_Get_Device_Interface_List_SizeW`/
+`CM_Get_Device_Interface_ListW`) is Win2000-era — the Win7-inclusive
+import gate holds (cfgmgr32 added to the strict allowlist with the
+function pair).
+
+**RISK:** a device reachable ONLY through VDS/Storage-Spaces stacks and
+absent from both the PhysicalDrive namespace AND the disk-interface
+list would be missed — no such device class is documented in the corpus
+(the QA host's own Storage-Spaces census ran WITHOUT producing an
+extra device). The merge is the engine scope; the UI shell may layer
+its own stacks later.

@@ -171,6 +171,11 @@ EXPECTED_OS_MINOR = 1
 ALLOWED_DLLS = {
     "kernel32.dll": "strict",
     "advapi32.dll": "strict",
+    # N-071 (diff-to-fix): the disk-interface enumeration pair (both W
+    # entry points since Windows 2000 - Win7-inclusive by construction;
+    # the numbered PhysicalDrive loop's second stack, corpus DeviceManager.mo
+    # enumeration fan-in). Function-level allowlist in ref_imports_um.json.
+    "cfgmgr32.dll": "strict",
     "user32.dll": "strict",  # not expected for the CLI; gate catches it
     "ucrtbase.dll": "name-only",
     "ucrtbased.dll": "name-only",

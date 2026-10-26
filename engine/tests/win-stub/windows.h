@@ -39,6 +39,7 @@ typedef char* LPTSTR;
 typedef const char* LPCSTR;
 typedef char* LPSTR;
 typedef DWORD* LPDWORD;
+typedef ULONG* PULONG;
 typedef void* LPVOID;
 
 struct LARGE_INTEGER { long long QuadPart; };
@@ -57,7 +58,9 @@ struct FILETIME { DWORD dwLowDateTime; DWORD dwHighDateTime; };
 
 /* calling convention + console control (app layer: rrecov's Ctrl-C).
  * WINAPI: on x64 the convention is ignored by MSVC too, so an empty
- * definition is ABI-faithful for the parse gate. */
+ * definition is ABI-faithful for the parse gate. (__declspec is neutral-
+ * ized in the gate's CXXFLAGS - see win_syntax_check.sh - so it applies
+ * regardless of include order.) */
 #define WINAPI
 #define CTRL_C_EVENT 0
 #define CTRL_BREAK_EVENT 1
@@ -200,3 +203,7 @@ inline FILE* _popen(const char*, const char*) { return nullptr; }
 inline int _pclose(FILE*) { return 0; }
 #define STILL_ACTIVE 259UL
 #define VOLUME_NAME_DOS 0
+
+/* ---- narrow/wide conversion (N-064 password-dictionary unlock aid) ---- */
+#define CP_UTF8 65001U
+inline int MultiByteToWideChar(UINT, DWORD, const char*, int, wchar_t*, int) { return 0; }
