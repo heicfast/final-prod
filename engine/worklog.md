@@ -16706,3 +16706,29 @@ Stage Summary:
   40289658166). Every finding file lives in findings/FIXED/ with its
   Resolution.
 
+
+---
+Task ID: DFX33b-T7 (the M-040 convergence + push-through)
+Agent: main engineer (diff-to-fix fix session 33b — DFX33b)
+
+Work Log:
+- The parallel lane's stage-b landing (da46b14) arrived mid-flight;
+  their module shape is canonical per first-landing-wins; this lane's
+  independent decode found FOUR corpus divergences in it, each proven
+  and fixed on top: (1) GPT match = GUID alone (:3417-3422 — no start
+  in the GPT branch); (2) MBR match = walk-level flags (:3431-3434);
+  (3) absent BootOrder = silent no-op (:3629 — no error path); (4)
+  missing Boot#### STOPS the walk (:3648 break, not skip;
+  stopped_early as the observability superset). Plus kMaxBootEntries =
+  0xffff (the ushort truncation). Tests: 13 NvramFix green (their 9 +
+  the corrected 2 + the new 2).
+- The rrecov apply --boot-fix wiring adapted to the canonical API
+  (plan → consent → execute; failures advisory).
+- The finding's Resolution carries the full convergence record.
+- Verified: 926/926 ctest; pushed ddb7e1c (through two merge waves).
+
+Stage Summary:
+- M-040 stands complete on main. Board: SEVERE 0 · MAJOR 0 · MINOR 0 ·
+  tracked-open 2 (OQ-S4-3, OQ-FLT-2). Next: the OQ-FLT-2 decode (the
+  DRWUI AdvanceFilterCondition per-group semantics), then OQ-S4-3's
+  precise push-forward, then the release tag + handoff.
