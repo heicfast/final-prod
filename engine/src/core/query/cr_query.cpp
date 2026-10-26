@@ -6,6 +6,7 @@
 #include "cr/query/cr_query.h"
 #include <algorithm>
 #include <cstring>
+#include <ctime>
 
 namespace cr {
 namespace query {
@@ -405,6 +406,137 @@ Result run(const tree::ResultTree& tree, const Query& q) {
         out.rows.push_back(std::move(row));
     }
     return out;
+}
+
+/* ---- M-029: Date/Size bucket-ID translation -------------------------- */
+
+namespace {
+
+/* FILETIME (100ns since 1601) -> time_t, the engine layer's shared
+ * conversion (cr_fat_quick.cpp's unix*1e7 + 116444736000000000 inverse). */
+std::time_t ft_to_unix(u64 ft) {
+    return std::time_t(ft / 10'000'000 - 11'644'473'600);
+}
+
+u64 unix_to_ft(std::time_t t) {
+    return u64(t + 11'644'473'600) * 10'000'000;
+}
+
+/* Local-time decomposition of a FILETIME (the cr_crsf.cpp platform seam
+ * pattern: localtime_s on MSVC, localtime_r elsewhere). */
+std::tm ft_to_local_tm(u64 ft) {
+    std::time_t t = ft_to_unix(ft);
+    std::tm local{};
+#ifdef _WIN32
+    localtime_s(&local, &t);
+#else
+    localtime_r(&t, &local);
+#endif
+    return local;
+}
+
+/* Local midnight of the FILETIME's local day (the og's day truncation:
+ * FileTimeToLocalFileTime -> FileTimeToSystemTime -> zero the time of
+ * day -> SystemTimeToFileTime, DRWUI FUN_1402556f0/FUN_140256830). */
+u64 local_day_floor(u64 ft) {
+    std::tm local = ft_to_local_tm(ft);
+    local.tm_hour = 0;
+    local.tm_min = 0;
+    local.tm_sec = 0;
+    return unix_to_ft(std::mktime(&local));
+}
+
+/* +N local days from a day-floor FILETIME, wall-clock day arithmetic
+ * (tm_mday + mktime normalization = the og's COleDateTimeSpan semantics;
+ * a DST transition inside the window resolves to local midnight of the
+ * target day, exactly as the og's DATE-double arithmetic does). */
+u64 local_day_plus(u64 day_floor_ft, int days) {
+    std::tm local = ft_to_local_tm(day_floor_ft);
+    local.tm_mday += days;
+    local.tm_hour = 0;
+    local.tm_min = 0;
+    local.tm_sec = 0;
+    return unix_to_ft(std::mktime(&local));
+}
+
+} // namespace
+
+bool apply_date_bucket(Filter& f, u16 bucket, u64 now_ft, u64 custom_from_ft,
+                       u64 custom_to_ft) {
+    const u64 today = local_day_floor(now_ft);
+    /* the Filter's range compare is inclusive on both ends, so every
+     * half-open day window [lo_day, hi_day) becomes
+     * [lo_day, hi_day - 1 tick] */
+    switch (bucket) {
+    case DateBucket_None:
+        return true;
+    case DateBucket_Today:
+        f.modified_from = today;
+        f.modified_to = local_day_plus(today, 1) - 1;
+        return true;
+    case DateBucket_Yesterday:
+        f.modified_from = local_day_plus(today, -1);
+        f.modified_to = today - 1;
+        return true;
+    case DateBucket_Last7Days:
+        /* og: (today-7d, today] -> local days today-6 .. today (7 days) */
+        f.modified_from = local_day_plus(today, -6);
+        f.modified_to = local_day_plus(today, 1) - 1;
+        return true;
+    case DateBucket_Last1Month:
+        /* og: (today-30d, today] -> local days today-29 .. today (30 days) */
+        f.modified_from = local_day_plus(today, -29);
+        f.modified_to = local_day_plus(today, 1) - 1;
+        return true;
+    case DateBucket_Custom:
+        /* og: both bounds day-truncated locally, comparison inclusive */
+        f.modified_from = local_day_floor(custom_from_ft);
+        f.modified_to = local_day_plus(local_day_floor(custom_to_ft), 1) - 1;
+        return true;
+    default:
+        /* 0x104 is skipped by the og's menu; anything else is unknown:
+         * no semantics invented (fail closed, filter untouched) */
+        return false;
+    }
+}
+
+bool apply_size_bucket(Filter& f, u16 bucket, u64 custom_min, u64 custom_max) {
+    /* og FUN_140255820's exact boundaries (< bound+1 compares = inclusive
+     * upper bounds; the else-chain makes the buckets mutually exclusive):
+     * <= 512 KiB / (512 KiB, 1 MiB] / (1 MiB, 512 MiB] / (512 MiB, 1 GiB]
+     * / > 1 GiB */
+    constexpr u64 KiB = 1024, MiB = 1024 * KiB, GiB = 1024 * MiB;
+    switch (bucket) {
+    case SizeBucket_None:
+        return true;
+    case SizeBucket_To512KiB:
+        f.size_min = 0;
+        f.size_max = 512 * KiB;
+        return true;
+    case SizeBucket_To1MiB:
+        f.size_min = 512 * KiB + 1;
+        f.size_max = 1 * MiB;
+        return true;
+    case SizeBucket_To512MiB:
+        f.size_min = 1 * MiB + 1;
+        f.size_max = 512 * MiB;
+        return true;
+    case SizeBucket_To1GiB:
+        f.size_min = 512 * MiB + 1;
+        f.size_max = 1 * GiB;
+        return true;
+    case SizeBucket_Over1GiB:
+        f.size_min = 1 * GiB + 1;
+        f.size_max = ~u64(0);
+        return true;
+    case SizeBucket_Custom:
+        f.size_min = custom_min;
+        f.size_max = custom_max;
+        return true;
+    default:
+        /* 0x1005 is skipped by the og's menu; anything else is unknown */
+        return false;
+    }
 }
 
 } // namespace query

@@ -5,6 +5,7 @@
 
 #include "cr/win/cr_bitlocker.h"
 #include "cr/cr_error.h"
+#include "cr/pwddict/cr_pwddict.h"
 #include "cr/reghive/cr_reghive.h"
 #include <windows.h>
 #include <vector>
@@ -137,32 +138,49 @@ bitlocker::Status status(wchar_t letter) {
 
 u32 unlock(wchar_t letter, int key_type, const std::wstring& key_or_path) {
     /* Build the legitimate unlock command. Primary: PowerShell. */
-    std::wstring mount;
-    mount.push_back(letter);
-    mount += L":";
-    std::wstring cmd;
-    if (key_type == 0) {
-        cmd = L"powershell -NoProfile -NonInteractive -Command \"Unlock-BitLocker -MountPoint " +
-              quote(mount) + L" -Password " + quote(key_or_path) + L"\"";
-    } else if (key_type == 1) {
-        cmd = L"powershell -NoProfile -NonInteractive -Command \"Unlock-BitLocker -MountPoint " +
-              quote(mount) + L" -RecoveryPassword " + quote(key_or_path) + L"\"";
-    } else {
-        /* BEK file (external key protector) - corpus path */
-        cmd = L"powershell -NoProfile -NonInteractive -Command \"Unlock-BitLocker -MountPoint " +
-              quote(mount) + L" -KeyFilePath " + quote(key_or_path) + L"\"";
-    }
-    int rc = run_command(cmd, 120000);
+    int rc = run_command(detail::build_unlock_command(letter, key_type, key_or_path, false),
+                         120000);
     if (rc != 0) {
         /* legacy fallback: manage-bde (corpus pre-PowerShell path) */
-        std::wstring sub =
-            key_type == 0 ? L"-Password" : (key_type == 1 ? L"-RecoveryPassword" : L"-KeyFilePath");
-        cmd = L"manage-bde -unlock " + mount + L" " + sub + L" " + quote(key_or_path);
-        rc = run_command(cmd, 120000);
+        rc = run_command(detail::build_unlock_command(letter, key_type, key_or_path, true),
+                         120000);
     }
     if (rc != 0)
         return ERR_FVE_LOCKED;
     return OK;
+}
+
+/* N-064 (diff-to-fix): the password-dictionary unlock aid - the og's Dict
+ * flow. The EXPLICIT CONSENT ACTION: callers are the host's user-initiated
+ * unlock surfaces only (CLI --bitlocker-dict / the cr_ui action); the
+ * scan/open paths never reach here. Candidates: the shipped 228-entry
+ * dictionary in corpus order, then the user-provided set. Attempts ride
+ * the same PowerShell -Password / manage-bde -Password plumbing as a
+ * user-typed password (unlock() key_type 0). */
+u32 unlock_with_dictionary(wchar_t letter, const wchar_t* const* user_passwords,
+                           size_t user_count) {
+    std::vector<std::string> user;
+    user.reserve(user_count);
+    for (size_t i = 0; i < user_count; ++i) {
+        if (user_passwords[i] == nullptr)
+            continue;
+        const wchar_t* p = user_passwords[i];
+        std::string narrow;
+        for (; *p != L'\0'; ++p) {
+            if (*p > 0x7F)
+                return ERR_BAD_PARAMETER; /* the dictionary grammar is ASCII */
+            narrow.push_back(char(*p));
+        }
+        if (!narrow.empty() && narrow.size() <= dict::kMaxPasswordLen)
+            user.push_back(std::move(narrow));
+    }
+    const dict::AttemptResult res = detail::dictionary_unlock_seam(
+        user,
+        [](wchar_t l, const wchar_t* password, void*) -> u32 {
+            return unlock(l, 0, password);
+        },
+        letter, nullptr);
+    return res.success_index != 0 ? OK : ERR_FVE_LOCKED;
 }
 
 namespace {
@@ -289,6 +307,53 @@ u32 apply_keys(wchar_t letter, const std::vector<reghive::AutoUnlockKey>& keys,
 
 #ifdef _WIN32
 namespace detail {
+
+/* The unlock command builder (N-064 test seam; the command grammar is
+ * unchanged from the S-014 landing - PowerShell primary, manage-bde legacy
+ * fallback, key material quoted). */
+std::wstring build_unlock_command(wchar_t letter, int key_type,
+                                  const std::wstring& key_or_path, bool legacy_manage_bde) {
+    std::wstring mount;
+    mount.push_back(letter);
+    mount += L":";
+    if (!legacy_manage_bde) {
+        std::wstring param;
+        if (key_type == 0)
+            param = L"-Password ";
+        else if (key_type == 1)
+            param = L"-RecoveryPassword ";
+        else
+            param = L"-KeyFilePath "; /* BEK file (external key protector) - corpus path */
+        return L"powershell -NoProfile -NonInteractive -Command \"Unlock-BitLocker -MountPoint " +
+               quote(mount) + L" " + param + quote(key_or_path) + L"\"";
+    }
+    std::wstring sub = key_type == 0 ? L"-Password"
+                                     : (key_type == 1 ? L"-RecoveryPassword" : L"-KeyFilePath");
+    return L"manage-bde -unlock " + mount + L" " + sub + L" " + quote(key_or_path);
+}
+
+/* The dictionary loop with the attempt seam: widens each candidate and
+ * feeds it to `attempt` (the real flow unlocks; tests record). */
+dict::AttemptResult dictionary_unlock_seam(
+    const std::vector<std::string>& user_candidates,
+    u32 (*attempt)(wchar_t letter, const wchar_t* password, void* user), wchar_t letter,
+    void* user) {
+    struct Ctx {
+        wchar_t letter;
+        u32 (*attempt)(wchar_t, const wchar_t*, void*);
+        void* user;
+    } ctx{letter, attempt, user};
+    return dict::try_passwords(
+        [](const char* password, void* p) -> u32 {
+            Ctx* c = static_cast<Ctx*>(p);
+            std::wstring wide;
+            for (const char* q = password; *q != '\0'; ++q)
+                wide.push_back(static_cast<wchar_t>(static_cast<unsigned char>(*q)));
+            return c->attempt(c->letter, wide.c_str(), c->user);
+        },
+        &ctx, &user_candidates);
+}
+
 const char* fve_live_registry_path_a() {
     return kFveLivePathA;
 }
@@ -418,6 +483,32 @@ u32 try_auto_unlock_offline(wchar_t letter, const wchar_t* hive_path) {
         return ERR_FVE_LOCKED; /* unreadable or invalid hive (og rejects too) */
     const std::string guid = target_volume_guid(letter);
     return apply_keys(letter, keys, guid, nullptr, nullptr);
+}
+
+/* N-064: the user-consented password-dictionary path. The pure sequencer
+ * (cr::pwddict::try_passwords) owns ordering, dedup, caps and the attempt
+ * log lines; this callback is one real unlock round trip through the SAME
+ * unlock() plumbing a typed password takes (key_type 0). Passwords arrive
+ * as narrow UTF-8 (the repo text policy) and widen with CP_UTF8 - invalid
+ * sequences become U+FFFD exactly like the shared text helpers, never a
+ * crash, never a silent byte-mangle. */
+namespace {
+u32 attempt_password_unlock(const std::string& password, void* user) {
+    const wchar_t letter = wchar_t(reinterpret_cast<uintptr_t>(user));
+    const int n = MultiByteToWideChar(CP_UTF8, 0, password.c_str(),
+                                      int(password.size()), nullptr, 0);
+    std::wstring wide(size_t(n > 0 ? n : 0), L'\0');
+    if (n > 0)
+        MultiByteToWideChar(CP_UTF8, 0, password.c_str(), int(password.size()),
+                            &wide[0], n);
+    return unlock(letter, 0, wide);
+}
+} // namespace
+
+u32 try_password_unlock(wchar_t letter, const std::vector<std::string>& candidates) {
+    /* the letter rides the void* (a plain value, no ownership) */
+    return pwddict::try_passwords(candidates, attempt_password_unlock,
+                                  reinterpret_cast<void*>(static_cast<uintptr_t>(letter)));
 }
 
 } // namespace bitlocker

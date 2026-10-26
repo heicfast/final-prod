@@ -200,9 +200,47 @@ typedef struct cr_ui_event {
      * the outcome code documented at CR_EVT_REPAIR. */
     uint32_t repair_actions;
     uint32_t repair_outcome;
+    /* error context (CR_EVT_ERROR_RANGE; M-049 v2-era append): the
+     * module/operation/retry-state triple the og's error-object
+     * architecture carries (engine-side subset - the MOM-bus
+     * manager/track-manager layer stays out of core scope). Module =
+     * CR_ERRMOD_* of the sub-pass that was reading (per-range
+     * attribution recorded at failure time; kNone for ranges reloaded
+     * from pre-M-049 sessions); operation = CR_ERROP_*; attempts =
+     * retries spent before the range was given up. Zero on every other
+     * event type. The trailing pad keeps the POD an 8-byte multiple
+     * (transport-bridge alignment; always zero). */
+    uint32_t err_module;
+    uint32_t err_operation;
+    uint32_t err_attempts;
+    uint32_t err_context_pad;
 } cr_ui_event;
 
 typedef void (*cr_ui_event_fn)(void* user, const cr_ui_event* evt);
+
+/* ---- error-context constants (M-049; CR_EVT_ERROR_RANGE payload) ------
+ * The module ids mirror the core's cr_errmod.h attribution set (the
+ * engine-side subset of the og's per-module error registrars - Error.md
+ * census; CErrorManager/CErrorTrackManager's MOM UI bus stays out of core
+ * scope). Numeric values are CORE-INTERNAL (the D-68 value-space policy)
+ * and pinned to the core enum by static_asserts in cr_ui.cpp; append-only.
+ * Unknown values must be treated as "unattributed" by consumers. */
+#define CR_ERRMOD_NONE 0u         /* unattributed (pre-M-049 session reloads) */
+#define CR_ERRMOD_ORCHESTRATOR 1u /* the scan layer's own reads (probe/table) */
+#define CR_ERRMOD_NTFS 2u
+#define CR_ERRMOD_FAT 3u
+#define CR_ERRMOD_EXFAT 4u
+#define CR_ERRMOD_EXT4 5u
+#define CR_ERRMOD_BTRFS 6u
+#define CR_ERRMOD_HFSPLUS 7u
+#define CR_ERRMOD_REFS 8u
+#define CR_ERRMOD_ZFS 9u
+#define CR_ERRMOD_CARVE 10u /* the carve stage's grammar sweep */
+#define CR_ERRMOD_LOST 11u  /* lost-partition discovery */
+#define CR_ERRMOD_LDM 12u   /* dynamic-disk (LDM) database parse + volumes */
+/* Operations (the error-range family is read failures today). */
+#define CR_ERROP_NONE 0u
+#define CR_ERROP_READ 1u
 
 /* Subscribe BEFORE run() (the sink is read at scan start; calling it while
  * run() executes is ERR_BAD_PARAMETER). Pass fn == NULL to unsubscribe.
@@ -244,6 +282,23 @@ CR_UI_API uint32_t cr_ui_open_volume(char letter, cr_ui_device** out);
  * without a key stays CR_UI_ERR_FVE_LOCKED - legitimate unlock only). */
 CR_UI_API uint32_t cr_ui_open_volume_with_key(char letter, const char* utf8_hex_fvek,
                                                cr_ui_device** out);
+
+/* N-064 (additive export - compatible per the ABI policy, no version bump):
+ * the password-dictionary unlock aid, the og's Dict flow (228-entry shipped
+ * common-password dictionary, config-data-reference.md :20) applied through
+ * the same PowerShell -Password / manage-bde -Password plumbing as a
+ * user-typed password. THE EXPLICIT CONSENT ACTION: the host calls it only
+ * from its user-initiated unlock surface (the og's BitlockerUnlockDialog
+ * analog); cr_ui_open_volume NEVER tries passwords by itself - a locked
+ * volume stays CR_UI_ERR_FVE_LOCKED until the user acts.
+ * utf8_user_passwords: optional extra candidates tried AFTER the shipped
+ * set (may be NULL with count 0). Returns OK when a candidate unlocked the
+ * volume, CR_UI_ERR_FVE_LOCKED when the whole set failed, ERR_UNSUPPORTED
+ * off-Windows. Attempt lines carry the candidate index only (never the
+ * password) through the engine log seam. */
+CR_UI_API uint32_t cr_ui_unlock_volume_with_dictionary(char letter,
+                                                       const char* const* utf8_user_passwords,
+                                                       uint32_t count);
 
 CR_UI_API void cr_ui_device_close(cr_ui_device* dev);
 
@@ -371,6 +426,13 @@ typedef struct cr_ui_scan_config {
                                              * Warn line through the cr::log
                                              * seam at/above the threshold.
                                              * Zero-init safe (0 = off). */
+    const char* raw_category_name_utf8;     /* v2-era append (M-029): the
+                                             * display name for the raw/carve
+                                             * category root - the og's
+                                             * per-scan "filter_generalraw"
+                                             * naming surface. NULL/"" = the
+                                             * default "Other Deleted Files
+                                             * (Carved)" role. */
 } cr_ui_scan_config;
 
 CR_UI_API uint32_t cr_ui_scan_create(const cr_ui_scan_config* cfg, cr_ui_scan** out);
@@ -714,6 +776,28 @@ CR_UI_API uint32_t cr_ui_query_run(cr_ui_session* sess, const cr_ui_query* q,
                                    cr_ui_query_row** rows, uint32_t* row_count,
                                    uint64_t* total_matched);
 CR_UI_API void cr_ui_query_rows_free(cr_ui_query_row* rows, uint32_t row_count);
+
+/* M-029 (v2-era added export): translate the og filter-bar's Date/Size
+ * bucket IDs into this query's range fields, in place.
+ *
+ * date_bucket / size_bucket are the og's stable action IDs (the
+ * CTimeFilterBtn/CSizeFilterBtn menus): Date 0x100 Today, 0x101 Yesterday,
+ * 0x102 Last 7 days, 0x103 Last 1 month, 0x105 Custom; Size 0x1000 < 512KB,
+ * 0x1001 512KB~1MB, 0x1002 1MB~512MB, 0x1003 512MB~1GB, 0x1004 > 1GB,
+ * 0x1006 Custom. 0 leaves that axis untouched. The skipped IDs (0x104,
+ * 0x1005) and any unknown value are REJECTED with CR_UI_ERR_INVALID_PARAM
+ * - the core never invents semantics the og's menu does not have.
+ *
+ * Date windows are computed from the host clock as day-truncated LOCAL
+ * time exactly like the og (its cached today/yesterday/7d/30d bounds);
+ * Custom (0x105) uses date_custom_from/to as FILETIMEs, both ends
+ * inclusive after local-day truncation. Size buckets use the og's exact
+ * byte boundaries; Custom (0x1006) is inclusive on [size_custom_min,
+ * size_custom_max]. */
+CR_UI_API uint32_t cr_ui_query_apply_buckets(
+    cr_ui_query* q, uint32_t date_bucket, uint32_t size_bucket,
+    uint64_t date_custom_from, uint64_t date_custom_to,
+    uint64_t size_custom_min, uint64_t size_custom_max);
 
 /* ---- carve-format registry (ops #7-#8 parity) ------------------------------
  * The og exposes its analyser-registry views through RAWSearchDLL exports

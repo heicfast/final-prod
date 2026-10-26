@@ -49,3 +49,49 @@ most common real-world case) and post the verdict + quotes to
 Not resolvable this session (needs the JPEG analyser's fallback/continuation
 path decompile — the corpus artifact set for it is already cited in the
 file). The standing question and next artifact are precise; no new evidence.
+
+---
+
+## Resolution (session DFX31 — both questions dispositioned; S-018 re-filed and FIXED)
+
+**Status:** RESOLVED (evidence `evidence/decompiled-quotes/s31-oq-s3-jpeg-fallback-decode.md`, all quotes first-hand, corpus `03ad46c`)
+
+1. **The legacy fallback chain — YES, it accepts and sizes no-EOI files.**
+   All three sub-analysers (JFIF FUN_18004bbd0 / Exif FUN_18004b3b0 /
+   generic FUN_18004c1e0 behind the dispatcher FUN_18004b170) run the same
+   shape: a SOS-gated header walk (SOF0 precision-8 gate, SOF2
+   dims-fill-if-empty, buffer-end without SOS = reject) then the shared
+   post-SOS walker FUN_18004c480 (:57942-57991), which scans for FF D9 up
+   to h*w*3 (from the candidate start) or 20,000,000 (the 200,000,000
+   global cap / 10) and **accepts at the limit / device end with no EOI**
+   (:57958-59 `if (limit <= off || get() == NULL) goto ACCEPT` → the 0x23
+   stamp + size = the offset reached). The sliding-window getter
+   FUN_180042930 supplies data on demand (device-bounded).
+   → **S-018's salvage claim REINSTATED** through the fallback with these
+   citations; the finding is re-filed CONFIRMED and FIXED this session
+   (validate_jpeg now mirrors the salvage; see the finding's Re-file
+   Resolution).
+2. **The streamed continuation model — residual dissolved.** The
+   continuation machinery (FUN_18000d670 → slot-4) is the MODERN tier's
+   mechanism; with the fallback decoded, no-EOI candidates emit in-window
+   through the legacy tier at the estimate, and the dispatch is
+   first-accept-wins (:9869-9916) — the og never needs the continuation to
+   surface a truncated JPEG. The core's single-pass walk finds the EOI
+   when it exists (900-tier) and only falls to the salvage estimate when
+   no EOI exists within the probe limit — a superset of the og's
+   first-accept preference for complete files, exact parity for truncated
+   ones. No further decode is required for parity; the continuation's
+   remaining nuance (>window EOI vs in-window fallback estimate size
+   preference) is covered by that superset relationship.
+
+**Verified by:** the three fail-before/pass-after tests in the S-018
+re-file Resolution (2 RED pre-fix executed on the stash-isolated tree; 3
+GREEN post-fix; suite 755/755).
+
+**Resolution notes:** Zero open residue: the OQ's two questions are
+answered with quoted sites, S-018 carries the re-filed Resolution with the
+correct citations, and the code change (the salvage in validate_jpeg +
+the deliberate PartialRisk grading delta registered in PARITY-DELTAS)
+closes the original SEVERE's user-visible gap — the canonical damaged-disk
+photo (destroyed tail) now recovers in the core exactly as it does in the
+og, sized by the og's own estimate arithmetic.
