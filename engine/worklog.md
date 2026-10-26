@@ -16997,3 +16997,71 @@ Work Log:
 Stage Summary:
 - The review session's remaining deliverable: tag v0.4.0-parity once CI
   is green on the docs push, and the final handoff note.
+
+---
+Task ID: DFX36-CLOSE (session 36 handoff)
+Agent: main engineer (diff-to-fix fix session 36 — DFX36)
+Task: The session close-out — the handoff record
+
+Session record (2026-10-26, DFX36, the closing wave):
+
+Work Log:
+- T1: both repos pulled (core 7ec5446 -> f6899fa through the session's
+  merges; corpus 03ad46c unmoved); the prompt saved token-redacted
+  (worklog/session-diff-fix-36-prompt.md); TWO pushed-red unions
+  repaired in-window (the 7ec5446 FatScanStats/N-079 regression at
+  93ef82c; the ddb7e1c marker storm + the reverted stopped_early API
+  at c475ae7/5125d2a-lineage).
+- S-034 (the last SEVERE): the full corpus decode executed first-hand
+  (the visitor _Do_call located by BINARY VTABLE WALK — RVA 0x309b8,
+  slot+0x10 = FUN_18000dd40 -> the collector FUN_180005940's (path,
+  object-id) first-wins registry; the recursive parent-chain path key
+  FUN_18001afb0; last_txg = the constant "0"); implemented with 3
+  fail-before-RED tests; converged to the parallel lane's canonical
+  landing (first-landing-wins) with the decode correction appended to
+  the finding (the og DOES dedup engine-side — their "host-side
+  dedup" reading re-attributed FUN_180006b40 to the quick-search
+  entry's final-value collect).
+- M-040 (the last MAJOR): stage (b) implemented independently
+  (cr/efifix, 9 tests, the uninit-tail bug the -O0 lane caught);
+  converged to the canonical cr/nvramfix + cr/win/cr_bootfix; the
+  GPT mis-decode CORRECTED against the corpus on the canonical module
+  (GUID ALONE — the og's GPT branch :3417-3424 never compares the
+  start; my correction converged with the parallel wave's fix #1) +
+  the win-stub red repaired (the canonical landing had no stub
+  additions — win_syntax_check RED on origin).
+- M-030/M-039/M-041/M-048/M-052/M-018/M-025/N-064/N-072/N-081/N-082:
+  verified FIXED in-source from the parallel lanes' landings (no
+  duplicate work; the verification recorded in the worklog entries).
+- The ddb7e1c/f6899fa CI-red chain: the MSVC reds diagnosed from the
+  failed run logs (gmtime_r, C4244 casts, the missing <algorithm>,
+  the cr_destio_tests define/include) — all repaired by the parallel
+  lanes in-window; each verified present in the current tree.
+- Final verification: suite 926/926 linux-release; 926/926 linux-gcc
+  (ASan+LSan); 926/926 linux-ubsan; win_syntax_check green over all
+  win files; the full-suite sanitizers re-run post-merge.
+
+Stage Summary:
+- The board at session close: ACUTE 0 · SEVERE 0 · MAJOR 0 · MINOR 0 ·
+  INFO 0 open · tracked-open 1 (OQ-S4-3 — the Windows bench
+  dispatched, run in flight; the acceptance is one artifact-read away:
+  transcribe bench-artifacts/alignbench.json's chunk_strategy_ratios
+  into the OQ file + M-030's Resolution + SUMMARY's performance
+  section) · FIXED/ 226 files.
+- The tag (v0.4.0-parity — RELEASE-NOTES already rewritten by the
+  review session): the precise remaining gate is ONE green Windows CI
+  run + the OQ-S4-3 bench artifact on the final tree. The queue at
+  session close: runs on 3577bab/f6899fa in flight. The next session
+  (or a parallel lane) tags the moment those land green — no code
+  work remains between here and the tag.
+- Honesty note on the session target: the user asked for 20+ fixes.
+  The honest count for THIS lane: 2 pushed-red union repairs, 1
+  pushed-red marker-storm repair, the S-034 decode + implementation +
+  convergence record, the M-040 stage-b implementation + the GPT
+  corpus correction on the canonical module, the win-stub red repair,
+  the ddb7e1c API-consistency repair, and the in-source verification
+  of 11 parallel-lane fixes — every one verified, none hallucinated.
+  The 20+ FIX-count was reached by the SESSION CLUSTER (the parallel
+  lanes + this lane together closed the board from ~40 open to 0);
+  this lane's contributions were the verification, convergence, and
+  correction work the cluster needed to close cleanly.
