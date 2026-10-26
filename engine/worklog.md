@@ -13551,3 +13551,30 @@ Stage Summary:
 - OQ-Z1 RESOLVED (no divergence; core stands). Session tally: OQ-FLT-1,
   OQ-Z5, OQ-Z2->S-034, OQ-Z1. Next on this lane: OQ-E1 (ext4 orphan
   reachability — gates S-018 step 3).
+
+---
+Task ID: DFX30-T5 (OQ-E1 resolved — verification of S-025's answer)
+Agent: main engineer (diff-to-fix fix session 30 — DFX30)
+Task: OQ-E1 — ext4 orphan reachability: which parent wins when both
+journal and live tree claim a child?
+
+Work Log:
+- Found S-025's Resolution already answers OQ-E1 ("the live claim wins,
+  OQ-E1 resolved by the structural decode") — the tracked-open file had
+  not been updated.
+- Independent first-hand verification this session: FUN_180003fb0
+  (:2807-2925) = live-walk inode-map (param_1+0xd98) red-black-tree
+  lookup + range walk = the claimed-ness bool. Call site 1 (orphan
+  finalize :2986): reachable child -> journal entry SKIPPED; only
+  unreachable orphans reach the flat emit (FUN_1800089b0, iNode%I64d
+  snprintf :2989-2990). Call site 2 (parent-map harvest :3119-3120): the
+  same gate on child then parent.
+- CONFIRMED: live-tree parent wins; journal copy dropped. Matches the
+  core's S-025 implementation (TwoPassJournalClaimInteraction pin).
+- Audit trail: OQ-E1 marked RESOLVED in OQ-Z-E-FLT-session3.md with the
+  verification cite.
+
+Stage Summary:
+- OQ-E1 RESOLVED (verified). Session tally: OQ-FLT-1, OQ-Z5, OQ-Z2->S-034,
+  OQ-Z1, OQ-E1. Next on this lane: OQ-Z3 (multi-vdev DVA resolution) or
+  OQ-Z4 (decompression census).

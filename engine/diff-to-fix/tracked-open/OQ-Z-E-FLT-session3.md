@@ -145,6 +145,28 @@ searchers are real classes. Names what ZFS "complete" adds over quick.
 
 ## OQ-E1 — ext4 orphan reachability semantics (gates S-018 step 3)
 
+**RESOLVED — answered by S-025's landing (findings/FIXED/
+S-025-ext4-journal-reparenting-missing.md Resolution: "the live claim
+wins, OQ-E1 resolved by the structural decode"), INDEPENDENTLY VERIFIED
+first-hand by DFX30 (2026-10-26):**
+- `FUN_180003fb0` (:2807-2925) = the live-claim reachability check: a
+  red-black-tree lookup of the child inode in the LIVE walk's inode map
+  (param_1+0xd98) followed by a range walk returning the claimed-ness
+  bool.
+- Call site 1 (the orphan finalize, :2986): for each journal-harvested
+  {child, parent} pair, `FUN_180003fb0(child)` returns TRUE (live tree
+  claims the child) -> the journal entry is SKIPPED ENTIRELY; only
+  unreachable orphans fall through to the flat emit via FUN_1800089b0
+  with the `iNode%I64d` fallback name (snprintf at :2989-2990).
+- Call site 2 (the "."".." parent-map harvest, FUN_1800043f0 :3119-3120):
+  the same gate — reachable child -> skip (goto LAB_18000455d); the
+  parent is then checked the same way.
+- **Answer: when both journal and live tree claim a child, the LIVE
+  tree's parent wins and the journal copy is dropped (no duplicate, no
+  journal-parent override).** This is exactly what the core's S-025 fix
+  implements (sweep skips live-claimed/journal-emitted inodes;
+  `Ext4Engine.TwoPassJournalClaimInteraction` pins it).
+
 Trace `FUN_1800089b0`/`FUN_180003fb0` (EXT4SearchDLL :6565-6630/:2807-2871):
 which parent wins when both journal and live tree claim a child.
 
