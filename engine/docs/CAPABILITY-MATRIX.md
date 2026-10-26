@@ -69,6 +69,7 @@ live since M-033 — a user-supplied FVEK, the og's GetFullVolumeEncryptionKey
 output shape, flows through `DecryptingDevice`, the in-stack XTS-AES layer
 matching the og's volume-IO placement: `--bitlocker-fvek` CLI /
 `cr_ui_open_volume_with_key` ABI; detection + legitimate unlock remain the
+
 S-014 posture: live-registry + offline-hive auto-unlock; the N-064
 password-dictionary aid is the og's Dict unlock flow ported with the
 consent gate intact, in BOTH same-window landing forms — explicit

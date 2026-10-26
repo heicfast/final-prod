@@ -1,3 +1,43 @@
+# SUMMARY.md — executive summary (diff-fix sessions 32(+33+34) on top; earlier sessions below)
+
+## Session-32 delta, part 2 (2026-10-26 — DFX32: M-025 FIXED — the carve window-aware read view + the pushed-red N-064 union repair)
+
+**The pushed-red repair first** (main was RED from a parallel convergent
+merge): the two N-064 landings (try_password_unlock/cr-pwddict vs
+unlock_with_dictionary/cr-dict) merged with UNRESOLVED conflict markers in
+6 files and a cr_bitlocker.cpp referencing the lost cr::dict module —
+win_syntax_check failing, the app uncompilable. Repaired as the convergent
+union (b00c02f): cr/pwddict is the canonical module; unlock_with_dictionary
+re-implemented as its ABI-shaped adapter; BOTH CLI consent flags kept
+(--bitlocker-pwddict <file|seed> + the valueless --bitlocker-dict); the
+Windows contract tests rewritten onto the pwddict seam; docs keep-both.
+Suite green again (win_syntax_check PASS).
+
+**M-025 FIXED (the fix plan's steps 1 + 2a/2b + 4; step 3 evaluated and
+not taken):** the WindowView — an IStorageDevice wrapper serving every
+read intersecting the already-scanned window from the in-memory buffer,
+wired at all 8 device-read sites of the window scan across BOTH emit
+layers (grammar validator + M-051 checksum + small-file hash + M-021
+feed; raw-sign tail walk + checksum + hash + feed); cross-window tails
+split-read (in-window prefix + device tail). Fail-before RED on the
+device-direct tree: the counting-device test saw **82 device reads** for
+a one-window fixture (per-candidate probe + checksum + hash re-reads) vs
+the expected **1**. MEASURED (scripts/bench_m025.cpp — 64 MiB sign-quiet
+fixture + 1280 grammar-validated candidates; the LCG fill abandoned as
+the bench lesson: random FF-sync bytes make the raw-sign tail walk read
+11+ GB, measuring the tail-scan budget instead of this fix's delta):
+device read_at calls 20,544 → 2,080 (**9.88×**), device bytes 2.20 GB →
+1.06 GB (**2.08×**), wall 3,936 → 3,818 ms on the memcpy device (no
+regression; the real-transport gain is ~18.5K fewer read round trips per
+64 MiB). The geometry change (4-8 MiB ping-pong) NOT taken — dispatch is
+byte-granularity-dominated (the I-009 superset) and the view already
+removed the re-read margin. PARITY-DELTAS **D-80** registers the
+stateless-view-vs-pending-object architecture (future stateful analysers
+port behind the M-021 CarvePostProcessor seam).
+
+**Counts after these landings (live tree):** SEVERE 1 · MAJOR **9** ·
+MINOR 8 · INFO 0 open · tracked-open 10 · FIXED/ 191 files. Session tally
+(this lane): M-029 + M-025 + the N-064 union repair.
 # SUMMARY.md — executive summary (diff-fix session 33 on top; earlier sessions below)
 
 ## Session-33 delta, part 3 (2026-10-26 — DFX33: M-018 FIXED — the FilterFolder result-set junk filter)
@@ -96,7 +136,7 @@ pairing) → M-018 (FilterFolder junk filter) → M-039 (occupancy
 bitmap) → M-025/M-030 perf legs.
 
 
-## Session-34 delta (2026-10-26 — DFX34: the MINOR-tail lane, first landing — N-064)
+## Session-34 delta (2026-10-26 — DFX34: the N-064 convergent-landing reconciliation + the MINOR-tail lane)
 
 Bootstrap at `65122f0`-lineage (the window's parallel claim wave absorbed
 by union merges; ID re-stamped 27→32→34 across three push races, each
@@ -105,40 +145,37 @@ squatted pre-landing — first-landing-wins honored). Baseline linux-release
 (verified at first corpus read). Lane: the MINOR tier tail back-to-front,
 20+ fix target, groups per sub-fix, every parallel landing absorbed.
 
-**N-064 FIXED (MINOR — the BitLocker password-dictionary unlock aid):**
-the og ships a 228-entry Dict (2,742 B) wired to BitLockerLib's
-manage-bde -Password flow + the repair line (config-data-reference:20/:86;
-the UI consent = BitlockerUnlockDialog → BitlockerUnlockThread). Corpus
-re-verified BYTE-LEVEL this session (comma-terminated CRLF lines,
-unterminated final entry, space-bearing entries — "charlie brown" read
-first-hand). Landed: pure `cr/pwddict` (format-exact parse + authored
-20-entry seed = **REGISTERED DIVERGENCE D-78** (the og's asset never
-copied; the loader is byte-format-compatible so the og's own Dict file
-works verbatim) + the consent-gated sequencer: order-preserving dedup,
-caps 4096/128/256KiB, attempt-log lines carry progress + candidate LENGTH
-only — password text never logged) + win `try_password_unlock` (SAME
-unlock() plumbing as a typed password: PowerShell Unlock-BitLocker
--Password → manage-bde -Password fallback; CP_UTF8 widen; Windows applies
-the key, the core does no crypto) + CLI `scan --bitlocker-pwddict
-<path|seed>` (the explicit flag IS the consent — nothing in the scan
-path references the sequencer; F61 legitimate-unlock-only preserved,
-locked volumes without consent/key stay ERR_FVE_LOCKED). Attempt policy
-(the finding's open question): sequential, first-success-wins, one
-attempt per candidate, duplicates once — documented in the header.
-Proof: 9 `Pwddict.*` tests + executed fail-before RED (the test unit
-does not compile on the pre-fix tree — the capability was absent);
-win_syntax_check itself caught the first win-layer draft's undeclared
-MultiByteToWideChar/CP_UTF8 (stub surface grown — the gate working).
-Suite **752/752** at the fix tree. The repair-line Dict consumers
-(EuOfficeRepairFile/archive CheckPassWord) stay scope-excluded (I-010).
+**N-064 — convergent two-lane landing RECONCILED (canonical: DFX31
+`5a29dbd`, first-landing-wins):** this lane's independently developed
+fix (`817740c`: pure `cr/pwddict` + `--bitlocker-pwddict <path|seed>` +
+`try_password_unlock`; corpus Dict format re-verified BYTE-LEVEL
+first-hand; 9 `Pwddict.*` tests; executed fail-before RED) reached main
+in the same window as DFX31's `cr::dict` landing (generated corpus-exact
+228-entry table per the raw_signs.json conversion precedent + the
+consent-gated loop + `--bitlocker-dict` + `cr_ui_unlock_volume_with_dictionary`
+ABI). The reconciliation kept the canonical surface and REMOVED the
+duplicate: the pwddict module/flag/plumbing/tests deleted; this lane's
+D-78 divergence row WITHDRAWN (obsolete — the canonical ships the
+corpus-exact table; no divergence exists); the win-stub CP_UTF8/
+MultiByteToWideChar declarations kept (the canonical widen needs them);
+the format-compatible dictionary FILE loader recorded in the finding's
+Convergence addendum as an unregistered future superset (NOT a parity
+requirement — the og ships its table; user candidates arrive via the
+cr_ui ABI). The reconciliation ALSO repaired the parallel-window merge
+corruption (conflict markers left in rrecov.cpp/cr_bitlocker.h/audit
+docs by an earlier union merge — main was RED on win_syntax_check) and
+hardened the gate with `-D__declspec(x)=` (gcc on ELF has no __declspec
+keyword; the app layer's new cr_ui.h include needs it — parse-gate
+only). Reconciled tree: suite **810/810** linux-release green, win
+layer parse-clean. Full detail: the finding's Resolution + Convergence
+addendum.
 
-**Post-fix counts:** SEVERE **0** · MAJOR 14 · MINOR **16** · INFO 0
-open · **FIXED/ 175 files** (174 findings + RESOLVED-INDEX) ·
-tracked-open 11 OQs. Next on this lane (tail-first): N-071 (device
-enumeration breadth) → N-072 (btrfs rescan cache + zfs label polling) →
-N-075 → N-066 → N-065 → N-059 → N-050 → N-049 → N-036 → N-033 → N-031
-→ N-027 → N-026 → N-007/I-004 → N-019 → N-032, absorbing the parallel
-lanes' landings per first-landing-wins.
+**Post-reconciliation counts (this lane's tree, parallel lanes active):**
+SEVERE **0** · MAJOR 11 · MINOR 8 · INFO 0 open · **FIXED/ 190 files** ·
+tracked-open 9 OQs. This lane's remaining MINOR-tail queue: N-071 →
+N-072 → N-066 → N-065 → N-059 → N-033 → N-007/I-004 → N-019 (the tier's
+middle drained by the parallel lanes' landings — absorbed per
+first-landing-wins), then MAJOR leftovers / tracked-open assist.
 
 
 ## Session-32 delta (2026-10-26 — DFX32: M-029 FIXED — the Date/Size bucket-ID translation + the general-raw naming surface; the query finding fully closed)
@@ -352,10 +389,20 @@ scanner (bulk single-value collect; the BIGGER object, 0x120 vs 0xe8). The
 core's orchestrator-layer quick/deep split is the union — no action.
 Evidence: `evidence/decompiled-quotes/s30-oq-z5-zfs-quick-vs-complete.md`.
 
-**Post-filing counts (this session's tree; parallel lanes active):**
-SEVERE **1** (S-034, new) · MAJOR 14 · MINOR 18 · INFO 0 open · FIXED/ 171 ·
-tracked-open 11 files (3 sub-questions resolved this session: OQ-FLT-1,
-OQ-Z5, OQ-Z2→S-034; OQ-E2 and OQ-T7 were already resolved).
+**Post-session counts (DFX30's lane complete at `49eed47`; parallel
+lanes active in the same window):** SEVERE **1** (S-034, new — the
+session's NEW-FINDING, fix queued behind its three decode items) · MAJOR
+14 · MINOR 18 · INFO 0 open · FIXED/ 171+6 (the session's closed OQs:
+T6-T7, S6-3, S6-2, S6-1, S5-1 + the DFX25-index rows) · tracked-open
+reduced to **4 files** (OQ-RS, OQ-S2M-2, OQ-S3, OQ-S4-3 — DFX25's head
+queue; OQ-S20-1 resolved by DFX31; OQ-Z-E-FLT stays open for OQ-FLT-2
+alone, pushed forward with evidence). Session-30 dispositions: 8
+sub-question resolutions, 2 convergent closures (S6-2, S5-1), 1
+convergent closure WITH correction (S6-1 — DFX25's "not the registry"
+refuted by the FUN_180022430 mode dispatch), 1 push-forward with new
+evidence (OQ-FLT-2 → M-029), S-034 filed, D-09 re-verdicted, corpus
+errata E45 + E46-convergence, M-035's blast-radius question answered,
+mom-capabilities.md CheckVersion row closed.
 
 # SUMMARY.md — executive summary (sessions 30+31+35 on top; earlier sessions below)
 
