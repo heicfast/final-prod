@@ -13984,3 +13984,44 @@ Stage Summary:
   method = next target, feeds M-029). The OQ-Z-E-FLT file is now 7/8
   sub-questions resolved. Next on this lane: OQ-T6 residual (uberblock
   geometry + checksum-verify depth), then OQ-S6-3/S6-2/S6-1/S5-1.
+
+---
+Task ID: DFX25-T4c/T4d (session 25 — OQ-S6-3 + OQ-S6-2 resolutions)
+Agent: main engineer (DFX25)
+Task: Resolve OQ-S6-3 (CRAW reader semantics) and OQ-S6-2 (Btrfs RC4
+target) — decode-first, classify, land the audit trail.
+
+Work Log:
+- OQ-S6-3 (CRAW reader FUN_140c40d80, DRWUI :1875575): all three fields
+  are pass-through at load — no checksum validation, no read-bounding on
+  anchor B, no boolean consumer. Producer FUN_180012190-family decode:
+  the +0xF4 boolean is set iff the analyser type id == 0xA8(168)
+  (FUN_140c41450) — a per-format marker in the +0xF8 type registry's id
+  space; 2,431/12,147 = the type-168 population; none of the three filed
+  hypotheses correct. Vtable proof (props-vtables.txt :42): the +0xF4,
+  +0x56, and dual-anchor getters have ZERO callers and NO vtable slots —
+  dead accessors. Bonus decode: type 0x2A's tail-extent pair (analyser
+  +0xd8/+0xe0) appended to the runlist + folded into the size — the
+  tail-pairing shape the core's raw-sign path implements. M-051's design
+  CONFIRMED on all three fields; the decoded semantics documented at the
+  carve_flag carrier (cr_node.h); M-051 addendum + evidence file
+  s25-oq-s6-3-craw-reader-decode.md. No code change.
+- OQ-S6-2 (Btrfs "RC4 PRGA"): the capa match (0x180012190, the ONLY
+  RC4-rule hit) disassembled first-hand for all 469 bytes — a chunked
+  checksum-verified copy pump: type 1 → FUN_180014c00 = adler-32
+  (0xFFF1/5552-blocking), type 2 → FUN_180014ee0 = slicing-by-4 table
+  CRC; the matched loops are u16 length-table maintenance. NO RC4
+  essentials anywhere: no `and $0xff` in the function, no 256-state/KSA
+  in the whole decompile (zero % 0x100), no keystream XOR, no key
+  material, no crypto strings. CLASSIFICATION: INVALID premise (capa
+  false positive). Erratum E46 filed; evidence file
+  s25-oq-s6-2-btrfs-rc4-false-positive.md; N-072 carries no RC4
+  dependence (grep-verified). No code change — parity by shared absence.
+- Both landings pushed with the audit trail (OQ files → RESOLVED,
+  module row updated).
+
+Stage Summary:
+- OQ-S6-3 + OQ-S6-2 RESOLVED (24+5 resolutions this session counting the
+  INFO tier + A-008). Tracked-open files remaining: OQ-RS, OQ-S20-1,
+  OQ-S4-3, OQ-S5-1, OQ-S6-1, OQ-T6-T7, OQ-Z-E-FLT residues (DFX30's
+  active lane). Next on this lane: OQ-S6-1 (generator-set semantics).
