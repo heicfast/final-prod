@@ -378,6 +378,121 @@ TEST(CarveEngine, SecondPassFullyDeduped) {
     EXPECT_EQ(s2.sign_hits, s1.sign_hits); /* same fixture, same probes */
 }
 
+/* ---- M-021: the post-carve processing hook (the og's EUVideoRepair
+ * binding at controller+0x158; the deferred-poll feed) ---- */
+
+/* a carvable QuickTime MOV: ftyp box at +0 with brand "qt  " (the box
+ * SIZE at candidate+0, "ftyp" TYPE at +4 - the S-017 registry shape),
+ * then a well-formed moov + mdat box walk */
+static void plant_mov(std::vector<u8>& img, size_t at) {
+    const auto be32 = [&img](size_t p, u32 v) {
+        img[p] = u8(v >> 24);
+        img[p + 1] = u8(v >> 16);
+        img[p + 2] = u8(v >> 8);
+        img[p + 3] = u8(v);
+    };
+    be32(at, 20); /* ftyp box size */
+    std::memcpy(img.data() + at + 4, "ftyp", 4);
+    std::memcpy(img.data() + at + 8, "qt  ", 4); /* brand */
+    be32(at + 12, 0x200);                         /* minor version */
+    std::memcpy(img.data() + at + 16, "qt  ", 4); /* compatible brand */
+    be32(at + 20, 8 + 40); /* moov box size (48) */
+    std::memcpy(img.data() + at + 24, "moov", 4);
+    for (int i = 0; i < 40; ++i)
+        img[at + 28 + i] = 0; /* moov payload */
+    be32(at + 68, 8 + 56); /* mdat box size (64) */
+    std::memcpy(img.data() + at + 72, "mdat", 4);
+    for (int i = 0; i < 56; ++i)
+        img[at + 76 + i] = 0x5A;
+    /* terminator: an over-cap box size right after the stream so the
+     * bmff walk ends at the mdat (the 0xAA filler alone would be walked
+     * as a 2.8 GiB "box" still inside the 4 GiB cap) */
+    be32(at + 132, 0xFFFFFFFF);
+}
+
+namespace {
+class RecordingProcessor final : public CarvePostProcessor {
+public:
+    struct Hit {
+        u32 format_tag;
+        std::string ext;
+        u64 offset, length;
+    };
+    std::vector<Hit> hits;
+    u32 version_seen = 0;
+    void on_candidate(IStorageDevice* slice, const CarveCandidateInfo& info) override {
+        (void)slice;
+        version_seen = api_version();
+        hits.push_back({info.format_tag, info.format_ext, info.offset, info.length});
+    }
+};
+} // namespace
+
+TEST(CarveEngine, VideoPostProcessorHookInvoked) {
+    /* the og feeds every finalized carve candidate to the EUVideoRepair
+     * binding when present (GetVideoInfo filters videos; FUN_18000d670
+     * :10130-10136) - a registered processor sees the MOV candidate with
+     * its stream location (the GetVideoInfo analog: the processor can
+     * read the bytes through the slice at the fed offset) */
+    /* 0xAA filler: a zero tail would read as a size-0 "to-EOF" box and
+     * stretch the extent to the format cap; garbage ends the walk */
+    std::vector<u8> img(64 * 1024, 0xAA);
+    plant_mov(img, 512);
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"Lost Files");
+    CarveFlags flags;
+    RecordingProcessor proc;
+    flags.post_processor = &proc;
+    CarveStats stats;
+    ASSERT_EQ(carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr,
+                          stats),
+              OK);
+    /* the fixture's well-formed moov box ALSO anchors the S-017
+     * naked-moov salvage row - two finalized candidates, and the hook
+     * sees BOTH (the og's poll feeds every finalized object) */
+    ASSERT_EQ(stats.validated, 2u);
+    ASSERT_EQ(proc.hits.size(), 2u) << "every finalized candidate reached the hook";
+    /* hits arrive in scan order: the ftyp-anchored MOV first, then the
+     * moov-anchored naked salvage */
+    EXPECT_EQ(proc.hits[0].format_tag, u32(FMT_MOV));
+    EXPECT_EQ(proc.hits[0].ext, "mov");
+    EXPECT_EQ(proc.hits[0].offset, 512u);
+    EXPECT_EQ(proc.hits[0].length, 132u) << "ftyp(20) + moov(48) + mdat(64)";
+    EXPECT_EQ(proc.hits[1].format_tag, u32(FMT_MOV_NAKED));
+    EXPECT_EQ(proc.hits[1].offset, 532u) << "the moov box start";
+    EXPECT_EQ(proc.hits[1].length, 112u) << "moov(48) + mdat(64)";
+    EXPECT_EQ(proc.version_seen, 1u);
+    /* the hook is a FEED, not a gate: the nodes are emitted regardless */
+    std::vector<tree::FileNode*> all;
+    std::function<void(tree::FileNode*)> collect = [&](tree::FileNode* n) {
+        for (tree::FileNode* c = n->first_child(); c; c = c->next_sibling()) {
+            all.push_back(c);
+            collect(c);
+        }
+    };
+    collect(root);
+    ASSERT_EQ(all.size(), 2u);
+    EXPECT_EQ(all[0]->props()->carve_format, u32(FMT_MOV));
+}
+
+TEST(CarveEngine, HookDegradesWhenModuleAbsent) {
+    /* the og's DLL-absent degrade: no binding -> null at controller+0x158
+     * -> the pipeline runs identically (raw emission, no crash, no
+     * behavioral delta) */
+    std::vector<u8> img(64 * 1024, 0xAA); /* to-EOF-box guard, as above */
+    plant_mov(img, 512);
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"Lost Files");
+    CarveFlags flags; /* post_processor null: the unbound default */
+    CarveStats stats;
+    ASSERT_EQ(carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr,
+                          stats),
+              OK);
+    EXPECT_EQ(stats.validated, 2u) << "unbound hook changes nothing";
+}
+
 TEST(CarveEngine, RegistryF8Gate) {
     std::vector<const Signature*> bad;
     EXPECT_EQ(validate_registry(&bad), 0u); /* the shipped table is clean */

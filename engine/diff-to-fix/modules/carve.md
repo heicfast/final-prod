@@ -154,8 +154,10 @@ carve-specific divergences surfaced.
   ~26 additional og-only formats (bytes cited); ISO9660 is core-only (og cannot carve ISO).
 - **N-014d filed:** ZIP padding semantic inversion (og salvages non-empty trailing sectors
   after broken chains, never inflates clean archives; two-tier version gates) — N-008 refined.
-- **M-021 filed:** video-repair pre-scan wiring absent (og loads EUVideoRepair.dll and runs
-  a per-candidate repair check).
+- **M-021 filed → FIXED (s21):** video-repair pre-scan wiring — versioned
+  `CarvePostProcessor` bound through `CarveFlags::post_processor` (null = the og's
+  DLL-absent degrade); fires per validated candidate pre-insertion on BOTH emit
+  layers (grammar + raw-sign); a feed never a gate; findings/FIXED/M-021.
 - **N-014b/c filed:** carved-name split inside the core; runtime per-format config surface.
 
 ---

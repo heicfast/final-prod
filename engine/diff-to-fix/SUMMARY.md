@@ -240,6 +240,17 @@ preview cap = 1 MiB at the UI socket layer per I-015; IInWindowStream =
 + the compressed-extent whole-block cost disclosed. 5 tests fail-before;
 fuzz tight-budget trap added; suite 662/662. MAJOR open 28.
 
+**M-021 FIXED (carve post-processor hook):** the og's EUVideoRepair binding
+(controller+0x158, optional LoadLibrary; the per-candidate deferred poll at
+FUN_18000d670 :10130-10136 — both re-verified first-hand) now has its core
+equivalent: versioned `CarvePostProcessor` + `CarveFlags::post_processor`
+(null = the unbound degrade); fires per validated candidate pre-insertion on
+both emit layers; a FEED never a gate (the og's poll never drops a
+candidate). The repair engine itself stays scope-excluded
+(PARITY-CORE-REC:164) — the hook point is the parity surface. 2 tests
+(hook-invoked fail-before-proven by wiring revert; degrade-when-absent);
+suite 685/685. MAJOR open 27.
+
 ## Session-19 delta (2026-10-26 — DFX19: MAJOR-first lane, first landing M-016)
 
 Bootstrap `ff734d7` (union of the parallel lanes' claims: DFX18 on the MINOR
