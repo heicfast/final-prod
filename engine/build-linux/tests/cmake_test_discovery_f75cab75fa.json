@@ -1,5 +1,5 @@
 {
-  "tests": 791,
+  "tests": 830,
   "name": "AllTests",
   "testsuites": [
     {
@@ -961,7 +961,7 @@
     },
     {
       "name": "NtfsVolume",
-      "tests": 59,
+      "tests": 60,
       "testsuite": [
         {
           "name": "NonresidentAttrlistOnMft",
@@ -1257,12 +1257,17 @@
           "name": "SpoofedOemRejectedEarly",
           "file": "\/home\/z\/my-project\/work\/core_recovery\/tests\/unit\/test_ntfs_volume.cpp",
           "line": 4271
+        },
+        {
+          "name": "RecycleBinScopeOutOfBinDollarFilesStayRaw",
+          "file": "\/home\/z\/my-project\/work\/core_recovery\/tests\/unit\/test_ntfs_volume.cpp",
+          "line": 4308
         }
       ]
     },
     {
       "name": "FatEngine",
-      "tests": 43,
+      "tests": 46,
       "testsuite": [
         {
           "name": "FreeMapExcludesVirtualClustersAndMatchesFAT",
@@ -1478,167 +1483,197 @@
           "name": "PrimaryFreeStillConsultsMirror",
           "file": "\/home\/z\/my-project\/work\/core_recovery\/tests\/unit\/test_fat_volume.cpp",
           "line": 1655
+        },
+        {
+          "name": "RecyclePairingRestoresOriginalName",
+          "file": "\/home\/z\/my-project\/work\/core_recovery\/tests\/unit\/test_fat_volume.cpp",
+          "line": 1754
+        },
+        {
+          "name": "RecycleLegacyRoots",
+          "file": "\/home\/z\/my-project\/work\/core_recovery\/tests\/unit\/test_fat_volume.cpp",
+          "line": 1787
+        },
+        {
+          "name": "NonRecycleDollarFilesStayRaw",
+          "file": "\/home\/z\/my-project\/work\/core_recovery\/tests\/unit\/test_fat_volume.cpp",
+          "line": 1805
         }
       ]
     },
     {
       "name": "ExfatEngine",
-      "tests": 31,
+      "tests": 34,
       "testsuite": [
         {
           "name": "TimestampsMatchOgLocalAsUtc",
           "file": "\/home\/z\/my-project\/work\/core_recovery\/tests\/unit\/test_exfat_volume.cpp",
-          "line": 423
+          "line": 424
         },
         {
           "name": "TimestampsZeroTzPassThrough",
           "file": "\/home\/z\/my-project\/work\/core_recovery\/tests\/unit\/test_exfat_volume.cpp",
-          "line": 444
+          "line": 445
         },
         {
           "name": "TimestampsMatchExplorerDisplay",
           "file": "\/home\/z\/my-project\/work\/core_recovery\/tests\/unit\/test_exfat_volume.cpp",
-          "line": 458
+          "line": 459
         },
         {
           "name": "TimestampsWestOffsetAlsoIgnored",
           "file": "\/home\/z\/my-project\/work\/core_recovery\/tests\/unit\/test_exfat_volume.cpp",
-          "line": 474
+          "line": 475
         },
         {
           "name": "FreeMapExcludesVirtualClustersAndMatchesBitmap",
           "file": "\/home\/z\/my-project\/work\/core_recovery\/tests\/unit\/test_exfat_volume.cpp",
-          "line": 489
+          "line": 490
         },
         {
           "name": "TornBitmapReadYieldsNoFreeMap",
           "file": "\/home\/z\/my-project\/work\/core_recovery\/tests\/unit\/test_exfat_volume.cpp",
-          "line": 560
+          "line": 561
         },
         {
           "name": "EndToEnd",
           "file": "\/home\/z\/my-project\/work\/core_recovery\/tests\/unit\/test_exfat_volume.cpp",
-          "line": 583
+          "line": 584
         },
         {
           "name": "UpcaseTableChecksumValidated",
           "file": "\/home\/z\/my-project\/work\/core_recovery\/tests\/unit\/test_exfat_volume.cpp",
-          "line": 670
+          "line": 671
         },
         {
           "name": "UpcaseLengthSanity",
           "file": "\/home\/z\/my-project\/work\/core_recovery\/tests\/unit\/test_exfat_volume.cpp",
-          "line": 711
+          "line": 712
         },
         {
           "name": "FreeMapProducerMatchesSpecBitMapping",
           "file": "\/home\/z\/my-project\/work\/core_recovery\/tests\/unit\/test_exfat_volume.cpp",
-          "line": 752
+          "line": 753
         },
         {
           "name": "SetChecksumMismatchGradesExcellentInOgProfile",
           "file": "\/home\/z\/my-project\/work\/core_recovery\/tests\/unit\/test_exfat_volume.cpp",
-          "line": 815
+          "line": 816
         },
         {
           "name": "SetChecksumMismatchMarksDamaged",
           "file": "\/home\/z\/my-project\/work\/core_recovery\/tests\/unit\/test_exfat_volume.cpp",
-          "line": 836
+          "line": 837
         },
         {
           "name": "InvalidFirstClusterRejected",
           "file": "\/home\/z\/my-project\/work\/core_recovery\/tests\/unit\/test_exfat_volume.cpp",
-          "line": 863
+          "line": 864
         },
         {
           "name": "EocFamilyTerminatesChain",
           "file": "\/home\/z\/my-project\/work\/core_recovery\/tests\/unit\/test_exfat_volume.cpp",
-          "line": 909
+          "line": 910
         },
         {
           "name": "FreeEntryContiguousSalvage",
           "file": "\/home\/z\/my-project\/work\/core_recovery\/tests\/unit\/test_exfat_volume.cpp",
-          "line": 943
+          "line": 944
         },
         {
           "name": "BootGatesMatchOg",
           "file": "\/home\/z\/my-project\/work\/core_recovery\/tests\/unit\/test_exfat_volume.cpp",
-          "line": 979
+          "line": 980
         },
         {
           "name": "UpcaseAlgorithmMatchesRealMkfsExfat",
           "file": "\/home\/z\/my-project\/work\/core_recovery\/tests\/unit\/test_exfat_volume.cpp",
-          "line": 1195
+          "line": 1196
         },
         {
           "name": "LargeFatFullChains",
           "file": "\/home\/z\/my-project\/work\/core_recovery\/tests\/unit\/test_exfat_volume.cpp",
-          "line": 1214
+          "line": 1215
         },
         {
           "name": "LargeFatDirectoryWalk",
           "file": "\/home\/z\/my-project\/work\/core_recovery\/tests\/unit\/test_exfat_volume.cpp",
-          "line": 1254
+          "line": 1255
         },
         {
           "name": "StreamReservedPartiallyNonzeroPassesOgByteOr",
           "file": "\/home\/z\/my-project\/work\/core_recovery\/tests\/unit\/test_exfat_volume.cpp",
-          "line": 1285
+          "line": 1286
         },
         {
           "name": "StreamReservedAllBytesNonzeroStillDamaged",
           "file": "\/home\/z\/my-project\/work\/core_recovery\/tests\/unit\/test_exfat_volume.cpp",
-          "line": 1324
+          "line": 1325
         },
         {
           "name": "StreamReserved1ByteStrictlyZero",
           "file": "\/home\/z\/my-project\/work\/core_recovery\/tests\/unit\/test_exfat_volume.cpp",
-          "line": 1350
+          "line": 1351
         },
         {
           "name": "DeletedSetChecksumRejectsTornSet",
           "file": "\/home\/z\/my-project\/work\/core_recovery\/tests\/unit\/test_exfat_volume.cpp",
-          "line": 1377
+          "line": 1378
         },
         {
           "name": "DeletedSetOracleReassembly",
           "file": "\/home\/z\/my-project\/work\/core_recovery\/tests\/unit\/test_exfat_volume.cpp",
-          "line": 1406
+          "line": 1407
         },
         {
           "name": "LiveCompleteSetBadChecksumUngraded",
           "file": "\/home\/z\/my-project\/work\/core_recovery\/tests\/unit\/test_exfat_volume.cpp",
-          "line": 1452
+          "line": 1453
         },
         {
           "name": "EmptyFileSuppressedLikeOg",
           "file": "\/home\/z\/my-project\/work\/core_recovery\/tests\/unit\/test_exfat_volume.cpp",
-          "line": 1505
+          "line": 1506
         },
         {
           "name": "GarbageTimestampRejected",
           "file": "\/home\/z\/my-project\/work\/core_recovery\/tests\/unit\/test_exfat_volume.cpp",
-          "line": 1540
+          "line": 1541
         },
         {
           "name": "SecondaryCountCapped",
           "file": "\/home\/z\/my-project\/work\/core_recovery\/tests\/unit\/test_exfat_volume.cpp",
-          "line": 1593
+          "line": 1594
         },
         {
           "name": "BadNameFlagsRejected",
           "file": "\/home\/z\/my-project\/work\/core_recovery\/tests\/unit\/test_exfat_volume.cpp",
-          "line": 1629
+          "line": 1630
         },
         {
           "name": "FileReservedNonzeroRejected",
           "file": "\/home\/z\/my-project\/work\/core_recovery\/tests\/unit\/test_exfat_volume.cpp",
-          "line": 1678
+          "line": 1679
         },
         {
           "name": "ValidBoundaryTimestampsStillPass",
           "file": "\/home\/z\/my-project\/work\/core_recovery\/tests\/unit\/test_exfat_volume.cpp",
-          "line": 1714
+          "line": 1715
+        },
+        {
+          "name": "NameUtf16TableInvalidCharRejected",
+          "file": "\/home\/z\/my-project\/work\/core_recovery\/tests\/unit\/test_exfat_volume.cpp",
+          "line": 1772
+        },
+        {
+          "name": "NameUtf16TableAllowedCharAccepted",
+          "file": "\/home\/z\/my-project\/work\/core_recovery\/tests\/unit\/test_exfat_volume.cpp",
+          "line": 1792
+        },
+        {
+          "name": "RecyclePairingMirrored",
+          "file": "\/home\/z\/my-project\/work\/core_recovery\/tests\/unit\/test_exfat_volume.cpp",
+          "line": 1815
         }
       ]
     },
@@ -1956,82 +1991,82 @@
         {
           "name": "SubvolumeNamedFromRootRef",
           "file": "\/home\/z\/my-project\/work\/core_recovery\/tests\/unit\/test_btrfs_volume.cpp",
-          "line": 554
+          "line": 618
         },
         {
           "name": "FileAttributeNormalBit",
           "file": "\/home\/z\/my-project\/work\/core_recovery\/tests\/unit\/test_btrfs_volume.cpp",
-          "line": 636
+          "line": 700
         },
         {
           "name": "BadMagicRejected",
           "file": "\/home\/z\/my-project\/work\/core_recovery\/tests\/unit\/test_btrfs_volume.cpp",
-          "line": 665
+          "line": 729
         },
         {
           "name": "PackedDirItemsInOneItem",
           "file": "\/home\/z\/my-project\/work\/core_recovery\/tests\/unit\/test_btrfs_volume.cpp",
-          "line": 675
+          "line": 739
         },
         {
           "name": "MirrorSelectionNewestGeneration",
           "file": "\/home\/z\/my-project\/work\/core_recovery\/tests\/unit\/test_btrfs_volume.cpp",
-          "line": 728
+          "line": 792
         },
         {
           "name": "InternalKeyPtrWalk",
           "file": "\/home\/z\/my-project\/work\/core_recovery\/tests\/unit\/test_btrfs_volume.cpp",
-          "line": 762
+          "line": 826
         },
         {
           "name": "InlineAndCompressedExtents",
           "file": "\/home\/z\/my-project\/work\/core_recovery\/tests\/unit\/test_btrfs_volume.cpp",
-          "line": 872
+          "line": 936
         },
         {
           "name": "NonAsciiNamesDecodedNotByteLifted",
           "file": "\/home\/z\/my-project\/work\/core_recovery\/tests\/unit\/test_btrfs_volume.cpp",
-          "line": 1018
+          "line": 1082
         },
         {
           "name": "Latin1NameRoundTripsRawBytes",
           "file": "\/home\/z\/my-project\/work\/core_recovery\/tests\/unit\/test_btrfs_volume.cpp",
-          "line": 1088
+          "line": 1152
         },
         {
           "name": "XattrDosAttribApplied",
           "file": "\/home\/z\/my-project\/work\/core_recovery\/tests\/unit\/test_btrfs_volume.cpp",
-          "line": 1175
+          "line": 1239
         },
         {
           "name": "UserXattrRecordsEmitted",
           "file": "\/home\/z\/my-project\/work\/core_recovery\/tests\/unit\/test_btrfs_volume.cpp",
-          "line": 1243
+          "line": 1307
         },
         {
           "name": "CompressionPropertyTagged",
           "file": "\/home\/z\/my-project\/work\/core_recovery\/tests\/unit\/test_btrfs_volume.cpp",
-          "line": 1318
+          "line": 1382
         },
         {
           "name": "Raid10GeometryGate",
           "file": "\/home\/z\/my-project\/work\/core_recovery\/tests\/unit\/test_btrfs_volume.cpp",
-          "line": 1409
+          "line": 1473
         },
         {
           "name": "Raid1RotatingMirrorReads",
           "file": "\/home\/z\/my-project\/work\/core_recovery\/tests\/unit\/test_btrfs_volume.cpp",
-          "line": 1595
+          "line": 1659
         },
         {
           "name": "Raid0StripeMathSplitsAtStripeBoundaries",
           "file": "\/home\/z\/my-project\/work\/core_recovery\/tests\/unit\/test_btrfs_volume.cpp",
-          "line": 1625
+          "line": 1689
         },
         {
           "name": "DefaultDirItemNonSubvolumeLocationFallsBack",
           "file": "\/home\/z\/my-project\/work\/core_recovery\/tests\/unit\/test_btrfs_volume.cpp",
-          "line": 1746
+          "line": 1810
         }
       ]
     },
@@ -3180,7 +3215,7 @@
     },
     {
       "name": "Session",
-      "tests": 12,
+      "tests": 15,
       "testsuite": [
         {
           "name": "GradeRoleAndProvenanceRoundTrip",
@@ -3241,127 +3276,158 @@
           "name": "AutoNamingConvention",
           "file": "\/home\/z\/my-project\/work\/core_recovery\/tests\/unit\/test_session.cpp",
           "line": 948
+        },
+        {
+          "name": "BtrfsExtrasRoundTrip",
+          "file": "\/home\/z\/my-project\/work\/core_recovery\/tests\/unit\/test_session.cpp",
+          "line": 978
+        },
+        {
+          "name": "ZfsSecondaryFlagsRoundTrip",
+          "file": "\/home\/z\/my-project\/work\/core_recovery\/tests\/unit\/test_session.cpp",
+          "line": 1013
+        },
+        {
+          "name": "EngineExtrasAbsentWhenUnpopulated",
+          "file": "\/home\/z\/my-project\/work\/core_recovery\/tests\/unit\/test_session.cpp",
+          "line": 1054
         }
       ]
     },
     {
       "name": "Orchestrator",
-      "tests": 23,
+      "tests": 24,
       "testsuite": [
         {
           "name": "DynamicDiskVolumeScan",
           "file": "\/home\/z\/my-project\/work\/core_recovery\/tests\/unit\/test_orchestrator.cpp",
-          "line": 169
+          "line": 171
+        },
+        {
+          "name": "JunkFilteredFromResults",
+          "file": "\/home\/z\/my-project\/work\/core_recovery\/tests\/unit\/test_orchestrator.cpp",
+          "line": 266
         },
         {
           "name": "LogSilentByDefault",
           "file": "\/home\/z\/my-project\/work\/core_recovery\/tests\/unit\/test_orchestrator.cpp",
-          "line": 237
+          "line": 403
         },
         {
           "name": "LogSinkReceivesScanBrackets",
           "file": "\/home\/z\/my-project\/work\/core_recovery\/tests\/unit\/test_orchestrator.cpp",
-          "line": 257
+          "line": 423
         },
         {
           "name": "MemoryMonitorEmitsUnderPressure",
           "file": "\/home\/z\/my-project\/work\/core_recovery\/tests\/unit\/test_orchestrator.cpp",
-          "line": 301
+          "line": 467
         },
         {
           "name": "WeightedProgress",
           "file": "\/home\/z\/my-project\/work\/core_recovery\/tests\/unit\/test_orchestrator.cpp",
-          "line": 332
+          "line": 498
         },
         {
           "name": "ProbeFamily",
           "file": "\/home\/z\/my-project\/work\/core_recovery\/tests\/unit\/test_orchestrator.cpp",
-          "line": 342
+          "line": 508
         },
         {
           "name": "SpoofedExfatOemRejectedBeforeEngine",
           "file": "\/home\/z\/my-project\/work\/core_recovery\/tests\/unit\/test_orchestrator.cpp",
-          "line": 373
+          "line": 539
         },
         {
           "name": "SpoofedFatBootUnreadableRootRejected",
           "file": "\/home\/z\/my-project\/work\/core_recovery\/tests\/unit\/test_orchestrator.cpp",
-          "line": 386
+          "line": 552
         },
         {
           "name": "RealExfatBootContentVerified",
           "file": "\/home\/z\/my-project\/work\/core_recovery\/tests\/unit\/test_orchestrator.cpp",
-          "line": 399
+          "line": 565
         },
         {
           "name": "FsFamilyValuesMatchContract",
           "file": "\/home\/z\/my-project\/work\/core_recovery\/tests\/unit\/test_orchestrator.cpp",
-          "line": 459
+          "line": 625
         },
         {
           "name": "UdfProbeFailsOnMkudffsShapeLikeTheOg",
           "file": "\/home\/z\/my-project\/work\/core_recovery\/tests\/unit\/test_orchestrator.cpp",
-          "line": 476
+          "line": 642
         },
         {
           "name": "ProbesUdfVolume",
           "file": "\/home\/z\/my-project\/work\/core_recovery\/tests\/unit\/test_orchestrator.cpp",
-          "line": 524
+          "line": 690
         },
         {
           "name": "UdfProbeRequiresBothDescriptorReads",
           "file": "\/home\/z\/my-project\/work\/core_recovery\/tests\/unit\/test_orchestrator.cpp",
-          "line": 532
+          "line": 698
         },
         {
           "name": "UdfNotConfusedWithFat",
           "file": "\/home\/z\/my-project\/work\/core_recovery\/tests\/unit\/test_orchestrator.cpp",
-          "line": 546
+          "line": 712
         },
         {
           "name": "UdfSurfacesAsCarveFamily",
           "file": "\/home\/z\/my-project\/work\/core_recovery\/tests\/unit\/test_orchestrator.cpp",
-          "line": 570
+          "line": 736
         },
         {
           "name": "CarveSingleNamingFamily",
           "file": "\/home\/z\/my-project\/work\/core_recovery\/tests\/unit\/test_orchestrator.cpp",
-          "line": 692
+          "line": 858
         },
         {
           "name": "StagedRunAndSessionRoundTrip",
           "file": "\/home\/z\/my-project\/work\/core_recovery\/tests\/unit\/test_orchestrator.cpp",
-          "line": 816
+          "line": 982
         },
         {
           "name": "PreScanRepairRestoresTornFatAndScans",
           "file": "\/home\/z\/my-project\/work\/core_recovery\/tests\/unit\/test_orchestrator.cpp",
-          "line": 1097
+          "line": 1263
         },
         {
           "name": "PreScanRepairDeniedNeverWrites",
           "file": "\/home\/z\/my-project\/work\/core_recovery\/tests\/unit\/test_orchestrator.cpp",
-          "line": 1149
+          "line": 1315
         },
         {
           "name": "PreScanRepairWithoutHooksNeverWrites",
           "file": "\/home\/z\/my-project\/work\/core_recovery\/tests\/unit\/test_orchestrator.cpp",
-          "line": 1181
+          "line": 1347
         },
         {
           "name": "ReadPipeBuildsCacheOverRetryForValidGeometry",
           "file": "\/home\/z\/my-project\/work\/core_recovery\/tests\/unit\/test_orchestrator.cpp",
-          "line": 1532
+          "line": 1698
         },
         {
           "name": "ReadPipeDegradesToBareSliceWhenCacheCreationFails",
           "file": "\/home\/z\/my-project\/work\/core_recovery\/tests\/unit\/test_orchestrator.cpp",
-          "line": 1547
+          "line": 1713
         },
         {
           "name": "ReadPipeZeroCapacityDegradesToBareSlice",
           "file": "\/home\/z\/my-project\/work\/core_recovery\/tests\/unit\/test_orchestrator.cpp",
-          "line": 1564
+          "line": 1730
+        }
+      ]
+    },
+    {
+      "name": "FilterFolder",
+      "tests": 1,
+      "testsuite": [
+        {
+          "name": "CorpusListsPinned",
+          "file": "\/home\/z\/my-project\/work\/core_recovery\/tests\/unit\/test_orchestrator.cpp",
+          "line": 219
         }
       ]
     },
@@ -3372,22 +3438,22 @@
         {
           "name": "OverlapRefusal",
           "file": "\/home\/z\/my-project\/work\/core_recovery\/tests\/unit\/test_orchestrator.cpp",
-          "line": 899
+          "line": 1065
         },
         {
           "name": "CollisionAndSanitize",
           "file": "\/home\/z\/my-project\/work\/core_recovery\/tests\/unit\/test_orchestrator.cpp",
-          "line": 945
+          "line": 1111
         },
         {
           "name": "ResidentPrefixNotOverwritten",
           "file": "\/home\/z\/my-project\/work\/core_recovery\/tests\/unit\/test_orchestrator.cpp",
-          "line": 961
+          "line": 1127
         },
         {
           "name": "InvalidUtf8NameRestoredFromRaw",
           "file": "\/home\/z\/my-project\/work\/core_recovery\/tests\/unit\/test_orchestrator.cpp",
-          "line": 1482
+          "line": 1648
         }
       ]
     },
@@ -3398,32 +3464,32 @@
         {
           "name": "ErrorRangeGoesToLiveSink",
           "file": "\/home\/z\/my-project\/work\/core_recovery\/tests\/unit\/test_orchestrator.cpp",
-          "line": 1266
+          "line": 1432
         },
         {
           "name": "SinkSwitchDeliversAllTypes",
           "file": "\/home\/z\/my-project\/work\/core_recovery\/tests\/unit\/test_orchestrator.cpp",
-          "line": 1294
+          "line": 1460
         },
         {
           "name": "SingleBoundaryAtTeardown",
           "file": "\/home\/z\/my-project\/work\/core_recovery\/tests\/unit\/test_orchestrator.cpp",
-          "line": 1323
+          "line": 1489
         },
         {
           "name": "ErrorRangeCarriesModuleOperationAttempts",
           "file": "\/home\/z\/my-project\/work\/core_recovery\/tests\/unit\/test_orchestrator.cpp",
-          "line": 1392
+          "line": 1558
         },
         {
           "name": "ProbeBlockFailureAttributesToOrchestrator",
           "file": "\/home\/z\/my-project\/work\/core_recovery\/tests\/unit\/test_orchestrator.cpp",
-          "line": 1416
+          "line": 1582
         },
         {
           "name": "CarveErrorRangeAttributesToCarveModule",
           "file": "\/home\/z\/my-project\/work\/core_recovery\/tests\/unit\/test_orchestrator.cpp",
-          "line": 1440
+          "line": 1606
         }
       ]
     },
@@ -3434,7 +3500,7 @@
         {
           "name": "DeepStageDefaultsOnAndWholeDiskOff",
           "file": "\/home\/z\/my-project\/work\/core_recovery\/tests\/unit\/test_orchestrator.cpp",
-          "line": 1462
+          "line": 1628
         }
       ]
     },
@@ -3564,7 +3630,7 @@
     },
     {
       "name": "WriterDirs",
-      "tests": 6,
+      "tests": 9,
       "testsuite": [
         {
           "name": "StructureReconstructionWithEmptyLeaves",
@@ -3584,17 +3650,32 @@
         {
           "name": "PerItemErrorCollectedQueueContinues",
           "file": "\/home\/z\/my-project\/work\/core_recovery\/tests\/unit\/test_writer_dirs.cpp",
-          "line": 347
+          "line": 348
         },
         {
           "name": "MetadataOnlyItemSkipsNotZeroFills",
           "file": "\/home\/z\/my-project\/work\/core_recovery\/tests\/unit\/test_writer_dirs.cpp",
-          "line": 386
+          "line": 387
         },
         {
           "name": "ProgressExcludesErrorItems",
           "file": "\/home\/z\/my-project\/work\/core_recovery\/tests\/unit\/test_writer_dirs.cpp",
-          "line": 449
+          "line": 450
+        },
+        {
+          "name": "CollisionNameUnderscoreFormat",
+          "file": "\/home\/z\/my-project\/work\/core_recovery\/tests\/unit\/test_writer_dirs.cpp",
+          "line": 489
+        },
+        {
+          "name": "CollisionExhaustionFailsTheItem",
+          "file": "\/home\/z\/my-project\/work\/core_recovery\/tests\/unit\/test_writer_dirs.cpp",
+          "line": 542
+        },
+        {
+          "name": "MkdirSemanticsMatchShCreateDirectoryEx",
+          "file": "\/home\/z\/my-project\/work\/core_recovery\/tests\/unit\/test_writer_dirs.cpp",
+          "line": 585
         }
       ]
     },
@@ -3662,6 +3743,57 @@
           "name": "SelectionPrefersMatchingVolumeGuid",
           "file": "\/home\/z\/my-project\/work\/core_recovery\/tests\/unit\/test_reghive.cpp",
           "line": 371
+        }
+      ]
+    },
+    {
+      "name": "Pwddict",
+      "tests": 9,
+      "testsuite": [
+        {
+          "name": "ParsesOgeDictFormatByteFaithfully",
+          "file": "\/home\/z\/my-project\/work\/core_recovery\/tests\/unit\/test_pwddict.cpp",
+          "line": 79
+        },
+        {
+          "name": "ParseAcceptsLfAndOptionalComma",
+          "file": "\/home\/z\/my-project\/work\/core_recovery\/tests\/unit\/test_pwddict.cpp",
+          "line": 99
+        },
+        {
+          "name": "ParseEnforcesCapsAndRefusesOversize",
+          "file": "\/home\/z\/my-project\/work\/core_recovery\/tests\/unit\/test_pwddict.cpp",
+          "line": 109
+        },
+        {
+          "name": "SeedDictionaryIsSane",
+          "file": "\/home\/z\/my-project\/work\/core_recovery\/tests\/unit\/test_pwddict.cpp",
+          "line": 143
+        },
+        {
+          "name": "TryPasswordsStopsAtFirstSuccess",
+          "file": "\/home\/z\/my-project\/work\/core_recovery\/tests\/unit\/test_pwddict.cpp",
+          "line": 172
+        },
+        {
+          "name": "TryPasswordsDedupsPreservingOrder",
+          "file": "\/home\/z\/my-project\/work\/core_recovery\/tests\/unit\/test_pwddict.cpp",
+          "line": 184
+        },
+        {
+          "name": "TryPasswordsExhaustsToLockedAndGuardsArgs",
+          "file": "\/home\/z\/my-project\/work\/core_recovery\/tests\/unit\/test_pwddict.cpp",
+          "line": 198
+        },
+        {
+          "name": "AttemptLogCarriesProgressAndLengthNeverSecrets",
+          "file": "\/home\/z\/my-project\/work\/core_recovery\/tests\/unit\/test_pwddict.cpp",
+          "line": 221
+        },
+        {
+          "name": "ExhaustLogsWarnOnce",
+          "file": "\/home\/z\/my-project\/work\/core_recovery\/tests\/unit\/test_pwddict.cpp",
+          "line": 243
         }
       ]
     },
@@ -4202,6 +4334,99 @@
           "name": "ExfatBackupReadFull4Kn",
           "file": "\/home\/z\/my-project\/work\/core_recovery\/tests\/unit\/test_rawfixer.cpp",
           "line": 1143
+        }
+      ]
+    },
+    {
+      "name": "Consistency",
+      "tests": 3,
+      "testsuite": [
+        {
+          "name": "ExtensionIsLastDotUppercased",
+          "file": "\/home\/z\/my-project\/work\/core_recovery\/tests\/unit\/test_consistency.cpp",
+          "line": 61
+        },
+        {
+          "name": "CheckableVocabularyIsSignatureFamiliesPlusSpecials",
+          "file": "\/home\/z\/my-project\/work\/core_recovery\/tests\/unit\/test_consistency.cpp",
+          "line": 69
+        },
+        {
+          "name": "ClassifierIsSubstringPlusVideoSpecials",
+          "file": "\/home\/z\/my-project\/work\/core_recovery\/tests\/unit\/test_consistency.cpp",
+          "line": 90
+        }
+      ]
+    },
+    {
+      "name": "Lost",
+      "tests": 10,
+      "testsuite": [
+        {
+          "name": "ContentInconsistentGhostRejected",
+          "file": "\/home\/z\/my-project\/work\/core_recovery\/tests\/unit\/test_consistency.cpp",
+          "line": 132
+        },
+        {
+          "name": "ContentConsistentGhostAccepted",
+          "file": "\/home\/z\/my-project\/work\/core_recovery\/tests\/unit\/test_consistency.cpp",
+          "line": 156
+        },
+        {
+          "name": "RatioBoundaryThirtyPercent",
+          "file": "\/home\/z\/my-project\/work\/core_recovery\/tests\/unit\/test_consistency.cpp",
+          "line": 174
+        },
+        {
+          "name": "MajorityGateRequiresHalfFilterable",
+          "file": "\/home\/z\/my-project\/work\/core_recovery\/tests\/unit\/test_consistency.cpp",
+          "line": 199
+        },
+        {
+          "name": "DirectoriesAndExtentlessFilesMirrorOgCounters",
+          "file": "\/home\/z\/my-project\/work\/core_recovery\/tests\/unit\/test_consistency.cpp",
+          "line": 219
+        },
+        {
+          "name": "DataStartOutOfBoundsInvalidatesTheCandidate",
+          "file": "\/home\/z\/my-project\/work\/core_recovery\/tests\/unit\/test_consistency.cpp",
+          "line": 247
+        },
+        {
+          "name": "UnreadableDataStartStaysUnmatched",
+          "file": "\/home\/z\/my-project\/work\/core_recovery\/tests\/unit\/test_consistency.cpp",
+          "line": 259
+        },
+        {
+          "name": "EmptyCandidateListNeverRejects",
+          "file": "\/home\/z\/my-project\/work\/core_recovery\/tests\/unit\/test_consistency.cpp",
+          "line": 283
+        },
+        {
+          "name": "WholeDiskScanDropsContentInconsistentExfatGhost",
+          "file": "\/home\/z\/my-project\/work\/core_recovery\/tests\/unit\/test_consistency.cpp",
+          "line": 542
+        },
+        {
+          "name": "WholeDiskScanKeepsContentConsistentExfatGhost",
+          "file": "\/home\/z\/my-project\/work\/core_recovery\/tests\/unit\/test_consistency.cpp",
+          "line": 591
+        }
+      ]
+    },
+    {
+      "name": "TreeDetach",
+      "tests": 2,
+      "testsuite": [
+        {
+          "name": "RemovesNodesRootsAndIndexes",
+          "file": "\/home\/z\/my-project\/work\/core_recovery\/tests\/unit\/test_consistency.cpp",
+          "line": 308
+        },
+        {
+          "name": "HardLinkPropsSurviveWithTheirRefs",
+          "file": "\/home\/z\/my-project\/work\/core_recovery\/tests\/unit\/test_consistency.cpp",
+          "line": 347
         }
       ]
     },

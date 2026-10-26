@@ -469,6 +469,16 @@ build src/core/CMakeFiles/cr_core.dir/lost/cr_candidates.cpp.o: CXX_COMPILER__cr
   OBJECT_FILE_DIR = src/core/CMakeFiles/cr_core.dir/lost
   TARGET_SUPPORT_DIR = src/core/CMakeFiles/cr_core.dir
 
+build src/core/CMakeFiles/cr_core.dir/lost/cr_consistency.cpp.o: CXX_COMPILER__cr_core_unscanned_Release /home/z/my-project/work/core_recovery/src/core/lost/cr_consistency.cpp || cmake_object_order_depends_target_cr_core
+  CONFIG = Release
+  DEFINES = -DCR_ENGINE_VERSION=\"0.1.0\" -DCR_HAVE_LZ4=1 -DCR_HAVE_ZSTD=1
+  DEP_FILE = src/core/CMakeFiles/cr_core.dir/lost/cr_consistency.cpp.o.d
+  FLAGS = -O3 -DNDEBUG -std=c++20 -fPIC -Wall -Wextra -Wpedantic -Werror -Wshadow -Wno-missing-field-initializers
+  INCLUDES = -I/home/z/my-project/work/core_recovery/src/core/../../include
+  OBJECT_DIR = src/core/CMakeFiles/cr_core.dir
+  OBJECT_FILE_DIR = src/core/CMakeFiles/cr_core.dir/lost
+  TARGET_SUPPORT_DIR = src/core/CMakeFiles/cr_core.dir
+
 build src/core/CMakeFiles/cr_core.dir/crypto/cr_sha256.cpp.o: CXX_COMPILER__cr_core_unscanned_Release /home/z/my-project/work/core_recovery/src/core/crypto/cr_sha256.cpp || cmake_object_order_depends_target_cr_core
   CONFIG = Release
   DEFINES = -DCR_ENGINE_VERSION=\"0.1.0\" -DCR_HAVE_LZ4=1 -DCR_HAVE_ZSTD=1
@@ -619,6 +629,26 @@ build src/core/CMakeFiles/cr_core.dir/recovery/cr_dict_data.cpp.o: CXX_COMPILER_
   OBJECT_FILE_DIR = src/core/CMakeFiles/cr_core.dir/recovery
   TARGET_SUPPORT_DIR = src/core/CMakeFiles/cr_core.dir
 
+build src/core/CMakeFiles/cr_core.dir/orchestrator/cr_filterfolder.cpp.o: CXX_COMPILER__cr_core_unscanned_Release /home/z/my-project/work/core_recovery/src/core/orchestrator/cr_filterfolder.cpp || cmake_object_order_depends_target_cr_core
+  CONFIG = Release
+  DEFINES = -DCR_ENGINE_VERSION=\"0.1.0\" -DCR_HAVE_LZ4=1 -DCR_HAVE_ZSTD=1
+  DEP_FILE = src/core/CMakeFiles/cr_core.dir/orchestrator/cr_filterfolder.cpp.o.d
+  FLAGS = -O3 -DNDEBUG -std=c++20 -fPIC -Wall -Wextra -Wpedantic -Werror -Wshadow -Wno-missing-field-initializers
+  INCLUDES = -I/home/z/my-project/work/core_recovery/src/core/../../include
+  OBJECT_DIR = src/core/CMakeFiles/cr_core.dir
+  OBJECT_FILE_DIR = src/core/CMakeFiles/cr_core.dir/orchestrator
+  TARGET_SUPPORT_DIR = src/core/CMakeFiles/cr_core.dir
+
+build src/core/CMakeFiles/cr_core.dir/orchestrator/cr_filterfolder_data.cpp.o: CXX_COMPILER__cr_core_unscanned_Release /home/z/my-project/work/core_recovery/src/core/orchestrator/cr_filterfolder_data.cpp || cmake_object_order_depends_target_cr_core
+  CONFIG = Release
+  DEFINES = -DCR_ENGINE_VERSION=\"0.1.0\" -DCR_HAVE_LZ4=1 -DCR_HAVE_ZSTD=1
+  DEP_FILE = src/core/CMakeFiles/cr_core.dir/orchestrator/cr_filterfolder_data.cpp.o.d
+  FLAGS = -O3 -DNDEBUG -std=c++20 -fPIC -Wall -Wextra -Wpedantic -Werror -Wshadow -Wno-missing-field-initializers
+  INCLUDES = -I/home/z/my-project/work/core_recovery/src/core/../../include
+  OBJECT_DIR = src/core/CMakeFiles/cr_core.dir
+  OBJECT_FILE_DIR = src/core/CMakeFiles/cr_core.dir/orchestrator
+  TARGET_SUPPORT_DIR = src/core/CMakeFiles/cr_core.dir
+
 build src/core/CMakeFiles/cr_core.dir/preview/cr_preview.cpp.o: CXX_COMPILER__cr_core_unscanned_Release /home/z/my-project/work/core_recovery/src/core/preview/cr_preview.cpp || cmake_object_order_depends_target_cr_core
   CONFIG = Release
   DEFINES = -DCR_ENGINE_VERSION=\"0.1.0\" -DCR_HAVE_LZ4=1 -DCR_HAVE_ZSTD=1
@@ -677,6 +707,16 @@ build src/core/CMakeFiles/cr_core.dir/reghive/cr_reghive.cpp.o: CXX_COMPILER__cr
   INCLUDES = -I/home/z/my-project/work/core_recovery/src/core/../../include
   OBJECT_DIR = src/core/CMakeFiles/cr_core.dir
   OBJECT_FILE_DIR = src/core/CMakeFiles/cr_core.dir/reghive
+  TARGET_SUPPORT_DIR = src/core/CMakeFiles/cr_core.dir
+
+build src/core/CMakeFiles/cr_core.dir/pwddict/cr_pwddict.cpp.o: CXX_COMPILER__cr_core_unscanned_Release /home/z/my-project/work/core_recovery/src/core/pwddict/cr_pwddict.cpp || cmake_object_order_depends_target_cr_core
+  CONFIG = Release
+  DEFINES = -DCR_ENGINE_VERSION=\"0.1.0\" -DCR_HAVE_LZ4=1 -DCR_HAVE_ZSTD=1
+  DEP_FILE = src/core/CMakeFiles/cr_core.dir/pwddict/cr_pwddict.cpp.o.d
+  FLAGS = -O3 -DNDEBUG -std=c++20 -fPIC -Wall -Wextra -Wpedantic -Werror -Wshadow -Wno-missing-field-initializers
+  INCLUDES = -I/home/z/my-project/work/core_recovery/src/core/../../include
+  OBJECT_DIR = src/core/CMakeFiles/cr_core.dir
+  OBJECT_FILE_DIR = src/core/CMakeFiles/cr_core.dir/pwddict
   TARGET_SUPPORT_DIR = src/core/CMakeFiles/cr_core.dir
 
 build src/core/CMakeFiles/cr_core.dir/refs/cr_refs_engine.cpp.o: CXX_COMPILER__cr_core_unscanned_Release /home/z/my-project/work/core_recovery/src/core/refs/cr_refs_engine.cpp || cmake_object_order_depends_target_cr_core
@@ -747,7 +787,7 @@ build src/core/CMakeFiles/cr_core.dir/tree/cr_snapshot.cpp.o: CXX_COMPILER__cr_c
 #############################################
 # Link the static library src/core/libcr_core.a
 
-build src/core/libcr_core.a: CXX_STATIC_LIBRARY_LINKER__cr_core_Release src/core/CMakeFiles/cr_core.dir/cr_parallel.cpp.o src/core/CMakeFiles/cr_core.dir/err/cr_error.cpp.o src/core/CMakeFiles/cr_core.dir/err/cr_log.cpp.o src/core/CMakeFiles/cr_core.dir/err/cr_errmod.cpp.o src/core/CMakeFiles/cr_core.dir/health/cr_nvme.cpp.o src/core/CMakeFiles/cr_core.dir/health/cr_smart_ata.cpp.o src/core/CMakeFiles/cr_core.dir/health/cr_csmi.cpp.o src/core/CMakeFiles/cr_core.dir/health/cr_grade.cpp.o src/core/CMakeFiles/cr_core.dir/health/cr_family.cpp.o src/core/CMakeFiles/cr_core.dir/storage/cr_devmap.cpp.o src/core/CMakeFiles/cr_core.dir/storage/cr_image.cpp.o src/core/CMakeFiles/cr_core.dir/storage/cr_slice.cpp.o src/core/CMakeFiles/cr_core.dir/storage/cr_cached.cpp.o src/core/CMakeFiles/cr_core.dir/storage/cr_retry.cpp.o src/core/CMakeFiles/cr_core.dir/table/cr_crc32.cpp.o src/core/CMakeFiles/cr_core.dir/table/cr_table_parse.cpp.o src/core/CMakeFiles/cr_core.dir/table/cr_ldm.cpp.o src/core/CMakeFiles/cr_core.dir/refs/cr_refs_detect.cpp.o src/core/CMakeFiles/cr_core.dir/ntfs/cr_fixup.cpp.o src/core/CMakeFiles/cr_core.dir/ntfs/cr_runlist.cpp.o src/core/CMakeFiles/cr_core.dir/ntfs/cr_bootstrap.cpp.o src/core/CMakeFiles/cr_core.dir/ntfs/cr_attributes.cpp.o src/core/CMakeFiles/cr_core.dir/ntfs/cr_bitmap.cpp.o src/core/CMakeFiles/cr_core.dir/ntfs/cr_mftwalk.cpp.o src/core/CMakeFiles/cr_core.dir/fat/cr_chain.cpp.o src/core/CMakeFiles/cr_core.dir/fat/cr_lfn.cpp.o src/core/CMakeFiles/cr_core.dir/fat/cr_fat_quick.cpp.o src/core/CMakeFiles/cr_core.dir/exfat/cr_exfat_dentry.cpp.o src/core/CMakeFiles/cr_core.dir/exfat/cr_exfat_quick.cpp.o src/core/CMakeFiles/cr_core.dir/ext4/cr_ext4_engine.cpp.o src/core/CMakeFiles/cr_core.dir/hfsplus/cr_hfsplus_engine.cpp.o src/core/CMakeFiles/cr_core.dir/btrfs/cr_btrfs_engine.cpp.o src/core/CMakeFiles/cr_core.dir/zfs/cr_zfs_engine.cpp.o src/core/CMakeFiles/cr_core.dir/lost/cr_candidates.cpp.o src/core/CMakeFiles/cr_core.dir/crypto/cr_sha256.cpp.o src/core/CMakeFiles/cr_core.dir/crypto/cr_aes.cpp.o src/core/CMakeFiles/cr_core.dir/storage/cr_decrypt_device.cpp.o src/core/CMakeFiles/cr_core.dir/compress/cr_decomp.cpp.o src/core/CMakeFiles/cr_core.dir/carve/cr_registry.cpp.o src/core/CMakeFiles/cr_core.dir/carve/cr_analysers.cpp.o src/core/CMakeFiles/cr_core.dir/carve/cr_carve.cpp.o src/core/CMakeFiles/cr_core.dir/carve/cr_rawsigns.cpp.o src/core/CMakeFiles/cr_core.dir/carve/cr_rawsigns_data.cpp.o src/core/CMakeFiles/cr_core.dir/session/cr_crsf.cpp.o src/core/CMakeFiles/cr_core.dir/session/cr_records.cpp.o src/core/CMakeFiles/cr_core.dir/recovery/cr_safewriter.cpp.o src/core/CMakeFiles/cr_core.dir/recovery/cr_report.cpp.o src/core/CMakeFiles/cr_core.dir/recovery/cr_dict.cpp.o src/core/CMakeFiles/cr_core.dir/recovery/cr_dict_data.cpp.o src/core/CMakeFiles/cr_core.dir/preview/cr_preview.cpp.o src/core/CMakeFiles/cr_core.dir/query/cr_query.cpp.o src/core/CMakeFiles/cr_core.dir/query/cr_filefilter_data.cpp.o src/core/CMakeFiles/cr_core.dir/repair/cr_rawfixer.cpp.o src/core/CMakeFiles/cr_core.dir/apply/cr_apply.cpp.o src/core/CMakeFiles/cr_core.dir/reghive/cr_reghive.cpp.o src/core/CMakeFiles/cr_core.dir/refs/cr_refs_engine.cpp.o src/core/CMakeFiles/cr_core.dir/orchestrator/cr_scan.cpp.o src/core/CMakeFiles/cr_core.dir/tree/cr_node.cpp.o src/core/CMakeFiles/cr_core.dir/tree/cr_grading.cpp.o src/core/CMakeFiles/cr_core.dir/tree/cr_diskmap.cpp.o src/core/CMakeFiles/cr_core.dir/tree/cr_snapshot.cpp.o
+build src/core/libcr_core.a: CXX_STATIC_LIBRARY_LINKER__cr_core_Release src/core/CMakeFiles/cr_core.dir/cr_parallel.cpp.o src/core/CMakeFiles/cr_core.dir/err/cr_error.cpp.o src/core/CMakeFiles/cr_core.dir/err/cr_log.cpp.o src/core/CMakeFiles/cr_core.dir/err/cr_errmod.cpp.o src/core/CMakeFiles/cr_core.dir/health/cr_nvme.cpp.o src/core/CMakeFiles/cr_core.dir/health/cr_smart_ata.cpp.o src/core/CMakeFiles/cr_core.dir/health/cr_csmi.cpp.o src/core/CMakeFiles/cr_core.dir/health/cr_grade.cpp.o src/core/CMakeFiles/cr_core.dir/health/cr_family.cpp.o src/core/CMakeFiles/cr_core.dir/storage/cr_devmap.cpp.o src/core/CMakeFiles/cr_core.dir/storage/cr_image.cpp.o src/core/CMakeFiles/cr_core.dir/storage/cr_slice.cpp.o src/core/CMakeFiles/cr_core.dir/storage/cr_cached.cpp.o src/core/CMakeFiles/cr_core.dir/storage/cr_retry.cpp.o src/core/CMakeFiles/cr_core.dir/table/cr_crc32.cpp.o src/core/CMakeFiles/cr_core.dir/table/cr_table_parse.cpp.o src/core/CMakeFiles/cr_core.dir/table/cr_ldm.cpp.o src/core/CMakeFiles/cr_core.dir/refs/cr_refs_detect.cpp.o src/core/CMakeFiles/cr_core.dir/ntfs/cr_fixup.cpp.o src/core/CMakeFiles/cr_core.dir/ntfs/cr_runlist.cpp.o src/core/CMakeFiles/cr_core.dir/ntfs/cr_bootstrap.cpp.o src/core/CMakeFiles/cr_core.dir/ntfs/cr_attributes.cpp.o src/core/CMakeFiles/cr_core.dir/ntfs/cr_bitmap.cpp.o src/core/CMakeFiles/cr_core.dir/ntfs/cr_mftwalk.cpp.o src/core/CMakeFiles/cr_core.dir/fat/cr_chain.cpp.o src/core/CMakeFiles/cr_core.dir/fat/cr_lfn.cpp.o src/core/CMakeFiles/cr_core.dir/fat/cr_fat_quick.cpp.o src/core/CMakeFiles/cr_core.dir/exfat/cr_exfat_dentry.cpp.o src/core/CMakeFiles/cr_core.dir/exfat/cr_exfat_quick.cpp.o src/core/CMakeFiles/cr_core.dir/ext4/cr_ext4_engine.cpp.o src/core/CMakeFiles/cr_core.dir/hfsplus/cr_hfsplus_engine.cpp.o src/core/CMakeFiles/cr_core.dir/btrfs/cr_btrfs_engine.cpp.o src/core/CMakeFiles/cr_core.dir/zfs/cr_zfs_engine.cpp.o src/core/CMakeFiles/cr_core.dir/lost/cr_candidates.cpp.o src/core/CMakeFiles/cr_core.dir/lost/cr_consistency.cpp.o src/core/CMakeFiles/cr_core.dir/crypto/cr_sha256.cpp.o src/core/CMakeFiles/cr_core.dir/crypto/cr_aes.cpp.o src/core/CMakeFiles/cr_core.dir/storage/cr_decrypt_device.cpp.o src/core/CMakeFiles/cr_core.dir/compress/cr_decomp.cpp.o src/core/CMakeFiles/cr_core.dir/carve/cr_registry.cpp.o src/core/CMakeFiles/cr_core.dir/carve/cr_analysers.cpp.o src/core/CMakeFiles/cr_core.dir/carve/cr_carve.cpp.o src/core/CMakeFiles/cr_core.dir/carve/cr_rawsigns.cpp.o src/core/CMakeFiles/cr_core.dir/carve/cr_rawsigns_data.cpp.o src/core/CMakeFiles/cr_core.dir/session/cr_crsf.cpp.o src/core/CMakeFiles/cr_core.dir/session/cr_records.cpp.o src/core/CMakeFiles/cr_core.dir/recovery/cr_safewriter.cpp.o src/core/CMakeFiles/cr_core.dir/recovery/cr_report.cpp.o src/core/CMakeFiles/cr_core.dir/recovery/cr_dict.cpp.o src/core/CMakeFiles/cr_core.dir/recovery/cr_dict_data.cpp.o src/core/CMakeFiles/cr_core.dir/orchestrator/cr_filterfolder.cpp.o src/core/CMakeFiles/cr_core.dir/orchestrator/cr_filterfolder_data.cpp.o src/core/CMakeFiles/cr_core.dir/preview/cr_preview.cpp.o src/core/CMakeFiles/cr_core.dir/query/cr_query.cpp.o src/core/CMakeFiles/cr_core.dir/query/cr_filefilter_data.cpp.o src/core/CMakeFiles/cr_core.dir/repair/cr_rawfixer.cpp.o src/core/CMakeFiles/cr_core.dir/apply/cr_apply.cpp.o src/core/CMakeFiles/cr_core.dir/reghive/cr_reghive.cpp.o src/core/CMakeFiles/cr_core.dir/pwddict/cr_pwddict.cpp.o src/core/CMakeFiles/cr_core.dir/refs/cr_refs_engine.cpp.o src/core/CMakeFiles/cr_core.dir/orchestrator/cr_scan.cpp.o src/core/CMakeFiles/cr_core.dir/tree/cr_node.cpp.o src/core/CMakeFiles/cr_core.dir/tree/cr_grading.cpp.o src/core/CMakeFiles/cr_core.dir/tree/cr_diskmap.cpp.o src/core/CMakeFiles/cr_core.dir/tree/cr_snapshot.cpp.o
   CONFIG = Release
   LANGUAGE_COMPILE_FLAGS = -O3 -DNDEBUG
   OBJECT_DIR = src/core/CMakeFiles/cr_core.dir
@@ -1288,6 +1328,16 @@ build tests/CMakeFiles/cr_tests.dir/unit/test_reghive.cpp.o: CXX_COMPILER__cr_te
   OBJECT_FILE_DIR = tests/CMakeFiles/cr_tests.dir/unit
   TARGET_SUPPORT_DIR = tests/CMakeFiles/cr_tests.dir
 
+build tests/CMakeFiles/cr_tests.dir/unit/test_pwddict.cpp.o: CXX_COMPILER__cr_tests_unscanned_Release /home/z/my-project/work/core_recovery/tests/unit/test_pwddict.cpp || cmake_object_order_depends_target_cr_tests
+  CONFIG = Release
+  DEFINES = -DCR_HAVE_LZ4=1 -DCR_HAVE_ZSTD=1 -DCR_SOURCE_DIR=\"/home/z/my-project/work/core_recovery\"
+  DEP_FILE = tests/CMakeFiles/cr_tests.dir/unit/test_pwddict.cpp.o.d
+  FLAGS = -O3 -DNDEBUG -std=c++20 -Wall -Wextra -Wpedantic -Werror -Wshadow -Wno-missing-field-initializers
+  INCLUDES = -I/home/z/my-project/work/core_recovery/src/core/../../include -isystem /home/z/.local/gtest-install/include
+  OBJECT_DIR = tests/CMakeFiles/cr_tests.dir
+  OBJECT_FILE_DIR = tests/CMakeFiles/cr_tests.dir/unit
+  TARGET_SUPPORT_DIR = tests/CMakeFiles/cr_tests.dir
+
 build tests/CMakeFiles/cr_tests.dir/unit/test_preview.cpp.o: CXX_COMPILER__cr_tests_unscanned_Release /home/z/my-project/work/core_recovery/tests/unit/test_preview.cpp || cmake_object_order_depends_target_cr_tests
   CONFIG = Release
   DEFINES = -DCR_HAVE_LZ4=1 -DCR_HAVE_ZSTD=1 -DCR_SOURCE_DIR=\"/home/z/my-project/work/core_recovery\"
@@ -1358,6 +1408,16 @@ build tests/CMakeFiles/cr_tests.dir/unit/test_rawfixer.cpp.o: CXX_COMPILER__cr_t
   OBJECT_FILE_DIR = tests/CMakeFiles/cr_tests.dir/unit
   TARGET_SUPPORT_DIR = tests/CMakeFiles/cr_tests.dir
 
+build tests/CMakeFiles/cr_tests.dir/unit/test_consistency.cpp.o: CXX_COMPILER__cr_tests_unscanned_Release /home/z/my-project/work/core_recovery/tests/unit/test_consistency.cpp || cmake_object_order_depends_target_cr_tests
+  CONFIG = Release
+  DEFINES = -DCR_HAVE_LZ4=1 -DCR_HAVE_ZSTD=1 -DCR_SOURCE_DIR=\"/home/z/my-project/work/core_recovery\"
+  DEP_FILE = tests/CMakeFiles/cr_tests.dir/unit/test_consistency.cpp.o.d
+  FLAGS = -O3 -DNDEBUG -std=c++20 -Wall -Wextra -Wpedantic -Werror -Wshadow -Wno-missing-field-initializers
+  INCLUDES = -I/home/z/my-project/work/core_recovery/src/core/../../include -isystem /home/z/.local/gtest-install/include
+  OBJECT_DIR = tests/CMakeFiles/cr_tests.dir
+  OBJECT_FILE_DIR = tests/CMakeFiles/cr_tests.dir/unit
+  TARGET_SUPPORT_DIR = tests/CMakeFiles/cr_tests.dir
+
 build tests/CMakeFiles/cr_tests.dir/unit/test_refs_volume.cpp.o: CXX_COMPILER__cr_tests_unscanned_Release /home/z/my-project/work/core_recovery/tests/unit/test_refs_volume.cpp || cmake_object_order_depends_target_cr_tests
   CONFIG = Release
   DEFINES = -DCR_HAVE_LZ4=1 -DCR_HAVE_ZSTD=1 -DCR_SOURCE_DIR=\"/home/z/my-project/work/core_recovery\"
@@ -1376,7 +1436,7 @@ build tests/CMakeFiles/cr_tests.dir/unit/test_refs_volume.cpp.o: CXX_COMPILER__c
 #############################################
 # Link the executable tests/cr_tests
 
-build tests/cr_tests tests/cr_tests_e3b0c442_tests.cmake | ${cmake_ninja_workdir}tests/cr_tests_e3b0c442_tests.cmake: CXX_EXECUTABLE_LINKER__cr_tests_Release tests/CMakeFiles/cr_tests.dir/unit/main.cpp.o tests/CMakeFiles/cr_tests.dir/unit/test_fixup.cpp.o tests/CMakeFiles/cr_tests.dir/unit/test_image.cpp.o tests/CMakeFiles/cr_tests.dir/unit/test_nvme_health.cpp.o tests/CMakeFiles/cr_tests.dir/unit/test_runlist.cpp.o tests/CMakeFiles/cr_tests.dir/unit/test_crc32_gpt.cpp.o tests/CMakeFiles/cr_tests.dir/unit/test_slice_devmap.cpp.o tests/CMakeFiles/cr_tests.dir/unit/test_cached.cpp.o tests/CMakeFiles/cr_tests.dir/unit/test_directalign.cpp.o tests/CMakeFiles/cr_tests.dir/unit/test_retry.cpp.o tests/CMakeFiles/cr_tests.dir/unit/test_parallel.cpp.o tests/CMakeFiles/cr_tests.dir/unit/test_node_tree.cpp.o tests/CMakeFiles/cr_tests.dir/unit/test_grading.cpp.o tests/CMakeFiles/cr_tests.dir/unit/test_health_grade.cpp.o tests/CMakeFiles/cr_tests.dir/unit/test_health_csmi.cpp.o tests/CMakeFiles/cr_tests.dir/unit/test_enumerate_win.cpp.o tests/CMakeFiles/cr_tests.dir/unit/test_ntfs_volume.cpp.o tests/CMakeFiles/cr_tests.dir/unit/test_fat_volume.cpp.o tests/CMakeFiles/cr_tests.dir/unit/test_exfat_volume.cpp.o tests/CMakeFiles/cr_tests.dir/unit/test_ext4_volume.cpp.o tests/CMakeFiles/cr_tests.dir/unit/test_hfsplus_volume.cpp.o tests/CMakeFiles/cr_tests.dir/unit/test_btrfs_volume.cpp.o tests/CMakeFiles/cr_tests.dir/unit/test_zfs_volume.cpp.o tests/CMakeFiles/cr_tests.dir/unit/test_refs_ldm.cpp.o tests/CMakeFiles/cr_tests.dir/unit/test_ldm.cpp.o tests/CMakeFiles/cr_tests.dir/unit/test_lostpart.cpp.o tests/CMakeFiles/cr_tests.dir/unit/test_sha256.cpp.o tests/CMakeFiles/cr_tests.dir/unit/test_bitlocker_xts.cpp.o tests/CMakeFiles/cr_tests.dir/unit/test_dict.cpp.o tests/CMakeFiles/cr_tests.dir/unit/test_enumerate_merge.cpp.o tests/CMakeFiles/cr_tests.dir/unit/test_resume_revalidation.cpp.o tests/CMakeFiles/cr_tests.dir/unit/test_text.cpp.o tests/CMakeFiles/cr_tests.dir/unit/test_carve.cpp.o tests/CMakeFiles/cr_tests.dir/unit/test_session.cpp.o tests/CMakeFiles/cr_tests.dir/unit/test_orchestrator.cpp.o tests/CMakeFiles/cr_tests.dir/unit/test_pause_resume.cpp.o tests/CMakeFiles/cr_tests.dir/unit/test_telemetry.cpp.o tests/CMakeFiles/cr_tests.dir/unit/test_writer_dirs.cpp.o tests/CMakeFiles/cr_tests.dir/unit/test_report.cpp.o tests/CMakeFiles/cr_tests.dir/unit/test_reghive.cpp.o tests/CMakeFiles/cr_tests.dir/unit/test_preview.cpp.o tests/CMakeFiles/cr_tests.dir/unit/test_snapshot.cpp.o tests/CMakeFiles/cr_tests.dir/unit/test_query.cpp.o tests/CMakeFiles/cr_tests.dir/unit/test_query_perf.cpp.o tests/CMakeFiles/cr_tests.dir/unit/test_diskmap.cpp.o tests/CMakeFiles/cr_tests.dir/unit/test_apply.cpp.o tests/CMakeFiles/cr_tests.dir/unit/test_rawfixer.cpp.o tests/CMakeFiles/cr_tests.dir/unit/test_refs_volume.cpp.o | src/core/libcr_core.a /home/z/.local/gtest-install/lib/libgtest_main.a /usr/lib/x86_64-linux-gnu/libz.so /usr/lib/x86_64-linux-gnu/liblz4.so /usr/lib/x86_64-linux-gnu/libxxhash.so /usr/lib/x86_64-linux-gnu/libzstd.a /home/z/.local/gtest-install/lib/libgtest.a || src/core/libcr_core.a
+build tests/cr_tests tests/cr_tests_e3b0c442_tests.cmake | ${cmake_ninja_workdir}tests/cr_tests_e3b0c442_tests.cmake: CXX_EXECUTABLE_LINKER__cr_tests_Release tests/CMakeFiles/cr_tests.dir/unit/main.cpp.o tests/CMakeFiles/cr_tests.dir/unit/test_fixup.cpp.o tests/CMakeFiles/cr_tests.dir/unit/test_image.cpp.o tests/CMakeFiles/cr_tests.dir/unit/test_nvme_health.cpp.o tests/CMakeFiles/cr_tests.dir/unit/test_runlist.cpp.o tests/CMakeFiles/cr_tests.dir/unit/test_crc32_gpt.cpp.o tests/CMakeFiles/cr_tests.dir/unit/test_slice_devmap.cpp.o tests/CMakeFiles/cr_tests.dir/unit/test_cached.cpp.o tests/CMakeFiles/cr_tests.dir/unit/test_directalign.cpp.o tests/CMakeFiles/cr_tests.dir/unit/test_retry.cpp.o tests/CMakeFiles/cr_tests.dir/unit/test_parallel.cpp.o tests/CMakeFiles/cr_tests.dir/unit/test_node_tree.cpp.o tests/CMakeFiles/cr_tests.dir/unit/test_grading.cpp.o tests/CMakeFiles/cr_tests.dir/unit/test_health_grade.cpp.o tests/CMakeFiles/cr_tests.dir/unit/test_health_csmi.cpp.o tests/CMakeFiles/cr_tests.dir/unit/test_enumerate_win.cpp.o tests/CMakeFiles/cr_tests.dir/unit/test_ntfs_volume.cpp.o tests/CMakeFiles/cr_tests.dir/unit/test_fat_volume.cpp.o tests/CMakeFiles/cr_tests.dir/unit/test_exfat_volume.cpp.o tests/CMakeFiles/cr_tests.dir/unit/test_ext4_volume.cpp.o tests/CMakeFiles/cr_tests.dir/unit/test_hfsplus_volume.cpp.o tests/CMakeFiles/cr_tests.dir/unit/test_btrfs_volume.cpp.o tests/CMakeFiles/cr_tests.dir/unit/test_zfs_volume.cpp.o tests/CMakeFiles/cr_tests.dir/unit/test_refs_ldm.cpp.o tests/CMakeFiles/cr_tests.dir/unit/test_ldm.cpp.o tests/CMakeFiles/cr_tests.dir/unit/test_lostpart.cpp.o tests/CMakeFiles/cr_tests.dir/unit/test_sha256.cpp.o tests/CMakeFiles/cr_tests.dir/unit/test_bitlocker_xts.cpp.o tests/CMakeFiles/cr_tests.dir/unit/test_dict.cpp.o tests/CMakeFiles/cr_tests.dir/unit/test_enumerate_merge.cpp.o tests/CMakeFiles/cr_tests.dir/unit/test_resume_revalidation.cpp.o tests/CMakeFiles/cr_tests.dir/unit/test_text.cpp.o tests/CMakeFiles/cr_tests.dir/unit/test_carve.cpp.o tests/CMakeFiles/cr_tests.dir/unit/test_session.cpp.o tests/CMakeFiles/cr_tests.dir/unit/test_orchestrator.cpp.o tests/CMakeFiles/cr_tests.dir/unit/test_pause_resume.cpp.o tests/CMakeFiles/cr_tests.dir/unit/test_telemetry.cpp.o tests/CMakeFiles/cr_tests.dir/unit/test_writer_dirs.cpp.o tests/CMakeFiles/cr_tests.dir/unit/test_report.cpp.o tests/CMakeFiles/cr_tests.dir/unit/test_reghive.cpp.o tests/CMakeFiles/cr_tests.dir/unit/test_pwddict.cpp.o tests/CMakeFiles/cr_tests.dir/unit/test_preview.cpp.o tests/CMakeFiles/cr_tests.dir/unit/test_snapshot.cpp.o tests/CMakeFiles/cr_tests.dir/unit/test_query.cpp.o tests/CMakeFiles/cr_tests.dir/unit/test_query_perf.cpp.o tests/CMakeFiles/cr_tests.dir/unit/test_diskmap.cpp.o tests/CMakeFiles/cr_tests.dir/unit/test_apply.cpp.o tests/CMakeFiles/cr_tests.dir/unit/test_rawfixer.cpp.o tests/CMakeFiles/cr_tests.dir/unit/test_consistency.cpp.o tests/CMakeFiles/cr_tests.dir/unit/test_refs_volume.cpp.o | src/core/libcr_core.a /home/z/.local/gtest-install/lib/libgtest_main.a /usr/lib/x86_64-linux-gnu/libz.so /usr/lib/x86_64-linux-gnu/liblz4.so /usr/lib/x86_64-linux-gnu/libxxhash.so /usr/lib/x86_64-linux-gnu/libzstd.a /home/z/.local/gtest-install/lib/libgtest.a || src/core/libcr_core.a
   CONFIG = Release
   DEP_FILE = tests/CMakeFiles/cr_tests.dir/link.d
   FLAGS = -O3 -DNDEBUG

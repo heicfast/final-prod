@@ -136,7 +136,7 @@ pairing) → M-018 (FilterFolder junk filter) → M-039 (occupancy
 bitmap) → M-025/M-030 perf legs.
 
 
-## Session-34 delta (2026-10-26 — DFX34: the MINOR-tail lane, first landing — N-064)
+## Session-34 delta (2026-10-26 — DFX34: the N-064 convergent-landing reconciliation + the MINOR-tail lane)
 
 Bootstrap at `65122f0`-lineage (the window's parallel claim wave absorbed
 by union merges; ID re-stamped 27→32→34 across three push races, each
@@ -145,40 +145,37 @@ squatted pre-landing — first-landing-wins honored). Baseline linux-release
 (verified at first corpus read). Lane: the MINOR tier tail back-to-front,
 20+ fix target, groups per sub-fix, every parallel landing absorbed.
 
-**N-064 FIXED (MINOR — the BitLocker password-dictionary unlock aid):**
-the og ships a 228-entry Dict (2,742 B) wired to BitLockerLib's
-manage-bde -Password flow + the repair line (config-data-reference:20/:86;
-the UI consent = BitlockerUnlockDialog → BitlockerUnlockThread). Corpus
-re-verified BYTE-LEVEL this session (comma-terminated CRLF lines,
-unterminated final entry, space-bearing entries — "charlie brown" read
-first-hand). Landed: pure `cr/pwddict` (format-exact parse + authored
-20-entry seed = **REGISTERED DIVERGENCE D-78** (the og's asset never
-copied; the loader is byte-format-compatible so the og's own Dict file
-works verbatim) + the consent-gated sequencer: order-preserving dedup,
-caps 4096/128/256KiB, attempt-log lines carry progress + candidate LENGTH
-only — password text never logged) + win `try_password_unlock` (SAME
-unlock() plumbing as a typed password: PowerShell Unlock-BitLocker
--Password → manage-bde -Password fallback; CP_UTF8 widen; Windows applies
-the key, the core does no crypto) + CLI `scan --bitlocker-pwddict
-<path|seed>` (the explicit flag IS the consent — nothing in the scan
-path references the sequencer; F61 legitimate-unlock-only preserved,
-locked volumes without consent/key stay ERR_FVE_LOCKED). Attempt policy
-(the finding's open question): sequential, first-success-wins, one
-attempt per candidate, duplicates once — documented in the header.
-Proof: 9 `Pwddict.*` tests + executed fail-before RED (the test unit
-does not compile on the pre-fix tree — the capability was absent);
-win_syntax_check itself caught the first win-layer draft's undeclared
-MultiByteToWideChar/CP_UTF8 (stub surface grown — the gate working).
-Suite **752/752** at the fix tree. The repair-line Dict consumers
-(EuOfficeRepairFile/archive CheckPassWord) stay scope-excluded (I-010).
+**N-064 — convergent two-lane landing RECONCILED (canonical: DFX31
+`5a29dbd`, first-landing-wins):** this lane's independently developed
+fix (`817740c`: pure `cr/pwddict` + `--bitlocker-pwddict <path|seed>` +
+`try_password_unlock`; corpus Dict format re-verified BYTE-LEVEL
+first-hand; 9 `Pwddict.*` tests; executed fail-before RED) reached main
+in the same window as DFX31's `cr::dict` landing (generated corpus-exact
+228-entry table per the raw_signs.json conversion precedent + the
+consent-gated loop + `--bitlocker-dict` + `cr_ui_unlock_volume_with_dictionary`
+ABI). The reconciliation kept the canonical surface and REMOVED the
+duplicate: the pwddict module/flag/plumbing/tests deleted; this lane's
+D-78 divergence row WITHDRAWN (obsolete — the canonical ships the
+corpus-exact table; no divergence exists); the win-stub CP_UTF8/
+MultiByteToWideChar declarations kept (the canonical widen needs them);
+the format-compatible dictionary FILE loader recorded in the finding's
+Convergence addendum as an unregistered future superset (NOT a parity
+requirement — the og ships its table; user candidates arrive via the
+cr_ui ABI). The reconciliation ALSO repaired the parallel-window merge
+corruption (conflict markers left in rrecov.cpp/cr_bitlocker.h/audit
+docs by an earlier union merge — main was RED on win_syntax_check) and
+hardened the gate with `-D__declspec(x)=` (gcc on ELF has no __declspec
+keyword; the app layer's new cr_ui.h include needs it — parse-gate
+only). Reconciled tree: suite **810/810** linux-release green, win
+layer parse-clean. Full detail: the finding's Resolution + Convergence
+addendum.
 
-**Post-fix counts:** SEVERE **0** · MAJOR 14 · MINOR **16** · INFO 0
-open · **FIXED/ 175 files** (174 findings + RESOLVED-INDEX) ·
-tracked-open 11 OQs. Next on this lane (tail-first): N-071 (device
-enumeration breadth) → N-072 (btrfs rescan cache + zfs label polling) →
-N-075 → N-066 → N-065 → N-059 → N-050 → N-049 → N-036 → N-033 → N-031
-→ N-027 → N-026 → N-007/I-004 → N-019 → N-032, absorbing the parallel
-lanes' landings per first-landing-wins.
+**Post-reconciliation counts (this lane's tree, parallel lanes active):**
+SEVERE **0** · MAJOR 11 · MINOR 8 · INFO 0 open · **FIXED/ 190 files** ·
+tracked-open 9 OQs. This lane's remaining MINOR-tail queue: N-071 →
+N-072 → N-066 → N-065 → N-059 → N-033 → N-007/I-004 → N-019 (the tier's
+middle drained by the parallel lanes' landings — absorbed per
+first-landing-wins), then MAJOR leftovers / tracked-open assist.
 
 
 ## Session-32 delta (2026-10-26 — DFX32: M-029 FIXED — the Date/Size bucket-ID translation + the general-raw naming surface; the query finding fully closed)
@@ -935,6 +932,46 @@ Proof: fail-before RED 3/3 (`Zfs.EndToEndWalk`, `Zfs.ChildDirZapReadsKernelOffse
 739/739**. `restamp_zpl_array` extended for the shared-ZPL second dataset.
 OQ-Z1 RESOLVED (tracked-open 11 → the OQ-Z-E-FLT file carries the
 resolution; its Z2..Z5/E1/FLT residues stay open).
+
+**The tracked-open resolution wave (this lane, 6 more OQs):**
+- **OQ-S6-3 RESOLVED** — the CRAW reader decode (FUN_140c40d80 :1875575):
+  +0x56/+0x94/+0xF4 all pass-through at load; +0xF4 = a per-analyser-type
+  marker (set iff type==0xA8, FUN_140c41450), the getters are dead
+  accessors (zero callers, no vtable slot) — M-051's landed design
+  CONFIRMED on all three fields; the decoded semantics documented at the
+  carve_flag carrier; evidence s25-oq-s6-3-craw-reader-decode.md.
+- **OQ-S6-2 RESOLVED — INVALID premise**: the capa "RC4 PRGA" finding
+  (0x180012190) is a FALSE POSITIVE (chunked adler-32/crc32 checksum pump;
+  no RC4 essentials anywhere in the binary); corpus erratum E46; parity
+  by shared absence; evidence s25-oq-s6-2-btrfs-rc4-false-positive.md.
+- **OQ-S6-1 RESOLVED** — the PartitionRecoveryD generator-set decode:
+  RegSearch and CompleteSearch are behaviorally IDENTICAL (byte-level
+  vtable dumps); the .dat files = module-dir cross-run caches
+  (partinfo.dat = 24B "Part" table snapshot → layout_changed;
+  lostpart.dat = 1096B candidate cache + dedup); I-020's upgrade
+  condition REFUTED (stays acknowledged INFO); M-042 CONFIRMED at the
+  mechanism level; evidence s25-oq-s6-1-generator-sets-and-dat-files.md.
+- **OQ-S5-1 RESOLVED — dead-shipped / MATCH-by-omission**: the consumer
+  sweep exhausted (the MOM load contract is on-demand BY NAME; zero
+  name-requests / PE references / config loads / enumeration loaders);
+  CheckVersion.mo's OS-aware recovery never executes in the shipped
+  product; evidence s25-oq-s5-1-checkversion-dead-shipped.md.
+- **OQ-S4-3 pushed forward precisely, prerequisite LANDED**: the
+  alignbench gains the og's 7 MiB volume chunk + cpu_ms + the
+  chunk_strategy_ratios verdict block (the OQ's required engineering,
+  as a runtime variant); the parse gate's file-list gap closed; the
+  remaining step = exactly one Windows execution + transcription.
+- Verification-discipline note (near-miss, recorded): an apparent
+  [m/[M-eating corruption of the bench fleet was REFUTED at byte level —
+  a display-layer artifact (false ANSI SGR stripping); the files use
+  lowercase [math]:: (valid PowerShell) and branches: [main]. No
+  finding filed; no healthy file touched.
+
+**Session-25 lane tally: 29 resolutions** (22 INFO closures into FIXED/,
+A-008 ACUTE NEW-FINDING filed+FIXED with executed fail-before RED 3/3,
+OQ-Z1/S6-3/S6-2/S6-1/S5-1 resolved, OQ-S4-3 prerequisite landed). Suites
+green at every push (737 → 768 → 792 → 827 through the parallel-lane
+union waves; every union tree re-verified full-suite before pushing).
 
 ## Session-23 delta, batch 4 (2026-10-26 — DFX29: N-050 — the two-stage recognition contract)
 
