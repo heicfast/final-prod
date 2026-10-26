@@ -131,7 +131,7 @@ cross-engine gap is M-039. This leg's local S-021 renumbered to S-028.)
 + geometry; `logical_to_physical` is profile-aware with the og's rotating
 mirror for the 2-copy class (SINGLE/DUP/RAID1) — og-exact :2534-2540 — and
 the RAID10 geometry gate og-exact :2162-2168. RAID0/RAID10 stripe math is
-the REGISTERED SUPERSET (D-78): the og's read path fails both classes
+the REGISTERED SUPERSET (D-79): the og's read path fails both classes
 (class 8/0x40 fall to LAB_1800043fe, verified :2521-2583 first-hand —
 the session-2 module text's "2-copy (DUP/RAID1/RAID10) rotating-mirror"
 phrasing carried the audit's decode error; RAID10 is class 0x40, FAILED

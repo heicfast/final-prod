@@ -50,6 +50,26 @@ path.
 
 ## OQ-Z2 — `ZfsDecider::addBlock` from_txg/birth_txg gate (:2162-2170)
 
+**RESOLVED (DFX30, 2026-10-26) — the answer filed as NEW-FINDING S-034:**
+the og DOES implement txg-history walking — but per-UBERBLOCK STATE, not
+per-block attribution. The quick-searcher run loop (FUN_180006b90
+:5685-5841) iterates EVERY slot in the label-0 ring (loader FUN_180018930:
+read 128 KiB @ 0x20000, hardcoded 1 KiB slots) and feeds each slot's txg to
+FUN_180003150 ("addBlock"): per-txg `VdevLoc::UberData` registry
+(FUN_180017310), record match on `txg@+0x10`, tree-open FUN_180016c50, and
+on success the "from_txg: 0, birth_txg: <txg>" log + the UNBOUNDED
+from_txg=0 recursive descent (FUN_18001ac60 → FUN_18001d9a0, recursing at
+:23457). Our newest-txg-only rule (cr_zfs_engine.cpp, D-05) LOSES
+og-visible content: files deleted within the ring's txg window are
+og-visible (per-state tree walks) and core-invisible (RAW carving only).
+Filed as findings/SEVERE/S-034 with the full decode + doc-truth corrections
+(engine comment, D-05 re-verdict, PARITY-CORE-FS2 row, corpus erratum E45);
+the behavioral fix is queued behind three decode items (S-034 fix plan
+step 1). The snapshot/clone attribution hypothesis as originally framed
+(per-block birth-txg gating in addBlock) is REFUTED — the gate is
+uberblock-state-level, and from_txg is a descent bound that is 0 (unbounded)
+at the top level.
+
 Determine whether the og implements snapshot/clone block attribution
 (txg-gated). If yes, decide whether our newest-txg-only rule
 (cr_zfs_engine.cpp:24-26) loses og-visible content.
@@ -68,6 +88,25 @@ census found no zlib/lz4 strings in ZfsSearchDLL — the og may not decompress
 at all (which would make our writer-side decode a superset).
 
 ## OQ-Z5 — CZfsSearchController vs CZfsQuickSearch delta
+
+**RESOLVED (DFX30, 2026-10-26):** first-hand RTTI walk + slot-by-slot read
+(evidence: `diff-to-fix/evidence/decompiled-quotes/s30-oq-z5-zfs-quick-vs-complete.md`).
+The split is the product-wide plugin-interface split —
+`IQuickFileSystemSearchController` (16 slots) vs
+`ICompleteFileSystemSearchController` (34 slots, named by FUN_180010cb0
+:14806 / FUN_180001720 :404) — not a ZFS-specific fork. Complete adds: (1)
+streaming per-hit emission with property records via an installed
+std::function (+0xb0; FUN_180011260 with sector math + the uberblock-magic/
+ZEC_MAGIC label validation probe, zec at +0x1d8 = 512-byte-slot assumption)
+vs quick's one-shot bulk collect of a single value (FUN_180006b40 =
+push_back(+0xa0) into the caller's vector); (2) a restart entry
+(FUN_180011200 free-and-rescan); (3) five extra config channels
+(+0xb8/+0xc0/+0xc8/+0xd0/+0xd8). Quick is a REAL scanner (its run loop
+FUN_180006b90 is ~600 lines driving the shared ZFS machinery chain; its
+object is the bigger one, 0x120 vs 0xe8, carrying its own result buffer at
++0x108/+0x110). Core models quick/deep at the orchestrator layer over one
+engine = the union; no code change. Cross-ref I-016 (factory-contract
+register).
 
 Diff the two vtables (:15429/:15472) — the only engine of the four where both
 searchers are real classes. Names what ZFS "complete" adds over quick.
@@ -95,6 +134,24 @@ Implemented in the S-026 fix with the og's two defects registered as
 non-adopted (PARITY-DELTAS D-58). The question is closed; no residual.
 
 ## OQ-FLT-1 — Is the 170-entry extension table engine-wide or exFAT-only?
+
+**RESOLVED (DFX30, 2026-10-26):** first-hand PE-mapping + byte-search +
+decompile-ref scan (evidence:
+`diff-to-fix/evidence/decompiled-quotes/s30-oq-flt1-extension-table-distribution.md`).
+The table (170 slots x char[9]: 169 populated keys + all-zero slot-169
+sentinel, first key "Raw", flag bytes 0) is byte-identical to DRWUI's grading
+table at 0x141bb0500 (set-equal, 169/169) and is PRESENT in 4 engines:
+NTFSSearchDLL (1 dead .rdata copy, zero code+pointer refs), FATSearchDLL
+(1 dead .rdata + 2 live .data copies: DAT_1800630d0 x5 refs,
+DAT_180067720 x2), exFATSearchDLL (1 dead .rdata + the live DAT_18005a090
+x4), RAWSearchDLL (1 live: DAT_18008f070 x1). ABSENT from
+EXT4/Btrfs/ReFS/HFS+/ZFS. The live FAT/RAW consumers are the
+extension-INDEX vocabulary (record field +0x18, gate < 0xAA ->
+`_strupr(table + idx*9)` -> strstr / name accessor), NOT validation scorers.
+**The M-035 scorer (majority-mismatch + ratio<0.3 reject) is exFAT-ONLY** —
+zero 0.3-compare sites in every other engine decompile. Blast radius
+answer: M-035's fix scope stays exFAT; the shared index vocabulary feeds
+N-049/N-050 (lost-record field richness) and the filter layer.
 
 Byte-search the x9-byte-stride table pattern (DAT_18005a090) in every
 SearchDLL binary (NTFS/FAT/EXT4/RAW/Btrfs/ReFS/HFS+/ZFS). Blast radius of

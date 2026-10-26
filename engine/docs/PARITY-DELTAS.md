@@ -111,19 +111,30 @@
 - **RISK:** User-visible improvement on 4Kn media; none on 512-byte media.
 - **VERDICT: ACCEPTED** (both sides cited; F1 markers in code+tests).
 
-### D-05 — ZFS deleted-file story: newest-txg live state only (parity decision)
+### D-05 — ZFS deleted-file story: newest-txg live state only — PREMISE REFUTED (S-034, DFX30 2026-10-26)
 
-- **WHAT OG DOES:** Reads the newest valid uberblock's live state; deleted content
-  left to RAW carving (CoW "copy-on-everything" semantics). Evidence: corpus
-  `SearchDLL/zfs-engine--deep-dive.md` §2 ("selects the highest-transaction-g
-  valid uberblock — exactly how ZFS import finds the newest pool state").
-- **WHAT WE DO:** Same policy, documented in the engine header.
-  Evidence: `src/core/zfs/cr_zfs_engine.cpp:24–26` ("Deleted-file story (parity
-  decision, AUDIT.md row 26): … the og reads the newest txg's live state only and
-  lets RAW carving cover deleted content. We do the same."); AUDIT.md row 26.
-- **WHY:** scope (parity with og; old-txg walk out of scope).
-- **RISK:** Deleted-ZFS recall equals og (carving-only) — honest parity.
-- **VERDICT: ACCEPTED** (both sides cited, documented at the engine).
+- **WHAT OG DOES (re-decoded first-hand):** walks EVERY uberblock slot in the
+  label-0 ring (quick-searcher run loop FUN_180006b90 :5685-5841: per-slot
+  `txg = *(u64*)(slot+0x10)` -> FUN_180003150 "addBlock" with a per-txg
+  `VdevLoc::UberData` registry (FUN_180017310) and a per-state tree walk
+  emitting ZplNodes via a `bool(shared_ptr<ZplNode>)` visitor; "from_txg: 0,
+  birth_txg: <txg>" on the success path, unbounded descent). Files deleted
+  within the ring's txg window ARE og-visible.
+- **WHAT WE DO:** newest-txg live state only; deleted content left to RAW
+  carving. Evidence: `src/core/zfs/cr_zfs_engine.cpp` (best_txg ring walk;
+  the header comment — corrected at S-034's filing — previously asserted the
+  refuted premise).
+- **WHY THE ORIGINAL D-05 WAS WRONG:** its corpus citation
+  (`zfs-engine--deep-dive.md` §2 "selects the highest-transaction-group valid
+  uberblock") over-read a NEIGHBOR-txg comparison inside the ring scan
+  (`plVar12[-0x7e] <= plVar12[2]` = slot-1KiB-back vs current) as a
+  newest-only SELECTION; the caller-level semantics (which the deep-dive did
+  not decode) iterate every slot per txg.
+- **RISK:** Deleted-ZFS recall strictly BELOW og inside the ring window.
+- **VERDICT: REFUTED PREMISE — open gap S-034** (diff-to-fix/findings/SEVERE/
+  S-034-zfs-ring-txg-history-not-walked.md). Not a parity decision anymore;
+  the fix (per-txg ring walk with cross-txg dedup) is queued behind the
+  three decode items in S-034's fix plan.
 
 ### D-06 — Btrfs deleted recovery: newest-generation tree only (row 20) — CLOSED
 
@@ -2154,7 +2165,7 @@ engine constant would bake one vendor's config into the library; the og
 itself separates engine (compiled analysers) from policy (the ini). Pinned
 by `CarveEngine.AllFormatsEnabledByDefault`.
 
-### D-68 — Error value space: family-prefix convention only; numeric values core-internal (M-049, ACCEPTED)
+### D-68 — Error value space: family-prefix convention only; numeric values core-internal (M-049, ACCEPTED; context subset LANDED)
 
 The og's engine errors are 12-hex-digit HRESULT-shaped codes
 (0x5002200000004 open-fail, 0x5002c0000004 read-fail — the only two
@@ -2166,10 +2177,22 @@ numeric values; the old header claim ("reproduces the reference engine
 convention") was false as written — value equality was never true for any
 code. Renumbering to the two known 12-digit values would break 26 others
 arbitrarily (the og table is undocumented); the family-prefix match is
-the honest extent of the parity. The error-object layer stays out of core
-scope (UI-bus architecture); the engine-side subset (module/operation/
-retry-state context) is the registered open item in the finding. Pinned
-by Error.ErrTextCoversEveryCode + the header truth.
+the honest extent of the parity. Pinned by Error.ErrTextCoversEveryCode +
+the header truth.
+
+The ENGINE-SIDE SUBSET of the og's error objects LANDED with M-049's
+close-out (session 24): the error-range event family now carries the
+module/operation/retry-state triple (`err_module`/`err_operation`/
+`err_attempts` on `cr_ui_event`, CR_ERRMOD_*/CR_ERROP_* constants; the
+og's module ids are string class-names, ours are core-internal numbers —
+the D-68 value-space policy applied to the module dimension). Per-range
+attribution is recorded at failure time (thread stamp + device-owner
+fallback, cr_errmod.h); sessions persist the geometric trio unchanged
+(a reloaded range is honestly unattributed). The MOM-bus
+manager/track-manager layer stays out of core scope (UI-bus
+architecture). Pinned by ScanEvents.ErrorRangeCarriesModuleOperation-
+Attempts + CarveErrorRangeAttributesToCarveModule + ProbeBlockFailure-
+AttributesToOrchestrator + the Retry/DevMap/Errmod unit trio.
 
 ### D-75 — carve validator chain: single modern validator per format, no legacy File*Analyser fallback generation (N-070, REGISTERED SIMPLIFICATION — deliberately not ported)
 
@@ -2292,6 +2315,30 @@ compaction, async). The og's per-line timestamp/process decoration is
 its transports' job; the core emits the message text. Pinned by
 `Orchestrator.LogSilentByDefault` + `Orchestrator.LogSinkReceivesScanBrackets`.
 
+### D-78 — progress delivery: push events + telemetry pull, not the og's poll-dominant timer farm (N-075, REGISTERED DIVERGENCE; renumbered from a D-77 collision with the N-009d ACL register landed by the parallel lane in the same window — the errata convention)
+
+The og's progress model is predominantly PULL-polled: 38 `timeout()`
+timer consumers call `onGet*Progress` on the UI thread, and the only
+progress-push signal is `sigPercentChange` (CUISink's — corpus
+UIUX/25-connect-wiring-graph.md :175-192); scan/finish events push.
+The core inverts this deliberately: progress is a coalesced monotonic
+PUSH (`CR_EVT_SCAN_PROGRESS` + the cr_ui_progress bridge with
+single-flight delivery), and the pull surface is the telemetry
+snapshot (`cr_ui_scan_telemetry`, any thread, any time) — the host
+that wants og-style polling simply calls telemetry on its own timer,
+so the information content is fully covered by the two surfaces the
+core already had. The og's reference-out QUERY signals
+(`sigIsBusy(bool&)` ×14, `sigIsStopping(bool&)` ×8, :125-144) are now
+surfaced as the synchronous ABI ops `cr_ui_scan_busy` /
+`cr_ui_scan_stopping` (N-075's fix) — synchronous by construction,
+the stronger contract vs the og's Qt-connection-dependent answer
+edge. The og's typed `IUIProgressInfo` per-item recovery-progress
+interface (UIUX/20-moc-surface-sink-architecture.md :145) maps onto
+the writer's report/queue item-state surfaces (documented in
+ABI-CONTRACT §5a) rather than a parallel ABI interface. Pinned by
+`CrUi.ScanBusyStoppingQueries` + the plain-C edges in
+`cr_ui_abi_check`.
+
 ### D-77 — recovered files inherit destination ACL defaults; no source-descriptor re-application (N-009d, REGISTERED DIVERGENCE — capability not ported)
 
 **Class:** registered divergence (writer security posture) · **Finding:**
@@ -2336,8 +2383,52 @@ FileProperties → a WriterConfig `preserve_dacl` flag (default OFF)
 applying it via SetSecurityInfo on the win destio layer only — never on
 the POSIX test shims.
 
+### D-78 — CSMI SMART transport: SCSI-address routing, no RAID census; LSILOGIC sibling and SMART auto-enable not ported (N-032, REGISTERED DIVERGENCE — transport scope)
 
-### D-78 — Btrfs RAID0/RAID10 chunk reads: kernel stripe math vs the og's read failure (M-020, REGISTERED SUPERSET)
+**Class:** registered divergence (health transport scope) · **Finding:**
+diff-to-fix N-032 (MINOR, FIXED with this registration) · **Date:** 2026-10-26
+
+**WHAT OG DOES:** the DiskHealth companion's CAtaSmart engine reaches
+SMART through a multi-transport accessor set. The CSMI route
+(GetSmartAttributeCsmi) is IOCTL_SCSI_MINIPORT CC-0x19 "CSMISAS"
+(wire-decoded this session, DiskHealth_decompiled.c FUN_00425450), but
+the og routes every request through a companion-side RAID census
+(GET_DRIVER_INFO / GET_RAID_INFO / GET_RAID_CONFIG / GET_PHY_INFO walks,
+incl. an AMD "rcraid" family) that fills phy/port/target-SAS-address
+from the array inventory. A second, LSILOGIC-signature sibling transport
+(FUN_00426040) serves LSI controllers. When the first CSMI SMART read
+fails, the og auto-enables SMART on the disk (command 0xB0 feature 0xD8
+— a device WRITE, dispatch case 0x16 :4427-4438) and retries.
+
+**WHAT WE DO:** the CSMI channel (src/win/cr_health.cpp
+CsmiMiniportChannel) issues the og-exact CC-0x19 request built by the
+pure seam (include/cr/health/cr_csmi.h — every load-bearing byte pinned
+by Health.CsmiRequestMatchesOgWireFormat), routed through
+IOCTL_SCSI_GET_ADDRESS on the physical-drive handle (the og's own
+address probe, FUN_00417750 :12254): PortNumber opens the \\.\Scsi%u:
+device, PathId/TargetId carry the routing. No RAID census, no LSILOGIC
+sibling, no SMART auto-enable.
+
+**WHY:** (1) The census is companion device-manager machinery (its
+inputs are the array inventory, not a single disk handle) — the finding's
+own fix plan prescribes the IOCTL_SCSI_GET_ADDRESS-based pattern.
+(2) The auto-enable is a device write; this module is report-only by
+standing policy (cr_health.h header contract). A disabled-SMART disk
+reads health-unavailable rather than us flipping device state during a
+read-only advisory pass. (3) The LSILOGIC route is a separate vendor
+family the finding does not name (its acceptance is the Intel-RST CSMI
+transport).
+
+**RISK:** on RST arrays whose member routing genuinely requires the
+census-sourced SAS address, our CC-0x19 request may be rejected where
+the og's succeeds — the failure is clean (ERR_HEALTH_UNAVAILABLE, the
+final fallback the finding mandates). Real-hardware validation on an
+Intel RST host is pending for both implementations' claims (the finding
+records this as inherent: UNVERIFIED-BY-EXECUTION on this hardware).
+Recovery correctness is unaffected (health is advisory).
+
+
+### D-79 — Btrfs RAID0/RAID10 chunk reads: kernel stripe math vs the og's read failure (M-020, REGISTERED SUPERSET)
 
 The og's logical→physical node reader (BtrfsSearchDLL FUN_1800042a0,
 :2498-2583, verified first-hand session 33) serves ONLY the 2-copy class

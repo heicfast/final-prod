@@ -20,6 +20,7 @@
 
 #include "../cr_types.h"
 #include "../reghive/cr_reghive.h"
+#include "../recovery/cr_dict.h"
 #include <string>
 
 namespace cr {
@@ -55,9 +56,36 @@ u32 try_auto_unlock(wchar_t letter);
  * the hive unlocked the volume, ERR_FVE_LOCKED otherwise. */
 u32 try_auto_unlock_offline(wchar_t letter, const wchar_t* hive_path);
 
+/* N-064 (diff-to-fix): the password-dictionary unlock aid - the og's Dict
+ * flow (228-entry shipped dictionary, config-data-reference.md :20; tried
+ * through the same PowerShell -Password / manage-bde -Password plumbing as
+ * a user-typed password). This is the EXPLICIT CONSENT ACTION: nothing in
+ * the scan/open path calls it - a locked volume still refuses with
+ * ERR_FVE_LOCKED until the host invokes this (the CLI's --bitlocker-dict
+ * flag / the cr_ui dictionary action). Candidates: the shipped dictionary
+ * first (corpus order), then the user-provided wide strings. Every attempt
+ * is logged through the cr::log seam (index only - password material is
+ * never logged). Returns OK when a candidate unlocked the volume,
+ * ERR_FVE_LOCKED when the whole set failed. */
+u32 unlock_with_dictionary(wchar_t letter, const wchar_t* const* user_passwords,
+                           size_t user_count);
+
 #ifdef _WIN32
 namespace detail {
 /* ---- test seams (Windows lane only; see test_bitlocker_win.cpp) ---- */
+
+/* The command builder for the password unlock forms (key_type 0 = -Password),
+ * exposed for shape tests without spawning PowerShell. */
+std::wstring build_unlock_command(wchar_t letter, int key_type,
+                                  const std::wstring& key_or_path, bool legacy_manage_bde);
+
+/* The dictionary loop with the attempt seam (the recorder surface for the
+ * N-064 contract tests). Candidates are converted to wide and fed to
+ * `attempt`; returns the cr::dict::AttemptResult. */
+cr::dict::AttemptResult dictionary_unlock_seam(
+    const std::vector<std::string>& user_candidates,
+    u32 (*attempt)(wchar_t letter, const wchar_t* password, void* user), wchar_t letter,
+    void* user);
 
 /* The og's live registry path constant (ASCII view for tests). */
 const char* fve_live_registry_path_a();

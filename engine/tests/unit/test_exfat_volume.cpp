@@ -58,6 +58,10 @@ void put64(std::vector<u8>& v, size_t at, u64 x) {
 
 /* published algorithm (spec): 16-bit rotate-add */
 
+constexpr u32 EXFAT_TEST_TS = (0x5A46u << 16) | 0x6000u; /* 2025-02-06 12:00:
+    every field in range - M-014's timestamp gates reject zero-day/garbage
+    stamps, so planted sets carry a realistic stamp like real media */
+
 struct SetBuilder {
     std::vector<u8> entries;
     size_t name_entry_first_ = 0; /* S-013: first name-entry offset (multi-chunk flip) */
@@ -874,7 +878,7 @@ TEST(ExfatEngine, InvalidFirstClusterRejected) {
     {
         SetBuilder sb;
         size_t at = AT + 96;
-        sb.file_entry(0x20, 0);
+        sb.file_entry(0x20, EXFAT_TEST_TS);
         sb.stream_entry(0x01, 10, 0xFFFFFFF9u, 512); /* fc in EOC family */
         sb.name_entry(u"badeoc.dat");
         std::memcpy(img.data() + at, sb.entries.data(), sb.entries.size());
@@ -913,7 +917,7 @@ TEST(ExfatEngine, EocFamilyTerminatesChain) {
     const size_t ROOT = 25 * 512;
     const size_t AT = ROOT + 576;
     SetBuilder sb;
-    sb.file_entry(0x20, 0);
+    sb.file_entry(0x20, EXFAT_TEST_TS);
     sb.stream_entry(0x01, 7, 90, 1024);
     sb.name_entry(u"eoc.txt");
     std::memcpy(img.data() + AT, sb.entries.data(), sb.entries.size());
@@ -945,7 +949,7 @@ TEST(ExfatEngine, FreeEntryContiguousSalvage) {
     const size_t ROOT = 25 * 512;
     const size_t AT = ROOT + 576;
     SetBuilder sb;
-    sb.file_entry_deleted(0x20, 0);
+    sb.file_entry_deleted(0x20, EXFAT_TEST_TS);
     sb.stream_entry_deleted(0x01, 10, 100, 1024); /* 2 clusters expected */
     sb.name_entry_deleted(u"zeroed.dat");
     std::memcpy(img.data() + AT, sb.entries.data(), sb.entries.size());
@@ -1290,7 +1294,7 @@ TEST(ExfatEngine, StreamReservedPartiallyNonzeroPassesOgByteOr) {
     const size_t AT = ROOT + 576;
     {
         SetBuilder sb;
-        sb.file_entry(0x20, 0);
+        sb.file_entry(0x20, EXFAT_TEST_TS);
         sb.stream_entry(0x01, 11, 60, 512);
         sb.name_entry(u"partres.dat");
         std::memcpy(img.data() + AT, sb.entries.data(), sb.entries.size());
@@ -1325,7 +1329,7 @@ TEST(ExfatEngine, StreamReservedAllBytesNonzeroStillDamaged) {
     const size_t AT = ROOT + 576;
     {
         SetBuilder sb;
-        sb.file_entry(0x20, 0);
+        sb.file_entry(0x20, EXFAT_TEST_TS);
         sb.stream_entry(0x01, 11, 60, 512);
         sb.name_entry(u"fullres.dat");
         std::memcpy(img.data() + AT, sb.entries.data(), sb.entries.size());
@@ -1351,7 +1355,7 @@ TEST(ExfatEngine, StreamReserved1ByteStrictlyZero) {
     const size_t AT = ROOT + 576;
     {
         SetBuilder sb;
-        sb.file_entry(0x20, 0);
+        sb.file_entry(0x20, EXFAT_TEST_TS);
         sb.stream_entry(0x01, 8, 60, 512);
         sb.name_entry(u"res1.dat");
         std::memcpy(img.data() + AT, sb.entries.data(), sb.entries.size());
@@ -1413,7 +1417,7 @@ TEST(ExfatEngine, DeletedSetOracleReassembly) {
     const size_t AT = ROOT + 576; /* past the fixture's own sets */
     /* the parked head: the correct set with a TORN name entry */
     SetBuilder head;
-    head.file_entry_deleted(0x20, 0);
+    head.file_entry_deleted(0x20, EXFAT_TEST_TS);
     head.stream_entry_deleted(0x01, 9, 100, 512); /* "right.dat" = 9 chars */
     head.name_entry_deleted(u"right.dat");
     std::memcpy(img.data() + AT, head.entries.data(), head.entries.size());
@@ -1468,4 +1472,288 @@ TEST(ExfatEngine, LiveCompleteSetBadChecksumUngraded) {
             doc = n;
     ASSERT_NE(doc, nullptr);
     EXPECT_EQ(doc->confidence(), tree::Confidence::Excellent);
+}
+
+/* ---- M-014 (diff-to-fix): the og's structural entry gates -------------- */
+
+namespace {
+
+/* scan helper: returns every emitted node name (UTF-8) for gate tests */
+std::vector<std::string> m014_scan_names(std::vector<u8> img, ExfatScanStats* stats_out) {
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* ra = tree.add_root(u"Found");
+    auto* rd = tree.add_root(u"Deleted");
+    auto* rl = tree.add_root(u"Lost");
+    ExfatScanFlags flags;
+    ExfatScanStats stats;
+    if (scan_exfat(&dev, flags, nullptr, nullptr, nullptr, tree, ra, rd, rl, stats) != OK) {
+        if (stats_out)
+            *stats_out = stats;
+        return {};
+    }
+    if (stats_out)
+        *stats_out = stats;
+    std::vector<std::string> names;
+    for (auto* n : collect_all(tree))
+        names.push_back(n->name_utf8());
+    return names;
+}
+
+} // namespace
+
+TEST(ExfatEngine, EmptyFileSuppressedLikeOg) {
+    /* M-014 falsifiable claim (a): the og's stream emission gate
+     * (FUN_180029280 :34562-34564) requires data_length != 0 &&
+     * first_cluster != 0 && name_length != 0 - a zero-length file never
+     * appears in og results. Fail-before: the pre-fix core emitted it. */
+    auto img = build_exfat_image();
+    const size_t ROOT = 25 * 512;
+    const size_t AT = ROOT + 576;
+    {
+        SetBuilder sb;
+        sb.file_entry(0x20, EXFAT_TEST_TS);
+        sb.stream_entry(0x01, 8, 0, 0); /* empty file: fc=0, len=0 */
+        sb.name_entry(u"empty.dat");
+        std::memcpy(img.data() + AT, sb.entries.data(), sb.entries.size());
+        sb.finish_set(img, AT);
+    }
+    {
+        /* len=0 but fc nonzero: still suppressed (data_length gate) */
+        SetBuilder sb;
+        size_t at = AT + 96;
+        sb.file_entry(0x20, EXFAT_TEST_TS);
+        sb.stream_entry(0x01, 8, 60, 0);
+        sb.name_entry(u"empty2.dat");
+        std::memcpy(img.data() + at, sb.entries.data(), sb.entries.size());
+        sb.finish_set(img, at);
+    }
+    ExfatScanStats stats;
+    const auto names = m014_scan_names(std::move(img), &stats);
+    EXPECT_EQ(stats.sets_gated, 2u);
+    for (const auto& n : names) {
+        EXPECT_NE(n, "empty.dat") << "zero-length file must not be emitted (og parity)";
+        EXPECT_NE(n, "empty2.dat") << "zero-length file must not be emitted (og parity)";
+    }
+}
+
+TEST(ExfatEngine, GarbageTimestampRejected) {
+    /* M-014 falsifiable claim (b): the og validates the create, modify
+     * AND access words field-by-field (FUN_180002f40 via FUN_180002f90)
+     * - month 0/13, day 0, hour 24 each reject the set. The all-zero
+     * stamp fails too (day==0): the finding's fix-plan guess ("treat
+     * all-zero as valid") is corrected by the decompile. */
+    auto img = build_exfat_image();
+    /* extend the root chain 2->3->4->5 (2048 B) so six planted sets fit
+     * past the fixture's own 576 bytes (clusters 4/5 are free space in
+     * the base fixture - nothing else lives there) */
+    const size_t FATOFF = 24 * 512;
+    put32v(img, FATOFF + 3 * 4, 4);
+    put32v(img, FATOFF + 4 * 4, 5);
+    put32v(img, FATOFF + 5 * 4, 0xFFFFFFFF);
+    const size_t ROOT = 25 * 512;
+    const size_t AT = ROOT + 576;
+    struct Bad {
+        const char* name;
+        u32 ts;
+    };
+    const Bad bad[] = {
+        {"tsmonth0.dat", (0x16u << 16) | 0x6000u},        /* month=0 (day=22) */
+        {"tsmonth13.dat", (0x1A6u << 16) | 0x6000u},     /* month=13 (day=6) */
+        {"tsday0.dat", (0x60u << 16) | 0x6000u},         /* day=0, month=3 */
+        {"tshour24.dat", (0x5A46u << 16) | 0xC000u},     /* hour=24 */
+        {"tszero.dat", 0},                               /* all zero */
+        {"tsmin60.dat", (0x5A46u << 16) | 0x780u},       /* minute=60 */
+    };
+    size_t at = AT;
+    for (const auto& b : bad) {
+        std::u16string nm;
+        for (const char* p = b.name; *p; ++p)
+            nm.push_back(*p);
+        SetBuilder sb;
+        sb.file_entry(0x20, b.ts);
+        sb.stream_entry(0x01, u8(nm.size()), 60, 512);
+        sb.name_entry(nm.c_str());
+        std::memcpy(img.data() + at, sb.entries.data(), sb.entries.size());
+        sb.finish_set(img, at);
+        at += sb.entries.size();
+    }
+    ExfatScanStats stats;
+    const auto names = m014_scan_names(std::move(img), &stats);
+    EXPECT_EQ(stats.sets_gated, 6u);
+    for (const auto& b : bad) {
+        bool found = false;
+        for (const auto& n : names)
+            if (n == b.name)
+                found = true;
+        EXPECT_FALSE(found) << b.name << " (garbage timestamp) must not be emitted";
+    }
+}
+
+TEST(ExfatEngine, SecondaryCountCapped) {
+    /* M-014 falsifiable claim (c): secondary_count is bounded to [2,18]
+     * ((u8)(sc-2) < 0x11, FUN_180002f90 :1787) - sc=40 (and sc=1) reject
+     * the set at the head, so a corrupt header cannot drag the walker
+     * through arbitrary following entries. */
+    auto img = build_exfat_image();
+    const size_t ROOT = 25 * 512;
+    const size_t AT = ROOT + 576;
+    {
+        SetBuilder sb;
+        sb.file_entry(0x20, EXFAT_TEST_TS);
+        sb.stream_entry(0x01, 8, 60, 512);
+        sb.name_entry(u"wide.dat");
+        std::memcpy(img.data() + AT, sb.entries.data(), sb.entries.size());
+        sb.finish_set(img, AT);
+        img[AT + 1] = 40; /* secondary_count = 40: out of range */
+    }
+    {
+        SetBuilder sb;
+        size_t at = AT + 96;
+        sb.file_entry(0x20, EXFAT_TEST_TS);
+        sb.stream_entry(0x01, 8, 60, 512);
+        sb.name_entry(u"thin.dat");
+        std::memcpy(img.data() + at, sb.entries.data(), sb.entries.size());
+        sb.finish_set(img, at);
+        img[at + 1] = 1; /* secondary_count = 1: below range */
+    }
+    ExfatScanStats stats;
+    const auto names = m014_scan_names(std::move(img), &stats);
+    EXPECT_EQ(stats.sets_gated, 2u);
+    for (const auto& n : names) {
+        EXPECT_NE(n, "wide.dat") << "sc=40 set must be skipped at the head";
+        EXPECT_NE(n, "thin.dat") << "sc=1 set must be skipped at the head";
+    }
+}
+
+TEST(ExfatEngine, BadNameFlagsRejected) {
+    /* M-014 falsifiable claim (d): a name entry with flags&3 != 0 (or
+     * flags >= 4) is rejected (FUN_180003030 :1814-1817: (flags & 3) == 0
+     * && flags < 4); the first needed fragment must also carry a nonzero
+     * first char. Fail-before: the pre-fix core accepted both. */
+    auto img = build_exfat_image();
+    const size_t ROOT = 25 * 512;
+    const size_t AT = ROOT + 576;
+    {
+        SetBuilder sb;
+        sb.file_entry(0x20, EXFAT_TEST_TS);
+        sb.stream_entry(0x01, 8, 60, 512);
+        sb.name_entry(u"flagbad.dat");
+        std::memcpy(img.data() + AT, sb.entries.data(), sb.entries.size());
+        sb.finish_set(img, AT);
+        img[AT + 2 * 32 + 1] = 0x03; /* name flags & 3 != 0 */
+    }
+    {
+        SetBuilder sb;
+        size_t at = AT + 96;
+        sb.file_entry(0x20, EXFAT_TEST_TS);
+        sb.stream_entry(0x01, 8, 60, 512);
+        sb.name_entry(u"flaghi.dat");
+        std::memcpy(img.data() + at, sb.entries.data(), sb.entries.size());
+        sb.finish_set(img, at);
+        img[at + 2 * 32 + 1] = 0x04; /* name flags >= 4 */
+    }
+    {
+        /* first char of the first needed fragment is zero */
+        SetBuilder sb;
+        size_t at = AT + 192;
+        sb.file_entry(0x20, EXFAT_TEST_TS);
+        sb.stream_entry(0x01, 8, 60, 512);
+        sb.name_entry(u"zfirst.dat");
+        std::memcpy(img.data() + at, sb.entries.data(), sb.entries.size());
+        sb.finish_set(img, at);
+        img[at + 2 * 32 + 2] = 0;
+        img[at + 2 * 32 + 3] = 0;
+    }
+    ExfatScanStats stats;
+    const auto names = m014_scan_names(std::move(img), &stats);
+    EXPECT_EQ(stats.sets_gated, 3u);
+    for (const auto& n : names) {
+        EXPECT_NE(n, "flagbad.dat") << "flags&3!=0 name must reject the set";
+        EXPECT_NE(n, "flaghi.dat") << "flags>=4 name must reject the set";
+        EXPECT_NE(n, "zfirst.dat") << "zero first char must reject the set";
+    }
+}
+
+TEST(ExfatEngine, FileReservedNonzeroRejected) {
+    /* M-014: FUN_180002f90's reserved gates - reserved1 (u16 +6) and the
+     * reserved2 tail (+0x19..+0x1F) must be zero on the FILE dentry (a
+     * stricter test than the STREAM-side N-010e byte-OR form: the file
+     * side has no OR escape). A failing set is skipped, not damaged. */
+    auto img = build_exfat_image();
+    const size_t ROOT = 25 * 512;
+    const size_t AT = ROOT + 576;
+    {
+        SetBuilder sb;
+        sb.file_entry(0x20, EXFAT_TEST_TS);
+        sb.stream_entry(0x01, 8, 60, 512);
+        sb.name_entry(u"fres1.dat");
+        std::memcpy(img.data() + AT, sb.entries.data(), sb.entries.size());
+        sb.finish_set(img, AT);
+        img[AT + 6] = 0x01; /* reserved1 low byte */
+    }
+    {
+        SetBuilder sb;
+        size_t at = AT + 96;
+        sb.file_entry(0x20, EXFAT_TEST_TS);
+        sb.stream_entry(0x01, 8, 60, 512);
+        sb.name_entry(u"fres2.dat");
+        std::memcpy(img.data() + at, sb.entries.data(), sb.entries.size());
+        sb.finish_set(img, at);
+        img[at + 0x1A] = 0x02; /* reserved2 byte */
+    }
+    ExfatScanStats stats;
+    const auto names = m014_scan_names(std::move(img), &stats);
+    EXPECT_EQ(stats.sets_gated, 2u);
+    for (const auto& n : names) {
+        EXPECT_NE(n, "fres1.dat") << "file reserved1 != 0 must reject the set";
+        EXPECT_NE(n, "fres2.dat") << "file reserved2 != 0 must reject the set";
+    }
+}
+
+TEST(ExfatEngine, ValidBoundaryTimestampsStillPass) {
+    /* M-014 regression guard: the boundary-VALID stamps must keep
+     * passing - month 1 and 12, day 1 and 31, hour 0 and 23, minute 0
+     * and 59, 2sec 0 and 29 (FUN_180002f40's exact bounds). Guards
+     * against over-rejection from an off-by-one in the field masks. */
+    auto img = build_exfat_image();
+    const size_t ROOT = 25 * 512;
+    const size_t AT = ROOT + 576;
+    struct Ok {
+        const char16_t* name;
+        u32 ts;
+    };
+    const Ok ok[] = {
+        {u"okmin.dat", (1u << 16) | (1u << 21)},                 /* Jan 1 00:00:00 */
+        {u"okmax.dat", (31u << 16) | (12u << 21) | (23u << 11) | (59u << 5) | 29u}, /* Dec 31 23:59:58 */
+        {u"oksec29.dat", (6u << 16) | (2u << 21) | 29u},         /* 2sec field = 29 */
+    };
+    size_t at = AT;
+    for (const auto& o : ok) {
+        std::u16string nm;
+        for (const char16_t* p = o.name; *p; ++p)
+            nm.push_back(*p);
+        SetBuilder sb;
+        sb.file_entry(0x20, o.ts);
+        sb.stream_entry(0x01, u8(nm.size()), 60, 512);
+        sb.name_entry(o.name);
+        std::memcpy(img.data() + at, sb.entries.data(), sb.entries.size());
+        sb.finish_set(img, at);
+        at += sb.entries.size();
+    }
+    ExfatScanStats stats;
+    const auto names = m014_scan_names(std::move(img), &stats);
+    EXPECT_EQ(stats.sets_gated, 0u);
+    std::string n0, n1, n2;
+    for (const auto& n : names) {
+        if (n == "okmin.dat")
+            n0 = n;
+        if (n == "okmax.dat")
+            n1 = n;
+        if (n == "oksec29.dat")
+            n2 = n;
+    }
+    EXPECT_FALSE(n0.empty()) << "Jan 1 00:00:00 must pass";
+    EXPECT_FALSE(n1.empty()) << "Dec 31 23:59:58 must pass";
+    EXPECT_FALSE(n2.empty()) << "2sec=29 must pass";
 }

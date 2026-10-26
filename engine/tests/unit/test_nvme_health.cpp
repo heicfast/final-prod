@@ -137,7 +137,11 @@ TEST(Nvme, CliTempFractionIsCelsiusDecidegrees) {
      * (decidegrees, k*10-2731) is the single source for the CLI print
      * and the ABI rows; assert the corrected table and the floor guard
      * (the ABI's 0-below-273.1K rule). */
-    struct Case { u16 k; u32 want_dec; const char* spelling; };
+    struct Case {
+        u16 k;
+        u32 want_dec;
+        const char* spelling;
+    };
     const Case cases[] = {
         {309, 359, "35.9"},   /* true 35.85 C; pre-fix printed 36.5 */
         {300, 269, "26.9"},   /* true 26.85 C; pre-fix printed 27.0 */
@@ -151,8 +155,8 @@ TEST(Nvme, CliTempFractionIsCelsiusDecidegrees) {
         h.temperature_k = c.k;
         /* the CLI prints %u.%u from (dec/10, dec%10): the spelling column
          * documents the visible output; dec is the single source of truth */
-        EXPECT_EQ(h.decidegrees_c(), c.want_dec) << "k=" << c.k
-                                                 << " (CLI prints " << c.spelling << ")";
+        EXPECT_EQ(h.decidegrees_c(), c.want_dec)
+            << "k=" << c.k << " (CLI prints " << c.spelling << ")";
     }
     /* truncation bias is bounded (~-0.05 C): 309.99 K stays 35.9 */
     health::NvmeHealthInfo h;
@@ -164,21 +168,26 @@ TEST(Health, SmartCommandListMatchesImplementation) {
     /* N-074 doc-truth pin (the N-040 family's doc-lint, applied to the
      * health header): cr_health.h's DELTA comment may only claim SMART
      * commands the implementation issues. 0xD1 READ_THRESHOLDS ships
-     * (cr_health.cpp:192-200, S-024's fix); 0xD8 RETURN_STATUS was a
-     * claimed-but-never-issued command (grep of cr_health.cpp: 0 hits)
-     * and must not return to the comment until the code issues it. */
+     * (src/core/health/cr_smart_ata.cpp - S-024's fix, moved to the pure
+     * seam by N-032); 0xD8 RETURN_STATUS was a claimed-but-never-issued
+     * command and must not return to the comment until the code issues it. */
     const std::string hdr = cr_test::read_repo_file("include/cr/win/cr_health.h");
     ASSERT_FALSE(hdr.empty());
     EXPECT_NE(hdr.find("0xD1 READ_THRESHOLDS"), std::string::npos)
         << "S-024's threshold reads ship - the header must keep claiming them";
     EXPECT_EQ(hdr.find("0xD8"), std::string::npos)
-        << "0xD8 RETURN_STATUS is not issued by cr_health.cpp - the header "
+        << "0xD8 RETURN_STATUS is not issued - the header "
            "must not claim it (re-adding requires issuing it in code first)";
-    const std::string src = cr_test::read_repo_file("src/win/cr_health.cpp");
-    ASSERT_FALSE(src.empty());
-    EXPECT_NE(src.find("0xD1"), std::string::npos)
-        << "the threshold read must actually ship";
-    EXPECT_EQ(src.find("0xD8"), std::string::npos)
+    /* the issuance lives in the pure seam since N-032 (the win layer
+     * supplies transports only) */
+    const std::string seam = cr_test::read_repo_file("src/core/health/cr_smart_ata.cpp");
+    ASSERT_FALSE(seam.empty());
+    EXPECT_NE(seam.find("0xD1"), std::string::npos) << "the threshold read must actually ship";
+    EXPECT_EQ(seam.find("0xD8"), std::string::npos)
         << "if 0xD8 ever ships, update cr_health.h's comment in the same "
            "change (this pin forces the lockstep)";
+    const std::string win_src = cr_test::read_repo_file("src/win/cr_health.cpp");
+    ASSERT_FALSE(win_src.empty());
+    EXPECT_EQ(win_src.find("0xD8"), std::string::npos)
+        << "the win layer issues no SMART commands of its own - transports only";
 }

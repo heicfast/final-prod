@@ -375,6 +375,43 @@ TEST(ResumeRevalidation, LayoutChangedFlagged) {
 /* 5. the per-record geometry payload (the og's CSearchedPartitionInfo) */
 /* ------------------------------------------------------------------ */
 
+/* N-049's own falsifiable claim, pinned (the flag half of the v2 payload;
+ * M-042's landing persisted it, this is the reproduction the finding asked
+ * for): save a session with a candidate whose size_from_device_end is
+ * true, reload, and inspect the restored candidate - the flag MUST be
+ * true (before M-042's v2 it was silently false: never serialized). */
+TEST(ResumeRevalidation, SizeSourceFlagRoundTrip) {
+    /* flagged fallback shape: geometry absent, size derived from the
+     * device tail (the GAP-S6-6 fallback family) */
+    lost::Candidate c = fat_candidate();
+    c.have_geometry = 0;
+    c.size_from_device_end = 1;
+    auto mf = build_session(c, false, {});
+    tree::ResultTree t;
+    ScanStats stats;
+    VolumeSessionInfo info;
+    Reader r(MemFile::rd, MemFile::sk, MemFile::sz, &mf);
+    ASSERT_EQ(OK, ScanController::load_session_summary(r, t, stats, info, nullptr));
+    ASSERT_EQ(1u, stats.lost_candidates.size());
+    EXPECT_TRUE(stats.lost_candidates[0].size_from_device_end)
+        << "the size-source flag must survive the save/load round trip";
+    EXPECT_FALSE(stats.lost_candidates[0].have_geometry)
+        << "the geometry-valid bit is independent of the size-source bit";
+
+    /* and the inverse: an ordinary geometry-derived candidate keeps the
+     * flag CLEAR through the same path (no false positives either) */
+    lost::Candidate g = fat_candidate(); /* have_geometry = 1, flag clear */
+    auto mf2 = build_session(g, false, {});
+    Reader r2(MemFile::rd, MemFile::sk, MemFile::sz, &mf2);
+    tree::ResultTree t2;
+    ScanStats stats2;
+    VolumeSessionInfo info2;
+    ASSERT_EQ(OK, ScanController::load_session_summary(r2, t2, stats2, info2, nullptr));
+    ASSERT_EQ(1u, stats2.lost_candidates.size());
+    EXPECT_FALSE(stats2.lost_candidates[0].size_from_device_end);
+    EXPECT_TRUE(stats2.lost_candidates[0].have_geometry);
+}
+
 TEST(ResumeRevalidation, CandidateGeometryRoundTrip) {
     /* discovery side: probe_fat fills the geometry evidence */
     {

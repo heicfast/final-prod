@@ -26,6 +26,8 @@
 
 #include "cr_device.h"
 #include "cr_slice.h"
+#include "cr/cr_errmod.h"
+#include <atomic>
 #include <memory>
 #include <mutex>
 
@@ -50,6 +52,15 @@ public:
      * safe to call from any thread while workers record failures. */
     ReadErrorMap error_map_copy() const;
 
+    /* M-049 (error-context attribution): the sub-pass "owner" module -
+     * the fallback recorded on a range when the reading thread carries
+     * no stamp (engine-INTERNAL worker pools). Written only by the
+     * orchestrator thread between sub-passes (they are sequential -
+     * pools join first), read by recording workers; a plain atomic is
+     * the whole synchronization story. */
+    void set_owner_module(u32 module) { owner_module_.store(module, std::memory_order_relaxed); }
+    u32 owner_module() const { return owner_module_.load(std::memory_order_relaxed); }
+
 private:
     RetryingDevice(std::unique_ptr<IStorageDevice> inner, const RetryPolicy& policy);
 
@@ -64,6 +75,7 @@ private:
     RetryPolicy policy_;
     mutable std::mutex map_mutex_;
     ReadErrorMap map_;
+    std::atomic<u32> owner_module_{0}; /* M-049: see set_owner_module */
 };
 
 } // namespace cr
