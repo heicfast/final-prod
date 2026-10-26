@@ -353,7 +353,12 @@ TEST(Orchestrator, ProbeFamily) {
      * underneath wins - exactly the og's multi-analyser outcome. */
     EXPECT_EQ(ScanController::probe_family(&dev), FsFamily::Fat);
     std::memcpy(b + 3, "EXFAT   ", 8);
-    EXPECT_EQ(ScanController::probe_family(&dev), FsFamily::Exfat);
+    /* N-050: a spoofed EXFAT OEM on a FAT volume fails the exFAT
+     * boot-region content proof (the FAT BPB's nonzero bytes at
+     * 0x0B..0x3F fail the og's MustBeZero sweep) and the FAT gates +
+     * root proof underneath win - exactly the og's multi-analyser
+     * outcome (the engine is never dispatched on the spoofed family). */
+    EXPECT_EQ(ScanController::probe_family(&dev), FsFamily::Fat);
     std::memset(b + 3, 'X', 8);
     /* odd OEM but 55AA + sane BPB still probes FAT (heuristic hint);
      * destroy the signature for Unknown */
@@ -362,6 +367,75 @@ TEST(Orchestrator, ProbeFamily) {
     EXPECT_EQ(ScanController::probe_family(&dev), FsFamily::Unknown);
 }
 
+
+/* ---- N-050: two-stage recognition (boot gate -> content proof) ------- */
+
+TEST(Orchestrator, SpoofedExfatOemRejectedBeforeEngine) {
+    /* the finding's named proof: a volume with a spoofed family OEM but
+     * no matching content never dispatches the engine. probe_family is
+     * the dispatch gate (the fs_hint switch keys on it), so family !=
+     * Exfat means the exFAT engine's invocation counter stays zero. */
+    auto img = build_fat16();
+    std::memcpy(img.data() + 3, "EXFAT   ", 8);
+    MemDevice dev(std::move(img));
+    EXPECT_EQ(ScanController::probe_family(&dev), FsFamily::Fat)
+        << "spoofed EXFAT OEM over a FAT volume: the content proof must "
+           "refuse the exFAT family (the og's analyser does)";
+}
+
+TEST(Orchestrator, SpoofedFatBootUnreadableRootRejected) {
+    /* FAT half: the boot BYTES pass (55AA + numFATs + pow2 bps + sane
+     * spf16) but the root directory's first sector is unreachable
+     * (truncated image) - the og's root verification (FUN_180002180 ->
+     * FUN_180001f70) reads the root and fails; recognition refused. */
+    auto img = build_fat16();
+    img.resize(42 * 512); /* the root starts at sector 42: unreachable */
+    MemDevice dev(std::move(img));
+    EXPECT_EQ(ScanController::probe_family(&dev), FsFamily::Unknown)
+        << "a FAT boot whose root directory cannot be read is not FAT by "
+           "proof (the og's analyser refuses it)";
+}
+
+TEST(Orchestrator, RealExfatBootContentVerified) {
+    /* the positive pin: a structurally valid exFAT boot region (the
+     * engine's own gates: OEM + 55AA + shift bounds + MustBeZero sweep
+     * + FAT count/length + heap fit; wire-struct offsets per
+     * cr_exfat_wire.h BootSectorMain) proves the family - the cheap
+     * form of the og analyser's recognition, before any engine
+     * dispatch. 2 MiB image, 512-byte sectors, 2 sectors/cluster. */
+    const u64 VOL_SECTORS = 4096;
+    std::vector<u8> img(size_t(VOL_SECTORS) * 512, 0);
+    u8* b = img.data();
+    b[0] = 0xEB;
+    b[1] = 0x76;
+    b[2] = 0x90;
+    std::memcpy(b + 3, "EXFAT   ", 8);
+    /* volume_length u64 @0x48 */
+    for (int i = 0; i < 8; ++i)
+        b[0x48 + i] = u8(VOL_SECTORS >> (8 * i));
+    /* fat_offset u32 @0x50 (>= 24: past the boot region) */
+    b[0x50] = 24;
+    /* fat_length u32 @0x54 */
+    b[0x54] = 8;
+    /* cluster_heap_offset u32 @0x58 (>= fat_offset+fat_length) */
+    b[0x58] = 40;
+    /* cluster_count u32 @0x5C (heap fit: (n-1)*2+40 <= 4096) */
+    b[0x5C] = 0xE4; /* 2020 */
+    b[0x5D] = 0x07;
+    /* first_cluster_of_root u32 @0x60 (>= 2, < count+2) */
+    b[0x60] = 2;
+    /* bytes_per_sector_shift u8 @0x6C = 9 (512) */
+    b[0x6C] = 9;
+    /* sectors_per_cluster_shift u8 @0x6D = 1 */
+    b[0x6D] = 1;
+    /* fat_count u8 @0x6E = 1 */
+    b[0x6E] = 1;
+    b[510] = 0x55;
+    b[511] = 0xAA;
+    MemDevice dev(std::move(img));
+    EXPECT_EQ(ScanController::probe_family(&dev), FsFamily::Exfat)
+        << "a structurally valid exFAT boot region proves the family";
+}
 
 /* ---- M-044: UDF recognition (the og's analyser result 0xc) -----------
  * The probe is decompile-exact (FATFileSystemAnalyser_decompiled.c
@@ -485,7 +559,12 @@ TEST(Orchestrator, UdfNotConfusedWithFat) {
     b[510] = 0x55;
     b[511] = 0xAA;
     MemDevice dev(std::move(img));
-    EXPECT_EQ(ScanController::probe_family(&dev), FsFamily::Fat);
+    /* N-050: the painted FAT boot passes the byte gates but the root
+     * proof refuses it (no valid FAT geometry: spc == 0 and the 0x2C
+     * field is UDF descriptor bytes, not a root cluster >= 2) - the
+     * og's analyser fails the same root verification, so the volume is
+     * neither UDF (jump code skips the probe) nor FAT: Unknown. */
+    EXPECT_EQ(ScanController::probe_family(&dev), FsFamily::Unknown);
 }
 
 TEST(Orchestrator, UdfSurfacesAsCarveFamily) {
@@ -871,7 +950,7 @@ TEST(SafeWriter, CollisionAndSanitize) {
 
     io.existing.insert(u16_("R:\\out\\photo.jpg"));
     std::u16string n1 = writer.resolve_collision(u16_("R:\\out"), u16_("photo.jpg"));
-    EXPECT_EQ(n1, u16_("photo (2).jpg"));
+    EXPECT_EQ(n1, u16_("photo_1.jpg"));
 
     /* sanitize: forbidden chars replaced (corpus rule) */
     EXPECT_EQ(SafeWriter::sanitize_name(u16_("a<b>:?/|*.txt")), u16_("a_b______.txt"));

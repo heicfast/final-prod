@@ -422,6 +422,34 @@ Contract:
   core carves the full registry (matching the og engine, whose toggles are
   applied by its UI when it configures the searcher); a host filters this
   enumeration to build the same config surface.
+- **CLI projection (N-033's close):** `rrecov list-carve-formats` prints the
+  full enumeration (one row per format: layer, ext, min/max, base
+  confidence, grammar magic) — the CLI shape of the og host's
+  EUGetAnalyserList-driven "formats we can recover" surface. Exit 0 only on
+  a complete walk; an empty registry or a failed row is exit 1 (the FB-K01
+  family: scripts must never mistake a broken table for "nothing to
+  carve").
+- The og's FS engines re-clone the RAWSearchDLL registry per scan
+  (FATSearchDLL :13872-13977 LoadLibrary/GetProcAddress + the per-scan
+  re-fetch :29290-29361); the core's registry is compile-time immutable
+  and read directly — PARITY-DELTAS D-80 registers the difference (same
+  content by construction; the clone pattern exists only because the og
+  is multi-DLL).
+
+- Per-scan refresh divergence (N-033, registered): the og's FS engines
+  RE-CLONE the RAWSearchDLL registry per scan
+  (FATSearchDLL_decompiled.c :29290-29361 — LoadLibrary +
+  GetProcAddress + std-container copy on every search) because the master
+  registry lives in another DLL and may have been reconfigured between
+  scans. The core's registry is compile-time immutable (both tables
+  append-only, §7a), so there is nothing to re-fetch: the enumeration is
+  valid for the library's lifetime and no refresh hook exists. If a host
+  ever ships runtime-configurable carve tables, the refresh seam becomes
+  a versioned ABI question (a bumped count between calls), not a silent
+  re-clone.
+- CLI rendering: `rrecov --list-carve-formats` prints the whole table
+  (layer, ext, size bounds, base confidence, grammar-layer magic) — the
+  parity-tooling surface (N-033's step 2).
 
 ## 8. SQLite session index — REJECTED-BY-REFERENCE (closed GAP-S6-12)
 
@@ -495,3 +523,26 @@ against it; this is a registered deliberate difference. Sort code 7 (Type)
 mirrors the og's results-view Type column: category in the FileFilter.xml
 iconIndex order (Graphic/Document/Email/Audio/Video/Other/Archive/
 Bookmarks), then extension, then name.
+
+### Query bucket translation + the raw-category name (M-029, session 32)
+
+`cr_ui_query_apply_buckets` (added export, §9 no-bump) translates the og
+filter-bar's stable bucket IDs — the exact action-ID set the DRWUI menus
+build (CTimeFilterBtn/CSizeFilterBtn): Date 0x100/0x101/0x102/0x103 +
+0x105 Custom, Size 0x1000..0x1004 + 0x1006 Custom — into the query's
+`modified_from/to` and `size_min/max` range fields, in place. Date
+windows are day-truncated LOCAL windows derived from the host clock
+exactly like the og's cached bounds (today / yesterday / (today−7d,
+today] / (today−30d, today], COleDateTimeSpan day arithmetic); Custom is
+inclusive on local-day-truncated bounds. Size buckets use the og's exact
+byte boundaries (≤512 KiB, ≤1 MiB, ≤512 MiB, ≤1 GiB, >1 GiB); Custom is
+inclusive. The SKIPPED IDs (0x104, 0x1005) and any unknown value are
+rejected with `CR_UI_ERR_BAD_PARAMETER` — the core never invents menu
+semantics the og does not have.
+
+`cr_ui_scan_config.raw_category_name_utf8` (tail append) is the og's
+per-scan "filter_generalraw" display-name surface (corpus
+s5-oq-s4-2-raw-naming-hook.md): the raw/carve category root's role name.
+NULL/"" = the default "Other Deleted Files (Carved)". Resume recognizes
+both the default and the configured name, so a re-run never spawns a
+duplicate raw root.

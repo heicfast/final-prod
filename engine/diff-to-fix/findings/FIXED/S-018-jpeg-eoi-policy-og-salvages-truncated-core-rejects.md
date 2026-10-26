@@ -103,3 +103,54 @@ size = height × bpr + header extent).
 **Fixed in commit:** (this commit — audit-trail correction only; NO code change: loosening a working validator on a refuted premise would be a premise-driven regression)
 **Verified by:** first-hand decompile re-read + a corrected constant search: five `-0x27` (= 0xD9, signed-char rendering) FF D9 sites inside the modern analyser body (FUN_180033a90, :39489-41110) — the finding's `grep -c "0xd9" -> 0` missed them; the accept/size-accumulation path is EOI-gated (`if (uVar21 == 0) goto <epilogue>`, :39760). Full quotes: `evidence/decompiled-quotes/s3-jpeg-eoi-encoder-correction.md`.
 **Resolution notes:** The finding's corpus premise — "no 0xD9 constant exists anywhere in their decompiled bodies; neither generation requires or even checks for FFD9" — is FALSE for the primary analyser: the modern JpegAnalyzer searches for FF D9 with a backward scan (Ghidra renders the byte as the signed char literal `-0x27`, which a literal-text `0xd9` grep does not match) and its size-accumulation path returns early when no EOI pair is found in the buffer. The og's primary JPEG analyser is EOI-gated exactly as our validator is, by a different mechanism (backward last-FFD9 scan vs our forward marker walk — which of the two admits more is itself open). The legacy half of the claim stands for the dispatcher body (:57080-57567, no EOI reference), but that body branches to JFIF/Exif/generic sub-analysers (FUN_18004bbd0/b3b0/c1e0) whose accept criteria are NOT decoded — if any accepts without an EOI, the salvage claim could hold through the fallback, and the streamed continuation model (early return != final reject; the 0x7800000 default at :39757) adds a second unresolved acceptance path. Per the severity discipline (a false SEVERE must not drive a validator change) and the corpus-wins rule, the finding is INVALID as filed; the two residual decode questions are tracked in `tracked-open/OQ-S3-jpeg-fallback-and-continuation.md` with the exact functions and line ranges. `validate_jpeg` is UNCHANGED; no test changes (the core's EOI+SOF+SOS accept is consistent with the EOI-gated primary analyser as far as the corpus proves). The finding file is preserved per the audit-trail contract.
+
+---
+
+## Re-file + Resolution (session DFX31 — OQ-S3-JPEG resolved; the salvage claim REINSTATED and FIXED)
+
+**Status:** RE-FILED as CONFIRMED-DIVERGENCE (the original claim's salvage
+half) → **FIXED** (this session's commit)
+**Fixed in commit:** (this session's S-018 salvage commit)
+**Verified by:** `Carve.JpegTruncatedTailSalvagedAtSofEstimate` (fail-before
+RED executed on the stash-isolated pre-fix tree: "Expected: (jpg) !=
+(nullptr), actual: NULL" — the truncated photo was dropped; post-fix the
+jpg node exists with extent [hit, hit + 64*48*3) = the og's h*w*3-from-start
+sizing, grade PartialRisk) + `Carve.JpegTruncatedTailWithoutSofSalvagesAtCapTenth`
+(fail-before RED: no node; post-fix the dims-unknown salvage spans to the
+device end — the og's /10 limit bounded by the getter-NULL accept) +
+`Carve.JpegCompleteFileStopsAtEoiNotSofEstimate` (the pin: a complete JPEG
+still accepts at its EOI with the 900 full-walk grade — the modern tier's
+EOI gate, the original INVALID's evidence, is preserved exactly). Full
+suite 755/755.
+**Resolution notes:** The INVALID disposition's residual question — "if any
+[sub-analyser] accepts without an EOI, the salvage claim could hold through
+the fallback" — is now answered YES, first-hand (evidence
+`s31-oq-s3-jpeg-fallback-decode.md`): the legacy `FileJPGAnalyser`
+dispatcher (FUN_18004b170 :57100) branches JFIF/Exif/generic; ALL THREE
+sub-analysers' header walks are SOS-gated (SOF0 precision-8 checked, SOF2
+dims fill-if-empty), and the shared post-SOS walker FUN_18004c480
+(:57942-57991) ACCEPTS AT ITS SCAN LIMIT with no EOI found — `if (limit <=
+off || get() == NULL) goto ACCEPT` at :57958-59 — stamping the 0x23 format
+code with size = the offset reached. The limit is h*w*3 measured from the
+CANDIDATE START (dims from SOF; the caller :57803-07) or 20,000,000 (the
+200,000,000 global cap at FUN_180001350+0x70, /10 — the dims-unknown and
+header-walk bound); the sliding-window getter FUN_180042930 reads on demand
+so the device end is the other bound. The census-documented two-generation
+chain (modern EOI-gated + legacy permissive; one accept suffices) makes the
+og's effective behavior: truncated-tail JPEGs ARE recovered, sized at the
+estimate. The fix mirrors this in `validate_jpeg`: the SOF dims are
+captured during the walk (SOF0 last-wins precision-8-gated, SOF2
+fill-if-empty — the og's exact arms), and every no-EOI exit (entropy-scan
+cap, walk cap, mid-scan I/O failure — the getter-NULL analog) now takes the
+salvage when SOS was seen: end = min(hit + h*w*3 | hit + 20,000,000,
+bound), confidence 600. **Deliberate delta (registered):** the og stamps
+salvaged files identically to complete ones (no grade distinction found in
+the legacy path); the core grades the salvage PartialRisk (600 < the 850
+Excellent band) — recover more, grade honestly. The no-SOS case stays a
+reject (the og's header-walk buffer-end reject), and the modern tier's
+EOI-gate behavior is unchanged for complete files (the pin test). The
+finding's original SEVERE framing (B2 recovery correctness — the canonical
+damaged-disk photo dropped) stands as re-filed; the INVALID's correction of
+the ORIGINAL premise (the modern analyser IS EOI-gated) remains part of the
+record — the re-file cites the fallback, not the original "no 0xD9 anywhere"
+claim.

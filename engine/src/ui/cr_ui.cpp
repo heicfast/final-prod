@@ -59,6 +59,7 @@
 #include <chrono>
 #include <thread>
 #include <cstdarg>
+#include <ctime>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
@@ -1078,6 +1079,10 @@ u32 fill_scan_config(const cr_ui_scan_config* in, orchestrator::ScanConfig& out)
     copy_card(out.volume_label, sizeof(out.volume_label), in ? in->volume_label_utf8 : nullptr);
     copy_card(out.volume_model, sizeof(out.volume_model), in ? in->volume_model_utf8 : nullptr);
     copy_card(out.volume_serial, sizeof(out.volume_serial), in ? in->volume_serial_utf8 : nullptr);
+    /* M-029: the raw/carve category root's display name (the og's
+     * "filter_generalraw" surface); empty = the default role */
+    copy_card(out.raw_category_name, sizeof(out.raw_category_name),
+              in ? in->raw_category_name_utf8 : nullptr);
     return OK;
 }
 
@@ -2922,6 +2927,58 @@ extern "C" CR_UI_API void cr_ui_query_rows_free(cr_ui_query_row* rows, uint32_t 
         std::free(rows[i].path);
     }
     std::free(rows);
+}
+
+namespace {
+
+u32 query_apply_buckets_impl(cr_ui_query* q, uint32_t date_bucket, uint32_t size_bucket,
+                             uint64_t date_custom_from, uint64_t date_custom_to,
+                             uint64_t size_custom_min, uint64_t size_custom_max) {
+    if (!q)
+        return ret_(ERR_BAD_PARAMETER, "bad argument: q");
+    /* seed a core filter from the query's current ranges (the same
+     * sentinel convention query_run_impl reads: 0 = unbounded) */
+    query::Filter f;
+    f.size_min = q->size_min;
+    f.size_max = q->size_max ? q->size_max : ~u64(0);
+    f.modified_from = q->modified_from;
+    f.modified_to = q->modified_to ? q->modified_to : ~u64(0);
+    /* the host clock as FILETIME (the og derives its cached day bounds at
+     * scan-controller init; the query-time derivation is the same
+     * day-truncated-local math) */
+    const u64 now_ft = u64(std::time(nullptr) + 11'644'473'600) * 10'000'000;
+    if (!query::apply_date_bucket(f, u16(date_bucket), now_ft, date_custom_from,
+                                  date_custom_to)) {
+        /* the skipped Date IDs (0x104) and unknown values: no invented
+         * semantics - reject with the exact bad ID in the diagnostic */
+        return ret_(ERR_BAD_PARAMETER, "date_bucket 0x%x is not an og filter-bar bucket ID",
+                    date_bucket);
+    }
+    if (!query::apply_size_bucket(f, u16(size_bucket), size_custom_min, size_custom_max)) {
+        return ret_(ERR_BAD_PARAMETER, "size_bucket 0x%x is not an og filter-bar bucket ID",
+                    size_bucket);
+    }
+    /* write back ONLY the axes a bucket actually replaced: the None
+     * buckets (and any rejection above) leave the ABI query's fields
+     * byte-identical, sentinel convention included */
+    if (date_bucket != 0) {
+        q->modified_from = f.modified_from;
+        q->modified_to = f.modified_to;
+    }
+    if (size_bucket != 0) {
+        q->size_min = f.size_min;
+        q->size_max = f.size_max;
+    }
+    return ret_ok();
+}
+
+} // namespace
+
+extern "C" CR_UI_API uint32_t cr_ui_query_apply_buckets(
+    cr_ui_query* q, uint32_t date_bucket, uint32_t size_bucket, uint64_t date_custom_from,
+    uint64_t date_custom_to, uint64_t size_custom_min, uint64_t size_custom_max) {
+    return guarded(query_apply_buckets_impl, q, date_bucket, size_bucket, date_custom_from,
+                   date_custom_to, size_custom_min, size_custom_max);
 }
 
 /* =========================================================================

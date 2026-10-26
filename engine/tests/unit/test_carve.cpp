@@ -2862,6 +2862,112 @@ TEST(Carve, JpegFourthByteOutsideOgSet) {
     ASSERT_NE(jpg, nullptr) << "FF D8 FF 99 (outside the og's 4-dword set) must carve here";
 }
 
+/* ---- S-018 re-filed (s31 / OQ-S3-JPEG resolved): the og's legacy
+ * FileJPGAnalyser tier salvages tail-truncated JPEGs. The dispatcher
+ * FUN_18004b170 branches JFIF/Exif/generic; each sub-analyser's header
+ * walk is SOS-gated and the post-SOS walker FUN_18004c480
+ * (RAWSearchDLL_decompiled.c:57942-57991) ACCEPTS AT ITS SCAN LIMIT when
+ * no FF D9 is found — the limit is h*w*3 measured from the candidate
+ * start when the SOF supplied dimensions, else the 200,000,000-byte
+ * global cap (FUN_180001350+0x70) divided by 10; the sliding-window
+ * getter FUN_180042930 accepts at the device end. The core mirrors the
+ * salvage at PartialRisk (600 — the deliberate grading delta; the og
+ * stamps salvaged files identically to complete ones). */
+TEST(Carve, JpegTruncatedTailSalvagedAtSofEstimate) {
+    /* SOI+APP0+SOF0(64x48)+SOS with the EOI destroyed and a marker-free
+     * tail: the salvage extent is hit + 64*48*3 = hit + 9216 */
+    std::vector<u8> img(256 * 1024, 0x11); /* marker-free filler */
+    const size_t at = 4096;
+    (void)plant_jpeg(img, at);
+    bool destroyed = false;
+    for (size_t i = at; i < at + 600; ++i) {
+        if (img[i] == 0xFF && img[i + 1] == 0xD9) {
+            img[i] = 0x22;
+            img[i + 1] = 0x33;
+            destroyed = true;
+            break;
+        }
+    }
+    ASSERT_TRUE(destroyed) << "fixture bug: planted EOI not found";
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"Lost Files");
+    CarveFlags flags;
+    CarveStats s;
+    ASSERT_EQ(carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, s),
+              OK);
+    auto* jpg = find_carved_by_ext(root, "jpg");
+    ASSERT_NE(jpg, nullptr)
+        << "the og salvages tail-truncated JPEGs (legacy fallback tier); the core must too";
+    EXPECT_EQ(jpg->props()->extents.front().offset, at);
+    EXPECT_EQ(jpg->props()->extents.front().length, 64u * 48u * 3u);
+    /* the emitted confidence is the engine's (sig.base 900 + validator
+     * 600) / 2 = 750; the GRADE comes from the raw validator (600 < 850
+     * -> PartialRisk) */
+    EXPECT_EQ(jpg->props()->carve_confidence, 750u);
+    EXPECT_EQ(jpg->confidence(), tree::Confidence::PartialRisk);
+}
+
+TEST(Carve, JpegTruncatedTailWithoutSofSalvagesAtCapTenth) {
+    /* no SOF in the header walk -> dims unknown -> the og's /10 limit
+     * (200,000,000 / 10) bounded by the device: the salvage spans to the
+     * device end (FUN_180042930's getter-NULL accept) */
+    std::vector<u8> img(256 * 1024, 0x11);
+    const size_t at = 4096;
+    (void)plant_jpeg(img, at);
+    bool neutralized = false;
+    for (size_t i = at; i < at + 600; ++i) {
+        if (img[i] == 0xFF && img[i + 1] == 0xC0) {
+            img[i + 1] = 0xE2; /* SOF0 -> APP2 (same length semantics) */
+            neutralized = true;
+            break;
+        }
+    }
+    ASSERT_TRUE(neutralized) << "fixture bug: planted SOF0 not found";
+    for (size_t i = at; i < at + 600; ++i) {
+        if (img[i] == 0xFF && img[i + 1] == 0xD9) {
+            img[i] = 0x22;
+            img[i + 1] = 0x33;
+            break;
+        }
+    }
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"Lost Files");
+    CarveFlags flags;
+    CarveStats s;
+    ASSERT_EQ(carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, s),
+              OK);
+    auto* jpg = find_carved_by_ext(root, "jpg");
+    ASSERT_NE(jpg, nullptr) << "dims-unknown truncated JPEG salvages at the /10 limit";
+    EXPECT_EQ(jpg->props()->extents.front().offset, at);
+    EXPECT_EQ(jpg->props()->extents.front().length, 256 * 1024 - at); /* to the device end */
+    EXPECT_EQ(jpg->props()->carve_confidence, 750u); /* (900 + 600) / 2 */
+}
+
+TEST(Carve, JpegCompleteFileStopsAtEoiNotSofEstimate) {
+    /* pin: a COMPLETE JPEG still accepts at its EOI with the full-walk
+     * grade (the modern tier's semantics, S-018's INVALID evidence) —
+     * the salvage never fires when EOI exists, and the precise EOI
+     * extent (519) is never replaced by the SOF estimate (9216) */
+    std::vector<u8> img(256 * 1024, 0x11);
+    const size_t at = 4096;
+    const size_t len = plant_jpeg(img, at);
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"Lost Files");
+    CarveFlags flags;
+    CarveStats s;
+    ASSERT_EQ(carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr, nullptr, s),
+              OK);
+    auto* jpg = find_carved_by_ext(root, "jpg");
+    ASSERT_NE(jpg, nullptr) << "complete JPEG must carve";
+    EXPECT_EQ(jpg->props()->extents.front().offset, at);
+    EXPECT_EQ(jpg->props()->extents.front().length, len);
+    EXPECT_EQ(jpg->props()->carve_confidence, 900u);
+    EXPECT_EQ(jpg->confidence(), tree::Confidence::Excellent);
+}
+
 /* Build a minimal-but-grammar-valid CFHEADER at `at` with the magic in
  * either case (MSCF / mscf). Layout: magic@0, reserved@4, cbCabinet@8,
  * reserved@12, coffFiles@16, reserved@20, version@24, cFolders@26,
@@ -3273,6 +3379,115 @@ std::vector<u8> build_bmff_named_image(u8 mvhd_version, u32 v0_time, u64 v1_time
     std::memset(img.data() + md + 8, 0x5A, 16);
     be32(md + 24, 0xFFFFFFFF);
     return img;
+}
+
+
+/* M-025: window-serving read context - the og's already-in-buffer model.
+ * A fully in-window candidate (validator walk + checksum + small-file
+ * hash) must cost ZERO additional device reads: the window fill is the
+ * only traffic. Pre-fix every marker-walk rd(), the entropy block, the
+ * 512 B checksum and the hash re-read were separate device reads per
+ * candidate (~15-20 per small JPEG). */
+class CountingDevice final : public IStorageDevice {
+public:
+    explicit CountingDevice(std::vector<u8> b) : data_(std::move(b)) {
+        geom_.logical_sector = 512;
+        geom_.physical_sector = 512;
+        geom_.sector_count = data_.size() / 512;
+        geom_.total_bytes = geom_.sector_count * 512;
+    }
+    u32 read_at(u64 off, void* buf, u32 len) override {
+        ++calls_;
+        bytes_ += len;
+        if (off > data_.size() || len > data_.size() - off)
+            return ERR_RANGE_OUT_OF_BOUNDS;
+        std::memcpy(buf, data_.data() + off, len);
+        return OK;
+    }
+    const Geometry& geometry() const override { return geom_; }
+    u64 calls() const { return calls_; }
+    u64 bytes() const { return bytes_; }
+
+private:
+    std::vector<u8> data_;
+    Geometry geom_{};
+    u64 calls_ = 0;
+    u64 bytes_ = 0;
+};
+
+TEST(CarveEngine, WindowServingEliminatesPerCandidateRereads) {
+    /* one small PNG per window at +0x2000 (outside every overlap zone,
+     * clear of the previous window's 4 KiB tail): the PNG validator's
+     * reads (IHDR probes + the small chunk walk) all fall inside the
+     * window [w*1MiB, w*1MiB + 1MiB + 4KiB), so a correct window-serving
+     * device serves ALL of them from the buffer */
+    std::vector<u8> img(4ull << 20, 0);
+    int planted = 0;
+    for (int w = 0; w < 4; ++w) {
+        plant_png(img, size_t(w) * (1ull << 20) + 0x2000);
+        ++planted;
+    }
+    CountingDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"Carved");
+    CarveFlags fl;
+    fl.hash_small_files = true;
+    fl.hash_threshold = 8ull << 20; /* hash every plant (519 B each) */
+    CarveStats st;
+    ASSERT_EQ(OK, carve_slice(&dev, fl, nullptr, nullptr, nullptr, tree, root, nullptr,
+                              nullptr, st));
+    EXPECT_EQ(u64(planted), st.validated) << "all plants carved";
+    EXPECT_EQ(u64(planted), st.hashed) << "all plants hashed (in-window, no re-read)";
+    EXPECT_EQ(u64(0), st.rejected) << "PNG plants attract no cross-format trials";
+    /* the four window fills are the ONLY device reads - every validator
+     * probe, chunk walk, checksum and hash served from the window buffer
+     * (the og's already-in-buffer model: candidates cost zero device
+     * traffic when their reads fit the window) */
+    EXPECT_EQ(u64(4), dev.calls())
+        << "per-candidate device re-reads must be eliminated (window fills only)";
+}
+
+TEST(CarveEngine, WindowServingServesStraddlingReadsCorrectly) {
+    /* M-025 correctness: a read straddling the window end serves the
+     * in-window prefix from the buffer and the remainder from the device
+     * - byte-identical to a direct device read. A JPEG planted near the
+     * END of a window validates with the same extent, checksum and hash
+     * as the same plant mid-window. */
+    std::vector<u8> img(2ull << 20, 0);
+    const size_t at = (1ull << 20) - 300; /* the 521 B plant crosses the
+                                           * window-0 boundary (window 0
+                                           * covers [0, 1 MiB + 4 KiB)) */
+    plant_jpeg(img, at);
+    CountingDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* root = tree.add_root(u"Carved");
+    CarveFlags fl;
+    fl.hash_small_files = true;
+    fl.hash_threshold = 8ull << 20;
+    CarveStats st;
+    ASSERT_EQ(OK, carve_slice(&dev, fl, nullptr, nullptr, nullptr, tree, root, nullptr,
+                              nullptr, st));
+    ASSERT_EQ(1u, st.validated);
+    ASSERT_EQ(1u, st.hashed);
+    /* the emitted node's checksum matches a direct CRC32 of the plant */
+    tree::FileNode* n = nullptr;
+    for (tree::FileNode* c = root->first_child(); c; c = c->next_sibling())
+        if (c->props())
+            n = c;
+    ASSERT_NE(n, nullptr);
+    ASSERT_EQ(1u, n->props()->extents.size());
+    EXPECT_EQ(u64(at), n->props()->extents[0].offset);
+    EXPECT_EQ(u64(521), n->props()->extents[0].length);
+    EXPECT_TRUE(n->props()->hash_valid);
+    /* direct CRC32 of the same bytes for the checksum comparison */
+    std::vector<u8> probe(512, 0);
+    CountingDevice direct(([] {
+        std::vector<u8> d(2ull << 20, 0);
+        plant_jpeg(d, (1ull << 20) - 300);
+        return d;
+    })());
+    ASSERT_EQ(OK, direct.read_at(at, probe.data(), 512));
+    EXPECT_EQ(cr::table::crc32(probe.data(), 512), n->props()->carve_checksum);
 }
 
 } // namespace

@@ -1,6 +1,7 @@
 # OQ-S5-1 — Is CheckVersion.mo's OS-aware recovery live in the og product, or dead-shipped legacy?
 
-**Status:** OPEN (session 5) · **Module:** mom-runtime/CheckVersion · **Parameters:** P1 (detection — OS-install classification), P42 (surface)
+**Status:** RESOLVED (session 25, DFX25) — **MATCH-by-omission: DEAD-SHIPPED** (the sweep is exhausted; evidence: `../evidence/decompiled-quotes/s25-oq-s5-1-checkversion-dead-shipped.md`)
+**Module:** mom-runtime/CheckVersion · **Parameters:** P1 (detection — OS-install classification), P42 (surface)
 **Audited commit:** `7cf6754` · corpus `03ad46c`
 
 ## The precise question
@@ -57,3 +58,39 @@ open: the LOAD is documented, the INVOCATION is not decoded anywhere.
 Next concrete step (refined): a MainModule_decompiled.c pass over the
 module-init/dispatch vtable to find CheckVersion's registered callbacks —
 the corpus lacks that decompile today; queue it as the next RE artifact.
+
+
+---
+
+## RESOLUTION (session 25, 2026-10-26 — the acceptance's exhausted-sweep branch)
+
+The consumer sweep was completed exhaustively this session:
+
+1. **Every decompiled host**: zero name-requests — "CheckVersion"
+   appears only inside CheckVersion.mo itself (its GetName
+   FUN_18000bb10 :7896, zero external callers). The MOM load contract
+   is ON-DEMAND BY NAME (mom-module-system--architecture.md §1.1,
+   decoded from PartitionRecovery_decompiled.c: `FUN_1800017f0("name")`
+   → "name.mo" → LoadLibraryA → GetModule) — no call site anywhere
+   requests this module. (Session-14's "the module IS in the 31-module
+   MOM load list" was the SHIPPING-inventory table, not a load list —
+   the architecture doc's own text: "Loads .mo modules on demand".)
+2. **Every PE binary in the corpus**: zero references — the BUILDPE
+   payload (EaseUS-x64/*) and the full product tree swept; the single
+   hit (`EUFileRepair/CORE_RL_xml_.dll` → `xmlCheckVersion`) is
+   libxml2's coincidental API name, not a consumer.
+3. **Config-driven loads**: zero — all *.ini/*.xml in og-codebase and
+   BUILDPE config swept clean.
+4. **Generic loaders**: none — the FindFirstFileW sites in the host
+   DLLs (PartitionRecovery :56255/:60558 etc.) are the
+   recovered-filesystem walker with ACL checks (GetFileSecurityW
+   family), not module-directory enumeration.
+5. The PE edition drops the MOM system entirely (pe-payload-census
+   :53) — the module is full-edition-only, where it still has no
+   consumer.
+
+**Disposition per the acceptance clause: MATCH-by-omission registered
+in modules/mom-capabilities.md with dead-shipping evidence. No finding
+filed (the capability never runs in the shipped product — there is no
+recovery behavior to diverge from). No code change.** The core's
+absence of OS-install classification is parity.

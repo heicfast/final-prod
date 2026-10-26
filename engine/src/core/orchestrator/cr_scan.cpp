@@ -15,6 +15,7 @@
 #include "cr/orchestrator/cr_scan.h"
 #include "cr/cr_log.h"
 #include "cr/cr_bits.h"
+#include "cr/cr_text.h"
 #include "cr/cr_errmod.h"
 #include "cr/btrfs/cr_btrfs_engine.h"
 #include "cr/carve/cr_carve.h"
@@ -136,6 +137,15 @@ u32 weighted_progress(const StageWeights& w, u32 quick_pm, u32 deep_pm, u32 carv
     return permille > 1000 ? 1000 : permille;
 }
 
+std::u16string ScanController::raw_root_name_() const {
+    /* M-029: the configured display name when present (the og's
+     * "filter_generalraw" naming surface), the default role otherwise. */
+    for (const char c : cfg_.raw_category_name)
+        if (c != '\0')
+            return text::utf8_to_u16(cfg_.raw_category_name);
+    return u"Other Deleted Files (Carved)";
+}
+
 ReadPipe build_read_pipe(IStorageDevice* slice, u64 cache_bytes, u32 block_bytes) {
     /* M-058: single construction point for the scan read chain
      * (slice -> SliceShim -> RetryingDevice -> CachedReader), with the
@@ -187,7 +197,7 @@ ScanController::ScanController(tree::ResultTree& tree, ScanConfig cfg)
         root_lost_ = tree_.add_root(u"Lost Files");
     }
     if (cfg_.run_carve)
-        root_carved_ = tree_.add_root(u"Other Deleted Files (Carved)");
+        root_carved_ = tree_.add_root(raw_root_name_());
 }
 
 ScanController::ScanController(tree::ResultTree& tree, ScanConfig cfg,
@@ -216,7 +226,11 @@ ScanController::ScanController(tree::ResultTree& tree, ScanConfig cfg,
                 root_deleted_ = static_cast<tree::FullNode*>(r);
             else if (role == u"Lost Files")
                 root_lost_ = static_cast<tree::FullNode*>(r);
-            else if (role == u"Other Deleted Files (Carved)")
+            /* M-029: the raw root may carry the ORIGINAL run's configured
+             * display name (persisted as its role); recognize both the
+             * default and the current config so a resume never spawns a
+             * duplicate raw root. */
+            else if (role == u"Other Deleted Files (Carved)" || role == raw_root_name_())
                 root_carved_ = static_cast<tree::FullNode*>(r);
         }
     } else if (cfg_.run_quick || cfg_.run_deep) {
@@ -225,7 +239,7 @@ ScanController::ScanController(tree::ResultTree& tree, ScanConfig cfg,
         root_lost_ = tree_.add_root(u"Lost Files");
     }
     if (cfg_.run_carve && root_carved_ == nullptr)
-        root_carved_ = tree_.add_root(u"Other Deleted Files (Carved)");
+        root_carved_ = tree_.add_root(raw_root_name_());
     /* M-042: a whole-disk-basis resume (the only basis persisted lost
      * candidates exist on - whole_disk scans) enables the run-start
      * re-validation; volume-basis resumes keep the candidates as-is
@@ -656,14 +670,36 @@ FsFamily ScanController::probe_family(IStorageDevice* slice) {
                  * FUN_180005180 :4038-4058) */
                 const u16 usa_off = u16_from_bytes_le(rec + 0x04);
                 const u16 usa_cnt = u16_from_bytes_le(rec + 0x06);
-                if (usa_cnt != 0 && usa_cnt < 0x11 && usa_off >= 0x2a && usa_off < 0x2a + 0xd7)
+                if (usa_cnt != 0 && usa_cnt < 0x11 && usa_off >= 0x2a && usa_off < 0x2a + 0xd7) {
+                    log::write(log::Level::Info,
+                               "recognition: ntfs content-verified (MFT record 0 + USA "
+                               "bounds)");
                     return FsFamily::Ntfs;
+                }
             }
         }
         /* content proof failed: not NTFS by proof - fall through */
     }
-    if (std::memcmp(sec + 3, "EXFAT   ", 8) == 0)
-        return FsFamily::Exfat;
+    if (std::memcmp(sec + 3, "EXFAT   ", 8) == 0) {
+        /* N-050 (the exFAT half): the og's analyser layer proves content
+         * BEFORE the engine runs; the cheap exFAT form is the engine's
+         * own boot-region validator (EXFAT-4's structural gates: OEM,
+         * 55AA, shift bounds, the MustBeZero sweep +0x0B..+0x3F, FAT
+         * count/length, heap fit - exFATSearchDLL FUN_180021e80
+         * :28180-28208). A spoofed EXFAT OEM on a FAT/NTFS sector fails
+         * the sweep (their BPB bytes are nonzero there) and never
+         * dispatches the engine; a real boot region proves itself. The
+         * boot-checksum verdict stays informational exactly as the
+         * engine treats it (the engine gates on the structural rc only
+         * - matching verdicts, no recovery-negative strictness). */
+        exfat::ExfatParams xp;
+        if (exfat::validate_boot_region(slice, xp) == OK) {
+            log::write(log::Level::Info, "recognition: exfat content-verified (boot region)");
+            return FsFamily::Exfat;
+        }
+        /* content proof failed: fall through (the FAT gates underneath
+         * decide - the og's multi-analyser outcome) */
+    }
     /* ReFS: OEM "ReFS" + the DBR bytes-per-sector field (u32 @+0x20 == 512,
      * decompile-verified gate from RefsProc::CRefsVolumeBootRecord). */
     if (std::memcmp(sec + 3, "ReFS", 4) == 0)
@@ -729,8 +765,43 @@ FsFamily ScanController::probe_family(IStorageDevice* slice) {
      * the same way and the family result is Unknown). */
     if (sec[510] == 0x55 && sec[511] == 0xAA) {
         const u16 bps = u16_from_bytes_le(sec + 0x0B);
-        if (sec[0x10] != 0 && bps >= 512 && bps <= 4096 && (bps & (bps - 1)) == 0)
-            return FsFamily::Fat;
+        if (sec[0x10] != 0 && bps >= 512 && bps <= 4096 && (bps & (bps - 1)) == 0) {
+            /* N-050 (the FAT half): the og's analyser verifies the ROOT
+             * DIRECTORY after FAT-type classification before recognition
+             * (FATFileSystemAnalyser FUN_180002180 :1124-1144: fixed-root
+             * scan for types 1/2 = FUN_180001f70, root-cluster chain walk
+             * for type 3 = FUN_180001d70). The cheap form (the finding's
+             * fix plan): ONE bounded read at the computed root offset -
+             * FAT12/16: reserved + numFats*spf16; FAT32 (spf16 == 0):
+             * reserved + numFats*spf32 + (rootCluster-2)*spc. A volume
+             * whose root is unreadable (spoofed OEM over garbage, a
+             * truncated image) fails the proof and never dispatches the
+             * engine; a readable root sector proves the classification. */
+            const u16 reserved = u16_from_bytes_le(sec + 0x0E);
+            const u8 spc = sec[0x0D];
+            const u16 spf16 = u16_from_bytes_le(sec + 0x16);
+            u64 root_sector = 0;
+            bool root_known = false;
+            if (spf16 != 0) {
+                root_sector = u64(reserved) + u64(sec[0x10]) * spf16;
+                root_known = true; /* FAT12/16 fixed root */
+            } else {
+                const u32 spf32 = u32_from_bytes_le(sec + 0x24);
+                const u32 root_cluster = u32_from_bytes_le(sec + 0x2C);
+                if (spc != 0 && root_cluster >= 2) {
+                    root_sector = u64(reserved) + u64(sec[0x10]) * spf32 +
+                                  (u64(root_cluster) - 2) * spc;
+                    root_known = true; /* FAT32 root cluster */
+                }
+            }
+            u8 root_first[512];
+            if (root_known && slice->read_at(root_sector * bps, root_first, sizeof(root_first)) == OK) {
+                log::write(log::Level::Info,
+                           "recognition: fat content-verified (root directory readable)");
+                return FsFamily::Fat;
+            }
+            /* root proof failed: not FAT by proof - fall through */
+        }
     }
     /* ext2/3/4: superblock magic at byte offset 1024+0x38 */
     u8 sb2[2] = {};

@@ -99,20 +99,21 @@ carve-specific divergences surfaced.
 ## Session-2 update (2026-10-25, core `e93decf`)
 
 **Verdict changes (quotes in `../evidence/decompiled-quotes/carve-rawfixer-bitlocker-session2.md`):**
-- **S-018 INVALID (session 3, diff-fix leg — premise refuted first-hand):** the
-  finding claimed the og's JPEG analysers never check for FFD9 (a literal `0xd9`
-  grep over the decompiled bodies returned 0). Ghidra renders the byte as the SIGNED
-  CHAR literal `-0x27`: the modern JpegAnalyzer (FUN_180033a90) has FIVE FF D9 sites
-  and its size-accumulation accept path is EOI-gated (`if (uVar21 == 0) goto
-  <epilogue>`, :39760) - it scans BACKWARD for the last FF D9 in the buffer and
-  returns without accumulating a size when none exists. Our validate_jpeg's
-  EOI requirement is therefore consistent with the primary analyser as far as the
-  corpus proves (different mechanism: forward walk vs backward scan - which admits
-  more is open). NO code change; the residual (the legacy FileJPGAnalyser's
-  JFIF/Exif/generic sub-analysers FUN_18004bbd0/b3b0/c1e0, and the streamed
-  continuation outcome) is tracked in OQ-S3-JPEG-fallback-and-continuation-accept
-  with the exact decode list. Evidence:
-  evidence/decompiled-quotes/s3-jpeg-eoi-encoder-correction.md.
+- **S-018 RE-FILED CONFIRMED + FIXED (s31, OQ-S3-JPEG resolved — the INVALID
+  above stands for the MODERN tier only):** the legacy FileJPGAnalyser tier
+  salvages no-EOI JPEGs. The dispatcher FUN_18004b170 branches JFIF/Exif/
+  generic; all three sub-analysers' header walks are SOS-gated (SOF0
+  precision-8 gate, SOF2 dims fill-if-empty) and the shared post-SOS walker
+  FUN_18004c480 (:57942-57991) ACCEPTS AT ITS SCAN LIMIT with no EOI
+  (:57958-59 `if (limit <= off || get() == NULL) goto ACCEPT` → the 0x23
+  stamp + size = the offset reached); the limit is h*w*3 from the candidate
+  start (dims from SOF) or 20,000,000 (the 200,000,000 global cap / 10);
+  the sliding getter FUN_180042930 is device-bounded; the census-documented
+  two-generation chain makes one accept sufficient. validate_jpeg now
+  mirrors the salvage on every no-EOI exit (SOS-gated; end = min(hit +
+  h*w*3 | hit + 20,000,000, bound); PartialRisk 600 — the registered
+  grading delta D-79). 2 fail-before tests + the EOI pin; evidence:
+  s31-oq-s3-jpeg-fallback-decode.md.
 - **S-017 FIXED (session 3, diff-fix leg):** the four ftyp-family signatures baked
   the ISO-BMFF box SIZE (four literal zero bytes) into their magic, so no real
   MP4/MOV/M4A/HEIC head (size 0x14/0x18/0x20) could ever match — four advertised
@@ -179,10 +180,10 @@ leg that landed first; registry decode evidence: `evidence/decompiled-quotes/s3-
   the brand read on the "ftyp" bytes themselves. Executed comparison: zero grammar
   hits for four planted real-world BMFF files. The og carves these via its u32
   4CC layer + MovAnalyzer/HEICAnalyser. (evidence/executions/s3-ftyp-signature-deadness/)
-- **S-018 (SEVERE):** JPEG accept policy — neither og JPEG analyser generation
-  looks for EOI (no 0xD9 constant in either body); size = SOF-dimension
-  arithmetic. Core requires EOI+SOF+SOS → truncated JPEGs (the canonical
-  damaged-photo case) are salvaged by the og and silently dropped by the core.
+- **S-018 (SEVERE, re-filed s31 — FIXED):** JPEG accept policy — the modern
+  tier is EOI-gated (the s3 INVALID correction stands for it), but the LEGACY
+  fallback tier accepts tail-truncated JPEGs at its estimate limit; the core
+  now mirrors the salvage (PartialRisk-graded).
 - **M-024 (MAJOR):** no runtime format-filter surface — the og rebuilds its
   registry per search from `config/RawConfig.ini [Filter]` (37 named toggles,
   STL/VPJ default-off) and exports three registry projections
@@ -424,3 +425,24 @@ File%06u is now the REGISTERED deliberate default (PARITY-DELTAS D-76,
 with the UTC-vs-host-local template formatting divergence). 4 tests,
 fail-before 3/3 RED. B10/A28 → MATCH for the decoded surface; the
 CZeroEnd-family membership beyond MP4/MOV is the recorded remainder.
+
+
+## Session-33 verdict update (2026-10-26, DFX33 — M-025 FIXED)
+
+**X51/X47 → MATCH (post-fix, the read-model half):** scan_one_window now
+wraps the slice in a window-serving device for the window's duration —
+reads inside [base, base+want) are served from the window buffer, reads
+straddling a window edge split into buffer-prefix + device-tail
+(byte-identical by construction). Validators, both M-051 checksum sites,
+both hash sites and the raw-sign tail scans all read through it. The
+counting-device execution the finding's own test list prescribes:
+**52 → 4 device reads** on the 4 MiB / 4-plant fixture (pre-fix: 4 window
+fills + 48 per-candidate re-reads; post-fix: fills only — 13x fewer,
+zero per-candidate re-reads for in-window candidates). Geometry (1 MiB
+windows + byte-granular dispatch) intentionally unchanged: the finding's
+fix-plan item 3 requires bench evidence for geometry changes, and the
+executed-transport comparison is the Windows bench lane's job (the
+finding itself records no og-execution possible here; M-009 posture).
+The I-009 mid-sector superset stays. Stateless-vs-pending model
+difference registered (PARITY-DELTAS D-81) — the porting boundary the
+S-017 plan must respect.
