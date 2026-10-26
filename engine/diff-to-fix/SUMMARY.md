@@ -1,4 +1,51 @@
-# SUMMARY.md — executive summary (diff-fix sessions 32+33 on top; earlier sessions below)
+# SUMMARY.md — executive summary (diff-fix sessions 32+33+34 on top; earlier sessions below)
+
+# SUMMARY.md — executive summary (session 34 on top; earlier sessions below)
+
+## Session-34 delta (2026-10-26 — DFX34: the MINOR-tail lane, first landing — N-064)
+
+Bootstrap at `65122f0`-lineage (the window's parallel claim wave absorbed
+by union merges; ID re-stamped 27→32→34 across three push races, each
+squatted pre-landing — first-landing-wins honored). Baseline linux-release
+**737/737** green FIRST-HAND at the claim tree; corpus `03ad46c` unmoved
+(verified at first corpus read). Lane: the MINOR tier tail back-to-front,
+20+ fix target, groups per sub-fix, every parallel landing absorbed.
+
+**N-064 FIXED (MINOR — the BitLocker password-dictionary unlock aid):**
+the og ships a 228-entry Dict (2,742 B) wired to BitLockerLib's
+manage-bde -Password flow + the repair line (config-data-reference:20/:86;
+the UI consent = BitlockerUnlockDialog → BitlockerUnlockThread). Corpus
+re-verified BYTE-LEVEL this session (comma-terminated CRLF lines,
+unterminated final entry, space-bearing entries — "charlie brown" read
+first-hand). Landed: pure `cr/pwddict` (format-exact parse + authored
+20-entry seed = **REGISTERED DIVERGENCE D-78** (the og's asset never
+copied; the loader is byte-format-compatible so the og's own Dict file
+works verbatim) + the consent-gated sequencer: order-preserving dedup,
+caps 4096/128/256KiB, attempt-log lines carry progress + candidate LENGTH
+only — password text never logged) + win `try_password_unlock` (SAME
+unlock() plumbing as a typed password: PowerShell Unlock-BitLocker
+-Password → manage-bde -Password fallback; CP_UTF8 widen; Windows applies
+the key, the core does no crypto) + CLI `scan --bitlocker-pwddict
+<path|seed>` (the explicit flag IS the consent — nothing in the scan
+path references the sequencer; F61 legitimate-unlock-only preserved,
+locked volumes without consent/key stay ERR_FVE_LOCKED). Attempt policy
+(the finding's open question): sequential, first-success-wins, one
+attempt per candidate, duplicates once — documented in the header.
+Proof: 9 `Pwddict.*` tests + executed fail-before RED (the test unit
+does not compile on the pre-fix tree — the capability was absent);
+win_syntax_check itself caught the first win-layer draft's undeclared
+MultiByteToWideChar/CP_UTF8 (stub surface grown — the gate working).
+Suite **752/752** at the fix tree. The repair-line Dict consumers
+(EuOfficeRepairFile/archive CheckPassWord) stay scope-excluded (I-010).
+
+**Post-fix counts:** SEVERE **0** · MAJOR 14 · MINOR **16** · INFO 0
+open · **FIXED/ 175 files** (174 findings + RESOLVED-INDEX) ·
+tracked-open 11 OQs. Next on this lane (tail-first): N-071 (device
+enumeration breadth) → N-072 (btrfs rescan cache + zfs label polling) →
+N-075 → N-066 → N-065 → N-059 → N-050 → N-049 → N-036 → N-033 → N-031
+→ N-027 → N-026 → N-007/I-004 → N-019 → N-032, absorbing the parallel
+lanes' landings per first-landing-wins.
+
 
 ## Session-32 delta (2026-10-26 — DFX32: M-029 FIXED — the Date/Size bucket-ID translation + the general-raw naming surface; the query finding fully closed)
 
@@ -39,6 +86,8 @@ N-050/M-058 + the OQ resolutions).
 MINOR 8 · INFO 0 open · tracked-open 10 · FIXED/ **190 files**. M-029's
 every sub-item is now closed across sessions (path group s6; Type sort +
 modified-unit + paging s11; buckets + naming s32).
+
+
 
 ## Session-33 delta (2026-10-26 — DFX33: M-020 FIXED — the Btrfs profile machinery + default subvolume)
 
@@ -204,6 +253,35 @@ findings** (175 files incl. RESOLVED-INDEX) · tracked-open 11. Next on
 this lane: N-019 (the 12-scenario regression-test gap), then
 N-050/N-033/N-072 rear-first.
 
+## Session-31 delta, wave 2 (2026-10-26 — DFX31: OQ-S3-JPEG resolved — S-018 RE-FILED CONFIRMED and FIXED: the truncated-JPEG salvage)
+
+**S-018 RE-FILED + FIXED (SEVERE — the canonical damaged-disk photo
+recovered):** the s3 INVALID's residual question ("if any sub-analyser
+accepts without an EOI, the salvage claim could hold through the
+fallback") is answered YES first-hand: the legacy FileJPGAnalyser tier
+(dispatcher FUN_18004b170 → JFIF/Exif/generic) walks SOS-gated headers and
+its shared post-SOS walker FUN_18004c480 (:57942-99) ACCEPTS AT ITS SCAN
+LIMIT with no EOI — h*w*3 from the candidate start (SOF dims) or
+20,000,000 (the 200,000,000 global cap /10), device-bounded by the
+sliding getter FUN_180042930; the census-documented two-generation chain
+makes one accept sufficient. `validate_jpeg` now mirrors the salvage on
+every no-EOI exit (SOS-gated, the og's exact limits and sizing), graded
+PartialRisk-600 — D-79 registered (the og stamps salvaged files
+identically to complete ones; the core grades honestly). Proof: 2
+fail-before RED executed on the stash-isolated pre-fix tree + the
+complete-file EOI pin; **suite 755/755**. The modern tier's EOI gate
+(the s3 correction) is preserved exactly — complete files keep the
+900-tier accept.
+
+OQ-S3-JPEG RESOLVED (both questions dispositioned; the continuation
+residual dissolved — first-accept-wins dispatch, the fallback dominates
+in-window). OQ → FIXED/; S-018's re-file Resolution appended; carve.md
+verdict rows updated; D-79 registered.
+**Counts after this landing: tracked-open 9** (OQ-Z-E-FLT, OQ-RS,
+OQ-T6-T7, OQ-S4-3, OQ-S5-1, OQ-S6-1, OQ-S6-2, OQ-S6-3, OQ-S20-1).
+Next on this lane: OQ-RS (the ReFS residual probes), then OQ-S20-1
+(the BitLocker FVE metadata grammar leg).
+
 ## Session-31 delta (2026-10-26 — DFX31: the tracked-open HEAD lane opens; OQ-S2M-2's three probes RESOLVED)
 
 Baseline 737/737 green at bootstrap (02b950f lineage through the window's
@@ -280,8 +358,28 @@ Office/HWPX consumer stays out-of-scope (I-010). Fail-before EXECUTED
 3 win-lane tests; suite 754/754. Attempt policy documented per the
 finding's open question: sequential, no retry, no parallelism.
 
-Counts after this landing: **MINOR 18 open** (N-064 moved to FIXED/),
-MAJOR 14 open (DFX27/DFX26 lanes), INFO 0, tracked-open 11.
+**N-071 FIXED (MINOR — the two-stack disk enumeration):** the og's
+CDiskEnumerator merges five discovery stacks (mom-module-system :57-59;
+the QA census shows storage-spaces init + VDS load alongside the plain
+enumerate — vendor-logs :13-29); the core had the numbered
+PhysicalDrive loop only. Landed: enumerate_disk_interfaces (cfgmgr32
+GUID_DEVINTERFACE_DISK present-instance pass — the documented GUID
+locally defined; number via IOCTL_STORAGE_GET_DEVICE_NUMBER; the loop's
+query factored into query_disk_handle so both stacks share one query
+path; table parse through the pure core when numbered) +
+merge_disk_enumeration (PURE header-inline merge: dedup by number — the
+loop's richer entry wins — then by instance path; unknown-number
+entries path-dedup only; any cfgmgr failure degrades to stack 1
+untouched). Residual stacks (WMI/VDS/StorageSpaces/FunctionDiscovery/
+hot-plug) REGISTERED as D-79 — UI metadata + eventing, not the
+readable-device space. cfgmgr32 joined the strict Win7-inclusive import
+allowlist (Win2000-era CM pair). Fail-before EXECUTED (3 RED on the
+merge-disabled tree); 4 pure tests; win_syntax_check green (cfgmgr32
+stub pair); suite 769/769. modules/storage.md's stale local N-055 row
+for this finding corrected to the integrated N-071.
+
+Counts after this landing: **MINOR 17 open** (N-064, N-071 moved to
+FIXED/), MAJOR 14 open (DFX27/DFX26 lanes), INFO 0, tracked-open 11.
 
 ## Session-30 delta (2026-10-26 — DFX30: the deferred win-layer trio, 1/N-032)
 

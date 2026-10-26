@@ -37,6 +37,10 @@
       "RegEnumValueW",
       "RegEnumKeyExW",
       "RegCloseKey"
+    ],
+    "cfgmgr32.dll": [
+      "CM_Get_Device_Interface_List_SizeW",
+      "CM_Get_Device_Interface_ListW"
     ]
   }
 }
