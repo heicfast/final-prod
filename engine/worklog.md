@@ -13683,3 +13683,56 @@ Work Log:
 Stage Summary:
 - OQ-Z3 RESOLVED-SUPERSEDED. Session tally: OQ-FLT-1, OQ-Z5, OQ-Z2->S-034,
   OQ-Z1, OQ-E1, OQ-Z3. Next: OQ-Z4 (decompression census).
+
+---
+Task ID: DFX32-T1 (session 32, MAJOR lane — M-029)
+Agent: main engineer (diff-to-fix fix session 32 — DFX32)
+Task: M-029 — the decode-blocked remainder: the Date/Size bucket-ID
+translation + the general-raw naming surface (the finding's last open
+registry).
+
+Work Log:
+- Corpus decode, all first-hand (ghidra-drwui/DRWUI_decompiled.c):
+  the CTimeFilterBtn menu FUN_140705c50 (0x100 Today / 0x101 Yesterday /
+  0x102 "Last 7 days" / 0x103 "Last 1 month" / 0x104 SKIPPED / 0x105
+  Custom) + the CSizeFilterBtn menu FUN_140706060 (0x1000 "< 512KB" ..
+  0x1004 "> 1GB" / 0x1005 SKIPPED / 0x1006 Custom) — the finding's
+  "<128MB/<1GB/<5GB" approximations CORRECTED by the decode; the bounds
+  initializer FUN_140254670 (today/yesterday/-7d/-30d/-365d cached as
+  day-truncated LOCAL time, COleDateTimeSpan(1/7/30/365)); the date-tag
+  setter (node+0x89 bits 11-14; FUN_1404750c0's year-string fallback
+  with the 1600/1601/>2100 special cases + the "last1mouth" typo tag);
+  the size-bucket setter FUN_140255820 (bits 17-22; exact mutually
+  exclusive inclusive boundaries); the custom-range matcher FUN_140256830
+  (local-day-truncated, inclusive both ends). CONFIRMED-DIVERGENCE (no
+  core API accepted or represented the bucket IDs; no raw-root naming).
+- Landed: query::apply_date_bucket/apply_size_bucket (cr_query.h/.cpp;
+  DateBucket/SizeBucket enums with the og's exact values incl. the
+  skipped IDs; local-day math via the cr_crsf localtime platform seam;
+  wall-clock day arithmetic = COleDateTimeSpan) + the
+  cr_ui_query_apply_buckets added export (ABI §9 no-bump; skipped +
+  unknown IDs rejected with the exact ID in the diagnostic) +
+  ScanConfig::raw_category_name + cr_ui_scan_config.raw_category_name_utf8
+  (tail append) with resume-safe raw-root matching (default OR configured
+  name — a resume never spawns a duplicate raw root).
+- Tests (all fail-before RED EXECUTED on the stash-neutered tree — the
+  translation returning false / the default raw name hard-wired; GREEN
+  after): Query.DateBucketsTranslateToRanges, Query.SizeBucketsTranslateToRanges,
+  Query.BucketFiltersThroughRun (end-to-end through run()),
+  CrUi.QueryApplyBucketsFillsAndRejects (incl. the 0x104/0x1005/unknown
+  rejections + both custom boundary rows),
+  CrUi.RawCategoryNameNamesTheCarveRoot.
+- Suite 748/748 at the fix commit; 805/805 linux-release on the final
+  union (the window's parallel landings absorbed: M-049/M-014/M-020/
+  N-050/M-058 + the DFX30/31 OQ resolutions; two union merges resolved
+  keep-both: cr_errmod.h include + build_read_pipe coexistence).
+- Audit trail: Resolution + FIXED/ move, RESOLVED-INDEX row, matrix query
+  rows (module row + P42 parameter row -> MATCH), modules/query.md
+  session-32 fix row, SUMMARY session-32 delta, ABI-CONTRACT section.
+
+Stage Summary:
+- M-029 FIXED (session tally: 1). The finding's every sub-item is closed
+  across sessions (path group s6; Type sort + modified-unit + paging
+  s11; buckets + naming s32). MAJOR 10 remain (M-018, M-025, M-030,
+  M-034, M-035, M-039, M-040, M-041, M-048, M-052). Next: M-025 (the
+  carve read-model perf finding — the mid-cluster's next item).

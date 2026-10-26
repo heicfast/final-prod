@@ -1,4 +1,44 @@
-# SUMMARY.md — executive summary (diff-fix session 33 on top; earlier sessions below)
+# SUMMARY.md — executive summary (diff-fix sessions 32+33 on top; earlier sessions below)
+
+## Session-32 delta (2026-10-26 — DFX32: M-029 FIXED — the Date/Size bucket-ID translation + the general-raw naming surface; the query finding fully closed)
+
+Baseline 737/737 linux-release verified first-hand at the claim tree (02b950f
+content); corpus `03ad46c` unmoved. Lane: the unclaimed mid-MAJOR cluster
+(claimed at bootstrap after the same-window ID churn — the ex-DFX26 lane
+holds DFX30/MAJOR-tail, DFX27→DFX35 MAJOR-head, three lanes hold MINOR,
+the OQ queue is split head/tail between DFX30/DFX31).
+
+**The decode the finding was blocked on** (all first-hand,
+ghidra-drwui/DRWUI_decompiled.c): the og's filter-bar bucket menus —
+CTimeFilterBtn FUN_140705c50 (0x100 Today / 0x101 Yesterday / 0x102
+"Last 7 days" / 0x103 "Last 1 month" / **0x104 SKIPPED** / 0x105 Custom)
+and CSizeFilterBtn FUN_140706060 (0x1000 "< 512KB" / 0x1001 "512KB~1MB" /
+0x1002 "1MB~512MB" / 0x1003 "512MB~1GB" / 0x1004 "> 1GB" / **0x1005
+SKIPPED** / 0x1006 Custom — the audit's "<128MB/<1GB/<5GB" class-table
+approximations corrected by the decode); the bounds initializer
+FUN_140254670 (today/yesterday/−7d/−30d/−365d cached as day-truncated
+LOCAL time, COleDateTimeSpan arithmetic); the node-side tag setters
+(date tags node+0x89 bits 11-14; size-bucket tags bits 17-22 with
+FUN_140255820's exact mutually-exclusive inclusive boundaries); the
+custom-range matcher FUN_140256830 (local-day-truncated, inclusive both
+ends).
+
+**Landed:** `query::apply_date_bucket` / `apply_size_bucket`
+(DateBucket/SizeBucket enums; skipped + unknown IDs REJECTED — no
+invented constants) + the `cr_ui_query_apply_buckets` **added export**
+(ABI-CONTRACT §9: no bump) + `ScanConfig::raw_category_name` /
+`cr_ui_scan_config.raw_category_name_utf8` with resume-safe raw-root
+matching (the "filter_generalraw" surface per the OQ-S4-2 correction —
+the narrowed "server-side push"). 5 tests, all fail-before RED on the
+stash-neutered tree (translation returning false / the default name
+hard-wired), GREEN after; suite 805/805 linux-release on the final
+union (the window's parallel landings absorbed: M-049/M-014/M-020/
+N-050/M-058 + the OQ resolutions).
+
+**Counts after this landing (live tree):** SEVERE 1 · MAJOR **10** ·
+MINOR 8 · INFO 0 open · tracked-open 10 · FIXED/ **190 files**. M-029's
+every sub-item is now closed across sessions (path group s6; Type sort +
+modified-unit + paging s11; buckets + naming s32).
 
 ## Session-33 delta (2026-10-26 — DFX33: M-020 FIXED — the Btrfs profile machinery + default subvolume)
 
