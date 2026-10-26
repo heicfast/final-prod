@@ -130,8 +130,12 @@ ldm-specific divergences surfaced.
   +1/+2 conflicts follow the +2 copy's VMDB anchor (committed_seq proof); the
   og's hard-fail-on-bad-bitmap-name stays un-adopted (forgiving per-copy walk =
   registered recovery superset). Resolution in findings/FIXED/M-016.
-- **N-025 filed:** config-size gate (og rejects ≥ 1 MiB; core clamps 4 MiB) and RAID-5
-  zero-interleave default (og 64 KiB; core refuses chunk==0).
+- **N-025 FIXED (s23):** the og's 1 MiB config-region gate is first-class
+  (`config_size >= 0x801 -> ERR_BAD_CHECKSUM`, LdmManager :59748-59759 — the
+  4 MiB read clamp removed as unreachable), and a zero interleave now defaults
+  to the og's 64 KiB (128 sectors) on both the striped and RAID-5 layout paths
+  (og :47665/:68631-68641) instead of losing the volume. 2 fail-before tests
+  + the 2048-sector boundary pin; Resolution in findings/FIXED/N-025.
 - **M-002 note (superseded s10):** FIXED — TornLinkKeepsPriorVolumes/TornLinkStatusReported prove the walked-prefix survival and the status vocabulary. Prior note (
   session-1 evidence; decompile locations now mapped for the next pass).
 
@@ -139,8 +143,8 @@ ldm-specific divergences surfaced.
 Cross-references to the parallel legs' LDM findings: A-002 (the 1cb6a43 LDM-GUID regression,
 executed proof, restore landed `23adad1`), A-003 (fix --part LBA-0 basis, FIXED), I-008
 (the og's rotation modes 1-3 are dormant dead code — consistent with this leg's
-hardwired-layout-0 finding; OQ-T7 RESOLVED-MATCH). This leg's active LDM items: N-025
-(config-size + zero-interleave geometry) — M-016 FIXED in s19.
+hardwired-layout-0 finding; OQ-T7 RESOLVED-MATCH). This leg's active LDM items: none — N-025 FIXED in s23
+(config-size + zero-interleave geometry); M-016 FIXED in s19.
 
 ---
 

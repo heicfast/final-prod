@@ -865,5 +865,82 @@ TEST(Ldm, TocblockTailCopies) {
     EXPECT_EQ(size_t(2), info.layouts.size());
 }
 
+TEST(Ldm, OversizeConfigRejected) {
+    /* N-012a: the og's LdmManager gate - a PRIVHEAD declaring a config
+     * region over 1 MiB (>= 0x801 sectors) aborts the disk
+     * ("ConfigSize[%I64d] larger than 1m ?." -> rc 0xfffffff8,
+     * LdmManager_decompiled.c:59748-59759). The core used to clamp the
+     * read to 4 MiB and keep walking; parity closes on the gate. */
+    StripeDisk sd;
+    auto d = sd.fx.take();
+    /* patch every PRIVHEAD copy (LBA 6 + the two backups) to declare
+     * 0x801 sectors - the smallest size the og refuses */
+    const u64 cfg_start = 65536 - 2048;
+    for (u64 lba : {u64(6), cfg_start + 1856, cfg_start + 2047}) {
+        u8* p = d.data() + lba * 512;
+        ASSERT_EQ(0, memcmp(p, "PRIVHEAD", 8));
+        p64be(p + 0x133, 0x801);
+    }
+    MemDevice dev(std::move(d));
+    LdmInfo info;
+    EXPECT_EQ(ERR_BAD_CHECKSUM, parse_ldm_database(&dev, info));
+    EXPECT_FALSE(info.found);
+}
+
+TEST(Ldm, ConfigSizeExactlyOneMebibyteAccepted) {
+    /* N-012a boundary pin: 2048 sectors (1 MiB exactly) is the largest
+     * size the og accepts (`< 0x801`); the standard fixture value must
+     * keep parsing after the gate lands. */
+    StripeDisk sd;
+    MemDevice dev(sd.fx.take());
+    LdmInfo info;
+    ASSERT_EQ(OK, parse_ldm_database(&dev, info)) << "1 MiB config must parse";
+    EXPECT_TRUE(info.found);
+    EXPECT_EQ(size_t(2), info.layouts.size());
+}
+
+TEST(Ldm, ZeroInterleaveDefaultsTo64K) {
+    /* N-012b: the og defaults a zero interleave to 64 KiB (interleave
+     * 0 -> 0x10000 bytes, LdmManager_decompiled.c:47665 + :68631-68637;
+     * the sector form falls back to 0x80 = 128 sectors, :68638-68641).
+     * A component VBLK with chunk_size 0 must yield a readable
+     * default-geometry striped volume, not a refusal. */
+    LdmFixture fx(65536);
+    fx.set_disk(1000, "01234567-89AB-CDEF-0123-456789ABCDEF");
+    fx.add_dgr4(1, "TestPCDg0");
+    fx.add_dsk4(1000, "Disk1", "01234567-89AB-CDEF-0123-456789ABCDEF");
+    fx.add_volume({2001, "Stripe1", 3, STRIPE_MEMBER_SIZE * 2, 1});
+    fx.add_component({3001, "Stripe1-01", LDM_COMP_STRIPE, 2, 2001, 0, 2});
+    fx.add_partition({4001, "Disk1-02", STRIPE_A_START, STRIPE_MEMBER_SIZE, 0, 3001, 0, 1000});
+    fx.add_partition({4002, "Disk1-03", STRIPE_B_START, STRIPE_MEMBER_SIZE, 0, 3001, 1, 1000});
+    fx.finish();
+    /* marker pattern on both columns: row-major like the interleave test */
+    auto img = fx.take();
+    for (u64 row = 0; row < STRIPE_MEMBER_SIZE / 128; row++) {
+        memset(img.data() + (STRIPE_A_START + row * 128) * 512, int(0xA0 + (row & 0x0F)),
+               size_t(128 * 512));
+        memset(img.data() + (STRIPE_B_START + row * 128) * 512, int(0xB0 + (row & 0x0F)),
+               size_t(128 * 512));
+    }
+    MemDevice dev(std::move(img));
+    LdmInfo info;
+    ASSERT_EQ(OK, parse_ldm_database(&dev, info)) << err_text(OK);
+    ASSERT_TRUE(info.found);
+    const LdmVolumeLayout* lay = find_layout(info, 2001);
+    ASSERT_NE(nullptr, lay);
+    EXPECT_EQ(LdmVolumeKind::Striped, lay->kind);
+    EXPECT_TRUE(lay->complete) << "zero-interleave volume must be complete on the 64 KiB default";
+    EXPECT_EQ(u64(128), lay->chunk_sectors) << "og default: 0x80 sectors = 64 KiB";
+    /* the read path must resolve through the defaulted geometry */
+    LdmVolumeDevice vol(*lay, [&](const LdmGuid& g) -> IStorageDevice* {
+        return g == info.disks[0].guid ? &dev : nullptr;
+    });
+    u8 first = 0;
+    ASSERT_EQ(OK, vol.read_at(0, &first, 1));
+    EXPECT_EQ(0xA0, first) << "volume byte 0 comes from column 0, row 0";
+    ASSERT_EQ(OK, vol.read_at(128 * 512, &first, 1));
+    EXPECT_EQ(0xB0, first) << "second chunk comes from column 1 (128-sector interleave)";
+}
+
 } // namespace table
 } // namespace cr

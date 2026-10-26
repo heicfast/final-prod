@@ -1,7 +1,30 @@
-# SUMMARY.md — executive summary (diff-fix session 22 on top; earlier sessions below)
+# SUMMARY.md — executive summary (diff-fix session 23 on top; earlier sessions below)
 
 <!-- DFX16 note: session 16 ran as a parallel lane in the same window as
      sessions 17-22; its delta is recorded here for chronology. -->
+
+## Session-23 delta (2026-10-26 — DFX23: the MINOR-first close-out lane, N-025 first landing)
+
+Session bootstrap at `716d121` (DFX16-M013 rebase reconciliation; N-062 the
+last fix landing); corpus `03ad46c` unmoved. Baseline before any change:
+**737/737** linux-release green. Mandate: minor findings first, 20+ fixes,
+fixed findings moved to findings/FIXED/, all docs/counts current.
+
+**N-025 FIXED (the LDM geometry group, both sub-items):** N-012a — the og's
+1 MiB config-region gate (`config_size < 0x801` else "ConfigSize larger than
+1m ?." -> rc 0xfffffff8, LdmManager_decompiled.c:59748-59759, re-verified
+first-hand this session) is now first-class in parse_ldm_database; the old
+8192-sector read clamp (an unregistered parse-anyway superset) removed as
+unreachable. N-012b — a zero interleave defaults to the og's 64 KiB (0x10000
+bytes = 0x80 sectors at the 512-LBA grid; ctor default :47665, use-site
+re-default :68631-68637, sector fallback 0x80 :68638-68641 — all sites
+re-verified first-hand) on BOTH the striped and RAID-5 layout paths; the old
+code lost the volume entirely (zero-capacity layout). Tests:
+Ldm.OversizeConfigRejected + Ldm.ZeroInterleaveDefaultsTo64K (both
+fail-before RED on the stash-isolated pre-fix tree) + the
+Ldm.ConfigSizeExactlyOneMebibyteAccepted boundary pin (2048 keeps parsing).
+Suite **740/740**.
+
 
 ## Session-16 delta (2026-10-26 — DFX16: S-029 closed — the SEVERE tier is empty)
 

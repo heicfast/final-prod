@@ -12208,3 +12208,30 @@ Work Log:
 Stage Summary:
 - Session tally: S-029 (SEVERE, convergent union) + M-013 (MAJOR) + the
   M-054 pushed-red repair. Next: M-014 (exFAT structural entry gates).
+
+---
+Task ID: DFX23-T1 (session 23, first fix — N-025)
+Agent: main engineer (diff-to-fix fix session 23 — DFX23, MINOR-first mandate)
+Task: N-025 the LDM geometry minors group (N-012a config-size gate + N-012b
+zero-interleave default).
+
+Work Log:
+- Bootstrap: baseline 737/737 linux-release at 716d121; corpus 03ad46c
+  unmoved; prompt saved token-redacted to worklog/session-diff-fix-23-prompt.md.
+- Corpus re-verified first-hand: the < 0x801 gate + "ConfigSize larger than
+  1m ?." -> rc 0xfffffff8 (LdmManager_decompiled.c:59748-59759); the
+  interleave defaults (ctor 0x10000 :47665; use-site re-default :68631-68637;
+  sector fallback 0x80 :68638-68641).
+- Fix: gate `config_size >= 0x801 -> ERR_BAD_CHECKSUM` in parse_ldm_database
+  (the 8192-sector read clamp removed as unreachable — the gate fires first);
+  zero interleave -> 128 sectors on both STRIPE and RAID layout paths.
+- Tests: Ldm.OversizeConfigRejected + Ldm.ZeroInterleaveDefaultsTo64K both
+  fail-before RED on the stash-isolated pre-fix tree (oversize disk parsed OK;
+  zero-chunk layout incomplete); Ldm.ConfigSizeExactlyOneMebibyteAccepted
+  boundary pin. Suite 740/740.
+- Audit trail: Resolution + FIXED/ move, RESOLVED-INDEX row, matrix
+  table+ldm row -> MATCH, ldm.md verdict, SUMMARY session-23 delta.
+
+Stage Summary:
+- N-025 FIXED (session tally: 1). MINOR 18 remain. Next: N-026 (the ReFS
+  page/gate group — same two-sided group shape).
