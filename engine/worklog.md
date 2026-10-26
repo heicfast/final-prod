@@ -14152,3 +14152,37 @@ Stage Summary:
 - OQ-S6-2 closed (convergent two-lane resolution: capa false positive,
   no RC4, core MATCH by mutual absence). Session tally: 11 items. Next:
   OQ-S6-1 (PartitionRecoveryD generator sets).
+
+---
+Task ID: DFX30-T12 (OQ-S6-1 resolved + closed)
+Agent: main engineer (diff-to-fix fix session 30 — DFX30)
+Task: OQ-S6-1 — PartitionRecoveryD generator-set semantics + the
+lostpart.dat/partinfo.dat formats.
+
+Work Log:
+- Family census (factory registrations FUN_18000d3b0): FOUR generator
+  sets — Reg(1), Fast(2), Fast1M(3), Complete(4); all CSettingsStore
+  subclasses; Fast pair parameterized (+0x38/+0x40); Complete/Reg
+  identical vtables (RTTI-walked, 5 slots, dtor-only difference).
+- The location generators: CLocationGenAbnormal,
+  CLocationGenDependOnGeomotry, CLocationGenFromReg. FromReg's reader
+  (FUN_18000f5b0) decoded first-hand: MountedDevices-style REG_BINARY
+  "Data" values, '#' markers at +0xC4/+0xE6, 32-byte field at +0xC6,
+  %I64X hex parse, sector-alignment check -> {offset, sector_count}
+  probe seed. RegSearch = registry-seeded targeted pass (hypothesis (a)
+  CONFIRMED).
+- The .dat formats: partinfo.dat = 24-byte "Part"-magic records (the
+  remembered live table; memcmp'd at run start for layout-change
+  detection — the M-042 REC_DISK_LAYOUT semantics); lostpart.dat =
+  1096-byte "Part"-magic records (remembered lost candidates; the
+  get-first API at FUN_180020120). Module-dir paths via FUN_180025dc0.
+- Q3 superseded (the x2 doubling = the four-set family artifact); Q4:
+  registry-seeded recall is a subset of the exhaustive sweep — core
+  recall parity holds; the fast path is a latency optimization
+  (deliberate-difference note for mom-capabilities.md, no finding).
+- Audit trail: resolution recorded in the file; closed to FIXED/.
+
+Stage Summary:
+- OQ-S6-1 RESOLVED + closed. Session tally: 12 items (S-034 + D-09 +
+  10 OQ dispositions). Remaining on this lane: OQ-S5-1 (CheckVersion
+  consumer).
