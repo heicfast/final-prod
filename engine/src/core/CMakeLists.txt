@@ -34,6 +34,7 @@ add_library(cr_core STATIC
     btrfs/cr_btrfs_engine.cpp
     zfs/cr_zfs_engine.cpp
     lost/cr_candidates.cpp
+    lost/cr_scoring.cpp
     crypto/cr_sha256.cpp
     crypto/cr_aes.cpp
     storage/cr_decrypt_device.cpp

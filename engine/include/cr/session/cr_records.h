@@ -118,6 +118,11 @@ struct PartitionContext {
     u32 sectors_per_cluster = 0;
     u32 hidden_sectors = 0;
     u32 flags = 0; /* bit 0 = size_from_device_end; bit 1 = geometry valid */
+    /* v3 (M-017): the og's content-count inputs (the dSuggested raw
+     * weights; 57-byte records). v1/v2 sessions load them zeroed - their
+     * score field keeps its original meaning from the save-time ranking. */
+    u64 content_files = 0;
+    u64 content_folders = 0;
 };
 u32 serialize_partition_context(const PartitionContext& pc, std::vector<u8>& out);
 

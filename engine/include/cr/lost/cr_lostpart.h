@@ -74,6 +74,14 @@ struct Candidate {
     u32 sectors_per_cluster = 0;
     u32 hidden_sectors = 0;
     u8 have_geometry = 0;
+    /* M-017 (the og's content-driven dSuggested inputs): files/folders
+     * recovered from the candidate during the scan fan-out (the raw-count
+     * weights live in cr_scoring.h), and the og-shaped score carried on
+     * the candidate (permille 0..1000, rounded; the og's dSuggested is a
+     * double printed %f - the permille keeps the int score field's
+     * persisted shape while ordering by the exact double). */
+    u64 content_files = 0;
+    u64 content_folders = 0;
 };
 
 /* The full result set of one discovery pass. */

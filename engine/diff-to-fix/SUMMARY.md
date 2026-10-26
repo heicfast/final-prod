@@ -410,12 +410,33 @@ papered over). **Executed fail-before**: the re-validation gates disabled
 -> ResumeDropsStaleCandidateAfterRelayout RED on both surfaces; restored
 -> green. 6 tests in test_resume_revalidation.cpp; suite 685/685.
 
-**Counts after this push (direct file inventory):** SEVERE **1** (S-029,
-DFX10's claim) · MAJOR **26** (M-005/M-007/M-008/M-037/M-045/M-046/
-M-054 landed by parallel lanes since session-15's count; M-033 + M-042 this push)
+**M-017 FIXED (the lost-partition scoring model):** CONFIRMED-DIVERGENCE,
+fixed per the finding's plan + the session-3 addendum's full decode. The
+og's content-driven dSuggested is now the core's ranking (cr_scoring.{h,cpp}):
+per-FS file/folder weights (incl. the unsigned FAT12 edge), per-FS bonus
+defaults that fit the observed QA rows (FAT16/32 = 20, else 0; the setter
+decode stays OQ-S2M-2), the +500 table-match, and a DECODE CORRECTION the
+fix pinned during bring-up (the denominator is the PRE-+500 pass-1 max -
+the QA-log rows only reproduce that way). AdjustPartitionInfoOrder ported
+in full: containment proper-subset drop (corpus arbitration: the round-1
+log's +500 candidate SURVIVED, so exact table matches stay), 0.1/0.3 FAT
+tie rules, the size-match promotion RE-DECODED first-hand (first match at
+position >= 1 splices to RESULT #2 with the follower's score - the log's
+round-3 landing; the finding's older "splice-to-front"/"result #2"
+contradiction resolved by reading LAB_140510a0e directly), stable sort,
+and the UI curation cap deliberately not ported (data loss in the core).
+The fan-out counts per-candidate recovered content; score becomes the
+og-shaped permille; REC_PARTITION_CONTEXT v3 (57 B) round-trips the
+counts. Fail-before EXECUTED at the orchestrator level (ranking disabled
+-> the two-volume fixture test RED; restored -> green). 7 tests; suite
+706/706.
+
+**Counts after this push (direct file inventory):** SEVERE **0** (S-029
+landed by the DFX10 lane - the tier is EMPTY) · MAJOR **15** (parallel lanes landed M-019/M-016/M-021/M-028/M-032/M-038/M-044/M-043/M-024/M-030/M-037/M-046/M-002/M-031/M-054 etc. alongside M-005/M-007/M-008/M-045; 
+this session: M-033 + M-042 + M-017)
 · MINOR **41** (parallel lanes landed N-041/N-069/N-030 since the
 session-15 count) · INFO 22 (all ACKNOWLEDGED) · FIXED/ family
-**103 files** (incl. RESOLVED-INDEX; +M-033 +M-042 this push; the parallel waves'
+**138 files** (incl. RESOLVED-INDEX; +M-033 +M-042 +M-017 this session; the parallel waves'
 M-005/M-007/M-008/M-045/M-054/N-041/N-069/N-030 already inside) ·
 tracked-open **17** (+OQ-S20-1 this push). Top remaining risks: S-029 (the last SEVERE), then
 the MAJOR tier by user impact — M-042 (session-resume revalidation),

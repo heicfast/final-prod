@@ -11423,3 +11423,67 @@ Work Log:
 Stage Summary:
 - M-038 FIXED (session tally: 3 MAJORs + 2 CI-green repairs). Next:
   M-017 (lost partition scoring).
+
+---
+Task ID: DFX20-M017 (session 20, finding 3)
+Agent: main engineer (diff-to-fix fix session 20 — DFX20)
+Task: M-017 — the lost-partition scoring model. Verified against the
+s3-calcpartition-scoring.md decode + the QA CalcPartition.log + a
+first-hand re-decode of the promotion mechanics, classified
+CONFIRMED-DIVERGENCE, fixed, fail-before EXECUTED, proven.
+
+Work Log:
+- Corpus verification: the evidence file's scorer decode (raw weights,
+  +0x68 bonus, +500 table match, ln/ln normalization, the count==1 edge)
+  numerically validated against the vendor log by two independent legs;
+  AdjustPartitionInfoOrder fully decoded. This session RE-DECODED the
+  size-match promotion first-hand (LAB_140510a0e :842843-842858): the
+  finding's older "splice-to-front" and the addendum's "result #2"
+  readings were contradictory — the decompile settles it: the promoted
+  candidate is unlinked, gets the FOLLOWING node's score copied
+  (lVar2+0x70 := second-node payload +0x70), and is inserted before the
+  second node = RESULT #2, exactly the log's round-3 landing.
+- Fix: cr/lost/cr_scoring.{h,cpp} (pure core):
+  * raw_count: FS 8/HFS+ = f+10d; FS 1/2/FAT16-32 = (f+d)*50 (the unsigned
+    FS-1<2 edge kept: FAT12 falls to the else branch); else = f+50d; +
+    bonus; +500 table match.
+  * DECODE CORRECTION pinned during bring-up (the QA rows only fit this
+    way): the denominator is the PRE-+500 pass-1 max; the +500 is a
+    pass-2 numerator add. raw=429 -> ln(429)/ln(168818) = 0.5036 (logged
+    0.503579); 51f -> 0.32665; 1f -> 1/ln(max) edge.
+  * Bonus defaults: FAT16/32 = 20, else 0 (the observed rows; OQ-S2M-2
+    tracks the real setter — not invented).
+  * rank_and_adjust: stable descending sort (the og's merge sort);
+    containment drop = PROPER subsets only (corpus arbitration: the
+    round-1 +500 candidate survived, so exact table matches stay); 0.1/0.3
+    top-2 tie rules (the FAT arm pinned by a 0.198-gap fixture with its
+    NTFS counterpart kept); size-match promotion to result #2 with the
+    follower-score copy; FAT multi-child drop = REGISTERED RESIDUAL (no
+    core input exists); the UI curation cap NOT ported (data loss).
+  * reference_sectors parameterized (the og's *(this+0x40) producer is
+    unpinned; the orchestrator passes the scan view's total sectors; 0 =
+    the rule honestly does not fire).
+- Orchestrator wiring: the candidate fan-out counts recovered content
+  per candidate root (files+folders, live and deleted - recovery value);
+  rank_and_adjust rewrites stats.lost_candidates in the og's order;
+  candidate.score becomes the og-shaped permille (dSuggested is a double
+  printed %f; the permille keeps the int score field's persisted shape);
+  the structural probe points stay on the evidence list.
+- Persistence: REC_PARTITION_CONTEXT v3 (57 bytes, length-detected):
+  content_files/content_folders so the ranked order + scores round-trip
+  (v1/v2 load zeroed - their score keeps the save-time meaning).
+- FAIL-BEFORE EXECUTED: rank_and_adjust call disabled -> the
+  LostScoringIntegration two-volume fixture test RED (the thin candidate
+  tops the discovery-order list - the finding's exact claim); restored ->
+  green. Suite 706/706 linux-gcc (RelWithDebInfo + ASan). 7 tests.
+- Audit trail: Resolution + FIXED/ move; RESOLVED-INDEX row; matrix
+  session-20 rows (lost-partition A30/A29/B3 + session D12 v3);
+  modules/lost-partition.md A30 block; SUMMARY session-20 delta extended
+  + counts re-baselined (SEVERE 0 - the tier is EMPTY; MAJOR 15; FIXED 138);
+  crsf-format.md v3 section.
+
+Stage Summary:
+- M-017 FIXED (session tally: 3 — M-033, M-042, M-017). Next in my
+  claimed queue: M-020 (btrfs profile machinery), M-025 (carve read
+  model), M-039 (occupancy bitmap), M-041 (damage audit check phase),
+  M-048 (signature db), M-034 (NAS).

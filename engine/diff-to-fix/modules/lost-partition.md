@@ -27,11 +27,21 @@ Core (audited commit `67193b6` + concurrent `03ddcd2` GAP-S6-6 fix in tree):
 
 ## Algorithms
 
-- **A30 candidate scoring** — og's CalcPartition scoring walk is corpus-undecoded
-  (B-partitionrecovery OQ-3); core's evidence-points model (15/25/30 NTFS etc.) is a
-  documented concretization. Verdict: **UNVERIFIED-against-og model**, no contradiction
-  demonstrable → OQ-T9. Overlap penalties (−20/−10) and dedup (first-nested-wins →
-  post-fix probe-size-only containment) are core-side models.
+- **A30 candidate scoring** — **FIXED (DFX20 / M-017, findings/FIXED/)**: the og's
+  content-driven dSuggested + AdjustPartitionInfoOrder are ported (cr_scoring.{h,cpp});
+  the fan-out counts recovered content per candidate and ranks by the og's ln-normalized
+  per-FS weights (+ per-FS bonus defaults; + the +500 table match; denominator = the
+  PRE-+500 pass-1 max - a decode correction the fix pinned by fitting the QA-log rows),
+  then curates (containment proper-subset drop per the round-1 log arbitration, 0.1/0.3
+  FAT tie rules, size-match promotion to result #2 with the follower-score copy -
+  re-decoded first-hand at LAB_140510a0e; stable descending sort). The UI curation cap
+  is deliberately NOT ported (the og moves overflow to a secondary list; the core would
+  lose data). score = the og-shaped permille; REC_PARTITION_CONTEXT v3 round-trips the
+  counts. Executed fail-before (ranking disabled -> the orchestrator test RED); 7 tests;
+  suite 706/706. The structural evidence points remain on the evidence list (the
+  tie-break input); the old UNVERIFIED verdict is superseded - OQ-T9 was already
+  resolved by the session-3 legs' decode, and this session's port closes the loop.
+
 - **A25** — `M` two-pass windowed scan (64 KiB windows, 1-sector stride).
 
 ## State machine

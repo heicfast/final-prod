@@ -593,12 +593,16 @@ u32 serialize_partition_context(const PartitionContext& pc, std::vector<u8>& out
     put32(out, pc.score);
     out.push_back(pc.kind);
     /* v2 tail (M-042): the og's per-record geometry payload + flags. The
-     * record length itself carries the version (25 = v1, 41 = v2) — the
-     * same length-detection the SessionState v2 tail uses. */
+     * record length itself carries the version (25 = v1, 41 = v2, 57 = v3)
+     * — the same length-detection the SessionState v2 tail uses. */
     put32(out, pc.bytes_per_sector);
     put32(out, pc.sectors_per_cluster);
     put32(out, pc.hidden_sectors);
     put32(out, pc.flags);
+    /* v3 tail (M-017): the og's content-count inputs (the dSuggested raw
+     * weights) so a reloaded session keeps the ranked order + scores. */
+    put64(out, pc.content_files);
+    put64(out, pc.content_folders);
     return OK;
 }
 
@@ -616,6 +620,10 @@ u32 deserialize_partition_context(const u8* data, size_t len, PartitionContext& 
         pc.sectors_per_cluster = c.g32();
         pc.hidden_sectors = c.g32();
         pc.flags = c.g32();
+    }
+    if (!c.fail && len >= 57) {
+        pc.content_files = c.g64();
+        pc.content_folders = c.g64();
     }
     return c.fail ? u32(0x50040001) : u32(OK);
 }
