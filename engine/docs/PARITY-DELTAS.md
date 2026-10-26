@@ -2371,3 +2371,47 @@ index decode in the engine → descriptor carrier on
 FileProperties → a WriterConfig `preserve_dacl` flag (default OFF)
 applying it via SetSecurityInfo on the win destio layer only — never on
 the POSIX test shims.
+
+### D-78 — CSMI SMART transport: SCSI-address routing, no RAID census; LSILOGIC sibling and SMART auto-enable not ported (N-032, REGISTERED DIVERGENCE — transport scope)
+
+**Class:** registered divergence (health transport scope) · **Finding:**
+diff-to-fix N-032 (MINOR, FIXED with this registration) · **Date:** 2026-10-26
+
+**WHAT OG DOES:** the DiskHealth companion's CAtaSmart engine reaches
+SMART through a multi-transport accessor set. The CSMI route
+(GetSmartAttributeCsmi) is IOCTL_SCSI_MINIPORT CC-0x19 "CSMISAS"
+(wire-decoded this session, DiskHealth_decompiled.c FUN_00425450), but
+the og routes every request through a companion-side RAID census
+(GET_DRIVER_INFO / GET_RAID_INFO / GET_RAID_CONFIG / GET_PHY_INFO walks,
+incl. an AMD "rcraid" family) that fills phy/port/target-SAS-address
+from the array inventory. A second, LSILOGIC-signature sibling transport
+(FUN_00426040) serves LSI controllers. When the first CSMI SMART read
+fails, the og auto-enables SMART on the disk (command 0xB0 feature 0xD8
+— a device WRITE, dispatch case 0x16 :4427-4438) and retries.
+
+**WHAT WE DO:** the CSMI channel (src/win/cr_health.cpp
+CsmiMiniportChannel) issues the og-exact CC-0x19 request built by the
+pure seam (include/cr/health/cr_csmi.h — every load-bearing byte pinned
+by Health.CsmiRequestMatchesOgWireFormat), routed through
+IOCTL_SCSI_GET_ADDRESS on the physical-drive handle (the og's own
+address probe, FUN_00417750 :12254): PortNumber opens the \\.\Scsi%u:
+device, PathId/TargetId carry the routing. No RAID census, no LSILOGIC
+sibling, no SMART auto-enable.
+
+**WHY:** (1) The census is companion device-manager machinery (its
+inputs are the array inventory, not a single disk handle) — the finding's
+own fix plan prescribes the IOCTL_SCSI_GET_ADDRESS-based pattern.
+(2) The auto-enable is a device write; this module is report-only by
+standing policy (cr_health.h header contract). A disabled-SMART disk
+reads health-unavailable rather than us flipping device state during a
+read-only advisory pass. (3) The LSILOGIC route is a separate vendor
+family the finding does not name (its acceptance is the Intel-RST CSMI
+transport).
+
+**RISK:** on RST arrays whose member routing genuinely requires the
+census-sourced SAS address, our CC-0x19 request may be rejected where
+the og's succeeds — the failure is clean (ERR_HEALTH_UNAVAILABLE, the
+final fallback the finding mandates). Real-hardware validation on an
+Intel RST host is pending for both implementations' claims (the finding
+records this as inherent: UNVERIFIED-BY-EXECUTION on this hardware).
+Recovery correctness is unaffected (health is advisory).

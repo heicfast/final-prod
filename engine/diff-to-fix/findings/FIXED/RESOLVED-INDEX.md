@@ -73,6 +73,8 @@
 
 
 
+| N-032 | MINOR (S3) | Health transports: og companion's CSMI (Intel RST) route absent; core had ATA-passthrough + legacy only | (this session's N-032 commit — file carries the Resolution) | Wire decoded first-hand from DiskHealth_decompiled.c FUN_00425450: IOCTL_SCSI_MINIPORT 0x4D008, SRB_IO_CONTROL "CSMISAS" CC-0x19, vendor fixed area with Register-FIS task file (SMART magic LBA 0xA0C24F00), response data @+0xA4. Pure seam (cr_csmi + cr_smart_ata: the chain-flow refactor, og's CAtaSmart accessor model) + three-transport win chain (ata → legacy-with-og-IDEREGS → CsmiMiniportChannel via IOCTL_SCSI_GET_ADDRESS). 9 tests incl. the og-exact wire pin + the fallback pair; executed fail-before (pre-fix chain shape → ERR_HEALTH_UNAVAILABLE). Deltas registered D-78 (RAID-census routing / LSILOGIC / SMART auto-enable not ported). Suite 752/752. |
+
 ## Resolved findings (session-22 wave: +M-055, +N-077, +N-020, +N-070 +M-056 (NEW-FINDING), +N-074 (convergent), +N-047, +N-035, +N-014; live file inventory)
 
 | ID | Severity (orig) | Title | Fix commit | Resolution |

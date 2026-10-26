@@ -1,4 +1,8 @@
+<<<<<<< HEAD
 # SUMMARY.md — executive summary (sessions 23+24+25+28 on top; earlier sessions below)
+=======
+# SUMMARY.md — executive summary (sessions 30+31 on top; earlier sessions below)
+>>>>>>> a7b4d54 (merge: union with origin/main — the parallel N-064/N-049/N-075 + OQ-S2M-2 landings absorbed; N-032 landing stands (both Resolutions kept, matrix/SUMMARY/health rows unioned))
 
 ## Session-28 delta (2026-10-26 — DFX28: the rear-first MINOR lane)
 
@@ -34,7 +38,6 @@ MINOR **16** · INFO 0 open (22 acknowledged in FIXED/) · **FIXED/ 174
 findings** (175 files incl. RESOLVED-INDEX) · tracked-open 11. Next on
 this lane: N-019 (the 12-scenario regression-test gap), then
 N-050/N-033/N-072 rear-first.
-
 
 ## Session-31 delta (2026-10-26 — DFX31: the tracked-open HEAD lane opens; OQ-S2M-2's three probes RESOLVED)
 
@@ -114,6 +117,35 @@ finding's open question: sequential, no retry, no parallelism.
 
 Counts after this landing: **MINOR 18 open** (N-064 moved to FIXED/),
 MAJOR 14 open (DFX27/DFX26 lanes), INFO 0, tracked-open 11.
+
+## Session-30 delta (2026-10-26 — DFX30: the deferred win-layer trio, 1/N-032)
+
+Lane: the MINOR items every parallel lane deferred to last (N-032/N-064/
+N-071), worked while the front/middle bands drain elsewhere. Baseline
+743/743 at the union tree (737 claim + the parallel N-025/N-009c/d/M-057
+landings absorbed); corpus `03ad46c` unmoved. (N-064 was absorbed by the
+parallel DFX31 lane mid-flight — first-landing-wins; this lane's N-032
+stands.)
+
+**N-032 FIXED (MINOR — the CSMI health transport):** the corpus citation
+was deepened before any code: the companion's actual wire was decoded
+first-hand from DiskHealth_decompiled.c — GetSmartAttributeCsmi =
+FUN_00425450: IOCTL_SCSI_MINIPORT (0x4D008), SRB_IO_CONTROL "CSMISAS"
+CC 0x19, vendor fixed area {phy, port, SAS address, Register-FIS
+(0x8027) task file, SMART magic LBA 0xA0C24F00, vendor field 0x11},
+request 0x2A8, response data @+0xA4, transport-miss GetLastError set
+{1, 0x32, 0x37}; plus the og's IOCTL_SCSI_GET_ADDRESS probe and its
+legacy SMART IDEREGS (count 1, sector 1, cyl 4F/C2). Landed: pure wire
+module (cr_csmi) + the pure transport-chain seam (cr_smart_ata — the
+og's CAtaSmart accessor model: the first channel answering IDENTIFY
+serves the whole command set; the read flow moved out of the win layer)
++ the three-transport win chain (ata-passthrough → legacy with og-exact
+SMART stamping → CsmiMiniportChannel). 9 tests (wire pins + fallback
+pair + parse proof); EXECUTED fail-before: the pre-fix chain shape
+returns ERR_HEALTH_UNAVAILABLE on the RST-shaped mock. Registered
+remainders D-78 (RAID-census routing, LSILOGIC sibling, SMART
+auto-enable write — report-only module). Suite **752/752** at the fix
+commit (754/754 on the post-union tree with the parallel N-064 tests).
 
 ## Session-23 delta (2026-10-26 — DFX23: the MINOR-first closing wave, batch 1 — N-009 group closed + M-057)
 

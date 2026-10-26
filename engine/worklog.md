@@ -13159,7 +13159,9 @@ Work Log:
 Stage Summary:
 - N-064 FIXED (session tally: 1). Next: N-071 (device enumeration
   breadth), pulling first — parallel lanes are active on the MINOR tier.
-=======
+
+
+---
 ---
 Task ID: DFX24-T1 (session 24, first fix — M-049)
 Agent: main engineer (diff-to-fix fix session 24 — DFX24)
@@ -13270,3 +13272,56 @@ Work Log:
 Stage Summary:
 - M-014 FIXED (session tally: 1). MAJOR 13 remain. Next: M-052 (the
   FAT/exFAT recycle-bin pairing — NTFS implementation generalizes).
+=======
+
+---
+---
+Task ID: DFX30-T1 (session 30, first fix — N-032)
+Agent: main engineer (diff-to-fix fix session 30 — DFX30)
+Task: N-032 — the CSMI health transport (the deferred trio, 1/3).
+
+Work Log:
+- Corpus DEEPENED before any code: the finding cited the companion
+  artifact census only; the actual wire was decoded first-hand from
+  re-workspace/reversed/ghidra-wave2/DiskHealth_decompiled.c —
+  GetSmartAttributeCsmi = FUN_00425450: IOCTL 0x4D008
+  (IOCTL_SCSI_MINIPORT), SRB_IO_CONTROL {0x1C, "CSMISAS", 60, CC 0x19,
+  Length = data+0x8C} + vendor fixed area {phy@+0x1C, port@+0x1D,
+  SAS@+0x20, FIS 0x8027@+0x2C, cmd@+0x2E, feat@+0x2F, LBA dword@+0x30
+  (SMART 0xA0C24F00 / else 0xA0000000), count@+0x38, 0x11@+0x40,
+  512@+0x44}, request 0x2A8, response data @+0xA4, transport-miss
+  GetLastError set {1, 0x32, 0x37}; the og's IOCTL_SCSI_GET_ADDRESS
+  probe (FUN_00417750 :12254); the og's legacy SMART IDEREGS (count 1,
+  sector 1, cyl 4F/C2 — SendAtaCommandPd :14166-14176); the LSILOGIC
+  sibling (FUN_00426040) and the SMART auto-enable write (0xB0/D8,
+  case 0x16) decoded and deliberately NOT ported.
+- Landed: (1) pure wire module cr_csmi (og-exact builder/parser);
+  (2) pure transport-chain seam cr_smart_ata — the whole read flow
+  moved out of the win layer (og CAtaSmart accessor model: first
+  channel answering IDENTIFY serves READ DATA + THRESHOLDS + parse +
+  grading); (3) win layer = three transports: ata-passthrough →
+  smart-rcv-drive-data (now stamps the og's exact SMART IDEREGS) →
+  CsmiMiniportChannel (SCSI address → \\.\Scsi%u: → CC-0x19).
+  ERR_HEALTH_UNAVAILABLE stays the clean final fallback.
+- Tests: 9 new (wire pins: request/identify-vs-smart LBA/builder
+  guard/response offset/error set; chain: CsmiTransportFallsBack pair;
+  CsmiReadsAttributes full parse; SmartChainEmptyIsBadParameter; the
+  name-table pin). EXECUTED fail-before: the pre-fix two-transport
+  chain shape returns 0x50070001 on the RST-shaped mock (RED), the
+  three-transport chain parses (GREEN). The N-074 doc-truth pin moved
+  with the 0xD1 issuance (now pinned in the seam file). Lint repair in
+  the same push: test_nvme_health.cpp:140 pre-existing format violation
+  (479b0c7) reformatted; clang-format-18 clean over every touched file.
+- Suite 752/752 linux-release (was 743 at the union baseline); win_
+  syntax_check green over the refactored layer. Audit trail:
+  Resolution + FIXED/ move; RESOLVED-INDEX row; matrix health rows
+  (both); modules/health.md session-30 verdict; SUMMARY counts;
+  PARITY-DELTAS D-78 (census routing / LSILOGIC / auto-enable not
+  ported, with rationale).
+
+Stage Summary:
+- N-032 FIXED (session tally: 1). Deferred trio remainder: N-064
+  (Dict password aid), N-071 (enumerate breadth delta). Then N-072/
+  N-033/N-019/N-050 with pull-before-each. MINOR tier now 16 open.
+
+=======
