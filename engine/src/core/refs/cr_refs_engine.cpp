@@ -633,7 +633,7 @@ bool validate_boot(const u8 sector[512], RefsBoot& out) {
     out.major = sector[0x28];
     out.minor = sector[0x29];
     out.serial = le64(sector + 0x38);
-    out.container_bytes = le64(sector + 0x40); /* M-026: MSB/OID area bound */
+    out.container_bytes = le64(sector + 0x40);    /* M-026: MSB/OID area bound */
     out.container_clusters = le32(sector + 0x34); /* N-036: the og's translation
         unit (volume+0x148 -> parser+0xa8 via FUN_180011cd0) - the container
         span in clusters that gates record acceptance AND keys the map */

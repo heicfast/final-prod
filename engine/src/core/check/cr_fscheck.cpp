@@ -209,8 +209,7 @@ bool fat_validate_dbr(FatCheckCtx& c, const u8* b) {
     c.fat_start = u64(reserved) * c.bps;
     if (c.flavor != 2)
         c.root_dir_off = (u64(reserved) + fat_span) * c.bps;
-    c.first_data_byte =
-        (u64(reserved) + fat_span + c.root_sectors) * c.bps;
+    c.first_data_byte = (u64(reserved) + fat_span + c.root_sectors) * c.bps;
     return true;
 }
 
@@ -303,9 +302,8 @@ void fat_mark_visited(FatCheckCtx& c, const std::vector<u32>& chain) {
  * path's clusters (the og's CSimpleArray<uint> param_5; 0xffffffff at
  * the root). Returns false when the walk must stop (host stop-decision
  * or an og-terminal error). */
-bool fat_audit_dir(FatCheckCtx& c, const std::vector<u32>& chain_or_root,
-                   bool root_fixed_area, bool is_root, std::vector<u32> ancestors,
-                   const std::string& path) {
+bool fat_audit_dir(FatCheckCtx& c, const std::vector<u32>& chain_or_root, bool root_fixed_area,
+                   bool is_root, std::vector<u32> ancestors, const std::string& path) {
     if (c.stop)
         return false;
     if (c.cb.path)
@@ -392,8 +390,7 @@ bool fat_audit_dir(FatCheckCtx& c, const std::vector<u32>& chain_or_root,
         std::string child = path.empty() ? nm : path + "\\" + nm;
 
         /* invalid first cluster: == 1 or >= cluster space (:1937-1948) */
-        if (first_cluster != 0 &&
-            (first_cluster == 1 || first_cluster >= c.cluster_count + 2)) {
+        if (first_cluster != 0 && (first_cluster == 1 || first_cluster >= c.cluster_count + 2)) {
             CheckIssue is;
             is.code = CHK_DIR_TREE_INVALID;
             is.path_hint = child;
@@ -406,8 +403,7 @@ bool fat_audit_dir(FatCheckCtx& c, const std::vector<u32>& chain_or_root,
 
         if (is_dir) {
             /* cycle: the cluster already in the ancestor path (:2079-2097) */
-            if (std::find(ancestors.begin(), ancestors.end(), first_cluster) !=
-                ancestors.end()) {
+            if (std::find(ancestors.begin(), ancestors.end(), first_cluster) != ancestors.end()) {
                 CheckIssue is;
                 is.code = CHK_DIR_TREE_INVALID;
                 is.path_hint = child;
@@ -417,8 +413,7 @@ bool fat_audit_dir(FatCheckCtx& c, const std::vector<u32>& chain_or_root,
             if (!fat_chain(c, first_cluster, chain)) {
                 /* chain build failure -> host decision -> 0x1006
                  * (:2020-2045: FUN_1800027a0 fail + FUN_180002770) */
-                const bool report =
-                    !c.cb.orphan_decision || c.cb.orphan_decision(c.cb.user);
+                const bool report = !c.cb.orphan_decision || c.cb.orphan_decision(c.cb.user);
                 if (report) {
                     CheckIssue is;
                     is.code = CHK_FAT_TABLE_INVALID;
@@ -429,8 +424,8 @@ bool fat_audit_dir(FatCheckCtx& c, const std::vector<u32>& chain_or_root,
             }
             fat_mark_visited(c, chain);
             ancestors.push_back(first_cluster);
-            if (!fat_audit_dir(c, chain, /*root_fixed_area=*/false, /*is_root=*/false,
-                               ancestors, child))
+            if (!fat_audit_dir(c, chain, /*root_fixed_area=*/false, /*is_root=*/false, ancestors,
+                               child))
                 return false;
             ancestors.pop_back();
         } else {
@@ -439,8 +434,7 @@ bool fat_audit_dir(FatCheckCtx& c, const std::vector<u32>& chain_or_root,
              * chain's sector total — cluster-granular equivalent:
              * ceil(size/cluster_bytes) vs chain length. */
             if (!fat_chain(c, first_cluster, chain)) {
-                const bool report =
-                    !c.cb.orphan_decision || c.cb.orphan_decision(c.cb.user);
+                const bool report = !c.cb.orphan_decision || c.cb.orphan_decision(c.cb.user);
                 if (report) {
                     CheckIssue is;
                     is.code = CHK_FAT_TABLE_INVALID;
@@ -554,10 +548,9 @@ u32 check_fat(IStorageDevice* slice, const CheckCallbacks& cb, FsCheckReport& ou
                 /* entry-0 media signature (:667-684/:754-775): mismatch
                  * ends the check with NO error code (og parity — the
                  * table object is unusable, the check bails silently). */
-                const bool sig_ok =
-                    c.flavor == 0 ? (a & 0xF8) == 0xF8
-                    : c.flavor == 1 ? (a & 0xFFF8) == 0xFFF8
-                                    : (a & 0xFFFFFF8) == 0xFFFFFF8;
+                const bool sig_ok = c.flavor == 0   ? (a & 0xF8) == 0xF8
+                                    : c.flavor == 1 ? (a & 0xFFF8) == 0xFFF8
+                                                    : (a & 0xFFFFFF8) == 0xFFFFFF8;
                 if (!sig_ok)
                     return OK;
             }
@@ -588,8 +581,7 @@ u32 check_fat(IStorageDevice* slice, const CheckCallbacks& cb, FsCheckReport& ou
         cb.set_range(cb.user, 0, c.cluster_count);
     /* the volume ROOT (fixed area or the FAT32 root chain) never takes
      * the '.'/'..' pair check (the og's 0xffffffff root sentinel) */
-    fat_audit_dir(c, root_chain, /*root_fixed_area=*/c.flavor != 2, /*is_root=*/true,
-                  {}, "");
+    fat_audit_dir(c, root_chain, /*root_fixed_area=*/c.flavor != 2, /*is_root=*/true, {}, "");
     if (c.stop)
         return OK;
 
@@ -631,12 +623,12 @@ struct NtfsCheckCtx {
 
     ntfs::VolumeParams p;
     ntfs::RunList mft_runs;
-    u64 mft_records = 0;      /* allocated $MFT size / record size */
-    u64 mft_bytes = 0;        /* allocated $MFT size */
-    std::vector<u8> bitmap;   /* $Bitmap $DATA bytes */
+    u64 mft_records = 0;    /* allocated $MFT size / record size */
+    u64 mft_bytes = 0;      /* allocated $MFT size */
+    std::vector<u8> bitmap; /* $Bitmap $DATA bytes */
     u64 bitmap_bits = 0;
-    std::vector<u8> mft_bmp;  /* $MFT::$BITMAP resident value */
-    std::vector<u8> seen;     /* cross-check LCN dedup bitmap */
+    std::vector<u8> mft_bmp; /* $MFT::$BITMAP resident value */
+    std::vector<u8> seen;    /* cross-check LCN dedup bitmap */
 
     bool record_offset(u64 rec, u64& off) const {
         if (p.record_size == 0)
@@ -668,8 +660,7 @@ struct NtfsCheckCtx {
                                  rh.update_sequence_size, u16(p.sector_bytes)) != OK)
             return false;
         return ntfs::fixup_apply(buf.data(), u32(p.record_size), rh.update_sequence_offset,
-                                 rh.update_sequence_size,
-                                 u16(p.sector_bytes)) == OK;
+                                 rh.update_sequence_size, u16(p.sector_bytes)) == OK;
     }
     bool mft_in_use(u64 rec) const {
         if (mft_bmp.empty())
@@ -808,9 +799,8 @@ u32 check_ntfs(IStorageDevice* slice, const CheckCallbacks& cb, FsCheckReport& o
             ntfs::RecordHeader rh;
             std::memcpy(&rh, mirr.data(), sizeof(rh));
             ok = rh.magic == ntfs::RECORD_MAGIC_FILE &&
-                 ntfs::fixup_validate(mirr.data(), u32(c.p.record_size),
-                                      rh.update_sequence_offset, rh.update_sequence_size,
-                                      u16(c.p.sector_bytes)) == OK &&
+                 ntfs::fixup_validate(mirr.data(), u32(c.p.record_size), rh.update_sequence_offset,
+                                      rh.update_sequence_size, u16(c.p.sector_bytes)) == OK &&
                  ntfs::fixup_apply(mirr.data(), u32(c.p.record_size), rh.update_sequence_offset,
                                    rh.update_sequence_size, u16(c.p.sector_bytes)) == OK &&
                  record_named_mft(mirr, u32(c.p.record_size));
@@ -1009,8 +999,8 @@ u32 run_fscheck(IStorageDevice* slice, const CheckCallbacks& cb, FsCheckReport& 
      * type; the DBR validators themselves gate on these signatures). */
     if (std::memcmp(boot + 3, "NTFS    ", 8) == 0)
         return check_ntfs(slice, cb, out);
-    const bool fat12_16 = rd32(boot + 0x36) == 0x31544146 &&
-                          (char(boot[0x3A]) == '2' || char(boot[0x3A]) == '6');
+    const bool fat12_16 =
+        rd32(boot + 0x36) == 0x31544146 && (char(boot[0x3A]) == '2' || char(boot[0x3A]) == '6');
     const bool fat32 = rd32(boot + 0x52) == 0x33544146 && char(boot[0x56]) == '2';
     if (fat12_16 || fat32)
         return check_fat(slice, cb, out);

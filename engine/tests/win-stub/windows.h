@@ -389,4 +389,6 @@ inline int _pclose(FILE*) {
 
 /* ---- narrow/wide conversion (N-064 password-dictionary unlock aid) ---- */
 #define CP_UTF8 65001U
-inline int MultiByteToWideChar(UINT, DWORD, const char*, int, wchar_t*, int) { return 0; }
+inline int MultiByteToWideChar(UINT, DWORD, const char*, int, wchar_t*, int) {
+    return 0;
+}

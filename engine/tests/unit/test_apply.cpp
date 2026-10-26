@@ -81,8 +81,7 @@ private:
  * the quiesce contract) and can be told to fail the Nth write. */
 class WriteMem final : public apply::IApplyDevice {
 public:
-    explicit WriteMem(std::vector<u8> backing)
-        : data_(std::move(backing)), orig_(data_) {}
+    explicit WriteMem(std::vector<u8> backing) : data_(std::move(backing)), orig_(data_) {}
     u32 read_at(u64 off, void* buf, u32 len) override {
         if (off > data_.size() || len > data_.size() - off)
             return ERR_RANGE_OUT_OF_BOUNDS;
@@ -152,8 +151,12 @@ lost::Candidate cand(u64 lba, u64 count, CandidateFs fs) {
     return c;
 }
 
-bool allow(const ApplyPlan&, void*) { return true; }
-bool deny(const ApplyPlan&, void*) { return false; }
+bool allow(const ApplyPlan&, void*) {
+    return true;
+}
+bool deny(const ApplyPlan&, void*) {
+    return false;
+}
 
 u32 rd32(const u8* p) {
     return u32(p[0]) | u32(p[1]) << 8 | u32(p[2]) << 16 | u32(p[3]) << 24;
@@ -175,7 +178,7 @@ TEST(Apply, PlansEntryIntoFirstFreeSlot) {
     EXPECT_EQ(e[4], 0x07);
     EXPECT_EQ(rd32(e + 8), 4096u);
     EXPECT_EQ(rd32(e + 12), 512u);
-    ASSERT_EQ(plan.actions.size(), 1u); /* signature intact: no restore */
+    ASSERT_EQ(plan.actions.size(), 1u);            /* signature intact: no restore */
     EXPECT_EQ(plan.actions[0].offset, 446u + 16u); /* slot 1's offset */
     EXPECT_EQ(plan.sector0_original.size(), 512u);
     EXPECT_FALSE(plan.boot_repair_available); /* M-040 truthfully absent */
@@ -431,8 +434,15 @@ namespace {
 
 /* Recording sequence tags - the corpus device-control order. */
 enum Op : u8 {
-    OP_LOCK, OP_UNLOCK, OP_DELETE_LAYOUT, OP_WRITE, OP_UPDATE_PROPS,
-    OP_SET_LAYOUT, OP_SET_PART_INFO, OP_SETTLE, OP_GENERATE_SIG,
+    OP_LOCK,
+    OP_UNLOCK,
+    OP_DELETE_LAYOUT,
+    OP_WRITE,
+    OP_UPDATE_PROPS,
+    OP_SET_LAYOUT,
+    OP_SET_PART_INFO,
+    OP_SETTLE,
+    OP_GENERATE_SIG,
 };
 
 class RecordingApplyDevice : public apply::IApplyDevice, public IStorageDevice {
@@ -561,7 +571,9 @@ std::vector<u8> union_gpt_disk() {
     return d;
 }
 
-bool union_approve(const apply::ApplyPlan&, void*) { return true; }
+bool union_approve(const apply::ApplyPlan&, void*) {
+    return true;
+}
 
 } // namespace
 
@@ -627,12 +639,12 @@ TEST(LostApply, LegacyPathMatchesCorpusSequence) {
     ASSERT_EQ(execute_apply(&dev, plan, union_approve, nullptr, undo), OK);
 
     const std::vector<u8> expect = {
-        OP_LOCK,           /* A5 quiesce */
-        OP_DELETE_LAYOUT,  /* 0x7C100 */
-        OP_WRITE,          /* the sector-0 span */
-        OP_UPDATE_PROPS,   /* single refresh (0x70140) */
-        OP_SET_LAYOUT,     /* 0x7C010 */
-        OP_SETTLE, OP_UPDATE_PROPS, /* 3x tail, first succeeds */
+        OP_LOCK,                           /* A5 quiesce */
+        OP_DELETE_LAYOUT,                  /* 0x7C100 */
+        OP_WRITE,                          /* the sector-0 span */
+        OP_UPDATE_PROPS,                   /* single refresh (0x70140) */
+        OP_SET_LAYOUT,                     /* 0x7C010 */
+        OP_SETTLE,        OP_UPDATE_PROPS, /* 3x tail, first succeeds */
         OP_UNLOCK,
     };
     ASSERT_EQ(dev.ops_.size(), expect.size());
@@ -667,7 +679,7 @@ TEST(LostApply, GptRebuildRegeneratesSignature) {
     const u8* s0 = dev.d_.data();
     EXPECT_EQ(rd32(s0 + 440), 0xC0FFEE01u); /* the generated signature */
     EXPECT_NE(memcmp(s0 + 440, before.data() + 440, 4), 0);
-    EXPECT_EQ(s0[446 + 4], 0x07);           /* candidate at slot 0 */
+    EXPECT_EQ(s0[446 + 4], 0x07); /* candidate at slot 0 */
     EXPECT_EQ(rd32(s0 + 446 + 8), 3200u);
     EXPECT_EQ(rd32(s0 + 446 + 12), 512u);
     EXPECT_EQ(s0[446 + 16 + 4], 0); /* slots 1..3 zeroed */
@@ -694,8 +706,8 @@ TEST(LostApply, ConsentBeforeLockDenialHoldsNothing) {
 
     repair::UndoLog undo;
     EXPECT_EQ(execute_apply(&dev, plan, nullptr, nullptr, undo), ERR_APPLY_CONSENT_DENIED);
-    EXPECT_EQ(execute_apply(&dev, plan, [](const apply::ApplyPlan&, void*) { return false; },
-                            nullptr, undo),
+    EXPECT_EQ(execute_apply(
+                  &dev, plan, [](const apply::ApplyPlan&, void*) { return false; }, nullptr, undo),
               ERR_APPLY_CONSENT_DENIED);
     EXPECT_TRUE(std::find(dev.ops_.begin(), dev.ops_.end(), OP_LOCK) == dev.ops_.end());
     EXPECT_TRUE(std::find(dev.ops_.begin(), dev.ops_.end(), OP_WRITE) == dev.ops_.end());
@@ -741,8 +753,7 @@ TEST(LostApply, RefreshFailureIsReportedNotSwallowed) {
     ASSERT_EQ(plan_apply(&dev, c, plan), OK);
 
     repair::UndoLog undo;
-    EXPECT_EQ(execute_apply(&dev, plan, union_approve, nullptr, undo),
-              ERR_APPLY_REFRESH_FAILED);
+    EXPECT_EQ(execute_apply(&dev, plan, union_approve, nullptr, undo), ERR_APPLY_REFRESH_FAILED);
     EXPECT_EQ(dev.d_[446 + 16 + 4], 0x07); /* the table IS applied */
     EXPECT_EQ(dev.settle_calls, 3u);       /* exactly 3 tail attempts */
     EXPECT_EQ(dev.update_calls, 3u);

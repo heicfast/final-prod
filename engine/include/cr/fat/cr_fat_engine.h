@@ -131,16 +131,16 @@ private:
     std::vector<u8> fat1_;
     std::vector<u8> fat2_;
     bool mirror_ = false;
-    bool mirror_only_ = false; /* M-012 */
+    bool mirror_only_ = false;        /* M-012 */
     bool mirror_bad_salvage_ = false; /* N-022: opt-in, default og parity */
     u32 max_cluster_ = 0;
     Flavor flavor_ = Flavor::Fat32;
 
     u32 entry_at(const std::vector<u8>& f, u32 cluster) const;
     u32 mirror_consult_(u32 primary) const;
-    bool fat_validate_(const FatParams& p);   /* M-015 */
-    bool fat2_validate_(const FatParams& p);  /* M-015 */
-    bool fat_copy_rejected_ = false;          /* M-015 */
+    bool fat_validate_(const FatParams& p);  /* M-015 */
+    bool fat2_validate_(const FatParams& p); /* M-015 */
+    bool fat_copy_rejected_ = false;         /* M-015 */
 public:
     /* M-015: true when the primary copy failed validation and the mirror
      * was promoted (og alternate-region retry outcome) */
@@ -226,8 +226,8 @@ struct FatScanStats {
     u64 recycle_info = 0;     /* $I metadata records parsed inside bin roots */
     u64 recycle_remapped = 0; /* $R files remapped to their original name */
     /* M-012/M-015 (diff-to-fix): damaged-FAT policy outcomes */
-    u64 mirror_only_scan = 0;   /* FAT1 unreadable, scanned on the mirror */
-    u64 fat_copy_rejected = 0;  /* a FAT copy failed validation; another used */
+    u64 mirror_only_scan = 0;  /* FAT1 unreadable, scanned on the mirror */
+    u64 fat_copy_rejected = 0; /* a FAT copy failed validation; another used */
 };
 
 struct FatScanFlags {

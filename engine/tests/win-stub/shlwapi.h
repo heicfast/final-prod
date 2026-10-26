@@ -7,4 +7,6 @@
 
 #include "windows.h"
 
-inline BOOL PathIsNetworkPathW(const wchar_t* /*pszPath*/) { return FALSE; }
+inline BOOL PathIsNetworkPathW(const wchar_t* /*pszPath*/) {
+    return FALSE;
+}

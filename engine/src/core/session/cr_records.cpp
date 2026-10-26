@@ -86,8 +86,8 @@ struct Cursor {
 };
 } // namespace
 
-u32 serialize_tree(const tree::ResultTree& tree, std::vector<u8>& out,
-                   SerializeProgress progress, void* progress_user) {
+u32 serialize_tree(const tree::ResultTree& tree, std::vector<u8>& out, SerializeProgress progress,
+                   void* progress_user) {
     out.clear();
     /* depth-first walk; ids in emission order; parents always earlier.
      * The ROOTS THEMSELVES are emitted (marker=1 full nodes, parent
@@ -159,9 +159,9 @@ u32 serialize_tree(const tree::ResultTree& tree, std::vector<u8>& out,
                 nflags |= 16; /* M-051: RAW provenance follows */
             if (pr && !pr->name_raw.empty())
                 nflags |= 32; /* N-016b: original name bytes follow */
-            if (pr && (pr->btrfs_id_a != 0 || pr->btrfs_id_b != 0 ||
-                       pr->btrfs_generation != 0 || pr->zfs_secondary_flags != 0 ||
-                       pr->hfs_secondary_flags != 0 || pr->hfs_type_id != 0))
+            if (pr && (pr->btrfs_id_a != 0 || pr->btrfs_id_b != 0 || pr->btrfs_generation != 0 ||
+                       pr->zfs_secondary_flags != 0 || pr->hfs_secondary_flags != 0 ||
+                       pr->hfs_type_id != 0))
                 nflags |= 64; /* N-059: per-FS secondary payload follows */
         }
         put32(out, parent_ids[i]);
@@ -316,10 +316,11 @@ u32 deserialize_tree(const u8* data, size_t len, tree::ResultTree& tree, u32* re
         auto* props = new (std::nothrow) tree::FileProperties();
         if (!props)
             return 0x50030009;
-        PropsRef props_ref(props); /* N-077: releases on every early break
-         * (three convergent landings - session-22's PropsRef [canonical,
-         * first-landed], session-19 DFX19's PropsGuard, DFX17's
-         * PropsGuard - all functionally identical; the PropsRef stands) */
+        PropsRef props_ref(
+            props); /* N-077: releases on every early break
+                     * (three convergent landings - session-22's PropsRef [canonical,
+                     * first-landed], session-19 DFX19's PropsGuard, DFX17's
+                     * PropsGuard - all functionally identical; the PropsRef stands) */
 
         /* (Convergent repair note: this session's DFX19 leg found the
          * same leak independently during the s19 ASan/LSan suite sweep

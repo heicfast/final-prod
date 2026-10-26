@@ -321,9 +321,9 @@ constexpr u32 OS_META_DNODE = 0;
 /* ---------------------------------------------------------------- */
 struct SaRegistry {
     bool valid = false;
-    std::map<u16, u8> len_by_num;               /* attr number -> length */
-    std::map<u16, std::string> name_by_num;     /* attr number -> name */
-    std::map<u64, std::vector<u16>> layouts;    /* layout number -> ordered slots */
+    std::map<u16, u8> len_by_num;            /* attr number -> length */
+    std::map<u16, std::string> name_by_num;  /* attr number -> name */
+    std::map<u64, std::vector<u16>> layouts; /* layout number -> ordered slots */
 
     bool has_layout(u64 n) const { return layouts.count(n) != 0; }
 };
@@ -504,12 +504,12 @@ struct Volume {
     u64 vdev_offset = 0; /* data-area byte offset of vdev 0 */
     u64 vdev_asize = 0;
     u64 total_bytes = 0;
-    u64 damaged = 0; /* failed block reads */
+    u64 damaged = 0;            /* failed block reads */
     u64 foreign_vdev_reads = 0; /* M-019: DVAs naming another vdev id,
                                  * served through the og's first-entry
                                  * fallback (the scanned disk) */
-    u64 checksum_drops = 0; /* M-019: blocks dropped after fletcher4
-                             * mismatch on every DVA copy */
+    u64 checksum_drops = 0;     /* M-019: blocks dropped after fletcher4
+                                 * mismatch on every DVA copy */
     u64 microzap_entries = 0;
     u64 macrozap_entries = 0;
 
@@ -1014,7 +1014,6 @@ bool load_sa_registry(Volume& v, ObjSet& zpl, const std::vector<ZapEntry>& maste
     return reg.valid;
 }
 
-
 /* ---- file content through the dnode block tree ---- */
 
 /* collect L0 data blkptrs in logical order (handles any nlevels and
@@ -1232,95 +1231,95 @@ u32 scan_zfs(IStorageDevice* slice, CancelToken* cancel, WalkProgressLike progre
         cfg = LabelConfig{};
         ring_states.clear();
         for (int li = 0; li < 4; ++li) {
-        if (label_base[li] + LABEL_SIZE > total)
-            continue;
-        /* config nvlist at label+16K (first 112K is vdev_phys) */
-        if (!cfg.valid) {
-            std::vector<u8> phys(size_t(VDEV_PHYS_SIZE), 0);
-            if (slice->read_at(label_base[li] + VDEV_PHYS_OFFSET, phys.data(), u32(phys.size())) ==
-                OK) {
-                std::map<std::string, NvValue> root;
-                if (nv_parse(phys.data(), u32(phys.size()), root)) {
-                    auto it = root.find("name");
-                    if (it != root.end() && !it->second.s.empty()) {
-                        cfg.pool_name = it->second.s;
-                        const std::map<std::string, NvValue>* tr = nullptr;
-                        auto vt = root.find("vdev_tree");
-                        if (vt != root.end())
-                            tr = &vt->second.child;
-                        auto pick = [&](const char* key, u64& out) {
-                            if (tr) {
-                                auto f = tr->find(key);
-                                if (f != tr->end() && f->second.u64v) {
+            if (label_base[li] + LABEL_SIZE > total)
+                continue;
+            /* config nvlist at label+16K (first 112K is vdev_phys) */
+            if (!cfg.valid) {
+                std::vector<u8> phys(size_t(VDEV_PHYS_SIZE), 0);
+                if (slice->read_at(label_base[li] + VDEV_PHYS_OFFSET, phys.data(),
+                                   u32(phys.size())) == OK) {
+                    std::map<std::string, NvValue> root;
+                    if (nv_parse(phys.data(), u32(phys.size()), root)) {
+                        auto it = root.find("name");
+                        if (it != root.end() && !it->second.s.empty()) {
+                            cfg.pool_name = it->second.s;
+                            const std::map<std::string, NvValue>* tr = nullptr;
+                            auto vt = root.find("vdev_tree");
+                            if (vt != root.end())
+                                tr = &vt->second.child;
+                            auto pick = [&](const char* key, u64& out) {
+                                if (tr) {
+                                    auto f = tr->find(key);
+                                    if (f != tr->end() && f->second.u64v) {
+                                        out = f->second.u64v;
+                                        return true;
+                                    }
+                                }
+                                auto f = root.find(key);
+                                if (f != root.end() && f->second.u64v) {
                                     out = f->second.u64v;
                                     return true;
                                 }
+                                return false;
+                            };
+                            u64 ashift = 9, asize = 0, offset = 0, guid = 0;
+                            pick("ashift", ashift);
+                            pick("asize", asize);
+                            pick("offset", offset);
+                            pick("guid", guid);
+                            std::string vtype;
+                            if (tr) {
+                                auto f = tr->find("type");
+                                if (f != tr->end())
+                                    vtype = f->second.s;
                             }
-                            auto f = root.find(key);
-                            if (f != root.end() && f->second.u64v) {
-                                out = f->second.u64v;
-                                return true;
+                            if (vtype.empty()) {
+                                auto f = root.find("vdev_type");
+                                if (f != root.end())
+                                    vtype = f->second.s;
                             }
-                            return false;
-                        };
-                        u64 ashift = 9, asize = 0, offset = 0, guid = 0;
-                        pick("ashift", ashift);
-                        pick("asize", asize);
-                        pick("offset", offset);
-                        pick("guid", guid);
-                        std::string vtype;
-                        if (tr) {
-                            auto f = tr->find("type");
-                            if (f != tr->end())
-                                vtype = f->second.s;
+                            cfg.ashift = ashift ? ashift : 9;
+                            cfg.asize = asize;
+                            cfg.offset = offset;
+                            cfg.guid = guid;
+                            cfg.vdev_type = vtype;
+                            cfg.valid = true;
                         }
-                        if (vtype.empty()) {
-                            auto f = root.find("vdev_type");
-                            if (f != root.end())
-                                vtype = f->second.s;
-                        }
-                        cfg.ashift = ashift ? ashift : 9;
-                        cfg.asize = asize;
-                        cfg.offset = offset;
-                        cfg.guid = guid;
-                        cfg.vdev_type = vtype;
-                        cfg.valid = true;
                     }
                 }
             }
-        }
-        /* uberblock ring (vdev_impl.h VDEV_UBERBLOCK_SHIFT = MAX(ashift,10)):
-         * slot size = 1 << shift, slot count = 128K >> shift. Probe shifts
-         * 10..13 and keep the geometry with the most valid magics - pools on
-         * 4Kn disks (ashift 12) have 32 x 4KiB slots, not 128 x 1KiB. */
-        for (u32 shift = 10; shift <= 13; ++shift) {
-            const u64 slot_size = u64(1) << shift;
-            const u32 slot_count = u32((LABEL_SIZE - UBRING_OFFSET) >> shift);
-            u32 hits = 0;
-            std::vector<u8> ub(static_cast<size_t>(slot_size), 0);
-            for (u32 ui = 0; ui < slot_count; ++ui) {
-                const u64 at = label_base[li] + UBRING_OFFSET + u64(ui) * slot_size;
-                if (at + slot_size > total)
-                    break;
-                if (slice->read_at(at, ub.data(), u32(ub.size())) != OK)
-                    break;
-                const u64 magic = le64(ub.data());
-                if (magic != UBERBLOCK_MAGIC) {
-                    if (magic == 0x0CB1BA00ULL || magic == 0x0CBA0000ULL)
-                        return ERR_UNSUPPORTED; /* big-endian pool: refused,
-                                                 * not misparsed */
-                    continue;
+            /* uberblock ring (vdev_impl.h VDEV_UBERBLOCK_SHIFT = MAX(ashift,10)):
+             * slot size = 1 << shift, slot count = 128K >> shift. Probe shifts
+             * 10..13 and keep the geometry with the most valid magics - pools on
+             * 4Kn disks (ashift 12) have 32 x 4KiB slots, not 128 x 1KiB. */
+            for (u32 shift = 10; shift <= 13; ++shift) {
+                const u64 slot_size = u64(1) << shift;
+                const u32 slot_count = u32((LABEL_SIZE - UBRING_OFFSET) >> shift);
+                u32 hits = 0;
+                std::vector<u8> ub(static_cast<size_t>(slot_size), 0);
+                for (u32 ui = 0; ui < slot_count; ++ui) {
+                    const u64 at = label_base[li] + UBRING_OFFSET + u64(ui) * slot_size;
+                    if (at + slot_size > total)
+                        break;
+                    if (slice->read_at(at, ub.data(), u32(ub.size())) != OK)
+                        break;
+                    const u64 magic = le64(ub.data());
+                    if (magic != UBERBLOCK_MAGIC) {
+                        if (magic == 0x0CB1BA00ULL || magic == 0x0CBA0000ULL)
+                            return ERR_UNSUPPORTED; /* big-endian pool: refused,
+                                                     * not misparsed */
+                        continue;
+                    }
+                    ++hits;
+                    const u64 txg = le64(ub.data() + UB_TXG);
+                    if (txg != 0) /* txg 0 = a never-written slot; the og's
+                                   * addBlock no-ops on it (registry miss) */
+                        ring_states.push_back(RingState{
+                            txg, std::vector<u8>(ub.begin(), ub.begin() + UBERBLOCK_SIZE)});
                 }
-                ++hits;
-                const u64 txg = le64(ub.data() + UB_TXG);
-                if (txg != 0) /* txg 0 = a never-written slot; the og's
-                              * addBlock no-ops on it (registry miss) */
-                    ring_states.push_back(
-                        RingState{txg, std::vector<u8>(ub.begin(), ub.begin() + UBERBLOCK_SIZE)});
+                if (hits > 0)
+                    break; /* found the pool's true uberblock geometry */
             }
-            if (hits > 0)
-                break; /* found the pool's true uberblock geometry */
-        }
         }
         return OK;
     };
@@ -1383,9 +1382,12 @@ u32 scan_zfs(IStorageDevice* slice, CancelToken* cancel, WalkProgressLike progre
         std::string name;
         u64 obj;
         bool operator<(const EntryKey& o) const {
-            if (ds != o.ds) return ds < o.ds;
-            if (parent != o.parent) return parent < o.parent;
-            if (name != o.name) return name < o.name;
+            if (ds != o.ds)
+                return ds < o.ds;
+            if (parent != o.parent)
+                return parent < o.parent;
+            if (name != o.name)
+                return name < o.name;
             return obj < o.obj;
         }
     };
@@ -1394,374 +1396,375 @@ u32 scan_zfs(IStorageDevice* slice, CancelToken* cancel, WalkProgressLike progre
 
     enum class StateWalk { Opened, Failed, Cancelled };
     auto walk_state = [&](const RingState& st, bool live) -> StateWalk {
-    /* MOS: rootbp -> objset_phys; object 1 = object directory ZAP. */
-    ObjSet mos;
-    if (!mos.load(&v, st.ub.data() + UB_ROOTBP))
-        return StateWalk::Failed;
+        /* MOS: rootbp -> objset_phys; object 1 = object directory ZAP. */
+        ObjSet mos;
+        if (!mos.load(&v, st.ub.data() + UB_ROOTBP))
+            return StateWalk::Failed;
 
-    std::vector<ZapEntry> objdir;
-    if (!read_zap(v, mos, 1, objdir) || objdir.empty())
-        return StateWalk::Failed;
+        std::vector<ZapEntry> objdir;
+        if (!read_zap(v, mos, 1, objdir) || objdir.empty())
+            return StateWalk::Failed;
 
-    u64 dataset_dir_obj = 0;
-    for (const auto& e : objdir)
-        if (e.name == "root_dataset" || e.name == "dataset")
-            dataset_dir_obj = e.value;
-    if (dataset_dir_obj == 0)
-        return StateWalk::Failed;
-    if (live && progress)
-        (void)progress(1, 4, progress_user);
+        u64 dataset_dir_obj = 0;
+        for (const auto& e : objdir)
+            if (e.name == "root_dataset" || e.name == "dataset")
+                dataset_dir_obj = e.value;
+        if (dataset_dir_obj == 0)
+            return StateWalk::Failed;
+        if (live && progress)
+            (void)progress(1, 4, progress_user);
 
-    /* 3. dataset hierarchy: dsl_dir bonus {child zap@240, head ds@248};
-     * head dnode bonus {bp@128}. */
-    struct WalkOut {
-        std::u16string name;
-        std::vector<u8> ds_bp;
-    };
-    std::vector<WalkOut> datasets;
-    std::function<void(u64, const std::u16string&, int)> walk_dir =
-        [&](u64 dsl_dir_obj, const std::u16string& prefix, int depth) {
-            if (depth > MAX_DATASET_DEPTH || (cancel && cancel->checkpoint()))
-                return;
-            Dnode dn;
-            if (!mos.read_dnode(dsl_dir_obj, dn))
-                return;
-            const u32 blen = dn.bonuslen();
-            if (blen < 256 || blen > MAX_BONUS || u64(blen) > dn.bonus_cap())
-                return;
-            const u8* bonus = dn.bonus();
-            const u64 head_obj = le64(bonus + DD_HEAD_DATASET_OBJ);
-            const u64 child_zap = le64(bonus + DD_CHILD_DIR_ZAPOBJ);
-            if (head_obj != 0) {
-                Dnode hdn;
-                if (mos.read_dnode(head_obj, hdn) && hdn.bonuslen() >= DS_BP + BP_SIZE &&
-                    u64(hdn.bonuslen()) <= hdn.bonus_cap()) {
-                    WalkOut wo;
-                    wo.name = prefix;
-                    wo.ds_bp.assign(hdn.bonus() + DS_BP, hdn.bonus() + DS_BP + BP_SIZE);
-                    datasets.push_back(std::move(wo));
-                }
-            }
-            if (child_zap != 0) {
-                std::vector<ZapEntry> children;
-                if (read_zap(v, mos, child_zap, children)) {
-                    for (const auto& c : children) {
-                        /* S-005: zap child names are UTF-8 - decode */
-                        std::u16string sub = prefix;
-                        sub += text::utf8_to_u16(c.name);
-                        walk_dir(c.value, sub, depth + 1);
+        /* 3. dataset hierarchy: dsl_dir bonus {child zap@240, head ds@248};
+         * head dnode bonus {bp@128}. */
+        struct WalkOut {
+            std::u16string name;
+            std::vector<u8> ds_bp;
+        };
+        std::vector<WalkOut> datasets;
+        std::function<void(u64, const std::u16string&, int)> walk_dir =
+            [&](u64 dsl_dir_obj, const std::u16string& prefix, int depth) {
+                if (depth > MAX_DATASET_DEPTH || (cancel && cancel->checkpoint()))
+                    return;
+                Dnode dn;
+                if (!mos.read_dnode(dsl_dir_obj, dn))
+                    return;
+                const u32 blen = dn.bonuslen();
+                if (blen < 256 || blen > MAX_BONUS || u64(blen) > dn.bonus_cap())
+                    return;
+                const u8* bonus = dn.bonus();
+                const u64 head_obj = le64(bonus + DD_HEAD_DATASET_OBJ);
+                const u64 child_zap = le64(bonus + DD_CHILD_DIR_ZAPOBJ);
+                if (head_obj != 0) {
+                    Dnode hdn;
+                    if (mos.read_dnode(head_obj, hdn) && hdn.bonuslen() >= DS_BP + BP_SIZE &&
+                        u64(hdn.bonuslen()) <= hdn.bonus_cap()) {
+                        WalkOut wo;
+                        wo.name = prefix;
+                        wo.ds_bp.assign(hdn.bonus() + DS_BP, hdn.bonus() + DS_BP + BP_SIZE);
+                        datasets.push_back(std::move(wo));
                     }
                 }
-            }
-        };
-    walk_dir(dataset_dir_obj, u"", 0);
-    if (live && progress)
-        (void)progress(2, 4, progress_user);
-
-    /* 4. per-dataset ZPL walk: master node object 1 -> ROOT -> dirs. */
-    std::u16string pool_display_ = text::utf8_to_u16(
-        cfg.valid && !cfg.pool_name.empty() ? cfg.pool_name : std::string("pool"));
-    for (const auto& ds : datasets) {
-        if (cancel && cancel->checkpoint())
-            return StateWalk::Cancelled;
-        ObjSet zpl;
-        if (!zpl.load(&v, ds.ds_bp.data()))
-            continue;
-
-        std::u16string dname = ds.name.empty() ? pool_display_ : ds.name;
-        /* S-034: dataset node find-or-create — a dataset present in a
-         * newer state keeps ITS node (children recall under it); a
-         * dataset only an older state knows surfaces as Deleted. */
-        tree::FileNode* ds_node;
-        auto dit = ds_nodes.find(dname);
-        if (dit != ds_nodes.end()) {
-            ds_node = dit->second;
-        } else {
-            auto* dprops = new (std::nothrow) tree::FileProperties();
-            if (!dprops)
-                continue;
-            dprops->name = dname;
-            dprops->attributes = 0x10;
-            ds_node = tree.add_file(root_active, dprops);
-            dprops->release();
-            if (!ds_node)
-                continue;
-            if (!live)
-                ds_node->set_deleted_state(tree::DeletedState::Deleted);
-            ds_nodes.emplace(dname, ds_node);
-            ++stats.datasets;
-            ++stats.dirs;
-        }
-
-        std::vector<ZapEntry> master;
-        if (!read_zap(v, zpl, 1, master))
-            continue;
-        u64 root_obj = 0;
-        for (const auto& e : master)
-            if (e.name == "ROOT")
-                root_obj = e.value;
-        if (root_obj == 0)
-            continue;
-
-        /* M-038: per-dataset SA registry (master node "SA_ATTRS" ->
-         * {REGISTRY, LAYOUTS}); absent registry = the implicit default
-         * layout only (registry-less pools and the legacy fixtures) */
-        SaRegistry sa_reg;
-        load_sa_registry(v, zpl, master, sa_reg);
-
-        struct ObjInfo {
-            u64 mode = 0;
-            u64 flags = 0; /* N-059: ZPL_FLAGS (og +0x5A, census-level) */
-            u64 size = 0;
-            u64 parent = 0;
-            u64 links = 0;
-            u64 atime[2] = {0, 0}, mtime[2] = {0, 0}, ctime[2] = {0, 0}, crtime[2] = {0, 0};
-            Dnode dn;
-            bool dir = false;
-        };
-        std::map<u64, ObjInfo> objs;
-        auto load_obj = [&](u64 obj) -> const ObjInfo* {
-            auto it = objs.find(obj);
-            if (it != objs.end())
-                return &it->second;
-            Dnode dn;
-            if (!zpl.read_dnode(obj, dn))
-                return nullptr;
-            if (dn.type() != DMU_OT_DIRECTORY_CONTENTS && dn.type() != DMU_OT_PLAIN_FILE_CONTENTS)
-                return nullptr;
-            ObjInfo oi;
-            const u32 blen = dn.bonuslen();
-            const u64 bcap = dn.bonus_cap();
-            if (blen == 0 || u64(blen) > bcap || blen > MAX_BONUS)
-                return nullptr;
-            const u8* b = dn.bonus();
-            if (dn.bonustype() == DMU_OT_SA && blen >= 8) {
-                /* M-038: registry-driven SA decode (the og resolves
-                 * attributes BY NAME through the dataset's SA registry
-                 * and decodes every registered layout; the uniform map
-                 * lookup at :17636 ZEROES attrs on a miss - the object
-                 * still surfaces). Layout 1 falls back to the implicit
-                 * default table (the zfs_attr_table order) when the
-                 * registry/layouts object is absent - the pre-M-038
-                 * behavior, kept for registry-less pools. */
-                const u32 magic = le32(b);
-                const u32 layout_info = le16(b + 4);
-                const u32 layout = layout_info & 0x3FF;
-                const u32 hdr_bytes = ((layout_info >> 10) & 0x3F) << 3;
-                if (magic != SA_MAGIC)
-                    return nullptr; /* not an SA bonus */
-                bool decoded = false;
-                if (sa_reg.valid && sa_reg.has_layout(layout)) {
-                    /* registry-driven: offsets by cumulative registered
-                     * lengths over the layout's slot order */
-                    u32 off = hdr_bytes;
-                    for (u16 slot : sa_reg.layouts[layout]) {
-                        auto lit = sa_reg.len_by_num.find(slot);
-                        if (lit == sa_reg.len_by_num.end())
-                            break; /* unregistered attr number: keep the
-                                    * attrs decoded so far (the og zero-
-                                    * fills the missing tail) */
-                        const u8 alen = lit->second;
-                        if (u64(off) + alen > blen)
-                            break; /* bonus shorter than the layout: keep
-                                    * the in-bounds prefix */
-                        auto nit = sa_reg.name_by_num.find(slot);
-                        if (nit != sa_reg.name_by_num.end()) {
-                            const u8* p = b + off;
-                            u64 v64 = alen >= 8 ? le64(p)
-                                                : (alen == 4 ? u64(le32(p))
-                                                             : (alen == 2 ? u64(le16(p))
-                                                                          : u64(*p)));
-                            const std::string& nm = nit->second;
-                            if (nm == "ZPL_ATIME")
-                                oi.atime[0] = v64;
-                            else if (nm == "ZPL_MTIME")
-                                oi.mtime[0] = v64;
-                            else if (nm == "ZPL_CTIME")
-                                oi.ctime[0] = v64;
-                            else if (nm == "ZPL_CRTIME")
-                                oi.crtime[0] = v64;
-                            else if (nm == "ZPL_MODE")
-                                oi.mode = v64;
-                            else if (nm == "ZPL_FLAGS")
-                                oi.flags = v64; /* N-059: secondary flags */
-                            else if (nm == "ZPL_SIZE")
-                                oi.size = v64;
-                            else if (nm == "ZPL_PARENT")
-                                oi.parent = v64;
-                            else if (nm == "ZPL_LINKS")
-                                oi.links = v64;
-                            /* gen/xattr/rdev/flags/uid/gid: carried in
-                             * the registry, not consumed by the walk */
+                if (child_zap != 0) {
+                    std::vector<ZapEntry> children;
+                    if (read_zap(v, mos, child_zap, children)) {
+                        for (const auto& c : children) {
+                            /* S-005: zap child names are UTF-8 - decode */
+                            std::u16string sub = prefix;
+                            sub += text::utf8_to_u16(c.name);
+                            walk_dir(c.value, sub, depth + 1);
                         }
-                        off += alen;
                     }
-                    decoded = true;
-                } else if (layout == 1 && blen >= SA_LAYOUT1_MIN) {
-                    /* implicit default layout 1 (zfs_attr_table order):
-                     * the fallback for registry-less pools - real pools
-                     * carry layout 1 in the LAYOUTS object and decode
-                     * through the registry path above */
-                    oi.atime[0] = le64(b + SA_LAYOUT1_ATIME);
-                    oi.mtime[0] = le64(b + SA_LAYOUT1_MTIME);
-                    oi.ctime[0] = le64(b + SA_LAYOUT1_CTIME);
-                    oi.crtime[0] = le64(b + SA_LAYOUT1_CRTIME);
-                    oi.mode = le64(b + SA_LAYOUT1_MODE);
-                    oi.parent = le64(b + SA_LAYOUT1_PARENT);
-                    oi.links = le64(b + SA_LAYOUT1_LINKS);
-                    oi.size = le64(b + SA_LAYOUT1_SIZE);
-                    decoded = true;
                 }
-                (void)decoded; /* an unregistered non-default layout
-                 * surfaces the object with ZERO attrs - og parity (the
-                 * uniform map lookup at :17636 zero-fills); the pre-M-038
-                 * core DROPPED the object here, losing the file entirely */
-            } else if (dn.bonustype() == DMU_OT_ZNODE && blen >= ZP_MIN) {
-                /* legacy znode_phys (zfs_sa.h) */
-                oi.atime[0] = le64(b + ZP_ATIME);
-                oi.mtime[0] = le64(b + ZP_MTIME);
-                oi.ctime[0] = le64(b + ZP_CTIME);
-                oi.crtime[0] = le64(b + ZP_CRTIME);
-                oi.mode = le64(b + ZP_MODE);
-                oi.parent = le64(b + ZP_PARENT);
-                oi.links = le64(b + ZP_LINKS);
-                oi.size = le64(b + ZP_SIZE);
+            };
+        walk_dir(dataset_dir_obj, u"", 0);
+        if (live && progress)
+            (void)progress(2, 4, progress_user);
+
+        /* 4. per-dataset ZPL walk: master node object 1 -> ROOT -> dirs. */
+        std::u16string pool_display_ = text::utf8_to_u16(
+            cfg.valid && !cfg.pool_name.empty() ? cfg.pool_name : std::string("pool"));
+        for (const auto& ds : datasets) {
+            if (cancel && cancel->checkpoint())
+                return StateWalk::Cancelled;
+            ObjSet zpl;
+            if (!zpl.load(&v, ds.ds_bp.data()))
+                continue;
+
+            std::u16string dname = ds.name.empty() ? pool_display_ : ds.name;
+            /* S-034: dataset node find-or-create — a dataset present in a
+             * newer state keeps ITS node (children recall under it); a
+             * dataset only an older state knows surfaces as Deleted. */
+            tree::FileNode* ds_node;
+            auto dit = ds_nodes.find(dname);
+            if (dit != ds_nodes.end()) {
+                ds_node = dit->second;
             } else {
-                return nullptr;
-            }
-            oi.dn = std::move(dn);
-            oi.dir = (oi.mode & 0xF000) == 0x4000;
-            auto res = objs.emplace(obj, std::move(oi));
-            return &res.first->second;
-        };
-
-        std::set<u64> visited;
-        /* dpath = the dir's dataset-relative path (S-034 complement: the
-         * og's emit chain suppresses children of .Trash-1000/info —
-         * ZfsSearchDLL FUN_180004f00 :3708 builds L".Trash-1000/info"
-         * and the normalized path-compare at :3716 short-circuits the
-         * add; the /files subtree is classified-not-suppressed,
-         * FUN_180004ad0 :3447 returning al=1 while still adding). */
-        std::function<void(u64, tree::FileNode*, int, const std::u16string&)> emit_dir =
-            [&](u64 dir_obj, tree::FileNode* parent, int depth, const std::u16string& dpath) {
-            if (depth > MAX_DEPTH || visited.count(dir_obj))
-                return;
-            visited.insert(dir_obj);
-            const ObjInfo* di = load_obj(dir_obj);
-            if (di == nullptr || !di->dir)
-                return;
-            std::vector<ZapEntry> entries;
-            if (!read_zap(v, zpl, dir_obj, entries))
-                return;
-            const bool trash_info_dir = (dpath == u".Trash-1000/info");
-            for (const auto& e : entries) {
-                if (cancel && cancel->checkpoint())
-                    return;
-                if (e.name == "." || e.name == "..")
+                auto* dprops = new (std::nothrow) tree::FileProperties();
+                if (!dprops)
                     continue;
-                if (trash_info_dir)
-                    continue; /* the .trashinfo sidecars never enter results */
-                const ObjInfo* ci = load_obj(e.value);
-                if (ci == nullptr)
-                    continue;
-                const bool is_dir = ci->dir;
-                /* S-034: cross-state identity — (dataset, parent dir
-                 * object, entry name, object id). The og's visitor
-                 * registry keys (parent-path bucket, objid) with the
-                 * name compare deciding skip vs re-emit
-                 * (FUN_180007db0 on the objid, FUN_180001a90 on the
-                 * name, equal -> skip, first-seen claims the node) —
-                 * NO birth term: a file modified in-window (same
-                 * objid+name, new data) is SKIPPED by the later state's
-                 * walk, not re-emitted. An unchanged directory is
-                 * still re-walked per state (against its existing node)
-                 * so deleted-in-window descendants surface in place;
-                 * a renamed/moved entry is a distinct key and re-emits
-                 * under its new location. */
-                EntryKey key{dname, dir_obj, e.name, e.value};
-                auto cit = claimed.find(key);
-                if (cit != claimed.end()) {
-                    if (is_dir)
-                        emit_dir(e.value, cit->second, depth + 1,
-                                 dpath.empty()
-                                     ? text::utf8_to_u16(e.name)
-                                     : dpath + u"/" + text::utf8_to_u16(e.name));
-                    continue;
-                }
-                auto* p = new (std::nothrow) tree::FileProperties();
-                if (!p)
-                    return;
-                p->name = text::utf8_to_u16(e.name); /* S-005: UTF-8 decode */
-                p->fs_kind = u32(FsKindCode::Zfs);   /* corpus factory code */
-                p->logical_size = ci->size;
-                p->allocated_size = ci->dn.maxblkid() != 0
-                                        ? u64(ci->dn.datablksz()) * (ci->dn.maxblkid() + 1)
-                                        : (ci->size ? u64(ci->dn.datablksz()) : 0);
-                p->attributes = is_dir ? 0x10 : 0;
-                p->record_ref = e.value;
-                /* N-059: the ZPL_FLAGS low u16 — the og's +0x5A secondary
-                 * flags (census-level semantics; carried opaque). The
-                 * classic znode flag set (immutable/appendonly/...) is the
-                 * low word; extended bits ride the registry only. */
-                p->zfs_secondary_flags = u16(ci->flags);
-                p->times.created = unix_to_filetime(i64(ci->crtime[0]));
-                p->times.modified = unix_to_filetime(i64(ci->mtime[0]));
-                p->times.changed = unix_to_filetime(i64(ci->ctime[0]));
-                p->times.accessed = unix_to_filetime(i64(ci->atime[0]));
-                if (!is_dir && ci->size > 0) {
-                    FileExtentPlan plan;
-                    if (plan_file_extents(v, ci->dn, plan)) {
-                        /* merge adjacent raw extents */
-                        u64 compressed = 0;
-                        for (auto& it : plan.items) {
-                            if (it.codec != 0)
-                                ++compressed;
-                            if (!p->extents.empty() && it.codec == 0 &&
-                                p->extents.back().codec == 0 &&
-                                p->extents.back().offset + p->extents.back().length == it.offset) {
-                                p->extents.back().length += it.length;
-                                p->extents.back().psize = 0;
-                            } else {
-                                tree::FileProperties::Extent ex;
-                                ex.offset = it.offset;
-                                ex.length = it.length;
-                                ex.codec = it.codec;
-                                ex.psize = it.psize;
-                                p->extents.push_back(ex);
-                            }
-                        }
-                        stats.compressed_extents += compressed;
-                        for (auto& em : plan.embedded) {
-                            if (em.size() <= (1u << 20)) {
-                                p->resident_data.insert(p->resident_data.end(), em.begin(),
-                                                        em.end());
-                                ++stats.embedded_files;
-                            }
-                        }
-                    }
-                }
-                tree::FileNode* n = tree.add_file(parent, p);
-                p->release();
-                if (!n)
+                dprops->name = dname;
+                dprops->attributes = 0x10;
+                ds_node = tree.add_file(root_active, dprops);
+                dprops->release();
+                if (!ds_node)
                     continue;
                 if (!live)
-                    n->set_deleted_state(tree::DeletedState::Deleted);
-                claimed.emplace(key, n);
-                if (is_dir) {
-                    ++stats.dirs;
-                    emit_dir(e.value, n, depth + 1,
-                             dpath.empty() ? text::utf8_to_u16(e.name)
-                                           : dpath + u"/" + text::utf8_to_u16(e.name));
-                } else {
-                    ++stats.files;
-                }
+                    ds_node->set_deleted_state(tree::DeletedState::Deleted);
+                ds_nodes.emplace(dname, ds_node);
+                ++stats.datasets;
+                ++stats.dirs;
             }
-        };
-        emit_dir(root_obj, ds_node, 0, u"");
-        if (progress)
-            (void)progress(3, 4, progress_user);
-    }
-    return StateWalk::Opened;
+
+            std::vector<ZapEntry> master;
+            if (!read_zap(v, zpl, 1, master))
+                continue;
+            u64 root_obj = 0;
+            for (const auto& e : master)
+                if (e.name == "ROOT")
+                    root_obj = e.value;
+            if (root_obj == 0)
+                continue;
+
+            /* M-038: per-dataset SA registry (master node "SA_ATTRS" ->
+             * {REGISTRY, LAYOUTS}); absent registry = the implicit default
+             * layout only (registry-less pools and the legacy fixtures) */
+            SaRegistry sa_reg;
+            load_sa_registry(v, zpl, master, sa_reg);
+
+            struct ObjInfo {
+                u64 mode = 0;
+                u64 flags = 0; /* N-059: ZPL_FLAGS (og +0x5A, census-level) */
+                u64 size = 0;
+                u64 parent = 0;
+                u64 links = 0;
+                u64 atime[2] = {0, 0}, mtime[2] = {0, 0}, ctime[2] = {0, 0}, crtime[2] = {0, 0};
+                Dnode dn;
+                bool dir = false;
+            };
+            std::map<u64, ObjInfo> objs;
+            auto load_obj = [&](u64 obj) -> const ObjInfo* {
+                auto it = objs.find(obj);
+                if (it != objs.end())
+                    return &it->second;
+                Dnode dn;
+                if (!zpl.read_dnode(obj, dn))
+                    return nullptr;
+                if (dn.type() != DMU_OT_DIRECTORY_CONTENTS &&
+                    dn.type() != DMU_OT_PLAIN_FILE_CONTENTS)
+                    return nullptr;
+                ObjInfo oi;
+                const u32 blen = dn.bonuslen();
+                const u64 bcap = dn.bonus_cap();
+                if (blen == 0 || u64(blen) > bcap || blen > MAX_BONUS)
+                    return nullptr;
+                const u8* b = dn.bonus();
+                if (dn.bonustype() == DMU_OT_SA && blen >= 8) {
+                    /* M-038: registry-driven SA decode (the og resolves
+                     * attributes BY NAME through the dataset's SA registry
+                     * and decodes every registered layout; the uniform map
+                     * lookup at :17636 ZEROES attrs on a miss - the object
+                     * still surfaces). Layout 1 falls back to the implicit
+                     * default table (the zfs_attr_table order) when the
+                     * registry/layouts object is absent - the pre-M-038
+                     * behavior, kept for registry-less pools. */
+                    const u32 magic = le32(b);
+                    const u32 layout_info = le16(b + 4);
+                    const u32 layout = layout_info & 0x3FF;
+                    const u32 hdr_bytes = ((layout_info >> 10) & 0x3F) << 3;
+                    if (magic != SA_MAGIC)
+                        return nullptr; /* not an SA bonus */
+                    bool decoded = false;
+                    if (sa_reg.valid && sa_reg.has_layout(layout)) {
+                        /* registry-driven: offsets by cumulative registered
+                         * lengths over the layout's slot order */
+                        u32 off = hdr_bytes;
+                        for (u16 slot : sa_reg.layouts[layout]) {
+                            auto lit = sa_reg.len_by_num.find(slot);
+                            if (lit == sa_reg.len_by_num.end())
+                                break; /* unregistered attr number: keep the
+                                        * attrs decoded so far (the og zero-
+                                        * fills the missing tail) */
+                            const u8 alen = lit->second;
+                            if (u64(off) + alen > blen)
+                                break; /* bonus shorter than the layout: keep
+                                        * the in-bounds prefix */
+                            auto nit = sa_reg.name_by_num.find(slot);
+                            if (nit != sa_reg.name_by_num.end()) {
+                                const u8* p = b + off;
+                                u64 v64 = alen >= 8
+                                              ? le64(p)
+                                              : (alen == 4 ? u64(le32(p))
+                                                           : (alen == 2 ? u64(le16(p)) : u64(*p)));
+                                const std::string& nm = nit->second;
+                                if (nm == "ZPL_ATIME")
+                                    oi.atime[0] = v64;
+                                else if (nm == "ZPL_MTIME")
+                                    oi.mtime[0] = v64;
+                                else if (nm == "ZPL_CTIME")
+                                    oi.ctime[0] = v64;
+                                else if (nm == "ZPL_CRTIME")
+                                    oi.crtime[0] = v64;
+                                else if (nm == "ZPL_MODE")
+                                    oi.mode = v64;
+                                else if (nm == "ZPL_FLAGS")
+                                    oi.flags = v64; /* N-059: secondary flags */
+                                else if (nm == "ZPL_SIZE")
+                                    oi.size = v64;
+                                else if (nm == "ZPL_PARENT")
+                                    oi.parent = v64;
+                                else if (nm == "ZPL_LINKS")
+                                    oi.links = v64;
+                                /* gen/xattr/rdev/flags/uid/gid: carried in
+                                 * the registry, not consumed by the walk */
+                            }
+                            off += alen;
+                        }
+                        decoded = true;
+                    } else if (layout == 1 && blen >= SA_LAYOUT1_MIN) {
+                        /* implicit default layout 1 (zfs_attr_table order):
+                         * the fallback for registry-less pools - real pools
+                         * carry layout 1 in the LAYOUTS object and decode
+                         * through the registry path above */
+                        oi.atime[0] = le64(b + SA_LAYOUT1_ATIME);
+                        oi.mtime[0] = le64(b + SA_LAYOUT1_MTIME);
+                        oi.ctime[0] = le64(b + SA_LAYOUT1_CTIME);
+                        oi.crtime[0] = le64(b + SA_LAYOUT1_CRTIME);
+                        oi.mode = le64(b + SA_LAYOUT1_MODE);
+                        oi.parent = le64(b + SA_LAYOUT1_PARENT);
+                        oi.links = le64(b + SA_LAYOUT1_LINKS);
+                        oi.size = le64(b + SA_LAYOUT1_SIZE);
+                        decoded = true;
+                    }
+                    (void)decoded; /* an unregistered non-default layout
+                                    * surfaces the object with ZERO attrs - og parity (the
+                                    * uniform map lookup at :17636 zero-fills); the pre-M-038
+                                    * core DROPPED the object here, losing the file entirely */
+                } else if (dn.bonustype() == DMU_OT_ZNODE && blen >= ZP_MIN) {
+                    /* legacy znode_phys (zfs_sa.h) */
+                    oi.atime[0] = le64(b + ZP_ATIME);
+                    oi.mtime[0] = le64(b + ZP_MTIME);
+                    oi.ctime[0] = le64(b + ZP_CTIME);
+                    oi.crtime[0] = le64(b + ZP_CRTIME);
+                    oi.mode = le64(b + ZP_MODE);
+                    oi.parent = le64(b + ZP_PARENT);
+                    oi.links = le64(b + ZP_LINKS);
+                    oi.size = le64(b + ZP_SIZE);
+                } else {
+                    return nullptr;
+                }
+                oi.dn = std::move(dn);
+                oi.dir = (oi.mode & 0xF000) == 0x4000;
+                auto res = objs.emplace(obj, std::move(oi));
+                return &res.first->second;
+            };
+
+            std::set<u64> visited;
+            /* dpath = the dir's dataset-relative path (S-034 complement: the
+             * og's emit chain suppresses children of .Trash-1000/info —
+             * ZfsSearchDLL FUN_180004f00 :3708 builds L".Trash-1000/info"
+             * and the normalized path-compare at :3716 short-circuits the
+             * add; the /files subtree is classified-not-suppressed,
+             * FUN_180004ad0 :3447 returning al=1 while still adding). */
+            std::function<void(u64, tree::FileNode*, int, const std::u16string&)> emit_dir =
+                [&](u64 dir_obj, tree::FileNode* parent, int depth, const std::u16string& dpath) {
+                    if (depth > MAX_DEPTH || visited.count(dir_obj))
+                        return;
+                    visited.insert(dir_obj);
+                    const ObjInfo* di = load_obj(dir_obj);
+                    if (di == nullptr || !di->dir)
+                        return;
+                    std::vector<ZapEntry> entries;
+                    if (!read_zap(v, zpl, dir_obj, entries))
+                        return;
+                    const bool trash_info_dir = (dpath == u".Trash-1000/info");
+                    for (const auto& e : entries) {
+                        if (cancel && cancel->checkpoint())
+                            return;
+                        if (e.name == "." || e.name == "..")
+                            continue;
+                        if (trash_info_dir)
+                            continue; /* the .trashinfo sidecars never enter results */
+                        const ObjInfo* ci = load_obj(e.value);
+                        if (ci == nullptr)
+                            continue;
+                        const bool is_dir = ci->dir;
+                        /* S-034: cross-state identity — (dataset, parent dir
+                         * object, entry name, object id). The og's visitor
+                         * registry keys (parent-path bucket, objid) with the
+                         * name compare deciding skip vs re-emit
+                         * (FUN_180007db0 on the objid, FUN_180001a90 on the
+                         * name, equal -> skip, first-seen claims the node) —
+                         * NO birth term: a file modified in-window (same
+                         * objid+name, new data) is SKIPPED by the later state's
+                         * walk, not re-emitted. An unchanged directory is
+                         * still re-walked per state (against its existing node)
+                         * so deleted-in-window descendants surface in place;
+                         * a renamed/moved entry is a distinct key and re-emits
+                         * under its new location. */
+                        EntryKey key{dname, dir_obj, e.name, e.value};
+                        auto cit = claimed.find(key);
+                        if (cit != claimed.end()) {
+                            if (is_dir)
+                                emit_dir(e.value, cit->second, depth + 1,
+                                         dpath.empty() ? text::utf8_to_u16(e.name)
+                                                       : dpath + u"/" + text::utf8_to_u16(e.name));
+                            continue;
+                        }
+                        auto* p = new (std::nothrow) tree::FileProperties();
+                        if (!p)
+                            return;
+                        p->name = text::utf8_to_u16(e.name); /* S-005: UTF-8 decode */
+                        p->fs_kind = u32(FsKindCode::Zfs);   /* corpus factory code */
+                        p->logical_size = ci->size;
+                        p->allocated_size = ci->dn.maxblkid() != 0
+                                                ? u64(ci->dn.datablksz()) * (ci->dn.maxblkid() + 1)
+                                                : (ci->size ? u64(ci->dn.datablksz()) : 0);
+                        p->attributes = is_dir ? 0x10 : 0;
+                        p->record_ref = e.value;
+                        /* N-059: the ZPL_FLAGS low u16 — the og's +0x5A secondary
+                         * flags (census-level semantics; carried opaque). The
+                         * classic znode flag set (immutable/appendonly/...) is the
+                         * low word; extended bits ride the registry only. */
+                        p->zfs_secondary_flags = u16(ci->flags);
+                        p->times.created = unix_to_filetime(i64(ci->crtime[0]));
+                        p->times.modified = unix_to_filetime(i64(ci->mtime[0]));
+                        p->times.changed = unix_to_filetime(i64(ci->ctime[0]));
+                        p->times.accessed = unix_to_filetime(i64(ci->atime[0]));
+                        if (!is_dir && ci->size > 0) {
+                            FileExtentPlan plan;
+                            if (plan_file_extents(v, ci->dn, plan)) {
+                                /* merge adjacent raw extents */
+                                u64 compressed = 0;
+                                for (auto& it : plan.items) {
+                                    if (it.codec != 0)
+                                        ++compressed;
+                                    if (!p->extents.empty() && it.codec == 0 &&
+                                        p->extents.back().codec == 0 &&
+                                        p->extents.back().offset + p->extents.back().length ==
+                                            it.offset) {
+                                        p->extents.back().length += it.length;
+                                        p->extents.back().psize = 0;
+                                    } else {
+                                        tree::FileProperties::Extent ex;
+                                        ex.offset = it.offset;
+                                        ex.length = it.length;
+                                        ex.codec = it.codec;
+                                        ex.psize = it.psize;
+                                        p->extents.push_back(ex);
+                                    }
+                                }
+                                stats.compressed_extents += compressed;
+                                for (auto& em : plan.embedded) {
+                                    if (em.size() <= (1u << 20)) {
+                                        p->resident_data.insert(p->resident_data.end(), em.begin(),
+                                                                em.end());
+                                        ++stats.embedded_files;
+                                    }
+                                }
+                            }
+                        }
+                        tree::FileNode* n = tree.add_file(parent, p);
+                        p->release();
+                        if (!n)
+                            continue;
+                        if (!live)
+                            n->set_deleted_state(tree::DeletedState::Deleted);
+                        claimed.emplace(key, n);
+                        if (is_dir) {
+                            ++stats.dirs;
+                            emit_dir(e.value, n, depth + 1,
+                                     dpath.empty() ? text::utf8_to_u16(e.name)
+                                                   : dpath + u"/" + text::utf8_to_u16(e.name));
+                        } else {
+                            ++stats.files;
+                        }
+                    }
+                };
+            emit_dir(root_obj, ds_node, 0, u"");
+            if (progress)
+                (void)progress(3, 4, progress_user);
+        }
+        return StateWalk::Opened;
     }; /* walk_state */
 
     /* Drive every ring state newest-first (S-034): the first state

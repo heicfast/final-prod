@@ -270,9 +270,9 @@ TEST(Report, MultiExtentSpannedVolumeRefused) {
     WriterConfig cfg;
     SafeWriter writer(io, &dev, cfg);
     writer.set_destination_spans({{0, 100}, {1 << 20, 512}});
-    ASSERT_EQ(OK, writer.enqueue(between_a, u"out\\"));       /* between spans */
+    ASSERT_EQ(OK, writer.enqueue(between_a, u"out\\"));             /* between spans */
     ASSERT_EQ(ERR_DEST_OVERLAP, writer.enqueue(spanned, u"out\\")); /* span[1] catches */
-    ASSERT_EQ(OK, writer.enqueue(between_b, u"out\\"));       /* between spans */
+    ASSERT_EQ(OK, writer.enqueue(between_b, u"out\\"));             /* between spans */
 
     /* single-span arming stays equivalent to the legacy setter: with only
      * span[1] armed, spanned.bin is still caught (the sole span), the
@@ -342,11 +342,11 @@ TEST(Report, DestFullFastFailStopsAttempting) {
 
     const std::vector<report::Item> items = writer.report_items();
     ASSERT_EQ(4u, items.size());
-    EXPECT_EQ(Outcome::Done, items[0].outcome);       /* a.bin committed */
-    EXPECT_EQ(Outcome::Error, items[1].outcome);      /* b.bin hit ENOSPC */
+    EXPECT_EQ(Outcome::Done, items[0].outcome);  /* a.bin committed */
+    EXPECT_EQ(Outcome::Error, items[1].outcome); /* b.bin hit ENOSPC */
     EXPECT_EQ(u32(ERR_DEST_FULL), items[1].reason);
-    EXPECT_EQ(Outcome::Pending, items[2].outcome);    /* c.bin: never attempted */
-    EXPECT_EQ(Outcome::Pending, items[3].outcome);    /* d.bin: never attempted */
+    EXPECT_EQ(Outcome::Pending, items[2].outcome); /* c.bin: never attempted */
+    EXPECT_EQ(Outcome::Pending, items[3].outcome); /* d.bin: never attempted */
 }
 
 TEST(Report, DestFullPreCheckRefusesUpfront) {
@@ -361,7 +361,9 @@ TEST(Report, DestFullPreCheckRefusesUpfront) {
     auto* na = add_node(tree, found, "a.bin", 0, 512);
     auto* nb = add_node(tree, found, "b.bin", 512, 512);
     auto* nc = add_node(tree, found, "c.bin", 1024, 512);
-    (void)na; (void)nb; (void)nc;
+    (void)na;
+    (void)nb;
+    (void)nc;
     tree.refresh_stats();
 
     FullIo io;

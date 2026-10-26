@@ -393,9 +393,9 @@ TEST(Bitlocker, DictionaryAttemptUsesManageBde) {
     EXPECT_NE(std::wstring::npos, mbde.find(L"manage-bde -unlock X: -Password \"hunter2\""));
 
     /* the other key forms keep their grammar (regression pin) */
-    EXPECT_NE(std::wstring::npos,
-              detail::build_unlock_command(L'X', 1, L"48-digits", false)
-                  .find(L"-RecoveryPassword"));
+    EXPECT_NE(
+        std::wstring::npos,
+        detail::build_unlock_command(L'X', 1, L"48-digits", false).find(L"-RecoveryPassword"));
     EXPECT_NE(std::wstring::npos,
               detail::build_unlock_command(L'X', 2, L"C:\\k.beK", true).find(L"-KeyFilePath"));
 }

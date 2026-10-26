@@ -13,8 +13,8 @@
 
 #include "cr/storage/cr_image.h"
 #include <cstring>
-#include <map>
 #include <memory>
+#include <set>
 #include <vector>
 
 namespace {
@@ -48,7 +48,7 @@ public:
 
 private:
     std::vector<uint8_t> bytes_;
-    std::map<u64, u64> open_;
+    std::set<u64> open_; /* open file handles (insert/count/erase) */
     u64 next_ = 0;
 };
 

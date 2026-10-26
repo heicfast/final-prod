@@ -307,11 +307,9 @@ void emit_entry(EmitCtx& ctx, const DirEntry& e, const std::u16string& name, boo
                     u64 got = 0;
                     size_t k = 0;
                     while (k < chain.clusters.size() && got < want) {
-                        const u64 off =
-                            FatTable::cluster_offset(ctx.p, chain.clusters[k]);
-                        const u64 take =
-                            std::min<u64>(std::min<u64>(want - got, ctx.p.cluster_bytes),
-                                          img.size() - got);
+                        const u64 off = FatTable::cluster_offset(ctx.p, chain.clusters[k]);
+                        const u64 take = std::min<u64>(
+                            std::min<u64>(want - got, ctx.p.cluster_bytes), img.size() - got);
                         if (ctx.dev->read_at(off, img.data() + got, u32(take)) != OK)
                             break;
                         got += take;

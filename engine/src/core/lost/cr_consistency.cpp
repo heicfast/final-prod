@@ -92,8 +92,7 @@ bool consistency_extension_checkable(const std::string& ext_upper) {
     return false;
 }
 
-bool consistency_name_matches_family(const std::u16string& name,
-                                     const std::string& ext_upper,
+bool consistency_name_matches_family(const std::u16string& name, const std::string& ext_upper,
                                      const char* sig_ext_upper) {
     const std::string up = ascii_upper(name);
     /* (a) SUBSTRING: the family extension appears inside the name
@@ -111,8 +110,8 @@ bool consistency_name_matches_family(const std::u16string& name,
     return false;
 }
 
-ConsistencyVerdict score_content_consistency(IStorageDevice* slice,
-                                             const ConsistencyFile* files, size_t count) {
+ConsistencyVerdict score_content_consistency(IStorageDevice* slice, const ConsistencyFile* files,
+                                             size_t count) {
     ConsistencyVerdict v;
     if (slice == nullptr || files == nullptr || count == 0)
         return v;
@@ -143,8 +142,8 @@ ConsistencyVerdict score_content_consistency(IStorageDevice* slice,
         }
         /* probe the data start: one bounded read; failures = no signature
          * (the og's sig map has no entry at unreadable offsets). */
-        const u32 want = u32(kProbeBytes < vol_bytes - f.data_start ? kProbeBytes
-                                                                    : vol_bytes - f.data_start);
+        const u32 want =
+            u32(kProbeBytes < vol_bytes - f.data_start ? kProbeBytes : vol_bytes - f.data_start);
         if (want == 0 || slice->read_at(f.data_start, win.data(), want) != OK)
             continue;
         /* classify: the FIRST registry signature whose magic matches at the
@@ -157,8 +156,7 @@ ConsistencyVerdict score_content_consistency(IStorageDevice* slice,
             u64 cand_rel = 0;
             /* the magic sits at header_offset inside the file: the window
              * offset of the first magic byte IS sig.header_offset */
-            if (carve::match_signature(reg[s], win.data(), want, reg[s].header_offset,
-                                       cand_rel)) {
+            if (carve::match_signature(reg[s], win.data(), want, reg[s].header_offset, cand_rel)) {
                 hit = &reg[s];
                 break;
             }

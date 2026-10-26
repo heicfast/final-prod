@@ -547,8 +547,7 @@ u32 validate_boot(const u8* sector512, u64 device_bytes, FatParams& out) {
      * sizes are safe. Deliberate documented bound (PARITY-DELTAS): the
      * 32768 ceiling the og lacks (a u16 field tops at 65535; no real
      * format writes past 32768 - this only cuts absurd-volume noise). */
-    if (p.bytes_per_sector < 512 || p.bytes_per_sector > 32768 ||
-        (p.bytes_per_sector & 0x1FF) != 0)
+    if (p.bytes_per_sector < 512 || p.bytes_per_sector > 32768 || (p.bytes_per_sector & 0x1FF) != 0)
         return ERR_BAD_PARAMETER;
     p.sectors_per_cluster = sector512[0x0D];
     /* N-010b/N-034 (diff-to-fix, corrected this session): SPC is a u8

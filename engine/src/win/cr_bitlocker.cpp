@@ -137,12 +137,11 @@ bitlocker::Status status(wchar_t letter) {
 
 u32 unlock(wchar_t letter, int key_type, const std::wstring& key_or_path) {
     /* Build the legitimate unlock command. Primary: PowerShell. */
-    int rc = run_command(detail::build_unlock_command(letter, key_type, key_or_path, false),
-                         120000);
+    int rc =
+        run_command(detail::build_unlock_command(letter, key_type, key_or_path, false), 120000);
     if (rc != 0) {
         /* legacy fallback: manage-bde (corpus pre-PowerShell path) */
-        rc = run_command(detail::build_unlock_command(letter, key_type, key_or_path, true),
-                         120000);
+        rc = run_command(detail::build_unlock_command(letter, key_type, key_or_path, true), 120000);
     }
     if (rc != 0)
         return ERR_FVE_LOCKED;
@@ -175,9 +174,7 @@ u32 unlock_with_dictionary(wchar_t letter, const wchar_t* const* user_passwords,
     }
     const dict::AttemptResult res = detail::dictionary_unlock_seam(
         user,
-        [](wchar_t l, const wchar_t* password, void*) -> u32 {
-            return unlock(l, 0, password);
-        },
+        [](wchar_t l, const wchar_t* password, void*) -> u32 { return unlock(l, 0, password); },
         letter, nullptr);
     return res.success_index != 0 ? OK : ERR_FVE_LOCKED;
 }
@@ -187,9 +184,7 @@ u32 unlock_with_dictionary(wchar_t letter, const wchar_t* const* user_passwords,
 u32 unlock_with_dictionary(wchar_t letter, const std::vector<std::string>& user_candidates) {
     const dict::AttemptResult res = detail::dictionary_unlock_seam(
         user_candidates,
-        [](wchar_t l, const wchar_t* password, void*) -> u32 {
-            return unlock(l, 0, password);
-        },
+        [](wchar_t l, const wchar_t* password, void*) -> u32 { return unlock(l, 0, password); },
         letter, nullptr);
     return res.success_index != 0 ? OK : ERR_FVE_LOCKED;
 }
@@ -322,8 +317,8 @@ namespace detail {
 /* The unlock command builder (N-064 test seam; the command grammar is
  * unchanged from the S-014 landing - PowerShell primary, manage-bde legacy
  * fallback, key material quoted). */
-std::wstring build_unlock_command(wchar_t letter, int key_type,
-                                  const std::wstring& key_or_path, bool legacy_manage_bde) {
+std::wstring build_unlock_command(wchar_t letter, int key_type, const std::wstring& key_or_path,
+                                  bool legacy_manage_bde) {
     std::wstring mount;
     mount.push_back(letter);
     mount += L":";
@@ -338,17 +333,17 @@ std::wstring build_unlock_command(wchar_t letter, int key_type,
         return L"powershell -NoProfile -NonInteractive -Command \"Unlock-BitLocker -MountPoint " +
                quote(mount) + L" " + param + quote(key_or_path) + L"\"";
     }
-    std::wstring sub = key_type == 0 ? L"-Password"
-                                     : (key_type == 1 ? L"-RecoveryPassword" : L"-KeyFilePath");
+    std::wstring sub =
+        key_type == 0 ? L"-Password" : (key_type == 1 ? L"-RecoveryPassword" : L"-KeyFilePath");
     return L"manage-bde -unlock " + mount + L" " + sub + L" " + quote(key_or_path);
 }
 
 /* The dictionary loop with the attempt seam: widens each candidate and
  * feeds it to `attempt` (the real flow unlocks; tests record). */
-dict::AttemptResult dictionary_unlock_seam(
-    const std::vector<std::string>& user_candidates,
-    u32 (*attempt)(wchar_t letter, const wchar_t* password, void* user), wchar_t letter,
-    void* user) {
+dict::AttemptResult dictionary_unlock_seam(const std::vector<std::string>& user_candidates,
+                                           u32 (*attempt)(wchar_t letter, const wchar_t* password,
+                                                          void* user),
+                                           wchar_t letter, void* user) {
     struct Ctx {
         wchar_t letter;
         u32 (*attempt)(wchar_t, const wchar_t*, void*);

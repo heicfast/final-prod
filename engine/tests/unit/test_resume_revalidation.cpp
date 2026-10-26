@@ -78,12 +78,12 @@ void plant_fat_boot(std::vector<u8>& img, u64 lba) {
     b[2] = 0x90;
     std::memcpy(b + 3, "MSDOS5.0", 8);
     put16(img, lba * 512 + 0x0B, 512);
-    b[0x0D] = 1;              /* spc */
-    put16(img, lba * 512 + 0x0E, 2);  /* reserved */
-    b[0x10] = 2;              /* numFATs (M-045: != 0) */
+    b[0x0D] = 1;                       /* spc */
+    put16(img, lba * 512 + 0x0E, 2);   /* reserved */
+    b[0x10] = 2;                       /* numFATs (M-045: != 0) */
     put16(img, lba * 512 + 0x11, 512); /* root entries */
     b[0x15] = 0xF8;
-    put16(img, lba * 512 + 0x16, 20); /* spf */
+    put16(img, lba * 512 + 0x16, 20);    /* spf */
     put32v(img, lba * 512 + 0x20, 4096); /* total32 */
     put32v(img, lba * 512 + 0x24, 0);
     b[510] = 0x55;
@@ -247,8 +247,7 @@ TEST(ResumeRevalidation, ResumeDropsStaleCandidateAfterRelayout) {
         VolumeSessionInfo info;
         Reader r(MemFile::rd, MemFile::sk, MemFile::sz, &mf);
         std::unique_ptr<ScanController> ctrl;
-        ASSERT_EQ(OK, ScanController::resume(r, t, ScanConfig{}, stats, info, ctrl,
-                                             &relaid));
+        ASSERT_EQ(OK, ScanController::resume(r, t, ScanConfig{}, stats, info, ctrl, &relaid));
         ASSERT_EQ(OK, ctrl->run(&relaid, nullptr, nullptr, nullptr, stats));
         EXPECT_TRUE(stats.lost_candidates.empty())
             << "run() must drop the stale record before any stage executes";

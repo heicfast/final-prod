@@ -135,7 +135,9 @@ FILE* g_log = nullptr;
  * runs on any thread (engine workers); vfprintf on a FILE* is CRT-locked,
  * and the seam serializes deliveries on top. */
 void log_sink(cr::log::Level level, const char* line, void*) {
-    const char* tag = level == cr::log::Level::Error ? "E" : level == cr::log::Level::Warn ? "W" : "I";
+    const char* tag = level == cr::log::Level::Error  ? "E"
+                      : level == cr::log::Level::Warn ? "W"
+                                                      : "I";
     fprintf(g_log, "[%s] %s\n", tag, line);
     fflush(g_log);
 }
@@ -173,16 +175,16 @@ void log_line(const char* fmt, ...) {
  * ------------------------------------------------------------------------- */
 
 struct OpenResult {
-    std::unique_ptr<IStorageDevice> device; /* the view handed to engines */
-    std::unique_ptr<IStorageDevice> hold;   /* parent disk (slices reference it) */
+    std::unique_ptr<IStorageDevice> device;     /* the view handed to engines */
+    std::unique_ptr<IStorageDevice> hold;       /* parent disk (slices reference it) */
     std::unique_ptr<IStorageDevice> slice_hold; /* M-033: the slice under the
                                                  * decrypting device (wrapper is
                                                  * non-owning; kept alive here) */
     u32 disk = 0;
     u64 volume_start = 0; /* 0 = whole-disk view */
     u64 volume_len = 0;
-    bool is_image = false;    /* S-030: the target is a disk-image file */
-    std::wstring image_path;  /* the --image argument (identity + resume) */
+    bool is_image = false;   /* S-030: the target is a disk-image file */
+    std::wstring image_path; /* the --image argument (identity + resume) */
 };
 
 /* ---- S-008 pre-scan repair (scan --repair / --repair-apply) ----
@@ -283,8 +285,8 @@ bool open_image_view(const std::wstring& path, OpenResult& out) {
         return false;
     }
     const storage::ImageFormat fmt = storage::classify_extension(p16);
-    const wchar_t* fmt_name = fmt == storage::ImageFormat::Vmdk ? L"VMDK"
-                              : fmt == storage::ImageFormat::Vhd ? L"VHD"
+    const wchar_t* fmt_name = fmt == storage::ImageFormat::Vmdk   ? L"VMDK"
+                              : fmt == storage::ImageFormat::Vhd  ? L"VHD"
                               : fmt == storage::ImageFormat::Vhdx ? L"VHDX"
                                                                   : L"raw";
     /* LBA0 classification (the og reads 0x1000 bytes and classifies
@@ -293,7 +295,7 @@ bool open_image_view(const std::wstring& path, OpenResult& out) {
     const wchar_t* layout = L"unknown layout";
     if (dev->read_at(0, lba0, sizeof(lba0)) == OK) {
         const storage::Lba0Layout lay = storage::classify_lba0(lba0, sizeof(lba0));
-        layout = lay == storage::Lba0Layout::Mbr  ? L"MBR"
+        layout = lay == storage::Lba0Layout::Mbr   ? L"MBR"
                  : lay == storage::Lba0Layout::Gpt ? L"GPT"
                                                    : L"unknown layout";
     }
@@ -418,7 +420,8 @@ bool open_volume_view(wchar_t letter, OpenResult& out, const std::wstring& fvek_
      * reads) with the explicit dictionary consent gets the attempt BEFORE
      * the FB-B01 refusal - a locked volume denying reads is exactly the
      * dictionary aid's target population. Without consent/key: refuse. */
-    if (bst == win::bitlocker::Status::Unknown && !have_key) {        if (dict_consent) {
+    if (bst == win::bitlocker::Status::Unknown && !have_key) {
+        if (dict_consent) {
             wprintf(L"[bitlocker] %c: boot sector unreadable - trying the password "
                     L"dictionary...\n",
                     letter);
@@ -430,7 +433,8 @@ bool open_volume_view(wchar_t letter, OpenResult& out, const std::wstring& fvek_
                         letter);
                 return false;
             }
-            wprintf(L"[bitlocker] dictionary-unlocked\n");        } else {
+            wprintf(L"[bitlocker] dictionary-unlocked\n");
+        } else {
             /* Boot sector unreadable: the BitLocker state cannot be determined.
              * Never scan blind - refuse with the unlock path (FB-B01). With a
              * user key the in-stack decrypt path may proceed (M-033): the user
@@ -469,15 +473,16 @@ bool open_volume_view(wchar_t letter, OpenResult& out, const std::wstring& fvek_
             wprintf(L"[bitlocker] still locked. Unlock with:\n"
                     L"  Unlock-BitLocker -MountPoint %c: -RecoveryPassword <key>\n"
                     L"or re-run with --bitlocker-fvek <hex> (the in-stack decrypt path),\n"
-                    L"or --bitlocker-dict [file] to try a password dictionary.\n",                    letter);
+                    L"or --bitlocker-dict [file] to try a password dictionary.\n",
+                    letter);
             return false;
         } else {
             wprintf(L"[bitlocker] auto-unlocked\n");
         }
     }
-    if (have_key && (bst == win::bitlocker::Status::Locked ||
-                     bst == win::bitlocker::Status::Unknown ||
-                     bst == win::bitlocker::Status::UnlockedEncrypted)) {
+    if (have_key &&
+        (bst == win::bitlocker::Status::Locked || bst == win::bitlocker::Status::Unknown ||
+         bst == win::bitlocker::Status::UnlockedEncrypted)) {
         wprintf(L"[bitlocker] %c: in-stack XTS-AES decrypt active (%hs key, "
                 L"engines see plaintext)\n",
                 letter, fvek.size() == 32 ? "128-bit" : "256-bit");
@@ -714,8 +719,7 @@ u64 file_tell_cb(void* user) {
     return u64(_ftelli64(static_cast<FILE*>(user)));
 }
 u32 file_seek_cb(void* user, u64 absolute) {
-    return _fseeki64(static_cast<FILE*>(user), static_cast<long long>(absolute),
-                     SEEK_SET) == 0
+    return _fseeki64(static_cast<FILE*>(user), static_cast<long long>(absolute), SEEK_SET) == 0
                ? OK
                : ERR_SESSION_IO;
 }
@@ -796,8 +800,7 @@ int cmd_scan(int argc, wchar_t** argv, int& i) {
                         user_signs_path.c_str());
                 return 1;
             }
-            wprintf(L"[user-signs] %u user signature(s) registered\n",
-                    cr_ui_user_sign_count());
+            wprintf(L"[user-signs] %u user signature(s) registered\n", cr_ui_user_sign_count());
         }
     }
     std::vector<std::string> dict_user;
@@ -941,11 +944,10 @@ int cmd_scan(int argc, wchar_t** argv, int& i) {
     if (target.is_image) {
         /* S-030: the image identity - format as model, path into the v3
          * tail (the resume path warns when the path changes) */
-        const storage::ImageFormat fmt =
-            storage::classify_extension(std::u16string(target.image_path.begin(),
-                                                       target.image_path.end()));
-        const char* model = fmt == storage::ImageFormat::Vmdk ? "Disk image (VMDK)"
-                            : fmt == storage::ImageFormat::Vhd ? "Disk image (VHD)"
+        const storage::ImageFormat fmt = storage::classify_extension(
+            std::u16string(target.image_path.begin(), target.image_path.end()));
+        const char* model = fmt == storage::ImageFormat::Vmdk   ? "Disk image (VMDK)"
+                            : fmt == storage::ImageFormat::Vhd  ? "Disk image (VHD)"
                             : fmt == storage::ImageFormat::Vhdx ? "Disk image (VHDX)"
                                                                 : "Disk image (raw)";
         for (size_t k = 0; k < sizeof(cfg.volume_model) - 1 && model[k]; ++k)
@@ -1062,8 +1064,8 @@ int cmd_scan(int argc, wchar_t** argv, int& i) {
         /* M-042: the current target disk is the re-validation arbiter -
          * stale candidates the disk no longer confirms are dropped
          * at load (the og's PRD:20748-20842 search-start semantics). */
-        const u32 rrc = orchestrator::ScanController::resume(r, tree, cfg, stats, info,
-                                                             ctrl, target.device.get());
+        const u32 rrc = orchestrator::ScanController::resume(r, tree, cfg, stats, info, ctrl,
+                                                             target.device.get());
         fclose(fin);
         if (rrc != OK) {
             wprintf(L"resume failed: %hs (0x%08x)\n", err_text(rrc), rrc);
@@ -1175,8 +1177,8 @@ int cmd_scan(int argc, wchar_t** argv, int& i) {
         }
         session::Writer w(file_write_cb, file_tell_cb, file_seek_cb, f);
         w.set_flags(session::CRSF_FLAG_ABS_EXTENTS); /* F-1: absolute basis */
-        bool ok = w.open(0x52434F56) == OK && ctrl->save_session(w, stats) == OK &&
-                  w.finalize() == OK;
+        bool ok =
+            w.open(0x52434F56) == OK && ctrl->save_session(w, stats) == OK && w.finalize() == OK;
         fclose(f);
         if (ok) {
             std::error_code ec;
@@ -1644,8 +1646,8 @@ int cmd_health(int argc, wchar_t** argv, int& i) {
          * to ~0.55 C; now identical to the ABI spelling to the digit. */
         const u32 dec_c = nv.decidegrees_c();
         wprintf(L"NVMe health: temp=%u.%uC spare=%u%%/threshold=%u%% used=%llu%% - %hs\n",
-                dec_c / 10, dec_c % 10, nv.available_spare,
-                nv.available_spare_threshold, static_cast<unsigned long long>(nv.percentage_used),
+                dec_c / 10, dec_c % 10, nv.available_spare, nv.available_spare_threshold,
+                static_cast<unsigned long long>(nv.percentage_used),
                 cr::health::health_grade_name(cr::health::grade_nvme(nv)));
         wprintf(L"  read=%llu bytes written=%llu bytes (M-036: units x 512,000)\n",
                 static_cast<unsigned long long>(nv.data_bytes_read),
@@ -1971,8 +1973,8 @@ int cmd_apply(int argc, wchar_t** argv, int& i) {
     orchestrator::ScanStats stats;
     session::VolumeSessionInfo info;
     session::Reader r(file_read_cb, file_seek_cb, file_size_cb, fin);
-    u32 rc = orchestrator::ScanController::load_session_summary(r, tree, stats, info,
-                                                                 apply_view.get());
+    u32 rc =
+        orchestrator::ScanController::load_session_summary(r, tree, stats, info, apply_view.get());
     if (stats.dropped_stale_candidates > 0) {
         wprintf(L"[apply] %llu stale candidate(s) dropped - the disk no longer "
                 L"confirms them (re-scan to rediscover)\n",
@@ -1998,8 +2000,7 @@ int cmd_apply(int argc, wchar_t** argv, int& i) {
                 int(k) == candidate - 1 ? L"  <-- selected" : L"");
     }
     if (candidate < 1 || size_t(candidate) > stats.lost_candidates.size()) {
-        wprintf(L"select a candidate with --candidate N (1..%zu)\n",
-                stats.lost_candidates.size());
+        wprintf(L"select a candidate with --candidate N (1..%zu)\n", stats.lost_candidates.size());
         return 1;
     }
     const lost::Candidate& c = stats.lost_candidates[size_t(candidate) - 1];
@@ -2017,13 +2018,13 @@ int cmd_apply(int argc, wchar_t** argv, int& i) {
                 L"without --apply)\n");
         return 0;
     }
-    wprintf(L"apply plan: entry slot %u, type 0x%02X, LBA %llu, %llu sectors%s\n",
-            plan.entry_index, plan.mbr_type, static_cast<unsigned long long>(plan.start_lba),
+    wprintf(L"apply plan: entry slot %u, type 0x%02X, LBA %llu, %llu sectors%s\n", plan.entry_index,
+            plan.mbr_type, static_cast<unsigned long long>(plan.start_lba),
             static_cast<unsigned long long>(plan.sector_count),
             plan.restores_signature ? L" + 0x55AA signature restore" : L"");
     for (const auto& a : plan.actions)
-        wprintf(L"  [apply] offset=%llu len=%zu : %hs\n",
-                static_cast<unsigned long long>(a.offset), a.after.size(), a.reason.c_str());
+        wprintf(L"  [apply] offset=%llu len=%zu : %hs\n", static_cast<unsigned long long>(a.offset),
+                a.after.size(), a.reason.c_str());
     if (!plan.boot_repair_available)
         wprintf(L"  [apply] boot-chain repair: not available in this build (the entry is "
                 L"written; BCD/boot.ini fixup is separate scope)\n");
@@ -2309,7 +2310,8 @@ int wmain(int argc, wchar_t** argv) {
             L"              the og host's EUGetAnalyserList/Map/Multimap surface)\n"
             L"  rrecov scan --disk N | --volume C: | --image file.vmdk|.vhd|.vhdx|.img [.dmg raw]\n"
             L"             [--whole-disk] [--quick-only] [--no-carve]\n"
-            L"             (deep stage always on; --quick-only disables it; --whole-disk = lost-partition discovery)\n"
+            L"             (deep stage always on; --quick-only disables it; --whole-disk = "
+            L"lost-partition discovery)\n"
             L"             [--threads N] [--out file.crsf] [--resume file.crsf] [--log file]\n"
             L"             [--json] [--csv] [--filter s] [--deleted-only]\n"
             L"             [--repair] [--repair-apply] [--repair-undo file]\n"
@@ -2317,7 +2319,8 @@ int wmain(int argc, wchar_t** argv) {
             L"                                     64/128 hex chars - in-stack XTS-AES\n"
             L"                                     decrypt, engines see plaintext)\n"
             L"  rrecov tree --in file.crsf [--filter s] [--deleted-only] [--csv]\n"
-            L"  rrecov recover --in file.crsf (--disk N | --image file) --to DIR [--deleted-only] [--filter s]\n"
+            L"  rrecov recover --in file.crsf (--disk N | --image file) --to DIR [--deleted-only] "
+            L"[--filter s]\n"
             L"             [--report file.json]\n"
             L"  rrecov health --disk N\n"
             L"  rrecov fix --disk N [--part P] [--apply] [--undo file] [--undo-apply file]\n"

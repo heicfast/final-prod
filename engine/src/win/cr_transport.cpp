@@ -17,7 +17,7 @@
 #include "cr/win/cr_rda.h"
 #include "cr/win/cr_enumerate.h" /* S-010: volume enumeration for the lock sequence */
 #include "cr/win/cr_winenv.h"    /* M-030: the PE-gate + quiesce-chain pins */
-#include "cr/cr_log.h"          /* N-048 seam: the OFFLINE failure line */
+#include "cr/cr_log.h"           /* N-048 seam: the OFFLINE failure line */
 #include "cr/table/cr_table_parse.h"
 #include "cr/storage/cr_directalign.h"
 #include <windows.h>
@@ -592,8 +592,8 @@ public:
             vr.letter = v.letter;
             (void)GetVolumeNameForVolumeMountPointW(mount, guid, 64);
             vr.guid = guid; /* empty on failure: the restore degrades to
-                            * handle-close only (never worse than the
-                            * pre-M-030 behavior) */
+                             * handle-close only (never worse than the
+                             * pre-M-030 behavior) */
             /* the letter must go so the OS does not hand the volume back
              * out (corpus :60412); flush + settle + verify + dismount */
             DeleteVolumeMountPointW(mount);
@@ -829,10 +829,9 @@ private:
             CloseHandle(vh); /* releases the volume lock first */
             if (k < restores_.size() && !restores_[k].guid.empty()) {
                 const VolumeRestore& vr = restores_[k];
-                HANDLE vh2 =
-                    CreateFileW(vr.guid.c_str(), GENERIC_READ | GENERIC_WRITE,
-                               FILE_SHARE_READ | FILE_SHARE_WRITE, nullptr, OPEN_EXISTING,
-                               FILE_ATTRIBUTE_NORMAL, nullptr);
+                HANDLE vh2 = CreateFileW(vr.guid.c_str(), GENERIC_READ | GENERIC_WRITE,
+                                         FILE_SHARE_READ | FILE_SHARE_WRITE, nullptr, OPEN_EXISTING,
+                                         FILE_ATTRIBUTE_NORMAL, nullptr);
                 if (vh2 != INVALID_HANDLE_VALUE) {
                     DWORD br = 0;
                     (void)DeviceIoControl(vh2, IOCTL_VOLUME_ONLINE, nullptr, 0, nullptr, 0, &br,
