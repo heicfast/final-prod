@@ -270,10 +270,23 @@ unions repaired this window (the M-052-era source-file markers; the
 re-broken rrecov.cpp/cr_bitlocker.h — the canonical cr::dict design
 restored both times).
 
+**M-039 FIXED (MAJOR — the cross-engine occupancy gate):** the
+orchestrator aggregates every STRUCTURED node's extents into a
+sorted/coalesced interval set (the fix plan's step 1 verbatim — the
+emit path already built the extents) and feeds it to both carve
+dispatch layers: in-interval positions are suppressed, the grammar
+layer jumps to the interval end (the M-005 cluster-jump analog at
+extent granularity), the raw-sign 512-strides suppress the same way.
+Carved nodes never feed the gate (resume re-carve protection); the
+dedup tree stays the safety net; interval-set memory shape (the
+finding's "interval set first"). occupancy_skipped telemetry.
+Fail-before EXECUTED (gate neutralized: 2/3 RED; the straddle pin
+green by design). Suite 895/895.
+
 **Post-fix counts (live file inventory at this session's push):**
-SEVERE 0 · MAJOR 3 open (M-030, M-039, M-040) · MINOR 1 open (N-072)
-· INFO 0 actionable · suite **893/893** linux-release. Next on this
-lane: M-039 (occupancy bitmap) → M-030 (transport) → M-040.
+SEVERE 0 · MAJOR 2 open (M-030, M-040) · MINOR 1 open (N-072)
+· INFO 0 actionable · suite **895/895** linux-release. Next on this
+lane: M-030 (transport) → M-040 (boot-chain disposition).
 
 
 ## Session-34 delta (2026-10-26 — DFX34: the N-064 convergent-landing reconciliation + the MINOR-tail lane)

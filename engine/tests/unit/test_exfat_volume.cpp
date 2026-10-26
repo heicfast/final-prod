@@ -1874,12 +1874,16 @@ TEST(ExfatEngine, RecyclePairingMirrored) {
         put32v(img, IREC + 8, 777);          /* original size */
         put32v(img, IREC + 16, 0);           /* FILETIME lo */
         put32v(img, IREC + 20, 29);          /* FILETIME hi */
-        put32v(img, IREC + 24, 15);          /* pathlen (12 chars + NUL pad:
-                                               the v2 fixed form's tail is NUL-padded) */
-        const char16_t* path = u"C:\\photo.jpg";  /* 12 chars */
-        for (int i = 0; i < 15; ++i)
-            put16(img, IREC + 28 + i * 2,
-                  i < 12 ? path[i] : char16_t{0});
+        put32v(img, IREC + 24, 15);          /* pathlen */
+        /* N-082 (NEW-FINDING, the M-052 landing's ASan red): the $I path
+         * fixture copied 15 units from a 14-unit literal (13 chars +
+         * NUL) - one past the terminator under ASan. The copy is now
+         * bounded by the string; the field's remaining units stay zero
+         * (the image is zero-initialized) - the on-disk shape a real
+         * formatter writes. */
+        const std::u16string path = u"C:\\photo.jpg";
+        for (size_t i = 0; i < path.size() && i < 15; ++i)
+            put16(img, IREC + 28 + i * 2, path[i]);
     }
     /* $R content marker at cluster 19 (sector 42) */
     std::memcpy(img.data() + 25 * 512 + (19 - 2) * 512, "EXFAT-RECYCLED", 14);
