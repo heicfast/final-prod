@@ -13028,3 +13028,43 @@ Stage Summary:
 - Session 34 open on the MINOR-tail lane. First: full read of the tail
   findings + corpus verification, starting N-064 (Dict password
   dictionary absent).
+
+
+
+---
+Task ID: DFX30-T2 (OQ-Z5 resolved)
+Agent: main engineer (diff-to-fix fix session 30 — DFX30)
+Task: OQ-Z5 — CZfsSearchController vs CZfsQuickSearch vtable delta (what
+ZFS "complete" adds over "quick")
+
+Work Log:
+- First-hand MSVC RTTI walk on ZfsSearchDLL.dll (TypeDescriptor ->
+  RTTICompleteObjectLocator -> vftable; corrected for x64 8-byte VA
+  pointers): CZfsSearchController vftable RVA 0x180030ea8 = 34 slots;
+  CZfsQuickSearch vftable RVA 0x180030c38 = 16 slots.
+- Interfaces named by the dtor-side vftable installs:
+  ICompleteFileSystemSearchController (FUN_180010cb0 :14806) vs
+  IQuickFileSystemSearchController (FUN_180001720 :404) — the product-wide
+  engine-plugin contract (all 9 engines expose the factory pair per the
+  engine-matrix artifact), NOT a ZFS-specific fork.
+- Slot-by-slot reads: quick = one-shot bulk collect (FUN_180006b40 =
+  push_back(+0xa0) into caller's vector) + ~600-line run loop
+  FUN_180006b90 driving the shared ZFS machinery; complete = streaming
+  per-hit emission (FUN_180011260, property records + sector math + the
+  uberblock-magic 0x00bab10c / ZEC_MAGIC 0x0210da7ab10c7a11 label probe,
+  zec at +0x1d8 = 512-byte-slot assumption), restart entry
+  (FUN_180011200), five config channels (+0xb8..+0xd8), callback
+  registration slot (FUN_180010d30).
+- ZEC_MAGIC identified: 0x0210da7ab10c7a11 = the zio_eck trailer magic —
+  the og's emit-path validation checks ub-magic + zec at a 512-byte-slot
+  geometry; the core's ring walk probes shifts 10..13 kernel-correctly
+  (registered superset, OQ-T6.3).
+- Core-parity consequence: the core models quick/deep at the orchestrator
+  over a single ZFS engine = the union of both interfaces. No code change.
+- Audit trail: OQ-Z5 marked RESOLVED in OQ-Z-E-FLT-session3.md; evidence at
+  diff-to-fix/evidence/decompiled-quotes/s30-oq-z5-zfs-quick-vs-complete.md.
+
+Stage Summary:
+- OQ-Z5 RESOLVED (interface split named; complete adds streaming emission
+  + restart + config channels; quick is a real one-shot scanner). Next on
+  this lane: OQ-Z2 (addBlock from_txg/birth_txg gate).
