@@ -39,6 +39,7 @@ typedef char* LPTSTR;
 typedef const char* LPCSTR;
 typedef char* LPSTR;
 typedef DWORD* LPDWORD;
+typedef ULONG* PULONG;
 typedef void* LPVOID;
 
 struct LARGE_INTEGER { long long QuadPart; };
@@ -200,3 +201,7 @@ inline FILE* _popen(const char*, const char*) { return nullptr; }
 inline int _pclose(FILE*) { return 0; }
 #define STILL_ACTIVE 259UL
 #define VOLUME_NAME_DOS 0
+
+/* ---- narrow/wide conversion (N-064 password-dictionary unlock aid) ---- */
+#define CP_UTF8 65001U
+inline int MultiByteToWideChar(UINT, DWORD, const char*, int, wchar_t*, int) { return 0; }

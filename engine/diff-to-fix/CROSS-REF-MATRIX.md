@@ -17,7 +17,10 @@ table + the pure-core parse/attempt loop (cr::dict) + the win-layer
 consent action (unlock_with_dictionary, the PowerShell/manage-bde
 -Password plumbing) + the CLI `--bitlocker-dict` consent flag + the
 cr_ui_unlock_volume_with_dictionary additive ABI export. F61 consent gate
-structural; health/bitlocker F61/B1 cells -> MATCH.
+structural; health/bitlocker F61/B1 cells -> MATCH. **N-071** FIXED —
+the two-stack disk enumeration (cfgmgr32 disk-interface pass merged into
+the numbered loop; residual stacks registered as D-79); storage B8/P42/A54
+-> MATCH-with-D-79.
 
 **Session-25 changes (2026-10-26, DFX25 — INFO tier closed into FIXED/, tracked-open resolution wave):**
 the 22 acknowledged INFORMATIONAL findings (I-001..I-024) moved from
@@ -320,6 +323,7 @@ byte-pin→I-009, probe-row→I-010; dropped as dups: boot-geometry→N-013b, by
 | orchestration | F35/P49 | ~~N-062~~ **FIXED (s18 DFX18: check_memory_pressure on the seam + the shim sampler on the 5 s watchdog cadence + memory_warn_mb (0 = OFF the conservative default); never scheduling-coupled)** |
 | carve | B10/A28/Q68 | **N-063 FIXED s17** (default_namer "File%06u" was a core invention — now the registered deliberate default D-76; MP4/MOV per-analyser template decoded + replicated quirks; embedded_name carrier; findings/FIXED/) |
 | health/bitlocker | F61/B1 | MATCH (N-064 FIXED s31: cr::dict + unlock_with_dictionary + --bitlocker-dict + cr_ui export; consent-gated, manage-bde plumbing, Office side out-of-scope per I-010) |
+| health/bitlocker | F61/B1 | ~~N-064~~ **FIXED (s34 DFX34: pure cr/pwddict module — og-exact Dict format parse (comma-terminated CRLF, byte-verified first-hand), 20-entry authored seed = REGISTERED DIVERGENCE D-78 (the og's 228-entry asset never copied; loader is format-compatible), consent-gated sequencer (dedup, caps, attempt-log progress+length only) + win try_password_unlock (same unlock() plumbing as a typed password, no in-process crypto) + CLI --bitlocker-pwddict <path\|seed> explicit-consent action; scan path holds no reference (F61 preserved); 9 Pwddict tests + executed fail-before RED; suite 752/752; findings/FIXED/)** |
 | cross-cutting | B1/F59/F61/F62/Q46 | I-021 (S5) scope/deliberate-delta registers (og always-elevated manifests, EuSendMessage installer-only, repair toggle, CRecoveryFilter layering, PENetwork SMB, DRWCfg.bin) |
 | session/carve/btrfs/zfs | D12/A27/Q67 | I-022 (S5) core-superset registers (CRC32/resync/bomb-caps, structured btrfs extents, decoded zfs runlists, UTF-16 unification, extra props, core-only formats) |
 ## Session-6 verdict changes (deep continuation, 2026-10-26, audited `022c81d`-lineage / corpus `03ad46c`)
@@ -347,7 +351,7 @@ not-BAAD both sides; FAT quick-scan threading — already registered D-30x).
 | session/tree | D11/D12/P42 | **M-051+N-059 (converged)** (type-registry ID + per-FS secondary payload slots missing) |
 | writer | A27/S35/P46 | **N-065** (collision `name_N`/cap 10000 vs ` (N)`/cap 64/`_dup`; mkdir 0/0xB7-only; **D-19 premise refuted** with decompile evidence) |
 | health | P46/P68 | **S-024 addendum** (cr_health.h claims 0xD1/0xD8 never issued — doc-truth sub-item; capability gap stays S-024) |
-| storage | B8/P42/A54 | **N-071** (enumeration breadth: 5-stack fan-in vs PhysicalDrive loop) |
+| storage | B8/P42/A54 | MATCH-with-D-79 (N-071 FIXED s31: the two-stack merge — PhysicalDrive loop + cfgmgr32 GUID_DEVINTERFACE_DISK pass, pure merge_disk_enumeration dedup; residual stacks registered) |
 | storage | P47/P48 | ~~N-045~~ **MATCH (registered divergence)** (FIXED/N-045, session 18: 8 MiB/256 KiB reactive-LRU vs og 4 MiB prefetch engine REGISTERED as PARITY-DELTAS D-72 — budget + algorithm, corpus cites re-verified first-hand; doc-truth pin `Cached.ScanCacheBudgetIsTheRegisteredDivergence` keeps source constant + D-72 row + cr_cached.h divergence block in lockstep; no code change, the alignbench sweep owns the tuning decision) |
 | storage | S35/Q43 | ~~N-046~~ **MATCH** (FIXED/N-046, session 18: `PartitionSlice::refresh_geometry()` — the og's RefreshSectorSize-from-parent surface (FUN_140643870) with revalidation hardening over the og's blind store; Slice.GeometryRefreshAfterMediaChange + Slice.GeometryRefreshRefusesInvalidatingChange; orchestrator auto-refresh excluded and documented — the corpus exposes no scan-path caller) |
 | ext4 | A27/S35/B2 | ~~N-073~~ **FIXED-ALREADY** (FIXED/N-073, session 14: N-004's transport-level CatchBuffer landing covers the engine path — 3 engine-path pin tests; the S35 row in modules/ext4.md carries both N-004 and N-073 closed) |
@@ -380,3 +384,10 @@ M-017/M-030/S-007/S-009/S-024 (evidence sharpened).
 | session | D12/S36/P34/P35 | **M-042 FIXED (DFX20)** - resume re-validation landed: lost::revalidate_candidate at load (revalidate_disk) AND run() start (whole-disk-basis resumes); stale records DROPPED (PRD:20748-20842 semantics). REC_PARTITION_CONTEXT v2 append-only (bps/SPC/hidden/flags - the og's CSearchedPartitionInfo payload); REC_DISK_LAYOUT type 8 (partinfo equivalent - layout_changed surfaced at resume, never enforced); per-hit checkpoint forced when discovery produces candidates (sink-gated). Executed fail-before; 6 tests; suite 685/685. |
 | lost-partition | A30/B1/S35 | **M-042 FIXED (DFX20)** - the discovery probes capture per-record geometry (probe_ntfs/probe_fat/probe_exfat fill bps/SPC/hidden); revalidate_candidate re-runs the SAME per-family probe for resume truth. |
 | cli | C24/grammar | **M-033** — `scan --volume X: --bitlocker-fvek <hex>` (64/128 hex chars, pre-pass so option order is free); locked refusal message now points at the new path. |
+
+## Session-25 detail rows (2026-10-26 — DFX25, the INFO+tracked-open lane)
+
+| Module | Parameter(s) | Verdict change |
+|---|---|---|
+| zfs | B1/B8 (dataset hierarchy constants) | **OQ-Z1 RESOLVED → A-008 (ACUTE, NEW-FINDING) FIXED** — child_dir_zapobj was read from dsl_dir bonus+24 (the dd_origin_obj slot; kernel +32 per OpenZFS master dsl_dir.h fetched verbatim + the og's own decode: 256B dsl_dir copy / 320B dsl_dataset copy, head hop @+8, ds_bp@+128, child zap walk skipping $FREE/$ORIGIN). Normal pools: NO child dataset ever enumerated (every zfs create silently missing); clones: origin followed as a child zap (ghost datasets — proven in the executed fail-before). Fail-before RED 3/3 (EndToEndWalk, ChildDirZapReadsKernelOffset32, OriginObjNotTreatedAsChildZap); pass-after 16/16 Zfs; suite 739/739. Fixture de-self-referenced (kernel layout). findings/FIXED/A-008. |
+| (info tier) | all | **22/22 acknowledged INFORMATIONAL findings moved INFORMATIONAL/ → FIXED/** (resolutions verified on `716d121`, pins green; two first-hand spot-checks re-executed). No verdict changes — `ack` cells now denote filed-in-FIXED. |

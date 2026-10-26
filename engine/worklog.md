@@ -13618,6 +13618,50 @@ Stage Summary:
 - OQ-E1 RESOLVED (verified). Session tally: OQ-FLT-1, OQ-Z5, OQ-Z2->S-034,
   OQ-Z1, OQ-E1. Next on this lane: OQ-Z3 (multi-vdev DVA resolution) or
   OQ-Z4 (decompression census).
+Task ID: DFX25-T4a (session 25 — OQ-Z1, the ACUTE-gated tracked-open item)
+Agent: main engineer (diff-to-fix fix session 25 — DFX25)
+Task: Resolve OQ-Z1 (ZFS dsl_dir/dsl_dataset offset constants) — verify,
+classify, fix if needed, prove, record.
+
+Work Log:
+- Og decode first-hand (ZfsSearchDLL_decompiled.c :20313-20788):
+  FUN_180017690 = open-objset-by-dsl-dir. Dnode layer kernel-exact (tree
+  nodes wrap dnodes at +0x28; bonus at dnode+0xC0; bonuslen u16 @+0x0A).
+  First bonus copy capped 0x100 (= sizeof dsl_dir_phys 256B), second
+  (object-id tree-search hop = head_dataset_obj) capped 0x140 (= sizeof
+  dsl_dataset_phys 320B); FUN_180014ec0 receives second-copy+128 = ds_bp
+  (its bp+0x37 & 0x7f gate = blk_prop bits 56-62 = level/crypt/dedup —
+  the indirect recursion; spa.h layout fetched from OpenZFS master).
+  Child enumeration: FUN_180018db0 :20598 + FUN_1800165f0 :20602, entry
+  walk skipping $FREE/$ORIGIN (DAT_180031550/0x180031558), recursing
+  FUN_180017690 per child dsl-dir id — kernel child-zap semantics.
+- Kernel truth fetched verbatim (OpenZFS master dsl_dir.h, dsl_dataset.h,
+  spa.h): child_dir_zapobj@32 (origin_obj@24, parent_obj@16), ds_bp@128.
+- CLASSIFICATION of the core: CONFIRMED-DIVERGENCE (ACUTE) — the core's
+  DD_CHILD_DIR_ZAPOBJ=24 read the dd_origin_obj slot; the session-6 OQ
+  refinement's "kernel-correct on all three" claim was itself the
+  mis-transcription (engine comment dropped dd_parent_obj); the fixture
+  stamped the same wrong offset (self-confirming, suite green while real
+  pools miswalked).
+- FIX: constant 24→32 + corrected full-field-list comment
+  (cr_zfs_engine.cpp:308-320); fixture de-self-referenced (child zap
+  stamped ONLY at +32, origin@24 explicit; nested head dataset object 6
+  now resolvable via a valid bp to the shared ZPL block;
+  restamp_zpl_array extended to re-stamp object 6's bp).
+- PROOF: fail-before EXECUTED RED 3/3 on the pre-fix tree (git stash of
+  the engine change): Zfs.EndToEndWalk + Zfs.ChildDirZapReadsKernelOffset32
+  (sub dataset missing — the silent-loss mode) + Zfs.OriginObjNotTreatedAsChildZap
+  (ghost "root_dataset" dataset from the origin slot — the clone mode,
+  PROVEN). Pass-after: 16/16 Zfs, full suite 739/739 linux-release.
+- Audit trail: findings/FIXED/A-008 (filed with full evidence + Resolution);
+  OQ-Z1 marked RESOLVED in tracked-open/OQ-Z-E-FLT-session3.md (the file's
+  other OQs stay open); RESOLVED-INDEX row; matrix session-25 detail row;
+  modules/zfs.md verdict; SUMMARY session-25 delta.
+
+Stage Summary:
+- OQ-Z1 RESOLVED; A-008 (ACUTE NEW-FINDING) filed and FIXED with executed
+  fail-before. Suite 739/739. Next OQ on the lane: OQ-S6-1
+  (PartitionRecoveryD generator-set semantics).
 
 ---
 Task ID: DFX30-T6 (OQ-Z3 resolved-superseded)
@@ -13641,6 +13685,122 @@ Stage Summary:
   OQ-Z1, OQ-E1, OQ-Z3. Next: OQ-Z4 (decompression census).
 
 ---
+Task ID: DFX25-T4a-push (session 25 — A-008 landing)
+Agent: main engineer (DFX25)
+Task: Land A-008 + the INFO-closure on main through the parallel-lane churn.
+
+Work Log:
+- Three pull cycles (parallel lanes DFX23/24/26-35 active all window: N-064,
+  N-049, N-025/N-026/N-027, N-036, N-075, OQ-S2M-2 (DFX31), OQ-Z2->S-034
+  (DFX30), OQ-E1 (DFX30)); keep-both resolutions on the append-style files;
+  RESOLVED-INDEX structural repair (duplicate session-25 headers collapsed,
+  two malformed table separators restored).
+- Union-tree full suite green before each push: 739 -> 768 -> 792/792
+  (final, incl. the parallel lanes' new tests + S-034's); Zfs.* 18/18.
+- Landed: ed3eabe (A-008 fix + audit trail + index repair on top).
+
+Stage Summary:
+- A-008 on main; OQ-Z1 RESOLVED. INFO tier 0 open. Next on this lane:
+  OQ-S6-3 (CRAW reader F4/anchor-B/checksum — RAWSearchDLL decode),
+  then OQ-S6-2 (Btrfs RC4), OQ-S6-1 (generator sets), OQ-S3-JPEG,
+  OQ-S5-1. The OQ-Z-E-FLT file's remaining items are DFX30's active
+  lane — avoiding collision.
+
+---
+Task ID: DFX34-T1 (session 34, first fix — N-064)
+Agent: main engineer (diff-to-fix fix session 34 — DFX34)
+Task: N-064 — the BitLocker/Office password-dictionary unlock aid absent
+(the og ships Dict, 228 entries, wired to manage-bde -Password).
+
+Work Log:
+- Corpus re-verified BYTE-LEVEL first-hand before any change:
+  og-codebase/Dict (2,742 B, 228 entries; every line "entry,"+CRLF, the
+  final entry unterminated and comma-less; longest 20 chars; entries may
+  contain spaces — "charlie brown"/"mickey mouse" read directly;
+  pure printable ASCII), config-data-reference.md:20/:86, UIUX
+  15-scenario-flows:33 (the consent = BitlockerUnlockDialog →
+  BitlockerUnlockThread), FileRepair/archive-repair artifact (the
+  repair-line consumer — scope-excluded I-010). CONFIRMED-DIVERGENCE
+  (core negative space re-verified: key-based unlock only).
+- Implementation: pure `cr/pwddict` module (include/cr/pwddict +
+  src/core/pwddict) — parse() in the og's exact format (LF-tolerant,
+  comma-optional for hand-edited files), seed_dictionary() (authored
+  20-entry generic list), try_passwords() consent-gated sequencer
+  (order-preserving dedup, caps 4096/128/256KiB, N-048-seam attempt
+  logging with progress+length ONLY — password text never logged;
+  policy: sequential, first-success-wins, duplicates once). Win layer:
+  bitlocker::try_password_unlock — the SAME unlock() plumbing as a
+  typed password (PowerShell Unlock-BitLocker -Password → manage-bde
+  -Password fallback), CP_UTF8 widen, no in-process crypto. CLI:
+  scan --bitlocker-pwddict <path|seed> (pre-pass like --bitlocker-fvek;
+  the flag IS the consent; locked/unknown volumes only; auto-unlock
+  still tried first; over-cap/empty/unreadable dictionaries refused
+  with diagnostics). Scan path holds NO reference to the sequencer
+  (F61 legitimate-unlock-only preserved).
+- REGISTERED DIVERGENCE D-78 (PARITY-DELTAS): authored seed + the
+  og's asset never copied (fixing rule: never copy proprietary data
+  files); loader byte-format-compatible so the og's own Dict works.
+- Tests: 9 Pwddict.* (format byte-faithful incl. the corpus shape;
+  LF/comma-optional; caps + oversize refusal + null guards; seed
+  sanity; first-success stop; dedup order; exhaust; log-secrecy
+  (no "secret" substring in any line); exhaust Warn-once).
+  Executed fail-before RED: implementation stashed aside → the test
+  unit fails to compile (cr/pwddict/cr_pwddict.h absent) — the
+  capability did not exist. win_syntax_check CAUGHT the first win
+  draft's undeclared MultiByteToWideChar/CP_UTF8 (stub surface grown:
+  CP_UTF8 + MultiByteToWideChar) — the gate working as designed.
+- Suite 752/752 linux-release. Audit trail: Resolution + FIXED/ move,
+  RESOLVED-INDEX row (s34 header), CROSS-REF-MATRIX health/bitlocker
+  cell, modules/health.md (s5 bullet + open-items note), SUMMARY s34
+  delta + counts, PARITY-DELTAS D-78, CAPABILITY-MATRIX posture.
+
+Stage Summary:
+- N-064 FIXED (tally 1/20+). MINOR 16 remain. Next (tail-first):
+  N-071 → N-072 → N-075 → N-066 → N-065 → N-059 → N-050 → N-049 →
+  N-036 → N-033 → N-031 → N-027 → N-026 → N-007/I-004 → N-019 →
+  N-032, absorbing parallel landings per first-landing-wins.
+
+---
+Task ID: DFX31-N071 (session 31, MINOR tail-first lane — finding 2)
+Agent: main engineer (diff-to-fix fix session 31 — DFX31)
+Task: N-071 — device enumeration breadth (the two-stack merge).
+
+Work Log:
+- Corpus re-verified FIRST-HAND: mom-module-system--architecture.md :50-70
+  (DeviceManager.mo = enumeration/hot-plug/WMI; Device.mo = the device
+  abstraction), vendor-logs--qa-session-forensics.md :10-32 (the
+  CDiskEnumerator boot census: storage-space init + GetUsedPhysicalDisks +
+  Vds loadservice + disk enumerate — the five-stack fan-in RUNNING, no
+  miss-case shown), the finding's own open question (Storage Spaces
+  members surface as PhysicalDrive in practice — UNVERIFIED live).
+  CONFIRMED-DIVERGENCE (single-stack loop).
+- Landed BOTH fix-plan halves: (b) enumerate_disk_interfaces — the cfgmgr32
+  GUID_DEVINTERFACE_DISK present-instance pass (documented GUID value
+  defined locally; CM_Get_Device_Interface_List_SizeW/ListW, Win2000-era;
+  number via IOCTL_STORAGE_GET_DEVICE_NUMBER; the loop's geometry/
+  alignment/descriptor query factored into query_disk_handle — one shared
+  query path; table parse when numbered) + merge_disk_enumeration (PURE
+  header-inline: dedup by number then instance path; unknown-number
+  path-dedup; cfgmgr failure degrades to stack 1 untouched); (a) the
+  residual stacks REGISTERED as D-79 (WMI/VDS/SS/FunctionDiscovery/
+  hot-plug = UI metadata + eventing).
+- Gates: cfgmgr32.dll added to ALLOWED_DLLS (strict) + the CM pair to
+  ref_imports_um.json (Win7-inclusive gate intact); tests/win-stub gained
+  cfgmgr32.h + STORAGE_DEVICE_NUMBER/IOCTL_STORAGE_GET_DEVICE_NUMBER +
+  PULONG (the parse gate working as designed).
+- Fail-before EXECUTED: merge-disabled tree -> SetupApiMerge /
+  DedupByInstancePath / MergeWithEmptyLoopTakesAllInterfaces RED;
+  restored -> 4/4 GREEN.
+- Audit trail: Resolution + FIXED/ move; RESOLVED-INDEX row; matrix
+  storage B8/P42/A54 -> MATCH-with-D-79 + session note; modules/storage.md
+  (the stale session-6 local N-055 row corrected to N-071); SUMMARY
+  session-31 delta + counts (MINOR 17 open); PARITY-DELTAS D-79.
+
+Stage Summary:
+- N-071 FIXED (session tally: 2 — N-064, N-071). Next: N-032 (health
+  transports CSMI/USB bridges) or N-033 (analyser registry exports),
+  pulling first.
+
 Task ID: DFX30-T7 (OQ-Z4 resolved — decompression census)
 Agent: main engineer (diff-to-fix fix session 30 — DFX30)
 Task: OQ-Z4 — enumerate the og's ZFS decompression routines; codec parity

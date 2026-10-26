@@ -5,6 +5,7 @@
 
 #include "cr/win/cr_bitlocker.h"
 #include "cr/cr_error.h"
+#include "cr/pwddict/cr_pwddict.h"
 #include "cr/reghive/cr_reghive.h"
 #include <windows.h>
 #include <vector>
@@ -482,6 +483,32 @@ u32 try_auto_unlock_offline(wchar_t letter, const wchar_t* hive_path) {
         return ERR_FVE_LOCKED; /* unreadable or invalid hive (og rejects too) */
     const std::string guid = target_volume_guid(letter);
     return apply_keys(letter, keys, guid, nullptr, nullptr);
+}
+
+/* N-064: the user-consented password-dictionary path. The pure sequencer
+ * (cr::pwddict::try_passwords) owns ordering, dedup, caps and the attempt
+ * log lines; this callback is one real unlock round trip through the SAME
+ * unlock() plumbing a typed password takes (key_type 0). Passwords arrive
+ * as narrow UTF-8 (the repo text policy) and widen with CP_UTF8 - invalid
+ * sequences become U+FFFD exactly like the shared text helpers, never a
+ * crash, never a silent byte-mangle. */
+namespace {
+u32 attempt_password_unlock(const std::string& password, void* user) {
+    const wchar_t letter = wchar_t(reinterpret_cast<uintptr_t>(user));
+    const int n = MultiByteToWideChar(CP_UTF8, 0, password.c_str(),
+                                      int(password.size()), nullptr, 0);
+    std::wstring wide(size_t(n > 0 ? n : 0), L'\0');
+    if (n > 0)
+        MultiByteToWideChar(CP_UTF8, 0, password.c_str(), int(password.size()),
+                            &wide[0], n);
+    return unlock(letter, 0, wide);
+}
+} // namespace
+
+u32 try_password_unlock(wchar_t letter, const std::vector<std::string>& candidates) {
+    /* the letter rides the void* (a plain value, no ownership) */
+    return pwddict::try_passwords(candidates, attempt_password_unlock,
+                                  reinterpret_cast<void*>(static_cast<uintptr_t>(letter)));
 }
 
 } // namespace bitlocker
