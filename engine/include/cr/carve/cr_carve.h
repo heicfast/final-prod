@@ -22,6 +22,8 @@
 namespace cr {
 namespace carve {
 
+class CarvePostProcessor; /* M-021: defined below (CarveFlags binds it) */
+
 struct CarveStats {
     u64 hits = 0;       /* magic candidates */
     u64 validated = 0;  /* grammar-confirmed */
@@ -66,6 +68,57 @@ struct CarveFlags {
      * policy, not an engine constant, and are documented in
      * PARITY-DELTAS). */
     const char* disabled_formats = nullptr;
+    /* M-021: the optional post-carve processing hook (the og's
+     * EUVideoRepair binding at controller+0x158). null = unbound: raw
+     * emission, exactly the og's DLL-absent degrade. See
+     * CarvePostProcessor below. */
+    CarvePostProcessor* post_processor = nullptr;
+};
+
+/* ---- M-021: the post-carve processing hook -------------------------
+ *
+ * The reference binds its video-repair module at searcher init:
+ * LoadLibraryA("...\EUVideoRepair.dll") -> GetProcAddress("GetIMovMp4
+ * Repair") -> the interface pointer stored at controller+0x158
+ * (RAWSearchDLL FUN_18000beb0 :9210-9237, corpus-verified first-hand).
+ * The load is OPTIONAL - module absent -> null -> the pipeline runs
+ * unchanged. At the deferred-analysis poll, every FINALIZED candidate is
+ * fed to the binding when present: GetVideoInfo (candidate vtable+0x18,
+ * the stream-geometry probe that returns false for non-videos) and, on
+ * success, the repair check (interface vtable+0x48) with the geometry
+ * (FUN_18000d670 :10130-10136).
+ *
+ * The core's equivalent: a versioned interface the host binds through
+ * CarveFlags::post_processor. The pipeline invokes on_candidate() per
+ * VALIDATED candidate AFTER validation/dedup and BEFORE tree insertion
+ * (the og's deferred-poll position), on BOTH emit layers (grammar +
+ * raw-sign - the og's block scan creates its CRawFileInfo candidates
+ * through one loop). Emission is NOT gated - the og's hook is a FEED,
+ * not a filter (the poll never drops a candidate); a repair module
+ * consumes the notification, never vetoes the file. Thread safety: the
+ * hook may be invoked from worker threads when flags.threads > 1 (the
+ * grammar layer fans out); implementations must synchronize themselves. */
+struct CarveCandidateInfo {
+    u32 format_tag = 0;     /* the value the node will carry in
+                             * props->carve_format: the FormatId for
+                             * grammar-layer hits, 0xFFFF0000 + the
+                             * raw-sign format id for raw-sign hits */
+    const char* format_ext = ""; /* display extension ("mov", "mp4") */
+    u64 offset = 0;         /* SLICE-relative extent start (the processor
+                             * reads the stream through the slice at this
+                             * offset - the analog of the og feeding the
+                             * candidate object to GetVideoInfo) */
+    u64 length = 0;         /* validated extent length */
+    u16 confidence = 0;     /* the emitted node's carve_confidence */
+};
+
+class CarvePostProcessor {
+public:
+    virtual ~CarvePostProcessor() = default;
+    /* Interface version (the og's COM-style versioned binding analog);
+     * v1 = on_candidate per finalized carve candidate. */
+    virtual u32 api_version() const { return 1; }
+    virtual void on_candidate(IStorageDevice* /*slice*/, const CarveCandidateInfo& /*info*/) {}
 };
 
 /* Naming callback: returns the display name for a carved hit (host policy). */

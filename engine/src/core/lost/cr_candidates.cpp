@@ -71,6 +71,12 @@ int probe_ntfs(IStorageDevice* disk, u64 boot_lba, Candidate& c) {
     if (!ntfs::oem_is_ntfs(*bs))
         return -100;
     pts += 15; /* OEM + valid-looking DBR */
+    /* M-042: per-record geometry evidence (the og's CSearchedPartitionInfo
+     * bps/SPC/hidden payload fields) */
+    c.bytes_per_sector = u32(bs->bytes_per_sector);
+    c.sectors_per_cluster = u32(bs->sectors_per_cluster);
+    c.hidden_sectors = bs->hidden_sectors;
+    c.have_geometry = 1;
 
     ntfs::VolumeParams vp;
     if (ntfs::validate_boot_sector(*bs, disk->geometry(), vp) == OK) {
@@ -117,6 +123,14 @@ int probe_fat(IStorageDevice* disk, u64 boot_lba, Candidate& c) {
     fat::FatParams p;
     if (fat::validate_boot(sec, disk->size(), p) != OK)
         return -100;
+    /* M-042: per-record geometry evidence (BPB fields, the og's payload).
+     * hidden_sectors is not exposed in FatParams - read the BPB position
+     * directly (u32 LE at +0x1C, the DOS 3.31 BPB layout). */
+    c.bytes_per_sector = p.bytes_per_sector;
+    c.sectors_per_cluster = p.sectors_per_cluster;
+    c.hidden_sectors = u32(sec[0x1C]) | (u32(sec[0x1D]) << 8) | (u32(sec[0x1E]) << 16) |
+                       (u32(sec[0x1F]) << 24);
+    c.have_geometry = 1;
     /* N-034 (diff-to-fix): the og's deep-scan ladder gates
      * (PartitionRecoveryD FUN_180004610 + FUN_1800048f0/4a40/4b70):
      * the flavor is picked by the bracket-ordered gate walk - FAT12
@@ -157,6 +171,11 @@ int probe_exfat(IStorageDevice* disk, u64 boot_lba, Candidate& c) {
     const exfat::BootSectorMain* bs = reinterpret_cast<const exfat::BootSectorMain*>(sec);
     if (!exfat::oem_is_exfat(*bs))
         return -100;
+    /* M-042: per-record geometry evidence (the exFAT BPB carries bps/SPC
+     * in the same BPB positions as FAT) */
+    c.bytes_per_sector = 1u << (bs->bytes_per_sector_shift & 0x1F);
+    c.sectors_per_cluster = 1u << (bs->sectors_per_cluster_shift & 0x1F);
+    c.have_geometry = 1;
     int pts = 15;
     if (bs->volume_length >= 2048 && bs->cluster_count > 0 && bs->cluster_count <= 0xFFFFFFF5) {
         pts += 20;
@@ -474,6 +493,77 @@ std::unique_ptr<PartitionSlice> materialize(IStorageDevice* disk, const Candidat
         bytes = max; /* clamp ragged tails to the device */
     u32 err = 0;
     return PartitionSlice::create(disk, c.start_lba * ls, bytes, &err);
+}
+
+bool revalidate_candidate(IStorageDevice* disk, const Candidate& c) {
+    /* M-042: the og's resume re-validation (PRD:20748-20842) — at search
+     * start, every persisted lostpart record is re-read at its start LBA
+     * through the device and re-validated through the scan-loop classifier
+     * (FUN_180021080); records whose {start, end, type} no longer match
+     * the CURRENT disk are dropped before they reach the UI. Our identity:
+     * the record's start still classifies as the persisted family, plus
+     * the persisted BPB geometry when the record carries it (the count
+     * check rides the device size — a shrunken/re-grown disk re-derives
+     * sizes from the live probes). Unknown-family records cannot be
+     * re-probed (no classifier to contradict them): kept, matching the
+     * og's applied-flag skip for unprobeable records. */
+    if (disk == nullptr || disk->geometry().logical_sector == 0)
+        return true; /* no arbiter: never drop on our own absence */
+    const u64 ls = disk->geometry().logical_sector;
+    if (c.start_lba * ls >= disk->size())
+        return false; /* the record starts past the disk: stale by
+                         construction (the og's start-LBA match) */
+    Candidate scratch;
+    scratch.start_lba = c.start_lba;
+    int pts = -1;
+    switch (c.fs) {
+    case CandidateFs::Ntfs:
+        pts = probe_ntfs(disk, c.start_lba, scratch);
+        break;
+    case CandidateFs::Fat:
+        pts = probe_fat(disk, c.start_lba, scratch);
+        break;
+    case CandidateFs::Exfat:
+        pts = probe_exfat(disk, c.start_lba, scratch);
+        break;
+    case CandidateFs::GptTable:
+        pts = probe_gpt_header(disk, c.start_lba, scratch);
+        break;
+    case CandidateFs::Refs:
+        pts = probe_refs(disk, c.start_lba, scratch);
+        break;
+    case CandidateFs::BitLocker:
+        pts = probe_bitlocker(disk, c.start_lba, scratch);
+        break;
+    case CandidateFs::Btrfs:
+        pts = probe_btrfs(disk, c.start_lba, scratch);
+        break;
+    case CandidateFs::Zfs:
+        pts = probe_zfs(disk, c.start_lba, scratch);
+        break;
+    case CandidateFs::Ext2: {
+        WindowScanner scan(disk);
+        pts = probe_ext(disk, c.start_lba, scan, scratch);
+        break;
+    }
+    case CandidateFs::HfsPlus: {
+        WindowScanner scan(disk);
+        pts = probe_hfsplus(disk, c.start_lba, scan, scratch);
+        break;
+    }
+    case CandidateFs::Unknown:
+        return true; /* no probe family to contradict the record */
+    }
+    if (pts < 0)
+        return false; /* the current disk no longer classifies the start
+                         sector as the persisted family: stale, drop */
+    if (c.have_geometry && scratch.have_geometry &&
+        c.bytes_per_sector != scratch.bytes_per_sector)
+        return false; /* geometry identity mismatch (the og's per-record
+                         payload check — a re-formatted region with the
+                         same OEM at the same LBA is still a different
+                         volume) */
+    return true;
 }
 
 u32 discover(IStorageDevice* disk, const std::vector<table::PartitionInfo>& known,

@@ -692,12 +692,49 @@ static CarveResult zip_common(IStorageDevice* s, u64 hit, u64 cap, bool office) 
                 break;
             const u16 nlen = u16(lfh[26]) | (u16(lfh[27]) << 8);
             const u16 elen = u16(lfh[28]) | (u16(lfh[29]) << 8);
-            const u32 csize =
+            u32 csize =
                 u32(lfh[18]) | (u32(lfh[19]) << 8) | (u32(lfh[20]) << 16) | (u32(lfh[21]) << 24);
-            const u32 usize =
+            u32 usize =
                 u32(lfh[22]) | (u32(lfh[23]) << 8) | (u32(lfh[24]) << 16) | (u32(lfh[25]) << 24);
-            if (csize == 0xFFFFFFFFu)
-                break; /* ZIP64: no deterministic chain without the CD */
+            if (csize == 0xFFFFFFFFu || usize == 0xFFFFFFFFu) {
+                /* N-008: ZIP64 sizes live in the LFH extra field (header
+                 * id 0x0001; spec order usize, csize, header-offset,
+                 * each present only when its LFH slot carries the
+                 * 0xFFFFFFFF sentinel). The og's chain walk continues
+                 * via the parsed sizes (:18462-500 family) - the old
+                 * break truncated ZIP64-era indexless archives. */
+                u64 epos = pos + 30 + nlen;
+                const u64 eend = epos + elen;
+                bool fixed = false;
+                while (epos + 4 <= eend && epos + 4 <= limit) {
+                    const u16 id = rd16(s, epos);
+                    const u16 dsz = rd16(s, epos + 2);
+                    if (id == 0x0001) {
+                        u64 p = epos + 4;
+                        u64 z_usize = usize, z_csize = csize;
+                        if (usize == 0xFFFFFFFFu && p + 8 <= eend) {
+                            z_usize = u64(rd32(s, p)) | (u64(rd32(s, p + 4)) << 32);
+                            p += 8;
+                        }
+                        if (csize == 0xFFFFFFFFu && p + 8 <= eend) {
+                            z_csize = u64(rd32(s, p)) | (u64(rd32(s, p + 4)) << 32);
+                            p += 8;
+                        }
+                        if (z_csize == 0xFFFFFFFFull || z_csize > 0xFFFFFFFFull)
+                            break; /* chain math needs a real u32 csize */
+                        if (z_usize <= 0xFFFFFFFFull)
+                            usize = u32(z_usize); /* inventory truth */
+                        csize = u32(z_csize);
+                        fixed = true;
+                        break;
+                    }
+                    if (dsz > eend - (epos + 4))
+                        break; /* hostile size: end the walk */
+                    epos += 4 + dsz;
+                }
+                if (!fixed)
+                    break; /* no ZIP64 record: no deterministic chain */
+            }
             const u64 next = pos + 30 + nlen + elen + csize;
             if (next > limit || next <= pos)
                 break;
@@ -724,6 +761,37 @@ static CarveResult zip_common(IStorageDevice* s, u64 hit, u64 cap, bool office) 
             ir.end = last_end;
             ir.confidence = 550;
             ir.note = "indexless-LFH-chain";
+            /* N-008 (decompile :18492-18508): the og's salvage extension -
+             * after a BROKEN record chain, absorb data-bearing trailing
+             * sectors. Entry: the window at [end, end+sec) carries a
+             * non-zero tail dword; then step sec at a time while the
+             * window's trailing 16 bytes are NOT all zero; a zero-tailed
+             * window ends the absorption (never absorbed). Total
+             * extension capped at 0x500001 bytes (the og's loop cap -
+             * the old code's 5,242,880 was off by one). CLEAN archives are
+             * never inflated (N-027d: the og never extends past a
+             * complete EOCD; the old 16-byte zero-absorption here was
+             * the invented behavior - removed). */
+            const u32 sec =
+                s->geometry().logical_sector >= 512 ? s->geometry().logical_sector : 512;
+            if (ir.end + sec <= limit && rd32(s, ir.end + sec - 4) != 0) {
+                u64 w = ir.end;
+                while (w + sec <= limit && w + sec - last_end <= 0x500001ull) {
+                    u8 tail[16];
+                    if (!rd(s, w + sec - 16, tail, 16))
+                        break;
+                    bool zeros = true;
+                    for (u8 b : tail)
+                        if (b) {
+                            zeros = false;
+                            break;
+                        }
+                    if (zeros)
+                        break; /* stop BEFORE the empty window */
+                    w += sec;
+                    ir.end = w;
+                }
+            }
         }
         return ir;
     };
@@ -809,26 +877,11 @@ static CarveResult zip_common(IStorageDevice* s, u64 hit, u64 cap, bool office) 
         }
     }
     u64 end = eocd_pos + 22 + comment;
-    /* CARVE-2: og zero-padding end extension - trailing all-zero 16-byte
-     * blocks are absorbed into the archive (up to the 5.24 MB cap; the
-     * og's last-16-bytes-zero test). */
-    {
-        const u64 pad_cap = end + 5242880ull;
-        while (end + 16 <= limit && end < pad_cap) {
-            u8 z[16];
-            if (!rd(s, end, z, 16))
-                break;
-            bool zero = true;
-            for (u8 b : z)
-                if (b) {
-                    zero = false;
-                    break;
-                }
-            if (!zero)
-                break;
-            end += 16;
-        }
-    }
+    /* N-008/N-027d: CLEAN archives are never inflated - the og's padding
+     * extension belongs to the BROKEN-chain salvage path only
+     * (decompile :18492-18508, absorbed into the indexless walk above).
+     * The old 16-byte-granular zero-absorption here inflated intact
+     * ZIPs with trailing zero slack - removed. */
     if (end > limit)
         end = limit;
     r.ok = true;
