@@ -56,19 +56,69 @@ u32 try_auto_unlock(wchar_t letter);
  * the hive unlocked the volume, ERR_FVE_LOCKED otherwise. */
 u32 try_auto_unlock_offline(wchar_t letter, const wchar_t* hive_path);
 
+/* N-064 (the og's Dict unlock aid) - TWO consented surfaces landed by
+ * parallel lanes in the same window; both stand (the union keeps both
+ * tested paths, the attempts ride the same unlock() plumbing as a typed
+ * password: PowerShell Unlock-BitLocker -Password with the manage-bde
+ * -Password fallback; Windows applies or rejects each one, the core
+ * performs no crypto):
+ *
+ * try_password_unlock - the og's BitlockerUnlockDialog ->
+ * BitlockerUnlockThread flow (UIUX 15-scenario-flows:33) fed by explicit
+ * candidates (dictionary entries and/or user-typed passwords, narrow
+ * UTF-8; the CLI's --bitlocker-pwddict <file|seed> flag). Sequencing,
+ * dedup, caps and the attempt log lines live in the pure pwddict module
+ * (cr/pwddict/cr_pwddict.h; the policy is documented there).
+ *
+ * unlock_with_dictionary - the shipped-dictionary form (228-entry list,
+ * config-data-reference.md :20; the CLI's valueless --bitlocker-dict
+ * flag / the cr_ui dictionary action). Candidates: the shipped dictionary
+ * first (corpus order), then the user-provided wide strings. Every
+ * attempt is logged through the cr::log seam (index only - password
+ * material is never logged).
+ *
+ * CONSENT (both): nothing in the scan path calls either - only an
+ * explicit host unlock action may (F61: legitimate unlock only, never
+ * auto-attempt on scan). Returns OK when a candidate unlocked the
+ * volume, ERR_FVE_LOCKED when the whole set failed. */
+u32 try_password_unlock(wchar_t letter, const std::vector<std::string>& candidates);
+
+ * CONSENT: nothing in the scan path calls this - only an explicit host
+ * unlock action may (F61: legitimate unlock only, never auto-attempt on
+ * scan). Returns OK or ERR_FVE_LOCKED. */
+u32 try_password_unlock(wchar_t letter, const std::vector<std::string>& candidates);
+
+=======
 /* N-064 (diff-to-fix): the password-dictionary unlock aid - the og's Dict
  * flow (228-entry shipped dictionary, config-data-reference.md :20; tried
+
  * through the same PowerShell -Password / manage-bde -Password plumbing as
+
  * a user-typed password). This is the EXPLICIT CONSENT ACTION: nothing in
+
  * the scan/open path calls it - a locked volume still refuses with
+
  * ERR_FVE_LOCKED until the host invokes this (the CLI's --bitlocker-dict
+
  * flag / the cr_ui dictionary action). Candidates: the shipped dictionary
+
  * first (corpus order), then the user-provided wide strings. Every attempt
+
  * is logged through the cr::log seam (index only - password material is
+
  * never logged). Returns OK when a candidate unlocked the volume,
+
  * ERR_FVE_LOCKED when the whole set failed. */
+
 u32 unlock_with_dictionary(wchar_t letter, const wchar_t* const* user_passwords,
+
                            size_t user_count);
+
+
+/* Narrow-candidate overload (the CLI path; UTF-8/ASCII candidates from a
+ * loaded dictionary file ride the same consent loop). */
+u32 unlock_with_dictionary(wchar_t letter, const std::vector<std::string>& user_candidates);
+
 #ifdef _WIN32
 namespace detail {
 /* ---- test seams (Windows lane only; see test_bitlocker_win.cpp) ---- */

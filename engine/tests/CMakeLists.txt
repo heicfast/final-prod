@@ -19,6 +19,7 @@ add_executable(cr_tests
     unit/test_grading.cpp
     unit/test_health_grade.cpp
     unit/test_health_csmi.cpp
+    unit/test_enumerate_win.cpp
     unit/test_ntfs_volume.cpp
     unit/test_fat_volume.cpp
     unit/test_exfat_volume.cpp
@@ -32,6 +33,7 @@ add_executable(cr_tests
     unit/test_sha256.cpp
     unit/test_bitlocker_xts.cpp
     unit/test_dict.cpp
+    unit/test_enumerate_merge.cpp
     unit/test_resume_revalidation.cpp
     unit/test_text.cpp
     unit/test_carve.cpp
@@ -49,6 +51,7 @@ add_executable(cr_tests
     unit/test_diskmap.cpp
     unit/test_apply.cpp
     unit/test_rawfixer.cpp
+    unit/test_consistency.cpp
     unit/test_apply.cpp
     unit/test_refs_volume.cpp
 )

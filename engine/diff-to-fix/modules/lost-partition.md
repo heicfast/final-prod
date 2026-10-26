@@ -222,3 +222,27 @@ Resolution: GPT_GenerateSignature regenerates the 32-bit disk signature
 (MBR +440), not the GPT disk GUID. Remaining on this module: M-017 (the
 scoring model) is DFX19's claimed lane; the GPT entry-array writer
 (FUN_180039470 protective conversion) stays v2 scope per the fix plan.
+
+## Session-27 verdict update (M-035 FIXED, 2026-10-26)
+
+**M-035 — FIXED:** the engine-side content-consistency validation (the og's
+exFAT-only scorer, FUN_180025390) is now `cr::lost` scorer machinery
+(cr_consistency.h/.cpp): per walked candidate file — considered (non-directory),
+filterable (checkable extension vocabulary = the carve registry's families +
+TIFF/JPEG specials, the OQ-FLT-1 shared-vocabulary decision; camera-RAW families
+without a core signature stay uncheckable — bounded vocabulary registered),
+matched (first registry signature at the file's data start, registry order =
+carve dispatch precedence; classifier = substring strstr + the MOV/MP4/JPG
+family specials). Reject rule decompile-exact: considered/2 <= filterable &&
+ratio < 0.3 && filterable != 0 (STRICT < — the finding text's `<= 0.3`
+corrected from the `<= 0.3 && != 0.3` decode); out-of-bounds data start
+invalidates outright. Wiring: scan_candidate scores after the engine dispatch;
+a reject detaches the candidate's subtree (the new
+ResultTree::detach_subtree — nodes/roots/indexes removed, props refs released
+once per node, root links severed), zeroes the counts, bumps
+ScanStats::lost_content_rejected, logs the verdict (N-048 seam). The candidate
+stays listed (per-hit persistence, M-042) — the reject drops its FILES, the
+CalcPartition observable. ExFAT-only (OQ-FLT-1); uniform at the candidate seam
+(lost fan-out + LDM volume scans; the og's LDM-path wiring corpus-UNVERIFIED,
+documented). 15 tests incl. two end-to-end whole-disk scans; fail-before
+executed; suite 808/808.

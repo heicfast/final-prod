@@ -267,6 +267,143 @@ Img build_volume() {
     return img;
 }
 
+TEST(Ext4Engine, ExtentTreeDepth3) {
+    /* N-019 scenario 6 (the depth path no prior test pinned): a file whose
+     * extent tree is ROOT(inode, depth 2) -> INDEX -> INDEX -> LEAF -> data.
+     * The engine's walk_extent_node recurses depth-1 per level with a node
+     * budget; the deepest shape real ext4 allows on large volumes is depth
+     * 5. This pins the full resolution chain: every leaf extent lands at
+     * the right physical block, non-adjacent runs stay separate extents,
+     * adjacent ones coalesce, and the file's logical size survives. */
+    auto img = build_volume();
+    constexpr u32 INO_DEEP = 7;
+    constexpr u64 B_IDX1 = 20, B_IDX2 = 21, B_LEAF = 22;
+    constexpr u64 B_DATA_A0 = 23, B_DATA_A1 = 24; /* run A: 23,24 */
+    constexpr u64 B_DATA_B0 = 30, B_DATA_B1 = 31; /* run B: 30,31 (non-adjacent) */
+
+    /* inode: depth-2 root header + one index entry -> B_IDX1 */
+    {
+        u8* p = img.block(B_INODE_TABLE) + size_t((INO_DEEP - 1) * INO_SZ);
+        memset(p, 0, INO_SZ);
+        put16(p + 0x00, 0x8000);   /* regular file */
+        put32(p + 0x04, 4 * BS);   /* size: 4 blocks */
+        put32(p + 0x0C, 2000);
+        put32(p + 0x10, 3000);
+        put16(p + 0x1A, 1);        /* links */
+        put32(p + 0x20, 0x80000);  /* EXTENTS_FL */
+        u8* ib = p + 0x28;
+        put16(ib + 0, 0xF30A); /* magic */
+        put16(ib + 2, 1);      /* entries */
+        put16(ib + 4, 4);      /* max */
+        put16(ib + 6, 3);      /* depth 3: root -> index -> index -> leaf
+                                * (kernel semantics: depth = levels below
+                                * root; the engine decrements per level) */
+        put32(ib + 8, 0);      /* generation */
+        put32(ib + 12, 0);         /* ei_block: logical 0 */
+        put32(ib + 16, u32(B_IDX1)); /* ei_leaf_lo */
+        put16(ib + 20, 0);          /* ei_leaf_hi */
+    }
+    /* index level 1 (block 20): own header depth 2, one entry -> block 21 */
+    {
+        u8* n = img.block(B_IDX1);
+        memset(n, 0, BS);
+        put16(n + 0, 0xF30A);
+        put16(n + 2, 1);
+        put16(n + 4, 340); /* max = (1024-12)/12 */
+        put16(n + 6, 2);   /* own depth: two levels below this node */
+        put32(n + 12, 0);           /* ei_block */
+        put32(n + 16, u32(B_IDX2)); /* ei_leaf_lo */
+    }
+    /* index level 2 (block 21): own header depth 1, one entry -> leaf 22 */
+    {
+        u8* n = img.block(B_IDX2);
+        memset(n, 0, BS);
+        put16(n + 0, 0xF30A);
+        put16(n + 2, 1);
+        put16(n + 4, 340);
+        put16(n + 6, 1);
+        put32(n + 12, 0);
+        put32(n + 16, u32(B_LEAF));
+    }
+    /* leaf (block 22): depth 0, four extents - 2 adjacent + 2 adjacent,
+     * the two runs physically disjoint */
+    {
+        u8* n = img.block(B_LEAF);
+        memset(n, 0, BS);
+        put16(n + 0, 0xF30A);
+        put16(n + 2, 4);
+        put16(n + 4, 340);
+        put16(n + 6, 0); /* depth 0 = leaf */
+        const u64 runs[4] = {B_DATA_A0, B_DATA_A1, B_DATA_B0, B_DATA_B1};
+        for (u32 i = 0; i < 4; ++i) {
+            u8* e = n + 12 + i * 12;
+            put32(e + 0, i); /* ee_block: logical */
+            put16(e + 4, 1); /* ee_len */
+            put16(e + 6, 0); /* ee_start_hi */
+            put32(e + 8, u32(runs[i])); /* ee_start_lo */
+        }
+    }
+    /* data with per-block markers */
+    memset(img.block(B_DATA_A0), 0xA1, BS);
+    memset(img.block(B_DATA_A1), 0xA2, BS);
+    memset(img.block(B_DATA_B0), 0xB1, BS);
+    memset(img.block(B_DATA_B1), 0xB2, BS);
+
+    /* root dirent: append after the existing entries */
+    {
+        u32 cur = 0;
+        const u8* root = img.block(B_ROOTDIR);
+        while (cur + 8 <= BS) {
+            const u32 rec = u32(root[cur + 4]) | (u32(root[cur + 5]) << 8);
+            if (rec == 0)
+                break;
+            cur += rec;
+        }
+        ASSERT_LT(cur + 20u, BS) << "root dir must have room for the new entry";
+        add_dirent(img.block(B_ROOTDIR), cur, INO_DEEP, "deep.bin", 1);
+    }
+
+    MemDevice dev(img.raw());
+    tree::ResultTree tree;
+    auto* ra = tree.add_root(u"Found");
+    auto* rd = tree.add_root(u"Deleted");
+    auto* rl = tree.add_root(u"Lost Files");
+    Ext4ScanFlags fl;
+    Ext4ScanStats st;
+    u32 rc = scan_ext4(&dev, fl, nullptr, nullptr, nullptr, tree, ra, rd, rl, st);
+    ASSERT_EQ(OK, rc) << err_text(rc);
+
+    tree::FileNode* deep = nullptr;
+    std::function<void(tree::FileNode*)> find = [&](tree::FileNode* n) {
+        for (tree::FileNode* c = n->first_child(); c; c = c->next_sibling()) {
+            if (c->name_utf8() == "deep.bin")
+                deep = c;
+            find(c);
+        }
+    };
+    find(ra);
+    ASSERT_NE(deep, nullptr) << "the depth-3 file must surface under Found";
+    ASSERT_NE(deep->props(), nullptr);
+    /* the whole chain resolved: size + the exact two-run extent shape */
+    EXPECT_EQ(u64(4 * BS), deep->props()->logical_size);
+    ASSERT_EQ(size_t(2), deep->props()->extents.size())
+        << "adjacent leaf extents coalesce; disjoint runs stay separate";
+    EXPECT_EQ(u64(B_DATA_A0 * BS), deep->props()->extents[0].offset);
+    EXPECT_EQ(u64(2 * BS), deep->props()->extents[0].length);
+    EXPECT_EQ(u64(B_DATA_B0 * BS), deep->props()->extents[1].offset);
+    EXPECT_EQ(u64(2 * BS), deep->props()->extents[1].length);
+    /* content truth: each resolved extent points at its own run's markers */
+    u8 buf[2] = {0, 0};
+    ASSERT_EQ(OK, dev.read_at(deep->props()->extents[0].offset, buf, 1));
+    EXPECT_EQ(0xA1, buf[0]);
+    ASSERT_EQ(OK, dev.read_at(deep->props()->extents[0].offset + BS, buf, 1));
+    EXPECT_EQ(0xA2, buf[0]);
+    ASSERT_EQ(OK, dev.read_at(deep->props()->extents[1].offset, buf, 1));
+    EXPECT_EQ(0xB1, buf[0]);
+    ASSERT_EQ(OK, dev.read_at(deep->props()->extents[1].offset + BS, buf, 1));
+    EXPECT_EQ(0xB2, buf[0]);
+}
+
 TEST(Ext4Engine, SuperblockValidation) {
     Img img(BPG);
     write_sb(img, 8);

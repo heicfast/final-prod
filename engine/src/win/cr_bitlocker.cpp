@@ -182,6 +182,18 @@ u32 unlock_with_dictionary(wchar_t letter, const wchar_t* const* user_passwords,
     return res.success_index != 0 ? OK : ERR_FVE_LOCKED;
 }
 
+/* The narrow overload: the CLI's loaded dictionary candidates ride the
+ * same consent loop (the absorbed convergent-landing capability). */
+u32 unlock_with_dictionary(wchar_t letter, const std::vector<std::string>& user_candidates) {
+    const dict::AttemptResult res = detail::dictionary_unlock_seam(
+        user_candidates,
+        [](wchar_t l, const wchar_t* password, void*) -> u32 {
+            return unlock(l, 0, password);
+        },
+        letter, nullptr);
+    return res.success_index != 0 ? OK : ERR_FVE_LOCKED;
+}
+
 namespace {
 /* Write one binary auto-unlock blob to a temp .BEK file; returns the path
  * (empty on failure). The blob is passed to Windows verbatim - no crypto
@@ -483,7 +495,6 @@ u32 try_auto_unlock_offline(wchar_t letter, const wchar_t* hive_path) {
     const std::string guid = target_volume_guid(letter);
     return apply_keys(letter, keys, guid, nullptr, nullptr);
 }
-
 
 } // namespace bitlocker
 } // namespace win

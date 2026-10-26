@@ -33,13 +33,17 @@ fi
 #   wchar_t buffers must have the same width the MSVC lane sees.
 # -D_WIN32: the layer's #ifdef _WIN32 branches (e.g. cr_bitlocker's
 #   registry detail namespace) must parse exactly as MSVC sees them.
-# -D__declspec(x)=: gcc on ELF targets has no __declspec keyword (clang
-#   has -fdeclspec; gcc's -fms-extensions does not cover it). The app
-#   layer includes the cr_ui C-ABI header (N-033), whose _WIN32 export
-#   macro uses __declspec(dllexport/dllimport) exactly as MSVC compiles
-#   it - the gate emulates the MSVC keyword at the command line so every
-#   include order parses (a stub-header macro would depend on windows.h
-#   preceding the consumer, which cr_ui.h does not guarantee).
+# -D__declspec(x)=: ELF-target g++ rejects __declspec (it is a Windows
+#   target extension); neutralize it for the PARSE ONLY (N-033's CLI
+#   landing made src/app include cr/cr_ui.h, whose _WIN32 export branch
+#   uses __declspec(dllimport) - MSVC-legal, ELF-g++-unparseable). The
+#   gate checks STRUCTURE, not import semantics; the real macro is
+#   exercised by the MSVC lane on Windows CI.
+
+# -D'__declspec(x)=': the app layer includes cr_ui.h (whose CR_UI_API
+# expands to __declspec(dllexport/dllimport) under _WIN32) possibly BEFORE
+# windows.h - a command-line function-like no-op is include-order-proof
+# (the gate never links, so the storage class is irrelevant to parsing).
 CXXFLAGS="-std=c++20 -fshort-wchar -D_WIN32 -D__declspec(x)= -fsyntax-only -I$STUB_DIR -I$SRC_DIR/include"
 
 rc=0

@@ -83,6 +83,9 @@ struct QueueItem {
     bool is_dir = false;             /* G-08: structure item - mkdir, no content */
     bool nothing_to_recover = false; /* GAP-S6-7: skip before any write -
                                       * no extents, no resident data, size>0 */
+    bool name_exhausted = false;     /* N-065: the collision rename space is
+                                      * exhausted - the item FAILS at process
+                                      * time (the og's cap-break; no _dup) */
     /* ---- G-09 report evidence (captured during process) ---- */
     u64 duration_ms = 0;    /* per-item processing time */
     bool resumed = false;   /* final pre-existed: counted + skipped */
@@ -94,7 +97,9 @@ struct QueueItem {
 
 struct WriterConfig {
     u64 read_chunk = 1 << 20; /* source read granularity */
-    u32 rename_attempts = 64; /* collision suffix cap */
+    u32 rename_attempts = 10000; /* N-065: the og's collision cap
+                                     (DRWUI :357131; was 64 + a _dup
+                                     fallback - both og-foreign) */
     bool verify_hash = true;  /* salvage-on-mismatch: commit + report the
                                * mismatch (Outcome::HashMismatch), never a
                                * silent drop */
@@ -161,10 +166,13 @@ public:
                                  u64 elapsed_ms, const WriterStats& stats) const;
     std::vector<report::Item> report_items() const;
 
-    /* collision resolution policy: intra-queue duplicates always rename
-     * ("name" -> "name (2)"...); pre-existing destination finals rename only
-     * under ConflictPolicy::Rename (corpus R7.1) - Skip keeps the name so
-     * the recover pass detects + skips them (idempotent re-runs). */
+    /* collision resolution policy (N-065, the og's DRWUI :357116-357131):
+     * intra-queue duplicates always rename to name_1.ext / name_2.ext
+     * (%s_%d%s, counter from 1); pre-existing destination finals rename
+     * only under ConflictPolicy::Rename (corpus R7.1) - Skip keeps the
+     * name so the recover pass detects + skips them (idempotent re-runs).
+     * Exhaustion (rename_attempts, the og's cap 10,000) returns EMPTY and
+     * the item FAILS with ERR_DEST_NAME_EXHAUSTED (never a _dup name). */
     std::u16string resolve_collision(const std::u16string& dir,
                                      const std::u16string& base_name) const;
 
