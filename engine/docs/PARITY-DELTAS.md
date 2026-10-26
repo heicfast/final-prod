@@ -4999,7 +4999,6 @@ FileProperties → a WriterConfig `preserve_dacl` flag (default OFF)
 applying it via SetSecurityInfo on the win destio layer only — never on
 the POSIX test shims.
 
-<<<<<<< HEAD
 ### D-80 — the password-dictionary data posture: the corpus Dict converted as generated data (raw_signs precedent), user dictionaries loadable (N-064 convergence record — two parallel landings, first-landing-wins)
 
 **Class:** convergence record (replaces this lane's original D-78
@@ -5187,7 +5186,6 @@ list would be missed — no such device class is documented in the corpus
 (the QA host's own Storage-Spaces census ran WITHOUT producing an
 extra device). The merge is the engine scope; the UI shell may layer
 its own stacks later.
->>>>>>> dd7a3ebb170a4d5231552584e615ea9a7ae878f8 (AUTHORITATIVE)
 
 > **Status: promoted from the parity-audit draft (docs/parity/PARITY-DELTAS-draft.md)
 > after auditor review.** Every entry carries WHAT OG DOES (corpus cite), WHAT WE DO
@@ -7594,7 +7592,6 @@ FileProperties → a WriterConfig `preserve_dacl` flag (default OFF)
 applying it via SetSecurityInfo on the win destio layer only — never on
 the POSIX test shims.
 
-<<<<<<< HEAD
 ### D-80 — the password-dictionary data posture: the corpus Dict converted as generated data (raw_signs precedent), user dictionaries loadable (N-064 convergence record — two parallel landings, first-landing-wins)
 
 **Class:** convergence record (replaces this lane's original D-78
@@ -7782,4 +7779,3 @@ list would be missed — no such device class is documented in the corpus
 (the QA host's own Storage-Spaces census ran WITHOUT producing an
 extra device). The merge is the engine scope; the UI shell may layer
 its own stacks later.
->>>>>>> dd7a3ebb170a4d5231552584e615ea9a7ae878f8
