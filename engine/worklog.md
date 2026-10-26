@@ -11650,3 +11650,26 @@ Work Log:
 Stage Summary:
 - M-017 FIXED (session tally: 4 MAJORs + 2 CI repairs). Next: M-020
   (btrfs profile machinery + default subvol).
+
+---
+Task ID: DFX19-M017b (session 19, M-017 x N-035 union reconciliation)
+Agent: main engineer (diff-to-fix fix session 19 — DFX19)
+Task: The rebase union of my M-017 landing with the parallel lane's
+N-035 (data-area extents) jammed code blocks: their overlap-penalty
+switch fused into my pass-3 containment drop (missing brace), the
+score=pts line doubled, and their test lost its closing brace.
+
+Work Log:
+- Repaired by hand: the old -20/-10 penalty switch REMOVED (M-017
+  replaces it - the polarity inversion repair), my containment drop
+  and the 16-MiB promotion now consume the DATA-AREA extents
+  (data_start_lba/data_sector_count) per N-035's decode (the og's
+  EndSec = DataAreaStart + totalSec; the QA log's totalSec), the
+  doubled score line collapsed, the test-file brace restored.
+- Full suite on the reconciled union: 709/709 (linux-gcc
+  RelWithDebInfo + ASan/LSan) - both lanes' tests green together.
+- M-017's Resolution carries the integration note.
+
+Stage Summary:
+- The union is coherent: N-035's extents feed M-017's rules. Tally
+  stands at 4 MAJORs + 2 CI repairs + 1 reconciliation this session.
