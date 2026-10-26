@@ -129,6 +129,40 @@ struct ScanCtx {
      * inverts: clear = used. ---- */
     const storage::FreeMap* free_map = nullptr;
 
+    /* M-039: the occupancy interval gate (sorted, coalesced, non-empty
+     * [start, end) pairs, SLICE-relative). Positions inside an interval
+     * are suppressed from dispatch; the grammar layer jumps to the
+     * interval end (the M-005 cluster-jump analog at extent
+     * granularity). Binary search per probe (the set is sorted). */
+    const std::vector<std::pair<u64, u64>>* occupied = nullptr;
+    std::atomic<u64> occupancy_skipped{0}; /* positions suppressed by the
+                                              interval gate (telemetry) */
+
+    /* Position inside an occupied interval? Returns the interval end
+     * (the jump target) via `end_out` when suppressed. */
+    bool occupancy_used(u64 pos, u64* end_out = nullptr) const {
+        if (occupied == nullptr || occupied->empty())
+            return false;
+        /* upper_bound on start: the candidate interval is the one before */
+        size_t lo = 0, hi = occupied->size();
+        while (lo < hi) {
+            const size_t mid = lo + (hi - lo) / 2;
+            if ((*occupied)[mid].first <= pos)
+                lo = mid + 1;
+            else
+                hi = mid;
+        }
+        if (lo == 0)
+            return false; /* before every interval */
+        const auto& iv = (*occupied)[lo - 1];
+        if (pos < iv.second) {
+            if (end_out)
+                *end_out = iv.second;
+            return true;
+        }
+        return false;
+    }
+
     /* Position suppressed by the gate? (slice-relative pos) */
     bool gate_used(u64 pos) const {
         if (!free_map || !free_map->valid() || pos < free_map->base_byte)
@@ -241,6 +275,18 @@ u32 scan_one_window(ScanCtx& ctx, u64 base, const u8* win, u64 want, std::set<u6
             } else if (ctx.gate_used(base + off)) {
                 continue; /* used mid-cluster: this position only */
             }
+        }
+        /* M-039: the occupancy interval gate - a position inside a
+         * structured node's extent is FS-accounted space: suppress (and
+         * jump to the interval end - the same window-coords convention
+         * as the M-005 jump; extents coalesce, so the jump skips whole
+         * files). */
+        if (u64 occ_end = 0; ctx.occupancy_used(base + off, &occ_end)) {
+            ctx.occupancy_skipped.fetch_add(1, std::memory_order_relaxed);
+            const u64 rel = occ_end - base;
+            if (rel > off)
+                off = rel - 1; /* lands past the interval */
+            continue;
         }
         const u8 c = win[off];
         /* first-byte dispatch: only formats whose magic starts with c.
@@ -484,6 +530,13 @@ u32 scan_one_window(ScanCtx& ctx, u64 base, const u8* win, u64 want, std::set<u6
              * probes (the og's single block-scan loop gates all dispatch;
              * skip counting stays with the grammar layer - no double
              * count). */
+            /* M-039: the occupancy gate rides the same stride - a sign
+             * inside FS-accounted space is the og's skip case (its
+             * per-volume bitmap covers every engine's extents). */
+            if (ctx.occupancy_used(start_abs)) {
+                ctx.occupancy_skipped.fetch_add(1, std::memory_order_relaxed);
+                continue;
+            }
             if (ctx.free_map) {
                 if (const u64 jump = ctx.gate_check_and_skip(start_abs, false); jump != 0) {
                     const u64 rel = jump - base;
@@ -861,6 +914,7 @@ u32 carve_slice(IStorageDevice* slice, const CarveFlags& flags, CancelToken* can
     /* M-005: the allocation-bitmap gate (nullable; slice-relative basis -
      * the orchestrator rebases stats.free_map before the call) */
     ctx.free_map = flags.free_map;
+    ctx.occupied = flags.occupied_ranges;
     /* M-024: build the per-format disable maps from the host list (one
      * pass; the hot loops then test a single bool). The grammar layer
      * gates by trial slot; the raw-sign layer gates by format index. */
@@ -955,6 +1009,8 @@ u32 carve_slice(IStorageDevice* slice, const CarveFlags& flags, CancelToken* can
     stats.zero_strides_skipped += ctx.zero_strides_skipped.load();
     /* M-005: gate telemetry */
     stats.bitmap_skipped_clusters += ctx.bitmap_skipped_clusters.load();
+    /* M-039: occupancy-gate telemetry */
+    stats.occupancy_skipped += ctx.occupancy_skipped.load();
     stats.bitmap_skipped_bytes =
         (flags.free_map && flags.free_map->valid())
             ? stats.bitmap_skipped_clusters * u64(flags.free_map->cluster_bytes)

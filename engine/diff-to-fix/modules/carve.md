@@ -475,3 +475,17 @@ extension + MIME (carve_note), tag 0xFFFE0000, confidence 600 (the
 documented fixed value — EUUserData carries none). Source-of-truth
 posture is the og's own: an install-tree config re-read per scan, not
 session state.
+
+## Session-24 verdict update (M-039 FIXED, DFX24, 2026-10-26)
+
+**Cross-engine occupancy feed — `M-039` FIXED.** The orchestrator
+aggregates every STRUCTURED node's extents (post-engine-pass, from
+the result tree) into a sorted, coalesced interval set and feeds it
+to both carve dispatch layers as a skip gate: positions inside an
+interval are suppressed (the grammar layer jumps to the interval
+end); the raw-sign 512-strides suppress the same way; carved nodes
+never feed the gate; the dedup tree stays the safety net.
+`occupancy_skipped` telemetry on CarveStats/ScanStats. A28 (carve
+target policy) / B29 (dedup, net) / O37 (cross-stage data flow)
+verdicts: MATCH (the interval shape is the finding's own sanctioned
+first step; the og's sparse-file mmap stays profiling-gated).
