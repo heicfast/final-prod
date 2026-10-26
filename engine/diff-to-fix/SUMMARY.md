@@ -112,8 +112,28 @@ Office/HWPX consumer stays out-of-scope (I-010). Fail-before EXECUTED
 3 win-lane tests; suite 754/754. Attempt policy documented per the
 finding's open question: sequential, no retry, no parallelism.
 
-Counts after this landing: **MINOR 18 open** (N-064 moved to FIXED/),
-MAJOR 14 open (DFX27/DFX26 lanes), INFO 0, tracked-open 11.
+**N-071 FIXED (MINOR — the two-stack disk enumeration):** the og's
+CDiskEnumerator merges five discovery stacks (mom-module-system :57-59;
+the QA census shows storage-spaces init + VDS load alongside the plain
+enumerate — vendor-logs :13-29); the core had the numbered
+PhysicalDrive loop only. Landed: enumerate_disk_interfaces (cfgmgr32
+GUID_DEVINTERFACE_DISK present-instance pass — the documented GUID
+locally defined; number via IOCTL_STORAGE_GET_DEVICE_NUMBER; the loop's
+query factored into query_disk_handle so both stacks share one query
+path; table parse through the pure core when numbered) +
+merge_disk_enumeration (PURE header-inline merge: dedup by number — the
+loop's richer entry wins — then by instance path; unknown-number
+entries path-dedup only; any cfgmgr failure degrades to stack 1
+untouched). Residual stacks (WMI/VDS/StorageSpaces/FunctionDiscovery/
+hot-plug) REGISTERED as D-79 — UI metadata + eventing, not the
+readable-device space. cfgmgr32 joined the strict Win7-inclusive import
+allowlist (Win2000-era CM pair). Fail-before EXECUTED (3 RED on the
+merge-disabled tree); 4 pure tests; win_syntax_check green (cfgmgr32
+stub pair); suite 769/769. modules/storage.md's stale local N-055 row
+for this finding corrected to the integrated N-071.
+
+Counts after this landing: **MINOR 17 open** (N-064, N-071 moved to
+FIXED/), MAJOR 14 open (DFX27/DFX26 lanes), INFO 0, tracked-open 11.
 
 ## Session-23 delta (2026-10-26 — DFX23: the MINOR-first closing wave, batch 1 — N-009 group closed + M-057)
 

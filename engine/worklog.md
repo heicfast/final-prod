@@ -13135,3 +13135,45 @@ Work Log:
 Stage Summary:
 - N-064 FIXED (session tally: 1). Next: N-071 (device enumeration
   breadth), pulling first — parallel lanes are active on the MINOR tier.
+
+---
+Task ID: DFX31-N071 (session 31, MINOR tail-first lane — finding 2)
+Agent: main engineer (diff-to-fix fix session 31 — DFX31)
+Task: N-071 — device enumeration breadth (the two-stack merge).
+
+Work Log:
+- Corpus re-verified FIRST-HAND: mom-module-system--architecture.md :50-70
+  (DeviceManager.mo = enumeration/hot-plug/WMI; Device.mo = the device
+  abstraction), vendor-logs--qa-session-forensics.md :10-32 (the
+  CDiskEnumerator boot census: storage-space init + GetUsedPhysicalDisks +
+  Vds loadservice + disk enumerate — the five-stack fan-in RUNNING, no
+  miss-case shown), the finding's own open question (Storage Spaces
+  members surface as PhysicalDrive in practice — UNVERIFIED live).
+  CONFIRMED-DIVERGENCE (single-stack loop).
+- Landed BOTH fix-plan halves: (b) enumerate_disk_interfaces — the cfgmgr32
+  GUID_DEVINTERFACE_DISK present-instance pass (documented GUID value
+  defined locally; CM_Get_Device_Interface_List_SizeW/ListW, Win2000-era;
+  number via IOCTL_STORAGE_GET_DEVICE_NUMBER; the loop's geometry/
+  alignment/descriptor query factored into query_disk_handle — one shared
+  query path; table parse when numbered) + merge_disk_enumeration (PURE
+  header-inline: dedup by number then instance path; unknown-number
+  path-dedup; cfgmgr failure degrades to stack 1 untouched); (a) the
+  residual stacks REGISTERED as D-79 (WMI/VDS/SS/FunctionDiscovery/
+  hot-plug = UI metadata + eventing).
+- Gates: cfgmgr32.dll added to ALLOWED_DLLS (strict) + the CM pair to
+  ref_imports_um.json (Win7-inclusive gate intact); tests/win-stub gained
+  cfgmgr32.h + STORAGE_DEVICE_NUMBER/IOCTL_STORAGE_GET_DEVICE_NUMBER +
+  PULONG (the parse gate working as designed).
+- Fail-before EXECUTED: merge-disabled tree -> SetupApiMerge /
+  DedupByInstancePath / MergeWithEmptyLoopTakesAllInterfaces RED;
+  restored -> 4/4 GREEN.
+- Audit trail: Resolution + FIXED/ move; RESOLVED-INDEX row; matrix
+  storage B8/P42/A54 -> MATCH-with-D-79 + session note; modules/storage.md
+  (the stale session-6 local N-055 row corrected to N-071); SUMMARY
+  session-31 delta + counts (MINOR 17 open); PARITY-DELTAS D-79.
+
+Stage Summary:
+- N-071 FIXED (session tally: 2 — N-064, N-071). Next: N-032 (health
+  transports CSMI/USB bridges) or N-033 (analyser registry exports),
+  pulling first.
+

@@ -2359,3 +2359,51 @@ index decode in the engine → descriptor carrier on
 FileProperties → a WriterConfig `preserve_dacl` flag (default OFF)
 applying it via SetSecurityInfo on the win destio layer only — never on
 the POSIX test shims.
+
+### D-79 — disk enumeration: the two-stack merge (PhysicalDrive loop + cfgmgr32 disk interfaces), not the og's five-stack fan-in (N-071, REGISTERED DIVERGENCE — partial port with scope rationale)
+
+**Class:** registered divergence (enumeration breadth) · **Finding:**
+diff-to-fix N-071 (MINOR, fixed with the two-stack merge; residual
+registered here) · **Date:** 2026-10-26
+
+**WHAT OG DOES:** the device discovery fan-in spans five stacks — WMI
+(MSFT_* namespaces), SetupAPI device interfaces, VDS (dynamic-disk
+packs), Storage Spaces, and Function Discovery (mom-module-system
+architecture :57-59; the QA boot census shows `CDiskEnumerator :
+Storage space init` + `GetUsedPhysicalDisks` + `Vds loadservice` running
+alongside the plain `disk enumerate` — vendor-logs :13-29) — merged into
+the device list the UI presents, with hot-plug notification.
+
+**WHAT WE DO:** a two-stack merge: the numbered `\\.\PhysicalDrive0..N`
+loop (geometry/alignment/descriptor/table parse) + the cfgmgr32
+`GUID_DEVINTERFACE_DISK` present-instance pass (every interface opened,
+queried with the same IOCTL family, merged by
+`merge_disk_enumeration` — dedup by disk number, then by instance
+path; N-071's landing). The WMI/VDS/Storage-Spaces/FunctionDiscovery
+stacks are not ported; hot-plug eventing is not ported (the CLI/UI
+re-enumerates on demand).
+
+**WHY:** (1) Every block device Windows exposes for user-mode READ
+surfaces as `\\.\PhysicalDriveN` or a disk-interface instance — the two
+stacks cover the readable-device space the recovery engine consumes;
+the og's extra stacks feed its UI metadata (WMI friendly names, VDS
+dynamic-volume CONFIG — which our LDM engine parses from the disk
+itself — and Storage Spaces pool topology for display). (2) The
+finding's own open question records that Storage Spaces members DO
+surface as PhysicalDrive in practice (the miss-case is
+UNVERIFIED-BY-EXECUTION without a Storage Spaces host; the QA census
+shows the stacks RUNNING, not a disk the numbered namespace lacks). (3)
+FunctionDiscovery and hot-plug notify are product-shell concerns (the
+og's DeviceManager.mo is a UI-facing module); the engine's contract is
+a complete device LIST on demand, which the merge provides. The
+cfgmgr32 pair (`CM_Get_Device_Interface_List_SizeW`/
+`CM_Get_Device_Interface_ListW`) is Win2000-era — the Win7-inclusive
+import gate holds (cfgmgr32 added to the strict allowlist with the
+function pair).
+
+**RISK:** a device reachable ONLY through VDS/Storage-Spaces stacks and
+absent from both the PhysicalDrive namespace AND the disk-interface
+list would be missed — no such device class is documented in the corpus
+(the QA host's own Storage-Spaces census ran WITHOUT producing an
+extra device). The merge is the engine scope; the UI shell may layer
+its own stacks later.

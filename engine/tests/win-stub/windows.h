@@ -39,6 +39,7 @@ typedef char* LPTSTR;
 typedef const char* LPCSTR;
 typedef char* LPSTR;
 typedef DWORD* LPDWORD;
+typedef ULONG* PULONG;
 typedef void* LPVOID;
 
 struct LARGE_INTEGER { long long QuadPart; };

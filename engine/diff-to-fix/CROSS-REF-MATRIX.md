@@ -6,7 +6,10 @@ table + the pure-core parse/attempt loop (cr::dict) + the win-layer
 consent action (unlock_with_dictionary, the PowerShell/manage-bde
 -Password plumbing) + the CLI `--bitlocker-dict` consent flag + the
 cr_ui_unlock_volume_with_dictionary additive ABI export. F61 consent gate
-structural; health/bitlocker F61/B1 cells -> MATCH.
+structural; health/bitlocker F61/B1 cells -> MATCH. **N-071** FIXED —
+the two-stack disk enumeration (cfgmgr32 disk-interface pass merged into
+the numbered loop; residual stacks registered as D-79); storage B8/P42/A54
+-> MATCH-with-D-79.
 
 **Session-25 changes (2026-10-26, DFX25 — INFO tier closed into FIXED/, tracked-open resolution wave):**
 the 22 acknowledged INFORMATIONAL findings (I-001..I-024) moved from
@@ -323,7 +326,7 @@ not-BAAD both sides; FAT quick-scan threading — already registered D-30x).
 | session/tree | D11/D12/P42 | **M-051+N-059 (converged)** (type-registry ID + per-FS secondary payload slots missing) |
 | writer | A27/S35/P46 | **N-065** (collision `name_N`/cap 10000 vs ` (N)`/cap 64/`_dup`; mkdir 0/0xB7-only; **D-19 premise refuted** with decompile evidence) |
 | health | P46/P68 | **S-024 addendum** (cr_health.h claims 0xD1/0xD8 never issued — doc-truth sub-item; capability gap stays S-024) |
-| storage | B8/P42/A54 | **N-071** (enumeration breadth: 5-stack fan-in vs PhysicalDrive loop) |
+| storage | B8/P42/A54 | MATCH-with-D-79 (N-071 FIXED s31: the two-stack merge — PhysicalDrive loop + cfgmgr32 GUID_DEVINTERFACE_DISK pass, pure merge_disk_enumeration dedup; residual stacks registered) |
 | storage | P47/P48 | ~~N-045~~ **MATCH (registered divergence)** (FIXED/N-045, session 18: 8 MiB/256 KiB reactive-LRU vs og 4 MiB prefetch engine REGISTERED as PARITY-DELTAS D-72 — budget + algorithm, corpus cites re-verified first-hand; doc-truth pin `Cached.ScanCacheBudgetIsTheRegisteredDivergence` keeps source constant + D-72 row + cr_cached.h divergence block in lockstep; no code change, the alignbench sweep owns the tuning decision) |
 | storage | S35/Q43 | ~~N-046~~ **MATCH** (FIXED/N-046, session 18: `PartitionSlice::refresh_geometry()` — the og's RefreshSectorSize-from-parent surface (FUN_140643870) with revalidation hardening over the og's blind store; Slice.GeometryRefreshAfterMediaChange + Slice.GeometryRefreshRefusesInvalidatingChange; orchestrator auto-refresh excluded and documented — the corpus exposes no scan-path caller) |
 | ext4 | A27/S35/B2 | ~~N-073~~ **FIXED-ALREADY** (FIXED/N-073, session 14: N-004's transport-level CatchBuffer landing covers the engine path — 3 engine-path pin tests; the S35 row in modules/ext4.md carries both N-004 and N-073 closed) |
