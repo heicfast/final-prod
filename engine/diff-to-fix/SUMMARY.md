@@ -447,10 +447,13 @@ CORRECTED toward og parity (spoofed-EXFAT-OEM -> Fat, the og's
 multi-analyser outcome; the painted-FAT-boot UDF image -> Unknown — the old
 Fat was the spoof-accepting answer). Suite **757/757**.
 
-**Post-fix counts:** SEVERE **0** · MAJOR 14 · MINOR **12** · INFO 0 open ·
-tracked-open 10 (OQ-S2M-2 resolved by the parallel DFX31 lane) · FIXED/
-**179** files (178 findings + RESOLVED-INDEX). Next on this lane: N-033
-(carve capability ABI) -> N-064 (Dict).
+**Post-fix counts (at this batch's push, union with the window's parallel
+landings M-020/M-014/M-049/M-058/N-058/N-032/N-064 + OQ resolutions):**
+SEVERE **0** · MAJOR 11 · MINOR **8** · INFO 0 open · tracked-open 10 ·
+FIXED/ **188** files (187 findings + RESOLVED-INDEX). N-064 (on this
+lane's original claim) landed by the parallel window. Next on this lane:
+N-033 (carve capability ABI), then the unclaimed MINOR remainder
+(N-065/N-066/N-059/N-072), then feasible MAJORs.
 
 <!-- DFX16 note: session 16 ran as a parallel lane in the same window as
      sessions 17-22; its delta is recorded here for chronology. -->
