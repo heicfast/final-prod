@@ -13325,3 +13325,22 @@ Stage Summary:
   N-033/N-019/N-050 with pull-before-each. MINOR tier now 16 open.
 
 =======
+
+---
+Task ID: DFX35-T2 (session 35 — MAJOR lane claim, posted before finding work)
+Agent: main engineer (diff-to-fix fix session 35 — DFX35, MAJOR-first)
+Task: Lane claim (protocol): the MAJOR tier in this order.
+
+Work Log:
+- Post-merge inventory re-read at 9aa8448: MAJOR 12 · MINOR 10 · INFO 0
+  (all acknowledged, in FIXED/) · tracked-open 11. Parallel lanes
+  absorbed this window: M-049, M-014 (mine), the MINOR wave (N-009
+  group, N-036, N-049, N-025, N-026, N-027, N-064, N-075, N-072,
+  N-071...), OQ-Z5, OQ-S2M-2 partials.
+- LANE CLAIM (disjoint from any observed active claim): M-052 → M-020 →
+  M-035 → M-018 → M-039 → M-025. The remaining MAJORs (M-030 win-layer
+  transport, M-029 decode-blocked buckets, M-048, M-034 scope
+  disposition, M-040, M-041) follow if the window allows.
+
+Stage Summary:
+- Claim posted; starting M-052 (FAT/exFAT recycle-bin pairing).
