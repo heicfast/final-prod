@@ -13471,3 +13471,53 @@ Stage Summary:
   fix queued behind decode items). Session tally: OQ-FLT-1 + OQ-Z5 + OQ-Z2
   resolved, S-034 filed. Next on this lane: OQ-Z1 (og dsl_dir/dsl_dataset
   offsets — the MOS-walk documentation question).
+
+---
+Task ID: DFX33-T1 (session 33, first fix)
+Agent: main engineer (diff-to-fix fix session 33 — DFX33)
+Task: M-020 — Btrfs chunk-profile machinery (RAID10 gates, 2-copy rotating
+mirror reads) + default-subvolume pick.
+
+Work Log:
+- Corpus re-verified LINE BY LINE first-hand: chunk parse + RAID10 gate
+  (:2145-2169), profile classes + rotating mirror (:2498-2543, the read
+  path), default-subvolume DIR_ITEM pick (FUN_1800061f0 :3975-4060).
+  DECODE ERROR IN THE AUDIT'S SUMMARY corrected in the record: the og's
+  read path serves ONLY class 0x20 (SINGLE/DUP/RAID1, rotating mirror);
+  RAID0 (class 8) and RAID10 (class 0x40) fall to LAB_1800043fe = read
+  FAILURE — the og recovers nothing from striped chunks. The audit's
+  "2-copy (DUP/RAID1/RAID10)" prose was wrong; its quote block was right.
+- Implemented: full stripe-array decode + geometry in parse_chunk (RAID10
+  gate og-exact); profile-aware logical_to_physical (2-copy rotation
+  og-exact, RAID0/RAID10 kernel stripe math as the REGISTERED SUPERSET
+  D-79 — the pre-fix stripe-0 read emitted WRONG BYTES on striped chunks;
+  classes &0x80/&0x100 refused like the og); map_extent_pieces splits raw
+  extents at stripe boundaries; compressed extents atomic (refused +
+  counted, unmappable_extents); default-subvolume DIR_ITEM pick with both
+  og gates + root-5 fallback, default renders at the volume root (ReFS
+  convention), non-default subvols keep N-047 containers;
+  mirror_rotations stat. Fix-plan item 3 verified already-by-construction
+  (Skip-mode RetryingDevice records sector-granular failures below the
+  engine — no duplicate recording).
+- Tests: 4 new fail-before EXECUTED (4/4 RED on the pre-fix-behavior
+  tree: rotation/gate/default-rendering disabled in place) —
+  Raid1RotatingMirrorReads, Raid10GeometryGate,
+  Raid0StripeMathSplitsAtStripeBoundaries,
+  DefaultDirItemNonSubvolumeLocationFallsBack; EndToEndWalk +
+  SubvolumeNamedFromRootRef updated to the default-at-root expectations
+  (RED on the same tree). First build caught my own fixture error (the
+  2-copy formula maps copy i to stripes[i].offset + rel — the leaf copy
+  belongs at P_COPY1 + 0x1000, not the stripe base; debug-printed, fixed,
+  debug prints removed before commit). Suite 747/747 linux-release.
+- Audit trail: Resolution + FIXED/ move; matrix btrfs row MATCH;
+  modules/btrfs.md session-33 verdicts; SUMMARY session-33 delta;
+  PARITY-DELTAS D-79 (renumbered from a D-78 collision with the parallel
+  N-032 landing, per the errata convention).
+- Union with the parallel wave (11fff2a: M-014, M-049, M-058, N-032,
+  N-064, OQ evidence) resolved both-sides-kept; suite green on the union.
+
+Stage Summary:
+- M-020 FIXED (tally: 1). MAJOR 13 open at this landing (parallel lanes
+  landed M-014/M-049 in the same window). Next: pull, then M-025 (carve
+  read model) or whatever remains open.
+
