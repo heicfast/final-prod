@@ -1,3 +1,84 @@
+# SUMMARY.md — executive summary (sessions 23+25+28 on top; earlier sessions below)
+
+## Session-28 delta (2026-10-26 — DFX28: the rear-first MINOR lane)
+
+Bootstrap: absorbed the window's parallel claims (DFX23 MINOR front-first,
+DFX24 MAJOR, DFX25 INFO-closure 22/22, DFX26 MAJOR-tail, DFX27 MAJOR-head)
+via union merges; this lane works the open MINOR tier from the REAR
+(converging toward DFX23's front-first progress; ALREADY-FIXED
+classification on collision). Baseline **737/737** linux-release green at
+the claim tree (`354c555` content); corpus `03ad46c` unmoved.
+
+**N-075 FIXED (MINOR — the event-bus contract shape):** the finding's own
+"cheapest honest close" executed — `cr_ui_scan_busy` +
+`cr_ui_scan_stopping` synchronous query exports (v2-era append, no bump):
+the og's `sigIsBusy(bool&)` ×14 / `sigIsStopping(bool&)` ×8 reference-out
+query signals surfaced at the ABI boundary (busy = the live run-lifecycle
+atomic; stopping = the LIVE token cancel request, persisting after the
+one-shot run — distinct from telemetry's post-run cancelled flag). The
+pull-polled progress convention registered as PARITY-DELTAS **D-78**
+(renumbered from a D-77 collision with the parallel lane's N-009d ACL
+register — the errata convention; the og's 38-consumer poll farm vs the
+core's coalesced push + any-thread telemetry pull); the typed
+`IUIProgressInfo` mapping documented in ABI-CONTRACT §5
+(recovery_progress_fn + queue_count + get_stats + report_json —
+deliberately no parallel interface). Proof:
+`CrUi.ScanBusyStoppingQueries` (mid-run pause-gate window: busy observed
+live, stopping flips at cancel, one-shot persistence after return) +
+plain-C edges in `cr_ui_abi_check`; fail-before EXECUTED at compile (the
+symbols did not exist). Suite **738/738** at the fix commit.
+
+**Post-merge union counts (session-28 close on the merged tree, absorbing
+the parallel N-009/N-025/M-057 landings):** SEVERE **0** · MAJOR **14** ·
+MINOR **16** · INFO 0 open (22 acknowledged in FIXED/) · **FIXED/ 174
+findings** (175 files incl. RESOLVED-INDEX) · tracked-open 11. Next on
+this lane: N-019 (the 12-scenario regression-test gap), then
+N-050/N-033/N-072 rear-first.
+
+
+## Session-31 delta (2026-10-26 — DFX31: the tracked-open HEAD lane opens; OQ-S2M-2's three probes RESOLVED)
+
+Baseline 737/737 green at bootstrap (02b950f lineage through the window's
+parallel claims); corpus `03ad46c` unmoved. Lane: the tracked-open HEAD set
+(OQ-RS, OQ-S2M-2, OQ-S3-JPEG, OQ-S4-3, OQ-S20-1) — disjoint from the
+parallel DFX30's tracked-open tail and every finding-tier lane.
+
+**OQ-S2M-2 RESOLVED (all three probes; zero code change — the decode
+confirms landed behavior):**
+1. **The +0x68 bonus setter located and fully decoded** — per-engine
+   scan-path composers, not the serializer: FAT/exFAT carry a two-factor
+   ladder (`+0x68 = boot_quality + fs_quality`, each ∈ {10,45,50};
+   FATSearchDLL :6946-6969/:7142-7167, exFATSearchDLL :39504-39526; the
+   FAT32 fs bits come from FUN_180009960 with the backup-boot verdict from
+   the classifier at :8004-8052; the boot pair's bit 0x100 has NO setter in
+   the build — its 50-tier is unreachable); NTFS carries the composite
+   (flag-weight base FUN_18000dc70 :10538-73 + boot-validation ±FUN_1800097d0
+   :7229-33 + MFT-run stitching +30 per fragment / +50 one-shot for
+   >3-gap survivals in FUN_180023cb0). The CalcPartition-observed
+   "FAT32 20" = **10+10, both ladders at minimum** — no constant exists
+   (session-14's zero-hit grep is explained: accumulator latches on
+   registers, not immediates). M-017's landed `fs_bonus()` CONFIRMED — the
+   flat values are the honest mapping for the core's single-probe
+   architecture; the 187-row 6-decimal log parity stands.
+2. **The ZFS "pool display name" never exists** — 0 "name"/"pool" hits in
+   ZfsSearchDLL (re-verified); DRWUI's FS-name builder FUN_140510080
+   (:842335-96) has no case 13 → "Unknow" in the XML `filesystem` field and
+   the CalcPartition log; "ZFS partition" (strings:39717) is the GPT
+   type-GUID table. The core's label-`name` read registered as a deliberate
+   display-information superset (modules/zfs.md).
+3. **The Btrfs name-conversion anchor = the DRWUI render layer,
+   CP_UTF8/dwFlags=0** — FUN_140163af0 (:264664-89, restore-path invoke
+   :357529) + the FUN_1400d9ef0 family (:190981-97); the engine is
+   byte-oriented (0 conversion imports, re-verified); S-005 parity holds;
+   the predicted residuals N-016a/N-016b already FIXED (N-029/M-010).
+
+Evidence: `evidence/decompiled-quotes/s31-oq-s2m-2-bonus-setter-zfs-name-btrfs-anchor.md`
+(20 verbatim quotes, three negative greps re-run). OQ → FIXED/ with
+RESOLVED-INDEX row; modules/lost-partition.md + modules/zfs.md updated.
+**Counts after this landing: tracked-open 10** (OQ-Z-E-FLT, OQ-RS, OQ-T6-T7,
+OQ-S3-JPEG, OQ-S4-3, OQ-S5-1, OQ-S6-1, OQ-S6-2, OQ-S6-3, OQ-S20-1; the
+DFX30 tail lane owns the first six of those). Next on this lane: OQ-S3-JPEG
+(the fallback/continuation no-EOI decode).
 # SUMMARY.md — executive summary (session 31 on top; earlier sessions below)
 
 ## Session-31 delta (2026-10-26 — DFX31: the MINOR tail-first lane opens with N-064)
@@ -68,10 +149,12 @@ exact `'e' was not declared` diagnostic), pass-after 8/8. Q67 buildability
 now covers every Windows-only directory (src/win + src/app).
 
 **Post-fix counts (this batch, union with the parallel lanes' INFO
-closure):** SEVERE **0** · MAJOR 14 open (M-057 filed+fixed same session) ·
-MINOR **18** · INFO **0 open** (22 acknowledged — closed into FIXED/ by the
-parallel DFX25 lane in the same window) · FIXED **173** files (172 findings
-+ RESOLVED-INDEX — mine +2, theirs +22, overlapping base 149) ·
+closure; superseded by the session-28 union below — DFX23's N-025 landing
+and DFX28's N-075 landing both post-date this paragraph):** SEVERE **0** ·
+MAJOR 14 open (M-057 filed+fixed same session) · MINOR **18** · INFO
+**0 open** (22 acknowledged — closed into FIXED/ by the parallel DFX25
+lane in the same window) · FIXED **173** files (172 findings +
+RESOLVED-INDEX — mine +2, theirs +22, overlapping base 149) ·
 tracked-open 11.
 Suite **740/740** linux-release at the fix commit (+3 Text tests, gate
 extended). Next on this lane: N-007/I-004 → N-025 → N-026 → N-027 →
@@ -98,11 +181,44 @@ re-executed (I-001's blanket `$`-skip re-read at NTFSSearchDLL_decompiled.c
 rows; the deliberate divergences they register stay preserved with their pin
 tests (the INFORMATIONAL safety-hardening rule — no code change).
 
-**Post-move counts:** SEVERE **0** · MAJOR 14 · MINOR 19 · INFO **0 open**
+**Post-move counts (session-25 close, pre-session-28):** SEVERE **0** · MAJOR 14 · MINOR 19 · INFO **0 open**
 (22 acknowledged, all in FIXED/) · **FIXED/ 171 files** (170 findings +
 RESOLVED-INDEX) · tracked-open 11 (resolution wave below — see the session's
 worklog entries for the per-OQ dispositions).
 
+
+## Session-23 delta, batch 2 (2026-10-26 — DFX29: N-036 — the ReFS container-map half closed)
+
+**N-036 FIXED (the finding's remaining container-translation half; the
+recognizer half had landed with S-020):** the invented top-nibble
+translate model (feeding a map nothing ever populated) is REPLACED by the
+og formula, re-verified first-hand at BOTH decoded consumers
+(FUN_180011e90 :13223-13267 + FUN_180004820 :2355-2386, byte-identical):
+identity when block < span / map empty / key absent; key
+`(((block/span)>>1)-2)*span`; rewrite `(block & (span-1)) | base`; u64
+wrap semantics preserved. The span is DBR +0x34 — the og's
+volume+0x148 -> parser+0xa8 wiring (FUN_180011cd0) decoded THIS SESSION,
+which settles the finding's "container-cluster count" identification —
+now `RefsBoot::container_clusters`. The container map is populated from
+FUN_180002a60's system-directory records (0xa0/0xe0-length keys with the
+{base, span} tail pair; span == DBR+0x34 is the acceptance gate) during
+the ObjectID-table walk (zero extra I/O) + a bounded system-table sweep
+(IDs < 0x100 — never doubles the user-tree walk). Fail-before EXECUTED:
+translate reverted to identity -> `Refs.ContainerRelativeRunTranslated…
+PerOgFormula` RED (42*4096 vs 302*4096) AND `Refs.PhysicalRunFlag20…
+Untranslated` RED (both files collapsed onto extent 42 by M-027's
+placement-signature dedup — the loser never emitted; a genuine
+second-order proof). 4 new tests; suite **744/744**. Residual (recorded
+in the Resolution, not blocking): the og's record payload carries its key
+at +0x20, so an alternative key-relative shape reading exists — the
+auditor's reading is implemented with the unit==span gate as the
+discriminator; the real multi-container volume probe (the finding's own
+open question) settles it and is the bench stage's next step.
+
+**Post-fix counts:** SEVERE **0** · MAJOR 14 · MINOR **17** · INFO 0 open
+(22 acknowledged in FIXED/) · tracked-open 11 · FIXED/ **174** files
+(173 findings + RESOLVED-INDEX). Next on this lane: N-049 (lost-record
+field richness) → N-050 → N-033 → N-064.
 
 <!-- DFX16 note: session 16 ran as a parallel lane in the same window as
      sessions 17-22; its delta is recorded here for chronology. -->
@@ -2682,3 +2798,24 @@ MINOR 31 · INFO 18 · tracked-open 12 = **90 active** / **56 files in FIXED/**.
 
 **Live counts (after S-028):** ACUTE 0 · SEVERE 5 · MAJOR 42 ·
 MINOR 44 · INFO 20 · tracked-open 12 = **111 active** / **60 files in FIXED/**.
+
+**N-026 FIXED (the ReFS page/gate group — mixed resolution, 2 fixes + 2 audit
+corrections):** N-013b — the DBR geometry gates now match the og exactly: bps
+ladder {256,512,1024,2048,4096} (FUN_180012390:13544-13546, re-verified
+verbatim) and the cluster product gate {4 KiB, 64 KiB} (:13547-13549); the old
+core REFUSED 256/1024/2048-bps volumes the og opens and ACCEPTED 16/32-KiB
+cluster shapes the og refuses — both directions closed (the 1.x-3.x version
+superset stays: I-004/D-48b). N-013d — the volume open reads the og's 4 KiB
+(:2425-2444). N-013a INVALID (first-hand decode: the og's "dynamic body
+offset" is 0x50 BY CONSTRUCTION — the ref parser hardcodes the 0x30 extension,
+FUN_18000ff60:11875; the audit's `*(uint*)(page+4)` was Ghidra's
+parsed-object view, not a raw-page field). N-013c INVALID (the "mid-volume
+second copy" is a misattribution: the cited formula is the container-map key
+in FUN_180011e90 — N-036's decode, confirmed by the full-function read; the
+og reads the superblock at the SINGLE metadata base spc×0x1E, :2457, and
+probes no backup; the core's {30,n-3,n-2} set stays the superset —
+implementing the audit's "mid-volume probe" would have been hallucinated
+parity). Tests: Refs.Bps256Accepted / Bps1024Accepted / Cluster16KRejected /
+OpenReadIsFourKiB (all fail-before RED) + Cluster64KAccepted boundary pin.
+Suite **748/748**.
+

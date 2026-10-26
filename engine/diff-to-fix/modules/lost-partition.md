@@ -82,7 +82,9 @@ lost-partition-specific divergences surfaced.
   multi-candidate fixture.
 - **M-017 FIXED (s19):** the og's content-driven scoring landed end to end — weighted
   count (f+50·d NTFS family / f+10·d HFS+ / (f+d)·50 FAT) + the observed per-FS bonus
-  (NTFS 60/30, FAT 20; OQ-S2M-2 residual) + the +500 table-match (the old overlap
+  (NTFS 60/30, FAT 20 — s31 decode: generator outputs of the og's per-engine
+  +0x68 composer ladders; the core's flat values are the verified-against-187-rows
+  mapping for its single-probe architecture; OQ-S2M-2 RESOLVED) + the +500 table-match (the old overlap
   penalties' polarity inversion repaired), ln(count)/ln(max) in permille with the og's
   edge cases, the containment-in-known drop (table-matched candidates exempt), the
   stable descending sort, and the :842776-93 iVar16 size-match promotion re-decoded
@@ -93,7 +95,10 @@ lost-partition-specific divergences surfaced.
   counterpart.
 - **S-006 stays open** (probe families); its scoring half is now decoded — implement M-017
   together with the probe-family wiring so candidate content probes feed the og formula.
-- **OQ-T9 residue:** bonus (+0x68) setter in the SearchDLLs unpinned → OQ-S2M-2.
+- **OQ-T9 residue CLOSED (s31):** the +0x68 setter decoded — per-engine scan-path
+  composers (FAT/exFAT two-factor ladders boot+fs ∈ {10,45,50}; NTFS flag-base +
+  boot-validation ± + stitching +30/+50); "FAT32 20" = 10+10 minimum tier; see
+  findings/FIXED/OQ-S2M-2 + evidence s31-oq-s2m-2.
 
 ---
 

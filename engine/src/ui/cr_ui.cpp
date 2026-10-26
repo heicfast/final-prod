@@ -1751,6 +1751,29 @@ u32 scan_cancel_impl(cr_ui_scan* scan) {
     return ret_ok();
 }
 
+/* N-075: the og's reference-out query signals as synchronous ABI ops.
+ * busy reads the shim's run-lifecycle atomic (set in scan_run_impl
+ * before the controller starts, cleared after the heartbeat join);
+ * stopping reads the LIVE token request — a locked read on
+ * PausableToken, safe from any thread, and true from cr_ui_scan_cancel
+ * until run() returns (it stays true after the run ends: the token is
+ * one-shot by construction, which is the honest "a cancel was
+ * requested on this scan handle" answer the og's isStopping also gives
+ * for its one-shot stop event). */
+u32 scan_busy_impl(cr_ui_scan* scan, uint32_t* out) {
+    if (!scan || !out)
+        return ret_(ERR_BAD_PARAMETER, "bad argument: scan/out");
+    *out = reinterpret_cast<CrScan*>(scan)->running.load(std::memory_order_acquire) ? 1u : 0u;
+    return ret_ok();
+}
+
+u32 scan_stopping_impl(cr_ui_scan* scan, uint32_t* out) {
+    if (!scan || !out)
+        return ret_(ERR_BAD_PARAMETER, "bad argument: scan/out");
+    *out = reinterpret_cast<CrScan*>(scan)->token.cancelled() ? 1u : 0u;
+    return ret_ok();
+}
+
 u32 scan_set_event_fn_impl(cr_ui_scan* scan, cr_ui_event_fn fn, void* user) {
     if (!scan)
         return ret_(ERR_BAD_PARAMETER, "bad argument: scan");
@@ -2282,6 +2305,12 @@ extern "C" CR_UI_API uint32_t cr_ui_scan_set_event_fn(cr_ui_scan* scan, cr_ui_ev
 }
 extern "C" CR_UI_API uint32_t cr_ui_scan_cancel(cr_ui_scan* scan) {
     return guarded(scan_cancel_impl, scan);
+}
+extern "C" CR_UI_API uint32_t cr_ui_scan_busy(cr_ui_scan* scan, uint32_t* out) {
+    return guarded(scan_busy_impl, scan, out);
+}
+extern "C" CR_UI_API uint32_t cr_ui_scan_stopping(cr_ui_scan* scan, uint32_t* out) {
+    return guarded(scan_stopping_impl, scan, out);
 }
 extern "C" CR_UI_API uint32_t cr_ui_scan_telemetry(cr_ui_scan* scan, cr_ui_telemetry* out) {
     return guarded(scan_telemetry_impl, scan, out);
