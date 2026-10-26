@@ -39,6 +39,7 @@ constexpr u64 B_BIGDIR_ZAP = 0x92000; /* fat zap (embedded ptrtbl) */
 constexpr u64 B_FILE_DATA = 0xA0000;
 constexpr u64 B_ZLE_DATA = 0xA2000;
 
+
 constexpr u64 TXG = 77;
 
 class MemDevice final : public IStorageDevice {
@@ -1257,12 +1258,15 @@ TEST(Zfs, RingWindowUnchangedEntriesEmitOnce) {
     }
 }
 
-TEST(Zfs, RingWindowModifiedFilePriorVersionRecalled) {
-    /* S-034 modified-in-window: hello.txt exists in both states but
-     * its dnode bp0 birth differs (rewritten in txg 82) - a distinct
-     * cross-state identity. The newest version owns the Active node;
-     * the prior version recalls as a Deleted sibling (the og emits
-     * every state's ZplNode). */
+TEST(Zfs, RingWindowModifiedFilePriorVersionNotReemitted) {
+    /* S-034 modified-in-window, decode-corrected: the og's visitor
+     * registry keys (parent-path bucket, objid) and the name compare
+     * decides skip vs re-emit (FUN_180007db0 objid find + FUN_180001a90
+     * name compare, equal -> skip). A file REWRITTEN in-window keeps
+     * its objid and name - the later state's walk SKIPS it, so exactly
+     * ONE node stands. The first landing's birth-in-key recall is NOT
+     * the og: the registry has no birth term anywhere (the ZplNodeFile
+     * ctor FUN_180012450 does not read bp0 birth). */
     auto img = build_pool();
     SecondStateCfg cfg;
     cfg.keep_hello = true;
@@ -1283,8 +1287,8 @@ TEST(Zfs, RingWindowModifiedFilePriorVersionRecalled) {
             else if (e.state == tree::DeletedState::Deleted)
                 ++deleted;
         }
-    EXPECT_EQ(1, active) << "newest version must own the Active node";
-    EXPECT_EQ(1, deleted) << "prior version must recall as Deleted";
+    EXPECT_EQ(1, active) << "the claimed identity must own exactly one Active node";
+    EXPECT_EQ(0, deleted) << "same objid+name across states must skip (no birth term)";
 }
 
 TEST(Zfs, RingTornNewestStateFallsBackToOlder) {
@@ -1617,6 +1621,7 @@ TEST(Zfs, CodecMapping) {
 }
 
 } // namespace
+
 } // namespace zfs
 } // namespace cr
 
@@ -1897,6 +1902,148 @@ TEST(Zfs, StaticMediaNeverRetries) {
     ZfsScanStats st;
     EXPECT_EQ(ERR_BAD_MAGIC, scan_zfs(&dev, nullptr, nullptr, nullptr, tree, ra, nullptr, nullptr, st));
     EXPECT_EQ(st.label_retries, 0u) << "static media never enters the retry loop";
+}
+
+TEST(Zfs, RingWindowRenamedEntryRecalledUnderBothNames) {
+    /* S-034 rename-in-window (the decode's different-name branch): the
+     * og's visitor registry re-emits a same-objid entry whose name
+     * differs (FUN_180001a90 name compare NOT equal -> the emit path
+     * runs again and the registry entry is OVERWRITTEN) - both the
+     * first-seen and the new location surface. txg-82 renames hello.txt
+     * away (renamed.txt under the SAME dnode): the newest state emits
+     * renamed.txt (Active); the txg-77 recall walk still claims
+     * hello.txt (Deleted). */
+    auto img = build_pool();
+    /* txg-82 zap: hello.txt replaced by renamed.txt on the same object */
+    SecondStateCfg cfg;
+    cfg.keep_hello = false;
+    stamp_second_state(img, cfg);
+    {
+        std::vector<std::pair<std::string, u64>> entries2 = {
+            {"bigdir", 11},       {"zlefile", 12},  {"embedded.txt", 13},
+            {"legacy.txt", 14},   {"registryfile", 22}, {"renamed.txt", 10}};
+        auto z2 = make_microzap(entries2);
+        memcpy(img.data() + B_ROOTDIR_ZAP2, z2.data(), z2.size());
+        make_bp(img.data() + B_ZPL_DNODES2 + 2 * 512 + 64, B_ROOTDIR_ZAP2, 512, 512, 0, &img);
+        stamp_fletcher4(img.data() + B_ZPL2 + 64, img.data() + B_ZPL_DNODES2, 16384);
+        /* the dependency-ordered re-stamp of the ENCLOSING bps (the
+         * step above mutated B_ZPL2+64, so obj-4/6's bps over B_ZPL2,
+         * B_MOS2's meta bp over the MOS array2, and the slot-1
+         * rootbp over B_MOS2 all need re-stamping, in that order) */
+        for (u64 obj : {u64(4), u64(6)}) {
+            u8* bp = img.data() + B_MOS_DNODES2 + obj * 512 + 64 + 128 + 128;
+            make_bp(bp, B_ZPL2, 4096, 4096, 0, &img);
+        }
+        make_bp(img.data() + B_MOS2 + 64, B_MOS_DNODES2, 4096, 4096, 0, &img);
+        u8* ub = img.data() + (128ull << 10) + 1024;
+        make_bp(ub + 40, B_MOS2, 2048, 2048, 0, &img);
+    }
+    MemDevice dev(img);
+    tree::ResultTree tree;
+    auto* ra = tree.add_root(u"F");
+    ZfsScanStats st;
+    ASSERT_EQ(OK, scan_zfs(&dev, nullptr, nullptr, nullptr, tree, ra, nullptr, nullptr, st));
+    EXPECT_EQ(u64(2), st.ring_states);
+    auto entries = collect_entries(ra);
+    int renamed = 0, renamed_state = 0, hello = 0;
+    for (const auto& e : entries) {
+        if (e.path == "tank/renamed.txt") {
+            ++renamed;
+            if (e.state == tree::DeletedState::Active)
+                ++renamed_state;
+        } else if (e.path == "tank/hello.txt") {
+            ++hello;
+        }
+    }
+    EXPECT_EQ(1, renamed) << "the renamed location must surface";
+    EXPECT_EQ(1, renamed_state) << "the newest state's rename owns the Active node";
+    EXPECT_EQ(1, hello) << "the first-seen name keeps its (recall) node";
+}
+
+TEST(Zfs, TrashInfoSidecarChildrenSuppressed) {
+    /* S-034 (decoded during verification): the og's regular-add chain
+     * suppresses children of .Trash-1000/info - the freedesktop trash
+     * metadata side dir (ZfsSearchDLL FUN_180004f00 :3708
+     * L".Trash-1000/info" + the normalized path-compare at :3716
+     * short-circuits the add). The /files subtree is NOT suppressed
+     * (FUN_180004ad0 :3447 classifies it and still adds). Fixture: a
+     * trash family inside the dataset root - .Trash-1000 (obj 26) with
+     * info (27, carrying photo.jpg.trashinfo -> obj 30) and files (28,
+     * carrying photo.jpg -> obj 31). */
+    auto img = build_pool();
+    constexpr u64 B_TRASH_ZAP = 0xB60000;
+    constexpr u64 B_TRASH_INFO_ZAP = 0xB61000;
+    constexpr u64 B_TRASH_FILES_ZAP = 0xB62000;
+    auto dir_dnode = [](u8* dn, u64 zap_off, std::vector<u8>& img_) {
+        SaAttrs a;
+        a.mode = 0x41ED; /* directory 0555 */
+        a.parent = 2;
+        a.links = 2;
+        auto bonus = make_sa_bonus(a);
+        make_dnode(dn, 20 /* DIRECTORY_CONTENTS */, 44 /* SA */, 1, 1, 1, u32(bonus.size()));
+        memcpy(dn + 64 + 128, bonus.data(), bonus.size());
+        make_bp(dn + 64, zap_off, 512, 512, 0, &img_);
+    };
+    auto file_dnode = [](u8* dn) {
+        SaAttrs a;
+        a.mode = 0x81A4;
+        a.parent = 2;
+        a.links = 1;
+        auto bonus = make_sa_bonus(a);
+        make_dnode(dn, 19 /* PLAIN_FILE_CONTENTS */, 44 /* SA */, 1, 1, 1, u32(bonus.size()));
+        memcpy(dn + 64 + 128, bonus.data(), bonus.size());
+    };
+    /* the three trash zaps */
+    {
+        auto z = make_microzap({{"info", 27}, {"files", 28}});
+        memcpy(img.data() + B_TRASH_ZAP, z.data(), z.size());
+    }
+    {
+        auto z = make_microzap({{"photo.jpg.trashinfo", 30}});
+        memcpy(img.data() + B_TRASH_INFO_ZAP, z.data(), z.size());
+    }
+    {
+        auto z = make_microzap({{"photo.jpg", 31}});
+        memcpy(img.data() + B_TRASH_FILES_ZAP, z.data(), z.size());
+    }
+    /* dnodes in the free tail of the 16K array (slots 26-31) */
+    dir_dnode(img.data() + B_ZPL_DNODES + 26 * 512, B_TRASH_ZAP, img);
+    dir_dnode(img.data() + B_ZPL_DNODES + 27 * 512, B_TRASH_INFO_ZAP, img);
+    dir_dnode(img.data() + B_ZPL_DNODES + 28 * 512, B_TRASH_FILES_ZAP, img);
+    file_dnode(img.data() + B_ZPL_DNODES + 30 * 512);
+    file_dnode(img.data() + B_ZPL_DNODES + 31 * 512);
+    /* the root-dir zap gains .Trash-1000 -> 26 */
+    {
+        auto z = make_microzap({{"hello.txt", 10},
+                                {"bigdir", 11},
+                                {"zlefile", 12},
+                                {"embedded.txt", 13},
+                                {"legacy.txt", 14},
+                                {"registryfile", 22},
+                                {".Trash-1000", 26}});
+        memcpy(img.data() + B_ROOTDIR_ZAP, z.data(), z.size());
+        make_bp(img.data() + B_ZPL_DNODES + 2 * 512 + 64, B_ROOTDIR_ZAP, 512, 512, 0, &img);
+        restamp_zpl_array(img);
+    }
+    MemDevice dev(img);
+    tree::ResultTree tree;
+    auto* ra = tree.add_root(u"F");
+    ZfsScanStats st;
+    ASSERT_EQ(OK, scan_zfs(&dev, nullptr, nullptr, nullptr, tree, ra, nullptr, nullptr, st));
+
+    auto entries = collect_entries(ra);
+    int trashinfo = 0, files_photo = 0, trash_root = 0;
+    for (const auto& e : entries) {
+        if (e.path == "tank/.Trash-1000/info/photo.jpg.trashinfo")
+            ++trashinfo;
+        if (e.path == "tank/.Trash-1000/files/photo.jpg")
+            ++files_photo;
+        if (e.path == "tank/.Trash-1000")
+            ++trash_root;
+    }
+    EXPECT_EQ(0, trashinfo) << ".Trash-1000/info sidecars must be suppressed (f00 :3708)";
+    EXPECT_EQ(1, files_photo) << "the /files subtree must NOT be suppressed (ad0 :3447)";
+    EXPECT_EQ(1, trash_root) << "the trash root dir itself is a normal directory";
 }
 
 } // namespace zfs

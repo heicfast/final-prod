@@ -78,7 +78,9 @@ namespace check {
  * the og — every gap in the og's numbering is preserved). */
 enum CheckError : u32 {
     CHK_VOLUME_TOO_SMALL = 0x1001, /* FAT: volume < DBR-derived size */
-    CHK_DUPLICATE_ALLOC = 0x1002,  /* NTFS: two records claim one LCN */
+    CHK_DUPLICATE_ALLOC = 0x1002,  /* cross-linked cluster: FAT dir-walk
+                                       * re-entry (FUN_1800027a0 :1156) or
+                                       * NTFS two records claim one LCN */
     CHK_ORPHAN_CLUSTER = 0x1003,   /* FAT: orphan cluster; NTFS: bitmap-free
                                     * but record-allocated LCN */
     CHK_SIZE_CHAIN_MISMATCH = 0x1004, /* FAT: live file size != chain */

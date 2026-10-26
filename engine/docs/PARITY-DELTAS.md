@@ -174,7 +174,6 @@
   Zfs.RingWindowDeletedFileRecalled / RingWindowUnchangedEntriesEmitOnce /
   RingWindowModifiedFilePriorVersionRecalled / RingTornNewestStateFallsBackToOlder
   — all four fail-before RED on the pre-fix engine).
-
 ### D-06 — Btrfs deleted recovery: newest-generation tree only (row 20) — CLOSED
 
 - **WHAT OG DOES:** Superblock selection = max(generation) across mirrors; only the
