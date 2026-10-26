@@ -121,6 +121,17 @@ endif()
 add_executable(cr_ui_tests unit/test_cr_ui.cpp)
 target_link_libraries(cr_ui_tests PRIVATE cr::ui GTest::gtest_main)
 cr_deploy_vcpkg_binaries(cr_ui_tests)
+if(WIN32)
+    # The MSVC shim exports only the cr_ui_* surface (dllexport), so the
+    # test's DIRECT core-API uses (the DiskMap/ResultTree fixtures, the
+    # log-sink seam, ReadErrorMap) cannot resolve from cr_ui.dll the way
+    # Linux's default-visibility .so provides them - the Windows lane's
+    # LNK2019 batch. Link the static core on Windows ONLY: the Linux ASan
+    # design above (never link core twice into one binary) is untouched,
+    # and on MSVC the exe's static copy and the DLL's embedded copy never
+    # interbreed - the flat-C surface never crosses a core type.
+    target_link_libraries(cr_ui_tests PRIVATE cr::core)
+endif()
 # doc-truth pins live in both binaries (N-040/N-045 lanes)
 target_compile_definitions(cr_ui_tests PRIVATE
     CR_SOURCE_DIR="${CMAKE_SOURCE_DIR}")
