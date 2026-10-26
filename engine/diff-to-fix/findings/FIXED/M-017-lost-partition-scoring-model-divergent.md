@@ -116,3 +116,40 @@ Both legs rate the table-match polarity inversion (og +500 vs core -10/-20 at
 ## Addendum (session 6 — the CalcPartition scorer classes decoded in the function-map artifact, 2026-10-26)
 
 The per-engine-function-map artifact (first-cited this session) evidences the scorer-side classes this finding's model diverges from: **`Fat32CalcPartition` ×39 references** (fat-engine--deep-dive.md:20-22 — "the FAT32-specific geometry/capacity calculator used during validation"; the function map's RTTI census at per-engine-function-map.md:13) and **`ExFatCalcPartition` ×54** (per-engine-function-map.md:14) — plus `ICalcPartition` in the FAT engine's class inventory (fat-exfat-engine-internals.md:22, "geometry calculation"). The SPC-re-derivation interpretation (the scorers re-derive expected sectors-per-cluster geometry and rank candidates by the overlap) now has named-class evidence; the parallel session-3 legs' dSuggestted decode (recorded in this finding's body) remains the quantitative model. No change to the finding's substance or fix plan — this addendum adds the class-level citations the fix leg will need when porting the scorer family. Related new context: PartitionRecoveryD's two-generator-set architecture (I-024/OQ-S6-1) is the module that DRIVES these scorers on the og side — the decode order for the fix leg is OQ-S6-1 first (which generator set hosts the CalcPartition calls), then this finding's port.
+
+## Resolution
+
+**Status:** FIXED
+**Fixed in commit:** (this session's M-017 fix — see `git log` for "fix(M-017)")
+**Verified by:** `LostScoring.MatchesLogRows` (the formula against CalcPartition.log rows: the
+exact 429/168849 -> 0.503579 row; the (0,25)+20 -> 0.585518 and count==1 -> 0.081928 rows with
+inversion-recovered maxima; the count==1-beats-count==2 identity quirk; the per-FS weights
+f+50d / f+10d(HFS+) / (f+d)·50(FAT)), `LostDiscovery.FileRichCandidateOutranksCleanBoot`
+(fail-before PROVEN: the old absolute-points model ranked the clean-boot NTFS (70) above the
+40-file FAT (30) regardless of content; the content model ranks the FAT 1000 vs NTFS 537),
+`LostDiscovery.TableMatchBonus500` (fail-before: no bonus existed; now a table-matched
+candidate carries count 560 = 0 + 60 bonus + 500, and the containment-drop keeps matched
+candidates), `LostDiscovery.OverLargeDuplicateRescoredToFront` (fail-before: no promotion
+existed; now the first size-match after a non-matcher is spliced to #2 with the leader's
+score, and an adjacent matcher takes the decompile's break path). Suite 691/691.
+**Resolution notes:** The scoring pipeline now follows the og end to end. (1) Content probe:
+every surviving candidate is materialized and walked by its family's engine over a scratch
+tree (progress-call budget 200k as the registered safety valve; BitLocker/GPT families have
+no walkable model and stay count-0 + bonus). (2) The og's weighted count
+(FUN_14050fda0 :842176-842200): NTFS family files+50·folders, HFS+ files+10·folders, FAT
+(files+folders)·50; plus the per-FS bonus (observed NTFS 60 healthy/30 partial — the
+census-decoded accumulator family — FAT 20; other families unpinned per OQ-S2M-2, registered)
+and the +500 table-match ("Found once partition:%I64d" :842260-66) — replacing the old
+INVERTED polarity (the -10/-20 overlap penalties at the same decision point). (3) Score =
+ln(count)/ln(max) in permille with the og's exact edge cases (count<=1 numerator stays 1.0;
+max<=1 denominator 1.0); the structural points survive as the tie-break key
+(Candidate.structural_points) so the ordering is fully determined. (4) AdjustPartitionInfoOrder
+port: the containment-in-known drop (used, non-container partitions; table-MATCHED candidates
+exempt — they take the +500 instead), the FS-grouped dedup (already present), the stable
+descending sort (std::stable_sort — the og's merge sort; std::sort is not stable), and the
+:842776-93 size-match promotion re-decoded first-hand this session: |totalSector-ref|·512 <
+16 MiB+1, promoted only when a NON-matching candidate precedes the match in list order (the
+iVar16 counter — an adjacent matcher takes the break path, which the naive "promote the first
+size-match" reading would miss). Candidate.score is now permille (0..1000); the session wire
+stays u32; the display cap (top 2; 5 with >=2 adjusted) is the DRWUI presentation layer, not
+the core — registered. OQ-S2M-2 (the bonus setters' provenance) remains the tracked residual.

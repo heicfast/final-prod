@@ -80,6 +80,14 @@ lost-partition-specific divergences surfaced.
   **ln(count)/ln(maxCount)** (per-scan relative normalization); count==1 keeps numerator 1.0
   (quirk). Core = absolute structural evidence points — ordering diverges on almost any
   multi-candidate fixture.
+- **M-017 FIXED (s19):** the og's content-driven scoring landed end to end — weighted
+  count (f+50·d NTFS family / f+10·d HFS+ / (f+d)·50 FAT) + the observed per-FS bonus
+  (NTFS 60/30, FAT 20; OQ-S2M-2 residual) + the +500 table-match (the old overlap
+  penalties' polarity inversion repaired), ln(count)/ln(max) in permille with the og's
+  edge cases, the containment-in-known drop (table-matched candidates exempt), the
+  stable descending sort, and the :842776-93 iVar16 size-match promotion re-decoded
+  first-hand. Candidate.score is permille; structural points tie-break
+  (Candidate.structural_points). Resolution in findings/FIXED/M-017.
 - **A29-adjacent → M-017:** AdjustPartitionInfoOrder post-hoc rules (0.1/0.3 gap keeps,
   ~16 MiB over-large duplicate re-score + splice-to-front, FAT multi-child keep) — no core
   counterpart.

@@ -11583,4 +11583,38 @@ Stage Summary:
 - N-029 group fully closed (N-016a DFX12 + N-016b this leg). Session
   tally: N-078 + N-016b (2 findings) + 2 baseline repairs + 1
   convergence. Next: N-063 (carve default naming), N-056 (windestio
-  temp leak), N-046, N-043.
+  temp leak), N-046, N-043.Task ID: DFX19-M017 (session 19, fourth MAJOR fix)
+Agent: main engineer (diff-to-fix fix session 19 — DFX19)
+Task: M-017 — lost-partition scoring model (the CalcPartition parity).
+
+Work Log:
+- Corpus re-verified FIRST-HAND: FUN_14050fda0 weights/bonus/+500/
+  ln-formula per the finding; AdjustPartitionInfoOrder FUN_140510410
+  re-decoded directly (:842756-842870) — the :842776-93 size-match
+  loop carries the iVar16 counter (a NON-matching candidate must
+  precede the promoted match; an adjacent matcher breaks) — a
+  structural detail the finding's summary missed.
+- Fix: content probe per candidate (materialize + family engine walk
+  over a scratch tree, 200k progress-call budget); og weights f+50d /
+  HFS+ f+10d / FAT (f+d)*50; bonuses NTFS 60/30 (census-decoded
+  accumulator family) + FAT 20; +500 table-match; score = ln/ln in
+  permille with the og's exact edge cases; structural_points =
+  tie-break; containment-in-known drop with table-match exemption
+  (replaces the inverted -10/-20 penalties); std::stable_sort; the
+  iVar16 size-match promotion.
+- Candidate.score semantics changed to permille (session wire stays
+  u32); CLI display unchanged structurally.
+- Fixture bugs found + fixed in-session: 2048-sector FAT16 volumes
+  decode as FAT12 (< 4085 clusters — 16384-sector volumes now); dentry
+  dates must be valid; permille expectations are int-truncated (537,
+  831, 244).
+- Fail-before PROVEN by temporary revert (old model + adapted fields):
+  all 4 new tests RED (FileRich/TableMatch/OverLarge/LogRows).
+- Suite 691/691 (linux-gcc RelWithDebInfo + ASan/LSan).
+- Audit trail: Resolution, finding -> FIXED/, RESOLVED-INDEX row,
+  matrix lost-partition A30 -> FIXED (s19), modules/lost-partition.md
+  verdict, SUMMARY session-19 section extended.
+
+Stage Summary:
+- M-017 FIXED (session tally: 4 MAJORs + 2 CI repairs). Next: M-020
+  (btrfs profile machinery + default subvol).

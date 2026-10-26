@@ -189,7 +189,7 @@ F safety · Q quality (definitions in `PARAMETERS.md`).
 | refs | B1/C19/C20/A25 | **N-026** (checkpoint dynamic body offset vs hardcode; two-sided boot gates; second-copy location START+MID vs START+TAIL) |
 | table+ldm | B1/C20 | ~~M-016~~ **FIXED (s19)** — candidate list {2,0,1,2045,2046} = og probe order + tail superset behind; config+0 disk parses, +2 wins conflicts (committed_seq proof); 3 tests, findings/FIXED/M-016 |
 | table+ldm | B1/A27/X49 | **N-025** (config-size gate; RAID-5 zero-interleave 64 KiB default vs core refusal) |
-| lost-partition | A30 | **M-017** (OQ-T9 resolved: og ln(count)/ln(max) content scoring, +500 table-match, count==1 quirk, AdjustPartitionInfoOrder rules — verified vs 187 log rows; core absolute points divergent) |
+| lost-partition | A30 | ~~M-017~~ **FIXED (s19)** — the og's content model end to end: weighted count + bonus + 500 table-match (polarity inversion repaired), ln/ln permille, containment-drop, stable sort, the iVar16 size-match promotion re-decoded; findings/FIXED/M-017 |
 | carve | B1/X47/X51 | **I-009** (byte-stepped probing = detection superset; block-shape constants) |
 | carve | B2-adj/R54/R57 | **M-021** (video-repair pre-scan hook absent) |
 | carve | B1/B2/C19/A28/Q65/P46 | **S-017 — FIXED (session 3)** (ftyp-family magics re-keyed on the box TYPE; F8 self-probe guards the unreachable-magic class; naked-moov salvage mirrors the og MovAnalyzer conservatively, tried last) |

@@ -70,7 +70,20 @@ struct Candidate {
     u64 data_start_lba = 0;
     u64 data_sector_count = 0;
     CandidateFs fs = CandidateFs::Unknown;
+    /* M-017: the og's content-driven score, permille form (0..1000 =
+     * 0.0..1.0): ln(count)/ln(max_count) where count is the per-FS
+     * weighted file/folder count + the per-FS bonus + the +500
+     * table-match, and max_count is the best count across THIS scan
+     * (DRWUI FUN_14050fda0 :842164-278, verified to 6 decimals against
+     * all 187 CalcPartition.log rows). Replaces the absolute structural
+     * points as the PRIMARY ranking key. */
     int score = 0;
+    int structural_points = 0; /* the legacy absolute evidence points -
+                                * the secondary (tie-break) key */
+    u64 content_count = 0;     /* the og's weighted count incl. bonus and
+                                * the +500 table-match */
+    bool table_match = false;  /* the candidate's start matches a live
+                                * table entry ("Found once partition:") */
     std::vector<Evidence> evidence;
     bool size_from_device_end = false; /* GAP-S6-6: the size is the
                                         * device-tail FALLBACK (probe could
@@ -111,6 +124,19 @@ u32 discover(IStorageDevice* disk, const std::vector<table::PartitionInfo>& know
 enum class Overlap : u8 { None = 0, Inside, Overlaps, Contains };
 
 Overlap classify_overlap(u64 start, u64 count, const std::vector<table::PartitionInfo>& known);
+
+/* M-017: the og's scorer (DRWUI FUN_14050fda0 :842164-278), exposed for
+ * the CalcPartition.log parity tests. num = count > 1 ? ln(count) : 1.0
+ * (the count==1 identity quirk: a 1-file candidate scores ABOVE every
+ * 2..6-file candidate when max > e^2); denom = max_count > 1 ?
+ * ln(max_count) : 1.0. Returns the ratio in [0, 1]. */
+double score_ratio(u64 count, u64 max_count);
+
+/* M-017: the og's weighted count (FUN_14050fda0 :842176-842200): NTFS
+ * family -> files + 50*folders; FS code 8 (HFS+) -> files + 10*folders;
+ * FS 1/2 (FAT) -> (files + folders) * 50. fs_code is the og's DRWUI FS
+ * code, NOT CandidateFs. */
+u64 weighted_count(int og_fs_code, u64 files, u64 folders);
 
 /* Materialize a candidate as a bounded virtual volume: the READ-ONLY
  * recovery path (scanning a lost volume's content without touching the
