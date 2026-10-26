@@ -33,6 +33,12 @@ largest single-engine file) + `include/cr/zfs/` + `tests/unit/test_zfs_volume.cp
 - **B10 Unicode** — `M` post-S-005-fix (dnode names, zap child names AND the
   nvlist pool display name decode via `text::utf8_to_u16`;
   `Zfs.NonAsciiNamesDecodedNotByteLifted` covers all three + a CJK pool name).
+  **s31 (OQ-S2M-2 #2):** the og NEVER displays a pool name — ZfsSearchDLL has
+  0 "name"/"pool" hits and DRWUI's FS-name builder (FUN_140510080) has no case
+  13 → "Unknow" in every consumer (XML `filesystem` field, CalcPartition log).
+  The core's pool-name decode is therefore a deliberate superset (more info
+  than the og surfaces), not a divergence; registered in PARITY-DELTAS terms
+  as a display-information superset.
 
 ## Constants and formats
 

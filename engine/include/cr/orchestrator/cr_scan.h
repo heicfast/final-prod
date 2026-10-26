@@ -119,6 +119,15 @@ struct Event {
     /* ErrorRange: the newest appended span (absolute device bytes) */
     u64 err_start_bytes = 0, err_len_bytes = 0;
     u32 error_ranges = 0; /* cumulative count after the append */
+    /* ErrorRange context (M-049 - the engine-side subset of the og's
+     * error objects): the module that was reading (cr_errmod.h ids; the
+     * newest range's attribution, exact for every orchestrator-stamped
+     * sub-pass), the operation (read - this family is read failures) and
+     * the retry state (attempts spent before giving up). Zero on other
+     * event types. */
+    u32 err_module = 0;
+    u32 err_operation = 0;
+    u32 err_attempts = 0;
     /* Checkpoint */
     u64 checkpoint_index = 0;
     /* LostCandidate */
@@ -247,6 +256,9 @@ struct ScanStats {
     /* M-005: used-cluster bytes the carve dispatch never offered (the
      * og's block-scan bitmap gate). 0 when no bitmap was available. */
     u64 carve_bitmap_skipped_bytes = 0;
+    /* N-031: all-zero 512-byte strides whose raw-sign probe was skipped
+     * (the og's zero-sector fast-skip analog; diagnostics/telemetry). */
+    u64 carve_zero_strides = 0;
     ReadErrorMap errors;
     std::vector<lost::Candidate> lost_candidates;
 
@@ -489,6 +501,13 @@ private:
     void emit_progress_event_(u32 stage) const;
     void emit_boundary_events_(u32 stage) const;
     void emit_lost_candidate_(const lost::Candidate& cand) const;
+    /* M-049: publish the sub-pass owner module on the retry device (the
+     * fallback engine-internal worker pools attribute to). No-op before
+     * the pipe exists (tel_retry_ null). */
+    void publish_owner_module_(u32 module) const {
+        if (RetryingDevice* rd = tel_retry_.load(std::memory_order_acquire))
+            rd->set_owner_module(module);
+    }
     mutable std::atomic<u32> evt_last_overall_{0xFFFFFFFFu};
     mutable std::atomic<u32> evt_last_errors_{0};
     /* the live sink (constructed from cfg_; overridable pre-run so the

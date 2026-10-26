@@ -224,3 +224,28 @@ sets_rejected / sets_reconstructed. Proof:
 (fail-before executed) + `LiveCompleteSetBadChecksumUngraded` (the
 asymmetry pin); the dual arithmetic is on the fuzz surface (fuzz_pure
 case 3). Remaining on this module: M-014 (structural entry gates).
+
+---
+
+## Session-35 verdict update (M-014 FIXED, 2026-10-26)
+
+**Structural entry gates — `M-014` FIXED.** The og's four cheap structural
+gate families are now in the walk, decompile-exact and applied to live,
+deleted AND oracle re-walked sets: (1) file-dentry gates
+(FUN_180002f90): secondary_count ∈ [2,18], create+modify+ACCESS
+timestamp field sanity (day≠0, month∈[1,12], hour≤23, min≤59, 2sec≤29 —
+an all-zero stamp FAILS, correcting the finding's fix-plan guess),
+reserved1/reserved2 zero; a failing head is skipped without parking.
+(2) stream emission gates (FUN_180029280): data_length, first_cluster,
+name_length all nonzero — zero-length files are never emitted (the og
+quirk inherited as parity). (3) name-fragment gates (FUN_180003030):
+flags&3==0, flags<4, first needed fragment carries a nonzero first
+char. (4) the oracle's declared bound tightened 512→19 (parked heads
+are sc-gated before parking). New stat `sets_gated`. Not implemented,
+documented in the Resolution: the 0xHH00 UTF-16 validity table
+(PTR_180045a00 — bytes not recoverable from the corpus) and the
+root-triple recognition signal (an og empty-directory recognition
+check, not an emission gate). Proof: 5 fail-before tests + 1 boundary
+guard; suite 743/743. B3/B4/B10 verdict: MATCH (the empty-file policy
+is the og's own — matched, not diverged). Remaining on this module:
+none from this finding's registry.

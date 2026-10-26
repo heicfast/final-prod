@@ -158,7 +158,13 @@ carve-specific divergences surfaced.
   `CarvePostProcessor` bound through `CarveFlags::post_processor` (null = the og's
   DLL-absent degrade); fires per validated candidate pre-insertion on BOTH emit
   layers (grammar + raw-sign); a feed never a gate; findings/FIXED/M-021.
-- **N-014b/c filed:** carved-name split inside the core; runtime per-format config surface.
+- **N-014b/c:** N-014b FIXED (s28) — the naming split is closed: the raw-sign layer
+  rides the same namer chain as the grammar layer and the orchestrator's
+  "Carved%06u" lambda is removed; one File%06u family per scan
+  (Orchestrator.CarveSingleNamingFamily, fail-before showed the split). N-014c
+  FIXED-ALREADY via M-024 (CarveFlags.disabled_formats — the RawConfig.ini [Filter]
+  surface). N-014d FIXED-ALREADY via N-008+N-068 (salvage polarity + LFH gates;
+  cap 0x500001). N-014a FIXED-ALREADY via N-016. Group resolved: findings/FIXED/N-027.
 
 ---
 
@@ -199,6 +205,13 @@ leg that landed first; registry decode evidence: `evidence/decompiled-quotes/s3-
   (OneAnalyser/FileONEAnalyser), not LZH (LZH = list-layer LZHAnalyser). Errata
   rows 22-28.
 
+- **N-031 FIXED (s28):** the og's all-zero-sector fast-skip landed at the raw-sign
+  layer (exact form: a stride whose 47-byte sign window is all zero skips the
+  probe_header walk; counted in ScanStats.carve_zero_strides —
+  CarveEngine.ZeroSectorSkipStats with a non-zero control); the 512-vs-device-sector
+  stride superset documented at cr_rawsigns.h; the only_common gate is expressible
+  on M-024's disabled_formats surface (registered); the collision-order pins
+  (TiffVsRawTiebreak et al.) stay green. Resolution in findings/FIXED/N-031.
 ---
 
 ## Session-3 parallel-leg rows (integration 2026-10-26)

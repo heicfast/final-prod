@@ -3377,3 +3377,55 @@ TEST(CarveEngine, FallbackNamerDocumented) {
     }
     EXPECT_GE(fallback_named, 3) << "rule-less formats keep the deliberate default";
 }
+
+TEST(CarveEngine, ZeroSectorSkipStats) {
+    /* N-031: the og's all-zero-sector fast-skip, core shape - strides
+     * whose sign window (the first 47 bytes, probe_header's whole span)
+     * is all zero skip the raw-sign probe and are counted; a non-zero
+     * region skips nothing. Detection is unchanged: a plant behind a
+     * zero region still carves (the grammar layer's dispatch never
+     * skipped). */
+    {
+        /* zero-heavy image: 256 KiB of zeros with one JPEG at 128 KiB */
+        std::vector<u8> img(256 * 1024, 0);
+        plant_jpeg(img, 128 * 1024);
+        MemDevice dev(std::move(img));
+        tree::ResultTree tree;
+        auto* root = tree.add_root(u"Lost Files");
+        CarveFlags flags;
+        CarveStats stats;
+        ASSERT_EQ(carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr,
+                              nullptr, stats),
+                  OK)
+            << err_text(OK);
+        EXPECT_GT(stats.zero_strides_skipped, 200u)
+            << "the zero region's strides must skip the sign probe (512 of them exist; "
+               "the JPEG's own strides and its 47-byte wake do not)";
+        /* the plant behind the zeros still carves - the skip never cost
+         * detection */
+        std::vector<tree::FileNode*> all;
+        std::function<void(tree::FileNode*)> collect = [&](tree::FileNode* n) {
+            for (tree::FileNode* c = n->first_child(); c; c = c->next_sibling()) {
+                all.push_back(c);
+                collect(c);
+            }
+        };
+        collect(root);
+        EXPECT_GE(all.size(), 1u) << "the JPEG behind the zero region is still carved";
+    }
+    {
+        /* control: non-zero noise skips nothing */
+        std::vector<u8> img(64 * 1024, 0xAA);
+        MemDevice dev(std::move(img));
+        tree::ResultTree tree;
+        auto* root = tree.add_root(u"Lost Files");
+        CarveFlags flags;
+        CarveStats stats;
+        ASSERT_EQ(carve_slice(&dev, flags, nullptr, nullptr, nullptr, tree, root, nullptr,
+                              nullptr, stats),
+                  OK)
+            << err_text(OK);
+        EXPECT_EQ(stats.zero_strides_skipped, 0u)
+            << "no stride of a non-zero image may be skipped";
+    }
+}
