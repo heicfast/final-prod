@@ -12208,3 +12208,31 @@ Work Log:
 Stage Summary:
 - Session tally: S-029 (SEVERE, convergent union) + M-013 (MAJOR) + the
   M-054 pushed-red repair. Next: M-014 (exFAT structural entry gates).
+
+---
+Task ID: DFX23-T0 (session 23 bootstrap — lane claim)
+Agent: main engineer (diff-to-fix fix session 23 — DFX23)
+Task: Session bootstrap + lane claim BEFORE any finding work (protocol).
+
+Work Log:
+- Baseline: HEAD `716d121` (origin/main unmoved — fetch verified before
+  claim; no parallel lane pushed since). Corpus `03ad46c` unmoved.
+- Baseline suite executed green FIRST-HAND at the claim tree:
+  linux-release **737/737** (incl. win_syntax_check).
+- Session prompt saved token-redacted: worklog/session-diff-fix-23-prompt.md.
+- Mandate per prompt: MINOR-first queue, 20+ fix target, fixed findings
+  moved to findings/FIXED/, all docs/counts/matrices current after each
+  landing.
+- Lane claim (disjoint from any active lane — none observed at fetch):
+  the full open MINOR tier in this order: N-009, N-007/I-004, N-025,
+  N-026, N-027 (sub-item verify — N-014d likely superseded by N-008's
+  landing), N-031, N-036, N-049, N-059, N-065, N-066, N-075, N-019,
+  N-050, N-033, N-072, then the win-layer/crypto-heavy N-032/N-071/N-064
+  (full implementation or precise TRACKED-OPEN push-forward), then
+  feasible MAJORs (M-052/M-035/M-048/M-014 candidates) if the MINOR
+  tier drains.
+- One finding, one verified fix, one push throughout.
+
+Stage Summary:
+- Session 23 open. Baseline 737/737 green at `716d121`. MINOR-first
+  queue claimed. First fix: N-009 (grouped minors).
