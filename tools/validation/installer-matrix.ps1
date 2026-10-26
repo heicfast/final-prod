@@ -138,9 +138,32 @@ Add-Row -Phase 'baseline' -Result ($baseline.installDirExists ? 'DIR-ALREADY-PRE
 # ---------------------------------------------------------------------------
 $install = Invoke-Setup -LogName '02-install-transcript.txt'
 if ($install.exitCode -ne 0) {
-    Add-Row -Phase 'install' -Result "FAILED exitCode=$($install.exitCode)"
+    # Silent installs Abort with NO message box — the installer writes the
+    # reason to %TEMP%\HeicFastRecoveryWizard-install-abort.txt (the .nsi's
+    # AbortWithReason); surface it + probe where the inner setup landed.
+    $abortFile = "$env:TEMP\HeicFastRecoveryWizard-install-abort.txt"
+    $abortReason = if (Test-Path $abortFile) { Get-Content $abortFile -Raw } else { '(no abort-reason file — the Abort came from .onInit or a plugin)' }
+    $probes = @(
+        "$env:ProgramFiles\HeicFast",
+        "$env:ProgramFiles\HeicFast\Recovery Wizard",
+        "$env:ProgramFiles\Recovery Wizard",
+        "D:\Program",
+        "$env:LOCALAPPDATA\Programs\HeicFast\Recovery Wizard"
+    ) | ForEach-Object {
+        $exists = Test-Path $_
+        if ($exists) {
+            [pscustomobject]@{ path = $_; children = @((Get-ChildItem $_ -ErrorAction SilentlyContinue | Select-Object -First 12 -ExpandProperty Name)) }
+        }
+    }
+    Write-Evidence -Name '02-install-failure.json' -Content ([ordered]@{
+        exitCode    = $install.exitCode
+        durationMs  = $install.durationMs
+        abortReason = $abortReason
+        dirProbes   = $probes
+    } | ConvertTo-Json -Depth 5)
+    Add-Row -Phase 'install' -Result "FAILED exitCode=$($install.exitCode)" -Facts @{ abortReason = $abortReason.Trim() }
     Write-Evidence -Name 'matrix.json' -Content ($timeline | ConvertTo-Json -Depth 5)
-    throw "installer exited $($install.exitCode)"
+    throw "installer exited $($install.exitCode): $($abortReason.Trim())"
 }
 
 $appExe = Join-Path $InstallDir $AppExeName

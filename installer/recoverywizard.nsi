@@ -154,13 +154,14 @@ Section "${PRODUCT_NAME} (required)" SEC_APP
   ${EndIf}
   Pop $0
   ${If} $0 != 0
-    Abort "Application setup failed (exit code $0). See the install log for details."
+    StrCpy $1 $0   ; $0 becomes the FileWrite handle inside the macro
+    !insertmacro AbortWithReason "Application setup failed (exit code $1). The inner Tauri bundle is at $PLUGINSDIR\app-setup.exe."
   ${EndIf}
 
   ; Integrity: the inner installer must have produced the app + its uninstaller
   ${IfNot} ${FileExists} "$INSTDIR\${APP_EXE}"
   ${AndIfNot} ${FileExists} "$INSTDIR\uninstall.exe"
-    Abort "Application setup did not produce the expected files in $INSTDIR (missing ${APP_EXE} / uninstall.exe)."
+    !insertmacro AbortWithReason "Application setup did not produce the expected files in $INSTDIR (missing ${APP_EXE} / uninstall.exe)."
   ${EndIf}
 
   ; ---- 2. Engine kit: cr_ui.dll + import lib + the vcpkg runtime DLLs ----
@@ -177,7 +178,7 @@ Section "${PRODUCT_NAME} (required)" SEC_APP
   File /x cr_ui.lib "${ENGINE_KIT}${PATHSEP}*"
 
   ${IfNot} ${FileExists} "$INSTDIR\cr_ui.dll"
-    Abort "Engine kit incomplete: cr_ui.dll is missing."
+    !insertmacro AbortWithReason "Engine kit incomplete: cr_ui.dll is missing."
   ${EndIf}
 
   ; At least one runtime DLL must ride beside cr_ui.dll (zlib1/lz4/liblz4/
@@ -191,7 +192,7 @@ Section "${PRODUCT_NAME} (required)" SEC_APP
   ${Loop}
   FindClose $0
   ${If} $EngineDllCount < 2
-    Abort "Engine kit incomplete: no runtime DLLs beside cr_ui.dll (found $EngineDllCount DLL(s))."
+    !insertmacro AbortWithReason "Engine kit incomplete: no runtime DLLs beside cr_ui.dll (found $EngineDllCount DLL(s))."
   ${EndIf}
 SectionEnd
 
@@ -294,6 +295,19 @@ SectionEnd
 ; Section descriptions (MUST follow the Section definitions: ${SEC_*} section
 ; index defines are created by the Section commands below.)
 ; -----------------------------------------------------------------------------
+; AbortWithReason — Abort, but leave a trace: silent installs show NO
+; message box, so %TEMP%\HeicFastRecoveryWizard-install-abort.txt is the
+; ONLY place the reason survives (the T15 runtime matrix copies it into
+; its evidence; a real user's support request can attach it).
+!macro AbortWithReason REASON
+  Push $0
+  FileOpen $0 "$TEMP\HeicFastRecoveryWizard-install-abort.txt" w
+  FileWrite $0 "${REASON}"
+  FileClose $0
+  Pop $0
+  Abort "${REASON}"
+!macroend
+
 LangString DESC_APP    ${LANG_ENGLISH} "The ${PRODUCT_NAME} application and the native recovery engine. Required."
 LangString DESC_DRIVER ${LANG_ENGLISH} "The RDA raw-disk kernel driver (rda.sys): fast, reliable sector-level reads via \\.\RDA. Not available in per-user installs; the app falls back to Windows direct disk access without it."
 
