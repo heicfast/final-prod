@@ -1,136 +1,152 @@
 /*
- * cr_nvramfix.h - the UEFI NVRAM Boot#### entry updater (M-040 stage b).
+ * cr_nvramfix.h - the UEFI NVRAM Boot####/BootOrder updater (M-040 stage b).
  *
- * Corpus lineage (EFIBoot.mo — re-workspace/reversed/ghidra-mo/
- * EFIBoot_decompiled.c, every mechanism below re-verified first-hand):
- * after a partition layout change the og walks the firmware's BootOrder
- * variable, and for every Boot#### load option whose device path
- * references the target partition it rewrites the HARDDRIVE device-path
- * node's PartitionNumber and writes the variable back through
- * SetFirmwareEnvironmentVariable (EFI global GUID
- * {8BE4DF61-93CA-11d2-AA0D-00E098032B8C}).
+ * Corpus lineage (EFIBoot.mo, re-workspace/reversed/ghidra-mo/
+ * EFIBoot_decompiled.c, decoded first-hand this session):
  *
- * The matcher (FUN_1800046f0): the load option is {attributes u32,
- * FilePathListLength u16, description UTF-16, FilePathList...}; the
- * device path is walked node by node {type u8, subtype u8, length u16}
- * until the END_ENTIRE node (type 0x7f, subtype 0xff). A
- * MEDIA_HARDDRIVE_DP node (type 0x04, subtype 0x01) is 0x2A bytes:
- * PartitionNumber u32 @+4, PartitionStart u64 @+8, PartitionSize u64
- * @+0x10, Signature[16] @+0x18, MBRType u8 @+0x28, SignatureType u8
- * @+0x29.
- *   - MBR mode: MBRType == 1 (PC-AT) AND SignatureType == 1 (MBR
- *     signature); the u32 at +0x18 == the disk's MBR signature sets the
- *     signature flag; PartitionStart == the partition's old start LBA
- *     AND PartitionSize == its size set the geometry flag. The flags are
- *     collected ACROSS THE WHOLE WALK (the og does not require both on
- *     the same node) and the option matches when both hold.
- *   - GPT mode: MBRType == 2 AND SignatureType == 2; the 16-byte GUID at
- *     +0x18 equals the partition GUID -> immediate match.
+ *  - The firmware seam (:3281-3290): Get/SetFirmwareEnvironmentVariableW
+ *    are resolved DYNAMICALLY from kernel32 (GetProcAddress) - an XP-era
+ *    box without the exports still loads; the EFI global variable GUID
+ *    {8BE4DF61-93CA-11d2-AA0D-00E098032B8C} namespaces every query
+ *    (:3385+). This module keeps the seam INJECTED (function pointers)
+ *    so the pure logic is testable and the win layer owns the dynamic
+ *    resolution.
  *
- * The patch (FUN_180004840, the state-4 update): in every MATCHED load
- * option, EVERY HARDDRIVE node with SignatureType != 0 has its
- * PartitionNumber (u32 @+4) rewritten to the new partition number, and
- * the whole load option is written back. Create/delete of entries and
- * BootOrder rewrites are NOT part of the update path (they live in the
- * og's create state machine, FUN_1800012c0 — deliberately out of scope
- * here per the finding's fix plan: "keep create/delete out of v1").
+ *  - The candidate set (:3493-3520 / :3630-3654 / :3783+): the
+ *    BootOrder variable (a u16 array) is read, and every entry is
+ *    formatted "Boot%04X" for inspection. Nothing outside BootOrder is
+ *    ever touched (no create/delete - the finding's stage-b scope).
  *
- * The walk aborts at the first failing variable read, mirroring the og
- * (FUN_1800046f0 returns 2 on a zero-byte read and FUN_180004840 breaks
- * the whole loop; a BootOrder entry whose Boot#### variable is gone
- * stops the entire pass — the reference's own fragility, preserved and
- * documented, not silently "improved").
+ *  - The matcher (FUN_1800046f0 :3366-3445): the Boot#### variable's
+ *    EFI_LOAD_OPTION is walked - the u16 Description at +6 is skipped
+ *    (walk to its NUL, step one), then the device path nodes are walked
+ *    by their u16 Length. A MEDIA_HARDDRIVE node (Type 4, SubType 1)
+ *    matches the target partition when:
+ *      MBR mode (SignatureType==1, MBRType==1): node.Signature[0..4] ==
+ *        the disk's MBR signature AND node.PartitionStart ==
+ *        old_start AND node.PartitionSize == old_size;
+ *      GPT mode (SignatureType==2, MBRType==2): node.Signature[0..16] ==
+ *        the partition GUID AND node.PartitionStart == old_start.
+ *    (Node field offsets: PartitionNumber u32@4, PartitionStart u64@8,
+ *    PartitionSize u64@16, Signature[16]@24, MBRType u8@40,
+ *    SignatureType u8@41 - the UEFI MEDIA_HARDDRIVE_DEVICE_PATH; the
+ *    decompile's psVar6[0xc]/[+4]/[+8]/[+0x10]/[0x29] map onto them.)
  *
- * The firmware-variable API is INJECTED (IFirmwareVarStore below): the
- * og resolves Get/SetFirmwareEnvironmentVariableW dynamically at
- * runtime (:3281-3290 — the exports do not exist on legacy-BIOS
- * systems); the win layer owns that resolution plus the
- * SeSystemEnvironmentPrivilege enable (:3248-3270). The pure module
- * sees only the store. NOTE the og additionally PRE-PROBES the API
- * (a dummy get whose GetLastError()==1 means ERROR_INVALID_FUNCTION);
- * this interface folds that distinction into the get() contract —
- * ERR_OPEN_FAILED = the benign variable-absent case, any other error =
- * the API is unusable.
+ *  - The rewrite (FUN_180004b40's patch loop :3660-3700): in every
+ *    MATCHED entry, each HARDDRIVE node's PartitionNumber,
+ *    PartitionStart, PartitionSize and Signature are overwritten with
+ *    the NEW partition's values (MBR: the new disk signature; GPT: the
+ *    new GUID), then the whole variable is written back through
+ *    SetFirmwareEnvironmentVariableW. The sibling loop at :3520-3572
+ *    rewrites ONLY PartitionNumber (a renumber-only pass the og also
+ *    has); this module implements the full-position rewrite (the
+ *    recovery-relevant one - the partition moved).
+ *
+ *  - The safety model: plan/execute/undo over the injected seam, with
+ *    the P62 default-deny consent callback (the rawfixer S-008
+ *    discipline). The undo restores the ORIGINAL variable bytes
+ *    byte-exactly.
  *
  * Licensed under the MIT license. See LICENSE.
  */
 
-#ifndef CR_NVramFIX_H_
-#define CR_NVramFIX_H_
+#ifndef CR_NVRAMFIX_H_
+#define CR_NVRAMFIX_H_
 
 #include "../cr_types.h"
 #include <cstddef>
+#include <cstring>
+#include <string>
+#include <vector>
 
 namespace cr {
 namespace nvramfix {
 
-/* The EFI global variable GUID string (every Boot####/BootOrder access
- * carries it; EFIBoot_decompiled.c :3417 et al.). */
-extern const wchar_t kEfiGlobalGuid[];
+/* ---- UEFI device path constants (spec 2.x + the corpus decode) ---- */
+constexpr u8 kTypeEndEntire = 0x7f;
+constexpr u8 kSubTypeEndEntire = 0xff;
+constexpr u8 kTypeMedia = 0x04;
+constexpr u8 kSubTypeHarddrive = 0x01;
+constexpr size_t kNodeHeaderSize = 4; /* u8 type, u8 subtype, u16 len */
+/* MEDIA_HARDDRIVE_DEVICE_PATH fields */
+constexpr size_t kHdPartitionNumber = 4;   /* u32 */
+constexpr size_t kHdPartitionStart = 8;   /* u64 */
+constexpr size_t kHdPartitionSize = 16;   /* u64 */
+constexpr size_t kHdSignature = 24;      /* u8[16] */
+constexpr size_t kHdMbrType = 40;        /* u8: 1=MBR, 2=GPT */
+constexpr size_t kHdSignatureType = 41;  /* u8: 1=MBR sig, 2=GUID, 0=none */
+constexpr size_t kHdNodeSize = 42;       /* the spec's fixed size */
 
-/* MEDIA_HARDDRIVE_DP node layout (UEFI spec 10.1.1; the og's field
- * reads at FUN_1800046f0 map onto it exactly — see the header comment). */
-constexpr size_t kHdNodeHeader = 4;       /* type u8, subtype u8, length u16 */
-constexpr size_t kHdPartitionNumber = 4;  /* u32 — THE PATCHED FIELD */
-constexpr size_t kHdPartitionStart = 8;   /* u64, LBA */
-constexpr size_t kHdPartitionSize = 0x10; /* u64, LBA count */
-constexpr size_t kHdSignature = 0x18;     /* 16 bytes: MBR sig u32 (+12 pad) or GPT GUID */
-constexpr size_t kHdMbrType = 0x28;       /* u8: 1 = PC-AT, 2 = GPT */
-constexpr size_t kHdSignatureType = 0x29; /* u8: 1 = MBR signature, 2 = GUID */
-constexpr size_t kHdNodeSize = 0x2A;      /* 42 bytes */
+/* EFI_LOAD_OPTION: u32 Attributes@0, u16 FilePathListLength@4, the
+ * UTF-16 Description starts at +6 (NUL-terminated), then the device
+ * path byte stream (the corpus walk: buf+6, u16s to NUL, +1). */
+constexpr size_t kLoadOptDescription = 6;
 
-/* The og's load-option read buffer cap (FUN_1800046f0's 0x100000). */
-constexpr u32 kMaxLoadOptionBytes = 1u << 20;
+constexpr size_t kMaxVariableBytes = 1 << 20; /* the og's 0x100000 cap */
+constexpr size_t kMaxBootEntries = 4096;      /* bounded BootOrder walk */
 
-/* The injected firmware-variable store. The win layer implements this
- * over dynamically resolved Get/SetFirmwareEnvironmentVariableW
- * (EFIBoot :3281-3290) with SeSystemEnvironmentPrivilege enabled.
+/* The moved partition: the OLD identity (the match keys) + the NEW
+ * position/signature (the rewrite values). Exactly one of the two
+ * signature modes is armed per target (mbr vs gpt), mirroring the og's
+ * ctx+0x30 mode switch. */
+struct TargetPartition {
+    /* OLD identity - the match keys */
+    u32 old_mbr_signature = 0; /* MBR mode */
+    u8 old_gpt_guid[16] = {0}; /* GPT mode */
+    bool gpt_mode = false;      /* false = MBR matching, true = GPT */
+    u64 old_start = 0;
+    u64 old_size = 0;
+    /* NEW values - the rewrite payload */
+    u32 new_partition_number = 0;
+    u64 new_start = 0;
+    u64 new_size = 0;
+    u32 new_mbr_signature = 0;    /* MBR-mode rewrite */
+    u8 new_gpt_guid[16] = {0};   /* GPT-mode rewrite */
+};
+
+/* The injected firmware-variable seam (the win layer resolves
+ * Get/SetFirmwareEnvironmentVariableW dynamically, corpus :3281-3290).
+ * Get returns the variable's byte length (0 = absent/too small); Set
+ * returns true on success. */
+using GetVarFn = u32 (*)(const char16_t* name, void* buf, u32 cap, void* user);
+using SetVarFn = bool (*)(const char16_t* name, const void* data, u32 len, void* user);
+
+/* The consent callback (P62, the rawfixer S-008 model): return true to
+ * allow the writes; nullptr or false = refused, nothing is written. */
+using ConsentFn = bool (*)(void* user);
+
+/* One planned rewrite: the variable's name, its ORIGINAL bytes (the
+ * undo record) and the PATCHED bytes. */
+struct NvramRewrite {
+    std::u16string name;
+    std::vector<u8> old_value;
+    std::vector<u8> new_value;
+};
+
+/* Build the rewrite plan: walk BootOrder, match every Boot#### entry's
+ * HARDDRIVE node against the target's OLD identity, and produce the
+ * patched entry payloads. Reads nothing but the variables it inspects;
+ * writes nothing (planning only). Returns the plan (empty = no
+ * reference to this partition in any Boot#### entry).
  *
- * get() contract:
- *   OK            — variable read, *out_len bytes copied (out_len <= buf_len)
- *   ERR_OPEN_FAILED — the variable is NOT PRESENT (the benign case)
- *   other         — the API is unusable (privilege/firmware); aborts the pass
- */
-class IFirmwareVarStore {
-public:
-    virtual ~IFirmwareVarStore() = default;
-    virtual u32 get(const wchar_t* name, void* buf, u32 buf_len, u32* out_len) = 0;
-    virtual u32 set(const wchar_t* name, const void* buf, u32 len) = 0;
-};
+ * Errors: ERR_BAD_PARAMETER (null seam), ERR_READ_FAILED (BootOrder
+ * unreadable), ERR_BAD_MAGIC (a load option too malformed to walk). */
+std::vector<NvramRewrite> plan_boot_entries(GetVarFn get, void* get_user,
+                                             const TargetPartition& target, u32* error = nullptr);
 
-/* The target partition identity + the patch value (the og's context
- * fields: mode @+0x30, signature/GUID @+0x34/+0x3c, new partition
- * number @+0x44, old start LBA @+0x48, size @+0x50). */
-struct Target {
-    bool gpt = false;             /* false = MBR mode, true = GPT mode */
-    u32 mbr_signature = 0;        /* MBR mode: the disk signature */
-    u64 gpt_guid[2] = {0, 0};     /* GPT mode: the partition GUID */
-    u64 old_partition_start = 0;  /* MBR mode: the partition's OLD start LBA */
-    u64 partition_size = 0;       /* MBR mode: its size in LBAs */
-    u32 new_partition_number = 0; /* THE PATCH VALUE (HARDDRIVE node +4) */
-};
+/* Execute a plan through the injected setter under the consent
+ * callback. consent == nullptr = DEFAULT-DENY. Stops at the first
+ * failed Set (returns ERR_WRITE_FAILED) with *applied counting the
+ * landed rewrites. Refused by consent returns ERR_REPAIR_REFUSED with
+ * applied == 0. */
+u32 execute_plan(const std::vector<NvramRewrite>& plan, SetVarFn set, void* set_user,
+                 ConsentFn consent, void* consent_user, size_t* applied = nullptr);
 
-struct UpdateStats {
-    size_t inspected = 0; /* Boot#### ids seen in BootOrder */
-    size_t matched = 0;   /* load options matching the target */
-    size_t patched = 0;   /* variables written back */
-};
-
-/* Does one load option's device path match the target? (FUN_1800046f0
- * exactly: the flag semantics of the header comment. Exposed for
- * testing; update_boot_entries is the production entry.) */
-bool load_option_matches(const u8* option, size_t size, const Target& t);
-
-/* The state-4 update pass (FUN_180004840): walk BootOrder, patch every
- * matched Boot####'s HARDDRIVE PartitionNumbers, write back through the
- * store. An absent BootOrder is a clean no-op (OK, zero stats — the og's
- * zero-byte BootOrder case); any other variable-read failure aborts the
- * pass and returns that code with the stats accumulated so far (the
- * og's break-the-whole-loop posture). */
-u32 update_boot_entries(IFirmwareVarStore& store, const Target& t,
-                        UpdateStats* stats = nullptr);
+/* Undo: restore every variable's ORIGINAL bytes (byte-exact). */
+u32 undo_plan(const std::vector<NvramRewrite>& plan, SetVarFn set, void* set_user,
+              size_t* applied = nullptr);
 
 } // namespace nvramfix
 } // namespace cr
 
-#endif // CR_NVramFIX_H_
+#endif // CR_NVRAMFIX_H_

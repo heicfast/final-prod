@@ -1,208 +1,252 @@
-/* cr_nvramfix.cpp - the UEFI NVRAM Boot#### entry updater (M-040 stage b).
+/* cr_nvramfix.cpp - the UEFI NVRAM Boot#### updater (M-040 stage b).
  *
- * Pure logic over an injected firmware-variable store; every mechanism
- * is the corpus EFIBoot.mo decode documented in cr_nvramfix.h
- * (FUN_1800046f0 the matcher, FUN_180004840 the state-4 update pass).
+ * Pure logic over an injected firmware-variable seam; the win layer
+ * (src/win/cr_bootfix.cpp) owns Get/SetFirmwareEnvironmentVariableW
+ * resolution, the privilege enable and the hive-file side.
  *
  * Licensed under the MIT license. See LICENSE.
  */
 
 #include "cr/nvramfix/cr_nvramfix.h"
 #include "cr/cr_error.h"
-#include <cstdio>
-#include <cwchar>
-#include <vector>
 
 namespace cr {
 namespace nvramfix {
 
-const wchar_t kEfiGlobalGuid[] = L"{8BE4DF61-93CA-11d2-AA0D-00E098032B8C}";
-
 namespace {
 
-/* little-endian readers (the firmware variables are LE on every UEFI
- * implementation the product runs on — the og reads them with plain
- * x86 loads) */
-u16 rd16(const u8* p) {
-    return u16(p[0]) | (u16(p[1]) << 8);
+u16 le16_at(const u8* p) {
+    return u16(u16(p[0]) | (u16(p[1]) << 8));
 }
-u32 rd32(const u8* p) {
-    return u32(p[0]) | (u32(p[1]) << 8) | (u32(p[2]) << 16) | (u32(p[3]) << 24);
+u32 le32_at(const u8* p) {
+    return u32(u32(p[0]) | (u32(p[1]) << 8) | (u32(p[2]) << 16) | (u32(p[3]) << 24));
 }
-u64 rd64(const u8* p) {
-    return u64(rd32(p)) | (u64(rd32(p + 4)) << 32);
+u64 le64_at(const u8* p) {
+    u64 v = 0;
+    for (int i = 7; i >= 0; --i)
+        v = (v << 8) | p[i];
+    return v;
 }
-void wr32(u8* p, u32 v) {
+void put32_at(u8* p, u32 v) {
     p[0] = u8(v);
     p[1] = u8(v >> 8);
     p[2] = u8(v >> 16);
     p[3] = u8(v >> 24);
 }
+void put64_at(u8* p, u64 v) {
+    for (int i = 0; i < 8; ++i)
+        p[i] = u8(v >> (8 * i));
+}
 
-/* The device-path cursor: EFIBoot walks {type, subtype, length u16}
- * nodes; END_ENTIRE (0x7f/0xff) terminates. The cursor also guards
- * against zero/short lengths (a malformed node would otherwise loop
- * forever — the og trusts the firmware; we stop the walk, the match
- * simply sees fewer nodes). */
-template <typename Byte /* u8 (patch walk) or const u8 (match walk) */>
-struct NodeWalkT {
-    Byte* p = nullptr;
-    size_t left = 0;
-    bool ended = false;
+bool sig16_eq(const u8* a, const u8* b) {
+    return memcmp(a, b, 16) == 0;
+}
 
-    explicit NodeWalkT(Byte* path, size_t size) : p(path), left(size) {}
+/* Does this HARDDRIVE node match the target's OLD identity?
+ * (FUN_1800046f0's semantics, first-hand decode: MBR mode matches the
+ * disk signature AND start AND size; GPT mode matches the 16-byte
+ * partition GUID AND start.) */
+bool hd_node_matches(const u8* node, const TargetPartition& t) {
+    const u8 sig_type = node[kHdSignatureType];
+    const u8 mbr_type = node[kHdMbrType];
+    if (t.gpt_mode) {
+        if (sig_type != 2 || mbr_type != 2)
+            return false;
+        if (!sig16_eq(node + kHdSignature, t.old_gpt_guid))
+            return false;
+        return le64_at(node + kHdPartitionStart) == t.old_start;
+    }
+    if (sig_type != 1 || mbr_type != 1)
+        return false;
+    if (le32_at(node + kHdSignature) != t.old_mbr_signature)
+        return false;
+    return le64_at(node + kHdPartitionStart) == t.old_start &&
+           le64_at(node + kHdPartitionSize) == t.old_size;
+}
 
-    /* Advance to the next node; sets ended at END_ENTIRE or exhaustion. */
-    void next() {
-        if (left < 4) {
-            ended = true;
-            return;
-        }
-        const u16 len = rd16(p + 2);
-        if (len < 4 || size_t(len) > left) {
-            ended = true; /* malformed length: stop (see the comment above) */
-            return;
-        }
-        if (p[0] == 0x7f && p[1] == 0xff) {
-            ended = true;
-            return;
+/* Patch one HARDDRIVE node with the NEW position/signature
+ * (FUN_180004b40's rewrite :3660-3700: PartitionNumber, PartitionStart,
+ * PartitionSize, Signature - the full-position rewrite for the moved
+ * partition). */
+void hd_node_rewrite(u8* node, const TargetPartition& t) {
+    put32_at(node + kHdPartitionNumber, t.new_partition_number);
+    put64_at(node + kHdPartitionStart, t.new_start);
+    put64_at(node + kHdPartitionSize, t.new_size);
+    if (t.gpt_mode)
+        memcpy(node + kHdSignature, t.new_gpt_guid, 16);
+    else
+        memcpy(node + kHdSignature, &t.new_mbr_signature, 4);
+}
+
+/* Walk one EFI_LOAD_OPTION's device path: true when a HARDDRIVE node
+ * matches the target (the entry is a rewrite candidate). The walk
+ * mirrors the corpus exactly: the UTF-16 description at +6 is skipped
+ * to its NUL (+1), then nodes advance by their u16 Length until the
+ * END_ENTIRE (7f/ff) node. A node length below its own header size or
+ * a walk past the buffer = malformed (bounded, stops). */
+bool entry_matches(const std::vector<u8>& value, const TargetPartition& t) {
+    if (value.size() < kLoadOptDescription + 2)
+        return false;
+    size_t p = kLoadOptDescription;
+    /* the description: UTF-16 units to the NUL (the NUL unit itself is
+     * consumed by the p += 2 - the corpus's walk: while (*p) p++; p++,
+     * i.e. ONE step past the NUL, not two) */
+    while (p + 1 < value.size()) {
+        const u16 u = le16_at(value.data() + p);
+        p += 2;
+        if (u == 0)
+            break;
+    }
+    if (p + 1 >= value.size())
+        return false; /* no NUL / no room for any node: malformed */
+    /* the device path nodes start AT p (the corpus's psVar6++ shape) */
+    while (p + kNodeHeaderSize <= value.size()) {
+        const u8 type = value[p];
+        const u8 subtype = value[p + 1];
+        const u16 len = le16_at(value.data() + p + 2);
+        if (type == kTypeEndEntire && subtype == kSubTypeEndEntire)
+            break; /* END_ENTIRE: the walk is done (the corpus's stop) */
+        if (len < kNodeHeaderSize || p + len > value.size())
+            break; /* malformed: bounded stop, never past the buffer */
+        if (type == kTypeMedia && subtype == kSubTypeHarddrive && len >= kHdNodeSize) {
+            if (hd_node_matches(value.data() + p, t))
+                return true;
         }
         p += len;
-        left -= len;
     }
-};
+    return false;
+}
 
-using NodeWalk = NodeWalkT<const u8>;
-using NodeWalkMut = NodeWalkT<u8>;
+/* Patch every HARDDRIVE node in a matched entry (the og rewrites every
+ * harddrive node of a matched entry - an entry's device path can carry
+ * more than one; the corpus loop is node-blind after the entry match).
+ * Returns true when at least one node was rewritten. */
+bool rewrite_entry(u8* data, size_t size, const TargetPartition& t) {
+    if (size < kLoadOptDescription + 2)
+        return false;
+    size_t p = kLoadOptDescription;
+    while (p + 1 < size) {
+        const u16 u = le16_at(data + p);
+        p += 2;
+        if (u == 0)
+            break;
+    }
+    if (p + 1 >= size)
+        return false; /* no NUL / no room: malformed, bounded stop */
+    bool any = false;
+    while (p + kNodeHeaderSize <= size) {
+        const u8 type = data[p];
+        const u8 subtype = data[p + 1];
+        const u16 len = le16_at(data + p + 2);
+        if (type == kTypeEndEntire && subtype == kSubTypeEndEntire)
+            break;
+        if (len < kNodeHeaderSize || p + len > size)
+            break;
+        if (type == kTypeMedia && subtype == kSubTypeHarddrive && len >= kHdNodeSize &&
+            data[p + kHdSignatureType] != 0) { /* a real signature: the og's != 0 gate */
+            hd_node_rewrite(data + p, t);
+            any = true;
+        }
+        p += len;
+    }
+    return any;
+}
+
+std::u16string boot_name(u16 id) {
+    /* "Boot%04X" - the corpus's FUN_180004380 format */
+    char16_t buf[9];
+    const char16_t* hex = u"0123456789ABCDEF";
+    buf[0] = 'B';
+    buf[1] = 'o';
+    buf[2] = 'o';
+    buf[3] = 't';
+    buf[4] = hex[(id >> 12) & 0xF];
+    buf[5] = hex[(id >> 8) & 0xF];
+    buf[6] = hex[(id >> 4) & 0xF];
+    buf[7] = hex[id & 0xF];
+    buf[8] = 0;
+    return std::u16string(buf, 8);
+}
 
 } // namespace
 
-bool load_option_matches(const u8* option, size_t size, const Target& t) {
-    /* EFI_LOAD_OPTION: attributes u32 @0, FilePathListLength u16 @4,
-     * description UTF-16 @6, FilePathList @ 6 + (description + NUL) * 2.
-     * The og skips the description by scanning for the UTF-16 NUL
-     * (FUN_1800046f0 :3429-3435) — FilePathListLength is not consulted
-     * on this path (mirrored). */
-    if (option == nullptr || size < 6)
-        return false;
-    size_t at = 6;
-    /* skip the UTF-16 description incl. its NUL */
-    while (at + 1 < size && (option[at] != 0 || option[at + 1] != 0))
-        at += 2;
-    at += 2; /* the NUL */
-    if (at > size)
-        return false;
-
-    /* the flag semantics: MBR mode collects signature-match and
-     * geometry-match flags ACROSS THE WHOLE WALK (the og does not
-     * require them on the same node); GPT mode matches on the first
-     * GUID-equal node. */
-    bool sig_match = false;
-    bool geom_match = false;
-    NodeWalk w(option + at, size - at);
-    while (!w.ended) {
-        if (w.left >= kHdNodeSize && w.p[0] == 0x04 && w.p[1] == 0x01) {
-            if (!t.gpt) {
-                /* MBR mode: MBRType 1 + SignatureType 1; the u32 at
-                 * +0x18 == the disk signature sets the signature flag;
-                 * PartitionStart == old LBA AND PartitionSize == size
-                 * set the geometry flag. */
-                if (w.p[kHdSignatureType] == 1 && w.p[kHdMbrType] == 1) {
-                    if (rd32(w.p + kHdSignature) == t.mbr_signature)
-                        sig_match = true;
-                    if (rd64(w.p + kHdPartitionStart) == t.old_partition_start &&
-                        rd64(w.p + kHdPartitionSize) == t.partition_size)
-                        geom_match = true;
-                }
-            } else {
-                /* GPT mode: MBRType 2 + SignatureType 2 + the 16-byte
-                 * GUID at +0x18 == the partition GUID -> immediate. */
-                if (w.p[kHdSignatureType] == 2 && w.p[kHdMbrType] == 2 &&
-                    rd64(w.p + kHdSignature) == t.gpt_guid[0] &&
-                    rd64(w.p + kHdSignature + 8) == t.gpt_guid[1])
-                    return true;
-            }
-        }
-        w.next();
+std::vector<NvramRewrite> plan_boot_entries(GetVarFn get, void* get_user,
+                                             const TargetPartition& target, u32* error) {
+    if (error)
+        *error = OK;
+    std::vector<NvramRewrite> plan;
+    if (get == nullptr) {
+        if (error)
+            *error = ERR_BAD_PARAMETER;
+        return plan;
     }
-    return !t.gpt && sig_match && geom_match;
+    /* BootOrder: the u16 entry-id array (the og's 0x100000 read cap) */
+    std::vector<u8> order(size_t(kMaxVariableBytes), 0);
+    const u32 order_len = get(u"BootOrder", order.data(), u32(order.size()), get_user);
+    if (order_len == 0 || (order_len & 1) != 0) {
+        if (error)
+            *error = ERR_READ_FAILED; /* absent or odd-sized: no BootOrder */
+        return plan;
+    }
+    const size_t entries = order_len / 2 > kMaxBootEntries ? kMaxBootEntries : order_len / 2;
+    std::vector<u8> value(size_t(kMaxVariableBytes), 0);
+    for (size_t i = 0; i < entries; ++i) {
+        const u16 id = le16_at(order.data() + i * 2);
+        const std::u16string name = boot_name(id);
+        const u32 len = get(name.c_str(), value.data(), u32(value.size()), get_user);
+        if (len == 0)
+            continue; /* absent entry in BootOrder: skip (the og's rc==2) */
+        const std::vector<u8> original(value.begin(), value.begin() + len);
+        if (!entry_matches(original, target))
+            continue; /* not our partition: untouched */
+        std::vector<u8> patched = original;
+        if (!rewrite_entry(patched.data(), patched.size(), target)) {
+            if (error)
+                *error = ERR_BAD_MAGIC; /* matched but unwalkable: malformed */
+            return std::vector<NvramRewrite>();
+        }
+        NvramRewrite r;
+        r.name = name;
+        r.old_value = std::move(original);
+        r.new_value = std::move(patched);
+        plan.push_back(std::move(r));
+    }
+    return plan;
 }
 
-u32 update_boot_entries(IFirmwareVarStore& store, const Target& t, UpdateStats* stats) {
-    UpdateStats local;
-    /* stats report on EVERY exit (the abort paths carry the partial
-     * progress — the og's loop breaks mid-walk the same way). */
-    struct StatsGuard {
-        UpdateStats* out;
-        UpdateStats& local;
-        ~StatsGuard() {
-            if (out)
-                *out = local;
-        }
-    } guard{stats, local};
-
-    /* BootOrder: the u16 id list. Absent (ERR_OPEN_FAILED) = nothing to
-     * do — the og's zero-byte BootOrder no-op. Any other error is an
-     * unusable API: propagate. */
-    std::vector<u8> order(kMaxLoadOptionBytes);
-    u32 order_len = 0;
-    const u32 rc = store.get(L"BootOrder", order.data(), u32(order.size()), &order_len);
-    if (rc == ERR_OPEN_FAILED)
-        return OK; /* no BootOrder: zero entries, clean no-op */
-    if (rc != OK)
-        return rc;
-    order.resize(order_len);
-    if (order.size() % 2 != 0)
-        order.pop_back(); /* odd tail: the og iterates (len>>1) u16s */
-    const size_t count = order.size() / 2;
-
-    std::vector<u8> option(kMaxLoadOptionBytes);
-    for (size_t i = 0; i < count; ++i) {
-        const u16 id = rd16(order.data() + i * 2);
-        wchar_t name[16];
-        /* Boot%04X — the og's exact format (FUN_180004380) */
-        std::swprintf(name, 16, L"Boot%04X", unsigned(id));
-        ++local.inspected;
-
-        u32 opt_len = 0;
-        const u32 grc = store.get(name, option.data(), u32(option.size()), &opt_len);
-        if (grc != OK)
-            return grc; /* the og's whole-loop break (see the header) */
-        if (opt_len < 6)
-            continue; /* nothing to walk */
-
-        if (!load_option_matches(option.data(), opt_len, t))
-            continue;
-        ++local.matched;
-
-        /* the patch: EVERY HARDDRIVE node with SignatureType != 0 gets
-         * the new PartitionNumber (FUN_180004840 :3533-3544). The walk
-         * mirrors the matcher's description skip. */
-        size_t at = 6;
-        while (at + 1 < opt_len && (option[at] != 0 || option[at + 1] != 0))
-            at += 2;
-        at += 2;
-        if (at > opt_len)
-            continue;
-        bool patched = false;
-        NodeWalkMut w(option.data() + at, opt_len - at);
-        while (!w.ended) {
-            if (w.left >= kHdNodeSize && w.p[0] == 0x04 && w.p[1] == 0x01 &&
-                w.p[kHdSignatureType] != 0) {
-                wr32(w.p + kHdPartitionNumber, t.new_partition_number);
-                patched = true;
-            }
-            w.next();
-        }
-        if (!patched)
-            continue; /* matched but no patchable node: nothing written */
-
-        const u32 src = store.set(name, option.data(), opt_len);
-        if (src != OK)
-            return src;
-        ++local.patched;
+u32 execute_plan(const std::vector<NvramRewrite>& plan, SetVarFn set, void* set_user,
+                 ConsentFn consent, void* consent_user, size_t* applied) {
+    if (applied)
+        *applied = 0;
+    if (plan.empty())
+        return OK; /* nothing to do - an empty plan is a no-op */
+    if (set == nullptr)
+        return ERR_BAD_PARAMETER;
+    if (consent == nullptr || !consent(consent_user))
+        return ERR_REPAIR_REFUSED; /* P62 default-deny */
+    for (const auto& r : plan) {
+        if (!set(r.name.c_str(), r.new_value.data(), u32(r.new_value.size()), set_user))
+            return ERR_WRITE_FAILED; /* stops at the first failure */
+        if (applied)
+            ++*applied;
     }
+    return OK;
+}
 
+u32 undo_plan(const std::vector<NvramRewrite>& plan, SetVarFn set, void* set_user,
+              size_t* applied) {
+    if (applied)
+        *applied = 0;
+    if (plan.empty())
+        return OK;
+    if (set == nullptr)
+        return ERR_BAD_PARAMETER;
+    for (const auto& r : plan) {
+        if (!set(r.name.c_str(), r.old_value.data(), u32(r.old_value.size()), set_user))
+            return ERR_WRITE_FAILED;
+        if (applied)
+            ++*applied;
+    }
     return OK;
 }
 
