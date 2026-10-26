@@ -1,8 +1,43 @@
 # OQ-S6-3 — CRAW reader semantics: the +0xF4 boolean and the anchor-B tail offset (session/record-4 layer)
 
 **Filed by:** session-6 deep-continuation audit (agent B session-format read)
-**Status:** OPEN — needs the CRAW reader decompile (`FUN_140c40d80` cited by the corpus artifact)
-**Blocking:** weakens/strengthens the tail-anchor sub-item of S-031 and the RAW payload field set of N-050
+**Status:** RESOLVED (session 25, DFX25 — full decode, no code change required; evidence: `../evidence/decompiled-quotes/s25-oq-s6-3-craw-reader-decode.md`)
+**Blocking:** (was: weakens/strengthens the tail-anchor sub-item of S-031 and the RAW payload field set of N-050 — resolved in the core's favor)
+
+## RESOLUTION (session 25, 2026-10-26)
+
+All three questions answered first-hand from DRWUI_decompiled.c
+(FUN_140c40d80 :1875575 reader; FUN_140c41450 :1875961 producer;
+props-vtables.txt :42 vtable census):
+
+1. **+0xF4 = a PER-ANALYSER-TYPE marker: set to 1 ⟺ the analyser's type
+   id == 0xA8 (168)** (FUN_140c41450: `if (iVar5 == 0xa8) *(u32*)(+0xf4)
+   = 1`), in the same id space as the persisted type-registry ID +0xF8.
+   None of the three filed hypotheses (tail-confirmed / truncated /
+   inline-vs-extent) is correct. The corpus does not decode which format
+   id 168 names; the sample's 2,431/12,147 = the type-168 population.
+   The getter FUN_140c41780 has ZERO callers and is NOT in the vtable —
+   no post-load consumer exists.
+2. **+0x94 anchor B is WRITE-ONLY provenance at load**: the reader loads
+   it without branching; the dual-anchor getter (FUN_140c41430, returns
+   +0x8C AND +0x94) has zero callers and no vtable slot. The core's
+   folding of the tail anchor into extent length loses NO reader
+   behavior; M-051's carve_anchor_b persistence is provenance parity,
+   exactly as landed. (Producer side decoded as a bonus: type 0x2A
+   analyser results carry a tail extent pair at analyser +0xd8/+0xe0
+   that the factory appends to the runlist and folds into the size —
+   the same tail-pairing shape the core's raw-sign path implements.)
+3. **+0x56 checksum is informational-only at load**: the reader performs
+   NO validation; the checksum getter (FUN_140c413e0) is a dead
+   accessor. The core's `carve_checksum` provenance carrier is the
+   correct posture; a load-time validator verdict would be INVENTED
+   behavior (the og has none) — not added.
+
+The core's M-051 design is CONFIRMED correct on all three fields. The
+only landing: the decoded semantics documented at the `carve_flag`
+carrier (include/cr/tree/cr_node.h) + the evidence file. Related
+findings S-031/N-050/N-075: no behavioral change required by this
+decode (their landed shapes stand).
 
 ## The precise questions
 
