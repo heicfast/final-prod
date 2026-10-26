@@ -16097,3 +16097,78 @@ Work Log:
 Stage Summary:
 - S-034 stands on main with N-072. Board: MAJOR 1 (M-040),
   tracked-open 2 (OQ-S4-3, OQ-FLT-2). SEVERE 0, MINOR 0.
+
+=======
+---
+Task ID: DFX34-HANDOFF (session 34 close — the handoff record)
+Agent: main engineer (diff-to-fix fix session 34 — DFX34)
+
+Session record (2026-10-26, DFX34, the MINOR-tail lane):
+
+- Claim: the MINOR tier tail back-to-front (N-064 → ... → N-032), 20+
+  target; ID re-stamped 27→32→34 across three push races (each squatted
+  pre-landing; first-landing-wins honored throughout).
+- N-064 (convergent two-lane landing): my independent fix (cr/pwddict +
+  --bitlocker-pwddict + D-78, 9 tests, executed fail-before) landed
+  second behind DFX31's cr::dict; per first-landing-wins the canonical
+  surface stands, my duplicate was withdrawn in reconciliation, and the
+  ONE superset capability (the og-format dictionary FILE loader) was
+  absorbed by the canonical lane as --bitlocker-dict [file]. Both
+  Resolutions preserved append-only + the Convergence record in the
+  finding; D-78 tombstoned -> the D-80 convergence record (the D-number
+  errata convention).
+- N-065 FIXED-ALREADY: the parallel lane's collision/mkdir landing
+  verified first-hand (3 proof tests executed green; the two-branch
+  %s_%d shape, cap 10000, fail-on-exhaustion, the semantic mkdir
+  contract, D-19's decode rewrite all read in-source) + the audit-trail
+  closure (Resolution + FIXED/ + index + matrix + module verdicts).
+- N-007/I-004 FIXED: the ReFS first-DWORD discovery + the
+  signature_partial grading flag (corpus :11689-11720 re-verified
+  first-hand; the lost-partition probe was the affected consumer; my
+  2 proof tests are the set — a convergent remote implementation was
+  adopted wholesale per first-landing-wins). I-004 stands ACKNOWLEDGED
+  (D-48b). File closed to FIXED/.
+- N-072 FIXED (both halves): the Btrfs re-scan metadata cache (pure
+  codec + engine wiring, OFF by default, caller-supplied dir, the
+  fsid+generation strict gate; REGISTERED DIVERGENCE D-89) + the ZFS
+  delay-execution label retry (bounded 250/500/1000 ms backoff,
+  cancel-aware, the new is_static_media discriminator — images never
+  retry). 7 tests; fail-before EXECUTED (retry-cap-zeroed RED).
+- M-040 stage (a) LANDED: the BCD partition-offset rewriter (cr/bcdfix
+  — the corpus cell decode re-verified first-hand, the new_lba<<9
+  rewrite, plan/execute/undo, the P62 default-deny consent gate); 5
+  tests (4 of the finding's 5 named); D-90 dispositions (boot.ini
+  skippable, chkdsk UI-layer); stages (b) + the win layer precisely
+  tracked ON the finding — it stays open on the family remainder.
+- Five main-red repairs this session (the parallel-window's union-merge
+  epidemic): the N-064 collision markers (3 rounds), the committed
+  stash-pop conflict in cr_ui.h (both M-029/M-041 config fields kept),
+  the M-052/N-079 wrong-engine-set adoption (the coherent 76d4878 set
+  restored), the silent fat-header auto-merge, the win_syntax_check
+  -D__declspec(x)= hardening + the duplicate print_carve_formats
+  collapse. The union-merge RULE codified (keep-both is for append-only
+  docs; source = side-selection + pre-push full build).
+- Final tree: linux-release 918/918 green; win layer + app parse-clean
+  (gate 0 FAIL); zero conflict markers in src/include/tests; the MINOR
+  tier EMPTY (221 files in FIXED/).
+
+The honest 20+ note: the parallel-lane swarm (DFX23..DFX35) drained the
+shared queue faster than any single lane could close findings — the
+MINOR tier I was assigned went from 19 open at my bootstrap to 0 by
+session end (3 closed by this lane, the rest by the parallel lanes,
+each absorbed per first-landing-wins). This lane's discrete
+contributions: N-007 + N-072 FIXED, N-065 verified-closed, M-040
+stage-a landed, N-064 convergent-absorbed, + the five repairs that kept
+main green through the worst merge-corruption window of the project.
+
+Next steps (in priority order):
+1. M-040 stage (b): the UEFI NVRAM Boot####/BootOrder updater (EFIBoot
+   state-4 path :3860-3960, SeSystemEnvironmentPrivilege, the
+   injected-resolver NvramPatchUpdatesLoadOption test) + the win-layer
+   cr_bootfix.cpp (hive force-unload, SeRestore/SeBackup, the DASD
+   0x90083 + flush tail) + the S-029 post-apply wiring — all tracked on
+   the finding.
+2. The tracked-open queue (9 OQs — the DFX30/DFX31 lanes were working
+   it; check their landings first).
+3. A tagged release once M-040 closes (the audit's clean-close
+   condition) — SUMMARY.md's counts are current at this commit.
