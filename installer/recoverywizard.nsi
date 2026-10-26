@@ -74,7 +74,7 @@ SetCompressor /SOLID lzma
 !define DRIVER_SERVICE      "RDA"            ; contracts/README.md: defined ONCE
 ;                                              (engine opens \\.\RDA\<token>\...;
 ;                                              device name = UPPERCASE(service name))
-!define APP_EXE             "Recovery Wizard.exe"   ; tauri productName
+!define APP_EXE             "recovery-wizard-ui.exe" ; the Tauri-built binary name (Cargo package name — 'Built application at: ...\recovery-wizard-ui.exe'; tauri.conf has no mainBinaryName override)
 !define PROGRAMDATA_ROOT    "$COMMONPROGRAMDATA\HeicFast\Recovery Wizard"
 !define PROGRAMDATA_SESSIONS "${PROGRAMDATA_ROOT}\sessions"
 !define PROGRAMDATA_LOGS     "${PROGRAMDATA_ROOT}\logs"

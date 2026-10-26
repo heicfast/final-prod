@@ -47,7 +47,7 @@ param(
 $ErrorActionPreference = 'Stop'
 
 $InstallDir = "$env:ProgramFiles\HeicFast\Recovery Wizard"
-$AppExeName = 'Recovery Wizard.exe'   # tauri productName (APP_EXE in recoverywizard.nsi)
+$AppExeName = 'recovery-wizard-ui.exe'   # the Tauri-built binary name (Cargo package name; APP_EXE in recoverywizard.nsi)
 $Unkey = 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\HeicFast Recovery Wizard'
 $SwKey = 'HKLM:\SOFTWARE\HeicFast\Recovery Wizard'
 $SessionsDir = "$env:ProgramData\HeicFast\Recovery Wizard\sessions"

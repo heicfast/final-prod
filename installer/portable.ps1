@@ -4,8 +4,10 @@
 #
 # Product shape (docs/INTEGRATION-PLAN.md §7.5):
 #   RecoveryWizard-<version>-portable.zip
-#   ├── Recovery Wizard.exe        the Tauri app (frontend embedded; WebView2
-#   │                              runtime must be present on the machine)
+#   ├── recovery-wizard-ui.exe   the Tauri app (the Cargo binary name —
+#   │                              'Built application at: ...\recovery-wizard-ui.exe';
+#   │                              frontend embedded; WebView2 runtime must be
+#   │                              present on the machine)
 #   ├── cr_ui.dll + runtime DLLs    the complete host-binding kit, BESIDE the
 #   │                              exe (static-import loader truth - the DLLs
 #   │                              must sit in the exe's directory)
@@ -28,7 +30,7 @@ param(
 
 $ErrorActionPreference = 'Stop'
 
-$appExe = Join-Path $RepoRoot 'ui\src-tauri\target\release\Recovery Wizard.exe'
+$appExe = Join-Path $RepoRoot 'ui\src-tauri\target\release\recovery-wizard-ui.exe'
 if (-not (Test-Path $appExe)) {
     throw "portable: app exe not found at $appExe - run the ui lane first (build.ps1 -Target ui)"
 }
