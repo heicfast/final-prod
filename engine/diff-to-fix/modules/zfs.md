@@ -11,7 +11,10 @@ largest single-engine file) + `include/cr/zfs/` + `tests/unit/test_zfs_volume.cp
 ## Behavioral
 
 - **B1 detection** — `M` uberblock magic 0x00BAB10C (4 decompile sites verified), txg at
-  UB+0x10, newest-txg-wins, vdev label probing (4 labels, front/back); core adds
+  UB+0x10, **S-034 FIXED (ring-walk session): every valid ring slot's txg is walked in
+  storage order — label 0 first (the og reads only its ring), tail labels after (the
+  registered superset) — each UNIQUE txg once, through the scan-wide identity registry
+  (findings/FIXED/S-034)**; vdev label probing (4 labels, front/back); core adds
   shift-probing 10..13 (4 Kn pools) — superset, register; BE-pool refusal
   (`ERR_UNSUPPORTED`) — documented deliberate hardening.
 - **B2 recovery correctness** — `M` nvlist XDR+native decode, micro/fat ZAP, gang blocks
@@ -19,11 +22,20 @@ largest single-engine file) + `include/cr/zfs/` + `tests/unit/test_zfs_volume.cp
   (LZJB/LZ4/zle/gzip → codec-tagged extents; lzjb/zle hardened ports in storage module);
   **OQ-T6** multi-vdev (refused, single-disk resolvable only — og extent unknown).
 - **B3** — `M` checksum-aware reads at blkptr level.
-- **B4 deleted classification** — `NA` with note (documented no-deleted-recovery, CoW
-  rationale `cr_zfs_engine.cpp:987–988`; og deleted-ZFS behavior not evidenced in corpus
-  — RAWSearch covers content in the og, same posture as Btrfs).
+- **B4 deleted classification** — **`M` (S-034 FIXED): the og's deleted-ZFS surface IS the
+  ring walk** — every uberblock slot's txg state is walked and the union emitted (the
+  visitor's identity registry dedups by parent-path+objid, same-path skip / different-path
+  re-emit; ZfsSearchDLL FUN_180005940). In-window deletions surface as regular results
+  (the og has no per-engine deleted bit for ZFS). The core matches: `scan_zfs` walks every
+  valid ring state and emits through the same identity model; the pre-fix "documented
+  no-deleted-recovery, CoW rationale" note (the B4 `NA` verdict) was the refuted premise's
+  residue — D-05 re-verdicted. The `.Trash-1000/info` child suppression (FUN_180004f00
+  :3708) is part of the landed walk.
 - **B5 orphan** — `M` snapshots surfaced as roots when present in the DSL tree (og
-  deep-dive §3 parity; core snapshot surfacing implemented).
+  deep-dive §3 parity; core snapshot surfacing implemented). **S-034**: an in-window
+  DESTROYED dataset/snapshot also surfaces — the older state's config re-walk emits it
+  (the per-(name, head_obj) dataset node registry keeps the first-seen; a same-name
+  recreation emits a second node, the og's per-objid semantics).
 - **B7 sparse** — `M` holes via blkptr l0==0 and gang leaders.
 - **B8 multi-volume** — **OQ-T6.2** (multi-vdev).
 - **B9 timestamps** — `M`-note: core uses `unix_to_filetime` (sub-second dropped) —
@@ -70,6 +82,7 @@ largest single-engine file) + `include/cr/zfs/` + `tests/unit/test_zfs_volume.cp
 |---|---|---|
 | OQ-T6 | tracked-open | nvlist anchor; multi-vdev DVA resolution; uberblock geometry; checksum depth |
 | S-005 | SEVERE | (cross-engine) Names byte-lifted → mojibake — **FIXED (diff-to-fix session)** |
+| S-034 | SEVERE | (S30 NEW-FINDING) ZFS ring txg history not walked — deleted-in-window content lost — **FIXED (ring-walk session: every slot's txg + the identity registry + the .Trash-1000/info suppression; findings/FIXED/S-034)** |
 
 ---
 

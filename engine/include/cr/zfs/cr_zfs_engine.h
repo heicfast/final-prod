@@ -2,8 +2,10 @@
  * cr_zfs_engine.h - ZFS scan engine (single-vdev pools).
  *
  * Corpus: ZfsSearchDLL (zfs_struct:: namespace: UberData, VdevLoc/VdevDisk,
- * objset, ZplNode/ZplNodeFile; uberblock walk decompile-verified: magic
- * 0x00BAB10C, rings walked with txg newest-wins).
+ * objset, ZplNode/ZplNodeFile; uberblock magic 0x00BAB10C; S-034: EVERY
+ * ring slot's txg is walked in storage order — the quick searcher's run
+ * loop FUN_180006b90 iterates the label-0 ring slot by slot, and the
+ * visitor dedups cross-state emissions by (parent-path, objid)).
  *
  * Walks: vdev labels (4 per disk: 0, 256K, end-512K, end-256K) -> nvlist
  * config at label+16K (XDR/big-endian - vdev_label.c packs labels with
@@ -56,7 +58,7 @@ struct ZfsScanStats {
     u64 macrozap_entries = 0;
     u64 damaged_blocks = 0;
     u64 unsupported_vdevs = 0;  /* gang/indirect/mirror/raid multi-vdev */
-    u64 txg = 0;                /* the selected uberblock's txg */
+    u64 txg = 0;                /* the newest ring txg (the pool's current) */
     u64 embedded_files = 0;     /* files with embedded-bp content */
     u64 compressed_extents = 0; /* extents carrying a codec */
     u64 foreign_vdev_reads = 0; /* M-019: DVAs naming another vdev id,
@@ -64,6 +66,8 @@ struct ZfsScanStats {
                                  * fallback (the scanned disk) */
     u64 checksum_drops = 0;     /* M-019: blocks dropped after fletcher4
                                  * mismatch on every DVA copy */
+    u64 ring_states_total = 0;   /* S-034: distinct txgs found in the rings */
+    u64 ring_states_walked = 0;  /* S-034: states whose tree opened and walked */
 };
 
 /* Parsed label config (nvlist subset we need). */

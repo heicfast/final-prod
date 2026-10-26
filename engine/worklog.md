@@ -15324,3 +15324,64 @@ REMAINING (for the next session, with owners):
 
 Corpus 03ad46c unmoved throughout. One finding file deleted: NONE. All
 resolutions evidence-cited. Token hygiene maintained.
+
+---
+Task ID: S034-FIX (the SEVERE lane — S-034 the ZFS ring walk)
+Agent: main engineer (the closing parity session — SEVERE/MAJOR/MINOR/tracked-open ladder)
+
+Task: independently verify findings/SEVERE/S-034 (the og walks EVERY uberblock
+ring slot; the core read the newest txg only), resolve the fix plan's three
+decode items against the corpus first-hand, fix, prove, document.
+
+Work Log:
+- Corpus re-verified first-hand (ZfsSearchDLL_decompiled.c + PE disassembly):
+  * run loop FUN_180006b90 :5685-5841 — every 0x400 slot, per-slot txg@+0x10,
+    addBlock per slot, "\n\ntxg = %llu, last_txg = %llu" progression (item (c):
+    last_txg = display-only, the previous slot's txg string).
+  * the visitor decode (NEW this session, beyond the DFX30 filing): located
+    lambda_3cb9c924's vftable at 0x1800309b8 via the run-loop lea; _Do_call =
+    0x18000dd40 → body FUN_180005940 = the scan-wide identity registry —
+    per-parent-path buckets (recursive path builder FUN_18001afb0), objid keys
+    (vt+0x60), set/map helpers FUN_180007db0/FUN_180007eb0; same (objid, path)
+    skips, different path re-emits with the registry OVERWRITTEN (FUN_180001d30
+    + id store) — item (a) resolved: FIRST-SEEN state claims the identity.
+  * item (b): each txg's walk re-reads the FULL config as of that state —
+    destroyed-in-window datasets/snapshots surface from older states' walks.
+  * NEW decoded behaviors: FUN_180004f00 :3708 suppresses children of
+    .Trash-1000/info (the freedesktop trash metadata dir); FUN_180004ad0 :3447
+    classifies-but-adds the .Trash-1000/files subtree (verified at the
+    disassembly level: mov $0x1,%al at 0x180004dbb on the equal path; the
+    earlier "both branches return" ambiguity settled by objdump); the run loop
+    reads ONLY label-0's ring (FUN_180018220 128 KiB @ +0x20000).
+- Core fix (src/core/zfs/cr_zfs_engine.cpp, include/cr/zfs/cr_zfs_engine.h):
+  ring slots collected in storage order (label 0 first; tail labels = the
+  registered superset; each UNIQUE txg once); per-state walk_state (MOS →
+  dataset hierarchy → ZPL); scan-wide registry (dataset-name bucket → objid →
+  {dataset-relative path, first-seen node}); dataset nodes keyed (name,
+  head_obj) — recreated same-name datasets emit a second node; state whose tree
+  does not open is skipped (og addBlock no-op) — scan fails only when NO state
+  opens; .Trash-1000/info suppression; per-txg log via the N-048 seam; new
+  trailing stats ring_states_total/ring_states_walked.
+- Tests: begin_second_state()/set_old_state_rootdir() fixture helpers (a full
+  second MOS2/ZPL2/dnodes2/zap2 chain with dependency-ordered fletcher4
+  re-stamping); 2 new tests + 1 extended. FAIL-BEFORE EXECUTED: engine.cpp
+  reverted to HEAD with tests kept → gone.txt count 0 ("in-window deletion
+  lost"), renamed.txt count 0, ring_states_walked 0 — all three RED; GREEN
+  after the fix. Suite: 828 pass + 4 env-skips (linux-release), 832/832 under
+  ASan and UBSan (both exit 0).
+- Pushed-red repairs in the same window (filed as N-081, separate commit):
+  the exFAT recycle test's past-the-literal path read (pre-existing on clean
+  HEAD — verified by stashing all changes) + the FilterFolder pools' missing
+  trailing NUL (generator fixed, data regenerated from the corpus ini).
+- Audit trail: finding Resolution + move to findings/FIXED/; CROSS-REF-MATRIX
+  (session-30 note + both zfs rows → B1/B5 MATCH); modules/zfs.md B1/B4/B5 +
+  findings index; SUMMARY.md session delta + counts; RESOLVED-INDEX row;
+  PARITY-DELTAS D-05 re-verdicted CLOSED (all three ledger copies updated —
+  the ledger's own triplication ANALYZED: 160 ids, 79 duplicated, 14 with
+  differing content across copies; filed as N-082 with the analysis evidence).
+
+Stage Summary:
+- S-034 FIXED with the full decode-first discipline. SEVERE tier now EMPTY.
+  Remaining: MAJOR 6 (M-030/034/039/040/041/048), MINOR 4 (N-007/065/066/072),
+  tracked-open 2 (OQ-S4-3, OQ-Z-E-FLT) + this session's N-081/N-082 filings.
+- Corpus 03ad46c unmoved. Token hygiene maintained. No finding file deleted.

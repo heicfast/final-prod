@@ -1,4 +1,53 @@
-# SUMMARY.md — executive summary (diff-fix sessions 32(+33+34) on top; earlier sessions below)
+# SUMMARY.md — executive summary (the S-034 ring-walk session on top; earlier sessions below)
+
+## Session delta (2026-10-26 — the SEVERE lane: S-034 FIXED — the ZFS ring walk)
+
+**S-034 (SEVERE, S30 NEW-FINDING) FIXED** — the fix plan's three decode
+items were resolved first-hand from the corpus BEFORE implementing (no
+guessed parity): (a) the visitor's cross-txg registry (FUN_180005940 via
+the lambda `_Do_call` 0x18000dd40; per-parent-path buckets through the
+recursive path builder FUN_18001afb0; objid-keyed set/map helpers
+FUN_180007db0/FUN_180007eb0): same (objid, path) skips, different path
+re-emits under the new location with the registry overwritten — first-seen
+state claims the identity; (b) each txg's walk re-reads the FULL config as
+of that state — destroyed-in-window datasets/snapshots surface from the
+older states' walks; (c) last_txg = progress display only (the previous
+slot's txg string). Two additional decoded behaviors landed: the
+`.Trash-1000/info` child suppression (FUN_180004f00 :3708; the /files
+subtree NOT suppressed — FUN_180004ad0 :3447 verified at the disassembly
+level, `mov $0x1,%al` on the equal path) and the label-0-only ring read
+(FUN_180018220's 128 KiB @ +128 KiB) — the core keeps 4-label probing as
+the registered superset, label 0 walked first for og-parity storage
+order, each UNIQUE txg once. In-window deletions emit as REGULAR results
+(the og has no per-engine deleted bit for ZFS) — the fix plan's "surface
+as Deleted" guess corrected by the decode. Implementation: every valid
+ring slot collected (RingSlot vector, txg-deduped, storage order) —
+per-state `walk_state` (MOS → dataset hierarchy → ZPL) through a scan-wide
+registry (dataset-name bucket → objid → {dataset-relative path, first-seen
+node}); dataset nodes keyed (name, head_obj) — a recreated same-name
+dataset emits a second node (per-objid semantics); a state whose tree
+does not open is skipped (og addBlock no-op), scan fails only when NO
+state opens; the per-txg "zfs: txg = %llu, last_txg = %llu" progression
+rides the N-048 log seam; new trailing stats fields
+ring_states_total/ring_states_walked. Proof: 2 new tests + 1 extended —
+Zfs.RingWalkSurfacesDeletedInWindowFile (a two-state fixture: slot 0
+txg 77 with gone.txt, slot 1 txg 78 without — the second chain built from
+pristine copies with its own zap2/ZPL2/MOS2 blocks and the full
+dependency-ordered fletcher4 re-stamping), Zfs.RingWalkRenameReemitsNewLocation
+(the renamed object surfaces under BOTH locations, unchanged content
+exactly once), NewestTxgAcrossLabelsWins extended (two states, same
+rootbp → hello.txt exactly once + ring_states_walked==2) — ALL THREE
+EXECUTED RED on the pre-fix engine (engine.cpp reverted, tests kept:
+gone.txt count 0 / renamed.txt count 0 / ring_states_walked 0) and GREEN
+after. Suite: 832 tests — 828 pass + 4 env-skips linux-release; 832
+ASan-clean and 832 UBSan-clean (both exit 0) after TWO pre-existing
+pushed-red ASan repairs landed in the same window (the exFAT recycle
+test's past-the-literal path read + the FilterFolder pools' missing
+trailing NUL — filed as N-081).
+
+**Counts after this landing (live tree):** SEVERE **0** · MAJOR 6 ·
+MINOR 4 · INFO 0 open · tracked-open 2 · FIXED/ 209 files.
+
 
 ## Session-32 delta, part 2 (2026-10-26 — DFX32: M-025 FIXED — the carve window-aware read view + the pushed-red N-064 union repair)
 

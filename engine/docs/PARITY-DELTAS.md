@@ -126,7 +126,7 @@
 - **RISK:** User-visible improvement on 4Kn media; none on 512-byte media.
 - **VERDICT: ACCEPTED** (both sides cited; F1 markers in code+tests).
 
-### D-05 — ZFS deleted-file story: newest-txg live state only — PREMISE REFUTED (S-034, DFX30 2026-10-26)
+### D-05 — ZFS deleted-file story: newest-txg live state only — PREMISE REFUTED, then S-034 FIXED (ring-walk session)
 
 - **WHAT OG DOES (re-decoded first-hand):** walks EVERY uberblock slot in the
   label-0 ring (quick-searcher run loop FUN_180006b90 :5685-5841: per-slot
@@ -146,10 +146,19 @@
   newest-only SELECTION; the caller-level semantics (which the deep-dive did
   not decode) iterate every slot per txg.
 - **RISK:** Deleted-ZFS recall strictly BELOW og inside the ring window.
-- **VERDICT: REFUTED PREMISE — open gap S-034** (diff-to-fix/findings/SEVERE/
-  S-034-zfs-ring-txg-history-not-walked.md). Not a parity decision anymore;
-  the fix (per-txg ring walk with cross-txg dedup) is queued behind the
-  three decode items in S-034's fix plan.
+- **VERDICT: CLOSED — S-034 FIXED** (the ring-walk session; diff-to-fix/findings/
+  FIXED/S-034-zfs-ring-txg-history-not-walked.md). The three decode items resolved
+  first-hand before implementing: (a) the visitor's scan-wide registry dedups by
+  (parent-path bucket, objid) — same path skips, a different path re-emits under
+  the new location (FUN_180005940/FUN_180007f50/FUN_180007db0/FUN_180007eb0);
+  (b) each txg's walk re-reads the full config as of that state (destroyed-in-window
+  datasets/snapshots surface from older states); (c) last_txg is progress display
+  only. The core walks every valid ring slot's txg in storage order (label 0 first,
+  the og's only ring; tail labels = the registered superset) through the same
+  identity model, with the og's `.Trash-1000/info` child suppression; in-window
+  deletions emit as regular results (the og has no per-engine deleted bit for
+  ZFS). Proven fail-before (engine reverted, tests kept: gone.txt/renamed.txt
+  absent, ring_states_walked 0) / pass-after; suite green incl. ASan+UBSan.
 
 ### D-06 — Btrfs deleted recovery: newest-generation tree only (row 20) — CLOSED
 
@@ -2749,7 +2758,7 @@ Y-DELTAS — deliberate-deviations registry (AUTHORITATIVE)
 - **RISK:** User-visible improvement on 4Kn media; none on 512-byte media.
 - **VERDICT: ACCEPTED** (both sides cited; F1 markers in code+tests).
 
-### D-05 — ZFS deleted-file story: newest-txg live state only — PREMISE REFUTED (S-034, DFX30 2026-10-26)
+### D-05 — ZFS deleted-file story: newest-txg live state only — PREMISE REFUTED, then S-034 FIXED (ring-walk session)
 
 - **WHAT OG DOES (re-decoded first-hand):** walks EVERY uberblock slot in the
   label-0 ring (quick-searcher run loop FUN_180006b90 :5685-5841: per-slot
@@ -2769,10 +2778,19 @@ Y-DELTAS — deliberate-deviations registry (AUTHORITATIVE)
   newest-only SELECTION; the caller-level semantics (which the deep-dive did
   not decode) iterate every slot per txg.
 - **RISK:** Deleted-ZFS recall strictly BELOW og inside the ring window.
-- **VERDICT: REFUTED PREMISE — open gap S-034** (diff-to-fix/findings/SEVERE/
-  S-034-zfs-ring-txg-history-not-walked.md). Not a parity decision anymore;
-  the fix (per-txg ring walk with cross-txg dedup) is queued behind the
-  three decode items in S-034's fix plan.
+- **VERDICT: CLOSED — S-034 FIXED** (the ring-walk session; diff-to-fix/findings/
+  FIXED/S-034-zfs-ring-txg-history-not-walked.md). The three decode items resolved
+  first-hand before implementing: (a) the visitor's scan-wide registry dedups by
+  (parent-path bucket, objid) — same path skips, a different path re-emits under
+  the new location (FUN_180005940/FUN_180007f50/FUN_180007db0/FUN_180007eb0);
+  (b) each txg's walk re-reads the full config as of that state (destroyed-in-window
+  datasets/snapshots surface from older states); (c) last_txg is progress display
+  only. The core walks every valid ring slot's txg in storage order (label 0 first,
+  the og's only ring; tail labels = the registered superset) through the same
+  identity model, with the og's `.Trash-1000/info` child suppression; in-window
+  deletions emit as regular results (the og has no per-engine deleted bit for
+  ZFS). Proven fail-before (engine reverted, tests kept: gone.txt/renamed.txt
+  absent, ring_states_walked 0) / pass-after; suite green incl. ASan+UBSan.
 
 ### D-06 — Btrfs deleted recovery: newest-generation tree only (row 20) — CLOSED
 
@@ -5294,7 +5312,7 @@ its own stacks later.
 - **RISK:** User-visible improvement on 4Kn media; none on 512-byte media.
 - **VERDICT: ACCEPTED** (both sides cited; F1 markers in code+tests).
 
-### D-05 — ZFS deleted-file story: newest-txg live state only — PREMISE REFUTED (S-034, DFX30 2026-10-26)
+### D-05 — ZFS deleted-file story: newest-txg live state only — PREMISE REFUTED, then S-034 FIXED (ring-walk session)
 
 - **WHAT OG DOES (re-decoded first-hand):** walks EVERY uberblock slot in the
   label-0 ring (quick-searcher run loop FUN_180006b90 :5685-5841: per-slot
@@ -5314,10 +5332,19 @@ its own stacks later.
   newest-only SELECTION; the caller-level semantics (which the deep-dive did
   not decode) iterate every slot per txg.
 - **RISK:** Deleted-ZFS recall strictly BELOW og inside the ring window.
-- **VERDICT: REFUTED PREMISE — open gap S-034** (diff-to-fix/findings/SEVERE/
-  S-034-zfs-ring-txg-history-not-walked.md). Not a parity decision anymore;
-  the fix (per-txg ring walk with cross-txg dedup) is queued behind the
-  three decode items in S-034's fix plan.
+- **VERDICT: CLOSED — S-034 FIXED** (the ring-walk session; diff-to-fix/findings/
+  FIXED/S-034-zfs-ring-txg-history-not-walked.md). The three decode items resolved
+  first-hand before implementing: (a) the visitor's scan-wide registry dedups by
+  (parent-path bucket, objid) — same path skips, a different path re-emits under
+  the new location (FUN_180005940/FUN_180007f50/FUN_180007db0/FUN_180007eb0);
+  (b) each txg's walk re-reads the full config as of that state (destroyed-in-window
+  datasets/snapshots surface from older states); (c) last_txg is progress display
+  only. The core walks every valid ring slot's txg in storage order (label 0 first,
+  the og's only ring; tail labels = the registered superset) through the same
+  identity model, with the og's `.Trash-1000/info` child suppression; in-window
+  deletions emit as regular results (the og has no per-engine deleted bit for
+  ZFS). Proven fail-before (engine reverted, tests kept: gone.txt/renamed.txt
+  absent, ring_states_walked 0) / pass-after; suite green incl. ASan+UBSan.
 
 ### D-06 — Btrfs deleted recovery: newest-generation tree only (row 20) — CLOSED
 

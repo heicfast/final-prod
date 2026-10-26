@@ -1,5 +1,11 @@
 # diff-to-fix/findings/FIXED/ — resolved findings (audit trail)
 
+## Resolved findings (the S-034 ring-walk session: +S-034 (the SEVERE lane); live file inventory)
+
+| ID | Severity (orig) | Title | Fix commit | Resolution |
+|---|---|---|---|---|
+| S-034 | SEVERE (S30 NEW-FINDING) | ZFS: the og walks EVERY uberblock in the ring (per-txg state recovery); the core read the newest txg only — files deleted within the ring window were og-visible and core-invisible | (this session's S-034 commit) | All three fix-plan decode items resolved first-hand before implementing: the visitor's scan-wide (parent-path bucket, objid) registry (same path skips / different path re-emits, first-seen claims), the per-txg full-config re-walk (destroyed-in-window datasets surface), last_txg display-only; plus two newly decoded behaviors landed (`.Trash-1000/info` child suppression FUN_180004f00 :3708; label-0-only ring read — the core's tail labels stay the registered superset, storage order, each unique txg once). In-window deletions emit as REGULAR results (the og has no per-engine deleted bit for ZFS — the fix plan's "Deleted" guess corrected by the decode; the finding's AUDIT.md-row-26 citation corrected: the row carries no premise). Proven: Zfs.RingWalkSurfacesDeletedInWindowFile + Zfs.RingWalkRenameReemitsNewLocation + extended NewestTxgAcrossLabelsWins all EXECUTED RED on the pre-fix engine (gone.txt 0 / renamed.txt 0 / ring_states_walked 0) → GREEN after; 828-pass linux-release + ASan/UBSan clean (after the same-window N-081 pushed-red repairs). D-05 re-verdicted CLOSED (all ledger copies). |
+
 ## Resolved findings (session-28 wave 3: +N-033 (the CLI half + the D-80 register; the ABI half landed s6); live file inventory)
 
 | ID | Severity (orig) | Title | Fix commit | Resolution |
