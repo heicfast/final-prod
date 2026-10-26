@@ -443,10 +443,12 @@ TEST(Btrfs, EndToEndWalk) {
 
 TEST(Btrfs, TwoSubvolumesRootSeparately) {
     /* N-019 scenario 8 (the rooting surface EndToEndWalk only covered for
-     * ONE subvolume): two subvolumes on one filesystem - every file lands
-     * under its OWN subvol root, no cross-subvol leakage either direction.
-     * Subvol ids: 5 (the FS tree itself) + 256 (the first legal user
-     * subvol id - the engine skips ids < 256 except the FS tree). */
+     * ONE subvolume): two subvolumes on one filesystem - the DEFAULT
+     * (subvol 5) renders its children at the volume root (M-020 og
+     * parity) while the non-default (subvol 256) stays a named container;
+     * no cross-subvol leakage either direction. Subvol ids: 5 (the FS
+     * tree itself) + 256 (the first legal user subvol id - the engine
+     * skips ids < 256 except the FS tree). */
     auto img = build_volume();
     constexpr u64 L_FS_TREE2 = 0x106000; /* second FS tree (identity chunk) */
     constexpr u64 L_DATA2 = 0x702000;    /* its file data */
@@ -519,15 +521,23 @@ TEST(Btrfs, TwoSubvolumesRootSeparately) {
     };
     walk(ra, "");
 
-    /* each file under its OWN root */
-    EXPECT_TRUE(paths.count("subvol-5/hello.txt"));
-    EXPECT_TRUE(paths.count("subvol-5/sub/nested.bin"));
-    EXPECT_TRUE(paths.count("subvol-256/second.txt"));
-    /* no cross-subvol leakage */
+    /* each file under its OWN root. M-020 semantics (landed after this
+     * test was drafted - re-verified): subvol 5 IS the default subvolume,
+     * so its children render DIRECTLY at the volume root (the og's
+     * FUN_1800061f0 pick - the default IS the volume's content); subvol
+     * 256 is a non-default subvolume and stays a named container. */
+    EXPECT_TRUE(paths.count("hello.txt")) << "default subvol: children at the volume root";
+    EXPECT_TRUE(paths.count("sub/nested.bin"));
+    EXPECT_TRUE(paths.count("subvol-256/second.txt"))
+        << "non-default subvol: named container root";
+    /* no cross-subvol leakage in either direction */
+    EXPECT_FALSE(paths.count("subvol-5/hello.txt"))
+        << "the default subvol no longer surfaces a named container (M-020)";
     EXPECT_FALSE(paths.count("subvol-5/second.txt"));
     EXPECT_FALSE(paths.count("subvol-256/hello.txt"));
-    EXPECT_FALSE(paths.count("second.txt"));
-    EXPECT_FALSE(paths.count("hello.txt"));
+    EXPECT_FALSE(paths.count("subvol-256/sub"));
+    EXPECT_FALSE(paths.count("second.txt"))
+        << "the non-default subvol's file never leaks to the volume root";
 
     /* the second subvol's file: size + extent + content at its own data */
     tree::FileNode* second = nullptr;

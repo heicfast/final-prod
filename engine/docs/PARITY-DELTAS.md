@@ -2329,7 +2329,7 @@ destroyed IS objectively degraded, and hiding that from the user would be
 the og's UX weakness, not a parity virtue. Pinned by
 Carve.JpegTruncatedTailSalvagedAtSofEstimate (grade assertion).
 
-### D-78 — progress delivery: push events + telemetry pull, not the og's poll-dominant timer farm (N-075, REGISTERED DIVERGENCE; renumbered from a D-77 collision with the N-009d ACL register landed by the parallel lane in the same window — the errata convention)
+### D-78 — progress delivery: push events + telemetry pull, not the og's poll-dominant timer farm (N-075, REGISTERED DIVERGENCE; renumbered from a D-77 collision with the N-009d ACL register — and now one of three same-window D-78 registrations; cite by finding: N-075)
 
 The og's progress model is predominantly PULL-polled: 38 `timeout()`
 timer consumers call `onGet*Progress` on the UI thread, and the only
@@ -2397,7 +2397,6 @@ FileProperties → a WriterConfig `preserve_dacl` flag (default OFF)
 applying it via SetSecurityInfo on the win destio layer only — never on
 the POSIX test shims.
 
-<<<<<<< HEAD
 ### D-78 — the password-dictionary unlock aid: authored seed + format-compatible loader, the og's Dict asset not copied (N-064, REGISTERED DIVERGENCE)
 
 **OG:** ships a 228-entry password dictionary at install root (`Dict`,
@@ -2438,7 +2437,12 @@ password-protected archives) stay scope-excluded with I-010.
 **VERDICT:** ACCEPTED (registered divergence: authored seed +
 format-compatible loader vs the og's copied asset; mechanism parity
 complete; D-78).
-=======
+
+<!-- D-number errata (session-28 merge): this same-window landing
+     produced duplicate D-78/D-79 registrations from two parallel lanes
+     (the N-064 pwddict register and the N-032/M-020 pair below). Per
+     the standing errata convention both stand; future sessions cite
+     them by FINDING (N-064 / N-032 / M-020), not by bare D-number. -->
 ### D-78 — CSMI SMART transport: SCSI-address routing, no RAID census; LSILOGIC sibling and SMART auto-enable not ported (N-032, REGISTERED DIVERGENCE — transport scope)
 
 **Class:** registered divergence (health transport scope) · **Finding:**
@@ -2508,7 +2512,6 @@ with wrong bytes. Fixtures: `Btrfs.Raid0StripeMathSplitsAtStripeBoundaries`
 (the spanning split + the in-stripe offset), `Btrfs.Raid10GeometryGate`
 (the og's parse-time gate stays og-exact — the superset is read-side
 only).
->>>>>>> origin/main
 ### D-79 — disk enumeration: the two-stack merge (PhysicalDrive loop + cfgmgr32 disk interfaces), not the og's five-stack fan-in (N-071, REGISTERED DIVERGENCE — partial port with scope rationale)
 
 **Class:** registered divergence (enumeration breadth) · **Finding:**

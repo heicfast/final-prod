@@ -13921,3 +13921,46 @@ Stage Summary:
 - OQ-Z4 RESOLVED (engine set empty; core = evidenced superset). Session
   tally: OQ-FLT-1, OQ-Z5, OQ-Z2->S-034, OQ-Z1, OQ-E1, OQ-Z3, OQ-Z4.
   Next: OQ-FLT-2 (AdvanceFilterCondition layout — gates N-028).
+
+---
+Task ID: DFX28-T3 (session 28, third act — pushed-red repair: committed conflict markers)
+Agent: main engineer (diff-to-fix fix session 28 — DFX28)
+Task: Repair the conflict markers a parallel lane's merge committed into
+rrecov.cpp + cr_bitlocker.h + PARITY-DELTAS.md + CAPABILITY-MATRIX.md
+(the win_syntax_check gate was RED on origin/main — executed first-hand
+at the start of N-033's work: "version control conflict marker in file"
+on both files + the missing-brace cascade).
+
+Work Log:
+- Root cause: two parallel lanes landed N-064 with DIFFERENT designs in
+  the same window (lane A: --bitlocker-pwddict <file|seed> via
+  load_pwddict_candidates + try_password_unlock; lane B: valueless
+  --bitlocker-dict via unlock_with_dictionary); a later union merge
+  committed the unresolved markers (both functions exist in the .cpp;
+  only the header decls + the CLI usage sites collided).
+- Repair (semantic union, both lanes' tested surfaces preserved):
+  cr_bitlocker.h keeps BOTH declarations with a merged consent doc
+  block; rrecov.cpp's open_volume_view carries BOTH consent surfaces
+  (pwddict_arg + dict_consent) - the locked path tries auto-unlock,
+  then the shipped dictionary (if --bitlocker-dict), then the file/seed
+  candidates (if --bitlocker-pwddict), then refuses with guidance
+  naming all three unlock paths; HEAD lane's late Unknown-status
+  pwddict block kept (its tested shape); the Unknown early-refusal
+  gate now exempts both consents.
+- PARITY-DELTAS.md: the two-side D-78/D-79 conflict union-kept with an
+  errata note (same-window duplicate registrations; cite by finding).
+  CAPABILITY-MATRIX.md: the two N-064 descriptions unioned into one
+  text naming BOTH flags (matching the code union).
+- The M-020-stale fallout repaired with it: my session's
+  Btrfs.TwoSubvolumesRootSeparately (landed 30 min prior) asserted the
+  pre-M-020 "subvol-5/hello.txt" rooting; M-020's landing (default
+  subvol renders children at the volume root) made it stale - the test
+  re-verified + updated to the M-020 semantics (default at root,
+  non-default container, leakage assertions both directions).
+- Proof: win_syntax_check RED pre-repair (executed first-hand), green
+  post-repair (all win + app files parse); full suite 827/827
+  linux-release on the repaired tree.
+
+Stage Summary:
+- Pushed-red repaired (the M-055/M-057 family discipline). The N-033
+  CLI landing follows on the clean base.
