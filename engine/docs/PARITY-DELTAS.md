@@ -194,13 +194,17 @@
 - **VERDICT: ACCEPTED** (both sides cited at the code sites; upstream-vs-og
   distinction explicitly recorded).
 
-### D-09 — ZFS scoping: single-vdev pools, BE pools refused (G-18)
+### D-09 — ZFS scoping: vdev handling parity (BE pools refused; G-18)
 
-- **WHAT OG DOES:** Corpus does NOT establish whether `ZfsSearchDLL` assembles
-  multi-vdev (mirror/raidz) pools — it documents vdev-label scanning on the given
-  device, highest-txg uberblock, MOS/DSL walks, gang/indirect block following
-  (`zfs-engine--deep-dive.md` §2–§4). Multi-vdev assembly: **no evidence either
-  way**.
+- **WHAT OG DOES (pinned since M-019 + the OQ-T6/OQ-Z3 decodes):**
+  vdev-TYPE-BLIND (zero vdev-type/geometry strings in ZfsSearchDLL —
+  session-2 scan), and its DVA read path NEVER resolves across vdevs:
+  FUN_1800168b0's registry loop falls back to the FIRST registry entry on
+  any vdev-id miss (first-hand :19541-19560 — single-vdev behavior with
+  first-entry fallback; mirrors read through vdev 0 "by accident"; RAID-Z
+  parity math is impossible in the build). Evidence:
+  `findings/FIXED/M-019` Resolution + the OQ-Z3 re-verification in
+  `tracked-open/OQ-Z-E-FLT-session3.md`.
 - **WHAT WE DO:** Single-vdev pools only; mirror/raidz detected and reported as
   unsupported (`stats.unsupported_vdevs`, `src/core/zfs/cr_zfs_engine.cpp:1144–1145`);
   BE pools refused with a clear error (`cr_zfs_engine.cpp:28–30`); header
@@ -208,11 +212,15 @@
   honestly (G-18, `CORE-CONTRACT.md` §14).
 - **WHY:** scope.
 - **RISK:** User-visible capability limit; stated honestly per G-18.
-- **VERDICT: NEEDS-WORK (evidence, not behavior).** Two actions: (1) pin the
-  og-side multi-vdev story from `ZfsSearchDLL` decompile (does it resolve DVAs
-  across sibling vdevs?) and record it in this registry; (2) G-18's wording
-  "gang blocks counted damaged" is **stale** — `read_gang` is implemented
-  (`cr_zfs_engine.cpp:486–491`, AUDIT Round 1: gang header = 3 blkptrs) —
+- **VERDICT: ACCEPTED (og story pinned, M-019 parity landed).** Both former
+  NEEDS-WORK actions closed: (1) the og-side multi-vdev story is pinned
+  (first-entry fallback, type-blind — above) and the core MATCHES it since
+  M-019 (foreign-vdev blocks planned at the fallback position,
+  `foreign_vdev_reads` counted, never refused — the "single-vdev only +
+  unsupported_vdevs" text above is the pre-M-019 posture); (2) G-18's
+  wording "gang blocks counted damaged" is **stale** — `read_gang` is
+  implemented (`cr_zfs_engine.cpp:486–491`, AUDIT Round 1: gang header =
+  3 blkptrs) —
   update G-18/CORE-CONTRACT to "gang blocks assembled; mirror/raidz report-only".
 
 ### D-10 — NTFS remnant scan: FILE0 shifted-header salvage, full-record improvement

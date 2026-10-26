@@ -13067,6 +13067,47 @@ Stage Summary:
   findings + corpus verification, starting N-064 (Dict password
   dictionary absent).
 ---
+Task ID: DFX28-T2 (session 28, second fix — N-019)
+Agent: main engineer (diff-to-fix fix session 28 — DFX28)
+Task: N-019 the 13-scenario per-parameter regression-test gap (Q65's
+literal interpretation).
+
+Work Log:
+- Re-verified EVERY scenario on the current tree first (the finding was
+  filed at 5d6da5f, ~450 tests ago — the scenario table is stale in 6
+  places): scenario 2 = AdsDroppedInParityMode/AdsEmittedByDefaultSuperset
+  (ALREADY-FIXED); 3 = holes.dat->Excellent + zfn.dat PartialRisk 1/2 +
+  ViabilityBoundaryExactFastPath (ALREADY-FIXED); 4 =
+  CrossLinkedFat1RejectedAndFat2Used + ChainCycleIsCut (ALREADY-FIXED,
+  M-015); 7 = RecordBit29SelectsResourceFork + DecmpfsInlineAndRsrcContent
+  Recovered (ALREADY-FIXED); 11 = StripedVolumeInterleave per-chunk
+  column/row byte-exact (ALREADY-FIXED); 12 = MirroredReadFailover +
+  MirroredBothCopiesFail (ALREADY-FIXED); 13 = SUPERSEDED (M-017's content
+  scoring replaced the Inside/Overlaps penalties the finding's premise
+  cites; modern pins LostScoring.MatchesLogRows/TableMatchBonus500/
+  OverLargeDuplicateRescoredToFront exist); 5 = N/A; 9 = OQ-T6 with NEW
+  evidence (corpus zfs deep-dive §3: the og surfaces DSL snapshot roots,
+  capa-class; core negative-space: no origin_obj/ds_snapnames chase) —
+  OQ-T6 file updated with the addendum.
+- 4 tests written: NtfsVolume.HardLinkDestroyRuleInteraction (5 legs:
+  destroy ON/OFF x parity/fan-out + partial-reuse; the destroy decision is
+  per-RECORD upstream of the fan-out); Ext4Engine.ExtentTreeDepth3 (root
+  depth 3, kernel semantics - depth = levels below root; the first build
+  caught my own root-depth miscount, the same silent-extent-loss RED the
+  test exists to catch); Btrfs.TwoSubvolumesRootSeparately (subvol 5 +
+  256); Refs.PropertyFlagAndUnknownRowsDoNotBreakDataWalk (the honest
+  rescope of the corpus-silent integrity-stream scenario).
+- Fail-befores EXECUTED as mutations, each RED then reverted-green:
+  destroy-rule disabled (5 failures); ext4 depth capped (1); btrfs
+  user-subvol gate dropped (4); refs unknown-row early-break (1).
+- Suite 753/753 linux-release. Audit trail: Resolution + FIXED/ move,
+  RESOLVED-INDEX row, matrix quality row, SUMMARY delta + counts
+  (MINOR 15, FIXED/ 175), OQ-T6 evidence addendum.
+
+Stage Summary:
+- N-019 FIXED (session tally: 2 — N-075, N-019). MINOR 15 remain. Next:
+  N-050 (recognition contract boot-only) rear-first.
+
 Task ID: DFX28-T4 (session 28, third fix — N-027)
 Agent: main engineer (diff-to-fix fix session — MINOR front band)
 Task: N-027 the carve/writer minors group (N-014a/b/c/d).
@@ -13593,6 +13634,35 @@ Stage Summary:
   reachability — gates S-018 step 3).
 
 ---
+Task ID: DFX29-T4 (session 23 lane, sixth fix — N-033, the CLI half)
+Agent: main engineer (diff-to-fix fix session 29-lane — DFX29)
+Task: N-033's remaining scope: the CLI capability surface + the
+per-scan refresh divergence register.
+
+Work Log:
+- Verified the session-6 addendum's state in-tree first (cr_ui_carve_
+  format_count/info present + ABI-CONTRACT §7a + the enumeration test).
+- Implemented rrecov --list-carve-formats: checked BEFORE command
+  dispatch (works bare), renders layer/ext/min/max/base_confidence/
+  grammar-magic in the ABI's deterministic order; usage text updated.
+- Gate hardening en route: cr_ui.h's CR_UI_API expands to __declspec
+  under the parse gate's -D_WIN32 — Linux g++ cannot parse it. First
+  attempt (stub windows.h #define) broke on include order (cr_ui.h
+  precedes windows.h in rrecov); final form: -D__declspec(x)= in the
+  gate's CXXFLAGS (include-order-proof, never in shipping code).
+  win_syntax_check 8/8 GREEN.
+- ABI-CONTRACT §7a: the per-scan registry-refresh divergence registered
+  (og re-clones cross-DLL per scan; core tables compile-time immutable —
+  lifetime-valid enumeration; the runtime-config future named as a
+  versioned-ABI question).
+- Suite 800/800 (one flaky timing test from a parallel lane's landing
+  failed once, two consecutive full runs green). Audit trail: Resolution
+  (full closure), FIXED/ move, index row, SUMMARY batch-5 delta + counts.
+
+Stage Summary:
+- Tally 6 (N-009 group, M-057, N-036, N-049, N-050, N-033). MINOR 7
+  remain. Next: N-065 (writer destination policy).
+
 Task ID: DFX30-T5 (OQ-E1 resolved — verification of S-025's answer)
 Agent: main engineer (diff-to-fix fix session 30 — DFX30)
 Task: OQ-E1 — ext4 orphan reachability: which parent wins when both
@@ -13685,6 +13755,57 @@ Stage Summary:
   OQ-Z1, OQ-E1, OQ-Z3. Next: OQ-Z4 (decompression census).
 
 ---
+Task ID: DFX32-T1 (session 32, MAJOR lane — M-029)
+Agent: main engineer (diff-to-fix fix session 32 — DFX32)
+Task: M-029 — the decode-blocked remainder: the Date/Size bucket-ID
+translation + the general-raw naming surface (the finding's last open
+registry).
+
+Work Log:
+- Corpus decode, all first-hand (ghidra-drwui/DRWUI_decompiled.c):
+  the CTimeFilterBtn menu FUN_140705c50 (0x100 Today / 0x101 Yesterday /
+  0x102 "Last 7 days" / 0x103 "Last 1 month" / 0x104 SKIPPED / 0x105
+  Custom) + the CSizeFilterBtn menu FUN_140706060 (0x1000 "< 512KB" ..
+  0x1004 "> 1GB" / 0x1005 SKIPPED / 0x1006 Custom) — the finding's
+  "<128MB/<1GB/<5GB" approximations CORRECTED by the decode; the bounds
+  initializer FUN_140254670 (today/yesterday/-7d/-30d/-365d cached as
+  day-truncated LOCAL time, COleDateTimeSpan(1/7/30/365)); the date-tag
+  setter (node+0x89 bits 11-14; FUN_1404750c0's year-string fallback
+  with the 1600/1601/>2100 special cases + the "last1mouth" typo tag);
+  the size-bucket setter FUN_140255820 (bits 17-22; exact mutually
+  exclusive inclusive boundaries); the custom-range matcher FUN_140256830
+  (local-day-truncated, inclusive both ends). CONFIRMED-DIVERGENCE (no
+  core API accepted or represented the bucket IDs; no raw-root naming).
+- Landed: query::apply_date_bucket/apply_size_bucket (cr_query.h/.cpp;
+  DateBucket/SizeBucket enums with the og's exact values incl. the
+  skipped IDs; local-day math via the cr_crsf localtime platform seam;
+  wall-clock day arithmetic = COleDateTimeSpan) + the
+  cr_ui_query_apply_buckets added export (ABI §9 no-bump; skipped +
+  unknown IDs rejected with the exact ID in the diagnostic) +
+  ScanConfig::raw_category_name + cr_ui_scan_config.raw_category_name_utf8
+  (tail append) with resume-safe raw-root matching (default OR configured
+  name — a resume never spawns a duplicate raw root).
+- Tests (all fail-before RED EXECUTED on the stash-neutered tree — the
+  translation returning false / the default raw name hard-wired; GREEN
+  after): Query.DateBucketsTranslateToRanges, Query.SizeBucketsTranslateToRanges,
+  Query.BucketFiltersThroughRun (end-to-end through run()),
+  CrUi.QueryApplyBucketsFillsAndRejects (incl. the 0x104/0x1005/unknown
+  rejections + both custom boundary rows),
+  CrUi.RawCategoryNameNamesTheCarveRoot.
+- Suite 748/748 at the fix commit; 805/805 linux-release on the final
+  union (the window's parallel landings absorbed: M-049/M-014/M-020/
+  N-050/M-058 + the DFX30/31 OQ resolutions; two union merges resolved
+  keep-both: cr_errmod.h include + build_read_pipe coexistence).
+- Audit trail: Resolution + FIXED/ move, RESOLVED-INDEX row, matrix query
+  rows (module row + P42 parameter row -> MATCH), modules/query.md
+  session-32 fix row, SUMMARY session-32 delta, ABI-CONTRACT section.
+
+Stage Summary:
+- M-029 FIXED (session tally: 1). The finding's every sub-item is closed
+  across sessions (path group s6; Type sort + modified-unit + paging
+  s11; buckets + naming s32). MAJOR 10 remain (M-018, M-025, M-030,
+  M-034, M-035, M-039, M-040, M-041, M-048, M-052). Next: M-025 (the
+  carve read-model perf finding — the mid-cluster's next item).
 Task ID: DFX25-T4a-push (session 25 — A-008 landing)
 Agent: main engineer (DFX25)
 Task: Land A-008 + the INFO-closure on main through the parallel-lane churn.
@@ -13801,6 +13922,99 @@ Stage Summary:
   transports CSMI/USB bridges) or N-033 (analyser registry exports),
   pulling first.
 
+Task ID: DFX30-T7 (OQ-Z4 resolved — decompression census)
+Agent: main engineer (diff-to-fix fix session 30 — DFX30)
+Task: OQ-Z4 — enumerate the og's ZFS decompression routines; codec parity
+with the core's {lzjb, zle, gzip, lz4, zstd}.
+
+Work Log:
+- ZfsSearchDLL.dll census: 0 codec strings in all three string tables;
+  0 compression imports. The compression byte's only consumer found via
+  the ZfsDataRunlist RTTI walk (vftable RVA 0x180030e50): the +0x48 slot
+  FUN_180001fd0 records extents into std::map<i64, zio_compress> — the
+  codec is METADATA; the engine emits raw blocks (the per-blkptr loop
+  FUN_180003660 :2729-2900 passes (buffer, (prop>>0x20)&0x7f) per
+  0x80-stride blkptr).
+- Host-side check: DRWUI.exe statically links zlib 1.2.3 (deflate/inflate
+  banners + CZlibCompressor/czlibdecompressor RTTI) — gzip-family only;
+  no lz4/lzjb/zle/zstd strings anywhere in the payload.
+- Conclusion: the og's ENGINE decompression set is EMPTY; the core's
+  writer-side decode {lzjb, zle, gzip, lz4, zstd} is the confirmed strict
+  superset (engine: empty; host: zlib-only). The core's existing design
+  comment (cr_zfs_engine.cpp "Extents carry {codec, psize} so the writer
+  decodes at stream time") already documents this — no code change; the
+  PARITY-CORE-FS2 codec rows stand.
+- Audit trail: OQ-Z4 marked RESOLVED in OQ-Z-E-FLT-session3.md.
+
+Stage Summary:
+- OQ-Z4 RESOLVED (engine set empty; core = evidenced superset). Session
+  tally: OQ-FLT-1, OQ-Z5, OQ-Z2->S-034, OQ-Z1, OQ-E1, OQ-Z3, OQ-Z4.
+  Next: OQ-FLT-2 (AdvanceFilterCondition layout — gates N-028).
+
+---
+Task ID: DFX30-T8 (OQ-FLT-2 pushed forward with new evidence)
+Agent: main engineer (diff-to-fix fix session 30 — DFX30)
+Task: OQ-FLT-2 — the AdvanceFilterCondition 0x48-byte layout.
+
+Work Log:
+- FUN_1406f91d0 decoded (:1142279-1142292): the completeness predicate —
+  AND of bit0 at dword indices 0/1/2/8/0xf/0x10 (byte offsets
+  0/4/8/32/60/64; six of the seven groups).
+- Dispatch semantics decoded at both consumers: CSetFilterThread::run
+  (FUN_14072f8c0 :1170069-1170101) passes NULL to the manager vtable+0x10
+  apply when all six bits set (the no-filter/everything state); the
+  filter-bar call sites (:1155006/:1155018) pass !(all-set) to
+  FUN_1406fa840.
+- Delivery chain re-confirmed: two CFilterBars (Path/Type views) ->
+  sigFilterChange -> CRightContent::onFilterChanged (FUN_14072b730) ->
+  CSetFilterThread (ctor FUN_14072e290, TimeCritical start, modal
+  freeze-dialog at node count >= 1,000,001).
+- The full per-group semantics/tag vocabulary/path-mode decode lives in
+  the manager apply method (vtable+0x10 on FUN_1401d4920/FUN_1401d4930/
+  FUN_14031c410 managers) — precise next targets recorded in the OQ.
+- Gate status: the OQ's original gate (session-3-local N-028) renumbered;
+  the live consumer is M-029 (open, DFX24's lane) whose corpus refs
+  already cite the 7-group struct. Full decode stays with M-029's fix.
+- Audit trail: OQ-FLT-2 PUSHED FORWARD with the new evidence + precise
+  next targets; OQ-Z-E-FLT-session3.md header updated (all other
+  sub-questions resolved this session or before).
+
+Stage Summary:
+- OQ-FLT-2 pushed forward (predicate + dispatch + chain decoded; apply
+  method = next target, feeds M-029). The OQ-Z-E-FLT file is now 7/8
+  sub-questions resolved. Next on this lane: OQ-T6 residual (uberblock
+  geometry + checksum-verify depth), then OQ-S6-3/S6-2/S6-1/S5-1.
+
+---
+Task ID: DFX30-T9 (OQ-T6-T7 closed to FIXED/)
+Agent: main engineer (diff-to-fix fix session 30 — DFX30)
+Task: OQ-T6 residuals (uberblock geometry registration, multi-vdev,
+checksum depth) + OQ-T7 (already resolved) — close the file.
+
+Work Log:
+- T6.2 (multi-vdev DVA): RESOLVED — M-019's landing + DFX30's first-hand
+  re-verification (OQ-Z3): the og's registry loop falls back to the FIRST
+  entry on any vdev-id miss; core MATCHES since M-019.
+- T6.3 (uberblock geometry): RESOLVED as a registered superset — D-04
+  already carries "ZFS uberblock ring auto-probes ashift shifts 10-13";
+  the og's hardcoded 1 KiB slots re-confirmed first-hand (FUN_180018930's
+  128 KiB read at 0x20000 with fixed 0x400 stride, the S-034 decode).
+- T6.4 (checksum-verify depth): RESOLVED — M-019's decode: the
+  fletcher4-family gate (checksum-type bits 40-47, zc in {7,0}), the
+  interleaved 4-accumulator fletcher4 + 32-byte compare + next-DVA retry;
+  core MATCHES since M-019 (ChecksumFailDropsAndRetriesNextDva).
+- D-09 registry row updated NEEDS-WORK -> ACCEPTED with the pinned og
+  story (type-blind + first-entry fallback; the "single-vdev only +
+  unsupported_vdevs" text was the pre-M-019 posture; gang-wording note
+  preserved).
+- File header stamped ALL-RESOLVED; git mv tracked-open/ ->
+  findings/FIXED/ (the OQ-S003 precedent).
+
+Stage Summary:
+- OQ-T6-T7 CLOSED (2 files remain in tracked-open from this lane's queue:
+  OQ-S6-3, OQ-S6-2, OQ-S6-1, OQ-S5-1 + DFX25's head items). Session
+  tally: 8 items (7 resolutions + 1 push-forward) + S-034 + D-09 re-verdict
+  + OQ-T6-T7 closure. Next: OQ-S6-3 (CRAW reader F4 boolean).
 ---
 Task ID: DFX31-N064-CONV (session 31 — the N-064 two-landing reconciliation + pushed-red repair)
 Agent: main engineer (diff-to-fix fix session 31 — DFX31)
@@ -13836,4 +14050,3 @@ Work Log:
 Stage Summary:
 - N-064 convergence closed; main green again. Session tally: N-064
   (canonical + convergence), N-071. Next: pull, then N-072 or N-066.
-

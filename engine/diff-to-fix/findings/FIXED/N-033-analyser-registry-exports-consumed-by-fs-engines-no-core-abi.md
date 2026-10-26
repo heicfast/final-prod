@@ -107,3 +107,10 @@ registry at the ABI level — the main capability gap this finding registered:
 semantics (the og FS engines re-clone the RAWSearchDLL registry per scan) remain
 a doc-level divergence. Severity stays MINOR; ABI sub-item CLOSED, CLI sub-item
 open.
+
+## Resolution (session 23 — the CLI half + the refresh-divergence note; the finding is now fully closed)
+
+**Status:** FIXED (ABI half landed session 6 — see the addendum; CLI half + doc this session)
+**Fixed in commit:** (this session's DFX29 N-033 batch — the commit carrying this file)
+**Verified by:** `rrecov --list-carve-formats` implemented (checked before command dispatch, works bare) rendering the full ABI table (layer/ext/min/max/base_confidence/grammar magic); the parse gate proves the app wiring (win_syntax_check 8/8 files GREEN after the __declspec neutralization was moved into the gate's CXXFLAGS — include-order-proof); the enumeration data itself is pinned by the existing `CarveFormatRegistryEnumeration` ABI test (green in the 800/800 suite); usage text updated. The stub-harness fix is the gate working: cr_ui.h's CR_UI_API expands to __declspec under -D_WIN32, which Linux g++ cannot parse — neutralized in the gate flags, never in shipping code.
+**Resolution notes:** fix-plan step 2 closed: the CLI renders the capability table for hosts and parity tooling (S-007/s3-rawsign-inventory style comparisons no longer need source access), and ABI-CONTRACT §7a gains the per-scan registry-refresh divergence note (the og FS engines re-clone the RAWSearchDLL registry per scan — FATSearchDLL :29290-29361 — because their master registry is cross-DLL and reconfigurable; the core's tables are compile-time immutable append-only, so the enumeration is lifetime-valid and no refresh seam exists — registered, with the future-runtime-config path named as a versioned-ABI question). The finding's open question (whether the FAT engine consults its cloned registry during its own scanning) remains corpus-undecoded and does not affect this surface — recorded in the file as the next artifact.

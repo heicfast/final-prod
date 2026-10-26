@@ -565,6 +565,62 @@ TEST(Refs, FullScanHierarchy) {
     EXPECT_EQ(230 * 4096ull, inner->props()->extents[0].offset);
 }
 
+TEST(Refs, FallbackRootSkipsOgSystemFamilies) {
+    /* OQ-RS-7 (s31): the og's system-table handlers are EXACTLY {0x500,
+     * 0x600, 0x701} (ReFSSearchDLL_decompiled.c:600-620, the
+     * RefsQuickSearchFilesImpl ctor registrations) and any table id >
+     * 0x700 is NORMALIZED to the 0x701 family (:1150-1154). The old
+     * core excluded only a fabricated 0x520 - on a volume without the
+     * 0x600 root, the fallback elected the 0x500 SYSTEM table as the
+     * user root. Here: 0x500 points at the subdir page (180) and the
+     * real user root is 0x650 -> the root-content page (160) whose
+     * hello.txt row exists only there. Pre-fix the walk rooted at the
+     * 0x500 table (first non-child in map order) and hello.txt was
+     * absent; post-fix the system family is skipped and the 0x650
+     * table is elected. */
+    std::vector<u8> img = build_volume();
+    {
+        std::vector<u8> r500(0x50, 0), r650(0x50, 0), r700(0x50, 0);
+        for (int i = 0; i < 4; ++i) {
+            put64(r500.data() + 0x30 + i * 8, 180 + i); /* subdir page */
+            put64(r650.data() + 0x30 + i * 8, 160 + i); /* root content */
+            put64(r700.data() + 0x30 + i * 8, 180 + i);
+        }
+        std::vector<u8> k500(16, 0), k650(16, 0), k700(16, 0);
+        put64(k500.data(), 0x500);
+        put64(k650.data(), 0x650);
+        put64(k700.data(), 0x700);
+        write_page(img, 120, 0x2B42534D, 1,
+                   build_node({Row{k500, r500, 0}, Row{k650, r650, 0}, Row{k700, r700, 0}}));
+    }
+    {
+        std::vector<u8> key(16, 0), val(16, 0);
+        put64(key.data(), 0x650);
+        put64(key.data() + 8, 0x700);
+        put64(val.data(), 0x650);
+        put64(val.data() + 8, 0x700);
+        write_page(img, 140, 0x2B42534D, 3, build_node({Row{key, val}}));
+    }
+    RamDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* ra = tree.add_root(u"Found");
+    auto* rd = tree.add_root(u"Deleted");
+    RefsScanFlags flags;
+    RefsScanStats stats;
+    u32 rc = scan_refs(&dev, flags, nullptr, nullptr, nullptr, tree, ra, rd, nullptr, stats);
+    ASSERT_EQ(OK, rc) << err_text(rc);
+
+    std::vector<tree::FileNode*> act;
+    collect(ra, act);
+    const tree::FileNode* hello = nullptr;
+    for (const auto* n : act)
+        if (n->name_utf8() == "hello.txt")
+            hello = n;
+    ASSERT_NE(nullptr, hello)
+        << "the fallback root must skip the og's system families (0x500, >0x700)";
+    EXPECT_EQ(200 * 4096ull, hello->props()->extents[0].offset);
+}
+
 TEST(Refs, DeletedGradingAndId2) {
     std::vector<u8> img = build_volume();
     RamDevice dev(img);
@@ -1015,6 +1071,76 @@ TEST(Refs, MultipleDataAttributesMerged) {
     EXPECT_EQ(m->props()->extents[0].offset, 240 * CLUSTER);
     EXPECT_EQ(m->props()->extents[0].length, 2 * CLUSTER);
     EXPECT_EQ(m->props()->extents[1].offset, 250 * CLUSTER);
+}
+
+TEST(Refs, PropertyFlagAndUnknownRowsDoNotBreakDataWalk) {
+    /* N-019 scenario 10, honestly scoped: the corpus is SILENT on ReFS
+     * integrity streams (0 hits across the refs artifacts - verified this
+     * session), so neither side's integrity behavior is corpus-pinned and
+     * an "integrity-stream parity" test would freeze a guess. The closest
+     * HONEST surface - and the real robustness property - is the attribute
+     * walk's tolerance: a file whose embedded table carries the og's
+     * property-flag marker rows (0x108 / 0xf8 - the property-flag surface
+     * an integrity-enabled or attributed file rides) and an UNKNOWN-type
+     * row (forward layout) must still recover its data byte-exact: the
+     * flag rows are tracked (og prop bits), unknown rows are skipped, and
+     * neither takes down the data-run walk or trips the granularity
+     * discard. */
+    std::vector<u8> img = build_volume();
+    {
+        std::vector<Row> frows;
+        /* og property-flag marker A (type 0x108 -> prop bit 1) */
+        {
+            std::vector<u8> k(4, 0);
+            put16(k.data(), 0x108);
+            frows.push_back({k, std::vector<u8>(4, 0)});
+        }
+        /* og property-flag marker B (type 0xf8 -> prop bits 1|2) */
+        {
+            std::vector<u8> k(4, 0);
+            put16(k.data(), 0xf8);
+            frows.push_back({k, std::vector<u8>(4, 0)});
+        }
+        /* an UNKNOWN row type (0x199, 4-byte key - matches no dispatch
+         * arm): forward-compat tolerance, walked past */
+        {
+            std::vector<u8> k(4, 0);
+            put16(k.data(), 0x199);
+            frows.push_back({k, std::vector<u8>(8, 0xAB)});
+        }
+        /* the data itself: one 2-cluster run */
+        frows.push_back(data_attr_row({{260, 2}}));
+        rewrite_root_table(img,
+                           {file_row_key(u"propflag.dat", build_node(frows, gi_block(8192, 8192)))});
+    }
+    memset(img.data() + 260 * CLUSTER, 'P', 2 * CLUSTER);
+    RamDevice dev(img);
+    tree::ResultTree tree;
+    auto* ra = tree.add_root(u"Found");
+    auto* rd = tree.add_root(u"Deleted");
+    auto* rl = tree.add_root(u"Lost");
+    RefsScanFlags flags;
+    RefsScanStats stats;
+    ASSERT_EQ(OK, scan_refs(&dev, flags, nullptr, nullptr, nullptr, tree, ra, rd, rl, stats));
+    std::vector<tree::FileNode*> act;
+    collect(ra, act);
+    const tree::FileNode* pf = nullptr;
+    for (auto* n : act)
+        if (n->name_utf8() == "propflag.dat")
+            pf = n;
+    ASSERT_NE(pf, nullptr) << "the attributed file must still surface";
+    ASSERT_NE(pf->props(), nullptr);
+    EXPECT_EQ(u64(8192), pf->props()->logical_size);
+    ASSERT_EQ(1u, pf->props()->extents.size())
+        << "the data row must fully resolve around the flag/unknown rows";
+    EXPECT_EQ(u64(260) * CLUSTER, pf->props()->extents[0].offset);
+    EXPECT_EQ(u64(2) * CLUSTER, pf->props()->extents[0].length);
+    /* byte-exact content through the resolved extent */
+    std::vector<u8> buf(2 * CLUSTER, 0);
+    ASSERT_EQ(OK, dev.read_at(pf->props()->extents[0].offset, buf.data(), u32(buf.size())));
+    EXPECT_EQ(buf, std::vector<u8>(2 * CLUSTER, u8('P')));
+    /* the walk never tripped the garbage-runlist guard on this file */
+    EXPECT_EQ(0u, stats.granularity_discards);
 }
 
 TEST(Refs, PagedRunTableFollowed) {

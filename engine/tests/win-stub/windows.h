@@ -58,7 +58,9 @@ struct FILETIME { DWORD dwLowDateTime; DWORD dwHighDateTime; };
 
 /* calling convention + console control (app layer: rrecov's Ctrl-C).
  * WINAPI: on x64 the convention is ignored by MSVC too, so an empty
- * definition is ABI-faithful for the parse gate. */
+ * definition is ABI-faithful for the parse gate. (__declspec is neutral-
+ * ized in the gate's CXXFLAGS - see win_syntax_check.sh - so it applies
+ * regardless of include order.) */
 #define WINAPI
 #define CTRL_C_EVENT 0
 #define CTRL_BREAK_EVENT 1
