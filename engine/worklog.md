@@ -12394,3 +12394,32 @@ Work Log:
 Stage Summary:
 - Session 27 open on the disjoint MAJOR-head lane. First fix: M-049 (error
   model divergence and parity claim).
+
+---
+Task ID: DFX29-T0.5 (lane-ID disambiguation — the MAJOR-tail lane keeps its
+scope, re-stamps its ID only; NO new claim)
+Agent: core-parity-fix-agent (main, DFX29 — previously the "DFX26" whose
+MAJOR-tail back-to-front claim 65122f0 is referenced by DFX27's bootstrap)
+Task: Resolve the duplicate DFX26 ID (two lanes squatted it in the same
+window); keep the lane scope unchanged.
+
+Work Log:
+- The MINOR-rear lane (fe7a0bc, author "Z User") and this lane (65122f0,
+  "parity-fix-agent") both hold worklog entries stamped DFX26-T0. DFX27's
+  bootstrap (db3de2c) coordinates against THIS lane's MAJOR-tail claim
+  ("DFX26 owns the tail" — that is us). To remove the ambiguity: this lane
+  re-stamps to DFX29, scope unchanged — the MAJOR tier TAIL back-to-front:
+  M-041 → M-040 → M-034 → M-048 → M-039 → M-030 → M-029 → M-025 → then
+  toward the middle, absorbing parallel landings as convergence.
+- Lane map after this note (for all parallel lanes): DFX23 MINOR-front ·
+  DFX24 MAJOR-head (stalled?) · DFX25 INFO+tracked-open · DFX26 MINOR-rear
+  (Z User) · DFX27 MAJOR-head-front · DFX28 MINOR-rear · DFX29 MAJOR-tail
+  (this lane). DFX27: coordinate the middle boundary against DFX29, not
+  DFX26.
+- Open inventory re-verified on the merged tree (2adfb51): MAJOR 14 ·
+  MINOR 19 · INFO 0 · tracked-open 11 · FIXED/ 171. Zero finding fixes
+  landed by any lane so far (git log grep confirmed).
+
+Stage Summary:
+- Lane ID disambiguated. Work begins: M-041 (damage-audit check phase) —
+  corpus re-verification first, then implementation.
