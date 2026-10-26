@@ -147,7 +147,7 @@ disk map:    cr_ui_disk_map (session OR snapshot) — see §7
 `IUIProgressInfo` per-item recovery-progress interface
 (`RecoverProgressUISink::sigUpdateProgress(const IUIProgressInfo*)` —
 corpus UIUX/20-moc-surface-sink-architecture.md :145) maps onto surfaces
-this ABI already ships, deliberately (D-77: no parallel interface):
+this ABI already ships, deliberately (D-78: no parallel interface):
 `cr_ui_recovery_progress_fn` is the progress edge (cumulative bytes
 done/total across the queue), `cr_ui_recovery_queue_count` the live queue
 depth, `cr_ui_recovery_get_stats` the per-outcome counters (done, refused,
