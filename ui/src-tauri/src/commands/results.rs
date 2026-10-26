@@ -1023,13 +1023,16 @@ mod t14_validation {
                 extensions: Vec::new(),
                 hide_empty_files: false,
             };
+            timed_pass(&metas, &all_files, "all");
+            // The scoped pred (the worst case that still walks every row:
+            // a scope prefix + a category bit + a search) consumes all_files
+            // via the struct-update move — measured after its own pass.
             let scoped = Pred {
                 path_prefix: Some("users/public/docs".to_string()),
                 category_bits: 0b0000_0101, // graphics + documents
                 search: Some("f1".to_string()),
                 ..all_files
             };
-            timed_pass(&metas, &all_files, "all");
             timed_pass(&metas, &scoped, "scoped");
         }
     }
