@@ -132,6 +132,26 @@ Determine whether the og implements snapshot/clone block attribution
 
 ## OQ-Z3 — Multi-vdev DVA resolution
 
+**RESOLVED-SUPERSEDED (DFX30, 2026-10-26) — answered and implemented by
+M-019's landing (findings/FIXED/
+M-019-zfs-multivdev-fallback-and-checksum-verify-missing.md);
+independently re-verified first-hand this session:**
+- The og does NOT resolve `dva_vdev != 0` to another VdevLoc. Its read
+  path (FUN_1800168b0, the registry loop re-read at :19541-19560) walks
+  the vdev registry for the DVA's vdev id and, on a miss (the walk
+  reaches the map end), FALLS BACK TO THE FIRST ENTRY
+  (`*(param_1+0x18)` = begin()); both branches return an entry — the
+  function never fails. Single-vdev behavior with first-entry fallback.
+- The pre-fix core's skip (:408-410/:938-942 at audit time) was the
+  divergence; M-019's fix landed exactly the og semantics: foreign-vdev
+  blocks planned at the fallback position, `foreign_vdev_reads` counted,
+  never refused (Zfs.StripedPoolForeignVdevFallbackRead +
+  Zfs.MirrorSecondMemberScan pins).
+- Residual note for OQ-T6's mirror question: the fallback means a
+  MIRRORED top-level vdev reads through vdev 0 blindly (the "first child
+  by accident" behavior OQ-T6 predicted) — covered by M-019's
+  MirrorSecondMemberScan pin; no further decode needed.
+
 Does the og resolve `dva_vdev != 0` to another VdevLoc, or is it equally
 single-vdev (OQ-T6 extension)? Our skip is at :408-410/:938-942.
 
