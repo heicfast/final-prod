@@ -13618,3 +13618,24 @@ Stage Summary:
 - OQ-E1 RESOLVED (verified). Session tally: OQ-FLT-1, OQ-Z5, OQ-Z2->S-034,
   OQ-Z1, OQ-E1. Next on this lane: OQ-Z3 (multi-vdev DVA resolution) or
   OQ-Z4 (decompression census).
+
+---
+Task ID: DFX30-T6 (OQ-Z3 resolved-superseded)
+Agent: main engineer (diff-to-fix fix session 30 — DFX30)
+Task: OQ-Z3 — multi-vdev DVA resolution (OQ-T6 extension).
+
+Work Log:
+- M-019's landing already answered + implemented this question; the
+  tracked-open file had not been updated.
+- Independent first-hand re-verification: FUN_1800168b0's registry loop
+  (:19541-19560) — vdev-id map walk, on miss falls back to the FIRST
+  entry (*(param_1+0x18)); both branches return; never fails. The og is
+  single-vdev with first-entry fallback; no cross-VdevLoc resolution.
+- The core's M-019 fix matches (foreign-vdev planning at the fallback
+  position, foreign_vdev_reads counter, StripedPoolForeignVdevFallbackRead
+  + MirrorSecondMemberScan pins).
+- Audit trail: OQ-Z3 marked RESOLVED-SUPERSEDED with the verification cite.
+
+Stage Summary:
+- OQ-Z3 RESOLVED-SUPERSEDED. Session tally: OQ-FLT-1, OQ-Z5, OQ-Z2->S-034,
+  OQ-Z1, OQ-E1, OQ-Z3. Next: OQ-Z4 (decompression census).
