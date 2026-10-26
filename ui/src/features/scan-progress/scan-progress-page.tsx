@@ -146,7 +146,9 @@ export function ScanProgressPage(): React.JSX.Element {
           className="flex h-7 shrink-0 items-center gap-2 border-t border-[#9FC1F7] bg-[#BBD5FF] px-4 text-xs font-medium text-[#0B4F9E] dark:border-border dark:bg-primary-muted dark:text-primary"
           role="status"
         >
-          <span className="truncate">Searching: {progress.currentPath}</span>
+          <span className="truncate">
+            {t('scan.searchingFor', { path: progress.currentPath })}
+          </span>
         </div>
       ) : null}
 
@@ -397,7 +399,7 @@ export function ScanProgressPage(): React.JSX.Element {
         >
           <TrophyCelebrationIllustration />
           <DialogTitle className="mt-2 text-base font-bold">
-            Congratulations! {t('scan.completedStatus')}!
+            {t('scan.congratulations')} {t('scan.completedStatus')}!
             <span className="sr-only"> ({t('scan.completedTitle')})</span>
           </DialogTitle>
           <div className="mt-4 grid grid-cols-2 items-center rounded-lg bg-[#F7F8FA] px-6 py-4 dark:bg-surface-muted">

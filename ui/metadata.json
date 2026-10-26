@@ -1,6 +1,0 @@
-{
-  "name": "Recovery Wizard UI",
-  "description": "Clean-room desktop data recovery application with full behavioral and visual parity against the reference corpus.",
-  "requestFramePermissions": [],
-  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
-}

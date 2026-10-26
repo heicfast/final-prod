@@ -153,7 +153,7 @@ export function RepairPage(): React.JSX.Element {
             </div>
 
             <p className="mt-4 text-[13.5px] font-medium text-[#475569] dark:text-foreground-secondary">
-              Click or drag files from your Local Disk to start the repair.
+              {t('repair.dropzoneHint')}
             </p>
 
             <button
@@ -164,7 +164,7 @@ export function RepairPage(): React.JSX.Element {
               }}
               className="mt-5 inline-flex h-9 min-w-[128px] items-center justify-center rounded-[6px] bg-[#D8E7FF] px-6 text-[13px] font-semibold text-[#0958D9] transition-colors hover:bg-[#C6DDFF] dark:bg-primary/25 dark:text-primary dark:hover:bg-primary/35"
             >
-              Add Files
+              {t('repair.addFiles')}
             </button>
 
             {/* Decorative Dragging File + Hand Cursor + Curved Dashed Arrow (Screenshot_2026-10-25_015231_dd97a3d9.png) */}
@@ -248,7 +248,7 @@ export function RepairPage(): React.JSX.Element {
           className="inline-flex h-8 items-center gap-1.5 rounded-[6px] bg-[#DCE7F9] px-3.5 text-[13px] font-medium text-[#1E293B] transition-colors hover:bg-[#C8DAF5] focus-visible:ring-2 focus-visible:ring-ring dark:bg-surface-elevated dark:text-foreground dark:hover:bg-surface-hover"
         >
           <WandSparklesIcon className="size-3.5 text-[#1677FF] dark:text-primary" aria-hidden />
-          <span>Advanced Repair</span>
+          <span>{t('repair.advancedRepair')}</span>
         </button>
       </div>
 
@@ -275,7 +275,7 @@ export function RepairPage(): React.JSX.Element {
                   {file.status === 'repaired' ? (
                     <span className="inline-flex items-center gap-1 rounded-full bg-[#DCFCE7] px-2 py-0.5 text-[11px] font-semibold text-[#15803D]">
                       <CheckCircle2Icon className="size-3" aria-hidden />
-                      Repaired
+                      {t('repair.repaired')}
                     </span>
                   ) : null}
                 </div>
@@ -344,8 +344,8 @@ export function RepairPage(): React.JSX.Element {
           <button
             type="button"
             onClick={handleAddFiles}
-            aria-label="Add file"
-            title="Add file"
+            aria-label={t('repair.addFile')}
+            title={t('repair.addFile')}
             className="inline-flex size-9 items-center justify-center rounded-[6px] bg-[#DCE7F9] text-[#1E293B] transition-colors hover:bg-[#C8DAF5] dark:bg-surface-elevated dark:text-foreground"
           >
             <PlusIcon className="size-4" aria-hidden />
@@ -353,8 +353,8 @@ export function RepairPage(): React.JSX.Element {
           <button
             type="button"
             onClick={handleClearFiles}
-            aria-label="Clear files"
-            title="Clear files"
+            aria-label={t('repair.clearFiles')}
+            title={t('repair.clearFiles')}
             className="inline-flex size-9 items-center justify-center rounded-[6px] bg-[#DCE7F9] text-[#1E293B] transition-colors hover:bg-[#C8DAF5] dark:bg-surface-elevated dark:text-foreground"
           >
             <Trash2Icon className="size-4" aria-hidden />
@@ -364,7 +364,7 @@ export function RepairPage(): React.JSX.Element {
             onClick={handleRepairAll}
             className="inline-flex h-9 min-w-[148px] items-center justify-center rounded-[6px] bg-[#1677FF] px-6 text-[13.5px] font-semibold text-white shadow-xs transition-all hover:bg-[#0958D9] active:scale-[var(--press-scale)] focus-visible:ring-2 focus-visible:ring-ring dark:bg-primary dark:text-primary-foreground dark:hover:bg-primary-hover"
           >
-            Repair All
+            {t('repair.repairAll')}
           </button>
         </div>
       </div>

@@ -18,11 +18,13 @@ src/queries/          TanStack Query hooks over the connector; the ONLY layer
 src/stores/           Zustand slices: scan session, selection (Set-backed),
                       results filter/sort, UI layout prefs.
 src/components/       Design-system primitives (shadcn/ui v4 base, restyled):
-                      button, badge, input, checkbox, dialog, select, menus,
-                      tabs, progress (linear + gauge), scroll-area, table,
-                      toaster, tree, virtualized file list, confidence badge,
-                      empty state, stat tile, capacity bar, stepper,
-                      segmented control, filetype icons.
+                      alert, badge, brand icons, button, checkbox,
+                      confidence badge, dialog, empty state (incl. stat tile
+                      + capacity bar), file icon, input, label, menus
+                      (dropdown/context/popover), progress (linear + gauge),
+                      radio group, results tree, skeleton, stepper
+                      (segmented control), switch, table, toaster, tooltip,
+                      virtualized file list, window controls.
 src/features/         One folder per wizard surface: device-selection,
                       scan-progress, results-explorer, lost-partition,
                       preview, recovery-queue, health, repair, backup,

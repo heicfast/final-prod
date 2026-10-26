@@ -1,5 +1,12 @@
 # Full-Repository & Reference Corpus Audit Report
 
+> **Historical record (session 4).** This audit's post-fix verdicts
+> (e.g. "zero jscpd clones", 110-test stack, pre-ADR-008 contract
+> signatures) are the session-4 snapshot and are preserved as written.
+> Current state at v0.3.4: jscpd reports 1 gate-passing clone (0.03%,
+> `connector/mock/node-space.ts` PRNG fragment), 145/145 tests, and the
+> CONNECTOR-CONTRACT doc reflects post-ADR-008 signatures.
+
 > **Audit Scope**: Complete line-by-line cross-check of `heicfast/recovery-wizard-ui-new` against `heicfast/easeus-drw-research` (architecture docs `00..07`, UIUX artifacts `01..35` + dynamic ground truth, RE binary docs `DRWUI-exe--main-ui-architecture.md`, `DRWUI-subsystems--assistant-grading-preview.md`, `SaveScan/rsf-format--scan-session.md`, `config-files/*`, `CORRECTIONS.md`, and screenshots `01..57`).
 
 ---

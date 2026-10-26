@@ -18,6 +18,5 @@
     "exports",
     "types",
     "duplicates"
-  ],
-  "ignore": ["src/theme/adopted/**"]
+  ]
 }

@@ -69,12 +69,12 @@ header dropdown.
 
 ## Quality gates (all green at HEAD)
 
-`tsc --noEmit` · ESLint (0 errors) · Prettier · arch-lint + ast-grep · knip
-(0 findings) · jscpd (0.03% duplicated lines, 1 clone) · 145/145
-unit/contract/component tests · v8 coverage thresholds 70/60/70/70 at
-85.2% lines / 62.38% branches / 74.58% functions / 86% statements ·
+`tsc --noEmit` · ESLint (0 errors, 0 warnings) · Prettier · arch-lint + ast-grep ·
+knip (0 findings, 0 config hints) · jscpd (0.03% duplicated lines, 1 clone) ·
+145/145 unit/contract/component tests · v8 coverage thresholds 70/60/70/70 at
+85.29% lines / 62.46% branches / 74.58% functions / 86.03% statements ·
 theme-drift + i18n-surface governance tests · production build · bundle
-budget (main 124.6 KB / 200 KB gzip; total 309.2 KB / 500 KB) · 12/12
+budget (main 126.3 KB / 200 KB gzip; total 310.9 KB / 500 KB) · 12/12
 Playwright e2e tests with console-error assertions · live axe audit: 0
 violations across all palettes + HC (`docs/evidence/a11y/`).
 

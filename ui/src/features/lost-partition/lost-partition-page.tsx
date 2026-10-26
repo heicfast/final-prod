@@ -222,10 +222,10 @@ export function LostPartitionPage(): React.JSX.Element {
             </div>
             <div>
               <h1 className="text-[18px] font-bold tracking-tight text-[#1E293B] dark:text-foreground">
-                Smart Partition Scan Completed
+                {t('lostPartition.scanCompletedTitle')}
               </h1>
               <p className="text-[12.5px] text-[#64748B] dark:text-foreground-secondary">
-                Scan completed for {selectedSpec.shortName}!
+                {t('lostPartition.scanCompletedFor', { disk: selectedSpec.shortName })}
               </p>
             </div>
           </div>
@@ -233,7 +233,7 @@ export function LostPartitionPage(): React.JSX.Element {
           {/* Found Partitions Table */}
           <div className="mt-5">
             <div className="mb-2 text-[12.5px] font-medium text-[#64748B] dark:text-foreground-secondary">
-              We found partition(s):
+              {t('lostPartition.foundPartitions')}
             </div>
 
             <div className="overflow-hidden rounded-[8px] border border-[#E2ECF9] bg-white dark:border-border dark:bg-surface-elevated">
@@ -246,15 +246,15 @@ export function LostPartitionPage(): React.JSX.Element {
                     aria-label={t('results.selection.selectAll')}
                     className="size-3.5 rounded-xs accent-[#1677FF]"
                   />
-                  <span>File System</span>
+                  <span>{t('lostPartition.colFilesystem')}</span>
                 </div>
-                <div>Label</div>
-                <div>Used size</div>
-                <div>Size</div>
-                <div>Starting LBA</div>
-                <div>Ending LBA</div>
-                <div>Recoverability</div>
-                <div>Status</div>
+                <div>{t('lostPartition.colLabel')}</div>
+                <div>{t('lostPartition.colUsedSize')}</div>
+                <div>{t('lostPartition.colSize')}</div>
+                <div>{t('lostPartition.colStartLba')}</div>
+                <div>{t('lostPartition.colEndLba')}</div>
+                <div>{t('lostPartition.colRecoverability')}</div>
+                <div>{t('lostPartition.colStatus')}</div>
               </div>
 
               {/* Blue Info Callout Strip (Screenshot_2026-10-25_015717_8af44478.png) */}
@@ -262,7 +262,7 @@ export function LostPartitionPage(): React.JSX.Element {
                 <div className="flex items-center justify-between bg-[#D8E7FF] px-3.5 py-1.5 text-[12px] text-[#1E293B] dark:bg-primary/20 dark:text-foreground">
                   <div className="flex items-center gap-2">
                     <InfoIcon className="size-3.5 shrink-0 text-[#1677FF]" aria-hidden />
-                    <span>Double click the partition to explore the content.</span>
+                    <span>{t('lostPartition.exploreHint')}</span>
                   </div>
                   <button
                     type="button"
@@ -325,7 +325,9 @@ export function LostPartitionPage(): React.JSX.Element {
         <div className="mt-4 space-y-4">
           <div>
             <div className="mb-1.5 text-[12.5px] font-medium text-[#64748B] dark:text-foreground-secondary">
-              Preview for {selectedSpec.shortName.toLowerCase()}
+              {t('lostPartition.previewFor', {
+                disk: selectedSpec.shortName.toLowerCase(),
+              })}
             </div>
             <div className="rounded-[10px] border border-[#E2ECF9] bg-[#F4F7FC] p-2.5 dark:border-border dark:bg-surface-elevated">
               <div className="rounded-[6px] bg-white px-4 py-2.5 dark:bg-surface">
@@ -346,7 +348,7 @@ export function LostPartitionPage(): React.JSX.Element {
               onClick={() => beginDataRecovery()}
               className="inline-flex h-10 min-w-[180px] items-center justify-center rounded-[8px] bg-[#1677FF] px-6 text-[13.5px] font-semibold text-white shadow-xs transition-all hover:bg-[#0958D9] active:scale-[var(--press-scale)] focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50 dark:bg-primary dark:text-primary-foreground dark:hover:bg-primary-hover"
             >
-              Try Data Recovery
+              {t('lostPartition.tryDataRecovery')}
             </button>
           </div>
         </div>
@@ -462,13 +464,13 @@ export function LostPartitionPage(): React.JSX.Element {
       {/* Bottom Footer Bar: Left "Go to Hardware Disk" link + Right "Search for Lost Partition" CTA */}
       <div className="mt-5 flex flex-wrap items-center justify-between gap-4 pt-2">
         <div className="text-[13px] text-[#64748B] dark:text-foreground-secondary">
-          <span>Need to recover deleted or lost files? </span>
+          <span>{t('lostPartition.needRecoverFiles')}</span>
           <button
             type="button"
             onClick={() => void navigate('/')}
             className="font-medium text-[#1677FF] underline decoration-[#1677FF]/60 underline-offset-2 hover:text-[#0958D9] dark:text-primary"
           >
-            Go to Hardware Disk
+            {t('lostPartition.goToHardwareDisk')}
           </button>
         </div>
 
@@ -477,7 +479,7 @@ export function LostPartitionPage(): React.JSX.Element {
           onClick={() => setStep('scan-completed')}
           className="inline-flex h-10 min-w-[204px] items-center justify-center rounded-[8px] bg-[#1677FF] px-6 text-[13.5px] font-semibold text-white shadow-xs transition-all hover:bg-[#0958D9] active:scale-[var(--press-scale)] focus-visible:ring-2 focus-visible:ring-ring dark:bg-primary dark:text-primary-foreground dark:hover:bg-primary-hover"
         >
-          Search for Lost Partition
+          {t('lostPartition.searchForLostPartition')}
         </button>
       </div>
     </div>

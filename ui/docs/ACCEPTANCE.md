@@ -1,5 +1,12 @@
 # ACCEPTANCE — Session 4 verdicts (55-parameter quality grid)
 
+> **Historical record (session 4).** The verification-stack numbers below
+> are the session-4 snapshot (110/110 vitest, bundle 98.0/283.1 KB gzip,
+> jscpd 0 clones, CONFIG surface pre-ADR-008) and are preserved as written.
+> Current state at v0.3.4: 145/145 vitest, 12/12 Playwright e2e, bundle
+> 124.6/309.2 KB gzip, i18n 406 keys, jscpd 1 clone (0.03%, gate-passing),
+> and the scan-configuration surface no longer exists (ADR-008).
+
 Per-surface verdicts against the mandate's quality grid, with evidence.
 Scale: **PASS** (verified with evidence) · **PARTIAL** (works, verification
 Windows-gated — rationale + plan noted) · **FAIL** (none open).

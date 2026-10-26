@@ -2,6 +2,13 @@
 
 **Status:** Accepted
 
+> **Superseded in part by ADR-008** (scan-config form deleted): the
+> React Hook Form `watch()` component named below was removed with the
+> scan-configuration surface. As of v0.3.4, `VirtualFileList` is the single
+> documented compiler skip (marked with the `'use no memo'` directive at the
+> component and a targeted `react-hooks/incompatible-library` disable at the
+> call site, pending the eslint rule honoring the directive).
+
 ## Context
 
 The spec requires React Compiler enabled for automatic memoization, with no

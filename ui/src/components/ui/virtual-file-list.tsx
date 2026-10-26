@@ -136,9 +136,17 @@ export function VirtualFileList({
   hasNextPage?: boolean;
   className?: string;
 }): React.JSX.Element {
+  // TanStack Virtual's useVirtualizer() returns function values that cannot be
+  // memoized safely, so React Compiler skips this component by design (ADR-002
+  // documents the skip as accepted). The 'use no memo' directive below makes
+  // that skip explicit at the compiler level with zero runtime effect; the
+  // eslint-plugin-react-hooks 7.1.1 incompatible-library diagnostic does not
+  // honor the directive yet, so the call site also carries a targeted disable.
+  'use no memo';
   const { t, i18n } = useTranslation();
   const ref = React.useRef<HTMLDivElement | null>(null);
 
+  // eslint-disable-next-line react-hooks/incompatible-library -- ADR-002: documented, accepted compiler skip (TanStack Virtual)
   const virtualizer = useVirtualizer({
     count: rows.length + (hasNextPage ? 1 : 0),
     getScrollElement: () => ref.current,
