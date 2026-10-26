@@ -11253,3 +11253,47 @@ avoid duplicate work.
 
 Stage Summary:
 - Claim posted; execution begins with N-029.
+
+---
+Task ID: DFX19-M038 (session 19, third MAJOR fix + two convergence repairs)
+Agent: main engineer (diff-to-fix fix session 19 — DFX19)
+Task: M-038 — ZFS SA layout registry. Plus: the ASan/LSan leak discovered
+in the suite sweep (a parallel lane's N-058 landing) repaired
+convergently three times; reconciled to the canonical PropsRef.
+
+Work Log:
+- Corpus re-verified FIRST-HAND: the og's three-object chain (:22934-23140
+  master "SA_ATTRS" -> {REGISTRY, LAYOUTS}), registry value decode
+  (bits 0-15 num / 16-23 length, :23170-80), by-name attr resolution
+  (ZPL_PARENT :24324 .. ZPL_SIZE :26449), layouts map (:23251), uniform
+  layout lookup at decode (:17636, miss -> ZEROED attrs, object still
+  surfaces).
+- Fix: ZapEntry.raw_value (fzap values > 8 bytes); SaRegistry per
+  dataset; registry-driven decode (cumulative registered lengths,
+  hdrsize from layout_info); layout-1 implicit-default fallback when
+  registry-less; unregistered layouts surface with ZERO attrs (was:
+  object dropped). Fixture: real registry chain (2K fzap registry,
+  layouts fzap with layout 1 [14 slots] + layout 2 [4 slots, different
+  order], registryfile object 22).
+- Bugs found during landing (all fixed in-session): attr-number-0
+  guard wrongly skipped ZPL_ATIME (num==0 is valid); byte-stride slot
+  decoder (i += 2); registry dnode nblkptr/nlevels swap (FPE);
+  14-entry registry needs a 2K fzap (512B fits 7 micro / ~6 fzap);
+  layout-2 bonus under-allocated ZPL_CRTIME (16-byte sec+usec pair).
+- Fail-before PROVEN by temporary revert: SaRegistryDrivenLayout2 RED
+  (layout-2 object dropped), SaRegistryAbsentFallsBackToLayout1 RED
+  (zero-attrs surface missing).
+- DISCOVERED during the suite sweep: deserialize_tree leaked
+  FileProperties on the N-058/M-051 break paths (LSan red on
+  b7d4e22). Filed + fixed (PropsGuard) — convergent with the parallel
+  lanes' N-077 PropsRef; the rebase union double-guarded then
+  triple-declared; reconciled to the single canonical PropsRef (two
+  reconciliation commits).
+- Suite 687/687 (linux-gcc RelWithDebInfo + ASan/LSan).
+- Audit trail: Resolution, finding -> FIXED/, RESOLVED-INDEX row, matrix
+  zfs B11 row -> FIXED (s19), modules/zfs.md verdict, SUMMARY session-19
+  section extended.
+
+Stage Summary:
+- M-038 FIXED (session tally: 3 MAJORs + 2 CI-green repairs). Next:
+  M-017 (lost partition scoring).

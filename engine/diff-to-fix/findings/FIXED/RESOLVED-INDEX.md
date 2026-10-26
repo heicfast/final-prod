@@ -4,6 +4,7 @@
 
 | ID | Severity (orig) | Title | Fix commit | Resolution |
 |---|---|---|---|---|
+| M-038 | MAJOR (S3) | ZFS SA decode layout-1-hardcoded; non-1 registered layouts dropped entirely | (this session's M-038 commit — file carries the Resolution) | Registry-driven SA decode: master "SA_ATTRS" -> {REGISTRY, LAYOUTS} three-object chain (og :22934-23140); ZapEntry raw_value for >8-byte fzap values; offsets by cumulative registered lengths; layout 1 falls back to the implicit default when registry-less; unregistered layouts surface with ZERO attrs (og :17636 parity) instead of dropping the object. 2 fail-before tests + registry-carrying fixtures (2K fzap registry, layouts fzap, layout-2 object). Suite 687/687. |
 | N-074 | MINOR (S6) | Doc-drift group #2: five stale/incorrect claims (CAPABILITY-MATRIX LZNT1, CORE-GAP-LIST diskmap row, PARITY-DELTAS D-43 block size, D-19 collision "unevidenced", cr_health.h SMART command list) | (this session's N-074 doc-truth batch — file carries the Resolution) | All five corrected with first-hand re-verification: LZNT1 row split DONE + MATCH-by-omission (XPRESS/LZX both-sides-absent); GAP-S6-11 CLOSED with the S-009 pointer set; D-43 re-worded to 256 KiB (a4053c4); D-19's "unevidenced" premise refuted with the re-read decompile (%s_%d + 10000 cap, :357110-:357131); cr_health.h issued-set corrected (0xD8 removed with the why-note). Health.SmartCommandListHeaderIsTruthful pins the header (fail-before executed on the restored pre-fix text). |
 
 
