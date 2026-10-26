@@ -301,6 +301,29 @@ MAJOR **14** · MINOR **15** · INFO 0 open (22 acknowledged in FIXED/) ·
 (OQ-T6 pushed forward with new evidence). Next on this lane:
 N-050/N-033/N-072 rear-first.
 
+## Session-31 delta, wave 4 (2026-10-26 — DFX31: OQ-S20-1 resolved — the BitLocker derivation premise corrected: no stretch exists in the og; M-033's surface IS the og's surface)
+
+**OQ-S20-1 RESOLVED (premise-corrected, zero code change — the corpus
+wins):** the decode proves the og's BitLockerLib does NOT implement the
+standard recovery-password stretch (no 0x100000/0xFFFFF/0xF4240 loop
+constant; the verified SHA-256 layer — FUN_1800011a0/:1da0/:1ea0 — has
+three non-iterating consumers; the generic KDF framework defaults to
+10000 with only the vendor "BITLOCKER"-labeled KDF at FUN_18003fd80) —
+user-key unlock is DELEGATED TO WINDOWS (PSUnlockBitLocker
+`Unlock-BitLocker -MountPoint`, the manage-bde fallback; the auto path
+applies DRWService's external keys). The og's in-stack surface = the FVE
+metadata parse + protector enumeration (SetProcessProtectorKey's
+protector_t = 36-char GUID/type@+0x25/material@+0x26) + the 64-byte FVEK
+extract (GetFullVolumeEncryptionKey) + the XTS decrypt — **exactly the
+core's M-033 posture; D-75 CONFIRMED**. The KDF/AES-CCM/BEK port is
+registered as a deliberate-superset scope decision (Windows-free unlock —
+valuable where even the og's delegation fails, but an IMPROVEMENT, not
+parity). Evidence: s31-oq-s20-1-bitlocker-derivation-scope.md.
+**Counts after this landing: tracked-open 7** (OQ-Z-E-FLT, OQ-T6-T7,
+OQ-S4-3, OQ-S5-1, OQ-S6-1, OQ-S6-2, OQ-S6-3 — all owned by the parallel
+DFX30 tail lane). My lane's queue is drained; next: OQ-S4-3's
+push-forward addendum, then absorb any orphans the parallel lanes leave.
+
 ## Session-31 delta, wave 3 (2026-10-26 — DFX31: OQ-RS resolved — the ReFS system-table set decoded and FIXED; 6/8 probes closed)
 
 **OQ-RS RESOLVED (RS-2..8 dispositioned; one code fix with fail-before

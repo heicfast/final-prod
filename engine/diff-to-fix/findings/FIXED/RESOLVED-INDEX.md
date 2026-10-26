@@ -1,5 +1,11 @@
 # diff-to-fix/findings/FIXED/ — resolved findings (audit trail)
 
+## Resolved findings (session-31 wave 4: +OQ-S20-1 (premise-corrected — the og delegates user-key unlock to Windows; no stretch exists in its binary); live file inventory)
+
+| ID | Severity (orig) | Title | Fix commit | Resolution |
+|---|---|---|---|---|
+| OQ-S20-1 | tracked-open (s20 residue) — **RESOLVED (s31, premise-corrected)** | BitLocker FVE-key derivation interop (recovery password / BEK → VMK → FVEK) | (no code change — the decode corrects the premise; D-75 confirmed) | The standard 0x100000-round recovery stretch does NOT exist in BitLockerLib (no loop constant; the verified SHA-256 layer has 3 non-iterating consumers; the generic KDF framework defaults 10000 with only the vendor "BITLOCKER"-labeled KDF FUN_18003fd80); the og DELEGATES user-key unlock to Windows (PSUnlockBitLocker `Unlock-BitLocker -MountPoint`, manage-bde fallback); its in-stack surface = metadata parse + protector enumeration (SetProcessProtectorKey: protector_t = 36-char GUID/type@+0x25/material@+0x26) + the 64-byte FVEK extract (GetFullVolumeEncryptionKey) + auto-unlock keys + XTS decrypt — exactly the core's M-033 posture. D-75 CONFIRMED; the KDF/CCM/BEK port registered as a deliberate-superset scope decision (three options with rationale). Evidence: s31-oq-s20-1-bitlocker-derivation-scope.md. |
+
 ## Resolved findings (session-31 wave 3: +OQ-RS (RS-2..8 dispositioned, RS-7 FIXED); live file inventory)
 
 | ID | Severity (orig) | Title | Fix commit | Resolution |

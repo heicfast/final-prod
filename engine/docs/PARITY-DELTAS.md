@@ -2082,21 +2082,38 @@ notes assumed does NOT exist on either side. Pinned by
 ## T. diff-to-fix session 20 (DFX20 MAJOR lane, 2026-10-26)
 
 **D-75 — BitLocker in-stack decrypt: FVEK-input key surface (M-033's
-documented scope).** The og acquires FVE keys through its full protector
+documented scope; CONFIRMED og-parity by the s31 decode — see the update
+below).** The og acquires FVE keys through its full protector
 chain (user password/recovery-key/BEK → stretch → VMK → FVEK, inside
 BitLockerLib) and the DRWService auto-unlock pipe; the corpus pins that
 chain's existence and API symbols but NOT its byte interop (the FVE
 metadata datum parse sits behind opaque C++ object graphs in
-ParserBitLocker — verified first-hand; see tracked-open OQ-S20-1). The
+ParserBitLocker — verified first-hand; see OQ-S20-1, resolved s31). The
 core's landed surface therefore takes the FVEK directly — the
 `BitLockerManager::GetFullVolumeEncryptionKey` output bytes (64/128 hex
 chars) — via `--bitlocker-fvek` (CLI) and `cr_ui_open_volume_with_key`
 (ABI). Everything else matches the og layer-for-layer: AES-XTS
 (pinned byte-exact against OpenSSL EVP, the og's own cipher interface),
 per-sector LE-index tweaks, decrypt below the engines, locked-without-key
-refusal preserved. Deliberate, documented, and temporary in intent: the
-derivation interop is the tracked next step. Do NOT remove the refusal
+refusal preserved. Deliberate, documented. Do NOT remove the refusal
 path or the weak-key rejection when extending the key surface.
+
+**s31 update (OQ-S20-1 resolved — the premise corrected, the scope
+CONFIRMED as og-parity):** the decode (evidence
+diff-to-fix/evidence/decompiled-quotes/s31-oq-s20-1-bitlocker-derivation-scope.md)
+proves the og's BitLockerLib does NOT implement the recovery-password
+stretch (no 0x100000-round loop; the verified SHA-256 layer has three
+non-iterating consumers; the KDF framework defaults 10000 with only the
+vendor "BITLOCKER"-labeled KDF) and DELEGATES user-key unlock to Windows
+(PSUnlockBitLocker `Unlock-BitLocker -MountPoint`, manage-bde fallback).
+The og's in-stack surface = metadata parse + protector enumeration + the
+64-byte FVEK extract + auto-unlock keys + XTS decrypt — the core's landed
+surface matches it layer-for-layer. The stretch/AES-CCM/BEK port (a
+dislocker-class capability) and a Windows unlock shim are registered
+IMPROVEMENT options, not parity debt: (a) in-stack FVE metadata parser
+(protector enumeration for diagnostics), (b) the standard KDF + CCM VMK
+unwrap + BEK parse (Windows-free unlock — valuable where even the og's
+delegation fails), (c) the Unlock-BitLocker delegation shim on Windows.
 ### D-74 — Slice tail-read refusal vs the og's clamp+zero-fill (M-032, ACCEPTED SAFETY DIVERGENCE)
 
 The og's virtual-volume layer (HFSPlusSearchDLL FUN_180009290 :7219-7264,
