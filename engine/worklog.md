@@ -15498,3 +15498,29 @@ Stage Summary:
 - N-066 + N-080 FIXED (session tally: N-064, N-071, N-059, N-066, N-080
   + three main repairs). Next: N-065 or N-072 (the MINOR tail end),
   pulling first.
+
+---
+Task ID: DFX34-T5 (session 34, fifth landing — N-065 closed FIXED-ALREADY)
+Agent: main engineer (diff-to-fix fix session 34 — DFX34)
+Task: N-065 (writer destination-policy minors) — verify the parallel
+lane's landing, close the audit trail.
+
+Work Log:
+- Verified in-source on the current tree: collision = the og's two
+  `%s_%d`/`%s_%d%s` branches (cr_safewriter.cpp:47+, last-dot split,
+  extensionless branch, counter from 1), rename_attempts = 10,000
+  (cr_safewriter.h:100), exhaustion FAILS the item (the `_dup` fallback
+  and the ` (N)` shape removed); mkdir = the 0/0xB7 SHCreateDirectoryExW
+  contract in semantic form with the documented drive-root-chain root
+  cause (MSVC test #227: the literal gate failed every drive-letter
+  destination); D-19 rewritten (PARITY-DELTAS:456+).
+- Proof tests executed green FIRST-HAND: CollisionNameUnderscoreFormat,
+  CollisionExhaustionFailsTheItem, MkdirSemanticsMatchShCreateDirectoryEx.
+- Audit trail: Resolution (FIXED-ALREADY) + FIXED/ move, RESOLVED-INDEX
+  row, CROSS-REF-MATRIX writer cell, modules/writer.md session-34
+  verification table.
+
+Stage Summary:
+- N-065 closed FIXED-ALREADY (tally: 1 verified closure this session).
+  MINOR open: N-007/I-004, N-072. Next: N-007 (ReFS first-DWORD
+  discovery), then N-072 (Btrfs cache + ZFS retry).

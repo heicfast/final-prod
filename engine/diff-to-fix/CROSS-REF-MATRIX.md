@@ -386,7 +386,7 @@ not-BAAD both sides; FAT quick-scan threading — already registered D-30x).
 | session | D11/D12/B4/B9 | **S-031 (converged)** (carved files: deleted flag + timestamp + validator payload dropped at emission; sessions round-trip the misstatement) |
 | session | D12/S36 | **N-066** (identity card: firmware/WWN/interface + 512-byte boot snapshot vs model/serial/CRC32); A35/D12/F35 **N-078 FIXED s17** (truncated carve_note silent-OK exit — the c.fail-less break; filed+fixed, renumbered past the parallel lane's N-077 leak finding; findings/FIXED/) |
 | session/tree | D11/D12/P42 | **M-051+N-059 (converged)** (type-registry ID + per-FS secondary payload slots missing) |
-| writer | A27/S35/P46 | **N-065** (collision `name_N`/cap 10000 vs ` (N)`/cap 64/`_dup`; mkdir 0/0xB7-only; **D-19 premise refuted** with decompile evidence) |
+| writer | A27/S35/P46 | ~~N-065~~ **FIXED-ALREADY (s34 DFX34 verification — parallel-lane landing: collision = the og's `%s_%d`/`%s_%d%s` two-branch shape, cap 10,000, exhaustion fails the item, `_dup` removed; mkdir = the 0/0xB7 contract in SEMANTIC form as a registered divergence — the literal gate broke drive-root chains, MSVC test #227; D-19's refuted claim superseded; proof tests verified green: CollisionNameUnderscoreFormat / CollisionExhaustionFailsTheItem / MkdirSemanticsMatchShCreateDirectoryEx; findings/FIXED/)** |
 | health | P46/P68 | **S-024 addendum** (cr_health.h claims 0xD1/0xD8 never issued — doc-truth sub-item; capability gap stays S-024) |
 | storage | B8/P42/A54 | MATCH-with-D-84 (N-071 FIXED s31: the two-stack merge — PhysicalDrive loop + cfgmgr32 GUID_DEVINTERFACE_DISK pass, pure merge_disk_enumeration dedup; residual stacks registered) |
 
