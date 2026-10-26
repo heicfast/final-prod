@@ -15069,3 +15069,46 @@ Work Log:
 Stage Summary:
 - Main green at the union (849/849). Audit trail + repairs landed
   together.
+
+=======
+Task ID: DFX32-TCLOSE (session 32 close — handoff)
+Agent: main engineer (diff-to-fix fix session 32 — DFX32)
+Task: Session close: final verification sweep + handoff.
+
+Work Log:
+- Final state verified first-hand: linux-release **865/865 PASS**
+  (win_syntax_check included, 0 errors) on the fully-merged main after
+  the last pull; corpus 03ad46c unmoved throughout the session.
+- Session tally (this lane):
+  * **M-029 FIXED** (the decode-blocked remainder — the Date/Size
+    bucket-ID translation + the general-raw naming surface; the DRWUI
+    first-hand decode of FUN_140705c50/FUN_140706060/FUN_140254670/
+    FUN_140255820/FUN_140256830; 5 fail-before-proven tests; the
+    cr_ui_query_apply_buckets added export; ScanConfig::raw_category_name
+    with resume-safe matching).
+  * **M-025 closed as the convergent complement** (DFX33's WindowDevice
+    canonical; this lane kept scripts/bench_m025.cpp with the MEASURED
+    9.88x read-call / 2.08x device-byte reduction + the sign-quiet bench
+    lesson + the 2 complementary behavior tests; PARITY-DELTAS D-81
+    supplement).
+  * **3 pushed-red repairs** (the N-064 convergent-merge union; the
+    M-025/N-064 ledger reconciliation; the merge-storm reconstruction —
+    the last ceded to a parallel lane's identical first-landing repair)
+    + the PARITY-DELTAS numbering coherence repair (D-80..D-86, one
+    section each; the missed D-84 renumber applied; the logging seam
+    D-86).
+- The window's collective progress (observed at close): MAJOR 14 → 6
+  open (M-030/M-034/M-039/M-040/M-041/M-048 remain; M-039+M-048 and M-041
+  freshly claimed by active lanes), MINOR 19 → 4, tracked-open 11 → 2,
+  FIXED/ 208 files, suite 737 → 865.
+
+Stage Summary:
+- DFX32 closes. Remaining handoff: the open MAJORs all have active lanes
+  (M-039/M-048 lane + M-041 lane per their posted claims; M-030/M-034/
+  M-040 remain for the next window — M-030's four open items are
+  win-layer-heavy (WinPE gate, terminal OFFLINE, LDM 32-disk cap,
+  transport-error surfacing), M-034/M-040 are the two big feature
+  families (NAS layer, boot-chain repair)). No finding this lane touched
+  remains in a non-resolved state; the audit trail for M-029 and M-025
+  is complete with both Resolutions, the convergence records, and the
+  measured numbers.
