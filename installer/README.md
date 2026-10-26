@@ -73,6 +73,20 @@ product registry keys, final `RMDir`.
 detects the existing service and does stop → delete → recreate.
 **Repair**: identical (reinstall-over).
 
+**Silent installs (`/S`) — the `/SD` discipline**: every `MessageBox` in
+this script that can execute on the silent path carries `/SD` with the
+safe default (driver notices → `IDOK`; the Win10 gate → `IDOK` before its
+`Abort`; uninstall ask-close → `IDCANCEL` — refuse rather than remove;
+sessions prompt → `IDNO` under the `${Silent}` guard). Reason: NSIS
+manual §4.12 — a silent installer's script "can still display whatever it
+wants"; a `MessageBox` **without** `/SD` is displayed and **blocks** the
+silent run. Validation round 11 proved it live: the first T15 run past the
+app-integrity gate wedged ~40 minutes on the driver-not-started box
+(unsigned driver on a stock runner — the expected branch there); the
+cancelled run's evidence held only `01-baseline.json`, and the fix landed
+with this rule. `AbortWithReason` (file + `Abort`) is the silent-safe way
+to fail loudly instead.
+
 ## Known deviations (all recorded)
 
 | # | Deviation | Rationale |

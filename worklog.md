@@ -412,3 +412,62 @@ v0.5.0-rc1 pushed -> release.yml dispatched: contracts gate, build.ps1
 verification, truthful unsigned notes, release upload with SHA256SUMS.
 RC purpose per docs/RELEASE.md: operator tests the setup.exe + portable
 zip on a real machine before the final v0.5.0 tag.
+## 2026-10-26T22:40Z — validation round 11 root-caused: silent installs blocked on MessageBox without /SD
+
+Round 11 (run 40405891621, d4922aff) was the FIRST to get past the app
+integrity gate — the registry-seed fix from d4922aff worked (the inner
+setup now lands in OUR $INSTDIR). But the T15 matrix then wedged ~40 min
+in the "Run the runtime matrix" step with zero further evidence.
+
+Diagnosis (evidence chain):
+- Cancelled the run to harvest its `if: always()` artifact: the
+  t15-runtime-matrix artifact held ONLY `01-baseline.json` (231 B, clean
+  baseline) — no install transcript, no abort-reason file, no matrix.json:
+  the silent installer process neither exited nor aborted. It was HUNG
+  inside the install.
+- The only blocking construct on the silent path: `MessageBox` WITHOUT
+  `/SD`. NSIS manual §4.12: a silent installer's script "can still
+  display whatever it wants, use MessageBox's /SD to specify a default
+  for silent installers" — boxes without /SD display AND block /S runs
+  (the classic trap; electron-builder #616 is the canonical field report).
+- The exact box: the driver section's "installed but could not be
+  started" notice. On a stock GitHub windows-2022 runner `sc start RDA`
+  fails fast (unsigned driver, no test signing) → $DriverResult =
+  "installed-not-running" → the box → wedged. Rounds 1-10 never reached
+  the driver section (they aborted in SEC_APP), so this was never
+  exercised until the seed fix let them through.
+- `driver/scripts/install.ps1` ruled out as a hang point: purely
+  non-interactive (sc.exe + registry + non-fatal Write-Warning).
+- Stock `MultiUser.nsh` (fetched, v20210216) ruled out for OUR config:
+  its privilege boxes never fire elevated + /allusers, and its uninstall
+  init path carries no boxes in that configuration.
+
+Fix (installer/recoverywizard.nsi, all silent-path boxes now carry /SD):
+- driver registration-failed box → /SD IDOK (silent: continue in degraded
+  mode, state recorded; interactive: box shown)
+- driver installed-not-started box → /SD IDOK (the EXPECTED branch on CI
+  runners; a DetailPrint records it in the log as well)
+- .onInit Win10 gate box → /SD IDOK (silent: box skipped, Abort still
+  refuses with exit 2)
+- uninstaller ask-close RETRYCANCEL → /SD IDCANCEL (silent: refuse the
+  uninstall rather than remove anything under a running app)
+- uninstaller sessions prompt → /SD IDNO under the existing ${Silent}
+  guard (two independent layers now); the guard's comment corrected — the
+  old rationale claimed NSIS auto-answers with the default button; the
+  truth per §4.12 is it BLOCKS. The guard was and remains correct; the
+  rationale text was not.
+- installer/README.md gained the "/SD discipline" section;
+  installer-compile-check.md gained the round-11 re-validation (makensis
+  3.11-1 Debian cross-compile, exit 0, zero warnings at -V3).
+
+Also this window: run 12 (40409125718, dispatched 22:01 by a second
+session/user on the SAME commit) was equally wedged at the same box and
+was cancelled for the same reason — same tree, same bug, ~55 min of
+doomed runner time reclaimed.
+
+Next: re-dispatch validation-evidence (run 13) on the fixed commit; on
+green, commit the T15 evidence + the T14 scan-prep row. (The RC tag
+v0.5.0-rc1 was already cut by the entry above — release.yml run 1 is in
+flight on it; the /SD fix does not affect the release BUILD path, which
+compiles the installer without running it, so the RC artifacts are sound.
+The fixed installer ships with the final v0.5.0 tag after T15 lands.)

@@ -58,6 +58,17 @@ contract with `build.ps1` is enforced (`!error` guards); the MUI page set,
 sections, custom driver page, and uninstaller section compile into a real
 self-extracting installer.
 
+## Re-validation — round 11 (`/SD` silent-mode fixes)
+
+Re-compiled after the validation-round-11 fixes (every silent-path
+`MessageBox` gained `/SD`; see `installer/README.md` "Silent installs —
+the `/SD` discipline" for the root cause and evidence): makensis 3.11-1
+(Debian, cross-compile, `NSISDIR` at the extracted data set, stand-in
+payloads with the real kit names, same defines as `build.ps1`) —
+**exit 0, zero warnings** (`-V3` full-verbosity output greps clean),
+artifact `RecoveryWizard-0.5.0-setup.exe` (173,960 bytes with stand-in
+payloads, 7 sections).
+
 **Does not prove (pending, by design)**: runtime behavior on Windows —
 install layout, inner-setup orchestration, SCM service registration, ProgramData
 creation, uninstall completeness, update/repair. That is the T15 lane

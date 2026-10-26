@@ -282,7 +282,14 @@ Section "RDA raw-disk kernel driver (recommended)" SEC_DRIVER
   ReadRegStr $1 HKLM "SYSTEM\CurrentControlSet\Services\${DRIVER_SERVICE}" "ImagePath"
   ${If} ${Errors}
     StrCpy $DriverResult "failed"
-    MessageBox MB_OK|MB_ICONEXCLAMATION "The RDA driver service could not be registered (installer exit code $0).$\r$\n$\r$\nThe application is fully installed and will use Windows direct disk access instead (slower on some media; locked volumes cannot be opened). You can retry the driver later by rerunning this installer."
+    ; /SD IDOK: a MessageBox WITHOUT /SD is shown (and BLOCKS) even when the
+    ; installer runs /S — NSIS manual §4.12 "the script can still display
+    ; whatever it wants, use MessageBox's /SD to specify a default for
+    ; silent installers". Validation round 11 proved it live: the first run
+    ; that got past the app-integrity gate wedged ~40 min on this box
+    ; (cancelled; the T15 artifact held ONLY 01-baseline.json — the process
+    ; never exited, never aborted). Interactive installs still see the box.
+    MessageBox MB_OK|MB_ICONEXCLAMATION "The RDA driver service could not be registered (installer exit code $0).$\r$\n$\r$\nThe application is fully installed and will use Windows direct disk access instead (slower on some media; locked volumes cannot be opened). You can retry the driver later by rerunning this installer." /SD IDOK
   ${Else}
     ; Start (idempotent): install.ps1 already tried; 0 = started,
     ; 1056 = already running, anything else = did not load (usually the
@@ -295,7 +302,12 @@ Section "RDA raw-disk kernel driver (recommended)" SEC_DRIVER
       DetailPrint "RDA driver installed and running (device \\.\${DRIVER_SERVICE})."
     ${Else}
       StrCpy $DriverResult "installed-not-running"
-      MessageBox MB_OK|MB_ICONEXCLAMATION "The RDA driver is installed but could not be started (exit code $0).$\r$\n$\r$\nThis build's driver is UNSIGNED by design (release signing is pending). Windows 10/11 with Driver Signature Enforcement will not load it until it is properly signed, or until test signing is enabled (bcdedit /set testsigning on) — see docs/RELEASE.md.$\r$\n$\r$\nThe application works without it via Windows direct disk access."
+      ; /SD IDOK — same round-11 lesson: without it the box BLOCKS /S installs
+      ; (this branch is the EXPECTED one on stock CI runners: unsigned driver,
+      ; no test signing). Silent path: proceed in degraded mode, state recorded
+      ; in the registry (DriverInstalled=1) and the install log below.
+      DetailPrint "RDA driver installed but not started (exit code $0 — unsigned on stock Windows; see docs/RELEASE.md)."
+      MessageBox MB_OK|MB_ICONEXCLAMATION "The RDA driver is installed but could not be started (exit code $0).$\r$\n$\r$\nThis build's driver is UNSIGNED by design (release signing is pending). Windows 10/11 with Driver Signature Enforcement will not load it until it is properly signed, or until test signing is enabled (bcdedit /set testsigning on) — see docs/RELEASE.md.$\r$\n$\r$\nThe application works without it via Windows direct disk access." /SD IDOK
     ${EndIf}
   ${EndIf}
 SectionEnd
@@ -475,7 +487,10 @@ Function .onInit
   ReadRegDWORD $0 HKLM "SOFTWARE\Microsoft\Windows NT\CurrentVersion" "CurrentMajorVersionNumber"
   ${If} ${Errors}
   ${OrIf} $0 < 10
-    MessageBox MB_OK|MB_ICONSTOP "${PRODUCT_NAME} requires Windows 10 or newer (the WebView2 application shell does not exist on older Windows; the engine and driver retain their own Windows 7 support envelope — see docs/PARITY-DELTAS.md)."
+    ; /SD IDOK: silent /S on Win7/8 skips the box (NSIS manual §4.12 —
+    ; boxes without /SD block silent installs) and the Abort below still
+    ; refuses the install with exit code 2, which is the truthful outcome.
+    MessageBox MB_OK|MB_ICONSTOP "${PRODUCT_NAME} requires Windows 10 or newer (the WebView2 application shell does not exist on older Windows; the engine and driver retain their own Windows 7 support envelope — see docs/PARITY-DELTAS.md)." /SD IDOK
     Abort
   ${EndIf}
   !insertmacro MULTIUSER_INIT
@@ -510,7 +525,11 @@ Section "Uninstall"
   ask_close:
   FindWindow $0 "" "${PRODUCT_NAME}"
   ${If} $0 != 0
-    MessageBox MB_RETRYCANCEL|MB_ICONQUESTION "Please close ${PRODUCT_NAME}, then click Retry to continue." IDRETRY ask_close IDCANCEL cancel_un
+    ; /SD IDCANCEL: in a silent uninstall the box would otherwise BLOCK
+    ; (NSIS manual §4.12). The safe silent answer is CANCEL — the app is
+    ; running, so the uninstall is refused (Abort) and NOTHING is removed;
+    ; an interactive user still gets the retry/cancel choice.
+    MessageBox MB_RETRYCANCEL|MB_ICONQUESTION "Please close ${PRODUCT_NAME}, then click Retry to continue." /SD IDCANCEL IDRETRY ask_close IDCANCEL cancel_un
   ${EndIf}
   goto closed
   cancel_un:
@@ -545,17 +564,20 @@ Section "Uninstall"
 
   ; ---- 3. Shared state: sessions kept by default (explicit consent) ------
   ${If} ${FileExists} "${PROGRAMDATA_SESSIONS}\*.*"
-    ; SILENT mode must NEVER delete user data: NSIS auto-answers a
-    ; MessageBox with its default button (MB_YESNO -> IDYES), so the
-    ; original prompt silently WIPED sessions on every /S uninstall —
-    ; the opposite of this block's own "No recommended" copy. Silent
-    ; keeps state (recorded in the uninstall log); only an interactive
-    ; user can consent to deletion.
+    ; SILENT mode must NEVER delete user data. Truth about NSIS semantics
+    ; (round 11): a MessageBox without /SD is DISPLAYED and BLOCKS even in
+    ; silent mode (NSIS manual §4.12 — "the script can still display
+    ; whatever it wants, use MessageBox's /SD to specify a default for
+    ; silent installers"); it is NOT auto-answered. Two independent layers
+    ; keep silent uninstalls safe: (1) this ${Silent} guard skips the
+    ; question entirely; (2) the box itself carries /SD IDNO — if the guard
+    ; ever regresses, the silent default is KEEP. Only an interactive user
+    ; can consent to deletion.
     ${If} ${Silent}
       DetailPrint "Silent uninstall: shared state kept (${PROGRAMDATA_ROOT}) — data deletion requires interactive consent."
       goto keep_state
     ${EndIf}
-    MessageBox MB_YESNO|MB_ICONQUESTION "Also delete the saved scan sessions in$\r$\n${PROGRAMDATA_SESSIONS} ?$\r$\n$\r$\nChoose No to keep them (recommended — recovered files live wherever you saved them and are never touched)." IDYES del_state IDNO keep_state
+    MessageBox MB_YESNO|MB_ICONQUESTION "Also delete the saved scan sessions in$\r$\n${PROGRAMDATA_SESSIONS} ?$\r$\n$\r$\nChoose No to keep them (recommended — recovered files live wherever you saved them and are never touched)." /SD IDNO IDYES del_state IDNO keep_state
     del_state:
       RMDir /r "${PROGRAMDATA_ROOT}"
       DetailPrint "Shared state removed."
