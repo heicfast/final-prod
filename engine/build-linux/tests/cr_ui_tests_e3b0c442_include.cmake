@@ -1,5 +1,0 @@
-if(EXISTS "/home/z/my-project/work/core_recovery/build-linux/tests/cr_ui_tests_e3b0c442_tests.cmake")
-  include("/home/z/my-project/work/core_recovery/build-linux/tests/cr_ui_tests_e3b0c442_tests.cmake")
-else()
-  add_test(cr_ui_tests_NOT_BUILT cr_ui_tests_NOT_BUILT)
-endif()

@@ -406,8 +406,6 @@ bool load_dict_candidates(const std::wstring& path, std::vector<std::string>& ou
  * unlock action. It never fires without the flag (F61). */
 bool open_volume_view(wchar_t letter, OpenResult& out, const std::wstring& fvek_hex,
                       bool dict_consent, const std::vector<std::string>& dict_user) {
-bool open_volume_view(wchar_t letter, OpenResult& out, const std::wstring& fvek_hex,
-                       bool dict_consent, const std::vector<std::string>& dict_user) {
     std::vector<u8> fvek;
     const bool have_key = !fvek_hex.empty() && parse_fvek_hex(fvek_hex, fvek);
     if (!fvek_hex.empty() && !have_key) {
@@ -421,7 +419,6 @@ bool open_volume_view(wchar_t letter, OpenResult& out, const std::wstring& fvek_
      * reads) with the explicit dictionary consent gets the attempt BEFORE
      * the FB-B01 refusal - a locked volume denying reads is exactly the
      * dictionary aid's target population. Without consent/key: refuse. */
-    if (bst == win::bitlocker::Status::Unknown && !have_key) {
     if (bst == win::bitlocker::Status::Unknown && !have_key) {
         /* Boot sector unreadable: the BitLocker state cannot be determined
          * (typical for a locked volume denying \\.\X: reads). Never scan
@@ -445,10 +442,6 @@ bool open_volume_view(wchar_t letter, OpenResult& out, const std::wstring& fvek_
                 return false;
             }
             wprintf(L"[bitlocker] dictionary-unlocked\n");
-                        L"or re-run with --bitlocker-fvek <hex> (the in-stack decrypt path).\n",
-                        letter);
-                return false;
-            }
         } else {
             /* Boot sector unreadable: the BitLocker state cannot be determined.
              * Never scan blind - refuse with the unlock path (FB-B01). With a
@@ -489,7 +482,6 @@ bool open_volume_view(wchar_t letter, OpenResult& out, const std::wstring& fvek_
                     L"  Unlock-BitLocker -MountPoint %c: -RecoveryPassword <key>\n"
                     L"or re-run with --bitlocker-fvek <hex> (the in-stack decrypt path),\n"
                     L"or --bitlocker-dict [file] to try a password dictionary.\n",
-                    L"or --bitlocker-dict to try the shipped password dictionary.\n",
                     letter);
             return false;
         } else {
@@ -600,6 +592,42 @@ int print_disks() {
     return 0;
 }
 
+
+/* ---------------------------------------------------------------------------
+ * list-carve-formats (N-033's CLI half: the og host enumerates carvers
+ * through EUGetAnalyserList/Map/Multimap to build its "which formats can
+ * we carve" UI; the ABI counterpart cr_ui_carve_format_count/info landed
+ * session 6 — this is the CLI projection of the same surface).
+ * ------------------------------------------------------------------------- */
+
+int print_carve_formats() {
+    const uint32_t n = cr_ui_carve_format_count();
+    if (n == 0) {
+        wprintf(L"carve registry is empty\n");
+        return 1; /* never exit-0 on an empty registry - scripts must not
+                     mistake a broken table for "nothing to carve" */
+    }
+    wprintf(L"%u carve format(s)\n", n);
+    for (uint32_t i = 0; i < n; ++i) {
+        cr_ui_carve_format f{};
+        if (cr_ui_carve_format_info(i, &f) != 0) {
+            wprintf(L"row %u: enumeration failed\n", i);
+            return 1; /* FB-K01 family: a broken row is a failure, not a
+                         silent skip */
+        }
+        wchar_t magic[16 * 2 + 1] = L"";
+        if (f.magic_len > 0) {
+            for (uint32_t k = 0; k < f.magic_len && k < 16; ++k)
+                swprintf(magic + k * 2, 3, L"%02x", f.magic[k]);
+        }
+        wprintf(L"  [%2u] %-7s %-8hs min %10llu B  max %-10llu  conf %4u  %s%s\n", i,
+                f.layer == 0 ? L"grammar" : L"rawsign", f.ext,
+                static_cast<unsigned long long>(f.min_size),
+                static_cast<unsigned long long>(f.max_size), f.base_confidence,
+                f.magic_len ? L"magic " : L"", f.magic_len ? magic : L"-");
+    }
+    return 0;
+}
 
 /* ---------------------------------------------------------------------------
  * tree printing (shared by scan + tree commands)
@@ -775,10 +803,6 @@ int cmd_scan(int argc, wchar_t** argv, int& i) {
         if (get_opt(argc, argv, i, L"--volume", &v)) {
             if (v.size() < 1)
                 return 1;
-            if (!open_volume_view(v[0], target, fvek_hex, dict_consent, dict_user))
-
-            if (!open_volume_view(v[0], target, fvek_hex, dict_consent, dict_user))
-
             if (!open_volume_view(v[0], target, fvek_hex, dict_consent, dict_user))
                 return 1;
             have_target = true;
