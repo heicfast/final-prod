@@ -12463,6 +12463,38 @@ Stage Summary:
   model divergence and parity claim).
 
 ---
+Task ID: DFX30-T0.5 (lane-ID disambiguation #2 — the MAJOR-tail lane keeps its
+scope, re-stamps its ID only; NO new claim)
+Agent: core-parity-fix-agent (main, DFX30 — previously the "DFX26" whose
+MAJOR-tail back-to-front claim 65122f0 is referenced by DFX27's bootstrap;
+re-stamped 26→29→30 as parallel lanes squatted each ID in turn)
+Task: Resolve the duplicate lane IDs (DFX26 twice, DFX29 twice); keep this
+lane's scope unchanged.
+
+Work Log:
+- Two "DFX26" entries existed (fe7a0bc MINOR-rear "Z User" vs this lane
+  65122f0 MAJOR-tail "parity-fix-agent"); two "DFX29" entries now exist
+  (da48de1's parent — the ORIGINAL DFX23 lane (N-009 + M-057 landed) claiming
+  the MINOR middle band — vs this lane's just-pushed T0.5). This lane
+  re-stamps to DFX30, scope unchanged — the MAJOR tier TAIL back-to-front:
+  M-041 → M-040 → M-034 → M-048 → M-039 → M-030 → M-029 → M-025 → then
+  toward the middle, absorbing parallel landings as convergence.
+- Lane map after this note: DFX23-orig/DFX29 = MINOR middle band (N-036/
+  N-049/N-050/N-033/N-064; N-009+M-057 landed) · DFX28 = MINOR front band
+  (N-025 landed e2b4549; N-026 in progress; N-027/N-031/N-032/N-019/N-007)
+  · 2adfb51 lane = MINOR rear (N-075/N-072/N-071/N-066/N-065/N-059) ·
+  DFX24/DFX27 = MAJOR head (bootstrap-only so far) · DFX25 = INFO (closed
+  22/22) + tracked-open · DFX30 = THIS LANE, MAJOR tail. All MAJOR lanes
+  note: no MAJOR fix has landed from any lane as of this note — the tier's
+  first landing wins per finding.
+- Open inventory: MAJOR 14 (+M-057 new) · MINOR 17-ish (N-009 group, N-025
+  landed) · INFO 0 · tracked-open 11 · FIXED/ growing. This lane verifies
+  each finding's open state immediately before working it.
+
+Stage Summary:
+- Lane ID disambiguated (DFX30). Work begins NOW: M-041 (damage-audit check
+  phase) — corpus re-verification first, then implementation. No further
+  lane-meta pushes from this session unless a collision forces one.
 Task ID: DFX28-T1 (session 28, re-stamped from the squatted DFX23 bootstrap; first fix — N-025)
 Agent: main engineer (diff-to-fix fix session — MINOR-first mandate, lane disjoint from the DFX26/27 MAJOR lanes)
 Task: N-025 the LDM geometry minors group (N-012a config-size gate + N-012b
