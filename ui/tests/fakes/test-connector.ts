@@ -17,6 +17,7 @@
 
 import type {
   BadSectorRange,
+  ConsentRequestEvent,
   ConnectorError,
   ConnectorErrorCode,
   Device,
@@ -239,6 +240,18 @@ interface ScanRuntime {
   completedAt: string | null;
   badSectors: readonly BadSectorRange[];
   timers: ReturnType<typeof setTimeout>[];
+  /** G-1: the pending pre-scan repair consent (null when none/answered).
+   *  While non-null the stage walk is NOT scheduled — mirroring the real
+   *  bridge, where the engine's run thread BLOCKS inside the consent
+   *  callback until consent_respond answers. */
+  pendingConsent: ConsentRequestEvent | null;
+  /** True when this scan already emitted its consent (fires at most once). */
+  consentEmitted: boolean;
+  /** True once an answer resumed the walk (or no consent was needed). */
+  walkScheduled: boolean;
+  /** The recorded answer (null = unanswered / no consent fired) — fixture
+   *  state so tests can assert the approve/deny narrative explicitly. */
+  consentApproved: boolean | null;
 }
 
 interface JobRuntime {
@@ -261,8 +274,10 @@ class TestConnector implements RecoveryConnector {
   private scans = new Map<string, ScanRuntime>();
   private jobs = new Map<string, JobRuntime>();
   private progressCbs = new Map<string, (e: ScanProgressEvent) => void>();
+  private consentCbs = new Map<string, (e: ConsentRequestEvent) => void>();
   private recoveryCbs = new Map<string, (e: RecoveryProgressEvent) => void>();
   private nextScan = 1;
+  private nextConsent = 1;
   private nextJob = 1;
   private sessionStore: SessionMeta[] = [];
 
@@ -304,31 +319,22 @@ class TestConnector implements RecoveryConnector {
         completedAt: null,
         badSectors: [],
         timers: [],
+        pendingConsent: null,
+        consentEmitted: false,
+        walkScheduled: false,
+        consentApproved: null,
       };
       this.scans.set(scanId, rt);
-      // A short deterministic stage walk (5 ticks x 60ms) — fast enough for
-      // e2e waits, staged enough to exercise the progress UI.
-      for (let tick = 0; tick < STAGES.length; tick++) {
-        rt.timers.push(
-          setTimeout(
-            () => {
-              rt.stageIndex = tick;
-              this.emitProgress(rt);
-            },
-            60 * (tick + 1),
-          ),
-        );
+      // G-1 fixture: the Desktop quick-target stands in for a volume whose
+      // pre-scan analysis found a repairable plan — the consent fires ~80ms
+      // in (pre-stage, mirroring 'before any engine read') and the walk
+      // stays BLOCKED until respondToConsent answers. Every other target
+      // walks immediately, exactly like before.
+      if (params.targetId === 'vol-desktop') {
+        rt.timers.push(setTimeout(() => this.fireConsent(rt), 80));
+      } else {
+        this.scheduleWalk(rt);
       }
-      rt.timers.push(
-        setTimeout(
-          () => {
-            rt.status = 'completed';
-            rt.completedAt = nowIso();
-            this.emitProgress(rt);
-          },
-          60 * (STAGES.length + 1),
-        ),
-      );
       return Promise.resolve({ scanId });
     },
 
@@ -353,6 +359,13 @@ class TestConnector implements RecoveryConnector {
     cancelScan: (scanId: string): Promise<void> => {
       const rt = this.requireScan(scanId);
       rt.timers.forEach(clearTimeout);
+      // Mirror the real bridge: cancel force-denies a pending consent (the
+      // gate resolves deny; no event fires — the prompt's dismissal rides
+      // the page's cancel navigation, exactly like production).
+      if (rt.pendingConsent !== null) {
+        rt.pendingConsent = null;
+        rt.consentApproved = false;
+      }
       rt.status = 'cancelled';
       rt.completedAt = nowIso();
       this.emitProgress(rt);
@@ -370,6 +383,7 @@ class TestConnector implements RecoveryConnector {
         startedAt: rt.startedAt,
         completedAt: rt.completedAt,
         progress,
+        pendingConsent: rt.pendingConsent,
       });
     },
 
@@ -380,6 +394,45 @@ class TestConnector implements RecoveryConnector {
       return () => {
         this.progressCbs.delete(scanId);
       };
+    },
+
+    // G-1 (a): the consent surface, mirroring the real bridge's semantics —
+    // fires at most once per scan; respondToConsent is the only answer
+    // path; a stale id (already answered / cancelled) rejects with the
+    // typed consent-not-found.
+    onConsentRequest: (
+      scanId: string,
+      cb: (event: ConsentRequestEvent) => void,
+    ): (() => void) => {
+      this.consentCbs.set(scanId, cb);
+      const rt = this.scans.get(scanId);
+      if (rt?.pendingConsent) cb(rt.pendingConsent);
+      return () => {
+        this.consentCbs.delete(scanId);
+      };
+    },
+
+    respondToConsent: (requestId: string, allow: boolean): Promise<void> => {
+      const entry = [...this.scans.values()].find(
+        (rt) => rt.pendingConsent?.requestId === requestId,
+      );
+      if (!entry) {
+        return Promise.reject(
+          connError(
+            'consent-not-found',
+            `consent request '${requestId}' is unknown or already resolved`,
+          ),
+        );
+      }
+      entry.pendingConsent = null;
+      entry.consentApproved = allow;
+      // The engine unblocks: approve = the repair applied before the stages;
+      // deny = read-only. The walk is the same fixture either way (the
+      // narrative differs, not the tree) — consentApproved records which.
+      if (entry.status === 'running' && !entry.walkScheduled) {
+        this.scheduleWalk(entry);
+      }
+      return Promise.resolve();
     },
   };
 
@@ -664,6 +717,12 @@ class TestConnector implements RecoveryConnector {
         completedAt: meta.savedAt,
         badSectors: [],
         timers: [],
+        // A loaded session never runs — no consent surface (bridge parity:
+        // ScanKind::Session arms nothing).
+        pendingConsent: null,
+        consentEmitted: false,
+        walkScheduled: true,
+        consentApproved: null,
       });
       return Promise.resolve({ scanId });
     },
@@ -925,6 +984,65 @@ class TestConnector implements RecoveryConnector {
   };
 
   // ---------------------------------------------------------------- helpers
+
+  /** The deterministic stage walk (5 ticks x 60ms) — fast enough for e2e
+   *  waits, staged enough to exercise the progress UI. Scheduled at start
+   *  for clean targets, and only after the consent answers for the
+   *  consent-fixture target (the blocked-run-thread mirror). */
+  private scheduleWalk(rt: ScanRuntime): void {
+    if (rt.walkScheduled) return;
+    rt.walkScheduled = true;
+    for (let tick = 0; tick < STAGES.length; tick++) {
+      rt.timers.push(
+        setTimeout(
+          () => {
+            rt.stageIndex = tick;
+            this.emitProgress(rt);
+          },
+          60 * (tick + 1),
+        ),
+      );
+    }
+    rt.timers.push(
+      setTimeout(
+        () => {
+          rt.status = 'completed';
+          rt.completedAt = nowIso();
+          this.emitProgress(rt);
+        },
+        60 * (STAGES.length + 1),
+      ),
+    );
+  }
+
+  /** Fire the fixture's repair-plan consent (at most once — cr_ui.h S-008). */
+  private fireConsent(rt: ScanRuntime): void {
+    if (rt.consentEmitted || rt.status !== 'running') return;
+    rt.consentEmitted = true;
+    rt.pendingConsent = {
+      scanId: rt.scanId,
+      requestId: `consent-${this.nextConsent++}`,
+      plan: {
+        detected: 1,
+        fsFamily: 'ntfs',
+        actionCount: 3,
+        refused: 0,
+        reason: 'MFT mirror mismatch — rebuild $MFT mirror (fixture plan)',
+        advisoryCount: 1,
+      },
+    };
+    this.emitConsentState(rt.scanId);
+  }
+
+  /** Push the pending-consent REQUEST to the scan's subscriber — fires only
+   *  while one pends, matching the real connector's event shape (resolve
+   *  flows through respondToConsent's success / the page's cancel
+   *  navigation, never through this callback). */
+  private emitConsentState(scanId: string): void {
+    const cb = this.consentCbs.get(scanId);
+    const rt = this.scans.get(scanId);
+    if (cb && rt?.pendingConsent) cb(rt.pendingConsent);
+  }
 
   private requireScan(scanId: string): ScanRuntime {
     const rt = this.scans.get(scanId);

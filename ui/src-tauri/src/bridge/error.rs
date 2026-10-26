@@ -24,6 +24,7 @@ use super::abi;
 pub mod code {
     pub const SCAN_NOT_FOUND: &str = "scan-not-found";
     pub const SESSION_NOT_FOUND: &str = "session-not-found";
+    pub const CONSENT_NOT_FOUND: &str = "consent-not-found";
     pub const SCAN_NOT_RUNNING: &str = "scan-not-running";
     pub const SCAN_NOT_PAUSED: &str = "scan-not-paused";
     pub const SCAN_SCOPE_INVALID: &str = "scan-scope-invalid";

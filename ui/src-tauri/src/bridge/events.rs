@@ -243,8 +243,11 @@ pub fn spawn_scan_emitter(
                     live.lost_candidates += 1;
                 }
                 abi::CR_EVT_REPAIR => {
-                    // Default-deny posture (INTEGRATION-GAPS G-1): analysis
-                    // outcomes ride the log + stats; no consent surface exists.
+                    // Outcome record (G-1): the consent prompt (bridge::consent)
+                    // may have approved the transactional apply; the outcome
+                    // (0 plan-ready, 1 applied, 2 denied, 3 failed) rides the
+                    // log + stats either way. An approved apply's undo log is
+                    // saved by the run tail (rrecov fix --undo-apply).
                     live.repair_summary = Some(format!(
                         "pre-scan repair: {} action(s), outcome {} (0 plan-ready, 1 applied, 2 denied, 3 failed)",
                         evt.repair_actions, evt.repair_outcome

@@ -10,10 +10,12 @@
 //! result view. Scan duration reflects the WHOLE volume; only results are
 //! scoped (documented semantics delta, INTEGRATION-VALIDATION).
 //!
-//! Pre-scan repair + damage audit run READ-ONLY with the engine's own
-//! default-deny (repair_consent = NULL: "the plan is surfaced via events and
-//! stats and NEVER executed" — cr_ui.h S-008). No consent surface exists in
-//! the UI to approve an apply; the analysis evidence rides stats/session
+//! Pre-scan repair runs with the CONSENT callback armed (bridge::consent —
+//! the G-1 follow-up (a) surface): the engine calls it at most ONCE, ON THE
+//! RUN THREAD, when a repairable plan exists; the scan page's prompt answers
+//! through consent_respond, and cancel force-denies any pending gate so the
+//! run thread can never deadlock (plan §4.5). The damage audit stays
+//! read-only throughout; the analysis evidence rides stats/session
 //! (INTEGRATION-GAPS G-1).
 
 use std::sync::atomic::Ordering;
@@ -23,6 +25,7 @@ use std::sync::{Arc, Mutex};
 use serde_json::{json, Value};
 
 use crate::bridge::abi;
+use crate::bridge::consent::{self, ConsentPipe};
 use crate::bridge::error::{code, check, BridgeError, BridgeResult};
 use crate::bridge::events::{
     emit_scan_progress, scan_flags, scan_status, spawn_scan_emitter,
@@ -72,22 +75,31 @@ pub async fn scan_start(
 ) -> Result<Value, BridgeError> {
     let state = state.inner().clone();
     let state_for_launch = state.clone();
-    let (entry, scan_id, rx) = tauri::async_runtime::spawn_blocking(move || {
-        scan_start_blocking(&state, target_id, path_scope)
+    let app_for_prep = app.clone();
+    let (entry, scan_id, rx, consent_user) = tauri::async_runtime::spawn_blocking(move || {
+        scan_start_blocking(&state, &app_for_prep, target_id, path_scope)
     })
     .await
     .map_err(|e| BridgeError::bridge(code::UNKNOWN, format!("blocking join: {e}")))??;
-    launch_run_thread(app, state_for_launch, entry, rx);
+    launch_run_thread(app, state_for_launch, entry, rx, consent_user);
     Ok(json!({ "scanId": scan_id }))
 }
 
 /// The blocking preparation. Returns the registered entry + the event
-/// receiver for the emitter; the command wrapper launches the threads.
+/// receiver for the emitter + the leaked consent pipe (the run thread's
+/// property — freed in the run tail after run() returns); the command
+/// wrapper launches the threads.
 pub fn scan_start_blocking(
     state: &Arc<BridgeState>,
+    app: &tauri::AppHandle,
     target_id: String,
     path_scope: Option<String>,
-) -> BridgeResult<(Arc<ScanEntry>, String, std::sync::mpsc::Receiver<abi::CrUiEvent>)> {
+) -> BridgeResult<(
+    Arc<ScanEntry>,
+    String,
+    std::sync::mpsc::Receiver<abi::CrUiEvent>,
+    SendPtr<ConsentPipe>,
+)> {
     // ABI gate: refuse to bind on mismatch (plan §4.8).
     let abi_v = unsafe { abi::cr_ui_abi_version() };
     if abi_v != abi::CR_UI_ABI_VERSION {
@@ -156,14 +168,25 @@ pub fn scan_start_blocking(
     let mut geom: abi::CrUiGeometry = unsafe { std::mem::zeroed() };
     check(unsafe { abi::cr_ui_device_geometry(dev, &mut geom) }, "cr_ui_device_geometry")?;
 
-    // Zero-init config = documented defaults. Pre-scan repair + damage audit
-    // run READ-ONLY (default-deny: NULL consent — cr_ui.h S-008 / M-041).
+    // Zero-init config = documented defaults. Pre-scan repair runs with the
+    // consent callback ARMED (bridge::consent, G-1 (a)): the engine asks
+    // before executing; a NULL callback would be the engine's documented
+    // default-deny (cr_ui.h S-008 / M-041) — the armed path denies on every
+    // teardown route instead (cancel/exit), keeping default-deny truthful.
+    // The scan id is minted here (before the pipe) so the event name and the
+    // registry key share one identity from the first engine call on.
+    let scan_id = state.mint_scan_id();
     let mut cfg: abi::CrUiScanConfig = unsafe { std::mem::zeroed() };
     cfg.whole_disk = if target.volume.is_some() { 0 } else { 1 };
     cfg.pre_scan_repair = 1;
     cfg.pre_scan_check = 1;
-    // repair_consent stays NULL: analysis outcomes ride events + stats; the
-    // engine NEVER executes without a consent callback (default-deny).
+    let consent_user = SendPtr::new(Box::into_raw(Box::new(ConsentPipe {
+        scan_id: scan_id.clone(),
+        app: app.clone(),
+        state: state.clone(),
+    })));
+    cfg.repair_consent = Some(consent::consent_sink);
+    cfg.repair_consent_user = consent_user.get() as *mut std::ffi::c_void;
 
     let mut scan: *mut abi::CrUiScan = std::ptr::null_mut();
     check(unsafe { abi::cr_ui_scan_create(&cfg, &mut scan) }, "cr_ui_scan_create")?;
@@ -186,7 +209,6 @@ pub fn scan_start_blocking(
         "cr_ui_scan_set_event_fn",
     )?;
 
-    let scan_id = state.mint_scan_id();
     let (target_json, device_id, volume_id_str) = if target.volume.is_some() {
         (
             target.volume_json.clone().unwrap_or(Value::Null),
@@ -238,17 +260,20 @@ pub fn scan_start_blocking(
         .map_err(|_| BridgeError::bridge(code::UNKNOWN, "registry lock"))?
         .insert(scan_id.clone(), entry.clone());
 
-    Ok((entry, scan_id, rx))
+    Ok((entry, scan_id, rx, consent_user))
 }
 
 /// Spawn the emitter + run threads (called by the command wrapper once the
 /// blocking prep succeeded). The run thread latches the terminal state and
-/// emits the final events; it NEVER holds the registry lock.
+/// emits the final events; it NEVER holds the registry lock. The consent
+/// pipe crosses here: freed in the run tail after run() returns (the engine
+/// can only call the callback inside run — cr_ui.h).
 pub fn launch_run_thread(
     app: tauri::AppHandle,
     state: Arc<BridgeState>,
     entry: Arc<ScanEntry>,
     rx: std::sync::mpsc::Receiver<abi::CrUiEvent>,
+    consent_user: SendPtr<ConsentPipe>,
 ) {
     let scan_id = entry.scan_id.clone();
     let live = entry.live.clone();
@@ -259,13 +284,45 @@ pub fn launch_run_thread(
     let state_for_run = state.clone();
     let entry_for_run = entry.clone();
     let app_for_run = app.clone();
+    let scan_id_for_run = scan_id.clone();
     std::thread::spawn(move || {
         let rc = unsafe { abi::cr_ui_scan_run(entry_for_run.scan_handle()) };
+
+        // The consent pipe's single reader (the engine) is gone once run()
+        // returns — the callback fires only inside run (cr_ui.h). Free the
+        // pipe, then force-resolve any gate still registered for this scan
+        // (the cancel path closes them first; this is teardown hygiene —
+        // the callback ALWAYS returns before run does, it blocks it).
+        if !consent_user.is_null() {
+            unsafe { drop(Box::from_raw(consent_user.get())) };
+        }
+        state_for_run.close_scan_consents(&scan_id_for_run);
 
         // Exact terminal counters from stats (never fabricated).
         let mut stats: abi::CrUiScanStats = unsafe { std::mem::zeroed() };
         let _ = unsafe { abi::cr_ui_scan_get_stats(entry_for_run.scan_handle(), &mut stats) };
         let files_found = stats.files_found + stats.deleted_found + stats.carved_found;
+
+        // G-1 (c): an approved repair EXECUTED — persist the undo log so
+        // `rrecov fix --undo-apply <file>` can restore it (the CLI-only undo
+        // surface; the workbench trio stays not-implemented). The engine
+        // handle is pinned by this thread's entry Arc (scan_close removed
+        // the registry row; ScanEntry::Drop waits for the last Arc).
+        if stats.repair_applied > 0 {
+            let dir = state_for_run.sessions_dir.join("repair-undo");
+            let _ = std::fs::create_dir_all(&dir);
+            let undo_path = dir.join(format!("{}.undo", entry_for_run.scan_id));
+            let undo_c = crate::bridge::util::cstr(&undo_path.to_string_lossy());
+            let undo_rc =
+                unsafe { abi::cr_ui_scan_repair_save_undo(entry_for_run.scan_handle(), undo_c.as_ptr()) };
+            if undo_rc == abi::CR_UI_OK {
+                if let Ok(mut l) = entry_for_run.live.lock() {
+                    if let Some(s) = &mut l.repair_summary {
+                        s.push_str(&format!("; undo log: {}", undo_path.display()));
+                    }
+                }
+            }
+        }
 
         let (status, failure) = if rc == abi::CR_UI_OK {
             ("completed", None)
@@ -418,6 +475,11 @@ pub async fn scan_cancel(
                 format!("scan {scan_id} has already finished"),
             ));
         }
+        // A pending consent BLOCKS the run thread inside the engine's
+        // callback (plan §4.5): force-deny it FIRST so cancel can never
+        // deadlock the pre-scan phase — the engine observes the token only
+        // after the callback returns.
+        state.close_scan_consents(&scan_id);
         check(unsafe { abi::cr_ui_scan_cancel(entry.scan_handle()) }, "cr_ui_scan_cancel")
     })
     .await
@@ -465,6 +527,10 @@ pub async fn scan_state(
             stopping,
             paused,
         );
+        // G-1 (a) re-hydration: the pending consent payload (null when none)
+        // — the prompt renders from this when the event fired before the
+        // page's subscription landed, or after navigating away and back.
+        let pending_consent = state.pending_consent(&scan_id);
         Ok(json!({
             "scanId": entry.scan_id,
             "params": entry.params_json,
@@ -474,6 +540,7 @@ pub async fn scan_state(
             "completedAt": term.as_ref().map(|t| t.completed_at.clone()),
             "progress": progress,
             "failure": failure,
+            "pendingConsent": pending_consent,
         }))
     })
     .await

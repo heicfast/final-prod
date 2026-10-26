@@ -179,6 +179,19 @@ export const zhCN: TranslationSchema = {
     deviceLostBody: '源设备停止响应。重新连接后可继续搜索。',
     reconnect: '已重新连接',
     recoverNowUnsafe: '当前阶段完成前暂不能恢复文件。',
+    consentTitle: '扫描前修复请求',
+    consentBody:
+      '扫描引擎发现了可在扫描前修复的文件系统损坏。修复是可选的——不修复也能继续搜索文件。',
+    consentFs: '文件系统：{{fs}}',
+    consentActions: '修复操作：{{count}} 项',
+    consentAdvisories: '仅报告的发现：{{count}} 项',
+    consentRefused: '分析还发现了无法安全修复的损坏；这些项目将保持原样。',
+    consentWarn:
+      '批准将在扫描前向此卷写入修复操作（会为命令行工具保存一份撤销日志）。拒绝则扫描完全保持只读。',
+    consentApprove: '批准修复',
+    consentDeny: '拒绝——保持只读',
+    consentNothingToApprove: '引擎没有计划任何写入操作；没有可批准的内容。',
+    consentApprovedToast: '已批准修复——引擎将在扫描前执行。',
   },
   results: {
     pathTab: '按位置',
@@ -429,6 +442,7 @@ export const zhCN: TranslationSchema = {
     scanNotFound: '该扫描不存在（可能已被关闭）。',
     scanNotRunning: '该扫描当前未在运行。',
     scanNotPaused: '该扫描未处于暂停状态。',
+    consentNotFound: '该修复请求已失效（已被回答、已取消或扫描已结束）。',
     destinationInvalid: '该路径不是有效的保存位置。',
     destinationUnwritable: '该位置不可写入。',
     repairFailed: '修复操作未能完成。',

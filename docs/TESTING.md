@@ -13,11 +13,11 @@
 | Driver: WDK Debug+Release matrix + unsigned assertion | the shipped binaries | driver-ci |
 | Contracts: validate.mjs (phase 1 + 2) | boundary truth; command manifest ↔ Rust ↔ TS cross-check | contracts-ci |
 | Contracts: filefilter freshness | the bridge's 1,481-entry mirror == the engine's table | contracts-ci |
-| UI: vitest 127 tests (21 files) | unit + component + i18n parity/sweep + the connector contract test | ui-ci |
+| UI: vitest 130 tests (21 files) | unit + component + i18n parity/sweep + the connector contract test (incl. the G-1 consent surface) | ui-ci |
 | UI: coverage thresholds | 70/60/70/70 over the gated trees (real connector: 96/84/100/99) | ui-ci |
 | UI: cargo check + clippy -D warnings | the bridge compiles clean under strict lints | ui-ci |
 | UI: arch-lint A1–A7 + ast-grep x2 + knip + jscpd | layering, no raw invoke outside connector, no test-double imports, no dead code, no duplication | ui-ci |
-| UI: Playwright 12 specs | golden path (scan → results → recover), chrome, dialogs, responsive | ui-e2e (test-mode build) |
+| UI: Playwright 14 specs | golden path (scan → results → recover), chrome, dialogs, responsive, the G-1 consent prompt (blocked-walk deny + state re-hydration approve) | ui-e2e (test-mode build) |
 
 ## The connector contract test
 

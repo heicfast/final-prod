@@ -6,6 +6,7 @@
 //! - `util`    two-call helpers, time/base64 conversion, owned strings
 //! - `state`   registries, snapshot metadata cache, lifecycle discipline
 //! - `events`  worker-thread sinks → channel → single emitter → Tauri emit
+//! - `consent` the pre-scan repair consent gate (S-008, plan §4.5, G-1 (a))
 //! - `filefilter` GENERATED extension→category mirror of the engine table
 //!
 //! The command modules under `crate::commands` implement the manifest in
@@ -14,6 +15,7 @@
 //! exact types it uses - lib.rs manages Arc<BridgeState> directly.)
 
 pub mod abi;
+pub mod consent;
 pub mod error;
 pub mod events;
 pub mod filefilter;

@@ -59,6 +59,7 @@ export type ConnectorErrorCode =
   | 'scan-not-paused'
   | 'scan-not-running'
   | 'scan-scope-invalid'
+  | 'consent-not-found'
   | 'session-corrupt'
   | 'session-not-found'
   | 'destination-overlap'
@@ -209,6 +210,35 @@ export interface ScanState {
   readonly progress: ScanProgressEvent;
   /** Present on failed scans. */
   readonly failure?: { code: ConnectorErrorCode; reasonKey?: string };
+  /** The pending pre-scan repair consent (G-1) — re-hydration twin of the
+   *  consent-request event; null when nothing pends (answered, denied,
+   *  cancelled). The prompt renders from either source. */
+  readonly pendingConsent?: ConsentRequestEvent | null;
+}
+
+/** The engine's repair-plan POD (cr_ui_repair_plan), translated 1:1. */
+export interface RepairPlanSummary {
+  /** File-system family identified at all (0 = none). */
+  readonly detected: number;
+  /** 'ntfs' | 'fat' | 'exfat' | '' — engine-provided token. */
+  readonly fsFamily: string;
+  /** Planned write actions (0 = clean; nothing to approve). */
+  readonly actionCount: number;
+  /** 1 = the analysis refused (no safe repair) — Approve is meaningless. */
+  readonly refused: number;
+  /** Engine-provided reason / first action description (diagnostic text). */
+  readonly reason: string;
+  /** Report-only findings. */
+  readonly advisoryCount: number;
+}
+
+/** The typed consent request (G-1): emitted on consent-request:<scanId>,
+ *  re-hydrated via ScanState.pendingConsent. requestId is the ONLY key
+ *  respondToConsent accepts — an echo token, never an authority. */
+export interface ConsentRequestEvent {
+  readonly scanId: string;
+  readonly requestId: string;
+  readonly plan: RepairPlanSummary;
 }
 
 export interface ScanDomain {
@@ -219,6 +249,14 @@ export interface ScanDomain {
   getScanState(scanId: string): Promise<ScanState>;
   /** Subscribe to progress events; returns an unsubscribe function. */
   onScanProgress(scanId: string, cb: (event: ScanProgressEvent) => void): () => void;
+  /** Subscribe to pre-scan repair consent requests (G-1); returns an
+   *  unsubscribe function. Fires at most once per scan — only when the
+   *  engine found a repairable plan. */
+  onConsentRequest(scanId: string, cb: (event: ConsentRequestEvent) => void): () => void;
+  /** Answer a consent request (the consent_respond command). Throws the
+   *  typed consent-not-found when the id is stale (double respond, cancel,
+   *  scan ended) — the prompt dismisses on that error. */
+  respondToConsent(requestId: string, allow: boolean): Promise<void>;
 }
 
 // ---------------------------------------------------------------------------

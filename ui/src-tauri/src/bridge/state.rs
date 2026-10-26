@@ -381,10 +381,27 @@ pub struct SessionListMeta {
 pub struct BridgeState {
     pub scans: Mutex<HashMap<String, Arc<ScanEntry>>>,
     pub jobs: Mutex<HashMap<String, Arc<JobEntry>>>,
+    /// Pending pre-scan repair consents, keyed by requestId (the echo token
+    /// minted by bridge::consent). Entry removed by the callback once the
+    /// gate resolves — a resolved-then-unregistered request refuses
+    /// consent-not-found on any late respond (the truthful stale answer).
+    pub consents: Mutex<HashMap<String, PendingConsent>>,
     pub next_scan: AtomicU64,
     pub next_job: AtomicU64,
+    pub next_consent: AtomicU64,
     pub sessions_dir: PathBuf,
     pub session_list_cache: Mutex<Option<SessionListCache>>,
+}
+
+/// One pending consent request in the registry (bridge::consent owns the
+/// flow; this is the state-side record so respond/cancel/state can reach
+/// the gate without touching the FFI pipe).
+pub struct PendingConsent {
+    pub scan_id: String,
+    /// The contract-shaped `consent-request` payload — re-hydration truth
+    /// for scan_state's pendingConsent field.
+    pub payload: serde_json::Value,
+    pub gate: Arc<crate::bridge::consent::ConsentGate>,
 }
 
 impl BridgeState {
@@ -392,8 +409,10 @@ impl BridgeState {
         BridgeState {
             scans: Mutex::new(HashMap::new()),
             jobs: Mutex::new(HashMap::new()),
+            consents: Mutex::new(HashMap::new()),
             next_scan: AtomicU64::new(1),
             next_job: AtomicU64::new(1),
+            next_consent: AtomicU64::new(1),
             sessions_dir: sessions_dir(),
             session_list_cache: Mutex::new(None),
         }
@@ -405,6 +424,12 @@ impl BridgeState {
 
     pub fn mint_job_id(&self) -> String {
         format!("job-{}", self.next_job.fetch_add(1, Ordering::Relaxed))
+    }
+
+    /// The consent echo token — globally unique, never derived from
+    /// anything the UI could guess into authority (plan §4.5).
+    pub fn mint_consent_id(&self) -> String {
+        format!("consent-{}", self.next_consent.fetch_add(1, Ordering::Relaxed))
     }
 
     /// Look up a scan entry (cloned Arc — safe to use after releasing the
@@ -432,6 +457,48 @@ impl BridgeState {
                     code::UNKNOWN,
                     format!("job {job_id} is not registered"),
                 )
+            })
+    }
+
+    /// Register a pending consent (the consent sink; lock released before
+    /// the run thread blocks on the gate — §4.5 deadlock rule).
+    pub fn register_consent(&self, request_id: &str, pc: PendingConsent) {
+        if let Ok(mut c) = self.consents.lock() {
+            c.insert(request_id.to_string(), pc);
+        }
+    }
+
+    /// Remove a resolved request (the sink, after the gate answers — a
+    /// late double-respond then hits consent-not-found via the miss path).
+    pub fn unregister_consent(&self, request_id: &str) {
+        if let Ok(mut c) = self.consents.lock() {
+            c.remove(request_id);
+        }
+    }
+
+    /// Force-deny every pending consent belonging to a scan (cancel path +
+    /// run-tail hygiene). Idempotent per gate; entries stay until the sink
+    /// unregisters them (its wait has to wake first).
+    pub fn close_scan_consents(&self, scan_id: &str) {
+        if let Ok(c) = self.consents.lock() {
+            for pc in c.values() {
+                if pc.scan_id == scan_id {
+                    pc.gate.close();
+                }
+            }
+        }
+    }
+
+    /// The pending consent payload for a scan (scan_state re-hydration),
+    /// or None when nothing pends.
+    pub fn pending_consent(&self, scan_id: &str) -> Option<serde_json::Value> {
+        self.consents
+            .lock()
+            .ok()
+            .and_then(|c| {
+                c.values()
+                    .find(|pc| pc.scan_id == scan_id)
+                    .map(|pc| pc.payload.clone())
             })
     }
 }

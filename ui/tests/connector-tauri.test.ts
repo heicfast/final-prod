@@ -127,6 +127,18 @@ describe('command surface (manifest: contracts/command-surface.json)', () => {
     expect(calls[3].args).toEqual({ scanId: 'scan-1' });
   });
 
+  it('respondToConsent invokes consent_respond with the echo token + decision', async () => {
+    // G-1 (a): the requestId from the consent-request payload is the ONLY
+    // key the bridge accepts — echoed verbatim, never re-derived.
+    const c = createTauriConnector();
+    await c.scan.respondToConsent('consent-7', true);
+    await c.scan.respondToConsent('consent-7', false);
+    expect(calls).toEqual([
+      { cmd: 'consent_respond', args: { requestId: 'consent-7', allow: true } },
+      { cmd: 'consent_respond', args: { requestId: 'consent-7', allow: false } },
+    ]);
+  });
+
   it('results methods invoke results_tree/query/count/node_detail with the full payloads', async () => {
     const c = createTauriConnector();
     const filter = {
@@ -307,6 +319,23 @@ describe('error model (contracts/error-codes.json)', () => {
     }
   });
 
+  it('maps a stale consent id to consent-not-found (the prompt dismisses)', async () => {
+    invokeImpl = () => {
+      throw {
+        code: 0,
+        bridgeCode: 'consent-not-found',
+        message: "consent request 'consent-7' is unknown or already resolved",
+      };
+    };
+    const c = createTauriConnector();
+    const r = await collect(c.scan.respondToConsent('consent-7', true));
+    expect(r.ok).toBe(false);
+    if (!r.ok) {
+      expect(r.err.code).toBe('consent-not-found');
+      expect(r.err.reasonKey).toBe('errors.consentNotFound');
+    }
+  });
+
   it('maps an engine numeric rejection through the table with detail.code', async () => {
     invokeImpl = () => {
       throw { code: 0x50050001, bridgeCode: null, message: 'F12' };
@@ -397,5 +426,22 @@ describe('event subscriptions (contract unsubscribe shape)', () => {
     expect(seen).toEqual([{ jobId: 'job-2' }]);
     stop();
     await vi.waitFor(() => expect(listeners.has('recovery-progress:job-2')).toBe(false));
+  });
+
+  it('onConsentRequest listens on consent-request:<scanId> and unsubscribes', async () => {
+    // G-1 (a): the event is scan-scoped (subscribable in advance); the
+    // minted requestId rides the payload.
+    const c = createTauriConnector();
+    const seen: unknown[] = [];
+    const stop = c.scan.onConsentRequest('scan-3', (e) => seen.push(e));
+    await vi.waitFor(() => expect(listeners.has('consent-request:scan-3')).toBe(true));
+    listeners.get('consent-request:scan-3')?.({
+      scanId: 'scan-3',
+      requestId: 'consent-1',
+      plan: null,
+    });
+    expect(seen).toEqual([{ scanId: 'scan-3', requestId: 'consent-1', plan: null }]);
+    stop();
+    await vi.waitFor(() => expect(listeners.has('consent-request:scan-3')).toBe(false));
   });
 });

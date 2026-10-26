@@ -9,8 +9,8 @@ the `cr_ui` C ABI — no subprocess, no IPC on the UI↔engine leg.
 ┌────────────────────────────────  RecoveryWizard.exe  ────────────────────────┐
 │  WebView2 (React 19 UI)                                                       │
 │    └─ src/queries/* ── connector contract (src/connector/contract.ts)         │
-│         └─ src/connector/tauri/tauri-connector.ts  (36 methods, REASON_KEYS)  │
-│              └─ invoke() ── 33 Tauri commands                                 │
+│         └─ src/connector/tauri/tauri-connector.ts  (38 methods, REASON_KEYS)  │
+│              └─ invoke() ── 34 Tauri commands                                 │
 │                   (manifest: contracts/command-surface.json;                 │
 │                    validate.mjs cross-checks BOTH directions)                 │
 │  Rust bridge  src-tauri/src/                                                  │
@@ -36,8 +36,9 @@ the `cr_ui` C ABI — no subprocess, no IPC on the UI↔engine leg.
   the test-signing path). The engine falls back to direct handles
   (`\\.\PhysicalDriveN`) without it — degraded but functional.
 - **engine/**: the recovery domain — staged scans (quick/deep/carve),
-  lost-partition discovery + apply, pre-scan repair analysis (default-deny
-  consent contract), bounded previews, the SafeWriter recovery path with
+  lost-partition discovery + apply, pre-scan repair behind the consent
+  callback (the scan-page prompt approves; deny/cancel/teardown all
+  default-deny), bounded previews, the SafeWriter recovery path with
   the machine-readable report, .crsf sessions, SMART health. Persistence:
   caller-supplied paths only; the bridge supplies ProgramData.
 - **bridge** (`ui/src-tauri/src/bridge`): registries with the engine's

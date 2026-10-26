@@ -86,7 +86,7 @@ neededBytes? }` — **the overlap refusal is hard**: the UI cannot proceed
 ## The real bridge (shipped)
 
 The seam the contract promised held: `src/connector/tauri/tauri-connector.ts`
-implements all 36 methods over the 33 Tauri commands of
+implements all 38 methods over the 34 Tauri commands of
 `contracts/command-surface.json` (repository root), and the Rust bridge
 (`src-tauri/src/{bridge,commands}/`) binds those commands to the cr_ui
 engine ABI. `contracts/validate.mjs` cross-checks the manifest against BOTH

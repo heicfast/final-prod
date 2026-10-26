@@ -183,6 +183,21 @@ export const en = {
       'The source device stopped responding. Reconnect it to continue the search.',
     reconnect: 'I reconnected it',
     recoverNowUnsafe: 'Recovery will be available once this stage completes safely.',
+    consentTitle: 'Pre-scan repair request',
+    consentBody:
+      'The scan engine found file-system damage it can repair before scanning. Repairing is optional — the search for your files works without it.',
+    consentFs: 'File system: {{fs}}',
+    consentActions: 'Repair actions: {{count}}',
+    consentAdvisories: 'Report-only findings: {{count}}',
+    consentRefused:
+      'The analysis also found damage that cannot be repaired safely; those items stay untouched.',
+    consentWarn:
+      'Approving writes repair actions to this volume before the scan (an undo log is saved for the command-line tool). Denying keeps the scan fully read-only.',
+    consentApprove: 'Approve repair',
+    consentDeny: 'Deny — stay read-only',
+    consentNothingToApprove:
+      'The engine planned no write actions; there is nothing to approve.',
+    consentApprovedToast: 'Repair approved — the engine applies it before the scan.',
   },
   results: {
     pathTab: 'Path',
@@ -439,6 +454,8 @@ export const en = {
     scanNotFound: 'That scan does not exist (it may have been closed).',
     scanNotRunning: 'That scan is not currently running.',
     scanNotPaused: 'That scan is not paused.',
+    consentNotFound:
+      'The repair request is no longer active (already answered, cancelled, or the scan ended).',
     destinationInvalid: 'That path is not a valid save location.',
     destinationUnwritable: 'That location is not writable.',
     repairFailed: 'The repair operation could not be completed.',

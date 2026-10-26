@@ -52,7 +52,9 @@ pub fn run() {
             commands::recovery::recovery_report,
             // health
             commands::health::health_read,
-            // repair (G-1 gap cluster: typed truthful refusals)
+            // repair (G-1 gap cluster: typed truthful refusals) + the
+            // consent answer (re-added per G-1 (a): the scan-page prompt)
+            commands::repair::consent_respond,
             commands::repair::repair_dry_run,
             commands::repair::repair_apply,
             commands::repair::repair_undo_log,

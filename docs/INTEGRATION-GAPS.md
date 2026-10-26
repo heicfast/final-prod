@@ -8,7 +8,7 @@ register), `contracts/error-codes.json` (the error vocabulary),
 
 ---
 
-## G-1 — Standalone repair workbench (dryRunRepair / getUndoLog / undoRepairs) + the consent flow
+## G-1 — Standalone repair workbench (dryRunRepair / getUndoLog / undoRepairs); the consent flow SHIPPED
 
 **Scope.** The 78-export cr_ui ABI exposes NO standalone repair surface:
 RawFixer analyze/execute/undo exist in the C++ core and cross the ABI only
@@ -20,32 +20,43 @@ as pre-scan repair inside a scan (`cr_ui_scan_config.pre_scan_repair` +
 `repair_undo` in contracts/command-surface.json) and the UI renders the
 truthful message — never a dead button.
 
-**applyRepair.** The standalone apply is refused identically. The REAL
-repair path is the scan's pre-scan analysis: `scan_start` arms
-`pre_scan_repair = 1` with `repair_consent = NULL` — the engine's own
-DOCUMENTED default-deny ("Zero, a NULL callback, or no available write view
-= the plan is surfaced via CR_EVT_REPAIR events and stats and NEVER
-executed", cr_ui.h S-008). Analysis evidence (planned action counts,
-outcomes) rides `cr_ui_scan_stats` + the session record; nothing is ever
-written to a volume from this build.
+**applyRepair.** The standalone apply is refused identically (same typed
+`not-implemented` — `repair_apply`). The REAL repair path is the scan's
+pre-scan analysis, and it now carries the FULL consent flow:
 
-**The consent surface itself.** The ratified plan's consent flow (mid-scan
-typed-REPAIR prompt + `consent_respond` command) has NO UI surface to drive
-it today — the scan-progress page consumes only `ScanProgressEvent` and no
-consent prompt component exists. Wiring the callback to a blocking oneshot
-with no listener would deadlock the engine's run thread; inventing a prompt
-component is a feature add, out of the session's scope. The bridge therefore
-ships the engine-documented NULL-consent posture and the command manifest
-records `consent_respond` in its `removed` array with this rationale.
+**The consent surface — SHIPPED (follow-up (a) landed).** `scan_start` arms
+`pre_scan_repair = 1` WITH the consent callback (`bridge::consent`, plan
+§4.5): when the engine finds a repairable plan it calls the callback ONCE
+on the run thread, the bridge mints a requestId, emits
+`consent-request:<scanId>` (the payload carries the plan + requestId), and
+blocks the run thread on the registered gate — NO user-facing timeout (a
+non-answer is a user decision). The scan-progress page renders the
+non-dismissable prompt (from the event, or re-hydrated from
+`scan_state`'s `pendingConsent` field), and `consent_respond(requestId,
+allow)` — re-added to contracts/command-surface.json; the removed[] entry
+retired — is the only answer path. Approve = the engine executes the
+transactional repair through the shim-opened write view and the run tail
+persists the undo log (`<sessions>/repair-undo/<scanId>.undo`, consumable
+by `rrecov fix --undo-apply <file>`); deny = the scan stays read-only.
+Default-deny holds on every teardown route: `scan_cancel` force-denies the
+scan's pending gates FIRST (a pending consent blocks the run thread; the
+engine observes the cancel token only after the callback returns), and the
+run tail closes any survivor after `run()` returns. The typed
+`consent-not-found` covers stale ids (double respond, cancel race, ended
+scan). The event-keying deviation from plan §4.3
+(`consent-request:<scanId>` + payload requestId, not
+`consent-request:<consentId>`) is recorded in contracts/event-mapping.md —
+a listener cannot subscribe to a name minted at request time.
 
-**Follow-up.** (a) Build the scan-page consent prompt (typed-REPAIR token
-flow reused) + a `consent-request:<id>` listener; re-add `consent_respond`
-when it lands. (b) Propose the append-only ABI additions the plan §3.8
-named: `cr_ui_repair_analyze` / `cr_ui_repair_apply` / `cr_ui_repair_undo`
-(ABI policy allows appends without a version bump). (c) Until (b), undo is
-CLI-only: the installer ships `rrecov.exe` beside the app; `rrecov fix
---undo-apply <file>` restores from an undo log saved via
-`cr_ui_scan_repair_save_undo`.
+**Follow-up.** (a) SHIPPED (the prompt + listener + `consent_respond` +
+undo-log persistence above). (b) OPEN: propose the append-only ABI
+additions the plan §3.8 named: `cr_ui_repair_analyze` /
+`cr_ui_repair_apply` / `cr_ui_repair_undo` (ABI policy allows appends
+without a version bump) — the standalone workbench trio stays
+`not-implemented` until they exist. (c) OPEN (partial): undo is CLI-only:
+`rrecov.exe` ships beside the app; `rrecov fix --undo-apply <file>`
+restores from the undo log the bridge now saves after every approved
+repair.
 
 ---
 

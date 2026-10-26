@@ -18,6 +18,7 @@ import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
 import type {
   AppInfo,
+  ConsentRequestEvent,
   ConnectorError,
   ConnectorErrorCode,
   Device,
@@ -60,6 +61,7 @@ export const REASON_KEYS: Readonly<Record<ConnectorErrorCode, string>> = {
   'scan-not-paused': 'errors.scanNotPaused',
   'scan-not-running': 'errors.scanNotRunning',
   'scan-scope-invalid': 'errors.scanScopeInvalid',
+  'consent-not-found': 'errors.consentNotFound',
   'session-corrupt': 'errors.sessionCorrupt',
   'session-not-found': 'errors.sessionNotFound',
   'destination-overlap': 'recovery.overlapReason',
@@ -219,6 +221,25 @@ export function createTauriConnector(): RecoveryConnector {
           void pending.then((unlisten) => unlisten());
         };
       },
+
+      // G-1 (a): the pre-scan repair consent surface. The engine's run
+      // thread emits this at most once per scan; the prompt ALSO renders
+      // from getScanState().pendingConsent (re-hydration for subscribe-late
+      // and navigate-away-and-back).
+      onConsentRequest: (
+        scanId: string,
+        cb: (event: ConsentRequestEvent) => void,
+      ): (() => void) => {
+        const pending = listen<ConsentRequestEvent>(`consent-request:${scanId}`, (e) => {
+          cb(e.payload);
+        });
+        return () => {
+          void pending.then((unlisten) => unlisten());
+        };
+      },
+
+      respondToConsent: async (requestId: string, allow: boolean): Promise<void> =>
+        bridge(invoke('consent_respond', { requestId, allow })),
     },
 
     results: {

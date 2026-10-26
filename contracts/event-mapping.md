@@ -35,7 +35,7 @@ BEFORE `cr_ui_scan_run`.
 | `CR_EVT_ERROR_RANGE` | 4 | `err_start_bytes`, `err_len_bytes`, `error_ranges`, `err_module` (`CR_ERRMOD_*`), `err_operation` (`CR_ERROP_*`), `err_attempts` | Appends `{startByte: err_start_bytes, sizeBytes: err_len_bytes}` to the scan entry's bad-sector map (bounded: the bridge keeps the map plus the count; payload carries the map) and bumps `errors` to the cumulative `error_ranges`. Module/op/attempts ride along in the bridge log only (M-049 diagnostic), not the UI payload. |
 | `CR_EVT_CHECKPOINT` | 5 | `checkpoint_index` | No UI emission (internal checkpoint truth; `cr_ui_scan_checkpoint_count` is the queryable surface). |
 | `CR_EVT_LOST_CANDIDATE` | 6 | `candidate_lba` | Increments the scan entry's lost-candidate counter; next progress event carries it in `detail.lostCandidates` (the Home/LostPartition badge surfaces read the count post-scan from `cr_ui_scan_stats.lost_partitions`). |
-| `CR_EVT_REPAIR` | 7 | `repair_actions`, `repair_outcome` (0 plan-ready / 1 applied / 2 denied / 3 failed) | Emits `consent-request:<consentId>` semantics per the consent flow when outcome is plan-ready (pre-scan repair path); applied/denied/failed outcomes emit a repair-result toast event the Scan screen renders. |
+| `CR_EVT_REPAIR` | 7 | `repair_actions`, `repair_outcome` (0 plan-ready / 1 applied / 2 denied / 3 failed) | The outcome record: latched into the scan's repair summary line + stats (0 plan-ready = the consent callback returned deny/NULL-armed; 1 applied = the prompt approved and the engine executed; 2 denied; 3 failed). The consent PROMPT itself is emitted by `cr_ui_repair_consent_fn` (bridge::consent), not this event — see the consent section below. |
 | `CR_EVT_HEARTBEAT` | 8 | `timestamp_ms` | Liveness only: updates the scan entry's last-heartbeat instant (dead-scan detection after device yank). NO progress synthesis. |
 | `CR_EVT_SAVE_PROGRESS` | 9 | `stage_permille`, `overall_permille` | Drives the saveSession spinner: emits `save-progress:<scanId>` with a 0..1 permille fraction. |
 | `CR_EVT_FS_CHECK` | 10 | `check_errors` (0x1001..0x100e set count), `check_family` | Bumps the scan entry's damage-audit counter (surface: scan screen's truthful "X file-system issues found" note; the full detail lives in stats/session records). |
@@ -70,18 +70,38 @@ exists (OQ-1 resolved from the header). The bridge therefore composes
 
 Emitted over the same channel→emit discipline on `recovery-progress:<jobId>`.
 
-## Consent events (bridge surface)
+## Consent events (bridge surface — shipped per G-1 (a))
 
-The consent callback (`cr_ui_repair_consent_fn`, `cr_ui.h:423`; apply consent
-in the lost-partition flow) runs ON the engine's run thread. The bridge:
+The consent callback (`cr_ui_repair_consent_fn`, `cr_ui.h`) runs ON the
+engine's run thread, at most ONCE per scan (cr_ui.h S-008: only when a
+repairable plan exists, before any engine read). The bridge
+(`ui/src-tauri/src/bridge/consent.rs`):
 
-1. mints a `consentId`, registers a pending oneshot, and `try_send`s the
-   request (never blocks the registry — deadlock analysis in
-   docs/INTEGRATION-PLAN.md §4.5);
-2. the emitter thread emits `consent-request:<consentId>` with the plan POD
-   translated to JSON (`detected`, `fs_family`, `action_count`, `refused`,
-   `reason`, `advisory_count`);
-3. the UI renders the typed-consent prompt (the existing REPAIR token flow)
-   and resolves via the `consent_respond` command;
-4. default-deny holds twice: the engine denies when the callback is absent,
-   and the bridge denies a consent whose window/subscription is gone.
+1. mints a requestId (an opaque echo token), registers a pending
+   `ConsentGate` in the state registry, and — with the registry lock
+   RELEASED — emits `consent-request:<scanId>` directly from the run
+   thread, carrying the plan POD translated to JSON (`detected`,
+   `fsFamily`, `actionCount`, `refused`, `reason`, `advisoryCount`) plus
+   the requestId. The event is SCAN-scoped so the page can subscribe in
+   advance; the minted requestId — carried in the payload, never the
+   event name — is the only key `consent_respond` accepts. (Plan §4.3
+   drafted `consent-request:<consentId>`; the shipped keying keeps the
+   token in the payload because a listener cannot subscribe to an event
+   name minted at request time — the deviation and its mechanics are
+   recorded here, the ratified plan text stays frozen as history.)
+2. the run thread then BLOCKS on the gate — NO user-facing timeout
+   (plan §4.5: a non-answer is a user decision, not a timer);
+3. the scan page renders the typed-consent prompt from the event, or
+   from scan-state's `pendingConsent` re-hydration field (the event fired
+   before the page's subscription landed, or the user navigated away and
+   back), and answers via the `consent_respond` command. A stale id —
+   double respond, cancel force-deny, scan ended — throws the typed
+   `consent-not-found` and the prompt dismisses;
+4. default-deny holds on every teardown path: the engine denies when the
+   callback is absent, `scan_cancel` force-denies the scan's pending
+   gates FIRST (a pending consent blocks the run thread inside the
+   callback; the engine observes the cancel token only after it returns —
+   plan §4.5's deadlock rule), and the run tail closes any survivor
+   after `cr_ui_scan_run()` returns. An APPROVED repair executes
+   transactionally through the shim-opened write view; the run tail
+   persists the undo log for `rrecov fix --undo-apply <file>` (G-1 (c)).
