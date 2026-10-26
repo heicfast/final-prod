@@ -13,6 +13,7 @@ use super::error::{check, BridgeError, BridgeResult};
 /// serializes every use of the pointer; the engine's own contract makes
 /// token/telemetry/snapshot calls any-thread safe. `Send + Sync` here is the
 /// explicit bridge discipline (docs/INTEGRATION-PLAN.md §4.2), not an accident.
+#[derive(Clone, Copy)]
 pub struct SendPtr<T>(*mut T);
 
 impl<T> SendPtr<T> {
@@ -26,12 +27,6 @@ impl<T> SendPtr<T> {
         self.0.is_null()
     }
 }
-impl<T> Clone for SendPtr<T> {
-    fn clone(&self) -> Self {
-        SendPtr(self.0)
-    }
-}
-impl<T> Copy for SendPtr<T> {}
 unsafe impl<T> Send for SendPtr<T> {}
 unsafe impl<T> Sync for SendPtr<T> {}
 

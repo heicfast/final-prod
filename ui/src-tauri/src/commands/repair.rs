@@ -2,9 +2,11 @@
 //! standalone repair surface (RawFixer analyze/execute/undo live behind the
 //! C++ core API and cross the ABI only as pre-scan repair inside a scan).
 //! All four methods throw the typed not-implemented with the truthful scope
-//! + follow-up pointer; the UI surfaces render the message, never a dead
-//! button. docs/INTEGRATION-GAPS.md G-1 records the proposed append-only
-//! ABI additions and the CLI-only undo reality (rrecov fix --undo-apply).
+//! and follow-up pointer; the UI surfaces render the message, never a dead
+//! button.
+//!
+//! docs/INTEGRATION-GAPS.md G-1 records the proposed append-only ABI
+//! additions and the CLI-only undo reality (rrecov fix --undo-apply).
 
 use serde_json::Value;
 

@@ -24,6 +24,14 @@ use crate::bridge::error::{code, check, BridgeError, BridgeResult};
 use crate::bridge::events::{emit_job_terminal, spawn_job_emitter};
 use crate::bridge::state::{BridgeState, JobEntry, JobLive, ScanKind, ScanEntry};
 use crate::bridge::util::{now_iso, SendPtr};
+
+/// The blocking-start result: the registered job + its id + the sample
+/// receiver the emitter drains.
+type JobStart = (
+    Arc<JobEntry>,
+    String,
+    std::sync::mpsc::Receiver<(u64, u64)>,
+);
 use crate::commands::results::query_page;
 
 fn conflict_of(v: &Value) -> u32 {
@@ -73,7 +81,7 @@ fn recovery_start_blocking(
     selection: Value,
     destination: String,
     options: Value,
-) -> BridgeResult<(Arc<JobEntry>, String, std::sync::mpsc::Receiver<(u64, u64)>)> {
+) -> BridgeResult<JobStart> {
     let entry = state.scan_entry_arc(&scan_id)?;
     let dev = entry.device();
     if dev.is_null() {
@@ -137,8 +145,8 @@ fn recovery_start_blocking(
                     } else {
                         unsafe { abi::cr_ui_recovery_enqueue_node(rec, sess, node_id_u64) }
                     }
-                } else if id_s.starts_with('d') {
-                    let idx: u32 = id_s[1..].parse().map_err(|_| bad_sel(&id_s))?;
+                } else if let Some(rest) = id_s.strip_prefix('d') {
+                    let idx: u32 = rest.parse().map_err(|_| bad_sel(&id_s))?;
                     check(
                         unsafe { abi::cr_ui_recovery_enqueue_subtree_snapshot(rec, snap_ptr, idx) },
                         "cr_ui_recovery_enqueue_subtree_snapshot",
@@ -172,9 +180,11 @@ fn recovery_start_blocking(
                     &filter,
                     "name",
                     false,
-                    offset,
-                    500,
-                    false,
+                    crate::commands::results::PageReq {
+                        offset,
+                        limit: 500,
+                        count_only: false,
+                    },
                 )?;
                 let nodes = page.get("nodes").and_then(|n| n.as_array()).cloned().unwrap_or_default();
                 if nodes.is_empty() {
@@ -258,7 +268,7 @@ fn resolve_session_node_id(entry: &Arc<ScanEntry>, id: &str) -> BridgeResult<u64
         .as_ref()
         .ok_or_else(|| BridgeError::bridge(code::UNKNOWN, "metadata cache missing"))?;
     let idx: usize = id
-        .trim_start_matches(|c| c == 'f' || c == 'd')
+        .trim_start_matches(['f', 'd'])
         .parse()
         .map_err(|_| bad_sel(id))?;
     let m = metas.get(idx).ok_or_else(|| bad_sel(id))?;

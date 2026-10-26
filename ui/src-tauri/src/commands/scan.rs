@@ -191,7 +191,7 @@ pub fn scan_start_blocking(
         (
             target.volume_json.clone().unwrap_or(Value::Null),
             disk_id(target.disk.number),
-            target.volume.as_ref().map(|v| volume_id(v)),
+            target.volume.as_ref().map(volume_id),
         )
     } else {
         (target.device_json.clone(), disk_id(target.disk.number), None)

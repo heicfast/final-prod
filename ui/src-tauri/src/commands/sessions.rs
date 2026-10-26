@@ -11,7 +11,7 @@
 //! per file, cached in the bridge — no sidecar index file.
 
 use std::io::ErrorKind;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use serde_json::{json, Value};
@@ -56,7 +56,7 @@ fn entry_label(entry: &Arc<ScanEntry>) -> String {
 /// Compose the auto-name from wall time: auto_<label>_<M>_<D>_<H>_<m>_<s>.crsf
 /// (UTC — documented deviation from the reference's local-date naming: std
 /// gives no TZ offset and the bridge stays dependency-free/deterministic).
-fn auto_name(label: &str, dir: &PathBuf) -> PathBuf {
+fn auto_name(label: &str, dir: &Path) -> PathBuf {
     let secs = now_unix_ms().div_euclid(1000);
     let days = secs.div_euclid(86_400);
     let tod = secs.rem_euclid(86_400);
@@ -131,7 +131,7 @@ pub async fn session_save(
 
 /// Read one session's meta (load + info + stats + close — the cheap pass OQ-4
 /// sanctioned for listing).
-fn probe_session_meta(path: &PathBuf) -> Option<(String, u64, u64, bool)> {
+fn probe_session_meta(path: &Path) -> Option<(String, u64, u64, bool)> {
     let path_str = path.to_string_lossy().to_string();
     let mut sess: *mut abi::CrUiSession = std::ptr::null_mut();
     let rc = unsafe { abi::cr_ui_session_load(crate::bridge::util::cstr(&path_str).as_ptr(), &mut sess) };
@@ -229,7 +229,7 @@ pub async fn sessions_list(
                 });
             }
         }
-        rows.sort_by(|a, b| b.saved_at_ms.cmp(&a.saved_at_ms));
+        rows.sort_by_key(|r| std::cmp::Reverse(r.saved_at_ms));
         *state
             .session_list_cache
             .lock()

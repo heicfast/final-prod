@@ -292,7 +292,7 @@ fn matches_pred(m: &NodeMeta, p: &Pred) -> bool {
     }
     if !p.extensions.is_empty() {
         let ext = extension_of(&m.name);
-        if !p.extensions.iter().any(|want| *want == ext) {
+        if !p.extensions.contains(&ext) {
             return false;
         }
     }
@@ -348,7 +348,7 @@ fn result_node(m: &NodeMeta, idx: usize, scan_id: &str) -> Value {
 // results_query / results_count
 // ---------------------------------------------------------------------------
 
-fn sort_matches(metas: &[NodeMeta], hits: &mut Vec<usize>, field: &str, dir_desc: bool) {
+fn sort_matches(metas: &[NodeMeta], hits: &mut [usize], field: &str, dir_desc: bool) {
     match field {
         "name" => hits.sort_by(|a, b| {
             let cmp = metas[*a]
@@ -386,16 +386,22 @@ fn sort_matches(metas: &[NodeMeta], hits: &mut Vec<usize>, field: &str, dir_desc
     }
 }
 
+/// Paging + count request shape (keeps query_page's argument list canonical).
+pub struct PageReq {
+    pub offset: u64,
+    pub limit: u32,
+    pub count_only: bool,
+}
+
 pub fn query_page(
     state: &Arc<BridgeState>,
     scan_id: &str,
     filter: &Value,
     sort_field: &str,
     sort_desc: bool,
-    offset: u64,
-    limit: u32,
-    count_only: bool,
+    page: PageReq,
 ) -> BridgeResult<Value> {
+    let PageReq { offset, limit, count_only } = page;
     let t0 = std::time::Instant::now();
     let (entry, metas, _partial) = metas_snapshot(state, scan_id)?;
     let f = parse_filter(filter);
@@ -442,10 +448,13 @@ pub async fn results_query(
     let state = state.inner().clone();
     let sort_field = sort.get("field").and_then(|f| f.as_str()).unwrap_or("name").to_string();
     let sort_desc = sort.get("direction").and_then(|d| d.as_str()) == Some("desc");
-    let offset = page.get("offset").and_then(|o| o.as_u64()).unwrap_or(0);
-    let limit = page.get("limit").and_then(|l| l.as_u64()).unwrap_or(200) as u32;
+    let req = PageReq {
+        offset: page.get("offset").and_then(|o| o.as_u64()).unwrap_or(0),
+        limit: page.get("limit").and_then(|l| l.as_u64()).unwrap_or(200) as u32,
+        count_only: false,
+    };
     tauri::async_runtime::spawn_blocking(move || {
-        query_page(&state, &scan_id, &filter, &sort_field, sort_desc, offset, limit, false)
+        query_page(&state, &scan_id, &filter, &sort_field, sort_desc, req)
     })
     .await
     .map_err(|e| BridgeError::bridge(code::UNKNOWN, format!("blocking join: {e}")))?
@@ -458,8 +467,9 @@ pub async fn results_count(
     filter: Value,
 ) -> Result<Value, BridgeError> {
     let state = state.inner().clone();
+    let req = PageReq { offset: 0, limit: 0, count_only: true };
     tauri::async_runtime::spawn_blocking(move || {
-        query_page(&state, &scan_id, &filter, "name", false, 0, 0, true)
+        query_page(&state, &scan_id, &filter, "name", false, req)
     })
     .await
     .map_err(|e| BridgeError::bridge(code::UNKNOWN, format!("blocking join: {e}")))?
@@ -469,28 +479,31 @@ pub async fn results_count(
 // results_tree
 // ---------------------------------------------------------------------------
 
-fn tree_node(
-    id: &str,
-    parent_id: Option<&str>,
-    label: &str,
-    icon: &str,
+/// One tree row's composition (keeps tree_node's argument list canonical).
+struct TreeSpec<'a> {
+    id: &'a str,
+    parent_id: Option<&'a str>,
+    label: &'a str,
+    icon: &'a str,
     child_count: u64,
     file_count: u64,
     size_bytes: u64,
-    origin: &str,
-    special: Option<&str>,
-) -> Value {
+    origin: &'a str,
+    special: Option<&'a str>,
+}
+
+fn tree_node(spec: TreeSpec<'_>) -> Value {
     let mut v = json!({
-        "id": id,
-        "parentId": parent_id,
-        "label": label,
-        "icon": icon,
-        "childCount": child_count,
-        "fileCount": file_count,
-        "sizeBytes": size_bytes,
-        "origin": origin,
+        "id": spec.id,
+        "parentId": spec.parent_id,
+        "label": spec.label,
+        "icon": spec.icon,
+        "childCount": spec.child_count,
+        "fileCount": spec.file_count,
+        "sizeBytes": spec.size_bytes,
+        "origin": spec.origin,
     });
-    if let Some(s) = special {
+    if let Some(s) = spec.special {
         v["special"] = json!(s);
     }
     v
@@ -544,17 +557,17 @@ pub fn tree_page(
                             slot.1 += m.size;
                         }
                         for (ext, (count, size)) in exts {
-                            nodes.push(tree_node(
-                                &format!("ext:{label}:{ext}"),
-                                Some(pid),
-                                &ext.to_uppercase(),
-                                "directory",
-                                0,
-                                count,
-                                size,
-                                "existing",
-                                None,
-                            ));
+                            nodes.push(tree_node(TreeSpec {
+            id: &format!("ext:{label}:{ext}"),
+            parent_id: Some(pid),
+            label: &ext.to_uppercase(),
+            icon: "directory",
+            child_count: 0,
+            file_count: count,
+            size_bytes: size,
+            origin: "existing",
+            special: None,
+        }));
                         }
                     }
                 }
@@ -575,33 +588,33 @@ pub fn tree_page(
                         count += 1;
                         size += m.size;
                     }
-                    nodes.push(tree_node(
-                        &format!("c{idx}"),
-                        None,
-                        label,
-                        "category",
-                        if count > 0 { 1 } else { 0 },
-                        count,
-                        size,
-                        "existing",
-                        None,
-                    ));
+                    nodes.push(tree_node(TreeSpec {
+            id: &format!("c{idx}"),
+            parent_id: None,
+            label: label,
+            icon: "category",
+            child_count: if count > 0 { 1 } else { 0 },
+            file_count: count,
+            size_bytes: size,
+            origin: "existing",
+            special: None,
+        }));
                 }
             }
         }
         "raw" => {
             let (count, size) = origin_sums(&metas, 1, scope.as_deref());
-            nodes.push(tree_node(
-                "raw-all",
-                None,
-                "raw",
-                "group",
-                0,
-                count,
-                size,
-                "raw",
-                Some("raw-found"),
-            ));
+            nodes.push(tree_node(TreeSpec {
+            id: "raw-all",
+            parent_id: None,
+            label: "raw",
+            icon: "group",
+            child_count: 0,
+            file_count: count,
+            size_bytes: size,
+            origin: "raw",
+            special: Some("raw-found"),
+        }));
         }
         _ => {
             // path mode
@@ -618,17 +631,17 @@ pub fn tree_page(
                                 .iter()
                                 .filter(|x| x.is_dir && x.parent == idx as u32)
                                 .count() as u64;
-                            nodes.push(tree_node(
-                                &format!("d{idx}"),
-                                None,
-                                &m.name,
-                                "directory",
-                                top_dirs,
-                                m.file_count,
-                                m.tree_size,
-                                "existing",
-                                None,
-                            ));
+                            nodes.push(tree_node(TreeSpec {
+            id: &format!("d{idx}"),
+            parent_id: None,
+            label: &m.name,
+            icon: "directory",
+            child_count: top_dirs,
+            file_count: m.file_count,
+            size_bytes: m.tree_size,
+            origin: "existing",
+            special: None,
+        }));
                         }
                     } else {
                         // Structured totals (existing + deleted + lost files
@@ -647,42 +660,42 @@ pub fn tree_page(
                                 fs += m.size;
                             }
                         }
-                        nodes.push(tree_node(
-                            "root",
-                            None,
-                            "root",
-                            "device",
-                            top_dirs,
-                            fc,
-                            fs,
-                            "existing",
-                            None,
-                        ));
+                        nodes.push(tree_node(TreeSpec {
+            id: "root",
+            parent_id: None,
+            label: "root",
+            icon: "device",
+            child_count: top_dirs,
+            file_count: fc,
+            size_bytes: fs,
+            origin: "existing",
+            special: None,
+        }));
                         let (lost_c, lost_s) = origin_sums(&metas, 2, None);
                         let lost_top_dirs = lost_dirs(&metas, 0, true).len() as u64;
-                        nodes.push(tree_node(
-                            "lost-paths",
-                            None,
-                            "lost-paths",
-                            "group",
-                            if lost_top_dirs > 0 { 1 } else { 0 },
-                            lost_c,
-                            lost_s,
-                            "lost-path",
-                            Some("lost-path"),
-                        ));
+                        nodes.push(tree_node(TreeSpec {
+            id: "lost-paths",
+            parent_id: None,
+            label: "lost-paths",
+            icon: "group",
+            child_count: if lost_top_dirs > 0 { 1 } else { 0 },
+            file_count: lost_c,
+            size_bytes: lost_s,
+            origin: "lost-path",
+            special: Some("lost-path"),
+        }));
                         let (raw_c, raw_s) = origin_sums(&metas, 1, None);
-                        nodes.push(tree_node(
-                            "raw-all",
-                            None,
-                            "raw",
-                            "group",
-                            0,
-                            raw_c,
-                            raw_s,
-                            "raw",
-                            Some("raw-found"),
-                        ));
+                        nodes.push(tree_node(TreeSpec {
+            id: "raw-all",
+            parent_id: None,
+            label: "raw",
+            icon: "group",
+            child_count: 0,
+            file_count: raw_c,
+            size_bytes: raw_s,
+            origin: "raw",
+            special: Some("raw-found"),
+        }));
                     }
                 }
                 Some("root") => {
@@ -705,17 +718,17 @@ pub fn tree_page(
                         let m = &metas[idx];
                         let (c, s) = lost_under(&metas, &m.path);
                         let deeper = lost_dirs(&metas, idx, false).len() as u64;
-                        nodes.push(tree_node(
-                            &format!("lost-{idx}"),
-                            Some("lost-paths"),
-                            &m.name,
-                            "directory",
-                            deeper,
-                            c,
-                            s,
-                            "lost-path",
-                            None,
-                        ));
+                        nodes.push(tree_node(TreeSpec {
+            id: &format!("lost-{idx}"),
+            parent_id: Some("lost-paths"),
+            label: &m.name,
+            icon: "directory",
+            child_count: deeper,
+            file_count: c,
+            size_bytes: s,
+            origin: "lost-path",
+            special: None,
+        }));
                     }
                 }
                 Some(pid) if pid.starts_with("lost-") => {
@@ -724,17 +737,17 @@ pub fn tree_page(
                         let m = &metas[child];
                         let (c, s) = lost_under(&metas, &m.path);
                         let deeper = lost_dirs(&metas, child, false).len() as u64;
-                        nodes.push(tree_node(
-                            &format!("lost-{child}"),
-                            Some(pid),
-                            &m.name,
-                            "directory",
-                            deeper,
-                            c,
-                            s,
-                            "lost-path",
-                            None,
-                        ));
+                        nodes.push(tree_node(TreeSpec {
+            id: &format!("lost-{child}"),
+            parent_id: Some(pid),
+            label: &m.name,
+            icon: "directory",
+            child_count: deeper,
+            file_count: c,
+            size_bytes: s,
+            origin: "lost-path",
+            special: None,
+        }));
                     }
                 }
                 Some(pid) if pid.starts_with('d') => {
@@ -759,17 +772,17 @@ pub fn tree_page(
 }
 
 fn dir_tree_node(idx: usize, m: &NodeMeta, parent: Option<&str>) -> Value {
-    tree_node(
-        &format!("d{idx}"),
-        parent,
-        &m.name,
-        "directory",
-        m.child_count as u64,
-        m.file_count,
-        m.tree_size,
-        "existing",
-        None,
-    )
+    tree_node(TreeSpec {
+        id: &format!("d{idx}"),
+        parent_id: parent,
+        label: &m.name,
+        icon: "directory",
+        child_count: m.child_count as u64,
+        file_count: m.file_count,
+        size_bytes: m.tree_size,
+        origin: "existing",
+        special: None,
+    })
 }
 
 fn in_scope(path: &str, scope: Option<&str>) -> bool {
