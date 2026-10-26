@@ -768,6 +768,42 @@ int cmd_scan(int argc, wchar_t** argv, int& i) {
             break;
         }
     }
+    /* M-048: --user-signs <file> - the EUUserData-shaped signature
+     * database, loaded and registered before the scan (the og re-reads
+     * its install-tree file per scan; the flag is the same posture).
+     * Honest failure: an unreadable or invalid file aborts the scan -
+     * never a silent no-signatures run the user did not ask for. */
+    {
+        std::wstring user_signs_path;
+        for (int k = i; k + 1 < argc; ++k) {
+            if (wcscmp(argv[k], L"--user-signs") == 0 && argv[k + 1][0] != L'-') {
+                user_signs_path = argv[k + 1];
+                break;
+            }
+        }
+        if (!user_signs_path.empty()) {
+            FILE* f = nullptr;
+            if (_wfopen_s(&f, user_signs_path.c_str(), L"rb") != 0 || f == nullptr) {
+                wprintf(L"[user-signs] cannot open %ls\n", user_signs_path.c_str());
+                return 1;
+            }
+            std::vector<char> json;
+            char buf[4096];
+            size_t got = 0;
+            while ((got = fread(buf, 1, sizeof(buf), f)) > 0)
+                json.insert(json.end(), buf, buf + got);
+            fclose(f);
+            const u32 rc = cr_ui_register_user_signs(json.data(), u32(json.size()));
+            if (rc != 0) {
+                wprintf(L"[user-signs] %ls is not a valid signature database "
+                        L"(the og's EUUserData JSON shape)\n",
+                        user_signs_path.c_str());
+                return 1;
+            }
+            wprintf(L"[user-signs] %u user signature(s) registered\n",
+                    cr_ui_user_sign_count());
+        }
+    }
     std::vector<std::string> dict_user;
     if (dict_consent && !dict_path.empty() && !load_dict_candidates(dict_path, dict_user))
         return 1; /* honest failure: the user named a dictionary we cannot use */
@@ -802,6 +838,13 @@ int cmd_scan(int argc, wchar_t** argv, int& i) {
         }
         if (wcscmp(argv[i], L"--bitlocker-dict") == 0) {
             /* consumed by the pre-pass (value, if any, too); not a positional */
+            ++i;
+            if (i < argc && argv[i][0] != L'-')
+                ++i;
+            continue;
+        }
+        if (wcscmp(argv[i], L"--user-signs") == 0) {
+            /* M-048: consumed by the pre-pass (with its value) */
             ++i;
             if (i < argc && argv[i][0] != L'-')
                 ++i;

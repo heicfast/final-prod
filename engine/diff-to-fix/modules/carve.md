@@ -462,3 +462,16 @@ finding itself records no og-execution possible here; M-009 posture).
 The I-009 mid-sector superset stays. Stateless-vs-pending model
 difference registered (PARITY-DELTAS D-81) — the porting boundary the
 S-017 plan must respect.
+
+
+## Session-33 verdict update, part 2 (2026-10-26, DFX33 — M-048 FIXED)
+
+**B1/A28/D16 → MATCH (post-fix):** the user-extensible signature database
+is live: the og's EUUserData JSON shape parses (targeted reader, atomic
+validation), registers through the cr_ui ABI (since 2.1) or the CLI
+--user-signs flag, and probes at the raw-sign stride AFTER the built-in
+layers (built-in-wins collision rule). Emission carries the user's
+extension + MIME (carve_note), tag 0xFFFE0000, confidence 600 (the
+documented fixed value — EUUserData carries none). Source-of-truth
+posture is the og's own: an install-tree config re-read per scan, not
+session state.

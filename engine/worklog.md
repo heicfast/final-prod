@@ -15390,6 +15390,38 @@ Corpus 03ad46c unmoved throughout. One finding file deleted: NONE. All
 resolutions evidence-cited. Token hygiene maintained.
 
 ---
+Task ID: DFX33-T5 (session 33, fourth fix)
+Agent: main engineer (diff-to-fix fix session 33 — DFX33)
+Task: M-048 — the user-extensible signature database (EUUserData).
+
+Work Log:
+- Corpus re-verified: og-codebase/EUUserData read first-hand (111-entry
+  JSON; the 123/cpl/epub rows quoted in the tests verbatim);
+  config-data-reference.md :95.
+- Implemented: the pure usersigns module (targeted JSON-subset reader for
+  the og's exact shape, atomic validation, caps 256/8/16/512); the cr_ui
+  ABI (since 2.1: register/count/info — atomic install,
+  replace-on-re-register, mutex-guarded, snapshot-for-info); the CLI
+  --user-signs loader (honest failure); the carve-layer probe at the
+  raw-sign stride after the built-ins (built-in-wins collision rule),
+  emission with the user ext + MIME (carve_note) + tag 0xFFFE0000 +
+  confidence 600 (documented fixed value). Session posture per the
+  corpus truth: install-tree config re-read per run, not session state
+  (fix-plan item 4's scope correction, registered).
+- First build caught two of my own errors (the missing ':' in the JSON
+  reader; the racy active_set accessor — replaced by the lock-held
+  snapshot pattern), both fixed before any push.
+- Tests: UserSigns.ParseTheOgsShape + CarveEngine.UserSignatureProbedAtStride
+  (fail-before EXECUTED: RED with the layer disabled) +
+  UserSignatureYieldsToBuiltInAtSamePosition + CrUi.UserSignRegistrationSurface.
+  Suite 869/869 linux-release.
+- Audit trail: Resolution + FIXED/ move; matrix carve row; modules/carve.md
+  part-2 verdict; SUMMARY part-4 delta; ABI-CONTRACT 7d.
+
+Stage Summary:
+- M-048 FIXED (tally: 4 — M-020, M-025, M-018, M-048 — plus the T4
+  pushed-red repair). MAJOR 5 open. Next: pull, then the live queue.
+
 Task ID: DFX34-T4 (session 34, fourth landing — the third-wave repair + the union-merge rule)
 Agent: main engineer (diff-to-fix fix session 34 — DFX34)
 Task: Repair the 875ed25 regression (my own union loop's fault: keep-both

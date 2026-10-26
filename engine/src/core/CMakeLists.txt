@@ -47,6 +47,7 @@ add_library(cr_core STATIC
     carve/cr_analysers.cpp
     carve/cr_carve.cpp
     carve/cr_rawsigns.cpp
+    carve/cr_usersigns.cpp
     carve/cr_rawsigns_data.cpp
     session/cr_crsf.cpp
     session/cr_records.cpp
