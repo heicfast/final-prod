@@ -76,8 +76,14 @@ Set-ItemProperty -Path $paramKey -Name 'SessionsEnabled' -Value 1 -Type DWord
 if (-not $NoStart) {
     sc.exe start $ServiceName | Out-Null
     if ($LASTEXITCODE -ne 0) {
-        Write-Warning "StartService failed ($LASTEXITCODE). Check code-signing policy " +
-                      "(testsigning), driver signature, and the System event log."
+        # One string, no '+' concatenation: in argument position a trailing
+        # + is NOT a string continuation, and `powershell -File` propagates
+        # the failed sc.exe start's exit code as the PROCESS exit when the
+        # script ends without an explicit exit — the T15 facts file caught
+        # both: 'driver install.ps1 exit=1' with the service fully created
+        # (run 15). A start failure on an unsigned driver is the EXPECTED
+        # stock-Secure-Boot outcome and is a WARNING, not a script failure.
+        Write-Warning "StartService failed ($LASTEXITCODE). Check code-signing policy (testsigning), driver signature, and the System event log."
     } else {
         Write-Host "Service '$ServiceName' started."
     }
@@ -90,3 +96,9 @@ Write-Host "Expected control device: $expected"
 Write-Host "User-mode path:          $dosName\<pid-token>\<disk>\<part>"
 Write-Host ""
 Write-Host "Next: .\bin\x64\Release\rdacli.exe grammar 0"
+
+# Registration is the script's contract; a start failure is warned above
+# (non-fatal by design — the installer's own sc start + /SD notice handle
+# the degradation truthfully). Exit explicitly so `powershell -File` does
+# NOT propagate sc.exe's nonzero start exit as this script's exit code.
+exit 0

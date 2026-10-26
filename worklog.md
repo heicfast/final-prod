@@ -698,3 +698,41 @@ Also adopted 2be4239a (the parallel lane's \$? fix — better than my
 guard-removal: it catches any invocation failure, and they caught the
 same latent class in build.ps1 Invoke-Portable + audited every other
 guard). My guard-removal commit was dropped for theirs.
+
+## 2026-10-26T23:50Z — run 15: the facts file earns its keep on day one — install.ps1's silent exit-1 + my null-guard bug
+
+Run 15 (40419843389, 2be4239a) — the FIRST run carrying the facts file.
+The rc3 installer's registry story is PERFECT (03-after-install.json:
+all four product-key values present and correct in the two-level key;
+the read-backs in the facts file match one-for-one; 13 files, zero
+test DLLs; service created and Stopped). Two failures found:
+
+1. driver install.ps1 exit=1 WITH THE SERVICE FULLY REGISTERED. The
+   facts file names it in one line — exactly what it was built for.
+   Root cause (two mechanisms, both fixed): (a) `powershell -File`
+   propagates the last native command's exit code as the process exit
+   when the script ends without an explicit exit — sc.exe start fails
+   on the unsigned runner, so the script "fails" AFTER succeeding;
+   (b) the start-failure Write-Warning used a trailing '+' string
+   continuation that is not valid concatenation in argument position.
+   Fix: one-string warning + explicit `exit 0` (registration is the
+   script's contract; the start failure is the warned, non-fatal,
+   EXPECTED stock-Secure-Boot outcome — the .nsi's own sc start + /SD
+   notice handle the degradation truthfully). The driver repo's own CI
+   never exercised this path (no install.ps1 invocation in driver-ci;
+   the start-failure branch only runs unsigned).
+
+2. MY OWN matrix guard threw on a PERFECTLY CLEAN kit: the empty-list
+   "()" in run 15's error message is the tell. `@($null).Count` is 1
+   (array-wrapping a null yields a one-element array) — the kit-exclusion
+   guard I added in 719041b2 misfired on its first clean input. Fixed:
+   null-ness IS the dirt signal (any real match returns a non-null
+   name/string).
+
+Also: the two facts I dropped during the bdf4eb3d rebase are back
+(driver ImagePath readback + driver sc start exit), and the .nsi
+re-compile-checked clean (makensis 3.11, exit 0, 7-section PE32).
+
+Next: dispatch run 16 — expecting the first fully green
+validation-evidence run (matrix green on 790bf5b3's tree minus the two
+step-level bugs).

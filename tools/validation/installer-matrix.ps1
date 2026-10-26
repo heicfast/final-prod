@@ -212,7 +212,12 @@ Add-Row -Phase 'install' -Result 'ok' -Facts @{
 if (-not ($installed.appExePresent -and $installed.crUiPresent)) {
     throw 'install verification failed: app exe or cr_ui.dll missing'
 }
-if (@($installed.testDllsShipped).Count -gt 0) {
+# NOT @(...).Count: when the kit is clean, .Name on the empty pipeline is
+# $null, and @($null).Count is 1 (array-wrapping a null yields a one-element
+# array) — run 15's own guard threw on a PERFECTLY CLEAN kit with an empty
+# list "()". Null-ness IS the dirt signal: any actual match returns a
+# non-null string/array of names.
+if ($null -ne $installed.testDllsShipped) {
     throw "install verification failed: test-framework DLLs shipped to the customer layout ($($installed.testDllsShipped -join ' ')) - the kit exclusion in build.ps1 failed"
 }
 

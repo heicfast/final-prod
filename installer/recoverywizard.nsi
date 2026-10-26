@@ -317,6 +317,7 @@ Section "RDA raw-disk kernel driver (recommended)" SEC_DRIVER
 
   ClearErrors
   ReadRegStr $1 HKLM "SYSTEM\CurrentControlSet\Services\${DRIVER_SERVICE}" "ImagePath"
+  !insertmacro InstallFact "driver ImagePath readback=$1"
   ${If} ${Errors}
     StrCpy $DriverResult "failed"
     DetailPrint "RDA driver registration failed (exit code $0) - degraded mode: Windows direct disk access."
@@ -334,6 +335,7 @@ Section "RDA raw-disk kernel driver (recommended)" SEC_DRIVER
     ; unsigned-driver policy on stock Win10/11).
     nsExec::ExecToLog 'sc.exe start ${DRIVER_SERVICE}'
     Pop $0
+    !insertmacro InstallFact "driver sc start exit=$0"
     ${If} $0 == 0
     ${OrIf} $0 == 1056
       StrCpy $DriverResult "installed"
