@@ -591,7 +591,7 @@ pub fn tree_page(
                     nodes.push(tree_node(TreeSpec {
             id: &format!("c{idx}"),
             parent_id: None,
-            label: label,
+            label,
             icon: "category",
             child_count: if count > 0 { 1 } else { 0 },
             file_count: count,
