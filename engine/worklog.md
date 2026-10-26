@@ -14915,3 +14915,89 @@ Work Log:
 Stage Summary:
 - Main green at the union (849/849). Audit trail + repairs landed
   together.
+
+---
+Task ID: DFX30-HANDOFF (session 30 close — lane complete, main green)
+Agent: main engineer (diff-to-fix fix session 30 — DFX30)
+
+Final state (HEAD 6ac3e68 lineage, suite **863/863** linux-release green
+at close — the count grew through the window as parallel lanes landed
+tests: 737 at bootstrap -> 749 -> 842 -> 849 -> 863, each re-run
+first-hand):
+
+SESSION DISPOSITIONS (this lane):
+1. OQ-FLT-1 RESOLVED — the extension table = a 4-engine shared
+   vocabulary (live FAT/exFAT/RAW, dead in NTFS, absent in 5 engines;
+   set-identical to DRWUI's grading set); the M-035 scorer confirmed
+   exFAT-only. M-035's blast-radius question answered.
+2. OQ-Z5 RESOLVED — ZFS quick/complete = the
+   IQuick/ICompleteFileSystemSearchController plugin split (16 vs 34
+   vtable slots, RTTI-walked); core orchestrator = the union; no action.
+3. OQ-Z2 RESOLVED -> NEW-FINDING **S-034** (SEVERE, findings/SEVERE/):
+   the og walks EVERY uberblock in the label-0 ring (per-txg
+   VdevLoc::UberData registry, unbounded from_txg=0 descent, ZplNode
+   visitor); the core's newest-txg-only premise REFUTED (D-05
+   re-verdicted; engine comment corrected; PARITY-CORE-FS2 row flipped;
+   corpus erratum E45). The behavioral fix is queued behind S-034's
+   three decode items (cross-txg emission/dedup semantics; MOS snapshot
+   re-emission; last_txg's role) — NO GUESSED PARITY.
+4. OQ-Z1 RESOLVED — og reads ds_bp at dnode-bonus+128 first-hand
+   (FUN_180014ec0 receives local_1328 = bonus+128) = kernel = core
+   DS_BP=128 MATCH; no og quirk; ACUTE risk retired.
+5. OQ-E1 RESOLVED (verified) — live-tree claim wins (FUN_180003fb0
+   reachability at both call sites); confirms S-025.
+6. OQ-Z3 RESOLVED-SUPERSEDED — og DVA path = first-entry fallback
+   (re-verified :19541-19560); M-019's landing matches; D-09
+   re-verdicted NEEDS-WORK -> ACCEPTED with the pinned og story.
+7. OQ-Z4 RESOLVED — og engine decompression census = EMPTY (the codec
+   byte's only consumer records std::map<i64, zio_compress> metadata);
+   host has zlib-1.2.3 only; core's writer-side decode = confirmed
+   strict superset.
+8. OQ-FLT-2 PUSHED FORWARD with new evidence — FUN_1406f91d0 = the
+   6-enable-bit completeness predicate; CSetFilterThread::run dispatches
+   NULL-vs-condition; precise next targets (the per-mode manager apply
+   at vtable+0x10) recorded — gates M-029 (open, DFX24's lane).
+9. OQ-T6-T7 CLOSED to FIXED/ — all sub-questions resolved (T6.2/T6.4
+   via M-019 + verification; T6.3 = registered superset D-04).
+10. OQ-S6-3 CLOSED to FIXED/ — the +0xF4 = COMMON-extension marker
+    (0xa8 = table slot 168); +0x94 anchor-B = the MOV (0x2a) tail-fold
+    at construction, no read-side consumer; +0x56 checksum =
+    informational-only. N-050 implementer note recorded.
+11. OQ-S6-2 CLOSED (convergent w/ DFX25) — the capa RC4 flag is a FALSE
+    POSITIVE (zlib-inflate cluster; no KSA anywhere); core MATCH by
+    mutual absence; corpus erratum E46 (convergence note).
+12. OQ-S6-1 CLOSED (convergent w/ DFX25 + CORRECTED) — their
+    "not the registry" refuted by the FUN_180022430 mode dispatch (mode
+    1/RegSearch attaches CLocationGenFromReg, the MountedDevices
+    RegOpenKeyA/"Data" reader); their .dat decode adopted; Q4
+    no-unique-recall survives.
+13. OQ-S5-1 CLOSED (convergent w/ DFX25) — CheckVersion.mo DEAD-SHIPPED
+    (the by-name lazy load contract + the exhaustive sweep incl.
+    MainModule_decompiled.c = zero load requests); MATCH-by-omission.
+14. The pushed-red repairs: D-84 ledger row restored + triplicates
+    deduped (twice — the parallel window kept regenerating them); the
+    N-064 win-layer markers repaired (convergent with 83c796e — theirs
+    adopted per first-landing-wins; my ledger dedupe on top).
+
+AUDIT TRAIL: RESOLVED-INDEX session-30 wave (6 rows); SUMMARY session-30
+delta + final counts; CROSS-REF-MATRIX session-30 note + the zfs B/D
+cells carry S-034; modules/mom-capabilities.md CheckVersion row closed;
+corpus errata E45/E46; docs/PARITY-DELTAS D-05 re-verdict + D-09
+re-verdict + D-84 restoration.
+
+REMAINING (for the next session, with owners):
+- **S-034 (SEVERE, mine filed)** — the fix needs the three decode items
+  in its plan; the highest-value ZFS work on the board.
+- OQ-Z-E-FLT-session3.md stays open for OQ-FLT-2 alone (feeds M-029,
+  DFX24's lane).
+- tracked-open now: OQ-S4-3 (DFX25 actively landing — the bench
+  prerequisite landed at 26e4ee2) + OQ-Z-E-FLT (above). OQ-RS, OQ-S2M-2,
+  OQ-S3 resolved by the parallel lanes during this window.
+- MAJOR 14 / MINOR 18 open (DFX24/DFX23/DFX26-29 lanes active — M-041
+  just claimed by DFX35).
+- The lane-ID churn this window (five+ sessions re-stamping) is recorded
+  in the worklog; the queue-split mechanism held — every landing this
+  session either owned its queue or converged with a recorded union.
+
+Corpus 03ad46c unmoved throughout. One finding file deleted: NONE. All
+resolutions evidence-cited. Token hygiene maintained.
