@@ -1,5 +1,4 @@
 # SUMMARY.md — executive summary (sessions 25+28 on top; earlier sessions below)
-# SUMMARY.md — executive summary (diff-fix session 23 on top; earlier sessions below)
 
 ## Session-23 delta (2026-10-26 — DFX23: the MINOR-first closing wave, batch 1 — N-009 group closed + M-057)
 
