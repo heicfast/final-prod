@@ -48,7 +48,7 @@ public:
 
 private:
     std::vector<uint8_t> bytes_;
-    std::set<u64> open_; /* open file handles (insert/count/erase) */
+    std::set<u64> open_;
     u64 next_ = 0;
 };
 

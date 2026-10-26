@@ -11,3 +11,5 @@ CMakeUserPresets.json
 *.log
 build-asan/
 build-linux/
+Testing/
+*.img.dest2/

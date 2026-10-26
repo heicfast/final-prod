@@ -124,8 +124,11 @@ proofs) is [`diff-to-fix/SUMMARY.md`](diff-to-fix/SUMMARY.md).
 CI runs the full matrix on every push: Ubuntu (gcc -Werror; ASan, UBSan,
 TSan lanes; fuzz smoke; the win-layer parse gate), Windows (MSVC /W4 /WX,
 the Win7 SP1 loader/import gate on every shipped PE, DLL smoke, C
-consumer, seeded integration), CodeQL, the release pipeline, and the
-driver-attached API benchmark lane.
+consumer, seeded integration), the libFuzzer smoke campaign (15
+structure-aware harnesses, 45 s per target, zero-crash gate), the release
+pipeline, and the driver-attached API benchmark lane. CodeQL is
+deliberately deferred (`if: false` — recorded, not silent; rationale in
+docs/testing.md).
 
 ## Documentation
 
