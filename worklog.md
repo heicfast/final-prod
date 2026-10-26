@@ -594,3 +594,44 @@ Validation done locally before push: makensis 3.11 cross-compile of the
 
 Next: push, dispatch validation run 14 (the fixed installer), watch
 engine-ci on the preset/deploy changes, then re-cut the release lane.
+
+---
+
+## 2026-10-26T23:20Z — delta on 790bf5b3: the installer records its own lifecycle; v0.5.0-rc3 cut
+
+Reconciled with the parallel lane's round-13 fixes (790bf5b3 — adopted
+as base; their four root-cause analyses stand: the single-key-with-space
+SW-tree, the dead elevation guards, the kit test-runtimes, the deployer
+race). My overlapping build.ps1 changes were DROPPED in their favor
+(their fixes address the causes; redundancy dropped, not silenced). The
+rc3 tree = 790bf5b3 + this delta:
+
+- The installer gains an ALWAYS-ON facts file (%TEMP%\
+  HeicFastRecoveryWizard-install-facts.txt, the InstallFact macro):
+  mode resolution, the inner app-setup exit code, the driver
+  install.ps1/uninstall.ps1 exit codes, sc start's exit, and READ-BACKS
+  of every product-key write — the ground truth silent installs leave
+  nowhere else. The round-13 lessons (a failing install.ps1 left NO
+  surviving exit code; registry writes landed where nothing probed)
+  both become one-class-visible: the next failure names itself. The T15
+  matrix captures the file at every setup boundary.
+- The driver script invocations (install + uninstall sides) move from
+  nsExec to ExecWait: the command line reaches powershell VERBATIM
+  (nsExec re-tokenizes/re-quotes — the round-8 /D= lesson as a class);
+  $INSTDIR always contains spaces. With the elevation guards fixed the
+  scripts now run; ExecWait removes the quoting failure mode outright.
+  The console flash is the documented cost.
+- The uninstall registry fact + un.onInit mode fact join the set.
+- Compile validation: makensis 3.11-1 cross-compile (portable Debian
+  nsis + nsis-common, NSISDIR override — same methodology as
+  docs/INTEGRATION-VALIDATION/installer-compile-check.md), exit 0, ZERO
+  warnings at -V3, valid PE32 Nullsoft artifact, 7 sections.
+- The matrix hard-fails if any gtest*/gmock* DLL reaches the customer
+  layout (belt-and-braces over build.ps1's kit exclusion) and names
+  leftover files in the uninstall evidence.
+
+VERSION -> 0.5.0-rc3 (rc2 produced no artifacts — its release run died
+at the pre-fix deployer race). Release run 3 (the rc3 tag) and
+validation run 14 (790bf5b3, already dispatched by the parallel lane)
+run concurrently; rc3's installer = run 14's installer + the facts file
+and the ExecWait hardening.

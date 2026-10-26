@@ -83,6 +83,23 @@ SetCompressor /SOLID lzma
   Abort "${REASON}"
 !macroend
 
+; InstallFact — append one line to the ALWAYS-ON install facts file
+; (%TEMP%\HeicFastRecoveryWizard-install-facts.txt). The T15 matrix copies
+; it into its evidence; a support request can attach it. Silent installs
+; leave no other trace (no UI, no console), so the lifecycle records its
+; own ground truth: resolved mode, child-process exit codes (the round-13
+; driver lesson: install.ps1's failure left NO surviving exit code), and
+; read-backs of every product-key write. Dedicated handle variable so fact
+; lines can reference $0/$1/$2 freely; no commas in fact lines (NSIS macro
+; parameter separators).
+Var FactsHandle
+!macro InstallFact LINE
+  FileOpen $FactsHandle "$TEMP\HeicFastRecoveryWizard-install-facts.txt" a
+  FileSeek $FactsHandle 0 END
+  FileWrite $FactsHandle "${LINE}$\r$\n"
+  FileClose $FactsHandle
+!macroend
+
 !define PRODUCT_NAME        "HeicFast Recovery Wizard"
 !define PRODUCT_PUBLISHER   "HeicFast"
 ; Registry layout (INTEGRATION-PLAN §7 row 6, exactly):
@@ -197,6 +214,7 @@ Section "${PRODUCT_NAME} (required)" SEC_APP
   ${Else}
     ExecWait '"$PLUGINSDIR\app-setup.exe" /S /currentuser /D=$INSTDIR' $0
   ${EndIf}
+  !insertmacro InstallFact "app-setup exit=$0 mode=$MultiUser.InstallMode dir=$INSTDIR"
   ${If} $0 != 0
     StrCpy $1 $0   ; $0 becomes the FileWrite handle inside the macro
     !insertmacro AbortWithReason "Application setup failed (exit code $1). The inner Tauri bundle is at $PLUGINSDIR\app-setup.exe."
@@ -287,8 +305,15 @@ Section "RDA raw-disk kernel driver (recommended)" SEC_DRIVER
   ; (type= kernel start= demand error= normal group= "Boot File System",
   ; file renamed to <ServiceName>.sys under System32\drivers, Parameters
   ; {IoctlBase=0, MaxDisks=200, DebugLevel=1, SessionsEnabled=1}).
-  nsExec::ExecToLog 'powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$INSTDIR\driver\install.ps1" -ServiceName ${DRIVER_SERVICE} -Source "$INSTDIR\driver\rda.sys"'
-  Pop $0
+  ; ExecWait (NOT nsExec): the command line must reach powershell VERBATIM —
+  ; nsExec re-tokenizes and re-quotes arguments (the round-8 /D= lesson),
+  ; and $INSTDIR ALWAYS contains spaces (C:\Program Files\...). The
+  ; round-13 root cause was the dead elevation guard (fixed in the scripts
+  ; themselves); ExecWait removes the quoting failure mode as a class. The
+  ; console flash is the honest cost; the exit code lands in the facts file.
+  DetailPrint "Registering the RDA service (driver install.ps1)..."
+  ExecWait 'powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$INSTDIR\driver\install.ps1" -ServiceName ${DRIVER_SERVICE} -Source "$INSTDIR\driver\rda.sys"' $0
+  !insertmacro InstallFact "driver install.ps1 exit=$0 instdir=$INSTDIR"
 
   ClearErrors
   ReadRegStr $1 HKLM "SYSTEM\CurrentControlSet\Services\${DRIVER_SERVICE}" "ImagePath"
@@ -343,6 +368,17 @@ Section "-post" ; hidden: shared state, registry, uninstaller
   WriteRegStr   SHCTX "${PRODUCT_SWKEY}" "InstallDir" "$INSTDIR"
   WriteRegStr   SHCTX "${PRODUCT_SWKEY}" "Version" "${PRODUCT_VERSION}"
   WriteRegStr   SHCTX "${PRODUCT_SWKEY}" "InstallMode" "$MultiUser.InstallMode"
+  ; READ-BACKS into the facts file: in-process proof that every write
+  ; landed where the plan says it lands (the round-13 lesson — the values
+  ; were being written to a different tree than anything probed).
+  ReadRegStr $2 SHCTX "${PRODUCT_SWKEY}" "InstallDir"
+  !insertmacro InstallFact "post InstallDir written=$INSTDIR readback=$2"
+  ReadRegStr $2 SHCTX "${PRODUCT_SWKEY}" "Version"
+  !insertmacro InstallFact "post Version written=${PRODUCT_VERSION} readback=$2"
+  ReadRegStr $2 SHCTX "${PRODUCT_SWKEY}" "InstallMode"
+  !insertmacro InstallFact "post InstallMode written=$MultiUser.InstallMode readback=$2"
+  ReadRegDWORD $2 SHCTX "${PRODUCT_SWKEY}" "DriverInstalled"
+  !insertmacro InstallFact "post DriverInstalled readback=$2 driverResult=$DriverResult"
 
   ; ---- Uninstall key: take over the inner installer's entry --------------
   ; The Tauri bundle wrote its own key (name varies across Tauri versions).
@@ -513,12 +549,17 @@ Function .onInit
     StrCpy $INSTDIR "$LOCALAPPDATA\Programs\HeicFast\Recovery Wizard"
   ${EndIf}
 
+  ; The facts file starts here: every phase appends (install / reinstall /
+  ; repair / uninstall — one lifecycle story per machine).
+  !insertmacro InstallFact "onInit version=${PRODUCT_VERSION} mode=$MultiUser.InstallMode dir=$INSTDIR"
+
   StrCpy $DriverResult ""
 FunctionEnd
 
 Function un.onInit
   SetRegView 64
   !insertmacro MULTIUSER_UNINIT
+  !insertmacro InstallFact "un.onInit mode=$MultiUser.InstallMode dir=$INSTDIR"
 FunctionEnd
 
 ; =============================================================================
@@ -558,8 +599,12 @@ Section "Uninstall"
   ReadRegStr $0 HKLM "SYSTEM\CurrentControlSet\Services\${DRIVER_SERVICE}" "ImagePath"
   ${IfNot} ${Errors}
     ${If} ${FileExists} "$INSTDIR\driver\uninstall.ps1"
-      nsExec::ExecToLog 'powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$INSTDIR\driver\uninstall.ps1" -ServiceName ${DRIVER_SERVICE}'
-      Pop $0
+      ; ExecWait — same verbatim-quoting rule as the install side (nsExec
+      ; re-tokenizes; $INSTDIR always has spaces; the round-8 /D= lesson
+      ; applied to the uninstall direction too).
+      DetailPrint "Removing the RDA service (driver uninstall.ps1)..."
+      ExecWait 'powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$INSTDIR\driver\uninstall.ps1" -ServiceName ${DRIVER_SERVICE}' $0
+      !insertmacro InstallFact "uninstall driver uninstall.ps1 exit=$0"
     ${Else}
       StrCpy $0 1
     ${EndIf}
@@ -640,6 +685,7 @@ Section "Uninstall"
   ; ---- 6. Registry ---------------------------------------------------------
   DeleteRegKey SHCTX "Software\Microsoft\Windows\CurrentVersion\Uninstall\${PRODUCT_UNKEY}"
   DeleteRegKey SHCTX "${PRODUCT_SWKEY}"
+  !insertmacro InstallFact "uninstall registry deleted unkey+swkey mode=$MultiUser.InstallMode"
 
   ; The install-time /D-seed key (Software\heicfast\Recovery Wizard — the
   ; inner setup's install-location key, case-insensitively the SAME tree the

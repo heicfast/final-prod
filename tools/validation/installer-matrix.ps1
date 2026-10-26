@@ -50,6 +50,7 @@ $InstallDir = "$env:ProgramFiles\HeicFast\Recovery Wizard"
 $AppExeName = 'recovery-wizard-ui.exe'   # the Tauri-built binary name (Cargo package name; APP_EXE in recoverywizard.nsi)
 $Unkey = 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\Recovery Wizard'  # INTEGRATION-PLAN §7 row 6: Uninstall\<product name> (round 13: was 'HeicFast Recovery Wizard' — the .nsi and this probe now carry the plan-exact name)
 $SwKey = 'HKLM:\SOFTWARE\HeicFast\Recovery Wizard'  # INTEGRATION-PLAN §7 row 6: two-level product key (round 13 taught the .nsi to write HERE — a PowerShell two-segment path, NOT the single 'HeicFast Recovery Wizard' key with a space)
+$FactsFile = "$env:TEMP\HeicFastRecoveryWizard-install-facts.txt"  # the .nsi's always-on lifecycle log (InstallFact macro): mode resolution + child exit codes + registry write read-backs
 $SessionsDir = "$env:ProgramData\HeicFast\Recovery Wizard\sessions"
 $DriverSvc = 'RDA'
 
@@ -115,6 +116,11 @@ function Invoke-Setup {
         "ranAtUtc: $((Get-Date).ToUniversalTime().ToString('o'))"
     ) -join "`n"
     Write-Evidence -Name $LogName -Content $transcript
+    # The installer's own lifecycle log rides along at every setup boundary
+    # (mode resolution + child exit codes + registry read-backs).
+    if (Test-Path $FactsFile) {
+        Write-Evidence -Name ($LogName -replace '-transcript\.txt$', '-facts.txt') -Content (Get-Content $FactsFile -Raw)
+    }
     return @{ exitCode = $p.ExitCode; durationMs = $sw.ElapsedMilliseconds }
 }
 
@@ -187,6 +193,8 @@ $installed = [ordered]@{
     uninstallKey  = Get-RegSnapshot -Path $Unkey
     driverService = if (Get-Service -Name $DriverSvc -ErrorAction SilentlyContinue) { (Get-Service -Name $DriverSvc).Status } else { $null }
     inventory     = Get-DirInventory -Path $InstallDir -Hash
+    testDllsShipped = @(Get-ChildItem $InstallDir -Filter '*.dll' -ErrorAction SilentlyContinue |
+        Where-Object { $_.Name -like 'gtest*' -or $_.Name -like 'gmock*' }).Name
 }
 Write-Evidence -Name '03-after-install.json' -Content ($installed | ConvertTo-Json -Depth 5)
 Add-Row -Phase 'install' -Result 'ok' -Facts @{
@@ -198,10 +206,14 @@ Add-Row -Phase 'install' -Result 'ok' -Facts @{
     installMode   = $installed.swKey.InstallMode
     files         = @($installed.inventory).Count
     driverService = "$($installed.driverService)"
+    testDlls      = @($installed.testDllsShipped).Count
 }
 
 if (-not ($installed.appExePresent -and $installed.crUiPresent)) {
     throw 'install verification failed: app exe or cr_ui.dll missing'
+}
+if (@($installed.testDllsShipped).Count -gt 0) {
+    throw "install verification failed: test-framework DLLs shipped to the customer layout ($($installed.testDllsShipped -join ' ')) - the kit exclusion in build.ps1 failed"
 }
 
 # ---------------------------------------------------------------------------
@@ -256,12 +268,18 @@ $sw = [System.Diagnostics.Stopwatch]::StartNew()
 $p = Start-Process -FilePath $un -ArgumentList '/S' -Wait -PassThru
 $sw.Stop()
 Start-Sleep -Seconds 5
+# The uninstaller appends its side of the lifecycle to the same facts file.
+if (Test-Path $FactsFile) {
+    Write-Evidence -Name '08-uninstall-facts.txt' -Content (Get-Content $FactsFile -Raw)
+}
 
 $after = [ordered]@{
     exitCode          = $p.ExitCode
     durationMs        = $sw.ElapsedMilliseconds
     installDirExists  = Test-Path $InstallDir
     leftovers         = @(Get-ChildItem $InstallDir -Recurse -File -ErrorAction SilentlyContinue).Count
+    leftoverNames     = @(Get-ChildItem $InstallDir -Recurse -File -ErrorAction SilentlyContinue |
+        ForEach-Object { $_.FullName.Substring($InstallDir.Length + 1) })
     swKeyExists       = Test-Path $SwKey
     uninstallKeyExists = Test-Path $Unkey
     driverService     = if (Get-Service -Name $DriverSvc -ErrorAction SilentlyContinue) { 'present' } else { 'gone' }
