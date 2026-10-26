@@ -18,7 +18,7 @@ changes.
 ```bash
 pnpm install          # pnpm 12.15.0, Node 24
 pnpm dev              # browser dev mode (mock connector, port 1420 / 3000)
-pnpm test             # 110 unit/contract/component/governance tests (16 test files)
+pnpm test             # 145 unit/contract/component/governance tests (22 test files)
 pnpm test:coverage    # unit tests with enforced v8 coverage thresholds
 pnpm e2e              # 12 Playwright e2e tests (serves dist/ via preview)
 pnpm visual:compare   # verify captured e2e step screenshots against corpus geometry
@@ -31,8 +31,8 @@ pnpm tauri build      # NSIS installer (unsigned; see release workflow)
 
 - `VITE_CONNECTOR=mock` (default) — deterministic simulator: 2 TB NTFS with
   1.2 M result nodes, 64 GB SD card, 4 TB Btrfs, lost-partition scenario,
-  100–250 ms progress ticks, error injection via the dev panel (DEV builds:
-  flask icon in the title bar).
+  100–250 ms progress ticks, error injection via the DEV-only dev panel
+  (`src/features/dev-panel/`, toggled through the UI store).
 - `VITE_CONNECTOR=tauri` — the real adapter. Currently a **loud stub** that
   throws `not-implemented` on every method, per the no-silent-fallback rule.
 
@@ -53,7 +53,7 @@ The contract is specified in `src/connector/contract.ts` and documented in
 | `docs/UI-MAP.md`              | Route graph, per-page state matrices, dialog inventory              |
 | `docs/DESIGN-SYSTEM.md`       | Living system doc                                                   |
 | `docs/ARCHITECTURE.md`        | Layers, boundaries, data flow                                       |
-| `docs/adr/`                   | Eight accepted architecture decisions                               |
+| `docs/adr/`                   | Seven accepted architecture decisions                               |
 | `docs/TESTING.md`             | Test strategy + verification evidence                               |
 | `docs/INTERIM-ASSETS.md`      | Interim assets + replacement plan                                   |
 | `docs/ROADMAP.md`             | Next: wiring the real engine                                        |
@@ -62,16 +62,21 @@ The visual identity comes from the adopted theme pair (`src/theme/adopted/`,
 ADR-007 — five palettes + derived high-contrast, every color token-driven).
 Layout, structure, and flow come from the reference corpus: selecting a
 device starts the search directly, and the quick pass continues into the
-advanced pass automatically (ADR-008).
+advanced pass automatically (ADR-008). The custom title bar keeps the
+Buy-Now pill and activation key trigger; Settings, Theme, and About live
+behind the three-lines header Menu, while language switching is its own
+header dropdown.
 
 ## Quality gates (all green at HEAD)
 
 `tsc --noEmit` · ESLint (0 errors) · Prettier · arch-lint + ast-grep · knip
-(0 findings) · jscpd (0 clones) · 110/110 unit/contract/component tests ·
+(0 findings) · jscpd (0.03% duplicated lines, 1 clone) · 145/145
+unit/contract/component tests · v8 coverage thresholds 70/60/70/70 at
+85.2% lines / 62.38% branches / 74.58% functions / 86% statements ·
 theme-drift + i18n-surface governance tests · production build · bundle
-budget (main 98 KB / 200 KB gzip; total 283 KB / 500 KB) · 12/12 Playwright
-e2e tests with console-error assertions · live axe audit: 0 violations across
-all palettes + HC (`docs/evidence/a11y/`).
+budget (main 124.6 KB / 200 KB gzip; total 309.2 KB / 500 KB) · 12/12
+Playwright e2e tests with console-error assertions · live axe audit: 0
+violations across all palettes + HC (`docs/evidence/a11y/`).
 
 CI runs the full matrix on `windows-latest` (`.github/workflows/`), including
 `cargo check` + `clippy` for the Tauri shell and `visual-compare.yml` for

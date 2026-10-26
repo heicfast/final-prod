@@ -2,19 +2,20 @@
 
 Page inventory, transitions, controls, states, and dialogs for the Recovery Wizard UI.
 Scope note: this re-implementation covers the **recovery workflow core** (device
-selection → scan → results → recovery, plus health/repair/settings). Corpus surfaces
+selection → scan → results → recovery, plus SD Card, Disk Health, File Repair,
+Lost Partition Rescue, Scan Snapshot, and Settings). Corpus surfaces
 that are commercial funnel (retention gates, license activation, cross-sell product
 pages, AI assistant) are deliberately excluded — see §0.
 
 ## 0. Documented divergences from the reference corpus
 
-| Reference surface                                | Decision                  | Rationale                                                                                                                                                                           |
-| ------------------------------------------------ | ------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Retention/license/upsell gates                   | **Excluded**              | Commercial funnel specific to the reference's monetization model; not part of a truthful recovery-tool IA. The connector never exposes them, so the UI cannot honestly render them. |
-| AI assistant / AI recommend                      | **Excluded this session** | Would be a UI-fabricated capability — the Mock Connector contract exposes no ranking model. Roadmap item if the engine ever provides one.                                           |
-| Cloud/NAS/WeChat/iCloud targets                  | **Excluded this session** | Reference chains require network backends; connector exposes local devices + removable media only. Cloud/NAS marked as unavailable-with-reason in the UI (truthful degradation).    |
-| Sidebar product pages (backup, crashed PC, etc.) | **Excluded**              | Separate products, not recovery wizard flow.                                                                                                                                        |
-| Auto-Recover after scan                          | **Excluded**              | Requires engine orchestration the contract does not expose.                                                                                                                         |
+| Reference surface                                                  | Decision                  | Rationale                                                                                                                                                                           |
+| ------------------------------------------------------------------ | ------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Retention/license/upsell gates                                     | **Excluded**              | Commercial funnel specific to the reference's monetization model; not part of a truthful recovery-tool IA. The connector never exposes them, so the UI cannot honestly render them. |
+| AI assistant / AI recommend                                        | **Excluded this session** | Would be a UI-fabricated capability — the Mock Connector contract exposes no ranking model. Roadmap item if the engine ever provides one.                                           |
+| Cloud/NAS/WeChat/iCloud targets                                    | **Excluded this session** | Reference chains require network backends; connector exposes local devices + removable media only. Cloud/NAS marked as unavailable-with-reason in the UI (truthful degradation).    |
+| Reference sidebar product pages (backup product, crashed PC, etc.) | **Excluded**              | Separate products, not recovery wizard flow. (Our own `/backup` page — Scan Snapshot — resumes saved scan sessions; it is not the reference's backup product.)                      |
+| Auto-Recover after scan                                            | **Excluded**              | Requires engine orchestration the contract does not expose.                                                                                                                         |
 
 Everything else follows the corpus IA: 4-zone wizard stack, 3-pane results, scan lives
 inside the results page, celebration modal, destination dialog semantics, session
@@ -24,14 +25,17 @@ save/load, contextual CTAs.
 
 ```
 /                      Home (device selection + quick targets)
+/sd-card               SD Card / removable-media device selection
 /scan/:deviceId/live   Scan Progress + live results (the SAME 3-pane surface;
                        corpus CDetailPage — scan runs inside the results page)
 /results/:scanId       Results Explorer (3-pane)
 /recover/:scanId       Recovery (destination → queue → report)
-/health                Disk Health (SMART)
-/repair                Volume Repair (RawFixer surface)
-/lost-partition        Lost Partition Rescue (scenario cards + disk list)
-/settings              Settings
+/health                Disk Health (SMART telemetry; /tools is a legacy alias)
+/repair                File Repair (2-step direct flow; Advanced Repair toggles
+                       the structural RawFixer workbench)
+/lost-partition        Lost Partition Rescue (2-step direct flow)
+/backup                Scan Snapshot (saved recovery checkpoints / sessions)
+/settings              Settings (opened from the three-lines header Menu)
 ```
 
 Router: React Router v7 data mode, `createHashRouter` (ADR-001). There is NO
@@ -50,11 +54,13 @@ Transitions: cross-fade 160ms; scan→results is explicit via celebration modal 
 
 ### 2.1 Home (Device Selection)
 
-Zones: title bar / left sidebar (sections: Data Recovery rows — Hardware Disk,
-Removable Media, Lost Partition Rescue; Advanced Features — Disk Health, Volume
-Repair; footer: Settings, About) / content (page title, internal-drives group,
-removable group, quick targets row: Recycle Bin / Desktop / Choose Folder,
-primary CTA bottom-right).
+Zones: title bar (brand mark; Buy-Now pill and activation-key trigger; standalone
+language dropdown; three-lines Menu — Settings, Theme toggle, About; window
+controls) / left sidebar (sections: Data Recovery rows — Hardware Disk, SD Card,
+Disk Health; Advanced Features — File Repair, Lost Partition Rescue; File Backup —
+Scan Snapshot; collapse toggle at the rail foot) / content (page title,
+internal-drives group, removable group, quick targets row: Recycle Bin /
+Desktop / Choose Folder, primary CTA bottom-right).
 
 Controls: device cards (select on click, blue border + checkmark), capacity bar +
 used/total, health hint chip (Good/Caution via connector), lost-partition badge,
@@ -147,31 +153,45 @@ connector: needed vs free; Continue-anyway only when connector allows), running,
 cancelled, completed-partial (failures listed with reasons), completed-success,
 error (destination unavailable).
 
-### 2.6 Health
+### 2.6 Health (Disk Health — redesigned v4 surface)
 
-Zones: disk selector, health summary card (status Good/Caution, temperature,
-power-on hours, class SSD/HDD, TRIM state for SSD), SMART attribute table
-(ID / Attribute / Current / Worst / Threshold / Raw / Status), coaching for
+Zones: physical-disk selector cards (3D `Drive3dIcon` with system-drive Windows
+badge and a state-dependent BitLocker open/closed lock at the bottom-right,
+capacity bar, free/total), circular refresh button, hero health-score card
+(circular gauge + status Good/Caution/Bad), KPI tiles (temperature, power-on
+hours, class SSD/HDD, TRIM state for SSD), SMART attribute table
+(ID / Attribute / Current / Worst / Threshold / Raw / Status), Scan-this-drive
+CTA (starts a scan on the selected disk), coaching for
 caution.
 
 States: loading, error, not-smart-available (reason), success.
 
-### 2.7 Repair (volume structure repair — RawFixer surface)
+### 2.7 Repair (File Repair — 2-step direct flow, no Start landing screen)
 
-Zones: damage summary (from dry-run: findings list), consent gate (typed/checkbox
-acknowledgment with consequence text), apply progress, undo-log viewer (actions
-taken, sector snapshots), result.
+Zones: Step 1 dropzone (header + centered dashed "Add Files" card with the
+drag-file illustration), Step 2 queue (top bar: Home + Advanced Repair buttons;
+queued file cards with category/size/path and per-item status; sticky bottom
+bar: save-path input, folder browse, add, clear, and the Repair All primary
+CTA). The structural volume-repair workbench (RawFixer surface: dry-run
+findings list, typed/checkbox consent gate with consequence text, apply
+progress, undo-log viewer with sector snapshots) opens behind the
+Advanced Repair toggle.
 
-States: idle, dry-run loading, dry-run findings (none → nothing-to-do state),
+States: dropzone, queue (per-file queued / repairing / repaired), advanced
+workbench (dry-run loading, dry-run findings (none → nothing-to-do state),
 consent required, applying, applied (with undo available), failed (reason), undo
-log empty.
+log empty).
 
 ### 2.8 Settings & About
 
-Zones: theme (system/light/dark/high-contrast), language (en/zh-CN), density,
-default scan mode, default destination, log location + open-log-folder, about
+Zones: appearance (theme dropdown — system/light/dark/ember/tide/blossom/
+high-contrast per ADR-007; UI scale 100/150/200%; density comfortable/compact;
+language en/zh-CN), diagnostics (event-log ring buffer + copy), about summary
 (version, connector mode badge mock/tauri, engine status fields from connector,
-open-source licenses, diagnostics log viewer).
+open-source licenses). Settings opens from the three-lines header Menu; the
+About menuitem opens `AboutDialog` (title-bar modal displaying connector-sourced
+Version, Data source, Recovery engine, Disk driver, and Platform — ESC closes
+and focus returns to the Menu trigger; outside click swallowed).
 
 States: persisted via connector-backed settings where the contract exposes them;
 localStorage for pure UI prefs (documented split).
@@ -182,12 +202,14 @@ localStorage for pure UI prefs (documented split).
 | ------------------------ | --------------------------- | ------------------------------------------------------------------------------------ |
 | Stop-scan confirm        | stop button                 | stats + Stop/Continue (destructive-first per corpus but ours: Continue default-safe) |
 | Celebration              | scan completes              | 540×380, stats grid, primary CTA "Open results"                                      |
-| Destination              | recover CTA                 | per §2.6                                                                             |
+| Destination              | recover CTA                 | per §2.5                                                                             |
 | Space gate               | preflight fail              | needed-vs-free, Continue/Reselect (Continue only if connector allows)                |
 | Context menu             | right-click row             | 6 actions per §2.4                                                                   |
 | Preview modal            | preview action              | large preview surface                                                                |
 | Session picker           | import session              | file list from connector                                                             |
 | Repair consent           | apply repair                | checkbox + consequence text, disabled until acknowledged                             |
+| About                    | header Menu → About         | connector-sourced version/engine fields; ESC closes, focus returns to trigger        |
+| Activation               | Buy-Now pill / key icon     | license key entry + activate CTA; buy link via toast                                 |
 | Error dialog             | unrecoverable errors        | reason + retry/contact actions                                                       |
 | Confirm exit during scan | window close while scanning | guard: keep scanning / stop                                                          |
 

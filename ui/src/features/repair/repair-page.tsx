@@ -242,135 +242,132 @@ export function RepairPage(): React.JSX.Element {
           <span>{t('nav.home')}</span>
         </button>
 
-          <button
-            type="button"
-            onClick={() => setAdvancedOpen((v) => !v)}
-            className="inline-flex h-8 items-center gap-1.5 rounded-[6px] bg-[#DCE7F9] px-3.5 text-[13px] font-medium text-[#1E293B] transition-colors hover:bg-[#C8DAF5] focus-visible:ring-2 focus-visible:ring-ring dark:bg-surface-elevated dark:text-foreground dark:hover:bg-surface-hover"
+        <button
+          type="button"
+          onClick={() => setAdvancedOpen((v) => !v)}
+          className="inline-flex h-8 items-center gap-1.5 rounded-[6px] bg-[#DCE7F9] px-3.5 text-[13px] font-medium text-[#1E293B] transition-colors hover:bg-[#C8DAF5] focus-visible:ring-2 focus-visible:ring-ring dark:bg-surface-elevated dark:text-foreground dark:hover:bg-surface-hover"
+        >
+          <WandSparklesIcon className="size-3.5 text-[#1677FF] dark:text-primary" aria-hidden />
+          <span>Advanced Repair</span>
+        </button>
+      </div>
+
+      {/* Middle Scrollable File Queue List */}
+      <div className="my-4 min-h-0 flex-1 space-y-3 overflow-y-auto pr-1">
+        {files.map((file) => (
+          <div
+            key={file.id}
+            className="flex items-center justify-between gap-4 rounded-[8px] border border-[#E5EEFA] bg-[#F8FAFF] px-4 py-3 transition-colors hover:border-[#BFDBFE] dark:border-border dark:bg-surface-elevated"
           >
-            <WandSparklesIcon
-              className="size-3.5 text-[#1677FF] dark:text-primary"
-              aria-hidden
-            />
-            <span>Advanced Repair</span>
-          </button>
-        </div>
-
-        {/* Middle Scrollable File Queue List */}
-        <div className="my-4 min-h-0 flex-1 space-y-3 overflow-y-auto pr-1">
-          {files.map((file) => (
-            <div
-              key={file.id}
-              className="flex items-center justify-between gap-4 rounded-[8px] border border-[#E5EEFA] bg-[#F8FAFF] px-4 py-3 transition-colors hover:border-[#BFDBFE] dark:border-border dark:bg-surface-elevated"
-            >
-              <div className="flex min-w-0 items-center gap-4">
-                {/* File preview thumbnail card */}
-                <div className="flex h-[52px] w-[72px] shrink-0 items-center justify-center rounded-[6px] border border-[#DCE8FA] bg-[#EAF2FF] dark:border-border dark:bg-surface-tint">
-                  <div className="flex size-7 items-center justify-center rounded-[6px] bg-[#F97316] text-white shadow-2xs">
-                    <WrenchIcon className="size-4" aria-hidden />
-                  </div>
+            <div className="flex min-w-0 items-center gap-4">
+              {/* File preview thumbnail card */}
+              <div className="flex h-[52px] w-[72px] shrink-0 items-center justify-center rounded-[6px] border border-[#DCE8FA] bg-[#EAF2FF] dark:border-border dark:bg-surface-tint">
+                <div className="flex size-7 items-center justify-center rounded-[6px] bg-[#F97316] text-white shadow-2xs">
+                  <WrenchIcon className="size-4" aria-hidden />
                 </div>
+              </div>
 
-                <div className="min-w-0 space-y-0.5">
-                  <div className="flex items-center gap-2">
-                    <span className="truncate text-[13.5px] font-bold text-[#1E293B] dark:text-foreground">
-                      {file.name}
+              <div className="min-w-0 space-y-0.5">
+                <div className="flex items-center gap-2">
+                  <span className="truncate text-[13.5px] font-bold text-[#1E293B] dark:text-foreground">
+                    {file.name}
+                  </span>
+                  {file.status === 'repaired' ? (
+                    <span className="inline-flex items-center gap-1 rounded-full bg-[#DCFCE7] px-2 py-0.5 text-[11px] font-semibold text-[#15803D]">
+                      <CheckCircle2Icon className="size-3" aria-hidden />
+                      Repaired
                     </span>
-                    {file.status === 'repaired' ? (
-                      <span className="inline-flex items-center gap-1 rounded-full bg-[#DCFCE7] px-2 py-0.5 text-[11px] font-semibold text-[#15803D]">
-                        <CheckCircle2Icon className="size-3" aria-hidden />
-                        Repaired
-                      </span>
-                    ) : null}
-                  </div>
-                  <div className="flex items-center gap-3 text-[12px] text-[#64748B] tabular dark:text-foreground-secondary">
-                    <span>{file.sizeLabel}</span>
-                    <span>{file.categoryLabel}</span>
-                  </div>
-                  <div
-                    className="truncate text-[12px] text-[#64748B] dark:text-foreground-secondary"
-                    title={file.path}
-                  >
-                    {file.path}
-                  </div>
+                  ) : null}
+                </div>
+                <div className="flex items-center gap-3 text-[12px] text-[#64748B] tabular dark:text-foreground-secondary">
+                  <span>{file.sizeLabel}</span>
+                  <span>{file.categoryLabel}</span>
+                </div>
+                <div
+                  className="truncate text-[12px] text-[#64748B] dark:text-foreground-secondary"
+                  title={file.path}
+                >
+                  {file.path}
                 </div>
               </div>
             </div>
-          ))}
+          </div>
+        ))}
 
-          {/* Optional Advanced Structural Volume Repair Workbench when toggled via "Advanced Repair" */}
-          {advancedOpen ? (
-            <VolumeRepairWorkbench
-              list={list}
-              deviceId={deviceId}
-              setSelectedId={setSelectedId}
-              isLoading={isLoading}
-              refetch={refetch}
-              dryRun={dryRun}
-              apply={apply}
-              undoLog={undoLog}
-              undo={undo}
-              consentChecked={consentChecked}
-              setConsentChecked={setConsentChecked}
-              consentText={consentText}
-              setConsentText={setConsentText}
+        {/* Optional Advanced Structural Volume Repair Workbench when toggled via "Advanced Repair" */}
+        {advancedOpen ? (
+          <VolumeRepairWorkbench
+            list={list}
+            deviceId={deviceId}
+            setSelectedId={setSelectedId}
+            isLoading={isLoading}
+            refetch={refetch}
+            dryRun={dryRun}
+            apply={apply}
+            undoLog={undoLog}
+            undo={undo}
+            consentChecked={consentChecked}
+            setConsentChecked={setConsentChecked}
+            consentText={consentText}
+            setConsentText={setConsentText}
+          />
+        ) : null}
+      </div>
+
+      {/* Bottom Sticky Bar: Save Path Input + Browse + Add (+) + Clear (Trash) + "Repair All" CTA (Screenshot_2026-10-25_015424_7fbd446d.png) */}
+      <div className="flex shrink-0 flex-wrap items-center justify-between gap-4 border-t border-[#E2ECF9] pt-3.5 dark:border-border">
+        <div className="flex min-w-0 flex-1 items-center gap-2">
+          <span className="shrink-0 text-[13px] font-medium text-[#475569] dark:text-foreground-secondary">
+            {t('recovery.saveButton')}:
+          </span>
+          <input
+            type="text"
+            value={savePath}
+            onChange={(e) => setSavePath(e.target.value)}
+            aria-label={t('recovery.pathLabel')}
+            className="h-8 w-full max-w-[340px] rounded-[6px] border border-[#CBD5E1] bg-white px-3 text-[12.5px] text-[#1E293B] outline-none focus:border-[#1677FF] dark:border-border dark:bg-surface dark:text-foreground"
+          />
+          <button
+            type="button"
+            onClick={() => toast.info(savePath)}
+            aria-label={t('recovery.chooseFolder')}
+            className="inline-flex size-8 shrink-0 items-center justify-center rounded-[6px] bg-[#DCE7F9] text-[#1E293B] transition-colors hover:bg-[#C8DAF5] dark:bg-surface-elevated dark:text-foreground"
+          >
+            <FolderIcon
+              className="size-4 text-[#475569] dark:text-foreground-secondary"
+              aria-hidden
             />
-          ) : null}
+          </button>
         </div>
 
-        {/* Bottom Sticky Bar: Save Path Input + Browse + Add (+) + Clear (Trash) + "Repair All" CTA (Screenshot_2026-10-25_015424_7fbd446d.png) */}
-        <div className="flex shrink-0 flex-wrap items-center justify-between gap-4 border-t border-[#E2ECF9] pt-3.5 dark:border-border">
-          <div className="flex min-w-0 flex-1 items-center gap-2">
-            <span className="shrink-0 text-[13px] font-medium text-[#475569] dark:text-foreground-secondary">
-              {t('recovery.saveButton')}:
-            </span>
-            <input
-              type="text"
-              value={savePath}
-              onChange={(e) => setSavePath(e.target.value)}
-              aria-label={t('recovery.pathLabel')}
-              className="h-8 w-full max-w-[340px] rounded-[6px] border border-[#CBD5E1] bg-white px-3 text-[12.5px] text-[#1E293B] outline-none focus:border-[#1677FF] dark:border-border dark:bg-surface dark:text-foreground"
-            />
-            <button
-              type="button"
-              onClick={() => toast.info(savePath)}
-              aria-label={t('recovery.chooseFolder')}
-              className="inline-flex size-8 shrink-0 items-center justify-center rounded-[6px] bg-[#DCE7F9] text-[#1E293B] transition-colors hover:bg-[#C8DAF5] dark:bg-surface-elevated dark:text-foreground"
-            >
-              <FolderIcon
-                className="size-4 text-[#475569] dark:text-foreground-secondary"
-                aria-hidden
-              />
-            </button>
-          </div>
-
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={handleAddFiles}
-              aria-label="Add file"
-              title="Add file"
-              className="inline-flex size-9 items-center justify-center rounded-[6px] bg-[#DCE7F9] text-[#1E293B] transition-colors hover:bg-[#C8DAF5] dark:bg-surface-elevated dark:text-foreground"
-            >
-              <PlusIcon className="size-4" aria-hidden />
-            </button>
-            <button
-              type="button"
-              onClick={handleClearFiles}
-              aria-label="Clear files"
-              title="Clear files"
-              className="inline-flex size-9 items-center justify-center rounded-[6px] bg-[#DCE7F9] text-[#1E293B] transition-colors hover:bg-[#C8DAF5] dark:bg-surface-elevated dark:text-foreground"
-            >
-              <Trash2Icon className="size-4" aria-hidden />
-            </button>
-            <button
-              type="button"
-              onClick={handleRepairAll}
-              className="inline-flex h-9 min-w-[148px] items-center justify-center rounded-[6px] bg-[#1677FF] px-6 text-[13.5px] font-semibold text-white shadow-xs transition-all hover:bg-[#0958D9] active:scale-[var(--press-scale)] focus-visible:ring-2 focus-visible:ring-ring dark:bg-primary dark:text-primary-foreground dark:hover:bg-primary-hover"
-            >
-              Repair All
-            </button>
-          </div>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={handleAddFiles}
+            aria-label="Add file"
+            title="Add file"
+            className="inline-flex size-9 items-center justify-center rounded-[6px] bg-[#DCE7F9] text-[#1E293B] transition-colors hover:bg-[#C8DAF5] dark:bg-surface-elevated dark:text-foreground"
+          >
+            <PlusIcon className="size-4" aria-hidden />
+          </button>
+          <button
+            type="button"
+            onClick={handleClearFiles}
+            aria-label="Clear files"
+            title="Clear files"
+            className="inline-flex size-9 items-center justify-center rounded-[6px] bg-[#DCE7F9] text-[#1E293B] transition-colors hover:bg-[#C8DAF5] dark:bg-surface-elevated dark:text-foreground"
+          >
+            <Trash2Icon className="size-4" aria-hidden />
+          </button>
+          <button
+            type="button"
+            onClick={handleRepairAll}
+            className="inline-flex h-9 min-w-[148px] items-center justify-center rounded-[6px] bg-[#1677FF] px-6 text-[13.5px] font-semibold text-white shadow-xs transition-all hover:bg-[#0958D9] active:scale-[var(--press-scale)] focus-visible:ring-2 focus-visible:ring-ring dark:bg-primary dark:text-primary-foreground dark:hover:bg-primary-hover"
+          >
+            Repair All
+          </button>
         </div>
+      </div>
     </div>
   );
 }

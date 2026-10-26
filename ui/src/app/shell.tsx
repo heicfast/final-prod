@@ -203,9 +203,7 @@ export function WizardShell(): React.JSX.Element {
                 <SettingsIcon className="size-3.5" aria-hidden />
                 <span>{t('nav.settings')}</span>
               </DropdownMenuItem>
-              <DropdownMenuItem
-                onClick={() => setMode(resolved === 'dark' ? 'light' : 'dark')}
-              >
+              <DropdownMenuItem onClick={() => setMode(resolved === 'dark' ? 'light' : 'dark')}>
                 {resolved === 'dark' ? (
                   <SunIcon className="size-3.5" aria-hidden />
                 ) : (

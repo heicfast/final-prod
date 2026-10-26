@@ -35,11 +35,9 @@
 ### S2. Lost Partition Rescue (`/lost-partition`)
 
 - **Corpus Reference**: `DrwLostDiskPage` (`artifacts/UIUX/35-redesign-reference-atlas.md` §5, `docs/07-user-flow-uiux.md` §1.1).
-- **Regions**:
-  1. Three scenario cards: Partition missing, Partition cannot be opened, BitLocker partition missing or damaged (truthful scope note).
-  2. Whole-disk radio list (`disks.filter(d => d.kind !== 'virtual' && d.canScanWholeDisk)`).
-  3. Sticky bottom `Start` CTA bar.
-- **Transitions**: Clicking `Start` begins a whole-disk scan directly and routes to `/scan/:diskId/live?scanId=<id>`.
+- **v4 flow**: 2-step direct flow — no Start landing screen.
+  1. Step 1 (`select-disk`): "Choose a disk to start searching for lost partition(s)" — disk cards (Disk 2 / Disk 0 / Disk 1) with segmented partition bars and BitLocker lock icons, a `Go to Hardware Disk` link, and the `Search for Lost Partition` CTA.
+  2. Step 2 (`scan-completed`): "Smart Partition Scan Completed" — found-partitions table with the "Double click the partition to explore the content." banner, a `Preview for disk 2` bar, and a `Try Data Recovery` CTA.
 - **States**: Loading (`Skeleton`), Populated, Empty (`EmptyState`), Error (`EmptyState`).
 
 ### S3. Live Scan & Browse-While-Scanning (`/scan/:volumeId/live?scanId=<id>`)
@@ -78,18 +76,32 @@
   2. Active queue (`RecoveryQueue`): Overall progress bar + percentage + current file + item counter + ETA, scrollable bounded item list with per-item state badges (`Waiting`, `Copying`, `Verifying`, `Recovered`, `Failed`, `Skipped`), and confirm-gated `Cancel recovery` dialog.
   3. Completion report (`QueueReport`, `role="status"`): Status banner (`Recovery finished` / `Recovery finished with issues` / `Recovery failed`), 3 stat tiles (`Recovered`, `Failed`, `Skipped`), failed item diagnostic list, truncation notice for large sets, JSON report export (`Export report` + toast), and `Close` button.
 
-### S6. Disk Health (`/health`)
+### S6. Disk Health (`/health`; `/tools` is a legacy alias — redesigned in v4)
 
 - **Corpus Reference**: Disk Health / S.M.A.R.T. surface (`docs/UI-MAP.md` §2).
-- **Regions**: Physical disk selector pills, overall health banner (`Good` / `Caution` / `Poor`), 4 summary `StatTile`s (`Temperature`, `Powered on`, `Type`, `TRIM` or `Estimated life used`), and full S.M.A.R.T. attributes table (`ID`, `Attribute`, `Current`, `Worst`, `Threshold`, `Raw`, `Status`).
+- **Regions**: Physical-disk selector cards (3D `Drive3dIcon` with system-drive Windows badge and state-dependent BitLocker open/closed lock, capacity bar, free/total — `role="radiogroup"`), circular refresh button, hero health-score card (circular gauge, status `Good` / `Caution` / `Poor`, serial number, scan-this-drive CTA), 2×2 telemetry tiles (`Temperature`, `Powered on`, `Type`, `TRIM` / `Estimated life used`), and full S.M.A.R.T. attributes table (`ID`, `Attribute`, `Current`, `Worst`, `Threshold`, `Raw`, `Status`).
 
-### S7. Volume Repair (`/repair`)
+### S7. File Repair (`/repair`)
 
 - **Corpus Reference**: `RawFixer.dll` surface (`docs/01-executive-overview.md`, `docs/UI-MAP.md` §2).
-- **Regions**: Physical disk selector pills, dry-run structural findings list (`boot-sector`, `backup-dbr`, `fat-table`, `mft-mirror`), two-factor consent gate (acknowledgement checkbox + typed `REPAIR` confirmation input) before enabling `Repair N problems` danger CTA, and session `Undo log` with `Undo repairs` rollback button.
+- **v4 flow**: 2-step direct flow — no Start landing screen.
+  1. Step 1 (`dropzone`): "Repair Corrupted Videos, Photos and Documents" header + centered dashed `Add Files` card with the drag-file illustration.
+  2. Step 2 (`queue`): top bar (`Home` + `Advanced Repair`), queued file cards (name, size, category, path, per-item status), and a sticky bottom bar (save-path input, folder browse, add, clear, `Repair All` primary CTA).
+- **Advanced structural repair**: the RawFixer workbench (`VolumeRepairWorkbench`, behind the `Advanced Repair` toggle) keeps the physical disk selector, dry-run structural findings list (`boot-sector`, `backup-dbr`, `fat-table`, `mft-mirror`), two-factor consent gate (acknowledgement checkbox + typed `REPAIR` confirmation input) before enabling the repair danger CTA, and session `Undo log` with `Undo repairs` rollback button.
 
 ### S8. Settings (`/settings`) & About Dialog (`AboutDialog`)
 
 - **Regions**:
-  - `SettingsPage`: Theme dropdown (`Match system`, `Light`, `Dark`, `Ember`, `Tide`, `Blossom`, `High contrast`), UI Scale segmented control (`100%`, `150%`, `200%`), Density segmented control (`Comfortable`, `Compact`), Language segmented control (`English`, `简体中文`), Diagnostics event log copy, and About summary table.
-  - `AboutDialog`: Title-bar modal displaying connector-sourced `Version`, `Data source`, `Recovery engine`, `Disk driver`, and `Platform`.
+  - `SettingsPage` (opened from the three-lines header Menu): Theme dropdown (`Match system`, `Light`, `Dark`, `Ember`, `Tide`, `Blossom`, `High contrast`), UI Scale segmented control (`100%`, `150%`, `200%`), Density segmented control (`Comfortable`, `Compact`), Language segmented control (`English`, `简体中文`), Diagnostics event log copy, and About summary table.
+  - `AboutDialog` (header Menu → `About` menuitem): Title-bar modal displaying connector-sourced `Version`, `Data source`, `Recovery engine`, `Disk driver`, and `Platform`.
+
+### S9. SD Card / Removable Media (`/sd-card`)
+
+- **App-side v4 surface** (corpus lineage: reference landing removable-media flows, `35-redesign-reference-atlas.md` §5).
+- **Regions**: "Connect Your Memory Card to Recover Lost Photos & Videos" header + subtitle, refresh trigger, not-detected banner (`Get Help`), `Show all external devices` toggle, SD/USB device cards (`SdCardPage`, `SdCardSlotIcon`) with per-card `Scan Card` CTA, and three feature badges (Fix SD card access / Photos that open / Video that play; `FeatureBadgeItem`).
+- **Transitions**: The per-card CTA starts the scan directly (ADR-008) and routes to `/scan/:volumeId/live?scanId=<id>`.
+
+### S10. Scan Snapshot (`/backup`)
+
+- **App-side v4 surface** (renamed from "ChronoSnap Backup"; deliberately reinterpreted from the reference's sidebar backup product page — UI-MAP §0).
+- **Regions**: `Scan Snapshot` title + subtitle, three feature bullets (Instant Session Snapshots / Incremental Protection / Zero Source Modification), `Start New Scan` CTA (routes to `/`), and the `Saved Recovery Checkpoints` card: session list (target label, timestamp, files found) with per-session `Open` action (loads the session and routes to `/results/:scanId`), with an empty state when no checkpoints exist.

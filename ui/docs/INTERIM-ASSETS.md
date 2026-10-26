@@ -14,7 +14,7 @@ Two distinct layers live in this document:
 
 ## A. Corpus-extracted interim layer (this session)
 
-Manifest lives at `src/assets/interim/manifest.json`; every file below the
+Manifest lives at `src/assets/interim/chrome/manifest.json`; every file below the
 `interim/` directory is corpus-derived by convention.
 
 | File (app repo)                                                    | Corpus source                                                  | Depicts                       | Used at                          | Replacement plan                                      |
@@ -30,7 +30,7 @@ light nor `#616777` · hov bg `#D3DCE7` rx4 + glyph `#0560FD` · pre bg
 `#D3DCE7` + glyph `#1A1A1A` · dis `#A0A6B1`; dark nor `#B0B5C0` · hov bg
 `#323D4C` + glyph `#F1F5FF` · pre bg `#323D4C` + glyph `#5094FF`.
 
-Bulk-replacement protocol: `src/assets/interim/manifest.json` enumerates
+Bulk-replacement protocol: `src/assets/interim/chrome/manifest.json` enumerates
 every entry (src in app → corpus path → usage → replacement). A future
 homegrown session replaces files 1:1 and deletes the manifest. Interim
 status is discoverable from both the path convention and the manifest.

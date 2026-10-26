@@ -70,7 +70,10 @@ standard decelerating cubic-bezier. Progress and live counters animate linearly.
 ## 7. Iconography
 
 Lucide interim base (24px, 2px stroke, rounded joins) tinted via `currentColor`,
-plus 32 corpus-extracted window-chrome SVGs (`src/assets/interim/chrome/`).
+plus custom 3D target icons (`src/components/ui/brand-icons.tsx`:
+Drive3dIcon with system-drive Windows badge and state-dependent BitLocker
+open/closed lock, RecycleBin3dIcon, Desktop3dIcon, SelectFolder3dIcon) and
+32 corpus-extracted window-chrome SVGs (`src/assets/interim/chrome/`).
 Interim assets tracked in `docs/INTERIM-ASSETS.md`.
 
 ## 8. Layout system
@@ -93,3 +96,8 @@ Interim assets tracked in `docs/INTERIM-ASSETS.md`.
 - v0.1.0: initial token set from corpus hard evidence + VLM census.
 - v0.2.0: adopted 5-palette theme pair (`src/theme/adopted/`, ADR-007).
 - v0.3.0: collapsible sidebar (208px ⇄ 52px), window chrome 4-state SVGs, dialog/menu exit fades, press-scale tokens.
+- v0.3.3 (v4 UI pass): Settings/Theme/About consolidated into the three-lines
+  header Menu (language becomes its own header dropdown); More Recovery Tools
+  replaced by the redesigned Disk Health page; ChronoSnap Backup renamed Scan
+  Snapshot; File Repair & Lost Partition Rescue now 2-step direct flows (no
+  Start landing screens); 3D drive/recycle-bin target icons introduced.

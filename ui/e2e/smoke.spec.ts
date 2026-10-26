@@ -178,8 +178,11 @@ test('dialogs: corpus choreography — outside click swallowed, ESC closes, focu
     timeout: 15_000,
   });
 
-  const about = page.getByRole('button', { name: 'About' });
-  await about.click();
+  // v4 shell: About lives behind the three-lines Menu (aria-label from
+  // i18n menu.label). The standalone header About button is gone.
+  const menuTrigger = page.getByRole('button', { name: 'Menu' });
+  await menuTrigger.click();
+  await page.getByRole('menuitem', { name: 'About' }).click();
   await expect(page.getByRole('dialog')).toBeVisible();
 
   // Outside click on the scrim is swallowed (corpus atlas §12 rule 10).
@@ -189,5 +192,5 @@ test('dialogs: corpus choreography — outside click swallowed, ESC closes, focu
   // ESC closes the dismissible dialog and focus returns to the trigger.
   await page.keyboard.press('Escape');
   await expect(page.getByRole('dialog')).toHaveCount(0);
-  await expect(about).toBeFocused();
+  await expect(menuTrigger).toBeFocused();
 });

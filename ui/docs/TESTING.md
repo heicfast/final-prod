@@ -15,7 +15,7 @@
 ## Running locally
 
 ```
-pnpm test              # unit + contract + component (110 tests across 16 files)
+pnpm test              # unit + contract + component (145 tests across 22 files)
 pnpm test:coverage     # with v8 coverage + enforced thresholds (70% lines/funcs/stmts, 60% branches)
 pnpm e2e               # Playwright smoke + responsive/DPI + experience suite (12 tests)
 pnpm visual:compare    # verifies captured Playwright step screenshots against corpus geometry
@@ -54,7 +54,7 @@ pnpm typecheck && pnpm lint && pnpm arch:lint && pnpm bundle:check
 - Playwright drives the full path via accessible roles/names only — the
   smoke suite doubles as a keyboard/AT operability check.
 - Automated axe-core 4.10 audit across all surfaces and all 6 palettes
-  (`docs/evidence/a11y/axe-summary.json`): 0 violations.
+  (per-surface axe JSONs in `docs/evidence/a11y/`): 0 violations.
 
 ## CI matrix
 

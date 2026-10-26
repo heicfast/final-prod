@@ -25,10 +25,11 @@ src/components/       Design-system primitives (shadcn/ui v4 base, restyled):
                       segmented control, filetype icons.
 src/features/         One folder per wizard surface: device-selection,
                       scan-progress, results-explorer, lost-partition,
-                      preview, recovery-queue, health, repair, settings-about,
-                      dev-panel (DEV-gated).
-src/app/              providers, theme (light/dark/HC + density), router
-                      (hash), shell layout, error boundary.
+                      preview, recovery-queue, health, repair, backup,
+                      settings-about, dev-panel (DEV-gated).
+src/app/              providers, theme (5 adopted palettes + derived HC
+                      + density), router (hash), shell layout, error
+                      boundary.
 src/lib/              utils (cn), format (Intl), structured logger.
 src/i18n/             en + zh-CN resources (original copy).
 src/workers/          hex preview module worker (+ jsdom fallback).
@@ -81,5 +82,6 @@ src/workers/          hex preview module worker (+ jsdom fallback).
 
 ## ADRs
 
-See `docs/adr/` — router choice, preview rendering boundary, procedural mock
-index, dependency resolution at scaffold time, and the design-token basis.
+See `docs/adr/` — router choice, React compiler, preview rendering boundary,
+procedural mock index, dependency resolution at scaffold time, the
+design-token basis, and the lost-data direct-start flow.

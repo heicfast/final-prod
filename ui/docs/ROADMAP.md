@@ -1,5 +1,19 @@
 # ROADMAP
 
+## v4 UI pass (merged at v0.3.3) — DONE
+
+- Settings / Theme / About consolidated into the three-lines header Menu
+  (trigger label from `menu.label`); language moved to its own standalone
+  header dropdown; the standalone header About button is gone.
+- More Recovery Tools page deleted; its spot is the redesigned Disk Health
+  page (`/health`): 3D drive cards, health-score gauge, SMART table.
+- ChronoSnap Backup renamed **Scan Snapshot** (`/backup`).
+- File Repair & Lost Partition Rescue now skip their Start landing screens —
+  2-step direct flows (`/repair`, `/lost-partition`).
+- 3D target icons introduced (`Drive3dIcon` with state-dependent BitLocker
+  open/closed lock, `RecycleBin3dIcon`); Buy-Now pill + activation key icon
+  remain in the custom title bar.
+
 ## Session 4 (audit & completion) — DONE
 
 - Theme adoption from the designated source pair (ADR-007): verbatim adopted
