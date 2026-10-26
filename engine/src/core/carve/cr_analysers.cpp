@@ -333,7 +333,8 @@ CarveResult validate_jpeg(IStorageDevice* s, u64 hit, u64 cap) {
          * them only when still unknown (`uVar17 * uVar16 == 0`). */
         if (mk == 0xC0 || mk == 0xC2) {
             u8 prec[1];
-            const bool prec_ok = mk == 0xC2 || (rd(s, pos + 4, prec, 1) && prec[0] == 8);
+            const bool prec_ok =
+                mk == 0xC2 || (rd(s, pos + 4, prec, 1) && prec[0] == 8);
             if (prec_ok) {
                 const u64 h = rdbe16(s, pos + 5);
                 const u64 w = rdbe16(s, pos + 7);
@@ -377,8 +378,8 @@ CarveResult validate_jpeg(IStorageDevice* s, u64 hit, u64 cap) {
             }
             if (!found)
                 return salvage(elim); /* cap reached without a closing
-                                       * marker — the og legacy tier
-                                       * accepts at its limit */
+                                      * marker — the og legacy tier
+                                      * accepts at its limit */
             continue;
         }
         pos += 2 + u64(len);
@@ -702,13 +703,13 @@ static std::u16string mp4_og_name(IStorageDevice* s, u64 hit, u64 cap) {
     std::time_t tt = std::time_t(raw_time);
     std::tm tmv{};
 #if defined(_WIN32)
-    gmtime_s(&tmv, &tt); /* MSVC: dest-first; Win7-inclusive (msvcrt) */
+    gmtime_s(&tmv, &tt); /* MSVC: inverted arg order, same UTC semantics */
 #else
     gmtime_r(&tt, &tmv);
 #endif
     char tb[40];
-    snprintf(tb, sizeof(tb), "%04d:%02d:%02d %02d:%02d:%02d", tmv.tm_year + 1900, tmv.tm_mon + 1,
-             tmv.tm_mday, tmv.tm_hour, tmv.tm_min, tmv.tm_sec);
+    snprintf(tb, sizeof(tb), "%04d:%02d:%02d %02d:%02d:%02d", tmv.tm_year + 1900,
+             tmv.tm_mon + 1, tmv.tm_mday, tmv.tm_hour, tmv.tm_min, tmv.tm_sec);
     std::u16string out;
     for (const char* p = "Lost Name File ("; *p; ++p)
         out.push_back(u16(u8(*p)));

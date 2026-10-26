@@ -204,7 +204,7 @@ public:
         std::lock_guard<std::mutex> lock(m_);
         return cancelled_;
     }
-    bool paused() const {
+    bool paused() const override { /* fuzz-lane -Winconsistent-missing-override */
         std::lock_guard<std::mutex> lock(m_);
         return paused_;
     }
