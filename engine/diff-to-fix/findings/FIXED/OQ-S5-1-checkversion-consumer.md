@@ -94,3 +94,19 @@ in modules/mom-capabilities.md with dead-shipping evidence. No finding
 filed (the capability never runs in the shipped product — there is no
 recovery behavior to diverge from). No code change.** The core's
 absence of OS-install classification is parity.
+
+
+### Convergence addendum (DFX30, 2026-10-26 — independent verification)
+
+A second lane (DFX30, the tracked-open tail) ran the sweep independently
+before discovering DFX25's landing. Same conclusion; one addition: the
+sweep now explicitly covers **`MainModule_decompiled.c` — the exact
+"next RE artifact" DFX14's addendum queued as missing** — now present in
+`ghidra-partition/` (alongside RecoveryModule, UILogic, ToolsModule, and
+15 more host DLLs; all 120 ghidra-mo modules; DRWUI.exe; the remaining
+trees): `grep -rln "CheckVersion"` across every decompile tree returns
+exactly one hit — the module's own file — and module_import_matrix.json
+(36 modules) agrees. The module ships with the full IObject/GetModule
+contract (CRT/KERNEL32-only imports, no outbound module dependencies).
+DEAD-SHIPPED stands; MATCH-by-omission stands; the FIXED/ filing
+completed by DFX30 in the same change.

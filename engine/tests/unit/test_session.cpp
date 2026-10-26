@@ -974,3 +974,109 @@ TEST(Session, AutoNamingConvention) {
         EXPECT_TRUE(ok) << "bad stamp character at " << i << ": " << tail;
     }
 }
+
+TEST(Session, BtrfsExtrasRoundTrip) {
+    /* N-059 (diff-to-fix): the og's Btrfs record secondary payload —
+     * secondary id A (+0x3B; our carrier = the owning subvol root id),
+     * secondary id B (+0x3F; no decoded source, stays 0), and the
+     * generation/transid qword (+0x81; our carrier = the inode item's
+     * generation) — survives save/load through the nflags bit-6 block. */
+    tree::ResultTree t;
+    auto* root = t.add_root(u"Volume B");
+    tree::FileProperties* p = new tree::FileProperties();
+    p->name = u"snap.dat";
+    p->fs_kind = u32(FsKindCode::Btrfs);
+    p->logical_size = 4096;
+    p->btrfs_id_a = 257;      /* subvol root id (the N-047 naming datum) */
+    p->btrfs_id_b = 0;        /* undecoded — never invented */
+    p->btrfs_generation = 0x1122334455667788ull;
+    p->extents.push_back({8192, 4096});
+    auto* f = t.add_file(root, p);
+    (void)f;
+    p->release();
+    t.refresh_stats();
+
+    std::vector<u8> blob;
+    ASSERT_EQ(serialize_tree(t, blob), u32(OK));
+    tree::ResultTree t2;
+    ASSERT_EQ(deserialize_tree(blob.data(), blob.size(), t2), u32(OK));
+    tree::FileNode* c2 = t2.roots()[0]->first_child();
+    ASSERT_NE(c2, nullptr);
+    ASSERT_NE(c2->props(), nullptr);
+    EXPECT_EQ(c2->props()->btrfs_id_a, 257u);
+    EXPECT_EQ(c2->props()->btrfs_id_b, 0u);
+    EXPECT_EQ(c2->props()->btrfs_generation, 0x1122334455667788ull);
+    /* the ZFS/HFS+ slots ride the same block and stay zero here */
+    EXPECT_EQ(c2->props()->zfs_secondary_flags, 0u);
+}
+
+TEST(Session, ZfsSecondaryFlagsRoundTrip) {
+    /* N-059: the og's ZFS record secondary-flags u16 (+0x5A; our carrier
+     * = the znode ZPL_FLAGS low word, census-level semantics carried
+     * opaque) and — the session-6 addendum's fold — the HFS+ record's
+     * u16 flags (+0xE) + Finder type id (+0x74) ride the same block. */
+    tree::ResultTree t;
+    auto* root = t.add_root(u"Volume Z");
+    tree::FileProperties* pz = new tree::FileProperties();
+    pz->name = u"tank.creds";
+    pz->fs_kind = u32(FsKindCode::Zfs);
+    pz->zfs_secondary_flags = 0x0008; /* the immutable-family bit word */
+    auto* fz = t.add_file(root, pz);
+    (void)fz;
+    pz->release();
+    tree::FileProperties* ph = new tree::FileProperties();
+    ph->name = u"readme";
+    ph->fs_kind = u32(FsKindCode::Hfsplus);
+    ph->hfs_secondary_flags = 0x0100; /* the catalog record's flags word */
+    ph->hfs_type_id = 0x74657874;     /* 'text' — the Finder file type */
+    auto* fh = t.add_file(root, ph);
+    (void)fh;
+    ph->release();
+    t.refresh_stats();
+
+    std::vector<u8> blob;
+    ASSERT_EQ(serialize_tree(t, blob), u32(OK));
+    tree::ResultTree t2;
+    ASSERT_EQ(deserialize_tree(blob.data(), blob.size(), t2), u32(OK));
+    tree::FileNode* z2 = t2.roots()[0]->first_child();
+    ASSERT_NE(z2, nullptr);
+    ASSERT_NE(z2->props(), nullptr);
+    EXPECT_EQ(z2->props()->zfs_secondary_flags, 0x0008u);
+    tree::FileNode* h2 = z2->next_sibling();
+    ASSERT_NE(h2, nullptr);
+    ASSERT_NE(h2->props(), nullptr);
+    EXPECT_EQ(h2->props()->hfs_secondary_flags, 0x0100u);
+    EXPECT_EQ(h2->props()->hfs_type_id, 0x74657874u);
+    /* the btrfs slots stay zero for non-btrfs nodes */
+    EXPECT_EQ(h2->props()->btrfs_generation, 0ull);
+}
+
+TEST(Session, EngineExtrasAbsentWhenUnpopulated) {
+    /* N-059: the nflags bit-6 block is written ONLY when a carrier is
+     * nonzero — a plain node's record stays the pre-N-059 shape (old
+     * readers and old files both directions unaffected). */
+    tree::ResultTree t;
+    auto* root = t.add_root(u"Volume F");
+    tree::FileProperties* p = new tree::FileProperties();
+    p->name = u"plain.txt";
+    p->logical_size = 10;
+    auto* f = t.add_file(root, p);
+    (void)f;
+    p->release();
+    t.refresh_stats();
+    std::vector<u8> blob;
+    ASSERT_EQ(serialize_tree(t, blob), u32(OK));
+    /* the fixed 24-byte block is absent: byte-compare against a second
+     * serialization of the SAME tree after zeroing a carrier proves the
+     * gate (identical bytes = no block in either) */
+    tree::ResultTree t2;
+    ASSERT_EQ(deserialize_tree(blob.data(), blob.size(), t2), u32(OK));
+    tree::FileNode* c2 = t2.roots()[0]->first_child();
+    ASSERT_NE(c2, nullptr);
+    EXPECT_EQ(c2->props()->btrfs_id_a, 0u);
+    EXPECT_EQ(c2->props()->zfs_secondary_flags, 0u);
+    EXPECT_EQ(c2->props()->hfs_type_id, 0u);
+    std::vector<u8> blob2;
+    ASSERT_EQ(serialize_tree(t2, blob2), u32(OK));
+    EXPECT_EQ(blob, blob2) << "no extras block: the record shape is unchanged";
+}

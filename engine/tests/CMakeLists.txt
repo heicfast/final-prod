@@ -44,6 +44,7 @@ add_executable(cr_tests
     unit/test_writer_dirs.cpp
     unit/test_report.cpp
     unit/test_reghive.cpp
+    unit/test_pwddict.cpp
     unit/test_preview.cpp
     unit/test_snapshot.cpp
     unit/test_query.cpp
@@ -51,6 +52,7 @@ add_executable(cr_tests
     unit/test_diskmap.cpp
     unit/test_apply.cpp
     unit/test_rawfixer.cpp
+    unit/test_consistency.cpp
     unit/test_apply.cpp
     unit/test_refs_volume.cpp
 )

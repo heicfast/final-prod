@@ -1,5 +1,14 @@
 # CROSS-REF-MATRIX.md — module × parameter verdict matrix (post-rebase with parallel leg)
 
+**Session-27 changes (2026-10-26, DFX27 — the MAJOR-head lane):** **M-035
+FIXED** (engine-side FileFilter validation — the exFAT-only content-consistency
+scorer, reject rule decompile-exact with the strict-< correction; scan_candidate
+wiring + ResultTree::detach_subtree; lost-partition A30/B3 and query B16 rows
+below; findings/FIXED/M-035). **M-058 NEW-FINDING FIXED** (build-integrity/
+memory-safety: run()'s cache-failure fallback UAF — build_read_pipe extracted,
+ASan fail-before executed; the orchestrator row's R1.6 pipe note). M-049 landed
+first from the parallel DFX24 lane (convergence honored).
+
 **Session-30 changes (2026-10-26, DFX30 — tracked-open tail lane):** OQ-FLT-1
 RESOLVED (the 169-entry extension table = a 4-engine shared vocabulary, live in
 FAT/exFAT/RAW, dead copy in NTFS, absent in 5 engines; the M-035 scorer is
@@ -20,7 +29,10 @@ cr_ui_unlock_volume_with_dictionary additive ABI export. F61 consent gate
 structural; health/bitlocker F61/B1 cells -> MATCH. **N-071** FIXED —
 the two-stack disk enumeration (cfgmgr32 disk-interface pass merged into
 the numbered loop; residual stacks registered as D-79); storage B8/P42/A54
--> MATCH-with-D-79.
+-> MATCH-with-D-79. **N-059** FIXED — the per-FS session extras
+(Btrfs/ZFS/HFS+ secondary payload carriers + engine emission + the
+nflags bit-6 append-only block); session D11/D12 cells -> MATCH; the
+N-019/M-020 convergence break repaired in the same landing.
 
 **Session-25 changes (2026-10-26, DFX25 — INFO tier closed into FIXED/, tracked-open resolution wave):**
 the 22 acknowledged INFORMATIONAL findings (I-001..I-024) moved from
@@ -237,6 +249,7 @@ F safety · Q quality (definitions in `PARAMETERS.md`).
 | refs | B1/C19/C20/A25 | ~~N-026~~ **FIXED (s28, mixed)** — boot gates aligned (bps ladder + cluster product {4K,64K}, og :13544-49) + 4-KiB open read; N-013a/N-013c INVALID on first-hand decode (0x50 body is by-construction — hardcoded 0x30 ref extension; the mid-volume formula is N-036's container key, og probes NO superblock backup); findings/FIXED/N-026 |
 | table+ldm | B1/C20 | ~~M-016~~ **FIXED (s19)** — candidate list {2,0,1,2045,2046} = og probe order + tail superset behind; config+0 disk parses, +2 wins conflicts (committed_seq proof); 3 tests, findings/FIXED/M-016 |
 | table+ldm | B1/A27/X49 | ~~N-025~~ **FIXED (s23)** — 1 MiB config gate (>= 0x801 -> ERR_BAD_CHECKSUM, og :59748-59759) + zero-interleave 64 KiB default on stripe/RAID-5 (og :47665/:68631-68641); 2 fail-before tests + boundary pin; findings/FIXED/N-025 |
+| lost-partition | B3/A30/B16 (engine-side filter validation) | **M-035 — FIXED (s27 DFX27)** (the exFAT-only content-consistency scorer: considered/filterable/matched counters + the reject rule decompile-exact (strict < 0.3), substring classifier + MOV/MP4/JPG specials, out-of-bounds invalidation; scan_candidate wiring + detach_subtree; ScanStats::lost_content_rejected; 15 tests + fail-before; findings/FIXED/M-035) |
 | lost-partition | A30 | ~~M-017~~ **FIXED (s19)** — the og's content model end to end: weighted count + bonus + 500 table-match (polarity inversion repaired), ln/ln permille, containment-drop, stable sort, the iVar16 size-match promotion re-decoded; findings/FIXED/M-017 |
 | carve | B1/X47/X51 | **I-009** (byte-stepped probing = detection superset; block-shape constants) |
 | carve | B2-adj/R54/R57 | **M-021** (video-repair pre-scan hook absent) |
@@ -245,7 +258,7 @@ F safety · Q quality (definitions in `PARAMETERS.md`).
 | session | B10/D12 | **N-029 FIXED s17** (N-016a: maximal-subpart policy, DFX12 lane; N-016b: raw name bytes persisted [nflags bit 32] + og-parity restore naming from raw; findings/FIXED/) |
 | health | F61/B1 | **S-014** (BitLocker auto-unlock: wrong live registry path, offline-hive path absent, unassociated enumeration — F61 was never scored before) |
 | orchestrator | O38/P42/R56 | **A-004 — FIXED (session 3)** (ErrorRange fired through the config sink while the guard checked the live sink — delivered via the live sink now) + **S-016 — FIXED (session 3)** (snapshot error map was fed only AFTER the boundary emitters — the ErrorRange stream never fired; tel_counts_ now feeds it before every emit) |
-| orchestrator/wide | B1/D16 | **M-018** (FilterFolder junk-filter family absent and unregistered) — adjacent minors **N-016 + N-017 FIXED (minors session 2026-10-26)** (teardown double-emit removed, count pinned; CancelPoolWatcher factored + wired at the candidate fan-out — D-54) |
+| orchestrator/wide | B1/D16 | ~~M-018~~ **FIXED (s33)** — the FilterFolder pass: generated data (byte-exact corpus ini via scripts/gen_filterfolder.py, the file's `._.DS_Store`/`新建資料夾` over the finding's typos), NODE_FLAG_JUNK_FILTERED at post-walk pre-grading, query/CLI-tree/recover-all gates, junk_filtered stat, D-82 policy register — adjacent minors **N-016 + N-017 FIXED (minors session 2026-10-26)** (teardown double-emit removed, count pinned; CancelPoolWatcher factored + wired at the candidate fan-out — D-54) |
 | visualization | (S-009 remainder) | disk-map: engine bitmaps unwired (`kCellAllocFree` unreachable), no CRSF record, snapshot path no error map, 2 acceptance tests missing, §7 doc drift |
 | cross-cutting | Q68 (corpus docs) | **I-011** (8 corpus artifact claims corrected against the decompile; see CORPUS-ERRATA.md addendum) |
 | cross-cutting | Q68/Q46 | **I-010** (scope exclusions + supersets registered: cloud/NAS/repair/WinPE/installer/licensing/i18n; ZFS label-field superset; ext4 primary-SB-only = og parity) |
@@ -338,8 +351,8 @@ not-BAAD both sides; FAT quick-scan threading — already registered D-30x).
 
 | Module | Parameter(s) | Verdict change (evidence in the finding + `evidence/decompiled-quotes/s6-*`) |
 |---|---|---|
-| fat | B4/B5/D11/A29 | **M-052** (recycle-bin $I/$R pairing missing — og IRecycleBinNode2UI bridge; NTFS-side model exists in-repo) |
-| exfat | B1/A25/S35 | **N-067 FIXED s11** (upcase-table validation — og shape gates + checksum32 stream check, soft stats signal; findings/FIXED/); B4/B5/D11 **M-052** (recycle mirror) |
+| fat | B4/B5/D11/A29 | **M-052 — FIXED (s35)** (the shared $I/$R pairing model — four-root recognition, chain-read $I parse, original-name remap + post-walk fixup; findings/FIXED/M-052) |
+| exfat | B1/A25/S35 | **N-067 FIXED s11** (upcase-table validation — og shape gates + checksum32 stream check, soft stats signal; findings/FIXED/); B4/B5/D11 **M-052 FIXED (s35)** (the FAT-mirrored pairing — bin context through walk + oracle re-walks; findings/FIXED/M-052) |
 | carve | A25/D11/P42 | **S-032 (converged)** (archive inner-file inventories missing) |
 | carve | B1/C19 | **N-069 FIXED s11** (CAB mscf case key — FMT_CAB_LC dual row + two-spelling validator re-check; findings/FIXED/); B1/A28 **N-068 FIXED s11** (LFH sanity gates decompile-exact; EOCD half FIXED-ALREADY — the CD anchor + EOCD reconciliation already cover it; findings/FIXED/) |
 | carve | A28/A29/D15/B3 | **N-070** (overlap scoring + two-generation fallback); **S-007 addendum** (bare-MPEG dispatch gap — 18+ u16 sync keys vs ID3-only; family roster with provenance) |

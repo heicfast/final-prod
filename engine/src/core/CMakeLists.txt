@@ -38,6 +38,7 @@ add_library(cr_core STATIC
     btrfs/cr_btrfs_engine.cpp
     zfs/cr_zfs_engine.cpp
     lost/cr_candidates.cpp
+    lost/cr_consistency.cpp
     crypto/cr_sha256.cpp
     crypto/cr_aes.cpp
     storage/cr_decrypt_device.cpp
@@ -53,12 +54,15 @@ add_library(cr_core STATIC
     recovery/cr_report.cpp
     recovery/cr_dict.cpp
     recovery/cr_dict_data.cpp
+    orchestrator/cr_filterfolder.cpp
+    orchestrator/cr_filterfolder_data.cpp
     preview/cr_preview.cpp
     query/cr_query.cpp
     query/cr_filefilter_data.cpp
     repair/cr_rawfixer.cpp
     apply/cr_apply.cpp
     reghive/cr_reghive.cpp
+    pwddict/cr_pwddict.cpp
     refs/cr_refs_engine.cpp
     orchestrator/cr_scan.cpp
     tree/cr_node.cpp

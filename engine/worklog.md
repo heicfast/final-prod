@@ -13554,6 +13554,55 @@ Stage Summary:
   offsets — the MOS-walk documentation question).
 
 ---
+Task ID: DFX27-M035 (session 27, MAJOR lane — second fix)
+Agent: main engineer (diff-to-fix fix session 27 — DFX27)
+Task: M-035 — the engine-side FileFilter content-consistency validation for
+lost-partition candidates.
+
+Work Log:
+- Corpus re-verified LINE BY LINE first-hand (not from the finding text):
+  FUN_180025390 :30973-31156 (scorer: counters iVar11/iVar14/iVar15/iVar17,
+  data-start cluster math :31057-31063, the out-of-bounds invalidation
+  :31077-31083, the reject compare `<= 0.3 && != 0.3` = STRICT <), the
+  classifier FUN_180024fe0 :30785-30960 (170-entry table strstr + MOV/MP4/JPG
+  prefix checks + the two memicmp literals), the filter-set helper
+  FUN_180025d60 :31566-31680 (ext extraction + set membership + TIFF/JPEG
+  specials), the call site :38340-38380 (ExFatCalcPartition: accept iff
+  valid && ratio > 0.3). CONFIRMED-DIVERGENCE. Two finding-text corrections,
+  corpus-wins: reject is strict < 0.3 (ratio == 0.3 does NOT reject); iVar17
+  is the CHECKABLE count, not "failed".
+- Landed: cr::lost scorer (cr_consistency.h/.cpp — ConsistencyFile/Verdict +
+  score_content_consistency + the pure helpers); scan_candidate wiring (score
+  after the engine dispatch; reject -> detach + zero counts +
+  lost_content_rejected + N-048 log line); ResultTree::detach_subtree (the
+  drop mechanism: nodes/roots/indexes removed, props refs released once per
+  node, root links severed BEFORE destruction so later subtree walkers are
+  safe; the rebase skips rejected candidates). ScanStats.lost_content_rejected
+  added; the parallel fan-out's Out struct carries per-candidate rejections.
+- Vocabulary decision (OQ-FLT-1's implementer note): checkable = the carve
+  registry's families + TIFF/JPEG; camera-RAW families without a core
+  signature stay uncheckable (bounded vocabulary, registered). Classification
+  = first registry signature at the data start (registry order = the carve
+  dispatch precedence), substring classifier + family specials, og-faithful.
+- Tests: 15 in test_consistency.cpp — the finding's three named tests
+  (ContentInconsistentGhostRejected / ContentConsistentGhostAccepted /
+  RatioBoundaryThirtyPercent pinning the strict-< correction) + helpers +
+  scorer counters (directories/extentless mirror the og; unreadable stays
+  unmatched; out-of-bounds invalidates) + 2 detach tests (index removal +
+  hard-link refcount survival) + 2 end-to-end whole-disk ghost scans.
+  Fail-before EXECUTED (reject wiring gated off: the E2E drop test RED with
+  the ghost's 6 files surfacing; restored -> GREEN). Suite 808/808
+  linux-release.
+- Audit trail: Resolution + FIXED/ move; RESOLVED-INDEX row; matrix
+  session-27 header + the lost-partition B3/A30/B16 detail row;
+  modules/lost-partition.md session-27 verdict; SUMMARY session-27 delta.
+
+Stage Summary:
+- Session tally: M-058 (NEW-FINDING) + M-035. MAJOR open: 10 (M-049/M-014
+  landed from parallel lanes; M-052/M-018/M-020/M-025/M-029/M-030/M-034/
+  M-039/M-040/M-041/M-048 remain). Next: pull-check, then the highest-value
+  unclaimed-open MAJOR (M-039 occupancy bitmap or M-048 signature db).
+
 Task ID: DFX33-T1 (session 33, first fix)
 Agent: main engineer (diff-to-fix fix session 33 — DFX33)
 Task: M-020 — Btrfs chunk-profile machinery (RAID10 gates, 2-copy rotating
@@ -14213,6 +14262,44 @@ Stage Summary:
   (canonical + convergence), N-071. Next: pull, then N-072 or N-066.
 
 ---
+Task ID: DFX33-T3 (session 33, third fix)
+Agent: main engineer (diff-to-fix fix session 33 — DFX33)
+Task: M-018 — the FilterFolder result-set junk filter.
+
+Work Log:
+- Corpus re-verified BYTE-EXACT against the shipped ini (og-codebase/
+  config/FilterFolder.ini): the finding carried two typos — `._DS_Store`
+  vs the file's `._.DS_Store`, and the artifact's `新建資料夘` vs the
+  file's `新建資料夾`; the Korean entry is "새 폴더" (4 code points).
+  PushFolderFilter wiring re-confirmed (applog :22:57:57.920).
+- Implemented all four fix-plan items: generated data
+  (scripts/gen_filterfolder.py → cr_filterfolder_data.cpp, 4+7+14
+  entries); the filterfolder::apply pass in ScanController::run()
+  (post-walk, pre-grading, pre-session-capture) marking
+  NODE_FLAG_JUNK_FILTERED (bit 14); consumer gates (query passes(), CLI
+  print_tree, recover-all plan — the og's "hide from results" + the
+  finding's "recover-all writes junk" impact both closed);
+  ScanStats.junk_filtered. Children of filtered nodes stay. Policy
+  registered D-82 (comparator mode undecoded: exact+ASCII-fold;
+  emission-side; sessions re-derive idempotently).
+- Tests: FilterFolder.CorpusListsPinned (all three lists, count pins,
+  fold, kind-separation, negatives — caught the Korean literal error
+  first-hand: 4 code points, not 2) + Orchestrator.JunkFilteredFromResults
+  (fail-before EXECUTED: RED with the pass disabled; LFN chain fixtures
+  for System Volume Information + zh-CN 新建文件夹 written against the
+  engine's lfn_assemble contract; the FAT undelete convention (_ELFILE)
+  surfaced during the run and is asserted as such).
+- Convergence: the parallel lane's N-019 scenario-8
+  (Btrfs.TwoSubvolumesRootSeparately) landed expecting the pre-M-020
+  rendering; updated to the M-020 default-at-root truth (corpus-verified
+  FUN_1800061f0) with its leakage assertions preserved.
+- Suite 823/823 linux-release at the fix commit.
+
+Stage Summary:
+- M-018 FIXED (tally: 3 — M-020, M-025, M-018). MAJOR 8 open. Next: pull,
+  then M-035 (engine-side FileFilter validation) or the live queue head.
+
+
 Task ID: DFX30-T11 (OQ-S6-2 — convergent verification; DFX25's landing stands)
 Agent: main engineer (diff-to-fix fix session 30 — DFX30)
 Task: OQ-S6-2 — the Btrfs RC4 PRGA target.
@@ -14376,6 +14463,25 @@ Stage Summary:
   OQ-S6-2, OQ-S6-1). Next: OQ-S5-1 (CheckVersion's consumer).
 
 ---
+Task ID: DFX24-T1..T5 (bootstrap + M-014 lane)
+Agent: DFX24 (session 24, the MAJOR lane)
+Task: execute diff-to-fix — MAJOR findings first, 20+ fixes, fixed findings to FIXED/, docs/counts current
+
+Work Log:
+- Bootstrap: repos cloned; audited commit 02b950f (baseline 737/737 linux-release green first-hand); corpus 03ad46c unmoved; lane claim recorded (worklog/session-diff-fix-24-prompt.md, token redacted).
+- Read the 14 open MAJOR findings in full; read diff-to-fix README/SEVERITY-SCALE/matrix/module docs; read the corpus citations for M-014 first-hand (exFATSearchDLL_decompiled.c :1756-1870, :34521-34590, :25507-25620).
+- M-014 independent verification: raw disassembly of FUN_180002f90/FUN_180003030 (objdump on og-codebase/exFATSearchDLL.dll) confirming the timestamp gates, the secondary-count bounds, the byte order of the UTF-16 table check; extracted the 256-byte table at .rdata RVA 0x45A00 byte-exact (PE section map; extraction script + byte-for-byte verification).
+- Implemented the four gate families + 13 tests; fail-before EXECUTED (11/13 RED on the pre-fix engine, 2 boundary-accept guards green by design); suite 750/750.
+- Parallel-window union absorbed: the DFX23 lane landed M-014 first (f0ce492) — convergent implementation dropped cleanly EXCEPT the UTF-16 table, which the landing left unimplemented on the premise "not recoverable from the corpus" (premise wrong: the binary ships). Completed the table on top of their landing: name_fragment_gates_ok table loop + 2 tests; fail-before EXECUTED (table loop disabled -> RED).
+- Baseline repairs: (1) ASan-lane LeakSanitizer red (4 tests, every report naming cr_log.cpp:55 — the N-062 set_sink bare-new leak) — fixed with a static std::deque<Site> pool preserving the no-UAF swap semantics; filed as N-079 NEW-FINDING (FIXED). (2) PARITY-DELTAS D-84 row (the N-071 two-stack registration) dropped by the DFX30-T4 renumbering union — restored verbatim from 7ee64fb; Enumerate.ScopeDeltaRegisteredWithRevisitTrigger red -> green. (3) BtrfsTwoSubvolumesRootSeparately union-red repaired convergently by a parallel lane (taken as-is, first-landing-wins).
+- Audit trail: M-014 Resolution addendum (table provenance + premise correction); N-079 finding filed with Resolution; RESOLVED-INDEX rows; modules/exfat.md session-24 completion verdict; SUMMARY session-24 delta.
+
+Stage Summary:
+- M-014: FIXED (first landing by the parallel lane; this lane's completion closes the UTF-16 table gap with binary-extracted bytes + disasm-pinned semantics).
+- N-079: NEW-FINDING filed + FIXED (ASan lane green again).
+- Suite 826/826 linux-release; ASan lane green at the fix tree.
+- Remaining MAJOR on this lane: M-018, M-025, M-030, M-034, M-035, M-039, M-040, M-041, M-048, M-052.
+
 Task ID: DFX25-T4f (session 25 — OQ-S5-1 resolution)
 Agent: main engineer (DFX25)
 Task: Resolve OQ-S5-1 (CheckVersion.mo's consumer — live or dead-shipped).
@@ -14500,3 +14606,221 @@ Stage Summary:
   step recorded). Session tally: 29 resolutions (22 INFO closures, A-008
   ACUTE, OQ-Z1/S6-3/S6-2/S6-1/S5-1 resolutions, OQ-S4-3 push-forward with
   the prerequisite landed).
+Task ID: DFX30-T13 (OQ-S5-1 resolved + closed — my queue's last item)
+Agent: main engineer (diff-to-fix fix session 30 — DFX30)
+Task: OQ-S5-1 — is CheckVersion.mo's OS-aware recovery live or
+dead-shipped legacy?
+
+Work Log:
+- The load contract established: by-name LAZY loading
+  (FUN_1800017f0(name) -> +".mo" -> LoadLibraryA -> GetModule) — a
+  module is live only when a host requests it by name string.
+- The sweep DFX14 queued is now executable: MainModule_decompiled.c
+  EXISTS in ghidra-partition/ (plus RecoveryModule, UILogic,
+  ToolsModule, and 15 more host DLLs, all 120 ghidra-mo modules,
+  DRWUI.exe, and the remaining trees). grep -rln "CheckVersion" across
+  every decompile tree = exactly ONE hit: the module's own file.
+  module_import_matrix.json (36 modules) agrees: zero references.
+- CheckVersion.mo ships with the full contract (GetModule + IObject
+  exports; CRT/KERNEL32-only imports) and full implementations
+  (FUN_180003050/FUN_180003580/FUN_1800029e0) — but no host ever loads
+  it. DEAD-SHIPPED.
+- Disposition: MATCH-by-omission (core's absence of OS-aware recovery =
+  parity with the og's dead code; no finding).
+- Audit trail: resolution recorded in the OQ file; the
+  mom-capabilities.md register row updated (UNRESOLVED consumer ->
+  DEAD-SHIPPED RESOLVED); file closed to FIXED/.
+
+Stage Summary:
+- OQ-S5-1 RESOLVED + closed. MY LANE'S CLAIMED QUEUE IS COMPLETE:
+  OQ-Z-E-FLT (7 sub-questions resolved + 1 pushed with evidence),
+  OQ-T6-T7 (closed), OQ-S6-3 (closed), OQ-S6-2 (closed, convergent),
+  OQ-S6-1 (closed, convergent + corrected), OQ-S5-1 (closed). Plus:
+  S-034 NEW-FINDING filed (SEVERE, doc-truth landed), D-09 re-verdicted,
+  corpus errata E45/E46(convergence), M-035's blast-radius question
+  answered. Remaining tracked-open items belong to DFX25's head queue
+  (OQ-RS, OQ-S20-1 [resolved by DFX31], OQ-S2M-2, OQ-S3, OQ-S4-3) —
+  check for stalls.
+
+---
+Task ID: DFX30-T13b (OQ-S5-1 — convergent union; DFX25's landing stands)
+Agent: main engineer (diff-to-fix fix session 30 — DFX30)
+
+Work Log:
+- Push met DFX25's convergent OQ-S5-1 resolution (dead-shipped,
+  MATCH-by-omission — same conclusion; their sweep also covered the PE
+  binaries + config loads + the libxml2 xmlCheckVersion disambiguation).
+  Their resolution adopted as canonical; my MainModule-specific
+  verification (the exact artifact DFX14 queued, now present and
+  checked) recorded as the convergence addendum; FIXED/ filing
+  completed; their mom-capabilities row adopted (richer than mine).
+
+Stage Summary:
+- OQ-S5-1 closed (convergent two-lane). MY CLAIMED QUEUE IS COMPLETE.
+Task ID: DFX31-N059 (session 31, MINOR tail-first lane — finding 3)
+Agent: main engineer (diff-to-fix fix session 31 — DFX31)
+Task: N-059 — the per-FS session extras (Btrfs/ZFS + the HFS+ fold) +
+the N-019/M-020 convergence repair.
+
+Work Log:
+- Corpus re-verified FIRST-HAND: ifileproperties-part3 :15-65 (Btrfs
+  +0x3B/+0x3F/+0x81; ZFS +0x5A; the ZfsDataRunlist vtable container),
+  part2 :39-75 (HFS+ +0xE mode/flags secondary, +0x74 type id, the
+  extent-list grammar). CONFIRMED-DIVERGENCE.
+- Landed: FileProperties carriers (btrfs_id_a/b, btrfs_generation,
+  zfs_secondary_flags, hfs_secondary_flags, hfs_type_id — og semantics
+  census-level, id_b never invented); engine emission (btrfs inode
+  generation from INO_GENERATION@0 + the owning subvol id; zfs ZPL_FLAGS
+  from the SA registry — the "not consumed" comment's gap closed for
+  flags; hfs catalog flags + Finder type at the live-walk AND
+  journal/orphan emission sites); the nflags bit-6 fixed 24-byte
+  append-only session block (old files zero; plain nodes byte-identical).
+- Fail-before EXECUTED: bit-6-disabled tree -> BtrfsExtrasRoundTrip +
+  ZfsSecondaryFlagsRoundTrip RED; restored -> 3/3 GREEN.
+- CONVERGENCE REPAIR (pushed-red main): the parallel lanes' N-019 test
+  (Btrfs.TwoSubvolumesRootSeparately, subvol-5/* expectations)
+  contradicted the M-020 landing's corpus-verified default-subvol
+  contract (FUN_1800061f0 :3975-4060; the finding's own falsifiable
+  claim (c)); the test expectations corrected to the M-020 contract
+  (default's children at the volume root, subvol-256 keeps its
+  container, leakage assertions preserved). Verified the breakage
+  pre-existed my N-059 work via stash isolation.
+- Audit trail: Resolution + FIXED/ move; RESOLVED-INDEX row; matrix
+  session note; modules/session.md verdict; SUMMARY counts (MINOR 4
+  open).
+
+Stage Summary:
+- N-059 FIXED + main green again (session tally: N-064, N-071, N-059 +
+  the N-064 convergence + the N-019/M-020 repair). Next: N-066 or
+  N-072, pulling first.
+
+---
+Task ID: DFX35-2 (session 35, second fix — M-052 + the N-079 discovery)
+Agent: main engineer (diff-to-fix fix session 35 — DFX35, MAJOR-first)
+Task: M-052 — the FAT/exFAT recycle-bin $I/$R pairing; generalize the
+NTFS model into a shared helper.
+
+Work Log:
+- Corpus re-verified FIRST-HAND: the four-name _stricmp bin-root
+  recognizer in all three SearchDLLs (FAT :1668-1677, exFAT :40583-
+  40592, NTFS :37387-37410 — including the deliberate "$RECYCLE.BI0"
+  mangled-variant match), the NTFS ancestor-chain scope consumer
+  (:43538-43550), the artifact's pairing statement ("by index across
+  bin subfolders", fat-exfat-engine-internals.md :37-40). CONFIRMED.
+- Discovery during verification (N-079, filed as NEW-FINDING): the
+  NTFS landing matched $I/$R name prefixes EVERYWHERE — user files
+  named "$Image.txt" vanished (unconditional skip, no parse gate) and
+  out-of-bin "$R…" files mis-paired with in-bin $I records (wrong
+  name + wrong Deleted forcing). The og's own handling is
+  location-scoped (parent-chain walk over the recognizer).
+- Landed: include/cr/cr_recycle.h — parse_record (the $I v1/v2
+  parser, format-dependent pathlen moved verbatim from the NTFS
+  landing), token_of (dot-stripped pairing token), is_bin_root (the
+  four-name set, ASCII case-insensitive). FAT: bin context threaded
+  through walk_dir_entries/recurse_dir/emit_entry; in-bin $I read
+  from the chain (bounded 2076 B) + parsed + skipped; $R remap at
+  emission or post-walk fixup; recycle_info/recycle_remapped stats.
+  exFAT: same model in walk_entries/recurse_dir; ParkedSet carries
+  in_bin through the M-013 oracle re-walk. NTFS: wrappers delegate to
+  the shared header; the $I skip is parse-gated; ALL $R remaps moved
+  post-walk with the bin-ancestry check (N-079 fix).
+- Tests: FatEngine.RecyclePairingRestoresOriginalName +
+  RecycleLegacyRoots + NonRecycleDollarFilesStayRaw (FAT16 fixture
+  extension: $RECYCLE.BIN\S-1-5-21\$I/$R on clusters 40/41/50/51);
+  ExfatEngine.RecyclePairingMirrored (bin at cluster 90, sets planted
+  through SetBuilder — first run caught my own name-length miscount:
+  "$RECYCLE.BIN" is 12 chars, not 11, so the root never matched);
+  NtfsVolume.RecycleBinScopeOutOfBinDollarFilesStayRaw (self-contained
+  volume — the shared dump image's MFT only covers records 0..13, so
+  the scope test needed its own geometry).
+- Debug detour: the first exFAT run showed recycle_info=0; a
+  temporary walk trace (since removed) found the truncated
+  '$RECYCLE.BI' name — the miscount above, not an engine defect. Also
+  verified en route: SetBuilder::finish_set's entries.size()*32 loop
+  is checksum-equivalent to the engine's byte range whenever the set
+  is followed by >= 2976 zero bytes (16 ROL15 zero-steps = identity;
+  2976 % 16 == 0) — benign, left as is.
+- Fail-before EXECUTED: the three engine .cpp files stashed (headers
+  kept so the new tests compile) — 4 of 5 new tests RED (the fifth,
+  NonRecycleDollarFilesStayRaw, is the no-over-match guard: green on
+  both trees by design). Restored: suite 794/794 linux-release.
+- Audit trail: M-052 Resolution + FIXED/ move; N-079 finding filed
+  (NEW-FINDING, MINOR) with Resolution + FIXED/; matrix rows (fat
+  B4/B5/D11, exfat B4/B5/D11, ntfs N-079 row); modules fat/exfat/ntfs
+  session-35 verdicts; CAPABILITY-MATRIX recycle row extended to all
+  three engines; SUMMARY session-35 delta appended.
+
+Stage Summary:
+- M-052 FIXED + N-079 NEW-FINDING FIXED (session tally: 2). MAJOR 11
+  remain. Next: M-020 (Btrfs chunk profiles + default subvol pick).
+---
+Task ID: DFX35-3 (session 35 — the pushed-red repair before M-020)
+Agent: main engineer (DFX35)
+Task: Repair the pushed-red main inherited from the window's merge
+churn (the M-055/DFX22 precedent).
+
+Work Log:
+- The union rebase exposed two red tests from the parallel window's
+  merge chain (verified absent from my own files):
+  (1) win_syntax_check: cr_bitlocker.h carried COMMITTED conflict
+  markers (duplicate CONSENT block + a bare ======= at :91) and
+  rrecov.cpp had comment/code interleaved into broken syntax — the
+  196d75a merge ("827/827 green" claimed) mangled both. The merge
+  chain ALSO dropped the entire N-064 pwddict module (include/cr/
+  pwddict/, src/core/pwddict/, tests/unit/test_pwddict.cpp, both
+  CMake wirings) — the restored rrecov includes cr/pwddict/
+  cr_pwddict.h.
+  (2) Enumerate.ScopeDeltaRegisteredWithRevisitTrigger: the DFX30-T4
+  canonical renumber (their own note: "enumeration two-stack
+  D-79->D-84, Btrfs M-020 D-79->D-83") was applied to one copy of the
+  tripled ledger sections but a later bad merge reverted the first
+  copy; re-applied the two renames to the first-copy headings.
+- Restored from the last-green tree 126710f: cr_bitlocker.h, rrecov.cpp,
+  the pwddict module (3 files + 2 CMake wirings, indentation
+  normalized).
+- Suite 841/841 linux-release post-repair (win_syntax_check green; the
+  pwddict tests restored with the module).
+- KNOWN DEBT (still the DFX30 lane's declared next push, not hijacked):
+  PARITY-DELTAS.md carries DUPLICATED section blocks from the window's
+  union merges (the same D-rows at 2-3 file positions: D-80 x4, D-81
+  x3, D-79 copies) — the deterministic dedup/renumber pass stays
+  queued; this repair only restored the canonical first-copy numbers
+  the failing test anchors on.
+
+Stage Summary:
+- Main green again (841/841). Proceeding to M-020.
+
+---
+Task ID: DFX31-REPAIR2 (session 31 — the second pushed-red repair + a coordination plea)
+Agent: main engineer (diff-to-fix fix session 31 — DFX31)
+Task: Repair the re-broken main (a parallel lane's "union repair" 26e4147
+re-introduced the superseded pwddict design AND left stray conflict
+markers + .bak files) and re-assert the canonical N-064 reconciliation.
+
+Work Log:
+- Damage: 26e4147 ("both N-064 designs unioned - both functions stand")
+  re-added try_password_unlock/pwddict surfaces that the D-80
+  reconciliation had dropped, left a stray '=======' in cr_bitlocker.h:91,
+  two stray markers + triple-interleaved fragments in rrecov.cpp
+  (open_volume_view bodies stacked three deep), a duplicated
+  print_carve_formats (the N-033 lane's own first cut 73ee152 surviving
+  beside its richer re-landing 126710f), and two .bak files in the tree.
+- Repair: cr_bitlocker.h rebuilt to the canonical block (the D-80 note
+  now says DO NOT re-introduce a second dictionary module or flag);
+  rrecov.cpp's open_volume_view + cmd_scan regions spliced from the
+  canonical 450978e revision; the first-cut print_carve_formats removed
+  (the 126710f table version stands); .bak files deleted.
+- Verified: build clean, win_syntax_check 8/8 files, suite 849/849.
+- COORDINATION PLEA to the parallel lanes (the worklog is the channel):
+  the N-064 convergence is DECIDED — D-80 documents first-landing-wins
+  (cr::dict canonical, 4c475ba 05:26Z over 817740c 05:37Z), the loader
+  capability is absorbed (--bitlocker-dict [file]), and the pwddict
+  module was dropped CLEANLY. Re-unioning superseded designs re-breaks
+  main every cycle. Before touching N-064 surfaces again, read
+  D-80 + the finding's convergence record. Same for any finding with a
+  standing convergence record.
+
+Stage Summary:
+- Main green again (849/849). Session tally stands: N-064 (+convergence),
+  N-071, N-059, two pushed-red repairs, one convergence repair. Next:
+  pull, then N-066/N-072/N-065 (the MINOR tail) if still open.

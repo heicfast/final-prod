@@ -363,18 +363,6 @@ bool parse_fvek_hex(const std::wstring& hex, std::vector<u8>& out) {
     return true;
 }
 
-/* N-064: load password candidates for the consented dictionary unlock.
- * `seed` selects the shipped seed list (D-78: authored, not the og's
- * Dict asset); any other value is a dictionary file in the og's exact
- * comma-terminated line format (the og's own Dict works verbatim).
- * Returns false with a diagnostic when a file cannot be read/parsed. */
-bool load_pwddict_candidates(const std::wstring& arg, std::vector<std::string>& out) {
-    if (arg == L"seed") {
-        out = pwddict::seed_dictionary();
-        return true;
-    }
-=======
-
 /* N-064 (absorbed from the convergent DFX34 landing): load user password
  * candidates from a dictionary file in the og's exact Dict format
  * (comma-terminated lines, CRLF/LF, pure ASCII - cr::dict::parse is the
@@ -412,16 +400,7 @@ bool load_dict_candidates(const std::wstring& path, std::vector<std::string>& ou
     return true;
 }
 
-/* N-064 (the two-lane union): open_volume_view carries BOTH consent
- * surfaces - pwddict_arg (--bitlocker-pwddict <file|seed>: explicit
- * candidates) and dict_consent (--bitlocker-dict: the shipped
- * dictionary, valueless). Both are the og's user-initiated unlock
- * action; neither ever fires without its flag. */
 bool open_volume_view(wchar_t letter, OpenResult& out, const std::wstring& fvek_hex,
-                      const std::wstring& pwddict_arg, bool dict_consent) {
-
-                      const std::wstring& pwddict_arg, bool dict_consent) {
-
                        bool dict_consent, const std::vector<std::string>& dict_user) {
     std::vector<u8> fvek;
     const bool have_key = !fvek_hex.empty() && parse_fvek_hex(fvek_hex, fvek);
@@ -431,53 +410,11 @@ bool open_volume_view(wchar_t letter, OpenResult& out, const std::wstring& fvek_
         return false;
     }
     const win::bitlocker::Status bst = win::bitlocker::status(letter);
-    if (bst == win::bitlocker::Status::Unknown && !have_key && pwddict_arg.empty() &&
-        !dict_consent) {
-
     if (bst == win::bitlocker::Status::Unknown && !have_key) {
         /* Boot sector unreadable: the BitLocker state cannot be determined
          * (typical for a locked volume denying \\.\X: reads). Never scan
          * blind - refuse with the unlock path (FB-B01). With a user key
          * the in-stack decrypt path may proceed (M-033): the user has
-         * supplied key material, which is the og's own opt-in. With either
-         * explicit dictionary consent (--bitlocker-pwddict / --bitlocker-
-         * dict) the unlock attempt runs before any refusal (N-064). */
-        wprintf(L"[bitlocker] %c: boot sector unreadable - cannot determine BitLocker state\n"
-                L"  (typical for a locked volume). Unlock with:\n"
-                L"  Unlock-BitLocker -MountPoint %c: -RecoveryPassword <key>\n"
-                L"or re-run with --bitlocker-fvek <hex> (the in-stack decrypt path).\n",
-                letter, letter);
-        return false;
-    }
-    if (bst == win::bitlocker::Status::Locked && !have_key) {
-        wprintf(L"[bitlocker] %c: locked - trying auto-unlock...\n", letter);
-        bool unlocked = win::bitlocker::try_auto_unlock(letter) == OK;
-        if (unlocked) {
-            wprintf(L"[bitlocker] auto-unlocked\n");
-        } else {
-            /* N-064 (both consent surfaces, explicit-only, never an
-             * unattended password sweep): the shipped dictionary first
-             * (--bitlocker-dict, valueless), then the file/seed candidates
-             * (--bitlocker-pwddict) */
-            if (dict_consent) {
-                wprintf(L"[bitlocker] trying the shipped password dictionary...\n");
-                unlocked = win::bitlocker::unlock_with_dictionary(letter, nullptr, 0) == OK;
-                if (unlocked)
-                    wprintf(L"[bitlocker] dictionary-unlocked\n");
-            }
-            if (!unlocked && !pwddict_arg.empty()) {
-                std::vector<std::string> candidates;
-                if (!load_pwddict_candidates(pwddict_arg, candidates))
-                    return false;
-                wprintf(L"[bitlocker] %c: trying %zu password candidate(s) (consented "
-                        L"dictionary unlock)...\n",
-                        letter, candidates.size());
-                unlocked = win::bitlocker::try_password_unlock(letter, candidates) == OK;
-                if (unlocked)
-                    wprintf(L"[bitlocker] dictionary-unlocked\n");
-            }
-            if (!unlocked) {
-
          * supplied key material, which is the og's own opt-in. With the
          * explicit --bitlocker-dict consent the dictionary unlock is
          * tried before this refusal (N-064; the convergent landing's
@@ -492,24 +429,10 @@ bool open_volume_view(wchar_t letter, OpenResult& out, const std::wstring& fvek_
             } else {
                 wprintf(L"[bitlocker] still locked. Unlock with:\n"
                         L"  Unlock-BitLocker -MountPoint %c: -RecoveryPassword <key>\n"
-                        L"or re-run with --bitlocker-fvek <hex> (the in-stack decrypt path),\n"
-                        L"or --bitlocker-dict / --bitlocker-pwddict <file|seed> (the consented\n"
-                        L"password-dictionary unlock).\n",
+                        L"or re-run with --bitlocker-fvek <hex> (the in-stack decrypt path).\n",
                         letter);
                 return false;
             }
-        }
-    }
-    /* N-064 (the Unknown-status consent shape): a volume whose status
-     * reads Unknown with --bitlocker-pwddict present (the locked-volume-
-     * denying-reads shape) gets the same candidate attempt; a volume that
-     * became readable (auto-unlock just succeeded, or it was unlocked all
-     * along) needs no password. */
-    if (!pwddict_arg.empty() && !have_key) {
-        const win::bitlocker::Status now = win::bitlocker::status(letter);
-        if (now == win::bitlocker::Status::Locked ||
-            now == win::bitlocker::Status::Unknown) {
-
         } else {
             wprintf(L"[bitlocker] %c: boot sector unreadable - cannot determine BitLocker "
                     L"state\n"
@@ -523,39 +446,6 @@ bool open_volume_view(wchar_t letter, OpenResult& out, const std::wstring& fvek_
     }
     if (bst == win::bitlocker::Status::Locked && !have_key) {
         wprintf(L"[bitlocker] %c: locked - trying auto-unlock...\n", letter);
-        /* N-064 union (both consent surfaces): auto-unlock first, then the
-         * user-supplied dictionary (--bitlocker-pwddict <seed|file>, the
-         * pwddict module's candidates through try_password_unlock), then
-         * the shipped dictionary (--bitlocker-dict, unlock_with_dictionary).
-         * Every path is explicit user consent - the scan never
-         * auto-attempts passwords (F61: legitimate unlock only). */
-        bool unlocked = win::bitlocker::try_auto_unlock(letter) == OK;
-        if (!unlocked && !pwddict_arg.empty()) {
-            std::vector<std::string> candidates;
-            if (!load_pwddict_candidates(pwddict_arg, candidates))
-                return false;
-            wprintf(L"[bitlocker] %c: trying %zu password candidate(s) (consented "
-                    L"dictionary unlock)...\n",
-                    letter, candidates.size());
-            if (win::bitlocker::try_password_unlock(letter, candidates) != OK) {
-
-            unlocked = win::bitlocker::try_password_unlock(letter, candidates) == OK;
-            if (!unlocked) {
-                wprintf(L"[bitlocker] dictionary unlock rejected all %zu candidate(s). "
-                        L"Unlock with:\n"
-                        L"  Unlock-BitLocker -MountPoint %c: -RecoveryPassword <key>\n"
-                        L"or re-run with --bitlocker-fvek <hex> (the in-stack decrypt path).\n",
-                        candidates.size(), letter);
-                return false;
-            }
-            wprintf(L"[bitlocker] dictionary-unlocked\n");
-
-        } else if (!unlocked && dict_consent) {
-            /* the shipped-dictionary consent flag (--bitlocker-dict = the
-             * og's user-initiated password dialog; the cr::dict table) */
-            wprintf(L"[bitlocker] trying the shipped password dictionary...\n");
-            unlocked = win::bitlocker::unlock_with_dictionary(letter, nullptr, 0) == OK;
-=======
         bool unlocked = win::bitlocker::try_auto_unlock(letter) == OK;
         if (!unlocked && dict_consent) {
             /* N-064: the dictionary unlock aid runs ONLY on explicit user
@@ -578,21 +468,13 @@ bool open_volume_view(wchar_t letter, OpenResult& out, const std::wstring& fvek_
             wprintf(L"[bitlocker] still locked. Unlock with:\n"
                     L"  Unlock-BitLocker -MountPoint %c: -RecoveryPassword <key>\n"
                     L"or re-run with --bitlocker-fvek <hex> (the in-stack decrypt path),\n"
-                    L"or --bitlocker-pwddict <seed|file> / --bitlocker-dict to try a "
-                    L"password dictionary.\n",
-
-                    L"or --bitlocker-dict / --bitlocker-pwddict <path|seed> to try the "
-                    L"password dictionaries.\n",
+                    L"or --bitlocker-dict to try the shipped password dictionary.\n",
                     letter);
             return false;
         } else {
             wprintf(L"[bitlocker] auto-unlocked\n");
         }
-        wprintf(L"[bitlocker] auto-unlocked\n");
     }
-    /* N-064 union note: the dictionary attempts above consumed both
-     * consent surfaces; a volume that became readable (auto-unlock or a
-     * dictionary success) needs no further password work. */
     if (have_key && (bst == win::bitlocker::Status::Locked ||
                      bst == win::bitlocker::Status::Unknown ||
                      bst == win::bitlocker::Status::UnlockedEncrypted)) {
@@ -697,41 +579,6 @@ int print_disks() {
     return 0;
 }
 
-/* ---------------------------------------------------------------------------
- * list-carve-formats (N-033's CLI half: the og host enumerates carvers
- * through EUGetAnalyserList/Map/Multimap to build its "which formats can
- * we carve" UI; the ABI counterpart cr_ui_carve_format_count/info landed
- * session 6 — this is the CLI projection of the same surface).
- * ------------------------------------------------------------------------- */
-
-int print_carve_formats() {
-    const uint32_t n = cr_ui_carve_format_count();
-    if (n == 0) {
-        wprintf(L"carve registry is empty\n");
-        return 1; /* never exit-0 on an empty registry - scripts must not
-                     mistake a broken table for "nothing to carve" */
-    }
-    wprintf(L"%u carve format(s)\n", n);
-    for (uint32_t i = 0; i < n; ++i) {
-        cr_ui_carve_format f{};
-        if (cr_ui_carve_format_info(i, &f) != 0) {
-            wprintf(L"row %u: enumeration failed\n", i);
-            return 1; /* FB-K01 family: a broken row is a failure, not a
-                         silent skip */
-        }
-        wchar_t magic[16 * 2 + 1] = L"";
-        if (f.magic_len > 0) {
-            for (uint32_t k = 0; k < f.magic_len && k < 16; ++k)
-                swprintf(magic + k * 2, 3, L"%02x", f.magic[k]);
-        }
-        wprintf(L"  [%2u] %-7s %-8hs min %10llu B  max %-10llu  conf %4u  %s%s\n", i,
-                f.layer == 0 ? L"grammar" : L"rawsign", f.ext,
-                static_cast<unsigned long long>(f.min_size),
-                static_cast<unsigned long long>(f.max_size), f.base_confidence,
-                f.magic_len ? L"magic " : L"", f.magic_len ? magic : L"-");
-    }
-    return 0;
-}
 
 /* ---------------------------------------------------------------------------
  * tree printing (shared by scan + tree commands)
@@ -783,6 +630,8 @@ void print_tree(tree::ResultTree& tree, const TreePrintFlags& f) {
             for (tree::FileNode* c = n->first_child(); c; c = c->next_sibling()) {
                 if (!c->props())
                     continue;
+                if ((c->props()->flags & tree::NODE_FLAG_JUNK_FILTERED) != 0)
+                    continue; /* M-018: the og's FilterFolder hidden set */
                 const std::string name = c->name_utf8();
                 const std::string full = path.empty() ? name : path + "\\" + name;
                 const bool is_dir = (c->props()->attributes & 0x10) != 0;
@@ -856,24 +705,6 @@ u64 file_size_cb(void* user) {
 
 int cmd_scan(int argc, wchar_t** argv, int& i) {
     /* M-033 pre-pass: --bitlocker-fvek may appear anywhere on the line
-     * (the target --volume is opened in the main loop below). N-064's
-     * BOTH consent flags ride the same pre-pass: --bitlocker-dict
-     * (valueless, the shipped dictionary) and --bitlocker-pwddict
-     * <file|seed> (explicit candidates). */
-    std::wstring fvek_hex;
-    std::wstring pwddict_arg;
-    bool dict_consent = false;
-    for (int k = i; k + 1 < argc; ++k) {
-
-     * (the target --volume is opened in the main loop below). N-064's two
-     * consent surfaces ride the same pre-pass: --bitlocker-pwddict
-     * <seed|file> (the pwddict module) and the valueless --bitlocker-dict
-     * (the shipped cr::dict table). */
-    std::wstring fvek_hex;
-    std::wstring pwddict_arg;
-    bool dict_consent = false;
-    for (int k = i; k + 1 < argc; ++k) {
-
      * (the target --volume is opened in the main loop below). N-064 adds
      * --bitlocker-dict the same way: the explicit consent flag, with an
      * OPTIONAL value - bare `--bitlocker-dict` tries the shipped
@@ -923,9 +754,9 @@ int cmd_scan(int argc, wchar_t** argv, int& i) {
         if (get_opt(argc, argv, i, L"--volume", &v)) {
             if (v.size() < 1)
                 return 1;
-            if (!open_volume_view(v[0], target, fvek_hex, pwddict_arg, dict_consent))
+            if (!open_volume_view(v[0], target, fvek_hex, dict_consent, dict_user))
 
-            if (!open_volume_view(v[0], target, fvek_hex, pwddict_arg, dict_consent))
+            if (!open_volume_view(v[0], target, fvek_hex, dict_consent, dict_user))
 
             if (!open_volume_view(v[0], target, fvek_hex, dict_consent, dict_user))
                 return 1;
@@ -1559,6 +1390,9 @@ int cmd_recover(int argc, wchar_t** argv, int& i) {
             for (tree::FileNode* c = n->first_child(); c; c = c->next_sibling()) {
                 if (!c->props())
                     continue;
+                if ((c->props()->flags & tree::NODE_FLAG_JUNK_FILTERED) != 0)
+                    continue; /* M-018: recover-all never writes the og's
+                               * hidden junk set */
                 const bool is_dir = (c->props()->attributes & 0x10) != 0;
                 const bool deleted = c->deleted_state() != tree::DeletedState::Active;
                 if (is_dir) {

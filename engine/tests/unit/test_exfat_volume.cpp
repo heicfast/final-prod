@@ -11,6 +11,7 @@
 #include <gtest/gtest.h>
 #include "cr/exfat/cr_exfat_engine.h"
 #include "cr/storage/cr_device.h"
+#include <algorithm>
 #include <cstring>
 #include <functional>
 #include <vector>
@@ -1757,3 +1758,157 @@ TEST(ExfatEngine, ValidBoundaryTimestampsStillPass) {
     EXPECT_FALSE(n1.empty()) << "Dec 31 23:59:58 must pass";
     EXPECT_FALSE(n2.empty()) << "2sec=29 must pass";
 }
+
+/* ---- M-014 completion (DFX24): the UTF-16 name-validity table ------- */
+/* The first landing left PTR_180045a00's table unimplemented on the
+ * premise that its bytes were "not recoverable from the corpus". The
+ * premise was wrong: og-codebase/exFATSearchDLL.dll ships the binary,
+ * and the 256 bytes at .rdata RVA 0x45A00 (file offset 0x44600 via the
+ * PE section map) are the table FUN_180003030 indexes with the HIGH
+ * byte of any char whose LOW byte is zero (byte order pinned by the
+ * raw disassembly at VA 0x180003030). These two tests prove the
+ * recovered table behaves as the og's gate. */
+
+TEST(ExfatEngine, NameUtf16TableInvalidCharRejected) {
+    /* U+0100 (low byte 0, high byte 0x01 - the table's zero at index 1)
+     * is invalid per FUN_180003030's table check. Fail-before: with the
+     * table check absent (the first landing), this set was emitted. */
+    auto img = build_exfat_image();
+    const size_t ROOT = 25 * 512;
+    const size_t AT = ROOT + 576;
+    SetBuilder sb;
+    sb.file_entry(0x20, EXFAT_TEST_TS);
+    sb.stream_entry(0x01, 10, 90, 512);
+    sb.name_entry(u"tab\u0100bad.dat"); /* 10 chars - U+0100 is ONE char */
+    std::memcpy(img.data() + AT, sb.entries.data(), sb.entries.size());
+    sb.finish_set(img, AT);
+    ExfatScanStats stats;
+    const auto names = m014_scan_names(std::move(img), &stats);
+    EXPECT_EQ(names.end(), std::find(names.begin(), names.end(), "tab\xE1\x80\x80" "bad.dat"))
+        << "U+0100 (table[0x01] == 0) must reject the set";
+    EXPECT_GE(stats.sets_gated, 1u);
+}
+
+TEST(ExfatEngine, NameUtf16TableAllowedCharAccepted) {
+    /* Boundary pin: U+1A00 (low byte 0, high byte 0x1A - table[0x1A] ==
+     * 1) passes the same gate. Proves the check is the og's table, not
+     * a blanket zero-low-byte reject (U+1A00 and U+0100 differ only in
+     * the table's verdict). */
+    auto img = build_exfat_image();
+    const size_t ROOT = 25 * 512;
+    const size_t AT = ROOT + 576;
+    SetBuilder sb;
+    sb.file_entry(0x20, EXFAT_TEST_TS);
+    sb.stream_entry(0x01, 10, 90, 512);
+    sb.name_entry(u"tab\u1A00ok.dat");
+    std::memcpy(img.data() + AT, sb.entries.data(), sb.entries.size());
+    sb.finish_set(img, AT);
+    ExfatScanStats stats;
+    const auto names = m014_scan_names(std::move(img), &stats);
+    EXPECT_NE(names.end(), std::find(names.begin(), names.end(), "tab\xE1\xA8\x80" "ok.dat"))
+        << "U+1A00 (table[0x1A] == 1) must survive the gate";
+    EXPECT_EQ(stats.sets_gated, 0u);
+}
+
+/* ---- M-052 (diff-to-fix): the exFAT recycle-bin $I/$R pairing -------- */
+
+TEST(ExfatEngine, RecyclePairingMirrored) {
+    /* M-052: the exFAT engine mirrors the FAT recycle handling
+     * ("$RECYCLE.BIN handling mirrored from FAT engine (multiple
+     * _stricmp sites)", fat-exfat-engine-internals.md :71). A live
+     * $RECYCLE.BIN\S-1-5-21\$I5F3K9 + $R5F3K9.jpg pair must surface as
+     * the original name with the $I's size/time. Fail-before: two
+     * raw-named files with no pairing. */
+    auto img = build_exfat_image();
+    const size_t FAT = 24 * 512;
+    put32v(img, FAT + 12 * 4, 0xFFFFFFFF); /* $I record cluster */
+    put32v(img, FAT + 19 * 4, 0xFFFFFFFF); /* $R content cluster */
+    put32v(img, FAT + 90 * 4, 0xFFFFFFFF); /* bin directory cluster */
+    const size_t ROOT = 25 * 512;
+    size_t at = ROOT + 576; /* past the fixture's own sets */
+    /* the bin directory set (live, FAT chain) */
+    {
+        SetBuilder sb;
+        sb.file_entry(0x10 /*Directory*/, EXFAT_TEST_TS);
+        sb.stream_entry(0x01, 12, 90, 512); /* "$RECYCLE.BIN" = 12 chars */
+        sb.name_entry(u"$RECYCLE.BIN");
+        std::memcpy(img.data() + at, sb.entries.data(), sb.entries.size());
+        sb.finish_set(img, at);
+        at += sb.entries.size();
+    }
+    /* the bin content: SID folder + $I + $R (cluster 90 = sector 113) */
+    const size_t BIN = 25 * 512 + (90 - 2) * 512;
+    size_t bat = BIN;
+    {
+        SetBuilder sb;
+        sb.file_entry(0x10, EXFAT_TEST_TS);
+        sb.stream_entry(0x01, 8, 91, 512);
+        sb.name_entry(u"S-1-5-21");
+        std::memcpy(img.data() + bat, sb.entries.data(), sb.entries.size());
+        sb.finish_set(img, bat);
+        bat += sb.entries.size();
+    }
+    {
+        SetBuilder sb;
+        sb.file_entry(0x20, EXFAT_TEST_TS);
+        sb.stream_entry(0x01, 7, 12, 544); /* $I5F3K9 */
+        sb.name_entry(u"$I5F3K9");
+        std::memcpy(img.data() + bat, sb.entries.data(), sb.entries.size());
+        sb.finish_set(img, bat);
+        bat += sb.entries.size();
+    }
+    {
+        SetBuilder sb;
+        sb.file_entry(0x20, EXFAT_TEST_TS);
+        sb.stream_entry(0x01, 11, 19, 2048); /* $R5F3K9.jpg */
+        sb.name_entry(u"$R5F3K9.jpg");
+        std::memcpy(img.data() + bat, sb.entries.data(), sb.entries.size());
+        sb.finish_set(img, bat);
+    }
+    /* the SID subfolder (cluster 91) holds nothing; the $I/$R sit beside
+     * it for simplicity - the pairing is token-based across the bin */
+    /* the $I record image at cluster 12 (sector 35): v2 fixed form */
+    {
+        const size_t IREC = 25 * 512 + (12 - 2) * 512;
+        put32v(img, IREC, 2);                /* version 2 */
+        put32v(img, IREC + 8, 777);          /* original size */
+        put32v(img, IREC + 16, 0);           /* FILETIME lo */
+        put32v(img, IREC + 20, 29);          /* FILETIME hi */
+        put32v(img, IREC + 24, 15);          /* pathlen */
+        const char16_t* path = u"C:\\photo.jpg";
+        for (int i = 0; i < 15; ++i)
+            put16(img, IREC + 28 + i * 2, path[i]);
+    }
+    /* $R content marker at cluster 19 (sector 42) */
+    std::memcpy(img.data() + 25 * 512 + (19 - 2) * 512, "EXFAT-RECYCLED", 14);
+
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    auto* ra = tree.add_root(u"Found");
+    auto* rd = tree.add_root(u"Deleted");
+    auto* rl = tree.add_root(u"Lost");
+    ExfatScanFlags flags;
+    ExfatScanStats stats;
+    ASSERT_EQ(scan_exfat(&dev, flags, nullptr, nullptr, nullptr, tree, ra, rd, rl, stats), OK);
+    EXPECT_EQ(stats.recycle_info, 1u) << "the $I set must parse";
+    EXPECT_EQ(stats.recycle_remapped, 1u) << "the $R set must remap";
+    auto all = collect_all(tree);
+    tree::FileNode* photo = nullptr;
+    int raw_r = 0, raw_i = 0;
+    for (auto* n : all) {
+        const std::string nm = n->name_utf8();
+        if (nm == "photo.jpg")
+            photo = n;
+        if (nm == "$R5F3K9.jpg")
+            ++raw_r;
+        if (nm == "$I5F3K9")
+            ++raw_i;
+    }
+    ASSERT_NE(photo, nullptr) << "the $R must surface as its original name";
+    EXPECT_EQ(photo->props()->logical_size, 777u) << "size from the $I record";
+    EXPECT_EQ(photo->props()->times.modified, (u64(29) << 32)) << "deletion FILETIME";
+    EXPECT_EQ(photo->deleted_state(), tree::DeletedState::Deleted);
+    ASSERT_EQ(photo->props()->extents.size(), 1u);
+    EXPECT_EQ(photo->props()->extents[0].offset, u64(25 + 17) * 512) << "$R content cluster 19";
+    EXPECT_EQ(raw_i, 0) << "bin metadata never surfaces";
+    EXPECT_EQ(raw_r, 0) << "the raw $R name is remapped away";}

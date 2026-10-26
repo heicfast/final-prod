@@ -249,3 +249,33 @@ check, not an emission gate). Proof: 5 fail-before tests + 1 boundary
 guard; suite 743/743. B3/B4/B10 verdict: MATCH (the empty-file policy
 is the og's own — matched, not diverged). Remaining on this module:
 none from this finding's registry.
+
+## Session-24 completion verdict (M-014 UTF-16 table, DFX24, 2026-10-26)
+
+The session-35 "not implemented" note on the 0xHH00 UTF-16 validity
+table is superseded: the table IS recoverable — the corpus ships
+`og-codebase/exFATSearchDLL.dll`, and the 256 bytes at .rdata RVA
+0x45A00 (file offset 0x44600, PE section map) were extracted
+byte-exact, with the byte order pinned by the raw disassembly at VA
+0x180003030 (invalid iff low byte == 0 AND table[high byte] == 0; the
+zero-flag set is the control/Windows-illegal positions). Wired into
+`name_fragment_gates_ok` (terminator-aware loop over the fragment's 15
+chars); `NameUtf16TableInvalidCharRejected` fail-before EXECUTED (RED
+with the table loop disabled), `NameUtf16TableAllowedCharAccepted`
+pins the U+1A00-passes/U+0100-fails boundary. The B10 (names) cell
+keeps its MATCH verdict — now without the residual-FP asterisk.
+
+---
+
+## Session-35 verdict update (M-052 FIXED, 2026-10-26)
+
+**Recycle-bin pairing mirrored — `M-052` FIXED.** "$RECYCLE.BIN
+handling mirrored from FAT engine" (fat-exfat-engine-internals.md :71)
+is now true in the core too: the exFAT walk carries the bin context
+through walk_entries/recurse_dir (and through the M-013 oracle's
+parked-set re-walks — ParkedSet.in_bin), parses in-bin $I records from
+the cluster chain, and remaps $R sets to their original name/size/time
+with the Deleted state. Same shared model as FAT (cr_recycle.h), same
+four-root recognition set (exFATSearchDLL :40583-40592, verified
+first-hand). Proof: ExfatEngine.RecyclePairingMirrored (fail-before
+EXECUTED). B4/B5/D11 verdict: MATCH.
