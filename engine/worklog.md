@@ -11530,9 +11530,6 @@ Stage Summary:
   every push. The audit is NOT closed - the MAJOR 18 + MINOR 27 remain,
   with the lane map above. No release tag (honest: the tier is not
   closed).
-<<<<<<< HEAD
->>>>>>> 99f45aecd6f48aca32dad902c9adb4ae029f1d61
-
 ---
 Task ID: DFX22-T7 (N-014 — atomic stage checkpoints)
 Agent: main engineer (diff-to-fix minors-first session 22)
@@ -11563,7 +11560,8 @@ Work Log:
 Stage Summary:
 - Session tally: 9 resolutions. MINOR live count 29. Next: N-059
   (Btrfs/ZFS session extras) or N-071 (device enumeration breadth).
-=======
+
+---
 Task ID: DFX17-F3 (session 17, finding 3 — N-029/N-016b)
 Agent: main engineer (diff-to-fix fix session 17 — DFX17, MINOR-first mandate)
 Task: N-016b — the open half of the N-029 group (N-016a landed with the
@@ -11652,4 +11650,3 @@ Work Log:
 Stage Summary:
 - M-017 FIXED (session tally: 4 MAJORs + 2 CI repairs). Next: M-020
   (btrfs profile machinery + default subvol).
->>>>>>> e1b5dcf06e81ec4ae860e34548e8f7a2e06230cc
