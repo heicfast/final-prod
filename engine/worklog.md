@@ -15700,6 +15700,41 @@ Stage Summary:
 - Remote green again. M-030 verification starts now (the lane's claim).
 
 ---
+Task ID: DFX34-T6 (session 34, sixth landing — N-007 FIXED)
+Agent: main engineer (diff-to-fix fix session 34 — DFX34)
+Task: N-007 — ReFS page-signature discovery width (full memcmp vs the
+og's first-DWORD dispatch).
+
+Work Log:
+- Corpus re-verified FIRST-HAND before the change:
+  ReFSSearchDLL_decompiled.c :11689-11720 — param_4==1/2/3 selects
+  "SUPBMSB+ReFSFSRS"/"CHKPSUPBMSB+ReFSFSRS"/"MSB+ReFSFSRS"; the gate is
+  `*param_2 == *(int*)pcVar4` (FIRST DWORD only); full validation is the
+  ref-parser's (FUN_18000ff60). CONFIRMED-DIVERGENCE.
+- Scope finding: the ENGINE's page acceptance
+  (cr_refs_engine.cpp:152) was already first-DWORD og-exact; the gap was
+  detect_refs — the probe the lost-partition discovery consumes
+  (cr_candidates.cpp:456) — so a lost ReFS partition whose pages carry
+  late-byte corruption was missed at candidate time.
+- Fix per the finding's plan: detect_refs's page loop dispatches on the
+  first DWORD (three distinct keys "SUPB"/"CHKP"/"MSB+" — no variant
+  masking at 4 bytes); the full-width memcmp survives as the
+  `RefsInfo::signature_partial` grading flag (found + flagged, never
+  rejected); last-hit-wins msb_offset order + checkpointed mapping
+  unchanged.
+- Tests: RefsDetect.PartialSignaturePageDetectedAndFlagged ("SUPB" +
+  corrupt tail -> found, flagged) + RefsDetect.FullSignaturePageNot-
+  FlaggedPartial (the inverse boundary). Fail-before EXECUTED: fix
+  stashed -> the test unit does not compile (no signature_partial
+  member) — the capability was absent. Suite 893/893.
+- Audit trail: N-007 Resolution + FIXED/ move (I-004's ACKNOWLEDGED
+  Resolution rides along; both halves closed), RESOLVED-INDEX row,
+  matrix refs row, modules/refs.md session-34 verdict table.
+
+Stage Summary:
+- N-007 FIXED (session tally: N-065 verified-closure + N-007 fixed).
+  MINOR open: N-072 only. Next: N-072 (Btrfs cache + ZFS label retry),
+  then the MAJOR tier.
 Task ID: DFX36-CLAIM (session 36 — lane claim, posted before work)
 Agent: main engineer (DFX36 — diff-to-fix execution session 36)
 Task: Lane claim (protocol): S-034 (SEVERE — the ZFS ring txg-history walk,
@@ -15724,6 +15759,35 @@ Stage Summary:
   ring walk + addBlock + the ZplNode visitor path).
 
 ---
+Task ID: DFX34-T7 (session 34, seventh landing — the M-052/N-079 collision repair + the N-007 convergence)
+Agent: main engineer (diff-to-fix fix session 34 — DFX34)
+Task: Repair the M-052 multi-lane collision residue (main RED on the
+N-079 test) + absorb the convergent N-007 second landing.
+
+Work Log:
+- Root cause of the red: the 53b7d68 convergence repair adopted
+  c33c64b's engine files, which carry the N-079 scope defect (the
+  $I/$R name-prefix gate matches everywhere), while the tree kept
+  76d4878's N-079 pin test — plus a union-glued missing brace in
+  test_exfat_volume.cpp and a stray c33c64b cr_recycle.cpp (a .cpp
+  variant of 76d4878's header-only model with a different RecycleInfo
+  shape).
+- Repair: adopted 76d4878's coherent set wholesale (cr_mftwalk with the
+  bin-membership gate via recycle::is_bin_root, the header-only
+  cr_recycle.h, both engines' quick scans + headers + tests); removed
+  the stray .cpp + its CMake entry; fixed the glued test brace.
+- N-007 convergence: the remote ALSO landed N-007 (lambda-based
+  first-DWORD dispatch — equivalent semantics to mine); adopted origin's
+  implementation (first-landing-wins) and kept THIS lane's two proof
+  tests (the remote landing shipped none). Both RefsDetect partial
+  tests green on the adopted implementation.
+- Suite 894/894; gate 0 FAIL; zero markers in src/include/tests.
+
+Stage Summary:
+- Main green again. N-007 stands FIXED (convergent; this lane's tests
+  are the proof set). MINOR open: N-072 only. Next: N-072, then MAJORs
+  (M-030/M-034/M-039/M-040/M-048 — verifying which the parallel lanes
+  drain while I work).
 Task ID: DFX24-T8 (M-034 + the M-052 convergence union)
 Agent: DFX24 (session 24, the MAJOR lane)
 Task: M-034 NAS scope disposition; the convergent-M-052 union repair
@@ -15763,6 +15827,7 @@ Work Log:
 Stage Summary:
 - main green again. Session tally: 5 fixes (M-020, M-025, M-018, M-048,
   N-007) + 2 multi-lane repairs (T4, T7).
+<<<<<<< HEAD
 ---
 Task ID: DFX24-T5 (M-039)
 Agent: DFX24 (session 24, the MAJOR lane)
@@ -15776,3 +15841,5 @@ Work Log:
 
 Stage Summary:
 - M-039 FIXED. Remaining MAJOR: M-030, M-040.
+=======
+>>>>>>> 5f2e2ad6566e1cb15620ec25b5e86a73a31fd55b

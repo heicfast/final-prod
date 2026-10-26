@@ -65,7 +65,7 @@ Core (audited commit `67193b6` **including concurrent GAP-S6-3 fix `7797bd6`**):
 
 | ID | Severity | One-line |
 |---|---|---|
-| N-007 | MINOR | Full-signature memcmp vs og first-DWORD (corrupt-page tolerance) |
+| N-007 | **FIXED (s34 DFX34)** — first-DWORD discovery + `signature_partial` grading (findings/FIXED/) |
 | I-004 | INFO | Version-gate superset 1.x–3.x (documented; og gates 3.4+/1.x) |
 | (project GAP) | MAJOR | ReFS ADS/containers/security not implemented (og .mo family covers) — re-verified open |
 
@@ -223,6 +223,12 @@ see the reconciliation note in `tracked-open/OQ-RS-refs-session3.md`.)
   fields remain shape-decoded (documented simplification).
 
 
+## Session-34 fix leg (DFX34) — N-007 closed
+
+| Parameter | Verdict |
+|---|---|
+| B1/C19 page discovery | **MATCH** — first-DWORD dispatch (`SUPB`/`CHKP`/`MSB+`, ReFSSearchDLL :11689-11720 re-verified first-hand: the variant string is selected then `*param_2 == *(int*)pcVar4`); the full-width signature is the `signature_partial` grading flag, never a rejection. The engine's own page acceptance (cr_refs_engine.cpp:152) was already og-exact; this closes the probe the lost-partition path consumes (cr_candidates.cpp:456) |
+| I-004 version superset | ACKNOWLEDGED unchanged (D-48b; ReFS 2.x / 3.0-3.3 attempted by the core, refused by the og's gate — preserved, parity benches must not count the yield) |
 ## Session-33 verdict update (2026-10-26, DFX33 — N-007 FIXED)
 
 **B1/C19 → MATCH (post-fix):** page-signature discovery now matches the
