@@ -8005,3 +8005,29 @@ discarded, never adopted.
 **VERDICT:** ACCEPTED (registered divergence: own format + placement +
 default-off vs the og's undecoded beside-the-DLL write; the capability gap
 N-072 filed is closed).
+
+### D-90 — boot.ini ARC-path repair skipped; post-op ChkDsk.exe delegation is UI-layer (M-040 stages c/d, REGISTERED DISPOSITIONS)
+
+**OG (M-040 corpus set):** Fixup.mo carries a boot.ini ARC parser/rewriter
+(:2605+, :2999-3227) with \ArcName resolution (:2067-2193), and MainModule's
+undo chain runs `ChkDsk.exe %C: /F /X` synchronously (MM:83206) beside the
+BCD restore.
+
+**CORE:** boot.ini repair is NOT ported: the target envelope is Win7 SP1
+onward (the Win7-inclusive import gate), and Win7 boots through BCD — a
+legacy ARC-path repair has no recovery-relevant consumer in the envelope
+(the finding's own fix-plan note, adopted verbatim as the registered
+rationale). The chkdsk delegation stays OUT OF CORE: spawning an external
+binary is the host's job (the og itself spawns it from the host-side undo
+chain); the core's contract ends at the byte-exact undo record the host
+acts on. Stage (a) — the BCD offset rewriter — IS ported (cr/bcdfix, the
+consent-gated plan/execute/undo core); stage (b) — the UEFI NVRAM updater
+— is the recorded next step on the finding.
+
+**RISK:** a pre-Vista boot.ini-only system (outside the envelope) would
+lack the legacy repair — out of posture by construction. A host wanting
+the og's exact undo chain spawns chkdsk itself from the undo record.
+
+**VERDICT:** ACCEPTED (registered dispositions: (c) skippable per the
+Win7-boots-BCD envelope; (d) UI-layer responsibility; stages (a) landed +
+(b) tracked on M-040).

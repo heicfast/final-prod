@@ -15961,3 +15961,51 @@ Work Log:
 Stage Summary:
 - Main green again. Baseline: 898/898. Next: S-034 decode + fix (the
   only SEVERE), then M-030, M-040, N-072, then the OQ residuals.
+
+---
+Task ID: DFX34-T9 (session 34, ninth landing — M-040 stage (a): the BCD offset rewriter)
+Agent: main engineer (diff-to-fix fix session 34 — DFX34)
+Task: M-040 stage (a) — the BCD partition-offset rewriter, "the
+narrowest recovery-relevant piece" of the boot-chain repair family.
+
+Work Log:
+- Corpus re-verified FIRST-HAND before any code: FUN_180001980
+  (:499-599 — the 8-byte walk, the 0xffffffa0 allocated-cell marker,
+  the byte-offset u64 at cell+0x24 with LBA = value>>9, the MBR
+  signature u32 at cell+0x3C, the signature+LBA match) and FUN_180002520
+  (:957-992 — the -0x1c seek-back, the 8-byte WriteFile of new<<9, the
+  +0x14/+0x18 advance). CONFIRMED-DIVERGENCE (the family was never
+  dispositioned).
+- Landed (pure core): cr/bcdfix (include/cr/bcdfix + src/core/bcdfix)
+  — plan_rewrites (the cell scan), execute_plan (the injected-writer
+  apply under the P62 consent gate: no callback = DEFAULT-DENY,
+  ERR_REPAIR_REFUSED — the rawfixer S-008 model verbatim), undo_plan
+  (byte-exact original restore = the Bcd_RestoreBcdFile analog
+  :4562-4625).
+- Tests: 5 green — 4 of the finding's 5 named ones
+  (BcdFindsBootPartitionBySignature, BcdOffsetRewriteWritesNewLba,
+  BcdUndoRestoresOffsets, BootfixRefusedWithoutConsent) + the
+  BoundariesNeverPlan set (truncated/misaligned/null buffers, foreign
+  signature/LBA noise cells, writer-error propagation, empty-plan
+  no-op). The 5th named test (NvramPatchUpdatesLoadOption) is stage
+  (b)'s. Fail-before by construction (the module did not exist).
+  Suite 914/914.
+- Dispositions registered (D-90, PARITY-DELTAS): boot.ini SKIPPABLE
+  (Win7 boots BCD — the plan's own envelope note); post-op ChkDsk.exe
+  UI-LAYER (external-binary delegation; the core's contract ends at the
+  byte-exact undo record). Stage (b) NVRAM (EFIBoot state-4 :3860-3960
+  + the injected-resolver test design) + the win-layer file IO (hive
+  force-unload, SeRestore/SeBackup, the DASD 0x90083 + flush tail) +
+  the S-029 post-apply wiring = the precise tracked continuation ON the
+  finding — the finding stays OPEN on the family remainder, no silent
+  leave-behind.
+- Audit trail: the finding's stage-Resolution addendum, the new
+  modules/boot-repair.md module row, the CROSS-REF-MATRIX M-040 row,
+  PARITY-DELTAS D-90, this worklog entry.
+
+Stage Summary:
+- M-040 stage (a) landed (the finding stays open on stages (b) + the
+  win layer, precisely tracked). Session tally: N-007 FIXED, N-065
+  FIXED-ALREADY, N-072 FIXED, M-040 stage-a landed, N-064
+  convergent-absorbed (+5 main-red repairs; the MINOR tier drained to
+  EMPTY with the parallel lanes).
