@@ -220,6 +220,26 @@ open question) settles it and is the bench stage's next step.
 (173 findings + RESOLVED-INDEX). Next on this lane: N-049 (lost-record
 field richness) → N-050 → N-033 → N-064.
 
+## Session-23 delta, batch 3 (2026-10-26 — DFX29: N-049 verified already-landed + the missing pin)
+
+**N-049 FIXED-ALREADY (via M-042's REC_PARTITION_CONTEXT v2, `63a3a77`):**
+the finding's full pinned field list — bps, SPC, hidden_sectors, flags
+bit0=size_from_device_end — landed with M-042's resume-disk-truth pass
+before this session; verified in-source on the current tree (the v2
+struct, both save/load sites, v1 back-compat zeroed). The per-hit
+crash-safety title half = M-042's per-hit checkpoints + N-014's atomic
+rename. The finding's named-but-missing reproduction ADDED:
+`ResumeRevalidation.SizeSourceFlagRoundTrip` (flag true round-trips +
+the inverse no-false-positive half) — passes on the current tree, the
+FIXED-ALREADY proof. The optional capped-evidence list deliberately NOT
+persisted (would fight M-042's re-probe-on-resume design — recorded as
+reviewed in the Resolution). Suite **754/754**.
+
+**Post-fix counts:** SEVERE **0** · MAJOR 14 · MINOR **13** · INFO 0
+open (22 acknowledged in FIXED/) · tracked-open 11 · FIXED/ **178** files
+(177 findings + RESOLVED-INDEX). Next on this lane: N-050 (recognition contract) →
+N-033 → N-064.
+
 <!-- DFX16 note: session 16 ran as a parallel lane in the same window as
      sessions 17-22; its delta is recorded here for chronology. -->
 

@@ -13070,6 +13070,31 @@ Stage Summary:
   this lane: OQ-Z2 (addBlock from_txg/birth_txg gate).
 
 ---
+Task ID: DFX29-T2 (session 23 lane, fourth fix — N-049 FIXED-ALREADY + pin)
+Agent: main engineer (diff-to-fix fix session 29-lane — DFX29)
+Task: N-049 lost-record field richness.
+
+Work Log:
+- Verified in-source on the current tree BEFORE any change: M-042's
+  REC_PARTITION_CONTEXT v2 (63a3a77) carries the finding's full pinned
+  field list (bytes_per_sector, sectors_per_cluster, hidden_sectors,
+  flags bit0=size_from_device_end + bit1 geometry-valid); the save path
+  stamps them (cr_scan.cpp:1524-1533) and the load restores them
+  (:1651-1654); v1 back-compat zeroed. Per-hit crash safety = M-042
+  checkpoints + N-014 atomic rename. Classification: FIXED-ALREADY.
+- The finding's named test SizeSourceFlagRoundTrip was missing (only
+  CandidateGeometryRoundTrip existed): ADDED as the FIXED-ALREADY
+  reproduction — flag true round-trips + the inverse no-false-positive
+  half. Passes on the current tree.
+- The optional capped-evidence list deliberately not persisted (would
+  fight M-042's re-probe-on-resume design) — recorded as a reviewed
+  choice in the Resolution.
+- Suite 754/754. Audit trail: Resolution (FIXED-ALREADY), FIXED/ move,
+  index row, matrix session row, SUMMARY batch-3 delta + counts.
+
+Stage Summary:
+- Tally 4 (N-009 group, M-057, N-036, N-049). MINOR 13 remain. Next:
+  N-050 (recognition contract boot-only).
 Task ID: DFX31-N064 (session 31, MINOR tail-first lane — finding 1)
 Agent: main engineer (diff-to-fix fix session 31 — DFX31)
 Task: N-064 — the Dict password-dictionary unlock aid (BitLocker
