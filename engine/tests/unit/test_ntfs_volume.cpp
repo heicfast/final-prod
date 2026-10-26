@@ -18,6 +18,7 @@
 #include "cr/ntfs/cr_fixup.h"
 #include "cr/ntfs/cr_bitmap.h"
 #include "cr/ntfs/cr_mftwalk.h"
+#include "cr/check/cr_fscheck.h"
 #include "cr/compress/cr_decomp.h"
 #include "cr/storage/cr_device.h"
 #include "cr/session/cr_records.h"
@@ -25,6 +26,7 @@
 #include "cr/storage/cr_freemap.h"
 #include <array>
 #include <cstring>
+#include <cstdio>
 #include <functional>
 #include <vector>
 
@@ -4475,4 +4477,131 @@ TEST(NtfsVolume, RecycleBinScopeOutOfBinDollarFilesStayRaw) {
     ASSERT_NE(real_bin, nullptr) << "the in-bin pair must still remap";
     EXPECT_EQ(real_bin->props()->logical_size, 2048u);
     EXPECT_EQ(real_bin->deleted_state(), tree::DeletedState::Deleted);
+}
+
+/* ---- M-041 (diff-to-fix): the damage-audit check phase, NTFS pass ---- */
+
+namespace {
+
+bool ntfs_fscheck_has(const cr::fscheck::FsCheckReport& r, u32 code) {
+    for (const auto& e : r.errors)
+        if (e.code == code)
+            return true;
+    return false;
+}
+
+/* resident $VOLUME_INFORMATION (0x70) carrying major/minor - the version
+ * gate's source ($Volume, the og's GetNTFSVersion consumer) */
+void attr_volume_info(RecBuilder& rb, u8 major, u8 minor) {
+    const u32 voff = 0x18;
+    const u32 vlen = 0x10; /* u64 reserved + major/minor + flags/pad */
+    const u32 alen = (voff + vlen + 7) / 8 * 8;
+    const u32 pos = rb.attr_pos;
+    RecBuilder::u32_from_bytes_le_wr(rb.buf, pos + 0, 0x70);
+    RecBuilder::u32_from_bytes_le_wr(rb.buf, pos + 4, alen);
+    rb.buf[pos + 8] = 0; /* resident */
+    rb.buf[pos + 9] = 0; /* unnamed */
+    RecBuilder::u16_from_bytes_le_wr(rb.buf, pos + 10, u16(voff));
+    RecBuilder::u16_from_bytes_le_wr(rb.buf, pos + 16, u16(vlen & 0xFFFF));
+    RecBuilder::u16_from_bytes_le_wr(rb.buf, pos + 20, u16(voff));
+    rb.buf[pos + voff + 8] = major;
+    rb.buf[pos + voff + 9] = minor;
+    rb.attr_pos += alen;
+}
+
+} // namespace
+
+TEST(NtfsCheck, CleanVolumeReportsNoErrors) {
+    /* the dump image is the bitmap-consistent fixture (its meta runs do
+     * not overlap, unlike build_image's known MFT/MIRR overlap quirk):
+     * a healthy volume audits clean through every phase */
+    Image img;
+    build_dump_image(img);
+    MemDevice dev(img.raw(), img.geom());
+    cr::fscheck::FsCheckReport r;
+    ASSERT_EQ(cr::fscheck::check_ntfs_volume(&dev, r), cr::OK);
+    EXPECT_TRUE(r.ok()) << "first=" << cr::fscheck::check_code_text(r.first_code())
+                        << " count=" << r.errors.size();
+    EXPECT_GE(r.records_scanned, 6u);
+}
+
+TEST(NtfsCheck, VersionGateRejectsUnknownVersion) {
+    /* M-041: the og's NTFS version gate (FileSystemCheck :2994-3003 -
+     * accepted set {0x102, 3, 0x301} = 1.2/3.0/3.1, else 0x100a). A
+     * $Volume carrying major 4 must fail; major 3 minor 1 must pass. */
+    Image img;
+    build_dump_image(img);
+    {
+        RecBuilder rb;
+        rb.header(3, RECORD_IN_USE);
+        rb.attr_si(0x06);
+        rb.attr_file_name(5, u"$Volume", FILE_NAME_WIN32, 0x06, 0, 0);
+        attr_volume_info(rb, 4, 0);
+        rb.finish();
+        std::memcpy(img.sec(D_MFT_LCN + 6), rb.buf.data(), RECORD_SIZE);
+    }
+    MemDevice dev(img.raw(), img.geom());
+    cr::fscheck::FsCheckReport rep;
+    ASSERT_EQ(cr::fscheck::check_ntfs_volume(&dev, rep), cr::OK);
+    EXPECT_TRUE(ntfs_fscheck_has(rep, 0x100a));
+
+    /* the accepted 3.1 passes the same gate */
+    Image img2;
+    build_dump_image(img2);
+    {
+        RecBuilder rb2;
+        rb2.header(3, RECORD_IN_USE);
+        rb2.attr_si(0x06);
+        rb2.attr_file_name(5, u"$Volume", FILE_NAME_WIN32, 0x06, 0, 0);
+        attr_volume_info(rb2, 3, 1);
+        rb2.finish();
+        std::memcpy(img2.sec(D_MFT_LCN + 6), rb2.buf.data(), RECORD_SIZE);
+    }
+    MemDevice dev2(img2.raw(), img2.geom());
+    cr::fscheck::FsCheckReport rep2;
+    ASSERT_EQ(cr::fscheck::check_ntfs_volume(&dev2, rep2), cr::OK);
+    EXPECT_FALSE(ntfs_fscheck_has(rep2, 0x100a)) << "NTFS 3.1 must pass the gate";
+}
+
+TEST(NtfsCheck, BitmapFreeButAllocatedReported) {
+    /* M-041: a record's datarun at an LCN the on-disk $Bitmap marks FREE
+     * (0x1003, the og's "Bitmap mark it as free!!!" :3196-3209). LCN 150
+     * is clear in the dump fixture's bitmap. */
+    Image img;
+    build_dump_image(img);
+    {
+        RecBuilder rb;
+        rb.header(11, RECORD_IN_USE);
+        rb.attr_si(0x20);
+        rb.attr_file_name(5, u"ghostclaim.dat", FILE_NAME_WIN32_AND_DOS, 0x20, 512, 512);
+        rb.attr_data_runlist(150, 1, 512);
+        rb.finish();
+        std::memcpy(img.sec(D_MFT_LCN + 22), rb.buf.data(), RECORD_SIZE);
+    }
+    MemDevice dev(img.raw(), img.geom());
+    cr::fscheck::FsCheckReport r;
+    ASSERT_EQ(cr::fscheck::check_ntfs_volume(&dev, r), cr::OK);
+    EXPECT_TRUE(ntfs_fscheck_has(r, 0x1003));
+}
+
+TEST(NtfsCheck, MftBitmapCrossLinkReported) {
+    /* M-041: two records claiming the same allocated LCN (0x1002, the
+     * og's fresh-bitmap double-claim, "Please use 'Chkdsk' first!!!"
+     * :3211-3224). The GUID-dump record (10) claims D_DUMP_LCN 100..107;
+     * record 12 claims the same range. */
+    Image img;
+    build_dump_image(img);
+    {
+        RecBuilder rb;
+        rb.header(12, RECORD_IN_USE);
+        rb.attr_si(0x20);
+        rb.attr_file_name(5, u"clash.dat", FILE_NAME_WIN32_AND_DOS, 0x20, 4096, 4096);
+        rb.attr_data_runlist(D_DUMP_LCN, 2, 1024);
+        rb.finish();
+        std::memcpy(img.sec(D_MFT_LCN + 24), rb.buf.data(), RECORD_SIZE);
+    }
+    MemDevice dev(img.raw(), img.geom());
+    cr::fscheck::FsCheckReport r;
+    ASSERT_EQ(cr::fscheck::check_ntfs_volume(&dev, r), cr::OK);
+    EXPECT_TRUE(ntfs_fscheck_has(r, 0x1002));
 }

@@ -13,6 +13,7 @@
  */
 
 #include "cr/orchestrator/cr_scan.h"
+#include "cr/check/cr_fscheck.h" /* M-041 */
 #include "cr/cr_log.h"
 #include "cr/cr_bits.h"
 #include "cr/cr_text.h"
@@ -1013,6 +1014,44 @@ u32 ScanController::run(IStorageDevice* slice, CancelToken* cancel, bool (*progr
         errmod::Guard g(errmod::kOrchestrator);
         publish_owner_module_(errmod::kOrchestrator);
         cfg_.fs_hint = probe_family(pipe);
+    }
+
+    /* M-041 (diff-to-fix): the damage-audit check phase - the og's
+     * FileSystemCheck.mo position (after any repair, before the
+     * engines). READ-ONLY: the report lands in ScanStats and NEVER
+     * aborts the scan (the og's stance - volumes that resist checks
+     * fall through to scanning/carving the same way). The og's check
+     * classes cover FAT and NTFS; other families skip silently. */
+    if (cfg_.run_fs_check && !(cancel && cancel->checkpoint())) {
+        /* reads through the RAW slice, NOT the retry pipe: the check is
+         * an advisory pre-pass (the og's check phase is its own object),
+         * and its read failures must never enter the scan's error map -
+         * the map's per-range attribution belongs to the engine passes
+         * (ScanEvents.ErrorRangeCarriesModuleOperationAttempts pins the
+         * engine-stamp contract; a pipe-reading check stage stole the
+         * attribution on first-touch sectors). A raw-read failure inside
+         * a phase is the report's own CHECK_EXCEPTION, never a scan
+         * error. */
+        cr::fscheck::FsCheckReport fsr;
+        u32 crc = ERR_UNSUPPORTED;
+        if (cfg_.fs_hint == FsFamily::Fat)
+            crc = cr::fscheck::check_fat_volume(slice, fsr, cancel);
+        else if (cfg_.fs_hint == FsFamily::Ntfs)
+            crc = cr::fscheck::check_ntfs_volume(slice, fsr, cancel);
+        if (crc == OK || crc == ERR_UNSUPPORTED) {
+            stats.fs_check_status = crc;
+            stats.fs_check_errors = fsr.errors.size();
+            stats.fs_check_first_code = fsr.first_code();
+            if (!fsr.errors.empty() && cr::log::enabled())
+                cr::log::write(cr::log::Level::Warn,
+                               "fs check: %llu error(s), first=0x%x (%s)",
+                               (unsigned long long)fsr.errors.size(),
+                               fsr.first_code(), cr::fscheck::check_code_text(fsr.first_code()));
+        } else {
+            /* a transport failure of the check itself never aborts the
+             * scan; record the status, keep the report empty */
+            stats.fs_check_status = crc;
+        }
     }
     /* volume facts for the session VolumeInfo (G-14) - recorded from the
      * caller's slice before the pipe wrapped it */

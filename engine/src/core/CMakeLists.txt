@@ -63,6 +63,7 @@ add_library(cr_core STATIC
     apply/cr_apply.cpp
     reghive/cr_reghive.cpp
     pwddict/cr_pwddict.cpp
+    check/cr_fscheck.cpp
     refs/cr_refs_engine.cpp
     orchestrator/cr_scan.cpp
     tree/cr_node.cpp

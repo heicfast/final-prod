@@ -1736,3 +1736,32 @@ TEST(Orchestrator, ReadPipeZeroCapacityDegradesToBareSlice) {
     EXPECT_EQ(nullptr, rp.chain);
     EXPECT_EQ(nullptr, rp.retry);
 }
+
+TEST(Orchestrator, CheckPhaseNeverAbortsScan) {
+    /* M-041: the damage-audit check phase is a READ-ONLY pre-scan stage.
+    * A DAMAGED FAT16 volume (orphan chain + FAT-copy disagreement) must
+    * still scan to completion with results - the report lands in the
+    * fs_check_* stats and the scan proceeds exactly like the og's
+    * fall-through stance. */
+    auto img = build_fat16();
+    constexpr size_t FAT1 = 2 * 512;
+    constexpr size_t FAT2 = 22 * 512;
+    /* damage: an orphaned live chain at cluster 12 (no dentry) */
+    put16(img, FAT1 + 12 * 2, 0xFFFF);
+    put16(img, FAT2 + 12 * 2, 0xFFFF);
+    /* damage: the copies disagree on cluster 10's successor */
+    put16(img, FAT2 + 10 * 2, 11 + 1);
+
+    MemDevice dev(std::move(img));
+    tree::ResultTree tree;
+    ScanConfig cfg;
+    cfg.run_carve = false; /* focus: the structured pass + the check */
+    ScanStats stats;
+    ScanController ctrl(tree, cfg);
+    u32 rc = ctrl.run(&dev, nullptr, nullptr, nullptr, stats);
+    ASSERT_EQ(OK, rc) << "the check phase must never abort the scan";
+    EXPECT_NE(stats.fs_check_first_code, 0u) << "the damaged volume must report";
+    EXPECT_GE(stats.fs_check_errors, 1u);
+    /* the structured results still exist (files_found > 0) */
+    EXPECT_GT(stats.files_found, 0u);
+}

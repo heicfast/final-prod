@@ -187,6 +187,14 @@ struct ScanConfig {
      * denied repair NEVER aborts the scan - the og falls through to
      * scanning/caving the unrepaired volume the same way. */
     bool pre_scan_repair = false;
+    /* M-041 (diff-to-fix): the damage-audit check phase (the og's
+     * FileSystemCheck.mo runs before/alongside its scan). ON by default
+     * = og parity: a read-only FAT/NTFS audit whose report lands in
+     * ScanStats (fs_check_* fields) and NEVER aborts or alters the
+     * scan. OFF = hosts that want the pure scan loop only. The og's
+     * check classes cover FAT and NTFS volumes; other families skip
+     * the stage silently (status stays 0). */
+    bool run_fs_check = true;
     struct RepairHooks {
         /* Called once per scan when analyze() produced a non-empty,
          * non-refused plan, before any write. Called on the scan thread
@@ -304,6 +312,14 @@ struct ScanStats {
      * (the og's per-hit persistence keeps the find; M-042) but its walked
      * files are detached from the tree and its counts report zero. */
     u64 lost_content_rejected = 0;
+    /* M-041 (diff-to-fix): the damage-audit check phase (the og's
+     * FileSystemCheck.mo) - a read-only pre-scan audit whose report
+     * NEVER aborts the scan. fs_check_first_code is the og's taxonomy
+     * value (0x1001..0x100e; 0 = clean / not run); fs_check_errors is
+     * the report length. */
+    u64 fs_check_errors = 0;
+    u32 fs_check_first_code = 0;
+    u32 fs_check_status = 0; /* transport status of the check itself */
     ReadErrorMap errors;
     std::vector<lost::Candidate> lost_candidates;
 
